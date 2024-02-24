@@ -4,12 +4,6 @@
 namespace ash
 {
 
-typedef struct PBRMaterial PBRMaterial;
-typedef struct PBRVertex   PBRVertex;
-typedef struct PBRMesh     PBRMesh;
-typedef struct PBRObject   PBRObject;
-typedef struct PBRPass     PBRPass;
-
 /// SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
 /// SEE:
 /// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
@@ -47,56 +41,35 @@ struct PBRMesh
   gfx::IndexType index_type           = gfx::IndexType::Uint16;
 };
 
-struct PBRDesc
-{
-  PBRMaterial material = {};
-  PBRMesh     mesh     = {};
-};
-
 struct PBRObject
 {
-  PBRDesc desc                  = {};
-  u32     descriptor_heap_group = 0;
+  PBRMaterial material              = {};
+  PBRMesh     mesh                  = {};
+  u32         descriptor_heap_group = 0;
+};
+
+struct PBRParams
+{
+  AmbientLight                 ambient_light         = {};
+  Span<DirectionalLight const> directional_lights    = {};
+  Span<PointLight const>       point_lights          = {};
+  Span<SpotLight const>        spot_lights           = {};
+  Span<AreaLight const>        area_lights           = {};
+  Span<PBRObject const>        objects               = {};
+  gfx::DescriptorSetLayout     descriptor_set_layout = nullptr;
+  gfx::DescriptorHeapImpl      descriptor_heap       = {};
+  gfx::Sampler                 sampler               = nullptr;
 };
 
 struct PBRPass
 {
-  Vec<PBRObject>           objects               = {};
-  SparseVec<u32>           id_map                = {};
-  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
-  gfx::DescriptorHeapImpl  descriptor_heap       = {};
-  gfx::Sampler             sampler               = nullptr;
-
   static void init(Pass self, RenderServer *server, uid32 id);
   static void deinit(Pass self, RenderServer *server);
-  static void acquire_scene(Pass self, RenderServer *server, uid32 scene);
-  static void release_scene(Pass self, RenderServer *server, uid32 scene);
-  static void acquire_view(Pass self, RenderServer *server, uid32 view);
-  static void release_view(Pass self, RenderServer *server, uid32 view);
-  static void release_object(Pass self, RenderServer *server, uid32 scene,
-                             uid32 object);
-  static void begin_frame(Pass self, RenderServer *server,
-                          gfx::CommandEncoderImpl const *encoder);
-  static void end_frame(Pass self, RenderServer *server,
-                        gfx::CommandEncoderImpl const *encoder);
-  static void begin(Pass self, RenderServer *server, PassBeginInfo const *info);
-  static void encode(Pass self, RenderServer *server,
-                     PassEncodeInfo const *info);
-  static void end(Pass self, RenderServer *server, PassEndInfo const *info);
 
-  static constexpr PassInterface const interface{.init          = init,
-                                                 .deinit        = deinit,
-                                                 .acquire_scene = acquire_scene,
-                                                 .release_scene = release_scene,
-                                                 .acquire_view  = acquire_view,
-                                                 .release_view  = release_view,
-                                                 .release_object =
-                                                     release_object,
-                                                 .begin_frame = begin_frame,
-                                                 .end_frame   = end_frame,
-                                                 .begin       = begin,
-                                                 .encode      = encode,
-                                                 .end         = end};
+  static constexpr PassInterface const interface{.init   = init,
+                                                 .deinit = deinit};
+
+  void execute(rdg::RenderGraph *graph, PBRParams const *params);
 };
 
 }        // namespace ash

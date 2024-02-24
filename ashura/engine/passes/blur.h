@@ -5,10 +5,6 @@ namespace ash
 {
 // TODO(lamarrr): should this be less general-purpose?
 // do we need to copy directly from the image?
-typedef struct BlurDesc   BlurDesc;
-typedef struct BlurObject BlurObject;
-typedef struct BlurPass   BlurPass;
-
 enum class BlurRadius : u8
 {
   None     = 0,
@@ -20,18 +16,11 @@ enum class BlurRadius : u8
   Radius32 = 32
 };
 
-struct BlurDesc
+struct BlurParams
 {
-  BlurRadius blur_radius      = BlurRadius::None;
-  Vec3       center           = {};
-  Vec3       half_extent      = {};
-  f32        border_thickness = 0;
-  Vec4       border_radii     = {};
-};
-
-struct BlurObject
-{
-  BlurDesc desc = {};
+  BlurRadius blur_radius = BlurRadius::None;
+  rdg::Attachment src         = {};
+  rdg::Attachment dst         = {};
 };
 
 // object-clip space blur
@@ -43,38 +32,13 @@ struct BlurObject
 // - using rendered stencil, directly-write (without blending) onto scene again
 struct BlurPass
 {
-  gfx::ComputePipeline     pipeline              = nullptr;
-  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
-  static void              init(Pass self, RenderServer *server, uid32 id);
-  static void              deinit(Pass self, RenderServer *server);
-  static void acquire_scene(Pass self, RenderServer *server, uid32 scene);
-  static void release_scene(Pass self, RenderServer *server, uid32 scene);
-  static void acquire_view(Pass self, RenderServer *server, uid32 view);
-  static void release_view(Pass self, RenderServer *server, uid32 view);
-  static void release_object(Pass self, RenderServer *server, uid32 scene,
-                             uid32 object);
-  static void begin_frame(Pass self, RenderServer *server,
-                          gfx::CommandEncoderImpl const *encoder);
-  static void end_frame(Pass self, RenderServer *server,
-                        gfx::CommandEncoderImpl const *encoder);
-  static void begin(Pass self, RenderServer *server, PassBeginInfo const *info);
-  static void encode(Pass self, RenderServer *server,
-                     PassEncodeInfo const *info);
-  static void end(Pass self, RenderServer *server, PassEndInfo const *info);
+  static void init(Pass self, RenderServer *server, uid32 id);
+  static void deinit(Pass self, RenderServer *server);
 
-  static constexpr PassInterface const interface{.init          = init,
-                                                 .deinit        = deinit,
-                                                 .acquire_scene = acquire_scene,
-                                                 .release_scene = release_scene,
-                                                 .acquire_view  = acquire_view,
-                                                 .release_view  = release_view,
-                                                 .release_object =
-                                                     release_object,
-                                                 .begin_frame = begin_frame,
-                                                 .end_frame   = end_frame,
-                                                 .begin       = begin,
-                                                 .encode      = encode,
-                                                 .end         = end};
+  static constexpr PassInterface const interface{.init   = init,
+                                                 .deinit = deinit};
+
+  void execute(rdg::RenderGraph *graph, BlurParams const *params);
 };
 
 }        // namespace ash

@@ -112,13 +112,6 @@ struct Camera
   Mat4       projection = {};
 };
 
-struct Attachment
-{
-  gfx::Image     image = nullptr;
-  gfx::ImageView view  = nullptr;
-  gfx::ImageDesc desc  = {};
-};
-
 struct MSAAConfig
 {
   gfx::SampleCount sample_count = gfx::SampleCount::None;
@@ -175,77 +168,10 @@ struct ViewConfig
   f32         chromatic_aberration = 0;
 };
 
-struct ViewAttachments
-{
-  Option<Attachment> color_attachment         = {};
-  Option<Attachment> depth_stencil_attachment = {};
-  Option<Attachment> resolve_color_attachment = {};
-};
-
-struct PassBeginInfo
-{
-  uid32                   view        = UID32_INVALID;
-  gfx::CommandEncoderImpl encoder     = {};
-  ViewAttachments const  *attachments = nullptr;
-  PassBinding            *binding     = nullptr;
-};
-
-/// @brief Arguments to encode the commands to render a batch of objects in a
-/// scene.
-struct PassEncodeInfo
-{
-  uid32                   view           = UID32_INVALID;
-  gfx::CommandEncoderImpl encoder        = {};
-  ViewAttachments const  *attachments    = nullptr;
-  PassBinding             binding        = nullptr;
-  bool                    is_transparent = false;
-  i64                     z_index        = 0;
-  Span<u32>               indices        = {};
-};
-
-struct PassEndInfo
-{
-  uid32                   view        = UID32_INVALID;
-  gfx::CommandEncoderImpl encoder     = {};
-  ViewAttachments const  *attachments = nullptr;
-  PassBinding             binding     = nullptr;
-};
-
-/// @init: add self and resources to server
-/// @deinit: remove self and resources
-/// @encode: sort scene objects belonging to passes for more efficient batching,
-/// and encode compute/graphics commands to gpu command encoder
-/// @acquire_scene: @acquire_view: new scene/view was added, add resources or
-/// begin tracking it
-/// @release_scene: @release_view: scene/view was removed, remove associated
-/// resources or stop tracking it
-///
-///
-/// @begin: allocate new resources or update existing resources
-/// based on the changed state of the scene. called at the beginning of the
-/// frame. i.e. camera buffers, transform buffers, staging buffers.
-/// can also be used for resource management, i.e. ring buffers of per-frame
-/// resources.
 struct PassInterface
 {
-  void (*init)(Pass self, RenderServer *server, uid32 id)             = nullptr;
-  void (*deinit)(Pass self, RenderServer *server)                     = nullptr;
-  void (*acquire_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
-  void (*release_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
-  void (*acquire_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
-  void (*release_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
-  void (*release_object)(Pass self, RenderServer *server, uid32 scene,
-                         uid32 object)                                = nullptr;
-  void (*begin_frame)(Pass self, RenderServer *server,
-                      gfx::CommandEncoderImpl const *encoder)         = nullptr;
-  void (*end_frame)(Pass self, RenderServer *server,
-                    gfx::CommandEncoderImpl const *encoder)           = nullptr;
-  void (*begin)(Pass self, RenderServer *server,
-                PassBeginInfo const *info)                            = nullptr;
-  void (*encode)(Pass self, RenderServer *server,
-                 PassEncodeInfo const *info)                          = nullptr;
-  void (*end)(Pass self, RenderServer *server,
-              PassEndInfo const *info)                                = nullptr;
+  void (*init)(Pass self, RenderServer *server, uid32 id) = nullptr;
+  void (*deinit)(Pass self, RenderServer *server)         = nullptr;
 };
 
 /// can be loaded from a DLL i.e. C++ with C-linkage => DLL
@@ -308,8 +234,21 @@ struct Scene
   Vec<AreaLight>        area_lights               = {};
   SparseVec<u32>        area_lights_id_map        = {};
   SceneObjects          objects                   = {};
-  i64                   lowest_z_index            = 0;
-  i64                   highest_z_index           = 0;
+
+  void                       transform();
+  Option<AmbientLight *>     get_ambient_light();
+  Option<DirectionalLight *> get_directional_light(uid32 id);
+  Option<PointLight *>       get_point_light(uid32 id);
+  Option<SpotLight *>        get_spot_light(uid32 id);
+  Option<AreaLight *>        get_area_light(uid32 id);
+  Option<uid32> add_directional_light(DirectionalLight const &light);
+  Option<uid32> add_point_light(PointLight const &light);
+  Option<uid32> add_spot_light(SpotLight const &light);
+  Option<uid32> add_area_light(AreaLight const &light);
+  void          remove_directional_light(uid32 id);
+  void          remove_point_light(uid32 id);
+  void          remove_spot_light(uid32 id);
+  void          remove_area_light(uid32 id);
 };
 
 struct SceneGroup
@@ -320,13 +259,14 @@ struct SceneGroup
 
 struct View
 {
-  Span<char const>     name              = {};
-  Camera               camera            = {};
-  uid32                scene             = 0;
-  BitVec<u64>          is_object_visible = {};
-  Vec<u32>             sort_indices      = {};
-  ViewConfig           config            = {};
-  StrDict<PassBinding> pass_bindings     = {};
+  Span<char const> name              = {};
+  Camera           camera            = {};
+  uid32            scene             = 0;
+  BitVec<u64>      is_object_visible = {};
+  Vec<u32>         sort_indices      = {};
+  ViewConfig       config            = {};
+
+  Result<Void, Error> frustum_cull();
 };
 
 struct ViewGroup
@@ -345,57 +285,60 @@ struct ViewGroup
 /// @remove_object: remove object and all its children
 struct RenderServer
 {
-  AllocatorImpl      allocator           = default_allocator;
-  gfx::DeviceImpl    device              = {};
-  gfx::PipelineCache pipeline_cache      = nullptr;
-  PassGroup          pass_group          = {};
-  SceneGroup         scene_group         = {};
-  ViewGroup          view_group          = {};
-  gfx::FrameContext  frame_context       = nullptr;
-  gfx::Swapchain     swapchain           = nullptr;
-  Vec<Attachment>    scratch_attachments = {};
+  AllocatorImpl      allocator      = default_allocator;
+  gfx::DeviceImpl    device         = {};
+  gfx::PipelineCache pipeline_cache = nullptr;
+  gfx::FrameContext  frame_context  = nullptr;
+  gfx::Swapchain     swapchain      = nullptr;
 
+  // Option<Scene *> get_scene(uid32 scene);
+  // void            remove_scene(uid32 scene);
+  // Option<uid32>   add_view(uid32 scene, Span<char const> name,
+  //                          Camera const &camera);
+  // Option<View *>  get_view(uid32 view);
+  // void            remove_view(uid32 view);
+  // Option<uid32>   add_object(uid32 pass, uid32 pass_object_id, uid32 scene,
+  //                            uid32 parent, SceneObjectDesc const &desc);
+  // void            remove_object(uid32 scene, uid32 object);
+
+  void tick();
+};
+
+namespace rdg
+{
+
+struct Attachment
+{
+  gfx::Image     image = nullptr;
+  gfx::ImageView view  = nullptr;
+  gfx::ImageDesc desc  = {};
+};
+
+enum class PassFlags : u8
+{
+  None     = 0x00,
+  Render   = 0x01,
+  Compute  = 0x02,
+  Transfer = 0x04,
+  Mesh     = 0x08
+};
+
+ASH_DEFINE_ENUM_BIT_OPS(PassFlags)
+
+struct RenderGraph
+{
   // images resized when swapchain extents changes
   Option<Attachment> request_scratch_attachment(gfx::ImageDesc const &desc);
   void               release_scratch_attachment(Attachment const &attachment);
-
   Option<gfx::RenderPass> get_render_pass(gfx::RenderPassDesc const &desc);
   Option<gfx::Shader>     get_shader(Span<char const> name);
+  void                    queue_delete(u64 last_use_tick);
 
-  Option<PassImpl> get_pass(uid32 pass);
-  Option<uid32>    get_pass_id(Span<char const> name);
-  Option<uid32>    register_pass(PassImpl pass);
-  Option<uid32>    add_scene(Span<char const> name);
-  Option<Scene *>  get_scene(uid32 scene);
-  void             remove_scene(uid32 scene);
-  Option<uid32>    add_view(uid32 scene, Span<char const> name,
-                            Camera const &camera);
-  Option<View *>   get_view(uid32 view);
-  void             remove_view(uid32 view);
-  Option<uid32>    add_object(uid32 pass, uid32 pass_object_id, uid32 scene,
-                              uid32 parent, SceneObjectDesc const &desc);
-  void             remove_object(uid32 scene, uid32 object);
-  Option<uid32>    add_directional_light(uid32                   scene,
-                                         DirectionalLight const &light);
-  Option<uid32>    add_point_light(uid32 scene, PointLight const &light);
-  Option<uid32>    add_spot_light(uid32 scene, SpotLight const &light);
-  Option<uid32>    add_area_light(uid32 scene, AreaLight const &light);
-  Option<AmbientLight *>     get_ambient_light(uid32 scene);
-  Option<DirectionalLight *> get_directional_light(uid32 scene, uid32 id);
-  Option<PointLight *>       get_point_light(uid32 scene, uid32 id);
-  Option<SpotLight *>        get_spot_light(uid32 scene, uid32 id);
-  Option<AreaLight *>        get_area_light(uid32 scene, uid32 id);
-  void                       remove_directional_light(uid32 scene, uid32 id);
-  void                       remove_point_light(uid32 scene, uid32 id);
-  void                       remove_spot_light(uid32 scene, uid32 id);
-  void                       remove_area_light(uid32 scene, uid32 id);
-
-  void                transform();
-  Result<Void, Error> frustum_cull();
-  Result<Void, Error> encode_view(uid32                          view,
-                                  gfx::CommandEncoderImpl const &encoder,
-                                  ViewAttachments const         &attachments);
-  void                tick();
+  template <typename Reg, typename Exe>
+  void add_pass(Span<char const> name, PassFlags flags, Reg &&registration,
+                Exe &&execution);
 };
+
+}        // namespace rdg
 
 }        // namespace ash
