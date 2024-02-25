@@ -9,18 +9,21 @@
 namespace ash
 {
 
-Result<Allocation, Error> decode_webp(AllocatorImpl const &allocator,
-                                      Span<u8 const>       bytes,
-                                      ImageSpan<u8>       &span);
+// TODO(lamarrr): use vec instead?
+Result<Allocation, DecodeError> decode_webp(AllocatorImpl const &allocator,
+                                            Span<u8 const>       bytes,
+                                            ImageSpan<u8>       &span);
 
-Result<Allocation, Error> decode_jpg(AllocatorImpl const &allocator,
-                                     Span<u8 const> bytes, ImageSpan<u8> &span);
+Result<Allocation, DecodeError> decode_jpg(AllocatorImpl const &allocator,
+                                           Span<u8 const>       bytes,
+                                           ImageSpan<u8>       &span);
 
-Result<Allocation, Error> decode_png(AllocatorImpl const &allocator,
-                                     Span<u8 const> bytes, ImageSpan<u8> &span);
+Result<Allocation, DecodeError> decode_png(AllocatorImpl const &allocator,
+                                           Span<u8 const>       bytes,
+                                           ImageSpan<u8>       &span);
 
-Result<Allocation, Error> decode_image(AllocatorImpl const &allocator,
-                                       Span<u8 const>       bytes,
-                                       ImageSpan<u8>       &span);
+Result<Allocation, DecodeError> decode_image(AllocatorImpl const &allocator,
+                                             Span<u8 const>       bytes,
+                                             ImageSpan<u8>       &span);
 
 }        // namespace ash

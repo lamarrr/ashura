@@ -9,7 +9,7 @@ namespace ash
 /// @InvalidData: detected image but image seems to be corrupted
 /// @UnsupportedChannels: image contains unsupported channel types
 /// @UnsupportedFormat: the image file format is unsupported
-enum class Error : i32
+enum class DecodeError : i32
 {
   None                = 0,
   OutOfMemory         = 1,

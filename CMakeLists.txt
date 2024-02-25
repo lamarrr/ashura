@@ -95,8 +95,15 @@ target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_library(
   ashura_engine
   ashura/engine/image_decoder.cc
+  ashura/engine/scene.cc
+  ashura/engine/view.cc
   ashura/engine/renderer.cc
+  ashura/engine/render_graph.cc
+  ashura/engine/material.cc
   ashura/engine/passes/blur.cc
+  ashura/engine/passes/bloom.cc
+  ashura/engine/passes/fxaa.cc
+  ashura/engine/passes/msaa.cc
   ashura/engine/passes/pbr.cc
   ashura/engine/passes/rrect.cc
   ashura/engine/widget.cc)

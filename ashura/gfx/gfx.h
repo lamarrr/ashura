@@ -37,6 +37,8 @@ typedef struct BufferView_T           *BufferView;
 typedef struct Image_T                *Image;
 typedef struct ImageView_T            *ImageView;
 typedef struct Sampler_T              *Sampler;
+typedef struct CombinedImageSampler    CombinedImageSampler;
+typedef CombinedImageSampler           CombinedImageSamplerBinding;
 typedef struct Shader_T               *Shader;
 typedef struct RenderPass_T           *RenderPass;
 typedef struct Framebuffer_T          *Framebuffer;
@@ -965,7 +967,7 @@ struct SamplerBinding
   Sampler sampler = nullptr;
 };
 
-struct CombinedImageSamplerBinding
+struct CombinedImageSampler
 {
   Sampler   sampler    = nullptr;
   ImageView image_view = nullptr;

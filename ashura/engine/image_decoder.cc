@@ -18,14 +18,15 @@ constexpr u64 rgba8_size(bool has_alpha, u32 width, u32 height)
   return ((u64) width) * ((u64) height) * (has_alpha ? 4ULL : 3ULL);
 }
 
-Result<Allocation, Error> decode_webp(AllocatorImpl const &allocator,
-                                      Span<u8 const> data, ImageSpan<u8> &span)
+Result<Allocation, DecodeError> decode_webp(AllocatorImpl const &allocator,
+                                            Span<u8 const>       bytes,
+                                            ImageSpan<u8>       &span)
 {
   WebPBitstreamFeatures features;
 
-  if (WebPGetFeatures(data.data(), data.size(), &features) != VP8_STATUS_OK)
+  if (WebPGetFeatures(bytes.data(), bytes.size(), &features) != VP8_STATUS_OK)
   {
-    return Err{Error::DecodeFailed};
+    return Err{DecodeError::DecodeFailed};
   }
 
   u32 const pitch = features.width * (features.has_alpha == 0 ? 3U : 4U);
@@ -35,25 +36,25 @@ Result<Allocation, Error> decode_webp(AllocatorImpl const &allocator,
 
   if (buffer == nullptr)
   {
-    return Err{Error::OutOfMemory};
+    return Err{DecodeError::OutOfMemory};
   }
 
   if (features.has_alpha != 0)
   {
-    if (WebPDecodeRGBAInto(data.data(), data.size(), buffer, buffer_size,
+    if (WebPDecodeRGBAInto(bytes.data(), bytes.size(), buffer, buffer_size,
                            pitch) == nullptr)
     {
       allocator.deallocate_typed(buffer, buffer_size);
-      return Err{Error::DecodeFailed};
+      return Err{DecodeError::DecodeFailed};
     }
   }
   else
   {
-    if (WebPDecodeRGBInto(data.data(), data.size(), buffer, buffer_size,
+    if (WebPDecodeRGBInto(bytes.data(), bytes.size(), buffer, buffer_size,
                           pitch) == nullptr)
     {
       allocator.deallocate_typed(buffer, buffer_size);
-      return Err{Error::DecodeFailed};
+      return Err{DecodeError::DecodeFailed};
     }
   }
 
@@ -76,18 +77,19 @@ inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
   *input = input->slice(nbytes_to_read);
 }
 
-Result<Allocation, Error> decode_png(AllocatorImpl const &allocator,
-                                     Span<u8 const> data, ImageSpan<u8> &span)
+Result<Allocation, DecodeError> decode_png(AllocatorImpl const &allocator,
+                                           Span<u8 const>       bytes,
+                                           ImageSpan<u8>       &span)
 {
   // skip magic number
-  data = data.slice(8);
+  bytes = bytes.slice(8);
 
   png_structp png_ptr =
       png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
 
   if (png_ptr == nullptr)
   {
-    return Err{Error::OutOfMemory};
+    return Err{DecodeError::OutOfMemory};
   }
 
   png_infop info_ptr = png_create_info_struct(png_ptr);
@@ -95,10 +97,10 @@ Result<Allocation, Error> decode_png(AllocatorImpl const &allocator,
   if (png_ptr == nullptr)
   {
     png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-    return Err{Error::OutOfMemory};
+    return Err{DecodeError::OutOfMemory};
   }
 
-  Span stream = data;
+  Span stream = bytes;
   png_set_read_fn(png_ptr, &stream, png_stream_reader);
   png_set_sig_bytes(png_ptr, 8);
 
@@ -114,13 +116,13 @@ Result<Allocation, Error> decode_png(AllocatorImpl const &allocator,
 
   if (status != 1)
   {
-    return Err{Error::DecodeFailed};
+    return Err{DecodeError::DecodeFailed};
   }
 
   if (color_type != PNG_COLOR_TYPE_RGB && color_type != PNG_COLOR_TYPE_RGBA)
   {
     png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-    return Err{Error::UnsupportedFormat};
+    return Err{DecodeError::UnsupportedFormat};
   }
 
   usize       ncomponents = (color_type == PNG_COLOR_TYPE_RGB) ? 3 : 4;
@@ -133,7 +135,7 @@ Result<Allocation, Error> decode_png(AllocatorImpl const &allocator,
 
   if (buffer == nullptr)
   {
-    return Err{Error::OutOfMemory};
+    return Err{DecodeError::OutOfMemory};
   }
 
   u8 *row = buffer;
@@ -154,8 +156,9 @@ Result<Allocation, Error> decode_png(AllocatorImpl const &allocator,
   return Ok{Allocation{.memory = buffer, .alignment = 1, .size = buffer_size}};
 }
 
-Result<Allocation, Error> decode_jpg(AllocatorImpl const &allocator,
-                                     Span<u8 const> bytes, ImageSpan<u8> &span)
+Result<Allocation, DecodeError> decode_jpg(AllocatorImpl const &allocator,
+                                           Span<u8 const>       bytes,
+                                           ImageSpan<u8>       &span)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -167,19 +170,19 @@ Result<Allocation, Error> decode_jpg(AllocatorImpl const &allocator,
   if (jpeg_read_header(&info, true) != JPEG_HEADER_OK)
   {
     jpeg_destroy_decompress(&info);
-    return Err{Error::DecodeFailed};
+    return Err{DecodeError::DecodeFailed};
   }
 
-  if (!jpeg_start_decompress(&info))
+  if (jpeg_start_decompress(&info) == 0)
   {
     jpeg_destroy_decompress(&info);
-    return Err{Error::DecodeFailed};
+    return Err{DecodeError::DecodeFailed};
   }
 
   if (info.num_components != 3 && info.num_components != 4)
   {
     jpeg_destroy_decompress(&info);
-    return Err{Error::UnsupportedFormat};
+    return Err{DecodeError::UnsupportedFormat};
   }
 
   u32         width       = info.output_width;
@@ -194,7 +197,7 @@ Result<Allocation, Error> decode_jpg(AllocatorImpl const &allocator,
   if (buffer == nullptr)
   {
     jpeg_destroy_decompress(&info);
-    return Err{Error::OutOfMemory};
+    return Err{DecodeError::OutOfMemory};
   }
 
   u8 *scanline = buffer;
@@ -216,9 +219,9 @@ Result<Allocation, Error> decode_jpg(AllocatorImpl const &allocator,
   return Ok{Allocation{.memory = buffer, .alignment = 1, .size = buffer_size}};
 }
 
-Result<Allocation, Error> decode_image(AllocatorImpl const &allocator,
-                                       Span<u8 const>       bytes,
-                                       ImageSpan<u8>       &span)
+Result<Allocation, DecodeError> decode_image(AllocatorImpl const &allocator,
+                                             Span<u8 const>       bytes,
+                                             ImageSpan<u8>       &span)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 
@@ -244,7 +247,7 @@ Result<Allocation, Error> decode_image(AllocatorImpl const &allocator,
     return decode_webp(allocator, bytes, span);
   }
 
-  return Err{Error::UnsupportedFormat};
+  return Err{DecodeError::UnsupportedFormat};
 }
 
 }        // namespace ash

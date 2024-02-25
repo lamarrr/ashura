@@ -1,28 +1,56 @@
 #pragma once
-#include "ashura/engine/renderer.h"
+#include "ashura/engine/camera.h"
+#include "ashura/engine/light.h"
+#include "ashura/engine/material.h"
+#include "ashura/engine/render_graph.h"
 
 namespace ash
 {
+
+struct PBRTexture
+{
+  gfx::ImageView view = nullptr;
+  Vec2           uv0  = {};
+  Vec2           uv1  = {};
+};
+
+template <typename T>
+void add_parameter();
+
+template <>
+void add_parameter<f32>();
+
+template <>
+void add_parameter<f32>();
+
+#define DEFINE_MATERIAL(...)
+#define MATERIAL_PARAM(Material, Param) offsetof(Material, Param)
 
 /// SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
 /// SEE:
 /// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
 struct PBRMaterial
 {
-  Texture base_color_texture = {};
-  Texture metallic_texture   = {};
-  Texture roughness_texture  = {};
-  Texture normal_texture     = {};
-  Texture occlusion_texture  = {};
-  Texture emissive_texture   = {};
-  Vec4    base_color_factor  = {1, 1, 1, 1};
-  f32     metallic_factor    = 1;
-  f32     roughness_factor   = 1;
-  f32     normal_scale       = 1;
-  f32     occlusion_strength = 1;
-  Vec3    emissive_factor    = {1, 1, 1};
-  f32     emissive_strength  = 1;
-  bool    unlit              = false;
+  gfx::Sampler sampler            = nullptr;
+  PBRTexture   base_color_texture = {};
+  PBRTexture   metallic_texture   = {};
+  PBRTexture   roughness_texture  = {};
+  PBRTexture   normal_texture     = {};
+  PBRTexture   occlusion_texture  = {};
+  PBRTexture   emissive_texture   = {};
+  Vec4         base_color_factor  = {1, 1, 1, 1};
+  f32          metallic_factor    = 1;
+  f32          roughness_factor   = 1;
+  f32          normal_scale       = 1;
+  f32          occlusion_strength = 1;
+  Vec3         emissive_factor    = {1, 1, 1};
+  f32          emissive_strength  = 1;
+
+  // generate descriptor set layout from type declaration
+  // generate descriptor set setter from void* of this struct
+  // generate binder?
+  // uniform buffer size
+  // count material types
 };
 
 struct PBRVertex
@@ -50,6 +78,8 @@ struct PBRObject
 
 struct PBRParams
 {
+  rdg::RenderTarget            render_target;
+  Camera                       camera;
   AmbientLight                 ambient_light         = {};
   Span<DirectionalLight const> directional_lights    = {};
   Span<PointLight const>       point_lights          = {};
@@ -58,18 +88,12 @@ struct PBRParams
   Span<PBRObject const>        objects               = {};
   gfx::DescriptorSetLayout     descriptor_set_layout = nullptr;
   gfx::DescriptorHeapImpl      descriptor_heap       = {};
-  gfx::Sampler                 sampler               = nullptr;
 };
 
 struct PBRPass
 {
-  static void init(Pass self, RenderServer *server, uid32 id);
-  static void deinit(Pass self, RenderServer *server);
-
-  static constexpr PassInterface const interface{.init   = init,
-                                                 .deinit = deinit};
-
-  void execute(rdg::RenderGraph *graph, PBRParams const *params);
+  // allocate buffer for camera and transforms
+  static void add_pass(RenderGraph *graph, PBRParams const *params);
 };
 
 }        // namespace ash

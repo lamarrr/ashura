@@ -1,14 +1,23 @@
 #pragma once
-#include "ashura/engine/renderer.h"
+#include "ashura/engine/camera.h"
+#include "ashura/engine/light.h"
+#include "ashura/engine/render_graph.h"
 
 namespace ash
 {
-
+typedef struct RRectTexture  RRectTexture;
 typedef struct RRect         RRect;
 typedef struct RRectMaterial RRectMaterial;
 typedef struct RRectDesc     RRectDesc;
 typedef struct RRectObject   RRectObject;
 typedef struct RRectPass     RRectPass;
+
+struct RRectTexture
+{
+  gfx::ImageView view = nullptr;
+  Vec2           uv0  = {};
+  Vec2           uv1  = {};
+};
 
 struct RRect
 {
@@ -20,9 +29,9 @@ struct RRect
 
 struct RRectMaterial
 {
-  Texture base_color_texture    = {};
-  Vec4    base_color_factors[4] = {};
-  Vec4    border_colors[4]      = {};
+  RRectTexture base_color_texture    = {};
+  Vec4         base_color_factors[4] = {};
+  Vec4         border_colors[4]      = {};
 };
 
 struct RRectObject
@@ -34,22 +43,16 @@ struct RRectObject
 
 struct RRectParams
 {
+  rdg::RenderTarget        render_target;
   Span<RRectObject const>  objects;
   gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
   gfx::DescriptorHeapImpl  descriptor_heap       = {};
-  gfx::Sampler             sampler               = nullptr;
-  gfx::GraphicsPipeline    pipeline              = nullptr;
 };
 
 struct RRectPass
 {
-  static void init(Pass self, RenderServer *server, uid32 id);
-  static void deinit(Pass self, RenderServer *server);
-
-  static constexpr PassInterface const interface{.init   = init,
-                                                 .deinit = deinit};
-
-  void execute(rdg::RenderGraph *graph, RRectParams const *params);
+  static void create_rgb_textures(RenderGraph *graph);
+  static void add_pass(RenderGraph *graph, RRectParams const *params);
 };
 
 }        // namespace ash
