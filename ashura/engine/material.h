@@ -6,7 +6,7 @@
 namespace ash
 {
 
-enum class ShaderParamType : u8
+enum class ShaderBindingType : u8
 {
   None                 = 0,
   Buffer               = 1,
@@ -16,38 +16,35 @@ enum class ShaderParamType : u8
   CombinedImageSampler = 5,
 };
 
-struct ShaderParamDesc
-{
-  Span<char const> name = {};
-  ShaderParamType  type = ShaderParamType::None;
-};
+// struct ShaderParamDesc
+// {
+//   Span<char const> name = {};
+//   ShaderBindingType  type = ShaderBindingType::None;
+// };
 
 template <typename T>
 struct UniformBuffer
 {
-  using Type = T;
+  typedef T   Type;
+  gfx::Buffer buffer;
 };
 
 template <typename T>
 struct StorageBuffer
 {
-  using Type = T;
+  typedef T   Type;
+  gfx::Buffer buffer;
 };
 
-struct ShaderParam
+struct SampleShaderParam
 {
-  Span<char const> name = {};
-  ShaderParamType  type = ShaderParamType::None;
-  union
-  {
-    char                             none_ = 0;
-    gfx::Buffer                      buffer;
-    gfx::BufferView                  texel_buffer;
-    gfx::Sampler                     sampler;
-    gfx::ImageView                   image;
-    gfx::CombinedImageSamplerBinding combined_image_sampler;
-  };
+  Vec4 a;
+  Vec2 b;
+  f32  x;
+  f32  y;
 };
+
+// TODO(lamarrr): use shader setter and getter instead, get layout, get bindings
 
 struct ShaderPipelineDesc
 {
