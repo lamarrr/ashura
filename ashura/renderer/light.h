@@ -9,6 +9,7 @@ typedef struct DirectionalLight DirectionalLight;
 typedef struct PointLight       PointLight;
 typedef struct SpotLight        SpotLight;
 typedef struct AreaLight        AreaLight;
+typedef struct SkyLight         SkyLight;
 
 struct DirectionalLight
 {
@@ -40,6 +41,10 @@ struct AreaLight
   Vec3 extent    = {};
   f32  intensity = 0;
   bool two_sided = false;
+};
+
+struct SkyLight
+{
 };
 
 }        // namespace ash
