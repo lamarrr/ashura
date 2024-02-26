@@ -1,7 +1,7 @@
 
 #pragma once
-#include "ashura/engine/render_graph.h"
-#include "ashura/engine/view.h"
+#include "ashura/renderer/render_graph.h"
+#include "ashura/renderer/view.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/box.h"
 #include "ashura/std/types.h"
@@ -21,10 +21,10 @@ namespace ash
 struct BloomParams
 {
   BloomConfig     config;
-  rdg::Attachment src;
+  rdg::ImageAttachment src;
   gfx::Offset     src_offset;
   gfx::Offset     src_extent;
-  rdg::Attachment dst;
+  rdg::ImageAttachment dst;
   gfx::Offset     dst_offset;
   gfx::Offset     dst_extent;
 };
@@ -32,6 +32,6 @@ struct BloomParams
 struct BloomPass
 {
   static void add_pass(RenderGraph *graph, BloomParams const *params);
-}
+};
 
 }        // namespace ash

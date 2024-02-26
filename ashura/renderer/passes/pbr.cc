@@ -1,4 +1,4 @@
-#include "ashura/engine/passes/pbr.h"
+#include "ashura/renderer/passes/pbr.h"
 
 namespace ash
 {
@@ -74,8 +74,8 @@ void PBRPass::begin(Pass self_, RenderServer *server, PassBeginInfo const *info)
 
   PBRBinding *binding = server->allocator.allocate_typed<PBRBinding>(1);
   // TODO: check allocation
-  Attachment color_attachment = info->attachments->color_attachment.value();
-  Attachment depth_stencil_attachment =
+  ImageAttachment color_attachment = info->attachments->color_attachment.value();
+  ImageAttachment depth_stencil_attachment =
       info->attachments->depth_stencil_attachment.value();
 
   binding->render_pass =

@@ -9,7 +9,12 @@ namespace ash
 namespace rdg
 {
 
-struct Attachment
+struct FramebufferDesc;
+struct RenderPassDesc;
+struct ComputePipelineDesc;
+struct GraphicsPipelineDesc;
+
+struct ImageAttachment
 {
   gfx::Image     image = nullptr;
   gfx::ImageView view  = nullptr;
@@ -18,19 +23,16 @@ struct Attachment
 
 struct RenderTarget
 {
-  Attachment  color;
-  Attachment  depth_stencil;
-  gfx::Offset offset;
-  gfx::Extent extent;
+  Span<ImageAttachment const> colors;
+  ImageAttachment             depth_stencil;
+  gfx::Offset                 scissor_offset;
+  gfx::Extent                 scissor_extent;
 };
 
-struct FramebufferDesc
-{
-};
-
-struct RenderPassDesc
-{
-};
+struct RenderPass;
+struct Framebuffer;
+struct ComputePipeline;
+struct GraphicsPipeline;
 
 enum class PassFlags : u8
 {
@@ -48,12 +50,12 @@ ASH_DEFINE_ENUM_BIT_OPS(PassFlags)
 struct RenderGraph
 {
   // images resized when swapchain extents changes
-  Option<rdg::Attachment>
-       request_scratch_attachment(gfx::ImageDesc const &desc);
-  void release_scratch_attachment(rdg::Attachment const &attachment);
-  Option<gfx::RenderPass>      get_render_pass(gfx::RenderPassDesc const &desc);
-  Option<gfx::ComputePipeline> get_compute_pipeline();
-  Option<gfx::GraphicsPipeline> get_graphics_pipeline();
+  Option<rdg::ImageAttachment> create_attachment(gfx::ImageDesc const &desc);
+  void release_attachment(rdg::ImageAttachment const &attachment);
+  Option<rdg::RenderPass> create_render_pass(gfx::RenderPassDesc const &desc);
+  void                    create_render_targets(int attachments);
+  Option<rdg::ComputePipeline>  create_compute_pipeline();
+  Option<rdg::GraphicsPipeline> create_graphics_pipeline();
   Option<gfx::Shader>           get_shader(Span<char const> name);
   void                          queue_delete(u64 last_use_tick);
   template <typename T, typename... Args>

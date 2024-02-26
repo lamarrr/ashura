@@ -1,6 +1,6 @@
-#include "ashura/engine/renderer.h"
-#include "ashura/engine/system.h"
-#include "ashura/engine/widget.h"
+#include "ashura/renderer/renderer.h"
+#include "ashura/renderer/system.h"
+#include "ashura/renderer/widget.h"
 #include "gtest/gtest.h"
 
 ash::Logger panic_logger;

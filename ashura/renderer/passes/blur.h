@@ -1,6 +1,6 @@
 #pragma once
-#include "ashura/engine/render_graph.h"
-#include "ashura/engine/renderer.h"
+#include "ashura/renderer/render_graph.h"
+#include "ashura/renderer/renderer.h"
 
 namespace ash
 {
@@ -20,10 +20,10 @@ enum class BlurRadius : u8
 struct BlurParams
 {
   BlurRadius      blur_radius = BlurRadius::None;
-  rdg::Attachment src;
+  rdg::ImageAttachment src;
   gfx::Offset     src_offset;
   gfx::Offset     src_extent;
-  rdg::Attachment dst;
+  rdg::ImageAttachment dst;
   gfx::Offset     dst_offset;
   gfx::Offset     dst_extent;
 };

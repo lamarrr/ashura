@@ -1,8 +1,7 @@
 #pragma once
-#include "ashura/engine/error.h"
-#include "ashura/engine/render_graph.h"
-#include "ashura/engine/scene.h"
-#include "ashura/engine/view.h"
+#include "ashura/renderer/render_graph.h"
+#include "ashura/renderer/scene.h"
+#include "ashura/renderer/view.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"

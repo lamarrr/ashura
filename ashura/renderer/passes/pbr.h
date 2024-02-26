@@ -1,8 +1,8 @@
 #pragma once
-#include "ashura/engine/camera.h"
-#include "ashura/engine/light.h"
-#include "ashura/engine/material.h"
-#include "ashura/engine/render_graph.h"
+#include "ashura/renderer/camera.h"
+#include "ashura/renderer/light.h"
+#include "ashura/renderer/material.h"
+#include "ashura/renderer/render_graph.h"
 
 namespace ash
 {
@@ -13,18 +13,6 @@ struct PBRTexture
   Vec2           uv0  = {};
   Vec2           uv1  = {};
 };
-
-template <typename T>
-void add_parameter();
-
-template <>
-void add_parameter<f32>();
-
-template <>
-void add_parameter<f32>();
-
-#define DEFINE_MATERIAL(...)
-#define MATERIAL_PARAM(Material, Param) offsetof(Material, Param)
 
 /// SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
 /// SEE:

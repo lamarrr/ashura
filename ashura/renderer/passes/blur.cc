@@ -1,5 +1,5 @@
-#include "ashura/engine/passes/blur.h"
-#include "ashura/engine/passes/gaussian_weights.h"
+#include "ashura/renderer/passes/blur.h"
+#include "ashura/renderer/passes/gaussian_weights.h"
 
 namespace ash
 {

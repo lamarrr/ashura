@@ -93,25 +93,31 @@ target_link_libraries(
 target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
-  ashura_engine
-  ashura/engine/image_decoder.cc
-  ashura/engine/scene.cc
-  ashura/engine/view.cc
-  ashura/engine/renderer.cc
-  ashura/engine/render_graph.cc
-  ashura/engine/material.cc
-  ashura/engine/passes/blur.cc
-  ashura/engine/passes/bloom.cc
-  ashura/engine/passes/fxaa.cc
-  ashura/engine/passes/msaa.cc
-  ashura/engine/passes/pbr.cc
-  ashura/engine/passes/rrect.cc
-  ashura/engine/widget.cc)
-target_link_libraries(ashura_engine ashura_std ashura_gfx)
+  ashura_renderer
+  ashura/renderer/scene.cc
+  ashura/renderer/view.cc
+  ashura/renderer/renderer.cc
+  ashura/renderer/render_graph.cc
+  ashura/renderer/material.cc
+  ashura/renderer/passes/blur.cc
+  ashura/renderer/passes/bloom.cc
+  ashura/renderer/passes/fxaa.cc
+  ashura/renderer/passes/msaa.cc
+  ashura/renderer/passes/pbr.cc
+  ashura/renderer/passes/rrect.cc)
+target_link_libraries(ashura_renderer ashura_std ashura_gfx)
+target_include_directories(ashura_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_executable(ashura_renderer_tests ashura/renderer/tests/renderer.cc)
+target_link_libraries(ashura_renderer_tests ashura_std ashura_gfx ashura_engine
+                      GTest::gtest GTest::gtest_main)
+
+add_library(ashura_engine ashura/engine/image_decoder.cc
+                          ashura/engine/widget.cc)
+target_link_libraries(ashura_engine ashura_std ashura_gfx ashura_renderer)
 target_include_directories(
-  ashura_engine
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}
-         ${JPEG_INCLUDE_DIR} ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
+  ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
+                       ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
 
 target_link_libraries(
   ashura_engine
@@ -128,7 +134,3 @@ target_link_libraries(
   PNG::PNG
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
-
-add_executable(ashura_engine_tests ashura/engine/tests/renderer.cc)
-target_link_libraries(ashura_engine_tests ashura_std ashura_gfx ashura_engine
-                      GTest::gtest GTest::gtest_main)

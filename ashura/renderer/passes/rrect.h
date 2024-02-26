@@ -1,7 +1,7 @@
 #pragma once
-#include "ashura/engine/camera.h"
-#include "ashura/engine/light.h"
-#include "ashura/engine/render_graph.h"
+#include "ashura/renderer/camera.h"
+#include "ashura/renderer/light.h"
+#include "ashura/renderer/render_graph.h"
 
 namespace ash
 {
