@@ -1,19 +1,19 @@
 #pragma once
+#include "ashura/gfx/gfx.h"
 #include "ashura/renderer/camera.h"
 #include "ashura/renderer/scene.h"
-#include "ashura/gfx/gfx.h"
 #include "ashura/std/box.h"
 #include "ashura/std/types.h"
-#include "ashura/std/vec.h"
 
 namespace ash
 {
 
-typedef struct MSAAConfig  MSAAConfig;
-typedef struct FXAAConfig  FXAAConfig;
-typedef struct AAConfig    AAConfig;
-typedef struct BloomConfig BloomConfig;
-typedef struct ViewConfig  ViewConfig;
+typedef struct MSAAConfig          MSAAConfig;
+typedef struct FXAAConfig          FXAAConfig;
+typedef struct AAConfig            AAConfig;
+typedef struct GaussianBloomConfig GaussianBloomConfig;
+typedef struct BloomConfig         BloomConfig;
+typedef struct ViewConfig          ViewConfig;
 
 struct MSAAConfig
 {
@@ -35,14 +35,20 @@ struct AAConfig
 {
   union
   {
+    char       none_ = 0;
     MSAAConfig msaa;
     FXAAConfig fxaa;
-    char       none_ = 0;
   };
   AATechnique technique = AATechnique::None;
 };
 
-struct BloomConfig
+enum class BloomTechnique : u8
+{
+  None     = 0,
+  Gaussian = 1
+};
+
+struct GaussianBloomConfig
 {
   u32  blur_radius          = 4;
   f32  strength             = 1;
@@ -53,6 +59,21 @@ struct BloomConfig
   f32  smooth_width         = 0.01f;
 };
 
+struct BloomConfig
+{
+  union
+  {
+    char                none_ = 0;
+    GaussianBloomConfig gaussian;
+  };
+  BloomTechnique technique = BloomTechnique::None;
+};
+
+// Depth of Field
+struct DOFConfig
+{
+};
+
 struct ViewConfig
 {
   Camera      camera               = {};
@@ -61,6 +82,7 @@ struct ViewConfig
   gfx::Format depth_stencil_format = gfx::Format::Undefined;
   AAConfig    aa                   = {};
   BloomConfig bloom                = {};
+  DOFConfig   dof                  = {};
   f32         chromatic_aberration = 0;
 };
 

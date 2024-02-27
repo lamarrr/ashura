@@ -37,6 +37,7 @@ struct SceneObjects
 
 struct SceneEnvironment
 {
+  SkyLight              sky_light                 = {};
   AmbientLight          ambient_light             = {};
   Vec<DirectionalLight> directional_lights        = {};
   SparseVec<u32>        directional_lights_id_map = {};

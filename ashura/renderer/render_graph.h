@@ -9,10 +9,19 @@ namespace ash
 namespace rdg
 {
 
-struct FramebufferDesc;
 struct RenderPassDesc;
+struct FramebufferDesc;
 struct ComputePipelineDesc;
 struct GraphicsPipelineDesc;
+struct ImageAttachmentDesc;
+struct RenderTargetDesc;
+
+struct RenderPass;
+struct Framebuffer;
+struct ComputePipeline;
+struct GraphicsPipeline;
+struct ImageAttachment;
+struct RenderTarget;
 
 struct ImageAttachment
 {
@@ -29,11 +38,6 @@ struct RenderTarget
   gfx::Extent                 scissor_extent;
 };
 
-struct RenderPass;
-struct Framebuffer;
-struct ComputePipeline;
-struct GraphicsPipeline;
-
 enum class PassFlags : u8
 {
   None     = 0x00,
@@ -47,6 +51,7 @@ ASH_DEFINE_ENUM_BIT_OPS(PassFlags)
 
 }        // namespace rdg
 
+struct RenderGraphCtx;
 struct RenderGraph
 {
   // images resized when swapchain extents changes
@@ -57,7 +62,7 @@ struct RenderGraph
   Option<rdg::ComputePipeline>  create_compute_pipeline();
   Option<rdg::GraphicsPipeline> create_graphics_pipeline();
   Option<gfx::Shader>           get_shader(Span<char const> name);
-  void                          queue_delete(u64 last_use_tick);
+  void                          queue_delete();
   template <typename T, typename... Args>
   T *allocate_param(Args &&...args);
 
