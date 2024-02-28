@@ -11,7 +11,7 @@ namespace ash
 // Param::update();
 // Param::BATCH_SIZE
 // Param::TYPE_NAME
-// uniform buffer setup?????
+// TODO(lamarrr): !!!uniform buffer setup?????
 
 struct ShaderParameterInterface
 {
