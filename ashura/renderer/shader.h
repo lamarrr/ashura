@@ -13,14 +13,6 @@ namespace ash
 // Param::TYPE_NAME
 // TODO(lamarrr): !!!uniform buffer setup?????
 
-struct ShaderParameterInterface
-{
-  Span<gfx::DescriptorBindingDesc const> (*get_desc)();
-  void (*update)(gfx::DescriptorHeapImpl const &heap, u32 group, u32 set,
-                 void *);
-  // bind descriptors to pipeline
-};
-
 struct ShaderParameterManager
 {
   template <typename Param>
