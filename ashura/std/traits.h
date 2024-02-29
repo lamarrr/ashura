@@ -66,4 +66,8 @@ concept TriviallyCopyConstructible = std::is_trivially_copy_constructible_v<T>;
 template <typename T>
 concept TriviallyMoveConstructible = std::is_trivially_move_constructible_v<T>;
 
+
+template <typename T, typename Base>
+concept Derives = std::is_base_of_v<Base, T>;
+
 }        // namespace ash

@@ -7,19 +7,27 @@ namespace ash
 {
 
 // TODO(lamarrr): use shader setter and getter instead, get layout, get bindings
-// Param::desc();
-// Param::update();
-// Param::BATCH_SIZE
-// Param::TYPE_NAME
 // TODO(lamarrr): !!!uniform buffer setup?????
+struct ShaderParameterBase
+{
+  u32 zZ_heap_index = -1;
+};
 
+// TODO(lamarrr): global deletion queue in render context?
+// TODO(lamarrr): automatic uniform buffer setup?
+// get buffer descriptionsm and batch all parameters together into a single
+// buffer
+//
+template <Derives<ShaderParameterBase> Param>
 struct ShaderParameterManager
 {
-  template <typename Param>
-  uid32 create_parameter(Param *parameter);
-  template <typename Param>        // no stalling
-  void update_parameter(Param *parameter);
-  void remove_parameter(uid32 parameter);
+  // no stalling
+  void                init(u32 batch_size);
+  void                deinit();
+  void                flush_parameter(Param *parameter);
+  void                remove_parameter(Param *parameter);
+  gfx::DescriptorHeap get_heap();
+  u32                 get_heap_index(Param *parameter);
 };
 
 struct Shader;
