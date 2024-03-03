@@ -823,9 +823,10 @@ inline void access_compute_bindings(CommandEncoder &encoder)
 {
   for (u32 i = 0; i < encoder.num_bound_descriptor_sets; i++)
   {
-    DescriptorHeap const *heap  = encoder.bound_descriptor_set_heaps[i];
-    u32 const             set   = encoder.bound_descriptor_sets[i];
-    u32 const             group = encoder.bound_descriptor_set_groups[i];
+    gfx::DescriptorSet    descriptor_set = encoder.bound_descriptor_sets[i];
+    DescriptorHeap const *heap  = (DescriptorHeap *) descriptor_set.heap;
+    u32 const             set   = descriptor_set.set;
+    u32 const             group = descriptor_set.group;
     DescriptorSetLayout const *const layout = heap->set_layouts[set];
 
     for (u32 ibinding = 0; ibinding < layout->num_bindings; ibinding++)
@@ -1005,9 +1006,10 @@ inline void access_graphics_bindings(CommandEncoder &encoder)
 {
   for (u32 i = 0; i < encoder.num_bound_descriptor_sets; i++)
   {
-    DescriptorHeap const *heap  = encoder.bound_descriptor_set_heaps[i];
-    u32 const             set   = encoder.bound_descriptor_sets[i];
-    u32 const             group = encoder.bound_descriptor_set_groups[i];
+    gfx::DescriptorSet    descriptor_set = encoder.bound_descriptor_sets[i];
+    DescriptorHeap const *heap  = (DescriptorHeap *) descriptor_set.heap;
+    u32 const             set   = descriptor_set.set;
+    u32 const             group = descriptor_set.group;
     DescriptorSetLayout const *const layout = heap->set_layouts[set];
 
     for (u32 ibinding = 0; ibinding < layout->num_bindings; ibinding++)
@@ -3578,11 +3580,10 @@ Result<gfx::CommandEncoderImpl, Status>
                                .bound_index_buffer       = nullptr,
                                .num_bound_vertex_buffers = 0,
                                .bound_index_type = gfx::IndexType::Uint16,
-                               .bound_index_buffer_offset   = 0,
-                               .bound_descriptor_set_heaps  = {},
-                               .bound_descriptor_set_groups = {},
-                               .num_bound_descriptor_sets   = 0,
-                               .status                      = Status::Success};
+                               .bound_index_buffer_offset = 0,
+                               .bound_descriptor_sets     = {},
+                               .num_bound_descriptor_sets = 0,
+                               .status                    = Status::Success};
 
   return Ok{gfx::CommandEncoderImpl{.self      = (gfx::CommandEncoder) encoder,
                                     .interface = &command_encoder_interface}};
@@ -6762,37 +6763,32 @@ void CommandEncoderInterface::bind_graphics_pipeline(
 }
 
 void CommandEncoderInterface::bind_descriptor_sets(
-    gfx::CommandEncoder self_, Span<gfx::DescriptorHeap const> descriptor_heaps,
-    Span<u32 const> groups, Span<u32 const> sets,
+    gfx::CommandEncoder self_, Span<gfx::DescriptorSet const> descriptor_sets,
     Span<u32 const> dynamic_offsets)
 {
   CommandEncoder *const self                = (CommandEncoder *) self_;
-  u32 const             num_sets            = (u32) sets.size();
+  u32 const             num_sets            = (u32) descriptor_sets.size();
   u32 const             num_dynamic_offsets = (u32) dynamic_offsets.size();
 
   VALIDATE(self, "", num_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
-  VALIDATE(self, "", descriptor_heaps.size() == groups.size());
-  VALIDATE(self, "", groups.size() == sets.size());
   VALIDATE(self, "", num_dynamic_offsets <= num_sets);
-  for (u32 iset = 0; iset < num_sets; iset++)
+  for (gfx::DescriptorSet set : descriptor_sets)
   {
-    DescriptorHeap *heap = (DescriptorHeap *) descriptor_heaps[iset];
-    VALIDATE(self, "",
-             groups[iset] < heap->num_pools * heap->num_groups_per_pool);
-    VALIDATE(self, "", sets[iset] < heap->num_sets_per_group);
+    DescriptorHeap *heap = (DescriptorHeap *) set.heap;
+    VALIDATE(self, "", set.group < heap->num_pools * heap->num_groups_per_pool);
+    VALIDATE(self, "", set.set < heap->num_sets_per_group);
   }
 
   VkDescriptorSet vk_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
 
   for (u32 iset = 0; iset < num_sets; iset++)
   {
-    DescriptorHeap *heap = (DescriptorHeap *) descriptor_heaps[iset];
+    gfx::DescriptorSet set  = descriptor_sets[iset];
+    DescriptorHeap    *heap = (DescriptorHeap *) set.heap;
     vk_sets[iset] =
-        heap->vk_descriptor_sets[heap->num_sets_per_group * groups[iset] +
-                                 sets[iset]];
-    self->bound_descriptor_set_heaps[iset]  = heap;
-    self->bound_descriptor_set_groups[iset] = groups[iset];
-    self->bound_descriptor_sets[iset]       = sets[iset];
+        heap->vk_descriptor_sets[heap->num_sets_per_group * set.group +
+                                 set.set];
+    self->bound_descriptor_sets[iset] = set;
   }
   self->num_bound_descriptor_sets = num_sets;
 

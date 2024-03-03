@@ -44,6 +44,7 @@ typedef struct RenderPass_T           *RenderPass;
 typedef struct Framebuffer_T          *Framebuffer;
 typedef struct DescriptorSetLayout_T  *DescriptorSetLayout;
 typedef struct DescriptorHeap_T       *DescriptorHeap;
+typedef struct DescriptorSet           DescriptorSet;
 typedef struct PipelineCache_T        *PipelineCache;
 typedef struct ComputePipeline_T      *ComputePipeline;
 typedef struct GraphicsPipeline_T     *GraphicsPipeline;
@@ -731,7 +732,7 @@ enum class ImageViewType : u8
   TypeCubeArray = 6
 };
 
-enum class DescriptorType : u32
+enum class DescriptorType : u8
 {
   Sampler              = 0,
   CombinedImageSampler = 1,
@@ -1271,6 +1272,13 @@ struct DeviceProperties
   DeviceFeatures   features           = DeviceFeatures::Basic;
 };
 
+struct DescriptorSet
+{
+  DescriptorHeap heap  = nullptr;
+  u32            group = 0;
+  u32            set   = 0;
+};
+
 /// @num_allocated_groups: number of alive group allocations
 /// @num_free_groups: number of released and reclaimable desciptor groups
 /// @num_released_groups: number of released but non-reclaimable descriptor
@@ -1372,9 +1380,8 @@ struct CommandEncoderInterface
                                 ComputePipeline pipeline)             = nullptr;
   void (*bind_graphics_pipeline)(CommandEncoder   self,
                                  GraphicsPipeline pipeline)           = nullptr;
-  void (*bind_descriptor_sets)(CommandEncoder             self,
-                               Span<DescriptorHeap const> descriptor_heaps,
-                               Span<u32 const> groups, Span<u32 const> sets,
+  void (*bind_descriptor_sets)(CommandEncoder            self,
+                               Span<DescriptorSet const> descriptor_sets,
                                Span<u32 const> dynamic_offsets)       = nullptr;
   void (*push_constants)(CommandEncoder self,
                          Span<u8 const> push_constants_data)          = nullptr;

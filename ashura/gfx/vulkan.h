@@ -443,27 +443,25 @@ struct DescriptorHeap
 
 struct CommandEncoder
 {
-  u64               refcount                                         = 0;
-  AllocatorImpl     allocator                                        = {};
-  Logger           *logger                                           = nullptr;
-  Device           *device                                           = nullptr;
-  VkCommandPool     vk_command_pool                                  = nullptr;
-  VkCommandBuffer   vk_command_buffer                                = nullptr;
-  ComputePipeline  *bound_compute_pipeline                           = nullptr;
-  GraphicsPipeline *bound_graphics_pipeline                          = nullptr;
-  RenderPass       *bound_render_pass                                = nullptr;
-  Framebuffer      *bound_framebuffer                                = nullptr;
-  Buffer           *bound_vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
-  Buffer           *bound_index_buffer                               = nullptr;
-  u32               num_bound_vertex_buffers                         = 0;
-  gfx::IndexType    bound_index_type          = gfx::IndexType::Uint16;
-  u64               bound_index_buffer_offset = 0;
-  DescriptorHeap
-        *bound_descriptor_set_heaps[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]  = {};
-  u32    bound_descriptor_set_groups[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
-  u32    bound_descriptor_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]       = {};
-  u32    num_bound_descriptor_sets                                      = 0;
-  Status status = Status::Success;
+  u64                refcount                                         = 0;
+  AllocatorImpl      allocator                                        = {};
+  Logger            *logger                                           = nullptr;
+  Device            *device                                           = nullptr;
+  VkCommandPool      vk_command_pool                                  = nullptr;
+  VkCommandBuffer    vk_command_buffer                                = nullptr;
+  ComputePipeline   *bound_compute_pipeline                           = nullptr;
+  GraphicsPipeline  *bound_graphics_pipeline                          = nullptr;
+  RenderPass        *bound_render_pass                                = nullptr;
+  Framebuffer       *bound_framebuffer                                = nullptr;
+  Buffer            *bound_vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
+  Buffer            *bound_index_buffer                               = nullptr;
+  u32                num_bound_vertex_buffers                         = 0;
+  gfx::IndexType     bound_index_type          = gfx::IndexType::Uint16;
+  u64                bound_index_buffer_offset = 0;
+  gfx::DescriptorSet bound_descriptor_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] =
+      {};
+  u32    num_bound_descriptor_sets = 0;
+  Status status                    = Status::Success;
 };
 
 struct FrameContext
@@ -748,10 +746,9 @@ struct CommandEncoderInterface
   static void bind_graphics_pipeline(gfx::CommandEncoder   self,
                                      gfx::GraphicsPipeline pipeline);
   static void
-              bind_descriptor_sets(gfx::CommandEncoder             self,
-                                   Span<gfx::DescriptorHeap const> descriptor_heaps,
-                                   Span<u32 const> groups, Span<u32 const> sets,
-                                   Span<u32 const> dynamic_offsets);
+              bind_descriptor_sets(gfx::CommandEncoder            self,
+                                   Span<gfx::DescriptorSet const> descriptor_sets,
+                                   Span<u32 const>                dynamic_offsets);
   static void push_constants(gfx::CommandEncoder self,
                              Span<u8 const>      push_constants_data);
   static void dispatch(gfx::CommandEncoder self, u32 group_count_x,

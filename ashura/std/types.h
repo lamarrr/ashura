@@ -39,6 +39,8 @@ typedef struct Mat3Affine Mat3Affine;
 typedef struct Mat4       Mat4;
 typedef struct Mat4Affine Mat4Affine;
 typedef struct Slice      Slice;
+template <typename T, usize N>
+struct Array;
 template <typename T>
 struct Span;
 template <typename RepT>
@@ -1733,9 +1735,85 @@ concept OutputRange = requires(R r) {
   } -> OutputIterator;
 };
 
+template <typename T, usize N>
+struct Array
+{
+  using Type                  = T;
+  static constexpr usize SIZE = N;
+
+  T data_[SIZE]{};
+
+  constexpr bool is_empty() const
+  {
+    return false;
+  }
+
+  constexpr T *data()
+  {
+    return data_;
+  }
+
+  constexpr T const *data() const
+  {
+    return data_;
+  }
+
+  constexpr usize size() const
+  {
+    return SIZE;
+  }
+
+  constexpr usize size_bytes() const
+  {
+    return sizeof(T) * SIZE;
+  }
+
+  constexpr T const *begin() const
+  {
+    return data_;
+  }
+
+  constexpr T *begin()
+  {
+    return data_;
+  }
+
+  constexpr T const *end() const
+  {
+    return data_ + SIZE;
+  }
+
+  constexpr T *end()
+  {
+    return data_ + SIZE;
+  }
+
+  constexpr T &operator[](usize index)
+  {
+    return data_[index];
+  }
+
+  constexpr T const &operator[](usize index) const
+  {
+    return data_[index];
+  }
+
+  constexpr operator T const *() const
+  {
+    return data_;
+  }
+
+  constexpr operator T *()
+  {
+    return data_;
+  }
+};
+
 template <typename T>
 struct Span
 {
+  using Type = T;
+
   T    *data_ = nullptr;
   usize size_ = 0;
 
