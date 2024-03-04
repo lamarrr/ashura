@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/gfx/gfx.h"
+#include "ashura/std/mem.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
@@ -40,24 +41,7 @@ struct ShaderParameterDescriptor
 {
   gfx::DescriptorSet set            = {};
   Span<u64 const>    buffer_offsets = {};
-  u32                uniform_index  = -1;
-};
-
-// MULTIPLE SETS? i.e. per-pass parameter INLINE SHADER PARAMETERS?
-// - create parameter manager/allocator
-template <typename Param>
-struct ShaderParameterHeap
-{
-  // no stalling
-  void                              init(u32 batch_size);
-  void                              deinit();
-  Option<ShaderParameterDescriptor> create_descriptor(Param const &param);
-  void update(Param const *param, ShaderParameterDescriptor const &desc);
-  void release_descriptor(ShaderParameterDescriptor const &desc);
-  // UniformBuffers list, packed, aligned
-  // use dynamic uniform buffer for uniforms
-  gfx::DescriptorHeapImpl heap_;
-  gfx::Buffer             uniform_buffers_[2];
+  u32                uniform_index  = 0;
 };
 
 #define BEGIN_SHADER_PARAMETER(Name)             \
@@ -384,6 +368,82 @@ SHADER_UNIFORM(Vec4, MetallicFactor, 1)
 SHADER_UNIFORM(Vec4, AlbedoFactor, 1)
 SHADER_UNIFORM(Vec4, AOFactor, 1)
 END_SHADER_PARAMETER(PBRParameter)
+
+// MULTIPLE SETS? i.e. per-pass parameter INLINE SHADER PARAMETERS?
+// - create parameter manager/allocator
+template <typename Param>
+struct ShaderParameterHeap
+{
+  // no stalling
+  void init(u32 batch_size)
+  {
+    auto                       members = PBRParameter::get_bindings();
+    gfx::DescriptorBindingDesc descs[PBRParameter::NUM_BINDINGS];
+    for (u16 i = 0; i < PBRParameter::NUM_BINDINGS; i++)
+    {
+      descs[i] = gfx::DescriptorBindingDesc{.type  = members[i].type,
+                                            .count = members[i].count};
+    }
+    gfx::DescriptorSetLayout layout =
+        device_
+            ->create_descriptor_set_layout(
+                device_.self,
+                gfx::DescriptorSetLayoutDesc{.label    = PBRParameter::NAME,
+                                             .bindings = to_span(descs)})
+            .unwrap();
+    heap_ = device_
+                ->create_descriptor_heap(device_.self, {&layout, 1}, batch_size,
+                                         heap_allocator)
+                .unwrap();
+
+    u64 uniform_size      = 0;
+    u64 uniform_alignment = members[0].uniform_alignment;
+    for (auto const &member : members)
+    {
+      uniform_size = mem::align_offset(member.uniform_alignment, uniform_size);
+      uniform_size += member.uniform_size;
+    }
+  }
+  void                              deinit();
+  Option<ShaderParameterDescriptor> create_descriptor(PBRParameter const &param)
+  {
+    // allocate uniform buffer slot
+    // allocate descriptor group
+    u32 group = heap_->add_group(heap_.self, 0).unwrap();
+    return Some{ShaderParameterDescriptor{
+        .set = gfx::DescriptorSet{.heap = heap_.self, .group = group, .set = 0},
+        .dynamic_offsets = {},
+        .uniform_index   = -1}};
+  }
+  void update(ShaderParameterDescriptor const &desc, PBRParameter const &param)
+  {
+    auto members = PBRParameter::get_bindings();
+    for (u16 i = 0; i < PBRParameter::NUM_BINDINGS; i++)
+    {
+      switch (members[i].type)
+      {
+        case gfx::DescriptorType::CombinedImageSampler:
+          heap_->combined_image_sampler(heap_.self, desc.set.group,
+                                        desc.set.set, 0,
+                                        /*get type from byte rep*/);
+          break;
+
+        default:
+          break;
+      }
+    }
+  }
+  void update_uniforms(ShaderParameterDescriptor const &desc,
+                       PBRParameter const              &param);
+  void release_descriptor(ShaderParameterDescriptor const &desc);
+  // UniformBuffers list, packed, aligned
+  // use dynamic uniform buffer for uniforms
+  u32                     batch_size_   = 0;
+  u64                     uniform_size_ = 0;
+  gfx::DescriptorHeapImpl heap_;
+  gfx::Buffer             uniform_buffers_[2];
+  gfx::DeviceImpl         device_;
+};
 
 constexpr u16  x = PBRParameter::NUM_BINDINGS;
 constexpr auto b = PBRParameter::get_bindings();
