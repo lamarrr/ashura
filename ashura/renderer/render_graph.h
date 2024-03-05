@@ -38,6 +38,12 @@ struct RenderTarget
   gfx::Extent                 scissor_extent;
 };
 
+struct Uniform
+{
+  gfx::DescriptorSet set;
+  u64                buffer_offset = 0;
+};
+
 enum class PassFlags : u8
 {
   None     = 0x00,
@@ -52,6 +58,16 @@ ASH_DEFINE_ENUM_BIT_OPS(PassFlags)
 }        // namespace rdg
 
 struct RenderGraphCtx;
+
+// per-frame uniform buffer
+// allocate multiple large uniform buffers along with descriptor sets
+// since we are buffering, once we get to this frame's next cycle, we would be
+// able to write directly to the memory-mapped gpu memory then use dynamic
+// offsets to point to the intended uniform. must be aligned to our
+// requirements. what size of buffers to choose?
+// 1024 bytes max uniform size, max alignment of 256-bytes, uniform buffers of
+// size 8192 Bytes
+//
 struct RenderGraph
 {
   // images resized when swapchain extents changes
@@ -69,6 +85,11 @@ struct RenderGraph
   template <typename Binding, typename Reg, typename Exe>
   void add_pass(Span<char const> name, rdg::PassFlags flags, Reg &&registration,
                 Exe &&execution);
+
+  void begin_frame();
+  void end_frame();
+
+  rdg::Uniform push_uniform();
 };
 
 }        // namespace ash

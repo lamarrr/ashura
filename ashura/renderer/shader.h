@@ -18,18 +18,9 @@ namespace ash
 struct ShaderBindingMetaData
 {
   Span<char const>    name;
-  gfx::DescriptorType type              = gfx::DescriptorType::Sampler;
-  u16                 count             = 0;
-  u16                 member_offset     = 0;
-  u16                 uniform_size      = 0;
-  u16                 uniform_alignment = 0;
-};
-
-struct ShaderParameterDescriptor
-{
-  gfx::DescriptorSet set            = {};
-  Span<u64 const>    buffer_offsets = {};
-  u32                uniform_index  = 0;
+  gfx::DescriptorType type          = gfx::DescriptorType::Sampler;
+  u16                 count         = 0;
+  u16                 member_offset = 0;
 };
 
 #define BEGIN_SHADER_PARAMETER(Name)             \
@@ -44,48 +35,93 @@ struct ShaderParameterDescriptor
                                                  \
     typedef _METAMemberBegin
 
-#define SHADER_UNIFORM(StructType, BindingName, Count)                         \
-  _METAMember_##BindingName;                                                   \
-  static constexpr void _METApush(_METAMember_##BindingName,                   \
-                                  ::ash::ShaderBindingMetaData *meta)          \
-  {                                                                            \
-    *meta = ::ash::ShaderBindingMetaData{                                      \
-        .name              = ::ash::to_span(#BindingName),                     \
-        .type              = ::ash::gfx::DescriptorType::DynamicUniformBuffer, \
-        .count             = (u16) Count,                                      \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName),       \
-        .uniform_size      = sizeof(StructType),                               \
-        .uniform_alignment = alignof(StructType)};                             \
-    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);                     \
-  }                                                                            \
-                                                                               \
-  StructType BindingName[Count];                                               \
-                                                                               \
-  struct _METAMemberAfter_##BindingName                                        \
-  {                                                                            \
-    static constexpr u16 _METAMemberIndex =                                    \
-        _METAMember_##BindingName::_METAMemberIndex + 1;                       \
-  };                                                                           \
-                                                                               \
+#define SHADER_SAMPLER(BindingName, Count)                            \
+  _METAMember_##BindingName;                                          \
+                                                                      \
+  static constexpr void _METApush(_METAMember_##BindingName,          \
+                                  ::ash::ShaderBindingMetaData *meta) \
+  {                                                                   \
+    *meta = ::ash::ShaderBindingMetaData{                             \
+        .name          = ::ash::to_span(#BindingName),                \
+        .type          = ::ash::gfx::DescriptorType::Sampler,         \
+        .count         = (u16) Count,                                 \
+        .member_offset = (u16) offsetof(_METAThisType, BindingName)}; \
+    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);            \
+  }                                                                   \
+                                                                      \
+  ::ash::gfx::SamplerBinding BindingName[Count];                      \
+                                                                      \
+  struct _METAMemberAfter_##BindingName                               \
+  {                                                                   \
+    static constexpr u16 _METAMemberIndex =                           \
+        _METAMember_##BindingName::_METAMemberIndex + 1;              \
+  };                                                                  \
+                                                                      \
   typedef _METAMemberAfter_##BindingName
 
-#define SHADER_SAMPLER(BindingName, Count)                               \
+#define SHADER_COMBINED_IMAGE_SAMPLER(BindingName, Count)                  \
+  _METAMember_##BindingName;                                               \
+                                                                           \
+  static constexpr void _METApush(_METAMember_##BindingName,               \
+                                  ::ash::ShaderBindingMetaData *meta)      \
+  {                                                                        \
+    *meta = ::ash::ShaderBindingMetaData{                                  \
+        .name          = ::ash::to_span(#BindingName),                     \
+        .type          = ::ash::gfx::DescriptorType::CombinedImageSampler, \
+        .count         = (u16) Count,                                      \
+        .member_offset = (u16) offsetof(_METAThisType, BindingName)};      \
+    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);                 \
+  }                                                                        \
+                                                                           \
+  ::ash::gfx::CombinedImageSamplerBinding BindingName[Count];              \
+                                                                           \
+  struct _METAMemberAfter_##BindingName                                    \
+  {                                                                        \
+    static constexpr u16 _METAMemberIndex =                                \
+        _METAMember_##BindingName::_METAMemberIndex + 1;                   \
+  };                                                                       \
+                                                                           \
+  typedef _METAMemberAfter_##BindingName
+
+#define SHADER_SAMPLED_IMAGE(BindingName, Count)                      \
+  _METAMember_##BindingName;                                          \
+                                                                      \
+  static constexpr void _METApush(_METAMember_##BindingName,          \
+                                  ::ash::ShaderBindingMetaData *meta) \
+  {                                                                   \
+    *meta = ::ash::ShaderBindingMetaData{                             \
+        .name          = ::ash::to_span(#BindingName),                \
+        .type          = ::ash::gfx::DescriptorType::SampledImage,    \
+        .count         = (u16) Count,                                 \
+        .member_offset = (u16) offsetof(_METAThisType, BindingName)}; \
+    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);            \
+  }                                                                   \
+                                                                      \
+  ::ash::gfx::SampledImageBinding BindingName[Count];                 \
+                                                                      \
+  struct _METAMemberAfter_##BindingName                               \
+  {                                                                   \
+    static constexpr u16 _METAMemberIndex =                           \
+        _METAMember_##BindingName::_METAMemberIndex + 1;              \
+  };                                                                  \
+                                                                      \
+  typedef _METAMemberAfter_##BindingName
+
+#define SHADER_UNIFORM_TEXEL_BUFFER(BindingName, Count)                  \
   _METAMember_##BindingName;                                             \
                                                                          \
   static constexpr void _METApush(_METAMember_##BindingName,             \
                                   ::ash::ShaderBindingMetaData *meta)    \
   {                                                                      \
     *meta = ::ash::ShaderBindingMetaData{                                \
-        .name              = ::ash::to_span(#BindingName),               \
-        .type              = ::ash::gfx::DescriptorType::Sampler,        \
-        .count             = (u16) Count,                                \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName), \
-        .uniform_size      = 0,                                          \
-        .uniform_alignment = 0};                                         \
+        .name          = ::ash::to_span(#BindingName),                   \
+        .type          = ::ash::gfx::DescriptorType::UniformTexelBuffer, \
+        .count         = (u16) Count,                                    \
+        .member_offset = (u16) offsetof(_METAThisType, BindingName)};    \
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1);               \
   }                                                                      \
                                                                          \
-  ::ash::gfx::SamplerBinding BindingName[Count];                         \
+  ::ash::gfx::UniformTexelBufferBinding BindingName[Count];              \
                                                                          \
   struct _METAMemberAfter_##BindingName                                  \
   {                                                                      \
@@ -95,49 +131,21 @@ struct ShaderParameterDescriptor
                                                                          \
   typedef _METAMemberAfter_##BindingName
 
-#define SHADER_COMBINED_IMAGE_SAMPLER(BindingName, Count)                      \
-  _METAMember_##BindingName;                                                   \
-                                                                               \
-  static constexpr void _METApush(_METAMember_##BindingName,                   \
-                                  ::ash::ShaderBindingMetaData *meta)          \
-  {                                                                            \
-    *meta = ::ash::ShaderBindingMetaData{                                      \
-        .name              = ::ash::to_span(#BindingName),                     \
-        .type              = ::ash::gfx::DescriptorType::CombinedImageSampler, \
-        .count             = (u16) Count,                                      \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName),       \
-        .uniform_size      = 0,                                                \
-        .uniform_alignment = 0};                                               \
-    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);                     \
-  }                                                                            \
-                                                                               \
-  ::ash::gfx::CombinedImageSamplerBinding BindingName[Count];                  \
-                                                                               \
-  struct _METAMemberAfter_##BindingName                                        \
-  {                                                                            \
-    static constexpr u16 _METAMemberIndex =                                    \
-        _METAMember_##BindingName::_METAMemberIndex + 1;                       \
-  };                                                                           \
-                                                                               \
-  typedef _METAMemberAfter_##BindingName
-
-#define SHADER_SAMPLED_IMAGE(BindingName, Count)                         \
+#define SHADER_STORAGE_TEXEL_BUFFER(BindingName, Count)                  \
   _METAMember_##BindingName;                                             \
                                                                          \
   static constexpr void _METApush(_METAMember_##BindingName,             \
                                   ::ash::ShaderBindingMetaData *meta)    \
   {                                                                      \
     *meta = ::ash::ShaderBindingMetaData{                                \
-        .name              = ::ash::to_span(#BindingName),               \
-        .type              = ::ash::gfx::DescriptorType::SampledImage,   \
-        .count             = (u16) Count,                                \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName), \
-        .uniform_size      = 0,                                          \
-        .uniform_alignment = 0};                                         \
+        .name          = ::ash::to_span(#BindingName),                   \
+        .type          = ::ash::gfx::DescriptorType::StorageTexelBuffer, \
+        .count         = (u16) Count,                                    \
+        .member_offset = (u16) offsetof(_METAThisType, BindingName)};    \
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1);               \
   }                                                                      \
                                                                          \
-  ::ash::gfx::SampledImageBinding BindingName[Count];                    \
+  ::ash::gfx::StorageTexelBufferBinding BindingName[Count];              \
                                                                          \
   struct _METAMemberAfter_##BindingName                                  \
   {                                                                      \
@@ -147,186 +155,124 @@ struct ShaderParameterDescriptor
                                                                          \
   typedef _METAMemberAfter_##BindingName
 
-#define SHADER_UNIFORM_TEXEL_BUFFER(BindingName, Count)                      \
-  _METAMember_##BindingName;                                                 \
-                                                                             \
-  static constexpr void _METApush(_METAMember_##BindingName,                 \
-                                  ::ash::ShaderBindingMetaData *meta)        \
-  {                                                                          \
-    *meta = ::ash::ShaderBindingMetaData{                                    \
-        .name              = ::ash::to_span(#BindingName),                   \
-        .type              = ::ash::gfx::DescriptorType::UniformTexelBuffer, \
-        .count             = (u16) Count,                                    \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName),     \
-        .uniform_size      = 0,                                              \
-        .uniform_alignment = 0};                                             \
-    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);                   \
-  }                                                                          \
-                                                                             \
-  ::ash::gfx::UniformTexelBufferBinding BindingName[Count];                  \
-                                                                             \
-  struct _METAMemberAfter_##BindingName                                      \
-  {                                                                          \
-    static constexpr u16 _METAMemberIndex =                                  \
-        _METAMember_##BindingName::_METAMemberIndex + 1;                     \
-  };                                                                         \
-                                                                             \
+#define SHADER_UNIFORM_BUFFER(BindingName, Count)                     \
+  _METAMember_##BindingName;                                          \
+                                                                      \
+  static constexpr void _METApush(_METAMember_##BindingName,          \
+                                  ::ash::ShaderBindingMetaData *meta) \
+  {                                                                   \
+    *meta = ::ash::ShaderBindingMetaData{                             \
+        .name          = ::ash::to_span(#BindingName),                \
+        .type          = ::ash::gfx::DescriptorType::UniformBuffer,   \
+        .count         = (u16) Count,                                 \
+        .member_offset = (u16) offsetof(_METAThisType, BindingName)}; \
+    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);            \
+  }                                                                   \
+                                                                      \
+  ::ash::gfx::UniformBufferBinding BindingName[Count];                \
+                                                                      \
+  struct _METAMemberAfter_##BindingName                               \
+  {                                                                   \
+    static constexpr u16 _METAMemberIndex =                           \
+        _METAMember_##BindingName::_METAMemberIndex + 1;              \
+  };                                                                  \
+                                                                      \
   typedef _METAMemberAfter_##BindingName
 
-#define SHADER_STORAGE_TEXEL_BUFFER(BindingName, Count)                      \
-  _METAMember_##BindingName;                                                 \
-                                                                             \
-  static constexpr void _METApush(_METAMember_##BindingName,                 \
-                                  ::ash::ShaderBindingMetaData *meta)        \
-  {                                                                          \
-    *meta = ::ash::ShaderBindingMetaData{                                    \
-        .name              = ::ash::to_span(#BindingName),                   \
-        .type              = ::ash::gfx::DescriptorType::StorageTexelBuffer, \
-        .count             = (u16) Count,                                    \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName),     \
-        .uniform_size      = 0,                                              \
-        .uniform_alignment = 0};                                             \
-    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);                   \
-  }                                                                          \
-                                                                             \
-  ::ash::gfx::StorageTexelBufferBinding BindingName[Count];                  \
-                                                                             \
-  struct _METAMemberAfter_##BindingName                                      \
-  {                                                                          \
-    static constexpr u16 _METAMemberIndex =                                  \
-        _METAMember_##BindingName::_METAMemberIndex + 1;                     \
-  };                                                                         \
-                                                                             \
+#define SHADER_STORAGE_BUFFER(BindingName, Count)                     \
+  _METAMember_##BindingName;                                          \
+                                                                      \
+  static constexpr void _METApush(_METAMember_##BindingName,          \
+                                  ::ash::ShaderBindingMetaData *meta) \
+  {                                                                   \
+    *meta = ::ash::ShaderBindingMetaData{                             \
+        .name          = ::ash::to_span(#BindingName),                \
+        .type          = ::ash::gfx::DescriptorType::StorageBuffer,   \
+        .count         = (u16) Count,                                 \
+        .member_offset = (u16) offsetof(_METAThisType, BindingName)}; \
+    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);            \
+  }                                                                   \
+                                                                      \
+  ::ash::gfx::StorageBufferBinding BindingName[Count];                \
+                                                                      \
+  struct _METAMemberAfter_##BindingName                               \
+  {                                                                   \
+    static constexpr u16 _METAMemberIndex =                           \
+        _METAMember_##BindingName::_METAMemberIndex + 1;              \
+  };                                                                  \
+                                                                      \
   typedef _METAMemberAfter_##BindingName
 
-#define SHADER_UNIFORM_BUFFER(BindingName, Count)                        \
-  _METAMember_##BindingName;                                             \
-                                                                         \
-  static constexpr void _METApush(_METAMember_##BindingName,             \
-                                  ::ash::ShaderBindingMetaData *meta)    \
-  {                                                                      \
-    *meta = ::ash::ShaderBindingMetaData{                                \
-        .name              = ::ash::to_span(#BindingName),               \
-        .type              = ::ash::gfx::DescriptorType::UniformBuffer,  \
-        .count             = (u16) Count,                                \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName), \
-        .uniform_size      = 0,                                          \
-        .uniform_alignment = 0};                                         \
-    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);               \
-  }                                                                      \
-                                                                         \
-  ::ash::gfx::UniformBufferBinding BindingName[Count];                   \
-                                                                         \
-  struct _METAMemberAfter_##BindingName                                  \
-  {                                                                      \
-    static constexpr u16 _METAMemberIndex =                              \
-        _METAMember_##BindingName::_METAMemberIndex + 1;                 \
-  };                                                                     \
-                                                                         \
+#define SHADER_DYNAMIC_UNIFORM_BUFFER(BindingName, Count)                  \
+  _METAMember_##BindingName;                                               \
+                                                                           \
+  static constexpr void _METApush(_METAMember_##BindingName,               \
+                                  ::ash::ShaderBindingMetaData *meta)      \
+  {                                                                        \
+    *meta = ::ash::ShaderBindingMetaData{                                  \
+        .name          = ::ash::to_span(#BindingName),                     \
+        .type          = ::ash::gfx::DescriptorType::DynamicUniformBuffer, \
+        .count         = (u16) Count,                                      \
+        .member_offset = (u16) offsetof(_METAThisType, BindingName)};      \
+    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);                 \
+  }                                                                        \
+                                                                           \
+  ::ash::gfx::DynamicUniformBufferBinding BindingName[Count];              \
+                                                                           \
+  struct _METAMemberAfter_##BindingName                                    \
+  {                                                                        \
+    static constexpr u16 _METAMemberIndex =                                \
+        _METAMember_##BindingName::_METAMemberIndex + 1;                   \
+  };                                                                       \
+                                                                           \
   typedef _METAMemberAfter_##BindingName
 
-#define SHADER_STORAGE_BUFFER(BindingName, Count)                        \
-  _METAMember_##BindingName;                                             \
-                                                                         \
-  static constexpr void _METApush(_METAMember_##BindingName,             \
-                                  ::ash::ShaderBindingMetaData *meta)    \
-  {                                                                      \
-    *meta = ::ash::ShaderBindingMetaData{                                \
-        .name              = ::ash::to_span(#BindingName),               \
-        .type              = ::ash::gfx::DescriptorType::StorageBuffer,  \
-        .count             = (u16) Count,                                \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName), \
-        .uniform_size      = 0,                                          \
-        .uniform_alignment = 0};                                         \
-    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);               \
-  }                                                                      \
-                                                                         \
-  ::ash::gfx::StorageBufferBinding BindingName[Count];                   \
-                                                                         \
-  struct _METAMemberAfter_##BindingName                                  \
-  {                                                                      \
-    static constexpr u16 _METAMemberIndex =                              \
-        _METAMember_##BindingName::_METAMemberIndex + 1;                 \
-  };                                                                     \
-                                                                         \
+#define SHADER_DYNAMIC_STORAGE_BUFFER(BindingName, Count)                  \
+  _METAMember_##BindingName;                                               \
+                                                                           \
+  static constexpr void _METApush(_METAMember_##BindingName,               \
+                                  ::ash::ShaderBindingMetaData *meta)      \
+  {                                                                        \
+    *meta = ::ash::ShaderBindingMetaData{                                  \
+        .name          = ::ash::to_span(#BindingName),                     \
+        .type          = ::ash::gfx::DescriptorType::DynamicStorageBuffer, \
+        .count         = (u16) Count,                                      \
+        .member_offset = (u16) offsetof(_METAThisType, BindingName)};      \
+    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);                 \
+  }                                                                        \
+                                                                           \
+  ::ash::gfx::DynamicStorageBufferBinding BindingName[Count];              \
+                                                                           \
+  struct _METAMemberAfter_##BindingName                                    \
+  {                                                                        \
+    static constexpr u16 _METAMemberIndex =                                \
+        _METAMember_##BindingName::_METAMemberIndex + 1;                   \
+  };                                                                       \
+                                                                           \
   typedef _METAMemberAfter_##BindingName
 
-#define SHADER_DYNAMIC_UNIFORM_BUFFER(BindingName, Count)                      \
-  _METAMember_##BindingName;                                                   \
-                                                                               \
-  static constexpr void _METApush(_METAMember_##BindingName,                   \
-                                  ::ash::ShaderBindingMetaData *meta)          \
-  {                                                                            \
-    *meta = ::ash::ShaderBindingMetaData{                                      \
-        .name              = ::ash::to_span(#BindingName),                     \
-        .type              = ::ash::gfx::DescriptorType::DynamicUniformBuffer, \
-        .count             = (u16) Count,                                      \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName),       \
-        .uniform_size      = 0,                                                \
-        .uniform_alignment = 0};                                               \
-    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);                     \
-  }                                                                            \
-                                                                               \
-  ::ash::gfx::DynamicUniformBufferBinding BindingName[Count];                  \
-                                                                               \
-  struct _METAMemberAfter_##BindingName                                        \
-  {                                                                            \
-    static constexpr u16 _METAMemberIndex =                                    \
-        _METAMember_##BindingName::_METAMemberIndex + 1;                       \
-  };                                                                           \
-                                                                               \
-  typedef _METAMemberAfter_##BindingName
-
-#define SHADER_DYNAMIC_STORAGE_BUFFER(BindingName, Count)                      \
-  _METAMember_##BindingName;                                                   \
-                                                                               \
-  static constexpr void _METApush(_METAMember_##BindingName,                   \
-                                  ::ash::ShaderBindingMetaData *meta)          \
-  {                                                                            \
-    *meta = ::ash::ShaderBindingMetaData{                                      \
-        .name              = ::ash::to_span(#BindingName),                     \
-        .type              = ::ash::gfx::DescriptorType::DynamicStorageBuffer, \
-        .count             = (u16) Count,                                      \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName),       \
-        .uniform_size      = 0,                                                \
-        .uniform_alignment = 0};                                               \
-    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);                     \
-  }                                                                            \
-                                                                               \
-  ::ash::gfx::DynamicStorageBufferBinding BindingName[Count];                  \
-                                                                               \
-  struct _METAMemberAfter_##BindingName                                        \
-  {                                                                            \
-    static constexpr u16 _METAMemberIndex =                                    \
-        _METAMember_##BindingName::_METAMemberIndex + 1;                       \
-  };                                                                           \
-                                                                               \
-  typedef _METAMemberAfter_##BindingName
-
-#define SHADER_INPUT_ATTACHMENT(BindingName, Count)                       \
-  _METAMember_##BindingName;                                              \
-                                                                          \
-  static constexpr void _METApush(_METAMember_##BindingName,              \
-                                  ::ash::ShaderBindingMetaData *meta)     \
-  {                                                                       \
-    *meta = ::ash::ShaderBindingMetaData{                                 \
-        .name              = ::ash::to_span(#BindingName),                \
-        .type              = ::ash::gfx::DescriptorType::InputAttachment, \
-        .count             = (u16) Count,                                 \
-        .member_offset     = (u16) offsetof(_METAThisType, BindingName),  \
-        .uniform_size      = 0,                                           \
-        .uniform_alignment = 0};                                          \
-    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);                \
-  }                                                                       \
-                                                                          \
-  ::ash::gfx::InputAttachmentBinding BindingName[Count];                  \
-                                                                          \
-  struct _METAMemberAfter_##BindingName                                   \
-  {                                                                       \
-    static constexpr u16 _METAMemberIndex =                               \
-        _METAMember_##BindingName::_METAMemberIndex + 1;                  \
-  };                                                                      \
-                                                                          \
+#define SHADER_INPUT_ATTACHMENT(BindingName, Count)                   \
+  _METAMember_##BindingName;                                          \
+                                                                      \
+  static constexpr void _METApush(_METAMember_##BindingName,          \
+                                  ::ash::ShaderBindingMetaData *meta) \
+  {                                                                   \
+    *meta = ::ash::ShaderBindingMetaData{                             \
+        .name          = ::ash::to_span(#BindingName),                \
+        .type          = ::ash::gfx::DescriptorType::InputAttachment, \
+        .count         = (u16) Count,                                 \
+        .member_offset = (u16) offsetof(_METAThisType, BindingName)}; \
+    _METApush(_METAMemberAfter_##BindingName{}, meta + 1);            \
+  }                                                                   \
+                                                                      \
+  ::ash::gfx::InputAttachmentBinding BindingName[Count];              \
+                                                                      \
+  struct _METAMemberAfter_##BindingName                               \
+  {                                                                   \
+    static constexpr u16 _METAMemberIndex =                           \
+        _METAMember_##BindingName::_METAMemberIndex + 1;              \
+  };                                                                  \
+                                                                      \
   typedef _METAMemberAfter_##BindingName
 
 #define END_SHADER_PARAMETER(Name)                                             \
@@ -352,9 +298,6 @@ BEGIN_SHADER_PARAMETER(PBRParameter)
 SHADER_SAMPLER(Metallic, 1)
 SHADER_SAMPLER(Albedo, 1)
 SHADER_SAMPLER(AO, 1)
-SHADER_UNIFORM(Vec4, MetallicFactor, 1)
-SHADER_UNIFORM(Vec4, AlbedoFactor, 1)
-SHADER_UNIFORM(Vec4, AOFactor, 1)
 END_SHADER_PARAMETER(PBRParameter)
 
 // TODO(lamarrr): use shader setter and getter instead, get layout, get bindings
@@ -392,37 +335,21 @@ struct ShaderParameterHeap
                 ->create_descriptor_heap(device_.self, {&layout, 1}, batch_size,
                                          heap_allocator)
                 .unwrap();
-
-    u64 uniform_size      = 0;
-    u64 uniform_alignment = BINDINGS[0].uniform_alignment;
-    for (ShaderBindingMetaData const &member : BINDINGS)
-    {
-      uniform_size = mem::align_offset(member.uniform_alignment, uniform_size);
-      uniform_size += member.uniform_size;
-    }
-
-    batch_size_        = batch_size;
-    uniform_size_      = uniform_size;
-    uniform_alignment_ = uniform_alignment;
   }
 
   void deinit();
 
-  Option<u32> create_descriptor(PBRParameter const &param)
+  Option<gfx::DescriptorSet> create_descriptor(PBRParameter const &param)
   {
     // allocate uniform buffer slot
     // allocate descriptor group
     u32 group = heap_->add_group(heap_.self, 0).unwrap();
-    ShaderParameterDescriptor{
-        .set = gfx::DescriptorSet{.heap = heap_.self, .group = group, .set = 0},
-        .dynamic_offsets = {},
-        .uniform_index   = 0x00};
-    return Some<u32>{0};
+    return Some{
+        gfx::DescriptorSet{.heap = heap_.self, .group = group, .set = 0}};
   }
 
   void update_bindings(u32 id, PBRParameter const &param)
   {
-    ShaderParameterDescriptor const desc;
     for (ShaderBindingMetaData const &member : BINDINGS)
     {
       switch (member.type)
@@ -533,49 +460,15 @@ struct ShaderParameterHeap
     }
   }
 
-  // no stalling
-  void update_uniforms(gfx::CommandEncoderImpl const &encoder, u32 id,
-                       PBRParameter const &param)
+  void release_descriptor(gfx::DescriptorSet set)
   {
-    ShaderParameterDescriptor const desc;
-    for (ShaderBindingMetaData const &member : BINDINGS)
-    {
-      switch (member.type)
-      {
-        case gfx::DescriptorType::DynamicUniformBuffer:
-        {
-          if (member.uniform_size > 0)
-          {
-            // update section
-            // how to sync correctly
-            encoder->update_buffer(encoder.self, {}, 0x00,
-                                   uniform_buffers_[0x00]);
-          }
-        }
-        break;
-        default:
-          break;
-      }
-    }
-  }
-
-  ShaderParameterDescriptor resolve(u32 id);
-
-  void release_descriptor(u32 id)
-  {
-    ShaderParameterDescriptor const desc;
     // UniformBuffers list, packed, aligned
     // use dynamic uniform buffer for uniforms
-    heap_->release(heap_.self, desc.set.group);
+    heap_->release(heap_.self, set.group);
     // release slot
   }
 
-  u32                     batch_size_        = 0;
-  u64                     uniform_size_      = 0;
-  u64                     uniform_alignment_ = 0;
   gfx::DescriptorHeapImpl heap_;
-  gfx::Buffer             uniform_buffers_[2];
-  void                   *uniform_buffers_cpu_[2];
   gfx::DeviceImpl         device_;
 };
 
