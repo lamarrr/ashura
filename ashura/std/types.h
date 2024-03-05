@@ -1,4 +1,5 @@
 #pragma once
+#include "ashura/std/traits.h"
 #include <cfloat>
 #include <cinttypes>
 #include <cstddef>
@@ -7,23 +8,25 @@
 
 namespace ash
 {
-typedef uint8_t           u8;
-typedef uint16_t          u16;
-typedef uint32_t          u32;
-typedef uint64_t          u64;
-typedef int8_t            i8;
-typedef int16_t           i16;
-typedef int32_t           i32;
-typedef int64_t           i64;
-typedef float             f32;
-typedef double            f64;
-typedef size_t            usize;
-typedef ptrdiff_t         isize;
-typedef u8                uid8;
-typedef u16               uid16;
-typedef u32               uid32;
-typedef u64               uid64;
-typedef struct Void       Void;
+typedef uint8_t     u8;
+typedef uint16_t    u16;
+typedef uint32_t    u32;
+typedef uint64_t    u64;
+typedef int8_t      i8;
+typedef int16_t     i16;
+typedef int32_t     i32;
+typedef int64_t     i64;
+typedef float       f32;
+typedef double      f64;
+typedef size_t      usize;
+typedef ptrdiff_t   isize;
+typedef u8          uid8;
+typedef u16         uid16;
+typedef u32         uid32;
+typedef u64         uid64;
+typedef struct Void Void;
+template <typename... T>
+struct Tuple;
 typedef struct Vec2       Vec2;
 typedef struct Vec3       Vec3;
 typedef struct Vec4       Vec4;
@@ -239,6 +242,305 @@ struct NumTraits<T const volatile> : NumTraits<T>
 struct Void
 {
 };
+
+template <typename... T>
+struct Tuple
+{
+  static constexpr u8 NUM_ELEMENTS = 0;
+};
+
+Tuple() -> Tuple<>;
+
+template <typename T0>
+struct Tuple<T0>
+{
+  typedef T0 Type0;
+
+  static constexpr u8 NUM_ELEMENTS = 1;
+
+  T0 first{};
+};
+
+template <typename T0>
+Tuple(T0) -> Tuple<T0>;
+
+template <typename T0, typename T1>
+struct Tuple<T0, T1>
+{
+  typedef T0 Type0;
+  typedef T1 Type1;
+
+  static constexpr u8 NUM_ELEMENTS = 2;
+
+  T0 first{};
+  T1 second{};
+};
+
+template <typename T0, typename T1>
+Tuple(T0, T1) -> Tuple<T0, T1>;
+
+template <typename T0, typename T1, typename T2>
+struct Tuple<T0, T1, T2>
+{
+  typedef T0 Type0;
+  typedef T1 Type1;
+  typedef T2 Type2;
+
+  static constexpr u8 NUM_ELEMENTS = 3;
+
+  T0 first{};
+  T1 second{};
+  T2 third{};
+};
+
+template <typename T0, typename T1, typename T2>
+Tuple(T0, T1, T2) -> Tuple<T0, T1, T2>;
+
+template <typename T0, typename T1, typename T2, typename T3>
+struct Tuple<T0, T1, T2, T3>
+{
+  typedef T0 Type0;
+  typedef T1 Type1;
+  typedef T2 Type2;
+  typedef T3 Type3;
+
+  static constexpr u8 NUM_ELEMENTS = 4;
+
+  T0 first{};
+  T1 second{};
+  T2 third{};
+  T3 fourth{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3>
+Tuple(T0, T1, T2, T3) -> Tuple<T0, T1, T2, T3>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4>
+struct Tuple<T0, T1, T2, T3, T4>
+{
+  typedef T0 Type0;
+  typedef T1 Type1;
+  typedef T2 Type2;
+  typedef T3 Type3;
+  typedef T4 Type4;
+
+  static constexpr u8 NUM_ELEMENTS = 5;
+
+  T0 first{};
+  T1 second{};
+  T2 third{};
+  T3 fourth{};
+  T4 fifth{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4>
+Tuple(T0, T1, T2, T3, T4) -> Tuple<T0, T1, T2, T3, T4>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5>
+struct Tuple<T0, T1, T2, T3, T4, T5>
+{
+  typedef T0 Type0;
+  typedef T1 Type1;
+  typedef T2 Type2;
+  typedef T3 Type3;
+  typedef T4 Type4;
+  typedef T5 Type5;
+
+  static constexpr u8 NUM_ELEMENTS = 6;
+
+  T0 first{};
+  T1 second{};
+  T2 third{};
+  T3 fourth{};
+  T4 fifth{};
+  T5 sixth{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5>
+Tuple(T0, T1, T2, T3, T4, T5) -> Tuple<T0, T1, T2, T3, T4, T5>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6>
+struct Tuple<T0, T1, T2, T3, T4, T5, T6>
+{
+  typedef T0 Type0;
+  typedef T1 Type1;
+  typedef T2 Type2;
+  typedef T3 Type3;
+  typedef T4 Type4;
+  typedef T5 Type5;
+  typedef T6 Type6;
+
+  static constexpr u8 NUM_ELEMENTS = 7;
+
+  T0 first{};
+  T1 second{};
+  T2 third{};
+  T3 fourth{};
+  T4 fifth{};
+  T5 sixth{};
+  T6 seventh{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6>
+Tuple(T0, T1, T2, T3, T4, T5, T6) -> Tuple<T0, T1, T2, T3, T4, T5, T6>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7>
+struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7>
+{
+  typedef T0 Type0;
+  typedef T1 Type1;
+  typedef T2 Type2;
+  typedef T3 Type3;
+  typedef T4 Type4;
+  typedef T5 Type5;
+  typedef T6 Type6;
+  typedef T7 Type7;
+
+  static constexpr u8 NUM_ELEMENTS = 8;
+
+  T0 first{};
+  T1 second{};
+  T2 third{};
+  T3 fourth{};
+  T4 fifth{};
+  T5 sixth{};
+  T6 seventh{};
+  T7 eigth{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7>
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7>;
+
+template <unsigned int Index, typename Tuple>
+constexpr auto &&impl_get(Tuple &&tuple)
+{
+  static_assert(Index < remove_ref<Tuple>::NUM_ELEMENTS,
+                "Index of Tuple Elements out of bounds");
+  if constexpr (Index == 0)
+  {
+    return tuple.first;
+  }
+  if constexpr (Index == 1)
+  {
+    return tuple.second;
+  }
+  if constexpr (Index == 2)
+  {
+    return tuple.third;
+  }
+  if constexpr (Index == 3)
+  {
+    return tuple.fourth;
+  }
+  if constexpr (Index == 4)
+  {
+    return tuple.fifth;
+  }
+  if constexpr (Index == 5)
+  {
+    return tuple.sixth;
+  }
+  if constexpr (Index == 6)
+  {
+    return tuple.seventh;
+  }
+  if constexpr (Index == 7)
+  {
+    return tuple.eighth;
+  }
+}
+
+template <u8 Index, typename... T>
+constexpr auto const &get(Tuple<T...> const &tuple)
+{
+  return impl_get<Index>(tuple);
+}
+
+template <u8 Index, typename... T>
+constexpr auto &get(Tuple<T...> &tuple)
+{
+  return impl_get<Index>(tuple);
+}
+
+template <u8 Index, typename... T>
+constexpr auto const &&get(Tuple<T...> const &&tuple)
+{
+  return impl_get<Index>(tuple);
+}
+
+template <u8 Index, typename... T>
+constexpr auto &&get(Tuple<T...> &&tuple)
+{
+  return impl_get<Index>(tuple);
+}
+
+template <typename Fn, typename Tuple>
+constexpr void impl_apply(Fn &&op, Tuple &&tuple)
+{
+  static constexpr u8 NUM_ELEMENTS = remove_ref<Tuple>::NUM_ELEMENTS;
+  if constexpr (NUM_ELEMENTS > 0)
+  {
+    op(tuple.first);
+  }
+  if constexpr (NUM_ELEMENTS > 1)
+  {
+    op(tuple.second);
+  }
+  if constexpr (NUM_ELEMENTS > 2)
+  {
+    op(tuple.third);
+  }
+  if constexpr (NUM_ELEMENTS > 3)
+  {
+    op(tuple.fourth);
+  }
+  if constexpr (NUM_ELEMENTS > 4)
+  {
+    op(tuple.fifth);
+  }
+  if constexpr (NUM_ELEMENTS > 5)
+  {
+    op(tuple.sixth);
+  }
+  if constexpr (NUM_ELEMENTS > 6)
+  {
+    op(tuple.seventh);
+  }
+  if constexpr (NUM_ELEMENTS > 7)
+  {
+    op(tuple.eighth);
+  }
+}
+
+template <typename Fn, typename... T>
+constexpr void apply(Fn &&op, Tuple<T...> const &tuple)
+{
+  impl_apply((Fn &&) op, tuple);
+}
+
+template <typename Fn, typename... T>
+constexpr void apply(Fn &&op, Tuple<T...> &tuple)
+{
+  impl_apply((Fn &&) op, tuple);
+}
+
+template <typename Fn, typename... T>
+constexpr void apply(Fn &&op, Tuple<T...> const &&tuple)
+{
+  impl_apply((Fn &&) op, tuple);
+}
+
+template <typename Fn, typename... T>
+constexpr void apply(Fn &&op, Tuple<T...> &&tuple)
+{
+  impl_apply((Fn &&) op, tuple);
+}
 
 struct alignas(8) Vec2
 {

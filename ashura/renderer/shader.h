@@ -374,10 +374,10 @@ END_SHADER_PARAMETER(PBRParameter)
 template <typename Param>
 struct ShaderParameterHeap
 {
-  // no stalling
-  void init(u32 batch_size)
+  static constexpr Array BINDINGS = PBRParameter::get_bindings();
+
+  void init(gfx::DeviceImpl device, u32 batch_size)
   {
-    auto                       members = PBRParameter::get_bindings();
     gfx::DescriptorBindingDesc descs[PBRParameter::NUM_BINDINGS];
     for (u16 i = 0; i < PBRParameter::NUM_BINDINGS; i++)
     {
@@ -397,14 +397,20 @@ struct ShaderParameterHeap
                 .unwrap();
 
     u64 uniform_size      = 0;
-    u64 uniform_alignment = members[0].uniform_alignment;
-    for (auto const &member : members)
+    u64 uniform_alignment = BINDINGS[0].uniform_alignment;
+    for (ShaderBindingMetaData const &member : BINDINGS)
     {
       uniform_size = mem::align_offset(member.uniform_alignment, uniform_size);
       uniform_size += member.uniform_size;
     }
+
+    batch_size_        = batch_size;
+    uniform_size_      = uniform_size;
+    uniform_alignment_ = uniform_alignment;
   }
-  void                              deinit();
+
+  void deinit();
+
   Option<ShaderParameterDescriptor> create_descriptor(PBRParameter const &param)
   {
     // allocate uniform buffer slot
@@ -413,40 +419,165 @@ struct ShaderParameterHeap
     return Some{ShaderParameterDescriptor{
         .set = gfx::DescriptorSet{.heap = heap_.self, .group = group, .set = 0},
         .dynamic_offsets = {},
-        .uniform_index   = -1}};
+        .uniform_index   = 0x00}};
   }
-  void update(ShaderParameterDescriptor const &desc, PBRParameter const &param)
+
+  void update_bindings(ShaderParameterDescriptor const &desc,
+                       PBRParameter const              &param)
   {
-    auto members = PBRParameter::get_bindings();
-    for (u16 i = 0; i < PBRParameter::NUM_BINDINGS; i++)
+    for (ShaderBindingMetaData const &member : BINDINGS)
     {
-      switch (members[i].type)
+      switch (member.type)
       {
         case gfx::DescriptorType::CombinedImageSampler:
-          heap_->combined_image_sampler(heap_.self, desc.set.group,
-                                        desc.set.set, 0,
-                                        /*get type from byte rep*/);
-          break;
-
+        {
+          heap_->combined_image_sampler(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{(gfx::CombinedImageSampler const *) (((u8 const *) &param) +
+                                                        member.member_offset),
+                   member.count});
+        }
+        break;
+        case gfx::DescriptorType::DynamicStorageBuffer:
+        {
+          heap_->dynamic_storage_buffer(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{(gfx::DynamicStorageBufferBinding const
+                        *) (((u8 const *) &param) + member.member_offset),
+                   member.count});
+        }
+        break;
+        case gfx::DescriptorType::DynamicUniformBuffer:
+        {
+          heap_->dynamic_uniform_buffer(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{(gfx::DynamicUniformBufferBinding const
+                        *) (((u8 const *) &param) + member.member_offset),
+                   member.count});
+        }
+        break;
+        case gfx::DescriptorType::InputAttachment:
+        {
+          heap_->input_attachment(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{
+                  (gfx::InputAttachmentBinding const *) (((u8 const *) &param) +
+                                                         member.member_offset),
+                  member.count});
+        }
+        break;
+        case gfx::DescriptorType::SampledImage:
+        {
+          heap_->sampled_image(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{(gfx::SampledImageBinding const *) (((u8 const *) &param) +
+                                                       member.member_offset),
+                   member.count});
+        }
+        break;
+        case gfx::DescriptorType::Sampler:
+        {
+          heap_->sampler(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{(gfx::SamplerBinding const *) (((u8 const *) &param) +
+                                                  member.member_offset),
+                   member.count});
+        }
+        break;
+        case gfx::DescriptorType::StorageBuffer:
+        {
+          heap_->storage_buffer(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{(gfx::StorageBufferBinding const *) (((u8 const *) &param) +
+                                                        member.member_offset),
+                   member.count});
+        }
+        break;
+        case gfx::DescriptorType::StorageImage:
+        {
+          heap_->storage_image(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{(gfx::StorageImageBinding const *) (((u8 const *) &param) +
+                                                       member.member_offset),
+                   member.count});
+        }
+        break;
+        case gfx::DescriptorType::StorageTexelBuffer:
+        {
+          heap_->storage_texel_buffer(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{(gfx::StorageTexelBufferBinding const
+                        *) (((u8 const *) &param) + member.member_offset),
+                   member.count});
+        }
+        break;
+        case gfx::DescriptorType::UniformBuffer:
+        {
+          heap_->uniform_buffer(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{(gfx::UniformBufferBinding const *) (((u8 const *) &param) +
+                                                        member.member_offset),
+                   member.count});
+        }
+        break;
+        case gfx::DescriptorType::UniformTexelBuffer:
+        {
+          heap_->uniform_texel_buffer(
+              heap_.self, desc.set.group, desc.set.set, 0,
+              Span{(gfx::UniformTexelBufferBinding const
+                        *) (((u8 const *) &param) + member.member_offset),
+                   member.count});
+        }
+        break;
         default:
           break;
       }
     }
   }
-  void update_uniforms(ShaderParameterDescriptor const &desc,
-                       PBRParameter const              &param);
-  void release_descriptor(ShaderParameterDescriptor const &desc);
-  // UniformBuffers list, packed, aligned
-  // use dynamic uniform buffer for uniforms
-  u32                     batch_size_   = 0;
-  u64                     uniform_size_ = 0;
+
+  // no stalling
+  void update_uniforms(gfx::CommandEncoderImpl const   &encoder,
+                       ShaderParameterDescriptor const &desc,
+                       PBRParameter const              &param)
+  {
+    for (ShaderBindingMetaData const &member : BINDINGS)
+    {
+      switch (member.type)
+      {
+        case gfx::DescriptorType::DynamicUniformBuffer:
+        {
+          if (member.uniform_size > 0)
+          {
+            // update section
+            // how to sync correctly
+            encoder->update_buffer(encoder.self, {}, 0x00,
+                                   uniform_buffers_[0x00]);
+          }
+        }
+        break;
+        default:
+          break;
+      }
+    }
+  }
+
+  void release_descriptor(ShaderParameterDescriptor const &desc)
+  {
+    // UniformBuffers list, packed, aligned
+    // use dynamic uniform buffer for uniforms
+    heap_->release(heap_.self, desc.set.group);
+    // release slot
+  }
+
+  u32                     batch_size_        = 0;
+  u64                     uniform_size_      = 0;
+  u64                     uniform_alignment_ = 0;
   gfx::DescriptorHeapImpl heap_;
   gfx::Buffer             uniform_buffers_[2];
+  void                   *uniform_buffers_cpu_[2];
   gfx::DeviceImpl         device_;
 };
 
-constexpr u16  x = PBRParameter::NUM_BINDINGS;
-constexpr auto b = PBRParameter::get_bindings();
 struct Shader;
 
 }        // namespace ash

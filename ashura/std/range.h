@@ -481,4 +481,5 @@ void for_each_partition_indirect(S &&span, Span<IndexType> indices, Fn &&op,
     partition_begin = iter;
   }
 }
+
 }        // namespace  ash

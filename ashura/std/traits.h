@@ -1,5 +1,4 @@
 #pragma once
-#include <cinttypes>
 #include <type_traits>
 
 namespace ash
@@ -22,6 +21,25 @@ struct RemoveConstVolatile<volatile T> : RemoveConstVolatile<T>
 
 template <typename T>
 using remove_const_volatile = typename RemoveConstVolatile<T>::Type;
+
+template <typename T>
+struct RemoveRef
+{
+  using Type = T;
+};
+
+template <typename T>
+struct RemoveRef<T &> : RemoveRef<T>
+{
+};
+
+template <typename T>
+struct RemoveRef<T &&> : RemoveRef<T>
+{
+};
+
+template <typename T>
+using remove_ref = typename RemoveRef<T>::Type;
 
 template <typename T>
 struct IsConstImpl
@@ -65,7 +83,6 @@ concept TriviallyCopyConstructible = std::is_trivially_copy_constructible_v<T>;
 
 template <typename T>
 concept TriviallyMoveConstructible = std::is_trivially_move_constructible_v<T>;
-
 
 template <typename T, typename Base>
 concept Derives = std::is_base_of_v<Base, T>;
