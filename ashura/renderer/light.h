@@ -34,6 +34,7 @@ struct SpotLight
 };
 
 /// SEE: https://learnopengl.com/Guest-Articles/2022/Area-Lights
+/// https://docs.unrealengine.com/5.0/en-US/rectangular-area-lights-in-unreal-engine/
 struct AreaLight
 {
   Vec3 color     = {};

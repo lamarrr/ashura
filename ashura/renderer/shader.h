@@ -9,15 +9,6 @@
 namespace ash
 {
 
-// TODO(lamarrr): use shader setter and getter instead, get layout, get bindings
-// TODO(lamarrr): !!!uniform buffer setup?????
-//
-// TODO(lamarrr): global deletion queue in render context?
-// TODO(lamarrr): automatic uniform buffer setup?
-// get buffer descriptionsm and batch all parameters together into a single
-// buffer
-//
-
 /// @name: parameter name
 /// @type: only valid if is not uniform
 /// @count: element count of the binding
@@ -33,9 +24,6 @@ struct ShaderBindingMetaData
   u16                 uniform_size      = 0;
   u16                 uniform_alignment = 0;
 };
-
-// Span<gfx::DescriptorBindingDesc const> bindings;
-// dynamic offsets
 
 struct ShaderParameterDescriptor
 {
@@ -369,6 +357,15 @@ SHADER_UNIFORM(Vec4, AlbedoFactor, 1)
 SHADER_UNIFORM(Vec4, AOFactor, 1)
 END_SHADER_PARAMETER(PBRParameter)
 
+// TODO(lamarrr): use shader setter and getter instead, get layout, get bindings
+// TODO(lamarrr): !!!uniform buffer setup?????
+//
+// TODO(lamarrr): global deletion queue in render context?
+// TODO(lamarrr): automatic uniform buffer setup?
+// get buffer descriptionsm and batch all parameters together into a single
+// buffer
+//
+
 // MULTIPLE SETS? i.e. per-pass parameter INLINE SHADER PARAMETERS?
 // - create parameter manager/allocator
 template <typename Param>
@@ -411,20 +408,21 @@ struct ShaderParameterHeap
 
   void deinit();
 
-  Option<ShaderParameterDescriptor> create_descriptor(PBRParameter const &param)
+  Option<u32> create_descriptor(PBRParameter const &param)
   {
     // allocate uniform buffer slot
     // allocate descriptor group
     u32 group = heap_->add_group(heap_.self, 0).unwrap();
-    return Some{ShaderParameterDescriptor{
+    ShaderParameterDescriptor{
         .set = gfx::DescriptorSet{.heap = heap_.self, .group = group, .set = 0},
         .dynamic_offsets = {},
-        .uniform_index   = 0x00}};
+        .uniform_index   = 0x00};
+    return Some<u32>{0};
   }
 
-  void update_bindings(ShaderParameterDescriptor const &desc,
-                       PBRParameter const              &param)
+  void update_bindings(u32 id, PBRParameter const &param)
   {
+    ShaderParameterDescriptor const desc;
     for (ShaderBindingMetaData const &member : BINDINGS)
     {
       switch (member.type)
@@ -536,10 +534,10 @@ struct ShaderParameterHeap
   }
 
   // no stalling
-  void update_uniforms(gfx::CommandEncoderImpl const   &encoder,
-                       ShaderParameterDescriptor const &desc,
-                       PBRParameter const              &param)
+  void update_uniforms(gfx::CommandEncoderImpl const &encoder, u32 id,
+                       PBRParameter const &param)
   {
+    ShaderParameterDescriptor const desc;
     for (ShaderBindingMetaData const &member : BINDINGS)
     {
       switch (member.type)
@@ -561,8 +559,11 @@ struct ShaderParameterHeap
     }
   }
 
-  void release_descriptor(ShaderParameterDescriptor const &desc)
+  ShaderParameterDescriptor resolve(u32 id);
+
+  void release_descriptor(u32 id)
   {
+    ShaderParameterDescriptor const desc;
     // UniformBuffers list, packed, aligned
     // use dynamic uniform buffer for uniforms
     heap_->release(heap_.self, desc.set.group);
