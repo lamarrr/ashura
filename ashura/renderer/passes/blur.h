@@ -38,7 +38,7 @@ struct BlurParams
 struct BlurPass
 {
   static void create_kernel();
-  static void add_pass(RenderGraph *graph, BlurParams const *params);
+  static void add_pass(rdg::Graph *graph, BlurParams const *params);
 };
 
 }        // namespace ash

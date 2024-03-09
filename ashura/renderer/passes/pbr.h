@@ -1,8 +1,8 @@
 #pragma once
 #include "ashura/renderer/camera.h"
 #include "ashura/renderer/light.h"
-#include "ashura/renderer/material.h"
 #include "ashura/renderer/render_graph.h"
+#include "ashura/renderer/shader.h"
 
 namespace ash
 {
@@ -12,6 +12,27 @@ struct PBRTexture
   gfx::ImageView view = nullptr;
   Vec2           uv0  = {};
   Vec2           uv1  = {};
+};
+
+BEGIN_SHADER_PARAMETER(PBRShaderParameter)
+SHADER_SAMPLER(sampler, 1)
+SHADER_SAMPLED_IMAGE(base_color, 1)
+SHADER_SAMPLED_IMAGE(metallic, 1)
+SHADER_SAMPLED_IMAGE(roughness, 1)
+SHADER_SAMPLED_IMAGE(normal, 1)
+SHADER_SAMPLED_IMAGE(occlusion, 1)
+SHADER_SAMPLED_IMAGE(emissive, 1)
+END_SHADER_PARAMETER(PBRShaderParameter)
+
+struct PBRShaderUniform
+{
+  Vec4 base_color_factor  = {1, 1, 1, 1};
+  f32  metallic_factor    = 1;
+  f32  roughness_factor   = 1;
+  f32  normal_scale       = 1;
+  f32  occlusion_strength = 1;
+  Vec3 emissive_factor    = {1, 1, 1};
+  f32  emissive_strength  = 1;
 };
 
 /// SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
@@ -81,7 +102,7 @@ struct PBRParams
 struct PBRPass
 {
   // allocate buffer for camera and transforms
-  static void add_pass(RenderGraph *graph, PBRParams const *params);
+  static void add_pass(rdg::Graph *graph, PBRParams const *params);
 };
 
 }        // namespace ash

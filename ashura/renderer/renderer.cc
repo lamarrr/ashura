@@ -510,18 +510,11 @@ void RenderServer::remove_area_light(uid32 scene_id, uid32 light_id)
       [] {});
 }
 
-// transform views from object-space to root-object space
 void RenderServer::transform()
 {
   for (Scene &scene : scene_group.scenes)
   {
-    for (u32 i = 0; i < scene.objects.id_map.size(); i++)
-    {
-      scene.objects.global_transform[i] =
-          scene.objects.global_transform
-              [scene.objects.id_map[scene.objects.node[i].parent]] *
-          scene.objects.local_transform[i];
-    }
+   
   }
 }
 

@@ -31,7 +31,7 @@ struct BloomParams
 
 struct BloomPass
 {
-  static void add_pass(RenderGraph *graph, BloomParams const *params);
+  static void add_pass(rdg::Graph *graph, BloomParams const *params);
 };
 
 }        // namespace ash

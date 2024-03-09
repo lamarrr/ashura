@@ -79,9 +79,9 @@ struct Scene
   void          remove_area_light(uid32 id);
 };
 
-void transform_scene(SparseVec<u32> const &ids, uid32 root_object,
-                     Span<SceneNode const> nodes,
-                     Span<Mat4Affine>      local_transform,
-                     Span<Mat4Affine>      global_transform);
+void transform_nodes(SparseVec<u32> const &id_map, uid32 root_object,
+                     Span<SceneNode const>  node,
+                     Span<Mat4Affine const> local_transform,
+                     Span<Mat4Affine>       global_transform);
 
 }        // namespace ash

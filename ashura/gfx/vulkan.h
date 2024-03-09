@@ -657,8 +657,14 @@ struct DeviceInterface
 
 struct DescriptorHeapInterface
 {
-  static Result<u32, Status> add_group(gfx::DescriptorHeap self,
-                                       gfx::FrameId        trailing_frame);
+  static Result<u32, Status> add_group(gfx::DescriptorHeap self);
+  static void collect(gfx::DescriptorHeap self, gfx::FrameId trailing_frame);
+  static void mark_in_use(gfx::DescriptorHeap self, u32 group,
+                          gfx::FrameId current_frame);
+  static bool is_in_use(gfx::DescriptorHeap self, u32 group,
+                        gfx::FrameId trailing_frame);
+  static void release(gfx::DescriptorHeap self, u32 group);
+  static gfx::DescriptorHeapStats get_stats(gfx::DescriptorHeap self);
   static void sampler(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
                       Span<gfx::SamplerBinding const> elements);
   static void combined_image_sampler(
@@ -691,15 +697,9 @@ struct DescriptorHeapInterface
       gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
       Span<gfx::DynamicStorageBufferBinding const> elements);
   static void
-              input_attachment(gfx::DescriptorHeap self, u32 group, u32 set,
-                               u32                                     binding,
-                               Span<gfx::InputAttachmentBinding const> elements);
-  static void mark_in_use(gfx::DescriptorHeap self, u32 group,
-                          gfx::FrameId current_frame);
-  static bool is_in_use(gfx::DescriptorHeap self, u32 group,
-                        gfx::FrameId trailing_frame);
-  static void release(gfx::DescriptorHeap self, u32 group);
-  static gfx::DescriptorHeapStats get_stats(gfx::DescriptorHeap self);
+      input_attachment(gfx::DescriptorHeap self, u32 group, u32 set,
+                       u32                                     binding,
+                       Span<gfx::InputAttachmentBinding const> elements);
 };
 
 struct CommandEncoderInterface
@@ -861,6 +861,11 @@ static gfx::DeviceInterface const device_interface{
 
 static gfx::DescriptorHeapInterface const descriptor_heap_interface{
     .add_group              = DescriptorHeapInterface::add_group,
+    .collect                = DescriptorHeapInterface::collect,
+    .mark_in_use            = DescriptorHeapInterface::mark_in_use,
+    .is_in_use              = DescriptorHeapInterface::is_in_use,
+    .release                = DescriptorHeapInterface::release,
+    .get_stats              = DescriptorHeapInterface::get_stats,
     .sampler                = DescriptorHeapInterface::sampler,
     .combined_image_sampler = DescriptorHeapInterface::combined_image_sampler,
     .sampled_image          = DescriptorHeapInterface::sampled_image,
@@ -871,11 +876,7 @@ static gfx::DescriptorHeapInterface const descriptor_heap_interface{
     .storage_buffer         = DescriptorHeapInterface::storage_buffer,
     .dynamic_uniform_buffer = DescriptorHeapInterface::dynamic_uniform_buffer,
     .dynamic_storage_buffer = DescriptorHeapInterface::dynamic_storage_buffer,
-    .input_attachment       = DescriptorHeapInterface::input_attachment,
-    .mark_in_use            = DescriptorHeapInterface::mark_in_use,
-    .is_in_use              = DescriptorHeapInterface::is_in_use,
-    .release                = DescriptorHeapInterface::release,
-    .get_stats              = DescriptorHeapInterface::get_stats};
+    .input_attachment       = DescriptorHeapInterface::input_attachment};
 
 static gfx::CommandEncoderInterface const command_encoder_interface{
     .begin              = CommandEncoderInterface::begin,

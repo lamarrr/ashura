@@ -258,7 +258,7 @@ struct Tuple<T0>
 
   static constexpr u8 NUM_ELEMENTS = 1;
 
-  T0 first{};
+  T0 v0{};
 };
 
 template <typename T0>
@@ -272,8 +272,8 @@ struct Tuple<T0, T1>
 
   static constexpr u8 NUM_ELEMENTS = 2;
 
-  T0 first{};
-  T1 second{};
+  T0 v0{};
+  T1 v1{};
 };
 
 template <typename T0, typename T1>
@@ -288,9 +288,9 @@ struct Tuple<T0, T1, T2>
 
   static constexpr u8 NUM_ELEMENTS = 3;
 
-  T0 first{};
-  T1 second{};
-  T2 third{};
+  T0 v0{};
+  T1 v1{};
+  T2 v2{};
 };
 
 template <typename T0, typename T1, typename T2>
@@ -306,10 +306,10 @@ struct Tuple<T0, T1, T2, T3>
 
   static constexpr u8 NUM_ELEMENTS = 4;
 
-  T0 first{};
-  T1 second{};
-  T2 third{};
-  T3 fourth{};
+  T0 v0{};
+  T1 v1{};
+  T2 v2{};
+  T3 v3{};
 };
 
 template <typename T0, typename T1, typename T2, typename T3>
@@ -326,11 +326,11 @@ struct Tuple<T0, T1, T2, T3, T4>
 
   static constexpr u8 NUM_ELEMENTS = 5;
 
-  T0 first{};
-  T1 second{};
-  T2 third{};
-  T3 fourth{};
-  T4 fifth{};
+  T0 v0{};
+  T1 v1{};
+  T2 v2{};
+  T3 v3{};
+  T4 v4{};
 };
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4>
@@ -349,12 +349,12 @@ struct Tuple<T0, T1, T2, T3, T4, T5>
 
   static constexpr u8 NUM_ELEMENTS = 6;
 
-  T0 first{};
-  T1 second{};
-  T2 third{};
-  T3 fourth{};
-  T4 fifth{};
-  T5 sixth{};
+  T0 v0{};
+  T1 v1{};
+  T2 v2{};
+  T3 v3{};
+  T4 v4{};
+  T5 v5{};
 };
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
@@ -375,13 +375,13 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6>
 
   static constexpr u8 NUM_ELEMENTS = 7;
 
-  T0 first{};
-  T1 second{};
-  T2 third{};
-  T3 fourth{};
-  T4 fifth{};
-  T5 sixth{};
-  T6 seventh{};
+  T0 v0{};
+  T1 v1{};
+  T2 v2{};
+  T3 v3{};
+  T4 v4{};
+  T5 v5{};
+  T6 v6{};
 };
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
@@ -403,19 +403,347 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7>
 
   static constexpr u8 NUM_ELEMENTS = 8;
 
-  T0 first{};
-  T1 second{};
-  T2 third{};
-  T3 fourth{};
-  T4 fifth{};
-  T5 sixth{};
-  T6 seventh{};
-  T7 eigth{};
+  T0 v0{};
+  T1 v1{};
+  T2 v2{};
+  T3 v3{};
+  T4 v4{};
+  T5 v5{};
+  T6 v6{};
+  T7 v7{};
 };
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7>
 Tuple(T0, T1, T2, T3, T4, T5, T6, T7) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8>
+struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>
+{
+  typedef T0 Type0;
+  typedef T1 Type1;
+  typedef T2 Type2;
+  typedef T3 Type3;
+  typedef T4 Type4;
+  typedef T5 Type5;
+  typedef T6 Type6;
+  typedef T7 Type7;
+  typedef T8 Type8;
+
+  static constexpr u8 NUM_ELEMENTS = 9;
+
+  T0 v0{};
+  T1 v1{};
+  T2 v2{};
+  T3 v3{};
+  T4 v4{};
+  T5 v5{};
+  T6 v6{};
+  T7 v7{};
+  T8 v8{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8>
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9>
+struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>
+{
+  typedef T0 Type0;
+  typedef T1 Type1;
+  typedef T2 Type2;
+  typedef T3 Type3;
+  typedef T4 Type4;
+  typedef T5 Type5;
+  typedef T6 Type6;
+  typedef T7 Type7;
+  typedef T8 Type8;
+  typedef T9 Type9;
+
+  static constexpr u8 NUM_ELEMENTS = 10;
+
+  T0 v0{};
+  T1 v1{};
+  T2 v2{};
+  T3 v3{};
+  T4 v4{};
+  T5 v5{};
+  T6 v6{};
+  T7 v7{};
+  T8 v8{};
+  T9 v9{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9>
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10>
+struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
+{
+  typedef T0  Type0;
+  typedef T1  Type1;
+  typedef T2  Type2;
+  typedef T3  Type3;
+  typedef T4  Type4;
+  typedef T5  Type5;
+  typedef T6  Type6;
+  typedef T7  Type7;
+  typedef T8  Type8;
+  typedef T9  Type9;
+  typedef T10 Type10;
+
+  static constexpr u8 NUM_ELEMENTS = 11;
+
+  T0  v0{};
+  T1  v1{};
+  T2  v2{};
+  T3  v3{};
+  T4  v4{};
+  T5  v5{};
+  T6  v6{};
+  T7  v7{};
+  T8  v8{};
+  T9  v9{};
+  T10 v10{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10>
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10, typename T11>
+struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
+{
+  typedef T0  Type0;
+  typedef T1  Type1;
+  typedef T2  Type2;
+  typedef T3  Type3;
+  typedef T4  Type4;
+  typedef T5  Type5;
+  typedef T6  Type6;
+  typedef T7  Type7;
+  typedef T8  Type8;
+  typedef T9  Type9;
+  typedef T10 Type10;
+  typedef T11 Type11;
+
+  static constexpr u8 NUM_ELEMENTS = 12;
+
+  T0  v0{};
+  T1  v1{};
+  T2  v2{};
+  T3  v3{};
+  T4  v4{};
+  T5  v5{};
+  T6  v6{};
+  T7  v7{};
+  T8  v8{};
+  T9  v9{};
+  T10 v10{};
+  T11 v11{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10, typename T11>
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10, typename T11, typename T12>
+struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
+{
+  typedef T0  Type0;
+  typedef T1  Type1;
+  typedef T2  Type2;
+  typedef T3  Type3;
+  typedef T4  Type4;
+  typedef T5  Type5;
+  typedef T6  Type6;
+  typedef T7  Type7;
+  typedef T8  Type8;
+  typedef T9  Type9;
+  typedef T10 Type10;
+  typedef T11 Type11;
+  typedef T12 Type12;
+
+  static constexpr u8 NUM_ELEMENTS = 13;
+
+  T0  v0{};
+  T1  v1{};
+  T2  v2{};
+  T3  v3{};
+  T4  v4{};
+  T5  v5{};
+  T6  v6{};
+  T7  v7{};
+  T8  v8{};
+  T9  v9{};
+  T10 v10{};
+  T11 v11{};
+  T12 v12{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10, typename T11, typename T12>
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10, typename T11, typename T12, typename T13>
+struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
+{
+  typedef T0  Type0;
+  typedef T1  Type1;
+  typedef T2  Type2;
+  typedef T3  Type3;
+  typedef T4  Type4;
+  typedef T5  Type5;
+  typedef T6  Type6;
+  typedef T7  Type7;
+  typedef T8  Type8;
+  typedef T9  Type9;
+  typedef T10 Type10;
+  typedef T11 Type11;
+  typedef T12 Type12;
+  typedef T13 Type13;
+
+  static constexpr u8 NUM_ELEMENTS = 14;
+
+  T0  v0{};
+  T1  v1{};
+  T2  v2{};
+  T3  v3{};
+  T4  v4{};
+  T5  v5{};
+  T6  v6{};
+  T7  v7{};
+  T8  v8{};
+  T9  v9{};
+  T10 v10{};
+  T11 v11{};
+  T12 v12{};
+  T13 v13{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10, typename T11, typename T12, typename T13>
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10, typename T11, typename T12, typename T13, typename T14>
+struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>
+{
+  typedef T0  Type0;
+  typedef T1  Type1;
+  typedef T2  Type2;
+  typedef T3  Type3;
+  typedef T4  Type4;
+  typedef T5  Type5;
+  typedef T6  Type6;
+  typedef T7  Type7;
+  typedef T8  Type8;
+  typedef T9  Type9;
+  typedef T10 Type10;
+  typedef T11 Type11;
+  typedef T12 Type12;
+  typedef T13 Type13;
+  typedef T14 Type14;
+
+  static constexpr u8 NUM_ELEMENTS = 15;
+
+  T0  v0{};
+  T1  v1{};
+  T2  v2{};
+  T3  v3{};
+  T4  v4{};
+  T5  v5{};
+  T6  v6{};
+  T7  v7{};
+  T8  v8{};
+  T9  v9{};
+  T10 v10{};
+  T11 v11{};
+  T12 v12{};
+  T13 v13{};
+  T14 v14{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10, typename T11, typename T12, typename T13, typename T14>
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>;
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10, typename T11, typename T12, typename T13, typename T14,
+          typename T15>
+struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
+             T15>
+{
+  typedef T0  Type0;
+  typedef T1  Type1;
+  typedef T2  Type2;
+  typedef T3  Type3;
+  typedef T4  Type4;
+  typedef T5  Type5;
+  typedef T6  Type6;
+  typedef T7  Type7;
+  typedef T8  Type8;
+  typedef T9  Type9;
+  typedef T10 Type10;
+  typedef T11 Type11;
+  typedef T12 Type12;
+  typedef T13 Type13;
+  typedef T14 Type14;
+  typedef T15 Type15;
+
+  static constexpr u8 NUM_ELEMENTS = 16;
+
+  T0  v0{};
+  T1  v1{};
+  T2  v2{};
+  T3  v3{};
+  T4  v4{};
+  T5  v5{};
+  T6  v6{};
+  T7  v7{};
+  T8  v8{};
+  T9  v9{};
+  T10 v10{};
+  T11 v11{};
+  T12 v12{};
+  T13 v13{};
+  T14 v14{};
+  T15 v15{};
+};
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+          typename T5, typename T6, typename T7, typename T8, typename T9,
+          typename T10, typename T11, typename T12, typename T13, typename T14,
+          typename T15>
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
+             T15>;
 
 template <unsigned int Index, typename Tuple>
 constexpr auto &&impl_get(Tuple &&tuple)
@@ -424,35 +752,67 @@ constexpr auto &&impl_get(Tuple &&tuple)
                 "Index of Tuple Elements out of bounds");
   if constexpr (Index == 0)
   {
-    return tuple.first;
+    return tuple.v0;
   }
   if constexpr (Index == 1)
   {
-    return tuple.second;
+    return tuple.v1;
   }
   if constexpr (Index == 2)
   {
-    return tuple.third;
+    return tuple.v2;
   }
   if constexpr (Index == 3)
   {
-    return tuple.fourth;
+    return tuple.v3;
   }
   if constexpr (Index == 4)
   {
-    return tuple.fifth;
+    return tuple.v4;
   }
   if constexpr (Index == 5)
   {
-    return tuple.sixth;
+    return tuple.v5;
   }
   if constexpr (Index == 6)
   {
-    return tuple.seventh;
+    return tuple.v6;
   }
   if constexpr (Index == 7)
   {
-    return tuple.eighth;
+    return tuple.v7;
+  }
+  if constexpr (Index == 8)
+  {
+    return tuple.v8;
+  }
+  if constexpr (Index == 9)
+  {
+    return tuple.v9;
+  }
+  if constexpr (Index == 10)
+  {
+    return tuple.v10;
+  }
+  if constexpr (Index == 11)
+  {
+    return tuple.v11;
+  }
+  if constexpr (Index == 12)
+  {
+    return tuple.v12;
+  }
+  if constexpr (Index == 13)
+  {
+    return tuple.v13;
+  }
+  if constexpr (Index == 14)
+  {
+    return tuple.v14;
+  }
+  if constexpr (Index == 15)
+  {
+    return tuple.v15;
   }
 }
 
@@ -483,38 +843,70 @@ constexpr auto &&get(Tuple<T...> &&tuple)
 template <typename Fn, typename Tuple>
 constexpr void impl_apply(Fn &&op, Tuple &&tuple)
 {
-  static constexpr u8 NUM_ELEMENTS = remove_ref<Tuple>::NUM_ELEMENTS;
+  constexpr u8 NUM_ELEMENTS = remove_ref<Tuple>::NUM_ELEMENTS;
   if constexpr (NUM_ELEMENTS > 0)
   {
-    op(tuple.first);
+    op(tuple.v0);
   }
   if constexpr (NUM_ELEMENTS > 1)
   {
-    op(tuple.second);
+    op(tuple.v1);
   }
   if constexpr (NUM_ELEMENTS > 2)
   {
-    op(tuple.third);
+    op(tuple.v2);
   }
   if constexpr (NUM_ELEMENTS > 3)
   {
-    op(tuple.fourth);
+    op(tuple.v3);
   }
   if constexpr (NUM_ELEMENTS > 4)
   {
-    op(tuple.fifth);
+    op(tuple.v4);
   }
   if constexpr (NUM_ELEMENTS > 5)
   {
-    op(tuple.sixth);
+    op(tuple.v5);
   }
   if constexpr (NUM_ELEMENTS > 6)
   {
-    op(tuple.seventh);
+    op(tuple.v6);
   }
   if constexpr (NUM_ELEMENTS > 7)
   {
-    op(tuple.eighth);
+    op(tuple.v7);
+  }
+  if constexpr (NUM_ELEMENTS > 8)
+  {
+    op(tuple.v8);
+  }
+  if constexpr (NUM_ELEMENTS > 9)
+  {
+    op(tuple.v9);
+  }
+  if constexpr (NUM_ELEMENTS > 10)
+  {
+    op(tuple.v10);
+  }
+  if constexpr (NUM_ELEMENTS > 11)
+  {
+    op(tuple.v11);
+  }
+  if constexpr (NUM_ELEMENTS > 12)
+  {
+    op(tuple.v12);
+  }
+  if constexpr (NUM_ELEMENTS > 13)
+  {
+    op(tuple.v13);
+  }
+  if constexpr (NUM_ELEMENTS > 14)
+  {
+    op(tuple.v14);
+  }
+  if constexpr (NUM_ELEMENTS > 15)
+  {
+    op(tuple.v15);
   }
 }
 

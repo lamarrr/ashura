@@ -18,9 +18,8 @@ constexpr u64 rgba8_size(bool has_alpha, u32 width, u32 height)
   return ((u64) width) * ((u64) height) * (has_alpha ? 4ULL : 3ULL);
 }
 
-Result<Allocation, DecodeError> decode_webp(AllocatorImpl const &allocator,
-                                            Span<u8 const>       bytes,
-                                            ImageSpan<u8>       &span)
+Result<ImageSpan<u8>, DecodeError> decode_webp(Span<u8 const> bytes,
+                                               Vec<u8>       &vec)
 {
   WebPBitstreamFeatures features;
 
@@ -32,41 +31,38 @@ Result<Allocation, DecodeError> decode_webp(AllocatorImpl const &allocator,
   u32 const pitch = features.width * (features.has_alpha == 0 ? 3U : 4U);
   u64 const buffer_size =
       rgba8_size(features.has_alpha != 0, features.width, features.height);
-  u8 *buffer = allocator.allocate_typed<u8>(buffer_size);
 
-  if (buffer == nullptr)
+  if (!vec.resize_uninitialized(buffer_size))
   {
     return Err{DecodeError::OutOfMemory};
   }
 
   if (features.has_alpha != 0)
   {
-    if (WebPDecodeRGBAInto(bytes.data(), bytes.size(), buffer, buffer_size,
+    if (WebPDecodeRGBAInto(bytes.data(), bytes.size(), vec.data(), buffer_size,
                            pitch) == nullptr)
     {
-      allocator.deallocate_typed(buffer, buffer_size);
+      vec.reset();
       return Err{DecodeError::DecodeFailed};
     }
   }
   else
   {
-    if (WebPDecodeRGBInto(bytes.data(), bytes.size(), buffer, buffer_size,
+    if (WebPDecodeRGBInto(bytes.data(), bytes.size(), vec.data(), buffer_size,
                           pitch) == nullptr)
     {
-      allocator.deallocate_typed(buffer, buffer_size);
+      vec.reset();
       return Err{DecodeError::DecodeFailed};
     }
   }
 
-  span = ImageSpan<u8>{.span   = {buffer, buffer_size},
-                       .format = features.has_alpha == 0 ?
-                                     gfx::Format::R8G8B8_UNORM :
-                                     gfx::Format::R8G8B8A8_UNORM,
-                       .pitch  = pitch,
-                       .width  = (u32) features.width,
-                       .height = (u32) features.height};
-
-  return Ok{Allocation{.memory = buffer, .alignment = 1, .size = buffer_size}};
+  return Ok{ImageSpan<u8>{.span   = to_span(vec),
+                          .format = features.has_alpha == 0 ?
+                                        gfx::Format::R8G8B8_UNORM :
+                                        gfx::Format::R8G8B8A8_UNORM,
+                          .pitch  = pitch,
+                          .width  = (u32) features.width,
+                          .height = (u32) features.height}};
 }
 
 inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
@@ -77,9 +73,8 @@ inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
   *input = input->slice(nbytes_to_read);
 }
 
-Result<Allocation, DecodeError> decode_png(AllocatorImpl const &allocator,
-                                           Span<u8 const>       bytes,
-                                           ImageSpan<u8>       &span)
+Result<ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
+                                              Vec<u8>       &vec)
 {
   // skip magic number
   bytes = bytes.slice(8);
@@ -131,14 +126,12 @@ Result<Allocation, DecodeError> decode_png(AllocatorImpl const &allocator,
   u32         pitch       = width * ncomponents;
   u64         buffer_size = (u64) height * pitch;
 
-  u8 *buffer = allocator.allocate_typed<u8>(buffer_size);
-
-  if (buffer == nullptr)
+  if (!vec.resize_uninitialized(buffer_size))
   {
     return Err{DecodeError::OutOfMemory};
   }
 
-  u8 *row = buffer;
+  u8 *row = vec.data();
   for (u32 i = 0; i < height; i++)
   {
     png_read_row(png_ptr, row, nullptr);
@@ -147,18 +140,15 @@ Result<Allocation, DecodeError> decode_png(AllocatorImpl const &allocator,
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  span = ImageSpan<u8>{.span   = {buffer, buffer_size},
-                       .format = fmt,
-                       .pitch  = pitch,
-                       .width  = width,
-                       .height = height};
-
-  return Ok{Allocation{.memory = buffer, .alignment = 1, .size = buffer_size}};
+  return Ok{ImageSpan<u8>{.span   = to_span(vec),
+                          .format = fmt,
+                          .pitch  = pitch,
+                          .width  = width,
+                          .height = height}};
 }
 
-Result<Allocation, DecodeError> decode_jpg(AllocatorImpl const &allocator,
-                                           Span<u8 const>       bytes,
-                                           ImageSpan<u8>       &span)
+Result<ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
+                                              Vec<u8>       &vec)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -193,14 +183,13 @@ Result<Allocation, DecodeError> decode_jpg(AllocatorImpl const &allocator,
   gfx::Format fmt         = ncomponents == 3 ? gfx::Format::R8G8B8_UNORM :
                                                gfx::Format::R8G8B8A8_UNORM;
 
-  u8 *buffer = allocator.allocate_typed<u8>(buffer_size);
-  if (buffer == nullptr)
+  if (!vec.resize_uninitialized(buffer_size))
   {
     jpeg_destroy_decompress(&info);
     return Err{DecodeError::OutOfMemory};
   }
 
-  u8 *scanline = buffer;
+  u8 *scanline = vec.data();
   while (info.output_scanline < height)
   {
     u8 *scanlines[] = {scanline};
@@ -210,18 +199,15 @@ Result<Allocation, DecodeError> decode_jpg(AllocatorImpl const &allocator,
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  span = ImageSpan<u8>{.span   = {buffer, buffer_size},
-                       .format = fmt,
-                       .pitch  = pitch,
-                       .width  = width,
-                       .height = height};
-
-  return Ok{Allocation{.memory = buffer, .alignment = 1, .size = buffer_size}};
+  return Ok{ImageSpan<u8>{.span   = to_span(vec),
+                          .format = fmt,
+                          .pitch  = pitch,
+                          .width  = width,
+                          .height = height}};
 }
 
-Result<Allocation, DecodeError> decode_image(AllocatorImpl const &allocator,
-                                             Span<u8 const>       bytes,
-                                             ImageSpan<u8>       &span)
+Result<ImageSpan<u8>, DecodeError> decode_image(Span<u8 const> bytes,
+                                                Vec<u8>       &vec)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 
@@ -233,18 +219,18 @@ Result<Allocation, DecodeError> decode_image(AllocatorImpl const &allocator,
 
   if (range_equal(bytes.slice(0, size(JPG_MAGIC)), JPG_MAGIC))
   {
-    return decode_jpg(allocator, bytes, span);
+    return decode_jpg(bytes, vec);
   }
 
   if (range_equal(bytes.slice(0, size(PNG_MAGIC)), PNG_MAGIC))
   {
-    return decode_png(allocator, bytes, span);
+    return decode_png(bytes, vec);
   }
 
   if (range_equal(bytes.slice(0, size(WEBP_MAGIC1)), WEBP_MAGIC1) &&
       range_equal(bytes.slice(8, size(WEBP_MAGIC2)), WEBP_MAGIC2))
   {
-    return decode_webp(allocator, bytes, span);
+    return decode_webp(bytes, vec);
   }
 
   return Err{DecodeError::UnsupportedFormat};

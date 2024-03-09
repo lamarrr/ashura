@@ -1259,17 +1259,88 @@ struct FrameInfo
   u32                            current_command_encoder = 0;
 };
 
+struct DeviceLimits
+{
+  u32         max_image_dimension1D                      = 0;
+  u32         max_image_dimension2D                      = 0;
+  u32         max_image_dimension3D                      = 0;
+  u32         max_image_dimension_cube                   = 0;
+  u32         max_image_array_layers                     = 0;
+  u32         max_texel_buffer_elements                  = 0;
+  u32         max_uniform_buffer_range                   = 0;
+  u32         max_storage_buffer_range                   = 0;
+  u32         max_push_constants_size                    = 0;
+  u32         max_bound_descriptor_sets                  = 0;
+  u32         max_per_stage_descriptor_samplers          = 0;
+  u32         max_per_stage_descriptor_uniform_buffers   = 0;
+  u32         max_per_stage_descriptor_storage_buffers   = 0;
+  u32         max_per_stage_descriptor_sampled_images    = 0;
+  u32         max_per_stage_descriptor_storage_images    = 0;
+  u32         max_per_stage_descriptor_input_attachments = 0;
+  u32         max_per_stage_resources                    = 0;
+  u32         max_descriptor_set_samplers                = 0;
+  u32         max_descriptor_set_uniform_buffers         = 0;
+  u32         max_descriptor_set_uniform_buffers_dynamic = 0;
+  u32         max_descriptor_set_storage_buffers         = 0;
+  u32         max_descriptor_set_storage_buffers_dynamic = 0;
+  u32         max_descriptor_set_sampled_images          = 0;
+  u32         max_descriptor_set_storage_images          = 0;
+  u32         max_descriptor_set_input_attachments       = 0;
+  u32         max_vertex_input_attributes                = 0;
+  u32         max_vertex_input_bindings                  = 0;
+  u32         max_vertex_input_attribute_offset          = 0;
+  u32         max_vertex_input_binding_stride            = 0;
+  u32         max_vertex_output_components               = 0;
+  u32         max_fragment_input_components              = 0;
+  u32         max_fragment_output_attachments            = 0;
+  u32         max_fragment_dual_src_attachments          = 0;
+  u32         max_fragment_combined_output_resources     = 0;
+  u32         max_compute_shared_memory_size             = 0;
+  u32         max_compute_work_group_count[3]            = {};
+  u32         max_compute_work_group_invocations         = 0;
+  u32         max_compute_work_group_size[3]             = {};
+  u32         max_draw_indexed_index_value               = 0;
+  u32         max_draw_indirect_count                    = 0;
+  f32         max_sampler_lod_bias                       = 0;
+  f32         max_sampler_anisotropy                     = 0;
+  u32         max_viewports                              = 0;
+  u32         max_viewport_dimensions[2]                 = {};
+  f32         viewport_bounds_range[2]                   = {};
+  u32         viewport_sub_pixel_bits                    = 0;
+  usize       min_memory_map_alignment                   = 0;
+  u64         min_texel_buffer_offset_alignment          = 0;
+  u64         min_uniform_buffer_offset_alignment        = 0;
+  u64         min_storage_buffer_offset_alignment        = 0;
+  u32         max_framebuffer_width                      = 0;
+  u32         max_framebuffer_height                     = 0;
+  u32         max_framebuffer_layers                     = 0;
+  SampleCount framebuffer_color_sample_counts            = SampleCount::None;
+  SampleCount framebuffer_depth_sample_counts            = SampleCount::None;
+  SampleCount framebuffer_stencil_sample_counts          = SampleCount::None;
+  SampleCount framebuffer_no_attachments_sample_counts   = SampleCount::None;
+  u32         max_color_attachments                      = 0;
+  SampleCount sampled_image_color_sample_counts          = SampleCount::None;
+  SampleCount sampled_image_integer_sample_counts        = SampleCount::None;
+  SampleCount sampled_image_depth_sample_counts          = SampleCount::None;
+  SampleCount sampled_image_stencil_sample_counts        = SampleCount::None;
+  SampleCount storage_image_sample_counts                = SampleCount::None;
+  u32         max_clip_distances                         = 0;
+  u32         max_cull_distances                         = 0;
+  u32         max_combined_clip_and_cull_distances       = 0;
+};
+
 struct DeviceProperties
 {
   u32              api_version        = 0;
   u32              driver_version     = 0;
   u32              vendor_id          = 0;
   u32              device_id          = 0;
-  std::string_view api_name           = {};
-  std::string_view device_name        = {};
+  Span<char const> api_name           = {};
+  Span<char const> device_name        = {};
   DeviceType       type               = DeviceType::Other;
   bool             has_unified_memory = false;
   DeviceFeatures   features           = DeviceFeatures::Basic;
+  DeviceLimits     limits             = {};
 };
 
 struct DescriptorSet
@@ -1293,10 +1364,16 @@ struct DescriptorHeapStats
 
 struct DescriptorHeapInterface
 {
-  Result<u32, Status> (*add_group)(DescriptorHeap self,
-                                   FrameId        trailing_frame) = nullptr;
+  Result<u32, Status> (*add_group)(DescriptorHeap self)        = nullptr;
+  void (*collect)(DescriptorHeap self, FrameId trailing_frame) = nullptr;
+  void (*mark_in_use)(DescriptorHeap self, u32 group,
+                      FrameId current_frame)                   = nullptr;
+  bool (*is_in_use)(DescriptorHeap self, u32 group,
+                    FrameId trailing_frame)                    = nullptr;
+  void (*release)(DescriptorHeap self, u32 group)              = nullptr;
+  DescriptorHeapStats (*get_stats)(DescriptorHeap self)        = nullptr;
   void (*sampler)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                  Span<SamplerBinding const> elements)     = nullptr;
+                  Span<SamplerBinding const> elements)         = nullptr;
   void (*combined_image_sampler)(
       DescriptorHeap self, u32 group, u32 set, u32 binding,
       Span<CombinedImageSamplerBinding const> elements)           = nullptr;
@@ -1323,12 +1400,6 @@ struct DescriptorHeapInterface
   void (*input_attachment)(DescriptorHeap self, u32 group, u32 set, u32 binding,
                            Span<InputAttachmentBinding const> elements) =
       nullptr;
-  void (*mark_in_use)(DescriptorHeap self, u32 group,
-                      FrameId current_frame)            = nullptr;
-  bool (*is_in_use)(DescriptorHeap self, u32 group,
-                    FrameId trailing_frame)             = nullptr;
-  void (*release)(DescriptorHeap self, u32 group)       = nullptr;
-  DescriptorHeapStats (*get_stats)(DescriptorHeap self) = nullptr;
 };
 
 struct DescriptorHeapImpl

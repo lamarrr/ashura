@@ -1993,16 +1993,122 @@ gfx::DeviceProperties DeviceInterface::get_device_properties(gfx::Device self_)
     }
   }
 
-  return gfx::DeviceProperties{.api_version    = vk_properties.apiVersion,
-                               .driver_version = vk_properties.driverVersion,
-                               .vendor_id      = vk_properties.vendorID,
-                               .device_id      = vk_properties.deviceID,
-                               .api_name       = "vulkan",
-                               .device_name    = vk_properties.deviceName,
-                               .type =
-                                   (gfx::DeviceType) vk_properties.deviceType,
-                               .has_unified_memory = has_uma,
-                               .features = gfx::DeviceFeatures::Basic};
+  VkPhysicalDeviceLimits vk_limits = vk_properties.limits;
+  gfx::DeviceLimits      limits{
+           .max_image_dimension1D     = vk_limits.maxImageDimension1D,
+           .max_image_dimension2D     = vk_limits.maxImageDimension2D,
+           .max_image_dimension3D     = vk_limits.maxImageDimension3D,
+           .max_image_dimension_cube  = vk_limits.maxImageDimensionCube,
+           .max_image_array_layers    = vk_limits.maxImageArrayLayers,
+           .max_texel_buffer_elements = vk_limits.maxTexelBufferElements,
+           .max_uniform_buffer_range  = vk_limits.maxUniformBufferRange,
+           .max_storage_buffer_range  = vk_limits.maxStorageBufferRange,
+           .max_push_constants_size   = vk_limits.maxPushConstantsSize,
+           .max_bound_descriptor_sets = vk_limits.maxBoundDescriptorSets,
+           .max_per_stage_descriptor_samplers =
+          vk_limits.maxPerStageDescriptorSamplers,
+           .max_per_stage_descriptor_uniform_buffers =
+          vk_limits.maxPerStageDescriptorUniformBuffers,
+           .max_per_stage_descriptor_storage_buffers =
+          vk_limits.maxPerStageDescriptorStorageBuffers,
+           .max_per_stage_descriptor_sampled_images =
+          vk_limits.maxPerStageDescriptorSampledImages,
+           .max_per_stage_descriptor_storage_images =
+          vk_limits.maxPerStageDescriptorStorageImages,
+           .max_per_stage_descriptor_input_attachments =
+          vk_limits.maxPerStageDescriptorInputAttachments,
+           .max_per_stage_resources     = vk_limits.maxPerStageResources,
+           .max_descriptor_set_samplers = vk_limits.maxDescriptorSetSamplers,
+           .max_descriptor_set_uniform_buffers =
+          vk_limits.maxDescriptorSetUniformBuffers,
+           .max_descriptor_set_uniform_buffers_dynamic =
+          vk_limits.maxDescriptorSetUniformBuffersDynamic,
+           .max_descriptor_set_storage_buffers =
+          vk_limits.maxDescriptorSetStorageBuffers,
+           .max_descriptor_set_storage_buffers_dynamic =
+          vk_limits.maxDescriptorSetStorageBuffersDynamic,
+           .max_descriptor_set_sampled_images =
+          vk_limits.maxDescriptorSetSampledImages,
+           .max_descriptor_set_storage_images =
+          vk_limits.maxDescriptorSetStorageImages,
+           .max_descriptor_set_input_attachments =
+          vk_limits.maxDescriptorSetInputAttachments,
+           .max_vertex_input_attributes = vk_limits.maxVertexInputAttributes,
+           .max_vertex_input_bindings   = vk_limits.maxVertexInputBindings,
+           .max_vertex_input_attribute_offset =
+          vk_limits.maxVertexInputAttributeOffset,
+           .max_vertex_input_binding_stride = vk_limits.maxVertexInputBindingStride,
+           .max_vertex_output_components = vk_limits.maxVertexOutputComponents,
+           .max_fragment_input_components = vk_limits.maxFragmentInputComponents,
+           .max_fragment_output_attachments = vk_limits.maxFragmentOutputAttachments,
+           .max_fragment_dual_src_attachments =
+          vk_limits.maxFragmentDualSrcAttachments,
+           .max_fragment_combined_output_resources =
+          vk_limits.maxFragmentCombinedOutputResources,
+           .max_compute_shared_memory_size = vk_limits.maxComputeSharedMemorySize,
+           .max_compute_work_group_count = {vk_limits.maxComputeWorkGroupCount[0],
+                                            vk_limits.maxComputeWorkGroupCount[1],
+                                            vk_limits.maxComputeWorkGroupCount[2]},
+           .max_compute_work_group_invocations =
+          vk_limits.maxComputeWorkGroupInvocations,
+           .max_compute_work_group_size = {vk_limits.maxComputeWorkGroupSize[0],
+                                           vk_limits.maxComputeWorkGroupSize[1],
+                                           vk_limits.maxComputeWorkGroupSize[2]},
+           .max_draw_indexed_index_value = vk_limits.maxDrawIndexedIndexValue,
+           .max_draw_indirect_count      = vk_limits.maxDrawIndirectCount,
+           .max_sampler_lod_bias         = vk_limits.maxSamplerLodBias,
+           .max_sampler_anisotropy       = vk_limits.maxSamplerAnisotropy,
+           .max_viewports                = vk_limits.maxViewports,
+           .max_viewport_dimensions      = {vk_limits.maxViewportDimensions[0],
+                                            vk_limits.maxViewportDimensions[1]},
+           .viewport_bounds_range        = {vk_limits.viewportBoundsRange[0],
+                                            vk_limits.viewportBoundsRange[1]},
+           .min_memory_map_alignment     = vk_limits.minMemoryMapAlignment,
+           .min_texel_buffer_offset_alignment =
+          vk_limits.minTexelBufferOffsetAlignment,
+           .min_uniform_buffer_offset_alignment =
+          vk_limits.minUniformBufferOffsetAlignment,
+           .min_storage_buffer_offset_alignment =
+          vk_limits.minStorageBufferOffsetAlignment,
+           .max_framebuffer_width  = vk_limits.maxFramebufferWidth,
+           .max_framebuffer_height = vk_limits.maxFramebufferHeight,
+           .max_framebuffer_layers = vk_limits.maxFramebufferLayers,
+           .framebuffer_color_sample_counts =
+          (gfx::SampleCount) vk_limits.framebufferColorSampleCounts,
+           .framebuffer_depth_sample_counts =
+          (gfx::SampleCount) vk_limits.framebufferDepthSampleCounts,
+           .framebuffer_stencil_sample_counts =
+          (gfx::SampleCount) vk_limits.framebufferStencilSampleCounts,
+           .framebuffer_no_attachments_sample_counts =
+          (gfx::SampleCount) vk_limits.framebufferNoAttachmentsSampleCounts,
+           .max_color_attachments = vk_limits.maxColorAttachments,
+           .sampled_image_color_sample_counts =
+          (gfx::SampleCount) vk_limits.sampledImageColorSampleCounts,
+           .sampled_image_integer_sample_counts =
+          (gfx::SampleCount) vk_limits.sampledImageIntegerSampleCounts,
+           .sampled_image_depth_sample_counts =
+          (gfx::SampleCount) vk_limits.sampledImageDepthSampleCounts,
+           .sampled_image_stencil_sample_counts =
+          (gfx::SampleCount) vk_limits.sampledImageStencilSampleCounts,
+           .storage_image_sample_counts =
+          (gfx::SampleCount) vk_limits.storageImageSampleCounts,
+           .max_clip_distances = vk_limits.maxClipDistances,
+           .max_cull_distances = vk_limits.maxCullDistances,
+           .max_combined_clip_and_cull_distances =
+          vk_limits.maxCombinedClipAndCullDistances};
+
+  return gfx::DeviceProperties{
+      .api_version        = vk_properties.apiVersion,
+      .driver_version     = vk_properties.driverVersion,
+      .vendor_id          = vk_properties.vendorID,
+      .device_id          = vk_properties.deviceID,
+      .api_name           = "vulkan"_span,
+      .device_name        = {vk_properties.deviceName,
+                             strlen(vk_properties.deviceName)},
+      .type               = (gfx::DeviceType) vk_properties.deviceType,
+      .has_unified_memory = has_uma,
+      .features           = gfx::DeviceFeatures::Basic,
+      .limits             = limits};
 }
 
 Result<gfx::FormatProperties, Status>
@@ -2600,6 +2706,9 @@ Result<gfx::Framebuffer, Status>
   VALIDATE(self, "", desc.extent.x > 0);
   VALIDATE(self, "", desc.extent.y > 0);
   VALIDATE(self, "", desc.layers > 0);
+  VALIDATE(self, "",
+           (desc.color_attachments.size() > 0) ||
+               (desc.depth_stencil_attachment != nullptr));
 
   for (gfx::ImageView attachment : desc.color_attachments)
   {
@@ -5004,8 +5113,7 @@ Result<Void, Status>
 }
 
 Result<u32, Status>
-    DescriptorHeapInterface::add_group(gfx::DescriptorHeap self_,
-                                       gfx::FrameId        trailing_frame)
+    DescriptorHeapInterface::add_group(gfx::DescriptorHeap self_)
 {
   DescriptorHeap *const self = (DescriptorHeap *) self_;
   u32 const             num_sets_per_pool =
@@ -5016,27 +5124,6 @@ Result<u32, Status>
   for (u32 i = 0; i < self->num_sets_per_group; i++)
   {
     num_bindings_per_group += self->set_layouts[i]->num_bindings;
-  }
-
-  // move from released to free for all released groups not in use by the device
-  if (self->num_released_groups > 0)
-  {
-    u32 num_released_groups = 0;
-    for (u32 i = 0; i < self->num_released_groups; i++)
-    {
-      if (self->last_use_frame[self->released_groups[i]] < trailing_frame)
-      {
-        self->free_groups[self->num_free_groups] = self->released_groups[i];
-        self->num_free_groups++;
-      }
-      else
-      {
-        self->released_groups[num_released_groups] = self->released_groups[i];
-        num_released_groups++;
-      }
-    }
-
-    self->num_released_groups = num_released_groups;
   }
 
   // if any free, claim
@@ -5226,6 +5313,75 @@ Result<u32, Status>
   }
 
   return Ok{(u32) assigned_group};
+}
+
+void DescriptorHeapInterface::collect(gfx::DescriptorHeap self_,
+                                      gfx::FrameId        trailing_frame)
+{
+  // move from released to free for all released groups not in use by the device
+  DescriptorHeap *const self                = (DescriptorHeap *) self_;
+  u32                   num_released_groups = 0;
+  for (u32 i = 0; i < self->num_released_groups; i++)
+  {
+    if (self->last_use_frame[self->released_groups[i]] < trailing_frame)
+    {
+      self->free_groups[self->num_free_groups] = self->released_groups[i];
+      self->num_free_groups++;
+    }
+    else
+    {
+      self->released_groups[num_released_groups] = self->released_groups[i];
+      num_released_groups++;
+    }
+  }
+
+  self->num_released_groups = num_released_groups;
+}
+
+void DescriptorHeapInterface::mark_in_use(gfx::DescriptorHeap self_, u32 group,
+                                          gfx::FrameId current_frame)
+{
+  DescriptorHeap *const self = (DescriptorHeap *) self_;
+
+  VALIDATE(self, "", group < (self->num_pools * self->num_groups_per_pool));
+  VALIDATE(self, "", self->last_use_frame[group] <= current_frame);
+
+  self->last_use_frame[group] = current_frame;
+}
+
+bool DescriptorHeapInterface::is_in_use(gfx::DescriptorHeap self_, u32 group,
+                                        gfx::FrameId trailing_frame)
+{
+  DescriptorHeap *const self = (DescriptorHeap *) self_;
+
+  VALIDATE(self, "", group < (self->num_pools * self->num_groups_per_pool));
+
+  return self->last_use_frame[group] >= trailing_frame;
+}
+
+void DescriptorHeapInterface::release(gfx::DescriptorHeap self_, u32 group)
+{
+  DescriptorHeap *const self = (DescriptorHeap *) self_;
+
+  VALIDATE(self, "", group < (self->num_pools * self->num_groups_per_pool));
+  VALIDATE(self, "multiple descriptor group release detected",
+           (self->num_released_groups + 1) <=
+               (self->num_pools * self->num_groups_per_pool));
+
+  self->released_groups[self->num_released_groups] = group;
+  self->num_released_groups++;
+}
+
+gfx::DescriptorHeapStats
+    DescriptorHeapInterface::get_stats(gfx::DescriptorHeap self_)
+{
+  DescriptorHeap *const self = (DescriptorHeap *) self_;
+
+  return gfx::DescriptorHeapStats{
+      .num_allocated_groups = self->num_pools * self->num_groups_per_pool,
+      .num_free_groups      = self->num_free_groups,
+      .num_released_groups  = self->num_released_groups,
+      .num_pools            = self->num_pools};
 }
 
 void DescriptorHeapInterface::sampler(gfx::DescriptorHeap self_, u32 group,
@@ -5822,52 +5978,6 @@ void DescriptorHeapInterface::input_attachment(
 
   self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
                                               &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::mark_in_use(gfx::DescriptorHeap self_, u32 group,
-                                          gfx::FrameId current_frame)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  VALIDATE(self, "", group < (self->num_pools * self->num_groups_per_pool));
-  VALIDATE(self, "", self->last_use_frame[group] <= current_frame);
-
-  self->last_use_frame[group] = current_frame;
-}
-
-bool DescriptorHeapInterface::is_in_use(gfx::DescriptorHeap self_, u32 group,
-                                        gfx::FrameId trailing_frame)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  VALIDATE(self, "", group < (self->num_pools * self->num_groups_per_pool));
-
-  return self->last_use_frame[group] >= trailing_frame;
-}
-
-void DescriptorHeapInterface::release(gfx::DescriptorHeap self_, u32 group)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  VALIDATE(self, "", group < (self->num_pools * self->num_groups_per_pool));
-  VALIDATE(self, "multiple descriptor group release detected",
-           (self->num_released_groups + 1) <=
-               (self->num_pools * self->num_groups_per_pool));
-
-  self->released_groups[self->num_released_groups] = group;
-  self->num_released_groups++;
-}
-
-gfx::DescriptorHeapStats
-    DescriptorHeapInterface::get_stats(gfx::DescriptorHeap self_)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  return gfx::DescriptorHeapStats{
-      .num_allocated_groups = self->num_pools * self->num_groups_per_pool,
-      .num_free_groups      = self->num_free_groups,
-      .num_released_groups  = self->num_released_groups,
-      .num_pools            = self->num_pools};
 }
 
 void CommandEncoderInterface::begin(gfx::CommandEncoder self_)
@@ -6777,6 +6887,13 @@ void CommandEncoderInterface::bind_descriptor_sets(
     DescriptorHeap *heap = (DescriptorHeap *) set.heap;
     VALIDATE(self, "", set.group < heap->num_pools * heap->num_groups_per_pool);
     VALIDATE(self, "", set.set < heap->num_sets_per_group);
+  }
+
+  for (u32 dynamic_offset : dynamic_offsets)
+  {
+    VALIDATE(self, "",
+             (dynamic_offset % self->device->physical_device.properties.limits
+                                   .minUniformBufferOffsetAlignment) == 0);
   }
 
   VkDescriptorSet vk_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];

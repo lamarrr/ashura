@@ -5,25 +5,21 @@
 #include "ashura/std/image.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 
 namespace ash
 {
 
-// TODO(lamarrr): use vec instead?
-Result<Allocation, DecodeError> decode_webp(AllocatorImpl const &allocator,
-                                            Span<u8 const>       bytes,
-                                            ImageSpan<u8>       &span);
+Result<ImageSpan<u8>, DecodeError> decode_webp(Span<u8 const> bytes,
+                                               Vec<u8>       &vec);
 
-Result<Allocation, DecodeError> decode_jpg(AllocatorImpl const &allocator,
-                                           Span<u8 const>       bytes,
-                                           ImageSpan<u8>       &span);
+Result<ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
+                                              Vec<u8>       &vec);
 
-Result<Allocation, DecodeError> decode_png(AllocatorImpl const &allocator,
-                                           Span<u8 const>       bytes,
-                                           ImageSpan<u8>       &span);
+Result<ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
+                                              Vec<u8>       &vec);
 
-Result<Allocation, DecodeError> decode_image(AllocatorImpl const &allocator,
-                                             Span<u8 const>       bytes,
-                                             ImageSpan<u8>       &span);
+Result<ImageSpan<u8>, DecodeError> decode_image(Span<u8 const> bytes,
+                                                Vec<u8>       &vec);
 
 }        // namespace ash

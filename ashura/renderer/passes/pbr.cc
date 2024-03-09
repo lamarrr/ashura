@@ -3,6 +3,7 @@
 namespace ash
 {
 
+/*
 struct PBRBinding
 {
   gfx::RenderPass       render_pass = nullptr;
@@ -228,6 +229,6 @@ void PBRPass::encode(Pass self_, RenderServer *server,
   }
 
   enc->end_render_pass(enc.self);
-}
+}*/
 
 }        // namespace ash

@@ -19,6 +19,18 @@ struct RRectTexture
   Vec2           uv1  = {};
 };
 
+BEGIN_SHADER_PARAMETER(RRectShaderParameter)
+SHADER_SAMPLED_IMAGE(BaseColor, 1)
+END_SHADER_PARAMETER(RRectShaderParameter)
+
+struct RRectShaderUniform
+{
+  Vec4 border_radii     = {};
+  f32  border_thickness = 0;
+  Vec2 uv0              = {};
+  Vec2 uv1              = {};
+};
+
 struct RRect
 {
   Vec3 center           = {};
@@ -51,8 +63,8 @@ struct RRectParams
 
 struct RRectPass
 {
-  static void create_rgb_textures(RenderGraph *graph);
-  static void add_pass(RenderGraph *graph, RRectParams const *params);
+  static void create_rgb_textures(rdg::Graph *graph);
+  static void add_pass(rdg::Graph *graph, RRectParams const *params);
 };
 
 }        // namespace ash
