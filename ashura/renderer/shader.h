@@ -380,8 +380,8 @@ struct ShaderParameterHeap
 
   void init(gfx::DeviceImpl device, u32 batch_size)
   {
-    auto descs = Param::GET_BINDINGS_DESC();
-    layout_    = device
+    constexpr Array descs = Param::GET_BINDINGS_DESC();
+    layout_               = device
                   ->create_descriptor_set_layout(
                       device_.self,
                       gfx::DescriptorSetLayoutDesc{.label    = Param::NAME,
@@ -565,12 +565,12 @@ struct UniformHeap
         device->get_device_properties(device.self);
     min_uniform_buffer_offset_alignment_ =
         properties.limits.min_uniform_buffer_offset_alignment;
-    batch_buffer_size_           = batch_buffer_size;
-    device_                      = device;
-    batch_                       = 0;
-    batch_buffer_offset_         = 0;
-    constexpr auto bindings_desc = UniformShaderParameter::GET_BINDINGS_DESC();
-    descriptor_set_layout_       = device
+    batch_buffer_size_            = batch_buffer_size;
+    device_                       = device;
+    batch_                        = 0;
+    batch_buffer_offset_          = 0;
+    constexpr Array bindings_desc = UniformShaderParameter::GET_BINDINGS_DESC();
+    descriptor_set_layout_        = device
                                  ->create_descriptor_set_layout(
                                      device.self,
                                      gfx::DescriptorSetLayoutDesc{
@@ -589,7 +589,7 @@ struct UniformHeap
   template <typename UniformType>
   Uniform push(UniformType const &uniform)
   {
-    return push_range({&uniform, 1});
+    return push_range(Span<UniformType const>{&uniform, 1});
   }
 
   template <typename UniformType>
@@ -642,7 +642,7 @@ struct UniformHeap
     batch_               = batch_index;
     batch_buffer_offset_ = buffer_offset + uniform.size_bytes();
 
-    return Some{Uniform{.batch = batch, .buffer_offset = buffer_offset}};
+    return Uniform{.batch = batch, .buffer_offset = buffer_offset};
   }
 
   void clear()

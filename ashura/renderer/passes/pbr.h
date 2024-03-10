@@ -22,13 +22,14 @@ END_SHADER_PARAMETER(PBRShaderParameter)
 
 struct PBRUniform
 {
-  Vec4 base_color_factor  = {1, 1, 1, 1};
-  f32  metallic_factor    = 1;
-  f32  roughness_factor   = 1;
-  f32  normal_scale       = 1;
-  f32  occlusion_strength = 1;
-  Vec4 emissive_factor    = {1, 1, 1, 1};
-  f32  emissive_strength  = 1;
+  MVPTransform transform          = {};
+  Vec4         base_color_factor  = {1, 1, 1, 1};
+  f32          metallic_factor    = 1;
+  f32          roughness_factor   = 1;
+  f32          normal_scale       = 1;
+  f32          occlusion_strength = 1;
+  Vec4         emissive_factor    = {1, 1, 1, 1};
+  f32          emissive_strength  = 1;
 };
 
 struct PBRVertex
@@ -58,7 +59,6 @@ struct PBRObject
 struct PBRParams
 {
   RenderTarget                 render_target      = {};
-  Camera                       camera             = {};
   AmbientLight                 ambient_light      = {};
   Span<DirectionalLight const> directional_lights = {};
   Span<PointLight const>       point_lights       = {};

@@ -18,13 +18,11 @@ enum class BlurRadius : u8
 
 struct BlurParams
 {
-  BlurRadius blur_radius = BlurRadius::None;
-  Vec2U      src_offset  = {};
-  Vec2U      src_extent  = {};
-  Vec2U      dst_offset  = {};
-  Vec2U      dst_extent  = {};
-  gfx::Image src         = nullptr;
-  gfx::Image dst         = nullptr;
+  BlurRadius                  blur_radius = BlurRadius::None;
+  Vec2U                       offset      = {};
+  Vec2U                       extent      = {};
+  gfx::ImageSubresourceLayers layers      = {};
+  gfx::Image                  image       = nullptr;
 };
 
 // object-clip space blur

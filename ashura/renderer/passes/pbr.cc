@@ -5,7 +5,7 @@ namespace ash
 
 void PBRPass::init(Renderer &renderer)
 {
-  constexpr auto bindings_desc = PBRShaderParameter::GET_BINDINGS_DESC();
+  constexpr Array bindings_desc = PBRShaderParameter::GET_BINDINGS_DESC();
   descriptor_set_layout =
       renderer.device
           ->create_descriptor_set_layout(
@@ -14,7 +14,6 @@ void PBRPass::init(Renderer &renderer)
                                            .bindings = to_span(bindings_desc)})
           .unwrap();
 
-  // TODO(lamarrr): clear at begin of every frame?
   render_pass =
       renderer.device
           ->create_render_pass(
@@ -89,6 +88,7 @@ void PBRPass::init(Renderer &renderer)
                 .color_write_mask       = gfx::ColorComponents::All}}),
       .blend_constant = {1, 1, 1, 1}};
 
+  // TODO(lamarrr): MVP, SHADER PARAMS, global lights
   gfx::GraphicsPipelineDesc pipeline_desc{
       .label = "PBR Graphics Pipeline",
       .vertex_shader =
@@ -106,9 +106,7 @@ void PBRPass::init(Renderer &renderer)
       .vertex_attributes     = to_span(vtx_attrs),
       .push_constant_size    = 0,
       .descriptor_set_layouts =
-          to_span({renderer.uniform_layout,
-                   descriptor_set_layout}),        // TODO(lamarrr): MVP, SHADER
-                                                   // PARAMS, global lights
+          to_span({renderer.uniform_layout, descriptor_set_layout}),
       .primitive_topology  = gfx::PrimitiveTopology::TriangleList,
       .rasterization_state = raster_state,
       .depth_stencil_state = depth_stencil_state,
@@ -127,7 +125,6 @@ void PBRPass::add_pass(Renderer &renderer, PBRParams const &params)
         has_bits(params.render_target.depth_stencil_aspects,
                  gfx::ImageAspects::Depth));
 
-  // TODO(lamarrr): what if we actually really need the stencil though?
   gfx::Framebuffer framebuffer =
       renderer.device
           ->create_framebuffer(
@@ -155,9 +152,10 @@ void PBRPass::add_pass(Renderer &renderer, PBRParams const &params)
 
   for (PBRObject const &object : params.objects)
   {
-    Uniform mvp_uniform = renderer.frame_uniform_heaps[0x00].push(object.);
-    renderer.encoder->bind_vertex_buffers(renderer.encoder.self, );
-    renderer.encoder->bind_index_buffer(renderer.encoder.self, );
+    Uniform mvp_uniform =
+        renderer.frame_uniform_heaps[0x00].push(object.uniform);
+    renderer.encoder->bind_vertex_buffers(renderer.encoder.self, {}, {});
+    renderer.encoder->bind_index_buffer(renderer.encoder.self, {}, {}, {});
     renderer.encoder->bind_descriptor_sets(renderer.encoder.self, {}, {});
     renderer.encoder->draw(renderer.encoder.self, object.mesh.first_index,
                            object.mesh.num_indices, object.mesh.vertex_offset,

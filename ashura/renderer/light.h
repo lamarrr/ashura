@@ -44,8 +44,4 @@ struct AreaLight
   bool two_sided = false;
 };
 
-struct SkyLight
-{
-};
-
 }        // namespace ash

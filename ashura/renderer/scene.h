@@ -41,7 +41,6 @@ struct SceneObjects
 
 struct SceneEnvironment
 {
-  SkyLight              sky_light                 = {};
   AmbientLight          ambient_light             = {};
   Vec<DirectionalLight> directional_lights        = {};
   SparseVec<u32>        directional_lights_id_map = {};
@@ -66,6 +65,8 @@ struct Scene
   SceneEnvironment environment = {};
   SceneObjects<T>  objects     = {};
 
+  // after add, sort last and present ids by depth? or use hierarchical sort
+  // before frame begin or when it is dirty?
   template <typename... Args>
   Option<uid32> add_object(uid32 parent, Mat4Affine transform, Box aabb,
                            i64 z_index, bool is_transparent, Args &&...args);
@@ -85,6 +86,8 @@ struct Scene
   void          remove_area_light(uid32 id);
 };
 
+//?
+void hierarchical_sort(Span<SceneNode const> node, Span<u32> indices);
 void transform_nodes(SparseVec<u32> const &id_map, uid32 root_object,
                      Span<SceneNode const>  node,
                      Span<Mat4Affine const> local_transform,

@@ -50,7 +50,7 @@ struct Renderer
   Scratch                  scatch               = {};
   Vec<UniformHeap>         frame_uniform_heaps  = {};
   gfx::DescriptorSetLayout uniform_layout       = nullptr;
-  gfx::CommandEncoderImpl  encoder = {};
+  gfx::CommandEncoderImpl  encoder              = {};
   Vec<Tuple<gfx::FrameId, gfx::Framebuffer>> released_framebuffers = {};
   Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
   Vec<Tuple<gfx::FrameId, gfx::ImageView>>   released_image_views  = {};
@@ -75,7 +75,7 @@ struct Renderer
   // TODO(lamarrr): can we release attachments after the pass ends?
   // template <typename Binding, typename Reg, typename Exe>
   // void add_pass(Span<char const> name, Reg &&registration, Exe &&execution);
-
+  //
   // sky render pass
   // render 3d scene pass + custom shaders (pipeline + fragment + vertex shader)
   // perform bloom, blur, msaa on 3d scene
