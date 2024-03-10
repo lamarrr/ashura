@@ -43,6 +43,11 @@ struct MVPTransform
   Mat4Affine model      = {};
   Mat4Affine view       = {};
   Mat4       projection = {};
+
+  constexpr Mat4 mul() const
+  {
+    return projection * view * model;
+  }
 };
 
 enum class CameraType : u8

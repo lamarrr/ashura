@@ -1,11 +1,10 @@
 
-
+// TODO(lamarrr): rename to custom shaded object
+// pipelines are compiled at startup time
 struct QuadProperties
 {
-  int shader_fs, shader_vs;
-  int first_instance, num_instances;
-  int first_vertex;
-  // uniform data
+  int pipeline, mesh, descriptor_set, first_instance, num_instances,
+      first_vertex, vertex_offset, vertex_buffer, index_buffer, uniform_data;
 };
 
 // pipeline bundle (pipeline + vs shader + fs shader)

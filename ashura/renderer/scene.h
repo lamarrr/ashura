@@ -27,6 +27,8 @@ struct SceneNode
   u32   depth        = 0;
 };
 
+/// @global_transform: accumulation of transform from root parent down to this
+/// object's transform
 template <typename T>
 struct SceneObjects
 {
@@ -87,10 +89,19 @@ struct Scene
 };
 
 //?
-void hierarchical_sort(Span<SceneNode const> node, Span<u32> indices);
-void transform_nodes(SparseVec<u32> const &id_map, uid32 root_object,
-                     Span<SceneNode const>  node,
-                     Span<Mat4Affine const> local_transform,
-                     Span<Mat4Affine>       global_transform);
+void           hierarchical_sort(Span<SceneNode const> node, Span<u32> indices);
+constexpr void transform_nodes(SparseVec<u32> const &id_map, uid32 root_object,
+                               Span<SceneNode const>  node,
+                               Span<Mat4Affine const> local_transform,
+                               Span<Mat4Affine>       global_transform)
+{
+  // TODO(lamarrr): this would require that the hierarchy is maintained, i.e.
+  // sorted by depth after each insert? and sorted by that
+  for (u32 i = 0; i < id_map.size(); i++)
+  {
+    global_transform[i] =
+        global_transform[id_map[node[i].parent]] * local_transform[i];
+  }
+}
 
 }        // namespace ash

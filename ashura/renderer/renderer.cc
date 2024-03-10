@@ -530,13 +530,7 @@ Result<Void, Error> RenderServer::frustum_cull()
     {
       return Err{Error::OutOfMemory};
     }
-    for (u32 i = 0; i < num_objects; i++)
-    {
-      view.is_object_visible[i] =
-          !is_outside_frustum(view.camera.projection * view.camera.view *
-                                  scene.objects.global_transform[i],
-                              scene.objects.aabb[i]);
-    }
+    
   }
 
   return Ok<Void>{};

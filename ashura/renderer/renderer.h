@@ -13,12 +13,12 @@ namespace ash
 /// @color_images, @depth_stencil_image format must be same as render context's
 struct RenderTarget
 {
-  Span<gfx::ImageView> color_images;
-  gfx::ImageView       depth_stencil_image   = nullptr;
-  gfx::ImageAspects    depth_stencil_aspects = gfx::ImageAspects::None;
-  Vec2U                extent                = {};
-  Vec2U                scissor_offset        = {};
-  Vec2U                scissor_extent        = {};
+  Span<gfx::ImageView const> color_images;
+  gfx::ImageView             depth_stencil_image   = nullptr;
+  gfx::ImageAspects          depth_stencil_aspects = gfx::ImageAspects::None;
+  Vec2U                      extent                = {};
+  Vec2U                      scissor_offset        = {};
+  Vec2U                      scissor_extent        = {};
 };
 
 /// with views for each image mip level
@@ -72,10 +72,6 @@ struct Renderer
     released_image_views.push(frame_info.current, view);
   }
 
-  // TODO(lamarrr): can we release attachments after the pass ends?
-  // template <typename Binding, typename Reg, typename Exe>
-  // void add_pass(Span<char const> name, Reg &&registration, Exe &&execution);
-  //
   // sky render pass
   // render 3d scene pass + custom shaders (pipeline + fragment + vertex shader)
   // perform bloom, blur, msaa on 3d scene

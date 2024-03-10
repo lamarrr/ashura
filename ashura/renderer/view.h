@@ -149,8 +149,15 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Box const &box)
          bottom == NUM_CORNERS || back == NUM_CORNERS;
 }
 
-void frustum_cull(Mat4 view_projection, Span<Mat4Affine const> local_transforms,
-                  Span<Mat4Affine const> global_transforms,
-                  Span<Box const> aabb, BitSpan<u64> is_visible);
+constexpr void frustum_cull(Mat4 const            &mvp,
+                            Span<Mat4Affine const> local_transform,
+                            Span<Mat4Affine const> global_transform,
+                            Span<Box const> aabb, BitSpan<u64> is_visible)
+{
+  for (u32 i = 0; i < (u32) aabb.size(); i++)
+  {
+    is_visible[i] = !is_outside_frustum(mvp * global_transform[i], aabb[i]);
+  }
+}
 
 }        // namespace ash
