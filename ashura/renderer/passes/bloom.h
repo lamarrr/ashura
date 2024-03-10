@@ -1,8 +1,8 @@
 
 #pragma once
-#include "ashura/renderer/render_graph.h"
-#include "ashura/renderer/view.h"
 #include "ashura/gfx/gfx.h"
+#include "ashura/renderer/renderer.h"
+#include "ashura/renderer/view.h"
 #include "ashura/std/box.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -20,18 +20,20 @@ namespace ash
 // addittive composite back unto the first mip
 struct BloomParams
 {
-  BloomConfig     config;
-  rdg::ImageAttachment src;
-  gfx::Offset     src_offset;
-  gfx::Offset     src_extent;
-  rdg::ImageAttachment dst;
-  gfx::Offset     dst_offset;
-  gfx::Offset     dst_extent;
+  BloomConfig config;
+  Vec2U       src_offset = {};
+  Vec2U       src_extent = {};
+  Vec2U       dst_offset = {};
+  Vec2U       dst_extent = {};
+  gfx::Image  src        = nullptr;
+  gfx::Image  dst        = nullptr;
 };
 
 struct BloomPass
 {
-  static void add_pass(rdg::Graph *graph, BloomParams const *params);
+  void init(Renderer &renderer);
+  void uninit(Renderer &renderer);
+  void add_pass(Renderer &renderer, BloomParams const &params);
 };
 
 }        // namespace ash

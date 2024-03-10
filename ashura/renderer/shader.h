@@ -349,8 +349,25 @@ struct ShaderBindingMetaData
     _METApush(_METAMemberBegin{}, bindings, 0);                                \
     return bindings;                                                           \
   };                                                                           \
+                                                                               \
+  static constexpr auto GET_BINDINGS_DESC()                                    \
+  {                                                                            \
+    ::ash::Array<::ash::ShaderBindingMetaData, NUM_BINDINGS> bindings =        \
+        GET_BINDINGS();                                                        \
+    ::ash::Array<::ash::gfx::DescriptorBindingDesc, NUM_BINDINGS> descs;       \
+    for (u16 i = 0; i < NUM_BINDINGS; i++)                                     \
+    {                                                                          \
+      descs[i] = gfx::DescriptorBindingDesc{.type  = bindings[i].type,         \
+                                            .count = bindings[i].count};       \
+    }                                                                          \
+    return descs;                                                              \
+  }                                                                            \
   }                                                                            \
   ;
+
+BEGIN_SHADER_PARAMETER(UniformShaderParameter)
+SHADER_DYNAMIC_UNIFORM_BUFFER(Data, 1)
+END_SHADER_PARAMETER(UniformShaderParameter)
 
 template <typename Param>
 struct ShaderParameterHeap
@@ -363,13 +380,8 @@ struct ShaderParameterHeap
 
   void init(gfx::DeviceImpl device, u32 batch_size)
   {
-    gfx::DescriptorBindingDesc descs[Param::NUM_BINDINGS];
-    for (u16 i = 0; i < Param::NUM_BINDINGS; i++)
-    {
-      descs[i] = gfx::DescriptorBindingDesc{.type  = members[i].type,
-                                            .count = members[i].count};
-    }
-    layout_ = device
+    auto descs = Param::GET_BINDINGS_DESC();
+    layout_    = device
                   ->create_descriptor_set_layout(
                       device_.self,
                       gfx::DescriptorSetLayoutDesc{.label    = Param::NAME,
@@ -553,20 +565,18 @@ struct UniformHeap
         device->get_device_properties(device.self);
     min_uniform_buffer_offset_alignment_ =
         properties.limits.min_uniform_buffer_offset_alignment;
-    batch_buffer_size_   = batch_buffer_size;
-    device_              = device;
-    batch_               = 0;
-    batch_buffer_offset_ = 0;
-    descriptor_set_layout_ =
-        device
-            ->create_descriptor_set_layout(
-                device.self,
-                gfx::DescriptorSetLayoutDesc{
-                    .label    = "Uniform Buffer Heap",
-                    .bindings = to_span<gfx::DescriptorBindingDesc>(
-                        {{.type  = gfx::DescriptorType::DynamicUniformBuffer,
-                          .count = 1}})})
-            .unwrap();
+    batch_buffer_size_           = batch_buffer_size;
+    device_                      = device;
+    batch_                       = 0;
+    batch_buffer_offset_         = 0;
+    constexpr auto bindings_desc = UniformShaderParameter::GET_BINDINGS_DESC();
+    descriptor_set_layout_       = device
+                                 ->create_descriptor_set_layout(
+                                     device.self,
+                                     gfx::DescriptorSetLayoutDesc{
+                                         .label    = "Uniform Buffer",
+                                         .bindings = to_span(bindings_desc)})
+                                 .unwrap();
     descriptor_heap_ =
         device
             ->create_descriptor_heap(device.self, {&descriptor_set_layout_, 1},

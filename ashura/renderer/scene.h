@@ -53,6 +53,12 @@ struct SceneEnvironment
   SparseVec<u32>        area_lights_id_map        = {};
 };
 
+/// @remove_scene: remove all pass resources associated with a scene object.
+///
+/// @add_object: once an object is added to the scene, if it is not at the end
+/// of the tree, then the tree should be re-sorted based on depth, sort indices,
+/// resize object cull masks for all views
+/// @remove_object: remove object and all its children
 template <typename T>
 struct Scene
 {

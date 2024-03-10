@@ -1,5 +1,4 @@
 #pragma once
-#include "ashura/renderer/render_graph.h"
 #include "ashura/renderer/renderer.h"
 
 namespace ash
@@ -19,13 +18,13 @@ enum class BlurRadius : u8
 
 struct BlurParams
 {
-  BlurRadius      blur_radius = BlurRadius::None;
-  rdg::ImageAttachment src;
-  gfx::Offset     src_offset;
-  gfx::Offset     src_extent;
-  rdg::ImageAttachment dst;
-  gfx::Offset     dst_offset;
-  gfx::Offset     dst_extent;
+  BlurRadius blur_radius = BlurRadius::None;
+  Vec2U      src_offset  = {};
+  Vec2U      src_extent  = {};
+  Vec2U      dst_offset  = {};
+  Vec2U      dst_extent  = {};
+  gfx::Image src         = nullptr;
+  gfx::Image dst         = nullptr;
 };
 
 // object-clip space blur
@@ -37,8 +36,9 @@ struct BlurParams
 // - using rendered stencil, directly-write (without blending) onto scene again
 struct BlurPass
 {
-  static void create_kernel();
-  static void add_pass(rdg::Graph *graph, BlurParams const *params);
+  void init(Renderer &renderer);
+  void uninit(Renderer &renderer);
+  void add_pass(Renderer &renderer, BlurParams const &params);
 };
 
 }        // namespace ash

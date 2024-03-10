@@ -1,70 +1,57 @@
 #pragma once
 #include "ashura/renderer/camera.h"
 #include "ashura/renderer/light.h"
-#include "ashura/renderer/render_graph.h"
+#include "ashura/renderer/renderer.h"
+#include "ashura/renderer/shader.h"
 
 namespace ash
 {
-typedef struct RRectTexture  RRectTexture;
-typedef struct RRect         RRect;
-typedef struct RRectMaterial RRectMaterial;
-typedef struct RRectDesc     RRectDesc;
-typedef struct RRectObject   RRectObject;
-typedef struct RRectPass     RRectPass;
-
-struct RRectTexture
-{
-  gfx::ImageView view = nullptr;
-  Vec2           uv0  = {};
-  Vec2           uv1  = {};
-};
 
 BEGIN_SHADER_PARAMETER(RRectShaderParameter)
-SHADER_SAMPLED_IMAGE(BaseColor, 1)
+SHADER_SAMPLER(sampler, 1)
+SHADER_SAMPLED_IMAGE(base_color, 1)
 END_SHADER_PARAMETER(RRectShaderParameter)
 
-struct RRectShaderUniform
+
+struct RRectUniform
 {
+  Vec4 tint_tl          = {};
+  Vec4 tint_tr          = {};
+  Vec4 tint_bl          = {};
+  Vec4 tint_br          = {};
+  Vec4 border_color_tl  = {};
+  Vec4 border_color_tr  = {};
+  Vec4 border_color_bl  = {};
+  Vec4 border_color_br  = {};
   Vec4 border_radii     = {};
   f32  border_thickness = 0;
   Vec2 uv0              = {};
   Vec2 uv1              = {};
 };
 
-struct RRect
-{
-  Vec3 center           = {};
-  Vec3 half_extent      = {};
-  f32  border_thickness = 0;
-  Vec4 border_radii     = {};
-};
-
-struct RRectMaterial
-{
-  RRectTexture base_color_texture    = {};
-  Vec4         base_color_factors[4] = {};
-  Vec4         border_colors[4]      = {};
-};
-
 struct RRectObject
 {
-  RRect         rrect                 = {};
-  RRectMaterial material              = {};
-  u32           descriptor_heap_group = 0;
+  Vec3               center      = {};
+  Vec3               half_extent = {};
+  RRectUniform       uniform     = {};
+  gfx::DescriptorSet descriptor  = {};
 };
 
 struct RRectParams
 {
-  rdg::RenderTarget        render_target;
-  Span<RRectObject const>  objects;
-  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
-  gfx::DescriptorHeapImpl  descriptor_heap       = {};
+  RenderTarget            render_target = {};
+  Span<RRectObject const> objects       = {};
 };
 
 struct RRectPass
 {
-  static void create_rgb_textures(rdg::Graph *graph);
-  static void add_pass(rdg::Graph *graph, RRectParams const *params);
+  gfx::RenderPass          render_pass           = nullptr;
+  gfx::GraphicsPipeline    pipeline              = nullptr;
+  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
+
+  void init(Renderer &renderer);
+  void uninit(Renderer &renderer);
+  void add_pass(Renderer &renderer, RRectParams const &params);
 };
 
 }        // namespace ash
