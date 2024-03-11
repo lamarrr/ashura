@@ -84,6 +84,11 @@ struct ViewConfig
   BloomConfig bloom                = {};
   DOFConfig   dof                  = {};
   f32         chromatic_aberration = 0;
+
+  // get view matrix
+  // get projection matrix
+  // get inverse of view matrix
+  // get inverse of projection matrix
 };
 
 /// https://github.com/GPUOpen-LibrariesAndSDKs/Cauldron/blob/b92d559bd083f44df9f8f42a6ad149c1584ae94c/src/common/Misc/Misc.cpp#L265
