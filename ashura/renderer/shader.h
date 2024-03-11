@@ -650,8 +650,6 @@ struct UniformHeap
     batch_               = 0;
     batch_buffer_offset_ = 0;
   }
-
-  void release_uniforms();
 };
 
 }        // namespace ash
