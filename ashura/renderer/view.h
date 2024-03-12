@@ -155,7 +155,6 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Box const &box)
 }
 
 constexpr void frustum_cull(Mat4 const            &mvp,
-                            Span<Mat4Affine const> local_transform,
                             Span<Mat4Affine const> global_transform,
                             Span<Box const> aabb, BitSpan<u64> is_visible)
 {

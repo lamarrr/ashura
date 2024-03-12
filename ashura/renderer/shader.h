@@ -19,6 +19,8 @@
                    ::ash::SourceLocation::current().column, "]");              \
   }
 
+#define ENSURE(...) CHECK(panic_logger, "", __VA_ARGS__)
+
 namespace ash
 {
 
@@ -399,11 +401,12 @@ struct ShaderParameterHeap
     device_->unref_descriptor_heap(device_.self, heap_);
   }
 
-  Option<gfx::DescriptorSet> create(Param const &param)
+  gfx::DescriptorSet create(Param const &param)
   {
-    u32 group = heap_->add_group(heap_.self).unwrap();
-    return Some{
-        gfx::DescriptorSet{.heap = heap_.self, .group = group, .set = 0}};
+    u32                group = heap_->add_group(heap_.self).unwrap();
+    gfx::DescriptorSet set{.heap = heap_.self, .group = group, .set = 0};
+    update(set, param);
+    return set;
   }
 
   void update(gfx::DescriptorSet set, Param const &param)
@@ -560,7 +563,7 @@ struct UniformHeap
   void init(gfx::DeviceImpl device,
             u64             batch_buffer_size = DEFAULT_UNIFORM_HEAP_BATCH_SIZE)
   {
-    CHECK(panic_logger, "", batch_buffer_size > 32);
+    ENSURE( batch_buffer_size > 32);
     gfx::DeviceProperties properties =
         device->get_device_properties(device.self);
     min_uniform_buffer_offset_alignment_ =
@@ -596,7 +599,7 @@ struct UniformHeap
   Uniform push_range(Span<UniformType const> uniform)
   {
     static_assert(alignof(UniformType) <= 16);
-    CHECK(panic_logger, "", uniform.size_bytes() <= batch_buffer_size_);
+    ENSURE( uniform.size_bytes() <= batch_buffer_size_);
     u64 alignment =
         max(alignof(UniformType), min_uniform_buffer_offset_alignment_);
     u64 buffer_offset = mem::align_offset(alignment, batch_buffer_offset_);
@@ -625,7 +628,7 @@ struct UniformHeap
           to_span<gfx::DynamicUniformBufferBinding>(
               {{.buffer = buffer, .offset = 0, .size = gfx::WHOLE_SIZE}}));
 
-      CHECK(panic_logger, "",
+      ENSURE(
             batches_.push(
                 UniformHeapBatch{.set = {.group = group}, .buffer = buffer}));
     }

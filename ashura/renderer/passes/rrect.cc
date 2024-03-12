@@ -117,8 +117,8 @@ void RRectPass::init(Renderer &renderer)
           ->create_buffer(
               renderer.device.self,
               gfx::BufferDesc{.label       = "RRect Vertex Buffer",
-                              .host_mapped = true,
                               .size        = sizeof(Vec2) * 4,
+                              .host_mapped = true,
                               .usage       = gfx::BufferUsage::VertexBuffer})
           .unwrap();
   index_buffer =
@@ -126,8 +126,8 @@ void RRectPass::init(Renderer &renderer)
           ->create_buffer(
               renderer.device.self,
               gfx::BufferDesc{.label       = "RRect Index Buffer",
-                              .host_mapped = true,
                               .size        = sizeof(u16) * 6,
+                              .host_mapped = true,
                               .usage       = gfx::BufferUsage::IndexBuffer})
           .unwrap();
 

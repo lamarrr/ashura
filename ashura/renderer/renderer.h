@@ -59,17 +59,17 @@ struct Renderer
 
   void release(gfx::Framebuffer framebuffer)
   {
-    released_framebuffers.push(frame_info.current, framebuffer);
+    ENSURE(released_framebuffers.push(frame_info.current, framebuffer));
   }
 
   void release(gfx::Image image)
   {
-    released_images.push(frame_info.current, image);
+    ENSURE(released_images.push(frame_info.current, image));
   }
 
   void release(gfx::ImageView view)
   {
-    released_image_views.push(frame_info.current, view);
+    ENSURE(released_image_views.push(frame_info.current, view));
   }
 
   // sky render pass

@@ -120,10 +120,9 @@ void PBRPass::init(Renderer &renderer)
 
 void PBRPass::add_pass(Renderer &renderer, PBRParams const &params)
 {
-  CHECK(panic_logger, "", params.render_target.color_images.size() == 0);
-  CHECK(panic_logger, "",
-        has_bits(params.render_target.depth_stencil_aspects,
-                 gfx::ImageAspects::Depth));
+  ENSURE(params.render_target.color_images.size() == 0);
+  ENSURE(has_bits(params.render_target.depth_stencil_aspects,
+                  gfx::ImageAspects::Depth));
 
   gfx::Framebuffer framebuffer =
       renderer.device

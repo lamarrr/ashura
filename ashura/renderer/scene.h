@@ -90,7 +90,7 @@ struct Scene
 
 //?
 void           hierarchical_sort(Span<SceneNode const> node, Span<u32> indices);
-constexpr void transform_nodes(SparseVec<u32> const &id_map, uid32 root_object,
+constexpr void transform_nodes(SparseVec<u32> const  &id_map,
                                Span<SceneNode const>  node,
                                Span<Mat4Affine const> local_transform,
                                Span<Mat4Affine>       global_transform)
