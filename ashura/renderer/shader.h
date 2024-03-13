@@ -527,17 +527,21 @@ struct ShaderParameterHeap
   }
 };
 
-constexpr u64 DEFAULT_UNIFORM_HEAP_BATCH_SIZE = 16384;
+constexpr u32 DEFAULT_UNIFORM_HEAP_BATCH_SIZE                = 16384;
+constexpr u8  NUM_UNIFORM_SIZE_CLASSES                       = 6;
+constexpr u16 UNIFORM_SIZE_CLASSES[NUM_UNIFORM_SIZE_CLASSES] = {
+    64, 128, 256, 1024, 4096, 8192};
 
 struct UniformHeapBatch
 {
-  gfx::DescriptorSet set    = {};
-  gfx::Buffer        buffer = nullptr;
+  gfx::DescriptorSet sets[NUM_UNIFORM_SIZE_CLASSES] = {};
+  gfx::Buffer        buffer                         = nullptr;
 };
 
 struct Uniform
 {
   UniformHeapBatch batch;
+  u32              set           = 0;
   u32              buffer_offset = 0;
 };
 
@@ -551,8 +555,6 @@ struct Uniform
 ///
 struct UniformHeap
 {
-  static constexpr u16 SIZE_CLASSES[] = {64, 128, 256, 1024, 4096, 8192, 16384};
-
   u32                      batch_buffer_size_                   = 0;
   u32                      min_uniform_buffer_offset_alignment_ = 0;
   u32                      batch_                               = 0;
@@ -579,8 +581,9 @@ struct UniformHeap
     // multiple sets. since each uniform buffer is very large we can afford to
     // have multiple size-class descriptor sets for each batch.
     //
-    //
-    ENSURE(batch_buffer_size > 32);
+    ENSURE(batch_buffer_size > UNIFORM_SIZE_CLASSES[0]);
+    ENSURE(batch_buffer_size >
+           UNIFORM_SIZE_CLASSES[NUM_UNIFORM_SIZE_CLASSES - 1]);
     gfx::DeviceProperties properties =
         device->get_device_properties(device.self);
     min_uniform_buffer_offset_alignment_ =
