@@ -551,7 +551,7 @@ struct Uniform
 ///
 struct UniformHeap
 {
-  static constexpr u32 SIZE_CLASSES[] = {64, 128, 256, 512, 1024, 4096};
+  static constexpr u16 SIZE_CLASSES[] = {64, 128, 256, 1024, 4096, 8192, 16384};
 
   u32                      batch_buffer_size_                   = 0;
   u32                      min_uniform_buffer_offset_alignment_ = 0;
@@ -573,6 +573,11 @@ struct UniformHeap
     //
     // different size classes with descriptor sets  for each uniform size on
     // added if not already exist? seems we can make it oversized for the buffer
+    //
+    // since it is immutable, the implication would be that the last uniform
+    // would have to be at least a certain size class. we can afford to have
+    // multiple sets. since each uniform buffer is very large we can afford to
+    // have multiple size-class descriptor sets for each batch.
     //
     //
     ENSURE(batch_buffer_size > 32);
