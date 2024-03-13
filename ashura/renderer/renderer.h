@@ -55,6 +55,8 @@ struct Renderer
   Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
   Vec<Tuple<gfx::FrameId, gfx::ImageView>>   released_image_views  = {};
 
+  u32 ring_index() const;
+
   Option<gfx::Shader> get_shader(Span<char const> name);
 
   void release(gfx::Framebuffer framebuffer)

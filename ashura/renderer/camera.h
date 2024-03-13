@@ -6,8 +6,7 @@ namespace ash
 
 typedef struct OrthographicCamera OrthographicCamera;
 typedef struct PerspectiveCamera  PerspectiveCamera;
-typedef struct Transform          Transform;
-typedef struct ViewProjection     ViewProjection;
+typedef struct MVPTransform       MVPTransform;
 typedef struct Camera             Camera;
 
 /// @x_mag: The horizontal magnification of the view. This value
@@ -63,12 +62,10 @@ struct Camera
     PerspectiveCamera  perspective;
     OrthographicCamera orthographic;
   };
-
-  CameraType type     = CameraType::Orthographic;
-  Vec3       position = {};
-
-  // look at
-  // rotate about pivot point on one or more axis
+  CameraType type = CameraType::Orthographic;
 };
+
+constexpr Mat4Affine look_at(Vec3 position);
+// rotate about pivot point on one or more axis
 
 }        // namespace ash

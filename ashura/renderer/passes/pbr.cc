@@ -144,18 +144,36 @@ void PBRPass::add_pass(Renderer &renderer, PBRParams const &params)
       {}, {});
 
   renderer.encoder->bind_graphics_pipeline(renderer.encoder.self, pipeline);
-  // lights
   gfx::Buffer prev_vtx_buff        = nullptr;
   u64         prev_vtx_buff_offset = 0;
   gfx::Buffer prev_idx_buff        = nullptr;
 
   for (PBRObject const &object : params.objects)
   {
+    // TODO(lamarrr): lights
     Uniform mvp_uniform =
-        renderer.frame_uniform_heaps[0x00].push(object.uniform);
-    renderer.encoder->bind_vertex_buffers(renderer.encoder.self, {}, {});
-    renderer.encoder->bind_index_buffer(renderer.encoder.self, {}, {}, {});
-    renderer.encoder->bind_descriptor_sets(renderer.encoder.self, {}, {});
+        renderer.frame_uniform_heaps[renderer.ring_index()].push(
+            object.uniform);
+    if (prev_vtx_buff != object.mesh.vertex_buffer ||
+        prev_vtx_buff_offset != object.mesh.vertex_buffer_offset)
+    {
+      renderer.encoder->bind_vertex_buffers(
+          renderer.encoder.self, to_span({object.mesh.vertex_buffer}),
+          to_span({object.mesh.vertex_buffer_offset}));
+    }
+    if (prev_idx_buff != object.mesh.index_buffer)
+    {
+      renderer.encoder->bind_index_buffer(
+          renderer.encoder.self, object.mesh.index_buffer,
+          object.mesh.index_buffer_offset, object.mesh.index_type);
+    }
+
+    gfx::DescriptorSet sets[]    = {mvp_uniform.batch.set, object.descriptor};
+    u32                offsets[] = {mvp_uniform.buffer_offset};
+
+    renderer.encoder->bind_descriptor_sets(renderer.encoder.self, to_span(sets),
+                                           to_span(offsets));
+
     renderer.encoder->draw(renderer.encoder.self, object.mesh.first_index,
                            object.mesh.num_indices, object.mesh.vertex_offset,
                            0, 1);

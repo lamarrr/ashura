@@ -43,6 +43,7 @@ struct PBRMesh
   gfx::Buffer    vertex_buffer        = 0;
   gfx::Buffer    index_buffer         = 0;
   u64            vertex_buffer_offset = 0;
+  u64            index_buffer_offset  = 0;
   i32            vertex_offset        = 0;
   u32            first_index          = 0;
   u32            num_indices          = 0;

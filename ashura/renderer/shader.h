@@ -538,7 +538,7 @@ struct UniformHeapBatch
 struct Uniform
 {
   UniformHeapBatch batch;
-  u64              buffer_offset = 0;
+  u32              buffer_offset = 0;
 };
 
 /// per-frame uniform buffer heap.
@@ -551,19 +551,31 @@ struct Uniform
 ///
 struct UniformHeap
 {
-  u64                      batch_buffer_size_                   = 0;
-  u64                      min_uniform_buffer_offset_alignment_ = 0;
+  static constexpr u32 SIZE_CLASSES[] = {64, 128, 256, 512, 1024, 4096};
+
+  u32                      batch_buffer_size_                   = 0;
+  u32                      min_uniform_buffer_offset_alignment_ = 0;
   u32                      batch_                               = 0;
-  u64                      batch_buffer_offset_                 = 0;
+  u32                      batch_buffer_offset_                 = 0;
   Vec<UniformHeapBatch>    batches_                             = {};
   gfx::DescriptorSetLayout descriptor_set_layout_               = {};
   gfx::DescriptorHeapImpl  descriptor_heap_                     = {};
   gfx::DeviceImpl          device_;
 
   void init(gfx::DeviceImpl device,
-            u64             batch_buffer_size = DEFAULT_UNIFORM_HEAP_BATCH_SIZE)
+            u32             batch_buffer_size = DEFAULT_UNIFORM_HEAP_BATCH_SIZE)
   {
-    ENSURE( batch_buffer_size > 32);
+    // batch_buffer_size TODO(lamarrr): size or count?
+    // TODO(lamarrr): how to overcome dynamic offset limitation
+    // For each dynamic uniform or storage buffer binding in pDescriptorSets, if
+    // the range was set with VK_WHOLE_SIZE then pDynamicOffsets which
+    // corresponds to the descriptor binding must be 0
+    //
+    // different size classes with descriptor sets  for each uniform size on
+    // added if not already exist? seems we can make it oversized for the buffer
+    //
+    //
+    ENSURE(batch_buffer_size > 32);
     gfx::DeviceProperties properties =
         device->get_device_properties(device.self);
     min_uniform_buffer_offset_alignment_ =
@@ -599,11 +611,11 @@ struct UniformHeap
   Uniform push_range(Span<UniformType const> uniform)
   {
     static_assert(alignof(UniformType) <= 16);
-    ENSURE( uniform.size_bytes() <= batch_buffer_size_);
-    u64 alignment =
+    ENSURE(uniform.size_bytes() <= batch_buffer_size_);
+    u32 alignment =
         max(alignof(UniformType), min_uniform_buffer_offset_alignment_);
-    u64 buffer_offset = mem::align_offset(alignment, batch_buffer_offset_);
-    u64 batch_index   = batch_;
+    u32 buffer_offset = mem::align_offset(alignment, batch_buffer_offset_);
+    u32 batch_index   = batch_;
     if ((buffer_offset + uniform.size_bytes()) > batch_buffer_size_)
     {
       batch_index++;
@@ -628,9 +640,8 @@ struct UniformHeap
           to_span<gfx::DynamicUniformBufferBinding>(
               {{.buffer = buffer, .offset = 0, .size = gfx::WHOLE_SIZE}}));
 
-      ENSURE(
-            batches_.push(
-                UniformHeapBatch{.set = {.group = group}, .buffer = buffer}));
+      ENSURE(batches_.push(
+          UniformHeapBatch{.set = {.group = group}, .buffer = buffer}));
     }
 
     UniformHeapBatch const &batch = batches_[batch_index];

@@ -165,7 +165,7 @@ void RRectPass::add_pass(Renderer &renderer, RRectParams const &params)
   {
     // todo(LAMARR): transform from params
     // viewport transform, global transform, local transform
-    Uniform uniform = renderer.frame_uniform_heaps[0x00].push(object.uniform);
+    Uniform uniform = renderer.frame_uniform_heaps[renderer.ring_index()].push(object.uniform);
     renderer.encoder->bind_descriptor_sets(renderer.encoder.self, {}, {});
     renderer.encoder->draw(renderer.encoder.self, 0, 6, 0, 0, 1);
   }
