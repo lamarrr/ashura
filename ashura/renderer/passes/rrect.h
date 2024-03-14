@@ -12,6 +12,14 @@ SHADER_SAMPLER(sampler, 1)
 SHADER_SAMPLED_IMAGE(base_color, 1)
 END_SHADER_PARAMETER(RRectShaderParameter)
 
+// TODO(lamarrr): vertex buffer is in object coordinate space. needs to be
+// transformed to world then to view space, used for uv-interp as well.
+constexpr Mat4Affine rrect_model(Vec2 center, Vec2 extent)
+{
+  return affine_translate3d(-Vec3{center.x, -center.y, 0}) *
+         affine_scale3d({extent.x, extent.y, 1});
+}
+
 struct RRectShaderUniform
 {
   MVPTransform transform        = {};
@@ -31,22 +39,8 @@ struct RRectShaderUniform
 
 struct RRectObject
 {
-  gfx::DescriptorSet descriptor       = {};
-  MVPTransform       transform        = {};
-  Vec3               center           = {};
-  Vec3               half_extent      = {};
-  Vec4               tint_tl          = {};
-  Vec4               tint_tr          = {};
-  Vec4               tint_bl          = {};
-  Vec4               tint_br          = {};
-  Vec4               border_color_tl  = {};
-  Vec4               border_color_tr  = {};
-  Vec4               border_color_bl  = {};
-  Vec4               border_color_br  = {};
-  Vec4               border_radii     = {};
-  f32                border_thickness = 0;
-  Vec2               uv0              = {};
-  Vec2               uv1              = {};
+  gfx::DescriptorSet descriptor = {};
+  RRectShaderUniform uniform    = {};
 };
 
 struct RRectParams

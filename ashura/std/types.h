@@ -970,6 +970,11 @@ constexpr Vec2 operator+(f32 a, Vec2 b)
   return Vec2{a + b.x, a + b.y};
 }
 
+constexpr Vec2 operator-(Vec2 a)
+{
+  return Vec2{-a.x, -a.y};
+}
+
 constexpr Vec2 operator-(Vec2 a, Vec2 b)
 {
   return Vec2{a.x - b.x, a.y - b.y};
@@ -1074,6 +1079,11 @@ constexpr Vec3 operator+(Vec3 a, f32 b)
 constexpr Vec3 operator+(f32 a, Vec3 b)
 {
   return Vec3{a + b.x, a + b.y, a + b.z};
+}
+
+constexpr Vec3 operator-(Vec3 a)
+{
+  return Vec3{-a.x, -a.y, -a.z};
 }
 
 constexpr Vec3 operator-(Vec3 a, Vec3 b)
@@ -1181,6 +1191,11 @@ constexpr Vec4 operator+(Vec4 a, f32 b)
 constexpr Vec4 operator+(f32 a, Vec4 b)
 {
   return Vec4{a + b.x, a + b.y, a + b.z, a + b.w};
+}
+
+constexpr Vec4 operator-(Vec4 a)
+{
+  return Vec4{-a.x, -a.y, -a.z, -a.w};
 }
 
 constexpr Vec4 operator-(Vec4 a, Vec4 b)
@@ -1337,6 +1352,11 @@ constexpr bool operator!=(Vec2I a, Vec2I b)
 constexpr Vec2I operator+(Vec2I a, Vec2I b)
 {
   return Vec2I{a.x + b.x, a.y + b.y};
+}
+
+constexpr Vec2I operator-(Vec2I a)
+{
+  return Vec2I{-a.x, -a.y};
 }
 
 constexpr Vec2I operator-(Vec2I a, Vec2I b)

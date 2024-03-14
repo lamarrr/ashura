@@ -29,10 +29,10 @@ void PBRPass::init(Renderer &renderer)
                   .input_attachments = {},
                   .depth_stencil_attachment =
                       {.format           = renderer.depth_stencil_format,
-                       .load_op          = gfx::LoadOp::Clear,
+                       .load_op          = gfx::LoadOp::Load,
                        .store_op         = gfx::StoreOp::Store,
-                       .stencil_load_op  = gfx::LoadOp::DontCare,
-                       .stencil_store_op = gfx::StoreOp::DontCare},
+                       .stencil_load_op  = gfx::LoadOp::Load,
+                       .stencil_store_op = gfx::StoreOp::Store},
               })
           .unwrap();
 
@@ -173,11 +173,16 @@ void PBRPass::add_pass(Renderer &renderer, PBRParams const &params)
       renderer.encoder->set_viewport(
           renderer.encoder.self,
           gfx::Viewport{
-              .offset = {}, .extent = {}, .min_depth = 0, .max_depth = 1});
+              .offset    = Vec2{(f32) params.render_target.render_offset.x,
+                             (f32) params.render_target.render_offset.y},
+              .extent    = Vec2{(f32) params.render_target.render_extent.x,
+                             (f32) params.render_target.render_extent.y},
+              .min_depth = 0,
+              .max_depth = 1});
       prev_pipeline = object_pipeline;
     }
 
-    Uniform object_uniform =
+    Uniform const object_uniform =
         renderer.frame_uniform_heaps[renderer.ring_index()].push(
             object.uniform);
     if (prev_vtx_buff != object.mesh.vertex_buffer ||
@@ -199,9 +204,10 @@ void PBRPass::add_pass(Renderer &renderer, PBRParams const &params)
       prev_idx_buff_offset = object.mesh.index_buffer_offset;
     }
 
-    gfx::DescriptorSet sets[]{lights_uniform.set, object_uniform.set,
-                              object.descriptor};
-    u32 offsets[]{lights_uniform.buffer_offset, object_uniform.buffer_offset};
+    gfx::DescriptorSet const sets[]{lights_uniform.set, object_uniform.set,
+                                    object.descriptor};
+    u32 const                offsets[]{lights_uniform.buffer_offset,
+                                       object_uniform.buffer_offset};
 
     renderer.encoder->bind_descriptor_sets(renderer.encoder.self, to_span(sets),
                                            to_span(offsets));
@@ -222,6 +228,8 @@ void PBRPass::uninit(Renderer &renderer)
                                                descriptor_set_layout);
   renderer.device->unref_render_pass(renderer.device.self, render_pass);
   renderer.device->unref_graphics_pipeline(renderer.device.self, pipeline);
+  renderer.device->unref_graphics_pipeline(renderer.device.self,
+                                           wireframe_pipeline);
 }
 
 }        // namespace ash

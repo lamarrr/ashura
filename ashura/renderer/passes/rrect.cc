@@ -1,4 +1,5 @@
 #include "ashura/renderer/passes/rrect.h"
+#include "ashura/std/math.h"
 
 namespace ash
 {
@@ -119,7 +120,8 @@ void RRectPass::init(Renderer &renderer)
               gfx::BufferDesc{.label       = "RRect Vertex Buffer",
                               .size        = sizeof(Vec2) * 4,
                               .host_mapped = true,
-                              .usage       = gfx::BufferUsage::VertexBuffer})
+                              .usage       = gfx::BufferUsage::VertexBuffer |
+                                       gfx::BufferUsage::TransferDst})
           .unwrap();
   index_buffer =
       renderer.device
@@ -128,10 +130,32 @@ void RRectPass::init(Renderer &renderer)
               gfx::BufferDesc{.label       = "RRect Index Buffer",
                               .size        = sizeof(u16) * 6,
                               .host_mapped = true,
-                              .usage       = gfx::BufferUsage::IndexBuffer})
+                              .usage       = gfx::BufferUsage::IndexBuffer |
+                                       gfx::BufferUsage::TransferDst})
           .unwrap();
 
-  // map and write vtx and idx buffers
+  f32 *vtx_map =
+      (f32 *) renderer.device
+          ->get_buffer_memory_map(renderer.device.self, vertex_buffer)
+          .unwrap();
+  u16 *idx_map = (u16 *) renderer.device
+                     ->get_buffer_memory_map(renderer.device.self, index_buffer)
+                     .unwrap();
+
+  constexpr f32 vtxs[] = {0, 0, 1, 0, 1, 1, 0, 1};
+  constexpr u16 idxs[] = {0, 1, 2, 0, 2, 3};
+
+  mem::copy(to_span(vtxs), vtx_map);
+  mem::copy(to_span(idxs), idx_map);
+
+  renderer.device
+      ->flush_buffer_memory_map(renderer.device.self, vertex_buffer,
+                                gfx::MemoryRange{0, gfx::WHOLE_SIZE})
+      .unwrap();
+  renderer.device
+      ->flush_buffer_memory_map(renderer.device.self, index_buffer,
+                                gfx::MemoryRange{0, gfx::WHOLE_SIZE})
+      .unwrap();
 }
 
 void RRectPass::add_pass(Renderer &renderer, RRectParams const &params)
@@ -151,23 +175,22 @@ void RRectPass::add_pass(Renderer &renderer, RRectParams const &params)
 
   renderer.encoder->begin_render_pass(
       renderer.encoder.self, framebuffer, render_pass,
-      params.render_target.scissor_offset, params.render_target.scissor_extent,
+      params.render_target.render_offset, params.render_target.render_extent,
       {}, {});
 
   renderer.encoder->bind_graphics_pipeline(renderer.encoder.self, pipeline);
-  u64 const vertex_offsets[] = {0};
   renderer.encoder->bind_vertex_buffers(
-      renderer.encoder.self, to_span({vertex_buffer}), to_span(vertex_offsets));
+      renderer.encoder.self, to_span({vertex_buffer}), to_span<u64>({0}));
   renderer.encoder->bind_index_buffer(renderer.encoder.self, index_buffer, 0,
                                       gfx::IndexType::Uint16);
 
   for (RRectObject const &object : params.objects)
   {
-    // todo(LAMARR): transform from params
-    // viewport transform, global transform, local transform
     Uniform uniform = renderer.frame_uniform_heaps[renderer.ring_index()].push(
         object.uniform);
-    renderer.encoder->bind_descriptor_sets(renderer.encoder.self, {}, {});
+    renderer.encoder->bind_descriptor_sets(renderer.encoder.self,
+                                           to_span({uniform.set}),
+                                           to_span({uniform.buffer_offset}));
     renderer.encoder->draw(renderer.encoder.self, 0, 6, 0, 0, 1);
   }
 
