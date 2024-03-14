@@ -17,8 +17,8 @@ struct RenderTarget
   gfx::ImageView             depth_stencil_image   = nullptr;
   gfx::ImageAspects          depth_stencil_aspects = gfx::ImageAspects::None;
   Vec2U                      extent                = {};
-  Vec2U                      scissor_offset        = {};
-  Vec2U                      scissor_extent        = {};
+  Vec2U                      render_offset         = {};
+  Vec2U                      render_extent         = {};
 };
 
 /// with views for each image mip level
@@ -73,7 +73,10 @@ struct Renderer
   {
     ENSURE(released_image_views.push(frame_info.current, view));
   }
+};
 
+struct NRenderer
+{
   // sky render pass
   // render 3d scene pass + custom shaders (pipeline + fragment + vertex shader)
   // perform bloom, blur, msaa on 3d scene

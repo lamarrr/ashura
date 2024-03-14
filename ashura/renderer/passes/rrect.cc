@@ -22,7 +22,7 @@ void RRectPass::init(Renderer &renderer)
                   .label             = "RRect RenderPass",
                   .color_attachments = to_span<gfx::RenderPassAttachment>(
                       {{.format           = renderer.color_format,
-                        .load_op          = gfx::LoadOp::Clear,
+                        .load_op          = gfx::LoadOp::Load,
                         .store_op         = gfx::StoreOp::Store,
                         .stencil_load_op  = gfx::LoadOp::DontCare,
                         .stencil_store_op = gfx::StoreOp::DontCare}}),
@@ -32,12 +32,12 @@ void RRectPass::init(Renderer &renderer)
                        .load_op          = gfx::LoadOp::DontCare,
                        .store_op         = gfx::StoreOp::DontCare,
                        .stencil_load_op  = gfx::LoadOp::DontCare,
-                       .stencil_store_op = gfx::StoreOp::Store},
+                       .stencil_store_op = gfx::StoreOp::DontCare},
               })
           .unwrap();
 
-  gfx::Shader vertex_shader   = renderer.get_shader("VS::RRect"_span).unwrap();
-  gfx::Shader fragment_shader = renderer.get_shader("FS::RRect"_span).unwrap();
+  gfx::Shader vertex_shader   = renderer.get_shader("RRect.VS"_span).unwrap();
+  gfx::Shader fragment_shader = renderer.get_shader("RRect.FS"_span).unwrap();
 
   gfx::PipelineRasterizationState raster_state{
       .depth_clamp_enable         = false,
@@ -165,7 +165,8 @@ void RRectPass::add_pass(Renderer &renderer, RRectParams const &params)
   {
     // todo(LAMARR): transform from params
     // viewport transform, global transform, local transform
-    Uniform uniform = renderer.frame_uniform_heaps[renderer.ring_index()].push(object.uniform);
+    Uniform uniform = renderer.frame_uniform_heaps[renderer.ring_index()].push(
+        object.uniform);
     renderer.encoder->bind_descriptor_sets(renderer.encoder.self, {}, {});
     renderer.encoder->draw(renderer.encoder.self, 0, 6, 0, 0, 1);
   }

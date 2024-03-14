@@ -737,9 +737,9 @@ struct CommandEncoderInterface
   static void begin_render_pass(
       gfx::CommandEncoder self, gfx::Framebuffer framebuffer,
       gfx::RenderPass render_pass, gfx::Offset render_offset,
-      gfx::Extent              render_extent,
-      Span<gfx::Color const>   color_attachments_clear_values,
-      gfx::DepthStencil const &depth_stencil_attachment_clear_value);
+      gfx::Extent                   render_extent,
+      Span<gfx::Color const>        color_attachments_clear_values,
+      Span<gfx::DepthStencil const> depth_stencil_attachment_clear_value);
   static void end_render_pass(gfx::CommandEncoder self);
   static void bind_compute_pipeline(gfx::CommandEncoder  self,
                                     gfx::ComputePipeline pipeline);

@@ -12,7 +12,7 @@ SHADER_SAMPLER(sampler, 1)
 SHADER_SAMPLED_IMAGE(base_color, 1)
 END_SHADER_PARAMETER(RRectShaderParameter)
 
-struct RRectUniform
+struct RRectShaderUniform
 {
   MVPTransform transform        = {};
   Vec4         tint_tl          = {};
@@ -31,10 +31,22 @@ struct RRectUniform
 
 struct RRectObject
 {
-  Vec3               center      = {};
-  Vec3               half_extent = {};
-  RRectUniform       uniform     = {};
-  gfx::DescriptorSet descriptor  = {};
+  gfx::DescriptorSet descriptor       = {};
+  MVPTransform       transform        = {};
+  Vec3               center           = {};
+  Vec3               half_extent      = {};
+  Vec4               tint_tl          = {};
+  Vec4               tint_tr          = {};
+  Vec4               tint_bl          = {};
+  Vec4               tint_br          = {};
+  Vec4               border_color_tl  = {};
+  Vec4               border_color_tr  = {};
+  Vec4               border_color_bl  = {};
+  Vec4               border_color_br  = {};
+  Vec4               border_radii     = {};
+  f32                border_thickness = 0;
+  Vec2               uv0              = {};
+  Vec2               uv1              = {};
 };
 
 struct RRectParams
@@ -46,6 +58,7 @@ struct RRectParams
 struct RRectPass
 {
   gfx::RenderPass          render_pass           = nullptr;
+  gfx::GraphicsPipeline    pipeline              = nullptr;
   gfx::GraphicsPipeline    pipeline              = nullptr;
   gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
   gfx::Buffer              vertex_buffer         = nullptr;

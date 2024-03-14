@@ -6719,27 +6719,30 @@ void CommandEncoderInterface::resolve_image(
 void CommandEncoderInterface::begin_render_pass(
     gfx::CommandEncoder self_, gfx::Framebuffer framebuffer_,
     gfx::RenderPass render_pass_, gfx::Offset render_offset,
-    gfx::Extent              render_extent,
-    Span<gfx::Color const>   color_attachments_clear_values,
-    gfx::DepthStencil const &depth_stencil_attachment_clear_value)
+    gfx::Extent                   render_extent,
+    Span<gfx::Color const>        color_attachments_clear_values,
+    Span<gfx::DepthStencil const> depth_stencil_attachment_clear_value)
 {
   CommandEncoder *const self        = (CommandEncoder *) self_;
   Framebuffer *const    framebuffer = (Framebuffer *) framebuffer_;
   RenderPass *const     render_pass = (RenderPass *) render_pass_;
   u32 const             num_color_clear_values =
       (u32) color_attachments_clear_values.size();
+  u32 const num_depth_clear_values =
+      (u32) depth_stencil_attachment_clear_value.size();
+  u32 const  num_clear_values = num_color_clear_values + num_clear_values;
   bool const has_depth_stencil_attachment =
       framebuffer->depth_stencil_attachment != nullptr;
-  u32 const num_vk_clear_values =
-      num_color_clear_values + (has_depth_stencil_attachment ? 1U : 0U);
 
+  VALIDATE(self, "",
+           num_depth_clear_values == 0 || num_depth_clear_values == 1);
   VALIDATE(self, "",
            is_render_pass_compatible(render_pass,
                                      Span{framebuffer->color_attachments,
                                           framebuffer->num_color_attachments},
                                      framebuffer->depth_stencil_attachment));
   VALIDATE(self, "",
-           color_attachments_clear_values.size() ==
+           color_attachments_clear_values.size() <=
                framebuffer->num_color_attachments);
   VALIDATE(self, "", render_extent.x > 0);
   VALIDATE(self, "", render_extent.y > 0);
@@ -6769,12 +6772,12 @@ void CommandEncoderInterface::begin_render_pass(
              sizeof(gfx::Color));
     }
 
-    if (has_depth_stencil_attachment)
+    if (num_depth_clear_values > 0)
     {
       vk_clear_values[ivk_clear_value].depthStencil.depth =
-          depth_stencil_attachment_clear_value.depth;
+          depth_stencil_attachment_clear_value[0].depth;
       vk_clear_values[ivk_clear_value].depthStencil.stencil =
-          depth_stencil_attachment_clear_value.stencil;
+          depth_stencil_attachment_clear_value[0].stencil;
     }
   }
 
@@ -6815,7 +6818,7 @@ void CommandEncoderInterface::begin_render_pass(
                                    .renderPass  = render_pass->vk_render_pass,
                                    .framebuffer = framebuffer->vk_framebuffer,
                                    .renderArea  = vk_render_area,
-                                   .clearValueCount = num_vk_clear_values,
+                                   .clearValueCount = num_clear_values,
                                    .pClearValues    = vk_clear_values};
 
   self->device->vk_table.CmdBeginRenderPass(

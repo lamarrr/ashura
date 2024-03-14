@@ -3,6 +3,7 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/option.h"
 #include "ashura/std/panic.h"
+#include "ashura/std/range.h"
 #include "ashura/std/result.h"
 #include "ashura/std/source_location.h"
 #include "ashura/std/types.h"
@@ -527,22 +528,17 @@ struct ShaderParameterHeap
   }
 };
 
-constexpr u32 DEFAULT_UNIFORM_HEAP_BATCH_SIZE                = 16384;
-constexpr u8  NUM_UNIFORM_SIZE_CLASSES                       = 6;
-constexpr u16 UNIFORM_SIZE_CLASSES[NUM_UNIFORM_SIZE_CLASSES] = {
-    64, 128, 256, 1024, 4096, 8192};
-
 struct UniformHeapBatch
 {
-  gfx::DescriptorSet sets[NUM_UNIFORM_SIZE_CLASSES] = {};
-  gfx::Buffer        buffer                         = nullptr;
+  u32         group  = 0;
+  gfx::Buffer buffer = nullptr;
 };
 
 struct Uniform
 {
-  UniformHeapBatch batch;
-  u32              set           = 0;
-  u32              buffer_offset = 0;
+  gfx::DescriptorSet set           = {};
+  gfx::Buffer        buffer        = nullptr;
+  u32                buffer_offset = 0;
 };
 
 /// per-frame uniform buffer heap.
@@ -555,39 +551,40 @@ struct Uniform
 ///
 struct UniformHeap
 {
-  u32                      batch_buffer_size_                   = 0;
-  u32                      min_uniform_buffer_offset_alignment_ = 0;
-  u32                      batch_                               = 0;
-  u32                      batch_buffer_offset_                 = 0;
-  Vec<UniformHeapBatch>    batches_                             = {};
-  gfx::DescriptorSetLayout descriptor_set_layout_               = {};
-  gfx::DescriptorHeapImpl  descriptor_heap_                     = {};
-  gfx::DeviceImpl          device_;
+  static constexpr u32 DEFAULT_UNIFORM_BATCH_SIZE = 8192;
+  static constexpr u8  NUM_SIZE_CLASSES           = 4;
+  static constexpr Array<u32, NUM_SIZE_CLASSES> DEFAULT_SIZE_CLASSES{128, 256,
+                                                                     512, 1024};
 
-  void init(gfx::DeviceImpl device,
-            u32             batch_buffer_size = DEFAULT_UNIFORM_HEAP_BATCH_SIZE)
+  Array<u32, NUM_SIZE_CLASSES> size_classes_      = DEFAULT_SIZE_CLASSES;
+  u32                          batch_buffer_size_ = 0;
+  u32                          min_uniform_buffer_offset_alignment_ = 0;
+  u32                          batch_                               = 0;
+  u32                          batch_buffer_offset_                 = 0;
+  Vec<UniformHeapBatch>        batches_                             = {};
+  gfx::DescriptorSetLayout     descriptor_set_layout_               = {};
+  gfx::DescriptorHeapImpl      descriptor_heap_                     = {};
+  gfx::DeviceImpl              device_;
+
+  void init(
+      gfx::DeviceImpl device,
+      u32             batch_buffer_size    = DEFAULT_UNIFORM_BATCH_SIZE,
+      u32             descriptor_pool_size = 16,
+      Array<u32, NUM_SIZE_CLASSES> const &size_classes = DEFAULT_SIZE_CLASSES)
   {
-    // batch_buffer_size TODO(lamarrr): size or count?
-    // TODO(lamarrr): how to overcome dynamic offset limitation
-    // For each dynamic uniform or storage buffer binding in pDescriptorSets, if
-    // the range was set with VK_WHOLE_SIZE then pDynamicOffsets which
-    // corresponds to the descriptor binding must be 0
-    //
-    // different size classes with descriptor sets  for each uniform size on
-    // added if not already exist? seems we can make it oversized for the buffer
-    //
-    // since it is immutable, the implication would be that the last uniform
-    // would have to be at least a certain size class. we can afford to have
-    // multiple sets. since each uniform buffer is very large we can afford to
-    // have multiple size-class descriptor sets for each batch.
-    //
-    ENSURE(batch_buffer_size > UNIFORM_SIZE_CLASSES[0]);
-    ENSURE(batch_buffer_size >
-           UNIFORM_SIZE_CLASSES[NUM_UNIFORM_SIZE_CLASSES - 1]);
     gfx::DeviceProperties properties =
         device->get_device_properties(device.self);
     min_uniform_buffer_offset_alignment_ =
         properties.limits.min_uniform_buffer_offset_alignment;
+
+    ENSURE(batch_buffer_size >= size_classes[NUM_SIZE_CLASSES - 1]);
+    ENSURE(batch_buffer_size >= min_uniform_buffer_offset_alignment_);
+    for (u8 i = 0; i < NUM_SIZE_CLASSES - 1; i++)
+    {
+      ENSURE(size_classes[i] < size_classes[i + 1]);
+    }
+
+    size_classes_                 = size_classes;
     batch_buffer_size_            = batch_buffer_size;
     device_                       = device;
     batch_                        = 0;
@@ -600,10 +597,13 @@ struct UniformHeap
                                          .label    = "Uniform Buffer",
                                          .bindings = to_span(bindings_desc)})
                                  .unwrap();
+    gfx::DescriptorSetLayout layouts[NUM_SIZE_CLASSES];
+    fill(layouts, descriptor_set_layout_);
+
     descriptor_heap_ =
         device
-            ->create_descriptor_heap(device.self, {&descriptor_set_layout_, 1},
-                                     16, heap_allocator)
+            ->create_descriptor_heap(device.self, to_span(layouts),
+                                     descriptor_pool_size, heap_allocator)
             .unwrap();
   }
 
@@ -612,25 +612,37 @@ struct UniformHeap
   template <typename UniformType>
   Uniform push(UniformType const &uniform)
   {
-    return push_range(Span<UniformType const>{&uniform, 1});
+    return push_range(Span{&uniform, 1});
   }
 
   template <typename UniformType>
   Uniform push_range(Span<UniformType const> uniform)
   {
-    static_assert(alignof(UniformType) <= 16);
+    ENSURE(alignof(UniformType) <= batch_buffer_size_);
     ENSURE(uniform.size_bytes() <= batch_buffer_size_);
-    u32 alignment =
+    ENSURE(uniform.size_bytes() <= size_classes_[NUM_SIZE_CLASSES - 1]);
+
+    u8 size_class = 0;
+    for (; size_class < NUM_SIZE_CLASSES; size_class++)
+    {
+      if (size_classes_[size_class] >= uniform.size_bytes())
+      {
+        break;
+      }
+    }
+
+    u32 const classed_size = size_classes_[size_class];
+    u32       alignment =
         max(alignof(UniformType), min_uniform_buffer_offset_alignment_);
     u32 buffer_offset = mem::align_offset(alignment, batch_buffer_offset_);
     u32 batch_index   = batch_;
-    if ((buffer_offset + uniform.size_bytes()) > batch_buffer_size_)
+    if ((buffer_offset + classed_size) > batch_buffer_size_)
     {
       batch_index++;
       buffer_offset = 0;
     }
 
-    if (batch_index > batches_.size())
+    if (batch_index >= batches_.size())
     {
       gfx::Buffer buffer =
           device_
@@ -639,17 +651,22 @@ struct UniformHeap
                   gfx::BufferDesc{.label       = "UniformHeap batch buffer",
                                   .size        = batch_buffer_size_,
                                   .host_mapped = true,
-                                  .usage = gfx::BufferUsage::UniformBuffer})
+                                  .usage = gfx::BufferUsage::UniformBuffer |
+                                           gfx::BufferUsage::TransferDst |
+                                           gfx::BufferUsage::TransferSrc})
               .unwrap();
+
       u32 group = descriptor_heap_->add_group(descriptor_heap_.self).unwrap();
 
-      descriptor_heap_->dynamic_uniform_buffer(
-          descriptor_heap_.self, group, 0, 0,
-          to_span<gfx::DynamicUniformBufferBinding>(
-              {{.buffer = buffer, .offset = 0, .size = gfx::WHOLE_SIZE}}));
+      for (u32 i = 0; i < NUM_SIZE_CLASSES; i++)
+      {
+        descriptor_heap_->dynamic_uniform_buffer(
+            descriptor_heap_.self, group, i, 0,
+            to_span<gfx::DynamicUniformBufferBinding>(
+                {{.buffer = buffer, .offset = 0, .size = size_classes_[i]}}));
+      }
 
-      ENSURE(batches_.push(
-          UniformHeapBatch{.set = {.group = group}, .buffer = buffer}));
+      ENSURE(batches_.push(UniformHeapBatch{.group = group, .buffer = buffer}));
     }
 
     UniformHeapBatch const &batch = batches_[batch_index];
@@ -664,7 +681,11 @@ struct UniformHeap
     batch_               = batch_index;
     batch_buffer_offset_ = buffer_offset + uniform.size_bytes();
 
-    return Uniform{.batch = batch, .buffer_offset = buffer_offset};
+    return Uniform{.set    = gfx::DescriptorSet{.heap  = descriptor_heap_.self,
+                                                .group = batch.group,
+                                                .set   = size_class},
+                   .buffer = batch.buffer,
+                   .buffer_offset = buffer_offset};
   }
 
   void clear()

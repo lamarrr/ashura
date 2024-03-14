@@ -1444,8 +1444,8 @@ struct CommandEncoderInterface
   void (*begin_render_pass)(
       CommandEncoder self, Framebuffer framebuffer, RenderPass render_pass,
       Offset render_offset, Extent render_extent,
-      Span<Color const>   color_attachments_clear_values,
-      DepthStencil const &depth_stencil_attachment_clear_value)       = nullptr;
+      Span<Color const>        color_attachments_clear_values,
+      Span<DepthStencil const> depth_stencil_attachment_clear_value)  = nullptr;
   void (*end_render_pass)(CommandEncoder self)                        = nullptr;
   void (*bind_compute_pipeline)(CommandEncoder  self,
                                 ComputePipeline pipeline)             = nullptr;

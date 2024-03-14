@@ -20,7 +20,15 @@ SHADER_SAMPLED_IMAGE(occlusion, 1)
 SHADER_SAMPLED_IMAGE(emissive, 1)
 END_SHADER_PARAMETER(PBRShaderParameter)
 
-struct PBRUniform
+struct PBRLightsUniform
+{
+  AmbientLight     ambient_light         = {};
+  DirectionalLight directional_lights[2] = {};
+  PointLight       point_lights[4]       = {};
+  SpotLight        spot_lights[4]        = {};
+};
+
+struct PBRObjectUniform
 {
   MVPTransform transform          = {};
   Vec4         base_color_factor  = {1, 1, 1, 1};
@@ -54,26 +62,22 @@ struct PBRObject
 {
   PBRMesh            mesh       = {};
   gfx::DescriptorSet descriptor = {};
-  PBRUniform         uniform    = {};
+  PBRObjectUniform   uniform    = {};
+  bool               wireframe  = false;
 };
 
 struct PBRParams
 {
-  RenderTarget                 render_target      = {};
-  AmbientLight                 ambient_light      = {};
-  Span<DirectionalLight const> directional_lights = {};
-  Span<PointLight const>       point_lights       = {};
-  Span<SpotLight const>        spot_lights        = {};
-  Span<AreaLight const>        area_lights        = {};
-  Span<PBRObject const>        objects            = {};
+  RenderTarget          render_target = {};
+  PBRLightsUniform      lights        = {};
+  Span<PBRObject const> objects       = {};
 };
 
-// TODO(lamarrr): custom object/non-pbr shader workflows? i.e. displacement
-// animation? would require manual intervention anyway
 struct PBRPass
 {
   gfx::RenderPass          render_pass           = nullptr;
   gfx::GraphicsPipeline    pipeline              = nullptr;
+  gfx::GraphicsPipeline    wireframe_pipeline    = nullptr;
   gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
 
   void init(Renderer &renderer);
