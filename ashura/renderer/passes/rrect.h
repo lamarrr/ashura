@@ -1,6 +1,5 @@
 #pragma once
 #include "ashura/renderer/camera.h"
-#include "ashura/renderer/light.h"
 #include "ashura/renderer/renderer.h"
 #include "ashura/renderer/shader.h"
 
