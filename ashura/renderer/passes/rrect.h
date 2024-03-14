@@ -14,6 +14,8 @@ END_SHADER_PARAMETER(RRectShaderParameter)
 
 // TODO(lamarrr): vertex buffer is in object coordinate space. needs to be
 // transformed to world then to view space, used for uv-interp as well.
+// TODO(lamarrr): create atlas renderer similar to this but uses plain rects, no
+// rrect, no border, uv->x,y,array index into atlas
 constexpr Mat4Affine rrect_model(Vec2 center, Vec2 extent)
 {
   return affine_translate3d(-Vec3{center.x, -center.y, 0}) *

@@ -552,9 +552,9 @@ struct Uniform
 struct UniformHeap
 {
   static constexpr u32 DEFAULT_UNIFORM_BATCH_SIZE = 8192;
-  static constexpr u8  NUM_SIZE_CLASSES           = 4;
-  static constexpr Array<u32, NUM_SIZE_CLASSES> DEFAULT_SIZE_CLASSES{128, 256,
-                                                                     512, 1024};
+  static constexpr u8  NUM_SIZE_CLASSES           = 6;
+  static constexpr Array<u32, NUM_SIZE_CLASSES> DEFAULT_SIZE_CLASSES{
+      128, 256, 512, 1024, 4096, 8192};
 
   Array<u32, NUM_SIZE_CLASSES> size_classes_      = DEFAULT_SIZE_CLASSES;
   u32                          batch_buffer_size_ = 0;
