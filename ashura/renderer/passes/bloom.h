@@ -1,7 +1,7 @@
 
 #pragma once
 #include "ashura/gfx/gfx.h"
-#include "ashura/renderer/renderer.h"
+#include "ashura/renderer/render_context.h"
 #include "ashura/renderer/view.h"
 #include "ashura/std/box.h"
 #include "ashura/std/types.h"
@@ -31,9 +31,9 @@ struct BloomParams
 
 struct BloomPass
 {
-  void init(Renderer &renderer);
-  void uninit(Renderer &renderer);
-  void add_pass(Renderer &renderer, BloomParams const &params);
+  void init(RenderContext &ctx);
+  void uninit(RenderContext &ctx);
+  void add_pass(RenderContext &ctx, BloomParams const &params);
 };
 
 }        // namespace ash

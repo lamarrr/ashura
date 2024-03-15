@@ -1,5 +1,5 @@
 #pragma once
-#include "ashura/renderer/renderer.h"
+#include "ashura/renderer/render_context.h"
 
 namespace ash
 {
@@ -34,9 +34,9 @@ struct BlurParams
 // - using rendered stencil, directly-write (without blending) onto scene again
 struct BlurPass
 {
-  void init(Renderer &renderer);
-  void uninit(Renderer &renderer);
-  void add_pass(Renderer &renderer, BlurParams const &params);
+  void init(RenderContext &ctx);
+  void uninit(RenderContext &ctx);
+  void add_pass(RenderContext &ctx, BlurParams const &params);
 };
 
 }        // namespace ash

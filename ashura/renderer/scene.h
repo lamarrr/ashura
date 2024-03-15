@@ -50,7 +50,6 @@ struct SceneEnvironment
   SparseVec<u32>        point_lights_id_map       = {};
   Vec<SpotLight>        spot_lights               = {};
   SparseVec<u32>        spot_lights_id_map        = {};
-  Vec<AreaLight>        area_lights               = {};
   SparseVec<u32>        area_lights_id_map        = {};
 };
 
@@ -77,15 +76,12 @@ struct Scene
   Option<DirectionalLight *> get_directional_light(uid32 id);
   Option<PointLight *>       get_point_light(uid32 id);
   Option<SpotLight *>        get_spot_light(uid32 id);
-  Option<AreaLight *>        get_area_light(uid32 id);
   Option<uid32> add_directional_light(DirectionalLight const &light);
   Option<uid32> add_point_light(PointLight const &light);
   Option<uid32> add_spot_light(SpotLight const &light);
-  Option<uid32> add_area_light(AreaLight const &light);
   void          remove_directional_light(uid32 id);
   void          remove_point_light(uid32 id);
   void          remove_spot_light(uid32 id);
-  void          remove_area_light(uid32 id);
 };
 
 //?

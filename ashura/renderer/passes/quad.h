@@ -1,3 +1,7 @@
+#pragma once
+
+namespace ash
+{
 
 // TODO(lamarrr): rename to custom shaded object
 // pipelines are compiled at startup time
@@ -9,3 +13,9 @@ struct QuadProperties
 
 // pipeline bundle (pipeline + vs shader + fs shader)
 // mvp
+
+struct QuadPass
+{
+};
+
+}        // namespace ash

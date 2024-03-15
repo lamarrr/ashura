@@ -4,7 +4,7 @@
 namespace ash
 {
 
-void BlurPass::init(Renderer &renderer)
+void BlurPass::init(RenderContext &ctx)
 {
   /*
     BlurPass              *self   = (BlurPass *) self_;
@@ -58,11 +58,11 @@ self->pipeline =
 */
 }
 
-void BlurPass::uninit(Renderer &renderer)
+void BlurPass::uninit(RenderContext &ctx)
 {
 }
 
-void BlurPass::add_pass(Renderer &renderer, BlurParams const &params)
+void BlurPass::add_pass(RenderContext &ctx, BlurParams const &params)
 {
 }
 

@@ -3,15 +3,15 @@
 namespace ash
 {
 
-void BloomPass::init(Renderer &renderer)
+void BloomPass::init(RenderContext &ctx)
 {
 }
 
-void BloomPass::uninit(Renderer &renderer)
+void BloomPass::uninit(RenderContext &ctx)
 {
 }
 
-void BloomPass::add_pass(Renderer &renderer, BloomParams const &params)
+void BloomPass::add_pass(RenderContext &ctx, BloomParams const &params)
 {
 }
 

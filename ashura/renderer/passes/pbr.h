@@ -1,7 +1,7 @@
 #pragma once
 #include "ashura/renderer/camera.h"
 #include "ashura/renderer/light.h"
-#include "ashura/renderer/renderer.h"
+#include "ashura/renderer/render_context.h"
 #include "ashura/renderer/shader.h"
 
 namespace ash
@@ -80,9 +80,9 @@ struct PBRPass
   gfx::GraphicsPipeline    wireframe_pipeline    = nullptr;
   gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
 
-  void init(Renderer &renderer);
-  void uninit(Renderer &renderer);
-  void add_pass(Renderer &renderer, PBRParams const &params);
+  void init(RenderContext &ctx);
+  void uninit(RenderContext &ctx);
+  void add_pass(RenderContext &ctx, PBRParams const &params);
 };
 
 }        // namespace ash

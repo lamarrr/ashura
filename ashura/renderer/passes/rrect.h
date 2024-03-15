@@ -1,7 +1,8 @@
 #pragma once
 #include "ashura/renderer/camera.h"
-#include "ashura/renderer/renderer.h"
+#include "ashura/renderer/render_context.h"
 #include "ashura/renderer/shader.h"
+#include "ashura/std/math.h"
 
 namespace ash
 {
@@ -54,14 +55,13 @@ struct RRectPass
 {
   gfx::RenderPass          render_pass           = nullptr;
   gfx::GraphicsPipeline    pipeline              = nullptr;
-  gfx::GraphicsPipeline    pipeline              = nullptr;
   gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
   gfx::Buffer              vertex_buffer         = nullptr;
   gfx::Buffer              index_buffer          = nullptr;
 
-  void init(Renderer &renderer);
-  void uninit(Renderer &renderer);
-  void add_pass(Renderer &renderer, RRectParams const &params);
+  void init(RenderContext &ctx);
+  void uninit(RenderContext &ctx);
+  void add_pass(RenderContext &ctx, RRectParams const &params);
 };
 
 }        // namespace ash
