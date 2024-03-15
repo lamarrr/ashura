@@ -8,8 +8,7 @@ namespace ash
 {
 
 BEGIN_SHADER_PARAMETER(RRectShaderParameter)
-SHADER_SAMPLER(sampler, 1)
-SHADER_SAMPLED_IMAGE(base_color, 1)
+SHADER_COMBINED_IMAGE_SAMPLER(base_color, 1)
 END_SHADER_PARAMETER(RRectShaderParameter)
 
 // TODO(lamarrr): vertex buffer is in object coordinate space. needs to be
