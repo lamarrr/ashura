@@ -15,10 +15,10 @@ END_SHADER_PARAMETER(RRectShaderParameter)
 // transformed to world then to view space, used for uv-interp as well.
 // TODO(lamarrr): create atlas renderer similar to this but uses plain rects, no
 // rrect, no border, uv->x,y,array index into atlas
-constexpr Mat4Affine rrect_model(Vec2 center, Vec2 extent)
+constexpr Mat4Affine rrect_model(Vec2 extent)
 {
-  return affine_translate3d(-Vec3{center.x, -center.y, 0}) *
-         affine_scale3d({extent.x, extent.y, 1});
+  return affine_translate3d({-extent.x / 2, -extent.y / 2, 0}) *
+         affine_scale3d(Vec3{extent.x, extent.y, 1});
 }
 
 struct RRectShaderUniform
