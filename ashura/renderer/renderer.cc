@@ -19,11 +19,6 @@
 namespace ash
 {
 
-void destroy_pass_group(PassGroup &group)
-{
-  group.id_map.reset(group.passes);
-}
-
 void destroy_scene(Scene &scene)
 {
   scene.directional_lights_id_map.reset(scene.directional_lights);
@@ -43,52 +38,6 @@ void destroy_scene_group(SceneGroup &group)
     destroy_scene(group.scenes[i]);
   }
   group.id_map.reset(group.scenes);
-}
-
-void destroy_view(View &view)
-{
-  view.sort_indices.reset();
-  view.is_object_visible.reset();
-}
-
-Option<PassImpl> RenderServer::get_pass(uid32 pass)
-{
-  u32 index;
-  if (!pass_group.id_map.try_to_index(pass, index))
-  {
-    return None;
-  }
-
-  return Some{pass_group.passes[index]};
-}
-
-Option<uid32> RenderServer::get_pass_id(Span<char const> name)
-{
-  for (u32 i = 0; i < pass_group.id_map.size(); i++)
-  {
-    if (str_equal(pass_group.passes[i].name, name))
-    {
-      return Some{pass_group.id_map.to_id(i)};
-    }
-  }
-  return None;
-}
-
-Option<uid32> RenderServer::register_pass(PassImpl pass)
-{
-  uid32 id;
-
-  if (!pass_group.id_map.push(
-          [&](u32 in_id, u32) {
-            id = in_id;
-            ENSURE("", pass_group.passes.push(pass));
-          },
-          pass_group.passes))
-  {
-    return None;
-  }
-
-  return Some{id};
 }
 
 Option<uid32> RenderServer::add_scene(Span<char const> name)
@@ -138,61 +87,6 @@ void RenderServer::remove_scene(uid32 scene)
 
   destroy_scene(scene_group.scenes[index]);
   scene_group.id_map.erase(scene, scene_group.scenes);
-}
-
-Option<uid32> RenderServer::add_view(uid32 scene, Span<char const> name,
-                                     Camera const &camera)
-{
-  if (!scene_group.id_map.is_valid_id(scene))
-  {
-    return None;
-  }
-
-  uid32 id;
-  if (!view_group.id_map.push(
-          [&](uid32 in_id, u32) {
-            id = in_id;
-            ENSURE("", view_group.views.push(View{
-                           .name = name, .camera = camera, .scene = scene}));
-          },
-          view_group.views))
-  {
-    return None;
-  }
-
-  for (PassImpl const &pass : pass_group.passes)
-  {
-    pass.interface->acquire_view(pass.self, this, id);
-  }
-
-  return Some{id};
-}
-
-Option<View *> RenderServer::get_view(uid32 view)
-{
-  u32 index;
-  if (!view_group.id_map.try_to_index(view, index))
-  {
-    return None;
-  }
-  return Some{view_group.views.data() + index};
-}
-
-void RenderServer::remove_view(uid32 view)
-{
-  u32 index;
-  if (!view_group.id_map.try_to_index(view, index))
-  {
-    return;
-  }
-
-  for (PassImpl const &pass : pass_group.passes)
-  {
-    pass.interface->release_view(pass.self, this, view);
-  }
-
-  destroy_view(view_group.views[index]);
-  view_group.id_map.erase(view, view_group.views);
 }
 
 Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,

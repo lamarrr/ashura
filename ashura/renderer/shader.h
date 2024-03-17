@@ -129,6 +129,32 @@ struct ShaderBindingMetaData
                                                                                  \
   typedef _METAMemberAfter_##BindingName
 
+#define SHADER_STORAGE_IMAGE(BindingName, Count)                                 \
+  _METAMember_##BindingName;                                                     \
+                                                                                 \
+  static constexpr void _METApush(_METAMember_##BindingName,                     \
+                                  ::ash::ShaderBindingMetaData *meta,            \
+                                  u16                           _METAThisOffset) \
+  {                                                                              \
+    *meta = ::ash::ShaderBindingMetaData{                                        \
+        .name  = ::ash::to_span(#BindingName),                                   \
+        .type  = ::ash::gfx::DescriptorType::StorageImage,                       \
+        .count = (u16) Count,                                                    \
+        .member_offset =                                                         \
+            (u16) (_METAThisOffset + offsetof(_METAThisType, BindingName))};     \
+    _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
+  }                                                                              \
+                                                                                 \
+  ::ash::gfx::StorageImageBinding BindingName[Count];                            \
+                                                                                 \
+  struct _METAMemberAfter_##BindingName                                          \
+  {                                                                              \
+    static constexpr u16 _METAMemberIndex =                                      \
+        _METAMember_##BindingName::_METAMemberIndex + 1;                         \
+  };                                                                             \
+                                                                                 \
+  typedef _METAMemberAfter_##BindingName
+
 #define SHADER_UNIFORM_TEXEL_BUFFER(BindingName, Count)                          \
   _METAMember_##BindingName;                                                     \
                                                                                  \
@@ -618,7 +644,12 @@ struct UniformHeap
   template <typename UniformType>
   Uniform push_range(Span<UniformType const> uniform)
   {
-    ENSURE(alignof(UniformType) <= batch_buffer_size_);
+    return push_bytes(uniform.as_u8(), alignof(UniformType));
+  }
+
+  Uniform push_bytes(Span<u8 const> uniform, u32 alignment)
+  {
+    ENSURE(alignment <= batch_buffer_size_);
     ENSURE(uniform.size_bytes() <= batch_buffer_size_);
     ENSURE(uniform.size_bytes() <= size_classes_[NUM_SIZE_CLASSES - 1]);
 
@@ -632,10 +663,9 @@ struct UniformHeap
     }
 
     u32 const classed_size = size_classes_[size_class];
-    u32       alignment =
-        max(alignof(UniformType), min_uniform_buffer_offset_alignment_);
-    u32 buffer_offset = mem::align_offset(alignment, batch_buffer_offset_);
-    u32 batch_index   = batch_;
+    u32       alignment = max(alignment, min_uniform_buffer_offset_alignment_);
+    u32 buffer_offset   = mem::align_offset(alignment, batch_buffer_offset_);
+    u32 batch_index     = batch_;
     if ((buffer_offset + classed_size) > batch_buffer_size_)
     {
       batch_index++;
@@ -670,9 +700,9 @@ struct UniformHeap
     }
 
     UniformHeapBatch const &batch = batches_[batch_index];
-    void                   *map =
-        device_->get_buffer_memory_map(device_.self, batch.buffer).unwrap();
-    mem::copy(uniform, (UniformType *) (((u8 *) map) + buffer_offset));
+    u8 *map = (u8 *) device_->get_buffer_memory_map(device_.self, batch.buffer)
+                  .unwrap();
+    mem::copy(uniform, map + buffer_offset);
     device_
         ->flush_buffer_memory_map(device_.self, batch.buffer,
                                   gfx::MemoryRange{0, gfx::WHOLE_SIZE})

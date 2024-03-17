@@ -45,30 +45,19 @@ struct PBRVertex
   f32 u = 0, v = 0;
 };
 
-struct PBRMesh
-{
-  gfx::Buffer    vertex_buffer        = 0;
-  gfx::Buffer    index_buffer         = 0;
-  u64            vertex_buffer_offset = 0;
-  u64            index_buffer_offset  = 0;
-  i32            vertex_offset        = 0;
-  u32            first_index          = 0;
-  u32            num_indices          = 0;
-  gfx::IndexType index_type           = gfx::IndexType::Uint16;
-};
-
 struct PBRObject
 {
-  PBRMesh            mesh       = {};
-  gfx::DescriptorSet descriptor = {};
-  PBRObjectUniform   uniform    = {};
-  bool               wireframe  = false;
+  Mesh                     mesh       = {};
+  gfx::DescriptorSet       descriptor = {};
+  Uniform                  uniform    = {};
+  gfx::IndirectDrawCommand command    = {};
+  bool                     wireframe  = false;
 };
 
-struct PBRParams
+struct PBRPassParams
 {
   RenderTarget          render_target = {};
-  PBRLightsUniform      lights        = {};
+  Uniform               lights        = {};
   Span<PBRObject const> objects       = {};
 };
 
@@ -81,7 +70,7 @@ struct PBRPass
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
-  void add_pass(RenderContext &ctx, PBRParams const &params);
+  void add_pass(RenderContext &ctx, PBRPassParams const &params);
 };
 
 }        // namespace ash

@@ -8,46 +8,22 @@
 
 namespace ash
 {
-typedef uint8_t     u8;
-typedef uint16_t    u16;
-typedef uint32_t    u32;
-typedef uint64_t    u64;
-typedef int8_t      i8;
-typedef int16_t     i16;
-typedef int32_t     i32;
-typedef int64_t     i64;
-typedef float       f32;
-typedef double      f64;
-typedef size_t      usize;
-typedef ptrdiff_t   isize;
-typedef u8          uid8;
-typedef u16         uid16;
-typedef u32         uid32;
-typedef u64         uid64;
-typedef struct Void Void;
-template <typename... T>
-struct Tuple;
-typedef struct Vec2       Vec2;
-typedef struct Vec3       Vec3;
-typedef struct Vec4       Vec4;
-typedef struct Vec4U8     Vec4U8;
-typedef struct Vec2I      Vec2I;
-typedef struct Vec3I      Vec3I;
-typedef struct Vec2U      Vec2U;
-typedef struct Vec3U      Vec3U;
-typedef struct Vec4U      Vec4U;
-typedef struct Mat2       Mat2;
-typedef struct Mat3       Mat3;
-typedef struct Mat3Affine Mat3Affine;
-typedef struct Mat4       Mat4;
-typedef struct Mat4Affine Mat4Affine;
-typedef struct Slice      Slice;
-template <typename T, usize N>
-struct Array;
-template <typename T>
-struct Span;
-template <typename RepT>
-struct BitSpan;
+typedef uint8_t   u8;
+typedef uint16_t  u16;
+typedef uint32_t  u32;
+typedef uint64_t  u64;
+typedef int8_t    i8;
+typedef int16_t   i16;
+typedef int32_t   i32;
+typedef int64_t   i64;
+typedef float     f32;
+typedef double    f64;
+typedef size_t    usize;
+typedef ptrdiff_t isize;
+typedef u8        uid8;
+typedef u16       uid16;
+typedef u32       uid32;
+typedef u64       uid64;
 
 constexpr u8 U8_MIN = 0;
 constexpr u8 U8_MAX = 0xFFU;

@@ -11,7 +11,7 @@ void BloomPass::uninit(RenderContext &ctx)
 {
 }
 
-void BloomPass::add_pass(RenderContext &ctx, BloomParams const &params)
+void BloomPass::add_pass(RenderContext &ctx, BloomPassParams const &params)
 {
 }
 

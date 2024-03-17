@@ -4,11 +4,7 @@
 namespace ash
 {
 
-typedef Vec4                    AmbientLight;
-typedef struct DirectionalLight DirectionalLight;
-typedef struct PointLight       PointLight;
-typedef struct SpotLight        SpotLight;
-typedef struct SkyLight         SkyLight;
+typedef Vec4 AmbientLight;
 
 struct DirectionalLight
 {

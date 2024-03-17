@@ -9,13 +9,6 @@
 
 namespace ash
 {
-template <typename T>
-struct Scene;
-typedef struct SceneNode SceneNode;
-template <typename T>
-struct SceneObjects;
-typedef struct SceneEnvironment SceneEnvironment;
-
 /// linearly-tilted tree node
 /// @depth: depth of the tree this node belongs to. there's ever only one root
 /// node at depth 0

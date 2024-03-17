@@ -18,22 +18,21 @@ namespace ash
 // downsample to mip chains of 5 total
 // perform gaussian blur of the image
 // addittive composite back unto the first mip
-struct BloomParams
+struct BloomPassParams
 {
-  BloomConfig config;
-  Vec2U       src_offset = {};
-  Vec2U       src_extent = {};
-  Vec2U       dst_offset = {};
-  Vec2U       dst_extent = {};
-  gfx::Image  src        = nullptr;
-  gfx::Image  dst        = nullptr;
+  BloomConfig    config;
+  Vec2U          offset = {};
+  Vec2U          extent = {};
+  gfx::Image     image  = nullptr;
+  gfx::ImageView view   = nullptr;
 };
 
 struct BloomPass
 {
+
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
-  void add_pass(RenderContext &ctx, BloomParams const &params);
+  void add_pass(RenderContext &ctx, BloomPassParams const &params);
 };
 
 }        // namespace ash

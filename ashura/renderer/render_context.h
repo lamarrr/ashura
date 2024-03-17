@@ -10,6 +10,15 @@
 namespace ash
 {
 
+struct Mesh
+{
+  gfx::Buffer    vertex_buffer        = 0;
+  u64            vertex_buffer_offset = 0;
+  gfx::Buffer    index_buffer         = 0;
+  u64            index_buffer_offset  = 0;
+  gfx::IndexType index_type           = gfx::IndexType::Uint16;
+};
+
 /// @color_images, @depth_stencil_image format must be same as render context's
 struct RenderTarget
 {
@@ -22,17 +31,19 @@ struct RenderTarget
 };
 
 /// with views for each image mip level
+//
+// created with sampled, storage, color attachment, and transfer flags
+//
 struct Scratch
 {
-  gfx::FrameId            frame_stamp                    = 0;
-  gfx::ImageDesc          color_image_desc               = {};
-  gfx::ImageDesc          depth_stencil_image_desc       = {};
-  Vec<gfx::ImageViewDesc> color_image_view_descs         = {};
-  Vec<gfx::ImageViewDesc> depth_stencil_image_view_descs = {};
-  gfx::Image              color_image                    = nullptr;
-  gfx::Image              depth_stencil_image            = nullptr;
-  Vec<gfx::ImageView>     color_image_views              = {};
-  Vec<gfx::ImageView>     depth_stencil_image_views      = {};
+  gfx::ImageDesc     color_image_desc              = {};
+  gfx::ImageDesc     depth_stencil_image_desc      = {};
+  gfx::ImageViewDesc color_image_view_desc         = {};
+  gfx::ImageViewDesc depth_stencil_image_view_desc = {};
+  gfx::Image         color_image                   = nullptr;
+  gfx::Image         depth_stencil_image           = nullptr;
+  gfx::ImageView     color_image_view              = {};
+  gfx::ImageView     depth_stencil_image_view      = {};
 };
 
 /// @color_format: hdr if hdr supported and required
@@ -48,14 +59,19 @@ struct RenderContext
   gfx::Format              color_format         = gfx::Format::Undefined;
   gfx::Format              depth_stencil_format = gfx::Format::Undefined;
   Scratch                  scatch               = {};
-  Vec<UniformHeap>         frame_uniform_heaps  = {};
+  Vec<UniformHeap>         uniform_heaps        = {};
   gfx::DescriptorSetLayout uniform_layout       = nullptr;
-  gfx::CommandEncoderImpl  encoder              = {};
   Vec<Tuple<gfx::FrameId, gfx::Framebuffer>> released_framebuffers = {};
   Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
   Vec<Tuple<gfx::FrameId, gfx::ImageView>>   released_image_views  = {};
 
-  u32 ring_index() const;
+  gfx::CommandEncoderImpl encoder() const;
+  u32                     ring_index() const;
+  u32                     num_frames_in_flight() const;
+  template <typename T>
+  Uniform push_uniform(T const &uniform);
+  template <typename T>
+  Uniform push_uniform_range(Span<T const> uniform);
 
   Option<gfx::Shader> get_shader(Span<char const> name);
 

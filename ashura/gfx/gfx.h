@@ -1150,6 +1150,15 @@ struct IndirectDispatchCommand
 
 struct IndirectDrawCommand
 {
+  u32 index_count    = 0;
+  u32 instance_count = 0;
+  u32 first_index    = 0;
+  i32 vertex_offset  = 0;
+  u32 first_instance = 0;
+};
+
+struct IndirectUnindexedDrawCommand
+{
   u32 vertex_count   = 0;
   u32 instance_count = 0;
   u32 first_vertex   = 0;

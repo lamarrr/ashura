@@ -41,10 +41,10 @@ struct RRectShaderUniform
 struct RRectObject
 {
   gfx::DescriptorSet descriptor = {};
-  RRectShaderUniform uniform    = {};
+  Uniform            uniform    = {};
 };
 
-struct RRectParams
+struct RRectPassParams
 {
   RenderTarget            render_target = {};
   Span<RRectObject const> objects       = {};
@@ -60,7 +60,7 @@ struct RRectPass
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
-  void add_pass(RenderContext &ctx, RRectParams const &params);
+  void add_pass(RenderContext &ctx, RRectPassParams const &params);
 };
 
 }        // namespace ash

@@ -157,9 +157,10 @@ void RRectPass::init(RenderContext &ctx)
       .unwrap();
 }
 
-void RRectPass::add_pass(RenderContext &ctx, RRectParams const &params)
+void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
 {
-  gfx::Framebuffer framebuffer =
+  gfx::CommandEncoderImpl encoder = ctx.encoder();
+  gfx::Framebuffer        framebuffer =
       ctx.device
           ->create_framebuffer(
               ctx.device.self,
@@ -172,26 +173,35 @@ void RRectPass::add_pass(RenderContext &ctx, RRectParams const &params)
                                    .layers                   = 1})
           .unwrap();
 
-  ctx.encoder->begin_render_pass(ctx.encoder.self, framebuffer, render_pass,
-                                 params.render_target.render_offset,
-                                 params.render_target.render_extent, {}, {});
+  encoder->begin_render_pass(encoder.self, framebuffer, render_pass,
+                             params.render_target.render_offset,
+                             params.render_target.render_extent, {}, {});
 
-  ctx.encoder->bind_graphics_pipeline(ctx.encoder.self, pipeline);
-  ctx.encoder->bind_vertex_buffers(ctx.encoder.self, to_span({vertex_buffer}),
-                                   to_span<u64>({0}));
-  ctx.encoder->bind_index_buffer(ctx.encoder.self, index_buffer, 0,
-                                 gfx::IndexType::Uint16);
+  encoder->bind_graphics_pipeline(encoder.self, pipeline);
+  encoder->bind_vertex_buffers(encoder.self, to_span({vertex_buffer}),
+                               to_span<u64>({0}));
+  encoder->bind_index_buffer(encoder.self, index_buffer, 0,
+                             gfx::IndexType::Uint16);
+  encoder->set_scissor(encoder.self, params.render_target.render_offset,
+                       params.render_target.render_extent);
+  encoder->set_viewport(
+      encoder.self,
+      gfx::Viewport{.offset = Vec2{(f32) params.render_target.render_offset.x,
+                                   (f32) params.render_target.render_offset.y},
+                    .extent = Vec2{(f32) params.render_target.render_extent.x,
+                                   (f32) params.render_target.render_extent.y},
+                    .min_depth = 0,
+                    .max_depth = 1});
 
   for (RRectObject const &object : params.objects)
   {
-    Uniform uniform =
-        ctx.frame_uniform_heaps[ctx.ring_index()].push(object.uniform);
-    ctx.encoder->bind_descriptor_sets(ctx.encoder.self, to_span({uniform.set}),
-                                      to_span({uniform.buffer_offset}));
-    ctx.encoder->draw(ctx.encoder.self, 0, 6, 0, 0, 1);
+    encoder->bind_descriptor_sets(
+        encoder.self, to_span({object.descriptor, object.uniform.set}),
+        to_span({object.uniform.buffer_offset}));
+    encoder->draw(encoder.self, 0, 6, 0, 0, 1);
   }
 
-  ctx.encoder->end_render_pass(ctx.encoder.self);
+  encoder->end_render_pass(encoder.self);
 
   ctx.release(framebuffer);
 }

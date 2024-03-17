@@ -123,11 +123,12 @@ void PBRPass::init(RenderContext &ctx)
           .unwrap();
 }
 
-void PBRPass::add_pass(RenderContext &ctx, PBRParams const &params)
+void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
 {
   ENSURE(params.render_target.color_images.size() != 0);
   ENSURE(has_bits(params.render_target.depth_stencil_aspects,
                   gfx::ImageAspects::Depth));
+  gfx::CommandEncoderImpl encoder = ctx.encoder();
 
   gfx::Framebuffer framebuffer =
       ctx.device
@@ -143,12 +144,9 @@ void PBRPass::add_pass(RenderContext &ctx, PBRParams const &params)
                                    .layers = 1})
           .unwrap();
 
-  ctx.encoder->begin_render_pass(ctx.encoder.self, framebuffer, render_pass,
-                                 params.render_target.render_offset,
-                                 params.render_target.render_extent, {}, {});
-
-  Uniform lights_uniform =
-      ctx.frame_uniform_heaps[ctx.ring_index()].push(params.lights);
+  encoder->begin_render_pass(encoder.self, framebuffer, render_pass,
+                             params.render_target.render_offset,
+                             params.render_target.render_extent, {}, {});
 
   gfx::Buffer           prev_vtx_buff        = nullptr;
   u64                   prev_vtx_buff_offset = 0;
@@ -162,12 +160,11 @@ void PBRPass::add_pass(RenderContext &ctx, PBRParams const &params)
         object.wireframe ? wireframe_pipeline : pipeline;
     if (object_pipeline != prev_pipeline)
     {
-      ctx.encoder->bind_graphics_pipeline(ctx.encoder.self, object_pipeline);
-      ctx.encoder->set_scissor(ctx.encoder.self,
-                               params.render_target.render_offset,
-                               params.render_target.render_extent);
-      ctx.encoder->set_viewport(
-          ctx.encoder.self,
+      encoder->bind_graphics_pipeline(encoder.self, object_pipeline);
+      encoder->set_scissor(encoder.self, params.render_target.render_offset,
+                           params.render_target.render_extent);
+      encoder->set_viewport(
+          encoder.self,
           gfx::Viewport{
               .offset    = Vec2{(f32) params.render_target.render_offset.x,
                              (f32) params.render_target.render_offset.y},
@@ -178,40 +175,39 @@ void PBRPass::add_pass(RenderContext &ctx, PBRParams const &params)
       prev_pipeline = object_pipeline;
     }
 
-    Uniform const object_uniform =
-        ctx.frame_uniform_heaps[ctx.ring_index()].push(object.uniform);
     if (prev_vtx_buff != object.mesh.vertex_buffer ||
         prev_vtx_buff_offset != object.mesh.vertex_buffer_offset)
     {
-      ctx.encoder->bind_vertex_buffers(
-          ctx.encoder.self, to_span({object.mesh.vertex_buffer}),
-          to_span({object.mesh.vertex_buffer_offset}));
+      encoder->bind_vertex_buffers(encoder.self,
+                                   to_span({object.mesh.vertex_buffer}),
+                                   to_span({object.mesh.vertex_buffer_offset}));
       prev_vtx_buff        = object.mesh.vertex_buffer;
       prev_vtx_buff_offset = object.mesh.vertex_buffer_offset;
     }
     if (prev_idx_buff != object.mesh.index_buffer ||
         prev_idx_buff_offset != object.mesh.index_buffer_offset)
     {
-      ctx.encoder->bind_index_buffer(ctx.encoder.self, object.mesh.index_buffer,
-                                     object.mesh.index_buffer_offset,
-                                     object.mesh.index_type);
+      encoder->bind_index_buffer(encoder.self, object.mesh.index_buffer,
+                                 object.mesh.index_buffer_offset,
+                                 object.mesh.index_type);
       prev_idx_buff        = object.mesh.index_buffer;
       prev_idx_buff_offset = object.mesh.index_buffer_offset;
     }
 
-    gfx::DescriptorSet const sets[]{lights_uniform.set, object_uniform.set,
+    gfx::DescriptorSet const sets[]{params.lights.set, object.uniform.set,
                                     object.descriptor};
-    u32 const                offsets[]{lights_uniform.buffer_offset,
-                                       object_uniform.buffer_offset};
+    u32 const                offsets[]{params.lights.buffer_offset,
+                                       object.uniform.buffer_offset};
 
-    ctx.encoder->bind_descriptor_sets(ctx.encoder.self, to_span(sets),
-                                      to_span(offsets));
+    encoder->bind_descriptor_sets(encoder.self, to_span(sets),
+                                  to_span(offsets));
 
-    ctx.encoder->draw(ctx.encoder.self, object.mesh.first_index,
-                      object.mesh.num_indices, object.mesh.vertex_offset, 0, 1);
+    encoder->draw(encoder.self, object.command.first_index,
+                  object.command.index_count, object.command.vertex_offset,
+                  object.command.first_instance, object.command.instance_count);
   }
 
-  ctx.encoder->end_render_pass(ctx.encoder.self);
+  encoder->end_render_pass(encoder.self);
 
   ctx.release(framebuffer);
 }
