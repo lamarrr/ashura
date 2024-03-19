@@ -1345,6 +1345,16 @@ constexpr Vec2I operator*(Vec2I a, Vec2I b)
   return Vec2I{a.x * b.x, a.y * b.y};
 }
 
+constexpr Vec2I operator*(i32 a, Vec2I b)
+{
+  return Vec2I{a * b.x, a * b.y};
+}
+
+constexpr Vec2I operator*(Vec2I a, i32 b)
+{
+  return Vec2I{a.x * b, a.y * b};
+}
+
 constexpr Vec2I operator/(Vec2I a, Vec2I b)
 {
   return Vec2I{a.x / b.x, a.y / b.y};

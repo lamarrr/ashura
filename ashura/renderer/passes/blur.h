@@ -5,15 +5,11 @@ namespace ash
 {
 
 BEGIN_SHADER_PARAMETER(BlurPassShaderParameter)
-SHADER_SAMPLED_IMAGE(src, 1)
-SHADER_STORAGE_IMAGE(dst, 1)
+SHADER_COMBINED_IMAGE_SAMPLER(src, 1)
 END_SHADER_PARAMETER(BlurPassShaderParameter)
 
 struct BlurPassShaderUniform
 {
-  Vec2I src_offset;
-  Vec2I dst_offset;
-  Vec2I extent;
   Vec2I radius;
 };
 
@@ -27,8 +23,10 @@ struct BlurPassParams
 
 struct BlurPass
 {
-  ShaderParameterHeap<BlurPassShaderParameter> parameter_heap_ = {};
-  gfx::ComputePipeline                         pipeline_       = nullptr;
+  ShaderParameterHeap<BlurPassShaderParameter> parameter_heap_      = {};
+  gfx::GraphicsPipeline                        downsample_pipeline_ = nullptr;
+  gfx::GraphicsPipeline                        upsample_pipeline_   = nullptr;
+  gfx::Sampler                                 sampler_             = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);

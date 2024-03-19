@@ -45,6 +45,8 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
                                  ctx.frame_info.current);
   // TODO(lamarrr): we need to downsample multiple times, hence halfing the
   // extent every time we only need to sample to half the extent
+  Vec2I radius{1, 1};
+  radius          = radius * 2;
   Uniform uniform = ctx.push_uniform(BlurPassShaderUniform{
       .src_offset = Vec2I{(i32) params.offset.x, (i32) params.offset.y},
       .dst_offset = Vec2I{0, 0},
