@@ -41,13 +41,15 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
   ENSURE(params.extent.x <= ctx.scatch.color_image_desc.extent.x);
   ENSURE(params.extent.y <= ctx.scatch.color_image_desc.extent.y);
-  // TODO(lamarrr): radius
+  parameter_heap_.heap_->collect(parameter_heap_.heap_.self,
+                                 ctx.frame_info.current);
   // TODO(lamarrr): we need to downsample multiple times, hence halfing the
   // extent every time we only need to sample to half the extent
-  Uniform uniform =
-      ctx.push_uniform(BlurPassShaderUniform{.src_offset = params.offset,
-                                             .dst_offset = Vec2U{0, 0},
-                                             .extent     = params.extent});
+  Uniform uniform = ctx.push_uniform(BlurPassShaderUniform{
+      .src_offset = Vec2I{(i32) params.offset.x, (i32) params.offset.y},
+      .dst_offset = Vec2I{0, 0},
+      .extent     = Vec2I{(i32) params.extent.x, (i32) params.extent.y},
+      .radius     = Vec2I{(i32) params.radius.x, (i32) params.radius.y}});
 
   gfx::DescriptorSet descriptor =
       parameter_heap_.create(BlurPassShaderParameter{

@@ -14,15 +14,15 @@ struct BlurPassShaderUniform
   Vec2I src_offset;
   Vec2I dst_offset;
   Vec2I extent;
-  Vec2I blur_radius;
+  Vec2I radius;
 };
 
 struct BlurPassParams
 {
-  Vec2U          blur_radius = {0, 0};
-  Vec2U          offset      = {};
-  Vec2U          extent      = {};
-  gfx::ImageView view        = nullptr;
+  Vec2U          offset = {};
+  Vec2U          extent = {};
+  Vec2U          radius = {0, 0};
+  gfx::ImageView view   = nullptr;
 };
 
 struct BlurPass

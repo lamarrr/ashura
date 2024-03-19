@@ -663,9 +663,10 @@ struct UniformHeap
     }
 
     u32 const classed_size = size_classes_[size_class];
-    u32       alignment = max(alignment, min_uniform_buffer_offset_alignment_);
-    u32 buffer_offset   = mem::align_offset(alignment, batch_buffer_offset_);
-    u32 batch_index     = batch_;
+    u32       buffer_offset =
+        mem::align_offset(max(alignment, min_uniform_buffer_offset_alignment_),
+                          batch_buffer_offset_);
+    u32 batch_index = batch_;
     if ((buffer_offset + classed_size) > batch_buffer_size_)
     {
       batch_index++;
