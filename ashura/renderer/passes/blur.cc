@@ -13,23 +13,114 @@ void BlurPass::init(RenderContext &ctx)
   // https://lisyarus.github.io/blog/graphics/2022/04/21/compute-blur.html
   // https://www.youtube.com/watch?v=ml-5OGZC7vE
   parameter_heap_.init(ctx.device, 8);
-  pipeline_ =
+
+  render_pass_ =
       ctx.device
-          ->create_compute_pipeline(
+          ->create_render_pass(
               ctx.device.self,
-              gfx::ComputePipelineDesc{
-                  .label = "Kawase Blur Pipeline",
-                  .compute_shader =
-                      gfx::ShaderStageDesc{
-                          .shader =
-                              ctx.get_shader("KawaseBlur.CS"_span).unwrap(),
-                          .entry_point                   = "cs_main",
-                          .specialization_constants      = {},
-                          .specialization_constants_data = {}},
-                  .push_constant_size = 0,
-                  .descriptor_set_layouts =
-                      to_span({parameter_heap_.layout_, ctx.uniform_layout}),
-                  .cache = ctx.pipeline_cache})
+              gfx::RenderPassDesc{
+                  .label             = "KawaseBlur RenderPass",
+                  .color_attachments = to_span<gfx::RenderPassAttachment>(
+                      {{.format           = ctx.color_format,
+                        .load_op          = gfx::LoadOp::Load,
+                        .store_op         = gfx::StoreOp::Store,
+                        .stencil_load_op  = gfx::LoadOp::DontCare,
+                        .stencil_store_op = gfx::StoreOp::DontCare}}),
+                  .input_attachments = {},
+                  .depth_stencil_attachment =
+                      {.format           = gfx::Format::Undefined,
+                       .load_op          = gfx::LoadOp::DontCare,
+                       .store_op         = gfx::StoreOp::DontCare,
+                       .stencil_load_op  = gfx::LoadOp::DontCare,
+                       .stencil_store_op = gfx::StoreOp::DontCare},
+              })
+          .unwrap();
+
+  gfx::Shader vertex_shader =
+      ctx.get_shader("KawaseBlur_DownSample.VS"_span).unwrap();
+  gfx::Shader fragment_shader =
+      ctx.get_shader("KawaseBlur_DownSample.FS"_span).unwrap();
+
+  gfx::PipelineRasterizationState raster_state{
+      .depth_clamp_enable         = false,
+      .polygon_mode               = gfx::PolygonMode::Fill,
+      .cull_mode                  = gfx::CullMode::None,
+      .front_face                 = gfx::FrontFace::CounterClockWise,
+      .depth_bias_enable          = false,
+      .depth_bias_constant_factor = 0,
+      .depth_bias_clamp           = 0,
+      .depth_bias_slope_factor    = 0};
+
+  gfx::PipelineDepthStencilState depth_stencil_state{
+      .depth_test_enable        = false,
+      .depth_write_enable       = false,
+      .depth_compare_op         = gfx::CompareOp::Greater,
+      .depth_bounds_test_enable = false,
+      .stencil_test_enable      = false,
+      .front_stencil            = gfx::StencilOpState{},
+      .back_stencil             = gfx::StencilOpState{},
+      .min_depth_bounds         = 0,
+      .max_depth_bounds         = 0};
+
+  gfx::PipelineColorBlendState color_blend_state{
+      .logic_op_enable = true,
+      .logic_op        = gfx::LogicOp::Set,
+      .attachments     = to_span<gfx::PipelineColorBlendAttachmentState>(
+          {{.blend_enable           = false,
+                .src_color_blend_factor = gfx::BlendFactor::SrcAlpha,
+                .dst_color_blend_factor = gfx::BlendFactor::OneMinusSrcAlpha,
+                .color_blend_op         = gfx::BlendOp::Add,
+                .src_alpha_blend_factor = gfx::BlendFactor::One,
+                .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
+                .alpha_blend_op         = gfx::BlendOp::Add,
+                .color_write_mask       = gfx::ColorComponents::All}}),
+      .blend_constant = {1, 1, 1, 1}};
+
+  gfx::VertexAttribute vtx_attrs[] = {{.binding  = 0,
+                                       .location = 0,
+                                       .format   = gfx::Format::R32G32_SFLOAT,
+                                       .offset   = 0}};
+
+  gfx::VertexInputBinding vtx_bindings[] = {
+      {.binding    = 0,
+       .stride     = sizeof(Vec2),
+       .input_rate = gfx::InputRate::Vertex}};
+
+  gfx::GraphicsPipelineDesc pipeline_desc{
+      .label = "KawaseBlur Graphics Pipeline",
+      .vertex_shader =
+          gfx::ShaderStageDesc{.shader                        = vertex_shader,
+                               .entry_point                   = "vs_main",
+                               .specialization_constants      = {},
+                               .specialization_constants_data = {}},
+      .fragment_shader =
+          gfx::ShaderStageDesc{.shader                        = fragment_shader,
+                               .entry_point                   = "fs_main",
+                               .specialization_constants      = {},
+                               .specialization_constants_data = {}},
+      .render_pass           = render_pass_,
+      .vertex_input_bindings = to_span(vtx_bindings),
+      .vertex_attributes     = to_span(vtx_attrs),
+      .push_constant_size    = 0,
+      .descriptor_set_layouts =
+          to_span({ctx.uniform_layout, parameter_heap_.layout_}),
+      .primitive_topology  = gfx::PrimitiveTopology::TriangleList,
+      .rasterization_state = raster_state,
+      .depth_stencil_state = depth_stencil_state,
+      .color_blend_state   = color_blend_state,
+      .cache               = ctx.pipeline_cache};
+
+  downsample_pipeline_ =
+      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
+          .unwrap();
+
+  pipeline_desc.vertex_shader.shader =
+      ctx.get_shader("KawaseBlur_UpSample.VS"_span).unwrap();
+  pipeline_desc.fragment_shader.shader =
+      ctx.get_shader("KawaseBlur_UpSample.VS"_span).unwrap();
+
+  upsample_pipeline_ =
+      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
           .unwrap();
 }
 
@@ -45,13 +136,18 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
                                  ctx.frame_info.current);
   // TODO(lamarrr): we need to downsample multiple times, hence halfing the
   // extent every time we only need to sample to half the extent
-  Vec2I radius{1, 1};
-  radius          = radius * 2;
+  //
+  // radius should have been scaled to src and target ratio
+  Vec2 radius{1, 1};
+
+  radius = radius * 2;
+
   Uniform uniform = ctx.push_uniform(BlurPassShaderUniform{
-      .src_offset = Vec2I{(i32) params.offset.x, (i32) params.offset.y},
-      .dst_offset = Vec2I{0, 0},
-      .extent     = Vec2I{(i32) params.extent.x, (i32) params.extent.y},
-      .radius     = Vec2I{(i32) params.radius.x, (i32) params.radius.y}});
+      .src_offset = Vec2{(f32) params.offset.x, (f32) params.offset.y},
+      .src_extent = Vec2{(f32) params.extent.x, (f32) params.extent.y},
+      .src_tex_extent =
+          Vec2{(f32) params.view_extent.x, (f32) params.view_extent.y},
+      .radius = Vec2{(f32) radius.x, (f32) radius.y}});
 
   gfx::DescriptorSet descriptor =
       parameter_heap_.create(BlurPassShaderParameter{
