@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/gfx/gfx.h"
+#include "ashura/std/error.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/option.h"
 #include "ashura/std/panic.h"
@@ -9,18 +10,6 @@
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 #include <cstddef>
-
-#define CHECK(logger, description, ...)                                        \
-  if (!(__VA_ARGS__))                                                          \
-  {                                                                            \
-    (logger).panic(description, " (expression: " #__VA_ARGS__,                 \
-                   ") [function: ", ::ash::SourceLocation::current().function, \
-                   ", file: ", ::ash::SourceLocation::current().file, ":",     \
-                   ::ash::SourceLocation::current().line, ":",                 \
-                   ::ash::SourceLocation::current().column, "]");              \
-  }
-
-#define ENSURE(...) CHECK(panic_logger, "", __VA_ARGS__)
 
 namespace ash
 {
@@ -603,11 +592,11 @@ struct UniformHeap
     min_uniform_buffer_offset_alignment_ =
         properties.limits.min_uniform_buffer_offset_alignment;
 
-    ENSURE(batch_buffer_size >= size_classes[NUM_SIZE_CLASSES - 1]);
-    ENSURE(batch_buffer_size >= min_uniform_buffer_offset_alignment_);
+    CHECK(batch_buffer_size >= size_classes[NUM_SIZE_CLASSES - 1]);
+    CHECK(batch_buffer_size >= min_uniform_buffer_offset_alignment_);
     for (u8 i = 0; i < NUM_SIZE_CLASSES - 1; i++)
     {
-      ENSURE(size_classes[i] < size_classes[i + 1]);
+      CHECK(size_classes[i] < size_classes[i + 1]);
     }
 
     size_classes_                 = size_classes;
@@ -649,9 +638,9 @@ struct UniformHeap
 
   Uniform push_bytes(Span<u8 const> uniform, u32 alignment)
   {
-    ENSURE(alignment <= batch_buffer_size_);
-    ENSURE(uniform.size_bytes() <= batch_buffer_size_);
-    ENSURE(uniform.size_bytes() <= size_classes_[NUM_SIZE_CLASSES - 1]);
+    CHECK(alignment <= batch_buffer_size_);
+    CHECK(uniform.size_bytes() <= batch_buffer_size_);
+    CHECK(uniform.size_bytes() <= size_classes_[NUM_SIZE_CLASSES - 1]);
 
     u8 size_class = 0;
     for (; size_class < NUM_SIZE_CLASSES; size_class++)
@@ -697,7 +686,7 @@ struct UniformHeap
                 {{.buffer = buffer, .offset = 0, .size = size_classes_[i]}}));
       }
 
-      ENSURE(batches_.push(UniformHeapBatch{.group = group, .buffer = buffer}));
+      CHECK(batches_.push(UniformHeapBatch{.group = group, .buffer = buffer}));
     }
 
     UniformHeapBatch const &batch = batches_[batch_index];

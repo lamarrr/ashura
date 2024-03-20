@@ -113,7 +113,7 @@ target_link_libraries(ashura_renderer_tests ashura_std ashura_gfx ashura_engine
                       GTest::gtest GTest::gtest_main)
 
 add_library(ashura_engine ashura/engine/image_decoder.cc
-                          ashura/engine/widget.cc)
+                          ashura/engine/window.cc ashura/engine/widget.cc)
 target_link_libraries(ashura_engine ashura_std ashura_gfx ashura_renderer)
 target_include_directories(
   ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
@@ -134,3 +134,6 @@ target_link_libraries(
   PNG::PNG
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
+
+add_executable(ashura_engine_test ashura/engine/tests/test.cc)
+target_link_libraries(ashura_engine_test ashura_engine)

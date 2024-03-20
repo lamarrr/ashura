@@ -5,6 +5,7 @@
 #include "ashura/renderer/view.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
+#include "ashura/std/error.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -77,17 +78,17 @@ struct RenderContext
 
   void release(gfx::Framebuffer framebuffer)
   {
-    ENSURE(released_framebuffers.push(frame_info.current, framebuffer));
+    CHECK(released_framebuffers.push(frame_info.current, framebuffer));
   }
 
   void release(gfx::Image image)
   {
-    ENSURE(released_images.push(frame_info.current, image));
+    CHECK(released_images.push(frame_info.current, image));
   }
 
   void release(gfx::ImageView view)
   {
-    ENSURE(released_image_views.push(frame_info.current, view));
+    CHECK(released_image_views.push(frame_info.current, view));
   }
 };
 

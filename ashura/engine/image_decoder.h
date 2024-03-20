@@ -2,7 +2,7 @@
 #include <utility>
 
 #include "ashura/engine/error.h"
-#include "ashura/std/image.h"
+#include "ashura/gfx/image.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"

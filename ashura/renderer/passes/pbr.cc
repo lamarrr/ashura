@@ -125,8 +125,8 @@ void PBRPass::init(RenderContext &ctx)
 
 void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
 {
-  ENSURE(params.render_target.color_images.size() != 0);
-  ENSURE(has_bits(params.render_target.depth_stencil_aspects,
+  CHECK(params.render_target.color_images.size() != 0);
+  CHECK(has_bits(params.render_target.depth_stencil_aspects,
                   gfx::ImageAspects::Depth));
   gfx::CommandEncoderImpl encoder = ctx.encoder();
 
