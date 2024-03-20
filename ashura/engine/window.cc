@@ -33,8 +33,10 @@ struct SDLWinEventListener
 struct SDLWin
 {
   SDL_Window              *win        = nullptr;
+  VkSurfaceKHR             surface    = nullptr;
   uid32                    backend_id = UID32_INVALID;
   Vec<SDLWinEventListener> listeners;
+  SparseVec<u32>           listeners_id_map;
 };
 
 struct SDLWinSystem final : public WindowSystem
@@ -71,8 +73,9 @@ struct SDLWinSystem final : public WindowSystem
 
   Option<uid32> create_window(char const *name) override
   {
-    SDL_Window *window = SDL_CreateWindow(name, 1920, 1080, SDL_WINDOW_VULKAN);
-    uid32       backend_id = SDL_GetWindowID(window);
+    SDL_Window *window = SDL_CreateWindow(
+        name, 1920, 1080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+    uid32 backend_id = SDL_GetWindowID(window);
     CHECK(window != nullptr);
     uid32 out_id;
     CHECK(id_map.push(
@@ -253,10 +256,30 @@ struct SDLWinSystem final : public WindowSystem
   }
 
   uid32 listen(uid32 window, WindowEventTypes event_types,
-               Fn<void(WindowEvent const &)> callback) override;
+               Fn<void(WindowEvent const &)> callback) override
+  {
+    uid32   out_id;
+    SDLWin *pwin = win(window);
+    CHECK(pwin->listeners_id_map.push(
+        [&](uid32 id, u32) {
+          out_id = id;
+          CHECK(pwin->listeners.push(callback, event_types));
+        },
+        pwin->listeners));
+    return out_id;
+  }
 
-  void         unlisten(uid32 window, uid32 listener) override;
-  gfx::Surface get_surface(uid32 window) override;
+  void unlisten(uid32 window, uid32 listener) override
+  {
+    SDLWin *pwin = win(window);
+    pwin->listeners_id_map.erase(listener, pwin->listeners);
+  }
+
+  gfx::Surface get_surface(uid32 window) override
+  {
+    SDLWin *pwin = win(window);
+    return pwin->surface;
+  }
 
   void publish_event(uid32 backend_id, WindowEvent const &event)
   {
