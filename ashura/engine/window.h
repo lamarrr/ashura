@@ -94,7 +94,8 @@ struct WindowSystem
   virtual void                    init()                                    = 0;
   virtual void                    uninit()                                  = 0;
   virtual Span<char const *const> get_required_vulkan_instance_extensions() = 0;
-  virtual Option<uid32>           create_window(char const *)               = 0;
+  virtual Option<uid32>           create_window(gfx::InstanceImpl instance,
+                                                char const       *title)          = 0;
   virtual void         set_title(uid32 window, char const *title)           = 0;
   virtual char const  *get_title(uid32 window)                              = 0;
   virtual void         maximize(uid32 window)                               = 0;

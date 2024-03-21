@@ -1,6 +1,7 @@
 #include "ashura/engine/window.h"
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_vulkan.h"
+#include "ashura/gfx/vulkan.h"
 #include "ashura/std/error.h"
 #include "ashura/std/sparse_vec.h"
 #include "ashura/std/vec.h"
@@ -22,7 +23,7 @@ namespace ash
 
 #define SDL_CHECK(...) SDL_CHECK_EX("", __VA_ARGS__)
 
-#define SDL_CHECK_ERR(...) SDL_CHECK(!(__VA_ARGS__))
+#define CHECK_SDL_ERRC(...) SDL_CHECK_EX("", !(__VA_ARGS__))
 
 struct SDLWinEventListener
 {
@@ -33,7 +34,7 @@ struct SDLWinEventListener
 struct SDLWin
 {
   SDL_Window              *win        = nullptr;
-  VkSurfaceKHR             surface    = nullptr;
+  gfx::Surface             surface    = nullptr;
   uid32                    backend_id = UID32_INVALID;
   Vec<SDLWinEventListener> listeners;
   SparseVec<u32>           listeners_id_map;
@@ -71,17 +72,29 @@ struct SDLWinSystem final : public WindowSystem
     return Span{extensions, num_extensions};
   }
 
-  Option<uid32> create_window(char const *name) override
+  Option<uid32> create_window(gfx::InstanceImpl instance,
+                              char const       *title) override
   {
     SDL_Window *window = SDL_CreateWindow(
-        name, 1920, 1080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+        title, 1920, 1080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     uid32 backend_id = SDL_GetWindowID(window);
     CHECK(window != nullptr);
+
+    CHECK(instance.interface->get_backend(instance.self) ==
+          gfx::Backend::Vulkan);
+
+    vk::Instance *vk_instance = (vk::Instance *) instance.self;
+    VkSurfaceKHR  surface;
+
+    CHECK_SDL_ERRC(SDL_Vulkan_CreateSurface(window, vk_instance->vk_instance,
+                                            nullptr, &surface));
+
     uid32 out_id;
     CHECK(id_map.push(
         [&](uid32 id, u32 index) {
           out_id = id;
-          CHECK(windows.push(SDLWin{.win = window, .backend_id = backend_id}));
+          CHECK(windows.push(SDLWin{
+              .win = window, .surface = surface, .backend_id = backend_id}));
         },
         windows));
 
@@ -90,7 +103,7 @@ struct SDLWinSystem final : public WindowSystem
 
   void set_title(uid32 window, char const *title) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowTitle(hnd(window), title));
+    CHECK_SDL_ERRC(SDL_SetWindowTitle(hnd(window), title));
   }
 
   char const *get_title(uid32 window) override
@@ -102,75 +115,77 @@ struct SDLWinSystem final : public WindowSystem
 
   void maximize(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_MaximizeWindow(hnd(window)));
+    CHECK_SDL_ERRC(SDL_MaximizeWindow(hnd(window)));
   }
 
   void minimize(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_MinimizeWindow(hnd(window)));
+    CHECK_SDL_ERRC(SDL_MinimizeWindow(hnd(window)));
   }
 
   void set_size(uid32 window, Vec2U size) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowSize(hnd(window), static_cast<int>(size.x),
-                                    static_cast<int>(size.y)) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowSize(hnd(window), static_cast<int>(size.x),
+                                     static_cast<int>(size.y)) == 0);
   }
 
   void center(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowPosition(hnd(window), SDL_WINDOWPOS_CENTERED,
-                                        SDL_WINDOWPOS_CENTERED) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowPosition(hnd(window), SDL_WINDOWPOS_CENTERED,
+                                         SDL_WINDOWPOS_CENTERED) == 0);
   }
 
   Vec2U get_size(uid32 window) override
   {
     int w, h;
-    SDL_CHECK_ERR(SDL_GetWindowSize(hnd(window), &w, &h) == 0);
+    CHECK_SDL_ERRC(SDL_GetWindowSize(hnd(window), &w, &h) == 0);
     return Vec2U{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
   Vec2U get_surface_size(uid32 window) override
   {
     int w, h;
-    SDL_CHECK_ERR(SDL_GetWindowSizeInPixels(hnd(window), &w, &h) == 0);
+    CHECK_SDL_ERRC(SDL_GetWindowSizeInPixels(hnd(window), &w, &h) == 0);
     return Vec2U{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
   void set_position(uid32 window, Vec2I pos) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowPosition(hnd(window), pos.x, pos.y) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowPosition(hnd(window), pos.x, pos.y) == 0);
   }
 
   Vec2I get_position(uid32 window) override
   {
     int x, y;
-    SDL_CHECK_ERR(SDL_GetWindowPosition(hnd(window), &x, &y) == 0);
+    CHECK_SDL_ERRC(SDL_GetWindowPosition(hnd(window), &x, &y) == 0);
     return Vec2I{x, y};
   }
 
   void set_min_size(uid32 window, Vec2U min) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowMinimumSize(hnd(window), static_cast<int>(min.x),
-                                           static_cast<int>(min.y)) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowMinimumSize(hnd(window),
+                                            static_cast<int>(min.x),
+                                            static_cast<int>(min.y)) == 0);
   }
 
   Vec2U get_min_size(uid32 window) override
   {
     int w, h;
-    SDL_CHECK_ERR(SDL_GetWindowMinimumSize(hnd(window), &w, &h) == 0);
+    CHECK_SDL_ERRC(SDL_GetWindowMinimumSize(hnd(window), &w, &h) == 0);
     return Vec2U{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
   void set_max_size(uid32 window, Vec2U max) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowMaximumSize(hnd(window), static_cast<int>(max.x),
-                                           static_cast<int>(max.y)) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowMaximumSize(hnd(window),
+                                            static_cast<int>(max.x),
+                                            static_cast<int>(max.y)) == 0);
   }
 
   Vec2U get_max_size(uid32 window) override
   {
     int w, h;
-    SDL_CHECK_ERR(SDL_GetWindowMaximumSize(hnd(window), &w, &h) == 0);
+    CHECK_SDL_ERRC(SDL_GetWindowMaximumSize(hnd(window), &w, &h) == 0);
     return Vec2U{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
@@ -194,65 +209,65 @@ struct SDLWinSystem final : public WindowSystem
         (void *) image.span.data(), static_cast<int>(image.width),
         static_cast<int>(image.height), static_cast<int>(image.pitch), fmt);
     SDL_CHECK(icon != nullptr);
-    SDL_CHECK_ERR(SDL_SetWindowIcon(hnd(window), icon) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowIcon(hnd(window), icon) == 0);
     SDL_DestroySurface(icon);
   }
 
   void make_bordered(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowBordered(hnd(window), SDL_TRUE) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowBordered(hnd(window), SDL_TRUE) == 0);
   }
 
   void make_borderless(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowBordered(hnd(window), SDL_FALSE) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowBordered(hnd(window), SDL_FALSE) == 0);
   }
 
   void show(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_ShowWindow(hnd(window)) == 0);
+    CHECK_SDL_ERRC(SDL_ShowWindow(hnd(window)) == 0);
   }
 
   void hide(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_HideWindow(hnd(window)) == 0);
+    CHECK_SDL_ERRC(SDL_HideWindow(hnd(window)) == 0);
   }
 
   void raise(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_RaiseWindow(hnd(window)) == 0);
+    CHECK_SDL_ERRC(SDL_RaiseWindow(hnd(window)) == 0);
   }
 
   void restore(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_RestoreWindow(hnd(window)) == 0);
+    CHECK_SDL_ERRC(SDL_RestoreWindow(hnd(window)) == 0);
   }
 
   void request_attention(uid32 window, bool briefly) override
   {
-    SDL_CHECK_ERR(
+    CHECK_SDL_ERRC(
         SDL_FlashWindow(hnd(window), briefly ? SDL_FLASH_BRIEFLY :
                                                SDL_FLASH_UNTIL_FOCUSED) == 0);
   }
 
   void make_fullscreen(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowFullscreen(hnd(window), SDL_TRUE) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowFullscreen(hnd(window), SDL_TRUE) == 0);
   }
 
   void make_windowed(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowFullscreen(hnd(window), SDL_FALSE) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowFullscreen(hnd(window), SDL_FALSE) == 0);
   }
 
   void make_resizable(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowResizable(hnd(window), SDL_TRUE) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowResizable(hnd(window), SDL_TRUE) == 0);
   }
 
   void make_unresizable(uid32 window) override
   {
-    SDL_CHECK_ERR(SDL_SetWindowResizable(hnd(window), SDL_FALSE) == 0);
+    CHECK_SDL_ERRC(SDL_SetWindowResizable(hnd(window), SDL_FALSE) == 0);
   }
 
   uid32 listen(uid32 window, WindowEventTypes event_types,

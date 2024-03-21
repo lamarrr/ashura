@@ -1948,6 +1948,11 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                             .interface = &device_interface}};
 }
 
+gfx::Backend InstanceInterface::get_backend(gfx::Instance)
+{
+  return gfx::Backend::Vulkan;
+}
+
 void InstanceInterface::ref_device(gfx::Instance, gfx::Device device_)
 {
   Device *const device = (Device *) device_;

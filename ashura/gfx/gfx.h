@@ -64,6 +64,15 @@ typedef struct CommandEncoderImpl      CommandEncoderImpl;
 typedef struct DeviceImpl              DeviceImpl;
 typedef struct InstanceImpl            InstanceImpl;
 
+enum class Backend : u8
+{
+  Stub    = 0,
+  Vulkan  = 1,
+  OpenGL  = 2,
+  DirectX = 3,
+  Metal   = 4
+};
+
 enum class DeviceType : u8
 {
   Other         = 0,
@@ -1805,6 +1814,7 @@ struct InstanceInterface
       Instance self, Span<DeviceType const> preferred_types,
       Span<gfx::Surface const> compatible_surfaces,
       AllocatorImpl            allocator)                       = nullptr;
+  Backend (*get_backend)(Instance self)              = nullptr;
   void (*ref_device)(Instance self, Device device)   = nullptr;
   void (*unref_device)(Instance self, Device device) = nullptr;
 };

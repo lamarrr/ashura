@@ -509,8 +509,9 @@ struct InstanceInterface
   static Result<gfx::DeviceImpl, Status>   create_device(
         gfx::Instance self, Span<gfx::DeviceType const> preferred_types,
         Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator);
-  static void ref_device(gfx::Instance self, gfx::Device device);
-  static void unref_device(gfx::Instance self, gfx::Device device);
+  static gfx::Backend get_backend(gfx::Instance self);
+  static void         ref_device(gfx::Instance self, gfx::Device device);
+  static void         unref_device(gfx::Instance self, gfx::Device device);
 };
 
 struct DeviceInterface
@@ -785,6 +786,7 @@ static gfx::InstanceInterface const instance_interface{
     .ref           = InstanceInterface::ref,
     .unref         = InstanceInterface::unref,
     .create_device = InstanceInterface::create_device,
+    .get_backend   = InstanceInterface::get_backend,
     .ref_device    = InstanceInterface::ref_device,
     .unref_device  = InstanceInterface::unref_device};
 
