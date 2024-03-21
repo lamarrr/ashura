@@ -11,6 +11,13 @@
 namespace ash
 {
 
+enum class SystemTheme : u8
+{
+  None  = 0,
+  Light = 1,
+  Dark  = 2
+};
+
 enum class KeyAction : u8
 {
   None    = 0,
@@ -96,6 +103,7 @@ struct WindowSystem
   virtual Span<char const *const> get_required_vulkan_instance_extensions() = 0;
   virtual Option<uid32>           create_window(gfx::InstanceImpl instance,
                                                 char const       *title)          = 0;
+  virtual void                    destroy_window(uid32 window)              = 0;
   virtual void         set_title(uid32 window, char const *title)           = 0;
   virtual char const  *get_title(uid32 window)                              = 0;
   virtual void         maximize(uid32 window)                               = 0;

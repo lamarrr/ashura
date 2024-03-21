@@ -8,7 +8,7 @@
   {                                                                           \
     if (!(__VA_ARGS__))                                                       \
     {                                                                         \
-      panic_logger.panic(description, " (expression: " #__VA_ARGS__,          \
+      panic_logger->panic(description, " (expression: " #__VA_ARGS__,          \
                          ") [function: ", SourceLocation::current().function, \
                          ", file: ", SourceLocation::current().file, ":",     \
                          SourceLocation::current().line, ":",                 \

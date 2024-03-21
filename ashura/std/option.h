@@ -164,7 +164,7 @@ struct [[nodiscard]] Option
     {
       return value_;
     }
-    panic_logger.panic("Expected value in Option but got None");
+    panic_logger->panic("Expected value in Option but got None");
   }
 
   constexpr T const &value() const
@@ -173,7 +173,7 @@ struct [[nodiscard]] Option
     {
       return value_;
     }
-    panic_logger.panic("Expected value in Option but got None");
+    panic_logger->panic("Expected value in Option but got None");
   }
 
   constexpr Option<T const *> as_ref() const
@@ -200,7 +200,7 @@ struct [[nodiscard]] Option
     {
       return (T &&) value_;
     }
-    panic_logger.panic(msg);
+    panic_logger->panic(msg);
   }
 
   constexpr T unwrap()
@@ -209,7 +209,7 @@ struct [[nodiscard]] Option
     {
       return (T &&) value_;
     }
-    panic_logger.panic("Expected value in Option but got None");
+    panic_logger->panic("Expected value in Option but got None");
   }
 
   template <typename U>
@@ -289,7 +289,7 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      panic_logger.panic(msg);
+      panic_logger->panic(msg);
     }
   }
 
@@ -297,7 +297,7 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      panic_logger.panic("Expected value in Option but got None");
+      panic_logger->panic("Expected value in Option but got None");
     }
   }
 

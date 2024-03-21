@@ -38,10 +38,8 @@ char const *get_level_str(LogLevel level)
   }
 }
 
-void StdioSinkInterface::log(LogSink self_, LogLevel level,
-                             char const *log_message, usize len)
+void StdioSink::log(LogLevel level, Span<char const> log_message)
 {
-  StdioSink  *self      = (StdioSink *) self_;
   char const *level_str = get_level_str(level);
   FILE       *file      = stdout;
 
@@ -76,29 +74,25 @@ void StdioSinkInterface::log(LogSink self_, LogLevel level,
     }
   }
 
-  std::unique_lock lock{self->mutex};
+  std::unique_lock lock{mutex};
 
   (void) fputs("[", file);
   (void) fputs(level_str, file);
   (void) fputs(": ", file);
   (void) fwrite(time_string, 1, time_string_length, file);
   (void) fputs("] ", file);
-  (void) fwrite(log_message, 1, len, file);
+  (void) fwrite(log_message.data(), 1, log_message.size(), file);
 }
 
-void StdioSinkInterface::flush(LogSink self_)
+void StdioSink::flush()
 {
-  StdioSink       *self = (StdioSink *) self_;
-  std::unique_lock lock{self->mutex};
+  std::unique_lock lock{mutex};
   (void) fflush(stdout);
   (void) fflush(stderr);
 }
 
-void FileSinkInterface::log(LogSink self_, LogLevel level,
-                            char const *log_message, usize len)
+void FileSink::log(LogLevel level, Span<char const> log_message)
 {
-  FileSink *self = (FileSink *) self_;
-
   char const          *level_str     = get_level_str(level);
   constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";
   char                 time_string[256];
@@ -115,20 +109,19 @@ void FileSinkInterface::log(LogSink self_, LogLevel level,
     }
   }
 
-  std::unique_lock lock{self->mutex};
-  (void) fputs("[", self->file);
-  (void) fputs(level_str, self->file);
-  (void) fputs(": ", self->file);
-  (void) fwrite(time_string, 1, time_string_length, self->file);
-  (void) fputs("] ", self->file);
-  (void) fwrite(log_message, 1, len, self->file);
+  std::unique_lock lock{mutex};
+  (void) fputs("[", file);
+  (void) fputs(level_str, file);
+  (void) fputs(": ", file);
+  (void) fwrite(time_string, 1, time_string_length, file);
+  (void) fputs("] ", file);
+  (void) fwrite(log_message.data(), 1, log_message.size(), file);
 }
 
-void FileSinkInterface::flush(LogSink self_)
+void FileSink::flush()
 {
-  FileSink        *self = (FileSink *) self_;
-  std::unique_lock lock{self->mutex};
-  (void) fflush(self->file);
+  std::unique_lock lock{mutex};
+  (void) fflush(file);
 }
 
 }        // namespace ash

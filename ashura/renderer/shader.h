@@ -407,7 +407,7 @@ struct ShaderParameterHeap
                   .unwrap();
     heap_ = device
                 ->create_descriptor_heap(device_.self, {&layout_, 1},
-                                         batch_size, heap_allocator)
+                                         batch_size, default_allocator)
                 .unwrap();
     device_ = device;
   }
@@ -618,7 +618,7 @@ struct UniformHeap
     descriptor_heap_ =
         device
             ->create_descriptor_heap(device.self, to_span(layouts),
-                                     descriptor_pool_size, heap_allocator)
+                                     descriptor_pool_size, default_allocator)
             .unwrap();
   }
 

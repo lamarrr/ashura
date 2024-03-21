@@ -209,7 +209,7 @@ struct [[nodiscard]] Result
     {
       return value_;
     }
-    panic_logger.panic(".value() called on result with Error{=", error_, "}");
+    panic_logger->panic(".value() called on result with Error{=", error_, "}");
   }
 
   constexpr T const &value() const
@@ -218,7 +218,7 @@ struct [[nodiscard]] Result
     {
       return value_;
     }
-    panic_logger.panic(".value() called on result with Error{=", error_, "}");
+    panic_logger->panic(".value() called on result with Error{=", error_, "}");
   }
 
   constexpr E &err()
@@ -227,7 +227,7 @@ struct [[nodiscard]] Result
     {
       return error_;
     }
-    panic_logger.panic(".err() called on result with Value{=", value_, "}");
+    panic_logger->panic(".err() called on result with Value{=", value_, "}");
   }
 
   constexpr E const &err() const
@@ -236,7 +236,7 @@ struct [[nodiscard]] Result
     {
       return error_;
     }
-    panic_logger.panic(".err() called on result with Value{=", value_, "}");
+    panic_logger->panic(".err() called on result with Value{=", value_, "}");
   }
 
   constexpr Result<T const *, E const *> as_ref() const
@@ -336,7 +336,7 @@ struct [[nodiscard]] Result
     {
       return (T &&) value_;
     }
-    panic_logger.panic("Expected Value in Result but got Error{=", error_, "}");
+    panic_logger->panic("Expected Value in Result but got Error{=", error_, "}");
   }
 
   constexpr T expect(char const *msg)
@@ -345,7 +345,7 @@ struct [[nodiscard]] Result
     {
       return (T &&) value_;
     }
-    panic_logger.panic(msg);
+    panic_logger->panic(msg);
   }
 
   constexpr E unwrap_err()
@@ -354,7 +354,7 @@ struct [[nodiscard]] Result
     {
       return (E &&) error_;
     }
-    panic_logger.panic("Expected Error in Result but got Value{=", value_, "}");
+    panic_logger->panic("Expected Error in Result but got Value{=", value_, "}");
   }
 
   constexpr E expect_err(char const *msg)
@@ -363,7 +363,7 @@ struct [[nodiscard]] Result
     {
       return (E &&) error_;
     }
-    panic_logger.panic(msg);
+    panic_logger->panic(msg);
   }
 
   template <typename OkFn, typename ErrFn>

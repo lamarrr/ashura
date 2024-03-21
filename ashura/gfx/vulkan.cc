@@ -1341,24 +1341,31 @@ Result<gfx::InstanceImpl, Status>
                   ")");
   }
 
-  char const *load_extensions[4];
-  char const *load_layers[4];
+  char const *load_extensions[16];
+  char const *load_layers[16];
   u32         num_load_extensions = 0;
   u32         num_load_layers     = 0;
 
-  CHECK_WITH(
-      logger,
-      "Required Vulkan Extension: " VK_KHR_SURFACE_EXTENSION_NAME
-      " is not supported",
-      !find(Span<VkExtensionProperties const>{extensions, num_extensions},
-            VK_KHR_SURFACE_EXTENSION_NAME,
-            [](VkExtensionProperties const &property, char const *find_name) {
-              return strcmp(property.extensionName, find_name) == 0;
-            })
-           .is_empty());
+  constexpr char const *OPTIONAL_EXTENSIONS[] = {
+      "VK_KHR_surface",         "VK_KHR_android_surface", "VK_MVK_ios_surface",
+      "VK_MVK_macos_surface",   "VK_EXT_metal_surface",   "VK_NN_vi_surface",
+      "VK_KHR_wayland_surface", "VK_KHR_win32_surface",   "VK_KHR_xcb_surface",
+      "VK_KHR_xlib_surface",
+  };
 
-  load_extensions[num_load_extensions] = VK_KHR_SURFACE_EXTENSION_NAME;
-  num_load_extensions++;
+  for (char const *extension : OPTIONAL_EXTENSIONS)
+  {
+    if (!find(Span<VkExtensionProperties const>{extensions, num_extensions},
+              extension,
+              [](VkExtensionProperties const &property, char const *find_name) {
+                return strcmp(property.extensionName, find_name) == 0;
+              })
+             .is_empty())
+    {
+      load_extensions[num_load_extensions] = extension;
+      num_load_extensions++;
+    }
+  }
 
   if (enable_validation_layer)
   {
@@ -6735,7 +6742,7 @@ void CommandEncoderInterface::begin_render_pass(
       (u32) color_attachments_clear_values.size();
   u32 const num_depth_clear_values =
       (u32) depth_stencil_attachment_clear_value.size();
-  u32 const  num_clear_values = num_color_clear_values + num_clear_values;
+  u32 const  num_clear_values = num_color_clear_values + num_depth_clear_values;
   bool const has_depth_stencil_attachment =
       framebuffer->depth_stencil_attachment != nullptr;
 

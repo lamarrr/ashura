@@ -12,13 +12,6 @@
 
 namespace ash
 {
-typedef struct LogSink_T         *LogSink;
-typedef struct LogSinkInterface   LogSinkInterface;
-typedef struct LogSinkImpl        LogSinkImpl;
-typedef struct StdioSink          StdioSink;
-typedef struct StdioSinkInterface StdioSinkInterface;
-typedef struct FileSink           FileSink;
-typedef struct FileSinkInterface  FileSinkInterface;
 
 enum class LogLevel : u8
 {
@@ -33,26 +26,18 @@ enum class LogLevel : u8
 
 ASH_DEFINE_ENUM_BIT_OPS(LogLevel)
 
-struct LogSinkInterface
+struct LogSink
 {
-  void (*log)(LogSink self, LogLevel level, char const *log_message,
-              usize len)      = nullptr;
-  void (*flush)(LogSink self) = nullptr;
-};
-
-struct LogSinkImpl
-{
-  LogSink                 self      = nullptr;
-  LogSinkInterface const *interface = nullptr;
+  virtual void log(LogLevel level, Span<char const> log_message) = 0;
+  virtual void flush()                                           = 0;
 };
 
 // to be flushed into trace format style, utc, time encoding, etc.
 // format context should append to the buffer
-// TODO(lamarrr): Level filter and filter for sinks?
 struct Logger
 {
   static constexpr u32 SCRATCH_BUFFER_SIZE                 = 256;
-  LogSinkImpl         *sinks                               = nullptr;
+  LogSink            **sinks                               = nullptr;
   u32                  num_sinks                           = 0;
   char                *buffer                              = nullptr;
   usize                buffer_size                         = 0;
@@ -103,8 +88,7 @@ struct Logger
     std::unique_lock lock{mutex};
     for (u32 i = 0; i < num_sinks; i++)
     {
-      LogSinkImpl impl = sinks[i];
-      impl.interface->flush(impl.self);
+      sinks[i]->flush();
     }
   }
 
@@ -116,8 +100,7 @@ struct Logger
     {
       for (u32 i = 0; i < num_sinks; i++)
       {
-        LogSinkImpl impl = sinks[i];
-        impl.interface->log(impl.self, level, buffer, buffer_size);
+        sinks[i]->log(level, Span{buffer, buffer_size});
       }
       buffer_size = 0;
       return true;
@@ -146,19 +129,25 @@ struct Logger
   }
 };
 
-inline bool create_logger(Logger *memory, Span<LogSinkImpl const> sinks,
-                          AllocatorImpl allocator)
+inline Logger *create_logger(Span<LogSink *const> sinks,
+                             AllocatorImpl        allocator)
 {
-  u32 const    num_sinks = (u32) sinks.size();
-  LogSinkImpl *log_sinks = allocator.allocate_typed<LogSinkImpl>(num_sinks);
+  u32 const num_sinks = (u32) sinks.size();
+  LogSink **log_sinks = allocator.allocate_typed<LogSink *>(num_sinks);
   if (log_sinks == nullptr)
   {
-    return false;
+    return nullptr;
   }
 
   mem::copy(sinks, log_sinks);
+  Logger *logger = allocator.allocate_typed<Logger>(1);
+  if (logger == nullptr)
+  {
+    allocator.deallocate_typed(log_sinks, num_sinks);
+    return nullptr;
+  }
 
-  new (memory) Logger{
+  new (logger) Logger{
       .sinks           = log_sinks,
       .num_sinks       = num_sinks,
       .buffer          = nullptr,
@@ -184,54 +173,41 @@ inline bool create_logger(Logger *memory, Span<LogSinkImpl const> sinks,
                           logger->buffer          = buffer;
                           logger->buffer_capacity = required_size;
                         }
-                        memcpy(logger->buffer + logger->buffer_size, buffer,
-                                       size);
+                        mem::copy(buffer, logger->buffer + logger->buffer_size,
+                                          size);
                         logger->buffer_size += size;
                         return true;
                       },
-                          .data = memory,
+                          .data = logger,
               },
-                  .scratch_buffer      = memory->scratch_buffer,
+                  .scratch_buffer      = logger->scratch_buffer,
                   .scratch_buffer_size = Logger::SCRATCH_BUFFER_SIZE}};
 
-  return true;
+  return logger;
 };
 
 inline void destroy_logger(Logger *logger)
 {
   logger->allocator.deallocate_typed(logger->sinks, logger->num_sinks);
   logger->allocator.deallocate_typed(logger->buffer, logger->buffer_capacity);
+  logger->allocator.deallocate_typed(logger, 1);
 }
 
-struct StdioSink
+struct StdioSink final : LogSink
 {
   std::mutex mutex;
+
+  void log(LogLevel level, Span<char const> log_message) override;
+  void flush() override;
 };
 
-struct StdioSinkInterface
-{
-  static void log(LogSink self, LogLevel level, char const *log_message,
-                  usize len);
-  static void flush(LogSink self);
-};
-
-static LogSinkInterface stdio_sink_interface{
-    .log = StdioSinkInterface::log, .flush = StdioSinkInterface::flush};
-
-struct FileSink
+struct FileSink final : LogSink
 {
   FILE      *file = nullptr;
   std::mutex mutex;
-};
 
-struct FileSinkInterface
-{
-  static void log(LogSink self, LogLevel level, char const *log_message,
-                  usize len);
-  static void flush(LogSink self);
+  void log(LogLevel level, Span<char const> log_message) override;
+  void flush() override;
 };
-
-static LogSinkInterface file_sink_interface{.log   = FileSinkInterface::log,
-                                            .flush = FileSinkInterface::flush};
 
 }        // namespace ash

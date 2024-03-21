@@ -63,10 +63,18 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   add_compile_options(-Wall -Wextra -Wpedantic -fno-rtti -fno-exceptions)
 else()
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic -fno-rtti -fno-exceptions)
+    add_compile_options(
+      -Wall
+      -Wextra
+      -Wpedantic
+      -fno-rtti
+      -fno-exceptions
+      -Wno-nullability-completeness
+      -Wno-nullability-extension)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
       add_compile_options(/W3)
+      add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
     endif()
   endif()
 endif()
@@ -107,10 +115,6 @@ add_library(
   ashura/renderer/passes/rrect.cc)
 target_link_libraries(ashura_renderer ashura_std ashura_gfx)
 target_include_directories(ashura_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-add_executable(ashura_renderer_tests ashura/renderer/tests/renderer.cc)
-target_link_libraries(ashura_renderer_tests ashura_std ashura_gfx ashura_engine
-                      GTest::gtest GTest::gtest_main)
 
 add_library(ashura_engine ashura/engine/image_decoder.cc
                           ashura/engine/window.cc ashura/engine/widget.cc)

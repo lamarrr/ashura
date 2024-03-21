@@ -9,40 +9,42 @@
 namespace ash
 {
 
-#define SDL_CHECK_EX(description, ...)                                     \
-  if (!(__VA_ARGS__))                                                      \
-  {                                                                        \
-    (panic_logger)                                                         \
-        .panic(description, ", SDL Error: ", SDL_GetError(),               \
-               " (expression: " #__VA_ARGS__,                              \
-               ") [function: ", ::ash::SourceLocation::current().function, \
-               ", file: ", ::ash::SourceLocation::current().file, ":",     \
-               ::ash::SourceLocation::current().line, ":",                 \
-               ::ash::SourceLocation::current().column, "]");              \
+#define SDL_CHECK_EX(description, ...)                                      \
+  if (!(__VA_ARGS__))                                                       \
+  {                                                                         \
+    (panic_logger)                                                          \
+        ->panic(description, ", SDL Error: ", SDL_GetError(),               \
+                " (expression: " #__VA_ARGS__,                              \
+                ") [function: ", ::ash::SourceLocation::current().function, \
+                ", file: ", ::ash::SourceLocation::current().file, ":",     \
+                ::ash::SourceLocation::current().line, ":",                 \
+                ::ash::SourceLocation::current().column, "]");              \
   }
 
 #define SDL_CHECK(...) SDL_CHECK_EX("", __VA_ARGS__)
 
 #define CHECK_SDL_ERRC(...) SDL_CHECK_EX("", !(__VA_ARGS__))
 
-struct SDLWinEventListener
+namespace sdl
+{
+struct WindowEventListener
 {
   Fn<void(WindowEvent const &)> callback = {};
   WindowEventTypes              types    = WindowEventTypes::None;
 };
 
-struct SDLWin
+struct Window
 {
-  SDL_Window              *win        = nullptr;
-  gfx::Surface             surface    = nullptr;
-  uid32                    backend_id = UID32_INVALID;
-  Vec<SDLWinEventListener> listeners;
-  SparseVec<u32>           listeners_id_map;
+  SDL_Window              *win              = nullptr;
+  gfx::Surface             surface          = nullptr;
+  uid32                    backend_id       = UID32_INVALID;
+  Vec<WindowEventListener> listeners        = {};
+  SparseVec<u32>           listeners_id_map = {};
 };
 
-struct SDLWinSystem final : public WindowSystem
+struct WindowSystemImpl final : public WindowSystem
 {
-  Vec<SDLWin>    windows;
+  Vec<Window>    windows;
   SparseVec<u32> id_map;
 
   SDL_Window *hnd(uid32 id)
@@ -50,7 +52,7 @@ struct SDLWinSystem final : public WindowSystem
     return windows[id_map[id]].win;
   }
 
-  SDLWin *win(uid32 id)
+  Window *win(uid32 id)
   {
     return &windows[id_map[id]];
   }
@@ -86,14 +88,14 @@ struct SDLWinSystem final : public WindowSystem
     vk::Instance *vk_instance = (vk::Instance *) instance.self;
     VkSurfaceKHR  surface;
 
-    CHECK_SDL_ERRC(SDL_Vulkan_CreateSurface(window, vk_instance->vk_instance,
-                                            nullptr, &surface));
+    SDL_CHECK(SDL_Vulkan_CreateSurface(window, vk_instance->vk_instance,
+                                       nullptr, &surface) == SDL_TRUE);
 
     uid32 out_id;
     CHECK(id_map.push(
-        [&](uid32 id, u32 index) {
+        [&](uid32 id, u32) {
           out_id = id;
-          CHECK(windows.push(SDLWin{
+          CHECK(windows.push(Window{
               .win = window, .surface = surface, .backend_id = backend_id}));
         },
         windows));
@@ -202,7 +204,7 @@ struct SDLWinSystem final : public WindowSystem
         fmt = SDL_PIXELFORMAT_BGRA8888;
         break;
       default:
-        return;
+        CHECK(false);
     }
 
     SDL_Surface *icon = SDL_CreateSurfaceFrom(
@@ -274,7 +276,7 @@ struct SDLWinSystem final : public WindowSystem
                Fn<void(WindowEvent const &)> callback) override
   {
     uid32   out_id;
-    SDLWin *pwin = win(window);
+    Window *pwin = win(window);
     CHECK(pwin->listeners_id_map.push(
         [&](uid32 id, u32) {
           out_id = id;
@@ -286,23 +288,23 @@ struct SDLWinSystem final : public WindowSystem
 
   void unlisten(uid32 window, uid32 listener) override
   {
-    SDLWin *pwin = win(window);
+    Window *pwin = win(window);
     pwin->listeners_id_map.erase(listener, pwin->listeners);
   }
 
   gfx::Surface get_surface(uid32 window) override
   {
-    SDLWin *pwin = win(window);
+    Window *pwin = win(window);
     return pwin->surface;
   }
 
   void publish_event(uid32 backend_id, WindowEvent const &event)
   {
-    for (SDLWin const &win : windows)
+    for (Window const &win : windows)
     {
       if (win.backend_id == backend_id)
       {
-        for (SDLWinEventListener const &listener : win.listeners)
+        for (WindowEventListener const &listener : win.listeners)
         {
           if (has_bits(listener.types, event.type))
           {
@@ -323,64 +325,79 @@ struct SDLWinSystem final : public WindowSystem
       switch (event.type)
       {
         case SDL_EVENT_WINDOW_SHOWN:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::Shown});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::Shown});
           return;
         case SDL_EVENT_WINDOW_HIDDEN:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::Hidden});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::Hidden});
           return;
         case SDL_EVENT_WINDOW_EXPOSED:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::Exposed});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::Exposed});
           return;
         case SDL_EVENT_WINDOW_MOVED:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::Moved});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::Moved});
           return;
         case SDL_EVENT_WINDOW_RESIZED:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::Resized});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::Resized});
           return;
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
           publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::SurfaceResized});
+                        WindowEvent{.none_ = 0,
+                                    .type  = WindowEventTypes::SurfaceResized});
           return;
         case SDL_EVENT_WINDOW_MINIMIZED:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::Minimized});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::Minimized});
           return;
         case SDL_EVENT_WINDOW_MAXIMIZED:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::Maximized});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::Maximized});
           return;
         case SDL_EVENT_WINDOW_RESTORED:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::Restored});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::Restored});
           return;
         case SDL_EVENT_WINDOW_MOUSE_ENTER:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::MouseEnter});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::MouseEnter});
           return;
         case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::MouseLeave});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::MouseLeave});
           return;
         case SDL_EVENT_WINDOW_FOCUS_GAINED:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::FocusGained});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::FocusGained});
           return;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::FocusLost});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::FocusLost});
           return;
         case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
           publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::CloseRequested});
+                        WindowEvent{.none_ = 0,
+                                    .type  = WindowEventTypes::CloseRequested});
           return;
         case SDL_EVENT_WINDOW_TAKE_FOCUS:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::TakeFocus});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::TakeFocus});
           return;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
@@ -472,19 +489,23 @@ struct SDLWinSystem final : public WindowSystem
           return;
 
         case SDL_EVENT_WINDOW_DESTROYED:
-          publish_event(event.window.windowID,
-                        WindowEvent{.type = WindowEventTypes::Destroyed});
+          publish_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0, .type = WindowEventTypes::Destroyed});
           return;
 
         case SDL_EVENT_SYSTEM_THEME_CHANGED:
+          return;
         case SDL_EVENT_FINGER_DOWN:
         case SDL_EVENT_FINGER_UP:
         case SDL_EVENT_FINGER_MOTION:
+          return;
         case SDL_EVENT_DROP_BEGIN:
         case SDL_EVENT_DROP_COMPLETE:
         case SDL_EVENT_DROP_FILE:
         case SDL_EVENT_DROP_POSITION:
         case SDL_EVENT_DROP_TEXT:
+          return;
         case SDL_EVENT_TEXT_EDITING:
         case SDL_EVENT_TEXT_INPUT:
         case SDL_EVENT_KEYMAP_CHANGED:
@@ -504,7 +525,209 @@ struct SDLWinSystem final : public WindowSystem
   }
 };
 
-SDLWinSystem  sdl_window_system_impl;
-WindowSystem *sdl_window_system = &sdl_window_system_impl;
+/*
+ void recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue,
+                          u32 max_nframes_in_flight)
+  {
+    // if cause of change in swapchain is a change in extent, then mark
+    // layout as dirty, otherwise maintain pipeline state
+    int width, height;
+    ASH_SDL_CHECK(SDL_GetWindowSize(window, &width, &height) == 0);
+
+    int surface_width, surface_height;
+    ASH_SDL_CHECK(SDL_GetWindowSizeInPixels(window, &surface_width,
+                                            &surface_height) == 0);
+
+    VkSurfaceFormatKHR preferred_formats[] = {
+        {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
+        {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
+        {VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}};
+
+    // VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    // VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT;
+    // VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT;
+    // VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT;
+    // VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT;
+    // VK_COLOR_SPACE_HDR10_ST2084_EXT;
+    // VK_COLOR_SPACE_HDR10_HLG_EXT;
+    // VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT;
+    // VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT;
+    // VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT;
+    // VK_COLOR_SPACE_DCI_P3_LINEAR_EXT;
+
+    VkPresentModeKHR preferred_present_modes[] = {
+        VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR,
+        VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_MAILBOX_KHR};
+
+    VkSampleCountFlagBits max_msaa_sample_count =
+        queue->device->phy_dev->get_max_sample_count();
+
+    surface.value()->change_swapchain(
+        queue, max_nframes_in_flight, preferred_formats,
+        preferred_present_modes,
+        VkExtent2D{.width  = static_cast<u32>(surface_width),
+                   .height = static_cast<u32>(surface_height)},
+        VkExtent2D{.width  = static_cast<u32>(width),
+                   .height = static_cast<u32>(height)},
+        max_msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+  }
+
+  std::pair<SwapChainState, u32> acquire_image()
+  {
+    ASH_CHECK(surface.is_some(),
+              "trying to present to swapchain without having surface attached");
+    ASH_CHECK(surface.value()->swapchain.is_some(),
+              "trying to present to swapchain without having one");
+
+    vk::SwapChain &swapchain = surface.value()->swapchain.value();
+
+    VkSemaphore semaphore =
+        swapchain.image_acquisition_semaphores[swapchain.frame];
+
+    VkFence fence = VK_NULL_HANDLE;
+
+    u32 swapchain_image_index = 0;
+
+    VkResult result = vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain,
+                                            VULKAN_TIMEOUT, semaphore, fence,
+                                            &swapchain_image_index);
+
+    ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
+                  result == VK_ERROR_OUT_OF_DATE_KHR,
+              "failed to acquire swapchain image");
+
+    if (result == VK_SUBOPTIMAL_KHR)
+    {
+      return std::make_pair(SwapChainState::Suboptimal, swapchain_image_index);
+    }
+    else if (result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+      return std::make_pair(SwapChainState::OutOfDate, swapchain_image_index);
+    }
+    else if (result == VK_SUCCESS)
+    {
+      return std::make_pair(SwapChainState::Ok, swapchain_image_index);
+    }
+    else
+    {
+      ASH_PANIC("failed to acquire swapchain image", result);
+    }
+  }
+
+  SwapChainState present(VkQueue queue, u32 swapchain_image_index)
+  {
+    ASH_CHECK(surface.is_some(),
+              "trying to present to swapchain without having surface attached");
+    ASH_CHECK(surface.value()->swapchain.is_some(),
+              "trying to present to swapchain without having one");
+
+    // we submit multiple render commands (operating on the swapchain images) to
+    // the GPU to prevent having to force a sync with the GPU (await_fence) when
+    // it could be doing useful work.
+    vk::SwapChain &swapchain = surface.value()->swapchain.value();
+
+    // we don't need to wait on presentation
+    //
+    // if v-sync is enabled (VK_PRESENT_MODE_FIFO_KHR) the GPU driver *can*
+    // delay the process so we don't submit more frames than the display's
+    // refresh rate can keep up with and we thus save power.
+    //
+    VkPresentInfoKHR present_info{
+        .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext              = nullptr,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores    = &swapchain.render_semaphores[swapchain.frame],
+        .swapchainCount     = 1,
+        .pSwapchains        = &swapchain.swapchain,
+        .pImageIndices      = &swapchain_image_index,
+        .pResults           = nullptr};
+
+    VkResult result = vkQueuePresentKHR(queue, &present_info);
+
+    ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
+                  result == VK_ERROR_OUT_OF_DATE_KHR,
+              "failed to present swapchain image");
+
+    if (result == VK_SUBOPTIMAL_KHR)
+    {
+      return SwapChainState::Suboptimal;
+    }
+    else if (result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+      return SwapChainState::OutOfDate;
+    }
+    else if (result == VK_SUCCESS)
+    {
+      return SwapChainState::Ok;
+    }
+    else
+    {
+      ASH_PANIC("failed to present swapchain image", result);
+    }
+  }
+
+  // void enable_hit_testing();
+  //
+  // SDL_HITTEST_NORMAL
+  //
+  // region is normal and has no special properties
+  //
+  // SDL_HITTEST_DRAGGABLE
+  //
+  // region can drag entire window
+  //
+  // SDL_HITTEST_RESIZE_TOPLEFT
+  //
+  // region can resize top left window
+  //
+  // SDL_HITTEST_RESIZE_TOP
+  //
+  // region can resize top window
+  //
+  // SDL_HITTEST_RESIZE_TOPRIGHT
+  //
+  // region can resize top right window
+  //
+  // SDL_HITTEST_RESIZE_RIGHT
+  //
+  // region can resize right window
+  //
+  // SDL_HITTEST_RESIZE_BOTTOMRIGHT
+  //
+  // region can resize bottom right window
+  //
+  // SDL_HITTEST_RESIZE_BOTTOM
+  //
+  // region can resize bottom window
+  //
+  // SDL_HITTEST_RESIZE_BOTTOMLEFT
+  //
+  // region can resize bottom left window
+  //
+  // SDL_HITTEST_RESIZE_LEFT
+  //
+  // region can resize left window
+  //
+
+enum class SwapChainState : u8
+{
+  Ok            = 0,
+  ExtentChanged = 1,        // the window's extent and surface (framebuffer)
+                            // extent has changed
+  Suboptimal =
+      2,        // the window swapchain can still be used for presentation but
+                // is not optimal for presentation in its present state
+  OutOfDate = 4,        // the window swapchain is now out of date and needs to
+                        // be changed
+  All = 7
+};
+
+STX_DEFINE_ENUM_BIT_OPS(SwapChainState)
+*/
+
+WindowSystemImpl window_system_impl;
+}        // namespace sdl
+
+WindowSystem *sdl_window_system = &sdl::window_system_impl;
 
 }        // namespace ash

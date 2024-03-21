@@ -3,9 +3,9 @@
 #include "ashura/renderer/scene.h"
 #include "ashura/renderer/shader.h"
 #include "ashura/renderer/view.h"
+#include "ashura/std/error.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
-#include "ashura/std/error.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -66,6 +66,7 @@ struct RenderContext
   Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
   Vec<Tuple<gfx::FrameId, gfx::ImageView>>   released_image_views  = {};
 
+  void                    init();
   gfx::CommandEncoderImpl encoder() const;
   u32                     ring_index() const;
   u32                     num_frames_in_flight() const;
