@@ -3,6 +3,7 @@
 #include "ashura/renderer/scene.h"
 #include "ashura/renderer/shader.h"
 #include "ashura/renderer/view.h"
+#include "ashura/std/dict.h"
 #include "ashura/std/error.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
@@ -60,20 +61,36 @@ struct RenderContext
   Vec<Tuple<gfx::FrameId, gfx::Framebuffer>> released_framebuffers = {};
   Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
   Vec<Tuple<gfx::FrameId, gfx::ImageView>>   released_image_views  = {};
+  // Dict shader_map;
 
   void init();
 
-  gfx::CommandEncoderImpl encoder() const;
+  gfx::CommandEncoderImpl encoder() const
+  {
+    return frame_info.command_encoders[ring_index()];
+  }
 
-  u32 ring_index() const;
+  u8 ring_index() const
+  {
+    return (u8) frame_info.current_command_encoder;
+  }
 
-  u32 num_frames_in_flight() const;
+  u8 max_frames_in_flight() const
+  {
+    return (u8) frame_info.command_encoders.size();
+  }
 
   template <typename T>
-  Uniform push_uniform(T const &uniform);
+  Uniform push_uniform(T const &uniform)
+  {
+    return uniform_heaps[ring_index()].push(uniform);
+  }
 
   template <typename T>
-  Uniform push_uniform_range(Span<T const> uniform);
+  Uniform push_uniform_range(Span<T const> uniform)
+  {
+    return uniform_heaps[ring_index()].push_range(uniform);
+  }
 
   Option<gfx::Shader> get_shader(Span<char const> name);
 
