@@ -79,8 +79,9 @@ struct WindowSystemImpl final : public WindowSystem
   {
     SDL_Window *window = SDL_CreateWindow(
         title, 1920, 1080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+    SDL_CHECK(window != nullptr);
     uid32 backend_id = SDL_GetWindowID(window);
-    CHECK(window != nullptr);
+    SDL_CHECK(backend_id != 0);
 
     CHECK(instance.interface->get_backend(instance.self) ==
           gfx::Backend::Vulkan);
