@@ -45,8 +45,8 @@ int main()
               to_span({surface}), default_allocator)
           .unwrap();
 
-  RenderContext render_ctx;
-  render_ctx.init();
+  Renderer renderer;
+  renderer.init();
   UniformHeap heap;
   heap.init(device);
   heap.push(32);

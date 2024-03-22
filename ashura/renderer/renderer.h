@@ -11,13 +11,13 @@
 namespace ash
 {
 
+// sky render pass
+// render 3d scene pass + custom shaders (pipeline + fragment + vertex shader)
+// perform bloom, blur, msaa on 3d scene
+// render UI pass + custom shaders, blur ???
+// copy and composite 3d and 2d scenes
 struct RenderPasses
 {
-  // sky render pass
-  // render 3d scene pass + custom shaders (pipeline + fragment + vertex shader)
-  // perform bloom, blur, msaa on 3d scene
-  // render UI pass + custom shaders, blur ???
-  // copy and composite 3d and 2d scenes
   BloomPass        bloom;
   BlurPass         blur;
   FXAAPass         fxaa;
@@ -34,6 +34,7 @@ struct Renderer
 
   void init()
   {
+    ctx.init();
     passes.bloom.init(ctx);
     passes.blur.init(ctx);
     passes.fxaa.init(ctx);

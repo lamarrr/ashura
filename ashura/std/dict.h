@@ -37,7 +37,7 @@ struct Dict
   using HasherType = Hasher;
   using KeyCmpType = KeyCmp;
 
-  void destroy()
+  void uninit()
   {
     this->~Dict();
   }

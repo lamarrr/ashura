@@ -51,6 +51,7 @@ struct RenderContext
 {
   gfx::DeviceImpl          device               = {};
   gfx::PipelineCache       pipeline_cache       = nullptr;
+  StrDict<gfx::Shader>     shader_map           = {};
   gfx::FrameContext        frame_context        = nullptr;
   gfx::FrameInfo           frame_info           = {};
   gfx::Format              color_format         = gfx::Format::Undefined;
@@ -61,7 +62,6 @@ struct RenderContext
   Vec<Tuple<gfx::FrameId, gfx::Framebuffer>> released_framebuffers = {};
   Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
   Vec<Tuple<gfx::FrameId, gfx::ImageView>>   released_image_views  = {};
-  // Dict shader_map;
 
   void init();
 
@@ -92,7 +92,15 @@ struct RenderContext
     return uniform_heaps[ring_index()].push_range(uniform);
   }
 
-  Option<gfx::Shader> get_shader(Span<char const> name);
+  Option<gfx::Shader> get_shader(Span<char const> name)
+  {
+    gfx::Shader *shader = shader_map[name];
+    if (shader == nullptr)
+    {
+      return None;
+    }
+    return Some{*shader};
+  }
 
   void release(gfx::Framebuffer framebuffer)
   {
