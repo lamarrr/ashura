@@ -3,6 +3,7 @@
 #include "ashura/renderer/render_context.h"
 #include "ashura/renderer/renderer.h"
 #include "ashura/renderer/shader.h"
+#include <thread>
 
 ash::Logger *panic_logger;
 
@@ -44,8 +45,8 @@ int main()
               to_span({surface}), default_allocator)
           .unwrap();
 
-  // RenderContext render_ctx;
-  // render_ctx.init();
+  RenderContext render_ctx;
+  render_ctx.init();
   UniformHeap heap;
   heap.init(device);
   heap.push(32);

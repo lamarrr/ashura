@@ -13,18 +13,18 @@ include(FetchContent)
 FetchContent_Declare(
   VulkanHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-  GIT_TAG v1.3.276)
+  GIT_TAG v1.3.280)
 
 FetchContent_Declare(
   VulkanUtilityLibraries
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
-  GIT_TAG v1.3.276)
+  GIT_TAG v1.3.280)
 
 FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG 94b1aca)
+  GIT_TAG 19b940e)
 
 FetchContent_Declare(
   SheenBidi

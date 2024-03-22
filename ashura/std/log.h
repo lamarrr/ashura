@@ -13,7 +13,7 @@
 namespace ash
 {
 
-enum class LogLevel : u8
+enum class LogLevels : u8
 {
   None    = 0x00,
   Debug   = 0x01,
@@ -24,12 +24,12 @@ enum class LogLevel : u8
   Fatal   = 0x20
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(LogLevel)
+ASH_DEFINE_ENUM_BIT_OPS(LogLevels)
 
 struct LogSink
 {
-  virtual void log(LogLevel level, Span<char const> log_message) = 0;
-  virtual void flush()                                           = 0;
+  virtual void log(LogLevels level, Span<char const> log_message) = 0;
+  virtual void flush()                                            = 0;
 };
 
 // to be flushed into trace format style, utc, time encoding, etc.
@@ -50,37 +50,37 @@ struct Logger
   template <typename... Args>
   bool debug(Args const &...args)
   {
-    return log(LogLevel::Debug, args...);
+    return log(LogLevels::Debug, args...);
   }
 
   template <typename... Args>
   bool trace(Args const &...args)
   {
-    return log(LogLevel::Trace, args...);
+    return log(LogLevels::Trace, args...);
   }
 
   template <typename... Args>
   bool info(Args const &...args)
   {
-    return log(LogLevel::Info, args...);
+    return log(LogLevels::Info, args...);
   }
 
   template <typename... Args>
   bool warn(Args const &...args)
   {
-    return log(LogLevel::Warning, args...);
+    return log(LogLevels::Warning, args...);
   }
 
   template <typename... Args>
   bool error(Args const &...args)
   {
-    return log(LogLevel::Error, args...);
+    return log(LogLevels::Error, args...);
   }
 
   template <typename... Args>
   bool fatal(Args const &...args)
   {
-    return log(LogLevel::Fatal, args...);
+    return log(LogLevels::Fatal, args...);
   }
 
   void flush()
@@ -93,7 +93,7 @@ struct Logger
   }
 
   template <typename... Args>
-  bool log(LogLevel level, Args const &...args)
+  bool log(LogLevels level, Args const &...args)
   {
     std::unique_lock lock{mutex};
     if (fmt::format(fmt_ctx, args..., "\n"))
@@ -158,9 +158,10 @@ inline Logger *create_logger(Span<LogSink *const> sinks,
                   .push =
                       {
                           .dispatcher =
-                      [](void *data, char const *buffer, usize size) {
-                        Logger     *logger        = (Logger *) data;
-                        usize const required_size = logger->buffer_size + size;
+                      [](void *data, Span<char const> buffer) {
+                        Logger     *logger = (Logger *) data;
+                        usize const required_size =
+                            logger->buffer_size + buffer.size_bytes();
                         if (required_size > logger->buffer_capacity)
                         {
                           char *buffer = logger->allocator.reallocate_typed(
@@ -173,15 +174,14 @@ inline Logger *create_logger(Span<LogSink *const> sinks,
                           logger->buffer          = buffer;
                           logger->buffer_capacity = required_size;
                         }
-                        mem::copy(buffer, logger->buffer + logger->buffer_size,
-                                          size);
-                        logger->buffer_size += size;
+                        mem::copy(buffer, logger->buffer + logger->buffer_size);
+                        logger->buffer_size += buffer.size_bytes();
                         return true;
                       },
                           .data = logger,
               },
-                  .scratch_buffer      = logger->scratch_buffer,
-                  .scratch_buffer_size = Logger::SCRATCH_BUFFER_SIZE}};
+                  .scratch_buffer =
+              Span{logger->scratch_buffer, Logger::SCRATCH_BUFFER_SIZE}}};
 
   return logger;
 };
@@ -190,6 +190,7 @@ inline void destroy_logger(Logger *logger)
 {
   logger->allocator.deallocate_typed(logger->sinks, logger->num_sinks);
   logger->allocator.deallocate_typed(logger->buffer, logger->buffer_capacity);
+  logger->~Logger();
   logger->allocator.deallocate_typed(logger, 1);
 }
 
@@ -197,7 +198,7 @@ struct StdioSink final : LogSink
 {
   std::mutex mutex;
 
-  void log(LogLevel level, Span<char const> log_message) override;
+  void log(LogLevels level, Span<char const> log_message) override;
   void flush() override;
 };
 
@@ -206,7 +207,7 @@ struct FileSink final : LogSink
   FILE      *file = nullptr;
   std::mutex mutex;
 
-  void log(LogLevel level, Span<char const> log_message) override;
+  void log(LogLevels level, Span<char const> log_message) override;
   void flush() override;
 };
 

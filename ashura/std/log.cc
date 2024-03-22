@@ -5,31 +5,31 @@
 namespace ash
 {
 
-char const *get_level_str(LogLevel level)
+char const *get_level_str(LogLevels level)
 {
   switch (level)
   {
-    case LogLevel::Debug:
+    case LogLevels::Debug:
       return "\x1b[94;20m"
              "DEBUG"
              "\x1b[0m";
-    case LogLevel::Trace:
+    case LogLevels::Trace:
       return "\x1b[35;20m"
              "TRACE"
              "\x1b[0m";
-    case LogLevel::Info:
+    case LogLevels::Info:
       return "\x1b[32;20m"
              "INFO"
              "\x1b[0m";
-    case LogLevel::Warning:
+    case LogLevels::Warning:
       return "\x1b[33;20m"
              "WARNING"
              "\x1b[0m";
-    case LogLevel::Error:
+    case LogLevels::Error:
       return "\x1b[31;20m"
              "ERROR"
              "\x1b[0m";
-    case LogLevel::Fatal:
+    case LogLevels::Fatal:
       return "\x1b[31;1m"
              "FATAL"
              "\x1b[0m";
@@ -38,21 +38,21 @@ char const *get_level_str(LogLevel level)
   }
 }
 
-void StdioSink::log(LogLevel level, Span<char const> log_message)
+void StdioSink::log(LogLevels level, Span<char const> log_message)
 {
   char const *level_str = get_level_str(level);
   FILE       *file      = stdout;
 
   switch (level)
   {
-    case LogLevel::Debug:
-    case LogLevel::Trace:
-    case LogLevel::Info:
-    case LogLevel::Warning:
+    case LogLevels::Debug:
+    case LogLevels::Trace:
+    case LogLevels::Info:
+    case LogLevels::Warning:
       file = stdout;
       break;
-    case LogLevel::Error:
-    case LogLevel::Fatal:
+    case LogLevels::Error:
+    case LogLevels::Fatal:
       file = stderr;
       break;
     default:
@@ -91,7 +91,7 @@ void StdioSink::flush()
   (void) fflush(stderr);
 }
 
-void FileSink::log(LogLevel level, Span<char const> log_message)
+void FileSink::log(LogLevels level, Span<char const> log_message)
 {
   char const          *level_str     = get_level_str(level);
   constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";

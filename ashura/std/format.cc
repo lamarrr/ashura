@@ -39,12 +39,12 @@ bool push_int(fmt::Context &ctx, fmt::Spec const &spec, IntT value)
     break;
   }
 
-  std::to_chars_result result =
-      std::to_chars(ctx.scratch_buffer,
-                    ctx.scratch_buffer + ctx.scratch_buffer_size, value, base);
+  std::to_chars_result result = std::to_chars(
+      ctx.scratch_buffer.begin(), ctx.scratch_buffer.end(), value, base);
   if (result.ec == std::errc{})
   {
-    return ctx.push(ctx.scratch_buffer, result.ptr - ctx.scratch_buffer);
+    return ctx.push(Span{ctx.scratch_buffer.begin(),
+                         (usize) (result.ptr - ctx.scratch_buffer.begin())});
   }
 
   return false;
@@ -70,31 +70,30 @@ bool push_float(fmt::Context &ctx, fmt::Spec const &spec, FloatT value)
   std::to_chars_result result{};
   if (spec.precision > 0)
   {
-    result = std::to_chars(ctx.scratch_buffer,
-                           ctx.scratch_buffer + ctx.scratch_buffer_size, value,
-                           format, spec.precision);
+    result = std::to_chars(ctx.scratch_buffer.begin(), ctx.scratch_buffer.end(),
+                           value, format, spec.precision);
   }
   else
   {
-    result = std::to_chars(ctx.scratch_buffer,
-                           ctx.scratch_buffer + ctx.scratch_buffer_size, value,
-                           format);
+    result = std::to_chars(ctx.scratch_buffer.begin(), ctx.scratch_buffer.end(),
+                           value, format);
   }
 
   if (result.ec == std::errc{})
   {
-    return ctx.push(ctx.scratch_buffer, result.ptr - ctx.scratch_buffer);
+    return ctx.push(Span{ctx.scratch_buffer.begin(),
+                         (usize) (result.ptr - ctx.scratch_buffer.begin())});
   }
   return false;
 }
 
-inline bool fmt::push(fmt::Context &ctx, fmt::Spec const &, bool value)
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &, bool value)
 {
   if (value)
   {
-    return ctx.push("true", 4);
+    return ctx.push("true"_span);
   }
-  return ctx.push("false", 5);
+  return ctx.push("false"_span);
 }
 
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, u8 value)
@@ -155,28 +154,28 @@ bool fmt::push(fmt::Context &, fmt::Spec &spec, fmt::Spec const &value)
 
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &, Span<char const> str)
 {
-  return ctx.push(str.data(), str.size());
+  return ctx.push(str);
 }
 
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &, std::string_view str)
 {
-  return ctx.push(str.data(), str.size());
+  return ctx.push(to_span(str));
 }
 
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &, std::string const &str)
 {
-  return ctx.push(str.data(), str.size());
+  return ctx.push(to_span(str));
 }
 
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &, char const *str)
 {
-  return ctx.push(str, strlen(str));
+  return ctx.push(Span{str, strlen(str)});
 }
 
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &, void const *ptr)
 {
   Spec const ptr_spec{.style = Style::Hex};
-  return ctx.push("0x", 2) && push_int(ctx, ptr_spec, (uintptr_t) ptr);
+  return ctx.push("0x"_span) && push_int(ctx, ptr_spec, (uintptr_t) ptr);
 }
 
 }        // namespace ash

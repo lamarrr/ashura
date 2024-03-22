@@ -311,22 +311,22 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
 {
   Instance *const instance = (Instance *) user_data;
 
-  LogLevel level = LogLevel::Trace;
+  LogLevels level = LogLevels::Trace;
   if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
   {
-    level = LogLevel::Debug;
+    level = LogLevels::Debug;
   }
   else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
   {
-    level = LogLevel::Warning;
+    level = LogLevels::Warning;
   }
   else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
   {
-    level = LogLevel::Info;
+    level = LogLevels::Info;
   }
   else
   {
-    level = LogLevel::Trace;
+    level = LogLevels::Trace;
   }
 
   instance->logger->log(

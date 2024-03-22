@@ -29,8 +29,9 @@ namespace sdl
 {
 struct WindowEventListener
 {
-  Fn<void(WindowEvent const &)> callback = {};
-  WindowEventTypes              types    = WindowEventTypes::None;
+  Fn<void(WindowEvent const &)> callback =
+      make_static_functor_fn([](WindowEvent const &) {});
+  WindowEventTypes types = WindowEventTypes::None;
 };
 
 struct Window
@@ -59,11 +60,12 @@ struct WindowSystemImpl final : public WindowSystem
 
   void init() override
   {
-    SDL_Init(SDL_INIT_EVERYTHING);
+    CHECK_SDL_ERRC(SDL_Init(SDL_INIT_EVERYTHING));
   }
 
   void uninit() override
   {
+    CHECK(false);
   }
 
   Span<char const *const> get_required_vulkan_instance_extensions() override
@@ -532,186 +534,27 @@ struct WindowSystemImpl final : public WindowSystem
 };
 
 /*
- void recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue,
-                          u32 max_nframes_in_flight)
-  {
-    // if cause of change in swapchain is a change in extent, then mark
-    // layout as dirty, otherwise maintain pipeline state
-    int width, height;
-    ASH_SDL_CHECK(SDL_GetWindowSize(window, &width, &height) == 0);
-
-    int surface_width, surface_height;
-    ASH_SDL_CHECK(SDL_GetWindowSizeInPixels(window, &surface_width,
-                                            &surface_height) == 0);
-
-    VkSurfaceFormatKHR preferred_formats[] = {
-        {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
-        {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
-        {VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}};
-
-    // VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-    // VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT;
-    // VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT;
-    // VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT;
-    // VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT;
-    // VK_COLOR_SPACE_HDR10_ST2084_EXT;
-    // VK_COLOR_SPACE_HDR10_HLG_EXT;
-    // VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT;
-    // VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT;
-    // VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT;
-    // VK_COLOR_SPACE_DCI_P3_LINEAR_EXT;
-
-    VkPresentModeKHR preferred_present_modes[] = {
-        VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR,
-        VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_MAILBOX_KHR};
-
-    VkSampleCountFlagBits max_msaa_sample_count =
-        queue->device->phy_dev->get_max_sample_count();
-
-    surface.value()->change_swapchain(
-        queue, max_nframes_in_flight, preferred_formats,
-        preferred_present_modes,
-        VkExtent2D{.width  = static_cast<u32>(surface_width),
-                   .height = static_cast<u32>(surface_height)},
-        VkExtent2D{.width  = static_cast<u32>(width),
-                   .height = static_cast<u32>(height)},
-        max_msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
-  }
-
-  std::pair<SwapChainState, u32> acquire_image()
-  {
-    ASH_CHECK(surface.is_some(),
-              "trying to present to swapchain without having surface attached");
-    ASH_CHECK(surface.value()->swapchain.is_some(),
-              "trying to present to swapchain without having one");
-
-    vk::SwapChain &swapchain = surface.value()->swapchain.value();
-
-    VkSemaphore semaphore =
-        swapchain.image_acquisition_semaphores[swapchain.frame];
-
-    VkFence fence = VK_NULL_HANDLE;
-
-    u32 swapchain_image_index = 0;
-
-    VkResult result = vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain,
-                                            VULKAN_TIMEOUT, semaphore, fence,
-                                            &swapchain_image_index);
-
-    ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
-                  result == VK_ERROR_OUT_OF_DATE_KHR,
-              "failed to acquire swapchain image");
-
-    if (result == VK_SUBOPTIMAL_KHR)
-    {
-      return std::make_pair(SwapChainState::Suboptimal, swapchain_image_index);
-    }
-    else if (result == VK_ERROR_OUT_OF_DATE_KHR)
-    {
-      return std::make_pair(SwapChainState::OutOfDate, swapchain_image_index);
-    }
-    else if (result == VK_SUCCESS)
-    {
-      return std::make_pair(SwapChainState::Ok, swapchain_image_index);
-    }
-    else
-    {
-      ASH_PANIC("failed to acquire swapchain image", result);
-    }
-  }
-
-  SwapChainState present(VkQueue queue, u32 swapchain_image_index)
-  {
-    ASH_CHECK(surface.is_some(),
-              "trying to present to swapchain without having surface attached");
-    ASH_CHECK(surface.value()->swapchain.is_some(),
-              "trying to present to swapchain without having one");
-
-    // we submit multiple render commands (operating on the swapchain images) to
-    // the GPU to prevent having to force a sync with the GPU (await_fence) when
-    // it could be doing useful work.
-    vk::SwapChain &swapchain = surface.value()->swapchain.value();
-
-    // we don't need to wait on presentation
-    //
-    // if v-sync is enabled (VK_PRESENT_MODE_FIFO_KHR) the GPU driver *can*
-    // delay the process so we don't submit more frames than the display's
-    // refresh rate can keep up with and we thus save power.
-    //
-    VkPresentInfoKHR present_info{
-        .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .pNext              = nullptr,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores    = &swapchain.render_semaphores[swapchain.frame],
-        .swapchainCount     = 1,
-        .pSwapchains        = &swapchain.swapchain,
-        .pImageIndices      = &swapchain_image_index,
-        .pResults           = nullptr};
-
-    VkResult result = vkQueuePresentKHR(queue, &present_info);
-
-    ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
-                  result == VK_ERROR_OUT_OF_DATE_KHR,
-              "failed to present swapchain image");
-
-    if (result == VK_SUBOPTIMAL_KHR)
-    {
-      return SwapChainState::Suboptimal;
-    }
-    else if (result == VK_ERROR_OUT_OF_DATE_KHR)
-    {
-      return SwapChainState::OutOfDate;
-    }
-    else if (result == VK_SUCCESS)
-    {
-      return SwapChainState::Ok;
-    }
-    else
-    {
-      ASH_PANIC("failed to present swapchain image", result);
-    }
-  }
-
   // void enable_hit_testing();
   //
   // SDL_HITTEST_NORMAL
-  //
   // region is normal and has no special properties
-  //
   // SDL_HITTEST_DRAGGABLE
-  //
   // region can drag entire window
-  //
   // SDL_HITTEST_RESIZE_TOPLEFT
-  //
   // region can resize top left window
-  //
   // SDL_HITTEST_RESIZE_TOP
-  //
   // region can resize top window
-  //
   // SDL_HITTEST_RESIZE_TOPRIGHT
-  //
   // region can resize top right window
-  //
   // SDL_HITTEST_RESIZE_RIGHT
-  //
   // region can resize right window
-  //
   // SDL_HITTEST_RESIZE_BOTTOMRIGHT
-  //
   // region can resize bottom right window
-  //
   // SDL_HITTEST_RESIZE_BOTTOM
-  //
   // region can resize bottom window
-  //
   // SDL_HITTEST_RESIZE_BOTTOMLEFT
-  //
   // region can resize bottom left window
-  //
   // SDL_HITTEST_RESIZE_LEFT
-  //
   // region can resize left window
   //
 
@@ -728,7 +571,6 @@ enum class SwapChainState : u8
   All = 7
 };
 
-STX_DEFINE_ENUM_BIT_OPS(SwapChainState)
 */
 
 WindowSystemImpl window_system_impl;

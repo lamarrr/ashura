@@ -28,16 +28,16 @@ struct Spec
 /// @sratch_buffer: recommended size of 256 bytes
 struct Context
 {
-  Fn<bool(char const *buffer, usize size)> push;
-  char                                    *scratch_buffer      = nullptr;
-  usize                                    scratch_buffer_size = 0;
+  Fn<bool(Span<char const>)> push =
+      make_static_functor_fn([](Span<char const>) { return true; });
+  Span<char> scratch_buffer = {};
 };
 
 template <typename T>
 bool push(Context &ctx, Spec const &, T const &value)
 {
   (void) value;
-  return ctx.push("{?}", 3);
+  return ctx.push("{?}"_span);
 }
 
 bool push(Context &ctx, Spec const &, bool value);

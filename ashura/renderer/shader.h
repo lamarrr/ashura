@@ -622,7 +622,16 @@ struct UniformHeap
             .unwrap();
   }
 
-  void deinit();
+  void uninit()
+  {
+    for (UniformHeapBatch const &batch : batches_)
+    {
+      device_->unref_buffer(device_.self, batch.buffer);
+    }
+    device_->unref_descriptor_set_layout(device_.self, descriptor_set_layout_);
+    device_->unref_descriptor_heap(device_.self, descriptor_heap_);
+    batches_.reset();
+  }
 
   template <typename UniformType>
   Uniform push(UniformType const &uniform)
@@ -708,7 +717,7 @@ struct UniformHeap
                    .buffer_offset = buffer_offset};
   }
 
-  void clear()
+  void reset()
   {
     batch_               = 0;
     batch_buffer_offset_ = 0;
