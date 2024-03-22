@@ -103,6 +103,11 @@ struct WindowSystemImpl final : public WindowSystem
     return Some{out_id};
   }
 
+  void destroy_window(uid32 window) override
+  {
+    CHECK(false);
+  }
+
   void set_title(uid32 window, char const *title) override
   {
     CHECK_SDL_ERRC(SDL_SetWindowTitle(hnd(window), title));

@@ -54,18 +54,6 @@ struct Spline final : public Curve
 {
 };
 
-template <typename T>
-struct Tween
-{
-  T a;
-  T b;
-
-  constexpr T lerp(f32 t) const
-  {
-    return ash::lerp(a, b, t);
-  }
-};
-
 enum class AnimationState : u8
 {
   Paused,

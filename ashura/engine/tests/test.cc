@@ -2,6 +2,7 @@
 #include "ashura/gfx/vulkan.h"
 #include "ashura/renderer/render_context.h"
 #include "ashura/renderer/renderer.h"
+#include "ashura/renderer/shader.h"
 
 ash::Logger *panic_logger;
 
@@ -19,14 +20,19 @@ int main()
   win_sys->maximize(win);
   win_sys->set_title(win, "Harro");
   auto cb = [&](WindowEvent const &e) {
-    if(e.type == WindowEventTypes::Key){
-    printf("pressed key: %d\n ", (int) e.key.key);
-    } else {
-      // printf("mouse motion: %f, %f\n", e.mouse_motion.position.x, e.mouse_motion.position.y);
+    if (e.type == WindowEventTypes::Key)
+    {
+      printf("pressed key: %d\n ", (int) e.key.key);
+    }
+    else
+    {
+      // printf("mouse motion: %f, %f\n", e.mouse_motion.position.x,
+      // e.mouse_motion.position.y);
     }
   };
-  u32 listener =
-      win_sys->listen(win, WindowEventTypes::Key|WindowEventTypes::MouseMotion, make_functor_fn(cb));
+  u32 listener = win_sys->listen(
+      win, WindowEventTypes::Key | WindowEventTypes::MouseMotion,
+      make_functor_fn(cb));
   // win_sys->unlisten(win, listener);
   gfx::Surface surface = win_sys->get_surface(win);
 
@@ -40,6 +46,9 @@ int main()
 
   // RenderContext render_ctx;
   // render_ctx.init();
+  UniformHeap heap;
+  heap.init(device);
+  heap.push(32);
 
   while (true)
   {
