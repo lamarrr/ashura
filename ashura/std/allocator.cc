@@ -150,11 +150,4 @@ void HeapInterface::deallocate(Allocator self, usize alignment, void *memory,
 #endif
 }
 
-void HeapInterface::release(Allocator self)
-{
-  (void) self;
-  (void) fprintf(stderr,
-                 "called invalid method release() on default heap allocator\n");
-}
-
 }        // namespace ash

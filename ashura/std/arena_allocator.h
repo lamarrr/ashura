@@ -22,14 +22,12 @@ struct ArenaInterface
                           usize old_size, usize new_size);
   static void  deallocate(Allocator self, usize alignment, void *memory,
                           usize size);
-  static void  release(Allocator self);
 };
 
 static AllocatorInterface const arena_interface{
     .allocate        = ArenaInterface::allocate,
     .allocate_zeroed = ArenaInterface::allocate_zeroed,
     .reallocate      = ArenaInterface::reallocate,
-    .deallocate      = ArenaInterface::deallocate,
-    .release         = ArenaInterface::release};
+    .deallocate      = ArenaInterface::deallocate};
 
 }        // namespace ash

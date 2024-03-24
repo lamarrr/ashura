@@ -3,8 +3,8 @@
 #include "ashura/renderer/scene.h"
 #include "ashura/renderer/shader.h"
 #include "ashura/renderer/view.h"
-#include "ashura/std/dict.h"
 #include "ashura/std/error.h"
+#include "ashura/std/hash_map.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
@@ -51,7 +51,7 @@ struct RenderContext
 {
   gfx::DeviceImpl          device               = {};
   gfx::PipelineCache       pipeline_cache       = nullptr;
-  StrDict<gfx::Shader>     shader_map           = {};
+  StrHashMap<gfx::Shader>  shader_map           = {};
   gfx::FrameContext        frame_context        = nullptr;
   gfx::FrameInfo           frame_info           = {};
   gfx::Format              color_format         = gfx::Format::Undefined;

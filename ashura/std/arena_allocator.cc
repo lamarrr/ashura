@@ -6,10 +6,10 @@ namespace ash
 
 void *ArenaInterface::allocate(Allocator self_, usize alignment, usize size)
 {
-  Arena *const self  = (Arena *) self_;
-  usize        skip  = (uintptr_t) self->offset & (alignment - 1);
-  void        *alloc = (char *) self->offset + skip;
-  void        *end   = (char *) alloc + size;
+  Arena *self  = (Arena *) self_;
+  usize  skip  = (uintptr_t) self->offset & (alignment - 1);
+  void  *alloc = (char *) self->offset + skip;
+  void  *end   = (char *) alloc + size;
   if (end > self->end)
   {
     return nullptr;
@@ -18,10 +18,11 @@ void *ArenaInterface::allocate(Allocator self_, usize alignment, usize size)
   return alloc;
 }
 
-void *ArenaInterface::allocate_zeroed(Allocator self, usize alignment,
+void *ArenaInterface::allocate_zeroed(Allocator self_, usize alignment,
                                       usize size)
 {
-  void *alloc = ArenaInterface::allocate(self, alignment, size);
+  Arena *self  = (Arena *) self_;
+  void  *alloc = ArenaInterface::allocate(self_, alignment, size);
   if (alloc != nullptr)
   {
     memset(alloc, 0, size);
@@ -71,13 +72,6 @@ void *ArenaInterface::reallocate(Allocator self_, usize alignment, void *memory,
 
 void ArenaInterface::deallocate(Allocator, usize, void *, usize)
 {
-  // no-op
-}
-
-void ArenaInterface::release(Allocator self_)
-{
-  Arena *const self = (Arena *) self_;
-  self->offset      = self->begin;
 }
 
 }        // namespace ash

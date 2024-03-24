@@ -89,8 +89,8 @@ target_link_libraries(ashura_std PRIVATE xxHash::xxhash)
 add_executable(
   ashura_std_tests
   ashura/std/tests/tests.cc ashura/std/tests/option.cc
-  ashura/std/tests/result.cc ashura/std/tests/bit_span.cc
-  ashura/std/tests/sparse_set.cc)
+  ashura/std/tests/hash_map.cc ashura/std/tests/result.cc
+  ashura/std/tests/bit_span.cc ashura/std/tests/sparse_set.cc)
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
                       GTest::gtest_main)
 

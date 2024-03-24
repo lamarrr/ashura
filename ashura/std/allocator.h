@@ -37,7 +37,6 @@ struct AllocatorInterface
                       usize old_size, usize new_size)            = nullptr;
   void (*deallocate)(Allocator self, usize alignment, void *memory,
                      usize size)                                 = nullptr;
-  void (*release)(Allocator self)                                = nullptr;
 };
 
 struct AllocatorImpl
@@ -92,11 +91,6 @@ struct AllocatorImpl
   {
     interface->deallocate(self, alignof(T), memory, sizeof(T) * num);
   }
-
-  constexpr void release() const
-  {
-    interface->release(self);
-  }
 };
 
 struct Heap
@@ -113,15 +107,13 @@ struct HeapInterface
                           usize old_size, usize new_size);
   static void  deallocate(Allocator self, usize alignment, void *memory,
                           usize size);
-  static void  release(Allocator self);
 };
 
 static AllocatorInterface heap_interface{
     .allocate        = HeapInterface::allocate,
     .allocate_zeroed = HeapInterface::allocate_zeroed,
     .reallocate      = HeapInterface::reallocate,
-    .deallocate      = HeapInterface::deallocate,
-    .release         = HeapInterface::release};
+    .deallocate      = HeapInterface::deallocate};
 
 /// guarantees at least MAX_STANDARD_ALIGNMENT alignment.
 static AllocatorImpl const heap_allocator{

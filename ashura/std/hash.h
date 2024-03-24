@@ -12,6 +12,6 @@ constexpr Hash hash_combine(Hash hash_a, Hash hash_b)
   return hash_a;
 }
 
-Hash hash_bytes(void const *data, usize size);
+Hash hash_bytes(Span<u8 const> bytes);
 
 }        // namespace ash

@@ -4,9 +4,9 @@
 namespace ash
 {
 
-Hash hash_bytes(void const *data, usize size)
+Hash hash_bytes(Span<u8 const> bytes)
 {
-  return XXH3_64bits(data, size);
+  return XXH3_64bits(bytes.data(), bytes.size());
 }
 
 }        // namespace ash
