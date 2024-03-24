@@ -4,6 +4,7 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/op.h"
 #include "ashura/std/types.h"
+#include "ashura/std/error.h"
 #include <string.h>
 
 namespace ash
@@ -85,7 +86,7 @@ struct HashMap
     {
       return nullptr;
     }
-    Hash const hash           = hasher(key);
+    Hash const hash           = hasher_(key);
     usize      probe_index    = hash % num_probes_;
     usize      probe_distance = 0;
     while (probe_distance <= max_probe_distance_)
@@ -95,7 +96,7 @@ struct HashMap
       {
         break;
       }
-      if (cmp(probe->entry.key, key))
+      if (cmp_(probe->entry.key, key))
       {
         return &probe->entry.value;
       }
@@ -128,7 +129,7 @@ struct HashMap
       {
         EntryType entry{(EntryType &&) probe.entry};
         probe.entry.~EntryType();
-        Hash  hash           = hasher(entry.key);
+        Hash  hash           = hasher_(entry.key);
         usize probe_index    = hash % num_probes_;
         usize probe_distance = 0;
         while (true)
@@ -196,7 +197,7 @@ struct HashMap
       }
     }
 
-    Hash const hash           = hasher(key_arg);
+    Hash const hash           = hasher_(key_arg);
     usize      probe_index    = hash % num_probes_;
     usize      insert_index   = PROBE_SENTINEL;
     usize      probe_distance = 0;
@@ -216,7 +217,7 @@ struct HashMap
       }
       if (insert_index == PROBE_SENTINEL &&
           probe_distance <= max_probe_distance_ &&
-          cmp(entry.key, probe->entry.key))
+          cmp_(entry.key, probe->entry.key))
       {
         exists       = true;
         insert_index = probe_index;
@@ -246,11 +247,12 @@ struct HashMap
 
   constexpr bool erase(K const &key)
   {
+    CHECK(false);
     if (num_probes_ == 0 || num_entries_ == 0)
     {
       return false;
     }
-    Hash const hash           = hasher(key);
+    Hash const hash           = hasher_(key);
     usize      probe_index    = hash % num_probes_;
     usize      probe_distance = 0;
 
@@ -261,42 +263,41 @@ struct HashMap
       {
         return false;
       }
-      if (cmp(probe->entry.key, key))
+      if (cmp_(probe->entry.key, key))
       {
-        ProbeType *shift_dst_it  = probe;
-        ProbeType *shift_src_it  = probe + 1;
-        ProbeType *shift_src_end = shift_src_it;
-        while (shift_src_end < probes_ + num_probes_)
+        // TODO(lamarrr): need to wrap around???? and use indices instead
+        ProbeType *shift_dst_it    = probe;
+        ProbeType *shift_src_begin = probe + 1;
+        ProbeType *shift_src_end   = shift_src_begin;
+        while (shift_src_end < probes_ + num_probes_ &&
+               shift_src_end->distance != 0 &&
+               shift_src_end->distance != PROBE_SENTINEL)
         {
-          if (shift_src_end->distance == 0 ||
-              shift_src_end->distance == PROBE_SENTINEL)
-          {
-            break;
-          }
-          else
-          {
-            shift_src_end->distance--;
-          }
           shift_src_end++;
         }
 
-        while (shift_src_it != shift_src_end)
+        shift_dst_it->entry.~EntryType();
+        shift_dst_it->distance = PROBE_SENTINEL;
+
+        for (ProbeType *shift_src_it = shift_src_begin;
+             shift_src_it < shift_src_end; shift_src_it++, shift_dst_it++)
         {
-          shift_src_it++;
-          shift_dst_it++;
+          new (&shift_dst_it->entry)
+              EntryType{(EntryType &&) shift_src_it->entry};
+          shift_dst_it->distance = shift_src_it->distance - 1;
         }
-        // destroy last element
+
+        num_entries_--;
         return true;
       }
       probe_index = (probe_index + 1) % num_probes_;
       probe_distance++;
     }
-
     return false;
   }
 
-  Hasher        hasher{};
-  KeyCmp        cmp{};
+  Hasher        hasher_{};
+  KeyCmp        cmp_{};
   AllocatorImpl allocator_          = default_allocator;
   ProbeType    *probes_             = nullptr;
   usize         num_probes_         = 0;

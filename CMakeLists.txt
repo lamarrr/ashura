@@ -105,6 +105,7 @@ add_library(
   ashura/renderer/scene.cc
   ashura/renderer/view.cc
   ashura/renderer/renderer.cc
+  ashura/renderer/render_context.cc
   ashura/renderer/shader.cc
   ashura/renderer/passes/bloom.cc
   ashura/renderer/passes/blur.cc
