@@ -3,7 +3,7 @@
 #include "ashura/std/error.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/option.h"
-#include "ashura/std/panic.h"
+#include "ashura/std/log.h"
 #include "ashura/std/range.h"
 #include "ashura/std/result.h"
 #include "ashura/std/source_location.h"
@@ -399,9 +399,10 @@ struct ShaderParameterHeap
   void init(gfx::DeviceImpl device, u32 batch_size)
   {
     constexpr Array descs = Param::GET_BINDINGS_DESC();
+    device_               = device;
     layout_               = device
                   ->create_descriptor_set_layout(
-                      device_.self,
+                      device.self,
                       gfx::DescriptorSetLayoutDesc{.label    = Param::NAME,
                                                    .bindings = to_span(descs)})
                   .unwrap();
@@ -409,7 +410,6 @@ struct ShaderParameterHeap
                 ->create_descriptor_heap(device_.self, {&layout_, 1},
                                          batch_size, default_allocator)
                 .unwrap();
-    device_ = device;
   }
 
   void deinit()

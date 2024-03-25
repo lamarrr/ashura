@@ -5,17 +5,17 @@
 #include "ashura/renderer/shader.h"
 #include <thread>
 
-ash::Logger *panic_logger;
+ash::Logger *default_logger;
 
 int main()
 {
   using namespace ash;
   StdioSink sink;
-  panic_logger = create_logger(to_span<LogSink *>({&sink}), heap_allocator);
+  default_logger = create_logger(to_span<LogSink *>({&sink}), heap_allocator);
   WindowSystem *win_sys = sdl_window_system;
   win_sys->init();
   gfx::InstanceImpl instance =
-      vk::instance_interface.create(heap_allocator, panic_logger, true)
+      vk::instance_interface.create(heap_allocator, default_logger, true)
           .unwrap();
   u32 win = win_sys->create_window(instance, "Main").unwrap();
   win_sys->maximize(win);
@@ -46,11 +46,12 @@ int main()
           .unwrap();
 
   Renderer renderer;
-  renderer.init();
-  UniformHeap heap;
-  heap.init(device);
-  heap.push(32);
+  default_logger->info("initing renderer");
+  default_logger->flush();
+  renderer.init(device, nullptr, {}, {});
 
+  default_logger->info("Polling");
+  default_logger->flush();
   while (true)
   {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));

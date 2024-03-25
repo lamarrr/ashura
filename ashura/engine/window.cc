@@ -12,7 +12,7 @@ namespace ash
 #define SDL_CHECK_EX(description, ...)                                      \
   if (!(__VA_ARGS__))                                                       \
   {                                                                         \
-    (panic_logger)                                                          \
+    (default_logger)                                                          \
         ->panic(description, ", SDL Error: ", SDL_GetError(),               \
                 " (expression: " #__VA_ARGS__,                              \
                 ") [function: ", ::ash::SourceLocation::current().function, \

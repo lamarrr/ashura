@@ -212,3 +212,5 @@ struct FileSink final : LogSink
 };
 
 }        // namespace ash
+
+extern ash::Logger *default_logger;

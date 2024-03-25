@@ -102,17 +102,26 @@ struct RenderContext
 
   void release(gfx::Framebuffer framebuffer)
   {
-    CHECK(released_framebuffers.push(frame_info.current, framebuffer));
+    if (framebuffer != nullptr)
+    {
+      CHECK(released_framebuffers.push(frame_info.current, framebuffer));
+    }
   }
 
   void release(gfx::Image image)
   {
-    CHECK(released_images.push(frame_info.current, image));
+    if (image != nullptr)
+    {
+      CHECK(released_images.push(frame_info.current, image));
+    }
   }
 
   void release(gfx::ImageView view)
   {
-    CHECK(released_image_views.push(frame_info.current, view));
+    if (view != nullptr)
+    {
+      CHECK(released_image_views.push(frame_info.current, view));
+    }
   }
 };
 
