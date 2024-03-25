@@ -33,7 +33,7 @@ int main()
   };
   u32 listener = win_sys->listen(
       win, WindowEventTypes::Key | WindowEventTypes::MouseMotion,
-      make_functor_fn(cb));
+      to_fn_ref(cb));
   // win_sys->unlisten(win, listener);
   gfx::Surface surface = win_sys->get_surface(win);
 

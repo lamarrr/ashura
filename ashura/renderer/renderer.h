@@ -32,9 +32,27 @@ struct Renderer
   RenderPasses  passes;
   RenderContext ctx;
 
-  void init()
+  void init(gfx::DeviceImpl device, gfx::PipelineCache pipeline_cache,
+            StrHashMap<gfx::Shader> shader_map, u32 max_frames_in_flight = 2)
   {
-    ctx.init();
+    ctx.device         = device;
+    ctx.shader_map     = shader_map;
+    ctx.pipeline_cache = pipeline_cache;
+    // select formats
+    // init uniform heaps vec
+    // init uniform layout
+    // init frame_info
+    // init frame context
+    // init scratch attachments
+    //
+    // provided we might not want the renderer to be display-dependent, we have
+    // to ensure the color and depth stencil scratch images are always large
+    // enough
+    init_passes();
+  }
+
+  void init_passes()
+  {
     passes.bloom.init(ctx);
     passes.blur.init(ctx);
     passes.fxaa.init(ctx);

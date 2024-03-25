@@ -91,4 +91,8 @@ TEST(SparseSetTest, Start)
   ASSERT_EQ(set.size(), 0);
   ASSERT_EQ(bool_attr.size(), set.size());
   ASSERT_EQ(bool_attr.size(), int_attr.size());
+
+  f.reset();
+  bv.reset();
+  set.reset(bool_attr, int_attr);
 }

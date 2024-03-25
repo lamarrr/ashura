@@ -21,4 +21,6 @@ TEST(HashMapTest, Insertion)
   EXPECT_FALSE(map.has("A"_span));
   EXPECT_TRUE(map.erase("B"_span));
   EXPECT_FALSE(map.has("B"_span));
+
+  map.reset();
 }

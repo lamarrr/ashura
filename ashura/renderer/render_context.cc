@@ -3,8 +3,4 @@
 namespace ash
 {
 
-void RenderContext::init()
-{
-}
-
 }        // namespace ash

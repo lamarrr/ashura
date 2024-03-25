@@ -63,14 +63,12 @@ struct RenderContext
   Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
   Vec<Tuple<gfx::FrameId, gfx::ImageView>>   released_image_views  = {};
 
-  void init();
-
   gfx::CommandEncoderImpl encoder() const
   {
-    return frame_info.command_encoders[ring_index()];
+    return frame_info.command_encoders[flight_index()];
   }
 
-  u8 ring_index() const
+  u8 flight_index() const
   {
     return (u8) frame_info.current_command_encoder;
   }
@@ -83,13 +81,13 @@ struct RenderContext
   template <typename T>
   Uniform push_uniform(T const &uniform)
   {
-    return uniform_heaps[ring_index()].push(uniform);
+    return uniform_heaps[flight_index()].push(uniform);
   }
 
   template <typename T>
   Uniform push_uniform_range(Span<T const> uniform)
   {
-    return uniform_heaps[ring_index()].push_range(uniform);
+    return uniform_heaps[flight_index()].push_range(uniform);
   }
 
   Option<gfx::Shader> get_shader(Span<char const> name)

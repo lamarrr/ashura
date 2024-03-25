@@ -102,21 +102,9 @@ struct FunctorFnTraits : public MemberFnTraits<decltype(&Type::operator())>
 {
 };
 
-// make a function view from a functor reference. Functor should outlive the Fn
-template <typename Functor>
-auto make_functor_fn(Functor &functor)
-{
-  using traits     = FunctorFnTraits<Functor>;
-  using fn         = typename traits::fn;
-  using dispatcher = typename traits::dispatcher;
-
-  return fn{&dispatcher::dispatch,
-            const_cast<void *>(reinterpret_cast<void const *>(&functor))};
-}
-
 // make a function view from a raw function pointer.
 template <typename RawFunctionType>
-auto make_fn(RawFunctionType *function_pointer)
+auto to_fn(RawFunctionType *function_pointer)
 {
   using traits     = RawFnTraits<RawFunctionType>;
   using fn         = typename traits::fn;
@@ -125,16 +113,29 @@ auto make_fn(RawFunctionType *function_pointer)
   return fn{&dispatcher::dispatch, reinterpret_cast<void *>(function_pointer)};
 }
 
-// make a function view from a data-less functor (i.e. lambda's without data)
+/// make a function view from a non-capturing functor (i.e. lambda's without
+/// associated data)
 template <typename StaticFunctor>
-auto make_static_functor_fn(StaticFunctor functor)
+auto to_fn(StaticFunctor functor)
 {
   using traits = FunctorFnTraits<StaticFunctor>;
   using ptr    = typename traits::ptr;
 
   ptr function_pointer = static_cast<ptr>(functor);
 
-  return make_fn(function_pointer);
+  return to_fn(function_pointer);
+}
+
+/// make a function view from a functor reference. Functor should outlive the Fn
+template <typename Functor>
+auto to_fn_ref(Functor &functor)
+{
+  using traits     = FunctorFnTraits<Functor>;
+  using fn         = typename traits::fn;
+  using dispatcher = typename traits::dispatcher;
+
+  return fn{&dispatcher::dispatch,
+            const_cast<void *>(reinterpret_cast<void const *>(&functor))};
 }
 
 }        // namespace ash

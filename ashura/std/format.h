@@ -29,7 +29,7 @@ struct Spec
 struct Context
 {
   Fn<bool(Span<char const>)> push =
-      make_static_functor_fn([](Span<char const>) { return true; });
+      to_fn([](Span<char const>) { return true; });
   Span<char> scratch_buffer = {};
 };
 
