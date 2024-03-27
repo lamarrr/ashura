@@ -1,0 +1,1 @@
+#include "ashura/renderer/view.h"

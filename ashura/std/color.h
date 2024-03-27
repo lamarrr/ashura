@@ -1,0 +1,387 @@
+
+#pragma once
+#include "ashura/std/types.h"
+
+namespace ash
+{
+
+typedef Vec4 Color;
+
+namespace colors
+{
+constexpr Color WHITE   = Vec4{0xFF, 0xFF, 0xFF, 0xFF} / 255;
+constexpr Color BLACK   = Vec4{0x00, 0x00, 0x00, 0xFF} / 255;
+constexpr Color RED     = Vec4{0xFF, 0x00, 0x00, 0xFF} / 255;
+constexpr Color BLUE    = Vec4{0x00, 0x00, 0xFF, 0xFF} / 255;
+constexpr Color GREEN   = Vec4{0x00, 0xFF, 0x00, 0xFF} / 255;
+constexpr Color CYAN    = Vec4{0x00, 0xFF, 0xFF, 0xFF} / 255;
+constexpr Color MAGENTA = Vec4{0xFF, 0x00, 0xFF, 0xFF} / 255;
+constexpr Color YELLOW  = Vec4{0xFF, 0xFF, 0x00, 0xFF} / 255;
+}        // namespace colors
+
+// ios default system colors
+namespace ios
+{
+constexpr Color LIGHT_BLUE   = Vec4{0, 122, 0xFF, 0xFF} / 255;
+constexpr Color DARK_BLUE    = Vec4{10, 132, 0xFF, 0xFF} / 255;
+constexpr Color LIGHT_BROWN  = Vec4{162, 132, 94, 0xFF} / 255;
+constexpr Color DARK_BROWN   = Vec4{172, 142, 104, 0xFF} / 255;
+constexpr Color LIGHT_CYAN   = Vec4{50, 173, 230, 0xFF} / 255;
+constexpr Color DARK_CYAN    = Vec4{100, 210, 0xFF, 0xFF} / 255;
+constexpr Color LIGHT_GREEN  = Vec4{52, 199, 89, 0xFF} / 255;
+constexpr Color DARK_GREEN   = Vec4{48, 209, 88, 0xFF} / 255;
+constexpr Color LIGHT_INDIGO = Vec4{88, 86, 214, 0xFF} / 255;
+constexpr Color DARK_INDIGO  = Vec4{94, 92, 230, 0xFF} / 255;
+constexpr Color LIGHT_MINT   = Vec4{0, 199, 190, 0xFF} / 255;
+constexpr Color DARK_MINT    = Vec4{102, 212, 207, 0xFF} / 255;
+constexpr Color LIGHT_ORANGE = Vec4{255, 149, 0, 0xFF} / 255;
+constexpr Color DARK_ORANGE  = Vec4{255, 159, 10, 0xFF} / 255;
+constexpr Color LIGHT_PINK   = Vec4{255, 45, 85, 0xFF} / 255;
+constexpr Color DARK_PINK    = Vec4{255, 55, 95, 0xFF} / 255;
+constexpr Color LIGHT_PURPLE = Vec4{175, 82, 222, 0xFF} / 255;
+constexpr Color DARK_PURPLE  = Vec4{191, 90, 242, 0xFF} / 255;
+constexpr Color LIGHT_RED    = Vec4{255, 59, 48, 0xFF} / 255;
+constexpr Color DARK_RED     = Vec4{255, 69, 58, 0xFF} / 255;
+constexpr Color LIGHT_TEAL   = Vec4{48, 176, 199, 0xFF} / 255;
+constexpr Color DARK_TEAL    = Vec4{64, 200, 224, 0xFF} / 255;
+constexpr Color LIGHT_YELLOW = Vec4{255, 204, 0, 0xFF} / 255;
+constexpr Color DARK_YELLOW  = Vec4{255, 214, 10, 0xFF} / 255;
+
+constexpr Color LIGHT_GRAY   = Vec4{142, 142, 147, 0xFF} / 255;
+constexpr Color DARK_GRAY    = Vec4{142, 142, 147, 0xFF} / 255;
+constexpr Color LIGHT_GRAY_2 = Vec4{174, 174, 178, 0xFF} / 255;
+constexpr Color DARK_GRAY_2  = Vec4{99, 99, 102, 0xFF} / 255;
+constexpr Color LIGHT_GRAY_3 = Vec4{199, 199, 204, 0xFF} / 255;
+constexpr Color DARK_GRAY_3  = Vec4{72, 72, 74, 0xFF} / 255;
+constexpr Color LIGHT_GRAY_4 = Vec4{209, 209, 214, 0xFF} / 255;
+constexpr Color DARK_GRAY_4  = Vec4{58, 58, 60, 0xFF} / 255;
+constexpr Color LIGHT_GRAY_5 = Vec4{229, 229, 234, 0xFF} / 255;
+constexpr Color DARK_GRAY_5  = Vec4{44, 44, 46, 0xFF} / 255;
+constexpr Color LIGHT_GRAY_6 = Vec4{242, 242, 247, 0xFF} / 255;
+constexpr Color DARK_GRAY_6  = Vec4{28, 28, 30, 0xFF} / 255;
+
+// ios accessible colors
+namespace accessible
+{
+constexpr Color LIGHT_BLUE   = Vec4{0, 64, 221, 0xFF} / 255;
+constexpr Color DARK_BLUE    = Vec4{64, 156, 0xFF, 0xFF} / 255;
+constexpr Color LIGHT_BROWN  = Vec4{127, 101, 69, 0xFF} / 255;
+constexpr Color DARK_BROWN   = Vec4{181, 148, 105, 0xFF} / 255;
+constexpr Color LIGHT_CYAN   = Vec4{0, 113, 164, 0xFF} / 255;
+constexpr Color DARK_CYAN    = Vec4{112, 215, 0xFF, 0xFF} / 255;
+constexpr Color LIGHT_GREEN  = Vec4{36, 138, 61, 0xFF} / 255;
+constexpr Color DARK_GREEN   = Vec4{48, 219, 91, 0xFF} / 255;
+constexpr Color LIGHT_INDIGO = Vec4{54, 52, 163, 0xFF} / 255;
+constexpr Color DARK_INDIGO  = Vec4{125, 122, 0xFF, 0xFF} / 255;
+constexpr Color LIGHT_MINT   = Vec4{12, 129, 123, 0xFF} / 255;
+constexpr Color DARK_MINT    = Vec4{102, 212, 207, 0xFF} / 255;
+constexpr Color LIGHT_ORANGE = Vec4{201, 52, 0, 0xFF} / 255;
+constexpr Color DARK_ORANGE  = Vec4{255, 179, 64, 0xFF} / 255;
+constexpr Color LIGHT_PINK   = Vec4{211, 15, 69, 0xFF} / 255;
+constexpr Color DARK_PINK    = Vec4{255, 100, 130, 0xFF} / 255;
+constexpr Color LIGHT_PURPLE = Vec4{137, 68, 171, 0xFF} / 255;
+constexpr Color DARK_PURPLE  = Vec4{218, 143, 0xFF, 0xFF} / 255;
+constexpr Color LIGHT_RED    = Vec4{215, 0, 21, 0xFF} / 255;
+constexpr Color DARK_RED     = Vec4{255, 105, 97, 0xFF} / 255;
+constexpr Color LIGHT_TEAL   = Vec4{0, 130, 153, 0xFF} / 255;
+constexpr Color DARK_TEAL    = Vec4{93, 230, 0xFF, 0xFF} / 255;
+constexpr Color LIGHT_YELLOW = Vec4{178, 80, 0, 0xFF} / 255;
+constexpr Color DARK_YELLOW  = Vec4{255, 212, 38, 0xFF} / 255;
+
+constexpr Color LIGHT_GRAY   = Vec4{108, 108, 112, 0xFF} / 255;
+constexpr Color DARK_GRAY    = Vec4{174, 174, 178, 0xFF} / 255;
+constexpr Color LIGHT_GRAY_2 = Vec4{142, 142, 147, 0xFF} / 255;
+constexpr Color DARK_GRAY_2  = Vec4{124, 124, 128, 0xFF} / 255;
+constexpr Color LIGHT_GRAY_3 = Vec4{174, 174, 178, 0xFF} / 255;
+constexpr Color DARK_GRAY_3  = Vec4{84, 84, 86, 0xFF} / 255;
+constexpr Color LIGHT_GRAY_4 = Vec4{188, 188, 192, 0xFF} / 255;
+constexpr Color DARK_GRAY_4  = Vec4{68, 68, 70, 0xFF} / 255;
+constexpr Color LIGHT_GRAY_5 = Vec4{216, 216, 220, 0xFF} / 255;
+constexpr Color DARK_GRAY_5  = Vec4{54, 54, 56, 0xFF} / 255;
+constexpr Color LIGHT_GRAY_6 = Vec4{235, 235, 240, 0xFF} / 255;
+constexpr Color DARK_GRAY_6  = Vec4{36, 36, 36, 0xFF} / 255;
+}        // namespace accessible
+
+}        // namespace ios
+
+namespace material
+{
+constexpr Color RED_50   = Vec4{0xFF, 0xEB, 0xEE, 0xFF} / 255;
+constexpr Color RED_100  = Vec4{0xFF, 0xCD, 0xD2, 0xFF} / 255;
+constexpr Color RED_200  = Vec4{0xEF, 0x9A, 0x9A, 0xFF} / 255;
+constexpr Color RED_300  = Vec4{0xE5, 0x73, 0x73, 0xFF} / 255;
+constexpr Color RED_400  = Vec4{0xEF, 0x53, 0x50, 0xFF} / 255;
+constexpr Color RED_500  = Vec4{0xF4, 0x43, 0x36, 0xFF} / 255;
+constexpr Color RED_600  = Vec4{0xE5, 0x39, 0x35, 0xFF} / 255;
+constexpr Color RED_700  = Vec4{0xD3, 0x2F, 0x2F, 0xFF} / 255;
+constexpr Color RED_800  = Vec4{0xC6, 0x28, 0x28, 0xFF} / 255;
+constexpr Color RED_900  = Vec4{0xB7, 0x1C, 0x1C, 0xFF} / 255;
+constexpr Color RED_A100 = Vec4{0xFF, 0x8A, 0x80, 0xFF} / 255;
+constexpr Color RED_A200 = Vec4{0xFF, 0x52, 0x52, 0xFF} / 255;
+constexpr Color RED_A400 = Vec4{0xFF, 0x17, 0x44, 0xFF} / 255;
+constexpr Color RED_A700 = Vec4{0xD5, 0x00, 0x00, 0xFF} / 255;
+
+constexpr Color PINK_50   = Vec4{0xFC, 0xE4, 0xEC, 0xFF} / 255;
+constexpr Color PINK_100  = Vec4{0xF8, 0xBB, 0xD0, 0xFF} / 255;
+constexpr Color PINK_200  = Vec4{0xF4, 0x8F, 0xB1, 0xFF} / 255;
+constexpr Color PINK_300  = Vec4{0xF0, 0x62, 0x92, 0xFF} / 255;
+constexpr Color PINK_400  = Vec4{0xEC, 0x40, 0x7A, 0xFF} / 255;
+constexpr Color PINK_500  = Vec4{0xE9, 0x1E, 0x63, 0xFF} / 255;
+constexpr Color PINK_600  = Vec4{0xD8, 0x1B, 0x60, 0xFF} / 255;
+constexpr Color PINK_700  = Vec4{0xC2, 0x18, 0x5B, 0xFF} / 255;
+constexpr Color PINK_800  = Vec4{0xAD, 0x14, 0x57, 0xFF} / 255;
+constexpr Color PINK_900  = Vec4{0x88, 0x0E, 0x4F, 0xFF} / 255;
+constexpr Color PINK_A100 = Vec4{0xFF, 0x80, 0xAB, 0xFF} / 255;
+constexpr Color PINK_A200 = Vec4{0xFF, 0x40, 0x81, 0xFF} / 255;
+constexpr Color PINK_A400 = Vec4{0xF5, 0x00, 0x57, 0xFF} / 255;
+constexpr Color PINK_A700 = Vec4{0xC5, 0x11, 0x62, 0xFF} / 255;
+
+constexpr Color PURPLE_50   = Vec4{0xF3, 0xE5, 0xF5, 0xFF} / 255;
+constexpr Color PURPLE_100  = Vec4{0xE1, 0xBE, 0xE7, 0xFF} / 255;
+constexpr Color PURPLE_200  = Vec4{0xCE, 0x93, 0xD8, 0xFF} / 255;
+constexpr Color PURPLE_300  = Vec4{0xBA, 0x68, 0xC8, 0xFF} / 255;
+constexpr Color PURPLE_400  = Vec4{0xAB, 0x47, 0xBC, 0xFF} / 255;
+constexpr Color PURPLE_500  = Vec4{0x9C, 0x27, 0xB0, 0xFF} / 255;
+constexpr Color PURPLE_600  = Vec4{0x8E, 0x24, 0xAA, 0xFF} / 255;
+constexpr Color PURPLE_700  = Vec4{0x7B, 0x1F, 0xA2, 0xFF} / 255;
+constexpr Color PURPLE_800  = Vec4{0x6A, 0x1B, 0x9A, 0xFF} / 255;
+constexpr Color PURPLE_900  = Vec4{0x4A, 0x14, 0x8C, 0xFF} / 255;
+constexpr Color PURPLE_A100 = Vec4{0xEA, 0x80, 0xFC, 0xFF} / 255;
+constexpr Color PURPLE_A200 = Vec4{0xE0, 0x40, 0xFB, 0xFF} / 255;
+constexpr Color PURPLE_A400 = Vec4{0xD5, 0x00, 0xF9, 0xFF} / 255;
+constexpr Color PURPLE_A700 = Vec4{0xAA, 0x00, 0xFF, 0xFF} / 255;
+
+constexpr Color DEEP_PURPLE_50   = Vec4{0xED, 0xE7, 0xF6, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_100  = Vec4{0xD1, 0xC4, 0xE9, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_200  = Vec4{0xB3, 0x9D, 0xDB, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_300  = Vec4{0x95, 0x75, 0xCD, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_400  = Vec4{0x7E, 0x57, 0xC2, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_500  = Vec4{0x67, 0x3A, 0xB7, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_600  = Vec4{0x5E, 0x35, 0xB1, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_700  = Vec4{0x51, 0x2D, 0xA8, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_800  = Vec4{0x45, 0x27, 0xA0, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_900  = Vec4{0x31, 0x1B, 0x92, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_A100 = Vec4{0xB3, 0x88, 0xFF, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_A200 = Vec4{0x7C, 0x4D, 0xFF, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_A400 = Vec4{0x65, 0x1F, 0xFF, 0xFF} / 255;
+constexpr Color DEEP_PURPLE_A700 = Vec4{0x62, 0x00, 0xEA, 0xFF} / 255;
+
+constexpr Color INDIGO_50   = Vec4{0xE8, 0xEA, 0xF6, 0xFF} / 255;
+constexpr Color INDIGO_100  = Vec4{0xC5, 0xCA, 0xE9, 0xFF} / 255;
+constexpr Color INDIGO_200  = Vec4{0x9F, 0xA8, 0xDA, 0xFF} / 255;
+constexpr Color INDIGO_300  = Vec4{0x79, 0x86, 0xCB, 0xFF} / 255;
+constexpr Color INDIGO_400  = Vec4{0x5C, 0x6B, 0xC0, 0xFF} / 255;
+constexpr Color INDIGO_500  = Vec4{0x3F, 0x51, 0xB5, 0xFF} / 255;
+constexpr Color INDIGO_600  = Vec4{0x39, 0x49, 0xAB, 0xFF} / 255;
+constexpr Color INDIGO_700  = Vec4{0x30, 0x3F, 0x9F, 0xFF} / 255;
+constexpr Color INDIGO_800  = Vec4{0x28, 0x35, 0x93, 0xFF} / 255;
+constexpr Color INDIGO_900  = Vec4{0x1A, 0x23, 0x7E, 0xFF} / 255;
+constexpr Color INDIGO_A100 = Vec4{0x8C, 0x9E, 0xFF, 0xFF} / 255;
+constexpr Color INDIGO_A200 = Vec4{0x53, 0x6D, 0xFE, 0xFF} / 255;
+constexpr Color INDIGO_A400 = Vec4{0x3D, 0x5A, 0xFE, 0xFF} / 255;
+constexpr Color INDIGO_A700 = Vec4{0x30, 0x4F, 0xFE, 0xFF} / 255;
+
+constexpr Color BLUE_50   = Vec4{0xE3, 0xF2, 0xFD, 0xFF} / 255;
+constexpr Color BLUE_100  = Vec4{0xBB, 0xDE, 0xFB, 0xFF} / 255;
+constexpr Color BLUE_200  = Vec4{0x90, 0xCA, 0xF9, 0xFF} / 255;
+constexpr Color BLUE_300  = Vec4{0x64, 0xB5, 0xF6, 0xFF} / 255;
+constexpr Color BLUE_400  = Vec4{0x42, 0xA5, 0xF5, 0xFF} / 255;
+constexpr Color BLUE_500  = Vec4{0x21, 0x96, 0xF3, 0xFF} / 255;
+constexpr Color BLUE_600  = Vec4{0x1E, 0x88, 0xE5, 0xFF} / 255;
+constexpr Color BLUE_700  = Vec4{0x19, 0x76, 0xD2, 0xFF} / 255;
+constexpr Color BLUE_800  = Vec4{0x15, 0x65, 0xC0, 0xFF} / 255;
+constexpr Color BLUE_900  = Vec4{0x0D, 0x47, 0xA1, 0xFF} / 255;
+constexpr Color BLUE_A100 = Vec4{0x82, 0xB1, 0xFF, 0xFF} / 255;
+constexpr Color BLUE_A200 = Vec4{0x44, 0x8A, 0xFF, 0xFF} / 255;
+constexpr Color BLUE_A400 = Vec4{0x29, 0x79, 0xFF, 0xFF} / 255;
+constexpr Color BLUE_A700 = Vec4{0x29, 0x62, 0xFF, 0xFF} / 255;
+
+constexpr Color LIGHT_BLUE_50   = Vec4{0xE1, 0xF5, 0xFE, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_100  = Vec4{0xB3, 0xE5, 0xFC, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_200  = Vec4{0x81, 0xD4, 0xFA, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_300  = Vec4{0x4F, 0xC3, 0xF7, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_400  = Vec4{0x29, 0xB6, 0xF6, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_500  = Vec4{0x03, 0xA9, 0xF4, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_600  = Vec4{0x03, 0x9B, 0xE5, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_700  = Vec4{0x02, 0x88, 0xD1, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_800  = Vec4{0x02, 0x77, 0xBD, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_900  = Vec4{0x01, 0x57, 0x9B, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_A100 = Vec4{0x80, 0xD8, 0xFF, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_A200 = Vec4{0x40, 0xC4, 0xFF, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_A400 = Vec4{0x00, 0xB0, 0xFF, 0xFF} / 255;
+constexpr Color LIGHT_BLUE_A700 = Vec4{0x00, 0x91, 0xEA, 0xFF} / 255;
+
+constexpr Color CYAN_50   = Vec4{0xE0, 0xF7, 0xFA, 0xFF} / 255;
+constexpr Color CYAN_100  = Vec4{0xB2, 0xEB, 0xF2, 0xFF} / 255;
+constexpr Color CYAN_200  = Vec4{0x80, 0xDE, 0xEA, 0xFF} / 255;
+constexpr Color CYAN_300  = Vec4{0x4D, 0xD0, 0xE1, 0xFF} / 255;
+constexpr Color CYAN_400  = Vec4{0x26, 0xC6, 0xDA, 0xFF} / 255;
+constexpr Color CYAN_500  = Vec4{0x00, 0xBC, 0xD4, 0xFF} / 255;
+constexpr Color CYAN_600  = Vec4{0x00, 0xAC, 0xC1, 0xFF} / 255;
+constexpr Color CYAN_700  = Vec4{0x00, 0x97, 0xA7, 0xFF} / 255;
+constexpr Color CYAN_800  = Vec4{0x00, 0x83, 0x8F, 0xFF} / 255;
+constexpr Color CYAN_900  = Vec4{0x00, 0x60, 0x64, 0xFF} / 255;
+constexpr Color CYAN_A100 = Vec4{0x84, 0xFF, 0xFF, 0xFF} / 255;
+constexpr Color CYAN_A200 = Vec4{0x18, 0xFF, 0xFF, 0xFF} / 255;
+constexpr Color CYAN_A400 = Vec4{0x00, 0xE5, 0xFF, 0xFF} / 255;
+constexpr Color CYAN_A700 = Vec4{0x00, 0xB8, 0xD4, 0xFF} / 255;
+
+constexpr Color TEAL_50   = Vec4{0xE0, 0xF2, 0xF1, 0xFF} / 255;
+constexpr Color TEAL_100  = Vec4{0xB2, 0xDF, 0xDB, 0xFF} / 255;
+constexpr Color TEAL_200  = Vec4{0x80, 0xCB, 0xC4, 0xFF} / 255;
+constexpr Color TEAL_300  = Vec4{0x4D, 0xB6, 0xAC, 0xFF} / 255;
+constexpr Color TEAL_400  = Vec4{0x26, 0xA6, 0x9A, 0xFF} / 255;
+constexpr Color TEAL_500  = Vec4{0x00, 0x96, 0x88, 0xFF} / 255;
+constexpr Color TEAL_600  = Vec4{0x00, 0x89, 0x7B, 0xFF} / 255;
+constexpr Color TEAL_700  = Vec4{0x00, 0x79, 0x6B, 0xFF} / 255;
+constexpr Color TEAL_800  = Vec4{0x00, 0x69, 0x5C, 0xFF} / 255;
+constexpr Color TEAL_900  = Vec4{0x00, 0x4D, 0x40, 0xFF} / 255;
+constexpr Color TEAL_A100 = Vec4{0xA7, 0xFF, 0xEB, 0xFF} / 255;
+constexpr Color TEAL_A200 = Vec4{0x64, 0xFF, 0xDA, 0xFF} / 255;
+constexpr Color TEAL_A400 = Vec4{0x1D, 0xE9, 0xB6, 0xFF} / 255;
+constexpr Color TEAL_A700 = Vec4{0x00, 0xBF, 0xA5, 0xFF} / 255;
+
+constexpr Color GREEN_50   = Vec4{0xE8, 0xF5, 0xE9, 0xFF} / 255;
+constexpr Color GREEN_100  = Vec4{0xC8, 0xE6, 0xC9, 0xFF} / 255;
+constexpr Color GREEN_200  = Vec4{0xA5, 0xD6, 0xA7, 0xFF} / 255;
+constexpr Color GREEN_300  = Vec4{0x81, 0xC7, 0x84, 0xFF} / 255;
+constexpr Color GREEN_400  = Vec4{0x66, 0xBB, 0x6A, 0xFF} / 255;
+constexpr Color GREEN_500  = Vec4{0x4C, 0xAF, 0x50, 0xFF} / 255;
+constexpr Color GREEN_600  = Vec4{0x43, 0xA0, 0x47, 0xFF} / 255;
+constexpr Color GREEN_700  = Vec4{0x38, 0x8E, 0x3C, 0xFF} / 255;
+constexpr Color GREEN_800  = Vec4{0x2E, 0x7D, 0x32, 0xFF} / 255;
+constexpr Color GREEN_900  = Vec4{0x1B, 0x5E, 0x20, 0xFF} / 255;
+constexpr Color GREEN_A100 = Vec4{0xB9, 0xF6, 0xCA, 0xFF} / 255;
+constexpr Color GREEN_A200 = Vec4{0x69, 0xF0, 0xAE, 0xFF} / 255;
+constexpr Color GREEN_A400 = Vec4{0x00, 0xE6, 0x76, 0xFF} / 255;
+constexpr Color GREEN_A700 = Vec4{0x00, 0xC8, 0x53, 0xFF} / 255;
+
+constexpr Color LIGHT_GREEN_50   = Vec4{0xF1, 0xF8, 0xE9, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_100  = Vec4{0xDC, 0xED, 0xC8, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_200  = Vec4{0xC5, 0xE1, 0xA5, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_300  = Vec4{0xAE, 0xD5, 0x81, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_400  = Vec4{0x9C, 0xCC, 0x65, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_500  = Vec4{0x8B, 0xC3, 0x4A, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_600  = Vec4{0x7C, 0xB3, 0x42, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_700  = Vec4{0x68, 0x9F, 0x38, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_800  = Vec4{0x55, 0x8B, 0x2F, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_900  = Vec4{0x33, 0x69, 0x1E, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_A100 = Vec4{0xCC, 0xFF, 0x90, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_A200 = Vec4{0xB2, 0xFF, 0x59, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_A400 = Vec4{0x76, 0xFF, 0x03, 0xFF} / 255;
+constexpr Color LIGHT_GREEN_A700 = Vec4{0x64, 0xDD, 0x17, 0xFF} / 255;
+
+constexpr Color LIME_50   = Vec4{0xF9, 0xFB, 0xE7, 0xFF} / 255;
+constexpr Color LIME_100  = Vec4{0xF0, 0xF4, 0xC3, 0xFF} / 255;
+constexpr Color LIME_200  = Vec4{0xE6, 0xEE, 0x9C, 0xFF} / 255;
+constexpr Color LIME_300  = Vec4{0xDC, 0xE7, 0x75, 0xFF} / 255;
+constexpr Color LIME_400  = Vec4{0xD4, 0xE1, 0x57, 0xFF} / 255;
+constexpr Color LIME_500  = Vec4{0xCD, 0xDC, 0x39, 0xFF} / 255;
+constexpr Color LIME_600  = Vec4{0xC0, 0xCA, 0x33, 0xFF} / 255;
+constexpr Color LIME_700  = Vec4{0xAF, 0xB4, 0x2B, 0xFF} / 255;
+constexpr Color LIME_800  = Vec4{0x9E, 0x9D, 0x24, 0xFF} / 255;
+constexpr Color LIME_900  = Vec4{0x82, 0x77, 0x17, 0xFF} / 255;
+constexpr Color LIME_A100 = Vec4{0xF4, 0xFF, 0x81, 0xFF} / 255;
+constexpr Color LIME_A200 = Vec4{0xEE, 0xFF, 0x41, 0xFF} / 255;
+constexpr Color LIME_A400 = Vec4{0xC6, 0xFF, 0x00, 0xFF} / 255;
+constexpr Color LIME_A700 = Vec4{0xAE, 0xEA, 0x00, 0xFF} / 255;
+
+constexpr Color YELLOW_50   = Vec4{0xFF, 0xFD, 0xE7, 0xFF} / 255;
+constexpr Color YELLOW_100  = Vec4{0xFF, 0xF9, 0xC4, 0xFF} / 255;
+constexpr Color YELLOW_200  = Vec4{0xFF, 0xF5, 0x9D, 0xFF} / 255;
+constexpr Color YELLOW_300  = Vec4{0xFF, 0xF1, 0x76, 0xFF} / 255;
+constexpr Color YELLOW_400  = Vec4{0xFF, 0xEE, 0x58, 0xFF} / 255;
+constexpr Color YELLOW_500  = Vec4{0xFF, 0xEB, 0x3B, 0xFF} / 255;
+constexpr Color YELLOW_600  = Vec4{0xFD, 0xD8, 0x35, 0xFF} / 255;
+constexpr Color YELLOW_700  = Vec4{0xFB, 0xC0, 0x2D, 0xFF} / 255;
+constexpr Color YELLOW_800  = Vec4{0xF9, 0xA8, 0x25, 0xFF} / 255;
+constexpr Color YELLOW_900  = Vec4{0xF5, 0x7F, 0x17, 0xFF} / 255;
+constexpr Color YELLOW_A100 = Vec4{0xFF, 0xFF, 0x8D, 0xFF} / 255;
+constexpr Color YELLOW_A200 = Vec4{0xFF, 0xFF, 0x00, 0xFF} / 255;
+constexpr Color YELLOW_A400 = Vec4{0xFF, 0xEA, 0x00, 0xFF} / 255;
+constexpr Color YELLOW_A700 = Vec4{0xFF, 0xD6, 0x00, 0xFF} / 255;
+
+constexpr Color AMBER_50   = Vec4{0xFF, 0xF8, 0xE1, 0xFF} / 255;
+constexpr Color AMBER_100  = Vec4{0xFF, 0xEC, 0xB3, 0xFF} / 255;
+constexpr Color AMBER_200  = Vec4{0xFF, 0xE0, 0x82, 0xFF} / 255;
+constexpr Color AMBER_300  = Vec4{0xFF, 0xD5, 0x4F, 0xFF} / 255;
+constexpr Color AMBER_400  = Vec4{0xFF, 0xCA, 0x28, 0xFF} / 255;
+constexpr Color AMBER_500  = Vec4{0xFF, 0xC1, 0x07, 0xFF} / 255;
+constexpr Color AMBER_600  = Vec4{0xFF, 0xB3, 0x00, 0xFF} / 255;
+constexpr Color AMBER_700  = Vec4{0xFF, 0xA0, 0x00, 0xFF} / 255;
+constexpr Color AMBER_800  = Vec4{0xFF, 0x8F, 0x00, 0xFF} / 255;
+constexpr Color AMBER_900  = Vec4{0xFF, 0x6F, 0x00, 0xFF} / 255;
+constexpr Color AMBER_A100 = Vec4{0xFF, 0xE5, 0x7F, 0xFF} / 255;
+constexpr Color AMBER_A200 = Vec4{0xFF, 0xD7, 0x40, 0xFF} / 255;
+constexpr Color AMBER_A400 = Vec4{0xFF, 0xC4, 0x00, 0xFF} / 255;
+constexpr Color AMBER_A700 = Vec4{0xFF, 0xAB, 0x00, 0xFF} / 255;
+
+constexpr Color ORANGE_50   = Vec4{0xFF, 0xF3, 0xE0, 0xFF} / 255;
+constexpr Color ORANGE_100  = Vec4{0xFF, 0xE0, 0xB2, 0xFF} / 255;
+constexpr Color ORANGE_200  = Vec4{0xFF, 0xCC, 0x80, 0xFF} / 255;
+constexpr Color ORANGE_300  = Vec4{0xFF, 0xB7, 0x4D, 0xFF} / 255;
+constexpr Color ORANGE_400  = Vec4{0xFF, 0xA7, 0x26, 0xFF} / 255;
+constexpr Color ORANGE_500  = Vec4{0xFF, 0x98, 0x00, 0xFF} / 255;
+constexpr Color ORANGE_600  = Vec4{0xFB, 0x8C, 0x00, 0xFF} / 255;
+constexpr Color ORANGE_700  = Vec4{0xF5, 0x7C, 0x00, 0xFF} / 255;
+constexpr Color ORANGE_800  = Vec4{0xEF, 0x6C, 0x00, 0xFF} / 255;
+constexpr Color ORANGE_900  = Vec4{0xE6, 0x51, 0x00, 0xFF} / 255;
+constexpr Color ORANGE_A100 = Vec4{0xFF, 0xD1, 0x80, 0xFF} / 255;
+constexpr Color ORANGE_A200 = Vec4{0xFF, 0xAB, 0x40, 0xFF} / 255;
+constexpr Color ORANGE_A400 = Vec4{0xFF, 0x91, 0x00, 0xFF} / 255;
+constexpr Color ORANGE_A700 = Vec4{0xFF, 0x6D, 0x00, 0xFF} / 255;
+
+constexpr Color DEEP_ORANGE_50   = Vec4{0xFB, 0xE9, 0xE7, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_100  = Vec4{0xFF, 0xCC, 0xBC, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_200  = Vec4{0xFF, 0xAB, 0x91, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_300  = Vec4{0xFF, 0x8A, 0x65, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_400  = Vec4{0xFF, 0x70, 0x43, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_500  = Vec4{0xFF, 0x57, 0x22, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_600  = Vec4{0xF4, 0x51, 0x1E, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_700  = Vec4{0xE6, 0x4A, 0x19, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_800  = Vec4{0xD8, 0x43, 0x15, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_900  = Vec4{0xBF, 0x36, 0x0C, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_A100 = Vec4{0xFF, 0x9E, 0x80, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_A200 = Vec4{0xFF, 0x6E, 0x40, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_A400 = Vec4{0xFF, 0x3D, 0x00, 0xFF} / 255;
+constexpr Color DEEP_ORANGE_A700 = Vec4{0xDD, 0x2C, 0x00, 0xFF} / 255;
+
+constexpr Color BROWN_50  = Vec4{0xEF, 0xEB, 0xE9, 0xFF} / 255;
+constexpr Color BROWN_100 = Vec4{0xD7, 0xCC, 0xC8, 0xFF} / 255;
+constexpr Color BROWN_200 = Vec4{0xBC, 0xAA, 0xA4, 0xFF} / 255;
+constexpr Color BROWN_300 = Vec4{0xA1, 0x88, 0x7F, 0xFF} / 255;
+constexpr Color BROWN_400 = Vec4{0x8D, 0x6E, 0x63, 0xFF} / 255;
+constexpr Color BROWN_500 = Vec4{0x79, 0x55, 0x48, 0xFF} / 255;
+constexpr Color BROWN_600 = Vec4{0x6D, 0x4C, 0x41, 0xFF} / 255;
+constexpr Color BROWN_700 = Vec4{0x5D, 0x40, 0x37, 0xFF} / 255;
+constexpr Color BROWN_800 = Vec4{0x4E, 0x34, 0x2E, 0xFF} / 255;
+constexpr Color BROWN_900 = Vec4{0x3E, 0x27, 0x23, 0xFF} / 255;
+
+constexpr Color GRAY_50  = Vec4{0xFA, 0xFA, 0xFA, 0xFF} / 255;
+constexpr Color GRAY_100 = Vec4{0xF5, 0xF5, 0xF5, 0xFF} / 255;
+constexpr Color GRAY_200 = Vec4{0xEE, 0xEE, 0xEE, 0xFF} / 255;
+constexpr Color GRAY_300 = Vec4{0xE0, 0xE0, 0xE0, 0xFF} / 255;
+constexpr Color GRAY_400 = Vec4{0xBD, 0xBD, 0xBD, 0xFF} / 255;
+constexpr Color GRAY_500 = Vec4{0x9E, 0x9E, 0x9E, 0xFF} / 255;
+constexpr Color GRAY_600 = Vec4{0x75, 0x75, 0x75, 0xFF} / 255;
+constexpr Color GRAY_700 = Vec4{0x61, 0x61, 0x61, 0xFF} / 255;
+constexpr Color GRAY_800 = Vec4{0x42, 0x42, 0x42, 0xFF} / 255;
+constexpr Color GRAY_900 = Vec4{0x21, 0x21, 0x21, 0xFF} / 255;
+
+constexpr Color BLUE_GRAY_50  = Vec4{0xEC, 0xEF, 0xF1, 0xFF} / 255;
+constexpr Color BLUE_GRAY_100 = Vec4{0xCF, 0xD8, 0xDC, 0xFF} / 255;
+constexpr Color BLUE_GRAY_200 = Vec4{0xB0, 0xBE, 0xC5, 0xFF} / 255;
+constexpr Color BLUE_GRAY_300 = Vec4{0x90, 0xA4, 0xAE, 0xFF} / 255;
+constexpr Color BLUE_GRAY_400 = Vec4{0x78, 0x90, 0x9C, 0xFF} / 255;
+constexpr Color BLUE_GRAY_500 = Vec4{0x60, 0x7D, 0x8B, 0xFF} / 255;
+constexpr Color BLUE_GRAY_600 = Vec4{0x54, 0x6E, 0x7A, 0xFF} / 255;
+constexpr Color BLUE_GRAY_700 = Vec4{0x45, 0x5A, 0x64, 0xFF} / 255;
+constexpr Color BLUE_GRAY_800 = Vec4{0x37, 0x47, 0x4F, 0xFF} / 255;
+constexpr Color BLUE_GRAY_900 = Vec4{0x26, 0x32, 0x38, 0xFF} / 255;
+
+constexpr Color WHITE = Vec4{0xFF, 0xFF, 0xFF, 0xFF} / 255;
+constexpr Color BLACK = Vec4{0x00, 0x00, 0x00, 0xFF} / 255;
+
+}        // namespace material
+
+}        // namespace ash
