@@ -3,6 +3,7 @@
 #include "ashura/renderer/render_context.h"
 #include "ashura/renderer/renderer.h"
 #include "ashura/renderer/shader.h"
+#include "ashura/engine/shader.h"
 #include <thread>
 
 ash::Logger *default_logger;

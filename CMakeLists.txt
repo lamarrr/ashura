@@ -6,7 +6,21 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
-set(VMA_DYNAMIC_VULKAN_FUNCTIONS ON)
+set(VMA_DYNAMIC_VULKAN_FUNCTIONS
+    ON
+    CACHE BOOL "")
+set(ENABLE_OPT
+    OFF
+    CACHE BOOL "")
+set(ENABLE_HLSL
+    OFF
+    CACHE BOOL "")
+set(ENABLE_GLSLANG_BINARIES
+    OFF
+    CACHE BOOL "")
+set(ENABLE_SPVREMAPPER
+    OFF
+    CACHE BOOL "")
 
 include(FetchContent)
 
@@ -14,6 +28,11 @@ FetchContent_Declare(
   VulkanHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
   GIT_TAG v1.3.280)
+
+FetchContent_Declare(
+  VulkanGLSL
+  GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
+  GIT_TAG vulkan-sdk-1.3.280.0)
 
 FetchContent_Declare(
   VulkanUtilityLibraries
@@ -47,6 +66,7 @@ find_package(xxHash CONFIG REQUIRED)
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
+FetchContent_MakeAvailable(VulkanGLSL)
 FetchContent_MakeAvailable(SheenBidi)
 find_package(Vulkan REQUIRED)
 
@@ -119,7 +139,8 @@ target_include_directories(ashura_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(ashura_engine ashura/engine/image_decoder.cc
                           ashura/engine/window.cc ashura/engine/widget.cc)
-target_link_libraries(ashura_engine ashura_std ashura_gfx ashura_renderer)
+target_link_libraries(ashura_engine ashura_std ashura_gfx ashura_renderer SPIRV
+                      glslang)
 target_include_directories(
   ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
                        ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})

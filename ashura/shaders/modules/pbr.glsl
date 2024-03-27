@@ -1,14 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
-// texture inputs defined by shader at compilation stage
-// layout(set = 0, binding = 0) uniform sampler2D sampler;
-// layout(set = 0, binding = 1) uniform texture2D base_color;
-// layout(set = 0, binding = 2) uniform texture2D metallic;
-// layout(set = 0, binding = 3) uniform texture2D roughness;
-// layout(set = 0, binding = 4) uniform texture2D normal;
-// layout(set = 0, binding = 5) uniform texture2D occlusion;
-
 // GLTF-PBR,
 // SEE:https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#complete-model
 // - V is the normalized vector from the shading location to the eye
@@ -68,12 +60,4 @@ vec4 fresnel_coat(vec3 clearcoat_normal, float index_of_refraction,
   vec4 f0 = pow((1 - index_of_refraction) / (1 + index_of_refraction), 2);
   vec4 fr = f0 + (1 - f0) * pow(1 - abs(NdotV), 5);        // N = normal
   return mix(base_material, layer, coat_weight * fr);
-}
-
-vec4 pbr_ext(vec4 base_color, vec3 metallic, vec3 roughness, vec3 normal,
-             vec3 occlusion, vec3 emissive, vec3 anisotropy, vec3 clearcoat,
-             vec3 clearcoat_roughness, vec3 clearcoat_normal, vec3 iridescence,
-             vec3 iridescence_thickness, vec3 sheen_color, vec3 sheen_roughness,
-             vec3 specular, vec3 specular_color, vec3 transmission)
-{
 }
