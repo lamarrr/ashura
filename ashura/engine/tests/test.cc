@@ -1,9 +1,9 @@
+#include "ashura/engine/shader.h"
 #include "ashura/engine/window.h"
 #include "ashura/gfx/vulkan.h"
 #include "ashura/renderer/render_context.h"
 #include "ashura/renderer/renderer.h"
 #include "ashura/renderer/shader.h"
-#include "ashura/engine/shader.h"
 #include <thread>
 
 ash::Logger *default_logger;
@@ -42,9 +42,31 @@ int main()
       instance
           ->create_device(
               instance.self,
-              to_span({gfx::DeviceType::DiscreteGpu, gfx::DeviceType::Cpu}),
+              to_span({gfx::DeviceType::Cpu, gfx::DeviceType::IntegratedGpu,
+                       gfx::DeviceType::DiscreteGpu}),
               to_span({surface}), default_allocator)
           .unwrap();
+
+  StrHashMap<gfx::Shader> shaders;
+  Vec<u32>                spirv;
+  defer                   spirv_del{[&] { spirv.reset(); }};
+  CHECK(
+      load_shader(
+          *default_logger, spirv,
+          ShaderSource{
+              .file =
+                  R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\canvas.vert)"_span,
+              .type     = ShaderType::Vertex,
+              .preamble = "#define RRERS 20338"_span},
+          to_span(
+              {R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\modules)"_span}),
+          {}) == ShaderLoadError::None);
+
+  device
+      ->create_shader(
+          device.self,
+          gfx::ShaderDesc{.label = "Kawase", .spirv_code = to_span(spirv)})
+      .unwrap();
 
   Renderer renderer;
   default_logger->info("initing renderer");

@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/std/log.h"
+#include "ashura/std/source_location.h"
 #include <new>
 
 namespace ash
@@ -158,22 +159,24 @@ struct [[nodiscard]] Option
     }
   }
 
-  constexpr T &value()
+  constexpr T &value(SourceLocation loc = SourceLocation::current())
   {
     if (is_some_)
     {
       return value_;
     }
-    default_logger->panic("Expected value in Option but got None");
+    default_logger->panic("Expected value in Option but got None"," [function: ", loc.function, ", file: ", loc.file,
+                            ":", loc.line, ":", loc.column, "]");
   }
 
-  constexpr T const &value() const
+  constexpr T const &value(SourceLocation loc = SourceLocation::current()) const
   {
     if (is_some_)
     {
       return value_;
     }
-    default_logger->panic("Expected value in Option but got None");
+    default_logger->panic("Expected value in Option but got None"," [function: ", loc.function, ", file: ", loc.file,
+                            ":", loc.line, ":", loc.column, "]");
   }
 
   constexpr Option<T const *> as_ref() const
@@ -194,22 +197,27 @@ struct [[nodiscard]] Option
     return None;
   }
 
-  constexpr T expect(char const *msg)
+  constexpr T expect(char const    *msg,
+                     SourceLocation loc = SourceLocation::current())
   {
     if (is_some_)
     {
       return (T &&) value_;
     }
-    default_logger->panic(msg);
+    default_logger->panic(msg, " [function: ", loc.function,
+                          ", file: ", loc.file, ":", loc.line, ":", loc.column,
+                          "]");
   }
 
-  constexpr T unwrap()
+  constexpr T unwrap(SourceLocation loc = SourceLocation::current())
   {
     if (is_some_)
     {
       return (T &&) value_;
     }
-    default_logger->panic("Expected value in Option but got None");
+    default_logger->panic("Expected value in Option but got None",
+                          " [function: ", loc.function, ", file: ", loc.file,
+                          ":", loc.line, ":", loc.column, "]");
   }
 
   template <typename U>
@@ -285,19 +293,24 @@ struct [[nodiscard]] Option
     return op();
   }
 
-  constexpr void expect_none(char const *msg)
+  constexpr void expect_none(char const    *msg,
+                             SourceLocation loc = SourceLocation::current())
   {
     if (is_some_)
     {
-      default_logger->panic(msg);
+      default_logger->panic(msg, " [function: ", loc.function,
+                            ", file: ", loc.file, ":", loc.line, ":",
+                            loc.column, "]");
     }
   }
 
-  constexpr void unwrap_none()
+  constexpr void unwrap_none(SourceLocation loc = SourceLocation::current())
   {
     if (is_some_)
     {
-      default_logger->panic("Expected value in Option but got None");
+      default_logger->panic("Expected value in Option but got None",
+                            " [function: ", loc.function, ", file: ", loc.file,
+                            ":", loc.line, ":", loc.column, "]");
     }
   }
 

@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/std/log.h"
+#include "ashura/std/source_location.h"
 #include <new>
 
 namespace ash
@@ -203,40 +204,48 @@ struct [[nodiscard]] Result
     return error_ == cmp;
   }
 
-  constexpr T &value()
+  constexpr T &value(SourceLocation loc = SourceLocation::current())
   {
     if (is_ok_)
     {
       return value_;
     }
-    default_logger->panic(".value() called on result with Error{=", error_, "}");
+    default_logger->panic(".value() called on result with Error{=", error_, "}",
+                          " [function: ", loc.function, ", file: ", loc.file,
+                          ":", loc.line, ":", loc.column, "]");
   }
 
-  constexpr T const &value() const
+  constexpr T const &value(SourceLocation loc = SourceLocation::current()) const
   {
     if (is_ok_)
     {
       return value_;
     }
-    default_logger->panic(".value() called on result with Error{=", error_, "}");
+    default_logger->panic(".value() called on result with Error{=", error_, "}",
+                          " [function: ", loc.function, ", file: ", loc.file,
+                          ":", loc.line, ":", loc.column, "]");
   }
 
-  constexpr E &err()
+  constexpr E &err(SourceLocation loc = SourceLocation::current())
   {
     if (!is_ok_)
     {
       return error_;
     }
-    default_logger->panic(".err() called on result with Value{=", value_, "}");
+    default_logger->panic(".err() called on result with Value{=", value_, "}",
+                          " [function: ", loc.function, ", file: ", loc.file,
+                          ":", loc.line, ":", loc.column, "]");
   }
 
-  constexpr E const &err() const
+  constexpr E const &err(SourceLocation loc = SourceLocation::current()) const
   {
     if (!is_ok_)
     {
       return error_;
     }
-    default_logger->panic(".err() called on result with Value{=", value_, "}");
+    default_logger->panic(".err() called on result with Value{=", value_, "}",
+                          " [function: ", loc.function, ", file: ", loc.file,
+                          ":", loc.line, ":", loc.column, "]");
   }
 
   constexpr Result<T const *, E const *> as_ref() const
@@ -330,40 +339,52 @@ struct [[nodiscard]] Result
     return ((Fn &&) op)(error_);
   }
 
-  constexpr T unwrap()
+  constexpr T unwrap(SourceLocation loc = SourceLocation::current())
   {
     if (is_ok_)
     {
       return (T &&) value_;
     }
-    default_logger->panic("Expected Value in Result but got Error{=", error_, "}");
+    default_logger->panic("Expected Value in Result but got Error{=", error_,
+                          "}", " [function: ", loc.function,
+                          ", file: ", loc.file, ":", loc.line, ":", loc.column,
+                          "]");
   }
 
-  constexpr T expect(char const *msg)
+  constexpr T expect(char const    *msg,
+                     SourceLocation loc = SourceLocation::current())
   {
     if (is_ok_)
     {
       return (T &&) value_;
     }
-    default_logger->panic(msg);
+    default_logger->panic(msg, " [function: ", loc.function,
+                          ", file: ", loc.file, ":", loc.line, ":", loc.column,
+                          "]");
   }
 
-  constexpr E unwrap_err()
+  constexpr E unwrap_err(SourceLocation loc = SourceLocation::current())
   {
     if (!is_ok_)
     {
       return (E &&) error_;
     }
-    default_logger->panic("Expected Error in Result but got Value{=", value_, "}");
+    default_logger->panic("Expected Error in Result but got Value{=", value_,
+                          "}", " [function: ", loc.function,
+                          ", file: ", loc.file, ":", loc.line, ":", loc.column,
+                          "]");
   }
 
-  constexpr E expect_err(char const *msg)
+  constexpr E expect_err(char const    *msg,
+                         SourceLocation loc = SourceLocation::current())
   {
     if (!is_ok_)
     {
       return (E &&) error_;
     }
-    default_logger->panic(msg);
+    default_logger->panic(msg, " [function: ", loc.function,
+                          ", file: ", loc.file, ":", loc.line, ":", loc.column,
+                          "]");
   }
 
   template <typename OkFn, typename ErrFn>

@@ -1,5 +1,3 @@
-#version 450
-#extension GL_GOOGLE_include_directive : require
 
 vec4 downsample(sampler2D src, vec2 uv, vec2 radius)
 {

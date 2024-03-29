@@ -21,6 +21,12 @@ set(ENABLE_GLSLANG_BINARIES
 set(ENABLE_SPVREMAPPER
     OFF
     CACHE BOOL "")
+set(SPIRV_REFLECT_EXECUTABLE
+    OFF
+    CACHE BOOL "")
+set(SPIRV_REFLECT_STATIC_LIB
+    ON
+    CACHE BOOL "")
 
 include(FetchContent)
 
@@ -32,6 +38,11 @@ FetchContent_Declare(
 FetchContent_Declare(
   VulkanGLSL
   GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
+  GIT_TAG vulkan-sdk-1.3.280.0)
+
+FetchContent_Declare(
+  SpirvReflect
+  GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
   GIT_TAG vulkan-sdk-1.3.280.0)
 
 FetchContent_Declare(
@@ -68,6 +79,7 @@ FetchContent_MakeAvailable(VulkanUtilityLibraries)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(VulkanGLSL)
 FetchContent_MakeAvailable(SheenBidi)
+FetchContent_MakeAvailable(SpirvReflect)
 find_package(Vulkan REQUIRED)
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
@@ -137,10 +149,18 @@ add_library(
 target_link_libraries(ashura_renderer ashura_std ashura_gfx)
 target_include_directories(ashura_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(ashura_engine ashura/engine/image_decoder.cc
-                          ashura/engine/window.cc ashura/engine/widget.cc)
-target_link_libraries(ashura_engine ashura_std ashura_gfx ashura_renderer SPIRV
-                      glslang)
+add_library(
+  ashura_engine
+  ashura/engine/io.cc ashura/engine/image_decoder.cc ashura/engine/shader.cc
+  ashura/engine/window.cc ashura/engine/widget.cc)
+target_link_libraries(
+  ashura_engine
+  ashura_std
+  ashura_gfx
+  ashura_renderer
+  SPIRV
+  glslang
+  spirv-reflect-static)
 target_include_directories(
   ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
                        ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})

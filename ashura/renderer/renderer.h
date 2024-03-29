@@ -51,9 +51,13 @@ struct Renderer
     gfx::Format                   depth_stencil_format = gfx::Format::Undefined;
     constexpr gfx::FormatFeatures COLOR_FEATURES =
         gfx::FormatFeatures::ColorAttachment |
-        gfx::FormatFeatures::ColorAttachmentBlend;
+        gfx::FormatFeatures::ColorAttachmentBlend |
+        gfx::FormatFeatures::StorageImage | gfx::FormatFeatures::SampledImage |
+        gfx::FormatFeatures::TransferDst | gfx::FormatFeatures::TransferSrc;
     constexpr gfx::FormatFeatures DEPTH_STENCIL_FEATURES =
-        gfx::FormatFeatures::DepthStencilAttachment;
+        gfx::FormatFeatures::DepthStencilAttachment |
+        gfx::FormatFeatures::SampledImage | gfx::FormatFeatures::TransferDst |
+        gfx::FormatFeatures::TransferSrc;
 
     if (config.use_hdr)
     {
@@ -208,8 +212,8 @@ struct Renderer
         .type   = gfx::ImageType::Type2D,
         .format = ctx.depth_stencil_format,
         .usage  = gfx::ImageUsage::DepthStencilAttachment |
-                 gfx::ImageUsage::Sampled | gfx::ImageUsage::Storage |
-                 gfx::ImageUsage::TransferDst | gfx::ImageUsage::TransferSrc,
+                 gfx::ImageUsage::Sampled | gfx::ImageUsage::TransferDst |
+                 gfx::ImageUsage::TransferSrc,
         .aspects      = gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
         .extent       = gfx::Extent3D{new_extent.x, new_extent.y, 1},
         .mip_levels   = 1,
