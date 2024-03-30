@@ -1,5 +1,5 @@
 #include "ashura/engine/shader.h"
-#include "ashura/engine/io.h"
+#include "ashura/std/io.h"
 #include "ashura/std/vec.h"
 #include "glslang/Public/ShaderLang.h"
 #include "glslang/SPIRV/GlslangToSpv.h"
@@ -137,18 +137,20 @@ struct Includer : glslang::TShader::Includer
   Includer &operator=(Includer const &) = delete;
   Includer &operator=(Includer &&)      = delete;
 
-  virtual IncludeResult *includeLocal(const char *headerName,
-                                      const char *includerName,
-                                      size_t      inclusionDepth) override
+  virtual IncludeResult *includeLocal(const char *header_name,
+                                      const char *includer_name,
+                                      size_t      inclusion_depth) override
   {
-    return include_path(headerName, includerName, (int) inclusionDepth, true);
+    return include_path(header_name, includer_name, (int) inclusion_depth,
+                        true);
   }
 
-  virtual IncludeResult *includeSystem(const char *headerName,
-                                       const char *includerName,
-                                       size_t      inclusionDepth) override
+  virtual IncludeResult *includeSystem(const char *header_name,
+                                       const char *includer_name,
+                                       size_t      inclusion_depth) override
   {
-    return include_path(headerName, includerName, (int) inclusionDepth, false);
+    return include_path(header_name, includer_name, (int) inclusion_depth,
+                        false);
   }
 
   virtual void releaseInclude(IncludeResult *result) override
@@ -190,47 +192,51 @@ struct Includer : glslang::TShader::Includer
     return include_local(header_name, includer_name, depth);
   }
 
-  IncludeResult *include_local(const char *headerName, const char *includerName,
-                               int depth)
+  IncludeResult *include_local(const char *header_name,
+                               const char *includer_name, int depth)
   {
+    (void) includer_name;
+    (void) depth;
     {
-      std::filesystem::path first_cnd{includerName};
-      first_cnd /= headerName;
+      std::filesystem::path first_cnd{includer_name};
+      first_cnd /= header_name;
 
       if (std::filesystem::exists(first_cnd))
       {
         std::string p = first_cnd.string();
-        return include_file(headerName, p.c_str());
+        return include_file(header_name, p.c_str());
       }
     }
 
     for (Span folder : local_directories)
     {
       std::filesystem::path cnd{std::string_view{folder.data(), folder.size()}};
-      cnd /= headerName;
+      cnd /= header_name;
 
       if (std::filesystem::exists(cnd))
       {
         std::string p = cnd.string();
-        return include_file(headerName, p.c_str());
+        return include_file(header_name, p.c_str());
       }
     }
 
     return nullptr;
   }
 
-  IncludeResult *include_system(const char *headerName,
-                                const char *includerName, int depth)
+  IncludeResult *include_system(const char *header_name,
+                                const char *includer_name, int depth)
   {
+    (void) includer_name;
+    (void) depth;
     for (Span folder : system_directories)
     {
       std::filesystem::path cnd{std::string_view{folder.data(), folder.size()}};
-      cnd /= headerName;
+      cnd /= header_name;
 
       if (std::filesystem::exists(cnd))
       {
         std::string p = cnd.string();
-        return include_file(headerName, p.c_str());
+        return include_file(header_name, p.c_str());
       }
     }
     return nullptr;
@@ -238,12 +244,12 @@ struct Includer : glslang::TShader::Includer
 
   IncludeResult *include_file(char const *header_name, char const *path)
   {
-    Vec<char> *blob = default_allocator.allocate_typed<Vec<char>>(1);
+    Vec<u8> *blob = default_allocator.allocate_typed<Vec<u8>>(1);
     if (blob == nullptr)
     {
       return nullptr;
     }
-    new (blob) Vec<char>{};
+    new (blob) Vec<u8>{};
     defer blob_del{[&] {
       if (blob != nullptr)
       {
@@ -252,7 +258,7 @@ struct Includer : glslang::TShader::Includer
       }
     }};
 
-    if (read_file(path, *blob) != IoError::None)
+    if (read_file(Span{path, strlen(path)}, *blob) != IoError::None)
     {
       return nullptr;
     }
@@ -263,7 +269,8 @@ struct Includer : glslang::TShader::Includer
       return nullptr;
     }
 
-    new (result) IncludeResult{header_name, blob->data(), blob->size(), blob};
+    new (result)
+        IncludeResult{header_name, (char *) blob->data(), blob->size(), blob};
     blob = nullptr;
 
     return result;
@@ -302,30 +309,27 @@ void reflect_spirv(Span<u32 const> spirv)
   // Destroy the reflection data when no longer required.
 }
 
-ShaderLoadError load_shader(Logger &logger, Vec<u32> &spirv,
-                            ShaderSource const          &source,
-                            Span<Span<char const> const> system_directories,
-                            Span<Span<char const> const> local_directories)
+ShaderCompileError
+    compile_shader(Logger &logger, Vec<u32> &spirv, Span<char const> file,
+                   ShaderType type, Span<char const> preamble,
+                   Span<char const>             entry_point,
+                   Span<Span<char const> const> system_directories,
+                   Span<Span<char const> const> local_directories)
 {
-  if (!glslang::InitializeProcess())
-  {
-    return ShaderLoadError::Unknown;
-  }
-  defer       a([] { glslang::FinalizeProcess(); });
+  CHECK(glslang::InitializeProcess());
+  defer       glsl_del([] { glslang::FinalizeProcess(); });
   EShLanguage language = EShLanguage::EShLangVertex;
 
-  std::string path_s{source.file.data(), source.file.size()};
+  Vec<u8> buff;
+  defer   buff_del{[&] { buff.reset(); }};
 
-  Vec<char> buff;
-  defer     buff_cleanup{[&] { buff.reset(); }};
-
-  IoError io_err = read_file(path_s.c_str(), buff);
+  IoError io_err = read_file(file, buff);
   if (io_err != IoError::None)
   {
-    return ShaderLoadError::Unknown;
+    return ShaderCompileError::IOError;
   }
 
-  switch (source.type)
+  switch (type)
   {
     case ShaderType::Compute:
       language = EShLanguage::EShLangCompute;
@@ -343,7 +347,7 @@ ShaderLoadError load_shader(Logger &logger, Vec<u32> &spirv,
       UNREACHABLE();
   }
 
-  char const      *buff_p      = buff.data();
+  char const      *buff_p      = (char *) buff.data();
   int              buff_length = (int) buff.size();
   glslang::TShader shader{language};
   shader.setStringsWithLengths(&buff_p, &buff_length, 1);
@@ -352,18 +356,29 @@ ShaderLoadError load_shader(Logger &logger, Vec<u32> &spirv,
   shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_0);
   shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
 
-  Vec<char> entry_point;
-  defer     entry_point_del{[&] { entry_point.reset(); }};
-  CHECK(entry_point.extend_copy(source.entry_point));
-  CHECK(entry_point.push((char) 0));
-  shader.setEntryPoint(entry_point.data());
-  shader.setSourceEntryPoint(entry_point.data());
-  Vec<char> preamble;
-  defer     preamble_del{[&] { preamble.reset(); }};
-  CHECK(preamble.extend_copy(source.preamble));
-  CHECK(preamble.extend_copy("\n"_span));
-  CHECK(preamble.push((char) 0));
-  shader.setPreamble(preamble.data());
+  Vec<char> entry_point_s;
+  defer     entry_point_del{[&] { entry_point_s.reset(); }};
+  if (!entry_point_s.extend_copy(entry_point))
+  {
+    return ShaderCompileError::OutOfMemory;
+  }
+  if (!entry_point_s.push((char) 0))
+  {
+    return ShaderCompileError::OutOfMemory;
+  }
+  shader.setEntryPoint(entry_point_s.data());
+  shader.setSourceEntryPoint(entry_point_s.data());
+  Vec<char> preamble_s;
+  defer     preamble_del{[&] { preamble_s.reset(); }};
+  if (!preamble_s.extend_copy(preamble))
+  {
+    return ShaderCompileError::OutOfMemory;
+  }
+  if (!preamble_s.extend_copy(to_span({'\n', '\0'})))
+  {
+    return ShaderCompileError::OutOfMemory;
+  }
+  shader.setPreamble(preamble_s.data());
 
   Includer includer;
   includer.system_directories = system_directories;
@@ -375,27 +390,27 @@ ShaderLoadError load_shader(Logger &logger, Vec<u32> &spirv,
                          EShMsgDefault, &str, includer))
   {
     logger.error(shader.getInfoLog(), "\n", shader.getInfoDebugLog());
-    return ShaderLoadError::Unknown;
+    return ShaderCompileError::CompileFailed;
   }
 
   if (!shader.parse(&SHADER_RESOURCE_LIMITS, 100, false, EShMsgDefault,
                     includer))
   {
     logger.error(shader.getInfoLog(), "\n", shader.getInfoDebugLog());
-    return ShaderLoadError::Unknown;
+    return ShaderCompileError::CompileFailed;
   }
 
   glslang::TProgram program;
   program.addShader(&shader);
   if (!program.link(EShMsgDefault))
   {
-    return ShaderLoadError::Unknown;
+    return ShaderCompileError::LinkFailed;
   }
 
   glslang::TIntermediate *intermediate = program.getIntermediate(language);
   if (intermediate == nullptr)
   {
-    return ShaderLoadError::Unknown;
+    return ShaderCompileError::LinkFailed;
   }
 
   glslang::SpvOptions spvOptions{.generateDebugInfo                = true,
@@ -420,10 +435,10 @@ ShaderLoadError load_shader(Logger &logger, Vec<u32> &spirv,
 
   if (!spirv.extend_copy(to_span(spirv_v)))
   {
-    return ShaderLoadError::Unknown;
+    return ShaderCompileError::OutOfMemory;
   }
 
-  return ShaderLoadError::None;
+  return ShaderCompileError::None;
 }
 
 }        // namespace ash

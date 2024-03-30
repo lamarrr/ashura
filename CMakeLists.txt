@@ -113,8 +113,13 @@ endif()
 
 add_library(
   ashura_std
-  ashura/std/allocator.cc ashura/std/hash.cc ashura/std/arena_allocator.cc
-  ashura/std/format.cc ashura/std/log.cc ashura/std/runtime.cc)
+  ashura/std/io.cc
+  ashura/std/allocator.cc
+  ashura/std/hash.cc
+  ashura/std/arena_allocator.cc
+  ashura/std/format.cc
+  ashura/std/log.cc
+  ashura/std/runtime.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ashura_std PRIVATE xxHash::xxhash)
 
@@ -150,9 +155,8 @@ target_link_libraries(ashura_renderer ashura_std ashura_gfx)
 target_include_directories(ashura_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
-  ashura_engine
-  ashura/engine/io.cc ashura/engine/image_decoder.cc ashura/engine/shader.cc
-  ashura/engine/window.cc ashura/engine/widget.cc)
+  ashura_engine ashura/engine/image_decoder.cc ashura/engine/shader.cc
+                ashura/engine/window.cc ashura/engine/widget.cc)
 target_link_libraries(
   ashura_engine
   ashura_std

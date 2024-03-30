@@ -36,8 +36,8 @@ void PBRPass::init(RenderContext &ctx)
               })
           .unwrap();
 
-  gfx::Shader vertex_shader   = ctx.get_shader("PBR.VS"_span).unwrap();
-  gfx::Shader fragment_shader = ctx.get_shader("PBR.FS"_span).unwrap();
+  gfx::Shader vertex_shader   = ctx.get_shader("PBR:VS"_span).unwrap();
+  gfx::Shader fragment_shader = ctx.get_shader("PBR:FS"_span).unwrap();
 
   gfx::VertexAttribute vtx_attrs[] = {{.binding  = 0,
                                        .location = 0,

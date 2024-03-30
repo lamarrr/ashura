@@ -8,6 +8,52 @@
 
 ash::Logger *default_logger;
 
+namespace ash
+{
+
+void compile_shaders();
+void pack_shaders();
+void load_shader_pack();
+
+void load_shaders(StrHashMap<gfx::Shader> &shaders,
+                  gfx::DeviceImpl const &device, Span<char const> id)
+{
+  // HOW TO STRUCTURE SHADER PACKS
+  // SPIRV will be the result of editor shader compilation
+  //
+  // ALL shaders are compiled to a pack with spirv
+  //
+  //
+  // we load these pre-compiled SPIRVs at load-time for dseployed builds, and
+  // for editior we load once changed
+  //
+  //
+  // other shaders should be able to include their own code and our default
+  // library code
+  Vec<u32> spirv;
+  defer    spirv_del{[&] { spirv.reset(); }};
+  CHECK(
+      compile_shader(
+          *default_logger, spirv,
+          R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\canvas.vert)"_span,
+          ShaderType::Vertex, "#define RRERS 20338"_span, "main"_span,
+          to_span(
+              {R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\modules)"_span}),
+          {}) == ShaderCompileError::None);
+
+  gfx::Shader shader =
+      device
+          ->create_shader(
+              device.self,
+              gfx::ShaderDesc{.label = nullptr, .spirv_code = to_span(spirv)})
+          .unwrap();
+
+  bool exists;
+  CHECK(shaders.insert(exists, nullptr, id, shader));
+  CHECK(!exists);
+}
+}        // namespace ash
+
 int main()
 {
   using namespace ash;
@@ -51,16 +97,13 @@ int main()
   Vec<u32>                spirv;
   defer                   spirv_del{[&] { spirv.reset(); }};
   CHECK(
-      load_shader(
+      compile_shader(
           *default_logger, spirv,
-          ShaderSource{
-              .file =
-                  R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\canvas.vert)"_span,
-              .type     = ShaderType::Vertex,
-              .preamble = "#define RRERS 20338"_span},
+          R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\canvas.vert)"_span,
+          ShaderType::Vertex, "#define RRERS 20338"_span, "main"_span,
           to_span(
               {R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\modules)"_span}),
-          {}) == ShaderLoadError::None);
+          {}) == ShaderCompileError::None);
 
   device
       ->create_shader(

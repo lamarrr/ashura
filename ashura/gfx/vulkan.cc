@@ -5,6 +5,7 @@
 #include "ashura/std/source_location.h"
 #include "vulkan/vulkan.h"
 #include <stdlib.h>
+#include <new>
 
 #ifndef VK_LAYER_KHRONOS_VALIDATION_NAME
 #  define VK_LAYER_KHRONOS_VALIDATION_NAME "VK_LAYER_KHRONOS_validation"

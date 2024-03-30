@@ -37,9 +37,9 @@ void BlurPass::init(RenderContext &ctx)
           .unwrap();
 
   gfx::Shader vertex_shader =
-      ctx.get_shader("KawaseBlur_DownSample.VS"_span).unwrap();
+      ctx.get_shader("KawaseBlur_DownSample:VS"_span).unwrap();
   gfx::Shader fragment_shader =
-      ctx.get_shader("KawaseBlur_DownSample.FS"_span).unwrap();
+      ctx.get_shader("KawaseBlur_DownSample:FS"_span).unwrap();
 
   gfx::PipelineRasterizationState raster_state{
       .depth_clamp_enable         = false,
@@ -115,9 +115,9 @@ void BlurPass::init(RenderContext &ctx)
           .unwrap();
 
   pipeline_desc.vertex_shader.shader =
-      ctx.get_shader("KawaseBlur_UpSample.VS"_span).unwrap();
+      ctx.get_shader("KawaseBlur_UpSample:VS"_span).unwrap();
   pipeline_desc.fragment_shader.shader =
-      ctx.get_shader("KawaseBlur_UpSample.VS"_span).unwrap();
+      ctx.get_shader("KawaseBlur_UpSample:FS"_span).unwrap();
 
   upsample_pipeline_ =
       ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)

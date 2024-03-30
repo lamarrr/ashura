@@ -5,6 +5,7 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/op.h"
 #include "ashura/std/types.h"
+#include <new>
 #include <string.h>
 
 namespace ash

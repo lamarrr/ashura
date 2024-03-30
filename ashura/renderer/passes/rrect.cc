@@ -37,8 +37,8 @@ void RRectPass::init(RenderContext &ctx)
               })
           .unwrap();
 
-  gfx::Shader vertex_shader   = ctx.get_shader("RRect.VS"_span).unwrap();
-  gfx::Shader fragment_shader = ctx.get_shader("RRect.FS"_span).unwrap();
+  gfx::Shader vertex_shader   = ctx.get_shader("RRect:VS"_span).unwrap();
+  gfx::Shader fragment_shader = ctx.get_shader("RRect:FS"_span).unwrap();
 
   gfx::PipelineRasterizationState raster_state{
       .depth_clamp_enable         = false,

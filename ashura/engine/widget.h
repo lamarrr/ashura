@@ -31,14 +31,12 @@ struct LayoutConstraint
 
   static constexpr LayoutConstraint relative(f32 scale)
   {
-    return LayoutConstraint{
-        .bias = 0, .scale = scale, .min = F32_MIN, .max = F32_MAX};
+    return LayoutConstraint{.scale = scale};
   }
 
   static constexpr LayoutConstraint absolute(f32 value)
   {
-    return LayoutConstraint{
-        .bias = value, .scale = 0, .min = F32_MIN, .max = F32_MAX};
+    return LayoutConstraint{.bias = value};
   }
 
   constexpr LayoutConstraint with_min(f32 v) const

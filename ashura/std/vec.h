@@ -5,6 +5,7 @@
 #include "ashura/std/op.h"
 #include "ashura/std/traits.h"
 #include "ashura/std/types.h"
+#include <new>
 
 namespace ash
 {

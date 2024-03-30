@@ -61,6 +61,6 @@ enum class [[nodiscard]] IoError : i32
   TemporarilyUnavailable = EWOULDBLOCK
 };
 
-IoError read_file(char const *path, Vec<char> &buff);
+IoError read_file(Span<char const> path, Vec<u8> &buff);
 
 }        // namespace ash
