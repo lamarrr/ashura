@@ -1,14 +1,12 @@
 #include <atomic>
 
-#include "ashura/allocator.h"
-#include "ashura/types.h"
+#include "ashura/std/allocator.h"
+#include "ashura/std/enum.h"
+#include "ashura/std/fn.h"
+#include "ashura/std/types.h"
 
 namespace ash
 {
-
-struct Promise
-{
-};
 
 // TODO(lamarrr): instanced tasks
 // automatic heuristic division of data points to cache and destructive
@@ -22,51 +20,63 @@ struct Promise
 // thread-pinning
 // -barriers?
 // - self-suspension
-//
 // - optimized polling for tasks waiting on other tasks
-//
 // fn: returns state
 //
-struct Task
+
+enum class FutureState : u8
 {
-  u64 (*fn)(void *data, u64 instance)                           = nullptr;
-  void *data                                                    = nullptr;
-  void (*resolve_fn)(void *data, void *resolve_data, u64 state) = nullptr;
-  void *resolve_data                                            = nullptr;
-  u64   target_state                                            = 0;
-  u64   instances                                               = 0;
-  u32   runs_on_thread                                          = -1;
+  None       = 0,
+  Scheduled  = 1,
+  Submitted  = 2,
+  Preempted  = 3,
+  Executing  = 4,
+  Suspended  = 5,
+  Canceled   = 0xF0 | 6,
+  Completing = 0xF0 | 7,
+  Completed  = 0xF0 | 8
 };
 
-struct Thread
+ASH_DEFINE_ENUM_BIT_OPS(FutureState);
+
+enum class FutureError : u8
 {
-  static u32  get_num_physical_cores();
-  static u32  get_num_logical_cores();
-  void        set_name(char const *);
-  char const *get_name();
-  void        set_affinity();
+  None     = 0,
+  Pending  = 1,
+  Canceled = 2
 };
 
-// how to perform cross-thread work-stealing
-struct TaskChunk
+struct Future
 {
-  CpuTask         *tasks = nullptr;
-  atomic_uint64_t *task_assignment;
-  atomic_uint64_t *called_instances = 0;
+  void suspend();
+  void resume();
+  void cancel();
+  void await();
+  void poll();
 };
 
-// false-sharing is okay for rarely executed tasks
-struct ThreadPoolExecutor
+struct Promise
 {
-  // allocators for each thread/worker?
-  //
-  //
-  //
-  //
-  // must not use std::function or any allocating type. stx::Fn only
-  //
-  //
-  //
+  void send_canceled();
+  void send_preempted();
+  void send_resumed();
+  void complete();
+};
+
+u32              num_physical_cores();
+u32              num_logical_cores();
+void             set_thread_name(uid32 tid, Span<char const>);
+Span<char const> get_thread_name(uid32 tid);
+void             set_thread_affinity(uid32 tid);
+void             get_thread_affinity(uid32 tid);
+
+struct CpuExecutor
+{
+  void await(...);
+  void await_any(...);
+  void map(int fn, ...);
+  void reduce(...);
+  void compute(int fn, u32 x, u32 y, u32 z);
 };
 
 }        // namespace ash
