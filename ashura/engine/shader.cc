@@ -1,10 +1,10 @@
 #include "ashura/engine/shader.h"
+#include "SPIRV/GlslangToSpv.h"
+#include "SPIRV/spirv.hpp"
+#include "SPIRV/spvIR.h"
 #include "ashura/std/io.h"
 #include "ashura/std/vec.h"
 #include "glslang/Public/ShaderLang.h"
-#include "glslang/SPIRV/GlslangToSpv.h"
-#include "glslang/SPIRV/spirv.hpp"
-#include "glslang/SPIRV/spvIR.h"
 #include "spirv_reflect.h"
 #include <filesystem>
 

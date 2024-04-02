@@ -14,6 +14,7 @@ namespace ash
 void compile_shaders();
 void pack_shaders();
 void load_shader_pack();
+#define SHADER_ROOT_PATH "/home/basitayantunde/Documents/ashura/ashura/shaders/"
 
 void load_shaders(StrHashMap<gfx::Shader> &shaders,
                   gfx::DeviceImpl const &device, Span<char const> id)
@@ -32,14 +33,11 @@ void load_shaders(StrHashMap<gfx::Shader> &shaders,
   // library code
   Vec<u32> spirv;
   defer    spirv_del{[&] { spirv.reset(); }};
-  CHECK(
-      compile_shader(
-          *default_logger, spirv,
-          R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\canvas.vert)"_span,
-          ShaderType::Vertex, "#define RRERS 20338"_span, "main"_span,
-          to_span(
-              {R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\modules)"_span}),
-          {}) == ShaderCompileError::None);
+  CHECK(compile_shader(*default_logger, spirv,
+                       SHADER_ROOT_PATH "canvas.vert"_span, ShaderType::Vertex,
+                       "#define RRERS 20338"_span, "main"_span,
+                       to_span({SHADER_ROOT_PATH "modules"_span}),
+                       {}) == ShaderCompileError::None);
 
   gfx::Shader shader =
       device
@@ -96,14 +94,11 @@ int main()
   StrHashMap<gfx::Shader> shaders;
   Vec<u32>                spirv;
   defer                   spirv_del{[&] { spirv.reset(); }};
-  CHECK(
-      compile_shader(
-          *default_logger, spirv,
-          R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\canvas.vert)"_span,
-          ShaderType::Vertex, "#define RRERS 20338"_span, "main"_span,
-          to_span(
-              {R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders\modules)"_span}),
-          {}) == ShaderCompileError::None);
+  CHECK(compile_shader(*default_logger, spirv,
+                       SHADER_ROOT_PATH "canvas.vert"_span, ShaderType::Vertex,
+                       "#define RRERS 20338"_span, "main"_span,
+                       to_span({SHADER_ROOT_PATH "modules"_span}),
+                       {}) == ShaderCompileError::None);
 
   device
       ->create_shader(
