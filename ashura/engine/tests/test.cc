@@ -94,11 +94,12 @@ int main()
   StrHashMap<gfx::Shader> shaders;
   Vec<u32>                spirv;
   defer                   spirv_del{[&] { spirv.reset(); }};
-  CHECK(compile_shader(*default_logger, spirv,
-                       SHADER_ROOT_PATH "canvas.vert"_span, ShaderType::Vertex,
-                       "#define RRERS 20338"_span, "main"_span,
-                       to_span({SHADER_ROOT_PATH "modules"_span}),
-                       {}) == ShaderCompileError::None);
+  CHECK(
+      compile_shader(
+          *default_logger, spirv, SHADER_ROOT_PATH "canvas.vert"_span,
+          ShaderType::Vertex, "#define RRERS 20338"_span, "main"_span,
+          to_span({SHADER_ROOT_PATH "modules"_span, SHADER_ROOT_PATH ""_span}),
+          {}) == ShaderCompileError::None);
 
   device
       ->create_shader(
