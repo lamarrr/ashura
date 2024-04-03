@@ -7,49 +7,28 @@
 #include <thread>
 
 ash::Logger *default_logger;
+#define SHADER_ROOT_PATH "/home/basitayantunde/Documents/ashura/ashura/shaders/"
 
 namespace ash
 {
 
 void compile_shaders();
 void pack_shaders();
-void load_shader_pack();
-#define SHADER_ROOT_PATH "/home/basitayantunde/Documents/ashura/ashura/shaders/"
+void load_shader_pack(StrHashMap<gfx::Shader> &shaders,
+                      gfx::DeviceImpl const   &device);
 
-void load_shaders(StrHashMap<gfx::Shader> &shaders,
-                  gfx::DeviceImpl const &device, Span<char const> id)
-{
-  // HOW TO STRUCTURE SHADER PACKS
-  // SPIRV will be the result of editor shader compilation
-  //
-  // ALL shaders are compiled to a pack with spirv
-  //
-  //
-  // we load these pre-compiled SPIRVs at load-time for dseployed builds, and
-  // for editior we load once changed
-  //
-  //
-  // other shaders should be able to include their own code and our default
-  // library code
-  Vec<u32> spirv;
-  defer    spirv_del{[&] { spirv.reset(); }};
-  CHECK(compile_shader(*default_logger, spirv,
-                       SHADER_ROOT_PATH "canvas.vert"_span, ShaderType::Vertex,
-                       "#define RRERS 20338"_span, "main"_span,
-                       to_span({SHADER_ROOT_PATH "modules"_span}),
-                       {}) == ShaderCompileError::None);
-
-  gfx::Shader shader =
-      device
-          ->create_shader(
-              device.self,
-              gfx::ShaderDesc{.label = nullptr, .spirv_code = to_span(spirv)})
-          .unwrap();
-
-  bool exists;
-  CHECK(shaders.insert(exists, nullptr, id, shader));
-  CHECK(!exists);
-}
+// HOW TO STRUCTURE SHADER PACKS
+// SPIRV will be the result of editor shader compilation
+//
+// ALL shaders are compiled to a pack with spirv
+//
+//
+// we load these pre-compiled SPIRVs at load-time for dseployed builds, and
+// for editior we load once changed
+//
+//
+// other shaders should be able to include their own code and our default
+// library code
 }        // namespace ash
 
 int main()
