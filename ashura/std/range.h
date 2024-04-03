@@ -425,6 +425,12 @@ constexpr void sort(S &&span, Cmp &&cmp = {})
   std::sort(begin(span), end(span), cmp);
 }
 
+template <typename S, typename Key>
+constexpr void radix_sort(S &&span, Key &&key = {})
+{
+  usize frequency[256];
+}
+
 template <typename S, typename IndexType, typename Cmp = Lesser>
 constexpr void indirect_sort(S &&span, Span<IndexType> indices, Cmp &&cmp = {})
 {

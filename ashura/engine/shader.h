@@ -23,6 +23,7 @@ enum class ShaderCompileError : i32
   CompileFailed         = 3,
   LinkFailed            = 4,
   SpirvConversionFailed = 5,
+  InitError             = 6
 };
 
 ShaderCompileError

@@ -316,7 +316,10 @@ ShaderCompileError
                    Span<Span<char const> const> system_directories,
                    Span<Span<char const> const> local_directories)
 {
-  CHECK(glslang::InitializeProcess());
+  if (!glslang::InitializeProcess())
+  {
+    return ShaderCompileError::InitError;
+  }
   defer       glsl_del([] { glslang::FinalizeProcess(); });
   EShLanguage language = EShLanguage::EShLangVertex;
 
