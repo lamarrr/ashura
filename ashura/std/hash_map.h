@@ -40,50 +40,47 @@ struct HashMapEntry
   V value{};
 };
 
-template <typename K, typename V>
-struct HashMapProbe
-{
-  using KeyType   = K;
-  using ValueType = V;
-
-  usize              distance = 0;
-  HashMapEntry<K, V> entry{};
-};
-
 /// Robin-hood open-address probing hashmap
 template <typename K, typename V, typename Hasher, typename KeyCmp>
 struct HashMap
 {
-  using KeyType    = K;
-  using ValueType  = V;
-  using HasherType = Hasher;
-  using KeyCmpType = KeyCmp;
-  using EntryType  = HashMapEntry<K, V>;
-  using ProbeType  = HashMapProbe<K, V>;
+  using KeyType      = K;
+  using ValueType    = V;
+  using HasherType   = Hasher;
+  using KeyCmpType   = KeyCmp;
+  using EntryType    = HashMapEntry<K, V>;
+  using DistanceType = u8;
 
-  static constexpr usize PROBE_SENTINEL = -1;
+  static constexpr DistanceType PROBE_SENTINEL = -1;
 
   constexpr void reset()
   {
     clear();
     allocator_.deallocate_typed(probes_, num_probes_);
-    probes_     = nullptr;
-    num_probes_ = 0;
+    allocator_.deallocate_typed(probe_distances_, num_probes_);
+    probes_          = nullptr;
+    probe_distances_ = nullptr;
+    num_probes_      = 0;
   }
 
   constexpr void clear()
   {
-    for (ProbeType *probe = probes_; probe < probes_ + num_probes_; probe++)
+    if constexpr (!TriviallyDestructible<EntryType>)
     {
-      if constexpr (!TriviallyDestructible<ProbeType>)
+      for (usize i = 0; i < num_probes_; i++)
       {
-        if (probe->distance != PROBE_SENTINEL)
+        if (probe_distances_[i] != PROBE_SENTINEL)
         {
-          probe->entry.~EntryType();
+          (probes_ + i)->~EntryType();
         }
       }
-      probe->distance = PROBE_SENTINEL;
     }
+
+    for (usize i = 0; i < num_probes_; i++)
+    {
+      probe_distances_[i] = PROBE_SENTINEL;
+    }
+
     num_entries_        = 0;
     max_probe_distance_ = 0;
   }
@@ -94,19 +91,19 @@ struct HashMap
     {
       return nullptr;
     }
-    Hash const hash           = hasher_(key);
-    usize      probe_index    = hash & (num_probes_ - 1);
-    usize      probe_distance = 0;
+    Hash const   hash           = hasher_(key);
+    usize        probe_index    = hash & (num_probes_ - 1);
+    DistanceType probe_distance = 0;
     while (probe_distance <= max_probe_distance_)
     {
-      ProbeType *probe = probes_ + probe_index;
-      if (probe->distance == PROBE_SENTINEL)
+      if (probe_distances_[probe_index] == PROBE_SENTINEL)
       {
         break;
       }
-      if (cmp_(probe->entry.key, key))
+      EntryType *probe = probes_ + probe_index;
+      if (cmp_(probe->key, key))
       {
-        return &probe->entry.value;
+        return &probe->value;
       }
       probe_index = (probe_index + 1) & (num_probes_ - 1);
       probe_distance++;
@@ -125,30 +122,34 @@ struct HashMap
     return num_probes == 0 || ((num_entries * 8ULL) / num_probes) > 7ULL;
   }
 
-  constexpr void reinsert_(Span<ProbeType> probes)
+  constexpr void reinsert_(Span<EntryType>          src_probes,
+                           Span<DistanceType const> src_probe_distances)
   {
-    for (ProbeType &probe : probes)
+    for (usize src_probe_index = 0; src_probe_index < src_probes.size();
+         src_probe_index++)
     {
-      if (probe.distance != PROBE_SENTINEL)
+      if (src_probe_distances[src_probe_index] != PROBE_SENTINEL)
       {
-        EntryType entry{(EntryType &&) probe.entry};
-        probe.entry.~EntryType();
-        Hash  hash           = hasher_(entry.key);
-        usize probe_index    = hash & (num_probes_ - 1);
-        usize probe_distance = 0;
+        EntryType entry{(EntryType &&) src_probes[src_probe_index]};
+        src_probes[src_probe_index].~EntryType();
+        Hash         hash           = hasher_(entry.key);
+        usize        probe_index    = hash & (num_probes_ - 1);
+        DistanceType probe_distance = 0;
         while (true)
         {
-          ProbeType *dst_probe = probes_ + probe_index;
-          if (dst_probe->distance == PROBE_SENTINEL)
+          EntryType    *dst_probe          = probes_ + probe_index;
+          DistanceType *dst_probe_distance = probe_distances_ + probe_index;
+
+          if (*dst_probe_distance == PROBE_SENTINEL)
           {
-            new (dst_probe) ProbeType{.distance = probe_distance,
-                                      .entry    = (EntryType &&) entry};
+            new (dst_probe) EntryType{(EntryType &&) entry};
+            *dst_probe_distance = probe_distance;
             break;
           }
-          if (dst_probe->distance < probe_distance)
+          if (*dst_probe_distance < probe_distance)
           {
-            swap(entry, dst_probe->entry);
-            swap(probe_distance, dst_probe->distance);
+            swap(entry, *dst_probe);
+            swap(probe_distance, *dst_probe_distance);
           }
           probe_distance++;
           probe_index = (probe_index + 1) & (num_probes_ - 1);
@@ -162,28 +163,40 @@ struct HashMap
   constexpr bool rehash_()
   {
     usize      new_num_probes = (num_probes_ == 0) ? 1 : (num_probes_ * 2);
-    ProbeType *new_probes =
-        allocator_.allocate_typed<ProbeType>(new_num_probes);
+    EntryType *new_probes =
+        allocator_.allocate_typed<EntryType>(new_num_probes);
     if (new_probes == nullptr)
     {
       return false;
     }
 
-    for (ProbeType *probe = new_probes; probe < new_probes + new_num_probes;
-         probe++)
+    DistanceType *new_probe_distances =
+        allocator_.allocate_typed<DistanceType>(new_num_probes);
+
+    if (new_probe_distances == nullptr)
     {
-      probe->distance = PROBE_SENTINEL;
+      allocator_.deallocate_typed<EntryType>(new_probes, new_num_probes);
+      return false;
     }
 
-    ProbeType *old_probes     = probes_;
-    usize      old_num_probes = num_probes_;
-    probes_                   = new_probes;
-    num_probes_               = new_num_probes;
-    num_entries_              = 0;
-    max_probe_distance_       = 0;
+    for (usize i = 0; i < new_num_probes; i++)
+    {
+      new_probe_distances[i] = PROBE_SENTINEL;
+    }
 
-    reinsert_(Span{old_probes, old_num_probes});
+    EntryType    *old_probes          = probes_;
+    DistanceType *old_probe_distances = probe_distances_;
+    usize         old_num_probes      = num_probes_;
+    probes_                           = new_probes;
+    probe_distances_                  = new_probe_distances;
+    num_probes_                       = new_num_probes;
+    num_entries_                      = 0;
+    max_probe_distance_               = 0;
+
+    reinsert_(Span{old_probes, old_num_probes},
+              {old_probe_distances, old_num_probes});
     allocator_.deallocate_typed(old_probes, old_num_probes);
+    allocator_.deallocate_typed(old_probe_distances, old_num_probes);
     return true;
   }
 
@@ -201,42 +214,42 @@ struct HashMap
       }
     }
 
-    Hash const hash           = hasher_(key_arg);
-    usize      probe_index    = hash & (num_probes_ - 1);
-    usize      insert_index   = PROBE_SENTINEL;
-    usize      probe_distance = 0;
-    EntryType  entry{.key   = K{(KeyArg &&) key_arg},
-                     .value = V{((Args &&) value_args)...}};
+    Hash const   hash           = hasher_(key_arg);
+    usize        probe_index    = hash & (num_probes_ - 1);
+    usize        insert_index   = USIZE_MAX;
+    DistanceType probe_distance = 0;
+    EntryType    entry{.key   = K{(KeyArg &&) key_arg},
+                       .value = V{((Args &&) value_args)...}};
 
     while (true)
     {
-      ProbeType *probe = probes_ + probe_index;
-      if (probe->distance == PROBE_SENTINEL)
+      EntryType    *dst_probe          = probes_ + probe_index;
+      DistanceType *dst_probe_distance = probe_distances_ + probe_index;
+      if (*dst_probe_distance == PROBE_SENTINEL)
       {
-        insert_index = probe_index;
-        new (probe) ProbeType{.distance = probe_distance,
-                              .entry    = (EntryType &&) entry};
+        insert_index        = probe_index;
+        *dst_probe_distance = probe_distance;
+        new (dst_probe) EntryType{(EntryType &&) entry};
         num_entries_++;
         break;
       }
-      if (insert_index == PROBE_SENTINEL &&
-          probe_distance <= max_probe_distance_ &&
-          cmp_(entry.key, probe->entry.key))
+      if (insert_index == USIZE_MAX && probe_distance <= max_probe_distance_ &&
+          cmp_(entry.key, dst_probe->key))
       {
         exists       = true;
         insert_index = probe_index;
         if (replaced_uninit != nullptr)
         {
-          new (replaced_uninit) V{(V &&) probe->entry.value};
-          probe->entry.value = V{((Args &&) value_args)...};
+          new (replaced_uninit) V{(V &&) dst_probe->value};
+          dst_probe->value = V{((Args &&) value_args)...};
         }
         break;
       }
-      if (probe_distance > probe->distance)
+      if (probe_distance > *dst_probe_distance)
       {
-        swap(probe->entry, entry);
-        swap(probe->distance, probe_distance);
-        if (insert_index == PROBE_SENTINEL)
+        swap(*dst_probe, entry);
+        swap(*dst_probe_distance, probe_distance);
+        if (insert_index == USIZE_MAX)
         {
           insert_index = probe_index;
         }
@@ -254,21 +267,23 @@ struct HashMap
     usize probe_index = erase_index;
     do
     {
-      usize      next_probe_index = (probe_index + 1) & (num_probes_ - 1);
-      ProbeType *probe            = probes_ + probe_index;
-      ProbeType *next_probe       = probes_ + next_probe_index;
+      usize         next_probe_index    = (probe_index + 1) & (num_probes_ - 1);
+      EntryType    *probe               = probes_ + probe_index;
+      EntryType    *next_probe          = probes_ + next_probe_index;
+      DistanceType *probe_distance      = probe_distances_ + probe_index;
+      DistanceType *next_probe_distance = probe_distances_ + next_probe_index;
 
-      if (next_probe->distance == 0 || next_probe->distance == PROBE_SENTINEL)
+      if (*next_probe_distance == 0 || *next_probe_distance == PROBE_SENTINEL)
       {
-        probe->distance = PROBE_SENTINEL;
-        probe->entry.~EntryType();
+        *probe_distance = PROBE_SENTINEL;
+        probe->~EntryType();
         break;
       }
 
-      probe->distance      = next_probe->distance - 1;
-      probe->entry         = (EntryType &&) next_probe->entry;
-      next_probe->distance = PROBE_SENTINEL;
-      next_probe->entry.~EntryType();
+      *probe_distance      = *next_probe_distance - 1;
+      *probe               = (EntryType &&) *next_probe;
+      *next_probe_distance = PROBE_SENTINEL;
+      next_probe->~EntryType();
       probe_index = next_probe_index;
     } while (probe_index != erase_index);
     num_entries_--;
@@ -280,18 +295,19 @@ struct HashMap
     {
       return false;
     }
-    Hash const hash           = hasher_(key);
-    usize      probe_index    = hash & (num_probes_ - 1);
-    usize      probe_distance = 0;
+    Hash const   hash           = hasher_(key);
+    usize        probe_index    = hash & (num_probes_ - 1);
+    DistanceType probe_distance = 0;
 
     while (probe_distance <= max_probe_distance_)
     {
-      ProbeType *probe = probes_ + probe_index;
-      if (probe->distance == PROBE_SENTINEL)
+      DistanceType *dst_probe_distance = probe_distances_ + probe_index;
+      if (*dst_probe_distance == PROBE_SENTINEL)
       {
         return false;
       }
-      if (cmp_(probe->entry.key, key))
+      EntryType *dst_probe = probes_ + probe_index;
+      if (cmp_(dst_probe->key, key))
       {
         erase_probe_(probe_index);
         return true;
@@ -305,11 +321,11 @@ struct HashMap
   template <typename Fn>
   constexpr void for_each(Fn &&fn)
   {
-    for (ProbeType *probe = probes_; probe < probes_ + num_probes_; probe++)
+    for (usize i = 0; i < num_probes_; i++)
     {
-      if (probe->distance != PROBE_SENTINEL)
+      if (probe_distances_[i] != PROBE_SENTINEL)
       {
-        fn(probe->entry.key, probe->entry.value);
+        fn(probes_[i].key, probes_[i].value);
       }
     }
   }
@@ -317,10 +333,11 @@ struct HashMap
   Hasher        hasher_{};
   KeyCmp        cmp_{};
   AllocatorImpl allocator_          = default_allocator;
-  ProbeType    *probes_             = nullptr;
+  EntryType    *probes_             = nullptr;
+  DistanceType *probe_distances_    = nullptr;
   usize         num_probes_         = 0;
   usize         num_entries_        = 0;
-  usize         max_probe_distance_ = 0;
+  DistanceType  max_probe_distance_ = 0;
 };
 
 template <typename V>
