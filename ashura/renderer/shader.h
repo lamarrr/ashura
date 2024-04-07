@@ -414,6 +414,7 @@ struct ShaderParameterHeap
 
   void deinit()
   {
+    device_->unref_descriptor_set_layout(device_.self, layout_);
     device_->unref_descriptor_heap(device_.self, heap_);
   }
 

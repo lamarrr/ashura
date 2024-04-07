@@ -33,7 +33,7 @@ struct RenderTarget
 };
 
 /// created with sampled, storage, color attachment, and transfer flags
-struct Scratch
+struct FramebufferAttachments
 {
   gfx::ImageDesc     color_image_desc              = {};
   gfx::ImageDesc     depth_stencil_image_desc      = {};
@@ -56,7 +56,8 @@ struct RenderContext
   gfx::FrameInfo           frame_info           = {};
   gfx::Format              color_format         = gfx::Format::Undefined;
   gfx::Format              depth_stencil_format = gfx::Format::Undefined;
-  Scratch                  scatch               = {};
+  FramebufferAttachments   framebuffer          = {};
+  FramebufferAttachments   scatch_framebuffer   = {};
   Vec<UniformHeap>         uniform_heaps        = {};
   gfx::DescriptorSetLayout uniform_layout       = nullptr;
   Vec<Tuple<gfx::FrameId, gfx::Framebuffer>> released_framebuffers = {};

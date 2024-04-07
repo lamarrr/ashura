@@ -36,6 +36,16 @@ struct RendererConfig
 
 struct Renderer
 {
+  static constexpr gfx::FormatFeatures COLOR_FEATURES =
+      gfx::FormatFeatures::ColorAttachment |
+      gfx::FormatFeatures::ColorAttachmentBlend |
+      gfx::FormatFeatures::StorageImage | gfx::FormatFeatures::SampledImage |
+      gfx::FormatFeatures::TransferDst | gfx::FormatFeatures::TransferSrc;
+  static constexpr gfx::FormatFeatures DEPTH_STENCIL_FEATURES =
+      gfx::FormatFeatures::DepthStencilAttachment |
+      gfx::FormatFeatures::SampledImage | gfx::FormatFeatures::TransferDst |
+      gfx::FormatFeatures::TransferSrc;
+
   RenderPasses  passes;
   RenderContext ctx;
 
@@ -47,17 +57,8 @@ struct Renderer
     ctx.shader_map     = shader_map;
     ctx.pipeline_cache = pipeline_cache;
 
-    gfx::Format                   color_format         = gfx::Format::Undefined;
-    gfx::Format                   depth_stencil_format = gfx::Format::Undefined;
-    constexpr gfx::FormatFeatures COLOR_FEATURES =
-        gfx::FormatFeatures::ColorAttachment |
-        gfx::FormatFeatures::ColorAttachmentBlend |
-        gfx::FormatFeatures::StorageImage | gfx::FormatFeatures::SampledImage |
-        gfx::FormatFeatures::TransferDst | gfx::FormatFeatures::TransferSrc;
-    constexpr gfx::FormatFeatures DEPTH_STENCIL_FEATURES =
-        gfx::FormatFeatures::DepthStencilAttachment |
-        gfx::FormatFeatures::SampledImage | gfx::FormatFeatures::TransferDst |
-        gfx::FormatFeatures::TransferSrc;
+    gfx::Format color_format         = gfx::Format::Undefined;
+    gfx::Format depth_stencil_format = gfx::Format::Undefined;
 
     if (config.use_hdr)
     {
@@ -162,20 +163,21 @@ struct Renderer
                             .unwrap();
     ctx.frame_info = device->get_frame_info(device.self, ctx.frame_context);
 
-    // TODO(lamarrrr): main color render targets???
-    update_extent(config.initial_extent);
+    update_extent(ctx.framebuffer, config.initial_extent);
+    update_extent(ctx.scatch_framebuffer, config.initial_extent);
+    default_logger->info("gotten format property");
     init_passes();
   }
 
-  void update_extent(Vec2U new_extent)
+  void update_extent(FramebufferAttachments &framebuffer, Vec2U new_extent)
   {
-    ctx.release(ctx.scatch.color_image);
-    ctx.release(ctx.scatch.color_image_view);
-    ctx.release(ctx.scatch.depth_stencil_image);
-    ctx.release(ctx.scatch.depth_stencil_image_view);
+    ctx.release(framebuffer.color_image);
+    ctx.release(framebuffer.color_image_view);
+    ctx.release(framebuffer.depth_stencil_image);
+    ctx.release(framebuffer.depth_stencil_image_view);
 
-    ctx.scatch.color_image_desc = gfx::ImageDesc{
-        .label  = "Scratch Image",
+    framebuffer.color_image_desc = gfx::ImageDesc{
+        .label  = "Framebuffer Color Image",
         .type   = gfx::ImageType::Type2D,
         .format = ctx.color_format,
         .usage  = gfx::ImageUsage::ColorAttachment | gfx::ImageUsage::Sampled |
@@ -186,29 +188,29 @@ struct Renderer
         .mip_levels   = 1,
         .array_layers = 1,
         .sample_count = gfx::SampleCount::Count1};
-    ctx.scatch.color_image =
-        ctx.device->create_image(ctx.device.self, ctx.scatch.color_image_desc)
+    framebuffer.color_image =
+        ctx.device->create_image(ctx.device.self, framebuffer.color_image_desc)
             .unwrap();
 
-    ctx.scatch.color_image_view_desc =
-        gfx::ImageViewDesc{.label       = "Scratch Color Image View",
-                           .image       = ctx.scatch.color_image,
+    framebuffer.color_image_view_desc =
+        gfx::ImageViewDesc{.label       = "Framebuffer Color Image View",
+                           .image       = framebuffer.color_image,
                            .view_type   = gfx::ImageViewType::Type2D,
-                           .view_format = ctx.scatch.color_image_desc.format,
+                           .view_format = framebuffer.color_image_desc.format,
                            .mapping     = {},
                            .aspects     = gfx::ImageAspects::Color,
                            .first_mip_level   = 0,
                            .num_mip_levels    = 1,
                            .first_array_layer = 0,
                            .num_array_layers  = 1};
-    ctx.scatch.color_image_view =
+    framebuffer.color_image_view =
         ctx.device
             ->create_image_view(ctx.device.self,
-                                ctx.scatch.color_image_view_desc)
+                                framebuffer.color_image_view_desc)
             .unwrap();
 
-    ctx.scatch.depth_stencil_image_desc = gfx::ImageDesc{
-        .label  = "Depth Stencil Image",
+    framebuffer.depth_stencil_image_desc = gfx::ImageDesc{
+        .label  = "Framebuffer Depth Stencil Image",
         .type   = gfx::ImageType::Type2D,
         .format = ctx.depth_stencil_format,
         .usage  = gfx::ImageUsage::DepthStencilAttachment |
@@ -219,25 +221,26 @@ struct Renderer
         .mip_levels   = 1,
         .array_layers = 1,
         .sample_count = gfx::SampleCount::Count1};
-    ctx.scatch.depth_stencil_image =
+    framebuffer.depth_stencil_image =
         ctx.device
-            ->create_image(ctx.device.self, ctx.scatch.depth_stencil_image_desc)
+            ->create_image(ctx.device.self,
+                           framebuffer.depth_stencil_image_desc)
             .unwrap();
-    ctx.scatch.depth_stencil_image_view_desc = gfx::ImageViewDesc{
-        .label       = "Scratch Depth Stencil Image View",
-        .image       = ctx.scatch.depth_stencil_image,
+    framebuffer.depth_stencil_image_view_desc = gfx::ImageViewDesc{
+        .label       = "Framebuffer Depth Stencil Image View",
+        .image       = framebuffer.depth_stencil_image,
         .view_type   = gfx::ImageViewType::Type2D,
-        .view_format = ctx.scatch.depth_stencil_image_desc.format,
+        .view_format = framebuffer.depth_stencil_image_desc.format,
         .mapping     = {},
         .aspects     = gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
         .first_mip_level   = 0,
         .num_mip_levels    = 1,
         .first_array_layer = 0,
         .num_array_layers  = 1};
-    ctx.scatch.depth_stencil_image_view =
+    framebuffer.depth_stencil_image_view =
         ctx.device
             ->create_image_view(ctx.device.self,
-                                ctx.scatch.depth_stencil_image_view_desc)
+                                framebuffer.depth_stencil_image_view_desc)
             .unwrap();
   }
 

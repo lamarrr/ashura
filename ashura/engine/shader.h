@@ -14,7 +14,6 @@ enum class ShaderType : u8
   Mesh     = 3
 };
 
-// how to merge error types?
 enum class ShaderCompileError : i32
 {
   None                  = 0,

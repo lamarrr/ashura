@@ -806,6 +806,7 @@ static gfx::DeviceInterface const device_interface{
     .create_descriptor_heap      = DeviceInterface::create_descriptor_heap,
     .create_pipeline_cache       = DeviceInterface::create_pipeline_cache,
     .create_compute_pipeline     = DeviceInterface::create_compute_pipeline,
+    .create_graphics_pipeline    = DeviceInterface::create_graphics_pipeline,
     .create_fence                = DeviceInterface::create_fence,
     .create_frame_context        = DeviceInterface::create_frame_context,
     .create_swapchain            = DeviceInterface::create_swapchain,

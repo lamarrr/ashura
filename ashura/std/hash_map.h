@@ -33,6 +33,9 @@ constexpr StrHasher str_hash;
 template <typename K, typename V>
 struct HashMapEntry
 {
+  using KeyType   = K;
+  using ValueType = V;
+
   K key{};
   V value{};
 };
@@ -40,6 +43,9 @@ struct HashMapEntry
 template <typename K, typename V>
 struct HashMapProbe
 {
+  using KeyType   = K;
+  using ValueType = V;
+
   usize              distance = 0;
   HashMapEntry<K, V> entry{};
 };
@@ -78,7 +84,8 @@ struct HashMap
       }
       probe->distance = PROBE_SENTINEL;
     }
-    num_entries_ = 0;
+    num_entries_        = 0;
+    max_probe_distance_ = 0;
   }
 
   [[nodiscard]] constexpr V *operator[](K const &key) const
@@ -293,6 +300,18 @@ struct HashMap
       probe_distance++;
     }
     return false;
+  }
+
+  template <typename Fn>
+  constexpr void for_each(Fn &&fn)
+  {
+    for (ProbeType *probe = probes_; probe < probes_ + num_probes_; probe++)
+    {
+      if (probe->distance != PROBE_SENTINEL)
+      {
+        fn(probe->entry.key, probe->entry.value);
+      }
+    }
   }
 
   Hasher        hasher_{};

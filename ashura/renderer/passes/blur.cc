@@ -1,4 +1,5 @@
 #include "ashura/renderer/passes/blur.h"
+#include "ashura/gfx/vulkan.h"
 
 namespace ash
 {
@@ -62,18 +63,18 @@ void BlurPass::init(RenderContext &ctx)
       .min_depth_bounds         = 0,
       .max_depth_bounds         = 0};
 
+  gfx::PipelineColorBlendAttachmentState attachment_states[] = {
+      {.blend_enable           = false,
+       .src_color_blend_factor = gfx::BlendFactor::SrcAlpha,
+       .dst_color_blend_factor = gfx::BlendFactor::OneMinusSrcAlpha,
+       .color_blend_op         = gfx::BlendOp::Add,
+       .src_alpha_blend_factor = gfx::BlendFactor::One,
+       .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
+       .alpha_blend_op         = gfx::BlendOp::Add,
+       .color_write_mask       = gfx::ColorComponents::All}};
+
   gfx::PipelineColorBlendState color_blend_state{
-      .logic_op_enable = true,
-      .logic_op        = gfx::LogicOp::Set,
-      .attachments     = to_span<gfx::PipelineColorBlendAttachmentState>(
-          {{.blend_enable           = false,
-                .src_color_blend_factor = gfx::BlendFactor::SrcAlpha,
-                .dst_color_blend_factor = gfx::BlendFactor::OneMinusSrcAlpha,
-                .color_blend_op         = gfx::BlendOp::Add,
-                .src_alpha_blend_factor = gfx::BlendFactor::One,
-                .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
-                .alpha_blend_op         = gfx::BlendOp::Add,
-                .color_write_mask       = gfx::ColorComponents::All}}),
+      .attachments    = to_span(attachment_states),
       .blend_constant = {1, 1, 1, 1}};
 
   gfx::VertexAttribute vtx_attrs[] = {{.binding  = 0,
@@ -86,29 +87,35 @@ void BlurPass::init(RenderContext &ctx)
        .stride     = sizeof(Vec2),
        .input_rate = gfx::InputRate::Vertex}};
 
+  default_logger->info(
+      "refcount: ",
+      ((vk::DescriptorSetLayout *) parameter_heap_.layout_)->refcount);
+
+  gfx::DescriptorSetLayout set_layouts[] = {ctx.uniform_layout,
+                                            parameter_heap_.layout_};
+
   gfx::GraphicsPipelineDesc pipeline_desc{
       .label = "KawaseBlur Graphics Pipeline",
       .vertex_shader =
           gfx::ShaderStageDesc{.shader                        = vertex_shader,
-                               .entry_point                   = "vs_main",
+                               .entry_point                   = "main",
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gfx::ShaderStageDesc{.shader                        = fragment_shader,
-                               .entry_point                   = "fs_main",
+                               .entry_point                   = "main",
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
-      .render_pass           = render_pass_,
-      .vertex_input_bindings = to_span(vtx_bindings),
-      .vertex_attributes     = to_span(vtx_attrs),
-      .push_constant_size    = 0,
-      .descriptor_set_layouts =
-          to_span({ctx.uniform_layout, parameter_heap_.layout_}),
-      .primitive_topology  = gfx::PrimitiveTopology::TriangleList,
-      .rasterization_state = raster_state,
-      .depth_stencil_state = depth_stencil_state,
-      .color_blend_state   = color_blend_state,
-      .cache               = ctx.pipeline_cache};
+      .render_pass            = render_pass_,
+      .vertex_input_bindings  = to_span(vtx_bindings),
+      .vertex_attributes      = to_span(vtx_attrs),
+      .push_constant_size     = 0,
+      .descriptor_set_layouts = to_span(set_layouts),
+      .primitive_topology     = gfx::PrimitiveTopology::TriangleList,
+      .rasterization_state    = raster_state,
+      .depth_stencil_state    = depth_stencil_state,
+      .color_blend_state      = color_blend_state,
+      .cache                  = ctx.pipeline_cache};
 
   downsample_pipeline_ =
       ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
@@ -130,8 +137,8 @@ void BlurPass::uninit(RenderContext &ctx)
 
 void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
-  CHECK(params.extent.x <= ctx.scatch.color_image_desc.extent.x);
-  CHECK(params.extent.y <= ctx.scatch.color_image_desc.extent.y);
+  CHECK(params.extent.x <= ctx.scatch_framebuffer.color_image_desc.extent.x);
+  CHECK(params.extent.y <= ctx.scatch_framebuffer.color_image_desc.extent.y);
   parameter_heap_.heap_->collect(parameter_heap_.heap_.self,
                                  ctx.frame_info.current);
   // TODO(lamarrr): we need to downsample multiple times, hence halfing the

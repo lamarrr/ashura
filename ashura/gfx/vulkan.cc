@@ -4,8 +4,8 @@
 #include "ashura/std/range.h"
 #include "ashura/std/source_location.h"
 #include "vulkan/vulkan.h"
-#include <stdlib.h>
 #include <new>
+#include <stdlib.h>
 
 #ifndef VK_LAYER_KHRONOS_VALIDATION_NAME
 #  define VK_LAYER_KHRONOS_VALIDATION_NAME "VK_LAYER_KHRONOS_validation"
@@ -1878,6 +1878,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   VkPhysicalDeviceFeatures features;
   mem::zero(&features, 1);
   features.samplerAnisotropy = selected_device.features.samplerAnisotropy;
+  features.fillModeNonSolid  = selected_device.features.fillModeNonSolid;
+  features.logicOp           = selected_device.features.logicOp;
 
   VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                                  .pNext = nullptr,
@@ -3242,7 +3244,7 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
       .flags                  = 0,
       .setLayoutCount         = num_descriptor_sets,
       .pSetLayouts            = vk_descriptor_set_layouts,
-      .pushConstantRangeCount = 1,
+      .pushConstantRangeCount = desc.push_constant_size == 0 ? 0U : 1U,
       .pPushConstantRanges =
           desc.push_constant_size == 0 ? nullptr : &push_constant_range};
 
@@ -3318,10 +3320,10 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
            "descriptor sets size",
            num_descriptor_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
   VALIDATE(self, "", desc.push_constant_size <= gfx::MAX_PUSH_CONSTANT_SIZE);
+  VALIDATE(self, "", desc.push_constant_size % 4 == 0);
   VALIDATE(self, "", desc.vertex_shader.entry_point != nullptr);
   VALIDATE(self, "", desc.fragment_shader.entry_point != nullptr);
   VALIDATE(self, "", num_attributes <= gfx::MAX_VERTEX_ATTRIBUTES);
-  VALIDATE(self, "", num_attributes <= num_input_bindings);
 
   VkDescriptorSetLayout
       vk_descriptor_set_layouts[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
@@ -3373,8 +3375,9 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .flags                  = 0,
       .setLayoutCount         = num_descriptor_sets,
       .pSetLayouts            = vk_descriptor_set_layouts,
-      .pushConstantRangeCount = 1,
-      .pPushConstantRanges    = &push_constant_range};
+      .pushConstantRangeCount = desc.push_constant_size == 0 ? 0U : 1U,
+      .pPushConstantRanges =
+          desc.push_constant_size == 0 ? nullptr : &push_constant_range};
 
   VkPipelineLayout vk_layout;
 
@@ -3452,7 +3455,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .lineWidth            = 1.0F};
 
   VkPipelineMultisampleStateCreateInfo multisample_state{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
       .pNext = nullptr,
       .flags = 0,
       .rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
@@ -3463,9 +3466,9 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .alphaToOneEnable      = (VkBool32) false};
 
   VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
-      .sType           = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .pNext           = nullptr,
-      .flags           = 0,
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = 0,
       .depthTestEnable = (VkBool32) desc.depth_stencil_state.depth_test_enable,
       .depthWriteEnable =
           (VkBool32) desc.depth_stencil_state.depth_write_enable,
@@ -3524,11 +3527,11 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   }
 
   VkPipelineColorBlendStateCreateInfo color_blend_state{
-      .sType           = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .pNext           = nullptr,
-      .flags           = 0,
-      .logicOpEnable   = (VkBool32) desc.color_blend_state.logic_op_enable,
-      .logicOp         = (VkLogicOp) desc.color_blend_state.logic_op,
+      .sType         = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+      .pNext         = nullptr,
+      .flags         = 0,
+      .logicOpEnable = (VkBool32) desc.color_blend_state.logic_op_enable,
+      .logicOp       = (VkLogicOp) desc.color_blend_state.logic_op,
       .attachmentCount = num_color_attachments,
       .pAttachments    = attachment_states,
       .blendConstants  = {desc.color_blend_state.blend_constant.x,
@@ -3542,14 +3545,14 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       VK_DYNAMIC_STATE_STENCIL_REFERENCE, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK};
 
   VkPipelineDynamicStateCreateInfo dynamic_state{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
+      .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+      .pNext             = nullptr,
+      .flags             = 0,
       .dynamicStateCount = NUM_PIPELINE_DYNAMIC_STATES,
       .pDynamicStates    = dynamic_states};
 
   VkGraphicsPipelineCreateInfo create_info{
-      .sType               = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+      .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
       .pNext               = nullptr,
       .flags               = 0,
       .stageCount          = 2,

@@ -74,43 +74,45 @@ void PBRPass::init(RenderContext &ctx)
       .min_depth_bounds         = 0,
       .max_depth_bounds         = 0};
 
+  gfx::PipelineColorBlendAttachmentState attachment_states[] = {
+      {.blend_enable           = false,
+       .src_color_blend_factor = gfx::BlendFactor::Zero,
+       .dst_color_blend_factor = gfx::BlendFactor::Zero,
+       .color_blend_op         = gfx::BlendOp::Add,
+       .src_alpha_blend_factor = gfx::BlendFactor::Zero,
+       .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
+       .alpha_blend_op         = gfx::BlendOp::Add,
+       .color_write_mask       = gfx::ColorComponents::All}};
+
   gfx::PipelineColorBlendState color_blend_state{
-      .logic_op_enable = true,
-      .logic_op        = gfx::LogicOp::Set,
-      .attachments     = to_span<gfx::PipelineColorBlendAttachmentState>(
-          {{.blend_enable           = false,
-                .src_color_blend_factor = gfx::BlendFactor::Zero,
-                .dst_color_blend_factor = gfx::BlendFactor::Zero,
-                .color_blend_op         = gfx::BlendOp::Add,
-                .src_alpha_blend_factor = gfx::BlendFactor::Zero,
-                .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
-                .alpha_blend_op         = gfx::BlendOp::Add,
-                .color_write_mask       = gfx::ColorComponents::All}}),
+      .attachments    = to_span(attachment_states),
       .blend_constant = {1, 1, 1, 1}};
+
+  gfx::DescriptorSetLayout set_layouts[] = {
+      ctx.uniform_layout, ctx.uniform_layout, descriptor_set_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
       .label = "PBR Graphics Pipeline",
       .vertex_shader =
           gfx::ShaderStageDesc{.shader                        = vertex_shader,
-                               .entry_point                   = "vs_main",
+                               .entry_point                   = "main",
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gfx::ShaderStageDesc{.shader                        = fragment_shader,
-                               .entry_point                   = "fs_main",
+                               .entry_point                   = "main",
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .render_pass            = render_pass,
       .vertex_input_bindings  = to_span(vtx_bindings),
       .vertex_attributes      = to_span(vtx_attrs),
       .push_constant_size     = 0,
-      .descriptor_set_layouts = to_span(
-          {ctx.uniform_layout, ctx.uniform_layout, descriptor_set_layout}),
-      .primitive_topology  = gfx::PrimitiveTopology::TriangleList,
-      .rasterization_state = raster_state,
-      .depth_stencil_state = depth_stencil_state,
-      .color_blend_state   = color_blend_state,
-      .cache               = ctx.pipeline_cache};
+      .descriptor_set_layouts = to_span(set_layouts),
+      .primitive_topology     = gfx::PrimitiveTopology::TriangleList,
+      .rasterization_state    = raster_state,
+      .depth_stencil_state    = depth_stencil_state,
+      .color_blend_state      = color_blend_state,
+      .cache                  = ctx.pipeline_cache};
 
   pipeline =
       ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
@@ -127,7 +129,7 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
 {
   CHECK(params.render_target.color_images.size() != 0);
   CHECK(has_bits(params.render_target.depth_stencil_aspects,
-                  gfx::ImageAspects::Depth));
+                 gfx::ImageAspects::Depth));
   gfx::CommandEncoderImpl encoder = ctx.encoder();
 
   gfx::Framebuffer framebuffer =

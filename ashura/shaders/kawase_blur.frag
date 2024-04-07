@@ -6,9 +6,7 @@
 layout(location = 0) in vec2 in_vert;
 layout(location = 0) out vec4 out_color;
 
-layout(set = 0, binding = 0) uniform sampler2D src;
-
-layout(set = 1, binding = 0) uniform Params
+layout(set = 0, binding = 0) uniform Params
 {
   vec2 src_offset;
   vec2 src_extent;
@@ -16,6 +14,8 @@ layout(set = 1, binding = 0) uniform Params
   vec2 radius;
 }
 params;
+
+layout(set = 1, binding = 0) uniform sampler2D src;
 
 void main()
 {
