@@ -1,5 +1,4 @@
 #include "ashura/renderer/passes/blur.h"
-#include "ashura/gfx/vulkan.h"
 
 namespace ash
 {
@@ -86,10 +85,6 @@ void BlurPass::init(RenderContext &ctx)
       {.binding    = 0,
        .stride     = sizeof(Vec2),
        .input_rate = gfx::InputRate::Vertex}};
-
-  default_logger->info(
-      "refcount: ",
-      ((vk::DescriptorSetLayout *) parameter_heap_.layout_)->refcount);
 
   gfx::DescriptorSetLayout set_layouts[] = {ctx.uniform_layout,
                                             parameter_heap_.layout_};
