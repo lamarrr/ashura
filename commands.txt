@@ -1,3 +1,0 @@
-# format all files using clang-format
-clang-format -i -style=file  ashura/src/*.cc
-clang-format -i -style=file  ashura/include/ashura/*.h

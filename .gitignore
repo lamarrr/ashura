@@ -4,3 +4,6 @@
 /third_party
 *.spv
 /vcpkg_installed
+/.vs
+/out
+/install
