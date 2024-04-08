@@ -118,7 +118,7 @@ struct HashMap
 
   static constexpr bool needs_rehash_(usize num_entries, usize num_probes)
   {
-    // 3/4 => .75 load factor
+    // 6/10 => .6 load factor
     return num_probes == 0 || ((num_entries * 10ULL) / num_probes) > 6ULL;
   }
 
