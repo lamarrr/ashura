@@ -1,23 +1,17 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
+#include "core.glsl"
+
 layout(set = 0, binding = 0) uniform Params
 {
-  mat4  m;
-  mat4  v;
-  mat4  p;
-  vec4  tint_tl;
-  vec4  tint_tr;
-  vec4  tint_bl;
-  vec4  tint_br;
-  vec4  border_color_tl;
-  vec4  border_color_tr;
-  vec4  border_color_bl;
-  vec4  border_color_br;
-  vec4  border_radii;
-  float border_thickness;
-  vec2  uv0;
-  vec2  uv1;
+  ViewTransform transform;
+  Edge          tint;
+  Edge          border_color;
+  vec4          border_radii;
+  float         border_thickness;
+  vec2          uv0;
+  vec2          uv1;
 }
 params;
 

@@ -3,11 +3,11 @@
 
 #include "kawase.glsl"
 
-layout(location = 0) in vec2 vert;
-layout(location = 0) out vec2 o_vert;
+layout(location = 0) in vec2 in_vert;
+layout(location = 0) out vec2 out_vert;
 
 void main()
 {
-  o_vert = vert;
-  gl_Position = vec4(vert, 1, 1);
+  out_vert    = in_vert;
+  gl_Position = vec4(in_vert, 1, 1);
 }

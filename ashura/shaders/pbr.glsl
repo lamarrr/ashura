@@ -1,5 +1,8 @@
-#version 450
+#ifndef PBR_GLSL
+#define PBR_GLSL
+
 #extension GL_GOOGLE_include_directive : require
+#include "core.glsl"
 
 // GLTF-PBR,
 // SEE:https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#complete-model
@@ -12,14 +15,14 @@ vec4 conductor_fresnel(vec4 base_color, vec4 bsdf, float VdotH)
   return bsdf * (base_color + (1 - base_color) * pow(1 - abs(VdotH), 5));
 }
 
-f32 specular_brdf(float alpha)
+float specular_brdf(float alpha)
 {
   return V * D;
 }
 
-f32 diffuse_brdf(Vec4 base_color)
+float diffuse_brdf(Vec4 base_color)
 {
-  return (1 / M_PI) * base_color;
+  return (1 / PI) * base_color;
 }
 
 vec4 metal_brdf(vec4 base_color, float roughness)
@@ -61,3 +64,5 @@ vec4 fresnel_coat(vec3 clearcoat_normal, float index_of_refraction,
   vec4 fr = f0 + (1 - f0) * pow(1 - abs(NdotV), 5);        // N = normal
   return mix(base_material, layer, coat_weight * fr);
 }
+
+#endif

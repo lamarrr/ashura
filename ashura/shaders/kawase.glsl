@@ -1,3 +1,5 @@
+#ifndef KAWASE_GLSL
+#define KAWASE_GLSL
 
 vec4 downsample(sampler2D src, vec2 uv, vec2 radius)
 {
@@ -21,3 +23,5 @@ vec4 upsample(sampler2D src, vec2 uv, vec2 radius)
   sum += texture(src, uv + vec2(-radius.x, -radius.y)) * 2.0;
   return sum / 12.0;
 }
+
+#endif

@@ -88,8 +88,8 @@ void PBRPass::init(RenderContext &ctx)
       .attachments    = to_span(attachment_states),
       .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout set_layouts[] = {
-      ctx.uniform_layout, ctx.uniform_layout, descriptor_set_layout};
+  gfx::DescriptorSetLayout set_layouts[] = {ctx.uniform_layout,
+                                            descriptor_set_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
       .label = "PBR Graphics Pipeline",
@@ -196,6 +196,7 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
       prev_idx_buff_offset = object.mesh.index_buffer_offset;
     }
 
+    // TODO(lamaRRR): fix uniforms
     gfx::DescriptorSet const sets[]{params.lights.set, object.uniform.set,
                                     object.descriptor};
     u32 const                offsets[]{params.lights.buffer_offset,

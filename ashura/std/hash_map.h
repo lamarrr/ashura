@@ -40,28 +40,31 @@ struct HashMapEntry
   V value{};
 };
 
-template <typename K, typename V>
+template <typename K, typename V, typename D>
 struct HashMapProbe
 {
-  using KeyType   = K;
-  using ValueType = V;
+  using KeyType      = K;
+  using ValueType    = V;
+  using DistanceType = D;
 
-  usize              distance = 0;
+  DistanceType       distance = 0;
   HashMapEntry<K, V> entry{};
 };
 
 /// Robin-hood open-address probing hashmap
-template <typename K, typename V, typename Hasher, typename KeyCmp>
+template <typename K, typename V, typename Hasher, typename KeyCmp,
+          typename D = u16>
 struct HashMap
 {
-  using KeyType    = K;
-  using ValueType  = V;
-  using HasherType = Hasher;
-  using KeyCmpType = KeyCmp;
-  using EntryType  = HashMapEntry<K, V>;
-  using ProbeType  = HashMapProbe<K, V>;
+  using KeyType      = K;
+  using ValueType    = V;
+  using HasherType   = Hasher;
+  using KeyCmpType   = KeyCmp;
+  using EntryType    = HashMapEntry<K, V>;
+  using ProbeType    = HashMapProbe<K, V, D>;
+  using DistanceType = D;
 
-  static constexpr usize PROBE_SENTINEL = -1;
+  static constexpr DistanceType PROBE_SENTINEL = NumTraits<DistanceType>::MAX;
 
   constexpr void reset()
   {
@@ -94,9 +97,9 @@ struct HashMap
     {
       return nullptr;
     }
-    Hash const hash           = hasher_(key);
-    usize      probe_index    = hash & (num_probes_ - 1);
-    usize      probe_distance = 0;
+    Hash const   hash           = hasher_(key);
+    usize        probe_index    = hash & (num_probes_ - 1);
+    DistanceType probe_distance = 0;
     while (probe_distance <= max_probe_distance_)
     {
       ProbeType *probe = probes_ + probe_index;
@@ -133,9 +136,9 @@ struct HashMap
       {
         EntryType entry{(EntryType &&) probe.entry};
         probe.entry.~EntryType();
-        Hash  hash           = hasher_(entry.key);
-        usize probe_index    = hash & (num_probes_ - 1);
-        usize probe_distance = 0;
+        Hash         hash           = hasher_(entry.key);
+        usize        probe_index    = hash & (num_probes_ - 1);
+        DistanceType probe_distance = 0;
         while (true)
         {
           ProbeType *dst_probe = probes_ + probe_index;
@@ -201,12 +204,12 @@ struct HashMap
       }
     }
 
-    Hash const hash           = hasher_(key_arg);
-    usize      probe_index    = hash & (num_probes_ - 1);
-    usize      insert_index   = PROBE_SENTINEL;
-    usize      probe_distance = 0;
-    EntryType  entry{.key   = K{(KeyArg &&) key_arg},
-                     .value = V{((Args &&) value_args)...}};
+    Hash const   hash           = hasher_(key_arg);
+    usize        probe_index    = hash & (num_probes_ - 1);
+    usize        insert_index   = USIZE_MAX;
+    DistanceType probe_distance = 0;
+    EntryType    entry{.key   = K{(KeyArg &&) key_arg},
+                       .value = V{((Args &&) value_args)...}};
 
     while (true)
     {
@@ -219,8 +222,7 @@ struct HashMap
         num_entries_++;
         break;
       }
-      if (insert_index == PROBE_SENTINEL &&
-          probe_distance <= max_probe_distance_ &&
+      if (insert_index == USIZE_MAX && probe_distance <= max_probe_distance_ &&
           cmp_(entry.key, probe->entry.key))
       {
         exists       = true;
@@ -236,7 +238,7 @@ struct HashMap
       {
         swap(probe->entry, entry);
         swap(probe->distance, probe_distance);
-        if (insert_index == PROBE_SENTINEL)
+        if (insert_index == USIZE_MAX)
         {
           insert_index = probe_index;
         }
@@ -280,9 +282,9 @@ struct HashMap
     {
       return false;
     }
-    Hash const hash           = hasher_(key);
-    usize      probe_index    = hash & (num_probes_ - 1);
-    usize      probe_distance = 0;
+    Hash const   hash           = hasher_(key);
+    usize        probe_index    = hash & (num_probes_ - 1);
+    DistanceType probe_distance = 0;
 
     while (probe_distance <= max_probe_distance_)
     {
@@ -320,10 +322,10 @@ struct HashMap
   ProbeType    *probes_             = nullptr;
   usize         num_probes_         = 0;
   usize         num_entries_        = 0;
-  usize         max_probe_distance_ = 0;
+  DistanceType  max_probe_distance_ = 0;
 };
 
-template <typename V>
-using StrHashMap = HashMap<Span<char const>, V, StrHasher, StrEqual>;
+template <typename V, typename D = u16>
+using StrHashMap = HashMap<Span<char const>, V, StrHasher, StrEqual, D>;
 
 }        // namespace ash

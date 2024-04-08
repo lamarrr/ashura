@@ -73,6 +73,7 @@ find_package(SDL3 REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
+find_package(benchmark CONFIG REQUIRED)
 
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
@@ -92,15 +93,13 @@ target_include_directories(
 add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  add_compile_options(-Wall -Wextra -Wpedantic -fno-rtti -fno-exceptions)
+  add_compile_options(-Wall -Wextra -Wpedantic)
 else()
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(
       -Wall
       -Wextra
       -Wpedantic
-      -fno-rtti
-      -fno-exceptions
       -Wno-nullability-completeness
       -Wno-nullability-extension)
   else()
@@ -129,8 +128,12 @@ add_executable(
   ashura/std/tests/tests.cc ashura/std/tests/option.cc
   ashura/std/tests/hash_map.cc ashura/std/tests/result.cc
   ashura/std/tests/bit_span.cc ashura/std/tests/sparse_set.cc)
+add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
+
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
                       GTest::gtest_main)
+target_link_libraries(ashura_std_bench benchmark::benchmark
+                      benchmark::benchmark_main ashura_std)
 
 add_library(ashura_gfx ashura/gfx/vma_def.cc ashura/gfx/vulkan.cc)
 target_link_libraries(

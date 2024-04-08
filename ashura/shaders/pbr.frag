@@ -1,38 +1,29 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
-#include "constants.glsl"
-#define PI 3.1415926535897932384626433832795
+#include "core.glsl"
 
 layout(location = 0) in vec3 in_world_position;
 layout(location = 1) in vec2 in_uv;
 
-layout(set = 0, binding = 0) uniform Mvp
+layout(set = 0, binding = 0) uniform Uniforms
 {
-  mat4 m;
-  mat4 v;
-  mat4 p;
-}
-mvp_uniform;
-
-layout(set = 1, binding = 0) uniform Uniforms
-{
-  mat4 model_view_projection;
-  vec4 camera_position;
-  vec4 light_positions[16];
-  vec4 light_colors[16];
-  int  nlights;
+  ViewTransform transform;
+  vec4          camera_position;
+  vec4          light_positions[16];
+  vec4          light_colors[16];
+  int           nlights;
 }
 uniforms;
 
 // point lights, directional light, spotlight, flash light
 
-layout(set = 2, binding = 0) uniform sampler2D emissive;
-layout(set = 2, binding = 1) uniform sampler2D albedo_map;
-layout(set = 2, binding = 2) uniform sampler2D normal_map;
-layout(set = 2, binding = 3) uniform sampler2D metallic_map;
-layout(set = 2, binding = 4) uniform sampler2D roughness_map;
-layout(set = 2, binding = 5) uniform sampler2D ambient_occlusion_map;
+layout(set = 1, binding = 0) uniform sampler2D emissive;
+layout(set = 1, binding = 1) uniform sampler2D albedo_map;
+layout(set = 1, binding = 2) uniform sampler2D normal_map;
+layout(set = 1, binding = 3) uniform sampler2D metallic_map;
+layout(set = 1, binding = 4) uniform sampler2D roughness_map;
+layout(set = 1, binding = 5) uniform sampler2D ambient_occlusion_map;
 
 layout(location = 0) out vec4 out_color;
 layout(location = 1) out vec4 out_bright_color;
