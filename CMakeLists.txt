@@ -96,12 +96,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   add_compile_options(-Wall -Wextra -Wpedantic)
 else()
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(
-      -Wall
-      -Wextra
-      -Wpedantic
-      -Wno-nullability-completeness
-      -Wno-nullability-extension)
+    add_compile_options(-Wall -Wextra -Wpedantic -Wno-nullability-completeness
+                        -Wno-nullability-extension)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
       add_compile_options(/W3)

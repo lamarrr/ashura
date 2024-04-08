@@ -108,7 +108,8 @@ struct Compare
 
 struct Min
 {
-  constexpr auto const &operator()(auto const &a, auto const &b) const
+  template <typename T>
+  constexpr T const &operator()(T const &a, T const &b) const
   {
     return a < b ? a : b;
   }
@@ -116,7 +117,8 @@ struct Min
 
 struct Max
 {
-  constexpr auto const &operator()(auto const &a, auto const &b) const
+  template <typename T>
+  constexpr auto const &operator()(T const &a, T const &b) const
   {
     return a > b ? a : b;
   }

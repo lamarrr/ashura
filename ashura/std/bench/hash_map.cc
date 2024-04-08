@@ -2,6 +2,8 @@
 
 #include "ashura/std/hash_map.h"
 #include "ashura/std/types.h"
+#include "stdint.h"
+#include <algorithm>
 #include <benchmark/benchmark.h>
 #include <unordered_map>
 
@@ -1026,19 +1028,18 @@ static void BM_HashMap16(benchmark::State &state)
         count++;
       }
     }
-    // for (auto &dp : DATASET)
-    // {
-    //   map.erase(dp.v0);
-    // }
+    for (auto &dp : DATASET)
+    {
+      map.erase(dp.v0);
+    }
   }
   printf("num unique inserts: %d\n", count);
 }
-
 
 static void BM_HashMap8(benchmark::State &state)
 {
   StrHashMap<int, u8> map;
-  int             count = 0;
+  int                 count = 0;
   for (auto _ : state)
   {
     for (auto &dp : DATASET)
@@ -1053,19 +1054,18 @@ static void BM_HashMap8(benchmark::State &state)
         count++;
       }
     }
-    // for (auto &dp : DATASET)
-    // {
-    //   map.erase(dp.v0);
-    // }
+    for (auto &dp : DATASET)
+    {
+      map.erase(dp.v0);
+    }
   }
   printf("num unique inserts: %d\n", count);
 }
-
 
 static void BM_HashMap32(benchmark::State &state)
 {
   StrHashMap<int, u32> map;
-  int             count = 0;
+  int                  count = 0;
   for (auto _ : state)
   {
     for (auto &dp : DATASET)
@@ -1080,19 +1080,18 @@ static void BM_HashMap32(benchmark::State &state)
         count++;
       }
     }
-    // for (auto &dp : DATASET)
-    // {
-    //   map.erase(dp.v0);
-    // }
+    for (auto &dp : DATASET)
+    {
+      map.erase(dp.v0);
+    }
   }
   printf("num unique inserts: %d\n", count);
 }
 
-
 static void BM_HashMap64(benchmark::State &state)
 {
   StrHashMap<int, u64> map;
-  int             count = 0;
+  int                  count = 0;
   for (auto _ : state)
   {
     for (auto &dp : DATASET)
@@ -1107,10 +1106,10 @@ static void BM_HashMap64(benchmark::State &state)
         count++;
       }
     }
-    // for (auto &dp : DATASET)
-    // {
-    //   map.erase(dp.v0);
-    // }
+    for (auto &dp : DATASET)
+    {
+      map.erase(dp.v0);
+    }
   }
   printf("num unique inserts: %d\n", count);
 }
@@ -1206,17 +1205,18 @@ static void BM_StdHashMap(benchmark::State &state)
         count++;
       }
     }
-    // for (auto &dp : DATASET)
-    // {
-    //   map.erase(dp.v0);
-    // }
+    for (auto &dp : DATASET)
+    {
+      map.erase(dp.v0);
+    }
   }
   printf("num unique inserts: %d\n", count);
 }
 
-BENCHMARK(BM_HashMap8)->Iterations(700'000);
-BENCHMARK(BM_HashMap16)->Iterations(700'000);
-BENCHMARK(BM_HashMap32)->Iterations(700'000);
-BENCHMARK(BM_HashMap64)->Iterations(700'000);
-BENCHMARK(BM_StdHashMap)->Iterations(700'000);
+constexpr int ITERATIONS = 250'000;
+BENCHMARK(BM_HashMap8)->Iterations(ITERATIONS);
+BENCHMARK(BM_HashMap16)->Iterations(ITERATIONS);
+BENCHMARK(BM_HashMap32)->Iterations(ITERATIONS);
+BENCHMARK(BM_HashMap64)->Iterations(ITERATIONS);
+BENCHMARK(BM_StdHashMap)->Iterations(ITERATIONS);
 BENCHMARK_MAIN();
