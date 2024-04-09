@@ -2,6 +2,7 @@
 #include "SPIRV/GlslangToSpv.h"
 #include "SPIRV/spirv.hpp"
 #include "SPIRV/spvIR.h"
+#include "ashura/std/fs.h"
 #include "ashura/std/io.h"
 #include "ashura/std/vec.h"
 #include "glslang/Public/ShaderLang.h"
@@ -441,6 +442,74 @@ ShaderCompileError
     return ShaderCompileError::OutOfMemory;
   }
 
+  return ShaderCompileError::None;
+}
+
+ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
+                               Span<char const>                        id,
+                               Span<char const> root_directory,
+                               Span<char const> file, Span<char const> preamble)
+{
+  ShaderType type = ShaderType::Compute;
+
+  if (ends_with(file, ".comp"_span))
+  {
+    type = ShaderType::Compute;
+  }
+  else if (ends_with(file, ".frag"_span))
+  {
+    type = ShaderType::Fragment;
+  }
+  else if (ends_with(file, ".vert"_span))
+  {
+    type = ShaderType::Vertex;
+  }
+  else
+  {
+    CHECK(false);
+  }
+
+  Vec<char> file_path;
+  defer     file_path_del{[&] { file_path.reset(); }};
+  if (!file_path.extend_copy(root_directory) || !path_append(file_path, file))
+  {
+    return ShaderCompileError::OutOfMemory;
+  }
+
+  Vec<u32>           spirv;
+  defer              spirv_del{[&] { spirv.reset(); }};
+  ShaderCompileError error =
+      compile_shader(*default_logger, spirv, to_span(file_path), type, preamble,
+                     "main"_span, to_span({root_directory}), {});
+
+  if (error != ShaderCompileError::None)
+  {
+    return error;
+  }
+
+  if (!compiled.push(id, spirv))
+  {
+    return ShaderCompileError::OutOfMemory;
+  }
+
+  spirv = {};
+  return ShaderCompileError::None;
+}
+
+ShaderCompileError
+    pack_shaders(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
+                 Span<ShaderPackEntry const>             entries,
+                 Span<char const>                        root_directory)
+{
+  for (ShaderPackEntry const &entry : entries)
+  {
+    ShaderCompileError error = pack_shader(compiled, entry.id, root_directory,
+                                           entry.file, entry.preamble);
+    if (error != ShaderCompileError::None)
+    {
+      return error;
+    }
+  }
   return ShaderCompileError::None;
 }
 
