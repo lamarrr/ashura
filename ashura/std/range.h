@@ -228,9 +228,9 @@ template <typename T, typename Predicate>
 constexpr Span<T> find_if(Span<T> span, Predicate &&predicate)
 {
   usize offset = 0;
-  for (; offset < span.size; offset++)
+  for (; offset < span.size(); offset++)
   {
-    if (predicate(span.data[offset]))
+    if (predicate(span[offset]))
     {
       break;
     }

@@ -141,7 +141,7 @@ struct [[nodiscard]] Option
     return !is_some_;
   }
 
-  [[nodiscard]] constexpr operator bool() const
+  [[nodiscard]] explicit constexpr operator bool() const
   {
     return is_some_;
   }
@@ -165,8 +165,9 @@ struct [[nodiscard]] Option
     {
       return value_;
     }
-    default_logger->panic("Expected value in Option but got None"," [function: ", loc.function, ", file: ", loc.file,
-                            ":", loc.line, ":", loc.column, "]");
+    default_logger->panic("Expected value in Option but got None",
+                          " [function: ", loc.function, ", file: ", loc.file,
+                          ":", loc.line, ":", loc.column, "]");
   }
 
   constexpr T const &value(SourceLocation loc = SourceLocation::current()) const
@@ -175,8 +176,9 @@ struct [[nodiscard]] Option
     {
       return value_;
     }
-    default_logger->panic("Expected value in Option but got None"," [function: ", loc.function, ", file: ", loc.file,
-                            ":", loc.line, ":", loc.column, "]");
+    default_logger->panic("Expected value in Option but got None",
+                          " [function: ", loc.function, ", file: ", loc.file,
+                          ":", loc.line, ":", loc.column, "]");
   }
 
   constexpr Option<T const *> as_ref() const

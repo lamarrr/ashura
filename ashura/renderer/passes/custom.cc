@@ -11,7 +11,8 @@ void CustomShaderPass::uninit(RenderContext &ctx)
 {
 }
 
-void CustomShaderPass::add_pass(RenderContext &ctx, CustomShaderPassParams const &params)
+void CustomShaderPass::add_pass(RenderContext                &ctx,
+                                CustomShaderPassParams const &params)
 {
 }
 

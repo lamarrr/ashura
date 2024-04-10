@@ -161,14 +161,6 @@ struct CanvasRenderer
               RenderResourceManager const   &image_manager,
               FrameStats                    &frame_stats)
   {
-    ASH_CHECK(frame < max_nframes_in_flight);
-
-    VkCommandBuffer cmd_buffer = cmd_buffers[frame];
-
-    vertex_buffers[frame].write(memory_properties, vertices.as_u8());
-
-    index_buffers[frame].write(memory_properties, indices.as_u8());
-
     Timepoint gpu_sync_begin = Clock::now();
 
     ASH_VK_CHECK(
@@ -217,16 +209,6 @@ struct CanvasRenderer
     //                                 pipeline_timestamp_query_results[0]))};
     // }
 
-    ASH_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
-
-    VkCommandBufferBeginInfo command_buffer_begin_info{
-        .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext            = nullptr,
-        .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = nullptr,
-    };
-
-    ASH_VK_CHECK(vkBeginCommandBuffer(cmd_buffer, &command_buffer_begin_info));
 
     // vkCmdResetQueryPool(cmd_buffer, pipeline_statistics_query_pools[frame], 0,
     //                     NPIPELINE_STATISTIC_QUERIES);
@@ -237,137 +219,13 @@ struct CanvasRenderer
     // vkCmdWriteTimestamp(cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                         // pipeline_timestamp_query_pools[frame], 0);
 
-    VkClearValue clear_values[] = {
-        {.color = VkClearColorValue{{0, 0, 0, 0}}},
-        {.depthStencil = VkClearDepthStencilValue{.depth = 1, .stencil = 0}}};
-
-    VkRenderPassBeginInfo render_pass_begin_info{
-        .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext       = nullptr,
-        .renderPass  = render_pass,
-        .framebuffer = framebuffer,
-        .renderArea =
-            VkRect2D{.offset = VkOffset2D{0, 0}, .extent = image_extent},
-        .clearValueCount = static_cast<u32>(std::size(clear_values)),
-        .pClearValues    = clear_values};
-
-    vkCmdBeginRenderPass(cmd_buffer, &render_pass_begin_info,
-                         VK_SUBPASS_CONTENTS_INLINE);
-
-    VkPipeline      previous_pipeline = VK_NULL_HANDLE;
-    VkDescriptorSet previous_descriptor_sets[NIMAGES_PER_DRAWCALL] = {};
-    VkViewport      previouse_viewport{};
-    VkRect2D        previouse_scissor{};
-
-    VkDeviceSize const vertices_offsets[] = {0};
-
-    vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer,
-                           vertices_offsets);
-    vkCmdBindIndexBuffer(cmd_buffer, index_buffers[frame].buffer, 0,
-                         VK_INDEX_TYPE_UINT32);
-
     u32 first_index   = 0;
     u32 vertex_offset = 0;
-
-    for (usize icmd = 0; icmd < cmds.size(); icmd++)
-    {
-      gfx::DrawCommand const &cmd = cmds[icmd];
-
-      if (cmd.scissor_offset.x < 0 || cmd.scissor_offset.y < 0)
-      {
-        continue;
-      }
-
-      auto pipeline_it = pipeline_manager.pipelines.find(cmd.pipeline);
-      ASH_CHECK(pipeline_it != pipeline_manager.pipelines.end());
-      ASH_CHECK(pipeline_it->second.pipeline.is_some());
-
-      Pipeline const &pipeline = pipeline_it->second.pipeline.value();
-
-      if (pipeline.pipeline != previous_pipeline)
-      {
-        vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipeline.pipeline);
-      }
-
-      VkViewport viewport{.x        = 0,
-                          .y        = 0,
-                          .width    = static_cast<f32>(viewport_extent.width),
-                          .height   = static_cast<f32>(viewport_extent.height),
-                          .minDepth = 0,
-                          .maxDepth = 1};
-
-      if (memcmp(&viewport, &previouse_viewport, sizeof(VkViewport)) != 0)
-      {
-        vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
-      }
-
-      VkRect2D scissor{
-          .offset = VkOffset2D{static_cast<i32>(cmd.scissor_offset.x),
-                               static_cast<i32>(cmd.scissor_offset.y)},
-          .extent = VkExtent2D{static_cast<u32>(cmd.scissor_extent.x),
-                               static_cast<u32>(cmd.scissor_extent.y)}};
-
-      if (memcmp(&scissor, &previouse_scissor, sizeof(VkRect2D)) != 0)
-      {
-        vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
-      }
-
-      vkCmdPushConstants(cmd_buffer, pipeline.layout,
-                         VK_SHADER_STAGE_VERTEX_BIT |
-                             VK_SHADER_STAGE_FRAGMENT_BIT,
-                         0, PUSH_CONSTANT_SIZE, cmd.push_constant);
-
-      VkDescriptorSet descriptor_sets[NIMAGES_PER_DRAWCALL];
-
-      for (u32 i = 0; i < NIMAGES_PER_DRAWCALL; i++)
-      {
-        auto image_pos = image_manager.images.find(cmd.textures[i]);
-        ASH_CHECK(image_pos != image_manager.images.end());
-        descriptor_sets[i] = image_pos->second.descriptor_set;
-      }
-
-      if (!stx::Span{descriptor_sets}.equals(
-              stx::Span{previous_descriptor_sets}))
-      {
-        vkCmdBindDescriptorSets(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline.layout, 0, NIMAGES_PER_DRAWCALL,
-                                descriptor_sets, 0, nullptr);
-      }
-
-      vkCmdDrawIndexed(cmd_buffer, cmd.nindices, cmd.ninstances, first_index,
-                       (i32) vertex_offset, cmd.first_instance);
-
-      first_index += cmd.nindices;
-      vertex_offset += cmd.nvertices;
-
-      previous_pipeline  = pipeline.pipeline;
-      previouse_viewport = viewport;
-      previouse_scissor  = scissor;
-      stx::Span{previous_descriptor_sets}.copy(descriptor_sets);
-    }
-
-    vkCmdEndRenderPass(cmd_buffer);
 
     // vkCmdEndQuery(cmd_buffer, pipeline_statistics_query_pools[frame], 0);
     // vkCmdWriteTimestamp(cmd_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
     //                     pipeline_timestamp_query_pools[frame], 1);
 
-    ASH_VK_CHECK(vkEndCommandBuffer(cmd_buffer));
-
-    VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-
-    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                             .pNext = nullptr,
-                             .waitSemaphoreCount = 1,
-                             .pWaitSemaphores    = &image_acquisition_semaphore,
-                             .pWaitDstStageMask  = &wait_stage,
-                             .commandBufferCount = 1,
-                             .pCommandBuffers    = &cmd_buffer,
-                             .signalSemaphoreCount = 1,
-                             .pSignalSemaphores    = &render_semaphore};
-
-    ASH_VK_CHECK(vkQueueSubmit(queue, 1, &submit_info, render_fence));
   }
 };
 

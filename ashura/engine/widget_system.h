@@ -2,10 +2,10 @@
 
 #include <chrono>
 
-#include "ashura/canvas.h"
-#include "ashura/uuid.h"
-#include "ashura/widget.h"
-#include "ashura/widget_tree.h"
+#include "ashura/engine/canvas.h"
+#include "ashura/engine/uuid.h"
+#include "ashura/engine/widget.h"
+#include "ashura/engine/widget_tree.h"
 
 namespace ash
 {

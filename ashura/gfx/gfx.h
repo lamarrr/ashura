@@ -2,6 +2,7 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/enum.h"
 #include "ashura/std/log.h"
+#include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
 
@@ -31,7 +32,6 @@ typedef Vec2U                          Extent;
 typedef Vec3U                          Offset3D;
 typedef Vec3U                          Extent3D;
 typedef u64                            FrameId;
-typedef u64                            Generation;
 typedef struct Buffer_T               *Buffer;
 typedef struct BufferView_T           *BufferView;
 typedef struct Image_T                *Image;
@@ -779,12 +779,6 @@ struct SurfaceFormat
   ColorSpace color_space = ColorSpace::SRGB_NONLINEAR;
 };
 
-struct FrameIndex
-{
-  u64 trailing = 0;
-  u64 current  = 0;
-};
-
 struct MemoryRange
 {
   u64 offset = 0;
@@ -845,33 +839,33 @@ struct ImageSubresourceLayers
 
 struct BufferDesc
 {
-  char const *label       = nullptr;
-  u64         size        = 0;
-  bool        host_mapped = false;
-  BufferUsage usage       = BufferUsage::None;
+  Span<char const> label       = {};
+  u64              size        = 0;
+  bool             host_mapped = false;
+  BufferUsage      usage       = BufferUsage::None;
 };
 
 /// format interpretation of a buffer's contents
 struct BufferViewDesc
 {
-  char const *label  = nullptr;
-  Buffer      buffer = nullptr;
-  Format      format = Format::Undefined;
-  u64         offset = 0;
-  u64         size   = 0;
+  Span<char const> label  = {};
+  Buffer           buffer = nullptr;
+  Format           format = Format::Undefined;
+  u64              offset = 0;
+  u64              size   = 0;
 };
 
 struct ImageDesc
 {
-  char const  *label        = nullptr;
-  ImageType    type         = ImageType::Type1D;
-  Format       format       = Format::Undefined;
-  ImageUsage   usage        = ImageUsage::None;
-  ImageAspects aspects      = ImageAspects::None;
-  Extent3D     extent       = {};
-  u32          mip_levels   = 0;
-  u32          array_layers = 0;
-  SampleCount  sample_count = SampleCount::None;
+  Span<char const> label        = {};
+  ImageType        type         = ImageType::Type1D;
+  Format           format       = Format::Undefined;
+  ImageUsage       usage        = ImageUsage::None;
+  ImageAspects     aspects      = ImageAspects::None;
+  Extent3D         extent       = {};
+  u32              mip_levels   = 0;
+  u32              array_layers = 0;
+  SampleCount      sample_count = SampleCount::None;
 };
 
 /// a sub-resource that specifies mips, aspects, layer, and component mapping of
@@ -883,7 +877,7 @@ struct ImageDesc
 ///
 struct ImageViewDesc
 {
-  char const      *label             = nullptr;
+  Span<char const> label             = {};
   Image            image             = nullptr;
   ImageViewType    view_type         = ImageViewType::Type1D;
   Format           view_format       = Format::Undefined;
@@ -897,7 +891,7 @@ struct ImageViewDesc
 
 struct SamplerDesc
 {
-  char const        *label             = nullptr;
+  Span<char const>   label             = {};
   Filter             mag_filter        = Filter::Nearest;
   Filter             min_filter        = Filter::Nearest;
   SamplerMipMapMode  mip_map_mode      = SamplerMipMapMode::Nearest;
@@ -917,8 +911,8 @@ struct SamplerDesc
 
 struct ShaderDesc
 {
-  char const     *label      = nullptr;
-  Span<u32 const> spirv_code = {};
+  Span<char const> label      = {};
+  Span<u32 const>  spirv_code = {};
 };
 
 /// @load_op: how to load color or depth component
@@ -938,7 +932,7 @@ struct RenderPassAttachment
 /// related optimizations
 struct RenderPassDesc
 {
-  char const                      *label                    = nullptr;
+  Span<char const>                 label                    = {};
   Span<RenderPassAttachment const> color_attachments        = {};
   Span<RenderPassAttachment const> input_attachments        = {};
   RenderPassAttachment             depth_stencil_attachment = {};
@@ -946,7 +940,7 @@ struct RenderPassDesc
 
 struct FramebufferDesc
 {
-  char const           *label                    = nullptr;
+  Span<char const>      label                    = {};
   RenderPass            render_pass              = nullptr;
   Extent                extent                   = {};
   Span<ImageView const> color_attachments        = {};
@@ -962,14 +956,14 @@ struct DescriptorBindingDesc
 
 struct DescriptorSetLayoutDesc
 {
-  char const                       *label    = nullptr;
+  Span<char const>                  label    = {};
   Span<DescriptorBindingDesc const> bindings = {};
 };
 
 struct PipelineCacheDesc
 {
-  char const    *label        = nullptr;
-  Span<u8 const> initial_data = {};
+  Span<char const> label        = {};
+  Span<u8 const>   initial_data = {};
 };
 
 struct SamplerBinding
@@ -1047,14 +1041,14 @@ struct SpecializationConstant
 struct ShaderStageDesc
 {
   Shader                             shader                        = nullptr;
-  char const                        *entry_point                   = nullptr;
+  Span<char const>                   entry_point                   = {};
   Span<SpecializationConstant const> specialization_constants      = {};
   Span<u8 const>                     specialization_constants_data = {};
 };
 
 struct ComputePipelineDesc
 {
-  char const                     *label                  = nullptr;
+  Span<char const>                label                  = {};
   ShaderStageDesc                 compute_shader         = {};
   u32                             push_constant_size     = 0;
   Span<DescriptorSetLayout const> descriptor_set_layouts = {};
@@ -1135,7 +1129,7 @@ struct PipelineRasterizationState
 
 struct GraphicsPipelineDesc
 {
-  char const                     *label                  = nullptr;
+  Span<char const>                label                  = {};
   ShaderStageDesc                 vertex_shader          = {};
   ShaderStageDesc                 fragment_shader        = {};
   RenderPass                      render_pass            = nullptr;
@@ -1244,13 +1238,13 @@ struct SurfaceCapabilities
 
 struct SwapchainDesc
 {
-  char const    *label               = nullptr;
-  SurfaceFormat  format              = {};
-  ImageUsage     usage               = ImageUsage::None;
-  u32            preferred_buffering = 0;
-  PresentMode    present_mode        = PresentMode::Immediate;
-  Extent         preferred_extent    = {};
-  CompositeAlpha composite_alpha     = CompositeAlpha::None;
+  Span<char const> label               = {};
+  SurfaceFormat    format              = {};
+  ImageUsage       usage               = ImageUsage::None;
+  u32              preferred_buffering = 0;
+  PresentMode      present_mode        = PresentMode::Immediate;
+  Extent           preferred_extent    = {};
+  CompositeAlpha   composite_alpha     = CompositeAlpha::None;
 };
 
 /// @generation: increases everytime the swapchain for the surface is recreated
@@ -1258,23 +1252,22 @@ struct SwapchainDesc
 /// @images: swapchain images, calling ref or unref on them will cause a panic
 /// as they are only meant to exist for the lifetime of the frame.
 /// avoid storing pointers to its data members.
-struct SwapchainInfo
+struct SwapchainState
 {
-  Generation        generation    = 0;
   Extent            extent        = {};
   SurfaceFormat     format        = {};
   Span<Image const> images        = {};
-  u32               current_image = 0;
+  Option<u32>       current_image = None;
 };
 
 /// should be assumed to change from frame to frame.
 /// avoid storing pointers to this struct.
 struct FrameInfo
 {
-  FrameId                        trailing                = 0;
-  FrameId                        current                 = 0;
-  Span<CommandEncoderImpl const> command_encoders        = {};
-  u32                            current_command_encoder = 0;
+  FrameId                        tail       = 0;
+  FrameId                        current    = 0;
+  Span<CommandEncoderImpl const> encoders   = {};
+  u32                            ring_index = 0;
 };
 
 struct DeviceLimits
@@ -1382,16 +1375,16 @@ struct DescriptorHeapStats
 
 struct DescriptorHeapInterface
 {
-  Result<u32, Status> (*add_group)(DescriptorHeap self)        = nullptr;
-  void (*collect)(DescriptorHeap self, FrameId trailing_frame) = nullptr;
+  Result<u32, Status> (*add_group)(DescriptorHeap self)    = nullptr;
+  void (*collect)(DescriptorHeap self, FrameId tail_frame) = nullptr;
   void (*mark_in_use)(DescriptorHeap self, u32 group,
-                      FrameId current_frame)                   = nullptr;
+                      FrameId current_frame)               = nullptr;
   bool (*is_in_use)(DescriptorHeap self, u32 group,
-                    FrameId trailing_frame)                    = nullptr;
-  void (*release)(DescriptorHeap self, u32 group)              = nullptr;
-  DescriptorHeapStats (*get_stats)(DescriptorHeap self)        = nullptr;
+                    FrameId tail_frame)                    = nullptr;
+  void (*release)(DescriptorHeap self, u32 group)          = nullptr;
+  DescriptorHeapStats (*get_stats)(DescriptorHeap self)    = nullptr;
   void (*sampler)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                  Span<SamplerBinding const> elements)         = nullptr;
+                  Span<SamplerBinding const> elements)     = nullptr;
   void (*combined_image_sampler)(
       DescriptorHeap self, u32 group, u32 set, u32 binding,
       Span<CombinedImageSamplerBinding const> elements)           = nullptr;
@@ -1431,13 +1424,10 @@ struct DescriptorHeapImpl
   }
 };
 
-/// to execute tasks at end of frame. use the trailing frame index.
+/// to execute tasks at end of frame. use the tail frame index.
 struct CommandEncoderInterface
 {
-  void (*begin)(CommandEncoder self)                                  = nullptr;
-  Result<Void, Status> (*end)(CommandEncoder self)                    = nullptr;
-  void (*reset)(CommandEncoder self)                                  = nullptr;
-  void (*begin_debug_marker)(CommandEncoder self, char const *region_name,
+  void (*begin_debug_marker)(CommandEncoder self, Span<char const> region_name,
                              Vec4 color)                              = nullptr;
   void (*end_debug_marker)(CommandEncoder self)                       = nullptr;
   void (*fill_buffer)(CommandEncoder self, Buffer dst, u64 offset, u64 size,
@@ -1499,7 +1489,6 @@ struct CommandEncoderInterface
                u32 num_instances)                                     = nullptr;
   void (*draw_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
                         u32 draw_count, u32 stride)                   = nullptr;
-  void (*present_image)(CommandEncoder self, Image image)             = nullptr;
 };
 
 struct CommandEncoderImpl
@@ -1546,11 +1535,9 @@ struct DeviceInterface
   Result<GraphicsPipeline, Status> (*create_graphics_pipeline)(
       Device self, GraphicsPipelineDesc const &desc)                = nullptr;
   Result<Fence, Status> (*create_fence)(Device self, bool signaled) = nullptr;
-  Result<CommandEncoderImpl, Status> (*create_command_encoder)(
-      Device self, AllocatorImpl allocator) = nullptr;
   Result<FrameContext, Status> (*create_frame_context)(
       Device self, u32 max_frames_in_flight,
-      Span<AllocatorImpl const> command_encoder_allocators) = nullptr;
+      AllocatorImpl command_encoder_allocator) = nullptr;
   Result<Swapchain, Status> (*create_swapchain)(
       Device self, Surface surface, SwapchainDesc const &desc)        = nullptr;
   void (*ref_buffer)(Device self, Buffer buffer)                      = nullptr;
@@ -1569,8 +1556,6 @@ struct DeviceInterface
   void (*ref_graphics_pipeline)(Device           self,
                                 GraphicsPipeline pipeline)            = nullptr;
   void (*ref_fence)(Device self, Fence fence)                         = nullptr;
-  void (*ref_command_encoder)(Device             self,
-                              CommandEncoderImpl encoder)             = nullptr;
   void (*ref_frame_context)(Device self, FrameContext frame_context)  = nullptr;
   void (*unref_buffer)(Device self, Buffer buffer)                    = nullptr;
   void (*unref_buffer_view)(Device self, BufferView buffer_view)      = nullptr;
@@ -1589,8 +1574,6 @@ struct DeviceInterface
   void (*unref_graphics_pipeline)(Device           self,
                                   GraphicsPipeline pipeline)          = nullptr;
   void (*unref_fence)(Device self, Fence fence)                       = nullptr;
-  void (*unref_command_encoder)(Device             self,
-                                CommandEncoderImpl encoder)           = nullptr;
   void (*unref_frame_context)(Device       self,
                               FrameContext frame_context)             = nullptr;
   Result<void *, Status> (*get_buffer_memory_map)(Device self,
@@ -1611,8 +1594,6 @@ struct DeviceInterface
   Result<Void, Status> (*reset_fences)(Device            self,
                                        Span<Fence const> fences)      = nullptr;
   Result<bool, Status> (*get_fence_status)(Device self, Fence fence)  = nullptr;
-  Result<Void, Status> (*submit)(Device self, CommandEncoder encoder,
-                                 Fence signal_fence)                  = nullptr;
   Result<Void, Status> (*wait_idle)(Device self)                      = nullptr;
   Result<Void, Status> (*wait_queue_idle)(Device self)                = nullptr;
   FrameInfo (*get_frame_info)(Device self, FrameContext frame_context);
@@ -1622,14 +1603,14 @@ struct DeviceInterface
       Device self, Surface surface, Span<PresentMode> modes) = nullptr;
   Result<SurfaceCapabilities, Status> (*get_surface_capabilities)(
       Device self, Surface surface) = nullptr;
-  Result<SwapchainInfo, Status> (*get_swapchain_info)(
+  Result<SwapchainState, Status> (*get_swapchain_state)(
       Device self, Swapchain swapchain) = nullptr;
   Result<Void, Status> (*invalidate_swapchain)(
       Device self, Swapchain swapchain, SwapchainDesc const &desc) = nullptr;
-  Result<Void, Status> (*begin_frame)(Device self, Swapchain swapchain,
-                                      FrameContext frame_context)  = nullptr;
-  Result<Void, Status> (*submit_frame)(Device self, Swapchain swapchain,
-                                       FrameContext frame_context) = nullptr;
+  Result<Void, Status> (*begin_frame)(Device self, FrameContext frame_context,
+                                      Swapchain swapchain)         = nullptr;
+  Result<Void, Status> (*submit_frame)(Device self, FrameContext frame_context,
+                                       Swapchain swapchain)        = nullptr;
 };
 
 struct DeviceImpl
@@ -1640,166 +1621,6 @@ struct DeviceImpl
   constexpr DeviceInterface const *operator->() const
   {
     return interface;
-  }
-
-  void ref(Buffer object) const
-  {
-    interface->ref_buffer(self, object);
-  }
-
-  void ref(BufferView object) const
-  {
-    interface->ref_buffer_view(self, object);
-  }
-
-  void ref(Image object) const
-  {
-    interface->ref_image(self, object);
-  }
-
-  void ref(ImageView object) const
-  {
-    interface->ref_image_view(self, object);
-  }
-
-  void ref(Sampler object) const
-  {
-    interface->ref_sampler(self, object);
-  }
-
-  void ref(Shader object) const
-  {
-    interface->ref_shader(self, object);
-  }
-
-  void ref(RenderPass object) const
-  {
-    interface->ref_render_pass(self, object);
-  }
-
-  void ref(Framebuffer object) const
-  {
-    interface->ref_framebuffer(self, object);
-  }
-
-  void ref(DescriptorSetLayout object) const
-  {
-    interface->ref_descriptor_set_layout(self, object);
-  }
-
-  void ref(DescriptorHeapImpl object) const
-  {
-    interface->ref_descriptor_heap(self, object);
-  }
-
-  void ref(PipelineCache object) const
-  {
-    interface->ref_pipeline_cache(self, object);
-  }
-
-  void ref(ComputePipeline object) const
-  {
-    interface->ref_compute_pipeline(self, object);
-  }
-
-  void ref(GraphicsPipeline object) const
-  {
-    interface->ref_graphics_pipeline(self, object);
-  }
-
-  void ref(Fence object) const
-  {
-    interface->ref_fence(self, object);
-  }
-
-  void ref(CommandEncoderImpl object) const
-  {
-    interface->ref_command_encoder(self, object);
-  }
-
-  void ref(FrameContext object) const
-  {
-    interface->ref_frame_context(self, object);
-  }
-
-  void unref(Buffer object) const
-  {
-    interface->unref_buffer(self, object);
-  }
-
-  void unref(BufferView object) const
-  {
-    interface->unref_buffer_view(self, object);
-  }
-
-  void unref(Image object) const
-  {
-    interface->unref_image(self, object);
-  }
-
-  void unref(ImageView object) const
-  {
-    interface->unref_image_view(self, object);
-  }
-
-  void unref(Sampler object) const
-  {
-    interface->unref_sampler(self, object);
-  }
-
-  void unref(Shader object) const
-  {
-    interface->unref_shader(self, object);
-  }
-
-  void unref(RenderPass object) const
-  {
-    interface->unref_render_pass(self, object);
-  }
-
-  void unref(Framebuffer object) const
-  {
-    interface->unref_framebuffer(self, object);
-  }
-
-  void unref(DescriptorSetLayout object) const
-  {
-    interface->unref_descriptor_set_layout(self, object);
-  }
-
-  void unref(DescriptorHeapImpl object) const
-  {
-    interface->unref_descriptor_heap(self, object);
-  }
-
-  void unref(PipelineCache object) const
-  {
-    interface->unref_pipeline_cache(self, object);
-  }
-
-  void unref(ComputePipeline object) const
-  {
-    interface->unref_compute_pipeline(self, object);
-  }
-
-  void unref(GraphicsPipeline object) const
-  {
-    interface->unref_graphics_pipeline(self, object);
-  }
-
-  void unref(Fence object) const
-  {
-    interface->unref_fence(self, object);
-  }
-
-  void unref(CommandEncoderImpl object) const
-  {
-    interface->unref_command_encoder(self, object);
-  }
-
-  void unref(FrameContext object) const
-  {
-    interface->unref_frame_context(self, object);
   }
 };
 

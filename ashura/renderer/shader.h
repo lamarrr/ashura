@@ -1,9 +1,9 @@
 #pragma once
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/error.h"
+#include "ashura/std/log.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/option.h"
-#include "ashura/std/log.h"
 #include "ashura/std/range.h"
 #include "ashura/std/result.h"
 #include "ashura/std/source_location.h"
@@ -400,12 +400,13 @@ struct ShaderParameterHeap
   {
     constexpr Array descs = Param::GET_BINDINGS_DESC();
     device_               = device;
-    layout_               = device
-                  ->create_descriptor_set_layout(
-                      device.self,
-                      gfx::DescriptorSetLayoutDesc{.label    = Param::NAME,
-                                                   .bindings = to_span(descs)})
-                  .unwrap();
+    layout_ =
+        device
+            ->create_descriptor_set_layout(
+                device.self,
+                gfx::DescriptorSetLayoutDesc{.label    = to_span(Param::NAME),
+                                             .bindings = to_span(descs)})
+            .unwrap();
     heap_ = device
                 ->create_descriptor_heap(device_.self, {&layout_, 1},
                                          batch_size, default_allocator)
@@ -610,7 +611,7 @@ struct UniformHeap
                                  ->create_descriptor_set_layout(
                                      device.self,
                                      gfx::DescriptorSetLayoutDesc{
-                                         .label    = "Uniform Buffer",
+                                         .label    = "Uniform Buffer"_span,
                                          .bindings = to_span(bindings_desc)})
                                  .unwrap();
     gfx::DescriptorSetLayout layouts[NUM_SIZE_CLASSES];
@@ -678,8 +679,8 @@ struct UniformHeap
           device_
               ->create_buffer(
                   device_.self,
-                  gfx::BufferDesc{.label       = "UniformHeap batch buffer",
-                                  .size        = batch_buffer_size_,
+                  gfx::BufferDesc{.label = "UniformHeap batch buffer"_span,
+                                  .size  = batch_buffer_size_,
                                   .host_mapped = true,
                                   .usage = gfx::BufferUsage::UniformBuffer |
                                            gfx::BufferUsage::TransferDst |

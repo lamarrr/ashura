@@ -11,7 +11,7 @@ void RRectPass::init(RenderContext &ctx)
       ctx.device
           ->create_descriptor_set_layout(
               ctx.device.self,
-              gfx::DescriptorSetLayoutDesc{.label    = "RRect Parameters",
+              gfx::DescriptorSetLayoutDesc{.label    = "RRect Parameters"_span,
                                            .bindings = to_span(bindings_desc)})
           .unwrap();
 
@@ -20,7 +20,7 @@ void RRectPass::init(RenderContext &ctx)
           ->create_render_pass(
               ctx.device.self,
               gfx::RenderPassDesc{
-                  .label             = "RRect RenderPass",
+                  .label             = "RRect RenderPass"_span,
                   .color_attachments = to_span<gfx::RenderPassAttachment>(
                       {{.format           = ctx.color_format,
                         .load_op          = gfx::LoadOp::Load,
@@ -89,15 +89,15 @@ void RRectPass::init(RenderContext &ctx)
                                             descriptor_set_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
-      .label = "RRect Graphics Pipeline",
+      .label = "RRect Graphics Pipeline"_span,
       .vertex_shader =
           gfx::ShaderStageDesc{.shader                        = vertex_shader,
-                               .entry_point                   = "main",
+                               .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gfx::ShaderStageDesc{.shader                        = fragment_shader,
-                               .entry_point                   = "main",
+                               .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .render_pass            = render_pass,
@@ -119,7 +119,7 @@ void RRectPass::init(RenderContext &ctx)
       ctx.device
           ->create_buffer(
               ctx.device.self,
-              gfx::BufferDesc{.label       = "RRect Vertex Buffer",
+              gfx::BufferDesc{.label       = "RRect Vertex Buffer"_span,
                               .size        = sizeof(Vec2) * 4,
                               .host_mapped = true,
                               .usage       = gfx::BufferUsage::VertexBuffer |
@@ -129,7 +129,7 @@ void RRectPass::init(RenderContext &ctx)
       ctx.device
           ->create_buffer(
               ctx.device.self,
-              gfx::BufferDesc{.label       = "RRect Index Buffer",
+              gfx::BufferDesc{.label       = "RRect Index Buffer"_span,
                               .size        = sizeof(u16) * 6,
                               .host_mapped = true,
                               .usage       = gfx::BufferUsage::IndexBuffer |
@@ -166,7 +166,7 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
       ctx.device
           ->create_framebuffer(
               ctx.device.self,
-              gfx::FramebufferDesc{.label       = "RRect Framebuffer",
+              gfx::FramebufferDesc{.label       = "RRect Framebuffer"_span,
                                    .render_pass = render_pass,
                                    .extent      = params.render_target.extent,
                                    .color_attachments = to_span(
@@ -208,4 +208,8 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
   ctx.release(framebuffer);
 }
 
+void RRectPass::uninit(RenderContext &ctx)
+{
+  CHECK(false);
+}
 }        // namespace ash

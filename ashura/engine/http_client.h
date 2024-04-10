@@ -1,24 +1,5 @@
 #pragma once
 
-#include <chrono>
-#include <map>
-
-#include "ashura/primitives.h"
-#include "ashura/subsystem.h"
-#include "ashura/utils.h"
-#include "fmt/format.h"
-#include "stx/async.h"
-#include "stx/string.h"
-#include "stx/vec.h"
-
-#ifndef NOMINMAX
-#  define NOMINMAX
-#  include "curl/curl.h"
-#  undef NOMINMAX
-#else
-#  include "curl/curl.h"
-#endif
-
 #define ASH_CURLE_CHECK(code_expression, ...) \
   do                                          \
   {                                           \

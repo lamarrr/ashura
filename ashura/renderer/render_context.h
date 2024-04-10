@@ -45,85 +45,74 @@ struct FramebufferAttachments
   gfx::ImageView     depth_stencil_image_view      = nullptr;
 };
 
+using ShaderMap = StrHashMap<gfx::Shader>;
+
 /// @color_format: hdr if hdr supported and required
 /// scratch images resized when swapchain extents changes
 struct RenderContext
 {
-  gfx::DeviceImpl          device               = {};
-  gfx::PipelineCache       pipeline_cache       = nullptr;
-  StrHashMap<gfx::Shader>  shader_map           = {};
-  gfx::FrameContext        frame_context        = nullptr;
-  gfx::FrameInfo           frame_info           = {};
+  static constexpr gfx::FormatFeatures COLOR_FEATURES =
+      gfx::FormatFeatures::ColorAttachment |
+      gfx::FormatFeatures::ColorAttachmentBlend |
+      gfx::FormatFeatures::StorageImage | gfx::FormatFeatures::SampledImage |
+      gfx::FormatFeatures::TransferDst | gfx::FormatFeatures::TransferSrc;
+  static constexpr gfx::FormatFeatures DEPTH_STENCIL_FEATURES =
+      gfx::FormatFeatures::DepthStencilAttachment |
+      gfx::FormatFeatures::SampledImage | gfx::FormatFeatures::TransferDst |
+      gfx::FormatFeatures::TransferSrc;
+
+  gfx::DeviceImpl    device               = {};
+  gfx::PipelineCache pipeline_cache       = nullptr;
+  u32                max_frames_in_flight = 0;
+  ShaderMap          shader_map           = {};
+  gfx::FrameContext  frame_context        = nullptr;
+  gfx::Extent        extent               = {};
+
   gfx::Format              color_format         = gfx::Format::Undefined;
   gfx::Format              depth_stencil_format = gfx::Format::Undefined;
   FramebufferAttachments   framebuffer          = {};
   FramebufferAttachments   scatch_framebuffer   = {};
   Vec<UniformHeap>         uniform_heaps        = {};
   gfx::DescriptorSetLayout uniform_layout       = nullptr;
+
   Vec<Tuple<gfx::FrameId, gfx::Framebuffer>> released_framebuffers = {};
   Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
   Vec<Tuple<gfx::FrameId, gfx::ImageView>>   released_image_views  = {};
 
-  gfx::CommandEncoderImpl encoder() const
-  {
-    return frame_info.command_encoders[flight_index()];
-  }
+  void init(gfx::DeviceImpl p_device, bool p_use_hdr,
+            u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,
+            ShaderMap p_shader_map);
+  void uninit();
 
-  u8 flight_index() const
-  {
-    return (u8) frame_info.current_command_encoder;
-  }
+  void recreate_attachments(gfx::Extent new_extent);
 
-  u8 max_frames_in_flight() const
-  {
-    return (u8) frame_info.command_encoders.size();
-  }
+  gfx::CommandEncoderImpl encoder();
+  u32                     ring_index();
+  gfx::FrameId            frame_id();
+  gfx::FrameId            tail_frame_id();
 
   template <typename T>
   Uniform push_uniform(T const &uniform)
   {
-    return uniform_heaps[flight_index()].push(uniform);
+    return uniform_heaps[ring_index()].push(uniform);
   }
 
   template <typename T>
   Uniform push_uniform_range(Span<T const> uniform)
   {
-    return uniform_heaps[flight_index()].push_range(uniform);
+    return uniform_heaps[ring_index()].push_range(uniform);
   }
 
-  Option<gfx::Shader> get_shader(Span<char const> name)
-  {
-    gfx::Shader *shader = shader_map[name];
-    if (shader == nullptr)
-    {
-      return None;
-    }
-    return Some{*shader};
-  }
+  Option<gfx::Shader> get_shader(Span<char const> name);
 
-  void release(gfx::Framebuffer framebuffer)
-  {
-    if (framebuffer != nullptr)
-    {
-      CHECK(released_framebuffers.push(frame_info.current, framebuffer));
-    }
-  }
+  void release(gfx::Framebuffer framebuffer);
+  void release(gfx::Image image);
+  void release(gfx::ImageView view);
+  void purge();
+  void idle_purge();
 
-  void release(gfx::Image image)
-  {
-    if (image != nullptr)
-    {
-      CHECK(released_images.push(frame_info.current, image));
-    }
-  }
-
-  void release(gfx::ImageView view)
-  {
-    if (view != nullptr)
-    {
-      CHECK(released_image_views.push(frame_info.current, view));
-    }
-  }
+  void begin_frame(gfx::Swapchain swapchain);
+  void end_frame(gfx::Swapchain swapchain);
 };
 
 }        // namespace ash

@@ -441,6 +441,15 @@ struct DescriptorHeap
   usize                 scratch_memory_size         = 0;
 };
 
+enum class CommandEncoderState : u8
+{
+  Reset       = 0,
+  Recording   = 0x1,
+  RenderPass  = 0x2,
+  ComputePass = 0x4,
+  Submitted   = 0x8
+};
+
 struct CommandEncoder
 {
   u64                refcount                                         = 0;
@@ -462,29 +471,35 @@ struct CommandEncoder
       {};
   u32    num_bound_descriptor_sets = 0;
   Status status                    = Status::Success;
+  bool   is_recording              = false;
 };
 
 struct FrameContext
 {
-  u64                      refcount                = 0;
-  gfx::FrameId             trailing_frame          = 0;
-  gfx::FrameId             current_frame           = 0;
-  u32                      current_command_encoder = 0;
-  u32                      max_frames_in_flight    = 0;
-  gfx::CommandEncoderImpl *command_encoders        = nullptr;
-  VkSemaphore             *acquire_semaphores      = nullptr;
-  gfx::Fence              *submit_fences           = nullptr;
-  VkSemaphore             *submit_semaphores       = nullptr;
+  u64                      refcount             = 0;
+  gfx::FrameId             tail_frame       = 0;
+  gfx::FrameId             current_frame        = 0;
+  u32                      ring_index           = 0;
+  u32                      max_frames_in_flight = 0;
+  gfx::CommandEncoderImpl *encoders             = nullptr;
+  VkSemaphore             *acquire_semaphores   = nullptr;
+  gfx::Fence              *submit_fences        = nullptr;
+  VkSemaphore             *submit_semaphores    = nullptr;
 };
 
 /// @is_optimal: false when vulkan returns that the surface is suboptimal or
 /// the description is updated by the user
+///
+/// @is_out_of_date: can't present anymore
+/// @is_optimal: recommended but not necessary to resize
+/// @is_zero_sized: swapchain is not receiving presentation requests, because
+/// the surface requested a zero sized image extent
 struct Swapchain
 {
-  gfx::Generation     generation      = 0;
   gfx::SwapchainDesc  desc            = {};
-  bool                is_valid        = false;
+  bool                is_out_of_date  = true;
   bool                is_optimal      = false;
+  bool                is_zero_sized   = false;
   gfx::SurfaceFormat  format          = {};
   gfx::ImageUsage     usage           = gfx::ImageUsage::None;
   gfx::PresentMode    present_mode    = gfx::PresentMode::Immediate;
@@ -555,9 +570,9 @@ struct DeviceInterface
                                                  bool        signaled);
   static Result<gfx::CommandEncoderImpl, Status>
       create_command_encoder(gfx::Device self, AllocatorImpl allocator);
-  static Result<gfx::FrameContext, Status> create_frame_context(
-      gfx::Device self, u32 max_frames_in_flight,
-      Span<AllocatorImpl const> command_encoder_allocators);
+  static Result<gfx::FrameContext, Status>
+      create_frame_context(gfx::Device self, u32 max_frames_in_flight,
+                           AllocatorImpl command_encoder_allocator);
   static Result<gfx::Swapchain, Status>
               create_swapchain(gfx::Device self, gfx::Surface surface,
                                gfx::SwapchainDesc const &desc);
@@ -628,9 +643,6 @@ struct DeviceInterface
                                            Span<gfx::Fence const> fences);
   static Result<bool, Status> get_fence_status(gfx::Device self,
                                                gfx::Fence  fence);
-  static Result<Void, Status> submit(gfx::Device         self,
-                                     gfx::CommandEncoder encoder,
-                                     gfx::Fence          signal_fence);
   static Result<Void, Status> wait_idle(gfx::Device self);
   static Result<Void, Status> wait_queue_idle(gfx::Device self);
   static gfx::FrameInfo       get_frame_info(gfx::Device       self,
@@ -643,27 +655,27 @@ struct DeviceInterface
                                 Span<gfx::PresentMode> modes);
   static Result<gfx::SurfaceCapabilities, Status>
       get_surface_capabilities(gfx::Device self, gfx::Surface surface);
-  static Result<gfx::SwapchainInfo, Status>
-      get_swapchain_info(gfx::Device self, gfx::Swapchain swapchain);
+  static Result<gfx::SwapchainState, Status>
+      get_swapchain_state(gfx::Device self, gfx::Swapchain swapchain);
   static Result<Void, Status>
       invalidate_swapchain(gfx::Device self, gfx::Swapchain swapchain,
                            gfx::SwapchainDesc const &desc);
   static Result<Void, Status> begin_frame(gfx::Device       self,
-                                          gfx::Swapchain    swapchain,
-                                          gfx::FrameContext frame_context);
+                                          gfx::FrameContext frame_context,
+                                          gfx::Swapchain    swapchain);
   static Result<Void, Status> submit_frame(gfx::Device       self,
-                                           gfx::Swapchain    swapchain,
-                                           gfx::FrameContext frame_context);
+                                           gfx::FrameContext frame_context,
+                                           gfx::Swapchain    swapchain);
 };
 
 struct DescriptorHeapInterface
 {
   static Result<u32, Status> add_group(gfx::DescriptorHeap self);
-  static void collect(gfx::DescriptorHeap self, gfx::FrameId trailing_frame);
+  static void collect(gfx::DescriptorHeap self, gfx::FrameId tail_frame);
   static void mark_in_use(gfx::DescriptorHeap self, u32 group,
                           gfx::FrameId current_frame);
   static bool is_in_use(gfx::DescriptorHeap self, u32 group,
-                        gfx::FrameId trailing_frame);
+                        gfx::FrameId tail_frame);
   static void release(gfx::DescriptorHeap self, u32 group);
   static gfx::DescriptorHeapStats get_stats(gfx::DescriptorHeap self);
   static void sampler(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
@@ -705,12 +717,9 @@ struct DescriptorHeapInterface
 
 struct CommandEncoderInterface
 {
-  static void                 begin(gfx::CommandEncoder self);
-  static Result<Void, Status> end(gfx::CommandEncoder self);
-  static void                 reset(gfx::CommandEncoder self);
-  static void                 begin_debug_marker(gfx::CommandEncoder self,
-                                                 char const *region_name, Vec4 color);
-  static void                 end_debug_marker(gfx::CommandEncoder self);
+  static void begin_debug_marker(gfx::CommandEncoder self,
+                                 Span<char const> region_name, Vec4 color);
+  static void end_debug_marker(gfx::CommandEncoder self);
   static void fill_buffer(gfx::CommandEncoder self, gfx::Buffer dst, u64 offset,
                           u64 size, u32 data);
   static void copy_buffer(gfx::CommandEncoder self, gfx::Buffer src,
@@ -778,7 +787,6 @@ struct CommandEncoderInterface
                    i32 vertex_offset, u32 first_instance, u32 num_instances);
   static void draw_indirect(gfx::CommandEncoder self, gfx::Buffer buffer,
                             u64 offset, u32 draw_count, u32 stride);
-  static void present_image(gfx::CommandEncoder self, gfx::Image image);
 };
 
 static gfx::InstanceInterface const instance_interface{
@@ -822,8 +830,8 @@ static gfx::DeviceInterface const device_interface{
     .ref_descriptor_heap         = DeviceInterface::ref_descriptor_heap,
     .ref_pipeline_cache          = DeviceInterface::ref_pipeline_cache,
     .ref_compute_pipeline        = DeviceInterface::ref_compute_pipeline,
+    .ref_graphics_pipeline       = DeviceInterface::ref_graphics_pipeline,
     .ref_fence                   = DeviceInterface::ref_fence,
-    .ref_command_encoder         = DeviceInterface::ref_command_encoder,
     .ref_frame_context           = DeviceInterface::ref_frame_context,
     .unref_buffer                = DeviceInterface::unref_buffer,
     .unref_buffer_view           = DeviceInterface::unref_buffer_view,
@@ -837,8 +845,8 @@ static gfx::DeviceInterface const device_interface{
     .unref_descriptor_heap       = DeviceInterface::unref_descriptor_heap,
     .unref_pipeline_cache        = DeviceInterface::unref_pipeline_cache,
     .unref_compute_pipeline      = DeviceInterface::unref_compute_pipeline,
+    .unref_graphics_pipeline     = DeviceInterface::unref_graphics_pipeline,
     .unref_fence                 = DeviceInterface::unref_fence,
-    .unref_command_encoder       = DeviceInterface::unref_command_encoder,
     .unref_frame_context         = DeviceInterface::unref_frame_context,
     .get_buffer_memory_map       = DeviceInterface::get_buffer_memory_map,
     .invalidate_buffer_memory_map =
@@ -850,14 +858,13 @@ static gfx::DeviceInterface const device_interface{
     .wait_for_fences           = DeviceInterface::wait_for_fences,
     .reset_fences              = DeviceInterface::reset_fences,
     .get_fence_status          = DeviceInterface::get_fence_status,
-    .submit                    = DeviceInterface::submit,
     .wait_idle                 = DeviceInterface::wait_idle,
     .wait_queue_idle           = DeviceInterface::wait_queue_idle,
     .get_frame_info            = DeviceInterface::get_frame_info,
     .get_surface_formats       = DeviceInterface::get_surface_formats,
     .get_surface_present_modes = DeviceInterface::get_surface_present_modes,
     .get_surface_capabilities  = DeviceInterface::get_surface_capabilities,
-    .get_swapchain_info        = DeviceInterface::get_swapchain_info,
+    .get_swapchain_state       = DeviceInterface::get_swapchain_state,
     .invalidate_swapchain      = DeviceInterface::invalidate_swapchain,
     .begin_frame               = DeviceInterface::begin_frame,
     .submit_frame              = DeviceInterface::submit_frame};
@@ -882,9 +889,6 @@ static gfx::DescriptorHeapInterface const descriptor_heap_interface{
     .input_attachment       = DescriptorHeapInterface::input_attachment};
 
 static gfx::CommandEncoderInterface const command_encoder_interface{
-    .begin              = CommandEncoderInterface::begin,
-    .end                = CommandEncoderInterface::end,
-    .reset              = CommandEncoderInterface::reset,
     .begin_debug_marker = CommandEncoderInterface::begin_debug_marker,
     .end_debug_marker   = CommandEncoderInterface::end_debug_marker,
     .fill_buffer        = CommandEncoderInterface::fill_buffer,
@@ -915,8 +919,7 @@ static gfx::CommandEncoderInterface const command_encoder_interface{
     .bind_vertex_buffers    = CommandEncoderInterface::bind_vertex_buffers,
     .bind_index_buffer      = CommandEncoderInterface::bind_index_buffer,
     .draw                   = CommandEncoderInterface::draw,
-    .draw_indirect          = CommandEncoderInterface::draw_indirect,
-    .present_image          = CommandEncoderInterface::present_image};
+    .draw_indirect          = CommandEncoderInterface::draw_indirect};
 
 }        // namespace vk
 }        // namespace ash

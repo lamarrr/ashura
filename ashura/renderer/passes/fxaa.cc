@@ -16,4 +16,3 @@ void FXAAPass::add_pass(RenderContext &ctx, FXAAPassParams const &params)
 }
 
 }        // namespace ash
-

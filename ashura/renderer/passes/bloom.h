@@ -29,7 +29,6 @@ struct BloomPassParams
 
 struct BloomPass
 {
-
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
   void add_pass(RenderContext &ctx, BloomPassParams const &params);

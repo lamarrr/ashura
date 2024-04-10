@@ -10,7 +10,7 @@ void PBRPass::init(RenderContext &ctx)
       ctx.device
           ->create_descriptor_set_layout(
               ctx.device.self,
-              gfx::DescriptorSetLayoutDesc{.label    = "PBR Parameters",
+              gfx::DescriptorSetLayoutDesc{.label    = "PBR Parameters"_span,
                                            .bindings = to_span(bindings_desc)})
           .unwrap();
 
@@ -19,7 +19,7 @@ void PBRPass::init(RenderContext &ctx)
           ->create_render_pass(
               ctx.device.self,
               gfx::RenderPassDesc{
-                  .label             = "PBR RenderPass",
+                  .label             = "PBR RenderPass"_span,
                   .color_attachments = to_span<gfx::RenderPassAttachment>(
                       {{.format           = ctx.color_format,
                         .load_op          = gfx::LoadOp::Load,
@@ -92,15 +92,15 @@ void PBRPass::init(RenderContext &ctx)
                                             descriptor_set_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
-      .label = "PBR Graphics Pipeline",
+      .label = "PBR Graphics Pipeline"_span,
       .vertex_shader =
           gfx::ShaderStageDesc{.shader                        = vertex_shader,
-                               .entry_point                   = "main",
+                               .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gfx::ShaderStageDesc{.shader                        = fragment_shader,
-                               .entry_point                   = "main",
+                               .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .render_pass            = render_pass,
@@ -136,7 +136,7 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
       ctx.device
           ->create_framebuffer(
               ctx.device.self,
-              gfx::FramebufferDesc{.label       = "PBR Framebuffer",
+              gfx::FramebufferDesc{.label       = "PBR Framebuffer"_span,
                                    .render_pass = render_pass,
                                    .extent      = params.render_target.extent,
                                    .color_attachments = to_span(

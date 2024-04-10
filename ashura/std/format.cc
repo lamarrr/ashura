@@ -87,13 +87,27 @@ bool push_float(fmt::Context &ctx, fmt::Spec const &spec, FloatT value)
   return false;
 }
 
+bool fmt::push_object_hex(fmt::Context &ctx, fmt::Spec const &spec,
+                          char const *name, Span<u8 const> rep)
+{
+  Spec hex_spec{.style = Style::Hex, .precision = spec.precision};
+  bool ok =
+      push(ctx, spec, "Hex:") && push(ctx, spec, name) && push(ctx, spec, "[");
+  u8 const *it = rep.data();
+  while (ok && it < rep.end())
+  {
+    ok = ok && push(ctx, spec, "0x") && push(ctx, hex_spec, *it) &&
+         ((it != rep.end() - 1) ? push(ctx, spec, ", ") : true);
+    it++;
+  }
+
+  ok = ok && push(ctx, spec, "]");
+  return ok;
+}
+
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &, bool value)
 {
-  if (value)
-  {
-    return ctx.push("true"_span);
-  }
-  return ctx.push("false"_span);
+  return ctx.push(value ? "true"_span : "false"_span);
 }
 
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, u8 value)
@@ -144,6 +158,78 @@ bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, f32 value)
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, f64 value)
 {
   return push_float(ctx, spec, value);
+}
+
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, Vec2 const &value)
+{
+  return push(ctx, spec, "Vec2{") && push(ctx, spec, value.x) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
+         push(ctx, spec, "}");
+}
+
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, Vec3 const &value)
+{
+  return push(ctx, spec, "Vec3{") && push(ctx, spec, value.x) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
+         push(ctx, spec, "}");
+}
+
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, Vec4 const &value)
+{
+  return push(ctx, spec, "Vec4{") && push(ctx, spec, value.x) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.w) &&
+         push(ctx, spec, "}");
+}
+
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, Vec2I const &value)
+{
+  return push(ctx, spec, "Vec2I{") && push(ctx, spec, value.x) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
+         push(ctx, spec, "}");
+}
+
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, Vec3I const &value)
+{
+  return push(ctx, spec, "Vec3I{") && push(ctx, spec, value.x) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
+         push(ctx, spec, "}");
+}
+
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, Vec4I const &value)
+{
+  return push(ctx, spec, "Vec4I{") && push(ctx, spec, value.x) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.w) &&
+         push(ctx, spec, "}");
+}
+
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, Vec2U const &value)
+{
+  return push(ctx, spec, "Vec2I{") && push(ctx, spec, value.x) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
+         push(ctx, spec, "}");
+}
+
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, Vec3U const &value)
+{
+  return push(ctx, spec, "Vec3U{") && push(ctx, spec, value.x) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
+         push(ctx, spec, "}");
+}
+
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, Vec4U const &value)
+{
+  return push(ctx, spec, "Vec4U{") && push(ctx, spec, value.x) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
+         push(ctx, spec, ", ") && push(ctx, spec, value.w) &&
+         push(ctx, spec, "}");
 }
 
 bool fmt::push(fmt::Context &, fmt::Spec &spec, fmt::Spec const &value)

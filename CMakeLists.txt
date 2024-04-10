@@ -27,6 +27,9 @@ set(SPIRV_REFLECT_EXECUTABLE
 set(SPIRV_REFLECT_STATIC_LIB
     ON
     CACHE BOOL "")
+set(SDL_STATIC
+    ON
+    CACHE BOOL "")
 
 include(FetchContent)
 
@@ -57,6 +60,11 @@ FetchContent_Declare(
   GIT_TAG 19b940e)
 
 FetchContent_Declare(
+  SDL3
+  GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+  GIT_TAG prerelease-3.1.1)
+
+FetchContent_Declare(
   SheenBidi
   GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
   GIT_TAG v2.7
@@ -69,7 +77,6 @@ find_package(GTest REQUIRED)
 find_package(WebP CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
-find_package(SDL3 REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
@@ -81,6 +88,7 @@ FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(VulkanGLSL)
 FetchContent_MakeAvailable(SheenBidi)
 FetchContent_MakeAvailable(SpirvReflect)
+FetchContent_MakeAvailable(SDL3)
 find_package(Vulkan REQUIRED)
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
