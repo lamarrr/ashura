@@ -21,14 +21,13 @@ void *ArenaInterface::allocate(Allocator self_, usize alignment, usize size)
 void *ArenaInterface::allocate_zeroed(Allocator self_, usize alignment,
                                       usize size)
 {
-  Arena *self  = (Arena *) self_;
-  void  *alloc = ArenaInterface::allocate(self_, alignment, size);
-  if (alloc != nullptr)
+  void *memory = ArenaInterface::allocate(self_, alignment, size);
+  if (memory != nullptr)
   {
-    memset(alloc, 0, size);
+    memset(memory, 0, size);
   }
 
-  return alloc;
+  return memory;
 }
 
 void *ArenaInterface::reallocate(Allocator self_, usize alignment, void *memory,
