@@ -1211,11 +1211,12 @@ struct ImageResolve
   Extent3D               extent     = {};
 };
 
+/// x, y, z, w => R, G, B, A
 union Color
 {
-  u32 uint32[4] = {0, 0, 0, 0};
-  i32 int32[4];
-  f32 float32[4];
+  Vec4U uint32 = {0, 0, 0, 0};
+  Vec4I int32;
+  Vec4  float32;
 };
 
 struct DepthStencil
