@@ -82,6 +82,7 @@ struct InstanceTable
 
   PFN_vkCreateDebugUtilsMessengerEXT  CreateDebugUtilsMessengerEXT  = nullptr;
   PFN_vkDestroyDebugUtilsMessengerEXT DestroyDebugUtilsMessengerEXT = nullptr;
+  PFN_vkSetDebugUtilsObjectNameEXT    SetDebugUtilsObjectNameEXT    = nullptr;
 };
 
 struct DeviceTable
@@ -477,7 +478,7 @@ struct CommandEncoder
 struct FrameContext
 {
   u64                      refcount             = 0;
-  gfx::FrameId             tail_frame       = 0;
+  gfx::FrameId             tail_frame           = 0;
   gfx::FrameId             current_frame        = 0;
   u32                      ring_index           = 0;
   u32                      max_frames_in_flight = 0;
@@ -496,6 +497,7 @@ struct FrameContext
 /// the surface requested a zero sized image extent
 struct Swapchain
 {
+  u64                 refcount        = 0;
   gfx::SwapchainDesc  desc            = {};
   bool                is_out_of_date  = true;
   bool                is_optimal      = false;
@@ -527,6 +529,7 @@ struct InstanceInterface
   static gfx::Backend get_backend(gfx::Instance self);
   static void         ref_device(gfx::Instance self, gfx::Device device);
   static void         unref_device(gfx::Instance self, gfx::Device device);
+  static void         destroy_surface(gfx::Instance self, gfx::Surface surface);
 };
 
 struct DeviceInterface
@@ -553,10 +556,9 @@ struct DeviceInterface
   static Result<gfx::DescriptorSetLayout, Status>
       create_descriptor_set_layout(gfx::Device                         self,
                                    gfx::DescriptorSetLayoutDesc const &desc);
-  static Result<gfx::DescriptorHeapImpl, Status> create_descriptor_heap(
-      gfx::Device                          self,
-      Span<gfx::DescriptorSetLayout const> descriptor_set_layouts,
-      u32 groups_per_pool, AllocatorImpl allocator);
+  static Result<gfx::DescriptorHeapImpl, Status>
+      create_descriptor_heap(gfx::Device                    self,
+                             gfx::DescriptorHeapDesc const &desc);
   static Result<gfx::PipelineCache, Status>
       create_pipeline_cache(gfx::Device                   self,
                             gfx::PipelineCacheDesc const &desc);
@@ -571,8 +573,7 @@ struct DeviceInterface
   static Result<gfx::CommandEncoderImpl, Status>
       create_command_encoder(gfx::Device self, AllocatorImpl allocator);
   static Result<gfx::FrameContext, Status>
-      create_frame_context(gfx::Device self, u32 max_frames_in_flight,
-                           AllocatorImpl command_encoder_allocator);
+      create_frame_context(gfx::Device self, gfx::FrameContextDesc const &desc);
   static Result<gfx::Swapchain, Status>
               create_swapchain(gfx::Device self, gfx::Surface surface,
                                gfx::SwapchainDesc const &desc);
@@ -620,6 +621,7 @@ struct DeviceInterface
                                     gfx::CommandEncoderImpl encoder);
   static void unref_frame_context(gfx::Device       self,
                                   gfx::FrameContext frame_context);
+  static void unref_swapchain(gfx::Device self, gfx::Swapchain swapchain);
   static Result<void *, Status> get_buffer_memory_map(gfx::Device self,
                                                       gfx::Buffer buffer);
   static Result<Void, Status>
@@ -790,13 +792,14 @@ struct CommandEncoderInterface
 };
 
 static gfx::InstanceInterface const instance_interface{
-    .create        = InstanceInterface::create,
-    .ref           = InstanceInterface::ref,
-    .unref         = InstanceInterface::unref,
-    .create_device = InstanceInterface::create_device,
-    .get_backend   = InstanceInterface::get_backend,
-    .ref_device    = InstanceInterface::ref_device,
-    .unref_device  = InstanceInterface::unref_device};
+    .create          = InstanceInterface::create,
+    .ref             = InstanceInterface::ref,
+    .unref           = InstanceInterface::unref,
+    .create_device   = InstanceInterface::create_device,
+    .get_backend     = InstanceInterface::get_backend,
+    .ref_device      = InstanceInterface::ref_device,
+    .unref_device    = InstanceInterface::unref_device,
+    .destroy_surface = InstanceInterface::destroy_surface};
 
 static gfx::DeviceInterface const device_interface{
     .get_device_properties = DeviceInterface::get_device_properties,
@@ -848,6 +851,7 @@ static gfx::DeviceInterface const device_interface{
     .unref_graphics_pipeline     = DeviceInterface::unref_graphics_pipeline,
     .unref_fence                 = DeviceInterface::unref_fence,
     .unref_frame_context         = DeviceInterface::unref_frame_context,
+    .unref_swapchain             = DeviceInterface::unref_swapchain,
     .get_buffer_memory_map       = DeviceInterface::get_buffer_memory_map,
     .invalidate_buffer_memory_map =
         DeviceInterface::invalidate_buffer_memory_map,

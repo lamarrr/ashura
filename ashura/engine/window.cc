@@ -40,6 +40,7 @@ struct Window
   uid32                    backend_id       = UID32_INVALID;
   Vec<WindowEventListener> listeners        = {};
   SparseVec<u32>           listeners_id_map = {};
+  gfx::InstanceImpl        instance         = {};
 };
 
 struct WindowSystemImpl final : public WindowSystem
@@ -84,19 +85,25 @@ struct WindowSystemImpl final : public WindowSystem
     CHECK(id_map.push(
         [&](uid32 id, u32) {
           out_id = id;
-          CHECK(windows.push(Window{
-              .win = window, .surface = surface, .backend_id = backend_id}));
+          CHECK(windows.push(Window{.win        = window,
+                                    .surface    = surface,
+                                    .backend_id = backend_id,
+                                    .instance   = instance}));
         },
         windows));
 
     return Some{out_id};
   }
 
-  void destroy_window(uid32 window) override
+  void destroy_window(uid32 id) override
   {
-    if (window != UID32_INVALID)
+    if (id != UID32_INVALID)
     {
-      CHECK(false);
+      Window *w = win(id);
+      w->instance->destroy_surface(w->instance.self, w->surface);
+      SDL_DestroyWindow(w->win);
+      w->listeners_id_map.reset(w->listeners);
+      id_map.erase(id, windows);
     }
   }
 

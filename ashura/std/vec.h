@@ -201,25 +201,31 @@ struct Vec
     return reserve(max(target_size, capacity_ + (capacity_ >> 1)));
   }
 
-  void erase(usize first, usize num = 1)
+  void erase(usize first, usize num)
   {
+    return erase(Slice{first, num});
+  }
+
+  void erase(Slice slice)
+  {
+    slice = slice.resolve(size_);
     if constexpr (TriviallyRelocatable<T>)
     {
-      mem::move(data_ + first + num, data_ + first, size_ - (first + num));
+      mem::move(data_ + slice.end(), data_ + slice.offset, size_ - slice.end());
     }
     else
     {
-      for (usize i = first; i < size_ - num; i++)
+      for (usize i = slice.offset; i < size_ - slice.span; i++)
       {
-        data_[i] = (T &&) (data_[i + num]);
+        data_[i] = (T &&) (data_[i + slice.span]);
       }
 
-      for (usize i = size_ - num; i < size_; i++)
+      for (usize i = size_ - slice.span; i < size_; i++)
       {
         (data_ + i)->~T();
       }
     }
-    size_ -= num;
+    size_ -= slice.span;
   }
 
   template <typename... Args>
@@ -239,6 +245,7 @@ struct Vec
 
   constexpr void pop(usize num = 1)
   {
+    num = min(num, size_);
     if constexpr (!TriviallyDestructible<T>)
     {
       for (usize i = size_ - num; i < size_; i++)
@@ -557,6 +564,7 @@ struct BitVec
 
   constexpr void pop(usize num = 1)
   {
+    num = min(num_bits, num);
     num_bits -= num;
     usize diff = vec.size() - num_packs(num_bits);
     if (diff > 0)

@@ -1144,6 +1144,20 @@ struct GraphicsPipelineDesc
   PipelineCache              cache               = nullptr;
 };
 
+struct FrameContextDesc
+{
+  Span<char const> label                = {};
+  u32              max_frames_in_flight = 0;
+  AllocatorImpl    allocator            = default_allocator;
+};
+
+struct DescriptorHeapDesc
+{
+  Span<DescriptorSetLayout const> descriptor_set_layouts = {};
+  u32                             groups_per_pool        = 0;
+  AllocatorImpl                   allocator              = default_allocator;
+};
+
 struct IndirectDispatchCommand
 {
   u32 x = 0;
@@ -1527,8 +1541,7 @@ struct DeviceInterface
   Result<DescriptorSetLayout, Status> (*create_descriptor_set_layout)(
       Device self, DescriptorSetLayoutDesc const &desc) = nullptr;
   Result<DescriptorHeapImpl, Status> (*create_descriptor_heap)(
-      Device self, Span<DescriptorSetLayout const> descriptor_set_layouts,
-      u32 groups_per_pool, AllocatorImpl allocator) = nullptr;
+      Device self, DescriptorHeapDesc const &desc) = nullptr;
   Result<PipelineCache, Status> (*create_pipeline_cache)(
       Device self, PipelineCacheDesc const &desc) = nullptr;
   Result<ComputePipeline, Status> (*create_compute_pipeline)(
@@ -1537,8 +1550,7 @@ struct DeviceInterface
       Device self, GraphicsPipelineDesc const &desc)                = nullptr;
   Result<Fence, Status> (*create_fence)(Device self, bool signaled) = nullptr;
   Result<FrameContext, Status> (*create_frame_context)(
-      Device self, u32 max_frames_in_flight,
-      AllocatorImpl command_encoder_allocator) = nullptr;
+      Device self, FrameContextDesc const &desc) = nullptr;
   Result<Swapchain, Status> (*create_swapchain)(
       Device self, Surface surface, SwapchainDesc const &desc)        = nullptr;
   void (*ref_buffer)(Device self, Buffer buffer)                      = nullptr;
@@ -1558,6 +1570,7 @@ struct DeviceInterface
                                 GraphicsPipeline pipeline)            = nullptr;
   void (*ref_fence)(Device self, Fence fence)                         = nullptr;
   void (*ref_frame_context)(Device self, FrameContext frame_context)  = nullptr;
+  void (*ref_swapchain)(Device self, Swapchain swapchain)  = nullptr;
   void (*unref_buffer)(Device self, Buffer buffer)                    = nullptr;
   void (*unref_buffer_view)(Device self, BufferView buffer_view)      = nullptr;
   void (*unref_image)(Device self, Image image)                       = nullptr;
@@ -1577,6 +1590,7 @@ struct DeviceInterface
   void (*unref_fence)(Device self, Fence fence)                       = nullptr;
   void (*unref_frame_context)(Device       self,
                               FrameContext frame_context)             = nullptr;
+  void (*unref_swapchain)(Device self, Swapchain swapchain)  = nullptr;
   Result<void *, Status> (*get_buffer_memory_map)(Device self,
                                                   Buffer buffer)      = nullptr;
   Result<Void, Status> (*invalidate_buffer_memory_map)(
@@ -1634,11 +1648,12 @@ struct InstanceInterface
   void (*unref)(Instance self)      = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance self, Span<DeviceType const> preferred_types,
-      Span<gfx::Surface const> compatible_surfaces,
-      AllocatorImpl            allocator)                       = nullptr;
-  Backend (*get_backend)(Instance self)              = nullptr;
-  void (*ref_device)(Instance self, Device device)   = nullptr;
-  void (*unref_device)(Instance self, Device device) = nullptr;
+      Span<Surface const> compatible_surfaces,
+      AllocatorImpl       allocator)                            = nullptr;
+  Backend (*get_backend)(Instance self)                   = nullptr;
+  void (*ref_device)(Instance self, Device device)        = nullptr;
+  void (*unref_device)(Instance self, Device device)      = nullptr;
+  void (*destroy_surface)(Instance self, Surface surface) = nullptr;
 };
 
 struct InstanceImpl

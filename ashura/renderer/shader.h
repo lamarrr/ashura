@@ -407,10 +407,14 @@ struct ShaderParameterHeap
                 gfx::DescriptorSetLayoutDesc{.label    = to_span(Param::NAME),
                                              .bindings = to_span(descs)})
             .unwrap();
-    heap_ = device
-                ->create_descriptor_heap(device_.self, {&layout_, 1},
-                                         batch_size, default_allocator)
-                .unwrap();
+    heap_ =
+        device
+            ->create_descriptor_heap(
+                device_.self,
+                gfx::DescriptorHeapDesc{.descriptor_set_layouts = {&layout_, 1},
+                                        .groups_per_pool        = batch_size,
+                                        .allocator = default_allocator})
+            .unwrap();
   }
 
   void deinit()
@@ -617,11 +621,14 @@ struct UniformHeap
     gfx::DescriptorSetLayout layouts[NUM_SIZE_CLASSES];
     fill(layouts, descriptor_set_layout_);
 
-    descriptor_heap_ =
-        device
-            ->create_descriptor_heap(device.self, to_span(layouts),
-                                     descriptor_pool_size, default_allocator)
-            .unwrap();
+    descriptor_heap_ = device
+                           ->create_descriptor_heap(
+                               device.self,
+                               gfx::DescriptorHeapDesc{
+                                   .descriptor_set_layouts = to_span(layouts),
+                                   .groups_per_pool = descriptor_pool_size,
+                                   .allocator       = default_allocator})
+                           .unwrap();
   }
 
   void uninit()

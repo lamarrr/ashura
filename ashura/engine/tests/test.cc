@@ -15,12 +15,13 @@ int main(int, char **)
   StdioSink sink;
   default_logger = create_logger(to_span<LogSink *>({&sink}), heap_allocator);
   defer default_logger_del{[&] { destroy_logger(default_logger); }};
+  defer shutdown{[&] { default_logger->info("Shutting down"); }};
 
   WindowSystem *win_sys = init_sdl_window_system();
   CHECK(win_sys != nullptr);
 
   gfx::InstanceImpl instance =
-      vk::instance_interface.create(heap_allocator, default_logger, true)
+      vk::instance_interface.create(heap_allocator, default_logger, false)
           .unwrap();
 
   defer instance_del{[&] { instance->unref(instance.self); }};
@@ -69,11 +70,11 @@ int main(int, char **)
                {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
                {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
                {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-          "/home/basitayantunde/Documents/ashura/ashura/shaders"_span) ==
+          "C:/Users/rlama/Documents/workspace/oss/ashura/ashura/shaders"_span) ==
       ShaderCompileError::None)
 
   StrHashMap<gfx::Shader> shaders;
-  defer                   shaders_del{[&] {}};
+  defer                   shaders_del{[&] { shaders.reset(); }};
 
   for (auto &[id, spirv] : spirvs)
   {
@@ -208,6 +209,7 @@ int main(int, char **)
   };
 
   invalidate_swapchain();
+  defer swapchain_del{[&] { device->unref_swapchain(device.self, swapchain); }};
 
   // TODO(lamarrr): update preferred extent
 
@@ -218,4 +220,5 @@ int main(int, char **)
     renderer.record_frame();
     renderer.end_frame(swapchain);
   }
+  default_logger->info("closing");
 }

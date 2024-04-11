@@ -210,6 +210,5 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
 
 void RRectPass::uninit(RenderContext &ctx)
 {
-  CHECK(false);
 }
 }        // namespace ash

@@ -86,8 +86,12 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   max_frames_in_flight = p_max_frames_in_flight;
   shader_map           = p_shader_map;
   frame_context        = device
-                      ->create_frame_context(device.self, max_frames_in_flight,
-                                             default_allocator)
+                      ->create_frame_context(
+                          device.self,
+                          gfx::FrameContextDesc{.label = "Renderer Ctx"_span,
+                                                .max_frames_in_flight =
+                                                    max_frames_in_flight,
+                                                .allocator = default_allocator})
                       .unwrap();
   extent = p_initial_extent;
 
@@ -206,7 +210,6 @@ void RenderContext::uninit()
   released_framebuffers.reset();
   released_images.reset();
   released_image_views.reset();
-  CHECK(false);
 }
 
 void RenderContext::recreate_attachments(gfx::Extent new_extent)
@@ -281,15 +284,40 @@ void RenderContext::purge()
 {
   gfx::FrameId tail_frame = tail_frame_id();
   {
-    auto dead_begin =
+    auto [good, to_delete] =
         binary_partition(released_images, [tail_frame](auto const &r) {
           return r.v0 >= tail_frame;
         });
+    for (auto const &r : to_span(released_images)[to_delete])
+    {
+      device->unref_image(device.self, r.v1);
+    }
+    released_images.erase(to_delete);
   }
-  binary_partition(released_image_views,
-                   [tail_frame](auto const &r) { return r.v0 >= tail_frame; });
-  binary_partition(released_framebuffers,
-                   [tail_frame](auto const &r) { return r.v0 >= tail_frame; });
+
+  {
+    auto [good, to_delete] =
+        binary_partition(released_image_views, [tail_frame](auto const &r) {
+          return r.v0 >= tail_frame;
+        });
+    for (auto const &r : to_span(released_image_views)[to_delete])
+    {
+      device->unref_image_view(device.self, r.v1);
+    }
+    released_image_views.erase(to_delete);
+  }
+
+  {
+    auto [good, to_delete] =
+        binary_partition(released_framebuffers, [tail_frame](auto const &r) {
+          return r.v0 >= tail_frame;
+        });
+    for (auto const &r : to_span(released_framebuffers)[to_delete])
+    {
+      device->unref_framebuffer(device.self, r.v1);
+    }
+    released_framebuffers.erase(to_delete);
+  }
 }
 
 void RenderContext::idle_purge()

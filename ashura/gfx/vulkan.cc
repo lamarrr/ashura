@@ -74,6 +74,12 @@ void CmdDebugMarkerInsertEXT_Stub(VkCommandBuffer,
 {
 }
 
+VkResult SetDebugUtilsObjectNameEXT_Stub(VkDevice,
+                                         const VkDebugUtilsObjectNameInfoEXT *)
+{
+  return VK_SUCCESS;
+}
+
 bool load_instance_table(VkInstance                instance,
                          PFN_vkGetInstanceProcAddr GetInstanceProcAddr,
                          InstanceTable &vk_table, bool validation_layer_enabled)
@@ -111,6 +117,11 @@ bool load_instance_table(VkInstance                instance,
   {
     LOAD_VK(CreateDebugUtilsMessengerEXT);
     LOAD_VK(DestroyDebugUtilsMessengerEXT);
+    LOAD_VK(SetDebugUtilsObjectNameEXT);
+  }
+  else
+  {
+    vk_table.SetDebugUtilsObjectNameEXT = SetDebugUtilsObjectNameEXT_Stub;
   }
 
 #undef LOAD_VK
@@ -2004,6 +2015,13 @@ void InstanceInterface::unref_device(gfx::Instance instance_,
   }
 }
 
+void InstanceInterface::destroy_surface(gfx::Instance self_,
+                                        gfx::Surface  surface)
+{
+  Instance *const self = (Instance *) self_;
+  self->vk_table.DestroySurfaceKHR(self->vk_instance, surface, nullptr);
+}
+
 gfx::DeviceProperties DeviceInterface::get_device_properties(gfx::Device self_)
 {
   Device *const                     self = (Device *) self_;
@@ -2159,14 +2177,23 @@ Result<gfx::FormatProperties, Status>
 }
 
 void set_resource_name(Device *device, Span<char const> label,
-                       void const *resource, VkDebugReportObjectTypeEXT type)
+                       void const *resource, VkObjectType type,
+                       VkDebugReportObjectTypeEXT debug_type)
 {
   char buff[256];
   to_c_str(label, to_span(buff));
+  VkDebugUtilsObjectNameInfoEXT name_info{
+      .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+      .pNext        = nullptr,
+      .objectType   = type,
+      .objectHandle = (u64) resource,
+      .pObjectName  = buff};
+  device->instance->vk_table.SetDebugUtilsObjectNameEXT(device->vk_device,
+                                                        &name_info);
   VkDebugMarkerObjectNameInfoEXT debug_info{
       .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
       .pNext       = nullptr,
-      .objectType  = type,
+      .objectType  = debug_type,
       .object      = (u64) resource,
       .pObjectName = buff};
   device->vk_table.DebugMarkerSetObjectNameEXT(device->vk_device, &debug_info);
@@ -2213,7 +2240,7 @@ Result<gfx::Buffer, Status>
     return Err{(Status) result};
   }
 
-  set_resource_name(self, desc.label, vk_buffer,
+  set_resource_name(self, desc.label, vk_buffer, VK_OBJECT_TYPE_BUFFER,
                     VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT);
 
   Buffer *buffer = self->allocator.allocate_typed<Buffer>(1);
@@ -2269,7 +2296,7 @@ Result<gfx::BufferView, Status>
     return Err{(Status) result};
   }
 
-  set_resource_name(self, desc.label, vk_view,
+  set_resource_name(self, desc.label, vk_view, VK_OBJECT_TYPE_BUFFER_VIEW,
                     VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT);
 
   BufferView *view = self->allocator.allocate_typed<BufferView>(1);
@@ -2343,7 +2370,7 @@ Result<gfx::Image, Status>
     return Err{(Status) result};
   }
 
-  set_resource_name(self, desc.label, vk_image,
+  set_resource_name(self, desc.label, vk_image, VK_OBJECT_TYPE_IMAGE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
 
   Image *image = self->allocator.allocate_typed<Image>(1);
@@ -2416,7 +2443,7 @@ Result<gfx::ImageView, Status>
     return Err{(Status) result};
   }
 
-  set_resource_name(self, desc.label, vk_view,
+  set_resource_name(self, desc.label, vk_view, VK_OBJECT_TYPE_IMAGE_VIEW,
                     VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT);
 
   ImageView *view = self->allocator.allocate_typed<ImageView>(1);
@@ -2467,7 +2494,7 @@ Result<gfx::Sampler, Status>
     return Err{(Status) result};
   }
 
-  set_resource_name(self, desc.label, vk_sampler,
+  set_resource_name(self, desc.label, vk_sampler, VK_OBJECT_TYPE_SAMPLER,
                     VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT);
 
   Sampler *sampler = self->allocator.allocate_typed<Sampler>(1);
@@ -2505,7 +2532,7 @@ Result<gfx::Shader, Status>
     return Err{(Status) result};
   }
 
-  set_resource_name(self, desc.label, vk_shader,
+  set_resource_name(self, desc.label, vk_shader, VK_OBJECT_TYPE_SHADER_MODULE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT);
 
   Shader *shader = self->allocator.allocate_typed<Shader>(1);
@@ -2646,6 +2673,7 @@ Result<gfx::RenderPass, Status>
   }
 
   set_resource_name(self, desc.label, vk_render_pass,
+                    VK_OBJECT_TYPE_RENDER_PASS,
                     VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT);
 
   RenderPass *render_pass = self->allocator.allocate_typed<RenderPass>(1);
@@ -2758,6 +2786,7 @@ Result<gfx::Framebuffer, Status>
   }
 
   set_resource_name(self, desc.label, vk_framebuffer,
+                    VK_OBJECT_TYPE_FRAMEBUFFER,
                     VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT);
 
   Framebuffer *framebuffer = self->allocator.allocate_typed<Framebuffer>(1);
@@ -2851,6 +2880,7 @@ Result<gfx::DescriptorSetLayout, Status>
   }
 
   set_resource_name(self, desc.label, vk_layout,
+                    VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
                     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT);
 
   DescriptorSetLayout *layout =
@@ -2871,15 +2901,14 @@ Result<gfx::DescriptorSetLayout, Status>
   return Ok{(gfx::DescriptorSetLayout) layout};
 }
 
-Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
-    gfx::Device                          self_,
-    Span<gfx::DescriptorSetLayout const> descriptor_set_layouts,
-    u32 groups_per_pool, AllocatorImpl allocator)
+Result<gfx::DescriptorHeapImpl, Status>
+    DeviceInterface::create_descriptor_heap(gfx::Device self_,
+                                            gfx::DescriptorHeapDesc const &desc)
 {
   Device *const self     = (Device *) self_;
-  u32 const     num_sets = (u32) descriptor_set_layouts.size();
+  u32 const     num_sets = (u32) desc.descriptor_set_layouts.size();
 
-  VALIDATE(groups_per_pool > 0);
+  VALIDATE(desc.groups_per_pool > 0);
   VALIDATE(num_sets > 0);
 
   DescriptorSetLayout **set_layouts =
@@ -2890,7 +2919,8 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
     return Err{Status::OutOfHostMemory};
   }
 
-  mem::copy(descriptor_set_layouts, (gfx::DescriptorSetLayout *) set_layouts);
+  mem::copy(desc.descriptor_set_layouts,
+            (gfx::DescriptorSetLayout *) set_layouts);
 
   u32 **binding_offsets = self->allocator.allocate_typed<u32 *>(num_sets);
 
@@ -3067,7 +3097,7 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
 
   new (heap) DescriptorHeap{.refcount                    = 1,
                             .device                      = self,
-                            .allocator                   = allocator,
+                            .allocator                   = desc.allocator,
                             .logger                      = self->logger,
                             .set_layouts                 = set_layouts,
                             .binding_offsets             = binding_offsets,
@@ -3080,7 +3110,7 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
                             .scratch_memory              = scratch_memory,
                             .num_sets_per_group          = num_sets,
                             .num_pools                   = 0,
-                            .num_groups_per_pool         = groups_per_pool,
+                            .num_groups_per_pool         = desc.groups_per_pool,
                             .num_released_groups         = 0,
                             .num_free_groups             = 0,
                             .group_binding_stride        = group_binding_stride,
@@ -3116,7 +3146,7 @@ Result<gfx::PipelineCache, Status>
     return Err{(Status) result};
   }
 
-  set_resource_name(self, desc.label, vk_cache,
+  set_resource_name(self, desc.label, vk_cache, VK_OBJECT_TYPE_PIPELINE_CACHE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_CACHE_EXT);
 
   PipelineCache *cache = self->allocator.allocate_typed<PipelineCache>(1);
@@ -3218,8 +3248,10 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
     return Err{(Status) result};
   }
 
-  set_resource_name(self, desc.label, vk_pipeline,
+  set_resource_name(self, desc.label, vk_pipeline, VK_OBJECT_TYPE_PIPELINE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT);
+  set_resource_name(self, desc.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
   ComputePipeline *pipeline =
       self->allocator.allocate_typed<ComputePipeline>(1);
@@ -3521,8 +3553,10 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
     return Err{(Status) result};
   }
 
-  set_resource_name(self, desc.label, vk_pipeline,
+  set_resource_name(self, desc.label, vk_pipeline, VK_OBJECT_TYPE_PIPELINE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT);
+  set_resource_name(self, desc.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
+                    VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
   GraphicsPipeline *pipeline =
       self->allocator.allocate_typed<GraphicsPipeline>(1);
@@ -3643,17 +3677,17 @@ Result<gfx::CommandEncoderImpl, Status>
                                     .interface = &command_encoder_interface}};
 }
 
-Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
-    gfx::Device self_, u32 max_frames_in_flight,
-    AllocatorImpl command_encoder_allocator)
+Result<gfx::FrameContext, Status>
+    DeviceInterface::create_frame_context(gfx::Device                  self_,
+                                          gfx::FrameContextDesc const &desc)
 {
   Device *const self = (Device *) self_;
 
-  VALIDATE(max_frames_in_flight > 0);
+  VALIDATE(desc.max_frames_in_flight > 0);
 
   gfx::CommandEncoderImpl *command_encoders =
       self->allocator.allocate_typed<gfx::CommandEncoderImpl>(
-          max_frames_in_flight);
+          desc.max_frames_in_flight);
 
   if (command_encoders == nullptr)
   {
@@ -3663,10 +3697,10 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
   {
     Status status   = Status::Success;
     u32    push_end = 0;
-    for (; push_end < max_frames_in_flight; push_end++)
+    for (; push_end < desc.max_frames_in_flight; push_end++)
     {
-      Result result = DeviceInterface::create_command_encoder(
-          self_, command_encoder_allocator);
+      Result result =
+          DeviceInterface::create_command_encoder(self_, desc.allocator);
       if (result.is_err())
       {
         status = result.err();
@@ -3675,7 +3709,7 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
       command_encoders[push_end] = result.value();
     }
 
-    if (push_end != max_frames_in_flight)
+    if (push_end != desc.max_frames_in_flight)
     {
       for (u32 i = 0; i < push_end; i++)
       {
@@ -3686,7 +3720,7 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
   }
 
   VkSemaphore *acquire_semaphores =
-      self->allocator.allocate_typed<VkSemaphore>(max_frames_in_flight);
+      self->allocator.allocate_typed<VkSemaphore>(desc.max_frames_in_flight);
 
   {
     VkResult              result   = VK_SUCCESS;
@@ -3695,7 +3729,7 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0};
-    for (; push_end < max_frames_in_flight; push_end++)
+    for (; push_end < desc.max_frames_in_flight; push_end++)
     {
       VkSemaphore semaphore;
       result = self->vk_table.CreateSemaphore(self->vk_device, &create_info,
@@ -3704,10 +3738,12 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
       {
         break;
       }
+      set_resource_name(self, desc.label, semaphore, VK_OBJECT_TYPE_SEMAPHORE,
+                        VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
       acquire_semaphores[push_end] = semaphore;
     }
 
-    if (push_end != max_frames_in_flight)
+    if (push_end != desc.max_frames_in_flight)
     {
       for (u32 i = 0; i < push_end; i++)
       {
@@ -3715,7 +3751,7 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
                                         nullptr);
       }
 
-      for (u32 i = 0; i < max_frames_in_flight; i++)
+      for (u32 i = 0; i < desc.max_frames_in_flight; i++)
       {
         DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
       }
@@ -3725,11 +3761,11 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
   }
 
   gfx::Fence *submit_fences =
-      self->allocator.allocate_typed<gfx::Fence>(max_frames_in_flight);
+      self->allocator.allocate_typed<gfx::Fence>(desc.max_frames_in_flight);
 
   if (submit_fences == nullptr)
   {
-    for (u32 i = 0; i < max_frames_in_flight; i++)
+    for (u32 i = 0; i < desc.max_frames_in_flight; i++)
     {
       self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
                                       nullptr);
@@ -3740,7 +3776,7 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
   {
     Status status   = Status::Success;
     u32    push_end = 0;
-    for (; push_end < max_frames_in_flight; push_end++)
+    for (; push_end < desc.max_frames_in_flight; push_end++)
     {
       Result result = DeviceInterface::create_fence(self_, true);
       if (result.is_err())
@@ -3751,14 +3787,14 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
       submit_fences[push_end] = result.value();
     }
 
-    if (push_end != max_frames_in_flight)
+    if (push_end != desc.max_frames_in_flight)
     {
       for (u32 i = 0; i < push_end; i++)
       {
         DeviceInterface::unref_fence(self_, submit_fences[i]);
       }
 
-      for (u32 i = 0; i < max_frames_in_flight; i++)
+      for (u32 i = 0; i < desc.max_frames_in_flight; i++)
       {
         self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
                                         nullptr);
@@ -3770,11 +3806,11 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
   }
 
   VkSemaphore *submit_semaphores =
-      self->allocator.allocate_typed<VkSemaphore>(max_frames_in_flight);
+      self->allocator.allocate_typed<VkSemaphore>(desc.max_frames_in_flight);
 
   if (submit_semaphores == nullptr)
   {
-    for (u32 i = 0; i < max_frames_in_flight; i++)
+    for (u32 i = 0; i < desc.max_frames_in_flight; i++)
     {
       DeviceInterface::unref_fence(self_, submit_fences[i]);
       self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
@@ -3792,7 +3828,7 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0};
-    for (; push_end < max_frames_in_flight; push_end++)
+    for (; push_end < desc.max_frames_in_flight; push_end++)
     {
       VkSemaphore semaphore;
       result = self->vk_table.CreateSemaphore(self->vk_device, &create_info,
@@ -3804,7 +3840,7 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
       submit_semaphores[push_end] = semaphore;
     }
 
-    if (push_end != max_frames_in_flight)
+    if (push_end != desc.max_frames_in_flight)
     {
       for (u32 i = 0; i < push_end; i++)
       {
@@ -3812,7 +3848,7 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
                                         nullptr);
       }
 
-      for (u32 i = 0; i < max_frames_in_flight; i++)
+      for (u32 i = 0; i < desc.max_frames_in_flight; i++)
       {
         DeviceInterface::unref_fence(self_, submit_fences[i]);
         self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
@@ -3828,7 +3864,7 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 
   if (frame_context == nullptr)
   {
-    for (u32 i = 0; i < max_frames_in_flight; i++)
+    for (u32 i = 0; i < desc.max_frames_in_flight; i++)
     {
       self->vk_table.DestroySemaphore(self->vk_device, submit_semaphores[i],
                                       nullptr);
@@ -3841,15 +3877,16 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
     return Err{Status::OutOfHostMemory};
   }
 
-  new (frame_context) FrameContext{.refcount             = 1,
-                                   .tail_frame           = 0,
-                                   .current_frame        = 0,
-                                   .ring_index           = 0,
-                                   .max_frames_in_flight = max_frames_in_flight,
-                                   .encoders             = command_encoders,
-                                   .acquire_semaphores   = acquire_semaphores,
-                                   .submit_fences        = submit_fences,
-                                   .submit_semaphores    = submit_semaphores};
+  new (frame_context)
+      FrameContext{.refcount             = 1,
+                   .tail_frame           = 0,
+                   .current_frame        = 0,
+                   .ring_index           = 0,
+                   .max_frames_in_flight = desc.max_frames_in_flight,
+                   .encoders             = command_encoders,
+                   .acquire_semaphores   = acquire_semaphores,
+                   .submit_fences        = submit_fences,
+                   .submit_semaphores    = submit_semaphores};
 
   return Ok{(gfx::FrameContext) frame_context};
 }
@@ -4007,10 +4044,12 @@ inline VkResult recreate_swapchain(Device *self, Swapchain *swapchain)
   }
 
   set_resource_name(self, swapchain->desc.label, new_vk_swapchain,
+                    VK_OBJECT_TYPE_SWAPCHAIN_KHR,
                     VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT);
   for (u32 i = 0; i < num_images; i++)
   {
     set_resource_name(self, swapchain->desc.label, swapchain->vk_images[i],
+                      VK_OBJECT_TYPE_IMAGE,
                       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
   }
 
@@ -4046,7 +4085,8 @@ Result<gfx::Swapchain, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (swapchain) Swapchain{.desc            = desc,
+  new (swapchain) Swapchain{.refcount        = 1,
+                            .desc            = desc,
                             .is_out_of_date  = true,
                             .is_optimal      = false,
                             .is_zero_sized   = false,
@@ -4498,6 +4538,25 @@ void DeviceInterface::unref_frame_context(gfx::Device       self_,
     self->allocator.deallocate_typed(frame_context->submit_semaphores,
                                      frame_context->max_frames_in_flight);
     self->allocator.deallocate_typed(frame_context, 1);
+  }
+}
+
+void DeviceInterface::unref_swapchain(gfx::Device    self_,
+                                      gfx::Swapchain swapchain_)
+{
+  Device *const    self      = (Device *) self_;
+  Swapchain *const swapchain = (Swapchain *) swapchain_;
+
+  if (swapchain == nullptr)
+  {
+    return;
+  }
+
+  if (--swapchain->refcount == 0)
+  {
+    self->vk_table.DestroySwapchainKHR(self->vk_device, swapchain->vk_swapchain,
+                                       nullptr);
+    self->allocator.deallocate_typed(swapchain, 1);
   }
 }
 
