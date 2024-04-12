@@ -3,20 +3,24 @@
 
 #include "core.glsl"
 
+layout(location = 0) in vec2 i_rel_position;
+layout(location = 0) out vec2 o_rel_position;
+
 layout(set = 0, binding = 0) uniform Params
 {
   ViewTransform transform;
-  Edge          tint;
-  Edge          border_color;
+  vec4          tint[4];
+  vec4          border_color[4];
   vec4          border_radii;
   float         border_thickness;
   vec2          uv0;
   vec2          uv1;
 }
-params;
-
-layout(set = 1, binding = 0) uniform sampler2D base_color;
+u_params;
 
 void main()
 {
+  vec4 position  = to_mvp(u_params.transform) * vec4(i_rel_position, 0, 1);
+  gl_Position    = position;
+  o_rel_position = i_rel_position;
 }

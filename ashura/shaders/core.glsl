@@ -22,26 +22,15 @@ vec3 to_srgb(vec3 v)
 struct ViewTransform
 {
   mat4 projection;
-  vec4 view_0;
-  vec4 view_1;
-  vec4 view_2;
-  vec4 model_0;
-  vec4 model_1;
-  vec4 model_2;
+  vec4 view[3];
+  vec4 model[3];
 };
 
 mat4 to_mvp(ViewTransform t)
 {
-  return t.projection * mat4(t.view_0, t.view_1, t.view_2, vec4(0, 0, 0, 1)) *
-         mat4(t.model_0, t.model_1, t.model_2, vec4(0, 0, 0, 1));
+  return t.projection *
+         mat4(t.view[0], t.view[1], t.view[2], vec4(0, 0, 0, 1)) *
+         mat4(t.model[0], t.model[1], t.model[2], vec4(0, 0, 0, 1));
 }
-
-struct Edge
-{
-  vec4 tl;
-  vec4 tr;
-  vec4 bl;
-  vec4 br;
-};
 
 #endif
