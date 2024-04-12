@@ -1553,44 +1553,27 @@ struct DeviceInterface
       Device self, FrameContextDesc const &desc) = nullptr;
   Result<Swapchain, Status> (*create_swapchain)(
       Device self, Surface surface, SwapchainDesc const &desc)        = nullptr;
-  void (*ref_buffer)(Device self, Buffer buffer)                      = nullptr;
-  void (*ref_buffer_view)(Device self, BufferView buffer_view)        = nullptr;
-  void (*ref_image)(Device self, Image image)                         = nullptr;
-  void (*ref_image_view)(Device self, ImageView image_view)           = nullptr;
-  void (*ref_sampler)(Device self, Sampler sampler)                   = nullptr;
-  void (*ref_shader)(Device self, Shader shader)                      = nullptr;
-  void (*ref_render_pass)(Device self, RenderPass render_pass)        = nullptr;
-  void (*ref_framebuffer)(Device self, Framebuffer framebuffer)       = nullptr;
-  void (*ref_descriptor_set_layout)(Device              self,
-                                    DescriptorSetLayout layout)       = nullptr;
-  void (*ref_descriptor_heap)(Device self, DescriptorHeapImpl heap)   = nullptr;
-  void (*ref_pipeline_cache)(Device self, PipelineCache cache)        = nullptr;
-  void (*ref_compute_pipeline)(Device self, ComputePipeline pipeline) = nullptr;
-  void (*ref_graphics_pipeline)(Device           self,
-                                GraphicsPipeline pipeline)            = nullptr;
-  void (*ref_fence)(Device self, Fence fence)                         = nullptr;
-  void (*ref_frame_context)(Device self, FrameContext frame_context)  = nullptr;
-  void (*ref_swapchain)(Device self, Swapchain swapchain)  = nullptr;
-  void (*unref_buffer)(Device self, Buffer buffer)                    = nullptr;
-  void (*unref_buffer_view)(Device self, BufferView buffer_view)      = nullptr;
-  void (*unref_image)(Device self, Image image)                       = nullptr;
-  void (*unref_image_view)(Device self, ImageView image_view)         = nullptr;
-  void (*unref_sampler)(Device self, Sampler sampler)                 = nullptr;
-  void (*unref_shader)(Device self, Shader shader)                    = nullptr;
-  void (*unref_render_pass)(Device self, RenderPass render_pass)      = nullptr;
-  void (*unref_framebuffer)(Device self, Framebuffer framebuffer)     = nullptr;
-  void (*unref_descriptor_set_layout)(Device              self,
-                                      DescriptorSetLayout layout)     = nullptr;
-  void (*unref_descriptor_heap)(Device self, DescriptorHeapImpl heap) = nullptr;
-  void (*unref_pipeline_cache)(Device self, PipelineCache cache)      = nullptr;
-  void (*unref_compute_pipeline)(Device          self,
-                                 ComputePipeline pipeline)            = nullptr;
-  void (*unref_graphics_pipeline)(Device           self,
-                                  GraphicsPipeline pipeline)          = nullptr;
-  void (*unref_fence)(Device self, Fence fence)                       = nullptr;
-  void (*unref_frame_context)(Device       self,
-                              FrameContext frame_context)             = nullptr;
-  void (*unref_swapchain)(Device self, Swapchain swapchain)  = nullptr;
+  void (*destroy_buffer)(Device self, Buffer buffer)                  = nullptr;
+  void (*destroy_buffer_view)(Device self, BufferView buffer_view)    = nullptr;
+  void (*destroy_image)(Device self, Image image)                     = nullptr;
+  void (*destroy_image_view)(Device self, ImageView image_view)       = nullptr;
+  void (*destroy_sampler)(Device self, Sampler sampler)               = nullptr;
+  void (*destroy_shader)(Device self, Shader shader)                  = nullptr;
+  void (*destroy_render_pass)(Device self, RenderPass render_pass)    = nullptr;
+  void (*destroy_framebuffer)(Device self, Framebuffer framebuffer)   = nullptr;
+  void (*destroy_descriptor_set_layout)(Device              self,
+                                        DescriptorSetLayout layout)   = nullptr;
+  void (*destroy_descriptor_heap)(Device             self,
+                                  DescriptorHeapImpl heap)            = nullptr;
+  void (*destroy_pipeline_cache)(Device self, PipelineCache cache)    = nullptr;
+  void (*destroy_compute_pipeline)(Device          self,
+                                   ComputePipeline pipeline)          = nullptr;
+  void (*destroy_graphics_pipeline)(Device           self,
+                                    GraphicsPipeline pipeline)        = nullptr;
+  void (*destroy_fence)(Device self, Fence fence)                     = nullptr;
+  void (*destroy_frame_context)(Device       self,
+                                FrameContext frame_context)           = nullptr;
+  void (*destroy_swapchain)(Device self, Swapchain swapchain)         = nullptr;
   Result<void *, Status> (*get_buffer_memory_map)(Device self,
                                                   Buffer buffer)      = nullptr;
   Result<Void, Status> (*invalidate_buffer_memory_map)(
@@ -1644,15 +1627,13 @@ struct InstanceInterface
   Result<InstanceImpl, Status> (*create)(
       AllocatorImpl allocator, Logger *logger,
       bool enable_validation_layer) = nullptr;
-  void (*ref)(Instance self)        = nullptr;
-  void (*unref)(Instance self)      = nullptr;
+  void (*destroy)(Instance self)      = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance self, Span<DeviceType const> preferred_types,
       Span<Surface const> compatible_surfaces,
       AllocatorImpl       allocator)                            = nullptr;
   Backend (*get_backend)(Instance self)                   = nullptr;
-  void (*ref_device)(Instance self, Device device)        = nullptr;
-  void (*unref_device)(Instance self, Device device)      = nullptr;
+  void (*destroy_device)(Instance self, Device device)    = nullptr;
   void (*destroy_surface)(Instance self, Surface surface) = nullptr;
 };
 

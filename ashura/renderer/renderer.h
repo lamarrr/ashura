@@ -45,6 +45,7 @@ struct Renderer
 
   void uninit()
   {
+    ctx.device->wait_idle(ctx.device.self).unwrap();
     bloom.uninit(ctx);
     blur.uninit(ctx);
     fxaa.uninit(ctx);
@@ -52,7 +53,6 @@ struct Renderer
     pbr.uninit(ctx);
     custom.uninit(ctx);
     rrect.uninit(ctx);
-    ctx.idle_purge();
     ctx.uninit();
   }
 
@@ -78,6 +78,20 @@ struct Renderer
                                             .num_mip_levels    = 1,
                                             .first_array_layer = 0,
                                             .num_array_layers  = 1}}));
+
+    rrect.add_pass(
+        ctx,
+        RRectPassParams{
+            .render_target =
+                RenderTarget{.color_images =
+                                 to_span({ctx.framebuffer.color_image_view}),
+                             .depth_stencil_image =
+                                 ctx.framebuffer.depth_stencil_image_view,
+                             .extent                = ctx.framebuffer.extent,
+                             .depth_stencil_aspects = gfx::ImageAspects::Depth,
+                             .render_offset         = {0, 0},
+                             .render_extent         = ctx.framebuffer.extent},
+            .objects = to_span<RRectObject>({})});
   }
 };
 

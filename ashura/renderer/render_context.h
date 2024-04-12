@@ -43,6 +43,7 @@ struct FramebufferAttachments
   gfx::Image         depth_stencil_image           = nullptr;
   gfx::ImageView     color_image_view              = nullptr;
   gfx::ImageView     depth_stencil_image_view      = nullptr;
+  gfx::Extent        extent                        = {};
 };
 
 using ShaderMap = StrHashMap<gfx::Shader>;
@@ -66,7 +67,6 @@ struct RenderContext
   u32                max_frames_in_flight = 0;
   ShaderMap          shader_map           = {};
   gfx::FrameContext  frame_context        = nullptr;
-  gfx::Extent        extent               = {};
 
   gfx::Format              color_format         = gfx::Format::Undefined;
   gfx::Format              depth_stencil_format = gfx::Format::Undefined;

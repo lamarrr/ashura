@@ -21,10 +21,10 @@ int main(int, char **)
   CHECK(win_sys != nullptr);
 
   gfx::InstanceImpl instance =
-      vk::instance_interface.create(heap_allocator, default_logger, false)
+      vk::instance_interface.create(heap_allocator, default_logger, true)
           .unwrap();
 
-  defer instance_del{[&] { instance->unref(instance.self); }};
+  defer instance_del{[&] { instance->destroy(instance.self); }};
   u32   win = win_sys->create_window(instance, "Main").unwrap();
   defer win_del{[&] { win_sys->destroy_window(win); }};
 
@@ -44,7 +44,8 @@ int main(int, char **)
                        gfx::DeviceType::IntegratedGpu, gfx::DeviceType::Cpu}),
               to_span({surface}), default_allocator)
           .unwrap();
-  defer device_del{[&] { instance->unref_device(instance.self, device.self); }};
+  defer device_del{
+      [&] { instance->destroy_device(instance.self, device.self); }};
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
@@ -209,7 +210,8 @@ int main(int, char **)
   };
 
   invalidate_swapchain();
-  defer swapchain_del{[&] { device->unref_swapchain(device.self, swapchain); }};
+  defer swapchain_del{
+      [&] { device->destroy_swapchain(device.self, swapchain); }};
 
   // TODO(lamarrr): update preferred extent
 

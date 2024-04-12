@@ -93,12 +93,11 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                                                     max_frames_in_flight,
                                                 .allocator = default_allocator})
                       .unwrap();
-  extent = p_initial_extent;
 
   this->color_format         = color_format;
   this->depth_stencil_format = depth_stencil_format;
 
-  recreate_attachments(extent);
+  recreate_attachments(p_initial_extent);
 
   CHECK(uniform_heaps.resize_defaulted(max_frames_in_flight));
 
@@ -194,18 +193,18 @@ void recreate_attachment(RenderContext &ctx, FramebufferAttachments &attachment,
 
 void RenderContext::uninit()
 {
-  device->unref_pipeline_cache(device.self, pipeline_cache);
-  device->unref_frame_context(device.self, frame_context);
-  device->unref_image(device.self, framebuffer.color_image);
-  device->unref_image_view(device.self, framebuffer.color_image_view);
-  device->unref_image(device.self, framebuffer.depth_stencil_image);
-  device->unref_image_view(device.self, framebuffer.depth_stencil_image_view);
+  device->destroy_pipeline_cache(device.self, pipeline_cache);
+  device->destroy_frame_context(device.self, frame_context);
+  device->destroy_image(device.self, framebuffer.color_image);
+  device->destroy_image_view(device.self, framebuffer.color_image_view);
+  device->destroy_image(device.self, framebuffer.depth_stencil_image);
+  device->destroy_image_view(device.self, framebuffer.depth_stencil_image_view);
   for (UniformHeap &h : uniform_heaps)
   {
     h.uninit();
   }
   uniform_heaps.reset();
-  device->unref_descriptor_set_layout(device.self, uniform_layout);
+  device->destroy_descriptor_set_layout(device.self, uniform_layout);
   idle_purge();
   released_framebuffers.reset();
   released_images.reset();
@@ -216,7 +215,8 @@ void RenderContext::recreate_attachments(gfx::Extent new_extent)
 {
   recreate_attachment(*this, framebuffer, new_extent);
   recreate_attachment(*this, scatch_framebuffer, new_extent);
-  extent = new_extent;
+  framebuffer.extent        = new_extent;
+  scatch_framebuffer.extent = new_extent;
 }
 
 gfx::CommandEncoderImpl RenderContext::encoder()
@@ -290,7 +290,7 @@ void RenderContext::purge()
         });
     for (auto const &r : to_span(released_images)[to_delete])
     {
-      device->unref_image(device.self, r.v1);
+      device->destroy_image(device.self, r.v1);
     }
     released_images.erase(to_delete);
   }
@@ -302,7 +302,7 @@ void RenderContext::purge()
         });
     for (auto const &r : to_span(released_image_views)[to_delete])
     {
-      device->unref_image_view(device.self, r.v1);
+      device->destroy_image_view(device.self, r.v1);
     }
     released_image_views.erase(to_delete);
   }
@@ -314,7 +314,7 @@ void RenderContext::purge()
         });
     for (auto const &r : to_span(released_framebuffers)[to_delete])
     {
-      device->unref_framebuffer(device.self, r.v1);
+      device->destroy_framebuffer(device.self, r.v1);
     }
     released_framebuffers.erase(to_delete);
   }

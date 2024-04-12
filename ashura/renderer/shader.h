@@ -419,8 +419,8 @@ struct ShaderParameterHeap
 
   void deinit()
   {
-    device_->unref_descriptor_set_layout(device_.self, layout_);
-    device_->unref_descriptor_heap(device_.self, heap_);
+    device_->destroy_descriptor_set_layout(device_.self, layout_);
+    device_->destroy_descriptor_heap(device_.self, heap_);
   }
 
   gfx::DescriptorSet create(Param const &param)
@@ -635,10 +635,10 @@ struct UniformHeap
   {
     for (UniformHeapBatch const &batch : batches_)
     {
-      device_->unref_buffer(device_.self, batch.buffer);
+      device_->destroy_buffer(device_.self, batch.buffer);
     }
-    device_->unref_descriptor_set_layout(device_.self, descriptor_set_layout_);
-    device_->unref_descriptor_heap(device_.self, descriptor_heap_);
+    device_->destroy_descriptor_set_layout(device_.self, descriptor_set_layout_);
+    device_->destroy_descriptor_heap(device_.self, descriptor_heap_);
     batches_.reset();
   }
 

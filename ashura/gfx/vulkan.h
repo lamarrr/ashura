@@ -262,7 +262,6 @@ struct ImageState
 
 struct Buffer
 {
-  u64               refcount            = 0;
   gfx::BufferDesc   desc                = {};
   VkBuffer          vk_buffer           = nullptr;
   VmaAllocation     vma_allocation      = nullptr;
@@ -273,14 +272,12 @@ struct Buffer
 
 struct BufferView
 {
-  u64                 refcount = 0;
-  gfx::BufferViewDesc desc     = {};
-  VkBufferView        vk_view  = nullptr;
+  gfx::BufferViewDesc desc    = {};
+  VkBufferView        vk_view = nullptr;
 };
 
 struct Image
 {
-  u64               refcount            = 0;
   gfx::ImageDesc    desc                = {};
   bool              is_swapchain_image  = false;
   VkImage           vk_image            = nullptr;
@@ -291,14 +288,12 @@ struct Image
 
 struct ImageView
 {
-  u64                refcount = 0;
-  gfx::ImageViewDesc desc     = {};
-  VkImageView        vk_view  = nullptr;
+  gfx::ImageViewDesc desc    = {};
+  VkImageView        vk_view = nullptr;
 };
 
 struct RenderPass
 {
-  u64                       refcount                                      = 0;
   gfx::RenderPassAttachment color_attachments[gfx::MAX_COLOR_ATTACHMENTS] = {};
   gfx::RenderPassAttachment input_attachments[gfx::MAX_INPUT_ATTACHMENTS] = {};
   gfx::RenderPassAttachment depth_stencil_attachment                      = {};
@@ -309,7 +304,6 @@ struct RenderPass
 
 struct Framebuffer
 {
-  u64           refcount                                      = 0;
   gfx::Extent   extent                                        = {};
   ImageView    *color_attachments[gfx::MAX_INPUT_ATTACHMENTS] = {};
   ImageView    *depth_stencil_attachment                      = nullptr;
@@ -320,13 +314,11 @@ struct Framebuffer
 
 struct Shader
 {
-  u64            refcount  = 0;
   VkShaderModule vk_shader = nullptr;
 };
 
 struct DescriptorSetLayout
 {
-  u64                         refcount     = 0;
   gfx::DescriptorBindingDesc *bindings     = nullptr;
   u32                         num_bindings = 0;
   VkDescriptorSetLayout       vk_layout    = nullptr;
@@ -334,39 +326,33 @@ struct DescriptorSetLayout
 
 struct PipelineCache
 {
-  u64             refcount = 0;
   VkPipelineCache vk_cache = nullptr;
 };
 
 struct ComputePipeline
 {
-  u64              refcount    = 0;
   VkPipeline       vk_pipeline = nullptr;
   VkPipelineLayout vk_layout   = nullptr;
 };
 
 struct GraphicsPipeline
 {
-  u64              refcount    = 0;
   VkPipeline       vk_pipeline = nullptr;
   VkPipelineLayout vk_layout   = nullptr;
 };
 
 struct Sampler
 {
-  u64       refcount   = 0;
   VkSampler vk_sampler = nullptr;
 };
 
 struct Fence
 {
-  u64     refcount = 0;
   VkFence vk_fence = nullptr;
 };
 
 struct Instance
 {
-  u64                      refcount    = 0;
   AllocatorImpl            allocator   = {};
   Logger                  *logger      = {};
   InstanceTable            vk_table    = {};
@@ -385,7 +371,6 @@ struct PhysicalDevice
 
 struct Device
 {
-  u64                refcount        = 0;
   AllocatorImpl      allocator       = {};
   Logger            *logger          = nullptr;
   Instance          *instance        = nullptr;
@@ -414,7 +399,6 @@ struct Device
 ///
 struct DescriptorHeap
 {
-  u64                   refcount                    = 0;
   Device               *device                      = nullptr;
   AllocatorImpl         allocator                   = {};
   Logger               *logger                      = nullptr;
@@ -453,7 +437,6 @@ enum class CommandEncoderState : u8
 
 struct CommandEncoder
 {
-  u64                refcount                                         = 0;
   AllocatorImpl      allocator                                        = {};
   Logger            *logger                                           = nullptr;
   Device            *device                                           = nullptr;
@@ -477,7 +460,6 @@ struct CommandEncoder
 
 struct FrameContext
 {
-  u64                      refcount             = 0;
   gfx::FrameId             tail_frame           = 0;
   gfx::FrameId             current_frame        = 0;
   u32                      ring_index           = 0;
@@ -497,7 +479,6 @@ struct FrameContext
 /// the surface requested a zero sized image extent
 struct Swapchain
 {
-  u64                 refcount        = 0;
   gfx::SwapchainDesc  desc            = {};
   bool                is_out_of_date  = true;
   bool                is_optimal      = false;
@@ -521,14 +502,12 @@ struct InstanceInterface
   static Result<gfx::InstanceImpl, Status> create(AllocatorImpl allocator,
                                                   Logger       *logger,
                                                   bool enable_validation_layer);
-  static void                              ref(gfx::Instance self);
-  static void                              unref(gfx::Instance self);
+  static void                              destroy(gfx::Instance self);
   static Result<gfx::DeviceImpl, Status>   create_device(
         gfx::Instance self, Span<gfx::DeviceType const> preferred_types,
         Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator);
   static gfx::Backend get_backend(gfx::Instance self);
-  static void         ref_device(gfx::Instance self, gfx::Device device);
-  static void         unref_device(gfx::Instance self, gfx::Device device);
+  static void         destroy_device(gfx::Instance self, gfx::Device device);
   static void         destroy_surface(gfx::Instance self, gfx::Surface surface);
 };
 
@@ -577,51 +556,33 @@ struct DeviceInterface
   static Result<gfx::Swapchain, Status>
               create_swapchain(gfx::Device self, gfx::Surface surface,
                                gfx::SwapchainDesc const &desc);
-  static void ref_buffer(gfx::Device self, gfx::Buffer buffer);
-  static void ref_buffer_view(gfx::Device self, gfx::BufferView buffer_view);
-  static void ref_image(gfx::Device self, gfx::Image image);
-  static void ref_image_view(gfx::Device self, gfx::ImageView image_view);
-  static void ref_sampler(gfx::Device self, gfx::Sampler sampler);
-  static void ref_shader(gfx::Device self, gfx::Shader shader);
-  static void ref_render_pass(gfx::Device self, gfx::RenderPass render_pass);
-  static void ref_framebuffer(gfx::Device self, gfx::Framebuffer framebuffer);
-  static void ref_descriptor_set_layout(gfx::Device              self,
-                                        gfx::DescriptorSetLayout layout);
-  static void ref_descriptor_heap(gfx::Device             self,
-                                  gfx::DescriptorHeapImpl heap);
-  static void ref_pipeline_cache(gfx::Device self, gfx::PipelineCache cache);
-  static void ref_compute_pipeline(gfx::Device          self,
-                                   gfx::ComputePipeline pipeline);
-  static void ref_graphics_pipeline(gfx::Device           self,
-                                    gfx::GraphicsPipeline pipeline);
-  static void ref_fence(gfx::Device self, gfx::Fence fence);
-  static void ref_command_encoder(gfx::Device             self,
-                                  gfx::CommandEncoderImpl encoder);
-  static void ref_frame_context(gfx::Device       self,
-                                gfx::FrameContext frame_context);
-  static void unref_buffer(gfx::Device self, gfx::Buffer buffer);
-  static void unref_buffer_view(gfx::Device self, gfx::BufferView buffer_view);
-  static void unref_image(gfx::Device self, gfx::Image image);
-  static void unref_image_view(gfx::Device self, gfx::ImageView image_view);
-  static void unref_sampler(gfx::Device self, gfx::Sampler sampler);
-  static void unref_shader(gfx::Device self, gfx::Shader shader);
-  static void unref_render_pass(gfx::Device self, gfx::RenderPass render_pass);
-  static void unref_framebuffer(gfx::Device self, gfx::Framebuffer framebuffer);
-  static void unref_descriptor_set_layout(gfx::Device              self,
-                                          gfx::DescriptorSetLayout layout);
-  static void unref_descriptor_heap(gfx::Device             self,
-                                    gfx::DescriptorHeapImpl heap);
-  static void unref_pipeline_cache(gfx::Device self, gfx::PipelineCache cache);
-  static void unref_compute_pipeline(gfx::Device          self,
-                                     gfx::ComputePipeline pipeline);
-  static void unref_graphics_pipeline(gfx::Device           self,
-                                      gfx::GraphicsPipeline pipeline);
-  static void unref_fence(gfx::Device self, gfx::Fence fence);
-  static void unref_command_encoder(gfx::Device             self,
-                                    gfx::CommandEncoderImpl encoder);
-  static void unref_frame_context(gfx::Device       self,
-                                  gfx::FrameContext frame_context);
-  static void unref_swapchain(gfx::Device self, gfx::Swapchain swapchain);
+  static void destroy_buffer(gfx::Device self, gfx::Buffer buffer);
+  static void destroy_buffer_view(gfx::Device     self,
+                                  gfx::BufferView buffer_view);
+  static void destroy_image(gfx::Device self, gfx::Image image);
+  static void destroy_image_view(gfx::Device self, gfx::ImageView image_view);
+  static void destroy_sampler(gfx::Device self, gfx::Sampler sampler);
+  static void destroy_shader(gfx::Device self, gfx::Shader shader);
+  static void destroy_render_pass(gfx::Device     self,
+                                  gfx::RenderPass render_pass);
+  static void destroy_framebuffer(gfx::Device      self,
+                                  gfx::Framebuffer framebuffer);
+  static void destroy_descriptor_set_layout(gfx::Device              self,
+                                            gfx::DescriptorSetLayout layout);
+  static void destroy_descriptor_heap(gfx::Device             self,
+                                      gfx::DescriptorHeapImpl heap);
+  static void destroy_pipeline_cache(gfx::Device        self,
+                                     gfx::PipelineCache cache);
+  static void destroy_compute_pipeline(gfx::Device          self,
+                                       gfx::ComputePipeline pipeline);
+  static void destroy_graphics_pipeline(gfx::Device           self,
+                                        gfx::GraphicsPipeline pipeline);
+  static void destroy_fence(gfx::Device self, gfx::Fence fence);
+  static void destroy_command_encoder(gfx::Device             self,
+                                      gfx::CommandEncoderImpl encoder);
+  static void destroy_frame_context(gfx::Device       self,
+                                    gfx::FrameContext frame_context);
+  static void destroy_swapchain(gfx::Device self, gfx::Swapchain swapchain);
   static Result<void *, Status> get_buffer_memory_map(gfx::Device self,
                                                       gfx::Buffer buffer);
   static Result<Void, Status>
@@ -793,12 +754,10 @@ struct CommandEncoderInterface
 
 static gfx::InstanceInterface const instance_interface{
     .create          = InstanceInterface::create,
-    .ref             = InstanceInterface::ref,
-    .unref           = InstanceInterface::unref,
+    .destroy         = InstanceInterface::destroy,
     .create_device   = InstanceInterface::create_device,
     .get_backend     = InstanceInterface::get_backend,
-    .ref_device      = InstanceInterface::ref_device,
-    .unref_device    = InstanceInterface::unref_device,
+    .destroy_device  = InstanceInterface::destroy_device,
     .destroy_surface = InstanceInterface::destroy_surface};
 
 static gfx::DeviceInterface const device_interface{
@@ -814,45 +773,31 @@ static gfx::DeviceInterface const device_interface{
     .create_framebuffer    = DeviceInterface::create_framebuffer,
     .create_descriptor_set_layout =
         DeviceInterface::create_descriptor_set_layout,
-    .create_descriptor_heap      = DeviceInterface::create_descriptor_heap,
-    .create_pipeline_cache       = DeviceInterface::create_pipeline_cache,
-    .create_compute_pipeline     = DeviceInterface::create_compute_pipeline,
-    .create_graphics_pipeline    = DeviceInterface::create_graphics_pipeline,
-    .create_fence                = DeviceInterface::create_fence,
-    .create_frame_context        = DeviceInterface::create_frame_context,
-    .create_swapchain            = DeviceInterface::create_swapchain,
-    .ref_buffer                  = DeviceInterface::ref_buffer,
-    .ref_buffer_view             = DeviceInterface::ref_buffer_view,
-    .ref_image                   = DeviceInterface::ref_image,
-    .ref_image_view              = DeviceInterface::ref_image_view,
-    .ref_sampler                 = DeviceInterface::ref_sampler,
-    .ref_shader                  = DeviceInterface::ref_shader,
-    .ref_render_pass             = DeviceInterface::ref_render_pass,
-    .ref_framebuffer             = DeviceInterface::ref_framebuffer,
-    .ref_descriptor_set_layout   = DeviceInterface::ref_descriptor_set_layout,
-    .ref_descriptor_heap         = DeviceInterface::ref_descriptor_heap,
-    .ref_pipeline_cache          = DeviceInterface::ref_pipeline_cache,
-    .ref_compute_pipeline        = DeviceInterface::ref_compute_pipeline,
-    .ref_graphics_pipeline       = DeviceInterface::ref_graphics_pipeline,
-    .ref_fence                   = DeviceInterface::ref_fence,
-    .ref_frame_context           = DeviceInterface::ref_frame_context,
-    .unref_buffer                = DeviceInterface::unref_buffer,
-    .unref_buffer_view           = DeviceInterface::unref_buffer_view,
-    .unref_image                 = DeviceInterface::unref_image,
-    .unref_image_view            = DeviceInterface::unref_image_view,
-    .unref_sampler               = DeviceInterface::unref_sampler,
-    .unref_shader                = DeviceInterface::unref_shader,
-    .unref_render_pass           = DeviceInterface::unref_render_pass,
-    .unref_framebuffer           = DeviceInterface::unref_framebuffer,
-    .unref_descriptor_set_layout = DeviceInterface::unref_descriptor_set_layout,
-    .unref_descriptor_heap       = DeviceInterface::unref_descriptor_heap,
-    .unref_pipeline_cache        = DeviceInterface::unref_pipeline_cache,
-    .unref_compute_pipeline      = DeviceInterface::unref_compute_pipeline,
-    .unref_graphics_pipeline     = DeviceInterface::unref_graphics_pipeline,
-    .unref_fence                 = DeviceInterface::unref_fence,
-    .unref_frame_context         = DeviceInterface::unref_frame_context,
-    .unref_swapchain             = DeviceInterface::unref_swapchain,
-    .get_buffer_memory_map       = DeviceInterface::get_buffer_memory_map,
+    .create_descriptor_heap   = DeviceInterface::create_descriptor_heap,
+    .create_pipeline_cache    = DeviceInterface::create_pipeline_cache,
+    .create_compute_pipeline  = DeviceInterface::create_compute_pipeline,
+    .create_graphics_pipeline = DeviceInterface::create_graphics_pipeline,
+    .create_fence             = DeviceInterface::create_fence,
+    .create_frame_context     = DeviceInterface::create_frame_context,
+    .create_swapchain         = DeviceInterface::create_swapchain,
+    .destroy_buffer           = DeviceInterface::destroy_buffer,
+    .destroy_buffer_view      = DeviceInterface::destroy_buffer_view,
+    .destroy_image            = DeviceInterface::destroy_image,
+    .destroy_image_view       = DeviceInterface::destroy_image_view,
+    .destroy_sampler          = DeviceInterface::destroy_sampler,
+    .destroy_shader           = DeviceInterface::destroy_shader,
+    .destroy_render_pass      = DeviceInterface::destroy_render_pass,
+    .destroy_framebuffer      = DeviceInterface::destroy_framebuffer,
+    .destroy_descriptor_set_layout =
+        DeviceInterface::destroy_descriptor_set_layout,
+    .destroy_descriptor_heap   = DeviceInterface::destroy_descriptor_heap,
+    .destroy_pipeline_cache    = DeviceInterface::destroy_pipeline_cache,
+    .destroy_compute_pipeline  = DeviceInterface::destroy_compute_pipeline,
+    .destroy_graphics_pipeline = DeviceInterface::destroy_graphics_pipeline,
+    .destroy_fence             = DeviceInterface::destroy_fence,
+    .destroy_frame_context     = DeviceInterface::destroy_frame_context,
+    .destroy_swapchain         = DeviceInterface::destroy_swapchain,
+    .get_buffer_memory_map     = DeviceInterface::get_buffer_memory_map,
     .invalidate_buffer_memory_map =
         DeviceInterface::invalidate_buffer_memory_map,
     .flush_buffer_memory_map   = DeviceInterface::flush_buffer_memory_map,

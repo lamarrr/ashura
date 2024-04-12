@@ -217,11 +217,11 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
 
 void PBRPass::uninit(RenderContext &ctx)
 {
-  ctx.device->unref_descriptor_set_layout(ctx.device.self,
+  ctx.device->destroy_descriptor_set_layout(ctx.device.self,
                                           descriptor_set_layout);
-  ctx.device->unref_render_pass(ctx.device.self, render_pass);
-  ctx.device->unref_graphics_pipeline(ctx.device.self, pipeline);
-  ctx.device->unref_graphics_pipeline(ctx.device.self, wireframe_pipeline);
+  ctx.device->destroy_render_pass(ctx.device.self, render_pass);
+  ctx.device->destroy_graphics_pipeline(ctx.device.self, pipeline);
+  ctx.device->destroy_graphics_pipeline(ctx.device.self, wireframe_pipeline);
 }
 
 }        // namespace ash

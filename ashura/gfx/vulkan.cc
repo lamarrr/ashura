@@ -1444,8 +1444,7 @@ Result<gfx::InstanceImpl, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (instance) Instance{.refcount                 = 1,
-                          .allocator                = allocator,
+  new (instance) Instance{.allocator                = allocator,
                           .logger                   = logger,
                           .vk_table                 = {},
                           .vk_instance              = nullptr,
@@ -1524,25 +1523,21 @@ Result<gfx::InstanceImpl, Status>
                               .interface = &instance_interface}};
 }
 
-void InstanceInterface::ref(gfx::Instance instance_)
-{
-  ((Instance *) instance_)->refcount++;
-}
-
-void InstanceInterface::unref(gfx::Instance instance_)
+void InstanceInterface::destroy(gfx::Instance instance_)
 {
   Instance *const instance = (Instance *) instance_;
 
-  if (--instance->refcount == 0)
+  if (instance == nullptr)
   {
-    if (instance->validation_layer_enabled)
-    {
-      instance->vk_table.DestroyDebugUtilsMessengerEXT(
-          instance->vk_instance, instance->vk_debug_messenger, nullptr);
-    }
-    instance->vk_table.DestroyInstance(instance->vk_instance, nullptr);
-    instance->allocator.deallocate_typed(instance, 1);
+    return;
   }
+  if (instance->validation_layer_enabled)
+  {
+    instance->vk_table.DestroyDebugUtilsMessengerEXT(
+        instance->vk_instance, instance->vk_debug_messenger, nullptr);
+  }
+  instance->vk_table.DestroyInstance(instance->vk_instance, nullptr);
+  instance->allocator.deallocate_typed(instance, 1);
 }
 
 Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
@@ -1969,8 +1964,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{(Status) result};
   }
 
-  new (device) Device{.refcount        = 1,
-                      .allocator       = allocator,
+  new (device) Device{.allocator       = allocator,
                       .logger          = self->logger,
                       .instance        = self,
                       .physical_device = selected_device,
@@ -1990,14 +1984,8 @@ gfx::Backend InstanceInterface::get_backend(gfx::Instance)
   return gfx::Backend::Vulkan;
 }
 
-void InstanceInterface::ref_device(gfx::Instance, gfx::Device device_)
-{
-  Device *const device = (Device *) device_;
-  device->refcount++;
-}
-
-void InstanceInterface::unref_device(gfx::Instance instance_,
-                                     gfx::Device   device_)
+void InstanceInterface::destroy_device(gfx::Instance instance_,
+                                       gfx::Device   device_)
 {
   Instance *const instance = (Instance *) instance_;
   Device *const   device   = (Device *) device_;
@@ -2007,12 +1995,9 @@ void InstanceInterface::unref_device(gfx::Instance instance_,
     return;
   }
 
-  if (--device->refcount == 0)
-  {
-    vmaDestroyAllocator(device->vma_allocator);
-    device->vk_table.DestroyDevice(device->vk_device, nullptr);
-    instance->allocator.deallocate_typed(device, 1);
-  }
+  vmaDestroyAllocator(device->vma_allocator);
+  device->vk_table.DestroyDevice(device->vk_device, nullptr);
+  instance->allocator.deallocate_typed(device, 1);
 }
 
 void InstanceInterface::destroy_surface(gfx::Instance self_,
@@ -2250,8 +2235,7 @@ Result<gfx::Buffer, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (buffer) Buffer{.refcount            = 1,
-                      .desc                = desc,
+  new (buffer) Buffer{.desc                = desc,
                       .vk_buffer           = vk_buffer,
                       .vma_allocation      = vma_allocation,
                       .vma_allocation_info = vma_allocation_info,
@@ -2307,7 +2291,7 @@ Result<gfx::BufferView, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (view) BufferView{.refcount = 1, .desc = desc, .vk_view = vk_view};
+  new (view) BufferView{.desc = desc, .vk_view = vk_view};
 
   view->desc.size = view_size;
 
@@ -2381,8 +2365,7 @@ Result<gfx::Image, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (image) Image{.refcount            = 1,
-                    .desc                = desc,
+  new (image) Image{.desc                = desc,
                     .is_swapchain_image  = false,
                     .vk_image            = vk_image,
                     .vma_allocation      = vma_allocation,
@@ -2453,7 +2436,7 @@ Result<gfx::ImageView, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (view) ImageView{.refcount = 1, .desc = desc, .vk_view = vk_view};
+  new (view) ImageView{.desc = desc, .vk_view = vk_view};
 
   view->desc.num_mip_levels   = mip_levels;
   view->desc.num_array_layers = array_layers;
@@ -2504,7 +2487,7 @@ Result<gfx::Sampler, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (sampler) Sampler{.refcount = 1, .vk_sampler = vk_sampler};
+  new (sampler) Sampler{.vk_sampler = vk_sampler};
 
   return Ok{(gfx::Sampler) sampler};
 }
@@ -2542,7 +2525,7 @@ Result<gfx::Shader, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (shader) Shader{.refcount = 1, .vk_shader = vk_shader};
+  new (shader) Shader{.vk_shader = vk_shader};
 
   return Ok{(gfx::Shader) shader};
 }
@@ -2684,8 +2667,7 @@ Result<gfx::RenderPass, Status>
   }
 
   new (render_pass)
-      RenderPass{.refcount                 = 1,
-                 .color_attachments        = {},
+      RenderPass{.color_attachments        = {},
                  .input_attachments        = {},
                  .depth_stencil_attachment = desc.depth_stencil_attachment,
                  .num_color_attachments    = num_color_attachments,
@@ -2796,8 +2778,7 @@ Result<gfx::Framebuffer, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (framebuffer) Framebuffer{.refcount          = 1,
-                                .extent            = desc.extent,
+  new (framebuffer) Framebuffer{.extent            = desc.extent,
                                 .color_attachments = {},
                                 .depth_stencil_attachment =
                                     (ImageView *) desc.depth_stencil_attachment,
@@ -2893,8 +2874,7 @@ Result<gfx::DescriptorSetLayout, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (layout) DescriptorSetLayout{.refcount     = 1,
-                                   .bindings     = bindings,
+  new (layout) DescriptorSetLayout{.bindings     = bindings,
                                    .num_bindings = num_bindings,
                                    .vk_layout    = vk_layout};
 
@@ -3095,8 +3075,7 @@ Result<gfx::DescriptorHeapImpl, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (heap) DescriptorHeap{.refcount                    = 1,
-                            .device                      = self,
+  new (heap) DescriptorHeap{.device                      = self,
                             .allocator                   = desc.allocator,
                             .logger                      = self->logger,
                             .set_layouts                 = set_layouts,
@@ -3156,7 +3135,7 @@ Result<gfx::PipelineCache, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (cache) PipelineCache{.refcount = 1, .vk_cache = vk_cache};
+  new (cache) PipelineCache{.vk_cache = vk_cache};
 
   return Ok{(gfx::PipelineCache) cache};
 }
@@ -3262,8 +3241,8 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
     return Err{Status::OutOfHostMemory};
   }
 
-  new (pipeline) ComputePipeline{
-      .refcount = 1, .vk_pipeline = vk_pipeline, .vk_layout = vk_layout};
+  new (pipeline)
+      ComputePipeline{.vk_pipeline = vk_pipeline, .vk_layout = vk_layout};
 
   return Ok{(gfx::ComputePipeline) pipeline};
 }
@@ -3567,8 +3546,8 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
     return Err{Status::OutOfHostMemory};
   }
 
-  new (pipeline) GraphicsPipeline{
-      .refcount = 1, .vk_pipeline = vk_pipeline, .vk_layout = vk_layout};
+  new (pipeline)
+      GraphicsPipeline{.vk_pipeline = vk_pipeline, .vk_layout = vk_layout};
 
   return Ok{(gfx::GraphicsPipeline) pipeline};
 }
@@ -3600,7 +3579,7 @@ Result<gfx::Fence, Status> DeviceInterface::create_fence(gfx::Device self_,
     return Err{Status::OutOfHostMemory};
   }
 
-  new (fence) Fence{.refcount = 1, .vk_fence = vk_fence};
+  new (fence) Fence{.vk_fence = vk_fence};
 
   return Ok{(gfx::Fence) fence};
 }
@@ -3653,8 +3632,7 @@ Result<gfx::CommandEncoderImpl, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (encoder) CommandEncoder{.refcount                 = 1,
-                               .allocator                = allocator,
+  new (encoder) CommandEncoder{.allocator                = allocator,
                                .logger                   = self->logger,
                                .device                   = self,
                                .vk_command_pool          = vk_command_pool,
@@ -3713,7 +3691,7 @@ Result<gfx::FrameContext, Status>
     {
       for (u32 i = 0; i < push_end; i++)
       {
-        DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
+        DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
       }
       return Err{(Status) status};
     }
@@ -3753,7 +3731,7 @@ Result<gfx::FrameContext, Status>
 
       for (u32 i = 0; i < desc.max_frames_in_flight; i++)
       {
-        DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
+        DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
       }
 
       return Err{(Status) result};
@@ -3791,14 +3769,14 @@ Result<gfx::FrameContext, Status>
     {
       for (u32 i = 0; i < push_end; i++)
       {
-        DeviceInterface::unref_fence(self_, submit_fences[i]);
+        DeviceInterface::destroy_fence(self_, submit_fences[i]);
       }
 
       for (u32 i = 0; i < desc.max_frames_in_flight; i++)
       {
         self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
                                         nullptr);
-        DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
+        DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
       }
 
       return Err{(Status) status};
@@ -3812,10 +3790,10 @@ Result<gfx::FrameContext, Status>
   {
     for (u32 i = 0; i < desc.max_frames_in_flight; i++)
     {
-      DeviceInterface::unref_fence(self_, submit_fences[i]);
+      DeviceInterface::destroy_fence(self_, submit_fences[i]);
       self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
                                       nullptr);
-      DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
+      DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
     }
 
     return Err{Status::OutOfHostMemory};
@@ -3850,10 +3828,10 @@ Result<gfx::FrameContext, Status>
 
       for (u32 i = 0; i < desc.max_frames_in_flight; i++)
       {
-        DeviceInterface::unref_fence(self_, submit_fences[i]);
+        DeviceInterface::destroy_fence(self_, submit_fences[i]);
         self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
                                         nullptr);
-        DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
+        DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
       }
 
       return Err{(Status) result};
@@ -3868,18 +3846,17 @@ Result<gfx::FrameContext, Status>
     {
       self->vk_table.DestroySemaphore(self->vk_device, submit_semaphores[i],
                                       nullptr);
-      DeviceInterface::unref_fence(self_, submit_fences[i]);
+      DeviceInterface::destroy_fence(self_, submit_fences[i]);
       self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
                                       nullptr);
-      DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
+      DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
     }
 
     return Err{Status::OutOfHostMemory};
   }
 
   new (frame_context)
-      FrameContext{.refcount             = 1,
-                   .tail_frame           = 0,
+      FrameContext{.tail_frame           = 0,
                    .current_frame        = 0,
                    .ring_index           = 0,
                    .max_frames_in_flight = desc.max_frames_in_flight,
@@ -4026,7 +4003,6 @@ inline VkResult recreate_swapchain(Device *self, Swapchain *swapchain)
   for (u32 i = 0; i < num_images; i++)
   {
     swapchain->image_impls[i] = Image{
-        .refcount            = 1,
         .desc                = gfx::ImageDesc{.type         = gfx::ImageType::Type2D,
                                               .format       = swapchain->desc.format.format,
                                               .usage        = swapchain->desc.usage,
@@ -4085,8 +4061,7 @@ Result<gfx::Swapchain, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (swapchain) Swapchain{.refcount        = 1,
-                            .desc            = desc,
+  new (swapchain) Swapchain{.desc            = desc,
                             .is_out_of_date  = true,
                             .is_optimal      = false,
                             .is_zero_sized   = false,
@@ -4106,97 +4081,7 @@ Result<gfx::Swapchain, Status>
   return Ok{(gfx::Swapchain) swapchain};
 }
 
-void DeviceInterface::ref_buffer(gfx::Device, gfx::Buffer buffer_)
-{
-  ((Buffer *) buffer_)->refcount++;
-}
-
-void DeviceInterface::ref_buffer_view(gfx::Device, gfx::BufferView buffer_view_)
-{
-  ((BufferView *) buffer_view_)->refcount++;
-}
-
-void DeviceInterface::ref_image(gfx::Device self_, gfx::Image image_)
-{
-  Device *self  = (Device *) self_;
-  Image  *image = (Image *) image_;
-  VALIDATE(!image->is_swapchain_image);
-  image->refcount++;
-}
-
-void DeviceInterface::ref_image_view(gfx::Device, gfx::ImageView image_view_)
-{
-  ((ImageView *) image_view_)->refcount++;
-}
-
-void DeviceInterface::ref_sampler(gfx::Device, gfx::Sampler sampler_)
-{
-  ((Sampler *) sampler_)->refcount++;
-}
-
-void DeviceInterface::ref_shader(gfx::Device, gfx::Shader shader_)
-{
-  ((Shader *) shader_)->refcount++;
-}
-
-void DeviceInterface::ref_render_pass(gfx::Device, gfx::RenderPass render_pass_)
-{
-  ((RenderPass *) render_pass_)->refcount++;
-}
-
-void DeviceInterface::ref_framebuffer(gfx::Device,
-                                      gfx::Framebuffer framebuffer_)
-{
-  ((Framebuffer *) framebuffer_)->refcount++;
-}
-
-void DeviceInterface::ref_descriptor_set_layout(
-    gfx::Device, gfx::DescriptorSetLayout layout_)
-{
-  ((DescriptorSetLayout *) layout_)->refcount++;
-}
-
-void DeviceInterface::ref_descriptor_heap(gfx::Device,
-                                          gfx::DescriptorHeapImpl heap_)
-{
-  ((DescriptorHeap *) heap_.self)->refcount++;
-}
-
-void DeviceInterface::ref_pipeline_cache(gfx::Device, gfx::PipelineCache cache_)
-{
-  ((PipelineCache *) cache_)->refcount++;
-}
-
-void DeviceInterface::ref_compute_pipeline(gfx::Device,
-                                           gfx::ComputePipeline pipeline_)
-{
-  ((ComputePipeline *) pipeline_)->refcount++;
-}
-
-void DeviceInterface::ref_graphics_pipeline(gfx::Device,
-                                            gfx::GraphicsPipeline pipeline_)
-{
-  ((GraphicsPipeline *) pipeline_)->refcount++;
-}
-
-void DeviceInterface::ref_fence(gfx::Device, gfx::Fence fence_)
-{
-  ((Fence *) fence_)->refcount++;
-}
-
-void DeviceInterface::ref_command_encoder(gfx::Device,
-                                          gfx::CommandEncoderImpl encoder_)
-{
-  ((CommandEncoder *) encoder_.self)->refcount++;
-}
-
-void DeviceInterface::ref_frame_context(gfx::Device,
-                                        gfx::FrameContext frame_context_)
-{
-  ((FrameContext *) frame_context_)->refcount++;
-}
-
-void DeviceInterface::unref_buffer(gfx::Device self_, gfx::Buffer buffer_)
+void DeviceInterface::destroy_buffer(gfx::Device self_, gfx::Buffer buffer_)
 {
   Device *const self   = (Device *) self_;
   Buffer *const buffer = (Buffer *) buffer_;
@@ -4206,16 +4091,13 @@ void DeviceInterface::unref_buffer(gfx::Device self_, gfx::Buffer buffer_)
     return;
   }
 
-  if (--buffer->refcount == 0)
-  {
-    vmaDestroyBuffer(self->vma_allocator, buffer->vk_buffer,
-                     buffer->vma_allocation);
-    self->allocator.deallocate_typed(buffer, 1);
-  }
+  vmaDestroyBuffer(self->vma_allocator, buffer->vk_buffer,
+                   buffer->vma_allocation);
+  self->allocator.deallocate_typed(buffer, 1);
 }
 
-void DeviceInterface::unref_buffer_view(gfx::Device     self_,
-                                        gfx::BufferView buffer_view_)
+void DeviceInterface::destroy_buffer_view(gfx::Device     self_,
+                                          gfx::BufferView buffer_view_)
 {
   Device *const     self        = (Device *) self_;
   BufferView *const buffer_view = (BufferView *) buffer_view_;
@@ -4225,15 +4107,12 @@ void DeviceInterface::unref_buffer_view(gfx::Device     self_,
     return;
   }
 
-  if (--buffer_view->refcount == 0)
-  {
-    self->vk_table.DestroyBufferView(self->vk_device, buffer_view->vk_view,
-                                     nullptr);
-    self->allocator.deallocate_typed(buffer_view, 1);
-  }
+  self->vk_table.DestroyBufferView(self->vk_device, buffer_view->vk_view,
+                                   nullptr);
+  self->allocator.deallocate_typed(buffer_view, 1);
 }
 
-void DeviceInterface::unref_image(gfx::Device self_, gfx::Image image_)
+void DeviceInterface::destroy_image(gfx::Device self_, gfx::Image image_)
 {
   Device *const self  = (Device *) self_;
   Image *const  image = (Image *) image_;
@@ -4245,16 +4124,12 @@ void DeviceInterface::unref_image(gfx::Device self_, gfx::Image image_)
 
   VALIDATE(!image->is_swapchain_image);
 
-  if (--image->refcount == 0)
-  {
-    vmaDestroyImage(self->vma_allocator, image->vk_image,
-                    image->vma_allocation);
-    self->allocator.deallocate_typed(image, 1);
-  }
+  vmaDestroyImage(self->vma_allocator, image->vk_image, image->vma_allocation);
+  self->allocator.deallocate_typed(image, 1);
 }
 
-void DeviceInterface::unref_image_view(gfx::Device    self_,
-                                       gfx::ImageView image_view_)
+void DeviceInterface::destroy_image_view(gfx::Device    self_,
+                                         gfx::ImageView image_view_)
 {
   Device *const    self       = (Device *) self_;
   ImageView *const image_view = (ImageView *) image_view_;
@@ -4264,15 +4139,12 @@ void DeviceInterface::unref_image_view(gfx::Device    self_,
     return;
   }
 
-  if (--image_view->refcount == 0)
-  {
-    self->vk_table.DestroyImageView(self->vk_device, image_view->vk_view,
-                                    nullptr);
-    self->allocator.deallocate_typed(image_view, 1);
-  }
+  self->vk_table.DestroyImageView(self->vk_device, image_view->vk_view,
+                                  nullptr);
+  self->allocator.deallocate_typed(image_view, 1);
 }
 
-void DeviceInterface::unref_sampler(gfx::Device self_, gfx::Sampler sampler_)
+void DeviceInterface::destroy_sampler(gfx::Device self_, gfx::Sampler sampler_)
 {
   Device *const  self    = (Device *) self_;
   Sampler *const sampler = (Sampler *) sampler_;
@@ -4282,15 +4154,11 @@ void DeviceInterface::unref_sampler(gfx::Device self_, gfx::Sampler sampler_)
     return;
   }
 
-  if (--sampler->refcount == 0)
-  {
-    self->vk_table.DestroySampler(self->vk_device, sampler->vk_sampler,
-                                  nullptr);
-    self->allocator.deallocate_typed(sampler, 1);
-  }
+  self->vk_table.DestroySampler(self->vk_device, sampler->vk_sampler, nullptr);
+  self->allocator.deallocate_typed(sampler, 1);
 }
 
-void DeviceInterface::unref_shader(gfx::Device self_, gfx::Shader shader_)
+void DeviceInterface::destroy_shader(gfx::Device self_, gfx::Shader shader_)
 {
   Device *const self   = (Device *) self_;
   Shader *const shader = (Shader *) shader_;
@@ -4300,16 +4168,13 @@ void DeviceInterface::unref_shader(gfx::Device self_, gfx::Shader shader_)
     return;
   }
 
-  if (--shader->refcount == 0)
-  {
-    self->vk_table.DestroyShaderModule(self->vk_device, shader->vk_shader,
-                                       nullptr);
-    self->allocator.deallocate_typed(shader, 1);
-  }
+  self->vk_table.DestroyShaderModule(self->vk_device, shader->vk_shader,
+                                     nullptr);
+  self->allocator.deallocate_typed(shader, 1);
 }
 
-void DeviceInterface::unref_render_pass(gfx::Device     self_,
-                                        gfx::RenderPass render_pass_)
+void DeviceInterface::destroy_render_pass(gfx::Device     self_,
+                                          gfx::RenderPass render_pass_)
 {
   Device *const     self        = (Device *) self_;
   RenderPass *const render_pass = (RenderPass *) render_pass_;
@@ -4319,16 +4184,13 @@ void DeviceInterface::unref_render_pass(gfx::Device     self_,
     return;
   }
 
-  if (--render_pass->refcount == 0)
-  {
-    self->vk_table.DestroyRenderPass(self->vk_device,
-                                     render_pass->vk_render_pass, nullptr);
-    self->allocator.deallocate_typed(render_pass, 1);
-  }
+  self->vk_table.DestroyRenderPass(self->vk_device, render_pass->vk_render_pass,
+                                   nullptr);
+  self->allocator.deallocate_typed(render_pass, 1);
 }
 
-void DeviceInterface::unref_framebuffer(gfx::Device      self_,
-                                        gfx::Framebuffer framebuffer_)
+void DeviceInterface::destroy_framebuffer(gfx::Device      self_,
+                                          gfx::Framebuffer framebuffer_)
 {
   Device *const      self        = (Device *) self_;
   Framebuffer *const framebuffer = (Framebuffer *) framebuffer_;
@@ -4338,15 +4200,12 @@ void DeviceInterface::unref_framebuffer(gfx::Device      self_,
     return;
   }
 
-  if (--framebuffer->refcount == 0)
-  {
-    self->vk_table.DestroyFramebuffer(self->vk_device,
-                                      framebuffer->vk_framebuffer, nullptr);
-    self->allocator.deallocate_typed(framebuffer, 1);
-  }
+  self->vk_table.DestroyFramebuffer(self->vk_device,
+                                    framebuffer->vk_framebuffer, nullptr);
+  self->allocator.deallocate_typed(framebuffer, 1);
 }
 
-void DeviceInterface::unref_descriptor_set_layout(
+void DeviceInterface::destroy_descriptor_set_layout(
     gfx::Device self_, gfx::DescriptorSetLayout layout_)
 {
   Device *const              self   = (Device *) self_;
@@ -4357,17 +4216,14 @@ void DeviceInterface::unref_descriptor_set_layout(
     return;
   }
 
-  if (--layout->refcount == 0)
-  {
-    self->vk_table.DestroyDescriptorSetLayout(self->vk_device,
-                                              layout->vk_layout, nullptr);
-    self->allocator.deallocate_typed(layout->bindings, layout->num_bindings);
-    self->allocator.deallocate_typed(layout, 1);
-  }
+  self->vk_table.DestroyDescriptorSetLayout(self->vk_device, layout->vk_layout,
+                                            nullptr);
+  self->allocator.deallocate_typed(layout->bindings, layout->num_bindings);
+  self->allocator.deallocate_typed(layout, 1);
 }
 
-void DeviceInterface::unref_descriptor_heap(gfx::Device             self_,
-                                            gfx::DescriptorHeapImpl heap_)
+void DeviceInterface::destroy_descriptor_heap(gfx::Device             self_,
+                                              gfx::DescriptorHeapImpl heap_)
 {
   Device *const         self = (Device *) self_;
   DescriptorHeap *const heap = (DescriptorHeap *) heap_.self;
@@ -4377,41 +4233,37 @@ void DeviceInterface::unref_descriptor_heap(gfx::Device             self_,
     return;
   }
 
-  if (--heap->refcount == 0)
+  for (u32 i = 0; i < heap->num_sets_per_group; i++)
   {
-    for (u32 i = 0; i < heap->num_sets_per_group; i++)
-    {
-      self->allocator.deallocate_typed(heap->binding_offsets[i],
-                                       heap->set_layouts[i]->num_bindings);
-    }
-    self->allocator.deallocate_typed(heap->set_layouts,
-                                     heap->num_sets_per_group);
-    self->allocator.deallocate_typed(heap->binding_offsets,
-                                     heap->num_sets_per_group);
-    for (u32 i = 0; i < heap->num_pools; i++)
-    {
-      self->vk_table.DestroyDescriptorPool(self->vk_device, heap->vk_pools[i],
-                                           nullptr);
-    }
-    heap->allocator.deallocate_typed(heap->vk_pools, heap->vk_pools_capacity);
-    heap->allocator.deallocate_typed(heap->vk_descriptor_sets,
-                                     heap->vk_descriptor_sets_capacity);
-    heap->allocator.deallocate_typed(heap->last_use_frame,
-                                     heap->last_use_frame_capacity);
-    heap->allocator.deallocate_typed(heap->released_groups,
-                                     heap->released_groups_capacity);
-    heap->allocator.deallocate_typed(heap->free_groups,
-                                     heap->free_groups_capacity);
-    heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT, heap->bindings,
-                               heap->bindings_capacity);
-    heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT, heap->scratch_memory,
-                               heap->scratch_memory_size);
-    self->allocator.deallocate_typed(heap, 1);
+    self->allocator.deallocate_typed(heap->binding_offsets[i],
+                                     heap->set_layouts[i]->num_bindings);
   }
+  self->allocator.deallocate_typed(heap->set_layouts, heap->num_sets_per_group);
+  self->allocator.deallocate_typed(heap->binding_offsets,
+                                   heap->num_sets_per_group);
+  for (u32 i = 0; i < heap->num_pools; i++)
+  {
+    self->vk_table.DestroyDescriptorPool(self->vk_device, heap->vk_pools[i],
+                                         nullptr);
+  }
+  heap->allocator.deallocate_typed(heap->vk_pools, heap->vk_pools_capacity);
+  heap->allocator.deallocate_typed(heap->vk_descriptor_sets,
+                                   heap->vk_descriptor_sets_capacity);
+  heap->allocator.deallocate_typed(heap->last_use_frame,
+                                   heap->last_use_frame_capacity);
+  heap->allocator.deallocate_typed(heap->released_groups,
+                                   heap->released_groups_capacity);
+  heap->allocator.deallocate_typed(heap->free_groups,
+                                   heap->free_groups_capacity);
+  heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT, heap->bindings,
+                             heap->bindings_capacity);
+  heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT, heap->scratch_memory,
+                             heap->scratch_memory_size);
+  self->allocator.deallocate_typed(heap, 1);
 }
 
-void DeviceInterface::unref_pipeline_cache(gfx::Device        self_,
-                                           gfx::PipelineCache cache_)
+void DeviceInterface::destroy_pipeline_cache(gfx::Device        self_,
+                                             gfx::PipelineCache cache_)
 {
   Device *const        self  = (Device *) self_;
   PipelineCache *const cache = (PipelineCache *) cache_;
@@ -4421,16 +4273,13 @@ void DeviceInterface::unref_pipeline_cache(gfx::Device        self_,
     return;
   }
 
-  if (--cache->refcount == 0)
-  {
-    self->vk_table.DestroyPipelineCache(self->vk_device, cache->vk_cache,
-                                        nullptr);
-    self->allocator.deallocate_typed(cache, 1);
-  }
+  self->vk_table.DestroyPipelineCache(self->vk_device, cache->vk_cache,
+                                      nullptr);
+  self->allocator.deallocate_typed(cache, 1);
 }
 
-void DeviceInterface::unref_compute_pipeline(gfx::Device          self_,
-                                             gfx::ComputePipeline pipeline_)
+void DeviceInterface::destroy_compute_pipeline(gfx::Device          self_,
+                                               gfx::ComputePipeline pipeline_)
 {
   Device *const          self     = (Device *) self_;
   ComputePipeline *const pipeline = (ComputePipeline *) pipeline_;
@@ -4440,18 +4289,15 @@ void DeviceInterface::unref_compute_pipeline(gfx::Device          self_,
     return;
   }
 
-  if (--pipeline->refcount == 0)
-  {
-    self->vk_table.DestroyPipeline(self->vk_device, pipeline->vk_pipeline,
-                                   nullptr);
-    self->vk_table.DestroyPipelineLayout(self->vk_device, pipeline->vk_layout,
-                                         nullptr);
-    self->allocator.deallocate_typed(pipeline, 1);
-  }
+  self->vk_table.DestroyPipeline(self->vk_device, pipeline->vk_pipeline,
+                                 nullptr);
+  self->vk_table.DestroyPipelineLayout(self->vk_device, pipeline->vk_layout,
+                                       nullptr);
+  self->allocator.deallocate_typed(pipeline, 1);
 }
 
-void DeviceInterface::unref_graphics_pipeline(gfx::Device           self_,
-                                              gfx::GraphicsPipeline pipeline_)
+void DeviceInterface::destroy_graphics_pipeline(gfx::Device           self_,
+                                                gfx::GraphicsPipeline pipeline_)
 {
   Device *const           self     = (Device *) self_;
   GraphicsPipeline *const pipeline = (GraphicsPipeline *) pipeline_;
@@ -4461,17 +4307,14 @@ void DeviceInterface::unref_graphics_pipeline(gfx::Device           self_,
     return;
   }
 
-  if (--pipeline->refcount == 0)
-  {
-    self->vk_table.DestroyPipeline(self->vk_device, pipeline->vk_pipeline,
-                                   nullptr);
-    self->vk_table.DestroyPipelineLayout(self->vk_device, pipeline->vk_layout,
-                                         nullptr);
-    self->allocator.deallocate_typed(pipeline, 1);
-  }
+  self->vk_table.DestroyPipeline(self->vk_device, pipeline->vk_pipeline,
+                                 nullptr);
+  self->vk_table.DestroyPipelineLayout(self->vk_device, pipeline->vk_layout,
+                                       nullptr);
+  self->allocator.deallocate_typed(pipeline, 1);
 }
 
-void DeviceInterface::unref_fence(gfx::Device self_, gfx::Fence fence_)
+void DeviceInterface::destroy_fence(gfx::Device self_, gfx::Fence fence_)
 {
   Device *const self  = (Device *) self_;
   Fence *const  fence = (Fence *) fence_;
@@ -4481,15 +4324,12 @@ void DeviceInterface::unref_fence(gfx::Device self_, gfx::Fence fence_)
     return;
   }
 
-  if (--fence->refcount == 0)
-  {
-    self->vk_table.DestroyFence(self->vk_device, fence->vk_fence, nullptr);
-    self->allocator.deallocate_typed(fence, 1);
-  }
+  self->vk_table.DestroyFence(self->vk_device, fence->vk_fence, nullptr);
+  self->allocator.deallocate_typed(fence, 1);
 }
 
-void DeviceInterface::unref_command_encoder(gfx::Device             self_,
-                                            gfx::CommandEncoderImpl encoder_)
+void DeviceInterface::destroy_command_encoder(gfx::Device             self_,
+                                              gfx::CommandEncoderImpl encoder_)
 {
   Device *const         self    = (Device *) self_;
   CommandEncoder *const encoder = (CommandEncoder *) encoder_.self;
@@ -4499,16 +4339,13 @@ void DeviceInterface::unref_command_encoder(gfx::Device             self_,
     return;
   }
 
-  if (--encoder->refcount == 0)
-  {
-    self->vk_table.DestroyCommandPool(self->vk_device, encoder->vk_command_pool,
-                                      nullptr);
-    self->allocator.deallocate_typed(encoder, 1);
-  }
+  self->vk_table.DestroyCommandPool(self->vk_device, encoder->vk_command_pool,
+                                    nullptr);
+  self->allocator.deallocate_typed(encoder, 1);
 }
 
-void DeviceInterface::unref_frame_context(gfx::Device       self_,
-                                          gfx::FrameContext frame_context_)
+void DeviceInterface::destroy_frame_context(gfx::Device       self_,
+                                            gfx::FrameContext frame_context_)
 {
   Device *const       self          = (Device *) self_;
   FrameContext *const frame_context = (FrameContext *) frame_context_;
@@ -4518,31 +4355,28 @@ void DeviceInterface::unref_frame_context(gfx::Device       self_,
     return;
   }
 
-  if (--frame_context->refcount == 0)
+  for (u32 i = 0; i < frame_context->max_frames_in_flight; i++)
   {
-    for (u32 i = 0; i < frame_context->max_frames_in_flight; i++)
-    {
-      DeviceInterface::unref_command_encoder(self_, frame_context->encoders[i]);
-      self->vk_table.DestroySemaphore(
-          self->vk_device, frame_context->acquire_semaphores[i], nullptr);
-      self->vk_table.DestroyFence(
-          self->vk_device,
-          ((Fence *) frame_context->submit_fences[i])->vk_fence, nullptr);
-      self->vk_table.DestroySemaphore(
-          self->vk_device, frame_context->submit_semaphores[i], nullptr);
-    }
-    self->allocator.deallocate_typed(frame_context->acquire_semaphores,
-                                     frame_context->max_frames_in_flight);
-    self->allocator.deallocate_typed(frame_context->submit_fences,
-                                     frame_context->max_frames_in_flight);
-    self->allocator.deallocate_typed(frame_context->submit_semaphores,
-                                     frame_context->max_frames_in_flight);
-    self->allocator.deallocate_typed(frame_context, 1);
+    DeviceInterface::destroy_command_encoder(self_, frame_context->encoders[i]);
+    self->vk_table.DestroySemaphore(
+        self->vk_device, frame_context->acquire_semaphores[i], nullptr);
+    self->vk_table.DestroyFence(
+        self->vk_device, ((Fence *) frame_context->submit_fences[i])->vk_fence,
+        nullptr);
+    self->vk_table.DestroySemaphore(
+        self->vk_device, frame_context->submit_semaphores[i], nullptr);
   }
+  self->allocator.deallocate_typed(frame_context->acquire_semaphores,
+                                   frame_context->max_frames_in_flight);
+  self->allocator.deallocate_typed(frame_context->submit_fences,
+                                   frame_context->max_frames_in_flight);
+  self->allocator.deallocate_typed(frame_context->submit_semaphores,
+                                   frame_context->max_frames_in_flight);
+  self->allocator.deallocate_typed(frame_context, 1);
 }
 
-void DeviceInterface::unref_swapchain(gfx::Device    self_,
-                                      gfx::Swapchain swapchain_)
+void DeviceInterface::destroy_swapchain(gfx::Device    self_,
+                                        gfx::Swapchain swapchain_)
 {
   Device *const    self      = (Device *) self_;
   Swapchain *const swapchain = (Swapchain *) swapchain_;
@@ -4552,12 +4386,9 @@ void DeviceInterface::unref_swapchain(gfx::Device    self_,
     return;
   }
 
-  if (--swapchain->refcount == 0)
-  {
-    self->vk_table.DestroySwapchainKHR(self->vk_device, swapchain->vk_swapchain,
-                                       nullptr);
-    self->allocator.deallocate_typed(swapchain, 1);
-  }
+  self->vk_table.DestroySwapchainKHR(self->vk_device, swapchain->vk_swapchain,
+                                     nullptr);
+  self->allocator.deallocate_typed(swapchain, 1);
 }
 
 Result<void *, Status>
