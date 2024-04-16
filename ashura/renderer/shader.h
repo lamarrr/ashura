@@ -417,7 +417,7 @@ struct ShaderParameterHeap
             .unwrap();
   }
 
-  void deinit()
+  void uninit()
   {
     device_->destroy_descriptor_set_layout(device_.self, layout_);
     device_->destroy_descriptor_heap(device_.self, heap_);
