@@ -27,17 +27,18 @@ typedef struct Buffer                  Buffer;
 typedef struct BufferView              BufferView;
 typedef struct Image                   Image;
 typedef struct ImageView               ImageView;
-typedef struct Sampler                 Sampler;
-typedef struct Shader                  Shader;
+typedef VkSampler                      Sampler;
+typedef VkShaderModule                 Shader;
 typedef struct RenderPass              RenderPass;
 typedef struct Framebuffer             Framebuffer;
 typedef struct DescriptorSetLayout     DescriptorSetLayout;
 typedef struct DescriptorHeap          DescriptorHeap;
-typedef struct PipelineCache           PipelineCache;
+typedef VkPipelineCache                PipelineCache;
 typedef struct ComputePipeline         ComputePipeline;
 typedef struct GraphicsPipeline        GraphicsPipeline;
-typedef struct Fence                   Fence;
+typedef VkFence                        Fence;
 typedef struct CommandEncoder          CommandEncoder;
+typedef VkSurfaceKHR                   Surface;
 typedef struct Swapchain               Swapchain;
 typedef struct FrameContext            FrameContext;
 typedef struct Device                  Device;
@@ -312,21 +313,11 @@ struct Framebuffer
   VkFramebuffer vk_framebuffer                                = nullptr;
 };
 
-struct Shader
-{
-  VkShaderModule vk_shader = nullptr;
-};
-
 struct DescriptorSetLayout
 {
   gfx::DescriptorBindingDesc *bindings     = nullptr;
   u32                         num_bindings = 0;
   VkDescriptorSetLayout       vk_layout    = nullptr;
-};
-
-struct PipelineCache
-{
-  VkPipelineCache vk_cache = nullptr;
 };
 
 struct ComputePipeline
@@ -339,16 +330,6 @@ struct GraphicsPipeline
 {
   VkPipeline       vk_pipeline = nullptr;
   VkPipelineLayout vk_layout   = nullptr;
-};
-
-struct Sampler
-{
-  VkSampler vk_sampler = nullptr;
-};
-
-struct Fence
-{
-  VkFence vk_fence = nullptr;
 };
 
 struct Instance
@@ -457,6 +438,11 @@ struct CommandEncoder
   Status status                    = Status::Success;
   bool   is_recording              = false;
 };
+
+inline gfx::Surface surface_to_vk(VkSurfaceKHR s)
+{
+  return (gfx::Surface) s;
+}
 
 struct FrameContext
 {

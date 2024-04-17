@@ -87,8 +87,8 @@ struct Renderer
                                  to_span({ctx.framebuffer.color_image_view}),
                              .depth_stencil_image =
                                  ctx.framebuffer.depth_stencil_image_view,
-                             .extent                = ctx.framebuffer.extent,
                              .depth_stencil_aspects = gfx::ImageAspects::Depth,
+                             .extent                = ctx.framebuffer.extent,
                              .render_offset         = {0, 0},
                              .render_extent         = ctx.framebuffer.extent},
             .objects = to_span<RRectObject>({})});

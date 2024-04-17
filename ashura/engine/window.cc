@@ -86,7 +86,7 @@ struct WindowSystemImpl final : public WindowSystem
         [&](uid32 id, u32) {
           out_id = id;
           CHECK(windows.push(Window{.win        = window,
-                                    .surface    = surface,
+                                    .surface    = vk::surface_to_vk(surface),
                                     .backend_id = backend_id,
                                     .instance   = instance}));
         },

@@ -81,6 +81,7 @@ find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
+find_package(Threads REQUIRED)
 
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
@@ -125,7 +126,7 @@ add_library(
   ashura/std/log.cc
   ashura/std/runtime.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(ashura_std PRIVATE xxHash::xxhash)
+target_link_libraries(ashura_std PUBLIC xxHash::xxhash Threads::Threads)
 
 add_executable(
   ashura_std_tests

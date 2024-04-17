@@ -93,12 +93,6 @@ struct AllocatorImpl
   }
 };
 
-struct Heap
-{
-};
-
-extern Heap const global_heap_object;
-
 struct HeapInterface
 {
   static void *allocate(Allocator self, usize alignment, usize size);
@@ -109,16 +103,16 @@ struct HeapInterface
                           usize size);
 };
 
-static AllocatorInterface heap_interface{
+inline constexpr AllocatorInterface heap_interface{
     .allocate        = HeapInterface::allocate,
     .allocate_zeroed = HeapInterface::allocate_zeroed,
     .reallocate      = HeapInterface::reallocate,
     .deallocate      = HeapInterface::deallocate};
 
 /// guarantees at least MAX_STANDARD_ALIGNMENT alignment.
-static AllocatorImpl const heap_allocator{
-    .self = (Allocator) &global_heap_object, .interface = &heap_interface};
+inline constexpr AllocatorImpl heap_allocator{.self      = nullptr,
+                                              .interface = &heap_interface};
 
-static ash::AllocatorImpl const default_allocator = heap_allocator;
+inline constexpr ash::AllocatorImpl default_allocator = heap_allocator;
 
 }        // namespace ash

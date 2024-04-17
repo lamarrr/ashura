@@ -1700,7 +1700,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
               VkBool32 supported;
               self->vk_table.GetPhysicalDeviceSurfaceSupportKHR(
                   device.vk_physical_device, iqueue_family,
-                  compatible_surfaces[isurface], &supported);
+                  (Surface) compatible_surfaces[isurface], &supported);
               if (supported == VK_TRUE)
               {
                 num_supported_surfaces++;
@@ -2004,7 +2004,8 @@ void InstanceInterface::destroy_surface(gfx::Instance self_,
                                         gfx::Surface  surface)
 {
   Instance *const self = (Instance *) self_;
-  self->vk_table.DestroySurfaceKHR(self->vk_instance, surface, nullptr);
+  self->vk_table.DestroySurfaceKHR(self->vk_instance, (Surface) surface,
+                                   nullptr);
 }
 
 gfx::DeviceProperties DeviceInterface::get_device_properties(gfx::Device self_)
@@ -2480,16 +2481,7 @@ Result<gfx::Sampler, Status>
   set_resource_name(self, desc.label, vk_sampler, VK_OBJECT_TYPE_SAMPLER,
                     VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT);
 
-  Sampler *sampler = self->allocator.allocate_typed<Sampler>(1);
-  if (sampler == nullptr)
-  {
-    self->vk_table.DestroySampler(self->vk_device, vk_sampler, nullptr);
-    return Err{Status::OutOfHostMemory};
-  }
-
-  new (sampler) Sampler{.vk_sampler = vk_sampler};
-
-  return Ok{(gfx::Sampler) sampler};
+  return Ok{(gfx::Sampler) vk_sampler};
 }
 
 Result<gfx::Shader, Status>
@@ -2518,16 +2510,7 @@ Result<gfx::Shader, Status>
   set_resource_name(self, desc.label, vk_shader, VK_OBJECT_TYPE_SHADER_MODULE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT);
 
-  Shader *shader = self->allocator.allocate_typed<Shader>(1);
-  if (shader == nullptr)
-  {
-    self->vk_table.DestroyShaderModule(self->vk_device, vk_shader, nullptr);
-    return Err{Status::OutOfHostMemory};
-  }
-
-  new (shader) Shader{.vk_shader = vk_shader};
-
-  return Ok{(gfx::Shader) shader};
+  return Ok{(gfx::Shader) vk_shader};
 }
 
 Result<gfx::RenderPass, Status>
@@ -3128,16 +3111,7 @@ Result<gfx::PipelineCache, Status>
   set_resource_name(self, desc.label, vk_cache, VK_OBJECT_TYPE_PIPELINE_CACHE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_CACHE_EXT);
 
-  PipelineCache *cache = self->allocator.allocate_typed<PipelineCache>(1);
-  if (cache == nullptr)
-  {
-    self->vk_table.DestroyPipelineCache(self->vk_device, vk_cache, nullptr);
-    return Err{Status::OutOfHostMemory};
-  }
-
-  new (cache) PipelineCache{.vk_cache = vk_cache};
-
-  return Ok{(gfx::PipelineCache) cache};
+  return Ok{(gfx::PipelineCache) vk_cache};
 }
 
 Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
@@ -3178,7 +3152,7 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
       .pNext  = nullptr,
       .flags  = 0,
       .stage  = VK_SHADER_STAGE_COMPUTE_BIT,
-      .module = ((Shader *) desc.compute_shader.shader)->vk_shader,
+      .module = (Shader) desc.compute_shader.shader,
       .pName  = entry_point,
       .pSpecializationInfo = &vk_specialization};
 
@@ -3217,9 +3191,8 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
   VkPipeline vk_pipeline;
   result = self->vk_table.CreateComputePipelines(
       self->vk_device,
-      desc.cache == nullptr ? nullptr :
-                              ((PipelineCache *) desc.cache)->vk_cache,
-      1, &create_info, nullptr, &vk_pipeline);
+      desc.cache == nullptr ? nullptr : (PipelineCache) desc.cache, 1,
+      &create_info, nullptr, &vk_pipeline);
 
   if (result != VK_SUCCESS)
   {
@@ -3301,14 +3274,14 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
        .pNext  = nullptr,
        .flags  = 0,
        .stage  = VK_SHADER_STAGE_VERTEX_BIT,
-       .module = ((Shader *) desc.vertex_shader.shader)->vk_shader,
+       .module = (Shader) desc.vertex_shader.shader,
        .pName  = vs_entry_point,
        .pSpecializationInfo = &vk_vs_specialization},
       {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
        .pNext  = nullptr,
        .flags  = 0,
        .stage  = VK_SHADER_STAGE_FRAGMENT_BIT,
-       .module = ((Shader *) desc.fragment_shader.shader)->vk_shader,
+       .module = (Shader) desc.fragment_shader.shader,
        .pName  = fs_entry_point,
        .pSpecializationInfo = &vk_fs_specialization}};
 
@@ -3522,9 +3495,8 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   VkPipeline vk_pipeline;
   result = self->vk_table.CreateGraphicsPipelines(
       self->vk_device,
-      desc.cache == nullptr ? nullptr :
-                              ((PipelineCache *) desc.cache)->vk_cache,
-      1, &create_info, nullptr, &vk_pipeline);
+      desc.cache == nullptr ? nullptr : (PipelineCache) desc.cache, 1,
+      &create_info, nullptr, &vk_pipeline);
 
   if (result != VK_SUCCESS)
   {
@@ -3572,16 +3544,7 @@ Result<gfx::Fence, Status> DeviceInterface::create_fence(gfx::Device self_,
     return Err{(Status) result};
   }
 
-  Fence *fence = self->allocator.allocate_typed<Fence>(1);
-
-  if (fence == nullptr)
-  {
-    return Err{Status::OutOfHostMemory};
-  }
-
-  new (fence) Fence{.vk_fence = vk_fence};
-
-  return Ok{(gfx::Fence) fence};
+  return Ok{(gfx::Fence) vk_fence};
 }
 
 Result<gfx::CommandEncoderImpl, Status>
@@ -3838,9 +3801,9 @@ Result<gfx::FrameContext, Status>
     }
   }
 
-  FrameContext *frame_context = self->allocator.allocate_typed<FrameContext>(1);
+  FrameContext *ctx = self->allocator.allocate_typed<FrameContext>(1);
 
-  if (frame_context == nullptr)
+  if (ctx == nullptr)
   {
     for (u32 i = 0; i < desc.max_frames_in_flight; i++)
     {
@@ -3855,17 +3818,16 @@ Result<gfx::FrameContext, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (frame_context)
-      FrameContext{.tail_frame           = 0,
-                   .current_frame        = 0,
-                   .ring_index           = 0,
-                   .max_frames_in_flight = desc.max_frames_in_flight,
-                   .encoders             = command_encoders,
-                   .acquire_semaphores   = acquire_semaphores,
-                   .submit_fences        = submit_fences,
-                   .submit_semaphores    = submit_semaphores};
+  new (ctx) FrameContext{.tail_frame           = 0,
+                         .current_frame        = 0,
+                         .ring_index           = 0,
+                         .max_frames_in_flight = desc.max_frames_in_flight,
+                         .encoders             = command_encoders,
+                         .acquire_semaphores   = acquire_semaphores,
+                         .submit_fences        = submit_fences,
+                         .submit_semaphores    = submit_semaphores};
 
-  return Ok{(gfx::FrameContext) frame_context};
+  return Ok{(gfx::FrameContext) ctx};
 }
 
 /// old swapchain will be retired and destroyed irregardless of whether new
@@ -4076,7 +4038,7 @@ Result<gfx::Swapchain, Status>
                             .num_images      = 0,
                             .current_image   = 0,
                             .vk_swapchain    = nullptr,
-                            .vk_surface      = surface};
+                            .vk_surface      = (VkSurfaceKHR) surface};
 
   return Ok{(gfx::Swapchain) swapchain};
 }
@@ -4146,31 +4108,17 @@ void DeviceInterface::destroy_image_view(gfx::Device    self_,
 
 void DeviceInterface::destroy_sampler(gfx::Device self_, gfx::Sampler sampler_)
 {
-  Device *const  self    = (Device *) self_;
-  Sampler *const sampler = (Sampler *) sampler_;
+  Device *const self = (Device *) self_;
 
-  if (sampler == nullptr)
-  {
-    return;
-  }
-
-  self->vk_table.DestroySampler(self->vk_device, sampler->vk_sampler, nullptr);
-  self->allocator.deallocate_typed(sampler, 1);
+  self->vk_table.DestroySampler(self->vk_device, (Sampler) sampler_, nullptr);
 }
 
 void DeviceInterface::destroy_shader(gfx::Device self_, gfx::Shader shader_)
 {
-  Device *const self   = (Device *) self_;
-  Shader *const shader = (Shader *) shader_;
+  Device *const self = (Device *) self_;
 
-  if (shader == nullptr)
-  {
-    return;
-  }
-
-  self->vk_table.DestroyShaderModule(self->vk_device, shader->vk_shader,
+  self->vk_table.DestroyShaderModule(self->vk_device, (Shader) shader_,
                                      nullptr);
-  self->allocator.deallocate_typed(shader, 1);
 }
 
 void DeviceInterface::destroy_render_pass(gfx::Device     self_,
@@ -4265,17 +4213,9 @@ void DeviceInterface::destroy_descriptor_heap(gfx::Device             self_,
 void DeviceInterface::destroy_pipeline_cache(gfx::Device        self_,
                                              gfx::PipelineCache cache_)
 {
-  Device *const        self  = (Device *) self_;
-  PipelineCache *const cache = (PipelineCache *) cache_;
-
-  if (cache == nullptr)
-  {
-    return;
-  }
-
-  self->vk_table.DestroyPipelineCache(self->vk_device, cache->vk_cache,
+  Device *const self = (Device *) self_;
+  self->vk_table.DestroyPipelineCache(self->vk_device, (PipelineCache) cache_,
                                       nullptr);
-  self->allocator.deallocate_typed(cache, 1);
 }
 
 void DeviceInterface::destroy_compute_pipeline(gfx::Device          self_,
@@ -4316,16 +4256,8 @@ void DeviceInterface::destroy_graphics_pipeline(gfx::Device           self_,
 
 void DeviceInterface::destroy_fence(gfx::Device self_, gfx::Fence fence_)
 {
-  Device *const self  = (Device *) self_;
-  Fence *const  fence = (Fence *) fence_;
-
-  if (fence == nullptr)
-  {
-    return;
-  }
-
-  self->vk_table.DestroyFence(self->vk_device, fence->vk_fence, nullptr);
-  self->allocator.deallocate_typed(fence, 1);
+  Device *const self = (Device *) self_;
+  self->vk_table.DestroyFence(self->vk_device, (Fence) fence_, nullptr);
 }
 
 void DeviceInterface::destroy_command_encoder(gfx::Device             self_,
@@ -4347,32 +4279,31 @@ void DeviceInterface::destroy_command_encoder(gfx::Device             self_,
 void DeviceInterface::destroy_frame_context(gfx::Device       self_,
                                             gfx::FrameContext frame_context_)
 {
-  Device *const       self          = (Device *) self_;
-  FrameContext *const frame_context = (FrameContext *) frame_context_;
+  Device *const       self = (Device *) self_;
+  FrameContext *const ctx  = (FrameContext *) frame_context_;
 
-  if (frame_context == nullptr)
+  if (ctx == nullptr)
   {
     return;
   }
 
-  for (u32 i = 0; i < frame_context->max_frames_in_flight; i++)
+  for (u32 i = 0; i < ctx->max_frames_in_flight; i++)
   {
-    DeviceInterface::destroy_command_encoder(self_, frame_context->encoders[i]);
-    self->vk_table.DestroySemaphore(
-        self->vk_device, frame_context->acquire_semaphores[i], nullptr);
-    self->vk_table.DestroyFence(
-        self->vk_device, ((Fence *) frame_context->submit_fences[i])->vk_fence,
-        nullptr);
-    self->vk_table.DestroySemaphore(
-        self->vk_device, frame_context->submit_semaphores[i], nullptr);
+    DeviceInterface::destroy_command_encoder(self_, ctx->encoders[i]);
+    self->vk_table.DestroySemaphore(self->vk_device, ctx->acquire_semaphores[i],
+                                    nullptr);
+    self->vk_table.DestroyFence(self->vk_device, (Fence) ctx->submit_fences[i],
+                                nullptr);
+    self->vk_table.DestroySemaphore(self->vk_device, ctx->submit_semaphores[i],
+                                    nullptr);
   }
-  self->allocator.deallocate_typed(frame_context->acquire_semaphores,
-                                   frame_context->max_frames_in_flight);
-  self->allocator.deallocate_typed(frame_context->submit_fences,
-                                   frame_context->max_frames_in_flight);
-  self->allocator.deallocate_typed(frame_context->submit_semaphores,
-                                   frame_context->max_frames_in_flight);
-  self->allocator.deallocate_typed(frame_context, 1);
+  self->allocator.deallocate_typed(ctx->acquire_semaphores,
+                                   ctx->max_frames_in_flight);
+  self->allocator.deallocate_typed(ctx->submit_fences,
+                                   ctx->max_frames_in_flight);
+  self->allocator.deallocate_typed(ctx->submit_semaphores,
+                                   ctx->max_frames_in_flight);
+  self->allocator.deallocate_typed(ctx, 1);
 }
 
 void DeviceInterface::destroy_swapchain(gfx::Device    self_,
@@ -4451,7 +4382,7 @@ Result<usize, Status>
   usize         size;
 
   VkResult result = self->vk_table.GetPipelineCacheData(
-      self->vk_device, ((PipelineCache *) cache)->vk_cache, &size, nullptr);
+      self->vk_device, (PipelineCache) cache, &size, nullptr);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -4466,7 +4397,7 @@ Result<usize, Status> DeviceInterface::get_pipeline_cache_data(
   usize         size = out.size_bytes();
 
   VkResult result = self->vk_table.GetPipelineCacheData(
-      self->vk_device, ((PipelineCache *) cache)->vk_cache, &size, out.data());
+      self->vk_device, (PipelineCache) cache, &size, out.data());
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -4484,22 +4415,10 @@ Result<Void, Status>
 
   VALIDATE(num_srcs > 0);
 
-  VkPipelineCache *vk_caches =
-      self->allocator.allocate_typed<VkPipelineCache>(num_srcs);
-  if (vk_caches == nullptr)
-  {
-    return Err{Status::OutOfHostMemory};
-  }
-
-  for (u32 i = 0; i < num_srcs; i++)
-  {
-    vk_caches[i] = ((PipelineCache *) srcs[i])->vk_cache;
-  }
-
   VkResult result = self->vk_table.MergePipelineCaches(
-      self->vk_device, ((PipelineCache *) dst)->vk_cache, num_srcs, vk_caches);
+      self->vk_device, (PipelineCache) dst, num_srcs,
+      (PipelineCache *) srcs.data());
 
-  self->allocator.deallocate_typed(vk_caches, num_srcs);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -4515,21 +4434,9 @@ Result<Void, Status> DeviceInterface::wait_for_fences(
 
   VALIDATE(num_fences > 0);
 
-  VkFence *vk_fences = self->allocator.allocate_typed<VkFence>(num_fences);
-  if (vk_fences == nullptr)
-  {
-    return Err{Status::OutOfHostMemory};
-  }
-
-  for (u32 i = 0; i < num_fences; i++)
-  {
-    vk_fences[i] = ((Fence *) fences[i])->vk_fence;
-  }
-
-  VkResult result = self->vk_table.WaitForFences(
-      self->vk_device, num_fences, vk_fences, (VkBool32) all, timeout);
-
-  self->allocator.deallocate_typed(vk_fences, num_fences);
+  VkResult result = self->vk_table.WaitForFences(self->vk_device, num_fences,
+                                                 (Fence *) fences.data(),
+                                                 (VkBool32) all, timeout);
 
   if (result != VK_SUCCESS)
   {
@@ -4547,21 +4454,8 @@ Result<Void, Status>
 
   VALIDATE(num_fences > 0);
 
-  VkFence *vk_fences = self->allocator.allocate_typed<VkFence>(num_fences);
-  if (vk_fences == nullptr)
-  {
-    return Err{Status::OutOfHostMemory};
-  }
-
-  for (u32 i = 0; i < num_fences; i++)
-  {
-    vk_fences[i] = ((Fence *) fences[i])->vk_fence;
-  }
-
-  VkResult result =
-      self->vk_table.ResetFences(self->vk_device, num_fences, vk_fences);
-
-  self->allocator.deallocate_typed(vk_fences, num_fences);
+  VkResult result = self->vk_table.ResetFences(self->vk_device, num_fences,
+                                               (Fence *) fences.data());
 
   if (result != VK_SUCCESS)
   {
@@ -4573,9 +4467,9 @@ Result<Void, Status>
 Result<bool, Status> DeviceInterface::get_fence_status(gfx::Device self_,
                                                        gfx::Fence  fence)
 {
-  Device *const self   = (Device *) self_;
-  VkResult      result = self->vk_table.GetFenceStatus(self->vk_device,
-                                                       ((Fence *) fence)->vk_fence);
+  Device *const self = (Device *) self_;
+  VkResult      result =
+      self->vk_table.GetFenceStatus(self->vk_device, (Fence) fence);
 
   if (result == VK_SUCCESS)
   {
@@ -4617,20 +4511,20 @@ Result<Void, Status> DeviceInterface::wait_queue_idle(gfx::Device self_)
 gfx::FrameInfo DeviceInterface::get_frame_info(gfx::Device,
                                                gfx::FrameContext frame_context_)
 {
-  FrameContext *const frame_context = (FrameContext *) frame_context_;
+  FrameContext *const ctx = (FrameContext *) frame_context_;
 
-  return gfx::FrameInfo{.tail       = frame_context->tail_frame,
-                        .current    = frame_context->current_frame,
-                        .encoders   = Span{frame_context->encoders,
-                                         frame_context->max_frames_in_flight},
-                        .ring_index = frame_context->ring_index};
+  return gfx::FrameInfo{.tail    = ctx->tail_frame,
+                        .current = ctx->current_frame,
+                        .encoders =
+                            Span{ctx->encoders, ctx->max_frames_in_flight},
+                        .ring_index = ctx->ring_index};
 }
 
 Result<u32, Status> DeviceInterface::get_surface_formats(
     gfx::Device self_, gfx::Surface surface_, Span<gfx::SurfaceFormat> formats)
 {
   Device *const      self    = (Device *) self_;
-  VkSurfaceKHR const surface = surface_;
+  VkSurfaceKHR const surface = (VkSurfaceKHR) surface_;
 
   u32      num_supported;
   VkResult result = self->instance->vk_table.GetPhysicalDeviceSurfaceFormatsKHR(
@@ -4681,7 +4575,7 @@ Result<u32, Status> DeviceInterface::get_surface_present_modes(
     gfx::Device self_, gfx::Surface surface_, Span<gfx::PresentMode> modes)
 {
   Device *const      self    = (Device *) self_;
-  VkSurfaceKHR const surface = surface_;
+  VkSurfaceKHR const surface = (VkSurfaceKHR) surface_;
 
   u32      num_supported;
   VkResult result =
@@ -4733,7 +4627,7 @@ Result<gfx::SurfaceCapabilities, Status>
                                               gfx::Surface surface_)
 {
   Device *const            self    = (Device *) self_;
-  VkSurfaceKHR const       surface = surface_;
+  VkSurfaceKHR const       surface = (VkSurfaceKHR) surface_;
   VkSurfaceCapabilitiesKHR capabilities;
   VkResult                 result =
       self->instance->vk_table.GetPhysicalDeviceSurfaceCapabilitiesKHR(
@@ -4790,25 +4684,22 @@ Result<Void, Status>
                                  gfx::FrameContext frame_context_,
                                  gfx::Swapchain    swapchain_)
 {
-  Device *const       self          = (Device *) self_;
-  FrameContext *const frame_context = (FrameContext *) frame_context_;
-  Swapchain *const    swapchain     = (Swapchain *) swapchain_;
-  VkResult            result        = VK_SUCCESS;
-  Fence *const        submit_fence =
-      (Fence *) frame_context->submit_fences[frame_context->ring_index];
+  Device *const       self      = (Device *) self_;
+  FrameContext *const ctx       = (FrameContext *) frame_context_;
+  Swapchain *const    swapchain = (Swapchain *) swapchain_;
+  VkResult            result    = VK_SUCCESS;
+  Fence const submit_fence      = (Fence) ctx->submit_fences[ctx->ring_index];
   CommandEncoder *const encoder =
-      (CommandEncoder *) frame_context->encoders[frame_context->ring_index]
-          .self;
+      (CommandEncoder *) ctx->encoders[ctx->ring_index].self;
 
   VALIDATE(!encoder->is_recording);
 
-  result = self->vk_table.WaitForFences(
-      self->vk_device, 1, &submit_fence->vk_fence, VK_TRUE, U64_MAX);
+  result = self->vk_table.WaitForFences(self->vk_device, 1, &submit_fence,
+                                        VK_TRUE, U64_MAX);
 
   CHECK(result == VK_SUCCESS);
 
-  result =
-      self->vk_table.ResetFences(self->vk_device, 1, &submit_fence->vk_fence);
+  result = self->vk_table.ResetFences(self->vk_device, 1, &submit_fence);
 
   CHECK(result == VK_SUCCESS);
 
@@ -4829,8 +4720,7 @@ Result<Void, Status>
     u32 next_image;
     result = self->vk_table.AcquireNextImageKHR(
         self->vk_device, swapchain->vk_swapchain, U64_MAX,
-        frame_context->acquire_semaphores[frame_context->ring_index], nullptr,
-        &next_image);
+        ctx->acquire_semaphores[ctx->ring_index], nullptr, &next_image);
 
     if (result == VK_SUBOPTIMAL_KHR)
     {
@@ -4872,19 +4762,16 @@ Result<Void, Status>
                                   gfx::FrameContext frame_context_,
                                   gfx::Swapchain    swapchain_)
 {
-  Device *const       self          = (Device *) self_;
-  FrameContext *const frame_context = (FrameContext *) frame_context_;
-  Swapchain *const    swapchain     = (Swapchain *) swapchain_;
-  Fence *const        submit_fence =
-      (Fence *) frame_context->submit_fences[frame_context->ring_index];
+  Device *const       self      = (Device *) self_;
+  FrameContext *const ctx       = (FrameContext *) frame_context_;
+  Swapchain *const    swapchain = (Swapchain *) swapchain_;
+  Fence const submit_fence      = (Fence) ctx->submit_fences[ctx->ring_index];
   CommandEncoder *const encoder =
-      (CommandEncoder *) frame_context->encoders[frame_context->ring_index]
-          .self;
+      (CommandEncoder *) ctx->encoders[ctx->ring_index].self;
   VkCommandBuffer const command_buffer = encoder->vk_command_buffer;
-  VkSemaphore const     submit_semaphore =
-      frame_context->submit_semaphores[frame_context->ring_index];
+  VkSemaphore const submit_semaphore = ctx->submit_semaphores[ctx->ring_index];
   VkSemaphore const acquire_semaphore =
-      frame_context->acquire_semaphores[frame_context->ring_index];
+      ctx->acquire_semaphores[ctx->ring_index];
   bool const was_acquired = !swapchain->is_zero_sized;
   bool const can_present =
       !(swapchain->is_out_of_date || swapchain->is_zero_sized);
@@ -4915,8 +4802,8 @@ Result<Void, Status>
       .signalSemaphoreCount = can_present ? 1U : 0U,
       .pSignalSemaphores    = can_present ? &submit_semaphore : nullptr};
 
-  result = self->vk_table.QueueSubmit(self->vk_queue, 1, &submit_info,
-                                      submit_fence->vk_fence);
+  result =
+      self->vk_table.QueueSubmit(self->vk_queue, 1, &submit_info, submit_fence);
 
   encoder->is_recording = false;
 
@@ -4925,13 +4812,11 @@ Result<Void, Status>
   // - advance frame, even if invalidation occured. frame is marked as missed
   // but has no side effect on the flow. so no need for resubmitting as previous
   // commands could have been executed.
-  frame_context->current_frame++;
-  frame_context->tail_frame =
-      max(frame_context->current_frame,
-          (gfx::FrameId) frame_context->max_frames_in_flight) -
-      frame_context->max_frames_in_flight;
-  frame_context->ring_index =
-      (frame_context->ring_index + 1) % frame_context->max_frames_in_flight;
+  ctx->current_frame++;
+  ctx->tail_frame =
+      max(ctx->current_frame, (gfx::FrameId) ctx->max_frames_in_flight) -
+      ctx->max_frames_in_flight;
+  ctx->ring_index = (ctx->ring_index + 1) % ctx->max_frames_in_flight;
 
   if (can_present)
   {
@@ -5256,10 +5141,10 @@ void DescriptorHeapInterface::sampler(gfx::DescriptorHeap self_, u32 group,
   for (u32 i = 0; i < elements.size(); i++)
   {
     gfx::SamplerBinding const &element = elements[i];
-    image_infos[i]                     = VkDescriptorImageInfo{
-                            .sampler     = ((Sampler *) element.sampler)->vk_sampler,
-                            .imageView   = nullptr,
-                            .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    image_infos[i] =
+        VkDescriptorImageInfo{.sampler     = (Sampler) element.sampler,
+                              .imageView   = nullptr,
+                              .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
   }
 
   VkWriteDescriptorSet vk_write{
@@ -5309,7 +5194,7 @@ void DescriptorHeapInterface::combined_image_sampler(
   {
     gfx::CombinedImageSamplerBinding const &element = elements[i];
     image_infos[i]                                  = VkDescriptorImageInfo{
-                                         .sampler     = ((Sampler *) element.sampler)->vk_sampler,
+                                         .sampler     = (Sampler) element.sampler,
                                          .imageView   = ((ImageView *) element.image_view)->vk_view,
                                          .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
   }

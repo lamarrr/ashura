@@ -85,7 +85,7 @@ struct Logger
 
   void flush()
   {
-    std::unique_lock lock{mutex};
+    std::lock_guard lock{mutex};
     for (u32 i = 0; i < num_sinks; i++)
     {
       sinks[i]->flush();
@@ -95,7 +95,7 @@ struct Logger
   template <typename... Args>
   bool log(LogLevels level, Args const &...args)
   {
-    std::unique_lock lock{mutex};
+    std::lock_guard lock{mutex};
     if (fmt::format(fmt_ctx, args..., "\n"))
     {
       for (u32 i = 0; i < num_sinks; i++)
@@ -129,70 +129,9 @@ struct Logger
   }
 };
 
-inline Logger *create_logger(Span<LogSink *const> sinks,
-                             AllocatorImpl        allocator)
-{
-  u32 const num_sinks = (u32) sinks.size();
-  LogSink **log_sinks = allocator.allocate_typed<LogSink *>(num_sinks);
-  if (log_sinks == nullptr)
-  {
-    return nullptr;
-  }
+Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator);
 
-  mem::copy(sinks, log_sinks);
-  Logger *logger = allocator.allocate_typed<Logger>(1);
-  if (logger == nullptr)
-  {
-    allocator.deallocate_typed(log_sinks, num_sinks);
-    return nullptr;
-  }
-
-  new (logger) Logger{
-      .sinks           = log_sinks,
-      .num_sinks       = num_sinks,
-      .buffer          = nullptr,
-      .buffer_size     = 0,
-      .buffer_capacity = 0,
-      .allocator       = allocator,
-      .fmt_ctx         = fmt::Context{
-                  .push =
-                      {
-                          .dispatcher =
-                      [](void *data, Span<char const> buffer) {
-                        Logger     *logger = (Logger *) data;
-                        usize const required_size =
-                            logger->buffer_size + buffer.size_bytes();
-                        if (required_size > logger->buffer_capacity)
-                        {
-                          char *buffer = logger->allocator.reallocate_typed(
-                              logger->buffer, logger->buffer_capacity,
-                              required_size);
-                          if (buffer == nullptr)
-                          {
-                            return false;
-                          }
-                          logger->buffer          = buffer;
-                          logger->buffer_capacity = required_size;
-                        }
-                        mem::copy(buffer, logger->buffer + logger->buffer_size);
-                        logger->buffer_size += buffer.size_bytes();
-                        return true;
-                      },
-                          .data = logger,
-              },
-                  .scratch_buffer =
-              Span{logger->scratch_buffer, Logger::SCRATCH_BUFFER_SIZE}}};
-
-  return logger;
-};
-
-inline void destroy_logger(Logger *logger)
-{
-  logger->allocator.deallocate_typed(logger->sinks, logger->num_sinks);
-  logger->allocator.deallocate_typed(logger->buffer, logger->buffer_capacity);
-  logger->~Logger();
-  logger->allocator.deallocate_typed(logger, 1);
-}
+void destroy_logger(Logger *logger);
 
 struct StdioSink final : LogSink
 {
@@ -211,6 +150,6 @@ struct FileSink final : LogSink
   void flush() override;
 };
 
-}        // namespace ash
-
 extern ash::Logger *default_logger;
+
+}        // namespace ash

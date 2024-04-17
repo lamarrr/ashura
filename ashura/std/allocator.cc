@@ -21,9 +21,6 @@
 namespace ash
 {
 
-Heap const global_heap_object;
-usize      heap_used = 0;
-
 // TODO(lamarrr): switch to using global panic and logger
 void *HeapInterface::allocate(Allocator self, usize alignment, usize size)
 {

@@ -1,3 +1,4 @@
+
 #include "ashura/engine/shader.h"
 #include "ashura/engine/window.h"
 #include "ashura/gfx/vulkan.h"
@@ -7,15 +8,21 @@
 #include "stdlib.h"
 #include <thread>
 
-ash::Logger *default_logger;
 
-int main(int, char **)
+namespace ash
+{
+Logger *default_logger;
+}
+
+ int main(int, char **)
 {
   using namespace ash;
   StdioSink sink;
   default_logger = create_logger(to_span<LogSink *>({&sink}), heap_allocator);
   defer default_logger_del{[&] { destroy_logger(default_logger); }};
   defer shutdown{[&] { default_logger->info("Shutting down"); }};
+
+
 
   WindowSystem *win_sys = init_sdl_window_system();
   CHECK(win_sys != nullptr);
