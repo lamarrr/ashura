@@ -3,15 +3,21 @@
 
 #include "core.glsl"
 
-layout(location = 0) in vec2 i_rel_position;
+/// [-1, + 1]
+layout(location = 0) in vec2 i_pos;
 layout(location = 0) out vec4 o_color;
+
+#define TOP_LEFT 0
+#define TOP_RIGHT 1
+#define BOTTOM_LEFT 2
+#define BOTTOM_RIGHT 3
 
 layout(set = 0, binding = 0) uniform Params
 {
   ViewTransform transform;
-  vec4          tint[4];
+  vec4          color[4];
   vec4          border_color[4];
-  vec4          border_radii;
+  float         border_radii[4];
   float         border_thickness;
   vec2          uv0;
   vec2          uv1;
@@ -22,7 +28,39 @@ layout(set = 1, binding = 0) uniform sampler2D u_base_color;
 
 void main()
 {
-  o_color = u_params.tint[0];
+  uint edge = 0;
+  bool left = i_pos.x < 0;
+  bool top  = i_pos.y < 0;
+  if (left && top)
+  {
+    edge = TOP_LEFT;
+  }
+  else if (left && !top)
+  {
+    edge = BOTTOM_LEFT;
+  }
+  else if (!left && top)
+  {
+    edge = TOP_RIGHT;
+  }
+  else
+  {
+    edge = BOTTOM_RIGHT;
+  }
+
+  vec4  color         = u_params.color[edge];
+  float border_radius = u_params.border_radii[edge];
+  vec4  border_color  = u_params.border_color[edge];
+
+  // https://iquilezles.org/articles/distfunctions/
+  float sdf = length(max(abs(i_pos) - border_radius, 0));
+
+  if (abs(i_pos.x) < border_radius && abs(i_pos.y) < border_radius)
+  {
+    length(i_pos) < border_radius;
+  }
+
+  o_color = u_params.color[0];
 }
 
 /*
