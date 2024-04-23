@@ -975,58 +975,21 @@ struct CombinedImageSampler
   ImageView image_view = nullptr;
 };
 
-struct SampledImageBinding
+struct ImageBinding
 {
   ImageView image_view = nullptr;
 };
 
-struct StorageImageBinding
-{
-  ImageView image_view = nullptr;
-};
-
-struct UniformTexelBufferBinding
+struct TexelBufferBinding
 {
   BufferView buffer_view = nullptr;
 };
 
-struct StorageTexelBufferBinding
-{
-  BufferView buffer_view = nullptr;
-};
-
-struct UniformBufferBinding
+struct BufferBinding
 {
   Buffer buffer = nullptr;
   u64    offset = 0;
   u64    size   = 0;
-};
-
-struct StorageBufferBinding
-{
-  Buffer buffer = nullptr;
-  u64    offset = 0;
-  u64    size   = 0;
-};
-
-struct DynamicUniformBufferBinding
-{
-  Buffer buffer = nullptr;
-  u64    offset = 0;
-  u64    size   = 0;
-};
-
-struct DynamicStorageBufferBinding
-{
-  Buffer buffer = nullptr;
-  u64    offset = 0;
-  u64    size   = 0;
-};
-
-/// used for frame-buffer-local read-operations
-struct InputAttachmentBinding
-{
-  ImageView image_view = nullptr;
 };
 
 struct SpecializationConstant
@@ -1151,9 +1114,9 @@ struct FrameContextDesc
 
 struct DescriptorHeapDesc
 {
-  Span<DescriptorSetLayout const> descriptor_set_layouts = {};
-  u32                             groups_per_pool        = 0;
-  AllocatorImpl                   allocator              = default_allocator;
+  DescriptorSetLayout layout            = nullptr;
+  u32                 num_sets_per_pool = 0;
+  AllocatorImpl       allocator         = default_allocator;
 };
 
 struct IndirectDispatchCommand
@@ -1370,8 +1333,7 @@ struct DeviceProperties
 struct DescriptorSet
 {
   DescriptorHeap heap  = nullptr;
-  u32            group = 0;
-  u32            set   = 0;
+  u32            index = 0;
 };
 
 /// @num_allocated_groups: number of alive group allocations
@@ -1380,50 +1342,46 @@ struct DescriptorSet
 /// groups. possibly still in use by the device.
 struct DescriptorHeapStats
 {
-  u32 num_allocated_groups = 0;
-  u32 num_free_groups      = 0;
-  u32 num_released_groups  = 0;
-  u32 num_pools            = 0;
+  u32 num_allocated = 0;
+  u32 num_free      = 0;
+  u32 num_released  = 0;
+  u32 num_pools     = 0;
 };
 
 struct DescriptorHeapInterface
 {
-  Result<u32, Status> (*add_group)(DescriptorHeap self)    = nullptr;
-  void (*collect)(DescriptorHeap self, FrameId tail_frame) = nullptr;
-  void (*mark_in_use)(DescriptorHeap self, u32 group,
-                      FrameId current_frame)               = nullptr;
-  bool (*is_in_use)(DescriptorHeap self, u32 group,
-                    FrameId tail_frame)                    = nullptr;
-  void (*release)(DescriptorHeap self, u32 group)          = nullptr;
-  DescriptorHeapStats (*get_stats)(DescriptorHeap self)    = nullptr;
-  void (*sampler)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                  Span<SamplerBinding const> elements)     = nullptr;
+  Result<u32, Status> (*allocate)(DescriptorHeap self)                = nullptr;
+  void (*collect)(DescriptorHeap self, FrameId tail_frame)            = nullptr;
+  void (*mark_in_use)(DescriptorHeap self, u32 set,
+                      FrameId current_frame)                          = nullptr;
+  bool (*is_in_use)(DescriptorHeap self, u32 set, FrameId tail_frame) = nullptr;
+  void (*release)(DescriptorHeap self, u32 set)                       = nullptr;
+  DescriptorHeapStats (*get_stats)(DescriptorHeap self)               = nullptr;
+  void (*sampler)(DescriptorHeap self, u32 set, u32 binding,
+                  Span<SamplerBinding const> elements)                = nullptr;
   void (*combined_image_sampler)(
-      DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<CombinedImageSamplerBinding const> elements)           = nullptr;
-  void (*sampled_image)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                        Span<SampledImageBinding const> elements) = nullptr;
-  void (*storage_image)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                        Span<StorageImageBinding const> elements) = nullptr;
-  void (*uniform_texel_buffer)(
-      DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<UniformTexelBufferBinding const> elements) = nullptr;
-  void (*storage_texel_buffer)(
-      DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<StorageTexelBufferBinding const> elements)               = nullptr;
-  void (*uniform_buffer)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                         Span<UniformBufferBinding const> elements) = nullptr;
-  void (*storage_buffer)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                         Span<StorageBufferBinding const> elements) = nullptr;
-  void (*dynamic_uniform_buffer)(
-      DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<DynamicUniformBufferBinding const> elements) = nullptr;
-  void (*dynamic_storage_buffer)(
-      DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<DynamicStorageBufferBinding const> elements) = nullptr;
-  void (*input_attachment)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                           Span<InputAttachmentBinding const> elements) =
+      DescriptorHeap self, u32 set, u32 binding,
+      Span<CombinedImageSamplerBinding const> elements)    = nullptr;
+  void (*sampled_image)(DescriptorHeap self, u32 set, u32 binding,
+                        Span<ImageBinding const> elements) = nullptr;
+  void (*storage_image)(DescriptorHeap self, u32 set, u32 binding,
+                        Span<ImageBinding const> elements) = nullptr;
+  void (*uniform_texel_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                               Span<TexelBufferBinding const> elements) =
       nullptr;
+  void (*storage_texel_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                               Span<TexelBufferBinding const> elements) =
+      nullptr;
+  void (*uniform_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                         Span<BufferBinding const> elements)         = nullptr;
+  void (*storage_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                         Span<BufferBinding const> elements)         = nullptr;
+  void (*dynamic_uniform_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                                 Span<BufferBinding const> elements) = nullptr;
+  void (*dynamic_storage_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                                 Span<BufferBinding const> elements) = nullptr;
+  void (*input_attachment)(DescriptorHeap self, u32 set, u32 binding,
+                           Span<ImageBinding const> elements)        = nullptr;
 };
 
 struct DescriptorHeapImpl
@@ -1497,11 +1455,15 @@ struct CommandEncoderInterface
                               Span<u64 const>    offsets)                = nullptr;
   void (*bind_index_buffer)(CommandEncoder self, Buffer index_buffer,
                             u64 offset, IndexType index_type)         = nullptr;
-  void (*draw)(CommandEncoder self, u32 first_index, u32 num_indices,
-               i32 vertex_offset, u32 first_instance,
-               u32 num_instances)                                     = nullptr;
+  void (*draw)(CommandEncoder self, u32 vertex_count, u32 instance_count,
+               u32 first_vertex_id, u32 first_instance_id)            = nullptr;
+  void (*draw_indexed)(CommandEncoder self, u32 first_index, u32 num_indices,
+                       i32 vertex_offset, u32 first_instance_id,
+                       u32 num_instances)                             = nullptr;
   void (*draw_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
                         u32 draw_count, u32 stride)                   = nullptr;
+  void (*draw_indexed_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
+                                u32 draw_count, u32 stride)           = nullptr;
 };
 
 struct CommandEncoderImpl

@@ -8,7 +8,7 @@ namespace ash
 {
 
 BEGIN_SHADER_PARAMETER(RRectShaderParameter)
-SHADER_COMBINED_IMAGE_SAMPLER(base_color, 1)
+SHADER_COMBINED_IMAGE_SAMPLER(albedo, 1)
 END_SHADER_PARAMETER(RRectShaderParameter)
 
 // TODO(lamarrr): vertex buffer is in object coordinate space. needs to be
@@ -24,18 +24,12 @@ constexpr Mat4Affine rrect_model(Vec2 extent)
 struct RRectShaderUniform
 {
   MVPTransform transform        = {};
-  Vec4         tint_tl          = {};
-  Vec4         tint_tr          = {};
-  Vec4         tint_bl          = {};
-  Vec4         tint_br          = {};
-  Vec4         border_color_tl  = {};
-  Vec4         border_color_tr  = {};
-  Vec4         border_color_bl  = {};
-  Vec4         border_color_br  = {};
-  Vec4         border_radii     = {};
+  f32          radii[4]         = {};
+  Vec2         uv[2]            = {};
+  Vec4         tint             = {};
+  Vec4         border_color     = {};
   f32          border_thickness = 0;
-  Vec2         uv0              = {};
-  Vec2         uv1              = {};
+  f32          border_softness  = 0;
 };
 
 struct RRectObject
@@ -55,8 +49,6 @@ struct RRectPass
   gfx::RenderPass          render_pass           = nullptr;
   gfx::GraphicsPipeline    pipeline              = nullptr;
   gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
-  gfx::Buffer              vertex_buffer         = nullptr;
-  gfx::Buffer              index_buffer          = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);

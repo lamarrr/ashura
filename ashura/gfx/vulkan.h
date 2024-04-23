@@ -5,6 +5,7 @@
 
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/allocator.h"
+#include "ashura/std/vec.h"
 #include "vk_mem_alloc.h"
 #include "vulkan/vk_enum_string_helper.h"
 #include "vulkan/vulkan.h"
@@ -322,14 +323,16 @@ struct DescriptorSetLayout
 
 struct ComputePipeline
 {
-  VkPipeline       vk_pipeline = nullptr;
-  VkPipelineLayout vk_layout   = nullptr;
+  VkPipeline       vk_pipeline        = nullptr;
+  VkPipelineLayout vk_layout          = nullptr;
+  u32              push_constant_size = 0;
 };
 
 struct GraphicsPipeline
 {
-  VkPipeline       vk_pipeline = nullptr;
-  VkPipelineLayout vk_layout   = nullptr;
+  VkPipeline       vk_pipeline        = nullptr;
+  VkPipelineLayout vk_layout          = nullptr;
+  u32              push_constant_size = 0;
 };
 
 struct Instance
@@ -366,77 +369,150 @@ struct Device
 
 /// @struct DescriptorHeap
 /// Descriptor heap helps with allocation of descriptor sets and checking when
-/// they are in use before releasing and re-using them. Having multiple sets in
-/// one group helps lighten the burden of managing separate heaps for different
-/// descriptor sets belonging to an object
-///
-/// LAYOUT: GROUPS -> DESCRIPTOR SETS -> BINDINGS
-///
-/// ACCESS PATTERNS
-/// ==> GET [GROUP I: SET J: DESCRIPTOR_SET]
-/// ==> GET [GROUP I: SET J: BINDINGS]
-/// ==> UPDATE [GROUP I: SET J: DESCRIPTOR SET] with [NEW_BINDINGS] and copy to
-/// [GROUP I: SET J: BINDINGS]
-///
+/// they are in use before releasing and re-using them.
 struct DescriptorHeap
 {
-  Device               *device                      = nullptr;
-  AllocatorImpl         allocator                   = {};
-  Logger               *logger                      = nullptr;
-  DescriptorSetLayout **set_layouts                 = nullptr;
-  u32                 **binding_offsets             = nullptr;
-  VkDescriptorPool     *vk_pools                    = nullptr;
-  VkDescriptorSet      *vk_descriptor_sets          = nullptr;
-  u64                  *last_use_frame              = nullptr;
-  u32                  *released_groups             = nullptr;
-  u32                  *free_groups                 = nullptr;
-  u8                   *bindings                    = nullptr;
-  void                 *scratch_memory              = nullptr;
-  u32                   num_sets_per_group          = 0;
-  u32                   num_pools                   = 0;
-  u32                   num_groups_per_pool         = 0;
-  u32                   num_released_groups         = 0;
-  u32                   num_free_groups             = 0;
-  u32                   group_binding_stride        = 0;
-  u32                   vk_pools_capacity           = 0;
-  u32                   vk_descriptor_sets_capacity = 0;
-  u32                   last_use_frame_capacity     = 0;
-  u32                   released_groups_capacity    = 0;
-  u32                   free_groups_capacity        = 0;
-  usize                 bindings_capacity           = 0;
-  usize                 scratch_memory_size         = 0;
+  Device              *device                  = nullptr;
+  AllocatorImpl        allocator               = {};
+  Logger              *logger                  = nullptr;
+  DescriptorSetLayout *set_layout              = nullptr;
+  u32                 *binding_index_map       = nullptr;
+  VkDescriptorPoolSize pool_sizes[11]          = {};
+  VkDescriptorPool    *pools                   = nullptr;
+  VkDescriptorSet     *sets                    = nullptr;
+  u64                 *last_use_frame          = nullptr;
+  u32                 *released                = nullptr;
+  u32                 *free                    = nullptr;
+  Image              **images                  = nullptr;
+  Buffer             **buffers                 = nullptr;
+  void                *scratch                 = nullptr;
+  u32                  num_set_images          = 0;
+  u32                  num_set_buffers         = 0;
+  u32                  num_pool_sizes          = 0;
+  u32                  num_pools               = 0;
+  u32                  num_sets_per_pool       = 0;
+  u32                  num_released            = 0;
+  u32                  num_free                = 0;
+  u32                  pools_capacity          = 0;
+  u32                  sets_capacity           = 0;
+  u32                  last_use_frame_capacity = 0;
+  u32                  released_capacity       = 0;
+  u32                  free_capacity           = 0;
+  u32                  images_capacity         = 0;
+  u32                  buffers_capacity        = 0;
+  usize                scratch_size            = 0;
 };
 
-enum class CommandEncoderState : u8
+enum class CommandEncoderState : u16
 {
   Reset       = 0,
-  Recording   = 0x1,
-  RenderPass  = 0x2,
-  ComputePass = 0x4,
-  Submitted   = 0x8
+  Begin       = 1,
+  RenderPass  = 2,
+  ComputePass = 3,
+  End         = 4
+};
+
+enum class RenderCommandType : u32
+{
+  None                  = 0,
+  BindDescriptorSet     = 1,
+  BindPipeline          = 2,
+  PushConstants         = 3,
+  SetViewport           = 6,
+  SetScissor            = 7,
+  SetBlendConstant      = 8,
+  SetStencilCompareMask = 9,
+  SetStencilReference   = 10,
+  SetStencilWriteMask   = 11,
+  BindVertexBuffer      = 12,
+  BindIndexBuffer       = 13,
+  Draw                  = 14,
+  DrawIndexed           = 15,
+  DrawIndirect          = 16,
+  DrawIndexedIndirect   = 17
+};
+
+struct RenderCommand
+{
+  RenderCommandType type = RenderCommandType::None;
+  union
+  {
+    char                                                       none_ = 0;
+    Tuple<gfx::DescriptorSet, u32, u32>                        set;
+    GraphicsPipeline                                          *pipeline;
+    Tuple<GraphicsPipeline *, u8[gfx::MAX_PUSH_CONSTANT_SIZE]> push_constant;
+    gfx::Viewport                                              viewport;
+    Tuple<gfx::Offset, gfx::Extent>                            scissor;
+    Vec4                                                       blend_constant;
+    Tuple<gfx::StencilFaces, u32>                              stencil;
+    Tuple<u32, Buffer *, u64>            bind_vertex_buffer;
+    Tuple<Buffer *, u64, gfx::IndexType> bind_index_buffer;
+    Tuple<u32, u32, u32, u32>            draw;
+    Tuple<u32, u32, i32, u32, u32>       draw_indexed;
+    Tuple<Buffer *, u64, u32, u32>       draw_indirect;
+  };
+};
+
+struct RenderPassContext
+{
+  RenderPass        *render_pass = nullptr;
+  Framebuffer       *framebuffer = nullptr;
+  gfx::Offset        offset;
+  gfx::Extent        extent;
+  gfx::Color         color_clear_values[gfx::MAX_COLOR_ATTACHMENTS] = {};
+  u32                num_color_clear_values                         = 0;
+  gfx::DepthStencil  depth_stencil_clear_value;
+  u32                num_depth_stencil_clear_values             = 0;
+  Vec<RenderCommand> commands                                   = {};
+  Buffer            *vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
+  u32                num_vertex_buffers                         = 0;
+  Buffer            *index_buffer                               = nullptr;
+  gfx::IndexType     index_type          = gfx::IndexType::Uint16;
+  u64                index_buffer_offset = 0;
+  GraphicsPipeline  *pipeline            = nullptr;
+};
+
+struct ComputePassContext
+{
+  gfx::DescriptorSet sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
+  u32                num_sets                                = 0;
+  ComputePipeline   *pipeline                                = nullptr;
 };
 
 struct CommandEncoder
 {
-  AllocatorImpl      allocator                                        = {};
-  Logger            *logger                                           = nullptr;
-  Device            *device                                           = nullptr;
-  VkCommandPool      vk_command_pool                                  = nullptr;
-  VkCommandBuffer    vk_command_buffer                                = nullptr;
-  ComputePipeline   *bound_compute_pipeline                           = nullptr;
-  GraphicsPipeline  *bound_graphics_pipeline                          = nullptr;
-  RenderPass        *bound_render_pass                                = nullptr;
-  Framebuffer       *bound_framebuffer                                = nullptr;
-  Buffer            *bound_vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
-  Buffer            *bound_index_buffer                               = nullptr;
-  u32                num_bound_vertex_buffers                         = 0;
-  gfx::IndexType     bound_index_type          = gfx::IndexType::Uint16;
-  u64                bound_index_buffer_offset = 0;
-  gfx::DescriptorSet bound_descriptor_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] =
-      {};
-  u32    num_bound_descriptor_sets = 0;
-  Status status                    = Status::Success;
-  bool   is_recording              = false;
+  AllocatorImpl       allocator         = {};
+  Logger             *logger            = nullptr;
+  Device             *device            = nullptr;
+  VkCommandPool       vk_command_pool   = nullptr;
+  VkCommandBuffer     vk_command_buffer = nullptr;
+  Status              status            = Status::Success;
+  CommandEncoderState state             = CommandEncoderState::Reset;
+  union
+  {
+    char               none = 0;
+    RenderPassContext  rp;
+    ComputePassContext cp;
+  } ctx;
+
+  bool is_in_render_pass()
+  {
+    return state == CommandEncoderState::RenderPass;
+  }
+
+  bool is_in_compute_pass()
+  {
+    return state == CommandEncoderState::ComputePass;
+  }
+
+  bool is_recording()
+  {
+    return state == CommandEncoderState::Begin ||
+           state == CommandEncoderState::RenderPass ||
+           state == CommandEncoderState::ComputePass;
+  }
+
+  void reset_context();
 };
 
 inline gfx::Surface surface_to_vk(VkSurfaceKHR s)
@@ -619,49 +695,41 @@ struct DeviceInterface
 
 struct DescriptorHeapInterface
 {
-  static Result<u32, Status> add_group(gfx::DescriptorHeap self);
+  static Result<u32, Status> allocate(gfx::DescriptorHeap self);
   static void collect(gfx::DescriptorHeap self, gfx::FrameId tail_frame);
-  static void mark_in_use(gfx::DescriptorHeap self, u32 group,
+  static void mark_in_use(gfx::DescriptorHeap self, u32 set,
                           gfx::FrameId current_frame);
-  static bool is_in_use(gfx::DescriptorHeap self, u32 group,
+  static bool is_in_use(gfx::DescriptorHeap self, u32 set,
                         gfx::FrameId tail_frame);
-  static void release(gfx::DescriptorHeap self, u32 group);
+  static void release(gfx::DescriptorHeap self, u32 set);
   static gfx::DescriptorHeapStats get_stats(gfx::DescriptorHeap self);
-  static void sampler(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+  static void sampler(gfx::DescriptorHeap self, u32 set, u32 binding,
                       Span<gfx::SamplerBinding const> elements);
   static void combined_image_sampler(
-      gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+      gfx::DescriptorHeap self, u32 set, u32 binding,
       Span<gfx::CombinedImageSamplerBinding const> elements);
-  static void sampled_image(gfx::DescriptorHeap self, u32 group, u32 set,
-                            u32                                  binding,
-                            Span<gfx::SampledImageBinding const> elements);
-  static void storage_image(gfx::DescriptorHeap self, u32 group, u32 set,
-                            u32                                  binding,
-                            Span<gfx::StorageImageBinding const> elements);
+  static void sampled_image(gfx::DescriptorHeap self, u32 set, u32 binding,
+                            Span<gfx::ImageBinding const> elements);
+  static void storage_image(gfx::DescriptorHeap self, u32 set, u32 binding,
+                            Span<gfx::ImageBinding const> elements);
   static void
-      uniform_texel_buffer(gfx::DescriptorHeap self, u32 group, u32 set,
-                           u32                                        binding,
-                           Span<gfx::UniformTexelBufferBinding const> elements);
+      uniform_texel_buffer(gfx::DescriptorHeap self, u32 set, u32 binding,
+                           Span<gfx::TexelBufferBinding const> elements);
   static void
-              storage_texel_buffer(gfx::DescriptorHeap self, u32 group, u32 set,
-                                   u32                                        binding,
-                                   Span<gfx::StorageTexelBufferBinding const> elements);
-  static void uniform_buffer(gfx::DescriptorHeap self, u32 group, u32 set,
-                             u32                                   binding,
-                             Span<gfx::UniformBufferBinding const> elements);
-  static void storage_buffer(gfx::DescriptorHeap self, u32 group, u32 set,
-                             u32                                   binding,
-                             Span<gfx::StorageBufferBinding const> elements);
-  static void dynamic_uniform_buffer(
-      gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<gfx::DynamicUniformBufferBinding const> elements);
-  static void dynamic_storage_buffer(
-      gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<gfx::DynamicStorageBufferBinding const> elements);
-  static void
-      input_attachment(gfx::DescriptorHeap self, u32 group, u32 set,
-                       u32                                     binding,
-                       Span<gfx::InputAttachmentBinding const> elements);
+      storage_texel_buffer(gfx::DescriptorHeap self, u32 set, u32 binding,
+                           Span<gfx::TexelBufferBinding const> elements);
+  static void uniform_buffer(gfx::DescriptorHeap self, u32 set, u32 binding,
+                             Span<gfx::BufferBinding const> elements);
+  static void storage_buffer(gfx::DescriptorHeap self, u32 set, u32 binding,
+                             Span<gfx::BufferBinding const> elements);
+  static void dynamic_uniform_buffer(gfx::DescriptorHeap self, u32 set,
+                                     u32                            binding,
+                                     Span<gfx::BufferBinding const> elements);
+  static void dynamic_storage_buffer(gfx::DescriptorHeap self, u32 set,
+                                     u32                            binding,
+                                     Span<gfx::BufferBinding const> elements);
+  static void input_attachment(gfx::DescriptorHeap self, u32 set, u32 binding,
+                               Span<gfx::ImageBinding const> elements);
 };
 
 struct CommandEncoderInterface
@@ -732,10 +800,17 @@ struct CommandEncoderInterface
   static void bind_index_buffer(gfx::CommandEncoder self,
                                 gfx::Buffer index_buffer, u64 offset,
                                 gfx::IndexType index_type);
-  static void draw(gfx::CommandEncoder self, u32 first_index, u32 num_indices,
-                   i32 vertex_offset, u32 first_instance, u32 num_instances);
+  static void draw(gfx::CommandEncoder self, u32 vertex_count,
+                   u32 instance_count, u32 first_vertex_id,
+                   u32 first_instance_id);
+  static void draw_indexed(gfx::CommandEncoder self, u32 first_index,
+                           u32 num_indices, i32 vertex_offset,
+                           u32 first_instance_id, u32 num_instances);
   static void draw_indirect(gfx::CommandEncoder self, gfx::Buffer buffer,
                             u64 offset, u32 draw_count, u32 stride);
+  static void draw_indexed_indirect(gfx::CommandEncoder self,
+                                    gfx::Buffer buffer, u64 offset,
+                                    u32 draw_count, u32 stride);
 };
 
 static gfx::InstanceInterface const instance_interface{
@@ -805,7 +880,7 @@ static gfx::DeviceInterface const device_interface{
     .submit_frame              = DeviceInterface::submit_frame};
 
 static gfx::DescriptorHeapInterface const descriptor_heap_interface{
-    .add_group              = DescriptorHeapInterface::add_group,
+    .allocate               = DescriptorHeapInterface::allocate,
     .collect                = DescriptorHeapInterface::collect,
     .mark_in_use            = DescriptorHeapInterface::mark_in_use,
     .is_in_use              = DescriptorHeapInterface::is_in_use,
@@ -854,7 +929,9 @@ static gfx::CommandEncoderInterface const command_encoder_interface{
     .bind_vertex_buffers    = CommandEncoderInterface::bind_vertex_buffers,
     .bind_index_buffer      = CommandEncoderInterface::bind_index_buffer,
     .draw                   = CommandEncoderInterface::draw,
-    .draw_indirect          = CommandEncoderInterface::draw_indirect};
+    .draw_indexed           = CommandEncoderInterface::draw_indexed,
+    .draw_indirect          = CommandEncoderInterface::draw_indirect,
+    .draw_indexed_indirect  = CommandEncoderInterface::draw_indexed_indirect};
 
 }        // namespace vk
 }        // namespace ash

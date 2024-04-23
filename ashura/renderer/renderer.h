@@ -66,13 +66,21 @@ struct Renderer
     ctx.end_frame(swapchain);
   }
 
-  void record_frame()
+  void record_frame(gfx::Image img, gfx::ImageView view, gfx::DescriptorSet set)
   {
     auto enc = ctx.encoder();
 
     enc->clear_color_image(
         enc.self, ctx.framebuffer.color_image,
         gfx::Color{.float32 = {1, 0, 0, 1}},
+        to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                            .first_mip_level   = 0,
+                                            .num_mip_levels    = 1,
+                                            .first_array_layer = 0,
+                                            .num_array_layers  = 1}}));
+
+    enc->clear_color_image(
+        enc.self, img, gfx::Color{.float32 = {1, 1, 1, 1}},
         to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
                                             .first_mip_level   = 0,
                                             .num_mip_levels    = 1,
@@ -91,7 +99,18 @@ struct Renderer
                              .extent                = ctx.framebuffer.extent,
                              .render_offset         = {0, 0},
                              .render_extent         = ctx.framebuffer.extent},
-            .objects = to_span<RRectObject>({})});
+            .objects = to_span<RRectObject>(
+                {{.descriptor = set,
+                  .uniform    = ctx.push_uniform(RRectShaderUniform{
+                         .transform        = MVPTransform{.model      = Mat4Affine{},
+                                                          .view       = Mat4Affine{},
+                                                          .projection = Mat4{}},
+                         .radii            = {.2, .2, .2, .2},
+                         .uv               = {{0, 0}, {1, 1}},
+                         .tint             = {1, 0, 1, 1},
+                         .border_color     = {0, 1, 1, 1},
+                         .border_thickness = 0.05,
+                         .border_softness  = 0.0125})}})});
   }
 };
 

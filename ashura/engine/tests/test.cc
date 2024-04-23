@@ -8,21 +8,18 @@
 #include "stdlib.h"
 #include <thread>
 
-
 namespace ash
 {
 Logger *default_logger;
 }
 
- int main(int, char **)
+int main(int, char **)
 {
   using namespace ash;
   StdioSink sink;
   default_logger = create_logger(to_span<LogSink *>({&sink}), heap_allocator);
   defer default_logger_del{[&] { destroy_logger(default_logger); }};
   defer shutdown{[&] { default_logger->info("Shutting down"); }};
-
-
 
   WindowSystem *win_sys = init_sdl_window_system();
   CHECK(win_sys != nullptr);
@@ -222,11 +219,50 @@ Logger *default_logger;
 
   // TODO(lamarrr): update preferred extent
 
+  gfx::Image img =
+      device
+          ->create_image(
+              device.self,
+              gfx::ImageDesc{.type   = gfx::ImageType::Type2D,
+                             .format = gfx::Format::B8G8R8A8_UNORM,
+                             .usage  = gfx::ImageUsage::Sampled |
+                                      gfx::ImageUsage::TransferDst,
+                             .aspects      = gfx::ImageAspects::Color,
+                             .extent       = {1, 1, 1},
+                             .mip_levels   = 1,
+                             .array_layers = 1,
+                             .sample_count = gfx::SampleCount::Count1})
+          .unwrap();
+  gfx::ImageView img_view =
+      device
+          ->create_image_view(
+              device.self,
+              gfx::ImageViewDesc{.image           = img,
+                                 .view_type       = gfx::ImageViewType::Type2D,
+                                 .view_format     = gfx::Format::B8G8R8A8_UNORM,
+                                 .mapping         = {},
+                                 .aspects         = gfx::ImageAspects::Color,
+                                 .first_mip_level = 0,
+                                 .num_mip_levels  = 1,
+                                 .first_array_layer = 0,
+                                 .num_array_layers  = 1})
+          .unwrap();
+
+  ShaderParameterHeap<RRectShaderParameter> heap;
+  heap.init(device, 4);
+
+  gfx::Sampler sampler =
+      device->create_sampler(device.self, gfx::SamplerDesc{}).unwrap();
+
+  gfx::DescriptorSet set = heap.create(
+      RRectShaderParameter{.albedo = gfx::CombinedImageSamplerBinding{
+                               .sampler = sampler, .image_view = img_view}});
+
   while (!should_close)
   {
     win_sys->poll_events();
     renderer.begin_frame(swapchain);
-    renderer.record_frame();
+    renderer.record_frame(img, img_view, set);
     renderer.end_frame(swapchain);
   }
   default_logger->info("closing");

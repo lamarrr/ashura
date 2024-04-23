@@ -282,6 +282,8 @@ void RenderContext::release(gfx::ImageView view)
 
 void RenderContext::purge()
 {
+  // TODO(lamarrr): preserve queue order, i.e. some resources need to be deleted
+  // in certain order
   gfx::FrameId tail_frame = tail_frame_id();
   {
     auto [good, to_delete] =
@@ -330,6 +332,10 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
 {
   device->begin_frame(device.self, frame_context, swapchain).unwrap();
   purge();
+  for (UniformHeap &h : uniform_heaps)
+  {
+    h.reset();
+  }
 }
 
 void RenderContext::end_frame(gfx::Swapchain swapchain)

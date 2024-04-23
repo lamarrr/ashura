@@ -205,9 +205,10 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
     encoder->bind_descriptor_sets(encoder.self, to_span(sets),
                                   to_span(offsets));
 
-    encoder->draw(encoder.self, object.command.first_index,
-                  object.command.index_count, object.command.vertex_offset,
-                  object.command.first_instance, object.command.instance_count);
+    encoder->draw_indexed(
+        encoder.self, object.command.first_index, object.command.index_count,
+        object.command.vertex_offset, object.command.first_instance,
+        object.command.instance_count);
   }
 
   encoder->end_render_pass(encoder.self);
@@ -218,7 +219,7 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
 void PBRPass::uninit(RenderContext &ctx)
 {
   ctx.device->destroy_descriptor_set_layout(ctx.device.self,
-                                          descriptor_set_layout);
+                                            descriptor_set_layout);
   ctx.device->destroy_render_pass(ctx.device.self, render_pass);
   ctx.device->destroy_graphics_pipeline(ctx.device.self, pipeline);
   ctx.device->destroy_graphics_pipeline(ctx.device.self, wireframe_pipeline);

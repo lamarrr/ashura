@@ -108,7 +108,7 @@ struct ShaderBindingMetaData
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
   }                                                                              \
                                                                                  \
-  ::ash::gfx::SampledImageBinding BindingName[Count];                            \
+  ::ash::gfx::ImageBinding BindingName[Count];                                   \
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
@@ -134,7 +134,7 @@ struct ShaderBindingMetaData
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
   }                                                                              \
                                                                                  \
-  ::ash::gfx::StorageImageBinding BindingName[Count];                            \
+  ::ash::gfx::ImageBinding BindingName[Count];                                   \
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
@@ -160,7 +160,7 @@ struct ShaderBindingMetaData
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
   }                                                                              \
                                                                                  \
-  ::ash::gfx::UniformTexelBufferBinding BindingName[Count];                      \
+  ::ash::gfx::TexelBufferBinding BindingName[Count];                             \
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
@@ -186,7 +186,7 @@ struct ShaderBindingMetaData
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
   }                                                                              \
                                                                                  \
-  ::ash::gfx::StorageTexelBufferBinding BindingName[Count];                      \
+  ::ash::gfx::TexelBufferBinding BindingName[Count];                             \
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
@@ -212,7 +212,7 @@ struct ShaderBindingMetaData
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
   }                                                                              \
                                                                                  \
-  ::ash::gfx::UniformBufferBinding BindingName[Count];                           \
+  ::ash::gfx::BufferBinding BindingName[Count];                                  \
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
@@ -238,7 +238,7 @@ struct ShaderBindingMetaData
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
   }                                                                              \
                                                                                  \
-  ::ash::gfx::StorageBufferBinding BindingName[Count];                           \
+  ::ash::gfx::BufferBinding BindingName[Count];                                  \
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
@@ -264,7 +264,7 @@ struct ShaderBindingMetaData
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
   }                                                                              \
                                                                                  \
-  ::ash::gfx::DynamicUniformBufferBinding BindingName[Count];                    \
+  ::ash::gfx::BufferBinding BindingName[Count];                                  \
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
@@ -290,7 +290,7 @@ struct ShaderBindingMetaData
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
   }                                                                              \
                                                                                  \
-  ::ash::gfx::DynamicStorageBufferBinding BindingName[Count];                    \
+  ::ash::gfx::BufferBinding BindingName[Count];                                  \
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
@@ -316,7 +316,7 @@ struct ShaderBindingMetaData
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
   }                                                                              \
                                                                                  \
-  ::ash::gfx::InputAttachmentBinding BindingName[Count];                         \
+  ::ash::gfx::ImageBinding BindingName[Count];                                   \
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
@@ -407,14 +407,13 @@ struct ShaderParameterHeap
                 gfx::DescriptorSetLayoutDesc{.label    = to_span(Param::NAME),
                                              .bindings = to_span(descs)})
             .unwrap();
-    heap_ =
-        device
-            ->create_descriptor_heap(
-                device_.self,
-                gfx::DescriptorHeapDesc{.descriptor_set_layouts = {&layout_, 1},
-                                        .groups_per_pool        = batch_size,
-                                        .allocator = default_allocator})
-            .unwrap();
+    heap_ = device
+                ->create_descriptor_heap(
+                    device_.self,
+                    gfx::DescriptorHeapDesc{.layout            = layout_,
+                                            .num_sets_per_pool = batch_size,
+                                            .allocator = default_allocator})
+                .unwrap();
   }
 
   void uninit()
@@ -425,22 +424,23 @@ struct ShaderParameterHeap
 
   gfx::DescriptorSet create(Param const &param)
   {
-    u32                group = heap_->add_group(heap_.self).unwrap();
-    gfx::DescriptorSet set{.heap = heap_.self, .group = group, .set = 0};
+    u32                index = heap_->allocate(heap_.self).unwrap();
+    gfx::DescriptorSet set{.heap = heap_.self, .index = index};
     update(set, param);
     return set;
   }
 
   void update(gfx::DescriptorSet set, Param const &param)
   {
-    for (ShaderBindingMetaData const &member : BINDINGS)
+    for (u32 i = 0; i < size(BINDINGS); i++)
     {
+      ShaderBindingMetaData const &member = BINDINGS[i];
       switch (member.type)
       {
         case gfx::DescriptorType::CombinedImageSampler:
         {
           heap_->combined_image_sampler(
-              heap_.self, set.group, set.set, 0,
+              heap_.self, set.index, i,
               Span{(gfx::CombinedImageSamplerBinding const
                         *) (((u8 const *) &param) + member.member_offset),
                    member.count});
@@ -449,44 +449,43 @@ struct ShaderParameterHeap
         case gfx::DescriptorType::DynamicStorageBuffer:
         {
           heap_->dynamic_storage_buffer(
-              heap_.self, set.group, set.set, 0,
-              Span{(gfx::DynamicStorageBufferBinding const
-                        *) (((u8 const *) &param) + member.member_offset),
+              heap_.self, set.index, i,
+              Span{(gfx::BufferBinding const *) (((u8 const *) &param) +
+                                                 member.member_offset),
                    member.count});
         }
         break;
         case gfx::DescriptorType::DynamicUniformBuffer:
         {
           heap_->dynamic_uniform_buffer(
-              heap_.self, set.group, set.set, 0,
-              Span{(gfx::DynamicUniformBufferBinding const
-                        *) (((u8 const *) &param) + member.member_offset),
+              heap_.self, set.index, i,
+              Span{(gfx::BufferBinding const *) (((u8 const *) &param) +
+                                                 member.member_offset),
                    member.count});
         }
         break;
         case gfx::DescriptorType::InputAttachment:
         {
           heap_->input_attachment(
-              heap_.self, set.group, set.set, 0,
-              Span{
-                  (gfx::InputAttachmentBinding const *) (((u8 const *) &param) +
-                                                         member.member_offset),
-                  member.count});
+              heap_.self, set.index, i,
+              Span{(gfx::ImageBinding const *) (((u8 const *) &param) +
+                                                member.member_offset),
+                   member.count});
         }
         break;
         case gfx::DescriptorType::SampledImage:
         {
           heap_->sampled_image(
-              heap_.self, set.group, set.set, 0,
-              Span{(gfx::SampledImageBinding const *) (((u8 const *) &param) +
-                                                       member.member_offset),
+              heap_.self, set.index, i,
+              Span{(gfx::ImageBinding const *) (((u8 const *) &param) +
+                                                member.member_offset),
                    member.count});
         }
         break;
         case gfx::DescriptorType::Sampler:
         {
           heap_->sampler(
-              heap_.self, set.group, set.set, 0,
+              heap_.self, set.index, i,
               Span{(gfx::SamplerBinding const *) (((u8 const *) &param) +
                                                   member.member_offset),
                    member.count});
@@ -495,45 +494,45 @@ struct ShaderParameterHeap
         case gfx::DescriptorType::StorageBuffer:
         {
           heap_->storage_buffer(
-              heap_.self, set.group, set.set, 0,
-              Span{(gfx::StorageBufferBinding const *) (((u8 const *) &param) +
-                                                        member.member_offset),
+              heap_.self, set.index, i,
+              Span{(gfx::BufferBinding const *) (((u8 const *) &param) +
+                                                 member.member_offset),
                    member.count});
         }
         break;
         case gfx::DescriptorType::StorageImage:
         {
           heap_->storage_image(
-              heap_.self, set.group, set.set, 0,
-              Span{(gfx::StorageImageBinding const *) (((u8 const *) &param) +
-                                                       member.member_offset),
+              heap_.self, set.index, i,
+              Span{(gfx::ImageBinding const *) (((u8 const *) &param) +
+                                                member.member_offset),
                    member.count});
         }
         break;
         case gfx::DescriptorType::StorageTexelBuffer:
         {
           heap_->storage_texel_buffer(
-              heap_.self, set.group, set.set, 0,
-              Span{(gfx::StorageTexelBufferBinding const
-                        *) (((u8 const *) &param) + member.member_offset),
+              heap_.self, set.index, i,
+              Span{(gfx::TexelBufferBinding const *) (((u8 const *) &param) +
+                                                      member.member_offset),
                    member.count});
         }
         break;
         case gfx::DescriptorType::UniformBuffer:
         {
           heap_->uniform_buffer(
-              heap_.self, set.group, set.set, 0,
-              Span{(gfx::UniformBufferBinding const *) (((u8 const *) &param) +
-                                                        member.member_offset),
+              heap_.self, set.index, i,
+              Span{(gfx::BufferBinding const *) (((u8 const *) &param) +
+                                                 member.member_offset),
                    member.count});
         }
         break;
         case gfx::DescriptorType::UniformTexelBuffer:
         {
           heap_->uniform_texel_buffer(
-              heap_.self, set.group, set.set, 0,
-              Span{(gfx::UniformTexelBufferBinding const
-                        *) (((u8 const *) &param) + member.member_offset),
+              heap_.self, set.index, i,
+              Span{(gfx::TexelBufferBinding const *) (((u8 const *) &param) +
+                                                      member.member_offset),
                    member.count});
         }
         break;
@@ -545,14 +544,19 @@ struct ShaderParameterHeap
 
   void release(gfx::DescriptorSet set)
   {
-    heap_->release(heap_.self, set.group);
+    heap_->release(heap_.self, set.index);
   }
 };
 
+inline constexpr u8  NUM_UNIFORM_SIZE_CLASSES   = 6;
+inline constexpr u32 DEFAULT_UNIFORM_BATCH_SIZE = 8192;
+static constexpr Array<u32, NUM_UNIFORM_SIZE_CLASSES>
+    DEFAULT_UNIFORM_SIZE_CLASSES{128, 256, 512, 1024, 4096, 8192};
+
 struct UniformHeapBatch
 {
-  u32         group  = 0;
-  gfx::Buffer buffer = nullptr;
+  gfx::Buffer                                         buffer      = nullptr;
+  Array<gfx::DescriptorSet, NUM_UNIFORM_SIZE_CLASSES> descriptors = {};
 };
 
 struct Uniform
@@ -572,35 +576,31 @@ struct Uniform
 ///
 struct UniformHeap
 {
-  static constexpr u32 DEFAULT_UNIFORM_BATCH_SIZE = 8192;
-  static constexpr u8  NUM_SIZE_CLASSES           = 6;
-  static constexpr Array<u32, NUM_SIZE_CLASSES> DEFAULT_SIZE_CLASSES{
-      128, 256, 512, 1024, 4096, 8192};
+  Array<u32, NUM_UNIFORM_SIZE_CLASSES> size_classes_ =
+      DEFAULT_UNIFORM_SIZE_CLASSES;
+  u32                      batch_buffer_size_                   = 0;
+  u32                      min_uniform_buffer_offset_alignment_ = 0;
+  u32                      batch_                               = 0;
+  u32                      batch_buffer_offset_                 = 0;
+  Vec<UniformHeapBatch>    batches_                             = {};
+  gfx::DescriptorSetLayout descriptor_set_layout_               = {};
+  gfx::DescriptorHeapImpl  descriptor_heap_                     = {};
+  gfx::DeviceImpl          device_;
 
-  Array<u32, NUM_SIZE_CLASSES> size_classes_      = DEFAULT_SIZE_CLASSES;
-  u32                          batch_buffer_size_ = 0;
-  u32                          min_uniform_buffer_offset_alignment_ = 0;
-  u32                          batch_                               = 0;
-  u32                          batch_buffer_offset_                 = 0;
-  Vec<UniformHeapBatch>        batches_                             = {};
-  gfx::DescriptorSetLayout     descriptor_set_layout_               = {};
-  gfx::DescriptorHeapImpl      descriptor_heap_                     = {};
-  gfx::DeviceImpl              device_;
-
-  void init(
-      gfx::DeviceImpl device,
-      u32             batch_buffer_size    = DEFAULT_UNIFORM_BATCH_SIZE,
-      u32             descriptor_pool_size = 16,
-      Array<u32, NUM_SIZE_CLASSES> const &size_classes = DEFAULT_SIZE_CLASSES)
+  void init(gfx::DeviceImpl device,
+            u32             batch_buffer_size    = DEFAULT_UNIFORM_BATCH_SIZE,
+            u32             descriptor_pool_size = 16,
+            Array<u32, NUM_UNIFORM_SIZE_CLASSES> const &size_classes =
+                DEFAULT_UNIFORM_SIZE_CLASSES)
   {
     gfx::DeviceProperties properties =
         device->get_device_properties(device.self);
     min_uniform_buffer_offset_alignment_ =
         properties.limits.min_uniform_buffer_offset_alignment;
 
-    CHECK(batch_buffer_size >= size_classes[NUM_SIZE_CLASSES - 1]);
+    CHECK(batch_buffer_size >= size_classes[NUM_UNIFORM_SIZE_CLASSES - 1]);
     CHECK(batch_buffer_size >= min_uniform_buffer_offset_alignment_);
-    for (u8 i = 0; i < NUM_SIZE_CLASSES - 1; i++)
+    for (u8 i = 0; i < NUM_UNIFORM_SIZE_CLASSES - 1; i++)
     {
       CHECK(size_classes[i] < size_classes[i + 1]);
     }
@@ -618,16 +618,14 @@ struct UniformHeap
                                          .label    = "Uniform Buffer"_span,
                                          .bindings = to_span(bindings_desc)})
                                  .unwrap();
-    gfx::DescriptorSetLayout layouts[NUM_SIZE_CLASSES];
-    fill(layouts, descriptor_set_layout_);
 
     descriptor_heap_ = device
                            ->create_descriptor_heap(
                                device.self,
                                gfx::DescriptorHeapDesc{
-                                   .descriptor_set_layouts = to_span(layouts),
-                                   .groups_per_pool = descriptor_pool_size,
-                                   .allocator       = default_allocator})
+                                   .layout            = descriptor_set_layout_,
+                                   .num_sets_per_pool = descriptor_pool_size,
+                                   .allocator         = default_allocator})
                            .unwrap();
   }
 
@@ -637,7 +635,8 @@ struct UniformHeap
     {
       device_->destroy_buffer(device_.self, batch.buffer);
     }
-    device_->destroy_descriptor_set_layout(device_.self, descriptor_set_layout_);
+    device_->destroy_descriptor_set_layout(device_.self,
+                                           descriptor_set_layout_);
     device_->destroy_descriptor_heap(device_.self, descriptor_heap_);
     batches_.reset();
   }
@@ -658,10 +657,10 @@ struct UniformHeap
   {
     CHECK(alignment <= batch_buffer_size_);
     CHECK(uniform.size_bytes() <= batch_buffer_size_);
-    CHECK(uniform.size_bytes() <= size_classes_[NUM_SIZE_CLASSES - 1]);
+    CHECK(uniform.size_bytes() <= size_classes_[NUM_UNIFORM_SIZE_CLASSES - 1]);
 
     u8 size_class = 0;
-    for (; size_class < NUM_SIZE_CLASSES; size_class++)
+    for (; size_class < NUM_UNIFORM_SIZE_CLASSES; size_class++)
     {
       if (size_classes_[size_class] >= uniform.size_bytes())
       {
@@ -694,17 +693,20 @@ struct UniformHeap
                                            gfx::BufferUsage::TransferSrc})
               .unwrap();
 
-      u32 group = descriptor_heap_->add_group(descriptor_heap_.self).unwrap();
+      UniformHeapBatch batch{.buffer = buffer, .descriptors = {}};
 
-      for (u32 i = 0; i < NUM_SIZE_CLASSES; i++)
+      for (u32 i = 0; i < NUM_UNIFORM_SIZE_CLASSES; i++)
       {
+        u32 set = descriptor_heap_->allocate(descriptor_heap_.self).unwrap();
+        batch.descriptors[i] =
+            gfx::DescriptorSet{.heap = descriptor_heap_.self, .index = set};
         descriptor_heap_->dynamic_uniform_buffer(
-            descriptor_heap_.self, group, i, 0,
-            to_span<gfx::DynamicUniformBufferBinding>(
+            descriptor_heap_.self, set, 0,
+            to_span<gfx::BufferBinding>(
                 {{.buffer = buffer, .offset = 0, .size = size_classes_[i]}}));
       }
 
-      CHECK(batches_.push(UniformHeapBatch{.group = group, .buffer = buffer}));
+      CHECK(batches_.push(batch));
     }
 
     UniformHeapBatch const &batch = batches_[batch_index];
@@ -719,10 +721,8 @@ struct UniformHeap
     batch_               = batch_index;
     batch_buffer_offset_ = buffer_offset + uniform.size_bytes();
 
-    return Uniform{.set    = gfx::DescriptorSet{.heap  = descriptor_heap_.self,
-                                                .group = batch.group,
-                                                .set   = size_class},
-                   .buffer = batch.buffer,
+    return Uniform{.set           = batch.descriptors[size_class],
+                   .buffer        = batch.buffer,
                    .buffer_offset = buffer_offset};
   }
 

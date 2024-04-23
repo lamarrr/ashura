@@ -3,24 +3,28 @@
 
 #include "core.glsl"
 
-layout(location = 0) in vec2 i_rel_position;
-layout(location = 0) out vec2 o_rel_position;
+layout(location = 0) out vec2 o_pos;
 
 layout(set = 0, binding = 0) uniform Params
 {
   ViewTransform transform;
-  vec4          tint[4];
-  vec4          border_color[4];
-  vec4          border_radii;
+  float         radii[4];
+  vec2          uv[2];
+  vec4          tint;
+  vec4          border_color;
   float         border_thickness;
-  vec2          uv0;
-  vec2          uv1;
+  float         border_softness;
 }
 u_params;
 
+const uint INDEX_BUFFER[]  = {0, 1, 2, 2, 3, 0};
+const vec2 VERTEX_BUFFER[] = {vec2(-1, -1), vec2(1, -1), vec2(1, 1),
+                              vec2(-1, 1)};
+
 void main()
 {
-  vec4 position  = to_mvp(u_params.transform) * vec4(i_rel_position, 0, 1);
-  gl_Position    = position;
-  o_rel_position = i_rel_position;
+  uint vertex = INDEX_BUFFER[gl_VertexIndex];
+  vec2 i_pos  = VERTEX_BUFFER[vertex];
+  gl_Position = to_mvp(u_params.transform) * vec4(i_pos, 0, 1);
+  o_pos       = i_pos;
 }
