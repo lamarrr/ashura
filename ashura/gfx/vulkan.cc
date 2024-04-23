@@ -4710,7 +4710,6 @@ Result<u32, Status> DescriptorHeapInterface::allocate(gfx::DescriptorHeap self_)
 
     if (result != VK_SUCCESS)
     {
-      // TODO(lamarrr): reentrancy?
       self->device->vk_table.DestroyDescriptorPool(self->device->vk_device,
                                                    vk_pool, nullptr);
       return Err{(Status) result};
