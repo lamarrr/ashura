@@ -791,7 +791,7 @@ inline bool sync_image(ImageState &state, ImageAccess request,
   }
 }
 
-inline void access_buffer(CommandEncoder const &encoder, Buffer &buffer,
+inline void access_buffer(CommandEncoder const &enc, Buffer &buffer,
                           VkPipelineStageFlags stages, VkAccessFlags access)
 {
   VkBufferMemoryBarrier barrier;
@@ -808,13 +808,13 @@ inline void access_buffer(CommandEncoder const &encoder, Buffer &buffer,
     barrier.buffer              = buffer.vk_buffer;
     barrier.offset              = 0;
     barrier.size                = VK_WHOLE_SIZE;
-    encoder.device->vk_table.CmdPipelineBarrier(
-        encoder.vk_command_buffer, src_stages, dst_stages, 0, 0, nullptr, 1,
-        &barrier, 0, nullptr);
+    enc.device->vk_table.CmdPipelineBarrier(enc.vk_command_buffer, src_stages,
+                                            dst_stages, 0, 0, nullptr, 1,
+                                            &barrier, 0, nullptr);
   }
 }
 
-inline void access_image(CommandEncoder const &encoder, Image &image,
+inline void access_image(CommandEncoder const &enc, Image &image,
                          VkPipelineStageFlags stages, VkAccessFlags access,
                          VkImageLayout layout)
 {
@@ -837,16 +837,14 @@ inline void access_image(CommandEncoder const &encoder, Image &image,
     barrier.subresourceRange.levelCount     = VK_REMAINING_MIP_LEVELS;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount     = VK_REMAINING_ARRAY_LAYERS;
-    encoder.device->vk_table.CmdPipelineBarrier(
-        encoder.vk_command_buffer, src_stages, dst_stages, 0, 0, nullptr, 0,
-        nullptr, 1, &barrier);
+    enc.device->vk_table.CmdPipelineBarrier(enc.vk_command_buffer, src_stages,
+                                            dst_stages, 0, 0, nullptr, 0,
+                                            nullptr, 1, &barrier);
   }
 }
 
-inline void access_compute_bindings(CommandEncoder    &encoder,
-                                    gfx::DescriptorSet set)
+inline void access_compute_bindings(CommandEncoder &enc, gfx::DescriptorSet set)
 {
-  CommandEncoder *const self = &encoder;
   DescriptorHeap const *heap = (DescriptorHeap *) set.heap;
 
   for (u32 ibinding = 0; ibinding < heap->set_layout->num_bindings; ibinding++)
@@ -862,7 +860,7 @@ inline void access_compute_bindings(CommandEncoder    &encoder,
                          heap->binding_index_map[ibinding];
         for (u32 ielement = 0; ielement < binding.count; ielement++)
         {
-          access_image(encoder, *images[ielement],
+          access_image(enc, *images[ielement],
                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                        VK_ACCESS_SHADER_READ_BIT,
                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -876,7 +874,7 @@ inline void access_compute_bindings(CommandEncoder    &encoder,
                          heap->binding_index_map[ibinding];
         for (u32 ielement = 0; ielement < binding.count; ielement++)
         {
-          access_image(encoder, *images[ielement],
+          access_image(enc, *images[ielement],
                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                        VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
                        VK_IMAGE_LAYOUT_GENERAL);
@@ -892,7 +890,7 @@ inline void access_compute_bindings(CommandEncoder    &encoder,
                            heap->binding_index_map[ibinding];
         for (u32 ielement = 0; ielement < binding.count; ielement++)
         {
-          access_buffer(encoder, *buffers[ielement],
+          access_buffer(enc, *buffers[ielement],
                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                         VK_ACCESS_SHADER_READ_BIT);
         }
@@ -907,7 +905,7 @@ inline void access_compute_bindings(CommandEncoder    &encoder,
                            heap->binding_index_map[ibinding];
         for (u32 ielement = 0; ielement < binding.count; ielement++)
         {
-          access_buffer(encoder, *buffers[ielement],
+          access_buffer(enc, *buffers[ielement],
                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                         VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT);
         }
@@ -923,10 +921,9 @@ inline void access_compute_bindings(CommandEncoder    &encoder,
   }
 }
 
-inline void access_graphics_bindings(CommandEncoder    &encoder,
+inline void access_graphics_bindings(CommandEncoder    &enc,
                                      gfx::DescriptorSet set)
 {
-  CommandEncoder *const self = &encoder;
   DescriptorHeap const *heap = (DescriptorHeap *) set.heap;
   u32 const             idx  = set.index;
 
@@ -944,7 +941,7 @@ inline void access_graphics_bindings(CommandEncoder    &encoder,
                          heap->binding_index_map[ibinding];
         for (u32 ielement = 0; ielement < binding.count; ielement++)
         {
-          access_image(encoder, *images[ielement],
+          access_image(enc, *images[ielement],
                        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                        VK_ACCESS_SHADER_READ_BIT,
@@ -961,7 +958,7 @@ inline void access_graphics_bindings(CommandEncoder    &encoder,
                            heap->binding_index_map[ibinding];
         for (u32 ielement = 0; ielement < binding.count; ielement++)
         {
-          access_buffer(encoder, *buffers[ielement],
+          access_buffer(enc, *buffers[ielement],
                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         VK_ACCESS_SHADER_READ_BIT);
@@ -3333,25 +3330,25 @@ Result<gfx::CommandEncoderImpl, Status>
     return Err{(Status) result};
   }
 
-  CommandEncoder *encoder = self->allocator.allocate_typed<CommandEncoder>(1);
+  CommandEncoder *enc = self->allocator.allocate_typed<CommandEncoder>(1);
 
-  if (encoder == nullptr)
+  if (enc == nullptr)
   {
     self->vk_table.DestroyCommandPool(self->vk_device, vk_command_pool,
                                       nullptr);
     return Err{Status::OutOfHostMemory};
   }
 
-  new (encoder) CommandEncoder{.allocator         = allocator,
-                               .logger            = self->logger,
-                               .device            = self,
-                               .vk_command_pool   = vk_command_pool,
-                               .vk_command_buffer = vk_command_buffer,
-                               .status            = Status::Success,
-                               .state             = CommandEncoderState::Reset,
-                               .ctx               = {}};
+  new (enc) CommandEncoder{.allocator         = allocator,
+                           .logger            = self->logger,
+                           .device            = self,
+                           .vk_command_pool   = vk_command_pool,
+                           .vk_command_buffer = vk_command_buffer,
+                           .status            = Status::Success,
+                           .state             = CommandEncoderState::Reset,
+                           .ctx               = {}};
 
-  return Ok{gfx::CommandEncoderImpl{.self      = (gfx::CommandEncoder) encoder,
+  return Ok{gfx::CommandEncoderImpl{.self      = (gfx::CommandEncoder) enc,
                                     .interface = &command_encoder_interface}};
 }
 
@@ -3991,18 +3988,18 @@ void DeviceInterface::destroy_fence(gfx::Device self_, gfx::Fence fence_)
 void DeviceInterface::destroy_command_encoder(gfx::Device             self_,
                                               gfx::CommandEncoderImpl encoder_)
 {
-  Device *const         self    = (Device *) self_;
-  CommandEncoder *const encoder = (CommandEncoder *) encoder_.self;
+  Device *const         self = (Device *) self_;
+  CommandEncoder *const enc  = (CommandEncoder *) encoder_.self;
 
-  if (encoder == nullptr)
+  if (enc == nullptr)
   {
     return;
   }
   // todo(lamarrr): destroy context
 
-  self->vk_table.DestroyCommandPool(self->vk_device, encoder->vk_command_pool,
+  self->vk_table.DestroyCommandPool(self->vk_device, enc->vk_command_pool,
                                     nullptr);
-  self->allocator.deallocate_typed(encoder, 1);
+  self->allocator.deallocate_typed(enc, 1);
 }
 
 void DeviceInterface::destroy_frame_context(gfx::Device       self_,
@@ -4465,15 +4462,17 @@ Result<Void, Status>
 
   self->vk_table.ResetCommandBuffer(enc->vk_command_buffer, 0);
 
-  encoder->bound_compute_pipeline    = nullptr;
-  encoder->bound_graphics_pipeline   = nullptr;
-  encoder->bound_render_pass         = nullptr;
-  encoder->bound_framebuffer         = nullptr;
-  encoder->num_bound_vertex_buffers  = 0;
-  encoder->bound_index_buffer        = nullptr;
-  encoder->num_bound_descriptor_sets = 0;
-  encoder->status                    = Status::Success;
-  encoder->is_recording              = true;
+  // TODO(lamarrr):
+  // enc->bound_compute_pipeline    = nullptr;
+  // enc->bound_graphics_pipeline   = nullptr;
+  // enc->bound_render_pass         = nullptr;
+  // enc->bound_framebuffer         = nullptr;
+  // enc->num_bound_vertex_buffers  = 0;
+  // enc->bound_index_buffer        = nullptr;
+  // enc->num_bound_descriptor_sets = 0;
+  // enc->status                    = Status::Success;
+  // enc->is_recording              = true;
+  enc->reset_context();
 
   VkCommandBufferBeginInfo info{
       .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -5920,8 +5919,6 @@ void CommandEncoderInterface::begin_render_pass(
       (u32) color_attachments_clear_values.size();
   u32 const num_depth_clear_values =
       (u32) depth_stencil_attachment_clear_value.size();
-  bool const has_depth_stencil_attachment =
-      framebuffer->depth_stencil_attachment != nullptr;
 
   VALIDATE(!self->is_in_render_pass());
   VALIDATE(num_depth_clear_values == 0 || num_depth_clear_values == 1);
@@ -6234,17 +6231,13 @@ void CommandEncoderInterface::bind_descriptor_sets(
       if (self->is_in_render_pass())
       {
         VALIDATE(binding_type != gfx::DescriptorType::StorageBuffer &&
-                     binding_type != gfx::DescriptorType::StorageImage &&
-                     binding_type != gfx::DescriptorType::StorageTexelBuffer &&
-                     binding_type != gfx::DescriptorType::DynamicStorageBuffer,
-                 "Access of Storage type descriptors from graphics "
-                 "shaders unsupported");
+                 binding_type != gfx::DescriptorType::StorageImage &&
+                 binding_type != gfx::DescriptorType::StorageTexelBuffer &&
+                 binding_type != gfx::DescriptorType::DynamicStorageBuffer);
       }
       else if (self->is_in_compute_pass())
       {
-        VALIDATE(binding_type != gfx::DescriptorType::InputAttachment,
-                 "Access of Storage type descriptors from graphics "
-                 "shaders unsupported");
+        VALIDATE(binding_type != gfx::DescriptorType::InputAttachment);
       }
     }
   }

@@ -251,12 +251,12 @@ int main(int, char **)
   ShaderParameterHeap<RRectShaderParameter> heap;
   heap.init(device, 4);
 
-  gfx::Sampler sampler =
+  gfx::Sampler smp =
       device->create_sampler(device.self, gfx::SamplerDesc{}).unwrap();
 
   gfx::DescriptorSet set = heap.create(
       RRectShaderParameter{.albedo = gfx::CombinedImageSamplerBinding{
-                               .sampler = sampler, .image_view = img_view}});
+                               .sampler = smp, .image_view = img_view}});
 
   while (!should_close)
   {
