@@ -240,7 +240,7 @@ struct HashMap
         if (replaced_uninit != nullptr)
         {
           new (replaced_uninit) V{(V &&) dst_probe->value};
-          dst_probe->value = V{((Args &&) value_args)...};
+          dst_probe->value = (V &&) entry.value;
         }
         break;
       }
@@ -261,34 +261,32 @@ struct HashMap
     return true;
   }
 
-  constexpr void erase_probe_(usize erase_index)
+  constexpr void pop_probe_(usize pop_index)
   {
-    usize probe_index = erase_index;
-    do
+    usize insert_index = pop_index;
+    usize probe_index  = (pop_index + 1) & (num_probes_ - 1);
+    while (probe_index != pop_index)
     {
-      usize     next_probe_index    = (probe_index + 1) & (num_probes_ - 1);
-      Entry    *probe               = probes_ + probe_index;
-      Entry    *next_probe          = probes_ + next_probe_index;
-      Distance *probe_distance      = probe_distances_ + probe_index;
-      Distance *next_probe_distance = probe_distances_ + next_probe_index;
+      Entry    *probe          = probes_ + probe_index;
+      Distance *probe_distance = probe_distances_ + probe_index;
 
-      if (*next_probe_distance == 0 || *next_probe_distance == PROBE_SENTINEL)
+      if (*probe_distance == 0 || *probe_distance == PROBE_SENTINEL)
       {
-        *probe_distance = PROBE_SENTINEL;
-        probe->~Entry();
         break;
       }
 
-      *probe_distance      = *next_probe_distance - 1;
-      *probe               = (Entry &&) *next_probe;
-      *next_probe_distance = PROBE_SENTINEL;
-      next_probe->~Entry();
-      probe_index = next_probe_index;
-    } while (probe_index != erase_index);
-    num_entries_--;
+      Entry    *insert_probe          = probes_ + insert_index;
+      Distance *insert_probe_distance = probe_distances_ + insert_index;
+
+      mem::relocate(probe, insert_probe, 1);
+      *insert_probe_distance = *probe_distance - 1;
+      *probe_distance        = PROBE_SENTINEL;
+      probe_index            = (probe_index + 1) & (num_probes_ - 1);
+      insert_index           = (insert_index + 1) & (num_probes_ - 1);
+    }
   }
 
-  constexpr bool erase(K const &key)
+  constexpr bool erase(K const &key, V *erased_uninit = nullptr)
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
@@ -308,7 +306,18 @@ struct HashMap
       Entry *dst_probe = probes_ + probe_index;
       if (cmp_(dst_probe->key, key))
       {
-        erase_probe_(probe_index);
+        if (erased_uninit != nullptr)
+        {
+          mem::relocate(&dst_probe->value, erased_uninit, 1);
+          dst_probe->key.~K();
+        }
+        else
+        {
+          dst_probe->~Entry();
+        }
+        *dst_probe_distance = PROBE_SENTINEL;
+        pop_probe_(probe_index);
+        num_entries_--;
         return true;
       }
       probe_index = (probe_index + 1) & (num_probes_ - 1);

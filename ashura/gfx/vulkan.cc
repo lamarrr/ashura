@@ -3985,6 +3985,45 @@ void DeviceInterface::destroy_fence(gfx::Device self_, gfx::Fence fence_)
   self->vk_table.DestroyFence(self->vk_device, (Fence) fence_, nullptr);
 }
 
+void CommandEncoder::reset_context()
+{
+  switch (state)
+  {
+    case CommandEncoderState::RenderPass:
+      uninit_rp_context();
+      break;
+
+    case CommandEncoderState::ComputePass:
+      uninit_cp_context();
+      break;
+    default:
+      break;
+  }
+}
+
+void CommandEncoder::init_rp_context()
+{
+  new (&ctx.rp) RenderPassContext{.commands = {allocator}};
+  state = CommandEncoderState::RenderPass;
+}
+
+void CommandEncoder::uninit_rp_context()
+{
+  ctx.rp.commands.reset();
+  state = CommandEncoderState::Begin;
+}
+
+void CommandEncoder::init_cp_context()
+{
+  new (&ctx.cp) ComputePassContext{};
+  state = CommandEncoderState::ComputePass;
+}
+
+void CommandEncoder::uninit_cp_context()
+{
+  state = CommandEncoderState::Begin;
+}
+
 void DeviceInterface::destroy_command_encoder(gfx::Device             self_,
                                               gfx::CommandEncoderImpl encoder_)
 {
@@ -3995,7 +4034,7 @@ void DeviceInterface::destroy_command_encoder(gfx::Device             self_,
   {
     return;
   }
-  // todo(lamarrr): destroy context
+  enc->reset_context();
 
   self->vk_table.DestroyCommandPool(self->vk_device, enc->vk_command_pool,
                                     nullptr);
@@ -4462,16 +4501,6 @@ Result<Void, Status>
 
   self->vk_table.ResetCommandBuffer(enc->vk_command_buffer, 0);
 
-  // TODO(lamarrr):
-  // enc->bound_compute_pipeline    = nullptr;
-  // enc->bound_graphics_pipeline   = nullptr;
-  // enc->bound_render_pass         = nullptr;
-  // enc->bound_framebuffer         = nullptr;
-  // enc->num_bound_vertex_buffers  = 0;
-  // enc->bound_index_buffer        = nullptr;
-  // enc->num_bound_descriptor_sets = 0;
-  // enc->status                    = Status::Success;
-  // enc->is_recording              = true;
   enc->reset_context();
 
   VkCommandBufferBeginInfo info{
@@ -5934,7 +5963,7 @@ void CommandEncoderInterface::begin_render_pass(
   VALIDATE((render_offset.x + render_extent.x) <= framebuffer->extent.x);
   VALIDATE((render_offset.y + render_extent.y) <= framebuffer->extent.y);
 
-  // TODO(lamarrr): init renderpass state
+  self->init_rp_context();
   self->ctx.rp.render_pass = render_pass;
   self->ctx.rp.framebuffer = framebuffer;
   mem::copy(color_attachments_clear_values, self->ctx.rp.color_clear_values);
@@ -5963,14 +5992,14 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
       break;
       case RenderCommandType::BindVertexBuffer:
       {
-        access_buffer(*self, *cmd.bind_vertex_buffer.v1,
+        access_buffer(*self, *cmd.vertex_buffer.v1,
                       VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
                       VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
       }
       break;
       case RenderCommandType::BindIndexBuffer:
       {
-        access_buffer(*self, *cmd.bind_index_buffer.v0,
+        access_buffer(*self, *cmd.index_buffer.v0,
                       VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
                       VK_ACCESS_INDEX_READ_BIT);
       }
@@ -6129,15 +6158,15 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
       case RenderCommandType::BindVertexBuffer:
       {
         self->device->vk_table.CmdBindVertexBuffers(
-            self->vk_command_buffer, cmd.bind_vertex_buffer.v0, 1,
-            &cmd.bind_vertex_buffer.v1->vk_buffer, &cmd.bind_vertex_buffer.v2);
+            self->vk_command_buffer, cmd.vertex_buffer.v0, 1,
+            &cmd.vertex_buffer.v1->vk_buffer, &cmd.vertex_buffer.v2);
       }
       break;
       case RenderCommandType::BindIndexBuffer:
       {
         self->device->vk_table.CmdBindIndexBuffer(
-            self->vk_command_buffer, cmd.bind_index_buffer.v0->vk_buffer,
-            cmd.bind_index_buffer.v1, (VkIndexType) cmd.bind_index_buffer.v2);
+            self->vk_command_buffer, cmd.index_buffer.v0->vk_buffer,
+            cmd.index_buffer.v1, (VkIndexType) cmd.index_buffer.v2);
       }
       break;
       case RenderCommandType::Draw:
@@ -6185,9 +6214,8 @@ void CommandEncoderInterface::bind_compute_pipeline(
 {
   ENCODER_PRELUDE();
   VALIDATE(!self->is_in_render_pass());
-  // TODO(lamarrr): how to transition contexts
+  self->init_cp_context();
   self->ctx.cp.pipeline = (ComputePipeline *) pipeline;
-  self->state           = CommandEncoderState::ComputePass;
 
   self->device->vk_table.CmdBindPipeline(self->vk_command_buffer,
                                          VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -6219,7 +6247,6 @@ void CommandEncoderInterface::bind_descriptor_sets(
   VALIDATE((self->is_in_render_pass() && self->ctx.rp.pipeline != nullptr) ||
            (self->is_in_compute_pass() && self->ctx.cp.pipeline != nullptr));
   VALIDATE(num_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
-  VALIDATE(num_dynamic_offsets <= num_sets);
   for (gfx::DescriptorSet set : descriptor_sets)
   {
     DescriptorHeap *heap = (DescriptorHeap *) set.heap;
@@ -6249,10 +6276,6 @@ void CommandEncoderInterface::bind_descriptor_sets(
 
   if (self->is_in_compute_pass())
   {
-    // TODO(lamarrr):
-    // self->num_bound_descriptor_sets = num_sets;
-    // VkPipelineBindPoint vk_bind_point = ;
-    // VkPipelineLayout    vk_layout     = nullptr;
     VkDescriptorSet vk_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
     for (u32 iset = 0; iset < num_sets; iset++)
     {
@@ -6269,9 +6292,13 @@ void CommandEncoderInterface::bind_descriptor_sets(
         num_dynamic_offsets, dynamic_offsets.data());
   }
   else if (self->is_in_render_pass())
-  {        // for()
+  {
+    // TODO(lamarrr):
+    // for()
     // RenderCommand cmd{ .type = RenderCommandType::BindDescriptorSets,
     // .set = {   }};
+    // u32 dyn_offset_idx = 0;
+    // for(  )
     self->ctx.rp.commands.push();
   }
   else
@@ -6471,10 +6498,9 @@ void CommandEncoderInterface::bind_vertex_buffers(
 
   for (u32 i = 0; i < num_vertex_buffers; i++)
   {
-    if (!self->ctx.rp.commands.push(
-            RenderCommand{.type = RenderCommandType::BindVertexBuffer,
-                          .bind_vertex_buffer = {
-                              i, (Buffer *) vertex_buffers[i], offsets[i]}}))
+    if (!self->ctx.rp.commands.push(RenderCommand{
+            .type          = RenderCommandType::BindVertexBuffer,
+            .vertex_buffer = {i, (Buffer *) vertex_buffers[i], offsets[i]}}))
     {
       self->status = Status::OutOfHostMemory;
       return;
@@ -6499,9 +6525,9 @@ void CommandEncoderInterface::bind_index_buffer(gfx::CommandEncoder self_,
   self->ctx.rp.index_buffer        = index_buffer;
   self->ctx.rp.index_type          = index_type;
   self->ctx.rp.index_buffer_offset = offset;
-  if (!self->ctx.rp.commands.push(RenderCommand{
-          .type              = RenderCommandType::BindIndexBuffer,
-          .bind_index_buffer = {index_buffer, offset, index_type}}))
+  if (!self->ctx.rp.commands.push(
+          RenderCommand{.type         = RenderCommandType::BindIndexBuffer,
+                        .index_buffer = {index_buffer, offset, index_type}}))
   {
     self->status = Status::OutOfHostMemory;
     return;

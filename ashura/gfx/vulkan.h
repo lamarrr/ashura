@@ -438,18 +438,18 @@ struct RenderCommand
   union
   {
     char                                                       none_ = 0;
-    Tuple<gfx::DescriptorSet, u32, u32>                        set;
+    Tuple<u32, gfx::DescriptorSet, u32, bool>                  set;
     GraphicsPipeline                                          *pipeline;
     Tuple<GraphicsPipeline *, u8[gfx::MAX_PUSH_CONSTANT_SIZE]> push_constant;
     gfx::Viewport                                              viewport;
     Tuple<gfx::Offset, gfx::Extent>                            scissor;
     Vec4                                                       blend_constant;
     Tuple<gfx::StencilFaces, u32>                              stencil;
-    Tuple<u32, Buffer *, u64>            bind_vertex_buffer;
-    Tuple<Buffer *, u64, gfx::IndexType> bind_index_buffer;
-    Tuple<u32, u32, u32, u32>            draw;
-    Tuple<u32, u32, i32, u32, u32>       draw_indexed;
-    Tuple<Buffer *, u64, u32, u32>       draw_indirect;
+    Tuple<u32, Buffer *, u64>                                  vertex_buffer;
+    Tuple<Buffer *, u64, gfx::IndexType>                       index_buffer;
+    Tuple<u32, u32, u32, u32>                                  draw;
+    Tuple<u32, u32, i32, u32, u32>                             draw_indexed;
+    Tuple<Buffer *, u64, u32, u32>                             draw_indirect;
   };
 };
 
@@ -513,6 +513,10 @@ struct CommandEncoder
   }
 
   void reset_context();
+  void init_rp_context();
+  void uninit_rp_context();
+  void init_cp_context();
+  void uninit_cp_context();
 };
 
 inline gfx::Surface surface_to_vk(VkSurfaceKHR s)
