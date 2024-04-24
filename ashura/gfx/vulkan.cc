@@ -6275,7 +6275,7 @@ void CommandEncoderInterface::bind_descriptor_sets(
     }
   }
 
-    if (self->is_in_compute_pass())
+  if (self->is_in_compute_pass())
   {
     VkDescriptorSet vk_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
     for (u32 iset = 0; iset < num_sets; iset++)
