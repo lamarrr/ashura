@@ -5010,6 +5010,7 @@ void DescriptorHeapInterface::uniform_texel_buffer(
 
   for (gfx::TexelBufferBinding const &element : elements)
   {
+    // TODO(lamarrr): check alingment of buffer
     VALIDATE(has_bits(BUFFER_FROM_VIEW(element.buffer_view)->desc.usage,
                       gfx::BufferUsage::UniformTexelBuffer));
   }
@@ -5092,6 +5093,7 @@ void DescriptorHeapInterface::uniform_buffer(
 
   for (gfx::BufferBinding const &element : elements)
   {
+    // TODO(lamarrr): check alingment of buffer
     VALIDATE(has_bits(((Buffer *) element.buffer)->desc.usage,
                       gfx::BufferUsage::UniformBuffer));
   }
@@ -5139,6 +5141,7 @@ void DescriptorHeapInterface::storage_buffer(
   {
     VALIDATE(has_bits(((Buffer *) element.buffer)->desc.usage,
                       gfx::BufferUsage::StorageBuffer));
+    // TODO(lamarrr): max uniform buffer range
     VALIDATE((element.offset % self->device->physical_device.properties.limits
                                    .minStorageBufferOffsetAlignment) == 0);
   }
@@ -5183,6 +5186,7 @@ void DescriptorHeapInterface::dynamic_uniform_buffer(
   DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::DynamicUniformBuffer);
   for (gfx::BufferBinding const &element : elements)
   {
+    // TODO(lamarrr): max uniform buffer range
     VALIDATE(has_bits(((Buffer *) element.buffer)->desc.usage,
                       gfx::BufferUsage::UniformBuffer));
     VALIDATE((element.offset % self->device->physical_device.properties.limits
@@ -5230,6 +5234,7 @@ void DescriptorHeapInterface::dynamic_storage_buffer(
 
   for (gfx::BufferBinding const &element : elements)
   {
+    // TODO(lamarrr): max uniform buffer range
     VALIDATE(has_bits(((Buffer *) element.buffer)->desc.usage,
                       gfx::BufferUsage::StorageBuffer));
     VALIDATE((element.offset % self->device->physical_device.properties.limits
@@ -6248,6 +6253,7 @@ void CommandEncoderInterface::bind_descriptor_sets(
            (self->is_in_compute_pass() && self->ctx.cp.pipeline != nullptr));
   VALIDATE(num_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
 
+  // TODO(lamarrr): check for dynamic storage, uniform
   for (u32 offset : dynamic_offsets)
   {
     VALIDATE((offset % self->device->physical_device.properties.limits
@@ -6294,12 +6300,19 @@ void CommandEncoderInterface::bind_descriptor_sets(
   }
   else if (self->is_in_render_pass())
   {
+    // TODO(lamarrr): arena sub-allocator/linear context allocation
     // TODO(lamarrr):
     // for()
     // RenderCommand cmd{ .type = RenderCommandType::BindDescriptorSets,
     // .set = {   }};
     // u32 dyn_offset_idx = 0;
     // for(  )
+    // COMMANDs interleaved with command parameters + info?, return span<u8> for
+    // pop
+    //
+    // begin_command
+    // end_command
+    //
     self->ctx.rp.commands.push();
   }
   else
