@@ -2593,10 +2593,24 @@ Result<gfx::DescriptorSetLayout, Status>
     DeviceInterface::create_descriptor_set_layout(
         gfx::Device self_, gfx::DescriptorSetLayoutDesc const &desc)
 {
-  Device *const self         = (Device *) self_;
-  u32 const     num_bindings = (u32) desc.bindings.size();
+  Device *const self                = (Device *) self_;
+  u32 const     num_bindings        = (u32) desc.bindings.size();
+  u32           num_dynamic_buffers = 0;
+
+  for (gfx::DescriptorBindingDesc const &desc : desc.bindings)
+  {
+    switch (desc.type)
+    {
+      case gfx::DescriptorType::DynamicStorageBuffer:
+      case gfx::DescriptorType::DynamicUniformBuffer:
+        num_dynamic_buffers += desc.count;
+      default:
+        break;
+    }
+  }
 
   VALIDATE(num_bindings > 0);
+  VALIDATE(num_dynamic_buffers <= gfx::MAX_DESCRIPTOR_DYNAMIC_BUFFERS);
   for (u32 i = 0; i < num_bindings; i++)
   {
     VALIDATE(desc.bindings[i].count > 0);
@@ -4003,13 +4017,15 @@ void CommandEncoder::reset_context()
 
 void CommandEncoder::init_rp_context()
 {
-  new (&ctx.rp) RenderPassContext{.commands = {allocator}};
+  new (&ctx.rp) RenderPassContext{.commands        = {allocator},
+                                  .dynamic_offsets = {allocator}};
   state = CommandEncoderState::RenderPass;
 }
 
 void CommandEncoder::uninit_rp_context()
 {
   ctx.rp.commands.reset();
+  ctx.rp.dynamic_offsets.reset();
   state = CommandEncoderState::Begin;
 }
 
@@ -6086,6 +6102,8 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
         self->vk_command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
   }
 
+  GraphicsPipeline *pipeline = nullptr;
+
   for (RenderCommand const &cmd : self->ctx.rp.commands)
   {
     switch (cmd.type)
@@ -6096,6 +6114,7 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
       break;
       case RenderCommandType::BindPipeline:
       {
+        pipeline = cmd.pipeline;
         self->device->vk_table.CmdBindPipeline(self->vk_command_buffer,
                                                VK_PIPELINE_BIND_POINT_GRAPHICS,
                                                cmd.pipeline->vk_pipeline);
@@ -6104,9 +6123,8 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
       case RenderCommandType::PushConstants:
       {
         self->device->vk_table.CmdPushConstants(
-            self->vk_command_buffer, cmd.push_constant.v0->vk_layout,
-            VK_SHADER_STAGE_ALL, 0, cmd.push_constant.v0->push_constant_size,
-            cmd.push_constant.v1);
+            self->vk_command_buffer, pipeline->vk_layout, VK_SHADER_STAGE_ALL,
+            0, pipeline->push_constant_size, cmd.push_constant.v0);
       }
       break;
       case RenderCommandType::SetViewport:
@@ -6301,6 +6319,10 @@ void CommandEncoderInterface::bind_descriptor_sets(
   else if (self->is_in_render_pass())
   {
     // TODO(lamarrr): arena sub-allocator/linear context allocation
+    //
+    // could use vec but needs to be aligned, linear allocation is best for
+    // this.
+    //
     // TODO(lamarrr):
     // for()
     // RenderCommand cmd{ .type = RenderCommandType::BindDescriptorSets,
@@ -6310,8 +6332,7 @@ void CommandEncoderInterface::bind_descriptor_sets(
     // COMMANDs interleaved with command parameters + info?, return span<u8> for
     // pop
     //
-    // begin_command
-    // end_command
+    // Vec<u64> dyn_offsets; in ctx, store Slice to it
     //
     self->ctx.rp.commands.push();
   }
@@ -6344,8 +6365,7 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
     VALIDATE(push_constants_data.size() ==
              self->ctx.rp.pipeline->push_constant_size);
     RenderCommand cmd{.type = RenderCommandType::PushConstants};
-    cmd.push_constant.v0 = self->ctx.rp.pipeline;
-    mem::copy(push_constants_data, cmd.push_constant.v1);
+    mem::copy(push_constants_data, cmd.push_constant.v0);
     if (!self->ctx.rp.commands.push(cmd))
     {
       self->status = Status::OutOfHostMemory;

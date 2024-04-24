@@ -437,19 +437,23 @@ struct RenderCommand
   RenderCommandType type = RenderCommandType::None;
   union
   {
-    char                                                       none_ = 0;
-    Tuple<u32, gfx::DescriptorSet, u32, bool>                  set;
-    GraphicsPipeline                                          *pipeline;
-    Tuple<GraphicsPipeline *, u8[gfx::MAX_PUSH_CONSTANT_SIZE]> push_constant;
-    gfx::Viewport                                              viewport;
-    Tuple<gfx::Offset, gfx::Extent>                            scissor;
-    Vec4                                                       blend_constant;
-    Tuple<gfx::StencilFaces, u32>                              stencil;
-    Tuple<u32, Buffer *, u64>                                  vertex_buffer;
-    Tuple<Buffer *, u64, gfx::IndexType>                       index_buffer;
-    Tuple<u32, u32, u32, u32>                                  draw;
-    Tuple<u32, u32, i32, u32, u32>                             draw_indexed;
-    Tuple<Buffer *, u64, u32, u32>                             draw_indirect;
+    char none_ = 0;
+    Tuple<gfx::DescriptorSet[gfx::MAX_PIPELINE_DESCRIPTOR_SETS], u8,
+          u32[gfx::MAX_PIPELINE_DESCRIPTOR_SETS *
+              gfx::MAX_DESCRIPTOR_DYNAMIC_BUFFERS],
+          u8>
+                                           set;
+    GraphicsPipeline                      *pipeline;
+    Tuple<u8[gfx::MAX_PUSH_CONSTANT_SIZE]> push_constant;
+    gfx::Viewport                          viewport;
+    Tuple<gfx::Offset, gfx::Extent>        scissor;
+    Vec4                                   blend_constant;
+    Tuple<gfx::StencilFaces, u32>          stencil;
+    Tuple<u32, Buffer *, u64>              vertex_buffer;
+    Tuple<Buffer *, u64, gfx::IndexType>   index_buffer;
+    Tuple<u32, u32, u32, u32>              draw;
+    Tuple<u32, u32, i32, u32, u32>         draw_indexed;
+    Tuple<Buffer *, u64, u32, u32>         draw_indirect;
   };
 };
 
@@ -464,6 +468,7 @@ struct RenderPassContext
   gfx::DepthStencil  depth_stencil_clear_value;
   u32                num_depth_stencil_clear_values             = 0;
   Vec<RenderCommand> commands                                   = {};
+  Vec<u64>           dynamic_offsets                            = {};
   Buffer            *vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
   u32                num_vertex_buffers                         = 0;
   Buffer            *index_buffer                               = nullptr;
