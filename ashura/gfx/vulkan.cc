@@ -6001,6 +6001,9 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
   VALIDATE(self->is_in_render_pass());
   RenderPassContext &ctx = self->ctx.rp;
 
+  // TODO(lamarrr): memory consumption for render command is just too much,
+  // reduce. we can have SOA? and parameters also specified in another SOA, and
+  // indexes to iterate through
   for (RenderCommand const &cmd : ctx.commands)
   {
     switch (cmd.type)
