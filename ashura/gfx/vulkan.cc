@@ -6247,6 +6247,13 @@ void CommandEncoderInterface::bind_descriptor_sets(
   VALIDATE((self->is_in_render_pass() && self->ctx.rp.pipeline != nullptr) ||
            (self->is_in_compute_pass() && self->ctx.cp.pipeline != nullptr));
   VALIDATE(num_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
+
+  for (u32 offset : dynamic_offsets)
+  {
+    VALIDATE((offset % self->device->physical_device.properties.limits
+                           .minUniformBufferOffsetAlignment) == 0);
+  }
+
   for (gfx::DescriptorSet set : descriptor_sets)
   {
     DescriptorHeap *heap = (DescriptorHeap *) set.heap;
@@ -6268,13 +6275,7 @@ void CommandEncoderInterface::bind_descriptor_sets(
     }
   }
 
-  for (u32 offset : dynamic_offsets)
-  {
-    VALIDATE((offset % self->device->physical_device.properties.limits
-                           .minUniformBufferOffsetAlignment) == 0);
-  }
-
-  if (self->is_in_compute_pass())
+    if (self->is_in_compute_pass())
   {
     VkDescriptorSet vk_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
     for (u32 iset = 0; iset < num_sets; iset++)
