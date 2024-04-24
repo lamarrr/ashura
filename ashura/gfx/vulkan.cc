@@ -1956,7 +1956,6 @@ gfx::DeviceProperties DeviceInterface::get_device_properties(gfx::Device self_)
                              strlen(vk_properties.deviceName)},
       .type               = (gfx::DeviceType) vk_properties.deviceType,
       .has_unified_memory = has_uma,
-      .features           = gfx::DeviceFeatures::Basic,
       .limits             = limits};
 }
 

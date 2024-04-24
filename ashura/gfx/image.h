@@ -27,8 +27,6 @@ constexpr u32 pixel_byte_size(gfx::Format fmt)
       return 24;
     case gfx::Format::R32G32B32A32_SFLOAT:
       return 16;
-    case gfx::Format::A8_UNORM:
-      return 1;
     default:
     case gfx::Format::Undefined:
       return 0;

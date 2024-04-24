@@ -1209,7 +1209,6 @@ struct DeviceProperties
   Span<char const> device_name        = {};
   DeviceType       type               = DeviceType::Other;
   bool             has_unified_memory = false;
-  DeviceFeatures   features           = DeviceFeatures::Basic;
   DeviceLimits     limits             = {};
 };
 

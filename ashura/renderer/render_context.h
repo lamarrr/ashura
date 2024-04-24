@@ -55,12 +55,10 @@ struct RenderContext
   static constexpr gfx::FormatFeatures COLOR_FEATURES =
       gfx::FormatFeatures::ColorAttachment |
       gfx::FormatFeatures::ColorAttachmentBlend |
-      gfx::FormatFeatures::StorageImage | gfx::FormatFeatures::SampledImage |
-      gfx::FormatFeatures::TransferDst | gfx::FormatFeatures::TransferSrc;
+      gfx::FormatFeatures::StorageImage | gfx::FormatFeatures::SampledImage;
   static constexpr gfx::FormatFeatures DEPTH_STENCIL_FEATURES =
       gfx::FormatFeatures::DepthStencilAttachment |
-      gfx::FormatFeatures::SampledImage | gfx::FormatFeatures::TransferDst |
-      gfx::FormatFeatures::TransferSrc;
+      gfx::FormatFeatures::SampledImage;
 
   gfx::DeviceImpl    device               = {};
   gfx::PipelineCache pipeline_cache       = nullptr;
