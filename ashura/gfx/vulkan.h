@@ -412,7 +412,7 @@ enum class CommandEncoderState : u16
   End         = 4
 };
 
-enum class RenderCommandType : u32
+enum class RenderCommandType : u8
 {
   None                  = 0,
   BindDescriptorSet     = 1,
@@ -438,22 +438,22 @@ struct RenderCommand
   union
   {
     char none_ = 0;
-    Tuple<gfx::DescriptorSet[gfx::MAX_PIPELINE_DESCRIPTOR_SETS], u8,
+    Tuple<gfx::DescriptorSet[gfx::MAX_PIPELINE_DESCRIPTOR_SETS],
           u32[gfx::MAX_PIPELINE_DESCRIPTOR_SETS *
               gfx::MAX_DESCRIPTOR_DYNAMIC_BUFFERS],
-          u8>
-                                           set;
-    GraphicsPipeline                      *pipeline;
-    Tuple<u8[gfx::MAX_PUSH_CONSTANT_SIZE]> push_constant;
-    gfx::Viewport                          viewport;
-    Tuple<gfx::Offset, gfx::Extent>        scissor;
-    Vec4                                   blend_constant;
-    Tuple<gfx::StencilFaces, u32>          stencil;
-    Tuple<u32, Buffer *, u64>              vertex_buffer;
-    Tuple<Buffer *, u64, gfx::IndexType>   index_buffer;
-    Tuple<u32, u32, u32, u32>              draw;
-    Tuple<u32, u32, i32, u32, u32>         draw_indexed;
-    Tuple<Buffer *, u64, u32, u32>         draw_indirect;
+          u8, u8>
+                                    set;
+    GraphicsPipeline               *pipeline;
+    u8                              push_constant[gfx::MAX_PUSH_CONSTANT_SIZE];
+    gfx::Viewport                   viewport;
+    Tuple<gfx::Offset, gfx::Extent> scissor;
+    Vec4                            blend_constant;
+    Tuple<gfx::StencilFaces, u32>   stencil;
+    Tuple<u32, Buffer *, u64>       vertex_buffer;
+    Tuple<Buffer *, u64, gfx::IndexType> index_buffer;
+    Tuple<u32, u32, u32, u32>            draw;
+    Tuple<u32, u32, i32, u32, u32>       draw_indexed;
+    Tuple<Buffer *, u64, u32, u32>       draw_indirect;
   };
 };
 

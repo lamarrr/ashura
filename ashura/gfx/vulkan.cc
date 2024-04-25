@@ -1366,15 +1366,15 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   VkResult result = self->vk_table.EnumeratePhysicalDevices(
       self->vk_instance, &num_devices, nullptr);
 
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
   if (num_devices == 0)
   {
     self->logger->trace("No Physical Device Found");
     return Err{Status::DeviceLost};
-  }
-
-  if (result != VK_SUCCESS)
-  {
-    return Err{(Status) result};
   }
 
   VkPhysicalDevice *vk_physical_devices =
@@ -2766,7 +2766,8 @@ Result<gfx::DescriptorHeapImpl, Status>
     if (count[i] > 0)
     {
       pool_sizes[num_pool_sizes] = VkDescriptorPoolSize{
-          .type = (VkDescriptorType) i, .descriptorCount = count[i]};
+          .type            = (VkDescriptorType) i,
+          .descriptorCount = desc.num_sets_per_pool * count[i]};
       num_pool_sizes++;
     }
   }
@@ -3103,14 +3104,18 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .topology = (VkPrimitiveTopology) desc.primitive_topology,
       .primitiveRestartEnable = VK_FALSE};
 
+  VkViewport viewport{
+      .x = 0, .y = 0, .width = 0, .height = 0, .minDepth = 0, .maxDepth = 1};
+  VkRect2D scissor{.offset = {0, 0}, .extent = {0, 0}};
+
   VkPipelineViewportStateCreateInfo viewport_state{
       .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
       .pNext         = nullptr,
       .flags         = 0,
       .viewportCount = 1,
-      .pViewports    = nullptr,
+      .pViewports    = &viewport,
       .scissorCount  = 1,
-      .pScissors     = nullptr};
+      .pScissors     = &scissor};
 
   VkPipelineRasterizationStateCreateInfo rasterization_state{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -6010,7 +6015,10 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
     {
       case RenderCommandType::BindDescriptorSet:
       {
-        access_graphics_bindings(*self, cmd.set.v0);
+        for (u8 i = 0; i < cmd.set.v2; i++)
+        {
+          access_graphics_bindings(*self, cmd.set.v0[i]);
+        }
       }
       break;
       case RenderCommandType::BindVertexBuffer:
@@ -6112,6 +6120,18 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
     {
       case RenderCommandType::BindDescriptorSet:
       {
+        VkDescriptorSet vk_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
+        for (u32 iset = 0; iset < cmd.set.v2; iset++)
+        {
+          gfx::DescriptorSet set  = cmd.set.v0[iset];
+          DescriptorHeap    *heap = (DescriptorHeap *) set.heap;
+          vk_sets[iset]           = heap->sets[set.index];
+        }
+
+        self->device->vk_table.CmdBindDescriptorSets(
+            self->vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipeline->vk_layout, 0, cmd.set.v2, vk_sets, cmd.set.v3,
+            cmd.set.v1);
       }
       break;
       case RenderCommandType::BindPipeline:
@@ -6119,14 +6139,14 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
         pipeline = cmd.pipeline;
         self->device->vk_table.CmdBindPipeline(self->vk_command_buffer,
                                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                               cmd.pipeline->vk_pipeline);
+                                               pipeline->vk_pipeline);
       }
       break;
       case RenderCommandType::PushConstants:
       {
         self->device->vk_table.CmdPushConstants(
             self->vk_command_buffer, pipeline->vk_layout, VK_SHADER_STAGE_ALL,
-            0, pipeline->push_constant_size, cmd.push_constant.v0);
+            0, pipeline->push_constant_size, cmd.push_constant);
       }
       break;
       case RenderCommandType::SetViewport:
@@ -6247,15 +6267,15 @@ void CommandEncoderInterface::bind_compute_pipeline(
                                          self->ctx.cp.pipeline->vk_pipeline);
 }
 
-void CommandEncoderInterface::bind_graphics_pipeline(gfx::CommandEncoder self_,
-                                                     gfx::GraphicsPipeline p)
+void CommandEncoderInterface::bind_graphics_pipeline(
+    gfx::CommandEncoder self_, gfx::GraphicsPipeline pipeline_)
 {
   ENCODER_PRELUDE();
   VALIDATE(self->is_in_render_pass());
-
-  if (!self->ctx.rp.commands.push(
-          RenderCommand{.type     = RenderCommandType::BindPipeline,
-                        .pipeline = (GraphicsPipeline *) p}))
+  GraphicsPipeline *pipeline = (GraphicsPipeline *) pipeline_;
+  self->ctx.rp.pipeline      = pipeline;
+  if (!self->ctx.rp.commands.push(RenderCommand{
+          .type = RenderCommandType::BindPipeline, .pipeline = pipeline}))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -6320,23 +6340,16 @@ void CommandEncoderInterface::bind_descriptor_sets(
   }
   else if (self->is_in_render_pass())
   {
-    // TODO(lamarrr): arena sub-allocator/linear context allocation
-    //
-    // could use vec but needs to be aligned, linear allocation is best for
-    // this.
-    //
-    // TODO(lamarrr):
-    // for()
-    // RenderCommand cmd{ .type = RenderCommandType::BindDescriptorSets,
-    // .set = {   }};
-    // u32 dyn_offset_idx = 0;
-    // for(  )
-    // COMMANDs interleaved with command parameters + info?, return span<u8> for
-    // pop
-    //
-    // Vec<u64> dyn_offsets; in ctx, store Slice to it
-    //
-    self->ctx.rp.commands.push();
+    RenderCommand cmd{.type = RenderCommandType::BindDescriptorSet};
+    mem::copy(descriptor_sets, cmd.set.v0);
+    mem::copy(dynamic_offsets, cmd.set.v1);
+    cmd.set.v2 = num_sets;
+    cmd.set.v3 = num_dynamic_offsets;
+    if (!self->ctx.rp.commands.push(cmd))
+    {
+      self->status = Status::OutOfHostMemory;
+      return;
+    }
   }
   else
   {
@@ -6367,7 +6380,7 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
     VALIDATE(push_constants_data.size() ==
              self->ctx.rp.pipeline->push_constant_size);
     RenderCommand cmd{.type = RenderCommandType::PushConstants};
-    mem::copy(push_constants_data, cmd.push_constant.v0);
+    mem::copy(push_constants_data, cmd.push_constant);
     if (!self->ctx.rp.commands.push(cmd))
     {
       self->status = Status::OutOfHostMemory;
@@ -6444,7 +6457,7 @@ void CommandEncoderInterface::set_scissor(gfx::CommandEncoder self_,
   VALIDATE(self->is_in_render_pass());
 
   if (!self->ctx.rp.commands.push(
-          RenderCommand{.type    = RenderCommandType::SetViewport,
+          RenderCommand{.type    = RenderCommandType::SetScissor,
                         .scissor = {scissor_offset, scissor_extent}}))
   {
     self->status = Status::OutOfHostMemory;

@@ -44,8 +44,11 @@ int main(int, char **)
       instance
           ->create_device(
               instance.self,
-              to_span({gfx::DeviceType::DiscreteGpu,
-                       gfx::DeviceType::IntegratedGpu, gfx::DeviceType::Cpu}),
+              to_span({gfx::DeviceType::Cpu, gfx::DeviceType::VirtualGpu,
+                       gfx::DeviceType::Other,
+
+                       gfx::DeviceType::DiscreteGpu,
+                       gfx::DeviceType::IntegratedGpu}),
               to_span({surface}), default_allocator)
           .unwrap();
   defer device_del{
@@ -53,30 +56,29 @@ int main(int, char **)
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
-  CHECK(
-      pack_shaders(
-          spirvs,
-          to_span<ShaderPackEntry>(
-              {{.id = "Glyph:FS"_span, .file = "glyph.frag"_span},
-               {.id = "Glyph:VS"_span, .file = "glyph.vert"_span},
-               {.id       = "KawaseBlur_UpSample:FS"_span,
-                .file     = "kawase_blur.frag"_span,
-                .preamble = "#define UPSAMPLE 1"_span},
-               {.id       = "KawaseBlur_UpSample:VS"_span,
-                .file     = "kawase_blur.vert"_span,
-                .preamble = "#define UPSAMPLE 1"_span},
-               {.id       = "KawaseBlur_DownSample:FS"_span,
-                .file     = "kawase_blur.frag"_span,
-                .preamble = "#define UPSAMPLE 0"_span},
-               {.id       = "KawaseBlur_DownSample:VS"_span,
-                .file     = "kawase_blur.vert"_span,
-                .preamble = "#define UPSAMPLE 0"_span},
-               {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
-               {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
-               {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
-               {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-          "C:/Users/rlama/Documents/workspace/oss/ashura/ashura/shaders"_span) ==
-      ShaderCompileError::None)
+  CHECK(pack_shaders(
+            spirvs,
+            to_span<ShaderPackEntry>(
+                {{.id = "Glyph:FS"_span, .file = "glyph.frag"_span},
+                 {.id = "Glyph:VS"_span, .file = "glyph.vert"_span},
+                 {.id       = "KawaseBlur_UpSample:FS"_span,
+                  .file     = "kawase_blur.frag"_span,
+                  .preamble = "#define UPSAMPLE 1"_span},
+                 {.id       = "KawaseBlur_UpSample:VS"_span,
+                  .file     = "kawase_blur.vert"_span,
+                  .preamble = "#define UPSAMPLE 1"_span},
+                 {.id       = "KawaseBlur_DownSample:FS"_span,
+                  .file     = "kawase_blur.frag"_span,
+                  .preamble = "#define UPSAMPLE 0"_span},
+                 {.id       = "KawaseBlur_DownSample:VS"_span,
+                  .file     = "kawase_blur.vert"_span,
+                  .preamble = "#define UPSAMPLE 0"_span},
+                 {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
+                 {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
+                 {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
+                 {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
+            "/home/basitayantunde/Documents/ashura/ashura/shaders"_span) ==
+        ShaderCompileError::None)
 
   StrHashMap<gfx::Shader> shaders;
   defer                   shaders_del{[&] { shaders.reset(); }};
@@ -195,13 +197,31 @@ int main(int, char **)
 
     CHECK(found_present_mode);
 
+    gfx::CompositeAlpha alpha             = gfx::CompositeAlpha::None;
+    gfx::CompositeAlpha alpha_spec        = gfx::CompositeAlpha::None;
+    gfx::CompositeAlpha preferred_alpha[] = {
+        alpha_spec,
+        gfx::CompositeAlpha::Opaque,
+        gfx::CompositeAlpha::Inherit,
+    };
+    for (gfx::CompositeAlpha a : preferred_alpha)
+    {
+      if (has_bits(capabilities.composite_alpha, a))
+      {
+        alpha = a;
+        break;
+      }
+    }
+
     gfx::SwapchainDesc desc{.label  = "Window Swapchain"_span,
                                       .format = format,
-                                      .usage  = capabilities.image_usage,
+                                      .usage  = gfx::ImageUsage::TransferDst |
+                                     gfx::ImageUsage::ColorAttachment |
+                                     gfx::ImageUsage::InputAttachment,
                                       .preferred_buffering = 2,
                                       .present_mode        = present_mode,
                                       .preferred_extent    = surface_extent,
-                                      .composite_alpha = capabilities.composite_alpha};
+                                      .composite_alpha     = alpha};
 
     if (swapchain == nullptr)
     {
@@ -254,9 +274,9 @@ int main(int, char **)
   gfx::Sampler smp =
       device->create_sampler(device.self, gfx::SamplerDesc{}).unwrap();
 
-  gfx::DescriptorSet set = heap.create(
-      RRectShaderParameter{.albedo = gfx::CombinedImageSamplerBinding{
-                               .sampler = smp, .image_view = img_view}});
+  gfx::DescriptorSet set = heap.create(RRectShaderParameter{
+      .albedo =
+          gfx::CombinedImageSampler{.sampler = smp, .image_view = img_view}});
 
   while (!should_close)
   {
