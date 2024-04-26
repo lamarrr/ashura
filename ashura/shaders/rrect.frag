@@ -12,11 +12,11 @@ layout(location = 0) in vec2 i_pos;
 
 layout(location = 0) out vec4 o_color;
 
-layout(set = 0, binding = 0) uniform Params
+layout(std140, set = 0, binding = 0) uniform Params
 {
   ViewTransform transform;
-  float         radii[4];
-  vec2          uv[2];
+  vec4          radii;
+  vec4          uv;
   vec4          tint;
   vec4          border_color;
   float         border_thickness;
@@ -40,13 +40,14 @@ void main()
   bool top  = i_pos.y < 0;
   uint edge =
       left ? (top ? TOP_LEFT : BOTTOM_LEFT) : (top ? TOP_RIGHT : BOTTOM_RIGHT);
-  float radius       = u_params.radii[edge];
-  float half_extent  = 1 - u_params.border_thickness;
-  float dist         = rrect_sdf(i_pos, vec2(half_extent), radius);
-  float alpha        = 1 - smoothstep(0.0, 1.0, dist);
-  float border_alpha = 1 - smoothstep(0.0, u_params.border_softness, abs(dist));
+  float radius      = u_params.radii[edge];
+  float half_extent = 1 - u_params.border_thickness;
+  float dist        = rrect_sdf(i_pos, vec2(half_extent), radius);
+  // 0.01 -> very small number to make the edge smooth, but not too small which
+  // would lead to hard edges, larger values lead to softer edges
+  float alpha = 1 - smoothstep(0, 0.01, dist);
   vec2  pos_rel      = (i_pos * 0.5) / half_extent + 0.5;
-  vec2  uv           = mix(u_params.uv[0], u_params.uv[1], pos_rel);
-  o_color            = alpha * texture(u_albedo, uv) * u_params.tint +
-            border_alpha * u_params.border_color;
+  vec2  uv           = mix(u_params.uv.xy, u_params.uv.zw, pos_rel);
+  o_color =
+      mix(vec4(1, 1, 1, 0), texture(u_albedo, uv) * u_params.tint, alpha);
 }
