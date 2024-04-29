@@ -196,11 +196,10 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
       prev_idx_buff_offset = object.mesh.index_buffer_offset;
     }
 
-    // TODO(lamaRRR): fix uniforms
-    gfx::DescriptorSet const sets[]{params.lights.set, object.uniform.set,
-                                    object.descriptor};
-    u32 const                offsets[]{params.lights.buffer_offset,
-                                       object.uniform.buffer_offset};
+    gfx::DescriptorSet const sets[]{
+        object.uniform.set, object.light_uniform.set, object.descriptor};
+    u32 const offsets[]{object.uniform.buffer_offset,
+                        object.light_uniform.buffer_offset};
 
     encoder->bind_descriptor_sets(encoder.self, to_span(sets),
                                   to_span(offsets));

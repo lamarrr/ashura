@@ -468,7 +468,6 @@ struct RenderPassContext
   gfx::DepthStencil  depth_stencil_clear_value;
   u32                num_depth_stencil_clear_values             = 0;
   Vec<RenderCommand> commands                                   = {};
-  Vec<u64>           dynamic_offsets                            = {};
   Buffer            *vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
   u32                num_vertex_buffers                         = 0;
   Buffer            *index_buffer                               = nullptr;

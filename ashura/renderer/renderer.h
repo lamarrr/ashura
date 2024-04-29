@@ -72,7 +72,7 @@ struct Renderer
 
     enc->clear_color_image(
         enc.self, ctx.framebuffer.color_image,
-        gfx::Color{.float32 = {1, 0, 0, 1}},
+        gfx::Color{.float32 = {1, 1, 1, 1}},
         to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
                                             .first_mip_level   = 0,
                                             .num_mip_levels    = 1,
@@ -102,15 +102,33 @@ struct Renderer
             .objects = to_span<RRectObject>(
                 {{.descriptor = set,
                   .uniform    = ctx.push_uniform(RRectShaderUniform{
-                         .transform        = MVPTransform{.model      = Mat4Affine{},
-                                                          .view       = Mat4Affine{},
-                                                          .projection = Mat4{}},
-                         .radii            = {.2, .2, .2, .2},
-                         .uv               = {{0, 0}, {1, 1}},
-                         .tint             = {1, 0, 1, 1},
-                         .border_color     = {0, 1, 1, 1},
-                         .border_thickness = 0.05,
-                         .border_softness  = 0.0125})}})});
+                         .transform =
+                          ViewTransform{
+                                 .model = affine_scale3d({.8, .75, 1}) *
+                                       affine_rotate3d_z(0.5),
+                                 .view = affine_scale3d({1080.0 / 1920, 1, 1}),
+                                 .projection = Mat4::identity()},
+                         .radii        = {.2, .2, .2, .2},
+                         .uv           = {{0, 0}, {1, 1}},
+                         .tint         = {{1, 0, 1, 1},
+                                          {1, 0, 0, 1},
+                                          {0, 0, 1, 1},
+                                          {1, 1, 1, 1}},
+                         .aspect_ratio = {1, .75 / .8}})}})});
+
+    pbr.add_pass(
+        ctx,
+        PBRPassParams{
+            .render_target =
+                RenderTarget{.color_images =
+                                 to_span({ctx.framebuffer.color_image_view}),
+                             .depth_stencil_image =
+                                 ctx.framebuffer.depth_stencil_image_view,
+                             .depth_stencil_aspects = gfx::ImageAspects::Depth,
+                             .extent                = ctx.framebuffer.extent,
+                             .render_offset         = {0, 0},
+                             .render_extent         = ctx.framebuffer.extent},
+            .objects = to_span<PBRObject>({})});
   }
 };
 

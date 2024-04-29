@@ -40,6 +40,7 @@ vec4 kawase_upsample(sampler2D src, vec2 uv, vec2 radius)
 
 void main()
 {
+  // todo(lamarrr): use mix/lerp instead
 #if UPSAMPLE
   o_color =
       kawase_upsample(src,

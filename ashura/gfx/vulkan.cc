@@ -4021,15 +4021,13 @@ void CommandEncoder::reset_context()
 
 void CommandEncoder::init_rp_context()
 {
-  new (&ctx.rp) RenderPassContext{.commands        = {allocator},
-                                  .dynamic_offsets = {allocator}};
+  new (&ctx.rp) RenderPassContext{.commands = {allocator}};
   state = CommandEncoderState::RenderPass;
 }
 
 void CommandEncoder::uninit_rp_context()
 {
   ctx.rp.commands.reset();
-  ctx.rp.dynamic_offsets.reset();
   state = CommandEncoderState::Begin;
 }
 
@@ -5989,6 +5987,8 @@ void CommandEncoderInterface::begin_render_pass(
   VALIDATE((render_offset.y + render_extent.y) <= framebuffer->extent.y);
 
   self->init_rp_context();
+  self->ctx.rp.offset      = render_offset;
+  self->ctx.rp.extent      = render_extent;
   self->ctx.rp.render_pass = render_pass;
   self->ctx.rp.framebuffer = framebuffer;
   mem::copy(color_attachments_clear_values, self->ctx.rp.color_clear_values);
@@ -6249,9 +6249,8 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
     }
   }
 
-  self->state = CommandEncoderState::Begin;
-
   self->device->vk_table.CmdEndRenderPass(self->vk_command_buffer);
+  self->reset_context();
 }
 
 void CommandEncoderInterface::bind_compute_pipeline(
@@ -6420,8 +6419,8 @@ void CommandEncoderInterface::dispatch_indirect(gfx::CommandEncoder self_,
 
   VALIDATE(self->is_in_compute_pass() && self->ctx.cp.pipeline != nullptr);
   VALIDATE(has_bits(buffer->desc.usage, gfx::BufferUsage::IndirectBuffer));
-  VALIDATE(is_valid_aligned_buffer_access(
-      buffer->desc.size, offset, sizeof(gfx::IndirectDispatchCommand), 4));
+  VALIDATE(is_valid_aligned_buffer_access(buffer->desc.size, offset,
+                                          sizeof(gfx::DispatchCommand), 4));
 
   for (u32 i = 0; i < self->ctx.cp.num_sets; i++)
   {
@@ -6641,7 +6640,7 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
   VALIDATE(offset < buffer->desc.size);
   VALIDATE((offset + (u64) draw_count * stride) <= buffer->desc.size);
   VALIDATE(stride % 4 == 0);
-  VALIDATE(stride >= sizeof(gfx::IndirectDrawCommand));
+  VALIDATE(stride >= sizeof(gfx::DrawCommand));
 
   if (!self->ctx.rp.commands.push(
           RenderCommand{.type          = RenderCommandType::DrawIndirect,
@@ -6667,7 +6666,7 @@ void CommandEncoderInterface::draw_indexed_indirect(gfx::CommandEncoder self_,
   VALIDATE(offset < buffer->desc.size);
   VALIDATE((offset + (u64) draw_count * stride) <= buffer->desc.size);
   VALIDATE(stride % 4 == 0);
-  VALIDATE(stride >= sizeof(gfx::IndirectDrawCommand));
+  VALIDATE(stride >= sizeof(gfx::DrawIndexedCommand));
 
   if (!self->ctx.rp.commands.push(
           RenderCommand{.type          = RenderCommandType::DrawIndexedIndirect,

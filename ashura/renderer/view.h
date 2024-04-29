@@ -69,11 +69,11 @@ struct DOFConfig
 
 struct ViewConfig
 {
-  ViewMatrices view_matrices        = {};
-  AAConfig     aa                   = {};
-  BloomConfig  bloom                = {};
-  DOFConfig    dof                  = {};
-  f32          chromatic_aberration = 0;
+  ViewTransform transform            = {};
+  AAConfig      aa                   = {};
+  BloomConfig   bloom                = {};
+  DOFConfig     dof                  = {};
+  f32           chromatic_aberration = 0;
 };
 
 /// https://github.com/GPUOpen-LibrariesAndSDKs/Cauldron/blob/b92d559bd083f44df9f8f42a6ad149c1584ae94c/src/common/Misc/Misc.cpp#L265

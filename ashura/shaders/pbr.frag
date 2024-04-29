@@ -2,71 +2,41 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "core.glsl"
+#include "pbr.glsl"
 
-layout(location = 0) in vec3 i_world_position;
+layout(location = 0) in vec3 i_pos;
 layout(location = 1) in vec2 i_uv;
 
 layout(set = 0, binding = 0) uniform Params
 {
   ViewTransform transform;
-  vec4          camera_position;
-  vec4          light_positions[16];
-  vec4          light_colors[16];
-  int           nlights;
+  vec4          base_color_factor;
+  float         metallic_factor;
+  float         roughness_factor;
+  float         normal_scale;
+  float         occlusion_strength;
+  vec4          emissive_factor;
+  float         emissive_strength;
 }
 u_params;
 
-// point lights, directional light, spotlight, flash light
+layout(set = 1, binding = 0) uniform LightParams
+{
+  vec4             ambient_light;
+  DirectionalLight directional_lights[MAX_PBR_DIRECTIONAL_LIGHTS];
+  PointLight       point_lights[MAX_PBR_POINT_LIGHTS];
+  SpotLight        spot_lights[MAX_PBR_SPOT_LIGHTS];
+}
+u_light_params;
 
-layout(set = 1, binding = 0) uniform sampler2D u_emissive;
-layout(set = 1, binding = 1) uniform sampler2D u_albedo_map;
-layout(set = 1, binding = 2) uniform sampler2D u_normal_map;
-layout(set = 1, binding = 3) uniform sampler2D u_metallic_map;
-layout(set = 1, binding = 4) uniform sampler2D u_roughness_map;
-layout(set = 1, binding = 5) uniform sampler2D u_ambient_occlusion_map;
+layout(set = 2, binding = 0) uniform sampler2D u_albedo;
+layout(set = 2, binding = 1) uniform sampler2D u_metallic;
+layout(set = 2, binding = 2) uniform sampler2D u_roughness;
+layout(set = 2, binding = 3) uniform sampler2D u_normal;
+layout(set = 2, binding = 4) uniform sampler2D u_occlusion;
+layout(set = 2, binding = 5) uniform sampler2D u_emissive;
 
 layout(location = 0) out vec4 o_color;
-layout(location = 1) out vec4 o_bright_color;
-
-vec3 fresnel_schlick(float cos_theta, vec3 f0)
-{
-  return f0 + (1 - f0) * pow(clamp(1 - cos_theta, 0, 1), 5);
-}
-
-float distribution_GGX(vec3 n, vec3 h, float roughness)
-{
-  float a      = roughness * roughness;
-  float a2     = a * a;
-  float ndotH  = max(dot(n, h), 0);
-  float ndotH2 = ndotH * ndotH;
-
-  float num   = a2;
-  float denom = (ndotH2 * (a2 - 1) + 1);
-  denom       = PI * denom * denom;
-
-  return num / denom;
-}
-
-float geometry_schlick_GGX(float ndotV, float roughness)
-{
-  float r = (roughness + 1);
-  float k = (r * r) / 8;
-
-  float num   = ndotV;
-  float denom = ndotV * (1 - k) + k;
-
-  return num / denom;
-}
-
-float geometry_smith(vec3 n, vec3 v, vec3 l, float roughness)
-{
-  float ndotV = max(dot(n, v), 0);
-  float ndotL = max(dot(n, l), 0);
-  float ggx2  = geometry_schlick_GGX(ndotV, roughness);
-  float ggx1  = geometry_schlick_GGX(ndotL, roughness);
-
-  return ggx1 * ggx2;
-}
 
 void main()
 {
@@ -117,18 +87,4 @@ void main()
   color   = color / (color + vec3(1));
   color   = pow(color, vec3(1 / 2.2));
   o_color = vec4(color, 1);
-
-#if USE_BLOOM
-  // check whether fragment output is higher than threshold, if so output as
-  // brightness color
-  float brightness = dot(o_color.rgb, vec3(0.2126, 0.7152, 0722));
-  if (brightness > 1)
-  {
-    o_bright_color = vec4(o_color.rgb, 1);
-  }
-  else
-  {
-    o_bright_color = vec4(0, 0, 0, 1);
-  }
-#endif
 }

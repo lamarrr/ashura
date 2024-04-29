@@ -25,7 +25,7 @@ int main(int, char **)
   CHECK(win_sys != nullptr);
 
   gfx::InstanceImpl instance =
-      vk::instance_interface.create(heap_allocator, default_logger, true)
+      vk::instance_interface.create(heap_allocator, default_logger, false)
           .unwrap();
 
   defer instance_del{[&] { instance->destroy(instance.self); }};
@@ -56,29 +56,30 @@ int main(int, char **)
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
-  CHECK(pack_shaders(
-            spirvs,
-            to_span<ShaderPackEntry>(
-                {{.id = "Glyph:FS"_span, .file = "glyph.frag"_span},
-                 {.id = "Glyph:VS"_span, .file = "glyph.vert"_span},
-                 {.id       = "KawaseBlur_UpSample:FS"_span,
-                  .file     = "kawase_blur.frag"_span,
-                  .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "KawaseBlur_UpSample:VS"_span,
-                  .file     = "kawase_blur.vert"_span,
-                  .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "KawaseBlur_DownSample:FS"_span,
-                  .file     = "kawase_blur.frag"_span,
-                  .preamble = "#define UPSAMPLE 0"_span},
-                 {.id       = "KawaseBlur_DownSample:VS"_span,
-                  .file     = "kawase_blur.vert"_span,
-                  .preamble = "#define UPSAMPLE 0"_span},
-                 {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
-                 {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
-                 {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
-                 {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-            "/home/basitayantunde/Documents/ashura/ashura/shaders"_span) ==
-        ShaderCompileError::None)
+  CHECK(
+      pack_shaders(
+          spirvs,
+          to_span<ShaderPackEntry>(
+              {{.id = "Glyph:FS"_span, .file = "glyph.frag"_span},
+               {.id = "Glyph:VS"_span, .file = "glyph.vert"_span},
+               {.id       = "KawaseBlur_UpSample:FS"_span,
+                .file     = "kawase_blur.frag"_span,
+                .preamble = "#define UPSAMPLE 1"_span},
+               {.id       = "KawaseBlur_UpSample:VS"_span,
+                .file     = "kawase_blur.vert"_span,
+                .preamble = "#define UPSAMPLE 1"_span},
+               {.id       = "KawaseBlur_DownSample:FS"_span,
+                .file     = "kawase_blur.frag"_span,
+                .preamble = "#define UPSAMPLE 0"_span},
+               {.id       = "KawaseBlur_DownSample:VS"_span,
+                .file     = "kawase_blur.vert"_span,
+                .preamble = "#define UPSAMPLE 0"_span},
+               {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
+               {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
+               {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
+               {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
+          "C:/Users/rlama/Documents/workspace/oss/ashura/ashura/shaders"_span) ==
+      ShaderCompileError::None)
 
   StrHashMap<gfx::Shader> shaders;
   defer                   shaders_del{[&] { shaders.reset(); }};
@@ -197,13 +198,15 @@ int main(int, char **)
 
     CHECK(found_present_mode);
 
-    gfx::CompositeAlpha alpha             = gfx::CompositeAlpha::None;
-    gfx::CompositeAlpha alpha_spec        = gfx::CompositeAlpha::None;
+    gfx::CompositeAlpha alpha      = gfx::CompositeAlpha::None;
+    gfx::CompositeAlpha alpha_spec = gfx::CompositeAlpha::Opaque;
     gfx::CompositeAlpha preferred_alpha[] = {
         alpha_spec,
         gfx::CompositeAlpha::Opaque,
         gfx::CompositeAlpha::Inherit,
-    };
+        gfx::CompositeAlpha::Inherit,
+        gfx::CompositeAlpha::PreMultiplied,
+        gfx::CompositeAlpha::PostMultiplied};
     for (gfx::CompositeAlpha a : preferred_alpha)
     {
       if (has_bits(capabilities.composite_alpha, a))

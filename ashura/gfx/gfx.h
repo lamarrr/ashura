@@ -1002,14 +1002,14 @@ struct DescriptorHeapDesc
   AllocatorImpl       allocator         = default_allocator;
 };
 
-struct IndirectDispatchCommand
+struct DispatchCommand
 {
   u32 x = 0;
   u32 y = 0;
   u32 z = 0;
 };
 
-struct IndirectDrawCommand
+struct DrawIndexedCommand
 {
   u32 index_count    = 0;
   u32 instance_count = 0;
@@ -1018,7 +1018,7 @@ struct IndirectDrawCommand
   u32 first_instance = 0;
 };
 
-struct IndirectUnindexedDrawCommand
+struct DrawCommand
 {
   u32 vertex_count   = 0;
   u32 instance_count = 0;

@@ -4,16 +4,15 @@
 #include "core.glsl"
 
 layout(location = 0) out vec2 o_pos;
+layout(location = 1) out vec4 o_color;
 
-layout(set = 0, binding = 0) uniform Params
+layout(std140, set = 0, binding = 0) uniform Params
 {
   ViewTransform transform;
-  float         radii[4];
-  vec2          uv[2];
-  vec4          tint;
-  vec4          border_color;
-  float         border_thickness;
-  float         border_softness;
+  vec4          radii;
+  vec4          uv;
+  vec4          tint[4];
+  vec2          aspect_ratio;
 }
 u_params;
 
@@ -26,5 +25,6 @@ void main()
   uint vertex = INDEX_BUFFER[gl_VertexIndex];
   vec2 i_pos  = VERTEX_BUFFER[vertex];
   gl_Position = to_mvp(u_params.transform) * vec4(i_pos, 0, 1);
-  o_pos       = i_pos;
+  o_pos       = i_pos * u_params.aspect_ratio;
+  o_color     = u_params.tint[vertex];
 }

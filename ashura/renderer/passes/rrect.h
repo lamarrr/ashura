@@ -23,13 +23,11 @@ constexpr Mat4Affine rrect_model(Vec2 extent)
 
 struct RRectShaderUniform
 {
-  MVPTransform transform        = {};
-  f32          radii[4]         = {};
-  Vec2         uv[2]            = {};
-  Vec4         tint             = {};
-  Vec4         border_color     = {};
-  f32          border_thickness = 0;
-  f32          border_softness  = 0;
+  ViewTransform transform = {};
+  f32           radii[4]  = {};
+  Vec2          uv[2]     = {};
+  Vec4          tint[4]   = {};
+  Vec2          aspect_ratio;
 };
 
 struct RRectObject

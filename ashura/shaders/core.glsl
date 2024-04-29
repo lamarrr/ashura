@@ -21,16 +21,35 @@ vec3 to_srgb(vec3 v)
 
 struct ViewTransform
 {
-  mat4 projection;
   vec4 view[3];
   vec4 model[3];
+  vec4 projection[4];
 };
 
 mat4 to_mvp(ViewTransform t)
 {
-  return t.projection *
+  return mat4(t.projection[0], t.projection[1], t.projection[2],
+              t.projection[3]) *
          mat4(t.view[0], t.view[1], t.view[2], vec4(0, 0, 0, 1)) *
          mat4(t.model[0], t.model[1], t.model[2], vec4(0, 0, 0, 1));
 }
 
+struct DirectionalLight
+{
+  vec4 direction;
+  vec4 color;
+};
+
+struct PointLight
+{
+  vec4 color;
+  vec4 position;        // xyz - position, w - attenuation
+};
+
+struct SpotLight
+{
+  vec4 direction;        // xyz - direction, w - cutoff
+  vec4 color;
+  vec3 position;        // xyz - position, w - attenuation
+};
 #endif
