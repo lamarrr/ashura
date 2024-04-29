@@ -11,7 +11,7 @@ void RRectPass::init(RenderContext &ctx)
       ctx.device
           ->create_descriptor_set_layout(
               ctx.device.self,
-              gfx::DescriptorSetLayoutDesc{.label    = "RRect Parameters",
+              gfx::DescriptorSetLayoutDesc{.label    = "RRect Parameters"_span,
                                            .bindings = to_span(bindings_desc)})
           .unwrap();
 
@@ -20,7 +20,7 @@ void RRectPass::init(RenderContext &ctx)
           ->create_render_pass(
               ctx.device.self,
               gfx::RenderPassDesc{
-                  .label             = "RRect RenderPass",
+                  .label             = "RRect RenderPass"_span,
                   .color_attachments = to_span<gfx::RenderPassAttachment>(
                       {{.format           = ctx.color_format,
                         .load_op          = gfx::LoadOp::Load,
@@ -75,34 +75,24 @@ void RRectPass::init(RenderContext &ctx)
       .attachments    = to_span(attachment_states),
       .blend_constant = {1, 1, 1, 1}};
 
-  gfx::VertexAttribute vtx_attrs[] = {{.binding  = 0,
-                                       .location = 0,
-                                       .format   = gfx::Format::R32G32_SFLOAT,
-                                       .offset   = 0}};
-
-  gfx::VertexInputBinding vtx_bindings[] = {
-      {.binding    = 0,
-       .stride     = sizeof(Vec2),
-       .input_rate = gfx::InputRate::Vertex}};
-
   gfx::DescriptorSetLayout set_layouts[] = {ctx.uniform_layout,
                                             descriptor_set_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
-      .label = "RRect Graphics Pipeline",
+      .label = "RRect Graphics Pipeline"_span,
       .vertex_shader =
           gfx::ShaderStageDesc{.shader                        = vertex_shader,
-                               .entry_point                   = "main",
+                               .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gfx::ShaderStageDesc{.shader                        = fragment_shader,
-                               .entry_point                   = "main",
+                               .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .render_pass            = render_pass,
-      .vertex_input_bindings  = to_span(vtx_bindings),
-      .vertex_attributes      = to_span(vtx_attrs),
+      .vertex_input_bindings  = {},
+      .vertex_attributes      = {},
       .push_constant_size     = 0,
       .descriptor_set_layouts = to_span(set_layouts),
       .primitive_topology     = gfx::PrimitiveTopology::TriangleList,
@@ -114,49 +104,6 @@ void RRectPass::init(RenderContext &ctx)
   pipeline =
       ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
           .unwrap();
-
-  vertex_buffer =
-      ctx.device
-          ->create_buffer(
-              ctx.device.self,
-              gfx::BufferDesc{.label       = "RRect Vertex Buffer",
-                              .size        = sizeof(Vec2) * 4,
-                              .host_mapped = true,
-                              .usage       = gfx::BufferUsage::VertexBuffer |
-                                       gfx::BufferUsage::TransferDst})
-          .unwrap();
-  index_buffer =
-      ctx.device
-          ->create_buffer(
-              ctx.device.self,
-              gfx::BufferDesc{.label       = "RRect Index Buffer",
-                              .size        = sizeof(u16) * 6,
-                              .host_mapped = true,
-                              .usage       = gfx::BufferUsage::IndexBuffer |
-                                       gfx::BufferUsage::TransferDst})
-          .unwrap();
-
-  f32 *vtx_map =
-      (f32 *) ctx.device->get_buffer_memory_map(ctx.device.self, vertex_buffer)
-          .unwrap();
-  u16 *idx_map =
-      (u16 *) ctx.device->get_buffer_memory_map(ctx.device.self, index_buffer)
-          .unwrap();
-
-  constexpr f32 vtxs[] = {0, 0, 1, 0, 1, 1, 0, 1};
-  constexpr u16 idxs[] = {0, 1, 2, 0, 2, 3};
-
-  mem::copy(to_span(vtxs), vtx_map);
-  mem::copy(to_span(idxs), idx_map);
-
-  ctx.device
-      ->flush_buffer_memory_map(ctx.device.self, vertex_buffer,
-                                gfx::MemoryRange{0, gfx::WHOLE_SIZE})
-      .unwrap();
-  ctx.device
-      ->flush_buffer_memory_map(ctx.device.self, index_buffer,
-                                gfx::MemoryRange{0, gfx::WHOLE_SIZE})
-      .unwrap();
 }
 
 void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
@@ -166,7 +113,7 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
       ctx.device
           ->create_framebuffer(
               ctx.device.self,
-              gfx::FramebufferDesc{.label       = "RRect Framebuffer",
+              gfx::FramebufferDesc{.label       = "RRect Framebuffer"_span,
                                    .render_pass = render_pass,
                                    .extent      = params.render_target.extent,
                                    .color_attachments = to_span(
@@ -180,10 +127,6 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
                              params.render_target.render_extent, {}, {});
 
   encoder->bind_graphics_pipeline(encoder.self, pipeline);
-  encoder->bind_vertex_buffers(encoder.self, to_span({vertex_buffer}),
-                               to_span<u64>({0}));
-  encoder->bind_index_buffer(encoder.self, index_buffer, 0,
-                             gfx::IndexType::Uint16);
   encoder->set_scissor(encoder.self, params.render_target.render_offset,
                        params.render_target.render_extent);
   encoder->set_viewport(
@@ -198,9 +141,9 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
   for (RRectObject const &object : params.objects)
   {
     encoder->bind_descriptor_sets(
-        encoder.self, to_span({object.descriptor, object.uniform.set}),
+        encoder.self, to_span({object.uniform.set, object.descriptor}),
         to_span({object.uniform.buffer_offset}));
-    encoder->draw(encoder.self, 0, 6, 0, 0, 1);
+    encoder->draw(encoder.self, 6, 1, 0, 0);
   }
 
   encoder->end_render_pass(encoder.self);
@@ -208,4 +151,7 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
   ctx.release(framebuffer);
 }
 
+void RRectPass::uninit(RenderContext &ctx)
+{
+}
 }        // namespace ash

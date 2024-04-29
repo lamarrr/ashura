@@ -11,7 +11,7 @@ namespace ash
 /// SEE:
 /// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
 BEGIN_SHADER_PARAMETER(PBRShaderParameter)
-SHADER_COMBINED_IMAGE_SAMPLER(base_color, 1)
+SHADER_COMBINED_IMAGE_SAMPLER(albedo, 1)
 SHADER_COMBINED_IMAGE_SAMPLER(metallic, 1)
 SHADER_COMBINED_IMAGE_SAMPLER(roughness, 1)
 SHADER_COMBINED_IMAGE_SAMPLER(normal, 1)
@@ -19,24 +19,29 @@ SHADER_COMBINED_IMAGE_SAMPLER(occlusion, 1)
 SHADER_COMBINED_IMAGE_SAMPLER(emissive, 1)
 END_SHADER_PARAMETER(PBRShaderParameter)
 
-struct PBRLightsUniform
+constexpr u8 MAX_PBR_AMBIENT_LIGHTS     = 1;
+constexpr u8 MAX_PBR_DIRECTIONAL_LIGHTS = 2;
+constexpr u8 MAX_PBR_POINT_LIGHTS       = 2;
+constexpr u8 MAX_PBR_SPOT_LIGHTS        = 2;
+
+struct PBRUniform
 {
-  AmbientLight     ambient_light         = {};
-  DirectionalLight directional_lights[2] = {};
-  PointLight       point_lights[4]       = {};
-  SpotLight        spot_lights[4]        = {};
+  ViewTransform transform          = {};
+  Vec4          base_color_factor  = {1, 1, 1, 1};
+  f32           metallic_factor    = 1;
+  f32           roughness_factor   = 1;
+  f32           normal_scale       = 1;
+  f32           occlusion_strength = 1;
+  Vec4          emissive_factor    = {1, 1, 1, 1};
+  f32           emissive_strength  = 1;
 };
 
-struct PBRObjectUniform
+struct PBRLightUniform
 {
-  MVPTransform transform          = {};
-  Vec4         base_color_factor  = {1, 1, 1, 1};
-  f32          metallic_factor    = 1;
-  f32          roughness_factor   = 1;
-  f32          normal_scale       = 1;
-  f32          occlusion_strength = 1;
-  Vec4         emissive_factor    = {1, 1, 1, 1};
-  f32          emissive_strength  = 1;
+  AmbientLight     ambient_light                                  = {};
+  DirectionalLight directional_lights[MAX_PBR_DIRECTIONAL_LIGHTS] = {};
+  PointLight       point_lights[MAX_PBR_POINT_LIGHTS]             = {};
+  SpotLight        spot_lights[MAX_PBR_SPOT_LIGHTS]               = {};
 };
 
 struct PBRVertex
@@ -47,17 +52,17 @@ struct PBRVertex
 
 struct PBRObject
 {
-  Mesh                     mesh       = {};
-  gfx::DescriptorSet       descriptor = {};
-  Uniform                  uniform    = {};
-  gfx::IndirectDrawCommand command    = {};
-  bool                     wireframe  = false;
+  Mesh                    mesh          = {};
+  gfx::DescriptorSet      descriptor    = {};
+  Uniform                 uniform       = {};
+  Uniform                 light_uniform = {};
+  gfx::DrawIndexedCommand command       = {};
+  bool                    wireframe     = false;
 };
 
 struct PBRPassParams
 {
   RenderTarget          render_target = {};
-  Uniform               lights        = {};
   Span<PBRObject const> objects       = {};
 };
 

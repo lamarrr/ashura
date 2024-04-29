@@ -19,7 +19,7 @@ void BlurPass::init(RenderContext &ctx)
           ->create_render_pass(
               ctx.device.self,
               gfx::RenderPassDesc{
-                  .label             = "KawaseBlur RenderPass",
+                  .label             = "KawaseBlur RenderPass"_span,
                   .color_attachments = to_span<gfx::RenderPassAttachment>(
                       {{.format           = ctx.color_format,
                         .load_op          = gfx::LoadOp::Load,
@@ -90,15 +90,15 @@ void BlurPass::init(RenderContext &ctx)
                                             parameter_heap_.layout_};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
-      .label = "KawaseBlur Graphics Pipeline",
+      .label = "KawaseBlur Graphics Pipeline"_span,
       .vertex_shader =
           gfx::ShaderStageDesc{.shader                        = vertex_shader,
-                               .entry_point                   = "main",
+                               .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gfx::ShaderStageDesc{.shader                        = fragment_shader,
-                               .entry_point                   = "main",
+                               .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .render_pass            = render_pass_,
@@ -134,8 +134,7 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
   CHECK(params.extent.x <= ctx.scatch_framebuffer.color_image_desc.extent.x);
   CHECK(params.extent.y <= ctx.scatch_framebuffer.color_image_desc.extent.y);
-  parameter_heap_.heap_->collect(parameter_heap_.heap_.self,
-                                 ctx.frame_info.current);
+  parameter_heap_.heap_->collect(parameter_heap_.heap_.self, ctx.frame_id());
   // TODO(lamarrr): we need to downsample multiple times, hence halfing the
   // extent every time we only need to sample to half the extent
   //

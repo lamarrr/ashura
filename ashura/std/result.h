@@ -179,7 +179,7 @@ struct [[nodiscard]] Result
     return !is_ok_;
   }
 
-  [[nodiscard]] constexpr operator bool() const
+  [[nodiscard]] explicit constexpr operator bool() const
   {
     return is_ok_;
   }

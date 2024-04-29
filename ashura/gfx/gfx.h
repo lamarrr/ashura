@@ -2,36 +2,35 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/enum.h"
 #include "ashura/std/log.h"
+#include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
-
-typedef struct VkSurfaceKHR_T *VkSurfaceKHR;
 
 namespace ash
 {
 namespace gfx
 {
-constexpr u32 REMAINING_MIP_LEVELS         = ~0U;
-constexpr u32 REMAINING_ARRAY_LAYERS       = ~0U;
-constexpr u64 WHOLE_SIZE                   = ~0ULL;
-constexpr u32 MAX_COLOR_ATTACHMENTS        = 8;
-constexpr u32 MAX_INPUT_ATTACHMENTS        = 8;
-constexpr u32 MAX_VERTEX_ATTRIBUTES        = 16;
-constexpr u32 MAX_PUSH_CONSTANT_SIZE       = 128;
-constexpr u32 MAX_MEMORY_HEAP_PROPERTIES   = 32;
-constexpr u32 MAX_MEMORY_HEAPS             = 16;
-constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 8;
-constexpr u32 MAX_COMPUTE_GROUP_COUNT_X    = 1024;
-constexpr u32 MAX_COMPUTE_GROUP_COUNT_Y    = 1024;
-constexpr u32 MAX_COMPUTE_GROUP_COUNT_Z    = 1024;
-constexpr u32 MAX_SWAPCHAIN_IMAGES         = 8;
+constexpr u32 REMAINING_MIP_LEVELS           = ~0U;
+constexpr u32 REMAINING_ARRAY_LAYERS         = ~0U;
+constexpr u64 WHOLE_SIZE                     = ~0ULL;
+constexpr u32 MAX_COLOR_ATTACHMENTS          = 8;
+constexpr u32 MAX_INPUT_ATTACHMENTS          = 8;
+constexpr u32 MAX_VERTEX_ATTRIBUTES          = 16;
+constexpr u32 MAX_PUSH_CONSTANT_SIZE         = 128;
+constexpr u32 MAX_MEMORY_HEAP_PROPERTIES     = 32;
+constexpr u32 MAX_MEMORY_HEAPS               = 16;
+constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS   = 4;
+constexpr u32 MAX_DESCRIPTOR_DYNAMIC_BUFFERS = 4;
+constexpr u32 MAX_COMPUTE_GROUP_COUNT_X      = 1024;
+constexpr u32 MAX_COMPUTE_GROUP_COUNT_Y      = 1024;
+constexpr u32 MAX_COMPUTE_GROUP_COUNT_Z      = 1024;
+constexpr u32 MAX_SWAPCHAIN_IMAGES           = 4;
 
 typedef Vec2U                          Offset;
 typedef Vec2U                          Extent;
 typedef Vec3U                          Offset3D;
 typedef Vec3U                          Extent3D;
 typedef u64                            FrameId;
-typedef u64                            Generation;
 typedef struct Buffer_T               *Buffer;
 typedef struct BufferView_T           *BufferView;
 typedef struct Image_T                *Image;
@@ -50,7 +49,7 @@ typedef struct ComputePipeline_T      *ComputePipeline;
 typedef struct GraphicsPipeline_T     *GraphicsPipeline;
 typedef struct Fence_T                *Fence;
 typedef struct CommandEncoder_T       *CommandEncoder;
-typedef VkSurfaceKHR                   Surface;
+typedef struct Surface_T              *Surface;
 typedef struct Swapchain_T            *Swapchain;
 typedef struct FrameContext_T         *FrameContext;
 typedef struct Device_T               *Device;
@@ -82,25 +81,14 @@ enum class DeviceType : u8
   Cpu           = 4
 };
 
-enum class DeviceFeatures : u64
+enum class MemoryProperties : u8
 {
-  Basic       = 0x000000ULL,
-  VideoEncode = 0x000001ULL,
-  VideoDecode = 0x000002ULL,
-  RayTracing  = 0x000004ULL
-};
-
-ASH_DEFINE_ENUM_BIT_OPS(DeviceFeatures)
-
-enum class MemoryProperties : u32
-{
-  None            = 0x00000000,
-  DeviceLocal     = 0x00000001,
-  HostVisible     = 0x00000002,
-  HostCoherent    = 0x00000004,
-  HostCached      = 0x00000008,
-  LazilyAllocated = 0x00000010,
-  Protected       = 0x00000020
+  None            = 0x00,
+  DeviceLocal     = 0x01,
+  HostVisible     = 0x02,
+  HostCoherent    = 0x04,
+  HostCached      = 0x08,
+  LazilyAllocated = 0x10
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(MemoryProperties)
@@ -133,258 +121,193 @@ enum class [[nodiscard]] Status : i32
   SurfaceLost          = -1000000000
 };
 
-enum class Format : u32
+enum class Format : u8
 {
-  Undefined                                  = 0,
-  R4G4_UNORM_PACK8                           = 1,
-  R4G4B4A4_UNORM_PACK16                      = 2,
-  B4G4R4A4_UNORM_PACK16                      = 3,
-  R5G6B5_UNORM_PACK16                        = 4,
-  B5G6R5_UNORM_PACK16                        = 5,
-  R5G5B5A1_UNORM_PACK16                      = 6,
-  B5G5R5A1_UNORM_PACK16                      = 7,
-  A1R5G5B5_UNORM_PACK16                      = 8,
-  R8_UNORM                                   = 9,
-  R8_SNORM                                   = 10,
-  R8_USCALED                                 = 11,
-  R8_SSCALED                                 = 12,
-  R8_UINT                                    = 13,
-  R8_SINT                                    = 14,
-  R8_SRGB                                    = 15,
-  R8G8_UNORM                                 = 16,
-  R8G8_SNORM                                 = 17,
-  R8G8_USCALED                               = 18,
-  R8G8_SSCALED                               = 19,
-  R8G8_UINT                                  = 20,
-  R8G8_SINT                                  = 21,
-  R8G8_SRGB                                  = 22,
-  R8G8B8_UNORM                               = 23,
-  R8G8B8_SNORM                               = 24,
-  R8G8B8_USCALED                             = 25,
-  R8G8B8_SSCALED                             = 26,
-  R8G8B8_UINT                                = 27,
-  R8G8B8_SINT                                = 28,
-  R8G8B8_SRGB                                = 29,
-  B8G8R8_UNORM                               = 30,
-  B8G8R8_SNORM                               = 31,
-  B8G8R8_USCALED                             = 32,
-  B8G8R8_SSCALED                             = 33,
-  B8G8R8_UINT                                = 34,
-  B8G8R8_SINT                                = 35,
-  B8G8R8_SRGB                                = 36,
-  R8G8B8A8_UNORM                             = 37,
-  R8G8B8A8_SNORM                             = 38,
-  R8G8B8A8_USCALED                           = 39,
-  R8G8B8A8_SSCALED                           = 40,
-  R8G8B8A8_UINT                              = 41,
-  R8G8B8A8_SINT                              = 42,
-  R8G8B8A8_SRGB                              = 43,
-  B8G8R8A8_UNORM                             = 44,
-  B8G8R8A8_SNORM                             = 45,
-  B8G8R8A8_USCALED                           = 46,
-  B8G8R8A8_SSCALED                           = 47,
-  B8G8R8A8_UINT                              = 48,
-  B8G8R8A8_SINT                              = 49,
-  B8G8R8A8_SRGB                              = 50,
-  A8B8G8R8_UNORM_PACK32                      = 51,
-  A8B8G8R8_SNORM_PACK32                      = 52,
-  A8B8G8R8_USCALED_PACK32                    = 53,
-  A8B8G8R8_SSCALED_PACK32                    = 54,
-  A8B8G8R8_UINT_PACK32                       = 55,
-  A8B8G8R8_SINT_PACK32                       = 56,
-  A8B8G8R8_SRGB_PACK32                       = 57,
-  A2R10G10B10_UNORM_PACK32                   = 58,
-  A2R10G10B10_SNORM_PACK32                   = 59,
-  A2R10G10B10_USCALED_PACK32                 = 60,
-  A2R10G10B10_SSCALED_PACK32                 = 61,
-  A2R10G10B10_UINT_PACK32                    = 62,
-  A2R10G10B10_SINT_PACK32                    = 63,
-  A2B10G10R10_UNORM_PACK32                   = 64,
-  A2B10G10R10_SNORM_PACK32                   = 65,
-  A2B10G10R10_USCALED_PACK32                 = 66,
-  A2B10G10R10_SSCALED_PACK32                 = 67,
-  A2B10G10R10_UINT_PACK32                    = 68,
-  A2B10G10R10_SINT_PACK32                    = 69,
-  R16_UNORM                                  = 70,
-  R16_SNORM                                  = 71,
-  R16_USCALED                                = 72,
-  R16_SSCALED                                = 73,
-  R16_UINT                                   = 74,
-  R16_SINT                                   = 75,
-  R16_SFLOAT                                 = 76,
-  R16G16_UNORM                               = 77,
-  R16G16_SNORM                               = 78,
-  R16G16_USCALED                             = 79,
-  R16G16_SSCALED                             = 80,
-  R16G16_UINT                                = 81,
-  R16G16_SINT                                = 82,
-  R16G16_SFLOAT                              = 83,
-  R16G16B16_UNORM                            = 84,
-  R16G16B16_SNORM                            = 85,
-  R16G16B16_USCALED                          = 86,
-  R16G16B16_SSCALED                          = 87,
-  R16G16B16_UINT                             = 88,
-  R16G16B16_SINT                             = 89,
-  R16G16B16_SFLOAT                           = 90,
-  R16G16B16A16_UNORM                         = 91,
-  R16G16B16A16_SNORM                         = 92,
-  R16G16B16A16_USCALED                       = 93,
-  R16G16B16A16_SSCALED                       = 94,
-  R16G16B16A16_UINT                          = 95,
-  R16G16B16A16_SINT                          = 96,
-  R16G16B16A16_SFLOAT                        = 97,
-  R32_UINT                                   = 98,
-  R32_SINT                                   = 99,
-  R32_SFLOAT                                 = 100,
-  R32G32_UINT                                = 101,
-  R32G32_SINT                                = 102,
-  R32G32_SFLOAT                              = 103,
-  R32G32B32_UINT                             = 104,
-  R32G32B32_SINT                             = 105,
-  R32G32B32_SFLOAT                           = 106,
-  R32G32B32A32_UINT                          = 107,
-  R32G32B32A32_SINT                          = 108,
-  R32G32B32A32_SFLOAT                        = 109,
-  R64_UINT                                   = 110,
-  R64_SINT                                   = 111,
-  R64_SFLOAT                                 = 112,
-  R64G64_UINT                                = 113,
-  R64G64_SINT                                = 114,
-  R64G64_SFLOAT                              = 115,
-  R64G64B64_UINT                             = 116,
-  R64G64B64_SINT                             = 117,
-  R64G64B64_SFLOAT                           = 118,
-  R64G64B64A64_UINT                          = 119,
-  R64G64B64A64_SINT                          = 120,
-  R64G64B64A64_SFLOAT                        = 121,
-  B10G11R11_UFLOAT_PACK32                    = 122,
-  E5B9G9R9_UFLOAT_PACK32                     = 123,
-  D16_UNORM                                  = 124,
-  X8_D24_UNORM_PACK32                        = 125,
-  D32_SFLOAT                                 = 126,
-  S8_UINT                                    = 127,
-  D16_UNORM_S8_UINT                          = 128,
-  D24_UNORM_S8_UINT                          = 129,
-  D32_SFLOAT_S8_UINT                         = 130,
-  BC1_RGB_UNORM_BLOCK                        = 131,
-  BC1_RGB_SRGB_BLOCK                         = 132,
-  BC1_RGBA_UNORM_BLOCK                       = 133,
-  BC1_RGBA_SRGB_BLOCK                        = 134,
-  BC2_UNORM_BLOCK                            = 135,
-  BC2_SRGB_BLOCK                             = 136,
-  BC3_UNORM_BLOCK                            = 137,
-  BC3_SRGB_BLOCK                             = 138,
-  BC4_UNORM_BLOCK                            = 139,
-  BC4_SNORM_BLOCK                            = 140,
-  BC5_UNORM_BLOCK                            = 141,
-  BC5_SNORM_BLOCK                            = 142,
-  BC6H_UFLOAT_BLOCK                          = 143,
-  BC6H_SFLOAT_BLOCK                          = 144,
-  BC7_UNORM_BLOCK                            = 145,
-  BC7_SRGB_BLOCK                             = 146,
-  ETC2_R8G8B8_UNORM_BLOCK                    = 147,
-  ETC2_R8G8B8_SRGB_BLOCK                     = 148,
-  ETC2_R8G8B8A1_UNORM_BLOCK                  = 149,
-  ETC2_R8G8B8A1_SRGB_BLOCK                   = 150,
-  ETC2_R8G8B8A8_UNORM_BLOCK                  = 151,
-  ETC2_R8G8B8A8_SRGB_BLOCK                   = 152,
-  EAC_R11_UNORM_BLOCK                        = 153,
-  EAC_R11_SNORM_BLOCK                        = 154,
-  EAC_R11G11_UNORM_BLOCK                     = 155,
-  EAC_R11G11_SNORM_BLOCK                     = 156,
-  ASTC_4x4_UNORM_BLOCK                       = 157,
-  ASTC_4x4_SRGB_BLOCK                        = 158,
-  ASTC_5x4_UNORM_BLOCK                       = 159,
-  ASTC_5x4_SRGB_BLOCK                        = 160,
-  ASTC_5x5_UNORM_BLOCK                       = 161,
-  ASTC_5x5_SRGB_BLOCK                        = 162,
-  ASTC_6x5_UNORM_BLOCK                       = 163,
-  ASTC_6x5_SRGB_BLOCK                        = 164,
-  ASTC_6x6_UNORM_BLOCK                       = 165,
-  ASTC_6x6_SRGB_BLOCK                        = 166,
-  ASTC_8x5_UNORM_BLOCK                       = 167,
-  ASTC_8x5_SRGB_BLOCK                        = 168,
-  ASTC_8x6_UNORM_BLOCK                       = 169,
-  ASTC_8x6_SRGB_BLOCK                        = 170,
-  ASTC_8x8_UNORM_BLOCK                       = 171,
-  ASTC_8x8_SRGB_BLOCK                        = 172,
-  ASTC_10x5_UNORM_BLOCK                      = 173,
-  ASTC_10x5_SRGB_BLOCK                       = 174,
-  ASTC_10x6_UNORM_BLOCK                      = 175,
-  ASTC_10x6_SRGB_BLOCK                       = 176,
-  ASTC_10x8_UNORM_BLOCK                      = 177,
-  ASTC_10x8_SRGB_BLOCK                       = 178,
-  ASTC_10x10_UNORM_BLOCK                     = 179,
-  ASTC_10x10_SRGB_BLOCK                      = 180,
-  ASTC_12x10_UNORM_BLOCK                     = 181,
-  ASTC_12x10_SRGB_BLOCK                      = 182,
-  ASTC_12x12_UNORM_BLOCK                     = 183,
-  ASTC_12x12_SRGB_BLOCK                      = 184,
-  G8B8G8R8_422_UNORM                         = 1000156000,
-  B8G8R8G8_422_UNORM                         = 1000156001,
-  G8_B8_R8_3PLANE_420_UNORM                  = 1000156002,
-  G8_B8R8_2PLANE_420_UNORM                   = 1000156003,
-  G8_B8_R8_3PLANE_422_UNORM                  = 1000156004,
-  G8_B8R8_2PLANE_422_UNORM                   = 1000156005,
-  G8_B8_R8_3PLANE_444_UNORM                  = 1000156006,
-  R10X6_UNORM_PACK16                         = 1000156007,
-  R10X6G10X6_UNORM_2PACK16                   = 1000156008,
-  R10X6G10X6B10X6A10X6_UNORM_4PACK16         = 1000156009,
-  G10X6B10X6G10X6R10X6_422_UNORM_4PACK16     = 1000156010,
-  B10X6G10X6R10X6G10X6_422_UNORM_4PACK16     = 1000156011,
-  G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16 = 1000156012,
-  G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16  = 1000156013,
-  G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16 = 1000156014,
-  G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16  = 1000156015,
-  G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16 = 1000156016,
-  R12X4_UNORM_PACK16                         = 1000156017,
-  R12X4G12X4_UNORM_2PACK16                   = 1000156018,
-  R12X4G12X4B12X4A12X4_UNORM_4PACK16         = 1000156019,
-  G12X4B12X4G12X4R12X4_422_UNORM_4PACK16     = 1000156020,
-  B12X4G12X4R12X4G12X4_422_UNORM_4PACK16     = 1000156021,
-  G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16 = 1000156022,
-  G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16  = 1000156023,
-  G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16 = 1000156024,
-  G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16  = 1000156025,
-  G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16 = 1000156026,
-  G16B16G16R16_422_UNORM                     = 1000156027,
-  B16G16R16G16_422_UNORM                     = 1000156028,
-  G16_B16_R16_3PLANE_420_UNORM               = 1000156029,
-  G16_B16R16_2PLANE_420_UNORM                = 1000156030,
-  G16_B16_R16_3PLANE_422_UNORM               = 1000156031,
-  G16_B16R16_2PLANE_422_UNORM                = 1000156032,
-  G16_B16_R16_3PLANE_444_UNORM               = 1000156033,
-  G8_B8R8_2PLANE_444_UNORM                   = 1000330000,
-  G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16  = 1000330001,
-  G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16  = 1000330002,
-  G16_B16R16_2PLANE_444_UNORM                = 1000330003,
-  A4R4G4B4_UNORM_PACK16                      = 1000340000,
-  A4B4G4R4_UNORM_PACK16                      = 1000340001,
-  ASTC_4x4_SFLOAT_BLOCK                      = 1000066000,
-  ASTC_5x4_SFLOAT_BLOCK                      = 1000066001,
-  ASTC_5x5_SFLOAT_BLOCK                      = 1000066002,
-  ASTC_6x5_SFLOAT_BLOCK                      = 1000066003,
-  ASTC_6x6_SFLOAT_BLOCK                      = 1000066004,
-  ASTC_8x5_SFLOAT_BLOCK                      = 1000066005,
-  ASTC_8x6_SFLOAT_BLOCK                      = 1000066006,
-  ASTC_8x8_SFLOAT_BLOCK                      = 1000066007,
-  ASTC_10x5_SFLOAT_BLOCK                     = 1000066008,
-  ASTC_10x6_SFLOAT_BLOCK                     = 1000066009,
-  ASTC_10x8_SFLOAT_BLOCK                     = 1000066010,
-  ASTC_10x10_SFLOAT_BLOCK                    = 1000066011,
-  ASTC_12x10_SFLOAT_BLOCK                    = 1000066012,
-  ASTC_12x12_SFLOAT_BLOCK                    = 1000066013,
-  PVRTC1_2BPP_UNORM_BLOCK_IMG                = 1000054000,
-  PVRTC1_4BPP_UNORM_BLOCK_IMG                = 1000054001,
-  PVRTC2_2BPP_UNORM_BLOCK_IMG                = 1000054002,
-  PVRTC2_4BPP_UNORM_BLOCK_IMG                = 1000054003,
-  PVRTC1_2BPP_SRGB_BLOCK_IMG                 = 1000054004,
-  PVRTC1_4BPP_SRGB_BLOCK_IMG                 = 1000054005,
-  PVRTC2_2BPP_SRGB_BLOCK_IMG                 = 1000054006,
-  PVRTC2_4BPP_SRGB_BLOCK_IMG                 = 1000054007,
-  R16G16_S10_5                               = 1000464000,
-  A1B5G5R5_UNORM_PACK16                      = 1000470000,
-  A8_UNORM                                   = 1000470001
+  Undefined                  = 0,
+  R4G4_UNORM_PACK8           = 1,
+  R4G4B4A4_UNORM_PACK16      = 2,
+  B4G4R4A4_UNORM_PACK16      = 3,
+  R5G6B5_UNORM_PACK16        = 4,
+  B5G6R5_UNORM_PACK16        = 5,
+  R5G5B5A1_UNORM_PACK16      = 6,
+  B5G5R5A1_UNORM_PACK16      = 7,
+  A1R5G5B5_UNORM_PACK16      = 8,
+  R8_UNORM                   = 9,
+  R8_SNORM                   = 10,
+  R8_USCALED                 = 11,
+  R8_SSCALED                 = 12,
+  R8_UINT                    = 13,
+  R8_SINT                    = 14,
+  R8_SRGB                    = 15,
+  R8G8_UNORM                 = 16,
+  R8G8_SNORM                 = 17,
+  R8G8_USCALED               = 18,
+  R8G8_SSCALED               = 19,
+  R8G8_UINT                  = 20,
+  R8G8_SINT                  = 21,
+  R8G8_SRGB                  = 22,
+  R8G8B8_UNORM               = 23,
+  R8G8B8_SNORM               = 24,
+  R8G8B8_USCALED             = 25,
+  R8G8B8_SSCALED             = 26,
+  R8G8B8_UINT                = 27,
+  R8G8B8_SINT                = 28,
+  R8G8B8_SRGB                = 29,
+  B8G8R8_UNORM               = 30,
+  B8G8R8_SNORM               = 31,
+  B8G8R8_USCALED             = 32,
+  B8G8R8_SSCALED             = 33,
+  B8G8R8_UINT                = 34,
+  B8G8R8_SINT                = 35,
+  B8G8R8_SRGB                = 36,
+  R8G8B8A8_UNORM             = 37,
+  R8G8B8A8_SNORM             = 38,
+  R8G8B8A8_USCALED           = 39,
+  R8G8B8A8_SSCALED           = 40,
+  R8G8B8A8_UINT              = 41,
+  R8G8B8A8_SINT              = 42,
+  R8G8B8A8_SRGB              = 43,
+  B8G8R8A8_UNORM             = 44,
+  B8G8R8A8_SNORM             = 45,
+  B8G8R8A8_USCALED           = 46,
+  B8G8R8A8_SSCALED           = 47,
+  B8G8R8A8_UINT              = 48,
+  B8G8R8A8_SINT              = 49,
+  B8G8R8A8_SRGB              = 50,
+  A8B8G8R8_UNORM_PACK32      = 51,
+  A8B8G8R8_SNORM_PACK32      = 52,
+  A8B8G8R8_USCALED_PACK32    = 53,
+  A8B8G8R8_SSCALED_PACK32    = 54,
+  A8B8G8R8_UINT_PACK32       = 55,
+  A8B8G8R8_SINT_PACK32       = 56,
+  A8B8G8R8_SRGB_PACK32       = 57,
+  A2R10G10B10_UNORM_PACK32   = 58,
+  A2R10G10B10_SNORM_PACK32   = 59,
+  A2R10G10B10_USCALED_PACK32 = 60,
+  A2R10G10B10_SSCALED_PACK32 = 61,
+  A2R10G10B10_UINT_PACK32    = 62,
+  A2R10G10B10_SINT_PACK32    = 63,
+  A2B10G10R10_UNORM_PACK32   = 64,
+  A2B10G10R10_SNORM_PACK32   = 65,
+  A2B10G10R10_USCALED_PACK32 = 66,
+  A2B10G10R10_SSCALED_PACK32 = 67,
+  A2B10G10R10_UINT_PACK32    = 68,
+  A2B10G10R10_SINT_PACK32    = 69,
+  R16_UNORM                  = 70,
+  R16_SNORM                  = 71,
+  R16_USCALED                = 72,
+  R16_SSCALED                = 73,
+  R16_UINT                   = 74,
+  R16_SINT                   = 75,
+  R16_SFLOAT                 = 76,
+  R16G16_UNORM               = 77,
+  R16G16_SNORM               = 78,
+  R16G16_USCALED             = 79,
+  R16G16_SSCALED             = 80,
+  R16G16_UINT                = 81,
+  R16G16_SINT                = 82,
+  R16G16_SFLOAT              = 83,
+  R16G16B16_UNORM            = 84,
+  R16G16B16_SNORM            = 85,
+  R16G16B16_USCALED          = 86,
+  R16G16B16_SSCALED          = 87,
+  R16G16B16_UINT             = 88,
+  R16G16B16_SINT             = 89,
+  R16G16B16_SFLOAT           = 90,
+  R16G16B16A16_UNORM         = 91,
+  R16G16B16A16_SNORM         = 92,
+  R16G16B16A16_USCALED       = 93,
+  R16G16B16A16_SSCALED       = 94,
+  R16G16B16A16_UINT          = 95,
+  R16G16B16A16_SINT          = 96,
+  R16G16B16A16_SFLOAT        = 97,
+  R32_UINT                   = 98,
+  R32_SINT                   = 99,
+  R32_SFLOAT                 = 100,
+  R32G32_UINT                = 101,
+  R32G32_SINT                = 102,
+  R32G32_SFLOAT              = 103,
+  R32G32B32_UINT             = 104,
+  R32G32B32_SINT             = 105,
+  R32G32B32_SFLOAT           = 106,
+  R32G32B32A32_UINT          = 107,
+  R32G32B32A32_SINT          = 108,
+  R32G32B32A32_SFLOAT        = 109,
+  R64_UINT                   = 110,
+  R64_SINT                   = 111,
+  R64_SFLOAT                 = 112,
+  R64G64_UINT                = 113,
+  R64G64_SINT                = 114,
+  R64G64_SFLOAT              = 115,
+  R64G64B64_UINT             = 116,
+  R64G64B64_SINT             = 117,
+  R64G64B64_SFLOAT           = 118,
+  R64G64B64A64_UINT          = 119,
+  R64G64B64A64_SINT          = 120,
+  R64G64B64A64_SFLOAT        = 121,
+  B10G11R11_UFLOAT_PACK32    = 122,
+  E5B9G9R9_UFLOAT_PACK32     = 123,
+  D16_UNORM                  = 124,
+  X8_D24_UNORM_PACK32        = 125,
+  D32_SFLOAT                 = 126,
+  S8_UINT                    = 127,
+  D16_UNORM_S8_UINT          = 128,
+  D24_UNORM_S8_UINT          = 129,
+  D32_SFLOAT_S8_UINT         = 130,
+  BC1_RGB_UNORM_BLOCK        = 131,
+  BC1_RGB_SRGB_BLOCK         = 132,
+  BC1_RGBA_UNORM_BLOCK       = 133,
+  BC1_RGBA_SRGB_BLOCK        = 134,
+  BC2_UNORM_BLOCK            = 135,
+  BC2_SRGB_BLOCK             = 136,
+  BC3_UNORM_BLOCK            = 137,
+  BC3_SRGB_BLOCK             = 138,
+  BC4_UNORM_BLOCK            = 139,
+  BC4_SNORM_BLOCK            = 140,
+  BC5_UNORM_BLOCK            = 141,
+  BC5_SNORM_BLOCK            = 142,
+  BC6H_UFLOAT_BLOCK          = 143,
+  BC6H_SFLOAT_BLOCK          = 144,
+  BC7_UNORM_BLOCK            = 145,
+  BC7_SRGB_BLOCK             = 146,
+  ETC2_R8G8B8_UNORM_BLOCK    = 147,
+  ETC2_R8G8B8_SRGB_BLOCK     = 148,
+  ETC2_R8G8B8A1_UNORM_BLOCK  = 149,
+  ETC2_R8G8B8A1_SRGB_BLOCK   = 150,
+  ETC2_R8G8B8A8_UNORM_BLOCK  = 151,
+  ETC2_R8G8B8A8_SRGB_BLOCK   = 152,
+  EAC_R11_UNORM_BLOCK        = 153,
+  EAC_R11_SNORM_BLOCK        = 154,
+  EAC_R11G11_UNORM_BLOCK     = 155,
+  EAC_R11G11_SNORM_BLOCK     = 156,
+  ASTC_4x4_UNORM_BLOCK       = 157,
+  ASTC_4x4_SRGB_BLOCK        = 158,
+  ASTC_5x4_UNORM_BLOCK       = 159,
+  ASTC_5x4_SRGB_BLOCK        = 160,
+  ASTC_5x5_UNORM_BLOCK       = 161,
+  ASTC_5x5_SRGB_BLOCK        = 162,
+  ASTC_6x5_UNORM_BLOCK       = 163,
+  ASTC_6x5_SRGB_BLOCK        = 164,
+  ASTC_6x6_UNORM_BLOCK       = 165,
+  ASTC_6x6_SRGB_BLOCK        = 166,
+  ASTC_8x5_UNORM_BLOCK       = 167,
+  ASTC_8x5_SRGB_BLOCK        = 168,
+  ASTC_8x6_UNORM_BLOCK       = 169,
+  ASTC_8x6_SRGB_BLOCK        = 170,
+  ASTC_8x8_UNORM_BLOCK       = 171,
+  ASTC_8x8_SRGB_BLOCK        = 172,
+  ASTC_10x5_UNORM_BLOCK      = 173,
+  ASTC_10x5_SRGB_BLOCK       = 174,
+  ASTC_10x6_UNORM_BLOCK      = 175,
+  ASTC_10x6_SRGB_BLOCK       = 176,
+  ASTC_10x8_UNORM_BLOCK      = 177,
+  ASTC_10x8_SRGB_BLOCK       = 178,
+  ASTC_10x10_UNORM_BLOCK     = 179,
+  ASTC_10x10_SRGB_BLOCK      = 180,
+  ASTC_12x10_UNORM_BLOCK     = 181,
+  ASTC_12x10_SRGB_BLOCK      = 182,
+  ASTC_12x12_UNORM_BLOCK     = 183,
+  ASTC_12x12_SRGB_BLOCK      = 184
 };
 
 enum class ColorSpace : u32
@@ -406,69 +329,47 @@ enum class ColorSpace : u32
   EXTENDED_SRGB_NONLINEAR = 1000104014
 };
 
-enum class FormatFeatures : u64
+enum class FormatFeatures : u16
 {
-  None                                                    = 0x00000000ULL,
-  SampledImage                                            = 0x00000001ULL,
-  StorageImage                                            = 0x00000002ULL,
-  StorageImageAtomic                                      = 0x00000004ULL,
-  UniformTexelBuffer                                      = 0x00000008ULL,
-  StorageTexelBuffer                                      = 0x00000010ULL,
-  StorageTexelBufferAtomic                                = 0x00000020ULL,
-  VertexBuffer                                            = 0x00000040ULL,
-  ColorAttachment                                         = 0x00000080ULL,
-  ColorAttachmentBlend                                    = 0x00000100ULL,
-  DepthStencilAttachment                                  = 0x00000200ULL,
-  BlitSrc                                                 = 0x00000400ULL,
-  BlitDst                                                 = 0x00000800ULL,
-  SampledImageFilterLinear                                = 0x00001000ULL,
-  SampledImageFilterCubic                                 = 0x00002000ULL,
-  TransferSrc                                             = 0x00004000ULL,
-  TransferDst                                             = 0x00008000ULL,
-  SampledImageFilterMinMax                                = 0x00010000ULL,
-  MidpointChromaSamples                                   = 0x00020000ULL,
-  SampledImageYCbCrConversionLinearFilter                 = 0x00040000ULL,
-  SampledImageYCbCrConversionSeparateReconstructionFilter = 0x00080000ULL,
-  SampledImageYCbCrConversionChromaReconstructionExplicit = 0x00100000ULL,
-  SampledImageYCbCrConversionChromaReconstructionExplicitForceable =
-      0x00200000ULL,
-  Disjoint                    = 0x00400000ULL,
-  CositedChromaSamples        = 0x00800000ULL,
-  StorageReadWithoutFormat    = 0x80000000ULL,
-  StorageWriteWithoutFormat   = 0x100000000ULL,
-  SampledImageDepthComparison = 0x200000000ULL,
-  VideoDecodeOutput           = 0x02000000ULL,
-  VideoDecodeDpb              = 0x04000000ULL,
-  VideoDecodeInput            = 0x08000000ULL,
-  VideoEncodeDpb              = 0x10000000ULL
+  None                     = 0x0000U,
+  SampledImage             = 0x0001U,
+  StorageImage             = 0x0002U,
+  StorageImageAtomic       = 0x0004U,
+  UniformTexelBuffer       = 0x0008U,
+  StorageTexelBuffer       = 0x0010U,
+  StorageTexelBufferAtomic = 0x0020U,
+  VertexBuffer             = 0x0040U,
+  ColorAttachment          = 0x0080U,
+  ColorAttachmentBlend     = 0x0100U,
+  DepthStencilAttachment   = 0x0200U,
+  BlitSrc                  = 0x0400U,
+  BlitDst                  = 0x0800U,
+  SampledImageFilterLinear = 0x1000U
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(FormatFeatures)
 
-enum class ImageAspects : u32
+enum class ImageAspects : u8
 {
-  None     = 0x00000000,
-  Color    = 0x00000001,
-  Depth    = 0x00000002,
-  Stencil  = 0x00000004,
-  MetaData = 0x00000008,
-  Plane0   = 0x00000010,
-  Plane1   = 0x00000020,
-  Plane2   = 0x00000040
+  None     = 0x00U,
+  Color    = 0x01U,
+  Depth    = 0x02U,
+  Stencil  = 0x04U,
+  MetaData = 0x08U
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(ImageAspects)
 
 enum class SampleCount : u8
 {
-  None    = 0x00000000,
-  Count1  = 0x00000001,
-  Count2  = 0x00000002,
-  Count4  = 0x00000004,
-  Count8  = 0x00000008,
-  Count16 = 0x00000010,
-  Count32 = 0x00000020,
-  Count64 = 0x00000040
+  None    = 0x00U,
+  Count1  = 0x01U,
+  Count2  = 0x02U,
+  Count4  = 0x04U,
+  Count8  = 0x08U,
+  Count16 = 0x10U,
+  Count32 = 0x20U,
+  Count64 = 0x40U
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(SampleCount)
@@ -628,46 +529,32 @@ enum class ColorComponents : u8
 
 ASH_DEFINE_ENUM_BIT_OPS(ColorComponents)
 
-enum class BufferUsage : u32
+enum class BufferUsage : u16
 {
-  None                                    = 0x00000000,
-  TransferSrc                             = 0x00000001,
-  TransferDst                             = 0x00000002,
-  UniformTexelBuffer                      = 0x00000004,
-  StorageTexelBuffer                      = 0x00000008,
-  UniformBuffer                           = 0x00000010,
-  StorageBuffer                           = 0x00000020,
-  IndexBuffer                             = 0x00000040,
-  VertexBuffer                            = 0x00000080,
-  IndirectBuffer                          = 0x00000100,
-  VideoDecodeSrc                          = 0x00002000,
-  VideoDecodeDst                          = 0x00004000,
-  AccelerationStructureBuildInputReadOnly = 0x00080000,
-  AccelerationStructureStorage            = 0x00100000,
-  ShaderBindingTable                      = 0x00000400,
-  VideoEncodeDst                          = 0x00008000,
-  VideoEncodeSrc                          = 0x00010000,
-  RayTracing                              = ShaderBindingTable
+  None               = 0x0000U,
+  TransferSrc        = 0x0001U,
+  TransferDst        = 0x0002U,
+  UniformTexelBuffer = 0x0004U,
+  StorageTexelBuffer = 0x0008U,
+  UniformBuffer      = 0x0010U,
+  StorageBuffer      = 0x0020U,
+  IndexBuffer        = 0x0040U,
+  VertexBuffer       = 0x0080U,
+  IndirectBuffer     = 0x0100U
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(BufferUsage)
 
-enum class ImageUsage : u32
+enum class ImageUsage : u8
 {
-  None                   = 0x00000000,
-  TransferSrc            = 0x00000001,
-  TransferDst            = 0x00000002,
-  Sampled                = 0x00000004,
-  Storage                = 0x00000008,
-  ColorAttachment        = 0x00000010,
-  DepthStencilAttachment = 0x00000020,
-  InputAttachment        = 0x00000080,
-  VideoDecodeDst         = 0x00000400,
-  VideoDecodeSrc         = 0x00000800,
-  VideoDecodeDpb         = 0x00001000,
-  VideoEncodeDst         = 0x00002000,
-  VideoEncodeSrc         = 0x00004000,
-  VideoEncodeDpb         = 0x00008000
+  None                   = 0x00U,
+  TransferSrc            = 0x01U,
+  TransferDst            = 0x02U,
+  Sampled                = 0x04U,
+  Storage                = 0x08U,
+  ColorAttachment        = 0x10U,
+  DepthStencilAttachment = 0x20U,
+  InputAttachment        = 0x80U
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(ImageUsage)
@@ -678,20 +565,14 @@ enum class InputRate : u8
   Instance = 1
 };
 
-enum class ShaderStages : u32
+enum class ShaderStages : u8
 {
-  None         = 0x00000000,
-  Vertex       = 0x00000001,
-  Fragment     = 0x00000010,
-  Compute      = 0x00000020,
-  AllGraphics  = 0x0000001F,
-  All          = 0x7FFFFFFF,
-  RayGen       = 0x00000100,
-  AnyHit       = 0x00000200,
-  ClosestHit   = 0x00000400,
-  Miss         = 0x00000800,
-  Intersection = 0x00001000,
-  Callable     = 0x00002000
+  None        = 0x00U,
+  Vertex      = 0x01U,
+  Fragment    = 0x10U,
+  Compute     = 0x20U,
+  AllGraphics = 0x1FU,
+  All         = Vertex | Fragment | Compute | AllGraphics
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(ShaderStages)
@@ -764,11 +645,11 @@ enum class IndexType : u8
 
 enum class CompositeAlpha : u8
 {
-  None           = 0x00000000,
-  Opaque         = 0x00000001,
-  PreMultiplied  = 0x00000002,
-  PostMultiplied = 0x00000004,
-  Inherit        = 0x00000008
+  None           = 0x00U,
+  Opaque         = 0x01U,
+  PreMultiplied  = 0x02U,
+  PostMultiplied = 0x04U,
+  Inherit        = 0x08U
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
@@ -777,12 +658,6 @@ struct SurfaceFormat
 {
   Format     format      = Format::Undefined;
   ColorSpace color_space = ColorSpace::SRGB_NONLINEAR;
-};
-
-struct FrameIndex
-{
-  u64 trailing = 0;
-  u64 current  = 0;
 };
 
 struct MemoryRange
@@ -845,33 +720,33 @@ struct ImageSubresourceLayers
 
 struct BufferDesc
 {
-  char const *label       = nullptr;
-  u64         size        = 0;
-  bool        host_mapped = false;
-  BufferUsage usage       = BufferUsage::None;
+  Span<char const> label       = {};
+  u64              size        = 0;
+  bool             host_mapped = false;
+  BufferUsage      usage       = BufferUsage::None;
 };
 
 /// format interpretation of a buffer's contents
 struct BufferViewDesc
 {
-  char const *label  = nullptr;
-  Buffer      buffer = nullptr;
-  Format      format = Format::Undefined;
-  u64         offset = 0;
-  u64         size   = 0;
+  Span<char const> label  = {};
+  Buffer           buffer = nullptr;
+  Format           format = Format::Undefined;
+  u64              offset = 0;
+  u64              size   = 0;
 };
 
 struct ImageDesc
 {
-  char const  *label        = nullptr;
-  ImageType    type         = ImageType::Type1D;
-  Format       format       = Format::Undefined;
-  ImageUsage   usage        = ImageUsage::None;
-  ImageAspects aspects      = ImageAspects::None;
-  Extent3D     extent       = {};
-  u32          mip_levels   = 0;
-  u32          array_layers = 0;
-  SampleCount  sample_count = SampleCount::None;
+  Span<char const> label        = {};
+  ImageType        type         = ImageType::Type1D;
+  Format           format       = Format::Undefined;
+  ImageUsage       usage        = ImageUsage::None;
+  ImageAspects     aspects      = ImageAspects::None;
+  Extent3D         extent       = {};
+  u32              mip_levels   = 0;
+  u32              array_layers = 0;
+  SampleCount      sample_count = SampleCount::None;
 };
 
 /// a sub-resource that specifies mips, aspects, layer, and component mapping of
@@ -883,7 +758,7 @@ struct ImageDesc
 ///
 struct ImageViewDesc
 {
-  char const      *label             = nullptr;
+  Span<char const> label             = {};
   Image            image             = nullptr;
   ImageViewType    view_type         = ImageViewType::Type1D;
   Format           view_format       = Format::Undefined;
@@ -897,7 +772,7 @@ struct ImageViewDesc
 
 struct SamplerDesc
 {
-  char const        *label             = nullptr;
+  Span<char const>   label             = {};
   Filter             mag_filter        = Filter::Nearest;
   Filter             min_filter        = Filter::Nearest;
   SamplerMipMapMode  mip_map_mode      = SamplerMipMapMode::Nearest;
@@ -917,8 +792,8 @@ struct SamplerDesc
 
 struct ShaderDesc
 {
-  char const     *label      = nullptr;
-  Span<u32 const> spirv_code = {};
+  Span<char const> label      = {};
+  Span<u32 const>  spirv_code = {};
 };
 
 /// @load_op: how to load color or depth component
@@ -938,7 +813,7 @@ struct RenderPassAttachment
 /// related optimizations
 struct RenderPassDesc
 {
-  char const                      *label                    = nullptr;
+  Span<char const>                 label                    = {};
   Span<RenderPassAttachment const> color_attachments        = {};
   Span<RenderPassAttachment const> input_attachments        = {};
   RenderPassAttachment             depth_stencil_attachment = {};
@@ -946,7 +821,7 @@ struct RenderPassDesc
 
 struct FramebufferDesc
 {
-  char const           *label                    = nullptr;
+  Span<char const>      label                    = {};
   RenderPass            render_pass              = nullptr;
   Extent                extent                   = {};
   Span<ImageView const> color_attachments        = {};
@@ -962,14 +837,14 @@ struct DescriptorBindingDesc
 
 struct DescriptorSetLayoutDesc
 {
-  char const                       *label    = nullptr;
+  Span<char const>                  label    = {};
   Span<DescriptorBindingDesc const> bindings = {};
 };
 
 struct PipelineCacheDesc
 {
-  char const    *label        = nullptr;
-  Span<u8 const> initial_data = {};
+  Span<char const> label        = {};
+  Span<u8 const>   initial_data = {};
 };
 
 struct SamplerBinding
@@ -983,58 +858,21 @@ struct CombinedImageSampler
   ImageView image_view = nullptr;
 };
 
-struct SampledImageBinding
+struct ImageBinding
 {
   ImageView image_view = nullptr;
 };
 
-struct StorageImageBinding
-{
-  ImageView image_view = nullptr;
-};
-
-struct UniformTexelBufferBinding
+struct TexelBufferBinding
 {
   BufferView buffer_view = nullptr;
 };
 
-struct StorageTexelBufferBinding
-{
-  BufferView buffer_view = nullptr;
-};
-
-struct UniformBufferBinding
+struct BufferBinding
 {
   Buffer buffer = nullptr;
   u64    offset = 0;
   u64    size   = 0;
-};
-
-struct StorageBufferBinding
-{
-  Buffer buffer = nullptr;
-  u64    offset = 0;
-  u64    size   = 0;
-};
-
-struct DynamicUniformBufferBinding
-{
-  Buffer buffer = nullptr;
-  u64    offset = 0;
-  u64    size   = 0;
-};
-
-struct DynamicStorageBufferBinding
-{
-  Buffer buffer = nullptr;
-  u64    offset = 0;
-  u64    size   = 0;
-};
-
-/// used for frame-buffer-local read-operations
-struct InputAttachmentBinding
-{
-  ImageView image_view = nullptr;
 };
 
 struct SpecializationConstant
@@ -1047,14 +885,14 @@ struct SpecializationConstant
 struct ShaderStageDesc
 {
   Shader                             shader                        = nullptr;
-  char const                        *entry_point                   = nullptr;
+  Span<char const>                   entry_point                   = {};
   Span<SpecializationConstant const> specialization_constants      = {};
   Span<u8 const>                     specialization_constants_data = {};
 };
 
 struct ComputePipelineDesc
 {
-  char const                     *label                  = nullptr;
+  Span<char const>                label                  = {};
   ShaderStageDesc                 compute_shader         = {};
   u32                             push_constant_size     = 0;
   Span<DescriptorSetLayout const> descriptor_set_layouts = {};
@@ -1135,7 +973,7 @@ struct PipelineRasterizationState
 
 struct GraphicsPipelineDesc
 {
-  char const                     *label                  = nullptr;
+  Span<char const>                label                  = {};
   ShaderStageDesc                 vertex_shader          = {};
   ShaderStageDesc                 fragment_shader        = {};
   RenderPass                      render_pass            = nullptr;
@@ -1150,14 +988,28 @@ struct GraphicsPipelineDesc
   PipelineCache              cache               = nullptr;
 };
 
-struct IndirectDispatchCommand
+struct FrameContextDesc
+{
+  Span<char const> label                = {};
+  u32              max_frames_in_flight = 0;
+  AllocatorImpl    allocator            = default_allocator;
+};
+
+struct DescriptorHeapDesc
+{
+  DescriptorSetLayout layout            = nullptr;
+  u32                 num_sets_per_pool = 0;
+  AllocatorImpl       allocator         = default_allocator;
+};
+
+struct DispatchCommand
 {
   u32 x = 0;
   u32 y = 0;
   u32 z = 0;
 };
 
-struct IndirectDrawCommand
+struct DrawIndexedCommand
 {
   u32 index_count    = 0;
   u32 instance_count = 0;
@@ -1166,7 +1018,7 @@ struct IndirectDrawCommand
   u32 first_instance = 0;
 };
 
-struct IndirectUnindexedDrawCommand
+struct DrawCommand
 {
   u32 vertex_count   = 0;
   u32 instance_count = 0;
@@ -1217,11 +1069,12 @@ struct ImageResolve
   Extent3D               extent     = {};
 };
 
+/// x, y, z, w => R, G, B, A
 union Color
 {
-  u32 uint32[4] = {0, 0, 0, 0};
-  i32 int32[4];
-  f32 float32[4];
+  Vec4U uint32 = {0, 0, 0, 0};
+  Vec4I int32;
+  Vec4  float32;
 };
 
 struct DepthStencil
@@ -1244,13 +1097,13 @@ struct SurfaceCapabilities
 
 struct SwapchainDesc
 {
-  char const    *label               = nullptr;
-  SurfaceFormat  format              = {};
-  ImageUsage     usage               = ImageUsage::None;
-  u32            preferred_buffering = 0;
-  PresentMode    present_mode        = PresentMode::Immediate;
-  Extent         preferred_extent    = {};
-  CompositeAlpha composite_alpha     = CompositeAlpha::None;
+  Span<char const> label               = {};
+  SurfaceFormat    format              = {};
+  ImageUsage       usage               = ImageUsage::None;
+  u32              preferred_buffering = 0;
+  PresentMode      present_mode        = PresentMode::Immediate;
+  Extent           preferred_extent    = {};
+  CompositeAlpha   composite_alpha     = CompositeAlpha::None;
 };
 
 /// @generation: increases everytime the swapchain for the surface is recreated
@@ -1258,23 +1111,22 @@ struct SwapchainDesc
 /// @images: swapchain images, calling ref or unref on them will cause a panic
 /// as they are only meant to exist for the lifetime of the frame.
 /// avoid storing pointers to its data members.
-struct SwapchainInfo
+struct SwapchainState
 {
-  Generation        generation    = 0;
   Extent            extent        = {};
   SurfaceFormat     format        = {};
   Span<Image const> images        = {};
-  u32               current_image = 0;
+  Option<u32>       current_image = None;
 };
 
 /// should be assumed to change from frame to frame.
 /// avoid storing pointers to this struct.
 struct FrameInfo
 {
-  FrameId                        trailing                = 0;
-  FrameId                        current                 = 0;
-  Span<CommandEncoderImpl const> command_encoders        = {};
-  u32                            current_command_encoder = 0;
+  FrameId                        tail       = 0;
+  FrameId                        current    = 0;
+  Span<CommandEncoderImpl const> encoders   = {};
+  u32                            ring_index = 0;
 };
 
 struct DeviceLimits
@@ -1357,15 +1209,13 @@ struct DeviceProperties
   Span<char const> device_name        = {};
   DeviceType       type               = DeviceType::Other;
   bool             has_unified_memory = false;
-  DeviceFeatures   features           = DeviceFeatures::Basic;
   DeviceLimits     limits             = {};
 };
 
 struct DescriptorSet
 {
   DescriptorHeap heap  = nullptr;
-  u32            group = 0;
-  u32            set   = 0;
+  u32            index = 0;
 };
 
 /// @num_allocated_groups: number of alive group allocations
@@ -1374,50 +1224,46 @@ struct DescriptorSet
 /// groups. possibly still in use by the device.
 struct DescriptorHeapStats
 {
-  u32 num_allocated_groups = 0;
-  u32 num_free_groups      = 0;
-  u32 num_released_groups  = 0;
-  u32 num_pools            = 0;
+  u32 num_allocated = 0;
+  u32 num_free      = 0;
+  u32 num_released  = 0;
+  u32 num_pools     = 0;
 };
 
 struct DescriptorHeapInterface
 {
-  Result<u32, Status> (*add_group)(DescriptorHeap self)        = nullptr;
-  void (*collect)(DescriptorHeap self, FrameId trailing_frame) = nullptr;
-  void (*mark_in_use)(DescriptorHeap self, u32 group,
-                      FrameId current_frame)                   = nullptr;
-  bool (*is_in_use)(DescriptorHeap self, u32 group,
-                    FrameId trailing_frame)                    = nullptr;
-  void (*release)(DescriptorHeap self, u32 group)              = nullptr;
-  DescriptorHeapStats (*get_stats)(DescriptorHeap self)        = nullptr;
-  void (*sampler)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                  Span<SamplerBinding const> elements)         = nullptr;
+  Result<u32, Status> (*allocate)(DescriptorHeap self)                = nullptr;
+  void (*collect)(DescriptorHeap self, FrameId tail_frame)            = nullptr;
+  void (*mark_in_use)(DescriptorHeap self, u32 set,
+                      FrameId current_frame)                          = nullptr;
+  bool (*is_in_use)(DescriptorHeap self, u32 set, FrameId tail_frame) = nullptr;
+  void (*release)(DescriptorHeap self, u32 set)                       = nullptr;
+  DescriptorHeapStats (*get_stats)(DescriptorHeap self)               = nullptr;
+  void (*sampler)(DescriptorHeap self, u32 set, u32 binding,
+                  Span<SamplerBinding const> elements)                = nullptr;
   void (*combined_image_sampler)(
-      DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<CombinedImageSamplerBinding const> elements)           = nullptr;
-  void (*sampled_image)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                        Span<SampledImageBinding const> elements) = nullptr;
-  void (*storage_image)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                        Span<StorageImageBinding const> elements) = nullptr;
-  void (*uniform_texel_buffer)(
-      DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<UniformTexelBufferBinding const> elements) = nullptr;
-  void (*storage_texel_buffer)(
-      DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<StorageTexelBufferBinding const> elements)               = nullptr;
-  void (*uniform_buffer)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                         Span<UniformBufferBinding const> elements) = nullptr;
-  void (*storage_buffer)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                         Span<StorageBufferBinding const> elements) = nullptr;
-  void (*dynamic_uniform_buffer)(
-      DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<DynamicUniformBufferBinding const> elements) = nullptr;
-  void (*dynamic_storage_buffer)(
-      DescriptorHeap self, u32 group, u32 set, u32 binding,
-      Span<DynamicStorageBufferBinding const> elements) = nullptr;
-  void (*input_attachment)(DescriptorHeap self, u32 group, u32 set, u32 binding,
-                           Span<InputAttachmentBinding const> elements) =
+      DescriptorHeap self, u32 set, u32 binding,
+      Span<CombinedImageSamplerBinding const> elements)    = nullptr;
+  void (*sampled_image)(DescriptorHeap self, u32 set, u32 binding,
+                        Span<ImageBinding const> elements) = nullptr;
+  void (*storage_image)(DescriptorHeap self, u32 set, u32 binding,
+                        Span<ImageBinding const> elements) = nullptr;
+  void (*uniform_texel_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                               Span<TexelBufferBinding const> elements) =
       nullptr;
+  void (*storage_texel_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                               Span<TexelBufferBinding const> elements) =
+      nullptr;
+  void (*uniform_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                         Span<BufferBinding const> elements)         = nullptr;
+  void (*storage_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                         Span<BufferBinding const> elements)         = nullptr;
+  void (*dynamic_uniform_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                                 Span<BufferBinding const> elements) = nullptr;
+  void (*dynamic_storage_buffer)(DescriptorHeap self, u32 set, u32 binding,
+                                 Span<BufferBinding const> elements) = nullptr;
+  void (*input_attachment)(DescriptorHeap self, u32 set, u32 binding,
+                           Span<ImageBinding const> elements)        = nullptr;
 };
 
 struct DescriptorHeapImpl
@@ -1431,13 +1277,10 @@ struct DescriptorHeapImpl
   }
 };
 
-/// to execute tasks at end of frame. use the trailing frame index.
+/// to execute tasks at end of frame. use the tail frame index.
 struct CommandEncoderInterface
 {
-  void (*begin)(CommandEncoder self)                                  = nullptr;
-  Result<Void, Status> (*end)(CommandEncoder self)                    = nullptr;
-  void (*reset)(CommandEncoder self)                                  = nullptr;
-  void (*begin_debug_marker)(CommandEncoder self, char const *region_name,
+  void (*begin_debug_marker)(CommandEncoder self, Span<char const> region_name,
                              Vec4 color)                              = nullptr;
   void (*end_debug_marker)(CommandEncoder self)                       = nullptr;
   void (*fill_buffer)(CommandEncoder self, Buffer dst, u64 offset, u64 size,
@@ -1494,12 +1337,15 @@ struct CommandEncoderInterface
                               Span<u64 const>    offsets)                = nullptr;
   void (*bind_index_buffer)(CommandEncoder self, Buffer index_buffer,
                             u64 offset, IndexType index_type)         = nullptr;
-  void (*draw)(CommandEncoder self, u32 first_index, u32 num_indices,
-               i32 vertex_offset, u32 first_instance,
-               u32 num_instances)                                     = nullptr;
+  void (*draw)(CommandEncoder self, u32 vertex_count, u32 instance_count,
+               u32 first_vertex_id, u32 first_instance_id)            = nullptr;
+  void (*draw_indexed)(CommandEncoder self, u32 first_index, u32 num_indices,
+                       i32 vertex_offset, u32 first_instance_id,
+                       u32 num_instances)                             = nullptr;
   void (*draw_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
                         u32 draw_count, u32 stride)                   = nullptr;
-  void (*present_image)(CommandEncoder self, Image image)             = nullptr;
+  void (*draw_indexed_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
+                                u32 draw_count, u32 stride)           = nullptr;
 };
 
 struct CommandEncoderImpl
@@ -1537,8 +1383,7 @@ struct DeviceInterface
   Result<DescriptorSetLayout, Status> (*create_descriptor_set_layout)(
       Device self, DescriptorSetLayoutDesc const &desc) = nullptr;
   Result<DescriptorHeapImpl, Status> (*create_descriptor_heap)(
-      Device self, Span<DescriptorSetLayout const> descriptor_set_layouts,
-      u32 groups_per_pool, AllocatorImpl allocator) = nullptr;
+      Device self, DescriptorHeapDesc const &desc) = nullptr;
   Result<PipelineCache, Status> (*create_pipeline_cache)(
       Device self, PipelineCacheDesc const &desc) = nullptr;
   Result<ComputePipeline, Status> (*create_compute_pipeline)(
@@ -1546,55 +1391,33 @@ struct DeviceInterface
   Result<GraphicsPipeline, Status> (*create_graphics_pipeline)(
       Device self, GraphicsPipelineDesc const &desc)                = nullptr;
   Result<Fence, Status> (*create_fence)(Device self, bool signaled) = nullptr;
-  Result<CommandEncoderImpl, Status> (*create_command_encoder)(
-      Device self, AllocatorImpl allocator) = nullptr;
   Result<FrameContext, Status> (*create_frame_context)(
-      Device self, u32 max_frames_in_flight,
-      Span<AllocatorImpl const> command_encoder_allocators) = nullptr;
+      Device self, FrameContextDesc const &desc) = nullptr;
   Result<Swapchain, Status> (*create_swapchain)(
-      Device self, Surface surface, SwapchainDesc const &desc)        = nullptr;
-  void (*ref_buffer)(Device self, Buffer buffer)                      = nullptr;
-  void (*ref_buffer_view)(Device self, BufferView buffer_view)        = nullptr;
-  void (*ref_image)(Device self, Image image)                         = nullptr;
-  void (*ref_image_view)(Device self, ImageView image_view)           = nullptr;
-  void (*ref_sampler)(Device self, Sampler sampler)                   = nullptr;
-  void (*ref_shader)(Device self, Shader shader)                      = nullptr;
-  void (*ref_render_pass)(Device self, RenderPass render_pass)        = nullptr;
-  void (*ref_framebuffer)(Device self, Framebuffer framebuffer)       = nullptr;
-  void (*ref_descriptor_set_layout)(Device              self,
-                                    DescriptorSetLayout layout)       = nullptr;
-  void (*ref_descriptor_heap)(Device self, DescriptorHeapImpl heap)   = nullptr;
-  void (*ref_pipeline_cache)(Device self, PipelineCache cache)        = nullptr;
-  void (*ref_compute_pipeline)(Device self, ComputePipeline pipeline) = nullptr;
-  void (*ref_graphics_pipeline)(Device           self,
-                                GraphicsPipeline pipeline)            = nullptr;
-  void (*ref_fence)(Device self, Fence fence)                         = nullptr;
-  void (*ref_command_encoder)(Device             self,
-                              CommandEncoderImpl encoder)             = nullptr;
-  void (*ref_frame_context)(Device self, FrameContext frame_context)  = nullptr;
-  void (*unref_buffer)(Device self, Buffer buffer)                    = nullptr;
-  void (*unref_buffer_view)(Device self, BufferView buffer_view)      = nullptr;
-  void (*unref_image)(Device self, Image image)                       = nullptr;
-  void (*unref_image_view)(Device self, ImageView image_view)         = nullptr;
-  void (*unref_sampler)(Device self, Sampler sampler)                 = nullptr;
-  void (*unref_shader)(Device self, Shader shader)                    = nullptr;
-  void (*unref_render_pass)(Device self, RenderPass render_pass)      = nullptr;
-  void (*unref_framebuffer)(Device self, Framebuffer framebuffer)     = nullptr;
-  void (*unref_descriptor_set_layout)(Device              self,
-                                      DescriptorSetLayout layout)     = nullptr;
-  void (*unref_descriptor_heap)(Device self, DescriptorHeapImpl heap) = nullptr;
-  void (*unref_pipeline_cache)(Device self, PipelineCache cache)      = nullptr;
-  void (*unref_compute_pipeline)(Device          self,
-                                 ComputePipeline pipeline)            = nullptr;
-  void (*unref_graphics_pipeline)(Device           self,
-                                  GraphicsPipeline pipeline)          = nullptr;
-  void (*unref_fence)(Device self, Fence fence)                       = nullptr;
-  void (*unref_command_encoder)(Device             self,
-                                CommandEncoderImpl encoder)           = nullptr;
-  void (*unref_frame_context)(Device       self,
-                              FrameContext frame_context)             = nullptr;
+      Device self, Surface surface, SwapchainDesc const &desc)      = nullptr;
+  void (*destroy_buffer)(Device self, Buffer buffer)                = nullptr;
+  void (*destroy_buffer_view)(Device self, BufferView buffer_view)  = nullptr;
+  void (*destroy_image)(Device self, Image image)                   = nullptr;
+  void (*destroy_image_view)(Device self, ImageView image_view)     = nullptr;
+  void (*destroy_sampler)(Device self, Sampler sampler)             = nullptr;
+  void (*destroy_shader)(Device self, Shader shader)                = nullptr;
+  void (*destroy_render_pass)(Device self, RenderPass render_pass)  = nullptr;
+  void (*destroy_framebuffer)(Device self, Framebuffer framebuffer) = nullptr;
+  void (*destroy_descriptor_set_layout)(Device              self,
+                                        DescriptorSetLayout layout) = nullptr;
+  void (*destroy_descriptor_heap)(Device             self,
+                                  DescriptorHeapImpl heap)          = nullptr;
+  void (*destroy_pipeline_cache)(Device self, PipelineCache cache)  = nullptr;
+  void (*destroy_compute_pipeline)(Device          self,
+                                   ComputePipeline pipeline)        = nullptr;
+  void (*destroy_graphics_pipeline)(Device           self,
+                                    GraphicsPipeline pipeline)      = nullptr;
+  void (*destroy_fence)(Device self, Fence fence)                   = nullptr;
+  void (*destroy_frame_context)(Device       self,
+                                FrameContext frame_context)         = nullptr;
+  void (*destroy_swapchain)(Device self, Swapchain swapchain)       = nullptr;
   Result<void *, Status> (*get_buffer_memory_map)(Device self,
-                                                  Buffer buffer)      = nullptr;
+                                                  Buffer buffer)    = nullptr;
   Result<Void, Status> (*invalidate_buffer_memory_map)(
       Device self, Buffer buffer, MemoryRange range)                 = nullptr;
   Result<Void, Status> (*flush_buffer_memory_map)(Device self, Buffer buffer,
@@ -1611,8 +1434,6 @@ struct DeviceInterface
   Result<Void, Status> (*reset_fences)(Device            self,
                                        Span<Fence const> fences)      = nullptr;
   Result<bool, Status> (*get_fence_status)(Device self, Fence fence)  = nullptr;
-  Result<Void, Status> (*submit)(Device self, CommandEncoder encoder,
-                                 Fence signal_fence)                  = nullptr;
   Result<Void, Status> (*wait_idle)(Device self)                      = nullptr;
   Result<Void, Status> (*wait_queue_idle)(Device self)                = nullptr;
   FrameInfo (*get_frame_info)(Device self, FrameContext frame_context);
@@ -1622,14 +1443,14 @@ struct DeviceInterface
       Device self, Surface surface, Span<PresentMode> modes) = nullptr;
   Result<SurfaceCapabilities, Status> (*get_surface_capabilities)(
       Device self, Surface surface) = nullptr;
-  Result<SwapchainInfo, Status> (*get_swapchain_info)(
+  Result<SwapchainState, Status> (*get_swapchain_state)(
       Device self, Swapchain swapchain) = nullptr;
   Result<Void, Status> (*invalidate_swapchain)(
       Device self, Swapchain swapchain, SwapchainDesc const &desc) = nullptr;
-  Result<Void, Status> (*begin_frame)(Device self, Swapchain swapchain,
-                                      FrameContext frame_context)  = nullptr;
-  Result<Void, Status> (*submit_frame)(Device self, Swapchain swapchain,
-                                       FrameContext frame_context) = nullptr;
+  Result<Void, Status> (*begin_frame)(Device self, FrameContext frame_context,
+                                      Swapchain swapchain)         = nullptr;
+  Result<Void, Status> (*submit_frame)(Device self, FrameContext frame_context,
+                                       Swapchain swapchain)        = nullptr;
 };
 
 struct DeviceImpl
@@ -1641,166 +1462,6 @@ struct DeviceImpl
   {
     return interface;
   }
-
-  void ref(Buffer object) const
-  {
-    interface->ref_buffer(self, object);
-  }
-
-  void ref(BufferView object) const
-  {
-    interface->ref_buffer_view(self, object);
-  }
-
-  void ref(Image object) const
-  {
-    interface->ref_image(self, object);
-  }
-
-  void ref(ImageView object) const
-  {
-    interface->ref_image_view(self, object);
-  }
-
-  void ref(Sampler object) const
-  {
-    interface->ref_sampler(self, object);
-  }
-
-  void ref(Shader object) const
-  {
-    interface->ref_shader(self, object);
-  }
-
-  void ref(RenderPass object) const
-  {
-    interface->ref_render_pass(self, object);
-  }
-
-  void ref(Framebuffer object) const
-  {
-    interface->ref_framebuffer(self, object);
-  }
-
-  void ref(DescriptorSetLayout object) const
-  {
-    interface->ref_descriptor_set_layout(self, object);
-  }
-
-  void ref(DescriptorHeapImpl object) const
-  {
-    interface->ref_descriptor_heap(self, object);
-  }
-
-  void ref(PipelineCache object) const
-  {
-    interface->ref_pipeline_cache(self, object);
-  }
-
-  void ref(ComputePipeline object) const
-  {
-    interface->ref_compute_pipeline(self, object);
-  }
-
-  void ref(GraphicsPipeline object) const
-  {
-    interface->ref_graphics_pipeline(self, object);
-  }
-
-  void ref(Fence object) const
-  {
-    interface->ref_fence(self, object);
-  }
-
-  void ref(CommandEncoderImpl object) const
-  {
-    interface->ref_command_encoder(self, object);
-  }
-
-  void ref(FrameContext object) const
-  {
-    interface->ref_frame_context(self, object);
-  }
-
-  void unref(Buffer object) const
-  {
-    interface->unref_buffer(self, object);
-  }
-
-  void unref(BufferView object) const
-  {
-    interface->unref_buffer_view(self, object);
-  }
-
-  void unref(Image object) const
-  {
-    interface->unref_image(self, object);
-  }
-
-  void unref(ImageView object) const
-  {
-    interface->unref_image_view(self, object);
-  }
-
-  void unref(Sampler object) const
-  {
-    interface->unref_sampler(self, object);
-  }
-
-  void unref(Shader object) const
-  {
-    interface->unref_shader(self, object);
-  }
-
-  void unref(RenderPass object) const
-  {
-    interface->unref_render_pass(self, object);
-  }
-
-  void unref(Framebuffer object) const
-  {
-    interface->unref_framebuffer(self, object);
-  }
-
-  void unref(DescriptorSetLayout object) const
-  {
-    interface->unref_descriptor_set_layout(self, object);
-  }
-
-  void unref(DescriptorHeapImpl object) const
-  {
-    interface->unref_descriptor_heap(self, object);
-  }
-
-  void unref(PipelineCache object) const
-  {
-    interface->unref_pipeline_cache(self, object);
-  }
-
-  void unref(ComputePipeline object) const
-  {
-    interface->unref_compute_pipeline(self, object);
-  }
-
-  void unref(GraphicsPipeline object) const
-  {
-    interface->unref_graphics_pipeline(self, object);
-  }
-
-  void unref(Fence object) const
-  {
-    interface->unref_fence(self, object);
-  }
-
-  void unref(CommandEncoderImpl object) const
-  {
-    interface->unref_command_encoder(self, object);
-  }
-
-  void unref(FrameContext object) const
-  {
-    interface->unref_frame_context(self, object);
-  }
 };
 
 struct InstanceInterface
@@ -1808,15 +1469,14 @@ struct InstanceInterface
   Result<InstanceImpl, Status> (*create)(
       AllocatorImpl allocator, Logger *logger,
       bool enable_validation_layer) = nullptr;
-  void (*ref)(Instance self)        = nullptr;
-  void (*unref)(Instance self)      = nullptr;
+  void (*destroy)(Instance self)    = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance self, Span<DeviceType const> preferred_types,
-      Span<gfx::Surface const> compatible_surfaces,
-      AllocatorImpl            allocator)                       = nullptr;
-  Backend (*get_backend)(Instance self)              = nullptr;
-  void (*ref_device)(Instance self, Device device)   = nullptr;
-  void (*unref_device)(Instance self, Device device) = nullptr;
+      Span<Surface const> compatible_surfaces,
+      AllocatorImpl       allocator)                            = nullptr;
+  Backend (*get_backend)(Instance self)                   = nullptr;
+  void (*destroy_device)(Instance self, Device device)    = nullptr;
+  void (*destroy_surface)(Instance self, Surface surface) = nullptr;
 };
 
 struct InstanceImpl

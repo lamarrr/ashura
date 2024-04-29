@@ -2329,6 +2329,20 @@ struct Slice
 {
   usize offset = 0;
   usize span   = 0;
+
+  constexpr usize end() const
+  {
+    return offset + span;
+  }
+
+  constexpr Slice resolve(usize size) const
+  {
+    // written such that overflow will not occur even if both offset and size
+    // are set to USIZE_MAX
+    usize o = offset > size ? size : offset;
+    usize s = ((size - o) > span) ? span : size - o;
+    return Slice{o, s};
+  }
 };
 
 template <typename T, usize N>
@@ -2546,11 +2560,7 @@ struct Span
 
   constexpr Span<T> operator[](Slice slice) const
   {
-    // written such that overflow will not occur even if both offset and size
-    // are set to USIZE_MAX
-    slice.offset = slice.offset > size_ ? size_ : slice.offset;
-    slice.span   = (size_ - slice.offset) > slice.span ? slice.span :
-                                                         (size_ - slice.offset);
+    slice = slice.resolve(size_);
     return Span<T>{data_ + slice.offset, slice.span};
   }
 

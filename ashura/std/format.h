@@ -3,6 +3,7 @@
 #include "ashura/std/types.h"
 #include <string>
 #include <string_view>
+#include <typeinfo>
 
 namespace ash
 {
@@ -33,11 +34,14 @@ struct Context
   Span<char> scratch_buffer = {};
 };
 
+bool push_object_hex(Context &ctx, Spec const &spec, char const *name,
+                     Span<u8 const> rep);
+
 template <typename T>
-bool push(Context &ctx, Spec const &, T const &value)
+bool push(Context &ctx, Spec const &spec, T const &value)
 {
-  (void) value;
-  return ctx.push("{?}"_span);
+  return push_object_hex(ctx, spec, typeid(value).name(),
+                         Span<T const>{&value, 1}.as_u8());
 }
 
 bool push(Context &ctx, Spec const &, bool value);
@@ -51,6 +55,15 @@ bool push(Context &ctx, Spec const &spec, i32 value);
 bool push(Context &ctx, Spec const &spec, i64 value);
 bool push(Context &ctx, Spec const &spec, f32 value);
 bool push(Context &ctx, Spec const &spec, f64 value);
+bool push(Context &ctx, Spec const &spec, Vec2 const &value);
+bool push(Context &ctx, Spec const &spec, Vec3 const &value);
+bool push(Context &ctx, Spec const &spec, Vec4 const &value);
+bool push(Context &ctx, Spec const &spec, Vec2I const &value);
+bool push(Context &ctx, Spec const &spec, Vec3I const &value);
+bool push(Context &ctx, Spec const &spec, Vec4I const &value);
+bool push(Context &ctx, Spec const &spec, Vec2U const &value);
+bool push(Context &ctx, Spec const &spec, Vec3U const &value);
+bool push(Context &ctx, Spec const &spec, Vec4U const &value);
 bool push(Context &, Spec &spec, Spec const &value);
 bool push(Context &ctx, Spec const &, Span<char const> str);
 bool push(Context &ctx, Spec const &, std::string_view str);

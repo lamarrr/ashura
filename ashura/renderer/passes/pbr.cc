@@ -10,7 +10,7 @@ void PBRPass::init(RenderContext &ctx)
       ctx.device
           ->create_descriptor_set_layout(
               ctx.device.self,
-              gfx::DescriptorSetLayoutDesc{.label    = "PBR Parameters",
+              gfx::DescriptorSetLayoutDesc{.label    = "PBR Parameters"_span,
                                            .bindings = to_span(bindings_desc)})
           .unwrap();
 
@@ -19,7 +19,7 @@ void PBRPass::init(RenderContext &ctx)
           ->create_render_pass(
               ctx.device.self,
               gfx::RenderPassDesc{
-                  .label             = "PBR RenderPass",
+                  .label             = "PBR RenderPass"_span,
                   .color_attachments = to_span<gfx::RenderPassAttachment>(
                       {{.format           = ctx.color_format,
                         .load_op          = gfx::LoadOp::Load,
@@ -92,15 +92,15 @@ void PBRPass::init(RenderContext &ctx)
                                             descriptor_set_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
-      .label = "PBR Graphics Pipeline",
+      .label = "PBR Graphics Pipeline"_span,
       .vertex_shader =
           gfx::ShaderStageDesc{.shader                        = vertex_shader,
-                               .entry_point                   = "main",
+                               .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gfx::ShaderStageDesc{.shader                        = fragment_shader,
-                               .entry_point                   = "main",
+                               .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .render_pass            = render_pass,
@@ -136,7 +136,7 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
       ctx.device
           ->create_framebuffer(
               ctx.device.self,
-              gfx::FramebufferDesc{.label       = "PBR Framebuffer",
+              gfx::FramebufferDesc{.label       = "PBR Framebuffer"_span,
                                    .render_pass = render_pass,
                                    .extent      = params.render_target.extent,
                                    .color_attachments = to_span(
@@ -196,18 +196,18 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
       prev_idx_buff_offset = object.mesh.index_buffer_offset;
     }
 
-    // TODO(lamaRRR): fix uniforms
-    gfx::DescriptorSet const sets[]{params.lights.set, object.uniform.set,
-                                    object.descriptor};
-    u32 const                offsets[]{params.lights.buffer_offset,
-                                       object.uniform.buffer_offset};
+    gfx::DescriptorSet const sets[]{
+        object.uniform.set, object.light_uniform.set, object.descriptor};
+    u32 const offsets[]{object.uniform.buffer_offset,
+                        object.light_uniform.buffer_offset};
 
     encoder->bind_descriptor_sets(encoder.self, to_span(sets),
                                   to_span(offsets));
 
-    encoder->draw(encoder.self, object.command.first_index,
-                  object.command.index_count, object.command.vertex_offset,
-                  object.command.first_instance, object.command.instance_count);
+    encoder->draw_indexed(
+        encoder.self, object.command.first_index, object.command.index_count,
+        object.command.vertex_offset, object.command.first_instance,
+        object.command.instance_count);
   }
 
   encoder->end_render_pass(encoder.self);
@@ -217,11 +217,11 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
 
 void PBRPass::uninit(RenderContext &ctx)
 {
-  ctx.device->unref_descriptor_set_layout(ctx.device.self,
-                                          descriptor_set_layout);
-  ctx.device->unref_render_pass(ctx.device.self, render_pass);
-  ctx.device->unref_graphics_pipeline(ctx.device.self, pipeline);
-  ctx.device->unref_graphics_pipeline(ctx.device.self, wireframe_pipeline);
+  ctx.device->destroy_descriptor_set_layout(ctx.device.self,
+                                            descriptor_set_layout);
+  ctx.device->destroy_render_pass(ctx.device.self, render_pass);
+  ctx.device->destroy_graphics_pipeline(ctx.device.self, pipeline);
+  ctx.device->destroy_graphics_pipeline(ctx.device.self, wireframe_pipeline);
 }
 
 }        // namespace ash

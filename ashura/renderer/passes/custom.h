@@ -10,13 +10,13 @@ namespace ash
 // pipelines statically have depth/stencil tests enabled or disabled
 struct CustomShaderPassObject
 {
-  gfx::GraphicsPipeline    pipeline  = nullptr;
-  Mesh                     mesh      = {};
-  gfx::DescriptorSet       set_0     = {};
-  Uniform                  uniform_0 = {};
-  gfx::DescriptorSet       set_1     = {};
-  Uniform                  uniform_1 = {};
-  gfx::IndirectDrawCommand command   = {};
+  gfx::GraphicsPipeline   pipeline  = nullptr;
+  Mesh                    mesh      = {};
+  gfx::DescriptorSet      set_0     = {};
+  Uniform                 uniform_0 = {};
+  gfx::DescriptorSet      set_1     = {};
+  Uniform                 uniform_1 = {};
+  gfx::DrawIndexedCommand command   = {};
 };
 
 struct CustomShaderPassParams

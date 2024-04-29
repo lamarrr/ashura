@@ -53,15 +53,7 @@ struct PerspectiveCamera
   }
 };
 
-struct ViewMatrices
-{
-  Mat4Affine view               = {};
-  Mat4Affine inverse_view       = {};
-  Mat4       projection         = {};
-  Mat4       inverse_projection = {};
-};
-
-struct MVPTransform
+struct ViewTransform
 {
   Mat4Affine model      = {};
   Mat4Affine view       = {};

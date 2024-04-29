@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.6)
 
 project(Ashura)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
@@ -25,6 +25,9 @@ set(SPIRV_REFLECT_EXECUTABLE
     OFF
     CACHE BOOL "")
 set(SPIRV_REFLECT_STATIC_LIB
+    ON
+    CACHE BOOL "")
+set(SDL_STATIC
     ON
     CACHE BOOL "")
 
@@ -57,6 +60,11 @@ FetchContent_Declare(
   GIT_TAG 19b940e)
 
 FetchContent_Declare(
+  SDL3
+  GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+  GIT_TAG prerelease-3.1.1)
+
+FetchContent_Declare(
   SheenBidi
   GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
   GIT_TAG v2.7
@@ -69,11 +77,11 @@ find_package(GTest REQUIRED)
 find_package(WebP CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
-find_package(SDL3 REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
+find_package(Threads REQUIRED)
 
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
@@ -81,6 +89,7 @@ FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(VulkanGLSL)
 FetchContent_MakeAvailable(SheenBidi)
 FetchContent_MakeAvailable(SpirvReflect)
+FetchContent_MakeAvailable(SDL3)
 find_package(Vulkan REQUIRED)
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
@@ -117,7 +126,7 @@ add_library(
   ashura/std/log.cc
   ashura/std/runtime.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(ashura_std PRIVATE xxHash::xxhash)
+target_link_libraries(ashura_std PUBLIC xxHash::xxhash Threads::Threads)
 
 add_executable(
   ashura_std_tests

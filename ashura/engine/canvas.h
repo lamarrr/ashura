@@ -1,28 +1,15 @@
 #pragma once
 
-#include <algorithm>
-#include <cinttypes>
-#include <cmath>
-#include <utility>
-
 #include "ashura/constraint.h"
-#include "ashura/font.h"
-#include "ashura/image.h"
-#include "ashura/math.h"
-#include "ashura/pipeline.h"
-#include "ashura/primitives.h"
-#include "ashura/text.h"
-#include "ashura/utils.h"
-#include "stx/text.h"
-#include "stx/vec.h"
+#include "ashura/engine/font.h"
+#include "ashura/engine/text.h"
+#include "ashura/gfx/gfx.h"
+#include "ashura/gfx/image.h"
+#include "ashura/std/math.h"
+#include "ashura/std/types.h"
 
 namespace ash
 {
-
-constexpr u32 NIMAGES_PER_DRAWCALL = 8;
-constexpr u32 PUSH_CONSTANT_SIZE   = 128;
-
-static_assert(PUSH_CONSTANT_SIZE % 4 == 0);
 
 namespace gfx
 {
