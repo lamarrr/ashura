@@ -1,19 +1,19 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
-layout(location = 0) in vec2 i_vert;
-layout(location = 0) out vec4 o_color;
+layout(location = 0) in vec2 i_pos;
 
 layout(set = 0, binding = 0) uniform Params
 {
-  vec2 src_offset;
-  vec2 src_extent;
-  vec2 src_tex_extent;
-  vec2 radius;
+  vec2 offset;        // relative to the source texture
+  vec2 extent;        // relative to the source texture
+  vec2 radius;        // relative to the source texture
 }
 u_params;
 
 layout(set = 1, binding = 0) uniform sampler2D src;
+
+layout(location = 0) out vec4 o_color;
 
 vec4 kawase_downsample(sampler2D src, vec2 uv, vec2 radius)
 {
@@ -40,18 +40,10 @@ vec4 kawase_upsample(sampler2D src, vec2 uv, vec2 radius)
 
 void main()
 {
-  // todo(lamarrr): use mix/lerp instead
+  vec2 src_pos = (u_params.offset + i_pos * u_params.extent);
 #if UPSAMPLE
-  o_color =
-      kawase_upsample(src,
-                      (u_params.src_offset + i_vert * u_params.src_extent) /
-                          u_params.src_tex_extent,
-                      u_params.radius / u_params.src_tex_extent);
+  o_color = kawase_upsample(src, src_pos, u_params.radius);
 #else
-  o_color =
-      kawase_downsample(src,
-                        (u_params.src_offset + i_vert * u_params.src_extent) /
-                            u_params.src_tex_extent,
-                        u_params.radius / u_params.src_tex_extent);
+  o_color = kawase_downsample(src, src_pos, u_params.radius);
 #endif
 }

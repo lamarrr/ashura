@@ -38,6 +38,8 @@ layout(set = 2, binding = 5) uniform sampler2D u_emissive;
 
 layout(location = 0) out vec4 o_color;
 
+// irradiance - light from source
+// radiance - reaction of the object to the light source
 void main()
 {
   vec3  albedo    = u_params.albedo.xyz * texture(u_albedo, i_uv).rgb;
@@ -46,7 +48,7 @@ void main()
   vec3  N         = u_params.normal * texture(u_normal, i_uv).rgb;
   float occlusion = u_params.occlusion * texture(u_occlusion, i_uv).r;
   vec3  emissive  = u_params.emissive.xyz * texture(u_emissive, i_uv).rgb;
-  vec3  V         = normalize(i_pos - u_params.view_position.xyz);
+  vec3  V         = normalize(u_params.view_position.xyz - i_pos);
 
   // TODO(lamarrr): express all lights using same parameters, even ambient and
   // directional for (uint i = 0; i < MAX_PBR_DIRECTIONAL_LIGHTS; i++)

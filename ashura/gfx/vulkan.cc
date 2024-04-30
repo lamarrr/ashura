@@ -876,7 +876,7 @@ inline void access_compute_bindings(CommandEncoder &enc, gfx::DescriptorSet set)
         {
           access_image(enc, *images[ielement],
                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                       VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+                       VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                        VK_IMAGE_LAYOUT_GENERAL);
         }
       }
@@ -907,7 +907,7 @@ inline void access_compute_bindings(CommandEncoder &enc, gfx::DescriptorSet set)
         {
           access_buffer(enc, *buffers[ielement],
                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                        VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT);
+                        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
         }
       }
       break;
@@ -967,10 +967,34 @@ inline void access_graphics_bindings(CommandEncoder    &enc,
       break;
 
       case gfx::DescriptorType::StorageImage:
+      {
+        Image **images = heap->images + idx * heap->num_set_images +
+                         heap->binding_index_map[ibinding];
+        for (u32 ielement = 0; ielement < binding.count; ielement++)
+        {
+          access_image(enc, *images[ielement],
+                       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                       VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                       VK_IMAGE_LAYOUT_GENERAL);
+        }
+      }
+
       case gfx::DescriptorType::StorageTexelBuffer:
       case gfx::DescriptorType::StorageBuffer:
       case gfx::DescriptorType::DynamicStorageBuffer:
-        break;
+      {
+        Buffer **buffers = heap->buffers + idx * heap->num_set_buffers +
+                           heap->binding_index_map[ibinding];
+        for (u32 ielement = 0; ielement < binding.count; ielement++)
+        {
+          access_buffer(enc, *buffers[ielement],
+                        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+        }
+      }
+      break;
       default:
         UNREACHABLE();
     }
@@ -6306,14 +6330,7 @@ void CommandEncoderInterface::bind_descriptor_sets(
     for (u32 i = 0; i < heap->set_layout->num_bindings; i++)
     {
       gfx::DescriptorType binding_type = heap->set_layout->bindings[i].type;
-      if (self->is_in_render_pass())
-      {
-        VALIDATE(binding_type != gfx::DescriptorType::StorageBuffer &&
-                 binding_type != gfx::DescriptorType::StorageImage &&
-                 binding_type != gfx::DescriptorType::StorageTexelBuffer &&
-                 binding_type != gfx::DescriptorType::DynamicStorageBuffer);
-      }
-      else if (self->is_in_compute_pass())
+      if (self->is_in_compute_pass())
       {
         VALIDATE(binding_type != gfx::DescriptorType::InputAttachment);
       }

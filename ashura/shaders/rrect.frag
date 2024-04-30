@@ -35,6 +35,7 @@ float rrect_sdf(vec2 pos, vec2 half_extent, float border_radius)
 
 void main()
 {
+  // todo(lamarrr): the antialiasing needs to be downscaled
   bool left = i_pos.x < 0;
   bool top  = i_pos.y < 0;
   uint corner =
