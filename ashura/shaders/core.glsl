@@ -50,6 +50,6 @@ struct SpotLight
 {
   vec4 direction;        // xyz - direction, w - cutoff
   vec4 color;
-  vec3 position;        // xyz - position, w - attenuation
+  vec4 position;        // xyz - position, w - attenuation
 };
 #endif

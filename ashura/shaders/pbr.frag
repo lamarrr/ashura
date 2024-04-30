@@ -10,22 +10,22 @@ layout(location = 1) in vec2 i_uv;
 layout(set = 0, binding = 0) uniform Params
 {
   ViewTransform transform;
-  vec4          base_color_factor;
-  float         metallic_factor;
-  float         roughness_factor;
-  float         normal_scale;
-  float         occlusion_strength;
-  vec4          emissive_factor;
-  float         emissive_strength;
+  vec4          view_position;
+  vec4          albedo;        // only xyz
+  float         metallic;
+  float         roughness;
+  float         normal;
+  float         occlusion;
+  vec4          emissive;        // only xyz
 }
 u_params;
 
 layout(set = 1, binding = 0) uniform LightParams
 {
-  vec4             ambient_light;
-  DirectionalLight directional_lights[MAX_PBR_DIRECTIONAL_LIGHTS];
-  PointLight       point_lights[MAX_PBR_POINT_LIGHTS];
-  SpotLight        spot_lights[MAX_PBR_SPOT_LIGHTS];
+  vec4             ambient;
+  DirectionalLight directional[MAX_PBR_DIRECTIONAL_LIGHTS];
+  PointLight       point[MAX_PBR_POINT_LIGHTS];
+  SpotLight        spot[MAX_PBR_SPOT_LIGHTS];
 }
 u_light_params;
 
@@ -40,13 +40,21 @@ layout(location = 0) out vec4 o_color;
 
 void main()
 {
-  /*
-  vec3  albedo            = pow(texture(u_albedo_map, i_uv).rgb, vec3(2.2));
-  vec3  normal            = texture(u_normal_map, i_uv).rgb;
-  float metallic          = texture(u_metallic_map, i_uv).r;
-  float roughness         = texture(u_roughness_map, i_uv).r;
-  float ambient_occlusion = texture(u_ambient_occlusion_map, i_uv).r;
+  vec3  albedo    = u_params.albedo * texture(u_albedo, i_uv).rgb;
+  float metallic  = u_params.metallic * texture(u_metallic, i_uv).r;
+  float roughness = u_params.roughness * texture(u_roughness, i_uv).r;
+  vec3  N         = u_params.normal * texture(u_normal, i_uv).rgb;
+  float occlusion = u_params.occlusion * texture(u_occlusion, i_uv).r;
+  float emissive  = u_params.emissive * texture(u_emissive, i_uv).rgb;
+  vec3  V         = normalize(i_pos - u_params.view_position.xyz);
 
+  // TODO(lamarrr): express all lights using same parameters, even ambient and
+  // directional for (uint i = 0; i < MAX_PBR_DIRECTIONAL_LIGHTS; i++)
+  // {
+  // vec3 L = i_pos - u_light_params.directional[i].position;
+  // vec3 H = normalize(L + V);
+  // }
+  /*
   vec3 n = normalize(normal);
   vec3 v = normalize(u_params.camera_position.xyz - i_world_position);
 
@@ -90,5 +98,4 @@ void main()
   o_color = vec4(color, 1);
   */
   o_color = vec4(1);
-
 }
