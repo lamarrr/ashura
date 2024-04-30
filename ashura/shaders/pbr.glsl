@@ -59,7 +59,7 @@ vec3 metal_brdf(vec3 albedo, float HoV, float roughness, float NoL, float NoV,
       albedo, vec3(specular_brdf(roughness, NoL, NoV, NoH, N, H)), HoV);
 }
 
-vec3 fresnel_mix(float ior, vec3 albedo, vec3 layer, float HoV)
+vec3 fresnel_mix(vec3 albedo, vec3 layer, float HoV, float ior)
 {
   float f0 = pow((1 - ior) / (1 + ior), 2);
   float fr = f0 + (1 - f0) * pow(1 - abs(HoV), 5);
@@ -68,19 +68,12 @@ vec3 fresnel_mix(float ior, vec3 albedo, vec3 layer, float HoV)
 
 // ior - index of refraction: 1.5 default
 // roughness = perceptualRoughness * perceptualRoughness
-vec3 dielectric_brdf(float ior, vec3 albedo, float roughness, float HoV,
-                     float NoL, float NoV, float NoH, vec3 N, vec3 H)
+vec3 dielectric_brdf(vec3 albedo, float roughness, float NoL, float NoV,
+                     float NoH, vec3 N, vec3 H, float HoV, float ior)
 {
-  return fresnel_mix(ior, diffuse_brdf(albedo),
-                     vec3(specular_brdf(roughness, NoL, NoV, NoH, N, H)), HoV);
-}
-
-/// this is the base BRDF model
-/// all extensions affect either of these 3 components, appending or prepending
-/// or intercepting their values
-vec3 brdf(vec3 dielectric_brdf, vec3 metal_brdf, vec3 metallic)
-{
-  return mix(dielectric_brdf, metal_brdf, metallic);
+  return fresnel_mix(diffuse_brdf(albedo),
+                     vec3(specular_brdf(roughness, NoL, NoV, NoH, N, H)), HoV,
+                     ior);
 }
 
 /// apply fresnel coat to a brdf
@@ -93,6 +86,14 @@ vec3 fresnel_coat(vec3 clearcoat_normal, float ior, float coat_weight,
   float f0 = pow((1 - ior) / (1 + ior), 2);
   float fr = f0 + (1 - f0) * pow(1 - abs(NoV), 5);        // N = normal
   return mix(base_material, layer, coat_weight * fr);
+}
+
+/// this is the base BRDF model
+/// all extensions affect either of these 3 components, appending or prepending
+/// or intercepting their values
+vec3 brdf(vec3 dielectric_brdf, vec3 metal_brdf, vec3 metallic)
+{
+  return mix(dielectric_brdf, metal_brdf, metallic);
 }
 
 void pbr(float perceptualRoughness)

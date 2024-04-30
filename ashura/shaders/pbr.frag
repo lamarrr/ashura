@@ -27,7 +27,7 @@ layout(set = 1, binding = 0) uniform LightParams
   PointLight       point[MAX_PBR_POINT_LIGHTS];
   SpotLight        spot[MAX_PBR_SPOT_LIGHTS];
 }
-u_light_params;
+u_lights;
 
 layout(set = 2, binding = 0) uniform sampler2D u_albedo;
 layout(set = 2, binding = 1) uniform sampler2D u_metallic;
@@ -40,18 +40,18 @@ layout(location = 0) out vec4 o_color;
 
 void main()
 {
-  vec3  albedo    = u_params.albedo * texture(u_albedo, i_uv).rgb;
+  vec3  albedo    = u_params.albedo.xyz * texture(u_albedo, i_uv).rgb;
   float metallic  = u_params.metallic * texture(u_metallic, i_uv).r;
   float roughness = u_params.roughness * texture(u_roughness, i_uv).r;
   vec3  N         = u_params.normal * texture(u_normal, i_uv).rgb;
   float occlusion = u_params.occlusion * texture(u_occlusion, i_uv).r;
-  float emissive  = u_params.emissive * texture(u_emissive, i_uv).rgb;
+  vec3  emissive  = u_params.emissive.xyz * texture(u_emissive, i_uv).rgb;
   vec3  V         = normalize(i_pos - u_params.view_position.xyz);
 
   // TODO(lamarrr): express all lights using same parameters, even ambient and
   // directional for (uint i = 0; i < MAX_PBR_DIRECTIONAL_LIGHTS; i++)
   // {
-  // vec3 L = i_pos - u_light_params.directional[i].position;
+  // vec3 L = i_pos - u_lights.directional[i].position;
   // vec3 H = normalize(L + V);
   // }
   /*
