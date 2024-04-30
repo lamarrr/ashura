@@ -40,6 +40,7 @@ layout(location = 0) out vec4 o_color;
 
 void main()
 {
+  /*
   vec3  albedo            = pow(texture(u_albedo_map, i_uv).rgb, vec3(2.2));
   vec3  normal            = texture(u_normal_map, i_uv).rgb;
   float metallic          = texture(u_metallic_map, i_uv).r;
@@ -87,4 +88,7 @@ void main()
   color   = color / (color + vec3(1));
   color   = pow(color, vec3(1 / 2.2));
   o_color = vec4(color, 1);
+  */
+  o_color = vec4(1);
+
 }

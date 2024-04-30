@@ -60,8 +60,8 @@ int main(int, char **)
       pack_shaders(
           spirvs,
           to_span<ShaderPackEntry>(
-              {{.id = "Glyph:FS"_span, .file = "glyph.frag"_span},
-               {.id = "Glyph:VS"_span, .file = "glyph.vert"_span},
+              {{.id = "ConvexPoly:FS"_span, .file = "convex_poly.frag"_span},
+               {.id = "ConvexPoly:VS"_span, .file = "convex_poly.vert"_span},
                {.id       = "KawaseBlur_UpSample:FS"_span,
                 .file     = "kawase_blur.frag"_span,
                 .preamble = "#define UPSAMPLE 1"_span},
@@ -78,7 +78,7 @@ int main(int, char **)
                {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
                {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
                {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-          "C:/Users/rlama/Documents/workspace/oss/ashura/ashura/shaders"_span) ==
+          "/home/basitayantunde/Documents/ashura/ashura/shaders"_span) ==
       ShaderCompileError::None)
 
   StrHashMap<gfx::Shader> shaders;
