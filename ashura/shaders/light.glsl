@@ -36,16 +36,11 @@ vec3 evaluatePunctualLight()
   return luminance;
 }
 
-vec3 ibl(vec3 n, vec3 v, vec3 diffuseColor, vec3 f0, vec3 f90,
-         float perceptualRoughness)
+struct Light
 {
-  vec3  r    = reflect(n);
-  vec3  Ld   = textureCube(irradianceEnvMap, r) * diffuseColor;
-  float lod  = computeLODFromRoughness(perceptualRoughness);
-  vec3  Lld  = textureCube(prefilteredEnvMap, r, lod);
-  vec2  Ldfg = textureLod(dfgLut, vec2(dot(n, v), perceptualRoughness), 0.0).xy;
-  vec3  Lr   = (f0 * Ldfg.x + f90 * Ldfg.y) * Lld;
-  return Ld + Lr;
-}
+  vec4 direction;        // xyz - direction, w - cutoff
+  vec4 color;
+  vec4 position;        // xyz - position, w - attenuation
+};
 
 #endif

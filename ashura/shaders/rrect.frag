@@ -2,6 +2,7 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "core.glsl"
+#include "rrect.glsl"
 
 #define TOP_LEFT 0
 #define TOP_RIGHT 1
@@ -15,13 +16,8 @@ layout(location = 0) out vec4 o_color;
 
 layout(std140, set = 0, binding = 0) uniform Params
 {
-  ViewTransform transform;
-  vec4          radii;
-  vec4          uv;
-  vec4          tint[4];
-  vec2          aspect_ratio;
-}
-u_params;
+  RRectParams p;
+};
 
 layout(set = 1, binding = 0) uniform sampler2D u_albedo;
 
@@ -40,13 +36,13 @@ void main()
   bool top  = i_pos.y < 0;
   uint corner =
       left ? (top ? TOP_LEFT : BOTTOM_LEFT) : (top ? TOP_RIGHT : BOTTOM_RIGHT);
-  float radius      = u_params.radii[corner];
-  vec2  half_extent = u_params.aspect_ratio;
+  float radius      = p.radii[corner];
+  vec2  half_extent = p.aspect_ratio;
   float dist        = rrect_sdf(i_pos, half_extent, radius);
   // 0.01 -> very small number to make the edge smooth, but not too small which
   // would lead to hard edges, larger values lead to softer edges
   float alpha = 1 - smoothstep(0, 0.015, dist);
   vec2  xy    = i_pos * 0.5 + 0.5;
-  vec2  uv    = mix(u_params.uv.xy, u_params.uv.zw, xy);
+  vec2  uv    = mix(p.uv.xy, p.uv.zw, xy);
   o_color     = mix(vec4(1, 1, 1, 0), i_color * texture(u_albedo, uv), alpha);
 }

@@ -4,11 +4,6 @@
 #extension GL_GOOGLE_include_directive : require
 #include "core.glsl"
 
-#define MAX_PBR_AMBIENT_LIGHTS 1
-#define MAX_PBR_DIRECTIONAL_LIGHTS 2
-#define MAX_PBR_POINT_LIGHTS 2
-#define MAX_PBR_SPOT_LIGHTS 2
-
 // GLTF-PBR,
 // SEE:https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#complete-model
 // - V is the normalized vector from the shading location to the eye
@@ -101,5 +96,17 @@ void pbr(float perceptualRoughness)
   // TODO(lamarrr): don't forget to convert roughness from perceptualroughness
   float roughness = perceptualRoughness * perceptualRoughness;
 }
+
+struct PBRParams
+{
+  ViewTransform transform;
+  vec4          view_position;
+  vec4          albedo;        // only xyz
+  float         metallic;
+  float         roughness;
+  float         normal;
+  float         occlusion;
+  vec4          emissive;        // only xyz
+};
 
 #endif

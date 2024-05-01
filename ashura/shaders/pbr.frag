@@ -1,7 +1,9 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
+
 #include "core.glsl"
+#include "light.glsl"
 #include "pbr.glsl"
 
 layout(location = 0) in vec3 i_pos;
@@ -9,32 +11,20 @@ layout(location = 1) in vec2 i_uv;
 
 layout(set = 0, binding = 0) uniform Params
 {
-  ViewTransform transform;
-  vec4          view_position;
-  vec4          albedo;        // only xyz
-  float         metallic;
-  float         roughness;
-  float         normal;
-  float         occlusion;
-  vec4          emissive;        // only xyz
-}
-u_params;
+  PBRParams p;
+};
 
-layout(set = 1, binding = 0) uniform LightParams
+layout(set = 1, binding = 0) uniform Lights
 {
-  vec4             ambient;
-  DirectionalLight directional[MAX_PBR_DIRECTIONAL_LIGHTS];
-  PointLight       point[MAX_PBR_POINT_LIGHTS];
-  SpotLight        spot[MAX_PBR_SPOT_LIGHTS];
-}
-u_lights;
+  Light u_lights[8];
+};
 
-layout(set = 2, binding = 0) uniform sampler2D u_albedo;
-layout(set = 2, binding = 1) uniform sampler2D u_metallic;
-layout(set = 2, binding = 2) uniform sampler2D u_roughness;
-layout(set = 2, binding = 3) uniform sampler2D u_normal;
-layout(set = 2, binding = 4) uniform sampler2D u_occlusion;
-layout(set = 2, binding = 5) uniform sampler2D u_emissive;
+layout(set = 2, binding = 1) uniform sampler2D u_albedo;
+layout(set = 2, binding = 2) uniform sampler2D u_metallic;
+layout(set = 2, binding = 3) uniform sampler2D u_roughness;
+layout(set = 2, binding = 4) uniform sampler2D u_normal;
+layout(set = 2, binding = 5) uniform sampler2D u_occlusion;
+layout(set = 2, binding = 6) uniform sampler2D u_emissive;
 
 layout(location = 0) out vec4 o_color;
 
@@ -42,13 +32,13 @@ layout(location = 0) out vec4 o_color;
 // radiance - reaction of the object to the light source
 void main()
 {
-  vec3  albedo    = u_params.albedo.xyz * texture(u_albedo, i_uv).rgb;
-  float metallic  = u_params.metallic * texture(u_metallic, i_uv).r;
-  float roughness = u_params.roughness * texture(u_roughness, i_uv).r;
-  vec3  N         = u_params.normal * texture(u_normal, i_uv).rgb;
-  float occlusion = u_params.occlusion * texture(u_occlusion, i_uv).r;
-  vec3  emissive  = u_params.emissive.xyz * texture(u_emissive, i_uv).rgb;
-  vec3  V         = normalize(u_params.view_position.xyz - i_pos);
+  vec3  albedo    = p.albedo.xyz * texture(u_albedo, i_uv).rgb;
+  float metallic  = p.metallic * texture(u_metallic, i_uv).r;
+  float roughness = p.roughness * texture(u_roughness, i_uv).r;
+  vec3  N         = p.normal * texture(u_normal, i_uv).rgb;
+  float occlusion = p.occlusion * texture(u_occlusion, i_uv).r;
+  vec3  emissive  = p.emissive.xyz * texture(u_emissive, i_uv).rgb;
+  vec3  V         = normalize(p.view_position.xyz - i_pos);
 
   // TODO(lamarrr): express all lights using same parameters, even ambient and
   // directional for (uint i = 0; i < MAX_PBR_DIRECTIONAL_LIGHTS; i++)

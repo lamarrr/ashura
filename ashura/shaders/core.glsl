@@ -34,22 +34,4 @@ mat4 to_mvp(ViewTransform t)
          mat4(t.model[0], t.model[1], t.model[2], vec4(0, 0, 0, 1));
 }
 
-struct DirectionalLight
-{
-  vec4 direction;
-  vec4 color;
-};
-
-struct PointLight
-{
-  vec4 color;
-  vec4 position;        // xyz - position, w - attenuation
-};
-
-struct SpotLight
-{
-  vec4 direction;        // xyz - direction, w - cutoff
-  vec4 color;
-  vec4 position;        // xyz - position, w - attenuation
-};
 #endif
