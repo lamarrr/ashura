@@ -654,6 +654,16 @@ enum class CompositeAlpha : u8
 
 ASH_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
 
+enum class Access : u8
+{
+  None      = 0x00U,
+  Read      = 0x01U,
+  Write     = 0x02U,
+  ReadWrite = 0x04U
+};
+
+ASH_DEFINE_ENUM_BIT_OPS(Access)
+
 struct SurfaceFormat
 {
   Format     format      = Format::Undefined;

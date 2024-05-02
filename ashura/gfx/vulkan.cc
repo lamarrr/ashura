@@ -966,6 +966,7 @@ inline void access_graphics_bindings(CommandEncoder    &enc,
       }
       break;
 
+        // only readonly storage images are supported
       case gfx::DescriptorType::StorageImage:
       {
         Image **images = heap->images + idx * heap->num_set_images +
@@ -975,11 +976,11 @@ inline void access_graphics_bindings(CommandEncoder    &enc,
           access_image(enc, *images[ielement],
                        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                       VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                       VK_IMAGE_LAYOUT_GENERAL);
+                       VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL);
         }
       }
 
+        // only readonly storage buffers are supported
       case gfx::DescriptorType::StorageTexelBuffer:
       case gfx::DescriptorType::StorageBuffer:
       case gfx::DescriptorType::DynamicStorageBuffer:
@@ -991,7 +992,7 @@ inline void access_graphics_bindings(CommandEncoder    &enc,
           access_buffer(enc, *buffers[ielement],
                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+                        VK_ACCESS_SHADER_READ_BIT);
         }
       }
       break;
