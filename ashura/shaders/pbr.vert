@@ -13,12 +13,15 @@ layout(set = 0, binding = 0) uniform Params
 };
 
 layout(location = 0) out vec3 o_pos;
-layout(location = 1) out vec2 o_uv;
+layout(location = 1) out vec3 o_world_pos;
+layout(location = 2) out vec2 o_uv;
 
 void main()
 {
-  vec4      position = to_mvp(p.transform) * vec4(i_pos, 1);
-  gl_Position        = position;
-  o_pos              = position.xyz;
-  o_uv               = i_uv;
+  vec4 position       = to_mvp(p.transform) * vec4(i_pos, 1);
+  vec4 world_position = affine4(p.transform.model) * vec4(i_pos, 1);
+  gl_Position         = position;
+  o_pos               = position.xyz;
+  o_world_pos         = world_position.xyz;
+  o_uv                = i_uv;
 }

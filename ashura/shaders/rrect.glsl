@@ -1,5 +1,5 @@
-#ifndef RRECT_GLSL
-#define RRECT_GLSL
+#ifndef _RRECT_GLSL_
+#define _RRECT_GLSL_
 
 #extension GL_GOOGLE_include_directive : require
 #include "core.glsl"

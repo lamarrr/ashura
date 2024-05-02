@@ -1,5 +1,5 @@
-#ifndef PBR_GLSL
-#define PBR_GLSL
+#ifndef _PBR_GLSL_
+#define _PBR_GLSL_
 
 #extension GL_GOOGLE_include_directive : require
 #include "core.glsl"
@@ -86,15 +86,9 @@ vec3 fresnel_coat(vec3 clearcoat_normal, float ior, float coat_weight,
 /// this is the base BRDF model
 /// all extensions affect either of these 3 components, appending or prepending
 /// or intercepting their values
-vec3 brdf(vec3 dielectric_brdf, vec3 metal_brdf, vec3 metallic)
+vec3 brdf(vec3 dielectric_brdf, vec3 metal_brdf, float metallic)
 {
   return mix(dielectric_brdf, metal_brdf, metallic);
-}
-
-void pbr(float perceptualRoughness)
-{
-  // TODO(lamarrr): don't forget to convert roughness from perceptualroughness
-  float roughness = perceptualRoughness * perceptualRoughness;
 }
 
 struct PBRParams
@@ -107,6 +101,10 @@ struct PBRParams
   float         normal;
   float         occlusion;
   vec4          emissive;        // only xyz
+  float         ior;             // 1.5 default
+  float         clearcoat;
+  float         clearcoat_roughness;
+  float         clearcoat_normal;
 };
 
 #endif

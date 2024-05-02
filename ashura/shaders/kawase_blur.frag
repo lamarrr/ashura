@@ -9,7 +9,7 @@ layout(set = 0, binding = 0) uniform Params
   vec2 extent;        // relative to the source texture
   vec2 radius;        // relative to the source texture
 }
-u_params;
+p;
 
 layout(set = 1, binding = 0) uniform sampler2D src;
 
@@ -40,10 +40,10 @@ vec4 kawase_upsample(sampler2D src, vec2 uv, vec2 radius)
 
 void main()
 {
-  vec2 src_pos = (u_params.offset + i_pos * u_params.extent);
+  vec2 src_pos = (p.offset + i_pos * p.extent);
 #if UPSAMPLE
-  o_color = kawase_upsample(src, src_pos, u_params.radius);
+  o_color = kawase_upsample(src, src_pos, p.radius);
 #else
-  o_color = kawase_downsample(src, src_pos, u_params.radius);
+  o_color = kawase_downsample(src, src_pos, p.radius);
 #endif
 }

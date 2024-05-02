@@ -1,46 +1,37 @@
-#ifndef LIGHT_GLSL
-#define LIGHT_GLSL
+#ifndef _LIGHT_GLSL_
+#define _LIGHT_GLSL_
 
-#version 450
-#extension GL_GOOGLE_include_directive : require
+#include "core.glsl"
 
-float getSquareFalloffAttenuation(vec3 posToLight, float lightInvRadius)
+float get_square_falloff_attenuation(vec3 pos_to_light, float light_inv_radius)
 {
-  float distanceSquare = dot(posToLight, posToLight);
-  float factor         = distanceSquare * lightInvRadius * lightInvRadius;
-  float smoothFactor   = max(1.0 - factor * factor, 0.0);
-  return (smoothFactor * smoothFactor) / max(distanceSquare, 1e-4);
+  float distance_square = dot(pos_to_light, pos_to_light);
+  float factor          = distance_square * light_inv_radius * light_inv_radius;
+  float smooth_factor   = max(1.0 - factor * factor, 0.0);
+  return (smooth_factor * smooth_factor) / max(distance_square, 1e-4);
 }
 
-float getSpotAngleAttenuation(vec3 l, vec3 lightDir, float innerAngle,
-                              float outerAngle)
+float get_spot_angle_attenuation(vec3 l, vec3 light_dir, float inner_angle,
+                                 float outer_angle)
 {
   // the scale and offset computations can be done CPU-side
-  float cosOuter    = cos(outerAngle);
-  float spotScale   = 1.0 / max(cos(innerAngle) - cosOuter, 1e-4);
-  float spotOffset  = -cosOuter * spotScale;
-  float cd          = dot(normalize(-lightDir), l);
-  float attenuation = clamp(cd * spotScale + spotOffset, 0.0, 1.0);
+  float cos_outer   = cos(outer_angle);
+  float spot_scale  = 1.0 / max(cos(inner_angle) - cos_outer, 1e-4);
+  float spot_offset = -cos_outer * spot_scale;
+  float cd          = dot(normalize(-light_dir), l);
+  float attenuation = clamp(cd * spot_scale + spot_offset, 0.0, 1.0);
   return attenuation * attenuation;
 }
 
-vec3 evaluatePunctualLight()
+struct PunctualLight
 {
-  vec3  l           = normalize(posToLight);
-  float NoL         = clamp(dot(n, l), 0.0, 1.0);
-  vec3  posToLight  = lightPosition - worldPosition;
-  float attenuation = getSquareFalloffAttenuation(posToLight, lightInvRadius);
-  attenuation *= getSpotAngleAttenuation(l, lightDir, innerAngle, outerAngle);
-  vec3 luminance =
-      (BSDF(v, l) * lightIntensity * attenuation * NoL) * lightColor;
-  return luminance;
-}
-
-struct Light
-{
-  vec4 direction;        // xyz - direction, w - cutoff
-  vec4 color;
-  vec4 position;        // xyz - position, w - attenuation
+  vec4  direction;        // xyz
+  vec4  position;         // xyz
+  float inner_angle;
+  float outer_angle;
+  float intensity;
+  float radius;
+  vec4  color;
 };
 
 #endif

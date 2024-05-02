@@ -13,13 +13,14 @@ namespace ash
 Logger *default_logger;
 }
 
-int main(int, char **)
+int main(int argc, char **argv)
 {
   using namespace ash;
   StdioSink sink;
   default_logger = create_logger(to_span<LogSink *>({&sink}), heap_allocator);
   defer default_logger_del{[&] { destroy_logger(default_logger); }};
   defer shutdown{[&] { default_logger->info("Shutting down"); }};
+  CHECK_EX("Shader path not specified", argc > 1);
 
   WindowSystem *win_sys = init_sdl_window_system();
   CHECK(win_sys != nullptr);
@@ -45,9 +46,7 @@ int main(int, char **)
           ->create_device(
               instance.self,
               to_span({gfx::DeviceType::Cpu, gfx::DeviceType::VirtualGpu,
-                       gfx::DeviceType::Other,
-
-                       gfx::DeviceType::DiscreteGpu,
+                       gfx::DeviceType::Other, gfx::DeviceType::DiscreteGpu,
                        gfx::DeviceType::IntegratedGpu}),
               to_span({surface}), default_allocator)
           .unwrap();
@@ -56,30 +55,28 @@ int main(int, char **)
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
-  CHECK(
-      pack_shaders(
-          spirvs,
-          to_span<ShaderPackEntry>(
-              {{.id = "ConvexPoly:FS"_span, .file = "convex_poly.frag"_span},
-               {.id = "ConvexPoly:VS"_span, .file = "convex_poly.vert"_span},
-               {.id       = "KawaseBlur_UpSample:FS"_span,
-                .file     = "kawase_blur.frag"_span,
-                .preamble = "#define UPSAMPLE 1"_span},
-               {.id       = "KawaseBlur_UpSample:VS"_span,
-                .file     = "kawase_blur.vert"_span,
-                .preamble = "#define UPSAMPLE 1"_span},
-               {.id       = "KawaseBlur_DownSample:FS"_span,
-                .file     = "kawase_blur.frag"_span,
-                .preamble = "#define UPSAMPLE 0"_span},
-               {.id       = "KawaseBlur_DownSample:VS"_span,
-                .file     = "kawase_blur.vert"_span,
-                .preamble = "#define UPSAMPLE 0"_span},
-               {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
-               {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
-               {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
-               {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-          "/home/basitayantunde/Documents/ashura/ashura/shaders"_span) ==
-      ShaderCompileError::None)
+  CHECK(pack_shaders(
+            spirvs,
+            to_span<ShaderPackEntry>(
+                {{.id = "ConvexPoly:FS"_span, .file = "convex_poly.frag"_span},
+                 {.id = "ConvexPoly:VS"_span, .file = "convex_poly.vert"_span},
+                 {.id       = "KawaseBlur_UpSample:FS"_span,
+                  .file     = "kawase_blur.frag"_span,
+                  .preamble = "#define UPSAMPLE 1"_span},
+                 {.id       = "KawaseBlur_UpSample:VS"_span,
+                  .file     = "kawase_blur.vert"_span,
+                  .preamble = "#define UPSAMPLE 1"_span},
+                 {.id       = "KawaseBlur_DownSample:FS"_span,
+                  .file     = "kawase_blur.frag"_span,
+                  .preamble = "#define UPSAMPLE 0"_span},
+                 {.id       = "KawaseBlur_DownSample:VS"_span,
+                  .file     = "kawase_blur.vert"_span,
+                  .preamble = "#define UPSAMPLE 0"_span},
+                 {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
+                 {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
+                 {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
+                 {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
+            Span{argv[1], strlen(argv[1])}) == ShaderCompileError::None)
 
   StrHashMap<gfx::Shader> shaders;
   defer                   shaders_del{[&] { shaders.reset(); }};
