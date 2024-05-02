@@ -1660,9 +1660,11 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                         layer.implementationVersion, ")");
   }
 
-  bool has_swapchain_ext    = false;
-  bool has_debug_marker_ext = false;
-  bool has_validation_layer = false;
+  bool has_swapchain_ext             = false;
+  bool has_debug_marker_ext          = false;
+  bool has_descriptor_indexing_ext   = false;
+  bool has_buffer_device_address_ext = false;
+  bool has_validation_layer          = false;
 
   for (u32 i = 0; i < num_extensions; i++)
   {
@@ -1677,9 +1679,16 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
       has_debug_marker_ext = true;
     }
 
-    if (has_swapchain_ext && has_debug_marker_ext)
+    if (strcmp(extensions[i].extensionName,
+               VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME) == 0)
     {
-      break;
+      has_descriptor_indexing_ext = true;
+    }
+
+    if (strcmp(extensions[i].extensionName,
+               VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME) == 0)
+    {
+      has_buffer_device_address_ext = true;
     }
   }
 
@@ -1695,13 +1704,19 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   self->allocator.deallocate_typed(layers, num_layers);
   self->allocator.deallocate_typed(extensions, num_extensions);
 
-  char const *load_extensions[2];
+  char const *load_extensions[4];
   u32         num_load_extensions = 0;
-  char const *load_layers[2];
+  char const *load_layers[4];
   u32         num_load_layers = 0;
 
   // required
   load_extensions[num_load_extensions] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+  num_load_extensions++;
+  load_extensions[num_load_extensions] =
+      VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME;
+  num_load_extensions++;
+  load_extensions[num_load_extensions] =
+      VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME;
   num_load_extensions++;
 
   // optional, stubbed
@@ -1726,6 +1741,24 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::ExtensionNotPresent};
   }
 
+  // required
+  if (!has_descriptor_indexing_ext)
+  {
+    self->logger->trace(
+        "Required Extension: " VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
+        " Not Present");
+    return Err{Status::ExtensionNotPresent};
+  }
+
+  // required
+  /* if (!has_buffer_device_address_ext)
+   {
+     self->logger->trace(
+         "Required Extension: " VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME
+         " Not Present");
+     return Err{Status::ExtensionNotPresent};
+   }*/
+
   f32 const queue_priority = 1.0F;
 
   VkDeviceQueueCreateInfo queue_create_info{
@@ -1741,6 +1774,10 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   features.samplerAnisotropy = selected_device.features.samplerAnisotropy;
   features.fillModeNonSolid  = selected_device.features.fillModeNonSolid;
   features.logicOp           = selected_device.features.logicOp;
+  features.shaderUniformBufferArrayDynamicIndexing = VK_TRUE;
+  features.shaderSampledImageArrayDynamicIndexing  = VK_TRUE;
+  features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
+  features.shaderStorageImageArrayDynamicIndexing  = VK_TRUE;
 
   VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                                  .pNext = nullptr,

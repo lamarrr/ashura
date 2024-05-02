@@ -2,6 +2,7 @@
 #define _PBR_GLSL_
 
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_nonuniform_qualifier : require
 #include "core.glsl"
 
 // GLTF-PBR,
@@ -105,6 +106,15 @@ struct PBRParams
   float         clearcoat;
   float         clearcoat_roughness;
   float         clearcoat_normal;
+  uint          albedo_map;
+  uint          metallic_map;
+  uint          roughness_map;
+  uint          normal_map;
+  uint          occlusion_map;
+  uint          emissive_map;
+  uint          clearcoat_map;
+  uint          clearcoat_roughness_map;
+  uint          clearcoat_normal_map;
 };
 
 #endif

@@ -11,6 +11,7 @@ struct RRectParams
   vec4          uv;
   vec4          tint[4];
   vec2          aspect_ratio;
+  uint          albedo;
 };
 
 #endif

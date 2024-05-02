@@ -1,5 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_nonuniform_qualifier : require
 
 #include "core.glsl"
 #include "rrect.glsl"
@@ -11,15 +12,16 @@
 
 layout(location = 0) in vec2 i_pos;
 layout(location = 1) in vec4 i_color;
+layout(location = 2) flat in uint i_instance;
 
 layout(location = 0) out vec4 o_color;
 
-layout(std140, set = 0, binding = 0) uniform Params
+layout(std140, set = 0, binding = 0) readonly buffer Params
 {
-  RRectParams p;
+  RRectParams params[];
 };
 
-layout(set = 1, binding = 0) uniform sampler2D u_albedo;
+layout(set = 1, binding = 0) uniform sampler2D u_tex[];
 
 // https://iquilezles.org/articles/distfunctions/
 // length(...+ border_radius) - border_radius -> gives the rounding of the
@@ -31,10 +33,12 @@ float rrect_sdf(vec2 pos, vec2 half_extent, float border_radius)
 
 void main()
 {
-  // todo(lamarrr): the antialiasing needs to be downscaled
-  bool left = i_pos.x < 0;
-  bool top  = i_pos.y < 0;
-  uint corner =
+  // todo(lamarrr): the antialiasing needs to be downscaled, maYBE allow it to
+  // be customizable outside this?
+  RRectParams p    = params[i_instance];
+  bool        left = i_pos.x < 0;
+  bool        top  = i_pos.y < 0;
+  uint        corner =
       left ? (top ? TOP_LEFT : BOTTOM_LEFT) : (top ? TOP_RIGHT : BOTTOM_RIGHT);
   float radius      = p.radii[corner];
   vec2  half_extent = p.aspect_ratio;
@@ -44,5 +48,6 @@ void main()
   float alpha = 1 - smoothstep(0, 0.015, dist);
   vec2  xy    = i_pos * 0.5 + 0.5;
   vec2  uv    = mix(p.uv.xy, p.uv.zw, xy);
-  o_color     = mix(vec4(1, 1, 1, 0), i_color * texture(u_albedo, uv), alpha);
+  o_color =
+      mix(vec4(1, 1, 1, 0), i_color * texture(u_tex[p.albedo], uv), alpha);
 }
