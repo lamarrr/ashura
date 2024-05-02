@@ -1,6 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
-
+#define NUM_LIGHTS 4
 #include "core.glsl"
 #include "light.glsl"
 #include "pbr.glsl"
@@ -16,7 +16,7 @@ layout(set = 0, binding = 0) uniform Params
 
 layout(set = 1, binding = 0) uniform Lights
 {
-  PunctualLight p_lights[4];
+  PunctualLight p_lights[NUM_LIGHTS];
 };
 
 layout(set = 2, binding = 0) uniform sampler2D u_albedo;
@@ -56,7 +56,7 @@ void main()
 
   vec3 luminance = vec3(0);
 
-  for (uint i = 0; i < 4; i++)
+  for (uint i = 0; i < NUM_LIGHTS; i++)
   {
     // irradiance - light from source
     // radiance - reaction of the object to the light source
