@@ -1,10 +1,6 @@
 #ifndef _PBR_GLSL_
 #define _PBR_GLSL_
 
-#extension GL_GOOGLE_include_directive : require
-#extension GL_EXT_nonuniform_qualifier : require
-#include "core.glsl"
-
 // GLTF-PBR,
 // SEE:https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#complete-model
 // - V is the normalized vector from the shading location to the eye
@@ -91,30 +87,5 @@ vec3 brdf(vec3 dielectric_brdf, vec3 metal_brdf, float metallic)
 {
   return mix(dielectric_brdf, metal_brdf, metallic);
 }
-
-struct PBRParams
-{
-  ViewTransform transform;
-  vec4          view_position;
-  vec4          albedo;        // only xyz
-  float         metallic;
-  float         roughness;
-  float         normal;
-  float         occlusion;
-  vec4          emissive;        // only xyz
-  float         ior;             // 1.5 default
-  float         clearcoat;
-  float         clearcoat_roughness;
-  float         clearcoat_normal;
-  uint          albedo_map;
-  uint          metallic_map;
-  uint          roughness_map;
-  uint          normal_map;
-  uint          occlusion_map;
-  uint          emissive_map;
-  uint          clearcoat_map;
-  uint          clearcoat_roughness_map;
-  uint          clearcoat_normal_map;
-};
 
 #endif

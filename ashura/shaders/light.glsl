@@ -27,11 +27,11 @@ struct PunctualLight
 {
   vec4  direction;        // xyz
   vec4  position;         // xyz
+  vec4  color;
   float inner_angle;
   float outer_angle;
   float intensity;
   float radius;
-  vec4  color;
 };
 
 #endif
