@@ -18,7 +18,7 @@ struct Params
   uint          albedo;
 };
 
-layout(std140, set = 0, binding = 0) readonly buffer Params
+layout(set = 0, binding = 0) readonly buffer ParamBuffer
 {
   Params params[];
 };
@@ -80,7 +80,7 @@ void main()
   float alpha = 1 - smoothstep(0, 0.015, dist);
   vec2  xy    = i_pos * 0.5 + 0.5;
   vec2  uv    = mix(p.uv.xy, p.uv.zw, xy);
-  o_color =
-      mix(vec4(1, 1, 1, 0), i_color * texture(u_tex[p.albedo], uv), alpha);
+  o_color     = mix(vec4(1, 1, 1, 0),
+                    i_color * texture(u_tex[nonuniformEXT(p.albedo)], uv), alpha);
 }
 #endif

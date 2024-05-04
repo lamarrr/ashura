@@ -1661,11 +1661,10 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                         layer.implementationVersion, ")");
   }
 
-  bool has_swapchain_ext             = false;
-  bool has_debug_marker_ext          = false;
-  bool has_descriptor_indexing_ext   = false;
-  bool has_buffer_device_address_ext = false;
-  bool has_validation_layer          = false;
+  bool has_swapchain_ext           = false;
+  bool has_debug_marker_ext        = false;
+  bool has_descriptor_indexing_ext = false;
+  bool has_validation_layer        = false;
 
   for (u32 i = 0; i < num_extensions; i++)
   {
@@ -1684,12 +1683,6 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME) == 0)
     {
       has_descriptor_indexing_ext = true;
-    }
-
-    if (strcmp(extensions[i].extensionName,
-               VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME) == 0)
-    {
-      has_buffer_device_address_ext = true;
     }
   }
 
@@ -1715,9 +1708,6 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   num_load_extensions++;
   load_extensions[num_load_extensions] =
       VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME;
-  num_load_extensions++;
-  load_extensions[num_load_extensions] =
-      VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME;
   num_load_extensions++;
 
   // optional, stubbed
@@ -1751,15 +1741,6 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::ExtensionNotPresent};
   }
 
-  // required
-  /* if (!has_buffer_device_address_ext)
-   {
-     self->logger->trace(
-         "Required Extension: " VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME
-         " Not Present");
-     return Err{Status::ExtensionNotPresent};
-   }*/
-
   f32 const queue_priority = 1.0F;
 
   VkDeviceQueueCreateInfo queue_create_info{
@@ -1780,8 +1761,33 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
   features.shaderStorageImageArrayDynamicIndexing  = VK_TRUE;
 
+  VkPhysicalDeviceDescriptorIndexingFeaturesEXT descriptor_indexing_features{
+      .sType =
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT,
+      .pNext                                              = nullptr,
+      .shaderInputAttachmentArrayDynamicIndexing          = VK_TRUE,
+      .shaderUniformTexelBufferArrayDynamicIndexing       = VK_TRUE,
+      .shaderStorageTexelBufferArrayDynamicIndexing       = VK_TRUE,
+      .shaderUniformBufferArrayNonUniformIndexing         = VK_TRUE,
+      .shaderSampledImageArrayNonUniformIndexing          = VK_TRUE,
+      .shaderStorageBufferArrayNonUniformIndexing         = VK_TRUE,
+      .shaderStorageImageArrayNonUniformIndexing          = VK_TRUE,
+      .shaderInputAttachmentArrayNonUniformIndexing       = VK_TRUE,
+      .shaderUniformTexelBufferArrayNonUniformIndexing    = VK_TRUE,
+      .shaderStorageTexelBufferArrayNonUniformIndexing    = VK_TRUE,
+      .descriptorBindingUniformBufferUpdateAfterBind      = VK_FALSE,
+      .descriptorBindingSampledImageUpdateAfterBind       = VK_FALSE,
+      .descriptorBindingStorageImageUpdateAfterBind       = VK_FALSE,
+      .descriptorBindingStorageBufferUpdateAfterBind      = VK_FALSE,
+      .descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE,
+      .descriptorBindingStorageTexelBufferUpdateAfterBind = VK_FALSE,
+      .descriptorBindingUpdateUnusedWhilePending          = VK_FALSE,
+      .descriptorBindingPartiallyBound                    = VK_FALSE,
+      .descriptorBindingVariableDescriptorCount           = VK_TRUE,
+      .runtimeDescriptorArray                             = VK_TRUE};
+
   VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                                 .pNext = nullptr,
+                                 .pNext = &descriptor_indexing_features,
                                  .flags = 0,
                                  .queueCreateInfoCount    = 1,
                                  .pQueueCreateInfos       = &queue_create_info,
@@ -2013,7 +2019,7 @@ gfx::DeviceProperties DeviceInterface::get_device_properties(gfx::Device self_)
       .driver_version     = vk_properties.driverVersion,
       .vendor_id          = vk_properties.vendorID,
       .device_id          = vk_properties.deviceID,
-      .api_name           = "vulkan"_span,
+      .api_name           = "Vulkan"_span,
       .device_name        = {vk_properties.deviceName,
                              strlen(vk_properties.deviceName)},
       .type               = (gfx::DeviceType) vk_properties.deviceType,
@@ -2675,6 +2681,8 @@ Result<gfx::DescriptorSetLayout, Status>
   for (u32 i = 0; i < num_bindings; i++)
   {
     VALIDATE(desc.bindings[i].count > 0);
+    VALIDATE(
+        !((i != (desc.bindings.size() - 1)) && desc.bindings[i].variable_size));
   }
 
   VkDescriptorSetLayoutBinding *vk_bindings =
@@ -2686,14 +2694,31 @@ Result<gfx::DescriptorSetLayout, Status>
     return Err{Status::OutOfHostMemory};
   }
 
+  defer vk_bindings_del{
+      [&] { self->allocator.deallocate_typed(vk_bindings, num_bindings); }};
+
+  VkDescriptorBindingFlagsEXT *vk_binding_flags =
+      self->allocator.allocate_typed<VkDescriptorBindingFlagsEXT>(num_bindings);
+
+  if (vk_binding_flags == nullptr)
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  defer vk_binding_flags_del{[&] {
+    self->allocator.deallocate_typed(vk_binding_flags, num_bindings);
+  }};
+
   gfx::DescriptorBindingDesc *bindings =
       self->allocator.allocate_typed<gfx::DescriptorBindingDesc>(num_bindings);
 
   if (bindings == nullptr)
   {
-    self->allocator.deallocate_typed(vk_bindings, num_bindings);
     return Err{Status::OutOfHostMemory};
   }
+
+  defer bindings_del{
+      [&] { self->allocator.deallocate_typed(bindings, num_bindings); }};
 
   mem::copy(desc.bindings, bindings);
 
@@ -2711,11 +2736,27 @@ Result<gfx::DescriptorSetLayout, Status>
         .descriptorCount    = binding.count,
         .stageFlags         = stage_flags,
         .pImmutableSamplers = nullptr};
+    VkDescriptorBindingFlagsEXT vk_flags =
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
+        VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT |
+        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+    if (binding.variable_size)
+    {
+      vk_flags |= VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+    }
+    vk_binding_flags[i] = vk_flags;
   }
+
+  VkDescriptorSetLayoutBindingFlagsCreateInfoEXT vk_binding_flags_create_info{
+      .sType =
+          VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
+      .pNext         = nullptr,
+      .bindingCount  = (u32) desc.bindings.size(),
+      .pBindingFlags = vk_binding_flags};
 
   VkDescriptorSetLayoutCreateInfo create_info{
       .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-      .pNext        = nullptr,
+      .pNext        = &vk_binding_flags_create_info,
       .flags        = 0,
       .bindingCount = num_bindings,
       .pBindings    = vk_bindings};
@@ -2724,13 +2765,18 @@ Result<gfx::DescriptorSetLayout, Status>
   VkResult              result = self->vk_table.CreateDescriptorSetLayout(
       self->vk_device, &create_info, nullptr, &vk_layout);
 
-  self->allocator.deallocate_typed(vk_bindings, num_bindings);
-
   if (result != VK_SUCCESS)
   {
-    self->allocator.deallocate_typed(bindings, num_bindings);
     return Err{(Status) result};
   }
+
+  defer vk_layout_del{[&] {
+    if (vk_layout != nullptr)
+    {
+      self->vk_table.DestroyDescriptorSetLayout(self->vk_device, vk_layout,
+                                                nullptr);
+    }
+  }};
 
   set_resource_name(self, desc.label, vk_layout,
                     VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
@@ -2740,9 +2786,6 @@ Result<gfx::DescriptorSetLayout, Status>
       self->allocator.allocate_typed<DescriptorSetLayout>(1);
   if (layout == nullptr)
   {
-    self->vk_table.DestroyDescriptorSetLayout(self->vk_device, vk_layout,
-                                              nullptr);
-    self->allocator.deallocate_typed(bindings, num_bindings);
     return Err{Status::OutOfHostMemory};
   }
 
@@ -2776,9 +2819,12 @@ Result<gfx::DescriptorHeapImpl, Status>
     allocator.deallocate_typed(binding_index_map, set_layout->num_bindings);
   }};
 
-  u32 count[11]   = {};
-  u32 num_images  = 0;
-  u32 num_buffers = 0;
+  u32 count[11]                = {};
+  u32 num_images               = 0;
+  u32 num_buffers              = 0;
+  u32 num_scratch_image_infos  = 0;
+  u32 num_scratch_buffer_infos = 0;
+  u32 num_scratch_buffer_views = 0;
   for (u32 binding = 0; binding < set_layout->num_bindings; binding++)
   {
     gfx::DescriptorBindingDesc desc = set_layout->bindings[binding];
@@ -2815,6 +2861,32 @@ Result<gfx::DescriptorHeapImpl, Status>
         UNREACHABLE();
     }
 
+    switch (desc.type)
+    {
+      case gfx::DescriptorType::Sampler:
+      case gfx::DescriptorType::CombinedImageSampler:
+      case gfx::DescriptorType::SampledImage:
+      case gfx::DescriptorType::StorageImage:
+      case gfx::DescriptorType::InputAttachment:
+        num_scratch_image_infos = max(num_scratch_image_infos, desc.count);
+        break;
+
+      case gfx::DescriptorType::UniformTexelBuffer:
+      case gfx::DescriptorType::StorageTexelBuffer:
+        num_scratch_buffer_views = max(num_scratch_buffer_views, desc.count);
+        break;
+
+      case gfx::DescriptorType::UniformBuffer:
+      case gfx::DescriptorType::StorageBuffer:
+      case gfx::DescriptorType::DynamicUniformBuffer:
+      case gfx::DescriptorType::DynamicStorageBuffer:
+        num_scratch_buffer_infos = max(num_scratch_buffer_infos, desc.count);
+        break;
+
+      default:
+        UNREACHABLE();
+    }
+
     u32 type = (u32) desc.type;
     CHECK(type < 11);
     count[type] += desc.count;
@@ -2834,27 +2906,17 @@ Result<gfx::DescriptorHeapImpl, Status>
     }
   }
 
-  u32 num_descriptor_image_infos =
-      count[(u32) gfx::DescriptorType::Sampler] +
-      count[(u32) gfx::DescriptorType::CombinedImageSampler] +
-      count[(u32) gfx::DescriptorType::SampledImage] +
-      count[(u32) gfx::DescriptorType::StorageImage] +
-      count[(u32) gfx::DescriptorType::InputAttachment];
-  u32 num_descriptor_buffer_infos =
-      count[(u32) gfx::DescriptorType::UniformBuffer] +
-      count[(u32) gfx::DescriptorType::StorageBuffer] +
-      count[(u32) gfx::DescriptorType::DynamicUniformBuffer] +
-      count[(u32) gfx::DescriptorType::DynamicStorageBuffer];
-  u32 num_descriptor_texel_buffer_infos =
-      count[(u32) gfx::DescriptorType::UniformTexelBuffer] +
-      count[(u32) gfx::DescriptorType::StorageTexelBuffer];
+  u32 const scratch_size =
+      max(sizeof(VkDescriptorImageInfo) * num_scratch_image_infos,
+          max(sizeof(VkDescriptorBufferInfo) * num_scratch_buffer_infos,
+              sizeof(VkBufferView) * num_scratch_buffer_views));
+  void *scratch =
+      allocator.allocate(MAX_STANDARD_ALIGNMENT, num_scratch_image_infos);
 
-  usize const scratch_size =
-      max(max(num_descriptor_image_infos * sizeof(VkDescriptorImageInfo),
-              num_descriptor_buffer_infos * sizeof(VkDescriptorBufferInfo)),
-          num_descriptor_texel_buffer_infos * sizeof(VkBufferView));
-
-  void *scratch = allocator.allocate(MAX_STANDARD_ALIGNMENT, scratch_size);
+  if (scratch == nullptr)
+  {
+    return Err{Status::OutOfHostMemory};
+  }
 
   defer scratch_del{[&] {
     allocator.deallocate(MAX_STANDARD_ALIGNMENT, scratch, scratch_size);
@@ -3348,29 +3410,6 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   return Ok{(gfx::GraphicsPipeline) pipeline};
 }
 
-Result<gfx::Fence, Status> DeviceInterface::create_fence(gfx::Device self_,
-                                                         bool        signaled)
-{
-  Device *const self = (Device *) self_;
-
-  VkFenceCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = signaled ? (VkFenceCreateFlags) VK_FENCE_CREATE_SIGNALED_BIT :
-                          (VkFenceCreateFlags) 0};
-
-  VkFence  vk_fence;
-  VkResult result = self->vk_table.CreateFence(self->vk_device, &create_info,
-                                               nullptr, &vk_fence);
-
-  if (result != VK_SUCCESS)
-  {
-    return Err{(Status) result};
-  }
-
-  return Ok{(gfx::Fence) vk_fence};
-}
-
 Result<gfx::CommandEncoderImpl, Status>
     DeviceInterface::create_command_encoder(gfx::Device   self_,
                                             AllocatorImpl allocator)
@@ -3440,195 +3479,157 @@ Result<gfx::FrameContext, Status>
 
   VALIDATE(desc.max_frames_in_flight > 0);
 
-  gfx::CommandEncoderImpl *command_encoders =
+  gfx::CommandEncoderImpl *encs =
       self->allocator.allocate_typed<gfx::CommandEncoderImpl>(
           desc.max_frames_in_flight);
+  u32 num_encs = 0;
 
-  if (command_encoders == nullptr)
+  if (encs == nullptr)
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  {
-    Status status   = Status::Success;
-    u32    push_end = 0;
-    for (; push_end < desc.max_frames_in_flight; push_end++)
+  defer encs_del{[&] {
+    if (encs != nullptr)
     {
-      Result result =
-          DeviceInterface::create_command_encoder(self_, desc.allocator);
-      if (result.is_err())
+      for (u32 i = 0; i < num_encs; i++)
       {
-        status = result.err();
-        break;
+        DeviceInterface::destroy_command_encoder(self_, encs[i]);
       }
-      command_encoders[push_end] = result.value();
+      self->allocator.deallocate_typed(encs, desc.max_frames_in_flight);
     }
+  }};
 
-    if (push_end != desc.max_frames_in_flight)
+  for (u32 i = 0; i < desc.max_frames_in_flight; i++)
+  {
+    Result result =
+        DeviceInterface::create_command_encoder(self_, desc.allocator);
+    if (result.is_err())
     {
-      for (u32 i = 0; i < push_end; i++)
-      {
-        DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
-      }
-      return Err{(Status) status};
+      return Err{result.err()};
     }
+    encs[num_encs] = result.value();
+    num_encs++;
   }
 
-  VkSemaphore *acquire_semaphores =
+  VkSemaphore *acquire =
       self->allocator.allocate_typed<VkSemaphore>(desc.max_frames_in_flight);
+  u32 num_acquire = 0;
 
+  if (acquire == nullptr)
   {
-    VkResult              result   = VK_SUCCESS;
-    u32                   push_end = 0;
-    VkSemaphoreCreateInfo create_info{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0};
-    for (; push_end < desc.max_frames_in_flight; push_end++)
+    return Err{Status::OutOfHostMemory};
+  }
+
+  defer acquire_del{[&] {
+    if (acquire != nullptr)
     {
-      VkSemaphore semaphore;
-      result = self->vk_table.CreateSemaphore(self->vk_device, &create_info,
-                                              nullptr, &semaphore);
-      if (result != VK_SUCCESS)
+      for (u32 i = 0; i < num_acquire; i++)
       {
-        break;
+        self->vk_table.DestroySemaphore(self->vk_device, acquire[i], nullptr);
       }
-      set_resource_name(self, desc.label, semaphore, VK_OBJECT_TYPE_SEMAPHORE,
-                        VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
-      acquire_semaphores[push_end] = semaphore;
+      self->allocator.deallocate_typed(acquire, desc.max_frames_in_flight);
     }
+  }};
 
-    if (push_end != desc.max_frames_in_flight)
+  VkSemaphoreCreateInfo sem_info{.sType =
+                                     VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+                                 .pNext = nullptr,
+                                 .flags = 0};
+
+  for (u32 i = 0; i < desc.max_frames_in_flight; i++)
+  {
+    VkSemaphore semaphore;
+    VkResult result = self->vk_table.CreateSemaphore(self->vk_device, &sem_info,
+                                                     nullptr, &semaphore);
+    if (result != VK_SUCCESS)
     {
-      for (u32 i = 0; i < push_end; i++)
-      {
-        self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
-                                        nullptr);
-      }
-
-      for (u32 i = 0; i < desc.max_frames_in_flight; i++)
-      {
-        DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
-      }
-
       return Err{(Status) result};
     }
+    set_resource_name(self, desc.label, semaphore, VK_OBJECT_TYPE_SEMAPHORE,
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
+    acquire[num_acquire] = semaphore;
+    num_acquire++;
   }
 
-  gfx::Fence *submit_fences =
-      self->allocator.allocate_typed<gfx::Fence>(desc.max_frames_in_flight);
+  VkFence *submit_f =
+      self->allocator.allocate_typed<VkFence>(desc.max_frames_in_flight);
+  u32 num_submit_f = 0;
 
-  if (submit_fences == nullptr)
+  if (submit_f == nullptr)
   {
-    for (u32 i = 0; i < desc.max_frames_in_flight; i++)
-    {
-      self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
-                                      nullptr);
-    }
     return Err{Status::OutOfHostMemory};
   }
 
+  defer submit_f_del{[&] {
+    if (submit_f != nullptr)
+    {
+      for (u32 i = 0; i < num_submit_f; i++)
+      {
+        self->vk_table.DestroyFence(self->vk_device, submit_f[i], nullptr);
+      }
+      self->allocator.deallocate_typed(submit_f, desc.max_frames_in_flight);
+    }
+  }};
+
+  VkFenceCreateInfo fence_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                               .pNext = nullptr,
+                               .flags = VK_FENCE_CREATE_SIGNALED_BIT};
+
+  for (u32 i = 0; i < desc.max_frames_in_flight; i++)
   {
-    Status status   = Status::Success;
-    u32    push_end = 0;
-    for (; push_end < desc.max_frames_in_flight; push_end++)
+    VkFence  fence;
+    VkResult result = self->vk_table.CreateFence(self->vk_device, &fence_info,
+                                                 nullptr, &fence);
+    if (result != VK_SUCCESS)
     {
-      Result result = DeviceInterface::create_fence(self_, true);
-      if (result.is_err())
-      {
-        status = result.err();
-        break;
-      }
-      submit_fences[push_end] = result.value();
-    }
-
-    if (push_end != desc.max_frames_in_flight)
-    {
-      for (u32 i = 0; i < push_end; i++)
-      {
-        DeviceInterface::destroy_fence(self_, submit_fences[i]);
-      }
-
-      for (u32 i = 0; i < desc.max_frames_in_flight; i++)
-      {
-        self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
-                                        nullptr);
-        DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
-      }
-
-      return Err{(Status) status};
-    }
-  }
-
-  VkSemaphore *submit_semaphores =
-      self->allocator.allocate_typed<VkSemaphore>(desc.max_frames_in_flight);
-
-  if (submit_semaphores == nullptr)
-  {
-    for (u32 i = 0; i < desc.max_frames_in_flight; i++)
-    {
-      DeviceInterface::destroy_fence(self_, submit_fences[i]);
-      self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
-                                      nullptr);
-      DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
-    }
-
-    return Err{Status::OutOfHostMemory};
-  }
-
-  {
-    VkResult              result   = VK_SUCCESS;
-    u32                   push_end = 0;
-    VkSemaphoreCreateInfo create_info{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0};
-    for (; push_end < desc.max_frames_in_flight; push_end++)
-    {
-      VkSemaphore semaphore;
-      result = self->vk_table.CreateSemaphore(self->vk_device, &create_info,
-                                              nullptr, &semaphore);
-      if (result != VK_SUCCESS)
-      {
-        break;
-      }
-      submit_semaphores[push_end] = semaphore;
-    }
-
-    if (push_end != desc.max_frames_in_flight)
-    {
-      for (u32 i = 0; i < push_end; i++)
-      {
-        self->vk_table.DestroySemaphore(self->vk_device, submit_semaphores[i],
-                                        nullptr);
-      }
-
-      for (u32 i = 0; i < desc.max_frames_in_flight; i++)
-      {
-        DeviceInterface::destroy_fence(self_, submit_fences[i]);
-        self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
-                                        nullptr);
-        DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
-      }
-
       return Err{(Status) result};
     }
+    set_resource_name(self, desc.label, fence, VK_OBJECT_TYPE_FENCE,
+                      VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT);
+    submit_f[num_submit_f] = fence;
+    num_submit_f++;
+  }
+
+  VkSemaphore *submit_s =
+      self->allocator.allocate_typed<VkSemaphore>(desc.max_frames_in_flight);
+  u32 num_submit_s = 0;
+
+  if (submit_s == nullptr)
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  defer submit_s_del{[&] {
+    if (submit_s != nullptr)
+    {
+      for (u32 i = 0; i < num_submit_s; i++)
+      {
+        self->vk_table.DestroySemaphore(self->vk_device, submit_s[i], nullptr);
+      }
+      self->allocator.deallocate_typed(submit_s, desc.max_frames_in_flight);
+    }
+  }};
+
+  for (u32 i = 0; i < desc.max_frames_in_flight; i++)
+  {
+    VkSemaphore semaphore;
+    VkResult result = self->vk_table.CreateSemaphore(self->vk_device, &sem_info,
+                                                     nullptr, &semaphore);
+    if (result != VK_SUCCESS)
+    {
+      return Err{(Status) result};
+    }
+    set_resource_name(self, desc.label, semaphore, VK_OBJECT_TYPE_SEMAPHORE,
+                      VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
+    submit_s[num_submit_s] = semaphore;
+    num_submit_s++;
   }
 
   FrameContext *ctx = self->allocator.allocate_typed<FrameContext>(1);
 
   if (ctx == nullptr)
   {
-    for (u32 i = 0; i < desc.max_frames_in_flight; i++)
-    {
-      self->vk_table.DestroySemaphore(self->vk_device, submit_semaphores[i],
-                                      nullptr);
-      DeviceInterface::destroy_fence(self_, submit_fences[i]);
-      self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
-                                      nullptr);
-      DeviceInterface::destroy_command_encoder(self_, command_encoders[i]);
-    }
-
     return Err{Status::OutOfHostMemory};
   }
 
@@ -3636,10 +3637,15 @@ Result<gfx::FrameContext, Status>
                          .current_frame        = 0,
                          .ring_index           = 0,
                          .max_frames_in_flight = desc.max_frames_in_flight,
-                         .encoders             = command_encoders,
-                         .acquire_semaphores   = acquire_semaphores,
-                         .submit_fences        = submit_fences,
-                         .submit_semaphores    = submit_semaphores};
+                         .encoders             = encs,
+                         .acquire              = acquire,
+                         .submit_f             = submit_f,
+                         .submit_s             = submit_s};
+
+  encs     = nullptr;
+  acquire  = nullptr;
+  submit_f = nullptr;
+  submit_s = nullptr;
 
   return Ok{(gfx::FrameContext) ctx};
 }
@@ -4059,12 +4065,6 @@ void DeviceInterface::destroy_graphics_pipeline(gfx::Device           self_,
   self->allocator.deallocate_typed(pipeline, 1);
 }
 
-void DeviceInterface::destroy_fence(gfx::Device self_, gfx::Fence fence_)
-{
-  Device *const self = (Device *) self_;
-  self->vk_table.DestroyFence(self->vk_device, (Fence) fence_, nullptr);
-}
-
 void CommandEncoder::reset_context()
 {
   switch (state)
@@ -4135,19 +4135,14 @@ void DeviceInterface::destroy_frame_context(gfx::Device       self_,
   for (u32 i = 0; i < ctx->max_frames_in_flight; i++)
   {
     DeviceInterface::destroy_command_encoder(self_, ctx->encoders[i]);
-    self->vk_table.DestroySemaphore(self->vk_device, ctx->acquire_semaphores[i],
-                                    nullptr);
-    self->vk_table.DestroyFence(self->vk_device, (Fence) ctx->submit_fences[i],
+    self->vk_table.DestroySemaphore(self->vk_device, ctx->acquire[i], nullptr);
+    self->vk_table.DestroyFence(self->vk_device, (Fence) ctx->submit_f[i],
                                 nullptr);
-    self->vk_table.DestroySemaphore(self->vk_device, ctx->submit_semaphores[i],
-                                    nullptr);
+    self->vk_table.DestroySemaphore(self->vk_device, ctx->submit_s[i], nullptr);
   }
-  self->allocator.deallocate_typed(ctx->acquire_semaphores,
-                                   ctx->max_frames_in_flight);
-  self->allocator.deallocate_typed(ctx->submit_fences,
-                                   ctx->max_frames_in_flight);
-  self->allocator.deallocate_typed(ctx->submit_semaphores,
-                                   ctx->max_frames_in_flight);
+  self->allocator.deallocate_typed(ctx->acquire, ctx->max_frames_in_flight);
+  self->allocator.deallocate_typed(ctx->submit_f, ctx->max_frames_in_flight);
+  self->allocator.deallocate_typed(ctx->submit_s, ctx->max_frames_in_flight);
   self->allocator.deallocate_typed(ctx, 1);
 }
 
@@ -4269,64 +4264,6 @@ Result<Void, Status>
     return Err{(Status) result};
   }
   return Ok{Void{}};
-}
-
-Result<Void, Status> DeviceInterface::wait_for_fences(
-    gfx::Device self_, Span<gfx::Fence const> fences, bool all, u64 timeout)
-{
-  Device *const self       = (Device *) self_;
-  u32 const     num_fences = (u32) fences.size();
-
-  VALIDATE(num_fences > 0);
-
-  VkResult result = self->vk_table.WaitForFences(self->vk_device, num_fences,
-                                                 (Fence *) fences.data(),
-                                                 (VkBool32) all, timeout);
-
-  if (result != VK_SUCCESS)
-  {
-    return Err{(Status) result};
-  }
-  return Ok{Void{}};
-}
-
-Result<Void, Status>
-    DeviceInterface::reset_fences(gfx::Device            self_,
-                                  Span<gfx::Fence const> fences)
-{
-  Device *const self       = (Device *) self_;
-  u32 const     num_fences = (u32) fences.size();
-
-  VALIDATE(num_fences > 0);
-
-  VkResult result = self->vk_table.ResetFences(self->vk_device, num_fences,
-                                               (Fence *) fences.data());
-
-  if (result != VK_SUCCESS)
-  {
-    return Err{(Status) result};
-  }
-  return Ok{Void{}};
-}
-
-Result<bool, Status> DeviceInterface::get_fence_status(gfx::Device self_,
-                                                       gfx::Fence  fence)
-{
-  Device *const self = (Device *) self_;
-  VkResult      result =
-      self->vk_table.GetFenceStatus(self->vk_device, (Fence) fence);
-
-  if (result == VK_SUCCESS)
-  {
-    return Ok{true};
-  }
-
-  if (result == VK_NOT_READY)
-  {
-    return Ok{false};
-  }
-
-  return Err{(Status) result};
 }
 
 Result<Void, Status> DeviceInterface::wait_idle(gfx::Device self_)
@@ -4529,11 +4466,11 @@ Result<Void, Status>
                                  gfx::FrameContext frame_context_,
                                  gfx::Swapchain    swapchain_)
 {
-  Device *const       self      = (Device *) self_;
-  FrameContext *const ctx       = (FrameContext *) frame_context_;
-  Swapchain *const    swapchain = (Swapchain *) swapchain_;
-  VkResult            result    = VK_SUCCESS;
-  Fence const submit_fence      = (Fence) ctx->submit_fences[ctx->ring_index];
+  Device *const         self         = (Device *) self_;
+  FrameContext *const   ctx          = (FrameContext *) frame_context_;
+  Swapchain *const      swapchain    = (Swapchain *) swapchain_;
+  VkResult              result       = VK_SUCCESS;
+  Fence const           submit_fence = (Fence) ctx->submit_f[ctx->ring_index];
   CommandEncoder *const enc =
       (CommandEncoder *) ctx->encoders[ctx->ring_index].self;
 
@@ -4565,7 +4502,7 @@ Result<Void, Status>
     u32 next_image;
     result = self->vk_table.AcquireNextImageKHR(
         self->vk_device, swapchain->vk_swapchain, U64_MAX,
-        ctx->acquire_semaphores[ctx->ring_index], nullptr, &next_image);
+        ctx->acquire[ctx->ring_index], nullptr, &next_image);
 
     if (result == VK_SUBOPTIMAL_KHR)
     {
@@ -4599,18 +4536,17 @@ Result<Void, Status>
                                   gfx::FrameContext frame_context_,
                                   gfx::Swapchain    swapchain_)
 {
-  Device *const       self      = (Device *) self_;
-  FrameContext *const ctx       = (FrameContext *) frame_context_;
-  Swapchain *const    swapchain = (Swapchain *) swapchain_;
-  Fence const submit_fence      = (Fence) ctx->submit_fences[ctx->ring_index];
+  Device *const         self         = (Device *) self_;
+  FrameContext *const   ctx          = (FrameContext *) frame_context_;
+  Swapchain *const      swapchain    = (Swapchain *) swapchain_;
+  Fence const           submit_fence = (Fence) ctx->submit_f[ctx->ring_index];
   CommandEncoder *const enc =
       (CommandEncoder *) ctx->encoders[ctx->ring_index].self;
-  VkCommandBuffer const command_buffer = enc->vk_command_buffer;
-  VkSemaphore const submit_semaphore = ctx->submit_semaphores[ctx->ring_index];
-  VkSemaphore const acquire_semaphore =
-      ctx->acquire_semaphores[ctx->ring_index];
-  bool const was_acquired = !swapchain->is_zero_sized;
-  bool const can_present =
+  VkCommandBuffer const command_buffer    = enc->vk_command_buffer;
+  VkSemaphore const     submit_semaphore  = ctx->submit_s[ctx->ring_index];
+  VkSemaphore const     acquire_semaphore = ctx->acquire[ctx->ring_index];
+  bool const            was_acquired      = !swapchain->is_zero_sized;
+  bool const            can_present =
       !(swapchain->is_out_of_date || swapchain->is_zero_sized);
 
   VALIDATE(enc->is_recording());
@@ -4909,490 +4845,211 @@ gfx::DescriptorHeapStats
                                   .num_pools    = self->num_pools};
 }
 
-#define DESCRIPTOR_HEAP_PRELUDE(desc_type)                         \
-  VALIDATE(set < (self->num_pools * self->num_sets_per_pool));     \
-  VALIDATE(binding < self->set_layout->num_bindings);              \
-  VALIDATE(self->set_layout->bindings[binding].type == desc_type); \
-  VALIDATE(self->set_layout->bindings[binding].count == elements.size())
-
-void DescriptorHeapInterface::sampler(gfx::DescriptorHeap self_, u32 set,
-                                      u32                             binding,
-                                      Span<gfx::SamplerBinding const> elements)
+void DescriptorHeapInterface::update(gfx::DescriptorHeap          self_,
+                                     gfx::DescriptorUpdate const &update)
 {
   DescriptorHeap *const self = (DescriptorHeap *) self_;
+  VALIDATE(update.set < (self->num_pools * self->num_sets_per_pool));
+  VALIDATE(update.binding < self->set_layout->num_bindings);
+  gfx::DescriptorBindingDesc const &desc =
+      self->set_layout->bindings[update.binding];
+  VALIDATE(update.element < desc.count);
 
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::Sampler);
+  VkDescriptorImageInfo  *pImageInfo       = nullptr;
+  VkDescriptorBufferInfo *pBufferInfo      = nullptr;
+  VkBufferView           *pTexelBufferView = nullptr;
+  u32                     count            = 0;
+  VkDescriptorType        type             = (VkDescriptorType) desc.type;
 
-  VkDescriptorImageInfo *image_infos = (VkDescriptorImageInfo *) self->scratch;
-  for (u32 i = 0; i < elements.size(); i++)
+  switch (desc.type)
   {
-    gfx::SamplerBinding const &element = elements[i];
-    image_infos[i] =
-        VkDescriptorImageInfo{.sampler     = (Sampler) element.sampler,
-                              .imageView   = nullptr,
-                              .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    case gfx::DescriptorType::DynamicStorageBuffer:
+    case gfx::DescriptorType::DynamicUniformBuffer:
+    case gfx::DescriptorType::StorageBuffer:
+    case gfx::DescriptorType::UniformBuffer:
+    {
+      VALIDATE((update.element + update.buffers.size()) <= desc.count);
+      pBufferInfo = (VkDescriptorBufferInfo *) self->scratch;
+      for (u32 i = 0; i < update.buffers.size(); i++)
+      {
+        gfx::BufferBinding const &b      = update.buffers[i];
+        Buffer                   *buffer = (Buffer *) b.buffer;
+        pBufferInfo[i]                   = VkDescriptorBufferInfo{
+                              .buffer = buffer->vk_buffer, .offset = b.offset, .range = b.size};
+      }
+      count = update.buffers.size();
+    }
+    break;
+
+    case gfx::DescriptorType::Sampler:
+    {
+      VALIDATE((update.element + update.images.size()) <= desc.count);
+      pImageInfo = (VkDescriptorImageInfo *) self->scratch;
+      for (u32 i = 0; i < update.images.size(); i++)
+      {
+        pImageInfo[i] =
+            VkDescriptorImageInfo{.sampler = (Sampler) update.images[i].sampler,
+                                  .imageView   = nullptr,
+                                  .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+      }
+      count = update.images.size();
+    }
+    break;
+
+    case gfx::DescriptorType::SampledImage:
+    {
+      VALIDATE((update.element + update.images.size()) <= desc.count);
+      pImageInfo = (VkDescriptorImageInfo *) self->scratch;
+      for (u32 i = 0; i < update.images.size(); i++)
+      {
+        ImageView *view = (ImageView *) update.images[i].image_view;
+        pImageInfo[i]   = VkDescriptorImageInfo{
+              .sampler     = nullptr,
+              .imageView   = view->vk_view,
+              .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      }
+      count = update.images.size();
+    }
+    break;
+
+    case gfx::DescriptorType::CombinedImageSampler:
+    {
+      VALIDATE((update.element + update.images.size()) <= desc.count);
+      pImageInfo = (VkDescriptorImageInfo *) self->scratch;
+      for (u32 i = 0; i < update.images.size(); i++)
+      {
+        gfx::ImageBinding const &b    = update.images[i];
+        ImageView               *view = (ImageView *) b.image_view;
+        pImageInfo[i]                 = VkDescriptorImageInfo{
+                            .sampler     = (Sampler) b.sampler,
+                            .imageView   = view->vk_view,
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      }
+      count = update.images.size();
+    }
+    break;
+
+    case gfx::DescriptorType::StorageImage:
+    {
+      VALIDATE((update.element + update.images.size()) <= desc.count);
+      pImageInfo = (VkDescriptorImageInfo *) self->scratch;
+      for (u32 i = 0; i < update.images.size(); i++)
+      {
+        ImageView *view = (ImageView *) update.images[i].image_view;
+        pImageInfo[i] =
+            VkDescriptorImageInfo{.sampler     = nullptr,
+                                  .imageView   = view->vk_view,
+                                  .imageLayout = VK_IMAGE_LAYOUT_GENERAL};
+      }
+      count = update.images.size();
+    }
+    break;
+
+    case gfx::DescriptorType::InputAttachment:
+    {
+      VALIDATE((update.element + update.images.size()) <= desc.count);
+      pImageInfo = (VkDescriptorImageInfo *) self->scratch;
+      for (u32 i = 0; i < update.images.size(); i++)
+      {
+        ImageView *view = (ImageView *) update.images[i].image_view;
+        pImageInfo[i]   = VkDescriptorImageInfo{
+              .sampler     = nullptr,
+              .imageView   = view->vk_view,
+              .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      }
+      count = update.images.size();
+    }
+    break;
+
+    case gfx::DescriptorType::StorageTexelBuffer:
+    case gfx::DescriptorType::UniformTexelBuffer:
+    {
+      VALIDATE((update.element + update.texel_buffers.size()) <= desc.count);
+      pTexelBufferView = (VkBufferView *) self->scratch;
+      for (u32 i = 0; i < update.texel_buffers.size(); i++)
+      {
+        BufferView *view    = (BufferView *) update.texel_buffers[i];
+        pTexelBufferView[i] = view->vk_view;
+      }
+      count = update.texel_buffers.size();
+    }
+    break;
+
+    default:
+      UNREACHABLE();
   }
 
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet           = self->sets[set],
-                                .dstBinding       = binding,
-                                .dstArrayElement  = 0,
-                                .descriptorCount  = (u32) elements.size(),
-                                .descriptorType   = VK_DESCRIPTOR_TYPE_SAMPLER,
-                                .pImageInfo       = image_infos,
-                                .pBufferInfo      = nullptr,
-                                .pTexelBufferView = nullptr};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::combined_image_sampler(
-    gfx::DescriptorHeap self_, u32 set, u32 binding,
-    Span<gfx::CombinedImageSamplerBinding const> elements)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::CombinedImageSampler);
-
-  for (gfx::CombinedImageSamplerBinding const &element : elements)
+  if (count != 0)
   {
-    VALIDATE(has_bits(IMAGE_FROM_VIEW(element.image_view)->desc.usage,
-                      gfx::ImageUsage::Sampled));
+    VkWriteDescriptorSet vk_write{.sType =
+                                      VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                  .pNext            = nullptr,
+                                  .dstSet           = self->sets[update.set],
+                                  .dstBinding       = update.binding,
+                                  .dstArrayElement  = update.element,
+                                  .descriptorCount  = count,
+                                  .descriptorType   = type,
+                                  .pImageInfo       = pImageInfo,
+                                  .pBufferInfo      = pBufferInfo,
+                                  .pTexelBufferView = pTexelBufferView};
+
+    self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
+                                                &vk_write, 0, nullptr);
   }
 
-  Image **images = self->images + set * self->num_set_images +
-                   self->binding_index_map[binding];
-  VkDescriptorImageInfo *image_infos = (VkDescriptorImageInfo *) self->scratch;
-
-  for (u32 i = 0; i < elements.size(); i++)
+  switch (desc.type)
   {
-    gfx::CombinedImageSamplerBinding const &element = elements[i];
-    image_infos[i]                                  = VkDescriptorImageInfo{
-                                         .sampler     = (Sampler) element.sampler,
-                                         .imageView   = ((ImageView *) element.image_view)->vk_view,
-                                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    images[i] = (Image *) ((ImageView *) (element.image_view))->desc.image;
+    case gfx::DescriptorType::DynamicStorageBuffer:
+    case gfx::DescriptorType::DynamicUniformBuffer:
+    case gfx::DescriptorType::StorageBuffer:
+    case gfx::DescriptorType::UniformBuffer:
+    {
+      Buffer **buffers = self->buffers + update.set * self->num_set_buffers +
+                         self->binding_index_map[update.binding] +
+                         update.element;
+      for (u32 i = 0; i < update.buffers.size(); i++)
+      {
+        buffers[i] = (Buffer *) update.buffers[i].buffer;
+      }
+    }
+    break;
+
+    case gfx::DescriptorType::StorageTexelBuffer:
+    case gfx::DescriptorType::UniformTexelBuffer:
+    {
+      Buffer **buffers = self->buffers + update.set * self->num_set_buffers +
+                         self->binding_index_map[update.binding] +
+                         update.element;
+      for (u32 i = 0; i < update.texel_buffers.size(); i++)
+      {
+        buffers[i] =
+            (Buffer *) ((BufferView *) update.texel_buffers[i])->desc.buffer;
+      }
+    }
+    break;
+
+    case gfx::DescriptorType::Sampler:
+    {
+    }
+    break;
+    case gfx::DescriptorType::SampledImage:
+    case gfx::DescriptorType::CombinedImageSampler:
+    case gfx::DescriptorType::StorageImage:
+    case gfx::DescriptorType::InputAttachment:
+    {
+      Image **images = self->images + update.set * self->num_set_images +
+                       self->binding_index_map[update.binding] + update.element;
+      for (u32 i = 0; i < update.images.size(); i++)
+      {
+        images[i] =
+            (Image *) ((ImageView *) update.images[i].image_view)->desc.image;
+      }
+    }
+    break;
+
+    default:
+      UNREACHABLE();
   }
-
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = self->sets[set],
-                                .dstBinding      = binding,
-                                .dstArrayElement = 0,
-                                .descriptorCount = (u32) elements.size(),
-                                .descriptorType =
-                                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                .pImageInfo       = image_infos,
-                                .pBufferInfo      = nullptr,
-                                .pTexelBufferView = nullptr};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::sampled_image(
-    gfx::DescriptorHeap self_, u32 set, u32 binding,
-    Span<gfx::ImageBinding const> elements)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::SampledImage);
-
-  for (gfx::ImageBinding const &element : elements)
-  {
-    VALIDATE(has_bits(IMAGE_FROM_VIEW(element.image_view)->desc.usage,
-                      gfx::ImageUsage::Sampled));
-  }
-
-  Image **images = self->images + set * self->num_set_images +
-                   self->binding_index_map[binding];
-  VkDescriptorImageInfo *image_infos = (VkDescriptorImageInfo *) self->scratch;
-
-  for (u32 i = 0; i < elements.size(); i++)
-  {
-    gfx::ImageBinding const &element = elements[i];
-    image_infos[i]                   = VkDescriptorImageInfo{
-                          .sampler     = nullptr,
-                          .imageView   = ((ImageView *) element.image_view)->vk_view,
-                          .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    images[i] = (Image *) ((ImageView *) (element.image_view))->desc.image;
-  }
-
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = self->sets[set],
-                                .dstBinding      = binding,
-                                .dstArrayElement = 0,
-                                .descriptorCount = (u32) elements.size(),
-                                .descriptorType =
-                                    VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                                .pImageInfo       = image_infos,
-                                .pBufferInfo      = nullptr,
-                                .pTexelBufferView = nullptr};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::storage_image(
-    gfx::DescriptorHeap self_, u32 set, u32 binding,
-    Span<gfx::ImageBinding const> elements)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::StorageImage);
-
-  for (gfx::ImageBinding const &element : elements)
-  {
-    VALIDATE(has_bits(IMAGE_FROM_VIEW(element.image_view)->desc.usage,
-                      gfx::ImageUsage::Storage));
-  }
-
-  Image **images = self->images + set * self->num_set_buffers +
-                   self->binding_index_map[binding];
-  VkDescriptorImageInfo *image_infos = (VkDescriptorImageInfo *) self->scratch;
-
-  for (u32 i = 0; i < elements.size(); i++)
-  {
-    gfx::ImageBinding const &element = elements[i];
-    image_infos[i]                   = VkDescriptorImageInfo{
-                          .sampler     = nullptr,
-                          .imageView   = ((ImageView *) element.image_view)->vk_view,
-                          .imageLayout = VK_IMAGE_LAYOUT_GENERAL};
-    images[i] = (Image *) ((ImageView *) (element.image_view))->desc.image;
-  }
-
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = self->sets[set],
-                                .dstBinding      = binding,
-                                .dstArrayElement = 0,
-                                .descriptorCount = (u32) elements.size(),
-                                .descriptorType =
-                                    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                .pImageInfo       = image_infos,
-                                .pBufferInfo      = nullptr,
-                                .pTexelBufferView = nullptr};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::uniform_texel_buffer(
-    gfx::DescriptorHeap self_, u32 set, u32 binding,
-    Span<gfx::TexelBufferBinding const> elements)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::UniformTexelBuffer);
-
-  for (gfx::TexelBufferBinding const &element : elements)
-  {
-    // TODO(lamarrr): check alingment of buffer
-    VALIDATE(has_bits(BUFFER_FROM_VIEW(element.buffer_view)->desc.usage,
-                      gfx::BufferUsage::UniformTexelBuffer));
-  }
-
-  Buffer **buffers = self->buffers + set * self->num_set_buffers +
-                     self->binding_index_map[binding];
-  VkBufferView *buffer_views = (VkBufferView *) self->scratch;
-
-  for (u32 i = 0; i < elements.size(); i++)
-  {
-    gfx::TexelBufferBinding const &element = elements[i];
-    buffer_views[i] = ((BufferView *) element.buffer_view)->vk_view;
-    buffers[i] = (Buffer *) ((BufferView *) element.buffer_view)->desc.buffer;
-  }
-
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = self->sets[set],
-                                .dstBinding      = binding,
-                                .dstArrayElement = 0,
-                                .descriptorCount = (u32) elements.size(),
-                                .descriptorType =
-                                    VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,
-                                .pImageInfo       = nullptr,
-                                .pBufferInfo      = nullptr,
-                                .pTexelBufferView = buffer_views};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::storage_texel_buffer(
-    gfx::DescriptorHeap self_, u32 set, u32 binding,
-    Span<gfx::TexelBufferBinding const> elements)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::StorageTexelBuffer);
-
-  for (gfx::TexelBufferBinding const &element : elements)
-  {
-    VALIDATE(has_bits(BUFFER_FROM_VIEW(element.buffer_view)->desc.usage,
-                      gfx::BufferUsage::StorageTexelBuffer));
-    // TODO(lamarrr): check alingment of buffer
-  }
-
-  Buffer **buffers = self->buffers + set * self->num_set_buffers +
-                     self->binding_index_map[binding];
-  VkBufferView *buffer_views = (VkBufferView *) self->scratch;
-
-  for (u32 i = 0; i < elements.size(); i++)
-  {
-    gfx::TexelBufferBinding const &element = elements[i];
-    buffers[i] = (Buffer *) ((BufferView *) element.buffer_view)->desc.buffer;
-  }
-
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = self->sets[set],
-                                .dstBinding      = binding,
-                                .dstArrayElement = 0,
-                                .descriptorCount = (u32) elements.size(),
-                                .descriptorType =
-                                    VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,
-                                .pImageInfo       = nullptr,
-                                .pBufferInfo      = nullptr,
-                                .pTexelBufferView = buffer_views};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::uniform_buffer(
-    gfx::DescriptorHeap self_, u32 set, u32 binding,
-    Span<gfx::BufferBinding const> elements)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::UniformBuffer);
-
-  for (gfx::BufferBinding const &element : elements)
-  {
-    // TODO(lamarrr): check alingment of buffer
-    VALIDATE(has_bits(((Buffer *) element.buffer)->desc.usage,
-                      gfx::BufferUsage::UniformBuffer));
-  }
-
-  Buffer **buffers = self->buffers + set * self->num_set_buffers +
-                     self->binding_index_map[binding];
-  VkDescriptorBufferInfo *buffer_infos =
-      (VkDescriptorBufferInfo *) self->scratch;
-
-  for (u32 i = 0; i < elements.size(); i++)
-  {
-    gfx::BufferBinding const &element = elements[i];
-    buffer_infos[i] =
-        VkDescriptorBufferInfo{.buffer = ((Buffer *) element.buffer)->vk_buffer,
-                               .offset = element.offset,
-                               .range  = element.size};
-    buffers[i] = (Buffer *) element.buffer;
-  }
-
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = self->sets[set],
-                                .dstBinding      = binding,
-                                .dstArrayElement = 0,
-                                .descriptorCount = (u32) elements.size(),
-                                .descriptorType =
-                                    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                .pImageInfo       = nullptr,
-                                .pBufferInfo      = buffer_infos,
-                                .pTexelBufferView = nullptr};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::storage_buffer(
-    gfx::DescriptorHeap self_, u32 set, u32 binding,
-    Span<gfx::BufferBinding const> elements)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::StorageBuffer);
-
-  for (gfx::BufferBinding const &element : elements)
-  {
-    VALIDATE(has_bits(((Buffer *) element.buffer)->desc.usage,
-                      gfx::BufferUsage::StorageBuffer));
-    // TODO(lamarrr): max uniform buffer range
-    VALIDATE((element.offset % self->device->physical_device.properties.limits
-                                   .minStorageBufferOffsetAlignment) == 0);
-  }
-
-  Buffer **buffers = self->buffers + set * self->num_set_buffers +
-                     self->binding_index_map[binding];
-  VkDescriptorBufferInfo *buffer_infos =
-      (VkDescriptorBufferInfo *) self->scratch;
-
-  for (u32 i = 0; i < elements.size(); i++)
-  {
-    gfx::BufferBinding const &element = elements[i];
-    buffer_infos[i] =
-        VkDescriptorBufferInfo{.buffer = ((Buffer *) element.buffer)->vk_buffer,
-                               .offset = element.offset,
-                               .range  = element.size};
-    buffers[i] = (Buffer *) element.buffer;
-  }
-
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = self->sets[set],
-                                .dstBinding      = binding,
-                                .dstArrayElement = 0,
-                                .descriptorCount = (u32) elements.size(),
-                                .descriptorType =
-                                    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                .pImageInfo       = nullptr,
-                                .pBufferInfo      = buffer_infos,
-                                .pTexelBufferView = nullptr};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::dynamic_uniform_buffer(
-    gfx::DescriptorHeap self_, u32 set, u32 binding,
-    Span<gfx::BufferBinding const> elements)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::DynamicUniformBuffer);
-  for (gfx::BufferBinding const &element : elements)
-  {
-    // TODO(lamarrr): max uniform buffer range
-    VALIDATE(has_bits(((Buffer *) element.buffer)->desc.usage,
-                      gfx::BufferUsage::UniformBuffer));
-    VALIDATE((element.offset % self->device->physical_device.properties.limits
-                                   .minUniformBufferOffsetAlignment) == 0);
-  }
-
-  Buffer **buffers = self->buffers + set * self->num_set_buffers +
-                     self->binding_index_map[binding];
-  VkDescriptorBufferInfo *buffer_infos =
-      (VkDescriptorBufferInfo *) self->scratch;
-
-  for (u32 i = 0; i < elements.size(); i++)
-  {
-    gfx::BufferBinding const &element = elements[i];
-    buffer_infos[i] =
-        VkDescriptorBufferInfo{.buffer = ((Buffer *) element.buffer)->vk_buffer,
-                               .offset = element.offset,
-                               .range  = element.size};
-    buffers[i] = (Buffer *) element.buffer;
-  }
-
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = self->sets[set],
-                                .dstBinding      = binding,
-                                .dstArrayElement = 0,
-                                .descriptorCount = (u32) elements.size(),
-                                .descriptorType =
-                                    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                                .pImageInfo       = nullptr,
-                                .pBufferInfo      = buffer_infos,
-                                .pTexelBufferView = nullptr};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::dynamic_storage_buffer(
-    gfx::DescriptorHeap self_, u32 set, u32 binding,
-    Span<gfx::BufferBinding const> elements)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::DynamicStorageBuffer);
-
-  for (gfx::BufferBinding const &element : elements)
-  {
-    // TODO(lamarrr): max uniform buffer range
-    VALIDATE(has_bits(((Buffer *) element.buffer)->desc.usage,
-                      gfx::BufferUsage::StorageBuffer));
-    VALIDATE((element.offset % self->device->physical_device.properties.limits
-                                   .minUniformBufferOffsetAlignment) == 0);
-  }
-
-  Buffer **buffers = self->buffers + set * self->num_set_buffers +
-                     self->binding_index_map[binding];
-  VkDescriptorBufferInfo *buffer_infos =
-      (VkDescriptorBufferInfo *) self->scratch;
-
-  for (u32 i = 0; i < elements.size(); i++)
-  {
-    gfx::BufferBinding const &element = elements[i];
-    buffer_infos[i] =
-        VkDescriptorBufferInfo{.buffer = ((Buffer *) element.buffer)->vk_buffer,
-                               .offset = element.offset,
-                               .range  = element.size};
-    buffers[i] = (Buffer *) element.buffer;
-  }
-
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = self->sets[set],
-                                .dstBinding      = binding,
-                                .dstArrayElement = 0,
-                                .descriptorCount = (u32) elements.size(),
-                                .descriptorType =
-                                    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-                                .pImageInfo       = nullptr,
-                                .pBufferInfo      = buffer_infos,
-                                .pTexelBufferView = nullptr};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
-}
-
-void DescriptorHeapInterface::input_attachment(
-    gfx::DescriptorHeap self_, u32 set, u32 binding,
-    Span<gfx::ImageBinding const> elements)
-{
-  DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  DESCRIPTOR_HEAP_PRELUDE(gfx::DescriptorType::InputAttachment);
-  for (gfx::ImageBinding const &element : elements)
-  {
-    VALIDATE(has_bits(IMAGE_FROM_VIEW(element.image_view)->desc.usage,
-                      gfx::ImageUsage::InputAttachment));
-  }
-
-  Image **images = self->images + set * self->num_set_images +
-                   self->binding_index_map[binding];
-  VkDescriptorImageInfo *image_infos = (VkDescriptorImageInfo *) self->scratch;
-
-  for (u32 i = 0; i < elements.size(); i++)
-  {
-    gfx::ImageBinding const &element = elements[i];
-    image_infos[i]                   = VkDescriptorImageInfo{
-                          .sampler     = nullptr,
-                          .imageView   = ((ImageView *) element.image_view)->vk_view,
-                          .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    images[i] = (Image *) ((ImageView *) element.image_view)->desc.image;
-  }
-
-  VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                .pNext = nullptr,
-                                .dstSet          = self->sets[set],
-                                .dstBinding      = binding,
-                                .dstArrayElement = 0,
-                                .descriptorCount = (u32) elements.size(),
-                                .descriptorType =
-                                    VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                .pImageInfo       = image_infos,
-                                .pBufferInfo      = nullptr,
-                                .pTexelBufferView = nullptr};
-
-  self->device->vk_table.UpdateDescriptorSets(self->device->vk_device, 1,
-                                              &vk_write, 0, nullptr);
 }
 
 #define ENCODER_PRELUDE()                                \
@@ -6355,11 +6012,11 @@ void CommandEncoderInterface::bind_descriptor_sets(
   VALIDATE(num_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
 
   // TODO(lamarrr): check for dynamic storage, uniform
-  for (u32 offset : dynamic_offsets)
-  {
-    VALIDATE((offset % self->device->physical_device.properties.limits
-                           .minUniformBufferOffsetAlignment) == 0);
-  }
+  // for (u32 offset : dynamic_offsets)
+  // {
+  // VALIDATE((offset % self->device->physical_device.properties.limits
+  //  .minUniformBufferOffsetAlignment) == 0);
+  // }
 
   for (gfx::DescriptorSet set : descriptor_sets)
   {
@@ -6733,4 +6390,17 @@ void CommandEncoderInterface::draw_indexed_indirect(gfx::CommandEncoder self_,
 }
 
 }        // namespace vk
+
+namespace gfx
+{
+
+Result<InstanceImpl, Status>
+    create_vulkan_instance(AllocatorImpl allocator, Logger *logger,
+                           bool enable_validation_layer)
+{
+  return vk::InstanceInterface::create(allocator, logger,
+                                       enable_validation_layer);
+}
+
+}        // namespace gfx
 }        // namespace ash

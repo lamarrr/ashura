@@ -1,10 +1,16 @@
 #pragma once
 #include "ashura/std/allocator.h"
 #include "ashura/std/enum.h"
+#include "ashura/std/error.h"
 #include "ashura/std/log.h"
+#include "ashura/std/mem.h"
 #include "ashura/std/option.h"
+#include "ashura/std/range.h"
 #include "ashura/std/result.h"
+#include "ashura/std/source_location.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
+#include <cstddef>
 
 namespace ash
 {
@@ -17,51 +23,39 @@ constexpr u32 MAX_COLOR_ATTACHMENTS          = 8;
 constexpr u32 MAX_INPUT_ATTACHMENTS          = 8;
 constexpr u32 MAX_VERTEX_ATTRIBUTES          = 16;
 constexpr u32 MAX_PUSH_CONSTANT_SIZE         = 128;
-constexpr u32 MAX_MEMORY_HEAP_PROPERTIES     = 32;
-constexpr u32 MAX_MEMORY_HEAPS               = 16;
-constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS   = 4;
+constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS   = 8;
 constexpr u32 MAX_DESCRIPTOR_DYNAMIC_BUFFERS = 4;
+constexpr u32 MAX_BINDINGS_PER_SET           = 8;
+constexpr u32 MAX_DESCRIPTORS_PER_BINDING    = 1024;
+constexpr u32 MAX_DESCRIPTORS_PER_SET        = 1024;
 constexpr u32 MAX_COMPUTE_GROUP_COUNT_X      = 1024;
 constexpr u32 MAX_COMPUTE_GROUP_COUNT_Y      = 1024;
 constexpr u32 MAX_COMPUTE_GROUP_COUNT_Z      = 1024;
 constexpr u32 MAX_SWAPCHAIN_IMAGES           = 4;
 
-typedef Vec2U                          Offset;
-typedef Vec2U                          Extent;
-typedef Vec3U                          Offset3D;
-typedef Vec3U                          Extent3D;
-typedef u64                            FrameId;
-typedef struct Buffer_T               *Buffer;
-typedef struct BufferView_T           *BufferView;
-typedef struct Image_T                *Image;
-typedef struct ImageView_T            *ImageView;
-typedef struct Sampler_T              *Sampler;
-typedef struct CombinedImageSampler    CombinedImageSampler;
-typedef CombinedImageSampler           CombinedImageSamplerBinding;
-typedef struct Shader_T               *Shader;
-typedef struct RenderPass_T           *RenderPass;
-typedef struct Framebuffer_T          *Framebuffer;
-typedef struct DescriptorSetLayout_T  *DescriptorSetLayout;
-typedef struct DescriptorHeap_T       *DescriptorHeap;
-typedef struct DescriptorSet           DescriptorSet;
-typedef struct PipelineCache_T        *PipelineCache;
-typedef struct ComputePipeline_T      *ComputePipeline;
-typedef struct GraphicsPipeline_T     *GraphicsPipeline;
-typedef struct Fence_T                *Fence;
-typedef struct CommandEncoder_T       *CommandEncoder;
-typedef struct Surface_T              *Surface;
-typedef struct Swapchain_T            *Swapchain;
-typedef struct FrameContext_T         *FrameContext;
-typedef struct Device_T               *Device;
-typedef struct Instance_T             *Instance;
-typedef struct DescriptorHeapInterface DescriptorHeapInterface;
-typedef struct CommandEncoderInterface CommandEncoderInterface;
-typedef struct DeviceInterface         DeviceInterface;
-typedef struct InstanceInterface       InstanceInterface;
-typedef struct DescriptorHeapImpl      DescriptorHeapImpl;
-typedef struct CommandEncoderImpl      CommandEncoderImpl;
-typedef struct DeviceImpl              DeviceImpl;
-typedef struct InstanceImpl            InstanceImpl;
+typedef Vec2U                         Offset;
+typedef Vec2U                         Extent;
+typedef Vec3U                         Offset3D;
+typedef Vec3U                         Extent3D;
+typedef u64                           FrameId;
+typedef struct Buffer_T              *Buffer;
+typedef struct BufferView_T          *BufferView;
+typedef struct Image_T               *Image;
+typedef struct ImageView_T           *ImageView;
+typedef struct Sampler_T             *Sampler;
+typedef struct Shader_T              *Shader;
+typedef struct RenderPass_T          *RenderPass;
+typedef struct Framebuffer_T         *Framebuffer;
+typedef struct DescriptorSetLayout_T *DescriptorSetLayout;
+typedef struct DescriptorSet_T       *DescriptorSet;
+typedef struct PipelineCache_T       *PipelineCache;
+typedef struct ComputePipeline_T     *ComputePipeline;
+typedef struct GraphicsPipeline_T    *GraphicsPipeline;
+typedef struct CommandEncoder_T      *CommandEncoder;
+typedef struct Surface_T             *Surface;
+typedef struct Swapchain_T           *Swapchain;
+typedef struct Device_T              *Device;
+typedef struct Instance_T            *Instance;
 
 enum class Backend : u8
 {
@@ -654,16 +648,6 @@ enum class CompositeAlpha : u8
 
 ASH_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
 
-enum class Access : u8
-{
-  None      = 0x00U,
-  Read      = 0x01U,
-  Write     = 0x02U,
-  ReadWrite = 0x04U
-};
-
-ASH_DEFINE_ENUM_BIT_OPS(Access)
-
 struct SurfaceFormat
 {
   Format     format      = Format::Undefined;
@@ -841,8 +825,9 @@ struct FramebufferDesc
 
 struct DescriptorBindingDesc
 {
-  DescriptorType type  = DescriptorType::Sampler;
-  u32            count = 0;
+  DescriptorType type          = DescriptorType::Sampler;
+  u32            count         = 0;
+  bool           variable_size = false;
 };
 
 struct DescriptorSetLayoutDesc
@@ -857,25 +842,10 @@ struct PipelineCacheDesc
   Span<u8 const>   initial_data = {};
 };
 
-struct SamplerBinding
-{
-  Sampler sampler = nullptr;
-};
-
-struct CombinedImageSampler
+struct ImageBinding
 {
   Sampler   sampler    = nullptr;
   ImageView image_view = nullptr;
-};
-
-struct ImageBinding
-{
-  ImageView image_view = nullptr;
-};
-
-struct TexelBufferBinding
-{
-  BufferView buffer_view = nullptr;
 };
 
 struct BufferBinding
@@ -883,6 +853,16 @@ struct BufferBinding
   Buffer buffer = nullptr;
   u64    offset = 0;
   u64    size   = 0;
+};
+
+struct DescriptorUpdate
+{
+  gfx::DescriptorSet        set           = 0;
+  u32                       binding       = 0;
+  u32                       element       = 0;
+  Span<ImageBinding const>  images        = {};
+  Span<BufferView const>    texel_buffers = {};
+  Span<BufferBinding const> buffers       = {};
 };
 
 struct SpecializationConstant
@@ -996,13 +976,6 @@ struct GraphicsPipelineDesc
   PipelineDepthStencilState  depth_stencil_state = {};
   PipelineColorBlendState    color_blend_state   = {};
   PipelineCache              cache               = nullptr;
-};
-
-struct FrameContextDesc
-{
-  Span<char const> label                = {};
-  u32              max_frames_in_flight = 0;
-  AllocatorImpl    allocator            = default_allocator;
 };
 
 struct DescriptorHeapDesc
@@ -1129,16 +1102,6 @@ struct SwapchainState
   Option<u32>       current_image = None;
 };
 
-/// should be assumed to change from frame to frame.
-/// avoid storing pointers to this struct.
-struct FrameInfo
-{
-  FrameId                        tail       = 0;
-  FrameId                        current    = 0;
-  Span<CommandEncoderImpl const> encoders   = {};
-  u32                            ring_index = 0;
-};
-
 struct DeviceLimits
 {
   u32         max_image_dimension1D                      = 0;
@@ -1222,74 +1185,54 @@ struct DeviceProperties
   DeviceLimits     limits             = {};
 };
 
-struct DescriptorSet
-{
-  DescriptorHeap heap  = nullptr;
-  u32            index = 0;
-};
-
-/// @num_allocated_groups: number of alive group allocations
-/// @num_free_groups: number of released and reclaimable desciptor groups
-/// @num_released_groups: number of released but non-reclaimable descriptor
-/// groups. possibly still in use by the device.
-struct DescriptorHeapStats
-{
-  u32 num_allocated = 0;
-  u32 num_free      = 0;
-  u32 num_released  = 0;
-  u32 num_pools     = 0;
-};
-
-struct DescriptorHeapInterface
-{
-  Result<u32, Status> (*allocate)(DescriptorHeap self)                = nullptr;
-  void (*collect)(DescriptorHeap self, FrameId tail_frame)            = nullptr;
-  void (*mark_in_use)(DescriptorHeap self, u32 set,
-                      FrameId current_frame)                          = nullptr;
-  bool (*is_in_use)(DescriptorHeap self, u32 set, FrameId tail_frame) = nullptr;
-  void (*release)(DescriptorHeap self, u32 set)                       = nullptr;
-  DescriptorHeapStats (*get_stats)(DescriptorHeap self)               = nullptr;
-  void (*sampler)(DescriptorHeap self, u32 set, u32 binding,
-                  Span<SamplerBinding const> elements)                = nullptr;
-  void (*combined_image_sampler)(
-      DescriptorHeap self, u32 set, u32 binding,
-      Span<CombinedImageSamplerBinding const> elements)    = nullptr;
-  void (*sampled_image)(DescriptorHeap self, u32 set, u32 binding,
-                        Span<ImageBinding const> elements) = nullptr;
-  void (*storage_image)(DescriptorHeap self, u32 set, u32 binding,
-                        Span<ImageBinding const> elements) = nullptr;
-  void (*uniform_texel_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                               Span<TexelBufferBinding const> elements) =
-      nullptr;
-  void (*storage_texel_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                               Span<TexelBufferBinding const> elements) =
-      nullptr;
-  void (*uniform_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                         Span<BufferBinding const> elements)         = nullptr;
-  void (*storage_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                         Span<BufferBinding const> elements)         = nullptr;
-  void (*dynamic_uniform_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                                 Span<BufferBinding const> elements) = nullptr;
-  void (*dynamic_storage_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                                 Span<BufferBinding const> elements) = nullptr;
-  void (*input_attachment)(DescriptorHeap self, u32 set, u32 binding,
-                           Span<ImageBinding const> elements)        = nullptr;
-};
-
-struct DescriptorHeapImpl
-{
-  DescriptorHeap                 self      = nullptr;
-  DescriptorHeapInterface const *interface = nullptr;
-
-  constexpr DescriptorHeapInterface const *operator->() const
-  {
-    return interface;
-  }
-};
+// TODO(lamarrrr): maintaining multiple heaps is impractical and could lead to
+// fragmentation we need to use only one global heap. the descriptor set layout
+// can be used to point to a table containing binding metadata or whatnot.
+//
+// HOW TO MANAGE ALLOCATION, DEALLOCATION, USAGE TRACKING, RELEASE TRACKING,
+// STATISTICS
+//
+// create memory for each descriptor set that will be updated and used for
+// tracking entries, size and spec sourced from layout.
+// set will contain the size of each binding descriptor.
+//
+//
+// large descriptor pools
+// max descriptorcount per binding=> 1024
+// max bindings per set => 8
+//
+//
+//
+// for allocation, go through each pool, whichever has enough to contain the
+// request, select it and allocate from it, update the stats.
+//
+//
+// for deallocation find the pool it belongs to, deallocate from it, update its
+// stats.
+//
+// multiple descriptor pools of size 4096
+// allocation strategy? TO TRACK AND MANAGE FRAGMENTATION
+// HOW TO HANDLE DYNAMICALLY SIZED DESCRIPTORS
+// USAGE/RELEASE TRACKING CAN BE DONE BY THE USER. UPON DEALLOCATION, UPDATE
+// STATS
+//
+//
+// TRACK each RENDER PASS/COMPUTE PASS, count the pass id and use it to generate
+// the name, i.e. Pass:0 - Compute
+// How to retrieve?
+//
+//
+//
 
 /// to execute tasks at end of frame. use the tail frame index.
 struct CommandEncoderInterface
 {
+  // TODO(lamarrrr): timestamp query contexts, pER-command-buffer reset at
+  // beginning of frame, collected for
+  // u32 (*begin_statistics)(CommandEncoder self);
+  // void (*end_statistics)(CommandEncoder self, u32 query_idx);
+  // Stats | Pending get_statistics(u32 query_idx, u32 frames_ago);
+  // where frames_ago < max_frames_in_flight
   void (*begin_debug_marker)(CommandEncoder self, Span<char const> region_name,
                              Vec4 color)                              = nullptr;
   void (*end_debug_marker)(CommandEncoder self)                       = nullptr;
@@ -1369,6 +1312,15 @@ struct CommandEncoderImpl
   }
 };
 
+struct FrameContext
+{
+  u32                            max_frames_in_flight = 0;
+  FrameId                        tail                 = 0;
+  FrameId                        current              = 0;
+  Span<CommandEncoderImpl const> encoders             = {};
+  u32                            ring_index           = 0;
+};
+
 struct DeviceInterface
 {
   DeviceProperties (*get_device_properties)(Device self) = nullptr;
@@ -1392,17 +1344,15 @@ struct DeviceInterface
       Device self, FramebufferDesc const &desc) = nullptr;
   Result<DescriptorSetLayout, Status> (*create_descriptor_set_layout)(
       Device self, DescriptorSetLayoutDesc const &desc) = nullptr;
-  Result<DescriptorHeapImpl, Status> (*create_descriptor_heap)(
-      Device self, DescriptorHeapDesc const &desc) = nullptr;
+  Result<DescriptorSet, Status> (*create_descriptor_set)(
+      Device self, DescriptorSetLayout layout) = nullptr;
   Result<PipelineCache, Status> (*create_pipeline_cache)(
       Device self, PipelineCacheDesc const &desc) = nullptr;
   Result<ComputePipeline, Status> (*create_compute_pipeline)(
       Device self, ComputePipelineDesc const &desc) = nullptr;
   Result<GraphicsPipeline, Status> (*create_graphics_pipeline)(
-      Device self, GraphicsPipelineDesc const &desc)                = nullptr;
-  Result<Fence, Status> (*create_fence)(Device self, bool signaled) = nullptr;
-  Result<FrameContext, Status> (*create_frame_context)(
-      Device self, FrameContextDesc const &desc) = nullptr;
+      Device self, GraphicsPipelineDesc const &desc) = nullptr;
+  FrameContext (*get_frame_context)(Device self)     = nullptr;
   Result<Swapchain, Status> (*create_swapchain)(
       Device self, Surface surface, SwapchainDesc const &desc)      = nullptr;
   void (*destroy_buffer)(Device self, Buffer buffer)                = nullptr;
@@ -1415,16 +1365,12 @@ struct DeviceInterface
   void (*destroy_framebuffer)(Device self, Framebuffer framebuffer) = nullptr;
   void (*destroy_descriptor_set_layout)(Device              self,
                                         DescriptorSetLayout layout) = nullptr;
-  void (*destroy_descriptor_heap)(Device             self,
-                                  DescriptorHeapImpl heap)          = nullptr;
+  void (*destroy_descriptor_set)(Device self, DescriptorSet set)    = nullptr;
   void (*destroy_pipeline_cache)(Device self, PipelineCache cache)  = nullptr;
   void (*destroy_compute_pipeline)(Device          self,
                                    ComputePipeline pipeline)        = nullptr;
   void (*destroy_graphics_pipeline)(Device           self,
                                     GraphicsPipeline pipeline)      = nullptr;
-  void (*destroy_fence)(Device self, Fence fence)                   = nullptr;
-  void (*destroy_frame_context)(Device       self,
-                                FrameContext frame_context)         = nullptr;
   void (*destroy_swapchain)(Device self, Swapchain swapchain)       = nullptr;
   Result<void *, Status> (*get_buffer_memory_map)(Device self,
                                                   Buffer buffer)    = nullptr;
@@ -1439,14 +1385,10 @@ struct DeviceInterface
                                                    Span<u8>      out) = nullptr;
   Result<Void, Status> (*merge_pipeline_cache)(
       Device self, PipelineCache dst, Span<PipelineCache const> srcs) = nullptr;
-  Result<Void, Status> (*wait_for_fences)(Device self, Span<Fence const> fences,
-                                          bool all, u64 timeout)      = nullptr;
-  Result<Void, Status> (*reset_fences)(Device            self,
-                                       Span<Fence const> fences)      = nullptr;
-  Result<bool, Status> (*get_fence_status)(Device self, Fence fence)  = nullptr;
+  void (*update_descriptor_set)(Device                  self,
+                                DescriptorUpdate const &update)       = nullptr;
   Result<Void, Status> (*wait_idle)(Device self)                      = nullptr;
   Result<Void, Status> (*wait_queue_idle)(Device self)                = nullptr;
-  FrameInfo (*get_frame_info)(Device self, FrameContext frame_context);
   Result<u32, Status> (*get_surface_formats)(
       Device self, Surface surface, Span<SurfaceFormat> formats) = nullptr;
   Result<u32, Status> (*get_surface_present_modes)(
@@ -1457,9 +1399,9 @@ struct DeviceInterface
       Device self, Swapchain swapchain) = nullptr;
   Result<Void, Status> (*invalidate_swapchain)(
       Device self, Swapchain swapchain, SwapchainDesc const &desc) = nullptr;
-  Result<Void, Status> (*begin_frame)(Device self, FrameContext frame_context,
+  Result<Void, Status> (*begin_frame)(Device    self,
                                       Swapchain swapchain)         = nullptr;
-  Result<Void, Status> (*submit_frame)(Device self, FrameContext frame_context,
+  Result<Void, Status> (*submit_frame)(Device    self,
                                        Swapchain swapchain)        = nullptr;
 };
 
@@ -1476,10 +1418,7 @@ struct DeviceImpl
 
 struct InstanceInterface
 {
-  Result<InstanceImpl, Status> (*create)(
-      AllocatorImpl allocator, Logger *logger,
-      bool enable_validation_layer) = nullptr;
-  void (*destroy)(Instance self)    = nullptr;
+  void (*destroy)(Instance self) = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance self, Span<DeviceType const> preferred_types,
       Span<Surface const> compatible_surfaces,
@@ -1500,5 +1439,584 @@ struct InstanceImpl
   }
 };
 
+Result<InstanceImpl, Status>
+    create_vulkan_instance(AllocatorImpl allocator, Logger *logger,
+                           bool enable_validation_layer);
+
 }        // namespace gfx
+
+/// @name: parameter name
+/// @type: only valid if is not uniform
+/// @count: element count of the binding
+/// @member_offset: offset of this member in the whole struct
+/// @uniform_size: only valid if is uniform
+/// @uniform_alignment: only valid if is uniform
+struct ShaderBindingMetaData
+{
+  Span<char const>    name;
+  gfx::DescriptorType type          = gfx::DescriptorType::Sampler;
+  u16                 count         = 0;
+  u16                 member_offset = 0;
+};
+
+// TODO(lamarrr): check descriptor set layout compatibility
+// TODO(lamarrr): encode dynamic? count should represent maximum count.
+#define BEGIN_SHADER_PARAMETER(Name)             \
+  struct Name                                    \
+  {                                              \
+    typedef Name _METAThisType;                  \
+                                                 \
+    struct _METAMemberBegin                      \
+    {                                            \
+      static constexpr u16 _METAMemberIndex = 0; \
+    };                                           \
+                                                 \
+    typedef _METAMemberBegin
+
+//  MaxCount,
+#define SHADER_BINDING(BindingName, StructType, BindingType, Count)              \
+  _METAMember_##BindingName;                                                     \
+                                                                                 \
+  static constexpr void _METApush(_METAMember_##BindingName,                     \
+                                  ::ash::ShaderBindingMetaData *meta,            \
+                                  u16                           _METAThisOffset) \
+  {                                                                              \
+    *meta = ::ash::ShaderBindingMetaData{                                        \
+        .name  = ::ash::to_span(#BindingName),                                   \
+        .type  = ::ash::gfx::DescriptorType::BindingType,                        \
+        .count = (u16) Count,                                                    \
+        .member_offset =                                                         \
+            (u16) (_METAThisOffset + offsetof(_METAThisType, BindingName))};     \
+    _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
+  }                                                                              \
+                                                                                 \
+  ::ash::gfx::StructType BindingName[Count];                                     \
+                                                                                 \
+  struct _METAMemberAfter_##BindingName                                          \
+  {                                                                              \
+    static constexpr u16 _METAMemberIndex =                                      \
+        _METAMember_##BindingName::_METAMemberIndex + 1;                         \
+  };                                                                             \
+                                                                                 \
+  typedef _METAMemberAfter_##BindingName
+
+#define SHADER_SAMPLER(BindingName, Count) \
+  SHADER_BINDING(BindingName, ImageBinding, Sampler, Count)
+
+#define SHADER_COMBINED_IMAGE_SAMPLER(BindingName, Count) \
+  SHADER_BINDING(BindingName, ImageBinding, CombinedImageSampler, Count)
+
+#define SHADER_SAMPLED_IMAGE(BindingName, Count) \
+  SHADER_BINDING(BindingName, ImageBinding, SampledImage, Count)
+
+#define SHADER_STORAGE_IMAGE(BindingName, Count) \
+  SHADER_BINDING(BindingName, ImageBinding, StorageImage, Count)
+
+#define SHADER_UNIFORM_TEXEL_BUFFER(BindingName, Count) \
+  SHADER_BINDING(BindingName, BufferView, BufferView, Count)
+
+#define SHADER_STORAGE_TEXEL_BUFFER(BindingName, Count) \
+  SHADER_BINDING(BindingName, BufferView, BufferView, Count)
+
+#define SHADER_UNIFORM_BUFFER(BindingName, Count) \
+  SHADER_BINDING(BindingName, BufferBinding, UniformBuffer, Count)
+
+#define SHADER_STORAGE_BUFFER(BindingName, Count) \
+  SHADER_BINDING(BindingName, BufferBinding, StorageBuffer, Count)
+
+#define SHADER_DYNAMIC_UNIFORM_BUFFER(BindingName, Count) \
+  SHADER_BINDING(BindingName, BufferBinding, DynamicUniformBuffer, Count)
+
+#define SHADER_DYNAMIC_STORAGE_BUFFER(BindingName, Count) \
+  SHADER_BINDING(BindingName, BufferBinding, DynamicStorageBuffer, Count)
+
+#define SHADER_INPUT_ATTACHMENT(BindingName, Count) \
+  SHADER_BINDING(BindingName, ImageBinding, InputAttachment, Count)
+
+#define SHADER_PARAMETER_INLINE(BindingName, ParameterType)                      \
+  _METAMember_##BindingName;                                                     \
+                                                                                 \
+  static constexpr void _METApush(_METAMember_##BindingName,                     \
+                                  ::ash::ShaderBindingMetaData *meta,            \
+                                  u16                           _METAThisOffset) \
+  {                                                                              \
+    ParameterType::_METApush(                                                    \
+        ParameterType::_METAMemberBegin{}, meta,                                 \
+        (u16) (_METAThisOffset + offsetof(_METAThisType, BindingName)));         \
+    _METApush(_METAMemberAfter_##BindingName{},                                  \
+              meta + ParameterType::NUM_BINDINGS, _METAThisOffset);              \
+  }                                                                              \
+                                                                                 \
+  ParameterType BindingName;                                                     \
+                                                                                 \
+  struct _METAMemberAfter_##BindingName                                          \
+  {                                                                              \
+    static constexpr u16 _METAMemberIndex =                                      \
+        _METAMember_##BindingName::_METAMemberIndex +                            \
+        ParameterType::NUM_BINDINGS;                                             \
+  };                                                                             \
+                                                                                 \
+  typedef _METAMemberAfter_##BindingName
+
+#define END_SHADER_PARAMETER(Name)                                             \
+  _METAMemberEnd;                                                              \
+                                                                               \
+  static constexpr void _METApush(_METAMemberEnd,                              \
+                                  ::ash::ShaderBindingMetaData *, u16)         \
+  {                                                                            \
+  }                                                                            \
+                                                                               \
+  static constexpr char const NAME[]       = #Name;                            \
+  static constexpr u16        NUM_BINDINGS = _METAMemberEnd::_METAMemberIndex; \
+  static constexpr auto       GET_BINDINGS()                                   \
+  {                                                                            \
+    ::ash::Array<::ash::ShaderBindingMetaData, NUM_BINDINGS> bindings;         \
+    _METApush(_METAMemberBegin{}, bindings, 0);                                \
+    return bindings;                                                           \
+  };                                                                           \
+                                                                               \
+  static constexpr auto GET_BINDINGS_DESC()                                    \
+  {                                                                            \
+    ::ash::Array<::ash::ShaderBindingMetaData, NUM_BINDINGS> bindings =        \
+        GET_BINDINGS();                                                        \
+    ::ash::Array<::ash::gfx::DescriptorBindingDesc, NUM_BINDINGS> descs;       \
+    for (u16 i = 0; i < NUM_BINDINGS; i++)                                     \
+    {                                                                          \
+      descs[i] = gfx::DescriptorBindingDesc{.type  = bindings[i].type,         \
+                                            .count = bindings[i].count};       \
+    }                                                                          \
+    return descs;                                                              \
+  }                                                                            \
+  }                                                                            \
+  ;
+
+BEGIN_SHADER_PARAMETER(UniformShaderParameter)
+SHADER_DYNAMIC_UNIFORM_BUFFER(buffer, 1)
+END_SHADER_PARAMETER(UniformShaderParameter)
+
+template <typename Param>
+gfx::DescriptorSetLayout
+    create_shader_parameter_layout(gfx::DeviceImpl const &device)
+{
+  constexpr Array descs = Param::GET_BINDINGS_DESC();
+  return device
+      ->create_descriptor_set_layout(
+          device.self,
+          gfx::DescriptorSetLayoutDesc{.label    = to_span(Param::NAME),
+                                       .bindings = to_span(descs)})
+      .unwrap();
+}
+
+template <typename Param>
+gfx::DescriptorSet create_shader_parameter(gfx::DeviceImpl const   &device,
+                                           gfx::DescriptorSetLayout layout)
+{
+  constexpr Array descs = Param::GET_BINDINGS_DESC();
+  return device->create_descriptor_set(layout).unwrap();
+}
+
+template <typename Param>
+void update_shader_parameter(gfx::DeviceImpl const &device,
+                             gfx::DescriptorSet set, Param const &param)
+{
+  Span                  metadata = to_span(Param::BINDINGS);
+  gfx::DescriptorUpdate update{.set = set, .binding = i, .element = 0};
+
+  for (u32 i = 0; i < metadata.size(); i++)
+  {
+    ShaderBindingMetaData const &member = metadata[i];
+    switch (member.type)
+    {
+      case gfx::DescriptorType::CombinedImageSampler:
+      case gfx::DescriptorType::InputAttachment:
+      case gfx::DescriptorType::SampledImage:
+      case gfx::DescriptorType::Sampler:
+      case gfx::DescriptorType::StorageImage:
+        update.images =
+            Span{(gfx::ImageBinding const *) (((u8 const *) &param) +
+                                              member.member_offset),
+                 member.count};
+        break;
+
+      case gfx::DescriptorType::DynamicStorageBuffer:
+      case gfx::DescriptorType::DynamicUniformBuffer:
+      case gfx::DescriptorType::StorageBuffer:
+      case gfx::DescriptorType::UniformBuffer:
+        update.buffers =
+            Span{(gfx::BufferBinding const *) (((u8 const *) &param) +
+                                               member.member_offset),
+                 member.count};
+        break;
+      case gfx::DescriptorType::StorageTexelBuffer:
+      case gfx::DescriptorType::UniformTexelBuffer:
+      {
+        update.texel_buffers =
+            Span{(gfx::BufferView const *) (((u8 const *) &param) +
+                                            member.member_offset),
+                 member.count};
+      }
+      break;
+      default:
+        break;
+    }
+
+    device->update_descriptor_set(device.self, update);
+  }
+}
+
+struct FreeTable
+{
+};
+
+//
+// needed for high-freq data.
+// would separating set allocation from ssbo and ubo make sense?
+//
+// TODO(lamarrr): perhaps we should just make it easy to persist. i.e. if we
+// repeatedly call a rrect pass with same parameters but different draw offsets
+// and indices. we wouldn't need to frequently update descriptor sets or what
+// not. no caching as well.
+//
+// StorageBufferSpan(buffer_size, max_suballocations = U32_MAX)::
+// .offset, .num_allocations, min_alignment
+// - advance(u64) -> offset
+// - reset()
+//
+//
+// check UBO size limits!
+// check UBO range limits!
+// UniformBufferSpan (buffer_size, max_allocations = U32_MAX):: -
+//  .offset, .num_allocations, min_alignment
+// - push() -> (set, buffer) | error on resize needed
+// - reset()
+//
+//
+// - num set allocations -> max_num_uniforms
+// - uniform buffer size -> buffer_size
+//
+// - how will offsets work for uboheap?
+//
+// we can thus natively support pushing storage/uniform buffers (deferred)
+// commit buffers/readback
+//
+//
+// - review set layot compat checks
+//
+// immediate - non/non-persistent non-allocating usage
+// TODO(lamarrr): rename to buffer and allow usage with SSBO
+// should contain both SSBO and UBO sets, take usage type and return appropriate
+// descriptor set for it, and use that for allocating descriptors if needed.
+// ALLOW both usages and align to the greater alignment.
+//
+//
+// TODO(lamarrr): we also need alignment for read/write across multiple
+// allocations.
+//
+//
+// TODO(lamarrr): consider using VMA? search vma reserved memory, need to track
+// last used frame of each section. if not used in a while, can free.
+//
+//
+// TODO(lamarrr): how to manage texture heaps for dispatch
+//
+// THE assumption is that usage would be similar across a buffering
+//
+// WE NEED STORAGE BUFFERS TO BE ABLE TO ACCESS A LARGE RANGE FOR HUGE
+// DISPATCHES, SIZE CLASSES WILL NOT DO.
+//
+// USE HASHMAPS for descriptor allocation and lookup? key => [BUFFER INDEX +
+// ACCESS_RANGE + STORAGE_BUFFER | UNIFORM_BUFFER]
+//
+// KEEP FREE DESCRIPTOR SETS LIST? to enable stealing - inefficient
+//
+//
+// VK_WHOLE_RANGE sizes can thus be used with any descriptor set provided offset
+// is 0
+//
+//
+// BUFFER TYPES: per-frame buffers, persistent buffers
+//
+//
+// BEST SOLUTION:???XXXX
+// ALLOW THE PASS to rotate across uniforms, pass might be called multiple times
+// per frame and we'd need to allocate anyway
+//
+//
+// allocate descriptor set with null buffer bindings, for each allocation.
+// collect uniform data into temporary CPU buffer, at end of frame, upload to
+// GPU, then create buffer with proper alignment. along with proper read/write.
+//
+// cache descriptor sets with ranges => any range can be used as long as it is
+//  larger than the max range for that size and, it is larger or equal to the
+//  size of the intended access range. and its access range is within the bounds
+//  of the buffer.
+//
+// if buffer is recreated by recreation criteria:
+//  update all descriptor sets to point to new buffer and the correct offset +
+//  size. update descriptor cache.
+//
+//
+//
+//
+// since we are performing batch allocations
+//
+//
+// defer destruction of the buffer to completion of frame. buffer must be
+// destroyed and memory released before beginning of frame.
+//
+//
+// struct CommandBlock{
+//   u32 type = 0;
+//   u32 num_parameters = 0;
+//   u32 parameters_size;
+// };
+//
+// struct ParameterHeader{
+// u32 size;
+// };
+//
+// ...// data
+//
+// u64 buffer_data[];
+// Vec<[u64, u64]> buffers;
+// T[] consume(u32 count);
+// u8[] consume_buffer();
+//
+//
+//
+//
+//
+// EMULATE COMMAND BUFFER!
+//
+//
+//
+// SHOULD BINDING MODEL CHANGE? HASHMAPS? OF SET LAYOUTS?
+//
+//
+//
+// collect commands
+// - should binding updates be performed in command buffer?
+//
+// - collect accessed buffers/images in each pass
+// - collect bindings and restructure in a way that will make it easy to view
+// accessed buffers and whatnot
+//
+//
+// - after collecting all commands, allocate appropriate buffers
+// - create or destroy buffer. sync-safe.
+// - copy data to buffer and ensure alignment
+// - allocate appropriate descriptor sets and re-use those in cache and update
+// - update descriptor sets to point to buffers
+//
+//
+//
+// - insert per-pass barriers, perhaps w
+//
+//
+//
+// # PENDING
+// - How to re-use storage buffers in another stage, i.e. compute -> graphics ->
+// compute -> graphics. maybe return command encoder id
+//
+//
+inline constexpr u8  NUM_UNIFORM_SIZE_CLASSES   = 6;
+inline constexpr u32 DEFAULT_UNIFORM_BATCH_SIZE = 4096;
+static constexpr Array<u32, NUM_UNIFORM_SIZE_CLASSES>
+    DEFAULT_UNIFORM_SIZE_CLASSES{64, 128, 256, 512, 1024, 4096};
+
+struct UniformHeapBatch
+{
+  gfx::Buffer                                         buffer      = nullptr;
+  Array<gfx::DescriptorSet, NUM_UNIFORM_SIZE_CLASSES> descriptors = {};
+};
+
+struct Uniform
+{
+  gfx::DescriptorSet set           = {};
+  gfx::Buffer        buffer        = nullptr;
+  u32                buffer_offset = 0;
+};
+
+/// per-frame uniform buffer heap.
+/// allocate multiple large uniform buffers along with descriptor sets
+/// since we are buffering (using a single uniform heap per-frame in flight),
+/// once we get to this frame's next cycle, we would be able to write directly
+/// to the memory-mapped gpu memory then at bind-time, use dynamic offsets to
+/// point to the intended region of the batched uniform. alignment is taken care
+/// of.
+///
+struct UniformHeap
+{
+  Array<u32, NUM_UNIFORM_SIZE_CLASSES> size_classes_ =
+      DEFAULT_UNIFORM_SIZE_CLASSES;
+  u32                      batch_buffer_size_                   = 0;
+  u32                      min_uniform_buffer_offset_alignment_ = 0;
+  u32                      batch_                               = 0;
+  u32                      batch_buffer_offset_                 = 0;
+  Vec<UniformHeapBatch>    batches_                             = {};
+  gfx::DescriptorSetLayout descriptor_set_layout_               = {};
+  gfx::DescriptorHeapImpl  descriptor_heap_                     = {};
+  gfx::DeviceImpl          device_;
+
+  void init(gfx::DeviceImpl device,
+            u32             batch_buffer_size    = DEFAULT_UNIFORM_BATCH_SIZE,
+            u32             descriptor_pool_size = 16,
+            Array<u32, NUM_UNIFORM_SIZE_CLASSES> const &size_classes =
+                DEFAULT_UNIFORM_SIZE_CLASSES)
+  {
+    gfx::DeviceProperties properties =
+        device->get_device_properties(device.self);
+    min_uniform_buffer_offset_alignment_ =
+        properties.limits.min_uniform_buffer_offset_alignment;
+
+    CHECK(batch_buffer_size >= size_classes[NUM_UNIFORM_SIZE_CLASSES - 1]);
+    CHECK(batch_buffer_size >= min_uniform_buffer_offset_alignment_);
+    for (u8 i = 0; i < NUM_UNIFORM_SIZE_CLASSES - 1; i++)
+    {
+      CHECK(size_classes[i] < size_classes[i + 1]);
+    }
+
+    size_classes_                 = size_classes;
+    batch_buffer_size_            = batch_buffer_size;
+    device_                       = device;
+    batch_                        = 0;
+    batch_buffer_offset_          = 0;
+    constexpr Array bindings_desc = UniformShaderParameter::GET_BINDINGS_DESC();
+    descriptor_set_layout_        = device
+                                 ->create_descriptor_set_layout(
+                                     device.self,
+                                     gfx::DescriptorSetLayoutDesc{
+                                         .label    = "Uniform Buffer"_span,
+                                         .bindings = to_span(bindings_desc)})
+                                 .unwrap();
+
+    descriptor_heap_ = device
+                           ->create_descriptor_heap(
+                               device.self,
+                               gfx::DescriptorHeapDesc{
+                                   .layout            = descriptor_set_layout_,
+                                   .num_sets_per_pool = descriptor_pool_size,
+                                   .allocator         = default_allocator})
+                           .unwrap();
+  }
+
+  void uninit()
+  {
+    for (UniformHeapBatch const &batch : batches_)
+    {
+      device_->destroy_buffer(device_.self, batch.buffer);
+    }
+    device_->destroy_descriptor_set_layout(device_.self,
+                                           descriptor_set_layout_);
+    device_->destroy_descriptor_heap(device_.self, descriptor_heap_);
+    batches_.reset();
+  }
+
+  template <typename UniformType>
+  Uniform push(UniformType const &uniform)
+  {
+    return push_range(Span{&uniform, 1});
+  }
+
+  template <typename UniformType>
+  Uniform push_range(Span<UniformType const> uniform)
+  {
+    return push_bytes(uniform.as_u8(), alignof(UniformType));
+  }
+
+  Uniform push_bytes(Span<u8 const> uniform, u32 alignment)
+  {
+    CHECK(alignment <= batch_buffer_size_);
+    CHECK(uniform.size_bytes() <= batch_buffer_size_);
+    CHECK(uniform.size_bytes() <= size_classes_[NUM_UNIFORM_SIZE_CLASSES - 1]);
+
+    u8 size_class = 0;
+    for (; size_class < NUM_UNIFORM_SIZE_CLASSES; size_class++)
+    {
+      if (size_classes_[size_class] >= uniform.size_bytes())
+      {
+        break;
+      }
+    }
+
+    u32 const classed_size = size_classes_[size_class];
+    u32       buffer_offset =
+        mem::align_offset(max(alignment, min_uniform_buffer_offset_alignment_),
+                          batch_buffer_offset_);
+    u32 batch_index = batch_;
+    if ((buffer_offset + classed_size) > batch_buffer_size_)
+    {
+      batch_index++;
+      buffer_offset = 0;
+    }
+
+    if (batch_index >= batches_.size())
+    {
+      gfx::Buffer buffer =
+          device_
+              ->create_buffer(
+                  device_.self,
+                  gfx::BufferDesc{.label = "UniformHeap batch buffer"_span,
+                                  .size  = batch_buffer_size_,
+                                  .host_mapped = true,
+                                  .usage = gfx::BufferUsage::UniformBuffer |
+                                           gfx::BufferUsage::TransferDst |
+                                           gfx::BufferUsage::TransferSrc})
+              .unwrap();
+
+      UniformHeapBatch batch{.buffer = buffer, .descriptors = {}};
+
+      for (u32 i = 0; i < NUM_UNIFORM_SIZE_CLASSES; i++)
+      {
+        u32 set = descriptor_heap_->allocate(descriptor_heap_.self).unwrap();
+        batch.descriptors[i] =
+            gfx::DescriptorSet{.heap = descriptor_heap_.self, .index = set};
+        descriptor_heap_->update(
+            descriptor_heap_.self,
+            gfx::DescriptorUpdate{.set     = set,
+                                  .binding = 0,
+                                  .element = 0,
+                                  .buffers = to_span<gfx::BufferBinding>(
+                                      {{.buffer = buffer,
+                                        .offset = 0,
+                                        .size   = size_classes_[i]}})});
+      }
+
+      CHECK(batches_.push(batch));
+    }
+
+    UniformHeapBatch const &batch = batches_[batch_index];
+    u8 *map = (u8 *) device_->get_buffer_memory_map(device_.self, batch.buffer)
+                  .unwrap();
+    mem::copy(uniform, map + buffer_offset);
+    device_
+        ->flush_buffer_memory_map(device_.self, batch.buffer,
+                                  gfx::MemoryRange{0, gfx::WHOLE_SIZE})
+        .unwrap();
+
+    batch_               = batch_index;
+    batch_buffer_offset_ = buffer_offset + uniform.size_bytes();
+
+    return Uniform{.set           = batch.descriptors[size_class],
+                   .buffer        = batch.buffer,
+                   .buffer_offset = buffer_offset};
+  }
+
+  void reset()
+  {
+    batch_               = 0;
+    batch_buffer_offset_ = 0;
+  }
+};
+
+// TODO(lamarrr): we need SSBO heap as well, maybe use pages instead.
+//
+// we also need to be able to sparsely update descriptor set bindings, i.e. when
+// one or few out of thousands of the array elements of our bindings change.
+//
+// buffers
+// images
+// storage_texels
+//
+
 }        // namespace ash

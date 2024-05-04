@@ -22,30 +22,14 @@ constexpr u32         ENGINE_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
 constexpr char const *CLIENT_NAME    = "Ash Client";
 constexpr u32         CLIENT_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
 
-typedef struct InstanceTable           InstanceTable;
-typedef struct DeviceTable             DeviceTable;
-typedef struct Buffer                  Buffer;
-typedef struct BufferView              BufferView;
-typedef struct Image                   Image;
-typedef struct ImageView               ImageView;
-typedef VkSampler                      Sampler;
-typedef VkShaderModule                 Shader;
-typedef struct RenderPass              RenderPass;
-typedef struct Framebuffer             Framebuffer;
-typedef struct DescriptorSetLayout     DescriptorSetLayout;
-typedef struct DescriptorHeap          DescriptorHeap;
-typedef VkPipelineCache                PipelineCache;
-typedef struct ComputePipeline         ComputePipeline;
-typedef struct GraphicsPipeline        GraphicsPipeline;
-typedef VkFence                        Fence;
-typedef struct CommandEncoder          CommandEncoder;
-typedef VkSurfaceKHR                   Surface;
-typedef struct Swapchain               Swapchain;
-typedef struct FrameContext            FrameContext;
-typedef struct Device                  Device;
-typedef struct DescriptorHeapInterface DescriptorHeapInterface;
-typedef struct CommandEncoderInterface CommandEncoderInterface;
-typedef struct DeviceInterface         DeviceInterface;
+constexpr u32 MAX_MEMORY_HEAP_PROPERTIES = 32;
+constexpr u32 MAX_MEMORY_HEAPS           = 16;
+
+typedef VkSampler       Sampler;
+typedef VkShaderModule  Shader;
+typedef VkPipelineCache PipelineCache;
+typedef VkFence         Fence;
+typedef VkSurfaceKHR    Surface;
 
 struct InstanceTable
 {
@@ -367,6 +351,18 @@ struct Device
   VmaAllocator       vma_allocator   = nullptr;
 };
 
+/// @num_allocated_groups: number of alive group allocations
+/// @num_free_groups: number of released and reclaimable desciptor groups
+/// @num_released_groups: number of released but non-reclaimable descriptor
+/// groups. possibly still in use by the device.
+struct DescriptorHeapStats
+{
+  u32 num_allocated = 0;
+  u32 num_free      = 0;
+  u32 num_released  = 0;
+  u32 num_pools     = 0;
+};
+
 /// @struct DescriptorHeap
 /// Descriptor heap helps with allocation of descriptor sets and checking when
 /// they are in use before releasing and re-using them.
@@ -400,7 +396,7 @@ struct DescriptorHeap
   u32                  free_capacity           = 0;
   u32                  images_capacity         = 0;
   u32                  buffers_capacity        = 0;
-  usize                scratch_size            = 0;
+  u32                  scratch_size            = 0;
 };
 
 enum class CommandEncoderState : u16
@@ -523,6 +519,186 @@ struct CommandEncoder
   void uninit_cp_context();
 };
 
+/*
+static constexpr VkQueryPipelineStatisticFlags PIPELINE_STATISTIC_QUERIES =
+      VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_VERTICES_BIT |
+      VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_PRIMITIVES_BIT |
+      VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT |
+      VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT |
+      VK_QUERY_PIPELINE_STATISTIC_COMPUTE_SHADER_INVOCATIONS_BIT;
+  static constexpr u32             NPIPELINE_STATISTIC_QUERIES = 7;
+  static constexpr u32             NPIPELINE_TIMESTAMP_QUERIES = 2;
+  u32                              max_nframes_in_flight       = 0;
+  stx::Vec<VecBuffer>              vertex_buffers;
+  stx::Vec<VecBuffer>              index_buffers;
+  VkCommandPool                    cmd_pool = VK_NULL_HANDLE;
+  stx::Vec<VkCommandBuffer>        cmd_buffers;
+  stx::Vec<VkQueryPool>            pipeline_statistics_query_pools;
+  stx::Vec<VkQueryPool>            pipeline_timestamp_query_pools;
+  VkPhysicalDeviceMemoryProperties memory_properties;
+  f32                              timestamp_period   = 1;
+  u32                              queue_family_index = 0;
+  VkQueue                          queue              = VK_NULL_HANDLE;
+  VkDevice                         dev                = VK_NULL_HANDLE;
+
+  void init(VkDevice adev, VkQueue aqueue, u32 aqueue_family_index,
+            f32                                     atimestamp_period,
+            VkPhysicalDeviceMemoryProperties const &amemory_properties,
+            u32                                     amax_nframes_in_flight)
+  {
+    max_nframes_in_flight = amax_nframes_in_flight;
+    memory_properties     = amemory_properties;
+    queue_family_index    = aqueue_family_index;
+    queue                 = aqueue;
+    dev                   = adev;
+    timestamp_period      = atimestamp_period;
+
+    for (u32 i = 0; i < max_nframes_in_flight; i++)
+    {
+      VecBuffer vertex_buffer;
+
+      vertex_buffer.init(dev, memory_properties,
+                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+
+      vertex_buffers.push_inplace(vertex_buffer).unwrap();
+
+      VecBuffer index_buffer;
+
+      index_buffer.init(dev, memory_properties,
+                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+
+      index_buffers.push_inplace(index_buffer).unwrap();
+    }
+
+
+    cmd_buffers.unsafe_resize_uninitialized(max_nframes_in_flight).unwrap();
+
+
+    VkQueryPoolCreateInfo pipeline_statistics_query_pool_create_info{
+        .sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+        .pNext              = nullptr,
+        .flags              = 0,
+        .queryType          = VK_QUERY_TYPE_PIPELINE_STATISTICS,
+        .queryCount         = NPIPELINE_STATISTIC_QUERIES,
+        .pipelineStatistics = PIPELINE_STATISTIC_QUERIES};
+
+    VkQueryPoolCreateInfo timestamp_query_pool_create_info{
+        .sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+        .pNext              = nullptr,
+        .flags              = 0,
+        .queryType          = VK_QUERY_TYPE_TIMESTAMP,
+        .queryCount         = NPIPELINE_TIMESTAMP_QUERIES,
+        .pipelineStatistics = 0};
+
+    for (u32 i = 0; i < max_nframes_in_flight; i++)
+    {
+      VkQueryPool pipeline_statistics_query_pool;
+      ASH_VK_CHECK(
+          vkCreateQueryPool(dev, &pipeline_statistics_query_pool_create_info,
+                            nullptr, &pipeline_statistics_query_pool));
+      pipeline_statistics_query_pools
+          .push_inplace(pipeline_statistics_query_pool)
+          .unwrap();
+
+      VkQueryPool timestamp_query_pool;
+      ASH_VK_CHECK(vkCreateQueryPool(dev, &timestamp_query_pool_create_info,
+                                     nullptr, &timestamp_query_pool));
+      pipeline_timestamp_query_pools.push_inplace(timestamp_query_pool)
+          .unwrap();
+    }
+  }
+
+  void destroy()
+  {
+    for (VkQueryPool query_pool : pipeline_statistics_query_pools)
+    {
+      vkDestroyQueryPool(dev, query_pool, nullptr);
+    }
+
+    for (VkQueryPool query_pool : pipeline_timestamp_query_pools)
+    {
+      vkDestroyQueryPool(dev, query_pool, nullptr);
+    }
+
+    vkFreeCommandBuffers(dev, cmd_pool, static_cast<u32>(max_nframes_in_flight),
+                         cmd_buffers.data());
+
+    vkDestroyCommandPool(dev, cmd_pool, nullptr);
+  }
+
+  {
+    Timepoint gpu_sync_begin = Clock::now();
+
+    ASH_VK_CHECK(
+        vkWaitForFences(dev, 1, &render_fence, VK_TRUE, VULKAN_TIMEOUT));
+
+    Timepoint gpu_sync_end = Clock::now();
+
+    frame_stats.gpu_sync_time = gpu_sync_end - gpu_sync_begin;
+
+    ASH_VK_CHECK(vkResetFences(dev, 1, &render_fence));
+
+    // u64 pipeline_statistics_query_query_results[NPIPELINE_STATISTIC_QUERIES];
+    // u64 pipeline_timestamp_query_results[NPIPELINE_TIMESTAMP_QUERIES];
+
+    // if (vkGetQueryPoolResults(dev, pipeline_statistics_query_pools[frame], 0,
+1,
+    // sizeof(pipeline_statistics_query_query_results),
+    //                           pipeline_statistics_query_query_results,
+    //                           sizeof(u64),
+    //                           VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
+    // {
+    //   frame_stats.input_assembly_vertices =
+    //       pipeline_statistics_query_query_results[0];
+    //   frame_stats.input_assembly_primitives =
+    //       pipeline_statistics_query_query_results[1];
+    //   frame_stats.vertex_shader_invocations =
+    //       pipeline_statistics_query_query_results[2];
+    //   frame_stats.fragment_shader_invocations =
+    //       pipeline_statistics_query_query_results[3];
+    //   frame_stats.compute_shader_invocations =
+    //       pipeline_statistics_query_query_results[4];
+    //   frame_stats.task_shader_invocations =
+    //       pipeline_statistics_query_query_results[5];
+    //   frame_stats.mesh_shader_invocations =
+    //       pipeline_statistics_query_query_results[6];
+    // }
+
+    // if (vkGetQueryPoolResults(dev, pipeline_timestamp_query_pools[frame], 0,
+    //                           NPIPELINE_TIMESTAMP_QUERIES,
+    //                           sizeof(pipeline_timestamp_query_results),
+    //                           pipeline_timestamp_query_results, sizeof(u64),
+    //                           VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
+    // {
+    //   frame_stats.gpu_time = Nanoseconds{
+    //       (Nanoseconds::rep)(((f64) timestamp_period) *
+    //                          (f64) (pipeline_timestamp_query_results[1] -
+    //                                 pipeline_timestamp_query_results[0]))};
+    // }
+
+
+    // vkCmdResetQueryPool(cmd_buffer, pipeline_statistics_query_pools[frame],
+0,
+    //                     NPIPELINE_STATISTIC_QUERIES);
+    // vkCmdResetQueryPool(cmd_buffer, pipeline_timestamp_query_pools[frame], 0,
+    //                     NPIPELINE_TIMESTAMP_QUERIES);
+
+    // vkCmdBeginQuery(cmd_buffer, pipeline_statistics_query_pools[frame], 0,
+0);
+    // vkCmdWriteTimestamp(cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                        // pipeline_timestamp_query_pools[frame], 0);
+
+    u32 first_index   = 0;
+    u32 vertex_offset = 0;
+
+    // vkCmdEndQuery(cmd_buffer, pipeline_statistics_query_pools[frame], 0);
+    // vkCmdWriteTimestamp(cmd_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+    //                     pipeline_timestamp_query_pools[frame], 1);
+
+  }
+
+*/
+
 inline gfx::Surface surface_to_vk(VkSurfaceKHR s)
 {
   return (gfx::Surface) s;
@@ -535,9 +711,9 @@ struct FrameContext
   u32                      ring_index           = 0;
   u32                      max_frames_in_flight = 0;
   gfx::CommandEncoderImpl *encoders             = nullptr;
-  VkSemaphore             *acquire_semaphores   = nullptr;
-  gfx::Fence              *submit_fences        = nullptr;
-  VkSemaphore             *submit_semaphores    = nullptr;
+  VkSemaphore             *acquire              = nullptr;
+  VkFence                 *submit_f             = nullptr;
+  VkSemaphore             *submit_s             = nullptr;
 };
 
 /// @is_optimal: false when vulkan returns that the surface is suboptimal or
@@ -615,10 +791,8 @@ struct DeviceInterface
       create_compute_pipeline(gfx::Device                     self,
                               gfx::ComputePipelineDesc const &desc);
   static Result<gfx::GraphicsPipeline, Status>
-                                    create_graphics_pipeline(gfx::Device                      self,
-                                                             gfx::GraphicsPipelineDesc const &desc);
-  static Result<gfx::Fence, Status> create_fence(gfx::Device self,
-                                                 bool        signaled);
+      create_graphics_pipeline(gfx::Device                      self,
+                               gfx::GraphicsPipelineDesc const &desc);
   static Result<gfx::CommandEncoderImpl, Status>
       create_command_encoder(gfx::Device self, AllocatorImpl allocator);
   static Result<gfx::FrameContext, Status>
@@ -647,7 +821,6 @@ struct DeviceInterface
                                        gfx::ComputePipeline pipeline);
   static void destroy_graphics_pipeline(gfx::Device           self,
                                         gfx::GraphicsPipeline pipeline);
-  static void destroy_fence(gfx::Device self, gfx::Fence fence);
   static void destroy_command_encoder(gfx::Device             self,
                                       gfx::CommandEncoderImpl encoder);
   static void destroy_frame_context(gfx::Device       self,
@@ -669,13 +842,6 @@ struct DeviceInterface
   static Result<Void, Status>
       merge_pipeline_cache(gfx::Device self, gfx::PipelineCache dst,
                            Span<gfx::PipelineCache const> srcs);
-  static Result<Void, Status> wait_for_fences(gfx::Device            self,
-                                              Span<gfx::Fence const> fences,
-                                              bool all, u64 timeout);
-  static Result<Void, Status> reset_fences(gfx::Device            self,
-                                           Span<gfx::Fence const> fences);
-  static Result<bool, Status> get_fence_status(gfx::Device self,
-                                               gfx::Fence  fence);
   static Result<Void, Status> wait_idle(gfx::Device self);
   static Result<Void, Status> wait_queue_idle(gfx::Device self);
   static gfx::FrameInfo       get_frame_info(gfx::Device       self,
@@ -711,33 +877,8 @@ struct DescriptorHeapInterface
                         gfx::FrameId tail_frame);
   static void release(gfx::DescriptorHeap self, u32 set);
   static gfx::DescriptorHeapStats get_stats(gfx::DescriptorHeap self);
-  static void sampler(gfx::DescriptorHeap self, u32 set, u32 binding,
-                      Span<gfx::SamplerBinding const> elements);
-  static void combined_image_sampler(
-      gfx::DescriptorHeap self, u32 set, u32 binding,
-      Span<gfx::CombinedImageSamplerBinding const> elements);
-  static void sampled_image(gfx::DescriptorHeap self, u32 set, u32 binding,
-                            Span<gfx::ImageBinding const> elements);
-  static void storage_image(gfx::DescriptorHeap self, u32 set, u32 binding,
-                            Span<gfx::ImageBinding const> elements);
-  static void
-      uniform_texel_buffer(gfx::DescriptorHeap self, u32 set, u32 binding,
-                           Span<gfx::TexelBufferBinding const> elements);
-  static void
-      storage_texel_buffer(gfx::DescriptorHeap self, u32 set, u32 binding,
-                           Span<gfx::TexelBufferBinding const> elements);
-  static void uniform_buffer(gfx::DescriptorHeap self, u32 set, u32 binding,
-                             Span<gfx::BufferBinding const> elements);
-  static void storage_buffer(gfx::DescriptorHeap self, u32 set, u32 binding,
-                             Span<gfx::BufferBinding const> elements);
-  static void dynamic_uniform_buffer(gfx::DescriptorHeap self, u32 set,
-                                     u32                            binding,
-                                     Span<gfx::BufferBinding const> elements);
-  static void dynamic_storage_buffer(gfx::DescriptorHeap self, u32 set,
-                                     u32                            binding,
-                                     Span<gfx::BufferBinding const> elements);
-  static void input_attachment(gfx::DescriptorHeap self, u32 set, u32 binding,
-                               Span<gfx::ImageBinding const> elements);
+  static void                     update(gfx::DescriptorHeap          self,
+                                         gfx::DescriptorUpdate const &update);
 };
 
 struct CommandEncoderInterface
@@ -822,7 +963,6 @@ struct CommandEncoderInterface
 };
 
 static gfx::InstanceInterface const instance_interface{
-    .create          = InstanceInterface::create,
     .destroy         = InstanceInterface::destroy,
     .create_device   = InstanceInterface::create_device,
     .get_backend     = InstanceInterface::get_backend,
@@ -846,7 +986,6 @@ static gfx::DeviceInterface const device_interface{
     .create_pipeline_cache    = DeviceInterface::create_pipeline_cache,
     .create_compute_pipeline  = DeviceInterface::create_compute_pipeline,
     .create_graphics_pipeline = DeviceInterface::create_graphics_pipeline,
-    .create_fence             = DeviceInterface::create_fence,
     .create_frame_context     = DeviceInterface::create_frame_context,
     .create_swapchain         = DeviceInterface::create_swapchain,
     .destroy_buffer           = DeviceInterface::destroy_buffer,
@@ -863,7 +1002,6 @@ static gfx::DeviceInterface const device_interface{
     .destroy_pipeline_cache    = DeviceInterface::destroy_pipeline_cache,
     .destroy_compute_pipeline  = DeviceInterface::destroy_compute_pipeline,
     .destroy_graphics_pipeline = DeviceInterface::destroy_graphics_pipeline,
-    .destroy_fence             = DeviceInterface::destroy_fence,
     .destroy_frame_context     = DeviceInterface::destroy_frame_context,
     .destroy_swapchain         = DeviceInterface::destroy_swapchain,
     .get_buffer_memory_map     = DeviceInterface::get_buffer_memory_map,
@@ -873,9 +1011,6 @@ static gfx::DeviceInterface const device_interface{
     .get_pipeline_cache_size   = DeviceInterface::get_pipeline_cache_size,
     .get_pipeline_cache_data   = DeviceInterface::get_pipeline_cache_data,
     .merge_pipeline_cache      = DeviceInterface::merge_pipeline_cache,
-    .wait_for_fences           = DeviceInterface::wait_for_fences,
-    .reset_fences              = DeviceInterface::reset_fences,
-    .get_fence_status          = DeviceInterface::get_fence_status,
     .wait_idle                 = DeviceInterface::wait_idle,
     .wait_queue_idle           = DeviceInterface::wait_queue_idle,
     .get_frame_info            = DeviceInterface::get_frame_info,
@@ -888,23 +1023,13 @@ static gfx::DeviceInterface const device_interface{
     .submit_frame              = DeviceInterface::submit_frame};
 
 static gfx::DescriptorHeapInterface const descriptor_heap_interface{
-    .allocate               = DescriptorHeapInterface::allocate,
-    .collect                = DescriptorHeapInterface::collect,
-    .mark_in_use            = DescriptorHeapInterface::mark_in_use,
-    .is_in_use              = DescriptorHeapInterface::is_in_use,
-    .release                = DescriptorHeapInterface::release,
-    .get_stats              = DescriptorHeapInterface::get_stats,
-    .sampler                = DescriptorHeapInterface::sampler,
-    .combined_image_sampler = DescriptorHeapInterface::combined_image_sampler,
-    .sampled_image          = DescriptorHeapInterface::sampled_image,
-    .storage_image          = DescriptorHeapInterface::storage_image,
-    .uniform_texel_buffer   = DescriptorHeapInterface::uniform_texel_buffer,
-    .storage_texel_buffer   = DescriptorHeapInterface::storage_texel_buffer,
-    .uniform_buffer         = DescriptorHeapInterface::uniform_buffer,
-    .storage_buffer         = DescriptorHeapInterface::storage_buffer,
-    .dynamic_uniform_buffer = DescriptorHeapInterface::dynamic_uniform_buffer,
-    .dynamic_storage_buffer = DescriptorHeapInterface::dynamic_storage_buffer,
-    .input_attachment       = DescriptorHeapInterface::input_attachment};
+    .allocate    = DescriptorHeapInterface::allocate,
+    .collect     = DescriptorHeapInterface::collect,
+    .mark_in_use = DescriptorHeapInterface::mark_in_use,
+    .is_in_use   = DescriptorHeapInterface::is_in_use,
+    .release     = DescriptorHeapInterface::release,
+    .get_stats   = DescriptorHeapInterface::get_stats,
+    .update      = DescriptorHeapInterface::update};
 
 static gfx::CommandEncoderInterface const command_encoder_interface{
     .begin_debug_marker = CommandEncoderInterface::begin_debug_marker,

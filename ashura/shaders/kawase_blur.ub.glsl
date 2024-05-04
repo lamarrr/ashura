@@ -5,12 +5,13 @@ struct Params
   vec2 extent;        // relative to the source texture
   vec2 radius;        // relative to the source texture
 };
-layout(set = 0, binding = 0) uniform ParamsStruct
+
+layout(push_constant) uniform ParamsPushConstant
 {
   Params p;
 };
 
-layout(set = 1, binding = 0) uniform sampler2D src;
+layout(set = 0, binding = 0) uniform sampler2D src;
 
 const uint INDEX_BUFFER[]  = {0, 1, 2, 2, 3, 0};
 const vec2 VERTEX_BUFFER[] = {vec2(0, 0), vec2(1, 0), vec2(1, 1), vec2(0, 1)};

@@ -21,18 +21,18 @@ layout(set = 0, binding = 0) readonly buffer VertexBuffer
 }
 vtx_buffers[];
 
-layout(set = 0, binding = 1) readonly buffer IndexBuffer
+layout(set = 1, binding = 0) readonly buffer IndexBuffer
 {
   uint data[];
 }
 idx_buffers[];
 
-layout(set = 0, binding = 2) readonly buffer Params
+layout(set = 2, binding = 0) readonly buffer ParamsBuffer
 {
   Params params[];
 };
 
-layout(set = 0, binding = 3) uniform sampler2D u_tex[];
+layout(set = 3, binding = 0) uniform sampler2D u_tex[];
 
 #ifdef VERTEX_SHADER
 
@@ -42,8 +42,8 @@ layout(location = 2) flat out uint o_instance;
 
 void main()
 {
-  uint   idx  = idx_buffers[gl_InstanceIndex].data[gl_VertexIndex];
-  Vertex vtx  = vtx_buffers[gl_InstanceIndex].data[idx];
+  uint idx = idx_buffers[nonuniformEXT(gl_InstanceIndex)].data[gl_VertexIndex];
+  Vertex vtx  = vtx_buffers[nonuniformEXT(gl_InstanceIndex)].data[idx];
   Params p    = params[gl_InstanceIndex];
   gl_Position = to_mvp(p.transform) * vec4(vtx.pos, 0, 1);
   o_uv        = vtx.uv;
@@ -64,7 +64,7 @@ layout(location = 0) out vec4 o_color;
 void main()
 {
   Params p = params[i_instance];
-  o_color  = i_tint * texture(u_tex[p.tex], i_uv);
+  o_color  = i_tint * texture(u_tex[nonuniformEXT(p.tex)], i_uv);
 }
 
 #endif

@@ -40,29 +40,29 @@ struct Vertex
   float v;
 };
 
-layout(set = 0, binding = 0) readonly buffer VtxBuffers
+layout(set = 0, binding = 0) readonly buffer VtxBuffer
 {
   Vertex data[];
 }
 vtx_buffers[];
 
-layout(set = 0, binding = 1) readonly buffer IdxBuffers
+layout(set = 1, binding = 0) readonly buffer IdxBuffer
 {
   uint data[];
 }
 idx_buffers[];
 
-layout(set = 0, binding = 2) readonly buffer Params
+layout(set = 2, binding = 0) readonly buffer ParamsBuffer
 {
   Params params[];
 };
 
-layout(set = 0, binding = 3) readonly buffer Lights
+layout(set = 2, binding = 1) readonly buffer Lights
 {
   PunctualLight b_lights[];
 };
 
-layout(set = 0, binding = 4) uniform sampler2D u_tex[];
+layout(set = 3, binding = 0) uniform sampler2D u_tex[];
 
 #ifdef VERTEX_SHADER
 
@@ -72,9 +72,9 @@ layout(location = 2) flat out uint o_instance;
 
 void main()
 {
-  Params p         = params[gl_InstanceIndex];
-  uint   idx       = idx_buffers[gl_InstanceIndex].data[gl_VertexIndex];
-  Vertex vtx       = vtx_buffers[gl_InstanceIndex].data[idx];
+  Params p = params[gl_InstanceIndex];
+  uint idx = idx_buffers[nonuniformEXT(gl_InstanceIndex)].data[gl_VertexIndex];
+  Vertex vtx       = vtx_buffers[nonuniformEXT(gl_InstanceIndex)].data[idx];
   vec3   i_pos     = vec3(vtx.x, vtx.y, vtx.z);
   vec2   i_uv      = vec2(vtx.u, vtx.v);
   vec4   world_pos = affine4(p.transform.model) * vec4(i_pos, 1);
@@ -97,19 +97,27 @@ layout(location = 0) out vec4 o_color;
 
 void main()
 {
-  Params p         = params[i_instance];
-  vec3   albedo    = p.albedo.xyz * texture(u_tex[p.albedo_map], i_uv).rgb;
-  float  metallic  = p.metallic * texture(u_tex[p.metallic_map], i_uv).r;
-  float  roughness = p.roughness * texture(u_tex[p.roughness_map], i_uv).r;
-  vec3   N         = p.normal * texture(u_tex[p.normal_map], i_uv).rgb;
-  float  occlusion = p.occlusion * texture(u_tex[p.occlusion_map], i_uv).r;
-  vec3   emissive  = p.emissive.xyz * texture(u_tex[p.emissive_map], i_uv).rgb;
-  float  ior       = p.ior;
-  float  clearcoat = p.clearcoat * texture(u_tex[p.clearcoat_map], i_uv).r;
-  float  clearcoat_roughness =
-      p.clearcoat_roughness * texture(u_tex[p.clearcoat_roughness_map], i_uv).r;
+  Params p = params[i_instance];
+  vec3   albedo =
+      p.albedo.xyz * texture(u_tex[nonuniformEXT(p.albedo_map)], i_uv).rgb;
+  float metallic =
+      p.metallic * texture(u_tex[nonuniformEXT(p.metallic_map)], i_uv).r;
+  float roughness =
+      p.roughness * texture(u_tex[nonuniformEXT(p.roughness_map)], i_uv).r;
+  vec3  N = p.normal * texture(u_tex[nonuniformEXT(p.normal_map)], i_uv).rgb;
+  float occlusion =
+      p.occlusion * texture(u_tex[nonuniformEXT(p.occlusion_map)], i_uv).r;
+  vec3 emissive =
+      p.emissive.xyz * texture(u_tex[nonuniformEXT(p.emissive_map)], i_uv).rgb;
+  float ior = p.ior;
+  float clearcoat =
+      p.clearcoat * texture(u_tex[nonuniformEXT(p.clearcoat_map)], i_uv).r;
+  float clearcoat_roughness =
+      p.clearcoat_roughness *
+      texture(u_tex[nonuniformEXT(p.clearcoat_roughness_map)], i_uv).r;
   vec3 clearcoat_normal =
-      p.clearcoat_normal * texture(u_tex[p.clearcoat_normal_map], i_uv).rgb;
+      p.clearcoat_normal *
+      texture(u_tex[nonuniformEXT(p.clearcoat_normal_map)], i_uv).rgb;
   vec3  V   = normalize(p.view_position.xyz - i_world_pos);
   float NoV = dot(N, V);
 

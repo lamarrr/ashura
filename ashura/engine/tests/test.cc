@@ -26,7 +26,7 @@ int main(int argc, char **argv)
   CHECK(win_sys != nullptr);
 
   gfx::InstanceImpl instance =
-      vk::instance_interface.create(heap_allocator, default_logger, false)
+      gfx::create_vulkan_instance(heap_allocator, default_logger, true)
           .unwrap();
 
   defer instance_del{[&] { instance->destroy(instance.self); }};
@@ -275,8 +275,7 @@ int main(int argc, char **argv)
       device->create_sampler(device.self, gfx::SamplerDesc{}).unwrap();
 
   gfx::DescriptorSet set = heap.create(RRectShaderParameter{
-      .albedo =
-          gfx::CombinedImageSampler{.sampler = smp, .image_view = img_view}});
+      .albedo = gfx::ImageBinding{.sampler = smp, .image_view = img_view}});
 
   while (!should_close)
   {
