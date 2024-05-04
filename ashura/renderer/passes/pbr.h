@@ -11,12 +11,12 @@ namespace ash
 /// SEE:
 /// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
 BEGIN_SHADER_PARAMETER(PBRShaderParameter)
-SHADER_COMBINED_IMAGE_SAMPLER(albedo, 1)
-SHADER_COMBINED_IMAGE_SAMPLER(metallic, 1)
-SHADER_COMBINED_IMAGE_SAMPLER(roughness, 1)
-SHADER_COMBINED_IMAGE_SAMPLER(normal, 1)
-SHADER_COMBINED_IMAGE_SAMPLER(occlusion, 1)
-SHADER_COMBINED_IMAGE_SAMPLER(emissive, 1)
+COMBINED_IMAGE_SAMPLER(albedo, 1)
+COMBINED_IMAGE_SAMPLER(metallic, 1)
+COMBINED_IMAGE_SAMPLER(roughness, 1)
+COMBINED_IMAGE_SAMPLER(normal, 1)
+COMBINED_IMAGE_SAMPLER(occlusion, 1)
+COMBINED_IMAGE_SAMPLER(emissive, 1)
 END_SHADER_PARAMETER(PBRShaderParameter)
 
 constexpr u8 MAX_PBR_AMBIENT_LIGHTS     = 1;

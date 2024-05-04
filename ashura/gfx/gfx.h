@@ -825,9 +825,9 @@ struct FramebufferDesc
 
 struct DescriptorBindingDesc
 {
-  DescriptorType type          = DescriptorType::Sampler;
-  u32            count         = 0;
-  bool           variable_size = false;
+  DescriptorType type               = DescriptorType::Sampler;
+  u32            count              = 0;
+  bool           is_variable_length = false;
 };
 
 struct DescriptorSetLayoutDesc
@@ -1345,7 +1345,8 @@ struct DeviceInterface
   Result<DescriptorSetLayout, Status> (*create_descriptor_set_layout)(
       Device self, DescriptorSetLayoutDesc const &desc) = nullptr;
   Result<DescriptorSet, Status> (*create_descriptor_set)(
-      Device self, DescriptorSetLayout layout) = nullptr;
+      Device self, DescriptorSetLayout layout,
+      Span<u32 const> variable_lengths) = nullptr;
   Result<PipelineCache, Status> (*create_pipeline_cache)(
       Device self, PipelineCacheDesc const &desc) = nullptr;
   Result<ComputePipeline, Status> (*create_compute_pipeline)(
@@ -1448,17 +1449,23 @@ Result<InstanceImpl, Status>
 /// @name: parameter name
 /// @type: only valid if is not uniform
 /// @count: element count of the binding
+/// @current_count: current element count of the binding, only used if
+/// `is_variable_length` is true
 /// @member_offset: offset of this member in the whole struct
-/// @uniform_size: only valid if is uniform
-/// @uniform_alignment: only valid if is uniform
+/// @is_variable_length: if binding is a variable length binding
 struct ShaderBindingMetaData
 {
   Span<char const>    name;
-  gfx::DescriptorType type          = gfx::DescriptorType::Sampler;
-  u16                 count         = 0;
-  u16                 member_offset = 0;
+  gfx::DescriptorType type               = gfx::DescriptorType::Sampler;
+  u32                 member_offset      = 0;
+  u32                 count              = 0;
+  bool                is_variable_length = false;
+  u32                 current_count      = 0;
 };
 
+// change binding length for example
+// CHECK LIMITS!!
+// count variable length using recursion in macro
 // TODO(lamarrr): check descriptor set layout compatibility
 // TODO(lamarrr): encode dynamic? count should represent maximum count.
 #define BEGIN_SHADER_PARAMETER(Name)             \
@@ -1468,81 +1475,119 @@ struct ShaderBindingMetaData
                                                  \
     struct _METAMemberBegin                      \
     {                                            \
-      static constexpr u16 _METAMemberIndex = 0; \
+      static constexpr u32 _METAMemberIndex = 0; \
     };                                           \
                                                  \
     typedef _METAMemberBegin
+// TODO(lamarrr): define push function above
 
-//  MaxCount,
-#define SHADER_BINDING(BindingName, StructType, BindingType, Count)              \
+#define SHADER_BINDING(BindingName, StructType, BindingType, Count,              \
+                       IsVariableLength, InitialCount)                           \
   _METAMember_##BindingName;                                                     \
                                                                                  \
   static constexpr void _METApush(_METAMember_##BindingName,                     \
                                   ::ash::ShaderBindingMetaData *meta,            \
-                                  u16                           _METAThisOffset) \
+                                  u32                           _METAThisOffset) \
   {                                                                              \
     *meta = ::ash::ShaderBindingMetaData{                                        \
-        .name  = ::ash::to_span(#BindingName),                                   \
-        .type  = ::ash::gfx::DescriptorType::BindingType,                        \
-        .count = (u16) Count,                                                    \
+        .name = ::ash::to_span(#BindingName),                                    \
+        .type = ::ash::gfx::DescriptorType::BindingType,                         \
         .member_offset =                                                         \
-            (u16) (_METAThisOffset + offsetof(_METAThisType, BindingName))};     \
+            (u32) (_METAThisOffset + offsetof(_METAThisType, BindingName)),      \
+        .count              = (u32) (Count),                                     \
+        .is_variable_length = (bool) (IsVariableLength),                         \
+        .current_count      = (u32) (InitialCount)};                                  \
     _METApush(_METAMemberAfter_##BindingName{}, meta + 1, _METAThisOffset);      \
   }                                                                              \
                                                                                  \
-  ::ash::gfx::StructType BindingName[Count];                                     \
+  ::ash::gfx::StructType BindingName[(u32) (Count)];                             \
+  u32                    BindingName##_count = (u32) (InitialCount);             \
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
-    static constexpr u16 _METAMemberIndex =                                      \
+    static constexpr u32 _METAMemberIndex =                                      \
         _METAMember_##BindingName::_METAMemberIndex + 1;                         \
   };                                                                             \
                                                                                  \
   typedef _METAMemberAfter_##BindingName
 
-#define SHADER_SAMPLER(BindingName, Count) \
-  SHADER_BINDING(BindingName, ImageBinding, Sampler, Count)
+#define SAMPLER(BindingName, Count) \
+  SHADER_BINDING(BindingName, ImageBinding, Sampler, Count, false, Count)
+#define VAR_SAMPLER(BindingName, Count, InitialCount) \
+  SHADER_BINDING(BindingName, ImageBinding, Sampler, Count, true, InitialCount)
 
-#define SHADER_COMBINED_IMAGE_SAMPLER(BindingName, Count) \
-  SHADER_BINDING(BindingName, ImageBinding, CombinedImageSampler, Count)
+#define COMBINED_IMAGE_SAMPLER(BindingName, Count)                       \
+  SHADER_BINDING(BindingName, ImageBinding, CombinedImageSampler, Count, \
+                 false, Count)
+#define VAR_COMBINED_IMAGE_SAMPLER(BindingName, Count, InitialCount)           \
+  SHADER_BINDING(BindingName, ImageBinding, CombinedImageSampler, Count, true, \
+                 InitialCount)
 
-#define SHADER_SAMPLED_IMAGE(BindingName, Count) \
-  SHADER_BINDING(BindingName, ImageBinding, SampledImage, Count)
+#define SAMPLED_IMAGE(BindingName, Count) \
+  SHADER_BINDING(BindingName, ImageBinding, SampledImage, Count, false, Count)
+#define VAR_SAMPLED_IMAGE(BindingName, Count, InitialCount)            \
+  SHADER_BINDING(BindingName, ImageBinding, SampledImage, Count, true, \
+                 InitialCount)
 
-#define SHADER_STORAGE_IMAGE(BindingName, Count) \
-  SHADER_BINDING(BindingName, ImageBinding, StorageImage, Count)
+#define STORAGE_IMAGE(BindingName, Count) \
+  SHADER_BINDING(BindingName, ImageBinding, StorageImage, Count, false, Count)
+#define VAR_STORAGE_IMAGE(BindingName, Count, InitialCount)            \
+  SHADER_BINDING(BindingName, ImageBinding, StorageImage, Count, true, \
+                 InitialCount)
 
-#define SHADER_UNIFORM_TEXEL_BUFFER(BindingName, Count) \
-  SHADER_BINDING(BindingName, BufferView, BufferView, Count)
+#define UNIFORM_TEXEL_BUFFER(BindingName, Count) \
+  SHADER_BINDING(BindingName, BufferView, BufferView, Count, false, Count)
+#define VAR_UNIFORM_TEXEL_BUFFER(BindingName, Count, InitialCount) \
+  SHADER_BINDING(BindingName, BufferView, BufferView, Count, true, InitialCount)
 
-#define SHADER_STORAGE_TEXEL_BUFFER(BindingName, Count) \
-  SHADER_BINDING(BindingName, BufferView, BufferView, Count)
+#define STORAGE_TEXEL_BUFFER(BindingName, Count) \
+  SHADER_BINDING(BindingName, BufferView, BufferView, Count, false, Count)
+#define VAR_STORAGE_TEXEL_BUFFER(BindingName, Count, InitialCount) \
+  SHADER_BINDING(BindingName, BufferView, BufferView, Count, true, InitialCount)
 
-#define SHADER_UNIFORM_BUFFER(BindingName, Count) \
-  SHADER_BINDING(BindingName, BufferBinding, UniformBuffer, Count)
+#define UNIFORM_BUFFER(BindingName, Count) \
+  SHADER_BINDING(BindingName, BufferBinding, UniformBuffer, Count, false, Count)
+#define VAR_UNIFORM_BUFFER(BindingName, Count, InitialCount)             \
+  SHADER_BINDING(BindingName, BufferBinding, UniformBuffer, Count, true, \
+                 InitialCount)
 
-#define SHADER_STORAGE_BUFFER(BindingName, Count) \
-  SHADER_BINDING(BindingName, BufferBinding, StorageBuffer, Count)
+#define STORAGE_BUFFER(BindingName, Count) \
+  SHADER_BINDING(BindingName, BufferBinding, StorageBuffer, Count, false, Count)
+#define VAR_STORAGE_BUFFER(BindingName, Count, InitialCount)             \
+  SHADER_BINDING(BindingName, BufferBinding, StorageBuffer, Count, true, \
+                 InitialCount)
 
-#define SHADER_DYNAMIC_UNIFORM_BUFFER(BindingName, Count) \
-  SHADER_BINDING(BindingName, BufferBinding, DynamicUniformBuffer, Count)
+#define DYNAMIC_UNIFORM_BUFFER(BindingName, Count)                        \
+  SHADER_BINDING(BindingName, BufferBinding, DynamicUniformBuffer, Count, \
+                 false, Count)
+#define VAR_DYNAMIC_UNIFORM_BUFFER(BindingName, Count, InitialCount)      \
+  SHADER_BINDING(BindingName, BufferBinding, DynamicUniformBuffer, Count, \
+                 true, InitialCount)
 
-#define SHADER_DYNAMIC_STORAGE_BUFFER(BindingName, Count) \
-  SHADER_BINDING(BindingName, BufferBinding, DynamicStorageBuffer, Count)
+#define DYNAMIC_STORAGE_BUFFER(BindingName, Count)                        \
+  SHADER_BINDING(BindingName, BufferBinding, DynamicStorageBuffer, Count, \
+                 false, Count)
+#define VAR_DYNAMIC_STORAGE_BUFFER(BindingName, Count, InitialCount)      \
+  SHADER_BINDING(BindingName, BufferBinding, DynamicStorageBuffer, Count, \
+                 true, InitialCount)
 
-#define SHADER_INPUT_ATTACHMENT(BindingName, Count) \
-  SHADER_BINDING(BindingName, ImageBinding, InputAttachment, Count)
+#define INPUT_ATTACHMENT(BindingName, Count)                               \
+  SHADER_BINDING(BindingName, ImageBinding, InputAttachment, Count, false, \
+                 Count)
+#define VAR_INPUT_ATTACHMENT(BindingName, Count, InitialCount)            \
+  SHADER_BINDING(BindingName, ImageBinding, InputAttachment, Count, true, \
+                 InitialCount)
 
 #define SHADER_PARAMETER_INLINE(BindingName, ParameterType)                      \
   _METAMember_##BindingName;                                                     \
                                                                                  \
   static constexpr void _METApush(_METAMember_##BindingName,                     \
                                   ::ash::ShaderBindingMetaData *meta,            \
-                                  u16                           _METAThisOffset) \
+                                  u32                           _METAThisOffset) \
   {                                                                              \
     ParameterType::_METApush(                                                    \
         ParameterType::_METAMemberBegin{}, meta,                                 \
-        (u16) (_METAThisOffset + offsetof(_METAThisType, BindingName)));         \
+        (u32) (_METAThisOffset + offsetof(_METAThisType, BindingName)));         \
     _METApush(_METAMemberAfter_##BindingName{},                                  \
               meta + ParameterType::NUM_BINDINGS, _METAThisOffset);              \
   }                                                                              \
@@ -1551,7 +1596,7 @@ struct ShaderBindingMetaData
                                                                                  \
   struct _METAMemberAfter_##BindingName                                          \
   {                                                                              \
-    static constexpr u16 _METAMemberIndex =                                      \
+    static constexpr u32 _METAMemberIndex =                                      \
         _METAMember_##BindingName::_METAMemberIndex +                            \
         ParameterType::NUM_BINDINGS;                                             \
   };                                                                             \
@@ -1562,12 +1607,12 @@ struct ShaderBindingMetaData
   _METAMemberEnd;                                                              \
                                                                                \
   static constexpr void _METApush(_METAMemberEnd,                              \
-                                  ::ash::ShaderBindingMetaData *, u16)         \
+                                  ::ash::ShaderBindingMetaData *, u32)         \
   {                                                                            \
   }                                                                            \
                                                                                \
   static constexpr char const NAME[]       = #Name;                            \
-  static constexpr u16        NUM_BINDINGS = _METAMemberEnd::_METAMemberIndex; \
+  static constexpr u32        NUM_BINDINGS = _METAMemberEnd::_METAMemberIndex; \
   static constexpr auto       GET_BINDINGS()                                   \
   {                                                                            \
     ::ash::Array<::ash::ShaderBindingMetaData, NUM_BINDINGS> bindings;         \
@@ -1580,10 +1625,12 @@ struct ShaderBindingMetaData
     ::ash::Array<::ash::ShaderBindingMetaData, NUM_BINDINGS> bindings =        \
         GET_BINDINGS();                                                        \
     ::ash::Array<::ash::gfx::DescriptorBindingDesc, NUM_BINDINGS> descs;       \
-    for (u16 i = 0; i < NUM_BINDINGS; i++)                                     \
+    for (u32 i = 0; i < NUM_BINDINGS; i++)                                     \
     {                                                                          \
-      descs[i] = gfx::DescriptorBindingDesc{.type  = bindings[i].type,         \
-                                            .count = bindings[i].count};       \
+      descs[i] = gfx::DescriptorBindingDesc{                                   \
+          .type               = bindings[i].type,                              \
+          .count              = bindings[i].count,                             \
+          .is_variable_length = bindings[i].is_variable_length};               \
     }                                                                          \
     return descs;                                                              \
   }                                                                            \
@@ -1591,7 +1638,7 @@ struct ShaderBindingMetaData
   ;
 
 BEGIN_SHADER_PARAMETER(UniformShaderParameter)
-SHADER_DYNAMIC_UNIFORM_BUFFER(buffer, 1)
+DYNAMIC_UNIFORM_BUFFER(buffer, 1)
 END_SHADER_PARAMETER(UniformShaderParameter)
 
 template <typename Param>
@@ -1612,18 +1659,25 @@ gfx::DescriptorSet create_shader_parameter(gfx::DeviceImpl const   &device,
                                            gfx::DescriptorSetLayout layout)
 {
   constexpr Array descs = Param::GET_BINDINGS_DESC();
-  return device->create_descriptor_set(layout).unwrap();
+
+  return device
+      ->create_descriptor_set(
+          device.self, layout,
+          descs[size(descs) - 1].is_variable_length ?
+              Span<u32 const>{descs[size(descs) - 1].current_count} :
+              Span<u32 const>{})
+      .unwrap();
 }
 
 template <typename Param>
 void update_shader_parameter(gfx::DeviceImpl const &device,
                              gfx::DescriptorSet set, Param const &param)
 {
-  Span                  metadata = to_span(Param::BINDINGS);
-  gfx::DescriptorUpdate update{.set = set, .binding = i, .element = 0};
+  Span metadata = to_span(Param::BINDINGS);
 
   for (u32 i = 0; i < metadata.size(); i++)
   {
+    gfx::DescriptorUpdate        update{.set = set, .binding = i, .element = 0};
     ShaderBindingMetaData const &member = metadata[i];
     switch (member.type)
     {
@@ -1763,6 +1817,10 @@ struct FreeTable
 //
 // defer destruction of the buffer to completion of frame. buffer must be
 // destroyed and memory released before beginning of frame.
+//
+//
+// when pushing, it must be pushed along with all parameters atomically as alloc
+// may fail.
 //
 //
 // struct CommandBlock{
