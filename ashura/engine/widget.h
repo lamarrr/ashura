@@ -475,8 +475,8 @@ struct Widget
   /// id used to recognise the widget. checked every frame. if
   /// one is not present or removed. a new uuid is generated and
   /// assigned.
-  Option<uid32> id;
-  Rect          area;
+  Option<uid> id;
+  Rect        area;
 };
 
 }        // namespace ash

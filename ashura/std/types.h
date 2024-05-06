@@ -20,10 +20,7 @@ typedef float     f32;
 typedef double    f64;
 typedef size_t    usize;
 typedef ptrdiff_t isize;
-typedef u8        uid8;
-typedef u16       uid16;
-typedef u32       uid32;
-typedef u64       uid64;
+typedef u64       uid;
 
 constexpr u8 U8_MIN = 0;
 constexpr u8 U8_MAX = 0xFFU;
@@ -67,10 +64,7 @@ constexpr f32 F64_EPSILON      = DBL_EPSILON;
 
 constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
 
-constexpr uid8  UID8_INVALID  = U8_MAX;
-constexpr uid16 UID16_INVALID = U16_MAX;
-constexpr uid32 UID32_INVALID = U32_MAX;
-constexpr uid64 UID64_INVALID = U64_MAX;
+constexpr uid UID_INVALID = U64_MAX;
 
 constexpr f32 PI = 3.14159265358979323846f;
 

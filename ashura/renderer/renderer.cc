@@ -40,12 +40,12 @@ void destroy_scene_group(SceneGroup &group)
   group.id_map.reset(group.scenes);
 }
 
-Option<uid32> RenderServer::add_scene(Span<char const> name)
+Option<uid> RenderServer::add_scene(Span<char const> name)
 {
-  uid32 id;
+  uid id;
 
   if (!scene_group.id_map.push(
-          [&](uid32 in_id, u32) {
+          [&](uid in_id, u32) {
             id = in_id;
             ENSURE("", scene_group.scenes.push(Scene{.name = name}));
           },
@@ -62,7 +62,7 @@ Option<uid32> RenderServer::add_scene(Span<char const> name)
   return Some{id};
 }
 
-Option<Scene *> RenderServer::get_scene(uid32 scene)
+Option<Scene *> RenderServer::get_scene(uid scene)
 {
   u32 index;
   if (!scene_group.id_map.try_to_index(scene, index))
@@ -72,7 +72,7 @@ Option<Scene *> RenderServer::get_scene(uid32 scene)
   return Some{scene_group.scenes.data() + index};
 }
 
-void RenderServer::remove_scene(uid32 scene)
+void RenderServer::remove_scene(uid scene)
 {
   u32 index;
   if (!scene_group.id_map.try_to_index(scene, index))
@@ -89,14 +89,14 @@ void RenderServer::remove_scene(uid32 scene)
   scene_group.id_map.erase(scene, scene_group.scenes);
 }
 
-Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
-                                       uid32 scene_id, uid32 parent_id,
+Option<uid> RenderServer::add_object(uid pass, uid pass_object_id,
+                                       uid scene_id, uid parent_id,
                                        SceneObjectDesc const &desc)
 {
-  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid32> {
+  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid> {
     SceneNode *parent = nullptr;
 
-    if (parent_id != UID32_INVALID)
+    if (parent_id != UID_INVALID)
     {
       if (!scene->objects.id_map.try_get(parent_id, parent,
                                          scene->objects.node))
@@ -106,11 +106,11 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
     }
 
     u32 const   depth = parent == nullptr ? 0 : (parent->depth + 1);
-    uid32 const next_sibling =
-        parent == nullptr ? UID32_INVALID : parent->first_child;
-    uid32 object_id;
+    uid const next_sibling =
+        parent == nullptr ? UID_INVALID : parent->first_child;
+    uid object_id;
     if (!scene->objects.id_map.push(
-            [&](uid32 in_object_id, u32) {
+            [&](uid in_object_id, u32) {
               object_id = in_object_id;
               ENSURE("", scene->objects.aabb.push(desc.aabb));
               ENSURE("", scene->objects.global_transform.push());
@@ -141,54 +141,54 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
   });
 }
 
-static void collect_nodes(Scene const &scene, Vec<uid32> &ids, uid32 id)
+static void collect_nodes(Scene const &scene, Vec<uid> &ids, uid id)
 {
   SceneNode const &object = scene.objects.node[scene.objects.id_map[id]];
   ENSURE("", ids.push(object.pass_object));
 
-  uid32 child_id = object.first_child;
+  uid child_id = object.first_child;
 
-  while (child_id != UID32_INVALID)
+  while (child_id != UID_INVALID)
   {
     collect_nodes(scene, ids, child_id);
     child_id = scene.objects.node[scene.objects.id_map[child_id]].next_sibling;
   }
 }
 
-static void remove_node(RenderServer &server, uid32 scene_id, Scene &scene,
-                        uid32 scene_object_id, SceneNode &object)
+static void remove_node(RenderServer &server, uid scene_id, Scene &scene,
+                        uid scene_object_id, SceneNode &object)
 {
-  Vec<uid32> ids;
+  Vec<uid> ids;
   collect_nodes(scene, ids, scene_object_id);
 
-  for (uid32 object_id : ids)
+  for (uid object_id : ids)
   {
-    uid32 pass_id = scene.objects.node[scene.objects.id_map[object_id]].pass;
+    uid pass_id = scene.objects.node[scene.objects.id_map[object_id]].pass;
     PassImpl const &pass =
         server.pass_group.passes[server.pass_group.id_map[pass_id]];
     pass.interface->release_object(pass.self, &server, scene_id, object_id);
   }
 
-  uid32 const parent_id = object.parent;
-  if (parent_id != UID32_INVALID)
+  uid const parent_id = object.parent;
+  if (parent_id != UID_INVALID)
   {
     SceneNode &parent = scene.objects.node[scene.objects.id_map[parent_id]];
     if (parent.first_child == scene_object_id)
     {
-      if (object.next_sibling != UID32_INVALID)
+      if (object.next_sibling != UID_INVALID)
       {
         parent.first_child = object.next_sibling;
       }
       else
       {
-        parent.first_child = UID32_INVALID;
+        parent.first_child = UID_INVALID;
       }
     }
     else
     {
-      uid32 sibling_id = parent.first_child;
+      uid sibling_id = parent.first_child;
 
-      while (sibling_id != UID32_INVALID)
+      while (sibling_id != UID_INVALID)
       {
         SceneNode &sibling =
             scene.objects.node[scene.objects.id_map[sibling_id]];
@@ -202,7 +202,7 @@ static void remove_node(RenderServer &server, uid32 scene_id, Scene &scene,
     }
   }
 
-  for (uid32 id : ids)
+  for (uid id : ids)
   {
     scene.objects.id_map.erase(
         id, scene.objects.aabb, scene.objects.global_transform,
@@ -213,7 +213,7 @@ static void remove_node(RenderServer &server, uid32 scene_id, Scene &scene,
   ids.reset();
 }
 
-void RenderServer::remove_object(uid32 scene_id, uid32 object_id)
+void RenderServer::remove_object(uid scene_id, uid object_id)
 {
   get_scene(scene_id).match(
       [&](Scene *scene) {
@@ -228,13 +228,13 @@ void RenderServer::remove_object(uid32 scene_id, uid32 object_id)
       [] {});
 }
 
-Option<uid32> RenderServer::add_directional_light(uid32 scene_id,
+Option<uid> RenderServer::add_directional_light(uid scene_id,
                                                   DirectionalLight const &light)
 {
-  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid32> {
-    uid32 light_id;
+  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid> {
+    uid light_id;
     if (!scene->directional_lights_id_map.push(
-            [&](uid32 in_id, u32) {
+            [&](uid in_id, u32) {
               light_id = in_id;
               ENSURE("", scene->directional_lights.push(light));
             },
@@ -247,13 +247,13 @@ Option<uid32> RenderServer::add_directional_light(uid32 scene_id,
   });
 }
 
-Option<uid32> RenderServer::add_point_light(uid32             scene_id,
+Option<uid> RenderServer::add_point_light(uid             scene_id,
                                             PointLight const &light)
 {
-  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid32> {
-    uid32 light_id;
+  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid> {
+    uid light_id;
     if (!scene->point_lights_id_map.push(
-            [&](uid32 in_id, u32) {
+            [&](uid in_id, u32) {
               light_id = in_id;
               ENSURE("", scene->point_lights.push(light));
             },
@@ -266,13 +266,13 @@ Option<uid32> RenderServer::add_point_light(uid32             scene_id,
   });
 }
 
-Option<uid32> RenderServer::add_spot_light(uid32            scene_id,
+Option<uid> RenderServer::add_spot_light(uid            scene_id,
                                            SpotLight const &light)
 {
-  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid32> {
-    uid32 light_id;
+  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid> {
+    uid light_id;
     if (!scene->spot_lights_id_map.push(
-            [&](uid32 in_id, u32) {
+            [&](uid in_id, u32) {
               light_id = in_id;
               ENSURE("", scene->spot_lights.push(light));
             },
@@ -285,13 +285,13 @@ Option<uid32> RenderServer::add_spot_light(uid32            scene_id,
   });
 }
 
-Option<uid32> RenderServer::add_area_light(uid32            scene_id,
+Option<uid> RenderServer::add_area_light(uid            scene_id,
                                            AreaLight const &light)
 {
-  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid32> {
-    uid32 light_id;
+  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid> {
+    uid light_id;
     if (!scene->area_lights_id_map.push(
-            [&](uid32 in_id, u32) {
+            [&](uid in_id, u32) {
               light_id = in_id;
               ENSURE("", scene->area_lights.push(light));
             },
@@ -304,14 +304,14 @@ Option<uid32> RenderServer::add_area_light(uid32            scene_id,
   });
 }
 
-Option<AmbientLight *> RenderServer::get_ambient_light(uid32 scene_id)
+Option<AmbientLight *> RenderServer::get_ambient_light(uid scene_id)
 {
   return get_scene(scene_id).map(
       [&](Scene *scene) { return &scene->ambient_light; });
 }
 
-Option<DirectionalLight *> RenderServer::get_directional_light(uid32 scene_id,
-                                                               uid32 light_id)
+Option<DirectionalLight *> RenderServer::get_directional_light(uid scene_id,
+                                                               uid light_id)
 {
   return get_scene(scene_id).and_then(
       [&](Scene *scene) -> Option<DirectionalLight *> {
@@ -325,8 +325,8 @@ Option<DirectionalLight *> RenderServer::get_directional_light(uid32 scene_id,
       });
 }
 
-Option<PointLight *> RenderServer::get_point_light(uid32 scene_id,
-                                                   uid32 light_id)
+Option<PointLight *> RenderServer::get_point_light(uid scene_id,
+                                                   uid light_id)
 {
   return get_scene(scene_id).and_then(
       [&](Scene *scene) -> Option<PointLight *> {
@@ -340,7 +340,7 @@ Option<PointLight *> RenderServer::get_point_light(uid32 scene_id,
       });
 }
 
-Option<SpotLight *> RenderServer::get_spot_light(uid32 scene_id, uid32 light_id)
+Option<SpotLight *> RenderServer::get_spot_light(uid scene_id, uid light_id)
 {
   return get_scene(scene_id).and_then([&](Scene *scene) -> Option<SpotLight *> {
     SpotLight *light;
@@ -352,7 +352,7 @@ Option<SpotLight *> RenderServer::get_spot_light(uid32 scene_id, uid32 light_id)
   });
 }
 
-Option<AreaLight *> RenderServer::get_area_light(uid32 scene_id, uid32 light_id)
+Option<AreaLight *> RenderServer::get_area_light(uid scene_id, uid light_id)
 {
   return get_scene(scene_id).and_then([&](Scene *scene) -> Option<AreaLight *> {
     AreaLight *light;
@@ -364,7 +364,7 @@ Option<AreaLight *> RenderServer::get_area_light(uid32 scene_id, uid32 light_id)
   });
 }
 
-void RenderServer::remove_directional_light(uid32 scene_id, uid32 light_id)
+void RenderServer::remove_directional_light(uid scene_id, uid light_id)
 {
   get_scene(scene_id).match(
       [&](Scene *scene) {
@@ -374,7 +374,7 @@ void RenderServer::remove_directional_light(uid32 scene_id, uid32 light_id)
       [] {});
 }
 
-void RenderServer::remove_point_light(uid32 scene_id, uid32 light_id)
+void RenderServer::remove_point_light(uid scene_id, uid light_id)
 {
   get_scene(scene_id).match(
       [&](Scene *scene) {
@@ -384,7 +384,7 @@ void RenderServer::remove_point_light(uid32 scene_id, uid32 light_id)
       [] {});
 }
 
-void RenderServer::remove_spot_light(uid32 scene_id, uid32 light_id)
+void RenderServer::remove_spot_light(uid scene_id, uid light_id)
 {
   get_scene(scene_id).match(
       [&](Scene *scene) {
@@ -394,7 +394,7 @@ void RenderServer::remove_spot_light(uid32 scene_id, uid32 light_id)
       [] {});
 }
 
-void RenderServer::remove_area_light(uid32 scene_id, uid32 light_id)
+void RenderServer::remove_area_light(uid scene_id, uid light_id)
 {
   get_scene(scene_id).match(
       [&](Scene *scene) {
@@ -448,7 +448,7 @@ Result<Void, Error> RenderServer::frustum_cull()
 // - for each partition, invoke the pass with the objects
 //
 Result<Void, Error>
-    RenderServer::encode_view(uid32                          view_id,
+    RenderServer::encode_view(uid                          view_id,
                               gfx::CommandEncoderImpl const &encoder,
                               ViewAttachments const         &attachments)
 {
@@ -504,7 +504,7 @@ Result<Void, Error>
               for_each_partition_indirect(
                   scene.objects.node, indices,
                   [&](Span<u32> indices) {
-                    uid32 const pass_id = scene.objects.node[indices[0]].pass;
+                    uid const pass_id = scene.objects.node[indices[0]].pass;
                     u32 const   pass_index    = pass_group.id_map[pass_id];
                     PassImpl const      &pass = pass_group.passes[pass_index];
                     PassEncodeInfo const info{
@@ -642,7 +642,7 @@ void RenderServer::tick()
     pass.interface->begin_frame(pass.self, this, &encoder);
   }
 
-  if (view_group.root_view != UID32_INVALID)
+  if (view_group.root_view != UID_INVALID)
   {
     // render scene to offscreen image, and then perform
     // post-fx, and then composite back to parent view
