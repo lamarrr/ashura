@@ -22,7 +22,7 @@ constexpr u32 MAX_VIEWPORT_EXTENT                  = 8192;
 constexpr u32 MAX_FRAMEBUFFER_EXTENT               = 8192;
 constexpr u32 MAX_FRAMEBUFFER_LAYERS               = 1024;
 constexpr u32 MAX_VERTEX_ATTRIBUTES                = 16;
-constexpr u32 MAX_PUSH_CONSTANT_SIZE               = 128;
+constexpr u32 MAX_PUSH_CONSTANTS_SIZE              = 128;
 constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS         = 8;
 constexpr u32 MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS = 8;
 constexpr u32 MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS = 8;
@@ -873,7 +873,7 @@ struct BufferBinding
 
 struct DescriptorSetUpdate
 {
-  gfx::DescriptorSet        set           = 0;
+  gfx::DescriptorSet        set           = nullptr;
   u32                       binding       = 0;
   u32                       element       = 0;
   Span<ImageBinding const>  images        = {};
@@ -900,7 +900,7 @@ struct ComputePipelineDesc
 {
   Span<char const>                label                  = {};
   ShaderStageDesc                 compute_shader         = {};
-  u32                             push_constant_size     = 0;
+  u32                             push_constants_size    = 0;
   Span<DescriptorSetLayout const> descriptor_set_layouts = {};
   PipelineCache                   cache                  = nullptr;
 };
@@ -985,7 +985,7 @@ struct GraphicsPipelineDesc
   RenderPass                      render_pass            = nullptr;
   Span<VertexInputBinding const>  vertex_input_bindings  = {};
   Span<VertexAttribute const>     vertex_attributes      = {};
-  u32                             push_constant_size     = 0;
+  u32                             push_constants_size    = 0;
   Span<DescriptorSetLayout const> descriptor_set_layouts = {};
   PrimitiveTopology          primitive_topology  = PrimitiveTopology::PointList;
   PipelineRasterizationState rasterization_state = {};
@@ -1348,12 +1348,12 @@ struct InstanceInterface
 {
   void (*destroy)(Instance self) = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
-      Instance self, Span<DeviceType const> preferred_types,
-      Span<Surface const> compatible_surfaces, u32 buffering,
-      AllocatorImpl allocator)                            = nullptr;
-  Backend (*get_backend)(Instance self)                   = nullptr;
-  void (*destroy_device)(Instance self, Device device)    = nullptr;
-  void (*destroy_surface)(Instance self, Surface surface) = nullptr;
+      Instance self, AllocatorImpl allocator,
+      Span<DeviceType const> preferred_types,
+      Span<Surface const> compatible_surfaces, u32 buffering) = nullptr;
+  Backend (*get_backend)(Instance self)                       = nullptr;
+  void (*destroy_device)(Instance self, Device device)        = nullptr;
+  void (*destroy_surface)(Instance self, Surface surface)     = nullptr;
 };
 
 struct InstanceImpl
@@ -1377,9 +1377,6 @@ Result<InstanceImpl, Status>
 // TODO(lamarrrr): maintaining multiple heaps is impractical and could lead to
 // fragmentation we need to use only one global heap. the descriptor set layout
 // can be used to point to a table containing binding metadata or whatnot.
-//
-// HOW TO MANAGE ALLOCATION, DEALLOCATION, USAGE TRACKING, RELEASE TRACKING,
-// STATISTICS
 //
 // create memory for each descriptor set that will be updated and used for
 // tracking entries, size and spec sourced from layout.

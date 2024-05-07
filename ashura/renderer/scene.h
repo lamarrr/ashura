@@ -56,19 +56,12 @@ struct Scene
   // after add, sort last and present ids by depth? or use hierarchical sort
   // before frame begin or when it is dirty?
   template <typename... Args>
-  Option<uid>            add_object(uid parent, Mat4Affine transform, Box aabb,
-                                    i64 z_index, bool is_transparent, Args &&...args);
-  void                   remove_object(uid object);
-  Option<AmbientLight *> get_ambient_light();
-  Option<DirectionalLight *> get_directional_light(uid id);
-  Option<PointLight *>       get_point_light(uid id);
-  Option<SpotLight *>        get_spot_light(uid id);
-  Option<uid> add_directional_light(DirectionalLight const &light);
-  Option<uid> add_point_light(PointLight const &light);
-  Option<uid> add_spot_light(SpotLight const &light);
-  void        remove_directional_light(uid id);
-  void        remove_point_light(uid id);
-  void        remove_spot_light(uid id);
+  Option<uid>             add_object(uid parent, Mat4Affine transform, Box aabb,
+                                     i64 z_index, bool is_transparent, Args &&...args);
+  void                    remove_object(uid object);
+  Option<PunctualLight *> get_light(uid id);
+  Option<uid>             add_spot_light(PunctualLight const &light);
+  void                    remove_light(uid id);
 };
 
 //?

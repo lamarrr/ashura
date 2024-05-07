@@ -5,6 +5,7 @@
 
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/allocator.h"
+#include "ashura/std/arena_allocator.h"
 #include "ashura/std/vec.h"
 #include "vk_mem_alloc.h"
 #include "vulkan/vk_enum_string_helper.h"
@@ -30,10 +31,10 @@ struct InstanceInterface
 {
   static void destroy(gfx::Instance self);
   static Result<gfx::DeviceImpl, Status>
-                      create_device(gfx::Instance               self,
+                      create_device(gfx::Instance self, AllocatorImpl allocator,
                                     Span<gfx::DeviceType const> preferred_types,
-                                    Span<gfx::Surface const> compatible_surfaces, u32 buffering,
-                                    AllocatorImpl allocator);
+                                    Span<gfx::Surface const>    compatible_surfaces,
+                                    u32                         buffering);
   static gfx::Backend get_backend(gfx::Instance self);
   static void         destroy_device(gfx::Instance self, gfx::Device device);
   static void         destroy_surface(gfx::Instance self, gfx::Surface surface);
@@ -637,13 +638,12 @@ struct DescriptorPool
 /// @pool_size: each pool will have `pool_size` of each descriptor type
 struct DescriptorHeap
 {
-  AllocatorImpl   allocator      = default_allocator;
-  DescriptorPool *pools          = nullptr;
-  u32             pool_size      = 0;
-  void           *scratch        = nullptr;
-  u32             num_pools      = 0;
-  u32             pools_capacity = 0;
-  usize           scratch_size   = 0;
+  AllocatorImpl   allocator    = default_allocator;
+  DescriptorPool *pools        = nullptr;
+  u32             pool_size    = 0;
+  void           *scratch      = nullptr;
+  u32             num_pools    = 0;
+  usize           scratch_size = 0;
 };
 
 struct RenderPass
@@ -670,16 +670,16 @@ struct Framebuffer
 
 struct ComputePipeline
 {
-  VkPipeline       vk_pipeline        = nullptr;
-  VkPipelineLayout vk_layout          = nullptr;
-  u32              push_constant_size = 0;
+  VkPipeline       vk_pipeline         = nullptr;
+  VkPipelineLayout vk_layout           = nullptr;
+  u32              push_constants_size = 0;
 };
 
 struct GraphicsPipeline
 {
-  VkPipeline       vk_pipeline        = nullptr;
-  VkPipelineLayout vk_layout          = nullptr;
-  u32              push_constant_size = 0;
+  VkPipeline       vk_pipeline         = nullptr;
+  VkPipelineLayout vk_layout           = nullptr;
+  u32              push_constants_size = 0;
 };
 
 struct Instance
@@ -712,7 +712,7 @@ enum class CommandEncoderState : u16
 enum class CommandType : u8
 {
   None                  = 0,
-  BindDescriptorSet     = 1,
+  BindDescriptorSets    = 1,
   BindPipeline          = 2,
   PushConstants         = 3,
   SetViewport           = 6,
@@ -761,6 +761,7 @@ struct RenderPassContext
   gfx::DepthStencil depth_stencil_clear_value;
   u32               num_depth_stencil_clear_values             = 0;
   Vec<Command>      commands                                   = {};
+  ArenaBatch        command_allocator                          = {};
   Buffer           *vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
   u32               num_vertex_buffers                         = 0;
   Buffer           *index_buffer                               = nullptr;
@@ -801,13 +802,14 @@ struct CommandEncoder
 {
   AllocatorImpl       allocator         = {};
   Logger             *logger            = nullptr;
-  Device             *device            = nullptr;
+  Device             *dev               = nullptr;
   VkCommandPool       vk_command_pool   = nullptr;
   VkCommandBuffer     vk_command_buffer = nullptr;
   Status              status            = Status::Success;
   CommandEncoderState state             = CommandEncoderState::Reset;
   RenderPassContext   render_ctx        = {};
   ComputePassContext  compute_ctx       = {};
+  ArenaBatch          args_allocator    = {};
 
   bool is_in_render_pass() const
   {

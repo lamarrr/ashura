@@ -1,7 +1,6 @@
 #pragma once
 #include "ashura/gfx/gfx.h"
 #include "ashura/renderer/scene.h"
-#include "ashura/renderer/shader.h"
 #include "ashura/renderer/view.h"
 #include "ashura/std/error.h"
 #include "ashura/std/hash_map.h"

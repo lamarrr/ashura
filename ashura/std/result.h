@@ -1,7 +1,6 @@
 #pragma once
 #include "ashura/std/log.h"
 #include "ashura/std/source_location.h"
-#include <new>
 
 namespace ash
 {
