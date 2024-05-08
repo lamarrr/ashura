@@ -55,7 +55,7 @@ struct Arena
     }
 
     void *aligned = (void *) mem::align_offset((uintptr_t) offset, alignment);
-    void *new_offset = aligned + size;
+    void *new_offset = (char *) aligned + size;
     if (new_offset > end)
     {
       return nullptr;
@@ -257,15 +257,38 @@ struct ArenaBatch
   void *reallocate(usize alignment, void *memory, usize old_size,
                    usize new_size)
   {
-    // try to extend the allocation if it was the last allocation
+    if (new_size > max_arena_size)
+    {
+      return nullptr;
+    }
+
     if (usize i = num_arenas; i-- != 0)
     {
       Arena *arena = arenas + i;
-      if ((arena->offset == ((char *) memory + old_size)) &&
-          (((char *) arena->offset + new_size) <= arena->end))
+      if (arena->offset == ((char *) memory + old_size))
       {
-        arena->offset = memory + new_size;
-        return memory;
+        // try to extend the allocation if it was the last allocation
+        if (((char *) arena->offset + new_size) <= arena->end)
+        {
+          arena->offset = memory + new_size;
+          return memory;
+        }
+
+        // if only allocation on the arena, reallocate arena
+        if (arena->begin == memory)
+        {
+          void *new_memory = source.reallocate(arena->alignment, arena->begin,
+                                               arena->size(), new_size);
+          if (new_memory == nullptr)
+          {
+            return nullptr;
+          }
+          *arena = Arena{.begin     = new_memory,
+                         .offset    = (char *) new_memory + new_size,
+                         .end       = (char *) new_memory + new_size,
+                         .alignment = arena->alignment};
+          return new_memory;
+        }
       }
     }
 
