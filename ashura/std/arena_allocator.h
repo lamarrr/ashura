@@ -100,6 +100,7 @@ struct Arena
 
   void deallocate(usize alignment, void *memory, usize size)
   {
+    (void) alignment;
     // best-case: stack allocation, we can free memory by adjusting to the
     // beginning of allocation
     if (((char *) memory + size) == offset)
@@ -236,8 +237,8 @@ struct ArenaBatch
     arenas       = new_arenas;
     Arena *arena = new (arenas + num_arenas)
         Arena{.begin     = arena_memory,
-              .offset    = arena_memory,
               .end       = (char *) arena_memory + arena_size,
+              .offset    = arena_memory,
               .alignment = alignment};
     num_arenas++;
     return arena->allocate(alignment, size);
@@ -270,7 +271,7 @@ struct ArenaBatch
         // try to extend the allocation if it was the last allocation
         if (((char *) arena->offset + new_size) <= arena->end)
         {
-          arena->offset = memory + new_size;
+          arena->offset = (char *) memory + new_size;
           return memory;
         }
 
@@ -284,8 +285,8 @@ struct ArenaBatch
             return nullptr;
           }
           *arena = Arena{.begin     = new_memory,
-                         .offset    = (char *) new_memory + new_size,
                          .end       = (char *) new_memory + new_size,
+                         .offset    = (char *) new_memory + new_size,
                          .alignment = arena->alignment};
           return new_memory;
         }
@@ -304,6 +305,7 @@ struct ArenaBatch
 
   void deallocate(usize alignment, void *memory, usize size)
   {
+    (void) alignment;
     if (memory == nullptr)
     {
       return;
