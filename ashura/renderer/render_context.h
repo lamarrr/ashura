@@ -58,19 +58,21 @@ struct RenderContext
   static constexpr gfx::FormatFeatures DEPTH_STENCIL_FEATURES =
       gfx::FormatFeatures::DepthStencilAttachment |
       gfx::FormatFeatures::SampledImage;
+  static constexpr gfx::BufferUsage SSBO_USAGE =
+      gfx::BufferUsage::UniformBuffer | gfx::BufferUsage::StorageBuffer |
+      gfx::BufferUsage::UniformTexelBuffer |
+      gfx::BufferUsage::StorageTexelBuffer | gfx::BufferUsage::IndirectBuffer |
+      gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst;
 
   gfx::DeviceImpl    device               = {};
   gfx::PipelineCache pipeline_cache       = nullptr;
   u32                max_frames_in_flight = 0;
   ShaderMap          shader_map           = {};
-  gfx::FrameContext  frame_context        = nullptr;
 
-  gfx::Format              color_format         = gfx::Format::Undefined;
-  gfx::Format              depth_stencil_format = gfx::Format::Undefined;
-  FramebufferAttachments   framebuffer          = {};
-  FramebufferAttachments   scatch_framebuffer   = {};
-  Vec<UniformHeap>         uniform_heaps        = {};
-  gfx::DescriptorSetLayout uniform_layout       = nullptr;
+  gfx::Format            color_format         = gfx::Format::Undefined;
+  gfx::Format            depth_stencil_format = gfx::Format::Undefined;
+  FramebufferAttachments framebuffer          = {};
+  FramebufferAttachments scatch_framebuffer   = {};
 
   Vec<Tuple<gfx::FrameId, gfx::Framebuffer>> released_framebuffers = {};
   Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
@@ -87,18 +89,6 @@ struct RenderContext
   u32                     ring_index();
   gfx::FrameId            frame_id();
   gfx::FrameId            tail_frame_id();
-
-  template <typename T>
-  Uniform push_uniform(T const &uniform)
-  {
-    return uniform_heaps[ring_index()].push(uniform);
-  }
-
-  template <typename T>
-  Uniform push_uniform_range(Span<T const> uniform)
-  {
-    return uniform_heaps[ring_index()].push_range(uniform);
-  }
 
   Option<gfx::Shader> get_shader(Span<char const> name);
 

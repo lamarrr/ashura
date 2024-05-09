@@ -4,7 +4,7 @@
 namespace ash
 {
 
-struct BlurPassShaderUniform
+struct BlurParam
 {
   Vec2 src_offset;
   Vec2 src_extent;

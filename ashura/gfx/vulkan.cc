@@ -4980,6 +4980,7 @@ void CommandEncoderInterface::reset_timestamp_query(gfx::CommandEncoder self_,
 {
   ENCODE_PRELUDE();
   VkQueryPool const vk_pool = (VkQueryPool) query_;
+  sVALIDATE(!self->is_in_pass());
 
   self->dev->vk_table.CmdResetQueryPool(self->vk_command_buffer, vk_pool, 0, 1);
 }
@@ -4989,6 +4990,7 @@ void CommandEncoderInterface::reset_statistics_query(
 {
   ENCODE_PRELUDE();
   VkQueryPool const vk_pool = (VkQueryPool) query_;
+  sVALIDATE(!self->is_in_pass());
 
   self->dev->vk_table.CmdResetQueryPool(self->vk_command_buffer, vk_pool, 0, 1);
 }
@@ -4997,6 +4999,7 @@ void CommandEncoderInterface::write_timestamp(gfx::CommandEncoder self_,
                                               gfx::TimeStampQuery query_)
 {
   ENCODE_PRELUDE();
+  sVALIDATE(!self->is_in_pass());
   VkQueryPool const vk_pool = (VkQueryPool) query_;
   self->dev->vk_table.CmdWriteTimestamp(self->vk_command_buffer,
                                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
@@ -5007,6 +5010,7 @@ void CommandEncoderInterface::begin_statistics(gfx::CommandEncoder  self_,
                                                gfx::StatisticsQuery query_)
 {
   ENCODE_PRELUDE();
+  sVALIDATE(!self->is_in_pass());
   VkQueryPool const vk_pool = (VkQueryPool) query_;
   self->dev->vk_table.CmdBeginQuery(self->vk_command_buffer, vk_pool, 0, 0);
 }
@@ -5015,6 +5019,7 @@ void CommandEncoderInterface::end_statistics(gfx::CommandEncoder  self_,
                                              gfx::StatisticsQuery query_)
 {
   ENCODE_PRELUDE();
+  sVALIDATE(!self->is_in_pass());
   VkQueryPool const vk_pool = (VkQueryPool) query_;
   self->dev->vk_table.CmdEndQuery(self->vk_command_buffer, vk_pool, 0);
 }
@@ -5024,7 +5029,7 @@ void CommandEncoderInterface::begin_debug_marker(gfx::CommandEncoder self_,
                                                  Vec4             color)
 {
   ENCODE_PRELUDE();
-
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(region_name.size() < 256);
   char region_name_cstr[256];
   to_c_str(region_name, to_span(region_name_cstr));
@@ -5040,6 +5045,7 @@ void CommandEncoderInterface::begin_debug_marker(gfx::CommandEncoder self_,
 void CommandEncoderInterface::end_debug_marker(gfx::CommandEncoder self_)
 {
   ENCODE_PRELUDE();
+  sVALIDATE(!self->is_in_pass());
   self->dev->vk_table.CmdDebugMarkerEndEXT(self->vk_command_buffer);
 }
 
@@ -5050,7 +5056,7 @@ void CommandEncoderInterface::fill_buffer(gfx::CommandEncoder self_,
   ENCODE_PRELUDE();
   Buffer *const dst = (Buffer *) dst_;
 
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   sVALIDATE(is_valid_buffer_access(dst->desc.size, offset, size, 4));
 
@@ -5069,7 +5075,7 @@ void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self_,
   Buffer *const dst        = (Buffer *) dst_;
   u32 const     num_copies = (u32) copies.size();
 
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(has_bits(src->desc.usage, gfx::BufferUsage::TransferSrc));
   sVALIDATE(has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   sVALIDATE(num_copies > 0);
@@ -5115,7 +5121,7 @@ void CommandEncoderInterface::update_buffer(gfx::CommandEncoder self_,
   Buffer *const dst       = (Buffer *) dst_;
   u64 const     copy_size = src.size_bytes();
 
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   sVALIDATE(is_valid_buffer_access(dst->desc.size, dst_offset, copy_size, 4));
 
@@ -5135,7 +5141,7 @@ void CommandEncoderInterface::clear_color_image(
   u32 const    num_ranges = (u32) ranges.size();
 
   static_assert(sizeof(gfx::Color) == sizeof(VkClearColorValue));
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
   sVALIDATE(num_ranges > 0);
   for (u32 i = 0; i < num_ranges; i++)
@@ -5190,7 +5196,7 @@ void CommandEncoderInterface::clear_depth_stencil_image(
   u32 const    num_ranges = (u32) ranges.size();
 
   static_assert(sizeof(gfx::DepthStencil) == sizeof(VkClearDepthStencilValue));
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(num_ranges > 0);
   sVALIDATE(has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
   for (u32 i = 0; i < num_ranges; i++)
@@ -5245,7 +5251,7 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
   Image *const dst        = (Image *) dst_;
   u32 const    num_copies = (u32) copies.size();
 
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(num_copies > 0);
   sVALIDATE(has_bits(src->desc.usage, gfx::ImageUsage::TransferSrc));
   sVALIDATE(has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
@@ -5340,7 +5346,7 @@ void CommandEncoderInterface::copy_buffer_to_image(
   Image *const  dst        = (Image *) dst_;
   u32 const     num_copies = (u32) copies.size();
 
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(num_copies > 0);
   sVALIDATE(has_bits(src->desc.usage, gfx::BufferUsage::TransferSrc));
   sVALIDATE(has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
@@ -5419,7 +5425,7 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
   Image *const dst       = (Image *) dst_;
   u32 const    num_blits = (u32) blits.size();
 
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(num_blits > 0);
   sVALIDATE(has_bits(src->desc.usage, gfx::ImageUsage::TransferSrc));
   sVALIDATE(has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
@@ -5524,7 +5530,7 @@ void CommandEncoderInterface::resolve_image(
   Image *const dst          = (Image *) dst_;
   u32 const    num_resolves = (u32) resolves.size();
 
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(num_resolves > 0);
   sVALIDATE(has_bits(src->desc.usage, gfx::ImageUsage::TransferSrc));
   sVALIDATE(has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
@@ -5616,6 +5622,22 @@ void CommandEncoderInterface::resolve_image(
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, num_resolves, vk_resolves);
 }
 
+void CommandEncoderInterface::begin_compute_pass(gfx::CommandEncoder self_)
+{
+  ENCODE_PRELUDE();
+  sVALIDATE(!self->is_in_pass());
+
+  self->state = CommandEncoderState::ComputePass;
+}
+
+void CommandEncoderInterface::end_compute_pass(gfx::CommandEncoder self_)
+{
+  ENCODE_PRELUDE();
+  sVALIDATE(self->is_in_compute_pass());
+
+  self->reset_context();
+}
+
 void CommandEncoderInterface::begin_render_pass(
     gfx::CommandEncoder self_, gfx::Framebuffer framebuffer_,
     gfx::RenderPass render_pass_, gfx::Offset render_offset,
@@ -5632,7 +5654,7 @@ void CommandEncoderInterface::begin_render_pass(
       (u32) depth_stencil_attachment_clear_value.size();
 
   sVALIDATE(render_pass != nullptr);
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(!self->is_in_pass());
   sVALIDATE(num_depth_clear_values == 0 || num_depth_clear_values == 1);
   sVALIDATE(is_render_pass_compatible(
       *render_pass,
@@ -5669,7 +5691,6 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
 
   sVALIDATE(self->is_in_render_pass());
 
-  // TODO(lamarrr): reset command buffer memory allocations
   for (Command const &cmd : self->render_ctx.commands)
   {
     switch (cmd.type)
@@ -5918,7 +5939,7 @@ void CommandEncoderInterface::bind_compute_pipeline(
   ENCODE_PRELUDE();
   ComputePassContext &ctx = self->compute_ctx;
 
-  sVALIDATE(!self->is_in_render_pass());
+  sVALIDATE(self->is_in_compute_pass());
 
   self->state  = CommandEncoderState::ComputePass;
   ctx.pipeline = (ComputePipeline *) pipeline;
@@ -5958,6 +5979,7 @@ void CommandEncoderInterface::bind_descriptor_sets(
   u64 const ssbo_offset_alignment =
       self->dev->phy_dev.vk_properties.limits.minStorageBufferOffsetAlignment;
 
+  sVALIDATE(self->is_in_pass());
   sVALIDATE(num_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
   sVALIDATE(num_dynamic_offsets <= (gfx::MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS +
                                     gfx::MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS));
@@ -6013,10 +6035,6 @@ void CommandEncoderInterface::bind_descriptor_sets(
       return;
     }
   }
-  else
-  {
-    sUNREACHABLE();
-  }
 }
 
 void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
@@ -6026,7 +6044,7 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
   sVALIDATE(push_constants_data.size_bytes() <= gfx::MAX_PUSH_CONSTANTS_SIZE);
   u32 const push_constants_size = (u32) push_constants_data.size_bytes();
   sVALIDATE(mem::is_aligned(4, push_constants_size));
-  sVALIDATE(self->is_in_compute_pass() || self->is_in_render_pass());
+  sVALIDATE(self->is_in_pass());
 
   if (self->is_in_compute_pass())
   {
@@ -6054,10 +6072,6 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
       self->status = Status::OutOfHostMemory;
       return;
     }
-  }
-  else
-  {
-    sUNREACHABLE();
   }
 }
 

@@ -2,7 +2,7 @@
 
 #include "ashura/engine/key.h"
 #include "ashura/std/option.h"
-#include "ashura/std/rect.h"
+#include "ashura/std/math.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 

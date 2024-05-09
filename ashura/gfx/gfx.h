@@ -127,7 +127,7 @@ enum class [[nodiscard]] Status : i32
   SurfaceLost          = -1000000000
 };
 
-enum class Format : u8
+enum class Format : i32
 {
   Undefined                  = 0,
   R4G4_UNORM_PACK8           = 1,
@@ -316,7 +316,7 @@ enum class Format : u8
   ASTC_12x12_SRGB_BLOCK      = 184
 };
 
-enum class ColorSpace : u32
+enum class ColorSpace : i32
 {
   SRGB_NONLINEAR          = 0,
   DISPLAY_P3_NONLINEAR    = 1000104001,
@@ -335,7 +335,7 @@ enum class ColorSpace : u32
   EXTENDED_SRGB_NONLINEAR = 1000104014
 };
 
-enum class FormatFeatures : u16
+enum class FormatFeatures : u32
 {
   None                     = 0x0000U,
   SampledImage             = 0x0001U,
@@ -535,7 +535,7 @@ enum class ColorComponents : u8
 
 ASH_DEFINE_ENUM_BIT_OPS(ColorComponents)
 
-enum class BufferUsage : u16
+enum class BufferUsage : u32
 {
   None               = 0x0000U,
   TransferSrc        = 0x0001U,
@@ -551,7 +551,7 @@ enum class BufferUsage : u16
 
 ASH_DEFINE_ENUM_BIT_OPS(BufferUsage)
 
-enum class ImageUsage : u8
+enum class ImageUsage : u32
 {
   None                   = 0x00U,
   TransferSrc            = 0x01U,
@@ -649,7 +649,7 @@ enum class IndexType : u8
   Uint32 = 1
 };
 
-enum class CompositeAlpha : u8
+enum class CompositeAlpha : u32
 {
   None           = 0x00U,
   Opaque         = 0x01U,
@@ -1170,6 +1170,8 @@ struct CommandEncoderInterface
                      Span<ImageBlit const> blits, Filter filter)   = nullptr;
   void (*resolve_image)(CommandEncoder self, Image src, Image dst,
                         Span<ImageResolve const> resolves)         = nullptr;
+  void (*begin_compute_pass)(CommandEncoder self)                  = nullptr;
+  void (*end_compute_pass)(CommandEncoder self)                    = nullptr;
   void (*begin_render_pass)(
       CommandEncoder self, Framebuffer framebuffer, RenderPass render_pass,
       Offset render_offset, Extent render_extent,
@@ -1393,66 +1395,9 @@ Result<InstanceImpl, Status>
 // USAGE/RELEASE TRACKING CAN BE DONE BY THE USER. UPON DEALLOCATION, UPDATE
 // STATS
 //
-// timestamp or stats must not be inserted in render pass
-//
-// todo(LAMARRR): dynamic offsets would need to be per-binding
 
 struct FreeTable
 {
 };
-
-// TODO(lamarrr): perhaps we should just make it easy to persist. i.e. if we
-// repeatedly call a rrect pass with same parameters but different draw offsets
-// and indices. we wouldn't need to frequently update descriptor sets or what
-// not. no caching as well.
-//
-// StorageBufferSpan(buffer_size, max_suballocations = U32_MAX)::
-// .offset, .num_allocations, min_alignment
-// - advance(size, alignment) -> offset
-// - reset()
-//
-//
-// check UBO size limits!
-// check UBO range limits!
-// UniformBufferSpan (buffer_size, max_allocations = U32_MAX):: -
-//  .offset, .num_allocations, min_alignment
-// - advance(size, alignment) -> (set, buffer) | error on resize needed
-// - reset()
-//
-//
-// - num set allocations -> max_num_uniforms
-// - uniform buffer size -> buffer_size
-//
-// - how will offsets work for uboheap?
-//
-// we can thus natively support pushing storage/uniform buffers (deferred)
-// commit buffers/readback
-//
-//
-// - review set layot compat checks
-//
-// immediate - non/non-persistent non-allocating usage
-// TODO(lamarrr): rename to buffer and allow usage with SSBO
-// should contain both SSBO and UBO sets, take usage type and return appropriate
-// descriptor set for it, and use that for allocating descriptors if needed.
-// ALLOW both usages and align to the greater alignment.
-//
-//
-// Uniform push_bytes(Span<u8 const> uniform, u32 alignment)
-// {
-//   u32 const classed_size = size_classes_[size_class];
-//   u32       buffer_offset =
-//       mem::align_offset(max(alignment, min_uniform_buffer_offset_alignment_),
-//                         batch_buffer_offset_);
-//
-//   gfx::BufferUsage::UniformBuffer | gfx::BufferUsage::TransferDst |
-//       gfx::BufferUsage::TransferSrc;
-//
-//   mem::copy(uniform, map + buffer_offset);
-//   device_
-//       ->flush_buffer_memory_map(device_.self, batch.buffer,
-//                                 gfx::MemoryRange{0, gfx::WHOLE_SIZE})
-//       .unwrap();
-// }
 
 }        // namespace ash

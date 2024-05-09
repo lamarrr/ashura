@@ -191,6 +191,8 @@ struct CommandEncoderInterface
   static void resolve_image(gfx::CommandEncoder self, gfx::Image src,
                             gfx::Image                    dst,
                             Span<gfx::ImageResolve const> resolves);
+  static void begin_compute_pass(gfx::CommandEncoder self);
+  static void end_compute_pass(gfx::CommandEncoder self);
   static void begin_render_pass(
       gfx::CommandEncoder self, gfx::Framebuffer framebuffer,
       gfx::RenderPass render_pass, gfx::Offset render_offset,
@@ -198,6 +200,7 @@ struct CommandEncoderInterface
       Span<gfx::Color const>        color_attachments_clear_values,
       Span<gfx::DepthStencil const> depth_stencil_attachment_clear_value);
   static void end_render_pass(gfx::CommandEncoder self);
+
   static void bind_compute_pipeline(gfx::CommandEncoder  self,
                                     gfx::ComputePipeline pipeline);
   static void bind_graphics_pipeline(gfx::CommandEncoder   self,
@@ -325,6 +328,8 @@ static gfx::CommandEncoderInterface const command_encoder_interface{
     .copy_buffer_to_image   = CommandEncoderInterface::copy_buffer_to_image,
     .blit_image             = CommandEncoderInterface::blit_image,
     .resolve_image          = CommandEncoderInterface::resolve_image,
+    .begin_compute_pass     = CommandEncoderInterface::begin_compute_pass,
+    .end_compute_pass       = CommandEncoderInterface::end_compute_pass,
     .begin_render_pass      = CommandEncoderInterface::begin_render_pass,
     .end_render_pass        = CommandEncoderInterface::end_render_pass,
     .bind_compute_pipeline  = CommandEncoderInterface::bind_compute_pipeline,
@@ -821,6 +826,11 @@ struct CommandEncoder
   bool is_in_compute_pass() const
   {
     return state == CommandEncoderState::ComputePass;
+  }
+
+  bool is_in_pass() const
+  {
+    return is_in_render_pass() || is_in_compute_pass();
   }
 
   bool is_recording() const
