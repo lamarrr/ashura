@@ -54,10 +54,10 @@ TEST(SparseSetTest, Start)
   EXPECT_EQ(bv.size(), 1);
   EXPECT_TRUE(bv[0]);
 
-  SparseVec<u64> set{.index_to_id = {default_allocator},
-                     .id_to_index = {default_allocator}};
-  BitVec<u64>    bool_attr{Vec<u64>{default_allocator}, 0};
-  Vec<u32>       int_attr{default_allocator};
+  SparseVec   set{.index_to_id = {default_allocator},
+                  .id_to_index = {default_allocator}};
+  BitVec<u64> bool_attr{Vec<u64>{default_allocator}, 0};
+  Vec<u32>    int_attr{default_allocator};
 
   ASSERT_TRUE(set.push(
       [&](u64 id, u64 index) {

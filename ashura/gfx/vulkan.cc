@@ -1486,17 +1486,21 @@ Status create_command_encoder(Device *dev, CommandEncoder *enc)
                     VK_OBJECT_TYPE_COMMAND_BUFFER,
                     VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT);
 
-  new (enc)
-      CommandEncoder{.allocator         = dev->allocator,
-                     .logger            = dev->logger,
-                     .dev               = dev,
-                     .vk_command_pool   = vk_command_pool,
-                     .vk_command_buffer = vk_command_buffer,
-                     .status            = Status::Success,
-                     .state             = CommandEncoderState::Reset,
-                     .render_ctx  = {.commands = Vec<Command>{dev->allocator},
-                                     .command_allocator = dev->allocator},
-                     .compute_ctx = {}};
+  new (enc) CommandEncoder{
+      .allocator         = dev->allocator,
+      .logger            = dev->logger,
+      .dev               = dev,
+      .arg_pool          = ArenaPool{dev->allocator},
+      .vk_command_pool   = vk_command_pool,
+      .vk_command_buffer = vk_command_buffer,
+      .status            = Status::Success,
+      .state             = CommandEncoderState::Reset,
+      .render_ctx = RenderPassContext{.command_pool = ArenaPool{dev->allocator},
+                                      .arg_pool = ArenaPool{dev->allocator}},
+      .compute_ctx = {}};
+
+  enc->render_ctx.commands =
+      Vec<Command>{enc->render_ctx.command_pool.to_allocator()};
 
   return Status::Success;
 }
@@ -4966,6 +4970,10 @@ Result<gfx::PipelineStatistics, Status>
   if (self->status != Status::Success)                   \
   {                                                      \
     return;                                              \
+  }                                                      \
+  defer prelude_reset_arg_pool                           \
+  {                                                      \
+    [&] { self->arg_pool.reset(); }                      \
   }
 
 void CommandEncoderInterface::reset_timestamp_query(gfx::CommandEncoder self_,
@@ -5075,7 +5083,7 @@ void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self_,
   }
 
   VkBufferCopy *vk_copies =
-      self->allocator.allocate_typed<VkBufferCopy>(num_copies);
+      self->arg_pool.allocate_typed<VkBufferCopy>(num_copies);
 
   if (vk_copies == nullptr)
   {
@@ -5098,10 +5106,6 @@ void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self_,
 
   self->dev->vk_table.CmdCopyBuffer(self->vk_command_buffer, src->vk_buffer,
                                     dst->vk_buffer, num_copies, vk_copies);
-
-  self->allocator.deallocate_typed(vk_copies, num_copies);
-  // TODO(lamarrr): switch to args allocator
-  // self->args_allocator.reset();
 }
 
 void CommandEncoderInterface::update_buffer(gfx::CommandEncoder self_,
@@ -5145,7 +5149,7 @@ void CommandEncoderInterface::clear_color_image(
   }
 
   VkImageSubresourceRange *vk_ranges =
-      self->allocator.allocate_typed<VkImageSubresourceRange>(num_ranges);
+      self->arg_pool.allocate_typed<VkImageSubresourceRange>(num_ranges);
 
   if (vk_ranges == nullptr)
   {
@@ -5175,8 +5179,6 @@ void CommandEncoderInterface::clear_color_image(
                                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                          &vk_clear_color, num_ranges,
                                          vk_ranges);
-
-  self->allocator.deallocate_typed(vk_ranges, num_ranges);
 }
 
 void CommandEncoderInterface::clear_depth_stencil_image(
@@ -5202,7 +5204,7 @@ void CommandEncoderInterface::clear_depth_stencil_image(
   }
 
   VkImageSubresourceRange *vk_ranges =
-      self->allocator.allocate_typed<VkImageSubresourceRange>(num_ranges);
+      self->arg_pool.allocate_typed<VkImageSubresourceRange>(num_ranges);
 
   if (vk_ranges == nullptr)
   {
@@ -5233,8 +5235,6 @@ void CommandEncoderInterface::clear_depth_stencil_image(
       self->vk_command_buffer, dst->vk_image,
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vk_clear_depth_stencil, num_ranges,
       vk_ranges);
-
-  self->allocator.deallocate_typed(vk_ranges, num_ranges);
 }
 
 void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
@@ -5285,7 +5285,7 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
   }
 
   VkImageCopy *vk_copies =
-      self->allocator.allocate_typed<VkImageCopy>(num_copies);
+      self->arg_pool.allocate_typed<VkImageCopy>(num_copies);
 
   if (vk_copies == nullptr)
   {
@@ -5330,8 +5330,6 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
       self->vk_command_buffer, src->vk_image,
       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->vk_image,
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, num_copies, vk_copies);
-
-  self->allocator.deallocate_typed(vk_copies, num_copies);
 }
 
 void CommandEncoderInterface::copy_buffer_to_image(
@@ -5373,7 +5371,7 @@ void CommandEncoderInterface::copy_buffer_to_image(
   }
 
   VkBufferImageCopy *vk_copies =
-      self->allocator.allocate_typed<VkBufferImageCopy>(num_copies);
+      self->arg_pool.allocate_typed<VkBufferImageCopy>(num_copies);
 
   if (vk_copies == nullptr)
   {
@@ -5410,8 +5408,6 @@ void CommandEncoderInterface::copy_buffer_to_image(
   self->dev->vk_table.CmdCopyBufferToImage(
       self->vk_command_buffer, src->vk_buffer, dst->vk_image,
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, num_copies, vk_copies);
-
-  self->allocator.deallocate_typed(vk_copies, num_copies);
 }
 
 void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
@@ -5470,8 +5466,7 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
                 (blit.src_offsets[0].z != 0 | blit.dst_offsets[1].z != 1)));
   }
 
-  VkImageBlit *vk_blits =
-      self->allocator.allocate_typed<VkImageBlit>(num_blits);
+  VkImageBlit *vk_blits = self->arg_pool.allocate_typed<VkImageBlit>(num_blits);
 
   if (vk_blits == nullptr)
   {
@@ -5519,8 +5514,6 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
                                    dst->vk_image,
                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                    num_blits, vk_blits, (VkFilter) filter);
-
-  self->allocator.deallocate_typed(vk_blits, num_blits);
 }
 
 void CommandEncoderInterface::resolve_image(
@@ -5575,7 +5568,7 @@ void CommandEncoderInterface::resolve_image(
   }
 
   VkImageResolve *vk_resolves =
-      self->allocator.allocate_typed<VkImageResolve>(num_resolves);
+      self->arg_pool.allocate_typed<VkImageResolve>(num_resolves);
 
   if (vk_resolves == nullptr)
   {
@@ -5622,8 +5615,6 @@ void CommandEncoderInterface::resolve_image(
       self->vk_command_buffer, src->vk_image,
       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->vk_image,
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, num_resolves, vk_resolves);
-
-  self->allocator.deallocate_typed(vk_resolves, num_resolves);
 }
 
 void CommandEncoderInterface::begin_render_pass(
@@ -5801,9 +5792,6 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
             self->vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
             pipeline->vk_layout, 0, cmd.set.v1, vk_sets, cmd.set.v3,
             cmd.set.v2);
-
-        ctx.command_allocator.deallocate_typed(cmd.set.v0, cmd.set.v1);
-        ctx.command_allocator.deallocate_typed(cmd.set.v2, cmd.set.v3);
       }
       break;
       case CommandType::BindPipeline:
@@ -5819,8 +5807,6 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
         self->dev->vk_table.CmdPushConstants(
             self->vk_command_buffer, pipeline->vk_layout, VK_SHADER_STAGE_ALL,
             0, pipeline->push_constants_size, cmd.push_constant.v0);
-        ctx.command_allocator.deallocate_typed(cmd.push_constant.v0,
-                                               cmd.push_constant.v1);
       }
       break;
       case CommandType::SetViewport:
@@ -6002,18 +5988,17 @@ void CommandEncoderInterface::bind_descriptor_sets(
   {
     sVALIDATE(self->render_ctx.pipeline != nullptr);
     DescriptorSet **sets =
-        self->render_ctx.command_allocator.allocate_typed<DescriptorSet *>(
-            num_sets);
+        self->render_ctx.arg_pool.allocate_typed<DescriptorSet *>(num_sets);
     if (sets == nullptr)
     {
       self->status = Status::OutOfHostMemory;
       return;
     }
-    u32 *offsets = self->render_ctx.command_allocator.allocate_typed<u32>(
-        num_dynamic_offsets);
+    u32 *offsets =
+        self->render_ctx.arg_pool.allocate_typed<u32>(num_dynamic_offsets);
     if (sets == nullptr)
     {
-      self->render_ctx.command_allocator.deallocate_typed(sets, num_sets);
+      self->render_ctx.arg_pool.deallocate_typed(sets, num_sets);
       self->status = Status::OutOfHostMemory;
       return;
     }
@@ -6023,9 +6008,8 @@ void CommandEncoderInterface::bind_descriptor_sets(
             Command{.type = CommandType::BindDescriptorSets,
                     .set  = {sets, num_sets, offsets, num_dynamic_offsets}}))
     {
-      self->render_ctx.command_allocator.deallocate_typed(offsets,
-                                                          num_dynamic_offsets);
-      self->render_ctx.command_allocator.deallocate_typed(sets, num_sets);
+      self->render_ctx.arg_pool.deallocate_typed(offsets, num_dynamic_offsets);
+      self->render_ctx.arg_pool.deallocate_typed(sets, num_sets);
       self->status = Status::OutOfHostMemory;
       return;
     }
@@ -6060,8 +6044,8 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
     sVALIDATE(self->render_ctx.pipeline != nullptr);
     sVALIDATE(push_constants_size ==
               self->render_ctx.pipeline->push_constants_size);
-    u8 *data = self->render_ctx.command_allocator.allocate_typed<u8>(
-        push_constants_size);
+    u8 *data =
+        self->render_ctx.arg_pool.allocate_typed<u8>(push_constants_size);
     sCHECK(data != nullptr);
     mem::copy(push_constants_data, data);
     if (!self->render_ctx.commands.push(

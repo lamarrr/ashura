@@ -33,32 +33,32 @@ void ArenaInterface::deallocate(Allocator self_, usize alignment, void *memory,
   return self->deallocate(alignment, memory, size);
 }
 
-void *ArenaBatchInterface::allocate(Allocator self_, usize alignment,
+void *ArenaPoolInterface::allocate(Allocator self_, usize alignment,
                                     usize size)
 {
-  ArenaBatch *self = (ArenaBatch *) self_;
+  ArenaPool *self = (ArenaPool *) self_;
   return self->allocate(alignment, size);
 }
 
-void *ArenaBatchInterface::allocate_zeroed(Allocator self_, usize alignment,
+void *ArenaPoolInterface::allocate_zeroed(Allocator self_, usize alignment,
                                            usize size)
 {
-  ArenaBatch *self = (ArenaBatch *) self_;
+  ArenaPool *self = (ArenaPool *) self_;
   return self->allocate_zeroed(alignment, size);
 }
 
-void *ArenaBatchInterface::reallocate(Allocator self_, usize alignment,
+void *ArenaPoolInterface::reallocate(Allocator self_, usize alignment,
                                       void *memory, usize old_size,
                                       usize new_size)
 {
-  ArenaBatch *self = (ArenaBatch *) self_;
+  ArenaPool *self = (ArenaPool *) self_;
   return self->reallocate(alignment, memory, old_size, new_size);
 }
 
-void ArenaBatchInterface::deallocate(Allocator self_, usize alignment,
+void ArenaPoolInterface::deallocate(Allocator self_, usize alignment,
                                      void *memory, usize size)
 {
-  ArenaBatch *self = (ArenaBatch *) self_;
+  ArenaPool *self = (ArenaPool *) self_;
   return self->deallocate(alignment, memory, size);
 }
 

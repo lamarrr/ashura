@@ -1020,7 +1020,7 @@ static void BM_HashMap16(benchmark::State &state)
     for (auto &dp : DATASET)
     {
       bool exists;
-      map.insert(exists, nullptr, dp.v0, dp.v1);
+      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
     }
     for (auto &dp : DATASET)
     {
@@ -1034,6 +1034,7 @@ static void BM_HashMap16(benchmark::State &state)
       map.erase(dp.v0);
     }
   }
+  printf("num unique inserts: %d\n", count);
 }
 
 static void BM_HashMap8(benchmark::State &state)
@@ -1045,7 +1046,7 @@ static void BM_HashMap8(benchmark::State &state)
     for (auto &dp : DATASET)
     {
       bool exists;
-      map.insert(exists, nullptr, dp.v0, dp.v1);
+      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
     }
     for (auto &dp : DATASET)
     {
@@ -1059,6 +1060,7 @@ static void BM_HashMap8(benchmark::State &state)
       map.erase(dp.v0);
     }
   }
+  printf("num unique inserts: %d\n", count);
 }
 
 static void BM_HashMap32(benchmark::State &state)
@@ -1070,7 +1072,7 @@ static void BM_HashMap32(benchmark::State &state)
     for (auto &dp : DATASET)
     {
       bool exists;
-      map.insert(exists, nullptr, dp.v0, dp.v1);
+      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
     }
     for (auto &dp : DATASET)
     {
@@ -1084,6 +1086,7 @@ static void BM_HashMap32(benchmark::State &state)
       map.erase(dp.v0);
     }
   }
+  printf("num unique inserts: %d\n", count);
 }
 
 static void BM_HashMap64(benchmark::State &state)
@@ -1095,7 +1098,7 @@ static void BM_HashMap64(benchmark::State &state)
     for (auto &dp : DATASET)
     {
       bool exists;
-      map.insert(exists, nullptr, dp.v0, dp.v1);
+      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
     }
     for (auto &dp : DATASET)
     {
@@ -1109,6 +1112,7 @@ static void BM_HashMap64(benchmark::State &state)
       map.erase(dp.v0);
     }
   }
+  printf("num unique inserts: %d\n", count);
 }
 
 template <class T>
@@ -1207,6 +1211,7 @@ static void BM_StdHashMap(benchmark::State &state)
       map.erase(dp.v0);
     }
   }
+  printf("num unique inserts: %d\n", count);
 }
 
 template <>
@@ -1253,6 +1258,7 @@ static void BM_StdHashMapDefaultHash(benchmark::State &state)
       map.erase(dp.v0);
     }
   }
+  printf("num unique inserts: %d\n", count);
 }
 
 static void BM_StdHashMapDefaultHashDefaultAlloc(benchmark::State &state)
@@ -1279,6 +1285,7 @@ static void BM_StdHashMapDefaultHashDefaultAlloc(benchmark::State &state)
       map.erase(dp.v0);
     }
   }
+  printf("num unique inserts: %d\n", count);
 }
 
 static void BM_StdOrderedMapDefaultAlloc(benchmark::State &state)
@@ -1303,6 +1310,7 @@ static void BM_StdOrderedMapDefaultAlloc(benchmark::State &state)
       map.erase(dp.v0);
     }
   }
+  printf("num unique inserts: %d\n", count);
 }
 
 constexpr int ITERATIONS = 100'000;

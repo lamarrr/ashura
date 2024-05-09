@@ -267,9 +267,9 @@ static gfx::DeviceInterface const device_interface{
     .create_pipeline_cache    = DeviceInterface::create_pipeline_cache,
     .create_compute_pipeline  = DeviceInterface::create_compute_pipeline,
     .create_graphics_pipeline = DeviceInterface::create_graphics_pipeline,
+    .create_swapchain         = DeviceInterface::create_swapchain,
     .create_timestamp_query   = DeviceInterface::create_timestamp_query,
     .create_statistics_query  = DeviceInterface::create_statistics_query,
-    .create_swapchain         = DeviceInterface::create_swapchain,
     .destroy_buffer           = DeviceInterface::destroy_buffer,
     .destroy_buffer_view      = DeviceInterface::destroy_buffer_view,
     .destroy_image            = DeviceInterface::destroy_image,
@@ -599,7 +599,7 @@ struct ImageView
 
 struct DescriptorSetLayout
 {
-  gfx::DescriptorBindingDesc bindings[gfx::MAX_DESCRIPTOR_SET_BINDINGS];
+  gfx::DescriptorBindingDesc bindings[gfx::MAX_DESCRIPTOR_SET_BINDINGS] = {};
   VkDescriptorSetLayout      vk_layout                    = nullptr;
   u32                        sizing[NUM_DESCRIPTOR_TYPES] = {};
   u32                        num_bindings                 = 0;
@@ -684,11 +684,11 @@ struct GraphicsPipeline
 
 struct Instance
 {
-  AllocatorImpl            allocator   = {};
-  Logger                  *logger      = {};
-  InstanceTable            vk_table    = {};
-  VkInstance               vk_instance = nullptr;
-  VkDebugUtilsMessengerEXT vk_debug_messenger;
+  AllocatorImpl            allocator                = {};
+  Logger                  *logger                   = {};
+  InstanceTable            vk_table                 = {};
+  VkInstance               vk_instance              = nullptr;
+  VkDebugUtilsMessengerEXT vk_debug_messenger       = nullptr;
   bool                     validation_layer_enabled = false;
 };
 
@@ -754,17 +754,18 @@ struct RenderPassContext
 {
   RenderPass  *render_pass = nullptr;
   Framebuffer *framebuffer = nullptr;
-  gfx::Offset  offset;
-  gfx::Extent  extent;
+  gfx::Offset  offset      = {};
+  gfx::Extent  extent      = {};
   gfx::Color   color_clear_values[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS] = {};
   u32          num_color_clear_values                                  = 0;
-  gfx::DepthStencil depth_stencil_clear_value;
-  u32               num_depth_stencil_clear_values             = 0;
-  Vec<Command>      commands                                   = {};
-  ArenaBatch        command_allocator                          = {};
-  Buffer           *vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
-  u32               num_vertex_buffers                         = 0;
-  Buffer           *index_buffer                               = nullptr;
+  gfx::DepthStencil depth_stencil_clear_value                          = {};
+  u32               num_depth_stencil_clear_values                     = 0;
+  Vec<Command>      commands                                           = {};
+  ArenaPool         command_pool                                       = {};
+  ArenaPool         arg_pool                                           = {};
+  Buffer           *vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES]         = {};
+  u32               num_vertex_buffers                                 = 0;
+  Buffer           *index_buffer        = nullptr;
   gfx::IndexType    index_type          = gfx::IndexType::Uint16;
   u64               index_buffer_offset = 0;
   GraphicsPipeline *pipeline            = nullptr;
@@ -778,6 +779,7 @@ struct RenderPassContext
     num_color_clear_values         = 0;
     num_depth_stencil_clear_values = 0;
     commands.clear();
+    arg_pool.reset();
     num_vertex_buffers  = 0;
     index_buffer        = nullptr;
     index_buffer_offset = 0;
@@ -803,13 +805,13 @@ struct CommandEncoder
   AllocatorImpl       allocator         = {};
   Logger             *logger            = nullptr;
   Device             *dev               = nullptr;
+  ArenaPool           arg_pool          = {};
   VkCommandPool       vk_command_pool   = nullptr;
   VkCommandBuffer     vk_command_buffer = nullptr;
   Status              status            = Status::Success;
   CommandEncoderState state             = CommandEncoderState::Reset;
   RenderPassContext   render_ctx        = {};
   ComputePassContext  compute_ctx       = {};
-  ArenaBatch          args_allocator    = {};
 
   bool is_in_render_pass() const
   {

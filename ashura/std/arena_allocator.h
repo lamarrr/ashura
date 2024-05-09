@@ -111,6 +111,32 @@ struct Arena
     }
   }
 
+  template <typename T>
+  [[nodiscard]] constexpr T *allocate_typed(usize num)
+  {
+    return (T *) allocate(alignof(T), sizeof(T) * num);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr T *allocate_zeroed_typed(usize num)
+  {
+    return (T *) allocate_zeroed(alignof(T), sizeof(T) * num);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr T *reallocate_typed(T *memory, usize old_num,
+                                              usize new_num)
+  {
+    return (T *) reallocate(alignof(T), memory, sizeof(T) * old_num,
+                            sizeof(T) * new_num);
+  }
+
+  template <typename T>
+  constexpr void deallocate_typed(T *memory, usize num)
+  {
+    deallocate(alignof(T), memory, sizeof(T) * num);
+  }
+
   AllocatorImpl to_allocator()
   {
     return AllocatorImpl{.self      = (Allocator) this,
@@ -126,7 +152,7 @@ inline Arena to_arena(Span<u8> buffer, usize alignment)
                .alignment = alignment};
 }
 
-struct ArenaBatchInterface
+struct ArenaPoolInterface
 {
   static void *allocate(Allocator self, usize alignment, usize size);
   static void *allocate_zeroed(Allocator self, usize alignment, usize size);
@@ -137,10 +163,10 @@ struct ArenaBatchInterface
 };
 
 static AllocatorInterface const arena_sub_interface{
-    .allocate        = ArenaBatchInterface::allocate,
-    .allocate_zeroed = ArenaBatchInterface::allocate_zeroed,
-    .reallocate      = ArenaBatchInterface::reallocate,
-    .deallocate      = ArenaBatchInterface::deallocate};
+    .allocate        = ArenaPoolInterface::allocate,
+    .allocate_zeroed = ArenaPoolInterface::allocate_zeroed,
+    .reallocate      = ArenaPoolInterface::reallocate,
+    .deallocate      = ArenaPoolInterface::deallocate};
 
 /// Forward growing allocator. All allocations are reset/free-d at once.
 ///
@@ -149,9 +175,9 @@ static AllocatorInterface const arena_sub_interface{
 /// @min_arena_size: minimum size of each arena allocation, recommended >= 4096
 /// bytes (approx 1 memory page). allocations having sizes higher than that will
 /// have a dedicated arena.
-/// @max_alloc_size: total maximum size of all allocations performed.
+/// @max_total_size: total maximum size of all allocations performed.
 ///
-struct ArenaBatch
+struct ArenaPool
 {
   AllocatorImpl source         = default_allocator;
   Arena        *arenas         = nullptr;
@@ -159,7 +185,7 @@ struct ArenaBatch
   usize         max_num_arenas = USIZE_MAX;
   usize         min_arena_size = 4096;
   usize         max_arena_size = USIZE_MAX;
-  usize         max_alloc_size = USIZE_MAX;
+  usize         max_total_size = USIZE_MAX;
 
   void reset()
   {
@@ -214,7 +240,7 @@ struct ArenaBatch
     }
 
     usize const arena_size = max(size, min_arena_size);
-    if ((this->size() + arena_size) > max_alloc_size)
+    if ((this->size() + arena_size) > max_total_size)
     {
       return nullptr;
     }
@@ -322,6 +348,32 @@ struct ArenaBatch
         return;
       }
     }
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr T *allocate_typed(usize num)
+  {
+    return (T *) allocate(alignof(T), sizeof(T) * num);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr T *allocate_zeroed_typed(usize num)
+  {
+    return (T *) allocate_zeroed(alignof(T), sizeof(T) * num);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr T *reallocate_typed(T *memory, usize old_num,
+                                              usize new_num)
+  {
+    return (T *) reallocate(alignof(T), memory, sizeof(T) * old_num,
+                            sizeof(T) * new_num);
+  }
+
+  template <typename T>
+  constexpr void deallocate_typed(T *memory, usize num)
+  {
+    deallocate(alignof(T), memory, sizeof(T) * num);
   }
 
   AllocatorImpl to_allocator()
