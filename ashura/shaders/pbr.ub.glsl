@@ -14,7 +14,7 @@ struct Params
   float         normal;
   float         occlusion;
   vec4          emissive;        // only xyz
-  float         ior;             // 1.5 default
+  float         ior;
   float         clearcoat;
   float         clearcoat_roughness;
   float         clearcoat_normal;

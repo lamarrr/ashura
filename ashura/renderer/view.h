@@ -2,7 +2,6 @@
 #include "ashura/gfx/gfx.h"
 #include "ashura/renderer/camera.h"
 #include "ashura/renderer/scene.h"
-#include "ashura/std/box.h"
 #include "ashura/std/types.h"
 
 namespace ash

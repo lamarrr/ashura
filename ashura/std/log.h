@@ -1,7 +1,6 @@
 
 #pragma once
 #include "ashura/std/allocator.h"
-#include "ashura/std/enum.h"
 #include "ashura/std/format.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/runtime.h"

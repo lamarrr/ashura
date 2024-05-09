@@ -1,7 +1,6 @@
 #include "ashura/renderer/renderer.h"
 #include "ashura/std/math.h"
 #include "ashura/std/range.h"
-#include "ashura/std/source_location.h"
 /*
 #define ENSURE(description, ...)                                              \
   do                                                                          \

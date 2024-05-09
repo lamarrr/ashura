@@ -2,7 +2,6 @@
 #include "ashura/renderer/camera.h"
 #include "ashura/renderer/light.h"
 #include "ashura/renderer/render_context.h"
-#include "ashura/renderer/shader.h"
 
 namespace ash
 {

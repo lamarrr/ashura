@@ -1,15 +1,9 @@
 #pragma once
 #include "ashura/renderer/camera.h"
 #include "ashura/renderer/render_context.h"
-#include "ashura/renderer/shader.h"
-#include "ashura/std/math.h"
 
 namespace ash
 {
-
-BEGIN_SHADER_PARAMETER(RRectShaderParameter)
-SHADER_COMBINED_IMAGE_SAMPLER(albedo, 1)
-END_SHADER_PARAMETER(RRectShaderParameter)
 
 // TODO(lamarrr): vertex buffer is in object coordinate space. needs to be
 // transformed to world then to view space, used for uv-interp as well.
@@ -21,25 +15,23 @@ constexpr Mat4Affine rrect_model(Vec2 extent)
          affine_scale3d(Vec3{extent.x, extent.y, 1});
 }
 
-struct RRectShaderUniform
+struct RRectParam
 {
-  ViewTransform transform = {};
-  f32           radii[4]  = {};
-  Vec2          uv[2]     = {};
-  Vec4          tint[4]   = {};
-  Vec2          aspect_ratio;
-};
-
-struct RRectObject
-{
-  gfx::DescriptorSet descriptor = {};
-  Uniform            uniform    = {};
+  ViewTransform transform    = {};
+  f32           radii[4]     = {};
+  Vec2          uv[2]        = {};
+  Vec4          tint[4]      = {};
+  Vec2          aspect_ratio = {1, 1};
+  u32           albedo       = 0;
 };
 
 struct RRectPassParams
 {
-  RenderTarget            render_target = {};
-  Span<RRectObject const> objects       = {};
+  RenderTarget       render_target  = {};
+  gfx::DescriptorSet params_ssbo    = nullptr;
+  gfx::DescriptorSet textures_array = nullptr;
+  u32                first_instance = 0;
+  u32                num_instances  = 0;
 };
 
 struct RRectPass

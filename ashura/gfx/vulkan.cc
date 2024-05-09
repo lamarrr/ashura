@@ -2,7 +2,6 @@
 #include "ashura/std/math.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/range.h"
-#include "ashura/std/source_location.h"
 #include "vulkan/vulkan.h"
 #include <stdlib.h>
 

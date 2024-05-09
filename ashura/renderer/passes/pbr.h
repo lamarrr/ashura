@@ -2,7 +2,6 @@
 #include "ashura/renderer/camera.h"
 #include "ashura/renderer/light.h"
 #include "ashura/renderer/render_context.h"
-#include "ashura/renderer/shader.h"
 
 namespace ash
 {
@@ -10,60 +9,54 @@ namespace ash
 /// SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
 /// SEE:
 /// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
-BEGIN_SHADER_PARAMETER(PBRShaderParameter)
-COMBINED_IMAGE_SAMPLER(albedo, 1)
-COMBINED_IMAGE_SAMPLER(metallic, 1)
-COMBINED_IMAGE_SAMPLER(roughness, 1)
-COMBINED_IMAGE_SAMPLER(normal, 1)
-COMBINED_IMAGE_SAMPLER(occlusion, 1)
-COMBINED_IMAGE_SAMPLER(emissive, 1)
-END_SHADER_PARAMETER(PBRShaderParameter)
 
-constexpr u8 MAX_PBR_AMBIENT_LIGHTS     = 1;
-constexpr u8 MAX_PBR_DIRECTIONAL_LIGHTS = 2;
-constexpr u8 MAX_PBR_POINT_LIGHTS       = 2;
-constexpr u8 MAX_PBR_SPOT_LIGHTS        = 2;
-
-struct PBRUniform
+struct PBRParam
 {
-  ViewTransform transform          = {};
-  Vec4          base_color_factor  = {1, 1, 1, 1};
-  f32           metallic_factor    = 1;
-  f32           roughness_factor   = 1;
-  f32           normal_scale       = 1;
-  f32           occlusion_strength = 1;
-  Vec4          emissive_factor    = {1, 1, 1, 1};
-  f32           emissive_strength  = 1;
-};
-
-struct PBRLightUniform
-{
-  AmbientLight     ambient_light                                  = {};
-  DirectionalLight directional_lights[MAX_PBR_DIRECTIONAL_LIGHTS] = {};
-  PointLight       point_lights[MAX_PBR_POINT_LIGHTS]             = {};
-  SpotLight        spot_lights[MAX_PBR_SPOT_LIGHTS]               = {};
+  ViewTransform transform               = {};
+  Vec4          view_position           = {0, 0, 0, 0};
+  Vec4          albedo                  = {1, 1, 1, 1};
+  f32           metallic                = 1;
+  f32           roughness               = 1;
+  f32           normal                  = 1;
+  f32           occlusion               = 1;
+  Vec4          emissive                = {1, 1, 1, 1};
+  f32           ior                     = 1.5;
+  f32           clearcoat               = 1;
+  f32           clearcoat_roughness     = 1;
+  f32           clearcoat_normal        = 1;
+  u32           albedo_map              = 0;
+  u32           metallic_map            = 0;
+  u32           roughness_map           = 0;
+  u32           normal_map              = 0;
+  u32           occlusion_map           = 0;
+  u32           emissive_map            = 0;
+  u32           clearcoat_map           = 0;
+  u32           clearcoat_roughness_map = 0;
+  u32           clearcoat_normal_map    = 0;
+  u32           first_light             = 0;
+  u32           num_lights              = 0;
 };
 
 struct PBRVertex
 {
-  f32 x = 0, y = 0, z = 0;
-  f32 u = 0, v = 0;
-};
-
-struct PBRObject
-{
-  Mesh                    mesh          = {};
-  gfx::DescriptorSet      descriptor    = {};
-  Uniform                 uniform       = {};
-  Uniform                 light_uniform = {};
-  gfx::DrawIndexedCommand command       = {};
-  bool                    wireframe     = false;
+  f32 x = 0;
+  f32 y = 0;
+  f32 z = 0;
+  f32 u = 0;
+  f32 v = 0;
 };
 
 struct PBRPassParams
 {
-  RenderTarget          render_target = {};
-  Span<PBRObject const> objects       = {};
+  RenderTarget       render_target       = {};
+  gfx::DescriptorSet vertex_buffer_ssbos = nullptr;
+  gfx::DescriptorSet index_buffer_ssbos  = nullptr;
+  gfx::DescriptorSet params_ssbo         = nullptr;
+  gfx::DescriptorSet lights_ssbo         = nullptr;
+  gfx::DescriptorSet textures            = nullptr;
+  bool               wireframe           = false;
+  u32                first_instance      = 0;
+  u32                num_instances       = 0;
 };
 
 struct PBRPass

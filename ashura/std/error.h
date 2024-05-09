@@ -1,6 +1,5 @@
 #pragma once
 #include "ashura/std/log.h"
-#include "ashura/std/source_location.h"
 
 #define CHECK_EX(description, ...)                                          \
   if (!(__VA_ARGS__))                                                       \

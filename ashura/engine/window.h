@@ -3,8 +3,6 @@
 #include "ashura/engine/key.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/gfx/image.h"
-#include "ashura/std/enum.h"
-#include "ashura/std/fn.h"
 #include "ashura/std/option.h"
 #include "ashura/std/types.h"
 

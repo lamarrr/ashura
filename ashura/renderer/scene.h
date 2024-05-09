@@ -1,7 +1,6 @@
 #pragma once
 #include "ashura/renderer/camera.h"
 #include "ashura/renderer/light.h"
-#include "ashura/std/box.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/sparse_vec.h"

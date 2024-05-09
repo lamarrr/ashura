@@ -1,6 +1,5 @@
 #pragma once
 #include "ashura/std/allocator.h"
-#include "ashura/std/enum.h"
 #include "ashura/std/error.h"
 #include "ashura/std/log.h"
 #include "ashura/std/option.h"

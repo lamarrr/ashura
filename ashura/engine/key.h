@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ashura/std/enum.h"
 #include "ashura/std/types.h"
 
 namespace ash
