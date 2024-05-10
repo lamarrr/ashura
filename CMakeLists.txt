@@ -154,7 +154,6 @@ add_library(
   ashura/renderer/render_context.cc
   ashura/renderer/passes/bloom.cc
   ashura/renderer/passes/blur.cc
-  ashura/renderer/passes/custom.cc
   ashura/renderer/passes/fxaa.cc
   ashura/renderer/passes/msaa.cc
   ashura/renderer/passes/pbr.cc

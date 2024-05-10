@@ -11,26 +11,6 @@
 namespace ash
 {
 
-struct Mesh
-{
-  gfx::Buffer    vertex_buffer        = nullptr;
-  u64            vertex_buffer_offset = 0;
-  gfx::Buffer    index_buffer         = nullptr;
-  u64            index_buffer_offset  = 0;
-  gfx::IndexType index_type           = gfx::IndexType::Uint16;
-};
-
-/// color_images and depth_stencil_image format must be same as render context's
-struct RenderTarget
-{
-  Span<gfx::ImageView const> color_images          = {};
-  gfx::ImageView             depth_stencil_image   = nullptr;
-  gfx::ImageAspects          depth_stencil_aspects = gfx::ImageAspects::None;
-  Vec2U                      extent                = {};
-  Vec2U                      render_offset         = {};
-  Vec2U                      render_extent         = {};
-};
-
 /// created with sampled, storage, color attachment, and transfer flags
 struct FramebufferAttachments
 {
@@ -64,16 +44,20 @@ struct RenderContext
       gfx::BufferUsage::StorageTexelBuffer | gfx::BufferUsage::IndirectBuffer |
       gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst;
 
-  gfx::DeviceImpl    device               = {};
-  gfx::PipelineCache pipeline_cache       = nullptr;
-  u32                max_frames_in_flight = 0;
-  ShaderMap          shader_map           = {};
-
-  gfx::Format            color_format         = gfx::Format::Undefined;
-  gfx::Format            depth_stencil_format = gfx::Format::Undefined;
-  FramebufferAttachments framebuffer          = {};
-  FramebufferAttachments scatch_framebuffer   = {};
-
+  gfx::DeviceImpl          device                  = {};
+  gfx::PipelineCache       pipeline_cache          = nullptr;
+  u32                      buffering               = 0;
+  ShaderMap                shader_map              = {};
+  gfx::Format              color_format            = gfx::Format::Undefined;
+  gfx::Format              depth_stencil_format    = gfx::Format::Undefined;
+  FramebufferAttachments   framebuffer_attachments = {};
+  FramebufferAttachments   scratch_framebuffer_attachments         = {};
+  gfx::RenderPass          render_pass                             = nullptr;
+  gfx::RenderPass          color_render_pass                       = nullptr;
+  gfx::Framebuffer         framebuffer                             = nullptr;
+  gfx::Framebuffer         scratch_framebuffer                     = nullptr;
+  gfx::DescriptorSetLayout ssbo_layout                             = nullptr;
+  gfx::DescriptorSetLayout textures_layout                         = nullptr;
   Vec<Tuple<gfx::FrameId, gfx::Framebuffer>> released_framebuffers = {};
   Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
   Vec<Tuple<gfx::FrameId, gfx::ImageView>>   released_image_views  = {};
@@ -83,7 +67,7 @@ struct RenderContext
             ShaderMap p_shader_map);
   void uninit();
 
-  void recreate_attachments(gfx::Extent new_extent);
+  void recreate_framebuffers(gfx::Extent new_extent);
 
   gfx::CommandEncoderImpl encoder();
   u32                     ring_index();

@@ -23,7 +23,7 @@ layout(set = 0, binding = 0) readonly buffer ParamBuffer
   Params params[];
 };
 
-layout(set = 1, binding = 0) uniform sampler2D u_tex[];
+layout(set = 1, binding = 0) uniform sampler2D textures[];
 
 const uint INDEX_BUFFER[]  = {0, 1, 2, 2, 3, 0};
 const vec2 VERTEX_BUFFER[] = {vec2(-1, -1), vec2(1, -1), vec2(1, 1),
@@ -80,7 +80,8 @@ void main()
   float alpha = 1 - smoothstep(0, 0.015, dist);
   vec2  xy    = i_pos * 0.5 + 0.5;
   vec2  uv    = mix(p.uv.xy, p.uv.zw, xy);
-  o_color     = mix(vec4(1, 1, 1, 0),
-                    i_color * texture(u_tex[nonuniformEXT(p.albedo)], uv), alpha);
+  o_color =
+      mix(vec4(1, 1, 1, 0),
+          i_color * texture(textures[nonuniformEXT(p.albedo)], uv), alpha);
 }
 #endif

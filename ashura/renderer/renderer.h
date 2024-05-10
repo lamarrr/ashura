@@ -1,7 +1,6 @@
 #pragma once
 #include "ashura/renderer/passes/bloom.h"
 #include "ashura/renderer/passes/blur.h"
-#include "ashura/renderer/passes/custom.h"
 #include "ashura/renderer/passes/fxaa.h"
 #include "ashura/renderer/passes/msaa.h"
 #include "ashura/renderer/passes/pbr.h"
@@ -24,7 +23,6 @@ struct Renderer
   FXAAPass         fxaa;
   MSAAPass         msaa;
   PBRPass          pbr;
-  CustomShaderPass custom;
   RRectPass        rrect;
   RenderContext    ctx;
 
@@ -39,7 +37,6 @@ struct Renderer
     fxaa.init(ctx);
     msaa.init(ctx);
     pbr.init(ctx);
-    custom.init(ctx);
     rrect.init(ctx);
   }
 
@@ -51,7 +48,6 @@ struct Renderer
     fxaa.uninit(ctx);
     msaa.uninit(ctx);
     pbr.uninit(ctx);
-    custom.uninit(ctx);
     rrect.uninit(ctx);
     ctx.uninit();
   }
@@ -71,7 +67,7 @@ struct Renderer
     auto enc = ctx.encoder();
 
     enc->clear_color_image(
-        enc.self, ctx.framebuffer.color_image,
+        enc.self, ctx.framebuffer_attachments.color_image,
         gfx::Color{.float32 = {1, 1, 1, 1}},
         to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
                                             .first_mip_level   = 0,

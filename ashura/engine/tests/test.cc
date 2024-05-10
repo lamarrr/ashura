@@ -4,7 +4,6 @@
 #include "ashura/gfx/vulkan.h"
 #include "ashura/renderer/render_context.h"
 #include "ashura/renderer/renderer.h"
-#include "ashura/renderer/shader.h"
 #include "stdlib.h"
 #include <thread>
 

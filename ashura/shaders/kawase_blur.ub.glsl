@@ -4,6 +4,7 @@ struct Params
   vec2 offset;        // relative to the source texture
   vec2 extent;        // relative to the source texture
   vec2 radius;        // relative to the source texture
+  uint src;
 };
 
 layout(push_constant) uniform ParamsPushConstant
@@ -11,7 +12,7 @@ layout(push_constant) uniform ParamsPushConstant
   Params p;
 };
 
-layout(set = 0, binding = 0) uniform sampler2D src;
+layout(set = 0, binding = 0) uniform sampler2D textures[];
 
 const uint INDEX_BUFFER[]  = {0, 1, 2, 2, 3, 0};
 const vec2 VERTEX_BUFFER[] = {vec2(0, 0), vec2(1, 0), vec2(1, 1), vec2(0, 1)};
@@ -62,9 +63,9 @@ void main()
 {
   vec2 src_pos = (p.offset + i_pos * p.extent);
 #  if UPSAMPLE
-  o_color = kawase_upsample(src, src_pos, p.radius);
+  o_color = kawase_upsample(textures[p.src], src_pos, p.radius);
 #  else
-  o_color = kawase_downsample(src, src_pos, p.radius);
+  o_color = kawase_downsample(textures[p.src], src_pos, p.radius);
 #  endif
 }
 #endif

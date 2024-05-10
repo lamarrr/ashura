@@ -223,10 +223,26 @@ struct CommandEncoderInterface
                                   Vec4                blend_constant);
   static void set_stencil_compare_mask(gfx::CommandEncoder self,
                                        gfx::StencilFaces faces, u32 mask);
+  static void set_stencil_op(gfx::CommandEncoder self,
+                             gfx::StencilFaces   face_mask,
+                             gfx::StencilOp fail_op, gfx::StencilOp pass_op,
+                             gfx::StencilOp depth_fail_op,
+                             gfx::CompareOp compare_op);
   static void set_stencil_reference(gfx::CommandEncoder self,
                                     gfx::StencilFaces faces, u32 reference);
+  static void set_stencil_test_enable(gfx::CommandEncoder self, bool enable);
   static void set_stencil_write_mask(gfx::CommandEncoder self,
                                      gfx::StencilFaces faces, u32 mask);
+  static void set_cull_mode(gfx::CommandEncoder self, gfx::CullMode cull_mode);
+  static void set_front_face(gfx::CommandEncoder self,
+                             gfx::FrontFace      front_face);
+  static void set_primitive_topology(gfx::CommandEncoder    self,
+                                     gfx::PrimitiveTopology topology);
+  static void set_depth_bounds_test_enable(gfx::CommandEncoder self,
+                                           bool                enable);
+  static void set_depth_compare_op(gfx::CommandEncoder self, gfx::CompareOp op);
+  static void set_depth_test_enable(gfx::CommandEncoder self, bool enable);
+  static void set_depth_write_enable(gfx::CommandEncoder self, bool enable);
   static void bind_vertex_buffers(gfx::CommandEncoder     self,
                                   Span<gfx::Buffer const> vertex_buffers,
                                   Span<u64 const>         offsets);
@@ -343,8 +359,18 @@ static gfx::CommandEncoderInterface const command_encoder_interface{
     .set_blend_constants    = CommandEncoderInterface::set_blend_constants,
     .set_stencil_compare_mask =
         CommandEncoderInterface::set_stencil_compare_mask,
-    .set_stencil_reference  = CommandEncoderInterface::set_stencil_reference,
-    .set_stencil_write_mask = CommandEncoderInterface::set_stencil_write_mask,
+    .set_stencil_op          = CommandEncoderInterface::set_stencil_op,
+    .set_stencil_reference   = CommandEncoderInterface::set_stencil_reference,
+    .set_stencil_test_enable = CommandEncoderInterface::set_stencil_test_enable,
+    .set_stencil_write_mask  = CommandEncoderInterface::set_stencil_write_mask,
+    .set_cull_mode           = CommandEncoderInterface::set_cull_mode,
+    .set_front_face          = CommandEncoderInterface::set_front_face,
+    .set_primitive_topology  = CommandEncoderInterface::set_primitive_topology,
+    .set_depth_bounds_test_enable =
+        CommandEncoderInterface::set_depth_bounds_test_enable,
+    .set_depth_compare_op   = CommandEncoderInterface::set_depth_compare_op,
+    .set_depth_test_enable  = CommandEncoderInterface::set_depth_test_enable,
+    .set_depth_write_enable = CommandEncoderInterface::set_depth_write_enable,
     .bind_vertex_buffers    = CommandEncoderInterface::bind_vertex_buffers,
     .bind_index_buffer      = CommandEncoderInterface::bind_index_buffer,
     .draw                   = CommandEncoderInterface::draw,
@@ -523,6 +549,16 @@ struct DeviceTable
   PFN_vkEndCommandBuffer          EndCommandBuffer          = nullptr;
   PFN_vkResetCommandBuffer        ResetCommandBuffer        = nullptr;
 
+  PFN_vkCmdSetStencilOpEXT             CmdSetStencilOpEXT             = nullptr;
+  PFN_vkCmdSetStencilTestEnableEXT     CmdSetStencilTestEnableEXT     = nullptr;
+  PFN_vkCmdSetCullModeEXT              CmdSetCullModeEXT              = nullptr;
+  PFN_vkCmdSetFrontFaceEXT             CmdSetFrontFaceEXT             = nullptr;
+  PFN_vkCmdSetPrimitiveTopologyEXT     CmdSetPrimitiveTopologyEXT     = nullptr;
+  PFN_vkCmdSetDepthBoundsTestEnableEXT CmdSetDepthBoundsTestEnableEXT = nullptr;
+  PFN_vkCmdSetDepthCompareOpEXT        CmdSetDepthCompareOpEXT        = nullptr;
+  PFN_vkCmdSetDepthTestEnableEXT       CmdSetDepthTestEnableEXT       = nullptr;
+  PFN_vkCmdSetDepthWriteEnableEXT      CmdSetDepthWriteEnableEXT      = nullptr;
+
   PFN_vkCreateSwapchainKHR    CreateSwapchainKHR    = nullptr;
   PFN_vkDestroySwapchainKHR   DestroySwapchainKHR   = nullptr;
   PFN_vkGetSwapchainImagesKHR GetSwapchainImagesKHR = nullptr;
@@ -622,8 +658,10 @@ struct DescriptorBinding
     Image  **images;
     Buffer **buffers;
   };
-  u32                 count = 0;
-  gfx::DescriptorType type  = gfx::DescriptorType::Sampler;
+  u32                 count              = 0;
+  gfx::DescriptorType type               = gfx::DescriptorType::Sampler;
+  bool                is_variable_length = false;
+  u32                 max_count          = 0;
 };
 
 struct DescriptorSet
@@ -657,8 +695,9 @@ struct RenderPass
       color_attachments[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS] = {};
   gfx::RenderPassAttachment
       input_attachments[gfx::MAX_PIPELINE_INPUT_ATTACHMENTS] = {};
-  gfx::RenderPassAttachment depth_stencil_attachment         = {};
+  gfx::RenderPassAttachment depth_stencil_attachment[1]      = {};
   u32                       num_color_attachments            = 0;
+  u32                       num_depth_stencil_attachments    = 0;
   u32                       num_input_attachments            = 0;
   VkRenderPass              vk_render_pass                   = nullptr;
 };
@@ -666,11 +705,14 @@ struct RenderPass
 struct Framebuffer
 {
   ImageView    *color_attachments[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS] = {};
-  ImageView    *depth_stencil_attachment = nullptr;
-  u32           num_color_attachments    = 0;
-  gfx::Extent   extent                   = {};
-  u32           layers                   = 0;
-  VkFramebuffer vk_framebuffer           = nullptr;
+  ImageView    *depth_stencil_attachment[1]                            = {};
+  gfx::Format   input_attachments[gfx::MAX_PIPELINE_INPUT_ATTACHMENTS] = {};
+  u32           num_color_attachments                                  = 0;
+  u32           num_depth_stencil_attachments                          = 0;
+  u32           num_input_attachments                                  = 0;
+  gfx::Extent   extent                                                 = {};
+  u32           layers                                                 = 0;
+  VkFramebuffer vk_framebuffer = nullptr;
 };
 
 struct ComputePipeline
@@ -678,6 +720,7 @@ struct ComputePipeline
   VkPipeline       vk_pipeline         = nullptr;
   VkPipelineLayout vk_layout           = nullptr;
   u32              push_constants_size = 0;
+  u32              num_sets            = 0;
 };
 
 struct GraphicsPipeline
@@ -685,16 +728,17 @@ struct GraphicsPipeline
   VkPipeline       vk_pipeline         = nullptr;
   VkPipelineLayout vk_layout           = nullptr;
   u32              push_constants_size = 0;
+  u32              num_sets            = 0;
 };
 
 struct Instance
 {
-  AllocatorImpl            allocator                = {};
-  Logger                  *logger                   = {};
-  InstanceTable            vk_table                 = {};
-  VkInstance               vk_instance              = nullptr;
-  VkDebugUtilsMessengerEXT vk_debug_messenger       = nullptr;
-  bool                     validation_layer_enabled = false;
+  AllocatorImpl            allocator          = {};
+  Logger                  *logger             = {};
+  InstanceTable            vk_table           = {};
+  VkInstance               vk_instance        = nullptr;
+  VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
+  bool                     validation_enabled = false;
 };
 
 struct PhysicalDevice
@@ -716,22 +760,31 @@ enum class CommandEncoderState : u16
 
 enum class CommandType : u8
 {
-  None                  = 0,
-  BindDescriptorSets    = 1,
-  BindPipeline          = 2,
-  PushConstants         = 3,
-  SetViewport           = 6,
-  SetScissor            = 7,
-  SetBlendConstant      = 8,
-  SetStencilCompareMask = 9,
-  SetStencilReference   = 10,
-  SetStencilWriteMask   = 11,
-  BindVertexBuffer      = 12,
-  BindIndexBuffer       = 13,
-  Draw                  = 14,
-  DrawIndexed           = 15,
-  DrawIndirect          = 16,
-  DrawIndexedIndirect   = 17
+  None                     = 0,
+  BindDescriptorSets       = 1,
+  BindPipeline             = 2,
+  PushConstants            = 3,
+  SetViewport              = 6,
+  SetScissor               = 7,
+  SetBlendConstant         = 8,
+  SetStencilCompareMask    = 9,
+  SetStencilOp             = 10,
+  SetStencilReference      = 11,
+  SetStencilTestEnable     = 12,
+  SetStencilWriteMask      = 13,
+  SetCullMode              = 14,
+  SetFrontFace             = 15,
+  SetPrimitiveTopology     = 16,
+  SetDepthBoundsTestEnable = 17,
+  SetDepthCompareOp        = 18,
+  SetDepthTestEnable       = 19,
+  SetDepthWriteEnable      = 20,
+  BindVertexBuffer         = 21,
+  BindIndexBuffer          = 22,
+  Draw                     = 23,
+  DrawIndexed              = 24,
+  DrawIndirect             = 25,
+  DrawIndexedIndirect      = 26
 };
 
 struct Command
@@ -741,17 +794,25 @@ struct Command
   {
     char                                     none_ = 0;
     Tuple<DescriptorSet **, u32, u32 *, u32> set;
-    GraphicsPipeline                        *pipeline;
-    Tuple<u8 *, u32>                         push_constant;
-    gfx::Viewport                            viewport;
-    Tuple<gfx::Offset, gfx::Extent>          scissor;
-    Vec4                                     blend_constant;
-    Tuple<gfx::StencilFaces, u32>            stencil;
-    Tuple<u32, Buffer *, u64>                vertex_buffer;
-    Tuple<Buffer *, u64, gfx::IndexType>     index_buffer;
-    Tuple<u32, u32, u32, u32>                draw;
-    Tuple<u32, u32, i32, u32, u32>           draw_indexed;
-    Tuple<Buffer *, u64, u32, u32>           draw_indirect;
+    bool                                     enable;
+    gfx::PrimitiveTopology                   topology;
+    gfx::CullMode                            cull_mode;
+    gfx::FrontFace                           front_face;
+    gfx::CompareOp                           compare_op;
+    Tuple<gfx::StencilFaces, gfx::StencilOp, gfx::StencilOp, gfx::StencilOp,
+          gfx::CompareOp>
+                                         stencil_op;
+    GraphicsPipeline                    *pipeline;
+    Tuple<u8 *, u32>                     push_constant;
+    gfx::Viewport                        viewport;
+    Tuple<gfx::Offset, gfx::Extent>      scissor;
+    Vec4                                 blend_constant;
+    Tuple<gfx::StencilFaces, u32>        stencil;
+    Tuple<u32, Buffer *, u64>            vertex_buffer;
+    Tuple<Buffer *, u64, gfx::IndexType> index_buffer;
+    Tuple<u32, u32, u32, u32>            draw;
+    Tuple<u32, u32, i32, u32, u32>       draw_indexed;
+    Tuple<Buffer *, u64, u32, u32>       draw_indirect;
   };
 };
 
@@ -763,7 +824,7 @@ struct RenderPassContext
   gfx::Extent  extent      = {};
   gfx::Color   color_clear_values[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS] = {};
   u32          num_color_clear_values                                  = 0;
-  gfx::DepthStencil depth_stencil_clear_value                          = {};
+  gfx::DepthStencil depth_stencil_clear_value[1]                       = {};
   u32               num_depth_stencil_clear_values                     = 0;
   Vec<Command>      commands                                           = {};
   ArenaPool         command_pool                                       = {};

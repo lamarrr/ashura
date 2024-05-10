@@ -4,10 +4,10 @@ namespace ash
 {
 
 void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
-                         u32         p_max_frames_in_flight,
-                         gfx::Extent p_initial_extent, ShaderMap p_shader_map)
+                         u32 p_buffering, gfx::Extent p_initial_extent,
+                         ShaderMap p_shader_map)
 {
-  CHECK(p_max_frames_in_flight <= 4 && p_max_frames_in_flight > 0);
+  CHECK(p_buffering <= 4 && p_buffering > 0);
   CHECK(p_initial_extent.x > 0 && p_initial_extent.y > 0);
   device = p_device;
 
@@ -82,39 +82,82 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   CHECK_EX("Device doesn't support any depth stencil format",
            depth_stencil_format != gfx::Format::Undefined);
 
-  pipeline_cache       = nullptr;
-  max_frames_in_flight = p_max_frames_in_flight;
-  shader_map           = p_shader_map;
-  frame_context        = device
-                      ->create_frame_context(
-                          device.self,
-                          gfx::FrameContextDesc{.label = "Renderer Ctx"_span,
-                                                .max_frames_in_flight =
-                                                    max_frames_in_flight,
-                                                .allocator = default_allocator})
-                      .unwrap();
-
+  pipeline_cache             = nullptr;
+  buffering                  = p_buffering;
+  shader_map                 = p_shader_map;
   this->color_format         = color_format;
   this->depth_stencil_format = depth_stencil_format;
 
-  recreate_attachments(p_initial_extent);
+  recreate_framebuffers(p_initial_extent);
 
-  CHECK(uniform_heaps.resize_defaulted(max_frames_in_flight));
+  ssbo_layout =
+      device
+          ->create_descriptor_set_layout(
+              device.self,
+              gfx::DescriptorSetLayoutDesc{
+                  .label    = "SSBO"_span,
+                  .bindings = to_span({gfx::DescriptorBindingDesc{
+                      .type  = gfx::DescriptorType::DynamicStorageBuffer,
+                      .count = 1,
+                      .is_variable_length = false}})})
+          .unwrap();
 
-  for (u8 i = 0; i < max_frames_in_flight; i++)
-  {
-    uniform_heaps[i].init(device);
-  }
+  textures_layout =
+      device
+          ->create_descriptor_set_layout(
+              device.self,
+              gfx::DescriptorSetLayoutDesc{
+                  .label    = "Texture Pack"_span,
+                  .bindings = to_span({gfx::DescriptorBindingDesc{
+                      .type  = gfx::DescriptorType::DynamicStorageBuffer,
+                      .count = 1024,
+                      .is_variable_length = true}})})
+          .unwrap();
 
-  constexpr Array uniform_bindings_desc =
-      UniformShaderParameter::GET_BINDINGS_DESC();
-  uniform_layout = device
-                       ->create_descriptor_set_layout(
-                           device.self,
-                           gfx::DescriptorSetLayoutDesc{
-                               .label    = "Uniform Set Layout"_span,
-                               .bindings = to_span(uniform_bindings_desc)})
-                       .unwrap();
+  render_pass =
+      device
+          ->create_render_pass(
+              device.self,
+              gfx::RenderPassDesc{
+                  .label             = "Color+Depth/Stencil RenderPass"_span,
+                  .color_attachments = to_span<gfx::RenderPassAttachment>(
+                      {{.format           = color_format,
+                        .load_op          = gfx::LoadOp::Load,
+                        .store_op         = gfx::StoreOp::Store,
+                        .stencil_load_op  = gfx::LoadOp::DontCare,
+                        .stencil_store_op = gfx::StoreOp::DontCare}}),
+                  .input_attachments = {},
+                  .depth_stencil_attachment =
+                      to_span<gfx::RenderPassAttachment>(
+                          {{.format           = depth_stencil_format,
+                            .load_op          = gfx::LoadOp::Load,
+                            .store_op         = gfx::StoreOp::Store,
+                            .stencil_load_op  = gfx::LoadOp::Load,
+                            .stencil_store_op = gfx::StoreOp::Store}})})
+          .unwrap();
+
+  color_render_pass =
+      device
+          ->create_render_pass(
+              device.self,
+              gfx::RenderPassDesc{
+                  .label             = "Color RenderPass"_span,
+                  .color_attachments = to_span<gfx::RenderPassAttachment>(
+                      {{.format           = color_format,
+                        .load_op          = gfx::LoadOp::Load,
+                        .store_op         = gfx::StoreOp::Store,
+                        .stencil_load_op  = gfx::LoadOp::DontCare,
+                        .stencil_store_op = gfx::StoreOp::DontCare}}),
+                  .input_attachments = {},
+                  .depth_stencil_attachment =
+                      to_span<gfx::RenderPassAttachment>(
+                          {{.unused           = true,
+                            .format           = depth_stencil_format,
+                            .load_op          = gfx::LoadOp::Load,
+                            .store_op         = gfx::StoreOp::Store,
+                            .stencil_load_op  = gfx::LoadOp::Load,
+                            .stencil_store_op = gfx::StoreOp::Store}})})
+          .unwrap();
 }
 
 void recreate_attachment(RenderContext &ctx, FramebufferAttachments &attachment,
@@ -137,6 +180,7 @@ void recreate_attachment(RenderContext &ctx, FramebufferAttachments &attachment,
       .mip_levels   = 1,
       .array_layers = 1,
       .sample_count = gfx::SampleCount::Count1};
+
   attachment.color_image =
       ctx.device->create_image(ctx.device.self, attachment.color_image_desc)
           .unwrap();
@@ -169,10 +213,12 @@ void recreate_attachment(RenderContext &ctx, FramebufferAttachments &attachment,
       .mip_levels   = 1,
       .array_layers = 1,
       .sample_count = gfx::SampleCount::Count1};
+
   attachment.depth_stencil_image =
       ctx.device
           ->create_image(ctx.device.self, attachment.depth_stencil_image_desc)
           .unwrap();
+
   attachment.depth_stencil_image_view_desc = gfx::ImageViewDesc{
       .label           = "Framebuffer Depth Stencil Image View"_span,
       .image           = attachment.depth_stencil_image,
@@ -184,63 +230,98 @@ void recreate_attachment(RenderContext &ctx, FramebufferAttachments &attachment,
       .num_mip_levels  = 1,
       .first_array_layer = 0,
       .num_array_layers  = 1};
+
   attachment.depth_stencil_image_view =
       ctx.device
           ->create_image_view(ctx.device.self,
                               attachment.depth_stencil_image_view_desc)
           .unwrap();
+
+  attachment.extent = new_extent;
 }
 
 void RenderContext::uninit()
 {
   device->destroy_pipeline_cache(device.self, pipeline_cache);
-  device->destroy_frame_context(device.self, frame_context);
-  device->destroy_image(device.self, framebuffer.color_image);
-  device->destroy_image_view(device.self, framebuffer.color_image_view);
-  device->destroy_image(device.self, framebuffer.depth_stencil_image);
-  device->destroy_image_view(device.self, framebuffer.depth_stencil_image_view);
-  for (UniformHeap &h : uniform_heaps)
-  {
-    h.uninit();
-  }
-  uniform_heaps.reset();
-  device->destroy_descriptor_set_layout(device.self, uniform_layout);
+  device->destroy_render_pass(device.self, render_pass);
+  device->destroy_image(device.self, framebuffer_attachments.color_image);
+  device->destroy_image_view(device.self,
+                             framebuffer_attachments.color_image_view);
+  device->destroy_image(device.self,
+                        framebuffer_attachments.depth_stencil_image);
+  device->destroy_image_view(device.self,
+                             framebuffer_attachments.depth_stencil_image_view);
+  device->destroy_framebuffer(device.self, framebuffer);
+  device->destroy_framebuffer(device.self, scratch_framebuffer);
+  device->destroy_descriptor_set_layout(device.self, ssbo_layout);
+  device->destroy_descriptor_set_layout(device.self, textures_layout);
   idle_purge();
   released_framebuffers.reset();
   released_images.reset();
   released_image_views.reset();
 }
 
-void RenderContext::recreate_attachments(gfx::Extent new_extent)
+void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
 {
-  recreate_attachment(*this, framebuffer, new_extent);
-  recreate_attachment(*this, scatch_framebuffer, new_extent);
-  framebuffer.extent        = new_extent;
-  scatch_framebuffer.extent = new_extent;
+  release(framebuffer);
+  recreate_attachment(*this, framebuffer_attachments, new_extent);
+  release(scratch_framebuffer);
+  recreate_attachment(*this, scratch_framebuffer_attachments, new_extent);
+
+  framebuffer =
+      device
+          ->create_framebuffer(
+              device.self,
+              gfx::FramebufferDesc{
+                  .label       = "Main Framebuffer"_span,
+                  .render_pass = render_pass,
+                  .extent      = framebuffer_attachments.extent,
+                  .color_attachments =
+                      to_span({framebuffer_attachments.color_image_view}),
+                  .depth_stencil_attachment = to_span(
+                      {framebuffer_attachments.depth_stencil_image_view}),
+                  .layers = 1})
+          .unwrap();
+
+  scratch_framebuffer =
+      device
+          ->create_framebuffer(
+              device.self,
+              gfx::FramebufferDesc{
+                  .label             = "Scratch Framebuffer"_span,
+                  .render_pass       = render_pass,
+                  .extent            = framebuffer_attachments.extent,
+                  .color_attachments = to_span(
+                      {scratch_framebuffer_attachments.color_image_view}),
+                  .depth_stencil_attachment =
+                      to_span({scratch_framebuffer_attachments
+                                   .depth_stencil_image_view}),
+                  .layers = 1})
+          .unwrap();
 }
 
 gfx::CommandEncoderImpl RenderContext::encoder()
 {
-  gfx::FrameInfo info = device->get_frame_info(device.self, frame_context);
-  return info.encoders[info.ring_index];
+  gfx::FrameContext ctx = device->get_frame_context(device.self);
+  return ctx.encoders[ctx.ring_index];
 }
 
 u32 RenderContext::ring_index()
 {
-  gfx::FrameInfo info = device->get_frame_info(device.self, frame_context);
-  return info.ring_index;
+  gfx::FrameContext ctx = device->get_frame_context(device.self);
+  return ctx.ring_index;
 }
 
 gfx::FrameId RenderContext::frame_id()
 {
-  gfx::FrameInfo info = device->get_frame_info(device.self, frame_context);
-  return info.current;
+  gfx::FrameContext ctx = device->get_frame_context(device.self);
+  return ctx.current;
 }
 
 gfx::FrameId RenderContext::tail_frame_id()
 {
-  gfx::FrameInfo info = device->get_frame_info(device.self, frame_context);
-  return info.tail;
+  gfx::FrameContext ctx = device->get_frame_context(device.self);
+  return ctx.tail;
 }
 
 Option<gfx::Shader> RenderContext::get_shader(Span<char const> name)
@@ -330,12 +411,8 @@ void RenderContext::idle_purge()
 
 void RenderContext::begin_frame(gfx::Swapchain swapchain)
 {
-  device->begin_frame(device.self, frame_context, swapchain).unwrap();
+  device->begin_frame(device.self, swapchain).unwrap();
   purge();
-  for (UniformHeap &h : uniform_heaps)
-  {
-    h.reset();
-  }
 }
 
 void RenderContext::end_frame(gfx::Swapchain swapchain)
@@ -349,16 +426,17 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
     if (swapchain_state.current_image.is_some())
     {
       enc->blit_image(
-          enc.self, framebuffer.color_image,
+          enc.self, framebuffer_attachments.color_image,
           swapchain_state.images[swapchain_state.current_image.unwrap()],
           to_span({gfx::ImageBlit{
-              .src_layers  = {.aspects           = gfx::ImageAspects::Color,
-                              .mip_level         = 0,
-                              .first_array_layer = 0,
-                              .num_array_layers  = 1},
-              .src_offsets = {{0, 0, 0},
-                              {framebuffer.color_image_desc.extent.x,
-                               framebuffer.color_image_desc.extent.y, 1}},
+              .src_layers = {.aspects           = gfx::ImageAspects::Color,
+                             .mip_level         = 0,
+                             .first_array_layer = 0,
+                             .num_array_layers  = 1},
+              .src_offsets =
+                  {{0, 0, 0},
+                   {framebuffer_attachments.color_image_desc.extent.x,
+                    framebuffer_attachments.color_image_desc.extent.y, 1}},
               .dst_layers  = {.aspects           = gfx::ImageAspects::Color,
                               .mip_level         = 0,
                               .first_array_layer = 0,
@@ -369,7 +447,7 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
           gfx::Filter::Linear);
     }
   }
-  device->submit_frame(device.self, frame_context, swapchain).unwrap();
+  device->submit_frame(device.self, swapchain).unwrap();
 }
 
 }        // namespace ash

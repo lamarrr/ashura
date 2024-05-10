@@ -19,8 +19,8 @@ struct PBRParam
   f32           roughness               = 1;
   f32           normal                  = 1;
   f32           occlusion               = 1;
-  Vec4          emissive                = {1, 1, 1, 1};
-  f32           ior                     = 1.5;
+  Vec4          emissive                = {0, 0, 0, 0};
+  f32           ior                     = 1.5F;
   f32           clearcoat               = 1;
   f32           clearcoat_roughness     = 1;
   f32           clearcoat_normal        = 1;
@@ -33,6 +33,7 @@ struct PBRParam
   u32           clearcoat_map           = 0;
   u32           clearcoat_roughness_map = 0;
   u32           clearcoat_normal_map    = 0;
+  u32           first_vertex            = 0;
   u32           first_light             = 0;
   u32           num_lights              = 0;
 };
@@ -46,25 +47,33 @@ struct PBRVertex
   f32 v = 0;
 };
 
+struct PBRDrawIndirect
+{
+  gfx::Buffer buffer     = nullptr;
+  u64         offset     = 0;
+  u32         draw_count = 0;
+  u32         stride     = 0;
+};
+
 struct PBRPassParams
 {
-  RenderTarget       render_target       = {};
-  gfx::DescriptorSet vertex_buffer_ssbos = nullptr;
-  gfx::DescriptorSet index_buffer_ssbos  = nullptr;
-  gfx::DescriptorSet params_ssbo         = nullptr;
-  gfx::DescriptorSet lights_ssbo         = nullptr;
-  gfx::DescriptorSet textures            = nullptr;
-  bool               wireframe           = false;
-  u32                first_instance      = 0;
-  u32                num_instances       = 0;
+  gfx::Framebuffer   framebuffer        = nullptr;
+  gfx::Extent        framebuffer_extent = {0, 0};
+  bool               wireframe          = false;
+  gfx::DescriptorSet vertex_ssbo        = nullptr;
+  gfx::DescriptorSet index_ssbo         = nullptr;
+  gfx::DescriptorSet param_ssbo         = nullptr;
+  u32                param_ssbo_offset  = 0;
+  gfx::DescriptorSet light_ssbo         = nullptr;
+  u32                light_ssbo_offset  = 0;
+  gfx::DescriptorSet textures           = nullptr;
+  PBRDrawIndirect    indirect           = {};
 };
 
 struct PBRPass
 {
-  gfx::RenderPass          render_pass           = nullptr;
-  gfx::GraphicsPipeline    pipeline              = nullptr;
-  gfx::GraphicsPipeline    wireframe_pipeline    = nullptr;
-  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
+  gfx::GraphicsPipeline pipeline           = nullptr;
+  gfx::GraphicsPipeline wireframe_pipeline = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);

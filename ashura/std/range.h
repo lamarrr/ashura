@@ -425,9 +425,9 @@ constexpr void sort(S &&span, Cmp &&cmp = {})
 }
 
 template <typename S, typename Key>
-constexpr void radix_sort(S &&span, Key &&key = {})
+constexpr void radix_sort(S &&, Key && = {})
 {
-  usize frequency[256];
+  // usize frequency[256];
 }
 
 template <typename S, typename IndexType, typename Cmp = Lesser>

@@ -22,6 +22,7 @@ constexpr u32 MAX_FRAMEBUFFER_EXTENT               = 8192;
 constexpr u32 MAX_FRAMEBUFFER_LAYERS               = 1024;
 constexpr u32 MAX_VERTEX_ATTRIBUTES                = 16;
 constexpr u32 MAX_PUSH_CONSTANTS_SIZE              = 128;
+constexpr u32 MAX_UPDATE_BUFFER_SIZE               = 65536;
 constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS         = 8;
 constexpr u32 MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS = 8;
 constexpr u32 MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS = 8;
@@ -802,12 +803,14 @@ struct ShaderDesc
   Span<u32 const>  spirv_code = {};
 };
 
+/// @unused: if the attachment associated with this slot will not be used
 /// @load_op: how to load color or depth component
 /// @store_op: how to store color or depth component
 /// @stencil_load_op: how to load stencil component
 /// @stencil_store_op: how to store stencil component
 struct RenderPassAttachment
 {
+  bool    unused           = false;
   Format  format           = Format::Undefined;
   LoadOp  load_op          = LoadOp::Load;
   StoreOp store_op         = StoreOp::Store;
@@ -822,7 +825,7 @@ struct RenderPassDesc
   Span<char const>                 label                    = {};
   Span<RenderPassAttachment const> color_attachments        = {};
   Span<RenderPassAttachment const> input_attachments        = {};
-  RenderPassAttachment             depth_stencil_attachment = {};
+  Span<RenderPassAttachment const> depth_stencil_attachment = {};
 };
 
 struct FramebufferDesc
@@ -831,7 +834,7 @@ struct FramebufferDesc
   RenderPass            render_pass              = nullptr;
   Extent                extent                   = {};
   Span<ImageView const> color_attachments        = {};
-  ImageView             depth_stencil_attachment = nullptr;
+  Span<ImageView const> depth_stencil_attachment = {};
   u32                   layers                   = 0;
 };
 
@@ -872,7 +875,7 @@ struct BufferBinding
 
 struct DescriptorSetUpdate
 {
-  gfx::DescriptorSet        set           = nullptr;
+  DescriptorSet             set           = nullptr;
   u32                       binding       = 0;
   u32                       element       = 0;
   Span<ImageBinding const>  images        = {};
@@ -1131,6 +1134,7 @@ struct DeviceProperties
   Span<char const> device_name                     = {};
   DeviceType       type                            = DeviceType::Other;
   bool             has_unified_memory              = false;
+  bool             has_non_solid_fill_mode         = false;
   u64              texel_buffer_offset_alignment   = 0;
   u64              uniform_buffer_offset_alignment = 0;
   u64              storage_buffer_offset_alignment = 0;
@@ -1198,10 +1202,24 @@ struct CommandEncoderInterface
                               Vec4           blend_constant)                    = nullptr;
   void (*set_stencil_compare_mask)(CommandEncoder self, StencilFaces faces,
                                    u32 mask)                          = nullptr;
+  void (*set_stencil_op)(CommandEncoder self, StencilFaces face_mask,
+                         StencilOp fail_op, StencilOp pass_op,
+                         StencilOp depth_fail_op,
+                         CompareOp compare_op)                        = nullptr;
   void (*set_stencil_reference)(CommandEncoder self, StencilFaces faces,
                                 u32 reference)                        = nullptr;
+  void (*set_stencil_test_enable)(CommandEncoder self, bool enable)   = nullptr;
   void (*set_stencil_write_mask)(CommandEncoder self, StencilFaces faces,
                                  u32 mask)                            = nullptr;
+  void (*set_cull_mode)(CommandEncoder self, CullMode cull_mode)      = nullptr;
+  void (*set_front_face)(CommandEncoder self, FrontFace front_face)   = nullptr;
+  void (*set_primitive_topology)(CommandEncoder    self,
+                                 PrimitiveTopology topology)          = nullptr;
+  void (*set_depth_bounds_test_enable)(CommandEncoder self,
+                                       bool           enable)                   = nullptr;
+  void (*set_depth_compare_op)(CommandEncoder self, CompareOp op)     = nullptr;
+  void (*set_depth_test_enable)(CommandEncoder self, bool enable)     = nullptr;
+  void (*set_depth_write_enable)(CommandEncoder self, bool enable)    = nullptr;
   void (*bind_vertex_buffers)(CommandEncoder     self,
                               Span<Buffer const> vertex_buffers,
                               Span<u64 const>    offsets)                = nullptr;
@@ -1368,34 +1386,13 @@ struct InstanceImpl
   }
 };
 
-Result<InstanceImpl, Status>
-    create_vulkan_instance(AllocatorImpl allocator, Logger *logger,
-                           bool enable_validation_layer);
+Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
+                                                    Logger       *logger,
+                                                    bool enable_validation);
 
 }        // namespace gfx
 
-// TODO(lamarrr): descriptor set sync?
-// TODO(lamarrrr): maintaining multiple heaps is impractical and could lead to
-// fragmentation we need to use only one global heap. the descriptor set layout
-// can be used to point to a table containing binding metadata or whatnot.
-//
-// create memory for each descriptor set that will be updated and used for
-// tracking entries, size and spec sourced from layout.
-// set will contain the size of each binding descriptor.
-//
-// for allocation, go through each pool, whichever has enough to contain the
-// request, select it and allocate from it, update the stats.
-//
-// for deallocation find the pool it belongs to, deallocate from it, update its
-// stats.
-//
-// multiple descriptor pools of size 4096
-// allocation strategy? TO TRACK AND MANAGE FRAGMENTATION
-// HOW TO HANDLE DYNAMICALLY SIZED DESCRIPTORS
-// USAGE/RELEASE TRACKING CAN BE DONE BY THE USER. UPON DEALLOCATION, UPDATE
-// STATS
-//
-
+// TODO
 struct FreeTable
 {
 };

@@ -78,7 +78,7 @@ VkResult SetDebugUtilsObjectNameEXT_Stub(VkDevice,
 
 bool load_instance_table(VkInstance                instance,
                          PFN_vkGetInstanceProcAddr GetInstanceProcAddr,
-                         InstanceTable &vk_table, bool validation_layer_enabled)
+                         InstanceTable &vk_table, bool validation_enabled)
 {
   bool all_loaded = true;
 
@@ -109,7 +109,7 @@ bool load_instance_table(VkInstance                instance,
   LOAD_VK(GetPhysicalDeviceSurfaceFormatsKHR);
   LOAD_VK(GetPhysicalDeviceSurfacePresentModesKHR);
 
-  if (validation_layer_enabled)
+  if (validation_enabled)
   {
     LOAD_VK(CreateDebugUtilsMessengerEXT);
     LOAD_VK(DestroyDebugUtilsMessengerEXT);
@@ -138,7 +138,7 @@ bool to_c_str(Span<char const> str, Span<char> out)
 }
 
 bool load_device_table(VkDevice dev, InstanceTable const &instance_table,
-                       DeviceTable &vk_table)
+                       DeviceTable &vk_table, bool debug_marker_enabled)
 {
   mem::zero(&vk_table, 1);
   bool all_loaded = true;
@@ -269,28 +269,41 @@ bool load_device_table(VkDevice dev, InstanceTable const &instance_table,
   LOAD_VK(EndCommandBuffer);
   LOAD_VK(ResetCommandBuffer);
 
+  LOAD_VK(CmdSetStencilTestEnableEXT);
+  LOAD_VK(CmdSetCullModeEXT);
+  LOAD_VK(CmdSetFrontFaceEXT);
+  LOAD_VK(CmdSetPrimitiveTopologyEXT);
+  LOAD_VK(CmdSetDepthBoundsTestEnableEXT);
+  LOAD_VK(CmdSetDepthCompareOpEXT);
+  LOAD_VK(CmdSetDepthTestEnableEXT);
+  LOAD_VK(CmdSetDepthWriteEnableEXT);
+
   LOAD_VK(CreateSwapchainKHR);
   LOAD_VK(DestroySwapchainKHR);
   LOAD_VK(GetSwapchainImagesKHR);
   LOAD_VK(AcquireNextImageKHR);
   LOAD_VK(QueuePresentKHR);
 
+  if (debug_marker_enabled)
+  {
+    LOAD_VK(DebugMarkerSetObjectTagEXT);
+    LOAD_VK(DebugMarkerSetObjectNameEXT);
+    LOAD_VK(CmdDebugMarkerBeginEXT);
+    LOAD_VK(CmdDebugMarkerEndEXT);
+    LOAD_VK(CmdDebugMarkerInsertEXT);
+  }
+  else
+  {
+#define STUB_VK(function) vk_table.function = function##_Stub
+    STUB_VK(DebugMarkerSetObjectTagEXT);
+    STUB_VK(DebugMarkerSetObjectNameEXT);
+    STUB_VK(CmdDebugMarkerBeginEXT);
+    STUB_VK(CmdDebugMarkerEndEXT);
+    STUB_VK(CmdDebugMarkerInsertEXT);
+#undef STUB_VK
+  }
+
 #undef LOAD_VK
-
-#define LOAD_VK_STUBBED(function)                                          \
-  vk_table.function = (PFN_vk##function) instance_table.GetDeviceProcAddr( \
-      dev, "vk" #function);                                                \
-  vk_table.function =                                                      \
-      (vk_table.function != nullptr) ? vk_table.function : function##_Stub;
-
-  LOAD_VK_STUBBED(DebugMarkerSetObjectTagEXT);
-  LOAD_VK_STUBBED(DebugMarkerSetObjectNameEXT);
-
-  LOAD_VK_STUBBED(CmdDebugMarkerBeginEXT);
-  LOAD_VK_STUBBED(CmdDebugMarkerEndEXT);
-  LOAD_VK_STUBBED(CmdDebugMarkerInsertEXT);
-
-#undef LOAD_VK_STUBBED
 
   return all_loaded;
 }
@@ -371,7 +384,7 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
 }
 
 constexpr VkAccessFlags
-    color_attachment_image_access(gfx::RenderPassAttachment const &attachment)
+    color_attachment_access(gfx::RenderPassAttachment const &attachment)
 {
   VkAccessFlags access = VK_ACCESS_NONE;
 
@@ -390,8 +403,8 @@ constexpr VkAccessFlags
   return access;
 }
 
-constexpr VkAccessFlags depth_stencil_attachment_image_access(
-    gfx::RenderPassAttachment const &attachment)
+constexpr VkAccessFlags
+    depth_stencil_attachment_access(gfx::RenderPassAttachment const &attachment)
 {
   VkAccessFlags access = VK_ACCESS_NONE;
 
@@ -985,41 +998,63 @@ inline void access_graphics_bindings(CommandEncoder const &enc,
   }
 }
 
-inline bool is_render_pass_compatible(RenderPass const      &render_pass,
-                                      Span<ImageView *const> color_attachments,
-                                      ImageView const *depth_stencil_attachment)
+inline bool is_render_pass_compatible(gfx::RenderPass            render_pass_,
+                                      Span<gfx::ImageView const> color,
+                                      Span<gfx::ImageView const> depth,
+                                      Span<gfx::Format const>    input)
 {
   // also depends on the formats of the input attachments which can't be
   // determined here
+  //
   // our render_passes uses same initial and final layouts
-  if (render_pass.num_color_attachments != color_attachments.size())
+  RenderPass *render_pass = (RenderPass *) render_pass_;
+  if (render_pass->num_color_attachments != color.size() ||
+      render_pass->num_depth_stencil_attachments != depth.size() ||
+      render_pass->num_input_attachments != input.size())
   {
     return false;
   }
 
-  if ((render_pass.depth_stencil_attachment.format == gfx::Format::Undefined) &&
-      (depth_stencil_attachment != nullptr))
+  for (u32 i = 0; i < render_pass->num_color_attachments; i++)
   {
-    return false;
+    if (render_pass->color_attachments[i].format !=
+        IMAGE_FROM_VIEW(color[i])->desc.format)
+    {
+      return false;
+    }
   }
 
-  if (depth_stencil_attachment != nullptr &&
-      (render_pass.depth_stencil_attachment.format !=
-       IMAGE_FROM_VIEW(depth_stencil_attachment)->desc.format))
+  for (u32 i = 0; i < render_pass->num_depth_stencil_attachments; i++)
   {
-    return false;
+    if (render_pass->depth_stencil_attachment[i].format !=
+        IMAGE_FROM_VIEW(depth[i])->desc.format)
+    {
+      return false;
+    }
   }
 
-  for (usize i = 0; i < render_pass.num_color_attachments; i++)
+  for (u32 i = 0; i < render_pass->num_input_attachments; i++)
   {
-    if (render_pass.color_attachments[i].format !=
-        IMAGE_FROM_VIEW(color_attachments[i])->desc.format)
+    if (render_pass->input_attachments[i].format != input[i])
     {
       return false;
     }
   }
 
   return true;
+}
+
+inline bool is_render_pass_compatible(gfx::RenderPass  render_pass_,
+                                      gfx::Framebuffer framebuffer_)
+{
+  Framebuffer *framebuffer = (Framebuffer *) framebuffer_;
+  return is_render_pass_compatible(
+      render_pass_,
+      Span{(gfx::ImageView *) framebuffer->color_attachments,
+           framebuffer->num_color_attachments},
+      Span{(gfx::ImageView *) framebuffer->depth_stencil_attachment,
+           framebuffer->num_depth_stencil_attachments},
+      Span{framebuffer->input_attachments, framebuffer->num_input_attachments});
 }
 
 inline bool is_image_view_type_compatible(gfx::ImageType     image_type,
@@ -1062,8 +1097,10 @@ inline bool is_valid_buffer_access(u64 size, u64 access_offset, u64 access_size,
 {
   access_size =
       (access_size == gfx::WHOLE_SIZE) ? (size - access_offset) : access_size;
-  return (access_offset < size) && ((access_offset + access_size) <= size) &&
-         mem::is_aligned(alignment, access_offset) && (access_size > 0);
+  return (access_size > 0) && (access_offset < size) &&
+         ((access_offset + access_size) <= size) &&
+         mem::is_aligned(alignment, access_offset) &&
+         mem::is_aligned(alignment, access_size);
 }
 
 inline bool is_valid_image_access(gfx::ImageAspects aspects, u32 num_levels,
@@ -1078,48 +1115,48 @@ inline bool is_valid_image_access(gfx::ImageAspects aspects, u32 num_levels,
   num_access_layers = num_access_layers == gfx::REMAINING_ARRAY_LAYERS ?
                           (num_access_layers - access_layer) :
                           num_access_layers;
-  return access_level < num_levels && access_layer < num_layers &&
+  return num_access_levels > 0 && num_access_layers > 0 &&
+         access_level < num_levels && access_layer < num_layers &&
          (access_level + num_access_levels) <= num_levels &&
          (access_layer + num_access_layers) <= num_layers &&
-         num_access_levels > 0 && num_access_layers > 0 &&
          has_bits(aspects, access_aspects) &&
          access_aspects != gfx::ImageAspects::None;
 }
 
 Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
                                                   Logger       *logger,
-                                                  bool enable_validation_layer)
+                                                  bool enable_validation)
 {
-  bool     enable_debug_messenger = enable_validation_layer;
-  u32      num_extensions;
+  u32      num_exts;
   VkResult result =
-      vkEnumerateInstanceExtensionProperties(nullptr, &num_extensions, nullptr);
+      vkEnumerateInstanceExtensionProperties(nullptr, &num_exts, nullptr);
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  VkExtensionProperties *extensions =
-      allocator.allocate_typed<VkExtensionProperties>(num_extensions);
+  VkExtensionProperties *exts =
+      allocator.allocate_typed<VkExtensionProperties>(num_exts);
 
-  if (num_extensions != 0 && extensions == nullptr)
+  if (num_exts != 0 && exts == nullptr)
   {
     return Err{Status::OutOfHostMemory};
   }
 
+  defer exts_del{[&] { allocator.deallocate_typed(exts, num_exts); }};
+
   {
-    u32 num_read_extensions = num_extensions;
-    result                  = vkEnumerateInstanceExtensionProperties(
-        nullptr, &num_read_extensions, extensions);
+    u32 num_read_exts = num_exts;
+    result =
+        vkEnumerateInstanceExtensionProperties(nullptr, &num_read_exts, exts);
 
     if (result != VK_SUCCESS)
     {
-      allocator.deallocate_typed(extensions, num_extensions);
       return Err{(Status) result};
     }
 
-    sCHECK_EX(logger, num_read_extensions == num_extensions);
+    sCHECK_EX(logger, num_read_exts == num_exts);
   }
 
   u32 num_layers;
@@ -1127,7 +1164,6 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
 
   if (result != VK_SUCCESS)
   {
-    allocator.deallocate_typed(extensions, num_extensions);
     return Err{(Status) result};
   }
 
@@ -1136,9 +1172,10 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
 
   if (num_layers != 0 && layers == nullptr)
   {
-    allocator.deallocate_typed(extensions, num_extensions);
     return Err{Status::OutOfHostMemory};
   }
+
+  defer layers_del{[&] { allocator.deallocate_typed(layers, num_layers); }};
 
   {
     u32 num_read_layers = num_layers;
@@ -1146,8 +1183,6 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
 
     if (result != VK_SUCCESS)
     {
-      allocator.deallocate_typed(extensions, num_extensions);
-      allocator.deallocate_typed(layers, num_layers);
       return Err{(Status) result};
     }
 
@@ -1156,14 +1191,13 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
 
   logger->trace("Available Extensions:");
 
-  for (VkExtensionProperties const &extension :
-       Span{extensions, num_extensions})
+  for (VkExtensionProperties const &ext : Span{exts, num_exts})
   {
-    logger->trace(extension.extensionName, "\t\t(spec version ",
-                  VK_API_VERSION_MAJOR(extension.specVersion), ".",
-                  VK_API_VERSION_MINOR(extension.specVersion), ".",
-                  VK_API_VERSION_PATCH(extension.specVersion), " variant ",
-                  VK_API_VERSION_VARIANT(extension.specVersion), ")");
+    logger->trace(ext.extensionName, "\t\t(spec version ",
+                  VK_API_VERSION_MAJOR(ext.specVersion), ".",
+                  VK_API_VERSION_MINOR(ext.specVersion), ".",
+                  VK_API_VERSION_PATCH(ext.specVersion), " variant ",
+                  VK_API_VERSION_VARIANT(ext.specVersion), ")");
   }
 
   logger->trace("Available Validation Layers:");
@@ -1179,76 +1213,78 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
                   ")");
   }
 
-  char const *load_extensions[16];
-  char const *load_layers[16];
-  u32         num_load_extensions = 0;
-  u32         num_load_layers     = 0;
+  char const *load_exts[16];
+  u32         num_load_exts = 0;
 
-  constexpr char const *OPTIONAL_EXTENSIONS[] = {
+  constexpr char const *OPTIONAL_EXTS[] = {
       "VK_KHR_surface",         "VK_KHR_android_surface", "VK_MVK_ios_surface",
       "VK_MVK_macos_surface",   "VK_EXT_metal_surface",   "VK_NN_vi_surface",
       "VK_KHR_wayland_surface", "VK_KHR_win32_surface",   "VK_KHR_xcb_surface",
       "VK_KHR_xlib_surface"};
 
-  for (char const *extension : OPTIONAL_EXTENSIONS)
+  bool has_debug_utils_ext = false;
+
+  for (u32 i = 0; i < num_exts; i++)
   {
-    if (!find(Span<VkExtensionProperties const>{extensions, num_extensions},
-              extension,
-              [](VkExtensionProperties const &property, char const *find_name) {
-                return strcmp(property.extensionName, find_name) == 0;
-              })
-             .is_empty())
+    for (u32 iopt = 0; iopt < size(OPTIONAL_EXTS); iopt++)
     {
-      load_extensions[num_load_extensions] = extension;
-      num_load_extensions++;
+      if (strcmp(OPTIONAL_EXTS[iopt], exts[i].extensionName) == 0)
+      {
+        load_exts[num_load_exts++] = OPTIONAL_EXTS[iopt];
+      }
+    }
+
+    if (strcmp(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, exts[i].extensionName) == 0)
+    {
+      has_debug_utils_ext = true;
     }
   }
 
-  if (enable_debug_messenger)
+  if (enable_validation)
   {
-    if (find(Span<VkExtensionProperties const>{extensions, num_extensions},
-             VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-             [](VkExtensionProperties const &property, char const *find_name) {
-               return strcmp(property.extensionName, find_name) == 0;
-             })
-            .is_empty())
+    if (has_debug_utils_ext)
     {
-      logger->warn(
-          "Required Vulkan Validation Layer: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-          " is not supported");
-      enable_debug_messenger = false;
+      load_exts[num_load_exts++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     }
     else
     {
-      load_extensions[num_load_extensions] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
-      num_load_extensions++;
+      logger->warn("Required Vulkan "
+                   "Extension: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+                   " is not supported on device");
     }
   }
 
-  if (enable_validation_layer)
+  char const *load_layers[16];
+  u32         num_load_layers      = 0;
+  bool        has_validation_layer = false;
+
+  for (u32 i = 0; i < num_layers; i++)
   {
-    if (find(Span<VkLayerProperties const>{layers, num_layers},
-             "VK_LAYER_KHRONOS_validation",
-             [](VkLayerProperties const &property, char const *find_name) {
-               return strcmp(property.layerName, find_name) == 0;
-             })
-            .is_empty())
+    if (strcmp("VK_LAYER_KHRONOS_validation", layers[i].layerName) == 0)
+    {
+      has_validation_layer = true;
+    }
+  }
+
+  if (enable_validation)
+  {
+    if (has_validation_layer)
+    {
+      load_layers[num_load_layers++] = "VK_LAYER_KHRONOS_validation";
+    }
+    else
     {
       logger->warn(
           "Required Vulkan Validation Layer: VK_LAYER_KHRONOS_validation is "
           "not supported");
-      enable_validation_layer = false;
-    }
-    else
-    {
-      load_layers[num_load_layers] = "VK_LAYER_KHRONOS_validation";
-      num_load_layers++;
     }
   }
 
-  allocator.deallocate_typed(extensions, num_extensions);
-  allocator.deallocate_typed(layers, num_layers);
+  bool const validation_enabled =
+      enable_validation && has_debug_utils_ext && has_validation_layer;
 
+  // setup before vkInstance to allow debug reporter report
+  // messages through the pointer to it
   Instance *instance = allocator.allocate_typed<Instance>(1);
 
   if (instance == nullptr)
@@ -1256,12 +1292,19 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{Status::OutOfHostMemory};
   }
 
-  new (instance) Instance{.allocator                = allocator,
-                          .logger                   = logger,
-                          .vk_table                 = {},
-                          .vk_instance              = nullptr,
-                          .vk_debug_messenger       = nullptr,
-                          .validation_layer_enabled = enable_validation_layer};
+  defer instance_del{[&] {
+    if (instance != nullptr)
+    {
+      allocator.deallocate_typed(instance, 1);
+    }
+  }};
+
+  new (instance) Instance{.allocator          = allocator,
+                          .logger             = logger,
+                          .vk_table           = {},
+                          .vk_instance        = nullptr,
+                          .vk_debug_messenger = nullptr,
+                          .validation_enabled = validation_enabled};
 
   VkApplicationInfo app_info{.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
                              .pNext = nullptr,
@@ -1288,41 +1331,43 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
   // .pNext helps to debug issues with vkDestroyInstance and vkCreateInstance
   // i.e. (before and after the debug messenger is installed)
   VkInstanceCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pNext = enable_validation_layer ? &debug_create_info : nullptr,
-      .flags = 0,
-      .pApplicationInfo        = &app_info,
-      .enabledLayerCount       = num_load_layers,
-      .ppEnabledLayerNames     = load_layers,
-      .enabledExtensionCount   = num_load_extensions,
-      .ppEnabledExtensionNames = load_extensions};
+      .sType                 = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+      .pNext                 = enable_validation ? &debug_create_info : nullptr,
+      .flags                 = 0,
+      .pApplicationInfo      = &app_info,
+      .enabledLayerCount     = num_load_layers,
+      .ppEnabledLayerNames   = load_layers,
+      .enabledExtensionCount = num_load_exts,
+      .ppEnabledExtensionNames = load_exts};
 
   VkInstance vk_instance;
 
   result = vkCreateInstance(&create_info, nullptr, &vk_instance);
   if (result != VK_SUCCESS)
   {
-    allocator.deallocate_typed(instance, 1);
     return Err{(Status) result};
   }
+
+  defer vk_instance_del{[&] {
+    if (vk_instance != nullptr)
+    {
+      vkDestroyInstance(vk_instance, nullptr);
+    }
+  }};
 
   InstanceTable vk_table;
 
   sCHECK_EX(logger, load_instance_table(vk_instance, vkGetInstanceProcAddr,
-                                        vk_table, enable_validation_layer));
+                                        vk_table, validation_enabled));
 
   VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
 
-  if (enable_debug_messenger)
+  if (validation_enabled)
   {
     result = vk_table.CreateDebugUtilsMessengerEXT(
         vk_instance, &debug_create_info, nullptr, &vk_debug_messenger);
     if (result != VK_SUCCESS)
     {
-      vk_table.DestroyInstance(vk_instance, nullptr);
-      // destroy our instance object after to allow debug reporter report
-      // messages through the pointer to it
-      allocator.deallocate_typed(instance, 1);
       return Err{(Status) result};
     }
   }
@@ -1331,7 +1376,11 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
   instance->vk_instance        = vk_instance;
   instance->vk_debug_messenger = vk_debug_messenger;
 
-  return Ok{gfx::InstanceImpl{.self      = (gfx::Instance) instance,
+  vk_instance     = nullptr;
+  Instance *iself = instance;
+  instance        = nullptr;
+
+  return Ok{gfx::InstanceImpl{.self      = (gfx::Instance) iself,
                               .interface = &instance_interface}};
 }
 }        // namespace vk
@@ -1339,11 +1388,11 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
 namespace gfx
 {
 
-Result<InstanceImpl, Status>
-    create_vulkan_instance(AllocatorImpl allocator, Logger *logger,
-                           bool enable_validation_layer)
+Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
+                                                    Logger       *logger,
+                                                    bool enable_validation)
 {
-  return vk::create_instance(allocator, logger, enable_validation_layer);
+  return vk::create_instance(allocator, logger, enable_validation);
 }
 
 }        // namespace gfx
@@ -1359,7 +1408,7 @@ void InstanceInterface::destroy(gfx::Instance instance_)
   {
     return;
   }
-  if (instance->validation_layer_enabled)
+  if (instance->validation_enabled)
   {
     instance->vk_table.DestroyDebugUtilsMessengerEXT(
         instance->vk_instance, instance->vk_debug_messenger, nullptr);
@@ -1516,7 +1565,7 @@ Status create_frame_context(Device *dev, FrameContext *ctx, u32 buffering)
   u32            num_encs = 0;
 
   defer encs_del{[&] {
-    for (u32 i = 0; i < num_encs; i++)
+    for (u32 i = num_encs; i-- > 0;)
     {
       destroy_command_encoder(dev, encs + i);
     }
@@ -1698,7 +1747,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   VkPhysicalDevice *vk_phy_devs =
       self->allocator.allocate_typed<VkPhysicalDevice>(num_devs);
 
-  if (vk_phy_devs == nullptr)
+  if (vk_phy_devs == nullptr && num_devs != 0)
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -1722,7 +1771,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   PhysicalDevice *physical_devs =
       self->allocator.allocate_typed<PhysicalDevice>(num_devs);
 
-  if (physical_devs == nullptr)
+  if (physical_devs == nullptr && num_devs != 0)
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -1776,27 +1825,23 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
       sCHECK(num_read_queue_families == num_queue_families);
     }
 
-    for (u32 iqueue_family = 0; iqueue_family < num_queue_families;
-         iqueue_family++)
+    for (u32 i = 0; i < num_queue_families; i++)
     {
       self->logger->trace(
-          "\t\tQueue Family: ", iqueue_family,
-          ", Count: ", queue_family_properties[iqueue_family].queueCount,
-          ", Flags: ",
-          string_VkQueueFlags(
-              queue_family_properties[iqueue_family].queueFlags));
+          "\t\tQueue Family: ", i,
+          ", Count: ", queue_family_properties[i].queueCount, ", Flags: ",
+          string_VkQueueFlags(queue_family_properties[i].queueFlags));
     }
   }
 
-  u32 selected_dev_index    = num_devs;
+  u32 selected_dev_idx      = num_devs;
   u32 selected_queue_family = VK_QUEUE_FAMILY_IGNORED;
 
   for (usize i = 0; i < (u32) preferred_types.size(); i++)
   {
-    for (u32 idevice = 0; idevice < num_devs && selected_dev_index == num_devs;
-         idevice++)
+    for (u32 idev = 0; idev < num_devs && selected_dev_idx == num_devs; idev++)
     {
-      PhysicalDevice const &dev = physical_devs[idevice];
+      PhysicalDevice const &dev = physical_devs[idev];
 
       u32 num_queue_families;
       self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
@@ -1816,8 +1861,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
       if (((VkPhysicalDeviceType) preferred_types[i]) ==
           dev.vk_properties.deviceType)
       {
-        for (u32 iqueue_family = 0; iqueue_family < num_queue_families &&
-                                    selected_dev_index == num_devs;
+        for (u32 iqueue_family = 0;
+             iqueue_family < num_queue_families && selected_dev_idx == num_devs;
              iqueue_family++)
         {
           if (has_bits(queue_family_properties[iqueue_family].queueFlags,
@@ -1840,7 +1885,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
             if (num_supported_surfaces == num_surfaces)
             {
-              selected_dev_index    = idevice;
+              selected_dev_idx      = idev;
               selected_queue_family = iqueue_family;
               break;
             }
@@ -1850,48 +1895,47 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     }
   }
 
-  if (selected_dev_index == num_devs)
+  if (selected_dev_idx == num_devs)
   {
     self->logger->trace("No Suitable Device Found");
     return Err{Status::DeviceLost};
   }
 
-  PhysicalDevice selected_dev = physical_devs[selected_dev_index];
+  PhysicalDevice selected_dev = physical_devs[selected_dev_idx];
 
   check_device_limits(self, selected_dev.vk_properties.limits);
   check_device_features(self, selected_dev.vk_features);
 
-  self->logger->trace("Selected Device ", selected_dev_index);
+  self->logger->trace("Selected Device ", selected_dev_idx);
 
-  u32 num_extensions;
+  u32 num_exts;
   result = self->vk_table.EnumerateDeviceExtensionProperties(
-      selected_dev.vk_phy_dev, nullptr, &num_extensions, nullptr);
+      selected_dev.vk_phy_dev, nullptr, &num_exts, nullptr);
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  VkExtensionProperties *extensions =
-      self->allocator.allocate_typed<VkExtensionProperties>(num_extensions);
+  VkExtensionProperties *exts =
+      self->allocator.allocate_typed<VkExtensionProperties>(num_exts);
 
-  if (num_extensions > 0 && extensions == nullptr)
+  if (num_exts > 0 && exts == nullptr)
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer extensions_del{
-      [&] { self->allocator.deallocate_typed(extensions, num_extensions); }};
+  defer exts_del{[&] { self->allocator.deallocate_typed(exts, num_exts); }};
 
   {
-    u32 num_read_extensions = num_extensions;
-    result                  = self->vk_table.EnumerateDeviceExtensionProperties(
-        selected_dev.vk_phy_dev, nullptr, &num_read_extensions, extensions);
+    u32 num_read_exts = num_exts;
+    result            = self->vk_table.EnumerateDeviceExtensionProperties(
+        selected_dev.vk_phy_dev, nullptr, &num_read_exts, exts);
     if (result != VK_SUCCESS)
     {
       return Err{(Status) result};
     }
-    sCHECK(num_extensions == num_read_extensions);
+    sCHECK(num_exts == num_read_exts);
   }
 
   u32 num_layers;
@@ -1927,9 +1971,9 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   self->logger->trace("Available Extensions:");
 
-  for (u32 i = 0; i < num_extensions; i++)
+  for (u32 i = 0; i < num_exts; i++)
   {
-    VkExtensionProperties const &ext = extensions[i];
+    VkExtensionProperties const &ext = exts[i];
     self->logger->trace("\t\t", ext.extensionName, " (spec version: ",
                         VK_API_VERSION_MAJOR(ext.specVersion), ".",
                         VK_API_VERSION_MINOR(ext.specVersion), ".",
@@ -1953,30 +1997,53 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                         layer.implementationVersion, ")");
   }
 
-  bool has_swapchain_ext           = false;
-  bool has_debug_marker_ext        = false;
-  bool has_descriptor_indexing_ext = false;
-  bool has_validation_layer        = false;
+  constexpr char const *required_exts[] = {
+      VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+      VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+      VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME};
+  bool required_ext_found[size(required_exts)] = {};
+  bool has_debug_marker_ext                    = false;
 
-  for (u32 i = 0; i < num_extensions; i++)
+  for (u32 i = 0; i < num_exts; i++)
   {
-    if (strcmp(extensions[i].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) ==
-        0)
+    for (u32 ireq = 0; ireq < size(required_exts); ireq++)
     {
-      has_swapchain_ext = true;
+      if (strcmp(required_exts[ireq], exts[i].extensionName) == 0)
+      {
+        required_ext_found[ireq] = true;
+      }
     }
-    if (strcmp(extensions[i].extensionName,
-               VK_EXT_DEBUG_MARKER_EXTENSION_NAME) == 0)
+    if (strcmp(VK_EXT_DEBUG_MARKER_EXTENSION_NAME, exts[i].extensionName) == 0)
     {
       has_debug_marker_ext = true;
     }
-
-    if (strcmp(extensions[i].extensionName,
-               VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME) == 0)
-    {
-      has_descriptor_indexing_ext = true;
-    }
   }
+
+  char const *load_exts[8];
+  u32         num_load_exts = 0;
+
+  // optional, stubbed
+  if (has_debug_marker_ext)
+  {
+    load_exts[num_load_exts] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
+    num_load_exts++;
+  }
+
+  // required
+  for (u32 i = 0; i < size(required_exts); i++)
+  {
+    if (!required_ext_found[i])
+    {
+      self->logger->trace("Required Extension: ", required_exts[i],
+                          " Not Present");
+      return Err{Status::ExtensionNotPresent};
+    }
+
+    load_exts[num_load_exts] = required_exts[i];
+    num_load_exts++;
+  }
+
+  bool has_validation_layer = false;
 
   for (u32 i = 0; i < num_layers; i++)
   {
@@ -1987,47 +2054,13 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     }
   }
 
-  char const *load_extensions[4];
-  u32         num_load_extensions = 0;
-  char const *load_layers[4];
+  char const *load_layers[8];
   u32         num_load_layers = 0;
 
-  // required
-  load_extensions[num_load_extensions] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-  num_load_extensions++;
-  load_extensions[num_load_extensions] =
-      VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME;
-  num_load_extensions++;
-
-  // optional, stubbed
-  if (has_debug_marker_ext)
-  {
-    load_extensions[num_load_extensions] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
-    num_load_extensions++;
-  }
-
   // optional
-  if (self->validation_layer_enabled && has_validation_layer)
+  if (self->vk_debug_messenger != nullptr && has_validation_layer)
   {
-    load_layers[num_load_layers] = VK_LAYER_KHRONOS_VALIDATION_NAME;
-    num_load_layers++;
-  }
-
-  // required
-  if (!has_swapchain_ext)
-  {
-    self->logger->trace("Required Extension: " VK_KHR_SWAPCHAIN_EXTENSION_NAME
-                        " Not Present");
-    return Err{Status::ExtensionNotPresent};
-  }
-
-  // required
-  if (!has_descriptor_indexing_ext)
-  {
-    self->logger->trace(
-        "Required Extension: " VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
-        " Not Present");
-    return Err{Status::ExtensionNotPresent};
+    load_layers[num_load_layers++] = VK_LAYER_KHRONOS_VALIDATION_NAME;
   }
 
   f32 const queue_priority = 1.0F;
@@ -2085,8 +2118,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                                  .pQueueCreateInfos       = &queue_create_info,
                                  .enabledLayerCount       = num_load_layers,
                                  .ppEnabledLayerNames     = load_layers,
-                                 .enabledExtensionCount   = num_load_extensions,
-                                 .ppEnabledExtensionNames = load_extensions,
+                                 .enabledExtensionCount   = num_load_exts,
+                                 .ppEnabledExtensionNames = load_exts,
                                  .pEnabledFeatures        = &features};
 
   VkDevice vk_dev;
@@ -2100,7 +2133,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   DeviceTable        vk_table;
   VmaVulkanFunctions vma_table;
-  sCHECK(load_device_table(vk_dev, self->vk_table, vk_table));
+  sCHECK(load_device_table(vk_dev, self->vk_table, vk_table,
+                           has_debug_marker_ext));
 
   load_vma_table(self->vk_table, vk_table, vma_table);
 
@@ -2224,6 +2258,7 @@ void InstanceInterface::destroy_surface(gfx::Instance self_,
 gfx::DeviceProperties DeviceInterface::get_device_properties(gfx::Device self_)
 {
   Device *const                     self          = (Device *) self_;
+  VkPhysicalDeviceFeatures const   &vk_features   = self->phy_dev.vk_features;
   VkPhysicalDeviceProperties const &vk_properties = self->phy_dev.vk_properties;
 
   bool has_uma = false;
@@ -2246,8 +2281,9 @@ gfx::DeviceProperties DeviceInterface::get_device_properties(gfx::Device self_)
       .device_id      = vk_properties.deviceID,
       .device_name =
           Span{vk_properties.deviceName, strlen(vk_properties.deviceName)},
-      .type               = (gfx::DeviceType) vk_properties.deviceType,
-      .has_unified_memory = has_uma,
+      .type                    = (gfx::DeviceType) vk_properties.deviceType,
+      .has_unified_memory      = has_uma,
+      .has_non_solid_fill_mode = (vk_features.fillModeNonSolid == VK_TRUE),
       .texel_buffer_offset_alignment =
           vk_properties.limits.minTexelBufferOffsetAlignment,
       .uniform_buffer_offset_alignment =
@@ -2610,88 +2646,75 @@ Result<gfx::Shader, Status>
   return Ok{(gfx::Shader) vk_shader};
 }
 
+/// uses only 1 subpass
 Result<gfx::RenderPass, Status>
     DeviceInterface::create_render_pass(gfx::Device                self_,
                                         gfx::RenderPassDesc const &desc)
 {
-  Device *const self = (Device *) self_;
+  Device *const self                  = (Device *) self_;
+  u32 const     num_color_attachments = (u32) desc.color_attachments.size();
+  u32 const     num_depth_stencil_attachments =
+      (u32) desc.depth_stencil_attachment.size();
+  u32 const num_input_attachments = (u32) desc.input_attachments.size();
+  u32 const num_attachments       = num_color_attachments +
+                              num_depth_stencil_attachments +
+                              num_input_attachments;
+  u32 num_used_color_attachments = 0;
 
-  sVALIDATE(desc.color_attachments.size() <=
-            gfx::MAX_PIPELINE_COLOR_ATTACHMENTS);
-  sVALIDATE(desc.input_attachments.size() <=
-            gfx::MAX_PIPELINE_INPUT_ATTACHMENTS);
+  for (gfx::RenderPassAttachment const &attachment : desc.color_attachments)
+  {
+    if (!attachment.unused)
+    {
+      num_used_color_attachments++;
+    }
+  }
+
+  sVALIDATE(num_color_attachments <= gfx::MAX_PIPELINE_COLOR_ATTACHMENTS);
+  sVALIDATE(num_color_attachments > 0);
+  sVALIDATE(num_used_color_attachments > 0);
+  sVALIDATE(num_depth_stencil_attachments <= 1);
+  sVALIDATE(num_input_attachments <= gfx::MAX_PIPELINE_INPUT_ATTACHMENTS);
 
   // render_pass attachment descriptions are packed in the following order:
   // [color_attachments..., depth_stencil_attachment, input_attachments...]
   VkAttachmentDescription vk_attachments[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS +
                                          1 +
                                          gfx::MAX_PIPELINE_INPUT_ATTACHMENTS];
+
+  /// subpass 0 attachments
   VkAttachmentReference
       vk_color_attachments[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS];
-  VkAttachmentReference vk_depth_stencil_attachment;
+  VkAttachmentReference vk_depth_stencil_attachment[1];
   VkAttachmentReference
-             vk_input_attachments[gfx::MAX_PIPELINE_INPUT_ATTACHMENTS];
-  u32 const  num_color_attachments = (u32) desc.color_attachments.size();
-  bool const has_depth_stencil_attachment =
-      desc.depth_stencil_attachment.format != gfx::Format::Undefined;
-  u32 const num_input_attachments = (u32) desc.input_attachments.size();
-  u32 const num_attachments       = num_color_attachments +
-                              (has_depth_stencil_attachment ? 1U : 0U) +
-                              num_input_attachments;
+      vk_input_attachments[gfx::MAX_PIPELINE_INPUT_ATTACHMENTS];
 
   u32 iattachment = 0;
-  for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
-       icolor_attachment++, iattachment++)
+  for (u32 i = 0; i < num_color_attachments; i++, iattachment++)
   {
-    gfx::RenderPassAttachment const &attachment =
-        desc.color_attachments[icolor_attachment];
-    vk_attachments[iattachment] = VkAttachmentDescription{
-        .flags          = 0,
-        .format         = (VkFormat) attachment.format,
-        .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp         = (VkAttachmentLoadOp) attachment.load_op,
-        .storeOp        = (VkAttachmentStoreOp) attachment.store_op,
-        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-    vk_color_attachments[icolor_attachment] = VkAttachmentReference{
-        .attachment = iattachment,
+    gfx::RenderPassAttachment const &attachment = desc.color_attachments[i];
+    vk_attachments[iattachment]                 = VkAttachmentDescription{
+                        .flags          = 0,
+                        .format         = (VkFormat) attachment.format,
+                        .samples        = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp         = (VkAttachmentLoadOp) attachment.load_op,
+                        .storeOp        = (VkAttachmentStoreOp) attachment.store_op,
+                        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                        .finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    vk_color_attachments[i] = VkAttachmentReference{
+        .attachment = attachment.unused ? VK_ATTACHMENT_UNUSED : iattachment,
         .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
   }
 
-  if (has_depth_stencil_attachment)
-  {
-    VkImageLayout layout =
-        has_write_access(depth_stencil_attachment_image_access(
-            desc.depth_stencil_attachment)) ?
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-    vk_attachments[iattachment] = VkAttachmentDescription{
-        .flags   = 0,
-        .format  = (VkFormat) desc.depth_stencil_attachment.format,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp  = (VkAttachmentLoadOp) desc.depth_stencil_attachment.load_op,
-        .storeOp = (VkAttachmentStoreOp) desc.depth_stencil_attachment.store_op,
-        .stencilLoadOp =
-            (VkAttachmentLoadOp) desc.depth_stencil_attachment.stencil_load_op,
-        .stencilStoreOp = (VkAttachmentStoreOp)
-                              desc.depth_stencil_attachment.stencil_store_op,
-        .initialLayout = layout,
-        .finalLayout   = layout};
-
-    vk_depth_stencil_attachment = VkAttachmentReference{
-        .attachment = iattachment,
-        .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
-
-    iattachment++;
-  }
-
-  for (u32 iinput_attachment = 0; iinput_attachment < num_input_attachments;
-       iinput_attachment++, iattachment++)
+  for (u32 i = 0; i < num_depth_stencil_attachments; i++, iattachment++)
   {
     gfx::RenderPassAttachment const &attachment =
-        desc.input_attachments[iinput_attachment];
+        desc.depth_stencil_attachment[i];
+    VkImageLayout layout =
+        has_write_access(depth_stencil_attachment_access(attachment)) ?
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
     vk_attachments[iattachment] = VkAttachmentDescription{
         .flags          = 0,
         .format         = (VkFormat) attachment.format,
@@ -2700,24 +2723,44 @@ Result<gfx::RenderPass, Status>
         .storeOp        = (VkAttachmentStoreOp) attachment.store_op,
         .stencilLoadOp  = (VkAttachmentLoadOp) attachment.stencil_load_op,
         .stencilStoreOp = (VkAttachmentStoreOp) attachment.stencil_store_op,
-        .initialLayout  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        .initialLayout  = layout,
+        .finalLayout    = layout};
 
-    vk_input_attachments[iinput_attachment] = VkAttachmentReference{
-        .attachment = iattachment,
+    vk_depth_stencil_attachment[i] = VkAttachmentReference{
+        .attachment = attachment.unused ? VK_ATTACHMENT_UNUSED : iattachment,
+        .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+  }
+
+  for (u32 i = 0; i < num_input_attachments; i++, iattachment++)
+  {
+    gfx::RenderPassAttachment const &attachment = desc.input_attachments[i];
+    vk_attachments[iattachment]                 = VkAttachmentDescription{
+                        .flags          = 0,
+                        .format         = (VkFormat) attachment.format,
+                        .samples        = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp         = (VkAttachmentLoadOp) attachment.load_op,
+                        .storeOp        = (VkAttachmentStoreOp) attachment.store_op,
+                        .stencilLoadOp  = (VkAttachmentLoadOp) attachment.stencil_load_op,
+                        .stencilStoreOp = (VkAttachmentStoreOp) attachment.stencil_store_op,
+                        .initialLayout  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+    vk_input_attachments[i] = VkAttachmentReference{
+        .attachment = attachment.unused ? VK_ATTACHMENT_UNUSED : iattachment,
         .layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
   }
 
   VkSubpassDescription vk_subpass{
-      .flags                = 0,
-      .pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS,
-      .inputAttachmentCount = num_input_attachments,
-      .pInputAttachments    = vk_input_attachments,
-      .colorAttachmentCount = num_color_attachments,
-      .pColorAttachments    = vk_color_attachments,
-      .pResolveAttachments  = nullptr,
-      .pDepthStencilAttachment =
-          has_depth_stencil_attachment ? &vk_depth_stencil_attachment : nullptr,
+      .flags                   = 0,
+      .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+      .inputAttachmentCount    = num_input_attachments,
+      .pInputAttachments       = vk_input_attachments,
+      .colorAttachmentCount    = num_color_attachments,
+      .pColorAttachments       = vk_color_attachments,
+      .pResolveAttachments     = nullptr,
+      .pDepthStencilAttachment = (num_depth_stencil_attachments == 0) ?
+                                     nullptr :
+                                     vk_depth_stencil_attachment,
       .preserveAttachmentCount = 0,
       .pPreserveAttachments    = nullptr};
 
@@ -2752,14 +2795,16 @@ Result<gfx::RenderPass, Status>
   }
 
   new (render_pass)
-      RenderPass{.color_attachments        = {},
-                 .input_attachments        = {},
-                 .depth_stencil_attachment = desc.depth_stencil_attachment,
-                 .num_color_attachments    = num_color_attachments,
-                 .num_input_attachments    = num_input_attachments,
-                 .vk_render_pass           = vk_render_pass};
+      RenderPass{.color_attachments             = {},
+                 .input_attachments             = {},
+                 .num_color_attachments         = num_color_attachments,
+                 .num_depth_stencil_attachments = num_depth_stencil_attachments,
+                 .num_input_attachments         = num_input_attachments,
+                 .vk_render_pass                = vk_render_pass};
 
   mem::copy(desc.color_attachments, render_pass->color_attachments);
+  mem::copy(desc.depth_stencil_attachment,
+            render_pass->depth_stencil_attachment);
   mem::copy(desc.input_attachments, render_pass->input_attachments);
 
   return Ok{(gfx::RenderPass) render_pass};
@@ -2772,11 +2817,18 @@ Result<gfx::Framebuffer, Status>
   Device *const     self                  = (Device *) self_;
   RenderPass *const render_pass           = (RenderPass *) desc.render_pass;
   u32 const         num_color_attachments = (u32) desc.color_attachments.size();
-  bool const        has_depth_stencil_attachment =
-      desc.depth_stencil_attachment != nullptr;
+  u32 const         num_depth_stencil_attachments =
+      (u32) desc.depth_stencil_attachment.size();
+  u32 const num_input_attachments = render_pass->num_input_attachments;
   u32 const num_attachments =
-      num_color_attachments + (has_depth_stencil_attachment ? 1U : 0U);
+      num_color_attachments + num_depth_stencil_attachments;
   VkImageView vk_attachments[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS + 1];
+  gfx::Format input_attachments[gfx::MAX_PIPELINE_INPUT_ATTACHMENTS];
+
+  for (u32 i = 0; i < render_pass->num_input_attachments; i++)
+  {
+    input_attachments[i] = render_pass->input_attachments[i].format;
+  }
 
   sVALIDATE(desc.extent.x > 0);
   sVALIDATE(desc.extent.x <= gfx::MAX_FRAMEBUFFER_EXTENT);
@@ -2784,8 +2836,9 @@ Result<gfx::Framebuffer, Status>
   sVALIDATE(desc.extent.y <= gfx::MAX_FRAMEBUFFER_EXTENT);
   sVALIDATE(desc.layers > 0);
   sVALIDATE(desc.layers <= gfx::MAX_FRAMEBUFFER_LAYERS);
-  sVALIDATE((desc.color_attachments.size() > 0) ||
-            (desc.depth_stencil_attachment != nullptr));
+  sVALIDATE(is_render_pass_compatible(
+      desc.render_pass, desc.color_attachments, desc.depth_stencil_attachment,
+      Span{input_attachments, num_input_attachments}));
 
   for (gfx::ImageView attachment : desc.color_attachments)
   {
@@ -2800,9 +2853,9 @@ Result<gfx::Framebuffer, Status>
     sVALIDATE(extent.y >= desc.extent.y);
   }
 
-  if (desc.depth_stencil_attachment != nullptr)
+  for (gfx::ImageView attachment : desc.color_attachments)
   {
-    ImageView *const view  = (ImageView *) desc.depth_stencil_attachment;
+    ImageView *const view  = (ImageView *) attachment;
     Image *const     image = IMAGE_FROM_VIEW(view);
     gfx::Extent3D    extent =
         mip_down(image->desc.extent, view->desc.first_mip_level);
@@ -2815,24 +2868,17 @@ Result<gfx::Framebuffer, Status>
     sVALIDATE(extent.y >= desc.extent.y);
   }
 
-  sVALIDATE(is_render_pass_compatible(
-      *render_pass,
-      Span{(ImageView *const *) desc.color_attachments.data(),
-           desc.color_attachments.size()},
-      (ImageView *) desc.depth_stencil_attachment));
-
-  u32 ivk_attachment = 0;
-  for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
-       icolor_attachment++, ivk_attachment++)
+  u32 iattachment = 0;
+  for (u32 i = 0; i < num_color_attachments; i++, iattachment++)
   {
-    vk_attachments[ivk_attachment] =
-        ((ImageView *) desc.color_attachments[icolor_attachment])->vk_view;
+    vk_attachments[iattachment] =
+        ((ImageView *) desc.color_attachments[i])->vk_view;
   }
 
-  if (has_depth_stencil_attachment)
+  for (u32 i = 0; i < num_depth_stencil_attachments; i++, iattachment++)
   {
-    vk_attachments[ivk_attachment] =
-        ((ImageView *) desc.depth_stencil_attachment)->vk_view;
+    vk_attachments[iattachment] =
+        ((ImageView *) desc.depth_stencil_attachment[i])->vk_view;
   }
 
   VkFramebufferCreateInfo create_info{
@@ -2866,16 +2912,21 @@ Result<gfx::Framebuffer, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (framebuffer) Framebuffer{.color_attachments = {},
-                                .depth_stencil_attachment =
-                                    (ImageView *) desc.depth_stencil_attachment,
+  new (framebuffer) Framebuffer{.color_attachments     = {},
                                 .num_color_attachments = num_color_attachments,
+                                .num_depth_stencil_attachments =
+                                    num_depth_stencil_attachments,
+                                .num_input_attachments = num_input_attachments,
                                 .extent                = desc.extent,
                                 .layers                = desc.layers,
                                 .vk_framebuffer        = vk_framebuffer};
 
   mem::copy(desc.color_attachments,
             (gfx::ImageView *) framebuffer->color_attachments);
+  mem::copy(desc.depth_stencil_attachment,
+            (gfx::ImageView *) framebuffer->depth_stencil_attachment);
+  mem::copy(input_attachments, framebuffer->input_attachments,
+            num_input_attachments);
 
   return Ok{(gfx::Framebuffer) framebuffer};
 }
@@ -3142,12 +3193,16 @@ Result<gfx::DescriptorSet, Status>
     void                            **rsrcs = nullptr;
     u32                               count = resource_sync_count[num_bindings];
     rsrcs = heap.allocator.allocate_zeroed_typed<void *>(count);
-    if (rsrcs == nullptr)
+    if (rsrcs == nullptr && count != 0)
     {
       return Err{Status::OutOfHostMemory};
     }
-    bindings[num_bindings] = DescriptorBinding{
-        .resources = rsrcs, .count = count, .type = desc.type};
+    bindings[num_bindings] =
+        DescriptorBinding{.resources          = rsrcs,
+                          .count              = count,
+                          .type               = desc.type,
+                          .is_variable_length = desc.is_variable_length,
+                          .max_count          = desc.count};
   }
 
   VkDescriptorSetVariableDescriptorCountAllocateInfoEXT var_alloc_info{
@@ -3322,7 +3377,8 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
   new (pipeline)
       ComputePipeline{.vk_pipeline         = vk_pipeline,
                       .vk_layout           = vk_layout,
-                      .push_constants_size = desc.push_constants_size};
+                      .push_constants_size = desc.push_constants_size,
+                      .num_sets = (u32) desc.descriptor_set_layouts.size()};
 
   return Ok{(gfx::ComputePipeline) pipeline};
 }
@@ -3330,14 +3386,15 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
 Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
     gfx::Device self_, gfx::GraphicsPipelineDesc const &desc)
 {
-  Device *const self                        = (Device *) self_;
-  constexpr u32 NUM_PIPELINE_DYNAMIC_STATES = 6U;
+  Device *const self                = (Device *) self_;
   u32 const     num_descriptor_sets = (u32) desc.descriptor_set_layouts.size();
   u32 const     num_input_bindings  = (u32) desc.vertex_input_bindings.size();
   u32 const     num_attributes      = (u32) desc.vertex_attributes.size();
   u32 const     num_color_attachments =
       (u32) desc.color_blend_state.attachments.size();
 
+  sVALIDATE(!(desc.rasterization_state.polygon_mode != gfx::PolygonMode::Fill &&
+              !self->phy_dev.vk_features.fillModeNonSolid));
   sVALIDATE(num_descriptor_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
   sVALIDATE(desc.push_constants_size <= gfx::MAX_PUSH_CONSTANTS_SIZE);
   sVALIDATE(mem::is_aligned(4, desc.push_constants_size));
@@ -3416,16 +3473,14 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   }
 
   VkVertexInputBindingDescription input_bindings[gfx::MAX_VERTEX_ATTRIBUTES];
-  for (u32 iinput_bindings = 0; iinput_bindings < num_input_bindings;
-       iinput_bindings++)
+  for (u32 ibinding = 0; ibinding < num_input_bindings; ibinding++)
   {
     gfx::VertexInputBinding const &binding =
-        desc.vertex_input_bindings[iinput_bindings];
-    input_bindings[iinput_bindings] = VkVertexInputBindingDescription{
+        desc.vertex_input_bindings[ibinding];
+    input_bindings[ibinding] = VkVertexInputBindingDescription{
         .binding   = binding.binding,
         .stride    = binding.stride,
-        .inputRate = (VkVertexInputRate) binding.input_rate,
-    };
+        .inputRate = (VkVertexInputRate) binding.input_rate};
   }
 
   VkVertexInputAttributeDescription attributes[gfx::MAX_VERTEX_ATTRIBUTES];
@@ -3541,12 +3596,11 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   VkPipelineColorBlendAttachmentState
       attachment_states[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS];
 
-  for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
-       icolor_attachment++)
+  for (u32 i = 0; i < num_color_attachments; i++)
   {
     gfx::PipelineColorBlendAttachmentState const &state =
-        desc.color_blend_state.attachments[icolor_attachment];
-    attachment_states[icolor_attachment] = VkPipelineColorBlendAttachmentState{
+        desc.color_blend_state.attachments[i];
+    attachment_states[i] = VkPipelineColorBlendAttachmentState{
         .blendEnable         = (VkBool32) state.blend_enable,
         .srcColorBlendFactor = (VkBlendFactor) state.src_color_blend_factor,
         .dstColorBlendFactor = (VkBlendFactor) state.dst_color_blend_factor,
@@ -3570,16 +3624,28 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
                           desc.color_blend_state.blend_constant.z,
                           desc.color_blend_state.blend_constant.w}};
 
-  VkDynamicState dynamic_states[NUM_PIPELINE_DYNAMIC_STATES] = {
-      VK_DYNAMIC_STATE_VIEWPORT,          VK_DYNAMIC_STATE_SCISSOR,
-      VK_DYNAMIC_STATE_BLEND_CONSTANTS,   VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
-      VK_DYNAMIC_STATE_STENCIL_REFERENCE, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK};
+  VkDynamicState dynamic_states[] = {
+      VK_DYNAMIC_STATE_VIEWPORT,
+      VK_DYNAMIC_STATE_SCISSOR,
+      VK_DYNAMIC_STATE_BLEND_CONSTANTS,
+      VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
+      VK_DYNAMIC_STATE_STENCIL_WRITE_MASK,
+      VK_DYNAMIC_STATE_STENCIL_REFERENCE,
+      VK_DYNAMIC_STATE_CULL_MODE_EXT,
+      VK_DYNAMIC_STATE_FRONT_FACE_EXT,
+      VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY_EXT,
+      VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT,
+      VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE_EXT,
+      VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT,
+      VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE_EXT,
+      VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE_EXT,
+      VK_DYNAMIC_STATE_STENCIL_OP_EXT};
 
   VkPipelineDynamicStateCreateInfo dynamic_state{
       .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
       .pNext             = nullptr,
       .flags             = 0,
-      .dynamicStateCount = NUM_PIPELINE_DYNAMIC_STATES,
+      .dynamicStateCount = (u32) size(dynamic_states),
       .pDynamicStates    = dynamic_states};
 
   VkGraphicsPipelineCreateInfo create_info{
@@ -3632,7 +3698,8 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   new (pipeline)
       GraphicsPipeline{.vk_pipeline         = vk_pipeline,
                        .vk_layout           = vk_layout,
-                       .push_constants_size = desc.push_constants_size};
+                       .push_constants_size = desc.push_constants_size,
+                       .num_sets = (u32) desc.descriptor_set_layouts.size()};
 
   return Ok{(gfx::GraphicsPipeline) pipeline};
 }
@@ -4629,10 +4696,13 @@ Result<u32, Status> DeviceInterface::get_surface_formats(
 
   VkSurfaceFormatKHR *vk_formats =
       self->allocator.allocate_typed<VkSurfaceFormatKHR>(num_supported);
-  if (vk_formats == nullptr)
+  if (vk_formats == nullptr && num_supported != 0)
   {
     return Err{Status::OutOfHostMemory};
   }
+
+  defer vk_formats_del{
+      [&] { self->allocator.deallocate_typed(vk_formats, num_supported); }};
 
   {
     u32 num_read = num_supported;
@@ -4641,7 +4711,6 @@ Result<u32, Status> DeviceInterface::get_surface_formats(
 
     if (result != VK_SUCCESS && result != VK_INCOMPLETE)
     {
-      self->allocator.deallocate_typed(vk_formats, num_supported);
       return Err{(Status) result};
     }
 
@@ -4655,8 +4724,6 @@ Result<u32, Status> DeviceInterface::get_surface_formats(
     formats[i].format      = (gfx::Format) vk_formats[i].format;
     formats[i].color_space = (gfx::ColorSpace) vk_formats[i].colorSpace;
   }
-
-  self->allocator.deallocate_typed(vk_formats, num_supported);
 
   return Ok{(u32) num_supported};
 }
@@ -4679,10 +4746,14 @@ Result<u32, Status> DeviceInterface::get_surface_present_modes(
 
   VkPresentModeKHR *vk_present_modes =
       self->allocator.allocate_typed<VkPresentModeKHR>(num_supported);
-  if (vk_present_modes == nullptr)
+  if (vk_present_modes == nullptr && num_supported != 0)
   {
     return Err{Status::OutOfHostMemory};
   }
+
+  defer vk_present_modes_del{[&] {
+    self->allocator.deallocate_typed(vk_present_modes, num_supported);
+  }};
 
   {
     u32 num_read = num_supported;
@@ -4691,7 +4762,6 @@ Result<u32, Status> DeviceInterface::get_surface_present_modes(
 
     if (result != VK_SUCCESS && result != VK_INCOMPLETE)
     {
-      self->allocator.deallocate_typed(vk_present_modes, num_supported);
       return Err{(Status) result};
     }
 
@@ -4704,8 +4774,6 @@ Result<u32, Status> DeviceInterface::get_surface_present_modes(
   {
     modes[i] = (gfx::PresentMode) vk_present_modes[i];
   }
-
-  self->allocator.deallocate_typed(vk_present_modes, num_supported);
 
   return Ok{(u32) num_supported};
 }
@@ -5124,6 +5192,7 @@ void CommandEncoderInterface::update_buffer(gfx::CommandEncoder self_,
   sVALIDATE(!self->is_in_pass());
   sVALIDATE(has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   sVALIDATE(is_valid_buffer_access(dst->desc.size, dst_offset, copy_size, 4));
+  sVALIDATE(src.size() <= gfx::MAX_UPDATE_BUFFER_SIZE);
 
   access_buffer(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -5652,16 +5721,33 @@ void CommandEncoderInterface::begin_render_pass(
       (u32) color_attachments_clear_values.size();
   u32 const num_depth_clear_values =
       (u32) depth_stencil_attachment_clear_value.size();
+  u32 num_used_color_attachments         = 0;
+  u32 num_used_depth_stencil_attachments = 0;
+
+  for (u32 i = 0; i < render_pass->num_color_attachments; i++)
+  {
+    if (!render_pass->color_attachments[i].unused)
+    {
+      num_used_color_attachments++;
+    }
+  }
+
+  for (u32 i = 0; i < render_pass->num_depth_stencil_attachments; i++)
+  {
+    if (!render_pass->depth_stencil_attachment[i].unused)
+    {
+      num_used_depth_stencil_attachments++;
+    }
+  }
+
+  // TODO(lamarrr): must be equal to number of clear values for renderpass
 
   sVALIDATE(render_pass != nullptr);
   sVALIDATE(!self->is_in_pass());
   sVALIDATE(num_depth_clear_values == 0 || num_depth_clear_values == 1);
-  sVALIDATE(is_render_pass_compatible(
-      *render_pass,
-      Span{framebuffer->color_attachments, framebuffer->num_color_attachments},
-      framebuffer->depth_stencil_attachment));
-  sVALIDATE(color_attachments_clear_values.size() <=
-            framebuffer->num_color_attachments);
+  sVALIDATE(is_render_pass_compatible(render_pass_, framebuffer_));
+  // sVALIDATE(num_color_clear_values == num_used_color_attachments);
+  // sVALIDATE(num_depth_clear_values == num_used_depth_stencil_attachments);
   sVALIDATE(render_extent.x > 0);
   sVALIDATE(render_extent.y > 0);
   sVALIDATE(render_offset.x <= framebuffer->extent.x);
@@ -5670,17 +5756,16 @@ void CommandEncoderInterface::begin_render_pass(
   sVALIDATE((render_offset.y + render_extent.y) <= framebuffer->extent.y);
 
   self->reset_context();
-  self->state                  = CommandEncoderState::RenderPass;
-  self->render_ctx.offset      = render_offset;
-  self->render_ctx.extent      = render_extent;
-  self->render_ctx.render_pass = render_pass;
-  self->render_ctx.framebuffer = framebuffer;
   mem::copy(color_attachments_clear_values,
             self->render_ctx.color_clear_values);
-  self->render_ctx.depth_stencil_clear_value =
-      (num_depth_clear_values == 0) ? gfx::DepthStencil{} :
-                                      depth_stencil_attachment_clear_value[0];
-  self->render_ctx.num_color_clear_values         = num_color_clear_values;
+  mem::copy(depth_stencil_attachment_clear_value,
+            self->render_ctx.depth_stencil_clear_value);
+  self->state                             = CommandEncoderState::RenderPass;
+  self->render_ctx.offset                 = render_offset;
+  self->render_ctx.extent                 = render_extent;
+  self->render_ctx.render_pass            = render_pass;
+  self->render_ctx.framebuffer            = framebuffer;
+  self->render_ctx.num_color_clear_values = num_color_clear_values;
   self->render_ctx.num_depth_stencil_clear_values = num_depth_clear_values;
 }
 
@@ -5726,27 +5811,29 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
       }
       break;
       default:
-      {
-      }
-      break;
+        break;
     }
   }
 
+  // layout transitions (renderpass.initialLayout -> renderpass.finalLayout)
+  // happen in a renderpass execution regardless of whether the framebuffer
+  // attachments are used or not. so we still need to issue appropriate
+  // barriers. also because we don't know what state it would be in at the time
+  // of the renderpass execution.
   for (u32 i = 0; i < ctx.framebuffer->num_color_attachments; i++)
   {
-    access_image(
-        *self, *IMAGE_FROM_VIEW(ctx.framebuffer->color_attachments[i]),
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        color_attachment_image_access(ctx.render_pass->color_attachments[i]),
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    access_image(*self, *IMAGE_FROM_VIEW(ctx.framebuffer->color_attachments[i]),
+                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                 color_attachment_access(ctx.render_pass->color_attachments[i]),
+                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
   }
 
-  if (ctx.framebuffer->depth_stencil_attachment != nullptr)
+  for (u32 i = 0; i < ctx.framebuffer->num_depth_stencil_attachments; i++)
   {
-    VkAccessFlags access = depth_stencil_attachment_image_access(
-        ctx.render_pass->depth_stencil_attachment);
+    VkAccessFlags access = depth_stencil_attachment_access(
+        ctx.render_pass->depth_stencil_attachment[i]);
     access_image(*self,
-                 *IMAGE_FROM_VIEW(ctx.framebuffer->depth_stencil_attachment),
+                 *IMAGE_FROM_VIEW(ctx.framebuffer->depth_stencil_attachment[i]),
                  VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
                      VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
                  access,
@@ -5757,26 +5844,23 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
 
   {
     VkClearValue vk_clear_values[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS + 1];
-
-    u32 ivk_clear_value = 0;
-    for (u32 icolor_clear_value = 0;
-         icolor_clear_value < ctx.num_color_clear_values;
-         icolor_clear_value++, ivk_clear_value++)
-    {
-      gfx::Color const &color = ctx.color_clear_values[icolor_clear_value];
-      memcpy(&vk_clear_values[ivk_clear_value].color, &color,
-             sizeof(gfx::Color));
-    }
-
-    if (ctx.num_depth_stencil_clear_values > 0)
-    {
-      vk_clear_values[ivk_clear_value].depthStencil = {
-          .depth   = ctx.depth_stencil_clear_value.depth,
-          .stencil = ctx.depth_stencil_clear_value.stencil};
-    }
-
-    u32 const num_clear_values =
+    u32 const    num_clear_values =
         ctx.num_color_clear_values + ctx.num_depth_stencil_clear_values;
+
+    u32 i_clear_value = 0;
+    for (u32 i = 0; i < ctx.num_color_clear_values; i++, i_clear_value++)
+    {
+      gfx::Color const &color = ctx.color_clear_values[i];
+      memcpy(&vk_clear_values[i_clear_value].color, &color, sizeof(gfx::Color));
+    }
+
+    for (u32 i = 0; i < ctx.num_depth_stencil_clear_values;
+         i++, i_clear_value++)
+    {
+      gfx::DepthStencil const &depth_stencil = ctx.depth_stencil_clear_value[i];
+      memcpy(&vk_clear_values[i_clear_value].depthStencil, &depth_stencil,
+             sizeof(gfx::DepthStencil));
+    }
 
     VkRect2D vk_render_area{
         .offset = VkOffset2D{.x = (i32) ctx.offset.x, .y = (i32) ctx.offset.y},
@@ -5866,6 +5950,14 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
             cmd.stencil.v1);
       }
       break;
+      case CommandType::SetStencilOp:
+      {
+        self->dev->vk_table.CmdSetStencilOpEXT(
+            self->vk_command_buffer, (VkStencilFaceFlags) cmd.stencil_op.v0,
+            (VkStencilOp) cmd.stencil_op.v1, (VkStencilOp) cmd.stencil_op.v1,
+            (VkStencilOp) cmd.stencil_op.v2, (VkCompareOp) cmd.stencil_op.v3);
+      }
+      break;
       case CommandType::SetStencilReference:
       {
         self->dev->vk_table.CmdSetStencilReference(
@@ -5873,11 +5965,59 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
             cmd.stencil.v1);
       }
       break;
+      case CommandType::SetStencilTestEnable:
+      {
+        self->dev->vk_table.CmdSetStencilTestEnableEXT(self->vk_command_buffer,
+                                                       cmd.enable);
+      }
+      break;
       case CommandType::SetStencilWriteMask:
       {
         self->dev->vk_table.CmdSetStencilWriteMask(
             self->vk_command_buffer, (VkStencilFaceFlags) cmd.stencil.v0,
             cmd.stencil.v1);
+      }
+      break;
+      case CommandType::SetCullMode:
+      {
+        self->dev->vk_table.CmdSetCullModeEXT(self->vk_command_buffer,
+                                              (VkCullModeFlags) cmd.cull_mode);
+      }
+      break;
+      case CommandType::SetFrontFace:
+      {
+        self->dev->vk_table.CmdSetFrontFaceEXT(self->vk_command_buffer,
+                                               (VkFrontFace) cmd.front_face);
+      }
+      break;
+      case CommandType::SetPrimitiveTopology:
+      {
+        self->dev->vk_table.CmdSetPrimitiveTopologyEXT(
+            self->vk_command_buffer, (VkPrimitiveTopology) cmd.topology);
+      }
+      break;
+      case CommandType::SetDepthBoundsTestEnable:
+      {
+        self->dev->vk_table.CmdSetDepthBoundsTestEnableEXT(
+            self->vk_command_buffer, cmd.enable);
+      }
+      break;
+      case CommandType::SetDepthCompareOp:
+      {
+        self->dev->vk_table.CmdSetDepthCompareOpEXT(
+            self->vk_command_buffer, (VkCompareOp) cmd.compare_op);
+      }
+      break;
+      case CommandType::SetDepthTestEnable:
+      {
+        self->dev->vk_table.CmdSetDepthTestEnableEXT(self->vk_command_buffer,
+                                                     cmd.enable);
+      }
+      break;
+      case CommandType::SetDepthWriteEnable:
+      {
+        self->dev->vk_table.CmdSetDepthWriteEnableEXT(self->vk_command_buffer,
+                                                      cmd.enable);
       }
       break;
       case CommandType::BindVertexBuffer:
@@ -5993,6 +6133,7 @@ void CommandEncoderInterface::bind_descriptor_sets(
   if (self->is_in_compute_pass())
   {
     sVALIDATE(self->compute_ctx.pipeline != nullptr);
+    sVALIDATE(self->compute_ctx.pipeline->num_sets == num_sets);
     VkDescriptorSet vk_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
     for (u32 i = 0; i < num_sets; i++)
     {
@@ -6008,16 +6149,17 @@ void CommandEncoderInterface::bind_descriptor_sets(
   else if (self->is_in_render_pass())
   {
     sVALIDATE(self->render_ctx.pipeline != nullptr);
+    sVALIDATE(self->render_ctx.pipeline->num_sets == num_sets);
     DescriptorSet **sets =
         self->render_ctx.arg_pool.allocate_typed<DescriptorSet *>(num_sets);
-    if (sets == nullptr)
+    if (sets == nullptr && num_sets != 0)
     {
       self->status = Status::OutOfHostMemory;
       return;
     }
     u32 *offsets =
         self->render_ctx.arg_pool.allocate_typed<u32>(num_dynamic_offsets);
-    if (sets == nullptr)
+    if (sets == nullptr && num_dynamic_offsets != 0)
     {
       self->render_ctx.arg_pool.deallocate_typed(sets, num_sets);
       self->status = Status::OutOfHostMemory;
@@ -6204,6 +6346,22 @@ void CommandEncoderInterface::set_stencil_reference(gfx::CommandEncoder self_,
   }
 }
 
+void CommandEncoderInterface::set_stencil_test_enable(gfx::CommandEncoder self_,
+                                                      bool enable)
+{
+  ENCODE_PRELUDE();
+  RenderPassContext &ctx = self->render_ctx;
+
+  sVALIDATE(self->is_in_render_pass());
+
+  if (!ctx.commands.push(
+          Command{.type = CommandType::SetStencilTestEnable, .enable = enable}))
+  {
+    self->status = Status::OutOfHostMemory;
+    return;
+  }
+}
+
 void CommandEncoderInterface::set_stencil_write_mask(gfx::CommandEncoder self_,
                                                      gfx::StencilFaces   faces,
                                                      u32                 mask)
@@ -6215,6 +6373,118 @@ void CommandEncoderInterface::set_stencil_write_mask(gfx::CommandEncoder self_,
 
   if (!ctx.commands.push(Command{.type    = CommandType::SetStencilWriteMask,
                                  .stencil = {faces, mask}}))
+  {
+    self->status = Status::OutOfHostMemory;
+    return;
+  }
+}
+
+void CommandEncoderInterface::set_cull_mode(gfx::CommandEncoder self_,
+                                            gfx::CullMode       cull_mode)
+{
+  ENCODE_PRELUDE();
+  RenderPassContext &ctx = self->render_ctx;
+
+  sVALIDATE(self->is_in_render_pass());
+
+  if (!ctx.commands.push(
+          Command{.type = CommandType::SetCullMode, .cull_mode = cull_mode}))
+  {
+    self->status = Status::OutOfHostMemory;
+    return;
+  }
+}
+
+void CommandEncoderInterface::set_front_face(gfx::CommandEncoder self_,
+                                             gfx::FrontFace      front_face)
+{
+  ENCODE_PRELUDE();
+  RenderPassContext &ctx = self->render_ctx;
+
+  sVALIDATE(self->is_in_render_pass());
+
+  if (!ctx.commands.push(
+          Command{.type = CommandType::SetFrontFace, .front_face = front_face}))
+  {
+    self->status = Status::OutOfHostMemory;
+    return;
+  }
+}
+
+void CommandEncoderInterface::set_primitive_topology(
+    gfx::CommandEncoder self_, gfx::PrimitiveTopology topology)
+{
+  ENCODE_PRELUDE();
+  RenderPassContext &ctx = self->render_ctx;
+
+  sVALIDATE(self->is_in_render_pass());
+
+  if (!ctx.commands.push(Command{.type     = CommandType::SetPrimitiveTopology,
+                                 .topology = topology}))
+  {
+    self->status = Status::OutOfHostMemory;
+    return;
+  }
+}
+
+void CommandEncoderInterface::set_depth_bounds_test_enable(
+    gfx::CommandEncoder self_, bool enable)
+{
+  ENCODE_PRELUDE();
+  RenderPassContext &ctx = self->render_ctx;
+
+  sVALIDATE(self->is_in_render_pass());
+
+  if (!ctx.commands.push(Command{.type = CommandType::SetDepthBoundsTestEnable,
+                                 .enable = enable}))
+  {
+    self->status = Status::OutOfHostMemory;
+    return;
+  }
+}
+
+void CommandEncoderInterface::set_depth_compare_op(gfx::CommandEncoder self_,
+                                                   gfx::CompareOp      op)
+{
+  ENCODE_PRELUDE();
+  RenderPassContext &ctx = self->render_ctx;
+
+  sVALIDATE(self->is_in_render_pass());
+
+  if (!ctx.commands.push(
+          Command{.type = CommandType::SetDepthCompareOp, .compare_op = op}))
+  {
+    self->status = Status::OutOfHostMemory;
+    return;
+  }
+}
+
+void CommandEncoderInterface::set_depth_test_enable(gfx::CommandEncoder self_,
+                                                    bool                enable)
+{
+  ENCODE_PRELUDE();
+  RenderPassContext &ctx = self->render_ctx;
+
+  sVALIDATE(self->is_in_render_pass());
+
+  if (!ctx.commands.push(Command{.type = CommandType::SetDepthBoundsTestEnable,
+                                 .enable = enable}))
+  {
+    self->status = Status::OutOfHostMemory;
+    return;
+  }
+}
+
+void CommandEncoderInterface::set_depth_write_enable(gfx::CommandEncoder self_,
+                                                     bool                enable)
+{
+  ENCODE_PRELUDE();
+  RenderPassContext &ctx = self->render_ctx;
+
+  sVALIDATE(self->is_in_render_pass());
+
+  if (!ctx.commands.push(
+          Command{.type = CommandType::SetDepthWriteEnable, .enable = enable}))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -6381,5 +6651,4 @@ void CommandEncoderInterface::draw_indexed_indirect(gfx::CommandEncoder self_,
 }
 
 }        // namespace vk
-
 }        // namespace ash

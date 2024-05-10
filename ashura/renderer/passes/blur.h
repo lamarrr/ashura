@@ -27,7 +27,6 @@ struct BlurPass
   gfx::GraphicsPipeline downsample_pipeline = nullptr;
   gfx::GraphicsPipeline upsample_pipeline   = nullptr;
   gfx::Sampler          sampler             = nullptr;
-  gfx::RenderPass       render_pass         = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);

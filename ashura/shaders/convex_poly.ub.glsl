@@ -5,7 +5,8 @@
 struct Params
 {
   ViewTransform transform;
-  uint          tex;
+  uint          albedo_map;
+  uint          first_vertex;
 };
 
 struct Vertex
@@ -17,22 +18,20 @@ struct Vertex
 
 layout(set = 0, binding = 0) readonly buffer VertexBuffer
 {
-  Vertex data[];
-}
-vtx_buffers[];
+  Vertex vtx_buffer[];
+};
 
 layout(set = 1, binding = 0) readonly buffer IndexBuffer
 {
-  uint data[];
-}
-idx_buffers[];
+  uint idx_buffer[];
+};
 
 layout(set = 2, binding = 0) readonly buffer ParamsBuffer
 {
   Params params[];
 };
 
-layout(set = 3, binding = 0) uniform sampler2D u_tex[];
+layout(set = 3, binding = 0) uniform sampler2D textures[];
 
 #ifdef VERTEX_SHADER
 
@@ -42,9 +41,9 @@ layout(location = 2) flat out uint o_instance;
 
 void main()
 {
-  uint idx = idx_buffers[nonuniformEXT(gl_InstanceIndex)].data[gl_VertexIndex];
-  Vertex vtx  = vtx_buffers[nonuniformEXT(gl_InstanceIndex)].data[idx];
+  uint   idx  = idx_buffer[gl_VertexIndex];
   Params p    = params[gl_InstanceIndex];
+  Vertex vtx  = vtx_buffer[p.first_vertex + idx];
   gl_Position = to_mvp(p.transform) * vec4(vtx.pos, 0, 1);
   o_uv        = vtx.uv;
   o_tint      = vtx.tint;
@@ -64,7 +63,7 @@ layout(location = 0) out vec4 o_color;
 void main()
 {
   Params p = params[i_instance];
-  o_color  = i_tint * texture(u_tex[nonuniformEXT(p.tex)], i_uv);
+  o_color  = i_tint * texture(textures[nonuniformEXT(p.albedo_map)], i_uv);
 }
 
 #endif

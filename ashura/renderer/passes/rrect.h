@@ -9,6 +9,7 @@ namespace ash
 // transformed to world then to view space, used for uv-interp as well.
 // TODO(lamarrr): create atlas renderer similar to this but uses plain rects, no
 // rrect, no border, uv->x,y,array index into atlas
+// rename to view/screen space transform
 constexpr Mat4Affine rrect_model(Vec2 extent)
 {
   return affine_translate3d({-extent.x / 2, -extent.y / 2, 0}) *
@@ -27,18 +28,18 @@ struct RRectParam
 
 struct RRectPassParams
 {
-  RenderTarget       render_target  = {};
-  gfx::DescriptorSet params_ssbo    = nullptr;
-  gfx::DescriptorSet textures_array = nullptr;
-  u32                first_instance = 0;
-  u32                num_instances  = 0;
+  gfx::Framebuffer   framebuffer        = nullptr;
+  gfx::Extent        framebuffer_extent = {0, 0};
+  gfx::DescriptorSet params_ssbo        = nullptr;
+  u32                params_ssbo_offset = 0;
+  gfx::DescriptorSet textures           = nullptr;
+  u32                first_instance     = 0;
+  u32                num_instances      = 0;
 };
 
 struct RRectPass
 {
-  gfx::RenderPass          render_pass           = nullptr;
-  gfx::GraphicsPipeline    pipeline              = nullptr;
-  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
+  gfx::GraphicsPipeline pipeline = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
