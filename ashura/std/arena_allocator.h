@@ -27,19 +27,19 @@ static AllocatorInterface const arena_interface{
 /// @alignment: actual alignment requested from allocator
 struct Arena
 {
-  void *begin     = nullptr;
-  void *end       = nullptr;
-  void *offset    = nullptr;
+  u8   *begin     = nullptr;
+  u8   *end       = nullptr;
+  u8   *offset    = nullptr;
   usize alignment = 1;
 
   constexpr usize size() const
   {
-    return (char *) end - (char *) begin;
+    return end - begin;
   }
 
   constexpr usize used() const
   {
-    return (char *) offset - (char *) begin;
+    return offset - begin;
   }
 
   constexpr void reset()
@@ -54,8 +54,8 @@ struct Arena
       return nullptr;
     }
 
-    void *aligned = (void *) mem::align_offset((uintptr_t) offset, alignment);
-    void *new_offset = (char *) aligned + size;
+    u8 *aligned    = (u8 *) mem::align_offset(alignment, (uintptr_t) offset);
+    u8 *new_offset = aligned + size;
     if (new_offset > end)
     {
       return nullptr;
@@ -79,10 +79,10 @@ struct Arena
   {
     // check if it is the last allocation, if so we just need to  extend the
     // offset
-    if ((((char *) memory + old_size) == offset) &&
-        (((char *) memory + new_size) <= end))
+    if ((((u8 *) memory + old_size) == offset) &&
+        (((u8 *) memory + new_size) <= end))
     {
-      offset = (char *) memory + new_size;
+      offset = (u8 *) memory + new_size;
       return memory;
     }
 
@@ -103,11 +103,11 @@ struct Arena
     (void) alignment;
     // best-case: stack allocation, we can free memory by adjusting to the
     // beginning of allocation
-    if (((char *) memory + size) == offset)
+    if (((u8 *) memory + size) == offset)
     {
       // we'd lose padding space due to alignment, meaning we wouldn't be able
       // to release allocations if allocations are of different alignments
-      offset = (char *) offset - size;
+      offset -= size;
     }
   }
 
@@ -210,7 +210,7 @@ struct ArenaPool
     for (usize i = num_arenas; i-- > 0;)
     {
       source.deallocate(arenas[i].alignment, arenas[i].begin,
-                        (char *) arenas[i].end - (char *) arenas[i].begin);
+                        arenas[i].end - arenas[i].begin);
     }
     source.deallocate_typed(arenas, num_arenas);
     arenas     = nullptr;
@@ -260,12 +260,12 @@ struct ArenaPool
       return nullptr;
     }
 
-    arenas       = new_arenas;
-    Arena *arena = new (arenas + num_arenas)
-        Arena{.begin     = arena_memory,
-              .end       = (char *) arena_memory + arena_size,
-              .offset    = arena_memory,
-              .alignment = alignment};
+    arenas = new_arenas;
+    Arena *arena =
+        new (arenas + num_arenas) Arena{.begin = (u8 *) arena_memory,
+                                        .end = (u8 *) arena_memory + arena_size,
+                                        .offset    = (u8 *) arena_memory,
+                                        .alignment = alignment};
     num_arenas++;
     return arena->allocate(alignment, size);
   }
@@ -292,12 +292,12 @@ struct ArenaPool
     if (usize i = num_arenas; i-- != 0)
     {
       Arena *arena = arenas + i;
-      if (arena->offset == ((char *) memory + old_size))
+      if (arena->offset == ((u8 *) memory + old_size))
       {
-        // try to extend the allocation if it was the last allocation
-        if (((char *) arena->offset + new_size) <= arena->end)
+        // try to change the allocation if it was the last allocation
+        if ((arena->offset + new_size) <= arena->end)
         {
-          arena->offset = (char *) memory + new_size;
+          arena->offset = (u8 *) memory + new_size;
           return memory;
         }
 
@@ -310,9 +310,9 @@ struct ArenaPool
           {
             return nullptr;
           }
-          *arena = Arena{.begin     = new_memory,
-                         .end       = (char *) new_memory + new_size,
-                         .offset    = (char *) new_memory + new_size,
+          *arena = Arena{.begin     = (u8 *) new_memory,
+                         .end       = (u8 *) new_memory + new_size,
+                         .offset    = (u8 *) new_memory + new_size,
                          .alignment = arena->alignment};
           return new_memory;
         }
@@ -332,7 +332,7 @@ struct ArenaPool
   void deallocate(usize alignment, void *memory, usize size)
   {
     (void) alignment;
-    if (memory == nullptr)
+    if (memory == nullptr || size == 0)
     {
       return;
     }
@@ -342,9 +342,9 @@ struct ArenaPool
     if (usize i = num_arenas; i-- != 0)
     {
       Arena *arena = arenas + i;
-      if (arena->offset == ((char *) memory + size))
+      if (arena->offset == ((u8 *) memory + size))
       {
-        arena->offset = memory;
+        arena->offset = (u8 *) memory;
         return;
       }
     }

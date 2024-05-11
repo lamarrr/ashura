@@ -59,7 +59,8 @@ void PBRPass::init(RenderContext &ctx)
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
-      .render_pass            = ctx.render_pass,
+      .color_formats          = {&ctx.color_format, 1},
+      .depth_format           = {&ctx.depth_stencil_format, 1},
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = 0,
@@ -85,33 +86,31 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
 {
   gfx::CommandEncoderImpl encoder = ctx.encoder();
 
-  encoder->begin_render_pass(encoder.self, params.framebuffer, ctx.render_pass,
-                             Vec2U{0, 0}, params.framebuffer_extent, {}, {});
-
-  gfx::GraphicsPipeline pipeline =
-      params.wireframe ? this->wireframe_pipeline : this->pipeline;
-  encoder->bind_graphics_pipeline(encoder.self, pipeline);
-  encoder->set_scissor(encoder.self, Vec2U{0, 0}, params.framebuffer_extent);
-  encoder->set_viewport(
+  encoder->begin_rendering(encoder.self, params.rendering_info);
+  encoder->bind_graphics_pipeline(encoder.self, params.wireframe ?
+                                                    this->wireframe_pipeline :
+                                                    this->pipeline);
+  encoder->set_graphics_state(
       encoder.self,
-      gfx::Viewport{.offset    = Vec2{0, 0},
-                    .extent    = Vec2{(f32) params.framebuffer_extent.x,
-                                   (f32) params.framebuffer_extent.y},
-                    .min_depth = 0,
-                    .max_depth = 1});
-
+      gfx::GraphicsPipelineState{
+          .scissor  = {.offset = Vec2U{0, 0},
+                       .extent = params.rendering_info.extent},
+          .viewport = gfx::Viewport{
+              .offset    = Vec2{0, 0},
+              .extent    = Vec2{(f32) params.rendering_info.extent.x,
+                             (f32) params.rendering_info.extent.y},
+              .min_depth = 0,
+              .max_depth = 1}});
   encoder->bind_descriptor_sets(
       encoder.self,
       to_span({params.vertex_ssbo, params.index_ssbo, params.param_ssbo,
                params.light_ssbo, params.textures}),
       to_span(
           {0ui32, 0ui32, params.param_ssbo_offset, params.light_ssbo_offset}));
-
   encoder->draw_indirect(encoder.self, params.indirect.buffer,
                          params.indirect.offset, params.indirect.draw_count,
                          params.indirect.stride);
-
-  encoder->end_render_pass(encoder.self);
+  encoder->end_rendering(encoder.self);
 }
 
 void PBRPass::uninit(RenderContext &ctx)

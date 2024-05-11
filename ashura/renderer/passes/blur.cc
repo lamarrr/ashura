@@ -66,7 +66,7 @@ void BlurPass::init(RenderContext &ctx)
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
-      .render_pass            = ctx.color_render_pass,
+      .color_formats          = {&ctx.color_format, 1},
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(BlurParam),
@@ -97,27 +97,24 @@ void BlurPass::uninit(RenderContext &ctx)
 
 void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
-  //   CHECK(params.extent.x <=
-  //   ctx.scatch_framebuffer.color_image_desc.extent.x); CHECK(params.extent.y
-  //   <= ctx.scatch_framebuffer.color_image_desc.extent.y);
-  //   parameter_heap_.heap_->collect(parameter_heap_.heap_.self,
-  //   ctx.frame_id());
-  // TODO(lamarrr): we need to downsample multiple times, hence halfing the
-  // extent every time we only need to sample to half the extent
-  //
-  // radius should have been scaled to src and target ratio
-  //   Vec2 radius{1, 1};
+    /*
+    CHECK(params.extent.x <=
+    ctx.scatch_framebuffer.color_image_desc.extent.x); CHECK(params.extent.y
+    <= ctx.scatch_framebuffer.color_image_desc.extent.y);
+    parameter_heap_.heap_->collect(parameter_heap_.heap_.self,
+    ctx.frame_id());
+//   TODO(lamarrr): we need to downsample multiple times, hence halfing the
+//   extent every time we only need to sample to half the extent
+  
+//   radius should have been scaled to src and target ratio
+    Vec2 radius{1, 1};
 
-  //   radius = radius * 2;
+    radius = radius * 2;
 
-  //   Uniform uniform = ctx.push_uniform(BlurPassShaderUniform{
-  //   .src_offset = Vec2{(f32) params.offset.x, (f32) params.offset.y},
-  //   .src_extent = Vec2{(f32) params.extent.x, (f32) params.extent.y},
-  //   .src_tex_extent =
-  //   Vec2{(f32) params.view_extent.x, (f32) params.view_extent.y},
-  //   .radius = Vec2{(f32) radius.x, (f32) radius.y}});
+   
+   
 
-  /*gfx::DescriptorSet descriptor =
+  gfx::DescriptorSet descriptor =
       parameter_heap_.create(BlurPassShaderParameter{
           .src = {{.image_view = params.view}},
           .dst = {{.image_view = ctx.scatch.color_image_view}}});
@@ -130,8 +127,8 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
                                 to_span({uniform.buffer_offset}));
   encoder->dispatch(encoder.self, 0x00, 0x00, 1);
 
-  parameter_heap_.release(descriptor);
-  */
+  parameter_heap_.release(descriptor);*/
+  
 }
 
 }        // namespace ash

@@ -12,14 +12,13 @@ namespace ash
 Logger *default_logger;
 }
 
-int main(int argc, char **argv)
+int main(int, char **)
 {
   using namespace ash;
   StdioSink sink;
   default_logger = create_logger(to_span<LogSink *>({&sink}), heap_allocator);
   defer default_logger_del{[&] { destroy_logger(default_logger); }};
   defer shutdown{[&] { default_logger->info("Shutting down"); }};
-  CHECK_EX("Shader path not specified", argc > 1);
 
   WindowSystem *win_sys = init_sdl_window_system();
   CHECK(win_sys != nullptr);
@@ -43,39 +42,41 @@ int main(int argc, char **argv)
   gfx::DeviceImpl device =
       instance
           ->create_device(
-              instance.self,
+              instance.self, default_allocator,
               to_span({gfx::DeviceType::Cpu, gfx::DeviceType::VirtualGpu,
                        gfx::DeviceType::Other, gfx::DeviceType::DiscreteGpu,
                        gfx::DeviceType::IntegratedGpu}),
-              to_span({surface}), default_allocator)
+              to_span({surface}), 2)
           .unwrap();
   defer device_del{
       [&] { instance->destroy_device(instance.self, device.self); }};
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
-  CHECK(pack_shaders(
-            spirvs,
-            to_span<ShaderPackEntry>(
-                {{.id = "ConvexPoly:FS"_span, .file = "convex_poly.frag"_span},
-                 {.id = "ConvexPoly:VS"_span, .file = "convex_poly.vert"_span},
-                 {.id       = "KawaseBlur_UpSample:FS"_span,
-                  .file     = "kawase_blur.frag"_span,
-                  .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "KawaseBlur_UpSample:VS"_span,
-                  .file     = "kawase_blur.vert"_span,
-                  .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "KawaseBlur_DownSample:FS"_span,
-                  .file     = "kawase_blur.frag"_span,
-                  .preamble = "#define UPSAMPLE 0"_span},
-                 {.id       = "KawaseBlur_DownSample:VS"_span,
-                  .file     = "kawase_blur.vert"_span,
-                  .preamble = "#define UPSAMPLE 0"_span},
-                 {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
-                 {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
-                 {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
-                 {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-            Span{argv[1], strlen(argv[1])}) == ShaderCompileError::None)
+  CHECK(
+      pack_shaders(
+          spirvs,
+          to_span<ShaderPackEntry>(
+              {{.id = "ConvexPoly:FS"_span, .file = "convex_poly.frag"_span},
+               {.id = "ConvexPoly:VS"_span, .file = "convex_poly.vert"_span},
+               {.id       = "KawaseBlur_UpSample:FS"_span,
+                .file     = "kawase_blur.frag"_span,
+                .preamble = "#define UPSAMPLE 1"_span},
+               {.id       = "KawaseBlur_UpSample:VS"_span,
+                .file     = "kawase_blur.vert"_span,
+                .preamble = "#define UPSAMPLE 1"_span},
+               {.id       = "KawaseBlur_DownSample:FS"_span,
+                .file     = "kawase_blur.frag"_span,
+                .preamble = "#define UPSAMPLE 0"_span},
+               {.id       = "KawaseBlur_DownSample:VS"_span,
+                .file     = "kawase_blur.vert"_span,
+                .preamble = "#define UPSAMPLE 0"_span},
+               {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
+               {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
+               {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
+               {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
+          "C:\\Users\\rlama\\Documents\\workspace\\oss\\ashura\\ashura\\shaders"_span) ==
+      ShaderCompileError::None)
 
   StrHashMap<gfx::Shader> shaders;
   defer                   shaders_del{[&] { shaders.reset(); }};
@@ -238,49 +239,11 @@ int main(int argc, char **argv)
 
   // TODO(lamarrr): update preferred extent
 
-  gfx::Image img =
-      device
-          ->create_image(
-              device.self,
-              gfx::ImageDesc{.type   = gfx::ImageType::Type2D,
-                             .format = gfx::Format::B8G8R8A8_UNORM,
-                             .usage  = gfx::ImageUsage::Sampled |
-                                      gfx::ImageUsage::TransferDst,
-                             .aspects      = gfx::ImageAspects::Color,
-                             .extent       = {1, 1, 1},
-                             .mip_levels   = 1,
-                             .array_layers = 1,
-                             .sample_count = gfx::SampleCount::Count1})
-          .unwrap();
-  gfx::ImageView img_view =
-      device
-          ->create_image_view(
-              device.self,
-              gfx::ImageViewDesc{.image           = img,
-                                 .view_type       = gfx::ImageViewType::Type2D,
-                                 .view_format     = gfx::Format::B8G8R8A8_UNORM,
-                                 .mapping         = {},
-                                 .aspects         = gfx::ImageAspects::Color,
-                                 .first_mip_level = 0,
-                                 .num_mip_levels  = 1,
-                                 .first_array_layer = 0,
-                                 .num_array_layers  = 1})
-          .unwrap();
-
-  ShaderParameterHeap<RRectShaderParameter> heap;
-  heap.init(device, 4);
-
-  gfx::Sampler smp =
-      device->create_sampler(device.self, gfx::SamplerDesc{}).unwrap();
-
-  gfx::DescriptorSet set = heap.create(RRectShaderParameter{
-      .albedo = gfx::ImageBinding{.sampler = smp, .image_view = img_view}});
-
   while (!should_close)
   {
     win_sys->poll_events();
     renderer.begin_frame(swapchain);
-    renderer.record_frame(img, img_view, set);
+    renderer.record_frame();
     renderer.end_frame(swapchain);
   }
   default_logger->info("closing");

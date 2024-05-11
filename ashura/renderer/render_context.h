@@ -43,6 +43,7 @@ struct RenderContext
       gfx::BufferUsage::UniformTexelBuffer |
       gfx::BufferUsage::StorageTexelBuffer | gfx::BufferUsage::IndirectBuffer |
       gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst;
+  static constexpr u32 MAX_TEXTURE_PACK_COUNT = 1024;
 
   gfx::DeviceImpl          device                  = {};
   gfx::PipelineCache       pipeline_cache          = nullptr;
@@ -51,16 +52,11 @@ struct RenderContext
   gfx::Format              color_format            = gfx::Format::Undefined;
   gfx::Format              depth_stencil_format    = gfx::Format::Undefined;
   FramebufferAttachments   framebuffer_attachments = {};
-  FramebufferAttachments   scratch_framebuffer_attachments         = {};
-  gfx::RenderPass          render_pass                             = nullptr;
-  gfx::RenderPass          color_render_pass                       = nullptr;
-  gfx::Framebuffer         framebuffer                             = nullptr;
-  gfx::Framebuffer         scratch_framebuffer                     = nullptr;
-  gfx::DescriptorSetLayout ssbo_layout                             = nullptr;
-  gfx::DescriptorSetLayout textures_layout                         = nullptr;
-  Vec<Tuple<gfx::FrameId, gfx::Framebuffer>> released_framebuffers = {};
-  Vec<Tuple<gfx::FrameId, gfx::Image>>       released_images       = {};
-  Vec<Tuple<gfx::FrameId, gfx::ImageView>>   released_image_views  = {};
+  FramebufferAttachments   scratch_framebuffer_attachments      = {};
+  gfx::DescriptorSetLayout ssbo_layout                          = nullptr;
+  gfx::DescriptorSetLayout textures_layout                      = nullptr;
+  Vec<Tuple<gfx::FrameId, gfx::Image>>     released_images      = {};
+  Vec<Tuple<gfx::FrameId, gfx::ImageView>> released_image_views = {};
 
   void init(gfx::DeviceImpl p_device, bool p_use_hdr,
             u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,
@@ -76,7 +72,6 @@ struct RenderContext
 
   Option<gfx::Shader> get_shader(Span<char const> name);
 
-  void release(gfx::Framebuffer framebuffer);
   void release(gfx::Image image);
   void release(gfx::ImageView view);
   void purge();

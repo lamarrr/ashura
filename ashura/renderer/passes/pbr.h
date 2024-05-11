@@ -57,17 +57,16 @@ struct PBRDrawIndirect
 
 struct PBRPassParams
 {
-  gfx::Framebuffer   framebuffer        = nullptr;
-  gfx::Extent        framebuffer_extent = {0, 0};
-  bool               wireframe          = false;
-  gfx::DescriptorSet vertex_ssbo        = nullptr;
-  gfx::DescriptorSet index_ssbo         = nullptr;
-  gfx::DescriptorSet param_ssbo         = nullptr;
-  u32                param_ssbo_offset  = 0;
-  gfx::DescriptorSet light_ssbo         = nullptr;
-  u32                light_ssbo_offset  = 0;
-  gfx::DescriptorSet textures           = nullptr;
-  PBRDrawIndirect    indirect           = {};
+  gfx::RenderingInfo rendering_info    = {};
+  bool               wireframe         = false;
+  gfx::DescriptorSet vertex_ssbo       = nullptr;
+  gfx::DescriptorSet index_ssbo        = nullptr;
+  gfx::DescriptorSet param_ssbo        = nullptr;
+  u32                param_ssbo_offset = 0;
+  gfx::DescriptorSet light_ssbo        = nullptr;
+  u32                light_ssbo_offset = 0;
+  gfx::DescriptorSet textures          = nullptr;
+  PBRDrawIndirect    indirect          = {};
 };
 
 struct PBRPass

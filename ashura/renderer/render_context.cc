@@ -109,54 +109,9 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
               gfx::DescriptorSetLayoutDesc{
                   .label    = "Texture Pack"_span,
                   .bindings = to_span({gfx::DescriptorBindingDesc{
-                      .type  = gfx::DescriptorType::DynamicStorageBuffer,
-                      .count = 1024,
+                      .type  = gfx::DescriptorType::CombinedImageSampler,
+                      .count = MAX_TEXTURE_PACK_COUNT,
                       .is_variable_length = true}})})
-          .unwrap();
-
-  render_pass =
-      device
-          ->create_render_pass(
-              device.self,
-              gfx::RenderPassDesc{
-                  .label             = "Color+Depth/Stencil RenderPass"_span,
-                  .color_attachments = to_span<gfx::RenderPassAttachment>(
-                      {{.format           = color_format,
-                        .load_op          = gfx::LoadOp::Load,
-                        .store_op         = gfx::StoreOp::Store,
-                        .stencil_load_op  = gfx::LoadOp::DontCare,
-                        .stencil_store_op = gfx::StoreOp::DontCare}}),
-                  .input_attachments = {},
-                  .depth_stencil_attachment =
-                      to_span<gfx::RenderPassAttachment>(
-                          {{.format           = depth_stencil_format,
-                            .load_op          = gfx::LoadOp::Load,
-                            .store_op         = gfx::StoreOp::Store,
-                            .stencil_load_op  = gfx::LoadOp::Load,
-                            .stencil_store_op = gfx::StoreOp::Store}})})
-          .unwrap();
-
-  color_render_pass =
-      device
-          ->create_render_pass(
-              device.self,
-              gfx::RenderPassDesc{
-                  .label             = "Color RenderPass"_span,
-                  .color_attachments = to_span<gfx::RenderPassAttachment>(
-                      {{.format           = color_format,
-                        .load_op          = gfx::LoadOp::Load,
-                        .store_op         = gfx::StoreOp::Store,
-                        .stencil_load_op  = gfx::LoadOp::DontCare,
-                        .stencil_store_op = gfx::StoreOp::DontCare}}),
-                  .input_attachments = {},
-                  .depth_stencil_attachment =
-                      to_span<gfx::RenderPassAttachment>(
-                          {{.unused           = true,
-                            .format           = depth_stencil_format,
-                            .load_op          = gfx::LoadOp::Load,
-                            .store_op         = gfx::StoreOp::Store,
-                            .stencil_load_op  = gfx::LoadOp::Load,
-                            .stencil_store_op = gfx::StoreOp::Store}})})
           .unwrap();
 }
 
@@ -243,7 +198,6 @@ void recreate_attachment(RenderContext &ctx, FramebufferAttachments &attachment,
 void RenderContext::uninit()
 {
   device->destroy_pipeline_cache(device.self, pipeline_cache);
-  device->destroy_render_pass(device.self, render_pass);
   device->destroy_image(device.self, framebuffer_attachments.color_image);
   device->destroy_image_view(device.self,
                              framebuffer_attachments.color_image_view);
@@ -251,53 +205,17 @@ void RenderContext::uninit()
                         framebuffer_attachments.depth_stencil_image);
   device->destroy_image_view(device.self,
                              framebuffer_attachments.depth_stencil_image_view);
-  device->destroy_framebuffer(device.self, framebuffer);
-  device->destroy_framebuffer(device.self, scratch_framebuffer);
   device->destroy_descriptor_set_layout(device.self, ssbo_layout);
   device->destroy_descriptor_set_layout(device.self, textures_layout);
   idle_purge();
-  released_framebuffers.reset();
   released_images.reset();
   released_image_views.reset();
 }
 
 void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
 {
-  release(framebuffer);
   recreate_attachment(*this, framebuffer_attachments, new_extent);
-  release(scratch_framebuffer);
   recreate_attachment(*this, scratch_framebuffer_attachments, new_extent);
-
-  framebuffer =
-      device
-          ->create_framebuffer(
-              device.self,
-              gfx::FramebufferDesc{
-                  .label       = "Main Framebuffer"_span,
-                  .render_pass = render_pass,
-                  .extent      = framebuffer_attachments.extent,
-                  .color_attachments =
-                      to_span({framebuffer_attachments.color_image_view}),
-                  .depth_stencil_attachment = to_span(
-                      {framebuffer_attachments.depth_stencil_image_view}),
-                  .layers = 1})
-          .unwrap();
-
-  scratch_framebuffer =
-      device
-          ->create_framebuffer(
-              device.self,
-              gfx::FramebufferDesc{
-                  .label             = "Scratch Framebuffer"_span,
-                  .render_pass       = render_pass,
-                  .extent            = framebuffer_attachments.extent,
-                  .color_attachments = to_span(
-                      {scratch_framebuffer_attachments.color_image_view}),
-                  .depth_stencil_attachment =
-                      to_span({scratch_framebuffer_attachments
-                                   .depth_stencil_image_view}),
-                  .layers = 1})
-          .unwrap();
 }
 
 gfx::CommandEncoderImpl RenderContext::encoder()
@@ -332,15 +250,6 @@ Option<gfx::Shader> RenderContext::get_shader(Span<char const> name)
     return None;
   }
   return Some{*shader};
-}
-
-void RenderContext::release(gfx::Framebuffer framebuffer)
-{
-  if (framebuffer == nullptr)
-  {
-    return;
-  }
-  CHECK(released_framebuffers.push(frame_id(), framebuffer));
 }
 
 void RenderContext::release(gfx::Image image)
@@ -388,18 +297,6 @@ void RenderContext::purge()
       device->destroy_image_view(device.self, r.v1);
     }
     released_image_views.erase(to_delete);
-  }
-
-  {
-    auto [good, to_delete] =
-        binary_partition(released_framebuffers, [tail_frame](auto const &r) {
-          return r.v0 >= tail_frame;
-        });
-    for (auto const &r : to_span(released_framebuffers)[to_delete])
-    {
-      device->destroy_framebuffer(device.self, r.v1);
-    }
-    released_framebuffers.erase(to_delete);
   }
 }
 

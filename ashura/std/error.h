@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/std/log.h"
+#include <stdlib.h>
 
 #define CHECK_EX(description, ...)                                          \
   if (!(__VA_ARGS__))                                                       \
@@ -13,5 +14,4 @@
   }
 
 #define CHECK(...) CHECK_EX("", __VA_ARGS__)
-#define UNREACHABLE() \
-  CHECK_EX("Expected expression to be unreachable, signifies a bug", false)
+#define UNREACHABLE() abort()

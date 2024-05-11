@@ -28,8 +28,7 @@ struct RRectParam
 
 struct RRectPassParams
 {
-  gfx::Framebuffer   framebuffer        = nullptr;
-  gfx::Extent        framebuffer_extent = {0, 0};
+  gfx::RenderingInfo rendering_info     = {};
   gfx::DescriptorSet params_ssbo        = nullptr;
   u32                params_ssbo_offset = 0;
   gfx::DescriptorSet textures           = nullptr;

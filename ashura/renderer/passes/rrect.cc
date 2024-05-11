@@ -59,7 +59,7 @@ void RRectPass::init(RenderContext &ctx)
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
-      .render_pass            = ctx.color_render_pass,
+      .color_formats          = {&ctx.color_format, 1},
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = 0,
@@ -79,28 +79,26 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
 {
   gfx::CommandEncoderImpl encoder = ctx.encoder();
 
-  encoder->begin_render_pass(encoder.self, params.framebuffer,
-                             ctx.color_render_pass, Vec2U{0, 0},
-                             params.framebuffer_extent, {}, {});
-
+  encoder->begin_rendering(encoder.self, params.rendering_info);
   encoder->bind_graphics_pipeline(encoder.self, pipeline);
-  encoder->set_scissor(encoder.self, Vec2U{0, 0}, params.framebuffer_extent);
-  encoder->set_viewport(
+  encoder->set_graphics_state(
       encoder.self,
-      gfx::Viewport{.offset    = Vec2{0, 0},
-                    .extent    = Vec2{(f32) params.framebuffer_extent.x,
-                                   (f32) params.framebuffer_extent.y},
-                    .min_depth = 0,
-                    .max_depth = 1});
+      gfx::GraphicsPipelineState{
+          .scissor  = {.offset = Vec2U{0, 0},
+                       .extent = params.rendering_info.extent},
+          .viewport = gfx::Viewport{
+              .offset    = Vec2{0, 0},
+              .extent    = Vec2{(f32) params.rendering_info.extent.x,
+                             (f32) params.rendering_info.extent.y},
+              .min_depth = 0,
+              .max_depth = 1}});
 
   encoder->bind_descriptor_sets(encoder.self,
                                 to_span({params.params_ssbo, params.textures}),
                                 to_span({params.params_ssbo_offset}));
-
   encoder->draw(encoder.self, 6, params.num_instances, 0,
                 params.first_instance);
-
-  encoder->end_render_pass(encoder.self);
+  encoder->end_rendering(encoder.self);
 }
 
 void RRectPass::uninit(RenderContext &ctx)

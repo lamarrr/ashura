@@ -31,10 +31,6 @@ constexpr u32 MAX_PIPELINE_COLOR_ATTACHMENTS       = 8;
 constexpr u32 MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4096;
 constexpr u32 MAX_BINDING_DESCRIPTORS              = 4096;
 constexpr u32 MAX_DESCRIPTOR_SET_BINDINGS          = 16;
-constexpr u32 MAX_COMPUTE_WORK_GROUP_COUNT         = 1024;
-constexpr u32 MAX_COMPUTE_WORK_GROUP_SIZE          = 1024;
-constexpr u32 MAX_COMPUTE_WORK_GROUP_INVOCATIONS   = 1024;
-constexpr u32 MAX_COMPUTE_SHARED_MEMORY_SIZE       = 16384;
 constexpr u32 MAX_FRAME_BUFFERING                  = 4;
 constexpr u32 MAX_SWAPCHAIN_IMAGES                 = 4;
 constexpr u64 MAX_UNIFORM_BUFFER_RANGE             = 65536;
@@ -55,8 +51,6 @@ typedef struct Image_T               *Image;
 typedef struct ImageView_T           *ImageView;
 typedef struct Sampler_T             *Sampler;
 typedef struct Shader_T              *Shader;
-typedef struct RenderPass_T          *RenderPass;
-typedef struct Framebuffer_T         *Framebuffer;
 typedef struct DescriptorSetLayout_T *DescriptorSetLayout;
 typedef struct DescriptorSet_T       *DescriptorSet;
 typedef struct PipelineCache_T       *PipelineCache;
@@ -358,11 +352,10 @@ ASH_DEFINE_ENUM_BIT_OPS(FormatFeatures)
 
 enum class ImageAspects : u8
 {
-  None     = 0x00U,
-  Color    = 0x01U,
-  Depth    = 0x02U,
-  Stencil  = 0x04U,
-  MetaData = 0x08U
+  None    = 0x00U,
+  Color   = 0x01U,
+  Depth   = 0x02U,
+  Stencil = 0x04U
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(ImageAspects)
@@ -661,6 +654,15 @@ enum class CompositeAlpha : u32
 
 ASH_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
 
+enum class ResolveMode : u32
+{
+  None       = 0x00,
+  SampleZero = 0x01,
+  Average    = 0x02,
+  Min        = 0x04,
+  Max        = 0x08
+};
+
 struct SurfaceFormat
 {
   Format     format      = Format::Undefined;
@@ -801,41 +803,6 @@ struct ShaderDesc
 {
   Span<char const> label      = {};
   Span<u32 const>  spirv_code = {};
-};
-
-/// @unused: if the attachment associated with this slot will not be used
-/// @load_op: how to load color or depth component
-/// @store_op: how to store color or depth component
-/// @stencil_load_op: how to load stencil component
-/// @stencil_store_op: how to store stencil component
-struct RenderPassAttachment
-{
-  bool    unused           = false;
-  Format  format           = Format::Undefined;
-  LoadOp  load_op          = LoadOp::Load;
-  StoreOp store_op         = StoreOp::Store;
-  LoadOp  stencil_load_op  = LoadOp::Load;
-  StoreOp stencil_store_op = StoreOp::Store;
-};
-
-/// render_passes are used for selecting tiling strategy and
-/// related optimizations
-struct RenderPassDesc
-{
-  Span<char const>                 label                    = {};
-  Span<RenderPassAttachment const> color_attachments        = {};
-  Span<RenderPassAttachment const> input_attachments        = {};
-  Span<RenderPassAttachment const> depth_stencil_attachment = {};
-};
-
-struct FramebufferDesc
-{
-  Span<char const>      label                    = {};
-  RenderPass            render_pass              = nullptr;
-  Extent                extent                   = {};
-  Span<ImageView const> color_attachments        = {};
-  Span<ImageView const> depth_stencil_attachment = {};
-  u32                   layers                   = 0;
 };
 
 /// @count: represents maximum count of the binding if `is_variable_length` is
@@ -979,12 +946,47 @@ struct PipelineRasterizationState
   f32         depth_bias_slope_factor    = 0;
 };
 
+struct StencilState
+{
+  u32            reference     = 0;
+  u32            compare_mask  = 0;
+  u32            write_mask    = 0;
+  gfx::StencilOp fail_op       = gfx::StencilOp::Keep;
+  gfx::StencilOp pass_op       = gfx::StencilOp::Keep;
+  gfx::StencilOp depth_fail_op = gfx::StencilOp::Keep;
+  gfx::CompareOp compare_op    = gfx::CompareOp::Never;
+};
+
+struct GraphicsPipelineState
+{
+  struct
+  {
+    Offset offset = {};
+    Extent extent = {};
+  } scissor                               = {};
+  Viewport       viewport                 = {};
+  Vec4           blend_constant           = {};
+  bool           stencil_test_enable      = false;
+  StencilState   front_face_stencil       = {};
+  StencilState   back_face_stencil        = {};
+  gfx::CullMode  cull_mode                = gfx::CullMode::None;
+  gfx::FrontFace front_face               = gfx::FrontFace::CounterClockWise;
+  bool           depth_test_enable        = false;
+  gfx::CompareOp depth_compare_op         = gfx::CompareOp::Never;
+  bool           depth_write_enable       = false;
+  bool           depth_bounds_test_enable = false;
+};
+
+/// @@color_format, depth_format, stencil_format: with Format::Undefined means
+/// the attachment is unused.
 struct GraphicsPipelineDesc
 {
   Span<char const>                label                  = {};
   ShaderStageDesc                 vertex_shader          = {};
   ShaderStageDesc                 fragment_shader        = {};
-  RenderPass                      render_pass            = nullptr;
+  Span<Format const>              color_formats          = {};
+  Span<Format const>              depth_format           = {};
+  Span<Format const>              stencil_format         = {};
   Span<VertexInputBinding const>  vertex_input_bindings  = {};
   Span<VertexAttribute const>     vertex_attributes      = {};
   u32                             push_constants_size    = 0;
@@ -1127,18 +1129,42 @@ struct PipelineStatistics
 /// @timestamp_period: number of timestamp ticks equivalent to 1 nanosecond
 struct DeviceProperties
 {
-  u32              api_version                     = 0;
-  u32              driver_version                  = 0;
-  u32              vendor_id                       = 0;
-  u32              device_id                       = 0;
-  Span<char const> device_name                     = {};
-  DeviceType       type                            = DeviceType::Other;
-  bool             has_unified_memory              = false;
-  bool             has_non_solid_fill_mode         = false;
-  u64              texel_buffer_offset_alignment   = 0;
-  u64              uniform_buffer_offset_alignment = 0;
-  u64              storage_buffer_offset_alignment = 0;
-  f32              timestamp_period                = 0;
+  u32              api_version                        = 0;
+  u32              driver_version                     = 0;
+  u32              vendor_id                          = 0;
+  u32              device_id                          = 0;
+  Span<char const> device_name                        = {};
+  DeviceType       type                               = DeviceType::Other;
+  bool             has_unified_memory                 = false;
+  bool             has_non_solid_fill_mode            = false;
+  u64              texel_buffer_offset_alignment      = 0;
+  u64              uniform_buffer_offset_alignment    = 0;
+  u64              storage_buffer_offset_alignment    = 0;
+  f32              timestamp_period                   = 0;
+  u32              max_compute_work_group_count[3]    = {};
+  u32              max_compute_work_group_size[3]     = {};
+  u32              max_compute_work_group_invocations = 0;
+  u32              max_compute_shared_memory_size     = 0;
+};
+
+struct RenderingAttachment
+{
+  ImageView   view         = nullptr;
+  ImageView   resolve      = nullptr;
+  ResolveMode resolve_mode = ResolveMode::None;
+  LoadOp      load_op      = LoadOp::Load;
+  StoreOp     store_op     = StoreOp::Store;
+  ClearValue  clear        = {};
+};
+
+struct RenderingInfo
+{
+  Offset                          offset             = {};
+  Extent                          extent             = {};
+  u32                             num_layers         = 0;
+  Span<RenderingAttachment const> color_attachments  = {};
+  Span<RenderingAttachment const> depth_attachment   = {};
+  Span<RenderingAttachment const> stencil_attachment = {};
 };
 
 /// to execute tasks at end of frame. use the tail frame index.
@@ -1176,64 +1202,38 @@ struct CommandEncoderInterface
                         Span<ImageResolve const> resolves)         = nullptr;
   void (*begin_compute_pass)(CommandEncoder self)                  = nullptr;
   void (*end_compute_pass)(CommandEncoder self)                    = nullptr;
-  void (*begin_render_pass)(
-      CommandEncoder self, Framebuffer framebuffer, RenderPass render_pass,
-      Offset render_offset, Extent render_extent,
-      Span<Color const>        color_attachments_clear_values,
-      Span<DepthStencil const> depth_stencil_attachment_clear_value)  = nullptr;
-  void (*end_render_pass)(CommandEncoder self)                        = nullptr;
+  void (*begin_rendering)(CommandEncoder       self,
+                          RenderingInfo const &info)               = nullptr;
+  void (*end_rendering)(CommandEncoder self)                       = nullptr;
   void (*bind_compute_pipeline)(CommandEncoder  self,
-                                ComputePipeline pipeline)             = nullptr;
+                                ComputePipeline pipeline)          = nullptr;
   void (*bind_graphics_pipeline)(CommandEncoder   self,
-                                 GraphicsPipeline pipeline)           = nullptr;
+                                 GraphicsPipeline pipeline)        = nullptr;
   void (*bind_descriptor_sets)(CommandEncoder            self,
                                Span<DescriptorSet const> descriptor_sets,
-                               Span<u32 const> dynamic_offsets)       = nullptr;
+                               Span<u32 const> dynamic_offsets)    = nullptr;
   void (*push_constants)(CommandEncoder self,
-                         Span<u8 const> push_constants_data)          = nullptr;
+                         Span<u8 const> push_constants_data)       = nullptr;
   void (*dispatch)(CommandEncoder self, u32 group_count_x, u32 group_count_y,
-                   u32 group_count_z)                                 = nullptr;
+                   u32 group_count_z)                              = nullptr;
   void (*dispatch_indirect)(CommandEncoder self, Buffer buffer,
-                            u64 offset)                               = nullptr;
-  void (*set_viewport)(CommandEncoder self, Viewport const &viewport) = nullptr;
-  void (*set_scissor)(CommandEncoder self, Offset scissor_offset,
-                      Extent scissor_extent)                          = nullptr;
-  void (*set_blend_constants)(CommandEncoder self,
-                              Vec4           blend_constant)                    = nullptr;
-  void (*set_stencil_compare_mask)(CommandEncoder self, StencilFaces faces,
-                                   u32 mask)                          = nullptr;
-  void (*set_stencil_op)(CommandEncoder self, StencilFaces face_mask,
-                         StencilOp fail_op, StencilOp pass_op,
-                         StencilOp depth_fail_op,
-                         CompareOp compare_op)                        = nullptr;
-  void (*set_stencil_reference)(CommandEncoder self, StencilFaces faces,
-                                u32 reference)                        = nullptr;
-  void (*set_stencil_test_enable)(CommandEncoder self, bool enable)   = nullptr;
-  void (*set_stencil_write_mask)(CommandEncoder self, StencilFaces faces,
-                                 u32 mask)                            = nullptr;
-  void (*set_cull_mode)(CommandEncoder self, CullMode cull_mode)      = nullptr;
-  void (*set_front_face)(CommandEncoder self, FrontFace front_face)   = nullptr;
-  void (*set_primitive_topology)(CommandEncoder    self,
-                                 PrimitiveTopology topology)          = nullptr;
-  void (*set_depth_bounds_test_enable)(CommandEncoder self,
-                                       bool           enable)                   = nullptr;
-  void (*set_depth_compare_op)(CommandEncoder self, CompareOp op)     = nullptr;
-  void (*set_depth_test_enable)(CommandEncoder self, bool enable)     = nullptr;
-  void (*set_depth_write_enable)(CommandEncoder self, bool enable)    = nullptr;
+                            u64 offset)                            = nullptr;
+  void (*set_graphics_state)(CommandEncoder               self,
+                             GraphicsPipelineState const &state)   = nullptr;
   void (*bind_vertex_buffers)(CommandEncoder     self,
                               Span<Buffer const> vertex_buffers,
-                              Span<u64 const>    offsets)                = nullptr;
+                              Span<u64 const>    offsets)             = nullptr;
   void (*bind_index_buffer)(CommandEncoder self, Buffer index_buffer,
-                            u64 offset, IndexType index_type)         = nullptr;
+                            u64 offset, IndexType index_type)      = nullptr;
   void (*draw)(CommandEncoder self, u32 vertex_count, u32 instance_count,
-               u32 first_vertex_id, u32 first_instance_id)            = nullptr;
+               u32 first_vertex_id, u32 first_instance_id)         = nullptr;
   void (*draw_indexed)(CommandEncoder self, u32 first_index, u32 num_indices,
                        i32 vertex_offset, u32 first_instance_id,
-                       u32 num_instances)                             = nullptr;
+                       u32 num_instances)                          = nullptr;
   void (*draw_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
-                        u32 draw_count, u32 stride)                   = nullptr;
+                        u32 draw_count, u32 stride)                = nullptr;
   void (*draw_indexed_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
-                                u32 draw_count, u32 stride)           = nullptr;
+                                u32 draw_count, u32 stride)        = nullptr;
 };
 
 struct CommandEncoderImpl
@@ -1273,10 +1273,6 @@ struct DeviceInterface
                                             SamplerDesc const &desc) = nullptr;
   Result<Shader, Status> (*create_shader)(Device            self,
                                           ShaderDesc const &desc)    = nullptr;
-  Result<RenderPass, Status> (*create_render_pass)(
-      Device self, RenderPassDesc const &desc) = nullptr;
-  Result<Framebuffer, Status> (*create_framebuffer)(
-      Device self, FramebufferDesc const &desc) = nullptr;
   Result<DescriptorSetLayout, Status> (*create_descriptor_set_layout)(
       Device self, DescriptorSetLayoutDesc const &desc) = nullptr;
   Result<DescriptorSet, Status> (*create_descriptor_set)(
@@ -1300,8 +1296,6 @@ struct DeviceInterface
   void (*destroy_image_view)(Device self, ImageView image_view)      = nullptr;
   void (*destroy_sampler)(Device self, Sampler sampler)              = nullptr;
   void (*destroy_shader)(Device self, Shader shader)                 = nullptr;
-  void (*destroy_render_pass)(Device self, RenderPass render_pass)   = nullptr;
-  void (*destroy_framebuffer)(Device self, Framebuffer framebuffer)  = nullptr;
   void (*destroy_descriptor_set_layout)(Device              self,
                                         DescriptorSetLayout layout)  = nullptr;
   void (*destroy_descriptor_set)(Device self, DescriptorSet set)     = nullptr;
@@ -1391,10 +1385,5 @@ Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
                                                     bool enable_validation);
 
 }        // namespace gfx
-
-// TODO
-struct FreeTable
-{
-};
 
 }        // namespace ash
