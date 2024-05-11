@@ -4,28 +4,15 @@
 namespace ash
 {
 
-typedef Vec4 AmbientLight;
-
-struct DirectionalLight
+struct PunctualLight
 {
-  Vec3 direction = {};
-  Vec4 color     = {};
-};
-
-struct PointLight
-{
-  Vec4 color       = {};
-  Vec3 position    = {};
-  f32  attenuation = 0;
-};
-
-struct SpotLight
-{
-  Vec3 direction   = {};
-  f32  cutoff      = 0;
-  Vec4 color       = {};
-  Vec3 position    = {};
-  f32  attenuation = 0;
+  Vec4  direction;        // xyz
+  Vec4  position;         // xyz
+  Vec4  color;
+  float inner_angle = 0;
+  float outer_angle = 0;
+  float intensity   = 0;
+  float radius      = 0;
 };
 
 }        // namespace ash

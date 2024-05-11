@@ -87,24 +87,6 @@ bool push_float(fmt::Context &ctx, fmt::Spec const &spec, FloatT value)
   return false;
 }
 
-bool fmt::push_object_hex(fmt::Context &ctx, fmt::Spec const &spec,
-                          char const *name, Span<u8 const> rep)
-{
-  Spec hex_spec{.style = Style::Hex, .precision = spec.precision};
-  bool ok =
-      push(ctx, spec, "Hex:") && push(ctx, spec, name) && push(ctx, spec, "[");
-  u8 const *it = rep.data();
-  while (ok && it < rep.end())
-  {
-    ok = ok && push(ctx, spec, "0x") && push(ctx, hex_spec, *it) &&
-         ((it != rep.end() - 1) ? push(ctx, spec, ", ") : true);
-    it++;
-  }
-
-  ok = ok && push(ctx, spec, "]");
-  return ok;
-}
-
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &, bool value)
 {
   return ctx.push(value ? "true"_span : "false"_span);
@@ -243,19 +225,9 @@ bool fmt::push(fmt::Context &ctx, fmt::Spec const &, Span<char const> str)
   return ctx.push(str);
 }
 
-bool fmt::push(fmt::Context &ctx, fmt::Spec const &, std::string_view str)
+bool fmt::push(fmt::Context &ctx, fmt::Spec const &spec, char const *str)
 {
-  return ctx.push(to_span(str));
-}
-
-bool fmt::push(fmt::Context &ctx, fmt::Spec const &, std::string const &str)
-{
-  return ctx.push(to_span(str));
-}
-
-bool fmt::push(fmt::Context &ctx, fmt::Spec const &, char const *str)
-{
-  return ctx.push(Span{str, strlen(str)});
+  return push(ctx, spec, Span<char const>{str, strlen(str)});
 }
 
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &, void const *ptr)

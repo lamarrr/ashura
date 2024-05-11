@@ -4,7 +4,6 @@
 #include "ashura/gfx/vulkan.h"
 #include "ashura/renderer/render_context.h"
 #include "ashura/renderer/renderer.h"
-#include "ashura/renderer/shader.h"
 #include "stdlib.h"
 #include <thread>
 
@@ -25,7 +24,7 @@ int main(int, char **)
   CHECK(win_sys != nullptr);
 
   gfx::InstanceImpl instance =
-      vk::instance_interface.create(heap_allocator, default_logger, false)
+      gfx::create_vulkan_instance(heap_allocator, default_logger, true)
           .unwrap();
 
   defer instance_del{[&] { instance->destroy(instance.self); }};
@@ -43,13 +42,11 @@ int main(int, char **)
   gfx::DeviceImpl device =
       instance
           ->create_device(
-              instance.self,
+              instance.self, default_allocator,
               to_span({gfx::DeviceType::Cpu, gfx::DeviceType::VirtualGpu,
-                       gfx::DeviceType::Other,
-
-                       gfx::DeviceType::DiscreteGpu,
+                       gfx::DeviceType::Other, gfx::DeviceType::DiscreteGpu,
                        gfx::DeviceType::IntegratedGpu}),
-              to_span({surface}), default_allocator)
+              to_span({surface}), 2)
           .unwrap();
   defer device_del{
       [&] { instance->destroy_device(instance.self, device.self); }};
@@ -60,8 +57,8 @@ int main(int, char **)
       pack_shaders(
           spirvs,
           to_span<ShaderPackEntry>(
-              {{.id = "Glyph:FS"_span, .file = "glyph.frag"_span},
-               {.id = "Glyph:VS"_span, .file = "glyph.vert"_span},
+              {{.id = "ConvexPoly:FS"_span, .file = "convex_poly.frag"_span},
+               {.id = "ConvexPoly:VS"_span, .file = "convex_poly.vert"_span},
                {.id       = "KawaseBlur_UpSample:FS"_span,
                 .file     = "kawase_blur.frag"_span,
                 .preamble = "#define UPSAMPLE 1"_span},
@@ -78,7 +75,7 @@ int main(int, char **)
                {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
                {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
                {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-          "C:/Users/rlama/Documents/workspace/oss/ashura/ashura/shaders"_span) ==
+          "C:\\Users\\rlama\\Documents\\workspace\\oss\\ashura\\ashura\\shaders"_span) ==
       ShaderCompileError::None)
 
   StrHashMap<gfx::Shader> shaders;
@@ -242,50 +239,11 @@ int main(int, char **)
 
   // TODO(lamarrr): update preferred extent
 
-  gfx::Image img =
-      device
-          ->create_image(
-              device.self,
-              gfx::ImageDesc{.type   = gfx::ImageType::Type2D,
-                             .format = gfx::Format::B8G8R8A8_UNORM,
-                             .usage  = gfx::ImageUsage::Sampled |
-                                      gfx::ImageUsage::TransferDst,
-                             .aspects      = gfx::ImageAspects::Color,
-                             .extent       = {1, 1, 1},
-                             .mip_levels   = 1,
-                             .array_layers = 1,
-                             .sample_count = gfx::SampleCount::Count1})
-          .unwrap();
-  gfx::ImageView img_view =
-      device
-          ->create_image_view(
-              device.self,
-              gfx::ImageViewDesc{.image           = img,
-                                 .view_type       = gfx::ImageViewType::Type2D,
-                                 .view_format     = gfx::Format::B8G8R8A8_UNORM,
-                                 .mapping         = {},
-                                 .aspects         = gfx::ImageAspects::Color,
-                                 .first_mip_level = 0,
-                                 .num_mip_levels  = 1,
-                                 .first_array_layer = 0,
-                                 .num_array_layers  = 1})
-          .unwrap();
-
-  ShaderParameterHeap<RRectShaderParameter> heap;
-  heap.init(device, 4);
-
-  gfx::Sampler smp =
-      device->create_sampler(device.self, gfx::SamplerDesc{}).unwrap();
-
-  gfx::DescriptorSet set = heap.create(RRectShaderParameter{
-      .albedo =
-          gfx::CombinedImageSampler{.sampler = smp, .image_view = img_view}});
-
   while (!should_close)
   {
     win_sys->poll_events();
     renderer.begin_frame(swapchain);
-    renderer.record_frame(img, img_view, set);
+    renderer.record_frame();
     renderer.end_frame(swapchain);
   }
   default_logger->info("closing");

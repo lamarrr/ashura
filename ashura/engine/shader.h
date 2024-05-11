@@ -34,9 +34,9 @@ ShaderCompileError
 
 struct ShaderPackEntry
 {
-  Span<char const> id;
-  Span<char const> file;
-  Span<char const> preamble;
+  Span<char const> id       = {};
+  Span<char const> file     = {};
+  Span<char const> preamble = {};
 };
 
 ShaderCompileError

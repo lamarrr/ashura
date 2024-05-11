@@ -1,9 +1,5 @@
 #pragma once
-#include "ashura/std/fn.h"
 #include "ashura/std/types.h"
-#include <string>
-#include <string_view>
-#include <typeinfo>
 
 namespace ash
 {
@@ -34,14 +30,10 @@ struct Context
   Span<char> scratch_buffer = {};
 };
 
-bool push_object_hex(Context &ctx, Spec const &spec, char const *name,
-                     Span<u8 const> rep);
-
 template <typename T>
-bool push(Context &ctx, Spec const &spec, T const &value)
+bool push(Context &ctx, Spec const &, T const &)
 {
-  return push_object_hex(ctx, spec, typeid(value).name(),
-                         Span<T const>{&value, 1}.as_u8());
+  return ctx.push("{Unformatted Object}"_span);
 }
 
 bool push(Context &ctx, Spec const &, bool value);
@@ -66,10 +58,13 @@ bool push(Context &ctx, Spec const &spec, Vec3U const &value);
 bool push(Context &ctx, Spec const &spec, Vec4U const &value);
 bool push(Context &, Spec &spec, Spec const &value);
 bool push(Context &ctx, Spec const &, Span<char const> str);
-bool push(Context &ctx, Spec const &, std::string_view str);
-bool push(Context &ctx, Spec const &, char const *str);
+template <usize N>
+bool push(Context &ctx, Spec const &spec, char const (&str)[N])
+{
+  return push(ctx, spec, Span{str, N});
+}
+bool push(Context &ctx, Spec const &spec, char const *str);
 bool push(Context &ctx, Spec const &spec, void const *ptr);
-bool push(Context &ctx, Spec const &, std::string const &str);
 
 template <typename... Args>
 bool format(Context &ctx, Args const &...args)

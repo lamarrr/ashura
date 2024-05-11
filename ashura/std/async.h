@@ -1,8 +1,6 @@
 #include <atomic>
 
 #include "ashura/std/allocator.h"
-#include "ashura/std/enum.h"
-#include "ashura/std/fn.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -65,10 +63,10 @@ struct Promise
 
 u32              num_physical_cores();
 u32              num_logical_cores();
-void             set_thread_name(uid32 tid, Span<char const>);
-Span<char const> get_thread_name(uid32 tid);
-void             set_thread_affinity(uid32 tid);
-void             get_thread_affinity(uid32 tid);
+void             set_thread_name(uid tid, Span<char const>);
+Span<char const> get_thread_name(uid tid);
+void             set_thread_affinity(uid tid);
+void             get_thread_affinity(uid tid);
 
 struct CpuExecutor
 {

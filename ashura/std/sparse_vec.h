@@ -1,13 +1,12 @@
 #pragma once
 
-#include "ashura/std/op.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
 namespace ash
 {
 
-/// @tparam SizeT: size type, u8, u32, u64
+// TODO(lamarrr): generational counters
 ///
 /// @index_to_id: id of data, ordered relative to {data}
 /// @id_to_index: map of id to index in {data}
@@ -18,46 +17,50 @@ namespace ash
 /// The index and id either point to valid indices/ids or are an implicit free
 /// list of ids and indices masked by RELEASE_MASK
 ///
-template <typename SizeT>
+///
+/// Bits[0  : 47] -> index id
+/// Bits[48 : 61] -> generational counter
+/// Bits[62 : 63] -> release mask
+///
+///
 struct SparseVec
 {
-  static_assert(!NumTraits<SizeT>::SIGNED && !NumTraits<SizeT>::FLOATING_POINT);
-  using SizeType                         = SizeT;
-  static constexpr SizeType STUB         = NumTraits<SizeType>::MAX;
-  static constexpr SizeType RELEASE_MASK = ~(STUB >> 1);
-  static constexpr SizeType MAX_ELEMENTS = STUB >> 1;
-  static constexpr SizeType MAX_ID       = MAX_ELEMENTS;
+  static constexpr uid STUB         = U64_MAX;
+  static constexpr uid RELEASE_MASK = ~(STUB >> 1);
+  static constexpr u64 MAX_ELEMENTS = STUB >> 1;
+  static constexpr uid MAX_ID       = MAX_ELEMENTS;
+  // TODO(lamarrr): use 15 bits for generational mask
 
-  Vec<SizeType> index_to_id  = {};
-  Vec<SizeType> id_to_index  = {};
-  SizeType      free_id_head = STUB;
+  Vec<uid> index_to_id  = {};
+  Vec<u64> id_to_index  = {};
+  u64      free_id_head = STUB;
 
   [[nodiscard]] constexpr bool is_empty() const
   {
     return size() == 0;
   }
 
-  [[nodiscard]] constexpr SizeType *data() const
+  [[nodiscard]] constexpr u64 *data() const
   {
     return index_to_id.data();
   }
 
-  [[nodiscard]] constexpr SizeType size() const
+  [[nodiscard]] constexpr u64 size() const
   {
-    return static_cast<SizeType>(index_to_id.size());
+    return static_cast<u64>(index_to_id.size());
   }
 
-  [[nodiscard]] constexpr SizeType *begin() const
+  [[nodiscard]] constexpr u64 *begin() const
   {
     return index_to_id.begin();
   }
 
-  [[nodiscard]] constexpr SizeType *end() const
+  [[nodiscard]] constexpr u64 *end() const
   {
     return index_to_id.end();
   }
 
-  constexpr operator Span<SizeType>() const
+  constexpr operator Span<u64>() const
   {
     return index_to_id;
   }
@@ -80,27 +83,27 @@ struct SparseVec
     free_id_head = STUB;
   }
 
-  [[nodiscard]] constexpr bool is_valid_id(SizeType id) const
+  [[nodiscard]] constexpr bool is_valid_id(uid id) const
   {
     return id < id_to_index.size() && !(id_to_index[id] & RELEASE_MASK);
   }
 
-  [[nodiscard]] constexpr bool is_valid_index(SizeType index) const
+  [[nodiscard]] constexpr bool is_valid_index(u64 index) const
   {
     return index < size();
   }
 
-  [[nodiscard]] constexpr SizeType operator[](SizeType id) const
+  [[nodiscard]] constexpr u64 operator[](uid id) const
   {
     return id_to_index[id];
   }
 
-  [[nodiscard]] constexpr SizeType to_index(SizeType id) const
+  [[nodiscard]] constexpr u64 to_index(uid id) const
   {
     return id_to_index[id];
   }
 
-  [[nodiscard]] constexpr bool try_to_index(SizeType id, SizeType &index) const
+  [[nodiscard]] constexpr bool try_to_index(uid id, u64 &index) const
   {
     if (!is_valid_id(id))
     {
@@ -111,12 +114,12 @@ struct SparseVec
     return true;
   }
 
-  [[nodiscard]] constexpr SizeType to_id(SizeType index) const
+  [[nodiscard]] constexpr uid to_id(u64 index) const
   {
     return index_to_id[index];
   }
 
-  [[nodiscard]] constexpr bool try_to_id(SizeType index, SizeType &id) const
+  [[nodiscard]] constexpr bool try_to_id(u64 index, uid &id) const
   {
     if (!is_valid_index(index))
     {
@@ -128,9 +131,9 @@ struct SparseVec
   }
 
   template <typename VecT>
-  constexpr bool try_get(SizeType id, VecT::Iterator &iterator, VecT &vec)
+  constexpr bool try_get(uid id, VecT::Iterator &iterator, VecT &vec)
   {
-    SizeType index;
+    u64 index;
     if (!try_to_index(id, index))
     {
       return false;
@@ -140,10 +143,10 @@ struct SparseVec
   }
 
   template <typename... VecT>
-  constexpr void erase(SizeType id, VecT &...dense)
+  constexpr void erase(uid id, VecT &...dense)
   {
-    SizeType const index = id_to_index[id];
-    SizeType const last  = size() - 1;
+    u64 const index = id_to_index[id];
+    u64 const last  = size() - 1;
 
     if (index != last)
     {
@@ -165,7 +168,7 @@ struct SparseVec
   }
 
   template <typename... VecT>
-  [[nodiscard]] constexpr bool try_erase(SizeType id, VecT &...dense)
+  [[nodiscard]] constexpr bool try_erase(uid id, VecT &...dense)
   {
     if (!is_valid_id(id))
     {
@@ -176,7 +179,7 @@ struct SparseVec
   }
 
   template <typename... VecT>
-  [[nodiscard]] bool reserve(SizeType target_capacity, VecT &...dense)
+  [[nodiscard]] bool reserve(u64 target_capacity, VecT &...dense)
   {
     return ((id_to_index.reserve(target_capacity) &&
              index_to_id.reserve(target_capacity)) &&
@@ -184,14 +187,14 @@ struct SparseVec
   }
 
   template <typename... VecT>
-  [[nodiscard]] bool grow(SizeType target_size, VecT &...dense)
+  [[nodiscard]] bool grow(u64 target_size, VecT &...dense)
   {
     return ((id_to_index.grow(target_size) && index_to_id.grow(target_size)) &&
             ... && dense.grow(target_size));
   }
 
   /// make new id and map the unique id to the unique index
-  [[nodiscard]] bool make_id(SizeType index, SizeType &out_id)
+  [[nodiscard]] bool make_id(u64 index, uid &out_id)
   {
     if (free_id_head != STUB)
     {
@@ -206,7 +209,7 @@ struct SparseVec
       {
         return false;
       }
-      out_id = static_cast<SizeType>(id_to_index.size() - 1);
+      out_id = static_cast<uid>(id_to_index.size() - 1);
       return true;
     }
   }
@@ -214,8 +217,8 @@ struct SparseVec
   template <typename PushOp, typename... VecT>
   [[nodiscard]] bool push(PushOp &&push_op, VecT &...dense)
   {
-    SizeType const index = size();
-    SizeType       id;
+    u64 const index = size();
+    uid       id;
 
     if (!(grow(size() + 1, dense...) && make_id(index, id) &&
           index_to_id.push(id)))

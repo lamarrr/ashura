@@ -1,10 +1,13 @@
 #pragma once
+#include "ashura/std/cfg.h"
 #include "ashura/std/traits.h"
 #include <cfloat>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <new>
+#include <type_traits>
 
 namespace ash
 {
@@ -20,10 +23,8 @@ typedef float     f32;
 typedef double    f64;
 typedef size_t    usize;
 typedef ptrdiff_t isize;
-typedef u8        uid8;
-typedef u16       uid16;
-typedef u32       uid32;
-typedef u64       uid64;
+typedef u64       uid;
+typedef u64       Hash;
 
 constexpr u8 U8_MIN = 0;
 constexpr u8 U8_MAX = 0xFFU;
@@ -66,11 +67,9 @@ constexpr f64 F64_MAX          = DBL_MAX;
 constexpr f32 F64_EPSILON      = DBL_EPSILON;
 
 constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
+constexpr usize CACHELINE_ALIGNMENT    = 64;
 
-constexpr uid8  UID8_INVALID  = U8_MAX;
-constexpr uid16 UID16_INVALID = U16_MAX;
-constexpr uid32 UID32_INVALID = U32_MAX;
-constexpr uid64 UID64_INVALID = U64_MAX;
+constexpr uid UID_INVALID = U64_MAX;
 
 constexpr f32 PI = 3.14159265358979323846f;
 
@@ -2825,5 +2824,428 @@ struct defer
 
 template <typename Lambda>
 defer(Lambda &&) -> defer<Lambda>;
+
+struct Noop
+{
+  constexpr void operator()(auto &&...) const
+  {
+  }
+};
+
+struct Add
+{
+  constexpr auto operator()(auto const &a, auto const &b) const
+  {
+    return a + b;
+  }
+};
+
+struct Sub
+{
+  constexpr auto operator()(auto const &a, auto const &b) const
+  {
+    return a - b;
+  }
+};
+
+struct Mul
+{
+  constexpr auto operator()(auto const &a, auto const &b) const
+  {
+    return a * b;
+  }
+};
+
+struct Div
+{
+  constexpr auto operator()(auto const &a, auto const &b) const
+  {
+    return a / b;
+  }
+};
+
+struct Equal
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a == b;
+  }
+};
+
+struct NotEqual
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a != b;
+  }
+};
+
+struct Lesser
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a < b;
+  }
+};
+
+struct LesserOrEqual
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a <= b;
+  }
+};
+
+struct Greater
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a > b;
+  }
+};
+
+struct GreaterOrEqual
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a >= b;
+  }
+};
+
+struct Compare
+{
+  constexpr int operator()(auto const &a, auto const &b) const
+  {
+    if (a == b)
+    {
+      return 0;
+    }
+    if (a > b)
+    {
+      return -1;
+    }
+    return 1;
+  }
+};
+
+struct Min
+{
+  template <typename T>
+  constexpr T const &operator()(T const &a, T const &b) const
+  {
+    return a < b ? a : b;
+  }
+};
+
+struct Max
+{
+  template <typename T>
+  constexpr auto const &operator()(T const &a, T const &b) const
+  {
+    return a > b ? a : b;
+  }
+};
+
+struct Swap
+{
+  template <typename T>
+  constexpr void operator()(T &a, T &b) const
+  {
+    T a_tmp{(T &&) a};
+    a = (T &&) b;
+    b = (T &&) a_tmp;
+  }
+};
+
+struct Clamp
+{
+  template <typename T>
+  constexpr T const &operator()(T const &value, T const &min,
+                                T const &max) const
+  {
+    return value < min ? min : (value > max ? max : value);
+  }
+};
+
+constexpr Noop           noop;
+constexpr Add            add;
+constexpr Sub            sub;
+constexpr Mul            mul;
+constexpr Div            div;
+constexpr Equal          equal;
+constexpr NotEqual       not_equal;
+constexpr Lesser         lesser;
+constexpr LesserOrEqual  lesser_or_equal;
+constexpr Greater        greater;
+constexpr GreaterOrEqual greater_or_equal;
+constexpr Compare        compare;
+constexpr Min            min;
+constexpr Max            max;
+constexpr Swap           swap;
+constexpr Clamp          clamp;
+
+/// Fn is a function handle and doesn't manage any lifetime.
+///
+/// it is essentially a trivial struct. it is just contains 2 pointers
+/// (dispatcher + data).
+///
+template <typename Signature>
+struct Fn;
+
+template <typename ReturnType, typename... Args>
+struct Fn<ReturnType(Args...)>
+{
+  using Dispatcher = ReturnType (*)(void *, Args...);
+
+  constexpr ReturnType operator()(Args... args) const
+  {
+    return dispatcher(data, static_cast<Args &&>(args)...);
+  }
+
+  Dispatcher dispatcher = nullptr;
+  void      *data       = nullptr;
+};
+
+template <typename ReturnType, typename... Args>
+struct RawFunctionDispatcher
+{
+  static constexpr ReturnType dispatch(void *data, Args... args)
+  {
+    using Ptr = ReturnType (*)(Args...);
+
+    Ptr function_ptr = reinterpret_cast<Ptr>(data);
+
+    return function_ptr(static_cast<Args &&>(args)...);
+  }
+};
+
+template <typename RawFunctionType>
+struct RawFnTraits
+{
+};
+
+template <typename ReturnType, typename... Args>
+struct RawFnTraits<ReturnType(Args...)>
+{
+  using ptr         = ReturnType (*)(Args...);
+  using signature   = ReturnType(Args...);
+  using fn          = Fn<signature>;
+  using dispatcher  = RawFunctionDispatcher<ReturnType, Args...>;
+  using return_type = ReturnType;
+};
+
+template <typename ReturnType, typename... Args>
+struct RawFnTraits<ReturnType (*)(Args...)>
+    : public RawFnTraits<ReturnType(Args...)>
+{
+};
+
+template <typename Type, typename ReturnType, typename... Args>
+struct FunctorDispatcher
+{
+  static constexpr ReturnType dispatch(void *data, Args... args)
+  {
+    return (*(reinterpret_cast<Type *>(data)))(static_cast<Args &&>(args)...);
+  }
+};
+
+template <class MemberFunctionSignature>
+struct MemberFnTraits
+{
+};
+
+// non-const member functions
+template <class Type, typename ReturnType, typename... Args>
+struct MemberFnTraits<ReturnType (Type::*)(Args...)>
+{
+  using ptr         = ReturnType (*)(Args...);
+  using signature   = ReturnType(Args...);
+  using fn          = Fn<signature>;
+  using type        = Type;
+  using dispatcher  = FunctorDispatcher<type, ReturnType, Args...>;
+  using return_type = ReturnType;
+};
+
+// const member functions
+template <class Type, typename ReturnType, typename... Args>
+struct MemberFnTraits<ReturnType (Type::*)(Args...) const>
+{
+  using ptr         = ReturnType (*)(Args...);
+  using signature   = ReturnType(Args...);
+  using fn          = Fn<signature>;
+  using type        = Type const;
+  using dispatcher  = FunctorDispatcher<type, ReturnType, Args...>;
+  using return_type = ReturnType;
+};
+
+template <class Type>
+struct FunctorFnTraits : public MemberFnTraits<decltype(&Type::operator())>
+{
+};
+
+// make a function view from a raw function pointer.
+template <typename RawFunctionType>
+auto to_fn(RawFunctionType *function_pointer)
+{
+  using traits     = RawFnTraits<RawFunctionType>;
+  using fn         = typename traits::fn;
+  using dispatcher = typename traits::dispatcher;
+
+  return fn{&dispatcher::dispatch, reinterpret_cast<void *>(function_pointer)};
+}
+
+/// make a function view from a non-capturing functor (i.e. lambda's without
+/// associated data)
+template <typename StaticFunctor>
+auto to_fn(StaticFunctor functor)
+{
+  using traits = FunctorFnTraits<StaticFunctor>;
+  using ptr    = typename traits::ptr;
+
+  ptr function_pointer = static_cast<ptr>(functor);
+
+  return to_fn(function_pointer);
+}
+
+/// make a function view from a functor reference. Functor should outlive the Fn
+template <typename Functor>
+auto to_fn_ref(Functor &functor)
+{
+  using traits     = FunctorFnTraits<Functor>;
+  using fn         = typename traits::fn;
+  using dispatcher = typename traits::dispatcher;
+
+  return fn{&dispatcher::dispatch,
+            const_cast<void *>(reinterpret_cast<void const *>(&functor))};
+}
+
+///
+/// The `SourceLocation`  class represents certain information about the source
+/// code, such as file names, line numbers, and function names. Previously,
+/// functions that desire to obtain this information about the call site (for
+/// logging, testing, or debugging purposes) must use macros so that predefined
+/// macros like `__LINE__` and `__FILE__` are expanded in the context of the
+/// caller. The `SourceLocation` class provides a better alternative.
+///
+///
+/// based on: https://en.cppreference.com/w/cpp/utility/source_location
+///
+struct [[nodiscard]] SourceLocation
+{
+  static constexpr SourceLocation current(
+#if ASH_HAS_BUILTIN(FILE) || (defined(__cpp_lib_source_location) && \
+                              __cpp_lib_source_location >= 201907L)
+      char const *file = __builtin_FILE(),
+#elif defined(__FILE__)
+      char const *file = __FILE__,
+#else
+      char const *file = "unknown",
+#endif
+
+#if ASH_HAS_BUILTIN(FUNCTION) || (defined(__cpp_lib_source_location) && \
+                                  __cpp_lib_source_location >= 201907L)
+      char const *function = __builtin_FUNCTION(),
+#else
+      char const *function = "unknown",
+#endif
+
+#if ASH_HAS_BUILTIN(LINE) || (defined(__cpp_lib_source_location) && \
+                              __cpp_lib_source_location >= 201907L)
+      uint_least32_t line = __builtin_LINE(),
+#elif defined(__LINE__)
+      uint_least32_t line = __LINE__,
+#else
+      uint_least32_t line = 0,
+#endif
+
+#if ASH_HAS_BUILTIN(COLUMN) || (defined(__cpp_lib_source_location) && \
+                                __cpp_lib_source_location >= 201907L)
+      uint_least32_t column = __builtin_COLUMN()
+#else
+      uint_least32_t column = 0
+#endif
+  )
+  {
+    return SourceLocation{file, function, line, column};
+  }
+
+  char const    *file     = "";
+  char const    *function = "";
+  uint_least32_t line     = 0;
+  uint_least32_t column   = 0;
+};
+
+template <typename EnumType>
+using enum_ut = std::underlying_type_t<EnumType>;
+
+template <typename EnumType>
+[[nodiscard]] constexpr enum_ut<EnumType> enum_uv(EnumType a)
+{
+  return static_cast<enum_ut<EnumType>>(a);
+}
+
+template <typename EnumType>
+[[nodiscard]] constexpr enum_ut<EnumType> enum_uv_or(EnumType a, EnumType b)
+{
+  return static_cast<enum_ut<EnumType>>(enum_uv(a) | enum_uv(b));
+}
+
+template <typename EnumType>
+[[nodiscard]] constexpr EnumType enum_or(EnumType a, EnumType b)
+{
+  return static_cast<EnumType>(enum_uv_or(a, b));
+}
+
+template <typename EnumType>
+[[nodiscard]] constexpr enum_ut<EnumType> enum_uv_and(EnumType a, EnumType b)
+{
+  return static_cast<enum_ut<EnumType>>(enum_uv(a) & enum_uv(b));
+}
+
+template <typename EnumType>
+[[nodiscard]] constexpr enum_ut<EnumType> enum_uv_toggle(EnumType a)
+{
+  return static_cast<enum_ut<EnumType>>(~enum_uv(a));
+}
+
+template <typename EnumType>
+[[nodiscard]] constexpr EnumType enum_toggle(EnumType a)
+{
+  return static_cast<EnumType>(enum_uv_toggle(a));
+}
+
+template <typename EnumType>
+[[nodiscard]] constexpr EnumType enum_and(EnumType a, EnumType b)
+{
+  return static_cast<EnumType>(enum_uv_and(a, b));
+}
+
+#define ASH_DEFINE_ENUM_BIT_OPS(enum_type)                                 \
+  [[nodiscard]] constexpr enum_type operator|(enum_type a, enum_type b)    \
+  {                                                                        \
+    return ::ash::enum_or(a, b);                                           \
+  }                                                                        \
+                                                                           \
+  [[nodiscard]] constexpr enum_type operator~(enum_type a)                 \
+  {                                                                        \
+    return ::ash::enum_toggle(a);                                          \
+  }                                                                        \
+                                                                           \
+  [[nodiscard]] constexpr enum_type &operator|=(enum_type &a, enum_type b) \
+  {                                                                        \
+    a = a | b;                                                             \
+    return a;                                                              \
+  }                                                                        \
+                                                                           \
+  [[nodiscard]] constexpr enum_type operator&(enum_type a, enum_type b)    \
+  {                                                                        \
+    return ::ash::enum_and(a, b);                                          \
+  }                                                                        \
+                                                                           \
+  [[nodiscard]] constexpr enum_type &operator&=(enum_type &a, enum_type b) \
+  {                                                                        \
+    a = a & b;                                                             \
+    return a;                                                              \
+  }
 
 }        // namespace ash

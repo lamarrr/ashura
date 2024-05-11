@@ -1,6 +1,6 @@
 #pragma once
 #include "ashura/std/allocator.h"
-#include "ashura/std/enum.h"
+#include "ashura/std/error.h"
 #include "ashura/std/log.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
@@ -10,58 +10,59 @@ namespace ash
 {
 namespace gfx
 {
-constexpr u32 REMAINING_MIP_LEVELS           = ~0U;
-constexpr u32 REMAINING_ARRAY_LAYERS         = ~0U;
-constexpr u64 WHOLE_SIZE                     = ~0ULL;
-constexpr u32 MAX_COLOR_ATTACHMENTS          = 8;
-constexpr u32 MAX_INPUT_ATTACHMENTS          = 8;
-constexpr u32 MAX_VERTEX_ATTRIBUTES          = 16;
-constexpr u32 MAX_PUSH_CONSTANT_SIZE         = 128;
-constexpr u32 MAX_MEMORY_HEAP_PROPERTIES     = 32;
-constexpr u32 MAX_MEMORY_HEAPS               = 16;
-constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS   = 4;
-constexpr u32 MAX_DESCRIPTOR_DYNAMIC_BUFFERS = 4;
-constexpr u32 MAX_COMPUTE_GROUP_COUNT_X      = 1024;
-constexpr u32 MAX_COMPUTE_GROUP_COUNT_Y      = 1024;
-constexpr u32 MAX_COMPUTE_GROUP_COUNT_Z      = 1024;
-constexpr u32 MAX_SWAPCHAIN_IMAGES           = 4;
 
-typedef Vec2U                          Offset;
-typedef Vec2U                          Extent;
-typedef Vec3U                          Offset3D;
-typedef Vec3U                          Extent3D;
-typedef u64                            FrameId;
-typedef struct Buffer_T               *Buffer;
-typedef struct BufferView_T           *BufferView;
-typedef struct Image_T                *Image;
-typedef struct ImageView_T            *ImageView;
-typedef struct Sampler_T              *Sampler;
-typedef struct CombinedImageSampler    CombinedImageSampler;
-typedef CombinedImageSampler           CombinedImageSamplerBinding;
-typedef struct Shader_T               *Shader;
-typedef struct RenderPass_T           *RenderPass;
-typedef struct Framebuffer_T          *Framebuffer;
-typedef struct DescriptorSetLayout_T  *DescriptorSetLayout;
-typedef struct DescriptorHeap_T       *DescriptorHeap;
-typedef struct DescriptorSet           DescriptorSet;
-typedef struct PipelineCache_T        *PipelineCache;
-typedef struct ComputePipeline_T      *ComputePipeline;
-typedef struct GraphicsPipeline_T     *GraphicsPipeline;
-typedef struct Fence_T                *Fence;
-typedef struct CommandEncoder_T       *CommandEncoder;
-typedef struct Surface_T              *Surface;
-typedef struct Swapchain_T            *Swapchain;
-typedef struct FrameContext_T         *FrameContext;
-typedef struct Device_T               *Device;
-typedef struct Instance_T             *Instance;
-typedef struct DescriptorHeapInterface DescriptorHeapInterface;
-typedef struct CommandEncoderInterface CommandEncoderInterface;
-typedef struct DeviceInterface         DeviceInterface;
-typedef struct InstanceInterface       InstanceInterface;
-typedef struct DescriptorHeapImpl      DescriptorHeapImpl;
-typedef struct CommandEncoderImpl      CommandEncoderImpl;
-typedef struct DeviceImpl              DeviceImpl;
-typedef struct InstanceImpl            InstanceImpl;
+constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
+constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
+constexpr u64 WHOLE_SIZE             = ~0ULL;
+
+constexpr u32 MAX_IMAGE_EXTENT                     = 8192;
+constexpr u32 MAX_IMAGE_ARRAY_LAYERS               = 1024;
+constexpr u32 MAX_VIEWPORT_EXTENT                  = 8192;
+constexpr u32 MAX_FRAMEBUFFER_EXTENT               = 8192;
+constexpr u32 MAX_FRAMEBUFFER_LAYERS               = 1024;
+constexpr u32 MAX_VERTEX_ATTRIBUTES                = 16;
+constexpr u32 MAX_PUSH_CONSTANTS_SIZE              = 128;
+constexpr u32 MAX_UPDATE_BUFFER_SIZE               = 65536;
+constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS         = 8;
+constexpr u32 MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS = 8;
+constexpr u32 MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS = 8;
+constexpr u32 MAX_PIPELINE_INPUT_ATTACHMENTS       = 8;
+constexpr u32 MAX_PIPELINE_COLOR_ATTACHMENTS       = 8;
+constexpr u32 MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4096;
+constexpr u32 MAX_BINDING_DESCRIPTORS              = 4096;
+constexpr u32 MAX_DESCRIPTOR_SET_BINDINGS          = 16;
+constexpr u32 MAX_FRAME_BUFFERING                  = 4;
+constexpr u32 MAX_SWAPCHAIN_IMAGES                 = 4;
+constexpr u64 MAX_UNIFORM_BUFFER_RANGE             = 65536;
+constexpr f32 MAX_SAMPLER_ANISOTROPY               = 16;
+constexpr u32 MAX_CLIP_DISTANCES                   = 8;
+constexpr u32 MAX_CULL_DISTANCES                   = 8;
+constexpr u32 MAX_COMBINED_CLIP_AND_CULL_DISTANCES = 8;
+
+typedef Vec2U Offset;
+typedef Vec2U Extent;
+typedef Vec3U Offset3D;
+typedef Vec3U Extent3D;
+typedef u64   FrameId;
+
+typedef struct Buffer_T              *Buffer;
+typedef struct BufferView_T          *BufferView;
+typedef struct Image_T               *Image;
+typedef struct ImageView_T           *ImageView;
+typedef struct Sampler_T             *Sampler;
+typedef struct Shader_T              *Shader;
+typedef struct DescriptorSetLayout_T *DescriptorSetLayout;
+typedef struct DescriptorSet_T       *DescriptorSet;
+typedef struct PipelineCache_T       *PipelineCache;
+typedef struct ComputePipeline_T     *ComputePipeline;
+typedef struct GraphicsPipeline_T    *GraphicsPipeline;
+typedef struct TimestampQuery_T      *TimeStampQuery;
+typedef struct StatisticsQuery_T     *StatisticsQuery;
+typedef struct CommandEncoder_T      *CommandEncoder;
+typedef struct Surface_T             *Surface;
+typedef struct Swapchain_T           *Swapchain;
+typedef struct Device_T              *Device;
+typedef struct Instance_T            *Instance;
 
 enum class Backend : u8
 {
@@ -121,7 +122,7 @@ enum class [[nodiscard]] Status : i32
   SurfaceLost          = -1000000000
 };
 
-enum class Format : u8
+enum class Format : i32
 {
   Undefined                  = 0,
   R4G4_UNORM_PACK8           = 1,
@@ -310,7 +311,7 @@ enum class Format : u8
   ASTC_12x12_SRGB_BLOCK      = 184
 };
 
-enum class ColorSpace : u32
+enum class ColorSpace : i32
 {
   SRGB_NONLINEAR          = 0,
   DISPLAY_P3_NONLINEAR    = 1000104001,
@@ -329,7 +330,7 @@ enum class ColorSpace : u32
   EXTENDED_SRGB_NONLINEAR = 1000104014
 };
 
-enum class FormatFeatures : u16
+enum class FormatFeatures : u32
 {
   None                     = 0x0000U,
   SampledImage             = 0x0001U,
@@ -351,11 +352,10 @@ ASH_DEFINE_ENUM_BIT_OPS(FormatFeatures)
 
 enum class ImageAspects : u8
 {
-  None     = 0x00U,
-  Color    = 0x01U,
-  Depth    = 0x02U,
-  Stencil  = 0x04U,
-  MetaData = 0x08U
+  None    = 0x00U,
+  Color   = 0x01U,
+  Depth   = 0x02U,
+  Stencil = 0x04U
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(ImageAspects)
@@ -529,7 +529,7 @@ enum class ColorComponents : u8
 
 ASH_DEFINE_ENUM_BIT_OPS(ColorComponents)
 
-enum class BufferUsage : u16
+enum class BufferUsage : u32
 {
   None               = 0x0000U,
   TransferSrc        = 0x0001U,
@@ -545,7 +545,7 @@ enum class BufferUsage : u16
 
 ASH_DEFINE_ENUM_BIT_OPS(BufferUsage)
 
-enum class ImageUsage : u8
+enum class ImageUsage : u32
 {
   None                   = 0x00U,
   TransferSrc            = 0x01U,
@@ -643,7 +643,7 @@ enum class IndexType : u8
   Uint32 = 1
 };
 
-enum class CompositeAlpha : u8
+enum class CompositeAlpha : u32
 {
   None           = 0x00U,
   Opaque         = 0x01U,
@@ -653,6 +653,15 @@ enum class CompositeAlpha : u8
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
+
+enum class ResolveMode : u32
+{
+  None       = 0x00,
+  SampleZero = 0x01,
+  Average    = 0x02,
+  Min        = 0x04,
+  Max        = 0x08
+};
 
 struct SurfaceFormat
 {
@@ -781,7 +790,7 @@ struct SamplerDesc
   SamplerAddressMode address_mode_w    = SamplerAddressMode::Repeat;
   f32                mip_lod_bias      = 0;
   bool               anisotropy_enable = false;
-  f32                max_anisotropy    = 0;
+  f32                max_anisotropy    = 1.0;
   bool               compare_enable    = false;
   CompareOp          compare_op        = CompareOp::Never;
   f32                min_lod           = 0;
@@ -796,43 +805,14 @@ struct ShaderDesc
   Span<u32 const>  spirv_code = {};
 };
 
-/// @load_op: how to load color or depth component
-/// @store_op: how to store color or depth component
-/// @stencil_load_op: how to load stencil component
-/// @stencil_store_op: how to store stencil component
-struct RenderPassAttachment
-{
-  Format  format           = Format::Undefined;
-  LoadOp  load_op          = LoadOp::Load;
-  StoreOp store_op         = StoreOp::Store;
-  LoadOp  stencil_load_op  = LoadOp::Load;
-  StoreOp stencil_store_op = StoreOp::Store;
-};
-
-/// render_passes are used for selecting tiling strategy and
-/// related optimizations
-struct RenderPassDesc
-{
-  Span<char const>                 label                    = {};
-  Span<RenderPassAttachment const> color_attachments        = {};
-  Span<RenderPassAttachment const> input_attachments        = {};
-  RenderPassAttachment             depth_stencil_attachment = {};
-};
-
-struct FramebufferDesc
-{
-  Span<char const>      label                    = {};
-  RenderPass            render_pass              = nullptr;
-  Extent                extent                   = {};
-  Span<ImageView const> color_attachments        = {};
-  ImageView             depth_stencil_attachment = nullptr;
-  u32                   layers                   = 0;
-};
-
+/// @count: represents maximum count of the binding if `is_variable_length` is
+/// true.
+/// @is_variable_length: if it is a dynamically sized binding
 struct DescriptorBindingDesc
 {
-  DescriptorType type  = DescriptorType::Sampler;
-  u32            count = 0;
+  DescriptorType type               = DescriptorType::Sampler;
+  u32            count              = 0;
+  bool           is_variable_length = false;
 };
 
 struct DescriptorSetLayoutDesc
@@ -847,25 +827,10 @@ struct PipelineCacheDesc
   Span<u8 const>   initial_data = {};
 };
 
-struct SamplerBinding
-{
-  Sampler sampler = nullptr;
-};
-
-struct CombinedImageSampler
+struct ImageBinding
 {
   Sampler   sampler    = nullptr;
   ImageView image_view = nullptr;
-};
-
-struct ImageBinding
-{
-  ImageView image_view = nullptr;
-};
-
-struct TexelBufferBinding
-{
-  BufferView buffer_view = nullptr;
 };
 
 struct BufferBinding
@@ -873,6 +838,16 @@ struct BufferBinding
   Buffer buffer = nullptr;
   u64    offset = 0;
   u64    size   = 0;
+};
+
+struct DescriptorSetUpdate
+{
+  DescriptorSet             set           = nullptr;
+  u32                       binding       = 0;
+  u32                       element       = 0;
+  Span<ImageBinding const>  images        = {};
+  Span<BufferView const>    texel_buffers = {};
+  Span<BufferBinding const> buffers       = {};
 };
 
 struct SpecializationConstant
@@ -894,7 +869,7 @@ struct ComputePipelineDesc
 {
   Span<char const>                label                  = {};
   ShaderStageDesc                 compute_shader         = {};
-  u32                             push_constant_size     = 0;
+  u32                             push_constants_size    = 0;
   Span<DescriptorSetLayout const> descriptor_set_layouts = {};
   PipelineCache                   cache                  = nullptr;
 };
@@ -971,35 +946,56 @@ struct PipelineRasterizationState
   f32         depth_bias_slope_factor    = 0;
 };
 
+struct StencilState
+{
+  u32            reference     = 0;
+  u32            compare_mask  = 0;
+  u32            write_mask    = 0;
+  gfx::StencilOp fail_op       = gfx::StencilOp::Keep;
+  gfx::StencilOp pass_op       = gfx::StencilOp::Keep;
+  gfx::StencilOp depth_fail_op = gfx::StencilOp::Keep;
+  gfx::CompareOp compare_op    = gfx::CompareOp::Never;
+};
+
+struct GraphicsPipelineState
+{
+  struct
+  {
+    Offset offset = {};
+    Extent extent = {};
+  } scissor                               = {};
+  Viewport       viewport                 = {};
+  Vec4           blend_constant           = {};
+  bool           stencil_test_enable      = false;
+  StencilState   front_face_stencil       = {};
+  StencilState   back_face_stencil        = {};
+  gfx::CullMode  cull_mode                = gfx::CullMode::None;
+  gfx::FrontFace front_face               = gfx::FrontFace::CounterClockWise;
+  bool           depth_test_enable        = false;
+  gfx::CompareOp depth_compare_op         = gfx::CompareOp::Never;
+  bool           depth_write_enable       = false;
+  bool           depth_bounds_test_enable = false;
+};
+
+/// @@color_format, depth_format, stencil_format: with Format::Undefined means
+/// the attachment is unused.
 struct GraphicsPipelineDesc
 {
   Span<char const>                label                  = {};
   ShaderStageDesc                 vertex_shader          = {};
   ShaderStageDesc                 fragment_shader        = {};
-  RenderPass                      render_pass            = nullptr;
+  Span<Format const>              color_formats          = {};
+  Span<Format const>              depth_format           = {};
+  Span<Format const>              stencil_format         = {};
   Span<VertexInputBinding const>  vertex_input_bindings  = {};
   Span<VertexAttribute const>     vertex_attributes      = {};
-  u32                             push_constant_size     = 0;
+  u32                             push_constants_size    = 0;
   Span<DescriptorSetLayout const> descriptor_set_layouts = {};
   PrimitiveTopology          primitive_topology  = PrimitiveTopology::PointList;
   PipelineRasterizationState rasterization_state = {};
   PipelineDepthStencilState  depth_stencil_state = {};
   PipelineColorBlendState    color_blend_state   = {};
   PipelineCache              cache               = nullptr;
-};
-
-struct FrameContextDesc
-{
-  Span<char const> label                = {};
-  u32              max_frames_in_flight = 0;
-  AllocatorImpl    allocator            = default_allocator;
-};
-
-struct DescriptorHeapDesc
-{
-  DescriptorSetLayout layout            = nullptr;
-  u32                 num_sets_per_pool = 0;
-  AllocatorImpl       allocator         = default_allocator;
 };
 
 struct DispatchCommand
@@ -1119,167 +1115,69 @@ struct SwapchainState
   Option<u32>       current_image = None;
 };
 
-/// should be assumed to change from frame to frame.
-/// avoid storing pointers to this struct.
-struct FrameInfo
+struct PipelineStatistics
 {
-  FrameId                        tail       = 0;
-  FrameId                        current    = 0;
-  Span<CommandEncoderImpl const> encoders   = {};
-  u32                            ring_index = 0;
+  u64 input_assembly_vertices     = 0;
+  u64 input_assembly_primitives   = 0;
+  u64 vertex_shader_invocations   = 0;
+  u64 clipping_invocations        = 0;
+  u64 clipping_primitives         = 0;
+  u64 fragment_shader_invocations = 0;
+  u64 compute_shader_invocations  = 0;
 };
 
-struct DeviceLimits
-{
-  u32         max_image_dimension1D                      = 0;
-  u32         max_image_dimension2D                      = 0;
-  u32         max_image_dimension3D                      = 0;
-  u32         max_image_dimension_cube                   = 0;
-  u32         max_image_array_layers                     = 0;
-  u32         max_texel_buffer_elements                  = 0;
-  u32         max_uniform_buffer_range                   = 0;
-  u32         max_storage_buffer_range                   = 0;
-  u32         max_push_constants_size                    = 0;
-  u32         max_bound_descriptor_sets                  = 0;
-  u32         max_per_stage_descriptor_samplers          = 0;
-  u32         max_per_stage_descriptor_uniform_buffers   = 0;
-  u32         max_per_stage_descriptor_storage_buffers   = 0;
-  u32         max_per_stage_descriptor_sampled_images    = 0;
-  u32         max_per_stage_descriptor_storage_images    = 0;
-  u32         max_per_stage_descriptor_input_attachments = 0;
-  u32         max_per_stage_resources                    = 0;
-  u32         max_descriptor_set_samplers                = 0;
-  u32         max_descriptor_set_uniform_buffers         = 0;
-  u32         max_descriptor_set_uniform_buffers_dynamic = 0;
-  u32         max_descriptor_set_storage_buffers         = 0;
-  u32         max_descriptor_set_storage_buffers_dynamic = 0;
-  u32         max_descriptor_set_sampled_images          = 0;
-  u32         max_descriptor_set_storage_images          = 0;
-  u32         max_descriptor_set_input_attachments       = 0;
-  u32         max_vertex_input_attributes                = 0;
-  u32         max_vertex_input_bindings                  = 0;
-  u32         max_vertex_input_attribute_offset          = 0;
-  u32         max_vertex_input_binding_stride            = 0;
-  u32         max_vertex_output_components               = 0;
-  u32         max_fragment_input_components              = 0;
-  u32         max_fragment_output_attachments            = 0;
-  u32         max_fragment_dual_src_attachments          = 0;
-  u32         max_fragment_combined_output_resources     = 0;
-  u32         max_compute_shared_memory_size             = 0;
-  u32         max_compute_work_group_count[3]            = {};
-  u32         max_compute_work_group_invocations         = 0;
-  u32         max_compute_work_group_size[3]             = {};
-  u32         max_draw_indexed_index_value               = 0;
-  u32         max_draw_indirect_count                    = 0;
-  f32         max_sampler_lod_bias                       = 0;
-  f32         max_sampler_anisotropy                     = 0;
-  u32         max_viewports                              = 0;
-  u32         max_viewport_dimensions[2]                 = {};
-  f32         viewport_bounds_range[2]                   = {};
-  u32         viewport_sub_pixel_bits                    = 0;
-  usize       min_memory_map_alignment                   = 0;
-  u64         min_texel_buffer_offset_alignment          = 0;
-  u64         min_uniform_buffer_offset_alignment        = 0;
-  u64         min_storage_buffer_offset_alignment        = 0;
-  u32         max_framebuffer_width                      = 0;
-  u32         max_framebuffer_height                     = 0;
-  u32         max_framebuffer_layers                     = 0;
-  SampleCount framebuffer_color_sample_counts            = SampleCount::None;
-  SampleCount framebuffer_depth_sample_counts            = SampleCount::None;
-  SampleCount framebuffer_stencil_sample_counts          = SampleCount::None;
-  SampleCount framebuffer_no_attachments_sample_counts   = SampleCount::None;
-  u32         max_color_attachments                      = 0;
-  SampleCount sampled_image_color_sample_counts          = SampleCount::None;
-  SampleCount sampled_image_integer_sample_counts        = SampleCount::None;
-  SampleCount sampled_image_depth_sample_counts          = SampleCount::None;
-  SampleCount sampled_image_stencil_sample_counts        = SampleCount::None;
-  SampleCount storage_image_sample_counts                = SampleCount::None;
-  u32         max_clip_distances                         = 0;
-  u32         max_cull_distances                         = 0;
-  u32         max_combined_clip_and_cull_distances       = 0;
-};
-
+/// @timestamp_period: number of timestamp ticks equivalent to 1 nanosecond
 struct DeviceProperties
 {
-  u32              api_version        = 0;
-  u32              driver_version     = 0;
-  u32              vendor_id          = 0;
-  u32              device_id          = 0;
-  Span<char const> api_name           = {};
-  Span<char const> device_name        = {};
-  DeviceType       type               = DeviceType::Other;
-  bool             has_unified_memory = false;
-  DeviceLimits     limits             = {};
+  u32              api_version                        = 0;
+  u32              driver_version                     = 0;
+  u32              vendor_id                          = 0;
+  u32              device_id                          = 0;
+  Span<char const> device_name                        = {};
+  DeviceType       type                               = DeviceType::Other;
+  bool             has_unified_memory                 = false;
+  bool             has_non_solid_fill_mode            = false;
+  u64              texel_buffer_offset_alignment      = 0;
+  u64              uniform_buffer_offset_alignment    = 0;
+  u64              storage_buffer_offset_alignment    = 0;
+  f32              timestamp_period                   = 0;
+  u32              max_compute_work_group_count[3]    = {};
+  u32              max_compute_work_group_size[3]     = {};
+  u32              max_compute_work_group_invocations = 0;
+  u32              max_compute_shared_memory_size     = 0;
 };
 
-struct DescriptorSet
+struct RenderingAttachment
 {
-  DescriptorHeap heap  = nullptr;
-  u32            index = 0;
+  ImageView   view         = nullptr;
+  ImageView   resolve      = nullptr;
+  ResolveMode resolve_mode = ResolveMode::None;
+  LoadOp      load_op      = LoadOp::Load;
+  StoreOp     store_op     = StoreOp::Store;
+  ClearValue  clear        = {};
 };
 
-/// @num_allocated_groups: number of alive group allocations
-/// @num_free_groups: number of released and reclaimable desciptor groups
-/// @num_released_groups: number of released but non-reclaimable descriptor
-/// groups. possibly still in use by the device.
-struct DescriptorHeapStats
+struct RenderingInfo
 {
-  u32 num_allocated = 0;
-  u32 num_free      = 0;
-  u32 num_released  = 0;
-  u32 num_pools     = 0;
-};
-
-struct DescriptorHeapInterface
-{
-  Result<u32, Status> (*allocate)(DescriptorHeap self)                = nullptr;
-  void (*collect)(DescriptorHeap self, FrameId tail_frame)            = nullptr;
-  void (*mark_in_use)(DescriptorHeap self, u32 set,
-                      FrameId current_frame)                          = nullptr;
-  bool (*is_in_use)(DescriptorHeap self, u32 set, FrameId tail_frame) = nullptr;
-  void (*release)(DescriptorHeap self, u32 set)                       = nullptr;
-  DescriptorHeapStats (*get_stats)(DescriptorHeap self)               = nullptr;
-  void (*sampler)(DescriptorHeap self, u32 set, u32 binding,
-                  Span<SamplerBinding const> elements)                = nullptr;
-  void (*combined_image_sampler)(
-      DescriptorHeap self, u32 set, u32 binding,
-      Span<CombinedImageSamplerBinding const> elements)    = nullptr;
-  void (*sampled_image)(DescriptorHeap self, u32 set, u32 binding,
-                        Span<ImageBinding const> elements) = nullptr;
-  void (*storage_image)(DescriptorHeap self, u32 set, u32 binding,
-                        Span<ImageBinding const> elements) = nullptr;
-  void (*uniform_texel_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                               Span<TexelBufferBinding const> elements) =
-      nullptr;
-  void (*storage_texel_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                               Span<TexelBufferBinding const> elements) =
-      nullptr;
-  void (*uniform_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                         Span<BufferBinding const> elements)         = nullptr;
-  void (*storage_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                         Span<BufferBinding const> elements)         = nullptr;
-  void (*dynamic_uniform_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                                 Span<BufferBinding const> elements) = nullptr;
-  void (*dynamic_storage_buffer)(DescriptorHeap self, u32 set, u32 binding,
-                                 Span<BufferBinding const> elements) = nullptr;
-  void (*input_attachment)(DescriptorHeap self, u32 set, u32 binding,
-                           Span<ImageBinding const> elements)        = nullptr;
-};
-
-struct DescriptorHeapImpl
-{
-  DescriptorHeap                 self      = nullptr;
-  DescriptorHeapInterface const *interface = nullptr;
-
-  constexpr DescriptorHeapInterface const *operator->() const
-  {
-    return interface;
-  }
+  Offset                          offset             = {};
+  Extent                          extent             = {};
+  u32                             num_layers         = 0;
+  Span<RenderingAttachment const> color_attachments  = {};
+  Span<RenderingAttachment const> depth_attachment   = {};
+  Span<RenderingAttachment const> stencil_attachment = {};
 };
 
 /// to execute tasks at end of frame. use the tail frame index.
 struct CommandEncoderInterface
 {
+  void (*reset_timestamp_query)(CommandEncoder self,
+                                TimeStampQuery query)                 = nullptr;
+  void (*reset_statistics_query)(CommandEncoder  self,
+                                 StatisticsQuery query)               = nullptr;
+  void (*write_timestamp)(CommandEncoder self, TimeStampQuery query)  = nullptr;
+  void (*begin_statistics)(CommandEncoder  self,
+                           StatisticsQuery query)                     = nullptr;
+  void (*end_statistics)(CommandEncoder self, StatisticsQuery query)  = nullptr;
   void (*begin_debug_marker)(CommandEncoder self, Span<char const> region_name,
                              Vec4 color)                              = nullptr;
   void (*end_debug_marker)(CommandEncoder self)                       = nullptr;
@@ -1302,50 +1200,40 @@ struct CommandEncoderInterface
                      Span<ImageBlit const> blits, Filter filter)   = nullptr;
   void (*resolve_image)(CommandEncoder self, Image src, Image dst,
                         Span<ImageResolve const> resolves)         = nullptr;
-  void (*begin_render_pass)(
-      CommandEncoder self, Framebuffer framebuffer, RenderPass render_pass,
-      Offset render_offset, Extent render_extent,
-      Span<Color const>        color_attachments_clear_values,
-      Span<DepthStencil const> depth_stencil_attachment_clear_value)  = nullptr;
-  void (*end_render_pass)(CommandEncoder self)                        = nullptr;
+  void (*begin_compute_pass)(CommandEncoder self)                  = nullptr;
+  void (*end_compute_pass)(CommandEncoder self)                    = nullptr;
+  void (*begin_rendering)(CommandEncoder       self,
+                          RenderingInfo const &info)               = nullptr;
+  void (*end_rendering)(CommandEncoder self)                       = nullptr;
   void (*bind_compute_pipeline)(CommandEncoder  self,
-                                ComputePipeline pipeline)             = nullptr;
+                                ComputePipeline pipeline)          = nullptr;
   void (*bind_graphics_pipeline)(CommandEncoder   self,
-                                 GraphicsPipeline pipeline)           = nullptr;
+                                 GraphicsPipeline pipeline)        = nullptr;
   void (*bind_descriptor_sets)(CommandEncoder            self,
                                Span<DescriptorSet const> descriptor_sets,
-                               Span<u32 const> dynamic_offsets)       = nullptr;
+                               Span<u32 const> dynamic_offsets)    = nullptr;
   void (*push_constants)(CommandEncoder self,
-                         Span<u8 const> push_constants_data)          = nullptr;
+                         Span<u8 const> push_constants_data)       = nullptr;
   void (*dispatch)(CommandEncoder self, u32 group_count_x, u32 group_count_y,
-                   u32 group_count_z)                                 = nullptr;
+                   u32 group_count_z)                              = nullptr;
   void (*dispatch_indirect)(CommandEncoder self, Buffer buffer,
-                            u64 offset)                               = nullptr;
-  void (*set_viewport)(CommandEncoder self, Viewport const &viewport) = nullptr;
-  void (*set_scissor)(CommandEncoder self, Offset scissor_offset,
-                      Extent scissor_extent)                          = nullptr;
-  void (*set_blend_constants)(CommandEncoder self,
-                              Vec4           blend_constant)                    = nullptr;
-  void (*set_stencil_compare_mask)(CommandEncoder self, StencilFaces faces,
-                                   u32 mask)                          = nullptr;
-  void (*set_stencil_reference)(CommandEncoder self, StencilFaces faces,
-                                u32 reference)                        = nullptr;
-  void (*set_stencil_write_mask)(CommandEncoder self, StencilFaces faces,
-                                 u32 mask)                            = nullptr;
+                            u64 offset)                            = nullptr;
+  void (*set_graphics_state)(CommandEncoder               self,
+                             GraphicsPipelineState const &state)   = nullptr;
   void (*bind_vertex_buffers)(CommandEncoder     self,
                               Span<Buffer const> vertex_buffers,
-                              Span<u64 const>    offsets)                = nullptr;
+                              Span<u64 const>    offsets)             = nullptr;
   void (*bind_index_buffer)(CommandEncoder self, Buffer index_buffer,
-                            u64 offset, IndexType index_type)         = nullptr;
+                            u64 offset, IndexType index_type)      = nullptr;
   void (*draw)(CommandEncoder self, u32 vertex_count, u32 instance_count,
-               u32 first_vertex_id, u32 first_instance_id)            = nullptr;
+               u32 first_vertex_id, u32 first_instance_id)         = nullptr;
   void (*draw_indexed)(CommandEncoder self, u32 first_index, u32 num_indices,
                        i32 vertex_offset, u32 first_instance_id,
-                       u32 num_instances)                             = nullptr;
+                       u32 num_instances)                          = nullptr;
   void (*draw_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
-                        u32 draw_count, u32 stride)                   = nullptr;
+                        u32 draw_count, u32 stride)                = nullptr;
   void (*draw_indexed_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
-                                u32 draw_count, u32 stride)           = nullptr;
+                                u32 draw_count, u32 stride)        = nullptr;
 };
 
 struct CommandEncoderImpl
@@ -1357,6 +1245,15 @@ struct CommandEncoderImpl
   {
     return interface;
   }
+};
+
+struct FrameContext
+{
+  u32                            buffering  = 0;
+  FrameId                        tail       = 0;
+  FrameId                        current    = 0;
+  Span<CommandEncoderImpl const> encoders   = {};
+  u32                            ring_index = 0;
 };
 
 struct DeviceInterface
@@ -1376,48 +1273,44 @@ struct DeviceInterface
                                             SamplerDesc const &desc) = nullptr;
   Result<Shader, Status> (*create_shader)(Device            self,
                                           ShaderDesc const &desc)    = nullptr;
-  Result<RenderPass, Status> (*create_render_pass)(
-      Device self, RenderPassDesc const &desc) = nullptr;
-  Result<Framebuffer, Status> (*create_framebuffer)(
-      Device self, FramebufferDesc const &desc) = nullptr;
   Result<DescriptorSetLayout, Status> (*create_descriptor_set_layout)(
       Device self, DescriptorSetLayoutDesc const &desc) = nullptr;
-  Result<DescriptorHeapImpl, Status> (*create_descriptor_heap)(
-      Device self, DescriptorHeapDesc const &desc) = nullptr;
+  Result<DescriptorSet, Status> (*create_descriptor_set)(
+      Device self, DescriptorSetLayout layout,
+      Span<u32 const> variable_lengths) = nullptr;
   Result<PipelineCache, Status> (*create_pipeline_cache)(
       Device self, PipelineCacheDesc const &desc) = nullptr;
   Result<ComputePipeline, Status> (*create_compute_pipeline)(
       Device self, ComputePipelineDesc const &desc) = nullptr;
   Result<GraphicsPipeline, Status> (*create_graphics_pipeline)(
-      Device self, GraphicsPipelineDesc const &desc)                = nullptr;
-  Result<Fence, Status> (*create_fence)(Device self, bool signaled) = nullptr;
-  Result<FrameContext, Status> (*create_frame_context)(
-      Device self, FrameContextDesc const &desc) = nullptr;
+      Device self, GraphicsPipelineDesc const &desc) = nullptr;
   Result<Swapchain, Status> (*create_swapchain)(
-      Device self, Surface surface, SwapchainDesc const &desc)      = nullptr;
-  void (*destroy_buffer)(Device self, Buffer buffer)                = nullptr;
-  void (*destroy_buffer_view)(Device self, BufferView buffer_view)  = nullptr;
-  void (*destroy_image)(Device self, Image image)                   = nullptr;
-  void (*destroy_image_view)(Device self, ImageView image_view)     = nullptr;
-  void (*destroy_sampler)(Device self, Sampler sampler)             = nullptr;
-  void (*destroy_shader)(Device self, Shader shader)                = nullptr;
-  void (*destroy_render_pass)(Device self, RenderPass render_pass)  = nullptr;
-  void (*destroy_framebuffer)(Device self, Framebuffer framebuffer) = nullptr;
+      Device self, Surface surface, SwapchainDesc const &desc) = nullptr;
+  Result<TimeStampQuery, Status> (*create_timestamp_query)(Device self) =
+      nullptr;
+  Result<StatisticsQuery, Status> (*create_statistics_query)(Device self) =
+      nullptr;
+  void (*destroy_buffer)(Device self, Buffer buffer)                 = nullptr;
+  void (*destroy_buffer_view)(Device self, BufferView buffer_view)   = nullptr;
+  void (*destroy_image)(Device self, Image image)                    = nullptr;
+  void (*destroy_image_view)(Device self, ImageView image_view)      = nullptr;
+  void (*destroy_sampler)(Device self, Sampler sampler)              = nullptr;
+  void (*destroy_shader)(Device self, Shader shader)                 = nullptr;
   void (*destroy_descriptor_set_layout)(Device              self,
-                                        DescriptorSetLayout layout) = nullptr;
-  void (*destroy_descriptor_heap)(Device             self,
-                                  DescriptorHeapImpl heap)          = nullptr;
-  void (*destroy_pipeline_cache)(Device self, PipelineCache cache)  = nullptr;
+                                        DescriptorSetLayout layout)  = nullptr;
+  void (*destroy_descriptor_set)(Device self, DescriptorSet set)     = nullptr;
+  void (*destroy_pipeline_cache)(Device self, PipelineCache cache)   = nullptr;
   void (*destroy_compute_pipeline)(Device          self,
-                                   ComputePipeline pipeline)        = nullptr;
+                                   ComputePipeline pipeline)         = nullptr;
   void (*destroy_graphics_pipeline)(Device           self,
-                                    GraphicsPipeline pipeline)      = nullptr;
-  void (*destroy_fence)(Device self, Fence fence)                   = nullptr;
-  void (*destroy_frame_context)(Device       self,
-                                FrameContext frame_context)         = nullptr;
-  void (*destroy_swapchain)(Device self, Swapchain swapchain)       = nullptr;
+                                    GraphicsPipeline pipeline)       = nullptr;
+  void (*destroy_swapchain)(Device self, Swapchain swapchain)        = nullptr;
+  void (*destroy_timestamp_query)(Device self, TimeStampQuery query) = nullptr;
+  void (*destroy_statistics_query)(Device          self,
+                                   StatisticsQuery query)            = nullptr;
+  FrameContext (*get_frame_context)(Device self)                     = nullptr;
   Result<void *, Status> (*get_buffer_memory_map)(Device self,
-                                                  Buffer buffer)    = nullptr;
+                                                  Buffer buffer)     = nullptr;
   Result<Void, Status> (*invalidate_buffer_memory_map)(
       Device self, Buffer buffer, MemoryRange range)                 = nullptr;
   Result<Void, Status> (*flush_buffer_memory_map)(Device self, Buffer buffer,
@@ -1429,14 +1322,10 @@ struct DeviceInterface
                                                    Span<u8>      out) = nullptr;
   Result<Void, Status> (*merge_pipeline_cache)(
       Device self, PipelineCache dst, Span<PipelineCache const> srcs) = nullptr;
-  Result<Void, Status> (*wait_for_fences)(Device self, Span<Fence const> fences,
-                                          bool all, u64 timeout)      = nullptr;
-  Result<Void, Status> (*reset_fences)(Device            self,
-                                       Span<Fence const> fences)      = nullptr;
-  Result<bool, Status> (*get_fence_status)(Device self, Fence fence)  = nullptr;
+  void (*update_descriptor_set)(Device                     self,
+                                DescriptorSetUpdate const &update)    = nullptr;
   Result<Void, Status> (*wait_idle)(Device self)                      = nullptr;
   Result<Void, Status> (*wait_queue_idle)(Device self)                = nullptr;
-  FrameInfo (*get_frame_info)(Device self, FrameContext frame_context);
   Result<u32, Status> (*get_surface_formats)(
       Device self, Surface surface, Span<SurfaceFormat> formats) = nullptr;
   Result<u32, Status> (*get_surface_present_modes)(
@@ -1447,10 +1336,14 @@ struct DeviceInterface
       Device self, Swapchain swapchain) = nullptr;
   Result<Void, Status> (*invalidate_swapchain)(
       Device self, Swapchain swapchain, SwapchainDesc const &desc) = nullptr;
-  Result<Void, Status> (*begin_frame)(Device self, FrameContext frame_context,
+  Result<Void, Status> (*begin_frame)(Device    self,
                                       Swapchain swapchain)         = nullptr;
-  Result<Void, Status> (*submit_frame)(Device self, FrameContext frame_context,
+  Result<Void, Status> (*submit_frame)(Device    self,
                                        Swapchain swapchain)        = nullptr;
+  Result<u64, Status> (*get_timestamp_query_result)(
+      Device self, TimeStampQuery query) = nullptr;
+  Result<PipelineStatistics, Status> (*get_statistics_query_result)(
+      Device self, StatisticsQuery query) = nullptr;
 };
 
 struct DeviceImpl
@@ -1466,17 +1359,14 @@ struct DeviceImpl
 
 struct InstanceInterface
 {
-  Result<InstanceImpl, Status> (*create)(
-      AllocatorImpl allocator, Logger *logger,
-      bool enable_validation_layer) = nullptr;
-  void (*destroy)(Instance self)    = nullptr;
+  void (*destroy)(Instance self) = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
-      Instance self, Span<DeviceType const> preferred_types,
-      Span<Surface const> compatible_surfaces,
-      AllocatorImpl       allocator)                            = nullptr;
-  Backend (*get_backend)(Instance self)                   = nullptr;
-  void (*destroy_device)(Instance self, Device device)    = nullptr;
-  void (*destroy_surface)(Instance self, Surface surface) = nullptr;
+      Instance self, AllocatorImpl allocator,
+      Span<DeviceType const> preferred_types,
+      Span<Surface const> compatible_surfaces, u32 buffering) = nullptr;
+  Backend (*get_backend)(Instance self)                       = nullptr;
+  void (*destroy_device)(Instance self, Device device)        = nullptr;
+  void (*destroy_surface)(Instance self, Surface surface)     = nullptr;
 };
 
 struct InstanceImpl
@@ -1490,5 +1380,10 @@ struct InstanceImpl
   }
 };
 
+Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
+                                                    Logger       *logger,
+                                                    bool enable_validation);
+
 }        // namespace gfx
+
 }        // namespace ash

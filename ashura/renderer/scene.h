@@ -1,7 +1,6 @@
 #pragma once
 #include "ashura/renderer/camera.h"
 #include "ashura/renderer/light.h"
-#include "ashura/std/box.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/sparse_vec.h"
@@ -14,10 +13,10 @@ namespace ash
 /// node at depth 0
 struct SceneNode
 {
-  uid32 parent       = UID32_INVALID;
-  uid32 next_sibling = UID32_INVALID;
-  uid32 first_child  = UID32_INVALID;
-  u32   depth        = 0;
+  uid parent       = UID_INVALID;
+  uid next_sibling = UID_INVALID;
+  uid first_child  = UID_INVALID;
+  u32 depth        = 0;
 };
 
 /// @global_transform: accumulation of transform from root parent down to this
@@ -31,19 +30,13 @@ struct SceneObjects
   Vec<Box>        aabb             = {};
   Vec<i64>        z_index          = {};
   Vec<T>          objects          = {};
-  SparseVec<u32>  id_map           = {};
+  SparseVec       id_map           = {};
 };
 
 struct SceneEnvironment
 {
-  AmbientLight          ambient_light             = {};
-  Vec<DirectionalLight> directional_lights        = {};
-  SparseVec<u32>        directional_lights_id_map = {};
-  Vec<PointLight>       point_lights              = {};
-  SparseVec<u32>        point_lights_id_map       = {};
-  Vec<SpotLight>        spot_lights               = {};
-  SparseVec<u32>        spot_lights_id_map        = {};
-  SparseVec<u32>        area_lights_id_map        = {};
+  Vec<PunctualLight> lights        = {};
+  SparseVec          lights_id_map = {};
 };
 
 /// @remove_scene: remove all pass resources associated with a scene object.
@@ -62,24 +55,17 @@ struct Scene
   // after add, sort last and present ids by depth? or use hierarchical sort
   // before frame begin or when it is dirty?
   template <typename... Args>
-  Option<uid32> add_object(uid32 parent, Mat4Affine transform, Box aabb,
-                           i64 z_index, bool is_transparent, Args &&...args);
-  void          remove_object(uid32 object);
-  Option<AmbientLight *>     get_ambient_light();
-  Option<DirectionalLight *> get_directional_light(uid32 id);
-  Option<PointLight *>       get_point_light(uid32 id);
-  Option<SpotLight *>        get_spot_light(uid32 id);
-  Option<uid32> add_directional_light(DirectionalLight const &light);
-  Option<uid32> add_point_light(PointLight const &light);
-  Option<uid32> add_spot_light(SpotLight const &light);
-  void          remove_directional_light(uid32 id);
-  void          remove_point_light(uid32 id);
-  void          remove_spot_light(uid32 id);
+  Option<uid>             add_object(uid parent, Mat4Affine transform, Box aabb,
+                                     i64 z_index, bool is_transparent, Args &&...args);
+  void                    remove_object(uid object);
+  Option<PunctualLight *> get_light(uid id);
+  Option<uid>             add_spot_light(PunctualLight const &light);
+  void                    remove_light(uid id);
 };
 
 //?
 void           hierarchical_sort(Span<SceneNode const> node, Span<u32> indices);
-constexpr void transform_nodes(SparseVec<u32> const  &id_map,
+constexpr void transform_nodes(SparseVec const       &id_map,
                                Span<SceneNode const>  node,
                                Span<Mat4Affine const> local_transform,
                                Span<Mat4Affine>       global_transform)

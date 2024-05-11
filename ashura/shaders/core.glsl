@@ -1,8 +1,9 @@
-#ifndef CORE_GLSL
-#define CORE_GLSL
-#extension GL_GOOGLE_include_directive : require
-const float PI    = 3.1415926535897932384626433832795;
-const float GAMMA = 2.2;
+#ifndef _CORE_GLSL_
+#define _CORE_GLSL_
+
+const float PI      = 3.1415926535897932384626433832795;
+const float GAMMA   = 2.2;
+const float EPSILON = 0.00000011920929;
 
 vec3 pow_vec3(vec3 v, float p)
 {
@@ -26,30 +27,19 @@ struct ViewTransform
   vec4 projection[4];
 };
 
-mat4 to_mvp(ViewTransform t)
+mat4 affine4(vec4 v[3])
 {
-  return mat4(t.projection[0], t.projection[1], t.projection[2],
-              t.projection[3]) *
-         mat4(t.view[0], t.view[1], t.view[2], vec4(0, 0, 0, 1)) *
-         mat4(t.model[0], t.model[1], t.model[2], vec4(0, 0, 0, 1));
+  return mat4(v[0], v[1], v[2], vec4(0, 0, 0, 1));
 }
 
-struct DirectionalLight
+mat4 to_mat4(vec4 v[4])
 {
-  vec4 direction;
-  vec4 color;
-};
+  return mat4(v[0], v[1], v[2], v[3]);
+}
 
-struct PointLight
+mat4 to_mvp(ViewTransform t)
 {
-  vec4 color;
-  vec4 position;        // xyz - position, w - attenuation
-};
+  return to_mat4(t.projection) * affine4(t.view) * affine4(t.model);
+}
 
-struct SpotLight
-{
-  vec4 direction;        // xyz - direction, w - cutoff
-  vec4 color;
-  vec3 position;        // xyz - position, w - attenuation
-};
 #endif

@@ -3,8 +3,6 @@
 #include "ashura/engine/key.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/gfx/image.h"
-#include "ashura/std/enum.h"
-#include "ashura/std/fn.h"
 #include "ashura/std/option.h"
 #include "ashura/std/types.h"
 
@@ -34,14 +32,14 @@ struct KeyEvent
 
 struct MouseMotionEvent
 {
-  uid32 mouse_id = UID32_INVALID;
-  Vec2  position;
-  Vec2  translation;
+  uid  mouse_id = UID_INVALID;
+  Vec2 position;
+  Vec2 translation;
 };
 
 struct MouseClickEvent
 {
-  uid32        mouse_id = UID32_INVALID;
+  uid          mouse_id = UID_INVALID;
   Vec2         position;
   u32          clicks = 0;
   MouseButtons button = MouseButtons::None;
@@ -50,9 +48,9 @@ struct MouseClickEvent
 
 struct MouseWheelEvent
 {
-  uid32 mouse_id = UID32_INVALID;
-  Vec2  position;
-  Vec2  translation;
+  uid  mouse_id = UID_INVALID;
+  Vec2 position;
+  Vec2 translation;
 };
 
 enum class WindowEventTypes : u32
@@ -98,40 +96,40 @@ struct WindowEvent
 
 struct WindowSystem
 {
-  virtual Option<uid32>           create_window(gfx::InstanceImpl instance,
-                                                char const       *title)          = 0;
-  virtual void                    destroy_window(uid32 window)              = 0;
-  virtual void         set_title(uid32 window, char const *title)           = 0;
-  virtual char const  *get_title(uid32 window)                              = 0;
-  virtual void         maximize(uid32 window)                               = 0;
-  virtual void         minimize(uid32 window)                               = 0;
-  virtual void         set_size(uid32 window, Vec2U size)                   = 0;
-  virtual void         center(uid32 window)                                 = 0;
-  virtual Vec2U        get_size(uid32 window)                               = 0;
-  virtual Vec2U        get_surface_size(uid32 window)                       = 0;
-  virtual void         set_position(uid32 window, Vec2I pos)                = 0;
-  virtual Vec2I        get_position(uid32 window)                           = 0;
-  virtual void         set_min_size(uid32 window, Vec2U min)                = 0;
-  virtual Vec2U        get_min_size(uid32 window)                           = 0;
-  virtual void         set_max_size(uid32 window, Vec2U max)                = 0;
-  virtual Vec2U        get_max_size(uid32 window)                           = 0;
-  virtual void         set_icon(uid32 window, ImageSpan<u8 const> image)    = 0;
-  virtual void         make_bordered(uid32 window)                          = 0;
-  virtual void         make_borderless(uid32 window)                        = 0;
-  virtual void         show(uid32 window)                                   = 0;
-  virtual void         hide(uid32 window)                                   = 0;
-  virtual void         raise(uid32 window)                                  = 0;
-  virtual void         restore(uid32 window)                                = 0;
-  virtual void         request_attention(uid32 window, bool briefly)        = 0;
-  virtual void         make_fullscreen(uid32 window)                        = 0;
-  virtual void         make_windowed(uid32 window)                          = 0;
-  virtual void         make_resizable(uid32 window)                         = 0;
-  virtual void         make_unresizable(uid32 window)                       = 0;
-  virtual uid32        listen(uid32 window, WindowEventTypes event_types,
-                              Fn<void(WindowEvent const &)> callback)       = 0;
-  virtual void         unlisten(uid32 window, uid32 listener)               = 0;
-  virtual gfx::Surface get_surface(uid32 window)                            = 0;
-  virtual void         poll_events()                                        = 0;
+  virtual Option<uid>  create_window(gfx::InstanceImpl instance,
+                                     char const       *title)                = 0;
+  virtual void         destroy_window(uid window)                      = 0;
+  virtual void         set_title(uid window, char const *title)        = 0;
+  virtual char const  *get_title(uid window)                           = 0;
+  virtual void         maximize(uid window)                            = 0;
+  virtual void         minimize(uid window)                            = 0;
+  virtual void         set_size(uid window, Vec2U size)                = 0;
+  virtual void         center(uid window)                              = 0;
+  virtual Vec2U        get_size(uid window)                            = 0;
+  virtual Vec2U        get_surface_size(uid window)                    = 0;
+  virtual void         set_position(uid window, Vec2I pos)             = 0;
+  virtual Vec2I        get_position(uid window)                        = 0;
+  virtual void         set_min_size(uid window, Vec2U min)             = 0;
+  virtual Vec2U        get_min_size(uid window)                        = 0;
+  virtual void         set_max_size(uid window, Vec2U max)             = 0;
+  virtual Vec2U        get_max_size(uid window)                        = 0;
+  virtual void         set_icon(uid window, ImageSpan<u8 const> image) = 0;
+  virtual void         make_bordered(uid window)                       = 0;
+  virtual void         make_borderless(uid window)                     = 0;
+  virtual void         show(uid window)                                = 0;
+  virtual void         hide(uid window)                                = 0;
+  virtual void         raise(uid window)                               = 0;
+  virtual void         restore(uid window)                             = 0;
+  virtual void         request_attention(uid window, bool briefly)     = 0;
+  virtual void         make_fullscreen(uid window)                     = 0;
+  virtual void         make_windowed(uid window)                       = 0;
+  virtual void         make_resizable(uid window)                      = 0;
+  virtual void         make_unresizable(uid window)                    = 0;
+  virtual uid          listen(uid window, WindowEventTypes event_types,
+                              Fn<void(WindowEvent const &)> callback)  = 0;
+  virtual void         unlisten(uid window, uid listener)              = 0;
+  virtual gfx::Surface get_surface(uid window)                         = 0;
+  virtual void         poll_events()                                   = 0;
 };
 
 WindowSystem *init_sdl_window_system();

@@ -4,11 +4,7 @@
 namespace ash
 {
 
-BEGIN_SHADER_PARAMETER(BlurPassShaderParameter)
-SHADER_COMBINED_IMAGE_SAMPLER(src, 1)
-END_SHADER_PARAMETER(BlurPassShaderParameter)
-
-struct BlurPassShaderUniform
+struct BlurParam
 {
   Vec2 src_offset;
   Vec2 src_extent;
@@ -21,18 +17,16 @@ struct BlurPassParams
   Vec2U          offset      = {};
   Vec2U          extent      = {};
   Vec2U          radius      = {0, 0};
-  u32            num_levels  = U32_MAX;
+  u32            num_levels  = 0;
   Vec2U          view_extent = {0, 0};
   gfx::ImageView view        = nullptr;
 };
 
 struct BlurPass
 {
-  ShaderParameterHeap<BlurPassShaderParameter> parameter_heap_      = {};
-  gfx::GraphicsPipeline                        downsample_pipeline_ = nullptr;
-  gfx::GraphicsPipeline                        upsample_pipeline_   = nullptr;
-  gfx::Sampler                                 sampler_             = nullptr;
-  gfx::RenderPass                              render_pass_         = nullptr;
+  gfx::GraphicsPipeline downsample_pipeline = nullptr;
+  gfx::GraphicsPipeline upsample_pipeline   = nullptr;
+  gfx::Sampler          sampler             = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "ashura/engine/key.h"
-#include "ashura/std/enum.h"
 #include "ashura/std/option.h"
-#include "ashura/std/rect.h"
+#include "ashura/std/math.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 
@@ -475,8 +474,8 @@ struct Widget
   /// id used to recognise the widget. checked every frame. if
   /// one is not present or removed. a new uuid is generated and
   /// assigned.
-  Option<uid32> id;
-  Rect          area;
+  Option<uid> id;
+  Rect        area;
 };
 
 }        // namespace ash

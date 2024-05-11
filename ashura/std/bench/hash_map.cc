@@ -5,6 +5,7 @@
 #include "stdint.h"
 #include <algorithm>
 #include <benchmark/benchmark.h>
+#include <map>
 #include <unordered_map>
 
 using namespace ash;
@@ -1019,7 +1020,7 @@ static void BM_HashMap16(benchmark::State &state)
     for (auto &dp : DATASET)
     {
       bool exists;
-      map.insert(exists, nullptr, dp.v0, dp.v1);
+      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
     }
     for (auto &dp : DATASET)
     {
@@ -1045,7 +1046,7 @@ static void BM_HashMap8(benchmark::State &state)
     for (auto &dp : DATASET)
     {
       bool exists;
-      map.insert(exists, nullptr, dp.v0, dp.v1);
+      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
     }
     for (auto &dp : DATASET)
     {
@@ -1071,7 +1072,7 @@ static void BM_HashMap32(benchmark::State &state)
     for (auto &dp : DATASET)
     {
       bool exists;
-      map.insert(exists, nullptr, dp.v0, dp.v1);
+      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
     }
     for (auto &dp : DATASET)
     {
@@ -1097,7 +1098,7 @@ static void BM_HashMap64(benchmark::State &state)
     for (auto &dp : DATASET)
     {
       bool exists;
-      map.insert(exists, nullptr, dp.v0, dp.v1);
+      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
     }
     for (auto &dp : DATASET)
     {
@@ -1214,6 +1215,15 @@ static void BM_StdHashMap(benchmark::State &state)
 }
 
 template <>
+struct std::less<Span<char const>>
+{
+  bool operator()(Span<char const> a, Span<char const> b) const
+  {
+    return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end());
+  }
+};
+
+template <>
 struct std::hash<Span<char const>>
 {
   std::hash<std::string_view> hash;
@@ -1278,6 +1288,31 @@ static void BM_StdHashMapDefaultHashDefaultAlloc(benchmark::State &state)
   printf("num unique inserts: %d\n", count);
 }
 
+static void BM_StdOrderedMapDefaultAlloc(benchmark::State &state)
+{
+  std::map<Span<char const>, int> map;
+  int                             count = 0;
+  for (auto _ : state)
+  {
+    for (auto &dp : DATASET)
+    {
+      map.emplace(dp.v0, dp.v1);
+    }
+    for (auto &dp : DATASET)
+    {
+      if (map.contains(dp.v0))
+      {
+        count++;
+      }
+    }
+    for (auto &dp : DATASET)
+    {
+      map.erase(dp.v0);
+    }
+  }
+  printf("num unique inserts: %d\n", count);
+}
+
 constexpr int ITERATIONS = 100'000;
 BENCHMARK(BM_HashMap8)->Iterations(ITERATIONS);
 BENCHMARK(BM_HashMap16)->Iterations(ITERATIONS);
@@ -1286,4 +1321,5 @@ BENCHMARK(BM_HashMap64)->Iterations(ITERATIONS);
 BENCHMARK(BM_StdHashMap)->Iterations(ITERATIONS);
 BENCHMARK(BM_StdHashMapDefaultHash)->Iterations(ITERATIONS);
 BENCHMARK(BM_StdHashMapDefaultHashDefaultAlloc)->Iterations(ITERATIONS);
+BENCHMARK(BM_StdOrderedMapDefaultAlloc)->Iterations(ITERATIONS);
 BENCHMARK_MAIN();

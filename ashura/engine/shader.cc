@@ -6,7 +6,6 @@
 #include "ashura/std/io.h"
 #include "ashura/std/vec.h"
 #include "glslang/Public/ShaderLang.h"
-#include "spirv_reflect.h"
 #include <filesystem>
 
 namespace ash
@@ -280,35 +279,6 @@ struct Includer : glslang::TShader::Includer
   Span<Span<char const> const> system_directories;
   Span<Span<char const> const> local_directories;
 };
-
-void reflect_spirv(Span<u32 const> spirv)
-{
-  // Generate reflection data for a shader
-  SpvReflectShaderModule module;
-  SpvReflectResult       result = spvReflectCreateShaderModule(
-      spirv.size() * sizeof(u32), spirv.data(), &module);
-  CHECK(result == SPV_REFLECT_RESULT_SUCCESS);
-  defer m_destroy{[&] { spvReflectDestroyShaderModule(&module); }};
-
-  // Enumerate and extract shader's input variables
-  u32 var_count = 0;
-  result        = spvReflectEnumerateInputVariables(&module, &var_count, NULL);
-  CHECK(result == SPV_REFLECT_RESULT_SUCCESS);
-  SpvReflectInterfaceVariable **input_vars =
-      (SpvReflectInterfaceVariable **) malloc(
-          var_count * sizeof(SpvReflectInterfaceVariable *));
-  defer iv_close{[&] { free(input_vars); }};
-  result = spvReflectEnumerateInputVariables(&module, &var_count, input_vars);
-  CHECK(result == SPV_REFLECT_RESULT_SUCCESS);
-
-  // spvReflectEnumeratePushConstants
-  // spvReflectEnumerateDescriptorBindings
-  //
-  // Output variables, descriptor bindings, descriptor sets, and push constants
-  // can be enumerated and extracted using a similar mechanism.
-  //
-  // Destroy the reflection data when no longer required.
-}
 
 ShaderCompileError
     compile_shader(Logger &logger, Vec<u32> &spirv, Span<char const> file,

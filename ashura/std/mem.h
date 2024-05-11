@@ -1,6 +1,6 @@
 #pragma once
-#include "ashura/std/types.h"
 #include "ashura/std/traits.h"
+#include "ashura/std/types.h"
 #include <string.h>
 
 namespace ash
@@ -9,7 +9,12 @@ namespace mem
 {
 constexpr usize align_offset(usize alignment, usize offset)
 {
-  return (offset + (alignment - 1)) / alignment;
+  return (offset + (alignment - 1)) & ~(alignment - 1);
+}
+
+constexpr bool is_aligned(usize alignment, usize offset)
+{
+  return (offset & (alignment - 1)) == 0;
 }
 
 template <typename T>
