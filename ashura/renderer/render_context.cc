@@ -115,7 +115,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
           .unwrap();
 }
 
-void recreate_attachment(RenderContext &ctx, FramebufferAttachments &attachment,
+void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
                          gfx::Extent new_extent)
 {
   ctx.release(attachment.color_image);
@@ -198,24 +198,36 @@ void recreate_attachment(RenderContext &ctx, FramebufferAttachments &attachment,
 void RenderContext::uninit()
 {
   device->destroy_pipeline_cache(device.self, pipeline_cache);
-  device->destroy_image(device.self, framebuffer_attachments.color_image);
+  device->destroy_image(device.self, framebuffer.color_image);
   device->destroy_image_view(device.self,
-                             framebuffer_attachments.color_image_view);
+                             framebuffer.color_image_view);
   device->destroy_image(device.self,
-                        framebuffer_attachments.depth_stencil_image);
+                        framebuffer.depth_stencil_image);
   device->destroy_image_view(device.self,
-                             framebuffer_attachments.depth_stencil_image_view);
+                             framebuffer.depth_stencil_image_view);
+  device->destroy_image(device.self,
+                        scratch_framebuffer.color_image);
+  device->destroy_image_view(device.self,
+                             scratch_framebuffer.color_image_view);
+  device->destroy_image(device.self,
+                        scratch_framebuffer.depth_stencil_image);
+  device->destroy_image_view(
+      device.self, scratch_framebuffer.depth_stencil_image_view);
   device->destroy_descriptor_set_layout(device.self, ssbo_layout);
   device->destroy_descriptor_set_layout(device.self, textures_layout);
   idle_purge();
   released_images.reset();
   released_image_views.reset();
+  shader_map.for_each([&](Span<char const>, gfx::Shader shader) {
+    device->destroy_shader(device.self, shader);
+  });
+  shader_map.reset();
 }
 
 void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
 {
-  recreate_attachment(*this, framebuffer_attachments, new_extent);
-  recreate_attachment(*this, scratch_framebuffer_attachments, new_extent);
+  recreate_attachment(*this, framebuffer, new_extent);
+  recreate_attachment(*this, scratch_framebuffer, new_extent);
 }
 
 gfx::CommandEncoderImpl RenderContext::encoder()
@@ -323,7 +335,7 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
     if (swapchain_state.current_image.is_some())
     {
       enc->blit_image(
-          enc.self, framebuffer_attachments.color_image,
+          enc.self, framebuffer.color_image,
           swapchain_state.images[swapchain_state.current_image.unwrap()],
           to_span({gfx::ImageBlit{
               .src_layers = {.aspects           = gfx::ImageAspects::Color,
@@ -332,8 +344,8 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
                              .num_array_layers  = 1},
               .src_offsets =
                   {{0, 0, 0},
-                   {framebuffer_attachments.color_image_desc.extent.x,
-                    framebuffer_attachments.color_image_desc.extent.y, 1}},
+                   {framebuffer.color_image_desc.extent.x,
+                    framebuffer.color_image_desc.extent.y, 1}},
               .dst_layers  = {.aspects           = gfx::ImageAspects::Color,
                               .mip_level         = 0,
                               .first_array_layer = 0,

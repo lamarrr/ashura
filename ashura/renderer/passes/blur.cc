@@ -17,17 +17,17 @@ void BlurPass::init(RenderContext &ctx)
   gfx::Shader fragment_shader =
       ctx.get_shader("KawaseBlur_DownSample:FS"_span).unwrap();
 
-  gfx::PipelineRasterizationState raster_state{
-      .depth_clamp_enable         = false,
-      .polygon_mode               = gfx::PolygonMode::Fill,
-      .cull_mode                  = gfx::CullMode::None,
-      .front_face                 = gfx::FrontFace::CounterClockWise,
-      .depth_bias_enable          = false,
-      .depth_bias_constant_factor = 0,
-      .depth_bias_clamp           = 0,
-      .depth_bias_slope_factor    = 0};
+  gfx::RasterizationState raster_state{.depth_clamp_enable = false,
+                                       .polygon_mode = gfx::PolygonMode::Fill,
+                                       .cull_mode    = gfx::CullMode::None,
+                                       .front_face =
+                                           gfx::FrontFace::CounterClockWise,
+                                       .depth_bias_enable          = false,
+                                       .depth_bias_constant_factor = 0,
+                                       .depth_bias_clamp           = 0,
+                                       .depth_bias_slope_factor    = 0};
 
-  gfx::PipelineDepthStencilState depth_stencil_state{
+  gfx::DepthStencilState depth_stencil_state{
       .depth_test_enable        = false,
       .depth_write_enable       = false,
       .depth_compare_op         = gfx::CompareOp::Greater,
@@ -38,7 +38,7 @@ void BlurPass::init(RenderContext &ctx)
       .min_depth_bounds         = 0,
       .max_depth_bounds         = 0};
 
-  gfx::PipelineColorBlendAttachmentState attachment_states[] = {
+  gfx::ColorBlendAttachmentState attachment_states[] = {
       {.blend_enable           = false,
        .src_color_blend_factor = gfx::BlendFactor::SrcAlpha,
        .dst_color_blend_factor = gfx::BlendFactor::OneMinusSrcAlpha,
@@ -48,9 +48,9 @@ void BlurPass::init(RenderContext &ctx)
        .alpha_blend_op         = gfx::BlendOp::Add,
        .color_write_mask       = gfx::ColorComponents::All}};
 
-  gfx::PipelineColorBlendState color_blend_state{
-      .attachments    = to_span(attachment_states),
-      .blend_constant = {1, 1, 1, 1}};
+  gfx::ColorBlendState color_blend_state{.attachments =
+                                             to_span(attachment_states),
+                                         .blend_constant = {1, 1, 1, 1}};
 
   gfx::DescriptorSetLayout set_layouts[] = {ctx.textures_layout};
 
@@ -97,38 +97,37 @@ void BlurPass::uninit(RenderContext &ctx)
 
 void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
-    /*
-    CHECK(params.extent.x <=
-    ctx.scatch_framebuffer.color_image_desc.extent.x); CHECK(params.extent.y
-    <= ctx.scatch_framebuffer.color_image_desc.extent.y);
-    parameter_heap_.heap_->collect(parameter_heap_.heap_.self,
-    ctx.frame_id());
+  /*
+  CHECK(params.extent.x <=
+  ctx.scatch_framebuffer.color_image_desc.extent.x); CHECK(params.extent.y
+  <= ctx.scatch_framebuffer.color_image_desc.extent.y);
+  parameter_heap_.heap_->collect(parameter_heap_.heap_.self,
+  ctx.frame_id());
 //   TODO(lamarrr): we need to downsample multiple times, hence halfing the
 //   extent every time we only need to sample to half the extent
-  
+
 //   radius should have been scaled to src and target ratio
-    Vec2 radius{1, 1};
+  Vec2 radius{1, 1};
 
-    radius = radius * 2;
+  radius = radius * 2;
 
-   
-   
 
-  gfx::DescriptorSet descriptor =
-      parameter_heap_.create(BlurPassShaderParameter{
-          .src = {{.image_view = params.view}},
-          .dst = {{.image_view = ctx.scatch.color_image_view}}});
 
-  gfx::CommandEncoderImpl encoder = ctx.encoder();
 
-  encoder->bind_compute_pipeline(encoder.self, pipeline_);
-  encoder->bind_descriptor_sets(encoder.self,
-                                to_span({descriptor, uniform.set}),
-                                to_span({uniform.buffer_offset}));
-  encoder->dispatch(encoder.self, 0x00, 0x00, 1);
+gfx::DescriptorSet descriptor =
+    parameter_heap_.create(BlurPassShaderParameter{
+        .src = {{.image_view = params.view}},
+        .dst = {{.image_view = ctx.scatch.color_image_view}}});
 
-  parameter_heap_.release(descriptor);*/
-  
+gfx::CommandEncoderImpl encoder = ctx.encoder();
+
+encoder->bind_compute_pipeline(encoder.self, pipeline_);
+encoder->bind_descriptor_sets(encoder.self,
+                              to_span({descriptor, uniform.set}),
+                              to_span({uniform.buffer_offset}));
+encoder->dispatch(encoder.self, 0x00, 0x00, 1);
+
+parameter_heap_.release(descriptor);*/
 }
 
 }        // namespace ash

@@ -9,17 +9,17 @@ void RRectPass::init(RenderContext &ctx)
   gfx::Shader vertex_shader   = ctx.get_shader("RRect:VS"_span).unwrap();
   gfx::Shader fragment_shader = ctx.get_shader("RRect:FS"_span).unwrap();
 
-  gfx::PipelineRasterizationState raster_state{
-      .depth_clamp_enable         = false,
-      .polygon_mode               = gfx::PolygonMode::Fill,
-      .cull_mode                  = gfx::CullMode::None,
-      .front_face                 = gfx::FrontFace::CounterClockWise,
-      .depth_bias_enable          = false,
-      .depth_bias_constant_factor = 0,
-      .depth_bias_clamp           = 0,
-      .depth_bias_slope_factor    = 0};
+  gfx::RasterizationState raster_state{.depth_clamp_enable = false,
+                                       .polygon_mode = gfx::PolygonMode::Fill,
+                                       .cull_mode    = gfx::CullMode::None,
+                                       .front_face =
+                                           gfx::FrontFace::CounterClockWise,
+                                       .depth_bias_enable          = false,
+                                       .depth_bias_constant_factor = 0,
+                                       .depth_bias_clamp           = 0,
+                                       .depth_bias_slope_factor    = 0};
 
-  gfx::PipelineDepthStencilState depth_stencil_state{
+  gfx::DepthStencilState depth_stencil_state{
       .depth_test_enable        = false,
       .depth_write_enable       = false,
       .depth_compare_op         = gfx::CompareOp::Greater,
@@ -30,8 +30,8 @@ void RRectPass::init(RenderContext &ctx)
       .min_depth_bounds         = 0,
       .max_depth_bounds         = 0};
 
-  gfx::PipelineColorBlendAttachmentState attachment_states[] = {
-      {.blend_enable           = false,
+  gfx::ColorBlendAttachmentState attachment_states[] = {
+      {.blend_enable           = true,
        .src_color_blend_factor = gfx::BlendFactor::SrcAlpha,
        .dst_color_blend_factor = gfx::BlendFactor::OneMinusSrcAlpha,
        .color_blend_op         = gfx::BlendOp::Add,
@@ -40,9 +40,9 @@ void RRectPass::init(RenderContext &ctx)
        .alpha_blend_op         = gfx::BlendOp::Add,
        .color_write_mask       = gfx::ColorComponents::All}};
 
-  gfx::PipelineColorBlendState color_blend_state{
-      .attachments    = to_span(attachment_states),
-      .blend_constant = {1, 1, 1, 1}};
+  gfx::ColorBlendState color_blend_state{.attachments =
+                                             to_span(attachment_states),
+                                         .blend_constant = {1, 1, 1, 1}};
 
   gfx::DescriptorSetLayout set_layouts[] = {ctx.ssbo_layout,
                                             ctx.textures_layout};
@@ -83,7 +83,7 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
   encoder->bind_graphics_pipeline(encoder.self, pipeline);
   encoder->set_graphics_state(
       encoder.self,
-      gfx::GraphicsPipelineState{
+      gfx::GraphicsState{
           .scissor  = {.offset = Vec2U{0, 0},
                        .extent = params.rendering_info.extent},
           .viewport = gfx::Viewport{
@@ -103,5 +103,6 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
 
 void RRectPass::uninit(RenderContext &ctx)
 {
+  ctx.device->destroy_graphics_pipeline(ctx.device.self, pipeline);
 }
 }        // namespace ash

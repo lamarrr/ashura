@@ -654,7 +654,7 @@ enum class CompositeAlpha : u32
 
 ASH_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
 
-enum class ResolveMode : u32
+enum class ResolveModes : u32
 {
   None       = 0x00,
   SampleZero = 0x01,
@@ -662,6 +662,8 @@ enum class ResolveMode : u32
   Min        = 0x04,
   Max        = 0x08
 };
+
+ASH_DEFINE_ENUM_BIT_OPS(ResolveModes)
 
 struct SurfaceFormat
 {
@@ -901,7 +903,7 @@ struct VertexAttribute
   u32    offset   = 0;
 };
 
-struct PipelineDepthStencilState
+struct DepthStencilState
 {
   bool           depth_test_enable        = false;
   bool           depth_write_enable       = false;
@@ -914,7 +916,7 @@ struct PipelineDepthStencilState
   f32            max_depth_bounds         = 0;
 };
 
-struct PipelineColorBlendAttachmentState
+struct ColorBlendAttachmentState
 {
   bool            blend_enable           = false;
   BlendFactor     src_color_blend_factor = BlendFactor::Zero;
@@ -926,15 +928,15 @@ struct PipelineColorBlendAttachmentState
   ColorComponents color_write_mask       = ColorComponents::None;
 };
 
-struct PipelineColorBlendState
+struct ColorBlendState
 {
-  bool                                          logic_op_enable = false;
-  LogicOp                                       logic_op       = LogicOp::Clear;
-  Span<PipelineColorBlendAttachmentState const> attachments    = {};
-  Vec4                                          blend_constant = {};
+  bool                                  logic_op_enable = false;
+  LogicOp                               logic_op        = LogicOp::Clear;
+  Span<ColorBlendAttachmentState const> attachments     = {};
+  Vec4                                  blend_constant  = {};
 };
 
-struct PipelineRasterizationState
+struct RasterizationState
 {
   bool        depth_clamp_enable         = false;
   PolygonMode polygon_mode               = PolygonMode::Fill;
@@ -946,29 +948,26 @@ struct PipelineRasterizationState
   f32         depth_bias_slope_factor    = 0;
 };
 
-struct StencilState
+struct GraphicsState
 {
-  u32            reference     = 0;
-  u32            compare_mask  = 0;
-  u32            write_mask    = 0;
-  gfx::StencilOp fail_op       = gfx::StencilOp::Keep;
-  gfx::StencilOp pass_op       = gfx::StencilOp::Keep;
-  gfx::StencilOp depth_fail_op = gfx::StencilOp::Keep;
-  gfx::CompareOp compare_op    = gfx::CompareOp::Never;
-};
-
-struct GraphicsPipelineState
-{
-  struct
+  struct Scissor
   {
     Offset offset = {};
     Extent extent = {};
-  } scissor                               = {};
-  Viewport       viewport                 = {};
-  Vec4           blend_constant           = {};
-  bool           stencil_test_enable      = false;
-  StencilState   front_face_stencil       = {};
-  StencilState   back_face_stencil        = {};
+  } scissor                    = {};
+  Viewport viewport            = {};
+  Vec4     blend_constant      = {};
+  bool     stencil_test_enable = false;
+  struct StencilState
+  {
+    u32            reference     = 0;
+    u32            compare_mask  = 0;
+    u32            write_mask    = 0;
+    gfx::StencilOp fail_op       = gfx::StencilOp::Keep;
+    gfx::StencilOp pass_op       = gfx::StencilOp::Keep;
+    gfx::StencilOp depth_fail_op = gfx::StencilOp::Keep;
+    gfx::CompareOp compare_op    = gfx::CompareOp::Never;
+  } front_face_stencil = {}, back_face_stencil = {};
   gfx::CullMode  cull_mode                = gfx::CullMode::None;
   gfx::FrontFace front_face               = gfx::FrontFace::CounterClockWise;
   bool           depth_test_enable        = false;
@@ -991,11 +990,11 @@ struct GraphicsPipelineDesc
   Span<VertexAttribute const>     vertex_attributes      = {};
   u32                             push_constants_size    = 0;
   Span<DescriptorSetLayout const> descriptor_set_layouts = {};
-  PrimitiveTopology          primitive_topology  = PrimitiveTopology::PointList;
-  PipelineRasterizationState rasterization_state = {};
-  PipelineDepthStencilState  depth_stencil_state = {};
-  PipelineColorBlendState    color_blend_state   = {};
-  PipelineCache              cache               = nullptr;
+  PrimitiveTopology  primitive_topology  = PrimitiveTopology::PointList;
+  RasterizationState rasterization_state = {};
+  DepthStencilState  depth_stencil_state = {};
+  ColorBlendState    color_blend_state   = {};
+  PipelineCache      cache               = nullptr;
 };
 
 struct DispatchCommand
@@ -1005,20 +1004,20 @@ struct DispatchCommand
   u32 z = 0;
 };
 
+struct DrawCommand
+{
+  u32 vertex_count   = 0;
+  u32 instance_count = 0;
+  u32 first_vertex   = 0;
+  u32 first_instance = 0;
+};
+
 struct DrawIndexedCommand
 {
   u32 index_count    = 0;
   u32 instance_count = 0;
   u32 first_index    = 0;
   i32 vertex_offset  = 0;
-  u32 first_instance = 0;
-};
-
-struct DrawCommand
-{
-  u32 vertex_count   = 0;
-  u32 instance_count = 0;
-  u32 first_vertex   = 0;
   u32 first_instance = 0;
 };
 
@@ -1149,12 +1148,12 @@ struct DeviceProperties
 
 struct RenderingAttachment
 {
-  ImageView   view         = nullptr;
-  ImageView   resolve      = nullptr;
-  ResolveMode resolve_mode = ResolveMode::None;
-  LoadOp      load_op      = LoadOp::Load;
-  StoreOp     store_op     = StoreOp::Store;
-  ClearValue  clear        = {};
+  ImageView    view         = nullptr;
+  ImageView    resolve      = nullptr;
+  ResolveModes resolve_mode = ResolveModes::None;
+  LoadOp       load_op      = LoadOp::Load;
+  StoreOp      store_op     = StoreOp::Store;
+  ClearValue   clear        = {};
 };
 
 struct RenderingInfo
@@ -1218,8 +1217,8 @@ struct CommandEncoderInterface
                    u32 group_count_z)                              = nullptr;
   void (*dispatch_indirect)(CommandEncoder self, Buffer buffer,
                             u64 offset)                            = nullptr;
-  void (*set_graphics_state)(CommandEncoder               self,
-                             GraphicsPipelineState const &state)   = nullptr;
+  void (*set_graphics_state)(CommandEncoder       self,
+                             GraphicsState const &state)           = nullptr;
   void (*bind_vertex_buffers)(CommandEncoder     self,
                               Span<Buffer const> vertex_buffers,
                               Span<u64 const>    offsets)             = nullptr;

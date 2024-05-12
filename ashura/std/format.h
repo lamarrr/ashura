@@ -1,5 +1,7 @@
 #pragma once
 #include "ashura/std/types.h"
+#include <string>
+#include <string_view>
 
 namespace ash
 {
@@ -63,8 +65,16 @@ bool push(Context &ctx, Spec const &spec, char const (&str)[N])
 {
   return push(ctx, spec, Span{str, N});
 }
-bool push(Context &ctx, Spec const &spec, char const *str);
-bool push(Context &ctx, Spec const &spec, void const *ptr);
+bool        push(Context &ctx, Spec const &spec, char const *str);
+bool        push(Context &ctx, Spec const &spec, void const *ptr);
+inline bool push(Context &ctx, Spec const &spec, std::string const &str)
+{
+  return push(ctx, spec, to_span(str));
+}
+inline bool push(Context &ctx, Spec const &spec, std::string_view str)
+{
+  return push(ctx, spec, to_span(str));
+}
 
 template <typename... Args>
 bool format(Context &ctx, Args const &...args)

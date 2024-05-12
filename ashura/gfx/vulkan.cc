@@ -1059,14 +1059,13 @@ inline u64 index_type_size(gfx::IndexType type)
 }
 
 inline bool is_valid_buffer_access(u64 size, u64 access_offset, u64 access_size,
-                                   u64 alignment = 1)
+                                   u64 offset_alignment = 1)
 {
   access_size =
       (access_size == gfx::WHOLE_SIZE) ? (size - access_offset) : access_size;
   return (access_size > 0) && (access_offset < size) &&
          ((access_offset + access_size) <= size) &&
-         mem::is_aligned(alignment, access_offset) &&
-         mem::is_aligned(alignment, access_size);
+         mem::is_aligned(offset_alignment, access_offset);
 }
 
 inline bool is_valid_image_access(gfx::ImageAspects aspects, u32 num_levels,
@@ -2035,10 +2034,17 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   features.shaderInt64      = selected_dev.vk_features.shaderInt64;
   features.shaderInt16      = selected_dev.vk_features.shaderInt16;
 
+  VkPhysicalDeviceSeparateDepthStencilLayoutsFeatures
+      separate_depth_stencil_layout_feature{
+          .sType =
+              VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SEPARATE_DEPTH_STENCIL_LAYOUTS_FEATURES_KHR,
+          .pNext                       = nullptr,
+          .separateDepthStencilLayouts = VK_TRUE};
+
   VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extended_dynamic_state_features{
       .sType =
           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT,
-      .pNext                = nullptr,
+      .pNext                = &separate_depth_stencil_layout_feature,
       .extendedDynamicState = VK_TRUE};
 
   VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamic_rendering_features{
@@ -2656,6 +2662,8 @@ Result<gfx::DescriptorSetLayout, Status>
             gfx::MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS);
   sVALIDATE(num_descriptors <= gfx::MAX_DESCRIPTOR_SET_DESCRIPTORS);
   sVALIDATE(num_variable_length <= 1);
+  sVALIDATE(!(num_variable_length > 0 && (num_dynamic_storage_buffers > 0 ||
+                                          num_dynamic_uniform_buffers > 0)));
 
   for (u32 i = 0; i < num_bindings; i++)
   {
@@ -2665,7 +2673,6 @@ Result<gfx::DescriptorSetLayout, Status>
                 (i != (desc.bindings.size() - 1))));
   }
 
-  // TODO(lamarrr):>??
   VkDescriptorSetLayoutBinding vk_bindings[gfx::MAX_DESCRIPTOR_SET_BINDINGS];
   VkDescriptorBindingFlagsEXT
       vk_binding_flags[gfx::MAX_DESCRIPTOR_SET_BINDINGS];
@@ -2684,14 +2691,11 @@ Result<gfx::DescriptorSetLayout, Status>
         .descriptorCount    = binding.count,
         .stageFlags         = stage_flags,
         .pImmutableSamplers = nullptr};
-    VkDescriptorBindingFlagsEXT vk_flags =
+    VkDescriptorBindingFlagsEXT const vk_flags =
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
-        VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT |
-        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
-    if (binding.is_variable_length)
-    {
-      vk_flags |= VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
-    }
+        (binding.is_variable_length ?
+             VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT :
+             0);
     vk_binding_flags[i] = vk_flags;
   }
 
@@ -3300,7 +3304,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
 
   for (u32 i = 0; i < num_blend_color_attachments; i++)
   {
-    gfx::PipelineColorBlendAttachmentState const &state =
+    gfx::ColorBlendAttachmentState const &state =
         desc.color_blend_state.attachments[i];
     attachment_states[i] = VkPipelineColorBlendAttachmentState{
         .blendEnable         = (VkBool32) state.blend_enable,
@@ -3326,7 +3330,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
                           desc.color_blend_state.blend_constant.z,
                           desc.color_blend_state.blend_constant.w}};
 
-  VkDynamicState dynamic_states[] = {
+  constexpr VkDynamicState dynamic_states[] = {
       VK_DYNAMIC_STATE_VIEWPORT,
       VK_DYNAMIC_STATE_SCISSOR,
       VK_DYNAMIC_STATE_BLEND_CONSTANTS,
@@ -4827,6 +4831,7 @@ void CommandEncoderInterface::fill_buffer(gfx::CommandEncoder self_,
   sVALIDATE(!self->is_in_pass());
   sVALIDATE(has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   sVALIDATE(is_valid_buffer_access(dst->desc.size, offset, size, 4));
+  sVALIDATE(mem::is_aligned(4, size));
 
   access_buffer(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -4892,7 +4897,8 @@ void CommandEncoderInterface::update_buffer(gfx::CommandEncoder self_,
   sVALIDATE(!self->is_in_pass());
   sVALIDATE(has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   sVALIDATE(is_valid_buffer_access(dst->desc.size, dst_offset, copy_size, 4));
-  sVALIDATE(src.size() <= gfx::MAX_UPDATE_BUFFER_SIZE);
+  sVALIDATE(mem::is_aligned(4, copy_size));
+  sVALIDATE(copy_size <= gfx::MAX_UPDATE_BUFFER_SIZE);
 
   access_buffer(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -5412,14 +5418,14 @@ void validate_attachment(CommandEncoder                 *self,
                          gfx::ImageAspects aspects, gfx::ImageUsage usage)
 {
   sVALIDATE(
-      !(info.resolve_mode != gfx::ResolveMode::None && info.view == nullptr));
-  sVALIDATE(!(info.resolve_mode != gfx::ResolveMode::None &&
+      !(info.resolve_mode != gfx::ResolveModes::None && info.view == nullptr));
+  sVALIDATE(!(info.resolve_mode != gfx::ResolveModes::None &&
               info.resolve == nullptr));
   if (info.view != nullptr)
   {
     sVALIDATE(has_bits(IMAGE_FROM_VIEW(info.view)->desc.aspects, aspects));
     sVALIDATE(has_bits(IMAGE_FROM_VIEW(info.view)->desc.usage, usage));
-    sVALIDATE(!(info.resolve_mode != gfx::ResolveMode::None &&
+    sVALIDATE(!(info.resolve_mode != gfx::ResolveModes::None &&
                 IMAGE_FROM_VIEW(info.view)->desc.sample_count ==
                     gfx::SampleCount::Count1));
   }
@@ -5520,9 +5526,6 @@ constexpr VkAccessFlags
   return access;
 }
 
-//  TODO(lamarrr):image aspects unchecked??
-// TODO(lamarrr): check image usages
-//
 constexpr VkAccessFlags
     stencil_attachment_access(gfx::RenderingAttachment const &attachment)
 {
@@ -5608,7 +5611,7 @@ void CommandEncoderInterface::end_rendering(gfx::CommandEncoder self_)
       VkClearValue  clear_value;
       memcpy(&clear_value, &attachment.clear, sizeof(VkClearValue));
 
-      if (attachment.resolve_mode != gfx::ResolveMode::None)
+      if (attachment.resolve_mode != gfx::ResolveModes::None)
       {
         access |= RESOLVE_SRC_ACCESS;
         stages |= RESOLVE_STAGE;
@@ -5619,7 +5622,7 @@ void CommandEncoderInterface::end_rendering(gfx::CommandEncoder self_)
         ImageView *view    = (ImageView *) attachment.view;
         ImageView *resolve = (ImageView *) attachment.resolve;
         vk_view            = view->vk_view;
-        if (attachment.resolve_mode != gfx::ResolveMode::None)
+        if (attachment.resolve_mode != gfx::ResolveModes::None)
         {
           vk_resolve = resolve->vk_view;
           access_image_aspect(*self, *IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
@@ -5663,7 +5666,7 @@ void CommandEncoderInterface::end_rendering(gfx::CommandEncoder self_)
         stages |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
       }
 
-      if (attachment.resolve_mode != gfx::ResolveMode::None)
+      if (attachment.resolve_mode != gfx::ResolveModes::None)
       {
         access |= RESOLVE_SRC_ACCESS;
         stages |= RESOLVE_STAGE;
@@ -5678,7 +5681,7 @@ void CommandEncoderInterface::end_rendering(gfx::CommandEncoder self_)
         ImageView *view    = (ImageView *) attachment.view;
         ImageView *resolve = (ImageView *) attachment.resolve;
         vk_view            = view->vk_view;
-        if (attachment.resolve_mode != gfx::ResolveMode::None)
+        if (attachment.resolve_mode != gfx::ResolveModes::None)
         {
           vk_resolve = resolve->vk_view;
           access_image_aspect(*self, *IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
@@ -5723,7 +5726,7 @@ void CommandEncoderInterface::end_rendering(gfx::CommandEncoder self_)
         stages |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
       }
 
-      if (attachment.resolve_mode != gfx::ResolveMode::None)
+      if (attachment.resolve_mode != gfx::ResolveModes::None)
       {
         access |= RESOLVE_SRC_ACCESS;
         stages |= RESOLVE_STAGE;
@@ -5738,7 +5741,7 @@ void CommandEncoderInterface::end_rendering(gfx::CommandEncoder self_)
         ImageView *view    = (ImageView *) attachment.view;
         ImageView *resolve = (ImageView *) attachment.resolve;
         vk_view            = view->vk_view;
-        if (attachment.resolve_mode != gfx::ResolveMode::None)
+        if (attachment.resolve_mode != gfx::ResolveModes::None)
         {
           vk_resolve = resolve->vk_view;
           access_image_aspect(*self, *IMAGE_FROM_VIEW(resolve), RESOLVE_STAGE,
@@ -5822,7 +5825,7 @@ void CommandEncoderInterface::end_rendering(gfx::CommandEncoder self_)
       break;
       case CommandType::SetGraphicsState:
       {
-        gfx::GraphicsPipelineState const &s = cmd.state;
+        gfx::GraphicsState const &s = cmd.state;
 
         VkRect2D vk_scissor{
             .offset =
@@ -6139,7 +6142,7 @@ void CommandEncoderInterface::dispatch_indirect(gfx::CommandEncoder self_,
 }
 
 void CommandEncoderInterface::set_graphics_state(
-    gfx::CommandEncoder self_, gfx::GraphicsPipelineState const &state)
+    gfx::CommandEncoder self_, gfx::GraphicsState const &state)
 {
   ENCODE_PRELUDE();
   RenderPassContext &ctx = self->render_ctx;

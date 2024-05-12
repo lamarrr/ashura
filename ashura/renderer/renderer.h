@@ -32,6 +32,16 @@ struct Renderer
   gfx::DescriptorSet params_ssbo   = nullptr;
   gfx::DescriptorSet textures      = nullptr;
 
+  gfx::Buffer        pbr_vtx_buff      = nullptr;
+  gfx::Buffer        pbr_idx_buff      = nullptr;
+  gfx::Buffer        pbr_prm_buff      = nullptr;
+  gfx::Buffer        pbr_indirect_buff = nullptr;
+  gfx::Buffer        pbr_lights_buff   = nullptr;
+  gfx::DescriptorSet pbr_vtx_ssbo      = nullptr;
+  gfx::DescriptorSet pbr_idx_ssbo      = nullptr;
+  gfx::DescriptorSet pbr_prm_ssbo      = nullptr;
+  gfx::DescriptorSet pbr_lights_ssbo   = nullptr;
+
   void init(gfx::DeviceImpl p_device, bool p_use_hdr,
             u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,
             ShaderMap p_shader_map)
@@ -112,6 +122,107 @@ struct Renderer
                                      .buffer = params_buffer,
                                      .offset = 0,
                                      .size   = sizeof(RRectParam) * 20}})});
+
+    pbr_vtx_buff =
+        ctx.device
+            ->create_buffer(
+                ctx.device.self,
+                gfx::BufferDesc{.size  = sizeof(PBRVertex) * 8,
+                                .usage = gfx::BufferUsage::TransferDst |
+                                         gfx::BufferUsage::TransferSrc |
+                                         gfx::BufferUsage::StorageBuffer})
+            .unwrap();
+
+    pbr_idx_buff =
+        ctx.device
+            ->create_buffer(
+                ctx.device.self,
+                gfx::BufferDesc{.size  = sizeof(u32) * 12 * 3,
+                                .usage = gfx::BufferUsage::TransferDst |
+                                         gfx::BufferUsage::TransferSrc |
+                                         gfx::BufferUsage::StorageBuffer})
+            .unwrap();
+
+    pbr_prm_buff =
+        ctx.device
+            ->create_buffer(
+                ctx.device.self,
+                gfx::BufferDesc{.size  = sizeof(PBRParam) * 1,
+                                .usage = gfx::BufferUsage::TransferDst |
+                                         gfx::BufferUsage::TransferSrc |
+                                         gfx::BufferUsage::StorageBuffer})
+            .unwrap();
+
+    pbr_indirect_buff =
+        ctx.device
+            ->create_buffer(
+                ctx.device.self,
+                gfx::BufferDesc{.size  = sizeof(gfx::DrawCommand) * 1,
+                                .usage = gfx::BufferUsage::TransferDst |
+                                         gfx::BufferUsage::TransferSrc |
+                                         gfx::BufferUsage::StorageBuffer |
+                                         gfx::BufferUsage::IndirectBuffer})
+            .unwrap();
+
+    pbr_lights_buff =
+        ctx.device
+            ->create_buffer(
+                ctx.device.self,
+                gfx::BufferDesc{.size  = sizeof(PunctualLight) * 1,
+                                .usage = gfx::BufferUsage::TransferDst |
+                                         gfx::BufferUsage::TransferSrc |
+                                         gfx::BufferUsage::StorageBuffer})
+            .unwrap();
+
+    pbr_vtx_ssbo =
+        ctx.device->create_descriptor_set(ctx.device.self, ctx.ssbo_layout, {})
+            .unwrap();
+    pbr_idx_ssbo =
+        ctx.device->create_descriptor_set(ctx.device.self, ctx.ssbo_layout, {})
+            .unwrap();
+    pbr_prm_ssbo =
+        ctx.device->create_descriptor_set(ctx.device.self, ctx.ssbo_layout, {})
+            .unwrap();
+    pbr_lights_ssbo =
+        ctx.device->create_descriptor_set(ctx.device.self, ctx.ssbo_layout, {})
+            .unwrap();
+
+    ctx.device->update_descriptor_set(
+        ctx.device.self,
+        gfx::DescriptorSetUpdate{
+            .set     = pbr_vtx_ssbo,
+            .binding = 0,
+            .element = 0,
+            .buffers = to_span({gfx::BufferBinding{.buffer = pbr_vtx_buff,
+                                                   .offset = 0,
+                                                   .size = gfx::WHOLE_SIZE}})});
+    ctx.device->update_descriptor_set(
+        ctx.device.self,
+        gfx::DescriptorSetUpdate{
+            .set     = pbr_idx_ssbo,
+            .binding = 0,
+            .element = 0,
+            .buffers = to_span({gfx::BufferBinding{.buffer = pbr_idx_buff,
+                                                   .offset = 0,
+                                                   .size = gfx::WHOLE_SIZE}})});
+    ctx.device->update_descriptor_set(
+        ctx.device.self,
+        gfx::DescriptorSetUpdate{
+            .set     = pbr_prm_ssbo,
+            .binding = 0,
+            .element = 0,
+            .buffers = to_span({gfx::BufferBinding{.buffer = pbr_prm_buff,
+                                                   .offset = 0,
+                                                   .size = gfx::WHOLE_SIZE}})});
+    ctx.device->update_descriptor_set(
+        ctx.device.self,
+        gfx::DescriptorSetUpdate{
+            .set     = pbr_lights_ssbo,
+            .binding = 0,
+            .element = 0,
+            .buffers = to_span({gfx::BufferBinding{.buffer = pbr_lights_buff,
+                                                   .offset = 0,
+                                                   .size = gfx::WHOLE_SIZE}})});
   }
 
   void uninit()
@@ -138,12 +249,22 @@ struct Renderer
 
   void record_frame()
   {
+    // zeroth texture is always plain white
     auto enc = ctx.encoder();
 
     enc->clear_color_image(
-        enc.self, ctx.framebuffer_attachments.color_image,
+        enc.self, ctx.framebuffer.color_image,
         gfx::Color{.float32 = {1, 1, 1, 1}},
         to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                            .first_mip_level   = 0,
+                                            .num_mip_levels    = 1,
+                                            .first_array_layer = 0,
+                                            .num_array_layers  = 1}}));
+
+    enc->clear_depth_stencil_image(
+        enc.self, ctx.framebuffer.depth_stencil_image,
+        gfx::DepthStencil{.depth = 0, .stencil = 0},
+        to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth,
                                             .first_mip_level   = 0,
                                             .num_mip_levels    = 1,
                                             .first_array_layer = 0,
@@ -156,6 +277,9 @@ struct Renderer
                                             .num_mip_levels    = 1,
                                             .first_array_layer = 0,
                                             .num_array_layers  = 1}}));
+
+    timespec ts;
+    timespec_get(&ts, TIME_UTC);
     enc->update_buffer(
         enc.self,
         to_span<RRectParam>(
@@ -163,30 +287,136 @@ struct Renderer
                   ViewTransform{.model = affine_scale3d({.8, .75, 1}) *
                                          affine_rotate3d_z(0.5),
                                 .view = affine_scale3d({1080.0 / 1920, 1, 1}),
-                                .projection = Mat4::identity()},
-              .radii = {.2, .2, .2, .2},
+                                .projection = Mat4::identity()}
+                      .mul(),
+              .radii = {.25, .2, .1, .4},
               .uv    = {{0, 0}, {1, 1}},
               .tint  = {{1, 0, 1, 1}, {1, 0, 0, 1}, {0, 0, 1, 1}, {1, 1, 1, 1}},
+              .aspect_ratio = {1, .75 / .8},
+              .albedo       = 0},
+             {.transform =
+                  ViewTransform{.model =
+                                    affine_scale3d({.8, .75, 1}) *
+                                    affine_rotate3d_z(
+                                        (ts.tv_nsec / 5'000'000'000.0f) * 1),
+                                .view = affine_scale3d({1080.0 / 1920, 1, 1}),
+                                .projection = Mat4::identity()}
+                      .mul(),
+              .radii = {.25, .2, .1, .4},
+              .uv    = {{0, 0}, {1, 1}},
+              .tint  = {{1, 0, 1, 1}, {1, 1, 0, 1}, {0, 0, 1, 1}, {1, 1, 1, 1}},
               .aspect_ratio = {1, .75 / .8},
               .albedo       = 0}})
             .as_u8(),
         0, params_buffer);
 
-    rrect.add_pass(
+     rrect.add_pass(
+         ctx, RRectPassParams{
+                  .rendering_info =
+                      gfx::RenderingInfo{
+                          .extent            = ctx.framebuffer.extent,
+                          .num_layers        = 1,
+                          .color_attachments =
+       to_span({gfx::RenderingAttachment{ .view =
+       ctx.framebuffer.color_image_view,
+                          }})},
+                  .params_ssbo        = params_ssbo,
+                  .params_ssbo_offset = 0,
+                  .textures           = textures,
+                  .first_instance     = 0,
+                  .num_instances      = 2});
+
+    enc->update_buffer(enc.self,
+                       to_span<PBRVertex>({{-1, -1, 0.5, 0, 0},
+                                           {1, -1, 0.5, 0, 1},
+                                           {-1, 1, 0.5, 0, 1},
+                                           {1, 1, 0.5, 1, 1},
+                                           {-1, -1, -0.5, 0, 0},
+                                           {1, -1, -0.5, 0, 1},
+                                           {-1, 1, -0.5, 0, 1},
+                                           {1, 1, -0.5, 1, 1}})
+                           .as_u8(),
+                       0, pbr_vtx_buff);
+
+    enc->update_buffer(enc.self,
+                       to_span<u32>({// Top
+                                     2, 6, 7, 2, 3, 7,
+                                     // Bottom
+                                     0, 4, 5, 0, 1, 5,
+                                     // Left
+                                     0, 2, 6, 0, 4, 6,
+                                     // Right
+                                     1, 3, 7, 1, 5, 7,
+                                     // Front
+                                     0, 2, 3, 0, 1, 3,
+                                     // Back
+                                     4, 6, 7, 4, 5, 7})
+                           .as_u8(),
+                       0, pbr_idx_buff);
+
+    enc->update_buffer(
+        enc.self,
+        to_span<PBRParam>(
+            {{.transform =
+                  ViewTransform{
+                      .model = affine_scale3d({.5,.5,.5})  *
+                               affine_rotate3d_z(clamp(
+                                   ts.tv_nsec / 1'000'000'000.0f, 0.0f, 2 *PI))*   
+                               affine_rotate3d_y(clamp(
+                                   ts.tv_nsec / 1'000'000'000.0f, 0.0f, 2 *PI)),
+                      .view       = affine_scale3d({1080.0 / 1920, 1, 1}),
+                      .projection = OrthographicCamera{.x_mag  = 1,
+                                                       .y_mag  = 1,
+                                                       .z_near = 0.1,
+                                                       .z_far  = 100}
+                                        .to_projection_mat()},
+              .albedo     = {1, 0, 1, 1},
+              .num_lights = 1}})
+            .as_u8(),
+        0, pbr_prm_buff);
+
+    enc->update_buffer(enc.self,
+                       to_span<PunctualLight>({{.direction   = {0, 0, 0},
+                                                .position    = {-1, -1, 0},
+                                                .color       = {1, 1, 0, 1},
+                                                .inner_angle = 0,
+                                                .outer_angle = PI,
+                                                .intensity   = 1,
+                                                .radius      = 0.5}})
+                           .as_u8(),
+                       0, pbr_lights_buff);
+
+    enc->update_buffer(enc.self,
+                       to_span({gfx::DrawCommand{.vertex_count   = 36,
+                                                 .instance_count = 1,
+                                                 .first_vertex   = 0,
+                                                 .first_instance = 0}})
+                           .as_u8(),
+                       0, pbr_indirect_buff);
+
+    pbr.add_pass(
         ctx,
-        RRectPassParams{
+        PBRPassParams{
             .rendering_info =
                 gfx::RenderingInfo{
-                    .extent            = ctx.framebuffer_attachments.extent,
+                    .extent            = ctx.framebuffer.extent,
                     .num_layers        = 1,
                     .color_attachments = to_span({gfx::RenderingAttachment{
-                        .view = ctx.framebuffer_attachments.color_image_view,
-                    }})},
-            .params_ssbo        = params_ssbo,
-            .params_ssbo_offset = 0,
-            .textures           = textures,
-            .first_instance     = 0,
-            .num_instances      = 1});
+                        .view = ctx.framebuffer.color_image_view,
+                    }}),
+                    .depth_attachment  = to_span({gfx::RenderingAttachment{
+                         .view = ctx.framebuffer.depth_stencil_image_view}})},
+            .wireframe         = false,
+            .vertex_ssbo       = pbr_vtx_ssbo,
+            .index_ssbo        = pbr_idx_ssbo,
+            .param_ssbo        = pbr_prm_ssbo,
+            .param_ssbo_offset = 0,
+            .light_ssbo        = pbr_lights_ssbo,
+            .textures          = textures,
+            .indirect          = {.buffer     = pbr_indirect_buff,
+                                  .offset     = 0,
+                                  .draw_count = 1,
+                                  .stride     = sizeof(gfx::DrawCommand)}});
   }
 };
 

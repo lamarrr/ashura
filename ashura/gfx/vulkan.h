@@ -202,8 +202,8 @@ struct CommandEncoderInterface
                        u32 group_count_y, u32 group_count_z);
   static void dispatch_indirect(gfx::CommandEncoder self, gfx::Buffer buffer,
                                 u64 offset);
-  static void set_graphics_state(gfx::CommandEncoder               self,
-                                 gfx::GraphicsPipelineState const &state);
+  static void set_graphics_state(gfx::CommandEncoder       self,
+                                 gfx::GraphicsState const &state);
   static void bind_vertex_buffers(gfx::CommandEncoder     self,
                                   Span<gfx::Buffer const> vertex_buffers,
                                   Span<u64 const>         offsets);
@@ -703,7 +703,7 @@ struct Command
     char                                     none_ = 0;
     Tuple<DescriptorSet **, u32, u32 *, u32> set;
     GraphicsPipeline                        *pipeline;
-    gfx::GraphicsPipelineState               state;
+    gfx::GraphicsState                       state;
     Tuple<u8 *, u32>                         push_constant;
     Tuple<u32, Buffer *, u64>                vertex_buffer;
     Tuple<Buffer *, u64, gfx::IndexType>     index_buffer;

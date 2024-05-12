@@ -10,12 +10,13 @@
 
 struct Params
 {
-  ViewTransform transform;
-  vec4          radii;
-  vec4          uv;
-  vec4          tint[4];
-  vec2          aspect_ratio;
-  uint          albedo;
+  vec4  transform[4];
+  vec4  radii;
+  vec4  uv;
+  vec4  tint[4];
+  vec2  aspect_ratio;
+  float edge_smoothness;
+  uint  albedo;
 };
 
 layout(set = 0, binding = 0) readonly buffer ParamBuffer
@@ -29,6 +30,7 @@ const uint INDEX_BUFFER[]  = {0, 1, 2, 2, 3, 0};
 const vec2 VERTEX_BUFFER[] = {vec2(-1, -1), vec2(1, -1), vec2(1, 1),
                               vec2(-1, 1)};
 
+// https://www.shadertoy.com/view/fsdyzB
 // https://iquilezles.org/articles/distfunctions/
 // length(...+ border_radius) - border_radius -> gives the rounding of the
 // border
@@ -48,7 +50,7 @@ void main()
   Params p      = params[gl_InstanceIndex];
   uint   vertex = INDEX_BUFFER[gl_VertexIndex];
   vec2   i_pos  = VERTEX_BUFFER[vertex];
-  gl_Position   = to_mvp(p.transform) * vec4(i_pos, 0, 1);
+  gl_Position   = to_mat4(p.transform) * vec4(i_pos, 0, 1);
   o_pos         = i_pos * p.aspect_ratio;
   o_color       = p.tint[vertex];
   o_instance    = gl_InstanceIndex;
@@ -65,8 +67,6 @@ layout(location = 0) out vec4 o_color;
 
 void main()
 {
-  // todo(lamarrr): the antialiasing needs to be downscaled, maYBE allow it to
-  // be customizable outside this?
   Params p    = params[i_instance];
   bool   left = i_pos.x < 0;
   bool   top  = i_pos.y < 0;
@@ -75,13 +75,10 @@ void main()
   float radius      = p.radii[corner];
   vec2  half_extent = p.aspect_ratio;
   float dist        = rrect_sdf(i_pos, half_extent, radius);
-  // 0.01 -> very small number to make the edge smooth, but not too small which
-  // would lead to hard edges, larger values lead to softer edges
-  float alpha = 1 - smoothstep(0, 0.015, dist);
-  vec2  xy    = i_pos * 0.5 + 0.5;
-  vec2  uv    = mix(p.uv.xy, p.uv.zw, xy);
-  o_color =
-      mix(vec4(1, 1, 1, 0),
-          i_color * texture(textures[nonuniformEXT(p.albedo)], uv), alpha);
+  float alpha       = 1 - smoothstep(0, p.edge_smoothness, dist);
+  vec2  xy          = i_pos * 0.5 + 0.5;
+  vec2  uv          = mix(p.uv.xy, p.uv.zw, xy);
+  vec4  color       = texture(textures[nonuniformEXT(p.albedo)], uv) * i_color;
+  o_color           = vec4(color.rgb, color.a * alpha);
 }
 #endif

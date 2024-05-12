@@ -7,12 +7,13 @@ namespace ash
 {
 namespace mem
 {
-constexpr usize align_offset(usize alignment, usize offset)
+
+constexpr u64 align_offset(u64 alignment, u64 offset)
 {
   return (offset + (alignment - 1)) & ~(alignment - 1);
 }
 
-constexpr bool is_aligned(usize alignment, usize offset)
+constexpr bool is_aligned(u64 alignment, u64 offset)
 {
   return (offset & (alignment - 1)) == 0;
 }

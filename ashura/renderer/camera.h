@@ -9,15 +9,15 @@ namespace ash
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
 /// @y_mag: The vertical magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
+/// @z_near: The distance to the near clipping plane.
 /// @z_far: The distance to the far clipping plane. This value
 /// MUST NOT be equal to zero. zfar MUST be greater than znear.
-/// @z_near: The distance to the near clipping plane.
 struct OrthographicCamera
 {
   f32 x_mag  = 0;
   f32 y_mag  = 0;
-  f32 z_far  = 0;
   f32 z_near = 0;
+  f32 z_far  = 0;
 
   constexpr Mat4 to_projection_mat() const
   {

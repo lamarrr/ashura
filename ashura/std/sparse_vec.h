@@ -6,8 +6,6 @@
 namespace ash
 {
 
-// TODO(lamarrr): generational counters
-///
 /// @index_to_id: id of data, ordered relative to {data}
 /// @id_to_index: map of id to index in {data}
 /// @size: the number of valid elements in the sparse set
@@ -17,19 +15,10 @@ namespace ash
 /// The index and id either point to valid indices/ids or are an implicit free
 /// list of ids and indices masked by RELEASE_MASK
 ///
-///
-/// Bits[0  : 47] -> index id
-/// Bits[48 : 61] -> generational counter
-/// Bits[62 : 63] -> release mask
-///
-///
 struct SparseVec
 {
-  static constexpr uid STUB         = U64_MAX;
-  static constexpr uid RELEASE_MASK = ~(STUB >> 1);
-  static constexpr u64 MAX_ELEMENTS = STUB >> 1;
-  static constexpr uid MAX_ID       = MAX_ELEMENTS;
-  // TODO(lamarrr): use 15 bits for generational mask
+  static constexpr u64 RELEASE_MASK = 1ui64 << 63;
+  static constexpr u64 STUB         = ~(0ui64);
 
   Vec<uid> index_to_id  = {};
   Vec<u64> id_to_index  = {};

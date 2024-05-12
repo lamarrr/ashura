@@ -12,7 +12,7 @@ namespace ash
 {
 
 /// created with sampled, storage, color attachment, and transfer flags
-struct FramebufferAttachments
+struct Framebuffer
 {
   gfx::ImageDesc     color_image_desc              = {};
   gfx::ImageDesc     depth_stencil_image_desc      = {};
@@ -45,16 +45,16 @@ struct RenderContext
       gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst;
   static constexpr u32 MAX_TEXTURE_PACK_COUNT = 1024;
 
-  gfx::DeviceImpl          device                  = {};
-  gfx::PipelineCache       pipeline_cache          = nullptr;
-  u32                      buffering               = 0;
-  ShaderMap                shader_map              = {};
-  gfx::Format              color_format            = gfx::Format::Undefined;
-  gfx::Format              depth_stencil_format    = gfx::Format::Undefined;
-  FramebufferAttachments   framebuffer_attachments = {};
-  FramebufferAttachments   scratch_framebuffer_attachments      = {};
-  gfx::DescriptorSetLayout ssbo_layout                          = nullptr;
-  gfx::DescriptorSetLayout textures_layout                      = nullptr;
+  gfx::DeviceImpl          device               = {};
+  gfx::PipelineCache       pipeline_cache       = nullptr;
+  u32                      buffering            = 0;
+  ShaderMap                shader_map           = {};
+  gfx::Format              color_format         = gfx::Format::Undefined;
+  gfx::Format              depth_stencil_format = gfx::Format::Undefined;
+  Framebuffer              framebuffer          = {};
+  Framebuffer              scratch_framebuffer  = {};
+  gfx::DescriptorSetLayout ssbo_layout          = nullptr;
+  gfx::DescriptorSetLayout textures_layout      = nullptr;
   Vec<Tuple<gfx::FrameId, gfx::Image>>     released_images      = {};
   Vec<Tuple<gfx::FrameId, gfx::ImageView>> released_image_views = {};
 

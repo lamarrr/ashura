@@ -8,28 +8,28 @@ void PBRPass::init(RenderContext &ctx)
   gfx::Shader vertex_shader   = ctx.get_shader("PBR:VS"_span).unwrap();
   gfx::Shader fragment_shader = ctx.get_shader("PBR:FS"_span).unwrap();
 
-  gfx::PipelineRasterizationState raster_state{
-      .depth_clamp_enable         = false,
-      .polygon_mode               = gfx::PolygonMode::Fill,
-      .cull_mode                  = gfx::CullMode::None,
-      .front_face                 = gfx::FrontFace::CounterClockWise,
-      .depth_bias_enable          = false,
-      .depth_bias_constant_factor = 0,
-      .depth_bias_clamp           = 0,
-      .depth_bias_slope_factor    = 0};
+  gfx::RasterizationState raster_state{.depth_clamp_enable = false,
+                                       .polygon_mode = gfx::PolygonMode::Fill,
+                                       .cull_mode    = gfx::CullMode::None,
+                                       .front_face =
+                                           gfx::FrontFace::CounterClockWise,
+                                       .depth_bias_enable          = false,
+                                       .depth_bias_constant_factor = 0,
+                                       .depth_bias_clamp           = 0,
+                                       .depth_bias_slope_factor    = 0};
 
-  gfx::PipelineDepthStencilState depth_stencil_state{
-      .depth_test_enable        = true,
-      .depth_write_enable       = true,
+  gfx::DepthStencilState depth_stencil_state{
+      .depth_test_enable        = false,
+      .depth_write_enable       = false,
       .depth_compare_op         = gfx::CompareOp::Greater,
       .depth_bounds_test_enable = false,
       .stencil_test_enable      = false,
       .front_stencil            = gfx::StencilOpState{},
       .back_stencil             = gfx::StencilOpState{},
       .min_depth_bounds         = 0,
-      .max_depth_bounds         = 0};
+      .max_depth_bounds         = 1};
 
-  gfx::PipelineColorBlendAttachmentState attachment_states[] = {
+  gfx::ColorBlendAttachmentState attachment_states[] = {
       {.blend_enable           = false,
        .src_color_blend_factor = gfx::BlendFactor::Zero,
        .dst_color_blend_factor = gfx::BlendFactor::Zero,
@@ -39,9 +39,9 @@ void PBRPass::init(RenderContext &ctx)
        .alpha_blend_op         = gfx::BlendOp::Add,
        .color_write_mask       = gfx::ColorComponents::All}};
 
-  gfx::PipelineColorBlendState color_blend_state{
-      .attachments    = to_span(attachment_states),
-      .blend_constant = {1, 1, 1, 1}};
+  gfx::ColorBlendState color_blend_state{.attachments =
+                                             to_span(attachment_states),
+                                         .blend_constant = {1, 1, 1, 1}};
 
   gfx::DescriptorSetLayout const set_layouts[] = {
       ctx.ssbo_layout, ctx.ssbo_layout, ctx.ssbo_layout, ctx.ssbo_layout,
@@ -90,17 +90,20 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
   encoder->bind_graphics_pipeline(encoder.self, params.wireframe ?
                                                     this->wireframe_pipeline :
                                                     this->pipeline);
+
   encoder->set_graphics_state(
       encoder.self,
-      gfx::GraphicsPipelineState{
-          .scissor  = {.offset = Vec2U{0, 0},
-                       .extent = params.rendering_info.extent},
-          .viewport = gfx::Viewport{
-              .offset    = Vec2{0, 0},
-              .extent    = Vec2{(f32) params.rendering_info.extent.x,
-                             (f32) params.rendering_info.extent.y},
-              .min_depth = 0,
-              .max_depth = 1}});
+      gfx::GraphicsState{
+          .scissor = {.offset = Vec2U{0, 0},
+                      .extent = params.rendering_info.extent},
+          .viewport =
+              gfx::Viewport{.offset = Vec2{0, 0},
+                            .extent =
+                                Vec2{(f32) params.rendering_info.extent.x,
+                                     (f32) params.rendering_info.extent.y},
+                            .min_depth = 0,
+                            .max_depth = 1},
+          .blend_constant = {1, 1, 1, 1}});
   encoder->bind_descriptor_sets(
       encoder.self,
       to_span({params.vertex_ssbo, params.index_ssbo, params.param_ssbo,

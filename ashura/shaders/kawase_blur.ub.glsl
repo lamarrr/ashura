@@ -7,7 +7,7 @@ struct Params
   uint src;
 };
 
-layout(push_constant) uniform ParamsPushConstant
+layout(push_constant) uniform ParamBuffer
 {
   Params p;
 };
@@ -17,6 +17,7 @@ layout(set = 0, binding = 0) uniform sampler2D textures[];
 const uint INDEX_BUFFER[]  = {0, 1, 2, 2, 3, 0};
 const vec2 VERTEX_BUFFER[] = {vec2(0, 0), vec2(1, 0), vec2(1, 1), vec2(0, 1)};
 
+/// SIGGRAPH 2015 - Bandwidth-Efficient Rendering, Marius Bjorge, ARM
 vec4 kawase_downsample(sampler2D src, vec2 uv, vec2 radius)
 {
   vec4 sum = texture(src, uv) * vec4(4.0);

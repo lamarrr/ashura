@@ -22,8 +22,8 @@ vec3 to_srgb(vec3 v)
 
 struct ViewTransform
 {
-  vec4 view[3];
   vec4 model[3];
+  vec4 view[3];
   vec4 projection[4];
 };
 

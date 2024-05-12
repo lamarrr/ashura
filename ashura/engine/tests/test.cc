@@ -24,12 +24,12 @@ int main(int, char **)
   CHECK(win_sys != nullptr);
 
   gfx::InstanceImpl instance =
-      gfx::create_vulkan_instance(heap_allocator, default_logger, true)
+      gfx::create_vulkan_instance(heap_allocator, default_logger, false)
           .unwrap();
 
-  defer instance_del{[&] { instance->destroy(instance.self); }};
-  u32   win = win_sys->create_window(instance, "Main").unwrap();
-  defer win_del{[&] { win_sys->destroy_window(win); }};
+  defer  instance_del{[&] { instance->destroy(instance.self); }};
+  Window win = win_sys->create_window(instance, "Main").unwrap();
+  defer  win_del{[&] { win_sys->destroy_window(win); }};
 
   win_sys->maximize(win);
   win_sys->set_title(win, "Harro");
@@ -236,8 +236,6 @@ int main(int, char **)
   invalidate_swapchain();
   defer swapchain_del{
       [&] { device->destroy_swapchain(device.self, swapchain); }};
-
-  // TODO(lamarrr): update preferred extent
 
   while (!should_close)
   {

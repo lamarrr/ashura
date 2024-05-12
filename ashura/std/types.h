@@ -27,25 +27,25 @@ typedef u64       uid;
 typedef u64       Hash;
 
 constexpr u8 U8_MIN = 0;
-constexpr u8 U8_MAX = 0xFFU;
+constexpr u8 U8_MAX = ~(0ui8);
 
 constexpr i8 I8_MIN = -0x7F - 1;
 constexpr i8 I8_MAX = 0x7F;
 
 constexpr u16 U16_MIN = 0;
-constexpr u16 U16_MAX = 0xFFFFU;
+constexpr u16 U16_MAX = ~(0ui16);
 
 constexpr i16 I16_MIN = -0x7FFF - 1;
 constexpr i16 I16_MAX = 0x7FFF;
 
 constexpr u32 U32_MIN = 0;
-constexpr u32 U32_MAX = 0xFFFFFFFFU;
+constexpr u32 U32_MAX = ~(0ui32);
 
 constexpr i32 I32_MIN = -0x7FFFFFFF - 1;
 constexpr i32 I32_MAX = 0x7FFFFFFF;
 
 constexpr u64 U64_MIN = 0;
-constexpr u64 U64_MAX = 0xFFFFFFFFFFFFFFFFULL;
+constexpr u64 U64_MAX = ~(0ui64);
 
 constexpr i64 I64_MIN = -0x7FFFFFFFFFFFFFFFLL - 1;
 constexpr i64 I64_MAX = 0x7FFFFFFFFFFFFFFFLL;
