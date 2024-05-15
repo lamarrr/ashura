@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ashura/engine/event.h"
 #include "ashura/engine/key.h"
 #include "ashura/std/math.h"
 #include "ashura/std/types.h"
@@ -92,25 +93,15 @@ enum class WidgetEventTypes : u32
   ViewMis      = 0x00008000
 };
 
-// identifying widgets across frames
-struct GlobalEvent
+struct GlobalWidgetState
 {
   MouseButtons   button            = MouseButtons::None;
   Vec2           mouse_position    = {};
   Vec2           mouse_translation = {};
   u32            num_clicks        = 0;
   Span<u8 const> drag_payload      = {};
+  SystemTheme    theme             = SystemTheme::None;
 };
-
-// TODO(lamarrr): we might need request detach so child widgets can request to
-// be removed and remove all callbacks they may have attached or cancel tasks
-// they have pending.
-// consider: having tokens that de-register themselves once deleted
-
-// TODO(lamarrr): we need re-calculable offsets so we can shift the parents
-// around without shifting the children this is important for cursors, drag
-// and drop? this might mean we need to totally remove the concept of area.
-// storing transformed area might not be needed?
 
 /// @brief Base widget class. All widget types must inherit from this struct.
 /// all methods are already implemented with reasonable defaults.
@@ -141,14 +132,19 @@ struct Canvas
 {
 };
 
-/// theming
+/// TODO(lamarrr): event context and names to global context? we can have
+/// thousands of same widgets that might need processing as well. theming
 /// reaction
+//
+// listener id for each event the widget emits?
+//
+//
+//
 struct Widget
 {
   Widget()          = default;
   virtual ~Widget() = default;
 
-  // TODO: how to circumvent?
   /// @brief get child widgets
   /// @return
   virtual Span<Widget *const> get_children();
