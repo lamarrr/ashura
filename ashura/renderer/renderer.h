@@ -457,31 +457,34 @@ struct Renderer
     /// downsample 4 times then upsample 4 times, ping-ponging between two
     /// textures. use the mips? or specific areas of the images
 
-    blur.add_pass(
-        ctx, BlurPassParams{
-                 .rendering_info =
-                     gfx::RenderingInfo{
-                         .extent            = ctx.scratch_framebuffer.extent,
-                         .num_layers        = 1,
-                         .color_attachments = to_span({gfx::RenderingAttachment{
-                             .view = ctx.scratch_framebuffer.color_image_view,
-                         }})},
-                 .param    = BlurParam{.offset  = {0, 0},
-                                       .extent  = {1, 1},
-                                       .radius  = {6 / 1920.0, 6 / 1080.0},
-                                       .texture = 0},
-                 .textures = textures_2});
+    /* blur.add_pass(
+         ctx, BlurPassParams{
+                  .rendering_info =
+                      gfx::RenderingInfo{
+                          .extent            = ctx.scratch_framebuffer.extent,
+                          .num_layers        = 1,
+                          .color_attachments =
+     to_span({gfx::RenderingAttachment{ .view =
+     ctx.scratch_framebuffer.color_image_view,
+                          }})},
+                  .param    = BlurParam{.offset  = {0, 0},
+                                        .extent  = {1, 1},
+                                        .radius  = {6 / 1920.0, 6 / 1080.0},
+                                        .texture = 0},
+                  .textures = textures_2});
 
-    enc->copy_image(enc.self, ctx.scratch_framebuffer.color_image,
-                    ctx.framebuffer.color_image,
-                    to_span<gfx::ImageCopy>(
-                        {{.src_layers = {.aspects = gfx::ImageAspects::Color,
-                                         .num_array_layers = 1},
-                          .src_offset = {},
-                          .dst_layers = {.aspects = gfx::ImageAspects::Color,
-                                         .num_array_layers = 1},
-                          .dst_offset = {},
-                          .extent = ctx.framebuffer.color_image_desc.extent}}));
+     enc->copy_image(enc.self, ctx.scratch_framebuffer.color_image,
+                     ctx.framebuffer.color_image,
+                     to_span<gfx::ImageCopy>(
+                         {{.src_layers = {.aspects = gfx::ImageAspects::Color,
+                                          .num_array_layers = 1},
+                           .src_offset = {},
+                           .dst_layers = {.aspects = gfx::ImageAspects::Color,
+                                          .num_array_layers = 1},
+                           .dst_offset = {},
+                           .extent =
+     ctx.framebuffer.color_image_desc.extent}}));
+                           */
   }
 };
 

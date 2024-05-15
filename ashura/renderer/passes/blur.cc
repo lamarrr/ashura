@@ -109,8 +109,8 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
           .viewport = {.offset = {0, 0},
                        .extent = {(f32) params.rendering_info.extent.x,
                                   (f32) params.rendering_info.extent.y}}});
-  encoder->bind_descriptor_sets(encoder.self, to_span({params.textures}), {});
-  encoder->push_constants(encoder.self, to_span({params.param}).as_u8());
+//   encoder->bind_descriptor_sets(encoder.self, to_span({params.textures}), {});
+//   encoder->push_constants(encoder.self, to_span({params.param}).as_u8());
   encoder->draw(encoder.self, 6, 1, 0, 0);
   encoder->end_rendering(encoder.self);
 }
