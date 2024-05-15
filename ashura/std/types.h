@@ -1,11 +1,13 @@
 #pragma once
 #include "ashura/std/cfg.h"
 #include "ashura/std/traits.h"
+#include <bit>
 #include <cfloat>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <new>
 #include <type_traits>
 
@@ -1739,6 +1741,29 @@ constexpr Vec3I cross(Vec3I a, Vec3I b)
 {
   return Vec3I{a.y * b.z - a.z * b.y, -(a.x * b.z - a.z * b.x),
                a.x * b.y - a.y * b.x};
+}
+
+constexpr f32 inverse_sqrt(f32 num)
+{
+  // (enable only on IEEE 754)
+  static_assert(std::numeric_limits<f32>::is_iec559);
+  f32 const y = std::bit_cast<f32>(0x5f3759df - (std::bit_cast<u32>(num) >> 1));
+  return y * (1.5f - (num * 0.5f * y * y));
+}
+
+constexpr Vec2 normalize(Vec2 a)
+{
+  return a * inverse_sqrt(dot(a, a));
+}
+
+constexpr Vec3 normalize(Vec3 a)
+{
+  return a * inverse_sqrt(dot(a, a));
+}
+
+constexpr Vec4 normalize(Vec4 a)
+{
+  return a * inverse_sqrt(dot(a, a));
 }
 
 struct Mat2

@@ -37,7 +37,23 @@ int main(int, char **)
   bool should_close = false;
   auto close_fn     = [&](WindowEvent const &) { should_close = true; };
 
+  f32  rot_x = 0, rot_z = 0;
+  auto key_fn = [&](WindowEvent const &k) {
+    if (k.type == WindowEventTypes::Key)
+    {
+      if (k.key.action == KeyAction::Press && k.key.key == Key::KEY_LEFT)
+      {
+        rot_x += PI / 16;
+      }
+      if (k.key.action == KeyAction::Press && k.key.key == Key::KEY_UP)
+      {
+        rot_z += PI / 16;
+      }
+    }
+  };
+
   win_sys->listen(win, WindowEventTypes::CloseRequested, to_fn_ref(close_fn));
+  win_sys->listen(win, WindowEventTypes::Key, to_fn_ref(key_fn));
   gfx::Surface    surface = win_sys->get_surface(win);
   gfx::DeviceImpl device =
       instance
@@ -241,7 +257,7 @@ int main(int, char **)
   {
     win_sys->poll_events();
     renderer.begin_frame(swapchain);
-    renderer.record_frame();
+    renderer.record_frame(rot_x, rot_z);
     renderer.end_frame(swapchain);
   }
   default_logger->info("closing");

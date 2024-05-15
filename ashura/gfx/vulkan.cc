@@ -5054,14 +5054,14 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
     sVALIDATE(copy.src_offset.y <= src_extent.y);
     sVALIDATE(copy.src_offset.z <= src_extent.z);
     sVALIDATE((copy.src_offset.x + copy.extent.x) <= src_extent.x);
-    sVALIDATE((copy.src_offset.y + copy.extent.x) <= src_extent.y);
-    sVALIDATE((copy.src_offset.z + copy.extent.x) <= src_extent.z);
+    sVALIDATE((copy.src_offset.y + copy.extent.y) <= src_extent.y);
+    sVALIDATE((copy.src_offset.z + copy.extent.z) <= src_extent.z);
     sVALIDATE(copy.dst_offset.x <= dst_extent.x);
     sVALIDATE(copy.dst_offset.y <= dst_extent.y);
     sVALIDATE(copy.dst_offset.z <= dst_extent.z);
     sVALIDATE((copy.dst_offset.x + copy.extent.x) <= dst_extent.x);
-    sVALIDATE((copy.dst_offset.y + copy.extent.x) <= dst_extent.y);
-    sVALIDATE((copy.dst_offset.z + copy.extent.x) <= dst_extent.z);
+    sVALIDATE((copy.dst_offset.y + copy.extent.y) <= dst_extent.y);
+    sVALIDATE((copy.dst_offset.z + copy.extent.z) <= dst_extent.z);
   }
 
   VkImageCopy *vk_copies =
@@ -5337,14 +5337,14 @@ void CommandEncoderInterface::resolve_image(
     sVALIDATE(resolve.src_offset.y <= src_extent.y);
     sVALIDATE(resolve.src_offset.z <= src_extent.z);
     sVALIDATE((resolve.src_offset.x + resolve.extent.x) <= src_extent.x);
-    sVALIDATE((resolve.src_offset.y + resolve.extent.x) <= src_extent.y);
-    sVALIDATE((resolve.src_offset.z + resolve.extent.x) <= src_extent.z);
+    sVALIDATE((resolve.src_offset.y + resolve.extent.y) <= src_extent.y);
+    sVALIDATE((resolve.src_offset.z + resolve.extent.z) <= src_extent.z);
     sVALIDATE(resolve.dst_offset.x <= dst_extent.x);
     sVALIDATE(resolve.dst_offset.y <= dst_extent.y);
     sVALIDATE(resolve.dst_offset.z <= dst_extent.z);
     sVALIDATE((resolve.dst_offset.x + resolve.extent.x) <= dst_extent.x);
-    sVALIDATE((resolve.dst_offset.y + resolve.extent.x) <= dst_extent.y);
-    sVALIDATE((resolve.dst_offset.z + resolve.extent.x) <= dst_extent.z);
+    sVALIDATE((resolve.dst_offset.y + resolve.extent.y) <= dst_extent.y);
+    sVALIDATE((resolve.dst_offset.z + resolve.extent.z) <= dst_extent.z);
   }
 
   VkImageResolve *vk_resolves =

@@ -18,16 +18,16 @@ void PBRPass::init(RenderContext &ctx)
                                        .depth_bias_clamp           = 0,
                                        .depth_bias_slope_factor    = 0};
 
-  gfx::DepthStencilState depth_stencil_state{
-      .depth_test_enable        = false,
-      .depth_write_enable       = false,
-      .depth_compare_op         = gfx::CompareOp::Greater,
-      .depth_bounds_test_enable = false,
-      .stencil_test_enable      = false,
-      .front_stencil            = gfx::StencilOpState{},
-      .back_stencil             = gfx::StencilOpState{},
-      .min_depth_bounds         = 0,
-      .max_depth_bounds         = 1};
+  gfx::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
+                                             .depth_write_enable = false,
+                                             .depth_compare_op =
+                                                 gfx::CompareOp::Greater,
+                                             .depth_bounds_test_enable = false,
+                                             .stencil_test_enable      = false,
+                                             .front_stencil            = {},
+                                             .back_stencil             = {},
+                                             .min_depth_bounds         = 0,
+                                             .max_depth_bounds         = 1};
 
   gfx::ColorBlendAttachmentState attachment_states[] = {
       {.blend_enable           = false,

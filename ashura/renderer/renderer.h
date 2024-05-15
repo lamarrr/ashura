@@ -31,6 +31,9 @@ struct Renderer
   gfx::Sampler       sampler       = nullptr;
   gfx::DescriptorSet params_ssbo   = nullptr;
   gfx::DescriptorSet textures      = nullptr;
+  gfx::DescriptorSet textures_2    = nullptr;
+  /// TODO(lamarrr): attachment textures group, updated on every frame
+  /// recreation
 
   gfx::Buffer        pbr_vtx_buff      = nullptr;
   gfx::Buffer        pbr_idx_buff      = nullptr;
@@ -97,6 +100,12 @@ struct Renderer
                    ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
                                            to_span({16ui32}))
                    .unwrap();
+
+    textures_2 =
+        ctx.device
+            ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
+                                    to_span({16ui32}))
+            .unwrap();
 
     params_ssbo =
         ctx.device->create_descriptor_set(ctx.device.self, ctx.ssbo_layout, {})
@@ -247,13 +256,41 @@ struct Renderer
     ctx.end_frame(swapchain);
   }
 
-  void record_frame()
+  void record_frame(f32 rot_x, f32 rot_z)
   {
     // zeroth texture is always plain white
     auto enc = ctx.encoder();
 
+    ctx.device->update_descriptor_set(
+        ctx.device.self,
+        gfx::DescriptorSetUpdate{
+            .set     = textures_2,
+            .binding = 0,
+            .element = 0,
+            .images  = to_span({gfx::ImageBinding{
+                 .sampler    = sampler,
+                 .image_view = ctx.framebuffer.color_image_view}})});
+
+    enc->clear_color_image(
+        enc.self, ctx.scratch_framebuffer.color_image,
+        gfx::Color{.float32 = {1, 1, 1, 1}},
+        to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                            .first_mip_level   = 0,
+                                            .num_mip_levels    = 1,
+                                            .first_array_layer = 0,
+                                            .num_array_layers  = 1}}));
+
     enc->clear_color_image(
         enc.self, ctx.framebuffer.color_image,
+        gfx::Color{.float32 = {1, 1, 1, 1}},
+        to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                            .first_mip_level   = 0,
+                                            .num_mip_levels    = 1,
+                                            .first_array_layer = 0,
+                                            .num_array_layers  = 1}}));
+
+    enc->clear_color_image(
+        enc.self, ctx.scratch_framebuffer.color_image,
         gfx::Color{.float32 = {1, 1, 1, 1}},
         to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
                                             .first_mip_level   = 0,
@@ -310,21 +347,20 @@ struct Renderer
             .as_u8(),
         0, params_buffer);
 
-     rrect.add_pass(
-         ctx, RRectPassParams{
-                  .rendering_info =
-                      gfx::RenderingInfo{
-                          .extent            = ctx.framebuffer.extent,
-                          .num_layers        = 1,
-                          .color_attachments =
-       to_span({gfx::RenderingAttachment{ .view =
-       ctx.framebuffer.color_image_view,
-                          }})},
-                  .params_ssbo        = params_ssbo,
-                  .params_ssbo_offset = 0,
-                  .textures           = textures,
-                  .first_instance     = 0,
-                  .num_instances      = 2});
+    rrect.add_pass(
+        ctx, RRectPassParams{
+                 .rendering_info =
+                     gfx::RenderingInfo{
+                         .extent            = ctx.framebuffer.extent,
+                         .num_layers        = 1,
+                         .color_attachments = to_span({gfx::RenderingAttachment{
+                             .view = ctx.framebuffer.color_image_view,
+                         }})},
+                 .params_ssbo        = params_ssbo,
+                 .params_ssbo_offset = 0,
+                 .textures           = textures,
+                 .first_instance     = 0,
+                 .num_instances      = 2});
 
     enc->update_buffer(enc.self,
                        to_span<PBRVertex>({{-1, -1, 0.5, 0, 0},
@@ -358,18 +394,15 @@ struct Renderer
         enc.self,
         to_span<PBRParam>(
             {{.transform =
-                  ViewTransform{
-                      .model = affine_scale3d({.5,.5,.5})  *
-                               affine_rotate3d_z(clamp(
-                                   ts.tv_nsec / 1'000'000'000.0f, 0.0f, 2 *PI))*   
-                               affine_rotate3d_y(clamp(
-                                   ts.tv_nsec / 1'000'000'000.0f, 0.0f, 2 *PI)),
-                      .view       = affine_scale3d({1080.0 / 1920, 1, 1}),
-                      .projection = OrthographicCamera{.x_mag  = 1,
-                                                       .y_mag  = 1,
-                                                       .z_near = 0.1,
-                                                       .z_far  = 100}
-                                        .to_projection_mat()},
+                  ViewTransform{.model = affine_scale3d({.5, .5, .5}) *
+                                         affine_rotate3d_z(rot_z) *
+                                         affine_rotate3d_x(rot_x),
+                                .view = affine_scale3d({1080.0 / 1920, 1, 1}),
+                                .projection = OrthographicCamera{.x_mag  = 1,
+                                                                 .y_mag  = 1,
+                                                                 .z_near = 0.1,
+                                                                 .z_far  = 100}
+                                                  .to_projection_mat()},
               .albedo     = {1, 0, 1, 1},
               .num_lights = 1}})
             .as_u8(),
@@ -394,29 +427,61 @@ struct Renderer
                            .as_u8(),
                        0, pbr_indirect_buff);
 
-    pbr.add_pass(
-        ctx,
-        PBRPassParams{
-            .rendering_info =
-                gfx::RenderingInfo{
-                    .extent            = ctx.framebuffer.extent,
-                    .num_layers        = 1,
-                    .color_attachments = to_span({gfx::RenderingAttachment{
-                        .view = ctx.framebuffer.color_image_view,
-                    }}),
-                    .depth_attachment  = to_span({gfx::RenderingAttachment{
-                         .view = ctx.framebuffer.depth_stencil_image_view}})},
-            .wireframe         = false,
-            .vertex_ssbo       = pbr_vtx_ssbo,
-            .index_ssbo        = pbr_idx_ssbo,
-            .param_ssbo        = pbr_prm_ssbo,
-            .param_ssbo_offset = 0,
-            .light_ssbo        = pbr_lights_ssbo,
-            .textures          = textures,
-            .indirect          = {.buffer     = pbr_indirect_buff,
-                                  .offset     = 0,
-                                  .draw_count = 1,
-                                  .stride     = sizeof(gfx::DrawCommand)}});
+    // pbr.add_pass(
+    //     ctx,
+    //     PBRPassParams{
+    //         .rendering_info =
+    //             gfx::RenderingInfo{
+    //                 .extent            = ctx.framebuffer.extent,
+    //                 .num_layers        = 1,
+    //                 .color_attachments = to_span({gfx::RenderingAttachment{
+    //                     .view = ctx.framebuffer.color_image_view,
+    //                 }}),
+    //                 .depth_attachment  = to_span({gfx::RenderingAttachment{
+    //                      .view =
+    //                      ctx.framebuffer.depth_stencil_image_view}})},
+    //         .wireframe         = false,
+    //         .vertex_ssbo       = pbr_vtx_ssbo,
+    //         .index_ssbo        = pbr_idx_ssbo,
+    //         .param_ssbo        = pbr_prm_ssbo,
+    //         .param_ssbo_offset = 0,
+    //         .light_ssbo        = pbr_lights_ssbo,
+    //         .textures          = textures,
+    //         .indirect          = {.buffer     = pbr_indirect_buff,
+    //                               .offset     = 0,
+    //                               .draw_count = 1,
+    //                               .stride     = sizeof(gfx::DrawCommand)}});
+
+    // TODO(lamarrr): needs to be two-pass??
+
+    /// downsample 4 times then upsample 4 times, ping-ponging between two
+    /// textures. use the mips? or specific areas of the images
+
+    blur.add_pass(
+        ctx, BlurPassParams{
+                 .rendering_info =
+                     gfx::RenderingInfo{
+                         .extent            = ctx.scratch_framebuffer.extent,
+                         .num_layers        = 1,
+                         .color_attachments = to_span({gfx::RenderingAttachment{
+                             .view = ctx.scratch_framebuffer.color_image_view,
+                         }})},
+                 .param    = BlurParam{.offset  = {0, 0},
+                                       .extent  = {1, 1},
+                                       .radius  = {6 / 1920.0, 6 / 1080.0},
+                                       .texture = 0},
+                 .textures = textures_2});
+
+    enc->copy_image(enc.self, ctx.scratch_framebuffer.color_image,
+                    ctx.framebuffer.color_image,
+                    to_span<gfx::ImageCopy>(
+                        {{.src_layers = {.aspects = gfx::ImageAspects::Color,
+                                         .num_array_layers = 1},
+                          .src_offset = {},
+                          .dst_layers = {.aspects = gfx::ImageAspects::Color,
+                                         .num_array_layers = 1},
+                          .dst_offset = {},
+                          .extent = ctx.framebuffer.color_image_desc.extent}}));
   }
 };
 

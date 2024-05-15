@@ -88,9 +88,18 @@ struct Camera
   }
 };
 
-// rotate about pivot point on one or more axis
-// camera controller class
-constexpr Mat4Affine look_at(Vec3 position);
+constexpr Mat4 look_at(Vec3 eye, Vec3 center, Vec3 up)
+{
+  Vec3 const f = normalize(center - eye);
+  Vec3 const s = normalize(cross(up, f));
+  Vec3 const u = cross(f, s);
+
+  return {{{s.x, s.x, s.x, 0},
+           {u.y, u.y, u.y, 0},
+           {f.z, f.z, f.z, 0},
+           {-dot(s, eye), -dot(u, eye), -dot(f, eye), 1}}};
+}
+
 constexpr Mat4Affine move_camera_to(Vec3 position);
 
 }        // namespace ash

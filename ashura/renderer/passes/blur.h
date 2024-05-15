@@ -6,27 +6,26 @@ namespace ash
 
 struct BlurParam
 {
-  Vec2 src_offset;
-  Vec2 src_extent;
-  Vec2 src_tex_extent;
-  Vec2 radius;
+  Vec2 offset  = {};
+  Vec2 extent  = {};
+  Vec2 radius  = {};
+  u32  texture = 0;
 };
 
+// TODO(lamarrr): how to avoid using as render target and descriptor set element
+// at the same time? difficult to know which is actually used and which isn't
 struct BlurPassParams
 {
-  Vec2U          offset      = {};
-  Vec2U          extent      = {};
-  Vec2U          radius      = {0, 0};
-  u32            num_levels  = 0;
-  Vec2U          view_extent = {0, 0};
-  gfx::ImageView view        = nullptr;
+  gfx::RenderingInfo rendering_info = {};
+  // BlurParam          param          = {};
+  // gfx::DescriptorSet textures   = nullptr;
+  // u32                num_passes = 0;
 };
 
 struct BlurPass
 {
   gfx::GraphicsPipeline downsample_pipeline = nullptr;
   gfx::GraphicsPipeline upsample_pipeline   = nullptr;
-  gfx::Sampler          sampler             = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);

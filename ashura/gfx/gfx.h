@@ -686,7 +686,7 @@ struct Viewport
   f32  max_depth = 0;
 };
 
-struct StencilOpState
+struct StencilState
 {
   StencilOp fail_op       = StencilOp::Keep;
   StencilOp pass_op       = StencilOp::Keep;
@@ -905,15 +905,15 @@ struct VertexAttribute
 
 struct DepthStencilState
 {
-  bool           depth_test_enable        = false;
-  bool           depth_write_enable       = false;
-  CompareOp      depth_compare_op         = CompareOp::Never;
-  bool           depth_bounds_test_enable = false;
-  bool           stencil_test_enable      = false;
-  StencilOpState front_stencil            = {};
-  StencilOpState back_stencil             = {};
-  f32            min_depth_bounds         = 0;
-  f32            max_depth_bounds         = 0;
+  bool         depth_test_enable        = false;
+  bool         depth_write_enable       = false;
+  CompareOp    depth_compare_op         = CompareOp::Never;
+  bool         depth_bounds_test_enable = false;
+  bool         stencil_test_enable      = false;
+  StencilState front_stencil            = {};
+  StencilState back_stencil             = {};
+  f32          min_depth_bounds         = 0;
+  f32          max_depth_bounds         = 0;
 };
 
 struct ColorBlendAttachmentState
@@ -954,20 +954,12 @@ struct GraphicsState
   {
     Offset offset = {};
     Extent extent = {};
-  } scissor                    = {};
-  Viewport viewport            = {};
-  Vec4     blend_constant      = {};
-  bool     stencil_test_enable = false;
-  struct StencilState
-  {
-    u32            reference     = 0;
-    u32            compare_mask  = 0;
-    u32            write_mask    = 0;
-    gfx::StencilOp fail_op       = gfx::StencilOp::Keep;
-    gfx::StencilOp pass_op       = gfx::StencilOp::Keep;
-    gfx::StencilOp depth_fail_op = gfx::StencilOp::Keep;
-    gfx::CompareOp compare_op    = gfx::CompareOp::Never;
-  } front_face_stencil = {}, back_face_stencil = {};
+  } scissor                               = {};
+  Viewport       viewport                 = {};
+  Vec4           blend_constant           = {};
+  bool           stencil_test_enable      = false;
+  StencilState   front_face_stencil       = {};
+  StencilState   back_face_stencil        = {};
   gfx::CullMode  cull_mode                = gfx::CullMode::None;
   gfx::FrontFace front_face               = gfx::FrontFace::CounterClockWise;
   bool           depth_test_enable        = false;
