@@ -1384,10 +1384,10 @@ void InstanceInterface::destroy(gfx::Instance instance_)
 
 void check_device_limits(Instance *self, VkPhysicalDeviceLimits limits)
 {
-  sVALIDATE(limits.maxImageDimension1D >= gfx::MAX_IMAGE_EXTENT);
-  sVALIDATE(limits.maxImageDimension2D >= gfx::MAX_IMAGE_EXTENT);
-  sVALIDATE(limits.maxImageDimension3D >= gfx::MAX_IMAGE_EXTENT);
-  sVALIDATE(limits.maxImageDimensionCube >= gfx::MAX_IMAGE_EXTENT);
+  sVALIDATE(limits.maxImageDimension1D >= gfx::MAX_IMAGE_EXTENT_1D);
+  sVALIDATE(limits.maxImageDimension2D >= gfx::MAX_IMAGE_EXTENT_2D);
+  sVALIDATE(limits.maxImageDimension3D >= gfx::MAX_IMAGE_EXTENT_3D);
+  sVALIDATE(limits.maxImageDimensionCube >= gfx::MAX_IMAGE_EXTENT_CUBE);
   sVALIDATE(limits.maxImageArrayLayers >= gfx::MAX_IMAGE_ARRAY_LAYERS);
   sVALIDATE(limits.maxViewportDimensions[0] >= gfx::MAX_VIEWPORT_EXTENT);
   sVALIDATE(limits.maxViewportDimensions[1] >= gfx::MAX_VIEWPORT_EXTENT);
@@ -2411,17 +2411,36 @@ Result<gfx::Image, Status>
   sVALIDATE(desc.aspects != gfx::ImageAspects::None);
   sVALIDATE(desc.sample_count != gfx::SampleCount::None);
   sVALIDATE(desc.extent.x != 0);
-  sVALIDATE(desc.extent.x <= gfx::MAX_IMAGE_EXTENT);
   sVALIDATE(desc.extent.y != 0);
-  sVALIDATE(desc.extent.y <= gfx::MAX_IMAGE_EXTENT);
   sVALIDATE(desc.extent.z != 0);
-  sVALIDATE(desc.extent.z <= gfx::MAX_IMAGE_EXTENT);
   sVALIDATE(desc.mip_levels > 0);
   sVALIDATE(desc.mip_levels <= num_mip_levels(desc.extent));
   sVALIDATE(desc.array_layers > 0);
   sVALIDATE(desc.array_layers <= gfx::MAX_IMAGE_ARRAY_LAYERS);
-  sVALIDATE(!(desc.type == gfx::ImageType::Type2D && desc.extent.z != 1));
-  sVALIDATE(!(desc.type == gfx::ImageType::Type3D && desc.array_layers != 1));
+
+  switch (desc.type)
+  {
+    case gfx::ImageType::Type1D:
+      sVALIDATE(desc.extent.x <= gfx::MAX_IMAGE_EXTENT_1D);
+      sVALIDATE(desc.extent.y == 1);
+      sVALIDATE(desc.extent.z == 1);
+      break;
+
+    case gfx::ImageType::Type2D:
+      sVALIDATE(desc.extent.x <= gfx::MAX_IMAGE_EXTENT_2D);
+      sVALIDATE(desc.extent.y <= gfx::MAX_IMAGE_EXTENT_2D);
+      sVALIDATE(desc.extent.z == 1);
+      break;
+
+    case gfx::ImageType::Type3D:
+      sVALIDATE(desc.extent.x <= gfx::MAX_IMAGE_EXTENT_3D);
+      sVALIDATE(desc.extent.y <= gfx::MAX_IMAGE_EXTENT_3D);
+      sVALIDATE(desc.extent.z <= gfx::MAX_IMAGE_EXTENT_3D);
+      break;
+
+    default:
+      break;
+  }
 
   VkImageCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                                 .pNext = nullptr,
@@ -2433,7 +2452,8 @@ Result<gfx::Image, Status>
                                                         .depth  = desc.extent.z},
                                 .mipLevels = desc.mip_levels,
                                 .arrayLayers = desc.array_layers,
-                                .samples     = VK_SAMPLE_COUNT_1_BIT,
+                                .samples =
+                                    (VkSampleCountFlagBits) desc.sample_count,
                                 .tiling      = VK_IMAGE_TILING_OPTIMAL,
                                 .usage       = (VkImageUsageFlags) desc.usage,
                                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,

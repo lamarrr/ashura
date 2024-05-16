@@ -98,13 +98,13 @@ struct Renderer
 
     textures = ctx.device
                    ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
-                                           to_span({16ui32}))
+                                           to_span({16U}))
                    .unwrap();
 
     textures_2 =
         ctx.device
             ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
-                                    to_span({16ui32}))
+                                    to_span({16U}))
             .unwrap();
 
     params_ssbo =

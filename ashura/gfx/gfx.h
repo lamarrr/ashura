@@ -15,7 +15,10 @@ constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
 constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
 constexpr u64 WHOLE_SIZE             = ~0ULL;
 
-constexpr u32 MAX_IMAGE_EXTENT                     = 8192;
+constexpr u32 MAX_IMAGE_EXTENT_1D                  = 8192;
+constexpr u32 MAX_IMAGE_EXTENT_2D                  = 8192;
+constexpr u32 MAX_IMAGE_EXTENT_3D                  = 2048;
+constexpr u32 MAX_IMAGE_EXTENT_CUBE                = 8192;
 constexpr u32 MAX_IMAGE_ARRAY_LAYERS               = 1024;
 constexpr u32 MAX_VIEWPORT_EXTENT                  = 8192;
 constexpr u32 MAX_FRAMEBUFFER_EXTENT               = 8192;
