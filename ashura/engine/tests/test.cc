@@ -234,8 +234,7 @@ int main(int, char **)
     gfx::SwapchainDesc desc{.label  = "Window Swapchain"_span,
                                       .format = format,
                                       .usage  = gfx::ImageUsage::TransferDst |
-                                     gfx::ImageUsage::ColorAttachment |
-                                     gfx::ImageUsage::InputAttachment,
+                                     gfx::ImageUsage::ColorAttachment,
                                       .preferred_buffering = 2,
                                       .present_mode        = present_mode,
                                       .preferred_extent    = surface_extent,
