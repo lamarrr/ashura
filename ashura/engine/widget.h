@@ -103,9 +103,6 @@ struct GlobalWidgetState
   SystemTheme    theme             = SystemTheme::None;
 };
 
-/// @brief Base widget class. All widget types must inherit from this struct.
-/// all methods are already implemented with reasonable defaults.
-
 /// rebuild widgets every frame? what about large widgets?
 
 /// begin_children
@@ -140,6 +137,9 @@ struct Canvas
 //
 //
 //
+
+/// @brief Base widget class. All widget types must inherit from this struct.
+/// all methods are already implemented with reasonable defaults.
 struct Widget
 {
   Widget()          = default;
