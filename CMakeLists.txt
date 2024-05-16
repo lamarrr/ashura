@@ -164,14 +164,6 @@ target_include_directories(ashura_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_library(
   ashura_engine ashura/engine/image_decoder.cc ashura/engine/shader.cc
                 ashura/engine/window.cc ashura/engine/widget.cc)
-target_link_libraries(
-  ashura_engine
-  ashura_std
-  ashura_gfx
-  ashura_renderer
-  SPIRV
-  glslang
-  spirv-reflect-static)
 target_include_directories(
   ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
                        ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
@@ -180,6 +172,7 @@ target_link_libraries(
   ashura_engine
   ashura_std
   ashura_gfx
+  ashura_renderer
   SDL3::SDL3-static
   harfbuzz
   CURL::libcurl
@@ -190,7 +183,10 @@ target_link_libraries(
   ${JPEG_LIBRARIES}
   PNG::PNG
   ${FFMPEG_LIBRARIES}
-  SheenBidi::SheenBidi)
+  SheenBidi::SheenBidi
+  SPIRV
+  glslang
+  spirv-reflect-static)
 
 add_executable(ashura_engine_test ashura/engine/tests/test.cc)
 target_link_libraries(ashura_engine_test ashura_engine)

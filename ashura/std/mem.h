@@ -21,65 +21,109 @@ constexpr bool is_aligned(u64 alignment, u64 offset)
 template <typename T>
 void copy(T const *src, T *dst, usize count)
 {
+  if (count == 0)
+  {
+    return;
+  }
   memcpy(dst, src, sizeof(T) * count);
 }
 
 template <typename T>
 void copy(Span<T const> src, Span<T> dst)
 {
+  if (src.size() == 0)
+  {
+    return;
+  }
   memcpy(dst.data, src.data(), src.size_bytes());
 }
 
 template <typename T>
 void copy(Span<T const> src, T *dst)
 {
+  if (src.size() == 0)
+  {
+    return;
+  }
   memcpy(dst, src.data(), src.size_bytes());
 }
 
 template <typename T>
 void move(T const *src, T *dst, usize count)
 {
+  if (count == 0)
+  {
+    return;
+  }
   memmove(dst, src, sizeof(T) * count);
 }
 
 template <typename T>
 void move(Span<T const> src, Span<T> dst)
 {
+  if (src.size() == 0)
+  {
+    return;
+  }
   memmove(dst.data(), src.data(), src.size_bytes());
 }
 
 template <typename T>
 void move(Span<T const> src, T *dst)
 {
+  if (src.size() == 0)
+  {
+    return;
+  }
   memmove(dst, src.data(), src.size_bytes());
 }
 
 template <typename T>
 void zero(T *dst, usize count)
 {
+  if (count == 0)
+  {
+    return;
+  }
   memset(dst, 0, sizeof(T) * count);
 }
 
 inline void zero(void *dst, usize size)
 {
+  if (size == 0)
+  {
+    return;
+  }
   memset(dst, 0, size);
 }
 
 template <typename T>
 void zero(Span<T> dst)
 {
+  if (dst.size() == 0)
+  {
+    return;
+  }
   memset(dst.data(), 0, dst.size_bytes());
 }
 
 template <typename T>
 void fill(T *dst, usize count, u8 byte)
 {
+  if (count == 0)
+  {
+    return;
+  }
   memset(dst, byte, sizeof(T) * count);
 }
 
 template <typename T>
 void fill(Span<T> dst, u8 byte)
 {
+  if (dst.size() == 0)
+  {
+    return;
+  }
   memset(dst.data(), byte, dst.size_bytes());
 }
 

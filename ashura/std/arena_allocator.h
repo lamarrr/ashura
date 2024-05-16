@@ -92,7 +92,10 @@ struct Arena
       return nullptr;
     }
 
-    memcpy(new_memory, memory, old_size);
+    if (memory != nullptr)
+    {
+      memcpy(new_memory, memory, old_size);
+    }
     deallocate(alignment, memory, old_size);
 
     return new_memory;
@@ -324,7 +327,10 @@ struct ArenaPool
     {
       return nullptr;
     }
-    memcpy(new_memory, memory, old_size);
+    if (memory != nullptr)
+    {
+      memcpy(new_memory, memory, old_size);
+    }
     deallocate(alignment, memory, old_size);
     return new_memory;
   }

@@ -2017,22 +2017,62 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
       .queueCount       = 1,
       .pQueuePriorities = &queue_priority};
 
-  VkPhysicalDeviceFeatures features;
-  mem::zero(&features, 1);
-  features.samplerAnisotropy                       = VK_TRUE;
-  features.shaderUniformBufferArrayDynamicIndexing = VK_TRUE;
-  features.shaderSampledImageArrayDynamicIndexing  = VK_TRUE;
-  features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
-  features.shaderStorageImageArrayDynamicIndexing  = VK_TRUE;
-  features.shaderClipDistance                      = VK_TRUE;
-  features.shaderCullDistance                      = VK_TRUE;
-  features.multiDrawIndirect                       = VK_TRUE;
-  features.drawIndirectFirstInstance               = VK_TRUE;
-  features.imageCubeArray                          = VK_TRUE;
-  features.fillModeNonSolid = selected_dev.vk_features.fillModeNonSolid;
-  features.shaderFloat64    = selected_dev.vk_features.shaderFloat64;
-  features.shaderInt64      = selected_dev.vk_features.shaderInt64;
-  features.shaderInt16      = selected_dev.vk_features.shaderInt16;
+  VkPhysicalDeviceFeatures features{
+      .robustBufferAccess         = VK_FALSE,
+      .fullDrawIndexUint32        = VK_FALSE,
+      .imageCubeArray             = VK_TRUE,
+      .independentBlend           = VK_FALSE,
+      .geometryShader             = VK_FALSE,
+      .tessellationShader         = VK_FALSE,
+      .sampleRateShading          = VK_FALSE,
+      .dualSrcBlend               = VK_FALSE,
+      .logicOp                    = VK_FALSE,
+      .multiDrawIndirect          = VK_TRUE,
+      .drawIndirectFirstInstance  = VK_TRUE,
+      .depthClamp                 = VK_FALSE,
+      .depthBiasClamp             = VK_FALSE,
+      .fillModeNonSolid           = selected_dev.vk_features.fillModeNonSolid,
+      .depthBounds                = VK_FALSE,
+      .wideLines                  = VK_FALSE,
+      .largePoints                = VK_FALSE,
+      .alphaToOne                 = VK_FALSE,
+      .multiViewport              = VK_FALSE,
+      .samplerAnisotropy          = VK_TRUE,
+      .textureCompressionETC2     = VK_FALSE,
+      .textureCompressionASTC_LDR = VK_FALSE,
+      .textureCompressionBC       = VK_FALSE,
+      .occlusionQueryPrecise      = VK_FALSE,
+      .pipelineStatisticsQuery    = VK_FALSE,
+      .vertexPipelineStoresAndAtomics          = VK_FALSE,
+      .fragmentStoresAndAtomics                = VK_FALSE,
+      .shaderTessellationAndGeometryPointSize  = VK_FALSE,
+      .shaderImageGatherExtended               = VK_FALSE,
+      .shaderStorageImageExtendedFormats       = VK_FALSE,
+      .shaderStorageImageMultisample           = VK_FALSE,
+      .shaderStorageImageReadWithoutFormat     = VK_FALSE,
+      .shaderStorageImageWriteWithoutFormat    = VK_FALSE,
+      .shaderUniformBufferArrayDynamicIndexing = VK_TRUE,
+      .shaderSampledImageArrayDynamicIndexing  = VK_TRUE,
+      .shaderStorageBufferArrayDynamicIndexing = VK_TRUE,
+      .shaderStorageImageArrayDynamicIndexing  = VK_TRUE,
+      .shaderClipDistance                      = VK_TRUE,
+      .shaderCullDistance                      = VK_TRUE,
+      .shaderFloat64            = selected_dev.vk_features.shaderFloat64,
+      .shaderInt64              = selected_dev.vk_features.shaderInt64,
+      .shaderInt16              = selected_dev.vk_features.shaderInt16,
+      .shaderResourceResidency  = VK_FALSE,
+      .shaderResourceMinLod     = VK_FALSE,
+      .sparseBinding            = VK_FALSE,
+      .sparseResidencyBuffer    = VK_FALSE,
+      .sparseResidencyImage2D   = VK_FALSE,
+      .sparseResidencyImage3D   = VK_FALSE,
+      .sparseResidency2Samples  = VK_FALSE,
+      .sparseResidency4Samples  = VK_FALSE,
+      .sparseResidency8Samples  = VK_FALSE,
+      .sparseResidency16Samples = VK_FALSE,
+      .sparseResidencyAliased   = VK_FALSE,
+      .variableMultisampleRate  = VK_FALSE,
+      .inheritedQueries         = VK_FALSE};
 
   VkPhysicalDeviceSeparateDepthStencilLayoutsFeatures
       separate_depth_stencil_layout_feature{

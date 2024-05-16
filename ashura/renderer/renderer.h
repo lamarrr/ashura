@@ -261,6 +261,7 @@ struct Renderer
     // zeroth texture is always plain white
     auto enc = ctx.encoder();
 
+/*
     ctx.device->update_descriptor_set(
         ctx.device.self,
         gfx::DescriptorSetUpdate{
@@ -269,7 +270,7 @@ struct Renderer
             .element = 0,
             .images  = to_span({gfx::ImageBinding{
                  .sampler    = sampler,
-                 .image_view = ctx.framebuffer.color_image_view}})});
+                 .image_view = ctx.framebuffer.color_image_view}})});*/
 
     enc->clear_color_image(
         enc.self, ctx.scratch_framebuffer.color_image,
