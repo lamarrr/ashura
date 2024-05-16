@@ -321,7 +321,7 @@ struct WindowSystemImpl final : public WindowSystem
   {
     SDL_Event event;
 
-    if (SDL_PollEvent(&event) == SDL_TRUE)
+    while (SDL_PollEvent(&event) == SDL_TRUE)
     {
       switch (event.type)
       {
@@ -465,7 +465,6 @@ struct WindowSystemImpl final : public WindowSystem
           publish_event(
               event.wheel.windowID,
               WindowEvent{
-
                   .mouse_wheel =
                       MouseWheelEvent{
                           .mouse_id = event.wheel.which,
