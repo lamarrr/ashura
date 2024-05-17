@@ -64,10 +64,24 @@ struct WindowSystemImpl final : public WindowSystem
   }
 
   Option<Window> create_window(gfx::InstanceImpl instance,
-                               char const       *title) override
+                               Span<char const>  title) override
   {
+    char *title_c_str =
+        default_allocator.allocate_typed<char>(title.size() + 1);
+    if (title_c_str == nullptr)
+    {
+      return None;
+    }
+
+    defer title_del{[&] {
+      default_allocator.deallocate_typed(title_c_str, title.size() + 1);
+    }};
+
+    mem::copy(title, title_c_str);
+    title_c_str[title.size()] = 0;
+
     SDL_Window *window = SDL_CreateWindow(
-        title, 1920, 1080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+        title_c_str, 1920, 1080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     SDL_CHECK(window != nullptr);
     uid backend_id = SDL_GetWindowID(window);
     SDL_CHECK(backend_id != 0);
@@ -107,9 +121,20 @@ struct WindowSystemImpl final : public WindowSystem
     }
   }
 
-  void set_title(Window w, char const *title) override
+  void set_title(Window w, Span<char const> title) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowTitle(hnd(w), title));
+    char *title_c_str =
+        default_allocator.allocate_typed<char>(title.size() + 1);
+    CHECK(title_c_str != nullptr);
+
+    defer title_del{[&] {
+      default_allocator.deallocate_typed(title_c_str, title.size() + 1);
+    }};
+
+    mem::copy(title, title_c_str);
+    title_c_str[title.size()] = 0;
+
+    CHECK_SDL_ERRC(SDL_SetWindowTitle(hnd(w), title_c_str));
   }
 
   char const *get_title(Window w) override
@@ -193,7 +218,7 @@ struct WindowSystemImpl final : public WindowSystem
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  void set_icon(Window w, ImageSpan<u8 const> image) override
+  void set_icon(Window w, gfx::ImageSpan<u8 const> image) override
   {
     SDL_PixelFormatEnum fmt = SDL_PIXELFORMAT_RGBA8888;
 

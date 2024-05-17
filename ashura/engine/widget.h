@@ -2,6 +2,7 @@
 
 #include "ashura/engine/event.h"
 #include "ashura/engine/key.h"
+#include "ashura/renderer/renderer.h"
 #include "ashura/std/math.h"
 #include "ashura/std/types.h"
 
@@ -125,10 +126,6 @@ enum class WidgetAttributes : u8
   Draggable  = 0x08
 };
 
-struct Canvas
-{
-};
-
 /// TODO(lamarrr): event context and names to global context? we can have
 /// thousands of same widgets that might need processing as well. theming
 /// reaction
@@ -147,7 +144,10 @@ struct Widget
 
   /// @brief get child widgets
   /// @return
-  virtual Span<Widget *const> get_children();
+  virtual Widget *get_child(u32 i)
+  {
+    return nullptr;
+  }
 
   /// @brief distributes the size allocated to it to its child widgets.
   /// unlike CSS. has the advantage that children wouldn't need extra attributes
@@ -170,12 +170,10 @@ struct Widget
   /// @param[out] children_positions positions of the children widget on the
   /// parent
   /// @return this widget's fitted extent
-  virtual Vec2 fit(Vec2 allocated_size, Span<Vec2 const> children_allocations,
-                   Span<Vec2 const> children_sizes,
-                   Span<Vec2>       children_positions)
+  virtual Vec2 fit(Vec2 allocated_size, Span<Vec2 const> children_sizes,
+                   Span<Vec2> children_positions)
   {
     (void) allocated_size;
-    (void) children_allocations;
     (void) children_sizes;
     (void) children_positions;
     return Vec2{0, 0};
@@ -220,7 +218,10 @@ struct Widget
   /// only called if the widget passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas
-  virtual void draw(Canvas &);
+  virtual void render(Renderer &renderer)
+  {
+    (void) renderer;
+  }
 
   /// @brief called on every frame. used for state changes, animations, task
   /// dispatch and lightweight processing related to the GUI. heavy-weight and
@@ -230,7 +231,11 @@ struct Widget
   //
   // attached by widget system to global context
   // virtual Span<u8 const> get_drag_payload(WidgetSystem &);
-  virtual void tick(u64 diff, WidgetEventTypes events);
+  virtual void tick(u64 diff, WidgetEventTypes events)
+  {
+    (void) diff;
+    (void) events;
+  }
 };
 
 }        // namespace ash

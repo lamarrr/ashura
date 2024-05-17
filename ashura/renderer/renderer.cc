@@ -2,19 +2,6 @@
 #include "ashura/std/math.h"
 #include "ashura/std/range.h"
 /*
-#define ENSURE(description, ...)                                              \
-  do                                                                          \
-  {                                                                           \
-    if (!(__VA_ARGS__))                                                       \
-    {                                                                         \
-      default_logger->panic(description, " (expression: " #__VA_ARGS__,          \
-                         ") [function: ", SourceLocation::current().function, \
-                         ", file: ", SourceLocation::current().file, ":",     \
-                         SourceLocation::current().line, ":",                 \
-                         SourceLocation::current().column, "]");              \
-    }                                                                         \
-  } while (false)
-
 namespace ash
 {
 
@@ -423,7 +410,7 @@ Result<Void, Error> RenderServer::frustum_cull()
     {
       return Err{Error::OutOfMemory};
     }
-    
+
   }
 
   return Ok<Void>{};
@@ -483,7 +470,7 @@ Result<Void, Error>
   }
 
   u32 const num_visible =
-      binary_partition(
+      partition(
           view.sort_indices,
           [&](u32 index) { return view.is_object_visible[index]; }) -
       view.sort_indices.begin();
@@ -491,7 +478,7 @@ Result<Void, Error>
   indirect_sort(scene.objects.z_index, indices);
   for_each_partition_indirect(
       scene.objects.z_index, indices, [&](Span<u32> indices) {
-        binary_partition(indices, [&](u32 index) {
+        partition(indices, [&](u32 index) {
           return !scene.objects.is_transparent[index];
         });
         for_each_partition_indirect(

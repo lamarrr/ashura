@@ -468,10 +468,10 @@ ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
 
 ShaderCompileError
     pack_shaders(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
-                 Span<ShaderPackEntry const>             entries,
+                 Span<ShaderUnit const>             entries,
                  Span<char const>                        root_directory)
 {
-  for (ShaderPackEntry const &entry : entries)
+  for (ShaderUnit const &entry : entries)
   {
     ShaderCompileError error = pack_shader(compiled, entry.id, root_directory,
                                            entry.file, entry.preamble);

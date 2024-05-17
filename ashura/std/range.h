@@ -438,7 +438,7 @@ constexpr void indirect_sort(S &&span, Span<IndexType> indices, Cmp &&cmp = {})
 }
 
 template <OutputRange R, typename Predicate>
-constexpr Tuple<Slice, Slice> binary_partition(R &&range, Predicate &&predicate)
+constexpr Tuple<Slice, Slice> partition(R &&range, Predicate &&predicate)
 {
   OutputIterator auto       iter  = begin(range);
   OutputIterator auto const first = begin(range);

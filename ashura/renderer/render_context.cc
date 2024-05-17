@@ -289,7 +289,7 @@ void RenderContext::purge()
   gfx::FrameId tail_frame = tail_frame_id();
   {
     auto [good, to_delete] =
-        binary_partition(released_images, [tail_frame](auto const &r) {
+        partition(released_images, [tail_frame](auto const &r) {
           return r.v0 >= tail_frame;
         });
     for (auto const &r : to_span(released_images)[to_delete])
@@ -301,7 +301,7 @@ void RenderContext::purge()
 
   {
     auto [good, to_delete] =
-        binary_partition(released_image_views, [tail_frame](auto const &r) {
+        partition(released_image_views, [tail_frame](auto const &r) {
           return r.v0 >= tail_frame;
         });
     for (auto const &r : to_span(released_image_views)[to_delete])

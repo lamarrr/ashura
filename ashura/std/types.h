@@ -423,8 +423,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7,
+      T8) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9>
@@ -457,8 +457,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8,
+      T9) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -495,8 +495,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9,
+      T10) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -535,8 +535,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10,
+      T11) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -577,8 +577,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11,
+      T12) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -621,8 +621,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12, typename T13>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12,
+      T13) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -718,9 +718,9 @@ template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12, typename T13, typename T14,
           typename T15>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
-             T15>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
+      T15) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13,
+                    T14, T15>;
 
 template <unsigned int Index, typename Tuple>
 constexpr auto &&impl_get(Tuple &&tuple)
@@ -1780,7 +1780,7 @@ struct Mat2
     return Mat2{.rows = {{value, 0}, {0, value}}};
   }
 
-  static constexpr Mat2 identity_mat2()
+  static constexpr Mat2 identity()
   {
     return diagonal(1);
   }
@@ -1882,7 +1882,7 @@ struct Mat3
     return Mat3{.rows = {{value, 0, 0}, {0, value, 0}, {0, 0, value}}};
   }
 
-  static constexpr Mat3 identity_mat3()
+  static constexpr Mat3 identity()
   {
     return diagonal(1);
   }
@@ -2233,6 +2233,11 @@ struct Mat4Affine
     return Mat4{.rows = {rows[0], rows[1], rows[2], {0, 0, 0, 1}}};
   }
 
+  static constexpr Mat4Affine identity()
+  {
+    return Mat4Affine{.rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}}};
+  }
+
   constexpr Vec4 x() const
   {
     return Vec4{rows[0].x, rows[1].x, rows[2].x, 0};
@@ -2367,6 +2372,11 @@ struct Slice
     usize s = ((size - o) > span) ? span : size - o;
     return Slice{o, s};
   }
+
+  constexpr bool is_empty() const
+  {
+    return span == 0;
+  }
 };
 
 template <typename T, usize N>
@@ -2455,22 +2465,14 @@ concept OutputIterator = InputIterator<It> && requires(It it) {
 
 template <typename R>
 concept InputRange = requires(R r) {
-  {
-    begin(r)
-  } -> InputIterator;
-  {
-    end(r)
-  } -> InputIterator;
+  { begin(r) } -> InputIterator;
+  { end(r) } -> InputIterator;
 };
 
 template <typename R>
 concept OutputRange = requires(R r) {
-  {
-    begin(r)
-  } -> OutputIterator;
-  {
-    end(r)
-  } -> OutputIterator;
+  { begin(r) } -> OutputIterator;
+  { end(r) } -> OutputIterator;
 };
 
 template <typename T, usize N>
@@ -2832,8 +2834,8 @@ constexpr Span<T> to_span(T (&array)[N])
 }
 
 template <typename Container>
-constexpr auto to_span(Container &container)
-    -> decltype(Span{data(container), size(container)})
+constexpr auto to_span(Container &container) -> decltype(Span{data(container),
+                                                              size(container)})
 {
   return Span{data(container), size(container)};
 }

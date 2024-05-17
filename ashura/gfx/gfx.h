@@ -689,6 +689,12 @@ struct Viewport
   f32  max_depth = 0;
 };
 
+struct Scissor
+{
+  Offset offset = {};
+  Extent extent = {};
+};
+
 struct StencilState
 {
   StencilOp fail_op       = StencilOp::Keep;
@@ -953,11 +959,7 @@ struct RasterizationState
 
 struct GraphicsState
 {
-  struct Scissor
-  {
-    Offset offset = {};
-    Extent extent = {};
-  } scissor                               = {};
+  Scissor        scissor                  = {};
   Viewport       viewport                 = {};
   Vec4           blend_constant           = {};
   bool           stencil_test_enable      = false;

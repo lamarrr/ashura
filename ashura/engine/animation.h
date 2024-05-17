@@ -28,31 +28,21 @@ constexpr f32 ease_in_out(f32 t)
   return lerp(t * t, 1 - (1 - t) * (1 - t), t);
 }
 
-struct Quadratic
+constexpr f32 quadratic_bezier(f32 p0, f32 p1, f32 p2, f32 t)
 {
-};
+  return lerp(lerp(p0, p1, t), lerp(p1, p2, t), t);
+}
 
-struct Cubic
+constexpr f32 step(f32 a, f32 t)
 {
-};
+  return t < a ? 0.0f : 1.0f;
+}
 
-struct QuadraticBezier
+constexpr f32 smoothstep(f32 a, f32 b, f32 t)
 {
-  f32 p0 = 0;
-  f32 p1 = 0;
-  f32 p2 = 0;
-
-  constexpr f32 operator()(f32 t) const
-  {
-    return lerp(lerp(p0, p1, t), lerp(p1, p2, t), t);
-  }
-};
-// TODO(lamarrr): Splines, Bezier Curves, Hermite Curves, Catmull-Rom curves,
-// B-Spline
-
-struct Spline final : public Curve
-{
-};
+  t = (t - a) / (b - a);
+  return t * t * (3.0f - 2.0f * t);
+}
 
 enum class AnimationState : u8
 {

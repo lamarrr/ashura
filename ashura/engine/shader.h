@@ -32,7 +32,7 @@ ShaderCompileError
                    Span<Span<char const> const> system_directories,
                    Span<Span<char const> const> local_directories);
 
-struct ShaderPackEntry
+struct ShaderUnit
 {
   Span<char const> id       = {};
   Span<char const> file     = {};
@@ -41,7 +41,7 @@ struct ShaderPackEntry
 
 ShaderCompileError
     pack_shaders(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
-                 Span<ShaderPackEntry const>             entries,
+                 Span<ShaderUnit const>                  entries,
                  Span<char const>                        root_directory);
 
 }        // namespace ash

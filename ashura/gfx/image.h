@@ -1,41 +1,44 @@
 #pragma once
 #include "ashura/gfx/gfx.h"
+#include "ashura/std/error.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
-constexpr u32 pixel_byte_size(gfx::Format fmt)
+namespace gfx
+{
+
+inline u8 pixel_pitch(Format fmt)
 {
   switch (fmt)
   {
-    case gfx::Format::R8_UNORM:
+    case Format::R8_UNORM:
       return 1;
-    case gfx::Format::R8G8B8_UNORM:
+    case Format::R8G8B8_UNORM:
       return 2;
-    case gfx::Format::B8G8R8_UNORM:
+    case Format::B8G8R8_UNORM:
       return 3;
-    case gfx::Format::R8G8B8A8_UNORM:
+    case Format::R8G8B8A8_UNORM:
       return 4;
-    case gfx::Format::B8G8R8A8_UNORM:
+    case Format::B8G8R8A8_UNORM:
       return 4;
-    case gfx::Format::R32_SFLOAT:
+    case Format::R32_SFLOAT:
       return 4;
-    case gfx::Format::R32G32_SFLOAT:
+    case Format::R32G32_SFLOAT:
       return 8;
-    case gfx::Format::R32G32B32_SFLOAT:
+    case Format::R32G32B32_SFLOAT:
       return 24;
-    case gfx::Format::R32G32B32A32_SFLOAT:
+    case Format::R32G32B32A32_SFLOAT:
       return 16;
     default:
-    case gfx::Format::Undefined:
-      return 0;
+      UNREACHABLE();
   }
 }
 
-inline u64 packed_image_size(u32 width, u32 height, gfx::Format format)
+inline u64 packed_image_size(u32 width, u32 height, Format format)
 {
-  return (u64) width * (u64) height * (u64) pixel_byte_size(format);
+  return (u64) width * (u64) height * (u64) pixel_pitch(format);
 }
 
 /// B: must be u8 or u8 const
@@ -52,8 +55,6 @@ inline u64 packed_image_size(u32 width, u32 height, gfx::Format format)
 /// - R32G32_SFLOAT
 /// - R32G32B32_SFLOAT
 /// - R32G32B32A32_SFLOAT
-/// - A8_UNORM
-///
 ///
 /// @offset: offset where the first row of the image begins from. this enables
 /// using the correct offset for slicing the image along with the correct pitch.
@@ -64,26 +65,26 @@ struct ImageSpan
 {
   static_assert(std::is_same_v<B, u8> || std::is_same_v<B, u8 const>);
 
-  Span<B>     span   = {};
-  gfx::Format format = gfx::Format::Undefined;
-  u32         pitch  = 0;
-  u32         width  = 0;
-  u32         height = 0;
+  Span<B> span   = {};
+  Format  format = Format::Undefined;
+  u32     pitch  = 0;
+  u32     width  = 0;
+  u32     height = 0;
 
   constexpr bool is_packed() const
   {
-    return ((u64) width * (u64) pixel_byte_size(format)) == pitch;
+    return ((u64) width * (u64) pixel_pitch(format)) == pitch;
   }
 
   constexpr u64 row_bytes() const
   {
-    return (u64) width * (u64) pixel_byte_size(format);
+    return (u64) width * (u64) pixel_pitch(format);
   }
 
   constexpr bool is_empty() const
   {
     return width == 0 || height == 0 || pitch == 0 ||
-           format == gfx::Format::Undefined || span.is_empty();
+           format == Format::Undefined || span.is_empty();
   }
 
   constexpr operator ImageSpan<B const>() const
@@ -103,9 +104,8 @@ struct ImageSpan
     extent.y = (height - offset.y) > extent.y ? extent.y : (height - offset.y);
 
     // trim down the span
-    u64 const data_offset =
-        offset.y * pitch + offset.x * pixel_byte_size(format);
-    u64 const data_span = extent.y * pitch;
+    u64 const data_offset = offset.y * pitch + offset.x * pixel_pitch(format);
+    u64 const data_span   = extent.y * pitch;
 
     return ImageSpan{.span   = span.slice(data_offset, data_span),
                      .format = format,
@@ -121,22 +121,47 @@ struct ImageSpan
 };
 
 template <typename T, typename U>
-bool copy_image(ImageSpan<T const> const &src, ImageSpan<U> const &dst)
+void copy_image(ImageSpan<T const> const &src, ImageSpan<U> const &dst)
 {
-  if (src.format != dst.format || src.width > dst.width ||
-      src.height > dst.height)
-  {
-    return false;
-  }
+  CHECK(src.format == dst.format);
+  CHECK(src.width <= dst.width);
+  CHECK(src.height <= dst.height);
 
-  u8       *out       = dst.span.data;
-  u8 const *in        = src.span.data;
+  u8       *out       = dst.span.data();
+  u8 const *in        = src.span.data();
   u64 const row_bytes = src.row_bytes();
 
-  for (u64 irow = 0; irow < src.height;
-       irow++, out += dst.pitch, in += src.pitch)
+  for (u32 i = 0; i < src.height; i++, out += dst.pitch, in += src.pitch)
   {
     memcpy(out, in, row_bytes);
   }
 }
+
+template <typename T, typename U>
+void copy_alpha_image_to_BGRA(ImageSpan<T const> const &src,
+                              ImageSpan<U> const &dst, u8 B, u8 G, u8 R)
+{
+  CHECK(src.format == gfx::Format::R8_UNORM);
+  CHECK(dst.format == gfx::Format::B8G8R8A8_UNORM);
+  CHECK(src.width <= dst.width);
+  CHECK(src.height <= dst.height);
+
+  u8       *out = dst.span.data();
+  u8 const *in  = src.span.data();
+
+  for (u32 i = 0; i < src.height; i++, out += dst.pitch, in += src.pitch)
+  {
+    for (u32 j = 0; j < src.width; j++)
+    {
+      u32 pixel      = j << 2;
+      out[pixel]     = B;
+      out[pixel + 1] = G;
+      out[pixel + 2] = R;
+      out[pixel + 3] = in[j];
+    }
+  }
+}
+
+}        // namespace gfx
+
 }        // namespace ash

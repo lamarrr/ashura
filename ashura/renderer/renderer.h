@@ -18,6 +18,8 @@ namespace ash
 
 struct Renderer
 {
+  static constexpr u64 STAGING_BUFFER_SIZE = 32'000'000;
+
   BloomPass          bloom;
   BlurPass           blur;
   FXAAPass           fxaa;
@@ -44,6 +46,8 @@ struct Renderer
   gfx::DescriptorSet pbr_idx_ssbo      = nullptr;
   gfx::DescriptorSet pbr_prm_ssbo      = nullptr;
   gfx::DescriptorSet pbr_lights_ssbo   = nullptr;
+
+  u64 stage();
 
   void init(gfx::DeviceImpl p_device, bool p_use_hdr,
             u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,
