@@ -66,16 +66,14 @@ struct WindowSystemImpl final : public WindowSystem
   Option<Window> create_window(gfx::InstanceImpl instance,
                                Span<char const>  title) override
   {
-    char *title_c_str =
-        default_allocator.allocate_typed<char>(title.size() + 1);
-    if (title_c_str == nullptr)
+    char *title_c_str;
+    if (!default_allocator.t_alloc(title.size() + 1, &title_c_str))
     {
       return None;
     }
 
-    defer title_del{[&] {
-      default_allocator.deallocate_typed(title_c_str, title.size() + 1);
-    }};
+    defer title_del{
+        [&] { default_allocator.t_dealloc(title_c_str, title.size() + 1); }};
 
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
@@ -123,13 +121,11 @@ struct WindowSystemImpl final : public WindowSystem
 
   void set_title(Window w, Span<char const> title) override
   {
-    char *title_c_str =
-        default_allocator.allocate_typed<char>(title.size() + 1);
-    CHECK(title_c_str != nullptr);
+    char *title_c_str;
+    CHECK(default_allocator.t_alloc(title.size() + 1, &title_c_str));
 
-    defer title_del{[&] {
-      default_allocator.deallocate_typed(title_c_str, title.size() + 1);
-    }};
+    defer title_del{
+        [&] { default_allocator.t_dealloc(title_c_str, title.size() + 1); }};
 
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
@@ -574,20 +570,6 @@ struct WindowSystemImpl final : public WindowSystem
   // SDL_HITTEST_RESIZE_LEFT
   // region can resize left window
   //
-
-enum class SwapChainState : u8
-{
-  Ok            = 0,
-  ExtentChanged = 1,        // the window's extent and surface (framebuffer)
-                            // extent has changed
-  Suboptimal =
-      2,        // the window swapchain can still be used for presentation but
-                // is not optimal for presentation in its present state
-  OutOfDate = 4,        // the window swapchain is now out of date and needs to
-                        // be changed
-  All = 7
-};
-
 */
 
 }        // namespace sdl

@@ -117,6 +117,7 @@ endif()
 
 add_library(
   ashura_std
+  ashura/std/semaphore.cc
   ashura/std/async.cc
   ashura/std/io.cc
   ashura/std/allocator.cc

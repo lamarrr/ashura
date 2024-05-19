@@ -54,8 +54,8 @@ struct HashMap
   constexpr void reset()
   {
     clear();
-    allocator_.deallocate_typed(probes_, num_probes_);
-    allocator_.deallocate_typed(probe_distances_, num_probes_);
+    allocator_.t_dealloc(probes_, num_probes_);
+    allocator_.t_dealloc(probe_distances_, num_probes_);
     probes_          = nullptr;
     probe_distances_ = nullptr;
     num_probes_      = 0;
@@ -161,18 +161,16 @@ struct HashMap
   constexpr bool rehash_()
   {
     usize  new_num_probes = (num_probes_ == 0) ? 1 : (num_probes_ * 2);
-    Entry *new_probes     = allocator_.allocate_typed<Entry>(new_num_probes);
-    if (new_probes == nullptr)
+    Entry *new_probes;
+    if (!allocator_.t_alloc(new_num_probes, &new_probes))
     {
       return false;
     }
 
-    Distance *new_probe_distances =
-        allocator_.allocate_typed<Distance>(new_num_probes);
-
-    if (new_probe_distances == nullptr)
+    Distance *new_probe_distances;
+    if (!allocator_.t_alloc(new_num_probes, &new_probe_distances))
     {
-      allocator_.deallocate_typed<Entry>(new_probes, new_num_probes);
+      allocator_.t_dealloc(new_probes, new_num_probes);
       return false;
     }
 
@@ -192,8 +190,8 @@ struct HashMap
 
     reinsert_(Span{old_probes, old_num_probes},
               {old_probe_distances, old_num_probes});
-    allocator_.deallocate_typed(old_probes, old_num_probes);
-    allocator_.deallocate_typed(old_probe_distances, old_num_probes);
+    allocator_.t_dealloc(old_probes, old_num_probes);
+    allocator_.t_dealloc(old_probe_distances, old_num_probes);
     return true;
   }
 

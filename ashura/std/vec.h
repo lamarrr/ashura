@@ -92,7 +92,7 @@ struct Vec
         iter->~T();
       }
     }
-    allocator_.deallocate_typed(data_, capacity_);
+    allocator_.t_dealloc(data_, capacity_);
     data_     = nullptr;
     size_     = 0;
     capacity_ = 0;
@@ -107,21 +107,14 @@ struct Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      T *new_data =
-          allocator_.reallocate_typed(data_, capacity_, target_capacity);
-
-      if (new_data == nullptr)
+      if (!allocator_.t_realloc(capacity_, target_capacity, &data_))
       {
         return false;
       }
-
-      data_ = new_data;
     }
     else
     {
-      T *new_data = allocator_.allocate_typed<T>(target_capacity);
-
-      if (new_data == nullptr)
+      if (!allocator_.t_alloc(target_capacity, &data_))
       {
         return false;
       }
@@ -136,7 +129,7 @@ struct Vec
         (data_ + i)->~T();
       }
 
-      allocator_.deallocate_typed(data_, capacity_);
+      allocator_.t_dealloc(data_, capacity_);
       data_ = new_data;
     }
 
@@ -153,20 +146,16 @@ struct Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      T *new_data = allocator_.reallocate_typed(data_, capacity_, size_);
-
-      if (new_data == nullptr)
+      if (!allocator_.t_realloc(capacity_, size_, &data_))
       {
         return false;
       }
-
-      data_ = new_data;
     }
     else
     {
-      T *new_data = allocator_.allocate_typed<T>(size_);
+      T *new_data;
 
-      if (new_data == nullptr)
+      if (!allocator_.t_alloc(size_, &new_data))
       {
         return false;
       }
@@ -181,7 +170,7 @@ struct Vec
         (data_ + i)->~T();
       }
 
-      allocator_.deallocate_typed(data_, capacity_);
+      allocator_.t_dealloc(data_, capacity_);
       data_ = new_data;
     }
 

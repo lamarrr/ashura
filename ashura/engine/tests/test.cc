@@ -28,11 +28,11 @@ int main(int, char **)
           .unwrap();
 
   defer  instance_del{[&] { instance->destroy(instance.self); }};
-  Window win = win_sys->create_window(instance, "Main").unwrap();
+  Window win = win_sys->create_window(instance, "Main"_span).unwrap();
   defer  win_del{[&] { win_sys->destroy_window(win); }};
 
   win_sys->maximize(win);
-  win_sys->set_title(win, "Harro");
+  win_sys->set_title(win, "Harro"_span);
 
   bool should_close = false;
   auto close_fn     = [&](WindowEvent const &) { should_close = true; };

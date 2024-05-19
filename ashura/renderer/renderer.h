@@ -18,8 +18,6 @@ namespace ash
 
 struct Renderer
 {
-  static constexpr u64 STAGING_BUFFER_SIZE = 32'000'000;
-
   BloomPass          bloom;
   BlurPass           blur;
   FXAAPass           fxaa;

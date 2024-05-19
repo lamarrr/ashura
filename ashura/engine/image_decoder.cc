@@ -18,8 +18,8 @@ constexpr u64 rgba8_size(bool has_alpha, u32 width, u32 height)
   return ((u64) width) * ((u64) height) * (has_alpha ? 4ULL : 3ULL);
 }
 
-Result<ImageSpan<u8>, DecodeError> decode_webp(Span<u8 const> bytes,
-                                               Vec<u8>       &vec)
+Result<gfx::ImageSpan<u8>, DecodeError> decode_webp(Span<u8 const> bytes,
+                                                    Vec<u8>       &vec)
 {
   WebPBitstreamFeatures features;
 
@@ -56,13 +56,13 @@ Result<ImageSpan<u8>, DecodeError> decode_webp(Span<u8 const> bytes,
     }
   }
 
-  return Ok{ImageSpan<u8>{.span   = to_span(vec),
-                          .format = features.has_alpha == 0 ?
-                                        gfx::Format::R8G8B8_UNORM :
-                                        gfx::Format::R8G8B8A8_UNORM,
-                          .pitch  = pitch,
-                          .width  = (u32) features.width,
-                          .height = (u32) features.height}};
+  return Ok{gfx::ImageSpan<u8>{.span   = to_span(vec),
+                               .format = features.has_alpha == 0 ?
+                                             gfx::Format::R8G8B8_UNORM :
+                                             gfx::Format::R8G8B8A8_UNORM,
+                               .pitch  = pitch,
+                               .width  = (u32) features.width,
+                               .height = (u32) features.height}};
 }
 
 inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
@@ -73,8 +73,8 @@ inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
   *input = input->slice(nbytes_to_read);
 }
 
-Result<ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
-                                              Vec<u8>       &vec)
+Result<gfx::ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
+                                                   Vec<u8>       &vec)
 {
   // skip magic number
   bytes = bytes.slice(8);
@@ -140,15 +140,15 @@ Result<ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  return Ok{ImageSpan<u8>{.span   = to_span(vec),
-                          .format = fmt,
-                          .pitch  = pitch,
-                          .width  = width,
-                          .height = height}};
+  return Ok{gfx::ImageSpan<u8>{.span   = to_span(vec),
+                               .format = fmt,
+                               .pitch  = pitch,
+                               .width  = width,
+                               .height = height}};
 }
 
-Result<ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
-                                              Vec<u8>       &vec)
+Result<gfx::ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
+                                                   Vec<u8>       &vec)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -199,15 +199,15 @@ Result<ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  return Ok{ImageSpan<u8>{.span   = to_span(vec),
-                          .format = fmt,
-                          .pitch  = pitch,
-                          .width  = width,
-                          .height = height}};
+  return Ok{gfx::ImageSpan<u8>{.span   = to_span(vec),
+                               .format = fmt,
+                               .pitch  = pitch,
+                               .width  = width,
+                               .height = height}};
 }
 
-Result<ImageSpan<u8>, DecodeError> decode_image(Span<u8 const> bytes,
-                                                Vec<u8>       &vec)
+Result<gfx::ImageSpan<u8>, DecodeError> decode_image(Span<u8 const> bytes,
+                                                     Vec<u8>       &vec)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 

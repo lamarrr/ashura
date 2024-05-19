@@ -95,6 +95,8 @@ struct FontInfo
   u32                        texture           = 0;
 };
 
+/// TODO(lamarrr): structure and dependency order between render-context and
+/// this
 struct FontManager
 {
   /// @name: name to use in font matching

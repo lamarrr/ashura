@@ -6,15 +6,15 @@ namespace ash
 
 typedef struct Allocator_T *Allocator;
 
-/// @allocate: allocate aligned memory. returns null if
+/// @alloc: alloc aligned memory. returns null if
 /// failed.
-/// @allocate_zeroed: like allocate but zeroes the allocated memory, this is
+/// @alloc_zeroed: like alloc but zeroes the allocated memory, this is
 /// performed by the OS and can be faster. returns null if allocation failed.
-/// @reallocate: free the previously allocated memory and return a new memory,
+/// @realloc: free the previously allocated memory and return a new memory,
 /// alignment is not guaranteed to be preserved. if an error occurs, the old
 /// memory is not freed and null is returned. alignment must be same as the
 /// alignment of the original allocated memory.
-/// @deallocate: free the previously allocated memory.
+/// @dealloc: free the previously allocated memory.
 ///
 /// @release: releases all allocated memory on the allocator.
 ///
@@ -26,13 +26,14 @@ typedef struct Allocator_T *Allocator;
 ///
 struct AllocatorInterface
 {
-  void *(*allocate)(Allocator self, usize alignment, usize size) = nullptr;
-  void *(*allocate_zeroed)(Allocator self, usize alignment,
-                           usize size)                           = nullptr;
-  void *(*reallocate)(Allocator self, usize alignment, void *memory,
-                      usize old_size, usize new_size)            = nullptr;
-  void (*deallocate)(Allocator self, usize alignment, void *memory,
-                     usize size)                                 = nullptr;
+  bool (*alloc)(Allocator self, usize alignment, usize size,
+                u8 **mem)                   = nullptr;
+  bool (*alloc_zeroed)(Allocator self, usize alignment, usize size,
+                       u8 **mem)            = nullptr;
+  bool (*realloc)(Allocator self, usize alignment, usize old_size,
+                  usize new_size, u8 **mem) = nullptr;
+  void (*dealloc)(Allocator self, usize alignment, u8 *mem,
+                  usize size)               = nullptr;
 };
 
 struct AllocatorImpl
@@ -40,70 +41,72 @@ struct AllocatorImpl
   Allocator                 self      = nullptr;
   AllocatorInterface const *interface = nullptr;
 
-  [[nodiscard]] constexpr void *allocate(usize alignment, usize size) const
+  [[nodiscard]] constexpr bool alloc(usize alignment, usize size,
+                                     u8 **mem) const
   {
-    return interface->allocate(self, alignment, size);
+    return interface->alloc(self, alignment, size, mem);
+  }
+
+  [[nodiscard]] constexpr bool alloc_zeroed(usize alignment, usize size,
+                                            u8 **mem) const
+  {
+    return interface->alloc_zeroed(self, alignment, size, mem);
+  }
+
+  [[nodiscard]] constexpr bool realloc(usize alignment, usize old_size,
+                                       usize new_size, u8 **mem) const
+  {
+    return interface->realloc(self, alignment, old_size, new_size, mem);
+  }
+
+  constexpr void dealloc(usize alignment, u8 *mem, usize size) const
+  {
+    interface->dealloc(self, alignment, mem, size);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr T *allocate_typed(usize num) const
+  [[nodiscard]] constexpr bool t_alloc(usize num, T **mem) const
   {
-    return (T *) interface->allocate(self, alignof(T), sizeof(T) * num);
-  }
-
-  [[nodiscard]] constexpr void *allocate_zeroed(usize alignment,
-                                                usize size) const
-  {
-    return interface->allocate_zeroed(self, alignment, size);
+    return interface->alloc(self, alignof(T), sizeof(T) * num, (u8 **) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr T *allocate_zeroed_typed(usize num) const
+  [[nodiscard]] constexpr bool t_alloc_zeroed(usize num, T **mem) const
   {
-    return (T *) interface->allocate_zeroed(self, alignof(T), sizeof(T) * num);
-  }
-
-  [[nodiscard]] constexpr void *reallocate(usize alignment, void *memory,
-                                           usize old_size, usize new_size) const
-  {
-    return interface->reallocate(self, alignment, memory, old_size, new_size);
+    return interface->alloc_zeroed(self, alignof(T), sizeof(T) * num,
+                                   (u8 **) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr T *reallocate_typed(T *memory, usize old_num,
-                                              usize new_num) const
+  [[nodiscard]] constexpr bool t_realloc(usize old_num, usize new_num,
+                                         T **mem) const
   {
-    return (T *) interface->reallocate(
-        self, alignof(T), memory, sizeof(T) * old_num, sizeof(T) * new_num);
-  }
-
-  constexpr void deallocate(usize alignment, void *memory, usize size) const
-  {
-    interface->deallocate(self, alignment, memory, size);
+    return interface->realloc(self, alignof(T), sizeof(T) * old_num,
+                              sizeof(T) * new_num, (u8 **) mem);
   }
 
   template <typename T>
-  constexpr void deallocate_typed(T *memory, usize num) const
+  constexpr void t_dealloc(T *mem, usize num) const
   {
-    interface->deallocate(self, alignof(T), memory, sizeof(T) * num);
+    interface->dealloc(self, alignof(T), (u8 *) mem, sizeof(T) * num);
   }
 };
 
 struct HeapInterface
 {
-  static void *allocate(Allocator self, usize alignment, usize size);
-  static void *allocate_zeroed(Allocator self, usize alignment, usize size);
-  static void *reallocate(Allocator self, usize alignment, void *memory,
-                          usize old_size, usize new_size);
-  static void  deallocate(Allocator self, usize alignment, void *memory,
-                          usize size);
+  static bool alloc(Allocator self, usize alignment, usize size, u8 **mem);
+  static bool alloc_zeroed(Allocator self, usize alignment, usize size,
+                           u8 **mem);
+  static bool realloc(Allocator self, usize alignment, usize old_size,
+                      usize new_size, u8 **mem);
+  static void dealloc(Allocator self, usize alignment, u8 *mem, usize size);
 };
 
 inline constexpr AllocatorInterface heap_interface{
-    .allocate        = HeapInterface::allocate,
-    .allocate_zeroed = HeapInterface::allocate_zeroed,
-    .reallocate      = HeapInterface::reallocate,
-    .deallocate      = HeapInterface::deallocate};
+    .alloc        = HeapInterface::alloc,
+    .alloc_zeroed = HeapInterface::alloc_zeroed,
+    .realloc      = HeapInterface::realloc,
+    .dealloc      = HeapInterface::dealloc};
 
 /// guarantees at least MAX_STANDARD_ALIGNMENT alignment.
 inline constexpr AllocatorImpl heap_allocator{.self      = nullptr,

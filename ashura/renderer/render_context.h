@@ -55,8 +55,7 @@ struct RenderContext
   Framebuffer              scratch_framebuffer  = {};
   gfx::DescriptorSetLayout ssbo_layout          = nullptr;
   gfx::DescriptorSetLayout textures_layout      = nullptr;
-  Vec<Tuple<gfx::FrameId, gfx::Image>>     released_images      = {};
-  Vec<Tuple<gfx::FrameId, gfx::ImageView>> released_image_views = {};
+  Vec<gfx::Object>         released_objects[gfx::MAX_FRAME_BUFFERING] = {};
 
   void init(gfx::DeviceImpl p_device, bool p_use_hdr,
             u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,
@@ -74,7 +73,8 @@ struct RenderContext
 
   void release(gfx::Image image);
   void release(gfx::ImageView view);
-  void purge();
+  void release(gfx::Buffer view);
+  void release(gfx::BufferView view);
   void idle_purge();
 
   void begin_frame(gfx::Swapchain swapchain);

@@ -67,6 +67,29 @@ typedef struct Swapchain_T           *Swapchain;
 typedef struct Device_T              *Device;
 typedef struct Instance_T            *Instance;
 
+enum class ObjectType : u32
+{
+  None                = 0,
+  Instance            = 1,
+  Device              = 2,
+  CommandEncoder      = 3,
+  Buffer              = 4,
+  BufferView          = 5,
+  Image               = 6,
+  ImageView           = 7,
+  Sampler             = 8,
+  Shader              = 9,
+  DescriptorSetLayout = 10,
+  DescriptorSet       = 11,
+  PipelineCache       = 12,
+  ComputePipeline     = 13,
+  GraphicsPipeline    = 14,
+  TimeStampQuery      = 15,
+  StatisticsQuery     = 16,
+  Surface             = 17,
+  Swapchain           = 18
+};
+
 enum class Backend : u8
 {
   Stub    = 0,
@@ -667,6 +690,33 @@ enum class ResolveModes : u32
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(ResolveModes)
+
+struct Object
+{
+  union
+  {
+    void               *handle = nullptr;
+    Instance            instance;
+    Device              device;
+    CommandEncoder      command_encoder;
+    Buffer              buffer;
+    BufferView          buffer_view;
+    Image               image;
+    ImageView           image_view;
+    Sampler             sampler;
+    Shader              shader;
+    DescriptorSetLayout descriptor_set_layout;
+    DescriptorSet       descriptor_set;
+    PipelineCache       pipeline_cache;
+    ComputePipeline     compute_pipeline;
+    GraphicsPipeline    graphics_pipeline;
+    TimeStampQuery      timestamp_query;
+    StatisticsQuery     statistics_query;
+    Surface             surface;
+    Swapchain           swapchain;
+  };
+  ObjectType type = ObjectType::None;
+};
 
 struct SurfaceFormat
 {
@@ -1305,12 +1355,13 @@ struct DeviceInterface
   void (*destroy_statistics_query)(Device          self,
                                    StatisticsQuery query)            = nullptr;
   FrameContext (*get_frame_context)(Device self)                     = nullptr;
-  Result<void *, Status> (*get_buffer_memory_map)(Device self,
-                                                  Buffer buffer)     = nullptr;
-  Result<Void, Status> (*invalidate_buffer_memory_map)(
-      Device self, Buffer buffer, MemoryRange range)                 = nullptr;
-  Result<Void, Status> (*flush_buffer_memory_map)(Device self, Buffer buffer,
-                                                  MemoryRange range) = nullptr;
+  Result<void *, Status> (*map_buffer_memory)(Device self,
+                                              Buffer buffer)         = nullptr;
+  void (*unmap_buffer_memory)(Device self, Buffer buffer)            = nullptr;
+  Result<Void, Status> (*invalidate_mapped_buffer_memory)(
+      Device self, Buffer buffer, MemoryRange range) = nullptr;
+  Result<Void, Status> (*flush_mapped_buffer_memory)(
+      Device self, Buffer buffer, MemoryRange range) = nullptr;
   Result<usize, Status> (*get_pipeline_cache_size)(
       Device self, PipelineCache cache)                          = nullptr;
   Result<usize, Status> (*get_pipeline_cache_data)(Device        self,

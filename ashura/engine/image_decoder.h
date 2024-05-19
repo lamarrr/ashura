@@ -22,16 +22,16 @@ enum class DecodeError : i32
   UnsupportedFormat = 5
 };
 
-Result<ImageSpan<u8>, DecodeError> decode_webp(Span<u8 const> bytes,
-                                               Vec<u8>       &vec);
+Result<gfx::ImageSpan<u8>, DecodeError> decode_webp(Span<u8 const> bytes,
+                                                    Vec<u8>       &vec);
 
-Result<ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
-                                              Vec<u8>       &vec);
+Result<gfx::ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
+                                                   Vec<u8>       &vec);
 
-Result<ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
-                                              Vec<u8>       &vec);
+Result<gfx::ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
+                                                   Vec<u8>       &vec);
 
-Result<ImageSpan<u8>, DecodeError> decode_image(Span<u8 const> bytes,
-                                                Vec<u8>       &vec);
+Result<gfx::ImageSpan<u8>, DecodeError> decode_image(Span<u8 const> bytes,
+                                                     Vec<u8>       &vec);
 
 }        // namespace ash

@@ -101,14 +101,15 @@ struct DeviceInterface
   static void destroy_statistics_query(gfx::Device          self,
                                        gfx::StatisticsQuery query);
   static gfx::FrameContext      get_frame_context(gfx::Device self);
-  static Result<void *, Status> get_buffer_memory_map(gfx::Device self,
-                                                      gfx::Buffer buffer);
+  static Result<void *, Status> map_buffer_memory(gfx::Device self,
+                                                  gfx::Buffer buffer);
+  static void unmap_buffer_memory(gfx::Device self, gfx::Buffer buffer);
   static Result<Void, Status>
-      invalidate_buffer_memory_map(gfx::Device self, gfx::Buffer buffer,
-                                   gfx::MemoryRange ranges);
-  static Result<Void, Status> flush_buffer_memory_map(gfx::Device      self,
-                                                      gfx::Buffer      buffer,
-                                                      gfx::MemoryRange range);
+      invalidate_mapped_buffer_memory(gfx::Device self, gfx::Buffer buffer,
+                                      gfx::MemoryRange range);
+  static Result<Void, Status>
+      flush_mapped_buffer_memory(gfx::Device self, gfx::Buffer buffer,
+                                 gfx::MemoryRange range);
   static Result<usize, Status>
       get_pipeline_cache_size(gfx::Device self, gfx::PipelineCache cache);
   static Result<usize, Status> get_pipeline_cache_data(gfx::Device        self,
@@ -264,10 +265,11 @@ static gfx::DeviceInterface const device_interface{
     .destroy_timestamp_query   = DeviceInterface::destroy_timestamp_query,
     .destroy_statistics_query  = DeviceInterface::destroy_statistics_query,
     .get_frame_context         = DeviceInterface::get_frame_context,
-    .get_buffer_memory_map     = DeviceInterface::get_buffer_memory_map,
-    .invalidate_buffer_memory_map =
-        DeviceInterface::invalidate_buffer_memory_map,
-    .flush_buffer_memory_map    = DeviceInterface::flush_buffer_memory_map,
+    .map_buffer_memory         = DeviceInterface::map_buffer_memory,
+    .unmap_buffer_memory       = DeviceInterface::unmap_buffer_memory,
+    .invalidate_mapped_buffer_memory =
+        DeviceInterface::invalidate_mapped_buffer_memory,
+    .flush_mapped_buffer_memory = DeviceInterface::flush_mapped_buffer_memory,
     .get_pipeline_cache_size    = DeviceInterface::get_pipeline_cache_size,
     .get_pipeline_cache_data    = DeviceInterface::get_pipeline_cache_data,
     .merge_pipeline_cache       = DeviceInterface::merge_pipeline_cache,
@@ -545,12 +547,10 @@ struct ImageState
 
 struct Buffer
 {
-  gfx::BufferDesc   desc                = {};
-  VkBuffer          vk_buffer           = nullptr;
-  VmaAllocation     vma_allocation      = nullptr;
-  VmaAllocationInfo vma_allocation_info = {};
-  void             *host_map            = nullptr;
-  BufferState       state               = {};
+  gfx::BufferDesc desc           = {};
+  VkBuffer        vk_buffer      = nullptr;
+  VmaAllocation   vma_allocation = nullptr;
+  BufferState     state          = {};
 };
 
 struct BufferView
@@ -626,7 +626,7 @@ struct DescriptorHeap
   AllocatorImpl   allocator    = default_allocator;
   DescriptorPool *pools        = nullptr;
   u32             pool_size    = 0;
-  void           *scratch      = nullptr;
+  u8             *scratch      = nullptr;
   u32             num_pools    = 0;
   usize           scratch_size = 0;
 };

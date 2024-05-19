@@ -199,25 +199,21 @@ void RenderContext::uninit()
 {
   device->destroy_pipeline_cache(device.self, pipeline_cache);
   device->destroy_image(device.self, framebuffer.color_image);
+  device->destroy_image_view(device.self, framebuffer.color_image_view);
+  device->destroy_image(device.self, framebuffer.depth_stencil_image);
+  device->destroy_image_view(device.self, framebuffer.depth_stencil_image_view);
+  device->destroy_image(device.self, scratch_framebuffer.color_image);
+  device->destroy_image_view(device.self, scratch_framebuffer.color_image_view);
+  device->destroy_image(device.self, scratch_framebuffer.depth_stencil_image);
   device->destroy_image_view(device.self,
-                             framebuffer.color_image_view);
-  device->destroy_image(device.self,
-                        framebuffer.depth_stencil_image);
-  device->destroy_image_view(device.self,
-                             framebuffer.depth_stencil_image_view);
-  device->destroy_image(device.self,
-                        scratch_framebuffer.color_image);
-  device->destroy_image_view(device.self,
-                             scratch_framebuffer.color_image_view);
-  device->destroy_image(device.self,
-                        scratch_framebuffer.depth_stencil_image);
-  device->destroy_image_view(
-      device.self, scratch_framebuffer.depth_stencil_image_view);
+                             scratch_framebuffer.depth_stencil_image_view);
   device->destroy_descriptor_set_layout(device.self, ssbo_layout);
   device->destroy_descriptor_set_layout(device.self, textures_layout);
   idle_purge();
-  released_images.reset();
-  released_image_views.reset();
+  for (u32 i = 0; i < buffering; i++)
+  {
+    released_objects[i].reset();
+  }
   shader_map.for_each([&](Span<char const>, gfx::Shader shader) {
     device->destroy_shader(device.self, shader);
   });
@@ -270,7 +266,8 @@ void RenderContext::release(gfx::Image image)
   {
     return;
   }
-  CHECK(released_images.push(frame_id(), image));
+  CHECK(released_objects[ring_index()].push(
+      gfx::Object{.image = image, .type = gfx::ObjectType::Image}));
 }
 
 void RenderContext::release(gfx::ImageView view)
@@ -279,49 +276,70 @@ void RenderContext::release(gfx::ImageView view)
   {
     return;
   }
-  CHECK(released_image_views.push(frame_id(), view));
+  CHECK(released_objects[ring_index()].push(
+      gfx::Object{.image_view = view, .type = gfx::ObjectType::ImageView}));
 }
 
-void RenderContext::purge()
+void RenderContext::release(gfx::Buffer buffer)
 {
-  // TODO(lamarrr): preserve queue order, i.e. some resources need to be deleted
-  // in certain order
-  gfx::FrameId tail_frame = tail_frame_id();
+  if (buffer == nullptr)
   {
-    auto [good, to_delete] =
-        partition(released_images, [tail_frame](auto const &r) {
-          return r.v0 >= tail_frame;
-        });
-    for (auto const &r : to_span(released_images)[to_delete])
-    {
-      device->destroy_image(device.self, r.v1);
-    }
-    released_images.erase(to_delete);
+    return;
   }
+  CHECK(released_objects[ring_index()].push(
+      gfx::Object{.buffer = buffer, .type = gfx::ObjectType::Buffer}));
+}
 
+void RenderContext::release(gfx::BufferView view)
+{
+  if (view == nullptr)
   {
-    auto [good, to_delete] =
-        partition(released_image_views, [tail_frame](auto const &r) {
-          return r.v0 >= tail_frame;
-        });
-    for (auto const &r : to_span(released_image_views)[to_delete])
+    return;
+  }
+  CHECK(released_objects[ring_index()].push(
+      gfx::Object{.buffer_view = view, .type = gfx::ObjectType::BufferView}));
+}
+
+void destroy_temporal_objects(gfx::DeviceImpl const  &d,
+                              Span<gfx::Object const> objects)
+{
+  for (u32 i = 0; i < (u32) objects.size(); i++)
+  {
+    gfx::Object obj = objects[i];
+    switch (obj.type)
     {
-      device->destroy_image_view(device.self, r.v1);
+      case gfx::ObjectType::Image:
+        d->destroy_image(d.self, obj.image);
+        break;
+      case gfx::ObjectType::ImageView:
+        d->destroy_image_view(d.self, obj.image_view);
+        break;
+      case gfx::ObjectType::Buffer:
+        d->destroy_buffer(d.self, obj.buffer);
+        break;
+      case gfx::ObjectType::BufferView:
+        d->destroy_buffer_view(d.self, obj.buffer_view);
+        break;
+      default:
+        CHECK(false);
     }
-    released_image_views.erase(to_delete);
   }
 }
 
 void RenderContext::idle_purge()
 {
   device->wait_idle(device.self).unwrap();
-  purge();
+  for (u32 i = 0; i < buffering; i++)
+  {
+    destroy_temporal_objects(device, to_span(released_objects[i]));
+  }
 }
 
 void RenderContext::begin_frame(gfx::Swapchain swapchain)
 {
   device->begin_frame(device.self, swapchain).unwrap();
-  purge();
+  destroy_temporal_objects(device, to_span(released_objects[ring_index()]));
+  released_objects[ring_index()].clear();
 }
 
 void RenderContext::end_frame(gfx::Swapchain swapchain)
@@ -338,14 +356,13 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
           enc.self, framebuffer.color_image,
           swapchain_state.images[swapchain_state.current_image.unwrap()],
           to_span({gfx::ImageBlit{
-              .src_layers = {.aspects           = gfx::ImageAspects::Color,
-                             .mip_level         = 0,
-                             .first_array_layer = 0,
-                             .num_array_layers  = 1},
-              .src_offsets =
-                  {{0, 0, 0},
-                   {framebuffer.color_image_desc.extent.x,
-                    framebuffer.color_image_desc.extent.y, 1}},
+              .src_layers  = {.aspects           = gfx::ImageAspects::Color,
+                              .mip_level         = 0,
+                              .first_array_layer = 0,
+                              .num_array_layers  = 1},
+              .src_offsets = {{0, 0, 0},
+                              {framebuffer.color_image_desc.extent.x,
+                               framebuffer.color_image_desc.extent.y, 1}},
               .dst_layers  = {.aspects           = gfx::ImageAspects::Color,
                               .mip_level         = 0,
                               .first_array_layer = 0,

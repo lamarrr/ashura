@@ -5,21 +5,23 @@
 namespace ash
 {
 
+// TODO(lamarrr): alloc(0) behaviour for arenas
+
 struct ArenaInterface
 {
-  static void *allocate(Allocator self, usize alignment, usize size);
-  static void *allocate_zeroed(Allocator self, usize alignment, usize size);
-  static void *reallocate(Allocator self, usize alignment, void *memory,
-                          usize old_size, usize new_size);
-  static void  deallocate(Allocator self, usize alignment, void *memory,
-                          usize size);
+  static bool alloc(Allocator self, usize alignment, usize size, u8 **mem);
+  static bool alloc_zeroed(Allocator self, usize alignment, usize size,
+                           u8 **mem);
+  static bool realloc(Allocator self, usize alignment, usize old_size,
+                      usize new_size, u8 **mem);
+  static void dealloc(Allocator self, usize alignment, u8 *mem, usize size);
 };
 
 static AllocatorInterface const arena_interface{
-    .allocate        = ArenaInterface::allocate,
-    .allocate_zeroed = ArenaInterface::allocate_zeroed,
-    .reallocate      = ArenaInterface::reallocate,
-    .deallocate      = ArenaInterface::deallocate};
+    .alloc        = ArenaInterface::alloc,
+    .alloc_zeroed = ArenaInterface::alloc_zeroed,
+    .realloc      = ArenaInterface::realloc,
+    .dealloc      = ArenaInterface::dealloc};
 
 /// @begin: where the memory block begins
 /// @end: one byte past the block
@@ -47,66 +49,73 @@ struct Arena
     offset = begin;
   }
 
-  void *allocate(usize alignment, usize size)
+  bool alloc(usize alignment, usize size, u8 **mem)
   {
     if (size == 0)
     {
-      return nullptr;
+      *mem = nullptr;
+      return true;
     }
 
     u8 *aligned    = (u8 *) mem::align_offset(alignment, (uintptr_t) offset);
     u8 *new_offset = aligned + size;
     if (new_offset > end)
     {
-      return nullptr;
+      *mem = nullptr;
+      return false;
     }
+
     offset = new_offset;
-    return aligned;
+    *mem   = aligned;
+    return true;
   }
 
-  void *allocate_zeroed(usize alignment, usize size)
+  bool alloc_zeroed(usize alignment, usize size, u8 **mem)
   {
-    void *memory = allocate(alignment, size);
-    if (memory != nullptr)
+    if (size == 0)
     {
-      memset(memory, 0, size);
+      *mem = nullptr;
+      return true;
     }
-    return memory;
+
+    if (!alloc(alignment, size, mem))
+    {
+      *mem = nullptr;
+      return false;
+    }
+
+    mem::zero(*mem, size);
+    return true;
   }
 
-  void *reallocate(usize alignment, void *memory, usize old_size,
-                   usize new_size)
+  bool realloc(usize alignment, usize old_size, usize new_size, u8 **mem)
   {
-    // check if it is the last allocation, if so we just need to  extend the
-    // offset
-    if ((((u8 *) memory + old_size) == offset) &&
-        (((u8 *) memory + new_size) <= end))
+    // if it is the last allocation, just extend the offset
+    if (((*mem + old_size) == offset) && ((*mem + new_size) <= end))
     {
-      offset = (u8 *) memory + new_size;
-      return memory;
+      offset = *mem + new_size;
+      return true;
     }
 
-    void *new_memory = allocate(alignment, new_size);
-    if (new_memory == nullptr)
+    u8 *new_mem;
+
+    if (!alloc(alignment, new_size, &new_mem))
     {
-      return nullptr;
+      return false;
     }
 
-    if (memory != nullptr)
-    {
-      memcpy(new_memory, memory, old_size);
-    }
-    deallocate(alignment, memory, old_size);
-
-    return new_memory;
+    mem::copy(*mem, new_mem, old_size);
+    dealloc(alignment, *mem, old_size);
+    *mem = new_mem;
+    return true;
   }
 
-  void deallocate(usize alignment, void *memory, usize size)
+  void dealloc(usize alignment, u8 *mem, usize size)
   {
     (void) alignment;
     // best-case: stack allocation, we can free memory by adjusting to the
     // beginning of allocation
-    if (((u8 *) memory + size) == offset)
+    if ((mem + size) == offset)
     {
       // we'd lose padding space due to alignment, meaning we wouldn't be able
       // to release allocations if allocations are of different alignments
@@ -115,29 +124,28 @@ struct Arena
   }
 
   template <typename T>
-  [[nodiscard]] constexpr T *allocate_typed(usize num)
+  [[nodiscard]] constexpr bool t_alloc(usize num, T **mem)
   {
-    return (T *) allocate(alignof(T), sizeof(T) * num);
+    return alloc(alignof(T), sizeof(T) * num, (u8 **) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr T *allocate_zeroed_typed(usize num)
+  [[nodiscard]] constexpr bool t_alloc_zeroed(usize num, T **mem)
   {
-    return (T *) allocate_zeroed(alignof(T), sizeof(T) * num);
+    return alloc_zeroed(alignof(T), sizeof(T) * num, (u8 **) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr T *reallocate_typed(T *memory, usize old_num,
-                                              usize new_num)
+  [[nodiscard]] constexpr bool t_realloc(usize old_num, usize new_num, T **mem)
   {
-    return (T *) reallocate(alignof(T), memory, sizeof(T) * old_num,
-                            sizeof(T) * new_num);
+    return realloc(alignof(T), sizeof(T) * old_num, sizeof(T) * new_num,
+                   (u8 **) mem);
   }
 
   template <typename T>
-  constexpr void deallocate_typed(T *memory, usize num)
+  constexpr void t_dealloc(T *mem, usize num)
   {
-    deallocate(alignof(T), memory, sizeof(T) * num);
+    dealloc(alignof(T), (u8 *) mem, sizeof(T) * num);
   }
 
   AllocatorImpl to_allocator()
@@ -152,24 +160,24 @@ inline Arena to_arena(Span<u8> buffer, usize alignment)
   return Arena{.begin     = buffer.data(),
                .end       = buffer.data() + buffer.size(),
                .offset    = buffer.begin(),
-               .alignment = alignment};
+               .alignment = 1};
 }
 
 struct ArenaPoolInterface
 {
-  static void *allocate(Allocator self, usize alignment, usize size);
-  static void *allocate_zeroed(Allocator self, usize alignment, usize size);
-  static void *reallocate(Allocator self, usize alignment, void *memory,
-                          usize old_size, usize new_size);
-  static void  deallocate(Allocator self, usize alignment, void *memory,
-                          usize size);
+  static bool alloc(Allocator self, usize alignment, usize size, u8 **mem);
+  static bool alloc_zeroed(Allocator self, usize alignment, usize size,
+                           u8 **mem);
+  static bool realloc(Allocator self, usize alignment, usize old_size,
+                      usize new_size, u8 **mem);
+  static void dealloc(Allocator self, usize alignment, u8 *mem, usize size);
 };
 
 static AllocatorInterface const arena_sub_interface{
-    .allocate        = ArenaPoolInterface::allocate,
-    .allocate_zeroed = ArenaPoolInterface::allocate_zeroed,
-    .reallocate      = ArenaPoolInterface::reallocate,
-    .deallocate      = ArenaPoolInterface::deallocate};
+    .alloc        = ArenaPoolInterface::alloc,
+    .alloc_zeroed = ArenaPoolInterface::alloc_zeroed,
+    .realloc      = ArenaPoolInterface::realloc,
+    .dealloc      = ArenaPoolInterface::dealloc};
 
 /// Forward growing allocator. All allocations are reset/free-d at once.
 ///
@@ -182,13 +190,14 @@ static AllocatorInterface const arena_sub_interface{
 ///
 struct ArenaPool
 {
-  AllocatorImpl source         = default_allocator;
-  Arena        *arenas         = nullptr;
-  usize         num_arenas     = 0;
-  usize         max_num_arenas = USIZE_MAX;
-  usize         min_arena_size = 4096;
-  usize         max_arena_size = USIZE_MAX;
-  usize         max_total_size = USIZE_MAX;
+  AllocatorImpl source              = default_allocator;
+  Arena        *arenas              = nullptr;
+  usize         num_arenas          = 0;
+  usize         max_num_arenas      = USIZE_MAX;
+  usize         min_arena_size      = 4096;
+  usize         max_arena_size      = USIZE_MAX;
+  usize         max_total_size      = USIZE_MAX;
+  usize         min_arena_alignment = MAX_STANDARD_ALIGNMENT;
 
   void reset()
   {
@@ -212,133 +221,130 @@ struct ArenaPool
   {
     for (usize i = num_arenas; i-- > 0;)
     {
-      source.deallocate(arenas[i].alignment, arenas[i].begin,
-                        arenas[i].end - arenas[i].begin);
+      source.dealloc(arenas[i].alignment, arenas[i].begin, arenas[i].size());
     }
-    source.deallocate_typed(arenas, num_arenas);
+    source.t_dealloc(arenas, num_arenas);
     arenas     = nullptr;
     num_arenas = 0;
   }
 
-  void *allocate(usize alignment, usize size)
+  bool alloc(usize alignment, usize size, u8 **mem)
   {
     if (size == 0 || size > max_arena_size)
     {
-      return nullptr;
+      *mem = nullptr;
+      return false;
     }
 
     if (usize idx = num_arenas; idx-- != 0)
     {
-      Arena *arena  = arenas + idx;
-      void  *memory = arena->allocate(alignment, size);
-      if (memory != nullptr)
+      Arena *arena = arenas + idx;
+      if (arena->alloc(alignment, size, mem))
       {
-        return memory;
+        return true;
       }
     }
 
     if (num_arenas == max_num_arenas)
     {
-      return nullptr;
+      *mem = nullptr;
+      return false;
     }
 
-    usize const arena_size = max(size, min_arena_size);
+    usize const arena_size      = max(size, min_arena_size);
+    usize const arena_alignment = max(min_arena_alignment, alignment);
     if ((this->size() + arena_size) > max_total_size)
     {
-      return nullptr;
+      *mem = nullptr;
+      return false;
     }
 
-    void *arena_memory = source.allocate(alignment, arena_size);
-    if (arena_memory == nullptr)
+    u8 *arena_mem;
+
+    if (!source.alloc(arena_alignment, arena_size, &arena_mem))
     {
-      return nullptr;
+      *mem = nullptr;
+      return false;
     }
 
-    Arena *new_arenas =
-        source.reallocate_typed(arenas, num_arenas, num_arenas + 1);
-
-    if (new_arenas == nullptr)
+    if (!source.t_realloc(num_arenas, num_arenas + 1, &arenas))
     {
-      source.deallocate(alignment, arena_memory, arena_size);
-      return nullptr;
+      source.dealloc(arena_alignment, arena_mem, arena_size);
+      *mem = nullptr;
+      return false;
     }
 
-    arenas = new_arenas;
     Arena *arena =
-        new (arenas + num_arenas) Arena{.begin = (u8 *) arena_memory,
-                                        .end = (u8 *) arena_memory + arena_size,
-                                        .offset    = (u8 *) arena_memory,
-                                        .alignment = alignment};
+        new (arenas + num_arenas) Arena{.begin     = arena_mem,
+                                        .end       = arena_mem + arena_size,
+                                        .offset    = arena_mem,
+                                        .alignment = arena_alignment};
     num_arenas++;
-    return arena->allocate(alignment, size);
+
+    arena->alloc(alignment, size, mem);
+    return true;
   }
 
-  void *allocate_zeroed(usize alignment, usize size)
+  bool alloc_zeroed(usize alignment, usize size, u8 **mem)
   {
-    void *memory = allocate(alignment, size);
-    if (memory == nullptr)
+    if (!alloc(alignment, size, mem))
     {
-      return nullptr;
+      return false;
     }
-    memset(memory, 0, size);
-    return memory;
+    mem::zero(*mem, size);
+    return true;
   }
 
-  void *reallocate(usize alignment, void *memory, usize old_size,
-                   usize new_size)
+  bool realloc(usize alignment, usize old_size, usize new_size, u8 **mem)
   {
     if (new_size > max_arena_size)
     {
-      return nullptr;
+      return false;
     }
 
     if (usize i = num_arenas; i-- != 0)
     {
       Arena *arena = arenas + i;
-      if (arena->offset == ((u8 *) memory + old_size))
+      if (arena->offset == (*mem + old_size))
       {
         // try to change the allocation if it was the last allocation
         if ((arena->offset + new_size) <= arena->end)
         {
-          arena->offset = (u8 *) memory + new_size;
-          return memory;
+          arena->offset = *mem + new_size;
+          return mem;
         }
 
-        // if only allocation on the arena, reallocate arena
-        if (arena->begin == memory)
+        // if only and first allocation on the arena, realloc arena
+        if (arena->begin == *mem)
         {
-          void *new_memory = source.reallocate(arena->alignment, arena->begin,
-                                               arena->size(), new_size);
-          if (new_memory == nullptr)
+          if (!source.realloc(arena->alignment, arena->size(), new_size,
+                              &arena->begin))
           {
-            return nullptr;
+            return false;
           }
-          *arena = Arena{.begin     = (u8 *) new_memory,
-                         .end       = (u8 *) new_memory + new_size,
-                         .offset    = (u8 *) new_memory + new_size,
-                         .alignment = arena->alignment};
-          return new_memory;
+          arena->end    = arena->begin + new_size;
+          arena->offset = arena->begin + new_size;
+          return true;
         }
       }
     }
 
-    void *new_memory = allocate(alignment, new_size);
-    if (new_memory == nullptr)
+    u8 *new_mem;
+    if (!alloc(alignment, new_size, &new_mem))
     {
-      return nullptr;
+      return false;
     }
-    if (memory != nullptr)
-    {
-      memcpy(new_memory, memory, old_size);
-    }
-    deallocate(alignment, memory, old_size);
-    return new_memory;
+
+    mem::copy(*mem, new_mem, old_size);
+    dealloc(alignment, *mem, old_size);
+    *mem = new_mem;
+    return true;
   }
 
-  void deallocate(usize alignment, void *memory, usize size)
+  void dealloc(usize alignment, u8 *mem, usize size)
   {
     (void) alignment;
-    if (memory == nullptr || size == 0)
+    if (mem == nullptr || size == 0)
     {
       return;
     }
@@ -348,38 +354,37 @@ struct ArenaPool
     if (usize i = num_arenas; i-- != 0)
     {
       Arena *arena = arenas + i;
-      if (arena->offset == ((u8 *) memory + size))
+      if (arena->offset == (mem + size))
       {
-        arena->offset = (u8 *) memory;
+        arena->offset = mem;
         return;
       }
     }
   }
 
   template <typename T>
-  [[nodiscard]] constexpr T *allocate_typed(usize num)
+  [[nodiscard]] constexpr bool t_alloc(usize num, T **mem)
   {
-    return (T *) allocate(alignof(T), sizeof(T) * num);
+    return alloc(alignof(T), sizeof(T) * num, (u8 **) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr T *allocate_zeroed_typed(usize num)
+  [[nodiscard]] constexpr bool t_alloc_zeroed(usize num, T **mem)
   {
-    return (T *) allocate_zeroed(alignof(T), sizeof(T) * num);
+    return alloc_zeroed(alignof(T), sizeof(T) * num, (u8 **) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr T *reallocate_typed(T *memory, usize old_num,
-                                              usize new_num)
+  [[nodiscard]] constexpr bool t_realloc(usize old_num, usize new_num, T **mem)
   {
-    return (T *) reallocate(alignof(T), memory, sizeof(T) * old_num,
-                            sizeof(T) * new_num);
+    return realloc(alignof(T), sizeof(T) * old_num, sizeof(T) * new_num,
+                   (u8 **) mem);
   }
 
   template <typename T>
-  constexpr void deallocate_typed(T *memory, usize num)
+  constexpr void t_dealloc(T *mem, usize num)
   {
-    deallocate(alignof(T), memory, sizeof(T) * num);
+    dealloc(alignof(T), (u8 *) mem, sizeof(T) * num);
   }
 
   AllocatorImpl to_allocator()
