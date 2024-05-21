@@ -21,7 +21,7 @@ namespace ash
 // TODO(lamarrr): Fn<bool(void *)>; - external poll, i.e. on gpu work ready>????
 struct ScheduleInfo
 {
-  Fn<bool(void *)>      task             = to_fn([](void *) { return false; });
+  Fn<bool(void *&)>     task             = to_fn([](void *&) { return false; });
   u64                   instances        = 1;
   void                 *data             = nullptr;
   uid                   thread           = UID_MAX;
@@ -45,7 +45,7 @@ struct ScheduleInfo
 /// how to poll work from GPU or audio and video provider. i.e. network
 ///
 ///
-///
+/// TODO(lamarrr): remove
 struct PollInfo
 {
   Span<char const> label                  = {};

@@ -41,7 +41,7 @@ struct Task
   Semaphore *ASH_RESTRICT           await_sem  = nullptr;
   u64 *ASH_RESTRICT                 awaits     = nullptr;
   usize                             num_awaits = 0;
-  Fn<bool(void *)>                  task = to_fn([](void *) { return false; });
+  Fn<bool(void *&)>                 task = to_fn([](void *&) { return false; });
   void *ASH_RESTRICT                data = nullptr;
   usize                             num_increments = 0;
   usize                             num_signals    = 0;
