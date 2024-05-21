@@ -12,7 +12,7 @@ namespace ash
 
 enum class Window : uid
 {
-  None = UID_INVALID
+  None = UID_MAX
 };
 
 struct WindowSystem

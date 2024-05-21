@@ -656,7 +656,6 @@ struct GraphicsPipeline
 struct Instance
 {
   AllocatorImpl            allocator          = {};
-  Logger                  *logger             = {};
   InstanceTable            vk_table           = {};
   VkInstance               vk_instance        = nullptr;
   VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
@@ -771,7 +770,6 @@ struct ComputePassContext
 struct CommandEncoder
 {
   AllocatorImpl       allocator         = {};
-  Logger             *logger            = nullptr;
   Device             *dev               = nullptr;
   ArenaPool           arg_pool          = {};
   VkCommandPool       vk_command_pool   = nullptr;
@@ -854,7 +852,6 @@ struct FrameContext
 struct Device
 {
   AllocatorImpl      allocator       = {};
-  Logger            *logger          = nullptr;
   Instance          *instance        = nullptr;
   PhysicalDevice     phy_dev         = {};
   DeviceTable        vk_table        = {};

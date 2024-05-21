@@ -25,7 +25,7 @@ namespace paths
 }        // namespace paths
 
 /// outputs (n-2)*3 indices
-inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 nvertices)
+inline void triangulate_convex_polygon(Vec<u32> &indices, u32 nvertices)
 {
   if (nvertices < 3)
   {
@@ -42,7 +42,7 @@ inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 nvertices)
 
 /// line joint is a bevel joint
 inline void add_line_stroke(Vec2 p0, Vec2 p1, f32 thickness, Vec4 color,
-                            stx::Vec<Vertex2d> &out)
+                            Vec<Vertex2d> &out)
 {
   // the angles are specified in clockwise direction to be compatible with the
   // vulkan coordinate system
@@ -93,9 +93,9 @@ inline void add_line_stroke(Vec2 p0, Vec2 p1, f32 thickness, Vec4 color,
 
 // line joint is a bevel joint, it is the most efficient since it re-uses
 // existing vertices and doesn't require generating new vertices
-inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness,
-                             stx::Vec<Vertex2d> &out_vertices,
-                             stx::Vec<u32> &out_indices, bool should_close)
+inline void triangulate_line(Span<Vertex2d const> in_points, f32 thickness,
+                             Vec<Vertex2d> &out_vertices,
+                             Vec<u32> &out_indices, bool should_close)
 {
   if (in_points.size() < 2 || thickness == 0)
   {
@@ -212,7 +212,7 @@ struct Canvas
 
   // TODO(lamarrr): draw quad
 
-  Canvas &draw_path(stx::Span<Vertex2d const> points, Vec2 position,
+  Canvas &draw_path(Span<Vertex2d const> points, Vec2 position,
                     Vec2 uv_stretch, f32 thickness, bool should_close,
                     image texture = WHITE_IMAGE, Vec2 uv0 = Vec2{0, 0},
                     Vec2 uv1 = Vec2{1, 1})
@@ -251,7 +251,7 @@ struct Canvas
     return *this;
   }
 
-  stx::Span<Vertex2d> reserve_convex_polygon(u32 npoints, Vec2 position,
+  Span<Vertex2d> reserve_convex_polygon(u32 npoints, Vec2 position,
                                              image texture)
   {
     ASH_CHECK(npoints >= 3, "A polygon consists of at least 3 points");
@@ -261,7 +261,7 @@ struct Canvas
 
     triangulate_convex_polygon(draw_list.indices, npoints);
 
-    stx::Span polygon =
+    Span polygon =
         draw_list.vertices
             .unsafe_resize_uninitialized(draw_list.vertices.size() + npoints)
             .unwrap();
@@ -289,7 +289,7 @@ struct Canvas
 
   // texture coordinates are assumed to already be filled and area of viewport
   // known
-  Canvas &draw_convex_polygon_filled(stx::Span<Vertex2d const> polygon,
+  Canvas &draw_convex_polygon_filled(Span<Vertex2d const> polygon,
                                      Vec2 position, image texture)
   {
     if (polygon.size() < 3)
@@ -744,7 +744,7 @@ struct Canvas
   // TODO(lamarrr): text gradient, reset on each line or continue???? how does
   // css do it?
   Canvas &draw_text(TextBlock const &block, TextLayout const &layout,
-                    stx::Span<BundledFont const> font_bundle,
+                    Span<BundledFont const> font_bundle,
                     Vec2 const                   position)
   {
     /// TEXT BACKGROUNDS ///

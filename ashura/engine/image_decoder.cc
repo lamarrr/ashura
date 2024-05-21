@@ -180,8 +180,8 @@ Result<gfx::ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
   u32         ncomponents = info.num_components;
   u32         pitch       = width * ncomponents;
   u64         buffer_size = (u64) height * pitch;
-  gfx::Format fmt         = ncomponents == 3 ? gfx::Format::R8G8B8_UNORM :
-                                               gfx::Format::R8G8B8A8_UNORM;
+  gfx::Format fmt         = (ncomponents == 3) ? gfx::Format::R8G8B8_UNORM :
+                                                 gfx::Format::R8G8B8A8_UNORM;
 
   if (!vec.resize_uninitialized(buffer_size))
   {

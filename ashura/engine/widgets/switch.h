@@ -4,9 +4,6 @@
 #include "ashura/color.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
-#include "stx/common.h"
-#include "stx/fn.h"
-#include "stx/rc.h"
 
 namespace ash
 {
@@ -23,15 +20,15 @@ struct SwitchProps
 
 struct Switch : public Widget
 {
-  using Callback = stx::UniqueFn<void(Switch &, Context &, bool)>;
+  using Callback = UniqueFn<void(Switch &, Context &, bool)>;
 
   static void default_on_changed(Switch &, Context &, bool new_state)
   {
   }
 
-  explicit Switch(Callback ion_changed =
-                      stx::fn::rc::make_unique_static(default_on_changed),
-                  bool istate = false, SwitchProps iprops = {}) :
+  explicit Switch(
+      Callback ion_changed = fn::rc::make_unique_static(default_on_changed),
+      bool istate = false, SwitchProps iprops = {}) :
       on_changed{std::move(ion_changed)}, state{istate}, props{iprops}
   {
   }
@@ -44,9 +41,9 @@ struct Switch : public Widget
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     return Vec2{props.height * 1.75f, props.height};
   }

@@ -28,4 +28,4 @@ constexpr UnicodeRange HIRAGANA{0x3040, 0x309F};
 constexpr UnicodeRange KATAKANA{0x30A0, 0x30FF};
 };        // namespace unicode_ranges
 
-};        // namespace ash
+}        // namespace ash

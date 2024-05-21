@@ -21,18 +21,18 @@ struct SliderProps
 
 struct Slider : public Widget
 {
-  using Callback = stx::UniqueFn<void(Slider &, Context &, f32)>;
+  using Callback = UniqueFn<void(Slider &, Context &, f32)>;
 
   static void default_on_changed(Slider &, Context &, f32)
   {
   }
 
   explicit Slider(Callback ion_changed =
-                      stx::fn::rc::make_unique_static(default_on_changed),
+                      fn::rc::make_unique_static(default_on_changed),
                   Callback ion_change_start =
-                      stx::fn::rc::make_unique_static(default_on_changed),
+                      fn::rc::make_unique_static(default_on_changed),
                   Callback ion_change_end =
-                      stx::fn::rc::make_unique_static(default_on_changed),
+                      fn::rc::make_unique_static(default_on_changed),
                   f32 ivalue = 0, f32 imin = 0, f32 imax = 1,
                   SliderProps iprops = SliderProps{}) :
       on_changed{std::move(ion_changed)},
@@ -54,9 +54,9 @@ struct Slider : public Widget
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     return Vec2{props.width.resolve(allocated_size.x), props.thumb_radius * 2};
   }
@@ -95,12 +95,12 @@ struct Slider : public Widget
     return true;
   }
 
-  virtual stx::Option<DragData> on_drag_start(Context &ctx,
+  virtual Option<DragData> on_drag_start(Context &ctx,
                                               Vec2     mouse_position) override
   {
-    return stx::Some(DragData{
+    return Some(DragData{
         .type = "STUB",
-        .data = stx::Unique{stx::Span<u8 const>{}, stx::manager_stub}});
+        .data = Unique{Span<u8 const>{}, manager_stub}});
   }
 
   virtual void on_drag_update(Context &ctx, Vec2 mouse_position,
@@ -119,7 +119,7 @@ struct Slider : public Widget
   }
 
   virtual void on_mouse_leave(Context          &ctx,
-                              stx::Option<Vec2> mouse_position) override
+                              Option<Vec2> mouse_position) override
   {
     __transition_radius(props.thumb_radius, props.thumb_radius * 0.75f);
   }

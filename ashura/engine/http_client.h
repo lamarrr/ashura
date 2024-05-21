@@ -22,13 +22,13 @@ namespace ash
 {
 
 // Overloading the operator>> to convert CURLcode to a string representation
-inline std::string operator>>(stx::ReportQuery, CURLcode code)
+inline std::string operator>>(ReportQuery, CURLcode code)
 {
   return fmt::format("CURLcode{}", static_cast<int>(code));
 }
 
 // Overloading the operator>> to convert CURLMcode to a string representation
-inline std::string operator>>(stx::ReportQuery, CURLMcode code)
+inline std::string operator>>(ReportQuery, CURLMcode code)
 {
   return fmt::format("CURLMcode{}", static_cast<int>(code));
 }
@@ -43,8 +43,8 @@ enum class HttpMethod : u8
 // Struct to represent an HTTP request
 struct HttpRequest
 {
-  stx::String                        url = "https://fast.com";
-  std::map<stx::String, stx::String> headers;
+  String                        url = "https://fast.com";
+  std::map<String, String> headers;
   HttpMethod                         method           = HttpMethod::Get;
   u32                                maximumRedirects = CURLOPT_MAXREDIRS;
 };
@@ -53,10 +53,10 @@ struct HttpRequest
 struct HttpResponse
 {
   u64                      code = 0;
-  stx::Vec<u8>             header;
-  stx::Vec<u8>             content;
+  Vec<u8>             header;
+  Vec<u8>             content;
   std::chrono::nanoseconds totalTime{0};
-  stx::String              effectiveUrl;
+  String              effectiveUrl;
   u64                      uploaded{0};
   u64                      downloaded{0};
 };
@@ -67,8 +67,8 @@ struct HttpProgress
   u64              bytesReceived = 0;
   u64              uploadSpeed   = 0;
   u64              downloadSpeed = 0;
-  stx::Option<u64> contentUploadSize;
-  stx::Option<u64> contentDownloadSize;
+  Option<u64> contentUploadSize;
+  Option<u64> contentDownloadSize;
 };
 
 struct HttpProgressMonitorState
@@ -77,17 +77,17 @@ struct HttpProgressMonitorState
   STX_MAKE_PINNED(HttpProgressMonitorState)
 
   HttpProgress  progress;
-  stx::SpinLock lock;
+  SpinLock lock;
 
   HttpProgress load()
   {
-    stx::LockGuard guard{lock};
+    LockGuard guard{lock};
     return progress;
   }
 
   void update(const HttpProgress &progress_)
   {
-    stx::LockGuard guard{lock};
+    LockGuard guard{lock};
     progress = progress_;
   }
 };
@@ -98,7 +98,7 @@ struct HttpProgressMonitor
   {
     return state->load();
   }
-  stx::Rc<HttpProgressMonitorState *> state;
+  Rc<HttpProgressMonitorState *> state;
 };
 
 struct HttpProgressUpdater
@@ -108,18 +108,18 @@ struct HttpProgressUpdater
     state->update(progress);
   }
 
-  stx::Rc<HttpProgressMonitorState *> state;
+  Rc<HttpProgressMonitorState *> state;
 };
 
-inline stx::Result<std::pair<HttpProgressMonitor, HttpProgressUpdater>,
-                   stx::AllocError>
-    makeProgressMonitor(stx::Allocator allocator)
+inline Result<std::pair<HttpProgressMonitor, HttpProgressUpdater>,
+                   AllocError>
+    makeProgressMonitor(Allocator allocator)
 {
-  TRY_OK(state, stx::rc::make_inplace<HttpProgressMonitorState>(allocator));
+  TRY_OK(state, rc::make_inplace<HttpProgressMonitorState>(allocator));
 
   HttpProgressMonitor progressMonitor{state.share()};
 
-  return stx::Ok(std::make_pair(std::move(progressMonitor),
+  return Ok(std::make_pair(std::move(progressMonitor),
                                 HttpProgressUpdater{std::move(state)}));
 }
 
@@ -142,15 +142,15 @@ private:
   HttpCurlMultiHandleImpl *impl;        // Pointer to implementation
 };
 
-inline auto make_curl_multi_handle(stx::Allocator allocator)
+inline auto make_curl_multi_handle(Allocator allocator)
 {
   CURLM *multi = curl_multi_init();
   if (multi == nullptr)
   {
-    stx::panic(
+    panic(
         "unexpected error from curl");        // Panic if initialization fails
   }
-  return stx::rc::make_inplace<HttpCurlMultiHandle>(
+  return rc::make_inplace<HttpCurlMultiHandle>(
       allocator, multi);        // Create and return the HttpCurlMultiHandle
 }
 
@@ -163,7 +163,7 @@ struct HttpCurlEasyHandle
   STX_DISABLE_MOVE(HttpCurlEasyHandle)
 
   HttpCurlEasyHandle(CURL *easy_easy, curl_slist *easy_header,
-                     stx::Rc<HttpCurlMultiHandle *> easy_parent);
+                     Rc<HttpCurlMultiHandle *> easy_parent);
 
   friend struct HttpTask;
   friend struct HttpClient;
@@ -174,23 +174,23 @@ private:
 
 struct HttpTaskInfo
 {
-  stx::Rc<HttpCurlEasyHandle *> easy;
-  stx::Vec<u8>                  header;
-  stx::Vec<u8>                  content;
-  stx::Promise<HttpResponse>    promise;
+  Rc<HttpCurlEasyHandle *> easy;
+  Vec<u8>                  header;
+  Vec<u8>                  content;
+  Promise<HttpResponse>    promise;
   HttpProgressUpdater           updater;
-  stx::FutureStatus             last_status_poll = stx::FutureStatus::Executing;
+  FutureStatus             last_status_poll = FutureStatus::Executing;
 };
 
 struct HttpTaskImpl;
 
 struct HttpTask
 {
-  stx::Unique<HttpTaskInfo *> info;
+  Unique<HttpTaskInfo *> info;
 
-  static stx::Result<stx::Rc<HttpCurlEasyHandle *>, stx::AllocError>
-      prepare_request(stx::Allocator                        allocator,
-                      stx::Rc<HttpCurlMultiHandle *> const &parent,
+  static Result<Rc<HttpCurlEasyHandle *>, AllocError>
+      prepare_request(Allocator                        allocator,
+                      Rc<HttpCurlMultiHandle *> const &parent,
                       HttpRequest const                    &request);
 
   static void begin_request(CURL *easy, CURLM *multi, HttpTaskInfo *info_addr);
@@ -198,24 +198,24 @@ struct HttpTask
   void retrieve_progress_info(CURL *easy, CURLINFO info, u64 &value);
 
   void retrieve_optional_progress_info(CURL *easy, CURLINFO info,
-                                       stx::Option<u64> &value);
+                                       Option<u64> &value);
 
   void update_progress();
 
-  static stx::Result<
-      std::tuple<HttpTask, HttpProgressMonitor, stx::Future<HttpResponse>>,
-      stx::AllocError>
-      launch(stx::Allocator allocator, HttpRequest const &request,
-             stx::Rc<HttpCurlMultiHandle *> const &parent);
+  static Result<
+      std::tuple<HttpTask, HttpProgressMonitor, Future<HttpResponse>>,
+      AllocError>
+      launch(Allocator allocator, HttpRequest const &request,
+             Rc<HttpCurlMultiHandle *> const &parent);
 
-  void finish(stx::Allocator allocator);
+  void finish(Allocator allocator);
 };
 
 struct HttpClient : public Subsystem
 {
   STX_MAKE_PINNED(HttpClient)
 
-  explicit HttpClient(stx::Allocator allocator) :
+  explicit HttpClient(Allocator allocator) :
       multi_{make_curl_multi_handle(allocator).unwrap()},
       tasks_{allocator},
       lock_{},
@@ -223,11 +223,11 @@ struct HttpClient : public Subsystem
   {
   }
 
-  std::tuple<stx::Future<HttpResponse>, HttpProgressMonitor>
-      get(stx::String url, std::map<stx::String, stx::String> header = {},
+  std::tuple<Future<HttpResponse>, HttpProgressMonitor>
+      get(String url, std::map<String, String> header = {},
           u32 max_redirects = 69)
   {
-    stx::LockGuard guard{lock_};
+    LockGuard guard{lock_};
     auto [task, monitor, future] =
         HttpTask::launch(allocator_,
                          HttpRequest{std::move(url), std::move(header),
@@ -240,11 +240,11 @@ struct HttpClient : public Subsystem
     return std::make_tuple(std::move(future), std::move(monitor));
   }
 
-  std::tuple<stx::Future<HttpResponse>, HttpProgressMonitor>
-      head(stx::String url, std::map<stx::String, stx::String> header = {},
+  std::tuple<Future<HttpResponse>, HttpProgressMonitor>
+      head(String url, std::map<String, String> header = {},
            u32 max_redirects = 69)
   {
-    stx::LockGuard guard{lock_};
+    LockGuard guard{lock_};
     auto [task, monitor, future] =
         HttpTask::launch(allocator_,
                          HttpRequest{std::move(url), std::move(header),
@@ -272,10 +272,10 @@ struct HttpClient : public Subsystem
   {
   }
 
-  stx::Rc<HttpCurlMultiHandle *> multi_;
-  stx::Vec<HttpTask>             tasks_;
-  stx::SpinLock                  lock_;
-  stx::Allocator                 allocator_;
+  Rc<HttpCurlMultiHandle *> multi_;
+  Vec<HttpTask>             tasks_;
+  SpinLock                  lock_;
+  Allocator                 allocator_;
 };
 
 }        // namespace ash

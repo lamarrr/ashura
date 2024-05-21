@@ -4,9 +4,6 @@
 #include "ashura/color.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
-#include "stx/common.h"
-#include "stx/fn.h"
-#include "stx/rc.h"
 
 namespace ash
 {
@@ -16,10 +13,10 @@ namespace gui
 template <typename RadioValue>
 struct RadioCtx
 {
-  static_assert(stx::equality_comparable<RadioValue>);
+  static_assert(equality_comparable<RadioValue>);
 
   explicit RadioCtx(RadioValue value) :
-      data{stx::rc::make(stx::os_allocator, std::move(value)).unwrap()}
+      data{rc::make(os_allocator, std::move(value)).unwrap()}
   {
   }
 
@@ -35,7 +32,7 @@ struct RadioCtx
 
   STX_DEFAULT_MOVE(RadioCtx)
 
-  stx::Rc<RadioValue *> data;
+  Rc<RadioValue *> data;
 };
 
 struct RadioProps
@@ -49,16 +46,15 @@ struct RadioProps
 template <typename RadioValue>
 struct Radio : public Widget
 {
-  using Callback = stx::UniqueFn<void(Radio &, Context &, RadioValue const &)>;
+  using Callback = UniqueFn<void(Radio &, Context &, RadioValue const &)>;
 
   static void default_on_changed(Radio &, Context &, RadioValue const &)
   {
   }
 
   Radio(RadioValue ivalue, RadioCtx<RadioValue> iradio_ctx,
-        Callback ion_changed =
-            stx::fn::rc::make_unique_static(default_on_changed),
-        RadioProps iprops = {}) :
+        Callback   ion_changed = fn::rc::make_unique_static(default_on_changed),
+        RadioProps iprops      = {}) :
       on_changed{std::move(ion_changed)},
       value{std::move(ivalue)},
       radio_ctx{std::move(iradio_ctx)},
@@ -75,9 +71,9 @@ struct Radio : public Widget
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     return uniform_vec2(props.width);
   }

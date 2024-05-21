@@ -3,7 +3,6 @@
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
 #include "ashura/widget.h"
-#include "stx/vec.h"
 
 namespace ash
 {
@@ -26,7 +25,7 @@ struct GridProps
   f32                column_gap = 0;
   f32                row_gap    = 0;
   Alignment          alignment  = ALIGN_TOP_LEFT;
-  stx::Vec<GridItem> items;
+  Vec<GridItem> items;
   Constraint2D       frame = Constraint2D::relative(1, 1);
 };
 
@@ -62,7 +61,7 @@ struct Grid : public Widget
   }
 
   /// takes ownership of the children
-  void update_children(stx::Span<Widget *const> new_children)
+  void update_children(Span<Widget *const> new_children)
   {
     for (Widget *child : children)
     {
@@ -73,7 +72,7 @@ struct Grid : public Widget
     children.extend(new_children).unwrap();
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &ctx) override
+  virtual Span<Widget *const> get_children(Context &ctx) override
   {
     return children;
   }
@@ -84,7 +83,7 @@ struct Grid : public Widget
   }
 
   virtual void allocate_size(Context &ctx, Vec2 allocated_size,
-                             stx::Span<Vec2> children_allocation) override
+                             Span<Vec2> children_allocation) override
   {
     ASH_CHECK(props.items.is_empty() || props.items.size() == children.size());
 
@@ -141,9 +140,9 @@ struct Grid : public Widget
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     ASH_CHECK(props.items.is_empty() || props.items.size() == children.size());
 
@@ -203,9 +202,9 @@ struct Grid : public Widget
   }
 
   GridProps          props;
-  stx::Vec<Widget *> children;
-  stx::Vec<f32>      row_heights;
-  stx::Vec<Vec2>     column_widths;
+  Vec<Widget *> children;
+  Vec<f32>      row_heights;
+  Vec<Vec2>     column_widths;
 };
 
 }        // namespace gui

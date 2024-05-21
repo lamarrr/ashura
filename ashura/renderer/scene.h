@@ -13,9 +13,9 @@ namespace ash
 /// node at depth 0
 struct SceneNode
 {
-  uid parent       = UID_INVALID;
-  uid next_sibling = UID_INVALID;
-  uid first_child  = UID_INVALID;
+  uid parent       = UID_MAX;
+  uid next_sibling = UID_MAX;
+  uid first_child  = UID_MAX;
   u32 depth        = 0;
 };
 

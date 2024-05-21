@@ -7,9 +7,6 @@
 #include "ashura/subsystem.h"
 #include "ashura/utils.h"
 #include "fmt/format.h"
-#include "stx/async.h"
-#include "stx/string.h"
-#include "stx/vec.h"
 
 #ifndef NOMINMAX
 #  define NOMINMAX
@@ -41,7 +38,7 @@ HttpCurlMultiHandle::HttpCurlMultiHandle(CURLM *init_multi) : impl(nullptr)
   if (init_multi)
     impl = new HttpCurlMultiHandleImpl(init_multi);
   else
-    stx::panic("Invalid multi-handle provided.");
+    panic("Invalid multi-handle provided.");
 }
 
 HttpCurlMultiHandle::~HttpCurlMultiHandle()
@@ -54,10 +51,10 @@ struct HttpCurlEasyHandleImpl
 {
   CURL                          *easy;
   curl_slist                    *header;
-  stx::Rc<HttpCurlMultiHandle *> parent;
+  Rc<HttpCurlMultiHandle *> parent;
 
   HttpCurlEasyHandleImpl(CURL *easy_easy, curl_slist *easy_header,
-                         stx::Rc<HttpCurlMultiHandle *> easy_parent) :
+                         Rc<HttpCurlMultiHandle *> easy_parent) :
       easy(easy_easy), header(easy_header), parent(std::move(easy_parent))
   {
   }
@@ -71,11 +68,11 @@ struct HttpCurlEasyHandleImpl
 };
 
 HttpCurlEasyHandle::HttpCurlEasyHandle(CURL *easy, curl_slist *header,
-                                       stx::Rc<HttpCurlMultiHandle *> parent) :
+                                       Rc<HttpCurlMultiHandle *> parent) :
     impl(new HttpCurlEasyHandleImpl(easy, header, std::move(parent)))
 {
   if (!impl->easy)
-    stx::panic("Failed to initialize HttpCurlEasyHandle");
+    panic("Failed to initialize HttpCurlEasyHandle");
 }
 
 inline size_t curl_header_write_function(u8 const *bytes, size_t unit_size,
@@ -96,19 +93,19 @@ inline size_t curl_content_write_function(u8 const *bytes, size_t unit_size,
 {
   size_t total_size = nmemb * unit_size;
 
-  stx::Promise<HttpResponse> &promise = task_info->promise;
-  stx::RequestProxy           request_proxy{promise};
+  Promise<HttpResponse> &promise = task_info->promise;
+  RequestProxy           request_proxy{promise};
 
   auto cancel_request  = request_proxy.fetch_cancel_request();
   auto suspend_request = request_proxy.fetch_suspend_request();
 
-  if (cancel_request == stx::CancelState::Canceled)
+  if (cancel_request == CancelState::Canceled)
   {
     promise.notify_canceled();
     return 0;
   }
 
-  if (suspend_request == stx::SuspendState::Suspended)
+  if (suspend_request == SuspendState::Suspended)
   {
     promise.notify_suspended();
     return CURL_WRITEFUNC_PAUSE;
@@ -122,15 +119,15 @@ inline size_t curl_content_write_function(u8 const *bytes, size_t unit_size,
   return total_size;
 }
 
-stx::Result<stx::Rc<HttpCurlEasyHandle *>, stx::AllocError>
-    HttpTask::prepare_request(stx::Allocator                        allocator,
-                              stx::Rc<HttpCurlMultiHandle *> const &parent,
+Result<Rc<HttpCurlEasyHandle *>, AllocError>
+    HttpTask::prepare_request(Allocator                        allocator,
+                              Rc<HttpCurlMultiHandle *> const &parent,
                               HttpRequest const                    &request)
 {
   CURL *easy = curl_easy_init();
   if (easy == nullptr)
-    stx::panic("unexpected error from CURL");
-  TRY_OK(easy_handle_rc, stx::rc::make_inplace<HttpCurlEasyHandle>(
+    panic("unexpected error from CURL");
+  TRY_OK(easy_handle_rc, rc::make_inplace<HttpCurlEasyHandle>(
                              allocator, easy, nullptr, parent.share()));
 
   HttpCurlEasyHandle *easy_handle = easy_handle_rc.handle;
@@ -147,16 +144,16 @@ stx::Result<stx::Rc<HttpCurlEasyHandle *>, stx::AllocError>
           curl_easy_setopt(easy_handle->impl->easy, CURLOPT_NOBODY, 1L));
       break;
   }
-  stx::String const                        &url    = request.url;
-  std::map<stx::String, stx::String> const &header = request.headers;
+  String const                        &url    = request.url;
+  std::map<String, String> const &header = request.headers;
 
   ASH_CURLE_CHECK(
       curl_easy_setopt(easy_handle->impl->easy, CURLOPT_URL, url.c_str()));
 
   for (const auto &[key, value] : header)
   {
-    stx::String joined =
-        stx::string::join(allocator, "", key, ":", value).unwrap();
+    String joined =
+        string::join(allocator, "", key, ":", value).unwrap();
 
     curl_slist *new_header =
         curl_slist_append(easy_handle->impl->header, joined.c_str());
@@ -175,7 +172,7 @@ stx::Result<stx::Rc<HttpCurlEasyHandle *>, stx::AllocError>
   curl_easy_setopt(easy_handle->impl->easy, CURLOPT_MAXREDIRS,
                    request.maximumRedirects);
 
-  return stx::Ok(std::move(easy_handle_rc));
+  return Ok(std::move(easy_handle_rc));
 }
 
 void HttpTask::begin_request(CURL *easy, CURLM *multi, HttpTaskInfo *info_addr)
@@ -197,17 +194,17 @@ void HttpTask::retrieve_progress_info(CURL *easy, CURLINFO info, u64 &value)
 }
 
 void HttpTask::retrieve_optional_progress_info(CURL *easy, CURLINFO info,
-                                               stx::Option<u64> &value)
+                                               Option<u64> &value)
 {
   curl_off_t curl_value;
   ASH_CURLE_CHECK(curl_easy_getinfo(easy, info, &curl_value));
   if (curl_value == -1)
   {
-    value = stx::None;
+    value = None;
   }
   else
   {
-    value = stx::Some(static_cast<u64>(curl_value));
+    value = Some(static_cast<u64>(curl_value));
   }
 }
 
@@ -230,32 +227,32 @@ void HttpTask::update_progress()
   info.handle->updater.update(progress);
 }
 
-stx::Result<
-    std::tuple<HttpTask, HttpProgressMonitor, stx::Future<HttpResponse>>,
-    stx::AllocError>
-    HttpTask::launch(stx::Allocator allocator, HttpRequest const &request,
-                     stx::Rc<HttpCurlMultiHandle *> const &parent)
+Result<
+    std::tuple<HttpTask, HttpProgressMonitor, Future<HttpResponse>>,
+    AllocError>
+    HttpTask::launch(Allocator allocator, HttpRequest const &request,
+                     Rc<HttpCurlMultiHandle *> const &parent)
 {
   TRY_OK(easy, prepare_request(allocator, parent, request));
   TRY_OK(updater, makeProgressMonitor(allocator));
-  TRY_OK(promise, stx::make_promise<HttpResponse>(allocator));
+  TRY_OK(promise, make_promise<HttpResponse>(allocator));
 
   auto future = promise.get_future();
 
-  TRY_OK(task_info, stx::rc::make_unique_inplace<HttpTaskInfo>(
-                        allocator, std::move(easy), stx::Vec<u8>{allocator},
-                        stx::Vec<u8>{allocator}, std::move(promise),
+  TRY_OK(task_info, rc::make_unique_inplace<HttpTaskInfo>(
+                        allocator, std::move(easy), Vec<u8>{allocator},
+                        Vec<u8>{allocator}, std::move(promise),
                         std::move(updater.second)));
 
   begin_request(task_info.handle->easy.handle->impl->easy,
                 task_info.handle->easy.handle->impl->parent.handle->impl->multi,
                 task_info.handle);
 
-  return stx::Ok(std::make_tuple(HttpTask{std::move(task_info)},
+  return Ok(std::make_tuple(HttpTask{std::move(task_info)},
                                  std::move(updater.first), std::move(future)));
 }
 
-void HttpTask::finish(stx::Allocator allocator)
+void HttpTask::finish(Allocator allocator)
 {
   HttpResponse response;
 
@@ -269,7 +266,7 @@ void HttpTask::finish(stx::Allocator allocator)
   if (effective_url != nullptr)
   {
     response.effectiveUrl =
-        stx::string::make(allocator, effective_url).unwrap();
+        string::make(allocator, effective_url).unwrap();
   }
 
   curl_off_t total_time = 0;
@@ -302,7 +299,7 @@ void HttpTask::finish(stx::Allocator allocator)
 
 void HttpClient::tick(Context &ctx, std::chrono::nanoseconds interval)
 {
-  stx::LockGuard guard{lock_};
+  LockGuard guard{lock_};
 
   {
     // poll statuses
@@ -314,9 +311,9 @@ void HttpClient::tick(Context &ctx, std::chrono::nanoseconds interval)
     auto to_erase = tasks_.span()
                         .partition([](HttpTask const &task) {
                           return task.info.handle->last_status_poll !=
-                                     stx::FutureStatus::Canceled ||
+                                     FutureStatus::Canceled ||
                                  task.info.handle->last_status_poll ==
-                                     stx::FutureStatus::Completed;
+                                     FutureStatus::Completed;
                         })
                         .second;
     tasks_.erase(to_erase);
@@ -326,9 +323,9 @@ void HttpClient::tick(Context &ctx, std::chrono::nanoseconds interval)
   {
     task.update_progress();
 
-    if (task.info.handle->last_status_poll == stx::FutureStatus::Suspended &&
+    if (task.info.handle->last_status_poll == FutureStatus::Suspended &&
         task.info.handle->promise.fetch_suspend_request() ==
-            stx::SuspendState::Executing)
+            SuspendState::Executing)
     {
       ASH_CURLE_CHECK(curl_easy_pause(task.info.handle->easy.handle->impl->easy,
                                       CURLPAUSE_CONT));
@@ -352,11 +349,11 @@ void HttpClient::tick(Context &ctx, std::chrono::nanoseconds interval)
   }
 
   for (CURLMsg const &msg :
-       stx::Span<CURLMsg const>(messages, num_messages_in_queue))
+       Span<CURLMsg const>(messages, num_messages_in_queue))
   {
     if (msg.msg == CURLMSG_DONE)
     {
-      stx::Span task =
+      Span task =
           tasks_.span().which([easy = msg.easy_handle](HttpTask const &task) {
             return task.info.handle->easy.handle->impl->easy == easy;
           });

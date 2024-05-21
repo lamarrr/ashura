@@ -31,7 +31,7 @@ struct StatsWidget : public Box
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
     TextProps props{.style = TextStyle{.foreground_color = colors::WHITE}};
-    stx::Span cols = this->get_children(ctx)[0]->get_children(ctx);
+    Span cols = this->get_children(ctx)[0]->get_children(ctx);
     dynamic_cast<Text *>(cols[0])->update_text(
         ::fmt::format("GPU time:  {:.2} ms",
                       ctx.frame_stats.gpu_time.count() / 1'000'000.0),

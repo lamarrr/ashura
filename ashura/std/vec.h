@@ -92,10 +92,16 @@ struct Vec
         iter->~T();
       }
     }
-    allocator_.t_dealloc(data_, capacity_);
+    allocator_.ndealloc(data_, capacity_);
     data_     = nullptr;
     size_     = 0;
     capacity_ = 0;
+  }
+
+  constexpr void uninit()
+  {
+    reset();
+    allocator_ = default_allocator;
   }
 
   [[nodiscard]] bool reserve(usize target_capacity)
@@ -107,14 +113,15 @@ struct Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      if (!allocator_.t_realloc(capacity_, target_capacity, &data_))
+      if (!allocator_.nrealloc(capacity_, target_capacity, &data_))
       {
         return false;
       }
     }
     else
     {
-      if (!allocator_.t_alloc(target_capacity, &data_))
+      T *new_data;
+      if (!allocator_.nalloc(target_capacity, &new_data))
       {
         return false;
       }
@@ -129,7 +136,7 @@ struct Vec
         (data_ + i)->~T();
       }
 
-      allocator_.t_dealloc(data_, capacity_);
+      allocator_.ndealloc(data_, capacity_);
       data_ = new_data;
     }
 
@@ -146,7 +153,7 @@ struct Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      if (!allocator_.t_realloc(capacity_, size_, &data_))
+      if (!allocator_.nrealloc(capacity_, size_, &data_))
       {
         return false;
       }
@@ -154,8 +161,7 @@ struct Vec
     else
     {
       T *new_data;
-
-      if (!allocator_.t_alloc(size_, &new_data))
+      if (!allocator_.nalloc(size_, &new_data))
       {
         return false;
       }
@@ -170,7 +176,7 @@ struct Vec
         (data_ + i)->~T();
       }
 
-      allocator_.t_dealloc(data_, capacity_);
+      allocator_.ndealloc(data_, capacity_);
       data_ = new_data;
     }
 
@@ -214,6 +220,8 @@ struct Vec
     }
     size_ -= slice.span;
   }
+
+  void erase_non_destructing();
 
   template <typename... Args>
   [[nodiscard]] bool push(Args &&...args)

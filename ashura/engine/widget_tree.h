@@ -12,13 +12,13 @@ namespace ash
 struct WidgetElement
 {
   Widget                 *widget = nullptr;
-  stx::Vec<Vec2>          children_allocations;
-  stx::Vec<Vec2>          children_sizes;
-  stx::Vec<Vec2>          children_positions;
-  stx::Vec<Visibility>    children_visibility;
-  stx::Vec<i32>           children_z_indices;
-  stx::Vec<Rect>          children_clips;
-  stx::Vec<WidgetElement> children;
+  Vec<Vec2>          children_allocations;
+  Vec<Vec2>          children_sizes;
+  Vec<Vec2>          children_positions;
+  Vec<Visibility>    children_visibility;
+  Vec<i32>           children_z_indices;
+  Vec<Rect>          children_clips;
+  Vec<WidgetElement> children;
 };
 
 struct WidgetRenderElement
@@ -31,13 +31,13 @@ struct WidgetRenderElement
 struct WidgetTree
 {
   WidgetElement                 root;
-  stx::Vec<WidgetRenderElement> render_elements;
+  Vec<WidgetRenderElement> render_elements;
 
   static void __build_child_recursive(Context &ctx, WidgetElement &element,
                                       Widget &widget)
   {
     // NOTE: we are trying to re-use the widget tree memory allocations
-    stx::Span children  = widget.get_children(ctx);
+    Span children  = widget.get_children(ctx);
     usize     nchildren = children.size();
     element.widget      = &widget;
     element.children_allocations.resize(nchildren).unwrap();
@@ -68,7 +68,7 @@ struct WidgetTree
   static Vec2 __fit_recursive(Context &ctx, WidgetElement &element,
                               Vec2 allocated_size)
   {
-    stx::Span children = element.widget->get_children(ctx);
+    Span children = element.widget->get_children(ctx);
     element.widget->allocate_size(ctx, allocated_size,
                                   element.children_allocations);
 
@@ -102,7 +102,7 @@ struct WidgetTree
                                 i32 allocated_z_index, Rect allocated_clip,
                                 Rect view_region)
   {
-    stx::Span  children   = element.children;
+    Span  children   = element.children;
     Visibility visibility = element.widget->get_visibility(
         ctx, allocated_visibility, element.children_visibility);
     i32  z_index = element.widget->z_stack(ctx, allocated_z_index,

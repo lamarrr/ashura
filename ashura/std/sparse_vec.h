@@ -17,7 +17,7 @@ namespace ash
 ///
 struct SparseVec
 {
-  static constexpr u64 RELEASE_MASK = 1ULL << 63;
+  static constexpr u64 RELEASE_MASK = U64_MAX >> 1;
   static constexpr u64 STUB         = 0xFFFFFFFFFFFFFFFFULL;
 
   Vec<uid> index_to_id  = {};

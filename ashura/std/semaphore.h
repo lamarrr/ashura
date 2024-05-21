@@ -16,7 +16,7 @@ namespace ash
 /// semaphore should ideally not be destroyed before completion as there could
 /// possibly be other tasks awaiting it.
 ///
-///
+/// Semaphores never overflow. so it can have a maximum of U64_MAX stages.
 typedef struct Semaphore_T *Semaphore;
 
 ///
@@ -26,31 +26,45 @@ typedef struct Semaphore_T *Semaphore;
 /// non-zero.
 ///@return Semaphore
 ///
-Semaphore create_semaphore(u64 num_stages);
+[[nodiscard]] Semaphore create_semaphore(u64 num_stages);
 
 /// @brief
-/// @param semaphore: can be null
+/// @param sem: can be null
 void destroy_semaphore(Semaphore sem);
 
 /// @brief
-/// @param semaphore: non-null
+/// @param sem: non-null
 /// @return
-u64 get_semaphore_stage(Semaphore sem);
+[[nodiscard]] u64 get_semaphore_stage(Semaphore sem);
+
+/// @brief
+/// @param sem: non-null
+/// @return
+[[nodiscard]] u64 get_num_semaphore_stages(Semaphore sem);
+
+/// @brief
+/// @param sem: non-null
+/// @return
+[[nodiscard]] bool is_semaphore_completed(Semaphore sem);
 
 ///
 ///@brief
 ///
-///@param semaphore: semaphore
-///@param stage: stage of the semaphore currently executing. must be <=
-/// semaphore.num_stages or == U64_MAX. where stage of num_stages and U64_MAX
-/// means
-/// completion of the last stage of the operation. must be monotonically
+///@param semaphore: semaphore, non-null.
+///@param stage: stage of the semaphore currently executing. stage >= num_stages
+/// means completion of the last stage of the operation. must be monotonically
 /// increasing for each call to signal_semaphore.
 ///
 void signal_semaphore(Semaphore sem, u64 stage);
 
-///
 /// @brief
+/// @param sem: non-null
+/// @param inc: stage increment of semaphore. increment of >= num_stages is
+/// equivalent to driving it to completion.
+void increment_semaphore(Semaphore sem, u64 inc);
+
+///
+/// @brief no syscalls are made unless timeout_ns is non-zero.
 /// @param await: semaphores to wait for
 /// @param stages: stages of the semaphores to wait for. must be <=
 /// semaphore.num_stages or == U64_MAX.
@@ -58,7 +72,7 @@ void signal_semaphore(Semaphore sem, u64 stage);
 /// semaphore. U64_MAX for an infinite timeout.
 /// @return: true if all semaphores completed the expected stages before the
 /// timeout.
-bool await_semaphores(Span<Semaphore const> await, Span<u64 const> stages,
-                      u64 timeout_ns);
+[[nodiscard]] bool await_semaphores(Span<Semaphore const> await,
+                                    Span<u64 const> stages, u64 timeout_ns);
 
 }        // namespace ash

@@ -10,7 +10,7 @@ Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
   u32 const num_sinks = (u32) sinks.size();
   LogSink **log_sinks;
 
-  if (!allocator.t_alloc(num_sinks, &log_sinks))
+  if (!allocator.nalloc(num_sinks, &log_sinks))
   {
     abort();
   }
@@ -18,7 +18,7 @@ Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
   mem::copy(sinks, log_sinks);
   Logger *logger;
 
-  if (!allocator.t_alloc(1, &logger))
+  if (!allocator.nalloc(1, &logger))
   {
     abort();
   }
@@ -40,7 +40,7 @@ Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
                             logger->buffer_size + buffer.size_bytes();
                         if (required_size > logger->buffer_capacity)
                         {
-                          if (!logger->allocator.t_realloc(
+                          if (!logger->allocator.nrealloc(
                                   logger->buffer_capacity, required_size,
                                   &logger->buffer))
                           {
@@ -60,10 +60,10 @@ Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
 
 void destroy_logger(Logger *logger)
 {
-  logger->allocator.t_dealloc(logger->sinks, logger->num_sinks);
-  logger->allocator.t_dealloc(logger->buffer, logger->buffer_capacity);
+  logger->allocator.ndealloc(logger->sinks, logger->num_sinks);
+  logger->allocator.ndealloc(logger->buffer, logger->buffer_capacity);
   logger->~Logger();
-  logger->allocator.t_dealloc(logger, 1);
+  logger->allocator.ndealloc(logger, 1);
 }
 
 char const *get_level_str(LogLevels level)

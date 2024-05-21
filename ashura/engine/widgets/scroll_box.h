@@ -40,7 +40,7 @@ struct ScrollCtx
 
 struct ScrollBar : public Widget
 {
-  ScrollBar(Direction idirection, stx::Rc<ScrollCtx *> iscroll_ctx) :
+  ScrollBar(Direction idirection, Rc<ScrollCtx *> iscroll_ctx) :
       direction{idirection}, scroll_ctx{std::move(iscroll_ctx)}
   {
   }
@@ -49,9 +49,9 @@ struct ScrollBar : public Widget
   STX_DEFAULT_MOVE(ScrollBar)
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     Vec2 size;
     if (direction == Direction::V)
@@ -122,7 +122,7 @@ struct ScrollBar : public Widget
     return true;
   }
 
-  virtual stx::Option<DragData> on_drag_start(Context &ctx,
+  virtual Option<DragData> on_drag_start(Context &ctx,
                                               Vec2     mouse_position) override
   {
     if (direction == Direction::H)
@@ -137,7 +137,7 @@ struct ScrollBar : public Widget
                    scroll_ctx->content_size.y;
       scroll_ctx->view_offset.y = Constraint::absolute(offset);
     }
-    return stx::Some(DragData{});
+    return Some(DragData{});
   }
 
   virtual void on_drag_update(Context &ctx, Vec2 mouse_position,
@@ -159,18 +159,18 @@ struct ScrollBar : public Widget
   }
 
   Direction            direction = Direction::V;
-  stx::Rc<ScrollCtx *> scroll_ctx;
+  Rc<ScrollCtx *> scroll_ctx;
 };
 
 struct ScrollViewport : public Widget
 {
   template <Impl<Widget> DerivedWidget>
-  ScrollViewport(stx::Rc<ScrollCtx *> ctx, DerivedWidget child) :
+  ScrollViewport(Rc<ScrollCtx *> ctx, DerivedWidget child) :
       ScrollViewport{std::move(ctx), new DerivedWidget{std::move(child)}}
   {
   }
 
-  ScrollViewport(stx::Rc<ScrollCtx *> ictx, Widget *child) :
+  ScrollViewport(Rc<ScrollCtx *> ictx, Widget *child) :
       scroll_ctx{std::move(ictx)}
   {
     children.push_inplace(child).unwrap();
@@ -180,15 +180,15 @@ struct ScrollViewport : public Widget
   STX_DEFAULT_MOVE(ScrollViewport)
 
   virtual void allocate_size(Context &ctx, Vec2 allocated_size,
-                             stx::Span<Vec2> children_allocation) override
+                             Span<Vec2> children_allocation) override
   {
     children_allocation.fill(scroll_ctx->props.frame.resolve(allocated_size));
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     Vec2 view_size           = scroll_ctx->props.frame.resolve(allocated_size);
     Vec2 content_size        = children_sizes[0];
@@ -205,13 +205,13 @@ struct ScrollViewport : public Widget
   }
 
   virtual Rect clip(Context &ctx, Rect allocated_clip,
-                    stx::Span<Rect> children_allocation) override
+                    Span<Rect> children_allocation) override
   {
     children_allocation.fill(area.intersect(allocated_clip));
     return area;
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &ctx) override
+  virtual Span<Widget *const> get_children(Context &ctx) override
   {
     return children;
   }
@@ -239,8 +239,8 @@ struct ScrollViewport : public Widget
     children[0] = widget;
   }
 
-  stx::Vec<Widget *>   children;
-  stx::Rc<ScrollCtx *> scroll_ctx;
+  Vec<Widget *>   children;
+  Rc<ScrollCtx *> scroll_ctx;
 };
 
 struct ScrollBox : public Widget
@@ -253,7 +253,7 @@ struct ScrollBox : public Widget
 
   ScrollBox(ScrollBoxProps iprops, Widget *child) :
       scroll_ctx{
-          stx::rc::make(stx::os_allocator, ScrollCtx{.props = iprops}).unwrap()}
+          rc::make(os_allocator, ScrollCtx{.props = iprops}).unwrap()}
   {
     children.push(new ScrollViewport{scroll_ctx.share(), child}).unwrap();
     children.push(new ScrollBar{Direction::H, scroll_ctx.share()}).unwrap();
@@ -265,15 +265,15 @@ struct ScrollBox : public Widget
   STX_DEFAULT_MOVE(ScrollBox)
 
   virtual void allocate_size(Context &ctx, Vec2 allocated_size,
-                             stx::Span<Vec2> children_allocation) override
+                             Span<Vec2> children_allocation) override
   {
     children_allocation.fill(allocated_size);
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     children_positions[0] = Vec2{0, 0};
     children_positions[1] =
@@ -284,7 +284,7 @@ struct ScrollBox : public Widget
   }
 
   virtual i32 z_stack(Context &ctx, i32 allocated_z_index,
-                      stx::Span<i32> children_allocation) override
+                      Span<i32> children_allocation) override
   {
     children_allocation[0] = allocated_z_index + 1;
     children_allocation[1] = allocated_z_index + 1 + 256 * 256;
@@ -292,7 +292,7 @@ struct ScrollBox : public Widget
     return allocated_z_index;
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &ctx) override
+  virtual Span<Widget *const> get_children(Context &ctx) override
   {
     return children;
   }
@@ -317,8 +317,8 @@ struct ScrollBox : public Widget
     children[0] = new ScrollViewport{scroll_ctx.share(), widget};
   }
 
-  stx::Vec<Widget *>   children;
-  stx::Rc<ScrollCtx *> scroll_ctx;
+  Vec<Widget *>   children;
+  Rc<ScrollCtx *> scroll_ctx;
 };
 
 };        // namespace gui

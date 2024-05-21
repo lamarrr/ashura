@@ -9,21 +9,7 @@
 namespace ash
 {
 
-#define SDL_CHECK_EX(description, ...)                                      \
-  if (!(__VA_ARGS__))                                                       \
-  {                                                                         \
-    (default_logger)                                                        \
-        ->panic(description, ", SDL Error: ", SDL_GetError(),               \
-                " (expression: " #__VA_ARGS__,                              \
-                ") [function: ", ::ash::SourceLocation::current().function, \
-                ", file: ", ::ash::SourceLocation::current().file, ":",     \
-                ::ash::SourceLocation::current().line, ":",                 \
-                ::ash::SourceLocation::current().column, "]");              \
-  }
-
-#define SDL_CHECK(...) SDL_CHECK_EX("", __VA_ARGS__)
-
-#define CHECK_SDL_ERRC(...) SDL_CHECK_EX("", !(__VA_ARGS__))
+#define CHECKSdl(cond_expr) CHECK_DESC(cond_expr, "SDL Error: ", SDL_GetError())
 
 namespace sdl
 {
@@ -37,7 +23,7 @@ struct WindowImpl
 {
   SDL_Window              *win              = nullptr;
   gfx::Surface             surface          = nullptr;
-  uid                      backend_id       = UID_INVALID;
+  uid                      backend_id       = UID_MAX;
   Vec<WindowEventListener> listeners        = {};
   SparseVec                listeners_id_map = {};
   gfx::InstanceImpl        instance         = {};
@@ -60,29 +46,29 @@ struct WindowSystemImpl final : public WindowSystem
 
   void init()
   {
-    CHECK_SDL_ERRC(SDL_Init(SDL_INIT_VIDEO));
+    CHECKSdl(!SDL_Init(SDL_INIT_VIDEO));
   }
 
   Option<Window> create_window(gfx::InstanceImpl instance,
                                Span<char const>  title) override
   {
     char *title_c_str;
-    if (!default_allocator.t_alloc(title.size() + 1, &title_c_str))
+    if (!default_allocator.nalloc(title.size() + 1, &title_c_str))
     {
       return None;
     }
 
     defer title_del{
-        [&] { default_allocator.t_dealloc(title_c_str, title.size() + 1); }};
+        [&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};
 
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
 
     SDL_Window *window = SDL_CreateWindow(
         title_c_str, 1920, 1080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-    SDL_CHECK(window != nullptr);
+    CHECKSdl(window != nullptr);
     uid backend_id = SDL_GetWindowID(window);
-    SDL_CHECK(backend_id != 0);
+    CHECKSdl(backend_id != 0);
 
     CHECK(instance.interface->get_backend(instance.self) ==
           gfx::Backend::Vulkan);
@@ -90,8 +76,8 @@ struct WindowSystemImpl final : public WindowSystem
     vk::Instance *vk_instance = (vk::Instance *) instance.self;
     VkSurfaceKHR  surface;
 
-    SDL_CHECK(SDL_Vulkan_CreateSurface(window, vk_instance->vk_instance,
-                                       nullptr, &surface) == SDL_TRUE);
+    CHECKSdl(SDL_Vulkan_CreateSurface(window, vk_instance->vk_instance, nullptr,
+                                      &surface) == SDL_TRUE);
 
     Window out_id;
     CHECK(id_map.push(
@@ -122,95 +108,95 @@ struct WindowSystemImpl final : public WindowSystem
   void set_title(Window w, Span<char const> title) override
   {
     char *title_c_str;
-    CHECK(default_allocator.t_alloc(title.size() + 1, &title_c_str));
+    CHECK(default_allocator.nalloc(title.size() + 1, &title_c_str));
 
     defer title_del{
-        [&] { default_allocator.t_dealloc(title_c_str, title.size() + 1); }};
+        [&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};
 
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
 
-    CHECK_SDL_ERRC(SDL_SetWindowTitle(hnd(w), title_c_str));
+    CHECKSdl(!SDL_SetWindowTitle(hnd(w), title_c_str));
   }
 
   char const *get_title(Window w) override
   {
     char const *title = SDL_GetWindowTitle(hnd(w));
-    SDL_CHECK(title != nullptr);
+    CHECKSdl(title != nullptr);
     return title;
   }
 
   void maximize(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_MaximizeWindow(hnd(w)));
+    CHECKSdl(!SDL_MaximizeWindow(hnd(w)));
   }
 
   void minimize(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_MinimizeWindow(hnd(w)));
+    CHECKSdl(!SDL_MinimizeWindow(hnd(w)));
   }
 
   void set_size(Window w, Vec2U size) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowSize(hnd(w), static_cast<int>(size.x),
-                                     static_cast<int>(size.y)));
+    CHECKSdl(!SDL_SetWindowSize(hnd(w), static_cast<int>(size.x),
+                                static_cast<int>(size.y)));
   }
 
   void center(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowPosition(hnd(w), SDL_WINDOWPOS_CENTERED,
-                                         SDL_WINDOWPOS_CENTERED));
+    CHECKSdl(!SDL_SetWindowPosition(hnd(w), SDL_WINDOWPOS_CENTERED,
+                                    SDL_WINDOWPOS_CENTERED));
   }
 
   Vec2U get_size(Window w) override
   {
     int width, height;
-    CHECK_SDL_ERRC(SDL_GetWindowSize(hnd(w), &width, &height));
+    CHECKSdl(!SDL_GetWindowSize(hnd(w), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
   Vec2U get_surface_size(Window w) override
   {
     int width, height;
-    CHECK_SDL_ERRC(SDL_GetWindowSizeInPixels(hnd(w), &width, &height));
+    CHECKSdl(!SDL_GetWindowSizeInPixels(hnd(w), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
   void set_position(Window w, Vec2I pos) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowPosition(hnd(w), pos.x, pos.y));
+    CHECKSdl(!SDL_SetWindowPosition(hnd(w), pos.x, pos.y));
   }
 
   Vec2I get_position(Window w) override
   {
     int x, y;
-    CHECK_SDL_ERRC(SDL_GetWindowPosition(hnd(w), &x, &y));
+    CHECKSdl(!SDL_GetWindowPosition(hnd(w), &x, &y));
     return Vec2I{x, y};
   }
 
   void set_min_size(Window w, Vec2U min) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowMinimumSize(hnd(w), static_cast<int>(min.x),
-                                            static_cast<int>(min.y)));
+    CHECKSdl(!SDL_SetWindowMinimumSize(hnd(w), static_cast<int>(min.x),
+                                       static_cast<int>(min.y)));
   }
 
   Vec2U get_min_size(Window w) override
   {
     int width, height;
-    CHECK_SDL_ERRC(SDL_GetWindowMinimumSize(hnd(w), &width, &height));
+    CHECKSdl(!SDL_GetWindowMinimumSize(hnd(w), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
   void set_max_size(Window w, Vec2U max) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowMaximumSize(hnd(w), static_cast<int>(max.x),
-                                            static_cast<int>(max.y)));
+    CHECKSdl(!SDL_SetWindowMaximumSize(hnd(w), static_cast<int>(max.x),
+                                       static_cast<int>(max.y)));
   }
 
   Vec2U get_max_size(Window w) override
   {
     int width, height;
-    CHECK_SDL_ERRC(SDL_GetWindowMaximumSize(hnd(w), &width, &height));
+    CHECKSdl(!SDL_GetWindowMaximumSize(hnd(w), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
@@ -227,71 +213,71 @@ struct WindowSystemImpl final : public WindowSystem
         fmt = SDL_PIXELFORMAT_BGRA8888;
         break;
       default:
-        CHECK(false);
+        CHECK_DESC(false, "unsupported image format");
     }
 
     SDL_Surface *icon = SDL_CreateSurfaceFrom(
         (void *) image.span.data(), static_cast<int>(image.width),
         static_cast<int>(image.height), static_cast<int>(image.pitch), fmt);
-    SDL_CHECK(icon != nullptr);
-    CHECK_SDL_ERRC(SDL_SetWindowIcon(hnd(w), icon));
+    CHECKSdl(icon != nullptr);
+    CHECKSdl(!SDL_SetWindowIcon(hnd(w), icon));
     SDL_DestroySurface(icon);
   }
 
   void make_bordered(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowBordered(hnd(w), SDL_TRUE));
+    CHECKSdl(!SDL_SetWindowBordered(hnd(w), SDL_TRUE));
   }
 
   void make_borderless(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowBordered(hnd(w), SDL_FALSE));
+    CHECKSdl(!SDL_SetWindowBordered(hnd(w), SDL_FALSE));
   }
 
   void show(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_ShowWindow(hnd(w)));
+    CHECKSdl(!SDL_ShowWindow(hnd(w)));
   }
 
   void hide(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_HideWindow(hnd(w)));
+    CHECKSdl(!SDL_HideWindow(hnd(w)));
   }
 
   void raise(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_RaiseWindow(hnd(w)));
+    CHECKSdl(!SDL_RaiseWindow(hnd(w)));
   }
 
   void restore(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_RestoreWindow(hnd(w)));
+    CHECKSdl(!SDL_RestoreWindow(hnd(w)));
   }
 
   void request_attention(Window w, bool briefly) override
   {
-    CHECK_SDL_ERRC(SDL_FlashWindow(hnd(w), briefly ? SDL_FLASH_BRIEFLY :
-                                                     SDL_FLASH_UNTIL_FOCUSED));
+    CHECKSdl(!SDL_FlashWindow(hnd(w), briefly ? SDL_FLASH_BRIEFLY :
+                                                SDL_FLASH_UNTIL_FOCUSED));
   }
 
   void make_fullscreen(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowFullscreen(hnd(w), SDL_TRUE));
+    CHECKSdl(!SDL_SetWindowFullscreen(hnd(w), SDL_TRUE));
   }
 
   void make_windowed(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowFullscreen(hnd(w), SDL_FALSE));
+    CHECKSdl(!SDL_SetWindowFullscreen(hnd(w), SDL_FALSE));
   }
 
   void make_resizable(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowResizable(hnd(w), SDL_TRUE));
+    CHECKSdl(!SDL_SetWindowResizable(hnd(w), SDL_TRUE));
   }
 
   void make_unresizable(Window w) override
   {
-    CHECK_SDL_ERRC(SDL_SetWindowResizable(hnd(w), SDL_FALSE));
+    CHECKSdl(!SDL_SetWindowResizable(hnd(w), SDL_FALSE));
   }
 
   uid listen(Window w, WindowEventTypes event_types,
@@ -446,7 +432,7 @@ struct WindowSystemImpl final : public WindowSystem
               mouse_event.button = MouseButtons::A2;
               break;
             default:
-              CHECK(false);
+              UNREACHABLE();
           }
 
           switch (event.type)

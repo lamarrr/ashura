@@ -146,6 +146,7 @@ struct Widget
   /// @return
   virtual Widget *get_child(u32 i)
   {
+    (void) i;
     return nullptr;
   }
 
@@ -236,6 +237,8 @@ struct Widget
     (void) diff;
     (void) events;
   }
+
+  uid id = UID_MAX;
 };
 
 }        // namespace ash

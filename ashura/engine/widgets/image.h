@@ -14,10 +14,6 @@
 #include "ashura/subsystems/image_loader.h"
 #include "ashura/subsystems/image_manager.h"
 #include "ashura/widget.h"
-#include "stx/option.h"
-#include "stx/scheduler/scheduling/schedule.h"
-#include "stx/span.h"
-#include "stx/string.h"
 
 namespace ash
 {
@@ -26,29 +22,29 @@ namespace gui
 
 struct FileImageSource
 {
-  stx::String path;
+  String path;
 };
 
 struct NetworkImageSource
 {
-  stx::String uri;
+  String uri;
 };
 
-using ImageSource = std::variant<ImageBuffer, FileImageSource,
-                                 NetworkImageSource, stx::NoneType>;
+using ImageSource =
+    std::variant<ImageBuffer, FileImageSource, NetworkImageSource, NoneType>;
 
 // TODO(lamarrr): image width and height should have a size limit for it to be
 // scaled to when stored on the gpu
 // TODO(lamarrr): fix image layout
 struct ImageProps
 {
-  ImageSource      source = stx::None;
-  Constraint2D     size;
-  BorderRadius     border_radius;
-  stx::Option<f32> aspect_ratio;
-  bool             resize_on_load = true;
-  Vec4             tint           = {1, 1, 1, 1};
-  stx::String      alt;
+  ImageSource  source = None;
+  Constraint2D size;
+  BorderRadius border_radius;
+  Option<f32>  aspect_ratio;
+  bool         resize_on_load = true;
+  Vec4         tint           = {1, 1, 1, 1};
+  String       alt;
 };
 
 enum class ImageState : u8
@@ -94,9 +90,9 @@ struct Image : public Widget
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     Vec2 extent = props.size.resolve(allocated_size);
     if (props.aspect_ratio.is_some())
@@ -192,7 +188,7 @@ struct Image : public Widget
         }
         else if (std::holds_alternative<FileImageSource>(props.source))
         {
-          image_load_future = stx::Some(loader->load_from_file(
+          image_load_future = Some(loader->load_from_file(
               std::get<FileImageSource>(props.source).path));
           state             = ImageState::Loading;
         }
@@ -206,7 +202,7 @@ struct Image : public Widget
       {
         if (image_load_future.value().is_done())
         {
-          stx::Result load_result = image_load_future.value().move().unwrap();
+          Result load_result = image_load_future.value().move().unwrap();
           if (load_result.is_ok())
           {
             ImageBuffer &buffer = load_result.value();
@@ -225,7 +221,7 @@ struct Image : public Widget
             state = ImageState::LoadFailed;
           }
 
-          image_load_future = stx::None;
+          image_load_future = None;
         }
       }
       break;
@@ -243,8 +239,7 @@ struct Image : public Widget
   ImageState state = ImageState::Inactive;
   gfx::image image = 0;
   Vec2U      image_extent;
-  stx::Option<stx::Future<stx::Result<ImageBuffer, ImageLoadError>>>
-      image_load_future;
+  Option<Future<Result<ImageBuffer, ImageLoadError>>> image_load_future;
 };
 }        // namespace gui
 }        // namespace ash

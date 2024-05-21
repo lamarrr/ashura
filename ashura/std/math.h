@@ -35,39 +35,19 @@ constexpr f32 epsilon_clamp(f32 x)
 
 constexpr f32 to_radians(f32 degree)
 {
-  return PI * degree / 180.0f;
+  return PI * degree * 0.00555555555f;
 }
 
 constexpr f64 to_radians(f64 degree)
 {
-  return PI * degree / 180.0;
+  return PI * degree * 0.00555555555;
 }
-
-// find intepolated value v, given points a and b, and interpolator t
-template <typename T, typename Interpolator>
-constexpr T lerp(T const &low, T const &high, Interpolator const &t)
-{
-  return static_cast<T>(low + (high - low) * t);
-}
-
-// find interpolator t, given points a and b, and interpolated value v
-template <typename T>
-constexpr T unlerp(T const &low, T const &high, T const &value)
-{
-  return (value - low) / (high - low);
-}
-
-template <typename T>
-constexpr void relerp(T const &input_low, T const &input_high,
-                      T const &output_low, T const &output_high, T &value);
 
 // Undefined behaviour if value is 0
 inline u32 u32log2(u32 value)
 {
 #if ASH_CFG(COMPILER, MSVC)
-  unsigned long index;
-  _BitScanReverse(&index, value);
-  return 31U - index;
+  return 31U - __lzcnt(value);
 #else
 #  if defined(__has_builtin) && __has_builtin(__builtin_clz)
   return 31U - __builtin_clz(value);
@@ -379,14 +359,11 @@ constexpr Vec3 transform(Mat4Affine const &t, Vec3 value)
   return Vec3{v.x, v.y, v.z};
 }
 
-// TODO(lamarrr): is this correct? for transformed vertices
-constexpr bool overlaps(Vec2 a_begin, Vec2 a_end, Vec2 b_begin, Vec2 b_end)
+constexpr bool rect_overlaps(Vec2 a_begin, Vec2 a_end, Vec2 b_begin, Vec2 b_end)
 {
   return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
          a_end.y >= b_begin.y;
 }
-
-// quad overlaps
 
 constexpr bool rect_contains_point(Vec2 begin, Vec2 end, Vec2 point)
 {
@@ -397,18 +374,15 @@ constexpr bool rect_contains_point(Vec2 begin, Vec2 end, Vec2 point)
 constexpr void rect_intersect(Vec2 a_begin, Vec2 a_end, Vec2 &b_begin,
                               Vec2 &b_end)
 {
-  if (!overlaps(a_begin, a_end, b_begin, b_end))
+  if (!rect_overlaps(a_begin, a_end, b_begin, b_end))
   {
     b_begin = {};
     b_end   = {};
     return;
   }
 
-  Vec2 intersect_begin{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)};
-  Vec2 intersect_end{min(a_end.x, b_end.x), min(a_end.y, b_end.y)};
-
-  b_begin = intersect_begin;
-  b_end   = intersect_end;
+  b_begin = Vec2{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)};
+  b_end   = Vec2{min(a_end.x, b_end.x), min(a_end.y, b_end.y)};
 }
 
 struct Rect
@@ -419,6 +393,11 @@ struct Rect
   constexpr Vec2 center() const
   {
     return offset + (extent / 2);
+  }
+
+  constexpr Vec2 begin() const
+  {
+    return offset;
   }
 
   constexpr Vec2 end() const
@@ -433,35 +412,20 @@ struct Rect
 
   constexpr bool contains(Vec2 point) const
   {
-    return offset.x <= point.x && offset.y <= point.y &&
-           (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
+    return rect_contains_point(begin(), end(), point);
   }
 
   constexpr bool overlaps(Rect const &other) const
   {
-    Vec2 a_begin = offset;
-    Vec2 a_end   = offset + extent;
-    Vec2 b_begin = other.offset;
-    Vec2 b_end   = other.offset + other.extent;
-    return a_begin.x <= b_end.x && a_end.x >= b_begin.x &&
-           a_begin.y <= b_end.y && a_end.y >= b_begin.y;
+    return rect_overlaps(begin(), end(), other.offset, other.end());
   }
 
   constexpr Rect intersect(Rect const &other) const
   {
-    if (!overlaps(other))
-    {
-      return Rect{offset, {0, 0}};
-    }
-
-    Vec2 a_begin = offset;
-    Vec2 a_end   = offset + extent;
-    Vec2 b_begin = other.offset;
-    Vec2 b_end   = other.offset + other.extent;
-    Vec2 int_begin{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)};
-    Vec2 int_end{min(a_end.x, b_end.x), min(a_end.y, b_end.y)};
-
-    return Rect{int_begin, int_end - int_begin};
+    Vec2 b = other.begin();
+    Vec2 e = other.end();
+    rect_intersect(begin(), end(), b, e);
+    return Rect{.offset = b, .extent = e - b};
   }
 };
 
@@ -505,56 +469,101 @@ struct Box
   }
 };
 
-// template<typename T>
-// constexpr T grid_snap(T const& a, T const& unit){
+// find intepolated value v, given points a and b, and interpolator t
+constexpr f32 lerp(f32 low, f32 high, f32 t)
+{
+  return (1 - t) * low + t * high;
+}
 
-// (a / unit);
+/// @brief frame-independent damped lerp
+///
+/// https://x.com/FreyaHolmer/status/1757836988495847568,
+/// https://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
+///
+/// @param dt time delta
+/// @param half_life time to complete half of the whole operation
+///
+constexpr f32 damplerp(f32 low, f32 high, f32 dt, f32 half_life)
+{
+  return lerp(low, high, 1 - exp2f(-half_life * dt));
+}
 
-// }
+/// find interpolator t, given points a and b, and interpolated value v
+constexpr f32 unlerp(f32 low, f32 high, f32 v)
+{
+  return (v - low) / (high - low);
+}
 
-// 	/** Snaps a value to the nearest grid multiple */
-// 	template< class T >
-// 	UE_NODISCARD static constexpr FORCEINLINE T GridSnap(T Location, T Grid)
-// 	{
-// 		return (Grid == T{}) ? Location : (Floor((Location + (Grid/(T)2)) /
-// Grid) * Grid);
-// 	}
+constexpr f32 relerp(f32 in_low, f32 in_high, f32 out_low, f32 out_high, f32 &v)
+{
+  return lerp(out_low, out_high, unlerp(in_low, in_high, v));
+}
 
-/*
- *	Cubic Catmull-Rom Spline interpolation. Based on
- *http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf Curves are
- *guaranteed to pass through the control points and are easily chained
- *together. Equation supports abitrary parameterization. eg. Uniform=0,1,2,3 ;
- *chordal= |Pn - Pn-1| ; centripetal = |Pn - Pn-1|^0.5 P0 - The control point
- *preceding the interpolation range. P1 - The control point starting the
- *interpolation range. P2 - The control point ending the interpolation range.
- *P3 - The control point following the interpolation range. T0-3 - The
- *interpolation parameters for the corresponding control points. T - The
- *interpolation factor in the range 0 to 1. 0 returns P1. 1 returns P2.
- */
-// template< class U >
-// UE_NODISCARD static constexpr FORCEINLINE_DEBUGGABLE U
-// CubicCRSplineInterp(const U& P0, const U& P1, const U& P2, const U& P3,
-// const float T0, const float T1, const float T2, const float T3, const float
-// T)
-// {
-// 	//Based on
-// http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf 	float
-// InvT1MinusT0 = 1.0f / (T1 - T0); 	U L01 = ( P0 * ((T1 - T) * InvT1MinusT0)
-// )
-// + ( P1 * ((T - T0) * InvT1MinusT0) ); 	float InvT2MinusT1 = 1.0f / (T2 -
-// T1); 	U L12 = ( P1 *
-// ((T2 - T) * InvT2MinusT1) ) + ( P2 * ((T - T1) * InvT2MinusT1) ); 	float
-// InvT3MinusT2 = 1.0f / (T3 - T2); 	U L23 = ( P2 * ((T3 - T) * InvT3MinusT2)
-// ) + ( P3 * ((T - T2) * InvT3MinusT2) );
+// SEE: https://www.youtube.com/watch?v=jvPPXbo87ds
+constexpr f32 linear(f32 t)
+{
+  return t;
+}
 
-// 	float InvT2MinusT0 = 1.0f / (T2 - T0);
-// 	U L012 = ( L01 * ((T2 - T) * InvT2MinusT0) ) + ( L12 * ((T - T0) *
-// InvT2MinusT0) ); 	float InvT3MinusT1 = 1.0f / (T3 - T1); 	U L123 = ( L12 *
-// ((T3
-// - T) * InvT3MinusT1) ) + ( L23 * ((T - T1) * InvT3MinusT1) );
+constexpr f32 ease_in(f32 t)
+{
+  return t * t;
+}
 
-// 	return  ( ( L012 * ((T2 - T) * InvT2MinusT1) ) + ( L123 * ((T - T1) *
-// InvT2MinusT1) ) );
-// }
+constexpr f32 ease_out(f32 t)
+{
+  return 1 - (1 - t) * (1 - t);
+}
+
+constexpr f32 ease_in_out(f32 t)
+{
+  return lerp(ease_in(t), ease_out(t), t);
+}
+
+constexpr f32 bezier(f32 p0, f32 p1, f32 p2, f32 t)
+{
+  return (1 - t) * (1 - t) * p0 + 2 * (1 - t) * t * p1 + t * t * p2;
+}
+
+constexpr f32 cubic_bezier(f32 p0, f32 p1, f32 p2, f32 p3, f32 t)
+{
+  return (1 - t) * (1 - t) * (1 - t) * p0 + 3 * (1 - t) * (1 - t) * t * p1 +
+         3 * (1 - t) * t * t * p2 + t * t * t * p3;
+}
+
+/// https://www.youtube.com/watch?v=jvPPXbo87ds&t=1033s - The Continuity of
+/// Splines by Freya Holmer
+
+/// has automatic tangent. use for animation and path smoothing
+/// ne of the features of the Catmull-Rom spline is that the specified curve
+/// will pass through all of the control points.
+constexpr f32 catmull_rom(f32 p0, f32 p1, f32 p2, f32 p3, f32 t)
+{
+  return 0.5f *
+         ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
+          (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+}
+
+/// bezier spline: shapes, fonts, vector graphics. use
+/// multiple bezier curves, joined together uniformly by a unit. unit - knot
+/// interval index - (knot value/knot interval)
+/// take 4 points, advance by 3
+void spline_interp();
+
+constexpr f32 step(f32 a, f32 t)
+{
+  return t < a ? 0.0f : 1.0f;
+}
+
+constexpr f32 smoothstep(f32 a, f32 b, f32 t)
+{
+  t = clamp((t - a) / (b - a), 0.0f, 1.0f);
+  return t * t * (3.0f - 2.0f * t);
+}
+
+constexpr f32 grid_snap(f32 a, f32 unit)
+{
+  return floorf((a + unit / 2) / unit) * unit;
+}
+
 }        // namespace ash

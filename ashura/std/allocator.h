@@ -6,23 +6,21 @@ namespace ash
 
 typedef struct Allocator_T *Allocator;
 
-/// @alloc: alloc aligned memory. returns null if
-/// failed.
-/// @alloc_zeroed: like alloc but zeroes the allocated memory, this is
-/// performed by the OS and can be faster. returns null if allocation failed.
-/// @realloc: free the previously allocated memory and return a new memory,
+/// @alloc: alloc aligned memory. returns false if failed and sets the memory
+/// pointer to null.
+/// @alloc_zeroed: like alloc but zeroes the allocated memory, this is sometimes
+/// performed by the OS and can be faster than calling memset.
+/// @realloc: free the previously allocated memory and return a new memory.
 /// alignment is not guaranteed to be preserved. if an error occurs, the old
-/// memory is not freed and null is returned. alignment must be same as the
-/// alignment of the original allocated memory.
+/// memory is unmodified, not free-d and false is returned. alignment must be
+/// same as the alignment of the original allocated memory.
 /// @dealloc: free the previously allocated memory.
-///
-/// @release: releases all allocated memory on the allocator.
-///
 ///
 /// REQUIREMENTS
 /// =============
 ///
-/// @alignment: must be a power of 2. UB if 0 or otherwise
+/// @alignment: must be a power of 2. UB if 0 or otherwise.
+/// @size: must be 0 or multiple of alignment.
 ///
 struct AllocatorInterface
 {
@@ -65,33 +63,34 @@ struct AllocatorImpl
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool t_alloc(usize num, T **mem) const
+  [[nodiscard]] constexpr bool nalloc(usize num, T **mem) const
   {
     return interface->alloc(self, alignof(T), sizeof(T) * num, (u8 **) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool t_alloc_zeroed(usize num, T **mem) const
+  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T **mem) const
   {
     return interface->alloc_zeroed(self, alignof(T), sizeof(T) * num,
                                    (u8 **) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool t_realloc(usize old_num, usize new_num,
-                                         T **mem) const
+  [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num,
+                                        T **mem) const
   {
     return interface->realloc(self, alignof(T), sizeof(T) * old_num,
                               sizeof(T) * new_num, (u8 **) mem);
   }
 
   template <typename T>
-  constexpr void t_dealloc(T *mem, usize num) const
+  constexpr void ndealloc(T *mem, usize num) const
   {
     interface->dealloc(self, alignof(T), (u8 *) mem, sizeof(T) * num);
   }
 };
 
+/// guarantees at least MAX_STANDARD_ALIGNMENT alignment.
 struct HeapInterface
 {
   static bool alloc(Allocator self, usize alignment, usize size, u8 **mem);
@@ -108,7 +107,6 @@ inline constexpr AllocatorInterface heap_interface{
     .realloc      = HeapInterface::realloc,
     .dealloc      = HeapInterface::dealloc};
 
-/// guarantees at least MAX_STANDARD_ALIGNMENT alignment.
 inline constexpr AllocatorImpl heap_allocator{.self      = nullptr,
                                               .interface = &heap_interface};
 

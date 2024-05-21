@@ -69,9 +69,17 @@ constexpr f64 F64_MAX          = DBL_MAX;
 constexpr f32 F64_EPSILON      = DBL_EPSILON;
 
 constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
-constexpr usize CACHELINE_ALIGNMENT    = 64;
 
-constexpr uid UID_INVALID = U64_MAX;
+/// @brief Just a hint, this is a common cacheline size. not the actual target's
+/// cacheline size
+constexpr usize CACHELINE_ALIGNMENT =
+    std::hardware_destructive_interference_size;
+
+/// @brief Just a hint, this is the common page alignment. not the actual
+/// target's page alignment.
+constexpr usize PAGE_ALIGNMENT = 4096;
+
+constexpr uid UID_MAX = U64_MAX;
 
 constexpr f32 PI = 3.14159265358979323846f;
 
@@ -1766,6 +1774,21 @@ constexpr Vec4 normalize(Vec4 a)
   return a * inverse_sqrt(dot(a, a));
 }
 
+constexpr f32 length(Vec2 a)
+{
+  return sqrtf(dot(a, a));
+}
+
+constexpr f32 length(Vec3 a)
+{
+  return sqrtf(dot(a, a));
+}
+
+constexpr f32 length(Vec4 a)
+{
+  return sqrtf(dot(a, a));
+}
+
 struct Mat2
 {
   Vec2 rows[2] = {};
@@ -3186,28 +3209,28 @@ struct [[nodiscard]] SourceLocation
 
 #if ASH_HAS_BUILTIN(LINE) || (defined(__cpp_lib_source_location) && \
                               __cpp_lib_source_location >= 201907L)
-      uint_least32_t line = __builtin_LINE(),
+      u32 line = __builtin_LINE(),
 #elif defined(__LINE__)
-      uint_least32_t line = __LINE__,
+      u32 line = __LINE__,
 #else
-      uint_least32_t line = 0,
+      u32 line = 0,
 #endif
 
 #if ASH_HAS_BUILTIN(COLUMN) || (defined(__cpp_lib_source_location) && \
                                 __cpp_lib_source_location >= 201907L)
-      uint_least32_t column = __builtin_COLUMN()
+      u32 column = __builtin_COLUMN()
 #else
-      uint_least32_t column = 0
+      u32 column = 0
 #endif
   )
   {
     return SourceLocation{file, function, line, column};
   }
 
-  char const    *file     = "";
-  char const    *function = "";
-  uint_least32_t line     = 0;
-  uint_least32_t column   = 0;
+  char const *file     = "";
+  char const *function = "";
+  u32         line     = 0;
+  u32         column   = 0;
 };
 
 template <typename EnumType>

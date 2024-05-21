@@ -159,9 +159,9 @@ struct Includer : glslang::TShader::Includer
     {
       Vec<char> *blob = (Vec<char> *) result->userData;
       blob->reset();
-      default_allocator.t_dealloc(blob, 1);
+      default_allocator.ndealloc(blob, 1);
       result->~IncludeResult();
-      default_allocator.t_dealloc(result, 1);
+      default_allocator.ndealloc(result, 1);
     }
   }
 
@@ -245,7 +245,7 @@ struct Includer : glslang::TShader::Includer
   IncludeResult *include_file(char const *header_name, char const *path)
   {
     Vec<u8> *blob;
-    if (!default_allocator.t_alloc(1, &blob))
+    if (!default_allocator.nalloc(1, &blob))
     {
       return nullptr;
     }
@@ -254,7 +254,7 @@ struct Includer : glslang::TShader::Includer
       if (blob != nullptr)
       {
         blob->reset();
-        default_allocator.t_dealloc(blob, 1);
+        default_allocator.ndealloc(blob, 1);
       }
     }};
 
@@ -264,7 +264,7 @@ struct Includer : glslang::TShader::Includer
     }
 
     IncludeResult *result;
-    if (!default_allocator.t_alloc(1, &result))
+    if (!default_allocator.nalloc(1, &result))
     {
       return nullptr;
     }
@@ -436,7 +436,7 @@ ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
   }
   else
   {
-    CHECK(false);
+    CHECK_DESC(false, "invalid shader extension");
   }
 
   Vec<char> file_path;

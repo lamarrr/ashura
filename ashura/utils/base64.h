@@ -4,7 +4,6 @@
 #include <utility>
 
 #include "ashura/primitives.h"
-#include "stx/span.h"
 
 namespace ash
 {
@@ -18,7 +17,7 @@ inline bool is_base64(char c)
   return isalnum(c) || (c == '+') || (c == '/');
 }
 
-std::string base64_encode(stx::Span<char const> data)
+std::string base64_encode(Span<char const> data)
 {
   usize       in_len          = data.size();
   char const *bytes_to_encode = data.data();
@@ -77,7 +76,7 @@ std::string base64_encode(stx::Span<char const> data)
   return ret;
 }
 
-std::string base64_decode(stx::Span<char const> enc)
+std::string base64_decode(Span<char const> enc)
 {
   char const *encoded_string = enc.data();
   usize       in_len         = enc.size();

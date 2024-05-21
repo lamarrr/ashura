@@ -3,12 +3,19 @@
 
 namespace ash
 {
-// monotonic system clock
-using Clock               = std::chrono::steady_clock;
-using HighResolutionClock = std::chrono::high_resolution_clock;
-using Timepoint           = Clock::time_point;
-using Nanoseconds         = std::chrono::nanoseconds;
-using Milliseconds        = std::chrono::milliseconds;
-using Seconds             = std::chrono::seconds;
+using std::chrono::days;
+using std::chrono::high_resolution_clock;
+using std::chrono::hours;
+using std::chrono::microseconds;
+using std::chrono::milliseconds;
+using std::chrono::minutes;
+using std::chrono::months;
+using std::chrono::nanoseconds;
+using std::chrono::seconds;
+using std::chrono::steady_clock;
+using std::chrono::years;
+using namespace std::chrono_literals;
+
+using std::chrono::duration_cast;
 
 }        // namespace ash

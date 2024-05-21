@@ -1,7 +1,5 @@
 #include "ashura/context.h"
 #include "ashura/subsystems/http_client.h"
-#include "stx/scheduler.h"
-#include "stx/scheduler/scheduling/await.h"
 #include "gtest/gtest.h"
 
 using namespace ash;
@@ -10,15 +8,15 @@ Context _ctx;
 
 TEST(Http, HttpClient)
 {
-  HttpClient         client{stx::os_allocator};
-  stx::TaskScheduler scheduler{stx::os_allocator,
+  HttpClient         client{os_allocator};
+  TaskScheduler scheduler{os_allocator,
                                std::chrono::steady_clock::now()};
   auto [response, monitor] =
-      client.get(stx::string::make_static("https://github.com"));
+      client.get(string::make_static("https://github.com"));
 
-  stx::Future<void> a = stx::sched::await(
+  Future<void> a = sched::await(
       scheduler,
-      [](stx::Future<HttpResponse> response) {
+      [](Future<HttpResponse> response) {
         auto httpResponse = response.ref().unwrap();
         EXPECT_EQ(httpResponse->code, 200);
         EXPECT_FALSE(httpResponse->header.is_empty());
@@ -26,7 +24,7 @@ TEST(Http, HttpClient)
         EXPECT_EQ(httpResponse->uploaded, 0);
         EXPECT_GT(httpResponse->downloaded, 0);
       },
-      stx::NORMAL_PRIORITY, {}, response.share());
+      NORMAL_PRIORITY, {}, response.share());
 
   // Wait for the completion of the future
   while (!a.is_done())

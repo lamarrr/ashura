@@ -7,12 +7,12 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                          u32 p_buffering, gfx::Extent p_initial_extent,
                          ShaderMap p_shader_map)
 {
-  CHECK(p_buffering <= 4 && p_buffering > 0);
+  CHECK(p_buffering <= gfx::MAX_FRAME_BUFFERING && p_buffering > 0);
   CHECK(p_initial_extent.x > 0 && p_initial_extent.y > 0);
   device = p_device;
 
-  gfx::Format color_format         = gfx::Format::Undefined;
-  gfx::Format depth_stencil_format = gfx::Format::Undefined;
+  gfx::Format sel_color_format         = gfx::Format::Undefined;
+  gfx::Format sel_depth_stencil_format = gfx::Format::Undefined;
 
   if (p_use_hdr)
   {
@@ -23,7 +23,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
             .unwrap();
     if (has_bits(properties.optimal_tiling_features, COLOR_FEATURES))
     {
-      color_format = gfx::Format::R16G16B16A16_SFLOAT;
+      sel_color_format = gfx::Format::R16G16B16A16_SFLOAT;
     }
     else
     {
@@ -32,25 +32,25 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
     }
   }
 
-  if (color_format == gfx::Format::Undefined)
+  if (sel_color_format == gfx::Format::Undefined)
   {
     gfx::FormatProperties properties =
         device->get_format_properties(device.self, gfx::Format::B8G8R8A8_UNORM)
             .unwrap();
     if (has_bits(properties.optimal_tiling_features, COLOR_FEATURES))
     {
-      color_format = gfx::Format::B8G8R8A8_UNORM;
+      sel_color_format = gfx::Format::B8G8R8A8_UNORM;
     }
   }
 
-  if (color_format == gfx::Format::Undefined)
+  if (sel_color_format == gfx::Format::Undefined)
   {
     gfx::FormatProperties properties =
         device->get_format_properties(device.self, gfx::Format::R8G8B8A8_UNORM)
             .unwrap();
     if (has_bits(properties.optimal_tiling_features, COLOR_FEATURES))
     {
-      color_format = gfx::Format::R8G8B8A8_UNORM;
+      sel_color_format = gfx::Format::R8G8B8A8_UNORM;
     }
   }
 
@@ -61,11 +61,11 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
             .unwrap();
     if (has_bits(properties.optimal_tiling_features, DEPTH_STENCIL_FEATURES))
     {
-      depth_stencil_format = gfx::Format::D16_UNORM_S8_UINT;
+      sel_depth_stencil_format = gfx::Format::D16_UNORM_S8_UINT;
     }
   }
 
-  if (depth_stencil_format == gfx::Format::Undefined)
+  if (sel_depth_stencil_format == gfx::Format::Undefined)
   {
     gfx::FormatProperties properties =
         device
@@ -73,20 +73,20 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
             .unwrap();
     if (has_bits(properties.optimal_tiling_features, DEPTH_STENCIL_FEATURES))
     {
-      depth_stencil_format = gfx::Format::D24_UNORM_S8_UINT;
+      sel_depth_stencil_format = gfx::Format::D24_UNORM_S8_UINT;
     }
   }
 
-  CHECK_EX("Device doesn't support any known color format",
-           color_format != gfx::Format::Undefined);
-  CHECK_EX("Device doesn't support any depth stencil format",
-           depth_stencil_format != gfx::Format::Undefined);
+  CHECK_DESC(sel_color_format != gfx::Format::Undefined,
+             "Device doesn't support any known color format");
+  CHECK_DESC(sel_depth_stencil_format != gfx::Format::Undefined,
+             "Device doesn't support any depth stencil format");
 
-  pipeline_cache             = nullptr;
-  buffering                  = p_buffering;
-  shader_map                 = p_shader_map;
-  this->color_format         = color_format;
-  this->depth_stencil_format = depth_stencil_format;
+  pipeline_cache       = nullptr;
+  buffering            = p_buffering;
+  shader_map           = p_shader_map;
+  color_format         = sel_color_format;
+  depth_stencil_format = sel_depth_stencil_format;
 
   recreate_framebuffers(p_initial_extent);
 
@@ -321,7 +321,7 @@ void destroy_temporal_objects(gfx::DeviceImpl const  &d,
         d->destroy_buffer_view(d.self, obj.buffer_view);
         break;
       default:
-        CHECK(false);
+        UNREACHABLE();
     }
   }
 }

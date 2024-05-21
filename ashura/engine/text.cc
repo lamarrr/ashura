@@ -103,7 +103,7 @@ void layout(TextBlock const &block, f32 text_scale_factor,
   ASH_CHECK(shaping_buffer != nullptr);
 
   /// Text Style Font Resolution ///
-  stx::Vec<usize> resolved_fonts;
+  Vec<usize> resolved_fonts;
 
   for (TextStyle const &style : block.styles)
   {
@@ -170,7 +170,7 @@ void layout(TextBlock const &block, f32 text_scale_factor,
           (usize) (run_text_begin - block.text.data());
       SBLevel const run_level =
           paragraph_levels[run_text_begin - paragraph_text_begin];
-      stx::utf8_next((u8 const *&) run_text_end);
+      utf8_next((u8 const *&) run_text_end);
       while (!(run_block_text_offset >= script_agent->offset &&
                run_block_text_offset <
                    (script_agent->offset + script_agent->length))) [[unlikely]]
@@ -221,7 +221,7 @@ void layout(TextBlock const &block, f32 text_scale_factor,
         SBLevel const level =
             paragraph_levels[run_text_end - paragraph_text_begin];
         char const *p_next_codepoint = run_text_end;
-        stx::utf8_next((u8 const *&) p_next_codepoint);
+        utf8_next((u8 const *&) p_next_codepoint);
         usize istyle =
             block.styles.size();        // find the style intended for this code
                                         // point (if any, otherwise default)
@@ -267,7 +267,7 @@ void layout(TextBlock const &block, f32 text_scale_factor,
         {
           char const       *p_next_codepoint = segment_text_end;
           SBCodepoint const codepoint =
-              stx::utf8_next((u8 const *&) p_next_codepoint);
+              utf8_next((u8 const *&) p_next_codepoint);
 
           if (codepoint == ' ' || codepoint == '\t')
           {

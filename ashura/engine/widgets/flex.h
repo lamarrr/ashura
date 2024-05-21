@@ -5,7 +5,6 @@
 #include <utility>
 
 #include "ashura/widget.h"
-#include "stx/vec.h"
 
 namespace ash
 {
@@ -60,7 +59,7 @@ struct Flex : public Widget
   }
 
   /// takes ownership of the children
-  void update_children(stx::Span<Widget *const> new_children)
+  void update_children(Span<Widget *const> new_children)
   {
     for (Widget *child : children)
     {
@@ -71,7 +70,7 @@ struct Flex : public Widget
     children.extend(new_children).unwrap();
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &ctx) override
+  virtual Span<Widget *const> get_children(Context &ctx) override
   {
     return children;
   }
@@ -82,15 +81,15 @@ struct Flex : public Widget
   }
 
   virtual void allocate_size(Context &ctx, Vec2 allocated_size,
-                             stx::Span<Vec2> children_allocation) override
+                             Span<Vec2> children_allocation) override
   {
     children_allocation.fill(props.frame.resolve(allocated_size));
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     Vec2 frame = props.frame.resolve(allocated_size);
     Vec2 span;
@@ -370,7 +369,7 @@ struct Flex : public Widget
   }
 
   FlexProps          props;
-  stx::Vec<Widget *> children;
+  Vec<Widget *> children;
 };
 
 }        // namespace gui

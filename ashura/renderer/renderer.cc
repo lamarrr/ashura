@@ -82,7 +82,7 @@ Option<uid> RenderServer::add_object(uid pass, uid pass_object_id,
   return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid> {
     SceneNode *parent = nullptr;
 
-    if (parent_id != UID_INVALID)
+    if (parent_id != UID_MAX)
     {
       if (!scene->objects.id_map.try_get(parent_id, parent,
                                          scene->objects.node))
@@ -93,7 +93,7 @@ Option<uid> RenderServer::add_object(uid pass, uid pass_object_id,
 
     u32 const   depth = parent == nullptr ? 0 : (parent->depth + 1);
     uid const next_sibling =
-        parent == nullptr ? UID_INVALID : parent->first_child;
+        parent == nullptr ? UID_MAX : parent->first_child;
     uid object_id;
     if (!scene->objects.id_map.push(
             [&](uid in_object_id, u32) {
@@ -134,7 +134,7 @@ static void collect_nodes(Scene const &scene, Vec<uid> &ids, uid id)
 
   uid child_id = object.first_child;
 
-  while (child_id != UID_INVALID)
+  while (child_id != UID_MAX)
   {
     collect_nodes(scene, ids, child_id);
     child_id = scene.objects.node[scene.objects.id_map[child_id]].next_sibling;
@@ -156,25 +156,25 @@ static void remove_node(RenderServer &server, uid scene_id, Scene &scene,
   }
 
   uid const parent_id = object.parent;
-  if (parent_id != UID_INVALID)
+  if (parent_id != UID_MAX)
   {
     SceneNode &parent = scene.objects.node[scene.objects.id_map[parent_id]];
     if (parent.first_child == scene_object_id)
     {
-      if (object.next_sibling != UID_INVALID)
+      if (object.next_sibling != UID_MAX)
       {
         parent.first_child = object.next_sibling;
       }
       else
       {
-        parent.first_child = UID_INVALID;
+        parent.first_child = UID_MAX;
       }
     }
     else
     {
       uid sibling_id = parent.first_child;
 
-      while (sibling_id != UID_INVALID)
+      while (sibling_id != UID_MAX)
       {
         SceneNode &sibling =
             scene.objects.node[scene.objects.id_map[sibling_id]];
@@ -628,7 +628,7 @@ void RenderServer::tick()
     pass.interface->begin_frame(pass.self, this, &encoder);
   }
 
-  if (view_group.root_view != UID_INVALID)
+  if (view_group.root_view != UID_MAX)
   {
     // render scene to offscreen image, and then perform
     // post-fx, and then composite back to parent view

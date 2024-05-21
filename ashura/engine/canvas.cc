@@ -1,6 +1,6 @@
 
-inline stx::Span<Vertex2d> rect(Vec2 offset, Vec2 extent, Vec4 color,
-                                stx::Span<Vertex2d> polygon)
+inline Span<Vertex2d> rect(Vec2 offset, Vec2 extent, Vec4 color,
+                                Span<Vertex2d> polygon)
 {
   Vertex2d const vertices[] = {
       {.position = offset, .uv = {}, .color = color},
@@ -11,9 +11,9 @@ inline stx::Span<Vertex2d> rect(Vec2 offset, Vec2 extent, Vec4 color,
   return polygon.copy(vertices);
 }
 
-inline stx::Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end,
+inline Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end,
                                u32 nsegments, Vec4 color,
-                               stx::Span<Vertex2d> polygon)
+                               Span<Vertex2d> polygon)
 {
   begin = to_radians(begin);
   end   = to_radians(end);
@@ -33,8 +33,8 @@ inline stx::Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end,
   return polygon;
 }
 
-inline stx::Span<Vertex2d> circle(Vec2 offset, f32 radius, u32 nsegments,
-                                  Vec4 color, stx::Span<Vertex2d> polygon)
+inline Span<Vertex2d> circle(Vec2 offset, f32 radius, u32 nsegments,
+                                  Vec4 color, Span<Vertex2d> polygon)
 {
   if (nsegments == 0 || radius <= 0)
   {
@@ -52,8 +52,8 @@ inline stx::Span<Vertex2d> circle(Vec2 offset, f32 radius, u32 nsegments,
   return polygon;
 }
 
-inline stx::Span<Vertex2d> ellipse(Vec2 offset, Vec2 radii, u32 nsegments,
-                                   Vec4 color, stx::Span<Vertex2d> polygon)
+inline Span<Vertex2d> ellipse(Vec2 offset, Vec2 radii, u32 nsegments,
+                                   Vec4 color, Span<Vertex2d> polygon)
 {
   if (nsegments == 0 || radii.x <= 0 || radii.y <= 0)
   {
@@ -72,9 +72,9 @@ inline stx::Span<Vertex2d> ellipse(Vec2 offset, Vec2 radii, u32 nsegments,
 }
 
 // outputs 8 + nsegments * 4 vertices
-inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii,
+inline Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii,
                                       u32 nsegments, Vec4 color,
-                                      stx::Span<Vertex2d> polygon)
+                                      Span<Vertex2d> polygon)
 {
   f32 max_radius   = min(extent.x, extent.y);
   radii.x          = min(radii.x, max_radius);
@@ -154,8 +154,8 @@ inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii,
   return polygon;
 }
 
-inline stx::Span<Vertex2d> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii,
-                                      Vec4 color, stx::Span<Vertex2d> polygon)
+inline Span<Vertex2d> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii,
+                                      Vec4 color, Span<Vertex2d> polygon)
 {
   f32 max_radius   = min(extent.x, extent.y);
   radii.x          = min(radii.x, max_radius);
@@ -186,7 +186,7 @@ inline stx::Span<Vertex2d> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii,
   return polygon.copy(vertices);
 }
 
-inline stx::Span<Vertex2d> lerp_uvs(stx::Span<Vertex2d> path, Vec2 extent,
+inline Span<Vertex2d> lerp_uvs(Span<Vertex2d> path, Vec2 extent,
                                     Vec2 uv0, Vec2 uv1)
 {
   for (Vertex2d &v : path)
@@ -200,7 +200,7 @@ inline stx::Span<Vertex2d> lerp_uvs(stx::Span<Vertex2d> path, Vec2 extent,
   return path;
 }
 
-inline stx::Span<Vertex2d> lerp_color_gradient(stx::Span<Vertex2d> path,
+inline Span<Vertex2d> lerp_color_gradient(Span<Vertex2d> path,
                                                Vec2                extent,
                                                LinearColorGradient gradient)
 {

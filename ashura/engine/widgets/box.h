@@ -50,7 +50,7 @@ struct Box : public Widget
   STX_DEFAULT_MOVE(Box)
 
   virtual void allocate_size(Context &ctx, Vec2 allocated_size,
-                             stx::Span<Vec2> children_allocation) override
+                             Span<Vec2> children_allocation) override
   {
     Vec2 const box_size   = props.border_thickness * 2 + props.padding.xy();
     Vec2       child_size = allocated_size - box_size;
@@ -60,9 +60,9 @@ struct Box : public Widget
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     if (children.size() > 0)
     {
@@ -74,7 +74,7 @@ struct Box : public Widget
         (children.size() > 0 ? children_sizes[0] : Vec2{0, 0}));
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &ctx) override
+  virtual Span<Widget *const> get_children(Context &ctx) override
   {
     return children;
   }
@@ -142,7 +142,7 @@ struct Box : public Widget
     children[0] = widget;
   }
 
-  stx::Vec<Widget *> children;
+  Vec<Widget *> children;
   BoxProps           props;
 };
 }        // namespace gui

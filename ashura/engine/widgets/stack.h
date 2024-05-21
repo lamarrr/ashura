@@ -2,7 +2,6 @@
 
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
-#include "stx/vec.h"
 
 namespace ash
 {
@@ -47,7 +46,7 @@ struct Stack : public Widget
   }
 
   /// takes ownership of the children
-  void update_children(stx::Span<Widget *const> new_children)
+  void update_children(Span<Widget *const> new_children)
   {
     for (Widget *child : children)
     {
@@ -58,7 +57,7 @@ struct Stack : public Widget
     children.extend(new_children).unwrap();
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &ctx) override
+  virtual Span<Widget *const> get_children(Context &ctx) override
   {
     return children;
   }
@@ -69,15 +68,15 @@ struct Stack : public Widget
   }
 
   virtual void allocate_size(Context &ctx, Vec2 allocated_size,
-                             stx::Span<Vec2> children_allocation) override
+                             Span<Vec2> children_allocation) override
   {
     children_allocation.fill(props.frame.resolve(allocated_size));
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     Vec2 size;
 
@@ -99,7 +98,7 @@ struct Stack : public Widget
   }
 
   virtual i32 z_stack(Context &ctx, i32 allocated_z_index,
-                      stx::Span<i32> children_allocation) override
+                      Span<i32> children_allocation) override
   {
     i32 next_z_index = allocated_z_index + 1;
 
@@ -112,8 +111,8 @@ struct Stack : public Widget
     return allocated_z_index;
   }
 
-  StackProps         props;
-  stx::Vec<Widget *> children;
+  StackProps    props;
+  Vec<Widget *> children;
 };
 
 }        // namespace gui

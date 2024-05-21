@@ -253,8 +253,12 @@
 #endif
 
 #if ASH_CFG(COMPILER, GNUC) || ASH_CFG(COMPILER, CLANG) || \
-    ASH_CFG(COMPILER, MSVC) || ASH_CFG(COMPILER, NVCC)
-#  define ASH_RESTRICT __restrict
+    ASH_CFG(COMPILER, NVCC)
+#  define ASH_RESTRICT __restrict__
 #else
-#  define ASH_RESTRICT
+#  if ASH_CFG(COMPILER, MSVC)
+#    define ASH_RESTRICT __restrict
+#  else
+#    define ASH_RESTRICT
+#  endif
 #endif

@@ -79,14 +79,10 @@ constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
   }
 }
 
-// destroys elements that don't match a predicate,
-// the uninitialized range, no-op
-// for trivially destructible types
+/// destroys elements that don't match a predicate.
+/// warning: the order of elements are not preserved!
 template <typename T, typename Predicate>
-constexpr Span<T> destruct_if(Span<T> span, usize &destroy_start);
-
-// moves the elements to the end of the range if predicate is true
-constexpr void relocate_if();
+constexpr void destruct_if(Span<T> span, usize& new_size);
 
 template <OutputRange R, typename U>
 constexpr void fill(R &&dst, U &&value)
@@ -208,7 +204,7 @@ constexpr bool ends_with(B &&body, F &&foot, Cmp &&cmp = {})
   return true;
 }
 
-// size is 0 if not found, size is 1 if found
+/// size is 0 if not found, size is 1 if found
 template <typename T, typename U, typename Cmp = Equal>
 constexpr Span<T> find(Span<T> span, U &&value, Cmp &&cmp = {})
 {
@@ -424,8 +420,8 @@ constexpr void sort(S &&span, Cmp &&cmp = {})
   std::sort(begin(span), end(span), cmp);
 }
 
-template <typename S, typename Key>
-constexpr void radix_sort(S &&, Key && = {})
+template <typename T, typename K>
+constexpr void radix_sort(Span<T>, Span<K>)
 {
   // usize frequency[256];
 }

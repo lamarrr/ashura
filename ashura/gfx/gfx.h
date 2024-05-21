@@ -1,7 +1,5 @@
 #pragma once
 #include "ashura/std/allocator.h"
-#include "ashura/std/error.h"
-#include "ashura/std/log.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
@@ -1428,7 +1426,6 @@ struct InstanceImpl
 };
 
 Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
-                                                    Logger       *logger,
                                                     bool enable_validation);
 
 }        // namespace gfx

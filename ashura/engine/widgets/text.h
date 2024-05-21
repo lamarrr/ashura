@@ -18,7 +18,7 @@ struct TextProps
 struct Text : public Widget
 {
   explicit Text(std::string_view itext, TextProps iprops = {}) :
-      text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{iprops}
+      text{string::make(os_allocator, itext).unwrap()}, props{iprops}
   {
   }
 
@@ -28,9 +28,9 @@ struct Text : public Widget
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     if (is_layout_dirty ||
         text_layout.text_scale_factor != ctx.text_scale_factor)
@@ -76,12 +76,12 @@ struct Text : public Widget
 
   void update_text(std::string_view itext, TextProps iprops)
   {
-    text            = stx::string::make(stx::os_allocator, itext).unwrap();
+    text            = string::make(os_allocator, itext).unwrap();
     props           = iprops;
     is_layout_dirty = true;
   }
 
-  stx::String text;
+  String text;
   TextProps   props;
   TextLayout  text_layout;
   bool        is_layout_dirty = true;
