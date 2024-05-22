@@ -9,7 +9,7 @@ struct StopToken
 {
   std::atomic<bool> req_ = false;
 
-  bool stop_requested() const
+  bool is_stop_requested() const
   {
     return req_.load(std::memory_order_relaxed) &&
            req_.load(std::memory_order_acquire);

@@ -18,7 +18,6 @@ namespace ash
 
 /// @thread: thread to schedule task on. main thread is always thread 0. U32_MAX
 /// means any thread.
-// TODO(lamarrr): Fn<bool(void *)>; - external poll, i.e. on gpu work ready>????
 struct ScheduleInfo
 {
   Fn<bool(void *&)>     task             = to_fn([](void *&) { return false; });
@@ -45,15 +44,6 @@ struct ScheduleInfo
 /// how to poll work from GPU or audio and video provider. i.e. network
 ///
 ///
-/// TODO(lamarrr): remove
-struct PollInfo
-{
-  Span<char const> label                  = {};
-  Fn<bool(void *)> task                   = {};
-  bool             is_context_thread_safe = false;
-  void            *context                = nullptr;
-  uid              thread                 = UID_MAX;
-};
 
 /// all tasks execute out-of-order. but have dependencies enforced by
 /// semaphores.
@@ -81,8 +71,6 @@ struct Scheduler
   virtual u32  num_dedicated_threads()                      = 0;
   virtual void schedule(ScheduleInfo const &info)           = 0;
   virtual void execute_main_thread_work(u64 timeout_ns)     = 0;
-  virtual uid  add_poll(PollInfo const &)                   = 0;
-  virtual void remove_poll(uid poll)                        = 0;
 };
 
 extern Scheduler *scheduler;

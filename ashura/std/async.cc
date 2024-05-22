@@ -42,7 +42,7 @@ struct Task
   u64 *ASH_RESTRICT                 awaits     = nullptr;
   usize                             num_awaits = 0;
   Fn<bool(void *&)>                 task = to_fn([](void *&) { return false; });
-  void *ASH_RESTRICT                data = nullptr;
+  void                             *data = nullptr;
   usize                             num_increments = 0;
   usize                             num_signals    = 0;
   Semaphore *ASH_RESTRICT           increment_sems = nullptr;
@@ -67,19 +67,40 @@ struct Task
 /// arenas are not shared across queues.
 ///
 /// @allocator: must be thread-safe.
-///
+/// @head: circular linked list
 ///
 struct TaskQueue
 {
-  SpinLock                          lock           = {};
-  ListNode<Task> *ASH_RESTRICT      tasks          = nullptr;
-  ListNode<TaskArena> *ASH_RESTRICT current_arena  = nullptr;
-  ListNode<TaskArena> *ASH_RESTRICT arena_freelist = nullptr;
-  // AllocatorImpl                     allocator      = default_allocator;
-};
+  SpinLock   lock  = {};
+  List<Task> tasks = {};
 
-/// @brief return memory from the arena free list back to the allocator.
-static void purge_memory(TaskQueue &q);
+  ListNode<Task> *pop_task(uid thread)
+  {
+    lock.lock();
+    ListNode<Task> *t = tasks.pop_front();
+    lock.unlock();
+    return t;
+  }
+
+  ListNode<Task> *pop_thread_task(uid thread)
+  {
+    lock.lock();
+    // pop from front if matches cond
+    // TODO(lamarrr): if task requires a specific thread, it will starve!, we
+    // can't be checking each and every task and lead to O(n) worst case, or
+    // hold the list for too long.
+    // only dedicated threads should handle specific tasks.
+    lock.unlock();
+    return nullptr;
+  }
+
+  void insert_task(ListNode<Task> *t)
+  {
+    lock.lock();
+    tasks.extend_back(List{t});
+    lock.unlock();
+  }
+};
 
 /// @dedicated_queue: only used when the thread is a dedicated thread.
 ///
@@ -91,12 +112,6 @@ struct alignas(CACHELINE_ALIGNMENT) WorkerThread
   std::thread thread          = {};
   nanoseconds max_sleep       = {};
 };
-
-static bool poll_task(Task const &t)
-{
-  return await_semaphores({t.await_sem, t.num_awaits}, {t.awaits, t.num_awaits},
-                          0);
-}
 
 static void complete_task(Task const &t)
 {
@@ -116,15 +131,53 @@ static void worker_task(WorkerThread &t, TaskQueue &gq)
   u64 poll = 0;
   do
   {
-    lock->lock();
-    if (true)
+    gq.lock.lock();
+    ListNode<Task> *task = gq.pop_task(t.id, false);
+    gq.lock.unlock();
+
+    if (task == nullptr)
     {
-      poll = 0;
-      // exec task
+      sleepy_backoff(poll, t.max_sleep);
+      poll++;
+      continue;
     }
-    lock->unlock();
-    sleepy_backoff(poll, responsiveness);
-  } while (!token->stop_requested());
+
+    if (!await_semaphores({task->v.await_sem, task->v.num_awaits},
+                          {task->v.awaits, task->v.num_awaits}, 0))
+    {
+      gq.lock.lock();
+      gq.insert_task(task);
+      gq.lock.unlock();
+      continue;
+    }
+
+    // finally gotten a ready task, resetting here will prevent spinning when
+    // we've gotten multiple tasks but none have been ready.
+    poll = 0;
+
+    bool const should_requeue = task->v.task(task->v.data);
+
+    for (usize i = 0; i < task->v.num_signals; i++)
+    {
+      signal_semaphore(task->v.signal_sems[i], task->v.signals[i]);
+    }
+
+    for (usize i = 0; i < task->v.num_increments; i++)
+    {
+      signal_semaphore(task->v.increment_sems[i], task->v.increments[i]);
+    }
+
+    if (should_requeue)
+    {
+      gq.lock.lock();
+      // add back to end of queue
+      gq.lock.unlock();
+      continue;
+    }
+
+    // release arena memory
+
+  } while (!t.stop_token.is_stop_requested());
 }
 
 static void dedicated_task(WorkerThread &t)
@@ -136,10 +189,16 @@ static void main_thread_task(WorkerThread &t);
 /// TODO(lamarrr): task fairness whilst acknowledging dependencies
 struct SchedulerImpl final : Scheduler
 {
-  AllocatorImpl allocator    = default_allocator;
-  WorkerThread *threads      = nullptr;
-  u32           n_threads    = 0;
-  TaskQueue     global_queue = {};
+  AllocatorImpl                     allocator      = default_allocator;
+  WorkerThread                     *threads        = nullptr;
+  u32                               n_threads      = 0;
+  TaskQueue                         global_queue   = {};
+  ListNode<TaskArena> *ASH_RESTRICT current_arena  = nullptr;
+  ListNode<TaskArena> *ASH_RESTRICT arena_freelist = nullptr;
+
+  /// @brief return memory from the arena free list back to the allocator.
+  void purge_memory(AllocatorImpl const &src);
+  void uninit();
 
   virtual void init(u32 num_dedicated) override
   {

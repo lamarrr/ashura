@@ -4,27 +4,107 @@
 namespace ash
 {
 
-/// @brief only use for scenarios where O(1) insertion and/or removal is a must.
+/// @brief Circular Doubly-Linked list node.
 template <typename T>
 struct ListNode
 {
   ListNode<T> *next = nullptr;
+  ListNode<T> *prev = nullptr;
   T            v    = {};
 };
 
+/// @brief Circular Forward Doubly-Linked list.
+/// if head is non-null. head->next and head->prev are always non-null.
+///
+/// @warning only use for scenarios where O(1) random insertion and/or removal
+/// is a must.
 template <typename T>
-constexpr usize count(ListNode<T> const *start);
+struct List
+{
+  ListNode<T> *head = nullptr;
 
-template <typename T>
-constexpr void reverse(ListNode<T> *head);
+  static constexpr ListNode<T> *remove_node_link(ListNode<T> *&node)
+  {
+    if (node == nullptr)
+    {
+      return nullptr;
+    }
 
-template <typename T>
-constexpr bool is_cyclic(ListNode<T> const &start);
+    ListNode<T> *out = node;
 
-template <typename T>
-constexpr ListNode<T> *pop(ListNode<T> &node);
+    // 1 element
+    if (node->next == node->prev)
+    {
+      node = nullptr;
+      return out;
+    }
 
-template <typename T>
-constexpr void push(ListNode<T> &head, ListNode<T> *node);
+    node->next->prev = node->prev;
+    node->prev->next = node->next;
+    node             = node->next;
+
+    // create 1 element node
+    out->next = out;
+    out->prev = out;
+    return out;
+  }
+
+  constexpr ListNode<T> *pop_front()
+  {
+    return remove_node_link(head);
+  }
+
+  constexpr ListNode<T> *pop_back()
+  {
+    return head == nullptr ? head : remove_node_link(head->prev);
+  }
+
+  static constexpr void extend_at_node(ListNode<T> *&node, List<T> list)
+  {
+    if (list.head == nullptr)
+    {
+      return;
+    }
+
+    if (node == nullptr)
+    {
+      node = list.head;
+      return;
+    }
+
+    // adjust, such that the element at node is shifted to position +
+    // 1, and replaced with the new list's head.
+    ListNode<T> *const node_head = node;
+    ListNode<T> *const node_tail = node->prev;
+    ListNode<T> *const list_head = list.head;
+    ListNode<T> *const list_tail = list.head->prev;
+    list_head->prev              = node_head->prev;
+    list_tail->next              = node_head;
+    node_head->prev              = list_tail;
+    node_tail->next              = list_head;
+    node                         = list_head;
+    return;
+  }
+
+  constexpr void extend_front(List<T> list)
+  {
+    extend_at_node(head, list);
+  }
+
+  constexpr void extend_back(List<T> list)
+  {
+    if (head == nullptr)
+    {
+      head = list.head;
+      return;
+    }
+    extend_at_node(head->prev, list);
+  }
+
+  constexpr bool is_empty() const
+  {
+    return head == nullptr;
+  }
+};
 
 }        // namespace ash
