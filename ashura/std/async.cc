@@ -118,12 +118,12 @@ static void complete_task(Task const &t)
   }
 }
 
-static void worker_task(WorkerThread &t, TaskQueue &gq)
+static void worker_task(WorkerThread &t, TaskQueue &q)
 {
   u64 poll = 0;
   do
   {
-    ListNode<Task> *task = gq.pop_task();
+    ListNode<Task> *task = q.pop_task();
 
     if (task == nullptr)
     {
@@ -135,9 +135,7 @@ static void worker_task(WorkerThread &t, TaskQueue &gq)
     if (!await_semaphores({task->v.await_sem, task->v.num_awaits},
                           {task->v.awaits, task->v.num_awaits}, 0))
     {
-      gq.lock.lock();
-      gq.insert_task(task);
-      gq.lock.unlock();
+      q.insert_tasks(List{task});
       continue;
     }
 
@@ -159,9 +157,8 @@ static void worker_task(WorkerThread &t, TaskQueue &gq)
 
     if (should_requeue)
     {
-      gq.lock.lock();
       // add back to end of queue
-      gq.lock.unlock();
+      q.insert_tasks(List{task});
       continue;
     }
 
@@ -179,6 +176,7 @@ static void main_thread_task(WorkerThread &t);
 /// TODO(lamarrr): task fairness whilst acknowledging dependencies
 struct SchedulerImpl final : Scheduler
 {
+  SpinLock                          lock           = {};
   AllocatorImpl                     allocator      = default_allocator;
   WorkerThread                     *threads        = nullptr;
   u32                               n_threads      = 0;
