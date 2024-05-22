@@ -73,8 +73,12 @@ struct TaskQueue
 {
   SpinLock   lock  = {};
   List<Task> tasks = {};
-
-  ListNode<Task> *pop_task(uid thread)
+  // pop from front if matches cond
+  // TODO(lamarrr): if task requires a specific thread, it will starve!, we
+  // can't be checking each and every task and lead to O(n) worst case, or
+  // hold the list for too long.
+  // only dedicated threads should handle specific tasks.
+  ListNode<Task> *pop_task()
   {
     lock.lock();
     ListNode<Task> *t = tasks.pop_front();
@@ -82,22 +86,10 @@ struct TaskQueue
     return t;
   }
 
-  ListNode<Task> *pop_thread_task(uid thread)
+  void insert_tasks(List<Task> t)
   {
     lock.lock();
-    // pop from front if matches cond
-    // TODO(lamarrr): if task requires a specific thread, it will starve!, we
-    // can't be checking each and every task and lead to O(n) worst case, or
-    // hold the list for too long.
-    // only dedicated threads should handle specific tasks.
-    lock.unlock();
-    return nullptr;
-  }
-
-  void insert_task(ListNode<Task> *t)
-  {
-    lock.lock();
-    tasks.extend_back(List{t});
+    tasks.extend_back(t);
     lock.unlock();
   }
 };
@@ -131,9 +123,7 @@ static void worker_task(WorkerThread &t, TaskQueue &gq)
   u64 poll = 0;
   do
   {
-    gq.lock.lock();
-    ListNode<Task> *task = gq.pop_task(t.id, false);
-    gq.lock.unlock();
+    ListNode<Task> *task = gq.pop_task();
 
     if (task == nullptr)
     {
