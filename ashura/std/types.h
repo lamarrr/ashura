@@ -68,6 +68,8 @@ constexpr f64 F64_MIN_POSITIVE = DBL_MIN;
 constexpr f64 F64_MAX          = DBL_MAX;
 constexpr f32 F64_EPSILON      = DBL_EPSILON;
 
+constexpr uid UID_MAX = U64_MAX;
+
 constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
 
 /// @brief Just a hint, this is a common cacheline size. not the actual target's
@@ -77,8 +79,6 @@ constexpr usize CACHELINE_ALIGNMENT = 64;
 /// @brief Just a hint, this is the common page alignment. not the actual
 /// target's page alignment.
 constexpr usize PAGE_ALIGNMENT = 4096;
-
-constexpr uid UID_MAX = U64_MAX;
 
 constexpr f32 PI = 3.14159265358979323846f;
 
