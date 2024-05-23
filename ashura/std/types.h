@@ -72,8 +72,7 @@ constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
 
 /// @brief Just a hint, this is a common cacheline size. not the actual target's
 /// cacheline size
-constexpr usize CACHELINE_ALIGNMENT =
-    std::hardware_destructive_interference_size;
+constexpr usize CACHELINE_ALIGNMENT = 64;
 
 /// @brief Just a hint, this is the common page alignment. not the actual
 /// target's page alignment.
@@ -431,8 +430,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7,
-      T8) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9>
@@ -465,8 +464,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8,
-      T9) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -503,8 +502,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9,
-      T10) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -543,8 +542,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10,
-      T11) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -585,8 +584,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11,
-      T12) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -629,8 +628,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12, typename T13>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12,
-      T13) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -726,9 +725,9 @@ template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12, typename T13, typename T14,
           typename T15>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
-      T15) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13,
-                    T14, T15>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
+             T15>;
 
 template <unsigned int Index, typename Tuple>
 constexpr auto &&impl_get(Tuple &&tuple)
@@ -1774,21 +1773,6 @@ constexpr Vec4 normalize(Vec4 a)
   return a * inverse_sqrt(dot(a, a));
 }
 
-constexpr f32 length(Vec2 a)
-{
-  return sqrtf(dot(a, a));
-}
-
-constexpr f32 length(Vec3 a)
-{
-  return sqrtf(dot(a, a));
-}
-
-constexpr f32 length(Vec4 a)
-{
-  return sqrtf(dot(a, a));
-}
-
 struct Mat2
 {
   Vec2 rows[2] = {};
@@ -2488,14 +2472,22 @@ concept OutputIterator = InputIterator<It> && requires(It it) {
 
 template <typename R>
 concept InputRange = requires(R r) {
-  { begin(r) } -> InputIterator;
-  { end(r) } -> InputIterator;
+  {
+    begin(r)
+  } -> InputIterator;
+  {
+    end(r)
+  } -> InputIterator;
 };
 
 template <typename R>
 concept OutputRange = requires(R r) {
-  { begin(r) } -> OutputIterator;
-  { end(r) } -> OutputIterator;
+  {
+    begin(r)
+  } -> OutputIterator;
+  {
+    end(r)
+  } -> OutputIterator;
 };
 
 template <typename T, usize N>
@@ -2857,8 +2849,8 @@ constexpr Span<T> to_span(T (&array)[N])
 }
 
 template <typename Container>
-constexpr auto to_span(Container &container) -> decltype(Span{data(container),
-                                                              size(container)})
+constexpr auto to_span(Container &container)
+    -> decltype(Span{data(container), size(container)})
 {
   return Span{data(container), size(container)};
 }
@@ -3043,9 +3035,6 @@ constexpr Swap           swap;
 constexpr Clamp          clamp;
 
 /// Fn is a function handle and doesn't manage any lifetime.
-///
-/// it is essentially a trivial struct. it is just contains 2 pointers
-/// (dispatcher + data).
 ///
 template <typename Signature>
 struct Fn;

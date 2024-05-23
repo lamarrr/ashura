@@ -14,7 +14,6 @@ namespace ash
 // [v] inter-task data flow, reporting cancelation
 // [v] SPSC-buffer ring buffer?
 // [v] external polling contexts
-// [v] task tracers
 
 /// @thread: thread to schedule task on. main thread is always thread 0. U32_MAX
 /// means any thread.
@@ -32,19 +31,6 @@ struct ScheduleInfo
   Span<u64 const>       increments           = {};
 };
 
-/// called after work is drained from a queue and awaiting tasks.
-/// can point to another async context that provides tasks to the scheduler.
-//
-/// latency hints, i.e. async io, gpu io, etc. or more specific requirements
-/// that are set by named constants
-///
-/// store polling information. is thread_safe. actually, constraints on how many
-/// callees it can have? multi-producer or what?
-///
-/// how to poll work from GPU or audio and video provider. i.e. network
-///
-///
-
 /// all tasks execute out-of-order. but have dependencies enforced by
 /// semaphores.
 ///
@@ -60,17 +46,14 @@ struct ScheduleInfo
 /// work submitted to the main thread MUST be extremely light-weight and
 /// non-blocking.
 ///
-///
-/// if only 1 thread is supported, all tasks are executed on the main thread.
-///
 struct Scheduler
 {
-  virtual void init(u32 num_workers, u32 num_dedicated = 0) = 0;
-  virtual void uninit()                                     = 0;
-  virtual u32  num_worker_threads()                         = 0;
-  virtual u32  num_dedicated_threads()                      = 0;
-  virtual void schedule(ScheduleInfo const &info)           = 0;
-  virtual void execute_main_thread_work(u64 timeout_ns)     = 0;
+  virtual void init(u32 num_workers, Span<u64 const> dedicated) = 0;
+  virtual void uninit()                                         = 0;
+  virtual u32  num_worker_threads()                             = 0;
+  virtual u32  num_dedicated_threads()                          = 0;
+  virtual void schedule(ScheduleInfo const &info)               = 0;
+  virtual void execute_main_thread_work(u64 timeout_ns)         = 0;
 };
 
 extern Scheduler *scheduler;

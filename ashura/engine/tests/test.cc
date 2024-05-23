@@ -4,6 +4,7 @@
 #include "ashura/gfx/vulkan.h"
 #include "ashura/renderer/render_context.h"
 #include "ashura/renderer/renderer.h"
+#include "ashura/std/hash_map.h"
 #include "stdlib.h"
 #include <thread>
 
@@ -24,8 +25,7 @@ int main(int, char **)
   CHECK(win_sys != nullptr);
 
   gfx::InstanceImpl instance =
-      gfx::create_vulkan_instance(heap_allocator, default_logger, false)
-          .unwrap();
+      gfx::create_vulkan_instance(heap_allocator, false).unwrap();
 
   defer  instance_del{[&] { instance->destroy(instance.self); }};
   Window win = win_sys->create_window(instance, "Main"_span).unwrap();
@@ -95,7 +95,7 @@ int main(int, char **)
                {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
                {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
           "C:\\Users\\rlama\\Documents\\workspace\\oss\\ashura\\ashura\\shaders"_span) ==
-      ShaderCompileError::None)
+      ShaderCompileError::None);
 
   StrHashMap<gfx::Shader> shaders;
   defer                   shaders_del{[&] { shaders.reset(); }};

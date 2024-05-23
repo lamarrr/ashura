@@ -108,8 +108,7 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
       encoder.self,
       to_span({params.vertex_ssbo, params.index_ssbo, params.param_ssbo,
                params.light_ssbo, params.textures}),
-      to_span(
-          {0U, 0U, params.param_ssbo_offset, params.light_ssbo_offset}));
+      to_span<u32>({0, 0, params.param_ssbo_offset, params.light_ssbo_offset}));
   encoder->draw_indirect(encoder.self, params.indirect.buffer,
                          params.indirect.offset, params.indirect.draw_count,
                          params.indirect.stride);

@@ -26,7 +26,6 @@ struct TaskArena
 /// once task is executed, the arena holding the memory associated with the task
 /// is returned back to the source.
 ///
-///
 /// tasks are always owned exclusively. the arena holds the memory for this Task
 /// struct, and the memory for its related data. this has the advantage that
 /// accessing the struct is cache-local.
@@ -34,25 +33,24 @@ struct TaskArena
 /// @arena: always non-null. arena used to allocate the memory belonging to this
 /// task.
 ///
-///
 struct Task
 {
   uid                               thread     = UID_MAX;
-  Semaphore *ASH_RESTRICT           await_sem  = nullptr;
-  u64 *ASH_RESTRICT                 awaits     = nullptr;
   usize                             num_awaits = 0;
+  Semaphore *ASH_RESTRICT           await_sems = nullptr;
+  u64 *ASH_RESTRICT                 awaits     = nullptr;
   Fn<bool(void *&)>                 task = to_fn([](void *&) { return false; });
   void                             *data = nullptr;
   usize                             num_increments = 0;
-  usize                             num_signals    = 0;
   Semaphore *ASH_RESTRICT           increment_sems = nullptr;
   u64 *ASH_RESTRICT                 increments     = nullptr;
+  usize                             num_signals    = 0;
   Semaphore *ASH_RESTRICT           signal_sems    = nullptr;
   u64 *ASH_RESTRICT                 signals        = nullptr;
   ListNode<TaskArena> *ASH_RESTRICT arena          = nullptr;
 };
 
-/// left to decide: how to store tasks? shared global queue.
+/// TODO(lamarrr): left to decide: how to store tasks? shared global queue.
 /// check from head until find task with a matching thread id, pop from front,
 /// try to execute by checking availability, if not ready re-insert to the back
 /// of the queue.
@@ -132,7 +130,7 @@ static void worker_task(WorkerThread &t, TaskQueue &q)
       continue;
     }
 
-    if (!await_semaphores({task->v.await_sem, task->v.num_awaits},
+    if (!await_semaphores({task->v.await_sems, task->v.num_awaits},
                           {task->v.awaits, task->v.num_awaits}, 0))
     {
       q.insert_tasks(List{task});
@@ -152,7 +150,7 @@ static void worker_task(WorkerThread &t, TaskQueue &q)
 
     for (usize i = 0; i < task->v.num_increments; i++)
     {
-      signal_semaphore(task->v.increment_sems[i], task->v.increments[i]);
+      increment_semaphore(task->v.increment_sems[i], task->v.increments[i]);
     }
 
     if (should_requeue)
@@ -163,6 +161,7 @@ static void worker_task(WorkerThread &t, TaskQueue &q)
     }
 
     // release arena memory
+    // TODO(lamarrr): execute all tasks on the queue before shutting down.
 
   } while (!t.stop_token.is_stop_requested());
 }

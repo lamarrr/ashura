@@ -310,13 +310,11 @@ void load_vma_table(InstanceTable const &instance_table,
 #undef SET_VMA_DEV
 }
 
-static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
-    VkDebugUtilsMessageTypeFlagsEXT             message_type,
-    VkDebugUtilsMessengerCallbackDataEXT const *data, void *user_data)
+static VkBool32 VKAPI_ATTR VKAPI_CALL
+    debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
+                   VkDebugUtilsMessageTypeFlagsEXT             message_type,
+                   VkDebugUtilsMessengerCallbackDataEXT const *data, void *)
 {
-  Instance *const instance = (Instance *) user_data;
-
   LogLevels level = LogLevels::Trace;
   if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
   {
@@ -1357,7 +1355,7 @@ void InstanceInterface::destroy(gfx::Instance instance_)
   instance->allocator.ndealloc(instance, 1);
 }
 
-void check_device_limits(Instance *self, VkPhysicalDeviceLimits limits)
+void check_device_limits(VkPhysicalDeviceLimits limits)
 {
   sVALIDATE(limits.maxImageDimension1D >= gfx::MAX_IMAGE_EXTENT_1D);
   sVALIDATE(limits.maxImageDimension2D >= gfx::MAX_IMAGE_EXTENT_2D);
@@ -1813,7 +1811,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   PhysicalDevice selected_dev = physical_devs[selected_dev_idx];
 
-  check_device_limits(self, selected_dev.vk_properties.limits);
+  check_device_limits(selected_dev.vk_properties.limits);
   check_device_features(self, selected_dev.vk_features);
 
   default_logger->trace("Selected Device ", selected_dev_idx);
@@ -2882,7 +2880,7 @@ Result<gfx::DescriptorSet, Status>
     }};
 
     if (!heap.allocator.nrealloc(heap.num_pools, heap.num_pools + 1,
-                                  &heap.pools))
+                                 &heap.pools))
     {
       return Err{Status::OutOfHostMemory};
     }
@@ -2925,13 +2923,13 @@ Result<gfx::DescriptorSet, Status>
 
   VkDescriptorSetVariableDescriptorCountAllocateInfoEXT var_alloc_info{
       .sType =
-          VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNnallocATE_INFO_EXT,
+          VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT,
       .pNext              = nullptr,
       .descriptorSetCount = (u32) variable_lengths.size(),
       .pDescriptorCounts  = variable_lengths.data()};
 
   VkDescriptorSetAllocateInfo alloc_info{
-      .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SEnallocATE_INFO,
+      .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
       .pNext              = &var_alloc_info,
       .descriptorPool     = heap.pools[ipool].vk_pool,
       .descriptorSetCount = 1,
@@ -4556,7 +4554,6 @@ Result<Void, Status>
                                           gfx::Swapchain            swapchain_,
                                           gfx::SwapchainDesc const &desc)
 {
-  Device *const self = (Device *) self_;
   sVALIDATE(desc.preferred_extent.x > 0);
   sVALIDATE(desc.preferred_extent.y > 0);
   Swapchain *const swapchain = (Swapchain *) swapchain_;

@@ -12,6 +12,21 @@
 namespace ash
 {
 
+constexpr f32 length(Vec2 a)
+{
+  return sqrtf(dot(a, a));
+}
+
+constexpr f32 length(Vec3 a)
+{
+  return sqrtf(dot(a, a));
+}
+
+constexpr f32 length(Vec4 a)
+{
+  return sqrtf(dot(a, a));
+}
+
 template <typename SignedType>
 constexpr SignedType abs(SignedType x)
 {
