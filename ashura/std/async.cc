@@ -194,6 +194,8 @@ struct SchedulerImpl final : Scheduler
   virtual void init(Span<nanoseconds const> dedicated_thread_sleep,
                     Span<nanoseconds const> worker_thread_sleep) override
   {
+    CHECK(dedicated_thread_sleep.size() < U32_MAX);
+    CHECK(worker_thread_sleep.size() < U32_MAX);
     num_dedicated_threads = (u32) dedicated_thread_sleep.size();
     num_worker_threads    = (u32) worker_thread_sleep.size();
     CHECK(allocator.nalloc(num_dedicated_threads, &dedicated_threads));
