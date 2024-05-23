@@ -72,7 +72,7 @@ struct TaskQueue
 
 /// @dedicated_queue: only used when the thread is a dedicated thread.
 ///
-struct alignas(CACHELINE_ALIGNMENT) WorkerThread
+struct alignas(CACHELINE_ALIGNMENT) TaskThread
 {
   uid         id              = UID_MAX;
   TaskQueue   dedicated_queue = {};
@@ -84,12 +84,14 @@ struct alignas(CACHELINE_ALIGNMENT) WorkerThread
 /// @allocator: must be thread-safe.
 struct SchedulerImpl final : Scheduler
 {
-  SpinLock        lock           = {};
-  AllocatorImpl   allocator      = default_allocator;
-  WorkerThread   *threads        = nullptr;
-  u32             n_threads      = 0;
-  TaskQueue       global_queue   = {};
-  List<TaskArena> arena_freelist = {};
+  SpinLock        lock                  = {};
+  AllocatorImpl   allocator             = default_allocator;
+  TaskThread     *dedicated_threads     = nullptr;
+  TaskThread     *worker_threads        = nullptr;
+  u32             num_dedicated_threads = 0;
+  u32             num_worker_threads    = 0;
+  TaskQueue       global_queue          = {};
+  List<TaskArena> arena_freelist        = {};
 
   /// @brief return memory from the arena free list back to the allocator.
   void purge_arenas()
@@ -122,7 +124,7 @@ struct SchedulerImpl final : Scheduler
     lock.unlock();
   }
 
-  static void worker_task(WorkerThread &t, TaskQueue &q, SchedulerImpl &s,
+  static void thread_task(TaskThread &t, TaskQueue &q, SchedulerImpl &s,
                           bool is_dedicated)
   {
     u64 poll = 0;
@@ -189,22 +191,35 @@ struct SchedulerImpl final : Scheduler
     } while (!t.stop_token.is_stop_requested());
   }
 
-  virtual void init(u32 num_workers, Span<u64 const> dedicated) override
+  virtual void init(Span<nanoseconds const> dedicated_thread_sleep,
+                    Span<nanoseconds const> worker_thread_sleep) override
   {
-    u32 n = std::thread::hardware_concurrency();
-    CHECK(n > 0);
-    n         = min(1U, n - 1);
-    n_threads = n;
-    tasks     = {allocator};
-    CHECK(allocator.nalloc(n, &stop_tokens));
-    CHECK(allocator.nalloc(n, &threads));
-    CHECK(allocator.nalloc(n, &reponsiveness));
-    for (u32 i = 0; i < n; i++)
+    num_dedicated_threads = (u32) dedicated_thread_sleep.size();
+    num_worker_threads    = (u32) worker_thread_sleep.size();
+    CHECK(allocator.nalloc(num_dedicated_threads, &dedicated_threads));
+    CHECK(allocator.nalloc(num_worker_threads, &worker_threads));
+
+    for (u32 i = 0; i < num_dedicated_threads; i++)
     {
-      new (stop_tokens + i) StopToken{};
-      new (reponsiveness + i) nanoseconds{500us};
-      new (threads + i) std::thread{worker_task, stop_tokens + i, &lock, &tasks,
-                                    reponsiveness[i]};
+      new (dedicated_threads + i)
+          TaskThread{.id              = 0x0000,
+                     .dedicated_queue = {},
+                     .stop_token      = {},
+                     .thread    = std::thread{thread_task, dedicated_threads[i],
+                                           dedicated_threads[i].dedicated_queue,
+                                           *this, true},
+                     .max_sleep = dedicated_thread_sleep[i]};
+    }
+
+    for (u32 i = 0; i < num_worker_threads; i++)
+    {
+      new (worker_threads + i)
+          TaskThread{.id              = 0x0000,
+                     .dedicated_queue = {},
+                     .stop_token      = {},
+                     .thread    = std::thread{thread_task, worker_threads[i],
+                                           global_queue, *this, false},
+                     .max_sleep = worker_thread_sleep[i]};
     }
   }
 
@@ -223,7 +238,7 @@ struct SchedulerImpl final : Scheduler
 
     for (u32 i = 0; i < n_threads; i++)
     {
-      threads[i].~WorkerThread();
+      threads[i].~TaskThread();
     }
 
     allocator.ndealloc(threads, n_threads);
@@ -232,12 +247,20 @@ struct SchedulerImpl final : Scheduler
     // TODO (lamarrr): release global queue
   }
 
-  virtual void schedule(ScheduleInfo const &info) override
+  virtual void schedule_dedicated(u32 thread, TaskInfo const &info) override
   {
     // allocate
     lock.lock();
     // push onto stack.
     lock.unlock();
+  }
+
+  virtual void schedule_worker(TaskInfo const &info) override
+  {
+  }
+
+  virtual void schedule_main(TaskInfo const &info) override
+  {
   }
 
   virtual void execute_main_thread_work(nanoseconds timeout_ns) override

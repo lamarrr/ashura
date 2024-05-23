@@ -1067,7 +1067,6 @@ inline bool is_valid_image_access(gfx::ImageAspects aspects, u32 num_levels,
 }
 
 Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
-                                                  Logger       *logger,
                                                   bool enable_validation)
 {
   u32      num_exts;
@@ -1129,28 +1128,28 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     sCHECK(num_read_layers == num_layers);
   }
 
-  logger->trace("Available Extensions:");
+  default_logger->trace("Available Extensions:");
 
   for (VkExtensionProperties const &ext : Span{exts, num_exts})
   {
-    logger->trace(ext.extensionName, "\t\t(spec version ",
-                  VK_API_VERSION_MAJOR(ext.specVersion), ".",
-                  VK_API_VERSION_MINOR(ext.specVersion), ".",
-                  VK_API_VERSION_PATCH(ext.specVersion), " variant ",
-                  VK_API_VERSION_VARIANT(ext.specVersion), ")");
+    default_logger->trace(ext.extensionName, "\t\t(spec version ",
+                          VK_API_VERSION_MAJOR(ext.specVersion), ".",
+                          VK_API_VERSION_MINOR(ext.specVersion), ".",
+                          VK_API_VERSION_PATCH(ext.specVersion), " variant ",
+                          VK_API_VERSION_VARIANT(ext.specVersion), ")");
   }
 
-  logger->trace("Available Validation Layers:");
+  default_logger->trace("Available Validation Layers:");
 
   for (VkLayerProperties const &layer : Span{layers, num_layers})
   {
-    logger->trace(layer.layerName, "\t\t(spec version ",
-                  VK_API_VERSION_MAJOR(layer.specVersion), ".",
-                  VK_API_VERSION_MINOR(layer.specVersion), ".",
-                  VK_API_VERSION_PATCH(layer.specVersion), " variant ",
-                  VK_API_VERSION_VARIANT(layer.specVersion),
-                  ", implementation version: ", layer.implementationVersion,
-                  ")");
+    default_logger->trace(
+        layer.layerName, "\t\t(spec version ",
+        VK_API_VERSION_MAJOR(layer.specVersion), ".",
+        VK_API_VERSION_MINOR(layer.specVersion), ".",
+        VK_API_VERSION_PATCH(layer.specVersion), " variant ",
+        VK_API_VERSION_VARIANT(layer.specVersion),
+        ", implementation version: ", layer.implementationVersion, ")");
   }
 
   char const *load_exts[16];
@@ -1188,9 +1187,9 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     }
     else
     {
-      logger->warn("Required Vulkan "
-                   "Extension: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-                   " is not supported on device");
+      default_logger->warn("Required Vulkan "
+                           "Extension: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+                           " is not supported on device");
     }
   }
 
@@ -1214,7 +1213,7 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     }
     else
     {
-      logger->warn(
+      default_logger->warn(
           "Required Vulkan Validation Layer: VK_LAYER_KHRONOS_validation is "
           "not supported");
     }
@@ -1327,10 +1326,9 @@ namespace gfx
 {
 
 Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
-                                                    Logger       *logger,
                                                     bool enable_validation)
 {
-  return vk::create_instance(allocator, logger, enable_validation);
+  return vk::create_instance(allocator, enable_validation);
 }
 
 }        // namespace gfx
