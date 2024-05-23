@@ -8,7 +8,6 @@ namespace ash
 
 // requirements:
 // [v] result collection
-// [v] semaphore deletion
 // [v] inter-task communication
 // [v] inter-task sharing
 // [v] inter-task data flow, reporting cancelation
@@ -17,12 +16,10 @@ namespace ash
 
 /// @thread: thread to schedule task on. main thread is always thread 0. U32_MAX
 /// means any thread.
-struct ScheduleInfo
+struct TaskInfo
 {
   Fn<bool(void *&)>     task             = to_fn([](void *&) { return false; });
-  u64                   instances        = 1;
   void                 *data             = nullptr;
-  uid                   thread           = UID_MAX;
   Span<Semaphore const> await_semaphores = {};
   Span<u64 const>       awaits           = {};
   Span<Semaphore const> signal           = {};
@@ -48,12 +45,13 @@ struct ScheduleInfo
 ///
 struct Scheduler
 {
-  virtual void init(u32 num_workers, Span<u64 const> dedicated) = 0;
-  virtual void uninit()                                         = 0;
-  virtual u32  num_worker_threads()                             = 0;
-  virtual u32  num_dedicated_threads()                          = 0;
-  virtual void schedule(ScheduleInfo const &info)               = 0;
-  virtual void execute_main_thread_work(u64 timeout_ns)         = 0;
+  virtual void init(Span<nanoseconds const> dedicated_thread_sleep,
+                    Span<nanoseconds const> worker_thread_sleep)    = 0;
+  virtual void uninit()                                             = 0;
+  virtual void schedule_dedicated(u32 thread, TaskInfo const &info) = 0;
+  virtual void schedule_worker(TaskInfo const &info)                = 0;
+  virtual void schedule_main(TaskInfo const &info)                  = 0;
+  virtual void execute_main_thread_work(nanoseconds timeout)        = 0;
 };
 
 extern Scheduler *scheduler;

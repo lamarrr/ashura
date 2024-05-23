@@ -14,8 +14,7 @@ namespace ash
 
 /// memory is returned back to the scheduler once ac reaches 0.
 ///
-/// arenas are individually allocated from heap and typically span a page
-/// boundary.
+/// arenas are individually allocated from heap and span a page boundary.
 ///
 struct TaskArena
 {
@@ -50,32 +49,11 @@ struct Task
   ListNode<TaskArena> *ASH_RESTRICT arena          = nullptr;
 };
 
-/// TODO(lamarrr): left to decide: how to store tasks? shared global queue.
-/// check from head until find task with a matching thread id, pop from front,
-/// try to execute by checking availability, if not ready re-insert to the back
-/// of the queue.
-///
-/// dedicated thread will do same but have a dedicated queue.
-///
-/// the task queue is a linked list with O(1) insert and remove.
-///
-/// - Fair, mostly
-/// - Will handle degenerate dependencies well
-///
-/// arenas are not shared across queues.
-///
-/// @allocator: must be thread-safe.
-/// @head: circular linked list
-///
 struct TaskQueue
 {
   SpinLock   lock  = {};
   List<Task> tasks = {};
-  // pop from front if matches cond
-  // TODO(lamarrr): if task requires a specific thread, it will starve!, we
-  // can't be checking each and every task and lead to O(n) worst case, or
-  // hold the list for too long.
-  // only dedicated threads should handle specific tasks.
+
   ListNode<Task> *pop_task()
   {
     lock.lock();
@@ -103,91 +81,115 @@ struct alignas(CACHELINE_ALIGNMENT) WorkerThread
   nanoseconds max_sleep       = {};
 };
 
-static void complete_task(Task const &t)
-{
-  for (usize i = 0; i < t.num_increments; i++)
-  {
-    increment_semaphore(t.increment_sems[i], t.increments[i]);
-  }
-
-  for (usize i = 0; i < t.num_signals; i++)
-  {
-    signal_semaphore(t.signal_sems[i], t.signals[i]);
-  }
-}
-
-static void worker_task(WorkerThread &t, TaskQueue &q)
-{
-  u64 poll = 0;
-  do
-  {
-    ListNode<Task> *task = q.pop_task();
-
-    if (task == nullptr)
-    {
-      sleepy_backoff(poll, t.max_sleep);
-      poll++;
-      continue;
-    }
-
-    if (!await_semaphores({task->v.await_sems, task->v.num_awaits},
-                          {task->v.awaits, task->v.num_awaits}, 0))
-    {
-      q.insert_tasks(List{task});
-      continue;
-    }
-
-    // finally gotten a ready task, resetting here will prevent spinning when
-    // we've gotten multiple tasks but none have been ready.
-    poll = 0;
-
-    bool const should_requeue = task->v.task(task->v.data);
-
-    for (usize i = 0; i < task->v.num_signals; i++)
-    {
-      signal_semaphore(task->v.signal_sems[i], task->v.signals[i]);
-    }
-
-    for (usize i = 0; i < task->v.num_increments; i++)
-    {
-      increment_semaphore(task->v.increment_sems[i], task->v.increments[i]);
-    }
-
-    if (should_requeue)
-    {
-      // add back to end of queue
-      q.insert_tasks(List{task});
-      continue;
-    }
-
-    // release arena memory
-    // TODO(lamarrr): execute all tasks on the queue before shutting down.
-
-  } while (!t.stop_token.is_stop_requested());
-}
-
-static void dedicated_task(WorkerThread &t)
-{
-}
-
-static void main_thread_task(WorkerThread &t);
-
-/// TODO(lamarrr): task fairness whilst acknowledging dependencies
+/// @allocator: must be thread-safe.
 struct SchedulerImpl final : Scheduler
 {
-  SpinLock                          lock           = {};
-  AllocatorImpl                     allocator      = default_allocator;
-  WorkerThread                     *threads        = nullptr;
-  u32                               n_threads      = 0;
-  TaskQueue                         global_queue   = {};
-  ListNode<TaskArena> *ASH_RESTRICT current_arena  = nullptr;
-  ListNode<TaskArena> *ASH_RESTRICT arena_freelist = nullptr;
+  SpinLock        lock           = {};
+  AllocatorImpl   allocator      = default_allocator;
+  WorkerThread   *threads        = nullptr;
+  u32             n_threads      = 0;
+  TaskQueue       global_queue   = {};
+  List<TaskArena> arena_freelist = {};
 
   /// @brief return memory from the arena free list back to the allocator.
-  void purge_memory(AllocatorImpl const &src);
-  void uninit();
+  void purge_arenas()
+  {
+    while (true)
+    {
+      lock.lock();
 
-  virtual void init(u32 num_dedicated) override
+      ListNode<TaskArena> *arena = arena_freelist.pop_front();
+      if (arena == nullptr)
+      {
+        break;
+      }
+
+      lock.unlock();
+
+      CHECK(arena->data.ac.num_aliases() == 0);
+      allocator.dealloc(arena->data.arena.alignment, arena->data.arena.begin,
+                        arena->data.arena.size());
+      allocator.ndealloc(arena, 1);
+    }
+  }
+
+  /// @brief return unused arena memory to the scheduler
+  void return_arena(ListNode<TaskArena> *ASH_RESTRICT arena)
+  {
+    lock.lock();
+    // add to front and make the memory hot
+    arena_freelist.extend_front(List{arena});
+    lock.unlock();
+  }
+
+  static void worker_task(WorkerThread &t, TaskQueue &q, SchedulerImpl &s,
+                          bool is_dedicated)
+  {
+    u64 poll = 0;
+    do
+    {
+      ListNode<Task> *const task = q.pop_task();
+
+      if (task == nullptr)
+      {
+        sleepy_backoff(poll, t.max_sleep);
+        poll++;
+        continue;
+      }
+
+      // if a task requires a specific non-dedicated thread, it could starve.
+      // checking each and every task before popping will lead to O(n) worst
+      // case, and also cause starvation due to the spinlock on the list for too
+      // long. therefore, only dedicated threads can immediately handle tasks
+      // with specific threads.
+      if (task->data.thread != UID_MAX && task->data.thread != t.id)
+      {
+        q.insert_tasks(List{task});
+        continue;
+      }
+
+      if (!await_semaphores({task->data.await_sems, task->data.num_awaits},
+                            {task->data.awaits, task->data.num_awaits}, 0))
+      {
+        q.insert_tasks(List{task});
+        continue;
+      }
+
+      // finally gotten a ready task, resetting here will prevent  when
+      // we've gotten multiple tasks but none have been ready.
+      poll = 0;
+
+      bool const should_requeue = task->data.task(task->data.data);
+
+      for (usize i = 0; i < task->data.num_signals; i++)
+      {
+        signal_semaphore(task->data.signal_sems[i], task->data.signals[i]);
+      }
+
+      for (usize i = 0; i < task->data.num_increments; i++)
+      {
+        increment_semaphore(task->data.increment_sems[i],
+                            task->data.increments[i]);
+      }
+
+      if (should_requeue)
+      {
+        // add back to end of queue
+        q.insert_tasks(List{task});
+        continue;
+      }
+
+      // decrease alias count of arena, if only alias left, add to the arena
+      // free list.
+      if (task->data.arena->data.ac.unalias())
+      {
+        task->data.arena->data.arena.reset();
+        s.return_arena(task->data.arena);
+      }
+    } while (!t.stop_token.is_stop_requested());
+  }
+
+  virtual void init(u32 num_workers, Span<u64 const> dedicated) override
   {
     u32 n = std::thread::hardware_concurrency();
     CHECK(n > 0);
@@ -230,14 +232,6 @@ struct SchedulerImpl final : Scheduler
     // TODO (lamarrr): release global queue
   }
 
-  virtual u32 num_worker_threads()
-  {
-  }
-
-  virtual u32 num_dedicated_threads()
-  {
-  }
-
   virtual void schedule(ScheduleInfo const &info) override
   {
     // allocate
@@ -246,7 +240,7 @@ struct SchedulerImpl final : Scheduler
     lock.unlock();
   }
 
-  virtual void execute_main_thread_work(u64 timeout_ns) override
+  virtual void execute_main_thread_work(nanoseconds timeout_ns) override
   {
   }
 };

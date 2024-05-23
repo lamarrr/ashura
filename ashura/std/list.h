@@ -10,7 +10,7 @@ struct ListNode
 {
   ListNode<T> *next = nullptr;
   ListNode<T> *prev = nullptr;
-  T            v    = {};
+  T            data = {};
 };
 
 /// @brief Circular Forward Doubly-Linked list.

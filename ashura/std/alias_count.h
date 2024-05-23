@@ -21,8 +21,6 @@ namespace ash
 /// NOTE: just like reference-counting, this only guarantees synchronization of
 /// the operation it represents and instruction ordering relative to it.
 ///
-/// it uses relaxed operations in situations where it has exclusive access to
-/// the resource.
 ///
 /// References
 /// ===========
@@ -34,39 +32,43 @@ struct alias_count
   /// range: [0, USIZE_MAX], overflow is well-checked.
   std::atomic<usize> num_others_{0};
 
-  void acquire()
+  /// @brief called before sharing an object
+  void alias()
   {
-    do
-    {
-      usize expected = 0;
-      if (num_others_.compare_exchange_strong(expected, 1,
-                                              std::memory_order_relaxed,
-                                              std::memory_order_relaxed))
-      {
-        return;
-      }
-    } while (false);
-    usize const old = num_others_.fetch_add(1, std::memory_order_acquire);
-    // overflow check, transition from MAX_ALIAS_COUNT -> 0, is illegal
+    usize const old = num_others_.fetch_add(1, std::memory_order_release);
+    // overflow check, transition from USIZE_MAX -> 0, is illegal
     CHECK(old < USIZE_MAX);
   }
 
-  /// @brief returns true if it is the exclusive owner of the shared object.
-  /// subsequent calls to release() after it returns true will still return
+  /// @brief called when done with an object.
+  /// returns true if it is the exclusive owner of the shared object.
+  /// subsequent calls to unalias() after it returns true will still return
   /// true.
   ///
-  /// WARNING: if accompanied by a destructive reclamantion procedure, it will
-  /// lead to a double-release (i.e. double-free) if `release` is called again
-  /// after num_others reaches 0. alternatively, the scope could have an atomic
-  /// to check for free-s.
-  bool release()
+  /// WARNING: if accompanied by a destructive reclamation procedure and
+  /// `unalias` is called again after it has already returned true, it will lead
+  /// to a double-release (i.e. double-free).
+  bool unalias()
   {
     if (num_others_.load(std::memory_order_relaxed) == 0)
     {
-      return false;
+      return true;
     }
-    num_others_.fetch_sub(1, std::memory_order_release);
-    return false;
+
+    usize expected = 0;
+    usize desired  = 0;
+    while (!num_others_.compare_exchange_weak(expected, desired,
+                                              std::memory_order_release,
+                                              std::memory_order_relaxed))
+    {
+      desired = max((usize) 1, expected) - 1;
+    }
+    return expected == 0;
+  }
+
+  usize num_aliases() const
+  {
+    return num_others_.load(std::memory_order_relaxed);
   }
 };
 
