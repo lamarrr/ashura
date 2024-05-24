@@ -56,7 +56,7 @@ struct List
 
   constexpr ListNode<T> *pop_back()
   {
-    return head == nullptr ? head : remove_node_link(head->prev);
+    return head == nullptr ? nullptr : remove_node_link(head->prev);
   }
 
   static constexpr void extend_at_node(ListNode<T> *&node, List<T> list)

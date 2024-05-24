@@ -131,9 +131,13 @@ target_link_libraries(ashura_std PUBLIC xxHash::xxhash Threads::Threads)
 
 add_executable(
   ashura_std_tests
-  ashura/std/tests/tests.cc ashura/std/tests/option.cc
-  ashura/std/tests/hash_map.cc ashura/std/tests/result.cc
-  ashura/std/tests/bit_span.cc ashura/std/tests/sparse_set.cc)
+  ashura/std/tests/tests.cc
+  ashura/std/tests/option.cc
+  ashura/std/tests/list.cc
+  ashura/std/tests/hash_map.cc
+  ashura/std/tests/result.cc
+  ashura/std/tests/bit_span.cc
+  ashura/std/tests/sparse_set.cc)
 add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
 
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest

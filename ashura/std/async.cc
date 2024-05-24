@@ -203,30 +203,33 @@ struct SchedulerImpl final : Scheduler
 
     for (u32 i = 0; i < num_dedicated_threads; i++)
     {
-      new (dedicated_threads + i)
-          TaskThread{.id              = 0x0000,
-                     .dedicated_queue = {},
-                     .stop_token      = {},
-                     .thread    = std::thread{thread_task, dedicated_threads[i],
-                                           dedicated_threads[i].dedicated_queue,
-                                           *this, true},
-                     .max_sleep = dedicated_thread_sleep[i]};
+      new (dedicated_threads + i) TaskThread{
+          .id              = 0x0000,
+          .dedicated_queue = {},
+          .stop_token      = {},
+          .thread          = std::thread{[i, this] {
+            thread_task(dedicated_threads[i],
+                                 dedicated_threads[i].dedicated_queue, *this, true);
+          }},
+          .max_sleep       = dedicated_thread_sleep[i]};
     }
 
     for (u32 i = 0; i < num_worker_threads; i++)
     {
-      new (worker_threads + i)
-          TaskThread{.id              = 0x0000,
-                     .dedicated_queue = {},
-                     .stop_token      = {},
-                     .thread    = std::thread{thread_task, worker_threads[i],
-                                           global_queue, *this, false},
-                     .max_sleep = worker_thread_sleep[i]};
+      new (worker_threads + i) TaskThread{
+          .id              = 0x0000,
+          .dedicated_queue = {},
+          .stop_token      = {},
+          .thread          = std::thread{[i, this] {
+            thread_task(worker_threads[i], global_queue, *this, false);
+          }},
+          .max_sleep       = worker_thread_sleep[i]};
     }
   }
 
   virtual void uninit() override
   {
+    /*
     for (u32 i = 0; i < n_threads; i++)
     {
       threads[i].stop_token.request_stop();
@@ -247,6 +250,7 @@ struct SchedulerImpl final : Scheduler
     n_threads = 0;
 
     // TODO (lamarrr): release global queue
+    */
   }
 
   virtual void schedule_dedicated(u32 thread, TaskInfo const &info) override
