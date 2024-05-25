@@ -1,5 +1,7 @@
 #pragma once
+#include "ashura/std/time.h"
 #include "ashura/std/types.h"
+
 
 namespace ash
 {
@@ -66,13 +68,15 @@ void increment_semaphore(Semaphore sem, u64 inc);
 ///
 /// @brief no syscalls are made unless timeout_ns is non-zero.
 /// @param await: semaphores to wait for
-/// @param stages: stages of the semaphores to wait for. must be <=
-/// semaphore.num_stages or == U64_MAX.
+/// @param stages: stages of the semaphores to wait for completion of. must be <
+/// semaphore.num_stages or == U64_MAX. U64_MAX meaning waiting for all stages'
+/// completion.
 /// @param timeout_ns: timeout in nanoseconds to stop attempting to wait for the
 /// semaphore. U64_MAX for an infinite timeout.
 /// @return: true if all semaphores completed the expected stages before the
 /// timeout.
 [[nodiscard]] bool await_semaphores(Span<Semaphore const> await,
-                                    Span<u64 const> stages, u64 timeout_ns);
+                                    Span<u64 const>       stages,
+                                    nanoseconds           timeout);
 
 }        // namespace ash

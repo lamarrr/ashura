@@ -86,7 +86,7 @@ void increment_semaphore(Semaphore sem, u64 inc)
 }
 
 bool await_semaphores(Span<Semaphore const> semaphores, Span<u64 const> stages,
-                      u64 timeout_ns)
+                      nanoseconds timeout)
 {
   CHECK(semaphores.size() == stages.size());
   usize const n = semaphores.size();
@@ -94,14 +94,14 @@ bool await_semaphores(Span<Semaphore const> semaphores, Span<u64 const> stages,
   {
     CpuSemaphore const *s = (CpuSemaphore const *) semaphores[i];
     CHECK(s != nullptr);
-    CHECK((stages[i] == U64_MAX) || (stages[i] <= s->num_stages));
+    CHECK((stages[i] == U64_MAX) || (stages[i] < s->num_stages));
   }
 
   steady_clock::time_point begin = steady_clock::time_point{};
   for (usize i = 0; i < n; i++)
   {
     CpuSemaphore const *s     = (CpuSemaphore const *) semaphores[i];
-    u64 const           stage = min(stages[i], s->num_stages);
+    u64 const           stage = min(stages[i], s->num_stages - 1);
     u64                 poll  = 0;
     while (true)
     {
@@ -115,7 +115,7 @@ bool await_semaphores(Span<Semaphore const> semaphores, Span<u64 const> stages,
       }
 
       /// we want to avoid syscalls if timeout is 0
-      if (timeout_ns == 0)
+      if (timeout == nanoseconds{})
       {
         return false;
       }
@@ -126,7 +126,7 @@ bool await_semaphores(Span<Semaphore const> semaphores, Span<u64 const> stages,
       }
       auto const curr = steady_clock::now();
       auto const dur  = duration_cast<nanoseconds>(curr - begin);
-      if (((u64) dur.count()) > timeout_ns) [[unlikely]]
+      if (dur > timeout) [[unlikely]]
       {
         return false;
       }

@@ -5248,15 +5248,15 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
     sVALIDATE(blit.dst_offsets[1].y <= dst_extent.y);
     sVALIDATE(blit.dst_offsets[1].z <= dst_extent.z);
     sVALIDATE(!((src->desc.type == gfx::ImageType::Type1D) &&
-                (blit.src_offsets[0].y != 0 | blit.src_offsets[1].y != 1)));
+                (blit.src_offsets[0].y != 0 || blit.src_offsets[1].y != 1)));
     sVALIDATE(!((src->desc.type == gfx::ImageType::Type1D ||
                  src->desc.type == gfx::ImageType::Type2D) &&
-                (blit.src_offsets[0].z != 0 | blit.src_offsets[1].z != 1)));
+                (blit.src_offsets[0].z != 0 || blit.src_offsets[1].z != 1)));
     sVALIDATE(!((dst->desc.type == gfx::ImageType::Type1D) &&
-                (blit.dst_offsets[0].y != 0 | blit.dst_offsets[1].y != 1)));
+                (blit.dst_offsets[0].y != 0 || blit.dst_offsets[1].y != 1)));
     sVALIDATE(!((dst->desc.type == gfx::ImageType::Type1D ||
                  dst->desc.type == gfx::ImageType::Type2D) &&
-                (blit.src_offsets[0].z != 0 | blit.dst_offsets[1].z != 1)));
+                (blit.src_offsets[0].z != 0 || blit.dst_offsets[1].z != 1)));
   }
 
   VkImageBlit *vk_blits;

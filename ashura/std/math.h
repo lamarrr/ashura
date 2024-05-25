@@ -12,17 +12,17 @@
 namespace ash
 {
 
-constexpr f32 length(Vec2 a)
+inline f32 length(Vec2 a)
 {
   return sqrtf(dot(a, a));
 }
 
-constexpr f32 length(Vec3 a)
+inline f32 length(Vec3 a)
 {
   return sqrtf(dot(a, a));
 }
 
-constexpr f32 length(Vec4 a)
+inline f32 length(Vec4 a)
 {
   return sqrtf(dot(a, a));
 }
@@ -576,7 +576,7 @@ constexpr f32 smoothstep(f32 a, f32 b, f32 t)
   return t * t * (3.0f - 2.0f * t);
 }
 
-constexpr f32 grid_snap(f32 a, f32 unit)
+inline f32 grid_snap(f32 a, f32 unit)
 {
   return floorf((a + unit / 2) / unit) * unit;
 }

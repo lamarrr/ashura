@@ -23,8 +23,8 @@ TEST(ListTest, Insertion)
   EXPECT_EQ(l.pop_back(), nullptr);
   l.push_front(x);
   l.push_front(y);
-  EXPECT_EQ(l.pop_back(), y);
   EXPECT_EQ(l.pop_back(), x);
+  EXPECT_EQ(l.pop_back(), y);
   EXPECT_EQ(l.pop_back(), nullptr);
 
   pool.reset();

@@ -4,7 +4,6 @@
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 
-
 namespace ash
 {
 
@@ -20,12 +19,12 @@ namespace ash
 /// means any thread.
 struct TaskInfo
 {
-  Fn<bool(void *&)>     task             = to_fn([](void *&) { return false; });
-  void                 *data             = nullptr;
-  Span<Semaphore const> await_semaphores = {};
-  Span<u64 const>       awaits           = {};
-  Span<Semaphore const> signal           = {};
-  Span<u64 const>       signals          = {};
+  Fn<bool(void *)>      task              = to_fn([](void *) { return false; });
+  void                 *data              = nullptr;
+  Span<Semaphore const> await_semaphores  = {};
+  Span<u64 const>       awaits            = {};
+  Span<Semaphore const> signal_semaphores = {};
+  Span<u64 const>       signals           = {};
   Span<Semaphore const> increment_semaphores = {};
   Span<u64 const>       increments           = {};
 };

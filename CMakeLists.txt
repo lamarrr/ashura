@@ -109,7 +109,7 @@ else()
                         -Wno-nullability-extension)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-      add_compile_options(/W3)
+      add_compile_options(/W3 /Zc:preprocessor)
       add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
     endif()
   endif()
@@ -133,6 +133,7 @@ add_executable(
   ashura_std_tests
   ashura/std/tests/tests.cc
   ashura/std/tests/option.cc
+  ashura/std/tests/async.cc
   ashura/std/tests/list.cc
   ashura/std/tests/hash_map.cc
   ashura/std/tests/result.cc
