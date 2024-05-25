@@ -8,14 +8,14 @@ namespace ash
 
 struct SpinLock
 {
-  std::atomic<bool> lock_status{false};
+  std::atomic<bool> flag_{false};
 
   void lock()
   {
     bool expected = false;
     bool target   = true;
     u64  poll     = 0;
-    while (!lock_status.compare_exchange_strong(
+    while (!flag_.compare_exchange_strong(
         expected, target, std::memory_order_acquire, std::memory_order_relaxed))
     {
       expected = false;
@@ -28,14 +28,14 @@ struct SpinLock
   {
     bool expected = false;
     bool target   = true;
-    lock_status.compare_exchange_strong(
-        expected, target, std::memory_order_acquire, std::memory_order_relaxed);
+    flag_.compare_exchange_strong(expected, target, std::memory_order_acquire,
+                                  std::memory_order_relaxed);
     return expected;
   }
 
   void unlock()
   {
-    lock_status.store(false, std::memory_order_release);
+    flag_.store(false, std::memory_order_release);
   }
 };
 

@@ -7,21 +7,25 @@ TEST(ListTest, Insertion)
 {
   using namespace ash;
   ArenaPool pool;
-  List<int> list;
 
-  EXPECT_TRUE(list.is_empty());
-  EXPECT_EQ(list.pop_back(), nullptr);
-  EXPECT_EQ(list.pop_front(), nullptr);
-
+  List<int>      l;
   ListNode<int> *x;
+  ListNode<int> *y;
   CHECK(pool.nalloc(1, &x));
-  x->next = x;
-  x->prev = x;
+  CHECK(pool.nalloc(1, &y));
+  x->link();
+  y->link();
 
-  list.extend_back(List{x});
-  EXPECT_FALSE(list.is_empty());
-  EXPECT_EQ(x, list.pop_back());
-  EXPECT_TRUE(list.is_empty());
+  l.push_front(x);
+  EXPECT_NE(l.head, nullptr);
+  EXPECT_EQ(l.head, x);
+  EXPECT_EQ(l.pop_back(), x);
+  EXPECT_EQ(l.pop_back(), nullptr);
+  l.push_front(x);
+  l.push_front(y);
+  EXPECT_EQ(l.pop_back(), y);
+  EXPECT_EQ(l.pop_back(), x);
+  EXPECT_EQ(l.pop_back(), nullptr);
 
   pool.reset();
 }

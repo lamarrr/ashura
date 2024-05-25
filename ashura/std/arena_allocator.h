@@ -42,6 +42,11 @@ struct Arena
     return offset - begin;
   }
 
+  [[nodiscard]] constexpr usize remaining() const
+  {
+    return end - offset;
+  }
+
   constexpr void reset()
   {
     offset = begin;
