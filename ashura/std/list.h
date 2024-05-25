@@ -11,7 +11,9 @@ namespace ash
 /// always construct with operator new!!!
 ///
 /// @warning only use for scenarios where O(1) random insertion and/or removal
-/// is a must.
+/// is a must. requires stable addressing, must not be relocated once
+/// constructed.
+///
 template <typename T>
 struct ListNode
 {
@@ -45,6 +47,7 @@ namespace list
 template <typename T>
 static constexpr void unlink_node(ListNode<T> *node)
 {
+  // detach from siblings
   node->next->prev = node->prev;
   node->prev->next = node->next;
   // create 1 element node
@@ -55,12 +58,12 @@ static constexpr void unlink_node(ListNode<T> *node)
 /// @brief
 /// @tparam T
 /// @param head must be valid and non-null, set to null if empty
-/// @return
+/// @return popped element or null
 template <typename T>
 [[nodiscard]] constexpr ListNode<T> *pop_front(ListNode<T> *&head)
 {
   ListNode<T> *out      = head;
-  ListNode<T> *new_head = (head->next == out) ? nullptr : head;
+  ListNode<T> *new_head = (head->next == head) ? nullptr : head->next;
   unlink_node(out);
   head = new_head;
   return out;
@@ -74,7 +77,7 @@ template <typename T>
 [[nodiscard]] constexpr ListNode<T> *pop_back(ListNode<T> *&head)
 {
   ListNode<T> *out      = head->prev;
-  ListNode<T> *new_head = (head == out) ? nullptr : head;
+  ListNode<T> *new_head = (head->prev == head) ? nullptr : head;
   unlink_node(out);
   head = new_head;
   return out;
@@ -108,9 +111,11 @@ constexpr void attach(ListNode<T> *node, ListNode<T> *ext)
 /// @param ext must be valid and non-null
 ///
 template <typename T>
-constexpr void push_back(ListNode<T> *head, ListNode<T> *ext)
+[[nodiscard]] constexpr ListNode<T> *push_back(ListNode<T> *head,
+                                               ListNode<T> *ext)
 {
   attach(head, ext);
+  return head;
 }
 
 ///
@@ -121,9 +126,11 @@ constexpr void push_back(ListNode<T> *head, ListNode<T> *ext)
 /// @param ext must be valid and non-null
 ///
 template <typename T>
-constexpr void push_front(ListNode<T> *head, ListNode<T> *ext)
+[[nodiscard]] constexpr ListNode<T> *push_front(ListNode<T> *head,
+                                                ListNode<T> *ext)
 {
   attach(ext, head);
+  return ext;
 }
 
 }        // namespace list
@@ -165,7 +172,7 @@ struct List
       head = ext;
       return;
     }
-    list::push_front(head, ext);
+    head = list::push_front(head, ext);
   }
 
   constexpr void push_back(ListNode<T> *ext)
@@ -180,7 +187,7 @@ struct List
       head = ext;
       return;
     }
-    list::push_back(head, ext);
+    head = list::push_back(head, ext);
   }
 };
 
