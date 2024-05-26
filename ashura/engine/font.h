@@ -7,10 +7,7 @@
 namespace ash
 {
 
-enum class Font : uid
-{
-  Default = 0
-};
+typedef struct Font_T *Font;
 
 enum class FontStatus : u8
 {
@@ -95,24 +92,33 @@ struct FontInfo
   u32                        texture           = 0;
 };
 
+/// @name: name to use in font matching
+/// @path: local file system path of the typeface resource
+/// @face: font face to use
+/// @font_height: the height at which the texture is cached at
+/// @ranges: if set only the specified unicode ranges will be loaded,
+/// otherwise all glyphs in the font will be loaded. Note that this
+/// means during font ligature glyph substitution where scripts
+/// might change, if the replacement glyph is not in the unicode
+/// range, it won't result in a valid glyph.
+struct FontDesc
+{
+  Span<char const>         name        = {};
+  Span<char const>         path        = {};
+  u32                      face        = 0;
+  u32                      font_height = 20;
+  Span<UnicodeRange const> ranges      = {};
+};
+
 /// TODO(lamarrr): structure and dependency order between render-context and
 /// this
 struct FontManager
 {
-  /// @name: name to use in font matching
-  /// @path: local file system path of the typeface resource
-  /// @face: font face to use
-  /// @font_height: the height at which the texture is cached at
-  /// @max_atlas_bin_extent: maximum extent of each atlas bin
-  /// @ranges: if set only the specified unicode ranges will be loaded,
-  /// otherwise all glyphs in the font will be loaded. Note that this
-  /// means during font ligature glyph substitution where scripts
-  /// might change, if the replacement glyph is not in the unicode
-  /// range, it won't result in a valid glyph.
-  virtual Font add_font(Span<char const> name, Span<char const> path, u32 face,
-                        u32 font_height, Span<UnicodeRange const> ranges) = 0;
-  virtual Font get_font(Span<char const> name)                            = 0;
-  virtual Result<FontInfo, FontStatus> get_info(Font font)                = 0;
+  virtual void                         init()                          = 0;
+  virtual Font                         add_font(FontInfo const &info)  = 0;
+  virtual Font                         get_font(Span<char const> name) = 0;
+  virtual Result<FontInfo, FontStatus> get_info(Font font)             = 0;
+  virtual void                         uninit()                        = 0;
 };
 
 }        // namespace ash

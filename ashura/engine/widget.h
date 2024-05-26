@@ -15,9 +15,9 @@ namespace ash
 /// @scale: scales the source size, i.e. value should be 0.5 of source size
 /// @min: clamps the source size, i.e. value should be at least 20px
 /// @max: clamps the source size, i.e. value should be at most 100px
-/// @minr: clamps the source size relatively. i.e. value should be at least 0.5
+/// @minrel: clamps the source size relatively. i.e. value should be at least 0.5
 /// of source size
-/// @maxr: clamps the source size relatively. i.e. value should be at most 0.5
+/// @maxrel: clamps the source size relatively. i.e. value should be at most 0.5
 /// of source size
 struct LayoutConstraint
 {
@@ -67,8 +67,6 @@ enum class CrossAlign : u8
   Center = 2
 };
 
-typedef struct WidgetSystem WidgetSystem;
-
 /// @ViewHit: called on every frame the widget is viewed on the viewport.
 /// @ViewMiss: called on every frame that the widget is not seen on the viewport
 /// this can be because it has hidden visibility, is clipped away, or parent
@@ -91,7 +89,7 @@ enum class WidgetEventTypes : u32
   DragLeave    = 0x00001000,
   Drop         = 0x00002000,
   ViewHit      = 0x00004000,
-  ViewMis      = 0x00008000
+  ViewMiss     = 0x00008000
 };
 
 struct GlobalWidgetState
@@ -104,19 +102,12 @@ struct GlobalWidgetState
   SystemTheme    theme             = SystemTheme::None;
 };
 
-/// rebuild widgets every frame? what about large widgets?
-
-/// begin_children
-/// end_chilren
-
-/// wIDGETS ARE JUST VISUAL ELEMENTS THAT FORWARD EVENTS TO OTHER SYSTEMS
-
-/// @Visible: an invisible widget will not
-/// be drawn nor receive mouse/touch events.
+/// @Visible: an invisible widget will not be drawn nor receive mouse/touch
+/// events.
 ///
-// @Hittable: this needs to happen before mouse actions as some widgets .i.e.
-// some widgets don't need to intercept or receive mouse events
-/// return true if accepts hit test at position.
+/// @Hittable: this needs to happen before mouse actions as some widgets .i.e.
+/// some widgets don't need to intercept or receive mouse events return true if
+/// accepts hit test at position.
 enum class WidgetAttributes : u8
 {
   None       = 0x00,
@@ -132,17 +123,23 @@ enum class WidgetAttributes : u8
 //
 // listener id for each event the widget emits?
 //
+// TODO(lamarrr): syncing different widget states?
+// each widget should forward events to a global dict, the dict key is specified
+// and changed by the user.
 //
 //
 
 /// @brief Base widget class. All widget types must inherit from this struct.
 /// all methods are already implemented with reasonable defaults.
+/// Widgets are plain visual elements that define spatial relationships and
+/// visual state changes, and forward events to other subsystems.
 struct Widget
 {
   Widget()          = default;
   virtual ~Widget() = default;
 
-  /// @brief get child widgets
+  /// @brief get child widgets, this is a virtual iterator, return null once
+  /// there's no other children
   /// @return
   virtual Widget *get_child(u32 i)
   {

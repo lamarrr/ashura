@@ -11,7 +11,7 @@
 namespace ash
 {
 
-constexpr usize ARENA_SIZE = PAGE_ALIGNMENT * 2;
+constexpr usize ARENA_SIZE = PAGE_ALIGNMENT;
 
 /// memory is returned back to the scheduler once ac reaches 0.
 ///
@@ -83,21 +83,10 @@ struct alignas(CACHELINE_ALIGNMENT) TaskThread
   nanoseconds max_sleep       = {};
 };
 
-struct ArenaList
-{
-  SpinLock        lock = {};
-  List<TaskArena> list = {};
-
-  /// @brief return unused arena memory to the scheduler
-  void return_arena(ListNode<TaskArena> *arena)
-  {
-    lock.lock();
-    list.push_back(arena);
-    lock.unlock();
-  }
-};
-
 /// @allocator: must be thread-safe.
+/// @free_list: arena free list. arenas not in use by any tasks are inserted
+/// here
+/// @current_arena: current arena being allocated from
 struct SchedulerImpl final : Scheduler
 {
   AllocatorImpl allocator             = default_allocator;
@@ -108,7 +97,31 @@ struct SchedulerImpl final : Scheduler
 
   alignas(CACHELINE_ALIGNMENT) TaskQueue global_queue      = {};
   alignas(CACHELINE_ALIGNMENT) TaskQueue main_thread_queue = {};
-  alignas(CACHELINE_ALIGNMENT) ArenaList arenas            = {};
+  alignas(CACHELINE_ALIGNMENT) SpinLock free_list_lock     = {};
+  List<TaskArena> free_list                                = {};
+  alignas(CACHELINE_ALIGNMENT) SpinLock current_arena_lock = {};
+  ListNode<TaskArena> *current_arena                       = nullptr;
+
+  void release_arena(ListNode<TaskArena> *arena)
+  {
+    // decrease alias count of arena, if only alias left, add to the arena
+    // free list.
+    if (arena->data.ac.unalias())
+    {
+      arena->data.arena.reset();
+      free_list_lock.lock();
+      free_list.push_back(arena);
+      free_list_lock.unlock();
+    }
+  }
+
+  ListNode<TaskArena> *pop_free_list()
+  {
+    free_list_lock.lock();
+    ListNode<TaskArena> *arena = free_list.pop_front();
+    free_list_lock.unlock();
+    return arena;
+  }
 
   static void thread_task(SchedulerImpl &s, TaskQueue &q, StopToken &stop_token,
                           nanoseconds max_sleep)
@@ -157,13 +170,7 @@ struct SchedulerImpl final : Scheduler
         continue;
       }
 
-      // decrease alias count of arena, if only alias left, add to the arena
-      // free list.
-      if (task->data.arena->data.ac.unalias())
-      {
-        task->data.arena->data.arena.reset();
-        s.arenas.return_arena(task->data.arena);
-      }
+      s.release_arena(task->data.arena);
     }
     // stop execution even if there are pending tasks
     while (!stop_token.is_stop_requested());
@@ -172,7 +179,6 @@ struct SchedulerImpl final : Scheduler
   static void main_thread_task(SchedulerImpl &s, nanoseconds timeout)
   {
     auto begin = steady_clock::now();
-    u64  num   = 0;
 
     do
     {
@@ -192,8 +198,6 @@ struct SchedulerImpl final : Scheduler
       }
 
       bool const should_requeue = task->data.task(task->data.data);
-      num++;
-      default_logger->info("num executed: ", num);
 
       for (usize i = 0; i < task->data.num_signals; i++)
       {
@@ -212,35 +216,61 @@ struct SchedulerImpl final : Scheduler
         continue;
       }
 
-      if (task->data.arena->data.ac.unalias())
-      {
-        task->data.arena->data.arena.reset();
-        s.arenas.return_arena(task->data.arena);
-      }
+      s.release_arena(task->data.arena);
     } while ((steady_clock::now() - begin) < timeout);
   }
 
-  ListNode<TaskArena> *alloc_arena()
+  bool alloc_arena(ListNode<TaskArena> **arena)
   {
     u8 *arena_memory;
-    CHECK(allocator.alloc(MAX_STANDARD_ALIGNMENT, ARENA_SIZE, &arena_memory));
-    ListNode<TaskArena> *arena;
-    CHECK(allocator.nalloc(1, &arena));
-    new (arena) ListNode<TaskArena>{
+    if (!allocator.alloc(MAX_STANDARD_ALIGNMENT, ARENA_SIZE, &arena_memory))
+    {
+      return false;
+    }
+
+    if (!allocator.nalloc(1, arena))
+    {
+      allocator.dealloc(MAX_STANDARD_ALIGNMENT, arena_memory, ARENA_SIZE);
+      return false;
+    }
+
+    new (*arena) ListNode<TaskArena>{
         .data = TaskArena{.ac    = {},
                           .arena = Arena{.begin     = arena_memory,
                                          .end       = arena_memory + ARENA_SIZE,
                                          .offset    = arena_memory,
                                          .alignment = MAX_STANDARD_ALIGNMENT}}};
-    return arena;
+    return true;
   }
 
-  static bool arena_alloc(Arena &arena, u32 awaits_cap, u32 increments_cap,
-                          u32 signals_cap, ListNode<Task> **t,
-                          Semaphore **await_sems, u64 **awaits,
-                          Semaphore **increment_sems, u64 **increments,
-                          Semaphore **signal_sems, u64 **signals)
+  void dealloc_arena(ListNode<TaskArena> *arena)
   {
+    allocator.dealloc(arena->data.arena.alignment, arena->data.arena.begin,
+                      arena->data.arena.size());
+    allocator.ndealloc(arena, 1);
+  }
+
+  bool request_arena(ListNode<TaskArena> **arena)
+  {
+    ListNode<TaskArena> *a = pop_free_list();
+    if (a != nullptr)
+    {
+      *arena = a;
+      return true;
+    }
+    return alloc_arena(arena);
+  }
+
+  static bool alloc_task_data(Arena &arena, u32 awaits_cap, u32 increments_cap,
+                              u32 signals_cap, ListNode<Task> **t,
+                              Semaphore **await_sems, u64 **awaits,
+                              Semaphore **increment_sems, u64 **increments,
+                              Semaphore **signal_sems, u64 **signals)
+  {
+    usize const min_task_size = sizeof(ListNode<Task>) +
+                                (sizeof(Semaphore) + sizeof(u64)) *
+                                    (awaits_cap + increments_cap + signals_cap);
+    CHECK(min_task_size < (ARENA_SIZE / 4));
     u8 *begin = arena.offset;
     if (!(arena.nalloc(1, t) && arena.nalloc(awaits_cap, await_sems) &&
           arena.nalloc(awaits_cap, awaits) &&
@@ -255,7 +285,8 @@ struct SchedulerImpl final : Scheduler
     return true;
   }
 
-  ListNode<Task> *alloc_task(TaskInfo const &info)
+  static bool alloc_task(ListNode<TaskArena> *arena, TaskInfo const &info,
+                         ListNode<Task> **task)
   {
     CHECK(info.awaits.size() == info.await_semaphores.size());
     CHECK(info.signals.size() == info.signal_semaphores.size());
@@ -264,44 +295,24 @@ struct SchedulerImpl final : Scheduler
     CHECK(info.signals.size() <= U32_MAX);
     CHECK(info.increments.size() <= U32_MAX);
 
-    u32             num_awaits     = (u32) info.awaits.size();
-    u32             num_signals    = (u32) info.signals.size();
-    u32             num_increments = (u32) info.increments.size();
-    ListNode<Task> *node           = nullptr;
-    Semaphore      *await_sems     = nullptr;
-    u64            *awaits         = nullptr;
-    Semaphore      *increment_sems = nullptr;
-    u64            *increments     = nullptr;
-    Semaphore      *signal_sems    = nullptr;
-    u64            *signals        = nullptr;
+    u32        num_awaits     = (u32) info.awaits.size();
+    u32        num_signals    = (u32) info.signals.size();
+    u32        num_increments = (u32) info.increments.size();
+    Semaphore *await_sems     = nullptr;
+    u64       *awaits         = nullptr;
+    Semaphore *increment_sems = nullptr;
+    u64       *increments     = nullptr;
+    Semaphore *signal_sems    = nullptr;
+    u64       *signals        = nullptr;
 
-    arenas.lock.lock();
-
-    ListNode<TaskArena> *arena = arenas.list.head;
-    while (arena != nullptr &&
-           !arena_alloc(arena->data.arena, num_awaits, num_increments,
-                        num_signals, &node, &await_sems, &awaits,
-                        &increment_sems, &increments, &signal_sems, &signals))
+    if (!alloc_task_data(arena->data.arena, num_awaits, num_increments,
+                         num_signals, task, &await_sems, &awaits,
+                         &increment_sems, &increments, &signal_sems, &signals))
     {
-      CHECK(arena->data.ac.num_aliases() > 0);
-      arena = arenas.list.pop_front();
-    }
-
-    if (arena == nullptr)
-    {
-      arenas.lock.unlock();
-      arena = alloc_arena();
-      arenas.lock.lock();
-      arenas.list.push_front(arena);
-      CHECK_DESC(arena_alloc(arena->data.arena, num_awaits, num_increments,
-                             num_signals, &node, &await_sems, &awaits,
-                             &increment_sems, &increments, &signal_sems,
-                             &signals),
-                 "Task dependencies too many, exceeds ", ARENA_SIZE, "bytes");
+      return false;
     }
 
     arena->data.ac.alias();
-    arenas.lock.unlock();
 
     mem::copy(info.await_semaphores, await_sems);
     mem::copy(info.awaits, awaits);
@@ -310,18 +321,55 @@ struct SchedulerImpl final : Scheduler
     mem::copy(info.signal_semaphores, signal_sems);
     mem::copy(info.signals, signals);
 
-    new (node) ListNode<Task>{.data = Task{.num_awaits     = num_awaits,
-                                           .await_sems     = await_sems,
-                                           .awaits         = awaits,
-                                           .task           = info.task,
-                                           .data           = info.data,
-                                           .num_increments = num_increments,
-                                           .increment_sems = increment_sems,
-                                           .increments     = increments,
-                                           .signal_sems    = signal_sems,
-                                           .signals        = signals,
-                                           .arena          = arena}};
-    return node;
+    new (*task) ListNode<Task>{.data = Task{.num_awaits     = num_awaits,
+                                            .await_sems     = await_sems,
+                                            .awaits         = awaits,
+                                            .task           = info.task,
+                                            .data           = info.data,
+                                            .num_increments = num_increments,
+                                            .increment_sems = increment_sems,
+                                            .increments     = increments,
+                                            .signal_sems    = signal_sems,
+                                            .signals        = signals,
+                                            .arena          = arena}};
+
+    return true;
+  }
+
+  bool create_task(TaskInfo const &info, ListNode<Task> **task)
+  {
+    current_arena_lock.lock();
+    defer unlock{[&] { current_arena_lock.unlock(); }};
+
+    if (current_arena == nullptr)
+    {
+      if (!request_arena(&current_arena))
+      {
+        return false;
+      }
+      CHECK(alloc_task(current_arena, info, task));
+    }
+    else
+    {
+      if (!alloc_task(current_arena, info, task))
+      {
+        if (current_arena->data.ac.unalias())
+        {
+          current_arena->data.arena.reset();
+        }
+        else
+        {
+          current_arena = nullptr;
+          if (!request_arena(&current_arena))
+          {
+            return false;
+          }
+        }
+        CHECK(alloc_task(current_arena, info, task));
+      }
+    }
+
+    return true;
   }
 
   virtual void init(Span<nanoseconds const> dedicated_thread_sleep,
@@ -391,29 +439,39 @@ struct SchedulerImpl final : Scheduler
     dedicated_threads     = nullptr;
     num_worker_threads    = 0;
     num_dedicated_threads = 0;
-    while (!arenas.list.is_empty())
+
+    if (current_arena != nullptr)
     {
-      ListNode<TaskArena> *arena = arenas.list.pop_front();
-      allocator.dealloc(arena->data.arena.alignment, arena->data.arena.begin,
-                        arena->data.arena.size());
-      allocator.ndealloc(arena, 1);
+      dealloc_arena(current_arena);
+      current_arena = nullptr;
+    }
+
+    while (!free_list.is_empty())
+    {
+      dealloc_arena(free_list.pop_front());
     }
   }
 
   virtual void schedule_dedicated(u32 thread, TaskInfo const &info) override
   {
     CHECK(thread < num_dedicated_threads);
-    dedicated_threads[thread].dedicated_queue.insert_task(alloc_task(info));
+    ListNode<Task> *task;
+    CHECK(create_task(info, &task));
+    dedicated_threads[thread].dedicated_queue.insert_task(task);
   }
 
   virtual void schedule_worker(TaskInfo const &info) override
   {
-    global_queue.insert_task(alloc_task(info));
+    ListNode<Task> *task;
+    CHECK(create_task(info, &task));
+    global_queue.insert_task(task);
   }
 
   virtual void schedule_main(TaskInfo const &info) override
   {
-    main_thread_queue.insert_task(alloc_task(info));
+    ListNode<Task> *task;
+    CHECK(create_task(info, &task));
+    main_thread_queue.insert_task(task);
   }
 
   virtual void execute_main_thread_work(nanoseconds timeout) override

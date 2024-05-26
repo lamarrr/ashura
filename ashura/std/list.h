@@ -11,7 +11,7 @@ namespace ash
 /// always construct with operator new!!!
 ///
 /// @warning only use for scenarios where O(1) random insertion and/or removal
-/// is a must. requires stable addressing, must not be relocated once
+/// is a must. ListNode requires stable addressing, must not be relocated once
 /// constructed.
 ///
 template <typename T>

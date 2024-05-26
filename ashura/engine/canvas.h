@@ -7,7 +7,7 @@
 namespace ash
 {
 
-struct PathVertex2d
+struct Vertex2d
 {
   Vec2 position = {0, 0};
   Vec2 uv       = {0, 0};
@@ -21,7 +21,7 @@ struct PathStyle
   Vec4       colors[4] = {Vec4{1, 1, 1, 1}, Vec4{1, 1, 1, 1}, Vec4{1, 1, 1, 1},
                           Vec4{1, 1, 1, 1}};
   u32        texture   = 0;
-  Font       font      = Font::Default;
+  Font       font      = nullptr;
   u32        font_height    = 16;
   Vec2       uv0            = Vec2{0, 0};
   Vec2       uv1            = Vec2{1, 1};
@@ -30,7 +30,18 @@ struct PathStyle
   Vec2U      scissor_extent = {U32_MAX, U32_MAX};
 };
 
+//
+// allows joining multiple passes
+//
+//
+// TODO(lamarrr): automatic batching
+//
+//
 // use the passes in the renderer to achieve desired effect
+//
+// todo(lamarrr): custom shaders?
+//
+//
 struct PathEncoder
 {
   virtual void circle(PathStyle const &style, Vec2 center, Vec2 radius) = 0;
@@ -41,13 +52,14 @@ struct PathEncoder
                      Vec4 radii)                                        = 0;
   virtual void arc(PathStyle const &style, Vec2 center, f32 radius,
                    f32 angle_begin, f32 angle_end)                      = 0;
-  virtual void character(PathStyle const &style, Vec2 baseline,
-                         u32 character)                                 = 0;
+  virtual void simple_text(PathStyle const &style, Vec2 baseline,
+                           Span<char const> text)                       = 0;
   virtual void text(PathStyle const &style, Vec2 center, TextBlock const &block,
                     TextLayout const &layout)                           = 0;
-  virtual void convex_polygon(PathStyle const         &style,
-                              Span<PathVertex2d const> vertices)        = 0;
+  virtual void convex_polygon(PathStyle const     &style,
+                              Span<Vertex2d const> vertices)            = 0;
   virtual void blur(Vec2U offset, Vec2U extent)                         = 0;
+  virtual void flush()                                                  = 0;
 };
 
 }        // namespace ash

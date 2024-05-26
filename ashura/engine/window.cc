@@ -31,17 +31,9 @@ struct WindowImpl
 
 struct WindowSystemImpl final : public WindowSystem
 {
-  Vec<WindowImpl> windows;
-  SparseVec       id_map;
-
-  SDL_Window *hnd(Window id)
+  SDL_Window *hnd(Window w)
   {
-    return windows[id_map[(uid) id]].win;
-  }
-
-  WindowImpl *win(Window id)
-  {
-    return &windows[id_map[(uid) id]];
+    return ((WindowImpl *) w)->win;
   }
 
   void init()
@@ -79,29 +71,30 @@ struct WindowSystemImpl final : public WindowSystem
     CHECKSdl(SDL_Vulkan_CreateSurface(window, vk_instance->vk_instance, nullptr,
                                       &surface) == SDL_TRUE);
 
-    Window out_id;
-    CHECK(id_map.push(
-        [&](uid id, u32) {
-          out_id = (Window) id;
-          CHECK(windows.push(WindowImpl{.win        = window,
-                                        .surface    = (gfx::Surface) surface,
-                                        .backend_id = backend_id,
-                                        .instance   = instance}));
-        },
-        windows));
+    WindowImpl *impl;
 
-    return Some{out_id};
+    CHECK(default_allocator.nalloc(1, &impl));
+
+    new (impl) WindowImpl{.win        = window,
+                          .surface    = (gfx::Surface) surface,
+                          .backend_id = backend_id,
+                          .instance   = instance};
+
+    SDL_PropertiesID props_id = SDL_GetWindowProperties(window);
+    CHECK(SDL_SetProperty(props_id, "impl_object", impl) == 0);
+
+    return Some{(Window) impl};
   }
 
-  void destroy_window(Window id) override
+  void destroy_window(Window w) override
   {
-    if (id != Window::None)
+    if (w != nullptr)
     {
-      WindowImpl *w = win(id);
-      w->instance->destroy_surface(w->instance.self, w->surface);
-      SDL_DestroyWindow(w->win);
-      w->listeners_id_map.reset(w->listeners);
-      id_map.erase((uid) id, windows);
+      WindowImpl *win = (WindowImpl *) w;
+      win->instance->destroy_surface(win->instance.self, win->surface);
+      SDL_DestroyWindow(win->win);
+      win->listeners_id_map.reset(win->listeners);
+      default_allocator.ndealloc(win, 1);
     }
   }
 
@@ -284,7 +277,7 @@ struct WindowSystemImpl final : public WindowSystem
              Fn<void(WindowEvent const &)> callback) override
   {
     uid         out_id;
-    WindowImpl *pwin = win(w);
+    WindowImpl *pwin = (WindowImpl *) w;
     CHECK(pwin->listeners_id_map.push(
         [&](uid id, u32) {
           out_id = id;
@@ -296,30 +289,30 @@ struct WindowSystemImpl final : public WindowSystem
 
   void unlisten(Window w, uid listener) override
   {
-    WindowImpl *pwin = win(w);
+    WindowImpl *pwin = (WindowImpl *) w;
     pwin->listeners_id_map.erase(listener, pwin->listeners);
   }
 
   gfx::Surface get_surface(Window w) override
   {
-    WindowImpl *pwin = win(w);
+    WindowImpl *pwin = (WindowImpl *) w;
     return pwin->surface;
   }
 
-  void publish_event(uid backend_id, WindowEvent const &event)
+  void publish_event(SDL_WindowID window_id, WindowEvent const &event)
   {
-    for (WindowImpl const &win : windows)
+    SDL_Window *win = SDL_GetWindowFromID(window_id);
+    CHECK(win != nullptr);
+    SDL_PropertiesID props_id = SDL_GetWindowProperties(win);
+    WindowImpl      *impl =
+        (WindowImpl *) SDL_GetProperty(props_id, "impl_object", nullptr);
+    CHECK(impl != nullptr);
+
+    for (WindowEventListener const &listener : impl->listeners)
     {
-      if (win.backend_id == backend_id)
+      if (has_bits(listener.types, event.type))
       {
-        for (WindowEventListener const &listener : win.listeners)
-        {
-          if (has_bits(listener.types, event.type))
-          {
-            listener.callback(event);
-          }
-        }
-        return;
+        listener.callback(event);
       }
     }
   }

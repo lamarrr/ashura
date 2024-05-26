@@ -10,10 +10,7 @@
 namespace ash
 {
 
-enum class Window : uid
-{
-  None = UID_MAX
-};
+typedef struct Window_T *Window;
 
 struct WindowSystem
 {

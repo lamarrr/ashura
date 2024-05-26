@@ -7,16 +7,6 @@
 namespace ash
 {
 
-// requirements:
-// [v] result collection
-// [v] inter-task communication
-// [v] inter-task sharing
-// [v] inter-task data flow, reporting cancelation
-// [v] SPSC-buffer ring buffer?
-// [v] external polling contexts
-
-/// @thread: thread to schedule task on. main thread is always thread 0. U32_MAX
-/// means any thread.
 struct TaskInfo
 {
   Fn<bool(void *)>      task              = to_fn([](void *) { return false; });
@@ -44,6 +34,13 @@ struct TaskInfo
 /// work submitted to the main thread MUST be extremely light-weight and
 /// non-blocking.
 ///
+/// # Requirements:
+/// [v] result collection
+/// [v] inter-task communication
+/// [v] inter-task sharing
+/// [v] inter-task data flow, reporting cancelation
+/// [v] SPSC-buffer ring buffer?
+/// [v] external polling contexts
 struct Scheduler
 {
   virtual void init(Span<nanoseconds const> dedicated_thread_sleep,

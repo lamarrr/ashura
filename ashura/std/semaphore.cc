@@ -54,8 +54,7 @@ bool is_semaphore_completed(Semaphore sem)
 {
   CHECK(sem != nullptr);
   CpuSemaphore const *s = (CpuSemaphore const *) sem;
-  return (s->stage.load(std::memory_order_relaxed) == s->num_stages) &&
-         (s->stage.load(std::memory_order_acquire) == s->num_stages);
+  return s->stage.load(std::memory_order_acquire) == s->num_stages;
 }
 
 void signal_semaphore(Semaphore sem, u64 stage)
@@ -108,8 +107,7 @@ bool await_semaphores(Span<Semaphore const> semaphores, Span<u64 const> stages,
       // always monotinically increasing. use relaxed load for first
       // comparision, this enables fast backoff without introducing a memory
       // barrier.
-      if ((stage < s->stage.load(std::memory_order_relaxed)) &&
-          (stage < s->stage.load(std::memory_order_acquire)))
+      if (stage < s->stage.load(std::memory_order_acquire))
       {
         break;
       }

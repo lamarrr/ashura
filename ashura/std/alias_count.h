@@ -48,13 +48,8 @@ struct alias_count
   /// WARNING: if accompanied by a destructive reclamation procedure and
   /// `unalias` is called again after it has already returned true, it will lead
   /// to a double-release (i.e. double-free).
-  bool unalias()
+  [[nodiscard]] bool unalias()
   {
-    if (num_others_.load(std::memory_order_relaxed) == 0)
-    {
-      return true;
-    }
-
     usize expected = 0;
     usize desired  = 0;
     while (!num_others_.compare_exchange_weak(expected, desired,
@@ -66,7 +61,7 @@ struct alias_count
     return expected == 0;
   }
 
-  usize num_aliases() const
+  [[nodiscard]] usize num_aliases() const
   {
     return num_others_.load(std::memory_order_relaxed);
   }

@@ -40,7 +40,7 @@ enum class TextOverflow : u8
 /// @use_ligatures: use standard and contextual font ligature substitution
 struct TextStyle
 {
-  Font             font                    = Font::Default;
+  Font             font                    = nullptr;
   Span<Font const> fallback_fonts          = {};
   f32              font_height             = 20;
   f32              outline_thickness       = 0;

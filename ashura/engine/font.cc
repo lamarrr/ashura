@@ -22,7 +22,7 @@ constexpr u32 FONT_ATLAS_EXTENT = 1024;
 
 static_assert(FONT_ATLAS_EXTENT != 0);
 static_assert(FONT_ATLAS_EXTENT >= 16);
-static_assert(FONT_ATLAS_EXTENT <= 8192);
+static_assert(FONT_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT);
 
 struct FontEntry
 {
@@ -442,7 +442,7 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
         rects[i].layer = num_layers;
       }
       CHECK(just_packed.span != 0);
-      num_packed += just_packed.span;
+      num_packed += (u32) just_packed.span;
       num_layers++;
     }
 
