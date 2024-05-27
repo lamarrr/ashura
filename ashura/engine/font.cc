@@ -18,33 +18,33 @@
 namespace ash
 {
 
-constexpr u32 FONT_ATLAS_EXTENT = 1024;
+constexpr u32 FONT_ATLAS_EXTENT = 512;
 
 static_assert(FONT_ATLAS_EXTENT != 0);
 static_assert(FONT_ATLAS_EXTENT >= 16);
-static_assert(FONT_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT);
+static_assert(FONT_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT_2D);
 
 struct FontEntry
 {
-  ArenaPool  pool                 = {};
-  char      *postscript_name      = {};        // ASCII. i.e. RobotoBold
-  usize      postscript_name_size = 0;         // ASCII. i.e. RobotoBold
-  char      *family_name          = {};        // ASCII. i.e. Roboto
-  usize      family_name_size     = 0;         // ASCII. i.e. Roboto
-  char      *style_name           = {};        // ASCII. i.e. Bold
-  usize      style_name_size      = 0;         // ASCII. i.e. Bold
-  hb_blob_t *hb_blob              = nullptr;
-  hb_face_t *hb_face              = nullptr;
-  hb_font_t *hb_font              = nullptr;
-  FT_Library ft_lib               = nullptr;
-  FT_Face    ft_face              = nullptr;
-  u32        selected_face        = 0;
-  char      *font_data            = nullptr;
-  u32        font_data_size       = 0;
-  u32        num_glyphs           = 0;
-  u32        replacement_glyph    = 0;
-  u32        ellipsis_glyph       = 0;
-  u32        space_glyph          = 0;
+  AllocatorImpl allocator            = default_allocator;
+  char         *postscript_name      = {};        // ASCII. i.e. RobotoBold
+  usize         postscript_name_size = 0;         // ASCII. i.e. RobotoBold
+  char         *family_name          = {};        // ASCII. i.e. Roboto
+  usize         family_name_size     = 0;         // ASCII. i.e. Roboto
+  char         *style_name           = {};        // ASCII. i.e. Bold
+  usize         style_name_size      = 0;         // ASCII. i.e. Bold
+  hb_blob_t    *hb_blob              = nullptr;
+  hb_face_t    *hb_face              = nullptr;
+  hb_font_t    *hb_font              = nullptr;
+  FT_Library    ft_lib               = nullptr;
+  FT_Face       ft_face              = nullptr;
+  u32           selected_face        = 0;
+  char         *font_data            = nullptr;
+  u32           font_data_size       = 0;
+  u32           num_glyphs           = 0;
+  u32           replacement_glyph    = 0;
+  u32           ellipsis_glyph       = 0;
+  u32           space_glyph          = 0;
 
   // RASTERIZED ATLAS INFO
   u32             font_height  = 0;
@@ -67,12 +67,12 @@ void destroy_font(FontEntry *e, gfx::DeviceImpl const &d)
   hb_font_destroy(e->hb_font);
   FT_Done_Face(e->ft_face);
   FT_Done_FreeType(e->ft_lib);
-  e->pool.reset();
   for (u32 i = 0; i < e->num_layers; i++)
   {
     d->destroy_image_view(d.self, e->views[i]);
   }
   d->destroy_image(d.self, e->image);
+  e->allocator.ndealloc(e, 1);
 }
 
 bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
@@ -80,7 +80,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
 {
   u32   font_data_size = (u32) encoded_data.size();
   char *font_data;
-  if (!e->pool.nalloc(font_data_size, &font_data))
+  if (!e->allocator.nalloc(font_data_size, &font_data))
   {
     return false;
   }
@@ -88,7 +88,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   defer font_data_del{[&] {
     if (font_data != nullptr)
     {
-      e->pool.ndealloc(font_data, font_data_size);
+      e->allocator.ndealloc(font_data, font_data_size);
     }
   }};
 
@@ -179,7 +179,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   if (ft_postscript_name != nullptr)
   {
     postscript_name_size = strlen(ft_postscript_name);
-    if (!e->pool.nalloc(postscript_name_size, &postscript_name))
+    if (!e->allocator.nalloc(postscript_name_size, &postscript_name))
     {
       return false;
     }
@@ -189,7 +189,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   defer postscript_name_del{[&] {
     if (postscript_name != nullptr)
     {
-      e->pool.ndealloc(postscript_name, postscript_name_size);
+      e->allocator.ndealloc(postscript_name, postscript_name_size);
     }
   }};
 
@@ -199,7 +199,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   if (ft_face->family_name != nullptr)
   {
     family_name_size = strlen(ft_face->family_name);
-    if (!e->pool.nalloc(family_name_size, &family_name))
+    if (!e->allocator.nalloc(family_name_size, &family_name))
     {
       return false;
     }
@@ -209,7 +209,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   defer family_name_del{[&] {
     if (family_name != nullptr)
     {
-      e->pool.ndealloc(family_name, family_name_size);
+      e->allocator.ndealloc(family_name, family_name_size);
     }
   }};
 
@@ -219,7 +219,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   if (ft_face->style_name != nullptr)
   {
     style_name_size = strlen(ft_face->style_name);
-    if (!e->pool.nalloc(style_name_size, &style_name))
+    if (!e->allocator.nalloc(style_name_size, &style_name))
     {
       return false;
     }
@@ -229,7 +229,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   defer style_name_del{[&] {
     if (style_name != nullptr)
     {
-      e->pool.ndealloc(style_name, style_name_size);
+      e->allocator.ndealloc(style_name, style_name_size);
     }
   }};
 
@@ -307,7 +307,7 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
       (e.ft_face->size->metrics.max_advance / 64.0f) / font_height;
 
   Glyph *glyphs;
-  if (!e.pool.nalloc(e.num_glyphs, &glyphs))
+  if (!e.allocator.nalloc(e.num_glyphs, &glyphs))
   {
     return false;
   }
@@ -315,7 +315,7 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
   defer glyphs_del{[&] {
     if (glyphs != nullptr)
     {
-      e.pool.ndealloc(glyphs, e.num_glyphs);
+      e.allocator.ndealloc(glyphs, e.num_glyphs);
     }
   }};
 
@@ -469,7 +469,7 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
   u64 const atlas_size       = atlas_layer_size * num_layers;
   u8       *atlas;
 
-  if (!e.pool.nalloc_zeroed(atlas_size, &atlas))
+  if (!e.allocator.nalloc_zeroed(atlas_size, &atlas))
   {
     return false;
   }
@@ -477,7 +477,7 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
   defer atlas_buffer_del{[&] {
     if (atlas != nullptr)
     {
-      e.pool.ndealloc(atlas, atlas_size);
+      e.allocator.ndealloc(atlas, atlas_size);
     }
   }};
 
@@ -561,7 +561,7 @@ gfx::Status upload_font_to_gpu(FontEntry &e, RenderContext &c,
           .unwrap();
 
   gfx::ImageView *views;
-  if (!e.pool.nalloc(e.num_layers, &views))
+  if (!e.allocator.nalloc(e.num_layers, &views))
   {
     return gfx::Status::OutOfHostMemory;
   }
@@ -569,7 +569,7 @@ gfx::Status upload_font_to_gpu(FontEntry &e, RenderContext &c,
   defer views_del{[&] {
     if (views != nullptr)
     {
-      e.pool.ndealloc(views, e.num_layers);
+      e.allocator.ndealloc(views, e.num_layers);
     }
   }};
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ashura/constraint.h"
 #include "ashura/engine/font.h"
 #include "ashura/engine/text.h"
 #include "ashura/gfx/gfx.h"
@@ -10,168 +9,6 @@
 
 namespace ash
 {
-
-struct Vertex2d
-{
-  Vec2 position;
-  Vec2 uv;
-  Vec4 tint;
-};
-
-/// TODO(lamarrr): use convex path abstraction
-namespace paths
-{
-
-}        // namespace paths
-
-/// outputs (n-2)*3 indices
-inline void triangulate_convex_polygon(Vec<u32> &indices, u32 nvertices)
-{
-  if (nvertices < 3)
-  {
-    return;
-  }
-
-  for (u32 i = 2; i < nvertices; i++)
-  {
-    indices.push(0).unwrap();
-    indices.push_inplace((i - 1)).unwrap();
-    indices.push_inplace(i).unwrap();
-  }
-}
-
-/// line joint is a bevel joint
-inline void add_line_stroke(Vec2 p0, Vec2 p1, f32 thickness, Vec4 color,
-                            Vec<Vertex2d> &out)
-{
-  // the angles are specified in clockwise direction to be compatible with the
-  // vulkan coordinate system
-  //
-  // get the angle of inclination of p2 to p1
-  Vec2 d     = p1 - p0;
-  f32  grad  = abs(d.y / epsilon_clamp(d.x));
-  f32  alpha = std::atan(grad);
-
-  // use direction of the points to get the actual overall angle of
-  // inclination of p2 to p1
-  if (d.x < 0 && d.y > 0)
-  {
-    alpha = PI - alpha;
-  }
-  else if (d.x < 0 && d.y < 0)
-  {
-    alpha = PI + alpha;
-  }
-  else if (d.x > 0 && d.y < 0)
-  {
-    alpha = 2 * PI - alpha;
-  }
-  else
-  {
-    // d.x >=0 && d.y >= 0
-  }
-
-  // line will be at a parallel angle
-  alpha = alpha + PI / 2;
-
-  Vec2 f = thickness / 2 * Vec2{std::cos(alpha), std::sin(alpha)};
-  Vec2 g = thickness / 2 * Vec2{std::cos(PI + alpha), std::sin(PI + alpha)};
-
-  Vec2 p0_0 = p0 + f;
-  Vec2 p0_1 = p0 + g;
-
-  Vec2 p1_0 = p1 + f;
-  Vec2 p1_1 = p1 + g;
-
-  Vertex2d vertices[] = {{.position = p0_0, .uv = {}, .color = color},
-                         {.position = p0_1, .uv = {}, .color = color},
-                         {.position = p1_0, .uv = {}, .color = color},
-                         {.position = p1_1, .uv = {}, .color = color}};
-
-  out.extend(vertices).unwrap();
-}
-
-// line joint is a bevel joint, it is the most efficient since it re-uses
-// existing vertices and doesn't require generating new vertices
-inline void triangulate_line(Span<Vertex2d const> in_points, f32 thickness,
-                             Vec<Vertex2d> &out_vertices,
-                             Vec<u32> &out_indices, bool should_close)
-{
-  if (in_points.size() < 2 || thickness == 0)
-  {
-    return;
-  }
-
-  bool has_previous_line = false;
-
-  u32 Vertex_index = 0;
-
-  for (u32 i = 1; i < static_cast<u32>(in_points.size()); i++)
-  {
-    Vec4 color = in_points[i - 1].color;
-    Vec2 p0    = in_points[i - 1].position;
-    Vec2 p1    = in_points[i].position;
-
-    add_line_stroke(p0, p1, thickness, color, out_vertices);
-
-    // weave the line triangles
-    u32 indices[] = {Vertex_index, Vertex_index + 1, Vertex_index + 3,
-                     Vertex_index, Vertex_index + 2, Vertex_index + 3};
-
-    out_indices.extend(indices).unwrap();
-
-    // weave the previous line's end to the beginning of this line
-    if (has_previous_line)
-    {
-      u32 prev_line_Vertex_index = Vertex_index - 4;
-
-      u32 indices[] = {prev_line_Vertex_index + 2,
-                       prev_line_Vertex_index + 3,
-                       Vertex_index,
-                       prev_line_Vertex_index + 2,
-                       prev_line_Vertex_index + 3,
-                       Vertex_index + 1};
-
-      out_indices.extend(indices).unwrap();
-    }
-
-    has_previous_line = true;
-
-    Vertex_index += 4;
-  }
-
-  // requires at least 3 points to be closable
-  if (should_close && in_points.size() > 2)
-  {
-    Vec4 color = in_points[in_points.size() - 1].color;
-    Vec2 p0    = in_points[in_points.size() - 1].position;
-    Vec2 p1    = in_points[0].position;
-
-    add_line_stroke(p0, p1, thickness, color, out_vertices);
-
-    // weave the line triangles
-    u32 indices[] = {Vertex_index, Vertex_index + 1, Vertex_index + 3,
-                     Vertex_index, Vertex_index + 2, Vertex_index + 3};
-
-    out_indices.extend(indices).unwrap();
-
-    {
-      u32 prev_line_Vertex_index  = Vertex_index - 4;
-      u32 first_line_Vertex_index = 0;
-
-      u32 indices[] = {
-          // weave the previous line's end to the beginning of this line
-          prev_line_Vertex_index + 2, prev_line_Vertex_index + 3, Vertex_index,
-          prev_line_Vertex_index + 2, prev_line_Vertex_index + 3,
-          Vertex_index + 1,
-          // weave this line's end to the beginning of the first line
-          Vertex_index + 2, Vertex_index + 3, first_line_Vertex_index,
-          Vertex_index + 2, Vertex_index + 3, first_line_Vertex_index + 1};
-
-      out_indices.extend(indices).unwrap();
-    }
-  }
-}
 
 /// Coordinates are specified in top-left origin absolute pixel coordinates with
 /// x pointing to the right and y pointing downwards (i.e. {0, 0} being top left
@@ -212,8 +49,8 @@ struct Canvas
 
   // TODO(lamarrr): draw quad
 
-  Canvas &draw_path(Span<Vertex2d const> points, Vec2 position,
-                    Vec2 uv_stretch, f32 thickness, bool should_close,
+  Canvas &draw_path(Span<Vertex2d const> points, Vec2 position, Vec2 uv_stretch,
+                    f32 thickness, bool should_close,
                     image texture = WHITE_IMAGE, Vec2 uv0 = Vec2{0, 0},
                     Vec2 uv1 = Vec2{1, 1})
   {
@@ -252,7 +89,7 @@ struct Canvas
   }
 
   Span<Vertex2d> reserve_convex_polygon(u32 npoints, Vec2 position,
-                                             image texture)
+                                        image texture)
   {
     ASH_CHECK(npoints >= 3, "A polygon consists of at least 3 points");
 
@@ -744,8 +581,7 @@ struct Canvas
   // TODO(lamarrr): text gradient, reset on each line or continue???? how does
   // css do it?
   Canvas &draw_text(TextBlock const &block, TextLayout const &layout,
-                    Span<BundledFont const> font_bundle,
-                    Vec2 const                   position)
+                    Span<BundledFont const> font_bundle, Vec2 const position)
   {
     /// TEXT BACKGROUNDS ///
     {

@@ -1,11 +1,10 @@
 #pragma once
 #include "ashura/gfx/gfx.h"
-#include "ashura/renderer/scene.h"
-#include "ashura/renderer/view.h"
 #include "ashura/std/error.h"
 #include "ashura/std/hash_map.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
+#include "ashura/std/vec.h"
 #include "ashura/std/types.h"
 
 namespace ash

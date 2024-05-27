@@ -1,9 +1,11 @@
 #pragma once
 
+#include "ashura/engine/canvas.h"
 #include "ashura/engine/event.h"
 #include "ashura/engine/key.h"
 #include "ashura/renderer/renderer.h"
 #include "ashura/std/math.h"
+#include "ashura/std/time.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -15,8 +17,8 @@ namespace ash
 /// @scale: scales the source size, i.e. value should be 0.5 of source size
 /// @min: clamps the source size, i.e. value should be at least 20px
 /// @max: clamps the source size, i.e. value should be at most 100px
-/// @minrel: clamps the source size relatively. i.e. value should be at least 0.5
-/// of source size
+/// @minrel: clamps the source size relatively. i.e. value should be at least
+/// 0.5 of source size
 /// @maxrel: clamps the source size relatively. i.e. value should be at most 0.5
 /// of source size
 struct LayoutConstraint
@@ -41,14 +43,14 @@ enum class Direction : u8
   Vertical   = 1
 };
 
-constexpr Vec2 ALIGN_TOP_LEFT      = Vec2{0, 0};
-constexpr Vec2 ALIGN_TOP_CENTER    = Vec2{0.5f, 0};
-constexpr Vec2 ALIGN_TOP_RIGHT     = Vec2{1, 0};
-constexpr Vec2 ALIGN_LEFT_CENTER   = Vec2{0, 0.5f};
-constexpr Vec2 ALIGN_CENTER        = Vec2{0.5f, 0.5f};
-constexpr Vec2 ALIGN_RIGHT_CENTER  = Vec2{1, 0.5f};
-constexpr Vec2 ALIGN_BOTTOM_LEFT   = Vec2{0, 1};
-constexpr Vec2 ALIGN_BOTTOM_CENTER = Vec2{0.5f, 1};
+constexpr Vec2 ALIGN_TOP_LEFT      = Vec2{-1, -1};
+constexpr Vec2 ALIGN_TOP_CENTER    = Vec2{0, -1};
+constexpr Vec2 ALIGN_TOP_RIGHT     = Vec2{1, -1};
+constexpr Vec2 ALIGN_LEFT_CENTER   = Vec2{-1, 0};
+constexpr Vec2 ALIGN_CENTER        = Vec2{0, 0};
+constexpr Vec2 ALIGN_RIGHT_CENTER  = Vec2{1, 0};
+constexpr Vec2 ALIGN_BOTTOM_LEFT   = Vec2{-1, 1};
+constexpr Vec2 ALIGN_BOTTOM_CENTER = Vec2{0, 1};
 constexpr Vec2 ALIGN_BOTTOM_RIGHT  = Vec2{1, 1};
 
 enum class MainAlign : u8
@@ -92,16 +94,6 @@ enum class WidgetEventTypes : u32
   ViewMiss     = 0x00008000
 };
 
-struct GlobalWidgetState
-{
-  MouseButtons   button            = MouseButtons::None;
-  Vec2           mouse_position    = {};
-  Vec2           mouse_translation = {};
-  u32            num_clicks        = 0;
-  Span<u8 const> drag_payload      = {};
-  SystemTheme    theme             = SystemTheme::None;
-};
-
 /// @Visible: an invisible widget will not be drawn nor receive mouse/touch
 /// events.
 ///
@@ -117,17 +109,15 @@ enum class WidgetAttributes : u8
   Draggable  = 0x08
 };
 
-/// TODO(lamarrr): event context and names to global context? we can have
-/// thousands of same widgets that might need processing as well. theming
-/// reaction
-//
-// listener id for each event the widget emits?
-//
-// TODO(lamarrr): syncing different widget states?
-// each widget should forward events to a global dict, the dict key is specified
-// and changed by the user.
-//
-//
+struct WidgetContext
+{
+  MouseButtons   button            = MouseButtons::None;
+  Vec2           mouse_position    = {};
+  Vec2           mouse_translation = {};
+  u32            num_clicks        = 0;
+  Span<u8 const> drag_payload      = {};
+  SystemTheme    theme             = SystemTheme::None;
+};
 
 /// @brief Base widget class. All widget types must inherit from this struct.
 /// all methods are already implemented with reasonable defaults.
@@ -216,9 +206,9 @@ struct Widget
   /// only called if the widget passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas
-  virtual void render(Renderer &renderer)
+  virtual void render(Canvas &canvas)
   {
-    (void) renderer;
+    (void) canvas;
   }
 
   /// @brief called on every frame. used for state changes, animations, task
@@ -227,12 +217,12 @@ struct Widget
   /// handle that. i.e. using the multi-tasking system.
   /// @param interval time passed since last call to this method
   //
-  // attached by widget system to global context
-  // virtual Span<u8 const> get_drag_payload(WidgetSystem &);
-  virtual void tick(u64 diff, WidgetEventTypes events)
+  virtual void tick(nanoseconds interval, WidgetEventTypes events,
+                    WidgetContext const &ctx)
   {
-    (void) diff;
+    (void) interval;
     (void) events;
+    (void) ctx;
   }
 
   uid id = UID_MAX;

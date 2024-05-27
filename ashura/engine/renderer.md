@@ -31,13 +31,6 @@
   - Highlight with Stencil
   - Fresnel-Effect Highlight
 
-# Render Graph Requirements
-
-- Caching of Renderpass
-- Caching of Framebuffer?
-- Re-use of scratch image attachments across passes
-- Caching and management of pipeline along with shaders and renderpasses
-
 # Required Samples
 
 - Custom YAML-defined Imported Materials for Weapons

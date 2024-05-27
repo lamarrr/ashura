@@ -8,7 +8,7 @@ namespace ash
 struct RRectParam
 {
   Mat4 transform       = {};
-  f32  radii[4]        = {};
+  Vec4 radii           = {};
   Vec2 uv[2]           = {};
   Vec4 tint[4]         = {};
   Vec2 aspect_ratio    = {1, 1};

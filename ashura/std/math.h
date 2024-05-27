@@ -548,7 +548,7 @@ constexpr f32 cubic_bezier(f32 p0, f32 p1, f32 p2, f32 p3, f32 t)
 
 /// https://www.youtube.com/watch?v=jvPPXbo87ds&t=1033s - The Continuity of
 /// Splines by Freya Holmer
-
+///
 /// has automatic tangent. use for animation and path smoothing
 /// ne of the features of the Catmull-Rom spline is that the specified curve
 /// will pass through all of the control points.

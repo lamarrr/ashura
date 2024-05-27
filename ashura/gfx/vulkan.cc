@@ -1249,7 +1249,7 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
                              .applicationVersion = CLIENT_VERSION,
                              .pEngineName        = ENGINE_NAME,
                              .engineVersion      = ENGINE_VERSION,
-                             .apiVersion         = 0};
+                             .apiVersion         = VK_API_VERSION_1_1};
 
   VkDebugUtilsMessengerCreateInfoEXT debug_create_info{
       .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,

@@ -1,223 +1,286 @@
+#include "ashura/engine/canvas.h"
+#include "ashura/renderer/renderer.h"
 
-inline Span<Vertex2d> rect(Vec2 offset, Vec2 extent, Vec4 color,
-                                Span<Vertex2d> polygon)
+namespace ash
 {
-  Vertex2d const vertices[] = {
-      {.position = offset, .uv = {}, .color = color},
-      {.position = offset + Vec2{extent.x, 0}, .uv = {}, .color = color},
-      {.position = offset + extent, .uv = {}, .color = color},
-      {.position = offset + Vec2{0, extent.y}, .uv = {}, .color = color}};
 
-  return polygon.copy(vertices);
+/*
+/// outputs (n-2)*3 indices
+inline void triangulate_convex_polygon(Vec<u32> &indices, u32 nvertices)
+{
+  if (nvertices < 3)
+  {
+    return;
+  }
+
+  for (u32 i = 2; i < nvertices; i++)
+  {
+    indices.push(0).unwrap();
+    indices.push_inplace((i - 1)).unwrap();
+    indices.push_inplace(i).unwrap();
+  }
 }
 
-inline Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end,
-                               u32 nsegments, Vec4 color,
-                               Span<Vertex2d> polygon)
+/// line joint is a bevel joint
+inline void add_line_stroke(Vec2 p0, Vec2 p1, f32 thickness, Vec4 color,
+                            Vec<Vertex2d> &out)
 {
-  begin = to_radians(begin);
-  end   = to_radians(end);
+  // the angles are specified in clockwise direction to be compatible with the
+  // vulkan coordinate system
+  //
+  // get the angle of inclination of p2 to p1
+  Vec2 d     = p1 - p0;
+  f32  grad  = abs(d.y / epsilon_clamp(d.x));
+  f32  alpha = std::atan(grad);
 
-  if (nsegments < 1 || radius <= 0)
+  // use direction of the points to get the actual overall angle of
+  // inclination of p2 to p1
+  if (d.x < 0 && d.y > 0)
   {
-    return {};
+    alpha = PI - alpha;
+  }
+  else if (d.x < 0 && d.y < 0)
+  {
+    alpha = PI + alpha;
+  }
+  else if (d.x > 0 && d.y < 0)
+  {
+    alpha = 2 * PI - alpha;
+  }
+  else
+  {
+    // d.x >=0 && d.y >= 0
   }
 
-  for (u32 i = 0; i < nsegments; i++)
-  {
-    f32  angle = lerp(begin, end, static_cast<f32>(i / (nsegments - 1)));
-    Vec2 p     = radius + radius * Vec2{std::cos(angle), std::sin(angle)};
-    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
-  }
+  // line will be at a parallel angle
+  alpha = alpha + PI / 2;
 
-  return polygon;
+  Vec2 f = thickness / 2 * Vec2{std::cos(alpha), std::sin(alpha)};
+  Vec2 g = thickness / 2 * Vec2{std::cos(PI + alpha), std::sin(PI + alpha)};
+
+  Vec2 p0_0 = p0 + f;
+  Vec2 p0_1 = p0 + g;
+
+  Vec2 p1_0 = p1 + f;
+  Vec2 p1_1 = p1 + g;
+
+  Vertex2d vertices[] = {{.position = p0_0, .uv = {}, .color = color},
+                         {.position = p0_1, .uv = {}, .color = color},
+                         {.position = p1_0, .uv = {}, .color = color},
+                         {.position = p1_1, .uv = {}, .color = color}};
+
+  out.extend(vertices).unwrap();
 }
 
-inline Span<Vertex2d> circle(Vec2 offset, f32 radius, u32 nsegments,
-                                  Vec4 color, Span<Vertex2d> polygon)
+// line joint is a bevel joint, it is the most efficient since it re-uses
+// existing vertices and doesn't require generating new vertices
+inline void triangulate_line(Span<Vertex2d const> in_points, f32 thickness,
+                             Vec<Vertex2d> &out_vertices, Vec<u32> &out_indices,
+                             bool should_close)
 {
-  if (nsegments == 0 || radius <= 0)
+  if (in_points.size() < 2 || thickness == 0)
   {
-    return {};
+    return;
   }
 
-  f32 step = (2 * PI) / nsegments;
+  bool has_previous_line = false;
 
-  for (u32 i = 0; i < nsegments; i++)
+  u32 Vertex_index = 0;
+
+  for (u32 i = 1; i < static_cast<u32>(in_points.size()); i++)
   {
-    Vec2 p     = radius + radius * Vec2{std::cos(i * step), std::sin(i * step)};
-    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
+    Vec4 color = in_points[i - 1].color;
+    Vec2 p0    = in_points[i - 1].position;
+    Vec2 p1    = in_points[i].position;
+
+    add_line_stroke(p0, p1, thickness, color, out_vertices);
+
+    // weave the line triangles
+    u32 indices[] = {Vertex_index, Vertex_index + 1, Vertex_index + 3,
+                     Vertex_index, Vertex_index + 2, Vertex_index + 3};
+
+    out_indices.extend(indices).unwrap();
+
+    // weave the previous line's end to the beginning of this line
+    if (has_previous_line)
+    {
+      u32 prev_line_Vertex_index = Vertex_index - 4;
+
+      u32 indices[] = {prev_line_Vertex_index + 2,
+                       prev_line_Vertex_index + 3,
+                       Vertex_index,
+                       prev_line_Vertex_index + 2,
+                       prev_line_Vertex_index + 3,
+                       Vertex_index + 1};
+
+      out_indices.extend(indices).unwrap();
+    }
+
+    has_previous_line = true;
+
+    Vertex_index += 4;
   }
 
-  return polygon;
+  // requires at least 3 points to be closable
+  if (should_close && in_points.size() > 2)
+  {
+    Vec4 color = in_points[in_points.size() - 1].color;
+    Vec2 p0    = in_points[in_points.size() - 1].position;
+    Vec2 p1    = in_points[0].position;
+
+    add_line_stroke(p0, p1, thickness, color, out_vertices);
+
+    // weave the line triangles
+    u32 indices[] = {Vertex_index, Vertex_index + 1, Vertex_index + 3,
+                     Vertex_index, Vertex_index + 2, Vertex_index + 3};
+
+    out_indices.extend(indices).unwrap();
+
+    {
+      u32 prev_line_Vertex_index  = Vertex_index - 4;
+      u32 first_line_Vertex_index = 0;
+
+      u32 indices[] = {
+          // weave the previous line's end to the beginning of this line
+          prev_line_Vertex_index + 2, prev_line_Vertex_index + 3, Vertex_index,
+          prev_line_Vertex_index + 2, prev_line_Vertex_index + 3,
+          Vertex_index + 1,
+          // weave this line's end to the beginning of the first line
+          Vertex_index + 2, Vertex_index + 3, first_line_Vertex_index,
+          Vertex_index + 2, Vertex_index + 3, first_line_Vertex_index + 1};
+
+      out_indices.extend(indices).unwrap();
+    }
+  }
+}
+*/
+
+void Canvas::circle(PathStyle const &style, Vec2 center, Vec2 radius)
+{
+  if (style.stroke)
+  {
+  }
+  else
+  {
+    CHECK(rrect_params.push(RRectParam{
+        .transform = style.transform,
+        .radii     = {1, 1, 1, 1},
+        .uv        = {style.uv[0], style.uv[1]},
+        .tint = {style.tint[0], style.tint[1], style.tint[2], style.tint[3]},
+        .aspect_ratio    = {1, 1},
+        .edge_smoothness = style.edge_smoothness,
+        .albedo          = style.texture}));
+
+    if (pass_runs.is_empty() ||
+        pass_runs[pass_runs.size() - 1].pass != CanvasPass::RRect)
+    {
+      CHECK(pass_runs.push(CanvasPassRun{.pass   = CanvasPass::RRect,
+                                         .offset = (u32) rrect_params.size(),
+                                         .count  = 1}));
+    }
+    else
+    {
+      pass_runs[pass_runs.size() - 1].count++;
+    }
+  }
 }
 
-inline Span<Vertex2d> ellipse(Vec2 offset, Vec2 radii, u32 nsegments,
-                                   Vec4 color, Span<Vertex2d> polygon)
+void Canvas::rect(PathStyle const &style, Vec2 center, Vec2 extent)
 {
-  if (nsegments == 0 || radii.x <= 0 || radii.y <= 0)
+  if (style.stroke)
   {
-    return {};
   }
-
-  f32 step = (2 * PI) / nsegments;
-
-  for (u32 i = 0; i < nsegments; i++)
+  else
   {
-    Vec2 p     = radii + radii * Vec2{std::cos(i * step), std::sin(i * step)};
-    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
-  }
+    CHECK(rrect_params.push(RRectParam{
+        .radii = {0, 0, 0, 0},
+        .uv    = {style.uv[0], style.uv[1]},
+        .tint  = {style.tint[0], style.tint[1], style.tint[2], style.tint[3]},
+        .aspect_ratio    = {1, 1},
+        .edge_smoothness = style.edge_smoothness,
+        .albedo          = style.texture}));
 
-  return polygon;
+    if (pass_runs.is_empty() ||
+        pass_runs[pass_runs.size() - 1].pass != CanvasPass::RRect)
+    {
+      CHECK(pass_runs.push(CanvasPassRun{.pass   = CanvasPass::RRect,
+                                         .offset = (u32) rrect_params.size(),
+                                         .count  = 1}));
+    }
+    else
+    {
+      pass_runs[pass_runs.size() - 1].count++;
+    }
+  }
 }
 
-// outputs 8 + nsegments * 4 vertices
-inline Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii,
-                                      u32 nsegments, Vec4 color,
-                                      Span<Vertex2d> polygon)
+void Canvas::rrect(PathStyle const &style, Vec2 center, Vec2 extent, Vec4 radii)
 {
-  f32 max_radius   = min(extent.x, extent.y);
-  radii.x          = min(radii.x, max_radius);
-  radii.y          = min(radii.y, max_radius - radii.x);
-  f32 max_radius_z = min(max_radius - radii.x, max_radius - radii.y);
-  radii.z          = min(radii.z, max_radius_z);
-  f32 max_radius_w = min(max_radius_z, max_radius - radii.z);
-  radii.w          = min(radii.w, max_radius_w);
-
-  f32 step = nsegments == 0 ? 0.0f : (PI / 2) / nsegments;
-
-  u32 i = 0;
-
-  polygon[i] = Vertex2d{
-      .position = offset + extent - Vec2{0, radii.z}, .uv = {}, .color = color};
-  i++;
-
-  for (u32 segment = 0; segment < nsegments; segment++, i++)
+  // todo(lamarrr): scale radii
+  if (style.stroke)
   {
-    Vec2 p = (extent - radii.z) +
-             radii.z * Vec2{std::cos(segment * step), std::sin(segment * step)};
-    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
-
-  polygon[i] = Vertex2d{
-      .position = offset + extent - Vec2{radii.z, 0}, .uv = {}, .color = color};
-  i++;
-
-  polygon[i] = Vertex2d{
-      .position = offset + Vec2{radii.w, extent.y}, .uv = {}, .color = color};
-  i++;
-
-  for (u32 segment = 0; segment < nsegments; segment++, i++)
+  else
   {
-    Vec2 p = Vec2{radii.w, extent.y - radii.w} +
-             radii.w * Vec2{std::cos(PI / 2 + segment * step),
-                            std::sin(PI / 2 + segment * step)};
-    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
+    CHECK(rrect_params.push(RRectParam{
+        .radii = {0, 0, 0, 0},
+        .uv    = {style.uv[0], style.uv[1]},
+        .tint  = {style.tint[0], style.tint[1], style.tint[2], style.tint[3]},
+        .aspect_ratio    = {1, 1},
+        .edge_smoothness = style.edge_smoothness,
+        .albedo          = style.texture}));
+
+    if (pass_runs.is_empty() ||
+        pass_runs[pass_runs.size() - 1].pass != CanvasPass::RRect)
+    {
+      CHECK(pass_runs.push(CanvasPassRun{.pass   = CanvasPass::RRect,
+                                         .offset = (u32) rrect_params.size(),
+                                         .count  = 1}));
+    }
+    else
+    {
+      pass_runs[pass_runs.size() - 1].count++;
+    }
   }
-
-  polygon[i] = Vertex2d{.position = offset + Vec2{0, extent.y - radii.w},
-                        .uv       = {},
-                        .color    = color};
-  i++;
-
-  polygon[i] =
-      Vertex2d{.position = offset + Vec2{0, radii.x}, .uv = {}, .color = color};
-  i++;
-
-  for (u32 segment = 0; segment < nsegments; segment++, i++)
-  {
-    Vec2 p     = radii.x + radii.x * Vec2{std::cos(PI + segment * step),
-                                      std::sin(PI + segment * step)};
-    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
-  }
-
-  polygon[i] =
-      Vertex2d{.position = offset + Vec2{radii.x, 0}, .uv = {}, .color = color};
-  i++;
-
-  polygon[i] = Vertex2d{.position = offset + Vec2{extent.x - radii.y, 0},
-                        .uv       = {},
-                        .color    = color};
-  i++;
-
-  for (u32 segment = 0; segment < nsegments; segment++, i++)
-  {
-    Vec2 p = Vec2{extent.x - radii.y, radii.y} +
-             radii.y * Vec2{std::cos(PI * 3.0f / 2.0f + segment * step),
-                            std::sin(PI * 3.0f / 2.0f + segment * step)};
-    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
-  }
-
-  polygon[i] = Vertex2d{
-      .position = offset + Vec2{extent.x, radii.y}, .uv = {}, .color = color};
-
-  return polygon;
 }
 
-inline Span<Vertex2d> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii,
-                                      Vec4 color, Span<Vertex2d> polygon)
+void Canvas::arc(PathStyle const &style, Vec2 center, f32 radius,
+                 f32 angle_begin, f32 angle_end)
 {
-  f32 max_radius   = min(extent.x, extent.y);
-  radii.x          = min(radii.x, max_radius);
-  radii.y          = min(radii.y, max_radius - radii.x);
-  f32 max_radius_z = min(max_radius - radii.x, max_radius - radii.y);
-  radii.z          = min(radii.z, max_radius_z);
-  f32 max_radius_w = min(max_radius_z, max_radius - radii.z);
-  radii.w          = min(radii.w, max_radius_w);
-
-  Vertex2d const vertices[] = {
-      {.position = offset + Vec2{radii.x, 0}, .uv = {}, .color = color},
-      {.position = offset + Vec2{extent.x - radii.y, 0},
-       .uv       = {},
-       .color    = color},
-      {.position = offset + Vec2{extent.x, radii.y}, .uv = {}, .color = color},
-      {.position = offset + Vec2{extent.x, extent.y - radii.z},
-       .uv       = {},
-       .color    = color},
-      {.position = offset + Vec2{extent.x - radii.z, extent.y},
-       .uv       = {},
-       .color    = color},
-      {.position = offset + Vec2{radii.w, extent.y}, .uv = {}, .color = color},
-      {.position = offset + Vec2{0, extent.y - radii.w},
-       .uv       = {},
-       .color    = color},
-      {.position = offset + Vec2{0, radii.x}, .uv = {}, .color = color}};
-
-  return polygon.copy(vertices);
+  // path
+  if (style.stroke)
+  {
+  }
+  else
+  {
+  }
 }
 
-inline Span<Vertex2d> lerp_uvs(Span<Vertex2d> path, Vec2 extent,
-                                    Vec2 uv0, Vec2 uv1)
+void Canvas::simple_text(PathStyle const &style, Vec2 baseline,
+                         Span<char const> text)
 {
-  for (Vertex2d &v : path)
-  {
-    Vec2 t =
-        v.position / Vec2{epsilon_clamp(extent.x), epsilon_clamp(extent.y)};
-    v.uv.x = lerp(uv0.x, uv1.x, t.x);
-    v.uv.y = lerp(uv0.y, uv1.y, t.y);
-  }
-
-  return path;
+  // rrect
 }
 
-inline Span<Vertex2d> lerp_color_gradient(Span<Vertex2d> path,
-                                               Vec2                extent,
-                                               LinearColorGradient gradient)
+void Canvas::text(PathStyle const &style, Vec2 center, TextBlock const &block,
+                  TextLayout const &layout)
 {
-  if (gradient.is_uniform())
-  {
-    return path;
-  }
-
-  f32 const x = std::cos(to_radians(gradient.angle));
-  f32 const y = std::sin(to_radians(gradient.angle));
-
-  for (Vertex2d &v : path)
-  {
-    Vec2 const p = v.position / extent;
-    f32 const  t = p.x * x + p.y * y;
-    v.color      = lerp(gradient.begin, gradient.end, t);
-  }
-
-  return path;
+  // rrect
 }
+
+void Canvas::convex_polygon(PathStyle const     &style,
+                            Span<Vertex2d const> vertices)
+{
+  // convex polygon
+}
+
+void Canvas::blur(Vec2U offset, Vec2U extent)
+{
+  // blur pass
+}
+
+void Canvas::custom(CustomCanvasPassInfo const &pass)
+{
+}
+
+}        // namespace ash

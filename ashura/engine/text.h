@@ -123,7 +123,7 @@ struct TextRunSegment
 /// @line_height: maximum line height of all the runs on the line
 /// @base_direction: base direction of the line
 /// @run_segments_offset: begin index of line's segments
-/// @nrun_segments: number of segments
+/// @num_run_segments: number of segments
 struct LineMetrics
 {
   f32           width               = 0;
@@ -132,7 +132,7 @@ struct LineMetrics
   f32           line_height         = 0;
   TextDirection base_direction      = TextDirection::LeftToRight;
   usize         run_segments_offset = 0;
-  usize         nrun_segments       = 0;
+  usize         num_run_segments    = 0;
 };
 
 /// @advance: context-dependent horizontal-layout advance

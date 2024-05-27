@@ -39,7 +39,6 @@ struct TaskInfo
 /// [v] inter-task communication
 /// [v] inter-task sharing
 /// [v] inter-task data flow, reporting cancelation
-/// [v] SPSC-buffer ring buffer?
 /// [v] external polling contexts
 struct Scheduler
 {

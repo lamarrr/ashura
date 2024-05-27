@@ -6,6 +6,8 @@
 #include "ashura/renderer/passes/pbr.h"
 #include "ashura/renderer/passes/rrect.h"
 #include "ashura/renderer/render_context.h"
+#include "ashura/std/hash_map.h"
+#include "ashura/std/object.h"
 
 namespace ash
 {
@@ -15,16 +17,33 @@ namespace ash
 // perform bloom, blur, msaa on 3d scene
 // render UI pass + custom shaders, blur ???
 // copy and composite 3d and 2d scenes
+//
+// TODO(lamarrr): composite of
+// TODO(lamarrr): pass initialization and shutdown procedure?
+//
+//
+
+typedef struct RenderPass_T *RenderPass;
+typedef struct Renderer      Renderer;
+
+struct RenderPassImpl
+{
+  RenderPass pass                              = nullptr;
+  void (*attach)(RenderPass pass, Renderer &r) = nullptr;
+  void (*uninit)(RenderPass pass, Renderer &r) = nullptr;
+};
 
 struct Renderer
 {
-  BloomPass          bloom;
-  BlurPass           blur;
-  FXAAPass           fxaa;
-  MSAAPass           msaa;
-  PBRPass            pbr;
-  RRectPass          rrect;
-  RenderContext      ctx;
+  RenderContext              ctx    = {};
+  BloomPass                  bloom  = {};
+  BlurPass                   blur   = {};
+  FXAAPass                   fxaa   = {};
+  MSAAPass                   msaa   = {};
+  PBRPass                    pbr    = {};
+  RRectPass                  rrect  = {};
+  StrHashMap<RenderPassImpl> custom = {};
+
   gfx::Buffer        params_buffer = nullptr;
   gfx::Image         image         = nullptr;
   gfx::ImageView     texture       = nullptr;
@@ -33,7 +52,7 @@ struct Renderer
   gfx::DescriptorSet textures      = nullptr;
   gfx::DescriptorSet textures_2    = nullptr;
   /// TODO(lamarrr): attachment textures group, updated on every frame
-  /// recreation
+  /// recreation. update descriptor sets when either attachments are recreated/
 
   gfx::Buffer        pbr_vtx_buff      = nullptr;
   gfx::Buffer        pbr_idx_buff      = nullptr;
@@ -263,16 +282,16 @@ struct Renderer
     // zeroth texture is always plain white
     auto enc = ctx.encoder();
 
-/*
-    ctx.device->update_descriptor_set(
-        ctx.device.self,
-        gfx::DescriptorSetUpdate{
-            .set     = textures_2,
-            .binding = 0,
-            .element = 0,
-            .images  = to_span({gfx::ImageBinding{
-                 .sampler    = sampler,
-                 .image_view = ctx.framebuffer.color_image_view}})});*/
+    /*
+        ctx.device->update_descriptor_set(
+            ctx.device.self,
+            gfx::DescriptorSetUpdate{
+                .set     = textures_2,
+                .binding = 0,
+                .element = 0,
+                .images  = to_span({gfx::ImageBinding{
+                     .sampler    = sampler,
+                     .image_view = ctx.framebuffer.color_image_view}})});*/
 
     enc->clear_color_image(
         enc.self, ctx.scratch_framebuffer.color_image,
@@ -324,25 +343,25 @@ struct Renderer
         enc.self,
         to_span<RRectParam>(
             {{.transform =
-                  ViewTransform{.model = affine_scale3d({.8, .75, 1}) *
-                                         affine_rotate3d_z(0.5),
+                  ViewTransform{.model = affine_scale3d({.8F, .75F, 1}) *
+                                         affine_rotate3d_z(0.5F),
                                 .view = affine_scale3d({1080.0 / 1920, 1, 1}),
                                 .projection = Mat4::identity()}
                       .mul(),
-              .radii = {.25, .2, .1, .4},
+              .radii = {.25F, .2F, .1F, .4F},
               .uv    = {{0, 0}, {1, 1}},
               .tint  = {{1, 0, 1, 1}, {1, 0, 0, 1}, {0, 0, 1, 1}, {1, 1, 1, 1}},
               .aspect_ratio = {1, .75 / .8},
               .albedo       = 0},
              {.transform =
                   ViewTransform{.model =
-                                    affine_scale3d({.8, .75, 1}) *
+                                    affine_scale3d({.8F, .75F, 1}) *
                                     affine_rotate3d_z(
                                         (ts.tv_nsec / 5'000'000'000.0f) * 1),
                                 .view = affine_scale3d({1080.0 / 1920, 1, 1}),
                                 .projection = Mat4::identity()}
                       .mul(),
-              .radii = {.25, .2, .1, .4},
+              .radii = {.25F, .2F, .1F, .4F},
               .uv    = {{0, 0}, {1, 1}},
               .tint  = {{1, 0, 1, 1}, {1, 1, 0, 1}, {0, 0, 1, 1}, {1, 1, 1, 1}},
               .aspect_ratio = {1, .75 / .8},
@@ -366,14 +385,14 @@ struct Renderer
                  .num_instances      = 2});
 
     enc->update_buffer(enc.self,
-                       to_span<PBRVertex>({{-1, -1, 0.5, 0, 0},
-                                           {1, -1, 0.5, 0, 1},
-                                           {-1, 1, 0.5, 0, 1},
-                                           {1, 1, 0.5, 1, 1},
-                                           {-1, -1, -0.5, 0, 0},
-                                           {1, -1, -0.5, 0, 1},
-                                           {-1, 1, -0.5, 0, 1},
-                                           {1, 1, -0.5, 1, 1}})
+                       to_span<PBRVertex>({{-1, -1, 0.5F, 0, 0},
+                                           {1, -1, 0.5F, 0, 1},
+                                           {-1, 1, 0.5F, 0, 1},
+                                           {1, 1, 0.5F, 1, 1},
+                                           {-1, -1, -0.5F, 0, 0},
+                                           {1, -1, -0.5F, 0, 1},
+                                           {-1, 1, -0.5F, 0, 1},
+                                           {1, 1, -0.5F, 1, 1}})
                            .as_u8(),
                        0, pbr_vtx_buff);
 
@@ -397,13 +416,13 @@ struct Renderer
         enc.self,
         to_span<PBRParam>(
             {{.transform =
-                  ViewTransform{.model = affine_scale3d({.5, .5, .5}) *
+                  ViewTransform{.model = affine_scale3d({.5F, .5F, .5F}) *
                                          affine_rotate3d_z(rot_z) *
                                          affine_rotate3d_x(rot_x),
-                                .view = affine_scale3d({1080.0 / 1920, 1, 1}),
+                                .view = affine_scale3d({1080.0f / 1920, 1, 1}),
                                 .projection = OrthographicCamera{.x_mag  = 1,
                                                                  .y_mag  = 1,
-                                                                 .z_near = 0.1,
+                                                                 .z_near = 0.1F,
                                                                  .z_far  = 100}
                                                   .to_projection_mat()},
               .albedo     = {1, 0, 1, 1},

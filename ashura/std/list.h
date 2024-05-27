@@ -8,7 +8,7 @@ namespace ash
 /// @brief Circular Doubly-Linked list node.
 /// head->next and head->prev are always non-null.
 ///
-/// always construct with operator new!!!
+/// always construct with operator new.
 ///
 /// @warning only use for scenarios where O(1) random insertion and/or removal
 /// is a must. ListNode requires stable addressing, must not be relocated once

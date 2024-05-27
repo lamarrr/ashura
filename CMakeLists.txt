@@ -169,8 +169,8 @@ target_include_directories(ashura_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
   ashura_engine
-  ashura/engine/font.cc ashura/engine/image_decoder.cc ashura/engine/shader.cc
-  ashura/engine/window.cc ashura/engine/widget.cc)
+  ashura/engine/font.cc ashura/engine/canvas.cc ashura/engine/image_decoder.cc
+  ashura/engine/shader.cc ashura/engine/window.cc ashura/engine/widget.cc)
 target_link_libraries(
   ashura_engine
   ashura_std

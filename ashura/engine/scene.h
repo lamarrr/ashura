@@ -63,7 +63,7 @@ struct Scene
   void                    remove_light(uid id);
 };
 
-//?
+// TODO(lamarrr): hierarchy should be maintained upon insertion and removal
 void           hierarchical_sort(Span<SceneNode const> node, Span<u32> indices);
 constexpr void transform_nodes(SparseVec const       &id_map,
                                Span<SceneNode const>  node,
