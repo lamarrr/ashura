@@ -1,7 +1,7 @@
 #pragma once
 #include "ashura/gfx/gfx.h"
-#include "ashura/renderer/camera.h"
-#include "ashura/renderer/scene.h"
+#include "ashura/engine/camera.h"
+#include "ashura/engine/scene.h"
 #include "ashura/std/types.h"
 
 namespace ash

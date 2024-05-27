@@ -153,41 +153,30 @@ target_link_libraries(
 target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
-  ashura_renderer
-  ashura/renderer/scene.cc
-  ashura/renderer/view.cc
-  ashura/renderer/renderer.cc
-  ashura/renderer/render_context.cc
-  ashura/renderer/passes/bloom.cc
-  ashura/renderer/passes/blur.cc
-  ashura/renderer/passes/fxaa.cc
-  ashura/renderer/passes/msaa.cc
-  ashura/renderer/passes/pbr.cc
-  ashura/renderer/passes/rrect.cc)
-target_link_libraries(ashura_renderer ashura_std ashura_gfx)
-target_include_directories(ashura_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-add_library(
   ashura_engine
-  ashura/engine/font.cc ashura/engine/canvas.cc ashura/engine/image_decoder.cc
-  ashura/engine/shader.cc ashura/engine/window.cc ashura/engine/widget.cc)
+  ashura/engine/font.cc
+  ashura/engine/canvas.cc
+  ashura/engine/image_decoder.cc
+  ashura/engine/shader.cc
+  ashura/engine/window.cc
+  ashura/engine/widget.cc
+  ashura/engine/scene.cc
+  ashura/engine/view.cc
+  ashura/engine/renderer.cc
+  ashura/engine/render_context.cc
+  ashura/engine/passes/bloom.cc
+  ashura/engine/passes/blur.cc
+  ashura/engine/passes/fxaa.cc
+  ashura/engine/passes/msaa.cc
+  ashura/engine/passes/pbr.cc
+  ashura/engine/passes/rrect.cc)
 target_link_libraries(
   ashura_engine
   ashura_std
   ashura_gfx
-  ashura_renderer
   SPIRV
   glslang
-  spirv-reflect-static)
-target_include_directories(
-  ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
-                       ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
-
-target_link_libraries(
-  ashura_engine
-  ashura_std
-  ashura_gfx
-  ashura_renderer
+  spirv-reflect-static
   SDL3::SDL3-static
   harfbuzz
   CURL::libcurl
@@ -198,10 +187,10 @@ target_link_libraries(
   ${JPEG_LIBRARIES}
   PNG::PNG
   ${FFMPEG_LIBRARIES}
-  SheenBidi::SheenBidi
-  SPIRV
-  glslang
-  spirv-reflect-static)
+  SheenBidi::SheenBidi)
+target_include_directories(
+  ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
+                       ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
 
 add_executable(ashura_engine_test ashura/engine/tests/test.cc)
 target_link_libraries(ashura_engine_test ashura_engine)

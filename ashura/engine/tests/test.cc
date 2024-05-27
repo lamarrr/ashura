@@ -2,8 +2,8 @@
 #include "ashura/engine/shader.h"
 #include "ashura/engine/window.h"
 #include "ashura/gfx/vulkan.h"
-#include "ashura/renderer/render_context.h"
-#include "ashura/renderer/renderer.h"
+#include "ashura/engine/render_context.h"
+#include "ashura/engine/renderer.h"
 #include "ashura/std/hash_map.h"
 #include "stdlib.h"
 #include <thread>

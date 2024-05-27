@@ -1,5 +1,5 @@
 #include "ashura/engine/canvas.h"
-#include "ashura/renderer/renderer.h"
+#include "ashura/engine/renderer.h"
 
 namespace ash
 {
@@ -268,8 +268,7 @@ void Canvas::text(PathStyle const &style, Vec2 center, TextBlock const &block,
   // rrect
 }
 
-void Canvas::convex_polygon(PathStyle const     &style,
-                            Span<Vertex2d const> vertices)
+void Canvas::convex_polygon(PathStyle const &style, Span<Vertex const> vertices)
 {
   // convex polygon
 }

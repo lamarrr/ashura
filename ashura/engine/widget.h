@@ -3,7 +3,7 @@
 #include "ashura/engine/canvas.h"
 #include "ashura/engine/event.h"
 #include "ashura/engine/key.h"
-#include "ashura/renderer/renderer.h"
+#include "ashura/engine/renderer.h"
 #include "ashura/std/math.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"

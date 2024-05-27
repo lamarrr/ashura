@@ -1,11 +1,11 @@
 #pragma once
-#include "ashura/renderer/passes/bloom.h"
-#include "ashura/renderer/passes/blur.h"
-#include "ashura/renderer/passes/fxaa.h"
-#include "ashura/renderer/passes/msaa.h"
-#include "ashura/renderer/passes/pbr.h"
-#include "ashura/renderer/passes/rrect.h"
-#include "ashura/renderer/render_context.h"
+#include "ashura/engine/passes/bloom.h"
+#include "ashura/engine/passes/blur.h"
+#include "ashura/engine/passes/fxaa.h"
+#include "ashura/engine/passes/msaa.h"
+#include "ashura/engine/passes/pbr.h"
+#include "ashura/engine/passes/rrect.h"
+#include "ashura/engine/render_context.h"
 #include "ashura/std/hash_map.h"
 #include "ashura/std/object.h"
 
@@ -420,11 +420,8 @@ struct Renderer
                                          affine_rotate3d_z(rot_z) *
                                          affine_rotate3d_x(rot_x),
                                 .view = affine_scale3d({1080.0f / 1920, 1, 1}),
-                                .projection = OrthographicCamera{.x_mag  = 1,
-                                                                 .y_mag  = 1,
-                                                                 .z_near = 0.1F,
-                                                                 .z_far  = 100}
-                                                  .to_projection_mat()},
+                                .projection =
+                                    (Mat4) orthographic(1, 1, 0.1F, 100)},
               .albedo     = {1, 0, 1, 1},
               .num_lights = 1}})
             .as_u8(),
