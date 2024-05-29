@@ -28,6 +28,17 @@ typedef ptrdiff_t isize;
 typedef u64       uid;
 typedef u64       Hash;
 
+template <typename T, unsigned int N>
+struct simd
+{
+  unsigned int NUM_LANES      = N;
+  unsigned int NUM_BITS       = sizeof(T) * N * 8;
+  unsigned int REGISTER_WIDTH = NUM_BITS;
+
+  using Type = T;
+  alignas(alignof(T) * N) T data[N];
+};
+
 constexpr u8 U8_MIN = 0;
 constexpr u8 U8_MAX = 0xFF;
 
@@ -430,8 +441,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7,
+      T8) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9>
@@ -464,8 +475,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8,
+      T9) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -502,8 +513,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9,
+      T10) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -542,8 +553,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10,
+      T11) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -584,8 +595,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11,
+      T12) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -628,8 +639,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12, typename T13>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12,
+      T13) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -725,9 +736,9 @@ template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12, typename T13, typename T14,
           typename T15>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
-             T15>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
+      T15) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13,
+                    T14, T15>;
 
 template <unsigned int Index, typename Tuple>
 constexpr auto &&impl_get(Tuple &&tuple)
@@ -2472,22 +2483,14 @@ concept OutputIterator = InputIterator<It> && requires(It it) {
 
 template <typename R>
 concept InputRange = requires(R r) {
-  {
-    begin(r)
-  } -> InputIterator;
-  {
-    end(r)
-  } -> InputIterator;
+  { begin(r) } -> InputIterator;
+  { end(r) } -> InputIterator;
 };
 
 template <typename R>
 concept OutputRange = requires(R r) {
-  {
-    begin(r)
-  } -> OutputIterator;
-  {
-    end(r)
-  } -> OutputIterator;
+  { begin(r) } -> OutputIterator;
+  { end(r) } -> OutputIterator;
 };
 
 template <typename T, usize N>
@@ -2849,8 +2852,8 @@ constexpr Span<T> to_span(T (&array)[N])
 }
 
 template <typename Container>
-constexpr auto to_span(Container &container)
-    -> decltype(Span{data(container), size(container)})
+constexpr auto to_span(Container &container) -> decltype(Span{data(container),
+                                                              size(container)})
 {
   return Span{data(container), size(container)};
 }
@@ -3036,15 +3039,15 @@ constexpr Clamp          clamp;
 
 /// Fn is a function handle and doesn't manage any lifetime.
 ///
-template <typename Signature>
+template <typename Sig>
 struct Fn;
 
-template <typename ReturnType, typename... Args>
-struct Fn<ReturnType(Args...)>
+template <typename R, typename... Args>
+struct Fn<R(Args...)>
 {
-  using Dispatcher = ReturnType (*)(void *, Args...);
+  using Dispatcher = R (*)(void *, Args...);
 
-  constexpr ReturnType operator()(Args... args) const
+  constexpr R operator()(Args... args) const
   {
     return dispatcher(data, static_cast<Args &&>(args)...);
   }
@@ -3053,12 +3056,12 @@ struct Fn<ReturnType(Args...)>
   void      *data       = nullptr;
 };
 
-template <typename ReturnType, typename... Args>
+template <typename R, typename... Args>
 struct RawFunctionDispatcher
 {
-  static constexpr ReturnType dispatch(void *data, Args... args)
+  static constexpr R dispatch(void *data, Args... args)
   {
-    using Ptr = ReturnType (*)(Args...);
+    using Ptr = R (*)(Args...);
 
     Ptr function_ptr = reinterpret_cast<Ptr>(data);
 
@@ -3066,33 +3069,30 @@ struct RawFunctionDispatcher
   }
 };
 
-template <typename RawFunctionType>
-struct RawFnTraits
+template <typename Sig>
+struct RawFnTraits;
+
+template <typename R, typename... Args>
+struct RawFnTraits<R(Args...)>
+{
+  using Ptr        = R (*)(Args...);
+  using Signature  = R(Args...);
+  using Fn         = Fn<Signature>;
+  using Dispatcher = RawFunctionDispatcher<R, Args...>;
+  using ReturnType = R;
+};
+
+template <typename R, typename... Args>
+struct RawFnTraits<R (*)(Args...)> : public RawFnTraits<R(Args...)>
 {
 };
 
-template <typename ReturnType, typename... Args>
-struct RawFnTraits<ReturnType(Args...)>
-{
-  using ptr         = ReturnType (*)(Args...);
-  using signature   = ReturnType(Args...);
-  using fn          = Fn<signature>;
-  using dispatcher  = RawFunctionDispatcher<ReturnType, Args...>;
-  using return_type = ReturnType;
-};
-
-template <typename ReturnType, typename... Args>
-struct RawFnTraits<ReturnType (*)(Args...)>
-    : public RawFnTraits<ReturnType(Args...)>
-{
-};
-
-template <typename Type, typename ReturnType, typename... Args>
+template <typename T, typename R, typename... Args>
 struct FunctorDispatcher
 {
-  static constexpr ReturnType dispatch(void *data, Args... args)
+  static constexpr R dispatch(void *data, Args... args)
   {
-    return (*(reinterpret_cast<Type *>(data)))(static_cast<Args &&>(args)...);
+    return (*(reinterpret_cast<T *>(data)))(static_cast<Args &&>(args)...);
   }
 };
 
@@ -3102,31 +3102,31 @@ struct MemberFnTraits
 };
 
 // non-const member functions
-template <class Type, typename ReturnType, typename... Args>
-struct MemberFnTraits<ReturnType (Type::*)(Args...)>
+template <class T, typename R, typename... Args>
+struct MemberFnTraits<R (T::*)(Args...)>
 {
-  using ptr         = ReturnType (*)(Args...);
-  using signature   = ReturnType(Args...);
-  using fn          = Fn<signature>;
-  using type        = Type;
-  using dispatcher  = FunctorDispatcher<type, ReturnType, Args...>;
-  using return_type = ReturnType;
+  using Ptr        = R (*)(Args...);
+  using Signature  = R(Args...);
+  using Fn         = Fn<Signature>;
+  using Type       = T;
+  using Dispatcher = FunctorDispatcher<T, R, Args...>;
+  using ReturnType = R;
 };
 
 // const member functions
-template <class Type, typename ReturnType, typename... Args>
-struct MemberFnTraits<ReturnType (Type::*)(Args...) const>
+template <class T, typename R, typename... Args>
+struct MemberFnTraits<R (T::*)(Args...) const>
 {
-  using ptr         = ReturnType (*)(Args...);
-  using signature   = ReturnType(Args...);
-  using fn          = Fn<signature>;
-  using type        = Type const;
-  using dispatcher  = FunctorDispatcher<type, ReturnType, Args...>;
-  using return_type = ReturnType;
+  using Ptr        = R (*)(Args...);
+  using Signature  = R(Args...);
+  using Fn         = Fn<Signature>;
+  using Type       = T const;
+  using Dispatcher = FunctorDispatcher<T, R, Args...>;
+  using ReturnType = R;
 };
 
-template <class Type>
-struct FunctorFnTraits : public MemberFnTraits<decltype(&Type::operator())>
+template <class T>
+struct FunctorFnTraits : public MemberFnTraits<decltype(&T::operator())>
 {
 };
 
@@ -3134,11 +3134,11 @@ struct FunctorFnTraits : public MemberFnTraits<decltype(&Type::operator())>
 template <typename RawFunctionType>
 auto to_fn(RawFunctionType *function_pointer)
 {
-  using traits     = RawFnTraits<RawFunctionType>;
-  using fn         = typename traits::fn;
-  using dispatcher = typename traits::dispatcher;
+  using Traits     = RawFnTraits<RawFunctionType>;
+  using Fn         = typename Traits::Fn;
+  using Dispatcher = typename Traits::Dispatcher;
 
-  return fn{&dispatcher::dispatch, reinterpret_cast<void *>(function_pointer)};
+  return Fn{&Dispatcher::dispatch, reinterpret_cast<void *>(function_pointer)};
 }
 
 /// make a function view from a non-capturing functor (i.e. lambda's without
@@ -3146,10 +3146,10 @@ auto to_fn(RawFunctionType *function_pointer)
 template <typename StaticFunctor>
 auto to_fn(StaticFunctor functor)
 {
-  using traits = FunctorFnTraits<StaticFunctor>;
-  using ptr    = typename traits::ptr;
+  using Traits = FunctorFnTraits<StaticFunctor>;
+  using Ptr    = typename Traits::Ptr;
 
-  ptr function_pointer = static_cast<ptr>(functor);
+  Ptr function_pointer = static_cast<Ptr>(functor);
 
   return to_fn(function_pointer);
 }
@@ -3158,11 +3158,11 @@ auto to_fn(StaticFunctor functor)
 template <typename Functor>
 auto to_fn_ref(Functor &functor)
 {
-  using traits     = FunctorFnTraits<Functor>;
-  using fn         = typename traits::fn;
-  using dispatcher = typename traits::dispatcher;
+  using Traits     = FunctorFnTraits<Functor>;
+  using Fn         = typename Traits::Fn;
+  using Dispatcher = typename Traits::Dispatcher;
 
-  return fn{&dispatcher::dispatch,
+  return Fn{&Dispatcher::dispatch,
             const_cast<void *>(reinterpret_cast<void const *>(&functor))};
 }
 
