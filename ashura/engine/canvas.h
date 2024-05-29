@@ -26,6 +26,8 @@ enum class LineCap : u8
 // or other estimation methods via free functions.
 // arc splines and curves
 //
+// Arc, Biarc, Arc Spline, BiArc Splines
+// 
 enum class CurveType : u8
 {
   Linear          = 0,
