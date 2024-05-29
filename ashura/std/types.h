@@ -28,12 +28,12 @@ typedef ptrdiff_t isize;
 typedef u64       uid;
 typedef u64       Hash;
 
-template <typename T, unsigned int L>
+template <typename T, u16 N>
 struct simd
 {
-  unsigned int NUM_LANES      = L;
-  unsigned int NUM_BITS       = sizeof(T) * N * 8;
-  unsigned int REGISTER_WIDTH = NUM_BITS;
+  static constexpr u16 NUM_LANES      = N;
+  static constexpr u16 NUM_BITS       = sizeof(T) * N * 8;
+  static constexpr u16 REGISTER_WIDTH = NUM_BITS;
 
   using Type = T;
   alignas(alignof(T) * N) T data[N];
@@ -42,21 +42,21 @@ struct simd
 typedef simd<u8, 4>   u8x4;
 typedef simd<u8, 8>   u8x8;
 typedef simd<u8, 16>  u8x16;
-typedef simd<u8, 32>  u8x16;
-typedef simd<u8, 64>  u8x16;
+typedef simd<u8, 32>  u8x32;
+typedef simd<u8, 64>  u8x64;
 typedef simd<i8, 4>   i8x4;
 typedef simd<i8, 8>   i8x8;
 typedef simd<i8, 16>  i8x16;
-typedef simd<i8, 32>  i8x16;
-typedef simd<i8, 64>  i8x16;
+typedef simd<i8, 32>  i8x32;
+typedef simd<i8, 64>  i8x64;
 typedef simd<u16, 4>  u16x4;
 typedef simd<u16, 8>  u16x8;
 typedef simd<u16, 16> u16x16;
-typedef simd<u16, 32> u16x16;
+typedef simd<u16, 32> u16x32;
 typedef simd<i16, 4>  i16x4;
 typedef simd<i16, 8>  i16x8;
 typedef simd<i16, 16> i16x16;
-typedef simd<i16, 32> i16x16;
+typedef simd<i16, 32> i16x32;
 typedef simd<u32, 4>  u32x4;
 typedef simd<u32, 8>  u32x8;
 typedef simd<u32, 16> u32x16;

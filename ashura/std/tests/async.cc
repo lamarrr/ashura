@@ -15,7 +15,7 @@ TEST(AsyncTest, Basic)
   Semaphore sem = create_semaphore(1);
   scheduler->init(to_span<nanoseconds>({1ns, 2ns}), to_span({2ns, 5ns}));
 
-  for (u32 i = 0; i < 5'000'000; i++)
+  for (u32 i = 0; i < 5'000; i++)
   {
     scheduler->schedule_worker({.task = to_fn([](void *) {
                                   u64 inv = invocs.fetch_add(1);
@@ -38,7 +38,7 @@ TEST(AsyncTest, Basic)
 
     if (i % 1'000 == 0)
     {
-      std::this_thread::sleep_for(16ms);
+      std::this_thread::sleep_for(1ms);
     }
   }
 

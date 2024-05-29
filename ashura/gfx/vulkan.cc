@@ -1380,7 +1380,7 @@ void check_device_limits(VkPhysicalDeviceLimits limits)
             gfx::MAX_COMBINED_CLIP_AND_CULL_DISTANCES);
 }
 
-void check_device_features(Instance *self, VkPhysicalDeviceFeatures feat)
+void check_device_features(VkPhysicalDeviceFeatures feat)
 {
   sVALIDATE(feat.samplerAnisotropy == VK_TRUE);
   sVALIDATE(feat.shaderUniformBufferArrayDynamicIndexing == VK_TRUE);
@@ -1810,7 +1810,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   PhysicalDevice selected_dev = physical_devs[selected_dev_idx];
 
   check_device_limits(selected_dev.vk_properties.limits);
-  check_device_features(self, selected_dev.vk_features);
+  check_device_features(selected_dev.vk_features);
 
   default_logger->trace("Selected Device ", selected_dev_idx);
 
@@ -4552,6 +4552,7 @@ Result<Void, Status>
                                           gfx::Swapchain            swapchain_,
                                           gfx::SwapchainDesc const &desc)
 {
+  (void) self_;
   sVALIDATE(desc.preferred_extent.x > 0);
   sVALIDATE(desc.preferred_extent.y > 0);
   Swapchain *const swapchain = (Swapchain *) swapchain_;
@@ -5423,8 +5424,7 @@ void CommandEncoderInterface::end_compute_pass(gfx::CommandEncoder self_)
   self->reset_context();
 }
 
-void validate_attachment(CommandEncoder                 *self,
-                         gfx::RenderingAttachment const &info,
+void validate_attachment(gfx::RenderingAttachment const &info,
                          gfx::ImageAspects aspects, gfx::ImageUsage usage)
 {
   sVALIDATE(
@@ -5466,19 +5466,19 @@ void CommandEncoderInterface::begin_rendering(gfx::CommandEncoder       self_,
 
   for (gfx::RenderingAttachment const &attachment : info.color_attachments)
   {
-    validate_attachment(self, attachment, gfx::ImageAspects::Color,
+    validate_attachment(attachment, gfx::ImageAspects::Color,
                         gfx::ImageUsage::ColorAttachment);
   }
 
   for (gfx::RenderingAttachment const &attachment : info.depth_attachment)
   {
-    validate_attachment(self, attachment, gfx::ImageAspects::Depth,
+    validate_attachment(attachment, gfx::ImageAspects::Depth,
                         gfx::ImageUsage::DepthStencilAttachment);
   }
 
   for (gfx::RenderingAttachment const &attachment : info.stencil_attachment)
   {
-    validate_attachment(self, attachment, gfx::ImageAspects::Stencil,
+    validate_attachment(attachment, gfx::ImageAspects::Stencil,
                         gfx::ImageUsage::DepthStencilAttachment);
   }
 
