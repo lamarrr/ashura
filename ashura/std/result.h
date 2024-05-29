@@ -8,7 +8,7 @@ namespace ash
 template <typename T>
 struct [[nodiscard]] Ok
 {
-  using type = T;
+  using Type = T;
   T value{};
 };
 
@@ -18,7 +18,7 @@ Ok(T) -> Ok<T>;
 template <typename E>
 struct [[nodiscard]] Err
 {
-  using type = E;
+  using Type = E;
   E value{};
 };
 
@@ -28,8 +28,8 @@ Err(T) -> Err<T>;
 template <typename T, typename E>
 struct [[nodiscard]] Result
 {
-  using value_type = T;
-  using err_type   = E;
+  using ValueType = T;
+  using ErrType   = E;
 
   union
   {

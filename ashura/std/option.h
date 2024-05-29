@@ -8,7 +8,7 @@ namespace ash
 template <typename T>
 struct [[nodiscard]] Some
 {
-  using type = T;
+  using Type = T;
   T value{};
 };
 
@@ -24,7 +24,7 @@ constexpr NoneType None;
 template <typename T>
 struct [[nodiscard]] Option
 {
-  using type = T;
+  using Type = T;
 
   union
   {
