@@ -28,8 +28,8 @@ Err(T) -> Err<T>;
 template <typename T, typename E>
 struct [[nodiscard]] Result
 {
-  using ValueType = T;
-  using ErrType   = E;
+  using Type    = T;
+  using ErrType = E;
 
   union
   {
