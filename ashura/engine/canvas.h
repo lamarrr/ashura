@@ -79,6 +79,8 @@ struct CanvasPassRun
 //
 // screen frame buffer
 //
+//
+///@note Will be called from the render thread
 struct CustomCanvasPassInfo
 {
   Fn<void(void *, Renderer &)> encoder = to_fn([](void *, Renderer &) {});
