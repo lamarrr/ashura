@@ -26,18 +26,18 @@ enum class TextOverflow : u8
   Ellipsis = 1
 };
 
-/// @font: name to use to match the font. if font is not found or empty
+/// @param font name to use to match the font. if font is not found or empty
 /// the fallback fonts are tried.
-/// @fallback_fonts: font to fallback to if {font} is not available. if none of
-/// the specified fallback fonts are found the first font in the
-/// font bundle will be used
-/// @shadow_scale: relative. multiplied by font_height
-/// @shadow_offset: px. offset from center of glyph
-/// @letter_spacing: px. additional letter spacing, can be negative
-/// @word_spacing: px. additional word spacing, can be negative
-/// @line_height: relative. multiplied by font_height
-/// @use_kerning: use provided font kerning
-/// @use_ligatures: use standard and contextual font ligature substitution
+/// @param fallback_fonts font to fallback to if {font} is not available. if
+/// none of the specified fallback fonts are found the first font in the font
+/// bundle will be used
+/// @param shadow_scale relative. multiplied by font_height
+/// @param shadow_offset px. offset from center of glyph
+/// @param letter_spacing px. additional letter spacing, can be negative
+/// @param word_spacing px. additional word spacing, can be negative
+/// @param line_height relative. multiplied by font_height
+/// @param use_kerning use provided font kerning
+/// @param use_ligatures use standard and contextual font ligature substitution
 struct TextStyle
 {
   Font             font                    = nullptr;
@@ -63,25 +63,25 @@ struct TextStyle
 
 /// A text run is a sequence of characters sharing a single property.
 /// i.e. foreground color, font etc.
-/// @size: byte size coverage of this run. i.e. for the first
+/// @param size byte size coverage of this run. i.e. for the first
 /// run with size 20 all text within [0, 20] bytes range
 /// of the text will be styled using this run
-/// @style: run style to use
+/// @param style run style to use
 struct TextRun
 {
   usize size  = 0;
   usize style = 0;
 };
 
-/// @text: utf-8-encoded text, Span because string view
+/// @param text utf-8-encoded text, Span because string view
 /// doesnt support non-string types
-/// @runs: parts of text not styled by a run
+/// @param runs parts of text not styled by a run
 /// will use the paragraphs run style
 /// styles for the text block's contents
-/// @default_style: default run styling
-/// @align: text alignment
-/// @direction: base text direction
-/// @language: base language to use for selecting opentype features to
+/// @param default_style default run styling
+/// @param align text alignment
+/// @param direction base text direction
+/// @param language base language to use for selecting opentype features to
 /// used on the text, uses default if not set
 struct TextBlock
 {
@@ -97,14 +97,14 @@ struct TextBlock
 /// RunSegment is a part of a text run split by groups of spacing characters
 /// word contained in a run. The spacing characters translate to break
 /// opportunities.
-/// @has_spacing: if it has trailing spacing characters (tabs and spaces)
+/// @param has_spacing if it has trailing spacing characters (tabs and spaces)
 /// where we can break the text, this corresponds to the
 /// unicode Break-After (BA)
-/// @text: utf8 text of segment
-/// @direction: direction of text
-/// @style: resolved run text styling
-/// @font: resolved font index in font bundle
-/// @width: sum of advances, letter spacing & word spacing
+/// @param text utf8 text of segment
+/// @param direction direction of text
+/// @param style resolved run text styling
+/// @param font resolved font index in font bundle
+/// @param width sum of advances, letter spacing & word spacing
 struct TextRunSegment
 {
   bool             has_spacing           = false;
@@ -117,13 +117,13 @@ struct TextRunSegment
   f32              width                 = 0;
 };
 
-/// @width: width of the line
-/// @ascent: maximum ascent of all the runs on the line
-/// @descent: maximum descent of all the runs on the line
-/// @line_height: maximum line height of all the runs on the line
-/// @base_direction: base direction of the line
-/// @run_segments_offset: begin index of line's segments
-/// @num_run_segments: number of segments
+/// @param width width of the line
+/// @param ascent maximum ascent of all the runs on the line
+/// @param descent maximum descent of all the runs on the line
+/// @param line_height maximum line height of all the runs on the line
+/// @param base_direction base direction of the line
+/// @param run_segments_offset begin index of line's segments
+/// @param num_run_segments number of segments
 struct LineMetrics
 {
   f32           width               = 0;
@@ -135,8 +135,8 @@ struct LineMetrics
   usize         num_run_segments    = 0;
 };
 
-/// @advance: context-dependent horizontal-layout advance
-/// @offset: context-dependent text shaping offset from normal font glyph
+/// @param advance context-dependent horizontal-layout advance
+/// @param offset context-dependent text shaping offset from normal font glyph
 /// position
 struct GlyphShaping
 {

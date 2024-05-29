@@ -8,9 +8,9 @@ namespace ash
 /// @brief Frame-independent smooth animation ticker
 ///
 ///
-/// @t: [0, 1]
-/// @iterations: [0, F32_MAX]
-/// @cycle: [0, F32_MAX]
+/// @param t [0, 1]
+/// @param iterations [0, F32_MAX]
+/// @param cycle [0, F32_MAX]
 struct AnimationTick
 {
   f32  duration   = 1;

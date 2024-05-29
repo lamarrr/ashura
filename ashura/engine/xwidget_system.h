@@ -82,8 +82,7 @@ struct WidgetSystem
                   {
                     drag_source.match(
                         [&](uuid source) {
-                          if (Option source_widget =
-                                  ctx.find_widget(source))
+                          if (Option source_widget = ctx.find_widget(source))
                           {
                             source_widget.value()->on_drag_end(ctx,
                                                                event.position);
@@ -220,8 +219,7 @@ struct WidgetSystem
     __tick_recursive(ctx, root, interval);
   }
 
-  Vec<std::variant<MouseClickEvent, MouseMotionEvent, WindowEvents>>
-                        events;
+  Vec<std::variant<MouseClickEvent, MouseMotionEvent, WindowEvents>> events;
   Option<uuid>     last_hit_widget;
   Option<DragData> drag_data   = None;
   Option<uuid>     drag_source = None;

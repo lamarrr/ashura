@@ -728,7 +728,7 @@ struct MemoryRange
   u64 size   = 0;
 };
 
-/// @extent: can be negative to flip
+/// @param extent can be negative to flip
 struct Viewport
 {
   Vec2 offset;
@@ -820,9 +820,9 @@ struct ImageDesc
 /// a sub-resource that specifies mips, aspects, layer, and component mapping of
 /// images. typically for reference in shaders.
 ///
-/// @mapping: mapping of the components in the shader. i.e. for R8G8B8_UNORM the
-/// non-existent Alpha component is always 0. To set it to 1 we set its
-/// component mapping (mapping.a) to ComponentSwizzle::One.
+/// @param mapping mapping of the components in the shader. i.e. for
+/// R8G8B8_UNORM the non-existent Alpha component is always 0. To set it to 1 we
+/// set its component mapping (mapping.a) to ComponentSwizzle::One.
 ///
 struct ImageViewDesc
 {
@@ -864,9 +864,9 @@ struct ShaderDesc
   Span<u32 const>  spirv_code = {};
 };
 
-/// @count: represents maximum count of the binding if `is_variable_length` is
-/// true.
-/// @is_variable_length: if it is a dynamically sized binding
+/// @param count represents maximum count of the binding if
+/// `is_variable_length` is true.
+/// @param is_variable_length if it is a dynamically sized binding
 struct DescriptorBindingDesc
 {
   DescriptorType type               = DescriptorType::Sampler;
@@ -935,9 +935,10 @@ struct ComputePipelineDesc
 
 /// Specifies how the binded vertex buffers are iterated and the strides for
 /// them unique for each binded buffer.
-/// @binding: binding id this structure represents
-/// @stride: stride in bytes for each binding advance within the binded buffer
-/// @input_rate: advance-rate for this binding. on every vertex or every
+/// @param binding binding id this structure represents
+/// @param stride stride in bytes for each binding advance within the binded
+/// buffer
+/// @param input_rate advance-rate for this binding. on every vertex or every
 /// instance
 struct VertexInputBinding
 {
@@ -948,10 +949,10 @@ struct VertexInputBinding
 
 /// specifies representation/interpretation and shader location mapping of the
 /// values in the buffer this is a many to one mapping to the input binding.
-/// @binding: which binding this attribute binds to
-/// @location: binding's mapped location in the shader
-/// @format: data format interpretation
-/// @offset: offset of attribute in binding
+/// @param binding which binding this attribute binds to
+/// @param location binding's mapped location in the shader
+/// @param format data format interpretation
+/// @param offset offset of attribute in binding
 struct VertexAttribute
 {
   u32    binding  = 0;
@@ -1021,8 +1022,8 @@ struct GraphicsState
   bool           depth_bounds_test_enable = false;
 };
 
-/// @@color_format, depth_format, stencil_format: with Format::Undefined means
-/// the attachment is unused.
+/// @param color_format, depth_format, stencil_format: with Format::Undefined
+/// means the attachment is unused.
 struct GraphicsPipelineDesc
 {
   Span<char const>                label                  = {};
@@ -1146,11 +1147,11 @@ struct SwapchainDesc
   CompositeAlpha   composite_alpha     = CompositeAlpha::None;
 };
 
-/// @generation: increases everytime the swapchain for the surface is recreated
-/// or re-configured
-/// @images: swapchain images, calling ref or unref on them will cause a panic
-/// as they are only meant to exist for the lifetime of the frame.
-/// avoid storing pointers to its data members.
+/// @param generation increases everytime the swapchain for the surface is
+/// recreated or re-configured
+/// @param images swapchain images, calling ref or unref on them will cause a
+/// panic as they are only meant to exist for the lifetime of the frame. avoid
+/// storing pointers to its data members.
 struct SwapchainState
 {
   Extent            extent        = {};
@@ -1170,7 +1171,8 @@ struct PipelineStatistics
   u64 compute_shader_invocations  = 0;
 };
 
-/// @timestamp_period: number of timestamp ticks equivalent to 1 nanosecond
+/// @param timestamp_period number of timestamp ticks equivalent to 1
+/// nanosecond
 struct DeviceProperties
 {
   u32              api_version                        = 0;

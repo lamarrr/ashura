@@ -49,8 +49,8 @@ HttpCurlMultiHandle::~HttpCurlMultiHandle()
 // Implementation class definition
 struct HttpCurlEasyHandleImpl
 {
-  CURL                          *easy;
-  curl_slist                    *header;
+  CURL                     *easy;
+  curl_slist               *header;
   Rc<HttpCurlMultiHandle *> parent;
 
   HttpCurlEasyHandleImpl(CURL *easy_easy, curl_slist *easy_header,
@@ -122,7 +122,7 @@ inline size_t curl_content_write_function(u8 const *bytes, size_t unit_size,
 Result<Rc<HttpCurlEasyHandle *>, AllocError>
     HttpTask::prepare_request(Allocator                        allocator,
                               Rc<HttpCurlMultiHandle *> const &parent,
-                              HttpRequest const                    &request)
+                              HttpRequest const               &request)
 {
   CURL *easy = curl_easy_init();
   if (easy == nullptr)
@@ -144,7 +144,7 @@ Result<Rc<HttpCurlEasyHandle *>, AllocError>
           curl_easy_setopt(easy_handle->impl->easy, CURLOPT_NOBODY, 1L));
       break;
   }
-  String const                        &url    = request.url;
+  String const                   &url    = request.url;
   std::map<String, String> const &header = request.headers;
 
   ASH_CURLE_CHECK(
@@ -152,8 +152,7 @@ Result<Rc<HttpCurlEasyHandle *>, AllocError>
 
   for (const auto &[key, value] : header)
   {
-    String joined =
-        string::join(allocator, "", key, ":", value).unwrap();
+    String joined = string::join(allocator, "", key, ":", value).unwrap();
 
     curl_slist *new_header =
         curl_slist_append(easy_handle->impl->header, joined.c_str());
@@ -227,9 +226,8 @@ void HttpTask::update_progress()
   info.handle->updater.update(progress);
 }
 
-Result<
-    std::tuple<HttpTask, HttpProgressMonitor, Future<HttpResponse>>,
-    AllocError>
+Result<std::tuple<HttpTask, HttpProgressMonitor, Future<HttpResponse>>,
+       AllocError>
     HttpTask::launch(Allocator allocator, HttpRequest const &request,
                      Rc<HttpCurlMultiHandle *> const &parent)
 {
@@ -239,17 +237,17 @@ Result<
 
   auto future = promise.get_future();
 
-  TRY_OK(task_info, rc::make_unique_inplace<HttpTaskInfo>(
-                        allocator, std::move(easy), Vec<u8>{allocator},
-                        Vec<u8>{allocator}, std::move(promise),
-                        std::move(updater.second)));
+  TRY_OK(task_info,
+         rc::make_unique_inplace<HttpTaskInfo>(
+             allocator, std::move(easy), Vec<u8>{allocator}, Vec<u8>{allocator},
+             std::move(promise), std::move(updater.second)));
 
   begin_request(task_info.handle->easy.handle->impl->easy,
                 task_info.handle->easy.handle->impl->parent.handle->impl->multi,
                 task_info.handle);
 
   return Ok(std::make_tuple(HttpTask{std::move(task_info)},
-                                 std::move(updater.first), std::move(future)));
+                            std::move(updater.first), std::move(future)));
 }
 
 void HttpTask::finish(Allocator allocator)
@@ -265,8 +263,7 @@ void HttpTask::finish(Allocator allocator)
 
   if (effective_url != nullptr)
   {
-    response.effectiveUrl =
-        string::make(allocator, effective_url).unwrap();
+    response.effectiveUrl = string::make(allocator, effective_url).unwrap();
   }
 
   curl_off_t total_time = 0;

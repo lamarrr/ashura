@@ -174,7 +174,7 @@ struct NumInput : public Widget
   }
 
   virtual Option<DragData> on_drag_start(Context &ctx,
-                                              Vec2     mouse_position) override
+                                         Vec2     mouse_position) override
   {
   }
 
@@ -188,7 +188,7 @@ struct NumInput : public Widget
   {
   }
 
-  virtual void on_mouse_leave(Context          &ctx,
+  virtual void on_mouse_leave(Context     &ctx,
                               Option<Vec2> mouse_position) override
   {
   }

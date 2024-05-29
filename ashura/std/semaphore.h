@@ -2,7 +2,6 @@
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 
-
 namespace ash
 {
 
@@ -31,21 +30,21 @@ typedef struct Semaphore_T *Semaphore;
 [[nodiscard]] Semaphore create_semaphore(u64 num_stages);
 
 /// @brief
-/// @param sem: can be null
+/// @param sem can be null
 void destroy_semaphore(Semaphore sem);
 
 /// @brief
-/// @param sem: non-null
+/// @param sem non-null
 /// @return
 [[nodiscard]] u64 get_semaphore_stage(Semaphore sem);
 
 /// @brief
-/// @param sem: non-null
+/// @param sem non-null
 /// @return
 [[nodiscard]] u64 get_num_semaphore_stages(Semaphore sem);
 
 /// @brief
-/// @param sem: non-null
+/// @param sem non-null
 /// @return
 [[nodiscard]] bool is_semaphore_completed(Semaphore sem);
 
@@ -60,18 +59,18 @@ void destroy_semaphore(Semaphore sem);
 void signal_semaphore(Semaphore sem, u64 stage);
 
 /// @brief
-/// @param sem: non-null
-/// @param inc: stage increment of semaphore. increment of >= num_stages is
+/// @param sem non-null
+/// @param inc stage increment of semaphore. increment of >= num_stages is
 /// equivalent to driving it to completion.
 void increment_semaphore(Semaphore sem, u64 inc);
 
 ///
 /// @brief no syscalls are made unless timeout_ns is non-zero.
-/// @param await: semaphores to wait for
-/// @param stages: stages of the semaphores to wait for completion of. must be <
+/// @param await semaphores to wait for
+/// @param stages stages of the semaphores to wait for completion of. must be <
 /// semaphore.num_stages or == U64_MAX. U64_MAX meaning waiting for all stages'
 /// completion.
-/// @param timeout_ns: timeout in nanoseconds to stop attempting to wait for the
+/// @param timeout_ns timeout in nanoseconds to stop attempting to wait for the
 /// semaphore. U64_MAX for an infinite timeout.
 /// @return: true if all semaphores completed the expected stages before the
 /// timeout.

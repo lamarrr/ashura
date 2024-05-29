@@ -6,21 +6,21 @@ namespace ash
 
 typedef struct Allocator_T *Allocator;
 
-/// @alloc: alloc aligned memory. returns false if failed and sets the memory
-/// pointer to null.
-/// @alloc_zeroed: like alloc but zeroes the allocated memory, this is sometimes
-/// performed by the OS and can be faster than calling memset.
-/// @realloc: free the previously allocated memory and return a new memory.
-/// alignment is not guaranteed to be preserved. if an error occurs, the old
-/// memory is unmodified, not free-d and false is returned. alignment must be
-/// same as the alignment of the original allocated memory.
-/// @dealloc: free the previously allocated memory.
+/// @param alloc alloc aligned memory. returns false if failed and sets the
+/// memory pointer to null.
+/// @param alloc_zeroed like alloc but zeroes the allocated memory, this is
+/// sometimes performed by the OS and can be faster than calling memset.
+/// @param realloc free the previously allocated memory and return a new
+/// memory. alignment is not guaranteed to be preserved. if an error occurs, the
+/// old memory is unmodified, not free-d and false is returned. alignment must
+/// be same as the alignment of the original allocated memory.
+/// @param dealloc free the previously allocated memory.
 ///
 /// REQUIREMENTS
 /// =============
 ///
-/// @alignment: must be a power of 2. UB if 0 or otherwise.
-/// @size: must be 0 or multiple of alignment.
+/// @param alignment must be a power of 2. UB if 0 or otherwise.
+/// @param size must be 0 or multiple of alignment.
 ///
 struct AllocatorInterface
 {

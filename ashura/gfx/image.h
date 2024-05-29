@@ -56,9 +56,11 @@ inline u64 packed_image_size(u32 width, u32 height, Format format)
 /// - R32G32B32_SFLOAT
 /// - R32G32B32A32_SFLOAT
 ///
-/// @offset: offset where the first row of the image begins from. this enables
-/// using the correct offset for slicing the image along with the correct pitch.
-/// @pitch: number of bytes to skip to get to the next row. a.k.a. row stride
+/// @param offset offset where the first row of the image begins from. this
+/// enables using the correct offset for slicing the image along with the
+/// correct pitch.
+/// @param pitch number of bytes to skip to get to the next row. a.k.a. row
+/// stride
 ///
 template <typename B>
 struct ImageSpan

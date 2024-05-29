@@ -27,14 +27,13 @@ struct Slider : public Widget
   {
   }
 
-  explicit Slider(Callback ion_changed =
-                      fn::rc::make_unique_static(default_on_changed),
-                  Callback ion_change_start =
-                      fn::rc::make_unique_static(default_on_changed),
-                  Callback ion_change_end =
-                      fn::rc::make_unique_static(default_on_changed),
-                  f32 ivalue = 0, f32 imin = 0, f32 imax = 1,
-                  SliderProps iprops = SliderProps{}) :
+  explicit Slider(
+      Callback ion_changed = fn::rc::make_unique_static(default_on_changed),
+      Callback ion_change_start =
+          fn::rc::make_unique_static(default_on_changed),
+      Callback ion_change_end = fn::rc::make_unique_static(default_on_changed),
+      f32 ivalue = 0, f32 imin = 0, f32 imax = 1,
+      SliderProps iprops = SliderProps{}) :
       on_changed{std::move(ion_changed)},
       on_change_start{std::move(ion_change_start)},
       on_change_end{std::move(ion_change_end)},
@@ -96,11 +95,10 @@ struct Slider : public Widget
   }
 
   virtual Option<DragData> on_drag_start(Context &ctx,
-                                              Vec2     mouse_position) override
+                                         Vec2     mouse_position) override
   {
-    return Some(DragData{
-        .type = "STUB",
-        .data = Unique{Span<u8 const>{}, manager_stub}});
+    return Some(DragData{.type = "STUB",
+                         .data = Unique{Span<u8 const>{}, manager_stub}});
   }
 
   virtual void on_drag_update(Context &ctx, Vec2 mouse_position,
@@ -118,7 +116,7 @@ struct Slider : public Widget
     __transition_radius(props.thumb_radius * 0.75f, props.thumb_radius);
   }
 
-  virtual void on_mouse_leave(Context          &ctx,
+  virtual void on_mouse_leave(Context     &ctx,
                               Option<Vec2> mouse_position) override
   {
     __transition_radius(props.thumb_radius, props.thumb_radius * 0.75f);

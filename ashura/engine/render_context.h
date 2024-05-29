@@ -4,8 +4,8 @@
 #include "ashura/std/hash_map.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
-#include "ashura/std/vec.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 
 namespace ash
 {
@@ -26,7 +26,7 @@ struct Framebuffer
 
 using ShaderMap = StrHashMap<gfx::Shader>;
 
-/// @color_format: hdr if hdr supported and required
+/// @param color_format hdr if hdr supported and required
 /// scratch images resized when swapchain extents changes
 struct RenderContext
 {

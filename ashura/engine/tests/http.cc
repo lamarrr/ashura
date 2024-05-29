@@ -8,9 +8,8 @@ Context _ctx;
 
 TEST(Http, HttpClient)
 {
-  HttpClient         client{os_allocator};
-  TaskScheduler scheduler{os_allocator,
-                               std::chrono::steady_clock::now()};
+  HttpClient    client{os_allocator};
+  TaskScheduler scheduler{os_allocator, std::chrono::steady_clock::now()};
   auto [response, monitor] =
       client.get(string::make_static("https://github.com"));
 

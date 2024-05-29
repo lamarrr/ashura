@@ -12,15 +12,16 @@ namespace ash
 {
 
 /// Simple Layout Constraint Model
-/// @offset: adding or subtracting from the source size, i.e. value should be
-/// source size - 20px
-/// @scale: scales the source size, i.e. value should be 0.5 of source size
-/// @min: clamps the source size, i.e. value should be at least 20px
-/// @max: clamps the source size, i.e. value should be at most 100px
-/// @minrel: clamps the source size relatively. i.e. value should be at least
-/// 0.5 of source size
-/// @maxrel: clamps the source size relatively. i.e. value should be at most 0.5
-/// of source size
+/// @param offset adding or subtracting from the source size, i.e. value should
+/// be source size - 20px
+/// @param scale scales the source size, i.e. value should be 0.5 of source
+/// size
+/// @param min clamps the source size, i.e. value should be at least 20px
+/// @param max clamps the source size, i.e. value should be at most 100px
+/// @param minrel clamps the source size relatively. i.e. value should be at
+/// least 0.5 of source size
+/// @param maxrel clamps the source size relatively. i.e. value should be at
+/// most 0.5 of source size
 struct LayoutConstraint
 {
   f32 offset = 0;
@@ -69,10 +70,10 @@ enum class CrossAlign : u8
   Center = 2
 };
 
-/// @ViewHit: called on every frame the widget is viewed on the viewport.
-/// @ViewMiss: called on every frame that the widget is not seen on the viewport
-/// this can be because it has hidden visibility, is clipped away, or parent
-/// positioned out of the visible region
+/// @param ViewHit called on every frame the widget is viewed on the viewport.
+/// @param ViewMiss called on every frame that the widget is not seen on the
+/// viewport this can be because it has hidden visibility, is clipped away, or
+/// parent positioned out of the visible region
 enum class WidgetEventTypes : u32
 {
   None         = 0x00000000,
@@ -94,12 +95,12 @@ enum class WidgetEventTypes : u32
   ViewMiss     = 0x00008000
 };
 
-/// @Visible: an invisible widget will not be drawn nor receive mouse/touch
-/// events.
+/// @param Visible an invisible widget will not be drawn nor receive
+/// mouse/touch events.
 ///
-/// @Hittable: this needs to happen before mouse actions as some widgets .i.e.
-/// some widgets don't need to intercept or receive mouse events return true if
-/// accepts hit test at position.
+/// @param Hittable this needs to happen before mouse actions as some widgets
+/// .i.e. some widgets don't need to intercept or receive mouse events return
+/// true if accepts hit test at position.
 enum class WidgetAttributes : u8
 {
   None       = 0x00,

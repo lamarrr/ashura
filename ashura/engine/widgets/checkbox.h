@@ -27,9 +27,9 @@ struct CheckBox : public Widget
   {
   }
 
-  CheckBox(Callback ion_changed =
-               fn::rc::make_unique_static(default_on_changed),
-           bool default_value = false, CheckBoxProps iprops = CheckBoxProps{}) :
+  CheckBox(
+      Callback ion_changed = fn::rc::make_unique_static(default_on_changed),
+      bool default_value = false, CheckBoxProps iprops = CheckBoxProps{}) :
       on_changed{std::move(ion_changed)}, value{default_value}, props{iprops}
   {
   }

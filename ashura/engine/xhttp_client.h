@@ -43,30 +43,30 @@ enum class HttpMethod : u8
 // Struct to represent an HTTP request
 struct HttpRequest
 {
-  String                        url = "https://fast.com";
+  String                   url = "https://fast.com";
   std::map<String, String> headers;
-  HttpMethod                         method           = HttpMethod::Get;
-  u32                                maximumRedirects = CURLOPT_MAXREDIRS;
+  HttpMethod               method           = HttpMethod::Get;
+  u32                      maximumRedirects = CURLOPT_MAXREDIRS;
 };
 
 // Struct to represent an HTTP response
 struct HttpResponse
 {
   u64                      code = 0;
-  Vec<u8>             header;
-  Vec<u8>             content;
+  Vec<u8>                  header;
+  Vec<u8>                  content;
   std::chrono::nanoseconds totalTime{0};
-  String              effectiveUrl;
+  String                   effectiveUrl;
   u64                      uploaded{0};
   u64                      downloaded{0};
 };
 
 struct HttpProgress
 {
-  u64              bytesSent     = 0;
-  u64              bytesReceived = 0;
-  u64              uploadSpeed   = 0;
-  u64              downloadSpeed = 0;
+  u64         bytesSent     = 0;
+  u64         bytesReceived = 0;
+  u64         uploadSpeed   = 0;
+  u64         downloadSpeed = 0;
   Option<u64> contentUploadSize;
   Option<u64> contentDownloadSize;
 };
@@ -76,8 +76,8 @@ struct HttpProgressMonitorState
   STX_DEFAULT_CONSTRUCTOR(HttpProgressMonitorState)
   STX_MAKE_PINNED(HttpProgressMonitorState)
 
-  HttpProgress  progress;
-  SpinLock lock;
+  HttpProgress progress;
+  SpinLock     lock;
 
   HttpProgress load()
   {
@@ -111,8 +111,7 @@ struct HttpProgressUpdater
   Rc<HttpProgressMonitorState *> state;
 };
 
-inline Result<std::pair<HttpProgressMonitor, HttpProgressUpdater>,
-                   AllocError>
+inline Result<std::pair<HttpProgressMonitor, HttpProgressUpdater>, AllocError>
     makeProgressMonitor(Allocator allocator)
 {
   TRY_OK(state, rc::make_inplace<HttpProgressMonitorState>(allocator));
@@ -120,7 +119,7 @@ inline Result<std::pair<HttpProgressMonitor, HttpProgressUpdater>,
   HttpProgressMonitor progressMonitor{state.share()};
 
   return Ok(std::make_pair(std::move(progressMonitor),
-                                HttpProgressUpdater{std::move(state)}));
+                           HttpProgressUpdater{std::move(state)}));
 }
 
 struct HttpCurlMultiHandleImpl;
@@ -147,8 +146,7 @@ inline auto make_curl_multi_handle(Allocator allocator)
   CURLM *multi = curl_multi_init();
   if (multi == nullptr)
   {
-    panic(
-        "unexpected error from curl");        // Panic if initialization fails
+    panic("unexpected error from curl");        // Panic if initialization fails
   }
   return rc::make_inplace<HttpCurlMultiHandle>(
       allocator, multi);        // Create and return the HttpCurlMultiHandle
@@ -178,7 +176,7 @@ struct HttpTaskInfo
   Vec<u8>                  header;
   Vec<u8>                  content;
   Promise<HttpResponse>    promise;
-  HttpProgressUpdater           updater;
+  HttpProgressUpdater      updater;
   FutureStatus             last_status_poll = FutureStatus::Executing;
 };
 
@@ -191,7 +189,7 @@ struct HttpTask
   static Result<Rc<HttpCurlEasyHandle *>, AllocError>
       prepare_request(Allocator                        allocator,
                       Rc<HttpCurlMultiHandle *> const &parent,
-                      HttpRequest const                    &request);
+                      HttpRequest const               &request);
 
   static void begin_request(CURL *easy, CURLM *multi, HttpTaskInfo *info_addr);
 
@@ -202,9 +200,8 @@ struct HttpTask
 
   void update_progress();
 
-  static Result<
-      std::tuple<HttpTask, HttpProgressMonitor, Future<HttpResponse>>,
-      AllocError>
+  static Result<std::tuple<HttpTask, HttpProgressMonitor, Future<HttpResponse>>,
+                AllocError>
       launch(Allocator allocator, HttpRequest const &request,
              Rc<HttpCurlMultiHandle *> const &parent);
 

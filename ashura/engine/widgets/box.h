@@ -143,7 +143,7 @@ struct Box : public Widget
   }
 
   Vec<Widget *> children;
-  BoxProps           props;
+  BoxProps      props;
 };
 }        // namespace gui
 };        // namespace ash

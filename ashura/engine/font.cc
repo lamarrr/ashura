@@ -3,8 +3,8 @@
 #define STBIRDEF extern "C" inline
 
 #include "ashura/engine/font.h"
-#include "ashura/gfx/image.h"
 #include "ashura/engine/renderer.h"
+#include "ashura/gfx/image.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/arena_allocator.h"
 #include "ashura/std/io.h"

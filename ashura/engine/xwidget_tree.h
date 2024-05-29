@@ -11,7 +11,7 @@ namespace ash
 
 struct WidgetElement
 {
-  Widget                 *widget = nullptr;
+  Widget            *widget = nullptr;
   Vec<Vec2>          children_allocations;
   Vec<Vec2>          children_sizes;
   Vec<Vec2>          children_positions;
@@ -30,16 +30,16 @@ struct WidgetRenderElement
 
 struct WidgetTree
 {
-  WidgetElement                 root;
+  WidgetElement            root;
   Vec<WidgetRenderElement> render_elements;
 
   static void __build_child_recursive(Context &ctx, WidgetElement &element,
                                       Widget &widget)
   {
     // NOTE: we are trying to re-use the widget tree memory allocations
-    Span children  = widget.get_children(ctx);
-    usize     nchildren = children.size();
-    element.widget      = &widget;
+    Span  children  = widget.get_children(ctx);
+    usize nchildren = children.size();
+    element.widget  = &widget;
     element.children_allocations.resize(nchildren).unwrap();
     element.children_sizes.resize(nchildren).unwrap();
     element.children_positions.resize(nchildren).unwrap();
@@ -102,7 +102,7 @@ struct WidgetTree
                                 i32 allocated_z_index, Rect allocated_clip,
                                 Rect view_region)
   {
-    Span  children   = element.children;
+    Span       children   = element.children;
     Visibility visibility = element.widget->get_visibility(
         ctx, allocated_visibility, element.children_visibility);
     i32  z_index = element.widget->z_stack(ctx, allocated_z_index,

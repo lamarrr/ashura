@@ -123,7 +123,7 @@ struct ScrollBar : public Widget
   }
 
   virtual Option<DragData> on_drag_start(Context &ctx,
-                                              Vec2     mouse_position) override
+                                         Vec2     mouse_position) override
   {
     if (direction == Direction::H)
     {
@@ -158,7 +158,7 @@ struct ScrollBar : public Widget
     }
   }
 
-  Direction            direction = Direction::V;
+  Direction       direction = Direction::V;
   Rc<ScrollCtx *> scroll_ctx;
 };
 
@@ -252,8 +252,7 @@ struct ScrollBox : public Widget
   }
 
   ScrollBox(ScrollBoxProps iprops, Widget *child) :
-      scroll_ctx{
-          rc::make(os_allocator, ScrollCtx{.props = iprops}).unwrap()}
+      scroll_ctx{rc::make(os_allocator, ScrollCtx{.props = iprops}).unwrap()}
   {
     children.push(new ScrollViewport{scroll_ctx.share(), child}).unwrap();
     children.push(new ScrollBar{Direction::H, scroll_ctx.share()}).unwrap();

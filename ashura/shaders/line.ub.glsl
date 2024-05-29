@@ -51,8 +51,8 @@ struct Arc
 /// @param position relative to center
 /// @see https://www.shadertoy.com/view/wl23RK,
 /// https://www.shadertoy.com/view/lftXz4
-/// https://www.youtube.com/watch?v=LyQWZRfWotQ - SDF (signed distance function) combinatorics
-/// https://youtu.be/Cp5WWtMoeKg?si=JBiaZ4dTBovpYA5r&t=177
+/// https://www.youtube.com/watch?v=LyQWZRfWotQ - SDF (signed distance function)
+/// combinatorics https://youtu.be/Cp5WWtMoeKg?si=JBiaZ4dTBovpYA5r&t=177
 ///
 /// SDF union = min(s1, s2)
 /// SDF intersection = max(s1, s2)

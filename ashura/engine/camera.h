@@ -5,12 +5,12 @@
 namespace ash
 {
 
-/// @x_mag: The horizontal magnification of the view. This value
+/// @param x_mag The horizontal magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
-/// @y_mag: The vertical magnification of the view. This value
+/// @param y_mag The vertical magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
-/// @z_near: The distance to the near clipping plane.
-/// @z_far: The distance to the far clipping plane. This value
+/// @param z_near The distance to the near clipping plane.
+/// @param z_far The distance to the far clipping plane. This value
 /// MUST NOT be equal to zero. zfar MUST be greater than znear.
 constexpr Mat4Affine orthographic(f32 x_mag, f32 y_mag, f32 z_near, f32 z_far)
 {
@@ -20,11 +20,11 @@ constexpr Mat4Affine orthographic(f32 x_mag, f32 y_mag, f32 z_near, f32 z_far)
                      {0, 0, 2 / z_diff, (z_far + z_near) / z_diff}}};
 }
 
-/// @aspect_ratio: The aspect ratio of the field of view.
-/// @y_fov: The vertical field of view in radians. This value
+/// @param aspect_ratio The aspect ratio of the field of view.
+/// @param y_fov The vertical field of view in radians. This value
 /// SHOULD be less than π.
-/// @z_far: The distance to the far clipping plane.
-/// @z_near: The distance to the near clipping plane.
+/// @param z_far The distance to the far clipping plane.
+/// @param z_near The distance to the near clipping plane.
 inline Mat4 perspective(f32 aspect_ratio, f32 y_fov, f32 z_far, f32 z_near)
 {
   f32 const s      = tanf(y_fov * 0.5F);

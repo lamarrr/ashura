@@ -20,13 +20,13 @@ struct GridItem
 
 struct GridProps
 {
-  u32                columns    = 2;
-  u32                rows       = 0;
-  f32                column_gap = 0;
-  f32                row_gap    = 0;
-  Alignment          alignment  = ALIGN_TOP_LEFT;
+  u32           columns    = 2;
+  u32           rows       = 0;
+  f32           column_gap = 0;
+  f32           row_gap    = 0;
+  Alignment     alignment  = ALIGN_TOP_LEFT;
   Vec<GridItem> items;
-  Constraint2D       frame = Constraint2D::relative(1, 1);
+  Constraint2D  frame = Constraint2D::relative(1, 1);
 };
 
 struct Grid : public Widget
@@ -201,7 +201,7 @@ struct Grid : public Widget
     return self_extent;
   }
 
-  GridProps          props;
+  GridProps     props;
   Vec<Widget *> children;
   Vec<f32>      row_heights;
   Vec<Vec2>     column_widths;

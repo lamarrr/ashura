@@ -1,8 +1,8 @@
 #pragma once
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
-#include <stdio.h>
 #include <errno.h>
+#include <stdio.h>
 
 namespace ash
 {

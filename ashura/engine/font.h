@@ -20,10 +20,10 @@ enum class FontStatus : u8
 };
 
 /// Metrics are normalized
-/// @bearing: offset from cursor baseline to start drawing glyph from
-/// @descent: distance from baseline to the bottom of the glyph
-/// @advance: advancement of the cursor after drawing this glyph
-/// @extent: glyph extent
+/// @param bearing offset from cursor baseline to start drawing glyph from
+/// @param descent distance from baseline to the bottom of the glyph
+/// @param advance advancement of the cursor after drawing this glyph
+/// @param extent glyph extent
 struct GlyphMetrics
 {
   Vec2 bearing = {0, 0};
@@ -38,17 +38,17 @@ struct GlyphMetrics
 /// NOTE: using stubs enables us to perform fast constant lookups of glyph
 /// indices by ensuring the array is filled and sorted by glyph index from 0 ->
 /// nglyphs_found_in_font-1
-/// @is_valid: if the glyph was found in the font and loaded
+/// @param is_valid if the glyph was found in the font and loaded
 // successfully
-/// @is_needed: if the texture is a texture that is needed. i.e. if the
+/// @param is_needed if the texture is a texture that is needed. i.e. if the
 /// unicode ranges are empty then this is always true,
 /// otherwise it is set to true if the config unicode ranges
 /// contains it, note that special glyphs like replacement
 /// unicode codepoint glyph (0xFFFD) will always be true
-/// @metrics: normalized font metrics
-/// @bin: atlas layer this glyph belongs to
-/// @offset, extent: area in the atlas this glyph's cache data is placed
-/// @uv0, uv1: normalized texture coordinates of this
+/// @param metrics normalized font metrics
+/// @param bin atlas layer this glyph belongs to
+/// @param offset, extent: area in the atlas this glyph's cache data is placed
+/// @param uv0, uv1: normalized texture coordinates of this
 /// glyph in the atlas bin
 struct Glyph
 {
@@ -62,16 +62,16 @@ struct Glyph
   Vec2         uv1       = {};
 };
 
-/// @postscript_name: ASCII. i.e. RobotoBold
-/// @family_name: ASCII. i.e. Roboto
-/// @style_name: ASCII. i.e. Bold
-/// @replacement_glyph: glyph for the replacement glyph 0xFFFD if
+/// @param postscript_name ASCII. i.e. RobotoBold
+/// @param family_name ASCII. i.e. Roboto
+/// @param style_name ASCII. i.e. Bold
+/// @param replacement_glyph glyph for the replacement glyph 0xFFFD if
 /// found, otherwise glyph index 0
-/// @ellipsis_glyph: glyph for the ellipsis character '…'
-/// @font_height: font height at which the this atlas was rendered
-/// @ascent: normalized maximum ascent of the font's glyphs
-/// @descent: normalized maximum descent of the font's glyphs
-/// @advance: normalized maximum advance of the font's glyphs
+/// @param ellipsis_glyph glyph for the ellipsis character '…'
+/// @param font_height font height at which the this atlas was rendered
+/// @param ascent normalized maximum ascent of the font's glyphs
+/// @param descent normalized maximum descent of the font's glyphs
+/// @param advance normalized maximum advance of the font's glyphs
 struct FontInfo
 {
   Span<char const>           postscript_name   = {};
@@ -92,11 +92,11 @@ struct FontInfo
   u32                        texture           = 0;
 };
 
-/// @name: name to use in font matching
-/// @path: local file system path of the typeface resource
-/// @face: font face to use
-/// @font_height: the height at which the texture is cached at
-/// @ranges: if set only the specified unicode ranges will be loaded,
+/// @param name name to use in font matching
+/// @param path local file system path of the typeface resource
+/// @param face font face to use
+/// @param font_height the height at which the texture is cached at
+/// @param ranges if set only the specified unicode ranges will be loaded,
 /// otherwise all glyphs in the font will be loaded. Note that this
 /// means during font ligature glyph substitution where scripts
 /// might change, if the replacement glyph is not in the unicode

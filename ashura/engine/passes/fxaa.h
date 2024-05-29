@@ -13,9 +13,9 @@ struct FXAAPassParams
 
 struct FXAAPass
 {
-  void init(RenderContext & ctx);
-  void add_pass(RenderContext & ctx, FXAAPassParams const &params);
-  void uninit(RenderContext & ctx);
+  void init(RenderContext &ctx);
+  void add_pass(RenderContext &ctx, FXAAPassParams const &params);
+  void uninit(RenderContext &ctx);
 };
 
 }        // namespace ash

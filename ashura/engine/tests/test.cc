@@ -1,9 +1,9 @@
 
+#include "ashura/engine/render_context.h"
+#include "ashura/engine/renderer.h"
 #include "ashura/engine/shader.h"
 #include "ashura/engine/window.h"
 #include "ashura/gfx/vulkan.h"
-#include "ashura/engine/render_context.h"
-#include "ashura/engine/renderer.h"
 #include "ashura/std/hash_map.h"
 #include "stdlib.h"
 #include <thread>
@@ -72,30 +72,29 @@ int main(int, char **)
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
-  CHECK(
-      pack_shaders(
-          spirvs,
-          to_span<ShaderUnit>(
-              {{.id = "ConvexPoly:FS"_span, .file = "convex_poly.frag"_span},
-               {.id = "ConvexPoly:VS"_span, .file = "convex_poly.vert"_span},
-               {.id       = "KawaseBlur_UpSample:FS"_span,
-                .file     = "kawase_blur.frag"_span,
-                .preamble = "#define UPSAMPLE 1"_span},
-               {.id       = "KawaseBlur_UpSample:VS"_span,
-                .file     = "kawase_blur.vert"_span,
-                .preamble = "#define UPSAMPLE 1"_span},
-               {.id       = "KawaseBlur_DownSample:FS"_span,
-                .file     = "kawase_blur.frag"_span,
-                .preamble = "#define UPSAMPLE 0"_span},
-               {.id       = "KawaseBlur_DownSample:VS"_span,
-                .file     = "kawase_blur.vert"_span,
-                .preamble = "#define UPSAMPLE 0"_span},
-               {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
-               {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
-               {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
-               {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-          "/home/basitayantunde/Documents/ashura/ashura/shaders"_span) ==
-      ShaderCompileError::None);
+  CHECK(pack_shaders(
+            spirvs,
+            to_span<ShaderUnit>(
+                {{.id = "ConvexPoly:FS"_span, .file = "convex_poly.frag"_span},
+                 {.id = "ConvexPoly:VS"_span, .file = "convex_poly.vert"_span},
+                 {.id       = "KawaseBlur_UpSample:FS"_span,
+                  .file     = "kawase_blur.frag"_span,
+                  .preamble = "#define UPSAMPLE 1"_span},
+                 {.id       = "KawaseBlur_UpSample:VS"_span,
+                  .file     = "kawase_blur.vert"_span,
+                  .preamble = "#define UPSAMPLE 1"_span},
+                 {.id       = "KawaseBlur_DownSample:FS"_span,
+                  .file     = "kawase_blur.frag"_span,
+                  .preamble = "#define UPSAMPLE 0"_span},
+                 {.id       = "KawaseBlur_DownSample:VS"_span,
+                  .file     = "kawase_blur.vert"_span,
+                  .preamble = "#define UPSAMPLE 0"_span},
+                 {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
+                 {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
+                 {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
+                 {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
+            "/home/basitayantunde/Documents/ashura/ashura/shaders"_span) ==
+        ShaderCompileError::None);
 
   StrHashMap<gfx::Shader> shaders;
   defer                   shaders_del{[&] { shaders.reset(); }};

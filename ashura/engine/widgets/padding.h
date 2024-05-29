@@ -72,7 +72,7 @@ struct Padding : public Widget
     return child_cover;
   }
 
-  EdgeInsets         edge_insets;
+  EdgeInsets    edge_insets;
   Vec<Widget *> children;
 };
 

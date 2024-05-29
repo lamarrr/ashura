@@ -82,7 +82,7 @@ constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
 /// destroys elements that don't match a predicate.
 /// warning: the order of elements are not preserved!
 template <typename T, typename Predicate>
-constexpr void destruct_if(Span<T> span, usize& new_size);
+constexpr void destruct_if(Span<T> span, usize &new_size);
 
 template <OutputRange R, typename U>
 constexpr void fill(R &&dst, U &&value)

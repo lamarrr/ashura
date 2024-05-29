@@ -368,7 +368,7 @@ struct Flex : public Widget
     return span;
   }
 
-  FlexProps          props;
+  FlexProps     props;
   Vec<Widget *> children;
 };
 

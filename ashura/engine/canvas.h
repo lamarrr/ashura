@@ -8,13 +8,6 @@
 namespace ash
 {
 
-struct Vertex
-{
-  Vec4 position = {0, 0, 0, 1};
-  Vec4 tint     = {1, 1, 1, 1};
-  Vec2 uv       = {0, 0};
-};
-
 enum class LineCap : u8
 {
   Butt   = 0,
@@ -22,20 +15,47 @@ enum class LineCap : u8
   Square = 2
 };
 
+enum class CanvasPassType : u8
+{
+  None          = 0,
+  RRect         = 1,
+  Blur          = 2,
+  ConvexPolygon = 3,
+  Line          = 4,
+  Custom        = 5
+};
+
+struct Vertex
+{
+  Vec4 position = {0, 0, 0, 1};
+  Vec4 tint     = {1, 1, 1, 1};
+  Vec2 uv       = {0, 0};
+};
+
 // todo(lamarrr): only expose linear and arcs. the rest should use interpolation
 // or other estimation methods via free functions.
 // arc splines and curves
 //
 // Arc, Biarc, Arc Spline, BiArc Splines
-// 
-enum class CurveType : u8
-{
-  Linear          = 0,
-  Arc             = 1,
-  QuadraticBezier = 2,
-  CubicBezier     = 3,
-  CatmullRom      = 4
-};
+//
+// enum class CurveType : u8
+// {
+//   Linear          = 0,
+//   Arc             = 1,
+//   QuadraticBezier = 2,
+//   CubicBezier     = 3,
+//   CatmullRom      = 4
+// };
+//
+// - automatic pass begin and ending
+//
+//
+// each primitive is rendered out of order, the order is specified by the
+// z-index.
+//
+// TODO(lamarrr): z-index sorted by radix sort, radix sort should come in:
+// [integer key, elements or indices]
+//
 
 /// @brief
 /// @param transform transform from from model to view space
@@ -56,18 +76,6 @@ struct CanvasStyle
   Vec2U   scissor_extent  = {U32_MAX, U32_MAX};
 };
 
-// to support custom param, need to store data relating to it  and the encoder
-// for it to be forwarded to when rendering
-enum class CanvasPassType : u8
-{
-  None          = 0,
-  RRect         = 1,
-  Blur          = 2,
-  ConvexPolygon = 3,
-  Line          = 4,
-  Custom        = 5
-};
-
 struct CanvasPassRun
 {
   i32            z_index = 0;
@@ -76,12 +84,6 @@ struct CanvasPassRun
   u32            count   = 0;
 };
 
-// TODO(lamarrr): might need screen scaling context
-// viewport extent should be known ahead of time
-//
-// screen frame buffer
-//
-//
 ///@note Will be called from the render thread
 struct CustomCanvasPassInfo
 {
@@ -89,55 +91,35 @@ struct CustomCanvasPassInfo
   void                        *data    = nullptr;
 };
 
-//
-// # REQUIREMENTS
-// - Automatic batching and pass reordering
-// - offscreen rendering?
-// - Forwarding to the renderer
-// - re-using existing shaders and renderers when possible
-// - intermixing of 2d and 3d renderers---------- not possible
-// - automatic pass begin and ending
-// - allow using of custom renderers and shaders
-// - render encoders need to be stable and part of the tree? or maybe give a 3d
-// context and 2d context
-// - offscreen gui rendering
-//
-//
-// use the passes in the renderer to achieve desired effect
-//
-// todo(lamarrr): custom shaders?
-//
-// drawing layer image to this canvas? i.e. offscreen rendered sourced from
-// another pass. maybe images should support that use case.
-//
-//
-// todo(lamarrr): convex polygons have the same repeated set of indices, we can
-// use a base offset in the shader and give the shader the number of points it
-// needs to triangulate instead of an index buffer.
-//
-//
-// Nice to have: batching of non-overlapping rects, maybe with hints provided by
-// the owner? z-indexes!!!
-//
-// TODO(lamarrr): each primitive is rendered out of order, the order is
-// specified by the z-index.
-//
-// z-index sorted by radix sort, radix sort should come in: [integer key,
-// elements or indices]
-//
 struct CanvasSurface
 {
-  Vec2          viewport_size = {0, 0};
-  Vec2U         surface_size  = {0, 0};
-  f32           dpi           = 0;
+  Vec2  viewport_size = {0, 0};
+  Vec2U surface_size  = {0, 0};
+  f32   dpi           = 0;
+
   constexpr f32 aspect_ratio() const;
+  constexpr f32 pixel_density() const;
+};
+
+/// @todo(lamarrr): vertices, color, uv
+/// is this representation good?
+/// a 3d arc.
+///
+/// begin and end only describe the vector used to determine the angle of
+/// inclination of the arc and the direction. i.e. begin - center is the
+/// direction vector
+///
+///
+struct Arc
+{
+  Vec4 center = {0, 0, 0, 1};
+  Vec4 begin  = {0, 0, 0, 1};
+  Vec4 end    = {0, 0, 0, 1};
+  Vec2 radii  = {0, 0};
 };
 
 struct Canvas
 {
-  // screen or render target params
-  // viewport and surface config
-  // zoom factor: used for tessellation? or use transform?
   CanvasSurface             surface       = {};
   Vec<Vertex>               vertices      = {};
   Vec<RRectParam>           rrect_params  = {};
@@ -163,8 +145,6 @@ struct Canvas
 
   void rrect(CanvasStyle const &style, Vec2 extent, Vec4 radii);
 
-  void arc(CanvasStyle const &style, f32 radius, f32 begin, f32 end);
-
   /// @brief draw a simple text with simple layout. Layout is uncached since it
   /// is considered to be cheap for the text and doesn't require complex text
   /// layout algorithms.
@@ -189,15 +169,11 @@ struct Canvas
   /// @brief
   /// @param type
   /// @param vertices vertices defining the control points of the spline
-  /// @param subdivisions number of subdivisions to use for tesselation
-  void curve(CanvasStyle const &style, CurveType type,
-             Span<Vertex const> vertices, Span<Vec3 const> control_points,
-             u32 subdivisions);
+  void arcs(CanvasStyle const &style, Span<Vertex const> vertices);
 
-  void spline(CanvasStyle const &style, CurveType type,
-              Span<Vertex const> vertices, u32 subdivisions);
+  void arc_spline(CanvasStyle const &style, Span<Vertex const> vertices);
 
-  void blur(CanvasStyle const &style, Vec2U offset, Vec2U extent);
+  void blur(CanvasStyle const &style);
 
   void custom(CanvasStyle const &style, CustomCanvasPassInfo const &pass);
 };

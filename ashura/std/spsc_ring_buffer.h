@@ -6,7 +6,7 @@
 namespace ash
 {
 
-/// @capacity: must be a non-zero power of 2
+/// @param capacity must be a non-zero power of 2
 template <typename T>
 struct SPSCRingBuffer
 {

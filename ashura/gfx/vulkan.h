@@ -590,8 +590,9 @@ struct DescriptorSetLayout
 };
 
 /// used to track stateful resource access
-/// @images: only valid if `type` is a descriptor type that access images
-/// @buffers: only valid if `type` is a descriptor type that access buffers
+/// @param images only valid if `type` is a descriptor type that access images
+/// @param param buffers: only valid if `type` is a descriptor type that access
+/// buffers
 struct DescriptorBinding
 {
   union
@@ -620,7 +621,7 @@ struct DescriptorPool
   u32              avail[NUM_DESCRIPTOR_TYPES] = {};
 };
 
-/// @pool_size: each pool will have `pool_size` of each descriptor type
+/// @param pool_size each pool will have `pool_size` of each descriptor type
 struct DescriptorHeap
 {
   AllocatorImpl   allocator    = default_allocator;
@@ -809,13 +810,13 @@ struct CommandEncoder
   }
 };
 
-/// @is_optimal: false when vulkan returns that the surface is suboptimal or
-/// the description is updated by the user
+/// @param is_optimal false when vulkan returns that the surface is suboptimal
+/// or the description is updated by the user
 ///
-/// @is_out_of_date: can't present anymore
-/// @is_optimal: recommended but not necessary to resize
-/// @is_zero_sized: swapchain is not receiving presentation requests, because
-/// the surface requested a zero sized image extent
+/// @param is_out_of_date can't present anymore
+/// @param is_optimal recommended but not necessary to resize
+/// @param is_zero_sized swapchain is not receiving presentation requests,
+/// because the surface requested a zero sized image extent
 struct Swapchain
 {
   gfx::SwapchainDesc  desc            = {};

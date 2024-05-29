@@ -13,9 +13,9 @@ struct MSAAPassParams
 
 struct MSAAPass
 {
-  void init(RenderContext & ctx);
-  void add_pass(RenderContext & ctx, MSAAPassParams const &params);
-  void uninit(RenderContext & ctx);
+  void init(RenderContext &ctx);
+  void add_pass(RenderContext &ctx, MSAAPassParams const &params);
+  void uninit(RenderContext &ctx);
 };
 
 }        // namespace ash

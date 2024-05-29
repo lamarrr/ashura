@@ -4,7 +4,7 @@
 namespace ash
 {
 
-/// @transform needs to transform from [-1, +1] to clip space
+/// @param transform needs to transform from [-1, +1] to clip space
 struct RRectParam
 {
   Mat4 transform       = {};

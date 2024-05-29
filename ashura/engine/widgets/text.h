@@ -81,10 +81,10 @@ struct Text : public Widget
     is_layout_dirty = true;
   }
 
-  String text;
-  TextProps   props;
-  TextLayout  text_layout;
-  bool        is_layout_dirty = true;
+  String     text;
+  TextProps  props;
+  TextLayout text_layout;
+  bool       is_layout_dirty = true;
 };
 
 }        // namespace gui

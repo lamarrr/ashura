@@ -9,8 +9,8 @@
 namespace ash
 {
 /// linearly-tilted tree node
-/// @depth: depth of the tree this node belongs to. there's ever only one root
-/// node at depth 0
+/// @param depth depth of the tree this node belongs to. there's ever only one
+/// root node at depth 0
 struct SceneNode
 {
   uid parent       = UID_MAX;
@@ -19,8 +19,8 @@ struct SceneNode
   u32 depth        = 0;
 };
 
-/// @global_transform: accumulation of transform from root parent down to this
-/// object's transform
+/// @param global_transform accumulation of transform from root parent down to
+/// this object's transform
 template <typename T>
 struct SceneObjects
 {

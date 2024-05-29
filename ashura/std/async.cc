@@ -30,8 +30,8 @@ struct TaskArena
 /// struct, and the memory for its related data. this has the advantage that
 /// accessing the struct is cache-local.
 ///
-/// @arena: always non-null. arena used to allocate the memory belonging to this
-/// task.
+/// @param arena always non-null. arena used to allocate the memory belonging
+/// to this task.
 ///
 struct Task
 {
@@ -73,7 +73,7 @@ struct TaskQueue
   }
 };
 
-/// @dedicated_queue: only used when the thread is a dedicated thread.
+/// @param dedicated_queue only used when the thread is a dedicated thread.
 ///
 struct alignas(CACHELINE_ALIGNMENT) TaskThread
 {
@@ -83,10 +83,10 @@ struct alignas(CACHELINE_ALIGNMENT) TaskThread
   nanoseconds max_sleep       = {};
 };
 
-/// @allocator: must be thread-safe.
-/// @free_list: arena free list. arenas not in use by any tasks are inserted
-/// here
-/// @current_arena: current arena being allocated from
+/// @param allocator must be thread-safe.
+/// @param free_list arena free list. arenas not in use by any tasks are
+/// inserted here
+/// @param current_arena current arena being allocated from
 struct SchedulerImpl final : Scheduler
 {
   AllocatorImpl allocator             = default_allocator;
