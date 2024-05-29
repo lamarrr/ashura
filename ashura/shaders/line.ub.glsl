@@ -3,6 +3,7 @@
 // add color interp (with thickness accounted for), macros, and config
 
 // render arcs and line segments
+// for cap, we can either use as is or use the sdf function to give it a butt
 
 struct Line
 {
@@ -42,15 +43,25 @@ struct Arc
 /// TODO(lamarrr):
 /// cap has to be a sphere in 3d space.
 /// arcs must be in 3d space as well and be 3d volumes
+///
+/// All SDFs must be 3d sdfs!
+///
+///
 
 /// @param position relative to center
 /// @see https://www.shadertoy.com/view/wl23RK,
 /// https://www.shadertoy.com/view/lftXz4
+/// https://www.youtube.com/watch?v=LyQWZRfWotQ - SDF (signed distance function) combinatorics
+///
+/// SDF union = min(s1, s2)
+/// SDF intersection = max(s1, s2)
+/// cutting out: min or max and -s2
 float arc_line_sdf(float begin, float end, vec2 radius, vec2 position)
 {
-  float ellipse_sdf = length(position - radius);
+  float ellipse_sdf = length(abs(position) - radius);
   // combine with sdf of angle
   // if within the arc, return sdf to center, otherwise return sdf to arc
+  // min(ellipse_sdf, arc_sdf)?
   return 0;
 }
 
