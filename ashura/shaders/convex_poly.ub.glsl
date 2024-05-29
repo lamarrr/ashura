@@ -11,9 +11,9 @@ struct Params
 
 struct Vertex
 {
-  vec2 pos;
-  vec2 uv;
+  vec4 pos;
   vec4 tint;
+  vec2 uv;
 };
 
 layout(set = 0, binding = 0) readonly buffer VertexBuffer
@@ -21,17 +21,12 @@ layout(set = 0, binding = 0) readonly buffer VertexBuffer
   Vertex vtx_buffer[];
 };
 
-layout(set = 1, binding = 0) readonly buffer IndexBuffer
-{
-  uint idx_buffer[];
-};
-
-layout(set = 2, binding = 0) readonly buffer ParamsBuffer
+layout(set = 1, binding = 0) readonly buffer ParamsBuffer
 {
   Params params[];
 };
 
-layout(set = 3, binding = 0) uniform sampler2D textures[];
+layout(set = 2, binding = 0) uniform sampler2D textures[];
 
 #ifdef VERTEX_SHADER
 
@@ -41,10 +36,9 @@ layout(location = 2) flat out uint o_instance;
 
 void main()
 {
-  uint   idx  = idx_buffer[gl_VertexIndex];
   Params p    = params[gl_InstanceIndex];
-  Vertex vtx  = vtx_buffer[p.first_vertex + idx];
-  gl_Position = to_mvp(p.transform) * vec4(vtx.pos, 0, 1);
+  Vertex vtx  = vtx_buffer[p.first_vertex + gl_VertexIndex];
+  gl_Position = to_mvp(p.transform) * vtx.pos;
   o_uv        = vtx.uv;
   o_tint      = vtx.tint;
   o_instance  = gl_InstanceIndex;

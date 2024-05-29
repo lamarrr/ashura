@@ -5,6 +5,10 @@ namespace ash
 {
 
 /*
+// TODO(lamarrr): move to shader, easily done there. nindices = (n - 2) * 3
+//
+// indices: 0, i + 1, i + 2
+//
 /// outputs (n-2)*3 indices
 inline void triangulate_convex_polygon(Vec<u32> &indices, u32 nvertices)
 {
@@ -155,13 +159,27 @@ inline void triangulate_line(Span<Vertex2d const> in_points, f32 thickness,
 }
 */
 
-void Canvas::circle(PathStyle const &style, Vec2 center, Vec2 radius)
+void Canvas::begin()
+{
+  // Canvas params for transform from px to -1 +1 relative viewport space
+  // for rrect, transform needs to transform from -1 +1 to px space
+  // rrect_params.clear();
+  // blur_params.clear();
+}
+
+void Canvas::end()
+{
+  // offload to gpu, set up passes, render
+}
+
+void Canvas::circle(CanvasStyle const &style, Vec2 center, Vec2 radii)
 {
   if (style.stroke)
   {
   }
   else
   {
+    // TODO(lamarrr):radii
     CHECK(rrect_params.push(RRectParam{
         .transform = style.transform,
         .radii     = {1, 1, 1, 1},
@@ -185,7 +203,7 @@ void Canvas::circle(PathStyle const &style, Vec2 center, Vec2 radius)
   }
 }
 
-void Canvas::rect(PathStyle const &style, Vec2 center, Vec2 extent)
+void Canvas::rect(CanvasStyle const &style, Vec2 center, Vec2 extent)
 {
   if (style.stroke)
   {
@@ -214,7 +232,8 @@ void Canvas::rect(PathStyle const &style, Vec2 center, Vec2 extent)
   }
 }
 
-void Canvas::rrect(PathStyle const &style, Vec2 center, Vec2 extent, Vec4 radii)
+void Canvas::rrect(CanvasStyle const &style, Vec2 center, Vec2 extent,
+                   Vec4 radii)
 {
   // todo(lamarrr): scale radii
   if (style.stroke)
@@ -244,7 +263,7 @@ void Canvas::rrect(PathStyle const &style, Vec2 center, Vec2 extent, Vec4 radii)
   }
 }
 
-void Canvas::arc(PathStyle const &style, Vec2 center, f32 radius,
+void Canvas::arc(CanvasStyle const &style, Vec2 center, f32 radius,
                  f32 angle_begin, f32 angle_end)
 {
   // path
@@ -256,19 +275,20 @@ void Canvas::arc(PathStyle const &style, Vec2 center, f32 radius,
   }
 }
 
-void Canvas::simple_text(PathStyle const &style, Vec2 baseline,
+void Canvas::simple_text(CanvasStyle const &style, Vec2 baseline,
                          Span<char const> text)
 {
   // rrect
 }
 
-void Canvas::text(PathStyle const &style, Vec2 center, TextBlock const &block,
+void Canvas::text(CanvasStyle const &style, Vec2 center, TextBlock const &block,
                   TextLayout const &layout)
 {
   // rrect
 }
 
-void Canvas::convex_polygon(PathStyle const &style, Span<Vertex const> vertices)
+void Canvas::convex_polygon(CanvasStyle const &style,
+                            Span<Vertex const> vertices)
 {
   // convex polygon
 }
