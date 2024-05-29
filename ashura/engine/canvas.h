@@ -121,23 +121,29 @@ struct CustomCanvasPassInfo
 // z-index sorted by radix sort, radix sort should come in: [integer key,
 // elements or indices]
 //
+struct CanvasSurface
+{
+  Vec2          viewport_size = {0, 0};
+  Vec2U         surface_size  = {0, 0};
+  f32           dpi           = 0;
+  constexpr f32 aspect_ratio() const;
+};
+
 struct Canvas
 {
   // screen or render target params
   // viewport and surface config
   // zoom factor: used for tessellation? or use transform?
-  Vec2  viewport_size = {0, 0};
-  Vec2U surface_size  = {0, 0};
-
+  CanvasSurface             surface       = {};
   Vec<Vertex>               vertices      = {};
   Vec<RRectParam>           rrect_params  = {};
   Vec<BlurParam>            blur_params   = {};
   Vec<CustomCanvasPassInfo> custom_params = {};
   Vec<CanvasPassRun>        pass_runs     = {};
 
-  void begin();
+  void begin(CanvasSurface const &);
 
-  void end();
+  void submit(Renderer &renderer);
 
   /// @brief Draw a circle or ellipse
   /// @param style
