@@ -558,12 +558,6 @@ constexpr f32 catmull_rom(f32 p0, f32 p1, f32 p2, f32 p3, f32 t)
           (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
 }
 
-/// bezier spline: shapes, fonts, vector graphics. use
-/// multiple bezier curves, joined together uniformly by a unit. unit - knot
-/// interval index - (knot value/knot interval)
-/// take 4 points, advance by 3
-void spline_interp();
-
 constexpr f32 step(f32 a, f32 t)
 {
   return t < a ? 0.0f : 1.0f;
