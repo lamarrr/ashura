@@ -56,6 +56,11 @@ struct Vertex
 // TODO(lamarrr): z-index sorted by radix sort, radix sort should come in:
 // [integer key, elements or indices]
 //
+/// @todo(lamarrr): color
+/// is this representation good?
+/// we don't need uvs for arcs?
+///
+/// TODO(lamarrr): color space transformation. along with beziers?
 
 /// @brief
 /// @param transform transform from from model to view space
@@ -78,10 +83,9 @@ struct CanvasStyle
 
 struct CanvasPassRun
 {
-  i32            z_index = 0;
-  CanvasPassType type    = CanvasPassType::None;
-  u32            offset  = 0;
-  u32            count   = 0;
+  CanvasPassType type   = CanvasPassType::None;
+  u32            offset = 0;
+  u32            count  = 0;
 };
 
 ///@note Will be called from the render thread
@@ -97,17 +101,20 @@ struct CanvasSurface
   Vec2U surface_size  = {0, 0};
   f32   dpi           = 0;
 
+  /// todo(lamarrr): make calculation use 1-x, 1 form
   constexpr f32 aspect_ratio() const;
   constexpr f32 pixel_density() const;
 };
 
-/// @todo(lamarrr): vertices, color, uv
-/// is this representation good?
-/// a 3d arc.
+///
+/// @brief An Elliptical Arc in 3d space.
 ///
 /// begin and end only describe the vector used to determine the angle of
-/// inclination of the arc and the direction. i.e. begin - center is the
-/// direction vector
+/// inclination of the arc and the direction. i.e. norm(begin - center) is the
+/// starting direction vector, and the angle between norm(begin - center) and
+/// norm(end - center) is the degree of the arc.
+///
+///
 ///
 ///
 struct Arc
@@ -126,20 +133,19 @@ struct Canvas
   Vec<BlurParam>            blur_params   = {};
   Vec<CustomCanvasPassInfo> custom_params = {};
   Vec<CanvasPassRun>        pass_runs     = {};
+  Vec<i32>                  z_indexes     = {};
 
-  void begin(CanvasSurface const &);
+  void begin(CanvasSurface const &surface);
 
   void submit(Renderer &renderer);
 
   /// @brief Draw a circle or ellipse
   /// @param style
-  /// @param center
   /// @param radius x and y radius of the ellipse
   void circle(CanvasStyle const &style, Vec2 radii);
 
   /// @brief
   /// @param style
-  /// @param center
   /// @param extent
   void rect(CanvasStyle const &style, Vec2 extent);
 
@@ -149,13 +155,11 @@ struct Canvas
   /// is considered to be cheap for the text and doesn't require complex text
   /// layout algorithms.
   /// @param style
-  /// @param baseline
   /// @param text
   void simple_text(CanvasStyle const &style, TextBlock const &block);
 
   /// @brief draw a complex multi-paragraph text with pre-computed layout
   /// @param style
-  /// @param center
   /// @param block
   /// @param layout
   void text(CanvasStyle const &style, TextBlock const &block,
@@ -169,7 +173,7 @@ struct Canvas
   /// @brief
   /// @param type
   /// @param vertices vertices defining the control points of the spline
-  void arcs(CanvasStyle const &style, Span<Vertex const> vertices);
+  void arcs(CanvasStyle const &style, Span<Arc const> arcs);
 
   void arc_spline(CanvasStyle const &style, Span<Vertex const> vertices);
 

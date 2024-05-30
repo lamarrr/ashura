@@ -6,10 +6,9 @@
 namespace ash
 {
 
-/// SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
-/// SEE:
+/// @see https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
+/// @see
 /// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
-
 struct PBRParam
 {
   ViewTransform transform               = {};

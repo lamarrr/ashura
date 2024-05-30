@@ -36,6 +36,7 @@ struct simd
   static constexpr u16 REGISTER_WIDTH = NUM_BITS;
 
   using Type = T;
+
   alignas(alignof(T) * N) T data[N];
 };
 
@@ -71,6 +72,7 @@ typedef simd<f32, 4>  f32x4;
 typedef simd<f32, 8>  f32x8;
 typedef simd<f32, 16> f32x16;
 typedef simd<f64, 4>  f64x4;
+typedef simd<f64, 8>  f64x8;
 
 constexpr u8 U8_MIN = 0;
 constexpr u8 U8_MAX = 0xFF;
@@ -3090,7 +3092,7 @@ struct Fn<R(Args...)>
 };
 
 template <typename R, typename... Args>
-struct RawFunctionDispatcher
+struct RawFnDispatcher
 {
   static constexpr R dispatch(void *data, Args... args)
   {
@@ -3111,7 +3113,7 @@ struct RawFnTraits<R(Args...)>
   using Ptr        = R (*)(Args...);
   using Signature  = R(Args...);
   using Fn         = Fn<Signature>;
-  using Dispatcher = RawFunctionDispatcher<R, Args...>;
+  using Dispatcher = RawFnDispatcher<R, Args...>;
   using ReturnType = R;
 };
 
@@ -3129,7 +3131,7 @@ struct FunctorDispatcher
   }
 };
 
-template <class MemberFunctionSignature>
+template <class MemberFnSig>
 struct MemberFnTraits
 {
 };
@@ -3164,10 +3166,10 @@ struct FunctorFnTraits : public MemberFnTraits<decltype(&T::operator())>
 };
 
 // make a function view from a raw function pointer.
-template <typename RawFunctionType>
-auto to_fn(RawFunctionType *function_pointer)
+template <typename RawFnT>
+auto to_fn(RawFnT *function_pointer)
 {
-  using Traits     = RawFnTraits<RawFunctionType>;
+  using Traits     = RawFnTraits<RawFnT>;
   using Fn         = typename Traits::Fn;
   using Dispatcher = typename Traits::Dispatcher;
 

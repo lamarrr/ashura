@@ -18,9 +18,6 @@ namespace ash
 // render UI pass + custom shaders, blur ???
 // copy and composite 3d and 2d scenes
 //
-// TODO(lamarrr): composite of
-// TODO(lamarrr): pass initialization and shutdown procedure?
-//
 //
 
 typedef struct RenderPass_T *RenderPass;

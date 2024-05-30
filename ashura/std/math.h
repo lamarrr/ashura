@@ -374,22 +374,21 @@ constexpr Vec3 transform(Mat4Affine const &t, Vec3 value)
   return Vec3{v.x, v.y, v.z};
 }
 
-constexpr bool rect_overlaps(Vec2 a_begin, Vec2 a_end, Vec2 b_begin, Vec2 b_end)
+constexpr bool overlaps(Vec2 a_begin, Vec2 a_end, Vec2 b_begin, Vec2 b_end)
 {
   return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
          a_end.y >= b_begin.y;
 }
 
-constexpr bool rect_contains_point(Vec2 begin, Vec2 end, Vec2 point)
+constexpr bool contains_point(Vec2 begin, Vec2 end, Vec2 point)
 {
   return begin.x <= point.x && begin.y <= point.y && end.x >= point.x &&
          end.y >= point.y;
 }
 
-constexpr void rect_intersect(Vec2 a_begin, Vec2 a_end, Vec2 &b_begin,
-                              Vec2 &b_end)
+constexpr void intersect(Vec2 a_begin, Vec2 a_end, Vec2 &b_begin, Vec2 &b_end)
 {
-  if (!rect_overlaps(a_begin, a_end, b_begin, b_end))
+  if (!overlaps(a_begin, a_end, b_begin, b_end))
   {
     b_begin = {};
     b_end   = {};
@@ -424,24 +423,6 @@ struct Rect
   {
     return extent.x * extent.y;
   }
-
-  constexpr bool contains(Vec2 point) const
-  {
-    return rect_contains_point(begin(), end(), point);
-  }
-
-  constexpr bool overlaps(Rect const &other) const
-  {
-    return rect_overlaps(begin(), end(), other.offset, other.end());
-  }
-
-  constexpr Rect intersect(Rect const &other) const
-  {
-    Vec2 b = other.begin();
-    Vec2 e = other.end();
-    rect_intersect(begin(), end(), b, e);
-    return Rect{.offset = b, .extent = e - b};
-  }
 };
 
 struct Box
@@ -463,26 +444,44 @@ struct Box
   {
     return extent.x * extent.y * extent.z;
   }
-
-  constexpr bool contains(Vec3 point) const
-  {
-    return offset.x <= point.x && offset.y <= point.y && offset.z <= point.z &&
-           (offset.x + extent.x) >= point.x &&
-           (offset.y + extent.y) >= point.y && (offset.z + extent.z) >= point.z;
-    return true;
-  }
-
-  constexpr bool overlaps(Box const &other) const
-  {
-    Vec3 a_begin = offset;
-    Vec3 a_end   = offset + extent;
-    Vec3 b_begin = other.offset;
-    Vec3 b_end   = other.offset + other.extent;
-    return a_begin.x <= b_end.x && a_end.x >= b_begin.x &&
-           a_begin.y <= b_end.y && a_end.y >= b_begin.y &&
-           a_begin.z <= b_end.z && a_end.z >= b_begin.z;
-  }
 };
+
+constexpr bool contains(Rect const &rect, Vec2 point)
+{
+  return contains_point(rect.begin(), rect.end(), point);
+}
+
+constexpr bool overlaps(Rect const &a, Rect const &b)
+{
+  return ash::overlaps(a.begin(), a.end(), b.begin(), b.end());
+}
+
+constexpr Rect intersect(Rect const &a, Rect const &b)
+{
+  Vec2 begin = b.begin();
+  Vec2 end   = b.end();
+  intersect(a.begin(), a.end(), begin, end);
+  return Rect{.offset = begin, .extent = end - begin};
+}
+
+constexpr bool contains(Box const &box, Vec3 point)
+{
+  return box.offset.x <= point.x && box.offset.y <= point.y &&
+         box.offset.z <= point.z && (box.offset.x + box.extent.x) >= point.x &&
+         (box.offset.y + box.extent.y) >= point.y &&
+         (box.offset.z + box.extent.z) >= point.z;
+  return true;
+}
+
+constexpr bool overlaps(Box const &a, Box const &b)
+{
+  Vec3 a_begin = a.offset;
+  Vec3 a_end   = a.offset + a.extent;
+  Vec3 b_begin = b.offset;
+  Vec3 b_end   = b.offset + b.extent;
+  return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
+         a_end.y >= b_begin.y && a_begin.z <= b_end.z && a_end.z >= b_begin.z;
+}
 
 // find intepolated value v, given points a and b, and interpolator t
 constexpr f32 lerp(f32 low, f32 high, f32 t)
