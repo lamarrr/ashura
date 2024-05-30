@@ -7,12 +7,13 @@
 
 struct Line
 {
+  vec4  begin;
+  vec4  end;
   float thickness;
   float edge_smoothness;
   float cap_roundness;
   float cap_alpha;
-  vec4  color[2];
-  int   color_space_transform;
+  vec4  colors[2];
 };
 
 //
@@ -26,18 +27,17 @@ struct Line
 // Problem: when cps are same, the line becomes invincible
 //
 
+// lerp color with rect covering the arc sector.
 struct Arc
 {
-  float begin;
-  float end;
-  vec2  radius;
   vec4  center;
+  vec4  begin;
+  vec4  end;
   float thickness;
   float edge_smoothness;
-  float cap_roundness;
+  float cap_radius;
   float cap_alpha;
-  int   color_space_transform;
-  vec4  color[2];
+  vec4  colors[2];
 };
 
 /// TODO(lamarrr):
