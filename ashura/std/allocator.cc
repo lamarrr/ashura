@@ -31,10 +31,10 @@ namespace ash
 bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 **mem)
 {
   (void) self;
-  *mem = nullptr;
 
   if (size == 0)
   {
+    *mem = nullptr;
     return true;
   }
 
@@ -45,6 +45,7 @@ bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 **mem)
       *mem = m;
       return true;
     }
+    *mem = nullptr;
     return false;
   }
 
@@ -54,6 +55,7 @@ bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 **mem)
     *mem = m;
     return true;
   }
+  *mem = nullptr;
   return false;
 #endif
 
@@ -63,6 +65,7 @@ bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 **mem)
     *mem = m;
     return true;
   }
+  *mem = nullptr;
   return false;
 #endif
 
@@ -71,6 +74,7 @@ bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 **mem)
       stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
       (u64) alignment);
   (void) std::fflush(stderr);
+  *mem = nullptr;
   return false;
 #endif
 }
