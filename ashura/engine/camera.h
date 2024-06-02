@@ -35,18 +35,6 @@ inline Mat4 perspective(f32 aspect_ratio, f32 y_fov, f32 z_far, f32 z_near)
                {0, 0, -1, 0}}};
 }
 
-struct ViewTransform
-{
-  Mat4Affine model      = {};
-  Mat4Affine view       = {};
-  Mat4       projection = {};
-
-  constexpr Mat4 mul() const
-  {
-    return projection * view * model;
-  }
-};
-
 enum class CameraType : u8
 {
   Orthographic = 0,

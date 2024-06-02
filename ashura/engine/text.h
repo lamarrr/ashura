@@ -13,13 +13,6 @@ enum class TextDirection : u8
   RightToLeft = 1
 };
 
-enum class TextAlign : u8
-{
-  Start  = 0,
-  Center = 1,
-  End    = 2
-};
-
 enum class TextOverflow : u8
 {
   Wrap     = 0,
@@ -85,11 +78,12 @@ struct TextRun
 /// used on the text, uses default if not set
 struct TextBlock
 {
-  Span<char const>      text          = {};
+  Span<char const>      text_utf8     = {};
+  Span<u32 const>       text_utf32    = {};
   Span<TextRun const>   runs          = {};
   Span<TextStyle const> styles        = {};
   TextStyle             default_style = {};
-  TextAlign             align         = TextAlign::Start;
+  f32                   align         = -1;
   TextDirection         direction     = TextDirection::LeftToRight;
   Span<char const>      language      = {};
 };
@@ -110,10 +104,10 @@ struct TextRunSegment
   bool             has_spacing           = false;
   Span<char const> text                  = {};
   TextDirection    direction             = TextDirection::LeftToRight;
-  usize            style                 = 0;
-  usize            font                  = 0;
-  usize            glyph_shapings_offset = 0;
-  usize            nglyph_shapings       = 0;
+  u32              style                 = 0;
+  u32              font                  = 0;
+  u32              glyph_shapings_offset = 0;
+  u32              num_glyph_shapings    = 0;
   f32              width                 = 0;
 };
 
@@ -131,8 +125,8 @@ struct LineMetrics
   f32           descent             = 0;
   f32           line_height         = 0;
   TextDirection base_direction      = TextDirection::LeftToRight;
-  usize         run_segments_offset = 0;
-  usize         num_run_segments    = 0;
+  u32           run_segments_offset = 0;
+  u32           num_run_segments    = 0;
 };
 
 /// @param advance context-dependent horizontal-layout advance

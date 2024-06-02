@@ -126,7 +126,7 @@ constexpr usize CACHELINE_ALIGNMENT = 64;
 /// target's page alignment.
 constexpr usize PAGE_ALIGNMENT = 4096;
 
-constexpr f32 PI = 3.14159265358979323846f;
+constexpr f32 PI = 3.14159265358979323846F;
 
 template <typename T>
 constexpr bool has_bits(T src, T cmp)
@@ -2044,7 +2044,7 @@ struct Mat3Affine
     return rows[index];
   }
 
-  explicit constexpr operator Mat3() const
+  constexpr operator Mat3() const
   {
     return Mat3{.rows = {rows[0], rows[1], {0, 0, 1}}};
   }
@@ -2281,7 +2281,7 @@ struct Mat4Affine
     return rows[index];
   }
 
-  explicit constexpr operator Mat4() const
+  constexpr operator Mat4() const
   {
     return Mat4{.rows = {rows[0], rows[1], rows[2], {0, 0, 0, 1}}};
   }

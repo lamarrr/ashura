@@ -1,8 +1,7 @@
 #pragma once
 #include "ashura/engine/passes/bloom.h"
 #include "ashura/engine/passes/blur.h"
-#include "ashura/engine/passes/fxaa.h"
-#include "ashura/engine/passes/msaa.h"
+#include "ashura/engine/passes/ngon.h"
 #include "ashura/engine/passes/pbr.h"
 #include "ashura/engine/passes/rrect.h"
 #include "ashura/engine/render_context.h"
@@ -35,8 +34,7 @@ struct Renderer
   RenderContext              ctx    = {};
   BloomPass                  bloom  = {};
   BlurPass                   blur   = {};
-  FXAAPass                   fxaa   = {};
-  MSAAPass                   msaa   = {};
+  NgonPass                   ngon   = {};
   PBRPass                    pbr    = {};
   RRectPass                  rrect  = {};
   StrHashMap<RenderPassImpl> custom = {};
@@ -71,8 +69,7 @@ struct Renderer
              p_shader_map);
     bloom.init(ctx);
     blur.init(ctx);
-    fxaa.init(ctx);
-    msaa.init(ctx);
+    ngon.init(ctx);
     pbr.init(ctx);
     rrect.init(ctx);
 
@@ -257,8 +254,7 @@ struct Renderer
     ctx.device->wait_idle(ctx.device.self).unwrap();
     bloom.uninit(ctx);
     blur.uninit(ctx);
-    fxaa.uninit(ctx);
-    msaa.uninit(ctx);
+    ngon.uninit(ctx);
     pbr.uninit(ctx);
     rrect.uninit(ctx);
     ctx.uninit();
@@ -339,30 +335,28 @@ struct Renderer
     enc->update_buffer(
         enc.self,
         to_span<RRectParam>(
-            {{.transform =
-                  ViewTransform{.model = affine_scale3d({.8F, .75F, 1}) *
-                                         affine_rotate3d_z(0.5F),
-                                .view = affine_scale3d({1080.0 / 1920, 1, 1}),
-                                .projection = Mat4::identity()}
-                      .mul(),
-              .radii = {.25F, .2F, .1F, .4F},
-              .uv    = {{0, 0}, {1, 1}},
-              .tint  = {{1, 0, 1, 1}, {1, 0, 0, 1}, {0, 0, 1, 1}, {1, 1, 1, 1}},
-              .aspect_ratio = {1, .75 / .8},
-              .albedo       = 0},
-             {.transform =
-                  ViewTransform{.model =
-                                    affine_scale3d({.8F, .75F, 1}) *
-                                    affine_rotate3d_z(
-                                        (ts.tv_nsec / 5'000'000'000.0f) * 1),
-                                .view = affine_scale3d({1080.0 / 1920, 1, 1}),
-                                .projection = Mat4::identity()}
-                      .mul(),
-              .radii = {.25F, .2F, .1F, .4F},
-              .uv    = {{0, 0}, {1, 1}},
-              .tint  = {{1, 0, 1, 1}, {1, 1, 0, 1}, {0, 0, 1, 1}, {1, 1, 1, 1}},
-              .aspect_ratio = {1, .75 / .8},
-              .albedo       = 0}})
+            {RRectParam{.transform = affine_scale3d({1080.0 / 1920, 1, 1}) *
+                                     affine_scale3d({.8F, .75F, 1}) *
+                                     affine_rotate3d_z(0.5F),
+                        .radii        = {.25F, .2F, .1F, .4F},
+                        .uv           = {{0, 0}, {1, 1}},
+                        .tint         = {{1, 0, 1, 1},
+                                         {1, 0, 0, 1},
+                                         {0, 0, 1, 1},
+                                         {1, 1, 1, 1}},
+                        .aspect_ratio = .75 / .8,
+                        .albedo       = 0},
+             RRectParam{
+                 .transform =
+                     affine_scale3d({1080.0 / 1920, 1, 1}) *
+                     affine_scale3d({.8F, .75F, 1}) *
+                     affine_rotate3d_z((ts.tv_nsec / 5'000'000'000.0f) * 1),
+                 .radii = {.25F, .2F, .1F, .4F},
+                 .uv    = {{0, 0}, {1, 1}},
+                 .tint =
+                     {{1, 0, 1, 1}, {1, 1, 0, 1}, {0, 0, 1, 1}, {1, 1, 1, 1}},
+                 .aspect_ratio = .75 / .8,
+                 .albedo       = 0}})
             .as_u8(),
         0, params_buffer);
 
@@ -412,15 +406,11 @@ struct Renderer
     enc->update_buffer(
         enc.self,
         to_span<PBRParam>(
-            {{.transform =
-                  ViewTransform{.model = affine_scale3d({.5F, .5F, .5F}) *
-                                         affine_rotate3d_z(rot_z) *
-                                         affine_rotate3d_x(rot_x),
-                                .view = affine_scale3d({1080.0f / 1920, 1, 1}),
-                                .projection =
-                                    (Mat4) orthographic(1, 1, 0.1F, 100)},
-              .albedo     = {1, 0, 1, 1},
-              .num_lights = 1}})
+            {{.model = affine_scale3d({.5F, .5F, .5F}) *
+                       affine_rotate3d_z(rot_z) * affine_rotate3d_x(rot_x),
+              .view       = affine_scale3d({1080.0f / 1920, 1, 1}),
+              .projection = (Mat4) orthographic(1, 1, 0.1F, 100),
+              .albedo     = {1, 0, 1, 1}}})
             .as_u8(),
         0, pbr_prm_buff);
 

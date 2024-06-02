@@ -483,6 +483,11 @@ constexpr bool overlaps(Box const &a, Box const &b)
          a_end.y >= b_begin.y && a_begin.z <= b_end.z && a_end.z >= b_begin.z;
 }
 
+constexpr Vec2 rotor(f32 a)
+{
+  return Vec2{cosf(a), sinf(a)};
+}
+
 // find intepolated value v, given points a and b, and interpolator t
 constexpr f32 lerp(f32 low, f32 high, f32 t)
 {

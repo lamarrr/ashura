@@ -6,8 +6,7 @@ namespace ash
 
 struct BlurParam
 {
-  Vec2 offset  = {};
-  Vec2 extent  = {};
+  Vec2 uv[2]   = {};
   Vec2 radius  = {};
   u32  texture = 0;
 };

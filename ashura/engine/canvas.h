@@ -8,77 +8,33 @@
 namespace ash
 {
 
-enum class LineCap : u8
-{
-  Butt   = 0,
-  Round  = 1,
-  Square = 2
-};
-
 enum class CanvasPassType : u8
 {
-  None          = 0,
-  RRect         = 1,
-  Blur          = 2,
-  ConvexPolygon = 3,
-  Line          = 4,
-  Custom        = 5
+  None   = 0,
+  RRect  = 1,
+  Blur   = 2,
+  Ngon   = 3,
+  Custom = 4
 };
 
-struct Vertex
-{
-  Vec4 position = {0, 0, 0, 1};
-  Vec4 tint     = {1, 1, 1, 1};
-  Vec2 uv       = {0, 0};
-};
-
-// todo(lamarrr): only expose linear and arcs. the rest should use interpolation
-// or other estimation methods via free functions.
-// arc splines and curves
-//
-// Arc, Biarc, Arc Spline, BiArc Splines
-//
-// enum class CurveType : u8
-// {
-//   Linear          = 0,
-//   Arc             = 1,
-//   QuadraticBezier = 2,
-//   CubicBezier     = 3,
-//   CatmullRom      = 4
-// };
-//
-// - automatic pass begin and ending
-//
-//
-// each primitive is rendered out of order, the order is specified by the
-// z-index.
-//
-// TODO(lamarrr): z-index sorted by radix sort, radix sort should come in:
-// [integer key, elements or indices]
-//
-/// @todo(lamarrr): color
-/// is this representation good?
-/// we don't need uvs for arcs?
-///
-/// TODO(lamarrr): color space transformation. along with beziers?
+// TODO(lamarrr) - automatic pass begin and ending
 
 /// @brief
-/// @param transform transform from from model to view space
 /// @param scissor_offset, scissor_extent in surface pixel coordinates
-struct CanvasStyle
+struct ShapeDesc
 {
-  i32     z_index   = 0;
-  Vec4    position  = {0, 0, 0, 1};
-  bool    stroke    = false;
-  LineCap line_cap  = LineCap::Butt;
-  f32     thickness = 1.0f;
-  Vec4    tint[4]   = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}};
-  u32     texture   = 0;
-  Vec2    uv[2]     = {{0, 0}, {1, 1}};
-  f32     edge_smoothness = 0.0015F;
-  Mat4    transform       = Mat4::identity();
-  Vec2U   scissor_offset  = {0, 0};
-  Vec2U   scissor_extent  = {U32_MAX, U32_MAX};
+  Vec2  center       = {0, 0};
+  Vec2  extent       = {0, 0};
+  Vec4  border_radii = {0, 0, 0, 0};
+  f32   stroke       = 0.0f;
+  f32   thickness    = 1.0f;
+  Vec4  tint[4]      = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}};
+  u32   texture      = 0;
+  Vec2  uv[2]        = {{0, 0}, {1, 1}};
+  f32   edge_smoothness = 0.0015F;
+  Mat4  transform       = Mat4::identity();
+  Vec2U scissor_offset  = {0, 0};
+  Vec2U scissor_extent  = {U32_MAX, U32_MAX};
 };
 
 struct CanvasPassRun
@@ -97,89 +53,98 @@ struct CustomCanvasPassInfo
 
 struct CanvasSurface
 {
-  Vec2  viewport_size = {0, 0};
-  Vec2U surface_size  = {0, 0};
-  f32   dpi           = 0;
+  Vec2  viewport = {0, 0};
+  Vec2U extent   = {0, 0};
 
-  /// todo(lamarrr): make calculation use 1-x, 1 form
-  constexpr f32 aspect_ratio() const;
-  constexpr f32 pixel_density() const;
+  constexpr f32 aspect_ratio() const
+  {
+    return (viewport.y == 0) ? 0 : (viewport.x / viewport.y);
+  }
+
+  constexpr Vec2 pixel_density() const
+  {
+    return Vec2{extent.x / viewport.x, extent.y / viewport.y};
+  }
+
+  constexpr Mat4 mvp(Vec2 center, Vec2 object_extent, Mat4 transform) const
+  {
+    return affine_scale3d(Vec3{2 / viewport.x, 2 / viewport.y, 0}) * transform *
+           affine_scale3d(Vec3{object_extent.x / 2, object_extent.y / 2, 1}) *
+           affine_translate3d(Vec3{center.x, center.y, 1});
+  }
 };
 
-///
-/// @brief An Elliptical Arc in 3d space.
-///
-/// begin and end only describe the vector used to determine the angle of
-/// inclination of the arc and the direction. i.e. norm(begin - center) is the
-/// starting direction vector, and the angle between norm(begin - center) and
-/// norm(end - center) is the degree of the arc.
-///
-///
-///
-///
-struct Arc
+struct Path
 {
-  Vec4 center = {0, 0, 0, 1};
-  Vec4 begin  = {0, 0, 0, 1};
-  Vec4 end    = {0, 0, 0, 1};
-  Vec2 radii  = {0, 0};
+  static void rect(Vec<Vec2> &vtx);
+  static void arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop);
+  static void circle(Vec<Vec2> &vtx, u32 segments);
+  static void rrect(Vec<Vec2> &vtx, u32 segments, Vec4 border_radii);
+  static void brect(Vec<Vec2> &vtx, Vec4 slants);
+  static void bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
+                     Vec2 cp2);
+  static void cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
+                           Vec2 cp2, Vec2 cp3);
+  static void catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
+                          Vec2 cp2, Vec2 cp3);
+  static void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vtx,
+                                 f32 thickness);
 };
 
 struct Canvas
 {
   CanvasSurface             surface       = {};
-  Vec<Vertex>               vertices      = {};
-  Vec<RRectParam>           rrect_params  = {};
+  Vec<Vec2>                 vertices      = {};
   Vec<BlurParam>            blur_params   = {};
+  Vec<NgonParam>            ngon_params   = {};
+  Vec<RRectParam>           rrect_params  = {};
   Vec<CustomCanvasPassInfo> custom_params = {};
   Vec<CanvasPassRun>        pass_runs     = {};
-  Vec<i32>                  z_indexes     = {};
+
+  void init();
 
   void begin(CanvasSurface const &surface);
 
   void submit(Renderer &renderer);
 
-  /// @brief Draw a circle or ellipse
-  /// @param style
-  /// @param radius x and y radius of the ellipse
-  void circle(CanvasStyle const &style, Vec2 radii);
+  void circle(ShapeDesc const &desc);
 
-  /// @brief
-  /// @param style
-  /// @param extent
-  void rect(CanvasStyle const &style, Vec2 extent);
+  void rect(ShapeDesc const &desc);
 
-  void rrect(CanvasStyle const &style, Vec2 extent, Vec4 radii);
+  void rrect(ShapeDesc const &desc);
 
-  /// @brief draw a simple text with simple layout. Layout is uncached since it
-  /// is considered to be cheap for the text and doesn't require complex text
-  /// layout algorithms.
-  /// @param style
-  /// @param text
-  void simple_text(CanvasStyle const &style, TextBlock const &block);
+  void text_backgrounds_(ShapeDesc const &desc, TextBlock const &block,
+                         TextLayout const &layout);
 
-  /// @brief draw a complex multi-paragraph text with pre-computed layout
-  /// @param style
-  /// @param block
-  /// @param layout
-  void text(CanvasStyle const &style, TextBlock const &block,
+  void text_underlines_(ShapeDesc const &desc, TextBlock const &block,
+                        TextLayout const &layout);
+
+  void text_strikethroughs_(ShapeDesc const &desc, TextBlock const &block,
+                            TextLayout const &layout);
+
+  void glyph_shadows_(ShapeDesc const &desc, TextBlock const &block,
+                      TextLayout const &layout);
+
+  void glyphs_(ShapeDesc const &desc, TextBlock const &block,
+               TextLayout const &layout);
+
+  /// @brief draw text using simple non-font-dependent or unicode layout. Layout
+  /// is uncached since it is considered to be cheap for the text and doesn't
+  /// require complex unicode/font layout algorithms and shaping.
+  void simple_text(ShapeDesc const &desc, TextBlock const &block);
+
+  /// @brief draw a complex and  layout text with pre-computed layout
+  void text(ShapeDesc const &desc, TextBlock const &block,
             TextLayout const &layout);
 
-  /// @brief the vertices need not be closed
-  /// @param style
-  /// @param vertices minimum of 3 vertices
-  void convex_polygon(CanvasStyle const &style, Span<Vertex const> vertices);
+  ///@brief convex irregular polygon
+  void ngon(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
-  /// @brief
-  /// @param type
-  /// @param vertices vertices defining the control points of the spline
-  void arcs(CanvasStyle const &style, Span<Arc const> arcs);
+  void line(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
-  void arc_spline(CanvasStyle const &style, Span<Vertex const> vertices);
+  void blur(ShapeDesc const &desc);
 
-  void blur(CanvasStyle const &style);
-
-  void custom(CanvasStyle const &style, CustomCanvasPassInfo const &pass);
+  void custom(ShapeDesc const &desc, CustomCanvasPassInfo const &pass);
 };
 
 }        // namespace ash
