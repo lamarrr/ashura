@@ -1,5 +1,4 @@
 #pragma once
-#include "ashura/engine/camera.h"
 #include "ashura/engine/scene.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/types.h"

@@ -456,10 +456,10 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
       g.offset.x        = (u32) r.x + 1;
       g.offset.y        = (u32) r.y + 1;
       g.layer           = r.layer;
-      g.uv0             = Vec2{g.offset.x / (f32) FONT_ATLAS_EXTENT,
-                   g.offset.y / (f32) FONT_ATLAS_EXTENT};
-      g.uv1 = Vec2{(g.offset.x + g.extent.x) / (f32) FONT_ATLAS_EXTENT,
-                   (g.offset.y + g.extent.y) / (f32) FONT_ATLAS_EXTENT};
+      g.uv[0]           = Vec2{g.offset.x / (f32) FONT_ATLAS_EXTENT,
+                     g.offset.y / (f32) FONT_ATLAS_EXTENT};
+      g.uv[1] = Vec2{(g.offset.x + g.extent.x) / (f32) FONT_ATLAS_EXTENT,
+                     (g.offset.y + g.extent.y) / (f32) FONT_ATLAS_EXTENT};
     }
   }
 

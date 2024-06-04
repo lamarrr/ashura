@@ -6,8 +6,8 @@ namespace ash
 
 void NgonPass::init(RenderContext &ctx)
 {
-  gfx::Shader vertex_shader   = ctx.get_shader("RRect:VS"_span).unwrap();
-  gfx::Shader fragment_shader = ctx.get_shader("RRect:FS"_span).unwrap();
+  gfx::Shader vertex_shader   = ctx.get_shader("Ngon:VS"_span).unwrap();
+  gfx::Shader fragment_shader = ctx.get_shader("Ngon:FS"_span).unwrap();
 
   gfx::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gfx::PolygonMode::Fill,
@@ -44,11 +44,11 @@ void NgonPass::init(RenderContext &ctx)
                                              to_span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout set_layouts[] = {ctx.ssbo_layout,
+  gfx::DescriptorSetLayout set_layouts[] = {ctx.ssbo_layout, ctx.ssbo_layout,
                                             ctx.textures_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
-      .label = "RRect Graphics Pipeline"_span,
+      .label = "Ngon Graphics Pipeline"_span,
       .vertex_shader =
           gfx::ShaderStageDesc{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
@@ -84,7 +84,7 @@ void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
   encoder->set_graphics_state(
       encoder.self,
       gfx::GraphicsState{
-          .scissor  = {.offset = Vec2U{0, 0},
+          .scissor  = {.offset = params.rendering_info.offset,
                        .extent = params.rendering_info.extent},
           .viewport = gfx::Viewport{
               .offset    = Vec2{0, 0},
@@ -93,10 +93,11 @@ void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
               .min_depth = 0,
               .max_depth = 1}});
 
-  encoder->bind_descriptor_sets(encoder.self,
-                                to_span({params.params_ssbo, params.textures}),
-                                to_span({params.params_ssbo_offset}));
-  encoder->draw(encoder.self, 6, params.num_instances, 0,
+  encoder->bind_descriptor_sets(
+      encoder.self,
+      to_span({params.vertices_ssbo, params.params_ssbo, params.textures}),
+      to_span({params.vertices_ssbo_offset, params.params_ssbo_offset}));
+  encoder->draw(encoder.self, 4, params.num_instances, 0,
                 params.first_instance);
   encoder->end_rendering(encoder.self);
 }

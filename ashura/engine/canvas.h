@@ -17,7 +17,10 @@ enum class CanvasPassType : u8
   Custom = 4
 };
 
-// TODO(lamarrr) - automatic pass begin and ending
+struct NgonDrawCommand
+{
+  u32 num_indices = 0;
+};
 
 /// @brief
 /// @param scissor_offset, scissor_extent in surface pixel coordinates
@@ -39,9 +42,9 @@ struct ShapeDesc
 
 struct CanvasPassRun
 {
-  CanvasPassType type   = CanvasPassType::None;
-  u32            offset = 0;
-  u32            count  = 0;
+  CanvasPassType type  = CanvasPassType::None;
+  u32            first = 0;
+  u32            count = 0;
 };
 
 ///@note Will be called from the render thread
@@ -68,12 +71,14 @@ struct CanvasSurface
 
   constexpr Mat4 mvp(Vec2 center, Vec2 object_extent, Mat4 transform) const
   {
-    return affine_scale3d(Vec3{2 / viewport.x, 2 / viewport.y, 0}) * transform *
-           affine_scale3d(Vec3{object_extent.x / 2, object_extent.y / 2, 1}) *
-           affine_translate3d(Vec3{center.x, center.y, 1});
+    return affine_scale3d(Vec3{1 / viewport.x, 1 / viewport.y, 0}) *
+           affine_translate3d(Vec3{center.x, center.y, 0}) * transform *
+           affine_scale3d(Vec3{object_extent.x / 2, object_extent.y / 2, 1});
   }
 };
 
+/// @brief all points are stored in the [-1, +1] range, all arguments must be
+/// normalized to same range.
 struct Path
 {
   static void rect(Vec<Vec2> &vtx);
@@ -87,24 +92,34 @@ struct Path
                            Vec2 cp2, Vec2 cp3);
   static void catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
                           Vec2 cp2, Vec2 cp3);
+
+  /// @param points needs to be normalized to [-1, +1] range
   static void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vtx,
-                                 f32 thickness);
+                                 Vec<u32> &idx, f32 thickness);
+
+  /// @param points needs to be normalized to [-1, +1] range
+  static void triangulate_ngon(Span<Vec2 const> points, Vec<Vec2> &vtx,
+                               Vec<u32> &idx);
 };
 
 struct Canvas
 {
-  CanvasSurface             surface       = {};
-  Vec<Vec2>                 vertices      = {};
-  Vec<BlurParam>            blur_params   = {};
-  Vec<NgonParam>            ngon_params   = {};
-  Vec<RRectParam>           rrect_params  = {};
-  Vec<CustomCanvasPassInfo> custom_params = {};
-  Vec<CanvasPassRun>        pass_runs     = {};
+  CanvasSurface             surface            = {};
+  Vec<Vec2>                 vertices           = {};
+  Vec<u32>                  indices            = {};
+  Vec<NgonDrawCommand>      ngon_draw_commands = {};
+  Vec<NgonParam>            ngon_params        = {};
+  Vec<RRectParam>           rrect_params       = {};
+  Vec<CustomCanvasPassInfo> custom_params      = {};
+  Vec<CanvasPassRun>        pass_runs          = {};
 
   void init();
 
+  void uninit();
+
   void begin(CanvasSurface const &surface);
 
+  /// @brief offload to gpu, set up passes, render. called on render thread.
   void submit(Renderer &renderer);
 
   void circle(ShapeDesc const &desc);
@@ -127,11 +142,6 @@ struct Canvas
 
   void glyphs_(ShapeDesc const &desc, TextBlock const &block,
                TextLayout const &layout);
-
-  /// @brief draw text using simple non-font-dependent or unicode layout. Layout
-  /// is uncached since it is considered to be cheap for the text and doesn't
-  /// require complex unicode/font layout algorithms and shaping.
-  void simple_text(ShapeDesc const &desc, TextBlock const &block);
 
   /// @brief draw a complex and  layout text with pre-computed layout
   void text(ShapeDesc const &desc, TextBlock const &block,

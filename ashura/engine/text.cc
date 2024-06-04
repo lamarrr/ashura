@@ -1,3 +1,5 @@
+#include "ashura/engine/text.h"
+#include "ashura/std/error.h"
 extern "C"
 {
 #include "SBAlgorithm.h"
@@ -8,7 +10,10 @@ extern "C"
 
 #include "harfbuzz/hb.h"
 
-static std::pair<Span<hb_glyph_info_t const>, Span<hb_glyph_position_t const>>
+namespace ash
+{
+
+static pair<Span<hb_glyph_info_t const>, Span<hb_glyph_position_t const>>
     shape_text_harfbuzz(Font const &font, f32 render_font_height,
                         u32 not_found_glyph, Span<char const> text,
                         hb_buffer_t *shaping_buffer, hb_script_t script,
@@ -17,60 +22,55 @@ static std::pair<Span<hb_glyph_info_t const>, Span<hb_glyph_position_t const>>
 {
   // tags are opentype feature tags
   hb_feature_t const shaping_features[] = {
-      {.tag   = HB_TAG('k', 'e', 'r', 'n'),        // kerning operations
+      // kerning operations
+      {.tag   = HB_TAG('k', 'e', 'r', 'n'),
        .value = use_kerning,
        .start = HB_FEATURE_GLOBAL_START,
        .end   = HB_FEATURE_GLOBAL_END},
-      {.tag   = HB_TAG('l', 'i', 'g',
-                       'a'),        // standard ligature glyph substitution
+      // standard ligature glyph substitution
+      {.tag   = HB_TAG('l', 'i', 'g', 'a'),
        .value = use_ligatures,
        .start = HB_FEATURE_GLOBAL_START,
        .end   = HB_FEATURE_GLOBAL_END},
-      {.tag   = HB_TAG('c', 'l', 'i',
-                       'g'),        // contextual ligature glyph substitution
+      // contextual ligature glyph substitution
+      {.tag   = HB_TAG('c', 'l', 'i', 'g'),
        .value = use_ligatures,
        .start = HB_FEATURE_GLOBAL_START,
        .end   = HB_FEATURE_GLOBAL_END}};
 
   hb_buffer_reset(shaping_buffer);
-  hb_buffer_set_replacement_codepoint(
-      shaping_buffer,
-      HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);        // invalid character
-                                                       // replacement
-  hb_buffer_set_not_found_glyph(
-      shaping_buffer,
-      not_found_glyph);        // default glyphs for characters without
-                               // defined glyphs
-  hb_buffer_set_script(
-      shaping_buffer,
-      script);        // OpenType (ISO15924) Script Tag. See:
-                      // https://unicode.org/reports/tr24/#Relation_To_ISO15924
+  // invalid character replacement
+  hb_buffer_set_replacement_codepoint(shaping_buffer,
+                                      HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);
+  // default glyphs for characters without defined glyphs
+  hb_buffer_set_not_found_glyph(shaping_buffer, not_found_glyph);
+  // OpenType (ISO15924) Script Tag. See:
+  // https://unicode.org/reports/tr24/#Relation_To_ISO15924
+  hb_buffer_set_script(shaping_buffer, script);
   hb_buffer_set_direction(shaping_buffer, direction);
-  hb_buffer_set_language(
-      shaping_buffer,
-      language);        // OpenType BCP-47 language tag for performing certain
-                        // shaping operations as defined in the font
+  // OpenType BCP-47 language tag for performing certain shaping operations as
+  // defined in the font
+  hb_buffer_set_language(shaping_buffer, language);
   hb_font_set_scale(font.hb_font, (int) (64 * render_font_height),
                     (int) (64 * render_font_height));
   hb_buffer_add_utf8(shaping_buffer, text.data(), (int) text.size(), 0,
                      (int) text.size());
   hb_shape(font.hb_font, shaping_buffer, shaping_features,
-           (unsigned int) std::size(shaping_features));
+           (unsigned int) size(shaping_features));
 
   unsigned int               nglyph_pos;
   hb_glyph_position_t const *glyph_pos =
       hb_buffer_get_glyph_positions(shaping_buffer, &nglyph_pos);
-  ASH_CHECK(!(glyph_pos == nullptr && nglyph_pos > 0));
+  CHECK(!(glyph_pos == nullptr && nglyph_pos > 0));
 
   unsigned int           nglyph_infos;
   hb_glyph_info_t const *glyph_info =
       hb_buffer_get_glyph_infos(shaping_buffer, &nglyph_infos);
-  ASH_CHECK(!(glyph_info == nullptr && nglyph_infos > 0));
+  CHECK(!(glyph_info == nullptr && nglyph_infos > 0));
 
-  ASH_CHECK(nglyph_pos == nglyph_infos);
+  CHECK(nglyph_pos == nglyph_infos);
 
-  return std::make_pair(Span{glyph_info, nglyph_infos},
-                        Span{glyph_pos, nglyph_pos});
+  return make_pair(Span{glyph_info, nglyph_infos}, Span{glyph_pos, nglyph_pos});
 }
 
 // TODO(lamarrr): remove all uses of char for utf8 text or byte strings
@@ -100,7 +100,7 @@ void layout(TextBlock const &block, f32 text_scale_factor,
                                   (int) block.language.size());
 
   hb_buffer_t *const shaping_buffer = hb_buffer_create();
-  ASH_CHECK(shaping_buffer != nullptr);
+  CHECK(shaping_buffer != nullptr);
 
   /// Text Style Font Resolution ///
   Vec<usize> resolved_fonts;
@@ -125,15 +125,15 @@ void layout(TextBlock const &block, f32 text_scale_factor,
       .stringLength   = block.text.size()};
 
   SBAlgorithmRef const algorithm = SBAlgorithmCreate(&codepoint_sequence);
-  ASH_CHECK(algorithm != nullptr);
+  CHECK(algorithm != nullptr);
 
   SBScriptLocatorRef const script_locator = SBScriptLocatorCreate();
-  ASH_CHECK(script_locator != nullptr);
+  CHECK(script_locator != nullptr);
 
   SBScriptLocatorLoadCodepoints(script_locator, &codepoint_sequence);
 
   SBScriptAgent const *script_agent = SBScriptLocatorGetAgent(script_locator);
-  ASH_CHECK(script_agent != nullptr);
+  CHECK(script_agent != nullptr);
 
   SBScriptLocatorMoveNext(script_locator);
 
@@ -148,7 +148,7 @@ void layout(TextBlock const &block, f32 text_scale_factor,
         block.direction == TextDirection::LeftToRight ?
             (SBLevel) SBLevelDefaultLTR :
             (SBLevel) SBLevelDefaultRTL);
-    ASH_CHECK(sb_paragraph != nullptr);
+    CHECK(sb_paragraph != nullptr);
     SBUInteger const paragraph_length = SBParagraphGetLength(
         sb_paragraph);        // number of bytes of the paragraph
     SBLevel const paragraph_base_level = SBParagraphGetBaseLevel(
@@ -175,7 +175,7 @@ void layout(TextBlock const &block, f32 text_scale_factor,
                run_block_text_offset <
                    (script_agent->offset + script_agent->length))) [[unlikely]]
       {
-        ASH_CHECK(SBScriptLocatorMoveNext(script_locator));
+        CHECK(SBScriptLocatorMoveNext(script_locator));
       }
       SBScript const       run_script    = script_agent->script;
       TextDirection const  run_direction = (run_level & 0x1) == 0 ?
@@ -443,9 +443,9 @@ void layout(TextBlock const &block, f32 text_scale_factor,
                               font_bundle[run_segment.font].atlas.descent *
                               style.font_height;
           f32 const height = ascent + descent;
-          line_height      = std::max(line_height, style.line_height * height);
-          line_ascent      = std::max(line_ascent, ascent);
-          line_descent     = std::max(line_descent, descent);
+          line_height      = max(line_height, style.line_height * height);
+          line_ascent      = max(line_ascent, ascent);
+          line_descent     = max(line_descent, descent);
         }
 
         direction_run_begin = direction_run_end;
@@ -465,7 +465,7 @@ void layout(TextBlock const &block, f32 text_scale_factor,
           .unwrap();
 
       span.y += line_height;
-      span.x = std::max(span.x, line_width);
+      span.x = max(span.x, line_width);
 
       line_begin = line_end;
     }
@@ -476,5 +476,5 @@ void layout(TextBlock const &block, f32 text_scale_factor,
   SBAlgorithmRelease(algorithm);
   hb_buffer_destroy(shaping_buffer);
 }
+};
 }
-;

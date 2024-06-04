@@ -64,7 +64,7 @@ void RRectPass::init(RenderContext &ctx)
       .vertex_attributes      = {},
       .push_constants_size    = 0,
       .descriptor_set_layouts = to_span(set_layouts),
-      .primitive_topology     = gfx::PrimitiveTopology::TriangleList,
+      .primitive_topology     = gfx::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
       .color_blend_state      = color_blend_state,
@@ -84,7 +84,7 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
   encoder->set_graphics_state(
       encoder.self,
       gfx::GraphicsState{
-          .scissor  = {.offset = Vec2U{0, 0},
+          .scissor  = {.offset = params.rendering_info.offset,
                        .extent = params.rendering_info.extent},
           .viewport = gfx::Viewport{
               .offset    = Vec2{0, 0},
@@ -96,7 +96,7 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
   encoder->bind_descriptor_sets(encoder.self,
                                 to_span({params.params_ssbo, params.textures}),
                                 to_span({params.params_ssbo_offset}));
-  encoder->draw(encoder.self, 6, params.num_instances, 0,
+  encoder->draw(encoder.self, 4, params.num_instances, 0,
                 params.first_instance);
   encoder->end_rendering(encoder.self);
 }

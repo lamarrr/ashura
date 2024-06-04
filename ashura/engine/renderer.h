@@ -6,18 +6,9 @@
 #include "ashura/engine/passes/rrect.h"
 #include "ashura/engine/render_context.h"
 #include "ashura/std/hash_map.h"
-#include "ashura/std/object.h"
 
 namespace ash
 {
-
-// sky render pass
-// render 3d scene pass + custom shaders (pipeline + fragment + vertex shader)
-// perform bloom, blur, msaa on 3d scene
-// render UI pass + custom shaders, blur ???
-// copy and composite 3d and 2d scenes
-//
-//
 
 typedef struct RenderPass_T *RenderPass;
 typedef struct Renderer      Renderer;
@@ -39,13 +30,16 @@ struct Renderer
   RRectPass                  rrect  = {};
   StrHashMap<RenderPassImpl> custom = {};
 
-  gfx::Buffer        params_buffer = nullptr;
-  gfx::Image         image         = nullptr;
-  gfx::ImageView     texture       = nullptr;
-  gfx::Sampler       sampler       = nullptr;
-  gfx::DescriptorSet params_ssbo   = nullptr;
-  gfx::DescriptorSet textures      = nullptr;
-  gfx::DescriptorSet textures_2    = nullptr;
+  gfx::Buffer        params_buffer         = nullptr;
+  gfx::Image         image                 = nullptr;
+  gfx::ImageView     texture               = nullptr;
+  gfx::Sampler       sampler               = nullptr;
+  gfx::DescriptorSet params_ssbo           = nullptr;
+  gfx::DescriptorSet textures              = nullptr;
+  gfx::DescriptorSet color_textures        = nullptr;
+  gfx::DescriptorSet scratch_color_texture = nullptr;
+  gfx::DescriptorSet depth_texture         = nullptr;
+  gfx::DescriptorSet scratch_depth_texture = nullptr;
   /// TODO(lamarrr): attachment textures group, updated on every frame
   /// recreation. update descriptor sets when either attachments are recreated/
 

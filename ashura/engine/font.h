@@ -58,8 +58,7 @@ struct Glyph
   u32          layer     = 0;
   Vec2U        offset    = {};
   Vec2U        extent    = {};
-  Vec2         uv0       = {};
-  Vec2         uv1       = {};
+  Vec2         uv[2]     = {};
 };
 
 /// @param postscript_name ASCII. i.e. RobotoBold
@@ -89,7 +88,7 @@ struct FontInfo
   u32                        num_layers        = 0;
   gfx::Image                 image             = nullptr;
   Span<gfx::ImageView const> image_views       = {};
-  u32                        texture           = 0;
+  Span<u32 const>            textures          = {};
 };
 
 /// @param name name to use in font matching
@@ -120,5 +119,7 @@ struct FontManager
   virtual Result<FontInfo, FontStatus> get_info(Font font)             = 0;
   virtual void                         uninit()                        = 0;
 };
+
+extern FontManager *font_manager;
 
 }        // namespace ash

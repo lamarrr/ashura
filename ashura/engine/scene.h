@@ -1,5 +1,4 @@
 #pragma once
-#include "ashura/engine/camera.h"
 #include "ashura/engine/light.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"

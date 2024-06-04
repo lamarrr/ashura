@@ -13,17 +13,7 @@ enum class TextDirection : u8
   RightToLeft = 1
 };
 
-enum class TextOverflow : u8
-{
-  Wrap     = 0,
-  Ellipsis = 1
-};
-
-/// @param font name to use to match the font. if font is not found or empty
-/// the fallback fonts are tried.
-/// @param fallback_fonts font to fallback to if {font} is not available. if
-/// none of the specified fallback fonts are found the first font in the font
-/// bundle will be used
+/// @param font font to use to render the text
 /// @param shadow_scale relative. multiplied by font_height
 /// @param shadow_offset px. offset from center of glyph
 /// @param letter_spacing px. additional letter spacing, can be negative
@@ -33,25 +23,24 @@ enum class TextOverflow : u8
 /// @param use_ligatures use standard and contextual font ligature substitution
 struct TextStyle
 {
-  Font             font                    = nullptr;
-  Span<Font const> fallback_fonts          = {};
-  f32              font_height             = 20;
-  f32              outline_thickness       = 0;
-  f32              underline_thickness     = 0;
-  f32              strikethrough_thickness = 0;
-  f32              letter_spacing          = 0;
-  f32              word_spacing            = 0;
-  f32              line_height             = 1.2f;
-  f32              shadow_scale            = 0;
-  Vec2             shadow_offset           = Vec2{0, 0};
-  Vec4             foreground_color        = Vec4{0, 0, 0, 1};
-  Vec4             outline_color           = Vec4{0, 0, 0, 1};
-  Vec4             shadow_color            = Vec4{0, 0, 0, 1};
-  Vec4             background_color        = Vec4{0, 0, 0, 0};
-  Vec4             underline_color         = Vec4{0, 0, 0, 1};
-  Vec4             strikethrough_color     = Vec4{0, 0, 0, 1};
-  bool             use_kerning             = true;
-  bool             use_ligatures           = true;
+  Font font                    = nullptr;
+  f32  font_height             = 20;
+  f32  outline_thickness       = 0;
+  f32  underline_thickness     = 0;
+  f32  strikethrough_thickness = 0;
+  f32  letter_spacing          = 0;
+  f32  word_spacing            = 0;
+  f32  line_height             = 1.2f;
+  f32  shadow_scale            = 0;
+  Vec2 shadow_offset           = Vec2{0, 0};
+  Vec4 foreground_color[4]     = {};
+  Vec4 outline_color[4]        = {};
+  Vec4 shadow_color[4]         = {};
+  Vec4 background_color[4]     = {};
+  Vec4 underline_color[4]      = {};
+  Vec4 strikethrough_color[4]  = {};
+  bool use_kerning             = true;
+  bool use_ligatures           = true;
 };
 
 /// A text run is a sequence of characters sharing a single property.
@@ -66,11 +55,9 @@ struct TextRun
   usize style = 0;
 };
 
-/// @param text utf-8-encoded text, Span because string view
-/// doesnt support non-string types
-/// @param runs parts of text not styled by a run
-/// will use the paragraphs run style
-/// styles for the text block's contents
+/// @param text utf-32-encoded text
+/// @param runs parts of text not styled by a run will use the paragraphs run
+/// style styles for the text block's contents
 /// @param default_style default run styling
 /// @param align text alignment
 /// @param direction base text direction
@@ -78,12 +65,11 @@ struct TextRun
 /// used on the text, uses default if not set
 struct TextBlock
 {
-  Span<char const>      text_utf8     = {};
-  Span<u32 const>       text_utf32    = {};
+  Span<u32 const>       text          = {};
   Span<TextRun const>   runs          = {};
   Span<TextStyle const> styles        = {};
   TextStyle             default_style = {};
-  f32                   align         = -1;
+  f32                   x_align       = -1;
   TextDirection         direction     = TextDirection::LeftToRight;
   Span<char const>      language      = {};
 };
@@ -94,21 +80,22 @@ struct TextBlock
 /// @param has_spacing if it has trailing spacing characters (tabs and spaces)
 /// where we can break the text, this corresponds to the
 /// unicode Break-After (BA)
-/// @param text utf8 text of segment
+/// @param text utf-32 text of segment
 /// @param direction direction of text
 /// @param style resolved run text styling
-/// @param font resolved font index in font bundle
+/// @param first_shaping first glyph shaping
+/// @param num_shapings number of glyph shapings
 /// @param width sum of advances, letter spacing & word spacing
 struct TextRunSegment
 {
-  bool             has_spacing           = false;
-  Span<char const> text                  = {};
-  TextDirection    direction             = TextDirection::LeftToRight;
-  u32              style                 = 0;
-  u32              font                  = 0;
-  u32              glyph_shapings_offset = 0;
-  u32              num_glyph_shapings    = 0;
-  f32              width                 = 0;
+  bool            has_spacing   = false;
+  Span<u32 const> text          = {};
+  TextDirection   direction     = TextDirection::LeftToRight;
+  u32             style         = 0;
+  Font            font          = nullptr;
+  u32             first_shaping = 0;
+  u32             num_shapings  = 0;
+  f32             width         = 0;
 };
 
 /// @param width width of the line
@@ -116,17 +103,17 @@ struct TextRunSegment
 /// @param descent maximum descent of all the runs on the line
 /// @param line_height maximum line height of all the runs on the line
 /// @param base_direction base direction of the line
-/// @param run_segments_offset begin index of line's segments
-/// @param num_run_segments number of segments
+/// @param first_segment begin index of line's run segments
+/// @param num_segments number of run segments
 struct LineMetrics
 {
-  f32           width               = 0;
-  f32           ascent              = 0;
-  f32           descent             = 0;
-  f32           line_height         = 0;
-  TextDirection base_direction      = TextDirection::LeftToRight;
-  u32           run_segments_offset = 0;
-  u32           num_run_segments    = 0;
+  f32           width          = 0;
+  f32           ascent         = 0;
+  f32           descent        = 0;
+  f32           line_height    = 0;
+  TextDirection base_direction = TextDirection::LeftToRight;
+  u32           first_segment  = 0;
+  u32           num_segments   = 0;
 };
 
 /// @param advance context-dependent horizontal-layout advance
@@ -140,7 +127,10 @@ struct GlyphShaping
   Vec2 offset  = {};
 };
 
-/// @brief Cached/pre-computed text layout
+/// @brief cached/pre-computed text layout
+/// @param span extent of the whole text block
+/// @param text_scale_factor scale of the text block relative to the size of the
+/// pre-rendered text
 struct TextLayout
 {
   Span<LineMetrics const>    lines             = {};
@@ -150,5 +140,8 @@ struct TextLayout
   Vec2                       span              = {};
   f32                        text_scale_factor = 0;
 };
+
+void layout_text(TextBlock const &block, f32 text_scale_factor,
+                 f32 max_line_width, TextLayout &layout);
 
 }        // namespace ash

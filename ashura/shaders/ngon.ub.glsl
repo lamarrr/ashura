@@ -8,12 +8,18 @@ struct Params
   vec4 tint[4];
   vec4 uv;
   uint albedo;
+  uint first_index;
   uint first_vertex;
 };
 
 layout(set = 0, binding = 0) readonly buffer VertexBuffer
 {
   vec2 vtx_buffer[];
+};
+
+layout(set = 1, binding = 0) readonly buffer IndexBuffer
+{
+  uint idx_buffer[];
 };
 
 layout(set = 1, binding = 0) readonly buffer ParamsBuffer
@@ -31,7 +37,8 @@ layout(location = 1) out vec2 o_uv;
 void main()
 {
   Params p    = params[gl_InstanceIndex];
-  vec2   pos  = vtx_buffer[p.first_vertex + gl_VertexIndex];
+  uint   idx  = idx_buffer[p.first_index + gl_VertexIndex];
+  vec2   pos  = vtx_buffer[p.first_vertex + idx];
   o_idx       = gl_InstanceIndex;
   o_uv        = (pos + 1.0) * 0.5;
   gl_Position = to_mat4(p.transform) * vec4(pos, 0.0, 1.0);

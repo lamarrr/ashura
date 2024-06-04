@@ -5,17 +5,11 @@ namespace ash
 
 void BlurPass::init(RenderContext &ctx)
 {
-  // https://www.khronos.org/opengl/wiki/Compute_Shader
-  //
-  // https://web.engr.oregonstate.edu/~mjb/vulkan/Handouts/OpenglComputeShaders.1pp.pdf
-  //
-  // https://github.com/lisyarus/compute/blob/master/blur/source/compute_separable_lds.cpp
-  // https://lisyarus.github.io/blog/graphics/2022/04/21/compute-blur.html
   // https://www.youtube.com/watch?v=ml-5OGZC7vE
   gfx::Shader vertex_shader =
-      ctx.get_shader("KawaseBlur_DownSample:VS"_span).unwrap();
+      ctx.get_shader("Blur_DownSample:VS"_span).unwrap();
   gfx::Shader fragment_shader =
-      ctx.get_shader("KawaseBlur_DownSample:FS"_span).unwrap();
+      ctx.get_shader("Blur_DownSample:FS"_span).unwrap();
 
   gfx::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gfx::PolygonMode::Fill,
@@ -55,7 +49,7 @@ void BlurPass::init(RenderContext &ctx)
   gfx::DescriptorSetLayout set_layouts[] = {ctx.textures_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
-      .label = "KawaseBlur Graphics Pipeline"_span,
+      .label = "Blur Graphics Pipeline"_span,
       .vertex_shader =
           gfx::ShaderStageDesc{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
@@ -71,7 +65,7 @@ void BlurPass::init(RenderContext &ctx)
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(BlurParam),
       .descriptor_set_layouts = to_span(set_layouts),
-      .primitive_topology     = gfx::PrimitiveTopology::TriangleList,
+      .primitive_topology     = gfx::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
       .color_blend_state      = color_blend_state,
@@ -82,9 +76,9 @@ void BlurPass::init(RenderContext &ctx)
           .unwrap();
 
   pipeline_desc.vertex_shader.shader =
-      ctx.get_shader("KawaseBlur_UpSample:VS"_span).unwrap();
+      ctx.get_shader("Blur_UpSample:VS"_span).unwrap();
   pipeline_desc.fragment_shader.shader =
-      ctx.get_shader("KawaseBlur_UpSample:FS"_span).unwrap();
+      ctx.get_shader("Blur_UpSample:FS"_span).unwrap();
 
   upsample_pipeline =
       ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
@@ -112,7 +106,7 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
   //   encoder->bind_descriptor_sets(encoder.self, to_span({params.textures}),
   //   {}); encoder->push_constants(encoder.self,
   //   to_span({params.param}).as_u8());
-  encoder->draw(encoder.self, 6, 1, 0, 0);
+  encoder->draw(encoder.self, 4, 1, 0, 0);
   encoder->end_rendering(encoder.self);
 }
 

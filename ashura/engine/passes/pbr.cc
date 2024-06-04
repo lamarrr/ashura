@@ -94,7 +94,7 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
   encoder->set_graphics_state(
       encoder.self,
       gfx::GraphicsState{
-          .scissor = {.offset = Vec2U{0, 0},
+          .scissor = {.offset = params.rendering_info.offset,
                       .extent = params.rendering_info.extent},
           .viewport =
               gfx::Viewport{.offset = Vec2{0, 0},

@@ -155,6 +155,7 @@ target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_library(
   ashura_engine
   ashura/engine/font.cc
+  ashura/engine/text.cc
   ashura/engine/canvas.cc
   ashura/engine/image_decoder.cc
   ashura/engine/shader.cc

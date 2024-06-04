@@ -11,17 +11,22 @@ struct NgonParam
   Vec4 tint[4]      = {};
   Vec2 uv[2]        = {};
   u32  albedo       = 0;
+  u32  first_index  = 0;
   u32  first_vertex = 0;
 };
 
 struct NgonPassParams
 {
-  gfx::RenderingInfo rendering_info     = {};
-  gfx::DescriptorSet params_ssbo        = nullptr;
-  u32                params_ssbo_offset = 0;
-  gfx::DescriptorSet textures           = nullptr;
-  u32                first_instance     = 0;
-  u32                num_instances      = 0;
+  gfx::RenderingInfo rendering_info       = {};
+  gfx::DescriptorSet vertices_ssbo        = nullptr;
+  u32                vertices_ssbo_offset = 0;
+  gfx::DescriptorSet indices_ssbo         = nullptr;
+  u32                indices_ssbo_offset  = 0;
+  gfx::DescriptorSet params_ssbo          = nullptr;
+  u32                params_ssbo_offset   = 0;
+  gfx::DescriptorSet textures             = nullptr;
+  u32                first_instance       = 0;
+  u32                num_instances        = 0;
 };
 
 struct NgonPass

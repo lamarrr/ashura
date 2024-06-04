@@ -16,9 +16,9 @@ struct BlurParam
 struct BlurPassParams
 {
   gfx::RenderingInfo rendering_info = {};
-  // BlurParam          param          = {};
-  // gfx::DescriptorSet textures   = nullptr;
-  // u32                num_passes = 0;
+  BlurParam          param          = {};
+  gfx::DescriptorSet textures       = nullptr;
+  u32                num_passes     = 0;
 };
 
 struct BlurPass
