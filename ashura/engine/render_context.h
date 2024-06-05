@@ -26,8 +26,13 @@ struct Framebuffer
 
 using ShaderMap = StrHashMap<gfx::Shader>;
 
-/// @param color_format hdr if hdr supported and required
+/// @param color_format hdr if hdr supported and required.
+///
 /// scratch images resized when swapchain extents changes
+///
+/// device idle must be waited on before updating the texture pack or
+/// non-buffered descriptor sets.
+///
 struct RenderContext
 {
   static constexpr gfx::FormatFeatures COLOR_FEATURES =
@@ -44,16 +49,20 @@ struct RenderContext
       gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst;
   static constexpr u32 MAX_TEXTURE_PACK_COUNT = 1024;
 
-  gfx::DeviceImpl          device               = {};
-  gfx::PipelineCache       pipeline_cache       = nullptr;
-  u32                      buffering            = 0;
-  ShaderMap                shader_map           = {};
-  gfx::Format              color_format         = gfx::Format::Undefined;
-  gfx::Format              depth_stencil_format = gfx::Format::Undefined;
-  Framebuffer              framebuffer          = {};
-  Framebuffer              scratch_framebuffer  = {};
-  gfx::DescriptorSetLayout ssbo_layout          = nullptr;
-  gfx::DescriptorSetLayout textures_layout      = nullptr;
+  gfx::DeviceImpl          device                     = {};
+  gfx::PipelineCache       pipeline_cache             = nullptr;
+  u32                      buffering                  = 0;
+  ShaderMap                shader_map                 = {};
+  gfx::Format              color_format               = gfx::Format::Undefined;
+  gfx::Format              depth_stencil_format       = gfx::Format::Undefined;
+  Framebuffer              framebuffer                = {};
+  Framebuffer              scratch_framebuffer        = {};
+  gfx::DescriptorSetLayout ssbo_layout                = nullptr;
+  gfx::DescriptorSetLayout textures_layout            = nullptr;
+  gfx::DescriptorSet       texture_views              = nullptr;
+  gfx::DescriptorSet       color_texture_view         = nullptr;
+  gfx::DescriptorSet       scratch_color_texture_view = nullptr;
+  gfx::Sampler             framebuffer_sampler        = nullptr;
   Vec<gfx::Object>         released_objects[gfx::MAX_FRAME_BUFFERING] = {};
 
   void init(gfx::DeviceImpl p_device, bool p_use_hdr,
@@ -74,6 +83,8 @@ struct RenderContext
   void release(gfx::ImageView view);
   void release(gfx::Buffer view);
   void release(gfx::BufferView view);
+  void release(gfx::DescriptorSet set);
+  void release(gfx::Sampler sampler);
   void idle_purge();
 
   void begin_frame(gfx::Swapchain swapchain);

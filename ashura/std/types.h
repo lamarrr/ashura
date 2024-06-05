@@ -1582,9 +1582,34 @@ constexpr Vec2U operator+(Vec2U a, Vec2U b)
   return Vec2U{a.x + b.x, a.y + b.y};
 }
 
+constexpr Vec2U operator+(Vec2U a, u32 b)
+{
+  return Vec2U{a.x + b, a.y + b};
+}
+
+constexpr Vec2U operator+(u32 a, Vec2U b)
+{
+  return Vec2U{a + b.x, a + b.y};
+}
+
+constexpr Vec2U operator-(Vec2U a)
+{
+  return Vec2U{-a.x, -a.y};
+}
+
 constexpr Vec2U operator-(Vec2U a, Vec2U b)
 {
   return Vec2U{a.x - b.x, a.y - b.y};
+}
+
+constexpr Vec2U operator-(Vec2U a, u32 b)
+{
+  return Vec2U{a.x - b, a.y - b};
+}
+
+constexpr Vec2U operator-(u32 a, Vec2U b)
+{
+  return Vec2U{a - b.x, a - b.y};
 }
 
 constexpr Vec2U operator*(Vec2U a, Vec2U b)
@@ -1592,9 +1617,29 @@ constexpr Vec2U operator*(Vec2U a, Vec2U b)
   return Vec2U{a.x * b.x, a.y * b.y};
 }
 
+constexpr Vec2U operator*(Vec2U a, u32 b)
+{
+  return Vec2U{a.x * b, a.y * b};
+}
+
+constexpr Vec2U operator*(u32 a, Vec2U b)
+{
+  return Vec2U{a * b.x, a * b.y};
+}
+
 constexpr Vec2U operator/(Vec2U a, Vec2U b)
 {
   return Vec2U{a.x / b.x, a.y / b.y};
+}
+
+constexpr Vec2U operator/(Vec2U a, u32 b)
+{
+  return Vec2U{a.x / b, a.y / b};
+}
+
+constexpr Vec2U operator/(u32 a, Vec2U b)
+{
+  return Vec2U{a / b.x, a / b.y};
 }
 
 constexpr Vec2U &operator+=(Vec2U &a, Vec2U b)

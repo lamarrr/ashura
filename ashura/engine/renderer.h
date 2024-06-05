@@ -6,6 +6,7 @@
 #include "ashura/engine/passes/rrect.h"
 #include "ashura/engine/render_context.h"
 #include "ashura/std/hash_map.h"
+#include "ashura/std/math.h"
 
 namespace ash
 {
@@ -30,16 +31,12 @@ struct Renderer
   RRectPass                  rrect  = {};
   StrHashMap<RenderPassImpl> custom = {};
 
-  gfx::Buffer        params_buffer         = nullptr;
-  gfx::Image         image                 = nullptr;
-  gfx::ImageView     texture               = nullptr;
-  gfx::Sampler       sampler               = nullptr;
-  gfx::DescriptorSet params_ssbo           = nullptr;
-  gfx::DescriptorSet textures              = nullptr;
-  gfx::DescriptorSet color_textures        = nullptr;
-  gfx::DescriptorSet scratch_color_texture = nullptr;
-  gfx::DescriptorSet depth_texture         = nullptr;
-  gfx::DescriptorSet scratch_depth_texture = nullptr;
+  // ********* TEST ******** //
+  gfx::Buffer        params_buffer = nullptr;
+  gfx::Image         image         = nullptr;
+  gfx::ImageView     texture       = nullptr;
+  gfx::Sampler       sampler       = nullptr;
+  gfx::DescriptorSet params_ssbo   = nullptr;
   /// TODO(lamarrr): attachment textures group, updated on every frame
   /// recreation. update descriptor sets when either attachments are recreated/
 
@@ -53,8 +50,6 @@ struct Renderer
   gfx::DescriptorSet pbr_prm_ssbo      = nullptr;
   gfx::DescriptorSet pbr_lights_ssbo   = nullptr;
 
-  u64 stage();
-
   void init(gfx::DeviceImpl p_device, bool p_use_hdr,
             u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,
             ShaderMap p_shader_map)
@@ -67,6 +62,7 @@ struct Renderer
     pbr.init(ctx);
     rrect.init(ctx);
 
+    /******REMOVE******/
     params_buffer =
         ctx.device
             ->create_buffer(
@@ -105,31 +101,12 @@ struct Renderer
                                    .num_array_layers  = 1})
             .unwrap();
 
-    textures = ctx.device
-                   ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
-                                           to_span<u32>({16}))
-                   .unwrap();
-
-    textures_2 =
-        ctx.device
-            ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
-                                    to_span<u32>({16}))
-            .unwrap();
-
     params_ssbo =
         ctx.device->create_descriptor_set(ctx.device.self, ctx.ssbo_layout, {})
             .unwrap();
 
     sampler = ctx.device->create_sampler(ctx.device.self, gfx::SamplerDesc{})
                   .unwrap();
-
-    ctx.device->update_descriptor_set(
-        ctx.device.self, gfx::DescriptorSetUpdate{
-                             .set     = textures,
-                             .binding = 0,
-                             .element = 0,
-                             .images  = to_span({gfx::ImageBinding{
-                                  .sampler = sampler, .image_view = texture}})});
 
     ctx.device->update_descriptor_set(
         ctx.device.self,

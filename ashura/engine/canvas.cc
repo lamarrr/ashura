@@ -310,6 +310,7 @@ void Canvas::begin(CanvasSurface const &isurface)
 
 void Canvas::submit(Renderer &renderer)
 {
+  // TODO(lamarrr): render
 }
 
 void Canvas::circle(ShapeDesc const &desc)

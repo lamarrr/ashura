@@ -93,19 +93,70 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
   gfx::CommandEncoderImpl encoder = ctx.encoder();
 
-  encoder->begin_rendering(encoder.self, params.rendering_info);
+  f32 blur_radius = 0;
+
+  //
+  //
+  //
+  // downsampling pass
+  encoder->begin_rendering(
+      encoder.self,
+      gfx::RenderingInfo{.offset            = {0, 0},
+                         .extent            = params.blur_extent / 2,
+                         .num_layers        = 1,
+                         .color_attachments = to_span({gfx::RenderingAttachment{
+                             .view = ctx.scratch_framebuffer.color_image_view,
+                             .resolve      = nullptr,
+                             .resolve_mode = gfx::ResolveModes::None,
+                             .load_op      = gfx::LoadOp::Clear,
+                             .store_op     = gfx::StoreOp::Store}}),
+                         .depth_attachment  = {},
+                         .stencil_attachment = {}});
   encoder->bind_graphics_pipeline(encoder.self, downsample_pipeline);
   encoder->set_graphics_state(
       encoder.self,
       gfx::GraphicsState{
-          .scissor  = {.offset = params.rendering_info.offset,
-                       .extent = params.rendering_info.extent},
+          .scissor  = {.offset = {0, 0}, .extent = params.blur_extent / 2},
           .viewport = {.offset = {0, 0},
-                       .extent = {(f32) params.rendering_info.extent.x,
-                                  (f32) params.rendering_info.extent.y}}});
-  //   encoder->bind_descriptor_sets(encoder.self, to_span({params.textures}),
-  //   {}); encoder->push_constants(encoder.self,
-  //   to_span({params.param}).as_u8());
+                       .extent = {params.blur_extent.x / 2.0f,
+                                  params.blur_extent.y / 2.0f}}});
+  encoder->bind_descriptor_sets(encoder.self, to_span({params.texture_view}),
+                                {});
+  encoder->push_constants(
+      encoder.self, to_span({BlurParam{.texture = params.texture,
+      }}).as_u8());
+  encoder->draw(encoder.self, 4, 1, 0, 0);
+  encoder->end_rendering(encoder.self);
+
+  //
+  //
+  //
+  // upsampling pass
+  encoder->begin_rendering(
+      encoder.self,
+      gfx::RenderingInfo{.offset            = params.blur_offset,
+                         .extent            = params.blur_extent,
+                         .num_layers        = 1,
+                         .color_attachments = to_span({gfx::RenderingAttachment{
+                             .view         = params.image_view,
+                             .resolve      = nullptr,
+                             .resolve_mode = gfx::ResolveModes::None,
+                             .load_op      = gfx::LoadOp::Load,
+                             .store_op     = gfx::StoreOp::Store}}),
+                         .depth_attachment  = {},
+                         .stencil_attachment = {}});
+  encoder->bind_graphics_pipeline(encoder.self, upsample_pipeline);
+  encoder->set_graphics_state(
+      encoder.self,
+      gfx::GraphicsState{.scissor  = {.offset = params.blur_offset,
+                                      .extent = params.blur_extent},
+                         .viewport = {.offset = {0, 0},
+                                      .extent = {params.extent.x * 1.0f,
+                                                 params.extent.y * 1.0f}}});
+  encoder->bind_descriptor_sets(encoder.self,
+                                to_span({ctx.scratch_color_texture_view}), {});
+  encoder->push_constants(encoder.self,
+                          to_span({BlurParam{.texture = 0}}).as_u8());
   encoder->draw(encoder.self, 4, 1, 0, 0);
   encoder->end_rendering(encoder.self);
 }

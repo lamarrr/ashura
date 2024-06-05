@@ -88,8 +88,6 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   color_format         = sel_color_format;
   depth_stencil_format = sel_depth_stencil_format;
 
-  recreate_framebuffers(p_initial_extent);
-
   ssbo_layout =
       device
           ->create_descriptor_set_layout(
@@ -113,6 +111,24 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                       .count = MAX_TEXTURE_PACK_COUNT,
                       .is_variable_length = true}})})
           .unwrap();
+
+  texture_views =
+      device
+          ->create_descriptor_set(device.self, textures_layout,
+                                  to_span<u32>({MAX_TEXTURE_PACK_COUNT}))
+          .unwrap();
+
+  framebuffer_sampler =
+      device
+          ->create_sampler(
+              device.self,
+              gfx::SamplerDesc{.label        = "Framebuffer Sampler"_span,
+                               .mag_filter   = gfx::Filter::Nearest,
+                               .min_filter   = gfx::Filter::Nearest,
+                               .mip_map_mode = gfx::SamplerMipMapMode::Nearest})
+          .unwrap();
+
+  recreate_framebuffers(p_initial_extent);
 }
 
 void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
@@ -207,6 +223,10 @@ void RenderContext::uninit()
   device->destroy_image(device.self, scratch_framebuffer.depth_stencil_image);
   device->destroy_image_view(device.self,
                              scratch_framebuffer.depth_stencil_image_view);
+  device->destroy_sampler(device.self, framebuffer_sampler);
+  device->destroy_descriptor_set(device.self, texture_views);
+  device->destroy_descriptor_set(device.self, color_texture_view);
+  device->destroy_descriptor_set(device.self, scratch_color_texture_view);
   device->destroy_descriptor_set_layout(device.self, ssbo_layout);
   device->destroy_descriptor_set_layout(device.self, textures_layout);
   idle_purge();
@@ -224,6 +244,37 @@ void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
 {
   recreate_attachment(*this, framebuffer, new_extent);
   recreate_attachment(*this, scratch_framebuffer, new_extent);
+  release(color_texture_view);
+  release(scratch_color_texture_view);
+
+  color_texture_view = device
+                           ->create_descriptor_set(device.self, textures_layout,
+                                                   to_span<u32>({1}))
+                           .unwrap();
+
+  scratch_color_texture_view =
+      device
+          ->create_descriptor_set(device.self, textures_layout,
+                                  to_span<u32>({1}))
+          .unwrap();
+
+  device->update_descriptor_set(
+      device.self, gfx::DescriptorSetUpdate{
+                       .set     = color_texture_view,
+                       .binding = 0,
+                       .element = 0,
+                       .images  = to_span({gfx::ImageBinding{
+                            .sampler    = nullptr,
+                            .image_view = framebuffer.color_image_view}})});
+  device->update_descriptor_set(
+      device.self,
+      gfx::DescriptorSetUpdate{
+          .set     = scratch_color_texture_view,
+          .binding = 0,
+          .element = 0,
+          .images  = to_span({gfx::ImageBinding{
+               .sampler    = nullptr,
+               .image_view = scratch_framebuffer.color_image_view}})});
 }
 
 gfx::CommandEncoderImpl RenderContext::encoder()
@@ -300,6 +351,26 @@ void RenderContext::release(gfx::BufferView view)
       gfx::Object{.buffer_view = view, .type = gfx::ObjectType::BufferView}));
 }
 
+void RenderContext::release(gfx::DescriptorSet set)
+{
+  if (set == nullptr)
+  {
+    return;
+  }
+  CHECK(released_objects[ring_index()].push(gfx::Object{
+      .descriptor_set = set, .type = gfx::ObjectType::DescriptorSet}));
+}
+
+void RenderContext::release(gfx::Sampler sampler)
+{
+  if (sampler == nullptr)
+  {
+    return;
+  }
+  CHECK(released_objects[ring_index()].push(
+      gfx::Object{.sampler = sampler, .type = gfx::ObjectType::Sampler}));
+}
+
 void destroy_temporal_objects(gfx::DeviceImpl const  &d,
                               Span<gfx::Object const> objects)
 {
@@ -319,6 +390,12 @@ void destroy_temporal_objects(gfx::DeviceImpl const  &d,
         break;
       case gfx::ObjectType::BufferView:
         d->destroy_buffer_view(d.self, obj.buffer_view);
+        break;
+      case gfx::ObjectType::Sampler:
+        d->destroy_sampler(d.self, obj.sampler);
+        break;
+      case gfx::ObjectType::DescriptorSet:
+        d->destroy_descriptor_set(d.self, obj.descriptor_set);
         break;
       default:
         UNREACHABLE();

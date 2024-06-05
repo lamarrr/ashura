@@ -11,14 +11,15 @@ struct BlurParam
   u32  texture = 0;
 };
 
-// TODO(lamarrr): how to avoid using as render target and descriptor set element
-// at the same time? difficult to know which is actually used and which isn't
 struct BlurPassParams
 {
-  gfx::RenderingInfo rendering_info = {};
-  BlurParam          param          = {};
-  gfx::DescriptorSet textures       = nullptr;
-  u32                num_passes     = 0;
+  gfx::ImageView     image_view   = nullptr;
+  Vec2U              extent       = {};
+  gfx::DescriptorSet texture_view = nullptr;
+  u32                texture      = 0;
+  Vec2U              blur_offset  = {};
+  Vec2U              blur_extent  = {};
+  u32                blur_radius  = 0;
 };
 
 struct BlurPass

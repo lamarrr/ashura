@@ -167,8 +167,6 @@ add_library(
   ashura/engine/render_context.cc
   ashura/engine/passes/bloom.cc
   ashura/engine/passes/blur.cc
-  ashura/engine/passes/fxaa.cc
-  ashura/engine/passes/msaa.cc
   ashura/engine/passes/pbr.cc
   ashura/engine/passes/rrect.cc)
 target_link_libraries(
