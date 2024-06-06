@@ -6,6 +6,14 @@ namespace ash
 void BlurPass::init(RenderContext &ctx)
 {
   // https://www.youtube.com/watch?v=ml-5OGZC7vE
+  //
+  // An investigation of fast real-time GPU-based image blur algorithms -
+  // https://www.intel.cn/content/www/cn/zh/developer/articles/technical/an-investigation-of-fast-real-time-gpu-based-image-blur-algorithms.html
+
+  //
+  // Algorithm described here:
+  // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
+  //
   gfx::Shader vertex_shader =
       ctx.get_shader("Blur_DownSample:VS"_span).unwrap();
   gfx::Shader fragment_shader =
@@ -92,19 +100,20 @@ void BlurPass::uninit(RenderContext &ctx)
 void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
   gfx::CommandEncoderImpl encoder = ctx.encoder();
+  Vec2U                   extent  = params.area.extent / 2;
+  extent.x = min(extent.x, ctx.scratch_framebuffer.extent.x);
+  extent.y = min(extent.y, ctx.scratch_framebuffer.extent.y);
 
   {
-    Vec2 blur_radius{params.blur_radius / (f32) params.extent.x,
-                     params.blur_radius / (f32) params.extent.y};
+    Vec2 radius{params.radius / (f32) params.extent.x,
+                params.radius / (f32) params.extent.y};
 
-    Vec2 uv0{params.blur_offset.x / (f32) params.extent.x,
-             params.blur_offset.y / (f32) params.extent.y};
+    Vec2 uv0{params.area.offset.x / (f32) params.extent.x,
+             params.area.offset.y / (f32) params.extent.y};
 
     Vec2 uv1{
-        (params.blur_offset.x + params.blur_extent.x) / (f32) params.extent.x,
-        (params.blur_offset.y + params.blur_extent.y) / (f32) params.extent.y};
-
-    Vec2U extent = params.blur_extent / 2;
+        (params.area.offset.x + params.area.extent.x) / (f32) params.extent.x,
+        (params.area.offset.y + params.area.extent.y) / (f32) params.extent.y};
 
     // downsampling pass
     encoder->begin_rendering(
@@ -131,31 +140,32 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
                                   {});
     encoder->push_constants(encoder.self,
                             to_span({BlurParam{.uv      = {uv0, uv1},
-                                               .radius  = blur_radius,
+                                               .radius  = radius,
                                                .texture = params.texture}})
                                 .as_u8());
     encoder->draw(encoder.self, 4, 1, 0, 0);
     encoder->end_rendering(encoder.self);
   }
 
-  // TODO(lamarrr): there will be artifacts due to blur radius reaching end of
-  // image. maybe deduct from the image extent first before upsampling again.
   {
-    Vec2U extent = params.blur_extent / 2;
-    Vec2  blur_radius{
-        params.blur_radius / (f32) ctx.scratch_framebuffer.extent.x,
-        params.blur_radius / (f32) ctx.scratch_framebuffer.extent.y};
+    Vec2 radius{params.radius / (f32) ctx.scratch_framebuffer.extent.x,
+                params.radius / (f32) ctx.scratch_framebuffer.extent.y};
 
-    Vec2 uv0{0, 0};
+    //  there will be artifacts due to blur radius reaching end of
+    // image. sampling offset deducted from the image extent first before
+    // upsampling.
+    Vec2 uv0{(f32) params.radius / ctx.scratch_framebuffer.extent.x,
+             (f32) params.radius / ctx.scratch_framebuffer.extent.y};
 
-    Vec2 uv1{extent.x / (f32) ctx.scratch_framebuffer.extent.x,
-             extent.y / (f32) ctx.scratch_framebuffer.extent.y};
+    Vec2 uv1{((f32) extent.x - (f32) params.radius) /
+                 ctx.scratch_framebuffer.extent.x,
+             ((f32) extent.y - (f32) params.radius) /
+                 ctx.scratch_framebuffer.extent.y};
 
     // upsampling pass
     encoder->begin_rendering(
         encoder.self,
-        gfx::RenderingInfo{.render_area = {.offset = params.blur_offset,
-                                           .extent = params.blur_extent},
+        gfx::RenderingInfo{.render_area = params.area,
                            .num_layers  = 1,
                            .color_attachments =
                                to_span({gfx::RenderingAttachment{
@@ -170,18 +180,16 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
     encoder->set_graphics_state(
         encoder.self,
         gfx::GraphicsState{
-            .scissor  = {.offset = params.blur_offset,
-                         .extent = params.blur_extent},
-            .viewport = {.offset = {params.blur_offset.x * 1.0f,
-                                    params.blur_offset.y * 1.0f},
-                         .extent = {params.blur_extent.x * 1.0f,
-                                    params.blur_extent.y * 1.0f}}});
+            .scissor  = params.area,
+            .viewport = {.offset = {params.area.offset.x * 1.0f,
+                                    params.area.offset.y * 1.0f},
+                         .extent = {params.area.extent.x * 1.0f,
+                                    params.area.extent.y * 1.0f}}});
     encoder->bind_descriptor_sets(
         encoder.self, to_span({ctx.scratch_color_texture_view}), {});
     encoder->push_constants(
         encoder.self,
-        to_span(
-            {BlurParam{.uv = {uv0, uv1}, .radius = blur_radius, .texture = 0}})
+        to_span({BlurParam{.uv = {uv0, uv1}, .radius = radius, .texture = 0}})
             .as_u8());
     encoder->draw(encoder.self, 4, 1, 0, 0);
     encoder->end_rendering(encoder.self);

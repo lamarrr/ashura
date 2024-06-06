@@ -1,5 +1,6 @@
 #include "ashura/engine/text.h"
 #include "ashura/std/error.h"
+#include "ashura/std/vec.h"
 extern "C"
 {
 #include "SBAlgorithm.h"
@@ -13,12 +14,12 @@ extern "C"
 namespace ash
 {
 
-static void shape_text_hb(Font const &font, hb_font_t *hb_font,
-                          f32 render_font_height, u32 not_found_glyph,
-                          Span<u32 const> text, hb_buffer_t *shaping_buffer,
-                          hb_script_t script, hb_direction_t direction,
-                          hb_language_t language, bool use_kerning,
-                          bool                             use_ligatures,
+static void shape_text_hb(hb_font_t *hb_font, hb_buffer_t *buffer,
+                          f32 font_height, u32 not_found_glyph,
+                          Span<u32 const> text, u32 text_offset,
+                          u32 text_length, hb_script_t script,
+                          hb_direction_t direction, hb_language_t language,
+                          bool use_kerning, bool use_ligatures,
                           Span<hb_glyph_info_t const>     &infos,
                           Span<hb_glyph_position_t const> &positions)
 {
@@ -40,42 +41,34 @@ static void shape_text_hb(Font const &font, hb_font_t *hb_font,
        .start = HB_FEATURE_GLOBAL_START,
        .end   = HB_FEATURE_GLOBAL_END}};
 
-  hb_buffer_reset(shaping_buffer);
   // invalid character replacement
-  hb_buffer_set_replacement_codepoint(shaping_buffer,
+  hb_buffer_set_replacement_codepoint(buffer,
                                       HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);
   // default glyphs for characters without defined glyphs
-  hb_buffer_set_not_found_glyph(shaping_buffer, not_found_glyph);
+  hb_buffer_set_not_found_glyph(buffer, not_found_glyph);
   // OpenType (ISO15924) Script Tag. See:
   // https://unicode.org/reports/tr24/#Relation_To_ISO15924
-  hb_buffer_set_script(shaping_buffer, script);
-  hb_buffer_set_direction(shaping_buffer, direction);
+  hb_buffer_set_script(buffer, script);
+  hb_buffer_set_direction(buffer, direction);
   // OpenType BCP-47 language tag for performing certain shaping operations as
   // defined in the font
-  hb_buffer_set_language(shaping_buffer, language);
-  hb_font_set_scale(hb_font, (int) (64 * render_font_height),
-                    (int) (64 * render_font_height));
+  hb_buffer_set_language(buffer, language);
+  hb_font_set_scale(hb_font, (int) (64 * font_height),
+                    (int) (64 * font_height));
 
-  // https://harfbuzz.github.io/harfbuzz-hb-buffer.html#hb-buffer-add-codepoints
-  // When shaping part of a larger text (e.g. a run of text from a paragraph),
-  // instead of passing just the substring corresponding to the run, it is
-  // preferable to pass the whole paragraph and specify the run start and length
-  // as item_offset and item_length , respectively, to give HarfBuzz the full
-  // context to be able, for example, to do cross-run Arabic shaping or properly
-  // handle combining marks at stat of run.
-  hb_buffer_add_utf32(shaping_buffer, text.data(), (int) text.size(), 0,
-                      (int) text.size());
-  hb_shape(hb_font, shaping_buffer, shaping_features,
-           (unsigned int) size(shaping_features));
+  hb_buffer_add_utf32(buffer, text.data(), (int) text.size(), text_offset,
+                      (int) text_length);
+
+  hb_shape(hb_font, buffer, shaping_features, (u32) size(shaping_features));
 
   u32                        nglyph_pos;
   hb_glyph_position_t const *glyph_pos =
-      hb_buffer_get_glyph_positions(shaping_buffer, &nglyph_pos);
+      hb_buffer_get_glyph_positions(buffer, &nglyph_pos);
   CHECK(!(glyph_pos == nullptr && nglyph_pos > 0));
 
   u32                    nglyph_infos;
   hb_glyph_info_t const *glyph_info =
-      hb_buffer_get_glyph_infos(shaping_buffer, &nglyph_infos);
+      hb_buffer_get_glyph_infos(buffer, &nglyph_infos);
   CHECK(!(glyph_info == nullptr && nglyph_infos > 0));
 
   CHECK(nglyph_pos == nglyph_infos);
@@ -84,22 +77,38 @@ static void shape_text_hb(Font const &font, hb_font_t *hb_font,
   positions = Span{glyph_pos, nglyph_pos};
 }
 
-// TODO(lamarrr): remove all uses of char for utf8 text or byte strings
+// each breaking will subdivide the segments
+void break_paragraph();
+void break_direction();
+void break_language();
+void break_script();
+void break_styles();
+void break_opportunities();
+void shape();
+void segment();
+void complex_layout();
+void simple_layout();
+
 void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
-            TextLayout &layout)
+            TextLayout &layout, Vec<TextRunSegment> &run_segments,
+            Vec<GlyphShaping> &glyph_shapings, Vec<LineMetrics> &lines)
 {
   lines.clear();
   run_segments.clear();
   glyph_shapings.clear();
+  CHECK(block.text.size() < I32_MAX);
 
-  this->max_line_width    = max_line_width;
-  this->text_scale_factor = text_scale_factor;
-  span                    = Vec2{0, 0};
+  layout.max_line_width    = max_line_width;
+  layout.text_scale_factor = text_scale_factor;
+  layout.span              = Vec2{0, 0};
+
+  // TODO(lamarrr): separate into passes: script, style, and break
+  // opportunities.
 
   // uses setLocale to get default language from locale which isn't
   // thread-safe
   hb_language_t language_hb =
-      block.language.is_empty()() ?
+      block.language.is_empty() ?
           hb_language_get_default() :
           hb_language_from_string(block.language.data(),
                                   (int) block.language.size());
@@ -137,25 +146,24 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
             (SBLevel) SBLevelDefaultLTR :
             (SBLevel) SBLevelDefaultRTL);
     CHECK(sb_paragraph != nullptr);
-    // number of bytes of the paragraph
     SBUInteger paragraph_length = SBParagraphGetLength(sb_paragraph);
     // base direction, 0 - LTR, 1 - RTL
     SBLevel paragraph_base_level = SBParagraphGetBaseLevel(sb_paragraph);
     // SheenBidi expands to byte level representation of the codepoints
     SBLevel const *paragraph_levels     = SBParagraphGetLevelsPtr(sb_paragraph);
-    char const    *paragraph_text_begin = block.text.data() + paragraph_begin;
-    char const    *paragraph_text_end = paragraph_text_begin + paragraph_length;
+    u32 const     *paragraph_text_begin = block.text.data() + paragraph_begin;
+    u32 const     *paragraph_text_end = paragraph_text_begin + paragraph_length;
     usize          paragraph_first_segment = run_segments.size();
 
-    for (char const *run_text_begin = paragraph_text_begin;
+    for (u32 const *run_text_begin = paragraph_text_begin;
          run_text_begin < paragraph_text_end;)
     {
-      char const *run_text_end = run_text_begin;
-      usize       run_block_text_offset =
-          (usize) (run_text_begin - block.text.data());
-      SBLevel run_level =
+      u32 const *run_text_end          = run_text_begin + 1;
+      usize      run_block_text_offset = run_text_begin - block.text.data();
+      SBLevel    run_level =
           paragraph_levels[run_text_begin - paragraph_text_begin];
-      utf8_next((u8 const *&) run_text_end);
+
+      // find script
       while (!(run_block_text_offset >= script_agent->offset &&
                run_block_text_offset <
                    (script_agent->offset + script_agent->length)))
@@ -172,14 +180,13 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
       // scripts though they are similar
       hb_script_t run_script_hb =
           hb_script_from_iso15924_tag(SBScriptGetOpenTypeTag(run_script));
-      // find the style intended for this text run (if any, otherwise default)
       usize irun_style = block.styles.size();
 
+      // find the style intended for this text run (if any, otherwise default)
       while (run_it < block.runs.end())
       {
         if (run_block_text_offset >= style_text_offset &&
             run_block_text_offset < (style_text_offset + run_it->size))
-
         {
           irun_style = run_it->style;
           break;
@@ -194,15 +201,13 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
       TextStyle const &run_style = irun_style >= block.styles.size() ?
                                        block.default_style :
                                        block.styles[irun_style];
-      usize            run_font  = resolved_fonts[irun_style];
 
       // find the last codepoint that belongs to this text run
       while (run_text_end < paragraph_text_end)
       {
         usize   block_text_offset = (usize) (run_text_end - block.text.data());
         SBLevel level = paragraph_levels[run_text_end - paragraph_text_begin];
-        char const *p_next_codepoint = run_text_end;
-        utf8_next((u8 const *&) p_next_codepoint);
+        u32 const *p_next_codepoint = run_text_end + 1;
         // find the style intended for this code point (if any, otherwise
         // default)
         usize istyle = block.styles.size();
@@ -226,7 +231,6 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
             (block_text_offset < (script_agent->offset + script_agent->length));
 
         if (level != run_level || !is_in_script_run || istyle != irun_style)
-
         {
           // reached end of run
           break;
@@ -237,16 +241,17 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
       }
 
       /// Text Segmentation ///
-      for (char const *segment_text_begin = run_text_begin;
+      for (u32 const *segment_text_begin = run_text_begin;
            segment_text_begin < run_text_end;)
       {
-        char const *segment_text_end = segment_text_begin;
-        bool        has_spacing      = false;
+        u32 const *segment_text_end = segment_text_begin;
+        bool       has_spacing      = false;
 
         while (segment_text_end < run_text_end)
         {
-          char const *p_next_codepoint = segment_text_end;
-          SBCodepoint codepoint = utf8_next((u8 const *&) p_next_codepoint);
+          u32 const  *p_next_codepoint = segment_text_end;
+          SBCodepoint codepoint        = *p_next_codepoint;
+          p_next_codepoint++;
 
           if (codepoint == ' ' || codepoint == '\t')
           {
@@ -254,7 +259,7 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
             // and have them on the same line during line breaking
             has_spacing = true;
           }
-          else if (has_spacing)        // has a preceding spacing character
+          else if (has_spacing)        // has a preceding spacing u32acter
           {
             break;
           }
@@ -267,14 +272,13 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
 
         hb_buffer_reset(shaping_buffer);
         auto [glyph_infos, glyph_positions] = shape_text_harfbuzz(
-            *font_bundle[run_font].font,
-            font_bundle[run_font].atlas.font_height,
-            font_bundle[run_font].atlas.space_glyph, segment_text,
-            shaping_buffer, run_script_hb, run_direction_hb, language_hb,
-            run_style.use_kerning, run_style.use_ligatures);
+            run_style.font, run_style.font.atlas.font_height,
+            run_style.font.atlas.space_glyph, segment_text, shaping_buffer,
+            run_script_hb, run_direction_hb, language_hb, run_style.use_kerning,
+            run_style.use_ligatures);
 
         f32 scale = ((f32) run_style.font_height * text_scale_factor) /
-                    (f32) font_bundle[run_font].atlas.font_height;
+                    (f32) run_style.font.atlas.font_height;
 
         f32 segment_width = 0;
 
@@ -411,14 +415,12 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
              Span{direction_run_begin,
                   (usize) (direction_run_end - direction_run_begin)})
         {
-          TextStyle const &style  = run_segment.style >= block.styles.size() ?
-                                        block.default_style :
-                                        block.styles[run_segment.style];
-          f32              ascent = text_scale_factor *
-                       font_bundle[run_segment.font].atlas.ascent *
+          TextStyle const &style = run_segment.style >= block.styles.size() ?
+                                       block.default_style :
+                                       block.styles[run_segment.style];
+          f32 ascent = text_scale_factor * run_style.font.atlas.ascent *
                        style.font_height;
-          f32 descent = text_scale_factor *
-                        font_bundle[run_segment.font].atlas.descent *
+          f32 descent = text_scale_factor * run_style.font.atlas.descent *
                         style.font_height;
           f32 height   = ascent + descent;
           line_height  = max(line_height, style.line_height * height);

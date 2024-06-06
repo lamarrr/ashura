@@ -84,7 +84,7 @@ void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
   encoder->set_graphics_state(
       encoder.self,
       gfx::GraphicsState{
-          .scissor  = params.rendering_info.render_area.offset,
+          .scissor  = params.rendering_info.render_area,
           .viewport = gfx::Viewport{
               .offset = Vec2{0, 0},
               .extent = Vec2{(f32) params.rendering_info.render_area.extent.x,

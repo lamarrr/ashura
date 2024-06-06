@@ -37,8 +37,6 @@ struct Renderer
    gfx::ImageView     texture       = nullptr;
    gfx::Sampler       sampler       = nullptr;
    gfx::DescriptorSet params_ssbo   = nullptr;
-   /// TODO(lamarrr): attachment textures group, updated on every frame
-   /// recreation. update descriptor sets when either attachments are recreated/
 
    gfx::Buffer        pbr_vtx_buff      = nullptr;
    gfx::Buffer        pbr_idx_buff      = nullptr;
@@ -243,30 +241,9 @@ struct Renderer
     ctx.end_frame(swapchain);
   }
 
-  void record_frame(f32 rot_x, f32 rot_z)
+  void record_frame()
   {
-    // zeroth texture is always plain white
     auto enc = ctx.encoder();
-
-    /*
-        ctx.device->update_descriptor_set(
-            ctx.device.self,
-            gfx::DescriptorSetUpdate{
-                .set     = textures_2,
-                .binding = 0,
-                .element = 0,
-                .images  = to_span({gfx::ImageBinding{
-                     .sampler    = sampler,
-                     .image_view = ctx.framebuffer.color_image_view}})});*/
-
-    enc->clear_color_image(
-        enc.self, ctx.scratch_framebuffer.color_image,
-        gfx::Color{.float32 = {1, 1, 1, 1}},
-        to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
-                                            .first_mip_level   = 0,
-                                            .num_mip_levels    = 1,
-                                            .first_array_layer = 0,
-                                            .num_array_layers  = 1}}));
 
     enc->clear_color_image(
         enc.self, ctx.framebuffer.color_image,
@@ -289,11 +266,33 @@ struct Renderer
     enc->clear_depth_stencil_image(
         enc.self, ctx.framebuffer.depth_stencil_image,
         gfx::DepthStencil{.depth = 0, .stencil = 0},
-        to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth,
-                                            .first_mip_level   = 0,
-                                            .num_mip_levels    = 1,
-                                            .first_array_layer = 0,
-                                            .num_array_layers  = 1}}));
+        to_span({gfx::ImageSubresourceRange{
+            .aspects = gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
+            .first_mip_level   = 0,
+            .num_mip_levels    = 1,
+            .first_array_layer = 0,
+            .num_array_layers  = 1}}));
+
+    enc->clear_depth_stencil_image(
+        enc.self, ctx.scratch_framebuffer.depth_stencil_image,
+        gfx::DepthStencil{.depth = 0, .stencil = 0},
+        to_span({gfx::ImageSubresourceRange{
+            .aspects = gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
+            .first_mip_level   = 0,
+            .num_mip_levels    = 1,
+            .first_array_layer = 0,
+            .num_array_layers  = 1}}));
+
+    /*
+          ctx.device->update_descriptor_set(
+              ctx.device.self,
+              gfx::DescriptorSetUpdate{
+                  .set     = textures_2,
+                  .binding = 0,
+                  .element = 0,
+                  .images  = to_span({gfx::ImageBinding{
+                       .sampler    = sampler,
+                       .image_view = ctx.framebuffer.color_image_view}})});*/
 
     /*
         enc->clear_color_image(
@@ -435,9 +434,6 @@ struct Renderer
 
         // TODO(lamarrr): needs to be two-pass??
 
-        /// downsample 4 times then upsample 4 times, ping-ponging between two
-        /// textures. use the mips? or specific areas of the images
-
         blur.add_pass(
              ctx, BlurPassParams{
                       .rendering_info =
@@ -454,16 +450,6 @@ struct Renderer
                                             .texture = 0},
                       .textures = textures_2});
     */
-    enc->copy_image(enc.self, ctx.scratch_framebuffer.color_image,
-                    ctx.framebuffer.color_image,
-                    to_span<gfx::ImageCopy>(
-                        {{.src_layers = {.aspects = gfx::ImageAspects::Color,
-                                         .num_array_layers = 1},
-                          .src_offset = {},
-                          .dst_layers = {.aspects = gfx::ImageAspects::Color,
-                                         .num_array_layers = 1},
-                          .dst_offset = {},
-                          .extent = ctx.framebuffer.color_image_desc.extent}}));
   }
 };
 

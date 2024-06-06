@@ -266,7 +266,6 @@ void Path::triangulate_ngon(Span<Vec2 const> points, Vec<Vec2> &vertices,
     return;
   }
   u32 const ntriangles = (u32) ((points.size()) - 1);
-  u32 const first_v    = (u32) vertices.size();
   u32 const first_i    = (u32) indices.size();
   CHECK(vertices.extend_copy(points));
   CHECK(indices.extend_uninitialized(ntriangles * 3));
@@ -533,11 +532,11 @@ void Canvas::glyph_shadows_(ShapeDesc const &desc, TextBlock const &block,
   for (LineMetrics const &m : layout.lines)
   {
     f32 const x_dist = layout.span.x - m.width;
-    f32 x_cursor = x_dist * ((m.base_direction == TextDirection::LeftToRight) ?
-                                 x_alignment :
-                                 (1 - x_alignment));
+    f32       x_segment_cursor =
+        x_dist * ((m.base_direction == TextDirection::LeftToRight) ?
+                      x_alignment :
+                      (1 - x_alignment));
 
-    f32       x_segment_cursor = x_alignment;
     f32 const line_gap = max(m.line_height - (m.ascent + m.descent), 0.0f) / 2;
     f32 const baseline = line_top + m.line_height - line_gap - m.descent;
 
@@ -548,7 +547,7 @@ void Canvas::glyph_shadows_(ShapeDesc const &desc, TextBlock const &block,
                                    block.default_style :
                                    block.styles[s.style];
 
-      Result font_info_r = font_manager->get_info(s.font);
+      Result font_info_r = font_manager->get_info(style.font);
       if (font_info_r.is_err())
       {
         continue;
@@ -604,11 +603,11 @@ void Canvas::glyphs_(ShapeDesc const &desc, TextBlock const &block,
   for (LineMetrics const &m : layout.lines)
   {
     f32 const x_dist = layout.span.x - m.width;
-    f32 x_cursor = x_dist * ((m.base_direction == TextDirection::LeftToRight) ?
-                                 x_alignment :
-                                 (1 - x_alignment));
+    f32       x_segment_cursor =
+        x_dist * ((m.base_direction == TextDirection::LeftToRight) ?
+                      x_alignment :
+                      (1 - x_alignment));
 
-    f32       x_segment_cursor = x_alignment;
     f32 const line_gap = max(m.line_height - (m.ascent + m.descent), 0.0f) / 2;
     f32 const baseline = line_top + m.line_height - line_gap - m.descent;
 
@@ -619,7 +618,7 @@ void Canvas::glyphs_(ShapeDesc const &desc, TextBlock const &block,
                                    block.default_style :
                                    block.styles[s.style];
 
-      Result font_info_r = font_manager->get_info(s.font);
+      Result font_info_r = font_manager->get_info(style.font);
       if (font_info_r.is_err())
       {
         continue;

@@ -92,7 +92,6 @@ struct TextRunSegment
   Span<u32 const> text          = {};
   TextDirection   direction     = TextDirection::LeftToRight;
   u32             style         = 0;
-  Font            font          = nullptr;
   u32             first_shaping = 0;
   u32             num_shapings  = 0;
   f32             width         = 0;
