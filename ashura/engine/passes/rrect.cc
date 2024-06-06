@@ -84,12 +84,11 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
   encoder->set_graphics_state(
       encoder.self,
       gfx::GraphicsState{
-          .scissor  = {.offset = params.rendering_info.offset,
-                       .extent = params.rendering_info.extent},
+          .scissor  = params.rendering_info.render_area,
           .viewport = gfx::Viewport{
-              .offset    = Vec2{0, 0},
-              .extent    = Vec2{(f32) params.rendering_info.extent.x,
-                             (f32) params.rendering_info.extent.y},
+              .offset = Vec2{0, 0},
+              .extent = Vec2{(f32) params.rendering_info.render_area.extent.x,
+                             (f32) params.rendering_info.render_area.extent.y},
               .min_depth = 0,
               .max_depth = 1}});
 

@@ -715,9 +715,8 @@ struct Command
 
 struct RenderPassContext
 {
-  gfx::Offset offset     = {};
-  gfx::Extent extent     = {};
-  u32         num_layers = 0;
+  gfx::Rect render_area = {};
+  u32       num_layers  = 0;
   gfx::RenderingAttachment
       color_attachments[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS]          = {};
   gfx::RenderingAttachment depth_attachment[1]                        = {};

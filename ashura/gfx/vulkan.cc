@@ -5460,8 +5460,8 @@ void CommandEncoderInterface::begin_rendering(gfx::CommandEncoder       self_,
   sVALIDATE(num_color_attachments <= gfx::MAX_PIPELINE_COLOR_ATTACHMENTS);
   sVALIDATE(num_depth_attachments <= 1);
   sVALIDATE(num_stencil_attachments <= 1);
-  sVALIDATE(info.extent.x > 0);
-  sVALIDATE(info.extent.y > 0);
+  sVALIDATE(info.render_area.extent.x > 0);
+  sVALIDATE(info.render_area.extent.y > 0);
   sVALIDATE(info.num_layers > 0);
 
   for (gfx::RenderingAttachment const &attachment : info.color_attachments)
@@ -5487,8 +5487,7 @@ void CommandEncoderInterface::begin_rendering(gfx::CommandEncoder       self_,
   mem::copy(info.depth_attachment, self->render_ctx.depth_attachment);
   mem::copy(info.stencil_attachment, self->render_ctx.stencil_attachment);
   self->state                              = CommandEncoderState::RenderPass;
-  self->render_ctx.offset                  = info.offset;
-  self->render_ctx.extent                  = info.extent;
+  self->render_ctx.render_area             = info.render_area;
   self->render_ctx.num_layers              = info.num_layers;
   self->render_ctx.num_color_attachments   = num_color_attachments;
   self->render_ctx.num_depth_attachments   = num_depth_attachments;
@@ -5778,15 +5777,16 @@ void CommandEncoderInterface::end_rendering(gfx::CommandEncoder self_)
     }
 
     VkRenderingInfoKHR begin_info{
-        .sType      = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
-        .pNext      = nullptr,
-        .flags      = 0,
-        .renderArea = VkRect2D{.offset = VkOffset2D{.x = (i32) ctx.offset.x,
-                                                    .y = (i32) ctx.offset.y},
-                               .extent = VkExtent2D{.width  = ctx.extent.x,
-                                                    .height = ctx.extent.y}},
-        .layerCount = ctx.num_layers,
-        .viewMask   = 0,
+        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
+        .pNext = nullptr,
+        .flags = 0,
+        .renderArea =
+            VkRect2D{.offset = VkOffset2D{.x = (i32) ctx.render_area.offset.x,
+                                          .y = (i32) ctx.render_area.offset.y},
+                     .extent = VkExtent2D{.width  = ctx.render_area.extent.x,
+                                          .height = ctx.render_area.extent.y}},
+        .layerCount           = ctx.num_layers,
+        .viewMask             = 0,
         .colorAttachmentCount = ctx.num_color_attachments,
         .pColorAttachments    = vk_color_attachments,
         .pDepthAttachment =

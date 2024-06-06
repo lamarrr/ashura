@@ -731,13 +731,13 @@ struct MemoryRange
 /// @param extent can be negative to flip
 struct Viewport
 {
-  Vec2 offset;
-  Vec2 extent;
+  Vec2 offset    = {};
+  Vec2 extent    = {};
   f32  min_depth = 0;
   f32  max_depth = 0;
 };
 
-struct Scissor
+struct Rect
 {
   Offset offset = {};
   Extent extent = {};
@@ -1008,7 +1008,7 @@ struct RasterizationState
 
 struct GraphicsState
 {
-  Scissor        scissor                  = {};
+  Rect           scissor                  = {};
   Viewport       viewport                 = {};
   Vec4           blend_constant           = {};
   bool           stencil_test_enable      = false;
@@ -1205,8 +1205,7 @@ struct RenderingAttachment
 
 struct RenderingInfo
 {
-  Offset                          offset             = {};
-  Extent                          extent             = {};
+  Rect                            render_area        = {};
   u32                             num_layers         = 0;
   Span<RenderingAttachment const> color_attachments  = {};
   Span<RenderingAttachment const> depth_attachment   = {};
