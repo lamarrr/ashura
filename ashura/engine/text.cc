@@ -55,6 +55,14 @@ static void shape_text_hb(Font const &font, hb_font_t *hb_font,
   hb_buffer_set_language(shaping_buffer, language);
   hb_font_set_scale(hb_font, (int) (64 * render_font_height),
                     (int) (64 * render_font_height));
+
+  // https://harfbuzz.github.io/harfbuzz-hb-buffer.html#hb-buffer-add-codepoints
+  // When shaping part of a larger text (e.g. a run of text from a paragraph),
+  // instead of passing just the substring corresponding to the run, it is
+  // preferable to pass the whole paragraph and specify the run start and length
+  // as item_offset and item_length , respectively, to give HarfBuzz the full
+  // context to be able, for example, to do cross-run Arabic shaping or properly
+  // handle combining marks at stat of run.
   hb_buffer_add_utf32(shaping_buffer, text.data(), (int) text.size(), 0,
                       (int) text.size());
   hb_shape(hb_font, shaping_buffer, shaping_features,
@@ -195,7 +203,8 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
         SBLevel level = paragraph_levels[run_text_end - paragraph_text_begin];
         char const *p_next_codepoint = run_text_end;
         utf8_next((u8 const *&) p_next_codepoint);
-        // find the style intended for this code point (if any, otherwise default)
+        // find the style intended for this code point (if any, otherwise
+        // default)
         usize istyle = block.styles.size();
         while (run_it < block.runs.end())
         {
