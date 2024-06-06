@@ -737,8 +737,7 @@ struct RenderPassContext
 
   void reset()
   {
-    offset                  = {};
-    extent                  = {};
+    render_area             = {};
     num_layers              = 0;
     num_color_attachments   = 0;
     num_depth_attachments   = 0;
