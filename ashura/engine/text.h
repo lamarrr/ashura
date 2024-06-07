@@ -51,13 +51,12 @@ struct TextStyle
 /// @param style run style to use
 struct TextRun
 {
-  usize size  = 0;
-  usize style = 0;
+  u32 size  = 0;
+  u32 style = 0;
 };
 
 /// @param text utf-32-encoded text
-/// @param runs parts of text not styled by a run will use the paragraphs run
-/// style styles for the text block's contents
+/// @param runs each style element applies to each run range.
 /// @param default_style default run styling
 /// @param align text alignment
 /// @param direction base text direction

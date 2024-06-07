@@ -14,14 +14,30 @@ extern "C"
 namespace ash
 {
 
-static void shape_text_hb(hb_font_t *hb_font, hb_buffer_t *buffer,
-                          f32 font_height, u32 not_found_glyph,
-                          Span<u32 const> text, u32 text_offset,
-                          u32 text_length, hb_script_t script,
-                          hb_direction_t direction, hb_language_t language,
-                          bool use_kerning, bool use_ligatures,
-                          Span<hb_glyph_info_t const>     &infos,
-                          Span<hb_glyph_position_t const> &positions)
+struct Segment
+{
+  u32 first = 0;
+  u32 size  = 0;
+};
+
+enum class BreakOpportunityType : u8
+{
+  Spacing = 0,
+  Tab     = 1,
+};
+struct BreakOpportunity
+{
+  BreakOpportunityType type = BreakOpportunityType::Spacing;
+  u32                  count;
+};
+
+static void shape_text(hb_font_t *hb_font, hb_buffer_t *buffer, f32 font_height,
+                       u32 not_found_glyph, Span<u32 const> text,
+                       u32 text_offset, u32 text_length, hb_script_t script,
+                       hb_direction_t direction, hb_language_t language,
+                       bool use_kerning, bool use_ligatures,
+                       Span<hb_glyph_info_t const>     &infos,
+                       Span<hb_glyph_position_t const> &positions)
 {
   // tags are opentype feature tags
   hb_feature_t const shaping_features[] = {
@@ -55,10 +71,8 @@ static void shape_text_hb(hb_font_t *hb_font, hb_buffer_t *buffer,
   hb_buffer_set_language(buffer, language);
   hb_font_set_scale(hb_font, (int) (64 * font_height),
                     (int) (64 * font_height));
-
   hb_buffer_add_utf32(buffer, text.data(), (int) text.size(), text_offset,
                       (int) text_length);
-
   hb_shape(hb_font, buffer, shaping_features, (u32) size(shaping_features));
 
   u32                        nglyph_pos;
@@ -77,15 +91,82 @@ static void shape_text_hb(hb_font_t *hb_font, hb_buffer_t *buffer,
   positions = Span{glyph_pos, nglyph_pos};
 }
 
+void init(Span<u32 const> text)
+{
+  SBScriptLocatorRef locator = SBScriptLocatorCreate();
+  CHECK(locator != nullptr);
+}
+
 // each breaking will subdivide the segments
-void break_paragraph();
-void break_direction();
-void break_language();
-void break_script();
-void break_styles();
-void break_opportunities();
+void segment_paragraph(Span<u32 const> text, Vec<Segment> &segments)
+{
+  for (u32 beg = 0; beg < (u32) text.size();)
+  {
+    u32 end = beg;
+    for (; end < (u32) text.size(); end++)
+    {
+      if (text[end] == '\n' ||
+          (text[end] == '\r' && ((end + 1) < text.size()) &&
+           text[end + 1] == '\n'))
+      {
+        break;
+      }
+    }
+  }
+}
+
+void segment_script(Span<u32 const> text, SBScriptLocatorRef locator,
+                    Vec<Segment> &segments, Vec<SBScript> &scripts)
+{
+  SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
+                                 .stringBuffer   = (void *) text.data(),
+                                 .stringLength   = text.size()};
+
+  SBScriptLocatorReset(locator);
+  SBScriptLocatorLoadCodepoints(locator, &codepoints);
+
+  SBScriptAgent const *agent = SBScriptLocatorGetAgent(locator);
+  CHECK(agent != nullptr);
+
+  while (SBScriptLocatorMoveNext(locator))
+  {
+    CHECK(segments.push(
+        Segment{.first = (u32) agent->offset, .size = (u32) agent->length}));
+    CHECK(scripts.push(agent->script));
+  }
+
+  SBScriptLocatorRelease(locator);
+}
+
+void segment_direction(Span<u32 const> text, TextDirection base_direction,
+                       Vec<Segment> &segments, Vec<SBLevel> &levels)
+{
+  SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
+                                 .stringBuffer   = (void *) text.data(),
+                                 .stringLength   = text.size()};
+
+  SBAlgorithmRef algorithm = SBAlgorithmCreate(&codepoints);
+  CHECK(algorithm != nullptr);
+  SBParagraphRef const paragraph = SBAlgorithmCreateParagraph(
+      algorithm, 0x00, 0x000 /* actual length */,
+      (base_direction == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
+                                                       SBLevelDefaultRTL);
+  CHECK(paragraph != nullptr);
+  SBUInteger length = SBParagraphGetLength(paragraph);
+  // base direction, 0 - LTR, 1 - RTL
+  SBLevel base_level = SBParagraphGetBaseLevel(paragraph);
+  // SheenBidi expands to byte level representation of the codepoints
+  SBLevel const *levels = SBParagraphGetLevelsPtr(paragraph);
+  SBParagraphRelease(paragraph);
+  SBAlgorithmRelease(algorithm);
+}
+
+void segment_styles(Vec<Segment> &segments, Vec<u32> &styles);
+void segment_opportunities(Vec<Segment> &segments);
 void shape();
 void segment();
+
+// TODO(lamarrr): best case to handle: paragraph uses same styling
 void complex_layout();
 void simple_layout();
 
@@ -116,61 +197,27 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
   hb_buffer_t *const shaping_buffer = hb_buffer_create();
   CHECK(shaping_buffer != nullptr);
 
-  SBCodepointSequence codepoint_sequence{
-      .stringEncoding = SBStringEncodingUTF32,
-      .stringBuffer   = (void *) block.text.data(),
-      .stringLength   = block.text.size()};
-
-  SBAlgorithmRef algorithm = SBAlgorithmCreate(&codepoint_sequence);
-  CHECK(algorithm != nullptr);
-
-  SBScriptLocatorRef script_locator = SBScriptLocatorCreate();
-  CHECK(script_locator != nullptr);
-
-  SBScriptLocatorLoadCodepoints(script_locator, &codepoint_sequence);
-
-  SBScriptAgent const *script_agent = SBScriptLocatorGetAgent(script_locator);
-  CHECK(script_agent != nullptr);
-
-  SBScriptLocatorMoveNext(script_locator);
-
   TextRun const *run_it            = block.runs.begin();
-  usize          style_text_offset = 0;
+  u32            style_text_offset = 0;
 
   /// Paragraph Breaking ///
   for (SBUInteger paragraph_begin = 0; paragraph_begin < block.text.size();)
   {
-    SBParagraphRef const sb_paragraph = SBAlgorithmCreateParagraph(
-        algorithm, paragraph_begin, UINTPTR_MAX,
-        block.direction == TextDirection::LeftToRight ?
-            (SBLevel) SBLevelDefaultLTR :
-            (SBLevel) SBLevelDefaultRTL);
-    CHECK(sb_paragraph != nullptr);
-    SBUInteger paragraph_length = SBParagraphGetLength(sb_paragraph);
-    // base direction, 0 - LTR, 1 - RTL
-    SBLevel paragraph_base_level = SBParagraphGetBaseLevel(sb_paragraph);
-    // SheenBidi expands to byte level representation of the codepoints
-    SBLevel const *paragraph_levels     = SBParagraphGetLevelsPtr(sb_paragraph);
-    u32 const     *paragraph_text_begin = block.text.data() + paragraph_begin;
-    u32 const     *paragraph_text_end = paragraph_text_begin + paragraph_length;
-    usize          paragraph_first_segment = run_segments.size();
-
     for (u32 const *run_text_begin = paragraph_text_begin;
          run_text_begin < paragraph_text_end;)
     {
       u32 const *run_text_end          = run_text_begin + 1;
-      usize      run_block_text_offset = run_text_begin - block.text.data();
+      u32        run_block_text_offset = run_text_begin - block.text.data();
       SBLevel    run_level =
           paragraph_levels[run_text_begin - paragraph_text_begin];
 
       // find script
-      while (!(run_block_text_offset >= script_agent->offset &&
-               run_block_text_offset <
-                   (script_agent->offset + script_agent->length)))
+      while (!(run_block_text_offset >= agent->offset &&
+               run_block_text_offset < (agent->offset + agent->length)))
       {
-        CHECK(SBScriptLocatorMoveNext(script_locator));
+        CHECK(SBScriptLocatorMoveNext(locator));
       }
-      SBScript       run_script    = script_agent->script;
+      SBScript       run_script    = agent->script;
       TextDirection  run_direction = (run_level & 0x1) == 0 ?
                                          TextDirection::LeftToRight :
                                          TextDirection::RightToLeft;
@@ -180,7 +227,7 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
       // scripts though they are similar
       hb_script_t run_script_hb =
           hb_script_from_iso15924_tag(SBScriptGetOpenTypeTag(run_script));
-      usize irun_style = block.styles.size();
+      u32 irun_style = block.styles.size();
 
       // find the style intended for this text run (if any, otherwise default)
       while (run_it < block.runs.end())
@@ -205,12 +252,12 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
       // find the last codepoint that belongs to this text run
       while (run_text_end < paragraph_text_end)
       {
-        usize   block_text_offset = (usize) (run_text_end - block.text.data());
+        u32     block_text_offset = (u32) (run_text_end - block.text.data());
         SBLevel level = paragraph_levels[run_text_end - paragraph_text_begin];
         u32 const *p_next_codepoint = run_text_end + 1;
         // find the style intended for this code point (if any, otherwise
         // default)
-        usize istyle = block.styles.size();
+        u32 istyle = block.styles.size();
         while (run_it < block.runs.end())
         {
           if (block_text_offset >= style_text_offset &&
@@ -227,8 +274,8 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
         }
 
         bool is_in_script_run =
-            (block_text_offset >= script_agent->offset) &&
-            (block_text_offset < (script_agent->offset + script_agent->length));
+            (block_text_offset >= agent->offset) &&
+            (block_text_offset < (agent->offset + agent->length));
 
         if (level != run_level || !is_in_script_run || istyle != irun_style)
         {
@@ -268,7 +315,7 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
         }
 
         Span segment_text{segment_text_begin,
-                          (usize) (segment_text_end - segment_text_begin)};
+                          (u32) (segment_text_end - segment_text_begin)};
 
         hb_buffer_reset(shaping_buffer);
         auto [glyph_infos, glyph_positions] = shape_text_harfbuzz(
@@ -282,9 +329,9 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
 
         f32 segment_width = 0;
 
-        usize first_shaping = glyph_shapings.size();
+        u32 first_shaping = glyph_shapings.size();
 
-        for (usize i = 0; i < glyph_infos.size(); i++)
+        for (u32 i = 0; i < glyph_infos.size(); i++)
         {
           f32  advance = scale * (f32) glyph_positions[i].x_advance / 64.0f;
           Vec2 offset  = Vec2{scale, scale} *
@@ -302,7 +349,7 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
               advance + text_scale_factor * run_style.letter_spacing;
         }
 
-        usize num_shapings = glyph_infos.size();
+        u32 num_shapings = glyph_infos.size();
 
         segment_width +=
             has_spacing ? (text_scale_factor * run_style.word_spacing) : 0;
@@ -324,10 +371,7 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
       run_text_begin = run_text_end;
     }
 
-    SBParagraphRelease(sb_paragraph);
-
-    usize nparagraph_run_segments =
-        run_segments.size() - paragraph_first_segment;
+    u32 nparagraph_run_segments = run_segments.size() - paragraph_first_segment;
     TextRunSegment *paragraph_run_segments_begin =
         run_segments.data() + paragraph_first_segment;
     TextRunSegment *paragraph_run_segments_end =
@@ -407,13 +451,13 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
           // re-order consecutive RTL segments on the line to match visual
           // reading direction
           Span{direction_run_begin,
-               (usize) (direction_run_end - direction_run_begin)}
+               (u32) (direction_run_end - direction_run_begin)}
               .reverse();
         }
 
         for (TextRunSegment const &run_segment :
              Span{direction_run_begin,
-                  (usize) (direction_run_end - direction_run_begin)})
+                  (u32) (direction_run_end - direction_run_begin)})
         {
           TextStyle const &style = run_segment.style >= block.styles.size() ?
                                        block.default_style :
@@ -437,11 +481,11 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
               .ascent         = line_ascent,
               .descent        = line_descent,
               .line_height    = line_height,
-              .base_direction = (paragraph_base_level & 0x1) == 0 ?
+              .base_direction = (base_level & 0x1) == 0 ?
                                     TextDirection::LeftToRight :
                                     TextDirection::RightToLeft,
-              .first_segment  = (usize) (line_begin - run_segments.data()),
-              .num_segments   = (usize) (line_end - line_begin)})
+              .first_segment  = (u32) (line_begin - run_segments.data()),
+              .num_segments   = (u32) (line_end - line_begin)})
           .unwrap();
 
       span.y += line_height;
@@ -450,10 +494,9 @@ void layout(TextBlock const &block, f32 text_scale_factor, f32 max_line_width,
       line_begin = line_end;
     }
 
-    paragraph_begin += paragraph_length;
+    paragraph_begin += length;
   }
 
-  SBAlgorithmRelease(algorithm);
   hb_buffer_destroy(shaping_buffer);
 }
 };
