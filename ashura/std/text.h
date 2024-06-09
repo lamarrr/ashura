@@ -6,10 +6,23 @@ namespace ash
 
 constexpr bool is_valid_utf8(Span<u8 const> text);
 
-constexpr usize count_utf8_codepoints(Span<u8 const>);
+constexpr usize count_utf8_codepoints(Span<u8 const> text)
+{
+  u8 const *in    = text.data();
+  usize     count = 0;
+  while (in != text.end())
+  {
+    if ((*in & 0xc0) != 0x80)
+    {
+      count++;
+    }
+    in++;
+  }
+  return count;
+}
 
-/// @brief decode.size must be at least count_utf8_codepoints(encoded).
-/// estimate: encoded.size() * 4
+/// @brief decoded.size() must be at least count_utf8_codepoints(encoded).
+/// estimate: encoded.size()
 constexpr usize utf8_decode(Span<u8 const> encoded, Span<u32> decoded)
 {
   u8 const *in  = encoded.data();
@@ -47,6 +60,63 @@ constexpr usize utf8_decode(Span<u8 const> encoded, Span<u32> decoded)
 }
 
 /// @brief encoded.size must be at least decoded.size * 4
-constexpr usize utf8_encode(Span<u32 const> decoded, Span<u8> encoded);
+constexpr usize utf8_encode(Span<u32 const> decoded, Span<u8> encoded)
+{
+  u8        *out = encoded.data();
+  u32 const *in  = decoded.data();
+
+  while (in != decoded.end())
+  {
+    if (*in <= 0x7F)
+    {
+      *out = *in;
+      out += 1;
+    }
+    if (*in <= 0x7FF)
+    {
+      out[0] = 0xC0 | (*in >> 6);
+      out[1] = 0x80 | (*in & 0x3F);
+      out += 2;
+    }
+    if (*in <= 0xFFFF)
+    {
+      out[0] = 0xE0 | (*in >> 12);
+      out[1] = 0x80 | ((*in >> 6) & 0x3F);
+      out[2] = 0x80 | (*in & 0x3F);
+      out += 3;
+    }
+    if (*in <= 0x10FFFF)
+    {
+      out[0] = 0xF0 | (*in >> 18);
+      out[1] = 0x80 | ((*in >> 12) & 0x3F);
+      out[2] = 0x80 | ((*in >> 6) & 0x3F);
+      out[3] = 0x80 | (*in & 0x3F);
+      out += 4;
+    }
+  }
+
+  return out - encoded.begin();
+}
+
+constexpr void replace_invalid_codepoints(Span<u32 const> input,
+                                          Span<u32> output, u32 replacement)
+{
+  u32 const *in  = input.begin();
+  u32       *out = output.begin();
+
+  while (in < input.end())
+  {
+    if (*in > 0x10FFFF) [[unlikely]]
+    {
+      *out = replacement;
+    }
+    else
+    {
+      *out = *in;
+    }
+    in++;
+    out++;
+  }
+}
 
 }        // namespace ash

@@ -9,6 +9,9 @@ namespace ash
 
 typedef struct Font_T *Font;
 
+// 1024px per pt.
+constexpr i32 PT_UNIT = 1024;
+
 enum class FontStatus : u8
 {
   Loaded          = 0,
@@ -19,17 +22,26 @@ enum class FontStatus : u8
   OutOfHostMemory = 5
 };
 
-/// Metrics are normalized
-/// @param bearing offset from cursor baseline to start drawing glyph from
-/// @param descent distance from baseline to the bottom of the glyph
-/// @param advance advancement of the cursor after drawing this glyph
+/// @param bearing offset from cursor baseline to start drawing glyph from (pt)
+/// @param descent distance from baseline to the bottom of the glyph (pt)
+/// @param advance advancement of the cursor after drawing this glyph (pt)
 /// @param extent glyph extent
 struct GlyphMetrics
 {
-  Vec2 bearing = {0, 0};
-  f32  descent = 0;
-  f32  advance = 0;
-  Vec2 extent  = {0, 0};
+  Vec2I bearing = {0, 0};
+  i32   descent = 0;
+  i32   advance = 0;
+  Vec2I extent  = {0, 0};
+};
+
+/// @param ascent  maximum ascent of the font's glyphs (pt)
+/// @param descent maximum descent of the font's glyphs (pt)
+/// @param advance maximum advance of the font's glyphs (pt)
+struct FontMetrics
+{
+  i32 ascent  = 0;
+  i32 descent = 0;
+  i32 advance = 0;
 };
 
 /// see:
@@ -56,8 +68,7 @@ struct Glyph
   bool         is_needed = false;
   GlyphMetrics metrics   = {};
   u32          layer     = 0;
-  Vec2U        offset    = {};
-  Vec2U        extent    = {};
+  gfx::Rect    area      = {};
   Vec2         uv[2]     = {};
 };
 
@@ -67,10 +78,7 @@ struct Glyph
 /// @param replacement_glyph glyph for the replacement glyph 0xFFFD if
 /// found, otherwise glyph index 0
 /// @param ellipsis_glyph glyph for the ellipsis character '…'
-/// @param font_height font height at which the this atlas was rendered
-/// @param ascent normalized maximum ascent of the font's glyphs
-/// @param descent normalized maximum descent of the font's glyphs
-/// @param advance normalized maximum advance of the font's glyphs
+/// @param font_height font height at which the this atlas was rendered (px)
 struct FontInfo
 {
   Span<char const>           postscript_name   = {};
@@ -80,10 +88,8 @@ struct FontInfo
   u32                        replacement_glyph = 0;
   u32                        space_glyph       = 0;
   u32                        ellipsis_glyph    = 0;
-  u32                        font_height       = 0;
-  f32                        ascent            = 0;
-  f32                        descent           = 0;
-  f32                        advance           = 0;
+  i32                        font_height       = 0;
+  FontMetrics                metrics           = {};
   Vec2U                      extent            = {};
   u32                        num_layers        = 0;
   gfx::Image                 image             = nullptr;
@@ -94,7 +100,7 @@ struct FontInfo
 /// @param name name to use in font matching
 /// @param path local file system path of the typeface resource
 /// @param face font face to use
-/// @param font_height the height at which the texture is cached at
+/// @param font_height the height at which the texture should be cached at (px)
 /// @param ranges if set only the specified unicode ranges will be loaded,
 /// otherwise all glyphs in the font will be loaded. Note that this
 /// means during font ligature glyph substitution where scripts
@@ -105,7 +111,7 @@ struct FontDesc
   Span<char const>         name        = {};
   Span<char const>         path        = {};
   u32                      face        = 0;
-  u32                      font_height = 20;
+  i32                      font_height = 20;
   Span<UnicodeRange const> ranges      = {};
 };
 

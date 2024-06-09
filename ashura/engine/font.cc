@@ -11,9 +11,14 @@
 #include "ashura/std/range.h"
 #include "ashura/std/types.h"
 #include "ashura/utils/rect_pack.h"
+
+extern "C"
+{
 #include "freetype/freetype.h"
 #include "freetype/ftsystem.h"
+#include "harfbuzz/hb-ft.h"
 #include "harfbuzz/hb.h"
+}
 
 namespace ash
 {
@@ -21,7 +26,7 @@ namespace ash
 constexpr u32 FONT_ATLAS_EXTENT = 512;
 
 static_assert(FONT_ATLAS_EXTENT != 0);
-static_assert(FONT_ATLAS_EXTENT >= 16);
+static_assert(FONT_ATLAS_EXTENT / 2 >= 16);
 static_assert(FONT_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT_2D);
 
 struct FontEntry
@@ -137,6 +142,8 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
     return false;
   }
 
+  hb_font_set_scale(hb_font, PT_UNIT, PT_UNIT);
+
   defer hb_font_del{[&] {
     if (hb_font != nullptr)
     {
@@ -161,6 +168,12 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
 
   if (FT_New_Memory_Face(ft_lib, (FT_Byte const *) font_data,
                          (FT_Long) font_data_size, 0, &ft_face) != 0)
+  {
+    return false;
+  }
+
+  // convert to and from 26.6 fractional format
+  if (FT_Set_Char_Size(ft_face, PT_UNIT, PT_UNIT, 300, 300) != 0)
   {
     return false;
   }
@@ -286,25 +299,12 @@ bool load_font_from_file(FontEntry *entry, AllocatorImpl const &allocator,
   return load_font_from_memory(entry, to_span(data), selected_face);
 }
 
-bool render_font_atlas(FontEntry &e, u32 font_height,
-                       Span<UnicodeRange const> ranges,
-                       AllocatorImpl const     &allocator)
+bool load_font_glyphs(FontEntry &e, Span<UnicodeRange const> ranges)
 {
-  CHECK(font_height <= (FONT_ATLAS_EXTENT - 16));
-
-  // NOTE: all *64 or << 6, /64 or >> 6 are to convert to and from 26.6 pixel
-  // format used in Freetype and Harfbuzz metrics
-  if (FT_Set_Char_Size(e.ft_face, 0, (FT_F26Dot6) (font_height << 6), 72, 72) !=
-      0)
-  {
-    return false;
-  }
-
-  f32 const ascent = (e.ft_face->size->metrics.ascender / 64.0f) / font_height;
-  f32 const descent =
-      (e.ft_face->size->metrics.descender / -64.0f) / font_height;
-  f32 const advance =
-      (e.ft_face->size->metrics.max_advance / 64.0f) / font_height;
+  // expressed on a EM_UNIT scale
+  i32 const ascent  = e.ft_face->size->metrics.ascender;
+  i32 const descent = e.ft_face->size->metrics.descender;
+  i32 const advance = e.ft_face->size->metrics.max_advance;
 
   Glyph *glyphs;
   if (!e.allocator.nalloc(e.num_glyphs, &glyphs))
@@ -330,13 +330,13 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
 
       GlyphMetrics m;
 
-      // convert from 26.6 pixel format
-      m.bearing.x = (s->metrics.horiBearingX / 64.0f) / font_height;
-      m.bearing.y = (s->metrics.horiBearingY / 64.0f) / font_height;
-      m.advance   = (s->metrics.horiAdvance / 64.0f) / font_height;
-      m.extent.x  = (s->metrics.width / 64.0f) / font_height;
-      m.extent.y  = (s->metrics.height / 64.0f) / font_height;
-      m.descent   = max(m.extent.y - m.bearing.y, 0.0f);
+      // expressed on a EM_UNIT scale
+      m.bearing.x = s->metrics.horiBearingX;
+      m.bearing.y = s->metrics.horiBearingY;
+      m.advance   = s->metrics.horiAdvance;
+      m.extent.x  = s->metrics.width;
+      m.extent.y  = s->metrics.height;
+      m.descent   = max(m.extent.y - m.bearing.y, 0);
 
       // bin offsets are determined after binning and during rect packing
       glyphs[glyph_idx] =
@@ -344,8 +344,8 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
                 .is_needed = is_needed,
                 .metrics   = m,
                 .layer     = 0,
-                .offset    = Vec2U{0, 0},
-                .extent    = Vec2U{s->bitmap.width, s->bitmap.rows}};
+                .area      = {.offset = Vec2U{0, 0},
+                              .extent = Vec2U{s->bitmap.width, s->bitmap.rows}}};
     }
     else
     {
@@ -353,8 +353,7 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
                                 .is_needed = is_needed,
                                 .metrics   = {},
                                 .layer     = 0,
-                                .offset    = {},
-                                .extent    = {}};
+                                .area      = {}};
     }
   }
 
@@ -378,11 +377,32 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
     } while (glyph_idx != 0);
   }
 
+  e.glyphs  = glyphs;
+  e.ascent  = ascent;
+  e.descent = descent;
+  e.advance = advance;
+
+  glyphs = nullptr;
+  return true;
+}
+
+bool render_font_atlas(FontEntry &e, i32 font_height,
+                       Span<UnicodeRange const> ranges,
+                       AllocatorImpl const     &allocator)
+{
+  CHECK(font_height <= 1024);
+  CHECK(font_height <= (FONT_ATLAS_EXTENT / 2 - 16));
+
+  if (FT_Set_Pixel_Sizes(e.ft_face, font_height, font_height) != 0)
+  {
+    return false;
+  }
+
   u32 num_loaded_glyphs = 0;
 
   for (u32 i = 0; i < e.num_glyphs; i++)
   {
-    if (glyphs[i].is_valid && glyphs[i].is_needed)
+    if (e.glyphs[i].is_valid && e.glyphs[i].is_needed)
     {
       num_loaded_glyphs++;
     }
@@ -400,7 +420,7 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
 
     for (u32 glyph_idx = 0, irect = 0; glyph_idx < e.num_glyphs; glyph_idx++)
     {
-      Glyph const &g = glyphs[glyph_idx];
+      Glyph const &g = e.glyphs[glyph_idx];
       // only assign packing rects to the valid and needed glyphs
       if (g.is_valid && g.is_needed)
       {
@@ -410,8 +430,8 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
         r.y                = 0;
         // added padding to avoid texture spilling due to accumulated
         // floating-point uv interpolation errors
-        r.w = (i32) (g.extent.x + 2);
-        r.h = (i32) (g.extent.y + 2);
+        r.w = (i32) (g.area.extent.x + 2);
+        r.h = (i32) (g.area.extent.y + 2);
         irect++;
       }
     }
@@ -452,14 +472,15 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
     for (u32 i = 0; i < num_loaded_glyphs; i++)
     {
       rect_pack::rect r = rects[i];
-      Glyph          &g = glyphs[r.glyph_index];
-      g.offset.x        = (u32) r.x + 1;
-      g.offset.y        = (u32) r.y + 1;
+      Glyph          &g = e.glyphs[r.glyph_index];
+      g.area.offset.x   = (u32) r.x + 1;
+      g.area.offset.y   = (u32) r.y + 1;
       g.layer           = r.layer;
-      g.uv[0]           = Vec2{g.offset.x / (f32) FONT_ATLAS_EXTENT,
-                     g.offset.y / (f32) FONT_ATLAS_EXTENT};
-      g.uv[1] = Vec2{(g.offset.x + g.extent.x) / (f32) FONT_ATLAS_EXTENT,
-                     (g.offset.y + g.extent.y) / (f32) FONT_ATLAS_EXTENT};
+      g.uv[0]           = Vec2{g.area.offset.x / (f32) FONT_ATLAS_EXTENT,
+                     g.area.offset.y / (f32) FONT_ATLAS_EXTENT};
+      g.uv[1] =
+          Vec2{(g.area.offset.x + g.area.extent.x) / (f32) FONT_ATLAS_EXTENT,
+               (g.area.offset.y + g.area.extent.y) / (f32) FONT_ATLAS_EXTENT};
     }
   }
 
@@ -483,7 +504,7 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
 
   for (u32 glyph_idx = 0; glyph_idx < e.num_glyphs; glyph_idx++)
   {
-    Glyph const &g = glyphs[glyph_idx];
+    Glyph const &g = e.glyphs[glyph_idx];
     if (g.is_valid && g.is_needed)
     {
       FT_Error ft_error = FT_Load_Glyph(e.ft_face, glyph_idx, FT_LOAD_DEFAULT);
@@ -522,17 +543,11 @@ bool render_font_atlas(FontEntry &e, u32 font_height,
   }
 
   e.font_height  = font_height;
-  e.glyphs       = glyphs;
   e.atlas        = atlas;
   e.atlas_size   = atlas_size;
   e.atlas_extent = FONT_ATLAS_EXTENT;
   e.num_layers   = num_layers;
-  e.ascent       = ascent;
-  e.descent      = descent;
-  e.advance      = advance;
-
-  glyphs = nullptr;
-  atlas  = nullptr;
+  atlas          = nullptr;
 
   return true;
 }
