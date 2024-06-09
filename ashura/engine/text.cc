@@ -13,7 +13,7 @@ extern "C"
 namespace ash
 {
 
-/// layout is output in FONT_LAYOUT_UNIT units.
+/// layout is output in PT_UNIT units.
 /// text must have been sanitized with invalid codepoints replaced before
 /// calling this.
 static void shape(hb_font_t *font, hb_buffer_t *buffer, Span<u32 const> text,
