@@ -263,7 +263,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
       block.language.is_empty() ?
           hb_language_get_default() :
           hb_language_from_string(block.language.data(),
-                                  (int) block.language.size());
+                                  (i32) block.language.size());
 
   hb_buffer_t *shaping_buffer = hb_buffer_create();
   CHECK(shaping_buffer != nullptr);
