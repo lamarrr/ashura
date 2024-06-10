@@ -85,7 +85,8 @@ struct GlyphShaping
   Vec2 offset  = {};
 };
 
-/// @param script script of the current codepoint
+/// @param script script of the current codepoint, OpenType (ISO15924) Script
+/// Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
 /// @param paragraph if the current codepoint begins a paragraph
 /// @param paragraph_direction the current paragraph's direction
 /// @param direction directionality of the current codepoint in the paragraph

@@ -46,8 +46,6 @@ static void shape(hb_font_t *font, hb_buffer_t *buffer, Span<u32 const> text,
   // invalid character replacement
   hb_buffer_set_replacement_codepoint(buffer,
                                       HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);
-  // OpenType (ISO15924) Script Tag.
-  // See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
   hb_buffer_set_script(buffer, script);
   hb_buffer_set_direction(buffer, direction);
   // OpenType BCP-47 language tag specifying locale-sensitive shaping operations
@@ -214,9 +212,9 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
           hb_language_from_string(block.language.data(),
                                   (i32) block.language.size());
 
-  hb_buffer_t *shaping_buffer = hb_buffer_create();
-  CHECK(shaping_buffer != nullptr);
-  defer shaping_buffer_del{[&] { hb_buffer_destroy(shaping_buffer); }};
+  hb_buffer_t *buffer = hb_buffer_create();
+  CHECK(buffer != nullptr);
+  defer buffer_del{[&] { hb_buffer_destroy(buffer); }};
 
   SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
                                  .stringBuffer   = (void *) block.text.data(),
@@ -242,7 +240,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   Span<hb_glyph_position_t const> positions;
   u32                             beg = 0;
   u32                             end = 0;
-  shape(nullptr, nullptr, block.text, beg, end - beg, (hb_script_t) s->script,
+  shape(nullptr, buffer, block.text, beg, end - beg, (hb_script_t) s->script,
         (s->direction == TextDirection::LeftToRight) ? HB_DIRECTION_LTR :
                                                        HB_DIRECTION_RTL,
         language, false, true, infos, positions);
