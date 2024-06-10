@@ -28,14 +28,12 @@ struct TextStyle
   f32  font_height             = 20;
   f32  letter_spacing          = 0;
   f32  line_height             = 1.2f;
-  f32  outline_thickness       = 0;
   f32  underline_thickness     = 0;
   f32  strikethrough_thickness = 0;
   f32  shadow_scale            = 0;
   Vec2 shadow_offset           = Vec2{0, 0};
   Vec4 foreground_color[4]     = {};
   Vec4 background_color[4]     = {};
-  Vec4 outline_color[4]        = {};
   Vec4 underline_color[4]      = {};
   Vec4 strikethrough_color[4]  = {};
   Vec4 shadow_color[4]         = {};
