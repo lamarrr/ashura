@@ -13,12 +13,14 @@ extern "C"
 namespace ash
 {
 
-/// layout is output in PT_UNIT units.
-/// text must have been sanitized with invalid codepoints replaced before
-/// calling this.
+/// layout is output in PT_UNIT units. so it is independent of the actual
+/// font-height and can be cached as necessary. text must have been sanitized
+/// with invalid codepoints replaced before calling this.
+///
 static void shape(hb_font_t *font, hb_buffer_t *buffer, Span<u32 const> text,
-                  Segment segment, hb_script_t script, hb_direction_t direction,
-                  hb_language_t language, bool use_kerning, bool use_ligatures,
+                  u32 first, u32 count, hb_script_t script,
+                  hb_direction_t direction, hb_language_t language,
+                  bool use_kerning, bool use_ligatures,
                   Span<hb_glyph_info_t const>     &infos,
                   Span<hb_glyph_position_t const> &positions)
 {
@@ -51,8 +53,8 @@ static void shape(hb_font_t *font, hb_buffer_t *buffer, Span<u32 const> text,
   // OpenType BCP-47 language tag specifying locale-sensitive shaping operations
   // as defined in the font
   hb_buffer_set_language(buffer, language);
-  hb_buffer_add_codepoints(buffer, text.data(), (i32) text.size(),
-                           segment.first, (i32) segment.count);
+  hb_buffer_add_codepoints(buffer, text.data(), (i32) text.size(), first,
+                           (i32) count);
   hb_shape_full(font, buffer, shaping_features, (u32) size(shaping_features),
                 nullptr);
 
@@ -73,50 +75,34 @@ static void shape(hb_font_t *font, hb_buffer_t *buffer, Span<u32 const> text,
 }
 
 /// @brief only needs to be called if it contains multiple paragraphs
-static Slice segment_paragraphs(Span<u32 const> text, Vec<Segment> &segments)
+static void segment_paragraphs(Span<u32 const> text, Span<TextSegment> segments)
 {
   u32 const text_size = (u32) text.size();
-  Slice     slice;
-  slice.offset = segments.size();
-  for (u32 it = 0; it < text_size;)
+  for (u32 i = 0; i < text_size;)
   {
-    u32 beg = it;
-    u32 end = it;
-    while (it < text_size)
+    segments[i].paragraph = true;
+    i++;
+    while (i < text_size)
     {
-      if (text[it] == '\r' && ((it + 1) < text_size) && text[it + 1] == '\n')
+      if (text[i] == '\r' && ((i + 1) < text_size) && text[i + 1] == '\n')
       {
-        end = it;
-        it += 2;
+        i += 2;
         break;
       }
-      if (text[it] == '\n')
+      else if (text[i] == '\n' || text[i] == '\r')
       {
-        end = it++;
+        i++;
         break;
       }
-      if (text[it] == '\r')
-      {
-        end = it++;
-        break;
-      }
-
-      end = ++it;
+      i++;
     }
-    CHECK(segments.push(Segment{.first = beg, .count = end - beg}));
   }
-  slice.span = segments.size() - slice.offset;
-  return slice;
 }
 
 /// @brief only needs to be called if it contains multiple scripts
 /// outputs iso15924 or OpenType tags
-static Slice segment_scripts(Span<u32 const> text, Vec<Segment> &segments,
-                             Vec<u32> &scripts)
+static void segment_scripts(Span<u32 const> text, Span<TextSegment> segments)
 {
-  Slice slice;
-  slice.offset = segments.size();
-
   SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
                                  .stringBuffer   = (void *) text.data(),
                                  .stringLength   = text.size()};
@@ -130,117 +116,81 @@ static Slice segment_scripts(Span<u32 const> text, Vec<Segment> &segments,
 
   while (SBScriptLocatorMoveNext(locator) == SBTrue)
   {
-    CHECK(segments.push(
-        Segment{.first = (u32) agent->offset, .count = (u32) agent->length}));
+    u32         beg = (u32) agent->offset;
+    u32         end = beg + (u32) agent->length;
     hb_script_t script =
         hb_script_from_iso15924_tag(SBScriptGetOpenTypeTag(agent->script));
-    CHECK(scripts.push((u32) script));
+    for (u32 i = beg; i < end; i++)
+    {
+      segments[i].script = script;
+    }
   }
 
   SBScriptLocatorRelease(locator);
-  slice.span = segments.size() - slice.offset;
-  return slice;
 }
 
 /// @brief only needs to be called if it is a bidirectional text
-static Slice segment_directions(Span<u32 const> text, Slice paragraphs,
-                                SBAlgorithmRef algorithm, TextDirection base,
-                                Vec<Segment>       &segments,
-                                Vec<TextDirection> &base_directions,
-                                Vec<TextDirection> &directions)
+static void segment_directions(Span<u32 const> text, SBAlgorithmRef algorithm,
+                               TextDirection base, Span<TextSegment> segments)
 {
-  Slice slice;
-  slice.offset = segments.size();
-
-  // otherwise it will segfault due to the segments vec being inserted
-  // into while it is being written into
-  CHECK(segments.reserve(segments.size() + text.size()));
-
   // The embedding level is an integer value. LTR text segments have even
   // embedding levels (e.g., 0, 2, 4), and RTL text segments have odd embedding
   // levels (e.g., 1, 3, 5).
-  for (Segment p : to_span(segments)[paragraphs])
+  u32 const text_size = (u32) text.size();
+  for (u32 i = 0; i < text_size;)
   {
-    SBParagraphRef paragraph =
-        SBAlgorithmCreateParagraph(algorithm, p.first, p.count, (SBLevel) base);
-    CHECK(paragraph != nullptr);
-    SBUInteger length = SBParagraphGetLength(paragraph);
-    CHECK(length == p.count);
-    SBLevel base_level = SBParagraphGetBaseLevel(paragraph);
-    CHECK(base_directions.push(TextDirection{base_level}));
-    SBLevel const *levels = SBParagraphGetLevelsPtr(paragraph);
-    CHECK(!(p.count > 0 && levels == nullptr));
-
-    for (u32 it = 0; it < p.count;)
+    u32 begin = i++;
+    while (i < text_size && !segments[i].paragraph)
     {
-      SBLevel curr = levels[it] & 0x1;
-      u32     beg  = it++;
-      while (it < p.count)
-      {
-        if ((levels[it] & 0x1) != curr)
-        {
-          break;
-        }
-        it++;
-      }
-      CHECK(directions.push(TextDirection{curr}));
-      CHECK(segments.push(Segment{.first = it, .count = it - beg}));
+      i++;
+    }
+
+    u32 const      length = i - begin;
+    SBParagraphRef paragraph =
+        SBAlgorithmCreateParagraph(algorithm, begin, length, (SBLevel) base);
+    CHECK(paragraph != nullptr);
+    CHECK(SBParagraphGetLength(paragraph) == length);
+    SBLevel const       base_level     = SBParagraphGetBaseLevel(paragraph);
+    TextDirection const base_direction = TextDirection{(u8) (base_level & 0x1)};
+    SBLevel const      *levels         = SBParagraphGetLevelsPtr(paragraph);
+    CHECK(levels != nullptr);
+    for (u32 idx = begin; idx < i; idx++)
+    {
+      SBLevel const       level     = levels[idx];
+      TextDirection const direction = TextDirection{(u8) (levels[idx] & 0x1)};
+      segments[idx].base_direction  = base_direction;
+      segments[idx].direction       = direction;
     }
     SBParagraphRelease(paragraph);
   }
-  slice.span = segments.size() - slice.offset;
-  return slice;
 }
 
 /// @brief only needs to be called if line breaking is required.
-static Slice segment_break_opportunities(Span<u32 const> text,
-                                         Vec<Segment> &segments, f32 max_width)
+static void segment_breakpoints(Span<u32 const>   text,
+                                Span<TextSegment> segments, f32 max_width)
 {
-  Slice slice;
-  slice.offset = segments.size();
-
   if (max_width == F32_MAX)
   {
-    CHECK(segments.push(Segment{.first = 0, .count = (u32) text.size()}));
-    slice.span = 1;
-    return slice;
+    return;
   }
 
   u32 const text_size = (u32) text.size();
-  for (u32 it = 0; it < text_size;)
+  for (u32 i = 0; i < text_size;)
   {
-    u32 begin = it++;
-    while (it < text_size && text[it] != ' ' && text[it] != '\t')
+    segments[i].breakable = true;
+    i++;
+    while (i < text_size && text[i] != ' ' && text[i] != '\t')
     {
-      it++;
+      i++;
     }
 
-    while (it < text_size && (text[it] == ' ' || text[it] == '\t'))
+    while (i < text_size && (text[i] == ' ' || text[i] == '\t'))
     {
-      it++;
+      i++;
     }
-
-    CHECK(segments.push(Segment{.first = begin, .count = it - begin}));
   }
-  slice.span = segments.size() - slice.offset;
-  return slice;
 }
 
-static bool is_segments_valid(Span<Segment const> segments, u32 size)
-{
-  u32 first = 0;
-  for (Segment s : segments)
-  {
-    if (s.first != first || ((s.first + s.count) > size))
-    {
-      return false;
-    }
-    first = s.first + s.count;
-  }
-  return first == size;
-}
-
-//
 // shape each run at each break opportunity
 //
 //
@@ -248,7 +198,6 @@ static bool is_segments_valid(Span<Segment const> segments, u32 size)
 // size of the text?
 //
 // we can layout segments independent of actual font size
-//
 //
 //
 void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
@@ -276,60 +225,35 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   CHECK(algorithm != nullptr);
   defer algorithm_del{[&] { SBAlgorithmRelease(algorithm); }};
 
-  // use custom iterator?
-  Vec<Segment>       segments             = {};
-  Vec<u32>           run_scripts          = {};
-  Vec<TextDirection> run_directions       = {};
-  Vec<TextDirection> paragraph_directions = {};
-  // could be needed to be preserved? what about editor  selection and
-  // insertion?
+  CHECK(layout.segments.resize_defaulted(block.text.size()));
 
-  // uninit data
-
-  Slice paragraphs = segment_paragraphs(block.text, segments);
-  Slice scripts    = segment_scripts(block.text, segments, run_scripts);
-  Slice directions =
-      segment_directions(block.text, paragraphs, algorithm, block.direction,
-                         segments, paragraph_directions, run_directions);
-  Slice break_opportunities =
-      segment_break_opportunities(block.text, segments, max_width);
-
-  u32 iparagraph         = 0;
-  u32 iscript            = 0;
-  u32 ibreak_opportunity = 0;
-  u32 idirection         = 0;
-  u32 istyle             = 0;
-  u32 iline              = 0;
-
-  for (u32 i = 0; i < paragraphs.span; i++)
+  for (TextSegment &s : layout.segments)
   {
-    while (true) /* in run*/
-    {
-      // advance, else break
-    }
-    // insert into run list
+    s = TextSegment{};
   }
-  // should consider that newlines will not be included and some might be empty
 
+  segment_paragraphs(block.text, layout.segments);
+  segment_scripts(block.text, layout.segments);
+  segment_directions(block.text, algorithm, block.direction, layout.segments);
+  segment_breakpoints(block.text, layout.segments, max_width);
+
+  TextSegment                    *s;
+  Span<hb_glyph_info_t const>     infos;
+  Span<hb_glyph_position_t const> positions;
+  u32                             beg = 0;
+  u32                             end = 0;
+  shape(nullptr, nullptr, block.text, beg, end - beg, (hb_script_t) s->script,
+        (s->direction == TextDirection::LeftToRight) ? HB_DIRECTION_LTR :
+                                                       HB_DIRECTION_RTL,
+        language, false, true, infos, positions);
+  // iter runs and shape
+  //
   // for each run: shape, advance
-
   //
   // line breaks?
-
   //
-  //
-  //
-  //
-  // separate into Runs -> Run{ iscript, segment, direction   };
   // break into lines based on max width
   // what about visual reordering? of segments on lines?
-
-  //
-
-  // for each paragraph
-  // use the codepoint index as anchor.
-  // find max overlapping of each segment and perform layout on them, then
-  // advance to next max overlapping
 
   // shape each segment independently, break the lines as necessary then
   // re-order based on base direction and then reverse using segment direction.

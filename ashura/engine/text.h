@@ -85,13 +85,29 @@ struct GlyphShaping
   Vec2 offset  = {};
 };
 
+/// @param script script of the current codepoint
+/// @param paragraph if the current codepoint begins a paragraph
+/// @param paragraph_direction the current paragraph's direction
+/// @param direction directionality of the current codepoint in the paragraph
+/// @param breakable if this codepoint begins a breakable text
+struct TextSegment
+{
+  u32           script             = 0;
+  bool          paragraph : 1      = 0;
+  TextDirection base_direction : 1 = TextDirection::LeftToRight;
+  TextDirection direction : 1      = TextDirection::LeftToRight;
+  bool          breakable : 1      = false;
+};
+
 /// @brief cached/pre-computed text layout
 /// @param scale scale of the text block relative to the size of the
 /// pre-rendered text
+/// @param segments each segment matches a codepoint in the source text.
 struct TextLayout
 {
   f32               max_width = 0;
   Vec2              extent    = {};
+  Vec<TextSegment>  segments  = {};
   Vec<GlyphShaping> shapings  = {};
   Vec<LineMetrics>  lines     = {};
 

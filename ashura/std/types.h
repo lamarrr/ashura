@@ -2452,12 +2452,6 @@ constexpr Mat4Affine &operator/=(Mat4Affine &a, Mat4Affine const &b)
   return a;
 }
 
-struct Segment
-{
-  u32 first = 0;
-  u32 count = 0;
-};
-
 struct Slice
 {
   usize offset = 0;
