@@ -164,8 +164,8 @@ static void segment_directions(Span<u32 const> text, SBAlgorithmRef algorithm,
 }
 
 /// @brief only needs to be called if line breaking is required.
-static void segment_breakpoints(Span<u32 const>   text,
-                                Span<TextSegment> segments, f32 max_width)
+static void segment_breakpoints(Span<u32 const> text, f32 max_width,
+                                Span<TextSegment> segments)
 {
   if (max_width == F32_MAX)
   {
@@ -233,7 +233,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   segment_paragraphs(block.text, layout.segments);
   segment_scripts(block.text, layout.segments);
   segment_directions(block.text, algorithm, block.direction, layout.segments);
-  segment_breakpoints(block.text, layout.segments, max_width);
+  segment_breakpoints(block.text, max_width, layout.segments);
 
   TextSegment                    *s;
   Span<hb_glyph_info_t const>     infos;
