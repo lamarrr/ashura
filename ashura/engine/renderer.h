@@ -50,7 +50,7 @@ struct Renderer
 
   void init(gfx::DeviceImpl p_device, bool p_use_hdr,
             u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,
-            ShaderMap p_shader_map)
+            StrHashMap<gfx::Shader> p_shader_map)
   {
     ctx.init(p_device, p_use_hdr, p_max_frames_in_flight, p_initial_extent,
              p_shader_map);

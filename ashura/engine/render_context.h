@@ -24,8 +24,6 @@ struct Framebuffer
   gfx::Extent        extent                        = {};
 };
 
-using ShaderMap = StrHashMap<gfx::Shader>;
-
 // TODO(lamarrr): add table slot allocator for descriptors
 
 /// @param color_format hdr if hdr supported and required.
@@ -54,7 +52,7 @@ struct RenderContext
   gfx::DeviceImpl          device                     = {};
   gfx::PipelineCache       pipeline_cache             = nullptr;
   u32                      buffering                  = 0;
-  ShaderMap                shader_map                 = {};
+  StrHashMap<gfx::Shader>  shader_map                 = {};
   gfx::Format              color_format               = gfx::Format::Undefined;
   gfx::Format              depth_stencil_format       = gfx::Format::Undefined;
   Framebuffer              framebuffer                = {};
@@ -69,7 +67,7 @@ struct RenderContext
 
   void init(gfx::DeviceImpl p_device, bool p_use_hdr,
             u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,
-            ShaderMap p_shader_map);
+            StrHashMap<gfx::Shader> p_shader_map);
   void uninit();
 
   void recreate_framebuffers(gfx::Extent new_extent);

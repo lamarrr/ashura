@@ -5,7 +5,7 @@ namespace ash
 
 void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                          u32 p_buffering, gfx::Extent p_initial_extent,
-                         ShaderMap p_shader_map)
+                         StrHashMap<gfx::Shader> p_shader_map)
 {
   CHECK(p_buffering <= gfx::MAX_FRAME_BUFFERING && p_buffering > 0);
   CHECK(p_initial_extent.x > 0 && p_initial_extent.y > 0);
