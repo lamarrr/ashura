@@ -1,4 +1,5 @@
 #include "ashura/engine/text.h"
+#include "ashura/engine/font_impl.h"
 #include "ashura/std/vec.h"
 
 extern "C"
@@ -16,7 +17,8 @@ namespace ash
 /// layout is output in PT_UNIT units. so it is independent of the actual
 /// font-height and can be cached as necessary. text must have been sanitized
 /// with invalid codepoints replaced before calling this.
-///
+/// @param script OpenType (ISO15924) Script
+/// Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
 static void shape(hb_font_t *font, hb_buffer_t *buffer, Span<u32 const> text,
                   u32 first, u32 count, hb_script_t script,
                   hb_direction_t direction, hb_language_t language,
@@ -53,8 +55,7 @@ static void shape(hb_font_t *font, hb_buffer_t *buffer, Span<u32 const> text,
   hb_buffer_set_language(buffer, language);
   hb_buffer_add_codepoints(buffer, text.data(), (i32) text.size(), first,
                            (i32) count);
-  hb_shape_full(font, buffer, shaping_features, (u32) size(shaping_features),
-                nullptr);
+  hb_shape(font, buffer, shaping_features, (u32) size(shaping_features));
 
   u32                        num_pos;
   hb_glyph_position_t const *glyph_pos =
@@ -114,13 +115,11 @@ static void segment_scripts(Span<u32 const> text, Span<TextSegment> segments)
 
   while (SBScriptLocatorMoveNext(locator) == SBTrue)
   {
-    u32         beg = (u32) agent->offset;
-    u32         end = beg + (u32) agent->length;
-    hb_script_t script =
-        hb_script_from_iso15924_tag(SBScriptGetOpenTypeTag(agent->script));
+    u32 beg = (u32) agent->offset;
+    u32 end = beg + (u32) agent->length;
     for (u32 i = beg; i < end; i++)
     {
-      segments[i].script = script;
+      segments[i].script = TextScript{agent->script};
     }
   }
 
@@ -143,19 +142,25 @@ static void segment_directions(Span<u32 const> text, SBAlgorithmRef algorithm,
       i++;
     }
 
-    u32 const      length = i - begin;
-    SBParagraphRef paragraph =
-        SBAlgorithmCreateParagraph(algorithm, begin, length, (SBLevel) base);
+    u32 const      length    = i - begin;
+    SBParagraphRef paragraph = SBAlgorithmCreateParagraph(
+        algorithm, begin, length,
+        (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
+                                               SBLevelDefaultRTL);
     CHECK(paragraph != nullptr);
     CHECK(SBParagraphGetLength(paragraph) == length);
     SBLevel const       base_level     = SBParagraphGetBaseLevel(paragraph);
-    TextDirection const base_direction = TextDirection{(u8) (base_level & 0x1)};
+    TextDirection const base_direction = ((base_level & 0x1) == 0) ?
+                                             TextDirection::LeftToRight :
+                                             TextDirection::RightToLeft;
     SBLevel const      *levels         = SBParagraphGetLevelsPtr(paragraph);
     CHECK(levels != nullptr);
     for (u32 idx = begin; idx < i; idx++)
     {
       SBLevel const       level     = levels[idx];
-      TextDirection const direction = TextDirection{(u8) (levels[idx] & 0x1)};
+      TextDirection const direction = ((level & 0x1) == 0) ?
+                                          TextDirection::LeftToRight :
+                                          TextDirection::RightToLeft;
       segments[idx].base_direction  = base_direction;
       segments[idx].direction       = direction;
     }
@@ -189,19 +194,78 @@ static void segment_breakpoints(Span<u32 const> text, f32 max_width,
   }
 }
 
-// shape each run at each break opportunity
-//
-//
-// is there a way we can perform the text shaping in batches without knowing the
-// size of the text?
-//
-// we can layout segments independent of actual font size
-//
-//
+static void insert_run(TextLayout &l, FontStyle const &s, u32 first, u32 count,
+                       u16 font, TextDirection direction, bool paragraph,
+                       bool breakable, Span<hb_glyph_info_t const> infos,
+                       Span<hb_glyph_position_t const> positions)
+{
+  CHECK(infos.size() == positions.size());
+  u32 num_glyphs  = (u32) infos.size();
+  u32 first_glyph = (u32) l.glyphs.size();
+  f32 advance     = 0;
+  u32 cluster     = U32_MAX;
+
+  for (u32 i = 0; i < num_glyphs; i++)
+  {
+    GlyphShape g{.glyph   = infos[i].codepoint,
+                 .cluster = infos[i].cluster,
+                 .advance = {positions[i].x_advance, positions[i].y_advance},
+                 .offset  = {positions[i].x_offset, positions[i].y_offset}};
+    CHECK(l.glyphs.push(g));
+
+    advance += (positions[i].x_advance / (f32) PT_UNIT) * s.font_height;
+
+    if (cluster == U32_MAX)
+    {
+      cluster = infos[i].cluster;
+    }
+    if (infos[i].cluster != cluster)
+    {
+      advance += s.letter_spacing;
+      cluster = infos[i].cluster;
+    }
+  }
+
+  CHECK(l.runs.push(TextRun{.first       = first,
+                            .count       = count,
+                            .font        = font,
+                            .first_glyph = first_glyph,
+                            .num_glyphs  = num_glyphs,
+                            .advance     = advance,
+                            .direction   = direction,
+                            .paragraph   = paragraph,
+                            .breakable   = breakable}));
+}
+
 void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 {
-  CHECK(block.text.size() < I32_MAX);
-  CHECK(is_segments_valid(to_span(block.segments), (u32) block.text.size()));
+  u32 const text_size = (u32) block.text.size();
+  CHECK(block.text.size() <= I32_MAX);
+  CHECK(block.fonts.size() <= U16_MAX);
+  CHECK(block.runs.size() == block.fonts.size());
+
+  CHECK(layout.segments.resize_defaulted(block.text.size()));
+  Span segments = to_span(layout.segments);
+
+  for (TextSegment &s : segments)
+  {
+    s = TextSegment{};
+  }
+
+  {
+    u32 run_begin = 0;
+    for (u32 irun = 0; irun < (u32) block.runs.size(); irun++)
+    {
+      u32 const run_size = block.runs[irun];
+      CHECK(run_begin < block.text.size());
+      CHECK((run_begin + run_size) <= block.text.size());
+      for (u32 i = run_begin; i < run_begin + run_size; i++)
+      {
+        segments[i].font = irun;
+      }
+      run_begin += run_size;
+    }
+  }
 
   layout.max_width = max_width;
   layout.extent    = Vec2{0, 0};
@@ -218,43 +282,62 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
   SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
                                  .stringBuffer   = (void *) block.text.data(),
-                                 .stringLength   = (u32) block.text.size()};
+                                 .stringLength   = text_size};
   SBAlgorithmRef      algorithm = SBAlgorithmCreate(&codepoints);
   CHECK(algorithm != nullptr);
   defer algorithm_del{[&] { SBAlgorithmRelease(algorithm); }};
 
-  CHECK(layout.segments.resize_defaulted(block.text.size()));
+  segment_paragraphs(block.text, segments);
+  segment_scripts(block.text, segments);
+  segment_directions(block.text, algorithm, block.direction, segments);
+  segment_breakpoints(block.text, max_width, segments);
 
-  for (TextSegment &s : layout.segments)
+  for (u32 i = 0; i < text_size;)
   {
-    s = TextSegment{};
+    u32                begin   = i++;
+    TextSegment const &segment = segments[begin];
+    while (i < text_size && segment.font == segments[i].font &&
+           segment.script == segments[i].script && !segment.paragraph &&
+           segment.direction == segments[i].direction && segment.breakable)
+    {
+      i++;
+    }
+
+    FontStyle const &s = block.fonts[segment.font];
+    FontImpl        *f = (FontImpl *) s.font;
+
+    Span<hb_glyph_info_t const>     infos;
+    Span<hb_glyph_position_t const> positions;
+    shape(f->hb_font, buffer, block.text, begin, i - begin,
+          hb_script_from_iso15924_tag(
+              SBScriptGetOpenTypeTag(SBScript{(u8) segment.script})),
+          (segment.direction == TextDirection::LeftToRight) ? HB_DIRECTION_LTR :
+                                                              HB_DIRECTION_RTL,
+          language, block.use_kerning, block.use_ligatures, infos, positions);
+
+    insert_run(layout, s, begin, i - begin, segment.font, segment.direction,
+               segment.paragraph, segment.breakable, infos, positions);
   }
 
-  segment_paragraphs(block.text, layout.segments);
-  segment_scripts(block.text, layout.segments);
-  segment_directions(block.text, algorithm, block.direction, layout.segments);
-  segment_breakpoints(block.text, max_width, layout.segments);
+  if (max_width != F32_MAX)
+  {
+    u32 const num_runs = (u32) layout.runs.size();
+    for (u32 i = 0; i < num_runs;)
+    {
+      u32 begin = i++;
+      while (i < num_runs && !layout.runs[i].paragraph)
+      {
+        i++;
+      }
+      // run paragraph, now layout...
+    }
+  }
 
-  TextSegment                    *s;
-  Span<hb_glyph_info_t const>     infos;
-  Span<hb_glyph_position_t const> positions;
-  u32                             beg = 0;
-  u32                             end = 0;
-  shape(nullptr, buffer, block.text, beg, end - beg, (hb_script_t) s->script,
-        (s->direction == TextDirection::LeftToRight) ? HB_DIRECTION_LTR :
-                                                       HB_DIRECTION_RTL,
-        language, false, true, infos, positions);
-  // iter runs and shape
+  // go through each run, break into lines as necessary, finished.
   //
-  // for each run: shape, advance
-  //
-  // line breaks?
-  //
-  // break into lines based on max width
+
   // what about visual reordering? of segments on lines?
-
-  // shape each segment independently, break the lines as necessary then
-  // re-order based on base direction and then reverse using segment direction.
+  // visual reordering is done in the renderer
 }
 
 }        // namespace ash

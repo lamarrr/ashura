@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ashura/engine/render_context.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/types.h"
 #include "ashura/std/unicode.h"
@@ -14,12 +15,13 @@ constexpr i32 PT_UNIT = 1024;
 
 enum class FontStatus : u8
 {
-  Loaded          = 0,
-  Loading         = 1,
-  LoadFailed      = 2,
-  DecodingFailed  = 3,
-  FaceNotFound    = 4,
-  OutOfHostMemory = 5
+  Loaded            = 0,
+  Loading           = 1,
+  LoadFailed        = 2,
+  DecodingFailed    = 3,
+  FaceNotFound      = 4,
+  OutOfHostMemory   = 5,
+  OutOfDeviceMemory = 6
 };
 
 /// @param bearing offset from cursor baseline to start drawing glyph from (pt)
@@ -28,10 +30,10 @@ enum class FontStatus : u8
 /// @param extent glyph extent
 struct GlyphMetrics
 {
-  Vec2I bearing = {0, 0};
+  Vec2I bearing = {};
   i32   descent = 0;
   i32   advance = 0;
-  Vec2I extent  = {0, 0};
+  Vec2I extent  = {};
 };
 
 /// @param ascent  maximum ascent of the font's glyphs (pt)
@@ -93,6 +95,7 @@ struct FontInfo
   Vec2U                      extent            = {};
   u32                        num_layers        = 0;
   gfx::Image                 image             = nullptr;
+  gfx::Format                format            = gfx::Format::B8G8R8A8_UNORM;
   Span<gfx::ImageView const> image_views       = {};
   Span<u32 const>            textures          = {};
 };
@@ -115,17 +118,14 @@ struct FontDesc
   Span<UnicodeRange const> ranges      = {};
 };
 
-/// TODO(lamarrr): structure and dependency order between render-context and
-/// this
-struct FontManager
-{
-  virtual void                         init()                          = 0;
-  virtual Font                         add_font(FontInfo const &info)  = 0;
-  virtual Font                         get_font(Span<char const> name) = 0;
-  virtual Result<FontInfo, FontStatus> get_info(Font font)             = 0;
-  virtual void                         uninit()                        = 0;
-};
-
-extern FontManager *font_manager;
+Result<Font, FontStatus> load_font_from_memory(Span<u8 const> encoded_data,
+                                               u32 face, i32 font_height,
+                                               Span<UnicodeRange const> ranges);
+Result<Font, FontStatus> load_font_from_file(Span<char const> path, u32 face,
+                                             i32 font_height,
+                                             Span<UnicodeRange const> ranges);
+void                     destroy_font(Font f);
+void                     upload_font_to_device(Font f, RenderContext &c);
+FontInfo                 get_font_info(Font f);
 
 }        // namespace ash

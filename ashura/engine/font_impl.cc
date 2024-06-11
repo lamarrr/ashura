@@ -1,91 +1,35 @@
 
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #define STBIRDEF extern "C" inline
 
+#include "ashura/engine/font_impl.h"
 #include "ashura/engine/font.h"
-#include "ashura/engine/renderer.h"
 #include "ashura/gfx/image.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/arena_allocator.h"
+#include "ashura/std/error.h"
 #include "ashura/std/io.h"
 #include "ashura/std/range.h"
 #include "ashura/std/types.h"
 #include "ashura/utils/rect_pack.h"
 
-extern "C"
-{
-#include "freetype/freetype.h"
-#include "freetype/ftsystem.h"
-#include "harfbuzz/hb-ft.h"
-#include "harfbuzz/hb.h"
-}
-
 namespace ash
 {
+
+static_assert(PT_UNIT % 64 == 0);
 
 constexpr u32 FONT_ATLAS_EXTENT = 512;
 
 static_assert(FONT_ATLAS_EXTENT != 0);
-static_assert(FONT_ATLAS_EXTENT / 2 >= 16);
+static_assert(FONT_ATLAS_EXTENT > 128);
+static_assert(FONT_ATLAS_EXTENT % 64 == 0);
 static_assert(FONT_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT_2D);
 
-struct FontEntry
-{
-  AllocatorImpl allocator            = default_allocator;
-  char         *postscript_name      = {};        // ASCII. i.e. RobotoBold
-  usize         postscript_name_size = 0;         // ASCII. i.e. RobotoBold
-  char         *family_name          = {};        // ASCII. i.e. Roboto
-  usize         family_name_size     = 0;         // ASCII. i.e. Roboto
-  char         *style_name           = {};        // ASCII. i.e. Bold
-  usize         style_name_size      = 0;         // ASCII. i.e. Bold
-  hb_blob_t    *hb_blob              = nullptr;
-  hb_face_t    *hb_face              = nullptr;
-  hb_font_t    *hb_font              = nullptr;
-  FT_Library    ft_lib               = nullptr;
-  FT_Face       ft_face              = nullptr;
-  u32           selected_face        = 0;
-  char         *font_data            = nullptr;
-  u32           font_data_size       = 0;
-  u32           num_glyphs           = 0;
-  u32           replacement_glyph    = 0;
-  u32           ellipsis_glyph       = 0;
-  u32           space_glyph          = 0;
-
-  // RASTERIZED ATLAS INFO
-  u32             font_height  = 0;
-  Glyph          *glyphs       = nullptr;
-  u8             *atlas        = nullptr;
-  u64             atlas_size   = 0;
-  u32             atlas_extent = 0;
-  u32             num_layers   = 0;
-  f32             ascent       = 0;
-  f32             descent      = 0;
-  f32             advance      = 0;
-  gfx::Image      image        = nullptr;
-  gfx::ImageView *views        = nullptr;
-};
-
-void destroy_font(FontEntry *e, gfx::DeviceImpl const &d)
-{
-  hb_blob_destroy(e->hb_blob);
-  hb_face_destroy(e->hb_face);
-  hb_font_destroy(e->hb_font);
-  FT_Done_Face(e->ft_face);
-  FT_Done_FreeType(e->ft_lib);
-  for (u32 i = 0; i < e->num_layers; i++)
-  {
-    d->destroy_image_view(d.self, e->views[i]);
-  }
-  d->destroy_image(d.self, e->image);
-  e->allocator.ndealloc(e, 1);
-}
-
-bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
+bool load_font_from_memory(FontImpl *f, Span<u8 const> encoded_data,
                            u32 selected_face)
 {
   u32   font_data_size = (u32) encoded_data.size();
   char *font_data;
-  if (!e->allocator.nalloc(font_data_size, &font_data))
+  if (!f->allocator.nalloc(font_data_size, &font_data))
   {
     return false;
   }
@@ -93,7 +37,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   defer font_data_del{[&] {
     if (font_data != nullptr)
     {
-      e->allocator.ndealloc(font_data, font_data_size);
+      f->allocator.ndealloc(font_data, font_data_size);
     }
   }};
 
@@ -192,7 +136,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   if (ft_postscript_name != nullptr)
   {
     postscript_name_size = strlen(ft_postscript_name);
-    if (!e->allocator.nalloc(postscript_name_size, &postscript_name))
+    if (!f->allocator.nalloc(postscript_name_size, &postscript_name))
     {
       return false;
     }
@@ -202,7 +146,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   defer postscript_name_del{[&] {
     if (postscript_name != nullptr)
     {
-      e->allocator.ndealloc(postscript_name, postscript_name_size);
+      f->allocator.ndealloc(postscript_name, postscript_name_size);
     }
   }};
 
@@ -212,7 +156,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   if (ft_face->family_name != nullptr)
   {
     family_name_size = strlen(ft_face->family_name);
-    if (!e->allocator.nalloc(family_name_size, &family_name))
+    if (!f->allocator.nalloc(family_name_size, &family_name))
     {
       return false;
     }
@@ -222,7 +166,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   defer family_name_del{[&] {
     if (family_name != nullptr)
     {
-      e->allocator.ndealloc(family_name, family_name_size);
+      f->allocator.ndealloc(family_name, family_name_size);
     }
   }};
 
@@ -232,7 +176,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   if (ft_face->style_name != nullptr)
   {
     style_name_size = strlen(ft_face->style_name);
-    if (!e->allocator.nalloc(style_name_size, &style_name))
+    if (!f->allocator.nalloc(style_name_size, &style_name))
     {
       return false;
     }
@@ -242,7 +186,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   defer style_name_del{[&] {
     if (style_name != nullptr)
     {
-      e->allocator.ndealloc(style_name, style_name_size);
+      f->allocator.ndealloc(style_name, style_name_size);
     }
   }};
 
@@ -254,24 +198,24 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   u32 const ellipsis_glyph = FT_Get_Char_Index(ft_face, 0x2026);
   u32 const space_glyph    = FT_Get_Char_Index(ft_face, ' ');
 
-  new (e) FontEntry{.postscript_name      = postscript_name,
-                    .postscript_name_size = postscript_name_size,
-                    .family_name          = family_name,
-                    .family_name_size     = family_name_size,
-                    .style_name           = style_name,
-                    .style_name_size      = style_name_size,
-                    .hb_blob              = hb_blob,
-                    .hb_face              = hb_face,
-                    .hb_font              = hb_font,
-                    .ft_lib               = ft_lib,
-                    .ft_face              = ft_face,
-                    .selected_face        = selected_face,
-                    .font_data            = font_data,
-                    .font_data_size       = font_data_size,
-                    .num_glyphs           = num_glyphs,
-                    .replacement_glyph    = replacement_glyph,
-                    .ellipsis_glyph       = ellipsis_glyph,
-                    .space_glyph          = space_glyph};
+  new (f) FontImpl{.postscript_name      = postscript_name,
+                   .postscript_name_size = postscript_name_size,
+                   .family_name          = family_name,
+                   .family_name_size     = family_name_size,
+                   .style_name           = style_name,
+                   .style_name_size      = style_name_size,
+                   .hb_blob              = hb_blob,
+                   .hb_face              = hb_face,
+                   .hb_font              = hb_font,
+                   .ft_lib               = ft_lib,
+                   .ft_face              = ft_face,
+                   .selected_face        = selected_face,
+                   .font_data            = font_data,
+                   .font_data_size       = font_data_size,
+                   .num_glyphs           = num_glyphs,
+                   .replacement_glyph    = replacement_glyph,
+                   .ellipsis_glyph       = ellipsis_glyph,
+                   .space_glyph          = space_glyph};
 
   postscript_name = nullptr;
   family_name     = nullptr;
@@ -286,7 +230,7 @@ bool load_font_from_memory(FontEntry *e, Span<u8 const> encoded_data,
   return true;
 }
 
-bool load_font_from_file(FontEntry *entry, AllocatorImpl const &allocator,
+bool load_font_from_file(FontImpl *f, AllocatorImpl const &allocator,
                          Span<char const> path, u32 selected_face)
 {
   Vec<u8> data{allocator};
@@ -296,18 +240,33 @@ bool load_font_from_file(FontEntry *entry, AllocatorImpl const &allocator,
     return false;
   }
 
-  return load_font_from_memory(entry, to_span(data), selected_face);
+  return load_font_from_memory(f, to_span(data), selected_face);
 }
 
-bool load_font_glyphs(FontEntry &e, Span<UnicodeRange const> ranges)
+void destroy_font(FontImpl *f, gfx::DeviceImpl const &d)
+{
+  hb_blob_destroy(f->hb_blob);
+  hb_face_destroy(f->hb_face);
+  hb_font_destroy(f->hb_font);
+  FT_Done_Face(f->ft_face);
+  FT_Done_FreeType(f->ft_lib);
+  for (u32 i = 0; i < f->num_layers; i++)
+  {
+    d->destroy_image_view(d.self, f->views[i]);
+  }
+  d->destroy_image(d.self, f->image);
+  f->allocator.ndealloc(f, 1);
+}
+
+bool load_font_glyphs(FontImpl &f, Span<UnicodeRange const> ranges)
 {
   // expressed on a EM_UNIT scale
-  i32 const ascent  = e.ft_face->size->metrics.ascender;
-  i32 const descent = e.ft_face->size->metrics.descender;
-  i32 const advance = e.ft_face->size->metrics.max_advance;
+  i32 const ascent  = f.ft_face->size->metrics.ascender;
+  i32 const descent = f.ft_face->size->metrics.descender;
+  i32 const advance = f.ft_face->size->metrics.max_advance;
 
   Glyph *glyphs;
-  if (!e.allocator.nalloc(e.num_glyphs, &glyphs))
+  if (!f.allocator.nalloc(f.num_glyphs, &glyphs))
   {
     return false;
   }
@@ -315,18 +274,18 @@ bool load_font_glyphs(FontEntry &e, Span<UnicodeRange const> ranges)
   defer glyphs_del{[&] {
     if (glyphs != nullptr)
     {
-      e.allocator.ndealloc(glyphs, e.num_glyphs);
+      f.allocator.ndealloc(glyphs, f.num_glyphs);
     }
   }};
 
-  for (u32 glyph_idx = 0; glyph_idx < e.num_glyphs; glyph_idx++)
+  for (u32 glyph_idx = 0; glyph_idx < f.num_glyphs; glyph_idx++)
   {
     bool const is_needed =
-        glyph_idx == e.replacement_glyph ? true : ranges.is_empty();
+        glyph_idx == f.replacement_glyph ? true : ranges.is_empty();
 
-    if (FT_Load_Glyph(e.ft_face, glyph_idx, FT_LOAD_DEFAULT) == 0)
+    if (FT_Load_Glyph(f.ft_face, glyph_idx, FT_LOAD_DEFAULT) == 0)
     {
-      FT_GlyphSlot s = e.ft_face->glyph;
+      FT_GlyphSlot s = f.ft_face->glyph;
 
       GlyphMetrics m;
 
@@ -361,7 +320,7 @@ bool load_font_glyphs(FontEntry &e, Span<UnicodeRange const> ranges)
     // Iterate through all the characters in the font's CMAP that map a unicode
     // codepoint to a glyph
     FT_UInt  glyph_idx    = 0;
-    FT_ULong unicode_char = FT_Get_First_Char(e.ft_face, &glyph_idx);
+    FT_ULong unicode_char = FT_Get_First_Char(f.ft_face, &glyph_idx);
     do
     {
       for (UnicodeRange r : ranges)
@@ -373,36 +332,36 @@ bool load_font_glyphs(FontEntry &e, Span<UnicodeRange const> ranges)
         }
       }
 
-      unicode_char = FT_Get_Next_Char(e.ft_face, unicode_char, &glyph_idx);
+      unicode_char = FT_Get_Next_Char(f.ft_face, unicode_char, &glyph_idx);
     } while (glyph_idx != 0);
   }
 
-  e.glyphs  = glyphs;
-  e.ascent  = ascent;
-  e.descent = descent;
-  e.advance = advance;
+  f.glyphs  = glyphs;
+  f.ascent  = ascent;
+  f.descent = descent;
+  f.advance = advance;
 
   glyphs = nullptr;
   return true;
 }
 
-bool render_font_atlas(FontEntry &e, i32 font_height,
+bool render_font_atlas(FontImpl &f, i32 font_height,
                        Span<UnicodeRange const> ranges,
                        AllocatorImpl const     &allocator)
 {
   CHECK(font_height <= 1024);
   CHECK(font_height <= (FONT_ATLAS_EXTENT / 2 - 16));
 
-  if (FT_Set_Pixel_Sizes(e.ft_face, font_height, font_height) != 0)
+  if (FT_Set_Pixel_Sizes(f.ft_face, font_height, font_height) != 0)
   {
     return false;
   }
 
   u32 num_loaded_glyphs = 0;
 
-  for (u32 i = 0; i < e.num_glyphs; i++)
+  for (u32 i = 0; i < f.num_glyphs; i++)
   {
-    if (e.glyphs[i].is_valid && e.glyphs[i].is_needed)
+    if (f.glyphs[i].is_valid && f.glyphs[i].is_needed)
     {
       num_loaded_glyphs++;
     }
@@ -418,9 +377,9 @@ bool render_font_atlas(FontEntry &e, i32 font_height,
 
     defer rects_del{[&] { allocator.ndealloc(rects, num_loaded_glyphs); }};
 
-    for (u32 glyph_idx = 0, irect = 0; glyph_idx < e.num_glyphs; glyph_idx++)
+    for (u32 glyph_idx = 0, irect = 0; glyph_idx < f.num_glyphs; glyph_idx++)
     {
-      Glyph const &g = e.glyphs[glyph_idx];
+      Glyph const &g = f.glyphs[glyph_idx];
       // only assign packing rects to the valid and needed glyphs
       if (g.is_valid && g.is_needed)
       {
@@ -472,7 +431,7 @@ bool render_font_atlas(FontEntry &e, i32 font_height,
     for (u32 i = 0; i < num_loaded_glyphs; i++)
     {
       rect_pack::rect r = rects[i];
-      Glyph          &g = e.glyphs[r.glyph_index];
+      Glyph          &g = f.glyphs[r.glyph_index];
       g.area.offset.x   = (u32) r.x + 1;
       g.area.offset.y   = (u32) r.y + 1;
       g.layer           = r.layer;
@@ -490,7 +449,7 @@ bool render_font_atlas(FontEntry &e, i32 font_height,
   u64 const atlas_size       = atlas_layer_size * num_layers;
   u8       *atlas;
 
-  if (!e.allocator.nalloc_zeroed(atlas_size, &atlas))
+  if (!f.allocator.nalloc_zeroed(atlas_size, &atlas))
   {
     return false;
   }
@@ -498,22 +457,22 @@ bool render_font_atlas(FontEntry &e, i32 font_height,
   defer atlas_buffer_del{[&] {
     if (atlas != nullptr)
     {
-      e.allocator.ndealloc(atlas, atlas_size);
+      f.allocator.ndealloc(atlas, atlas_size);
     }
   }};
 
-  for (u32 glyph_idx = 0; glyph_idx < e.num_glyphs; glyph_idx++)
+  for (u32 glyph_idx = 0; glyph_idx < f.num_glyphs; glyph_idx++)
   {
-    Glyph const &g = e.glyphs[glyph_idx];
+    Glyph const &g = f.glyphs[glyph_idx];
     if (g.is_valid && g.is_needed)
     {
-      FT_Error ft_error = FT_Load_Glyph(e.ft_face, glyph_idx, FT_LOAD_DEFAULT);
+      FT_Error ft_error = FT_Load_Glyph(f.ft_face, glyph_idx, FT_LOAD_DEFAULT);
       if (ft_error != 0)
       {
         continue;
       }
 
-      FT_GlyphSlot slot = e.ft_face->glyph;
+      FT_GlyphSlot slot = f.ft_face->glyph;
       ft_error          = FT_Render_Glyph(slot, FT_RENDER_MODE_NORMAL);
       if (ft_error != 0)
       {
@@ -542,23 +501,23 @@ bool render_font_atlas(FontEntry &e, i32 font_height,
     }
   }
 
-  e.font_height  = font_height;
-  e.atlas        = atlas;
-  e.atlas_size   = atlas_size;
-  e.atlas_extent = FONT_ATLAS_EXTENT;
-  e.num_layers   = num_layers;
+  f.font_height  = font_height;
+  f.atlas        = atlas;
+  f.atlas_size   = atlas_size;
+  f.atlas_extent = FONT_ATLAS_EXTENT;
+  f.num_layers   = num_layers;
   atlas          = nullptr;
 
   return true;
 }
 
-gfx::Status upload_font_to_gpu(FontEntry &e, RenderContext &c,
-                               AllocatorImpl const &allocator)
+gfx::Status upload_font_to_device(FontImpl &f, RenderContext &c,
+                                  AllocatorImpl const &allocator)
 {
   gfx::CommandEncoderImpl const &enc = c.encoder();
   gfx::DeviceImpl const         &d   = c.device;
-  CHECK(e.num_layers > 0);
-  u32 const  extent = e.atlas_extent;
+  CHECK(f.num_layers > 0);
+  u32 const  extent = f.atlas_extent;
   gfx::Image image =
       d->create_image(d.self,
                       gfx::ImageDesc{.label = "Font Atlas Image"_span,
@@ -571,12 +530,12 @@ gfx::Status upload_font_to_gpu(FontEntry &e, RenderContext &c,
                                      .aspects      = gfx::ImageAspects::Color,
                                      .extent       = {extent, extent, 1},
                                      .mip_levels   = 1,
-                                     .array_layers = e.num_layers,
+                                     .array_layers = f.num_layers,
                                      .sample_count = gfx::SampleCount::Count1})
           .unwrap();
 
   gfx::ImageView *views;
-  if (!e.allocator.nalloc(e.num_layers, &views))
+  if (!f.allocator.nalloc(f.num_layers, &views))
   {
     return gfx::Status::OutOfHostMemory;
   }
@@ -584,11 +543,11 @@ gfx::Status upload_font_to_gpu(FontEntry &e, RenderContext &c,
   defer views_del{[&] {
     if (views != nullptr)
     {
-      e.allocator.ndealloc(views, e.num_layers);
+      f.allocator.ndealloc(views, f.num_layers);
     }
   }};
 
-  for (u32 i = 0; i < e.num_layers; i++)
+  for (u32 i = 0; i < f.num_layers; i++)
   {
     views[i] =
         d->create_image_view(
@@ -608,30 +567,30 @@ gfx::Status upload_font_to_gpu(FontEntry &e, RenderContext &c,
 
   gfx::BufferImageCopy *copies;
 
-  if (!allocator.nalloc(e.num_layers, &copies))
+  if (!allocator.nalloc(f.num_layers, &copies))
   {
     return gfx::Status::OutOfHostMemory;
   }
 
-  defer copies_del{[&] { allocator.ndealloc(copies, e.num_layers); }};
+  defer copies_del{[&] { allocator.ndealloc(copies, f.num_layers); }};
 
   gfx::Buffer staging_buffer =
       d->create_buffer(
            d.self, gfx::BufferDesc{.label = "Font Atlas Staging Buffer"_span,
-                                   .size  = e.atlas_size,
+                                   .size  = f.atlas_size,
                                    .host_mapped = true,
                                    .usage = gfx::BufferUsage::TransferSrc |
                                             gfx::BufferUsage::TransferDst})
           .unwrap();
 
   u8 *map = (u8 *) d->map_buffer_memory(d.self, staging_buffer).unwrap();
-  mem::copy(e.atlas, map, e.atlas_size);
+  mem::copy(f.atlas, map, f.atlas_size);
   d->flush_mapped_buffer_memory(d.self, staging_buffer,
                                 {.offset = 0, .size = gfx::WHOLE_SIZE})
       .unwrap();
   d->unmap_buffer_memory(d.self, staging_buffer);
 
-  for (u32 i = 0; i < e.num_layers; i++)
+  for (u32 i = 0; i < f.num_layers; i++)
   {
     u64 offset = (u64) extent * (u64) extent * 4 * (u64) i;
     copies[i]  = gfx::BufferImageCopy{
@@ -647,9 +606,10 @@ gfx::Status upload_font_to_gpu(FontEntry &e, RenderContext &c,
   }
 
   enc->copy_buffer_to_image(enc.self, staging_buffer, image,
-                            Span{copies, e.num_layers});
+                            Span{copies, f.num_layers});
 
-  e.views = views;
+  f.views  = views;
+  f.format = gfx::Format::B8G8R8A8_UNORM;
   c.release(staging_buffer);
 
   return gfx::Status::Success;
