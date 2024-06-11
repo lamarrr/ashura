@@ -612,6 +612,8 @@ gfx::Status upload_font_to_device(FontImpl &f, RenderContext &c,
   f.format = gfx::Format::B8G8R8A8_UNORM;
   c.release(staging_buffer);
 
+  // TODO(lamarrr): add to descriptor set
+
   return gfx::Status::Success;
 }
 
