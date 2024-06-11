@@ -234,15 +234,15 @@ enum class TextScript : u8
 };
 
 /// @param font font to use to render the text
-/// @param letter_spacing px. additional letter spacing, can be negative
 /// @param word_spacing px. additional word spacing, can be negative
 /// @param line_height relative. multiplied by font_height
+/// @param letter_spacing px
 struct FontStyle
 {
   Font font           = nullptr;
   f32  font_height    = 20;
-  f32  letter_spacing = 0;
   f32  line_height    = 1.2f;
+  f32  letter_spacing = 0;
 };
 
 /// @param shadow_scale relative. multiplied by font_height
@@ -308,27 +308,37 @@ struct alignas(4) TextSegment
   TextDirection direction : 1      = TextDirection::LeftToRight;
 };
 
-struct TextRun
+struct TextRunMetrics
 {
-  u32           first         = 0;
-  u32           count         = 0;
-  u16           font          = 0;
-  u32           first_glyph   = 0;
-  u32           num_glyphs    = 0;
-  f32           advance       = 0;
-  TextDirection direction : 1 = TextDirection::LeftToRight;
-  bool          paragraph : 1 = false;
-  bool          breakable : 1 = false;
+  f32 advance     = 0;
+  f32 ascent      = 0;
+  f32 descent     = 0;
+  f32 font_height = 0;
+  f32 line_height = 0;
 };
 
-/// @param width width of the line
+struct TextRun
+{
+  u32            first          = 0;
+  u32            count          = 0;
+  u16            font           = 0;
+  u32            first_glyph    = 0;
+  u32            num_glyphs     = 0;
+  TextRunMetrics metrics        = {};
+  TextDirection  base_direction = TextDirection::LeftToRight;
+  TextDirection  direction      = TextDirection::LeftToRight;
+  bool           paragraph      = false;
+  bool           breakable      = false;
+};
+
+/// @param advance width of the line
 /// @param ascent maximum ascent of all the runs on the line
 /// @param descent maximum descent of all the runs on the line
 /// @param line_height maximum line height of all the runs on the line
 /// @param base_direction base direction of the line
 struct LineMetrics
 {
-  f32           width          = 0;
+  f32           advance        = 0;
   f32           ascent         = 0;
   f32           descent        = 0;
   f32           line_height    = 0;
@@ -356,9 +366,32 @@ struct TextLayout
   Vec<TextRun>     runs      = {};
   Vec<Line>        lines     = {};
 
-  void clear();
-  void uninit();
-  void reset();
+  void clear()
+  {
+    extent    = Vec2{0, 0};
+    max_width = F32_MAX;
+    segments.clear();
+    glyphs.clear();
+    runs.clear();
+    lines.clear();
+  }
+
+  void uninit()
+  {
+    segments.uninit();
+    glyphs.uninit();
+    runs.uninit();
+    lines.uninit();
+  }
+
+  void reset()
+  {
+    clear();
+    segments.reset();
+    glyphs.reset();
+    runs.reset();
+    lines.reset();
+  }
 };
 
 void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout);

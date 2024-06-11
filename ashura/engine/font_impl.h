@@ -42,9 +42,9 @@ struct FontImpl
   u64             atlas_size   = 0;
   u32             atlas_extent = 0;
   u32             num_layers   = 0;
-  f32             ascent       = 0;
-  f32             descent      = 0;
-  f32             advance      = 0;
+  i32             ascent       = 0;
+  i32             descent      = 0;
+  i32             advance      = 0;
   gfx::Format     format       = gfx::Format::Undefined;
   gfx::Image      image        = nullptr;
   gfx::ImageView *views        = nullptr;

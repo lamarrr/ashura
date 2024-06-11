@@ -26,6 +26,8 @@ struct Framebuffer
 
 using ShaderMap = StrHashMap<gfx::Shader>;
 
+// TODO(lamarrr): add table slot allocator for descriptors
+
 /// @param color_format hdr if hdr supported and required.
 ///
 /// scratch images resized when swapchain extents changes

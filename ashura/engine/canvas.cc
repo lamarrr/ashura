@@ -393,6 +393,7 @@ void Canvas::rrect(ShapeDesc const &desc)
 void Canvas::text_backgrounds_(ShapeDesc const &desc, TextBlock const &block,
                                TextLayout const &layout)
 {
+  // TODO(lamarrr): visual reordering and glyph styling is done in the renderer
   f32       line_top    = 0;
   f32 const x_alignment = (block.x_align + 1) / 2;
   for (LineMetrics const &m : layout.lines)
