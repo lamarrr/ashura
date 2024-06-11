@@ -359,7 +359,7 @@ struct HashMap
   }
 };
 
-template <typename V, typename D = u16>
+template <typename V, typename D = u32>
 using StrHashMap = HashMap<Span<char const>, V, StrHasher, StrEqual, u16>;
 
 }        // namespace ash
