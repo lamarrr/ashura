@@ -325,6 +325,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     for (u32 i = 0; i < num_runs;)
     {
       u32 begin = i++;
+      
       while (i < num_runs && !layout.runs[i].paragraph)
       {
         i++;

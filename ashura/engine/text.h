@@ -304,8 +304,8 @@ struct alignas(4) TextSegment
   TextScript    script             = TextScript::None;
   bool          paragraph : 1      = false;
   bool          breakable : 1      = false;
-  TextDirection base_direction : 3 = TextDirection::LeftToRight;
-  TextDirection direction : 3      = TextDirection::LeftToRight;
+  TextDirection base_direction : 1 = TextDirection::LeftToRight;
+  TextDirection direction : 1      = TextDirection::LeftToRight;
 };
 
 struct TextRun
@@ -316,7 +316,7 @@ struct TextRun
   u32           first_glyph   = 0;
   u32           num_glyphs    = 0;
   f32           advance       = 0;
-  TextDirection direction : 3 = TextDirection::LeftToRight;
+  TextDirection direction : 1 = TextDirection::LeftToRight;
   bool          paragraph : 1 = false;
   bool          breakable : 1 = false;
 };
