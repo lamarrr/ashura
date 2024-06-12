@@ -65,16 +65,28 @@ FetchContent_Declare(
   GIT_TAG 9a4fc81)
 
 FetchContent_Declare(
+  harfbuzz
+  GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
+  GIT_TAG 8.5.0)
+
+FetchContent_Declare(
+  Freetype
+  GIT_REPOSITORY https://gitlab.freedesktop.org/freetype/freetype.git
+  GIT_TAG VER-2-13-2)
+
+FetchContent_Declare(
   SheenBidi
   GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
   GIT_TAG v2.7
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
-find_package(Freetype REQUIRED)
-find_package(harfbuzz REQUIRED)
+FetchContent_Declare(
+  WebP
+  GIT_REPOSITORY https://chromium.googlesource.com/webm/libwebp
+  GIT_TAG 1.4.0)
+
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
-find_package(WebP CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(FFMPEG REQUIRED)
@@ -87,9 +99,13 @@ FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(VulkanGLSL)
+FetchContent_MakeAvailable(harfbuzz)
+FetchContent_MakeAvailable(Freetype)
 FetchContent_MakeAvailable(SheenBidi)
 FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
+FetchContent_MakeAvailable(WebP)
+
 find_package(Vulkan REQUIRED)
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
@@ -179,10 +195,10 @@ target_link_libraries(
   SDL3::SDL3-static
   harfbuzz
   CURL::libcurl
-  Freetype::Freetype
+  freetype
   simdjson::simdjson
-  WebP::webp
-  WebP::webpdecoder
+  webp
+  webpdecoder
   ${JPEG_LIBRARIES}
   PNG::PNG
   ${FFMPEG_LIBRARIES}
