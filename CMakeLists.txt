@@ -36,28 +36,28 @@ include(FetchContent)
 FetchContent_Declare(
   VulkanHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-  GIT_TAG v1.3.280)
+  GIT_TAG vulkan-sdk-1.3.283.0)
 
 FetchContent_Declare(
   VulkanGLSL
   GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
-  GIT_TAG vulkan-sdk-1.3.280.0)
+  GIT_TAG vulkan-sdk-1.3.283.0)
 
 FetchContent_Declare(
   SpirvReflect
   GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
-  GIT_TAG vulkan-sdk-1.3.280.0)
+  GIT_TAG vulkan-sdk-1.3.283.0)
 
 FetchContent_Declare(
   VulkanUtilityLibraries
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
-  GIT_TAG v1.3.280)
+  GIT_TAG vulkan-sdk-1.3.283.0)
 
 FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG eaf8fc2)
+  GIT_TAG v3.1.0)
 
 FetchContent_Declare(
   SDL3
@@ -85,12 +85,16 @@ FetchContent_Declare(
   GIT_REPOSITORY https://chromium.googlesource.com/webm/libwebp
   GIT_TAG 1.4.0)
 
+FetchContent_Declare(
+  CURL
+  GIT_REPOSITORY https://github.com/curl/curl.git
+  GIT_TAG curl-8_8_0)
+
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(FFMPEG REQUIRED)
-find_package(CURL CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
 find_package(Threads REQUIRED)
@@ -105,6 +109,7 @@ FetchContent_MakeAvailable(SheenBidi)
 FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
 FetchContent_MakeAvailable(WebP)
+FetchContent_MakeAvailable(CURL)
 
 find_package(Vulkan REQUIRED)
 
@@ -200,7 +205,7 @@ target_link_libraries(
   webp
   webpdecoder
   ${JPEG_LIBRARIES}
-  PNG::PNG
+  png_static
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
 target_include_directories(

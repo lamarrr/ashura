@@ -6,8 +6,8 @@ extern "C"
 {
 #include "freetype/freetype.h"
 #include "freetype/ftsystem.h"
-#include "harfbuzz/hb-ft.h"
-#include "harfbuzz/hb.h"
+#include "hb-ft.h"
+#include "hb.h"
 }
 
 namespace ash

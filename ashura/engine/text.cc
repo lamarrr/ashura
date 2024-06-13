@@ -8,7 +8,7 @@ extern "C"
 #include "SBLine.h"
 #include "SBParagraph.h"
 #include "SBScriptLocator.h"
-#include "harfbuzz/hb.h"
+#include "hb.h"
 }
 
 namespace ash
