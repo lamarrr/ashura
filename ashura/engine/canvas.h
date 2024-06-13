@@ -92,12 +92,8 @@ struct Path
                            Vec2 cp2, Vec2 cp3);
   static void catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
                           Vec2 cp2, Vec2 cp3);
-
-  /// @param points needs to be normalized to [-1, +1] range
   static void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vtx,
                                  Vec<u32> &idx, f32 thickness);
-
-  /// @param points needs to be normalized to [-1, +1] range
   static void triangulate_ngon(Span<Vec2 const> points, Vec<Vec2> &vtx,
                                Vec<u32> &idx);
 };
@@ -128,26 +124,24 @@ struct Canvas
 
   void rrect(ShapeDesc const &desc);
 
-  void text_backgrounds_(ShapeDesc const &desc, TextBlock const &block,
-                         TextLayout const &layout);
-
-  void text_underlines_(ShapeDesc const &desc, TextBlock const &block,
+  void text_backgrounds(ShapeDesc const &desc, StyledTextBlock const &block,
                         TextLayout const &layout);
 
-  void text_strikethroughs_(ShapeDesc const &desc, TextBlock const &block,
-                            TextLayout const &layout);
+  void text_underlines(ShapeDesc const &desc, StyledTextBlock const &block,
+                       TextLayout const &layout);
 
-  void glyph_shadows_(ShapeDesc const &desc, TextBlock const &block,
-                      TextLayout const &layout);
+  void text_strikethroughs(ShapeDesc const &desc, StyledTextBlock const &block,
+                           TextLayout const &layout);
 
-  void glyphs_(ShapeDesc const &desc, TextBlock const &block,
-               TextLayout const &layout);
+  void glyph_shadows(ShapeDesc const &desc, StyledTextBlock const &block,
+                     TextLayout const &layout);
 
-  /// @brief draw a complex and  layout text with pre-computed layout
-  void text(ShapeDesc const &desc, TextBlock const &block,
+  void glyphs(ShapeDesc const &desc, StyledTextBlock const &block,
+              TextLayout const &layout);
+
+  void text(ShapeDesc const &desc, StyledTextBlock const &block,
             TextLayout const &layout);
 
-  ///@brief convex irregular polygon
   void ngon(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
   void line(ShapeDesc const &desc, Span<Vec2 const> vertices);

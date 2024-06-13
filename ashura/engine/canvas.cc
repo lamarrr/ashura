@@ -390,8 +390,13 @@ void Canvas::rrect(ShapeDesc const &desc)
   }
 }
 
-void Canvas::text_backgrounds_(ShapeDesc const &desc, TextBlock const &block,
-                               TextLayout const &layout)
+template <typename Fn>
+void for_each_run(Fn &&fn, StyledTextBlock const &block,
+                  TextLayout const &layout);
+
+void Canvas::text_backgrounds(ShapeDesc const       &desc,
+                              StyledTextBlock const &block,
+                              TextLayout const      &layout)
 {
   // TODO(lamarrr): visual reordering and glyph styling is done in the renderer
   f32       line_top    = 0;
@@ -433,8 +438,9 @@ void Canvas::text_backgrounds_(ShapeDesc const &desc, TextBlock const &block,
   }
 }
 
-void Canvas::text_underlines_(ShapeDesc const &desc, TextBlock const &block,
-                              TextLayout const &layout)
+void Canvas::text_underlines(ShapeDesc const       &desc,
+                             StyledTextBlock const &block,
+                             TextLayout const      &layout)
 {
   f32       line_top    = 0;
   f32 const x_alignment = (block.x_align + 1) / 2;
@@ -479,8 +485,9 @@ void Canvas::text_underlines_(ShapeDesc const &desc, TextBlock const &block,
   }
 }
 
-void Canvas::text_strikethroughs_(ShapeDesc const &desc, TextBlock const &block,
-                                  TextLayout const &layout)
+void Canvas::text_strikethroughs(ShapeDesc const       &desc,
+                                 StyledTextBlock const &block,
+                                 TextLayout const      &layout)
 {
   f32       line_top    = 0;
   f32 const x_alignment = (block.x_align + 1) / 2;
@@ -525,8 +532,8 @@ void Canvas::text_strikethroughs_(ShapeDesc const &desc, TextBlock const &block,
   }
 }
 
-void Canvas::glyph_shadows_(ShapeDesc const &desc, TextBlock const &block,
-                            TextLayout const &layout)
+void Canvas::glyph_shadows(ShapeDesc const &desc, StyledTextBlock const &block,
+                           TextLayout const &layout)
 {
   f32       line_top    = 0;
   f32 const x_alignment = (block.x_align + 1) / 2;
@@ -596,8 +603,8 @@ void Canvas::glyph_shadows_(ShapeDesc const &desc, TextBlock const &block,
   }
 }
 
-void Canvas::glyphs_(ShapeDesc const &desc, TextBlock const &block,
-                     TextLayout const &layout)
+void Canvas::glyphs(ShapeDesc const &desc, StyledTextBlock const &block,
+                    TextLayout const &layout)
 {
   f32       line_top    = 0;
   f32 const x_alignment = (block.x_align + 1) / 2;
@@ -666,14 +673,14 @@ void Canvas::glyphs_(ShapeDesc const &desc, TextBlock const &block,
   }
 }
 
-void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
+void Canvas::text(ShapeDesc const &desc, StyledTextBlock const &block,
                   TextLayout const &layout)
 {
-  text_backgrounds_(desc, block, layout);
-  text_underlines_(desc, block, layout);
-  text_strikethroughs_(desc, block, layout);
-  glyph_shadows_(desc, block, layout);
-  glyphs_(desc, block, layout);
+  text_backgrounds(desc, block, layout);
+  text_underlines(desc, block, layout);
+  text_strikethroughs(desc, block, layout);
+  glyph_shadows(desc, block, layout);
+  glyphs(desc, block, layout);
 }
 
 void Canvas::ngon(ShapeDesc const &desc, Span<Vec2 const> points)
@@ -742,6 +749,10 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
   {
     pass_runs[pass_runs.size() - 1].count++;
   }
+}
+
+void Canvas::blur(ShapeDesc const &desc)
+{
 }
 
 void Canvas::custom(ShapeDesc const &desc, CustomCanvasPassInfo const &pass)

@@ -345,6 +345,8 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     f32                 descent        = 0;
     f32                 line_height    = 0;
 
+    // TODO(lamarrr): implement text overflow
+
     while (i < num_runs && !layout.runs[i].paragraph &&
            !(layout.runs[i].breakable &&
              (layout.runs[i].metrics.advance + advance) > max_width))

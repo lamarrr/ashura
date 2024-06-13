@@ -8,9 +8,8 @@
 namespace ash
 {
 
-enum class TextOverflow : u8
+enum class TextWrap : u8
 {
-  None     = 0,
   Wrap     = 1,
   Ellipsis = 2
 };
@@ -260,6 +259,15 @@ struct TextStyle
   Vec4 shadow_color[4]         = {};
 };
 
+/// @param first first codepoint in the text
+/// @param count last codepoint in the text
+struct TextStyleRun
+{
+  u32 first = 0;
+  u32 count = 0;
+  u32 style = 0;
+};
+
 /// @param text utf-32-encoded text
 /// @param runs length of each text run
 /// @param fonts font style of each text run
@@ -276,9 +284,17 @@ struct TextBlock
   Span<FontStyle const> fonts         = {};
   f32                   x_align       = -1;
   TextDirection         direction     = TextDirection::LeftToRight;
+  TextWrap              wrap          = TextWrap::Wrap;
   Span<char const>      language      = {};
   bool                  use_kerning   = true;
   bool                  use_ligatures = true;
+};
+
+struct StyledTextBlock
+{
+  TextBlock                block  = {};
+  Span<TextStyle const>    styles = {};
+  Span<TextStyleRun const> runs   = {};
 };
 
 /// @param cluster unicode grapheme cluster within the text run

@@ -260,7 +260,7 @@ void destroy_font(FontImpl *f, gfx::DeviceImpl const &d)
 
 bool load_font_glyphs(FontImpl &f, Span<UnicodeRange const> ranges)
 {
-  // expressed on a EM_UNIT scale
+  // expressed on a PT_UNIT scale
   i32 const ascent  = f.ft_face->size->metrics.ascender;
   i32 const descent = f.ft_face->size->metrics.descender;
   i32 const advance = f.ft_face->size->metrics.max_advance;
@@ -289,7 +289,7 @@ bool load_font_glyphs(FontImpl &f, Span<UnicodeRange const> ranges)
 
       GlyphMetrics m;
 
-      // expressed on a EM_UNIT scale
+      // expressed on a PT_UNIT scale
       m.bearing.x = s->metrics.horiBearingX;
       m.bearing.y = s->metrics.horiBearingY;
       m.advance   = s->metrics.horiAdvance;
