@@ -92,7 +92,7 @@ FetchContent_Declare(
 
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
-find_package(JPEG REQUIRED)
+find_package(libjpeg-turbo REQUIRED)
 find_package(PNG REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
@@ -177,7 +177,7 @@ add_library(
   ashura_engine
   ashura/engine/font_impl.cc
   ashura/engine/text.cc
-  ashura/engine/canvas.cc
+  # ashura/engine/canvas.cc
   ashura/engine/image_decoder.cc
   ashura/engine/shader.cc
   ashura/engine/window.cc
@@ -188,6 +188,7 @@ add_library(
   ashura/engine/render_context.cc
   ashura/engine/passes/bloom.cc
   ashura/engine/passes/blur.cc
+  ashura/engine/passes/ngon.cc
   ashura/engine/passes/pbr.cc
   ashura/engine/passes/rrect.cc)
 target_link_libraries(
@@ -204,10 +205,11 @@ target_link_libraries(
   simdjson::simdjson
   webp
   webpdecoder
-  ${JPEG_LIBRARIES}
-  png_static
+  $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
+  PNG::PNG
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
+
 target_include_directories(
   ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
                        ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
