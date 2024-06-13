@@ -25,7 +25,7 @@ int main(int, char **)
   CHECK(win_sys != nullptr);
 
   gfx::InstanceImpl instance =
-      gfx::create_vulkan_instance(heap_allocator, false).unwrap();
+      gfx::create_vulkan_instance(heap_allocator, true).unwrap();
 
   defer  instance_del{[&] { instance->destroy(instance.self); }};
   Window win = win_sys->create_window(instance, "Main"_span).unwrap();
@@ -62,19 +62,19 @@ int main(int, char **)
   CHECK(pack_shaders(
             spirvs,
             to_span<ShaderUnit>(
-                {{.id = "ConvexPoly:FS"_span, .file = "convex_poly.frag"_span},
-                 {.id = "ConvexPoly:VS"_span, .file = "convex_poly.vert"_span},
-                 {.id       = "KawaseBlur_UpSample:FS"_span,
-                  .file     = "kawase_blur.frag"_span,
+                {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
+                 {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
+                 {.id       = "Blur_UpSample:FS"_span,
+                  .file     = "blur.frag"_span,
                   .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "KawaseBlur_UpSample:VS"_span,
-                  .file     = "kawase_blur.vert"_span,
+                 {.id       = "Blur_UpSample:VS"_span,
+                  .file     = "blur.vert"_span,
                   .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "KawaseBlur_DownSample:FS"_span,
-                  .file     = "kawase_blur.frag"_span,
+                 {.id       = "Blur_DownSample:FS"_span,
+                  .file     = "blur.frag"_span,
                   .preamble = "#define UPSAMPLE 0"_span},
-                 {.id       = "KawaseBlur_DownSample:VS"_span,
-                  .file     = "kawase_blur.vert"_span,
+                 {.id       = "Blur_DownSample:VS"_span,
+                  .file     = "blur.vert"_span,
                   .preamble = "#define UPSAMPLE 0"_span},
                  {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
                  {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
