@@ -80,7 +80,7 @@ int main(int, char **)
                  {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
                  {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
                  {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-            "/home/basitayantunde/Documents/ashura/ashura/shaders"_span) ==
+            R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders)"_span) ==
         ShaderCompileError::None);
 
   StrHashMap<gfx::Shader> shaders;

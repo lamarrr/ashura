@@ -398,43 +398,49 @@ void Canvas::text_backgrounds(ShapeDesc const       &desc,
                               StyledTextBlock const &block,
                               TextLayout const      &layout)
 {
-  // TODO(lamarrr): visual reordering and glyph styling is done in the renderer
-  f32       line_top    = 0;
-  f32 const x_alignment = (block.x_align + 1) / 2;
-  for (LineMetrics const &m : layout.lines)
+  f32 baseline = 0;
+  for (Line const &l : layout.lines)
   {
-    f32 const x_dist = layout.span.x - m.width;
-    f32 x_cursor = x_dist * ((m.base_direction == TextDirection::LeftToRight) ?
-                                 x_alignment :
-                                 (1 - x_alignment));
-
-    for (TextRunSegment const &s :
-         layout.run_segments.slice(m.first_segment, m.num_segments))
+    baseline += l.metrics.line_height;
+    f32 const line_extent_y = l.metrics.ascent + l.metrics.descent;
+    // f32 const l_y = baseline - l.metrics.advance;
+    f32 const l_y    = 0;
+    f32       cursor = 0;
+    for (u32 r = 0; r < l.num_runs;)
     {
-      TextStyle const &style = s.style >= block.styles.size() ?
-                                   block.default_style :
-                                   block.styles[s.style];
-      Vec2             offset{x_cursor, line_top};
-      Vec2             extent{s.width, m.line_height};
-      Vec2 center = desc.center - layout.span / 2 + offset + extent / 2;
+      u32 const      first       = r++;
+      TextRun const &first_run   = layout.runs[l.first_run + first];
+      f32            dir_advance = 0;
 
-      rect(ShapeDesc{
-          .center       = center,
-          .extent       = extent,
-          .border_radii = {},
-          .stroke       = 0,
-          .tint         = {style.background_color[0], style.background_color[1],
-                           style.background_color[2], style.background_color[3]},
-          .texture      = 0,
-          .uv           = {},
-          .transform    = desc.transform,
-          .scissor_offset = desc.scissor_offset,
-          .scissor_extent = desc.scissor_extent});
+      while ((r < l.num_runs) &&
+             layout.runs[l.first_run + r].direction == first_run.direction)
+      {
+        TextRun const &run = layout.runs[l.first_run + r];
+        dir_advance += pt_to_px(run.metrics.advance, run.font_height);
+        r++;
+      }
 
-      x_cursor += s.width;
+      f32 advance =
+          (first_run.direction == TextDirection::LeftToRight) ? 0 : dir_advance;
+      for (u32 i = first; i < r; i++)
+      {
+        TextRun const &run      = layout.runs[l.first_run + i];
+        f32            g_cursor = 0;
+        for (u32 g = 0; g < run.num_glyphs; g++)
+        {
+          GlyphShape const &sh  = layout.glyphs[run.first_glyph + g];
+          f32 const         g_x = cursor + advance + g_cursor;
+          // l_y;
+          g_cursor += pt_to_px(sh.advance.x, run.font_height);
+        }
+
+        advance += (first_run.direction == TextDirection::LeftToRight) ?
+                       run.metrics.advance :
+                       -run.metrics.advance;
+      }
+
+      cursor += dir_advance;
     }
-
-    line_top += m.line_height;
   }
 }
 

@@ -13,6 +13,11 @@ typedef struct Font_T *Font;
 // 1024px per pt.
 constexpr i32 PT_UNIT = 1024;
 
+constexpr f32 pt_to_px(i32 pt, f32 base)
+{
+  return pt / (f32) PT_UNIT * base;
+}
+
 enum class FontStatus : u8
 {
   Loaded            = 0,
@@ -103,7 +108,8 @@ struct FontInfo
 /// @param name name to use in font matching
 /// @param path local file system path of the typeface resource
 /// @param face font face to use
-/// @param font_height the height at which the texture should be cached at (px)
+/// @param font_height the font height at which the texture should be cached at
+/// (px)
 /// @param ranges if set only the specified unicode ranges will be loaded,
 /// otherwise all glyphs in the font will be loaded. Note that this
 /// means during font ligature glyph substitution where scripts

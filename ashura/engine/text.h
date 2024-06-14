@@ -238,10 +238,9 @@ enum class TextScript : u8
 /// @param letter_spacing px
 struct FontStyle
 {
-  Font font           = nullptr;
-  f32  font_height    = 20;
-  f32  line_height    = 1.2f;
-  f32  letter_spacing = 0;
+  Font font        = nullptr;
+  f32  font_height = 20;
+  f32  line_height = 1.2f;
 };
 
 /// @param shadow_scale relative. multiplied by font_height
@@ -282,7 +281,6 @@ struct TextBlock
   Span<u32 const>       text          = {};
   Span<u32 const>       runs          = {};
   Span<FontStyle const> fonts         = {};
-  f32                   x_align       = -1;
   TextDirection         direction     = TextDirection::LeftToRight;
   TextWrap              wrap          = TextWrap::Wrap;
   Span<char const>      language      = {};
@@ -295,6 +293,7 @@ struct StyledTextBlock
   TextBlock                block  = {};
   Span<TextStyle const>    styles = {};
   Span<TextStyleRun const> runs   = {};
+  f32                      align  = 0;
 };
 
 /// @param cluster unicode grapheme cluster within the text run
@@ -326,11 +325,9 @@ struct alignas(4) TextSegment
 
 struct TextRunMetrics
 {
-  f32 advance     = 0;
-  f32 ascent      = 0;
-  f32 descent     = 0;
-  f32 font_height = 0;
-  f32 line_height = 0;
+  i32 advance = 0;
+  i32 ascent  = 0;
+  i32 descent = 0;
 };
 
 struct TextRun
@@ -338,6 +335,8 @@ struct TextRun
   u32            first          = 0;
   u32            count          = 0;
   u16            font           = 0;
+  f32            font_height    = 0;
+  f32            line_height    = 0;
   u32            first_glyph    = 0;
   u32            num_glyphs     = 0;
   TextRunMetrics metrics        = {};
@@ -363,9 +362,9 @@ struct LineMetrics
 
 struct Line
 {
-  LineMetrics metrics   = {};
   u32         first_run = 0;
   u32         num_runs  = 0;
+  LineMetrics metrics   = {};
   bool        paragraph = false;
 };
 

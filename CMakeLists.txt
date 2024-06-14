@@ -177,7 +177,7 @@ add_library(
   ashura_engine
   ashura/engine/font_impl.cc
   ashura/engine/text.cc
-  # ashura/engine/canvas.cc
+  ashura/engine/canvas.cc
   ashura/engine/image_decoder.cc
   ashura/engine/shader.cc
   ashura/engine/window.cc

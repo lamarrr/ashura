@@ -131,8 +131,8 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   recreate_framebuffers(p_initial_extent);
 }
 
-void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
-                         gfx::Extent new_extent)
+static void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
+                                gfx::Extent new_extent)
 {
   ctx.release(attachment.color_image);
   ctx.release(attachment.color_image_view);
@@ -264,7 +264,7 @@ void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
                        .binding = 0,
                        .element = 0,
                        .images  = to_span({gfx::ImageBinding{
-                            .sampler    = nullptr,
+                            .sampler    = framebuffer_sampler,
                             .image_view = framebuffer.color_image_view}})});
   device->update_descriptor_set(
       device.self,
@@ -273,7 +273,7 @@ void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
           .binding = 0,
           .element = 0,
           .images  = to_span({gfx::ImageBinding{
-               .sampler    = nullptr,
+               .sampler    = framebuffer_sampler,
                .image_view = scratch_framebuffer.color_image_view}})});
 }
 
@@ -371,8 +371,8 @@ void RenderContext::release(gfx::Sampler sampler)
       gfx::Object{.sampler = sampler, .type = gfx::ObjectType::Sampler}));
 }
 
-void destroy_temporal_objects(gfx::DeviceImpl const  &d,
-                              Span<gfx::Object const> objects)
+static void destroy_objects(gfx::DeviceImpl const  &d,
+                            Span<gfx::Object const> objects)
 {
   for (u32 i = 0; i < (u32) objects.size(); i++)
   {
@@ -408,14 +408,14 @@ void RenderContext::idle_purge()
   device->wait_idle(device.self).unwrap();
   for (u32 i = 0; i < buffering; i++)
   {
-    destroy_temporal_objects(device, to_span(released_objects[i]));
+    destroy_objects(device, to_span(released_objects[i]));
   }
 }
 
 void RenderContext::begin_frame(gfx::Swapchain swapchain)
 {
   device->begin_frame(device.self, swapchain).unwrap();
-  destroy_temporal_objects(device, to_span(released_objects[ring_index()]));
+  destroy_objects(device, to_span(released_objects[ring_index()]));
   released_objects[ring_index()].clear();
 }
 
