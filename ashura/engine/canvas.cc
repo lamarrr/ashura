@@ -412,7 +412,7 @@ void Canvas::text_backgrounds(ShapeDesc const       &desc,
         (m.base_direction == TextDirection::LeftToRight) ?
             space_align(spacing, block.alignment) :
             space_align(spacing, -block.alignment);
-    f32 cursor = spacing;
+    f32 cursor = aligned_spacing;
     for (u32 r = 0; r < l.num_runs;)
     {
       u32 const      first       = r++;
