@@ -419,7 +419,7 @@ void Canvas::text_backgrounds(ShapeDesc const       &desc,
       TextRun const &first_run   = layout.runs[l.first_run + first];
       f32            dir_advance = 0;
 
-      while ((r < l.num_runs) &&
+      while (r < l.num_runs &&
              layout.runs[l.first_run + r].direction == first_run.direction)
       {
         TextRun const &run = layout.runs[l.first_run + r];
