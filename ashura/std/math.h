@@ -579,6 +579,15 @@ inline f32 grid_snap(f32 a, f32 unit)
   return floorf((a + unit / 2) / unit) * unit;
 }
 
+/// @brief get the aligned offset relative to a fixed amount of space
+/// @param space the space to align to
+/// @param alignment the alignment to align to. [-1, +1]
+/// @return
+constexpr f32 space_align(f32 space, f32 alignment)
+{
+  return (alignment + 1) / 2 * space;
+}
+
 /// @param x_mag The horizontal magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
 /// @param y_mag The vertical magnification of the view. This value

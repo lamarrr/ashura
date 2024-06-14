@@ -288,12 +288,15 @@ struct TextBlock
   bool                  use_ligatures = true;
 };
 
+/// @param align_width width to align the text block to.
+/// @param alignment alignment of the text to its base direction. [-1, +1]
 struct StyledTextBlock
 {
-  TextBlock                block  = {};
-  Span<TextStyle const>    styles = {};
-  Span<TextStyleRun const> runs   = {};
-  f32                      align  = 0;
+  TextBlock                block       = {};
+  Span<TextStyle const>    styles      = {};
+  Span<TextStyleRun const> runs        = {};
+  f32                      alignment   = 0;
+  f32                      align_width = 0;
 };
 
 /// @param cluster unicode grapheme cluster within the text run
@@ -330,6 +333,12 @@ struct TextRunMetrics
   i32 descent = 0;
 };
 
+/// @param first index of first codepoint in the source text
+/// @param count number of codepoints the run spans in the source text
+/// @param font font-style in the list of specified fonts
+/// @param paragraph if the run is at the beginning of a paragraph
+/// @param breakable if the run represents a break-opportunity as constrained by
+/// the max-width.
 struct TextRun
 {
   u32            first          = 0;
@@ -346,20 +355,22 @@ struct TextRun
   bool           breakable      = false;
 };
 
-/// @param advance width of the line
+/// @param line_height maximum line height of all the runs on the line
 /// @param ascent maximum ascent of all the runs on the line
 /// @param descent maximum descent of all the runs on the line
-/// @param line_height maximum line height of all the runs on the line
+/// @param width width of the line
 /// @param base_direction base direction of the line
 struct LineMetrics
 {
-  f32           advance        = 0;
+  f32           line_height    = 0;
   f32           ascent         = 0;
   f32           descent        = 0;
-  f32           line_height    = 0;
+  f32           width          = 0;
   TextDirection base_direction = TextDirection::LeftToRight;
 };
 
+/// @brief
+/// @param paragraph if the new line is a new paragraph
 struct Line
 {
   u32         first_run = 0;
@@ -369,9 +380,13 @@ struct Line
 };
 
 /// @brief cached/pre-computed text layout
-/// @param scale scale of the text block relative to the size of the
-/// pre-rendered text
+/// @param max_width maximum width the text was laid out with
+/// @param extent current extent of the text block after layout
 /// @param segments each segment matches a codepoint in the source text.
+/// @param glyphs laid-out glyphs for all the text. it is re-usable and
+/// independent of the font style as long as the font matches.
+/// @param lines lines in the text as constrained by max_width and paragraphs
+/// found in the text.
 struct TextLayout
 {
   f32              max_width = 0;

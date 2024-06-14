@@ -123,6 +123,8 @@ struct Canvas
 
   void rrect(ShapeDesc const &desc);
 
+  void nine_slice();
+
   void text_backgrounds(ShapeDesc const &desc, StyledTextBlock const &block,
                         TextLayout const &layout);
 

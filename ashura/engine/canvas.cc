@@ -1,5 +1,7 @@
 #include "ashura/engine/canvas.h"
+#include "ashura/engine/font_impl.h"
 #include "ashura/engine/renderer.h"
+#include "ashura/std/math.h"
 
 namespace ash
 {
@@ -398,14 +400,19 @@ void Canvas::text_backgrounds(ShapeDesc const       &desc,
                               StyledTextBlock const &block,
                               TextLayout const      &layout)
 {
-  f32 baseline = 0;
+  f32 line_y = 0;
   for (Line const &l : layout.lines)
   {
-    baseline += l.metrics.line_height;
-    f32 const line_extent_y = l.metrics.ascent + l.metrics.descent;
-    // f32 const l_y = baseline - l.metrics.advance;
-    f32 const l_y    = 0;
-    f32       cursor = 0;
+    LineMetrics const &m = l.metrics;
+    line_y += m.line_height;
+    f32 const padding  = max(m.line_height - (m.ascent + m.descent), 0.0f);
+    f32 const baseline = line_y - padding / 2;
+    f32 const spacing  = min(layout.extent.x, block.align_width) - m.width;
+    f32 const aligned_spacing =
+        (m.base_direction == TextDirection::LeftToRight) ?
+            space_align(spacing, block.alignment) :
+            space_align(spacing, -block.alignment);
+    f32 cursor = spacing;
     for (u32 r = 0; r < l.num_runs;)
     {
       u32 const      first       = r++;
@@ -428,9 +435,9 @@ void Canvas::text_backgrounds(ShapeDesc const       &desc,
         f32            g_cursor = 0;
         for (u32 g = 0; g < run.num_glyphs; g++)
         {
-          GlyphShape const &sh  = layout.glyphs[run.first_glyph + g];
-          f32 const         g_x = cursor + advance + g_cursor;
-          // l_y;
+          GlyphShape const &sh = layout.glyphs[run.first_glyph + g];
+          f32 const         cx = cursor + advance + g_cursor;
+          // draw_glyph(offset, [cx, baseline])
           g_cursor += pt_to_px(sh.advance.x, run.font_height);
         }
 

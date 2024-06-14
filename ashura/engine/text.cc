@@ -321,7 +321,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     u32 const           first          = i++;
     TextDirection const base_direction = layout.runs[first].base_direction;
     bool const          paragraph      = layout.runs[first].paragraph;
-    f32                 advance        = 0;
+    f32                 width          = 0;
     f32                 ascent         = 0;
     f32                 descent        = 0;
     f32                 line_height    = 0;
@@ -330,11 +330,11 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
     while (i < num_runs && !layout.runs[i].paragraph &&
            !(layout.runs[i].breakable &&
-             (layout.runs[i].metrics.advance + advance) > max_width))
+             (layout.runs[i].metrics.advance + width) > max_width))
     {
       TextRun const        &r = layout.runs[i];
       TextRunMetrics const &m = r.metrics;
-      advance += pt_to_px(m.advance, r.font_height);
+      width += pt_to_px(m.advance, r.font_height);
       ascent      = max(ascent, pt_to_px(m.ascent, r.font_height));
       descent     = max(descent, pt_to_px(m.descent, r.font_height));
       line_height = max(line_height, r.line_height);
@@ -343,10 +343,10 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
     Line line{.first_run = first,
               .num_runs  = (i - first),
-              .metrics   = LineMetrics{.advance        = advance,
+              .metrics   = LineMetrics{.line_height    = line_height,
                                        .ascent         = ascent,
                                        .descent        = descent,
-                                       .line_height    = line_height,
+                                       .width          = width,
                                        .base_direction = base_direction},
               .paragraph = paragraph};
 

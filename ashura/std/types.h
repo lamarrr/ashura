@@ -2728,9 +2728,24 @@ struct Span
   }
 };
 
-constexpr Span<char const> operator""_span(char const *lit, usize len)
+constexpr Span<char const> operator""_span(char const *lit, usize n)
 {
-  return Span<char const>{lit, len};
+  return Span<char const>{lit, n};
+}
+
+constexpr Span<char8_t const> operator""_span(char8_t const *lit, usize n)
+{
+  return Span<char8_t const>{lit, n};
+}
+
+constexpr Span<char16_t const> operator""_span(char16_t const *lit, usize n)
+{
+  return Span<char16_t const>{lit, n};
+}
+
+constexpr Span<char32_t const> operator""_span(char32_t const *lit, usize n)
+{
+  return Span<char32_t const>{lit, n};
 }
 
 /// @param index max of Rep::NUM_BITS - 1
