@@ -392,63 +392,10 @@ void Canvas::rrect(ShapeDesc const &desc)
   }
 }
 
-template <typename Fn>
-void for_each_run(Fn &&fn, StyledTextBlock const &block,
-                  TextLayout const &layout);
-
 void Canvas::text_backgrounds(ShapeDesc const       &desc,
                               StyledTextBlock const &block,
                               TextLayout const      &layout)
 {
-  f32 line_y = 0;
-  for (Line const &l : layout.lines)
-  {
-    LineMetrics const &m = l.metrics;
-    line_y += m.line_height;
-    f32 const padding  = max(m.line_height - (m.ascent + m.descent), 0.0f);
-    f32 const baseline = line_y - padding / 2;
-    f32 const spacing  = min(layout.extent.x, block.align_width) - m.width;
-    f32 const aligned_spacing =
-        (m.base_direction == TextDirection::LeftToRight) ?
-            space_align(spacing, block.alignment) :
-            space_align(spacing, -block.alignment);
-    f32 cursor = aligned_spacing;
-    for (u32 r = 0; r < l.num_runs;)
-    {
-      u32 const      first       = r++;
-      TextRun const &first_run   = layout.runs[l.first_run + first];
-      f32            dir_advance = 0;
-
-      while (r < l.num_runs &&
-             layout.runs[l.first_run + r].direction == first_run.direction)
-      {
-        TextRun const &run = layout.runs[l.first_run + r];
-        dir_advance += pt_to_px(run.metrics.advance, run.font_height);
-        r++;
-      }
-
-      f32 advance =
-          (first_run.direction == TextDirection::LeftToRight) ? 0 : dir_advance;
-      for (u32 i = first; i < r; i++)
-      {
-        TextRun const &run      = layout.runs[l.first_run + i];
-        f32            g_cursor = 0;
-        for (u32 g = 0; g < run.num_glyphs; g++)
-        {
-          GlyphShape const &sh = layout.glyphs[run.first_glyph + g];
-          f32 const         cx = cursor + advance + g_cursor;
-          // draw_glyph(offset, [cx, baseline])
-          g_cursor += pt_to_px(sh.advance.x, run.font_height);
-        }
-
-        advance += (first_run.direction == TextDirection::LeftToRight) ?
-                       run.metrics.advance :
-                       -run.metrics.advance;
-      }
-
-      cursor += dir_advance;
-    }
-  }
 }
 
 void Canvas::text_underlines(ShapeDesc const       &desc,
@@ -689,11 +636,56 @@ void Canvas::glyphs(ShapeDesc const &desc, StyledTextBlock const &block,
 void Canvas::text(ShapeDesc const &desc, StyledTextBlock const &block,
                   TextLayout const &layout)
 {
-  text_backgrounds(desc, block, layout);
-  text_underlines(desc, block, layout);
-  text_strikethroughs(desc, block, layout);
-  glyph_shadows(desc, block, layout);
-  glyphs(desc, block, layout);
+  f32 line_y = 0;
+  for (Line const &l : layout.lines)
+  {
+    LineMetrics const &m = l.metrics;
+    line_y += m.line_height;
+    f32 const padding  = max(m.line_height - (m.ascent + m.descent), 0.0f);
+    f32 const baseline = line_y - padding / 2;
+    f32 const spacing  = min(layout.extent.x, block.align_width) - m.width;
+    f32 const aligned_spacing =
+        (m.base_direction == TextDirection::LeftToRight) ?
+            space_align(spacing, block.alignment) :
+            space_align(spacing, -block.alignment);
+    f32 cursor = aligned_spacing;
+    for (u32 r = 0; r < l.num_runs;)
+    {
+      u32 const      first       = r++;
+      TextRun const &first_run   = layout.runs[l.first_run + first];
+      f32            dir_advance = 0;
+
+      while (r < l.num_runs &&
+             layout.runs[l.first_run + r].direction == first_run.direction)
+      {
+        TextRun const &run = layout.runs[l.first_run + r];
+        dir_advance += pt_to_px(run.metrics.advance, run.font_height);
+        r++;
+      }
+
+      f32 advance =
+          (first_run.direction == TextDirection::LeftToRight) ? 0 : dir_advance;
+      for (u32 i = first; i < r; i++)
+      {
+        TextRun const &run      = layout.runs[l.first_run + i];
+        // get style for this run
+        f32            g_cursor = 0;
+        for (u32 g = 0; g < run.num_glyphs; g++)
+        {
+          GlyphShape const &sh = layout.glyphs[run.first_glyph + g];
+          f32 const         cx = cursor + advance + g_cursor;
+          // draw_glyph(offset, [cx, baseline])
+          g_cursor += pt_to_px(sh.advance.x, run.font_height);
+        }
+
+        advance += (first_run.direction == TextDirection::LeftToRight) ?
+                       run.metrics.advance :
+                       -run.metrics.advance;
+      }
+
+      cursor += dir_advance;
+    }
+  }
 }
 
 void Canvas::ngon(ShapeDesc const &desc, Span<Vec2 const> points)

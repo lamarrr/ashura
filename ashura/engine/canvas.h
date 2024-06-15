@@ -125,21 +125,6 @@ struct Canvas
 
   void nine_slice();
 
-  void text_backgrounds(ShapeDesc const &desc, StyledTextBlock const &block,
-                        TextLayout const &layout);
-
-  void text_underlines(ShapeDesc const &desc, StyledTextBlock const &block,
-                       TextLayout const &layout);
-
-  void text_strikethroughs(ShapeDesc const &desc, StyledTextBlock const &block,
-                           TextLayout const &layout);
-
-  void glyph_shadows(ShapeDesc const &desc, StyledTextBlock const &block,
-                     TextLayout const &layout);
-
-  void glyphs(ShapeDesc const &desc, StyledTextBlock const &block,
-              TextLayout const &layout);
-
   void text(ShapeDesc const &desc, StyledTextBlock const &block,
             TextLayout const &layout);
 

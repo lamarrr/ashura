@@ -585,7 +585,7 @@ inline f32 grid_snap(f32 a, f32 unit)
 /// @return
 constexpr f32 space_align(f32 space, f32 alignment)
 {
-  return (alignment + 1) / 2 * space;
+  return (alignment / 2 + 0.5f) * space;
 }
 
 /// @param x_mag The horizontal magnification of the view. This value
