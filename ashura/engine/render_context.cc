@@ -100,33 +100,32 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                       .is_variable_length = false}})})
           .unwrap();
 
-  textures_layout =
-      device
-          ->create_descriptor_set_layout(
-              device.self,
-              gfx::DescriptorSetLayoutDesc{
-                  .label    = "Texture Pack"_span,
-                  .bindings = to_span({gfx::DescriptorBindingDesc{
-                      .type  = gfx::DescriptorType::CombinedImageSampler,
-                      .count = MAX_TEXTURE_PACK_COUNT,
-                      .is_variable_length = true}})})
-          .unwrap();
+  textures_layout = device
+                        ->create_descriptor_set_layout(
+                            device.self,
+                            gfx::DescriptorSetLayoutDesc{
+                                .label    = "Texture Pack"_span,
+                                .bindings = to_span({gfx::DescriptorBindingDesc{
+                                    .type  = gfx::DescriptorType::SampledImage,
+                                    .count = NUM_TEXTURES,
+                                    .is_variable_length = true}})})
+                        .unwrap();
 
-  texture_views =
-      device
-          ->create_descriptor_set(device.self, textures_layout,
-                                  to_span<u32>({MAX_TEXTURE_PACK_COUNT}))
-          .unwrap();
+  sampler_layout = device
+                       ->create_descriptor_set_layout(
+                           device.self,
+                           gfx::DescriptorSetLayoutDesc{
+                               .label    = "Sampler"_span,
+                               .bindings = to_span({gfx::DescriptorBindingDesc{
+                                   .type  = gfx::DescriptorType::Sampler,
+                                   .count = 1,
+                                   .is_variable_length = false}})})
+                       .unwrap();
 
-  framebuffer_sampler =
-      device
-          ->create_sampler(
-              device.self,
-              gfx::SamplerDesc{.label        = "Framebuffer Sampler"_span,
-                               .mag_filter   = gfx::Filter::Nearest,
-                               .min_filter   = gfx::Filter::Nearest,
-                               .mip_map_mode = gfx::SamplerMipMapMode::Nearest})
-          .unwrap();
+  texture_views = device
+                      ->create_descriptor_set(device.self, textures_layout,
+                                              to_span<u32>({NUM_TEXTURES}))
+                      .unwrap();
 
   recreate_framebuffers(p_initial_extent);
 }
@@ -223,7 +222,6 @@ void RenderContext::uninit()
   device->destroy_image(device.self, scratch_framebuffer.depth_stencil_image);
   device->destroy_image_view(device.self,
                              scratch_framebuffer.depth_stencil_image_view);
-  device->destroy_sampler(device.self, framebuffer_sampler);
   device->destroy_descriptor_set(device.self, texture_views);
   device->destroy_descriptor_set(device.self, color_texture_view);
   device->destroy_descriptor_set(device.self, scratch_color_texture_view);
@@ -264,7 +262,7 @@ void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
                        .binding = 0,
                        .element = 0,
                        .images  = to_span({gfx::ImageBinding{
-                            .sampler    = framebuffer_sampler,
+                            .sampler    = nullptr,
                             .image_view = framebuffer.color_image_view}})});
   device->update_descriptor_set(
       device.self,
@@ -273,7 +271,7 @@ void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
           .binding = 0,
           .element = 0,
           .images  = to_span({gfx::ImageBinding{
-               .sampler    = framebuffer_sampler,
+               .sampler    = nullptr,
                .image_view = scratch_framebuffer.color_image_view}})});
 }
 

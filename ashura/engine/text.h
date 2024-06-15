@@ -2,7 +2,6 @@
 
 #include "ashura/engine/font.h"
 #include "ashura/std/types.h"
-#include "ashura/std/unicode.h"
 #include "ashura/std/vec.h"
 
 namespace ash
@@ -258,17 +257,8 @@ struct TextStyle
   Vec4 shadow_color[4]         = {};
 };
 
-/// @param first first codepoint in the text
-/// @param count last codepoint in the text
-struct TextStyleRun
-{
-  u32 first = 0;
-  u32 count = 0;
-  u32 style = 0;
-};
-
 /// @param text utf-32-encoded text
-/// @param runs length of each text run
+/// @param runs end offset of each text run
 /// @param fonts font style of each text run
 /// @param align text alignment
 /// @param direction base text direction
@@ -282,21 +272,20 @@ struct TextBlock
   Span<u32 const>       runs          = {};
   Span<FontStyle const> fonts         = {};
   TextDirection         direction     = TextDirection::LeftToRight;
-  TextWrap              wrap          = TextWrap::Wrap;
   Span<char const>      language      = {};
   bool                  use_kerning   = true;
   bool                  use_ligatures = true;
 };
 
+/// @param styles styles for each run in the source text
 /// @param align_width width to align the text block to.
 /// @param alignment alignment of the text to its base direction. [-1, +1]
-struct StyledTextBlock
+struct TextBlockStyle
 {
-  TextBlock                block       = {};
-  Span<TextStyle const>    styles      = {};
-  Span<TextStyleRun const> runs        = {};
-  f32                      alignment   = 0;
-  f32                      align_width = 0;
+  Span<TextStyle const> runs        = {};
+  TextWrap              wrap        = TextWrap::Wrap;
+  f32                   alignment   = 0;
+  f32                   align_width = 0;
 };
 
 /// @param cluster unicode grapheme cluster within the text run
@@ -311,14 +300,15 @@ struct GlyphShape
   Vec2I offset  = {};
 };
 
+/// @param style the text/font style of the current run
 /// @param script script of the current codepoint
 /// @param paragraph if the current codepoint begins a paragraph
-/// @param paragraph_direction the current paragraph's direction
+/// @param base_direction the current paragraph's direction
 /// @param direction directionality of the current codepoint in the paragraph
 /// @param breakable if this codepoint begins a breakable text
 struct alignas(4) TextSegment
 {
-  u16           font               = 0;
+  u16           style              = 0;
   TextScript    script             = TextScript::None;
   bool          paragraph : 1      = false;
   bool          breakable : 1      = false;
@@ -343,7 +333,7 @@ struct TextRun
 {
   u32            first          = 0;
   u32            count          = 0;
-  u16            font           = 0;
+  u16            style          = 0;
   f32            font_height    = 0;
   f32            line_height    = 0;
   u32            first_glyph    = 0;

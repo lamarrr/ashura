@@ -10,6 +10,7 @@ struct NgonParam
   Mat4 transform    = {};
   Vec4 tint[4]      = {};
   Vec2 uv[2]        = {};
+  f32  tiling       = 1;
   u32  albedo       = 0;
   u32  first_index  = 0;
   u32  first_vertex = 0;
@@ -24,6 +25,7 @@ struct NgonPassParams
   u32                indices_ssbo_offset  = 0;
   gfx::DescriptorSet params_ssbo          = nullptr;
   u32                params_ssbo_offset   = 0;
+  gfx::DescriptorSet sampler              = nullptr;
   gfx::DescriptorSet textures             = nullptr;
   u32                first_instance       = 0;
   u32                num_instances        = 0;

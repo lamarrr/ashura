@@ -59,7 +59,9 @@ layout(set = 3, binding = 0) readonly buffer Lights
   PunctualLight lights[];
 };
 
-layout(set = 4, binding = 0) uniform sampler2D textures[];
+layout(set = 4, binding = 0) uniform sampler smp;
+
+layout(set = 5, binding = 0) uniform texture2D textures[];
 
 #ifdef VERTEX_SHADER
 
@@ -91,18 +93,31 @@ layout(location = 0) out vec4 o_color;
 
 void main()
 {
-  Params p         = params[i_idx];
-  vec3   albedo    = texture(textures[nonuniformEXT(p.albedo_map)], i_uv).rgb;
-  float  metallic  = texture(textures[nonuniformEXT(p.metallic_map)], i_uv).r;
-  float  roughness = texture(textures[nonuniformEXT(p.roughness_map)], i_uv).r;
-  vec3   N         = texture(textures[nonuniformEXT(p.normal_map)], i_uv).rgb;
-  float  occlusion = texture(textures[nonuniformEXT(p.occlusion_map)], i_uv).r;
-  vec3   emissive  = texture(textures[nonuniformEXT(p.emissive_map)], i_uv).rgb;
-  float  clearcoat = texture(textures[nonuniformEXT(p.clearcoat_map)], i_uv).r;
-  float  clearcoat_roughness =
-      texture(textures[nonuniformEXT(p.clearcoat_roughness_map)], i_uv).r;
+  Params p = params[i_idx];
+  vec3   albedo =
+      texture(sampler2D(textures[nonuniformEXT(p.albedo_map)], smp), i_uv).rgb;
+  float metallic =
+      texture(sampler2D(textures[nonuniformEXT(p.metallic_map)], smp), i_uv).r;
+  float roughness =
+      texture(sampler2D(textures[nonuniformEXT(p.roughness_map)], smp), i_uv).r;
+  vec3 N =
+      texture(sampler2D(textures[nonuniformEXT(p.normal_map)], smp), i_uv).rgb;
+  float occlusion =
+      texture(sampler2D(textures[nonuniformEXT(p.occlusion_map)], smp), i_uv).r;
+  vec3 emissive =
+      texture(sampler2D(textures[nonuniformEXT(p.emissive_map)], smp), i_uv)
+          .rgb;
+  float clearcoat =
+      texture(sampler2D(textures[nonuniformEXT(p.clearcoat_map)], smp), i_uv).r;
+  float clearcoat_roughness =
+      texture(
+          sampler2D(textures[nonuniformEXT(p.clearcoat_roughness_map)], smp),
+          i_uv)
+          .r;
   vec3 clearcoat_normal =
-      texture(textures[nonuniformEXT(p.clearcoat_normal_map)], i_uv).rgb;
+      texture(sampler2D(textures[nonuniformEXT(p.clearcoat_normal_map)], smp),
+              i_uv)
+          .rgb;
 
   albedo *= p.albedo.xyz;
   metallic *= p.metallic;

@@ -4,12 +4,13 @@
 
 struct Params
 {
-  vec4 transform[4];
-  vec4 tint[4];
-  vec4 uv;
-  uint albedo;
-  uint first_index;
-  uint first_vertex;
+  vec4  transform[4];
+  vec4  tint[4];
+  vec4  uv;
+  float tiling;
+  uint  albedo;
+  uint  first_index;
+  uint  first_vertex;
 };
 
 layout(set = 0, binding = 0) readonly buffer VertexBuffer
@@ -22,12 +23,14 @@ layout(set = 1, binding = 0) readonly buffer IndexBuffer
   uint idx_buffer[];
 };
 
-layout(set = 1, binding = 0) readonly buffer ParamsBuffer
+layout(set = 2, binding = 0) readonly buffer ParamsBuffer
 {
   Params params[];
 };
 
-layout(set = 2, binding = 0) uniform sampler2D textures[];
+layout(set = 3, binding = 0) uniform sampler smp;
+
+layout(set = 4, binding = 0) uniform texture2D textures[];
 
 #ifdef VERTEX_SHADER
 
@@ -58,7 +61,8 @@ void main()
   Params p      = params[i_idx];
   vec2   tex_uv = mix(p.uv.xy, p.uv.zw, i_uv);
   o_color       = bilerp(p.tint, i_uv, 0.5) *
-            texture(textures[nonuniformEXT(p.albedo)], tex_uv);
+            texture(sampler2D(textures[nonuniformEXT(p.albedo)], smp),
+                    tex_uv * p.tiling);
 }
 
 #endif

@@ -193,7 +193,7 @@ static void segment_breakpoints(Span<u32 const> text, f32 max_width,
 }
 
 static void insert_run(TextLayout &l, FontStyle const &s, u32 first, u32 count,
-                       u16 font, i32 font_ascent, i32 font_descent,
+                       u16 style, i32 font_ascent, i32 font_descent,
                        TextDirection direction, TextDirection base_direction,
                        bool paragraph, bool breakable,
                        Span<hb_glyph_info_t const>     infos,
@@ -219,7 +219,7 @@ static void insert_run(TextLayout &l, FontStyle const &s, u32 first, u32 count,
 
   CHECK(l.runs.push(TextRun{.first          = first,
                             .count          = count,
-                            .font           = font,
+                            .style          = style,
                             .font_height    = s.font_height,
                             .line_height    = s.line_height * s.font_height,
                             .first_glyph    = first_glyph,
@@ -250,17 +250,17 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   }
 
   {
-    u32 run_begin = 0;
+    u32 prev_run_end = 0;
     for (u32 irun = 0; irun < (u32) block.runs.size(); irun++)
     {
-      u32 const run_size = block.runs[irun];
-      CHECK(run_begin < block.text.size());
-      CHECK((run_begin + run_size) <= block.text.size());
-      for (u32 i = run_begin; i < run_begin + run_size; i++)
+      u32 const run_end = block.runs[irun];
+      CHECK(prev_run_end <= block.text.size());
+      CHECK(prev_run_end <= run_end);
+      for (u32 i = prev_run_end; i < run_end; i++)
       {
-        segments[i].font = irun;
+        segments[i].style = irun;
       }
-      run_begin += run_size;
+      prev_run_end = run_end;
     }
   }
 
@@ -292,14 +292,14 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   {
     u32 const          first   = i++;
     TextSegment const &segment = segments[first];
-    while (i < text_size && segment.font == segments[i].font &&
+    while (i < text_size && segment.style == segments[i].style &&
            segment.script == segments[i].script && !segment.paragraph &&
            segment.direction == segments[i].direction && !segment.breakable)
     {
       i++;
     }
 
-    FontStyle const                &s         = block.fonts[segment.font];
+    FontStyle const                &s         = block.fonts[segment.style];
     FontImpl const                 *f         = (FontImpl const *) s.font;
     Span<hb_glyph_info_t const>     infos     = {};
     Span<hb_glyph_position_t const> positions = {};
@@ -310,9 +310,9 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
                                                               HB_DIRECTION_RTL,
           language, block.use_kerning, block.use_ligatures, infos, positions);
 
-    insert_run(layout, s, first, i - first, segment.font, f->ascent, f->descent,
-               segment.direction, segment.base_direction, segment.paragraph,
-               segment.breakable, infos, positions);
+    insert_run(layout, s, first, i - first, segment.style, f->ascent,
+               f->descent, segment.direction, segment.base_direction,
+               segment.paragraph, segment.breakable, infos, positions);
   }
 
   u32 const num_runs = (u32) layout.runs.size();
@@ -325,8 +325,6 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     f32                 ascent         = 0;
     f32                 descent        = 0;
     f32                 line_height    = 0;
-
-    // TODO(lamarrr): implement text wrap
 
     while (i < num_runs && !layout.runs[i].paragraph &&
            !(layout.runs[i].breakable &&

@@ -246,104 +246,47 @@ constexpr Mat4 inverse(Mat4 const &a)
   return Mat4::uniform(1.0F / determinant(a)) * adjoint(a);
 }
 
-constexpr Mat3 translate2d(Vec2 t)
-{
-  return Mat3{.rows = {{1, 0, t.x}, {0, 1, t.y}, Mat3Affine::trailing_row}};
-}
-
-constexpr Mat3Affine affine_translate2d(Vec2 t)
+constexpr Mat3Affine translate2d(Vec2 t)
 {
   return Mat3Affine{.rows = {{1, 0, t.x}, {0, 1, t.y}}};
 }
 
-constexpr Mat4 translate3d(Vec3 t)
-{
-  return Mat4{.rows = {{1, 0, 0, t.x},
-                       {0, 1, 0, t.y},
-                       {0, 0, 1, t.z},
-                       Mat4Affine::trailing_row}};
-}
-
-constexpr Mat4Affine affine_translate3d(Vec3 t)
+constexpr Mat4Affine translate3d(Vec3 t)
 {
   return Mat4Affine{.rows = {{1, 0, 0, t.x}, {0, 1, 0, t.y}, {0, 0, 1, t.z}}};
 }
 
-constexpr Mat3 scale2d(Vec2 s)
-{
-  return Mat3{.rows = {{s.x, 0, 0}, {0, s.y, 0}, Mat3Affine::trailing_row}};
-}
-
-constexpr Mat4 scale3d(Vec3 s)
-{
-  return Mat4{.rows = {{s.x, 0, 0, 0},
-                       {0, s.y, 0, 0},
-                       {0, 0, s.z, 0},
-                       Mat4Affine::trailing_row}};
-}
-
-constexpr Mat3Affine affine_scale2d(Vec2 s)
+constexpr Mat3Affine scale2d(Vec2 s)
 {
   return Mat3Affine{.rows = {{s.x, 0, 0}, {0, s.y, 0}}};
 }
 
-constexpr Mat4Affine affine_scale3d(Vec3 s)
+constexpr Mat4Affine scale3d(Vec3 s)
 {
   return Mat4Affine{.rows = {{s.x, 0, 0, 0}, {0, s.y, 0, 0}, {0, 0, s.z, 0}}};
 }
 
-inline Mat3 rotate2d(f32 radians)
-{
-  return Mat3{.rows = {{cosf(radians), -sinf(radians), 0},
-                       {sinf(radians), cosf(radians), 0},
-                       Mat3Affine::trailing_row}};
-}
-
-inline Mat3Affine affine_rotate2d(f32 radians)
+inline Mat3Affine rotate2d(f32 radians)
 {
   return Mat3Affine{.rows = {{cosf(radians), -sinf(radians), 0},
                              {sinf(radians), cosf(radians), 0}}};
 }
 
-inline Mat4 rotate3d_x(f32 radians)
-{
-  return Mat4{.rows = {{1, 0, 0, 0},
-                       {0, cosf(radians), -sinf(radians), 0},
-                       {0, sinf(radians), cosf(radians), 0},
-                       Mat4Affine::trailing_row}};
-}
-
-inline Mat4Affine affine_rotate3d_x(f32 radians)
+inline Mat4Affine rotate3d_x(f32 radians)
 {
   return Mat4Affine{.rows = {{1, 0, 0, 0},
                              {0, cosf(radians), -sinf(radians), 0},
                              {0, sinf(radians), cosf(radians), 0}}};
 }
 
-inline Mat4 rotate3d_y(f32 radians)
-{
-  return Mat4{.rows = {{cosf(radians), 0, sinf(radians), 0},
-                       {0, 1, 0, 0},
-                       {-sinf(radians), 0, cosf(radians), 0},
-                       Mat4Affine::trailing_row}};
-}
-
-inline Mat4Affine affine_rotate3d_y(f32 radians)
+inline Mat4Affine rotate3d_y(f32 radians)
 {
   return Mat4Affine{.rows = {{cosf(radians), 0, sinf(radians), 0},
                              {0, 1, 0, 0},
                              {-sinf(radians), 0, cosf(radians), 0}}};
 }
 
-inline Mat4 rotate3d_z(f32 radians)
-{
-  return Mat4{.rows = {{cosf(radians), -sinf(radians), 0, 0},
-                       {sinf(radians), cosf(radians), 0, 0},
-                       {0, 0, 1, 0},
-                       Mat4Affine::trailing_row}};
-}
-
-inline Mat4Affine affine_rotate3d_z(f32 radians)
+inline Mat4Affine rotate3d_z(f32 radians)
 {
   return Mat4Affine{.rows = {{cosf(radians), -sinf(radians), 0, 0},
                              {sinf(radians), cosf(radians), 0, 0},

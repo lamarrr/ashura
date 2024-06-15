@@ -61,6 +61,7 @@ struct PBRPassParams
   u32                param_ssbo_offset = 0;
   gfx::DescriptorSet light_ssbo        = nullptr;
   u32                light_ssbo_offset = 0;
+  gfx::DescriptorSet sampler           = nullptr;
   gfx::DescriptorSet textures          = nullptr;
   PBRDrawIndirect    indirect          = {};
 };

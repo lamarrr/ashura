@@ -44,7 +44,7 @@ void RRectPass::init(RenderContext &ctx)
                                              to_span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout set_layouts[] = {ctx.ssbo_layout,
+  gfx::DescriptorSetLayout set_layouts[] = {ctx.ssbo_layout, ctx.sampler_layout,
                                             ctx.textures_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
@@ -92,9 +92,10 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
               .min_depth = 0,
               .max_depth = 1}});
 
-  encoder->bind_descriptor_sets(encoder.self,
-                                to_span({params.params_ssbo, params.textures}),
-                                to_span({params.params_ssbo_offset}));
+  encoder->bind_descriptor_sets(
+      encoder.self,
+      to_span({params.params_ssbo, params.sampler, params.textures}),
+      to_span({params.params_ssbo_offset}));
   encoder->draw(encoder.self, 4, params.num_instances, 0,
                 params.first_instance);
   encoder->end_rendering(encoder.self);

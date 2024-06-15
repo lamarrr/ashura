@@ -1,4 +1,5 @@
 #pragma once
+#include "ashura/engine/canvas.h"
 #include "ashura/engine/passes/bloom.h"
 #include "ashura/engine/passes/blur.h"
 #include "ashura/engine/passes/ngon.h"
@@ -21,6 +22,7 @@ struct RenderPassImpl
   void (*uninit)(RenderPass pass, Renderer &r) = nullptr;
 };
 
+/// @brief sets up resources and data needed for rendering the passes
 struct Renderer
 {
   RenderContext              ctx    = {};
@@ -241,6 +243,8 @@ struct Renderer
     ctx.end_frame(swapchain);
   }
 
+  void render_canvas(Canvas const &canvas);
+
   void record_frame()
   {
     auto enc = ctx.encoder();
@@ -307,9 +311,9 @@ struct Renderer
         enc->update_buffer(
             enc.self,
             to_span<RRectParam>(
-                {RRectParam{.transform = affine_scale3d({1080.0 / 1920, 1, 1}) *
-                                         affine_scale3d({.8F, .75F, 1}) *
-                                         affine_rotate3d_z(0.5F),
+                {RRectParam{.transform = scale3d({1080.0 / 1920, 1, 1}) *
+                                         scale3d({.8F, .75F, 1}) *
+                                         rotate3d_z(0.5F),
                             .radii        = {.25F, .2F, .1F, .4F},
                             .uv           = {{0, 0}, {1, 1}},
                             .tint         = {{1, 0, 1, 1},
@@ -320,9 +324,9 @@ struct Renderer
                             .albedo       = 0},
                  RRectParam{
                      .transform =
-                         affine_scale3d({1080.0 / 1920, 1, 1}) *
-                         affine_scale3d({.8F, .75F, 1}) *
-                         affine_rotate3d_z((ts.tv_nsec / 5'000'000'000.0f) * 1),
+                         scale3d({1080.0 / 1920, 1, 1}) *
+                         scale3d({.8F, .75F, 1}) *
+                         rotate3d_z((ts.tv_nsec / 5'000'000'000.0f) * 1),
                      .radii = {.25F, .2F, .1F, .4F},
                      .uv    = {{0, 0}, {1, 1}},
                      .tint =
@@ -377,9 +381,9 @@ struct Renderer
         enc->update_buffer(
             enc.self,
             to_span<PBRParam>(
-                {{.model = affine_scale3d({.5F, .5F, .5F}) *
-                           affine_rotate3d_z(rot_z) * affine_rotate3d_x(rot_x),
-                  .view       = affine_scale3d({1080.0f / 1920, 1, 1}),
+                {{.model = scale3d({.5F, .5F, .5F}) *
+                           rotate3d_z(rot_z) * rotate3d_x(rot_x),
+                  .view       = scale3d({1080.0f / 1920, 1, 1}),
                   .projection = (Mat4) orthographic(1, 1, 0.1F, 100),
                   .albedo     = {1, 0, 1, 1}}})
                 .as_u8(),

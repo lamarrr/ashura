@@ -11,6 +11,7 @@ struct RRectParam
   Vec4 tint[4]         = {};
   Vec4 radii           = {};
   Vec2 uv[2]           = {};
+  f32  tiling          = 1;
   f32  aspect_ratio    = 1;
   f32  stroke          = 0;
   f32  thickness       = 0;
@@ -23,6 +24,7 @@ struct RRectPassParams
   gfx::RenderingInfo rendering_info     = {};
   gfx::DescriptorSet params_ssbo        = nullptr;
   u32                params_ssbo_offset = 0;
+  gfx::DescriptorSet sampler            = nullptr;
   gfx::DescriptorSet textures           = nullptr;
   u32                first_instance     = 0;
   u32                num_instances      = 0;

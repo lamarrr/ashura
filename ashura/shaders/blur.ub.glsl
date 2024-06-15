@@ -16,7 +16,9 @@ layout(push_constant) uniform ParamBuffer
   Params p;
 };
 
-layout(set = 0, binding = 0) uniform sampler2D textures[];
+layout(set = 0, binding = 0) uniform sampler smp;
+
+layout(set = 1, binding = 0) uniform texture2D textures[];
 
 const vec2 VERTEX_BUFFER[] = {vec2(-1, -1), vec2(1, -1), vec2(1, 1),
                               vec2(-1, 1)};
@@ -43,9 +45,9 @@ void main()
 {
   vec2 src_pos = mix(p.uv[0], p.uv[1], i_pos);
 #  if UPSAMPLE
-  o_color = upsample(textures[p.tex], src_pos, p.radius);
+  o_color = upsample(smp, textures[p.tex], src_pos, p.radius);
 #  else
-  o_color = downsample(textures[p.tex], src_pos, p.radius);
+  o_color = downsample(smp, textures[p.tex], src_pos, p.radius);
 #  endif
 }
 #endif

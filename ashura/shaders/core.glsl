@@ -35,31 +35,30 @@ vec4 bilerp(vec4 v[4], vec2 t0, float t1)
   return mix(mix(v[0], v[1], t0.x), mix(v[2], v[3], t0.y), t1);
 }
 
-
 /// SIGGRAPH 2015 - Bandwidth-Efficient Rendering, Marius Bjorge, ARM
 /// KAWASE multi-tap downsampling
-vec4 downsample(sampler2D src, vec2 uv, vec2 radius)
+vec4 downsample(sampler smp, texture2D src, vec2 uv, vec2 radius)
 {
-  vec4 sum = texture(src, uv) * vec4(4.0);
-  sum += texture(src, uv + radius);
-  sum += texture(src, uv - radius);
-  sum += texture(src, uv + vec2(radius.x, -radius.y));
-  sum += texture(src, uv + vec2(-radius.x, radius.y));
+  vec4 sum = texture(sampler2D(src, smp), uv) * vec4(4.0);
+  sum += texture(sampler2D(src, smp), uv + radius);
+  sum += texture(sampler2D(src, smp), uv - radius);
+  sum += texture(sampler2D(src, smp), uv + vec2(radius.x, -radius.y));
+  sum += texture(sampler2D(src, smp), uv + vec2(-radius.x, radius.y));
   return sum / 8.0;
 }
 
 /// SIGGRAPH 2015 - Bandwidth-Efficient Rendering, Marius Bjorge, ARM
 /// KAWASE multi-tap upsampling
-vec4 upsample(sampler2D src, vec2 uv, vec2 radius)
+vec4 upsample(sampler smp, texture2D src, vec2 uv, vec2 radius)
 {
-  vec4 sum = texture(src, uv + vec2(-radius.x * 2, 0));
-  sum += texture(src, uv + vec2(-radius.x, radius.y)) * 2.0;
-  sum += texture(src, uv + vec2(0, radius.y * 2));
-  sum += texture(src, uv + vec2(radius.x, radius.y)) * 2.0;
-  sum += texture(src, uv + vec2(radius.x * 2, 0));
-  sum += texture(src, uv + vec2(radius.x, -radius.y)) * 2.0;
-  sum += texture(src, uv + vec2(0, -radius.y * 2));
-  sum += texture(src, uv + vec2(-radius.x, -radius.y)) * 2.0;
+  vec4 sum = texture(sampler2D(src, smp), uv + vec2(-radius.x * 2, 0));
+  sum += texture(sampler2D(src, smp), uv + vec2(-radius.x, radius.y)) * 2.0;
+  sum += texture(sampler2D(src, smp), uv + vec2(0, radius.y * 2));
+  sum += texture(sampler2D(src, smp), uv + vec2(radius.x, radius.y)) * 2.0;
+  sum += texture(sampler2D(src, smp), uv + vec2(radius.x * 2, 0));
+  sum += texture(sampler2D(src, smp), uv + vec2(radius.x, -radius.y)) * 2.0;
+  sum += texture(sampler2D(src, smp), uv + vec2(0, -radius.y * 2));
+  sum += texture(sampler2D(src, smp), uv + vec2(-radius.x, -radius.y)) * 2.0;
   return sum / 12.0;
 }
 

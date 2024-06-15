@@ -1,12 +1,16 @@
 #pragma once
 #include "ashura/engine/font.h"
-#include "ashura/engine/renderer.h"
+#include "ashura/engine/passes/blur.h"
+#include "ashura/engine/passes/ngon.h"
+#include "ashura/engine/passes/rrect.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/math.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
+
+typedef struct Renderer;
 
 enum class CanvasPassType : u8
 {
@@ -34,6 +38,7 @@ struct ShapeDesc
   Vec4  tint[4]      = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}};
   u32   texture      = 0;
   Vec2  uv[2]        = {{0, 0}, {1, 1}};
+  f32   tiling       = 1;
   f32   edge_smoothness = 0.0015F;
   Mat4  transform       = Mat4::identity();
   Vec2U scissor_offset  = {0, 0};
@@ -42,12 +47,13 @@ struct ShapeDesc
 
 struct CanvasPassRun
 {
-  CanvasPassType type  = CanvasPassType::None;
-  u32            first = 0;
-  u32            count = 0;
+  CanvasPassType type = CanvasPassType::None;
+  u32            end  = 0;
 };
 
-///@note Will be called from the render thread
+/// @param encoder function to encode the pass onto the renderer, will be called
+/// from the render thread
+/// @param data custom pass data
 struct CustomCanvasPassInfo
 {
   Fn<void(void *, Renderer &)> encoder = to_fn([](void *, Renderer &) {});
@@ -69,10 +75,9 @@ struct CanvasSurface
 
   constexpr Mat4 mvp(Vec2 center, Vec2 object_extent, Mat4 transform) const
   {
-    return affine_scale3d(
-               Vec3{1 / viewport_extent.x, 1 / viewport_extent.y, 1}) *
-           affine_translate3d(Vec3{center.x, center.y, 0}) * transform *
-           affine_scale3d(Vec3{object_extent.x / 2, object_extent.y / 2, 1});
+    return scale3d(Vec3{1 / viewport_extent.x, 1 / viewport_extent.y, 1}) *
+           translate3d(Vec3{center.x, center.y, 0}) * transform *
+           scale3d(Vec3{object_extent.x / 2, object_extent.y / 2, 1});
   }
 };
 
@@ -105,6 +110,7 @@ struct Canvas
   Vec<NgonDrawCommand>      ngon_draw_commands = {};
   Vec<NgonParam>            ngon_params        = {};
   Vec<RRectParam>           rrect_params       = {};
+  Vec<BlurParam>            blur_params        = {};
   Vec<CustomCanvasPassInfo> custom_params      = {};
   Vec<CanvasPassRun>        pass_runs          = {};
 
@@ -114,8 +120,7 @@ struct Canvas
 
   void begin(CanvasSurface const &surface);
 
-  /// @brief offload to gpu, set up passes, render. called on render thread.
-  void submit(Renderer &renderer);
+  void clear();
 
   void circle(ShapeDesc const &desc);
 
@@ -125,8 +130,8 @@ struct Canvas
 
   void nine_slice();
 
-  void text(ShapeDesc const &desc, StyledTextBlock const &block,
-            TextLayout const &layout);
+  void text(ShapeDesc const &desc, TextBlock const &block,
+            TextLayout const &layout, TextBlockStyle const &style);
 
   void ngon(ShapeDesc const &desc, Span<Vec2 const> vertices);
 

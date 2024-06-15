@@ -48,6 +48,7 @@ struct FontImpl
   gfx::Format     format       = gfx::Format::Undefined;
   gfx::Image      image        = nullptr;
   gfx::ImageView *views        = nullptr;
+  u32            *textures     = nullptr;
 };
 
 bool load_font_from_memory(FontImpl *f, Span<u8 const> encoded_data, u32 face);

@@ -24,8 +24,6 @@ struct Framebuffer
   gfx::Extent        extent                        = {};
 };
 
-// TODO(lamarrr): add table slot allocator for descriptors
-
 /// @param color_format hdr if hdr supported and required.
 ///
 /// scratch images resized when swapchain extents changes
@@ -47,7 +45,9 @@ struct RenderContext
       gfx::BufferUsage::UniformTexelBuffer |
       gfx::BufferUsage::StorageTexelBuffer | gfx::BufferUsage::IndirectBuffer |
       gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst;
-  static constexpr u32 MAX_TEXTURE_PACK_COUNT = 1024;
+  static constexpr u32 NUM_TEXTURES = 2048;
+
+  static_assert(NUM_TEXTURES % 64 == 0);
 
   gfx::DeviceImpl          device                     = {};
   gfx::PipelineCache       pipeline_cache             = nullptr;
@@ -59,11 +59,12 @@ struct RenderContext
   Framebuffer              scratch_framebuffer        = {};
   gfx::DescriptorSetLayout ssbo_layout                = nullptr;
   gfx::DescriptorSetLayout textures_layout            = nullptr;
+  gfx::DescriptorSetLayout sampler_layout             = nullptr;
   gfx::DescriptorSet       texture_views              = nullptr;
   gfx::DescriptorSet       color_texture_view         = nullptr;
   gfx::DescriptorSet       scratch_color_texture_view = nullptr;
-  gfx::Sampler             framebuffer_sampler        = nullptr;
   Vec<gfx::Object>         released_objects[gfx::MAX_FRAME_BUFFERING] = {};
+  u64                      texture_slots[NUM_TEXTURES / 64]           = {};
 
   void init(gfx::DeviceImpl p_device, bool p_use_hdr,
             u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,
@@ -78,6 +79,9 @@ struct RenderContext
   gfx::FrameId            tail_frame_id();
 
   Option<gfx::Shader> get_shader(Span<char const> name);
+
+  u16  alloc_texture_slot();
+  void dealloc_texture_slot(u16 slot);
 
   void release(gfx::Image image);
   void release(gfx::ImageView view);

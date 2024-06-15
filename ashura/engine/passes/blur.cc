@@ -54,7 +54,8 @@ void BlurPass::init(RenderContext &ctx)
                                              to_span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout set_layouts[] = {ctx.textures_layout};
+  gfx::DescriptorSetLayout set_layouts[] = {ctx.sampler_layout,
+                                            ctx.textures_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
       .label = "Blur Graphics Pipeline"_span,
@@ -151,7 +152,7 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
     Vec2 radius{params.radius / (f32) ctx.scratch_framebuffer.extent.x,
                 params.radius / (f32) ctx.scratch_framebuffer.extent.y};
 
-    //  there will be artifacts due to blur radius reaching end of
+    // there will be artifacts due to blur radius reaching end of
     // image. sampling offset deducted from the image extent first before
     // upsampling.
     Vec2 uv0{(f32) params.radius / ctx.scratch_framebuffer.extent.x,
@@ -186,7 +187,8 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
                          .extent = {params.area.extent.x * 1.0f,
                                     params.area.extent.y * 1.0f}}});
     encoder->bind_descriptor_sets(
-        encoder.self, to_span({ctx.scratch_color_texture_view}), {});
+        encoder.self, to_span({params.sampler, ctx.scratch_color_texture_view}),
+        {});
     encoder->push_constants(
         encoder.self,
         to_span({BlurParam{.uv = {uv0, uv1}, .radius = radius, .texture = 0}})

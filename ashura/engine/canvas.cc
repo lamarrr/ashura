@@ -1,6 +1,5 @@
 #include "ashura/engine/canvas.h"
 #include "ashura/engine/font_impl.h"
-#include "ashura/engine/renderer.h"
 #include "ashura/std/math.h"
 
 namespace ash
@@ -77,49 +76,43 @@ void Path::rrect(Vec<Vec2> &vtx, u32 segments, Vec4 radii)
 
   u32 i = 0;
 
-  vtx[beg + i] = Vec2{1, 1 - radii.z};
+  vtx[beg + i++] = Vec2{1, 1 - radii.z};
 
-  for (u32 s = 0; s < curve_segments; s++, i++)
+  for (u32 s = 0; s < curve_segments; s++)
   {
-    vtx[beg + i] = (1 - radii.z) + radii.z * rotor(s * step);
+    vtx[beg + i++] = (1 - radii.z) + radii.z * rotor(s * step);
   }
 
-  vtx[beg + i] = Vec2{1 - radii.z, 1};
-  i++;
+  vtx[beg + i++] = Vec2{1 - radii.z, 1};
 
-  vtx[beg + i] = Vec2{-1 + radii.w, 1};
-  i++;
+  vtx[beg + i++] = Vec2{-1 + radii.w, 1};
 
-  for (u32 s = 0; s < curve_segments; s++, i++)
+  for (u32 s = 0; s < curve_segments; s++)
   {
-    vtx[beg + i] =
+    vtx[beg + i++] =
         Vec2{-1 + radii.w, 1 - radii.w} + radii.w * rotor(PI / 2 + s * step);
   }
 
-  vtx[beg + i] = Vec2{-1, 1 - radii.w};
-  i++;
+  vtx[beg + i++] = Vec2{-1, 1 - radii.w};
 
-  vtx[beg + i] = Vec2{-1, -1 + radii.x};
-  i++;
+  vtx[beg + i++] = Vec2{-1, -1 + radii.x};
 
-  for (u32 s = 0; s < curve_segments; s++, i++)
+  for (u32 s = 0; s < curve_segments; s++)
   {
-    vtx[beg + i] = (-1 + radii.x) + radii.x * rotor(PI + s * step);
+    vtx[beg + i++] = (-1 + radii.x) + radii.x * rotor(PI + s * step);
   }
 
-  vtx[beg + i] = Vec2{-1 + radii.x, -1};
-  i++;
+  vtx[beg + i++] = Vec2{-1 + radii.x, -1};
 
-  vtx[beg + i] = Vec2{1 - radii.y, -1};
-  i++;
+  vtx[beg + i++] = Vec2{1 - radii.y, -1};
 
-  for (u32 s = 0; s < curve_segments; s++, i++)
+  for (u32 s = 0; s < curve_segments; s++)
   {
-    vtx[beg + i] = Vec2{1 - radii.y, (-1 + radii.y)} +
-                   radii.y * rotor(PI * 3.0f / 2.0f + s * step);
+    vtx[beg + i++] = Vec2{1 - radii.y, (-1 + radii.y)} +
+                     radii.y * rotor(PI * 3.0f / 2.0f + s * step);
   }
 
-  vtx[beg + i] = Vec2{1, -1 + radii.y};
+  vtx[beg + i++] = Vec2{1, -1 + radii.y};
 }
 
 void Path::brect(Vec<Vec2> &vtx, Vec4 slant)
@@ -292,8 +285,10 @@ void Canvas::uninit()
 {
   vertices.uninit();
   indices.uninit();
+  ngon_draw_commands.uninit();
   ngon_params.uninit();
   rrect_params.uninit();
+  blur_params.uninit();
   custom_params.uninit();
   pass_runs.uninit();
 }
@@ -301,18 +296,25 @@ void Canvas::uninit()
 void Canvas::begin(CanvasSurface const &isurface)
 {
   surface = isurface;
+}
+
+void Canvas::clear()
+{
   vertices.clear();
   indices.clear();
+  ngon_draw_commands.clear();
   ngon_params.clear();
   rrect_params.clear();
+  blur_params.clear();
   custom_params.clear();
   pass_runs.clear();
 }
 
-void Canvas::submit(Renderer &renderer)
-{
-  // TODO(lamarrr): render
-}
+/// @brief offload to gpu, set up passes, render. called on render thread.
+// void Canvas::submit(Renderer &renderer)
+// {
+// TODO(lamarrr): render
+// }
 
 void Canvas::circle(ShapeDesc const &desc)
 {
@@ -321,6 +323,7 @@ void Canvas::circle(ShapeDesc const &desc)
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = {1, 1, 1, 1},
       .uv           = {desc.uv[0], desc.uv[1]},
+      .tiling       = desc.tiling,
       .aspect_ratio = desc.extent.x / desc.extent.y,
       .stroke       = desc.stroke,
       .thickness    = desc.thickness,
@@ -330,13 +333,12 @@ void Canvas::circle(ShapeDesc const &desc)
   if (pass_runs.is_empty() ||
       pass_runs[pass_runs.size() - 1].type != CanvasPassType::RRect)
   {
-    CHECK(pass_runs.push(CanvasPassRun{.type  = CanvasPassType::RRect,
-                                       .first = ((u32) rrect_params.size()) - 1,
-                                       .count = 1}));
+    CHECK(pass_runs.push(CanvasPassRun{.type = CanvasPassType::RRect,
+                                       .end  = (u32) rrect_params.size()}));
   }
   else
   {
-    pass_runs[pass_runs.size() - 1].count++;
+    pass_runs[pass_runs.size() - 1].end++;
   }
 }
 
@@ -347,6 +349,7 @@ void Canvas::rect(ShapeDesc const &desc)
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = {0, 0, 0, 0},
       .uv           = {desc.uv[0], desc.uv[1]},
+      .tiling       = desc.tiling,
       .aspect_ratio = desc.extent.x / desc.extent.y,
       .stroke       = desc.stroke,
       .thickness    = desc.thickness,
@@ -356,13 +359,12 @@ void Canvas::rect(ShapeDesc const &desc)
   if (pass_runs.is_empty() ||
       pass_runs[pass_runs.size() - 1].type != CanvasPassType::RRect)
   {
-    CHECK(pass_runs.push(CanvasPassRun{.type  = CanvasPassType::RRect,
-                                       .first = ((u32) rrect_params.size()) - 1,
-                                       .count = 1}));
+    CHECK(pass_runs.push(CanvasPassRun{.type = CanvasPassType::RRect,
+                                       .end  = (u32) rrect_params.size()}));
   }
   else
   {
-    pass_runs[pass_runs.size() - 1].count++;
+    pass_runs[pass_runs.size() - 1].end++;
   }
 }
 
@@ -373,6 +375,7 @@ void Canvas::rrect(ShapeDesc const &desc)
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = desc.border_radii / desc.extent.y,
       .uv           = {desc.uv[0], desc.uv[1]},
+      .tiling       = desc.tiling,
       .aspect_ratio = desc.extent.x / desc.extent.y,
       .stroke       = desc.stroke,
       .thickness    = desc.thickness,
@@ -382,260 +385,27 @@ void Canvas::rrect(ShapeDesc const &desc)
   if (pass_runs.is_empty() ||
       pass_runs[pass_runs.size() - 1].type != CanvasPassType::RRect)
   {
-    CHECK(pass_runs.push(CanvasPassRun{.type  = CanvasPassType::RRect,
-                                       .first = ((u32) rrect_params.size()) - 1,
-                                       .count = 1}));
+    CHECK(pass_runs.push(CanvasPassRun{.type = CanvasPassType::RRect,
+                                       .end  = (u32) rrect_params.size()}));
   }
   else
   {
-    pass_runs[pass_runs.size() - 1].count++;
+    pass_runs[pass_runs.size() - 1].end++;
   }
 }
 
-void Canvas::text_backgrounds(ShapeDesc const       &desc,
-                              StyledTextBlock const &block,
-                              TextLayout const      &layout)
+constexpr bool is_transparent(Vec4 const (&colors)[4])
 {
+  return colors[0].w == 0 && colors[1].w == 0 && colors[2].w == 0 &&
+         colors[3].w == 0;
 }
 
-void Canvas::text_underlines(ShapeDesc const       &desc,
-                             StyledTextBlock const &block,
-                             TextLayout const      &layout)
+void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
+                  TextLayout const &layout, TextBlockStyle const &style)
 {
-  f32       line_top    = 0;
-  f32 const x_alignment = (block.x_align + 1) / 2;
-  for (LineMetrics const &m : layout.lines)
-  {
-    f32 const x_dist = layout.span.x - m.width;
-    f32 x_cursor = x_dist * ((m.base_direction == TextDirection::LeftToRight) ?
-                                 x_alignment :
-                                 (1 - x_alignment));
-
-    f32 const line_gap = max(m.line_height - (m.ascent + m.descent), 0.0f) / 2;
-    f32 const baseline = line_top + m.line_height - line_gap - m.descent;
-
-    for (TextRunSegment const &s :
-         layout.run_segments.slice(m.first_segment, m.num_segments))
-    {
-      TextStyle const &style = s.style >= block.styles.size() ?
-                                   block.default_style :
-                                   block.styles[s.style];
-
-      Vec2 offset{x_cursor, baseline};
-      Vec2 extent{s.width, style.underline_thickness};
-      Vec2 center = desc.center - layout.span / 2 + offset + extent / 2;
-
-      rect(ShapeDesc{
-          .center         = center,
-          .extent         = extent,
-          .border_radii   = {},
-          .stroke         = 0,
-          .tint           = {style.underline_color[0], style.underline_color[1],
-                             style.underline_color[2], style.underline_color[3]},
-          .texture        = 0,
-          .uv             = {},
-          .transform      = desc.transform,
-          .scissor_offset = desc.scissor_offset,
-          .scissor_extent = desc.scissor_extent});
-
-      x_cursor += s.width;
-    }
-
-    line_top += m.line_height;
-  }
-}
-
-void Canvas::text_strikethroughs(ShapeDesc const       &desc,
-                                 StyledTextBlock const &block,
-                                 TextLayout const      &layout)
-{
-  f32       line_top    = 0;
-  f32 const x_alignment = (block.x_align + 1) / 2;
-  for (LineMetrics const &m : layout.lines)
-  {
-    f32 const x_dist = layout.span.x - m.width;
-    f32 x_cursor = x_dist * ((m.base_direction == TextDirection::LeftToRight) ?
-                                 x_alignment :
-                                 (1 - x_alignment));
-
-    f32 const line_gap = max(m.line_height - (m.ascent + m.descent), 0.0f) / 2;
-    f32 const baseline = line_top + m.line_height - line_gap - m.descent;
-
-    for (TextRunSegment const &s :
-         layout.run_segments.slice(m.first_segment, m.num_segments))
-    {
-      TextStyle const &style = s.style >= block.styles.size() ?
-                                   block.default_style :
-                                   block.styles[s.style];
-
-      Vec2 offset{x_cursor, baseline - m.line_height / 2};
-      Vec2 extent{s.width, style.strikethrough_thickness};
-      Vec2 center = desc.center - layout.span / 2 + offset + extent / 2;
-
-      rect(ShapeDesc{
-          .center       = center,
-          .extent       = extent,
-          .border_radii = {},
-          .stroke       = 0,
-          .tint = {style.strikethrough_color[0], style.strikethrough_color[1],
-                   style.strikethrough_color[2], style.strikethrough_color[3]},
-          .texture        = 0,
-          .uv             = {},
-          .transform      = desc.transform,
-          .scissor_offset = desc.scissor_offset,
-          .scissor_extent = desc.scissor_extent});
-
-      x_cursor += s.width;
-    }
-
-    line_top += m.line_height;
-  }
-}
-
-void Canvas::glyph_shadows(ShapeDesc const &desc, StyledTextBlock const &block,
-                           TextLayout const &layout)
-{
-  f32       line_top    = 0;
-  f32 const x_alignment = (block.x_align + 1) / 2;
-  for (LineMetrics const &m : layout.lines)
-  {
-    f32 const x_dist = layout.span.x - m.width;
-    f32       x_segment_cursor =
-        x_dist * ((m.base_direction == TextDirection::LeftToRight) ?
-                      x_alignment :
-                      (1 - x_alignment));
-
-    f32 const line_gap = max(m.line_height - (m.ascent + m.descent), 0.0f) / 2;
-    f32 const baseline = line_top + m.line_height - line_gap - m.descent;
-
-    for (TextRunSegment const &s :
-         layout.run_segments.slice(m.first_segment, m.num_segments))
-    {
-      TextStyle const &style = s.style >= block.styles.size() ?
-                                   block.default_style :
-                                   block.styles[s.style];
-
-      Result font_info_r = font_manager->get_info(style.font);
-      if (font_info_r.is_err())
-      {
-        continue;
-      }
-
-      FontInfo font_info = font_info_r.unwrap();
-      f32      x_cursor  = x_segment_cursor;
-
-      for (GlyphShaping const &sh :
-           layout.glyph_shapings.slice(s.first_shaping, s.num_shapings))
-      {
-        Glyph const &g = font_info.glyphs[sh.glyph];
-
-        Vec2 offset = Vec2{x_cursor, baseline} +
-                      Vec2{g.metrics.bearing.x, -g.metrics.bearing.y} *
-                          style.font_height * layout.text_scale_factor +
-                      sh.offset;
-        Vec2 extent =
-            (g.metrics.extent * style.font_height * layout.text_scale_factor) *
-            style.shadow_scale;
-        Vec2 center = desc.center - layout.span / 2 + offset + extent / 2 +
-                      style.shadow_offset;
-        u32 texture = font_info.textures[font_info.glyphs[sh.glyph].layer];
-
-        rect(ShapeDesc{.center       = center,
-                       .extent       = extent,
-                       .border_radii = {},
-                       .stroke       = 0,
-                       .tint    = {style.shadow_color[0], style.shadow_color[1],
-                                   style.shadow_color[2], style.shadow_color[3]},
-                       .texture = texture,
-                       .uv      = {g.uv[0], g.uv[1]},
-                       .transform      = desc.transform,
-                       .scissor_offset = desc.scissor_offset,
-                       .scissor_extent = desc.scissor_extent});
-
-        x_cursor +=
-            sh.advance + layout.text_scale_factor * style.letter_spacing;
-      }
-
-      x_segment_cursor += s.width;
-    }
-
-    line_top += m.line_height;
-  }
-}
-
-void Canvas::glyphs(ShapeDesc const &desc, StyledTextBlock const &block,
-                    TextLayout const &layout)
-{
-  f32       line_top    = 0;
-  f32 const x_alignment = (block.x_align + 1) / 2;
-  for (LineMetrics const &m : layout.lines)
-  {
-    f32 const x_dist = layout.span.x - m.width;
-    f32       x_segment_cursor =
-        x_dist * ((m.base_direction == TextDirection::LeftToRight) ?
-                      x_alignment :
-                      (1 - x_alignment));
-
-    f32 const line_gap = max(m.line_height - (m.ascent + m.descent), 0.0f) / 2;
-    f32 const baseline = line_top + m.line_height - line_gap - m.descent;
-
-    for (TextRunSegment const &s :
-         layout.run_segments.slice(m.first_segment, m.num_segments))
-    {
-      TextStyle const &style = s.style >= block.styles.size() ?
-                                   block.default_style :
-                                   block.styles[s.style];
-
-      Result font_info_r = font_manager->get_info(style.font);
-      if (font_info_r.is_err())
-      {
-        continue;
-      }
-
-      FontInfo font_info = font_info_r.unwrap();
-      f32      x_cursor  = x_segment_cursor;
-
-      for (GlyphShaping const &sh :
-           layout.glyph_shapings.slice(s.first_shaping, s.num_shapings))
-      {
-        Glyph const &g = font_info.glyphs[sh.glyph];
-
-        Vec2 offset = Vec2{x_cursor, baseline} +
-                      Vec2{g.metrics.bearing.x, -g.metrics.bearing.y} *
-                          style.font_height * layout.text_scale_factor +
-                      sh.offset;
-        Vec2 extent =
-            g.metrics.extent * style.font_height * layout.text_scale_factor;
-        Vec2 center  = desc.center - layout.span / 2 + offset + extent / 2;
-        u32  texture = font_info.textures[font_info.glyphs[sh.glyph].layer];
-
-        rect(ShapeDesc{
-            .center       = center,
-            .extent       = extent,
-            .border_radii = {},
-            .stroke       = 0,
-            .tint      = {style.foreground_color[0], style.foreground_color[1],
-                          style.foreground_color[2], style.foreground_color[3]},
-            .texture   = texture,
-            .uv        = {g.uv[0], g.uv[1]},
-            .transform = desc.transform,
-            .scissor_offset = desc.scissor_offset,
-            .scissor_extent = desc.scissor_extent});
-
-        x_cursor +=
-            sh.advance + layout.text_scale_factor * style.letter_spacing;
-      }
-
-      x_segment_cursor += s.width;
-    }
-
-    line_top += m.line_height;
-  }
-}
-
-void Canvas::text(ShapeDesc const &desc, StyledTextBlock const &block,
-                  TextLayout const &layout)
-{
+  // TODO(lamarrr): implement text wrap
+  CHECK(style.runs.size() == block.runs.size());
+  CHECK(style.runs.size() == block.fonts.size());
   f32 line_y = 0;
   for (Line const &l : layout.lines)
   {
@@ -643,11 +413,11 @@ void Canvas::text(ShapeDesc const &desc, StyledTextBlock const &block,
     line_y += m.line_height;
     f32 const padding  = max(m.line_height - (m.ascent + m.descent), 0.0f);
     f32 const baseline = line_y - padding / 2;
-    f32 const spacing  = min(layout.extent.x, block.align_width) - m.width;
+    f32 const spacing  = min(layout.extent.x, style.align_width) - m.width;
     f32 const aligned_spacing =
         (m.base_direction == TextDirection::LeftToRight) ?
-            space_align(spacing, block.alignment) :
-            space_align(spacing, -block.alignment);
+            space_align(spacing, style.alignment) :
+            space_align(spacing, -style.alignment);
     f32 cursor = aligned_spacing;
     for (u32 r = 0; r < l.num_runs;)
     {
@@ -667,15 +437,86 @@ void Canvas::text(ShapeDesc const &desc, StyledTextBlock const &block,
           (first_run.direction == TextDirection::LeftToRight) ? 0 : dir_advance;
       for (u32 i = first; i < r; i++)
       {
-        TextRun const &run      = layout.runs[l.first_run + i];
-        // get style for this run
-        f32            g_cursor = 0;
-        for (u32 g = 0; g < run.num_glyphs; g++)
+        TextRun const   &run        = layout.runs[l.first_run + i];
+        FontStyle const &font_style = block.fonts[run.style];
+        TextStyle const &run_style  = style.runs[run.style];
+        FontImpl const  *font       = (FontImpl const *) font_style.font;
+
+        if (!is_transparent(run_style.background_color))
         {
-          GlyphShape const &sh = layout.glyphs[run.first_glyph + g];
-          f32 const         cx = cursor + advance + g_cursor;
-          // draw_glyph(offset, [cx, baseline])
-          g_cursor += pt_to_px(sh.advance.x, run.font_height);
+          Vec3 center{cursor + advance / 2, line_y - run.line_height / 2, 0};
+          Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
+                      m.line_height};
+          rect(ShapeDesc{.center    = desc.center,
+                         .extent    = extent,
+                         .tint      = {run_style.background_color[0],
+                                       run_style.background_color[1],
+                                       run_style.background_color[2],
+                                       run_style.background_color[3]},
+                         .transform = translate3d(center) * desc.transform *
+                                      translate3d(-center)});
+        }
+
+        {
+          f32 g_cursor = 0;
+          for (u32 g = 0; g < run.num_glyphs; g++)
+          {
+            GlyphShape const &sh = layout.glyphs[run.first_glyph + g];
+            Glyph const      &gl = font->glyphs[sh.glyph];
+            f32 const         cx = cursor + advance + g_cursor;
+            // draw_glyph(offset, [cx, baseline])
+            font->textures[gl.layer];
+            gl.uv;
+            // gl.metrics.extent;
+            g_cursor += pt_to_px(sh.advance.x, run.font_height);
+          }
+        }
+
+        if (run_style.shadow_scale != 0)
+        {
+          f32 g_cursor = 0;
+
+          for (u32 g = 0; g < run.num_glyphs; g++)
+          {
+            GlyphShape const &sh = layout.glyphs[run.first_glyph + g];
+            Glyph const      &gl = font->glyphs[sh.glyph];
+            f32 const         cx = cursor + advance + g_cursor;
+            font->textures[gl.layer];
+            gl.uv;
+            // gl.metrics.extent;
+
+            g_cursor += pt_to_px(sh.advance.x, run.font_height);
+          }
+        }
+
+        if (run_style.strikethrough_thickness != 0)
+        {
+          Vec3 center{cursor + advance / 2, baseline - run.font_height / 2, 0};
+          Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
+                      run_style.strikethrough_thickness};
+          rect(ShapeDesc{.center    = desc.center,
+                         .extent    = extent,
+                         .tint      = {run_style.strikethrough_color[0],
+                                       run_style.strikethrough_color[1],
+                                       run_style.strikethrough_color[2],
+                                       run_style.strikethrough_color[3]},
+                         .transform = translate3d(center) * desc.transform *
+                                      translate3d(-center)});
+        }
+
+        if (run_style.underline_thickness != 0)
+        {
+          Vec3 center{cursor + advance / 2, baseline, 0};
+          Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
+                      run_style.underline_thickness};
+          rect(ShapeDesc{.center    = desc.center,
+                         .extent    = extent,
+                         .tint      = {run_style.underline_color[0],
+                                       run_style.underline_color[1],
+                                       run_style.underline_color[2],
+                                       run_style.underline_color[3]},
+                         .transform = translate3d(center) * desc.transform *
+                                      translate3d(-center)});
         }
 
         advance += (first_run.direction == TextDirection::LeftToRight) ?
@@ -702,6 +543,7 @@ void Canvas::ngon(ShapeDesc const &desc, Span<Vec2 const> points)
       .transform    = desc.transform,
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .uv           = {desc.uv[0], desc.uv[1]},
+      .tiling       = desc.tiling,
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));
@@ -712,13 +554,12 @@ void Canvas::ngon(ShapeDesc const &desc, Span<Vec2 const> points)
   if (pass_runs.is_empty() ||
       pass_runs[pass_runs.size() - 1].type != CanvasPassType::Ngon)
   {
-    CHECK(pass_runs.push(CanvasPassRun{.type  = CanvasPassType::Ngon,
-                                       .first = ((u32) ngon_params.size()) - 1,
-                                       .count = 1}));
+    CHECK(pass_runs.push(CanvasPassRun{.type = CanvasPassType::Ngon,
+                                       .end  = (u32) ngon_params.size()}));
   }
   else
   {
-    pass_runs[pass_runs.size() - 1].count++;
+    pass_runs[pass_runs.size() - 1].end++;
   }
 }
 
@@ -736,6 +577,7 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
       .transform    = desc.transform,
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .uv           = {desc.uv[0], desc.uv[1]},
+      .tiling       = desc.tiling,
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));
@@ -746,26 +588,27 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
   if (pass_runs.is_empty() ||
       pass_runs[pass_runs.size() - 1].type != CanvasPassType::Ngon)
   {
-    CHECK(pass_runs.push(CanvasPassRun{.type  = CanvasPassType::Ngon,
-                                       .first = ((u32) ngon_params.size()) - 1,
-                                       .count = 1}));
+    CHECK(pass_runs.push(CanvasPassRun{.type = CanvasPassType::Ngon,
+                                       .end  = (u32) ngon_params.size()}));
   }
   else
   {
-    pass_runs[pass_runs.size() - 1].count++;
+    pass_runs[pass_runs.size() - 1].end++;
   }
 }
 
 void Canvas::blur(ShapeDesc const &desc)
 {
+  // blur_params.push(BlurParam{
+  // });
+  // TODO(lamarrr):
 }
 
 void Canvas::custom(ShapeDesc const &desc, CustomCanvasPassInfo const &pass)
 {
   CHECK(custom_params.push(pass));
-  CHECK(pass_runs.push(CanvasPassRun{.type  = CanvasPassType::Custom,
-                                     .first = ((u32) custom_params.size()) - 1,
-                                     .count = 1}));
+  CHECK(pass_runs.push(CanvasPassRun{.type = CanvasPassType::Custom,
+                                     .end  = (u32) custom_params.size()}));
 }
 
 }        // namespace ash

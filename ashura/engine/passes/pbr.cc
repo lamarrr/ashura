@@ -44,8 +44,8 @@ void PBRPass::init(RenderContext &ctx)
                                          .blend_constant = {1, 1, 1, 1}};
 
   gfx::DescriptorSetLayout const set_layouts[] = {
-      ctx.ssbo_layout, ctx.ssbo_layout, ctx.ssbo_layout, ctx.ssbo_layout,
-      ctx.textures_layout};
+      ctx.ssbo_layout, ctx.ssbo_layout,    ctx.ssbo_layout,
+      ctx.ssbo_layout, ctx.sampler_layout, ctx.textures_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
       .label = "PBR Graphics Pipeline"_span,
@@ -107,7 +107,7 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
   encoder->bind_descriptor_sets(
       encoder.self,
       to_span({params.vertex_ssbo, params.index_ssbo, params.param_ssbo,
-               params.light_ssbo, params.textures}),
+               params.light_ssbo, params.sampler, params.textures}),
       to_span<u32>({0, 0, params.param_ssbo_offset, params.light_ssbo_offset}));
   encoder->draw_indirect(encoder.self, params.indirect.buffer,
                          params.indirect.offset, params.indirect.draw_count,
