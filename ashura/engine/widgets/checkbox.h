@@ -20,16 +20,16 @@ struct CheckBoxProps
 
 struct CheckBox : public Widget
 {
-  using Callback = stx::UniqueFn<void(CheckBox &, Context &, bool)>;
+  using Callback = UniqueFn<void(CheckBox &, Context &, bool)>;
 
   static void default_on_changed(CheckBox &checkbox, Context &ctx,
                                  bool new_value)
   {
   }
 
-  CheckBox(Callback ion_changed =
-               stx::fn::rc::make_unique_static(default_on_changed),
-           bool default_value = false, CheckBoxProps iprops = CheckBoxProps{}) :
+  CheckBox(
+      Callback ion_changed = fn::rc::make_unique_static(default_on_changed),
+      bool default_value = false, CheckBoxProps iprops = CheckBoxProps{}) :
       on_changed{std::move(ion_changed)}, value{default_value}, props{iprops}
   {
   }
@@ -42,9 +42,9 @@ struct CheckBox : public Widget
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     return Vec2{props.extent, props.extent};
   }

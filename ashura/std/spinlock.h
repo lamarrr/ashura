@@ -1,30 +1,26 @@
 #pragma once
+#include "ashura/std/backoff.h"
+#include "ashura/std/types.h"
 #include <atomic>
-
-#include "ashura/std/struct.h"
 
 namespace ash
 {
-// a rarely-contended lock.
-//
-// desirable for low-latency scenarios.
-// typically used when the operations on the objects being guarded/locked are
-// very short.
-//
-// less desirable for multi-contended and prolonged operations which would cause
-// busy waiting.
+
 struct SpinLock
 {
-  std::atomic<bool> lock_status{false};
+  std::atomic<bool> flag_{false};
 
   void lock()
   {
     bool expected = false;
     bool target   = true;
-    while (!lock_status.compare_exchange_strong(
+    u64  poll     = 0;
+    while (!flag_.compare_exchange_strong(
         expected, target, std::memory_order_acquire, std::memory_order_relaxed))
     {
       expected = false;
+      yielding_backoff(poll);
+      poll++;
     }
   }
 
@@ -32,32 +28,35 @@ struct SpinLock
   {
     bool expected = false;
     bool target   = true;
-    lock_status.compare_exchange_strong(
-        expected, target, std::memory_order_acquire, std::memory_order_relaxed);
+    flag_.compare_exchange_strong(expected, target, std::memory_order_acquire,
+                                  std::memory_order_relaxed);
     return expected;
   }
 
   void unlock()
   {
-    lock_status.store(false, std::memory_order_release);
+    flag_.store(false, std::memory_order_release);
   }
 };
 
-template <typename Resource>
+template <typename R>
 struct LockGuard
 {
-  ASH_MAKE_PINNED(LockGuard)
-
-  explicit LockGuard(Resource &resource) : resource_{&resource}
+  explicit constexpr LockGuard(R &resource) : r{&resource}
   {
-    resource_->lock();
+    r->lock();
   }
 
-  ~LockGuard()
+  LockGuard(LockGuard const &)            = delete;
+  LockGuard &operator=(LockGuard const &) = delete;
+  LockGuard(LockGuard &&)                 = delete;
+  LockGuard &operator=(LockGuard &&)      = delete;
+
+  constexpr ~LockGuard()
   {
-    resource->unlock();
+    r->unlock();
   }
 
-  Resource *resource_;
+  R *r;
 };
 }        // namespace ash

@@ -1,7 +1,5 @@
 #pragma once
 #include "ashura/std/allocator.h"
-#include "ashura/std/error.h"
-#include "ashura/std/log.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
@@ -66,6 +64,29 @@ typedef struct Surface_T             *Surface;
 typedef struct Swapchain_T           *Swapchain;
 typedef struct Device_T              *Device;
 typedef struct Instance_T            *Instance;
+
+enum class ObjectType : u32
+{
+  None                = 0,
+  Instance            = 1,
+  Device              = 2,
+  CommandEncoder      = 3,
+  Buffer              = 4,
+  BufferView          = 5,
+  Image               = 6,
+  ImageView           = 7,
+  Sampler             = 8,
+  Shader              = 9,
+  DescriptorSetLayout = 10,
+  DescriptorSet       = 11,
+  PipelineCache       = 12,
+  ComputePipeline     = 13,
+  GraphicsPipeline    = 14,
+  TimeStampQuery      = 15,
+  StatisticsQuery     = 16,
+  Surface             = 17,
+  Swapchain           = 18
+};
 
 enum class Backend : u8
 {
@@ -668,6 +689,33 @@ enum class ResolveModes : u32
 
 ASH_DEFINE_ENUM_BIT_OPS(ResolveModes)
 
+struct Object
+{
+  union
+  {
+    void               *handle = nullptr;
+    Instance            instance;
+    Device              device;
+    CommandEncoder      command_encoder;
+    Buffer              buffer;
+    BufferView          buffer_view;
+    Image               image;
+    ImageView           image_view;
+    Sampler             sampler;
+    Shader              shader;
+    DescriptorSetLayout descriptor_set_layout;
+    DescriptorSet       descriptor_set;
+    PipelineCache       pipeline_cache;
+    ComputePipeline     compute_pipeline;
+    GraphicsPipeline    graphics_pipeline;
+    TimeStampQuery      timestamp_query;
+    StatisticsQuery     statistics_query;
+    Surface             surface;
+    Swapchain           swapchain;
+  };
+  ObjectType type = ObjectType::None;
+};
+
 struct SurfaceFormat
 {
   Format     format      = Format::Undefined;
@@ -680,13 +728,19 @@ struct MemoryRange
   u64 size   = 0;
 };
 
-/// @extent: can be negative to flip
+/// @param extent can be negative to flip
 struct Viewport
 {
-  Vec2 offset;
-  Vec2 extent;
+  Vec2 offset    = {};
+  Vec2 extent    = {};
   f32  min_depth = 0;
   f32  max_depth = 0;
+};
+
+struct Rect
+{
+  Offset offset = {};
+  Extent extent = {};
 };
 
 struct StencilState
@@ -766,9 +820,9 @@ struct ImageDesc
 /// a sub-resource that specifies mips, aspects, layer, and component mapping of
 /// images. typically for reference in shaders.
 ///
-/// @mapping: mapping of the components in the shader. i.e. for R8G8B8_UNORM the
-/// non-existent Alpha component is always 0. To set it to 1 we set its
-/// component mapping (mapping.a) to ComponentSwizzle::One.
+/// @param mapping mapping of the components in the shader. i.e. for
+/// R8G8B8_UNORM the non-existent Alpha component is always 0. To set it to 1 we
+/// set its component mapping (mapping.a) to ComponentSwizzle::One.
 ///
 struct ImageViewDesc
 {
@@ -810,9 +864,9 @@ struct ShaderDesc
   Span<u32 const>  spirv_code = {};
 };
 
-/// @count: represents maximum count of the binding if `is_variable_length` is
-/// true.
-/// @is_variable_length: if it is a dynamically sized binding
+/// @param count represents maximum count of the binding if
+/// `is_variable_length` is true.
+/// @param is_variable_length if it is a dynamically sized binding
 struct DescriptorBindingDesc
 {
   DescriptorType type               = DescriptorType::Sampler;
@@ -881,9 +935,10 @@ struct ComputePipelineDesc
 
 /// Specifies how the binded vertex buffers are iterated and the strides for
 /// them unique for each binded buffer.
-/// @binding: binding id this structure represents
-/// @stride: stride in bytes for each binding advance within the binded buffer
-/// @input_rate: advance-rate for this binding. on every vertex or every
+/// @param binding binding id this structure represents
+/// @param stride stride in bytes for each binding advance within the binded
+/// buffer
+/// @param input_rate advance-rate for this binding. on every vertex or every
 /// instance
 struct VertexInputBinding
 {
@@ -894,10 +949,10 @@ struct VertexInputBinding
 
 /// specifies representation/interpretation and shader location mapping of the
 /// values in the buffer this is a many to one mapping to the input binding.
-/// @binding: which binding this attribute binds to
-/// @location: binding's mapped location in the shader
-/// @format: data format interpretation
-/// @offset: offset of attribute in binding
+/// @param binding which binding this attribute binds to
+/// @param location binding's mapped location in the shader
+/// @param format data format interpretation
+/// @param offset offset of attribute in binding
 struct VertexAttribute
 {
   u32    binding  = 0;
@@ -953,11 +1008,7 @@ struct RasterizationState
 
 struct GraphicsState
 {
-  struct Scissor
-  {
-    Offset offset = {};
-    Extent extent = {};
-  } scissor                               = {};
+  Rect           scissor                  = {};
   Viewport       viewport                 = {};
   Vec4           blend_constant           = {};
   bool           stencil_test_enable      = false;
@@ -971,8 +1022,8 @@ struct GraphicsState
   bool           depth_bounds_test_enable = false;
 };
 
-/// @@color_format, depth_format, stencil_format: with Format::Undefined means
-/// the attachment is unused.
+/// @param color_format, depth_format, stencil_format: with Format::Undefined
+/// means the attachment is unused.
 struct GraphicsPipelineDesc
 {
   Span<char const>                label                  = {};
@@ -1096,11 +1147,11 @@ struct SwapchainDesc
   CompositeAlpha   composite_alpha     = CompositeAlpha::None;
 };
 
-/// @generation: increases everytime the swapchain for the surface is recreated
-/// or re-configured
-/// @images: swapchain images, calling ref or unref on them will cause a panic
-/// as they are only meant to exist for the lifetime of the frame.
-/// avoid storing pointers to its data members.
+/// @param generation increases everytime the swapchain for the surface is
+/// recreated or re-configured
+/// @param images swapchain images, calling ref or unref on them will cause a
+/// panic as they are only meant to exist for the lifetime of the frame. avoid
+/// storing pointers to its data members.
 struct SwapchainState
 {
   Extent            extent        = {};
@@ -1120,7 +1171,8 @@ struct PipelineStatistics
   u64 compute_shader_invocations  = 0;
 };
 
-/// @timestamp_period: number of timestamp ticks equivalent to 1 nanosecond
+/// @param timestamp_period number of timestamp ticks equivalent to 1
+/// nanosecond
 struct DeviceProperties
 {
   u32              api_version                        = 0;
@@ -1153,8 +1205,7 @@ struct RenderingAttachment
 
 struct RenderingInfo
 {
-  Offset                          offset             = {};
-  Extent                          extent             = {};
+  Rect                            render_area        = {};
   u32                             num_layers         = 0;
   Span<RenderingAttachment const> color_attachments  = {};
   Span<RenderingAttachment const> depth_attachment   = {};
@@ -1303,12 +1354,13 @@ struct DeviceInterface
   void (*destroy_statistics_query)(Device          self,
                                    StatisticsQuery query)            = nullptr;
   FrameContext (*get_frame_context)(Device self)                     = nullptr;
-  Result<void *, Status> (*get_buffer_memory_map)(Device self,
-                                                  Buffer buffer)     = nullptr;
-  Result<Void, Status> (*invalidate_buffer_memory_map)(
-      Device self, Buffer buffer, MemoryRange range)                 = nullptr;
-  Result<Void, Status> (*flush_buffer_memory_map)(Device self, Buffer buffer,
-                                                  MemoryRange range) = nullptr;
+  Result<void *, Status> (*map_buffer_memory)(Device self,
+                                              Buffer buffer)         = nullptr;
+  void (*unmap_buffer_memory)(Device self, Buffer buffer)            = nullptr;
+  Result<Void, Status> (*invalidate_mapped_buffer_memory)(
+      Device self, Buffer buffer, MemoryRange range) = nullptr;
+  Result<Void, Status> (*flush_mapped_buffer_memory)(
+      Device self, Buffer buffer, MemoryRange range) = nullptr;
   Result<usize, Status> (*get_pipeline_cache_size)(
       Device self, PipelineCache cache)                          = nullptr;
   Result<usize, Status> (*get_pipeline_cache_data)(Device        self,
@@ -1375,7 +1427,6 @@ struct InstanceImpl
 };
 
 Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
-                                                    Logger       *logger,
                                                     bool enable_validation);
 
 }        // namespace gfx

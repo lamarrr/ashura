@@ -1158,17 +1158,17 @@ struct std_allocator
 
   pointer allocate(size_type s, void const * = 0)
   {
-    if (0 == s)
-      return NULL;
-    pointer temp = default_allocator.allocate_typed<T>(s);
-    if (temp == NULL)
+    pointer temp;
+    if (!default_allocator.nalloc(s, &temp))
+    {
       throw std::bad_alloc();
+    }
     return temp;
   }
 
   void deallocate(pointer p, size_type s)
   {
-    default_allocator.deallocate_typed(p, s);
+    default_allocator.ndealloc(p, s);
   }
 
   size_type max_size() const throw()

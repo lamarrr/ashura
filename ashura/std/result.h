@@ -1,4 +1,5 @@
 #pragma once
+#include "ashura/std/error.h"
 #include "ashura/std/log.h"
 
 namespace ash
@@ -7,7 +8,7 @@ namespace ash
 template <typename T>
 struct [[nodiscard]] Ok
 {
-  using type = T;
+  using Type = T;
   T value{};
 };
 
@@ -17,7 +18,7 @@ Ok(T) -> Ok<T>;
 template <typename E>
 struct [[nodiscard]] Err
 {
-  using type = E;
+  using Type = E;
   E value{};
 };
 
@@ -27,14 +28,14 @@ Err(T) -> Err<T>;
 template <typename T, typename E>
 struct [[nodiscard]] Result
 {
-  using value_type = T;
-  using error_type = E;
+  using Type    = T;
+  using ErrType = E;
 
   union
   {
+    char none_;
     T    value_;
-    E    error_;
-    char stub_;
+    E    err_;
   };
 
   bool is_ok_ = false;
@@ -49,7 +50,7 @@ struct [[nodiscard]] Result
     }
     else
     {
-      error_.~E();
+      err_.~E();
     }
   }
 
@@ -57,11 +58,11 @@ struct [[nodiscard]] Result
   {
   }
 
-  constexpr Result(Err<E> err) : error_{(E &&) err.value}, is_ok_{false}
+  constexpr Result(Err<E> err) : err_{(E &&) err.value}, is_ok_{false}
   {
   }
 
-  constexpr Result(Result &&other) : stub_{}, is_ok_{}
+  constexpr Result(Result &&other) : none_{}, is_ok_{}
   {
     if (other.is_ok_)
     {
@@ -69,7 +70,7 @@ struct [[nodiscard]] Result
     }
     else
     {
-      new (&error_) E{(E &&) other.error_};
+      new (&err_) E{(E &&) other.err_};
     }
     is_ok_ = other.is_ok_;
   }
@@ -82,7 +83,7 @@ struct [[nodiscard]] Result
     }
     else
     {
-      error_.~E();
+      err_.~E();
     }
 
     if (other.is_ok_)
@@ -91,7 +92,7 @@ struct [[nodiscard]] Result
     }
     else
     {
-      new (&error_) E{(E &&) other.error_};
+      new (&err_) E{(E &&) other.err_};
     }
 
     is_ok_ = other.is_ok_;
@@ -106,7 +107,7 @@ struct [[nodiscard]] Result
     }
     else
     {
-      error_.~E();
+      err_.~E();
     }
 
     new (&value_) T{(T &&) other.value};
@@ -122,15 +123,15 @@ struct [[nodiscard]] Result
     }
     else
     {
-      error_.~E();
+      err_.~E();
     }
 
-    new (&error_) E{(E &&) other.value};
+    new (&err_) E{(E &&) other.value};
     is_ok_ = false;
     return *this;
   }
 
-  constexpr Result(Result const &other) : stub_{}, is_ok_{}
+  constexpr Result(Result const &other) : none_{}, is_ok_{}
   {
     if (other.is_ok_)
     {
@@ -138,7 +139,7 @@ struct [[nodiscard]] Result
     }
     else
     {
-      new (&error_) E{other.error_};
+      new (&err_) E{other.err_};
     }
     is_ok_ = other.is_ok_;
   }
@@ -151,7 +152,7 @@ struct [[nodiscard]] Result
     }
     else
     {
-      error_.~E();
+      err_.~E();
     }
 
     if (other.is_ok_)
@@ -160,7 +161,7 @@ struct [[nodiscard]] Result
     }
     else
     {
-      new (&error_) E{other.error_};
+      new (&err_) E{other.err_};
     }
 
     is_ok_ = other.is_ok_;
@@ -199,51 +200,33 @@ struct [[nodiscard]] Result
     {
       return false;
     }
-    return error_ == cmp;
+    return err_ == cmp;
   }
 
   constexpr T &value(SourceLocation loc = SourceLocation::current())
   {
-    if (is_ok_)
-    {
-      return value_;
-    }
-    default_logger->panic(".value() called on result with Error{=", error_, "}",
-                          " [function: ", loc.function, ", file: ", loc.file,
-                          ":", loc.line, ":", loc.column, "]");
+    CHECK_DESC_SRC(loc, is_ok_, ".value() called on Result with Err = ", err_);
+    return value_;
   }
 
   constexpr T const &value(SourceLocation loc = SourceLocation::current()) const
   {
-    if (is_ok_)
-    {
-      return value_;
-    }
-    default_logger->panic(".value() called on result with Error{=", error_, "}",
-                          " [function: ", loc.function, ", file: ", loc.file,
-                          ":", loc.line, ":", loc.column, "]");
+    CHECK_DESC_SRC(loc, is_ok_, ".value() called on Result with Err = ", err_);
+    return value_;
   }
 
   constexpr E &err(SourceLocation loc = SourceLocation::current())
   {
-    if (!is_ok_)
-    {
-      return error_;
-    }
-    default_logger->panic(".err() called on result with Value{=", value_, "}",
-                          " [function: ", loc.function, ", file: ", loc.file,
-                          ":", loc.line, ":", loc.column, "]");
+    CHECK_DESC_SRC(loc, !is_ok_,
+                   ".err() called on Result with Value = ", value_);
+    return err_;
   }
 
   constexpr E const &err(SourceLocation loc = SourceLocation::current()) const
   {
-    if (!is_ok_)
-    {
-      return error_;
-    }
-    default_logger->panic(".err() called on result with Value{=", value_, "}",
-                          " [function: ", loc.function, ", file: ", loc.file,
-                          ":", loc.line, ":", loc.column, "]");
+    CHECK_DESC_SRC(loc, !is_ok_,
+                   ".err() called on Result with Value = ", value_);
+    return err_;
   }
 
   constexpr Result<T const *, E const *> as_ref() const
@@ -252,7 +235,7 @@ struct [[nodiscard]] Result
     {
       return Ok{&value_};
     }
-    return Err{&error_};
+    return Err{&err_};
   }
 
   constexpr Result<T *, E *> as_ref()
@@ -261,7 +244,7 @@ struct [[nodiscard]] Result
     {
       return Ok{&value_};
     }
-    return Err{&error_};
+    return Err{&err_};
   }
 
   template <typename Fn>
@@ -272,7 +255,7 @@ struct [[nodiscard]] Result
     {
       return Result<U, E>{Ok<U>{((Fn &&) op)(value_)}};
     }
-    return Result<U, E>{Err{error_}};
+    return Result<U, E>{Err{err_}};
   }
 
   template <typename Fn, typename U>
@@ -292,7 +275,7 @@ struct [[nodiscard]] Result
     {
       return ((Fn &&) op)(value_);
     }
-    return ((AltFn &&) alt_op)(error_);
+    return ((AltFn &&) alt_op)(err_);
   }
 
   template <typename Fn>
@@ -303,18 +286,18 @@ struct [[nodiscard]] Result
     {
       return ((Fn &&) op)(value_);
     }
-    return OutResult{Err{error_}};
+    return OutResult{Err{err_}};
   }
 
   template <typename Fn>
   constexpr auto or_else(Fn &&op)
   {
-    using OutResult = decltype(((Fn &&) op)(error_));
+    using OutResult = decltype(((Fn &&) op)(err_));
     if (is_ok_)
     {
       return OutResult{Ok{value_}};
     }
-    return ((Fn &&) op)(error_);
+    return ((Fn &&) op)(err_);
   }
 
   template <typename U>
@@ -334,55 +317,35 @@ struct [[nodiscard]] Result
     {
       return (T &&) value_;
     }
-    return ((Fn &&) op)(error_);
+    return ((Fn &&) op)(err_);
   }
 
   constexpr T unwrap(SourceLocation loc = SourceLocation::current())
   {
-    if (is_ok_)
-    {
-      return (T &&) value_;
-    }
-    default_logger->panic("Expected Value in Result but got Error{=", error_,
-                          "}", " [function: ", loc.function,
-                          ", file: ", loc.file, ":", loc.line, ":", loc.column,
-                          "]");
+    CHECK_DESC_SRC(loc, is_ok_,
+                   "Expected Value in Result but got Err = ", err_);
+    return (T &&) value_;
   }
 
   constexpr T expect(char const    *msg,
                      SourceLocation loc = SourceLocation::current())
   {
-    if (is_ok_)
-    {
-      return (T &&) value_;
-    }
-    default_logger->panic(msg, " [function: ", loc.function,
-                          ", file: ", loc.file, ":", loc.line, ":", loc.column,
-                          "]");
+    CHECK_DESC_SRC(loc, is_ok_, msg, " ", err_);
+    return (T &&) value_;
   }
 
   constexpr E unwrap_err(SourceLocation loc = SourceLocation::current())
   {
-    if (!is_ok_)
-    {
-      return (E &&) error_;
-    }
-    default_logger->panic("Expected Error in Result but got Value{=", value_,
-                          "}", " [function: ", loc.function,
-                          ", file: ", loc.file, ":", loc.line, ":", loc.column,
-                          "]");
+    CHECK_DESC_SRC(loc, !is_ok_,
+                   "Expected Err in Result but got Value = ", value_);
+    return (E &&) err_;
   }
 
   constexpr E expect_err(char const    *msg,
                          SourceLocation loc = SourceLocation::current())
   {
-    if (!is_ok_)
-    {
-      return (E &&) error_;
-    }
-    default_logger->panic(msg, " [function: ", loc.function,
-                          ", file: ", loc.file, ":", loc.line, ":", loc.column,
-                          "]");
+    CHECK_DESC_SRC(loc, !is_ok_, msg, " ", value_);
+    return (E &&) err_;
   }
 
   template <typename OkFn, typename ErrFn>
@@ -392,7 +355,7 @@ struct [[nodiscard]] Result
     {
       return ok_fn(value_);
     }
-    return err_fn(error_);
+    return err_fn(err_);
   }
 
   template <typename OkFn, typename ErrFn>
@@ -402,7 +365,7 @@ struct [[nodiscard]] Result
     {
       return ok_fn(value_);
     }
-    return err_fn(error_);
+    return err_fn(err_);
   }
 };
 
@@ -475,7 +438,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_err())
   {
-    return a.error_ == b.value;
+    return a.err_ == b.value;
   }
   return false;
 }
@@ -485,7 +448,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_err())
   {
-    return a.error_ != b.value;
+    return a.err_ != b.value;
   }
   return true;
 }
@@ -495,7 +458,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_err())
   {
-    return a.value == b.error_;
+    return a.value == b.err_;
   }
   return false;
 }
@@ -505,7 +468,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_err())
   {
-    return a.value != b.error_;
+    return a.value != b.err_;
   }
   return true;
 }
@@ -520,7 +483,7 @@ template <typename T, typename E, typename U, typename F>
   }
   if (a.is_err() && b.is_err())
   {
-    return a.error_ == b.error_;
+    return a.err_ == b.err_;
   }
   return false;
 }
@@ -535,7 +498,7 @@ template <typename T, typename E, typename U, typename F>
   }
   if (a.is_err() && b.is_err())
   {
-    return a.error_ != b.error_;
+    return a.err_ != b.err_;
   }
   return true;
 }

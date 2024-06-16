@@ -6,19 +6,20 @@
 namespace ash
 {
 
-/// @index_to_id: id of data, ordered relative to {data}
-/// @id_to_index: map of id to index in {data}
-/// @size: the number of valid elements in the sparse set
-/// @capacity: the number of elements the sparse set has capacity for, includes
-/// reserved but unallocated ids pointing to valid but uninitialized memory
+/// @param index_to_id id of data, ordered relative to {data}
+/// @param id_to_index map of id to index in {data}
+/// @param size the number of valid elements in the sparse set
+/// @param capacity the number of elements the sparse set has capacity for,
+/// includes reserved but unallocated ids pointing to valid but uninitialized
+/// memory
 ///
 /// The index and id either point to valid indices/ids or are an implicit free
 /// list of ids and indices masked by RELEASE_MASK
 ///
 struct SparseVec
 {
-  static constexpr u64 RELEASE_MASK = 1ULL << 63;
-  static constexpr u64 STUB         = 0xFFFFFFFFFFFFFFFFULL;
+  static constexpr u64 RELEASE_MASK = U64_MAX >> 1;
+  static constexpr u64 STUB         = U64_MAX;
 
   Vec<uid> index_to_id  = {};
   Vec<u64> id_to_index  = {};

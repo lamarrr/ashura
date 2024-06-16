@@ -2,148 +2,215 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/cfg.h"
 
-#if ASH_CFG(OS, POSIX) && (ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, GNUC))
-#  define STDC_ALIGNED_ALLOC_SUPPORTED 1
+#if (!ASH_CFG(OS, WINDOWS)) && \
+    (ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, GNUC))
+#  define USE_STDC_ALIGNED_ALLOC 1
 #else
-#  define STDC_ALIGNED_ALLOC_SUPPORTED 0
+#  define USE_STDC_ALIGNED_ALLOC 0
 #endif
 
-#if ASH_CFG(OS, WINDOWS) && ASH_CFG(COMPILER, MSVC)
-#  define WINDOWS_CRT_ALIGNED_ALLOC_SUPPORTED 1
+#if ASH_CFG(OS, WINDOWS)
+#  define USE_WIN32CRT_ALIGNED_ALLOC 1
 #else
-#  define WINDOWS_CRT_ALIGNED_ALLOC_SUPPORTED 0
+#  define USE_WIN32CRT_ALIGNED_ALLOC 0
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#if (USE_STDC_ALIGNED_ALLOC || USE_WIN32CRT_ALIGNED_ALLOC)
+#  define HAS_ALIGNED_ALLOC 1
+#else
+#  define HAS_ALIGNED_ALLOC 0
+#endif
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 namespace ash
 {
 
-// TODO(lamarrr): switch to using global panic and logger
-void *HeapInterface::allocate(Allocator self, usize alignment, usize size)
+bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 **mem)
 {
   (void) self;
-  (void) alignment;
-  (void) size;
+
+  if (size == 0)
+  {
+    *mem = nullptr;
+    return true;
+  }
+
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
-    return malloc(size);
+    if (u8 *m = (u8 *) std::malloc(size); m != nullptr)
+    {
+      *mem = m;
+      return true;
+    }
+    *mem = nullptr;
+    return false;
   }
-#if WINDOWS_CRT_ALIGNED_ALLOC_SUPPORTED
-  return _aligned_malloc(size, alignment);
-#else
-#  if STDC_ALIGNED_ALLOC_SUPPORTED
-  return aligned_alloc(alignment, size);
-#  else
-  (void) fprintf(stderr,
-                 "over-aligned malloc of alignment %" PRIu64 " not supported\n",
-                 (u64) alignment);
-  (void) fflush(stderr);
-  return nullptr;
-#  endif
+
+#if USE_WIN32CRT_ALIGNED_ALLOC
+  if (u8 *m = (u8 *) _aligned_malloc(size, alignment); m != nullptr)
+  {
+    *mem = m;
+    return true;
+  }
+  *mem = nullptr;
+  return false;
+#endif
+
+#if USE_STDC_ALIGNED_ALLOC
+  if (u8 *m = (u8 *) std::aligned_alloc(alignment, size); m != nullptr)
+  {
+    *mem = m;
+    return true;
+  }
+  *mem = nullptr;
+  return false;
+#endif
+
+#if !HAS_ALIGNED_ALLOC
+  (void) std::fprintf(
+      stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
+      (u64) alignment);
+  (void) std::fflush(stderr);
+  *mem = nullptr;
+  return false;
 #endif
 }
 
-void *HeapInterface::allocate_zeroed(Allocator self, usize alignment,
-                                     usize size)
+bool HeapInterface::alloc_zeroed(Allocator self, usize alignment, usize size,
+                                 u8 **mem)
 {
   (void) self;
-  (void) alignment;
-  (void) size;
-  if (alignment <= MAX_STANDARD_ALIGNMENT)
+
+  if (size == 0)
   {
-    return calloc(size, 1);
+    *mem = nullptr;
+    return true;
   }
 
-#if WINDOWS_CRT_ALIGNED_ALLOC_SUPPORTED
-  void *mem = _aligned_malloc(size, alignment);
-  if (mem != nullptr)
+  if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
-    return memset(mem, 0, size);
+    if (u8 *m = (u8 *) std::calloc(size, 1); m != nullptr)
+    {
+      *mem = m;
+      return true;
+    }
+    *mem = nullptr;
+    return false;
   }
-  return mem;
-#else
-#  if STDC_ALIGNED_ALLOC_SUPPORTED
-  void *mem = aligned_alloc(alignment, size);
-  if (mem != nullptr)
+
+#if USE_WIN32CRT_ALIGNED_ALLOC
+  if (u8 *m = (u8 *) _aligned_malloc(size, alignment); m != nullptr)
   {
-    return memset(mem, 0, size);
+    std::memset(m, 0, size);
+    *mem = m;
+    return true;
   }
-  return mem;
-#  else
-  (void) fprintf(stderr,
-                 "over-aligned zeroed-alloc of alignment %" PRIu64
-                 " not supported\n",
-                 (u64) alignment);
-  (void) fflush(stderr);
-  return nullptr;
-#  endif
+  *mem = nullptr;
+  return false;
+#endif
+
+#if USE_STDC_ALIGNED_ALLOC
+  if (u8 *m = (u8 *) std::aligned_alloc(alignment, size); m != nullptr)
+  {
+    std::memset(m, 0, size);
+    *mem = m;
+    return true;
+  }
+  *mem = nullptr;
+  return false;
+#endif
+
+#if !HAS_ALIGNED_ALLOC
+  (void) std::fprintf(stderr,
+                      "over-aligned zeroed-alloc of alignment %" PRIu64
+                      " not supported\n",
+                      (u64) alignment);
+  (void) std::fflush(stderr);
+  *mem = nullptr;
+  return false;
 #endif
 }
 
-void *HeapInterface::reallocate(Allocator self, usize alignment, void *memory,
-                                usize old_size, usize new_size)
+bool HeapInterface::realloc(Allocator self, usize alignment, usize old_size,
+                            usize new_size, u8 **mem)
 {
-  (void) self;
-  (void) alignment;
-  (void) memory;
-  (void) old_size;
-  (void) new_size;
-  if (alignment <= MAX_STANDARD_ALIGNMENT)
+  if (new_size == 0)
   {
-    return realloc(memory, new_size);
+    HeapInterface::dealloc(self, alignment, *mem, old_size);
+    *mem = nullptr;
+    return true;
   }
 
-#if WINDOWS_CRT_ALIGNED_ALLOC_SUPPORTED
-  return _aligned_realloc(memory, new_size, alignment);
-#else
-#  if STDC_ALIGNED_ALLOC_SUPPORTED
+  // preserve mem if allocation fails
+
+  if (alignment <= MAX_STANDARD_ALIGNMENT)
+  {
+    if (u8 *m = (u8 *) std::realloc(*mem, new_size); m != nullptr)
+    {
+      *mem = m;
+      return true;
+    }
+    return false;
+  }
+
+#if USE_WIN32CRT_ALIGNED_ALLOC
+  if (u8 *m = (u8 *) _aligned_realloc(*mem, new_size, alignment); m != nullptr)
+  {
+    *mem = m;
+    return true;
+  }
+  return false;
+#endif
+
+#if USE_STDC_ALIGNED_ALLOC
   // stdc realloc doesn't guarantee preservation of alignment
-  void *new_memory = HeapInterface::allocate(self, alignment, new_size);
-  if (new_memory != nullptr)
+  if (u8 *m = (u8 *) std::aligned_alloc(alignment, new_size); m != nullptr)
   {
-    (void) memcpy(new_memory, memory, old_size);
-    HeapInterface::deallocate(self, alignment, memory, old_size);
+    (void) std::memcpy(m, *mem, old_size);
+    std::free(*mem);
+    *mem = m;
   }
-  return new_memory;
-#  else
-  (void) fprintf(stderr,
-                 "over-aligned zeroed-alloc of alignment %" PRIu64
-                 " not supported\n",
-                 (u64) alignment);
-  (void) fflush(stderr);
-  return nullptr;
-#  endif
+  return false;
+#endif
+
+#if !HAS_ALIGNED_ALLOC
+  fprintf(stderr,
+          "over-aligned zeroed-alloc of alignment %" PRIu64 " not supported\n",
+          (u64) alignment);
+  (void) std::fflush(stderr);
+  return false;
 #endif
 }
 
-void HeapInterface::deallocate(Allocator self, usize alignment, void *memory,
-                               usize size)
+void HeapInterface::dealloc(Allocator self, usize alignment, u8 *mem,
+                            usize size)
 {
   (void) self;
   (void) alignment;
-  (void) memory;
+  (void) mem;
   (void) size;
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
-    free(memory);
+    free(mem);
     return;
   }
 
-#if WINDOWS_CRT_ALIGNED_ALLOC_SUPPORTED
-  _aligned_free(memory);
-#else
-#  if STDC_ALIGNED_ALLOC_SUPPORTED
-  free(memory);
-#  else
-  (void) fprintf(stderr,
-                 "over-aligned malloc of alignment %" PRIu64 " not supported\n",
-                 (u64) alignment);
-  (void) fflush(stderr);
-  return nullptr;
-#  endif
+#if USE_WIN32CRT_ALIGNED_ALLOC
+  _aligned_free(mem);
+#endif
+
+#if USE_STDC_ALIGNED_ALLOC
+  std::free(mem);
+#endif
+
+#if !HAS_ALIGNED_ALLOC
+  (void) std::fprintf(
+      stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
+      (u64) alignment);
+  (void) std::fflush(stderr);
 #endif
 }
 

@@ -1,22 +1,27 @@
 #pragma once
 
+#include "ashura/engine/canvas.h"
+#include "ashura/engine/event.h"
 #include "ashura/engine/key.h"
+#include "ashura/engine/renderer.h"
 #include "ashura/std/math.h"
+#include "ashura/std/time.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
 /// Simple Layout Constraint Model
-/// @offset: adding or subtracting from the source size, i.e. value should be
-/// source size - 20px
-/// @scale: scales the source size, i.e. value should be 0.5 of source size
-/// @min: clamps the source size, i.e. value should be at least 20px
-/// @max: clamps the source size, i.e. value should be at most 100px
-/// @minr: clamps the source size relatively. i.e. value should be at least 0.5
-/// of source size
-/// @maxr: clamps the source size relatively. i.e. value should be at most 0.5
-/// of source size
+/// @param offset adding or subtracting from the source size, i.e. value should
+/// be source size - 20px
+/// @param scale scales the source size, i.e. value should be 0.5 of source
+/// size
+/// @param min clamps the source size, i.e. value should be at least 20px
+/// @param max clamps the source size, i.e. value should be at most 100px
+/// @param minrel clamps the source size relatively. i.e. value should be at
+/// least 0.5 of source size
+/// @param maxrel clamps the source size relatively. i.e. value should be at
+/// most 0.5 of source size
 struct LayoutConstraint
 {
   f32 offset = 0;
@@ -39,14 +44,14 @@ enum class Direction : u8
   Vertical   = 1
 };
 
-constexpr Vec2 ALIGN_TOP_LEFT      = Vec2{0, 0};
-constexpr Vec2 ALIGN_TOP_CENTER    = Vec2{0.5f, 0};
-constexpr Vec2 ALIGN_TOP_RIGHT     = Vec2{1, 0};
-constexpr Vec2 ALIGN_LEFT_CENTER   = Vec2{0, 0.5f};
-constexpr Vec2 ALIGN_CENTER        = Vec2{0.5f, 0.5f};
-constexpr Vec2 ALIGN_RIGHT_CENTER  = Vec2{1, 0.5f};
-constexpr Vec2 ALIGN_BOTTOM_LEFT   = Vec2{0, 1};
-constexpr Vec2 ALIGN_BOTTOM_CENTER = Vec2{0.5f, 1};
+constexpr Vec2 ALIGN_TOP_LEFT      = Vec2{-1, -1};
+constexpr Vec2 ALIGN_TOP_CENTER    = Vec2{0, -1};
+constexpr Vec2 ALIGN_TOP_RIGHT     = Vec2{1, -1};
+constexpr Vec2 ALIGN_LEFT_CENTER   = Vec2{-1, 0};
+constexpr Vec2 ALIGN_CENTER        = Vec2{0, 0};
+constexpr Vec2 ALIGN_RIGHT_CENTER  = Vec2{1, 0};
+constexpr Vec2 ALIGN_BOTTOM_LEFT   = Vec2{-1, 1};
+constexpr Vec2 ALIGN_BOTTOM_CENTER = Vec2{0, 1};
 constexpr Vec2 ALIGN_BOTTOM_RIGHT  = Vec2{1, 1};
 
 enum class MainAlign : u8
@@ -65,12 +70,10 @@ enum class CrossAlign : u8
   Center = 2
 };
 
-typedef struct WidgetSystem WidgetSystem;
-
-/// @ViewHit: called on every frame the widget is viewed on the viewport.
-/// @ViewMiss: called on every frame that the widget is not seen on the viewport
-/// this can be because it has hidden visibility, is clipped away, or parent
-/// positioned out of the visible region
+/// @param ViewHit called on every frame the widget is viewed on the viewport.
+/// @param ViewMiss called on every frame that the widget is not seen on the
+/// viewport this can be because it has hidden visibility, is clipped away, or
+/// parent positioned out of the visible region
 enum class WidgetEventTypes : u32
 {
   None         = 0x00000000,
@@ -89,45 +92,15 @@ enum class WidgetEventTypes : u32
   DragLeave    = 0x00001000,
   Drop         = 0x00002000,
   ViewHit      = 0x00004000,
-  ViewMis      = 0x00008000
+  ViewMiss     = 0x00008000
 };
 
-// identifying widgets across frames
-struct GlobalEvent
-{
-  MouseButtons   button            = MouseButtons::None;
-  Vec2           mouse_position    = {};
-  Vec2           mouse_translation = {};
-  u32            num_clicks        = 0;
-  Span<u8 const> drag_payload      = {};
-};
-
-// TODO(lamarrr): we might need request detach so child widgets can request to
-// be removed and remove all callbacks they may have attached or cancel tasks
-// they have pending.
-// consider: having tokens that de-register themselves once deleted
-
-// TODO(lamarrr): we need re-calculable offsets so we can shift the parents
-// around without shifting the children this is important for cursors, drag
-// and drop? this might mean we need to totally remove the concept of area.
-// storing transformed area might not be needed?
-
-/// @brief Base widget class. All widget types must inherit from this struct.
-/// all methods are already implemented with reasonable defaults.
-
-/// rebuild widgets every frame? what about large widgets?
-
-/// begin_children
-/// end_chilren
-
-/// wIDGETS ARE JUST VISUAL ELEMENTS THAT FORWARD EVENTS TO OTHER SYSTEMS
-
-/// @Visible: an invisible widget will not
-/// be drawn nor receive mouse/touch events.
+/// @param Visible an invisible widget will not be drawn nor receive
+/// mouse/touch events.
 ///
-// @Hittable: this needs to happen before mouse actions as some widgets .i.e.
-// some widgets don't need to intercept or receive mouse events
-/// return true if accepts hit test at position.
+/// @param Hittable this needs to happen before mouse actions as some widgets
+/// .i.e. some widgets don't need to intercept or receive mouse events return
+/// true if accepts hit test at position.
 enum class WidgetAttributes : u8
 {
   None       = 0x00,
@@ -137,21 +110,33 @@ enum class WidgetAttributes : u8
   Draggable  = 0x08
 };
 
-struct Canvas
+struct WidgetContext
 {
+  MouseButtons   button            = MouseButtons::None;
+  Vec2           mouse_position    = {};
+  Vec2           mouse_translation = {};
+  u32            num_clicks        = 0;
+  Span<u8 const> drag_payload      = {};
+  SystemTheme    theme             = SystemTheme::None;
 };
 
-/// theming
-/// reaction
+/// @brief Base widget class. All widget types must inherit from this struct.
+/// all methods are already implemented with reasonable defaults.
+/// Widgets are plain visual elements that define spatial relationships and
+/// visual state changes, and forward events to other subsystems.
 struct Widget
 {
   Widget()          = default;
   virtual ~Widget() = default;
 
-  // TODO: how to circumvent?
-  /// @brief get child widgets
+  /// @brief get child widgets, this is a virtual iterator, return null once
+  /// there's no other children
   /// @return
-  virtual Span<Widget *const> get_children();
+  virtual Widget *get_child(u32 i)
+  {
+    (void) i;
+    return nullptr;
+  }
 
   /// @brief distributes the size allocated to it to its child widgets.
   /// unlike CSS. has the advantage that children wouldn't need extra attributes
@@ -174,12 +159,10 @@ struct Widget
   /// @param[out] children_positions positions of the children widget on the
   /// parent
   /// @return this widget's fitted extent
-  virtual Vec2 fit(Vec2 allocated_size, Span<Vec2 const> children_allocations,
-                   Span<Vec2 const> children_sizes,
-                   Span<Vec2>       children_positions)
+  virtual Vec2 fit(Vec2 allocated_size, Span<Vec2 const> children_sizes,
+                   Span<Vec2> children_positions)
   {
     (void) allocated_size;
-    (void) children_allocations;
     (void) children_sizes;
     (void) children_positions;
     return Vec2{0, 0};
@@ -224,7 +207,10 @@ struct Widget
   /// only called if the widget passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas
-  virtual void draw(Canvas &);
+  virtual void render(Canvas &canvas)
+  {
+    (void) canvas;
+  }
 
   /// @brief called on every frame. used for state changes, animations, task
   /// dispatch and lightweight processing related to the GUI. heavy-weight and
@@ -232,9 +218,15 @@ struct Widget
   /// handle that. i.e. using the multi-tasking system.
   /// @param interval time passed since last call to this method
   //
-  // attached by widget system to global context
-  // virtual Span<u8 const> get_drag_payload(WidgetSystem &);
-  virtual void tick(u64 diff, WidgetEventTypes events);
+  virtual void tick(nanoseconds interval, WidgetEventTypes events,
+                    WidgetContext const &ctx)
+  {
+    (void) interval;
+    (void) events;
+    (void) ctx;
+  }
+
+  uid id = UID_MAX;
 };
 
 }        // namespace ash

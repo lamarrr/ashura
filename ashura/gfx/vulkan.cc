@@ -1,4 +1,5 @@
 #include "ashura/gfx/vulkan.h"
+#include "ashura/std/error.h"
 #include "ashura/std/math.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/range.h"
@@ -10,29 +11,8 @@ namespace ash
 namespace vk
 {
 
-#define sPANIC_IF(logger, description, ...)                                \
-  do                                                                       \
-  {                                                                        \
-    if (!(__VA_ARGS__))                                                    \
-    {                                                                      \
-      (logger)->panic(description, " (expression: " #__VA_ARGS__,          \
-                      ") [function: ", SourceLocation::current().function, \
-                      ", file: ", SourceLocation::current().file, ":",     \
-                      SourceLocation::current().line, ":",                 \
-                      SourceLocation::current().column, "]");              \
-    }                                                                      \
-  } while (false)
-
-#define sVALIDATE(...) \
-  sPANIC_IF(self->logger, "Validation Failed: " #__VA_ARGS__, __VA_ARGS__)
-
-#define sCHECK(...) \
-  sPANIC_IF(self->logger, "Check Failed: " #__VA_ARGS__, __VA_ARGS__)
-
-#define sCHECK_EX(logger, ...) \
-  sPANIC_IF(logger, "Check Failed: " #__VA_ARGS__, __VA_ARGS__)
-
-#define sUNREACHABLE() abort()
+#define sVALIDATE(cond_expr) CHECK_DESC(cond_expr, "Validation Failed")
+#define sCHECK(cond_expr) CHECK_DESC(cond_expr, "Check Failed")
 
 #define BUFFER_FROM_VIEW(buffer_view) \
   ((Buffer *) (((BufferView *) (buffer_view))->desc.buffer))
@@ -330,13 +310,11 @@ void load_vma_table(InstanceTable const &instance_table,
 #undef SET_VMA_DEV
 }
 
-static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
-    VkDebugUtilsMessageTypeFlagsEXT             message_type,
-    VkDebugUtilsMessengerCallbackDataEXT const *data, void *user_data)
+static VkBool32 VKAPI_ATTR VKAPI_CALL
+    debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
+                   VkDebugUtilsMessageTypeFlagsEXT             message_type,
+                   VkDebugUtilsMessengerCallbackDataEXT const *data, void *)
 {
-  Instance *const instance = (Instance *) user_data;
-
   LogLevels level = LogLevels::Trace;
   if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
   {
@@ -355,16 +333,16 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
     level = LogLevels::Trace;
   }
 
-  instance->logger->log(
+  default_logger->log(
       level, "[Type: ", string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
       ", Id: ", data->messageIdNumber, ", Name: ", data->pMessageIdName, "] ",
       data->pMessage == nullptr ? "(empty message)" : data->pMessage);
   if (data->objectCount != 0)
   {
-    instance->logger->log(level, "Objects Involved:");
+    default_logger->log(level, "Objects Involved:");
     for (u32 i = 0; i < data->objectCount; i++)
     {
-      instance->logger->log(
+      default_logger->log(
           level, "[Type: ", string_VkObjectType(data->pObjects[i].objectType),
           "] ",
           data->pObjects[i].pObjectName == nullptr ?
@@ -901,7 +879,7 @@ inline void access_compute_bindings(CommandEncoder const &enc,
         break;
 
       default:
-        sUNREACHABLE();
+        UNREACHABLE();
     }
   }
 }
@@ -976,7 +954,7 @@ inline void access_graphics_bindings(CommandEncoder const &enc,
         }
         break;
       default:
-        sUNREACHABLE();
+        UNREACHABLE();
     }
   }
 }
@@ -1054,7 +1032,7 @@ inline u64 index_type_size(gfx::IndexType type)
     case gfx::IndexType::Uint32:
       return 4;
     default:
-      sUNREACHABLE();
+      UNREACHABLE();
   }
 }
 
@@ -1089,7 +1067,6 @@ inline bool is_valid_image_access(gfx::ImageAspects aspects, u32 num_levels,
 }
 
 Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
-                                                  Logger       *logger,
                                                   bool enable_validation)
 {
   u32      num_exts;
@@ -1101,15 +1078,13 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{(Status) result};
   }
 
-  VkExtensionProperties *exts =
-      allocator.allocate_typed<VkExtensionProperties>(num_exts);
-
-  if (num_exts != 0 && exts == nullptr)
+  VkExtensionProperties *exts;
+  if (!allocator.nalloc(num_exts, &exts))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer exts_del{[&] { allocator.deallocate_typed(exts, num_exts); }};
+  defer exts_del{[&] { allocator.ndealloc(exts, num_exts); }};
 
   {
     u32 num_read_exts = num_exts;
@@ -1121,7 +1096,7 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
       return Err{(Status) result};
     }
 
-    sCHECK_EX(logger, num_read_exts == num_exts);
+    sCHECK(num_read_exts == num_exts);
   }
 
   u32 num_layers;
@@ -1132,15 +1107,14 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{(Status) result};
   }
 
-  VkLayerProperties *layers =
-      allocator.allocate_typed<VkLayerProperties>(num_layers);
+  VkLayerProperties *layers;
 
-  if (num_layers != 0 && layers == nullptr)
+  if (!allocator.nalloc(num_layers, &layers))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer layers_del{[&] { allocator.deallocate_typed(layers, num_layers); }};
+  defer layers_del{[&] { allocator.ndealloc(layers, num_layers); }};
 
   {
     u32 num_read_layers = num_layers;
@@ -1151,31 +1125,31 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
       return Err{(Status) result};
     }
 
-    sCHECK_EX(logger, num_read_layers == num_layers);
+    sCHECK(num_read_layers == num_layers);
   }
 
-  logger->trace("Available Extensions:");
+  default_logger->trace("Available Extensions:");
 
   for (VkExtensionProperties const &ext : Span{exts, num_exts})
   {
-    logger->trace(ext.extensionName, "\t\t(spec version ",
-                  VK_API_VERSION_MAJOR(ext.specVersion), ".",
-                  VK_API_VERSION_MINOR(ext.specVersion), ".",
-                  VK_API_VERSION_PATCH(ext.specVersion), " variant ",
-                  VK_API_VERSION_VARIANT(ext.specVersion), ")");
+    default_logger->trace(ext.extensionName, "\t\t(spec version ",
+                          VK_API_VERSION_MAJOR(ext.specVersion), ".",
+                          VK_API_VERSION_MINOR(ext.specVersion), ".",
+                          VK_API_VERSION_PATCH(ext.specVersion), " variant ",
+                          VK_API_VERSION_VARIANT(ext.specVersion), ")");
   }
 
-  logger->trace("Available Validation Layers:");
+  default_logger->trace("Available Validation Layers:");
 
   for (VkLayerProperties const &layer : Span{layers, num_layers})
   {
-    logger->trace(layer.layerName, "\t\t(spec version ",
-                  VK_API_VERSION_MAJOR(layer.specVersion), ".",
-                  VK_API_VERSION_MINOR(layer.specVersion), ".",
-                  VK_API_VERSION_PATCH(layer.specVersion), " variant ",
-                  VK_API_VERSION_VARIANT(layer.specVersion),
-                  ", implementation version: ", layer.implementationVersion,
-                  ")");
+    default_logger->trace(
+        layer.layerName, "\t\t(spec version ",
+        VK_API_VERSION_MAJOR(layer.specVersion), ".",
+        VK_API_VERSION_MINOR(layer.specVersion), ".",
+        VK_API_VERSION_PATCH(layer.specVersion), " variant ",
+        VK_API_VERSION_VARIANT(layer.specVersion),
+        ", implementation version: ", layer.implementationVersion, ")");
   }
 
   char const *load_exts[16];
@@ -1213,9 +1187,9 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     }
     else
     {
-      logger->warn("Required Vulkan "
-                   "Extension: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-                   " is not supported on device");
+      default_logger->warn("Required Vulkan "
+                           "Extension: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+                           " is not supported on device");
     }
   }
 
@@ -1239,7 +1213,7 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     }
     else
     {
-      logger->warn(
+      default_logger->warn(
           "Required Vulkan Validation Layer: VK_LAYER_KHRONOS_validation is "
           "not supported");
     }
@@ -1250,9 +1224,8 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
 
   // setup before vkInstance to allow debug reporter report
   // messages through the pointer to it
-  Instance *instance = allocator.allocate_typed<Instance>(1);
-
-  if (instance == nullptr)
+  Instance *instance;
+  if (!allocator.nalloc(1, &instance))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -1260,12 +1233,11 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
   defer instance_del{[&] {
     if (instance != nullptr)
     {
-      allocator.deallocate_typed(instance, 1);
+      allocator.ndealloc(instance, 1);
     }
   }};
 
   new (instance) Instance{.allocator          = allocator,
-                          .logger             = logger,
                           .vk_table           = {},
                           .vk_instance        = nullptr,
                           .vk_debug_messenger = nullptr,
@@ -1277,7 +1249,7 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
                              .applicationVersion = CLIENT_VERSION,
                              .pEngineName        = ENGINE_NAME,
                              .engineVersion      = ENGINE_VERSION,
-                             .apiVersion         = 0};
+                             .apiVersion         = VK_API_VERSION_1_1};
 
   VkDebugUtilsMessengerCreateInfoEXT debug_create_info{
       .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -1322,8 +1294,8 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
 
   InstanceTable vk_table;
 
-  sCHECK_EX(logger, load_instance_table(vk_instance, vkGetInstanceProcAddr,
-                                        vk_table, validation_enabled));
+  sCHECK(load_instance_table(vk_instance, vkGetInstanceProcAddr, vk_table,
+                             validation_enabled));
 
   VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
 
@@ -1354,10 +1326,9 @@ namespace gfx
 {
 
 Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
-                                                    Logger       *logger,
                                                     bool enable_validation)
 {
-  return vk::create_instance(allocator, logger, enable_validation);
+  return vk::create_instance(allocator, enable_validation);
 }
 
 }        // namespace gfx
@@ -1379,10 +1350,10 @@ void InstanceInterface::destroy(gfx::Instance instance_)
         instance->vk_instance, instance->vk_debug_messenger, nullptr);
   }
   instance->vk_table.DestroyInstance(instance->vk_instance, nullptr);
-  instance->allocator.deallocate_typed(instance, 1);
+  instance->allocator.ndealloc(instance, 1);
 }
 
-void check_device_limits(Instance *self, VkPhysicalDeviceLimits limits)
+void check_device_limits(VkPhysicalDeviceLimits limits)
 {
   sVALIDATE(limits.maxImageDimension1D >= gfx::MAX_IMAGE_EXTENT_1D);
   sVALIDATE(limits.maxImageDimension2D >= gfx::MAX_IMAGE_EXTENT_2D);
@@ -1409,7 +1380,7 @@ void check_device_limits(Instance *self, VkPhysicalDeviceLimits limits)
             gfx::MAX_COMBINED_CLIP_AND_CULL_DISTANCES);
 }
 
-void check_device_features(Instance *self, VkPhysicalDeviceFeatures feat)
+void check_device_features(VkPhysicalDeviceFeatures feat)
 {
   sVALIDATE(feat.samplerAnisotropy == VK_TRUE);
   sVALIDATE(feat.shaderUniformBufferArrayDynamicIndexing == VK_TRUE);
@@ -1485,7 +1456,6 @@ Status create_command_encoder(Device *dev, CommandEncoder *enc)
 
   new (enc) CommandEncoder{
       .allocator         = dev->allocator,
-      .logger            = dev->logger,
       .dev               = dev,
       .arg_pool          = ArenaPool{dev->allocator},
       .vk_command_pool   = vk_command_pool,
@@ -1652,9 +1622,9 @@ void destroy_descriptor_heap(Device *self, DescriptorHeap *heap)
     self->vk_table.DestroyDescriptorPool(self->vk_dev, heap->pools[i].vk_pool,
                                          nullptr);
   }
-  heap->allocator.deallocate_typed(heap->pools, heap->num_pools);
-  heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT, heap->scratch,
-                             heap->scratch_size);
+  heap->allocator.ndealloc(heap->pools, heap->num_pools);
+  heap->allocator.dealloc(MAX_STANDARD_ALIGNMENT, heap->scratch,
+                          heap->scratch_size);
 }
 
 Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
@@ -1680,20 +1650,18 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   if (num_devs == 0)
   {
-    self->logger->trace("No Physical Device Found");
     return Err{Status::DeviceLost};
   }
 
-  VkPhysicalDevice *vk_phy_devs =
-      self->allocator.allocate_typed<VkPhysicalDevice>(num_devs);
+  VkPhysicalDevice *vk_phy_devs;
 
-  if (vk_phy_devs == nullptr && num_devs != 0)
+  if (!self->allocator.nalloc(num_devs, &vk_phy_devs))
   {
     return Err{Status::OutOfHostMemory};
   }
 
   defer vk_phy_devs_del{
-      [&] { self->allocator.deallocate_typed(vk_phy_devs, num_devs); }};
+      [&] { self->allocator.ndealloc(vk_phy_devs, num_devs); }};
 
   {
     u32 num_read_devs = num_devs;
@@ -1708,16 +1676,14 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     sCHECK(num_read_devs == num_devs);
   }
 
-  PhysicalDevice *physical_devs =
-      self->allocator.allocate_typed<PhysicalDevice>(num_devs);
-
-  if (physical_devs == nullptr && num_devs != 0)
+  PhysicalDevice *physical_devs;
+  if (!self->allocator.nalloc(num_devs, &physical_devs))
   {
     return Err{Status::OutOfHostMemory};
   }
 
   defer physical_devs_del{
-      [&] { self->allocator.deallocate_typed(physical_devs, num_devs); }};
+      [&] { self->allocator.ndealloc(physical_devs, num_devs); }};
 
   for (u32 i = 0; i < num_devs; i++)
   {
@@ -1730,12 +1696,12 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     self->vk_table.GetPhysicalDeviceProperties(vk_dev, &dev.vk_properties);
   }
 
-  self->logger->trace("Available Devices:");
+  default_logger->trace("Available Devices:");
   for (u32 i = 0; i < num_devs; i++)
   {
     PhysicalDevice const             &dev        = physical_devs[i];
     VkPhysicalDeviceProperties const &properties = dev.vk_properties;
-    self->logger->trace(
+    default_logger->trace(
         "[Device: ", i, "] ",
         string_VkPhysicalDeviceType(properties.deviceType), " ",
         properties.deviceName, " Vulkan API version ",
@@ -1767,7 +1733,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
     for (u32 i = 0; i < num_queue_families; i++)
     {
-      self->logger->trace(
+      default_logger->trace(
           "\t\tQueue Family: ", i,
           ", Count: ", queue_family_properties[i].queueCount, ", Flags: ",
           string_VkQueueFlags(queue_family_properties[i].queueFlags));
@@ -1837,16 +1803,16 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   if (selected_dev_idx == num_devs)
   {
-    self->logger->trace("No Suitable Device Found");
+    default_logger->trace("No Suitable Device Found");
     return Err{Status::DeviceLost};
   }
 
   PhysicalDevice selected_dev = physical_devs[selected_dev_idx];
 
-  check_device_limits(self, selected_dev.vk_properties.limits);
-  check_device_features(self, selected_dev.vk_features);
+  check_device_limits(selected_dev.vk_properties.limits);
+  check_device_features(selected_dev.vk_features);
 
-  self->logger->trace("Selected Device ", selected_dev_idx);
+  default_logger->trace("Selected Device ", selected_dev_idx);
 
   u32 num_exts;
   result = self->vk_table.EnumerateDeviceExtensionProperties(
@@ -1857,15 +1823,14 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{(Status) result};
   }
 
-  VkExtensionProperties *exts =
-      self->allocator.allocate_typed<VkExtensionProperties>(num_exts);
+  VkExtensionProperties *exts;
 
-  if (num_exts > 0 && exts == nullptr)
+  if (!self->allocator.nalloc(num_exts, &exts))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer exts_del{[&] { self->allocator.deallocate_typed(exts, num_exts); }};
+  defer exts_del{[&] { self->allocator.ndealloc(exts, num_exts); }};
 
   {
     u32 num_read_exts = num_exts;
@@ -1887,16 +1852,14 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{(Status) result};
   }
 
-  VkLayerProperties *layers =
-      self->allocator.allocate_typed<VkLayerProperties>(num_layers);
+  VkLayerProperties *layers;
 
-  if (num_layers > 0 && layers == nullptr)
+  if (!self->allocator.nalloc(num_layers, &layers))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer layers_del{
-      [&] { self->allocator.deallocate_typed(layers, num_layers); }};
+  defer layers_del{[&] { self->allocator.ndealloc(layers, num_layers); }};
 
   {
     u32 num_read_layers = num_layers;
@@ -1909,32 +1872,32 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     sCHECK(num_read_layers == num_layers);
   }
 
-  self->logger->trace("Available Extensions:");
+  default_logger->trace("Available Extensions:");
 
   for (u32 i = 0; i < num_exts; i++)
   {
     VkExtensionProperties const &ext = exts[i];
-    self->logger->trace("\t\t", ext.extensionName, " (spec version: ",
-                        VK_API_VERSION_MAJOR(ext.specVersion), ".",
-                        VK_API_VERSION_MINOR(ext.specVersion), ".",
-                        VK_API_VERSION_PATCH(ext.specVersion), " variant ",
-                        VK_API_VERSION_VARIANT(ext.specVersion), ")");
+    default_logger->trace("\t\t", ext.extensionName, " (spec version: ",
+                          VK_API_VERSION_MAJOR(ext.specVersion), ".",
+                          VK_API_VERSION_MINOR(ext.specVersion), ".",
+                          VK_API_VERSION_PATCH(ext.specVersion), " variant ",
+                          VK_API_VERSION_VARIANT(ext.specVersion), ")");
   }
 
-  self->logger->trace("Available Layers:");
+  default_logger->trace("Available Layers:");
 
   for (u32 i = 0; i < num_layers; i++)
   {
     VkLayerProperties const &layer = layers[i];
 
-    self->logger->trace("\t\t", layer.layerName, " (spec version: ",
-                        VK_API_VERSION_MAJOR(layer.specVersion), ".",
-                        VK_API_VERSION_MINOR(layer.specVersion), ".",
-                        VK_API_VERSION_PATCH(layer.specVersion), " variant ",
-                        VK_API_VERSION_VARIANT(layer.specVersion),
-                        ", "
-                        "implementation version: ",
-                        layer.implementationVersion, ")");
+    default_logger->trace("\t\t", layer.layerName, " (spec version: ",
+                          VK_API_VERSION_MAJOR(layer.specVersion), ".",
+                          VK_API_VERSION_MINOR(layer.specVersion), ".",
+                          VK_API_VERSION_PATCH(layer.specVersion), " variant ",
+                          VK_API_VERSION_VARIANT(layer.specVersion),
+                          ", "
+                          "implementation version: ",
+                          layer.implementationVersion, ")");
   }
 
   constexpr char const *required_exts[] = {
@@ -1978,8 +1941,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   {
     if (!required_ext_found[i])
     {
-      self->logger->trace("Required Extension: ", required_exts[i],
-                          " Not Present");
+      default_logger->trace("Required Extension: ", required_exts[i],
+                            " Not Present");
       return Err{Status::ExtensionNotPresent};
     }
 
@@ -2182,15 +2145,14 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     }
   }};
 
-  Device *dev = self->allocator.allocate_typed<Device>(1);
+  Device *dev;
 
-  if (dev == nullptr)
+  if (!self->allocator.nalloc(1, &dev))
   {
     return Err{Status::OutOfHostMemory};
   }
 
   new (dev) Device{.allocator     = allocator,
-                   .logger        = self->logger,
                    .instance      = self,
                    .phy_dev       = selected_dev,
                    .vk_table      = vk_table,
@@ -2251,7 +2213,7 @@ void InstanceInterface::destroy_device(gfx::Instance instance_,
   destroy_descriptor_heap(dev, &dev->descriptor_heap);
   vmaDestroyAllocator(dev->vma_allocator);
   dev->vk_table.DestroyDevice(dev->vk_dev, nullptr);
-  instance->allocator.deallocate_typed(dev, 1);
+  instance->allocator.ndealloc(dev, 1);
 }
 
 void InstanceInterface::destroy_surface(gfx::Instance self_,
@@ -2357,12 +2319,11 @@ Result<gfx::Buffer, Status>
       .pool           = nullptr,
       .pUserData      = nullptr,
       .priority       = 0};
-  VmaAllocationInfo vma_allocation_info;
-  VmaAllocation     vma_allocation;
-  VkBuffer          vk_buffer;
-  VkResult          result =
+  VmaAllocation vma_allocation;
+  VkBuffer      vk_buffer;
+  VkResult      result =
       vmaCreateBuffer(self->vma_allocator, &create_info, &alloc_create_info,
-                      &vk_buffer, &vma_allocation, &vma_allocation_info);
+                      &vk_buffer, &vma_allocation, nullptr);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -2371,18 +2332,15 @@ Result<gfx::Buffer, Status>
   set_resource_name(self, desc.label, vk_buffer, VK_OBJECT_TYPE_BUFFER,
                     VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT);
 
-  Buffer *buffer = self->allocator.allocate_typed<Buffer>(1);
-  if (buffer == nullptr)
+  Buffer *buffer;
+  if (!self->allocator.nalloc(1, &buffer))
   {
     vmaDestroyBuffer(self->vma_allocator, vk_buffer, vma_allocation);
     return Err{Status::OutOfHostMemory};
   }
 
-  new (buffer) Buffer{.desc                = desc,
-                      .vk_buffer           = vk_buffer,
-                      .vma_allocation      = vma_allocation,
-                      .vma_allocation_info = vma_allocation_info,
-                      .host_map            = vma_allocation_info.pMappedData};
+  new (buffer) Buffer{
+      .desc = desc, .vk_buffer = vk_buffer, .vma_allocation = vma_allocation};
 
   return Ok{(gfx::Buffer) buffer};
 }
@@ -2426,9 +2384,9 @@ Result<gfx::BufferView, Status>
   set_resource_name(self, desc.label, vk_view, VK_OBJECT_TYPE_BUFFER_VIEW,
                     VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT);
 
-  BufferView *view = self->allocator.allocate_typed<BufferView>(1);
+  BufferView *view;
 
-  if (view == nullptr)
+  if (!self->allocator.nalloc(1, &view))
   {
     self->vk_table.DestroyBufferView(self->vk_dev, vk_view, nullptr);
     return Err{Status::OutOfHostMemory};
@@ -2524,9 +2482,9 @@ Result<gfx::Image, Status>
   set_resource_name(self, desc.label, vk_image, VK_OBJECT_TYPE_IMAGE,
                     VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT);
 
-  Image *image = self->allocator.allocate_typed<Image>(1);
+  Image *image;
 
-  if (image == nullptr)
+  if (!self->allocator.nalloc(1, &image))
   {
     vmaDestroyImage(self->vma_allocator, vk_image, vma_allocation);
     return Err{Status::OutOfHostMemory};
@@ -2605,8 +2563,8 @@ Result<gfx::ImageView, Status>
   set_resource_name(self, desc.label, vk_view, VK_OBJECT_TYPE_IMAGE_VIEW,
                     VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT);
 
-  ImageView *view = self->allocator.allocate_typed<ImageView>(1);
-  if (view == nullptr)
+  ImageView *view;
+  if (!self->allocator.nalloc(1, &view))
   {
     self->vk_table.DestroyImageView(self->vk_dev, vk_view, nullptr);
     return Err{Status::OutOfHostMemory};
@@ -2751,7 +2709,9 @@ Result<gfx::DescriptorSetLayout, Status>
         .descriptorCount    = binding.count,
         .stageFlags         = stage_flags,
         .pImmutableSamplers = nullptr};
+
     VkDescriptorBindingFlagsEXT const vk_flags =
+        VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT |
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
         (binding.is_variable_length ?
              VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT :
@@ -2794,9 +2754,8 @@ Result<gfx::DescriptorSetLayout, Status>
                     VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
                     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT);
 
-  DescriptorSetLayout *layout =
-      self->allocator.allocate_typed<DescriptorSetLayout>(1);
-  if (layout == nullptr)
+  DescriptorSetLayout *layout;
+  if (!self->allocator.nalloc(1, &layout))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -2920,21 +2879,19 @@ Result<gfx::DescriptorSet, Status>
       self->vk_table.DestroyDescriptorPool(self->vk_dev, vk_pool, nullptr);
     }};
 
-    DescriptorPool *pools = heap.allocator.reallocate_typed(
-        heap.pools, heap.num_pools, heap.num_pools + 1);
-    if (pools == nullptr)
+    if (!heap.allocator.nrealloc(heap.num_pools, heap.num_pools + 1,
+                                 &heap.pools))
     {
       return Err{Status::OutOfHostMemory};
     }
 
-    DescriptorPool *pool = pools + heap.num_pools;
+    DescriptorPool *pool = heap.pools + heap.num_pools;
 
     fill(pool->avail, heap.pool_size);
     pool->vk_pool = vk_pool;
 
     heap.num_pools++;
-    heap.pools = pools;
-    vk_pool    = nullptr;
+    vk_pool = nullptr;
   }
 
   DescriptorBinding bindings[gfx::MAX_DESCRIPTOR_SET_BINDINGS] = {};
@@ -2943,7 +2900,7 @@ Result<gfx::DescriptorSet, Status>
   defer bindings_del{[&] {
     for (u32 i = num_bindings; i-- > 0;)
     {
-      heap.allocator.deallocate_typed(bindings[i].resources, bindings[i].count);
+      heap.allocator.ndealloc(bindings[i].resources, bindings[i].count);
     }
   }};
 
@@ -2952,8 +2909,7 @@ Result<gfx::DescriptorSet, Status>
     gfx::DescriptorBindingDesc const &desc  = layout->bindings[num_bindings];
     void                            **rsrcs = nullptr;
     u32                               count = resource_sync_count[num_bindings];
-    rsrcs = heap.allocator.allocate_zeroed_typed<void *>(count);
-    if (rsrcs == nullptr && count != 0)
+    if (!heap.allocator.nalloc_zeroed(count, &rsrcs))
     {
       return Err{Status::OutOfHostMemory};
     }
@@ -2992,9 +2948,9 @@ Result<gfx::DescriptorSet, Status>
     heap.pools[ipool].avail[i] -= descriptor_usage[i];
   }
 
-  DescriptorSet *set = heap.allocator.allocate_typed<DescriptorSet>(1);
+  DescriptorSet *set;
 
-  if (set == nullptr)
+  if (!heap.allocator.nalloc(1, &set))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -3125,9 +3081,8 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
   set_resource_name(self, desc.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
-  ComputePipeline *pipeline =
-      self->allocator.allocate_typed<ComputePipeline>(1);
-  if (pipeline == nullptr)
+  ComputePipeline *pipeline;
+  if (!self->allocator.nalloc(1, &pipeline))
   {
     self->vk_table.DestroyPipelineLayout(self->vk_dev, vk_layout, nullptr);
     self->vk_table.DestroyPipeline(self->vk_dev, vk_pipeline, nullptr);
@@ -3474,9 +3429,8 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   set_resource_name(self, desc.label, vk_layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT,
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
-  GraphicsPipeline *pipeline =
-      self->allocator.allocate_typed<GraphicsPipeline>(1);
-  if (pipeline == nullptr)
+  GraphicsPipeline *pipeline;
+  if (!self->allocator.nalloc(1, &pipeline))
   {
     self->vk_table.DestroyPipelineLayout(self->vk_dev, vk_layout, nullptr);
     self->vk_table.DestroyPipeline(self->vk_dev, vk_pipeline, nullptr);
@@ -3687,8 +3641,8 @@ Result<gfx::Swapchain, Status>
   sVALIDATE(desc.preferred_extent.x > 0);
   sVALIDATE(desc.preferred_extent.y > 0);
 
-  Swapchain *swapchain = self->allocator.allocate_typed<Swapchain>(1);
-  if (swapchain == nullptr)
+  Swapchain *swapchain;
+  if (!self->allocator.nalloc(1, &swapchain))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -3787,7 +3741,7 @@ void DeviceInterface::destroy_buffer(gfx::Device self_, gfx::Buffer buffer_)
 
   vmaDestroyBuffer(self->vma_allocator, buffer->vk_buffer,
                    buffer->vma_allocation);
-  self->allocator.deallocate_typed(buffer, 1);
+  self->allocator.ndealloc(buffer, 1);
 }
 
 void DeviceInterface::destroy_buffer_view(gfx::Device     self_,
@@ -3802,7 +3756,7 @@ void DeviceInterface::destroy_buffer_view(gfx::Device     self_,
   }
 
   self->vk_table.DestroyBufferView(self->vk_dev, buffer_view->vk_view, nullptr);
-  self->allocator.deallocate_typed(buffer_view, 1);
+  self->allocator.ndealloc(buffer_view, 1);
 }
 
 void DeviceInterface::destroy_image(gfx::Device self_, gfx::Image image_)
@@ -3818,7 +3772,7 @@ void DeviceInterface::destroy_image(gfx::Device self_, gfx::Image image_)
   sVALIDATE(!image->is_swapchain_image);
 
   vmaDestroyImage(self->vma_allocator, image->vk_image, image->vma_allocation);
-  self->allocator.deallocate_typed(image, 1);
+  self->allocator.ndealloc(image, 1);
 }
 
 void DeviceInterface::destroy_image_view(gfx::Device    self_,
@@ -3833,7 +3787,7 @@ void DeviceInterface::destroy_image_view(gfx::Device    self_,
   }
 
   self->vk_table.DestroyImageView(self->vk_dev, image_view->vk_view, nullptr);
-  self->allocator.deallocate_typed(image_view, 1);
+  self->allocator.ndealloc(image_view, 1);
 }
 
 void DeviceInterface::destroy_sampler(gfx::Device self_, gfx::Sampler sampler_)
@@ -3863,7 +3817,7 @@ void DeviceInterface::destroy_descriptor_set_layout(
 
   self->vk_table.DestroyDescriptorSetLayout(self->vk_dev, layout->vk_layout,
                                             nullptr);
-  self->allocator.deallocate_typed(layout, 1);
+  self->allocator.ndealloc(layout, 1);
 }
 
 void DeviceInterface::destroy_descriptor_set(gfx::Device        self_,
@@ -3891,10 +3845,9 @@ void DeviceInterface::destroy_descriptor_set(gfx::Device        self_,
 
   for (u32 i = set->num_bindings; i-- > 0;)
   {
-    heap.allocator.deallocate_typed(set->bindings[i].resources,
-                                    set->num_bindings);
+    heap.allocator.ndealloc(set->bindings[i].resources, set->num_bindings);
   }
-  heap.allocator.deallocate_typed(set, 1);
+  heap.allocator.ndealloc(set, 1);
 }
 
 void DeviceInterface::destroy_pipeline_cache(gfx::Device        self_,
@@ -3919,7 +3872,7 @@ void DeviceInterface::destroy_compute_pipeline(gfx::Device          self_,
   self->vk_table.DestroyPipeline(self->vk_dev, pipeline->vk_pipeline, nullptr);
   self->vk_table.DestroyPipelineLayout(self->vk_dev, pipeline->vk_layout,
                                        nullptr);
-  self->allocator.deallocate_typed(pipeline, 1);
+  self->allocator.ndealloc(pipeline, 1);
 }
 
 void DeviceInterface::destroy_graphics_pipeline(gfx::Device           self_,
@@ -3936,7 +3889,7 @@ void DeviceInterface::destroy_graphics_pipeline(gfx::Device           self_,
   self->vk_table.DestroyPipeline(self->vk_dev, pipeline->vk_pipeline, nullptr);
   self->vk_table.DestroyPipelineLayout(self->vk_dev, pipeline->vk_layout,
                                        nullptr);
-  self->allocator.deallocate_typed(pipeline, 1);
+  self->allocator.ndealloc(pipeline, 1);
 }
 
 void DeviceInterface::destroy_swapchain(gfx::Device    self_,
@@ -3952,7 +3905,7 @@ void DeviceInterface::destroy_swapchain(gfx::Device    self_,
 
   self->vk_table.DestroySwapchainKHR(self->vk_dev, swapchain->vk_swapchain,
                                      nullptr);
-  self->allocator.deallocate_typed(swapchain, 1);
+  self->allocator.ndealloc(swapchain, 1);
 }
 
 void DeviceInterface::destroy_timestamp_query(gfx::Device         self_,
@@ -3984,19 +3937,36 @@ gfx::FrameContext DeviceInterface::get_frame_context(gfx::Device self_)
                            .ring_index = ctx.ring_index};
 }
 
-Result<void *, Status>
-    DeviceInterface::get_buffer_memory_map(gfx::Device self_,
-                                           gfx::Buffer buffer_)
+Result<void *, Status> DeviceInterface::map_buffer_memory(gfx::Device self_,
+                                                          gfx::Buffer buffer_)
+{
+  Device *const self   = (Device *) self_;
+  Buffer *const buffer = (Buffer *) buffer_;
+  sVALIDATE(buffer->desc.host_mapped);
+
+  void    *map;
+  VkResult result =
+      vmaMapMemory(self->vma_allocator, buffer->vma_allocation, &map);
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
+  return Ok{(void *) map};
+}
+
+void DeviceInterface::unmap_buffer_memory(gfx::Device self_,
+                                          gfx::Buffer buffer_)
 {
   Device *const self   = (Device *) self_;
   Buffer *const buffer = (Buffer *) buffer_;
 
   sVALIDATE(buffer->desc.host_mapped);
 
-  return Ok{(void *) buffer->host_map};
+  vmaUnmapMemory(self->vma_allocator, buffer->vma_allocation);
 }
 
-Result<Void, Status> DeviceInterface::invalidate_buffer_memory_map(
+Result<Void, Status> DeviceInterface::invalidate_mapped_buffer_memory(
     gfx::Device self_, gfx::Buffer buffer_, gfx::MemoryRange range)
 {
   Device *const self   = (Device *) self_;
@@ -4016,7 +3986,7 @@ Result<Void, Status> DeviceInterface::invalidate_buffer_memory_map(
   return Ok{Void{}};
 }
 
-Result<Void, Status> DeviceInterface::flush_buffer_memory_map(
+Result<Void, Status> DeviceInterface::flush_mapped_buffer_memory(
     gfx::Device self_, gfx::Buffer buffer_, gfx::MemoryRange range)
 {
   Device *const self   = (Device *) self_;
@@ -4199,7 +4169,7 @@ void DeviceInterface::update_descriptor_set(
       break;
 
     default:
-      sUNREACHABLE();
+      UNREACHABLE();
   }
 
   switch (binding.type)
@@ -4245,11 +4215,9 @@ void DeviceInterface::update_descriptor_set(
 
   if (heap->scratch_size < info_size)
   {
-    void *mem = heap->allocator.reallocate(
-        MAX_STANDARD_ALIGNMENT, heap->scratch, heap->scratch_size, info_size);
-    sCHECK(mem != nullptr);
+    sCHECK(heap->allocator.realloc(MAX_STANDARD_ALIGNMENT, heap->scratch_size,
+                                   info_size, &heap->scratch));
     heap->scratch_size = info_size;
-    heap->scratch      = mem;
   }
 
   VkDescriptorImageInfo  *pImageInfo       = nullptr;
@@ -4359,7 +4327,7 @@ void DeviceInterface::update_descriptor_set(
     break;
 
     default:
-      sUNREACHABLE();
+      UNREACHABLE();
   }
 
   VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -4414,7 +4382,7 @@ void DeviceInterface::update_descriptor_set(
       break;
 
     default:
-      sUNREACHABLE();
+      UNREACHABLE();
   }
 }
 
@@ -4457,15 +4425,14 @@ Result<u32, Status> DeviceInterface::get_surface_formats(
     return Err{(Status) result};
   }
 
-  VkSurfaceFormatKHR *vk_formats =
-      self->allocator.allocate_typed<VkSurfaceFormatKHR>(num_supported);
-  if (vk_formats == nullptr && num_supported != 0)
+  VkSurfaceFormatKHR *vk_formats;
+  if (!self->allocator.nalloc(num_supported, &vk_formats))
   {
     return Err{Status::OutOfHostMemory};
   }
 
   defer vk_formats_del{
-      [&] { self->allocator.deallocate_typed(vk_formats, num_supported); }};
+      [&] { self->allocator.ndealloc(vk_formats, num_supported); }};
 
   {
     u32 num_read = num_supported;
@@ -4507,16 +4474,14 @@ Result<u32, Status> DeviceInterface::get_surface_present_modes(
     return Err{(Status) result};
   }
 
-  VkPresentModeKHR *vk_present_modes =
-      self->allocator.allocate_typed<VkPresentModeKHR>(num_supported);
-  if (vk_present_modes == nullptr && num_supported != 0)
+  VkPresentModeKHR *vk_present_modes;
+  if (!self->allocator.nalloc(num_supported, &vk_present_modes))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer vk_present_modes_del{[&] {
-    self->allocator.deallocate_typed(vk_present_modes, num_supported);
-  }};
+  defer vk_present_modes_del{
+      [&] { self->allocator.ndealloc(vk_present_modes, num_supported); }};
 
   {
     u32 num_read = num_supported;
@@ -4589,7 +4554,7 @@ Result<Void, Status>
                                           gfx::Swapchain            swapchain_,
                                           gfx::SwapchainDesc const &desc)
 {
-  Device *const self = (Device *) self_;
+  (void) self_;
   sVALIDATE(desc.preferred_extent.x > 0);
   sVALIDATE(desc.preferred_extent.y > 0);
   Swapchain *const swapchain = (Swapchain *) swapchain_;
@@ -4920,10 +4885,9 @@ void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self_,
         is_valid_buffer_access(dst->desc.size, copy.dst_offset, copy.size));
   }
 
-  VkBufferCopy *vk_copies =
-      self->arg_pool.allocate_typed<VkBufferCopy>(num_copies);
+  VkBufferCopy *vk_copies;
 
-  if (vk_copies == nullptr)
+  if (!self->arg_pool.nalloc(num_copies, &vk_copies))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -4988,10 +4952,8 @@ void CommandEncoderInterface::clear_color_image(
         range.first_array_layer, range.num_array_layers));
   }
 
-  VkImageSubresourceRange *vk_ranges =
-      self->arg_pool.allocate_typed<VkImageSubresourceRange>(num_ranges);
-
-  if (vk_ranges == nullptr)
+  VkImageSubresourceRange *vk_ranges;
+  if (!self->arg_pool.nalloc(num_ranges, &vk_ranges))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5043,10 +5005,8 @@ void CommandEncoderInterface::clear_depth_stencil_image(
         range.first_array_layer, range.num_array_layers));
   }
 
-  VkImageSubresourceRange *vk_ranges =
-      self->arg_pool.allocate_typed<VkImageSubresourceRange>(num_ranges);
-
-  if (vk_ranges == nullptr)
+  VkImageSubresourceRange *vk_ranges;
+  if (!self->arg_pool.nalloc(num_ranges, &vk_ranges))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5124,10 +5084,8 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
     sVALIDATE((copy.dst_offset.z + copy.extent.z) <= dst_extent.z);
   }
 
-  VkImageCopy *vk_copies =
-      self->arg_pool.allocate_typed<VkImageCopy>(num_copies);
-
-  if (vk_copies == nullptr)
+  VkImageCopy *vk_copies;
+  if (!self->arg_pool.nalloc(num_copies, &vk_copies))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5210,10 +5168,8 @@ void CommandEncoderInterface::copy_buffer_to_image(
     sVALIDATE((copy.image_offset.z + copy.image_extent.z) <= dst_extent.z);
   }
 
-  VkBufferImageCopy *vk_copies =
-      self->arg_pool.allocate_typed<VkBufferImageCopy>(num_copies);
-
-  if (vk_copies == nullptr)
+  VkBufferImageCopy *vk_copies;
+  if (!self->arg_pool.nalloc(num_copies, &vk_copies))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5295,20 +5251,19 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
     sVALIDATE(blit.dst_offsets[1].y <= dst_extent.y);
     sVALIDATE(blit.dst_offsets[1].z <= dst_extent.z);
     sVALIDATE(!((src->desc.type == gfx::ImageType::Type1D) &&
-                (blit.src_offsets[0].y != 0 | blit.src_offsets[1].y != 1)));
+                (blit.src_offsets[0].y != 0 || blit.src_offsets[1].y != 1)));
     sVALIDATE(!((src->desc.type == gfx::ImageType::Type1D ||
                  src->desc.type == gfx::ImageType::Type2D) &&
-                (blit.src_offsets[0].z != 0 | blit.src_offsets[1].z != 1)));
+                (blit.src_offsets[0].z != 0 || blit.src_offsets[1].z != 1)));
     sVALIDATE(!((dst->desc.type == gfx::ImageType::Type1D) &&
-                (blit.dst_offsets[0].y != 0 | blit.dst_offsets[1].y != 1)));
+                (blit.dst_offsets[0].y != 0 || blit.dst_offsets[1].y != 1)));
     sVALIDATE(!((dst->desc.type == gfx::ImageType::Type1D ||
                  dst->desc.type == gfx::ImageType::Type2D) &&
-                (blit.src_offsets[0].z != 0 | blit.dst_offsets[1].z != 1)));
+                (blit.src_offsets[0].z != 0 || blit.dst_offsets[1].z != 1)));
   }
 
-  VkImageBlit *vk_blits = self->arg_pool.allocate_typed<VkImageBlit>(num_blits);
-
-  if (vk_blits == nullptr)
+  VkImageBlit *vk_blits;
+  if (!self->arg_pool.nalloc(num_blits, &vk_blits))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5407,10 +5362,8 @@ void CommandEncoderInterface::resolve_image(
     sVALIDATE((resolve.dst_offset.z + resolve.extent.z) <= dst_extent.z);
   }
 
-  VkImageResolve *vk_resolves =
-      self->arg_pool.allocate_typed<VkImageResolve>(num_resolves);
-
-  if (vk_resolves == nullptr)
+  VkImageResolve *vk_resolves;
+  if (!self->arg_pool.nalloc<VkImageResolve>(num_resolves, &vk_resolves))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5473,8 +5426,7 @@ void CommandEncoderInterface::end_compute_pass(gfx::CommandEncoder self_)
   self->reset_context();
 }
 
-void validate_attachment(CommandEncoder                 *self,
-                         gfx::RenderingAttachment const &info,
+void validate_attachment(gfx::RenderingAttachment const &info,
                          gfx::ImageAspects aspects, gfx::ImageUsage usage)
 {
   sVALIDATE(
@@ -5510,25 +5462,25 @@ void CommandEncoderInterface::begin_rendering(gfx::CommandEncoder       self_,
   sVALIDATE(num_color_attachments <= gfx::MAX_PIPELINE_COLOR_ATTACHMENTS);
   sVALIDATE(num_depth_attachments <= 1);
   sVALIDATE(num_stencil_attachments <= 1);
-  sVALIDATE(info.extent.x > 0);
-  sVALIDATE(info.extent.y > 0);
+  sVALIDATE(info.render_area.extent.x > 0);
+  sVALIDATE(info.render_area.extent.y > 0);
   sVALIDATE(info.num_layers > 0);
 
   for (gfx::RenderingAttachment const &attachment : info.color_attachments)
   {
-    validate_attachment(self, attachment, gfx::ImageAspects::Color,
+    validate_attachment(attachment, gfx::ImageAspects::Color,
                         gfx::ImageUsage::ColorAttachment);
   }
 
   for (gfx::RenderingAttachment const &attachment : info.depth_attachment)
   {
-    validate_attachment(self, attachment, gfx::ImageAspects::Depth,
+    validate_attachment(attachment, gfx::ImageAspects::Depth,
                         gfx::ImageUsage::DepthStencilAttachment);
   }
 
   for (gfx::RenderingAttachment const &attachment : info.stencil_attachment)
   {
-    validate_attachment(self, attachment, gfx::ImageAspects::Stencil,
+    validate_attachment(attachment, gfx::ImageAspects::Stencil,
                         gfx::ImageUsage::DepthStencilAttachment);
   }
 
@@ -5537,8 +5489,7 @@ void CommandEncoderInterface::begin_rendering(gfx::CommandEncoder       self_,
   mem::copy(info.depth_attachment, self->render_ctx.depth_attachment);
   mem::copy(info.stencil_attachment, self->render_ctx.stencil_attachment);
   self->state                              = CommandEncoderState::RenderPass;
-  self->render_ctx.offset                  = info.offset;
-  self->render_ctx.extent                  = info.extent;
+  self->render_ctx.render_area             = info.render_area;
   self->render_ctx.num_layers              = info.num_layers;
   self->render_ctx.num_color_attachments   = num_color_attachments;
   self->render_ctx.num_depth_attachments   = num_depth_attachments;
@@ -5828,15 +5779,16 @@ void CommandEncoderInterface::end_rendering(gfx::CommandEncoder self_)
     }
 
     VkRenderingInfoKHR begin_info{
-        .sType      = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
-        .pNext      = nullptr,
-        .flags      = 0,
-        .renderArea = VkRect2D{.offset = VkOffset2D{.x = (i32) ctx.offset.x,
-                                                    .y = (i32) ctx.offset.y},
-                               .extent = VkExtent2D{.width  = ctx.extent.x,
-                                                    .height = ctx.extent.y}},
-        .layerCount = ctx.num_layers,
-        .viewMask   = 0,
+        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
+        .pNext = nullptr,
+        .flags = 0,
+        .renderArea =
+            VkRect2D{.offset = VkOffset2D{.x = (i32) ctx.render_area.offset.x,
+                                          .y = (i32) ctx.render_area.offset.y},
+                     .extent = VkExtent2D{.width  = ctx.render_area.extent.x,
+                                          .height = ctx.render_area.extent.y}},
+        .layerCount           = ctx.num_layers,
+        .viewMask             = 0,
         .colorAttachmentCount = ctx.num_color_attachments,
         .pColorAttachments    = vk_color_attachments,
         .pDepthAttachment =
@@ -6083,18 +6035,16 @@ void CommandEncoderInterface::bind_descriptor_sets(
   {
     sVALIDATE(self->render_ctx.pipeline != nullptr);
     sVALIDATE(self->render_ctx.pipeline->num_sets == num_sets);
-    DescriptorSet **sets =
-        self->render_ctx.arg_pool.allocate_typed<DescriptorSet *>(num_sets);
-    if (sets == nullptr && num_sets != 0)
+    DescriptorSet **sets;
+    if (!self->render_ctx.arg_pool.nalloc(num_sets, &sets))
     {
       self->status = Status::OutOfHostMemory;
       return;
     }
-    u32 *offsets =
-        self->render_ctx.arg_pool.allocate_typed<u32>(num_dynamic_offsets);
-    if (sets == nullptr && num_dynamic_offsets != 0)
+    u32 *offsets;
+    if (!self->render_ctx.arg_pool.nalloc(num_dynamic_offsets, &offsets))
     {
-      self->render_ctx.arg_pool.deallocate_typed(sets, num_sets);
+      self->render_ctx.arg_pool.ndealloc(sets, num_sets);
       self->status = Status::OutOfHostMemory;
       return;
     }
@@ -6104,8 +6054,8 @@ void CommandEncoderInterface::bind_descriptor_sets(
             Command{.type = CommandType::BindDescriptorSets,
                     .set  = {sets, num_sets, offsets, num_dynamic_offsets}}))
     {
-      self->render_ctx.arg_pool.deallocate_typed(offsets, num_dynamic_offsets);
-      self->render_ctx.arg_pool.deallocate_typed(sets, num_sets);
+      self->render_ctx.arg_pool.ndealloc(offsets, num_dynamic_offsets);
+      self->render_ctx.arg_pool.ndealloc(sets, num_sets);
       self->status = Status::OutOfHostMemory;
       return;
     }
@@ -6136,9 +6086,8 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
     sVALIDATE(self->render_ctx.pipeline != nullptr);
     sVALIDATE(push_constants_size ==
               self->render_ctx.pipeline->push_constants_size);
-    u8 *data =
-        self->render_ctx.arg_pool.allocate_typed<u8>(push_constants_size);
-    sCHECK(data != nullptr);
+    u8 *data;
+    CHECK(self->render_ctx.arg_pool.nalloc(push_constants_size, &data));
     mem::copy(push_constants_data, data);
     if (!self->render_ctx.commands.push(
             Command{.type          = CommandType::PushConstants,

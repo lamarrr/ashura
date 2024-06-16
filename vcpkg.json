@@ -2,17 +2,12 @@
   "name": "ashura",
   "version": "0.0.1",
   "dependencies": [
-    "freetype",
-    "harfbuzz",
-    "libwebp",
     "libjpeg-turbo",
     "libpng",
     "simdjson",
     "gtest",
     "benchmark",
-    "libogg",
     "ffmpeg",
-    "curl",
     "xxhash"
   ]
 }

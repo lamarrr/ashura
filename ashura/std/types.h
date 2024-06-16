@@ -68,12 +68,19 @@ constexpr f64 F64_MIN_POSITIVE = DBL_MIN;
 constexpr f64 F64_MAX          = DBL_MAX;
 constexpr f32 F64_EPSILON      = DBL_EPSILON;
 
+constexpr uid UID_MAX = U64_MAX;
+
 constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
-constexpr usize CACHELINE_ALIGNMENT    = 64;
 
-constexpr uid UID_INVALID = U64_MAX;
+/// @brief Just a hint, this is a common cacheline size. not the actual target's
+/// cacheline size
+constexpr usize CACHELINE_ALIGNMENT = 64;
 
-constexpr f32 PI = 3.14159265358979323846f;
+/// @brief Just a hint, this is the common page alignment. not the actual
+/// target's page alignment.
+constexpr usize PAGE_ALIGNMENT = 4096;
+
+constexpr f32 PI = 3.14159265358979323846F;
 
 template <typename T>
 constexpr bool has_bits(T src, T cmp)
@@ -423,8 +430,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7,
+      T8) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9>
@@ -457,8 +464,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8,
+      T9) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -495,8 +502,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9,
+      T10) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -535,8 +542,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10,
+      T11) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -577,8 +584,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11,
+      T12) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -621,8 +628,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12, typename T13>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12,
+      T13) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -718,9 +725,9 @@ template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12, typename T13, typename T14,
           typename T15>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
-             T15>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
+      T15) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13,
+                    T14, T15>;
 
 template <unsigned int Index, typename Tuple>
 constexpr auto &&impl_get(Tuple &&tuple)
@@ -916,7 +923,7 @@ struct alignas(8) Vec2
   f32 x = 0;
   f32 y = 0;
 
-  static constexpr Vec2 uniform(f32 value)
+  static constexpr Vec2 splat(f32 value)
   {
     return Vec2{value, value};
   }
@@ -1027,11 +1034,21 @@ struct Vec3
   f32 y = 0;
   f32 z = 0;
 
-  static constexpr Vec3 uniform(f32 value)
+  static constexpr Vec3 splat(f32 value)
   {
     return Vec3{value, value, value};
   }
 };
+
+constexpr Vec3 to_vec3(Vec2 xy, f32 z)
+{
+  return Vec3{xy.x, xy.y, z};
+}
+
+constexpr Vec3 to_vec3(f32 x, Vec2 yz)
+{
+  return Vec3{x, yz.x, yz.y};
+}
 
 constexpr bool operator==(Vec3 a, Vec3 b)
 {
@@ -1139,11 +1156,21 @@ struct alignas(16) Vec4
   f32 z = 0;
   f32 w = 0;
 
-  static constexpr Vec4 uniform(f32 value)
+  static constexpr Vec4 splat(f32 value)
   {
     return Vec4{value, value, value, value};
   }
 };
+
+constexpr Vec4 to_vec4(Vec3 xyz, f32 w)
+{
+  return Vec4{xyz.x, xyz.y, xyz.z, w};
+}
+
+constexpr Vec4 to_vec4(f32 x, Vec3 yzw)
+{
+  return Vec4{x, yzw.x, yzw.y, yzw.z};
+}
 
 constexpr bool operator==(Vec4 a, Vec4 b)
 {
@@ -1529,9 +1556,34 @@ constexpr Vec2U operator+(Vec2U a, Vec2U b)
   return Vec2U{a.x + b.x, a.y + b.y};
 }
 
+constexpr Vec2U operator+(Vec2U a, u32 b)
+{
+  return Vec2U{a.x + b, a.y + b};
+}
+
+constexpr Vec2U operator+(u32 a, Vec2U b)
+{
+  return Vec2U{a + b.x, a + b.y};
+}
+
+constexpr Vec2U operator-(Vec2U a)
+{
+  return Vec2U{-a.x, -a.y};
+}
+
 constexpr Vec2U operator-(Vec2U a, Vec2U b)
 {
   return Vec2U{a.x - b.x, a.y - b.y};
+}
+
+constexpr Vec2U operator-(Vec2U a, u32 b)
+{
+  return Vec2U{a.x - b, a.y - b};
+}
+
+constexpr Vec2U operator-(u32 a, Vec2U b)
+{
+  return Vec2U{a - b.x, a - b.y};
 }
 
 constexpr Vec2U operator*(Vec2U a, Vec2U b)
@@ -1539,9 +1591,29 @@ constexpr Vec2U operator*(Vec2U a, Vec2U b)
   return Vec2U{a.x * b.x, a.y * b.y};
 }
 
+constexpr Vec2U operator*(Vec2U a, u32 b)
+{
+  return Vec2U{a.x * b, a.y * b};
+}
+
+constexpr Vec2U operator*(u32 a, Vec2U b)
+{
+  return Vec2U{a * b.x, a * b.y};
+}
+
 constexpr Vec2U operator/(Vec2U a, Vec2U b)
 {
   return Vec2U{a.x / b.x, a.y / b.y};
+}
+
+constexpr Vec2U operator/(Vec2U a, u32 b)
+{
+  return Vec2U{a.x / b, a.y / b};
+}
+
+constexpr Vec2U operator/(u32 a, Vec2U b)
+{
+  return Vec2U{a / b.x, a / b.y};
 }
 
 constexpr Vec2U &operator+=(Vec2U &a, Vec2U b)
@@ -1770,7 +1842,7 @@ struct Mat2
 {
   Vec2 rows[2] = {};
 
-  static constexpr Mat2 uniform(f32 value)
+  static constexpr Mat2 splat(f32 value)
   {
     return Mat2{.rows = {{value, value}, {value, value}}};
   }
@@ -1780,7 +1852,7 @@ struct Mat2
     return Mat2{.rows = {{value, 0}, {0, value}}};
   }
 
-  static constexpr Mat2 identity_mat2()
+  static constexpr Mat2 identity()
   {
     return diagonal(1);
   }
@@ -1870,7 +1942,7 @@ struct Mat3
 {
   Vec3 rows[3] = {};
 
-  static constexpr Mat3 uniform(f32 value)
+  static constexpr Mat3 splat(f32 value)
   {
     return Mat3{.rows = {{value, value, value},
                          {value, value, value},
@@ -1882,7 +1954,7 @@ struct Mat3
     return Mat3{.rows = {{value, 0, 0}, {0, value, 0}, {0, 0, value}}};
   }
 
-  static constexpr Mat3 identity_mat3()
+  static constexpr Mat3 identity()
   {
     return diagonal(1);
   }
@@ -1991,7 +2063,7 @@ struct Mat3Affine
     return rows[index];
   }
 
-  explicit constexpr operator Mat3() const
+  constexpr operator Mat3() const
   {
     return Mat3{.rows = {rows[0], rows[1], {0, 0, 1}}};
   }
@@ -2095,7 +2167,7 @@ struct Mat4
 {
   Vec4 rows[4] = {};
 
-  static constexpr Mat4 uniform(f32 value)
+  static constexpr Mat4 splat(f32 value)
   {
     return Mat4{.rows = {{value, value, value, value},
                          {value, value, value, value},
@@ -2228,9 +2300,14 @@ struct Mat4Affine
     return rows[index];
   }
 
-  explicit constexpr operator Mat4() const
+  constexpr operator Mat4() const
   {
     return Mat4{.rows = {rows[0], rows[1], rows[2], {0, 0, 0, 1}}};
+  }
+
+  static constexpr Mat4Affine identity()
+  {
+    return Mat4Affine{.rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}}};
   }
 
   constexpr Vec4 x() const
@@ -2367,6 +2444,11 @@ struct Slice
     usize s = ((size - o) > span) ? span : size - o;
     return Slice{o, s};
   }
+
+  constexpr bool is_empty() const
+  {
+    return span == 0;
+  }
 };
 
 template <typename T, usize N>
@@ -2455,22 +2537,14 @@ concept OutputIterator = InputIterator<It> && requires(It it) {
 
 template <typename R>
 concept InputRange = requires(R r) {
-  {
-    begin(r)
-  } -> InputIterator;
-  {
-    end(r)
-  } -> InputIterator;
+  { begin(r) } -> InputIterator;
+  { end(r) } -> InputIterator;
 };
 
 template <typename R>
 concept OutputRange = requires(R r) {
-  {
-    begin(r)
-  } -> OutputIterator;
-  {
-    end(r)
-  } -> OutputIterator;
+  { begin(r) } -> OutputIterator;
+  { end(r) } -> OutputIterator;
 };
 
 template <typename T, usize N>
@@ -2628,12 +2702,27 @@ struct Span
   }
 };
 
-constexpr Span<char const> operator""_span(char const *lit, usize len)
+constexpr Span<char const> operator""_span(char const *lit, usize n)
 {
-  return Span<char const>{lit, len};
+  return Span<char const>{lit, n};
 }
 
-/// @index: max of Rep::NUM_BITS - 1
+constexpr Span<char8_t const> operator""_span(char8_t const *lit, usize n)
+{
+  return Span<char8_t const>{lit, n};
+}
+
+constexpr Span<char16_t const> operator""_span(char16_t const *lit, usize n)
+{
+  return Span<char16_t const>{lit, n};
+}
+
+constexpr Span<char32_t const> operator""_span(char32_t const *lit, usize n)
+{
+  return Span<char32_t const>{lit, n};
+}
+
+/// @param index max of Rep::NUM_BITS - 1
 template <typename RepT>
 struct BitRef
 {
@@ -2688,7 +2777,7 @@ struct BitRef
   }
 };
 
-/// @data: is never changed
+/// @param data is never changed
 template <typename RepT>
 struct BitIterator
 {
@@ -2832,8 +2921,8 @@ constexpr Span<T> to_span(T (&array)[N])
 }
 
 template <typename Container>
-constexpr auto to_span(Container &container)
-    -> decltype(Span{data(container), size(container)})
+constexpr auto to_span(Container &container) -> decltype(Span{data(container),
+                                                              size(container)})
 {
   return Span{data(container), size(container)};
 }
@@ -3019,18 +3108,15 @@ constexpr Clamp          clamp;
 
 /// Fn is a function handle and doesn't manage any lifetime.
 ///
-/// it is essentially a trivial struct. it is just contains 2 pointers
-/// (dispatcher + data).
-///
-template <typename Signature>
+template <typename Sig>
 struct Fn;
 
-template <typename ReturnType, typename... Args>
-struct Fn<ReturnType(Args...)>
+template <typename R, typename... Args>
+struct Fn<R(Args...)>
 {
-  using Dispatcher = ReturnType (*)(void *, Args...);
+  using Dispatcher = R (*)(void *, Args...);
 
-  constexpr ReturnType operator()(Args... args) const
+  constexpr R operator()(Args... args) const
   {
     return dispatcher(data, static_cast<Args &&>(args)...);
   }
@@ -3039,12 +3125,12 @@ struct Fn<ReturnType(Args...)>
   void      *data       = nullptr;
 };
 
-template <typename ReturnType, typename... Args>
-struct RawFunctionDispatcher
+template <typename R, typename... Args>
+struct RawFnDispatcher
 {
-  static constexpr ReturnType dispatch(void *data, Args... args)
+  static constexpr R dispatch(void *data, Args... args)
   {
-    using Ptr = ReturnType (*)(Args...);
+    using Ptr = R (*)(Args...);
 
     Ptr function_ptr = reinterpret_cast<Ptr>(data);
 
@@ -3052,79 +3138,76 @@ struct RawFunctionDispatcher
   }
 };
 
-template <typename RawFunctionType>
-struct RawFnTraits
+template <typename Sig>
+struct RawFnTraits;
+
+template <typename R, typename... Args>
+struct RawFnTraits<R(Args...)>
+{
+  using Ptr        = R (*)(Args...);
+  using Signature  = R(Args...);
+  using Fn         = Fn<Signature>;
+  using Dispatcher = RawFnDispatcher<R, Args...>;
+  using ReturnType = R;
+};
+
+template <typename R, typename... Args>
+struct RawFnTraits<R (*)(Args...)> : public RawFnTraits<R(Args...)>
 {
 };
 
-template <typename ReturnType, typename... Args>
-struct RawFnTraits<ReturnType(Args...)>
-{
-  using ptr         = ReturnType (*)(Args...);
-  using signature   = ReturnType(Args...);
-  using fn          = Fn<signature>;
-  using dispatcher  = RawFunctionDispatcher<ReturnType, Args...>;
-  using return_type = ReturnType;
-};
-
-template <typename ReturnType, typename... Args>
-struct RawFnTraits<ReturnType (*)(Args...)>
-    : public RawFnTraits<ReturnType(Args...)>
-{
-};
-
-template <typename Type, typename ReturnType, typename... Args>
+template <typename T, typename R, typename... Args>
 struct FunctorDispatcher
 {
-  static constexpr ReturnType dispatch(void *data, Args... args)
+  static constexpr R dispatch(void *data, Args... args)
   {
-    return (*(reinterpret_cast<Type *>(data)))(static_cast<Args &&>(args)...);
+    return (*(reinterpret_cast<T *>(data)))(static_cast<Args &&>(args)...);
   }
 };
 
-template <class MemberFunctionSignature>
+template <class MemberFnSig>
 struct MemberFnTraits
 {
 };
 
 // non-const member functions
-template <class Type, typename ReturnType, typename... Args>
-struct MemberFnTraits<ReturnType (Type::*)(Args...)>
+template <class T, typename R, typename... Args>
+struct MemberFnTraits<R (T::*)(Args...)>
 {
-  using ptr         = ReturnType (*)(Args...);
-  using signature   = ReturnType(Args...);
-  using fn          = Fn<signature>;
-  using type        = Type;
-  using dispatcher  = FunctorDispatcher<type, ReturnType, Args...>;
-  using return_type = ReturnType;
+  using Ptr        = R (*)(Args...);
+  using Signature  = R(Args...);
+  using Fn         = Fn<Signature>;
+  using Type       = T;
+  using Dispatcher = FunctorDispatcher<T, R, Args...>;
+  using ReturnType = R;
 };
 
 // const member functions
-template <class Type, typename ReturnType, typename... Args>
-struct MemberFnTraits<ReturnType (Type::*)(Args...) const>
+template <class T, typename R, typename... Args>
+struct MemberFnTraits<R (T::*)(Args...) const>
 {
-  using ptr         = ReturnType (*)(Args...);
-  using signature   = ReturnType(Args...);
-  using fn          = Fn<signature>;
-  using type        = Type const;
-  using dispatcher  = FunctorDispatcher<type, ReturnType, Args...>;
-  using return_type = ReturnType;
+  using Ptr        = R (*)(Args...);
+  using Signature  = R(Args...);
+  using Fn         = Fn<Signature>;
+  using Type       = T const;
+  using Dispatcher = FunctorDispatcher<T, R, Args...>;
+  using ReturnType = R;
 };
 
-template <class Type>
-struct FunctorFnTraits : public MemberFnTraits<decltype(&Type::operator())>
+template <class T>
+struct FunctorFnTraits : public MemberFnTraits<decltype(&T::operator())>
 {
 };
 
 // make a function view from a raw function pointer.
-template <typename RawFunctionType>
-auto to_fn(RawFunctionType *function_pointer)
+template <typename RawFnT>
+auto to_fn(RawFnT *function_pointer)
 {
-  using traits     = RawFnTraits<RawFunctionType>;
-  using fn         = typename traits::fn;
-  using dispatcher = typename traits::dispatcher;
+  using Traits     = RawFnTraits<RawFnT>;
+  using Fn         = typename Traits::Fn;
+  using Dispatcher = typename Traits::Dispatcher;
 
-  return fn{&dispatcher::dispatch, reinterpret_cast<void *>(function_pointer)};
+  return Fn{&Dispatcher::dispatch, reinterpret_cast<void *>(function_pointer)};
 }
 
 /// make a function view from a non-capturing functor (i.e. lambda's without
@@ -3132,10 +3215,10 @@ auto to_fn(RawFunctionType *function_pointer)
 template <typename StaticFunctor>
 auto to_fn(StaticFunctor functor)
 {
-  using traits = FunctorFnTraits<StaticFunctor>;
-  using ptr    = typename traits::ptr;
+  using Traits = FunctorFnTraits<StaticFunctor>;
+  using Ptr    = typename Traits::Ptr;
 
-  ptr function_pointer = static_cast<ptr>(functor);
+  Ptr function_pointer = static_cast<Ptr>(functor);
 
   return to_fn(function_pointer);
 }
@@ -3144,11 +3227,11 @@ auto to_fn(StaticFunctor functor)
 template <typename Functor>
 auto to_fn_ref(Functor &functor)
 {
-  using traits     = FunctorFnTraits<Functor>;
-  using fn         = typename traits::fn;
-  using dispatcher = typename traits::dispatcher;
+  using Traits     = FunctorFnTraits<Functor>;
+  using Fn         = typename Traits::Fn;
+  using Dispatcher = typename Traits::Dispatcher;
 
-  return fn{&dispatcher::dispatch,
+  return Fn{&Dispatcher::dispatch,
             const_cast<void *>(reinterpret_cast<void const *>(&functor))};
 }
 
@@ -3184,28 +3267,28 @@ struct [[nodiscard]] SourceLocation
 
 #if ASH_HAS_BUILTIN(LINE) || (defined(__cpp_lib_source_location) && \
                               __cpp_lib_source_location >= 201907L)
-      uint_least32_t line = __builtin_LINE(),
+      u32 line = __builtin_LINE(),
 #elif defined(__LINE__)
-      uint_least32_t line = __LINE__,
+      u32 line = __LINE__,
 #else
-      uint_least32_t line = 0,
+      u32 line = 0,
 #endif
 
 #if ASH_HAS_BUILTIN(COLUMN) || (defined(__cpp_lib_source_location) && \
                                 __cpp_lib_source_location >= 201907L)
-      uint_least32_t column = __builtin_COLUMN()
+      u32 column = __builtin_COLUMN()
 #else
-      uint_least32_t column = 0
+      u32 column = 0
 #endif
   )
   {
     return SourceLocation{file, function, line, column};
   }
 
-  char const    *file     = "";
-  char const    *function = "";
-  uint_least32_t line     = 0;
-  uint_least32_t column   = 0;
+  char const *file     = "";
+  char const *function = "";
+  u32         line     = 0;
+  u32         column   = 0;
 };
 
 template <typename EnumType>

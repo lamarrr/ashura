@@ -1,80 +1,56 @@
-#include <atomic>
-
+#pragma once
 #include "ashura/std/allocator.h"
+#include "ashura/std/semaphore.h"
+#include "ashura/std/time.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
-// TODO(lamarrr): instanced tasks
-// automatic heuristic division of data points to cache and destructive
-// coherence size
-//
-// awaiting tasks
-// priority
-// tracing
-// schedule timepoint
-// resolve function
-// thread-pinning
-// -barriers?
-// - self-suspension
-// - optimized polling for tasks waiting on other tasks
-// fn: returns state
-//
-
-enum class FutureState : u8
+struct TaskInfo
 {
-  None       = 0,
-  Scheduled  = 1,
-  Submitted  = 2,
-  Preempted  = 3,
-  Executing  = 4,
-  Suspended  = 5,
-  Canceled   = 0xF0 | 6,
-  Completing = 0xF0 | 7,
-  Completed  = 0xF0 | 8
+  Fn<bool(void *)>      task              = to_fn([](void *) { return false; });
+  void                 *data              = nullptr;
+  Span<Semaphore const> await_semaphores  = {};
+  Span<u64 const>       awaits            = {};
+  Span<Semaphore const> signal_semaphores = {};
+  Span<u64 const>       signals           = {};
+  Span<Semaphore const> increment_semaphores = {};
+  Span<u64 const>       increments           = {};
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(FutureState);
-
-enum class FutureError : u8
+/// all tasks execute out-of-order. but have dependencies enforced by
+/// semaphores.
+///
+/// it has 2 types of threads: worker threads and dedicated threads.
+///
+/// dedicated threads are for processing latency-sensitive tasks that need to
+/// happen within a deadline, i.e. audio, video. they can spin, sleep, preempt
+/// and/or wait for tasks.
+///
+/// worker threads process any type of tasks, although might not be as
+/// responsive as dedicated threads.
+///
+/// work submitted to the main thread MUST be extremely light-weight and
+/// non-blocking.
+///
+/// # Requirements:
+/// [v] result collection
+/// [v] inter-task communication
+/// [v] inter-task sharing
+/// [v] inter-task data flow, reporting cancelation
+/// [v] external polling contexts
+struct Scheduler
 {
-  None     = 0,
-  Pending  = 1,
-  Canceled = 2
+  virtual void init(Span<nanoseconds const> dedicated_thread_sleep,
+                    Span<nanoseconds const> worker_thread_sleep)    = 0;
+  virtual void uninit()                                             = 0;
+  virtual void schedule_dedicated(u32 thread, TaskInfo const &info) = 0;
+  virtual void schedule_worker(TaskInfo const &info)                = 0;
+  virtual void schedule_main(TaskInfo const &info)                  = 0;
+  virtual void execute_main_thread_work(nanoseconds timeout)        = 0;
 };
 
-struct Future
-{
-  void suspend();
-  void resume();
-  void cancel();
-  void await();
-  void poll();
-};
-
-struct Promise
-{
-  void send_canceled();
-  void send_preempted();
-  void send_resumed();
-  void complete();
-};
-
-u32              num_physical_cores();
-u32              num_logical_cores();
-void             set_thread_name(uid tid, Span<char const>);
-Span<char const> get_thread_name(uid tid);
-void             set_thread_affinity(uid tid);
-void             get_thread_affinity(uid tid);
-
-struct CpuExecutor
-{
-  void await(...);
-  void await_any(...);
-  void map(int fn, ...);
-  void reduce(...);
-  void compute(int fn, u32 x, u32 y, u32 z);
-};
+extern Scheduler *scheduler;
 
 }        // namespace ash

@@ -36,33 +36,43 @@ include(FetchContent)
 FetchContent_Declare(
   VulkanHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-  GIT_TAG v1.3.280)
+  GIT_TAG vulkan-sdk-1.3.283.0)
 
 FetchContent_Declare(
   VulkanGLSL
   GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
-  GIT_TAG vulkan-sdk-1.3.280.0)
+  GIT_TAG vulkan-sdk-1.3.283.0)
 
 FetchContent_Declare(
   SpirvReflect
   GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
-  GIT_TAG vulkan-sdk-1.3.280.0)
+  GIT_TAG vulkan-sdk-1.3.283.0)
 
 FetchContent_Declare(
   VulkanUtilityLibraries
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
-  GIT_TAG v1.3.280)
+  GIT_TAG vulkan-sdk-1.3.283.0)
 
 FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG eaf8fc2)
+  GIT_TAG v3.1.0)
 
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG prerelease-3.1.2)
+  GIT_TAG 9a4fc81)
+
+FetchContent_Declare(
+  harfbuzz
+  GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
+  GIT_TAG 8.5.0)
+
+FetchContent_Declare(
+  Freetype
+  GIT_REPOSITORY https://gitlab.freedesktop.org/freetype/freetype.git
+  GIT_TAG VER-2-13-2)
 
 FetchContent_Declare(
   SheenBidi
@@ -70,15 +80,21 @@ FetchContent_Declare(
   GIT_TAG v2.7
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
-find_package(Freetype REQUIRED)
-find_package(harfbuzz REQUIRED)
+FetchContent_Declare(
+  WebP
+  GIT_REPOSITORY https://chromium.googlesource.com/webm/libwebp
+  GIT_TAG 1.4.0)
+
+FetchContent_Declare(
+  CURL
+  GIT_REPOSITORY https://github.com/curl/curl.git
+  GIT_TAG curl-8_8_0)
+
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
-find_package(WebP CONFIG REQUIRED)
-find_package(JPEG REQUIRED)
+find_package(libjpeg-turbo REQUIRED)
 find_package(PNG REQUIRED)
 find_package(FFMPEG REQUIRED)
-find_package(CURL CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
 find_package(Threads REQUIRED)
@@ -87,9 +103,14 @@ FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(VulkanGLSL)
+FetchContent_MakeAvailable(harfbuzz)
+FetchContent_MakeAvailable(Freetype)
 FetchContent_MakeAvailable(SheenBidi)
 FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
+FetchContent_MakeAvailable(WebP)
+FetchContent_MakeAvailable(CURL)
+
 find_package(Vulkan REQUIRED)
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
@@ -109,7 +130,7 @@ else()
                         -Wno-nullability-extension)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-      add_compile_options(/W3)
+      add_compile_options(/W3 /Zc:preprocessor)
       add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
     endif()
   endif()
@@ -117,6 +138,7 @@ endif()
 
 add_library(
   ashura_std
+  ashura/std/semaphore.cc
   ashura/std/async.cc
   ashura/std/io.cc
   ashura/std/allocator.cc
@@ -130,9 +152,14 @@ target_link_libraries(ashura_std PUBLIC xxHash::xxhash Threads::Threads)
 
 add_executable(
   ashura_std_tests
-  ashura/std/tests/tests.cc ashura/std/tests/option.cc
-  ashura/std/tests/hash_map.cc ashura/std/tests/result.cc
-  ashura/std/tests/bit_span.cc ashura/std/tests/sparse_set.cc)
+  ashura/std/tests/tests.cc
+  ashura/std/tests/option.cc
+  ashura/std/tests/async.cc
+  ashura/std/tests/list.cc
+  ashura/std/tests/hash_map.cc
+  ashura/std/tests/result.cc
+  ashura/std/tests/bit_span.cc
+  ashura/std/tests/sparse_set.cc)
 add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
 
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
@@ -147,46 +174,45 @@ target_link_libraries(
 target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
-  ashura_renderer
-  ashura/renderer/scene.cc
-  ashura/renderer/view.cc
-  ashura/renderer/renderer.cc
-  ashura/renderer/render_context.cc
-  ashura/renderer/passes/bloom.cc
-  ashura/renderer/passes/blur.cc
-  ashura/renderer/passes/fxaa.cc
-  ashura/renderer/passes/msaa.cc
-  ashura/renderer/passes/pbr.cc
-  ashura/renderer/passes/rrect.cc)
-target_link_libraries(ashura_renderer ashura_std ashura_gfx)
-target_include_directories(ashura_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-add_library(
-  ashura_engine ashura/engine/image_decoder.cc ashura/engine/shader.cc
-                ashura/engine/window.cc ashura/engine/widget.cc)
-target_include_directories(
-  ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
-                       ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
-
+  ashura_engine
+  ashura/engine/font_impl.cc
+  ashura/engine/text.cc
+  ashura/engine/canvas.cc
+  ashura/engine/image_decoder.cc
+  ashura/engine/shader.cc
+  ashura/engine/window.cc
+  ashura/engine/widget.cc
+  ashura/engine/scene.cc
+  ashura/engine/view.cc
+  ashura/engine/renderer.cc
+  ashura/engine/render_context.cc
+  ashura/engine/passes/bloom.cc
+  ashura/engine/passes/blur.cc
+  ashura/engine/passes/ngon.cc
+  ashura/engine/passes/pbr.cc
+  ashura/engine/passes/rrect.cc)
 target_link_libraries(
   ashura_engine
   ashura_std
   ashura_gfx
-  ashura_renderer
+  SPIRV
+  glslang
+  spirv-reflect-static
   SDL3::SDL3-static
   harfbuzz
   CURL::libcurl
-  Freetype::Freetype
+  freetype
   simdjson::simdjson
-  WebP::webp
-  WebP::webpdecoder
-  ${JPEG_LIBRARIES}
+  webp
+  webpdecoder
+  $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
   PNG::PNG
   ${FFMPEG_LIBRARIES}
-  SheenBidi::SheenBidi
-  SPIRV
-  glslang
-  spirv-reflect-static)
+  SheenBidi::SheenBidi)
+
+target_include_directories(
+  ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
+                       ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
 
 add_executable(ashura_engine_test ashura/engine/tests/test.cc)
 target_link_libraries(ashura_engine_test ashura_engine)

@@ -6,60 +6,60 @@
 namespace ash
 {
 
-void *ArenaInterface::allocate(Allocator self_, usize alignment, usize size)
+bool ArenaInterface::alloc(Allocator self_, usize alignment, usize size,
+                           u8 **mem)
 {
   Arena *self = (Arena *) self_;
-  return self->allocate(alignment, size);
+  return self->alloc(alignment, size, mem);
 }
 
-void *ArenaInterface::allocate_zeroed(Allocator self_, usize alignment,
-                                      usize size)
+bool ArenaInterface::alloc_zeroed(Allocator self_, usize alignment, usize size,
+                                  u8 **mem)
 {
   Arena *self = (Arena *) self_;
-  return self->allocate_zeroed(alignment, size);
+  return self->alloc_zeroed(alignment, size, mem);
 }
 
-void *ArenaInterface::reallocate(Allocator self_, usize alignment, void *memory,
-                                 usize old_size, usize new_size)
+bool ArenaInterface::realloc(Allocator self_, usize alignment, usize old_size,
+                             usize new_size, u8 **mem)
 {
   Arena *self = (Arena *) self_;
-  return self->reallocate(alignment, memory, old_size, new_size);
+  return self->realloc(alignment, old_size, new_size, mem);
 }
 
-void ArenaInterface::deallocate(Allocator self_, usize alignment, void *memory,
-                                usize size)
+void ArenaInterface::dealloc(Allocator self_, usize alignment, u8 *memory,
+                             usize size)
 {
   Arena *self = (Arena *) self_;
-  return self->deallocate(alignment, memory, size);
+  return self->dealloc(alignment, memory, size);
 }
 
-void *ArenaPoolInterface::allocate(Allocator self_, usize alignment,
-                                    usize size)
+bool ArenaPoolInterface::alloc(Allocator self_, usize alignment, usize size,
+                               u8 **mem)
 {
   ArenaPool *self = (ArenaPool *) self_;
-  return self->allocate(alignment, size);
+  return self->alloc(alignment, size, mem);
 }
 
-void *ArenaPoolInterface::allocate_zeroed(Allocator self_, usize alignment,
-                                           usize size)
+bool ArenaPoolInterface::alloc_zeroed(Allocator self_, usize alignment,
+                                      usize size, u8 **mem)
 {
   ArenaPool *self = (ArenaPool *) self_;
-  return self->allocate_zeroed(alignment, size);
+  return self->alloc_zeroed(alignment, size, mem);
 }
 
-void *ArenaPoolInterface::reallocate(Allocator self_, usize alignment,
-                                      void *memory, usize old_size,
-                                      usize new_size)
+bool ArenaPoolInterface::realloc(Allocator self_, usize alignment,
+                                 usize old_size, usize new_size, u8 **mem)
 {
   ArenaPool *self = (ArenaPool *) self_;
-  return self->reallocate(alignment, memory, old_size, new_size);
+  return self->realloc(alignment, old_size, new_size, mem);
 }
 
-void ArenaPoolInterface::deallocate(Allocator self_, usize alignment,
-                                     void *memory, usize size)
+void ArenaPoolInterface::dealloc(Allocator self_, usize alignment, u8 *memory,
+                                 usize size)
 {
   ArenaPool *self = (ArenaPool *) self_;
-  return self->deallocate(alignment, memory, size);
+  return self->dealloc(alignment, memory, size);
 }
 
 }        // namespace ash

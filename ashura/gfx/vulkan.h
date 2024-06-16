@@ -101,14 +101,15 @@ struct DeviceInterface
   static void destroy_statistics_query(gfx::Device          self,
                                        gfx::StatisticsQuery query);
   static gfx::FrameContext      get_frame_context(gfx::Device self);
-  static Result<void *, Status> get_buffer_memory_map(gfx::Device self,
-                                                      gfx::Buffer buffer);
+  static Result<void *, Status> map_buffer_memory(gfx::Device self,
+                                                  gfx::Buffer buffer);
+  static void unmap_buffer_memory(gfx::Device self, gfx::Buffer buffer);
   static Result<Void, Status>
-      invalidate_buffer_memory_map(gfx::Device self, gfx::Buffer buffer,
-                                   gfx::MemoryRange ranges);
-  static Result<Void, Status> flush_buffer_memory_map(gfx::Device      self,
-                                                      gfx::Buffer      buffer,
-                                                      gfx::MemoryRange range);
+      invalidate_mapped_buffer_memory(gfx::Device self, gfx::Buffer buffer,
+                                      gfx::MemoryRange range);
+  static Result<Void, Status>
+      flush_mapped_buffer_memory(gfx::Device self, gfx::Buffer buffer,
+                                 gfx::MemoryRange range);
   static Result<usize, Status>
       get_pipeline_cache_size(gfx::Device self, gfx::PipelineCache cache);
   static Result<usize, Status> get_pipeline_cache_data(gfx::Device        self,
@@ -264,10 +265,11 @@ static gfx::DeviceInterface const device_interface{
     .destroy_timestamp_query   = DeviceInterface::destroy_timestamp_query,
     .destroy_statistics_query  = DeviceInterface::destroy_statistics_query,
     .get_frame_context         = DeviceInterface::get_frame_context,
-    .get_buffer_memory_map     = DeviceInterface::get_buffer_memory_map,
-    .invalidate_buffer_memory_map =
-        DeviceInterface::invalidate_buffer_memory_map,
-    .flush_buffer_memory_map    = DeviceInterface::flush_buffer_memory_map,
+    .map_buffer_memory         = DeviceInterface::map_buffer_memory,
+    .unmap_buffer_memory       = DeviceInterface::unmap_buffer_memory,
+    .invalidate_mapped_buffer_memory =
+        DeviceInterface::invalidate_mapped_buffer_memory,
+    .flush_mapped_buffer_memory = DeviceInterface::flush_mapped_buffer_memory,
     .get_pipeline_cache_size    = DeviceInterface::get_pipeline_cache_size,
     .get_pipeline_cache_data    = DeviceInterface::get_pipeline_cache_data,
     .merge_pipeline_cache       = DeviceInterface::merge_pipeline_cache,
@@ -545,12 +547,10 @@ struct ImageState
 
 struct Buffer
 {
-  gfx::BufferDesc   desc                = {};
-  VkBuffer          vk_buffer           = nullptr;
-  VmaAllocation     vma_allocation      = nullptr;
-  VmaAllocationInfo vma_allocation_info = {};
-  void             *host_map            = nullptr;
-  BufferState       state               = {};
+  gfx::BufferDesc desc           = {};
+  VkBuffer        vk_buffer      = nullptr;
+  VmaAllocation   vma_allocation = nullptr;
+  BufferState     state          = {};
 };
 
 struct BufferView
@@ -590,8 +590,9 @@ struct DescriptorSetLayout
 };
 
 /// used to track stateful resource access
-/// @images: only valid if `type` is a descriptor type that access images
-/// @buffers: only valid if `type` is a descriptor type that access buffers
+/// @param images only valid if `type` is a descriptor type that access images
+/// @param param buffers: only valid if `type` is a descriptor type that access
+/// buffers
 struct DescriptorBinding
 {
   union
@@ -620,13 +621,13 @@ struct DescriptorPool
   u32              avail[NUM_DESCRIPTOR_TYPES] = {};
 };
 
-/// @pool_size: each pool will have `pool_size` of each descriptor type
+/// @param pool_size each pool will have `pool_size` of each descriptor type
 struct DescriptorHeap
 {
   AllocatorImpl   allocator    = default_allocator;
   DescriptorPool *pools        = nullptr;
   u32             pool_size    = 0;
-  void           *scratch      = nullptr;
+  u8             *scratch      = nullptr;
   u32             num_pools    = 0;
   usize           scratch_size = 0;
 };
@@ -656,7 +657,6 @@ struct GraphicsPipeline
 struct Instance
 {
   AllocatorImpl            allocator          = {};
-  Logger                  *logger             = {};
   InstanceTable            vk_table           = {};
   VkInstance               vk_instance        = nullptr;
   VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
@@ -715,9 +715,8 @@ struct Command
 
 struct RenderPassContext
 {
-  gfx::Offset offset     = {};
-  gfx::Extent extent     = {};
-  u32         num_layers = 0;
+  gfx::Rect render_area = {};
+  u32       num_layers  = 0;
   gfx::RenderingAttachment
       color_attachments[gfx::MAX_PIPELINE_COLOR_ATTACHMENTS]          = {};
   gfx::RenderingAttachment depth_attachment[1]                        = {};
@@ -738,8 +737,7 @@ struct RenderPassContext
 
   void reset()
   {
-    offset                  = {};
-    extent                  = {};
+    render_area             = {};
     num_layers              = 0;
     num_color_attachments   = 0;
     num_depth_attachments   = 0;
@@ -771,7 +769,6 @@ struct ComputePassContext
 struct CommandEncoder
 {
   AllocatorImpl       allocator         = {};
-  Logger             *logger            = nullptr;
   Device             *dev               = nullptr;
   ArenaPool           arg_pool          = {};
   VkCommandPool       vk_command_pool   = nullptr;
@@ -811,13 +808,13 @@ struct CommandEncoder
   }
 };
 
-/// @is_optimal: false when vulkan returns that the surface is suboptimal or
-/// the description is updated by the user
+/// @param is_optimal false when vulkan returns that the surface is suboptimal
+/// or the description is updated by the user
 ///
-/// @is_out_of_date: can't present anymore
-/// @is_optimal: recommended but not necessary to resize
-/// @is_zero_sized: swapchain is not receiving presentation requests, because
-/// the surface requested a zero sized image extent
+/// @param is_out_of_date can't present anymore
+/// @param is_optimal recommended but not necessary to resize
+/// @param is_zero_sized swapchain is not receiving presentation requests,
+/// because the surface requested a zero sized image extent
 struct Swapchain
 {
   gfx::SwapchainDesc  desc            = {};
@@ -854,7 +851,6 @@ struct FrameContext
 struct Device
 {
   AllocatorImpl      allocator       = {};
-  Logger            *logger          = nullptr;
   Instance          *instance        = nullptr;
   PhysicalDevice     phy_dev         = {};
   DeviceTable        vk_table        = {};

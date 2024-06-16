@@ -19,19 +19,19 @@ constexpr bool is_aligned(u64 alignment, u64 offset)
 }
 
 template <typename T>
-void copy(T const *src, T *dst, usize count)
+void copy(T const *src, T *dst, usize num)
 {
-  if (count == 0)
+  if (num == 0)
   {
     return;
   }
-  memcpy(dst, src, sizeof(T) * count);
+  memcpy(dst, src, sizeof(T) * num);
 }
 
 template <typename T>
 void copy(Span<T const> src, Span<T> dst)
 {
-  if (src.size() == 0)
+  if (src.is_empty())
   {
     return;
   }
@@ -41,7 +41,7 @@ void copy(Span<T const> src, Span<T> dst)
 template <typename T>
 void copy(Span<T const> src, T *dst)
 {
-  if (src.size() == 0)
+  if (src.is_empty())
   {
     return;
   }
@@ -49,19 +49,19 @@ void copy(Span<T const> src, T *dst)
 }
 
 template <typename T>
-void move(T const *src, T *dst, usize count)
+void move(T const *src, T *dst, usize num)
 {
-  if (count == 0)
+  if (num == 0)
   {
     return;
   }
-  memmove(dst, src, sizeof(T) * count);
+  memmove(dst, src, sizeof(T) * num);
 }
 
 template <typename T>
 void move(Span<T const> src, Span<T> dst)
 {
-  if (src.size() == 0)
+  if (src.is_empty())
   {
     return;
   }
@@ -71,7 +71,7 @@ void move(Span<T const> src, Span<T> dst)
 template <typename T>
 void move(Span<T const> src, T *dst)
 {
-  if (src.size() == 0)
+  if (src.is_empty())
   {
     return;
   }
@@ -79,28 +79,19 @@ void move(Span<T const> src, T *dst)
 }
 
 template <typename T>
-void zero(T *dst, usize count)
+void zero(T *dst, usize num)
 {
-  if (count == 0)
+  if (num == 0)
   {
     return;
   }
-  memset(dst, 0, sizeof(T) * count);
-}
-
-inline void zero(void *dst, usize size)
-{
-  if (size == 0)
-  {
-    return;
-  }
-  memset(dst, 0, size);
+  memset(dst, 0, sizeof(T) * num);
 }
 
 template <typename T>
 void zero(Span<T> dst)
 {
-  if (dst.size() == 0)
+  if (dst.is_empty())
   {
     return;
   }
@@ -108,19 +99,19 @@ void zero(Span<T> dst)
 }
 
 template <typename T>
-void fill(T *dst, usize count, u8 byte)
+void fill(T *dst, usize num, u8 byte)
 {
-  if (count == 0)
+  if (num == 0)
   {
     return;
   }
-  memset(dst, byte, sizeof(T) * count);
+  memset(dst, byte, sizeof(T) * num);
 }
 
 template <typename T>
 void fill(Span<T> dst, u8 byte)
 {
-  if (dst.size() == 0)
+  if (dst.is_empty())
   {
     return;
   }
@@ -132,17 +123,17 @@ void fill(Span<T> dst, u8 byte)
 ///
 /// src and dst must not be same nor overlapping.
 template <typename T>
-void relocate(T *src, T *uninit_dst, usize count)
+void relocate(T *src, T *uninit_dst, usize num)
 {
   if constexpr (TriviallyRelocatable<T>)
   {
-    copy(src, uninit_dst, count);
+    copy(src, uninit_dst, num);
   }
   else
   {
     T       *in  = src;
     T       *out = uninit_dst;
-    T *const end = src + count;
+    T *const end = src + num;
     while (in != end)
     {
       new (out) T{(T &&) *in};

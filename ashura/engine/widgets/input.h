@@ -150,9 +150,9 @@ struct NumInput : public Widget
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     char buff[256];
     int  written =
@@ -173,8 +173,8 @@ struct NumInput : public Widget
     return true;
   }
 
-  virtual stx::Option<DragData> on_drag_start(Context &ctx,
-                                              Vec2     mouse_position) override
+  virtual Option<DragData> on_drag_start(Context &ctx,
+                                         Vec2     mouse_position) override
   {
   }
 
@@ -188,8 +188,8 @@ struct NumInput : public Widget
   {
   }
 
-  virtual void on_mouse_leave(Context          &ctx,
-                              stx::Option<Vec2> mouse_position) override
+  virtual void on_mouse_leave(Context     &ctx,
+                              Option<Vec2> mouse_position) override
   {
   }
 

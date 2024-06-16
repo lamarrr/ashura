@@ -29,7 +29,7 @@ TEST(FlexLayout, Start)
   EXPECT_EQ(flex.area.extent.x, 300);
   EXPECT_EQ(flex.area.extent.y, 200);
 
-  stx::Span children = flex.get_children(ctx);
+  Span children = flex.get_children(ctx);
 
   EXPECT_EQ(children[0]->area.offset.x, 0);
   EXPECT_EQ(children[0]->area.offset.y, 0);
@@ -68,7 +68,7 @@ TEST(FlexLayout, SpaceAround)
   EXPECT_EQ(flex.area.extent.x, 1920);
   EXPECT_EQ(flex.area.extent.y, 200);
 
-  stx::Span children = flex.get_children(ctx);
+  Span children = flex.get_children(ctx);
 
   x = x + space;
   EXPECT_EQ(children[0]->area.offset.x, x);
@@ -110,7 +110,7 @@ TEST(FlexLayout, SpaceEvenly)
   EXPECT_EQ(flex.area.extent.x, 1920);
   EXPECT_EQ(flex.area.extent.y, 200);
 
-  stx::Span children = flex.get_children(ctx);
+  Span children = flex.get_children(ctx);
 
   x = x + space;
   EXPECT_EQ(children[0]->area.offset.x, x);
@@ -152,7 +152,7 @@ TEST(FlexLayout, SpaceBetween)
   EXPECT_EQ(flex.area.extent.x, 1920);
   EXPECT_EQ(flex.area.extent.y, 200);
 
-  stx::Span children = flex.get_children(ctx);
+  Span children = flex.get_children(ctx);
 
   EXPECT_EQ(children[0]->area.offset.x, x);
   EXPECT_EQ(children[0]->area.offset.y, 100);

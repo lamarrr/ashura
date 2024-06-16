@@ -92,10 +92,16 @@ struct Vec
         iter->~T();
       }
     }
-    allocator_.deallocate_typed(data_, capacity_);
+    allocator_.ndealloc(data_, capacity_);
     data_     = nullptr;
     size_     = 0;
     capacity_ = 0;
+  }
+
+  constexpr void uninit()
+  {
+    reset();
+    allocator_ = default_allocator;
   }
 
   [[nodiscard]] bool reserve(usize target_capacity)
@@ -107,21 +113,15 @@ struct Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      T *new_data =
-          allocator_.reallocate_typed(data_, capacity_, target_capacity);
-
-      if (new_data == nullptr)
+      if (!allocator_.nrealloc(capacity_, target_capacity, &data_))
       {
         return false;
       }
-
-      data_ = new_data;
     }
     else
     {
-      T *new_data = allocator_.allocate_typed<T>(target_capacity);
-
-      if (new_data == nullptr)
+      T *new_data;
+      if (!allocator_.nalloc(target_capacity, &new_data))
       {
         return false;
       }
@@ -136,7 +136,7 @@ struct Vec
         (data_ + i)->~T();
       }
 
-      allocator_.deallocate_typed(data_, capacity_);
+      allocator_.ndealloc(data_, capacity_);
       data_ = new_data;
     }
 
@@ -153,20 +153,15 @@ struct Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      T *new_data = allocator_.reallocate_typed(data_, capacity_, size_);
-
-      if (new_data == nullptr)
+      if (!allocator_.nrealloc(capacity_, size_, &data_))
       {
         return false;
       }
-
-      data_ = new_data;
     }
     else
     {
-      T *new_data = allocator_.allocate_typed<T>(size_);
-
-      if (new_data == nullptr)
+      T *new_data;
+      if (!allocator_.nalloc(size_, &new_data))
       {
         return false;
       }
@@ -181,7 +176,7 @@ struct Vec
         (data_ + i)->~T();
       }
 
-      allocator_.deallocate_typed(data_, capacity_);
+      allocator_.ndealloc(data_, capacity_);
       data_ = new_data;
     }
 
@@ -225,6 +220,8 @@ struct Vec
     }
     size_ -= slice.span;
   }
+
+  void erase_non_destructing();
 
   template <typename... Args>
   [[nodiscard]] bool push(Args &&...args)

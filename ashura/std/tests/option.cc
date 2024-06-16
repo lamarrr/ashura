@@ -342,9 +342,8 @@ TEST(OptionTest, UnwrapOrElse)
   });
   EXPECT_EQ(c, (std::vector{1, 2, 3, 4, 5}));
 
-  auto &&d = Option<std::vector<int>>(None).unwrap_or_else([]() {
-    return std::vector{6, 7, 8, 9, 10};
-  });
+  auto &&d = Option<std::vector<int>>(None).unwrap_or_else(
+      []() { return std::vector{6, 7, 8, 9, 10}; });
   EXPECT_EQ(d, (std::vector{6, 7, 8, 9, 10}));
 }
 
@@ -462,9 +461,8 @@ TEST(OptionTest, OrElse)
   });
   EXPECT_EQ(std::move(d).unwrap(), (std::vector{1, 2, 3, 4, 5}));
 
-  auto &&e = Option<std::vector<int>>(None).or_else([]() {
-    return Option(Some(std::vector{6, 7, 8, 9, 10}));
-  });
+  auto &&e = Option<std::vector<int>>(None).or_else(
+      []() { return Option(Some(std::vector{6, 7, 8, 9, 10})); });
   EXPECT_EQ(std::move(e).unwrap(), (std::vector{6, 7, 8, 9, 10}));
 
   auto &&f = Option<std::vector<int>>(None).or_else(

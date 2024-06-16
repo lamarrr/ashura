@@ -159,9 +159,9 @@ struct Includer : glslang::TShader::Includer
     {
       Vec<char> *blob = (Vec<char> *) result->userData;
       blob->reset();
-      default_allocator.deallocate_typed(blob, 1);
+      default_allocator.ndealloc(blob, 1);
       result->~IncludeResult();
-      default_allocator.deallocate_typed(result, 1);
+      default_allocator.ndealloc(result, 1);
     }
   }
 
@@ -244,8 +244,8 @@ struct Includer : glslang::TShader::Includer
 
   IncludeResult *include_file(char const *header_name, char const *path)
   {
-    Vec<u8> *blob = default_allocator.allocate_typed<Vec<u8>>(1);
-    if (blob == nullptr)
+    Vec<u8> *blob;
+    if (!default_allocator.nalloc(1, &blob))
     {
       return nullptr;
     }
@@ -254,7 +254,7 @@ struct Includer : glslang::TShader::Includer
       if (blob != nullptr)
       {
         blob->reset();
-        default_allocator.deallocate_typed(blob, 1);
+        default_allocator.ndealloc(blob, 1);
       }
     }};
 
@@ -263,8 +263,8 @@ struct Includer : glslang::TShader::Includer
       return nullptr;
     }
 
-    IncludeResult *result = default_allocator.allocate_typed<IncludeResult>(1);
-    if (result == nullptr)
+    IncludeResult *result;
+    if (!default_allocator.nalloc(1, &result))
     {
       return nullptr;
     }
@@ -436,7 +436,7 @@ ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
   }
   else
   {
-    CHECK(false);
+    CHECK_DESC(false, "invalid shader extension");
   }
 
   Vec<char> file_path;
@@ -468,10 +468,10 @@ ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
 
 ShaderCompileError
     pack_shaders(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
-                 Span<ShaderPackEntry const>             entries,
+                 Span<ShaderUnit const>                  entries,
                  Span<char const>                        root_directory)
 {
-  for (ShaderPackEntry const &entry : entries)
+  for (ShaderUnit const &entry : entries)
   {
     ShaderCompileError error = pack_shader(compiled, entry.id, root_directory,
                                            entry.file, entry.preamble);

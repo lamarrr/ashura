@@ -95,12 +95,13 @@
 
 #pragma once
 
-#include "ashura/primitives.h"
-#include "ashura/utils.h"
+#include "ashura/std/error.h"
+#include "ashura/std/types.h"
+#include <stdlib.h>
 
 namespace ash
 {
-namespace rect_packer
+namespace rect_pack
 {
 
 struct rect
@@ -108,10 +109,13 @@ struct rect
   u32 glyph_index = 0;
 
   // input:
-  i32 w = 0, h = 0;
+  i32 w = 0;
+  i32 h = 0;
 
   // output:
-  i32 x = 0, y = 0;
+  i32 x     = 0;
+  i32 y     = 0;
+  u32 layer = 0;
 
   // non-zero if valid packing
   i32 was_packed = 0;
@@ -182,7 +186,7 @@ inline i32 skyline_find_min_y(Context &c, Node *first, i32 x0, i32 width,
 
   (void) c;
 
-  ASH_CHECK(first->x <= x0);
+  CHECK(first->x <= x0);
 
 #if 0
    // skip in case we're past the node
@@ -190,10 +194,10 @@ inline i32 skyline_find_min_y(Context &c, Node *first, i32 x0, i32 width,
       ++node;
 #else
   // we ended up handling this in the caller for efficiency
-  ASH_CHECK(node->next->x > x0);
+  CHECK(node->next->x > x0);
 #endif
 
-  ASH_CHECK(node->x <= x0);
+  CHECK(node->x <= x0);
 
   min_y         = 0;
   waste_area    = 0;
@@ -244,7 +248,7 @@ inline FindResult skyline_find_best_pos(Context &ctx, i32 width, i32 height)
   // align to multiple of ctx.align
   width = (width + ctx.align - 1);
   width -= width % ctx.align;
-  ASH_CHECK(width % ctx.align == 0);
+  CHECK(width % ctx.align == 0);
 
   // if it can't possibly fit, bail immediately
   if (width > ctx.width || height > ctx.height)
@@ -321,14 +325,14 @@ inline FindResult skyline_find_best_pos(Context &ctx, i32 width, i32 height)
     {
       i32 xpos = tail->x - width;
       i32 y, waste;
-      ASH_CHECK(xpos >= 0);
+      CHECK(xpos >= 0);
       // find the left position that matches this
       while (node->next->x <= xpos)
       {
         prev = &node->next;
         node = node->next;
       }
-      ASH_CHECK(node->next->x > xpos && node->x <= xpos);
+      CHECK(node->next->x > xpos && node->x <= xpos);
       y = skyline_find_min_y(ctx, node, xpos, width, &waste);
       if (y + height <= ctx.height)
       {
@@ -338,7 +342,7 @@ inline FindResult skyline_find_best_pos(Context &ctx, i32 width, i32 height)
               (waste == best_waste && xpos < best_x))
           {
             best_x = xpos;
-            ASH_CHECK(y <= best_y);
+            CHECK(y <= best_y);
             best_y     = y;
             best_waste = waste;
             best       = prev;
@@ -417,10 +421,10 @@ inline FindResult skyline_pack_rectangle(Context &ctx, i32 width, i32 height)
   cur = ctx.active_head;
   while (cur->x < ctx.width)
   {
-    ASH_CHECK(cur->x < cur->next->x);
+    CHECK(cur->x < cur->next->x);
     cur = cur->next;
   }
-  ASH_CHECK(cur->next == nullptr);
+  CHECK(cur->next == nullptr);
 
   {
     i32 count = 0;
@@ -436,7 +440,7 @@ inline FindResult skyline_pack_rectangle(Context &ctx, i32 width, i32 height)
       cur = cur->next;
       ++count;
     }
-    ASH_CHECK(count == ctx.num_nodes + 2);
+    CHECK(count == ctx.num_nodes + 2);
   }
 #endif
 
@@ -552,7 +556,7 @@ inline bool pack_rects(Context &ctx, rect *rects, i32 num_rects)
   }
 
   // sort according to heuristic
-  std::qsort(rects, (usize) num_rects, sizeof(rects[0]), rect_height_compare);
+  qsort(rects, (usize) num_rects, sizeof(rects[0]), rect_height_compare);
 
   for (i32 i = 0; i < num_rects; ++i)
   {
@@ -571,20 +575,19 @@ inline bool pack_rects(Context &ctx, rect *rects, i32 num_rects)
       }
       else
       {
-        rects[i].x = rects[i].y = stx::I32_MAX;
+        rects[i].x = rects[i].y = I32_MAX;
       }
     }
   }
 
   // unsort
-  std::qsort(rects, static_cast<size_t>(num_rects), sizeof(rects[0]),
-             rect_original_order);
+  qsort(rects, static_cast<size_t>(num_rects), sizeof(rects[0]),
+        rect_original_order);
 
   // set was_packed flags and all_rects_packed status
   for (i32 i = 0; i < num_rects; ++i)
   {
-    rects[i].was_packed =
-        !(rects[i].x == stx::I32_MAX && rects[i].y == stx::I32_MAX);
+    rects[i].was_packed = !(rects[i].x == I32_MAX && rects[i].y == I32_MAX);
     if (!rects[i].was_packed)
       all_rects_packed = 0;
   }
@@ -593,5 +596,5 @@ inline bool pack_rects(Context &ctx, rect *rects, i32 num_rects)
   return static_cast<bool>(all_rects_packed);
 }
 
-}        // namespace rect_packer
+}        // namespace rect_pack
 }        // namespace ash

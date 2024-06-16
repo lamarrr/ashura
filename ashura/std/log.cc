@@ -8,18 +8,19 @@ namespace ash
 Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
 {
   u32 const num_sinks = (u32) sinks.size();
-  LogSink **log_sinks = allocator.allocate_typed<LogSink *>(num_sinks);
-  if (log_sinks == nullptr)
+  LogSink **log_sinks;
+
+  if (!allocator.nalloc(num_sinks, &log_sinks))
   {
-    return nullptr;
+    abort();
   }
 
   mem::copy(sinks, log_sinks);
-  Logger *logger = allocator.allocate_typed<Logger>(1);
-  if (logger == nullptr)
+  Logger *logger;
+
+  if (!allocator.nalloc(1, &logger))
   {
-    allocator.deallocate_typed(log_sinks, num_sinks);
-    return nullptr;
+    abort();
   }
 
   return new (logger) Logger{
@@ -39,14 +40,13 @@ Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
                             logger->buffer_size + buffer.size_bytes();
                         if (required_size > logger->buffer_capacity)
                         {
-                          char *buffer = logger->allocator.reallocate_typed(
-                              logger->buffer, logger->buffer_capacity,
-                              required_size);
-                          if (buffer == nullptr)
+                          if (!logger->allocator.nrealloc(
+                                  logger->buffer_capacity, required_size,
+                                  &logger->buffer))
                           {
                             return false;
                           }
-                          logger->buffer          = buffer;
+
                           logger->buffer_capacity = required_size;
                         }
                         mem::copy(buffer, logger->buffer + logger->buffer_size);
@@ -60,10 +60,10 @@ Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
 
 void destroy_logger(Logger *logger)
 {
-  logger->allocator.deallocate_typed(logger->sinks, logger->num_sinks);
-  logger->allocator.deallocate_typed(logger->buffer, logger->buffer_capacity);
+  logger->allocator.ndealloc(logger->sinks, logger->num_sinks);
+  logger->allocator.ndealloc(logger->buffer, logger->buffer_capacity);
   logger->~Logger();
-  logger->allocator.deallocate_typed(logger, 1);
+  logger->allocator.ndealloc(logger, 1);
 }
 
 char const *get_level_str(LogLevels level)

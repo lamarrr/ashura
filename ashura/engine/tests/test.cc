@@ -1,9 +1,10 @@
 
+#include "ashura/engine/render_context.h"
+#include "ashura/engine/renderer.h"
 #include "ashura/engine/shader.h"
 #include "ashura/engine/window.h"
 #include "ashura/gfx/vulkan.h"
-#include "ashura/renderer/render_context.h"
-#include "ashura/renderer/renderer.h"
+#include "ashura/std/hash_map.h"
 #include "stdlib.h"
 #include <thread>
 
@@ -24,33 +25,19 @@ int main(int, char **)
   CHECK(win_sys != nullptr);
 
   gfx::InstanceImpl instance =
-      gfx::create_vulkan_instance(heap_allocator, default_logger, false)
-          .unwrap();
+      gfx::create_vulkan_instance(heap_allocator, true).unwrap();
 
   defer  instance_del{[&] { instance->destroy(instance.self); }};
-  Window win = win_sys->create_window(instance, "Main").unwrap();
+  Window win = win_sys->create_window(instance, "Main"_span).unwrap();
   defer  win_del{[&] { win_sys->destroy_window(win); }};
 
   win_sys->maximize(win);
-  win_sys->set_title(win, "Harro");
+  win_sys->set_title(win, "Harro"_span);
 
   bool should_close = false;
   auto close_fn     = [&](WindowEvent const &) { should_close = true; };
 
-  f32  rot_x = 0, rot_z = 0;
-  auto key_fn = [&](WindowEvent const &k) {
-    if (k.type == WindowEventTypes::Key)
-    {
-      if (k.key.action == KeyAction::Press && k.key.key == Key::KEY_LEFT)
-      {
-        rot_x += PI / 16;
-      }
-      if (k.key.action == KeyAction::Press && k.key.key == Key::KEY_UP)
-      {
-        rot_z += PI / 16;
-      }
-    }
-  };
+  auto key_fn = [&](WindowEvent const &k) {};
 
   win_sys->listen(win, WindowEventTypes::CloseRequested, to_fn_ref(close_fn));
   win_sys->listen(win, WindowEventTypes::Key, to_fn_ref(key_fn));
@@ -74,27 +61,27 @@ int main(int, char **)
 
   CHECK(pack_shaders(
             spirvs,
-            to_span<ShaderPackEntry>(
-                {{.id = "ConvexPoly:FS"_span, .file = "convex_poly.frag"_span},
-                 {.id = "ConvexPoly:VS"_span, .file = "convex_poly.vert"_span},
-                 {.id       = "KawaseBlur_UpSample:FS"_span,
-                  .file     = "kawase_blur.frag"_span,
+            to_span<ShaderUnit>(
+                {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
+                 {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
+                 {.id       = "Blur_UpSample:FS"_span,
+                  .file     = "blur.frag"_span,
                   .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "KawaseBlur_UpSample:VS"_span,
-                  .file     = "kawase_blur.vert"_span,
+                 {.id       = "Blur_UpSample:VS"_span,
+                  .file     = "blur.vert"_span,
                   .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "KawaseBlur_DownSample:FS"_span,
-                  .file     = "kawase_blur.frag"_span,
+                 {.id       = "Blur_DownSample:FS"_span,
+                  .file     = "blur.frag"_span,
                   .preamble = "#define UPSAMPLE 0"_span},
-                 {.id       = "KawaseBlur_DownSample:VS"_span,
-                  .file     = "kawase_blur.vert"_span,
+                 {.id       = "Blur_DownSample:VS"_span,
+                  .file     = "blur.vert"_span,
                   .preamble = "#define UPSAMPLE 0"_span},
                  {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
                  {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
                  {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
                  {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-            "/home/basitayantunde/Documents/ashura/ashura/shaders"_span) ==
-        ShaderCompileError::None)
+            R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders)"_span) ==
+        ShaderCompileError::None);
 
   StrHashMap<gfx::Shader> shaders;
   defer                   shaders_del{[&] { shaders.reset(); }};
@@ -258,7 +245,7 @@ int main(int, char **)
   {
     win_sys->poll_events();
     renderer.begin_frame(swapchain);
-    renderer.record_frame(rot_x, rot_z);
+    renderer.record_frame();
     renderer.end_frame(swapchain);
   }
   default_logger->info("closing");

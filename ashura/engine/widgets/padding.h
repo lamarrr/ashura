@@ -41,7 +41,7 @@ struct Padding : public Widget
     children[0] = widget;
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &ctx) override
+  virtual Span<Widget *const> get_children(Context &ctx) override
   {
     return children;
   }
@@ -52,7 +52,7 @@ struct Padding : public Widget
   }
 
   virtual void allocate_size(Context &ctx, Vec2 allocated_size,
-                             stx::Span<Vec2> children_allocation) override
+                             Span<Vec2> children_allocation) override
   {
     Vec2 child_size = allocated_size - edge_insets.xy();
     child_size.x    = max(child_size.x, 0);
@@ -61,9 +61,9 @@ struct Padding : public Widget
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions) override
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions) override
   {
     children_positions[0] = edge_insets.top_left();
     Vec2 child_cover      = children_sizes[0] + edge_insets.xy();
@@ -72,8 +72,8 @@ struct Padding : public Widget
     return child_cover;
   }
 
-  EdgeInsets         edge_insets;
-  stx::Vec<Widget *> children;
+  EdgeInsets    edge_insets;
+  Vec<Widget *> children;
 };
 
 }        // namespace gui

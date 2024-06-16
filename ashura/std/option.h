@@ -1,4 +1,5 @@
 #pragma once
+#include "ashura/std/error.h"
 #include "ashura/std/log.h"
 
 namespace ash
@@ -7,7 +8,7 @@ namespace ash
 template <typename T>
 struct [[nodiscard]] Some
 {
-  using type = T;
+  using Type = T;
   T value{};
 };
 
@@ -23,17 +24,17 @@ constexpr NoneType None;
 template <typename T>
 struct [[nodiscard]] Option
 {
-  using type = T;
+  using Type = T;
 
   union
   {
+    char none_;
     T    value_;
-    char stub_;
   };
 
   bool is_some_ = false;
 
-  constexpr Option() : stub_{}, is_some_{false}
+  constexpr Option() : none_{}, is_some_{false}
   {
   }
 
@@ -49,7 +50,7 @@ struct [[nodiscard]] Option
   {
   }
 
-  constexpr Option(NoneType) : stub_{}, is_some_{false}
+  constexpr Option(NoneType) : none_{}, is_some_{false}
   {
   }
 
@@ -74,7 +75,7 @@ struct [[nodiscard]] Option
     return *this;
   }
 
-  constexpr Option(Option &&other) : stub_{}, is_some_{false}
+  constexpr Option(Option &&other) : none_{}, is_some_{false}
   {
     if (other.is_some_)
     {
@@ -102,7 +103,7 @@ struct [[nodiscard]] Option
     return *this;
   }
 
-  constexpr Option(Option const &other) : stub_{}, is_some_{false}
+  constexpr Option(Option const &other) : none_{}, is_some_{false}
   {
     if (other.is_some_)
     {
@@ -159,24 +160,14 @@ struct [[nodiscard]] Option
 
   constexpr T &value(SourceLocation loc = SourceLocation::current())
   {
-    if (is_some_)
-    {
-      return value_;
-    }
-    default_logger->panic("Expected value in Option but got None",
-                          " [function: ", loc.function, ", file: ", loc.file,
-                          ":", loc.line, ":", loc.column, "]");
+    CHECK_DESC_SRC(loc, is_some_, "Expected Value in Option but got None");
+    return value_;
   }
 
   constexpr T const &value(SourceLocation loc = SourceLocation::current()) const
   {
-    if (is_some_)
-    {
-      return value_;
-    }
-    default_logger->panic("Expected value in Option but got None",
-                          " [function: ", loc.function, ", file: ", loc.file,
-                          ":", loc.line, ":", loc.column, "]");
+    CHECK_DESC_SRC(loc, is_some_, "Expected Value in Option but got None");
+    return value_;
   }
 
   constexpr Option<T const *> as_ref() const
@@ -200,24 +191,14 @@ struct [[nodiscard]] Option
   constexpr T expect(char const    *msg,
                      SourceLocation loc = SourceLocation::current())
   {
-    if (is_some_)
-    {
-      return (T &&) value_;
-    }
-    default_logger->panic(msg, " [function: ", loc.function,
-                          ", file: ", loc.file, ":", loc.line, ":", loc.column,
-                          "]");
+    CHECK_DESC_SRC(loc, is_some_, msg);
+    return (T &&) value_;
   }
 
   constexpr T unwrap(SourceLocation loc = SourceLocation::current())
   {
-    if (is_some_)
-    {
-      return (T &&) value_;
-    }
-    default_logger->panic("Expected value in Option but got None",
-                          " [function: ", loc.function, ", file: ", loc.file,
-                          ":", loc.line, ":", loc.column, "]");
+    CHECK_DESC_SRC(loc, is_some_, "Expected Value in Option but got None");
+    return (T &&) value_;
   }
 
   template <typename U>
@@ -296,22 +277,13 @@ struct [[nodiscard]] Option
   constexpr void expect_none(char const    *msg,
                              SourceLocation loc = SourceLocation::current())
   {
-    if (is_some_)
-    {
-      default_logger->panic(msg, " [function: ", loc.function,
-                            ", file: ", loc.file, ":", loc.line, ":",
-                            loc.column, "]");
-    }
+    CHECK_DESC_SRC(loc, !is_some_, msg, " ", value_);
   }
 
   constexpr void unwrap_none(SourceLocation loc = SourceLocation::current())
   {
-    if (is_some_)
-    {
-      default_logger->panic("Expected value in Option but got None",
-                            " [function: ", loc.function, ", file: ", loc.file,
-                            ":", loc.line, ":", loc.column, "]");
-    }
+    CHECK_DESC_SRC(loc, !is_some_,
+                   "Expected None in Option but got Value = ", value_);
   }
 
   template <typename SomeFn, typename NoneFn>
