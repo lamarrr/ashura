@@ -243,6 +243,7 @@ struct Renderer
     ctx.end_frame(swapchain);
   }
 
+  // TODO(lamarrr): render
   void render_canvas(Canvas const &canvas);
 
   void record_frame()

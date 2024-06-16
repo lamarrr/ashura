@@ -7,12 +7,6 @@
 namespace ash
 {
 
-enum class TextWrap : u8
-{
-  Wrap     = 1,
-  Ellipsis = 2
-};
-
 enum class TextDirection : u8
 {
   LeftToRight = 0,
@@ -283,7 +277,6 @@ struct TextBlock
 struct TextBlockStyle
 {
   Span<TextStyle const> runs        = {};
-  TextWrap              wrap        = TextWrap::Wrap;
   f32                   alignment   = 0;
   f32                   align_width = 0;
 };
@@ -291,7 +284,7 @@ struct TextBlockStyle
 /// @param cluster unicode grapheme cluster within the text run
 /// @param advance context-dependent horizontal-layout advance
 /// @param offset context-dependent text shaping offset from normal font glyph
-/// position
+/// position, i.e. offset from Glyph::bearing
 struct GlyphShape
 {
   u32   glyph   = 0;

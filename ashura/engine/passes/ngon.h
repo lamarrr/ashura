@@ -18,17 +18,15 @@ struct NgonParam
 
 struct NgonPassParams
 {
-  gfx::RenderingInfo rendering_info       = {};
-  gfx::DescriptorSet vertices_ssbo        = nullptr;
-  u32                vertices_ssbo_offset = 0;
-  gfx::DescriptorSet indices_ssbo         = nullptr;
-  u32                indices_ssbo_offset  = 0;
-  gfx::DescriptorSet params_ssbo          = nullptr;
-  u32                params_ssbo_offset   = 0;
-  gfx::DescriptorSet sampler              = nullptr;
-  gfx::DescriptorSet textures             = nullptr;
-  u32                first_instance       = 0;
-  u32                num_instances        = 0;
+  gfx::RenderingInfo rendering_info = {};
+  gfx::Rect          scissor        = {};
+  gfx::Viewport      viewport       = {};
+  gfx::DescriptorSet vertices_ssbo  = nullptr;
+  gfx::DescriptorSet indices_ssbo   = nullptr;
+  gfx::DescriptorSet params_ssbo    = nullptr;
+  gfx::DescriptorSet sampler        = nullptr;
+  gfx::DescriptorSet textures       = nullptr;
+  Span<u32 const>    index_counts   = {};
 };
 
 struct NgonPass

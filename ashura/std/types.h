@@ -923,7 +923,7 @@ struct alignas(8) Vec2
   f32 x = 0;
   f32 y = 0;
 
-  static constexpr Vec2 uniform(f32 value)
+  static constexpr Vec2 splat(f32 value)
   {
     return Vec2{value, value};
   }
@@ -1034,11 +1034,21 @@ struct Vec3
   f32 y = 0;
   f32 z = 0;
 
-  static constexpr Vec3 uniform(f32 value)
+  static constexpr Vec3 splat(f32 value)
   {
     return Vec3{value, value, value};
   }
 };
+
+constexpr Vec3 to_vec3(Vec2 xy, f32 z)
+{
+  return Vec3{xy.x, xy.y, z};
+}
+
+constexpr Vec3 to_vec3(f32 x, Vec2 yz)
+{
+  return Vec3{x, yz.x, yz.y};
+}
 
 constexpr bool operator==(Vec3 a, Vec3 b)
 {
@@ -1146,11 +1156,21 @@ struct alignas(16) Vec4
   f32 z = 0;
   f32 w = 0;
 
-  static constexpr Vec4 uniform(f32 value)
+  static constexpr Vec4 splat(f32 value)
   {
     return Vec4{value, value, value, value};
   }
 };
+
+constexpr Vec4 to_vec4(Vec3 xyz, f32 w)
+{
+  return Vec4{xyz.x, xyz.y, xyz.z, w};
+}
+
+constexpr Vec4 to_vec4(f32 x, Vec3 yzw)
+{
+  return Vec4{x, yzw.x, yzw.y, yzw.z};
+}
 
 constexpr bool operator==(Vec4 a, Vec4 b)
 {
@@ -1822,7 +1842,7 @@ struct Mat2
 {
   Vec2 rows[2] = {};
 
-  static constexpr Mat2 uniform(f32 value)
+  static constexpr Mat2 splat(f32 value)
   {
     return Mat2{.rows = {{value, value}, {value, value}}};
   }
@@ -1922,7 +1942,7 @@ struct Mat3
 {
   Vec3 rows[3] = {};
 
-  static constexpr Mat3 uniform(f32 value)
+  static constexpr Mat3 splat(f32 value)
   {
     return Mat3{.rows = {{value, value, value},
                          {value, value, value},
@@ -2147,7 +2167,7 @@ struct Mat4
 {
   Vec4 rows[4] = {};
 
-  static constexpr Mat4 uniform(f32 value)
+  static constexpr Mat4 splat(f32 value)
   {
     return Mat4{.rows = {{value, value, value, value},
                          {value, value, value, value},

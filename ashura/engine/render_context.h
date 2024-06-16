@@ -64,7 +64,7 @@ struct RenderContext
   gfx::DescriptorSet       color_texture_view         = nullptr;
   gfx::DescriptorSet       scratch_color_texture_view = nullptr;
   Vec<gfx::Object>         released_objects[gfx::MAX_FRAME_BUFFERING] = {};
-  u64                      texture_slots[NUM_TEXTURES / 64]           = {};
+  alignas(64) u64 texture_slots[NUM_TEXTURES / 64]                    = {};
 
   void init(gfx::DeviceImpl p_device, bool p_use_hdr,
             u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,

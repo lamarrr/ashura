@@ -2709,7 +2709,9 @@ Result<gfx::DescriptorSetLayout, Status>
         .descriptorCount    = binding.count,
         .stageFlags         = stage_flags,
         .pImmutableSamplers = nullptr};
+
     VkDescriptorBindingFlagsEXT const vk_flags =
+        VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT |
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
         (binding.is_variable_length ?
              VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT :

@@ -81,21 +81,13 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
 
   encoder->begin_rendering(encoder.self, params.rendering_info);
   encoder->bind_graphics_pipeline(encoder.self, pipeline);
-  encoder->set_graphics_state(
-      encoder.self,
-      gfx::GraphicsState{
-          .scissor  = params.rendering_info.render_area,
-          .viewport = gfx::Viewport{
-              .offset = Vec2{0, 0},
-              .extent = Vec2{(f32) params.rendering_info.render_area.extent.x,
-                             (f32) params.rendering_info.render_area.extent.y},
-              .min_depth = 0,
-              .max_depth = 1}});
-
+  encoder->set_graphics_state(encoder.self,
+                              gfx::GraphicsState{.scissor  = params.scissor,
+                                                 .viewport = params.viewport});
   encoder->bind_descriptor_sets(
       encoder.self,
       to_span({params.params_ssbo, params.sampler, params.textures}),
-      to_span({params.params_ssbo_offset}));
+      to_span<u32>({0}));
   encoder->draw(encoder.self, 4, params.num_instances, 0,
                 params.first_instance);
   encoder->end_rendering(encoder.self);

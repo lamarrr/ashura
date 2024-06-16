@@ -233,17 +233,17 @@ constexpr Mat4 adjoint(Mat4 const &a)
 
 constexpr Mat2 inverse(Mat2 a)
 {
-  return Mat2::uniform(1.0F / determinant(a)) * adjoint(a);
+  return Mat2::splat(1.0F / determinant(a)) * adjoint(a);
 }
 
 constexpr Mat3 inverse(Mat3 const &a)
 {
-  return Mat3::uniform(1.0F / determinant(a)) * adjoint(a);
+  return Mat3::splat(1.0F / determinant(a)) * adjoint(a);
 }
 
 constexpr Mat4 inverse(Mat4 const &a)
 {
-  return Mat4::uniform(1.0F / determinant(a)) * adjoint(a);
+  return Mat4::splat(1.0F / determinant(a)) * adjoint(a);
 }
 
 constexpr Mat3Affine translate2d(Vec2 t)

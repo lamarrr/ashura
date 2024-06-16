@@ -9,8 +9,10 @@
 
 namespace ash
 {
+// TODO(lamarrr):
+// https://manual.gamemaker.io/lts/en/The_Asset_Editors/Sprite_Properties/Nine_Slices.htm
 
-typedef struct Renderer;
+typedef struct Renderer Renderer;
 
 enum class CanvasPassType : u8
 {
@@ -21,34 +23,29 @@ enum class CanvasPassType : u8
   Custom = 4
 };
 
-struct NgonDrawCommand
-{
-  u32 num_indices = 0;
-};
-
 /// @brief
-/// @param scissor_offset, scissor_extent in surface pixel coordinates
+/// @param scissor in surface pixel coordinates
 struct ShapeDesc
 {
-  Vec2  center       = {0, 0};
-  Vec2  extent       = {0, 0};
-  Vec4  border_radii = {0, 0, 0, 0};
-  f32   stroke       = 0.0f;
-  f32   thickness    = 1.0f;
-  Vec4  tint[4]      = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}};
-  u32   texture      = 0;
-  Vec2  uv[2]        = {{0, 0}, {1, 1}};
-  f32   tiling       = 1;
-  f32   edge_smoothness = 0.0015F;
-  Mat4  transform       = Mat4::identity();
-  Vec2U scissor_offset  = {0, 0};
-  Vec2U scissor_extent  = {U32_MAX, U32_MAX};
+  Vec2      center       = {0, 0};
+  Vec2      extent       = {0, 0};
+  Vec4      border_radii = {0, 0, 0, 0};
+  f32       stroke       = 0.0f;
+  f32       thickness    = 1.0f;
+  Vec4      tint[4] = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}};
+  u32       texture = 0;
+  Vec2      uv[2]   = {{0, 0}, {1, 1}};
+  f32       tiling  = 1;
+  f32       edge_smoothness = 0.0015F;
+  Mat4      transform       = Mat4::identity();
+  gfx::Rect scissor         = {.offset = {0, 0}, .extent = {U32_MAX, U32_MAX}};
 };
 
 struct CanvasPassRun
 {
-  CanvasPassType type = CanvasPassType::None;
-  u32            end  = 0;
+  CanvasPassType type    = CanvasPassType::None;
+  u32            end     = 0;
+  gfx::Rect      scissor = {.extent = {U32_MAX, U32_MAX}};
 };
 
 /// @param encoder function to encode the pass onto the renderer, will be called
@@ -104,15 +101,15 @@ struct Path
 
 struct Canvas
 {
-  CanvasSurface             surface            = {};
-  Vec<Vec2>                 vertices           = {};
-  Vec<u32>                  indices            = {};
-  Vec<NgonDrawCommand>      ngon_draw_commands = {};
-  Vec<NgonParam>            ngon_params        = {};
-  Vec<RRectParam>           rrect_params       = {};
-  Vec<BlurParam>            blur_params        = {};
-  Vec<CustomCanvasPassInfo> custom_params      = {};
-  Vec<CanvasPassRun>        pass_runs          = {};
+  CanvasSurface             surface           = {};
+  Vec<Vec2>                 vertices          = {};
+  Vec<u32>                  indices           = {};
+  Vec<u32>                  ngon_index_counts = {};
+  Vec<NgonParam>            ngon_params       = {};
+  Vec<RRectParam>           rrect_params      = {};
+  Vec<u32>                  blur_params       = {};
+  Vec<CustomCanvasPassInfo> custom_params     = {};
+  Vec<CanvasPassRun>        pass_runs         = {};
 
   void init();
 
@@ -137,7 +134,7 @@ struct Canvas
 
   void line(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
-  void blur(ShapeDesc const &desc);
+  void blur(ShapeDesc const &desc, u32 radius);
 
   void custom(ShapeDesc const &desc, CustomCanvasPassInfo const &pass);
 };

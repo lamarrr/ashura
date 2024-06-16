@@ -43,27 +43,20 @@ struct PBRVertex
   Vec2 uv;
 };
 
-struct PBRDrawIndirect
-{
-  gfx::Buffer buffer     = nullptr;
-  u64         offset     = 0;
-  u32         draw_count = 0;
-  u32         stride     = 0;
-};
-
 struct PBRPassParams
 {
-  gfx::RenderingInfo rendering_info    = {};
-  bool               wireframe         = false;
-  gfx::DescriptorSet vertex_ssbo       = nullptr;
-  gfx::DescriptorSet index_ssbo        = nullptr;
-  gfx::DescriptorSet param_ssbo        = nullptr;
-  u32                param_ssbo_offset = 0;
-  gfx::DescriptorSet light_ssbo        = nullptr;
-  u32                light_ssbo_offset = 0;
-  gfx::DescriptorSet sampler           = nullptr;
-  gfx::DescriptorSet textures          = nullptr;
-  PBRDrawIndirect    indirect          = {};
+  gfx::RenderingInfo rendering_info = {};
+  gfx::Rect          scissor        = {};
+  gfx::Viewport      viewport       = {};
+  bool               wireframe      = false;
+  gfx::DescriptorSet vertices_ssbo  = nullptr;
+  gfx::DescriptorSet indices_ssbo   = nullptr;
+  gfx::DescriptorSet params_ssbo    = nullptr;
+  gfx::DescriptorSet lights_ssbo    = nullptr;
+  gfx::DescriptorSet sampler        = nullptr;
+  gfx::DescriptorSet textures       = nullptr;
+  u32                instance       = 0;
+  u32                num_indices    = 0;
 };
 
 struct PBRPass

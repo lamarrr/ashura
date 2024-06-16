@@ -92,26 +92,18 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
                                                     this->pipeline);
 
   encoder->set_graphics_state(
-      encoder.self,
-      gfx::GraphicsState{
-          .scissor = params.rendering_info.render_area,
-          .viewport =
-              gfx::Viewport{
-                  .offset = Vec2{0, 0},
-                  .extent =
-                      Vec2{(f32) params.rendering_info.render_area.extent.x,
-                           (f32) params.rendering_info.render_area.extent.y},
-                  .min_depth = 0,
-                  .max_depth = 1},
-          .blend_constant = {1, 1, 1, 1}});
+      encoder.self, gfx::GraphicsState{.scissor           = params.scissor,
+                                       .viewport          = params.viewport,
+                                       .blend_constant    = {1, 1, 1, 1},
+                                       .depth_test_enable = true,
+                                       .depth_compare_op = gfx::CompareOp::Less,
+                                       .depth_write_enable = true});
   encoder->bind_descriptor_sets(
       encoder.self,
-      to_span({params.vertex_ssbo, params.index_ssbo, params.param_ssbo,
-               params.light_ssbo, params.sampler, params.textures}),
-      to_span<u32>({0, 0, params.param_ssbo_offset, params.light_ssbo_offset}));
-  encoder->draw_indirect(encoder.self, params.indirect.buffer,
-                         params.indirect.offset, params.indirect.draw_count,
-                         params.indirect.stride);
+      to_span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
+               params.lights_ssbo, params.sampler, params.textures}),
+      to_span<u32>({0, 0, 0, 0}));
+  encoder->draw(encoder.self, params.num_indices, 1, 0, params.instance);
   encoder->end_rendering(encoder.self);
 }
 

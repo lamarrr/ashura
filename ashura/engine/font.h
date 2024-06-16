@@ -18,6 +18,11 @@ constexpr f32 pt_to_px(i32 pt, f32 base)
   return pt / (f32) PT_UNIT * base;
 }
 
+constexpr Vec2 pt_to_px(Vec2I pt, f32 base)
+{
+  return Vec2{pt_to_px(pt.x, base), pt_to_px(pt.y, base)};
+}
+
 enum class FontStatus : u8
 {
   Loaded            = 0,

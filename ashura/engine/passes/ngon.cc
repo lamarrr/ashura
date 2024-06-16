@@ -45,7 +45,7 @@ void NgonPass::init(RenderContext &ctx)
                                          .blend_constant = {1, 1, 1, 1}};
 
   gfx::DescriptorSetLayout set_layouts[] = {ctx.ssbo_layout, ctx.ssbo_layout,
-                                            ctx.sampler_layout,
+                                            ctx.ssbo_layout, ctx.sampler_layout,
                                             ctx.textures_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
@@ -82,24 +82,20 @@ void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
 
   encoder->begin_rendering(encoder.self, params.rendering_info);
   encoder->bind_graphics_pipeline(encoder.self, pipeline);
-  encoder->set_graphics_state(
-      encoder.self,
-      gfx::GraphicsState{
-          .scissor  = params.rendering_info.render_area,
-          .viewport = gfx::Viewport{
-              .offset = Vec2{0, 0},
-              .extent = Vec2{(f32) params.rendering_info.render_area.extent.x,
-                             (f32) params.rendering_info.render_area.extent.y},
-              .min_depth = 0,
-              .max_depth = 1}});
-
   encoder->bind_descriptor_sets(
       encoder.self,
-      to_span({params.vertices_ssbo, params.params_ssbo, params.sampler,
-               params.textures}),
-      to_span({params.vertices_ssbo_offset, params.params_ssbo_offset}));
-  encoder->draw(encoder.self, 4, params.num_instances, 0,
-                params.first_instance);
+      to_span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
+               params.sampler, params.textures}),
+      to_span<u32>({0, 0, 0}));
+  encoder->set_graphics_state(encoder.self,
+                              gfx::GraphicsState{.scissor  = params.scissor,
+                                                 .viewport = params.viewport});
+  u32 const num_instances = (u32) params.index_counts.size();
+  for (u32 i = 0; i < num_instances; i++)
+  {
+    u32 vertex_count = params.index_counts[i];
+    encoder->draw(encoder.self, vertex_count, 1, 0, i);
+  }
   encoder->end_rendering(encoder.self);
 }
 

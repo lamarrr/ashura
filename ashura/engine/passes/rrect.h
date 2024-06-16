@@ -21,13 +21,14 @@ struct RRectParam
 
 struct RRectPassParams
 {
-  gfx::RenderingInfo rendering_info     = {};
-  gfx::DescriptorSet params_ssbo        = nullptr;
-  u32                params_ssbo_offset = 0;
-  gfx::DescriptorSet sampler            = nullptr;
-  gfx::DescriptorSet textures           = nullptr;
-  u32                first_instance     = 0;
-  u32                num_instances      = 0;
+  gfx::RenderingInfo rendering_info = {};
+  gfx::Rect          scissor        = {};
+  gfx::Viewport      viewport       = {};
+  gfx::DescriptorSet params_ssbo    = nullptr;
+  gfx::DescriptorSet sampler        = nullptr;
+  gfx::DescriptorSet textures       = nullptr;
+  u32                first_instance = 0;
+  u32                num_instances  = 0;
 };
 
 struct RRectPass
