@@ -9,5 +9,4 @@ ash::PanicHandler const panic_handler = custom_panic_handler;
 void custom_panic_handler()
 {
   // no-op
-  // TODO(lamarrr): print backtrace without using memory
 }
