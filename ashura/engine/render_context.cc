@@ -107,7 +107,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                                 .label    = "Texture Pack"_span,
                                 .bindings = to_span({gfx::DescriptorBindingDesc{
                                     .type  = gfx::DescriptorType::SampledImage,
-                                    .count = NUM_TEXTURES,
+                                    .count = NUM_TEXTURE_SLOTS,
                                     .is_variable_length = true}})})
                         .unwrap();
 
@@ -124,7 +124,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
 
   texture_views = device
                       ->create_descriptor_set(device.self, textures_layout,
-                                              to_span<u32>({NUM_TEXTURES}))
+                                              to_span<u32>({NUM_TEXTURE_SLOTS}))
                       .unwrap();
 
   recreate_framebuffers(p_initial_extent);
@@ -227,7 +227,7 @@ void RenderContext::uninit()
   device->destroy_descriptor_set(device.self, scratch_color_texture_view);
   device->destroy_descriptor_set_layout(device.self, ssbo_layout);
   device->destroy_descriptor_set_layout(device.self, textures_layout);
-  idle_purge();
+  idle_reclaim();
   for (u32 i = 0; i < buffering; i++)
   {
     released_objects[i].reset();
@@ -401,7 +401,7 @@ static void destroy_objects(gfx::DeviceImpl const  &d,
   }
 }
 
-void RenderContext::idle_purge()
+void RenderContext::idle_reclaim()
 {
   device->wait_idle(device.self).unwrap();
   for (u32 i = 0; i < buffering; i++)
@@ -415,6 +415,45 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
   device->begin_frame(device.self, swapchain).unwrap();
   destroy_objects(device, to_span(released_objects[ring_index()]));
   released_objects[ring_index()].clear();
+
+  gfx::CommandEncoderImpl enc = encoder();
+
+  enc->clear_color_image(
+      enc.self, framebuffer.color_image, gfx::Color{.float32 = {0, 0, 0, 0}},
+      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                          .first_mip_level   = 0,
+                                          .num_mip_levels    = 1,
+                                          .first_array_layer = 0,
+                                          .num_array_layers  = 1}}));
+
+  enc->clear_color_image(
+      enc.self, scratch_framebuffer.color_image,
+      gfx::Color{.float32 = {0, 0, 0, 0}},
+      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                          .first_mip_level   = 0,
+                                          .num_mip_levels    = 1,
+                                          .first_array_layer = 0,
+                                          .num_array_layers  = 1}}));
+
+  enc->clear_depth_stencil_image(
+      enc.self, framebuffer.depth_stencil_image,
+      gfx::DepthStencil{.depth = 0, .stencil = 0},
+      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
+                                                     gfx::ImageAspects::Stencil,
+                                          .first_mip_level   = 0,
+                                          .num_mip_levels    = 1,
+                                          .first_array_layer = 0,
+                                          .num_array_layers  = 1}}));
+
+  enc->clear_depth_stencil_image(
+      enc.self, scratch_framebuffer.depth_stencil_image,
+      gfx::DepthStencil{.depth = 0, .stencil = 0},
+      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
+                                                     gfx::ImageAspects::Stencil,
+                                          .first_mip_level   = 0,
+                                          .num_mip_levels    = 1,
+                                          .first_array_layer = 0,
+                                          .num_array_layers  = 1}}));
 }
 
 void RenderContext::end_frame(gfx::Swapchain swapchain)

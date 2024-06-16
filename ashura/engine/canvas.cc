@@ -310,7 +310,8 @@ void Canvas::clear()
   pass_runs.clear();
 }
 
-static void add_run(Canvas &canvas, CanvasPassType type, gfx::Rect scissor)
+static inline void add_run(Canvas &canvas, CanvasPassType type,
+                           gfx::Rect scissor)
 {
   bool new_run = true;
 
@@ -323,7 +324,7 @@ static void add_run(Canvas &canvas, CanvasPassType type, gfx::Rect scissor)
 
   if (!new_run)
   {
-    canvas.pass_runs[canvas.pass_runs.size() - 1].end++;
+    canvas.pass_runs[canvas.pass_runs.size() - 1].count++;
     return;
   }
 
@@ -347,8 +348,8 @@ static void add_run(Canvas &canvas, CanvasPassType type, gfx::Rect scissor)
       break;
   }
 
-  CHECK(canvas.pass_runs.push(
-      CanvasPassRun{.type = type, .end = current, .scissor = scissor}));
+  CHECK(canvas.pass_runs.push(CanvasPassRun{
+      .type = type, .first = current - 1, .count = 1, .scissor = scissor}));
 }
 
 void Canvas::circle(ShapeDesc const &desc)
@@ -617,9 +618,7 @@ void Canvas::blur(ShapeDesc const &desc, u32 radius)
 void Canvas::custom(ShapeDesc const &desc, CustomCanvasPassInfo const &pass)
 {
   CHECK(custom_params.push(pass));
-  CHECK(pass_runs.push(CanvasPassRun{.type    = CanvasPassType::Custom,
-                                     .end     = (u32) custom_params.size(),
-                                     .scissor = desc.scissor}));
+  add_run(*this, CanvasPassType::Custom, desc.scissor);
 }
 
 }        // namespace ash

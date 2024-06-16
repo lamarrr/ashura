@@ -9,10 +9,7 @@
 
 namespace ash
 {
-// TODO(lamarrr):
-// https://manual.gamemaker.io/lts/en/The_Asset_Editors/Sprite_Properties/Nine_Slices.htm
-
-typedef struct Renderer Renderer;
+typedef struct PassContext PassContext;
 
 enum class CanvasPassType : u8
 {
@@ -44,7 +41,8 @@ struct ShapeDesc
 struct CanvasPassRun
 {
   CanvasPassType type    = CanvasPassType::None;
-  u32            end     = 0;
+  u32            first   = 0;
+  u32            count   = 0;
   gfx::Rect      scissor = {.extent = {U32_MAX, U32_MAX}};
 };
 
@@ -53,8 +51,9 @@ struct CanvasPassRun
 /// @param data custom pass data
 struct CustomCanvasPassInfo
 {
-  Fn<void(void *, Renderer &)> encoder = to_fn([](void *, Renderer &) {});
-  void                        *data    = nullptr;
+  Fn<void(void *, RenderContext &, PassContext &)> encoder =
+      to_fn([](void *, RenderContext &, PassContext &) {});
+  void *data = nullptr;
 };
 
 struct CanvasSurface

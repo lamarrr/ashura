@@ -28,9 +28,6 @@ struct Framebuffer
 ///
 /// scratch images resized when swapchain extents changes
 ///
-/// device idle must be waited on before updating the texture pack or
-/// non-buffered descriptor sets.
-///
 struct RenderContext
 {
   static constexpr gfx::FormatFeatures COLOR_FEATURES =
@@ -45,9 +42,9 @@ struct RenderContext
       gfx::BufferUsage::UniformTexelBuffer |
       gfx::BufferUsage::StorageTexelBuffer | gfx::BufferUsage::IndirectBuffer |
       gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst;
-  static constexpr u32 NUM_TEXTURES = 2048;
+  static constexpr u32 NUM_TEXTURE_SLOTS = 2048;
 
-  static_assert(NUM_TEXTURES % 64 == 0);
+  static_assert(NUM_TEXTURE_SLOTS % 64 == 0);
 
   gfx::DeviceImpl          device                     = {};
   gfx::PipelineCache       pipeline_cache             = nullptr;
@@ -64,11 +61,10 @@ struct RenderContext
   gfx::DescriptorSet       color_texture_view         = nullptr;
   gfx::DescriptorSet       scratch_color_texture_view = nullptr;
   Vec<gfx::Object>         released_objects[gfx::MAX_FRAME_BUFFERING] = {};
-  alignas(64) u64 texture_slots[NUM_TEXTURES / 64]                    = {};
+  alignas(64) u64 texture_slots[NUM_TEXTURE_SLOTS / 64]               = {};
 
-  void init(gfx::DeviceImpl p_device, bool p_use_hdr,
-            u32 p_max_frames_in_flight, gfx::Extent p_initial_extent,
-            StrHashMap<gfx::Shader> p_shader_map);
+  void init(gfx::DeviceImpl device, bool use_hdr, u32 buffering,
+            gfx::Extent initial_extent, StrHashMap<gfx::Shader> shader_map);
   void uninit();
 
   void recreate_framebuffers(gfx::Extent new_extent);
@@ -89,7 +85,7 @@ struct RenderContext
   void release(gfx::BufferView view);
   void release(gfx::DescriptorSet set);
   void release(gfx::Sampler sampler);
-  void idle_purge();
+  void idle_reclaim();
 
   void begin_frame(gfx::Swapchain swapchain);
   void end_frame(gfx::Swapchain swapchain);

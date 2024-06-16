@@ -107,10 +107,10 @@ int main(int, char **)
   gfx::ColorSpace  color_space_spec  = gfx::ColorSpace::DCI_P3_NONLINEAR;
   gfx::PresentMode present_mode_spec = gfx::PresentMode::Immediate;
 
-  Renderer renderer;
-  renderer.init(device, true, 2, {1920, 1080}, shaders);
+  // Renderer renderer;
+  // renderer.init(device, true, 2, {1920, 1080}, shaders);
   shaders = {};
-  defer renderer_del{[&] { renderer.uninit(); }};
+  // defer renderer_del{[&] { renderer.uninit(); }};
 
   gfx::Swapchain swapchain            = nullptr;
   auto           invalidate_swapchain = [&] {
@@ -244,9 +244,9 @@ int main(int, char **)
   while (!should_close)
   {
     win_sys->poll_events();
-    renderer.begin_frame(swapchain);
-    renderer.record_frame();
-    renderer.end_frame(swapchain);
+    // renderer.begin_frame(swapchain);
+    // renderer.record_frame();
+    // renderer.end_frame(swapchain);
   }
   default_logger->info("closing");
 }
