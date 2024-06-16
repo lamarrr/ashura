@@ -183,7 +183,6 @@ add_library(
   ashura/engine/window.cc
   ashura/engine/widget.cc
   ashura/engine/scene.cc
-  ashura/engine/view.cc
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc
   ashura/engine/passes/bloom.cc
