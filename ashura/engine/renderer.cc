@@ -36,7 +36,7 @@ void SSBO::uninit(RenderContext &ctx)
 
 void SSBO::reserve(RenderContext &ctx, u64 p_size)
 {
-  CHECK(p_size > 0);
+  p_size = max(p_size, (u64) 1);
   if (buffer != nullptr && size >= p_size)
   {
     return;
@@ -129,14 +129,16 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
   r.ngon_params.copy(ctx, to_span(canvas.ngon_params).as_u8());
   r.rrect_params.copy(ctx, to_span(canvas.rrect_params).as_u8());
 
+  // TODO(lamarrr): samplers, viewports
   // TODO(lamarrr): use different surface
+  // TODO(lamarrr): encoder should take the info and surface
+  // TODO(lamarrr): use proper surface
   for (CanvasPassRun const &run : canvas.pass_runs)
   {
     switch (run.type)
     {
       case CanvasPassType::Blur:
       {
-        // TODO(lamarrr): use proper surface
         u32 blur_radius = canvas.blur_params[run.first];
         passes.blur.add_pass(
             ctx, BlurPassParams{.image_view = ctx.framebuffer.color_image_view,
@@ -144,22 +146,18 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
                                 .sampler    = nullptr,
                                 .texture_view = ctx.color_texture_view,
                                 .texture      = 0,
-                                .area         = {},
+                                .area         = run.scissor,
                                 .radius       = blur_radius});
       }
       break;
       case CanvasPassType::Custom:
       {
-        // TODO(lamarrr): encoder should take the info and surface
         CustomCanvasPassInfo const &info = canvas.custom_params[run.first];
         info.encoder(info.data, ctx, passes);
       }
       break;
       case CanvasPassType::Ngon:
       {
-        // canvas.ngon_params[offset];
-        // prepare resources, offload to gpu
-
         passes.ngon.add_pass(
             ctx,
             NgonPassParams{.rendering_info = info,
@@ -169,21 +167,20 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
                            .indices_ssbo   = r.indices.ssbo,
                            .params_ssbo    = r.ngon_params.ssbo,
                            .sampler        = nullptr,
-                           .textures       = nullptr,
+                           .textures       = ctx.texture_views,
                            .index_counts   = to_span(canvas.ngon_index_counts)
                                                .slice(run.first, run.count)});
       }
       break;
       case CanvasPassType::RRect:
       {
-        to_span(canvas.rrect_params).slice(run.first, run.count);
         passes.rrect.add_pass(
             ctx, RRectPassParams{.rendering_info = info,
                                  .scissor        = run.scissor,
                                  .viewport       = {},
                                  .params_ssbo    = r.rrect_params.ssbo,
                                  .sampler        = nullptr,
-                                 .textures       = nullptr,
+                                 .textures       = ctx.texture_views,
                                  .first_instance = run.first,
                                  .num_instances  = run.count});
       }
