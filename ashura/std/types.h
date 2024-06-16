@@ -2909,9 +2909,9 @@ struct BitSpan
 };
 
 template <typename T>
-constexpr Span<T const> to_span(std::initializer_list<T> init)
+constexpr Span<T const> to_span(std::initializer_list<T> list)
 {
-  return Span<T const>{init.begin(), init.size()};
+  return Span<T const>{list.begin(), list.size()};
 }
 
 template <typename T, usize N>
@@ -2921,10 +2921,9 @@ constexpr Span<T> to_span(T (&array)[N])
 }
 
 template <typename Container>
-constexpr auto to_span(Container &container) -> decltype(Span{data(container),
-                                                              size(container)})
+constexpr auto to_span(Container &c) -> decltype(Span{data(c), size(c)})
 {
-  return Span{data(container), size(container)};
+  return Span{data(c), size(c)};
 }
 
 template <typename Lambda>
