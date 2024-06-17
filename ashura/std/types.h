@@ -1277,6 +1277,11 @@ struct alignas(4) Vec4U8
   u8 y = 0;
   u8 z = 0;
   u8 w = 0;
+
+  static constexpr Vec4U8 splat(u8 value)
+  {
+    return Vec4U8{value, value, value, value};
+  }
 };
 
 constexpr bool operator==(Vec4U8 a, Vec4U8 b)
@@ -1341,6 +1346,11 @@ struct alignas(8) Vec2I
 {
   i32 x = 0;
   i32 y = 0;
+
+  static constexpr Vec2I splat(i32 value)
+  {
+    return Vec2I{value, value};
+  }
 };
 
 constexpr bool operator==(Vec2I a, Vec2I b)
@@ -1479,6 +1489,11 @@ struct alignas(16) Vec4I
   i32 y = 0;
   i32 z = 0;
   i32 w = 0;
+
+  static constexpr Vec4I splat(i32 value)
+  {
+    return Vec4I{value, value, value, value};
+  }
 };
 
 constexpr bool operator==(Vec4I a, Vec4I b)
@@ -1539,6 +1554,11 @@ struct alignas(8) Vec2U
 {
   u32 x = 0;
   u32 y = 0;
+
+  static constexpr Vec2U splat(u32 value)
+  {
+    return Vec2U{value, value};
+  }
 };
 
 constexpr bool operator==(Vec2U a, Vec2U b)
@@ -1645,6 +1665,11 @@ struct Vec3U
   u32 x = 0;
   u32 y = 0;
   u32 z = 0;
+
+  static constexpr Vec3U splat(u32 value)
+  {
+    return Vec3U{value, value, value};
+  }
 };
 
 constexpr bool operator==(Vec3U a, Vec3U b)
@@ -1707,6 +1732,11 @@ struct alignas(16) Vec4U
   u32 y = 0;
   u32 z = 0;
   u32 w = 0;
+
+  static constexpr Vec4U splat(u32 value)
+  {
+    return Vec4U{value, value, value, value};
+  }
 };
 
 constexpr bool operator==(Vec4U a, Vec4U b)

@@ -125,7 +125,7 @@ struct RenderContext
   gfx::FrameId            tail_frame_id();
 
   Option<gfx::Shader> get_shader(Span<char const> name);
-  CachedSampler       get_sampler(gfx::SamplerDesc const &desc);
+  CachedSampler       create_sampler(gfx::SamplerDesc const &desc);
 
   u32  alloc_texture_slot();
   void release_texture_slot(u32 slot);

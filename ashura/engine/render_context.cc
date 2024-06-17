@@ -145,6 +145,24 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                  .unwrap();
 
   recreate_framebuffers(p_initial_extent);
+  // add default sampler (slot: 0)
+  create_sampler(
+      gfx::SamplerDesc{.label             = "Nearest+Repeat Sampler"_span,
+                       .mag_filter        = gfx::Filter::Nearest,
+                       .min_filter        = gfx::Filter::Nearest,
+                       .mip_map_mode      = gfx::SamplerMipMapMode::Nearest,
+                       .address_mode_u    = gfx::SamplerAddressMode::Repeat,
+                       .address_mode_v    = gfx::SamplerAddressMode::Repeat,
+                       .address_mode_w    = gfx::SamplerAddressMode::Repeat,
+                       .mip_lod_bias      = 0,
+                       .anisotropy_enable = false,
+                       .max_anisotropy    = 1.0,
+                       .compare_enable    = false,
+                       .compare_op        = gfx::CompareOp::Never,
+                       .min_lod           = 0,
+                       .max_lod           = 0,
+                       .border_color = gfx::BorderColor::FloatTransparentBlack,
+                       .unnormalized_coordinates = false});
 }
 
 static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
@@ -294,7 +312,7 @@ Option<gfx::Shader> RenderContext::get_shader(Span<char const> name)
   return Some{*shader};
 }
 
-CachedSampler RenderContext::get_sampler(gfx::SamplerDesc const &desc)
+CachedSampler RenderContext::create_sampler(gfx::SamplerDesc const &desc)
 {
   CachedSampler *cached = sampler_cache[desc];
   if (cached != nullptr)
@@ -352,11 +370,32 @@ void RenderContext::release_texture_slot(u32 slot)
 
 u32 RenderContext::alloc_sampler_slot()
 {
-  return 0;
+  for (u16 i = 0; i < (NUM_SAMPLER_SLOTS >> 6); i++)
+  {
+    u64 const mask = sampler_slots[i];
+    if (mask == U64_MAX)
+    {
+      continue;
+    }
+    u16 j = 0;
+    for (; j < 64; j++)
+    {
+      if (((mask >> j) & 0x1) == 0)
+      {
+        break;
+      }
+    }
+    sampler_slots[i] = mask | (((u64) 1) << j);
+    return (i << 6) + j;
+  }
+
+  default_logger->panic("Ran out of Sampler slots");
 }
 
 void RenderContext::release_sampler_slot(u32 slot)
 {
+  sampler_slots[slot >> 6] =
+      sampler_slots[slot >> 6] & ~(((u64) 1) << (slot & 63));
 }
 
 void RenderContext::release(gfx::Image image)
