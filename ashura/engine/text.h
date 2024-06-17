@@ -381,8 +381,8 @@ struct TextLayout
 
   void clear()
   {
-    extent    = Vec2{0, 0};
     max_width = F32_MAX;
+    extent    = Vec2{0, 0};
     segments.clear();
     glyphs.clear();
     runs.clear();
