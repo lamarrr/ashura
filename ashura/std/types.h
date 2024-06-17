@@ -2691,14 +2691,14 @@ struct Span
                             size_bytes()};
   }
 
-  constexpr Span slice(usize slice_offset, usize slice_span) const
+  constexpr Span slice(usize offset, usize span) const
   {
-    return (*this)[Slice{slice_offset, slice_span}];
+    return (*this)[Slice{offset, span}];
   }
 
-  constexpr Span slice(usize slice_offset) const
+  constexpr Span slice(usize offset) const
   {
-    return slice(slice_offset, USIZE_MAX);
+    return slice(offset, USIZE_MAX);
   }
 };
 
