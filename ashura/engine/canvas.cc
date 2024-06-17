@@ -364,6 +364,7 @@ void Canvas::circle(ShapeDesc const &desc)
       .stroke       = desc.stroke,
       .thickness    = desc.thickness,
       .edge_smoothness = desc.edge_smoothness,
+      .sampler         = desc.sampler,
       .albedo          = desc.texture}));
 
   add_run(*this, CanvasPassType::RRect, desc.scissor);
@@ -381,6 +382,7 @@ void Canvas::rect(ShapeDesc const &desc)
       .stroke       = desc.stroke,
       .thickness    = desc.thickness,
       .edge_smoothness = desc.edge_smoothness,
+      .sampler         = desc.sampler,
       .albedo          = desc.texture}));
 
   add_run(*this, CanvasPassType::RRect, desc.scissor);
@@ -398,6 +400,7 @@ void Canvas::rrect(ShapeDesc const &desc)
       .stroke       = desc.stroke,
       .thickness    = desc.thickness,
       .edge_smoothness = desc.edge_smoothness,
+      .sampler         = desc.sampler,
       .albedo          = desc.texture}));
 
   add_run(*this, CanvasPassType::RRect, desc.scissor);
@@ -492,8 +495,11 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                   .tint = {run_style.shadow_color[0], run_style.shadow_color[1],
                            run_style.shadow_color[2],
                            run_style.shadow_color[3]},
-                  .texture   = font->textures[gl.layer],
-                  .uv        = {gl.uv[0], gl.uv[1]},
+                  .sampler         = desc.sampler,
+                  .texture         = font->textures[gl.layer],
+                  .uv              = {gl.uv[0], gl.uv[1]},
+                  .tiling          = desc.tiling,
+                  .edge_smoothness = desc.edge_smoothness,
                   .transform = translate3d(shadow_center) * desc.transform *
                                translate3d(-shadow_center),
                   .scissor = desc.scissor});
@@ -501,14 +507,17 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
 
             if (layer == 1 && !is_transparent(run_style.foreground_color))
             {
-              rect(ShapeDesc{.center    = desc.center,
-                             .extent    = extent,
-                             .tint      = {run_style.foreground_color[0],
-                                           run_style.foreground_color[1],
-                                           run_style.foreground_color[2],
-                                           run_style.foreground_color[3]},
-                             .texture   = font->textures[gl.layer],
-                             .uv        = {gl.uv[0], gl.uv[1]},
+              rect(ShapeDesc{.center          = desc.center,
+                             .extent          = extent,
+                             .tint            = {run_style.foreground_color[0],
+                                                 run_style.foreground_color[1],
+                                                 run_style.foreground_color[2],
+                                                 run_style.foreground_color[3]},
+                             .sampler         = desc.sampler,
+                             .texture         = font->textures[gl.layer],
+                             .uv              = {gl.uv[0], gl.uv[1]},
+                             .tiling          = desc.tiling,
+                             .edge_smoothness = desc.edge_smoothness,
                              .transform = translate3d(center) * desc.transform *
                                           translate3d(-center),
                              .scissor = desc.scissor});
@@ -523,12 +532,17 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
           Vec3 center{cursor + advance / 2, baseline - run.font_height / 2, 0};
           Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
                       run_style.strikethrough_thickness};
-          rect(ShapeDesc{.center    = desc.center,
-                         .extent    = extent,
-                         .tint      = {run_style.strikethrough_color[0],
-                                       run_style.strikethrough_color[1],
-                                       run_style.strikethrough_color[2],
-                                       run_style.strikethrough_color[3]},
+          rect(ShapeDesc{.center          = desc.center,
+                         .extent          = extent,
+                         .tint            = {run_style.strikethrough_color[0],
+                                             run_style.strikethrough_color[1],
+                                             run_style.strikethrough_color[2],
+                                             run_style.strikethrough_color[3]},
+                         .sampler         = desc.sampler,
+                         .texture         = 0,
+                         .uv              = {},
+                         .tiling          = desc.tiling,
+                         .edge_smoothness = desc.edge_smoothness,
                          .transform = translate3d(center) * desc.transform *
                                       translate3d(-center),
                          .scissor = desc.scissor});
@@ -539,12 +553,17 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
           Vec3 center{cursor + advance / 2, baseline, 0};
           Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
                       run_style.underline_thickness};
-          rect(ShapeDesc{.center    = desc.center,
-                         .extent    = extent,
-                         .tint      = {run_style.underline_color[0],
-                                       run_style.underline_color[1],
-                                       run_style.underline_color[2],
-                                       run_style.underline_color[3]},
+          rect(ShapeDesc{.center          = desc.center,
+                         .extent          = extent,
+                         .tint            = {run_style.underline_color[0],
+                                             run_style.underline_color[1],
+                                             run_style.underline_color[2],
+                                             run_style.underline_color[3]},
+                         .sampler         = desc.sampler,
+                         .texture         = 0,
+                         .uv              = {},
+                         .tiling          = desc.tiling,
+                         .edge_smoothness = desc.edge_smoothness,
                          .transform = translate3d(center) * desc.transform *
                                       translate3d(-center),
                          .scissor = desc.scissor});
@@ -575,6 +594,7 @@ void Canvas::ngon(ShapeDesc const &desc, Span<Vec2 const> points)
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
+      .sampler      = desc.sampler,
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));
@@ -600,6 +620,7 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
+      .sampler      = desc.sampler,
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));

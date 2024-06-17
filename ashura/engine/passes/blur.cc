@@ -54,7 +54,7 @@ void BlurPass::init(RenderContext &ctx)
                                              to_span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout set_layouts[] = {ctx.sampler_layout,
+  gfx::DescriptorSetLayout set_layouts[] = {ctx.samplers_layout,
                                             ctx.textures_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
@@ -96,6 +96,8 @@ void BlurPass::init(RenderContext &ctx)
 
 void BlurPass::uninit(RenderContext &ctx)
 {
+  ctx.device->destroy_graphics_pipeline(ctx.device.self, downsample_pipeline);
+  ctx.device->destroy_graphics_pipeline(ctx.device.self, upsample_pipeline);
 }
 
 void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
@@ -184,10 +186,9 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
                                     params.area.offset.y * 1.0f},
                          .extent = {params.area.extent.x * 1.0f,
                                     params.area.extent.y * 1.0f}}});
-    encoder->bind_descriptor_sets(encoder.self,
-                                  to_span({ctx.get_sampler(params.sampler).set,
-                                           ctx.scratch_fb.color.texture}),
-                                  {});
+    encoder->bind_descriptor_sets(
+        encoder.self, to_span({ctx.samplers, ctx.scratch_fb.color_texture}),
+        {});
     encoder->push_constants(
         encoder.self,
         to_span({BlurParam{.uv = {uv0, uv1}, .radius = radius, .texture = 0}})

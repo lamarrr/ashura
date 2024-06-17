@@ -27,42 +27,40 @@ struct FontImpl
   hb_font_t    *hb_font              = nullptr;
   FT_Library    ft_lib               = nullptr;
   FT_Face       ft_face              = nullptr;
-  u32           selected_face        = 0;
+  u32           face                 = 0;
   char         *font_data            = nullptr;
   u32           font_data_size       = 0;
   u32           num_glyphs           = 0;
   u32           replacement_glyph    = 0;
   u32           ellipsis_glyph       = 0;
   u32           space_glyph          = 0;
+  Glyph        *glyphs               = nullptr;
+  i32           ascent               = 0;
+  i32           descent              = 0;
+  i32           advance              = 0;
 
   // RASTERIZED ATLAS INFO
   u32             font_height  = 0;
-  Glyph          *glyphs       = nullptr;
   u8             *atlas        = nullptr;
   u64             atlas_size   = 0;
   u32             atlas_extent = 0;
   u32             num_layers   = 0;
-  i32             ascent       = 0;
-  i32             descent      = 0;
-  i32             advance      = 0;
   gfx::Format     format       = gfx::Format::Undefined;
   gfx::Image      image        = nullptr;
   gfx::ImageView *views        = nullptr;
   u32            *textures     = nullptr;
 };
 
-bool load_font_from_memory(FontImpl *f, Span<u8 const> encoded_data, u32 face);
+bool load_font(Span<u8 const> encoded, u32 face,
+               Span<UnicodeRange const> ranges, AllocatorImpl const &allocator,
+               FontImpl **f);
 
-bool load_font_from_file(FontImpl *f, AllocatorImpl const &allocator,
-                         Span<char const> path, u32 face);
+void destroy_font(FontImpl *f, RenderContext &c);
 
-void destroy_font(FontImpl *f, gfx::DeviceImpl const &d);
+bool rasterize_font(FontImpl &f, i32 font_height,
+                    AllocatorImpl const &allocator);
 
-bool render_font_atlas(FontImpl &f, i32 font_height,
-                       Span<UnicodeRange const> ranges,
-                       AllocatorImpl const     &allocator);
-
-gfx::Status upload_font_to_device(FontImpl &f, RenderContext &c,
-                                  AllocatorImpl const &allocator);
+void upload_font_to_device(FontImpl &f, RenderContext &c,
+                           AllocatorImpl const &allocator);
 
 }        // namespace ash

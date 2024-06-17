@@ -59,29 +59,30 @@ int main(int, char **)
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
-  CHECK(pack_shaders(
-            spirvs,
-            to_span<ShaderUnit>(
-                {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
-                 {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
-                 {.id       = "Blur_UpSample:FS"_span,
-                  .file     = "blur.frag"_span,
-                  .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "Blur_UpSample:VS"_span,
-                  .file     = "blur.vert"_span,
-                  .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "Blur_DownSample:FS"_span,
-                  .file     = "blur.frag"_span,
-                  .preamble = "#define UPSAMPLE 0"_span},
-                 {.id       = "Blur_DownSample:VS"_span,
-                  .file     = "blur.vert"_span,
-                  .preamble = "#define UPSAMPLE 0"_span},
-                 {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
-                 {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
-                 {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
-                 {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-            R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders)"_span) ==
-        ShaderCompileError::None);
+  CHECK(
+      pack_shaders(
+          spirvs,
+          to_span<ShaderUnit>(
+              {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
+               {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
+               {.id       = "Blur_UpSample:FS"_span,
+                .file     = "blur.frag"_span,
+                .preamble = "#define UPSAMPLE 1"_span},
+               {.id       = "Blur_UpSample:VS"_span,
+                .file     = "blur.vert"_span,
+                .preamble = "#define UPSAMPLE 1"_span},
+               {.id       = "Blur_DownSample:FS"_span,
+                .file     = "blur.frag"_span,
+                .preamble = "#define UPSAMPLE 0"_span},
+               {.id       = "Blur_DownSample:VS"_span,
+                .file     = "blur.vert"_span,
+                .preamble = "#define UPSAMPLE 0"_span},
+               {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
+               {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
+               {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
+               {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
+          R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders)"_span) ==
+      ShaderCompileError::None);
 
   StrHashMap<gfx::Shader> shaders;
   defer                   shaders_del{[&] { shaders.reset(); }};
@@ -107,10 +108,14 @@ int main(int, char **)
   gfx::ColorSpace  color_space_spec  = gfx::ColorSpace::DCI_P3_NONLINEAR;
   gfx::PresentMode present_mode_spec = gfx::PresentMode::Immediate;
 
-  // Renderer renderer;
-  // renderer.init(device, true, 2, {1920, 1080}, shaders);
+  RenderContext ctx;
+  ctx.init(device, true, 2, {1920, 1080}, shaders);
   shaders = {};
-  // defer renderer_del{[&] { renderer.uninit(); }};
+  defer ctx_del{[&] { ctx.uninit(); }};
+
+  PassContext pctx;
+  pctx.init(ctx);
+  defer pctx_del{[&] { pctx.uninit(ctx); }};
 
   gfx::Swapchain swapchain            = nullptr;
   auto           invalidate_swapchain = [&] {
@@ -241,12 +246,28 @@ int main(int, char **)
   defer swapchain_del{
       [&] { device->destroy_swapchain(device.self, swapchain); }};
 
+  CanvasRenderer renderer;
+  renderer.init(ctx);
+  defer renderer_del{[&] { renderer.uninit(ctx); }};
+
+  Canvas canvas;
+  canvas.init();
+  defer canvas_del{[&] { canvas.uninit(); }};
+
   while (!should_close)
   {
     win_sys->poll_events();
-    // renderer.begin_frame(swapchain);
-    // renderer.record_frame();
-    // renderer.end_frame(swapchain);
+    ctx.begin_frame(swapchain);
+    canvas.begin(CanvasSurface{
+
+    });
+
+    renderer.begin(ctx, pctx, canvas, gfx::RenderingInfo{},
+                   ctx.screen_fb.color_texture);
+    renderer.render(ctx, pctx, canvas, gfx::RenderingInfo{},
+                    ctx.screen_fb.color_texture);
+    ctx.end_frame(swapchain);
+    canvas.clear();
   }
   default_logger->info("closing");
 }

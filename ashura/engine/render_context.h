@@ -16,7 +16,6 @@ struct FramebufferAttachment
   gfx::ImageViewDesc view_desc = {};
   gfx::Image         image     = nullptr;
   gfx::ImageView     view      = nullptr;
-  gfx::DescriptorSet texture   = nullptr;
 };
 
 /// created with sampled, storage, color attachment, and transfer flags
@@ -24,6 +23,7 @@ struct Framebuffer
 {
   FramebufferAttachment color         = {};
   FramebufferAttachment depth_stencil = {};
+  gfx::DescriptorSet    color_texture = nullptr;
   gfx::Extent           extent        = {};
 };
 
@@ -61,13 +61,13 @@ struct SamplerEq
   }
 };
 
-struct Sampler
+struct CachedSampler
 {
-  gfx::Sampler       sampler = nullptr;
-  gfx::DescriptorSet set     = nullptr;
+  gfx::Sampler sampler = nullptr;
+  u32          index   = 0;
 };
 
-typedef HashMap<gfx::SamplerDesc, Sampler, SamplerHasher, SamplerEq, u32>
+typedef HashMap<gfx::SamplerDesc, CachedSampler, SamplerHasher, SamplerEq, u32>
     SamplerCache;
 
 /// @param color_format hdr if hdr supported and required.
@@ -88,23 +88,28 @@ struct RenderContext
       gfx::BufferUsage::UniformTexelBuffer |
       gfx::BufferUsage::StorageTexelBuffer | gfx::BufferUsage::IndirectBuffer |
       gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst;
-  static constexpr u32 NUM_TEXTURE_SLOTS = 2048;
+  static constexpr u16 NUM_TEXTURE_SLOTS = 2048;
+  static constexpr u16 NUM_SAMPLER_SLOTS = 128;
 
   static_assert(NUM_TEXTURE_SLOTS % 64 == 0);
+  static_assert(NUM_SAMPLER_SLOTS % 64 == 0);
 
-  alignas(64) u64 texture_slots[NUM_TEXTURE_SLOTS / 64] = {};
-  gfx::DeviceImpl          device                       = {};
-  gfx::PipelineCache       pipeline_cache               = nullptr;
-  u32                      buffering                    = 0;
-  StrHashMap<gfx::Shader>  shader_map                   = {};
+  u64                      texture_slots[NUM_TEXTURE_SLOTS / 64] = {};
+  u64                      sampler_slots[NUM_SAMPLER_SLOTS / 64] = {};
+  gfx::DeviceImpl          device                                = {};
+  gfx::PipelineCache       pipeline_cache                        = nullptr;
+  u32                      buffering                             = 0;
+  StrHashMap<gfx::Shader>  shader_map                            = {};
   gfx::Format              color_format         = gfx::Format::Undefined;
   gfx::Format              depth_stencil_format = gfx::Format::Undefined;
+  gfx::DescriptorSetLayout ubo_layout           = nullptr;
   gfx::DescriptorSetLayout ssbo_layout          = nullptr;
   gfx::DescriptorSetLayout textures_layout      = nullptr;
-  gfx::DescriptorSetLayout sampler_layout       = nullptr;
+  gfx::DescriptorSetLayout samplers_layout      = nullptr;
   gfx::DescriptorSet       texture_views        = nullptr;
+  gfx::DescriptorSet       samplers             = nullptr;
   Vec<gfx::Object>         released_objects[gfx::MAX_FRAME_BUFFERING] = {};
-  SamplerCache             samplers                                   = {};
+  SamplerCache             sampler_cache                              = {};
   Framebuffer              screen_fb                                  = {};
   Framebuffer              scratch_fb                                 = {};
 
@@ -120,29 +125,30 @@ struct RenderContext
   gfx::FrameId            tail_frame_id();
 
   Option<gfx::Shader> get_shader(Span<char const> name);
-  Sampler             get_sampler(gfx::SamplerDesc const &desc);
+  CachedSampler       get_sampler(gfx::SamplerDesc const &desc);
 
-  u16  alloc_texture_slot();
-  void release_texture_slot(u16 slot);
+  u32  alloc_texture_slot();
+  void release_texture_slot(u32 slot);
+  u32  alloc_sampler_slot();
+  void release_sampler_slot(u32 slot);
 
   void release(gfx::Image image);
   void release(gfx::ImageView view);
   void release(gfx::Buffer view);
   void release(gfx::BufferView view);
+  void release(gfx::DescriptorSetLayout layout);
   void release(gfx::DescriptorSet set);
   void release(gfx::Sampler sampler);
-
   void release(FramebufferAttachment fb)
   {
     release(fb.image);
     release(fb.view);
-    release(fb.texture);
   }
-
   void release(Framebuffer fb)
   {
     release(fb.color);
     release(fb.depth_stencil);
+    release(fb.color_texture);
   }
 
   void idle_reclaim();

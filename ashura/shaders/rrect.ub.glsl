@@ -20,6 +20,7 @@ struct Params
   float stroke;
   float thickness;
   float edge_smoothness;
+  uint  isampler;
   uint  albedo;
 };
 
@@ -28,7 +29,7 @@ layout(set = 0, binding = 0) readonly buffer ParamBuffer
   Params params[];
 };
 
-layout(set = 1, binding = 0) uniform sampler smp;
+layout(set = 1, binding = 0) uniform sampler samplers[];
 
 layout(set = 2, binding = 0) uniform texture2D textures[];
 
@@ -70,7 +71,8 @@ void main()
   vec2  half_extent = vec2(p.aspect_ratio, 1) * 0.5;
   float dist        = rrect_sdf(pos, half_extent, radius);
   vec2  tex_uv      = mix(p.uv.xy, p.uv.zw, i_uv);
-  vec4  color       = texture(sampler2D(textures[nonuniformEXT(p.albedo)], smp),
+  vec4  color       = texture(sampler2D(textures[nonuniformEXT(p.albedo)],
+                                        samplers[nonuniformEXT(p.isampler)]),
                               tex_uv * p.tiling) *
                bilerp(p.tint, i_uv, 0.5);
   float fill_alpha   = 1 - smoothstep(0, p.edge_smoothness, dist);

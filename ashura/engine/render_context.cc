@@ -88,12 +88,24 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   color_format         = sel_color_format;
   depth_stencil_format = sel_depth_stencil_format;
 
+  ubo_layout =
+      device
+          ->create_descriptor_set_layout(
+              device.self,
+              gfx::DescriptorSetLayoutDesc{
+                  .label    = "UBO Layout"_span,
+                  .bindings = to_span({gfx::DescriptorBindingDesc{
+                      .type  = gfx::DescriptorType::DynamicUniformBuffer,
+                      .count = 1,
+                      .is_variable_length = false}})})
+          .unwrap();
+
   ssbo_layout =
       device
           ->create_descriptor_set_layout(
               device.self,
               gfx::DescriptorSetLayoutDesc{
-                  .label    = "SSBO"_span,
+                  .label    = "SSBO Layout"_span,
                   .bindings = to_span({gfx::DescriptorBindingDesc{
                       .type  = gfx::DescriptorType::DynamicStorageBuffer,
                       .count = 1,
@@ -104,28 +116,33 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                         ->create_descriptor_set_layout(
                             device.self,
                             gfx::DescriptorSetLayoutDesc{
-                                .label    = "Texture Pack"_span,
+                                .label    = "Textures Layout"_span,
                                 .bindings = to_span({gfx::DescriptorBindingDesc{
                                     .type  = gfx::DescriptorType::SampledImage,
                                     .count = NUM_TEXTURE_SLOTS,
                                     .is_variable_length = true}})})
                         .unwrap();
 
-  sampler_layout = device
-                       ->create_descriptor_set_layout(
-                           device.self,
-                           gfx::DescriptorSetLayoutDesc{
-                               .label    = "Sampler"_span,
-                               .bindings = to_span({gfx::DescriptorBindingDesc{
-                                   .type  = gfx::DescriptorType::Sampler,
-                                   .count = 1,
-                                   .is_variable_length = false}})})
-                       .unwrap();
+  samplers_layout = device
+                        ->create_descriptor_set_layout(
+                            device.self,
+                            gfx::DescriptorSetLayoutDesc{
+                                .label    = "Samplers Layout"_span,
+                                .bindings = to_span({gfx::DescriptorBindingDesc{
+                                    .type  = gfx::DescriptorType::Sampler,
+                                    .count = NUM_SAMPLER_SLOTS,
+                                    .is_variable_length = true}})})
+                        .unwrap();
 
   texture_views = device
                       ->create_descriptor_set(device.self, textures_layout,
                                               to_span<u32>({NUM_TEXTURE_SLOTS}))
                       .unwrap();
+
+  samplers = device
+                 ->create_descriptor_set(device.self, samplers_layout,
+                                         to_span<u32>({NUM_SAMPLER_SLOTS}))
+                 .unwrap();
 
   recreate_framebuffers(p_initial_extent);
 }
@@ -166,20 +183,6 @@ static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
       ctx.device->create_image_view(ctx.device.self, fb.color.view_desc)
           .unwrap();
 
-  fb.color.texture =
-      ctx.device
-          ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
-                                  to_span<u32>({1}))
-          .unwrap();
-
-  ctx.device->update_descriptor_set(
-      ctx.device.self,
-      gfx::DescriptorSetUpdate{
-          .set     = fb.color.texture,
-          .binding = 0,
-          .element = 0,
-          .images = to_span({gfx::ImageBinding{.image_view = fb.color.view}})});
-
   fb.depth_stencil.desc = gfx::ImageDesc{
       .label  = "Framebuffer Depth Stencil Image"_span,
       .type   = gfx::ImageType::Type2D,
@@ -212,7 +215,7 @@ static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
       ctx.device->create_image_view(ctx.device.self, fb.depth_stencil.view_desc)
           .unwrap();
 
-  fb.depth_stencil.texture =
+  fb.color_texture =
       ctx.device
           ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
                                   to_span<u32>({1}))
@@ -220,28 +223,31 @@ static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
 
   ctx.device->update_descriptor_set(
       ctx.device.self,
-      gfx::DescriptorSetUpdate{.set     = fb.depth_stencil.texture,
-                               .binding = 0,
-                               .element = 0,
-                               .images  = to_span({gfx::ImageBinding{
-                                    .image_view = fb.depth_stencil.view}})});
+      gfx::DescriptorSetUpdate{
+          .set     = fb.color_texture,
+          .binding = 0,
+          .element = 0,
+          .images = to_span({gfx::ImageBinding{.image_view = fb.color.view}})});
 
   fb.extent = new_extent;
 }
 
 void RenderContext::uninit()
 {
-  device->destroy_pipeline_cache(device.self, pipeline_cache);
-  device->destroy_descriptor_set(device.self, texture_views);
-  device->destroy_descriptor_set_layout(device.self, ssbo_layout);
-  device->destroy_descriptor_set_layout(device.self, textures_layout);
+  release(texture_views);
+  release(samplers);
+  release(ubo_layout);
+  release(ssbo_layout);
+  release(textures_layout);
+  release(samplers_layout);
   release(screen_fb);
   release(scratch_fb);
+  sampler_cache.for_each([&](gfx::SamplerDesc const &, CachedSampler sampler) {
+    release(sampler.sampler);
+  });
   idle_reclaim();
-  for (u32 i = 0; i < buffering; i++)
-  {
-    released_objects[i].reset();
-  }
+  device->destroy_pipeline_cache(device.self, pipeline_cache);
+
   shader_map.for_each([&](Span<char const>, gfx::Shader shader) {
     device->destroy_shader(device.self, shader);
   });
@@ -288,6 +294,71 @@ Option<gfx::Shader> RenderContext::get_shader(Span<char const> name)
   return Some{*shader};
 }
 
+CachedSampler RenderContext::get_sampler(gfx::SamplerDesc const &desc)
+{
+  CachedSampler *cached = sampler_cache[desc];
+  if (cached != nullptr)
+  {
+    return *cached;
+  }
+
+  CachedSampler sampler{.sampler =
+                            device->create_sampler(device.self, desc).unwrap(),
+                        .index = alloc_sampler_slot()};
+
+  device->update_descriptor_set(
+      device.self,
+      gfx::DescriptorSetUpdate{
+          .set     = samplers,
+          .binding = 0,
+          .element = sampler.index,
+          .images  = to_span({gfx::ImageBinding{.sampler = sampler.sampler}})});
+
+  bool exists;
+  CHECK(sampler_cache.insert(exists, nullptr, desc, sampler) && !exists);
+
+  return sampler;
+}
+
+u32 RenderContext::alloc_texture_slot()
+{
+  for (u16 i = 0; i < (NUM_TEXTURE_SLOTS >> 6); i++)
+  {
+    u64 const mask = texture_slots[i];
+    if (mask == U64_MAX)
+    {
+      continue;
+    }
+    u16 j = 0;
+    for (; j < 64; j++)
+    {
+      if (((mask >> j) & 0x1) == 0)
+      {
+        break;
+      }
+    }
+    texture_slots[i] = mask | (((u64) 1) << j);
+    return (i << 6) + j;
+  }
+
+  default_logger->panic("Ran out of Texture slots");
+}
+
+void RenderContext::release_texture_slot(u32 slot)
+{
+  texture_slots[slot >> 6] =
+      texture_slots[slot >> 6] & ~(((u64) 1) << (slot & 63));
+}
+
+u32 RenderContext::alloc_sampler_slot()
+{
+  return 0;
+}
+
+void RenderContext::release_sampler_slot(u32 slot)
+{
+}
+
 void RenderContext::release(gfx::Image image)
 {
   if (image == nullptr)
@@ -326,6 +397,17 @@ void RenderContext::release(gfx::BufferView view)
   }
   CHECK(released_objects[ring_index()].push(
       gfx::Object{.buffer_view = view, .type = gfx::ObjectType::BufferView}));
+}
+
+void RenderContext::release(gfx::DescriptorSetLayout layout)
+{
+  if (layout == nullptr)
+  {
+    return;
+  }
+  CHECK(released_objects[ring_index()].push(
+      gfx::Object{.descriptor_set_layout = layout,
+                  .type = gfx::ObjectType::DescriptorSetLayout}));
 }
 
 void RenderContext::release(gfx::DescriptorSet set)
@@ -374,6 +456,9 @@ static void destroy_objects(gfx::DeviceImpl const  &d,
       case gfx::ObjectType::DescriptorSet:
         d->destroy_descriptor_set(d.self, obj.descriptor_set);
         break;
+      case gfx::ObjectType::DescriptorSetLayout:
+        d->destroy_descriptor_set_layout(d.self, obj.descriptor_set_layout);
+        break;
       default:
         UNREACHABLE();
     }
@@ -386,6 +471,7 @@ void RenderContext::idle_reclaim()
   for (u32 i = 0; i < buffering; i++)
   {
     destroy_objects(device, to_span(released_objects[i]));
+    released_objects[i].reset();
   }
 }
 

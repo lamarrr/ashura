@@ -129,14 +129,17 @@ struct FontDesc
   Span<UnicodeRange const> ranges      = {};
 };
 
-Result<Font, FontStatus> load_font_from_memory(Span<u8 const> encoded_data,
-                                               u32 face, i32 font_height,
-                                               Span<UnicodeRange const> ranges);
-Result<Font, FontStatus> load_font_from_file(Span<char const> path, u32 face,
-                                             i32 font_height,
-                                             Span<UnicodeRange const> ranges);
-void                     destroy_font(Font f);
-void                     upload_font_to_device(Font f, RenderContext &c);
-FontInfo                 get_font_info(Font f);
+Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
+                                   Span<UnicodeRange const> ranges,
+                                   AllocatorImpl const     &allocator);
+
+void destroy_font(Font f, RenderContext &c);
+
+void rasterize_font(Font f, i32 font_height, AllocatorImpl const &allocator);
+
+void upload_font_to_device(Font f, RenderContext &c,
+                           AllocatorImpl const &allocator);
+
+FontInfo get_font_info(Font f);
 
 }        // namespace ash

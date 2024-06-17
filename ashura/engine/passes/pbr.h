@@ -24,6 +24,7 @@ struct PBRParam
   f32        clearcoat               = 0;
   f32        clearcoat_roughness     = 0;
   f32        clearcoat_normal        = 0;
+  u32        sampler                 = 0;
   u32        albedo_map              = 0;
   u32        metallic_map            = 0;
   u32        roughness_map           = 0;
@@ -53,7 +54,6 @@ struct PBRPassParams
   gfx::DescriptorSet indices_ssbo   = nullptr;
   gfx::DescriptorSet params_ssbo    = nullptr;
   gfx::DescriptorSet lights_ssbo    = nullptr;
-  gfx::SamplerDesc   sampler        = {};
   gfx::DescriptorSet textures       = nullptr;
   u32                instance       = 0;
   u32                num_indices    = 0;

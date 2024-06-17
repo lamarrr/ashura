@@ -8,6 +8,7 @@ struct Params
   vec4  tint[4];
   vec4  uv;
   float tiling;
+  uint  isampler;
   uint  albedo;
   uint  first_index;
   uint  first_vertex;
@@ -28,7 +29,7 @@ layout(set = 2, binding = 0) readonly buffer ParamsBuffer
   Params params[];
 };
 
-layout(set = 3, binding = 0) uniform sampler smp;
+layout(set = 3, binding = 0) uniform sampler samplers[];
 
 layout(set = 4, binding = 0) uniform texture2D textures[];
 
@@ -61,7 +62,8 @@ void main()
   Params p      = params[i_idx];
   vec2   tex_uv = mix(p.uv.xy, p.uv.zw, i_uv);
   o_color       = bilerp(p.tint, i_uv, 0.5) *
-            texture(sampler2D(textures[nonuniformEXT(p.albedo)], smp),
+            texture(sampler2D(textures[nonuniformEXT(p.albedo)],
+                              samplers[nonuniformEXT(p.isampler)]),
                     tex_uv * p.tiling);
 }
 

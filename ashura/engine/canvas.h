@@ -30,6 +30,7 @@ struct ShapeDesc
   f32       stroke       = 0.0f;
   f32       thickness    = 1.0f;
   Vec4      tint[4] = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}};
+  u32       sampler = 0;
   u32       texture = 0;
   Vec2      uv[2]   = {{0, 0}, {1, 1}};
   f32       tiling  = 1;
@@ -51,9 +52,11 @@ struct CanvasPassRun
 /// @param data custom pass data
 struct CustomCanvasPassInfo
 {
-  Fn<void(void *, RenderContext &, PassContext &)> encoder =
-      to_fn([](void *, RenderContext &, PassContext &) {});
-  void *data = nullptr;
+  Fn<void(void *, RenderContext &, PassContext &, gfx::RenderingInfo const &,
+          gfx::DescriptorSet)>
+        encoder = to_fn([](void *, RenderContext &, PassContext &,
+                         gfx::RenderingInfo const &, gfx::DescriptorSet) {});
+  void *data    = nullptr;
 };
 
 struct CanvasSurface

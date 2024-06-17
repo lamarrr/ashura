@@ -64,12 +64,13 @@ struct CanvasRenderer
 {
   CanvasResources resources[gfx::MAX_FRAME_BUFFERING];
 
+  void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
   void begin(RenderContext &ctx, PassContext &passes, Canvas const &canvas,
              gfx::RenderingInfo const &info, gfx::DescriptorSet texture);
   void render(RenderContext &ctx, PassContext &passes, Canvas const &canvas,
               gfx::RenderingInfo const &info, gfx::DescriptorSet texture,
-              u32 first, u32 num);
+              u32 first = 0, u32 num = U32_MAX);
 };
 
 struct PBRResources

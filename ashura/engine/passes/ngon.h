@@ -11,6 +11,7 @@ struct NgonParam
   Vec4 tint[4]      = {};
   Vec2 uv[2]        = {};
   f32  tiling       = 1;
+  u32  sampler      = 0;
   u32  albedo       = 0;
   u32  first_index  = 0;
   u32  first_vertex = 0;
@@ -24,7 +25,6 @@ struct NgonPassParams
   gfx::DescriptorSet vertices_ssbo  = nullptr;
   gfx::DescriptorSet indices_ssbo   = nullptr;
   gfx::DescriptorSet params_ssbo    = nullptr;
-  gfx::SamplerDesc   sampler        = {};
   gfx::DescriptorSet textures       = nullptr;
   Span<u32 const>    index_counts   = {};
 };

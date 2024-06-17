@@ -8,6 +8,7 @@ struct Params
 {
   vec2 uv[2];
   vec2 radius;
+  uint isampler;
   uint tex;
 };
 
@@ -16,7 +17,7 @@ layout(push_constant) uniform ParamBuffer
   Params p;
 };
 
-layout(set = 0, binding = 0) uniform sampler smp;
+layout(set = 0, binding = 0) uniform sampler samplers[];
 
 layout(set = 1, binding = 0) uniform texture2D textures[];
 
@@ -45,9 +46,10 @@ void main()
 {
   vec2 src_pos = mix(p.uv[0], p.uv[1], i_pos);
 #  if UPSAMPLE
-  o_color = upsample(smp, textures[p.tex], src_pos, p.radius);
+  o_color = upsample(samplers[p.isampler], textures[p.tex], src_pos, p.radius);
 #  else
-  o_color = downsample(smp, textures[p.tex], src_pos, p.radius);
+  o_color =
+      downsample(samplers[p.isampler], textures[p.tex], src_pos, p.radius);
 #  endif
 }
 #endif
