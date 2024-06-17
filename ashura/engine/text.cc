@@ -202,7 +202,6 @@ static void insert_run(TextLayout &l, FontStyle const &s, u32 first, u32 count,
   u32 num_glyphs  = (u32) infos.size();
   u32 first_glyph = (u32) l.glyphs.size();
   i32 advance     = 0;
-  u32 cluster     = U32_MAX;
 
   for (u32 i = 0; i < num_glyphs; i++)
   {
