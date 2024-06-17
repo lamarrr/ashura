@@ -101,7 +101,8 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
   encoder->bind_descriptor_sets(
       encoder.self,
       to_span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
-               params.lights_ssbo, params.sampler, params.textures}),
+               params.lights_ssbo, ctx.get_sampler(params.sampler).set,
+               params.textures}),
       to_span<u32>({0, 0, 0, 0}));
   encoder->draw(encoder.self, params.num_indices, 1, 0, params.instance);
   encoder->end_rendering(encoder.self);

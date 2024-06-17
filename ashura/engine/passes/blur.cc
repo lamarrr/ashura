@@ -102,8 +102,8 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
   gfx::CommandEncoderImpl encoder = ctx.encoder();
   Vec2U                   extent  = params.area.extent / 2;
-  extent.x = min(extent.x, ctx.scratch_framebuffer.extent.x);
-  extent.y = min(extent.y, ctx.scratch_framebuffer.extent.y);
+  extent.x                        = min(extent.x, ctx.scratch_fb.extent.x);
+  extent.y                        = min(extent.y, ctx.scratch_fb.extent.y);
 
   {
     Vec2 radius{params.radius / (f32) params.extent.x,
@@ -119,17 +119,17 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
     // downsampling pass
     encoder->begin_rendering(
         encoder.self,
-        gfx::RenderingInfo{
-            .render_area        = {.offset = {0, 0}, .extent = extent},
-            .num_layers         = 1,
-            .color_attachments  = to_span({gfx::RenderingAttachment{
-                 .view         = ctx.scratch_framebuffer.color_image_view,
-                 .resolve      = nullptr,
-                 .resolve_mode = gfx::ResolveModes::None,
-                 .load_op      = gfx::LoadOp::Clear,
-                 .store_op     = gfx::StoreOp::Store}}),
-            .depth_attachment   = {},
-            .stencil_attachment = {}});
+        gfx::RenderingInfo{.render_area = {.offset = {0, 0}, .extent = extent},
+                           .num_layers  = 1,
+                           .color_attachments =
+                               to_span({gfx::RenderingAttachment{
+                                   .view         = ctx.scratch_fb.color.view,
+                                   .resolve      = nullptr,
+                                   .resolve_mode = gfx::ResolveModes::None,
+                                   .load_op      = gfx::LoadOp::Clear,
+                                   .store_op     = gfx::StoreOp::Store}}),
+                           .depth_attachment   = {},
+                           .stencil_attachment = {}});
     encoder->bind_graphics_pipeline(encoder.self, downsample_pipeline);
     encoder->set_graphics_state(
         encoder.self,
@@ -149,19 +149,17 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
   }
 
   {
-    Vec2 radius{params.radius / (f32) ctx.scratch_framebuffer.extent.x,
-                params.radius / (f32) ctx.scratch_framebuffer.extent.y};
+    Vec2 radius{params.radius / (f32) ctx.scratch_fb.extent.x,
+                params.radius / (f32) ctx.scratch_fb.extent.y};
 
     // there will be artifacts due to blur radius reaching end of
     // image. sampling offset deducted from the image extent first before
     // upsampling.
-    Vec2 uv0{(f32) params.radius / ctx.scratch_framebuffer.extent.x,
-             (f32) params.radius / ctx.scratch_framebuffer.extent.y};
+    Vec2 uv0{(f32) params.radius / ctx.scratch_fb.extent.x,
+             (f32) params.radius / ctx.scratch_fb.extent.y};
 
-    Vec2 uv1{((f32) extent.x - (f32) params.radius) /
-                 ctx.scratch_framebuffer.extent.x,
-             ((f32) extent.y - (f32) params.radius) /
-                 ctx.scratch_framebuffer.extent.y};
+    Vec2 uv1{((f32) extent.x - (f32) params.radius) / ctx.scratch_fb.extent.x,
+             ((f32) extent.y - (f32) params.radius) / ctx.scratch_fb.extent.y};
 
     // upsampling pass
     encoder->begin_rendering(
@@ -186,9 +184,10 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
                                     params.area.offset.y * 1.0f},
                          .extent = {params.area.extent.x * 1.0f,
                                     params.area.extent.y * 1.0f}}});
-    encoder->bind_descriptor_sets(
-        encoder.self, to_span({params.sampler, ctx.scratch_color_texture_view}),
-        {});
+    encoder->bind_descriptor_sets(encoder.self,
+                                  to_span({ctx.get_sampler(params.sampler).set,
+                                           ctx.scratch_fb.color.texture}),
+                                  {});
     encoder->push_constants(
         encoder.self,
         to_span({BlurParam{.uv = {uv0, uv1}, .radius = radius, .texture = 0}})

@@ -24,7 +24,7 @@ struct NgonPassParams
   gfx::DescriptorSet vertices_ssbo  = nullptr;
   gfx::DescriptorSet indices_ssbo   = nullptr;
   gfx::DescriptorSet params_ssbo    = nullptr;
-  gfx::DescriptorSet sampler        = nullptr;
+  gfx::SamplerDesc   sampler        = {};
   gfx::DescriptorSet textures       = nullptr;
   Span<u32 const>    index_counts   = {};
 };

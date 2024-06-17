@@ -39,8 +39,8 @@ struct PBRParam
 
 struct PBRVertex
 {
-  Vec4 pos;
-  Vec2 uv;
+  Vec4 pos = {};
+  Vec2 uv  = {};
 };
 
 struct PBRPassParams
@@ -53,7 +53,7 @@ struct PBRPassParams
   gfx::DescriptorSet indices_ssbo   = nullptr;
   gfx::DescriptorSet params_ssbo    = nullptr;
   gfx::DescriptorSet lights_ssbo    = nullptr;
-  gfx::DescriptorSet sampler        = nullptr;
+  gfx::SamplerDesc   sampler        = {};
   gfx::DescriptorSet textures       = nullptr;
   u32                instance       = 0;
   u32                num_indices    = 0;

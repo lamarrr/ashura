@@ -25,7 +25,7 @@ struct RRectPassParams
   gfx::Rect          scissor        = {};
   gfx::Viewport      viewport       = {};
   gfx::DescriptorSet params_ssbo    = nullptr;
-  gfx::DescriptorSet sampler        = nullptr;
+  gfx::SamplerDesc   sampler        = {};
   gfx::DescriptorSet textures       = nullptr;
   u32                first_instance = 0;
   u32                num_instances  = 0;

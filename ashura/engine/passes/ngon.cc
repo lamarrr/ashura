@@ -85,7 +85,7 @@ void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
   encoder->bind_descriptor_sets(
       encoder.self,
       to_span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
-               params.sampler, params.textures}),
+               ctx.get_sampler(params.sampler).set, params.textures}),
       to_span<u32>({0, 0, 0}));
   encoder->set_graphics_state(encoder.self,
                               gfx::GraphicsState{.scissor  = params.scissor,

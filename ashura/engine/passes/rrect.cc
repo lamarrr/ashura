@@ -86,7 +86,8 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
                                                  .viewport = params.viewport});
   encoder->bind_descriptor_sets(
       encoder.self,
-      to_span({params.params_ssbo, params.sampler, params.textures}),
+      to_span({params.params_ssbo, ctx.get_sampler(params.sampler).set,
+               params.textures}),
       to_span<u32>({0}));
   encoder->draw(encoder.self, 4, params.num_instances, 0,
                 params.first_instance);
