@@ -58,20 +58,19 @@ struct CustomCanvasPassInfo
 
 struct CanvasSurface
 {
-  Vec2  viewport_offset = {0, 0};
-  Vec2  viewport_extent = {0, 0};
-  Vec2U surface_offset  = {0, 0};
-  Vec2U surface_extent  = {0, 0};
+  gfx::Viewport viewport = {};
+  gfx::Rect     area     = {};
+  Vec2U         extent   = {};
 
   constexpr f32 aspect_ratio() const
   {
-    return (viewport_extent.y == 0) ? 0 :
-                                      (viewport_extent.x / viewport_extent.y);
+    return (viewport.extent.y == 0) ? 0 :
+                                      (viewport.extent.x / viewport.extent.y);
   }
 
   constexpr Mat4 mvp(Vec2 center, Vec2 object_extent, Mat4 transform) const
   {
-    return scale3d(Vec3{1 / viewport_extent.x, 1 / viewport_extent.y, 1}) *
+    return scale3d(Vec3{1 / viewport.extent.x, 1 / viewport.extent.y, 1}) *
            translate3d(Vec3{center.x, center.y, 0}) * transform *
            scale3d(Vec3{object_extent.x / 2, object_extent.y / 2, 1});
   }

@@ -26,6 +26,7 @@ void PassContext::uninit(RenderContext &ctx)
   custom.for_each([&](Span<char const>, RenderPassImpl const &p) {
     p.uninit(p.pass, ctx);
   });
+  custom.uninit();
 }
 
 void SSBO::uninit(RenderContext &ctx)
@@ -97,7 +98,7 @@ void SSBO::flush(RenderContext &ctx)
 {
   ctx.device
       ->flush_mapped_buffer_memory(ctx.device.self, buffer,
-                                   {0, gfx::WHOLE_SIZE})
+                                   gfx::MemoryRange{0, gfx::WHOLE_SIZE})
       .unwrap();
 }
 
@@ -117,22 +118,28 @@ void CanvasRenderer::uninit(RenderContext &ctx)
   }
 }
 
-void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
-                            Canvas const             &canvas,
-                            gfx::RenderingInfo const &info,
-                            gfx::DescriptorSet        texture)
+void CanvasRenderer::begin(RenderContext &ctx, PassContext &passes,
+                           Canvas const &canvas, gfx::RenderingInfo const &info,
+                           gfx::DescriptorSet texture)
 {
   CanvasResources &r = resources[ctx.ring_index()];
-
   r.vertices.copy(ctx, to_span(canvas.vertices).as_u8());
   r.indices.copy(ctx, to_span(canvas.indices).as_u8());
   r.ngon_params.copy(ctx, to_span(canvas.ngon_params).as_u8());
   r.rrect_params.copy(ctx, to_span(canvas.rrect_params).as_u8());
+}
 
-  // TODO(lamarrr): samplers, viewports
-  // TODO(lamarrr): use different surface
+void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
+                            Canvas const             &canvas,
+                            gfx::RenderingInfo const &info,
+                            gfx::DescriptorSet texture, u32 first, u32 num)
+{
+  CanvasResources &r = resources[ctx.ring_index()];
+
+  // TODO(lamarrr): samplers
   // TODO(lamarrr): encoder should take the info and surface
-  // TODO(lamarrr): use proper surface
+  // TODO(lamarrr): allow running only a specific part of the buffer. separate
+  // into begin/record
   for (CanvasPassRun const &run : canvas.pass_runs)
   {
     switch (run.type)
@@ -141,10 +148,10 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
       {
         u32 blur_radius = canvas.blur_params[run.first];
         passes.blur.add_pass(
-            ctx, BlurPassParams{.image_view = ctx.framebuffer.color_image_view,
-                                .extent     = ctx.framebuffer.extent,
-                                .sampler    = nullptr,
-                                .texture_view = ctx.color_texture_view,
+            ctx, BlurPassParams{.image_view   = info.color_attachments[0].view,
+                                .extent       = canvas.surface.extent,
+                                .sampler      = gfx::SamplerDesc{},
+                                .texture_view = texture,
                                 .texture      = 0,
                                 .area         = run.scissor,
                                 .radius       = blur_radius});
@@ -162,11 +169,11 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
             ctx,
             NgonPassParams{.rendering_info = info,
                            .scissor        = run.scissor,
-                           .viewport       = {},
+                           .viewport       = canvas.surface.viewport,
                            .vertices_ssbo  = r.vertices.ssbo,
                            .indices_ssbo   = r.indices.ssbo,
                            .params_ssbo    = r.ngon_params.ssbo,
-                           .sampler        = nullptr,
+                           .sampler        = gfx::SamplerDesc{},
                            .textures       = ctx.texture_views,
                            .index_counts   = to_span(canvas.ngon_index_counts)
                                                .slice(run.first, run.count)});
@@ -177,9 +184,9 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
         passes.rrect.add_pass(
             ctx, RRectPassParams{.rendering_info = info,
                                  .scissor        = run.scissor,
-                                 .viewport       = {},
+                                 .viewport       = canvas.surface.viewport,
                                  .params_ssbo    = r.rrect_params.ssbo,
-                                 .sampler        = nullptr,
+                                 .sampler        = gfx::SamplerDesc{},
                                  .textures       = ctx.texture_views,
                                  .first_instance = run.first,
                                  .num_instances  = run.count});
