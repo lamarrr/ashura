@@ -10,19 +10,65 @@
 namespace ash
 {
 
+struct FramebufferAttachment
+{
+  gfx::ImageDesc     desc      = {};
+  gfx::ImageViewDesc view_desc = {};
+  gfx::Image         image     = nullptr;
+  gfx::ImageView     view      = nullptr;
+  gfx::DescriptorSet texture   = nullptr;
+};
+
 /// created with sampled, storage, color attachment, and transfer flags
 struct Framebuffer
 {
-  gfx::ImageDesc     color_image_desc              = {};
-  gfx::ImageDesc     depth_stencil_image_desc      = {};
-  gfx::ImageViewDesc color_image_view_desc         = {};
-  gfx::ImageViewDesc depth_stencil_image_view_desc = {};
-  gfx::Image         color_image                   = nullptr;
-  gfx::Image         depth_stencil_image           = nullptr;
-  gfx::ImageView     color_image_view              = nullptr;
-  gfx::ImageView     depth_stencil_image_view      = nullptr;
-  gfx::Extent        extent                        = {};
+  FramebufferAttachment color         = {};
+  FramebufferAttachment depth_stencil = {};
+  gfx::Extent           extent        = {};
 };
+
+struct SamplerHasher
+{
+  constexpr Hash operator()(gfx::SamplerDesc const &desc) const
+  {
+    return hash_combine_n(
+        (Hash) desc.mag_filter, (Hash) desc.min_filter,
+        (Hash) desc.mip_map_mode, (Hash) desc.address_mode_u,
+        (Hash) desc.address_mode_v, (Hash) desc.address_mode_w,
+        (Hash) desc.mip_lod_bias, (Hash) desc.anisotropy_enable,
+        (Hash) desc.max_anisotropy, (Hash) desc.compare_enable,
+        (Hash) desc.compare_op, (Hash) desc.min_lod, (Hash) desc.max_lod,
+        (Hash) desc.border_color, (Hash) desc.unnormalized_coordinates);
+  }
+};
+
+struct SamplerEq
+{
+  constexpr Hash operator()(gfx::SamplerDesc const &a,
+                            gfx::SamplerDesc const &b) const
+  {
+    return a.mag_filter == b.mag_filter && a.mip_map_mode == b.mip_map_mode &&
+           a.address_mode_u == b.address_mode_u &&
+           a.address_mode_v == b.address_mode_v &&
+           a.address_mode_w == b.address_mode_w &&
+           a.mip_lod_bias == b.mip_lod_bias &&
+           a.anisotropy_enable == b.anisotropy_enable &&
+           a.max_anisotropy == b.max_anisotropy &&
+           a.compare_enable == b.compare_enable &&
+           a.compare_op == b.compare_op && a.min_lod == b.min_lod &&
+           a.max_lod == b.max_lod && a.border_color == b.border_color &&
+           a.unnormalized_coordinates == b.unnormalized_coordinates;
+  }
+};
+
+struct Sampler
+{
+  gfx::Sampler       sampler = nullptr;
+  gfx::DescriptorSet set     = nullptr;
+};
+
+typedef HashMap<gfx::SamplerDesc, Sampler, SamplerHasher, SamplerEq, u32>
+    SamplerCache;
 
 /// @param color_format hdr if hdr supported and required.
 ///
@@ -46,22 +92,21 @@ struct RenderContext
 
   static_assert(NUM_TEXTURE_SLOTS % 64 == 0);
 
-  gfx::DeviceImpl          device                     = {};
-  gfx::PipelineCache       pipeline_cache             = nullptr;
-  u32                      buffering                  = 0;
-  StrHashMap<gfx::Shader>  shader_map                 = {};
-  gfx::Format              color_format               = gfx::Format::Undefined;
-  gfx::Format              depth_stencil_format       = gfx::Format::Undefined;
-  Framebuffer              framebuffer                = {};
-  Framebuffer              scratch_framebuffer        = {};
-  gfx::DescriptorSetLayout ssbo_layout                = nullptr;
-  gfx::DescriptorSetLayout textures_layout            = nullptr;
-  gfx::DescriptorSetLayout sampler_layout             = nullptr;
-  gfx::DescriptorSet       texture_views              = nullptr;
-  gfx::DescriptorSet       color_texture_view         = nullptr;
-  gfx::DescriptorSet       scratch_color_texture_view = nullptr;
+  alignas(64) u64 texture_slots[NUM_TEXTURE_SLOTS / 64] = {};
+  gfx::DeviceImpl          device                       = {};
+  gfx::PipelineCache       pipeline_cache               = nullptr;
+  u32                      buffering                    = 0;
+  StrHashMap<gfx::Shader>  shader_map                   = {};
+  gfx::Format              color_format         = gfx::Format::Undefined;
+  gfx::Format              depth_stencil_format = gfx::Format::Undefined;
+  gfx::DescriptorSetLayout ssbo_layout          = nullptr;
+  gfx::DescriptorSetLayout textures_layout      = nullptr;
+  gfx::DescriptorSetLayout sampler_layout       = nullptr;
+  gfx::DescriptorSet       texture_views        = nullptr;
   Vec<gfx::Object>         released_objects[gfx::MAX_FRAME_BUFFERING] = {};
-  alignas(64) u64 texture_slots[NUM_TEXTURE_SLOTS / 64]               = {};
+  SamplerCache             samplers                                   = {};
+  Framebuffer              screen_fb                                  = {};
+  Framebuffer              scratch_fb                                 = {};
 
   void init(gfx::DeviceImpl device, bool use_hdr, u32 buffering,
             gfx::Extent initial_extent, StrHashMap<gfx::Shader> shader_map);
@@ -75,9 +120,10 @@ struct RenderContext
   gfx::FrameId            tail_frame_id();
 
   Option<gfx::Shader> get_shader(Span<char const> name);
+  Sampler             get_sampler(gfx::SamplerDesc const &desc);
 
   u16  alloc_texture_slot();
-  void dealloc_texture_slot(u16 slot);
+  void release_texture_slot(u16 slot);
 
   void release(gfx::Image image);
   void release(gfx::ImageView view);
@@ -85,6 +131,20 @@ struct RenderContext
   void release(gfx::BufferView view);
   void release(gfx::DescriptorSet set);
   void release(gfx::Sampler sampler);
+
+  void release(FramebufferAttachment fb)
+  {
+    release(fb.image);
+    release(fb.view);
+    release(fb.texture);
+  }
+
+  void release(Framebuffer fb)
+  {
+    release(fb.color);
+    release(fb.depth_stencil);
+  }
+
   void idle_reclaim();
 
   void begin_frame(gfx::Swapchain swapchain);

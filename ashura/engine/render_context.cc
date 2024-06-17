@@ -130,15 +130,12 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   recreate_framebuffers(p_initial_extent);
 }
 
-static void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
-                                gfx::Extent new_extent)
+static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
+                                 gfx::Extent new_extent)
 {
-  ctx.release(attachment.color_image);
-  ctx.release(attachment.color_image_view);
-  ctx.release(attachment.depth_stencil_image);
-  ctx.release(attachment.depth_stencil_image_view);
+  ctx.release(fb);
 
-  attachment.color_image_desc = gfx::ImageDesc{
+  fb.color.desc = gfx::ImageDesc{
       .label  = "Framebuffer Color Image"_span,
       .type   = gfx::ImageType::Type2D,
       .format = ctx.color_format,
@@ -151,27 +148,39 @@ static void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
       .array_layers = 1,
       .sample_count = gfx::SampleCount::Count1};
 
-  attachment.color_image =
-      ctx.device->create_image(ctx.device.self, attachment.color_image_desc)
-          .unwrap();
+  fb.color.image =
+      ctx.device->create_image(ctx.device.self, fb.color.desc).unwrap();
 
-  attachment.color_image_view_desc =
+  fb.color.view_desc =
       gfx::ImageViewDesc{.label           = "Framebuffer Color Image View"_span,
-                         .image           = attachment.color_image,
+                         .image           = fb.color.image,
                          .view_type       = gfx::ImageViewType::Type2D,
-                         .view_format     = attachment.color_image_desc.format,
+                         .view_format     = fb.color.desc.format,
                          .mapping         = {},
                          .aspects         = gfx::ImageAspects::Color,
                          .first_mip_level = 0,
                          .num_mip_levels  = 1,
                          .first_array_layer = 0,
                          .num_array_layers  = 1};
-  attachment.color_image_view =
-      ctx.device
-          ->create_image_view(ctx.device.self, attachment.color_image_view_desc)
+  fb.color.view =
+      ctx.device->create_image_view(ctx.device.self, fb.color.view_desc)
           .unwrap();
 
-  attachment.depth_stencil_image_desc = gfx::ImageDesc{
+  fb.color.texture =
+      ctx.device
+          ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
+                                  to_span<u32>({1}))
+          .unwrap();
+
+  ctx.device->update_descriptor_set(
+      ctx.device.self,
+      gfx::DescriptorSetUpdate{
+          .set     = fb.color.texture,
+          .binding = 0,
+          .element = 0,
+          .images = to_span({gfx::ImageBinding{.image_view = fb.color.view}})});
+
+  fb.depth_stencil.desc = gfx::ImageDesc{
       .label  = "Framebuffer Depth Stencil Image"_span,
       .type   = gfx::ImageType::Type2D,
       .format = ctx.depth_stencil_format,
@@ -184,16 +193,14 @@ static void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
       .array_layers = 1,
       .sample_count = gfx::SampleCount::Count1};
 
-  attachment.depth_stencil_image =
-      ctx.device
-          ->create_image(ctx.device.self, attachment.depth_stencil_image_desc)
-          .unwrap();
+  fb.depth_stencil.image =
+      ctx.device->create_image(ctx.device.self, fb.depth_stencil.desc).unwrap();
 
-  attachment.depth_stencil_image_view_desc = gfx::ImageViewDesc{
+  fb.depth_stencil.view_desc = gfx::ImageViewDesc{
       .label           = "Framebuffer Depth Stencil Image View"_span,
-      .image           = attachment.depth_stencil_image,
+      .image           = fb.depth_stencil.image,
       .view_type       = gfx::ImageViewType::Type2D,
-      .view_format     = attachment.depth_stencil_image_desc.format,
+      .view_format     = fb.depth_stencil.desc.format,
       .mapping         = {},
       .aspects         = gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
       .first_mip_level = 0,
@@ -201,32 +208,35 @@ static void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
       .first_array_layer = 0,
       .num_array_layers  = 1};
 
-  attachment.depth_stencil_image_view =
-      ctx.device
-          ->create_image_view(ctx.device.self,
-                              attachment.depth_stencil_image_view_desc)
+  fb.depth_stencil.view =
+      ctx.device->create_image_view(ctx.device.self, fb.depth_stencil.view_desc)
           .unwrap();
 
-  attachment.extent = new_extent;
+  fb.depth_stencil.texture =
+      ctx.device
+          ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
+                                  to_span<u32>({1}))
+          .unwrap();
+
+  ctx.device->update_descriptor_set(
+      ctx.device.self,
+      gfx::DescriptorSetUpdate{.set     = fb.depth_stencil.texture,
+                               .binding = 0,
+                               .element = 0,
+                               .images  = to_span({gfx::ImageBinding{
+                                    .image_view = fb.depth_stencil.view}})});
+
+  fb.extent = new_extent;
 }
 
 void RenderContext::uninit()
 {
   device->destroy_pipeline_cache(device.self, pipeline_cache);
-  device->destroy_image(device.self, framebuffer.color_image);
-  device->destroy_image_view(device.self, framebuffer.color_image_view);
-  device->destroy_image(device.self, framebuffer.depth_stencil_image);
-  device->destroy_image_view(device.self, framebuffer.depth_stencil_image_view);
-  device->destroy_image(device.self, scratch_framebuffer.color_image);
-  device->destroy_image_view(device.self, scratch_framebuffer.color_image_view);
-  device->destroy_image(device.self, scratch_framebuffer.depth_stencil_image);
-  device->destroy_image_view(device.self,
-                             scratch_framebuffer.depth_stencil_image_view);
   device->destroy_descriptor_set(device.self, texture_views);
-  device->destroy_descriptor_set(device.self, color_texture_view);
-  device->destroy_descriptor_set(device.self, scratch_color_texture_view);
   device->destroy_descriptor_set_layout(device.self, ssbo_layout);
   device->destroy_descriptor_set_layout(device.self, textures_layout);
+  release(screen_fb);
+  release(scratch_fb);
   idle_reclaim();
   for (u32 i = 0; i < buffering; i++)
   {
@@ -240,39 +250,8 @@ void RenderContext::uninit()
 
 void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
 {
-  recreate_attachment(*this, framebuffer, new_extent);
-  recreate_attachment(*this, scratch_framebuffer, new_extent);
-  release(color_texture_view);
-  release(scratch_color_texture_view);
-
-  color_texture_view = device
-                           ->create_descriptor_set(device.self, textures_layout,
-                                                   to_span<u32>({1}))
-                           .unwrap();
-
-  scratch_color_texture_view =
-      device
-          ->create_descriptor_set(device.self, textures_layout,
-                                  to_span<u32>({1}))
-          .unwrap();
-
-  device->update_descriptor_set(
-      device.self, gfx::DescriptorSetUpdate{
-                       .set     = color_texture_view,
-                       .binding = 0,
-                       .element = 0,
-                       .images  = to_span({gfx::ImageBinding{
-                            .sampler    = nullptr,
-                            .image_view = framebuffer.color_image_view}})});
-  device->update_descriptor_set(
-      device.self,
-      gfx::DescriptorSetUpdate{
-          .set     = scratch_color_texture_view,
-          .binding = 0,
-          .element = 0,
-          .images  = to_span({gfx::ImageBinding{
-               .sampler    = nullptr,
-               .image_view = scratch_framebuffer.color_image_view}})});
+  recreate_framebuffer(*this, screen_fb, new_extent);
+  recreate_framebuffer(*this, scratch_fb, new_extent);
 }
 
 gfx::CommandEncoderImpl RenderContext::encoder()
@@ -419,7 +398,7 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
   gfx::CommandEncoderImpl enc = encoder();
 
   enc->clear_color_image(
-      enc.self, framebuffer.color_image, gfx::Color{.float32 = {0, 0, 0, 0}},
+      enc.self, screen_fb.color.image, gfx::Color{.float32 = {0, 0, 0, 0}},
       to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
                                           .first_mip_level   = 0,
                                           .num_mip_levels    = 1,
@@ -427,8 +406,7 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
                                           .num_array_layers  = 1}}));
 
   enc->clear_color_image(
-      enc.self, scratch_framebuffer.color_image,
-      gfx::Color{.float32 = {0, 0, 0, 0}},
+      enc.self, scratch_fb.color.image, gfx::Color{.float32 = {0, 0, 0, 0}},
       to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
                                           .first_mip_level   = 0,
                                           .num_mip_levels    = 1,
@@ -436,7 +414,7 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
                                           .num_array_layers  = 1}}));
 
   enc->clear_depth_stencil_image(
-      enc.self, framebuffer.depth_stencil_image,
+      enc.self, screen_fb.depth_stencil.image,
       gfx::DepthStencil{.depth = 0, .stencil = 0},
       to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
                                                      gfx::ImageAspects::Stencil,
@@ -446,7 +424,7 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
                                           .num_array_layers  = 1}}));
 
   enc->clear_depth_stencil_image(
-      enc.self, scratch_framebuffer.depth_stencil_image,
+      enc.self, scratch_fb.depth_stencil.image,
       gfx::DepthStencil{.depth = 0, .stencil = 0},
       to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
                                                      gfx::ImageAspects::Stencil,
@@ -467,7 +445,7 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
     if (swapchain_state.current_image.is_some())
     {
       enc->blit_image(
-          enc.self, framebuffer.color_image,
+          enc.self, screen_fb.color.image,
           swapchain_state.images[swapchain_state.current_image.unwrap()],
           to_span({gfx::ImageBlit{
               .src_layers  = {.aspects           = gfx::ImageAspects::Color,
@@ -475,8 +453,7 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
                               .first_array_layer = 0,
                               .num_array_layers  = 1},
               .src_offsets = {{0, 0, 0},
-                              {framebuffer.color_image_desc.extent.x,
-                               framebuffer.color_image_desc.extent.y, 1}},
+                              {screen_fb.extent.x, screen_fb.extent.y, 1}},
               .dst_layers  = {.aspects           = gfx::ImageAspects::Color,
                               .mip_level         = 0,
                               .first_array_layer = 0,
