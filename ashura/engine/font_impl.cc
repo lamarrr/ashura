@@ -350,7 +350,7 @@ bool render_font_atlas(FontImpl &f, i32 font_height,
                        AllocatorImpl const     &allocator)
 {
   CHECK(font_height <= 1024);
-  CHECK(font_height <= (FONT_ATLAS_EXTENT / 2 - 16));
+  CHECK(font_height <= (i32) (FONT_ATLAS_EXTENT / 2 - 16));
 
   if (FT_Set_Pixel_Sizes(f.ft_face, font_height, font_height) != 0)
   {
