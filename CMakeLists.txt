@@ -62,7 +62,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG 9a4fc81)
+  GIT_TAG 98499d6)
 
 FetchContent_Declare(
   harfbuzz
