@@ -19,10 +19,10 @@ struct ImageSpan
   using Element                     = R;
   static constexpr u32 NUM_CHANNELS = C;
 
-  Span<R> data   = {};
-  u32     width  = 0;
-  u32     height = 0;
-  u64     stride = 0;
+  Span<R> channels = {};
+  u32     width    = 0;
+  u32     height   = 0;
+  u64     stride   = 0;
 
   constexpr bool is_empty() const
   {
@@ -46,10 +46,10 @@ struct ImageSpan
     u64 const data_offset = offset.y * stride * C + offset.x * C;
     u64 const data_span   = extent.y * stride * C;
 
-    return ImageSpan{.data   = data.slice(data_offset, data_span),
-                     .width  = extent.x,
-                     .height = extent.y,
-                     .stride = stride};
+    return ImageSpan{.channels = channels.slice(data_offset, data_span),
+                     .width    = extent.x,
+                     .height   = extent.y,
+                     .stride   = stride};
   }
 
   constexpr ImageSpan slice(Vec2U offset) const
@@ -59,10 +59,18 @@ struct ImageSpan
 
   constexpr operator ImageSpan<R const, C>() const
   {
-    return ImageSpan<R const, C>{.data   = Span<R const>{data},
-                                 .width  = width,
-                                 .height = height,
-                                 .stride = stride};
+    return ImageSpan<R const, C>{.channels = channels.as_const(),
+                                 .width    = width,
+                                 .height   = height,
+                                 .stride   = stride};
+  }
+
+  constexpr ImageSpan<R const, C> as_const() const
+  {
+    return ImageSpan<R const, C>{.channels = channels.as_const(),
+                                 .width    = width,
+                                 .height   = height,
+                                 .stride   = stride};
   }
 };
 
@@ -73,38 +81,38 @@ struct ImageSpan
 template <typename R, u32 C>
 struct ImageLayerSpan
 {
-  Span<R> data   = {};
-  u32     width  = 0;
-  u32     height = 0;
-  u32     layers = 0;
+  Span<R> channels = {};
+  u32     width    = 0;
+  u32     height   = 0;
+  u32     layers   = 0;
 
   constexpr operator ImageLayerSpan<R const, C>() const
   {
-    return ImageLayerSpan<R const, C>{.data   = Span<R const>{data},
-                                      .width  = width,
-                                      .height = height,
-                                      .layers = layers};
+    return ImageLayerSpan<R const, C>{.channels = channels.as_const(),
+                                      .width    = width,
+                                      .height   = height,
+                                      .layers   = layers};
   }
 
   constexpr ImageSpan<R, C> get_layer(u32 layer) const
   {
     u64 data_offset = (u64) layer * (u64) width * (u64) height * C;
     u64 data_span   = (u64) width * (u64) height * C;
-    return ImageSpan{.data   = data.slice(data_offset, data_span),
-                     .width  = width,
-                     .height = height,
-                     .stride = width};
+    return ImageSpan<R, C>{.channels = channels.slice(data_offset, data_span),
+                           .width    = width,
+                           .height   = height,
+                           .stride   = width};
   }
 };
 
 template <typename T, u32 C>
-void copy_image(ImageSpan<T const, C> src, ImageSpan<T const, C> dst)
+void copy_image(ImageSpan<T const, C> src, ImageSpan<T, C> dst)
 {
   src.width  = min(src.width, dst.width);
   src.height = min(src.height, dst.height);
 
-  T const *in  = src.span.data();
-  T       *out = dst.span.data();
+  T const *in  = src.channels.data();
+  T       *out = dst.channels.data();
 
   for (u32 i = 0; i < src.height; i++, in += src.pitch(), out += dst.pitch())
   {
@@ -119,8 +127,8 @@ void copy_alpha_image_to_BGRA(ImageSpan<T const, 1> src, ImageSpan<T, 4> dst,
   src.width  = min(src.width, dst.width);
   src.height = min(src.height, dst.width);
 
-  T const *in  = src.data.data();
-  T       *out = dst.data.data();
+  T const *in  = src.channels.data();
+  T       *out = dst.channels.data();
 
   for (u32 i = 0; i < src.height; i++, in += src.pitch(), out += dst.pitch())
   {

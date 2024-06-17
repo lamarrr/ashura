@@ -36,11 +36,6 @@ struct AnimationTick
 
   constexpr f32 tick(f32 dt)
   {
-    /// TODO(lamarrr): instead run the computation and use math to stop it when
-    /// it reaches the desired state?
-    /// use lerp and reflection 1 - abs(1 - x)
-    /// ;
-
     damplerp(0, 0, 0, 0);
 
     return 0;

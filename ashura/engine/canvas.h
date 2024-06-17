@@ -129,7 +129,8 @@ struct Canvas
   void nine_slice();
 
   void text(ShapeDesc const &desc, TextBlock const &block,
-            TextLayout const &layout, TextBlockStyle const &style);
+            TextLayout const &layout, TextBlockStyle const &style,
+            Span<FontAtlasResource const *> atlases);
 
   void ngon(ShapeDesc const &desc, Span<Vec2 const> vertices);
 

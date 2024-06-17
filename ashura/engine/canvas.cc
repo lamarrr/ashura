@@ -1,5 +1,4 @@
 #include "ashura/engine/canvas.h"
-#include "ashura/engine/font_impl.h"
 #include "ashura/std/math.h"
 
 namespace ash
@@ -413,10 +412,19 @@ constexpr bool is_transparent(Vec4 const (&colors)[4])
 }
 
 void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
-                  TextLayout const &layout, TextBlockStyle const &style)
+                  TextLayout const &layout, TextBlockStyle const &style,
+                  Span<FontAtlasResource const *> atlases)
 {
   CHECK(style.runs.size() == block.runs.size());
   CHECK(style.runs.size() == block.fonts.size());
+  for (u32 i = 0; i < (u32) block.fonts.size(); i++)
+  {
+    CHECK(atlases[i] != nullptr);
+    CHECK(block.fonts[i].font != nullptr);
+    FontInfo f = get_font_info(block.fonts[i].font);
+    CHECK(atlases[i]->glyphs.size() == f.glyphs.size());
+  }
+
   f32 line_y = 0;
   for (Line const &l : layout.lines)
   {
@@ -448,10 +456,11 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
           (first_run.direction == TextDirection::LeftToRight) ? 0 : dir_advance;
       for (u32 ri = first; ri < r; ri++)
       {
-        TextRun const   &run        = layout.runs[l.first_run + ri];
-        FontStyle const &font_style = block.fonts[run.style];
-        TextStyle const &run_style  = style.runs[run.style];
-        FontImpl const  *font       = (FontImpl const *) font_style.font;
+        TextRun const           &run        = layout.runs[l.first_run + ri];
+        FontStyle const         &font_style = block.fonts[run.style];
+        TextStyle const         &run_style  = style.runs[run.style];
+        FontInfo                 font       = get_font_info(font_style.font);
+        FontAtlasResource const *atlas      = atlases[run.style];
 
         if (!is_transparent(run_style.background_color))
         {
@@ -474,10 +483,11 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
           f32 g_cursor = 0;
           for (u32 g = 0; g < run.num_glyphs; g++)
           {
-            GlyphShape const &sh = layout.glyphs[run.first_glyph + g];
-            Glyph const      &gl = font->glyphs[sh.glyph];
-            Vec2 extent          = pt_to_px(gl.metrics.extent, run.font_height);
-            Vec3 center          = to_vec3(
+            GlyphShape const &sh  = layout.glyphs[run.first_glyph + g];
+            Glyph const      &gl  = font.glyphs[sh.glyph];
+            AtlasGlyph const &agl = atlas->glyphs[sh.glyph];
+            Vec2 extent = pt_to_px(gl.metrics.extent, run.font_height);
+            Vec3 center = to_vec3(
                 Vec2{cursor + advance + g_cursor +
                          pt_to_px(gl.metrics.bearing.x, run.font_height),
                      baseline -
@@ -496,8 +506,8 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                            run_style.shadow_color[2],
                            run_style.shadow_color[3]},
                   .sampler         = desc.sampler,
-                  .texture         = font->textures[gl.layer],
-                  .uv              = {gl.uv[0], gl.uv[1]},
+                  .texture         = atlas->textures[agl.layer],
+                  .uv              = {agl.uv[0], agl.uv[1]},
                   .tiling          = desc.tiling,
                   .edge_smoothness = desc.edge_smoothness,
                   .transform = translate3d(shadow_center) * desc.transform *
@@ -514,8 +524,8 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                                                  run_style.foreground_color[2],
                                                  run_style.foreground_color[3]},
                              .sampler         = desc.sampler,
-                             .texture         = font->textures[gl.layer],
-                             .uv              = {gl.uv[0], gl.uv[1]},
+                             .texture         = atlas->textures[agl.layer],
+                             .uv              = {agl.uv[0], agl.uv[1]},
                              .tiling          = desc.tiling,
                              .edge_smoothness = desc.edge_smoothness,
                              .transform = translate3d(center) * desc.transform *

@@ -193,11 +193,12 @@ struct WindowSystemImpl final : public WindowSystem
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  void set_icon(Window w, gfx::ImageSpan<u8 const> image) override
+  void set_icon(Window w, ImageSpan<u8 const, 4> image,
+                gfx::Format format) override
   {
     SDL_PixelFormatEnum fmt = SDL_PIXELFORMAT_RGBA8888;
 
-    switch (image.format)
+    switch (format)
     {
       case gfx::Format::R8G8B8A8_UNORM:
         fmt = SDL_PIXELFORMAT_RGBA8888;
@@ -210,8 +211,8 @@ struct WindowSystemImpl final : public WindowSystem
     }
 
     SDL_Surface *icon = SDL_CreateSurfaceFrom(
-        (void *) image.span.data(), static_cast<int>(image.width),
-        static_cast<int>(image.height), static_cast<int>(image.pitch), fmt);
+        (void *) image.channels.data(), static_cast<int>(image.width),
+        static_cast<int>(image.height), static_cast<int>(image.pitch()), fmt);
     CHECKSdl(icon != nullptr);
     CHECKSdl(!SDL_SetWindowIcon(hnd(w), icon));
     SDL_DestroySurface(icon);

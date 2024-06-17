@@ -193,7 +193,7 @@ static void segment_breakpoints(Span<u32 const> text, f32 max_width,
 }
 
 static void insert_run(TextLayout &l, FontStyle const &s, u32 first, u32 count,
-                       u16 style, i32 font_ascent, i32 font_descent,
+                       u16 style, FontMetrics const &font_metrics,
                        TextDirection direction, TextDirection base_direction,
                        bool paragraph, bool breakable,
                        Span<hb_glyph_info_t const>     infos,
@@ -216,22 +216,26 @@ static void insert_run(TextLayout &l, FontStyle const &s, u32 first, u32 count,
     advance += pos.x_advance;
   }
 
-  CHECK(l.runs.push(TextRun{.first          = first,
-                            .count          = count,
-                            .style          = style,
-                            .font_height    = s.font_height,
-                            .line_height    = s.line_height * s.font_height,
-                            .first_glyph    = first_glyph,
-                            .num_glyphs     = num_glyphs,
-                            .metrics        = TextRunMetrics{.advance = advance,
-                                                             .ascent  = font_ascent,
-                                                             .descent = font_descent},
-                            .base_direction = base_direction,
-                            .direction      = direction,
-                            .paragraph      = paragraph,
-                            .breakable      = breakable}));
+  CHECK(l.runs.push(
+      TextRun{.first          = first,
+              .count          = count,
+              .style          = style,
+              .font_height    = s.font_height,
+              .line_height    = s.line_height * s.font_height,
+              .first_glyph    = first_glyph,
+              .num_glyphs     = num_glyphs,
+              .metrics        = TextRunMetrics{.advance = advance,
+                                               .ascent  = font_metrics.ascent,
+                                               .descent = font_metrics.descent},
+              .base_direction = base_direction,
+              .direction      = direction,
+              .paragraph      = paragraph,
+              .breakable      = breakable}));
 }
 
+/// see:
+/// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
+///
 void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 {
   layout.clear();
@@ -309,9 +313,9 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
                                                               HB_DIRECTION_RTL,
           language, block.use_kerning, block.use_ligatures, infos, positions);
 
-    insert_run(layout, s, first, i - first, segment.style, f->ascent,
-               f->descent, segment.direction, segment.base_direction,
-               segment.paragraph, segment.breakable, infos, positions);
+    insert_run(layout, s, first, i - first, segment.style, f->metrics,
+               segment.direction, segment.base_direction, segment.paragraph,
+               segment.breakable, infos, positions);
   }
 
   u32 const num_runs = (u32) layout.runs.size();

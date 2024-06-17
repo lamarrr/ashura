@@ -36,7 +36,6 @@ constexpr void copy_construct(Span<Src> src, Span<Dst> dst)
   }
 }
 
-// TODO(lamarrr): if constexpr, and pointer and num params
 template <typename T>
 constexpr void destruct(Span<T> span)
 {

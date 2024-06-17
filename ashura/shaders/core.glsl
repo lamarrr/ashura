@@ -127,7 +127,7 @@ float rrect_sdf(vec2 pos, vec2 half_extent, float border_radius)
   return length(max(abs(pos) - half_extent + border_radius, 0)) - border_radius;
 }
 
-// TODO(lamarrr): SDF functions https://iquilezles.org/articles/distfunctions2d/
+// SDF functions: https://iquilezles.org/articles/distfunctions2d/
 
 // GLTF-PBR,
 // SEE:https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#complete-model
