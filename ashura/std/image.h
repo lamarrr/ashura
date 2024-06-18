@@ -38,10 +38,10 @@ struct ImageSpan
 
   constexpr ImageSpan slice(Vec2U offset, Vec2U extent) const
   {
-    offset.x = offset.x > width ? width : offset.x;
-    offset.y = offset.y > height ? height : offset.y;
-    extent.x = (width - offset.x) > extent.x ? extent.x : (width - offset.x);
-    extent.y = (height - offset.y) > extent.y ? extent.y : (height - offset.y);
+    offset.x = min(offset.x, width);
+    offset.y = min(offset.y, height);
+    extent.x = min(width - offset.x, extent.x);
+    extent.y = min(height - offset.y, extent.y);
 
     u64 const data_offset = offset.y * stride * C + offset.x * C;
     u64 const data_span   = extent.y * stride * C;
