@@ -953,6 +953,9 @@ inline void access_graphics_bindings(CommandEncoder const &enc,
           }
         }
         break;
+
+      case gfx::DescriptorType::Sampler:
+        break;
       default:
         UNREACHABLE();
     }
@@ -2793,8 +2796,8 @@ Result<gfx::DescriptorSet, Status>
     }
   }
 
-  u32 descriptor_usage[NUM_DESCRIPTOR_TYPES]                = {};
-  u32 resource_sync_count[gfx::MAX_DESCRIPTOR_SET_BINDINGS] = {};
+  u32 descriptor_usage[NUM_DESCRIPTOR_TYPES]           = {};
+  u32 bindings_sizes[gfx::MAX_DESCRIPTOR_SET_BINDINGS] = {};
 
   {
     u32 vla_idx = 0;
@@ -2804,33 +2807,15 @@ Result<gfx::DescriptorSet, Status>
       u32                               count = 0;
       if (!desc.is_variable_length)
       {
-        count += desc.count;
+        count = desc.count;
       }
       else
       {
-        count += variable_lengths[vla_idx];
+        count = variable_lengths[vla_idx];
         vla_idx++;
       }
-
-      switch (desc.type)
-      {
-        case gfx::DescriptorType::CombinedImageSampler:
-        case gfx::DescriptorType::SampledImage:
-        case gfx::DescriptorType::StorageImage:
-        case gfx::DescriptorType::UniformTexelBuffer:
-        case gfx::DescriptorType::StorageTexelBuffer:
-        case gfx::DescriptorType::UniformBuffer:
-        case gfx::DescriptorType::StorageBuffer:
-        case gfx::DescriptorType::DynamicUniformBuffer:
-        case gfx::DescriptorType::DynamicStorageBuffer:
-        case gfx::DescriptorType::InputAttachment:
-          resource_sync_count[i] = count;
-          break;
-        default:
-          break;
-      }
-
       descriptor_usage[(u32) desc.type] += count;
+      bindings_sizes[i] = count;
     }
   }
 
@@ -2900,21 +2885,43 @@ Result<gfx::DescriptorSet, Status>
   defer bindings_del{[&] {
     for (u32 i = num_bindings; i-- > 0;)
     {
-      heap.allocator.ndealloc(bindings[i].resources, bindings[i].count);
+      if (bindings[i].sync_resources != nullptr)
+      {
+        heap.allocator.ndealloc(bindings[i].sync_resources, bindings[i].count);
+      }
     }
   }};
 
   for (; num_bindings < layout->num_bindings; num_bindings++)
   {
-    gfx::DescriptorBindingDesc const &desc  = layout->bindings[num_bindings];
-    void                            **rsrcs = nullptr;
-    u32                               count = resource_sync_count[num_bindings];
-    if (!heap.allocator.nalloc_zeroed(count, &rsrcs))
+    gfx::DescriptorBindingDesc const &desc = layout->bindings[num_bindings];
+    void                            **sync_resources = nullptr;
+    u32                               count = bindings_sizes[num_bindings];
+
+    switch (desc.type)
     {
-      return Err{Status::OutOfHostMemory};
+      case gfx::DescriptorType::CombinedImageSampler:
+      case gfx::DescriptorType::SampledImage:
+      case gfx::DescriptorType::StorageImage:
+      case gfx::DescriptorType::UniformTexelBuffer:
+      case gfx::DescriptorType::StorageTexelBuffer:
+      case gfx::DescriptorType::UniformBuffer:
+      case gfx::DescriptorType::StorageBuffer:
+      case gfx::DescriptorType::DynamicUniformBuffer:
+      case gfx::DescriptorType::DynamicStorageBuffer:
+      case gfx::DescriptorType::InputAttachment:
+        if (!heap.allocator.nalloc_zeroed(count, &sync_resources))
+        {
+          return Err{Status::OutOfHostMemory};
+        }
+        break;
+      default:
+        sync_resources = nullptr;
+        break;
     }
+
     bindings[num_bindings] =
-        DescriptorBinding{.resources          = rsrcs,
+        DescriptorBinding{.sync_resources     = sync_resources,
                           .count              = count,
                           .type               = desc.type,
                           .is_variable_length = desc.is_variable_length,
@@ -3845,7 +3852,11 @@ void DeviceInterface::destroy_descriptor_set(gfx::Device        self_,
 
   for (u32 i = set->num_bindings; i-- > 0;)
   {
-    heap.allocator.ndealloc(set->bindings[i].resources, set->num_bindings);
+    if (set->bindings[i].sync_resources != nullptr)
+    {
+      heap.allocator.ndealloc(set->bindings[i].sync_resources,
+                              set->num_bindings);
+    }
   }
   heap.allocator.ndealloc(set, 1);
 }
@@ -4069,7 +4080,7 @@ void DeviceInterface::update_descriptor_set(
   u64 const ssbo_offset_alignment =
       self->phy_dev.vk_properties.limits.minStorageBufferOffsetAlignment;
 
-  sVALIDATE(update.binding <= set->num_bindings);
+  sVALIDATE(update.binding < set->num_bindings);
   DescriptorBinding &binding = set->bindings[update.binding];
   sVALIDATE(update.element < binding.count);
   usize info_size = 0;
@@ -4178,7 +4189,6 @@ void DeviceInterface::update_descriptor_set(
     case gfx::DescriptorType::DynamicUniformBuffer:
     case gfx::DescriptorType::StorageBuffer:
     case gfx::DescriptorType::UniformBuffer:
-      sVALIDATE(update.element < binding.count);
       sVALIDATE((update.element + update.buffers.size()) <= binding.count);
       info_size = sizeof(VkDescriptorBufferInfo) * update.buffers.size();
       count     = (u32) update.buffers.size();
@@ -4186,7 +4196,6 @@ void DeviceInterface::update_descriptor_set(
 
     case gfx::DescriptorType::StorageTexelBuffer:
     case gfx::DescriptorType::UniformTexelBuffer:
-      sVALIDATE(update.element < binding.count);
       sVALIDATE((update.element + update.texel_buffers.size()) <=
                 binding.count);
       info_size = sizeof(VkBufferView) * update.texel_buffers.size();
@@ -4198,7 +4207,6 @@ void DeviceInterface::update_descriptor_set(
     case gfx::DescriptorType::StorageImage:
     case gfx::DescriptorType::InputAttachment:
     case gfx::DescriptorType::Sampler:
-      sVALIDATE(update.element < binding.count);
       sVALIDATE((update.element + update.images.size()) <= binding.count);
       info_size = sizeof(VkDescriptorImageInfo) * update.images.size();
       count     = (u32) update.images.size();
