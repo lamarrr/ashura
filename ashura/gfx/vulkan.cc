@@ -4771,6 +4771,7 @@ Result<gfx::PipelineStatistics, Status>
 
 #define ENCODE_PRELUDE()                                 \
   CommandEncoder *const self = (CommandEncoder *) self_; \
+  sVALIDATE(self->is_recording());                       \
   if (self->status != Status::Success)                   \
   {                                                      \
     return;                                              \
