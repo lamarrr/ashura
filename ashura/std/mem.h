@@ -8,12 +8,14 @@ namespace ash
 namespace mem
 {
 
-constexpr u64 align_offset(u64 alignment, u64 offset)
+template <typename T>
+constexpr T align_offset(T alignment, T offset)
 {
   return (offset + (alignment - 1)) & ~(alignment - 1);
 }
 
-constexpr bool is_aligned(u64 alignment, u64 offset)
+template <typename T>
+constexpr bool is_aligned(T alignment, T offset)
 {
   return (offset & (alignment - 1)) == 0;
 }
