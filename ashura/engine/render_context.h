@@ -64,7 +64,7 @@ struct SamplerEq
 struct CachedSampler
 {
   gfx::Sampler sampler = nullptr;
-  u32          index   = 0;
+  u32          slot    = 0;
 };
 
 typedef HashMap<gfx::SamplerDesc, CachedSampler, SamplerHasher, SamplerEq, u32>

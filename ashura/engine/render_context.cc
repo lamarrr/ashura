@@ -322,14 +322,14 @@ CachedSampler RenderContext::create_sampler(gfx::SamplerDesc const &desc)
 
   CachedSampler sampler{.sampler =
                             device->create_sampler(device.self, desc).unwrap(),
-                        .index = alloc_sampler_slot()};
+                        .slot = alloc_sampler_slot()};
 
   device->update_descriptor_set(
       device.self,
       gfx::DescriptorSetUpdate{
           .set     = samplers,
           .binding = 0,
-          .element = sampler.index,
+          .element = sampler.slot,
           .images  = to_span({gfx::ImageBinding{.sampler = sampler.sampler}})});
 
   bool exists;
@@ -347,19 +347,18 @@ u32 RenderContext::alloc_texture_slot()
     {
       continue;
     }
-    u16 j = 0;
-    for (; j < 64; j++)
+
+    for (u16 j = 0; j < 64; j++)
     {
       if (((mask >> j) & 0x1) == 0)
       {
-        break;
+        texture_slots[i] = mask | (((u64) 1) << j);
+        return (i << 6) + j;
       }
     }
-    texture_slots[i] = mask | (((u64) 1) << j);
-    return (i << 6) + j;
   }
 
-  default_logger->panic("Ran out of Texture slots");
+  CHECK(false, "Ran out of Texture slots");
 }
 
 void RenderContext::release_texture_slot(u32 slot)
@@ -377,19 +376,18 @@ u32 RenderContext::alloc_sampler_slot()
     {
       continue;
     }
-    u16 j = 0;
-    for (; j < 64; j++)
+
+    for (u16 j = 0; j < 64; j++)
     {
       if (((mask >> j) & 0x1) == 0)
       {
-        break;
+        sampler_slots[i] = mask | (((u64) 1) << j);
+        return (i << 6) + j;
       }
     }
-    sampler_slots[i] = mask | (((u64) 1) << j);
-    return (i << 6) + j;
   }
 
-  default_logger->panic("Ran out of Sampler slots");
+  CHECK(false, "Ran out of Sampler slots");
 }
 
 void RenderContext::release_sampler_slot(u32 slot)
