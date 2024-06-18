@@ -312,6 +312,13 @@ void Canvas::clear()
 static inline void add_run(Canvas &canvas, CanvasPassType type,
                            gfx::Rect scissor)
 {
+  scissor.offset.x = min(scissor.offset.x, canvas.surface.extent.x);
+  scissor.offset.y = min(scissor.offset.y, canvas.surface.extent.y);
+  scissor.extent.x =
+      min(canvas.surface.extent.x - scissor.offset.x, scissor.extent.x);
+  scissor.extent.y =
+      min(canvas.surface.extent.y - scissor.offset.y, scissor.extent.y);
+
   bool new_run = true;
 
   if (!canvas.pass_runs.is_empty())
