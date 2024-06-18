@@ -35,7 +35,7 @@ void SSBO::uninit(RenderContext &ctx)
   ctx.device->destroy_buffer(ctx.device.self, buffer);
 }
 
-void SSBO::reserve(RenderContext &ctx, u64 p_size)
+void SSBO::reserve(RenderContext &ctx, u64 p_size, Span<char const> label)
 {
   p_size = max(p_size, (u64) 1);
   if (buffer != nullptr && size >= p_size)
@@ -48,7 +48,8 @@ void SSBO::reserve(RenderContext &ctx, u64 p_size)
   buffer = ctx.device
                ->create_buffer(
                    ctx.device.self,
-                   gfx::BufferDesc{.size        = p_size,
+                   gfx::BufferDesc{.label       = label,
+                                   .size        = p_size,
                                    .host_mapped = true,
                                    .usage = gfx::BufferUsage::TransferSrc |
                                             gfx::BufferUsage::TransferDst |
@@ -75,9 +76,9 @@ void SSBO::reserve(RenderContext &ctx, u64 p_size)
   size = p_size;
 }
 
-void SSBO::copy(RenderContext &ctx, Span<u8 const> src)
+void SSBO::copy(RenderContext &ctx, Span<u8 const> src, Span<char const> label)
 {
-  reserve(ctx, (u64) src.size());
+  reserve(ctx, (u64) src.size(), label);
   u8 *data = (u8 *) map(ctx);
   mem::copy(src, data);
   flush(ctx);
@@ -110,7 +111,7 @@ void CanvasResources::uninit(RenderContext &ctx)
   rrect_params.uninit(ctx);
 }
 
-void CanvasRenderer::init(RenderContext &ctx)
+void CanvasRenderer::init(RenderContext &)
 {
 }
 
@@ -123,14 +124,17 @@ void CanvasRenderer::uninit(RenderContext &ctx)
 }
 
 void CanvasRenderer::begin(RenderContext &ctx, PassContext &passes,
-                           Canvas const &canvas, gfx::RenderingInfo const &info,
-                           gfx::DescriptorSet texture)
+                           Canvas const &canvas, gfx::RenderingInfo const &,
+                           gfx::DescriptorSet)
 {
   CanvasResources &r = resources[ctx.ring_index()];
-  r.vertices.copy(ctx, to_span(canvas.vertices).as_u8());
-  r.indices.copy(ctx, to_span(canvas.indices).as_u8());
-  r.ngon_params.copy(ctx, to_span(canvas.ngon_params).as_u8());
-  r.rrect_params.copy(ctx, to_span(canvas.rrect_params).as_u8());
+  r.vertices.copy(ctx, to_span(canvas.vertices).as_u8(),
+                  "Canvas Vertices"_span);
+  r.indices.copy(ctx, to_span(canvas.indices).as_u8(), "Canvas Indices"_span);
+  r.ngon_params.copy(ctx, to_span(canvas.ngon_params).as_u8(),
+                     "Ngon Params"_span);
+  r.rrect_params.copy(ctx, to_span(canvas.rrect_params).as_u8(),
+                      "RRect Params"_span);
 }
 
 void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,

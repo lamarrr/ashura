@@ -43,8 +43,8 @@ struct SSBO
   gfx::DescriptorSet ssbo   = nullptr;
 
   void  uninit(RenderContext &ctx);
-  void  reserve(RenderContext &ctx, u64 size);
-  void  copy(RenderContext &ctx, Span<u8 const> src);
+  void  reserve(RenderContext &ctx, u64 size, Span<char const> label);
+  void  copy(RenderContext &ctx, Span<u8 const> src, Span<char const> label);
   void *map(RenderContext &ctx);
   void  unmap(RenderContext &ctx);
   void  flush(RenderContext &ctx);
