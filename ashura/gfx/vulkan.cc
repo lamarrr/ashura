@@ -2998,7 +2998,7 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
 
   sVALIDATE(num_descriptor_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
   sVALIDATE(desc.push_constants_size <= gfx::MAX_PUSH_CONSTANTS_SIZE);
-  sVALIDATE(mem::is_aligned(4, desc.push_constants_size));
+  sVALIDATE(mem::is_aligned(4U, desc.push_constants_size));
   sVALIDATE(desc.compute_shader.entry_point.size() > 0 &&
             desc.compute_shader.entry_point.size() < 256);
   sVALIDATE(desc.compute_shader.shader != nullptr);
@@ -3115,7 +3115,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
               !self->phy_dev.vk_features.fillModeNonSolid));
   sVALIDATE(num_descriptor_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
   sVALIDATE(desc.push_constants_size <= gfx::MAX_PUSH_CONSTANTS_SIZE);
-  sVALIDATE(mem::is_aligned(4, desc.push_constants_size));
+  sVALIDATE(mem::is_aligned(4U, desc.push_constants_size));
   sVALIDATE(desc.vertex_shader.entry_point.size() > 0 &&
             desc.vertex_shader.entry_point.size() <= 255);
   sVALIDATE(desc.fragment_shader.entry_point.size() > 0 &&
@@ -4856,7 +4856,7 @@ void CommandEncoderInterface::fill_buffer(gfx::CommandEncoder self_,
   sVALIDATE(!self->is_in_pass());
   sVALIDATE(has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   sVALIDATE(is_valid_buffer_access(dst->desc.size, offset, size, 4));
-  sVALIDATE(mem::is_aligned(4, size));
+  sVALIDATE(mem::is_aligned<u64>(4, size));
 
   access_buffer(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -4921,7 +4921,7 @@ void CommandEncoderInterface::update_buffer(gfx::CommandEncoder self_,
   sVALIDATE(!self->is_in_pass());
   sVALIDATE(has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   sVALIDATE(is_valid_buffer_access(dst->desc.size, dst_offset, copy_size, 4));
-  sVALIDATE(mem::is_aligned(4, copy_size));
+  sVALIDATE(mem::is_aligned<u64>(4, copy_size));
   sVALIDATE(copy_size <= gfx::MAX_UPDATE_BUFFER_SIZE);
 
   access_buffer(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -6011,8 +6011,8 @@ void CommandEncoderInterface::bind_descriptor_sets(
 
   for (u32 offset : dynamic_offsets)
   {
-    sVALIDATE(mem::is_aligned(ubo_offset_alignment, offset) ||
-              mem::is_aligned(ssbo_offset_alignment, offset));
+    sVALIDATE(mem::is_aligned<u64>(ubo_offset_alignment, offset) ||
+              mem::is_aligned<u64>(ssbo_offset_alignment, offset));
   }
 
   if (self->is_in_compute_pass())
@@ -6068,7 +6068,7 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
   ENCODE_PRELUDE();
   sVALIDATE(push_constants_data.size_bytes() <= gfx::MAX_PUSH_CONSTANTS_SIZE);
   u32 const push_constants_size = (u32) push_constants_data.size_bytes();
-  sVALIDATE(mem::is_aligned(4, push_constants_size));
+  sVALIDATE(mem::is_aligned(4U, push_constants_size));
   sVALIDATE(self->is_in_pass());
 
   if (self->is_in_compute_pass())
@@ -6293,7 +6293,7 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
   sVALIDATE(has_bits(buffer->desc.usage, gfx::BufferUsage::IndirectBuffer));
   sVALIDATE(offset < buffer->desc.size);
   sVALIDATE((offset + (u64) draw_count * stride) <= buffer->desc.size);
-  sVALIDATE(mem::is_aligned(4, stride));
+  sVALIDATE(mem::is_aligned(4U, stride));
   sVALIDATE(stride >= sizeof(gfx::DrawCommand));
   sVALIDATE(ctx.has_state);
 
@@ -6321,7 +6321,7 @@ void CommandEncoderInterface::draw_indexed_indirect(gfx::CommandEncoder self_,
   sVALIDATE(has_bits(buffer->desc.usage, gfx::BufferUsage::IndirectBuffer));
   sVALIDATE(offset < buffer->desc.size);
   sVALIDATE((offset + (u64) draw_count * stride) <= buffer->desc.size);
-  sVALIDATE(mem::is_aligned(4, stride));
+  sVALIDATE(mem::is_aligned(4U, stride));
   sVALIDATE(stride >= sizeof(gfx::DrawIndexedCommand));
   sVALIDATE(ctx.has_state);
 
