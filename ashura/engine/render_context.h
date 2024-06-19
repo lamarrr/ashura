@@ -10,6 +10,14 @@
 namespace ash
 {
 
+constexpr u32 TEXTURE_WHITE        = 0;
+constexpr u32 TEXTURE_BLACK        = 1;
+constexpr u32 TEXTURE_TRANSPARENT  = 2;
+constexpr u32 TEXTURE_RED          = 3;
+constexpr u32 TEXTURE_GREEN        = 4;
+constexpr u32 TEXTURE_BLUE         = 5;
+constexpr u32 NUM_DEFAULT_TEXTURES = 6;
+
 struct FramebufferAttachment
 {
   gfx::ImageDesc     desc      = {};
@@ -112,6 +120,8 @@ struct RenderContext
   SamplerCache             sampler_cache                              = {};
   Framebuffer              screen_fb                                  = {};
   Framebuffer              scratch_fb                                 = {};
+  gfx::Image               default_image                              = nullptr;
+  gfx::ImageView           default_image_views[NUM_DEFAULT_TEXTURES]  = {};
 
   void init(gfx::DeviceImpl device, bool use_hdr, u32 buffering,
             gfx::Extent initial_extent, StrHashMap<gfx::Shader> shader_map);

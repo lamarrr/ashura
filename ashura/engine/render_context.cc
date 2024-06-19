@@ -163,6 +163,83 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                        .max_lod           = 0,
                        .border_color = gfx::BorderColor::FloatTransparentBlack,
                        .unnormalized_coordinates = false});
+
+  default_image =
+      device
+          ->create_image(
+              device.self,
+              gfx::ImageDesc{.label  = "Default Texture Image"_span,
+                             .type   = gfx::ImageType::Type2D,
+                             .format = gfx::Format::B8G8R8A8_UNORM,
+                             .usage  = gfx::ImageUsage::Sampled |
+                                      gfx::ImageUsage::TransferDst |
+                                      gfx::ImageUsage::Storage |
+                                      gfx::ImageUsage::Storage,
+                             .aspects      = gfx::ImageAspects::Color,
+                             .extent       = {1, 1, 1},
+                             .mip_levels   = 1,
+                             .array_layers = 1,
+                             .sample_count = gfx::SampleCount::Count1})
+          .unwrap();
+
+  {
+    gfx::ComponentMapping mappings[NUM_DEFAULT_TEXTURES] = {};
+    mappings[TEXTURE_WHITE]       = {.r = gfx::ComponentSwizzle::One,
+                                     .g = gfx::ComponentSwizzle::One,
+                                     .b = gfx::ComponentSwizzle::One,
+                                     .a = gfx::ComponentSwizzle::One};
+    mappings[TEXTURE_BLACK]       = {.r = gfx::ComponentSwizzle::Zero,
+                                     .g = gfx::ComponentSwizzle::Zero,
+                                     .b = gfx::ComponentSwizzle::Zero,
+                                     .a = gfx::ComponentSwizzle::One};
+    mappings[TEXTURE_TRANSPARENT] = {.r = gfx::ComponentSwizzle::Zero,
+                                     .g = gfx::ComponentSwizzle::Zero,
+                                     .b = gfx::ComponentSwizzle::Zero,
+                                     .a = gfx::ComponentSwizzle::Zero};
+    mappings[TEXTURE_RED]         = {.r = gfx::ComponentSwizzle::One,
+                                     .g = gfx::ComponentSwizzle::Zero,
+                                     .b = gfx::ComponentSwizzle::Zero,
+                                     .a = gfx::ComponentSwizzle::One};
+    mappings[TEXTURE_GREEN]       = {.r = gfx::ComponentSwizzle::Zero,
+                                     .g = gfx::ComponentSwizzle::One,
+                                     .b = gfx::ComponentSwizzle::Zero,
+                                     .a = gfx::ComponentSwizzle::One};
+    mappings[TEXTURE_BLUE]        = {.r = gfx::ComponentSwizzle::Zero,
+                                     .g = gfx::ComponentSwizzle::Zero,
+                                     .b = gfx::ComponentSwizzle::One,
+                                     .a = gfx::ComponentSwizzle::One};
+
+    for (u32 i = 0; i < NUM_DEFAULT_TEXTURES; i++)
+    {
+      default_image_views[i] =
+          device
+              ->create_image_view(
+                  device.self,
+                  gfx::ImageViewDesc{.label = "Default Texture Image View"_span,
+                                     .image = default_image,
+                                     .view_type   = gfx::ImageViewType::Type2D,
+                                     .view_format = gfx::Format::B8G8R8A8_UNORM,
+                                     .mapping     = mappings[i],
+                                     .aspects     = gfx::ImageAspects::Color,
+                                     .first_mip_level   = 0,
+                                     .num_mip_levels    = 1,
+                                     .first_array_layer = 0,
+                                     .num_array_layers  = 1})
+              .unwrap();
+
+      u32 slot = alloc_texture_slot();
+
+      CHECK(slot == i);
+
+      device->update_descriptor_set(
+          device.self, gfx::DescriptorSetUpdate{
+                           .set     = texture_views,
+                           .binding = 0,
+                           .element = slot,
+                           .images  = to_span({gfx::ImageBinding{
+                                .image_view = default_image_views[i]}})});
+    }
+  }
 }
 
 static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
@@ -252,6 +329,11 @@ static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
 
 void RenderContext::uninit()
 {
+  release(default_image);
+  for (gfx::ImageView v : default_image_views)
+  {
+    release(v);
+  }
   release(texture_views);
   release(samplers);
   release(ubo_layout);
@@ -358,7 +440,7 @@ u32 RenderContext::alloc_texture_slot()
     }
   }
 
-  CHECK(false, "Ran out of Texture slots");
+  CHECK_DESC(false, "Ran out of Texture slots");
 }
 
 void RenderContext::release_texture_slot(u32 slot)
@@ -387,7 +469,7 @@ u32 RenderContext::alloc_sampler_slot()
     }
   }
 
-  CHECK(false, "Ran out of Sampler slots");
+  CHECK_DESC(false, "Ran out of Sampler slots");
 }
 
 void RenderContext::release_sampler_slot(u32 slot)
