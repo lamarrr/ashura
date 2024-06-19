@@ -73,9 +73,9 @@ struct CanvasSurface
 
   constexpr Mat4 mvp(Vec2 center, Vec2 object_extent, Mat4 transform) const
   {
-    return scale3d(Vec3{1 / viewport.extent.x, 1 / viewport.extent.y, 1}) *
-           translate3d(Vec3{center.x, center.y, 0}) * transform *
-           scale3d(Vec3{object_extent.x / 2, object_extent.y / 2, 1});
+    return scale3d(to_vec3(1 / (viewport.extent * 2), 1)) *
+           translate3d(to_vec3(center, 0)) * transform *
+           scale3d(to_vec3(object_extent * 2, 1));
   }
 };
 
