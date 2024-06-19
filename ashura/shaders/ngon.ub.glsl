@@ -4,14 +4,14 @@
 
 struct Params
 {
-  vec4  transform[4];
-  vec4  tint[4];
-  vec4  uv;
-  float tiling;
-  uint  isampler;
-  uint  albedo;
-  uint  first_index;
-  uint  first_vertex;
+  mat4x4 transform;
+  vec4   tint[4];
+  vec4   uv;
+  float  tiling;
+  uint   isampler;
+  uint   albedo;
+  uint   first_index;
+  uint   first_vertex;
 };
 
 layout(set = 0, binding = 0) readonly buffer VertexBuffer
@@ -24,7 +24,7 @@ layout(set = 1, binding = 0) readonly buffer IndexBuffer
   uint idx_buffer[];
 };
 
-layout(set = 2, binding = 0) readonly buffer ParamsBuffer
+layout(set = 2, binding = 0, row_major) readonly buffer ParamsBuffer
 {
   Params params[];
 };
@@ -45,7 +45,7 @@ void main()
   vec2   pos  = vtx_buffer[p.first_vertex + idx];
   o_idx       = gl_InstanceIndex;
   o_uv        = (pos + 1.0) * 0.5;
-  gl_Position = to_mat4(p.transform) * vec4(pos, 0.0, 1.0);
+  gl_Position = p.transform * vec4(pos, 0.0, 1.0);
 }
 
 #endif

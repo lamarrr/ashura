@@ -6,32 +6,32 @@ layout(constant_id = 0) const uint NUM_OBJECT_LIGHTS = 4;
 
 struct Params
 {
-  vec4  model[3];
-  vec4  view[3];
-  vec4  projection[4];
-  vec4  eye_position;
-  vec4  albedo;        // only xyz
-  float metallic;
-  float roughness;
-  float normal;
-  float occlusion;
-  vec4  emissive;        // only xyz
-  float ior;
-  float clearcoat;
-  float clearcoat_roughness;
-  float clearcoat_normal;
-  uint  isampler;
-  uint  albedo_map;
-  uint  metallic_map;
-  uint  roughness_map;
-  uint  normal_map;
-  uint  occlusion_map;
-  uint  emissive_map;
-  uint  clearcoat_map;
-  uint  clearcoat_roughness_map;
-  uint  clearcoat_normal_map;
-  uint  first_vertex;
-  uint  first_light;
+  mat4x4 model;
+  mat4x4 view;
+  mat4x4 projection;
+  vec4   eye_position;
+  vec4   albedo;        // only xyz
+  float  metallic;
+  float  roughness;
+  float  normal;
+  float  occlusion;
+  vec4   emissive;        // only xyz
+  float  ior;
+  float  clearcoat;
+  float  clearcoat_roughness;
+  float  clearcoat_normal;
+  uint   isampler;
+  uint   albedo_map;
+  uint   metallic_map;
+  uint   roughness_map;
+  uint   normal_map;
+  uint   occlusion_map;
+  uint   emissive_map;
+  uint   clearcoat_map;
+  uint   clearcoat_roughness_map;
+  uint   clearcoat_normal_map;
+  uint   first_vertex;
+  uint   first_light;
 };
 
 struct Vertex
@@ -50,7 +50,7 @@ layout(set = 1, binding = 0) readonly buffer IdxBuffer
   uint idx_buffer[];
 };
 
-layout(set = 2, binding = 0) readonly buffer ParamsBuffer
+layout(set = 2, binding = 0, row_major) readonly buffer ParamsBuffer
 {
   Params params[];
 };
@@ -75,8 +75,8 @@ void main()
   Params p         = params[gl_InstanceIndex];
   uint   idx       = idx_buffer[gl_VertexIndex];
   Vertex vtx       = vtx_buffer[p.first_vertex + idx];
-  vec4   world_pos = affine4(p.model) * vec4(vtx.pos.xyz, 1);
-  vec4   pos       = to_mat4(p.projection) * affine4(p.view) * world_pos;
+  vec4   world_pos = p.model * vec4(vtx.pos.xyz, 1);
+  vec4   pos       = p.projection * p.view * world_pos;
   o_world_pos      = world_pos;
   o_uv             = vtx.uv;
   o_idx            = gl_InstanceIndex;

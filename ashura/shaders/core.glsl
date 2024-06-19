@@ -20,16 +20,6 @@ vec3 to_srgb(vec3 v)
   return pow_vec3(v, 1.0 / GAMMA);
 }
 
-mat4 affine4(vec4 v[3])
-{
-  return mat4(v[0], v[1], v[2], vec4(0, 0, 0, 1));
-}
-
-mat4 to_mat4(vec4 v[4])
-{
-  return mat4(v[0], v[1], v[2], v[3]);
-}
-
 vec4 bilerp(vec4 v[4], vec2 t0, float t1)
 {
   return mix(mix(v[0], v[1], t0.x), mix(v[2], v[3], t0.y), t1);
