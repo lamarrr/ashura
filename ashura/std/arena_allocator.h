@@ -234,7 +234,13 @@ struct ArenaPool
 
   [[nodiscard]] bool alloc(usize alignment, usize size, u8 **mem)
   {
-    if (size == 0 || size > max_arena_size)
+    if (size == 0)
+    {
+      *mem = nullptr;
+      return true;
+    }
+
+    if (size > max_arena_size)
     {
       *mem = nullptr;
       return false;
