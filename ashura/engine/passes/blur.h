@@ -16,7 +16,6 @@ struct BlurPassParams
 {
   gfx::ImageView     image_view   = nullptr;
   Vec2U              extent       = {};
-  u32                sampler      = 0;
   gfx::DescriptorSet texture_view = nullptr;
   u32                texture      = 0;
   gfx::Rect          area         = {};

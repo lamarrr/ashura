@@ -20,6 +20,12 @@ enum class CanvasPassType : u8
   Custom = 4
 };
 
+enum class ScaleMode : u8
+{
+  Stretch = 0,
+  Tile    = 1
+};
+
 /// @brief
 /// @param scissor in surface pixel coordinates
 struct ShapeDesc
@@ -71,11 +77,11 @@ struct CanvasSurface
                                       (viewport.extent.x / viewport.extent.y);
   }
 
-  constexpr Mat4 mvp(Vec2 center, Vec2 object_extent, Mat4 transform) const
+  constexpr Mat4 mvp(Mat4 const &transform, Vec2 center, Vec2 extent) const
   {
     return scale3d(to_vec3(1 / (viewport.extent * 2), 1)) *
            translate3d(to_vec3(center, 0)) * transform *
-           scale3d(to_vec3(object_extent * 2, 1));
+           scale3d(to_vec3(extent * 2, 1));
   }
 };
 
@@ -126,7 +132,7 @@ struct Canvas
 
   void rrect(ShapeDesc const &desc);
 
-  void nine_slice();
+  void nine_slice(ShapeDesc const &desc, Vec2 corner_extent, ScaleMode mode);
 
   void text(ShapeDesc const &desc, TextBlock const &block,
             TextLayout const &layout, TextBlockStyle const &style,

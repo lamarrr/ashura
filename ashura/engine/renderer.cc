@@ -154,7 +154,6 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
         passes.blur.add_pass(
             ctx, BlurPassParams{.image_view   = info.color_attachments[0].view,
                                 .extent       = canvas.surface.extent,
-                                .sampler      = 0,
                                 .texture_view = texture,
                                 .texture      = 0,
                                 .area         = run.scissor,

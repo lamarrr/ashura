@@ -361,7 +361,7 @@ static inline void add_run(Canvas &canvas, CanvasPassType type,
 void Canvas::circle(ShapeDesc const &desc)
 {
   CHECK(rrect_params.push(RRectParam{
-      .transform    = surface.mvp(desc.center, desc.extent, desc.transform),
+      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = {1, 1, 1, 1},
       .uv           = {desc.uv[0], desc.uv[1]},
@@ -379,7 +379,7 @@ void Canvas::circle(ShapeDesc const &desc)
 void Canvas::rect(ShapeDesc const &desc)
 {
   CHECK(rrect_params.push(RRectParam{
-      .transform    = surface.mvp(desc.center, desc.extent, desc.transform),
+      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = {0, 0, 0, 0},
       .uv           = {desc.uv[0], desc.uv[1]},
@@ -397,7 +397,7 @@ void Canvas::rect(ShapeDesc const &desc)
 void Canvas::rrect(ShapeDesc const &desc)
 {
   CHECK(rrect_params.push(RRectParam{
-      .transform    = surface.mvp(desc.center, desc.extent, desc.transform),
+      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = desc.border_radii / desc.extent.y,
       .uv           = {desc.uv[0], desc.uv[1]},

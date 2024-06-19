@@ -139,11 +139,12 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
             .scissor  = {.offset = {0, 0}, .extent = extent},
             .viewport = {.offset = {0, 0},
                          .extent = {extent.x * 1.0f, extent.y * 1.0f}}});
-    encoder->bind_descriptor_sets(encoder.self, to_span({params.texture_view}),
-                                  {});
+    encoder->bind_descriptor_sets(
+        encoder.self, to_span({ctx.samplers, params.texture_view}), {});
     encoder->push_constants(encoder.self,
                             to_span({BlurParam{.uv      = {uv0, uv1},
                                                .radius  = radius,
+                                               .sampler = 0,
                                                .texture = params.texture}})
                                 .as_u8());
     encoder->draw(encoder.self, 4, 1, 0, 0);
@@ -193,6 +194,7 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
         encoder.self,
         to_span({BlurParam{.uv = {uv0, uv1}, .radius = radius, .texture = 0}})
             .as_u8());
+            // todo(lamarrr): do we blend over or write to dest?
     encoder->draw(encoder.self, 4, 1, 0, 0);
     encoder->end_rendering(encoder.self);
   }
