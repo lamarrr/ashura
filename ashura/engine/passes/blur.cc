@@ -42,10 +42,10 @@ void BlurPass::init(RenderContext &ctx)
 
   gfx::ColorBlendAttachmentState attachment_states[] = {
       {.blend_enable           = false,
-       .src_color_blend_factor = gfx::BlendFactor::SrcAlpha,
-       .dst_color_blend_factor = gfx::BlendFactor::OneMinusSrcAlpha,
+       .src_color_blend_factor = gfx::BlendFactor::Zero,
+       .dst_color_blend_factor = gfx::BlendFactor::Zero,
        .color_blend_op         = gfx::BlendOp::Add,
-       .src_alpha_blend_factor = gfx::BlendFactor::One,
+       .src_alpha_blend_factor = gfx::BlendFactor::Zero,
        .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
        .alpha_blend_op         = gfx::BlendOp::Add,
        .color_write_mask       = gfx::ColorComponents::All}};
