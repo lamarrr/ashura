@@ -607,7 +607,7 @@ void Canvas::ngon(ShapeDesc const &desc, Span<Vec2 const> points)
   u32 const first_vertex = (u32) vertices.size();
   Path::triangulate_ngon(points, vertices, indices);
   CHECK(ngon_params.push(NgonParam{
-      .transform    = desc.transform,
+      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
@@ -633,7 +633,7 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
   u32 const first_vertex = (u32) vertices.size();
   Path::triangulate_stroke(points, vertices, indices, desc.thickness);
   CHECK(ngon_params.push(NgonParam{
-      .transform    = desc.transform,
+      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
