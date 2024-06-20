@@ -262,27 +262,24 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
   }
 }
 
-void Path::triangulate_ngon(Span<Vec2 const> points, Vec<Vec2> &vertices,
-                            Vec<u32> &indices)
+void Path::triangles(Span<Vec2 const> points, Vec<u32> &indices)
 {
   if (points.size() < 3)
   {
     return;
   }
-  u32 const ntriangles = (u32) ((points.size()) - 1);
-  u32 const first_i    = (u32) indices.size();
-  CHECK(vertices.extend_copy(points));
-  CHECK(indices.extend_uninitialized(ntriangles * 3));
+  u32 const num_points    = (u32) points.size();
+  u32 const num_triangles = num_points / 3;
+  u32 const first_idx     = (u32) indices.size();
+  CHECK(indices.extend_uninitialized(num_triangles * 3));
 
-  u32 *out_i = indices.data() + first_i;
-  u32  vtx   = 1;
-  for (u32 i = 0; i < ntriangles; i++)
+  u32 *idx = indices.data() + first_idx;
+  u32  vtx = 1;
+  for (u32 i = 0; i < num_triangles * 3; i += 3)
   {
-    out_i[0] = 0;
-    out_i[1] = vtx;
-    out_i[2] = vtx + 1;
-    out_i += 3;
-    vtx += 1;
+    idx[i]     = i;
+    idx[i + 1] = i + 1;
+    idx[i + 2] = i + 2;
   }
 }
 
@@ -606,7 +603,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
   }
 }
 
-void Canvas::ngon(ShapeDesc const &desc, Span<Vec2 const> points)
+void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
 {
   if (points.size() < 3)
   {
@@ -615,7 +612,10 @@ void Canvas::ngon(ShapeDesc const &desc, Span<Vec2 const> points)
 
   u32 const first_index  = (u32) indices.size();
   u32 const first_vertex = (u32) vertices.size();
-  Path::triangulate_ngon(points, vertices, indices);
+
+  CHECK(vertices.extend_copy(points));
+  Path::triangles(points, indices);
+
   CHECK(ngon_params.push(NgonParam{
       .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},

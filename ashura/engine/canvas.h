@@ -102,8 +102,7 @@ struct Path
                           Vec2 cp2, Vec2 cp3);
   static void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vtx,
                                  Vec<u32> &idx, f32 thickness);
-  static void triangulate_ngon(Span<Vec2 const> points, Vec<Vec2> &vtx,
-                               Vec<u32> &idx);
+  static void triangles(Span<Vec2 const> points, Vec<u32> &idx);
 };
 
 struct Canvas
@@ -138,7 +137,7 @@ struct Canvas
             TextLayout const &layout, TextBlockStyle const &style,
             Span<FontAtlasResource const *> atlases);
 
-  void ngon(ShapeDesc const &desc, Span<Vec2 const> vertices);
+  void triangles(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
   void line(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
