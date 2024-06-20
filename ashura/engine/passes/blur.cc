@@ -194,7 +194,6 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
         encoder.self,
         to_span({BlurParam{.uv = {uv0, uv1}, .radius = radius, .texture = 0}})
             .as_u8());
-            // todo(lamarrr): do we blend over or write to dest?
     encoder->draw(encoder.self, 4, 1, 0, 0);
     encoder->end_rendering(encoder.self);
   }
