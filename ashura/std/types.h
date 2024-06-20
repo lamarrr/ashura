@@ -1282,6 +1282,12 @@ struct alignas(4) Vec4U8
   {
     return Vec4U8{value, value, value, value};
   }
+
+  constexpr Vec4 norm() const
+  {
+    return Vec4{
+        .x = x / 255.0f, .y = y / 255.0f, .z = z / 255.0f, .w = w / 255.0f};
+  }
 };
 
 constexpr bool operator==(Vec4U8 a, Vec4U8 b)
