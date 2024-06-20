@@ -641,7 +641,8 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
 
   u32 const first_index  = (u32) indices.size();
   u32 const first_vertex = (u32) vertices.size();
-  Path::triangulate_stroke(points, vertices, indices, desc.thickness);
+  Path::triangulate_stroke(points, vertices, indices,
+                           desc.thickness / desc.extent.y);
   CHECK(ngon_params.push(NgonParam{
       .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
