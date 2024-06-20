@@ -13,11 +13,12 @@ void FontAtlasResource::init(RenderContext &c, FontAtlas const &atlas,
   CHECK(atlas.extent.x > 0);
   CHECK(atlas.extent.y > 0);
 
-  gfx::Image image =
+  image =
       d->create_image(
-           d.self, gfx::ImageDesc{.label = "Font Atlas Image"_span,
-                                  .type  = gfx::ImageType::Type2D,
-                                  .usage = gfx::ImageUsage::Sampled |
+           d.self, gfx::ImageDesc{.label  = "Font Atlas Image"_span,
+                                  .type   = gfx::ImageType::Type2D,
+                                  .format = gfx::Format::B8G8R8A8_UNORM,
+                                  .usage  = gfx::ImageUsage::Sampled |
                                            gfx::ImageUsage::InputAttachment |
                                            gfx::ImageUsage::Storage |
                                            gfx::ImageUsage::TransferSrc |
@@ -72,7 +73,6 @@ void FontAtlasResource::init(RenderContext &c, FontAtlas const &atlas,
                             .height   = atlas.extent.y,
                             .layers   = atlas.num_layers};
 
-  // swizzle
   for (u32 i = 0; i < atlas.num_layers; i++)
   {
     copy_alpha_image_to_BGRA(atlas.span().get_layer(i).as_const(),
@@ -128,11 +128,11 @@ void FontAtlasResource::release(RenderContext &c)
     c.release_texture_slot(slot);
   }
 
-  for (gfx::ImageView v : views)
+  for (gfx::ImageView view : views)
   {
-    c.device->destroy_image_view(c.device.self, v);
+    c.release(view);
   }
-  c.device->destroy_image(c.device.self, image);
+  c.release(image);
 
   uninit();
 }
