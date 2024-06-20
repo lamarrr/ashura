@@ -256,7 +256,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     u32 prev_run_end = 0;
     for (u32 irun = 0; irun < (u32) block.runs.size(); irun++)
     {
-      u32 const run_end = block.runs[irun];
+      u32 const run_end = min(block.runs[irun], text_size);
       CHECK(prev_run_end <= block.text.size());
       CHECK(prev_run_end <= run_end);
       for (u32 i = prev_run_end; i < run_end; i++)
