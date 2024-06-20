@@ -18,6 +18,10 @@ constexpr u32 TEXTURE_GREEN        = 4;
 constexpr u32 TEXTURE_BLUE         = 5;
 constexpr u32 NUM_DEFAULT_TEXTURES = 6;
 
+constexpr u32 SAMPLER_LINEAR       = 0;
+constexpr u32 SAMPLER_NEAREST      = 1;
+constexpr u32 NUM_DEFAULT_SAMPLERS = 2;
+
 struct FramebufferAttachment
 {
   gfx::ImageDesc     desc      = {};

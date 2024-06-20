@@ -145,8 +145,28 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                  .unwrap();
 
   recreate_framebuffers(p_initial_extent);
-  // add default sampler (slot: 0)
-  create_sampler(
+
+  CachedSampler sampler = create_sampler(
+      gfx::SamplerDesc{.label             = "Linear+Repeat Sampler"_span,
+                       .mag_filter        = gfx::Filter::Linear,
+                       .min_filter        = gfx::Filter::Linear,
+                       .mip_map_mode      = gfx::SamplerMipMapMode::Linear,
+                       .address_mode_u    = gfx::SamplerAddressMode::Repeat,
+                       .address_mode_v    = gfx::SamplerAddressMode::Repeat,
+                       .address_mode_w    = gfx::SamplerAddressMode::Repeat,
+                       .mip_lod_bias      = 0,
+                       .anisotropy_enable = false,
+                       .max_anisotropy    = 1.0,
+                       .compare_enable    = false,
+                       .compare_op        = gfx::CompareOp::Never,
+                       .min_lod           = 0,
+                       .max_lod           = 0,
+                       .border_color = gfx::BorderColor::FloatTransparentBlack,
+                       .unnormalized_coordinates = false});
+
+  CHECK(sampler.slot == SAMPLER_LINEAR);
+
+  sampler = create_sampler(
       gfx::SamplerDesc{.label             = "Nearest+Repeat Sampler"_span,
                        .mag_filter        = gfx::Filter::Nearest,
                        .min_filter        = gfx::Filter::Nearest,
@@ -163,6 +183,8 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                        .max_lod           = 0,
                        .border_color = gfx::BorderColor::FloatTransparentBlack,
                        .unnormalized_coordinates = false});
+
+  CHECK(sampler.slot == SAMPLER_NEAREST);
 
   default_image =
       device
