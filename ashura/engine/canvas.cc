@@ -16,7 +16,7 @@ void Path::arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop)
     return;
   }
 
-  usize const beg = vtx.size();
+  u32 const first = (u32) vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -24,7 +24,7 @@ void Path::arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop)
 
   for (u32 i = 0; i < segments; i++)
   {
-    vtx[beg + i] = rotor(i * step) * 2 - 1;
+    vtx[first + i] = rotor(i * step) * 2 - 1;
   }
 }
 
@@ -35,7 +35,7 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
     return;
   }
 
-  usize const beg = vtx.size();
+  u32 const first = (u32) vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -43,7 +43,7 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
 
   for (u32 i = 0; i < segments; i++)
   {
-    vtx[beg + i] = rotor(i * step) * 2 - 1;
+    vtx[first + i] = rotor(i * step) * 2 - 1;
   }
 }
 
@@ -67,51 +67,51 @@ void Path::rrect(Vec<Vec2> &vtx, u32 segments, Vec4 radii)
   f32 max_radius_w = min(max_radius_z, 1.0f - radii.z);
   radii.w          = min(radii.w, max_radius_w);
 
-  u32 const   curve_segments = (segments - 8) / 4;
-  f32 const   step = (curve_segments == 0) ? 0.0f : ((PI / 2) / curve_segments);
-  usize const beg  = vtx.size();
+  u32 const curve_segments = (segments - 8) / 4;
+  f32 const step  = (curve_segments == 0) ? 0.0f : ((PI / 2) / curve_segments);
+  u32 const first = (u32) vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
   u32 i = 0;
 
-  vtx[beg + i++] = Vec2{1, 1 - radii.z};
+  vtx[first + i++] = Vec2{1, 1 - radii.z};
 
   for (u32 s = 0; s < curve_segments; s++)
   {
-    vtx[beg + i++] = (1 - radii.z) + radii.z * rotor(s * step);
+    vtx[first + i++] = (1 - radii.z) + radii.z * rotor(s * step);
   }
 
-  vtx[beg + i++] = Vec2{1 - radii.z, 1};
+  vtx[first + i++] = Vec2{1 - radii.z, 1};
 
-  vtx[beg + i++] = Vec2{-1 + radii.w, 1};
+  vtx[first + i++] = Vec2{-1 + radii.w, 1};
 
   for (u32 s = 0; s < curve_segments; s++)
   {
-    vtx[beg + i++] =
+    vtx[first + i++] =
         Vec2{-1 + radii.w, 1 - radii.w} + radii.w * rotor(PI / 2 + s * step);
   }
 
-  vtx[beg + i++] = Vec2{-1, 1 - radii.w};
+  vtx[first + i++] = Vec2{-1, 1 - radii.w};
 
-  vtx[beg + i++] = Vec2{-1, -1 + radii.x};
-
-  for (u32 s = 0; s < curve_segments; s++)
-  {
-    vtx[beg + i++] = (-1 + radii.x) + radii.x * rotor(PI + s * step);
-  }
-
-  vtx[beg + i++] = Vec2{-1 + radii.x, -1};
-
-  vtx[beg + i++] = Vec2{1 - radii.y, -1};
+  vtx[first + i++] = Vec2{-1, -1 + radii.x};
 
   for (u32 s = 0; s < curve_segments; s++)
   {
-    vtx[beg + i++] = Vec2{1 - radii.y, (-1 + radii.y)} +
-                     radii.y * rotor(PI * 3.0f / 2.0f + s * step);
+    vtx[first + i++] = (-1 + radii.x) + radii.x * rotor(PI + s * step);
   }
 
-  vtx[beg + i++] = Vec2{1, -1 + radii.y};
+  vtx[first + i++] = Vec2{-1 + radii.x, -1};
+
+  vtx[first + i++] = Vec2{1 - radii.y, -1};
+
+  for (u32 s = 0; s < curve_segments; s++)
+  {
+    vtx[first + i++] = Vec2{1 - radii.y, (-1 + radii.y)} +
+                       radii.y * rotor(PI * 3.0f / 2.0f + s * step);
+  }
+
+  vtx[first + i++] = Vec2{1, -1 + radii.y};
 }
 
 void Path::brect(Vec<Vec2> &vtx, Vec4 slant)
@@ -143,7 +143,7 @@ void Path::bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1, Vec2 cp2)
     return;
   }
 
-  usize const beg = vtx.size();
+  u32 const first = (u32) vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -151,8 +151,8 @@ void Path::bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1, Vec2 cp2)
 
   for (u32 i = 0; i < segments; i++)
   {
-    vtx[beg + i] = Vec2{ash::bezier(cp0.x, cp1.x, cp2.x, step * i),
-                        ash::bezier(cp0.y, cp1.y, cp2.y, step * i)};
+    vtx[first + i] = Vec2{ash::bezier(cp0.x, cp1.x, cp2.x, step * i),
+                          ash::bezier(cp0.y, cp1.y, cp2.y, step * i)};
   }
 }
 
@@ -164,7 +164,7 @@ void Path::cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
     return;
   }
 
-  usize const beg = vtx.size();
+  u32 const first = (u32) vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -172,7 +172,7 @@ void Path::cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
 
   for (u32 i = 0; i < segments; i++)
   {
-    vtx[beg + i] =
+    vtx[first + i] =
         Vec2{ash::cubic_bezier(cp0.x, cp1.x, cp2.x, cp3.x, step * i),
              ash::cubic_bezier(cp0.y, cp1.y, cp2.y, cp3.y, step * i)};
   }
@@ -186,7 +186,7 @@ void Path::catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
     return;
   }
 
-  usize const beg = vtx.size();
+  u32 const beg = vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -220,7 +220,7 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
   u32  *idx  = indices.data() + first_idx;
   u32   ivtx = 0;
 
-  for (usize i = 0; i < num_points - 1; i++)
+  for (u32 i = 0; i < num_points - 1; i++)
   {
     Vec2 const p0    = points[i];
     Vec2 const p1    = points[i + 1];
