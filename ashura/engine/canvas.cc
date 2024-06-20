@@ -200,30 +200,6 @@ void Path::catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
   }
 }
 
-inline void add_line_stroke(Vec2 *vtx, u32 *idx, u32 offset, Vec2 p0, Vec2 p1,
-                            f32 thickness)
-{
-  // line will be at a parallel angle
-  f32 const alpha = dot(normalize(p0), normalize(p1)) * PI;
-
-  /// parallel angle
-  Vec2 const f = (thickness / 2) * rotor(alpha);
-
-  // perpendicular angle
-  Vec2 const g = f * Vec2{-1, 0};
-
-  vtx[0] = p0 + f;
-  vtx[1] = p0 + g;
-  vtx[2] = p1 + g;
-  vtx[3] = p1 + f;
-  idx[0] = offset;
-  idx[1] = offset + 1;
-  idx[2] = offset + 2;
-  idx[3] = offset;
-  idx[4] = offset + 2;
-  idx[5] = offset + 3;
-}
-
 void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
                               Vec<u32> &indices, f32 thickness)
 {
@@ -232,23 +208,57 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
     return;
   }
 
-  u32 const first_v = (u32) vertices.size();
-  u32 const first_i = (u32) indices.size();
-  CHECK(vertices.extend_uninitialized((points.size() - 1) * 4));
-  CHECK(indices.extend_uninitialized((points.size() - 1) * 6));
+  u32 const first_vtx    = (u32) vertices.size();
+  u32 const first_idx    = (u32) indices.size();
+  u32 const num_points   = (u32) points.size();
+  u32 const num_vertices = (num_points - 1) * 4;
+  u32 const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
+  CHECK(vertices.extend_uninitialized(num_vertices));
+  CHECK(indices.extend_uninitialized(num_indices));
 
-  Vec2 *out_v = vertices.data() + first_v;
-  u32  *out_i = indices.data() + first_i;
-  u32   vtx   = 0;
+  Vec2 *vtx  = vertices.data() + first_vtx;
+  u32  *idx  = indices.data() + first_idx;
+  u32   ivtx = 0;
 
-  for (usize i = 0; i < points.size() - 1; i++)
+  for (usize i = 0; i < num_points - 1; i++)
   {
-    Vec2 const p0 = points[i];
-    Vec2 const p1 = points[i + 1];
-    add_line_stroke(out_v, out_i, vtx, p0, p1, thickness);
-    out_v += 4;
-    out_i += 6;
+    Vec2 const p0    = points[i];
+    Vec2 const p1    = points[i + 1];
+    Vec2 const d     = p1 - p0;
+    f32 const  alpha = std::atanf(d.y / d.x);
+
+    // parallel angle
+    Vec2 const down = (thickness / 2) * rotor(alpha + PI / 2);
+
+    // perpendicular angle
+    Vec2 const up = -down;
+
+    vtx[0] = p0 + up;
+    vtx[1] = p0 + down;
+    vtx[2] = p1 + up;
+    vtx[3] = p1 + down;
+    idx[0] = ivtx;
+    idx[1] = ivtx + 1;
+    idx[2] = ivtx + 3;
+    idx[3] = ivtx;
+    idx[4] = ivtx + 3;
+    idx[5] = ivtx + 2;
+
+    if (i != 0)
+    {
+      u32 prev = ivtx - 2;
+      idx[6]   = prev;
+      idx[7]   = prev + 1;
+      idx[8]   = ivtx + 1;
+      idx[9]   = prev;
+      idx[10]  = prev + 1;
+      idx[11]  = ivtx;
+      idx += 6;
+    }
+
+    idx += 6;
     vtx += 4;
+    ivtx += 4;
   }
 }
 
@@ -641,7 +651,7 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));
-  u32 const num_indices = (u32) (vertices.size() - first_vertex);
+  u32 const num_indices = (u32) (indices.size() - first_index);
 
   CHECK(ngon_index_counts.push(num_indices));
 
