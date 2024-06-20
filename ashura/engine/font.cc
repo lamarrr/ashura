@@ -89,8 +89,8 @@ void FontAtlasResource::init(RenderContext &c, FontAtlas const &atlas,
     u64 offset = (u64) atlas.extent.x * (u64) atlas.extent.y * 4 * (u64) layer;
     copies[layer] = gfx::BufferImageCopy{
         .buffer_offset       = offset,
-        .buffer_row_length   = 0,
-        .buffer_image_height = 0,
+        .buffer_row_length   = atlas.extent.x,
+        .buffer_image_height = atlas.extent.y,
         .image_layers        = {.aspects           = gfx::ImageAspects::Color,
                                 .mip_level         = 0,
                                 .first_array_layer = layer,

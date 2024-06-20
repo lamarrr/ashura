@@ -19,10 +19,13 @@ static_assert(PT_UNIT % 64 == 0);
 
 constexpr u32 FONT_ATLAS_EXTENT = 512;
 
-static_assert(FONT_ATLAS_EXTENT != 0);
-static_assert(FONT_ATLAS_EXTENT > 128);
-static_assert(FONT_ATLAS_EXTENT % 64 == 0);
-static_assert(FONT_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT_2D);
+static_assert(FONT_ATLAS_EXTENT > 0, "Font atlas extent must be non-zero");
+static_assert(FONT_ATLAS_EXTENT > 128,
+              "Font atlas extent must be at least 128px");
+static_assert(FONT_ATLAS_EXTENT % 64 == 0,
+              "Font atlas extent should be a multiple of 64");
+static_assert(FONT_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT_2D,
+              "Font atlas extent too large for GPU platform");
 
 Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
                                    AllocatorImpl const &allocator)
@@ -63,7 +66,6 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
   if (face >= num_faces)
   {
     return Err{FontStatus::FaceNotFound};
-    ;
   }
 
   hb_face_t *hb_face = hb_face_create(hb_blob, face);
@@ -319,6 +321,8 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
   CHECK(font_height <= 1024);
   CHECK(font_height <= FONT_ATLAS_EXTENT / 4);
 
+  Vec2U const atlas_extent{FONT_ATLAS_EXTENT, FONT_ATLAS_EXTENT};
+
   FontImpl *f = (FontImpl *) font;
 
   if (!atlas.glyphs.resize_defaulted(f->num_glyphs))
@@ -337,6 +341,15 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
   {
     if (f->glyphs[i].is_valid)
     {
+      FT_Error ft_error = FT_Load_Glyph(f->ft_face, i, FT_LOAD_DEFAULT);
+      if (ft_error != 0)
+      {
+        continue;
+      }
+
+      atlas.glyphs[i].area.extent = Vec2U{f->ft_face->glyph->bitmap.width,
+                                          f->ft_face->glyph->bitmap.rows};
+
       num_rasterized_glyphs++;
     }
   }
@@ -371,12 +384,12 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
     }
 
     rect_pack::Node *nodes;
-    if (!allocator.nalloc(FONT_ATLAS_EXTENT, &nodes))
+    if (!allocator.nalloc(atlas_extent.x, &nodes))
     {
       return false;
     }
 
-    defer nodes_del{[&] { allocator.ndealloc(nodes, FONT_ATLAS_EXTENT); }};
+    defer nodes_del{[&] { allocator.ndealloc(nodes, atlas_extent.x); }};
 
     u32  num_packed = 0;
     bool all_packed = false;
@@ -385,7 +398,7 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
     {
       // tries to pack all the glyph rects into the provided extent
       rect_pack::Context pack_context = rect_pack::init(
-          FONT_ATLAS_EXTENT, FONT_ATLAS_EXTENT, nodes, FONT_ATLAS_EXTENT, true);
+          atlas_extent.x, atlas_extent.y, nodes, atlas_extent.x, true);
       all_packed = rect_pack::pack_rects(pack_context, rects + num_packed,
                                          num_rasterized_glyphs - num_packed);
       auto [just_packed, unpacked] =
@@ -410,15 +423,15 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
       g.area.offset.x   = (u32) r.x + 1;
       g.area.offset.y   = (u32) r.y + 1;
       g.layer           = r.layer;
-      g.uv[0]           = Vec2{g.area.offset.x / (f32) FONT_ATLAS_EXTENT,
-                     g.area.offset.y / (f32) FONT_ATLAS_EXTENT};
+      g.uv[0]           = Vec2{g.area.offset.x / (f32) atlas_extent.x,
+                     g.area.offset.y / (f32) atlas_extent.y};
       g.uv[1] =
-          Vec2{(g.area.offset.x + g.area.extent.x) / (f32) FONT_ATLAS_EXTENT,
-               (g.area.offset.y + g.area.extent.y) / (f32) FONT_ATLAS_EXTENT};
+          Vec2{(g.area.offset.x + g.area.extent.x) / (f32) atlas_extent.x,
+               (g.area.offset.y + g.area.extent.y) / (f32) atlas_extent.y};
     }
   }
 
-  u64 const atlas_area = (u64) FONT_ATLAS_EXTENT * (u64) FONT_ATLAS_EXTENT;
+  u64 const atlas_area       = (u64) atlas_extent.x * (u64) atlas_extent.y;
   u64 const atlas_layer_size = atlas_area;
   u64 const atlas_size       = atlas_layer_size * num_layers;
 
@@ -428,8 +441,8 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
   }
 
   ImageLayerSpan<u8, 1> atlas_span{.channels = to_span(atlas.channels),
-                                   .width    = FONT_ATLAS_EXTENT,
-                                   .height   = FONT_ATLAS_EXTENT,
+                                   .width    = atlas_extent.x,
+                                   .height   = atlas_extent.y,
                                    .layers   = num_layers};
 
   for (u32 i = 0; i < f->num_glyphs; i++)
@@ -438,14 +451,9 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
     AtlasGlyph const &ag = atlas.glyphs[i];
     if (g.is_valid)
     {
-      FT_Error ft_error = FT_Load_Glyph(f->ft_face, i, FT_LOAD_DEFAULT);
-      if (ft_error != 0)
-      {
-        continue;
-      }
-
       FT_GlyphSlot slot = f->ft_face->glyph;
-      ft_error          = FT_Render_Glyph(slot, FT_RENDER_MODE_NORMAL);
+      FT_Error     ft_error =
+          FT_Load_Glyph(f->ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_RENDER);
       if (ft_error != 0)
       {
         continue;
@@ -462,12 +470,13 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
           .height   = slot->bitmap.rows,
           .stride   = (u32) slot->bitmap.pitch};
 
-      copy_image(src, atlas_span.get_layer(ag.layer));
+      copy_image(src, atlas_span.get_layer(ag.layer).slice(ag.area.offset,
+                                                           ag.area.extent));
     }
   }
 
   atlas.font_height = font_height;
-  atlas.extent      = Vec2U{FONT_ATLAS_EXTENT, FONT_ATLAS_EXTENT};
+  atlas.extent      = atlas_extent;
   atlas.num_layers  = num_layers;
 
   return true;
