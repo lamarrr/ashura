@@ -368,7 +368,7 @@ void Canvas::circle(ShapeDesc const &desc)
       .tiling       = desc.tiling,
       .aspect_ratio = desc.extent.x / desc.extent.y,
       .stroke       = desc.stroke,
-      .thickness    = desc.thickness,
+      .thickness    = desc.thickness / desc.extent.y,
       .edge_smoothness = desc.edge_smoothness,
       .sampler         = desc.sampler,
       .albedo          = desc.texture}));
@@ -386,7 +386,7 @@ void Canvas::rect(ShapeDesc const &desc)
       .tiling       = desc.tiling,
       .aspect_ratio = desc.extent.x / desc.extent.y,
       .stroke       = desc.stroke,
-      .thickness    = desc.thickness,
+      .thickness    = desc.thickness / desc.extent.y,
       .edge_smoothness = desc.edge_smoothness,
       .sampler         = desc.sampler,
       .albedo          = desc.texture}));
@@ -404,7 +404,7 @@ void Canvas::rrect(ShapeDesc const &desc)
       .tiling       = desc.tiling,
       .aspect_ratio = desc.extent.x / desc.extent.y,
       .stroke       = desc.stroke,
-      .thickness    = desc.thickness,
+      .thickness    = desc.thickness / desc.extent.y,
       .edge_smoothness = desc.edge_smoothness,
       .sampler         = desc.sampler,
       .albedo          = desc.texture}));
