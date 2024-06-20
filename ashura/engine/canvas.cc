@@ -274,7 +274,6 @@ void Path::triangles(Span<Vec2 const> points, Vec<u32> &indices)
   CHECK(indices.extend_uninitialized(num_triangles * 3));
 
   u32 *idx = indices.data() + first_idx;
-  u32  vtx = 1;
   for (u32 i = 0; i < num_triangles * 3; i += 3)
   {
     idx[i]     = i;
@@ -419,15 +418,14 @@ void Canvas::rrect(ShapeDesc const &desc)
   add_run(*this, CanvasPassType::RRect, desc.scissor);
 }
 
-constexpr bool is_transparent(Vec4 const (&colors)[4])
+constexpr bool is_transparent(ColorGradient const &g)
 {
-  return colors[0].w == 0 && colors[1].w == 0 && colors[2].w == 0 &&
-         colors[3].w == 0;
+  return g[0].w == 0 && g[1].w == 0 && g[2].w == 0 && g[3].w == 0;
 }
 
 void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                   TextLayout const &layout, TextBlockStyle const &style,
-                  Span<FontAtlasResource const *> atlases)
+                  Span<FontAtlasResource const *const> atlases)
 {
   CHECK(style.runs.size() == block.runs.size());
   CHECK(style.runs.size() == block.fonts.size());
@@ -476,17 +474,14 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
         FontInfo                 font       = get_font_info(font_style.font);
         FontAtlasResource const *atlas      = atlases[run.style];
 
-        if (!is_transparent(run_style.background_color))
+        if (!is_transparent(run_style.background))
         {
           Vec3 center{cursor + advance / 2, line_y - run.line_height / 2, 0};
           Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
                       m.line_height};
           rect(ShapeDesc{.center    = desc.center,
                          .extent    = extent,
-                         .tint      = {run_style.background_color[0],
-                                       run_style.background_color[1],
-                                       run_style.background_color[2],
-                                       run_style.background_color[3]},
+                         .tint      = run_style.background,
                          .transform = translate3d(center) * desc.transform *
                                       translate3d(-center),
                          .scissor = desc.scissor});
@@ -513,30 +508,25 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
             {
               Vec3 shadow_center = center + to_vec3(run_style.shadow_offset, 0);
               Vec2 shadow_extent = extent * run_style.shadow_scale;
-              rect(ShapeDesc{
-                  .center = desc.center,
-                  .extent = shadow_extent,
-                  .tint = {run_style.shadow_color[0], run_style.shadow_color[1],
-                           run_style.shadow_color[2],
-                           run_style.shadow_color[3]},
-                  .sampler         = desc.sampler,
-                  .texture         = atlas->textures[agl.layer],
-                  .uv              = {agl.uv[0], agl.uv[1]},
-                  .tiling          = desc.tiling,
-                  .edge_smoothness = desc.edge_smoothness,
-                  .transform = translate3d(shadow_center) * desc.transform *
-                               translate3d(-shadow_center),
-                  .scissor = desc.scissor});
+              rect(ShapeDesc{.center          = desc.center,
+                             .extent          = shadow_extent,
+                             .tint            = run_style.shadow,
+                             .sampler         = desc.sampler,
+                             .texture         = atlas->textures[agl.layer],
+                             .uv              = {agl.uv[0], agl.uv[1]},
+                             .tiling          = desc.tiling,
+                             .edge_smoothness = desc.edge_smoothness,
+                             .transform       = translate3d(shadow_center) *
+                                          desc.transform *
+                                          translate3d(-shadow_center),
+                             .scissor = desc.scissor});
             }
 
-            if (layer == 1 && !is_transparent(run_style.foreground_color))
+            if (layer == 1 && !is_transparent(run_style.foreground))
             {
               rect(ShapeDesc{.center          = desc.center,
                              .extent          = extent,
-                             .tint            = {run_style.foreground_color[0],
-                                                 run_style.foreground_color[1],
-                                                 run_style.foreground_color[2],
-                                                 run_style.foreground_color[3]},
+                             .tint            = run_style.foreground,
                              .sampler         = desc.sampler,
                              .texture         = atlas->textures[agl.layer],
                              .uv              = {agl.uv[0], agl.uv[1]},
@@ -558,10 +548,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                       run_style.strikethrough_thickness};
           rect(ShapeDesc{.center          = desc.center,
                          .extent          = extent,
-                         .tint            = {run_style.strikethrough_color[0],
-                                             run_style.strikethrough_color[1],
-                                             run_style.strikethrough_color[2],
-                                             run_style.strikethrough_color[3]},
+                         .tint            = run_style.strikethrough,
                          .sampler         = desc.sampler,
                          .texture         = 0,
                          .uv              = {},
@@ -579,10 +566,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                       run_style.underline_thickness};
           rect(ShapeDesc{.center          = desc.center,
                          .extent          = extent,
-                         .tint            = {run_style.underline_color[0],
-                                             run_style.underline_color[1],
-                                             run_style.underline_color[2],
-                                             run_style.underline_color[3]},
+                         .tint            = run_style.underline,
                          .sampler         = desc.sampler,
                          .texture         = 0,
                          .uv              = {},

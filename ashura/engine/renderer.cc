@@ -127,6 +127,7 @@ void CanvasRenderer::begin(RenderContext &ctx, PassContext &passes,
                            Canvas const &canvas, gfx::RenderingInfo const &,
                            gfx::DescriptorSet)
 {
+  (void) passes;
   CanvasResources &r = resources[ctx.ring_index()];
   r.vertices.copy(ctx, to_span(canvas.vertices).as_u8(),
                   "Canvas Vertices"_span);

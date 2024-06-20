@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ashura/engine/font.h"
+#include "ashura/engine/types.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
@@ -240,15 +241,15 @@ struct FontStyle
 /// @param shadow_offset px. offset from center of glyph
 struct TextStyle
 {
-  f32  underline_thickness     = 0;
-  f32  strikethrough_thickness = 0;
-  f32  shadow_scale            = 0;
-  Vec2 shadow_offset           = Vec2{0, 0};
-  Vec4 foreground_color[4]     = {};
-  Vec4 background_color[4]     = {};
-  Vec4 underline_color[4]      = {};
-  Vec4 strikethrough_color[4]  = {};
-  Vec4 shadow_color[4]         = {};
+  f32           underline_thickness     = 0;
+  f32           strikethrough_thickness = 0;
+  f32           shadow_scale            = 0;
+  Vec2          shadow_offset           = Vec2{0, 0};
+  ColorGradient foreground              = {};
+  ColorGradient background              = {};
+  ColorGradient underline               = {};
+  ColorGradient strikethrough           = {};
+  ColorGradient shadow                  = {};
 };
 
 /// @param text utf-32-encoded text

@@ -4,6 +4,7 @@
 #include "ashura/engine/passes/ngon.h"
 #include "ashura/engine/passes/rrect.h"
 #include "ashura/engine/text.h"
+#include "ashura/engine/types.h"
 #include "ashura/std/math.h"
 #include "ashura/std/types.h"
 
@@ -30,19 +31,19 @@ enum class ScaleMode : u8
 /// @param scissor in surface pixel coordinates
 struct ShapeDesc
 {
-  Vec2      center       = {0, 0};
-  Vec2      extent       = {0, 0};
-  Vec4      border_radii = {0, 0, 0, 0};
-  f32       stroke       = 0.0f;
-  f32       thickness    = 1.0f;
-  Vec4      tint[4] = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}};
-  u32       sampler = 0;
-  u32       texture = 0;
-  Vec2      uv[2]   = {{0, 0}, {1, 1}};
-  f32       tiling  = 1;
-  f32       edge_smoothness = 0.0015F;
-  Mat4      transform       = Mat4::identity();
-  gfx::Rect scissor         = {.offset = {0, 0}, .extent = {U32_MAX, U32_MAX}};
+  Vec2          center          = {0, 0};
+  Vec2          extent          = {0, 0};
+  Vec4          border_radii    = {0, 0, 0, 0};
+  f32           stroke          = 0.0f;
+  f32           thickness       = 1.0f;
+  ColorGradient tint            = {};
+  u32           sampler         = 0;
+  u32           texture         = 0;
+  Vec2          uv[2]           = {{0, 0}, {1, 1}};
+  f32           tiling          = 1;
+  f32           edge_smoothness = 0.0015F;
+  Mat4          transform       = Mat4::identity();
+  gfx::Rect     scissor = {.offset = {0, 0}, .extent = {U32_MAX, U32_MAX}};
 };
 
 struct CanvasPassRun
@@ -135,7 +136,7 @@ struct Canvas
 
   void text(ShapeDesc const &desc, TextBlock const &block,
             TextLayout const &layout, TextBlockStyle const &style,
-            Span<FontAtlasResource const *> atlases);
+            Span<FontAtlasResource const *const> atlases);
 
   void triangles(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
