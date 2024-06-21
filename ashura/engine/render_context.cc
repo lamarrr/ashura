@@ -88,12 +88,24 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   color_format         = sel_color_format;
   depth_stencil_format = sel_depth_stencil_format;
 
+  ubo_layout =
+      device
+          ->create_descriptor_set_layout(
+              device.self,
+              gfx::DescriptorSetLayoutDesc{
+                  .label    = "UBO Layout"_span,
+                  .bindings = to_span({gfx::DescriptorBindingDesc{
+                      .type  = gfx::DescriptorType::DynamicUniformBuffer,
+                      .count = 1,
+                      .is_variable_length = false}})})
+          .unwrap();
+
   ssbo_layout =
       device
           ->create_descriptor_set_layout(
               device.self,
               gfx::DescriptorSetLayoutDesc{
-                  .label    = "SSBO"_span,
+                  .label    = "SSBO Layout"_span,
                   .bindings = to_span({gfx::DescriptorBindingDesc{
                       .type  = gfx::DescriptorType::DynamicStorageBuffer,
                       .count = 1,
@@ -104,41 +116,160 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                         ->create_descriptor_set_layout(
                             device.self,
                             gfx::DescriptorSetLayoutDesc{
-                                .label    = "Texture Pack"_span,
+                                .label    = "Textures Layout"_span,
                                 .bindings = to_span({gfx::DescriptorBindingDesc{
                                     .type  = gfx::DescriptorType::SampledImage,
-                                    .count = NUM_TEXTURES,
+                                    .count = NUM_TEXTURE_SLOTS,
                                     .is_variable_length = true}})})
                         .unwrap();
 
-  sampler_layout = device
-                       ->create_descriptor_set_layout(
-                           device.self,
-                           gfx::DescriptorSetLayoutDesc{
-                               .label    = "Sampler"_span,
-                               .bindings = to_span({gfx::DescriptorBindingDesc{
-                                   .type  = gfx::DescriptorType::Sampler,
-                                   .count = 1,
-                                   .is_variable_length = false}})})
-                       .unwrap();
+  samplers_layout = device
+                        ->create_descriptor_set_layout(
+                            device.self,
+                            gfx::DescriptorSetLayoutDesc{
+                                .label    = "Samplers Layout"_span,
+                                .bindings = to_span({gfx::DescriptorBindingDesc{
+                                    .type  = gfx::DescriptorType::Sampler,
+                                    .count = NUM_SAMPLER_SLOTS,
+                                    .is_variable_length = true}})})
+                        .unwrap();
 
   texture_views = device
                       ->create_descriptor_set(device.self, textures_layout,
-                                              to_span<u32>({NUM_TEXTURES}))
+                                              to_span<u32>({NUM_TEXTURE_SLOTS}))
                       .unwrap();
 
+  samplers = device
+                 ->create_descriptor_set(device.self, samplers_layout,
+                                         to_span<u32>({NUM_SAMPLER_SLOTS}))
+                 .unwrap();
+
   recreate_framebuffers(p_initial_extent);
+
+  CachedSampler sampler = create_sampler(
+      gfx::SamplerDesc{.label             = "Linear+Repeat Sampler"_span,
+                       .mag_filter        = gfx::Filter::Linear,
+                       .min_filter        = gfx::Filter::Linear,
+                       .mip_map_mode      = gfx::SamplerMipMapMode::Linear,
+                       .address_mode_u    = gfx::SamplerAddressMode::Repeat,
+                       .address_mode_v    = gfx::SamplerAddressMode::Repeat,
+                       .address_mode_w    = gfx::SamplerAddressMode::Repeat,
+                       .mip_lod_bias      = 0,
+                       .anisotropy_enable = false,
+                       .max_anisotropy    = 1.0,
+                       .compare_enable    = false,
+                       .compare_op        = gfx::CompareOp::Never,
+                       .min_lod           = 0,
+                       .max_lod           = 0,
+                       .border_color = gfx::BorderColor::FloatTransparentBlack,
+                       .unnormalized_coordinates = false});
+
+  CHECK(sampler.slot == SAMPLER_LINEAR);
+
+  sampler = create_sampler(
+      gfx::SamplerDesc{.label             = "Nearest+Repeat Sampler"_span,
+                       .mag_filter        = gfx::Filter::Nearest,
+                       .min_filter        = gfx::Filter::Nearest,
+                       .mip_map_mode      = gfx::SamplerMipMapMode::Nearest,
+                       .address_mode_u    = gfx::SamplerAddressMode::Repeat,
+                       .address_mode_v    = gfx::SamplerAddressMode::Repeat,
+                       .address_mode_w    = gfx::SamplerAddressMode::Repeat,
+                       .mip_lod_bias      = 0,
+                       .anisotropy_enable = false,
+                       .max_anisotropy    = 1.0,
+                       .compare_enable    = false,
+                       .compare_op        = gfx::CompareOp::Never,
+                       .min_lod           = 0,
+                       .max_lod           = 0,
+                       .border_color = gfx::BorderColor::FloatTransparentBlack,
+                       .unnormalized_coordinates = false});
+
+  CHECK(sampler.slot == SAMPLER_NEAREST);
+
+  default_image =
+      device
+          ->create_image(
+              device.self,
+              gfx::ImageDesc{.label  = "Default Texture Image"_span,
+                             .type   = gfx::ImageType::Type2D,
+                             .format = gfx::Format::B8G8R8A8_UNORM,
+                             .usage  = gfx::ImageUsage::Sampled |
+                                      gfx::ImageUsage::TransferDst |
+                                      gfx::ImageUsage::Storage |
+                                      gfx::ImageUsage::Storage,
+                             .aspects      = gfx::ImageAspects::Color,
+                             .extent       = {1, 1, 1},
+                             .mip_levels   = 1,
+                             .array_layers = 1,
+                             .sample_count = gfx::SampleCount::Count1})
+          .unwrap();
+
+  {
+    gfx::ComponentMapping mappings[NUM_DEFAULT_TEXTURES] = {};
+    mappings[TEXTURE_WHITE]       = {.r = gfx::ComponentSwizzle::One,
+                                     .g = gfx::ComponentSwizzle::One,
+                                     .b = gfx::ComponentSwizzle::One,
+                                     .a = gfx::ComponentSwizzle::One};
+    mappings[TEXTURE_BLACK]       = {.r = gfx::ComponentSwizzle::Zero,
+                                     .g = gfx::ComponentSwizzle::Zero,
+                                     .b = gfx::ComponentSwizzle::Zero,
+                                     .a = gfx::ComponentSwizzle::One};
+    mappings[TEXTURE_TRANSPARENT] = {.r = gfx::ComponentSwizzle::Zero,
+                                     .g = gfx::ComponentSwizzle::Zero,
+                                     .b = gfx::ComponentSwizzle::Zero,
+                                     .a = gfx::ComponentSwizzle::Zero};
+    mappings[TEXTURE_RED]         = {.r = gfx::ComponentSwizzle::One,
+                                     .g = gfx::ComponentSwizzle::Zero,
+                                     .b = gfx::ComponentSwizzle::Zero,
+                                     .a = gfx::ComponentSwizzle::One};
+    mappings[TEXTURE_GREEN]       = {.r = gfx::ComponentSwizzle::Zero,
+                                     .g = gfx::ComponentSwizzle::One,
+                                     .b = gfx::ComponentSwizzle::Zero,
+                                     .a = gfx::ComponentSwizzle::One};
+    mappings[TEXTURE_BLUE]        = {.r = gfx::ComponentSwizzle::Zero,
+                                     .g = gfx::ComponentSwizzle::Zero,
+                                     .b = gfx::ComponentSwizzle::One,
+                                     .a = gfx::ComponentSwizzle::One};
+
+    for (u32 i = 0; i < NUM_DEFAULT_TEXTURES; i++)
+    {
+      default_image_views[i] =
+          device
+              ->create_image_view(
+                  device.self,
+                  gfx::ImageViewDesc{.label = "Default Texture Image View"_span,
+                                     .image = default_image,
+                                     .view_type   = gfx::ImageViewType::Type2D,
+                                     .view_format = gfx::Format::B8G8R8A8_UNORM,
+                                     .mapping     = mappings[i],
+                                     .aspects     = gfx::ImageAspects::Color,
+                                     .first_mip_level   = 0,
+                                     .num_mip_levels    = 1,
+                                     .first_array_layer = 0,
+                                     .num_array_layers  = 1})
+              .unwrap();
+
+      u32 slot = alloc_texture_slot();
+
+      CHECK(slot == i);
+
+      device->update_descriptor_set(
+          device.self, gfx::DescriptorSetUpdate{
+                           .set     = texture_views,
+                           .binding = 0,
+                           .element = slot,
+                           .images  = to_span({gfx::ImageBinding{
+                                .image_view = default_image_views[i]}})});
+    }
+  }
 }
 
-static void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
-                                gfx::Extent new_extent)
+static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
+                                 gfx::Extent new_extent)
 {
-  ctx.release(attachment.color_image);
-  ctx.release(attachment.color_image_view);
-  ctx.release(attachment.depth_stencil_image);
-  ctx.release(attachment.depth_stencil_image_view);
+  ctx.release(fb);
 
-  attachment.color_image_desc = gfx::ImageDesc{
+  fb.color.desc = gfx::ImageDesc{
       .label  = "Framebuffer Color Image"_span,
       .type   = gfx::ImageType::Type2D,
       .format = ctx.color_format,
@@ -151,27 +282,25 @@ static void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
       .array_layers = 1,
       .sample_count = gfx::SampleCount::Count1};
 
-  attachment.color_image =
-      ctx.device->create_image(ctx.device.self, attachment.color_image_desc)
-          .unwrap();
+  fb.color.image =
+      ctx.device->create_image(ctx.device.self, fb.color.desc).unwrap();
 
-  attachment.color_image_view_desc =
+  fb.color.view_desc =
       gfx::ImageViewDesc{.label           = "Framebuffer Color Image View"_span,
-                         .image           = attachment.color_image,
+                         .image           = fb.color.image,
                          .view_type       = gfx::ImageViewType::Type2D,
-                         .view_format     = attachment.color_image_desc.format,
+                         .view_format     = fb.color.desc.format,
                          .mapping         = {},
                          .aspects         = gfx::ImageAspects::Color,
                          .first_mip_level = 0,
                          .num_mip_levels  = 1,
                          .first_array_layer = 0,
                          .num_array_layers  = 1};
-  attachment.color_image_view =
-      ctx.device
-          ->create_image_view(ctx.device.self, attachment.color_image_view_desc)
+  fb.color.view =
+      ctx.device->create_image_view(ctx.device.self, fb.color.view_desc)
           .unwrap();
 
-  attachment.depth_stencil_image_desc = gfx::ImageDesc{
+  fb.depth_stencil.desc = gfx::ImageDesc{
       .label  = "Framebuffer Depth Stencil Image"_span,
       .type   = gfx::ImageType::Type2D,
       .format = ctx.depth_stencil_format,
@@ -184,16 +313,14 @@ static void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
       .array_layers = 1,
       .sample_count = gfx::SampleCount::Count1};
 
-  attachment.depth_stencil_image =
-      ctx.device
-          ->create_image(ctx.device.self, attachment.depth_stencil_image_desc)
-          .unwrap();
+  fb.depth_stencil.image =
+      ctx.device->create_image(ctx.device.self, fb.depth_stencil.desc).unwrap();
 
-  attachment.depth_stencil_image_view_desc = gfx::ImageViewDesc{
+  fb.depth_stencil.view_desc = gfx::ImageViewDesc{
       .label           = "Framebuffer Depth Stencil Image View"_span,
-      .image           = attachment.depth_stencil_image,
+      .image           = fb.depth_stencil.image,
       .view_type       = gfx::ImageViewType::Type2D,
-      .view_format     = attachment.depth_stencil_image_desc.format,
+      .view_format     = fb.depth_stencil.desc.format,
       .mapping         = {},
       .aspects         = gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
       .first_mip_level = 0,
@@ -201,37 +328,48 @@ static void recreate_attachment(RenderContext &ctx, Framebuffer &attachment,
       .first_array_layer = 0,
       .num_array_layers  = 1};
 
-  attachment.depth_stencil_image_view =
-      ctx.device
-          ->create_image_view(ctx.device.self,
-                              attachment.depth_stencil_image_view_desc)
+  fb.depth_stencil.view =
+      ctx.device->create_image_view(ctx.device.self, fb.depth_stencil.view_desc)
           .unwrap();
 
-  attachment.extent = new_extent;
+  fb.color_texture =
+      ctx.device
+          ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
+                                  to_span<u32>({1}))
+          .unwrap();
+
+  ctx.device->update_descriptor_set(
+      ctx.device.self,
+      gfx::DescriptorSetUpdate{
+          .set     = fb.color_texture,
+          .binding = 0,
+          .element = 0,
+          .images = to_span({gfx::ImageBinding{.image_view = fb.color.view}})});
+
+  fb.extent = new_extent;
 }
 
 void RenderContext::uninit()
 {
-  device->destroy_pipeline_cache(device.self, pipeline_cache);
-  device->destroy_image(device.self, framebuffer.color_image);
-  device->destroy_image_view(device.self, framebuffer.color_image_view);
-  device->destroy_image(device.self, framebuffer.depth_stencil_image);
-  device->destroy_image_view(device.self, framebuffer.depth_stencil_image_view);
-  device->destroy_image(device.self, scratch_framebuffer.color_image);
-  device->destroy_image_view(device.self, scratch_framebuffer.color_image_view);
-  device->destroy_image(device.self, scratch_framebuffer.depth_stencil_image);
-  device->destroy_image_view(device.self,
-                             scratch_framebuffer.depth_stencil_image_view);
-  device->destroy_descriptor_set(device.self, texture_views);
-  device->destroy_descriptor_set(device.self, color_texture_view);
-  device->destroy_descriptor_set(device.self, scratch_color_texture_view);
-  device->destroy_descriptor_set_layout(device.self, ssbo_layout);
-  device->destroy_descriptor_set_layout(device.self, textures_layout);
-  idle_purge();
-  for (u32 i = 0; i < buffering; i++)
+  release(default_image);
+  for (gfx::ImageView v : default_image_views)
   {
-    released_objects[i].reset();
+    release(v);
   }
+  release(texture_views);
+  release(samplers);
+  release(ubo_layout);
+  release(ssbo_layout);
+  release(textures_layout);
+  release(samplers_layout);
+  release(screen_fb);
+  release(scratch_fb);
+  sampler_cache.for_each([&](gfx::SamplerDesc const &, CachedSampler sampler) {
+    release(sampler.sampler);
+  });
+  idle_reclaim();
+  device->destroy_pipeline_cache(device.self, pipeline_cache);
+
   shader_map.for_each([&](Span<char const>, gfx::Shader shader) {
     device->destroy_shader(device.self, shader);
   });
@@ -240,39 +378,8 @@ void RenderContext::uninit()
 
 void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
 {
-  recreate_attachment(*this, framebuffer, new_extent);
-  recreate_attachment(*this, scratch_framebuffer, new_extent);
-  release(color_texture_view);
-  release(scratch_color_texture_view);
-
-  color_texture_view = device
-                           ->create_descriptor_set(device.self, textures_layout,
-                                                   to_span<u32>({1}))
-                           .unwrap();
-
-  scratch_color_texture_view =
-      device
-          ->create_descriptor_set(device.self, textures_layout,
-                                  to_span<u32>({1}))
-          .unwrap();
-
-  device->update_descriptor_set(
-      device.self, gfx::DescriptorSetUpdate{
-                       .set     = color_texture_view,
-                       .binding = 0,
-                       .element = 0,
-                       .images  = to_span({gfx::ImageBinding{
-                            .sampler    = nullptr,
-                            .image_view = framebuffer.color_image_view}})});
-  device->update_descriptor_set(
-      device.self,
-      gfx::DescriptorSetUpdate{
-          .set     = scratch_color_texture_view,
-          .binding = 0,
-          .element = 0,
-          .images  = to_span({gfx::ImageBinding{
-               .sampler    = nullptr,
-               .image_view = scratch_framebuffer.color_image_view}})});
+  recreate_framebuffer(*this, screen_fb, new_extent);
+  recreate_framebuffer(*this, scratch_fb, new_extent);
 }
 
 gfx::CommandEncoderImpl RenderContext::encoder()
@@ -307,6 +414,90 @@ Option<gfx::Shader> RenderContext::get_shader(Span<char const> name)
     return None;
   }
   return Some{*shader};
+}
+
+CachedSampler RenderContext::create_sampler(gfx::SamplerDesc const &desc)
+{
+  CachedSampler *cached = sampler_cache[desc];
+  if (cached != nullptr)
+  {
+    return *cached;
+  }
+
+  CachedSampler sampler{.sampler =
+                            device->create_sampler(device.self, desc).unwrap(),
+                        .slot = alloc_sampler_slot()};
+
+  device->update_descriptor_set(
+      device.self,
+      gfx::DescriptorSetUpdate{
+          .set     = samplers,
+          .binding = 0,
+          .element = sampler.slot,
+          .images  = to_span({gfx::ImageBinding{.sampler = sampler.sampler}})});
+
+  bool exists;
+  CHECK(sampler_cache.insert(exists, nullptr, desc, sampler) && !exists);
+
+  return sampler;
+}
+
+u32 RenderContext::alloc_texture_slot()
+{
+  for (u16 i = 0; i < (NUM_TEXTURE_SLOTS >> 6); i++)
+  {
+    u64 const mask = texture_slots[i];
+    if (mask == U64_MAX)
+    {
+      continue;
+    }
+
+    for (u16 j = 0; j < 64; j++)
+    {
+      if (((mask >> j) & 0x1) == 0)
+      {
+        texture_slots[i] = mask | (((u64) 1) << j);
+        return (i << 6) + j;
+      }
+    }
+  }
+
+  CHECK_DESC(false, "Ran out of Texture slots");
+}
+
+void RenderContext::release_texture_slot(u32 slot)
+{
+  texture_slots[slot >> 6] =
+      texture_slots[slot >> 6] & ~(((u64) 1) << (slot & 63));
+}
+
+u32 RenderContext::alloc_sampler_slot()
+{
+  for (u16 i = 0; i < (NUM_SAMPLER_SLOTS >> 6); i++)
+  {
+    u64 const mask = sampler_slots[i];
+    if (mask == U64_MAX)
+    {
+      continue;
+    }
+
+    for (u16 j = 0; j < 64; j++)
+    {
+      if (((mask >> j) & 0x1) == 0)
+      {
+        sampler_slots[i] = mask | (((u64) 1) << j);
+        return (i << 6) + j;
+      }
+    }
+  }
+
+  CHECK_DESC(false, "Ran out of Sampler slots");
+}
+
+void RenderContext::release_sampler_slot(u32 slot)
+{
+  sampler_slots[slot >> 6] =
+      sampler_slots[slot >> 6] & ~(((u64) 1) << (slot & 63));
 }
 
 void RenderContext::release(gfx::Image image)
@@ -347,6 +538,17 @@ void RenderContext::release(gfx::BufferView view)
   }
   CHECK(released_objects[ring_index()].push(
       gfx::Object{.buffer_view = view, .type = gfx::ObjectType::BufferView}));
+}
+
+void RenderContext::release(gfx::DescriptorSetLayout layout)
+{
+  if (layout == nullptr)
+  {
+    return;
+  }
+  CHECK(released_objects[ring_index()].push(
+      gfx::Object{.descriptor_set_layout = layout,
+                  .type = gfx::ObjectType::DescriptorSetLayout}));
 }
 
 void RenderContext::release(gfx::DescriptorSet set)
@@ -395,18 +597,22 @@ static void destroy_objects(gfx::DeviceImpl const  &d,
       case gfx::ObjectType::DescriptorSet:
         d->destroy_descriptor_set(d.self, obj.descriptor_set);
         break;
+      case gfx::ObjectType::DescriptorSetLayout:
+        d->destroy_descriptor_set_layout(d.self, obj.descriptor_set_layout);
+        break;
       default:
         UNREACHABLE();
     }
   }
 }
 
-void RenderContext::idle_purge()
+void RenderContext::idle_reclaim()
 {
   device->wait_idle(device.self).unwrap();
   for (u32 i = 0; i < buffering; i++)
   {
     destroy_objects(device, to_span(released_objects[i]));
+    released_objects[i].reset();
   }
 }
 
@@ -415,6 +621,44 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
   device->begin_frame(device.self, swapchain).unwrap();
   destroy_objects(device, to_span(released_objects[ring_index()]));
   released_objects[ring_index()].clear();
+
+  gfx::CommandEncoderImpl enc = encoder();
+
+  enc->clear_color_image(
+      enc.self, screen_fb.color.image, gfx::Color{.float32 = {0, 0, 0, 0}},
+      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                          .first_mip_level   = 0,
+                                          .num_mip_levels    = 1,
+                                          .first_array_layer = 0,
+                                          .num_array_layers  = 1}}));
+
+  enc->clear_color_image(
+      enc.self, scratch_fb.color.image, gfx::Color{.float32 = {0, 0, 0, 0}},
+      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                          .first_mip_level   = 0,
+                                          .num_mip_levels    = 1,
+                                          .first_array_layer = 0,
+                                          .num_array_layers  = 1}}));
+
+  enc->clear_depth_stencil_image(
+      enc.self, screen_fb.depth_stencil.image,
+      gfx::DepthStencil{.depth = 0, .stencil = 0},
+      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
+                                                     gfx::ImageAspects::Stencil,
+                                          .first_mip_level   = 0,
+                                          .num_mip_levels    = 1,
+                                          .first_array_layer = 0,
+                                          .num_array_layers  = 1}}));
+
+  enc->clear_depth_stencil_image(
+      enc.self, scratch_fb.depth_stencil.image,
+      gfx::DepthStencil{.depth = 0, .stencil = 0},
+      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
+                                                     gfx::ImageAspects::Stencil,
+                                          .first_mip_level   = 0,
+                                          .num_mip_levels    = 1,
+                                          .first_array_layer = 0,
+                                          .num_array_layers  = 1}}));
 }
 
 void RenderContext::end_frame(gfx::Swapchain swapchain)
@@ -428,7 +672,7 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
     if (swapchain_state.current_image.is_some())
     {
       enc->blit_image(
-          enc.self, framebuffer.color_image,
+          enc.self, screen_fb.color.image,
           swapchain_state.images[swapchain_state.current_image.unwrap()],
           to_span({gfx::ImageBlit{
               .src_layers  = {.aspects           = gfx::ImageAspects::Color,
@@ -436,8 +680,7 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
                               .first_array_layer = 0,
                               .num_array_layers  = 1},
               .src_offsets = {{0, 0, 0},
-                              {framebuffer.color_image_desc.extent.x,
-                               framebuffer.color_image_desc.extent.y, 1}},
+                              {screen_fb.extent.x, screen_fb.extent.y, 1}},
               .dst_layers  = {.aspects           = gfx::ImageAspects::Color,
                               .mip_level         = 0,
                               .first_array_layer = 0,

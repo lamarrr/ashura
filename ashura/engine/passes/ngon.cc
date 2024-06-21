@@ -44,9 +44,9 @@ void NgonPass::init(RenderContext &ctx)
                                              to_span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout set_layouts[] = {ctx.ssbo_layout, ctx.ssbo_layout,
-                                            ctx.ssbo_layout, ctx.sampler_layout,
-                                            ctx.textures_layout};
+  gfx::DescriptorSetLayout set_layouts[] = {
+      ctx.ssbo_layout, ctx.ssbo_layout, ctx.ssbo_layout, ctx.samplers_layout,
+      ctx.textures_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
       .label = "Ngon Graphics Pipeline"_span,
@@ -85,7 +85,7 @@ void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
   encoder->bind_descriptor_sets(
       encoder.self,
       to_span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
-               params.sampler, params.textures}),
+               ctx.samplers, params.textures}),
       to_span<u32>({0, 0, 0}));
   encoder->set_graphics_state(encoder.self,
                               gfx::GraphicsState{.scissor  = params.scissor,

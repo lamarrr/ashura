@@ -597,7 +597,7 @@ struct DescriptorBinding
 {
   union
   {
-    void   **resources = nullptr;
+    void   **sync_resources = nullptr;
     Image  **images;
     Buffer **buffers;
   };

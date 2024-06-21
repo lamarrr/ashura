@@ -17,52 +17,48 @@ constexpr u64 rgba8_size(bool has_alpha, u32 width, u32 height)
 {
   return ((u64) width) * ((u64) height) * (has_alpha ? 4ULL : 3ULL);
 }
-
-Result<gfx::ImageSpan<u8>, DecodeError> decode_webp(Span<u8 const> bytes,
-                                                    Vec<u8>       &vec)
+DecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
 {
   WebPBitstreamFeatures features;
 
   if (WebPGetFeatures(bytes.data(), bytes.size(), &features) != VP8_STATUS_OK)
   {
-    return Err{DecodeError::DecodeFailed};
+    return DecodeError::DecodeFailed;
   }
 
   u32 const pitch = features.width * (features.has_alpha == 0 ? 3U : 4U);
   u64 const buffer_size =
       rgba8_size(features.has_alpha != 0, features.width, features.height);
 
-  if (!vec.resize_uninitialized(buffer_size))
+  if (!image.channels.resize_uninitialized(buffer_size))
   {
-    return Err{DecodeError::OutOfMemory};
+    return DecodeError::OutOfMemory;
   }
 
   if (features.has_alpha != 0)
   {
-    if (WebPDecodeRGBAInto(bytes.data(), bytes.size(), vec.data(), buffer_size,
-                           pitch) == nullptr)
+    if (WebPDecodeRGBAInto(bytes.data(), bytes.size(), image.channels.data(),
+                           buffer_size, pitch) == nullptr)
     {
-      vec.reset();
-      return Err{DecodeError::DecodeFailed};
+      image.channels.reset();
+      return DecodeError::DecodeFailed;
     }
   }
   else
   {
-    if (WebPDecodeRGBInto(bytes.data(), bytes.size(), vec.data(), buffer_size,
-                          pitch) == nullptr)
+    if (WebPDecodeRGBInto(bytes.data(), bytes.size(), image.channels.data(),
+                          buffer_size, pitch) == nullptr)
     {
-      vec.reset();
-      return Err{DecodeError::DecodeFailed};
+      image.channels.reset();
+      return DecodeError::DecodeFailed;
     }
   }
 
-  return Ok{gfx::ImageSpan<u8>{.span   = to_span(vec),
-                               .format = features.has_alpha == 0 ?
-                                             gfx::Format::R8G8B8_UNORM :
-                                             gfx::Format::R8G8B8A8_UNORM,
-                               .pitch  = pitch,
-                               .width  = (u32) features.width,
-                               .height = (u32) features.height}};
+  image.format = features.has_alpha == 0 ? gfx::Format::R8G8B8_UNORM :
+                                           gfx::Format::R8G8B8A8_UNORM;
+  image.width  = (u32) features.width;
+  image.height = (u32) features.height;
+  return DecodeError::None;
 }
 
 inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
@@ -73,8 +69,7 @@ inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
   *input = input->slice(nbytes_to_read);
 }
 
-Result<gfx::ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
-                                                   Vec<u8>       &vec)
+DecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
 {
   // skip magic number
   bytes = bytes.slice(8);
@@ -84,7 +79,7 @@ Result<gfx::ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
 
   if (png_ptr == nullptr)
   {
-    return Err{DecodeError::OutOfMemory};
+    return DecodeError::OutOfMemory;
   }
 
   png_infop info_ptr = png_create_info_struct(png_ptr);
@@ -92,7 +87,7 @@ Result<gfx::ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
   if (png_ptr == nullptr)
   {
     png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-    return Err{DecodeError::OutOfMemory};
+    return DecodeError::OutOfMemory;
   }
 
   Span stream = bytes;
@@ -111,13 +106,13 @@ Result<gfx::ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
 
   if (status != 1)
   {
-    return Err{DecodeError::DecodeFailed};
+    return DecodeError::DecodeFailed;
   }
 
   if (color_type != PNG_COLOR_TYPE_RGB && color_type != PNG_COLOR_TYPE_RGBA)
   {
     png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-    return Err{DecodeError::UnsupportedFormat};
+    return DecodeError::UnsupportedFormat;
   }
 
   usize       ncomponents = (color_type == PNG_COLOR_TYPE_RGB) ? 3 : 4;
@@ -126,12 +121,12 @@ Result<gfx::ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
   u32         pitch       = width * ncomponents;
   u64         buffer_size = (u64) height * pitch;
 
-  if (!vec.resize_uninitialized(buffer_size))
+  if (!image.channels.resize_uninitialized(buffer_size))
   {
-    return Err{DecodeError::OutOfMemory};
+    return DecodeError::OutOfMemory;
   }
 
-  u8 *row = vec.data();
+  u8 *row = image.channels.data();
   for (u32 i = 0; i < height; i++)
   {
     png_read_row(png_ptr, row, nullptr);
@@ -140,15 +135,13 @@ Result<gfx::ImageSpan<u8>, DecodeError> decode_png(Span<u8 const> bytes,
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  return Ok{gfx::ImageSpan<u8>{.span   = to_span(vec),
-                               .format = fmt,
-                               .pitch  = pitch,
-                               .width  = width,
-                               .height = height}};
+  image.format = fmt;
+  image.width  = width;
+  image.height = height;
+  return DecodeError::None;
 }
 
-Result<gfx::ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
-                                                   Vec<u8>       &vec)
+DecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -160,19 +153,19 @@ Result<gfx::ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
   if (jpeg_read_header(&info, true) != JPEG_HEADER_OK)
   {
     jpeg_destroy_decompress(&info);
-    return Err{DecodeError::DecodeFailed};
+    return DecodeError::DecodeFailed;
   }
 
   if (jpeg_start_decompress(&info) == 0)
   {
     jpeg_destroy_decompress(&info);
-    return Err{DecodeError::DecodeFailed};
+    return DecodeError::DecodeFailed;
   }
 
   if (info.num_components != 3 && info.num_components != 4)
   {
     jpeg_destroy_decompress(&info);
-    return Err{DecodeError::UnsupportedFormat};
+    return DecodeError::UnsupportedFormat;
   }
 
   u32         width       = info.output_width;
@@ -183,13 +176,13 @@ Result<gfx::ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
   gfx::Format fmt         = (ncomponents == 3) ? gfx::Format::R8G8B8_UNORM :
                                                  gfx::Format::R8G8B8A8_UNORM;
 
-  if (!vec.resize_uninitialized(buffer_size))
+  if (!image.channels.resize_uninitialized(buffer_size))
   {
     jpeg_destroy_decompress(&info);
-    return Err{DecodeError::OutOfMemory};
+    return DecodeError::OutOfMemory;
   }
 
-  u8 *scanline = vec.data();
+  u8 *scanline = image.channels.data();
   while (info.output_scanline < height)
   {
     u8 *scanlines[] = {scanline};
@@ -199,15 +192,13 @@ Result<gfx::ImageSpan<u8>, DecodeError> decode_jpg(Span<u8 const> bytes,
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  return Ok{gfx::ImageSpan<u8>{.span   = to_span(vec),
-                               .format = fmt,
-                               .pitch  = pitch,
-                               .width  = width,
-                               .height = height}};
+  image.format = fmt;
+  image.width  = width;
+  image.height = height;
+  return DecodeError::None;
 }
 
-Result<gfx::ImageSpan<u8>, DecodeError> decode_image(Span<u8 const> bytes,
-                                                     Vec<u8>       &vec)
+DecodeError decode_image(Span<u8 const> bytes, DecodedImage &image)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 
@@ -219,21 +210,21 @@ Result<gfx::ImageSpan<u8>, DecodeError> decode_image(Span<u8 const> bytes,
 
   if (range_equal(bytes.slice(0, size(JPG_MAGIC)), JPG_MAGIC))
   {
-    return decode_jpg(bytes, vec);
+    return decode_jpg(bytes, image);
   }
 
   if (range_equal(bytes.slice(0, size(PNG_MAGIC)), PNG_MAGIC))
   {
-    return decode_png(bytes, vec);
+    return decode_png(bytes, image);
   }
 
   if (range_equal(bytes.slice(0, size(WEBP_MAGIC1)), WEBP_MAGIC1) &&
       range_equal(bytes.slice(8, size(WEBP_MAGIC2)), WEBP_MAGIC2))
   {
-    return decode_webp(bytes, vec);
+    return decode_webp(bytes, image);
   }
 
-  return Err{DecodeError::UnsupportedFormat};
+  return DecodeError::UnsupportedFormat;
 }
 
 }        // namespace ash

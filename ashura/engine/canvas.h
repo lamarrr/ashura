@@ -4,15 +4,13 @@
 #include "ashura/engine/passes/ngon.h"
 #include "ashura/engine/passes/rrect.h"
 #include "ashura/engine/text.h"
+#include "ashura/engine/types.h"
 #include "ashura/std/math.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
-// TODO(lamarrr):
-// https://manual.gamemaker.io/lts/en/The_Asset_Editors/Sprite_Properties/Nine_Slices.htm
-
-typedef struct Renderer Renderer;
+typedef struct PassContext PassContext;
 
 enum class CanvasPassType : u8
 {
@@ -23,28 +21,36 @@ enum class CanvasPassType : u8
   Custom = 4
 };
 
+enum class ScaleMode : u8
+{
+  Stretch = 0,
+  Tile    = 1
+};
+
 /// @brief
 /// @param scissor in surface pixel coordinates
 struct ShapeDesc
 {
-  Vec2      center       = {0, 0};
-  Vec2      extent       = {0, 0};
-  Vec4      border_radii = {0, 0, 0, 0};
-  f32       stroke       = 0.0f;
-  f32       thickness    = 1.0f;
-  Vec4      tint[4] = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}};
-  u32       texture = 0;
-  Vec2      uv[2]   = {{0, 0}, {1, 1}};
-  f32       tiling  = 1;
-  f32       edge_smoothness = 0.0015F;
-  Mat4      transform       = Mat4::identity();
-  gfx::Rect scissor         = {.offset = {0, 0}, .extent = {U32_MAX, U32_MAX}};
+  Vec2          center          = {0, 0};
+  Vec2          extent          = {0, 0};
+  Mat4          transform       = Mat4::identity();
+  Vec4          border_radii    = {0, 0, 0, 0};
+  f32           stroke          = 0.0f;
+  f32           thickness       = 1.0f;
+  ColorGradient tint            = {};
+  u32           sampler         = 0;
+  u32           texture         = 0;
+  Vec2          uv[2]           = {{0, 0}, {1, 1}};
+  f32           tiling          = 1;
+  f32           edge_smoothness = 0.0015F;
+  gfx::Rect     scissor = {.offset = {0, 0}, .extent = {U32_MAX, U32_MAX}};
 };
 
 struct CanvasPassRun
 {
   CanvasPassType type    = CanvasPassType::None;
-  u32            end     = 0;
+  u32            first   = 0;
+  u32            count   = 0;
   gfx::Rect      scissor = {.extent = {U32_MAX, U32_MAX}};
 };
 
@@ -53,28 +59,34 @@ struct CanvasPassRun
 /// @param data custom pass data
 struct CustomCanvasPassInfo
 {
-  Fn<void(void *, Renderer &)> encoder = to_fn([](void *, Renderer &) {});
-  void                        *data    = nullptr;
+  Fn<void(void *, RenderContext &, PassContext &, gfx::RenderingInfo const &,
+          gfx::DescriptorSet)>
+        encoder = to_fn([](void *, RenderContext &, PassContext &,
+                         gfx::RenderingInfo const &, gfx::DescriptorSet) {});
+  void *data    = nullptr;
 };
 
 struct CanvasSurface
 {
-  Vec2  viewport_offset = {0, 0};
-  Vec2  viewport_extent = {0, 0};
-  Vec2U surface_offset  = {0, 0};
-  Vec2U surface_extent  = {0, 0};
+  gfx::Viewport viewport = {};
+  gfx::Rect     area     = {};
+  Vec2U         extent   = {};
 
   constexpr f32 aspect_ratio() const
   {
-    return (viewport_extent.y == 0) ? 0 :
-                                      (viewport_extent.x / viewport_extent.y);
+    return (viewport.extent.y == 0) ? 0 :
+                                      (viewport.extent.x / viewport.extent.y);
   }
 
-  constexpr Mat4 mvp(Vec2 center, Vec2 object_extent, Mat4 transform) const
+  constexpr Mat4 mvp(Mat4 const &transform, Vec2 center, Vec2 extent) const
   {
-    return scale3d(Vec3{1 / viewport_extent.x, 1 / viewport_extent.y, 1}) *
-           translate3d(Vec3{center.x, center.y, 0}) * transform *
-           scale3d(Vec3{object_extent.x / 2, object_extent.y / 2, 1});
+    return
+        // translate the object to its screen position, using (0, 0) as top
+        translate3d(to_vec3((center / (0.5f * viewport.extent)) - 1, 0)) *
+        // scale the object in the -1 to + 1 space
+        scale3d(to_vec3(2 / (viewport.extent), 1)) *
+        // perform object-space transformation
+        transform * scale3d(to_vec3(extent / 2, 1));
   }
 };
 
@@ -95,8 +107,7 @@ struct Path
                           Vec2 cp2, Vec2 cp3);
   static void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vtx,
                                  Vec<u32> &idx, f32 thickness);
-  static void triangulate_ngon(Span<Vec2 const> points, Vec<Vec2> &vtx,
-                               Vec<u32> &idx);
+  static void triangles(Span<Vec2 const> points, Vec<u32> &idx);
 };
 
 struct Canvas
@@ -125,12 +136,13 @@ struct Canvas
 
   void rrect(ShapeDesc const &desc);
 
-  void nine_slice();
+  void nine_slice(ShapeDesc const &desc, Vec2 corner_extent, ScaleMode mode);
 
   void text(ShapeDesc const &desc, TextBlock const &block,
-            TextLayout const &layout, TextBlockStyle const &style);
+            TextLayout const &layout, TextBlockStyle const &style,
+            Span<FontAtlasResource const *const> atlases);
 
-  void ngon(ShapeDesc const &desc, Span<Vec2 const> vertices);
+  void triangles(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
   void line(ShapeDesc const &desc, Span<Vec2 const> vertices);
 

@@ -2,8 +2,8 @@
 
 #include "ashura/engine/render_context.h"
 #include "ashura/gfx/gfx.h"
+#include "ashura/std/image.h"
 #include "ashura/std/types.h"
-#include "ashura/std/unicode.h"
 
 namespace ash
 {
@@ -25,13 +25,11 @@ constexpr Vec2 pt_to_px(Vec2I pt, f32 base)
 
 enum class FontStatus : u8
 {
-  Loaded            = 0,
-  Loading           = 1,
-  LoadFailed        = 2,
-  DecodingFailed    = 3,
-  FaceNotFound      = 4,
-  OutOfHostMemory   = 5,
-  OutOfDeviceMemory = 6
+  Loaded         = 0,
+  Loading        = 1,
+  DecodingFailed = 2,
+  FaceNotFound   = 3,
+  OutOfMemory    = 4,
 };
 
 /// @param bearing offset from cursor baseline to start drawing glyph from (pt)
@@ -56,19 +54,8 @@ struct FontMetrics
   i32 advance = 0;
 };
 
-/// see:
-/// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
-///
-/// NOTE: using stubs enables us to perform fast constant lookups of glyph
-/// indices by ensuring the array is filled and sorted by glyph index from 0 ->
-/// nglyphs_found_in_font-1
 /// @param is_valid if the glyph was found in the font and loaded
 // successfully
-/// @param is_needed if the texture is a texture that is needed. i.e. if the
-/// unicode ranges are empty then this is always true,
-/// otherwise it is set to true if the config unicode ranges
-/// contains it, note that special glyphs like replacement
-/// unicode codepoint glyph (0xFFFD) will always be true
 /// @param metrics normalized font metrics
 /// @param bin atlas layer this glyph belongs to
 /// @param offset, extent: area in the atlas this glyph's cache data is placed
@@ -76,12 +63,16 @@ struct FontMetrics
 /// glyph in the atlas bin
 struct Glyph
 {
-  bool         is_valid  = false;
-  bool         is_needed = false;
-  GlyphMetrics metrics   = {};
-  u32          layer     = 0;
-  gfx::Rect    area      = {};
-  Vec2         uv[2]     = {};
+  bool         is_valid = false;
+  GlyphMetrics metrics  = {};
+};
+
+/// @param rasterized if the glyph was rasterized
+struct AtlasGlyph
+{
+  u32       layer = 0;
+  gfx::Rect area  = {};
+  Vec2      uv[2] = {};
 };
 
 /// @param postscript_name ASCII. i.e. RobotoBold
@@ -93,50 +84,75 @@ struct Glyph
 /// @param font_height font height at which the this atlas was rendered (px)
 struct FontInfo
 {
-  Span<char const>           postscript_name   = {};
-  Span<char const>           family_name       = {};
-  Span<char const>           style_name        = {};
-  Span<Glyph const>          glyphs            = {};
-  u32                        replacement_glyph = 0;
-  u32                        space_glyph       = 0;
-  u32                        ellipsis_glyph    = 0;
-  i32                        font_height       = 0;
-  FontMetrics                metrics           = {};
-  Vec2U                      extent            = {};
-  u32                        num_layers        = 0;
-  gfx::Image                 image             = nullptr;
-  gfx::Format                format            = gfx::Format::B8G8R8A8_UNORM;
-  Span<gfx::ImageView const> image_views       = {};
-  Span<u32 const>            textures          = {};
+  Span<char const>  postscript_name   = {};
+  Span<char const>  family_name       = {};
+  Span<char const>  style_name        = {};
+  Span<Glyph const> glyphs            = {};
+  u32               replacement_glyph = 0;
+  u32               space_glyph       = 0;
+  u32               ellipsis_glyph    = 0;
+  FontMetrics       metrics           = {};
 };
 
-/// @param name name to use in font matching
-/// @param path local file system path of the typeface resource
-/// @param face font face to use
-/// @param font_height the font height at which the texture should be cached at
-/// (px)
-/// @param ranges if set only the specified unicode ranges will be loaded,
-/// otherwise all glyphs in the font will be loaded. Note that this
-/// means during font ligature glyph substitution where scripts
-/// might change, if the replacement glyph is not in the unicode
-/// range, it won't result in a valid glyph.
-struct FontDesc
+struct FontAtlas
 {
-  Span<char const>         name        = {};
-  Span<char const>         path        = {};
-  u32                      face        = 0;
-  i32                      font_height = 20;
-  Span<UnicodeRange const> ranges      = {};
+  i32             font_height = 0;
+  Vec2U           extent      = {};
+  u32             num_layers  = 0;
+  Vec<AtlasGlyph> glyphs      = {};
+  Vec<u8>         channels    = {};
+
+  ImageLayerSpan<u8, 1> span() const
+  {
+    return ImageLayerSpan<u8, 1>{.channels = to_span(channels),
+                                 .width    = extent.x,
+                                 .height   = extent.y,
+                                 .layers   = num_layers};
+  }
+
+  void uninit()
+  {
+    glyphs.uninit();
+    channels.uninit();
+  }
 };
 
-Result<Font, FontStatus> load_font_from_memory(Span<u8 const> encoded_data,
-                                               u32 face, i32 font_height,
-                                               Span<UnicodeRange const> ranges);
-Result<Font, FontStatus> load_font_from_file(Span<char const> path, u32 face,
-                                             i32 font_height,
-                                             Span<UnicodeRange const> ranges);
-void                     destroy_font(Font f);
-void                     upload_font_to_device(Font f, RenderContext &c);
-FontInfo                 get_font_info(Font f);
+struct FontAtlasResource
+{
+  gfx::Image          image    = nullptr;
+  Vec<gfx::ImageView> views    = {};
+  Vec<u32>            textures = {};
+  Vec<AtlasGlyph>     glyphs   = {};
+  gfx::Format         format   = gfx::Format::Undefined;
+
+  void init(RenderContext &c, FontAtlas const &atlas,
+            AllocatorImpl const &allocator);
+  void release(RenderContext &c);
+
+  void uninit()
+  {
+    image = nullptr;
+    views.uninit();
+    textures.uninit();
+    glyphs.uninit();
+    format = gfx::Format::Undefined;
+  }
+};
+
+/// @param face font face to use
+Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
+                                   AllocatorImpl const &allocator);
+
+FontInfo get_font_info(Font font);
+
+void destroy_font(Font font);
+
+/// @brief rasterize the font at the specified font height. Note: raster is
+/// stored as alpha values.
+/// @note rasterizing mutates the font's internal data, not thread-safe
+/// @param font_height the font height at which the texture should be rasterized
+/// at (px)
+bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
+                    AllocatorImpl const &allocator);
 
 }        // namespace ash

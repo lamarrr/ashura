@@ -18,7 +18,7 @@ TEST(AsyncTest, Basic)
   for (u32 i = 0; i < 5'000; i++)
   {
     scheduler->schedule_worker({.task = to_fn([](void *) {
-                                  u64 inv = invocs.fetch_add(1);
+                                  invocs.fetch_add(1);
                                   return false;
                                 })});
     scheduler->schedule_dedicated(0, {.task = to_fn([](void *) {
@@ -32,7 +32,7 @@ TEST(AsyncTest, Basic)
                                         return true;
                                       })});
     scheduler->schedule_dedicated(1, {.task = to_fn([](void *) {
-                                        u64 inv = invocs.fetch_add(1);
+                                        invocs.fetch_add(1);
                                         return false;
                                       })});
 

@@ -8,6 +8,7 @@ struct BlurParam
 {
   Vec2 uv[2]   = {};
   Vec2 radius  = {};
+  u32  sampler = 0;
   u32  texture = 0;
 };
 
@@ -15,7 +16,6 @@ struct BlurPassParams
 {
   gfx::ImageView     image_view   = nullptr;
   Vec2U              extent       = {};
-  gfx::DescriptorSet sampler      = nullptr;
   gfx::DescriptorSet texture_view = nullptr;
   u32                texture      = 0;
   gfx::Rect          area         = {};

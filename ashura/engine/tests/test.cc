@@ -4,7 +4,9 @@
 #include "ashura/engine/shader.h"
 #include "ashura/engine/window.h"
 #include "ashura/gfx/vulkan.h"
+#include "ashura/std/color.h"
 #include "ashura/std/hash_map.h"
+#include "ashura/std/io.h"
 #include "stdlib.h"
 #include <thread>
 
@@ -21,11 +23,24 @@ int main(int, char **)
   defer default_logger_del{[&] { destroy_logger(default_logger); }};
   defer shutdown{[&] { default_logger->info("Shutting down"); }};
 
+  Vec<u8> font_data;
+  CHECK(
+      read_file(
+          R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
+          font_data) == IoError::None);
+
+  defer font_data_del{[&] { font_data.uninit(); }};
+
+  Font font = load_font(to_span(font_data), 0, default_allocator).unwrap();
+
+  FontAtlas font_atlas;
+  CHECK(rasterize_font(font, 60, font_atlas, default_allocator));
+
   WindowSystem *win_sys = init_sdl_window_system();
   CHECK(win_sys != nullptr);
 
   gfx::InstanceImpl instance =
-      gfx::create_vulkan_instance(heap_allocator, true).unwrap();
+      gfx::create_vulkan_instance(heap_allocator, false).unwrap();
 
   defer  instance_del{[&] { instance->destroy(instance.self); }};
   Window win = win_sys->create_window(instance, "Main"_span).unwrap();
@@ -37,7 +52,12 @@ int main(int, char **)
   bool should_close = false;
   auto close_fn     = [&](WindowEvent const &) { should_close = true; };
 
-  auto key_fn = [&](WindowEvent const &k) {};
+  f32  tx     = 0;
+  u32  rr     = 0;
+  auto key_fn = [&](WindowEvent const &) {
+    tx += 10;
+    rr += 1;
+  };
 
   win_sys->listen(win, WindowEventTypes::CloseRequested, to_fn_ref(close_fn));
   win_sys->listen(win, WindowEventTypes::Key, to_fn_ref(key_fn));
@@ -59,29 +79,30 @@ int main(int, char **)
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
-  CHECK(pack_shaders(
-            spirvs,
-            to_span<ShaderUnit>(
-                {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
-                 {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
-                 {.id       = "Blur_UpSample:FS"_span,
-                  .file     = "blur.frag"_span,
-                  .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "Blur_UpSample:VS"_span,
-                  .file     = "blur.vert"_span,
-                  .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "Blur_DownSample:FS"_span,
-                  .file     = "blur.frag"_span,
-                  .preamble = "#define UPSAMPLE 0"_span},
-                 {.id       = "Blur_DownSample:VS"_span,
-                  .file     = "blur.vert"_span,
-                  .preamble = "#define UPSAMPLE 0"_span},
-                 {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
-                 {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
-                 {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
-                 {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-            R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders)"_span) ==
-        ShaderCompileError::None);
+  CHECK(
+      pack_shaders(
+          spirvs,
+          to_span<ShaderUnit>(
+              {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
+               {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
+               {.id       = "Blur_UpSample:FS"_span,
+                .file     = "blur.frag"_span,
+                .preamble = "#define UPSAMPLE 1"_span},
+               {.id       = "Blur_UpSample:VS"_span,
+                .file     = "blur.vert"_span,
+                .preamble = "#define UPSAMPLE 1"_span},
+               {.id       = "Blur_DownSample:FS"_span,
+                .file     = "blur.frag"_span,
+                .preamble = "#define UPSAMPLE 0"_span},
+               {.id       = "Blur_DownSample:VS"_span,
+                .file     = "blur.vert"_span,
+                .preamble = "#define UPSAMPLE 0"_span},
+               {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
+               {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
+               {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
+               {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
+          R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders)"_span) ==
+      ShaderCompileError::None);
 
   StrHashMap<gfx::Shader> shaders;
   defer                   shaders_del{[&] { shaders.reset(); }};
@@ -106,11 +127,6 @@ int main(int, char **)
 
   gfx::ColorSpace  color_space_spec  = gfx::ColorSpace::DCI_P3_NONLINEAR;
   gfx::PresentMode present_mode_spec = gfx::PresentMode::Immediate;
-
-  Renderer renderer;
-  renderer.init(device, true, 2, {1920, 1080}, shaders);
-  shaders = {};
-  defer renderer_del{[&] { renderer.uninit(); }};
 
   gfx::Swapchain swapchain            = nullptr;
   auto           invalidate_swapchain = [&] {
@@ -238,15 +254,142 @@ int main(int, char **)
   };
 
   invalidate_swapchain();
+
   defer swapchain_del{
       [&] { device->destroy_swapchain(device.self, swapchain); }};
+
+  // job submission to render context to prepare resources ahead of frame.
+  RenderContext ctx;
+  ctx.init(device, true, 2, {1920, 1080}, shaders);
+  shaders = {};
+  defer ctx_del{[&] { ctx.uninit(); }};
+
+  PassContext pctx;
+  pctx.init(ctx);
+  defer pctx_del{[&] { pctx.uninit(ctx); }};
+
+  ctx.begin_frame(swapchain);
+
+  CanvasRenderer renderer;
+  renderer.init(ctx);
+  defer renderer_del{[&] { renderer.uninit(ctx); }};
+
+  Canvas canvas;
+  canvas.init();
+  defer canvas_del{[&] { canvas.uninit(); }};
+
+  defer dev_wait{[&] { device->wait_idle(device.self).unwrap(); }};
+
+  FontAtlasResource font_resource;
+
+  font_resource.init(ctx, font_atlas, default_allocator);
+  defer fr_del{[&] { font_resource.release(ctx); }};
+
+  // TODO(lamarrr): create transfer queue, calculate total required setup size
+  TextLayout text_layout;
+  TextBlock  text_block{
+       .text  = utf32(U"Hello, World!!!'﷽  Testing testing"_span),
+       .runs  = to_span({U32_MAX}),
+       .fonts = to_span(
+          {FontStyle{.font = font, .font_height = 75, .line_height = 1.4}}),
+       .direction = TextDirection::LeftToRight,
+       .language  = "en"_span};
+  layout_text(text_block, 1000, text_layout);
+
+  ctx.end_frame(swapchain);
 
   while (!should_close)
   {
     win_sys->poll_events();
-    renderer.begin_frame(swapchain);
-    renderer.record_frame();
-    renderer.end_frame(swapchain);
+    ctx.begin_frame(swapchain);
+    // TODO(lamarrr): maybe check for frame begin before accepting commands
+    canvas.begin(CanvasSurface{
+        .viewport = gfx::Viewport{.offset    = {0, 0},
+                                  .extent    = {1920, 1080},
+                                  .min_depth = 0,
+                                  .max_depth = 1},
+        .area     = gfx::Rect{.offset = {0, 0}, .extent = {1920, 1080}},
+        .extent   = {1920, 1080}});
+
+    // canvas.rrect(ShapeDesc{.center       = Vec2{1920 / 2, 1080 / 2},
+    //                        .extent       = {1920, 1080},
+    //                        .border_radii = {200, 100, 450, 50},
+    //                        .stroke       = 1,
+    //                        .thickness    = 20,
+    //                        .tint = ColorGradient::uniform(colors::WHITE)});
+    /*  for (u32 i = 0; i < 2000; i++)
+        canvas.rect(
+            ShapeDesc{.center = Vec2{20, 20},
+                      .extent = {160, 160},
+                      .tint   = {f(colors::RED) / 255, f(colors::BLUE) / 255,
+                                 f(colors::MAGENTA) / 255, f(colors::CYAN) /
+       255}});*/
+    // canvas.blur({.scissor = {{0, 0}, {U32_MAX, U32_MAX}}}, rr);
+    /*canvas.line(
+        ShapeDesc{.center    = Vec2{0, 0},
+                  .extent    = {800, 800},
+                  .thickness = 20,
+                  .tint      = {f(colors::RED) / 255, f(colors::BLUE) / 255,
+                                f(colors::MAGENTA) / 255, f(colors::CYAN) /
+       255}}, to_span({// Vec2{0, 0},
+                 //
+                 Vec2{1, 0},
+                 //
+                 Vec2{1, -1},
+                 //
+                 Vec2{0, -1},
+                 //
+                 Vec2{0, -0.5},
+                 //
+                 Vec2{-1, 1}}));*/
+    canvas.text(
+        ShapeDesc{.center    = Vec2{200, 200},
+                  .extent    = {800, 800},
+                  .thickness = 20,
+                  .tint      = {colors::RED.norm(), colors::BLUE.norm(),
+                                colors::MAGENTA.norm(), colors::CYAN.norm()}},
+        text_block, text_layout,
+        TextBlockStyle{
+            .runs        = to_span<TextStyle>({TextStyle{
+                       .underline_thickness     = 0,
+                       .strikethrough_thickness = 0,
+                       .shadow_scale            = 0,
+                       .shadow_offset           = Vec2{0, 0},
+                       .foreground    = ColorGradient::y(colors::RED, colors::YELLOW),
+                       .background    = {},
+                       .underline     = {},
+                       .strikethrough = {},
+                       .shadow        = {}}}),
+            .alignment   = 0,
+            .align_width = 1080},
+        to_span<FontAtlasResource const *>({&font_resource}));
+    /*canvas.triangles(
+        ShapeDesc{.center    = Vec2{0, 0},
+                  .extent    = {800, 800},
+                  .thickness = 0,
+                  .tint      = {f(colors::RED) / 255, f(colors::BLUE) / 255,
+                                f(colors::MAGENTA) / 255, f(colors::CYAN) /
+       255}},
+
+        to_span({Vec2{-1, -1}, Vec2{1, -1}, Vec2{1, 1}, Vec2{1, 1}, Vec2{-1, 1},
+                 Vec2{-1, -1}}));*/
+
+    renderer.begin(ctx, pctx, canvas,
+                   gfx::RenderingInfo{
+                       .render_area       = {{0, 0}, {1920, 1080}},
+                       .num_layers        = 1,
+                       .color_attachments = to_span({gfx::RenderingAttachment{
+                           .view = ctx.screen_fb.color.view}})},
+                   ctx.screen_fb.color_texture);
+    renderer.render(ctx, pctx, canvas,
+                    gfx::RenderingInfo{
+                        .render_area       = {{0, 0}, {1920, 1080}},
+                        .num_layers        = 1,
+                        .color_attachments = to_span({gfx::RenderingAttachment{
+                            .view = ctx.screen_fb.color.view}})},
+                    ctx.screen_fb.color_texture);
+    ctx.end_frame(swapchain);
+    canvas.clear();
   }
   default_logger->info("closing");
 }

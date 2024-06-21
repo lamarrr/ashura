@@ -42,10 +42,10 @@ void BlurPass::init(RenderContext &ctx)
 
   gfx::ColorBlendAttachmentState attachment_states[] = {
       {.blend_enable           = false,
-       .src_color_blend_factor = gfx::BlendFactor::SrcAlpha,
-       .dst_color_blend_factor = gfx::BlendFactor::OneMinusSrcAlpha,
+       .src_color_blend_factor = gfx::BlendFactor::Zero,
+       .dst_color_blend_factor = gfx::BlendFactor::Zero,
        .color_blend_op         = gfx::BlendOp::Add,
-       .src_alpha_blend_factor = gfx::BlendFactor::One,
+       .src_alpha_blend_factor = gfx::BlendFactor::Zero,
        .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
        .alpha_blend_op         = gfx::BlendOp::Add,
        .color_write_mask       = gfx::ColorComponents::All}};
@@ -54,7 +54,7 @@ void BlurPass::init(RenderContext &ctx)
                                              to_span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout set_layouts[] = {ctx.sampler_layout,
+  gfx::DescriptorSetLayout set_layouts[] = {ctx.samplers_layout,
                                             ctx.textures_layout};
 
   gfx::GraphicsPipelineDesc pipeline_desc{
@@ -96,14 +96,16 @@ void BlurPass::init(RenderContext &ctx)
 
 void BlurPass::uninit(RenderContext &ctx)
 {
+  ctx.device->destroy_graphics_pipeline(ctx.device.self, downsample_pipeline);
+  ctx.device->destroy_graphics_pipeline(ctx.device.self, upsample_pipeline);
 }
 
 void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
   gfx::CommandEncoderImpl encoder = ctx.encoder();
   Vec2U                   extent  = params.area.extent / 2;
-  extent.x = min(extent.x, ctx.scratch_framebuffer.extent.x);
-  extent.y = min(extent.y, ctx.scratch_framebuffer.extent.y);
+  extent.x                        = min(extent.x, ctx.scratch_fb.extent.x);
+  extent.y                        = min(extent.y, ctx.scratch_fb.extent.y);
 
   {
     Vec2 radius{params.radius / (f32) params.extent.x,
@@ -119,17 +121,17 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
     // downsampling pass
     encoder->begin_rendering(
         encoder.self,
-        gfx::RenderingInfo{
-            .render_area        = {.offset = {0, 0}, .extent = extent},
-            .num_layers         = 1,
-            .color_attachments  = to_span({gfx::RenderingAttachment{
-                 .view         = ctx.scratch_framebuffer.color_image_view,
-                 .resolve      = nullptr,
-                 .resolve_mode = gfx::ResolveModes::None,
-                 .load_op      = gfx::LoadOp::Clear,
-                 .store_op     = gfx::StoreOp::Store}}),
-            .depth_attachment   = {},
-            .stencil_attachment = {}});
+        gfx::RenderingInfo{.render_area = {.offset = {0, 0}, .extent = extent},
+                           .num_layers  = 1,
+                           .color_attachments =
+                               to_span({gfx::RenderingAttachment{
+                                   .view         = ctx.scratch_fb.color.view,
+                                   .resolve      = nullptr,
+                                   .resolve_mode = gfx::ResolveModes::None,
+                                   .load_op      = gfx::LoadOp::Clear,
+                                   .store_op     = gfx::StoreOp::Store}}),
+                           .depth_attachment   = {},
+                           .stencil_attachment = {}});
     encoder->bind_graphics_pipeline(encoder.self, downsample_pipeline);
     encoder->set_graphics_state(
         encoder.self,
@@ -137,11 +139,12 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
             .scissor  = {.offset = {0, 0}, .extent = extent},
             .viewport = {.offset = {0, 0},
                          .extent = {extent.x * 1.0f, extent.y * 1.0f}}});
-    encoder->bind_descriptor_sets(encoder.self, to_span({params.texture_view}),
-                                  {});
+    encoder->bind_descriptor_sets(
+        encoder.self, to_span({ctx.samplers, params.texture_view}), {});
     encoder->push_constants(encoder.self,
                             to_span({BlurParam{.uv      = {uv0, uv1},
                                                .radius  = radius,
+                                               .sampler = 0,
                                                .texture = params.texture}})
                                 .as_u8());
     encoder->draw(encoder.self, 4, 1, 0, 0);
@@ -149,19 +152,17 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
   }
 
   {
-    Vec2 radius{params.radius / (f32) ctx.scratch_framebuffer.extent.x,
-                params.radius / (f32) ctx.scratch_framebuffer.extent.y};
+    Vec2 radius{params.radius / (f32) ctx.scratch_fb.extent.x,
+                params.radius / (f32) ctx.scratch_fb.extent.y};
 
     // there will be artifacts due to blur radius reaching end of
     // image. sampling offset deducted from the image extent first before
     // upsampling.
-    Vec2 uv0{(f32) params.radius / ctx.scratch_framebuffer.extent.x,
-             (f32) params.radius / ctx.scratch_framebuffer.extent.y};
+    Vec2 uv0{(f32) params.radius / ctx.scratch_fb.extent.x,
+             (f32) params.radius / ctx.scratch_fb.extent.y};
 
-    Vec2 uv1{((f32) extent.x - (f32) params.radius) /
-                 ctx.scratch_framebuffer.extent.x,
-             ((f32) extent.y - (f32) params.radius) /
-                 ctx.scratch_framebuffer.extent.y};
+    Vec2 uv1{((f32) extent.x - (f32) params.radius) / ctx.scratch_fb.extent.x,
+             ((f32) extent.y - (f32) params.radius) / ctx.scratch_fb.extent.y};
 
     // upsampling pass
     encoder->begin_rendering(
@@ -187,7 +188,7 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
                          .extent = {params.area.extent.x * 1.0f,
                                     params.area.extent.y * 1.0f}}});
     encoder->bind_descriptor_sets(
-        encoder.self, to_span({params.sampler, ctx.scratch_color_texture_view}),
+        encoder.self, to_span({ctx.samplers, ctx.scratch_fb.color_texture}),
         {});
     encoder->push_constants(
         encoder.self,

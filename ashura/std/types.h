@@ -1277,6 +1277,17 @@ struct alignas(4) Vec4U8
   u8 y = 0;
   u8 z = 0;
   u8 w = 0;
+
+  static constexpr Vec4U8 splat(u8 value)
+  {
+    return Vec4U8{value, value, value, value};
+  }
+
+  constexpr Vec4 norm() const
+  {
+    return Vec4{
+        .x = x / 255.0f, .y = y / 255.0f, .z = z / 255.0f, .w = w / 255.0f};
+  }
 };
 
 constexpr bool operator==(Vec4U8 a, Vec4U8 b)
@@ -1341,6 +1352,11 @@ struct alignas(8) Vec2I
 {
   i32 x = 0;
   i32 y = 0;
+
+  static constexpr Vec2I splat(i32 value)
+  {
+    return Vec2I{value, value};
+  }
 };
 
 constexpr bool operator==(Vec2I a, Vec2I b)
@@ -1479,6 +1495,11 @@ struct alignas(16) Vec4I
   i32 y = 0;
   i32 z = 0;
   i32 w = 0;
+
+  static constexpr Vec4I splat(i32 value)
+  {
+    return Vec4I{value, value, value, value};
+  }
 };
 
 constexpr bool operator==(Vec4I a, Vec4I b)
@@ -1539,6 +1560,11 @@ struct alignas(8) Vec2U
 {
   u32 x = 0;
   u32 y = 0;
+
+  static constexpr Vec2U splat(u32 value)
+  {
+    return Vec2U{value, value};
+  }
 };
 
 constexpr bool operator==(Vec2U a, Vec2U b)
@@ -1645,6 +1671,11 @@ struct Vec3U
   u32 x = 0;
   u32 y = 0;
   u32 z = 0;
+
+  static constexpr Vec3U splat(u32 value)
+  {
+    return Vec3U{value, value, value};
+  }
 };
 
 constexpr bool operator==(Vec3U a, Vec3U b)
@@ -1707,6 +1738,11 @@ struct alignas(16) Vec4U
   u32 y = 0;
   u32 z = 0;
   u32 w = 0;
+
+  static constexpr Vec4U splat(u32 value)
+  {
+    return Vec4U{value, value, value, value};
+  }
 };
 
 constexpr bool operator==(Vec4U a, Vec4U b)
@@ -2691,14 +2727,14 @@ struct Span
                             size_bytes()};
   }
 
-  constexpr Span slice(usize slice_offset, usize slice_span) const
+  constexpr Span slice(usize offset, usize span) const
   {
-    return (*this)[Slice{slice_offset, slice_span}];
+    return (*this)[Slice{offset, span}];
   }
 
-  constexpr Span slice(usize slice_offset) const
+  constexpr Span slice(usize offset) const
   {
-    return slice(slice_offset, USIZE_MAX);
+    return slice(offset, USIZE_MAX);
   }
 };
 
@@ -2720,6 +2756,16 @@ constexpr Span<char16_t const> operator""_span(char16_t const *lit, usize n)
 constexpr Span<char32_t const> operator""_span(char32_t const *lit, usize n)
 {
   return Span<char32_t const>{lit, n};
+}
+
+constexpr Span<u8 const> utf8(Span<char8_t const> s)
+{
+  return Span<u8 const>{(u8 const *) s.data_, s.size_};
+}
+
+constexpr Span<u32 const> utf32(Span<char32_t const> s)
+{
+  return Span<u32 const>{(u32 const *) s.data_, s.size_};
 }
 
 /// @param index max of Rep::NUM_BITS - 1
@@ -2909,9 +2955,9 @@ struct BitSpan
 };
 
 template <typename T>
-constexpr Span<T const> to_span(std::initializer_list<T> init)
+constexpr Span<T const> to_span(std::initializer_list<T> list)
 {
-  return Span<T const>{init.begin(), init.size()};
+  return Span<T const>{list.begin(), list.size()};
 }
 
 template <typename T, usize N>
@@ -2921,10 +2967,9 @@ constexpr Span<T> to_span(T (&array)[N])
 }
 
 template <typename Container>
-constexpr auto to_span(Container &container) -> decltype(Span{data(container),
-                                                              size(container)})
+constexpr auto to_span(Container &c) -> decltype(Span{data(c), size(c)})
 {
-  return Span{data(container), size(container)};
+  return Span{data(c), size(c)};
 }
 
 template <typename Lambda>
@@ -3291,77 +3336,100 @@ struct [[nodiscard]] SourceLocation
   u32         column   = 0;
 };
 
-template <typename EnumType>
-using enum_ut = std::underlying_type_t<EnumType>;
+template <typename E>
+using enum_ut = std::underlying_type_t<E>;
 
-template <typename EnumType>
-[[nodiscard]] constexpr enum_ut<EnumType> enum_uv(EnumType a)
+template <typename E>
+[[nodiscard]] constexpr enum_ut<E> enum_uv(E a)
 {
-  return static_cast<enum_ut<EnumType>>(a);
+  return static_cast<enum_ut<E>>(a);
 }
 
-template <typename EnumType>
-[[nodiscard]] constexpr enum_ut<EnumType> enum_uv_or(EnumType a, EnumType b)
+template <typename E>
+[[nodiscard]] constexpr enum_ut<E> enum_uv_or(E a, E b)
 {
-  return static_cast<enum_ut<EnumType>>(enum_uv(a) | enum_uv(b));
+  return static_cast<enum_ut<E>>(enum_uv(a) | enum_uv(b));
 }
 
-template <typename EnumType>
-[[nodiscard]] constexpr EnumType enum_or(EnumType a, EnumType b)
+template <typename E>
+[[nodiscard]] constexpr enum_ut<E> enum_uv_and(E a, E b)
 {
-  return static_cast<EnumType>(enum_uv_or(a, b));
+  return static_cast<enum_ut<E>>(enum_uv(a) & enum_uv(b));
 }
 
-template <typename EnumType>
-[[nodiscard]] constexpr enum_ut<EnumType> enum_uv_and(EnumType a, EnumType b)
+template <typename E>
+[[nodiscard]] constexpr enum_ut<E> enum_uv_not(E a)
 {
-  return static_cast<enum_ut<EnumType>>(enum_uv(a) & enum_uv(b));
+  return static_cast<enum_ut<E>>(~enum_uv(a));
 }
 
-template <typename EnumType>
-[[nodiscard]] constexpr enum_ut<EnumType> enum_uv_toggle(EnumType a)
+template <typename E>
+[[nodiscard]] constexpr enum_ut<E> enum_uv_xor(E a, E b)
 {
-  return static_cast<enum_ut<EnumType>>(~enum_uv(a));
+  return static_cast<enum_ut<E>>(enum_uv(a) ^ enum_uv(b));
 }
 
-template <typename EnumType>
-[[nodiscard]] constexpr EnumType enum_toggle(EnumType a)
+template <typename E>
+[[nodiscard]] constexpr E enum_or(E a, E b)
 {
-  return static_cast<EnumType>(enum_uv_toggle(a));
+  return static_cast<E>(enum_uv_or(a, b));
 }
 
-template <typename EnumType>
-[[nodiscard]] constexpr EnumType enum_and(EnumType a, EnumType b)
+template <typename E>
+[[nodiscard]] constexpr E enum_and(E a, E b)
 {
-  return static_cast<EnumType>(enum_uv_and(a, b));
+  return static_cast<E>(enum_uv_and(a, b));
 }
 
-#define ASH_DEFINE_ENUM_BIT_OPS(enum_type)                                 \
-  [[nodiscard]] constexpr enum_type operator|(enum_type a, enum_type b)    \
-  {                                                                        \
-    return ::ash::enum_or(a, b);                                           \
-  }                                                                        \
-                                                                           \
-  [[nodiscard]] constexpr enum_type operator~(enum_type a)                 \
-  {                                                                        \
-    return ::ash::enum_toggle(a);                                          \
-  }                                                                        \
-                                                                           \
-  [[nodiscard]] constexpr enum_type &operator|=(enum_type &a, enum_type b) \
-  {                                                                        \
-    a = a | b;                                                             \
-    return a;                                                              \
-  }                                                                        \
-                                                                           \
-  [[nodiscard]] constexpr enum_type operator&(enum_type a, enum_type b)    \
-  {                                                                        \
-    return ::ash::enum_and(a, b);                                          \
-  }                                                                        \
-                                                                           \
-  [[nodiscard]] constexpr enum_type &operator&=(enum_type &a, enum_type b) \
-  {                                                                        \
-    a = a & b;                                                             \
-    return a;                                                              \
+template <typename E>
+[[nodiscard]] constexpr E enum_xor(E a, E b)
+{
+  return static_cast<E>(enum_uv_xor(a, b));
+}
+
+template <typename E>
+[[nodiscard]] constexpr E enum_not(E a)
+{
+  return static_cast<E>(enum_uv_not(a));
+}
+
+#define ASH_DEFINE_ENUM_BIT_OPS(E)                 \
+  [[nodiscard]] constexpr E operator|(E a, E b)    \
+  {                                                \
+    return ::ash::enum_or(a, b);                   \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E operator&(E a, E b)    \
+  {                                                \
+    return ::ash::enum_and(a, b);                  \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E operator^(E a, E b)    \
+  {                                                \
+    return ::ash::enum_xor(a, b);                  \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E operator~(E a)         \
+  {                                                \
+    return ::ash::enum_not(a);                     \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E &operator|=(E &a, E b) \
+  {                                                \
+    a = a | b;                                     \
+    return a;                                      \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E &operator&=(E &a, E b) \
+  {                                                \
+    a = a & b;                                     \
+    return a;                                      \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E &operator^=(E &a, E b) \
+  {                                                \
+    a = a ^ b;                                     \
+    return a;                                      \
   }
 
 }        // namespace ash

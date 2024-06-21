@@ -62,7 +62,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG 9a4fc81)
+  GIT_TAG 98499d6)
 
 FetchContent_Declare(
   harfbuzz
@@ -175,6 +175,7 @@ target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
   ashura_engine
+  ashura/engine/font.cc
   ashura/engine/font_impl.cc
   ashura/engine/text.cc
   ashura/engine/canvas.cc
@@ -183,7 +184,6 @@ add_library(
   ashura/engine/window.cc
   ashura/engine/widget.cc
   ashura/engine/scene.cc
-  ashura/engine/view.cc
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc
   ashura/engine/passes/bloom.cc

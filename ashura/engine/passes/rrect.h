@@ -16,6 +16,7 @@ struct RRectParam
   f32  stroke          = 0;
   f32  thickness       = 0;
   f32  edge_smoothness = 0.0015F;
+  u32  sampler         = 0;
   u32  albedo          = 0;
 };
 
@@ -25,7 +26,6 @@ struct RRectPassParams
   gfx::Rect          scissor        = {};
   gfx::Viewport      viewport       = {};
   gfx::DescriptorSet params_ssbo    = nullptr;
-  gfx::DescriptorSet sampler        = nullptr;
   gfx::DescriptorSet textures       = nullptr;
   u32                first_instance = 0;
   u32                num_instances  = 0;

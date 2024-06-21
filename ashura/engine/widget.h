@@ -177,6 +177,7 @@ struct Widget
 
   virtual WidgetAttributes get_attributes(Vec2 position)
   {
+    (void) position;
     return WidgetAttributes::Visible;
   }
 

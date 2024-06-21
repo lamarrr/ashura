@@ -45,9 +45,9 @@ struct MouseClickEvent
 
 struct MouseWheelEvent
 {
-  uid  mouse_id = UID_MAX;
-  Vec2 position;
-  Vec2 translation;
+  uid  mouse_id    = UID_MAX;
+  Vec2 position    = {};
+  Vec2 translation = {};
 };
 
 enum class WindowEventTypes : u32

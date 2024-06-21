@@ -1,5 +1,4 @@
 #include "ashura/engine/canvas.h"
-#include "ashura/engine/font_impl.h"
 #include "ashura/std/math.h"
 
 namespace ash
@@ -17,7 +16,7 @@ void Path::arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop)
     return;
   }
 
-  usize const beg = vtx.size();
+  u32 const first = (u32) vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -25,7 +24,7 @@ void Path::arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop)
 
   for (u32 i = 0; i < segments; i++)
   {
-    vtx[beg + i] = rotor(i * step) * 2 - 1;
+    vtx[first + i] = rotor(i * step) * 2 - 1;
   }
 }
 
@@ -36,7 +35,7 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
     return;
   }
 
-  usize const beg = vtx.size();
+  u32 const first = (u32) vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -44,7 +43,7 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
 
   for (u32 i = 0; i < segments; i++)
   {
-    vtx[beg + i] = rotor(i * step) * 2 - 1;
+    vtx[first + i] = rotor(i * step) * 2 - 1;
   }
 }
 
@@ -68,51 +67,51 @@ void Path::rrect(Vec<Vec2> &vtx, u32 segments, Vec4 radii)
   f32 max_radius_w = min(max_radius_z, 1.0f - radii.z);
   radii.w          = min(radii.w, max_radius_w);
 
-  u32 const   curve_segments = (segments - 8) / 4;
-  f32 const   step = (curve_segments == 0) ? 0.0f : ((PI / 2) / curve_segments);
-  usize const beg  = vtx.size();
+  u32 const curve_segments = (segments - 8) / 4;
+  f32 const step  = (curve_segments == 0) ? 0.0f : ((PI / 2) / curve_segments);
+  u32 const first = (u32) vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
   u32 i = 0;
 
-  vtx[beg + i++] = Vec2{1, 1 - radii.z};
+  vtx[first + i++] = Vec2{1, 1 - radii.z};
 
   for (u32 s = 0; s < curve_segments; s++)
   {
-    vtx[beg + i++] = (1 - radii.z) + radii.z * rotor(s * step);
+    vtx[first + i++] = (1 - radii.z) + radii.z * rotor(s * step);
   }
 
-  vtx[beg + i++] = Vec2{1 - radii.z, 1};
+  vtx[first + i++] = Vec2{1 - radii.z, 1};
 
-  vtx[beg + i++] = Vec2{-1 + radii.w, 1};
+  vtx[first + i++] = Vec2{-1 + radii.w, 1};
 
   for (u32 s = 0; s < curve_segments; s++)
   {
-    vtx[beg + i++] =
+    vtx[first + i++] =
         Vec2{-1 + radii.w, 1 - radii.w} + radii.w * rotor(PI / 2 + s * step);
   }
 
-  vtx[beg + i++] = Vec2{-1, 1 - radii.w};
+  vtx[first + i++] = Vec2{-1, 1 - radii.w};
 
-  vtx[beg + i++] = Vec2{-1, -1 + radii.x};
-
-  for (u32 s = 0; s < curve_segments; s++)
-  {
-    vtx[beg + i++] = (-1 + radii.x) + radii.x * rotor(PI + s * step);
-  }
-
-  vtx[beg + i++] = Vec2{-1 + radii.x, -1};
-
-  vtx[beg + i++] = Vec2{1 - radii.y, -1};
+  vtx[first + i++] = Vec2{-1, -1 + radii.x};
 
   for (u32 s = 0; s < curve_segments; s++)
   {
-    vtx[beg + i++] = Vec2{1 - radii.y, (-1 + radii.y)} +
-                     radii.y * rotor(PI * 3.0f / 2.0f + s * step);
+    vtx[first + i++] = (-1 + radii.x) + radii.x * rotor(PI + s * step);
   }
 
-  vtx[beg + i++] = Vec2{1, -1 + radii.y};
+  vtx[first + i++] = Vec2{-1 + radii.x, -1};
+
+  vtx[first + i++] = Vec2{1 - radii.y, -1};
+
+  for (u32 s = 0; s < curve_segments; s++)
+  {
+    vtx[first + i++] = Vec2{1 - radii.y, (-1 + radii.y)} +
+                       radii.y * rotor(PI * 3.0f / 2.0f + s * step);
+  }
+
+  vtx[first + i++] = Vec2{1, -1 + radii.y};
 }
 
 void Path::brect(Vec<Vec2> &vtx, Vec4 slant)
@@ -144,7 +143,7 @@ void Path::bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1, Vec2 cp2)
     return;
   }
 
-  usize const beg = vtx.size();
+  u32 const first = (u32) vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -152,8 +151,8 @@ void Path::bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1, Vec2 cp2)
 
   for (u32 i = 0; i < segments; i++)
   {
-    vtx[beg + i] = Vec2{ash::bezier(cp0.x, cp1.x, cp2.x, step * i),
-                        ash::bezier(cp0.y, cp1.y, cp2.y, step * i)};
+    vtx[first + i] = Vec2{ash::bezier(cp0.x, cp1.x, cp2.x, step * i),
+                          ash::bezier(cp0.y, cp1.y, cp2.y, step * i)};
   }
 }
 
@@ -165,7 +164,7 @@ void Path::cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
     return;
   }
 
-  usize const beg = vtx.size();
+  u32 const first = (u32) vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -173,7 +172,7 @@ void Path::cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
 
   for (u32 i = 0; i < segments; i++)
   {
-    vtx[beg + i] =
+    vtx[first + i] =
         Vec2{ash::cubic_bezier(cp0.x, cp1.x, cp2.x, cp3.x, step * i),
              ash::cubic_bezier(cp0.y, cp1.y, cp2.y, cp3.y, step * i)};
   }
@@ -187,7 +186,7 @@ void Path::catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
     return;
   }
 
-  usize const beg = vtx.size();
+  u32 const beg = vtx.size();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -201,30 +200,6 @@ void Path::catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
   }
 }
 
-inline void add_line_stroke(Vec2 *vtx, u32 *idx, u32 offset, Vec2 p0, Vec2 p1,
-                            f32 thickness)
-{
-  // line will be at a parallel angle
-  f32 const alpha = dot(normalize(p0), normalize(p1)) * PI;
-
-  /// parallel angle
-  Vec2 const f = (thickness / 2) * rotor(alpha);
-
-  // perpendicular angle
-  Vec2 const g = f * Vec2{-1, 0};
-
-  vtx[0] = p0 + f;
-  vtx[1] = p0 + g;
-  vtx[2] = p1 + g;
-  vtx[3] = p1 + f;
-  idx[0] = offset;
-  idx[1] = offset + 1;
-  idx[2] = offset + 2;
-  idx[3] = offset;
-  idx[4] = offset + 2;
-  idx[5] = offset + 3;
-}
-
 void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
                               Vec<u32> &indices, f32 thickness)
 {
@@ -233,47 +208,77 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
     return;
   }
 
-  u32 const first_v = (u32) vertices.size();
-  u32 const first_i = (u32) indices.size();
-  CHECK(vertices.extend_uninitialized((points.size() - 1) * 4));
-  CHECK(indices.extend_uninitialized((points.size() - 1) * 6));
+  u32 const first_vtx    = (u32) vertices.size();
+  u32 const first_idx    = (u32) indices.size();
+  u32 const num_points   = (u32) points.size();
+  u32 const num_vertices = (num_points - 1) * 4;
+  u32 const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
+  CHECK(vertices.extend_uninitialized(num_vertices));
+  CHECK(indices.extend_uninitialized(num_indices));
 
-  Vec2 *out_v = vertices.data() + first_v;
-  u32  *out_i = indices.data() + first_i;
-  u32   vtx   = 0;
+  Vec2 *vtx  = vertices.data() + first_vtx;
+  u32  *idx  = indices.data() + first_idx;
+  u32   ivtx = 0;
 
-  for (usize i = 0; i < points.size() - 1; i++)
+  for (u32 i = 0; i < num_points - 1; i++)
   {
-    Vec2 const p0 = points[i];
-    Vec2 const p1 = points[i + 1];
-    add_line_stroke(out_v, out_i, vtx, p0, p1, thickness);
-    out_v += 4;
-    out_i += 6;
+    Vec2 const p0    = points[i];
+    Vec2 const p1    = points[i + 1];
+    Vec2 const d     = p1 - p0;
+    f32 const  alpha = std::atanf(d.y / d.x);
+
+    // parallel angle
+    Vec2 const down = (thickness / 2) * rotor(alpha + PI / 2);
+
+    // perpendicular angle
+    Vec2 const up = -down;
+
+    vtx[0] = p0 + up;
+    vtx[1] = p0 + down;
+    vtx[2] = p1 + up;
+    vtx[3] = p1 + down;
+    idx[0] = ivtx;
+    idx[1] = ivtx + 1;
+    idx[2] = ivtx + 3;
+    idx[3] = ivtx;
+    idx[4] = ivtx + 3;
+    idx[5] = ivtx + 2;
+
+    if (i != 0)
+    {
+      u32 prev = ivtx - 2;
+      idx[6]   = prev;
+      idx[7]   = prev + 1;
+      idx[8]   = ivtx + 1;
+      idx[9]   = prev;
+      idx[10]  = prev + 1;
+      idx[11]  = ivtx;
+      idx += 6;
+    }
+
+    idx += 6;
     vtx += 4;
+    ivtx += 4;
   }
 }
 
-void Path::triangulate_ngon(Span<Vec2 const> points, Vec<Vec2> &vertices,
-                            Vec<u32> &indices)
+void Path::triangles(Span<Vec2 const> points, Vec<u32> &indices)
 {
   if (points.size() < 3)
   {
     return;
   }
-  u32 const ntriangles = (u32) ((points.size()) - 1);
-  u32 const first_i    = (u32) indices.size();
-  CHECK(vertices.extend_copy(points));
-  CHECK(indices.extend_uninitialized(ntriangles * 3));
+  u32 const num_points    = (u32) points.size();
+  u32 const num_triangles = num_points / 3;
+  u32 const first_idx     = (u32) indices.size();
+  CHECK(indices.extend_uninitialized(num_triangles * 3));
 
-  u32 *out_i = indices.data() + first_i;
-  u32  vtx   = 1;
-  for (u32 i = 0; i < ntriangles; i++)
+  u32 *idx = indices.data() + first_idx;
+  for (u32 i = 0; i < num_triangles * 3; i += 3)
   {
-    out_i[0] = 0;
-    out_i[1] = vtx;
-    out_i[2] = vtx + 1;
-    out_i += 3;
-    vtx += 1;
+    idx[i]     = i;
+    idx[i + 1] = i + 1;
+    idx[i + 2] = i + 2;
   }
 }
 
@@ -310,8 +315,16 @@ void Canvas::clear()
   pass_runs.clear();
 }
 
-static void add_run(Canvas &canvas, CanvasPassType type, gfx::Rect scissor)
+static inline void add_run(Canvas &canvas, CanvasPassType type,
+                           gfx::Rect scissor)
 {
+  scissor.offset.x = min(scissor.offset.x, canvas.surface.extent.x);
+  scissor.offset.y = min(scissor.offset.y, canvas.surface.extent.y);
+  scissor.extent.x =
+      min(canvas.surface.extent.x - scissor.offset.x, scissor.extent.x);
+  scissor.extent.y =
+      min(canvas.surface.extent.y - scissor.offset.y, scissor.extent.y);
+
   bool new_run = true;
 
   if (!canvas.pass_runs.is_empty())
@@ -323,7 +336,7 @@ static void add_run(Canvas &canvas, CanvasPassType type, gfx::Rect scissor)
 
   if (!new_run)
   {
-    canvas.pass_runs[canvas.pass_runs.size() - 1].end++;
+    canvas.pass_runs[canvas.pass_runs.size() - 1].count++;
     return;
   }
 
@@ -347,22 +360,23 @@ static void add_run(Canvas &canvas, CanvasPassType type, gfx::Rect scissor)
       break;
   }
 
-  CHECK(canvas.pass_runs.push(
-      CanvasPassRun{.type = type, .end = current, .scissor = scissor}));
+  CHECK(canvas.pass_runs.push(CanvasPassRun{
+      .type = type, .first = current - 1, .count = 1, .scissor = scissor}));
 }
 
 void Canvas::circle(ShapeDesc const &desc)
 {
   CHECK(rrect_params.push(RRectParam{
-      .transform    = surface.mvp(desc.center, desc.extent, desc.transform),
+      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = {1, 1, 1, 1},
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
       .aspect_ratio = desc.extent.x / desc.extent.y,
       .stroke       = desc.stroke,
-      .thickness    = desc.thickness,
+      .thickness    = desc.thickness / desc.extent.y,
       .edge_smoothness = desc.edge_smoothness,
+      .sampler         = desc.sampler,
       .albedo          = desc.texture}));
 
   add_run(*this, CanvasPassType::RRect, desc.scissor);
@@ -371,15 +385,16 @@ void Canvas::circle(ShapeDesc const &desc)
 void Canvas::rect(ShapeDesc const &desc)
 {
   CHECK(rrect_params.push(RRectParam{
-      .transform    = surface.mvp(desc.center, desc.extent, desc.transform),
+      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = {0, 0, 0, 0},
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
       .aspect_ratio = desc.extent.x / desc.extent.y,
       .stroke       = desc.stroke,
-      .thickness    = desc.thickness,
+      .thickness    = desc.thickness / desc.extent.y,
       .edge_smoothness = desc.edge_smoothness,
+      .sampler         = desc.sampler,
       .albedo          = desc.texture}));
 
   add_run(*this, CanvasPassType::RRect, desc.scissor);
@@ -388,31 +403,47 @@ void Canvas::rect(ShapeDesc const &desc)
 void Canvas::rrect(ShapeDesc const &desc)
 {
   CHECK(rrect_params.push(RRectParam{
-      .transform    = surface.mvp(desc.center, desc.extent, desc.transform),
+      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = desc.border_radii / desc.extent.y,
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
       .aspect_ratio = desc.extent.x / desc.extent.y,
       .stroke       = desc.stroke,
-      .thickness    = desc.thickness,
+      .thickness    = desc.thickness / desc.extent.y,
       .edge_smoothness = desc.edge_smoothness,
+      .sampler         = desc.sampler,
       .albedo          = desc.texture}));
 
   add_run(*this, CanvasPassType::RRect, desc.scissor);
 }
 
-constexpr bool is_transparent(Vec4 const (&colors)[4])
+constexpr bool is_transparent(ColorGradient const &g)
 {
-  return colors[0].w == 0 && colors[1].w == 0 && colors[2].w == 0 &&
-         colors[3].w == 0;
+  return g[0].w == 0 && g[1].w == 0 && g[2].w == 0 && g[3].w == 0;
 }
 
 void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
-                  TextLayout const &layout, TextBlockStyle const &style)
+                  TextLayout const &layout, TextBlockStyle const &style,
+                  Span<FontAtlasResource const *const> atlases)
 {
+  // TODO(lamarrr): border radius is incorrect, stroke is not working correctly when set to 1
+  // rrect(ShapeDesc{.center       = {1920 / 2, 1080 / 2},
+  //                 .extent       = {1920, 1080},
+  //                 .border_radii = {200, 100, 450, 50},
+  //                 .stroke       = 1,
+  //                 .thickness    = 10,
+  //                 .tint = ColorGradient::uniform(Vec4U8{255, 255, 255, 255})});
   CHECK(style.runs.size() == block.runs.size());
   CHECK(style.runs.size() == block.fonts.size());
+  for (u32 i = 0; i < (u32) block.fonts.size(); i++)
+  {
+    CHECK(atlases[i] != nullptr);
+    CHECK(block.fonts[i].font != nullptr);
+    FontInfo f = get_font_info(block.fonts[i].font);
+    CHECK(atlases[i]->glyphs.size() == f.glyphs.size());
+  }
+
   f32 line_y = 0;
   for (Line const &l : layout.lines)
   {
@@ -420,7 +451,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
     line_y += m.line_height;
     f32 const padding  = max(m.line_height - (m.ascent + m.descent), 0.0f);
     f32 const baseline = line_y - padding / 2;
-    f32 const spacing  = min(layout.extent.x, style.align_width) - m.width;
+    f32 const spacing  = max(layout.extent.x, style.align_width) - m.width;
     f32 const aligned_spacing =
         (m.base_direction == TextDirection::LeftToRight) ?
             space_align(spacing, style.alignment) :
@@ -428,9 +459,10 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
     f32 cursor = aligned_spacing;
     for (u32 r = 0; r < l.num_runs;)
     {
-      u32 const      first       = r++;
-      TextRun const &first_run   = layout.runs[l.first_run + first];
-      f32            dir_advance = 0;
+      u32 const      first     = r++;
+      TextRun const &first_run = layout.runs[l.first_run + first];
+      f32            dir_advance =
+          pt_to_px(first_run.metrics.advance, first_run.font_height);
 
       while (r < l.num_runs &&
              layout.runs[l.first_run + r].direction == first_run.direction)
@@ -444,73 +476,77 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
           (first_run.direction == TextDirection::LeftToRight) ? 0 : dir_advance;
       for (u32 ri = first; ri < r; ri++)
       {
-        TextRun const   &run        = layout.runs[l.first_run + ri];
-        FontStyle const &font_style = block.fonts[run.style];
-        TextStyle const &run_style  = style.runs[run.style];
-        FontImpl const  *font       = (FontImpl const *) font_style.font;
+        TextRun const           &run        = layout.runs[l.first_run + ri];
+        FontStyle const         &font_style = block.fonts[run.style];
+        TextStyle const         &run_style  = style.runs[run.style];
+        FontInfo                 font       = get_font_info(font_style.font);
+        FontAtlasResource const *atlas      = atlases[run.style];
 
-        if (!is_transparent(run_style.background_color))
+        if (run.direction == TextDirection::RightToLeft)
+        {
+          advance -= pt_to_px(run.metrics.advance, run.font_height);
+        }
+
+        if (!is_transparent(run_style.background))
         {
           Vec3 center{cursor + advance / 2, line_y - run.line_height / 2, 0};
           Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
                       m.line_height};
           rect(ShapeDesc{.center    = desc.center,
                          .extent    = extent,
-                         .tint      = {run_style.background_color[0],
-                                       run_style.background_color[1],
-                                       run_style.background_color[2],
-                                       run_style.background_color[3]},
-                         .transform = translate3d(center) * desc.transform *
-                                      translate3d(-center),
-                         .scissor = desc.scissor});
+                         .transform = desc.transform * translate3d(center),
+                         .tint      = run_style.background,
+                         .scissor   = desc.scissor});
         }
 
+        // todo(lamarrr): more work needs to be done on directionality
+        // FIRSt calculate actual width based on alignment
+        // make gradient be on a line-by line basis? what about text that hangs
+        // above the line
         for (u32 layer = 0; layer < 2; layer++)
         {
           f32 g_cursor = 0;
           for (u32 g = 0; g < run.num_glyphs; g++)
           {
-            GlyphShape const &sh = layout.glyphs[run.first_glyph + g];
-            Glyph const      &gl = font->glyphs[sh.glyph];
-            Vec2 extent          = pt_to_px(gl.metrics.extent, run.font_height);
-            Vec3 center          = to_vec3(
-                Vec2{cursor + advance + g_cursor +
-                         pt_to_px(gl.metrics.bearing.x, run.font_height),
-                     baseline -
-                         pt_to_px(gl.metrics.bearing.y, run.font_height)} +
-                    pt_to_px(sh.offset, run.font_height) + extent / 2,
-                0);
+            GlyphShape const &sh  = layout.glyphs[run.first_glyph + g];
+            Glyph const      &gl  = font.glyphs[sh.glyph];
+            AtlasGlyph const &agl = atlas->glyphs[sh.glyph];
+            Vec2 const extent = pt_to_px(gl.metrics.extent, run.font_height);
+            Vec2 const offset =
+                Vec2{cursor + advance + g_cursor, baseline} +
+                pt_to_px(gl.metrics.bearing, run.font_height) * Vec2{1, -1} +
+                pt_to_px(sh.offset, run.font_height);
+            Vec3 const center = to_vec3(offset + extent / 2, 0);
 
             if (layer == 0 && run_style.shadow_scale != 0)
             {
               Vec3 shadow_center = center + to_vec3(run_style.shadow_offset, 0);
               Vec2 shadow_extent = extent * run_style.shadow_scale;
-              rect(ShapeDesc{
-                  .center = desc.center,
-                  .extent = shadow_extent,
-                  .tint = {run_style.shadow_color[0], run_style.shadow_color[1],
-                           run_style.shadow_color[2],
-                           run_style.shadow_color[3]},
-                  .texture   = font->textures[gl.layer],
-                  .uv        = {gl.uv[0], gl.uv[1]},
-                  .transform = translate3d(shadow_center) * desc.transform *
-                               translate3d(-shadow_center),
-                  .scissor = desc.scissor});
+              rect(ShapeDesc{.center = desc.center,
+                             .extent = shadow_extent,
+                             .transform =
+                                 desc.transform * translate3d(shadow_center),
+                             .tint            = run_style.shadow,
+                             .sampler         = desc.sampler,
+                             .texture         = atlas->textures[agl.layer],
+                             .uv              = {agl.uv[0], agl.uv[1]},
+                             .tiling          = desc.tiling,
+                             .edge_smoothness = desc.edge_smoothness,
+                             .scissor         = desc.scissor});
             }
 
-            if (layer == 1 && !is_transparent(run_style.foreground_color))
+            if (layer == 1 && !is_transparent(run_style.foreground))
             {
               rect(ShapeDesc{.center    = desc.center,
                              .extent    = extent,
-                             .tint      = {run_style.foreground_color[0],
-                                           run_style.foreground_color[1],
-                                           run_style.foreground_color[2],
-                                           run_style.foreground_color[3]},
-                             .texture   = font->textures[gl.layer],
-                             .uv        = {gl.uv[0], gl.uv[1]},
-                             .transform = translate3d(center) * desc.transform *
-                                          translate3d(-center),
-                             .scissor = desc.scissor});
+                             .transform = desc.transform * translate3d(center),
+                             .tint      = run_style.foreground,
+                             .sampler   = desc.sampler,
+                             .texture   = atlas->textures[agl.layer],
+                             .uv        = {agl.uv[0], agl.uv[1]},
+                             .tiling    = desc.tiling,
+                             .edge_smoothness = desc.edge_smoothness,
+                             .scissor         = desc.scissor});
             }
 
             g_cursor += pt_to_px(sh.advance.x, run.font_height);
@@ -524,13 +560,14 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                       run_style.strikethrough_thickness};
           rect(ShapeDesc{.center    = desc.center,
                          .extent    = extent,
-                         .tint      = {run_style.strikethrough_color[0],
-                                       run_style.strikethrough_color[1],
-                                       run_style.strikethrough_color[2],
-                                       run_style.strikethrough_color[3]},
-                         .transform = translate3d(center) * desc.transform *
-                                      translate3d(-center),
-                         .scissor = desc.scissor});
+                         .transform = desc.transform * translate3d(center),
+                         .tint      = run_style.strikethrough,
+                         .sampler   = desc.sampler,
+                         .texture   = 0,
+                         .uv        = {},
+                         .tiling    = desc.tiling,
+                         .edge_smoothness = desc.edge_smoothness,
+                         .scissor         = desc.scissor});
         }
 
         if (run_style.underline_thickness != 0)
@@ -540,18 +577,20 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                       run_style.underline_thickness};
           rect(ShapeDesc{.center    = desc.center,
                          .extent    = extent,
-                         .tint      = {run_style.underline_color[0],
-                                       run_style.underline_color[1],
-                                       run_style.underline_color[2],
-                                       run_style.underline_color[3]},
-                         .transform = translate3d(center) * desc.transform *
-                                      translate3d(-center),
-                         .scissor = desc.scissor});
+                         .transform = desc.transform * translate3d(center),
+                         .tint      = run_style.underline,
+                         .sampler   = desc.sampler,
+                         .texture   = 0,
+                         .uv        = {},
+                         .tiling    = desc.tiling,
+                         .edge_smoothness = desc.edge_smoothness,
+                         .scissor         = desc.scissor});
         }
 
-        advance += (first_run.direction == TextDirection::LeftToRight) ?
-                       run.metrics.advance :
-                       -run.metrics.advance;
+        if (run.direction == TextDirection::LeftToRight)
+        {
+          advance += pt_to_px(run.metrics.advance, run.font_height);
+        }
       }
 
       cursor += dir_advance;
@@ -559,7 +598,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
   }
 }
 
-void Canvas::ngon(ShapeDesc const &desc, Span<Vec2 const> points)
+void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
 {
   if (points.size() < 3)
   {
@@ -568,12 +607,16 @@ void Canvas::ngon(ShapeDesc const &desc, Span<Vec2 const> points)
 
   u32 const first_index  = (u32) indices.size();
   u32 const first_vertex = (u32) vertices.size();
-  Path::triangulate_ngon(points, vertices, indices);
+
+  CHECK(vertices.extend_copy(points));
+  Path::triangles(points, indices);
+
   CHECK(ngon_params.push(NgonParam{
-      .transform    = desc.transform,
+      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
+      .sampler      = desc.sampler,
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));
@@ -593,16 +636,18 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
 
   u32 const first_index  = (u32) indices.size();
   u32 const first_vertex = (u32) vertices.size();
-  Path::triangulate_stroke(points, vertices, indices, desc.thickness);
+  Path::triangulate_stroke(points, vertices, indices,
+                           desc.thickness / desc.extent.y);
   CHECK(ngon_params.push(NgonParam{
-      .transform    = desc.transform,
+      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
+      .sampler      = desc.sampler,
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));
-  u32 const num_indices = (u32) (vertices.size() - first_vertex);
+  u32 const num_indices = (u32) (indices.size() - first_index);
 
   CHECK(ngon_index_counts.push(num_indices));
 
@@ -612,14 +657,13 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
 void Canvas::blur(ShapeDesc const &desc, u32 radius)
 {
   CHECK(blur_params.push(radius));
+  add_run(*this, CanvasPassType::Blur, desc.scissor);
 }
 
 void Canvas::custom(ShapeDesc const &desc, CustomCanvasPassInfo const &pass)
 {
   CHECK(custom_params.push(pass));
-  CHECK(pass_runs.push(CanvasPassRun{.type    = CanvasPassType::Custom,
-                                     .end     = (u32) custom_params.size(),
-                                     .scissor = desc.scissor}));
+  add_run(*this, CanvasPassType::Custom, desc.scissor);
 }
 
 }        // namespace ash

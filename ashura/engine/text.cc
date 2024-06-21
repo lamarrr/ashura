@@ -193,46 +193,51 @@ static void segment_breakpoints(Span<u32 const> text, f32 max_width,
 }
 
 static void insert_run(TextLayout &l, FontStyle const &s, u32 first, u32 count,
-                       u16 style, i32 font_ascent, i32 font_descent,
+                       u16 style, FontMetrics const &font_metrics,
                        TextDirection direction, TextDirection base_direction,
                        bool paragraph, bool breakable,
                        Span<hb_glyph_info_t const>     infos,
                        Span<hb_glyph_position_t const> positions)
 {
-  u32 num_glyphs  = (u32) infos.size();
-  u32 first_glyph = (u32) l.glyphs.size();
-  i32 advance     = 0;
-  u32 cluster     = U32_MAX;
+  u32 const num_glyphs  = (u32) infos.size();
+  u32 const first_glyph = (u32) l.glyphs.size();
+  i32       advance     = 0;
+
+  CHECK(l.glyphs.extend_uninitialized(num_glyphs));
 
   for (u32 i = 0; i < num_glyphs; i++)
   {
     hb_glyph_info_t const     &info = infos[i];
     hb_glyph_position_t const &pos  = positions[i];
-    GlyphShape                 g{.glyph   = info.codepoint,
-                                 .cluster = info.cluster,
-                                 .advance = {pos.x_advance, pos.y_advance},
-                                 .offset  = {pos.x_offset, pos.y_offset}};
-    CHECK(l.glyphs.push(g));
+    GlyphShape                 shape{.glyph   = info.codepoint,
+                                     .cluster = info.cluster,
+                                     .advance = {pos.x_advance, pos.y_advance},
+                                     .offset  = {pos.x_offset, -pos.y_offset}};
 
+    l.glyphs[first_glyph + i] = shape;
     advance += pos.x_advance;
   }
 
-  CHECK(l.runs.push(TextRun{.first          = first,
-                            .count          = count,
-                            .style          = style,
-                            .font_height    = s.font_height,
-                            .line_height    = s.line_height * s.font_height,
-                            .first_glyph    = first_glyph,
-                            .num_glyphs     = num_glyphs,
-                            .metrics        = TextRunMetrics{.advance = advance,
-                                                             .ascent  = font_ascent,
-                                                             .descent = font_descent},
-                            .base_direction = base_direction,
-                            .direction      = direction,
-                            .paragraph      = paragraph,
-                            .breakable      = breakable}));
+  CHECK(l.runs.push(
+      TextRun{.first          = first,
+              .count          = count,
+              .style          = style,
+              .font_height    = s.font_height,
+              .line_height    = s.line_height * s.font_height,
+              .first_glyph    = first_glyph,
+              .num_glyphs     = num_glyphs,
+              .metrics        = TextRunMetrics{.advance = advance,
+                                               .ascent  = font_metrics.ascent,
+                                               .descent = font_metrics.descent},
+              .base_direction = base_direction,
+              .direction      = direction,
+              .paragraph      = paragraph,
+              .breakable      = breakable}));
 }
 
+/// see:
+/// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
+///
 void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 {
   layout.clear();
@@ -253,7 +258,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     u32 prev_run_end = 0;
     for (u32 irun = 0; irun < (u32) block.runs.size(); irun++)
     {
-      u32 const run_end = block.runs[irun];
+      u32 const run_end = min(block.runs[irun], text_size);
       CHECK(prev_run_end <= block.text.size());
       CHECK(prev_run_end <= run_end);
       for (u32 i = prev_run_end; i < run_end; i++)
@@ -293,8 +298,8 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     u32 const          first   = i++;
     TextSegment const &segment = segments[first];
     while (i < text_size && segment.style == segments[i].style &&
-           segment.script == segments[i].script && !segment.paragraph &&
-           segment.direction == segments[i].direction && !segment.breakable)
+           segment.script == segments[i].script && !segments[i].paragraph &&
+           segment.direction == segments[i].direction && !segments[i].breakable)
     {
       i++;
     }
@@ -310,25 +315,28 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
                                                               HB_DIRECTION_RTL,
           language, block.use_kerning, block.use_ligatures, infos, positions);
 
-    insert_run(layout, s, first, i - first, segment.style, f->ascent,
-               f->descent, segment.direction, segment.base_direction,
-               segment.paragraph, segment.breakable, infos, positions);
+    insert_run(layout, s, first, i - first, segment.style, f->metrics,
+               segment.direction, segment.base_direction, segment.paragraph,
+               segment.breakable, infos, positions);
   }
 
   u32 const num_runs = (u32) layout.runs.size();
   for (u32 i = 0; i < num_runs;)
   {
     u32 const           first          = i++;
-    TextDirection const base_direction = layout.runs[first].base_direction;
-    bool const          paragraph      = layout.runs[first].paragraph;
-    f32                 width          = 0;
-    f32                 ascent         = 0;
-    f32                 descent        = 0;
-    f32                 line_height    = 0;
+    TextRun const      &first_run      = layout.runs[first];
+    TextDirection const base_direction = first_run.base_direction;
+    bool const          paragraph      = first_run.paragraph;
+    f32 width   = pt_to_px(first_run.metrics.advance, first_run.font_height);
+    f32 ascent  = pt_to_px(first_run.metrics.ascent, first_run.font_height);
+    f32 descent = pt_to_px(first_run.metrics.descent, first_run.font_height);
+    f32 line_height = first_run.line_height;
 
-    while (i < num_runs && !layout.runs[i].paragraph &&
-           !(layout.runs[i].breakable &&
-             (layout.runs[i].metrics.advance + width) > max_width))
+    while (
+        i < num_runs && !layout.runs[i].paragraph &&
+        !(layout.runs[i].breakable && (pt_to_px(layout.runs[i].metrics.advance,
+                                                layout.runs[i].font_height) +
+                                       width) > max_width))
     {
       TextRun const        &r = layout.runs[i];
       TextRunMetrics const &m = r.metrics;

@@ -573,4 +573,77 @@ constexpr Mat4 look_at(Vec3 eye, Vec3 center, Vec3 up)
            {-dot(s, eye), -dot(u, eye), -dot(f, eye), 1}}};
 }
 
+/// https://github.com/GPUOpen-LibrariesAndSDKs/Cauldron/blob/b92d559bd083f44df9f8f42a6ad149c1584ae94c/src/common/Misc/Misc.cpp#L265
+/// https://bruop.github.io/frustum_culling/
+///
+/// exploits the fact that in clip-space all vertices in the view frustum will
+/// obey:
+///
+/// -w <= x <= w
+/// -w <= y <= w
+///  0 <= z <= w
+///
+constexpr bool is_outside_frustum(Mat4 const &mvp, Vec3 offset, Vec3 extent)
+{
+  constexpr u8 NUM_CORNERS          = 8;
+  Vec4 const   corners[NUM_CORNERS] = {
+      mvp * to_vec4(offset, 1),
+      mvp * to_vec4(offset + Vec3{extent.x, 0, 0}, 1),
+      mvp * to_vec4(offset + Vec3{extent.x, extent.y, 0}, 1),
+      mvp * to_vec4(offset + Vec3{0, extent.y, 0}, 1),
+      mvp * to_vec4(offset + Vec3{0, 0, extent.z}, 1),
+      mvp * to_vec4(offset + Vec3{extent.x, 0, extent.z}, 1),
+      mvp * to_vec4(offset + extent, 1),
+      mvp * to_vec4(offset + Vec3{0, extent.y, extent.z}, 1)};
+  u8 left   = 0;
+  u8 right  = 0;
+  u8 top    = 0;
+  u8 bottom = 0;
+  u8 back   = 0;
+
+  for (u8 i = 0; i < NUM_CORNERS; i++)
+  {
+    Vec4 const &corner = corners[i];
+
+    if (corner.x < -corner.w)
+    {
+      left++;
+    }
+
+    if (corner.x > corner.w)
+    {
+      right++;
+    }
+
+    if (corner.y < -corner.w)
+    {
+      bottom++;
+    }
+
+    if (corner.y > corner.w)
+    {
+      top++;
+    }
+
+    if (corner.z < 0)
+    {
+      back++;
+    }
+  }
+
+  return left == NUM_CORNERS || right == NUM_CORNERS || top == NUM_CORNERS ||
+         bottom == NUM_CORNERS || back == NUM_CORNERS;
+}
+
+constexpr void frustum_cull(Mat4 const            &mvp,
+                            Span<Mat4Affine const> global_transform,
+                            Span<Box const> aabb, BitSpan<u64> is_visible)
+{
+  for (u32 i = 0; i < (u32) aabb.size(); i++)
+  {
+    is_visible[i] = !is_outside_frustum(mvp * global_transform[i],
+                                        aabb[i].offset, aabb[i].extent);
+  }
+}
+
 }        // namespace ash
