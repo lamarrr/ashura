@@ -17,16 +17,6 @@ namespace ash
 
 static_assert(PT_UNIT % 64 == 0);
 
-constexpr u32 FONT_ATLAS_EXTENT = 512;
-
-static_assert(FONT_ATLAS_EXTENT > 0, "Font atlas extent must be non-zero");
-static_assert(FONT_ATLAS_EXTENT > 128,
-              "Font atlas extent must be at least 128px");
-static_assert(FONT_ATLAS_EXTENT % 64 == 0,
-              "Font atlas extent should be a multiple of 64");
-static_assert(FONT_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT_2D,
-              "Font atlas extent too large for GPU platform");
-
 Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
                                    AllocatorImpl const &allocator)
 {
@@ -318,10 +308,18 @@ void destroy_font(Font font)
 bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
                     AllocatorImpl const &allocator)
 {
+  constexpr u32 MIN_ATLAS_EXTENT = 512;
+  static_assert(MIN_ATLAS_EXTENT > 0, "Font atlas extent must be non-zero");
+  static_assert(MIN_ATLAS_EXTENT > 128,
+                "Font atlas extent must be at least 128px");
+  static_assert(MIN_ATLAS_EXTENT % 64 == 0,
+                "Font atlas extent should be a multiple of 64");
+  static_assert(MIN_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT_2D,
+                "Font atlas extent too large for GPU platform");
   CHECK(font_height <= 1024);
-  CHECK(font_height <= FONT_ATLAS_EXTENT / 4);
+  CHECK(font_height <= MIN_ATLAS_EXTENT / 8);
 
-  Vec2U const atlas_extent{FONT_ATLAS_EXTENT, FONT_ATLAS_EXTENT};
+  Vec2U atlas_extent{MIN_ATLAS_EXTENT, MIN_ATLAS_EXTENT};
 
   FontImpl *f = (FontImpl *) font;
 
@@ -384,11 +382,16 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
         r.y                = 0;
         // added padding to avoid texture spilling due to accumulated
         // floating-point uv interpolation errors
-        r.w = (i32) (agl.area.extent.x + 2);
-        r.h = (i32) (agl.area.extent.y + 2);
+        r.w            = (i32) (agl.area.extent.x + 2);
+        r.h            = (i32) (agl.area.extent.y + 2);
+        atlas_extent.x = max(atlas_extent.x, agl.area.extent.x + 2);
+        atlas_extent.y = max(atlas_extent.y, agl.area.extent.y + 2);
         irect++;
       }
     }
+
+    CHECK(atlas_extent.x <= gfx::MAX_IMAGE_EXTENT_2D);
+    CHECK(atlas_extent.y <= gfx::MAX_IMAGE_EXTENT_2D);
 
     rect_pack::Node *nodes;
     if (!allocator.nalloc(atlas_extent.x, &nodes))
