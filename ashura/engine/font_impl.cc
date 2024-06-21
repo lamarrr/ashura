@@ -119,7 +119,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
     return Err{FontStatus::DecodingFailed};
   }
 
-  if (FT_Set_Char_Size(ft_face, PT_UNIT, PT_UNIT, 300, 300) != 0)
+  if (FT_Set_Char_Size(ft_face, PT_UNIT, PT_UNIT, 72, 72) != 0)
   {
     return Err{FontStatus::DecodingFailed};
   }
