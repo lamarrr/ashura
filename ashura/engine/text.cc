@@ -296,8 +296,8 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     u32 const          first   = i++;
     TextSegment const &segment = segments[first];
     while (i < text_size && segment.style == segments[i].style &&
-           segment.script == segments[i].script && !segment.paragraph &&
-           segment.direction == segments[i].direction && !segment.breakable)
+           segment.script == segments[i].script && !segments[i].paragraph &&
+           segment.direction == segments[i].direction && !segments[i].breakable)
     {
       i++;
     }
@@ -322,16 +322,19 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   for (u32 i = 0; i < num_runs;)
   {
     u32 const           first          = i++;
-    TextDirection const base_direction = layout.runs[first].base_direction;
-    bool const          paragraph      = layout.runs[first].paragraph;
-    f32                 width          = 0;
-    f32                 ascent         = 0;
-    f32                 descent        = 0;
-    f32                 line_height    = 0;
+    TextRun const      &first_run      = layout.runs[first];
+    TextDirection const base_direction = first_run.base_direction;
+    bool const          paragraph      = first_run.paragraph;
+    f32 width   = pt_to_px(first_run.metrics.advance, first_run.font_height);
+    f32 ascent  = pt_to_px(first_run.metrics.ascent, first_run.font_height);
+    f32 descent = pt_to_px(first_run.metrics.descent, first_run.font_height);
+    f32 line_height = first_run.line_height;
 
-    while (i < num_runs && !layout.runs[i].paragraph &&
-           !(layout.runs[i].breakable &&
-             (layout.runs[i].metrics.advance + width) > max_width))
+    while (
+        i < num_runs && !layout.runs[i].paragraph &&
+        !(layout.runs[i].breakable && (pt_to_px(layout.runs[i].metrics.advance,
+                                                layout.runs[i].font_height) +
+                                       width) > max_width))
     {
       TextRun const        &r = layout.runs[i];
       TextRunMetrics const &m = r.metrics;

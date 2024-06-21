@@ -200,7 +200,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
 
   // expressed on a PT_UNIT scale
   i32 const ascent  = ft_face->size->metrics.ascender;
-  i32 const descent = ft_face->size->metrics.descender;
+  i32 const descent = -ft_face->size->metrics.descender;
   i32 const advance = ft_face->size->metrics.max_advance;
 
   Glyph *glyphs;
