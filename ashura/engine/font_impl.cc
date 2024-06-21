@@ -347,8 +347,15 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
         continue;
       }
 
-      atlas.glyphs[i].area.extent = Vec2U{f->ft_face->glyph->bitmap.width,
-                                          f->ft_face->glyph->bitmap.rows};
+      Vec2U extent{f->ft_face->glyph->bitmap.width,
+                   f->ft_face->glyph->bitmap.rows};
+
+      if (extent.x == 0 || extent.y == 0)
+      {
+        continue;
+      }
+
+      atlas.glyphs[i].area.extent = extent;
 
       num_rasterized_glyphs++;
     }
@@ -369,7 +376,7 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
       Glyph const      &gl  = f->glyphs[g];
       AtlasGlyph const &agl = atlas.glyphs[g];
       // only assign packing rects to the valid glyphs
-      if (gl.is_valid)
+      if (gl.is_valid && agl.area.extent.x != 0 && agl.area.extent.y != 0)
       {
         rect_pack::rect &r = rects[irect];
         r.glyph_index      = g;
