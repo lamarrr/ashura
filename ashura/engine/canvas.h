@@ -80,9 +80,13 @@ struct CanvasSurface
 
   constexpr Mat4 mvp(Mat4 const &transform, Vec2 center, Vec2 extent) const
   {
-    return scale3d(to_vec3(1 / (viewport.extent * 2), 1)) *
-           translate3d(to_vec3(center, 0)) * transform *
-           scale3d(to_vec3(extent * 2, 1));
+    return
+        // translate the object to its screen position, using (0, 0) as top
+        translate3d(to_vec3((center / (0.5f * viewport.extent)) - 1, 0)) *
+        // scale the object in the -1 to + 1 space
+        scale3d(to_vec3(2 / (viewport.extent), 1)) *
+        // perform object-space transformation
+        transform * scale3d(to_vec3(extent / 2, 1));
   }
 };
 
