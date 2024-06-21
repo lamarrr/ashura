@@ -33,6 +33,7 @@ struct ShapeDesc
 {
   Vec2          center          = {0, 0};
   Vec2          extent          = {0, 0};
+  Mat4          transform       = Mat4::identity();
   Vec4          border_radii    = {0, 0, 0, 0};
   f32           stroke          = 0.0f;
   f32           thickness       = 1.0f;
@@ -42,7 +43,6 @@ struct ShapeDesc
   Vec2          uv[2]           = {{0, 0}, {1, 1}};
   f32           tiling          = 1;
   f32           edge_smoothness = 0.0015F;
-  Mat4          transform       = Mat4::identity();
   gfx::Rect     scissor = {.offset = {0, 0}, .extent = {U32_MAX, U32_MAX}};
 };
 
