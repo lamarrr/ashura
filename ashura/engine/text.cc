@@ -199,20 +199,22 @@ static void insert_run(TextLayout &l, FontStyle const &s, u32 first, u32 count,
                        Span<hb_glyph_info_t const>     infos,
                        Span<hb_glyph_position_t const> positions)
 {
-  u32 num_glyphs  = (u32) infos.size();
-  u32 first_glyph = (u32) l.glyphs.size();
-  i32 advance     = 0;
+  u32 const num_glyphs  = (u32) infos.size();
+  u32 const first_glyph = (u32) l.glyphs.size();
+  i32       advance     = 0;
+
+  CHECK(l.glyphs.extend_uninitialized(num_glyphs));
 
   for (u32 i = 0; i < num_glyphs; i++)
   {
     hb_glyph_info_t const     &info = infos[i];
     hb_glyph_position_t const &pos  = positions[i];
-    GlyphShape                 g{.glyph   = info.codepoint,
-                                 .cluster = info.cluster,
-                                 .advance = {pos.x_advance, pos.y_advance},
-                                 .offset  = {pos.x_offset, pos.y_offset}};
-    CHECK(l.glyphs.push(g));
+    GlyphShape                 shape{.glyph   = info.codepoint,
+                                     .cluster = info.cluster,
+                                     .advance = {pos.x_advance, pos.y_advance},
+                                     .offset  = {pos.x_offset, -pos.y_offset}};
 
+    l.glyphs[first_glyph + i] = shape;
     advance += pos.x_advance;
   }
 
