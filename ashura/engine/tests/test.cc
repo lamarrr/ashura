@@ -288,7 +288,7 @@ int main(int, char **)
   // TODO(lamarrr): create transfer queue, calculate total required setup size
   TextLayout text_layout;
   TextBlock  text_block{
-       .text  = utf32(U"Hello, World!!!'﷽  Testing testing"_span),
+       .text  = utf(U"Hello, World!!!'﷽  Testing testing"_span),
        .runs  = to_span({U32_MAX}),
        .fonts = to_span(
           {FontStyle{.font = font, .font_height = 75, .line_height = 1.4}}),

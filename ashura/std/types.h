@@ -2758,12 +2758,12 @@ constexpr Span<char32_t const> operator""_span(char32_t const *lit, usize n)
   return Span<char32_t const>{lit, n};
 }
 
-constexpr Span<u8 const> utf8(Span<char8_t const> s)
+constexpr Span<u8 const> utf(Span<char8_t const> s)
 {
   return Span<u8 const>{(u8 const *) s.data_, s.size_};
 }
 
-constexpr Span<u32 const> utf32(Span<char32_t const> s)
+constexpr Span<u32 const> utf(Span<char32_t const> s)
 {
   return Span<u32 const>{(u32 const *) s.data_, s.size_};
 }
