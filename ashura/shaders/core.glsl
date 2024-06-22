@@ -26,6 +26,7 @@ vec4 bilerp(vec4 v[4], vec2 t0, float t1)
 }
 
 /// SIGGRAPH 2015 - Bandwidth-Efficient Rendering, Marius Bjorge, ARM
+/// (https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_notes.pdf)
 /// KAWASE multi-tap downsampling
 vec4 downsample(sampler smp, texture2D src, vec2 uv, vec2 radius)
 {
