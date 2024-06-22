@@ -339,17 +339,17 @@ struct TextRun
   bool           breakable      = false;
 };
 
-/// @param line_height maximum line height of all the runs on the line
+/// @param width width of the line
+/// @param height maximum line height of all the runs on the line
 /// @param ascent maximum ascent of all the runs on the line
 /// @param descent maximum descent of all the runs on the line
-/// @param width width of the line
 /// @param base_direction base direction of the line
 struct LineMetrics
 {
-  f32           line_height    = 0;
+  f32           width          = 0;
+  f32           height         = 0;
   f32           ascent         = 0;
   f32           descent        = 0;
-  f32           width          = 0;
   TextDirection base_direction = TextDirection::LeftToRight;
 };
 

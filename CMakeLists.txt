@@ -190,6 +190,7 @@ add_library(
   ashura/engine/passes/blur.cc
   ashura/engine/passes/ngon.cc
   ashura/engine/passes/pbr.cc
+  ashura/engine/passes/poly.cc
   ashura/engine/passes/rrect.cc)
 target_link_libraries(
   ashura_engine

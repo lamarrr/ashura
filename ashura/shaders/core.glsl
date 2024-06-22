@@ -26,6 +26,7 @@ vec4 bilerp(vec4 v[4], vec2 t0, float t1)
 }
 
 /// SIGGRAPH 2015 - Bandwidth-Efficient Rendering, Marius Bjorge, ARM
+/// (https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_notes.pdf)
 /// KAWASE multi-tap downsampling
 vec4 downsample(sampler smp, texture2D src, vec2 uv, vec2 radius)
 {
@@ -110,11 +111,13 @@ float circular_geometrical_smoothmin(float a, float b, float k)
 
 // https://www.shadertoy.com/view/fsdyzB
 // https://iquilezles.org/articles/distfunctions/
+// https://iquilezles.org/articles/distfunctions2d/
 // length(...+ border_radius) - border_radius -> gives the rounding of the
 // border
 float rrect_sdf(vec2 pos, vec2 half_extent, float border_radius)
 {
-  return length(max(abs(pos) - half_extent + border_radius, 0)) - border_radius;
+  vec2 q = abs(pos) - half_extent + border_radius;
+  return min(max(q.x, q.y), 0) + length(max(q, 0)) - border_radius;
 }
 
 // SDF functions: https://iquilezles.org/articles/distfunctions2d/

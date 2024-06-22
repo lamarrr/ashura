@@ -232,19 +232,6 @@ constexpr Span<T> find_if(Span<T> span, Predicate &&predicate)
   return span[Slice{offset, 1}];
 }
 
-template <typename T, typename Predicate>
-constexpr Span<T> skip_until(Span<T>, Predicate &&predicate);
-
-template <typename T, typename Predicate>
-constexpr Span<T> skip_while(Span<T>, Predicate &&predicate);
-
-template <typename T, typename Predicate>
-constexpr Span<T> skip_to_last(Span<T>, Predicate &&predicate);
-
-template <typename T, typename U, typename Cmp = Equal>
-constexpr void find_mismatch(Span<T>, Span<U>, Span<T> &, Span<U> &,
-                             Cmp &&cmp = {});
-
 template <InputRange R, typename Target, typename Cmp = Equal>
 constexpr usize count(R &&range, Target &&target, Cmp &&cmp = {})
 {
@@ -384,17 +371,15 @@ template <typename T, typename SwapOp = Swap>
 constexpr void rotate(Span<T>, SwapOp &&swap = {});
 
 template <typename T, typename Cmp = Min>
-constexpr Span<T> range_min(Span<T> span, Cmp &&cmp = {});        // return Span
+constexpr Span<T> range_min(Span<T> span, Cmp &&cmp = {});
 
 template <typename T, typename Cmp = Max>
-constexpr Span<T> range_max(Span<T> span, Cmp &&cmp = {});        // return Span
+constexpr Span<T> range_max(Span<T> span, Cmp &&cmp = {});
 
 template <typename T, typename LexOrd = Compare>
 constexpr void range_min_max(Span<T> span, Span<T> &min, Span<T> &max,
                              LexOrd &&ord = {});
 
-// once gotten, it will call op(span) for each range
-// TODO(lamarrr)
 template <typename T, typename U, typename Op, typename Cmp = Equal>
 constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp &&cmp = {});
 
@@ -407,11 +392,6 @@ constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp &&cmp = {});
 // move back until it is no longer equal
 template <typename T, typename U, typename Cmp = Equal>
 constexpr Span<T> strip(Span<T> src, Span<U> other, Cmp &&cmp = {});
-// title() span, no string_view types
-
-template <typename T, typename Predicate>
-constexpr void find_reflection(Span<T> span, Span<T> &head, Span<T> &body,
-                               Span<T> &tail, Predicate &&predicate);
 
 template <typename S, typename Cmp = Lesser>
 constexpr void sort(S &&span, Cmp &&cmp = {})

@@ -26,7 +26,7 @@ int main(int, char **)
   Vec<u8> font_data;
   CHECK(
       read_file(
-          R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
+          R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\RobotoMono\RobotoMono-Regular.ttf)"_span,
           font_data) == IoError::None);
 
   defer font_data_del{[&] { font_data.uninit(); }};
@@ -286,18 +286,23 @@ int main(int, char **)
   defer fr_del{[&] { font_resource.release(ctx); }};
 
   // TODO(lamarrr): create transfer queue, calculate total required setup size
+  u32       runs[]        = {U32_MAX};
+  FontStyle font_styles[] = {
+      {.font = font, .font_height = 20, .line_height = 1.2}};
   TextLayout text_layout;
   TextBlock  text_block{
-       .text  = utf(U"Hello, World!!!'﷽  Testing testing"_span),
-       .runs  = to_span({U32_MAX}),
-       .fonts = to_span(
-          {FontStyle{.font = font, .font_height = 75, .line_height = 1.4}}),
+       .text = utf(
+          UR"(Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent fermentum sodales neque vitae lobortis. Fusce fermentum vehicula enim, eu porta tortor volutpat et. Vivamus pretium, ipsum tempus vehicula molestie, leo est suscipit ante, eget porta elit diam sit amet purus. Nunc vel convallis libero. Donec sit amet condimentum urna. Nunc pharetra ligula urna, nec ultricies metus lobortis id. Maecenas sed ex sed libero varius elementum. Nam scelerisque leo odio, nec dictum nulla sagittis quis. Morbi ultrices justo sit amet nibh volutpat venenatis. Maecenas fermentum leo et felis condimentum semper. Mauris mattis est eu ligula pulvinar consequat. Vestibulum faucibus consequat egestas. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Morbi rutrum odio pretium turpis porta semper. Phasellus rutrum vestibulum tortor, eget sagittis lectus ullamcorper quis.
+
+Duis ornare tellus in fermentum dignissim. Proin non accumsan lacus. Mauris ac augue id risus sollicitudin elementum non non diam. Praesent dolor tortor, porta non ipsum ut, iaculis iaculis orci. Praesent lacinia ex tristique nulla consectetur, sed molestie neque pharetra. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Mauris lacus ante, semper eget congue vitae, ultrices volutpat sapien. Vivamus aliquam mi lacus, sagittis porta arcu volutpat a. Suspendisse augue urna, molestie id posuere et, tempus vel dolor. Morbi nec eros leo. Proin congue nulla nec arcu pellentesque, eget tempus magna imperdiet. Suspendisse rhoncus commodo lacinia. In hac habitasse platea dictumst. Ut sodales accumsan egestas. Sed eu sagittis mauris.
+
+Donec sem nunc, mattis quis augue id, varius vulputate metus. Quisque rhoncus sapien quis orci cursus, ac aliquet urna imperdiet. Ut efficitur erat justo, ut rutrum ipsum faucibus id. Duis tempus massa a sem varius, sed semper eros gravida. Nulla ut viverra mauris. Praesent quis velit vel lacus mollis pulvinar. Fusce eu vulputate ante. Morbi sed vehicula velit, vitae porttitor tortor. Maecenas auctor ex non orci malesuada, id scelerisque ante aliquet. Phasellus sodales facilisis magna, sed efficitur arcu vulputate vel. Nunc et sodales risus. Duis euismod porttitor massa, sit amet blandit massa tincidunt sed. Aenean volutpat lacinia nisi vitae tincidunt. Sed finibus lacinia est, vel auctor elit semper at. Nullam vestibulum volutpat lacus et porttitor. Aliquam vitae metus nec quam dignissim fermentum vel quis urna.)"_span),
+       .runs      = to_span(runs),
+       .fonts     = to_span(font_styles),
        .direction = TextDirection::LeftToRight,
        .language  = "en"_span};
-  layout_text(text_block, 1000, text_layout);
 
   ctx.end_frame(swapchain);
-
   while (!should_close)
   {
     win_sys->poll_events();
@@ -311,12 +316,12 @@ int main(int, char **)
         .area     = gfx::Rect{.offset = {0, 0}, .extent = {1920, 1080}},
         .extent   = {1920, 1080}});
 
-    // canvas.rrect(ShapeDesc{.center       = Vec2{1920 / 2, 1080 / 2},
-    //                        .extent       = {1920, 1080},
-    //                        .border_radii = {200, 100, 450, 50},
-    //                        .stroke       = 1,
-    //                        .thickness    = 20,
-    //                        .tint = ColorGradient::uniform(colors::WHITE)});
+    canvas.rrect(ShapeDesc{.center       = Vec2{1920 / 2, 1080 / 2},
+                           .extent       = {1920, 1080},
+                           .border_radii = {0, 0, 0, 0},
+                           .stroke       = 1,
+                           .thickness    = 20,
+                           .tint = ColorGradient::uniform(colors::WHITE)});
     /*  for (u32 i = 0; i < 2000; i++)
         canvas.rect(
             ShapeDesc{.center = Vec2{20, 20},
@@ -342,27 +347,27 @@ int main(int, char **)
                  Vec2{0, -0.5},
                  //
                  Vec2{-1, 1}}));*/
+    /*layout_text(text_block, 1920, text_layout);
     canvas.text(
-        ShapeDesc{.center    = Vec2{200, 200},
-                  .extent    = {800, 800},
+        ShapeDesc{.center    = Vec2{1920 / 2.0f, 1080 / 2.0f},
+                  .transform = Mat4::identity(),
                   .thickness = 20,
                   .tint      = {colors::RED.norm(), colors::BLUE.norm(),
                                 colors::MAGENTA.norm(), colors::CYAN.norm()}},
         text_block, text_layout,
         TextBlockStyle{
             .runs        = to_span<TextStyle>({TextStyle{
-                       .underline_thickness     = 0,
+                       .underline_thickness     = 1,
                        .strikethrough_thickness = 0,
                        .shadow_scale            = 0,
-                       .shadow_offset           = Vec2{0, 0},
-                       .foreground    = ColorGradient::y(colors::RED, colors::YELLOW),
-                       .background    = {},
-                       .underline     = {},
-                       .strikethrough = {},
-                       .shadow        = {}}}),
-            .alignment   = 0,
-            .align_width = 1080},
-        to_span<FontAtlasResource const *>({&font_resource}));
+                       .shadow_offset           = Vec2{1, 1},
+                       .foreground    = ColorGradient::uniform(colors::WHITE),
+                       .background    = ColorGradient::uniform(Vec4U8{3, 3, 3,
+    0xFF}), .underline     = ColorGradient::uniform(colors::WHITE),
+                       .strikethrough = ColorGradient::uniform(colors::WHITE),
+                       .shadow        =
+    ColorGradient::uniform(colors::WHITE)}}), .alignment   = -1, .align_width =
+    1920}, to_span<FontAtlasResource const *>({&font_resource}));*/
     /*canvas.triangles(
         ShapeDesc{.center    = Vec2{0, 0},
                   .extent    = {800, 800},
