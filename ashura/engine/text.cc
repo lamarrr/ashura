@@ -19,12 +19,12 @@ namespace ash
 /// with invalid codepoints replaced before calling this.
 /// @param script OpenType (ISO15924) Script
 /// Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
-static void shape(hb_font_t *font, hb_buffer_t *buffer, Span<u32 const> text,
-                  u32 first, u32 count, hb_script_t script,
-                  hb_direction_t direction, hb_language_t language,
-                  bool use_kerning, bool use_ligatures,
-                  Span<hb_glyph_info_t const>     &infos,
-                  Span<hb_glyph_position_t const> &positions)
+static inline void shape(hb_font_t *font, hb_buffer_t *buffer,
+                         Span<u32 const> text, u32 first, u32 count,
+                         hb_script_t script, hb_direction_t direction,
+                         hb_language_t language, bool use_kerning,
+                         bool use_ligatures, Span<hb_glyph_info_t const> &infos,
+                         Span<hb_glyph_position_t const> &positions)
 {
   // tags are opentype feature tags
   hb_feature_t const shaping_features[] = {
@@ -74,7 +74,8 @@ static void shape(hb_font_t *font, hb_buffer_t *buffer, Span<u32 const> text,
 }
 
 /// @brief only needs to be called if it contains multiple paragraphs
-static void segment_paragraphs(Span<u32 const> text, Span<TextSegment> segments)
+static inline void segment_paragraphs(Span<u32 const>   text,
+                                      Span<TextSegment> segments)
 {
   u32 const text_size = (u32) text.size();
   for (u32 i = 0; i < text_size;)
@@ -100,7 +101,8 @@ static void segment_paragraphs(Span<u32 const> text, Span<TextSegment> segments)
 
 /// @brief only needs to be called if it contains multiple scripts
 /// outputs iso15924 or OpenType tags
-static void segment_scripts(Span<u32 const> text, Span<TextSegment> segments)
+static inline void segment_scripts(Span<u32 const>   text,
+                                   Span<TextSegment> segments)
 {
   SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
                                  .stringBuffer   = (void *) text.data(),
@@ -125,8 +127,10 @@ static void segment_scripts(Span<u32 const> text, Span<TextSegment> segments)
 }
 
 /// @brief only needs to be called if it is a bidirectional text
-static void segment_directions(Span<u32 const> text, SBAlgorithmRef algorithm,
-                               TextDirection base, Span<TextSegment> segments)
+static inline void segment_directions(Span<u32 const>   text,
+                                      SBAlgorithmRef    algorithm,
+                                      TextDirection     base,
+                                      Span<TextSegment> segments)
 {
   // The embedding level is an integer value. LTR text segments have even
   // embedding levels (e.g., 0, 2, 4), and RTL text segments have odd embedding
@@ -134,6 +138,11 @@ static void segment_directions(Span<u32 const> text, SBAlgorithmRef algorithm,
   u32 const text_size = (u32) text.size();
   for (u32 i = 0; i < text_size;)
   {
+    while (i < text_size && segments[i].paragraph)
+    {
+      i++;
+    }
+
     u32 first = i++;
     while (i < text_size && !segments[i].paragraph)
     {
@@ -153,22 +162,22 @@ static void segment_directions(Span<u32 const> text, SBAlgorithmRef algorithm,
                                              TextDirection::RightToLeft;
     SBLevel const      *levels         = SBParagraphGetLevelsPtr(paragraph);
     CHECK(levels != nullptr);
-    for (u32 idx = first; idx < i; idx++)
+    for (u32 i = 0; i < length; i++)
     {
-      SBLevel const       level     = levels[idx];
-      TextDirection const direction = ((level & 0x1) == 0) ?
-                                          TextDirection::LeftToRight :
-                                          TextDirection::RightToLeft;
-      segments[idx].base_direction  = base_direction;
-      segments[idx].direction       = direction;
+      SBLevel const       level          = levels[i];
+      TextDirection const direction      = ((level & 0x1) == 0) ?
+                                               TextDirection::LeftToRight :
+                                               TextDirection::RightToLeft;
+      segments[first + i].base_direction = base_direction;
+      segments[first + i].direction      = direction;
     }
     SBParagraphRelease(paragraph);
   }
 }
 
 /// @brief only needs to be called if line breaking is required.
-static void segment_breakpoints(Span<u32 const> text, f32 max_width,
-                                Span<TextSegment> segments)
+static inline void segment_breakpoints(Span<u32 const> text, f32 max_width,
+                                       Span<TextSegment> segments)
 {
   if (max_width == F32_MAX)
   {
@@ -178,7 +187,6 @@ static void segment_breakpoints(Span<u32 const> text, f32 max_width,
   u32 const text_size = (u32) text.size();
   for (u32 i = 0; i < text_size;)
   {
-    segments[i].breakable = true;
     i++;
     while (i < text_size && text[i] != ' ' && text[i] != '\t')
     {
@@ -189,15 +197,21 @@ static void segment_breakpoints(Span<u32 const> text, f32 max_width,
     {
       i++;
     }
+
+    if (i < text_size)
+    {
+      segments[i].breakable = true;
+    }
   }
 }
 
-static void insert_run(TextLayout &l, FontStyle const &s, u32 first, u32 count,
-                       u16 style, FontMetrics const &font_metrics,
-                       TextDirection direction, TextDirection base_direction,
-                       bool paragraph, bool breakable,
-                       Span<hb_glyph_info_t const>     infos,
-                       Span<hb_glyph_position_t const> positions)
+static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
+                              u32 count, u16 style,
+                              FontMetrics const &font_metrics,
+                              TextDirection      direction,
+                              TextDirection base_direction, bool paragraph,
+                              bool breakable, Span<hb_glyph_info_t const> infos,
+                              Span<hb_glyph_position_t const> positions)
 {
   u32 const num_glyphs  = (u32) infos.size();
   u32 const first_glyph = (u32) l.glyphs.size();
@@ -223,7 +237,7 @@ static void insert_run(TextLayout &l, FontStyle const &s, u32 first, u32 count,
               .count          = count,
               .style          = style,
               .font_height    = s.font_height,
-              .line_height    = s.line_height * s.font_height,
+              .line_height    = max(s.line_height, 1.0f),
               .first_glyph    = first_glyph,
               .num_glyphs     = num_glyphs,
               .metrics        = TextRunMetrics{.advance = advance,
@@ -268,8 +282,6 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
       prev_run_end = run_end;
     }
   }
-
-  layout.max_width = max_width;
 
   hb_language_t language =
       block.language.is_empty() ?
@@ -321,6 +333,8 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   }
 
   u32 const num_runs = (u32) layout.runs.size();
+  Vec2      extent{};
+
   for (u32 i = 0; i < num_runs;)
   {
     u32 const           first          = i++;
@@ -330,7 +344,9 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     f32 width   = pt_to_px(first_run.metrics.advance, first_run.font_height);
     f32 ascent  = pt_to_px(first_run.metrics.ascent, first_run.font_height);
     f32 descent = pt_to_px(first_run.metrics.descent, first_run.font_height);
-    f32 line_height = first_run.line_height;
+    f32 height  = pt_to_px(first_run.metrics.ascent + first_run.metrics.descent,
+                           first_run.font_height) *
+                 first_run.line_height;
 
     while (
         i < num_runs && !layout.runs[i].paragraph &&
@@ -341,23 +357,30 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
       TextRun const        &r = layout.runs[i];
       TextRunMetrics const &m = r.metrics;
       width += pt_to_px(m.advance, r.font_height);
-      ascent      = max(ascent, pt_to_px(m.ascent, r.font_height));
-      descent     = max(descent, pt_to_px(m.descent, r.font_height));
-      line_height = max(line_height, r.line_height);
+      ascent  = max(ascent, pt_to_px(m.ascent, r.font_height));
+      descent = max(descent, pt_to_px(m.descent, r.font_height));
+      height  = max(height, pt_to_px(m.ascent + m.descent, r.font_height) *
+                                r.line_height);
       i++;
     }
 
     Line line{.first_run = first,
               .num_runs  = (i - first),
-              .metrics   = LineMetrics{.line_height    = line_height,
+              .metrics   = LineMetrics{.width          = width,
+                                       .height         = height,
                                        .ascent         = ascent,
                                        .descent        = descent,
-                                       .width          = width,
                                        .base_direction = base_direction},
               .paragraph = paragraph};
 
     CHECK(layout.lines.push(line));
+
+    extent.x = max(extent.x, width);
+    extent.y += height;
   }
+
+  layout.max_width = max_width;
+  layout.extent    = extent;
 }
 
 }        // namespace ash

@@ -444,16 +444,16 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
     CHECK(atlases[i]->glyphs.size() == f.glyphs.size());
   }
 
-  f32 line_y = 0;
+  f32 const  block_width = max(layout.extent.x, style.align_width);
+  Vec2 const half_block_extent{block_width / 2, layout.extent.y / 2};
+  f32        line_y = 0;
   for (Line const &l : layout.lines)
   {
-    LineMetrics const &m = l.metrics;
-    line_y += m.line_height;
-    f32 const padding  = max(m.line_height - (m.ascent + m.descent), 0.0f);
-    f32 const baseline = line_y - padding / 2;
-    f32 const spacing  = max(layout.extent.x, style.align_width) - m.width;
+    line_y += l.metrics.height;
+    f32 const baseline = line_y - l.metrics.descent;
+    f32 const spacing  = max(block_width - l.metrics.width, 0.0f);
     f32 const aligned_spacing =
-        (m.base_direction == TextDirection::LeftToRight) ?
+        (l.metrics.base_direction == TextDirection::LeftToRight) ?
             space_align(spacing, style.alignment) :
             space_align(spacing, -style.alignment);
     f32 cursor = aligned_spacing;
@@ -489,20 +489,20 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
 
         if (!is_transparent(run_style.background))
         {
-          Vec3 center{cursor + advance / 2, line_y - run.line_height / 2, 0};
           Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
-                      m.line_height};
-          rect(ShapeDesc{.center    = desc.center,
-                         .extent    = extent,
-                         .transform = desc.transform * translate3d(center),
-                         .tint      = run_style.background,
-                         .scissor   = desc.scissor});
+                      pt_to_px(run.metrics.ascent, run.font_height) +
+                          l.metrics.height};
+          Vec2 offset{cursor + advance, line_y - l.metrics.height};
+          rect(ShapeDesc{.center = desc.center,
+                         .extent = extent,
+                         .transform =
+                             desc.transform *
+                             translate3d(to_vec3(offset + extent / 2, 0)) *
+                             translate3d(to_vec3(-half_block_extent, 0)),
+                         .tint    = run_style.background,
+                         .scissor = desc.scissor});
         }
 
-        // todo(lamarrr): more work needs to be done on directionality
-        // FIRSt calculate actual width based on alignment
-        // make gradient be on a line-by line basis? what about text that hangs
-        // above the line
         for (u32 layer = 0; layer < 2; layer++)
         {
           f32 g_cursor = 0;
@@ -516,16 +516,20 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                 Vec2{cursor + advance + g_cursor, baseline} +
                 pt_to_px(gl.metrics.bearing, run.font_height) * Vec2{1, -1} +
                 pt_to_px(sh.offset, run.font_height);
-            Vec3 const center = to_vec3(offset + extent / 2, 0);
 
-            if (layer == 0 && run_style.shadow_scale != 0)
+            if (layer == 0 && run_style.shadow_scale != 0 &&
+                !is_transparent(run_style.shadow))
             {
-              Vec3 shadow_center = center + to_vec3(run_style.shadow_offset, 0);
               Vec2 shadow_extent = extent * run_style.shadow_scale;
+              Vec2 shadow_offset = (offset + extent / 2) - shadow_extent / 2 +
+                                   run_style.shadow_offset;
               rect(ShapeDesc{.center = desc.center,
                              .extent = shadow_extent,
                              .transform =
-                                 desc.transform * translate3d(shadow_center),
+                                 desc.transform *
+                                 translate3d(to_vec3(
+                                     shadow_offset + shadow_extent / 2, 0)) *
+                                 translate3d(to_vec3(-half_block_extent, 0)),
                              .tint            = run_style.shadow,
                              .sampler         = desc.sampler,
                              .texture         = atlas->textures[agl.layer],
@@ -537,14 +541,17 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
 
             if (layer == 1 && !is_transparent(run_style.foreground))
             {
-              rect(ShapeDesc{.center    = desc.center,
-                             .extent    = extent,
-                             .transform = desc.transform * translate3d(center),
-                             .tint      = run_style.foreground,
-                             .sampler   = desc.sampler,
-                             .texture   = atlas->textures[agl.layer],
-                             .uv        = {agl.uv[0], agl.uv[1]},
-                             .tiling    = desc.tiling,
+              rect(ShapeDesc{.center = desc.center,
+                             .extent = extent,
+                             .transform =
+                                 desc.transform *
+                                 translate3d(to_vec3(offset + extent / 2, 0)) *
+                                 translate3d(to_vec3(-half_block_extent, 0)),
+                             .tint            = run_style.foreground,
+                             .sampler         = desc.sampler,
+                             .texture         = atlas->textures[agl.layer],
+                             .uv              = {agl.uv[0], agl.uv[1]},
+                             .tiling          = desc.tiling,
                              .edge_smoothness = desc.edge_smoothness,
                              .scissor         = desc.scissor});
             }
@@ -555,34 +562,40 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
 
         if (run_style.strikethrough_thickness != 0)
         {
-          Vec3 center{cursor + advance / 2, baseline - run.font_height / 2, 0};
+          Vec2 offset{cursor + advance, baseline - run.font_height / 2};
           Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
                       run_style.strikethrough_thickness};
-          rect(ShapeDesc{.center    = desc.center,
-                         .extent    = extent,
-                         .transform = desc.transform * translate3d(center),
-                         .tint      = run_style.strikethrough,
-                         .sampler   = desc.sampler,
-                         .texture   = 0,
-                         .uv        = {},
-                         .tiling    = desc.tiling,
+          rect(ShapeDesc{.center = desc.center,
+                         .extent = extent,
+                         .transform =
+                             desc.transform *
+                             translate3d(to_vec3(offset + extent / 2, 0)) *
+                             translate3d(to_vec3(-half_block_extent, 0)),
+                         .tint            = run_style.strikethrough,
+                         .sampler         = desc.sampler,
+                         .texture         = 0,
+                         .uv              = {},
+                         .tiling          = desc.tiling,
                          .edge_smoothness = desc.edge_smoothness,
                          .scissor         = desc.scissor});
         }
 
         if (run_style.underline_thickness != 0)
         {
-          Vec3 center{cursor + advance / 2, baseline, 0};
+          Vec2 offset{cursor + advance, baseline + 2};
           Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
                       run_style.underline_thickness};
-          rect(ShapeDesc{.center    = desc.center,
-                         .extent    = extent,
-                         .transform = desc.transform * translate3d(center),
-                         .tint      = run_style.underline,
-                         .sampler   = desc.sampler,
-                         .texture   = 0,
-                         .uv        = {},
-                         .tiling    = desc.tiling,
+          rect(ShapeDesc{.center = desc.center,
+                         .extent = extent,
+                         .transform =
+                             desc.transform *
+                             translate3d(to_vec3(offset + extent / 2, 0)) *
+                             translate3d(to_vec3(-half_block_extent, 0)),
+                         .tint            = run_style.underline,
+                         .sampler         = desc.sampler,
+                         .texture         = 0,
+                         .uv              = {},
+                         .tiling          = desc.tiling,
                          .edge_smoothness = desc.edge_smoothness,
                          .scissor         = desc.scissor});
         }
