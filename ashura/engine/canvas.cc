@@ -427,13 +427,6 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                   TextLayout const &layout, TextBlockStyle const &style,
                   Span<FontAtlasResource const *const> atlases)
 {
-  // TODO(lamarrr): border radius is incorrect, stroke is not working correctly when set to 1
-  // rrect(ShapeDesc{.center       = {1920 / 2, 1080 / 2},
-  //                 .extent       = {1920, 1080},
-  //                 .border_radii = {200, 100, 450, 50},
-  //                 .stroke       = 1,
-  //                 .thickness    = 10,
-  //                 .tint = ColorGradient::uniform(Vec4U8{255, 255, 255, 255})});
   CHECK(style.runs.size() == block.runs.size());
   CHECK(style.runs.size() == block.fonts.size());
   for (u32 i = 0; i < (u32) block.fonts.size(); i++)
