@@ -141,6 +141,7 @@ void sample(BlurPass &b, RenderContext &c, gfx::CommandEncoderImpl const &e,
 
 void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
+  CHECK(params.passes > 0);
   gfx::CommandEncoderImpl e      = ctx.encoder();
   Vec2U                   extent = params.area.extent;
   extent.x                       = min(extent.x, ctx.scratch_fbs[0].extent.x);
@@ -155,7 +156,7 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
   u32 src = 0;
   u32 dst = 1;
 
-  for (u32 i = 0; i < params.passes; i++)
+  for (u32 i = 0; i < params.passes - 1; i++)
   {
     radius += 1;
     sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
@@ -167,7 +168,7 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
   }
 
   // upsample pass
-  for (u32 i = 0; i < params.passes; i++)
+  for (u32 i = 0; i < params.passes - 1; i++)
   {
     sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
            ctx.scratch_fbs[src].extent,

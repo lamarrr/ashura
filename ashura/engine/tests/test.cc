@@ -53,7 +53,7 @@ int main(int, char **)
   auto close_fn     = [&](WindowEvent const &) { should_close = true; };
 
   f32  tx     = 0;
-  u32  rr     = 0;
+  u32  rr     = 1;
   auto key_fn = [&](WindowEvent const &) {
     tx += 10;
     rr += 1;
