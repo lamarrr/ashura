@@ -26,7 +26,7 @@ int main(int, char **)
   Vec<u8> font_data;
   CHECK(
       read_file(
-          R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\RobotoMono\RobotoMono-Regular.ttf)"_span,
+          R"(C:\Users\rlama\Documents\Docs\berkeley-mono-typeface\berkeley-mono\TTF\BerkeleyMono-Regular.ttf)"_span,
           font_data) == IoError::None);
 
   defer font_data_del{[&] { font_data.uninit(); }};
@@ -288,11 +288,11 @@ int main(int, char **)
   // TODO(lamarrr): create transfer queue, calculate total required setup size
   u32       runs[]        = {U32_MAX};
   FontStyle font_styles[] = {
-      {.font = font, .font_height = 20, .line_height = 1.2}};
+      {.font = font, .font_height = 16, .line_height = 1.2}};
   TextLayout text_layout;
   TextBlock  text_block{
        .text = utf(
-          UR"(Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent fermentum sodales neque vitae lobortis. Fusce fermentum vehicula enim, eu porta tortor volutpat et. Vivamus pretium, ipsum tempus vehicula molestie, leo est suscipit ante, eget porta elit diam sit amet purus. Nunc vel convallis libero. Donec sit amet condimentum urna. Nunc pharetra ligula urna, nec ultricies metus lobortis id. Maecenas sed ex sed libero varius elementum. Nam scelerisque leo odio, nec dictum nulla sagittis quis. Morbi ultrices justo sit amet nibh volutpat venenatis. Maecenas fermentum leo et felis condimentum semper. Mauris mattis est eu ligula pulvinar consequat. Vestibulum faucibus consequat egestas. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Morbi rutrum odio pretium turpis porta semper. Phasellus rutrum vestibulum tortor, eget sagittis lectus ullamcorper quis.
+          UR"(Lorem ipsum dolor sit amet,  consectetur adipiscing elit. Praesent fermentum sodales neque vitae lobortis. Fusce fermentum vehicula enim, eu porta tortor volutpat et. Vivamus pretium, ipsum tempus vehicula molestie, leo est suscipit ante, eget porta elit diam sit amet purus. Nunc vel convallis libero. Donec sit amet condimentum urna. Nunc pharetra ligula urna, nec ultricies metus lobortis id. Maecenas sed ex sed libero varius elementum. Nam scelerisque leo odio, nec dictum nulla sagittis quis. Morbi ultrices justo sit amet nibh volutpat venenatis. Maecenas fermentum leo et felis condimentum semper. Mauris mattis est eu ligula pulvinar consequat. Vestibulum faucibus consequat egestas. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Morbi rutrum odio pretium turpis porta semper. Phasellus rutrum vestibulum tortor, eget sagittis lectus ullamcorper quis.
 
 Duis ornare tellus in fermentum dignissim. Proin non accumsan lacus. Mauris ac augue id risus sollicitudin elementum non non diam. Praesent dolor tortor, porta non ipsum ut, iaculis iaculis orci. Praesent lacinia ex tristique nulla consectetur, sed molestie neque pharetra. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Mauris lacus ante, semper eget congue vitae, ultrices volutpat sapien. Vivamus aliquam mi lacus, sagittis porta arcu volutpat a. Suspendisse augue urna, molestie id posuere et, tempus vel dolor. Morbi nec eros leo. Proin congue nulla nec arcu pellentesque, eget tempus magna imperdiet. Suspendisse rhoncus commodo lacinia. In hac habitasse platea dictumst. Ut sodales accumsan egestas. Sed eu sagittis mauris.
 
@@ -356,7 +356,7 @@ Donec sem nunc, mattis quis augue id, varius vulputate metus. Quisque rhoncus sa
         text_block, text_layout,
         TextBlockStyle{
             .runs        = to_span<TextStyle>({TextStyle{
-                       .underline_thickness     = 1,
+                       .underline_thickness     = 0,
                        .strikethrough_thickness = 0,
                        .shadow_scale            = 0,
                        .shadow_offset           = Vec2{1, 1},
@@ -368,7 +368,7 @@ Donec sem nunc, mattis quis augue id, varius vulputate metus. Quisque rhoncus sa
             .alignment   = -1,
             .align_width = 1920},
         to_span<FontAtlasResource const *>({&font_resource}));
-    canvas.blur({.scissor = {{0, 0}, {U32_MAX, U32_MAX}}}, rr);
+    // canvas.blur({.scissor = {{0, 0}, {U32_MAX, U32_MAX}}}, rr);
     /*canvas.triangles(
         ShapeDesc{.center    = Vec2{0, 0},
                   .extent    = {800, 800},

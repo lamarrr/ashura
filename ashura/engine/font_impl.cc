@@ -461,9 +461,9 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
     AtlasGlyph const &ag = atlas.glyphs[i];
     if (g.is_valid)
     {
-      FT_GlyphSlot slot = f->ft_face->glyph;
-      FT_Error     ft_error =
-          FT_Load_Glyph(f->ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_RENDER);
+      FT_GlyphSlot slot     = f->ft_face->glyph;
+      FT_Error     ft_error = FT_Load_Glyph(
+          f->ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_NO_HINTING);
       if (ft_error != 0)
       {
         continue;

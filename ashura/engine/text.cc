@@ -80,18 +80,20 @@ static inline void segment_paragraphs(Span<u32 const>   text,
   u32 const text_size = (u32) text.size();
   for (u32 i = 0; i < text_size;)
   {
-    segments[i].paragraph = true;
+    segments[i].paragraph_begin = true;
     i++;
     while (i < text_size)
     {
       if (text[i] == '\r' && ((i + 1) < text_size) && text[i + 1] == '\n')
       {
+        segments[i].paragraph_end = true;
         i += 2;
         break;
       }
       else if (text[i] == '\n' || text[i] == '\r')
       {
-        i++;
+        segments[i].paragraph_end = true;
+        i += 1;
         break;
       }
       i++;
@@ -138,13 +140,8 @@ static inline void segment_directions(Span<u32 const>   text,
   u32 const text_size = (u32) text.size();
   for (u32 i = 0; i < text_size;)
   {
-    while (i < text_size && segments[i].paragraph)
-    {
-      i++;
-    }
-
     u32 first = i++;
-    while (i < text_size && !segments[i].paragraph)
+    while (i < text_size && !segments[i].paragraph_end)
     {
       i++;
     }
@@ -155,23 +152,32 @@ static inline void segment_directions(Span<u32 const>   text,
         (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
                                                SBLevelDefaultRTL);
     CHECK(paragraph != nullptr);
-    CHECK(SBParagraphGetLength(paragraph) == length);
-    SBLevel const       base_level     = SBParagraphGetBaseLevel(paragraph);
-    TextDirection const base_direction = ((base_level & 0x1) == 0) ?
-                                             TextDirection::LeftToRight :
-                                             TextDirection::RightToLeft;
-    SBLevel const      *levels         = SBParagraphGetLevelsPtr(paragraph);
-    CHECK(levels != nullptr);
-    for (u32 i = 0; i < length; i++)
+
+    if (paragraph != nullptr)
     {
-      SBLevel const       level          = levels[i];
-      TextDirection const direction      = ((level & 0x1) == 0) ?
+      CHECK(SBParagraphGetLength(paragraph) == length);
+      SBLevel const       base_level     = SBParagraphGetBaseLevel(paragraph);
+      TextDirection const base_direction = ((base_level & 0x1) == 0) ?
                                                TextDirection::LeftToRight :
                                                TextDirection::RightToLeft;
-      segments[first + i].base_direction = base_direction;
-      segments[first + i].direction      = direction;
+      SBLevel const      *levels         = SBParagraphGetLevelsPtr(paragraph);
+      CHECK(levels != nullptr);
+      for (u32 i = 0; i < length; i++)
+      {
+        SBLevel const       level          = levels[i];
+        TextDirection const direction      = ((level & 0x1) == 0) ?
+                                                 TextDirection::LeftToRight :
+                                                 TextDirection::RightToLeft;
+        segments[first + i].base_direction = base_direction;
+        segments[first + i].direction      = direction;
+      }
+      SBParagraphRelease(paragraph);
     }
-    SBParagraphRelease(paragraph);
+
+    while (i < text_size && !segments[i].paragraph_begin)
+    {
+      i++;
+    }
   }
 }
 
@@ -198,10 +204,7 @@ static inline void segment_breakpoints(Span<u32 const> text, f32 max_width,
       i++;
     }
 
-    if (i < text_size)
-    {
-      segments[i].breakable = true;
-    }
+    segments[i].breakable = true;
   }
 }
 
@@ -305,31 +308,48 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   segment_directions(block.text, algorithm, block.direction, segments);
   segment_breakpoints(block.text, max_width, segments);
 
-  for (u32 i = 0; i < text_size;)
+  for (u32 p = 0; p < text_size;)
   {
-    u32 const          first   = i++;
-    TextSegment const &segment = segments[first];
-    while (i < text_size && segment.style == segments[i].style &&
-           segment.script == segments[i].script && !segments[i].paragraph &&
-           segment.direction == segments[i].direction && !segments[i].breakable)
+    u32 const paragraph_begin = p++;
+    while (p < text_size && !segments[p].paragraph_end)
     {
-      i++;
+      p++;
+    }
+    u32 const paragraph_end = p;
+
+    for (u32 i = paragraph_begin; i < paragraph_end;)
+    {
+      u32 const          first   = i++;
+      TextSegment const &segment = segments[first];
+      while (i < text_size && segment.style == segments[i].style &&
+             segment.script == segments[i].script &&
+             segment.direction == segments[i].direction &&
+             !segments[i].breakable)
+      {
+        i++;
+      }
+
+      FontStyle const                &s         = block.fonts[segment.style];
+      FontImpl const                 *f         = (FontImpl const *) s.font;
+      Span<hb_glyph_info_t const>     infos     = {};
+      Span<hb_glyph_position_t const> positions = {};
+      shape(f->hb_font, buffer, block.text, first, i - first,
+            hb_script_from_iso15924_tag(
+                SBScriptGetOpenTypeTag(SBScript{(u8) segment.script})),
+            (segment.direction == TextDirection::LeftToRight) ?
+                HB_DIRECTION_LTR :
+                HB_DIRECTION_RTL,
+            language, block.use_kerning, block.use_ligatures, infos, positions);
+
+      insert_run(layout, s, first, i - first, segment.style, f->metrics,
+                 segment.direction, segment.base_direction,
+                 segment.paragraph_begin, segment.breakable, infos, positions);
     }
 
-    FontStyle const                &s         = block.fonts[segment.style];
-    FontImpl const                 *f         = (FontImpl const *) s.font;
-    Span<hb_glyph_info_t const>     infos     = {};
-    Span<hb_glyph_position_t const> positions = {};
-    shape(f->hb_font, buffer, block.text, first, i - first,
-          hb_script_from_iso15924_tag(
-              SBScriptGetOpenTypeTag(SBScript{(u8) segment.script})),
-          (segment.direction == TextDirection::LeftToRight) ? HB_DIRECTION_LTR :
-                                                              HB_DIRECTION_RTL,
-          language, block.use_kerning, block.use_ligatures, infos, positions);
-
-    insert_run(layout, s, first, i - first, segment.style, f->metrics,
-               segment.direction, segment.base_direction, segment.paragraph,
-               segment.breakable, infos, positions);
+    while (p < text_size && !segments[p].paragraph_begin)
+    {
+      p++;
+    }
   }
 
   u32 const num_runs = (u32) layout.runs.size();

@@ -296,18 +296,18 @@ struct GlyphShape
 
 /// @param style the text/font style of the current run
 /// @param script script of the current codepoint
-/// @param paragraph if the current codepoint begins a paragraph
 /// @param base_direction the current paragraph's direction
 /// @param direction directionality of the current codepoint in the paragraph
 /// @param breakable if this codepoint begins a breakable text
 struct alignas(4) TextSegment
 {
-  u16           style              = 0;
-  TextScript    script             = TextScript::None;
-  bool          paragraph : 1      = false;
-  bool          breakable : 1      = false;
-  TextDirection base_direction : 1 = TextDirection::LeftToRight;
-  TextDirection direction : 1      = TextDirection::LeftToRight;
+  u16           style               = 0;
+  TextScript    script              = TextScript::None;
+  bool          paragraph_begin : 1 = false;
+  bool          paragraph_end : 1   = false;
+  bool          breakable : 1       = false;
+  TextDirection base_direction : 1  = TextDirection::LeftToRight;
+  TextDirection direction : 1       = TextDirection::LeftToRight;
 };
 
 struct TextRunMetrics
