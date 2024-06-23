@@ -18,8 +18,8 @@ struct BlurPassParams
   Vec2U              extent       = {};
   gfx::DescriptorSet texture_view = nullptr;
   u32                texture      = 0;
+  u32                passes       = 1;
   gfx::Rect          area         = {};
-  u32                radius       = 0;
 };
 
 struct BlurPass
