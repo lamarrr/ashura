@@ -100,103 +100,88 @@ void BlurPass::uninit(RenderContext &ctx)
   ctx.device->destroy_graphics_pipeline(ctx.device.self, upsample_pipeline);
 }
 
+void sample(BlurPass &b, RenderContext &c, gfx::CommandEncoderImpl const &e,
+            f32 rad, gfx::DescriptorSet src_texture, u32 src_index,
+            gfx::Extent src_extent, gfx::Rect src_area, gfx::ImageView dst,
+            Vec2U dst_offset, bool upsample)
+{
+  Vec2 radius = rad / as_vec2(src_extent);
+  Vec2 uv0    = as_vec2(src_area.offset) / as_vec2(src_extent);
+  Vec2 uv1    = as_vec2(src_area.end()) / as_vec2(src_extent);
+
+  e->begin_rendering(
+      e.self, gfx::RenderingInfo{
+                  .render_area = {.offset = {0, 0}, .extent = src_area.extent},
+                  .num_layers  = 1,
+                  .color_attachments  = to_span({gfx::RenderingAttachment{
+                       .view         = dst,
+                       .resolve      = nullptr,
+                       .resolve_mode = gfx::ResolveModes::None,
+                       .load_op      = gfx::LoadOp::Clear,
+                       .store_op     = gfx::StoreOp::Store}}),
+                  .depth_attachment   = {},
+                  .stencil_attachment = {}});
+
+  e->bind_graphics_pipeline(e.self, upsample ? b.upsample_pipeline :
+                                               b.downsample_pipeline);
+  e->set_graphics_state(
+      e.self, gfx::GraphicsState{
+                  .scissor  = {.offset = dst_offset, .extent = src_area.extent},
+                  .viewport = {.offset = as_vec2(dst_offset),
+                               .extent = as_vec2(src_area.extent)}});
+  e->bind_descriptor_sets(e.self, to_span({c.samplers, src_texture}), {});
+  e->push_constants(e.self, to_span({BlurParam{.uv      = {uv0, uv1},
+                                               .radius  = radius,
+                                               .sampler = SAMPLER_LINEAR,
+                                               .texture = src_index}})
+                                .as_u8());
+  e->draw(e.self, 4, 1, 0, 0);
+  e->end_rendering(e.self);
+}
+
 void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
-  gfx::CommandEncoderImpl encoder = ctx.encoder();
-  Vec2U                   extent  = params.area.extent / 2;
-  extent.x                        = min(extent.x, ctx.scratch_fb.extent.x);
-  extent.y                        = min(extent.y, ctx.scratch_fb.extent.y);
+  gfx::CommandEncoderImpl e      = ctx.encoder();
+  Vec2U                   extent = params.area.extent;
+  extent.x                       = min(extent.x, ctx.scratch_fbs[0].extent.x);
+  extent.y                       = min(extent.y, ctx.scratch_fbs[0].extent.y);
+  u32 radius                     = 1;
 
+  // downsample pass
+  sample(*this, ctx, e, (f32) radius, params.texture_view, params.texture,
+         params.extent, params.area, ctx.scratch_fbs[0].color.view, Vec2U{0, 0},
+         false);
+
+  u32 src = 0;
+  u32 dst = 1;
+
+  for (u32 i = 0; i < params.passes; i++)
   {
-    Vec2 radius{params.radius / (f32) params.extent.x,
-                params.radius / (f32) params.extent.y};
-
-    Vec2 uv0{params.area.offset.x / (f32) params.extent.x,
-             params.area.offset.y / (f32) params.extent.y};
-
-    Vec2 uv1{
-        (params.area.offset.x + params.area.extent.x) / (f32) params.extent.x,
-        (params.area.offset.y + params.area.extent.y) / (f32) params.extent.y};
-
-    // downsampling pass
-    encoder->begin_rendering(
-        encoder.self,
-        gfx::RenderingInfo{.render_area = {.offset = {0, 0}, .extent = extent},
-                           .num_layers  = 1,
-                           .color_attachments =
-                               to_span({gfx::RenderingAttachment{
-                                   .view         = ctx.scratch_fb.color.view,
-                                   .resolve      = nullptr,
-                                   .resolve_mode = gfx::ResolveModes::None,
-                                   .load_op      = gfx::LoadOp::Clear,
-                                   .store_op     = gfx::StoreOp::Store}}),
-                           .depth_attachment   = {},
-                           .stencil_attachment = {}});
-    encoder->bind_graphics_pipeline(encoder.self, downsample_pipeline);
-    encoder->set_graphics_state(
-        encoder.self,
-        gfx::GraphicsState{
-            .scissor  = {.offset = {0, 0}, .extent = extent},
-            .viewport = {.offset = {0, 0},
-                         .extent = {extent.x * 1.0f, extent.y * 1.0f}}});
-    encoder->bind_descriptor_sets(
-        encoder.self, to_span({ctx.samplers, params.texture_view}), {});
-    encoder->push_constants(encoder.self,
-                            to_span({BlurParam{.uv      = {uv0, uv1},
-                                               .radius  = radius,
-                                               .sampler = 0,
-                                               .texture = params.texture}})
-                                .as_u8());
-    encoder->draw(encoder.self, 4, 1, 0, 0);
-    encoder->end_rendering(encoder.self);
+    radius += 1;
+    sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
+           ctx.scratch_fbs[src].extent,
+           gfx::Rect{Vec2U{0, 0}, params.area.extent},
+           ctx.scratch_fbs[dst].color.view, Vec2U{0, 0}, false);
+    src = (src + 1) & 1;
+    dst = (dst + 1) & 1;
   }
 
+  // upsample pass
+  for (u32 i = 0; i < params.passes; i++)
   {
-    Vec2 radius{params.radius / (f32) ctx.scratch_fb.extent.x,
-                params.radius / (f32) ctx.scratch_fb.extent.y};
-
-    // there will be artifacts due to blur radius reaching end of
-    // image. sampling offset deducted from the image extent first before
-    // upsampling.
-    Vec2 uv0{(f32) params.radius / ctx.scratch_fb.extent.x,
-             (f32) params.radius / ctx.scratch_fb.extent.y};
-
-    Vec2 uv1{((f32) extent.x - (f32) params.radius) / ctx.scratch_fb.extent.x,
-             ((f32) extent.y - (f32) params.radius) / ctx.scratch_fb.extent.y};
-
-    // upsampling pass
-    encoder->begin_rendering(
-        encoder.self,
-        gfx::RenderingInfo{.render_area = params.area,
-                           .num_layers  = 1,
-                           .color_attachments =
-                               to_span({gfx::RenderingAttachment{
-                                   .view         = params.image_view,
-                                   .resolve      = nullptr,
-                                   .resolve_mode = gfx::ResolveModes::None,
-                                   .load_op      = gfx::LoadOp::Load,
-                                   .store_op     = gfx::StoreOp::Store}}),
-                           .depth_attachment   = {},
-                           .stencil_attachment = {}});
-    encoder->bind_graphics_pipeline(encoder.self, upsample_pipeline);
-    encoder->set_graphics_state(
-        encoder.self,
-        gfx::GraphicsState{
-            .scissor  = params.area,
-            .viewport = {.offset = {params.area.offset.x * 1.0f,
-                                    params.area.offset.y * 1.0f},
-                         .extent = {params.area.extent.x * 1.0f,
-                                    params.area.extent.y * 1.0f}}});
-    encoder->bind_descriptor_sets(
-        encoder.self, to_span({ctx.samplers, ctx.scratch_fb.color_texture}),
-        {});
-    encoder->push_constants(
-        encoder.self,
-        to_span({BlurParam{.uv = {uv0, uv1}, .radius = radius, .texture = 0}})
-            .as_u8());
-    encoder->draw(encoder.self, 4, 1, 0, 0);
-    encoder->end_rendering(encoder.self);
+    sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
+           ctx.scratch_fbs[src].extent,
+           gfx::Rect{Vec2U{0, 0}, params.area.extent},
+           ctx.scratch_fbs[dst].color.view, Vec2U{0, 0}, true);
+    src = (src + 1) & 1;
+    dst = (dst + 1) & 1;
+    radius -= 1;
   }
+
+  sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
+         ctx.scratch_fbs[src].extent,
+         gfx::Rect{Vec2U{0, 0}, params.area.extent}, params.image_view,
+         params.area.offset, true);
 }
 
 }        // namespace ash

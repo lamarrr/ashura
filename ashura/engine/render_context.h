@@ -123,7 +123,7 @@ struct RenderContext
   Vec<gfx::Object>         released_objects[gfx::MAX_FRAME_BUFFERING] = {};
   SamplerCache             sampler_cache                              = {};
   Framebuffer              screen_fb                                  = {};
-  Framebuffer              scratch_fb                                 = {};
+  Framebuffer              scratch_fbs[2]                             = {};
   gfx::Image               default_image                              = nullptr;
   gfx::ImageView           default_image_views[NUM_DEFAULT_TEXTURES]  = {};
 

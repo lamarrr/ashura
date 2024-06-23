@@ -329,7 +329,6 @@ Donec sem nunc, mattis quis augue id, varius vulputate metus. Quisque rhoncus sa
                       .tint   = {f(colors::RED) / 255, f(colors::BLUE) / 255,
                                  f(colors::MAGENTA) / 255, f(colors::CYAN) /
        255}});*/
-    // canvas.blur({.scissor = {{0, 0}, {U32_MAX, U32_MAX}}}, rr);
     /*canvas.line(
         ShapeDesc{.center    = Vec2{0, 0},
                   .extent    = {800, 800},
@@ -347,7 +346,7 @@ Donec sem nunc, mattis quis augue id, varius vulputate metus. Quisque rhoncus sa
                  Vec2{0, -0.5},
                  //
                  Vec2{-1, 1}}));*/
-    /*layout_text(text_block, 1920, text_layout);
+    layout_text(text_block, 1920, text_layout);
     canvas.text(
         ShapeDesc{.center    = Vec2{1920 / 2.0f, 1080 / 2.0f},
                   .transform = Mat4::identity(),
@@ -362,12 +361,14 @@ Donec sem nunc, mattis quis augue id, varius vulputate metus. Quisque rhoncus sa
                        .shadow_scale            = 0,
                        .shadow_offset           = Vec2{1, 1},
                        .foreground    = ColorGradient::uniform(colors::WHITE),
-                       .background    = ColorGradient::uniform(Vec4U8{3, 3, 3,
-    0xFF}), .underline     = ColorGradient::uniform(colors::WHITE),
+                       .background    = ColorGradient::uniform(Vec4U8{3, 3, 3, 0xFF}),
+                       .underline     = ColorGradient::uniform(colors::WHITE),
                        .strikethrough = ColorGradient::uniform(colors::WHITE),
-                       .shadow        =
-    ColorGradient::uniform(colors::WHITE)}}), .alignment   = -1, .align_width =
-    1920}, to_span<FontAtlasResource const *>({&font_resource}));*/
+                       .shadow        = ColorGradient::uniform(colors::WHITE)}}),
+            .alignment   = -1,
+            .align_width = 1920},
+        to_span<FontAtlasResource const *>({&font_resource}));
+    canvas.blur({.scissor = {{0, 0}, {U32_MAX, U32_MAX}}}, rr);
     /*canvas.triangles(
         ShapeDesc{.center    = Vec2{0, 0},
                   .extent    = {800, 800},

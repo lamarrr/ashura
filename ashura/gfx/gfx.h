@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/std/allocator.h"
+#include "ashura/std/math.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
@@ -42,6 +43,7 @@ constexpr u32 MAX_COMBINED_CLIP_AND_CULL_DISTANCES = 8;
 
 typedef Vec2U Offset;
 typedef Vec2U Extent;
+typedef RectU Rect;
 typedef Vec3U Offset3D;
 typedef Vec3U Extent3D;
 typedef u64   FrameId;
@@ -735,12 +737,6 @@ struct Viewport
   Vec2 extent    = {};
   f32  min_depth = 0;
   f32  max_depth = 0;
-};
-
-struct Rect
-{
-  Offset offset = {};
-  Extent extent = {};
 };
 
 struct StencilState

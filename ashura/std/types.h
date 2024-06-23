@@ -1567,6 +1567,11 @@ struct alignas(8) Vec2U
   }
 };
 
+constexpr Vec2 as_vec2(Vec2U a)
+{
+  return Vec2{(f32) a.x, (f32) a.y};
+}
+
 constexpr bool operator==(Vec2U a, Vec2U b)
 {
   return a.x == b.x && a.y == b.y;

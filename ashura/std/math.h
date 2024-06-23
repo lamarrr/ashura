@@ -344,8 +344,8 @@ constexpr void intersect(Vec2 a_begin, Vec2 a_end, Vec2 &b_begin, Vec2 &b_end)
 
 struct Rect
 {
-  Vec2 offset;
-  Vec2 extent;
+  Vec2 offset = {};
+  Vec2 extent = {};
 
   constexpr Vec2 center() const
   {
@@ -365,6 +365,17 @@ struct Rect
   constexpr f32 area() const
   {
     return extent.x * extent.y;
+  }
+};
+
+struct RectU
+{
+  Vec2U offset = {};
+  Vec2U extent = {};
+
+  constexpr Vec2U end() const
+  {
+    return offset + extent;
   }
 };
 

@@ -660,9 +660,9 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
   add_run(*this, CanvasPassType::Ngon, desc.scissor);
 }
 
-void Canvas::blur(ShapeDesc const &desc, u32 radius)
+void Canvas::blur(ShapeDesc const &desc, u32 num_passes)
 {
-  CHECK(blur_params.push(radius));
+  CHECK(blur_params.push(num_passes));
   add_run(*this, CanvasPassType::Blur, desc.scissor);
 }
 

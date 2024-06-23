@@ -151,14 +151,14 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
     {
       case CanvasPassType::Blur:
       {
-        u32 blur_radius = canvas.blur_params[run.first];
+        u32 num_passes = canvas.blur_params[run.first];
         passes.blur.add_pass(
             ctx, BlurPassParams{.image_view   = info.color_attachments[0].view,
                                 .extent       = canvas.surface.extent,
                                 .texture_view = texture,
                                 .texture      = 0,
-                                .area         = run.scissor,
-                                .radius       = blur_radius});
+                                .passes       = num_passes,
+                                .area         = run.scissor});
       }
       break;
       case CanvasPassType::Custom:

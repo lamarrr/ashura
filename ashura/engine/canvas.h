@@ -146,7 +146,7 @@ struct Canvas
 
   void line(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
-  void blur(ShapeDesc const &desc, u32 radius);
+  void blur(ShapeDesc const &desc, u32 num_passes);
 
   void custom(ShapeDesc const &desc, CustomCanvasPassInfo const &pass);
 };
