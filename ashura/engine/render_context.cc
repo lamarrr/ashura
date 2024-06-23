@@ -363,7 +363,10 @@ void RenderContext::uninit()
   release(textures_layout);
   release(samplers_layout);
   release(screen_fb);
-  release(scratch_fb);
+  for (Framebuffer &f : scratch_fbs)
+  {
+    release(f);
+  }
   sampler_cache.for_each([&](gfx::SamplerDesc const &, CachedSampler sampler) {
     release(sampler.sampler);
   });
@@ -379,7 +382,10 @@ void RenderContext::uninit()
 void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
 {
   recreate_framebuffer(*this, screen_fb, new_extent);
-  recreate_framebuffer(*this, scratch_fb, new_extent);
+  for (Framebuffer &f : scratch_fbs)
+  {
+    recreate_framebuffer(*this, f, new_extent);
+  }
 }
 
 gfx::CommandEncoderImpl RenderContext::encoder()
@@ -632,13 +638,16 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
                                           .first_array_layer = 0,
                                           .num_array_layers  = 1}}));
 
-  enc->clear_color_image(
-      enc.self, scratch_fb.color.image, gfx::Color{.float32 = {0, 0, 0, 0}},
-      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
-                                          .first_mip_level   = 0,
-                                          .num_mip_levels    = 1,
-                                          .first_array_layer = 0,
-                                          .num_array_layers  = 1}}));
+  for (Framebuffer const &f : scratch_fbs)
+  {
+    enc->clear_color_image(
+        enc.self, f.color.image, gfx::Color{.float32 = {0, 0, 0, 0}},
+        to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                            .first_mip_level   = 0,
+                                            .num_mip_levels    = 1,
+                                            .first_array_layer = 0,
+                                            .num_array_layers  = 1}}));
+  }
 
   enc->clear_depth_stencil_image(
       enc.self, screen_fb.depth_stencil.image,
@@ -650,15 +659,18 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
                                           .first_array_layer = 0,
                                           .num_array_layers  = 1}}));
 
-  enc->clear_depth_stencil_image(
-      enc.self, scratch_fb.depth_stencil.image,
-      gfx::DepthStencil{.depth = 0, .stencil = 0},
-      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
-                                                     gfx::ImageAspects::Stencil,
-                                          .first_mip_level   = 0,
-                                          .num_mip_levels    = 1,
-                                          .first_array_layer = 0,
-                                          .num_array_layers  = 1}}));
+  for (Framebuffer const &f : scratch_fbs)
+  {
+    enc->clear_depth_stencil_image(
+        enc.self, f.depth_stencil.image,
+        gfx::DepthStencil{.depth = 0, .stencil = 0},
+        to_span({gfx::ImageSubresourceRange{
+            .aspects = gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
+            .first_mip_level   = 0,
+            .num_mip_levels    = 1,
+            .first_array_layer = 0,
+            .num_array_layers  = 1}}));
+  }
 }
 
 void RenderContext::end_frame(gfx::Swapchain swapchain)
