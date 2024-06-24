@@ -225,7 +225,7 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
     Vec2 const p0    = points[i];
     Vec2 const p1    = points[i + 1];
     Vec2 const d     = p1 - p0;
-    f32 const  alpha = std::atanf(d.y / d.x);
+    f32 const  alpha = atanf(d.y / d.x);
 
     // parallel angle
     Vec2 const down = (thickness / 2) * rotor(alpha + PI / 2);

@@ -437,7 +437,7 @@ constexpr bool overlaps(Box const &a, Box const &b)
          a_end.y >= b_begin.y && a_begin.z <= b_end.z && a_end.z >= b_begin.z;
 }
 
-constexpr Vec2 rotor(f32 a)
+inline Vec2 rotor(f32 a)
 {
   return Vec2{cosf(a), sinf(a)};
 }
@@ -456,7 +456,7 @@ constexpr f32 lerp(f32 low, f32 high, f32 t)
 /// @param dt time delta
 /// @param half_life time to complete half of the whole operation
 ///
-constexpr f32 damplerp(f32 low, f32 high, f32 dt, f32 half_life)
+inline f32 damplerp(f32 low, f32 high, f32 dt, f32 half_life)
 {
   return lerp(low, high, 1 - exp2f(-half_life * dt));
 }
