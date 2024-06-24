@@ -81,7 +81,6 @@ static inline void segment_paragraphs(Span<u32 const>   text,
   for (u32 i = 0; i < text_size;)
   {
     segments[i].paragraph_begin = true;
-    i++;
     while (i < text_size)
     {
       if (text[i] == '\r' && ((i + 1) < text_size) && text[i + 1] == '\n')
@@ -140,21 +139,22 @@ static inline void segment_directions(Span<u32 const>   text,
   u32 const text_size = (u32) text.size();
   for (u32 i = 0; i < text_size;)
   {
-    u32 first = i++;
+    u32 first = i;
     while (i < text_size && !segments[i].paragraph_end)
     {
       i++;
     }
 
-    u32 const      length    = i - first;
-    SBParagraphRef paragraph = SBAlgorithmCreateParagraph(
-        algorithm, first, length,
-        (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
-                                               SBLevelDefaultRTL);
-    CHECK(paragraph != nullptr);
+    u32 const length = i - first;
 
-    if (paragraph != nullptr)
+    if (length > 0)
     {
+      SBParagraphRef paragraph = SBAlgorithmCreateParagraph(
+          algorithm, first, length,
+          (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
+                                                 SBLevelDefaultRTL);
+      CHECK(paragraph != nullptr);
+
       CHECK(SBParagraphGetLength(paragraph) == length);
       SBLevel const       base_level     = SBParagraphGetBaseLevel(paragraph);
       TextDirection const base_direction = ((base_level & 0x1) == 0) ?
@@ -174,6 +174,7 @@ static inline void segment_directions(Span<u32 const>   text,
       SBParagraphRelease(paragraph);
     }
 
+    i++;
     while (i < text_size && !segments[i].paragraph_begin)
     {
       i++;
@@ -193,7 +194,7 @@ static inline void segment_breakpoints(Span<u32 const> text, f32 max_width,
   u32 const text_size = (u32) text.size();
   for (u32 i = 0; i < text_size;)
   {
-    i++;
+    segments[i].breakable = true;
     while (i < text_size && text[i] != ' ' && text[i] != '\t')
     {
       i++;
@@ -203,8 +204,6 @@ static inline void segment_breakpoints(Span<u32 const> text, f32 max_width,
     {
       i++;
     }
-
-    segments[i].breakable = true;
   }
 }
 
@@ -310,7 +309,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
   for (u32 p = 0; p < text_size;)
   {
-    u32 const paragraph_begin = p++;
+    u32 const paragraph_begin = p;
     while (p < text_size && !segments[p].paragraph_end)
     {
       p++;
@@ -319,33 +318,35 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
     for (u32 i = paragraph_begin; i < paragraph_end;)
     {
-      u32 const          first   = i++;
-      TextSegment const &segment = segments[first];
-      while (i < text_size && segment.style == segments[i].style &&
-             segment.script == segments[i].script &&
-             segment.direction == segments[i].direction &&
+      u32 const          first         = i++;
+      TextSegment const &first_segment = segments[first];
+      while (i < paragraph_end && first_segment.style == segments[i].style &&
+             first_segment.script == segments[i].script &&
+             first_segment.direction == segments[i].direction &&
              !segments[i].breakable)
       {
         i++;
       }
 
-      FontStyle const                &s         = block.fonts[segment.style];
-      FontImpl const                 *f         = (FontImpl const *) s.font;
-      Span<hb_glyph_info_t const>     infos     = {};
+      FontStyle const                &s     = block.fonts[first_segment.style];
+      FontImpl const                 *f     = (FontImpl const *) s.font;
+      Span<hb_glyph_info_t const>     infos = {};
       Span<hb_glyph_position_t const> positions = {};
       shape(f->hb_font, buffer, block.text, first, i - first,
             hb_script_from_iso15924_tag(
-                SBScriptGetOpenTypeTag(SBScript{(u8) segment.script})),
-            (segment.direction == TextDirection::LeftToRight) ?
+                SBScriptGetOpenTypeTag(SBScript{(u8) first_segment.script})),
+            (first_segment.direction == TextDirection::LeftToRight) ?
                 HB_DIRECTION_LTR :
                 HB_DIRECTION_RTL,
             language, block.use_kerning, block.use_ligatures, infos, positions);
 
-      insert_run(layout, s, first, i - first, segment.style, f->metrics,
-                 segment.direction, segment.base_direction,
-                 segment.paragraph_begin, segment.breakable, infos, positions);
+      insert_run(layout, s, first, i - first, first_segment.style, f->metrics,
+                 first_segment.direction, first_segment.base_direction,
+                 first_segment.paragraph_begin, first_segment.breakable, infos,
+                 positions);
     }
 
+    p++;
     while (p < text_size && !segments[p].paragraph_begin)
     {
       p++;
