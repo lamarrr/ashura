@@ -296,9 +296,13 @@ struct GlyphShape
 
 /// @param style the text/font style of the current run
 /// @param script script of the current codepoint
+/// @param paragraph_begin if this codepoint marks the beginning of a new
+/// paragraph
+/// @param paragraph_end if this codepoint marks the end of a paragraph
 /// @param base_direction the current paragraph's direction
 /// @param direction directionality of the current codepoint in the paragraph
-/// @param breakable if this codepoint begins a breakable text
+/// @param breakable if this codepoint begins a breakable text, i.e. has spaces
+/// or tabs before it
 struct alignas(4) TextSegment
 {
   u16           style               = 0;
