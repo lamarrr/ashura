@@ -43,15 +43,20 @@ struct ShapeDesc
   Vec2          uv[2]           = {{0, 0}, {1, 1}};
   f32           tiling          = 1;
   f32           edge_smoothness = 0.0015F;
-  gfx::Rect     scissor = {.offset = {0, 0}, .extent = {U32_MAX, U32_MAX}};
 };
 
 struct CanvasPassRun
 {
-  CanvasPassType type    = CanvasPassType::None;
-  u32            first   = 0;
-  u32            count   = 0;
-  gfx::Rect      scissor = {.extent = {U32_MAX, U32_MAX}};
+  CanvasPassType type  = CanvasPassType::None;
+  CRect          clip  = {};
+  u32            first = 0;
+  u32            count = 0;
+};
+
+struct CanvasBlurParam
+{
+  CRect area       = {};
+  u32   num_passes = 0;
 };
 
 /// @param encoder function to encode the pass onto the renderer, will be called
@@ -64,30 +69,6 @@ struct CustomCanvasPassInfo
         encoder = to_fn([](void *, RenderContext &, PassContext &,
                          gfx::RenderingInfo const &, gfx::DescriptorSet) {});
   void *data    = nullptr;
-};
-
-struct CanvasSurface
-{
-  gfx::Viewport viewport = {};
-  gfx::Rect     area     = {};
-  Vec2U         extent   = {};
-
-  constexpr f32 aspect_ratio() const
-  {
-    return (viewport.extent.y == 0) ? 0 :
-                                      (viewport.extent.x / viewport.extent.y);
-  }
-
-  constexpr Mat4 mvp(Mat4 const &transform, Vec2 center, Vec2 extent) const
-  {
-    return
-        // translate the object to its screen position, using (0, 0) as top
-        translate3d(to_vec3((center / (0.5f * viewport.extent)) - 1, 0)) *
-        // scale the object in the -1 to + 1 space
-        scale3d(to_vec3(2 / (viewport.extent), 1)) *
-        // perform object-space transformation
-        transform * scale3d(to_vec3(extent / 2, 1));
-  }
 };
 
 /// @brief all points are stored in the [-1, +1] range, all arguments must be
@@ -110,25 +91,48 @@ struct Path
   static void triangles(Span<Vec2 const> points, Vec<u32> &idx);
 };
 
+/// @param viewport viewport region of the surface the canvas is being drawn
+/// onto.
+/// @param extent extent of the surface the canvas is being drawn onto.
 struct Canvas
 {
-  CanvasSurface             surface           = {};
+  Vec2                      viewport_extent   = {};
+  CRect                     current_clip      = {{0, 0}, {0, 0}};
   Vec<Vec2>                 vertices          = {};
   Vec<u32>                  indices           = {};
   Vec<u32>                  ngon_index_counts = {};
   Vec<NgonParam>            ngon_params       = {};
   Vec<RRectParam>           rrect_params      = {};
-  Vec<u32>                  blur_params       = {};
+  Vec<CanvasBlurParam>      blur_params       = {};
   Vec<CustomCanvasPassInfo> custom_params     = {};
   Vec<CanvasPassRun>        pass_runs         = {};
+
+  constexpr f32 aspect_ratio() const
+  {
+    return (viewport_extent.y == 0) ? 0 :
+                                      (viewport_extent.x / viewport_extent.y);
+  }
+
+  constexpr Mat4 mvp(Mat4 const &transform, Vec2 center, Vec2 extent) const
+  {
+    return
+        // translate the object to its screen position, using (0, 0) as top
+        translate3d(to_vec3((center / (0.5f * viewport_extent)) - 1, 0)) *
+        // scale the object in the -1 to + 1 space
+        scale3d(to_vec3(2 / viewport_extent, 1)) *
+        // perform object-space transformation
+        transform * scale3d(to_vec3(extent / 2, 1));
+  }
 
   void init();
 
   void uninit();
 
-  void begin(CanvasSurface const &surface);
+  void begin(Vec2 viewport_extent);
 
   void clear();
+
+  void clip(CRect const &area);
 
   void circle(ShapeDesc const &desc);
 
@@ -146,9 +150,9 @@ struct Canvas
 
   void line(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
-  void blur(ShapeDesc const &desc, u32 num_passes);
+  void blur(CRect const &area, u32 num_passes);
 
-  void custom(ShapeDesc const &desc, CustomCanvasPassInfo const &pass);
+  void custom(CustomCanvasPassInfo const &pass);
 };
 
 }        // namespace ash
