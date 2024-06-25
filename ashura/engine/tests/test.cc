@@ -290,9 +290,9 @@ int main(int, char **)
   FontStyle font_styles[] = {
       {.font = font, .font_height = 30, .line_height = 1.25}};
   TextLayout text_layout;
-  
-  TextBlock  text_block{
-       .text = utf(
+
+  TextBlock text_block{
+      .text = utf(
           UR"(١.  بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
 ٢.  الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ
 ٣.  الرَّحْمَٰنِ الرَّحِيمِ
@@ -300,10 +300,10 @@ int main(int, char **)
 ٥.  إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ
 ٦.  اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ
 ٧.  صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ)"_span),
-       .runs      = to_span(runs),
-       .fonts     = to_span(font_styles),
-       .direction = TextDirection::RightToLeft,
-       .language  = "ar"_span};
+      .runs      = to_span(runs),
+      .fonts     = to_span(font_styles),
+      .direction = TextDirection::RightToLeft,
+      .language  = "en"_span};
 
   ctx.end_frame(swapchain);
   while (!should_close)
@@ -311,13 +311,7 @@ int main(int, char **)
     win_sys->poll_events();
     ctx.begin_frame(swapchain);
     // TODO(lamarrr): maybe check for frame begin before accepting commands
-    canvas.begin(CanvasSurface{
-        .viewport = gfx::Viewport{.offset    = {0, 0},
-                                  .extent    = {1920, 1080},
-                                  .min_depth = 0,
-                                  .max_depth = 1},
-        .area     = gfx::Rect{.offset = {0, 0}, .extent = {1920, 1080}},
-        .extent   = {1920, 1080}});
+    canvas.begin({1920, 1080});
 
     canvas.rrect(ShapeDesc{.center       = Vec2{1920 / 2, 1080 / 2},
                            .extent       = {1920, 1080},
@@ -390,13 +384,17 @@ int main(int, char **)
                        .color_attachments = to_span({gfx::RenderingAttachment{
                            .view = ctx.screen_fb.color.view}})},
                    ctx.screen_fb.color_texture);
-    renderer.render(ctx, pctx, canvas,
+    renderer.render(ctx, pctx,
                     gfx::RenderingInfo{
                         .render_area       = {{0, 0}, {1920, 1080}},
                         .num_layers        = 1,
                         .color_attachments = to_span({gfx::RenderingAttachment{
                             .view = ctx.screen_fb.color.view}})},
-                    ctx.screen_fb.color_texture);
+                    gfx::Viewport{.offset    = {0, 0},
+                                  .extent    = {1920, 1080},
+                                  .min_depth = 0,
+                                  .max_depth = 1},
+                    {1920, 1080}, ctx.screen_fb.color_texture, canvas);
     ctx.end_frame(swapchain);
     canvas.clear();
   }

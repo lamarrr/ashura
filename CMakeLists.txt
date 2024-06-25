@@ -183,6 +183,7 @@ add_library(
   ashura/engine/shader.cc
   ashura/engine/window.cc
   ashura/engine/widget.cc
+  ashura/engine/widget_system.cc
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc

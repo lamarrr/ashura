@@ -466,4 +466,13 @@ void for_each_partition_indirect(S &&span, Span<IndexType> indices, Fn &&op,
   }
 }
 
+template <typename T>
+void iota(Span<T> s, T first)
+{
+  for (auto &v : s)
+  {
+    v = first++;
+  };
+}
+
 }        // namespace  ash
