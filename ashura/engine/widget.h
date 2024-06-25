@@ -45,16 +45,6 @@ enum class Direction : u8
   Vertical   = 1
 };
 
-constexpr Vec2 ALIGN_TOP_LEFT      = Vec2{-1, -1};
-constexpr Vec2 ALIGN_TOP_CENTER    = Vec2{0, -1};
-constexpr Vec2 ALIGN_TOP_RIGHT     = Vec2{1, -1};
-constexpr Vec2 ALIGN_LEFT_CENTER   = Vec2{-1, 0};
-constexpr Vec2 ALIGN_CENTER        = Vec2{0, 0};
-constexpr Vec2 ALIGN_RIGHT_CENTER  = Vec2{1, 0};
-constexpr Vec2 ALIGN_BOTTOM_LEFT   = Vec2{-1, 1};
-constexpr Vec2 ALIGN_BOTTOM_CENTER = Vec2{0, 1};
-constexpr Vec2 ALIGN_BOTTOM_RIGHT  = Vec2{1, 1};
-
 enum class MainAlign : u8
 {
   Start        = 0,
@@ -84,7 +74,7 @@ enum class WidgetEventTypes : u32
   MouseEnter   = 0x00000008,
   MouseEscaped = 0x00000010,
   MouseLeave   = 0x00000020,
-  MouseWheel   = 0x00000040,
+  MouseScroll  = 0x00000040,
   DragStart    = 0x00000080,
   DragUpdate   = 0x00000100,
   DragEnd      = 0x00000200,
@@ -96,35 +86,32 @@ enum class WidgetEventTypes : u32
   ViewMiss     = 0x00008000
 };
 
-/// @param Visible an invisible widget will not be drawn nor receive
-/// mouse/touch events.
-///
-/// @param Hittable this needs to happen before mouse actions as some widgets
-/// .i.e. some widgets don't need to intercept or receive mouse events return
-/// true if accepts hit test at position.
+ASH_DEFINE_ENUM_BIT_OPS(WidgetEventTypes)
+
 enum class WidgetAttributes : u8
 {
   None       = 0x00,
   Visible    = 0x01,
-  Hittable   = 0x02,
-  Scrollable = 0x04,
-  Draggable  = 0x08
+  Scrollable = 0x02,
+  Draggable  = 0x04
 };
+
+ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
 
 struct WidgetContext
 {
-  MouseButtons   button            = MouseButtons::None;
-  Vec2           mouse_position    = {};
-  Vec2           mouse_translation = {};
-  u32            num_clicks        = 0;
-  Span<u8 const> drag_payload      = {};
-  SystemTheme    theme             = SystemTheme::None;
-  TextDirection  direction         = TextDirection::LeftToRight;
+  MouseButtons   button                  = MouseButtons::None;
+  Vec2           mouse_position          = {};
+  Vec2           mouse_translation       = {};
+  u32            num_clicks              = 0;
+  Vec2           mouse_wheel_translation = {};
+  Span<u8 const> drag_payload            = {};
+  SystemTheme    theme                   = SystemTheme::None;
+  TextDirection  direction               = TextDirection::LeftToRight;
 };
 
 /// @brief Base widget class. All widget types must inherit from this struct.
-/// all methods are already implemented with reasonable defaults.
-/// Widgets are plain visual elements that define spatial relationships and
+/// Widgets are plain visual elements that define spatial relationships,
 /// visual state changes, and forward events to other subsystems.
 struct Widget
 {
@@ -141,92 +128,99 @@ struct Widget
   }
 
   /// @brief distributes the size allocated to it to its child widgets.
-  /// unlike CSS. has the advantage that children wouldn't need extra attributes
-  /// for specific kind of placements i.e. relative, absolute, etc.
-  /// @param allocated_size the size allocated to this widget
-  /// @param[out] children_allocation sizes allocated to the children.
-  virtual void allocate_size(Vec2       allocated_size,
-                             Span<Vec2> children_allocation)
+  /// @param allocated the size allocated to this widget
+  /// @param[out] sizes sizes allocated to the children.
+  virtual void size(Vec2 allocated, Span<Vec2> sizes)
   {
-    (void) allocated_size;
-    fill(children_allocation, Vec2{0, 0});
+    (void) allocated;
+    fill(sizes, Vec2{0, 0});
   }
 
   /// @brief fits itself around its children and positions child widgets
-  /// along/relative to itself (i.e. position {0, 0} means the child will be
-  /// placed on the center of the parent)
-  /// @param allocated_size the size allocated to this widget. the widget can
-  /// decide to disregard or fit to this as needed.
-  /// @param children_sizes sizes of the child widgets
-  /// @param[out] children_positions positions of the children widget on the
-  /// parent
+  /// relative to its center
+  /// @param allocated the size allocated to this widget
+  /// @param sizes sizes of the child widgets
+  /// @param[out] offsets offsets of the widgets from the parent's center
   /// @return this widget's fitted extent
-  virtual Vec2 fit(Vec2 allocated_size, Span<Vec2 const> children_sizes,
-                   Span<Vec2> children_positions)
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> offsets)
   {
-    (void) allocated_size;
-    (void) children_sizes;
-    (void) children_positions;
+    (void) allocated;
+    (void) sizes;
+    (void) offsets;
     return Vec2{0, 0};
   }
 
   /// @brief this is used for absolute positioning of the widget
-  /// @param allocated_position the allocated absolute position of this widget
-  virtual Vec2 position(Vec2 allocated_position)
+  /// @param center the allocated absolute center of this widget relative
+  /// to the viewport
+  virtual Vec2 position(Vec2 center, Vec2 extent)
   {
-    return allocated_position;
+    (void) extent;
+    return center;
   }
 
-  virtual WidgetAttributes get_attributes(Vec2 position)
+  /// @brief Used for hit-testing regions of widgets.
+  /// @param area area of widget within the viewport
+  /// @param offset offset of pointer within area
+  /// @return
+  virtual bool hit(Vec2 center, Vec2 extent, Vec2 offset)
   {
-    (void) position;
+    (void) center;
+    (void) extent;
+    (void) offset;
+    return true;
+  }
+
+  /// @brief Used for visibility, scroll, and drag testing
+  /// @return
+  virtual WidgetAttributes attributes()
+  {
     return WidgetAttributes::Visible;
   }
 
   /// @brief returns the z-index of itself and assigns z-indices to its children
-  /// @param allocated_z_index
-  /// @param[out] children_allocation z-index assigned to children
+  /// @param z_index z-index allocated to this widget by parent
+  /// @param[out] allocation z-index assigned to children
   /// @return
-  virtual i32 z_stack(i32 allocated_z_index, Span<i32> children_allocation)
+  virtual i32 stack(i32 z_index, Span<i32> allocation)
   {
-    fill(children_allocation, allocated_z_index + 1);
-    return allocated_z_index;
+    fill(allocation, z_index + 1);
+    return z_index;
   }
 
   /// @brief this is used for clipping widget views. the provided clip is
-  /// relative to the root widget's axis (0, 0). this can be used for nested
-  /// viewports where there are multiple intersecting clips. transforms do not
-  /// apply to the clip rects. this is used for visibility testing and
-  /// eventually actual vertex culling. a nested viewport for example can
-  /// therefore use the intersection of its allocated clip and it's own viewport
-  /// clip and assign that to its children, whilst using the allocated clip on
-  /// itself.
-  virtual Rect clip(Rect parent_clip)
+  /// relative to the root viewport. Used for nested viewports where there are
+  /// multiple intersecting clips.
+  virtual CRect clip(CRect allocated, Vec2 center, Vec2 extent)
   {
-    return parent_clip;
+    (void) center;
+    (void) extent;
+    return allocated;
   }
 
   /// @brief record draw commands needed to render this widget. this method is
   /// only called if the widget passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas
-  virtual void render(Canvas &canvas)
+  virtual void render(Canvas &canvas, Vec2 center, Vec2 extent)
   {
     (void) canvas;
+    (void) center;
+    (void) extent;
   }
 
   /// @brief called on every frame. used for state changes, animations, task
   /// dispatch and lightweight processing related to the GUI. heavy-weight and
   /// non-sub-millisecond tasks should be dispatched to a Subsystem that would
   /// handle that. i.e. using the multi-tasking system.
-  /// @param interval time passed since last call to this method
+  /// @param dt time passed since last call to this method
   //
-  virtual void tick(nanoseconds interval, WidgetEventTypes events,
-                    WidgetContext const &ctx)
+  virtual void tick(WidgetContext const &ctx, nanoseconds dt,
+                    WidgetEventTypes events)
   {
-    (void) interval;
-    (void) events;
     (void) ctx;
+    (void) dt;
+    (void) events;
   }
 
   uid id = UID_MAX;
