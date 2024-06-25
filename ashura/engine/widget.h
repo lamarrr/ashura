@@ -4,6 +4,7 @@
 #include "ashura/engine/event.h"
 #include "ashura/engine/key.h"
 #include "ashura/engine/renderer.h"
+#include "ashura/engine/text.h"
 #include "ashura/std/math.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
@@ -118,6 +119,7 @@ struct WidgetContext
   u32            num_clicks        = 0;
   Span<u8 const> drag_payload      = {};
   SystemTheme    theme             = SystemTheme::None;
+  TextDirection  direction         = TextDirection::LeftToRight;
 };
 
 /// @brief Base widget class. All widget types must inherit from this struct.

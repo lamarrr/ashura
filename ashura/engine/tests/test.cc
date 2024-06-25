@@ -26,7 +26,7 @@ int main(int, char **)
   Vec<u8> font_data;
   CHECK(
       read_file(
-          R"(C:\Users\rlama\Documents\Docs\berkeley-mono-typeface\berkeley-mono\TTF\BerkeleyMono-Regular.ttf)"_span,
+          R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
           font_data) == IoError::None);
 
   defer font_data_del{[&] { font_data.uninit(); }};
@@ -288,19 +288,22 @@ int main(int, char **)
   // TODO(lamarrr): create transfer queue, calculate total required setup size
   u32       runs[]        = {U32_MAX};
   FontStyle font_styles[] = {
-      {.font = font, .font_height = 16, .line_height = 1.2}};
+      {.font = font, .font_height = 30, .line_height = 1.25}};
   TextLayout text_layout;
+  
   TextBlock  text_block{
        .text = utf(
-          UR"(Lorem ipsum dolor sit amet,  consectetur adipiscing elit. Praesent fermentum sodales neque vitae lobortis. Fusce fermentum vehicula enim, eu porta tortor volutpat et. Vivamus pretium, ipsum tempus vehicula molestie, leo est suscipit ante, eget porta elit diam sit amet purus. Nunc vel convallis libero. Donec sit amet condimentum urna. Nunc pharetra ligula urna, nec ultricies metus lobortis id. Maecenas sed ex sed libero varius elementum. Nam scelerisque leo odio, nec dictum nulla sagittis quis. Morbi ultrices justo sit amet nibh volutpat venenatis. Maecenas fermentum leo et felis condimentum semper. Mauris mattis est eu ligula pulvinar consequat. Vestibulum faucibus consequat egestas. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Morbi rutrum odio pretium turpis porta semper. Phasellus rutrum vestibulum tortor, eget sagittis lectus ullamcorper quis.
-
-Duis ornare tellus in fermentum dignissim. Proin non accumsan lacus. Mauris ac augue id risus sollicitudin elementum non non diam. Praesent dolor tortor, porta non ipsum ut, iaculis iaculis orci. Praesent lacinia ex tristique nulla consectetur, sed molestie neque pharetra. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Mauris lacus ante, semper eget congue vitae, ultrices volutpat sapien. Vivamus aliquam mi lacus, sagittis porta arcu volutpat a. Suspendisse augue urna, molestie id posuere et, tempus vel dolor. Morbi nec eros leo. Proin congue nulla nec arcu pellentesque, eget tempus magna imperdiet. Suspendisse rhoncus commodo lacinia. In hac habitasse platea dictumst. Ut sodales accumsan egestas. Sed eu sagittis mauris.
-
-Donec sem nunc, mattis quis augue id, varius vulputate metus. Quisque rhoncus sapien quis orci cursus, ac aliquet urna imperdiet. Ut efficitur erat justo, ut rutrum ipsum faucibus id. Duis tempus massa a sem varius, sed semper eros gravida. Nulla ut viverra mauris. Praesent quis velit vel lacus mollis pulvinar. Fusce eu vulputate ante. Morbi sed vehicula velit, vitae porttitor tortor. Maecenas auctor ex non orci malesuada, id scelerisque ante aliquet. Phasellus sodales facilisis magna, sed efficitur arcu vulputate vel. Nunc et sodales risus. Duis euismod porttitor massa, sit amet blandit massa tincidunt sed. Aenean volutpat lacinia nisi vitae tincidunt. Sed finibus lacinia est, vel auctor elit semper at. Nullam vestibulum volutpat lacus et porttitor. Aliquam vitae metus nec quam dignissim fermentum vel quis urna.)"_span),
+          UR"(١.  بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+٢.  الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ
+٣.  الرَّحْمَٰنِ الرَّحِيمِ
+٤.  مَالِكِ يَوْمِ الدِّينِ
+٥.  إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ
+٦.  اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ
+٧.  صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ)"_span),
        .runs      = to_span(runs),
        .fonts     = to_span(font_styles),
-       .direction = TextDirection::LeftToRight,
-       .language  = "en"_span};
+       .direction = TextDirection::RightToLeft,
+       .language  = "ar"_span};
 
   ctx.end_frame(swapchain);
   while (!should_close)
