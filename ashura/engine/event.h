@@ -22,7 +22,7 @@ enum class KeyAction : u8
 
 struct KeyEvent
 {
-  Key          key       = Key::KEY_UNKNOWN;
+  Key          key       = Key::Key_UNKNOWN;
   KeyModifiers modifiers = KeyModifiers::None;
   KeyAction    action    = KeyAction::Press;
 };
