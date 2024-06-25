@@ -191,7 +191,7 @@ struct Widget
   /// @brief this is used for clipping widget views. the provided clip is
   /// relative to the root viewport. Used for nested viewports where there are
   /// multiple intersecting clips.
-  virtual CRect clip(CRect allocated, Vec2 center, Vec2 extent)
+  virtual CRect clip(Vec2 center, Vec2 extent, CRect allocated)
   {
     (void) center;
     (void) extent;
@@ -202,11 +202,11 @@ struct Widget
   /// only called if the widget passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas
-  virtual void render(Canvas &canvas, Vec2 center, Vec2 extent)
+  virtual void render(Vec2 center, Vec2 extent, Canvas &canvas)
   {
-    (void) canvas;
     (void) center;
     (void) extent;
+    (void) canvas;
   }
 
   /// @brief called on every frame. used for state changes, animations, task

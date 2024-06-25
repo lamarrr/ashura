@@ -129,7 +129,7 @@ struct WidgetSystem
     for (u32 i = 0; i < (u32) widgets.size(); i++)
     {
       WidgetNode const &node = nodes[i];
-      clips[i] = widgets[i]->clip(clips[i], positions[i], sizes[i]);
+      clips[i] = widgets[i]->clip(positions[i], sizes[i], clips[i]);
       fill(to_span(clips).slice(node.first_child, node.num_children), clips[i]);
     }
   }
@@ -165,12 +165,12 @@ struct WidgetSystem
       canvas.clip(clips[i]);
       if (has_bits(attributes[i], WidgetAttributes::Visible))
       {
-        widgets[i]->render(canvas, positions[i], sizes[i]);
+        widgets[i]->render(positions[i], sizes[i], canvas);
       }
     }
   }
 
-  void tick(nanoseconds dt, Span<WindowEvent const> events)
+  void tick(nanoseconds dt)
   {
     // TODO(lamarrr)
     // // process events across widgets, hit-test, dispatch events
