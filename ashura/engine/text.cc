@@ -285,71 +285,75 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     }
   }
 
-  hb_language_t language =
-      block.language.is_empty() ?
-          hb_language_get_default() :
-          hb_language_from_string(block.language.data(),
-                                  (i32) block.language.size());
-
-  hb_buffer_t *buffer = hb_buffer_create();
-  CHECK(buffer != nullptr);
-  defer buffer_del{[&] { hb_buffer_destroy(buffer); }};
-
-  SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
-                                 .stringBuffer   = (void *) block.text.data(),
-                                 .stringLength   = text_size};
-  SBAlgorithmRef      algorithm = SBAlgorithmCreate(&codepoints);
-  CHECK(algorithm != nullptr);
-  defer algorithm_del{[&] { SBAlgorithmRelease(algorithm); }};
-
   segment_paragraphs(block.text, segments);
   segment_scripts(block.text, segments);
-  segment_directions(block.text, algorithm, block.direction, segments);
   segment_breakpoints(block.text, max_width, segments);
 
-  for (u32 p = 0; p < text_size;)
   {
-    u32 const paragraph_begin = p;
-    while (p < text_size && !segments[p].paragraph_end)
-    {
-      p++;
-    }
-    u32 const paragraph_end = p;
+    SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
+                                   .stringBuffer   = (void *) block.text.data(),
+                                   .stringLength   = text_size};
+    SBAlgorithmRef      algorithm = SBAlgorithmCreate(&codepoints);
+    CHECK(algorithm != nullptr);
+    defer algorithm_del{[&] { SBAlgorithmRelease(algorithm); }};
+    segment_directions(block.text, algorithm, block.direction, segments);
+  }
 
-    for (u32 i = paragraph_begin; i < paragraph_end;)
+  {
+    hb_language_t language =
+        block.language.is_empty() ?
+            hb_language_get_default() :
+            hb_language_from_string(block.language.data(),
+                                    (i32) block.language.size());
+    hb_buffer_t *buffer = hb_buffer_create();
+    CHECK(buffer != nullptr);
+    defer buffer_del{[&] { hb_buffer_destroy(buffer); }};
+
+    for (u32 p = 0; p < text_size;)
     {
-      u32 const          first         = i++;
-      TextSegment const &first_segment = segments[first];
-      while (i < paragraph_end && first_segment.style == segments[i].style &&
-             first_segment.script == segments[i].script &&
-             first_segment.direction == segments[i].direction &&
-             !segments[i].breakable)
+      u32 const paragraph_begin = p;
+      while (p < text_size && !segments[p].paragraph_end)
       {
-        i++;
+        p++;
+      }
+      u32 const paragraph_end = p;
+
+      for (u32 i = paragraph_begin; i < paragraph_end;)
+      {
+        u32 const          first         = i++;
+        TextSegment const &first_segment = segments[first];
+        while (i < paragraph_end && first_segment.style == segments[i].style &&
+               first_segment.script == segments[i].script &&
+               first_segment.direction == segments[i].direction &&
+               !segments[i].breakable)
+        {
+          i++;
+        }
+
+        FontStyle const                &s = block.fonts[first_segment.style];
+        FontImpl const                 *f = (FontImpl const *) s.font;
+        Span<hb_glyph_info_t const>     infos     = {};
+        Span<hb_glyph_position_t const> positions = {};
+        shape(f->hb_font, buffer, block.text, first, i - first,
+              hb_script_from_iso15924_tag(
+                  SBScriptGetOpenTypeTag(SBScript{(u8) first_segment.script})),
+              (first_segment.direction == TextDirection::LeftToRight) ?
+                  HB_DIRECTION_LTR :
+                  HB_DIRECTION_RTL,
+              language, block.use_kerning, block.use_ligatures, infos,
+              positions);
+
+        insert_run(layout, s, first, i - first, first_segment.style, f->metrics,
+                   first_segment.direction, first_segment.base_direction,
+                   first_segment.paragraph_begin, first_segment.breakable,
+                   infos, positions);
       }
 
-      FontStyle const                &s     = block.fonts[first_segment.style];
-      FontImpl const                 *f     = (FontImpl const *) s.font;
-      Span<hb_glyph_info_t const>     infos = {};
-      Span<hb_glyph_position_t const> positions = {};
-      shape(f->hb_font, buffer, block.text, first, i - first,
-            hb_script_from_iso15924_tag(
-                SBScriptGetOpenTypeTag(SBScript{(u8) first_segment.script})),
-            (first_segment.direction == TextDirection::LeftToRight) ?
-                HB_DIRECTION_LTR :
-                HB_DIRECTION_RTL,
-            language, block.use_kerning, block.use_ligatures, infos, positions);
-
-      insert_run(layout, s, first, i - first, first_segment.style, f->metrics,
-                 first_segment.direction, first_segment.base_direction,
-                 first_segment.paragraph_begin, first_segment.breakable, infos,
-                 positions);
-    }
-
-    p++;
-    while (p < text_size && !segments[p].paragraph_begin)
-    {
       p++;
+      while (p < text_size && !segments[p].paragraph_begin)
+      {
+        p++;
+      }
     }
   }
 
