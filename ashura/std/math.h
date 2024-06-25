@@ -368,6 +368,22 @@ struct Rect
   }
 };
 
+struct CRect
+{
+  Vec2 center = {};
+  Vec2 extent = {};
+};
+
+constexpr bool operator==(CRect const &a, CRect const &b)
+{
+  return a.center == b.center && a.extent == b.extent;
+}
+
+constexpr bool operator!=(CRect const &a, CRect const &b)
+{
+  return a.center != b.center || a.extent != b.extent;
+}
+
 struct RectU
 {
   Vec2U offset = {};
@@ -379,10 +395,20 @@ struct RectU
   }
 };
 
+constexpr bool operator==(RectU const &a, RectU const &b)
+{
+  return a.offset == b.offset && a.extent == b.extent;
+}
+
+constexpr bool operator!=(RectU const &a, RectU const &b)
+{
+  return a.offset != b.offset || a.extent != b.extent;
+}
+
 struct Box
 {
-  Vec3 offset;
-  Vec3 extent;
+  Vec3 offset = {};
+  Vec3 extent = {};
 
   constexpr Vec3 center() const
   {
@@ -398,6 +424,12 @@ struct Box
   {
     return extent.x * extent.y * extent.z;
   }
+};
+
+struct CBox
+{
+  Vec3 center = {};
+  Vec3 extent = {};
 };
 
 constexpr bool contains(Rect const &rect, Vec2 point)
