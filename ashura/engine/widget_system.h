@@ -49,7 +49,6 @@ struct WidgetSystem
     }
     CHECK(nodes.push(
         WidgetNode{.first_child = first_child, .num_children = num_children}));
-    CHECK(attributes.push(parent->attributes()));
 
     for (u32 i = 0; i < num_children; i++)
     {
@@ -67,6 +66,14 @@ struct WidgetSystem
       }
     }
     CHECK(next_id != UID_MAX);
+  }
+
+  void attribute()
+  {
+    for (u32 i = 0; i < (u32) widgets.size(); i++)
+    {
+      attributes[i] = widgets[i]->attributes();
+    }
   }
 
   void layout()
@@ -190,12 +197,14 @@ struct WidgetSystem
     }
     allocate_ids();
     u32 const num_widgets = (u32) widgets.size();
+    CHECK(attributes.resize_uninitialized(num_widgets));
     CHECK(sizes.resize_uninitialized(num_widgets));
     CHECK(positions.resize_uninitialized(num_widgets));
     CHECK(clips.resize_uninitialized(num_widgets));
     CHECK(z_indices.resize_uninitialized(num_widgets));
     CHECK(layered.resize_uninitialized(num_widgets));
 
+    attribute();
     layout();
     stack();
     clip();
