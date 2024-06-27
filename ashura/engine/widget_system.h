@@ -38,7 +38,7 @@ struct WidgetSystem
     u32       num_children = 0;
     while (true)
     {
-      Widget *child = parent->get_child(num_children);
+      Widget *child = parent->child(num_children);
       if (child == nullptr)
       {
         break;
