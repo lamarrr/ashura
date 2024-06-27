@@ -927,6 +927,16 @@ struct alignas(8) Vec2
   {
     return Vec2{value, value};
   }
+
+  constexpr f32 &operator[](usize i)
+  {
+    return i == 0 ? x : y;
+  }
+
+  constexpr f32 const &operator[](usize i) const
+  {
+    return i == 0 ? x : y;
+  }
 };
 
 constexpr bool operator==(Vec2 a, Vec2 b)
