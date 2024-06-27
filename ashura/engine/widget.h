@@ -23,7 +23,7 @@ namespace ash
 /// least 0.5 of source size
 /// @param maxrel clamps the source size relatively. i.e. value should be at
 /// most 0.5 of source size
-struct LayoutConstraint
+struct SizeConstraint
 {
   f32 offset = 0;
   f32 scale  = 0;
@@ -39,7 +39,7 @@ struct LayoutConstraint
   }
 };
 
-enum class Direction : u8
+enum class Axis : u8
 {
   Horizontal = 0,
   Vertical   = 1
@@ -88,12 +88,15 @@ enum class WidgetEventTypes : u32
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetEventTypes)
 
+/// @param Visible if the widget is visible or not. Visibility propagates down
+/// to the children
 enum class WidgetAttributes : u8
 {
   None       = 0x00,
   Visible    = 0x01,
-  Scrollable = 0x02,
-  Draggable  = 0x04
+  Clickable  = 0x02,
+  Scrollable = 0x04,
+  Draggable  = 0x08
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
@@ -121,7 +124,7 @@ struct Widget
   /// @brief get child widgets, this is a virtual iterator, return null once
   /// there's no other children
   /// @return
-  virtual Widget *get_child(u32 i)
+  virtual Widget *child(u32 i)
   {
     (void) i;
     return nullptr;
@@ -146,7 +149,7 @@ struct Widget
   {
     (void) allocated;
     (void) sizes;
-    (void) offsets;
+    fill(offsets, Vec2{0, 0});
     return Vec2{0, 0};
   }
 
