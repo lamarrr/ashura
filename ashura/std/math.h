@@ -574,6 +574,11 @@ constexpr f32 space_align(f32 space, f32 alignment)
   return (alignment / 2 + 0.5f) * space;
 }
 
+constexpr Vec2 space_align(Vec2 space, Vec2 alignment)
+{
+  return (alignment / 2 + 0.5f) * space;
+}
+
 /// @param x_mag The horizontal magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
 /// @param y_mag The vertical magnification of the view. This value
