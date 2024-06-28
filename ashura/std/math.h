@@ -349,7 +349,7 @@ struct Rect
 
   constexpr Vec2 center() const
   {
-    return offset + (extent / 2);
+    return offset + (extent * 0.5F);
   }
 
   constexpr Vec2 begin() const
@@ -412,7 +412,7 @@ struct Box
 
   constexpr Vec3 center() const
   {
-    return offset + (extent / 2);
+    return offset + (extent * 0.5F);
   }
 
   constexpr Vec3 end() const
