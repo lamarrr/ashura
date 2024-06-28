@@ -562,7 +562,7 @@ constexpr f32 smoothstep(f32 a, f32 b, f32 t)
 
 inline f32 grid_snap(f32 a, f32 unit)
 {
-  return floorf((a + unit / 2) / unit) * unit;
+  return floorf((a + unit * 0.5F) / unit) * unit;
 }
 
 /// @brief get the aligned offset relative to a fixed amount of space
