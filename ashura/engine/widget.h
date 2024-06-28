@@ -45,6 +45,15 @@ enum class Axis : u8
   Vertical   = 1
 };
 
+enum class Axes : u8
+{
+  None       = 0,
+  Horizontal = 1,
+  Vertical   = 2
+};
+
+ASH_DEFINE_ENUM_BIT_OPS(Axes)
+
 enum class MainAlign : u8
 {
   Start        = 0,
