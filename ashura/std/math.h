@@ -576,7 +576,45 @@ constexpr f32 space_align(f32 space, f32 alignment)
 
 constexpr Vec2 space_align(Vec2 space, Vec2 alignment)
 {
-  return (alignment / 2 + 0.5f) * space;
+
+constexpr f32 norm_to_axis(f32 norm)
+{
+  return norm * 2 - 1;
+}
+
+constexpr f32 axis_to_norm(f32 axis)
+{
+  return axis * 0.5F + 0.5F;
+}
+
+constexpr Vec2 norm_to_axis(Vec2 norm)
+{
+  return norm * 2 - 1;
+}
+
+constexpr Vec2 axis_to_norm(Vec2 axis)
+{
+  return axis * 0.5F + 0.5F;
+}
+
+constexpr Vec3 norm_to_axis(Vec3 norm)
+{
+  return norm * 2 - 1;
+}
+
+constexpr Vec3 axis_to_norm(Vec3 axis)
+{
+  return axis * 0.5F + 0.5F;
+}
+
+constexpr Vec4 norm_to_axis(Vec4 norm)
+{
+  return norm * 2 - 1;
+}
+
+constexpr Vec4 axis_to_norm(Vec4 axis)
+{
+  return axis * 0.5F + 0.5F;
 }
 
 /// @param x_mag The horizontal magnification of the view. This value
