@@ -114,7 +114,8 @@ struct WidgetSystem
     // allow widgets to pop out of their parents
     for (u32 i = 0; i < num_widgets; i++)
     {
-      positions[i] = widgets[i]->position(positions[i], sizes[i]);
+      positions[i] = widgets[i]->position(
+          CRect{.center = positions[i], .extent = sizes[i]});
     }
   }
 
@@ -136,7 +137,8 @@ struct WidgetSystem
     for (u32 i = 0; i < (u32) widgets.size(); i++)
     {
       WidgetNode const &node = nodes[i];
-      clips[i] = widgets[i]->clip(positions[i], sizes[i], clips[i]);
+      clips[i]               = widgets[i]->clip(
+          CRect{.center = positions[i], .extent = sizes[i]}, clips[i]);
       fill(to_span(clips).slice(node.first_child, node.num_children), clips[i]);
     }
   }
@@ -172,7 +174,8 @@ struct WidgetSystem
       canvas.clip(clips[i]);
       if (has_bits(attributes[i], WidgetAttributes::Visible))
       {
-        widgets[i]->render(positions[i], sizes[i], canvas);
+        widgets[i]->render(CRect{.center = positions[i], .extent = sizes[i]},
+                           canvas);
       }
     }
   }
@@ -180,10 +183,10 @@ struct WidgetSystem
   void tick(nanoseconds dt)
   {
     // TODO(lamarrr)
-    // // process events across widgets, hit-test, dispatch events
-    for (Widget *w : widgets)
+    for (u32 i = 0; i < (u32) widgets.size(); i++)
     {
-      w->tick(ctx, dt, WidgetEventTypes::None);
+      widgets[i]->tick(ctx, CRect{.center = positions[i], .extent = sizes[i]},
+                       dt, WidgetEventTypes::None);
     }
   }
 
