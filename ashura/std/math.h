@@ -571,11 +571,13 @@ inline f32 grid_snap(f32 a, f32 unit)
 /// @return
 constexpr f32 space_align(f32 space, f32 alignment)
 {
-  return (alignment / 2 + 0.5f) * space;
+  return (alignment * 0.5F + 0.5F) * space;
 }
 
 constexpr Vec2 space_align(Vec2 space, Vec2 alignment)
 {
+  return (alignment * 0.5F + 0.5F) * space;
+}
 
 constexpr f32 norm_to_axis(f32 norm)
 {
