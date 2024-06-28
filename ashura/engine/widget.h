@@ -118,6 +118,8 @@ struct WidgetContext
 /// visual state changes, and forward events to other subsystems.
 struct Widget
 {
+  uid id = UID_MAX;
+
   Widget()          = default;
   virtual ~Widget() = default;
 
@@ -156,20 +158,18 @@ struct Widget
   /// @brief this is used for absolute positioning of the widget
   /// @param center the allocated absolute center of this widget relative
   /// to the viewport
-  virtual Vec2 position(Vec2 center, Vec2 extent)
+  virtual Vec2 position(CRect const &region)
   {
-    (void) extent;
-    return center;
+    return region.center;
   }
 
   /// @brief Used for hit-testing regions of widgets.
   /// @param area area of widget within the viewport
   /// @param offset offset of pointer within area
   /// @return
-  virtual bool hit(Vec2 center, Vec2 extent, Vec2 offset)
+  virtual bool hit(CRect const &region, Vec2 offset)
   {
-    (void) center;
-    (void) extent;
+    (void) region;
     (void) offset;
     return true;
   }
@@ -194,10 +194,9 @@ struct Widget
   /// @brief this is used for clipping widget views. the provided clip is
   /// relative to the root viewport. Used for nested viewports where there are
   /// multiple intersecting clips.
-  virtual CRect clip(Vec2 center, Vec2 extent, CRect allocated)
+  virtual CRect clip(CRect const &region, CRect const &allocated)
   {
-    (void) center;
-    (void) extent;
+    (void) region;
     return allocated;
   }
 
@@ -205,10 +204,9 @@ struct Widget
   /// only called if the widget passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas
-  virtual void render(Vec2 center, Vec2 extent, Canvas &canvas)
+  virtual void render(CRect const &region, Canvas &canvas)
   {
-    (void) center;
-    (void) extent;
+    (void) region;
     (void) canvas;
   }
 
@@ -218,15 +216,13 @@ struct Widget
   /// handle that. i.e. using the multi-tasking system.
   /// @param dt time passed since last call to this method
   //
-  virtual void tick(WidgetContext const &ctx, nanoseconds dt,
-                    WidgetEventTypes events)
+  virtual void tick(WidgetContext const &ctx, CRect const &region,
+                    nanoseconds dt, WidgetEventTypes events)
   {
     (void) ctx;
     (void) dt;
     (void) events;
   }
-
-  uid id = UID_MAX;
 };
 
 }        // namespace ash
