@@ -1,10 +1,10 @@
 
+#include "ashura/engine/color.h"
 #include "ashura/engine/render_context.h"
 #include "ashura/engine/renderer.h"
 #include "ashura/engine/shader.h"
 #include "ashura/engine/window.h"
 #include "ashura/gfx/vulkan.h"
-#include "ashura/std/color.h"
 #include "ashura/std/hash_map.h"
 #include "ashura/std/io.h"
 #include "stdlib.h"
@@ -59,8 +59,8 @@ int main(int, char **)
     rr += 1;
   };
 
-  win_sys->listen(win, WindowEventTypes::CloseRequested, to_fn_ref(close_fn));
-  win_sys->listen(win, WindowEventTypes::Key, to_fn_ref(key_fn));
+  win_sys->listen(win, WindowEventTypes::CloseRequested, fn(&close_fn));
+  win_sys->listen(win, WindowEventTypes::Key, fn(&key_fn));
   gfx::Surface    surface = win_sys->get_surface(win);
   gfx::DeviceImpl device =
       instance
