@@ -9,6 +9,12 @@ namespace ash
 
 struct CheckBox : public Widget
 {
+  Fn<void(bool)> callback = to_fn([](bool) {});
+  bool           value    = false;
+  Vec4           color    = material::BLUE_A700.norm();
+  f32            width    = 20;
+  bool           disabled = false;
+
   virtual Vec2 fit(Vec2, Span<Vec2 const>, Span<Vec2>) override
   {
     return Vec2{width, width};
@@ -19,11 +25,11 @@ struct CheckBox : public Widget
     return WidgetAttributes::Visible | WidgetAttributes::Clickable;
   }
 
-  virtual void render(Vec2 center, Vec2 extent, Canvas &canvas) override
+  virtual void render(CRect const &region, Canvas &canvas) override
   {
-    canvas.rrect(ShapeDesc{.center       = center,
-                           .extent       = extent,
-                           .border_radii = Vec4::splat(extent.x / 8),
+    canvas.rrect(ShapeDesc{.center       = region.center,
+                           .extent       = region.extent,
+                           .border_radii = Vec4::splat(region.extent.x / 8),
                            .stroke       = 1,
                            .thickness    = 2,
                            .tint         = ColorGradient::uniform(color)});
@@ -31,8 +37,8 @@ struct CheckBox : public Widget
     if (value)
     {
       canvas.line(
-          ShapeDesc{.center       = center,
-                    .extent       = extent,
+          ShapeDesc{.center       = region.center,
+                    .extent       = region.extent,
                     .border_radii = Vec4::splat(0),
                     .stroke       = 0,
                     .thickness    = 2.5,
@@ -41,8 +47,8 @@ struct CheckBox : public Widget
     }
   }
 
-  virtual void tick(WidgetContext const &ctx, nanoseconds dt,
-                    WidgetEventTypes events) override
+  virtual void tick(WidgetContext const &ctx, CRect const &region,
+                    nanoseconds dt, WidgetEventTypes events) override
   {
     (void) ctx;
     (void) dt;
@@ -53,12 +59,6 @@ struct CheckBox : public Widget
       callback(value);
     }
   }
-
-  Fn<void(bool)> callback = to_fn([](bool) {});
-  bool           value    = false;
-  Vec4           color    = material::BLUE_A700.norm();
-  f32            width    = 20;
-  bool           disabled = false;
 };
 
 }        // namespace ash

@@ -9,6 +9,11 @@ namespace ash
 
 struct StackBox : public Widget
 {
+  bool           reverse   = false;
+  Vec2           alignment = {0, 0};
+  SizeConstraint width     = {};
+  SizeConstraint height    = {};
+
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
     fill(sizes, allocated);
@@ -46,11 +51,6 @@ struct StackBox : public Widget
     }
     return z_index;
   }
-
-  bool           reverse   = false;
-  Vec2           alignment = {0, 0};
-  SizeConstraint width     = {};
-  SizeConstraint height    = {};
 };
 
 }        // namespace ash

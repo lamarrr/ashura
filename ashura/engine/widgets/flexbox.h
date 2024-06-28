@@ -10,10 +10,15 @@ namespace ash
 /// the main axis
 /// @param cross_align cross-axis alignment. affects how free space is used on
 /// the cross axis
-/// @param frame frame size to use for layout. this is not same as the actual
-/// extent of the flex
 struct FlexBox : public Widget
 {
+  Axis           axis        = Axis::Horizontal;
+  bool           wrap        = true;
+  MainAlign      main_align  = MainAlign::Start;
+  CrossAlign     cross_align = CrossAlign::Start;
+  SizeConstraint width       = {};
+  SizeConstraint height      = {};
+
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
     Vec2 const frame{width.resolve(allocated.x), height.resolve(allocated.y)};
@@ -150,19 +155,6 @@ struct FlexBox : public Widget
 
     return span;
   }
-
-  virtual Vec2 position(Vec2 center, Vec2 extent) override
-  {
-    (void) extent;
-    return center;
-  }
-
-  Axis           axis        = Axis::Horizontal;
-  bool           wrap        = true;
-  MainAlign      main_align  = MainAlign::Start;
-  CrossAlign     cross_align = CrossAlign::Start;
-  SizeConstraint width       = {};
-  SizeConstraint height      = {};
 };
 
 }        // namespace ash
