@@ -62,41 +62,45 @@ enum class CrossAlign : u8
 };
 
 /// @param ViewHit called on every frame the widget is viewed on the viewport.
+/// Can be used for partial/pre-emptive loading
 /// @param ViewMiss called on every frame that the widget is not seen on the
 /// viewport this can be because it has hidden visibility, is clipped away, or
-/// parent positioned out of the visible region
-enum class WidgetEventTypes : u32
+/// parent positioned out of the visible region. Can be used for
+/// partial/pre-emptive unloading.
+enum class WidgetEventTypes : u64
 {
-  None         = 0x00000000,
-  MouseDown    = 0x00000001,
-  MouseUp      = 0x00000002,
-  MouseMove    = 0x00000004,
-  MouseEnter   = 0x00000008,
-  MouseEscaped = 0x00000010,
-  MouseLeave   = 0x00000020,
-  MouseScroll  = 0x00000040,
-  DragStart    = 0x00000080,
-  DragUpdate   = 0x00000100,
-  DragEnd      = 0x00000200,
-  DragEnter    = 0x00000400,
-  DragOver     = 0x00000800,
-  DragLeave    = 0x00001000,
-  Drop         = 0x00002000,
-  ViewHit      = 0x00004000,
-  ViewMiss     = 0x00008000
+  None         = 0x0000000000000000ULL,
+  MouseDown    = 0x0000000000000001ULL,
+  MouseUp      = 0x0000000000000002ULL,
+  MousePressed = 0x0000000000000004ULL,
+  MouseMove    = 0x0000000000000008ULL,
+  MouseEnter   = 0x0000000000000010ULL,
+  MouseEscaped = 0x0000000000000020ULL,
+  MouseLeave   = 0x0000000000000040ULL,
+  MouseScroll  = 0x0000000000000080ULL,
+  DragStart    = 0x0000000000000100ULL,
+  DragUpdate   = 0x0000000000000200ULL,
+  DragEnd      = 0x0000000000000400ULL,
+  DragEnter    = 0x0000000000000800ULL,
+  DragOver     = 0x0000000000001000ULL,
+  DragLeave    = 0x0000000000002000ULL,
+  Drop         = 0x0000000000004000ULL,
+  ViewHit      = 0x0000000000008000ULL,
+  ViewMiss     = 0x0000000000010000ULL
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetEventTypes)
 
 /// @param Visible if the widget is visible or not. Visibility propagates down
 /// to the children
-enum class WidgetAttributes : u8
+enum class WidgetAttributes : u32
 {
-  None       = 0x00,
-  Visible    = 0x01,
-  Clickable  = 0x02,
-  Scrollable = 0x04,
-  Draggable  = 0x08
+  None       = 0x00000000U,
+  Visible    = 0x00000001U,
+  Clickable  = 0x00000002U,
+  Scrollable = 0x00000004U,
+  Draggable  = 0x00000008U,
+  Droppable  = 0x00000010U
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
