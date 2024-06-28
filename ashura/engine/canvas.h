@@ -140,7 +140,7 @@ struct Canvas
 
   void rrect(ShapeDesc const &desc);
 
-  void nine_slice(ShapeDesc const &desc, Vec2 corner_extent, ScaleMode mode);
+  void nine_slice(ShapeDesc const &desc, ScaleMode mode, Span<Vec2 const> uvs);
 
   void text(ShapeDesc const &desc, TextBlock const &block,
             TextLayout const &layout, TextBlockStyle const &style,
