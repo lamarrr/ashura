@@ -12,7 +12,7 @@ namespace ash
 /// the cross axis
 struct FlexBox : public Widget
 {
-  Axis           axis        = Axis::Horizontal;
+  Axis           axis        = Axis::X;
   bool           wrap        = true;
   MainAlign      main_align  = MainAlign::Start;
   CrossAlign     cross_align = CrossAlign::Start;
@@ -32,8 +32,8 @@ struct FlexBox : public Widget
     Vec2 const frame{width.resolve(allocated.x), height.resolve(allocated.y)};
     Vec2       span;
     f32        cross_cursor = 0;
-    u8 const   main_axis    = (axis == Axis::Horizontal) ? 0 : 1;
-    u8 const   cross_axis   = (axis == Axis::Horizontal) ? 1 : 0;
+    u8 const   main_axis    = (axis == Axis::X) ? 0 : 1;
+    u8 const   cross_axis   = (axis == Axis::X) ? 1 : 0;
 
     for (u32 i = 0; i < num_children;)
     {

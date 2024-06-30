@@ -41,15 +41,19 @@ struct SizeConstraint
 
 enum class Axis : u8
 {
-  Horizontal = 0,
-  Vertical   = 1
+  X = 0,
+  Y = 1,
+  Z = 2,
+  W = 3
 };
 
 enum class Axes : u8
 {
-  None       = 0,
-  Horizontal = 1,
-  Vertical   = 2
+  None = 0x00,
+  X    = 0x01,
+  Y    = 0x02,
+  Z    = 0x04,
+  W    = 0x08
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(Axes)

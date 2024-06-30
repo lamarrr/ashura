@@ -9,7 +9,7 @@ namespace ash
 
 struct Switch : public Widget
 {
-  Fn<void(bool)> callback       = to_fn([](bool) {});
+  Fn<void(bool)> on_changed     = to_fn([](bool) {});
   bool           state          = false;
   Vec4           active_color   = material::BLUE_A700.norm();
   Vec4           inactive_color = material::GRAY_500.norm();
@@ -57,7 +57,7 @@ struct Switch : public Widget
         ctx.button == MouseButtons::Primary)
     {
       state = !state;
-      callback(state);
+      on_changed(state);
     }
   }
 };

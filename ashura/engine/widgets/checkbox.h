@@ -9,11 +9,11 @@ namespace ash
 
 struct CheckBox : public Widget
 {
-  Fn<void(bool)> callback = to_fn([](bool) {});
-  bool           value    = false;
-  Vec4           color    = material::BLUE_A700.norm();
-  f32            width    = 20;
-  bool           disabled = false;
+  Fn<void(bool)> on_changed = to_fn([](bool) {});
+  bool           value      = false;
+  Vec4           color      = material::BLUE_A700.norm();
+  f32            width      = 20;
+  bool           disabled   = false;
 
   virtual Vec2 fit(Vec2, Span<Vec2 const>, Span<Vec2>) override
   {
@@ -56,7 +56,7 @@ struct CheckBox : public Widget
         ctx.button == MouseButtons::Primary)
     {
       value = !value;
-      callback(value);
+      on_changed(value);
     }
   }
 };
