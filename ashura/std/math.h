@@ -12,6 +12,12 @@
 namespace ash
 {
 
+typedef struct Rect  Rect;
+typedef struct CRect CRect;
+typedef struct RectU RectU;
+typedef struct Box   Box;
+typedef struct CBox  CBox;
+
 inline f32 length(Vec2 a)
 {
   return sqrtf(dot(a, a));
@@ -366,13 +372,42 @@ struct Rect
   {
     return extent.x * extent.y;
   }
+
+  constexpr CRect centered() const;
 };
 
 struct CRect
 {
   Vec2 center = {};
   Vec2 extent = {};
+
+  constexpr Vec2 begin() const
+  {
+    return center - (extent * 0.5F);
+  }
+
+  constexpr Vec2 end() const
+  {
+    return center + extent * 0.5F;
+  }
+
+  constexpr f32 area() const
+  {
+    return extent.x * extent.y;
+  }
+
+  constexpr Rect offseted() const;
 };
+
+constexpr CRect Rect::centered() const
+{
+  return CRect{.center = offset + extent * 0.5F, .extent = extent};
+}
+
+constexpr Rect CRect::offseted() const
+{
+  return Rect{.offset = center - extent * 0.5F, .extent = extent};
+}
 
 constexpr bool operator==(CRect const &a, CRect const &b)
 {
@@ -424,13 +459,42 @@ struct Box
   {
     return extent.x * extent.y * extent.z;
   }
+
+  constexpr CBox centered() const;
 };
 
 struct CBox
 {
   Vec3 center = {};
   Vec3 extent = {};
+
+  constexpr Vec3 begin() const
+  {
+    return center - extent * 0.5F;
+  }
+
+  constexpr Vec3 end() const
+  {
+    return center + extent * 0.5F;
+  }
+
+  constexpr f32 volume() const
+  {
+    return extent.x * extent.y * extent.z;
+  }
+
+  constexpr Box offseted() const;
 };
+
+constexpr CBox Box::centered() const
+{
+  return CBox{.center = offset + extent * 0.5F, .extent = extent};
+}
+
+constexpr Box CBox::offseted() const
+{
+  return Box{.offset = center - extent * 0.5F, .extent = extent};
+}
 
 constexpr bool contains(Rect const &rect, Vec2 point)
 {
