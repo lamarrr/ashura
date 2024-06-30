@@ -130,6 +130,15 @@ enum class WidgetAttributes : u32
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
 
+// TODO(lamarrr): time-based debouncing of keyboard pressing
+// IME-text input
+// key down, key up, key pressed
+// window mouse and key focus should propagate to tree AND focus or unfocus
+// widgets SDL_StartTextInput
+// TODO(lamarrr): color space, pixel info for color pickers
+//
+//
+//
 struct WidgetContext
 {
   MouseButtons   button                  = MouseButtons::None;
@@ -140,7 +149,24 @@ struct WidgetContext
   Span<u8 const> drag_payload            = {};
   SystemTheme    theme                   = SystemTheme::None;
   TextDirection  direction               = TextDirection::LeftToRight;
+  u8             key_states[NUM_KEYS]    = {};
 };
+
+// TODO(lamarrr): spatial navigation model
+/// use spatial testing and scrolling information instead
+/// when moved, move to the closest non-obscured one. clipping? CHILDREN
+/// navigatable but not visible. as in imgui.
+///
+/// todo(lamar): scroll on child focus
+/// https://github.com/ocornut/imgui/issues/787#issuecomment-361419796 enter
+/// parent: prod children, nav to children
+/// https://user-images.githubusercontent.com/8225057/74143829-ce67b900-4bfb-11ea-90d9-0de40c944b26.gif
+/// clicking with enter keyboard when focused
+/// @brief Given child index i, based on the spatial structure of this widget,
+/// return the next child that will be focused. i starts from U32_MAX. with
+/// U32_MAX meaning none of the children has been focused. It's the
+/// responsibility of the parent to layout and provide spatial indices for its
+/// children.
 
 /// @brief Base widget class. All widget types must inherit from this struct.
 /// Widgets are plain visual elements that define spatial relationships,

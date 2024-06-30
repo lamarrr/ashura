@@ -7,9 +7,22 @@
 namespace ash
 {
 
-// slider direction
+// TODO(lamarrr): implement
+/// REQUIREMENTS: multi-directional
 struct Slider : public Widget
 {
+  Fn<void(f32)>  on_changed   = to_fn([](f32) {});
+  Axis           direction    = Axis::X;
+  SizeConstraint width        = {};
+  SizeConstraint height       = {};
+  f32            thumb_radius = 0.5F;
+  Vec4           track_color  = material::BLUE_A700.norm();
+  Vec4           thumb_color  = material::GRAY_500.norm();
+  bool           add_stepper  = false;
+  bool           disabled     = false;
+
+  f32 value = 0, min = 0, max = 1;
+
   virtual vec2 fit(Context &ctx, vec2 allocated_size,
                    stx::Span<vec2 const> children_allocations,
                    stx::Span<vec2 const> children_sizes,
@@ -67,38 +80,6 @@ struct Slider : public Widget
     value    = std::clamp(value + diff * (max - min), min, max);
     on_changed.handle(*this, ctx, value);
   }
-
-  virtual void on_mouse_enter(Context &ctx, vec2 mouse_position) override
-  {
-    __transition_radius(props.thumb_radius * 0.75f, props.thumb_radius);
-  }
-
-  virtual void on_mouse_leave(Context          &ctx,
-                              stx::Option<vec2> mouse_position) override
-  {
-    __transition_radius(props.thumb_radius, props.thumb_radius * 0.75f);
-  }
-
-  void __transition_radius(f32 from, f32 to)
-  {
-    thumb_tween = Tween<f32>{from, to};
-    thumb_animation.restart(milliseconds{200}, 1, AnimationCfg::Default, 1);
-  }
-
-  Fn<void(f32)> on_changed;
-  Callback      on_change_start;
-  Callback      on_change_end;
-  f32           value = 0, min = 0, max = 1;
-  color         track_color  = material::BLUE_A700;
-  f32           track_height = 5;
-  f32           thumb_radius = 10;
-  constraint    width        = constraint{.scale = 1, .max = 250};
-  bool          disabled     = false;
-  rect          track_area;
-  bool          is_changing = false;
-  Animation     thumb_animation;
-  Linear        thumb_animation_curve;
-  Tween<f32>    thumb_tween;
 };
 
 }        // namespace ash

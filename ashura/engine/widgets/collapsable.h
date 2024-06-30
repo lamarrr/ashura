@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "ashura/engine/color.h"
@@ -7,12 +8,13 @@
 namespace ash
 {
 
-// TODO(lamarrr): re-layout hint Once
-struct TextBox : public Widget
+struct CollapsableHeader: public Widget{};
+
+// TODO(lamarrr)
+struct Collapsable : public Widget
 {
-  TextBlock      block  = {};
-  TextBlockStyle style  = {};
-  TextLayout     layout = {};
+  CollapsableHeader header;
+  // body
 };
 
 }        // namespace ash
