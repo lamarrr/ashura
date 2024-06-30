@@ -74,12 +74,19 @@ enum class CrossAlign : u8
   Center = 2
 };
 
+/// @param DragStart drag event has begun on this widget
+/// @param DragUpdate the mouse has been moved whilst this widget is being
+/// dragged
+/// @param DragEnd the dragging of this widget has completed
+/// @param DragEnter drag data has entered this widget and might be dropped
+/// @param DragLeave drag data has left the widget without being dropped
+/// @param Drop drag data is now available for the widget to consume
 /// @param ViewHit called on every frame the widget is viewed on the viewport.
-/// Can be used for partial/pre-emptive loading
+/// Can be used for partial loading
 /// @param ViewMiss called on every frame that the widget is not seen on the
 /// viewport this can be because it has hidden visibility, is clipped away, or
 /// parent positioned out of the visible region. Can be used for
-/// partial/pre-emptive unloading.
+/// partial unloading.
 enum class WidgetEventTypes : u64
 {
   None         = 0x0000000000000000ULL,
@@ -99,13 +106,17 @@ enum class WidgetEventTypes : u64
   DragLeave    = 0x0000000000002000ULL,
   Drop         = 0x0000000000004000ULL,
   ViewHit      = 0x0000000000008000ULL,
-  ViewMiss     = 0x0000000000010000ULL
+  ViewMiss     = 0x0000000000010000ULL,
+  FocusIn      = 0x0000000000020000ULL,
+  FocusOut     = 0x0000000000040000ULL
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetEventTypes)
 
 /// @param Visible if the widget is visible or not. Visibility propagates down
 /// to the children
+/// @param Draggable if the widget can receive drag events
+/// @param Droppable if the widget can receive drop events
 enum class WidgetAttributes : u32
 {
   None       = 0x00000000U,
@@ -113,7 +124,8 @@ enum class WidgetAttributes : u32
   Clickable  = 0x00000002U,
   Scrollable = 0x00000004U,
   Draggable  = 0x00000008U,
-  Droppable  = 0x00000010U
+  Droppable  = 0x00000010U,
+  Focusable  = 0x00000020U,
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
@@ -142,7 +154,8 @@ struct Widget
 
   /// @brief get child widgets, this is a virtual iterator, return null once
   /// there's no other children
-  /// @return
+  /// @param i child index
+  /// @return child widget pointer or nullptr meaning no more child left.
   virtual Widget *child(u32 i)
   {
     (void) i;
@@ -243,12 +256,12 @@ struct Widget
 };
 
 template <usize N>
-constexpr Widget *iter_chid(Widget *const (&children)[N], u32 i)
+constexpr Widget *child_array(Widget *const (&children)[N], u32 i)
 {
   return i < N ? children[i] : nullptr;
 }
 
-constexpr Widget *iter_chid_span(Span<Widget *const> children, u32 i)
+constexpr Widget *child_span(Span<Widget *const> children, u32 i)
 {
   return i < children.size() ? children[i] : nullptr;
 }
