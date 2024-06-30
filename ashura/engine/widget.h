@@ -12,16 +12,16 @@
 namespace ash
 {
 
-/// Simple Layout Constraint Model
+/// Simple Adaptive Layout Constraint Model
 /// @param offset adding or subtracting from the source size, i.e. value should
 /// be source size - 20px
 /// @param scale scales the source size, i.e. value should be 0.5 of source
 /// size
 /// @param min clamps the source size, i.e. value should be at least 20px
 /// @param max clamps the source size, i.e. value should be at most 100px
-/// @param minrel clamps the source size relatively. i.e. value should be at
+/// @param rmin  clamps the source size relatively. i.e. value should be at
 /// least 0.5 of source size
-/// @param maxrel clamps the source size relatively. i.e. value should be at
+/// @param rmax  clamps the source size relatively. i.e. value should be at
 /// most 0.5 of source size
 struct SizeConstraint
 {
@@ -29,13 +29,13 @@ struct SizeConstraint
   f32 scale  = 0;
   f32 min    = F32_MIN;
   f32 max    = F32_MAX;
-  f32 minrel = 0;
-  f32 maxrel = 1;
+  f32 rmin   = 0;
+  f32 rmax   = 1;
 
   constexpr f32 resolve(f32 value) const
   {
-    return clamp(clamp(offset + value * scale, min, max), minrel * value,
-                 maxrel * value);
+    return clamp(clamp(offset + value * scale, min, max), rmin * value,
+                 rmax * value);
   }
 };
 
