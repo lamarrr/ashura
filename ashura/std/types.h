@@ -918,6 +918,17 @@ constexpr void apply(Fn &&op, Tuple<T...> &&tuple)
   impl_apply((Fn &&) op, tuple);
 }
 
+typedef struct Vec2   Vec2;
+typedef struct Vec3   Vec3;
+typedef struct Vec4   Vec4;
+typedef struct Vec4U8 Vec4U8;
+typedef struct Vec2I  Vec2I;
+typedef struct Vec3I  Vec3I;
+typedef struct Vec4I  Vec4I;
+typedef struct Vec2U  Vec2U;
+typedef struct Vec3U  Vec3U;
+typedef struct Vec4U  Vec4U;
+
 struct alignas(8) Vec2
 {
   f32 x = 0;
