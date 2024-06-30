@@ -14,6 +14,16 @@ struct StackBox : public Widget
   SizeConstraint width     = {};
   SizeConstraint height    = {};
 
+  virtual Widget *child(u32 i) override final
+  {
+    return item(i);
+  }
+
+  virtual Widget *item(u32 i)
+  {
+    return nullptr;
+  }
+
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
     fill(sizes, allocated);

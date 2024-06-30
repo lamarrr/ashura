@@ -242,4 +242,15 @@ struct Widget
   }
 };
 
+template <usize N>
+constexpr Widget *iter_chid(Widget *const (&children)[N], u32 i)
+{
+  return i < N ? children[i] : nullptr;
+}
+
+constexpr Widget *iter_chid_span(Span<Widget *const> children, u32 i)
+{
+  return i < children.size() ? children[i] : nullptr;
+}
+
 }        // namespace ash
