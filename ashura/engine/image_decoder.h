@@ -14,13 +14,13 @@ namespace ash
 /// @InvalidData: detected image but image seems to be corrupted
 /// @UnsupportedChannels: image contains unsupported channel types
 /// @UnsupportedFormat: the image file format is unsupported
-enum class DecodeError : i32
+enum class [[nodiscard]] DecodeError : i32
 {
   None              = 0,
   OutOfMemory       = 1,
   InvalidPath       = 2,
   DecodeFailed      = 3,
-  UnsupportedFormat = 5
+  UnsupportedFormat = 4
 };
 
 struct DecodedImage

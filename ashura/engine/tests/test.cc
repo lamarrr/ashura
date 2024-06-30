@@ -1,10 +1,10 @@
 
+#include "ashura/engine/color.h"
 #include "ashura/engine/render_context.h"
 #include "ashura/engine/renderer.h"
 #include "ashura/engine/shader.h"
 #include "ashura/engine/window.h"
 #include "ashura/gfx/vulkan.h"
-#include "ashura/std/color.h"
 #include "ashura/std/hash_map.h"
 #include "ashura/std/io.h"
 #include "stdlib.h"
@@ -26,7 +26,7 @@ int main(int, char **)
   Vec<u8> font_data;
   CHECK(
       read_file(
-          R"(C:\Users\rlama\Documents\Docs\berkeley-mono-typeface\berkeley-mono\TTF\BerkeleyMono-Regular.ttf)"_span,
+          R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
           font_data) == IoError::None);
 
   defer font_data_del{[&] { font_data.uninit(); }};
@@ -59,8 +59,8 @@ int main(int, char **)
     rr += 1;
   };
 
-  win_sys->listen(win, WindowEventTypes::CloseRequested, to_fn_ref(close_fn));
-  win_sys->listen(win, WindowEventTypes::Key, to_fn_ref(key_fn));
+  win_sys->listen(win, WindowEventTypes::CloseRequested, fn(&close_fn));
+  win_sys->listen(win, WindowEventTypes::Key, fn(&key_fn));
   gfx::Surface    surface = win_sys->get_surface(win);
   gfx::DeviceImpl device =
       instance
@@ -288,19 +288,16 @@ int main(int, char **)
   // TODO(lamarrr): create transfer queue, calculate total required setup size
   u32       runs[]        = {U32_MAX};
   FontStyle font_styles[] = {
-      {.font = font, .font_height = 16, .line_height = 1.2}};
+      {.font = font, .font_height = 30, .line_height = 1.25}};
   TextLayout text_layout;
-  TextBlock  text_block{
-       .text = utf(
-          UR"(Lorem ipsum dolor sit amet,  consectetur adipiscing elit. Praesent fermentum sodales neque vitae lobortis. Fusce fermentum vehicula enim, eu porta tortor volutpat et. Vivamus pretium, ipsum tempus vehicula molestie, leo est suscipit ante, eget porta elit diam sit amet purus. Nunc vel convallis libero. Donec sit amet condimentum urna. Nunc pharetra ligula urna, nec ultricies metus lobortis id. Maecenas sed ex sed libero varius elementum. Nam scelerisque leo odio, nec dictum nulla sagittis quis. Morbi ultrices justo sit amet nibh volutpat venenatis. Maecenas fermentum leo et felis condimentum semper. Mauris mattis est eu ligula pulvinar consequat. Vestibulum faucibus consequat egestas. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Morbi rutrum odio pretium turpis porta semper. Phasellus rutrum vestibulum tortor, eget sagittis lectus ullamcorper quis.
 
-Duis ornare tellus in fermentum dignissim. Proin non accumsan lacus. Mauris ac augue id risus sollicitudin elementum non non diam. Praesent dolor tortor, porta non ipsum ut, iaculis iaculis orci. Praesent lacinia ex tristique nulla consectetur, sed molestie neque pharetra. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Mauris lacus ante, semper eget congue vitae, ultrices volutpat sapien. Vivamus aliquam mi lacus, sagittis porta arcu volutpat a. Suspendisse augue urna, molestie id posuere et, tempus vel dolor. Morbi nec eros leo. Proin congue nulla nec arcu pellentesque, eget tempus magna imperdiet. Suspendisse rhoncus commodo lacinia. In hac habitasse platea dictumst. Ut sodales accumsan egestas. Sed eu sagittis mauris.
-
-Donec sem nunc, mattis quis augue id, varius vulputate metus. Quisque rhoncus sapien quis orci cursus, ac aliquet urna imperdiet. Ut efficitur erat justo, ut rutrum ipsum faucibus id. Duis tempus massa a sem varius, sed semper eros gravida. Nulla ut viverra mauris. Praesent quis velit vel lacus mollis pulvinar. Fusce eu vulputate ante. Morbi sed vehicula velit, vitae porttitor tortor. Maecenas auctor ex non orci malesuada, id scelerisque ante aliquet. Phasellus sodales facilisis magna, sed efficitur arcu vulputate vel. Nunc et sodales risus. Duis euismod porttitor massa, sit amet blandit massa tincidunt sed. Aenean volutpat lacinia nisi vitae tincidunt. Sed finibus lacinia est, vel auctor elit semper at. Nullam vestibulum volutpat lacus et porttitor. Aliquam vitae metus nec quam dignissim fermentum vel quis urna.)"_span),
-       .runs      = to_span(runs),
-       .fonts     = to_span(font_styles),
-       .direction = TextDirection::LeftToRight,
-       .language  = "en"_span};
+  TextBlock text_block{
+      .text = utf(
+          UR"(بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ١)"_span),
+      .runs      = to_span(runs),
+      .fonts     = to_span(font_styles),
+      .direction = TextDirection::RightToLeft,
+      .language  = "en"_span};
 
   ctx.end_frame(swapchain);
   while (!should_close)
@@ -308,13 +305,7 @@ Donec sem nunc, mattis quis augue id, varius vulputate metus. Quisque rhoncus sa
     win_sys->poll_events();
     ctx.begin_frame(swapchain);
     // TODO(lamarrr): maybe check for frame begin before accepting commands
-    canvas.begin(CanvasSurface{
-        .viewport = gfx::Viewport{.offset    = {0, 0},
-                                  .extent    = {1920, 1080},
-                                  .min_depth = 0,
-                                  .max_depth = 1},
-        .area     = gfx::Rect{.offset = {0, 0}, .extent = {1920, 1080}},
-        .extent   = {1920, 1080}});
+    canvas.begin({1920, 1080});
 
     canvas.rrect(ShapeDesc{.center       = Vec2{1920 / 2, 1080 / 2},
                            .extent       = {1920, 1080},
@@ -387,13 +378,17 @@ Donec sem nunc, mattis quis augue id, varius vulputate metus. Quisque rhoncus sa
                        .color_attachments = to_span({gfx::RenderingAttachment{
                            .view = ctx.screen_fb.color.view}})},
                    ctx.screen_fb.color_texture);
-    renderer.render(ctx, pctx, canvas,
+    renderer.render(ctx, pctx,
                     gfx::RenderingInfo{
                         .render_area       = {{0, 0}, {1920, 1080}},
                         .num_layers        = 1,
                         .color_attachments = to_span({gfx::RenderingAttachment{
                             .view = ctx.screen_fb.color.view}})},
-                    ctx.screen_fb.color_texture);
+                    gfx::Viewport{.offset    = {0, 0},
+                                  .extent    = {1920, 1080},
+                                  .min_depth = 0,
+                                  .max_depth = 1},
+                    {1920, 1080}, ctx.screen_fb.color_texture, canvas);
     ctx.end_frame(swapchain);
     canvas.clear();
   }

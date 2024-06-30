@@ -370,15 +370,29 @@ constexpr void reverse(R &&range, SwapOp &&swap = {})
 template <typename T, typename SwapOp = Swap>
 constexpr void rotate(Span<T>, SwapOp &&swap = {});
 
-template <typename T, typename Cmp = Min>
-constexpr Span<T> range_min(Span<T> span, Cmp &&cmp = {});
+template <typename T, typename Cmp = Lesser>
+constexpr Span<T> range_lex(Span<T> span, Cmp &&cmp = {})
+{
+  if (span.is_empty())
+  {
+    return Span<T>{};
+  }
 
-template <typename T, typename Cmp = Max>
-constexpr Span<T> range_max(Span<T> span, Cmp &&cmp = {});
+  T *const end = span.end();
+  T       *min = span.begin();
+  T       *it  = min + 1;
 
-template <typename T, typename LexOrd = Compare>
-constexpr void range_min_max(Span<T> span, Span<T> &min, Span<T> &max,
-                             LexOrd &&ord = {});
+  while (it < end)
+  {
+    if (cmp(*it, *min))
+    {
+      min = it;
+    }
+    it++;
+  }
+
+  return Span<T>{min, 1};
+}
 
 template <typename T, typename U, typename Op, typename Cmp = Equal>
 constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp &&cmp = {});
@@ -464,6 +478,24 @@ void for_each_partition_indirect(S &&span, Span<IndexType> indices, Fn &&op,
     op(Span{partition_begin, static_cast<usize>(iter - partition_begin)});
     partition_begin = iter;
   }
+}
+
+template <typename T>
+void iota(Span<T> s, T first)
+{
+  for (auto &v : s)
+  {
+    v = first++;
+  };
+}
+
+template <typename T>
+void riota(Span<T> s, T first)
+{
+  for (auto &v : s)
+  {
+    v = first--;
+  };
 }
 
 }        // namespace  ash

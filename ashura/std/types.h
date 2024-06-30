@@ -918,6 +918,17 @@ constexpr void apply(Fn &&op, Tuple<T...> &&tuple)
   impl_apply((Fn &&) op, tuple);
 }
 
+typedef struct Vec2   Vec2;
+typedef struct Vec3   Vec3;
+typedef struct Vec4   Vec4;
+typedef struct Vec4U8 Vec4U8;
+typedef struct Vec2I  Vec2I;
+typedef struct Vec3I  Vec3I;
+typedef struct Vec4I  Vec4I;
+typedef struct Vec2U  Vec2U;
+typedef struct Vec3U  Vec3U;
+typedef struct Vec4U  Vec4U;
+
 struct alignas(8) Vec2
 {
   f32 x = 0;
@@ -926,6 +937,16 @@ struct alignas(8) Vec2
   static constexpr Vec2 splat(f32 value)
   {
     return Vec2{value, value};
+  }
+
+  constexpr f32 &operator[](usize i)
+  {
+    return i == 0 ? x : y;
+  }
+
+  constexpr f32 const &operator[](usize i) const
+  {
+    return i == 0 ? x : y;
   }
 };
 
@@ -3176,33 +3197,33 @@ struct Fn<R(Args...)>
 };
 
 template <typename R, typename... Args>
-struct RawFnDispatcher
+struct PFnDispatcher
 {
   static constexpr R dispatch(void *data, Args... args)
   {
-    using Ptr = R (*)(Args...);
+    using PFn = R (*)(Args...);
 
-    Ptr function_ptr = reinterpret_cast<Ptr>(data);
+    PFn pfn = reinterpret_cast<PFn>(data);
 
-    return function_ptr(static_cast<Args &&>(args)...);
+    return pfn(static_cast<Args &&>(args)...);
   }
 };
 
 template <typename Sig>
-struct RawFnTraits;
+struct PFnTraits;
 
 template <typename R, typename... Args>
-struct RawFnTraits<R(Args...)>
+struct PFnTraits<R(Args...)>
 {
   using Ptr        = R (*)(Args...);
   using Signature  = R(Args...);
   using Fn         = Fn<Signature>;
-  using Dispatcher = RawFnDispatcher<R, Args...>;
   using ReturnType = R;
+  using Dispatcher = PFnDispatcher<R, Args...>;
 };
 
 template <typename R, typename... Args>
-struct RawFnTraits<R (*)(Args...)> : public RawFnTraits<R(Args...)>
+struct PFnTraits<R (*)(Args...)> : public PFnTraits<R(Args...)>
 {
 };
 
@@ -3215,7 +3236,7 @@ struct FunctorDispatcher
   }
 };
 
-template <class MemberFnSig>
+template <class Sig>
 struct MemberFnTraits
 {
 };
@@ -3228,8 +3249,8 @@ struct MemberFnTraits<R (T::*)(Args...)>
   using Signature  = R(Args...);
   using Fn         = Fn<Signature>;
   using Type       = T;
-  using Dispatcher = FunctorDispatcher<T, R, Args...>;
   using ReturnType = R;
+  using Dispatcher = FunctorDispatcher<T, R, Args...>;
 };
 
 // const member functions
@@ -3240,49 +3261,67 @@ struct MemberFnTraits<R (T::*)(Args...) const>
   using Signature  = R(Args...);
   using Fn         = Fn<Signature>;
   using Type       = T const;
-  using Dispatcher = FunctorDispatcher<T, R, Args...>;
   using ReturnType = R;
+  using Dispatcher = FunctorDispatcher<T const, R, Args...>;
 };
 
 template <class T>
-struct FunctorFnTraits : public MemberFnTraits<decltype(&T::operator())>
+struct FunctorTraits : public MemberFnTraits<decltype(&T::operator())>
 {
 };
 
 // make a function view from a raw function pointer.
-template <typename RawFnT>
-auto to_fn(RawFnT *function_pointer)
+template <typename R, typename... Args>
+auto to_fn(R (*pfn)(Args...))
 {
-  using Traits     = RawFnTraits<RawFnT>;
+  using Traits     = PFnTraits<R(Args...)>;
   using Fn         = typename Traits::Fn;
   using Dispatcher = typename Traits::Dispatcher;
 
-  return Fn{&Dispatcher::dispatch, reinterpret_cast<void *>(function_pointer)};
+  return Fn{&Dispatcher::dispatch, reinterpret_cast<void *>(pfn)};
 }
 
 /// make a function view from a non-capturing functor (i.e. lambda's without
-/// associated data)
+/// data)
 template <typename StaticFunctor>
 auto to_fn(StaticFunctor functor)
 {
-  using Traits = FunctorFnTraits<StaticFunctor>;
-  using Ptr    = typename Traits::Ptr;
+  using Traits = FunctorTraits<StaticFunctor>;
+  using PFn    = typename Traits::Ptr;
 
-  Ptr function_pointer = static_cast<Ptr>(functor);
+  PFn pfn = static_cast<PFn>(functor);
 
-  return to_fn(function_pointer);
+  return to_fn(pfn);
 }
 
 /// make a function view from a functor reference. Functor should outlive the Fn
 template <typename Functor>
-auto to_fn_ref(Functor &functor)
+auto fn(Functor *functor)
 {
-  using Traits     = FunctorFnTraits<Functor>;
+  using Traits     = FunctorTraits<Functor>;
   using Fn         = typename Traits::Fn;
   using Dispatcher = typename Traits::Dispatcher;
 
   return Fn{&Dispatcher::dispatch,
-            const_cast<void *>(reinterpret_cast<void const *>(&functor))};
+            const_cast<void *>(reinterpret_cast<void const *>(functor))};
+}
+
+template <typename T, typename R, typename... Args>
+auto fn(T *t, R (*fn)(T *, Args...))
+{
+  return Fn<R(Args...)>{reinterpret_cast<R (*)(void *, Args...)>(fn),
+                        const_cast<void *>(reinterpret_cast<void const *>(t))};
+}
+
+template <typename T, typename StaticFunctor>
+auto fn(T *t, StaticFunctor functor)
+{
+  using Traits = FunctorTraits<StaticFunctor>;
+  using PFn    = typename Traits::Ptr;
+
+  PFn pfn = static_cast<PFn>(functor);
+
+  return fn(t, pfn);
 }
 
 ///

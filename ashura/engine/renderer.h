@@ -68,9 +68,10 @@ struct CanvasRenderer
   void uninit(RenderContext &ctx);
   void begin(RenderContext &ctx, PassContext &passes, Canvas const &canvas,
              gfx::RenderingInfo const &info, gfx::DescriptorSet texture);
-  void render(RenderContext &ctx, PassContext &passes, Canvas const &canvas,
-              gfx::RenderingInfo const &info, gfx::DescriptorSet texture,
-              u32 first = 0, u32 num = U32_MAX);
+  void render(RenderContext &ctx, PassContext &passes,
+              gfx::RenderingInfo const &info, gfx::Viewport const &viewport,
+              gfx::Extent surface_extent, gfx::DescriptorSet texture,
+              Canvas const &canvas, u32 first = 0, u32 num = U32_MAX);
 };
 
 struct PBRResources

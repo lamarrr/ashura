@@ -12,6 +12,12 @@
 namespace ash
 {
 
+typedef struct Rect  Rect;
+typedef struct CRect CRect;
+typedef struct RectU RectU;
+typedef struct Box   Box;
+typedef struct CBox  CBox;
+
 inline f32 length(Vec2 a)
 {
   return sqrtf(dot(a, a));
@@ -349,7 +355,7 @@ struct Rect
 
   constexpr Vec2 center() const
   {
-    return offset + (extent / 2);
+    return offset + (extent * 0.5F);
   }
 
   constexpr Vec2 begin() const
@@ -366,7 +372,52 @@ struct Rect
   {
     return extent.x * extent.y;
   }
+
+  constexpr CRect centered() const;
 };
+
+struct CRect
+{
+  Vec2 center = {};
+  Vec2 extent = {};
+
+  constexpr Vec2 begin() const
+  {
+    return center - (extent * 0.5F);
+  }
+
+  constexpr Vec2 end() const
+  {
+    return center + extent * 0.5F;
+  }
+
+  constexpr f32 area() const
+  {
+    return extent.x * extent.y;
+  }
+
+  constexpr Rect offseted() const;
+};
+
+constexpr CRect Rect::centered() const
+{
+  return CRect{.center = offset + extent * 0.5F, .extent = extent};
+}
+
+constexpr Rect CRect::offseted() const
+{
+  return Rect{.offset = center - extent * 0.5F, .extent = extent};
+}
+
+constexpr bool operator==(CRect const &a, CRect const &b)
+{
+  return a.center == b.center && a.extent == b.extent;
+}
+
+constexpr bool operator!=(CRect const &a, CRect const &b)
+{
+  return a.center != b.center || a.extent != b.extent;
+}
 
 struct RectU
 {
@@ -379,14 +430,24 @@ struct RectU
   }
 };
 
+constexpr bool operator==(RectU const &a, RectU const &b)
+{
+  return a.offset == b.offset && a.extent == b.extent;
+}
+
+constexpr bool operator!=(RectU const &a, RectU const &b)
+{
+  return a.offset != b.offset || a.extent != b.extent;
+}
+
 struct Box
 {
-  Vec3 offset;
-  Vec3 extent;
+  Vec3 offset = {};
+  Vec3 extent = {};
 
   constexpr Vec3 center() const
   {
-    return offset + (extent / 2);
+    return offset + (extent * 0.5F);
   }
 
   constexpr Vec3 end() const
@@ -398,7 +459,42 @@ struct Box
   {
     return extent.x * extent.y * extent.z;
   }
+
+  constexpr CBox centered() const;
 };
+
+struct CBox
+{
+  Vec3 center = {};
+  Vec3 extent = {};
+
+  constexpr Vec3 begin() const
+  {
+    return center - extent * 0.5F;
+  }
+
+  constexpr Vec3 end() const
+  {
+    return center + extent * 0.5F;
+  }
+
+  constexpr f32 volume() const
+  {
+    return extent.x * extent.y * extent.z;
+  }
+
+  constexpr Box offseted() const;
+};
+
+constexpr CBox Box::centered() const
+{
+  return CBox{.center = offset + extent * 0.5F, .extent = extent};
+}
+
+constexpr Box CBox::offseted() const
+{
+  return Box{.offset = center - extent * 0.5F, .extent = extent};
+}
 
 constexpr bool contains(Rect const &rect, Vec2 point)
 {
@@ -530,7 +626,7 @@ constexpr f32 smoothstep(f32 a, f32 b, f32 t)
 
 inline f32 grid_snap(f32 a, f32 unit)
 {
-  return floorf((a + unit / 2) / unit) * unit;
+  return floorf((a + unit * 0.5F) / unit) * unit;
 }
 
 /// @brief get the aligned offset relative to a fixed amount of space
@@ -539,7 +635,52 @@ inline f32 grid_snap(f32 a, f32 unit)
 /// @return
 constexpr f32 space_align(f32 space, f32 alignment)
 {
-  return (alignment / 2 + 0.5f) * space;
+  return (alignment * 0.5F + 0.5F) * space;
+}
+
+constexpr Vec2 space_align(Vec2 space, Vec2 alignment)
+{
+  return (alignment * 0.5F + 0.5F) * space;
+}
+
+constexpr f32 norm_to_axis(f32 norm)
+{
+  return norm * 2 - 1;
+}
+
+constexpr f32 axis_to_norm(f32 axis)
+{
+  return axis * 0.5F + 0.5F;
+}
+
+constexpr Vec2 norm_to_axis(Vec2 norm)
+{
+  return norm * 2 - 1;
+}
+
+constexpr Vec2 axis_to_norm(Vec2 axis)
+{
+  return axis * 0.5F + 0.5F;
+}
+
+constexpr Vec3 norm_to_axis(Vec3 norm)
+{
+  return norm * 2 - 1;
+}
+
+constexpr Vec3 axis_to_norm(Vec3 axis)
+{
+  return axis * 0.5F + 0.5F;
+}
+
+constexpr Vec4 norm_to_axis(Vec4 norm)
+{
+  return norm * 2 - 1;
+}
+
+constexpr Vec4 axis_to_norm(Vec4 axis)
+{
+  return axis * 0.5F + 0.5F;
 }
 
 /// @param x_mag The horizontal magnification of the view. This value
@@ -646,8 +787,7 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Vec3 offset, Vec3 extent)
          bottom == NUM_CORNERS || back == NUM_CORNERS;
 }
 
-constexpr void frustum_cull(Mat4 const            &mvp,
-                            Span<Mat4Affine const> global_transform,
+constexpr void frustum_cull(Mat4 const &mvp, Span<Mat4 const> global_transform,
                             Span<Box const> aabb, BitSpan<u64> is_visible)
 {
   for (u32 i = 0; i < (u32) aabb.size(); i++)

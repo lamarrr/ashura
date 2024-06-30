@@ -138,33 +138,61 @@ void CanvasRenderer::begin(RenderContext &ctx, PassContext &passes,
                       "RRect Params"_span);
 }
 
+constexpr RectU clip_to_scissor(gfx::Viewport const &viewport,
+                                CRect const &clip, Vec2U surface_extent)
+{
+  Rect  rect{viewport.offset + clip.center - clip.extent / 2, clip.extent};
+  Vec2I offset_i{(i32) rect.offset.x, (i32) rect.offset.y};
+  Vec2I extent_i{(i32) rect.extent.x, (i32) rect.extent.y};
+
+  RectU scissor{.offset = {(u32) max(0, offset_i.x), (u32) max(0, offset_i.y)},
+                .extent = {(u32) max(0, extent_i.x), (u32) max(0, extent_i.y)}};
+
+  scissor.offset.x = min(scissor.offset.x, surface_extent.x);
+  scissor.offset.y = min(scissor.offset.y, surface_extent.y);
+  scissor.extent.x = min(surface_extent.x - scissor.offset.x, scissor.extent.x);
+  scissor.extent.y = min(surface_extent.y - scissor.offset.y, scissor.extent.y);
+
+  return scissor;
+}
+
 void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
-                            Canvas const             &canvas,
                             gfx::RenderingInfo const &info,
-                            gfx::DescriptorSet texture, u32 first, u32 num)
+                            gfx::Viewport const      &viewport,
+                            gfx::Extent               surface_extent,
+                            gfx::DescriptorSet texture, Canvas const &canvas,
+                            u32 first, u32 num)
 {
   CanvasResources &r = resources[ctx.ring_index()];
 
   for (CanvasPassRun const &run : to_span(canvas.pass_runs).slice(first, num))
   {
+    gfx::Rect scissor = clip_to_scissor(viewport, run.clip, surface_extent);
     switch (run.type)
     {
       case CanvasPassType::Blur:
       {
-        u32 num_passes = canvas.blur_params[run.first];
-        passes.blur.add_pass(
-            ctx, BlurPassParams{.image_view   = info.color_attachments[0].view,
-                                .extent       = canvas.surface.extent,
-                                .texture_view = texture,
-                                .texture      = 0,
-                                .passes       = num_passes,
-                                .area         = run.scissor});
+        for (CanvasBlurParam const &params :
+             to_span(canvas.blur_params).slice(run.first, run.count))
+        {
+          passes.blur.add_pass(
+              ctx, BlurPassParams{.image_view = info.color_attachments[0].view,
+                                  .extent     = surface_extent,
+                                  .texture_view = texture,
+                                  .texture      = 0,
+                                  .passes       = params.num_passes,
+                                  .area = clip_to_scissor(viewport, params.area,
+                                                          surface_extent)});
+        }
       }
       break;
       case CanvasPassType::Custom:
       {
-        CustomCanvasPassInfo const &pass = canvas.custom_params[run.first];
-        pass.encoder(pass.data, ctx, passes, info, texture);
+        for (CustomCanvasPassInfo const &pass :
+             to_span(canvas.custom_params).slice(run.first, run.count))
+        {
+          pass.encoder(pass.data, ctx, passes, info, texture);
+        }
       }
       break;
       case CanvasPassType::Ngon:
@@ -172,8 +200,8 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
         passes.ngon.add_pass(
             ctx,
             NgonPassParams{.rendering_info = info,
-                           .scissor        = run.scissor,
-                           .viewport       = canvas.surface.viewport,
+                           .scissor        = scissor,
+                           .viewport       = viewport,
                            .vertices_ssbo  = r.vertices.ssbo,
                            .indices_ssbo   = r.indices.ssbo,
                            .params_ssbo    = r.ngon_params.ssbo,
@@ -186,8 +214,8 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
       {
         passes.rrect.add_pass(
             ctx, RRectPassParams{.rendering_info = info,
-                                 .scissor        = run.scissor,
-                                 .viewport       = canvas.surface.viewport,
+                                 .scissor        = scissor,
+                                 .viewport       = viewport,
                                  .params_ssbo    = r.rrect_params.ssbo,
                                  .textures       = ctx.texture_views,
                                  .first_instance = run.first,

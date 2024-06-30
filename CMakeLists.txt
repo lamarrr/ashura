@@ -167,7 +167,8 @@ target_link_libraries(ashura_std_tests ashura_std GTest::gtest
 target_link_libraries(ashura_std_bench benchmark::benchmark
                       benchmark::benchmark_main ashura_std)
 
-add_library(ashura_gfx ashura/gfx/vma_def.cc ashura/gfx/vulkan.cc)
+add_library(ashura_gfx ashura/gfx/gfx.cc ashura/gfx/vma_def.cc
+                       ashura/gfx/vulkan.cc)
 target_link_libraries(
   ashura_gfx ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Vulkan
   GPUOpen::VulkanMemoryAllocator)
@@ -183,6 +184,7 @@ add_library(
   ashura/engine/shader.cc
   ashura/engine/window.cc
   ashura/engine/widget.cc
+  ashura/engine/widget_system.cc
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc

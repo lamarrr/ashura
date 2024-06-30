@@ -298,9 +298,10 @@ void Canvas::uninit()
   pass_runs.uninit();
 }
 
-void Canvas::begin(CanvasSurface const &isurface)
+void Canvas::begin(Vec2 p_viewport_extent)
 {
-  surface = isurface;
+  viewport_extent = p_viewport_extent;
+  current_clip    = {{0, 0}, p_viewport_extent};
 }
 
 void Canvas::clear()
@@ -315,59 +316,51 @@ void Canvas::clear()
   pass_runs.clear();
 }
 
-static inline void add_run(Canvas &canvas, CanvasPassType type,
-                           gfx::Rect scissor)
+void Canvas::clip(CRect const &c)
 {
-  scissor.offset.x = min(scissor.offset.x, canvas.surface.extent.x);
-  scissor.offset.y = min(scissor.offset.y, canvas.surface.extent.y);
-  scissor.extent.x =
-      min(canvas.surface.extent.x - scissor.offset.x, scissor.extent.x);
-  scissor.extent.y =
-      min(canvas.surface.extent.y - scissor.offset.y, scissor.extent.y);
+  current_clip = c;
+}
 
-  bool new_run = true;
-
-  if (!canvas.pass_runs.is_empty())
-  {
-    CanvasPassRun const &run = canvas.pass_runs[canvas.pass_runs.size() - 1];
-    new_run = run.type != type || run.scissor.offset != scissor.offset ||
-              run.scissor.extent != scissor.extent;
-  }
-
-  if (!new_run)
+static inline void add_run(Canvas &canvas, CanvasPassType type)
+{
+  if (!canvas.pass_runs.is_empty() &&
+      canvas.pass_runs[canvas.pass_runs.size() - 1].type == type &&
+      canvas.pass_runs[canvas.pass_runs.size() - 1].clip == canvas.current_clip)
   {
     canvas.pass_runs[canvas.pass_runs.size() - 1].count++;
     return;
   }
 
-  u32 current = 0;
+  u32 num = 0;
   switch (type)
   {
     case CanvasPassType::Blur:
-      current = (u32) canvas.blur_params.size();
+      num = (u32) canvas.blur_params.size();
       break;
     case CanvasPassType::Custom:
-      current = (u32) canvas.custom_params.size();
+      num = (u32) canvas.custom_params.size();
       break;
     case CanvasPassType::Ngon:
-      current = (u32) canvas.ngon_params.size();
+      num = (u32) canvas.ngon_params.size();
       break;
     case CanvasPassType::RRect:
-      current = (u32) canvas.rrect_params.size();
+      num = (u32) canvas.rrect_params.size();
       break;
-
     default:
+      UNREACHABLE();
       break;
   }
 
-  CHECK(canvas.pass_runs.push(CanvasPassRun{
-      .type = type, .first = current - 1, .count = 1, .scissor = scissor}));
+  CHECK(canvas.pass_runs.push(CanvasPassRun{.type  = type,
+                                            .clip  = canvas.current_clip,
+                                            .first = num - 1,
+                                            .count = 1}));
 }
 
 void Canvas::circle(ShapeDesc const &desc)
 {
   CHECK(rrect_params.push(RRectParam{
-      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
+      .transform    = mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = {1, 1, 1, 1},
       .uv           = {desc.uv[0], desc.uv[1]},
@@ -379,13 +372,13 @@ void Canvas::circle(ShapeDesc const &desc)
       .sampler         = desc.sampler,
       .albedo          = desc.texture}));
 
-  add_run(*this, CanvasPassType::RRect, desc.scissor);
+  add_run(*this, CanvasPassType::RRect);
 }
 
 void Canvas::rect(ShapeDesc const &desc)
 {
   CHECK(rrect_params.push(RRectParam{
-      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
+      .transform    = mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = {0, 0, 0, 0},
       .uv           = {desc.uv[0], desc.uv[1]},
@@ -397,13 +390,13 @@ void Canvas::rect(ShapeDesc const &desc)
       .sampler         = desc.sampler,
       .albedo          = desc.texture}));
 
-  add_run(*this, CanvasPassType::RRect, desc.scissor);
+  add_run(*this, CanvasPassType::RRect);
 }
 
 void Canvas::rrect(ShapeDesc const &desc)
 {
   CHECK(rrect_params.push(RRectParam{
-      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
+      .transform    = mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .radii        = desc.border_radii / desc.extent.y,
       .uv           = {desc.uv[0], desc.uv[1]},
@@ -415,7 +408,7 @@ void Canvas::rrect(ShapeDesc const &desc)
       .sampler         = desc.sampler,
       .albedo          = desc.texture}));
 
-  add_run(*this, CanvasPassType::RRect, desc.scissor);
+  add_run(*this, CanvasPassType::RRect);
 }
 
 constexpr bool is_transparent(ColorGradient const &g)
@@ -492,8 +485,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                              desc.transform *
                              translate3d(to_vec3(offset + extent / 2, 0)) *
                              translate3d(to_vec3(-half_block_extent, 0)),
-                         .tint    = run_style.background,
-                         .scissor = desc.scissor});
+                         .tint = run_style.background});
         }
 
         for (u32 layer = 0; layer < 2; layer++)
@@ -528,8 +520,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                              .texture         = atlas->textures[agl.layer],
                              .uv              = {agl.uv[0], agl.uv[1]},
                              .tiling          = desc.tiling,
-                             .edge_smoothness = desc.edge_smoothness,
-                             .scissor         = desc.scissor});
+                             .edge_smoothness = desc.edge_smoothness});
             }
 
             if (layer == 1 && !is_transparent(run_style.foreground))
@@ -545,8 +536,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                              .texture         = atlas->textures[agl.layer],
                              .uv              = {agl.uv[0], agl.uv[1]},
                              .tiling          = desc.tiling,
-                             .edge_smoothness = desc.edge_smoothness,
-                             .scissor         = desc.scissor});
+                             .edge_smoothness = desc.edge_smoothness});
             }
 
             g_cursor += pt_to_px(sh.advance.x, run.font_height);
@@ -569,8 +559,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                          .texture         = 0,
                          .uv              = {},
                          .tiling          = desc.tiling,
-                         .edge_smoothness = desc.edge_smoothness,
-                         .scissor         = desc.scissor});
+                         .edge_smoothness = desc.edge_smoothness});
         }
 
         if (run_style.underline_thickness != 0)
@@ -589,8 +578,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                          .texture         = 0,
                          .uv              = {},
                          .tiling          = desc.tiling,
-                         .edge_smoothness = desc.edge_smoothness,
-                         .scissor         = desc.scissor});
+                         .edge_smoothness = desc.edge_smoothness});
         }
 
         if (run.direction == TextDirection::LeftToRight)
@@ -618,7 +606,7 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
   Path::triangles(points, indices);
 
   CHECK(ngon_params.push(NgonParam{
-      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
+      .transform    = mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
@@ -630,7 +618,7 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
 
   CHECK(ngon_index_counts.push(num_indices));
 
-  add_run(*this, CanvasPassType::Ngon, desc.scissor);
+  add_run(*this, CanvasPassType::Ngon);
 }
 
 void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
@@ -645,7 +633,7 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
   Path::triangulate_stroke(points, vertices, indices,
                            desc.thickness / desc.extent.y);
   CHECK(ngon_params.push(NgonParam{
-      .transform    = surface.mvp(desc.transform, desc.center, desc.extent),
+      .transform    = mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
@@ -657,20 +645,21 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
 
   CHECK(ngon_index_counts.push(num_indices));
 
-  add_run(*this, CanvasPassType::Ngon, desc.scissor);
+  add_run(*this, CanvasPassType::Ngon);
 }
 
-void Canvas::blur(ShapeDesc const &desc, u32 num_passes)
+void Canvas::blur(CRect const &area, u32 num_passes)
 {
   CHECK(num_passes > 0);
-  CHECK(blur_params.push(num_passes));
-  add_run(*this, CanvasPassType::Blur, desc.scissor);
+  CHECK(blur_params.push(
+      CanvasBlurParam{.area = area, .num_passes = num_passes}));
+  add_run(*this, CanvasPassType::Blur);
 }
 
-void Canvas::custom(ShapeDesc const &desc, CustomCanvasPassInfo const &pass)
+void Canvas::custom(CustomCanvasPassInfo const &pass)
 {
   CHECK(custom_params.push(pass));
-  add_run(*this, CanvasPassType::Custom, desc.scissor);
+  add_run(*this, CanvasPassType::Custom);
 }
 
 }        // namespace ash

@@ -24,7 +24,7 @@ struct Spec
   i32   precision = 0;
 };
 
-/// @sratch_buffer: recommended size of 256 bytes
+/// @sratch_buffer: minimum recommended size of 256 bytes
 struct Context
 {
   Fn<bool(Span<char const>)> push =
@@ -60,17 +60,21 @@ bool push(Context &ctx, Spec const &spec, Vec3U const &value);
 bool push(Context &ctx, Spec const &spec, Vec4U const &value);
 bool push(Context &, Spec &spec, Spec const &value);
 bool push(Context &ctx, Spec const &, Span<char const> str);
+
 template <usize N>
 bool push(Context &ctx, Spec const &spec, char const (&str)[N])
 {
   return push(ctx, spec, Span{str, N});
 }
-bool        push(Context &ctx, Spec const &spec, char const *str);
-bool        push(Context &ctx, Spec const &spec, void const *ptr);
+
+bool push(Context &ctx, Spec const &spec, char const *str);
+bool push(Context &ctx, Spec const &spec, void const *ptr);
+
 inline bool push(Context &ctx, Spec const &spec, std::string const &str)
 {
   return push(ctx, spec, to_span(str));
 }
+
 inline bool push(Context &ctx, Spec const &spec, std::string_view str)
 {
   return push(ctx, spec, to_span(str));

@@ -51,11 +51,6 @@ struct Vec
     return data_ + size_;
   }
 
-  constexpr operator Span<T>() const
-  {
-    return Span<T>{data_, size_};
-  }
-
   [[nodiscard]] constexpr T &operator[](usize index) const
   {
     return data_[index];

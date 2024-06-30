@@ -21,7 +21,7 @@ struct SparseVec
   static constexpr u64 RELEASE_MASK = U64_MAX >> 1;
   static constexpr u64 STUB         = U64_MAX;
 
-  Vec<uid> index_to_id  = {};
+  Vec<u64> index_to_id  = {};
   Vec<u64> id_to_index  = {};
   u64      free_id_head = STUB;
 
@@ -50,11 +50,6 @@ struct SparseVec
     return index_to_id.end();
   }
 
-  constexpr operator Span<u64>() const
-  {
-    return index_to_id;
-  }
-
   template <typename... VecT>
   constexpr void clear(VecT &...dense)
   {
@@ -73,7 +68,7 @@ struct SparseVec
     free_id_head = STUB;
   }
 
-  [[nodiscard]] constexpr bool is_valid_id(uid id) const
+  [[nodiscard]] constexpr bool is_valid_id(u64 id) const
   {
     return id < id_to_index.size() && !(id_to_index[id] & RELEASE_MASK);
   }
@@ -83,17 +78,17 @@ struct SparseVec
     return index < size();
   }
 
-  [[nodiscard]] constexpr u64 operator[](uid id) const
+  [[nodiscard]] constexpr u64 operator[](u64 id) const
   {
     return id_to_index[id];
   }
 
-  [[nodiscard]] constexpr u64 to_index(uid id) const
+  [[nodiscard]] constexpr u64 to_index(u64 id) const
   {
     return id_to_index[id];
   }
 
-  [[nodiscard]] constexpr bool try_to_index(uid id, u64 &index) const
+  [[nodiscard]] constexpr bool try_to_index(u64 id, u64 &index) const
   {
     if (!is_valid_id(id))
     {
@@ -104,12 +99,12 @@ struct SparseVec
     return true;
   }
 
-  [[nodiscard]] constexpr uid to_id(u64 index) const
+  [[nodiscard]] constexpr u64 to_id(u64 index) const
   {
     return index_to_id[index];
   }
 
-  [[nodiscard]] constexpr bool try_to_id(u64 index, uid &id) const
+  [[nodiscard]] constexpr bool try_to_id(u64 index, u64 &id) const
   {
     if (!is_valid_index(index))
     {
@@ -121,7 +116,7 @@ struct SparseVec
   }
 
   template <typename VecT>
-  constexpr bool try_get(uid id, VecT::Iterator &iterator, VecT &vec)
+  constexpr bool try_get(u64 id, VecT::Iterator &iterator, VecT &vec)
   {
     u64 index;
     if (!try_to_index(id, index))
@@ -133,7 +128,7 @@ struct SparseVec
   }
 
   template <typename... VecT>
-  constexpr void erase(uid id, VecT &...dense)
+  constexpr void erase(u64 id, VecT &...dense)
   {
     u64 const index = id_to_index[id];
     u64 const last  = size() - 1;
@@ -158,7 +153,7 @@ struct SparseVec
   }
 
   template <typename... VecT>
-  [[nodiscard]] constexpr bool try_erase(uid id, VecT &...dense)
+  [[nodiscard]] constexpr bool try_erase(u64 id, VecT &...dense)
   {
     if (!is_valid_id(id))
     {
@@ -184,7 +179,7 @@ struct SparseVec
   }
 
   /// make new id and map the unique id to the unique index
-  [[nodiscard]] bool make_id(u64 index, uid &out_id)
+  [[nodiscard]] bool make_id(u64 index, u64 &out_id)
   {
     if (free_id_head != STUB)
     {
@@ -199,7 +194,7 @@ struct SparseVec
       {
         return false;
       }
-      out_id = static_cast<uid>(id_to_index.size() - 1);
+      out_id = static_cast<u64>(id_to_index.size() - 1);
       return true;
     }
   }
@@ -208,7 +203,7 @@ struct SparseVec
   [[nodiscard]] bool push(PushOp &&push_op, VecT &...dense)
   {
     u64 const index = size();
-    uid       id;
+    u64       id;
 
     if (!(grow(size() + 1, dense...) && make_id(index, id) &&
           index_to_id.push(id)))
