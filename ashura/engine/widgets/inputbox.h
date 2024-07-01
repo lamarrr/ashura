@@ -41,11 +41,17 @@ inline bool push(Context &ctx, Spec const &spec, ScalarInput const &value)
 
 }        // namespace fmt
 
-struct TextCompositor
+// operates on clusters, need to map graphemes to clusters, and clusters to
+// codepoints and vice-versa
+struct Caret
 {
-  u32             cursor_begin = 0;
-  u32             cursor_end   = 0;
-  Span<u32 const> codepoints   = {};
+  u32 text_begin     = 0;
+  u32 text_span      = 0;
+  u32 line           = 0;
+  u32 line_alignment = 0;
+
+  // grapheme + text selection, grapheme iteration should be able to know when
+  // the grapheme has been iterated finished.
 
   void undo();
   void redo();
@@ -53,18 +59,50 @@ struct TextCompositor
   void highlight();
   void copy();
   void cut();
+
+  // move the cursor up to the previous line
+  void up(TextLayout const &layout, TextBlock const &block)
+  {
+    text_span = 0;
+    if (line == 0 || layout.lines.size() <= 1)
+    {
+      return;
+    }
+    if (line >= layout.lines.size())
+    {
+      line = (u32) (layout.lines.size() - 1);
+    }
+    Line const &next_line      = layout.lines[line - 1];
+    u32         best_fit_begin = 0;
+    for (TextRun const &r :
+         to_span(layout.runs).slice(next_line.first_run, next_line.num_runs))
+    {
+      for (GlyphShape const &sh :
+           to_span(layout.glyphs).slice(r.first_glyph, r.num_glyphs))
+      {
+      }
+    }
+  }
+  void down();
+  void home();
+  void left();
+  void right();
+  void end();
+  void select_word();
 };
 
-struct TextInput
+struct TextInput : Widget
 {
-  bool secret   = false;
-  bool disabled = false;
-  // clear. memset_explicit
+  bool secret    = false;
+  bool disabled  = false;
+  bool multiline = false;
+  // clear
+  //
   // on_editing
   // on_edited
 
   virtual void tick(WidgetContext const &ctx, CRect const &region,
-                    nanoseconds dt, WidgetEventTypes events)
+                    nanoseconds dt, WidgetEventTypes events) override
   {
     (void) ctx;
     (void) dt;
