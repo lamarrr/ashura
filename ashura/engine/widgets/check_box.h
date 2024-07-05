@@ -47,11 +47,9 @@ struct CheckBox : public Widget
     }
   }
 
-  virtual void tick(WidgetContext const &ctx, CRect const &region,
-                    nanoseconds dt, WidgetEventTypes events) override
+  virtual void tick(WidgetContext const &ctx, CRect const &, nanoseconds,
+                    WidgetEventTypes     events) override
   {
-    (void) ctx;
-    (void) dt;
     if (!disabled && has_bits(events, WidgetEventTypes::MouseDown) &&
         ctx.button == MouseButtons::Primary)
     {

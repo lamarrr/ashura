@@ -23,6 +23,7 @@ struct Slider : public Widget
 
   f32 value = 0, min = 0, max = 1;
 
+/*
   virtual vec2 fit(Context &ctx, vec2 allocated_size,
                    stx::Span<vec2 const> children_allocations,
                    stx::Span<vec2 const> children_sizes,
@@ -80,6 +81,7 @@ struct Slider : public Widget
     value    = std::clamp(value + diff * (max - min), min, max);
     on_changed.handle(*this, ctx, value);
   }
+  */
 };
 
 }        // namespace ash

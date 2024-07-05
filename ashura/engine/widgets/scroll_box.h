@@ -78,8 +78,8 @@ struct ScrollBar : public Widget
                                thumb_color * to_vec4({1, 1, 1}, opacity))});
   }
 
-  virtual void tick(WidgetContext const &ctx, CRect const &region,
-                    nanoseconds dt, WidgetEventTypes events) override
+  virtual void tick(WidgetContext const &ctx, CRect const &region, nanoseconds,
+                    WidgetEventTypes events) override
   {
     u8 const main_axis = (direction == Axis::X) ? 0 : 1;
 

@@ -21,6 +21,7 @@ struct StackBox : public Widget
 
   virtual Widget *item(u32 i)
   {
+    (void) i;
     return nullptr;
   }
 
@@ -29,8 +30,7 @@ struct StackBox : public Widget
     fill(sizes, allocated);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual Vec2 fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> offsets) override
   {
     Vec2      span;
     u32 const num_children = (u32) sizes.size();
