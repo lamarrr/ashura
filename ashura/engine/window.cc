@@ -480,12 +480,16 @@ struct WindowSystemImpl final : public WindowSystem
           publish_event(
               event.key.windowID,
               WindowEvent{
-                  .key  = KeyEvent{.key       = (Key) event.key.keysym.sym,
-                                   .modifiers = static_cast<KeyModifiers>(
-                                      event.key.keysym.mod),
-                                   .action = event.type == SDL_EVENT_KEY_DOWN ?
-                                                 KeyAction::Press :
-                                                 KeyAction::Release},
+                  .key =
+                      KeyEvent{
+                          .scan_code = (ScanCode) (event.key.keysym.scancode),
+                          .key_code  = (KeyCode) ((u16) event.key.keysym.sym &
+                                                 ~SDLK_SCANCODE_MASK),
+                          .modifiers =
+                              static_cast<KeyModifiers>(event.key.keysym.mod),
+                          .action = event.type == SDL_EVENT_KEY_DOWN ?
+                                        KeyAction::Press :
+                                        KeyAction::Release},
                   .type = WindowEventTypes::Key});
           return;
 

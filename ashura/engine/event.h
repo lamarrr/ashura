@@ -22,8 +22,8 @@ enum class KeyAction : u8
 
 struct KeyEvent
 {
-  ScanCode     scancode  = ScanCode::None;
-  KeyCode      keycode   = KeyCode::None;
+  ScanCode     scan_code = ScanCode::None;
+  KeyCode      key_code  = KeyCode::None;
   KeyModifiers modifiers = KeyModifiers::None;
   KeyAction    action    = KeyAction::Press;
 };
