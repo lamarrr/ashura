@@ -288,6 +288,7 @@ struct Widget
                     nanoseconds dt, WidgetEventTypes events)
   {
     (void) ctx;
+    (void) region;
     (void) dt;
     (void) events;
   }
