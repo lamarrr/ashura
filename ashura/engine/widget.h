@@ -141,15 +141,27 @@ ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
 //
 struct WidgetContext
 {
-  MouseButtons   button                  = MouseButtons::None;
-  Vec2           mouse_position          = {};
-  Vec2           mouse_translation       = {};
-  u32            num_clicks              = 0;
-  Vec2           mouse_wheel_translation = {};
-  Span<u8 const> drag_payload            = {};
-  SystemTheme    theme                   = SystemTheme::None;
-  TextDirection  direction               = TextDirection::LeftToRight;
-  u8             key_states[NUM_KEYS]    = {};
+  MouseButtons   button                    = MouseButtons::None;
+  Vec2           mouse_position            = {};
+  Vec2           mouse_translation         = {};
+  u32            num_clicks                = 0;
+  Vec2           mouse_wheel_translation   = {};
+  Span<u8 const> drag_payload              = {};
+  SystemTheme    theme                     = SystemTheme::None;
+  TextDirection  direction                 = TextDirection::LeftToRight;
+  u64            key_states[NUM_KEYS / 64] = {};
+  // is_in_text session
+  // request input
+  // Span<u8 const> text;
+  // end text input
+
+  constexpr bool get_key_state(KeyCode key) const
+  {
+    u16 const i     = (u32) key;
+    u64       state = key_states[i >> 6];
+    state           = (state >> (i & 63)) & 1;
+    return state != 0;
+  }
 };
 
 // TODO(lamarrr): spatial navigation model
