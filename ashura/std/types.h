@@ -94,6 +94,26 @@ constexpr bool has_any_bit(T src, T cmp)
   return (src & cmp) != (T) 0;
 }
 
+constexpr bool is_pow2(u8 x)
+{
+  return (x & (x - 1)) == 0U;
+}
+
+constexpr bool is_pow2(u16 x)
+{
+  return (x & (x - 1)) == 0U;
+}
+
+constexpr bool is_pow2(u32 x)
+{
+  return (x & (x - 1)) == 0U;
+}
+
+constexpr bool is_pow2(u64 x)
+{
+  return (x & (x - 1)) == 0ULL;
+}
+
 template <typename T>
 struct NumTraits;
 
