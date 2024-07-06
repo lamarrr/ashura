@@ -54,16 +54,15 @@ enum class TextEditKey : u32
 
 /// @brief
 /// @param text_pos index of the first codepoint belonging to this record in the
-/// history buffer (only valid if it was a delete event)
-/// @param history_pos position of this text in the history buffer
+/// history buffer (only valid if it was an erase event)
+/// @param buffer_pos position of this text in the history buffer
 /// @param num number of codepoints this text record spans in the history buffer
-/// @param is_delete whether this is a delete or insert record
+/// @param is_insert whether this is a erase or insert record
 struct TextEditRecord
 {
-  u32  text_pos    = 0;
-  u32  history_pos = 0;
-  u32  num         = 0;
-  bool is_delete   = false;
+  u32  text_pos  = 0;
+  u32  num       = 0;
+  bool is_insert = false;
 };
 
 /// @brief A simple stack-based text compositor
@@ -78,8 +77,11 @@ struct TextCompositor
   u32                 selection_last  = U32_MAX;
   Vec<u32>            buffer          = {};
   Vec<TextEditRecord> records         = {};
-  u32                 next_record     = 0;
-  u32                 state           = 0;
+  u32                 buffer_pos      = 0;
+  u32                 latest_record   = 0;
+  u32                 current_record  = 0;
+  Fn<void(u32, u32)>  on_insert       = to_fn([](u32, u32) {});
+  Fn<void(u32, u32)>  on_erase        = to_fn([](u32, u32) {});
 
   void init(u32 num_buffer_codepoints, u32 num_records)
   {
@@ -201,6 +203,53 @@ struct TextCompositor
   void left();
   void right();
   void end();
+
+  void pop_records(u32 num)
+  {
+    CHECK(num <= records.size32());
+    u32 reclaimed = 0;
+    for (u32 i = 0; i < num; i++)
+    {
+      reclaimed += records[i].num;
+    }
+    mem::move(to_span(buffer).slice(reclaimed).as_const(), to_span(buffer));
+    mem::move(to_span(records).slice(num).as_const(), to_span(records));
+    buffer_pos -= reclaimed;
+    latest_record -= num;
+    current_record -= num;
+  }
+
+  void append_record(bool is_insert, u32 text_pos, Span<u32 const> text)
+  {
+    CHECK(is_insert || text.is_empty());
+    if (text.size32() > buffer.size32())
+    {
+      // clear all records as we can't insert a new record without invalidating
+      // the history
+      pop_records(records.size32());
+      return;
+    }
+
+    while (buffer_pos + text.size32() > buffer.size32())
+    {
+      // pop half, to amortize shifting cost.
+      // always pop by atleast 1. since the buffer can fit it and atleast 1
+      // record would be using the available memory.
+      pop_records(max(records.size32() >> 1, 1U));
+    }
+
+    if (current_record + 1 >= records.size32())
+    {
+      pop_records(max(records.size32() >> 1, 1U));
+    }
+
+    mem::copy(text, to_span(buffer).slice(buffer_pos));
+
+    current_record++;
+    latest_record           = current_record;
+    records[current_record] = TextEditRecord{
+        .text_pos = text_pos, .num = text.size32(), .is_insert = is_insert};
+  }
 
   void undo()
   {
