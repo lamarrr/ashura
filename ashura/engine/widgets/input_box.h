@@ -9,16 +9,21 @@ namespace ash
 
 enum class ScalarInputType : u8
 {
-  i32 = 0,
-  f32 = 1
+  f32 = 0,
+  i32 = 1,
+  u32 = 2
 };
 
+/// @brief Numeric Scalar Text Input. only i32, u32, and f32 are supported as
+/// they also implicitly support lower-precision inputs, by clamping the ranges
+/// of the inputs.
 struct ScalarInput
 {
   union
   {
-    i32 i32 = 0;
-    f32 f32;
+    f32 f32 = 0;
+    i32 i32;
+    u32 u32;
   };
   ScalarInputType type = ScalarInputType::f32;
 };
@@ -30,10 +35,12 @@ inline bool push(Context &ctx, Spec const &spec, ScalarInput const &value)
 {
   switch (value.type)
   {
-    case ScalarInputType::i32:
-      return push(ctx, spec, value.i32);
     case ScalarInputType::f32:
       return push(ctx, spec, value.f32);
+    case ScalarInputType::i32:
+      return push(ctx, spec, value.i32);
+    case ScalarInputType::u32:
+      return push(ctx, spec, value.u32);
     default:
       return true;
   }
@@ -406,15 +413,20 @@ struct ScalarBox : Widget
   {
     switch (v.type)
     {
+      case ScalarInputType::f32:
+        v.f32 = (f32) ash::clamp((f64) v.f32 +
+                                     (f64) (direction ? step.f32 : -step.f32),
+                                 (f64) min.f32, (f64) max.f32);
+        return;
       case ScalarInputType::i32:
         v.i32 = (i32) ash::clamp((i64) v.i32 +
                                      (i64) (direction ? step.i32 : -step.i32),
                                  (i64) min.i32, (i64) max.i32);
         return;
-      case ScalarInputType::f32:
-        v.f32 = (f32) ash::clamp((f64) v.f32 +
-                                     (f64) (direction ? step.f32 : -step.f32),
-                                 (f64) min.f32, (f64) max.f32);
+      case ScalarInputType::u32:
+        v.u32 = (u32) ash::clamp((i64) v.u32 +
+                                     (i64) (direction ? step.u32 : -step.u32),
+                                 (i64) min.u32, (i64) max.u32);
         return;
       default:
         return;
