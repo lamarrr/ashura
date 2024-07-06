@@ -295,12 +295,12 @@ struct Widget
 };
 
 template <usize N>
-constexpr Widget *child_array(Widget *const (&children)[N], u32 i)
+constexpr Widget *child_iter(Widget *const (&children)[N], u32 i)
 {
   return i < N ? children[i] : nullptr;
 }
 
-constexpr Widget *child_span(Span<Widget *const> children, u32 i)
+constexpr Widget *child_iter(Span<Widget *const> children, u32 i)
 {
   return i < children.size() ? children[i] : nullptr;
 }

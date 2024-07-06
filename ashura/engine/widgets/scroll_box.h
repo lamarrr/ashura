@@ -119,7 +119,7 @@ struct ScrollBox : public Widget
 
   virtual Widget *child(u32 i) override final
   {
-    return child_array({&x_bar, &y_bar, item()}, i);
+    return child_iter({&x_bar, &y_bar, item()}, i);
   }
 
   virtual Widget *item()
