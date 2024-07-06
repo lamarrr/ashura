@@ -1633,7 +1633,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     Span<gfx::Surface const> compatible_surfaces, u32 buffering)
 {
   Instance *const self               = (Instance *) self_;
-  u32 const       num_surfaces       = (u32) compatible_surfaces.size();
+  u32 const       num_surfaces       = compatible_surfaces.size32();
   constexpr u32   MAX_QUEUE_FAMILIES = 16;
 
   CHECK(buffering > 0);
@@ -1743,7 +1743,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   u32 selected_dev_idx      = num_devs;
   u32 selected_queue_family = VK_QUEUE_FAMILY_IGNORED;
 
-  for (usize i = 0; i < (u32) preferred_types.size(); i++)
+  for (usize i = 0; i < preferred_types.size32(); i++)
   {
     for (u32 idev = 0; idev < num_devs && selected_dev_idx == num_devs; idev++)
     {
@@ -2654,7 +2654,7 @@ Result<gfx::DescriptorSetLayout, Status>
         gfx::Device self_, gfx::DescriptorSetLayoutDesc const &desc)
 {
   Device *const self                         = (Device *) self_;
-  u32 const     num_bindings                 = (u32) desc.bindings.size();
+  u32 const     num_bindings                 = desc.bindings.size32();
   u32           num_descriptors              = 0;
   u32           num_variable_length          = 0;
   u32           sizing[NUM_DESCRIPTOR_TYPES] = {};
@@ -2722,7 +2722,7 @@ Result<gfx::DescriptorSetLayout, Status>
       .sType =
           VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
       .pNext         = nullptr,
-      .bindingCount  = (u32) desc.bindings.size(),
+      .bindingCount  = desc.bindings.size32(),
       .pBindingFlags = vk_binding_flags};
 
   VkDescriptorSetLayoutCreateInfo create_info{
@@ -2928,7 +2928,7 @@ Result<gfx::DescriptorSet, Status>
       .sType =
           VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT,
       .pNext              = nullptr,
-      .descriptorSetCount = (u32) variable_lengths.size(),
+      .descriptorSetCount = variable_lengths.size32(),
       .pDescriptorCounts  = variable_lengths.data()};
 
   VkDescriptorSetAllocateInfo alloc_info{
@@ -2997,7 +2997,7 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
     gfx::Device self_, gfx::ComputePipelineDesc const &desc)
 {
   Device *const self                = (Device *) self_;
-  u32 const     num_descriptor_sets = (u32) desc.descriptor_set_layouts.size();
+  u32 const     num_descriptor_sets = desc.descriptor_set_layouts.size32();
 
   CHECK(num_descriptor_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
   CHECK(desc.push_constants_size <= gfx::MAX_PUSH_CONSTANTS_SIZE);
@@ -3015,9 +3015,8 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
   }
 
   VkSpecializationInfo vk_specialization{
-      .mapEntryCount =
-          (u32) desc.compute_shader.specialization_constants.size(),
-      .pMapEntries = (VkSpecializationMapEntry const *)
+      .mapEntryCount = desc.compute_shader.specialization_constants.size32(),
+      .pMapEntries   = (VkSpecializationMapEntry const *)
                          desc.compute_shader.specialization_constants.data(),
       .dataSize =
           desc.compute_shader.specialization_constants_data.size_bytes(),
@@ -3096,7 +3095,7 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
       ComputePipeline{.vk_pipeline         = vk_pipeline,
                       .vk_layout           = vk_layout,
                       .push_constants_size = desc.push_constants_size,
-                      .num_sets = (u32) desc.descriptor_set_layouts.size()};
+                      .num_sets = desc.descriptor_set_layouts.size32()};
 
   return Ok{(gfx::ComputePipeline) pipeline};
 }
@@ -3105,14 +3104,14 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
     gfx::Device self_, gfx::GraphicsPipelineDesc const &desc)
 {
   Device *const self                = (Device *) self_;
-  u32 const     num_descriptor_sets = (u32) desc.descriptor_set_layouts.size();
-  u32 const     num_input_bindings  = (u32) desc.vertex_input_bindings.size();
-  u32 const     num_attributes      = (u32) desc.vertex_attributes.size();
+  u32 const     num_descriptor_sets = desc.descriptor_set_layouts.size32();
+  u32 const     num_input_bindings  = desc.vertex_input_bindings.size32();
+  u32 const     num_attributes      = desc.vertex_attributes.size32();
   u32 const     num_blend_color_attachments =
-      (u32) desc.color_blend_state.attachments.size();
-  u32 const num_colors   = (u32) desc.color_formats.size();
-  u32 const num_depths   = (u32) desc.depth_format.size();
-  u32 const num_stencils = (u32) desc.stencil_format.size();
+      desc.color_blend_state.attachments.size32();
+  u32 const num_colors   = desc.color_formats.size32();
+  u32 const num_depths   = desc.depth_format.size32();
+  u32 const num_stencils = desc.stencil_format.size32();
 
   CHECK(!(desc.rasterization_state.polygon_mode != gfx::PolygonMode::Fill &&
           !self->phy_dev.vk_features.fillModeNonSolid));
@@ -3137,16 +3136,15 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   }
 
   VkSpecializationInfo vk_vs_specialization{
-      .mapEntryCount = (u32) desc.vertex_shader.specialization_constants.size(),
+      .mapEntryCount = desc.vertex_shader.specialization_constants.size32(),
       .pMapEntries   = (VkSpecializationMapEntry const *)
                          desc.vertex_shader.specialization_constants.data(),
       .dataSize = desc.vertex_shader.specialization_constants_data.size_bytes(),
       .pData    = desc.vertex_shader.specialization_constants_data.data()};
 
   VkSpecializationInfo vk_fs_specialization{
-      .mapEntryCount =
-          (u32) desc.fragment_shader.specialization_constants.size(),
-      .pMapEntries = (VkSpecializationMapEntry const *)
+      .mapEntryCount = desc.fragment_shader.specialization_constants.size32(),
+      .pMapEntries   = (VkSpecializationMapEntry const *)
                          desc.fragment_shader.specialization_constants.data(),
       .dataSize =
           desc.fragment_shader.specialization_constants_data.size_bytes(),
@@ -3389,7 +3387,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .sType    = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
       .pNext    = nullptr,
       .viewMask = 0,
-      .colorAttachmentCount    = (u32) desc.color_formats.size(),
+      .colorAttachmentCount    = desc.color_formats.size32(),
       .pColorAttachmentFormats = color_formats,
       .depthAttachmentFormat   = depth_format,
       .stencilAttachmentFormat = stencil_format};
@@ -3444,7 +3442,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       GraphicsPipeline{.vk_pipeline         = vk_pipeline,
                        .vk_layout           = vk_layout,
                        .push_constants_size = desc.push_constants_size,
-                       .num_sets     = (u32) desc.descriptor_set_layouts.size(),
+                       .num_sets     = desc.descriptor_set_layouts.size32(),
                        .num_colors   = num_colors,
                        .num_depths   = num_depths,
                        .num_stencils = num_stencils};
@@ -4050,7 +4048,7 @@ Result<Void, Status>
                                           Span<gfx::PipelineCache const> srcs)
 {
   Device *const self     = (Device *) self_;
-  u32 const     num_srcs = (u32) srcs.size();
+  u32 const     num_srcs = srcs.size32();
 
   CHECK(num_srcs > 0);
 
@@ -4185,14 +4183,14 @@ void DeviceInterface::update_descriptor_set(
     case gfx::DescriptorType::UniformBuffer:
       CHECK((update.element + update.buffers.size()) <= binding.count);
       info_size = sizeof(VkDescriptorBufferInfo) * update.buffers.size();
-      count     = (u32) update.buffers.size();
+      count     = update.buffers.size32();
       break;
 
     case gfx::DescriptorType::StorageTexelBuffer:
     case gfx::DescriptorType::UniformTexelBuffer:
       CHECK((update.element + update.texel_buffers.size()) <= binding.count);
       info_size = sizeof(VkBufferView) * update.texel_buffers.size();
-      count     = (u32) update.texel_buffers.size();
+      count     = update.texel_buffers.size32();
       break;
 
     case gfx::DescriptorType::SampledImage:
@@ -4202,7 +4200,7 @@ void DeviceInterface::update_descriptor_set(
     case gfx::DescriptorType::Sampler:
       CHECK((update.element + update.images.size()) <= binding.count);
       info_size = sizeof(VkDescriptorImageInfo) * update.images.size();
-      count     = (u32) update.images.size();
+      count     = update.images.size32();
       break;
 
     default:
@@ -4448,7 +4446,7 @@ Result<u32, Status> DeviceInterface::get_surface_formats(
     CHECK(num_read == num_supported && result != VK_INCOMPLETE);
   }
 
-  u32 num_copies = min(num_supported, (u32) formats.size());
+  u32 num_copies = min(num_supported, formats.size32());
 
   for (u32 i = 0; i < num_copies; i++)
   {
@@ -4497,7 +4495,7 @@ Result<u32, Status> DeviceInterface::get_surface_present_modes(
     CHECK(num_read == num_supported && result != VK_INCOMPLETE);
   }
 
-  u32 num_copies = min(num_supported, (u32) modes.size());
+  u32 num_copies = min(num_supported, modes.size32());
 
   for (u32 i = 0; i < num_copies; i++)
   {
@@ -4873,7 +4871,7 @@ void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self_,
   ENCODE_PRELUDE();
   Buffer *const src        = (Buffer *) src_;
   Buffer *const dst        = (Buffer *) dst_;
-  u32 const     num_copies = (u32) copies.size();
+  u32 const     num_copies = copies.size32();
 
   CHECK(!self->is_in_pass());
   CHECK(has_bits(src->desc.usage, gfx::BufferUsage::TransferSrc));
@@ -4937,7 +4935,7 @@ void CommandEncoderInterface::clear_color_image(
 {
   ENCODE_PRELUDE();
   Image *const dst        = (Image *) dst_;
-  u32 const    num_ranges = (u32) ranges.size();
+  u32 const    num_ranges = ranges.size32();
 
   static_assert(sizeof(gfx::Color) == sizeof(VkClearColorValue));
   CHECK(!self->is_in_pass());
@@ -4990,7 +4988,7 @@ void CommandEncoderInterface::clear_depth_stencil_image(
 {
   ENCODE_PRELUDE();
   Image *const dst        = (Image *) dst_;
-  u32 const    num_ranges = (u32) ranges.size();
+  u32 const    num_ranges = ranges.size32();
 
   static_assert(sizeof(gfx::DepthStencil) == sizeof(VkClearDepthStencilValue));
   CHECK(!self->is_in_pass());
@@ -5044,7 +5042,7 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
   ENCODE_PRELUDE();
   Image *const src        = (Image *) src_;
   Image *const dst        = (Image *) dst_;
-  u32 const    num_copies = (u32) copies.size();
+  u32 const    num_copies = copies.size32();
 
   CHECK(!self->is_in_pass());
   CHECK(num_copies > 0);
@@ -5137,7 +5135,7 @@ void CommandEncoderInterface::copy_buffer_to_image(
   ENCODE_PRELUDE();
   Buffer *const src        = (Buffer *) src_;
   Image *const  dst        = (Image *) dst_;
-  u32 const     num_copies = (u32) copies.size();
+  u32 const     num_copies = copies.size32();
 
   CHECK(!self->is_in_pass());
   CHECK(num_copies > 0);
@@ -5214,7 +5212,7 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
   ENCODE_PRELUDE();
   Image *const src       = (Image *) src_;
   Image *const dst       = (Image *) dst_;
-  u32 const    num_blits = (u32) blits.size();
+  u32 const    num_blits = blits.size32();
 
   CHECK(!self->is_in_pass());
   CHECK(num_blits > 0);
@@ -5318,7 +5316,7 @@ void CommandEncoderInterface::resolve_image(
   ENCODE_PRELUDE();
   Image *const src          = (Image *) src_;
   Image *const dst          = (Image *) dst_;
-  u32 const    num_resolves = (u32) resolves.size();
+  u32 const    num_resolves = resolves.size32();
 
   CHECK(!self->is_in_pass());
   CHECK(num_resolves > 0);
@@ -5454,9 +5452,9 @@ void CommandEncoderInterface::begin_rendering(gfx::CommandEncoder       self_,
                                               gfx::RenderingInfo const &info)
 {
   ENCODE_PRELUDE();
-  u32 const num_color_attachments   = (u32) info.color_attachments.size();
-  u32 const num_depth_attachments   = (u32) info.depth_attachment.size();
-  u32 const num_stencil_attachments = (u32) info.stencil_attachment.size();
+  u32 const num_color_attachments   = info.color_attachments.size32();
+  u32 const num_depth_attachments   = info.depth_attachment.size32();
+  u32 const num_stencil_attachments = info.stencil_attachment.size32();
 
   CHECK(!self->is_in_pass());
   CHECK(num_color_attachments <= gfx::MAX_PIPELINE_COLOR_ATTACHMENTS);
@@ -5997,8 +5995,8 @@ void CommandEncoderInterface::bind_descriptor_sets(
     Span<u32 const> dynamic_offsets)
 {
   ENCODE_PRELUDE();
-  u32 const num_sets            = (u32) descriptor_sets.size();
-  u32 const num_dynamic_offsets = (u32) dynamic_offsets.size();
+  u32 const num_sets            = descriptor_sets.size32();
+  u32 const num_dynamic_offsets = dynamic_offsets.size32();
   u64 const ubo_offset_alignment =
       self->dev->phy_dev.vk_properties.limits.minUniformBufferOffsetAlignment;
   u64 const ssbo_offset_alignment =
@@ -6176,7 +6174,7 @@ void CommandEncoderInterface::bind_vertex_buffers(
   RenderPassContext &ctx = self->render_ctx;
 
   CHECK(self->is_in_render_pass());
-  u32 const num_vertex_buffers = (u32) vertex_buffers.size();
+  u32 const num_vertex_buffers = vertex_buffers.size32();
   CHECK(num_vertex_buffers > 0);
   CHECK(num_vertex_buffers <= gfx::MAX_VERTEX_ATTRIBUTES);
   CHECK(offsets.size() == vertex_buffers.size());

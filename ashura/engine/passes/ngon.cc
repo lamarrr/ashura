@@ -90,7 +90,7 @@ void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
   encoder->set_graphics_state(encoder.self,
                               gfx::GraphicsState{.scissor  = params.scissor,
                                                  .viewport = params.viewport});
-  u32 const num_instances = (u32) params.index_counts.size();
+  u32 const num_instances =  params.index_counts.size32();
   for (u32 i = 0; i < num_instances; i++)
   {
     u32 vertex_count = params.index_counts[i];

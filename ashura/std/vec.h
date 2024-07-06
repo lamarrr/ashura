@@ -36,6 +36,16 @@ struct Vec
     return size_;
   }
 
+  [[nodiscard]] constexpr u32 size32() const
+  {
+    return (u32) size_;
+  }
+
+  [[nodiscard]] constexpr u64 size64() const
+  {
+    return (u64) size_;
+  }
+
   [[nodiscard]] constexpr usize capacity() const
   {
     return capacity_;

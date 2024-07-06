@@ -580,7 +580,7 @@ void RenderContext::release(gfx::Sampler sampler)
 static void destroy_objects(gfx::DeviceImpl const  &d,
                             Span<gfx::Object const> objects)
 {
-  for (u32 i = 0; i < (u32) objects.size(); i++)
+  for (u32 i = 0; i < objects.size32(); i++)
   {
     gfx::Object obj = objects[i];
     switch (obj.type)

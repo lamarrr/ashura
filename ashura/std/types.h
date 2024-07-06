@@ -2726,6 +2726,16 @@ struct Span
     return size_;
   }
 
+  constexpr u32 size32() const
+  {
+    return (u32) size_;
+  }
+
+  constexpr u64 size64() const
+  {
+    return (u64) size_;
+  }
+
   constexpr usize size_bytes() const
   {
     return sizeof(T) * size_;

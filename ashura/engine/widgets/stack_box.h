@@ -33,7 +33,7 @@ struct StackBox : public Widget
   virtual Vec2 fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> offsets) override
   {
     Vec2      span;
-    u32 const num_children = (u32) sizes.size();
+    u32 const num_children = sizes.size32();
 
     for (Vec2 s : sizes)
     {

@@ -295,9 +295,9 @@ struct SchedulerImpl final : Scheduler
     CHECK(info.signals.size() <= U32_MAX);
     CHECK(info.increments.size() <= U32_MAX);
 
-    u32        num_awaits     = (u32) info.awaits.size();
-    u32        num_signals    = (u32) info.signals.size();
-    u32        num_increments = (u32) info.increments.size();
+    u32        num_awaits     = info.awaits.size32();
+    u32        num_signals    = info.signals.size32();
+    u32        num_increments = info.increments.size32();
     Semaphore *await_sems     = nullptr;
     u64       *awaits         = nullptr;
     Semaphore *increment_sems = nullptr;
@@ -377,8 +377,8 @@ struct SchedulerImpl final : Scheduler
   {
     CHECK(dedicated_thread_sleep.size() <= U32_MAX);
     CHECK(worker_thread_sleep.size() <= U32_MAX);
-    num_dedicated_threads = (u32) dedicated_thread_sleep.size();
-    num_worker_threads    = (u32) worker_thread_sleep.size();
+    num_dedicated_threads = dedicated_thread_sleep.size32();
+    num_worker_threads    = worker_thread_sleep.size32();
     CHECK(allocator.nalloc(num_dedicated_threads, &dedicated_threads));
     CHECK(allocator.nalloc(num_worker_threads, &worker_threads));
 

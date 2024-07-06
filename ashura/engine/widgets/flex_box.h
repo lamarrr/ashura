@@ -39,7 +39,7 @@ struct FlexBox : public Widget
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
                    Span<Vec2> offsets) override
   {
-    u32 const  num_children = (u32) sizes.size();
+    u32 const  num_children = sizes.size32();
     Vec2 const frame{width.resolve(allocated.x), height.resolve(allocated.y)};
     Vec2       span;
     f32        cross_cursor = 0;

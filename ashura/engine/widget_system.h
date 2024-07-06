@@ -34,7 +34,7 @@ struct WidgetSystem
 
   void insert_children(Widget *parent)
   {
-    u32 const first_child  = (u32) widgets.size();
+    u32 const first_child  = widgets.size32();
     u32       num_children = 0;
     while (true)
     {
@@ -70,7 +70,7 @@ struct WidgetSystem
 
   void attribute()
   {
-    for (u32 i = 0; i < (u32) widgets.size(); i++)
+    for (u32 i = 0; i < widgets.size32(); i++)
     {
       attributes[i] = widgets[i]->attributes();
     }
@@ -80,7 +80,7 @@ struct WidgetSystem
   {
     sizes[0]              = viewport_size;
     positions[0]          = Vec2{0, 0};
-    u32 const num_widgets = (u32) widgets.size();
+    u32 const num_widgets = widgets.size32();
     for (u32 i = 0; i < num_widgets; i++)
     {
       // allocate sizes to children
@@ -122,7 +122,7 @@ struct WidgetSystem
   void stack()
   {
     z_indices[0] = 0;
-    for (u32 i = 0; i < (u32) widgets.size(); i++)
+    for (u32 i = 0; i < widgets.size32(); i++)
     {
       WidgetNode const &node = nodes[i];
       z_indices[i]           = widgets[i]->stack(
@@ -134,7 +134,7 @@ struct WidgetSystem
   void clip()
   {
     clips[0] = CRect{.center = {0, 0}, .extent = viewport_size};
-    for (u32 i = 0; i < (u32) widgets.size(); i++)
+    for (u32 i = 0; i < widgets.size32(); i++)
     {
       WidgetNode const &node = nodes[i];
       clips[i]               = widgets[i]->clip(
@@ -152,7 +152,7 @@ struct WidgetSystem
 
   void visibility()
   {
-    for (u32 i = 0; i < (u32) widgets.size(); i++)
+    for (u32 i = 0; i < widgets.size32(); i++)
     {
       WidgetNode const &node = nodes[i];
       // if parent not visibile. make children not visible
@@ -195,7 +195,7 @@ struct WidgetSystem
     // text input
     // gamepad input: use another system?
     //
-    for (u32 i = 0; i < (u32) widgets.size(); i++)
+    for (u32 i = 0; i < widgets.size32(); i++)
     {
       widgets[i]->tick(ctx, CRect{.center = positions[i], .extent = sizes[i]},
                        dt, WidgetEventTypes::None);
@@ -211,7 +211,7 @@ struct WidgetSystem
       insert_children(root);
     }
     allocate_ids();
-    u32 const num_widgets = (u32) widgets.size();
+    u32 const num_widgets = widgets.size32();
     CHECK(attributes.resize_uninitialized(num_widgets));
     CHECK(sizes.resize_uninitialized(num_widgets));
     CHECK(positions.resize_uninitialized(num_widgets));

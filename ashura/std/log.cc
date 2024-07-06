@@ -7,7 +7,7 @@ namespace ash
 
 Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
 {
-  u32 const num_sinks = (u32) sinks.size();
+  u32 const num_sinks = sinks.size32();
   LogSink **log_sinks;
 
   if (!allocator.nalloc(num_sinks, &log_sinks))

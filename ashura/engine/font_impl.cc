@@ -20,7 +20,7 @@ static_assert(PT_UNIT % 64 == 0);
 Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
                                    AllocatorImpl const &allocator)
 {
-  u32   font_data_size = (u32) encoded.size();
+  u32   font_data_size = encoded.size32();
   char *font_data;
   if (!allocator.nalloc(font_data_size, &font_data))
   {

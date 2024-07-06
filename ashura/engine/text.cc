@@ -77,7 +77,7 @@ static inline void shape(hb_font_t *font, hb_buffer_t *buffer,
 static inline void segment_paragraphs(Span<u32 const>   text,
                                       Span<TextSegment> segments)
 {
-  u32 const text_size = (u32) text.size();
+  u32 const text_size = text.size32();
   for (u32 i = 0; i < text_size;)
   {
     segments[i].paragraph_begin = true;
@@ -136,7 +136,7 @@ static inline void segment_directions(Span<u32 const>   text,
   // The embedding level is an integer value. LTR text segments have even
   // embedding levels (e.g., 0, 2, 4), and RTL text segments have odd embedding
   // levels (e.g., 1, 3, 5).
-  u32 const text_size = (u32) text.size();
+  u32 const text_size = text.size32();
   for (u32 i = 0; i < text_size;)
   {
     u32 first = i;
@@ -191,7 +191,7 @@ static inline void segment_breakpoints(Span<u32 const> text, f32 max_width,
     return;
   }
 
-  u32 const text_size = (u32) text.size();
+  u32 const text_size = text.size32();
   for (u32 i = 0; i < text_size;)
   {
     segments[i].breakable = true;
@@ -215,8 +215,8 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
                               bool breakable, Span<hb_glyph_info_t const> infos,
                               Span<hb_glyph_position_t const> positions)
 {
-  u32 const num_glyphs  = (u32) infos.size();
-  u32 const first_glyph = (u32) l.glyphs.size();
+  u32 const num_glyphs  = infos.size32();
+  u32 const first_glyph = l.glyphs.size32();
   i32       advance     = 0;
 
   CHECK(l.glyphs.extend_uninitialized(num_glyphs));
@@ -257,7 +257,7 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
 void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 {
   layout.clear();
-  u32 const text_size = (u32) block.text.size();
+  u32 const text_size = block.text.size32();
   CHECK(block.text.size() <= I32_MAX);
   CHECK(block.fonts.size() <= U16_MAX);
   CHECK(block.runs.size() == block.fonts.size());
@@ -272,7 +272,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
   {
     u32 prev_run_end = 0;
-    for (u32 irun = 0; irun < (u32) block.runs.size(); irun++)
+    for (u32 irun = 0; irun < block.runs.size32(); irun++)
     {
       u32 const run_end = min(block.runs[irun], text_size);
       CHECK(prev_run_end <= block.text.size());
@@ -357,7 +357,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     }
   }
 
-  u32 const num_runs = (u32) layout.runs.size();
+  u32 const num_runs = layout.runs.size32();
   Vec2      extent{};
 
   for (u32 i = 0; i < num_runs;)

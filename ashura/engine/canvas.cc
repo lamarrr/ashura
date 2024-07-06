@@ -16,7 +16,7 @@ void Path::arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop)
     return;
   }
 
-  u32 const first = (u32) vtx.size();
+  u32 const first = vtx.size32();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -35,7 +35,7 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
     return;
   }
 
-  u32 const first = (u32) vtx.size();
+  u32 const first = vtx.size32();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -69,7 +69,7 @@ void Path::rrect(Vec<Vec2> &vtx, u32 segments, Vec4 radii)
 
   u32 const curve_segments = (segments - 8) / 4;
   f32 const step  = (curve_segments == 0) ? 0.0f : ((PI / 2) / curve_segments);
-  u32 const first = (u32) vtx.size();
+  u32 const first = vtx.size32();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -143,7 +143,7 @@ void Path::bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1, Vec2 cp2)
     return;
   }
 
-  u32 const first = (u32) vtx.size();
+  u32 const first = vtx.size32();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -164,7 +164,7 @@ void Path::cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
     return;
   }
 
-  u32 const first = (u32) vtx.size();
+  u32 const first = vtx.size32();
 
   CHECK(vtx.extend_uninitialized(segments));
 
@@ -208,9 +208,9 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
     return;
   }
 
-  u32 const first_vtx    = (u32) vertices.size();
-  u32 const first_idx    = (u32) indices.size();
-  u32 const num_points   = (u32) points.size();
+  u32 const first_vtx    = vertices.size32();
+  u32 const first_idx    = indices.size32();
+  u32 const num_points   = points.size32();
   u32 const num_vertices = (num_points - 1) * 4;
   u32 const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
   CHECK(vertices.extend_uninitialized(num_vertices));
@@ -268,9 +268,9 @@ void Path::triangles(Span<Vec2 const> points, Vec<u32> &indices)
   {
     return;
   }
-  u32 const num_points    = (u32) points.size();
+  u32 const num_points    = points.size32();
   u32 const num_triangles = num_points / 3;
-  u32 const first_idx     = (u32) indices.size();
+  u32 const first_idx     = indices.size32();
   CHECK(indices.extend_uninitialized(num_triangles * 3));
 
   u32 *idx = indices.data() + first_idx;
@@ -335,16 +335,16 @@ static inline void add_run(Canvas &canvas, CanvasPassType type)
   switch (type)
   {
     case CanvasPassType::Blur:
-      num = (u32) canvas.blur_params.size();
+      num = canvas.blur_params.size32();
       break;
     case CanvasPassType::Custom:
-      num = (u32) canvas.custom_params.size();
+      num = canvas.custom_params.size32();
       break;
     case CanvasPassType::Ngon:
-      num = (u32) canvas.ngon_params.size();
+      num = canvas.ngon_params.size32();
       break;
     case CanvasPassType::RRect:
-      num = (u32) canvas.rrect_params.size();
+      num = canvas.rrect_params.size32();
       break;
     default:
       UNREACHABLE();
@@ -422,7 +422,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
 {
   CHECK(style.runs.size() == block.runs.size());
   CHECK(style.runs.size() == block.fonts.size());
-  for (u32 i = 0; i < (u32) block.fonts.size(); i++)
+  for (u32 i = 0; i < block.fonts.size32(); i++)
   {
     CHECK(atlases[i] != nullptr);
     CHECK(block.fonts[i].font != nullptr);
@@ -599,8 +599,8 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
     return;
   }
 
-  u32 const first_index  = (u32) indices.size();
-  u32 const first_vertex = (u32) vertices.size();
+  u32 const first_index  = indices.size32();
+  u32 const first_vertex = vertices.size32();
 
   CHECK(vertices.extend_copy(points));
   Path::triangles(points, indices);
@@ -614,7 +614,7 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));
-  u32 const num_indices = (u32) (vertices.size() - first_vertex);
+  u32 const num_indices = (vertices.size32() - first_vertex);
 
   CHECK(ngon_index_counts.push(num_indices));
 
@@ -628,8 +628,8 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
     return;
   }
 
-  u32 const first_index  = (u32) indices.size();
-  u32 const first_vertex = (u32) vertices.size();
+  u32 const first_index  = indices.size32();
+  u32 const first_vertex = vertices.size32();
   Path::triangulate_stroke(points, vertices, indices,
                            desc.thickness / desc.extent.y);
   CHECK(ngon_params.push(NgonParam{
@@ -641,7 +641,7 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));
-  u32 const num_indices = (u32) (indices.size() - first_index);
+  u32 const num_indices = (indices.size32() - first_index);
 
   CHECK(ngon_index_counts.push(num_indices));
 
