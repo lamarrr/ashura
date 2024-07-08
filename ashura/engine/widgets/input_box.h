@@ -9,23 +9,30 @@ namespace ash
 
 enum class ScalarInputType : u8
 {
-  f32 = 0,
-  i32 = 1,
-  u32 = 2
+  u8  = 0,
+  u16 = 1,
+  u32 = 2,
+  i8  = 5,
+  i16 = 6,
+  i32 = 7,
+  f32 = 10
 };
 
-/// @brief Numeric Scalar Text Input. only i32, u32, and f32 are supported as
-/// they also implicitly support lower-precision inputs, by clamping the ranges
-/// of the inputs.
+/// @brief Numeric Scalar Text Input.
+/// 64-bit precision is not supported.
 struct ScalarInput
 {
   union
   {
-    f32 f32 = 0;
-    i32 i32;
+    u8  u8 = 0;
+    u16 u16;
     u32 u32;
+    i8  i8;
+    i16 i16;
+    i32 i32;
+    f32 f32;
   };
-  ScalarInputType type = ScalarInputType::f32;
+  ScalarInputType type = ScalarInputType::u8;
 };
 
 namespace fmt
@@ -35,12 +42,20 @@ inline bool push(Context &ctx, Spec const &spec, ScalarInput const &value)
 {
   switch (value.type)
   {
-    case ScalarInputType::f32:
-      return push(ctx, spec, value.f32);
-    case ScalarInputType::i32:
-      return push(ctx, spec, value.i32);
+    case ScalarInputType::u8:
+      return push(ctx, spec, value.u8);
+    case ScalarInputType::u16:
+      return push(ctx, spec, value.u16);
     case ScalarInputType::u32:
       return push(ctx, spec, value.u32);
+    case ScalarInputType::i8:
+      return push(ctx, spec, value.i8);
+    case ScalarInputType::i16:
+      return push(ctx, spec, value.i16);
+    case ScalarInputType::i32:
+      return push(ctx, spec, value.i32);
+    case ScalarInputType::f32:
+      return push(ctx, spec, value.f32);
     default:
       return true;
   }
@@ -498,20 +513,40 @@ struct ScalarBox : Widget
   {
     switch (v.type)
     {
-      case ScalarInputType::f32:
-        v.f32 = (f32) ash::clamp((f64) v.f32 +
-                                     (f64) (direction ? step.f32 : -step.f32),
-                                 (f64) min.f32, (f64) max.f32);
+      case ScalarInputType::u8:
+        v.u8 = (u8) ash::clamp((i64) v.u32 +
+                                   (i64) (direction ? step.u32 : -step.u32),
+                               (i64) min.u32, (i64) max.u32);
+        return;
+      case ScalarInputType::u16:
+        v.u16 = (u16) ash::clamp((i64) v.u32 +
+                                     (i64) (direction ? step.u32 : -step.u32),
+                                 (i64) min.u32, (i64) max.u32);
+        return;
+      case ScalarInputType::u32:
+        v.u32 = (u32) ash::clamp((i64) v.u32 +
+                                     (i64) (direction ? step.u32 : -step.u32),
+                                 (i64) min.u32, (i64) max.u32);
+        return;
+      case ScalarInputType::i8:
+        v.i8 = (i8) ash::clamp((i64) v.i32 +
+                                   (i64) (direction ? step.i32 : -step.i32),
+                               (i64) min.i32, (i64) max.i32);
+        return;
+      case ScalarInputType::i16:
+        v.i16 = (i16) ash::clamp((i64) v.i32 +
+                                     (i64) (direction ? step.i32 : -step.i32),
+                                 (i64) min.i32, (i64) max.i32);
         return;
       case ScalarInputType::i32:
         v.i32 = (i32) ash::clamp((i64) v.i32 +
                                      (i64) (direction ? step.i32 : -step.i32),
                                  (i64) min.i32, (i64) max.i32);
         return;
-      case ScalarInputType::u32:
-        v.u32 = (u32) ash::clamp((i64) v.u32 +
-                                     (i64) (direction ? step.u32 : -step.u32),
-                                 (i64) min.u32, (i64) max.u32);
+      case ScalarInputType::f32:
+        v.f32 = (f32) ash::clamp((f64) v.f32 +
+                                     (f64) (direction ? step.f32 : -step.f32),
+                                 (f64) min.f32, (f64) max.f32);
         return;
       default:
         return;
