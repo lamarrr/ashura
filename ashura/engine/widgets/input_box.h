@@ -48,10 +48,6 @@ inline bool push(Context &ctx, Spec const &spec, ScalarInput const &value)
 
 }        // namespace fmt
 
-enum class TextEditKey : u32
-{
-};
-
 /// @brief
 /// @param text_pos index of the first codepoint belonging to this record in the
 /// history buffer (only valid if it was an erase event)
@@ -66,25 +62,29 @@ struct TextEditRecord
 };
 
 /// @brief A simple stack-based text compositor
-/// @param cursor currently selected codepoint
 /// @param selection_first first codepoint in the selection range
-/// @param selection_last last codepoint in the selection range
+/// @param selection_last last codepoint in the selection range, this is where
+/// the cursor is at
 struct TextCompositor
 {
-  AllocatorImpl       allocator       = default_allocator;
-  u32                 cursor          = U32_MAX;
-  u32                 selection_first = U32_MAX;
-  u32                 selection_last  = U32_MAX;
-  Vec<u32>            buffer          = {};
-  Vec<TextEditRecord> records         = {};
-  u32                 buffer_pos      = 0;
-  u32                 latest_record   = 0;
-  u32                 current_record  = 0;
-  Fn<void(u32, u32)>  on_insert       = to_fn([](u32, u32) {});
-  Fn<void(u32, u32)>  on_erase        = to_fn([](u32, u32) {});
+  AllocatorImpl                  allocator       = default_allocator;
+  u32                            selection_first = 0;
+  u32                            selection_last  = 0;
+  Vec<u32>                       buffer          = {};
+  Vec<TextEditRecord>            records         = {};
+  u32                            buffer_size     = 0;
+  u32                            buffer_pos      = 0;
+  u32                            latest_record   = 0;
+  u32                            current_record  = 0;
+  Fn<void(u32, Span<u32 const>)> on_insert = to_fn([](u32, Span<u32 const>) {});
+  Fn<void(u32, u32)>             on_erase  = to_fn([](u32, u32) {});
+  Fn<Span<u32 const>(u32, u32)>  on_slice =
+      to_fn([](u32, u32) -> Span<u32 const> { return {}; });
 
   void init(u32 num_buffer_codepoints, u32 num_records)
   {
+    CHECK(num_buffer_codepoints > 0);
+    CHECK(num_records > 0);
     CHECK(is_pow2(num_buffer_codepoints));
     CHECK(is_pow2(num_records));
     CHECK(buffer.resize_uninitialized(num_buffer_codepoints));
@@ -94,15 +94,15 @@ struct TextCompositor
   void reset()
   {
     allocator       = default_allocator;
-    cursor          = U32_MAX;
-    selection_first = U32_MAX;
-    selection_last  = U32_MAX;
+    selection_first = 0;
+    selection_last  = 0;
     buffer.reset();
     records.reset();
-    next_record = U32_MAX;
+    // current_record = U32_MAX;
   }
 
   void clear();
+
   void uninit()
   {
     reset();
@@ -113,10 +113,6 @@ struct TextCompositor
     return selection_first != selection_last;
   }
 
-  // given a cursor position get grapheme at position
-  // . if doing multi selection, need to do min/max to get as some advance
-  // negatively
-
   /// @brief given a position in the laid-out text return the grapheme the
   /// cursor points to.
   /// @param pos position in laid-out text to return from
@@ -124,9 +120,10 @@ struct TextCompositor
   /// grapheme index in the original text, see GlyphShape::grapheme
   u32 hit(TextLayout const &layout, Vec2 pos) const
   {
+    // TODO(lamarrr): hit tests always have to return a result
     f32       current_top = 0;
     u32       line        = 0;
-    u32 const num_lines   = (u32) layout.lines.size();
+    u32 const num_lines   = layout.lines.size32();
     for (; line < num_lines; line++)
     {
       if (current_top <= pos.y &&
@@ -168,42 +165,6 @@ struct TextCompositor
     return U32_MAX;
   }
 
-  /// given a codepoint index, return the position in the text
-  Vec2 locate()
-  {
-  }
-
-  /// @brief: on mouse down, move the cursor to the clicked location, and reset
-  /// the selection
-  void click(TextLayout const &layout, Vec2 pos)
-  {
-    cursor          = hit(layout, pos);
-    selection_first = cursor;
-    selection_last  = cursor;
-  }
-
-  void drag(TextLayout const &layout, Vec2 pos)
-  {
-    if (selection_last == selection_first)
-    {
-      selection_first = cursor;
-    }
-    selection_last = hit(layout, pos);
-    cursor         = selection_last;
-  }
-
-  void double_click()
-  {
-  }
-
-  // move the cursor up to the previous line
-  void up();
-  void down();
-  void home();
-  void left();
-  void right();
-  void end();
-
   void pop_records(u32 num)
   {
     CHECK(num <= records.size32());
@@ -214,14 +175,13 @@ struct TextCompositor
     }
     mem::move(to_span(buffer).slice(reclaimed).as_const(), to_span(buffer));
     mem::move(to_span(records).slice(num).as_const(), to_span(records));
-    buffer_pos -= reclaimed;
+    buffer_size -= reclaimed;
     latest_record -= num;
     current_record -= num;
   }
 
   void append_record(bool is_insert, u32 text_pos, Span<u32 const> text)
   {
-    CHECK(is_insert || text.is_empty());
     if (text.size32() > buffer.size32())
     {
       // clear all records as we can't insert a new record without invalidating
@@ -230,7 +190,7 @@ struct TextCompositor
       return;
     }
 
-    while (buffer_pos + text.size32() > buffer.size32())
+    while (buffer_size + text.size32() > buffer.size32())
     {
       // pop half, to amortize shifting cost.
       // always pop by atleast 1. since the buffer can fit it and atleast 1
@@ -243,7 +203,7 @@ struct TextCompositor
       pop_records(max(records.size32() >> 1, 1U));
     }
 
-    mem::copy(text, to_span(buffer).slice(buffer_pos));
+    mem::copy(text, to_span(buffer).slice(buffer_size));
 
     current_record++;
     latest_record           = current_record;
@@ -253,70 +213,69 @@ struct TextCompositor
 
   void undo()
   {
-    // apply undo
+    if (current_record == 0)
+    {
+      return;
+    }
+    // undo changes of current record
+    TextEditRecord &record = records[current_record];
+    buffer_pos -= record.num;
+    if (record.is_insert)
+    {
+      on_erase(record.text_pos, record.num);
+    }
+    else
+    {
+      on_insert(record.text_pos, to_span(buffer).slice(buffer_pos, record.num));
+    }
+    current_record--;
   }
 
   void redo()
   {
-    // apply
-    //
-    // how do we go back once the history buffer is full?
+    if (current_record + 1 > latest_record)
+    {
+      return;
+    }
+    current_record++;
+    // apply changes of next record
+    TextEditRecord &record = records[current_record];
+    if (record.is_insert)
+    {
+      on_insert(record.text_pos, to_span(buffer).slice(buffer_pos, record.num));
+    }
+    else
+    {
+      on_erase(record.text_pos, record.num);
+    }
+
+    buffer_pos += record.num;
   }
-
-  void commit_insert_record(u32 text_pos, u32 num)
-  {
-    TextEditRecord &record = records[next_record];
-    record.text_pos        = text_pos;
-    record.history_pos     = 0;
-    record.num             = num;
-    record.is_delete       = false;
-    next_record            = (next_record + 1) & ((u32) records.size() - 1);
-  }
-
-  void commit_delete_record(Span<u32 const> text, u32 text_pos, u32 num)
-  {
-    TextEditRecord &record = records[next_record];
-    record.text_pos        = text_pos;
-    record.num             = num;
-    record.is_delete       = true;
-    next_record            = (next_record + 1) & ((u32) records.size() - 1);
-
-    // TODO(lamarrr): history buffer management for insert and delete!!!
-    // TODO(lamarrr): pop enough records to fit within the history buffer.
-    // if more than history buffer size. clear record. and reject.
-    // TODO(lamarrr): after adding undo record, delete redo record and
-    // vice-versa?
-    // undo is done by moving backwards. we might need to mark the present point
-    // as redo point
-
-    mem::copy(text.slice(text_pos, num), to_span(buffer).slice(0, 1));
-  }
-
-  void clear_text();
-  void highlight();
-  void copy();
-  void cut();
-  void paste();
 
   void delete_selection()
   {
-    // delete selection
-    // TODO(clamping)
-    if (has_selection())
+    if (selection_first == selection_last)
     {
-      if (selection_first < selection_last)
-      {
-        // delete selection_first -> selection_last
-        selection_last = selection_first;
-        cursor         = selection_first;
-      }
-      else
-      {
-        selection_first = selection_last;
-        cursor          = selection_last;
-      }
+      return;
     }
+
+    if (selection_first > selection_last)
+    {
+      swap(selection_first, selection_last);
+    }
+
+    u32 first      = selection_first;
+    u32 num        = (selection_last - selection_first) + 1;
+    selection_last = selection_first;
+
+    append_record(false, first, on_slice(first, num));
+    on_erase(first, num);
   }
+
+  /// @brief  Uses key up/down states to determine next composition state
+  /// @param key_states
+  void commands(u64 const (&key_states)[NUM_KEYS / 64]);
+  void commit_insert(Vec<u32> &text, u32 pos, Span<u32 const> insert);
 
   // move to selection last
   // move to selection first
@@ -324,11 +283,88 @@ struct TextCompositor
   // move to word next
   // select word
 
-  /// @brief commit text editing history to buffer
+  /// @brief: on mouse down, move the cursor to the clicked location, and reset
+  /// the selection
+  void click(TextLayout const &layout, Vec2 pos)
+  {
+    selection_last  = hit(layout, pos);
+    selection_first = selection_last;
+  }
 
-  /// @brief  Uses key up/down states to determine next composition state
-  /// @param key_states
-  void tick(u64 const (&key_states)[NUM_KEYS / 64]);
+  void drag(TextLayout const &layout, Vec2 pos)
+  {
+    selection_last = hit(layout, pos);
+  }
+
+  void double_click(TextLayout const &layout, Vec2 pos)
+  {
+    // select word
+    selection_first = hit(layout, pos);
+    selection_last  = selection_first;
+    // find word boundary forward and backward
+    //
+  }
+
+  void triple_click()
+  {
+    // select line
+  }
+
+  void key_up()
+  {
+    // move the cursor up to the previous line
+    // remove cursor selection
+  }
+
+  void key_down()
+  {
+    // move the cursor down to the next line
+    // remove cursor selection
+  }
+
+  void key_home()
+  {
+    // move the cursor to the beginning of the line
+    // remove cursor selection
+  }
+
+  void key_end()
+  {
+    // move the cursor to the end of the line
+    // remove cursor selection
+  }
+
+  void key_left()
+  {
+    // if has selection, move to left of selection
+    if (selection_first != selection_last)
+    {
+      selection_last  = min(selection_first, selection_last);
+      selection_first = selection_last;
+      return;
+    }
+
+    // move the cursor to the previous codepoint
+    selection_first = max(selection_last, 1U) - 1;
+    selection_last  = selection_first;
+  }
+
+  void key_right()
+  {
+    if (selection_first != selection_last)
+    {
+      selection_last  = max(selection_first, selection_last);
+      selection_first = selection_last;
+      return;
+    }
+
+    // move the cursor to the next codepoint
+    selection_first = selection_last + 1;
+    selection_last  = selection_first;
+  }
+
+  void key_page_up();
+  void key_page_down();
 };
 
 struct TextInput : Widget
