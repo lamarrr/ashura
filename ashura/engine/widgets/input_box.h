@@ -93,8 +93,6 @@ struct TextCompositor
   u32                            current_record  = 0;
   Fn<void(u32, Span<u32 const>)> on_insert = to_fn([](u32, Span<u32 const>) {});
   Fn<void(u32, u32)>             on_erase  = to_fn([](u32, u32) {});
-  Fn<Span<u32 const>(u32, u32)>  on_slice =
-      to_fn([](u32, u32) -> Span<u32 const> { return {}; });
 
   void init(u32 num_buffer_codepoints, u32 num_records)
   {
@@ -267,7 +265,7 @@ struct TextCompositor
     buffer_pos += record.num;
   }
 
-  void delete_selection()
+  void delete_selection(Span<u32 const> text)
   {
     if (selection_first == selection_last)
     {
@@ -283,7 +281,7 @@ struct TextCompositor
     u32 num        = (selection_last - selection_first) + 1;
     selection_last = selection_first;
 
-    append_record(false, first, on_slice(first, num));
+    append_record(false, first, text.slice(first, num));
     on_erase(first, num);
   }
 
@@ -311,18 +309,20 @@ struct TextCompositor
     selection_last = hit(layout, pos);
   }
 
-  void double_click(TextLayout const &layout, Vec2 pos)
+  void double_click(TextLayout const &layout, Vec2 pos, Span<u32 const> text)
   {
     // select word
     selection_first = hit(layout, pos);
     selection_last  = selection_first;
-    // find word boundary forward and backward
+    // find word boundary forward and backward from current point
     //
   }
 
-  void triple_click()
+  void triple_click(TextLayout const &layout, Vec2 pos, Span<u32 const> text)
   {
     // select line
+    selection_first = hit(layout, pos);
+    selection_last  = selection_first;
   }
 
   void key_up()
