@@ -182,6 +182,7 @@ add_library(
   ashura/engine/canvas.cc
   ashura/engine/image_decoder.cc
   ashura/engine/shader.cc
+  ashura/engine/text_compositor.cc
   ashura/engine/window.cc
   ashura/engine/widget.cc
   ashura/engine/widget_system.cc
