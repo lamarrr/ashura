@@ -5,7 +5,6 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/types.h"
 
-
 namespace ash
 {
 
@@ -30,21 +29,20 @@ struct TextEditRecord
 /// not always a valid index into the text.
 struct TextCompositor
 {
-  static constexpr u32           DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
-  static constexpr u32           DEFAULT_LINE_SYMBOLS[] = {'\n'};
-  AllocatorImpl                  allocator              = default_allocator;
-  u32                            selection_first        = 0;
-  u32                            selection_last         = 0;
-  Vec<u32>                       buffer                 = {};
-  Vec<TextEditRecord>            records                = {};
-  u32                            buffer_size            = 0;
-  u32                            buffer_pos             = 0;
-  u32                            latest_record          = 0;
-  u32                            current_record         = 0;
-  Fn<void(u32, Span<u32 const>)> on_insert = to_fn([](u32, Span<u32 const>) {});
-  Fn<void(u32, u32)>             on_erase  = to_fn([](u32, u32) {});
-  Span<u32 const>                word_symbols = to_span(DEFAULT_WORD_SYMBOLS);
-  Span<u32 const>                line_symbols = to_span(DEFAULT_LINE_SYMBOLS);
+  static constexpr u32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
+  static constexpr u32 DEFAULT_LINE_SYMBOLS[] = {'\n'};
+
+  AllocatorImpl       allocator       = default_allocator;
+  u32                 selection_first = 0;
+  u32                 selection_last  = 0;
+  Vec<u32>            buffer          = {};
+  Vec<TextEditRecord> records         = {};
+  u32                 buffer_size     = 0;
+  u32                 buffer_pos      = 0;
+  u32                 latest_record   = 0;
+  u32                 current_record  = 0;
+  Span<u32 const>     word_symbols    = to_span(DEFAULT_WORD_SYMBOLS);
+  Span<u32 const>     line_symbols    = to_span(DEFAULT_LINE_SYMBOLS);
 
   void init(u32 num_buffer_codepoints, u32 num_records)
   {
@@ -176,7 +174,7 @@ struct TextCompositor
         .text_pos = text_pos, .num = text.size32(), .is_insert = is_insert};
   }
 
-  void undo()
+  void undo(Fn<void(u32, Span<u32 const>)> insert, Fn<void(u32, u32)> erase)
   {
     if (current_record == 0)
     {
@@ -187,16 +185,16 @@ struct TextCompositor
     buffer_pos -= record.num;
     if (record.is_insert)
     {
-      on_erase(record.text_pos, record.num);
+      erase(record.text_pos, record.num);
     }
     else
     {
-      on_insert(record.text_pos, to_span(buffer).slice(buffer_pos, record.num));
+      insert(record.text_pos, to_span(buffer).slice(buffer_pos, record.num));
     }
     current_record--;
   }
 
-  void redo()
+  void redo(Fn<void(u32, Span<u32 const>)> insert, Fn<void(u32, u32)> erase)
   {
     if (current_record + 1 > latest_record)
     {
@@ -207,17 +205,19 @@ struct TextCompositor
     TextEditRecord &record = records[current_record];
     if (record.is_insert)
     {
-      on_insert(record.text_pos, to_span(buffer).slice(buffer_pos, record.num));
+      insert(record.text_pos, to_span(buffer).slice(buffer_pos, record.num));
     }
     else
     {
-      on_erase(record.text_pos, record.num);
+      erase(record.text_pos, record.num);
     }
 
     buffer_pos += record.num;
   }
 
-  void delete_selection(Span<u32 const> text)
+  void delete_selection(Span<u32 const>                text,
+                        Fn<void(u32, Span<u32 const>)> insert,
+                        Fn<void(u32, u32)>             erase)
   {
     if (selection_first == selection_last)
     {
@@ -234,7 +234,7 @@ struct TextCompositor
     selection_last = selection_first;
 
     append_record(false, first, text.slice(first, num));
-    on_erase(first, num);
+    erase(first, num);
   }
 
   /// @brief  Uses key up/down states to determine next composition state
