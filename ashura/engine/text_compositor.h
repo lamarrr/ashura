@@ -29,6 +29,9 @@ struct TextEditRecord
 /// not always a valid index into the text.
 struct TextCompositor
 {
+  typedef Fn<void(u32, Span<u32 const>)> Insert;
+  typedef Fn<void(u32, u32)>             Erase;
+
   static constexpr u32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
   static constexpr u32 DEFAULT_LINE_SYMBOLS[] = {'\n'};
 
@@ -174,7 +177,7 @@ struct TextCompositor
         .text_pos = text_pos, .num = text.size32(), .is_insert = is_insert};
   }
 
-  void undo(Fn<void(u32, Span<u32 const>)> insert, Fn<void(u32, u32)> erase)
+  void undo(Insert insert, Erase erase)
   {
     if (current_record == 0)
     {
@@ -194,7 +197,7 @@ struct TextCompositor
     current_record--;
   }
 
-  void redo(Fn<void(u32, Span<u32 const>)> insert, Fn<void(u32, u32)> erase)
+  void redo(Insert insert, Erase erase)
   {
     if (current_record + 1 > latest_record)
     {
@@ -215,9 +218,7 @@ struct TextCompositor
     buffer_pos += record.num;
   }
 
-  void delete_selection(Span<u32 const>                text,
-                        Fn<void(u32, Span<u32 const>)> insert,
-                        Fn<void(u32, u32)>             erase)
+  void delete_selection(Span<u32 const> text, Insert insert, Erase erase)
   {
     if (selection_first == selection_last)
     {
