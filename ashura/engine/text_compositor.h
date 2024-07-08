@@ -44,7 +44,6 @@ struct TextCompositor
   static constexpr u32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
   static constexpr u32 DEFAULT_LINE_SYMBOLS[] = {'\n'};
 
-  AllocatorImpl       allocator       = default_allocator;
   u32                 selection_first = 0;
   u32                 selection_last  = 0;
   Vec<u32>            buffer          = {};
@@ -68,7 +67,6 @@ struct TextCompositor
 
   void reset()
   {
-    allocator       = default_allocator;
     selection_first = 0;
     selection_last  = 0;
     buffer.reset();
