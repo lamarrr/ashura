@@ -38,8 +38,17 @@ struct TextEditRecord
 /// not always a valid index into the text.
 struct TextCompositor
 {
+  /// @brief Text insert callback.
+  /// @param index destination index, needs to be clamped to the size of the
+  /// destination container.
+  /// @param text text to be inserted
   typedef Fn<void(u32, Span<u32 const>)> Insert;
-  typedef Fn<void(u32, u32)>             Erase;
+
+  /// @brief Text erase callback.
+  /// @param index index to be erased from, needs to be clamped to the size of
+  /// the destination container.
+  /// @param num number of items to be erased
+  typedef Fn<void(u32, u32)> Erase;
 
   static constexpr u32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
   static constexpr u32 DEFAULT_LINE_SYMBOLS[] = {'\n'};
@@ -91,7 +100,7 @@ struct TextCompositor
   /// @param pos position in laid-out text to return from
   /// @return U32_MAX if no grapheme overlaps the selection, otherwise the
   /// grapheme index in the original text, see GlyphShape::grapheme
-  u32 hit(TextLayout const &layout, Vec2 pos) const
+  TextLocation hit(TextLayout const &layout, Vec2 pos) const
   {
     // TODO(lamarrr): hit tests always have to return a result
     f32       current_top = 0;
@@ -135,7 +144,7 @@ struct TextCompositor
 
     // if non-empty line, return char on last line
 
-    return U32_MAX;
+    return TextLocation{};
   }
 
   void pop_records(u32 num)
@@ -245,16 +254,23 @@ struct TextCompositor
     erase(first, num);
   }
 
-  /// @brief  Uses key up/down states to determine next composition state
-  /// @param key_states
+  /// @brief Parses keyboard commands using keyboard states, i.e: keyboard
+  /// cursor navigation (left, right, home, end, pg up, pg down), keyboard cut,
+  /// copy, & paste, etc.
+  /// @param key_states bit mask of all key states
   void commands(u64 const (&key_states)[NUM_KEYS / 64]);
-  void commit_insert(Vec<u32> &text, u32 pos, Span<u32 const> insert);
+
+  /// @brief IME-text input
+  /// @param text text from IME to insert
+  void input_text(Span<u32 const> text, Insert insert, Erase erase);
 
   // move to selection last
   // move to selection first
   // move to word previous
   // move to word next
   // select word
+
+  // TODO(lamarrr): multi-select via middle mouse drag.
 
   void click(TextLayout const &layout, Span<u32 const> text, u32 num, Vec2 pos)
   {
