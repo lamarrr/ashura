@@ -8,6 +8,15 @@
 namespace ash
 {
 
+// TODO(lamarrr): use this
+struct TextLocation
+{
+  u32 first  = 0;
+  u32 num    = 0;
+  u32 line   = 0;
+  u32 column = 0;
+};
+
 /// @brief
 /// @param text_pos index of the first codepoint belonging to this record in the
 /// history buffer (only valid if it was an erase event)
