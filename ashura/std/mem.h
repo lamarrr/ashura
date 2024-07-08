@@ -37,7 +37,7 @@ void copy(Span<T const> src, Span<T> dst)
   {
     return;
   }
-  memcpy(dst.data, src.data(), src.size_bytes());
+  memcpy(dst.data(), src.data(), src.size_bytes());
 }
 
 template <typename T>
