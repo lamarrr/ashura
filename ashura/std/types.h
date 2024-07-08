@@ -2520,11 +2520,61 @@ struct Slice
 
   constexpr Slice resolve(usize size) const
   {
-    // written such that overflow will not occur even if both offset and size
+    // written such that overflow will not occur even if both offset and span
     // are set to USIZE_MAX
     usize o = offset > size ? size : offset;
     usize s = ((size - o) > span) ? span : size - o;
     return Slice{o, s};
+  }
+
+  constexpr bool is_empty() const
+  {
+    return span == 0;
+  }
+};
+
+struct Slice32
+{
+  u32 offset = 0;
+  u32 span   = 0;
+
+  constexpr usize end() const
+  {
+    return offset + span;
+  }
+
+  constexpr Slice32 resolve(u32 size) const
+  {
+    // written such that overflow will not occur even if both offset and span
+    // are set to U32_MAX
+    u32 o = offset > size ? size : offset;
+    u32 s = ((size - o) > span) ? span : size - o;
+    return Slice32{o, s};
+  }
+
+  constexpr bool is_empty() const
+  {
+    return span == 0;
+  }
+};
+
+struct Slice64
+{
+  u64 offset = 0;
+  u64 span   = 0;
+
+  constexpr u64 end() const
+  {
+    return offset + span;
+  }
+
+  constexpr Slice64 resolve(u64 size) const
+  {
+    // written such that overflow will not occur even if both offset and span
+    // are set to U64_MAX
+    u64 o = offset > size ? size : offset;
+    u64 s = ((size - o) > span) ? span : size - o;
+    return Slice64{o, s};
   }
 
   constexpr bool is_empty() const
