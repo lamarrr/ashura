@@ -70,16 +70,6 @@ constexpr f32 F64_EPSILON      = DBL_EPSILON;
 
 constexpr uid UID_MAX = U64_MAX;
 
-constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
-
-/// @brief Just a hint, this is a common cacheline size. not the actual target's
-/// cacheline size
-constexpr usize CACHELINE_ALIGNMENT = 64;
-
-/// @brief Just a hint, this is the common page alignment. not the actual
-/// target's page alignment.
-constexpr usize PAGE_ALIGNMENT = 4096;
-
 constexpr f32 PI = 3.14159265358979323846F;
 
 template <typename T>
@@ -112,6 +102,26 @@ constexpr bool is_pow2(u32 x)
 constexpr bool is_pow2(u64 x)
 {
   return (x & (x - 1)) == 0ULL;
+}
+
+constexpr unsigned long long operator""_KB(unsigned long long x)
+{
+  return x << 10;
+}
+
+constexpr unsigned long long operator""_MB(unsigned long long x)
+{
+  return x << 20;
+}
+
+constexpr unsigned long long operator""_GB(unsigned long long x)
+{
+  return x << 30;
+}
+
+constexpr unsigned long long operator""_TB(unsigned long long x)
+{
+  return x << 40;
 }
 
 template <typename T>

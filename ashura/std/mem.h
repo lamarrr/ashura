@@ -5,6 +5,17 @@
 
 namespace ash
 {
+
+constexpr u16 MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
+
+/// @brief Just a hint, this is a common cacheline size. not the actual target's
+/// cacheline size
+constexpr u16 CACHELINE_ALIGNMENT = 64;
+
+/// @brief Just a hint, this is the common page alignment. not the actual
+/// target's page alignment.
+constexpr u16 PAGE_ALIGNMENT = 16_KB;
+
 namespace mem
 {
 
