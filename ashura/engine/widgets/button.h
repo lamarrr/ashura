@@ -19,7 +19,7 @@ struct Button : public Widget
 
   virtual Widget *child(u32 i) override final
   {
-    return child_array({item()}, i);
+    return child_iter({item()}, i);
   }
 
   virtual Widget *item()
