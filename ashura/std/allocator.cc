@@ -1,5 +1,6 @@
 
 #include "ashura/std/allocator.h"
+#include "ashura/std/mem.h"
 #include "ashura/std/cfg.h"
 
 #if (!ASH_CFG(OS, WINDOWS)) && \
