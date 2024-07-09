@@ -389,7 +389,14 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
       i++;
     }
 
-    Line line{.first_run = first,
+    TextRun const &last_run        = layout.runs[i - 1];
+    u32 const      first_codepoint = first_run.first;
+    u32 const      num_codepoints =
+        (last_run.first + last_run.count) - first_codepoint;
+
+    Line line{.first     = first_codepoint,
+              .count     = num_codepoints,
+              .first_run = first,
               .num_runs  = (i - first),
               .metrics   = LineMetrics{.width          = width,
                                        .height         = height,

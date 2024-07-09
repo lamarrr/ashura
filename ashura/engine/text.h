@@ -358,9 +358,13 @@ struct LineMetrics
 };
 
 /// @brief
+/// @param first first codepoint on the line
+/// @param count number of codepoints on the line
 /// @param paragraph if the new line is a new paragraph
 struct Line
 {
+  u32         first     = 0;
+  u32         count     = 0;
   u32         first_run = 0;
   u32         num_runs  = 0;
   LineMetrics metrics   = {};
