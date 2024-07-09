@@ -2826,12 +2826,6 @@ struct Span
     return data_[index];
   }
 
-  constexpr Span<T> operator[](Slice slice) const
-  {
-    slice = slice.resolve(size_);
-    return Span<T>{data_ + slice.offset, slice.span};
-  }
-
   constexpr operator Span<T const>() const
   {
     return Span<T const>{data_, size_};
@@ -2855,7 +2849,13 @@ struct Span
 
   constexpr Span slice(usize offset, usize span) const
   {
-    return (*this)[Slice{offset, span}];
+    return slice(Slice{offset, span});
+  }
+
+  constexpr Span slice(Slice s) const
+  {
+    s = s.resolve(size_);
+    return Span{data_ + s.offset, s.span};
   }
 
   constexpr Span slice(usize offset) const
