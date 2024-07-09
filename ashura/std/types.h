@@ -2566,6 +2566,11 @@ struct Slice32
   {
     return span == 0;
   }
+
+  constexpr operator Slice() const
+  {
+    return Slice{offset, span};
+  }
 };
 
 struct Slice64
@@ -2590,6 +2595,11 @@ struct Slice64
   constexpr bool is_empty() const
   {
     return span == 0;
+  }
+
+  constexpr operator Slice() const
+  {
+    return Slice{offset, span};
   }
 };
 
