@@ -215,7 +215,7 @@ constexpr Span<T> find(Span<T> span, U &&value, Cmp &&cmp = {})
       break;
     }
   }
-  return span[Slice{offset, 1}];
+  return span.slice(offset, 1);
 }
 
 template <typename T, typename Predicate>
@@ -229,7 +229,7 @@ constexpr Span<T> find_if(Span<T> span, Predicate &&predicate)
       break;
     }
   }
-  return span[Slice{offset, 1}];
+  return span.slice(offset, 1);
 }
 
 template <InputRange R, typename Target, typename Cmp = Equal>
