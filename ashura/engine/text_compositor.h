@@ -5,13 +5,23 @@
 namespace ash
 {
 
-struct TextLocation
+struct TextHitResult
 {
-  u32 first  = 0;
-  u32 num    = 0;
-  u32 line   = 0;
-  u32 column = 0;
+  u32 cluster = 0;
+  u32 line    = 0;
 };
+
+/// @brief given a position in the laid-out text return the location of the
+/// grapheme the cursor points to. returns the last column if the position
+/// overlaps with the row and returns the last line if no overlap was found.
+/// @param pos position in laid-out text to return from.
+TextHitResult hit_text(TextLayout const &layout, Vec2 pos);
+
+/// @brief given a cluser index in the text, get the line number the cluster
+/// belongs to, otherwise return U32_MAX.
+/// @param cluster cluster to
+/// @return
+u32 find_cluster_line(TextLayout const &layout, u32 cluster);
 
 /// @brief
 /// @param text_pos index of the first codepoint belonging to this record in the
@@ -58,6 +68,9 @@ enum class TextCommand : u8
 /// @param selection_last last (inclusive) codepoint in the selection range,
 /// this is where the cursor was last at, i.e. when dragging or highlighting.
 /// not always a valid index into the text.
+/// @param buffer_size current size of the buffer
+/// @param buffer_pos marks the end of the buffer for the current text edit
+/// record
 struct TextCompositor
 {
   /// @brief Text insert callback.
@@ -76,6 +89,8 @@ struct TextCompositor
   static constexpr u32 DEFAULT_LINE_SYMBOLS[] = {'\n'};
 
   Slice32             selection      = {0, 0};
+  u32                 cursor         = 0;
+  u32                 alignment      = 0;
   Vec<u32>            buffer         = {};
   Vec<TextEditRecord> records        = {};
   u32                 buffer_size    = 0;
@@ -113,14 +128,12 @@ struct TextCompositor
     reset();
   }
 
-  /// @brief given a position in the laid-out text return the location of the
-  /// grapheme the cursor points to.
-  /// @param pos position in laid-out text to return from
-  TextLocation hit(TextLayout const &layout, Vec2 pos) const;
+  /// @brief adjust cursor to specified line whilst respecting cursor alignment
+  void goto_line(TextLayout const &layout, u32 line);
 
   void pop_records(u32 num);
 
-  void append_record(bool is_insert, u32 text_pos, Span<u32 const> text);
+  void append_record(bool is_insert, u32 text_pos, Span<u32 const> segment);
 
   void undo(Insert insert, Erase erase);
 
@@ -136,6 +149,8 @@ struct TextCompositor
 
   void drag(TextLayout const &layout, Vec2 pos);
 
+  void update_cursor();
+
   void select_codepoint(Span<u32 const> text);
 
   void select_word(Span<u32 const> text);
@@ -148,36 +163,32 @@ struct TextCompositor
   /// the selection
   void single_click(TextLayout const &layout, Vec2 pos);
 
-  void double_click(TextLayout const &layout, Vec2 pos, Span<u32 const> text);
+  void double_click(Span<u32 const> text, TextLayout const &layout, Vec2 pos);
 
-  void triple_click(TextLayout const &layout, Vec2 pos, Span<u32 const> text);
+  void triple_click(Span<u32 const> text, TextLayout const &layout, Vec2 pos);
 
-  void quad_click(TextLayout const &layout, Vec2 pos, Span<u32 const> text);
+  void quad_click(Span<u32 const> text, TextLayout const &layout, Vec2 pos);
 
-  void click(TextLayout const &layout, Span<u32 const> text, u32 num_clicks,
+  void click(Span<u32 const> text, TextLayout const &layout, u32 num_clicks,
              Vec2 pos);
 
-  void up();
+  void up(TextLayout const &layout);
 
-  void down();
-
-  void line_start();
-
-  void line_end();
+  void down(TextLayout const &layout);
 
   void left();
 
   void right();
 
-  void page_up();
+  void page_up(TextLayout const &layout, u32 lines_per_page);
 
-  void page_down();
+  void page_down(TextLayout const &layout, u32 lines_per_page);
 
   void escape();
 
-  void command(TextCommand cmd, Span<u32 const> text, Insert insert,
-               Erase erase, Fn<Span<u32 const>()> get_content,
-               Fn<void(Span<u32 const>)> set_content);
+  void command(Span<u32 const> text, TextLayout const &layout, TextCommand cmd,
+               Insert insert, Erase erase, Fn<Span<u32 const>()> get_content,
+               Fn<void(Span<u32 const>)> set_content, u32 lines_per_page);
 };
 
 }        // namespace ash
