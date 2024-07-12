@@ -399,11 +399,11 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
               .count     = num_codepoints,
               .first_run = first,
               .num_runs  = (i - first),
-              .metrics   = LineMetrics{.width          = width,
-                                       .height         = height,
-                                       .ascent         = ascent,
-                                       .descent        = descent,
-                                       .base_direction = base_direction},
+              .metrics   = LineMetrics{.width     = width,
+                                       .height    = height,
+                                       .ascent    = ascent,
+                                       .descent   = descent,
+                                       .direction = base_direction},
               .paragraph = paragraph};
 
     CHECK(layout.lines.push(line));

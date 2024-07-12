@@ -439,11 +439,10 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
     line_y += l.metrics.height;
     f32 const baseline = line_y - l.metrics.descent;
     f32 const spacing  = max(block_width - l.metrics.width, 0.0f);
-    f32 const aligned_spacing =
-        (l.metrics.base_direction == TextDirection::LeftToRight) ?
-            space_align(spacing, style.alignment) :
-            space_align(spacing, -style.alignment);
-    f32 cursor = aligned_spacing;
+    f32 const sx =
+        (l.metrics.direction == TextDirection::LeftToRight) ? 1.0f : -1.0f;
+    f32 const aligned_spacing = space_align(spacing, sx * style.alignment);
+    f32       cursor          = aligned_spacing;
     for (u32 r = 0; r < l.num_runs;)
     {
       u32 const      first     = r++;
@@ -457,6 +456,11 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
         TextRun const &run = layout.runs[l.first_run + r];
         dir_advance += pt_to_px(run.metrics.advance, run.font_height);
         r++;
+      }
+
+      if (l.metrics.direction == TextDirection::RightToLeft)
+      {
+        cursor -= dir_advance;
       }
 
       f32 advance =
@@ -588,7 +592,10 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
         }
       }
 
-      cursor += dir_advance;
+      if (first_run.base_direction == TextDirection::LeftToRight)
+      {
+        cursor += dir_advance;
+      }
     }
   }
 }

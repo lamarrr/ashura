@@ -348,14 +348,14 @@ struct TextRun
 /// @param height maximum line height of all the runs on the line
 /// @param ascent maximum ascent of all the runs on the line
 /// @param descent maximum descent of all the runs on the line
-/// @param base_direction base direction of the line
+/// @param direction base direction of the line
 struct LineMetrics
 {
-  f32           width          = 0;
-  f32           height         = 0;
-  f32           ascent         = 0;
-  f32           descent        = 0;
-  TextDirection base_direction = TextDirection::LeftToRight;
+  f32           width     = 0;
+  f32           height    = 0;
+  f32           ascent    = 0;
+  f32           descent   = 0;
+  TextDirection direction = TextDirection::LeftToRight;
 };
 
 /// @brief
