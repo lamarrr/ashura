@@ -294,7 +294,7 @@ void Canvas::uninit()
   ngon_params.uninit();
   rrect_params.uninit();
   blur_params.uninit();
-  custom_params.uninit();
+  custom_passes.uninit();
   pass_runs.uninit();
 }
 
@@ -312,7 +312,7 @@ void Canvas::clear()
   ngon_params.clear();
   rrect_params.clear();
   blur_params.clear();
-  custom_params.clear();
+  custom_passes.clear();
   pass_runs.clear();
 }
 
@@ -338,7 +338,7 @@ static inline void add_run(Canvas &canvas, CanvasPassType type)
       num = canvas.blur_params.size32();
       break;
     case CanvasPassType::Custom:
-      num = canvas.custom_params.size32();
+      num = canvas.custom_passes.size32();
       break;
     case CanvasPassType::Ngon:
       num = canvas.ngon_params.size32();
@@ -656,9 +656,9 @@ void Canvas::blur(CRect const &area, u32 num_passes)
   add_run(*this, CanvasPassType::Blur);
 }
 
-void Canvas::custom(CustomCanvasPassInfo const &pass)
+void Canvas::custom(CustomCanvasPass pass)
 {
-  CHECK(custom_params.push(pass));
+  CHECK(custom_passes.push(pass));
   add_run(*this, CanvasPassType::Custom);
 }
 

@@ -137,19 +137,21 @@ ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
 // widgets SDL_StartTextInput
 // TODO(lamarrr): color space, pixel info for color pickers
 //
-//
+// TODO(lamarrr): basic color theming with interpolation when changes occur
+// instead of hard-coded values.
 //
 struct WidgetContext
 {
-  MouseButtons   button                    = MouseButtons::None;
-  Vec2           mouse_position            = {};
-  Vec2           mouse_translation         = {};
-  u32            num_clicks                = 0;
-  Vec2           mouse_wheel_translation   = {};
-  Span<u8 const> drag_payload              = {};
-  SystemTheme    theme                     = SystemTheme::None;
-  TextDirection  direction                 = TextDirection::LeftToRight;
-  u64            key_states[NUM_KEYS / 64] = {};
+  MouseButtons   button                     = MouseButtons::None;
+  Vec2           mouse_position             = {};
+  Vec2           mouse_translation          = {};
+  u32            num_clicks                 = 0;
+  Vec2           mouse_wheel_translation    = {};
+  Span<u8 const> drag_payload               = {};
+  SystemTheme    theme                      = SystemTheme::None;
+  TextDirection  direction                  = TextDirection::LeftToRight;
+  u64            key_states[NUM_KEYS / 64]  = {};
+  u64            scan_states[NUM_KEYS / 64] = {};
   // is_in_text session
   // request input
   // Span<u8 const> text;
@@ -159,6 +161,14 @@ struct WidgetContext
   {
     u16 const i     = (u32) key;
     u64       state = key_states[i >> 6];
+    state           = (state >> (i & 63)) & 1;
+    return state != 0;
+  }
+
+  constexpr bool get_scan_state(ScanCode key) const
+  {
+    u16 const i     = (u32) key;
+    u64       state = scan_states[i >> 6];
     state           = (state >> (i & 63)) & 1;
     return state != 0;
   }

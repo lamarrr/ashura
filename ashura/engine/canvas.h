@@ -61,15 +61,9 @@ struct CanvasBlurParam
 
 /// @param encoder function to encode the pass onto the renderer, will be called
 /// from the render thread
-/// @param data custom pass data
-struct CustomCanvasPassInfo
-{
-  Fn<void(void *, RenderContext &, PassContext &, gfx::RenderingInfo const &,
-          gfx::DescriptorSet)>
-        encoder = to_fn([](void *, RenderContext &, PassContext &,
-                         gfx::RenderingInfo const &, gfx::DescriptorSet) {});
-  void *data    = nullptr;
-};
+typedef Fn<void(RenderContext &, PassContext &, gfx::RenderingInfo const &,
+                gfx::DescriptorSet)>
+    CustomCanvasPass;
 
 /// @brief all points are stored in the [-1, +1] range, all arguments must be
 /// normalized to same range.
@@ -96,17 +90,17 @@ struct Path
 /// @param extent extent of the surface the canvas is being drawn onto.
 struct Canvas
 {
-  gfx::Format               format            = gfx::Format::Undefined;
-  Vec2                      viewport_extent   = {};
-  CRect                     current_clip      = {{0, 0}, {0, 0}};
-  Vec<Vec2>                 vertices          = {};
-  Vec<u32>                  indices           = {};
-  Vec<u32>                  ngon_index_counts = {};
-  Vec<NgonParam>            ngon_params       = {};
-  Vec<RRectParam>           rrect_params      = {};
-  Vec<CanvasBlurParam>      blur_params       = {};
-  Vec<CustomCanvasPassInfo> custom_params     = {};
-  Vec<CanvasPassRun>        pass_runs         = {};
+  gfx::Format           format            = gfx::Format::Undefined;
+  Vec2                  viewport_extent   = {};
+  CRect                 current_clip      = {{0, 0}, {0, 0}};
+  Vec<Vec2>             vertices          = {};
+  Vec<u32>              indices           = {};
+  Vec<u32>              ngon_index_counts = {};
+  Vec<NgonParam>        ngon_params       = {};
+  Vec<RRectParam>       rrect_params      = {};
+  Vec<CanvasBlurParam>  blur_params       = {};
+  Vec<CustomCanvasPass> custom_passes     = {};
+  Vec<CanvasPassRun>    pass_runs         = {};
 
   constexpr f32 aspect_ratio() const
   {
@@ -153,7 +147,7 @@ struct Canvas
 
   void blur(CRect const &area, u32 num_passes);
 
-  void custom(CustomCanvasPassInfo const &pass);
+  void custom(CustomCanvasPass pass);
 };
 
 }        // namespace ash

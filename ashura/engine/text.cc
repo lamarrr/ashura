@@ -418,7 +418,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
 {
   f32       current_top = 0;
-  u32       l           = 0;
+  u32       ln          = 0;
   u32 const num_lines   = layout.lines.size32();
 
   if (num_lines == 0)
@@ -427,22 +427,22 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
   }
 
   // separated vertical and horizontal clamped hit test
-  for (; l < num_lines; l++)
+  for (; ln < num_lines; ln++)
   {
     if (current_top <= pos.y &&
-        (current_top + layout.lines[l].metrics.height) >= pos.y)
+        (current_top + layout.lines[ln].metrics.height) >= pos.y)
     {
       break;
     }
   }
 
-  l = min(l, num_lines - 1);
+  ln = min(ln, num_lines - 1);
 
-  Line const &line = layout.lines[l];
+  Line const &line = layout.lines[ln];
 
   f32 cursor_x = 0;
-  u32 r        = 0;
-  for (; r < line.num_runs; r++)
+
+  for (u32 r = 0; r < line.num_runs; r++)
   {
     TextRun const &run        = layout.runs[line.first_run + r];
     bool const     intersects = (cursor_x <= pos.x) || (r == line.num_runs - 1);
@@ -465,7 +465,7 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
         u32 const column =
             (glyph.cluster > line.first) ? (glyph.cluster - line.first) : 0;
         return TextHitResult{
-            .cluster = glyph.cluster, .line = l, .column = column};
+            .cluster = glyph.cluster, .line = ln, .column = column};
       }
     }
     cursor_x += pt_to_px(run.metrics.advance, run.font_height);
@@ -473,7 +473,7 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
 
   u32 const column = (line.count == 0) ? 0 : (line.count - 1);
   return TextHitResult{
-      .cluster = line.first + column, .line = l, .column = column};
+      .cluster = line.first + column, .line = ln, .column = column};
 }
 
 }        // namespace ash
