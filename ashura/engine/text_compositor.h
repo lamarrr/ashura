@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/text.h"
 #include "ashura/std/types.h"

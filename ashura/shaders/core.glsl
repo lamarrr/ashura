@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #ifndef _CORE_GLSL_
 #define _CORE_GLSL_
 

@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/shader.h"
 #include "SPIRV/GlslangToSpv.h"
 #include "SPIRV/spirv.hpp"

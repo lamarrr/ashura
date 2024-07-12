@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/hash_map.h"
 #include "gtest/gtest.h"
 

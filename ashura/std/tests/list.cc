@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/list.h"
 #include "ashura/std/arena_allocator.h"
 #include "ashura/std/error.h"

@@ -1,4 +1,5 @@
 
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/io.h"
 #include "ashura/std/error.h"
 #include "ashura/std/log.h"

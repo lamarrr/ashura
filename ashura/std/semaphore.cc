@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/semaphore.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/backoff.h"

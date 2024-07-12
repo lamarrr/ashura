@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/runtime.h"
 
 std::atomic<ash::u64> panic_count = 0;
