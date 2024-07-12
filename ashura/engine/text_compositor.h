@@ -5,24 +5,6 @@
 namespace ash
 {
 
-struct TextHitResult
-{
-  u32 cluster = 0;
-  u32 line    = 0;
-};
-
-/// @brief given a position in the laid-out text return the location of the
-/// grapheme the cursor points to. returns the last column if the position
-/// overlaps with the row and returns the last line if no overlap was found.
-/// @param pos position in laid-out text to return from.
-TextHitResult hit_text(TextLayout const &layout, Vec2 pos);
-
-/// @brief given a cluser index in the text, get the line number the cluster
-/// belongs to, otherwise return U32_MAX.
-/// @param cluster cluster to
-/// @return
-u32 find_cluster_line(TextLayout const &layout, u32 cluster);
-
 /// @brief
 /// @param text_pos index of the first codepoint belonging to this record in the
 /// history buffer (only valid if it was an erase event)
@@ -36,6 +18,7 @@ struct TextEditRecord
   bool is_insert = false;
 };
 
+// TODO(lamarrr): shift+directions & pages
 enum class TextCommand : u8
 {
   Escape          = 0,
@@ -86,7 +69,7 @@ struct TextCompositor
   typedef Fn<void(Slice32)> Erase;
 
   static constexpr u32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
-  static constexpr u32 DEFAULT_LINE_SYMBOLS[] = {'\n'};
+  static constexpr u32 DEFAULT_LINE_SYMBOLS[] = {'\n', 0x2029};
 
   Slice32             selection      = {0, 0};
   u32                 cursor         = 0;
@@ -149,7 +132,7 @@ struct TextCompositor
 
   void drag(TextLayout const &layout, Vec2 pos);
 
-  void update_cursor();
+  void update_cursor(TextLayout const &layout);
 
   void select_codepoint(Span<u32 const> text);
 
@@ -176,9 +159,9 @@ struct TextCompositor
 
   void down(TextLayout const &layout);
 
-  void left();
+  void left(Span<u32 const> text);
 
-  void right();
+  void right(Span<u32 const> text);
 
   void page_up(TextLayout const &layout, u32 lines_per_page);
 

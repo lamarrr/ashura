@@ -30,21 +30,9 @@ void TextCompositor::goto_line(TextLayout const &layout, u32 line)
     return;
   }
 
-  // find the alignment reference line using the alignment cluster
-  u32 ref_line = find_cluster_line(layout, alignment);
-  if (ref_line == U32_MAX)
-  {
-    ref_line = 0;
-  }
-
-  /// get ref line displacement
-  u32 const displacement = (alignment < layout.lines[ref_line].first) ?
-                               0 :
-                               (alignment - layout.lines[ref_line].first);
-
   line = min(line, layout.lines.size32() - 1);
 
-  cursor = min(layout.lines[line].first + displacement,
+  cursor = min(layout.lines[line].first + alignment,
                layout.lines[line].first + ((layout.lines[line].count == 0) ?
                                                0 :
                                                (layout.lines[line].count - 1)));
@@ -168,9 +156,9 @@ void TextCompositor::input_text(Span<u32 const> text, Span<u32 const> input,
 
 void TextCompositor::drag(TextLayout const &layout, Vec2 pos)
 {
-  u32 cluster = hit_text(layout, pos).cluster;
-  cursor      = cluster;
-  alignment   = cursor;
+  TextHitResult const hit     = hit_text(layout, pos);
+  u32 const           cluster = hit.cluster;
+  cursor                      = cluster;
   if (cluster < selection.offset)
   {
     u32 extra        = selection.offset - cluster;
@@ -235,11 +223,13 @@ static constexpr void find_boundary(Span<u32 const> text, u32 const pos,
   slice.span   = (fwd - bwd) + 1;
 }
 
-void TextCompositor::update_cursor()
+void TextCompositor::update_cursor(TextLayout const &layout)
 {
   cursor =
       selection.offset + (((selection.span == 0) ? 0 : (selection.span - 1)));
-  alignment = cursor;
+  u32 const   l    = find_cluster_line(layout, cursor);
+  Line const &line = layout.lines[l];
+  alignment        = cursor > line.first ? (cursor - line.first) : 0;
 }
 
 void TextCompositor::select_codepoint(Span<u32 const> text)
@@ -279,32 +269,36 @@ void TextCompositor::select_all(Span<u32 const> text)
 
 void TextCompositor::single_click(TextLayout const &layout, Vec2 pos)
 {
-  u32 cluster = hit_text(layout, pos).cluster;
-  selection   = Slice32{cluster, 0};
+  TextHitResult const hit = hit_text(layout, pos);
+  selection               = Slice32{hit.cluster, 0};
+  update_cursor(layout);
 }
 
 void TextCompositor::double_click(Span<u32 const>   text,
                                   TextLayout const &layout, Vec2 pos)
 {
-  single_click(layout, pos);
+  TextHitResult const hit = hit_text(layout, pos);
+  selection               = Slice32{hit.cluster, 0};
   select_word(text);
-  update_cursor();
+  update_cursor(layout);
 }
 
 void TextCompositor::triple_click(Span<u32 const>   text,
                                   TextLayout const &layout, Vec2 pos)
 {
-  single_click(layout, pos);
+  TextHitResult const hit = hit_text(layout, pos);
+  selection               = Slice32{hit.cluster, 0};
   select_line(text);
-  update_cursor();
+  update_cursor(layout);
 }
 
 void TextCompositor::quad_click(Span<u32 const> text, TextLayout const &layout,
                                 Vec2 pos)
 {
-  single_click(layout, pos);
+  TextHitResult const hit = hit_text(layout, pos);
+  selection               = Slice32{hit.cluster, 0};
   select_all(text);
-  update_cursor();
+  update_cursor(layout);
 }
 
 void TextCompositor::click(Span<u32 const> text, TextLayout const &layout,
@@ -344,12 +338,13 @@ void TextCompositor::down(TextLayout const &layout)
   page_down(layout, 1);
 }
 
-void TextCompositor::left()
+void TextCompositor::left(Span<u32 const> text)
 {
   // if has selection, move to left of selection
   if (selection.span != 0)
   {
     selection.span = 0;
+    selection      = selection.resolve(text.size32());
     return;
   }
 
@@ -357,24 +352,24 @@ void TextCompositor::left()
   if (selection.offset != 0)
   {
     selection.offset--;
+    selection = selection.resolve(text.size32());
   }
 }
 
-void TextCompositor::right()
+void TextCompositor::right(Span<u32 const> text)
 {
   // move to the next codepoint
   if (selection.span == 0)
   {
-    if (++selection.offset == U32_MAX)
-    {
-      selection.span = 0;
-    }
+    selection.offset++;
+    selection = selection.resolve(text.size32());
     return;
   }
 
   // move to the last codepoint
   selection.offset = selection.end() - 1;
   selection.span   = 0;
+  selection        = selection.resolve(text.size32());
 }
 
 static u32 line_translate(TextLayout const &layout, u32 cursor, i64 dy)
@@ -423,100 +418,100 @@ void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
     case TextCommand::Escape:
     {
       escape();
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::BackSpace:
     {
       if (selection.is_empty())
       {
-        left();
+        left(text);
         selection.span = 1;
       }
       delete_selection(text, insert, erase);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::Delete:
     {
       if (selection.is_empty())
       {
-        right();
+        right(text);
         selection.span = 1;
       }
       delete_selection(text, insert, erase);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::Left:
     {
-      left();
-      update_cursor();
+      left(text);
+      update_cursor(layout);
     }
     break;
     case TextCommand::Right:
     {
-      right();
-      update_cursor();
+      right(text);
+      update_cursor(layout);
     }
     break;
     case TextCommand::Up:
     {
       up(layout);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::Down:
     {
       down(layout);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::WordStart:
     {
       select_word(text);
-      left();
-      update_cursor();
+      left(text);
+      update_cursor(layout);
     }
     break;
     case TextCommand::WordEnd:
     {
       select_word(text);
-      right();
-      update_cursor();
+      right(text);
+      update_cursor(layout);
     }
     break;
     case TextCommand::LineStart:
     {
       select_line(text);
-      left();
-      update_cursor();
+      left(text);
+      update_cursor(layout);
     }
     break;
     case TextCommand::LineEnd:
     {
       select_line(text);
-      right();
-      update_cursor();
+      right(text);
+      update_cursor(layout);
     }
     break;
     case TextCommand::PageUp:
     {
       page_up(layout, lines_per_page);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::PageDown:
     {
       page_down(layout, lines_per_page);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::Cut:
     {
       set_content(text.slice(selection));
       delete_selection(text, insert, erase);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::Copy:
@@ -527,43 +522,43 @@ void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
     case TextCommand::Paste:
     {
       input_text(text, get_content(), insert, erase);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::Undo:
     {
       undo(insert, erase);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::Redo:
     {
       redo(insert, erase);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::SelectCodepoint:
     {
       select_codepoint(text);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::SelectWord:
     {
       select_word(text);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::SelectLine:
     {
       select_line(text);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     case TextCommand::SelectAll:
     {
       select_all(text);
-      update_cursor();
+      update_cursor(layout);
     }
     break;
     default:
