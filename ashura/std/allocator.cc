@@ -1,4 +1,5 @@
 
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/allocator.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/cfg.h"

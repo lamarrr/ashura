@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/range.h"
 #include "ashura/std/types.h"
 #include "gtest/gtest.h"

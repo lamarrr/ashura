@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/format.h"
 #include <charconv>
 #include <string.h>

@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/passes/rrect.h"
 #include "ashura/std/math.h"
 

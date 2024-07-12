@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 
 #include "ashura/engine/render_context.h"

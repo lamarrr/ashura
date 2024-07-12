@@ -1,4 +1,4 @@
-
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/color.h"
 #include "ashura/engine/render_context.h"
 #include "ashura/engine/renderer.h"

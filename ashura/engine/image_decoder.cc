@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/image_decoder.h"
 #include "ashura/std/range.h"
 

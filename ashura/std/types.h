@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/cfg.h"
 #include "ashura/std/traits.h"

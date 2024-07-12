@@ -1,4 +1,5 @@
 
+/// SPDX-License-Identifier: MIT
 #define STBIRDEF extern "C" inline
 
 #include "ashura/engine/font_impl.h"

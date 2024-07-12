@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/log.h"
 #include <stdio.h>
 #include <time.h>

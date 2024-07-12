@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/canvas.h"
 #include "ashura/std/math.h"
 

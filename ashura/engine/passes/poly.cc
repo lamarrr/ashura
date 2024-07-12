@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/passes/poly.h"
 
 namespace ash

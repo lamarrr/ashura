@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/pcg.h"
 #include "ashura/primitives.h"

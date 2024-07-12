@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/gfx/vulkan.h"
 #include "ashura/std/error.h"
 #include "ashura/std/math.h"

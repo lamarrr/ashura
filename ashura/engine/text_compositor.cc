@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/text_compositor.h"
 #include "ashura/std/error.h"
 #include "ashura/std/mem.h"
