@@ -96,6 +96,7 @@ struct Path
 /// @param extent extent of the surface the canvas is being drawn onto.
 struct Canvas
 {
+  gfx::Format               format            = gfx::Format::Undefined;
   Vec2                      viewport_extent   = {};
   CRect                     current_clip      = {{0, 0}, {0, 0}};
   Vec<Vec2>                 vertices          = {};
