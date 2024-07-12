@@ -418,7 +418,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
 {
   f32       current_top = 0;
-  u32       ln          = 0;
+  u32       l           = 0;
   u32 const num_lines   = layout.lines.size32();
 
   if (num_lines == 0)
@@ -427,53 +427,74 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
   }
 
   // separated vertical and horizontal clamped hit test
-  for (; ln < num_lines; ln++)
+  for (; l < num_lines; l++)
   {
     if (current_top <= pos.y &&
-        (current_top + layout.lines[ln].metrics.height) >= pos.y)
+        (current_top + layout.lines[l].metrics.height) >= pos.y)
     {
       break;
     }
   }
 
-  ln = min(ln, num_lines - 1);
+  l = min(l, num_lines - 1);
 
-  Line const &line = layout.lines[ln];
+  Line const &ln = layout.lines[l];
 
-  f32 cursor_x = 0;
+  f32 cursor = 0;
 
-  for (u32 r = 0; r < line.num_runs; r++)
+  for (u32 r = 0; r < ln.num_runs;)
   {
-    TextRun const &run        = layout.runs[line.first_run + r];
-    bool const     intersects = (cursor_x <= pos.x) || (r == line.num_runs - 1);
+    u32 const      first     = r++;
+    TextRun const &first_run = layout.runs[ln.first_run + first];
+    f32            dir_advance =
+        pt_to_px(first_run.metrics.advance, first_run.font_height);
+
+    while (r < ln.num_runs &&
+           layout.runs[ln.first_run + r].direction == first_run.direction)
+    {
+      TextRun const &run = layout.runs[ln.first_run + r];
+      dir_advance += pt_to_px(run.metrics.advance, run.font_height);
+      r++;
+    }
+
+    // check in run, if in run or at end of run count, break, if at last run
+    // based on visual ordering and at the last char on run, return
+    //
+    // needs better intersection testing given multiple runs will ne on a single
+    // line.
+    //
+    //
+
+    bool const intersects = (cursor <= pos.x) || (r == ln.num_runs);
     if (!intersects)
     {
       continue;
     }
-    for (u32 g = 0; g < run.num_glyphs; g++)
+    for (u32 g = 0; g < first_run.num_glyphs; g++)
     {
       // TODO(lamarrr): not correct, needs to perform actual intersection
       // test also, need to take care of directionality
-      GlyphShape const &glyph = layout.glyphs[run.first_glyph + g];
+      GlyphShape const &glyph = layout.glyphs[first_run.first_glyph + g];
       // based on direction, find first cluster that is lesser, doesn't have
       // to strictly intersect
       bool const intersects =
-          (pt_to_px(glyph.advance.x, run.font_height) + cursor_x <= pos.x) ||
-          (g == run.num_glyphs - 1 && r == line.num_runs - 1);
+          (pt_to_px(glyph.advance.x, first_run.font_height) + cursor <=
+           pos.x) ||
+          (g == first_run.num_glyphs - 1 && r == ln.num_runs - 1);
       if (intersects)
       {
         u32 const column =
-            (glyph.cluster > line.first) ? (glyph.cluster - line.first) : 0;
+            (glyph.cluster > ln.first) ? (glyph.cluster - ln.first) : 0;
         return TextHitResult{
-            .cluster = glyph.cluster, .line = ln, .column = column};
+            .cluster = glyph.cluster, .line = l, .column = column};
       }
     }
-    cursor_x += pt_to_px(run.metrics.advance, run.font_height);
+    cursor += dir_advance;
   }
 
-  u32 const column = (line.count == 0) ? 0 : (line.count - 1);
+  u32 const column = (ln.count == 0) ? 0 : (ln.count - 1);
   return TextHitResult{
-      .cluster = line.first + column, .line = ln, .column = column};
+      .cluster = ln.first + column, .line = l, .column = column};
 }
 
 }        // namespace ash
