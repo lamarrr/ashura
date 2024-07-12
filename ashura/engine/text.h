@@ -371,6 +371,13 @@ struct Line
   bool        paragraph = false;
 };
 
+struct TextHitResult
+{
+  u32 cluster = 0;
+  u32 line    = 0;
+  u32 column  = 0;
+};
+
 /// @brief cached/pre-computed text layout
 /// @param max_width maximum width the text was laid out with
 /// @param extent current extent of the text block after layout
@@ -417,5 +424,11 @@ struct TextLayout
 };
 
 void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout);
+
+/// @brief given a position in the laid-out text return the location of the
+/// grapheme the cursor points to. returns the last column if the position
+/// overlaps with the row and returns the last line if no overlap was found.
+/// @param pos position in laid-out text to return from.
+TextHitResult hit_text(TextLayout const &layout, Vec2 pos);
 
 }        // namespace ash

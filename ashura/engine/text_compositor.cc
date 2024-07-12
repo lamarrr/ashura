@@ -6,66 +6,11 @@
 namespace ash
 {
 
-TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
-{
-  f32       current_top = 0;
-  u32       l           = 0;
-  u32 const num_lines   = layout.lines.size32();
-
-  if (num_lines == 0)
-  {
-    return TextHitResult{.cluster = 0, .line = 0};
-  }
-
-  // separated vertical and horizontal clamped hit test
-  for (; l < num_lines; l++)
-  {
-    if (current_top <= pos.y &&
-        (current_top + layout.lines[l].metrics.height) >= pos.y)
-    {
-      break;
-    }
-  }
-
-  l = min(l, num_lines - 1);
-
-  Line const &line = layout.lines[l];
-
-  f32 cursor_x = 0;
-  u32 r        = 0;
-  for (; r < line.num_runs; r++)
-  {
-    TextRun const &run        = layout.runs[line.first_run + r];
-    bool           intersects = (cursor_x <= pos.x &&
-                       (cursor_x + pt_to_px(run.metrics.advance,
-                                                      run.font_height)) >= pos.x) ||
-                      (r == line.num_runs - 1);
-    if (!intersects)
-    {
-      continue;
-    }
-    for (u32 g = 0; g < run.num_glyphs; g++)
-    {
-      // TODO(lamarrr): not correct, needs to perform actual intersection
-      // test also, need to take care of directionality
-      GlyphShape const &glyph = layout.glyphs[run.first_glyph + g];
-      // based on direction, find first cluster that is lesser, doesn't have
-      // to strictly intersect
-      bool intersects =
-          (pt_to_px(glyph.advance.x, run.font_height) + cursor_x < pos.x) ||
-          (g == run.num_glyphs - 1 && r == line.num_runs - 1);
-      if (intersects)
-      {
-        return TextHitResult{.cluster = glyph.cluster, .line = l};
-      }
-    }
-    cursor_x += pt_to_px(run.metrics.advance, run.font_height);
-  }
-
-  return TextHitResult{.cluster = 0, .line = l};
-}
-
-u32 find_cluster_line(TextLayout const &layout, u32 cluster)
+/// @brief given a cluser index in the text, get the line number the cluster
+/// belongs to, otherwise return U32_MAX.
+/// @param cluster cluster to
+/// @return
+static inline u32 find_cluster_line(TextLayout const &layout, u32 cluster)
 {
   for (u32 i = 0; i < layout.lines.size32(); i++)
   {
