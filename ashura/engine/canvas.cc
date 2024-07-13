@@ -438,8 +438,8 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
   constexpr u8 PASS_GLYPH_SHADOWS = 1;
   constexpr u8 PASS_GLYPHS        = 2;
   constexpr u8 PASS_UNDERLINE     = 3;
-  constexpr u8 PASS_STRIKETHROUGH = 3;
-  constexpr u8 NUM_PASSES         = 4;
+  constexpr u8 PASS_STRIKETHROUGH = 4;
+  constexpr u8 NUM_PASSES         = 5;
 
   for (u8 pass = 0; pass < NUM_PASSES; pass++)
   {
