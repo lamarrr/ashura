@@ -275,7 +275,9 @@ struct TextBlock
 
 /// @param styles styles for each run in the source text
 /// @param align_width width to align the text block to.
-/// @param alignment alignment of the text to its base direction. [-1, +1]
+/// @param alignment alignment of the text to its base direction. -1 = line
+/// start, +1 = line end, 0.5 = center of line, the direction depends on the
+/// directionality of the line.
 struct TextBlockStyle
 {
   Span<TextStyle const> runs        = {};
@@ -306,13 +308,13 @@ struct GlyphShape
 /// or tabs before it
 struct alignas(4) TextSegment
 {
-  u16           style               = 0;
-  TextScript    script              = TextScript::None;
-  bool          paragraph_begin : 1 = false;
-  bool          paragraph_end : 1   = false;
-  bool          breakable : 1       = false;
-  TextDirection base_direction : 1  = TextDirection::LeftToRight;
-  TextDirection direction : 1       = TextDirection::LeftToRight;
+  u16        style               = 0;
+  TextScript script              = TextScript::None;
+  bool       paragraph_begin : 1 = false;
+  bool       paragraph_end : 1   = false;
+  bool       breakable : 1       = false;
+  u8         base_level          = 0;
+  u8         level               = 0;
 };
 
 struct TextRunMetrics
@@ -330,18 +332,18 @@ struct TextRunMetrics
 /// the max-width.
 struct TextRun
 {
-  u32            first          = 0;
-  u32            count          = 0;
-  u16            style          = 0;
-  f32            font_height    = 0;
-  f32            line_height    = 0;
-  u32            first_glyph    = 0;
-  u32            num_glyphs     = 0;
-  TextRunMetrics metrics        = {};
-  TextDirection  base_direction = TextDirection::LeftToRight;
-  TextDirection  direction      = TextDirection::LeftToRight;
-  bool           paragraph      = false;
-  bool           breakable      = false;
+  u32            first       = 0;
+  u32            count       = 0;
+  u16            style       = 0;
+  f32            font_height = 0;
+  f32            line_height = 0;
+  u32            first_glyph = 0;
+  u32            num_glyphs  = 0;
+  TextRunMetrics metrics     = {};
+  u8             base_level  = 0;
+  u8             level       = 0;
+  bool           paragraph   = false;
+  bool           breakable   = false;
 };
 
 /// @param width width of the line
@@ -351,11 +353,11 @@ struct TextRun
 /// @param direction base direction of the line
 struct LineMetrics
 {
-  f32           width     = 0;
-  f32           height    = 0;
-  f32           ascent    = 0;
-  f32           descent   = 0;
-  TextDirection direction = TextDirection::LeftToRight;
+  f32 width   = 0;
+  f32 height  = 0;
+  f32 ascent  = 0;
+  f32 descent = 0;
+  u8  level   = 0;
 };
 
 /// @brief
@@ -423,6 +425,12 @@ struct TextLayout
     lines.reset();
   }
 };
+
+constexpr TextDirection level_to_direction(u8 level)
+{
+  return ((level & 0x1) == 0) ? TextDirection::LeftToRight :
+                                TextDirection::RightToLeft;
+}
 
 void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout);
 

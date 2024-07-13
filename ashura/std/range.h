@@ -358,42 +358,24 @@ constexpr void unique(Span<T>, Cmp &&cmp = {});        // destroy? retain?
 template <OutputRange R, typename SwapOp = Swap>
 constexpr void reverse(R &&range, SwapOp &&swap = {})
 {
-  OutputIterator auto head = begin(range);
-  OutputIterator auto tail = end(range);
+  if (is_empty(range))
+  {
+    return;
+  }
 
-  while (head != --tail)
+  OutputIterator auto head = begin(range);
+  OutputIterator auto tail = end(range) - 1;
+
+  while (head < tail)
   {
     swap(*head, *tail);
     head++;
+    tail--;
   }
 }
 
 template <typename T, typename SwapOp = Swap>
 constexpr void rotate(Span<T>, SwapOp &&swap = {});
-
-template <typename T, typename Cmp = Lesser>
-constexpr Span<T> range_lex(Span<T> span, Cmp &&cmp = {})
-{
-  if (span.is_empty())
-  {
-    return Span<T>{};
-  }
-
-  T *const end = span.end();
-  T       *min = span.begin();
-  T       *it  = min + 1;
-
-  while (it < end)
-  {
-    if (cmp(*it, *min))
-    {
-      min = it;
-    }
-    it++;
-  }
-
-  return Span<T>{min, 1};
-}
 
 template <typename T, typename U, typename Op, typename Cmp = Equal>
 constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp &&cmp = {});
