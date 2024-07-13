@@ -16,7 +16,7 @@ struct FlexBox : public Widget
   Axis           axis        = Axis::X;
   bool           wrap        = true;
   MainAlign      main_align  = MainAlign::Start;
-  CrossAlign     cross_align = CrossAlign::Start;
+  f32            cross_align = 0;
   SizeConstraint width       = {};
   SizeConstraint height      = {};
 
@@ -49,16 +49,14 @@ struct FlexBox : public Widget
 
     for (u32 i = 0; i < num_children;)
     {
-      u32 first                  = i++;
-      f32 main_extent            = sizes[first][main_axis];
-      f32 cross_extent           = sizes[first][cross_axis];
-      f32 main_spacing           = 0;
-      offsets[first][cross_axis] = cross_cursor;
+      u32 first        = i++;
+      f32 main_extent  = sizes[first][main_axis];
+      f32 cross_extent = sizes[first][cross_axis];
+      f32 main_spacing = 0;
 
       while (i < num_children &&
              !(wrap && (main_extent + sizes[i][main_axis]) > frame[main_axis]))
       {
-        offsets[i][main_axis] = cross_cursor;
         main_extent += sizes[i][main_axis];
         cross_extent = max(cross_extent, sizes[i][cross_axis]);
         i++;
@@ -71,27 +69,11 @@ struct FlexBox : public Widget
         main_spacing = max(frame[main_axis] - main_extent, 0.0f);
       }
 
-      switch (cross_align)
+      for (u32 b = first; b < first + count; b++)
       {
-        case CrossAlign::Start:
-          break;
-
-        case CrossAlign::Center:
-          for (u32 b = first; b < first + count; b++)
-          {
-            offsets[b][cross_axis] += (cross_extent - sizes[b][cross_axis]) / 2;
-          }
-          break;
-
-        case CrossAlign::End:
-          for (u32 b = first; b < first + count; b++)
-          {
-            offsets[b][cross_axis] += cross_extent - sizes[b][cross_axis];
-          }
-          break;
-
-        default:
-          break;
+        offsets[b][cross_axis] =
+            cross_cursor +
+            space_align(frame[cross_axis], sizes[b][cross_axis], cross_align);
       }
 
       switch (main_align)

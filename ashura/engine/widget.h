@@ -68,13 +68,6 @@ enum class MainAlign : u8
   SpaceEvenly  = 4
 };
 
-enum class CrossAlign : u8
-{
-  Start  = 0,
-  End    = 1,
-  Center = 2
-};
-
 /// @param DragStart drag event has begun on this widget
 /// @param DragUpdate the mouse has been moved whilst this widget is being
 /// dragged
