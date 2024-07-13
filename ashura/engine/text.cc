@@ -222,20 +222,20 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
   }
 
   CHECK(l.runs.push(
-      TextRun{.first       = first,
-              .count       = count,
-              .style       = style,
-              .font_height = s.font_height,
-              .line_height = max(s.line_height, 1.0f),
-              .first_glyph = first_glyph,
-              .num_glyphs  = num_glyphs,
-              .metrics     = TextRunMetrics{.advance = advance,
-                                            .ascent  = font_metrics.ascent,
-                                            .descent = font_metrics.descent},
-              .base_level  = base_level,
-              .level       = level,
-              .paragraph   = paragraph,
-              .breakable   = breakable}));
+      TextRun{.first_codepoint = first,
+              .num_codepoints  = count,
+              .style           = style,
+              .font_height     = s.font_height,
+              .line_height     = max(s.line_height, 1.0f),
+              .first_glyph     = first_glyph,
+              .num_glyphs      = num_glyphs,
+              .metrics         = TextRunMetrics{.advance = advance,
+                                                .ascent  = font_metrics.ascent,
+                                                .descent = font_metrics.descent},
+              .base_level      = base_level,
+              .level           = level,
+              .paragraph       = paragraph,
+              .breakable       = breakable}));
 }
 
 /// See Unicode Embedding Level Reordering:
@@ -256,17 +256,18 @@ static inline void reorder_line(Span<TextRun> runs)
     // the current embedding level
     for (u32 i = 0; i < runs.size32();)
     {
-      u32 const first     = i++;
-      u8 const  run_level = runs[first].level;
-      while (i < runs.size32() && runs[i].level == run_level)
+      while (i < runs.size32() && runs[i].level < level)
       {
         i++;
       }
 
-      if (run_level >= level)
+      u32 const first = i;
+      while (i < runs.size32() && runs[i].level >= level)
       {
-        reverse(runs.slice(first, i - first));
+        i++;
       }
+
+      reverse(runs.slice(first, i - first));
     }
     level--;
   }
@@ -410,20 +411,20 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     }
 
     TextRun const &last_run        = layout.runs[i - 1];
-    u32 const      first_codepoint = first_run.first;
+    u32 const      first_codepoint = first_run.first_codepoint;
     u32 const      num_codepoints =
-        (last_run.first + last_run.count) - first_codepoint;
+        (last_run.first_codepoint + last_run.num_codepoints) - first_codepoint;
 
-    Line line{.first     = first_codepoint,
-              .count     = num_codepoints,
-              .first_run = first,
-              .num_runs  = (i - first),
-              .metrics   = LineMetrics{.width   = width,
-                                       .height  = height,
-                                       .ascent  = ascent,
-                                       .descent = descent,
-                                       .level   = base_level},
-              .paragraph = paragraph};
+    Line line{.first_codepoint = first_codepoint,
+              .num_codepoints  = num_codepoints,
+              .first_run       = first,
+              .num_runs        = (i - first),
+              .metrics         = LineMetrics{.width   = width,
+                                             .height  = height,
+                                             .ascent  = ascent,
+                                             .descent = descent,
+                                             .level   = base_level},
+              .paragraph       = paragraph};
 
     CHECK(layout.lines.push(line));
 
@@ -485,7 +486,6 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
     // needs better intersection testing given multiple runs will ne on a single
     // line.
     //
-    //
 
     bool const intersects = (cursor <= pos.x) || (r == ln.num_runs);
     if (!intersects)
@@ -505,8 +505,9 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
           (g == first_run.num_glyphs - 1 && r == ln.num_runs - 1);
       if (intersects)
       {
-        u32 const column =
-            (glyph.cluster > ln.first) ? (glyph.cluster - ln.first) : 0;
+        u32 const column = (glyph.cluster > ln.first_codepoint) ?
+                               (glyph.cluster - ln.first_codepoint) :
+                               0;
         return TextHitResult{
             .cluster = glyph.cluster, .line = l, .column = column};
       }
@@ -514,9 +515,9 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
     cursor += dir_advance;
   }
 
-  u32 const column = (ln.count == 0) ? 0 : (ln.count - 1);
+  u32 const column = (ln.num_codepoints == 0) ? 0 : (ln.num_codepoints - 1);
   return TextHitResult{
-      .cluster = ln.first + column, .line = l, .column = column};
+      .cluster = ln.first_codepoint + column, .line = l, .column = column};
 }
 
 }        // namespace ash

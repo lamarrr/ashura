@@ -291,20 +291,17 @@ int main(int, char **)
       {.font = font, .font_height = 30, .line_height = 1.25}};
   TextLayout text_layout;
 
-  TextBlock text_block{
-      .text = utf(
-          UR"(
-المادة 1.
-يولد جميع الناس أحراراً متساوين في الكرامة والحقوق، وقد وهبوا عقلاً وضميراً وعليهم أن يعامل بعضهم بعضاً بروح الإخاء.
-المادة 2.
-لكل إنسان حق التمتع بكافة الحقوق والحريات الواردة في هذا الإعلان، دون أي تمييز، كالتمييز بسبب العنصر أو اللون أو الجنس أو اللغة أو الدين أو الرأي السياسي أو أي رأي آخر، أو الأصل الوطني أو الاجتماعي أو الثروة أو الميلاد أو أي وضع آخر، دون أية تفرقة بين الرجال والنساء. وفضلا عما تقدم فلن يكون هناك أي تمييز أساسه الوضع السياسي أو القانوني أو الدولي لبلد أو البقعة التي ينتمي إليها الفرد سواء كان هذا البلد أو تلك البقعة مستقلا أو تحت الوصاية أو غير متمتع بالحكم الذاتي أو كانت سيادته خاضعة لأي قيد من القيود.
-المادة 3.
-لكل فرد الحق في الحياة والحرية وسلامة شخصه.
-المادة 4.)"_span),
-      .runs      = to_span(runs),
-      .fonts     = to_span(font_styles),
-      .direction = TextDirection::RightToLeft,
-      .language  = "en"_span};
+  TextBlock text_block{.text      = utf(UR"(
+المادة 12.
+لا يعرض أحد لتدخل تعسفي في حياته الخاصة أو أسرته أو مسكنه أو مراسلاته أو لحملات على شرفه وسمعته، ولكل شخص الحق في حماية القانون من مثل هذا التدخل أو تلك الحملات.
+المادة 13.
+( 1 ) لكل فرد حرية التنقل واختيار محل إقامته داخل حدود كل دولة.
+( 2 ) يحق لكل فرد أن يغادر أية بلاد بما في ذلك بلده كما يحق له العودة إليه.
+)"_span),
+                       .runs      = to_span(runs),
+                       .fonts     = to_span(font_styles),
+                       .direction = TextDirection::RightToLeft,
+                       .language  = "en"_span};
 
   ctx.end_frame(swapchain);
   while (!should_close)
@@ -358,12 +355,12 @@ int main(int, char **)
                        .strikethrough_thickness = 0,
                        .shadow_scale            = 0,
                        .shadow_offset           = Vec2{1, 1},
-                       .foreground    = ColorGradient::uniform(colors::WHITE),
-                       .background    = ColorGradient::uniform(Vec4U8{3, 3, 3, 0xFF}),
+                       .foreground    = ColorGradient::y(colors::RED, colors::YELLOW),
+                       .background    = ColorGradient::uniform(Vec4{0, 0, 0, 1}),
                        .underline     = ColorGradient::uniform(colors::WHITE),
                        .strikethrough = ColorGradient::uniform(colors::WHITE),
                        .shadow        = ColorGradient::uniform(colors::WHITE)}}),
-            .alignment   = -1,
+            .alignment   = 0,
             .align_width = 1920},
         to_span<FontAtlasResource const *>({&font_resource}));
     // canvas.blur({.scissor = {{0, 0}, {U32_MAX, U32_MAX}}}, rr);
