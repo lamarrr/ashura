@@ -162,8 +162,8 @@ struct ScrollBox : public Widget
   {
     Vec2 frame{width.resolve(allocated.x), height.resolve(allocated.y)};
 
-    offsets[0] = space_align(frame - sizes[0], Vec2{1, 0}) + sizes[0] / 2;
-    offsets[1] = space_align(frame - sizes[1], Vec2{-1, 1}) + sizes[1] / 2;
+    offsets[0] = space_align(frame, sizes[0], Vec2{1, 0});
+    offsets[1] = space_align(frame, sizes[1], Vec2{-1, 1});
 
     Vec2 content_size;
     for (Vec2 const &sz : sizes.slice(2))

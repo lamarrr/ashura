@@ -2742,6 +2742,12 @@ constexpr auto size(T &&a) -> decltype(a.size())
   return a.size();
 }
 
+template <typename T>
+constexpr auto is_empty(T &&a)
+{
+  return size(a) == 0;
+}
+
 template <typename It>
 concept InputIterator = requires(It it) {
   {

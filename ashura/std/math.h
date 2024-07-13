@@ -630,18 +630,21 @@ inline f32 grid_snap(f32 a, f32 unit)
   return floorf((a + unit * 0.5F) / unit) * unit;
 }
 
-/// @brief get the aligned offset relative to a fixed amount of space
+/// @brief get the aligned center relative to a fixed amount of space
 /// @param space the space to align to
-/// @param alignment the alignment to align to. [-1, +1]
+/// @param alignment the alignment to align to [-1, +1]
 /// @return
-constexpr f32 space_align(f32 space, f32 alignment)
+constexpr f32 space_align(f32 space, f32 content, f32 alignment)
 {
-  return (alignment * 0.5F + 0.5F) * space;
+  f32 const trailing = space - content;
+  f32       padding  = (alignment * 0.5F + 0.5F) * trailing;
+  return padding + content / 2;
 }
 
-constexpr Vec2 space_align(Vec2 space, Vec2 alignment)
+constexpr Vec2 space_align(Vec2 space, Vec2 content, Vec2 alignment)
 {
-  return (alignment * 0.5F + 0.5F) * space;
+  return Vec2{space_align(space.x, content.x, alignment.x),
+              space_align(space.y, content.y, alignment.y)};
 }
 
 constexpr f32 norm_to_axis(f32 norm)

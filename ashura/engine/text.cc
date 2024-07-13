@@ -129,10 +129,9 @@ static inline void segment_scripts(Span<u32 const>   text,
 }
 
 /// @brief only needs to be called if it is a bidirectional text
-static inline void segment_directions(Span<u32 const>   text,
-                                      SBAlgorithmRef    algorithm,
-                                      TextDirection     base,
-                                      Span<TextSegment> segments)
+static inline void segment_levels(Span<u32 const> text,
+                                  SBAlgorithmRef algorithm, TextDirection base,
+                                  Span<TextSegment> segments)
 {
   // The embedding level is an integer value. LTR text segments have even
   // embedding levels (e.g., 0, 2, 4), and RTL text segments have odd embedding
@@ -157,20 +156,13 @@ static inline void segment_directions(Span<u32 const>   text,
       CHECK(paragraph != nullptr);
 
       CHECK(SBParagraphGetLength(paragraph) == length);
-      SBLevel const       base_level     = SBParagraphGetBaseLevel(paragraph);
-      TextDirection const base_direction = ((base_level & 0x1) == 0) ?
-                                               TextDirection::LeftToRight :
-                                               TextDirection::RightToLeft;
-      SBLevel const      *levels         = SBParagraphGetLevelsPtr(paragraph);
+      SBLevel const  base_level = SBParagraphGetBaseLevel(paragraph);
+      SBLevel const *levels     = SBParagraphGetLevelsPtr(paragraph);
       CHECK(levels != nullptr);
       for (u32 i = 0; i < length; i++)
       {
-        SBLevel const       level          = levels[i];
-        TextDirection const direction      = ((level & 0x1) == 0) ?
-                                                 TextDirection::LeftToRight :
-                                                 TextDirection::RightToLeft;
-        segments[first + i].base_direction = base_direction;
-        segments[first + i].direction      = direction;
+        segments[first + i].base_level = base_level;
+        segments[first + i].level      = levels[i];
       }
       SBParagraphRelease(paragraph);
     }
@@ -184,14 +176,9 @@ static inline void segment_directions(Span<u32 const>   text,
 }
 
 /// @brief only needs to be called if line breaking is required.
-static inline void segment_breakpoints(Span<u32 const> text, f32 max_width,
+static inline void segment_breakpoints(Span<u32 const>   text,
                                        Span<TextSegment> segments)
 {
-  if (max_width == F32_MAX)
-  {
-    return;
-  }
-
   u32 const text_size = text.size32();
   for (u32 i = 0; i < text_size;)
   {
@@ -210,10 +197,9 @@ static inline void segment_breakpoints(Span<u32 const> text, f32 max_width,
 
 static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
                               u32 count, u16 style,
-                              FontMetrics const &font_metrics,
-                              TextDirection      direction,
-                              TextDirection base_direction, bool paragraph,
-                              bool breakable, Span<hb_glyph_info_t const> infos,
+                              FontMetrics const &font_metrics, u8 base_level,
+                              u8 level, bool paragraph, bool breakable,
+                              Span<hb_glyph_info_t const>     infos,
                               Span<hb_glyph_position_t const> positions)
 {
   u32 const num_glyphs  = infos.size32();
@@ -236,20 +222,55 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
   }
 
   CHECK(l.runs.push(
-      TextRun{.first          = first,
-              .count          = count,
-              .style          = style,
-              .font_height    = s.font_height,
-              .line_height    = max(s.line_height, 1.0f),
-              .first_glyph    = first_glyph,
-              .num_glyphs     = num_glyphs,
-              .metrics        = TextRunMetrics{.advance = advance,
-                                               .ascent  = font_metrics.ascent,
-                                               .descent = font_metrics.descent},
-              .base_direction = base_direction,
-              .direction      = direction,
-              .paragraph      = paragraph,
-              .breakable      = breakable}));
+      TextRun{.first_codepoint = first,
+              .num_codepoints  = count,
+              .style           = style,
+              .font_height     = s.font_height,
+              .line_height     = max(s.line_height, 1.0f),
+              .first_glyph     = first_glyph,
+              .num_glyphs      = num_glyphs,
+              .metrics         = TextRunMetrics{.advance = advance,
+                                                .ascent  = font_metrics.ascent,
+                                                .descent = font_metrics.descent},
+              .base_level      = base_level,
+              .level           = level,
+              .paragraph       = paragraph,
+              .breakable       = breakable}));
+}
+
+/// See Unicode Embedding Level Reordering:
+/// https://www.unicode.org/reports/tr9/#L1 -
+/// https://www.unicode.org/reports/tr9/#L2
+static inline void reorder_line(Span<TextRun> runs)
+{
+  u8 max_level = 0;
+  for (TextRun const &r : runs)
+  {
+    max_level = max(r.level, max_level);
+  }
+
+  u8 level = max_level;
+  while (level > 0)
+  {
+    // re-order consecutive runs with embedding levels greater or equal than
+    // the current embedding level
+    for (u32 i = 0; i < runs.size32();)
+    {
+      while (i < runs.size32() && runs[i].level < level)
+      {
+        i++;
+      }
+
+      u32 const first = i;
+      while (i < runs.size32() && runs[i].level >= level)
+      {
+        i++;
+      }
+
+      reverse(runs.slice(first, i - first));
+    }
+    level--;
+  }
 }
 
 /// see:
@@ -288,7 +309,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
   segment_paragraphs(block.text, segments);
   segment_scripts(block.text, segments);
-  segment_breakpoints(block.text, max_width, segments);
+  segment_breakpoints(block.text, segments);
 
   {
     SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
@@ -297,7 +318,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     SBAlgorithmRef      algorithm = SBAlgorithmCreate(&codepoints);
     CHECK(algorithm != nullptr);
     defer algorithm_del{[&] { SBAlgorithmRelease(algorithm); }};
-    segment_directions(block.text, algorithm, block.direction, segments);
+    segment_levels(block.text, algorithm, block.direction, segments);
   }
 
   {
@@ -325,7 +346,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
         TextSegment const &first_segment = segments[first];
         while (i < paragraph_end && first_segment.style == segments[i].style &&
                first_segment.script == segments[i].script &&
-               first_segment.direction == segments[i].direction &&
+               first_segment.level == segments[i].level &&
                !segments[i].breakable)
         {
           i++;
@@ -338,14 +359,13 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
         shape(f->hb_font, buffer, block.text, first, i - first,
               hb_script_from_iso15924_tag(
                   SBScriptGetOpenTypeTag(SBScript{(u8) first_segment.script})),
-              (first_segment.direction == TextDirection::LeftToRight) ?
-                  HB_DIRECTION_LTR :
-                  HB_DIRECTION_RTL,
+              ((first_segment.level & 0x1) == 0) ? HB_DIRECTION_LTR :
+                                                   HB_DIRECTION_RTL,
               language, block.use_kerning, block.use_ligatures, infos,
               positions);
 
         insert_run(layout, s, first, i - first, first_segment.style, f->metrics,
-                   first_segment.direction, first_segment.base_direction,
+                   first_segment.base_level, first_segment.level,
                    first_segment.paragraph_begin, first_segment.breakable,
                    infos, positions);
       }
@@ -363,10 +383,10 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
   for (u32 i = 0; i < num_runs;)
   {
-    u32 const           first          = i++;
-    TextRun const      &first_run      = layout.runs[first];
-    TextDirection const base_direction = first_run.base_direction;
-    bool const          paragraph      = first_run.paragraph;
+    u32 const      first      = i++;
+    TextRun const &first_run  = layout.runs[first];
+    u8 const       base_level = first_run.base_level;
+    bool const     paragraph  = first_run.paragraph;
     f32 width   = pt_to_px(first_run.metrics.advance, first_run.font_height);
     f32 ascent  = pt_to_px(first_run.metrics.ascent, first_run.font_height);
     f32 descent = pt_to_px(first_run.metrics.descent, first_run.font_height);
@@ -391,22 +411,24 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     }
 
     TextRun const &last_run        = layout.runs[i - 1];
-    u32 const      first_codepoint = first_run.first;
+    u32 const      first_codepoint = first_run.first_codepoint;
     u32 const      num_codepoints =
-        (last_run.first + last_run.count) - first_codepoint;
+        (last_run.first_codepoint + last_run.num_codepoints) - first_codepoint;
 
-    Line line{.first     = first_codepoint,
-              .count     = num_codepoints,
-              .first_run = first,
-              .num_runs  = (i - first),
-              .metrics   = LineMetrics{.width          = width,
-                                       .height         = height,
-                                       .ascent         = ascent,
-                                       .descent        = descent,
-                                       .base_direction = base_direction},
-              .paragraph = paragraph};
+    Line line{.first_codepoint = first_codepoint,
+              .num_codepoints  = num_codepoints,
+              .first_run       = first,
+              .num_runs        = (i - first),
+              .metrics         = LineMetrics{.width   = width,
+                                             .height  = height,
+                                             .ascent  = ascent,
+                                             .descent = descent,
+                                             .level   = base_level},
+              .paragraph       = paragraph};
 
     CHECK(layout.lines.push(line));
+
+    reorder_line(to_span(layout.runs).slice(first, i - first));
 
     extent.x = max(extent.x, width);
     extent.y += height;
@@ -451,7 +473,7 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
         pt_to_px(first_run.metrics.advance, first_run.font_height);
 
     while (r < ln.num_runs &&
-           layout.runs[ln.first_run + r].direction == first_run.direction)
+           layout.runs[ln.first_run + r].level == first_run.level)
     {
       TextRun const &run = layout.runs[ln.first_run + r];
       dir_advance += pt_to_px(run.metrics.advance, run.font_height);
@@ -463,7 +485,6 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
     //
     // needs better intersection testing given multiple runs will ne on a single
     // line.
-    //
     //
 
     bool const intersects = (cursor <= pos.x) || (r == ln.num_runs);
@@ -484,8 +505,9 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
           (g == first_run.num_glyphs - 1 && r == ln.num_runs - 1);
       if (intersects)
       {
-        u32 const column =
-            (glyph.cluster > ln.first) ? (glyph.cluster - ln.first) : 0;
+        u32 const column = (glyph.cluster > ln.first_codepoint) ?
+                               (glyph.cluster - ln.first_codepoint) :
+                               0;
         return TextHitResult{
             .cluster = glyph.cluster, .line = l, .column = column};
       }
@@ -493,9 +515,9 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
     cursor += dir_advance;
   }
 
-  u32 const column = (ln.count == 0) ? 0 : (ln.count - 1);
+  u32 const column = (ln.num_codepoints == 0) ? 0 : (ln.num_codepoints - 1);
   return TextHitResult{
-      .cluster = ln.first + column, .line = l, .column = column};
+      .cluster = ln.first_codepoint + column, .line = l, .column = column};
 }
 
 }        // namespace ash

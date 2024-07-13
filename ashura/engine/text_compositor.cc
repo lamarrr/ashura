@@ -15,8 +15,9 @@ static inline u32 find_cluster_line(TextLayout const &layout, u32 cluster)
 {
   for (u32 i = 0; i < layout.lines.size32(); i++)
   {
-    if (layout.lines[i].first <= cluster &&
-        (layout.lines[i].first + layout.lines[i].count) > cluster)
+    if (layout.lines[i].first_codepoint <= cluster &&
+        (layout.lines[i].first_codepoint + layout.lines[i].num_codepoints) >
+            cluster)
     {
       return i;
     }
@@ -33,10 +34,11 @@ void TextCompositor::goto_line(TextLayout const &layout, u32 line)
 
   line = min(line, layout.lines.size32() - 1);
 
-  cursor = min(layout.lines[line].first + alignment,
-               layout.lines[line].first + ((layout.lines[line].count == 0) ?
-                                               0 :
-                                               (layout.lines[line].count - 1)));
+  cursor = min(layout.lines[line].first_codepoint + alignment,
+               layout.lines[line].first_codepoint +
+                   ((layout.lines[line].num_codepoints == 0) ?
+                        0 :
+                        (layout.lines[line].num_codepoints - 1)));
 }
 
 void TextCompositor::pop_records(u32 num)
@@ -230,7 +232,8 @@ void TextCompositor::update_cursor(TextLayout const &layout)
       selection.offset + (((selection.span == 0) ? 0 : (selection.span - 1)));
   u32 const   l    = find_cluster_line(layout, cursor);
   Line const &line = layout.lines[l];
-  alignment        = cursor > line.first ? (cursor - line.first) : 0;
+  alignment =
+      cursor > line.first_codepoint ? (cursor - line.first_codepoint) : 0;
 }
 
 void TextCompositor::select_codepoint(Span<u32 const> text)
