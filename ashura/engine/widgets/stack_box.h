@@ -44,7 +44,7 @@ struct StackBox : public Widget
 
     for (u32 i = 0; i < num_children; i++)
     {
-      offsets[i] = space_align(span - sizes[i], alignment);
+      offsets[i] = space_align(span, sizes[i], alignment);
     }
 
     return span;
