@@ -302,8 +302,8 @@ struct GlyphShape
 /// @param paragraph_begin if this codepoint marks the beginning of a new
 /// paragraph
 /// @param paragraph_end if this codepoint marks the end of a paragraph
-/// @param base_direction the current paragraph's direction
-/// @param direction directionality of the current codepoint in the paragraph
+/// @param base_level the current paragraph's embedding level
+/// @param level embedding level of the current codepoint in the paragraph
 /// @param breakable if this codepoint begins a breakable text, i.e. has spaces
 /// or tabs before it
 struct alignas(4) TextSegment
