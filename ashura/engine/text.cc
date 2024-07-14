@@ -438,22 +438,24 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   layout.extent    = extent;
 }
 
-TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
+TextHitResult hit_text(TextLayout const &layout, TextBlockStyle const &style,
+                       Vec2 pos)
 {
-  f32       current_top = 0;
-  u32       l           = 0;
-  u32 const num_lines   = layout.lines.size32();
+  u32 const num_lines = layout.lines.size32();
 
   if (num_lines == 0)
   {
     return TextHitResult{.cluster = 0, .line = 0, .column = 0};
   }
 
+  f32 line_y = 0;
+  u32 l      = 0;
+
   // separated vertical and horizontal clamped hit test
   for (; l < num_lines; l++)
   {
-    if (current_top <= pos.y &&
-        (current_top + layout.lines[l].metrics.height) >= pos.y)
+    line_y += layout.lines[l].metrics.height;
+    if (line_y >= pos.y)
     {
       break;
     }
@@ -461,58 +463,44 @@ TextHitResult hit_text(TextLayout const &layout, Vec2 pos)
 
   l = min(l, num_lines - 1);
 
-  Line const &ln = layout.lines[l];
+  Line const         &ln        = layout.lines[l];
+  TextDirection const direction = level_to_direction(ln.metrics.level);
+  f32 const           alignment =
+      style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
+  f32 cursor = space_align(style.align_width, ln.metrics.width, alignment) -
+               ln.metrics.width * 0.5F;
 
-  f32 cursor = 0;
-
-  for (u32 r = 0; r < ln.num_runs;)
+  for (u32 r = 0; r < ln.num_runs; r++)
   {
-    u32 const      first     = r++;
-    TextRun const &first_run = layout.runs[ln.first_run + first];
-    f32            dir_advance =
-        pt_to_px(first_run.metrics.advance, first_run.font_height);
-
-    while (r < ln.num_runs &&
-           layout.runs[ln.first_run + r].level == first_run.level)
-    {
-      TextRun const &run = layout.runs[ln.first_run + r];
-      dir_advance += pt_to_px(run.metrics.advance, run.font_height);
-      r++;
-    }
-
-    // check in run, if in run or at end of run count, break, if at last run
-    // based on visual ordering and at the last char on run, return
-    //
-    // needs better intersection testing given multiple runs will ne on a single
-    // line.
-    //
-
-    bool const intersects = (cursor <= pos.x) || (r == ln.num_runs);
+    TextRun const &run = layout.runs[r];
+    bool const     intersects =
+        (pos.x >= cursor &&
+         pos.x <= (cursor + pt_to_px(run.metrics.advance, run.font_height))) ||
+        (r == ln.num_runs - 1);
     if (!intersects)
     {
       continue;
     }
-    for (u32 g = 0; g < first_run.num_glyphs; g++)
+    f32 glyph_cursor = cursor;
+    for (u32 g = 0; g < run.num_glyphs; g++)
     {
-      // TODO(lamarrr): not correct, needs to perform actual intersection
-      // test also, need to take care of directionality
-      GlyphShape const &glyph = layout.glyphs[first_run.first_glyph + g];
-      // based on direction, find first cluster that is lesser, doesn't have
-      // to strictly intersect
-      bool const intersects =
-          (pt_to_px(glyph.advance.x, first_run.font_height) + cursor <=
-           pos.x) ||
-          (g == first_run.num_glyphs - 1 && r == ln.num_runs - 1);
-      if (intersects)
+      GlyphShape const &glyph   = layout.glyphs[run.first_glyph + g];
+      f32 const         advance = pt_to_px(glyph.advance.x, run.font_height);
+      bool const        intersects =
+          (pos.x >= glyph_cursor && pos.x <= (glyph_cursor + advance)) ||
+          (g == run.num_glyphs - 1);
+      if (!intersects)
       {
-        u32 const column = (glyph.cluster > ln.first_codepoint) ?
-                               (glyph.cluster - ln.first_codepoint) :
-                               0;
-        return TextHitResult{
-            .cluster = glyph.cluster, .line = l, .column = column};
+        glyph_cursor += advance;
+        continue;
       }
+      u32 const column = (glyph.cluster > ln.first_codepoint) ?
+                             (glyph.cluster - ln.first_codepoint) :
+                             0;
+      return TextHitResult{
+          .cluster = glyph.cluster, .line = l, .column = column};
     }
-    cursor += dir_advance;
+    cursor += pt_to_px(run.metrics.advance, run.font_height);
   }
 
   u32 const column = (ln.num_codepoints == 0) ? 0 : (ln.num_codepoints - 1);

@@ -436,6 +436,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout);
 /// grapheme the cursor points to. returns the last column if the position
 /// overlaps with the row and returns the last line if no overlap was found.
 /// @param pos position in laid-out text to return from.
-TextHitResult hit_text(TextLayout const &layout, Vec2 pos);
+TextHitResult hit_text(TextLayout const &layout, TextBlockStyle const &style,
+                       Vec2 pos);
 
 }        // namespace ash
