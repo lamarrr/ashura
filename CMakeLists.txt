@@ -192,6 +192,7 @@ add_library(
   ashura/engine/widgets/collapsable.cc
   ashura/engine/widgets/color_picker.cc
   ashura/engine/widgets/combo_box.cc
+  ashura/engine/widgets/demo.cc
   ashura/engine/widgets/flex_box.cc
   ashura/engine/widgets/input_box.cc
   ashura/engine/widgets/plot.cc
