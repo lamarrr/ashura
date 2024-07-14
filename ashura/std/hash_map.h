@@ -99,15 +99,14 @@ struct HashMap
     max_probe_dist_ = 0;
   }
 
-  [[nodiscard]] constexpr V *operator[](K const &key) const
+  [[nodiscard]] constexpr V *get(K const &key, Hash hash) const
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
       return nullptr;
     }
-    Hash const hash       = hasher_(key);
-    usize      probe_idx  = hash & (num_probes_ - 1);
-    Distance   probe_dist = 0;
+    usize    probe_idx  = hash & (num_probes_ - 1);
+    Distance probe_dist = 0;
     while (probe_dist <= max_probe_dist_)
     {
       if (probe_dists_[probe_idx] == PROBE_SENTINEL)
@@ -125,9 +124,25 @@ struct HashMap
     return nullptr;
   }
 
+  [[nodiscard]] constexpr V *get(K const &key) const
+  {
+    Hash const hash = hasher_(key);
+    return get(key, hash);
+  }
+
+  [[nodiscard]] constexpr V *operator[](K const &key) const
+  {
+    return get(key);
+  }
+
   [[nodiscard]] constexpr bool has(K const &key) const
   {
-    return (*this)[key] != nullptr;
+    return get(key) != nullptr;
+  }
+
+  [[nodiscard]] constexpr bool has(K const &key, Hash hash) const
+  {
+    return get(key, hash) != nullptr;
   }
 
   static constexpr bool needs_rehash_(usize num_entries, usize num_probes)
@@ -307,15 +322,15 @@ struct HashMap
     }
   }
 
-  constexpr bool erase(K const &key, V *erased_uninit = nullptr)
+  constexpr bool erase_hashed(K const &key, Hash hash,
+                              V *erased_uninit = nullptr)
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
       return false;
     }
-    Hash const hash       = hasher_(key);
-    usize      probe_idx  = hash & (num_probes_ - 1);
-    Distance   probe_dist = 0;
+    usize    probe_idx  = hash & (num_probes_ - 1);
+    Distance probe_dist = 0;
 
     while (probe_dist <= max_probe_dist_)
     {
@@ -345,6 +360,11 @@ struct HashMap
       probe_dist++;
     }
     return false;
+  }
+
+  constexpr bool erase(K const &key, V *erased_uninit = nullptr)
+  {
+    return erase_hashed(key, hasher_(key), erased_uninit);
   }
 
   template <typename Fn>
