@@ -7,16 +7,12 @@ namespace ash
 {
 
 /// @brief
-/// @param text_pos index of the first codepoint belonging to this record in the
-/// history buffer (only valid if it was an erase event)
-/// @param buffer_pos position of this text in the history buffer
-/// @param num number of codepoints this text record spans in the history buffer
+/// @param slice region of the original text this info belongs to
 /// @param is_insert whether this is a erase or insert record
 struct TextEditRecord
 {
-  u32  text_pos  = 0;
-  u32  num       = 0;
-  bool is_insert = false;
+  Slice32 slice     = {};
+  bool    is_insert = false;
 };
 
 enum class TextCommand : u32
@@ -29,52 +25,50 @@ enum class TextCommand : u32
   /// Editing
   BackSpace = 2,
   Delete    = 3,
+  InputText = 4,
 
-  /// Cursor Navigation (Selection Resetting)
-  Left      = 4,
-  Right     = 5,
-  Up        = 6,
-  Down      = 7,
-  WordStart = 8,
-  WordEnd   = 9,
-  LineStart = 10,
-  LineEnd   = 11,
-  PageUp    = 12,
-  PageDown  = 13,
+  /// Cursor Positioning
+  Left      = 5,
+  Right     = 6,
+  WordStart = 7,
+  WordEnd   = 8,
+  LineStart = 9,
+  LineEnd   = 10,
+  Up        = 11,
+  Down      = 12,
+  PageUp    = 13,
+  PageDown  = 14,
 
-  /// Cursor Navigation (Selection Spanning)
-  SelectLeft      = 14,
-  SelectRight     = 15,
-  SelectUp        = 16,
-  SelectDown      = 17,
-  SelectWordStart = 18,
-  SelectWordEnd   = 19,
-  SelectLineStart = 20,
-  SelectLineEnd   = 21,
-  SelectPageUp    = 22,
-  SelectPageDown  = 23,
+  /// Cursor Selection
+  SelectLeft      = 15,
+  SelectRight     = 16,
+  SelectUp        = 17,
+  SelectDown      = 18,
+  SelectWordStart = 19,
+  SelectWordEnd   = 20,
+  SelectLineStart = 21,
+  SelectLineEnd   = 22,
+  SelectPageUp    = 23,
+  SelectPageDown  = 24,
 
   /// Semantic Selection
-  SelectCodepoint = 24,
-  SelectWord      = 25,
-  SelectLine      = 26,
-  SelectAll       = 27,
+  SelectCodepoint = 25,
+  SelectWord      = 26,
+  SelectLine      = 27,
+  SelectAll       = 28,
 
-  /// Copy & Paste
-  Cut   = 28,
-  Copy  = 29,
-  Paste = 30,
+  /// ClipBoard
+  Cut   = 29,
+  Copy  = 30,
+  Paste = 31,
 
   /// Redo/Undo
-  Undo = 31,
-  Redo = 32,
+  Undo = 32,
+  Redo = 33,
 
   /// Mouse Selection (Visual)
-  HitCodepoint = 33,
-  HitWord      = 34,
-  HitLine      = 35,
-  HitAll       = 36,
-  Drag         = 37
+  Hit       = 34,
+  HitSelect = 35
 };
 
 /// @param first includes the first selected codepoint in the selection range.
@@ -102,8 +96,8 @@ struct [[nodiscard]] TextCursor
 
   constexpr Slice32 as_slice(u32 len) const
   {
-    u32 rfirst = (u32) clamp(first, (i64) 0, (i64) len);
-    u32 rlast  = (u32) clamp(last, (i64) 0, (i64) len);
+    u32 rfirst = (u32)::ash::clamp(first, (i64) 0, (i64) len);
+    u32 rlast  = (u32)::ash::clamp(last, (i64) 0, (i64) len);
     if (rfirst > rlast)
     {
       swap(rfirst, rlast);
@@ -132,11 +126,20 @@ struct [[nodiscard]] TextCursor
   {
     return TextCursor{last, last};
   }
+
+  constexpr TextCursor clamp(u32 len) const
+  {
+    if (len == 0)
+    {
+      return TextCursor{};
+    }
+    return TextCursor{::ash::clamp(first, (i64) 0, (i64) (len - 1)),
+                      ::ash::clamp(last, (i64) 0, (i64) (len - 1))};
+  }
 };
 
 /// @brief A simple stack-based text compositor
-/// @param buffer_size current size of the buffer
-/// @param buffer_pos marks the end of the buffer for the current text edit
+/// @param buffer_pos the end of the buffer for the current text edit
 /// record
 struct TextCompositor
 {
@@ -156,10 +159,9 @@ struct TextCompositor
   static constexpr u32 DEFAULT_LINE_SYMBOLS[] = {'\n', 0x2029};
 
   TextCursor          cursor         = {};
-  u32                 alignment      = 0;
   Vec<u32>            buffer         = {};
   Vec<TextEditRecord> records        = {};
-  u32                 buffer_size    = 0;
+  u32                 buffer_usage   = 0;
   u32                 buffer_pos     = 0;
   u32                 latest_record  = 0;
   u32                 current_record = 0;
@@ -181,7 +183,7 @@ struct TextCompositor
     cursor = {};
     buffer.reset();
     records.reset();
-    buffer_size    = 0;
+    buffer_usage   = 0;
     buffer_pos     = 0;
     latest_record  = 0;
     current_record = 0;
@@ -194,10 +196,6 @@ struct TextCompositor
     reset();
   }
 
-  /// @brief adjust cursor to specified line whilst respecting cursor alignment
-  void goto_line(TextLayout const &layout, TextBlockStyle const &style,
-                 u32 line);
-
   void pop_records(u32 num);
 
   void append_record(bool is_insert, u32 text_pos, Span<u32 const> segment);
@@ -208,49 +206,12 @@ struct TextCompositor
 
   void delete_selection(Span<u32 const> text, Erase erase);
 
-  /// @brief IME-text input
   /// @param text original text
   /// @param input text from IME to insert
-  void input_text(Span<u32 const> text, Span<u32 const> input, Insert insert,
-                  Erase erase);
-
-  void drag(TextLayout const &layout, TextBlockStyle const &style, Vec2 pos);
-
-  void update_cursor(TextLayout const &layout, TextBlockStyle const &style);
-
-  void select_codepoint();
-
-  void select_word(Span<u32 const> text);
-
-  void select_line(Span<u32 const> text);
-
-  void select_all(Span<u32 const> text);
-
-  void hit_codepoint(TextLayout const &layout, TextBlockStyle const &style,
-                     Vec2 pos);
-
-  void hit_word(Span<u32 const> text, TextLayout const &layout,
-                TextBlockStyle const &style, Vec2 pos);
-
-  void hit_line(Span<u32 const> text, TextLayout const &layout,
-                TextBlockStyle const &style, Vec2 pos);
-
-  void hit_all(Span<u32 const> text, TextLayout const &layout,
-               TextBlockStyle const &style, Vec2 pos);
-
-  void up(TextLayout const &layout, TextBlockStyle const &style, u32 lines);
-
-  void down(TextLayout const &layout, TextBlockStyle const &style, u32 lines);
-
-  void left();
-
-  void right();
-
-  void escape();
-
   void command(Span<u32 const> text, TextLayout const &layout,
                TextBlockStyle const &style, TextCommand cmd, Insert insert,
-               Erase erase, Fn<Span<u32 const>()> get_content,
+               Erase erase, Span<u32 const> input,
+               Fn<Span<u32 const>()>     get_content,
                Fn<void(Span<u32 const>)> set_content, u32 lines_per_page,
                Vec2 pos);
 };

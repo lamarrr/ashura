@@ -7,39 +7,23 @@
 namespace ash
 {
 
-/// @brief given a cluser index in the text, get the line number the cluster
-/// belongs to, otherwise return U32_MAX.
-/// @param cluster cluster to
-/// @return
-static inline u32 find_cluster_line(TextLayout const &layout, u32 cluster)
-{
-  for (u32 i = 0; i < layout.lines.size32(); i++)
-  {
-    if (layout.lines[i].first_codepoint <= cluster &&
-        (layout.lines[i].first_codepoint + layout.lines[i].num_codepoints) >
-            cluster)
-    {
-      return i;
-    }
-  }
-  return U32_MAX;
-}
-
-void TextCompositor::goto_line(TextLayout const     &layout,
-                               TextBlockStyle const &style, u32 line)
+static inline u32 goto_line(TextLayout const &layout, u32 alignment, u32 line)
 {
   if (layout.lines.is_empty())
   {
-    return;
+    return 0;
   }
 
   line = min(line, layout.lines.size32() - 1);
 
-  cursor.last = min(layout.lines[line].first_codepoint + alignment,
-                    layout.lines[line].first_codepoint +
-                        ((layout.lines[line].num_codepoints == 0) ?
-                             0 :
-                             (layout.lines[line].num_codepoints - 1)));
+  Line const &ln = layout.lines[line];
+
+  if (alignment > ln.num_codepoints)
+  {
+    return ln.first_codepoint + (ln.num_codepoints - 1);
+  }
+
+  return ln.first_codepoint + alignment;
 }
 
 void TextCompositor::pop_records(u32 num)
@@ -48,11 +32,11 @@ void TextCompositor::pop_records(u32 num)
   u32 reclaimed = 0;
   for (u32 i = 0; i < num; i++)
   {
-    reclaimed += records[i].num;
+    reclaimed += records[i].slice.span;
   }
   mem::move(to_span(buffer).slice(reclaimed).as_const(), to_span(buffer));
   mem::move(to_span(records).slice(num).as_const(), to_span(records));
-  buffer_size -= reclaimed;
+  buffer_usage -= reclaimed;
   latest_record -= num;
   current_record -= num;
 }
@@ -68,7 +52,7 @@ void TextCompositor::append_record(bool is_insert, u32 text_pos,
     return;
   }
 
-  while (buffer_size + segment.size32() > buffer.size32())
+  while (buffer_usage + segment.size32() > buffer.size32())
   {
     // pop half, to amortize shifting cost.
     // always pop by atleast 1. since the buffer can fit it and atleast 1
@@ -81,12 +65,13 @@ void TextCompositor::append_record(bool is_insert, u32 text_pos,
     pop_records(max(records.size32() >> 1, 1U));
   }
 
-  mem::copy(segment, to_span(buffer).slice(buffer_size));
+  mem::copy(segment, to_span(buffer).slice(buffer_pos));
 
   current_record++;
-  latest_record           = current_record;
-  records[current_record] = TextEditRecord{
-      .text_pos = text_pos, .num = segment.size32(), .is_insert = is_insert};
+  latest_record          = current_record;
+  records[latest_record] = TextEditRecord{
+      .slice = Slice32{text_pos, segment.size32()}, .is_insert = is_insert};
+  buffer_pos += segment.size32();
 }
 
 void TextCompositor::undo(Insert insert, Erase erase)
@@ -97,16 +82,21 @@ void TextCompositor::undo(Insert insert, Erase erase)
   }
   // undo changes of current record
   TextEditRecord &record = records[current_record];
-  buffer_pos -= record.num;
+  buffer_pos -= record.slice.span;
   if (record.is_insert)
   {
-    erase(Slice32{record.text_pos, record.num});
+    erase(record.slice);
   }
   else
   {
-    insert(record.text_pos, to_span(buffer).slice(buffer_pos, record.num));
+    insert(record.slice.offset,
+           to_span(buffer).slice(buffer_pos, record.slice.span));
   }
   current_record--;
+  if (record.is_insert)
+  {
+    cursor = TextCursor::from_slice(record.slice);
+  }
 }
 
 void TextCompositor::redo(Insert insert, Erase erase)
@@ -120,14 +110,19 @@ void TextCompositor::redo(Insert insert, Erase erase)
   TextEditRecord &record = records[current_record];
   if (record.is_insert)
   {
-    insert(record.text_pos, to_span(buffer).slice(buffer_pos, record.num));
+    insert(record.slice.offset,
+           to_span(buffer).slice(buffer_pos, record.slice.span));
   }
   else
   {
-    erase(Slice32{record.text_pos, record.num});
+    erase(record.slice);
   }
 
-  buffer_pos += record.num;
+  buffer_pos += record.slice.span;
+  if (!record.is_insert)
+  {
+    cursor = TextCursor::from_slice(record.slice);
+  }
 }
 
 void TextCompositor::delete_selection(Span<u32 const> text, Erase erase)
@@ -140,31 +135,7 @@ void TextCompositor::delete_selection(Span<u32 const> text, Erase erase)
   Slice32 const selection = cursor.as_slice(text.size32());
   append_record(false, selection.offset, text.slice(selection));
   erase(selection);
-  if (selection_last > selection_first)
-  {
-    selection_last = selection_first;
-  }
-  else
-  {
-    selection_first = selection_last;
-  }
-}
-
-void TextCompositor::input_text(Span<u32 const> text, Span<u32 const> input,
-                                Insert insert, Erase erase)
-{
-  Slice32 selection = selection_slice(text.size32());
-  delete_selection(text, to_fn([](Slice32) {}));
-  append_record(true, selection.offset, input);
-  erase(selection);
-  insert(selection.offset, input);
-}
-
-void TextCompositor::drag(TextLayout const &layout, TextBlockStyle const &style,
-                          Vec2 pos)
-{
-  TextHitResult const hit = hit_text(layout, style, pos);
-  cursor.last             = hit.cluster;
+  cursor = cursor.to_begin();
 }
 
 static constexpr bool is_symbol(Span<u32 const> symbols, u32 c)
@@ -217,157 +188,51 @@ static constexpr Slice32 find_boundary(Span<u32 const> text, u32 const pos,
   return Slice32{.offset = bwd, .span = (fwd - bwd) + 1};
 }
 
-void TextCompositor::update_cursor(TextLayout const     &layout,
-                                   TextBlockStyle const &style)
-{
-  cursor =
-      selection.offset + (((selection.span == 0) ? 0 : (selection.span - 1)));
-  u32 const   l    = find_cluster_line(layout, cursor);
-  Line const &line = layout.lines[l];
-  alignment =
-      cursor > line.first_codepoint ? (cursor - line.first_codepoint) : 0;
-}
-
-void TextCompositor::select_codepoint()
-{
-  cursor.first = cursor.last++;
-}
-
-void TextCompositor::select_word(Span<u32 const> text)
-{
-  if (text.is_empty())
-  {
-    return;
-  }
-  u32 pos =
-      (selection_last >= text.size32()) ? (text.size32() - 1) : selection_last;
-
-  find_boundary(text, selection.offset, word_symbols, selection);
-}
-
-void TextCompositor::select_line(Span<u32 const> text)
+static inline Slice32 cursor_boundary(Span<u32 const> text,
+                                      Span<u32 const> symbols,
+                                      TextCursor      cursor)
 {
   Slice32 selection = cursor.as_slice(text.size32());
   if (text.is_empty() || selection.is_empty())
   {
-    return;
+    return Slice32{};
   }
-  selection = find_boundary(text, selection.offset, line_symbols);
-  cursor    = TextCursor::from_slice(selection);
+  return find_boundary(text, selection.offset, symbols);
 }
 
-void TextCompositor::select_all(Span<u32 const> text)
+struct LinePosition
 {
-  cursor.first = 0;
-  cursor.last  = text.size32();
-}
+  u32 line      = 0;
+  u32 alignment = 0;
+};
 
-void TextCompositor::hit_codepoint(TextLayout const     &layout,
-                                   TextBlockStyle const &style, Vec2 pos)
-{
-  TextHitResult const hit = hit_text(layout, style, pos);
-  cursor.last             = hit.cluster;
-}
-
-void TextCompositor::hit_word(Span<u32 const> text, TextLayout const &layout,
-                              TextBlockStyle const &style, Vec2 pos)
-{
-  TextHitResult const hit = hit_text(layout, style, pos);
-  cursor.last             = hit.cluster;
-  select_word(text);
-}
-
-void TextCompositor::hit_line(Span<u32 const> text, TextLayout const &layout,
-                              TextBlockStyle const &style, Vec2 pos)
-{
-  TextHitResult const hit = hit_text(layout, style, pos);
-  cursor.first = cursor.last = hit.cluster;
-  select_line(text);
-}
-
-void TextCompositor::hit_all(Span<u32 const> text, TextLayout const &layout,
-                             TextBlockStyle const &style, Vec2 pos)
-{
-  TextHitResult const hit = hit_text(layout, style, pos);
-  cursor.first = cursor.last = hit.cluster;
-  select_all(text);
-}
-
-void TextCompositor::hit_select(Span<u32 const> text, TextLayout const &layout,
-                                TextBlockStyle const &style, Vec2 pos)
-{
-  TextHitResult const hit = hit_text(layout, style, pos);
-  cursor.last             = hit.cluster;
-}
-
-void TextCompositor::up(TextLayout const &layout, TextBlockStyle const &style,
-                        u32 lines)
-{
-  u32 line = line_translate(layout, cursor, -(i64) lines);
-  goto_line(layout, style, line);
-}
-
-void TextCompositor::down(TextLayout const &layout, TextBlockStyle const &style,
-                          u32 lines)
-{
-  u32 line = line_translate(layout, cursor, (i64) lines);
-  goto_line(layout, style, line);
-}
-
-void TextCompositor::left()
-{
-  // if has selection, move to left of selection
-  if (!cursor.is_empty())
-  {
-    cursor = cursor.to_begin();
-    return;
-  }
-
-  // move the cursor to the previous codepoint
-  cursor       = cursor.to_begin();
-  cursor.first = --cursor.last;
-}
-
-void TextCompositor::right()
-{
-  // if has selection, move to right of selection
-  if (!cursor.is_empty())
-  {
-    cursor = cursor.to_end();
-    return;
-  }
-
-  // move to the next codepoint
-  cursor       = cursor.to_end();
-  cursor.first = ++cursor.last;
-}
-
-void TextCompositor::escape()
-{
-  cursor = cursor.escape();
-}
-
-static u32 line_translate(TextLayout const &layout, u32 cursor, i64 dy)
+static inline LinePosition line_translate(TextLayout const &layout, u32 cursor,
+                                          i64 dy)
 {
   if (layout.lines.is_empty())
   {
-    return 0;
+    return LinePosition{};
   }
 
-  i64 line = find_cluster_line(layout, cursor);
-  if (line == U32_MAX)
+  for (u32 ln = 0; ln < layout.lines.size32(); ln++)
   {
-    return 0;
+    Line const &line = layout.lines[ln];
+    if (line.first_codepoint <= cursor &&
+        (line.first_codepoint + line.num_codepoints) > cursor)
+    {
+      u32 const alignment = cursor - line.first_codepoint;
+      u32 const next_line =
+          (u32) clamp(ln + dy, (i64) 0, (i64) (layout.lines.size32() - 1));
+      return LinePosition{.line = next_line, .alignment = alignment};
+    }
   }
 
-  line += dy;
-
-  return (u32) clamp(line, (i64) 0, (i64) (layout.lines.size32() - 1));
+  return LinePosition{};
 }
 
 void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
                              TextBlockStyle const &style, TextCommand cmd,
-                             Insert insert, Erase erase,
+                             Insert insert, Erase erase, Span<u32 const> input,
                              Fn<Span<u32 const>()>     get_clipboard,
                              Fn<void(Span<u32 const>)> set_clipboard,
                              u32 lines_per_page, Vec2 pos)
@@ -376,244 +241,250 @@ void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
   {
     case TextCommand::Escape:
     {
-      escape();
-      update_cursor(layout, style);
+      cursor.first = cursor.last;
     }
     break;
     case TextCommand::BackSpace:
     {
-      if (selection.is_empty())
+      if (cursor.is_empty())
       {
-        left(text);
-        selection.span = 1;
+        cursor = cursor.to_begin();
+        cursor.first--;
+        cursor = cursor.clamp(text.size32());
       }
-      delete_selection(text, insert, erase);
-      update_cursor(layout, style);
+      delete_selection(text, erase);
     }
     break;
     case TextCommand::Delete:
     {
-      if (selection.is_empty())
+      if (cursor.is_empty())
       {
-        right(text);
-        selection.span = 1;
+        cursor.last++;
+        cursor = cursor.clamp(text.size32());
       }
-      delete_selection(text, insert, erase);
-      update_cursor(layout, style);
+      delete_selection(text, erase);
+    }
+    break;
+    case TextCommand::InputText:
+    {
+      Slice32 selection = cursor.as_slice(text.size32());
+      delete_selection(text, to_fn([](Slice32) {}));
+      append_record(true, selection.offset, input);
+      erase(selection);
+      insert(selection.offset, input);
     }
     break;
     case TextCommand::Left:
     {
-      left(text);
-      update_cursor(layout, style);
+      if (!cursor.is_empty())
+      {
+        cursor = cursor.to_begin();
+        break;
+      }
+
+      cursor       = cursor.to_begin();
+      cursor.first = --cursor.last;
+      cursor       = cursor.clamp(text.size32());
     }
     break;
     case TextCommand::Right:
     {
-      right(text);
-      update_cursor(layout, style);
-    }
-    break;
-    case TextCommand::Up:
-    {
-      up(layout, style);
-      update_cursor(layout, style);
-    }
-    break;
-    case TextCommand::Down:
-    {
-      down(layout, style);
-      update_cursor(layout, style);
+      if (!cursor.is_empty())
+      {
+        cursor = cursor.to_end();
+        return;
+      }
+
+      cursor       = cursor.to_end();
+      cursor.first = ++cursor.last;
+      cursor       = cursor.clamp(text.size32());
     }
     break;
     case TextCommand::WordStart:
     {
-      select_word(text);
-      left(text);
-      update_cursor(layout, style);
+      Slice32 word = cursor_boundary(text, word_symbols, cursor);
+      cursor.first = cursor.last = word.offset;
     }
     break;
     case TextCommand::WordEnd:
     {
-      select_word(text);
-      right(text);
-      update_cursor(layout, style);
+      Slice32 word = cursor_boundary(text, word_symbols, cursor);
+      cursor.first = cursor.last =
+          (word.span == 0) ? word.offset : (word.offset + word.span - 1);
     }
     break;
     case TextCommand::LineStart:
     {
-      select_line(text);
-      left(text);
-      update_cursor(layout, style);
+      Slice32 line = cursor_boundary(text, line_symbols, cursor);
+      cursor.first = cursor.last = line.offset;
     }
     break;
     case TextCommand::LineEnd:
     {
-      select_line(text);
-      right(text);
-      update_cursor(layout, style);
+      Slice32 line = cursor_boundary(text, line_symbols, cursor);
+      cursor.first = cursor.last =
+          (line.span == 0) ? line.offset : (line.offset + line.span - 1);
+    }
+    break;
+    case TextCommand::Up:
+    {
+      LinePosition line = line_translate(layout, (u32) cursor.last, -1);
+      cursor.first = cursor.last = goto_line(layout, line.alignment, line.line);
+    }
+    break;
+    case TextCommand::Down:
+    {
+      LinePosition line = line_translate(layout, (u32) cursor.last, 1);
+      cursor.first = cursor.last = goto_line(layout, line.alignment, line.line);
     }
     break;
     case TextCommand::PageUp:
     {
-      page_up(layout, style, lines_per_page);
-      update_cursor(layout, style);
+      LinePosition line =
+          line_translate(layout, (u32) cursor.last, -(i64) lines_per_page);
+      cursor.first = cursor.last = goto_line(layout, line.alignment, line.line);
     }
     break;
     case TextCommand::PageDown:
     {
-      // TODO(lamarrr): page down should reset selection to cursor not update
-      // cursor
-      page_down(layout, style, lines_per_page);
-      update_cursor(layout, style);
+      LinePosition line =
+          line_translate(layout, (u32) cursor.last, lines_per_page);
+      cursor.first = cursor.last = goto_line(layout, line.alignment, line.line);
     }
     break;
     case TextCommand::SelectLeft:
     {
-      left(text);
-      update_cursor(layout, style);
+      cursor.last--;
+      cursor = cursor.clamp(text.size32());
     }
     break;
     case TextCommand::SelectRight:
     {
-      right(text);
-      update_cursor(layout, style);
+      cursor.last++;
+      cursor = cursor.clamp(text.size32());
     }
     break;
     case TextCommand::SelectUp:
     {
-      up(layout, style);
-      update_cursor(layout, style);
+      LinePosition line = line_translate(layout, (u32) cursor.last, -1);
+      cursor.last       = goto_line(layout, line.alignment, line.line);
     }
     break;
     case TextCommand::SelectDown:
     {
-      down(layout, style);
-      update_cursor(layout, style);
+      LinePosition line = line_translate(layout, (u32) cursor.last, 1);
+      cursor.last       = goto_line(layout, line.alignment, line.line);
     }
     break;
     case TextCommand::SelectWordStart:
     {
-      select_word(text);
-      left(text);
-      update_cursor(layout, style);
+      Slice32 word = cursor_boundary(text, word_symbols, cursor);
+      cursor.last  = word.offset;
     }
     break;
     case TextCommand::SelectWordEnd:
     {
-      select_word(text);
-      right(text);
-      update_cursor(layout, style);
+      Slice32 word = cursor_boundary(text, word_symbols, cursor);
+      cursor.last =
+          (word.span == 0) ? word.offset : (word.offset + word.span - 1);
     }
     break;
     case TextCommand::SelectLineStart:
     {
-      select_line(text);
-      left(text);
-      update_cursor(layout, style);
+      Slice32 line = cursor_boundary(text, line_symbols, cursor);
+      cursor.last  = line.offset;
     }
     break;
     case TextCommand::SelectLineEnd:
     {
-      select_line(text);
-      right(text);
-      update_cursor(layout, style);
+      Slice32 line = cursor_boundary(text, line_symbols, cursor);
+      cursor.last =
+          (line.span == 0) ? line.offset : (line.offset + line.span - 1);
     }
     break;
     case TextCommand::SelectPageUp:
     {
-      page_up(layout, style, lines_per_page);
-      update_cursor(layout, style);
+      LinePosition line =
+          line_translate(layout, (u32) cursor.last, lines_per_page);
+      cursor.last = goto_line(layout, line.alignment, line.line);
     }
     break;
     case TextCommand::SelectPageDown:
     {
-      page_down(layout, style, lines_per_page);
-      update_cursor(layout, style);
+      LinePosition line =
+          line_translate(layout, (u32) cursor.last, lines_per_page);
+      cursor.last = goto_line(layout, line.alignment, line.line);
+    }
+    break;
+    case TextCommand::SelectCodepoint:
+    {
+      cursor.first = cursor.last++;
+      cursor       = cursor.clamp(text.size32());
+    }
+    break;
+    case TextCommand::SelectWord:
+    {
+      Slice32 word = cursor_boundary(text, word_symbols, cursor);
+      cursor.first = word.offset;
+      cursor.last =
+          (word.span == 0) ? word.offset : (word.offset + word.span - 1);
+    }
+    break;
+    case TextCommand::SelectLine:
+    {
+      Slice32 line = cursor_boundary(text, line_symbols, cursor);
+      cursor.first = line.offset;
+      cursor.last =
+          (line.span == 0) ? line.offset : (line.offset + line.span - 1);
+    }
+    break;
+    case TextCommand::SelectAll:
+    {
+      cursor.first = 0;
+      cursor.last  = text.size32();
     }
     break;
     case TextCommand::Cut:
     {
-      set_clipboard(text.slice(selection));
-      delete_selection(text, insert, erase);
-      update_cursor(layout, style);
+      set_clipboard(text.slice(cursor.as_slice(text.size32())));
+      delete_selection(text, erase);
     }
     break;
     case TextCommand::Copy:
     {
-      set_clipboard(text.slice(selection));
+      set_clipboard(text.slice(cursor.as_slice(text.size32())));
     }
     break;
     case TextCommand::Paste:
     {
-      input_text(text, get_clipboard(), insert, erase);
-      update_cursor(layout, style);
+      Span<u32 const> clipboard_input = get_clipboard();
+      Slice32         selection       = cursor.as_slice(text.size32());
+      delete_selection(text, to_fn([](Slice32) {}));
+      append_record(true, selection.offset, clipboard_input);
+      erase(selection);
+      insert(selection.offset, clipboard_input);
     }
     break;
     case TextCommand::Undo:
     {
       undo(insert, erase);
-      update_cursor(layout, style);
     }
     break;
     case TextCommand::Redo:
     {
       redo(insert, erase);
-      update_cursor(layout, style);
     }
     break;
-    case TextCommand::SelectCodepoint:
+    case TextCommand::Hit:
     {
-      select_codepoint(text);
-      update_cursor(layout, style);
-    }
-    break;
-    case TextCommand::SelectWord:
-    {
-      select_word(text);
-      update_cursor(layout, style);
-    }
-    break;
-    case TextCommand::SelectLine:
-    {
-      select_line(text);
-      update_cursor(layout, style);
-    }
-    break;
-    case TextCommand::SelectAll:
-    {
-      select_all(text);
-      update_cursor(layout, style);
-    }
-    break;
-    case TextCommand::HitCodepoint:
-    {
-      hit_codepoint(layout, style, pos);
-      update_cursor(layout, style);
-    }
-    break;
-    case TextCommand::HitWord:
-    {
-      hit_word(text, layout, style, pos);
-      update_cursor(layout, style);
-    }
-    break;
-    case TextCommand::HitLine:
-    {
-      hit_line(text, layout, style, pos);
-      update_cursor(layout, style);
-    }
-    break;
-    case TextCommand::HitAll:
-    {
-      hit_all(text, layout, style, pos);
-      update_cursor(layout, style);
+      TextHitResult const hit = hit_text(layout, style, pos);
+      cursor.first = cursor.last = hit.cluster;
     }
     break;
     case TextCommand::HitSelect:
     {
-      hit_all(text, layout, style, pos);
-      update_cursor(layout, style);
+      TextHitResult const hit = hit_text(layout, style, pos);
+      cursor.last             = hit.cluster;
     }
     break;
     case TextCommand::None:
