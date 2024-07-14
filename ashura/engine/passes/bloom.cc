@@ -4,15 +4,15 @@
 namespace ash
 {
 
-void BloomPass::init(RenderContext &ctx)
+void BloomPass::init(RenderContext &)
 {
 }
 
-void BloomPass::uninit(RenderContext &ctx)
+void BloomPass::uninit(RenderContext &)
 {
 }
 
-void BloomPass::add_pass(RenderContext &ctx, BloomPassParams const &params)
+void BloomPass::add_pass(RenderContext &, BloomPassParams const &)
 {
   /// E' = Blur(E)
   /// D' = Blur(D) + E'
