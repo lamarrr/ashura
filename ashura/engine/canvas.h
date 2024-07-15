@@ -60,7 +60,7 @@ struct CanvasBlurParam
   u32   num_passes = 0;
 };
 
-/// @param encoder function to encode the pass onto the renderer, will be called
+/// @brief encoder function to encode the pass onto the renderer, will be called
 /// from the render thread
 typedef Fn<void(RenderContext &, PassContext &, gfx::RenderingInfo const &,
                 gfx::DescriptorSet)>

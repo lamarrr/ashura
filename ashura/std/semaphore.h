@@ -6,27 +6,34 @@
 namespace ash
 {
 
+/// @brief A CPU Timeline Semaphore used for synchronization in multi-stage
+/// cooperative multitasking jobs. Unlike typical Binary/Counting Semaphores, A
+/// timeline semaphores a monotonic counter representing the stages of an
+/// operation.
 /// - Guarantees Forward Progress
 /// - Scatter-gather operations only require one primitive
 /// - Primitive can encode state of multiple operations and also be awaited by
 /// multiple operations at once.
 /// - Task ordering is established by the `state` which describes the number of
 /// steps needed to complete a task, and can be awaited by other tasks.
+/// - It is use and increment once, hence no deadlocks can occur. This also
+/// enables cooperative synchronization between systems processing different
+/// stages of an operation without explicit sync between them.
 ///
 /// Semaphore can only move from state `i` to state `j` where `j` >= `i`.
 ///
-/// semaphore should ideally not be destroyed before completion as there could
+/// Semaphore should ideally not be destroyed before completion as there could
 /// possibly be other tasks awaiting it.
 ///
-/// Semaphores never overflow. so it can have a maximum of U64_MAX stages.
+/// Semaphores never overflows. so it can have a maximum of U64_MAX stages.
 typedef struct Semaphore_T *Semaphore;
 
 ///
-///@brief Create a semaphore object
+/// @brief Create a semaphore object
 ///
-///@param num_stages: number of stages represented by this semaphore. must be
-/// non-zero.
-///@return Semaphore
+/// @param num_stages: number of stages represented by this semaphore. must be
+///  non-zero.
+/// @return Semaphore
 ///
 [[nodiscard]] Semaphore create_semaphore(u64 num_stages);
 
@@ -50,12 +57,12 @@ void destroy_semaphore(Semaphore sem);
 [[nodiscard]] bool is_semaphore_completed(Semaphore sem);
 
 ///
-///@brief
+/// @brief
 ///
-///@param semaphore: semaphore, non-null.
-///@param stage: stage of the semaphore currently executing. stage >= num_stages
-/// means completion of the last stage of the operation. must be monotonically
-/// increasing for each call to signal_semaphore.
+/// @param semaphore: semaphore, non-null.
+/// @param stage: stage of the semaphore currently executing. stage >=
+/// num_stages or U64_MAX means completion of the last stage of the operation.
+/// must be monotonically increasing for each call to signal_semaphore.
 ///
 void signal_semaphore(Semaphore sem, u64 stage);
 

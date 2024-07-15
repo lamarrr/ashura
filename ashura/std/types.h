@@ -3106,7 +3106,7 @@ constexpr Span<u32 const> utf(Span<char32_t const> s)
   return Span<u32 const>{(u32 const *) s.data_, s.size_};
 }
 
-/// @param index max of Rep::NUM_BITS - 1
+/// @param bit_index max of Rep::NUM_BITS - 1
 template <typename RepT>
 struct BitRef
 {
@@ -3489,11 +3489,15 @@ constexpr Max            max;
 constexpr Swap           swap;
 constexpr Clamp          clamp;
 
-/// Fn is a function handle and doesn't manage any lifetime.
-///
 template <typename Sig>
 struct Fn;
 
+/// @brief Fn is a type-erased function containing a callback and a pointer. Fn
+/// is a reference to both the function to be called and its associated data, it
+/// doesn't manage any lifetime.
+/// @param dispatcher function/callback to be invoked. typically a
+/// dispatcher/thunk.
+/// @param data associated data/context for the dispatcher to operate on.
 template <typename R, typename... Args>
 struct Fn<R(Args...)>
 {
@@ -3553,7 +3557,7 @@ struct MemberFnTraits
 {
 };
 
-// non-const member functions
+/// @brief non-const member function traits
 template <class T, typename R, typename... Args>
 struct MemberFnTraits<R (T::*)(Args...)>
 {
@@ -3565,7 +3569,7 @@ struct MemberFnTraits<R (T::*)(Args...)>
   using Dispatcher = FunctorDispatcher<T, R, Args...>;
 };
 
-// const member functions
+/// @brief const member function traits
 template <class T, typename R, typename... Args>
 struct MemberFnTraits<R (T::*)(Args...) const>
 {
@@ -3582,7 +3586,7 @@ struct FunctorTraits : public MemberFnTraits<decltype(&T::operator())>
 {
 };
 
-// make a function view from a raw function pointer.
+/// @brief make a function view from a raw function pointer.
 template <typename R, typename... Args>
 auto to_fn(R (*pfn)(Args...))
 {
@@ -3593,8 +3597,8 @@ auto to_fn(R (*pfn)(Args...))
   return Fn{&Dispatcher::dispatch, reinterpret_cast<void *>(pfn)};
 }
 
-/// make a function view from a non-capturing functor (i.e. lambda's without
-/// data)
+/// @brief make a function view from a non-capturing functor (i.e. lambda's
+/// without data)
 template <typename StaticFunctor>
 auto to_fn(StaticFunctor functor)
 {
@@ -3606,7 +3610,8 @@ auto to_fn(StaticFunctor functor)
   return to_fn(pfn);
 }
 
-/// make a function view from a functor reference. Functor should outlive the Fn
+/// @brief make a function view from a functor reference. Functor should outlive
+/// the Fn
 template <typename Functor>
 auto fn(Functor *functor)
 {
@@ -3618,6 +3623,8 @@ auto fn(Functor *functor)
             const_cast<void *>(reinterpret_cast<void const *>(functor))};
 }
 
+/// @brief create a function view from an object reference and a function
+/// dispatcher to execute using the object reference as its first argument.
 template <typename T, typename R, typename... Args>
 auto fn(T *t, R (*fn)(T *, Args...))
 {
@@ -3625,6 +3632,9 @@ auto fn(T *t, R (*fn)(T *, Args...))
                         const_cast<void *>(reinterpret_cast<void const *>(t))};
 }
 
+/// @brief create a function view from an object reference and a static
+/// non-capturing lambda to execute using the object reference as its first
+/// argument.
 template <typename T, typename StaticFunctor>
 auto fn(T *t, StaticFunctor functor)
 {
@@ -3636,14 +3646,12 @@ auto fn(T *t, StaticFunctor functor)
   return fn(t, pfn);
 }
 
-///
-/// The `SourceLocation`  class represents certain information about the source
-/// code, such as file names, line numbers, and function names. Previously,
-/// functions that desire to obtain this information about the call site (for
-/// logging, testing, or debugging purposes) must use macros so that predefined
-/// macros like `__LINE__` and `__FILE__` are expanded in the context of the
-/// caller. The `SourceLocation` class provides a better alternative.
-///
+/// @brief The `SourceLocation`  class represents certain information about the
+/// source code, such as file names, line numbers, and function names.
+/// Previously, functions that desire to obtain this information about the call
+/// site (for logging, testing, or debugging purposes) must use macros so that
+/// predefined macros like `__LINE__` and `__FILE__` are expanded in the context
+/// of the caller. The `SourceLocation` class provides a better alternative.
 ///
 /// based on: https://en.cppreference.com/w/cpp/utility/source_location
 ///

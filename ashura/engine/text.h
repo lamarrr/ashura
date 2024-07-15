@@ -230,7 +230,6 @@ enum class TextScript : u8
 /// @param font font to use to render the text
 /// @param word_spacing px. additional word spacing, can be negative
 /// @param line_height relative. multiplied by font_height
-/// @param letter_spacing px
 struct FontStyle
 {
   Font font        = nullptr;
@@ -253,6 +252,8 @@ struct TextStyle
   ColorGradient shadow                  = {};
 };
 
+/// @brief A block of text to be laid-out, consists of multiple runs of text
+/// spanning multiple paragraphs.
 /// @param text utf-32-encoded text
 /// @param runs end offset of each text run
 /// @param fonts font style of each text run
@@ -274,9 +275,9 @@ struct TextBlock
 };
 
 /// @param styles styles for each run in the source text
-/// @param align_width width to align the text block to.
+/// @param align_width width to align the text block to when rendering.
 /// @param alignment alignment of the text to its base direction. -1 = line
-/// start, +1 = line end, 0.5 = center of line, the direction depends on the
+/// start, +1 = line end, 0 = center of line, the direction depends on the
 /// directionality of the line.
 struct TextBlockStyle
 {
@@ -347,10 +348,10 @@ struct TextRun
 };
 
 /// @param width width of the line
-/// @param height maximum line height of all the runs on the line
-/// @param ascent maximum ascent of all the runs on the line
-/// @param descent maximum descent of all the runs on the line
-/// @param direction base direction of the line
+/// @param height maximum line height of all the runs on the line (px)
+/// @param ascent maximum ascent of all the runs on the line (px)
+/// @param descent maximum descent of all the runs on the line (px)
+/// @param level base level of the line
 struct LineMetrics
 {
   f32 width   = 0;

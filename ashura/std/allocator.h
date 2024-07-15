@@ -91,7 +91,9 @@ struct AllocatorImpl
   }
 };
 
-/// guarantees at least MAX_STANDARD_ALIGNMENT alignment.
+/// @brief General Purpose Heap allocator. guarantees at least
+/// MAX_STANDARD_ALIGNMENT alignment, when overaligned memory allocators are
+/// available and supported it can allocate over-aligned memory.
 struct HeapInterface
 {
   static bool alloc(Allocator self, usize alignment, usize size, u8 **mem);

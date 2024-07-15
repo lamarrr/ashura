@@ -39,7 +39,7 @@ struct HashMapEntry
   V value{};
 };
 
-/// Robin-hood open-address probing hashmap
+/// @brief Robin-hood open-address probing hashmap
 template <typename K, typename V, typename H, typename KCmp, typename D>
 struct HashMap
 {

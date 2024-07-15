@@ -729,6 +729,8 @@ constexpr Mat4 look_at(Vec3 eye, Vec3 center, Vec3 up)
            {-dot(s, eye), -dot(u, eye), -dot(f, eye), 1}}};
 }
 
+/// @brief Given an object-clip space (mvp) matrix, determine if the object is
+/// within the camera's area of view.
 /// https://github.com/GPUOpen-LibrariesAndSDKs/Cauldron/blob/b92d559bd083f44df9f8f42a6ad149c1584ae94c/src/common/Misc/Misc.cpp#L265
 /// https://bruop.github.io/frustum_culling/
 ///

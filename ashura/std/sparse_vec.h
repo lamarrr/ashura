@@ -7,6 +7,19 @@
 namespace ash
 {
 
+/// @brief Sparse Vector (a.k.a Sparse Set) are used for stable ID-tagging of
+/// objects in high-perf scenarious i.e. ECS, where a stable identity is needed
+/// for objects and they need to be processed in batches for efficiency. They
+/// have an indirect index into their elements, although they don't guarantee
+/// stability of the addresses of the elements they guarantee that the IDs
+/// persist until the id is released. Unlike typical Sparse Sets, Sparse Vec's
+/// elements are always contiguous without holes in them, making them suitable
+/// for operations like batch-processing and branchless SIMD.
+///
+/// This implementation allows the user to specify external sources of the
+/// objects' data.
+///
+///
 /// @param index_to_id id of data, ordered relative to {data}
 /// @param id_to_index map of id to index in {data}
 /// @param size the number of valid elements in the sparse set

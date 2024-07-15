@@ -13,7 +13,7 @@
 namespace ash
 {
 
-/// Simple Adaptive Layout Constraint Model
+/// @brief Simple Adaptive Layout Constraint Model
 /// @param offset adding or subtracting from the source size, i.e. value should
 /// be source size - 20px
 /// @param scale scales the source size, i.e. value should be 0.5 of source
@@ -115,6 +115,7 @@ enum class WidgetAttributes : u32
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
 
+/// @brief Global Widget Context
 /// @param has_focus the current widget scope (window) has focus
 /// @param button current button states
 /// @param drag_payload attached drag and drop payload data
