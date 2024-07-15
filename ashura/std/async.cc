@@ -39,8 +39,7 @@ struct Task
   usize                num_awaits     = 0;
   Semaphore           *await_sems     = nullptr;
   u64                 *awaits         = nullptr;
-  Fn<bool(void *)>     task           = to_fn([](void *) { return false; });
-  void                *data           = nullptr;
+  Fn<bool()>           task           = to_fn([] { return false; });
   usize                num_increments = 0;
   Semaphore           *increment_sems = nullptr;
   u64                 *increments     = nullptr;
@@ -151,7 +150,7 @@ struct SchedulerImpl final : Scheduler
       // we've gotten multiple tasks but none have been ready.
       poll = 0;
 
-      bool const should_requeue = task->data.task(task->data.data);
+      bool const should_requeue = task->data.task();
 
       for (usize i = 0; i < task->data.num_signals; i++)
       {
@@ -198,7 +197,7 @@ struct SchedulerImpl final : Scheduler
         continue;
       }
 
-      bool const should_requeue = task->data.task(task->data.data);
+      bool const should_requeue = task->data.task();
 
       for (usize i = 0; i < task->data.num_signals; i++)
       {
@@ -326,7 +325,6 @@ struct SchedulerImpl final : Scheduler
                                             .await_sems     = await_sems,
                                             .awaits         = awaits,
                                             .task           = info.task,
-                                            .data           = info.data,
                                             .num_increments = num_increments,
                                             .increment_sems = increment_sems,
                                             .increments     = increments,
