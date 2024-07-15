@@ -8,7 +8,7 @@
 namespace ash
 {
 
-// TODO(lamarrr): re-layout hint Once
+// TODO(lamarrr): re-layout hints i.e. Once
 struct TextBox : public Widget
 {
   TextBlock      block  = {};

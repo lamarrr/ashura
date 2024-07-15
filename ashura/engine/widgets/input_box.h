@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/engine/color.h"
+#include "ashura/engine/text_compositor.h"
 #include "ashura/engine/widget.h"
 #include "ashura/engine/widgets/button.h"
 
@@ -66,13 +67,17 @@ inline bool push(Context &ctx, Spec const &spec, ScalarInput const &value)
 
 struct TextInput : Widget
 {
-  bool secret    = false;
-  bool disabled  = false;
-  bool multiline = false;
-  // clear
-  //
-  // on_editing
-  // on_edited
+  bool            disabled            = false;
+  bool            is_secret           = false;
+  bool            is_multiline        = false;
+  bool            is_submittable      = false;
+  Span<u32 const> placeholder         = {};
+  Vec<u32>        text                = {};
+  Vec<u32>        secret              = {};
+  Fn<void()>      on_editing          = to_fn([] {});
+  Fn<void()>      on_editing_finished = to_fn([] {});
+  Fn<void()>      on_submit           = to_fn([] {});
+  TextCompositor  compositor          = {};
 
   virtual void tick(WidgetContext const &ctx, CRect const &region,
                     nanoseconds dt, WidgetEventTypes events) override
@@ -80,26 +85,53 @@ struct TextInput : Widget
     (void) ctx;
     (void) dt;
     (void) events;
+    // on click or focus, request keyboard
+    // for text area, change cursor type to editing
+    //
+
+    if (has_bits(events, WidgetEventTypes::TextInput))
+    {
+      compositor.command();
+    }
+    else if (has_bits(events, WidgetEventTypes::MouseDown))
+    {
+      // drag
+    }
+    else if (has_bits(events, WidgetEventTypes::MouseScroll))
+    {
+      // if scrollable region, scroll
+    }
+    else if (has_bits(events, WidgetEventTypes::KeyDown))
+    {
+      // control codes
+    }
 
     // TODO(lamarrr):
-    // copy
-    // paste
-    // editing
-    // escape
-    // highlighting
-    // selecting with keyboard nav
-    // composition via IME
-    // home, end
-    // do undo
-    // how to process enter events, submit? ignore?
-    // escape resets
-    // blinking default cursor
-    // custom cursor
-    // multi-line
-
-    // check has keyboard
-    // textinputbegin
-    // textinputend
+    // - [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
+    // Tab to move focus forwards)
+    // - [ ] scrolling
+    // - [ ] key debouncing
+    // - [ ] clipboard api
+    // - [ ] keymap
+    // - [ ] multi-line mode or single line mode (i.e.) -> on press enter ?
+    // submit
+    // - [ ] cursor rendering
+    // - [ ] textinputbegin
+    // - [ ] textinputend
+    // - [ ] debouncing of keyboard and mouse
+    // - [ ] time-based debouncing of keyboard pressing window mouse
+    // and key focus should propagate to tree AND focus or unfocus widgets
+    // SDL_StartTextInput
+    // - [ ] color space, pixel info for color pickers
+    // - [ ] spatial navigation model
+    /// use spatial testing and scrolling information instead
+    /// when moved, move to the closest non-obscured one. clipping? CHILDREN
+    /// navigatable but not visible. as in imgui.
+    // - [ ] scroll on child focus
+    // https://github.com/ocornut/imgui/issues/787#issuecomment-361419796 enter
+    /// parent: prod children, nav to children
+    /// https://user-images.githubusercontent.com/8225057/74143829-ce67b900-4bfb-11ea-90d9-0de40c944b26.gif
+    /// clicking with enter keyboard when focused
   }
 };
 

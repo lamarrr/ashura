@@ -73,6 +73,102 @@ constexpr uid UID_MAX = U64_MAX;
 
 constexpr f32 PI = 3.14159265358979323846F;
 
+template <typename E>
+using enum_ut = std::underlying_type_t<E>;
+
+template <typename E>
+[[nodiscard]] constexpr enum_ut<E> enum_uv(E a)
+{
+  return static_cast<enum_ut<E>>(a);
+}
+
+template <typename E>
+[[nodiscard]] constexpr enum_ut<E> enum_uv_or(E a, E b)
+{
+  return static_cast<enum_ut<E>>(enum_uv(a) | enum_uv(b));
+}
+
+template <typename E>
+[[nodiscard]] constexpr enum_ut<E> enum_uv_and(E a, E b)
+{
+  return static_cast<enum_ut<E>>(enum_uv(a) & enum_uv(b));
+}
+
+template <typename E>
+[[nodiscard]] constexpr enum_ut<E> enum_uv_not(E a)
+{
+  return static_cast<enum_ut<E>>(~enum_uv(a));
+}
+
+template <typename E>
+[[nodiscard]] constexpr enum_ut<E> enum_uv_xor(E a, E b)
+{
+  return static_cast<enum_ut<E>>(enum_uv(a) ^ enum_uv(b));
+}
+
+template <typename E>
+[[nodiscard]] constexpr E enum_or(E a, E b)
+{
+  return static_cast<E>(enum_uv_or(a, b));
+}
+
+template <typename E>
+[[nodiscard]] constexpr E enum_and(E a, E b)
+{
+  return static_cast<E>(enum_uv_and(a, b));
+}
+
+template <typename E>
+[[nodiscard]] constexpr E enum_xor(E a, E b)
+{
+  return static_cast<E>(enum_uv_xor(a, b));
+}
+
+template <typename E>
+[[nodiscard]] constexpr E enum_not(E a)
+{
+  return static_cast<E>(enum_uv_not(a));
+}
+
+#define ASH_DEFINE_ENUM_BIT_OPS(E)                 \
+  [[nodiscard]] constexpr E operator|(E a, E b)    \
+  {                                                \
+    return ::ash::enum_or(a, b);                   \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E operator&(E a, E b)    \
+  {                                                \
+    return ::ash::enum_and(a, b);                  \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E operator^(E a, E b)    \
+  {                                                \
+    return ::ash::enum_xor(a, b);                  \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E operator~(E a)         \
+  {                                                \
+    return ::ash::enum_not(a);                     \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E &operator|=(E &a, E b) \
+  {                                                \
+    a = a | b;                                     \
+    return a;                                      \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E &operator&=(E &a, E b) \
+  {                                                \
+    a = a & b;                                     \
+    return a;                                      \
+  }                                                \
+                                                   \
+  [[nodiscard]] constexpr E &operator^=(E &a, E b) \
+  {                                                \
+    a = a ^ b;                                     \
+    return a;                                      \
+  }
+
 template <typename T>
 constexpr bool has_bits(T src, T cmp)
 {
@@ -948,6 +1044,25 @@ constexpr void apply(Fn &&op, Tuple<T...> &&tuple)
 {
   impl_apply((Fn &&) op, tuple);
 }
+
+enum class Axis : u8
+{
+  X = 0,
+  Y = 1,
+  Z = 2,
+  W = 3
+};
+
+enum class Axes : u8
+{
+  None = 0x00,
+  X    = 0x01,
+  Y    = 0x02,
+  Z    = 0x04,
+  W    = 0x08
+};
+
+ASH_DEFINE_ENUM_BIT_OPS(Axes)
 
 typedef struct Vec2   Vec2;
 typedef struct Vec3   Vec3;
@@ -3576,101 +3691,5 @@ struct [[nodiscard]] SourceLocation
   u32         line     = 0;
   u32         column   = 0;
 };
-
-template <typename E>
-using enum_ut = std::underlying_type_t<E>;
-
-template <typename E>
-[[nodiscard]] constexpr enum_ut<E> enum_uv(E a)
-{
-  return static_cast<enum_ut<E>>(a);
-}
-
-template <typename E>
-[[nodiscard]] constexpr enum_ut<E> enum_uv_or(E a, E b)
-{
-  return static_cast<enum_ut<E>>(enum_uv(a) | enum_uv(b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr enum_ut<E> enum_uv_and(E a, E b)
-{
-  return static_cast<enum_ut<E>>(enum_uv(a) & enum_uv(b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr enum_ut<E> enum_uv_not(E a)
-{
-  return static_cast<enum_ut<E>>(~enum_uv(a));
-}
-
-template <typename E>
-[[nodiscard]] constexpr enum_ut<E> enum_uv_xor(E a, E b)
-{
-  return static_cast<enum_ut<E>>(enum_uv(a) ^ enum_uv(b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr E enum_or(E a, E b)
-{
-  return static_cast<E>(enum_uv_or(a, b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr E enum_and(E a, E b)
-{
-  return static_cast<E>(enum_uv_and(a, b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr E enum_xor(E a, E b)
-{
-  return static_cast<E>(enum_uv_xor(a, b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr E enum_not(E a)
-{
-  return static_cast<E>(enum_uv_not(a));
-}
-
-#define ASH_DEFINE_ENUM_BIT_OPS(E)                 \
-  [[nodiscard]] constexpr E operator|(E a, E b)    \
-  {                                                \
-    return ::ash::enum_or(a, b);                   \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E operator&(E a, E b)    \
-  {                                                \
-    return ::ash::enum_and(a, b);                  \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E operator^(E a, E b)    \
-  {                                                \
-    return ::ash::enum_xor(a, b);                  \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E operator~(E a)         \
-  {                                                \
-    return ::ash::enum_not(a);                     \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E &operator|=(E &a, E b) \
-  {                                                \
-    a = a | b;                                     \
-    return a;                                      \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E &operator&=(E &a, E b) \
-  {                                                \
-    a = a & b;                                     \
-    return a;                                      \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E &operator^=(E &a, E b) \
-  {                                                \
-    a = a ^ b;                                     \
-    return a;                                      \
-  }
 
 }        // namespace ash

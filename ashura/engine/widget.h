@@ -40,25 +40,6 @@ struct SizeConstraint
   }
 };
 
-enum class Axis : u8
-{
-  X = 0,
-  Y = 1,
-  Z = 2,
-  W = 3
-};
-
-enum class Axes : u8
-{
-  None = 0x00,
-  X    = 0x01,
-  Y    = 0x02,
-  Z    = 0x04,
-  W    = 0x08
-};
-
-ASH_DEFINE_ENUM_BIT_OPS(Axes)
-
 enum class MainAlign : u8
 {
   Start        = 0,
@@ -81,6 +62,9 @@ enum class MainAlign : u8
 /// viewport this can be because it has hidden visibility, is clipped away, or
 /// parent positioned out of the visible region. Can be used for
 /// partial unloading.
+/// @param FocusIn the widget has received keyboard focus
+/// @param FocusOut the widget has lost keyboard focus
+/// @param TextInput the widget has received composition text
 enum class WidgetEventTypes : u64
 {
   None         = 0x0000000000000000ULL,
@@ -102,7 +86,11 @@ enum class WidgetEventTypes : u64
   ViewHit      = 0x0000000000008000ULL,
   ViewMiss     = 0x0000000000010000ULL,
   FocusIn      = 0x0000000000020000ULL,
-  FocusOut     = 0x0000000000040000ULL
+  FocusOut     = 0x0000000000040000ULL,
+  KeyDown      = 0x0000000000080000ULL,
+  KeyUp        = 0x0000000000100000ULL,
+  KeyPressed   = 0x0000000000200000ULL,
+  TextInput    = 0x0000000000400000ULL
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetEventTypes)
@@ -111,6 +99,8 @@ ASH_DEFINE_ENUM_BIT_OPS(WidgetEventTypes)
 /// to the children
 /// @param Draggable if the widget can receive drag events
 /// @param Droppable if the widget can receive drop events
+/// @param Focusable can receive widget focus events (typically keyboard events)
+/// @param TextArea receives text input and not just Keyboard press/release
 enum class WidgetAttributes : u32
 {
   None       = 0x00000000U,
@@ -120,36 +110,34 @@ enum class WidgetAttributes : u32
   Draggable  = 0x00000008U,
   Droppable  = 0x00000010U,
   Focusable  = 0x00000020U,
+  TextArea   = 0x00000040U
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
 
-// TODO(lamarrr): time-based debouncing of keyboard pressing
-// IME-text input
-// key down, key up, key pressed
-// window mouse and key focus should propagate to tree AND focus or unfocus
-// widgets SDL_StartTextInput
-// TODO(lamarrr): color space, pixel info for color pickers
-//
-// TODO(lamarrr): basic color theming with interpolation when changes occur
-// instead of hard-coded values.
-//
+/// @param has_focus the current widget scope (window) has focus
+/// @param button current button states
+/// @param drag_payload attached drag and drop payload data
+/// @param theme the current theme from the UI system
+/// @param direction the text direction of the host system
+/// @param key_states bit array of the key states (indexed by keycode)
+/// @param scan_states bit array of the key states (indexed by scancode)
+/// @param text current text input data from the IME (keyboard, TTS, virtual
+/// keyboard, etc)
 struct WidgetContext
 {
-  MouseButtons   button                     = MouseButtons::None;
-  Vec2           mouse_position             = {};
-  Vec2           mouse_translation          = {};
-  u32            num_clicks                 = 0;
-  Vec2           mouse_wheel_translation    = {};
-  Span<u8 const> drag_payload               = {};
-  SystemTheme    theme                      = SystemTheme::None;
-  TextDirection  direction                  = TextDirection::LeftToRight;
-  u64            key_states[NUM_KEYS / 64]  = {};
-  u64            scan_states[NUM_KEYS / 64] = {};
-  // is_in_text session
-  // request input
-  // Span<u8 const> text;
-  // end text input
+  bool            has_focus                  = false;
+  MouseButtons    button                     = MouseButtons::None;
+  Vec2            mouse_position             = {};
+  Vec2            mouse_translation          = {};
+  u32             num_clicks                 = 0;
+  Vec2            mouse_wheel_translation    = {};
+  Span<u8 const>  drag_payload               = {};
+  SystemTheme     theme                      = SystemTheme::None;
+  TextDirection   direction                  = TextDirection::LeftToRight;
+  u64             key_states[NUM_KEYS / 64]  = {};
+  u64             scan_states[NUM_KEYS / 64] = {};
+  Span<u32 const> text                       = {};
 
   constexpr bool get_key_state(KeyCode key) const
   {
@@ -168,22 +156,6 @@ struct WidgetContext
   }
 };
 
-// TODO(lamarrr): spatial navigation model
-/// use spatial testing and scrolling information instead
-/// when moved, move to the closest non-obscured one. clipping? CHILDREN
-/// navigatable but not visible. as in imgui.
-///
-/// todo(lamar): scroll on child focus
-/// https://github.com/ocornut/imgui/issues/787#issuecomment-361419796 enter
-/// parent: prod children, nav to children
-/// https://user-images.githubusercontent.com/8225057/74143829-ce67b900-4bfb-11ea-90d9-0de40c944b26.gif
-/// clicking with enter keyboard when focused
-/// @brief Given child index i, based on the spatial structure of this widget,
-/// return the next child that will be focused. i starts from U32_MAX. with
-/// U32_MAX meaning none of the children has been focused. It's the
-/// responsibility of the parent to layout and provide spatial indices for its
-/// children.
-
 /// @brief Base widget class. All widget types must inherit from this struct.
 /// Widgets are plain visual elements that define spatial relationships,
 /// visual state changes, and forward events to other subsystems.
@@ -191,8 +163,12 @@ struct Widget
 {
   uid id = UID_MAX;
 
-  Widget()          = default;
-  virtual ~Widget() = default;
+  Widget()                          = default;
+  Widget(Widget const &)            = default;
+  Widget(Widget &&)                 = default;
+  Widget &operator=(Widget const &) = default;
+  Widget &operator=(Widget &&)      = default;
+  virtual ~Widget()                 = default;
 
   /// @brief get child widgets, this is a virtual iterator, return null once
   /// there's no other children
@@ -261,6 +237,15 @@ struct Widget
   {
     fill(allocation, z_index + 1);
     return z_index;
+  }
+
+  /// @brief Tab Index for Focus-Based Navigation.
+  /// @return desired tab index, 0 meaning the default tab order based on the
+  /// hierarchy of the parent to children and siblings. negative values have
+  /// higher tab index priority while positive indices have lower tab priority.
+  virtual i32 tab()
+  {
+    return 0;
   }
 
   /// @brief this is used for clipping widget views. the provided clip is

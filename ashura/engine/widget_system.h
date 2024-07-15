@@ -186,15 +186,15 @@ struct WidgetSystem
     // TODO(lamarrr)
     // process events across widgets, hit-test, dispatch events
     //
-    // click - forward directly unless draggable
-    // touch -
-    // widget drag & drop
-    // mouse over, mouse leave
-    // view hit, view miss -
-    // keyboard input: use another system?
-    // clip board copy & paste with custom media format
-    // text input
-    // gamepad input: use another system?
+    // [ ] click - forward directly unless draggable
+    // [ ] touch -
+    // [ ] widget drag & drop
+    // [ ] mouse over, mouse leave
+    // [ ] view hit, view miss -
+    // [ ] keyboard input: use another system?
+    // [ ] clip board copy & paste with custom media format
+    // [ ] text input
+    // [ ] gamepad input: use another system?
     //
     for (u32 i = 0; i < widgets.size32(); i++)
     {
