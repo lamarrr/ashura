@@ -189,7 +189,7 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
       break;
       case CanvasPassType::Custom:
       {
-        for (CustomCanvasPass const &pass :
+        for (CustomCanvasPass pass :
              to_span(canvas.custom_passes).slice(run.first, run.count))
         {
           pass(ctx, passes, info, texture);
