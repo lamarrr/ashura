@@ -55,6 +55,11 @@ FetchContent_Declare(
   GIT_TAG vulkan-sdk-1.3.283.0)
 
 FetchContent_Declare(
+  VulkanLoader
+  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Loader.git
+  GIT_TAG vulkan-sdk-1.3.283.0)
+
+FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
@@ -102,6 +107,7 @@ find_package(Threads REQUIRED)
 
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
+FetchContent_MakeAvailable(VulkanLoader)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(VulkanGLSL)
 FetchContent_MakeAvailable(harfbuzz)
@@ -111,8 +117,6 @@ FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
 FetchContent_MakeAvailable(WebP)
 FetchContent_MakeAvailable(CURL)
-
-find_package(Vulkan REQUIRED)
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
@@ -171,7 +175,7 @@ target_link_libraries(ashura_std_bench benchmark::benchmark
 add_library(ashura_gfx ashura/gfx/gfx.cc ashura/gfx/vma_def.cc
                        ashura/gfx/vulkan.cc)
 target_link_libraries(
-  ashura_gfx ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Vulkan
+  ashura_gfx ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
   GPUOpen::VulkanMemoryAllocator)
 target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
