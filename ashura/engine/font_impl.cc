@@ -434,11 +434,8 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
       g.area.offset.x   = (u32) r.x + 1;
       g.area.offset.y   = (u32) r.y + 1;
       g.layer           = r.layer;
-      g.uv[0]           = Vec2{g.area.offset.x / (f32) atlas_extent.x,
-                     g.area.offset.y / (f32) atlas_extent.y};
-      g.uv[1] =
-          Vec2{(g.area.offset.x + g.area.extent.x) / (f32) atlas_extent.x,
-               (g.area.offset.y + g.area.extent.y) / (f32) atlas_extent.y};
+      g.uv[0]           = as_vec2(g.area.offset) / as_vec2(atlas_extent);
+      g.uv[1]           = as_vec2(g.area.end()) / as_vec2(atlas_extent);
     }
   }
 
