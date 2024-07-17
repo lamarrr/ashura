@@ -187,6 +187,46 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
 
   CHECK(sampler.slot == SAMPLER_NEAREST);
 
+  sampler = create_sampler(
+      gfx::SamplerDesc{.label          = "Linear+EdgeClamped Sampler"_span,
+                       .mag_filter     = gfx::Filter::Linear,
+                       .min_filter     = gfx::Filter::Linear,
+                       .mip_map_mode   = gfx::SamplerMipMapMode::Linear,
+                       .address_mode_u = gfx::SamplerAddressMode::ClampToEdge,
+                       .address_mode_v = gfx::SamplerAddressMode::ClampToEdge,
+                       .address_mode_w = gfx::SamplerAddressMode::ClampToEdge,
+                       .mip_lod_bias   = 0,
+                       .anisotropy_enable = false,
+                       .max_anisotropy    = 1.0,
+                       .compare_enable    = false,
+                       .compare_op        = gfx::CompareOp::Never,
+                       .min_lod           = 0,
+                       .max_lod           = 0,
+                       .border_color = gfx::BorderColor::FloatTransparentBlack,
+                       .unnormalized_coordinates = false});
+
+  CHECK(sampler.slot == SAMPLER_LINEAR_CLAMPED);
+
+  sampler = create_sampler(
+      gfx::SamplerDesc{.label          = "Nearest+EdgeClamped Sampler"_span,
+                       .mag_filter     = gfx::Filter::Nearest,
+                       .min_filter     = gfx::Filter::Nearest,
+                       .mip_map_mode   = gfx::SamplerMipMapMode::Nearest,
+                       .address_mode_u = gfx::SamplerAddressMode::ClampToEdge,
+                       .address_mode_v = gfx::SamplerAddressMode::ClampToEdge,
+                       .address_mode_w = gfx::SamplerAddressMode::ClampToEdge,
+                       .mip_lod_bias   = 0,
+                       .anisotropy_enable = false,
+                       .max_anisotropy    = 1.0,
+                       .compare_enable    = false,
+                       .compare_op        = gfx::CompareOp::Never,
+                       .min_lod           = 0,
+                       .max_lod           = 0,
+                       .border_color = gfx::BorderColor::FloatTransparentBlack,
+                       .unnormalized_coordinates = false});
+
+  CHECK(sampler.slot == SAMPLER_NEAREST_CLAMPED);
+
   default_image =
       device
           ->create_image(
