@@ -111,17 +111,18 @@ void sample(BlurPass &b, RenderContext &c, gfx::CommandEncoderImpl const &e,
   Vec2 uv1    = as_vec2(src_area.end()) / as_vec2(src_extent);
 
   e->begin_rendering(
-      e.self, gfx::RenderingInfo{
-                  .render_area = {.offset = {0, 0}, .extent = src_area.extent},
-                  .num_layers  = 1,
-                  .color_attachments  = to_span({gfx::RenderingAttachment{
-                       .view         = dst,
-                       .resolve      = nullptr,
-                       .resolve_mode = gfx::ResolveModes::None,
-                       .load_op      = gfx::LoadOp::Clear,
-                       .store_op     = gfx::StoreOp::Store}}),
-                  .depth_attachment   = {},
-                  .stencil_attachment = {}});
+      e.self,
+      gfx::RenderingInfo{
+          .render_area = {.offset = dst_offset, .extent = src_area.extent},
+          .num_layers  = 1,
+          .color_attachments = to_span(
+              {gfx::RenderingAttachment{.view         = dst,
+                                        .resolve      = nullptr,
+                                        .resolve_mode = gfx::ResolveModes::None,
+                                        .load_op      = gfx::LoadOp::Clear,
+                                        .store_op     = gfx::StoreOp::Store}}),
+          .depth_attachment   = {},
+          .stencil_attachment = {}});
 
   e->bind_graphics_pipeline(e.self, upsample ? b.upsample_pipeline :
                                                b.downsample_pipeline);
@@ -131,11 +132,12 @@ void sample(BlurPass &b, RenderContext &c, gfx::CommandEncoderImpl const &e,
                   .viewport = {.offset = as_vec2(dst_offset),
                                .extent = as_vec2(src_area.extent)}});
   e->bind_descriptor_sets(e.self, to_span({c.samplers, src_texture}), {});
-  e->push_constants(e.self, to_span({BlurParam{.uv      = {uv0, uv1},
-                                               .radius  = radius,
-                                               .sampler = SAMPLER_LINEAR,
-                                               .texture = src_index}})
-                                .as_u8());
+  e->push_constants(e.self,
+                    to_span({BlurParam{.uv      = {uv0, uv1},
+                                       .radius  = radius,
+                                       .sampler = SAMPLER_LINEAR_CLAMPED,
+                                       .texture = src_index}})
+                        .as_u8());
   e->draw(e.self, 4, 1, 0, 0);
   e->end_rendering(e.self);
 }
