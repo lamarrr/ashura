@@ -3597,7 +3597,7 @@ auto to_fn(R (*pfn)(Args...))
   return Fn{&Dispatcher::dispatch, reinterpret_cast<void *>(pfn)};
 }
 
-/// @brief make a function view from a non-capturing functor (i.e. lambda's
+/// @brief make a function view from a non-capturing functor (i.e. lambdas
 /// without data)
 template <typename StaticFunctor>
 auto to_fn(StaticFunctor functor)
