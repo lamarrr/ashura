@@ -68,12 +68,12 @@ inline bool push(Context &ctx, Spec const &spec, ScalarInput const &value)
 struct TextInput : Widget
 {
   bool            disabled            = false;
-  bool            is_secret           = false;
   bool            is_multiline        = false;
   bool            is_submittable      = false;
   Span<u32 const> placeholder         = {};
   Vec<u32>        text                = {};
-  Vec<u32>        secret              = {};
+  TextLayout      layout              = {};
+  TextBlockStyle  style               = {};
   Fn<void()>      on_editing          = to_fn([] {});
   Fn<void()>      on_editing_finished = to_fn([] {});
   Fn<void()>      on_submit           = to_fn([] {});
@@ -87,30 +87,52 @@ struct TextInput : Widget
     (void) events;
     // on click or focus, request keyboard
     // for text area, change cursor type to editing
+    // calculate lines per page
     //
+    auto erase  = [this](Slice32 s) { this->text.erase(s); };
+    auto insert = [this](u32 pos, Span<u32 const> t) {
+      CHECK(!this->text.insert_span_copy(pos, t));
+    };
 
+    if (disabled)
+    {
+      return;
+    }
     if (has_bits(events, WidgetEventTypes::TextInput))
     {
-      compositor.command();
+      compositor.command(to_span(text), layout, style, TextCommand::InputText,
+                         fn(&insert), fn(&erase), ctx.text,
+                         to_fn([]() { return Span<u32 const>{}; }),
+                         to_fn([](Span<u32 const>) {}), 1, ctx.mouse_position);
     }
-    else if (has_bits(events, WidgetEventTypes::MouseDown))
+    else if (has_bits(events, WidgetEventTypes::DragStart))
     {
-      // drag
+      compositor.command(to_span(text), layout, style, TextCommand::Hit,
+                         fn(&insert), fn(&erase), ctx.text,
+                         to_fn([]() { return Span<u32 const>{}; }),
+                         to_fn([](Span<u32 const>) {}), 1, ctx.mouse_position);
+    }
+    else if (has_bits(events, WidgetEventTypes::DragUpdate))
+    {
+      compositor.command(to_span(text), layout, style, TextCommand::HitSelect,
+                         fn(&insert), fn(&erase), ctx.text,
+                         to_fn([]() { return Span<u32 const>{}; }),
+                         to_fn([](Span<u32 const>) {}), 1, ctx.mouse_position);
     }
     else if (has_bits(events, WidgetEventTypes::MouseScroll))
     {
-      // if scrollable region, scroll
+      // if scrollable region, scroll (delegate to viewport)
     }
     else if (has_bits(events, WidgetEventTypes::KeyDown))
     {
       // control codes
+      // consult key map
     }
 
     // TODO(lamarrr):
     // - [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
     // Tab to move focus forwards)
     // - [ ] scrolling
-    // - [ ] key debouncing
     // - [ ] clipboard api
     // - [ ] keymap
     // - [ ] multi-line mode or single line mode (i.e.) -> on press enter ?
@@ -118,20 +140,19 @@ struct TextInput : Widget
     // - [ ] cursor rendering
     // - [ ] textinputbegin
     // - [ ] textinputend
-    // - [ ] debouncing of keyboard and mouse
-    // - [ ] time-based debouncing of keyboard pressing window mouse
-    // and key focus should propagate to tree AND focus or unfocus widgets
-    // SDL_StartTextInput
+    // - [ ] debouncing of keyboard and mouse (timestamp of pressed time)
     // - [ ] color space, pixel info for color pickers
     // - [ ] spatial navigation model
     /// use spatial testing and scrolling information instead
     /// when moved, move to the closest non-obscured one. clipping? CHILDREN
     /// navigatable but not visible. as in imgui.
     // - [ ] scroll on child focus
+    // - [ ] submittable: clicking with enter keyboard when focused
     // https://github.com/ocornut/imgui/issues/787#issuecomment-361419796 enter
     /// parent: prod children, nav to children
     /// https://user-images.githubusercontent.com/8225057/74143829-ce67b900-4bfb-11ea-90d9-0de40c944b26.gif
-    /// clicking with enter keyboard when focused
+    ///
+    layout_text({}, F32_MAX, layout);
   }
 };
 
