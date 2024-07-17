@@ -48,6 +48,35 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
   }
 }
 
+static inline f32 squircle(f32 x)
+{
+  return std::pow(1 - std::pow(x, 4), 0.25F);
+}
+
+void Path::squircle(Vec<Vec2> &vtx, u32 segments)
+{
+  if (segments < 4)
+  {
+    return;
+  }
+
+  u32 const first     = vtx.size32();
+  u32 const num_quads = segments >> 2;
+  f32 const step      = 1.0F / (num_quads - 1);
+
+  CHECK(vtx.extend_uninitialized(num_quads << 2));
+
+  for (u32 i = 0; i < num_quads; i++)
+  {
+    f32 const x                    = step * i;
+    f32 const y                    = ::ash::squircle(x);
+    vtx[first + i]                 = Vec2{x, y};
+    vtx[first + num_quads + i]     = Vec2{-x, y};
+    vtx[first + num_quads * 2 + i] = Vec2{-x, -y};
+    vtx[first + num_quads * 3 + i] = Vec2{x, -y};
+  }
+}
+
 void Path::rrect(Vec<Vec2> &vtx, u32 segments, Vec4 radii)
 {
   if (segments < 8)

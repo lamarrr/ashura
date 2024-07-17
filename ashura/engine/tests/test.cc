@@ -342,6 +342,7 @@ int main(int, char **)
                  //
                  Vec2{-1, 1}}));*/
     layout_text(text_block, 1920, text_layout);
+
     canvas.text(
         ShapeDesc{.center    = Vec2{1920 / 2.0f, 1080 / 2.0f},
                   .transform = Mat4::identity(),
@@ -374,6 +375,17 @@ int main(int, char **)
 
         to_span({Vec2{-1, -1}, Vec2{1, -1}, Vec2{1, 1}, Vec2{1, 1}, Vec2{-1, 1},
                  Vec2{-1, -1}}));*/
+
+    Vec<Vec2> squircle;
+    Path::squircle(squircle, 2048);
+    canvas.line(
+        ShapeDesc{.center    = {1920 / 2, 1080 / 2},
+                  .extent    = {400, 400},
+                  .stroke    = 1,
+                  .thickness = 4,
+                  .tint = ColorGradient::y(colors::MAGENTA, colors::YELLOW)},
+        to_span(squircle));
+    squircle.reset();
 
     renderer.begin(ctx, pctx, canvas,
                    gfx::RenderingInfo{

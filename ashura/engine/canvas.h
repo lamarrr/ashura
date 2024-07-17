@@ -73,6 +73,7 @@ struct Path
   static void rect(Vec<Vec2> &vtx);
   static void arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop);
   static void circle(Vec<Vec2> &vtx, u32 segments);
+  static void squircle(Vec<Vec2> &vtx, u32 segments);
   static void rrect(Vec<Vec2> &vtx, u32 segments, Vec4 border_radii);
   static void brect(Vec<Vec2> &vtx, Vec4 slants);
   static void bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
@@ -84,6 +85,7 @@ struct Path
   static void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vtx,
                                  Vec<u32> &idx, f32 thickness);
   static void triangles(Span<Vec2 const> points, Vec<u32> &idx);
+  // static void triangulate_convex(Vec<>);
 };
 
 /// @param viewport viewport region of the surface the canvas is being drawn
