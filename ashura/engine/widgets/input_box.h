@@ -79,6 +79,14 @@ struct TextInput : Widget
   Fn<void()>      on_submit           = to_fn([] {});
   TextCompositor  compositor          = {};
 
+  virtual WidgetAttributes attributes() override
+  {
+    // TODO(lamarrr): don't accept text input if disabled
+    return WidgetAttributes::Visible | WidgetAttributes::Draggable |
+           WidgetAttributes::Focusable | WidgetAttributes::Scrollable |
+           WidgetAttributes::TextArea;
+  }
+
   virtual void tick(WidgetContext const &ctx, CRect const &region,
                     nanoseconds dt, WidgetEventTypes events) override
   {
@@ -119,10 +127,6 @@ struct TextInput : Widget
                          to_fn([]() { return Span<u32 const>{}; }),
                          to_fn([](Span<u32 const>) {}), 1, ctx.mouse_position);
     }
-    else if (has_bits(events, WidgetEventTypes::MouseScroll))
-    {
-      // if scrollable region, scroll (delegate to viewport)
-    }
     else if (has_bits(events, WidgetEventTypes::KeyDown))
     {
       // control codes
@@ -132,22 +136,18 @@ struct TextInput : Widget
     // TODO(lamarrr):
     // - [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
     // Tab to move focus forwards)
-    // - [ ] scrolling
     // - [ ] clipboard api
     // - [ ] keymap
     // - [ ] multi-line mode or single line mode (i.e.) -> on press enter ?
     // submit
-    // - [ ] cursor rendering
-    // - [ ] textinputbegin
-    // - [ ] textinputend
+    // - [ ] cursor rendering/API (system cursor, custom cursor)
+    // - [ ] textinputbegin, textinputend
     // - [ ] debouncing of keyboard and mouse (timestamp of pressed time)
     // - [ ] color space, pixel info for color pickers
-    // - [ ] spatial navigation model
-    /// use spatial testing and scrolling information instead
-    /// when moved, move to the closest non-obscured one. clipping? CHILDREN
-    /// navigatable but not visible. as in imgui.
+    // - [ ] hit testing on clipped rects
     // - [ ] scroll on child focus
     // - [ ] submittable: clicking with enter keyboard when focused
+    // - [ ] viewport text with scrollable region
     // https://github.com/ocornut/imgui/issues/787#issuecomment-361419796 enter
     /// parent: prod children, nav to children
     /// https://user-images.githubusercontent.com/8225057/74143829-ce67b900-4bfb-11ea-90d9-0de40c944b26.gif
