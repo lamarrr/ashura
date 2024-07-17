@@ -73,7 +73,7 @@ struct Path
   static void rect(Vec<Vec2> &vtx);
   static void arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop);
   static void circle(Vec<Vec2> &vtx, u32 segments);
-  static void squircle(Vec<Vec2> &vtx, u32 segments);
+  static void squircle(Vec<Vec2> &vtx, u32 segments, f32 degree);
   static void rrect(Vec<Vec2> &vtx, u32 segments, Vec4 border_radii);
   static void brect(Vec<Vec2> &vtx, Vec4 slants);
   static void bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,

@@ -377,15 +377,20 @@ int main(int, char **)
                  Vec2{-1, -1}}));*/
 
     Vec<Vec2> squircle;
-    Path::squircle(squircle, 2048);
-    canvas.line(
-        ShapeDesc{.center    = {1920 / 2, 1080 / 2},
-                  .extent    = {400, 400},
-                  .stroke    = 1,
-                  .thickness = 4,
-                  .tint = ColorGradient::y(colors::MAGENTA, colors::YELLOW)},
-        to_span(squircle));
+    Path::squircle(squircle, 1024, 4);
+    Vec<u32> idx;
+    Path::triangulate_convex(idx, 0, squircle.size32());
+    canvas.triangles(ShapeDesc{.center    = {1920 / 2, 1080 / 2},
+                               .extent    = {560, 560},
+                               .stroke    = 1,
+                               .thickness = 8,
+                               .tint      = ColorGradient{{colors::RED.norm(),
+                                                           colors::CYAN.norm(),
+                                                           colors::YELLOW.norm(),
+                                                           colors::MAGENTA.norm()}}},
+                     to_span(squircle), to_span(idx));
     squircle.reset();
+    idx.reset();
 
     renderer.begin(ctx, pctx, canvas,
                    gfx::RenderingInfo{

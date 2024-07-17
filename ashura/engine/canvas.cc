@@ -48,32 +48,37 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
   }
 }
 
-static inline f32 squircle(f32 x)
+static inline f32 squircle(f32 x, f32 deg)
 {
-  return std::pow(1 - std::pow(x, 4), 0.25F);
+  deg = clamp(deg, 2.0F, 20.0F);
+  return std::pow(1 - std::pow(std::abs(x), deg), 1 / deg);
 }
 
-void Path::squircle(Vec<Vec2> &vtx, u32 segments)
+void Path::squircle(Vec<Vec2> &vtx, u32 segments, f32 degree)
 {
   if (segments < 4)
   {
     return;
   }
 
-  u32 const first     = vtx.size32();
-  u32 const num_quads = segments >> 2;
-  f32 const step      = 1.0F / (num_quads - 1);
+  u32 const first      = vtx.size32();
+  u32 const num_halves = segments >> 1;
+  f32 const step       = 2.0F / (num_halves - 1);
 
-  CHECK(vtx.extend_uninitialized(num_quads << 2));
+  CHECK(vtx.extend_uninitialized(num_halves << 1));
 
-  for (u32 i = 0; i < num_quads; i++)
+  for (u32 i = 0; i < num_halves; i++)
   {
-    f32 const x                    = step * i;
-    f32 const y                    = ::ash::squircle(x);
-    vtx[first + i]                 = Vec2{x, y};
-    vtx[first + num_quads + i]     = Vec2{-x, y};
-    vtx[first + num_quads * 2 + i] = Vec2{-x, -y};
-    vtx[first + num_quads * 3 + i] = Vec2{x, -y};
+    f32 const x    = -1.0F + step * i;
+    f32 const y    = ::ash::squircle(x, degree);
+    vtx[first + i] = Vec2{x, y};
+  }
+
+  for (u32 i = 0; i < num_halves; i++)
+  {
+    f32 const x                 = 1.0F - step * i;
+    f32 const y                 = ::ash::squircle(x, degree);
+    vtx[first + num_halves + i] = Vec2{x, -y};
   }
 }
 
