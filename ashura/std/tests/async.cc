@@ -18,11 +18,11 @@ TEST(AsyncTest, Basic)
 
   for (u32 i = 0; i < 5'000; i++)
   {
-    scheduler->schedule_worker({.task = to_fn([](void *) {
+    scheduler->schedule_worker({.task = to_fn([]() {
                                   invocs.fetch_add(1);
                                   return false;
                                 })});
-    scheduler->schedule_dedicated(0, {.task = to_fn([](void *) {
+    scheduler->schedule_dedicated(0, {.task = to_fn([]() {
                                         static int x = 0;
                                         x++;
                                         if (x > 10)
@@ -32,7 +32,7 @@ TEST(AsyncTest, Basic)
                                         std::this_thread::sleep_for(7ms);
                                         return true;
                                       })});
-    scheduler->schedule_dedicated(1, {.task = to_fn([](void *) {
+    scheduler->schedule_dedicated(1, {.task = to_fn([]() {
                                         invocs.fetch_add(1);
                                         return false;
                                       })});
@@ -43,7 +43,7 @@ TEST(AsyncTest, Basic)
     }
   }
 
-  scheduler->schedule_main({.task = to_fn([](void *) {
+  scheduler->schedule_main({.task = to_fn([]() {
                               static int x = 0;
                               x++;
                               if (x > 10)
