@@ -11,17 +11,17 @@ namespace ash
 
 typedef struct Font_T *Font;
 
-// 1024px per pt.
-constexpr i32 PT_UNIT = 1024;
+// App Unit (AU) = 1/1024 of a px
+constexpr i32 AU_UNIT = 1024;
 
-constexpr f32 pt_to_px(i32 pt, f32 base)
+constexpr f32 au_to_px(i32 au, f32 base)
 {
-  return pt / (f32) PT_UNIT * base;
+  return au / (f32) AU_UNIT * base;
 }
 
-constexpr Vec2 pt_to_px(Vec2I pt, f32 base)
+constexpr Vec2 au_to_px(Vec2I au, f32 base)
 {
-  return Vec2{pt_to_px(pt.x, base), pt_to_px(pt.y, base)};
+  return Vec2{au_to_px(au.x, base), au_to_px(au.y, base)};
 }
 
 enum class FontStatus : u8
@@ -33,9 +33,9 @@ enum class FontStatus : u8
   OutOfMemory    = 4,
 };
 
-/// @param bearing offset from cursor baseline to start drawing glyph from (pt)
-/// @param descent distance from baseline to the bottom of the glyph (pt)
-/// @param advance advancement of the cursor after drawing this glyph (pt)
+/// @param bearing offset from cursor baseline to start drawing glyph from (au)
+/// @param descent distance from baseline to the bottom of the glyph (au)
+/// @param advance advancement of the cursor after drawing this glyph (au)
 /// @param extent glyph extent
 struct GlyphMetrics
 {
@@ -45,9 +45,9 @@ struct GlyphMetrics
   Vec2I extent  = {};
 };
 
-/// @param ascent  maximum ascent of the font's glyphs (pt)
-/// @param descent maximum descent of the font's glyphs (pt)
-/// @param advance maximum advance of the font's glyphs (pt)
+/// @param ascent  maximum ascent of the font's glyphs (au)
+/// @param descent maximum descent of the font's glyphs (au)
+/// @param advance maximum advance of the font's glyphs (au)
 struct FontMetrics
 {
   i32 ascent  = 0;

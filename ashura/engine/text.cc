@@ -15,7 +15,7 @@ extern "C"
 namespace ash
 {
 
-/// layout is output in PT_UNIT units. so it is independent of the actual
+/// layout is output in AU_UNIT units. so it is independent of the actual
 /// font-height and can be cached as necessary. text must have been sanitized
 /// with invalid codepoints replaced before calling this.
 /// @param script OpenType (ISO15924) Script
@@ -387,25 +387,25 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     TextRun const &first_run  = layout.runs[first];
     u8 const       base_level = first_run.base_level;
     bool const     paragraph  = first_run.paragraph;
-    f32 width   = pt_to_px(first_run.metrics.advance, first_run.font_height);
-    f32 ascent  = pt_to_px(first_run.metrics.ascent, first_run.font_height);
-    f32 descent = pt_to_px(first_run.metrics.descent, first_run.font_height);
-    f32 height  = pt_to_px(first_run.metrics.ascent + first_run.metrics.descent,
+    f32 width   = au_to_px(first_run.metrics.advance, first_run.font_height);
+    f32 ascent  = au_to_px(first_run.metrics.ascent, first_run.font_height);
+    f32 descent = au_to_px(first_run.metrics.descent, first_run.font_height);
+    f32 height  = au_to_px(first_run.metrics.ascent + first_run.metrics.descent,
                            first_run.font_height) *
                  first_run.line_height;
 
     while (
         i < num_runs && !layout.runs[i].paragraph &&
-        !(layout.runs[i].breakable && (pt_to_px(layout.runs[i].metrics.advance,
+        !(layout.runs[i].breakable && (au_to_px(layout.runs[i].metrics.advance,
                                                 layout.runs[i].font_height) +
                                        width) > max_width))
     {
       TextRun const        &r = layout.runs[i];
       TextRunMetrics const &m = r.metrics;
-      width += pt_to_px(m.advance, r.font_height);
-      ascent  = max(ascent, pt_to_px(m.ascent, r.font_height));
-      descent = max(descent, pt_to_px(m.descent, r.font_height));
-      height  = max(height, pt_to_px(m.ascent + m.descent, r.font_height) *
+      width += au_to_px(m.advance, r.font_height);
+      ascent  = max(ascent, au_to_px(m.ascent, r.font_height));
+      descent = max(descent, au_to_px(m.descent, r.font_height));
+      height  = max(height, au_to_px(m.ascent + m.descent, r.font_height) *
                                 r.line_height);
       i++;
     }
@@ -475,7 +475,7 @@ TextHitResult hit_text(TextLayout const &layout, TextBlockStyle const &style,
     TextRun const &run = layout.runs[r];
     bool const     intersects =
         (pos.x >= cursor &&
-         pos.x <= (cursor + pt_to_px(run.metrics.advance, run.font_height))) ||
+         pos.x <= (cursor + au_to_px(run.metrics.advance, run.font_height))) ||
         (r == ln.num_runs - 1);
     if (!intersects)
     {
@@ -485,7 +485,7 @@ TextHitResult hit_text(TextLayout const &layout, TextBlockStyle const &style,
     for (u32 g = 0; g < run.num_glyphs; g++)
     {
       GlyphShape const &glyph   = layout.glyphs[run.first_glyph + g];
-      f32 const         advance = pt_to_px(glyph.advance.x, run.font_height);
+      f32 const         advance = au_to_px(glyph.advance.x, run.font_height);
       bool const        intersects =
           (pos.x >= glyph_cursor && pos.x <= (glyph_cursor + advance)) ||
           (g == run.num_glyphs - 1);
@@ -500,7 +500,7 @@ TextHitResult hit_text(TextLayout const &layout, TextBlockStyle const &style,
       return TextHitResult{
           .cluster = glyph.cluster, .line = l, .column = column};
     }
-    cursor += pt_to_px(run.metrics.advance, run.font_height);
+    cursor += au_to_px(run.metrics.advance, run.font_height);
   }
 
   u32 const column = (ln.num_codepoints == 0) ? 0 : (ln.num_codepoints - 1);

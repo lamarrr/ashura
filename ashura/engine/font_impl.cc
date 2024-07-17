@@ -16,7 +16,7 @@
 namespace ash
 {
 
-static_assert(PT_UNIT % 64 == 0);
+static_assert(AU_UNIT % 64 == 0);
 
 Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
                                    AllocatorImpl const &allocator)
@@ -80,7 +80,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
     return Err{FontStatus::DecodingFailed};
   }
 
-  hb_font_set_scale(hb_font, PT_UNIT, PT_UNIT);
+  hb_font_set_scale(hb_font, AU_UNIT, AU_UNIT);
 
   defer hb_font_del{[&] {
     if (hb_font != nullptr)
@@ -110,7 +110,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
     return Err{FontStatus::DecodingFailed};
   }
 
-  if (FT_Set_Char_Size(ft_face, PT_UNIT, PT_UNIT, 72, 72) != 0)
+  if (FT_Set_Char_Size(ft_face, AU_UNIT, AU_UNIT, 72, 72) != 0)
   {
     return Err{FontStatus::DecodingFailed};
   }
@@ -189,7 +189,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
   u32 const ellipsis_glyph    = FT_Get_Char_Index(ft_face, 0x2026);
   u32 const space_glyph       = FT_Get_Char_Index(ft_face, ' ');
 
-  // expressed on a PT_UNIT scale
+  // expressed on a AU_UNIT scale
   i32 const ascent  = ft_face->size->metrics.ascender;
   i32 const descent = -ft_face->size->metrics.descender;
   i32 const advance = ft_face->size->metrics.max_advance;
@@ -215,7 +215,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
 
       GlyphMetrics m;
 
-      // expressed on a PT_UNIT scale
+      // expressed on a AU_UNIT scale
       m.bearing.x = s->metrics.horiBearingX;
       m.bearing.y = s->metrics.horiBearingY;
       m.advance   = s->metrics.horiAdvance;

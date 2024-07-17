@@ -462,11 +462,11 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
         TextStyle const         &run_style  = style.runs[run.style];
         FontInfo const           font       = get_font_info(font_style.font);
         FontAtlasResource const *atlas      = atlases[run.style];
-        f32 const run_width = pt_to_px(run.metrics.advance, run.font_height);
+        f32 const run_width = au_to_px(run.metrics.advance, run.font_height);
 
         if (pass == PASS_BACKGROUND && !is_transparent(run_style.background))
         {
-          Vec2 extent{run_width, pt_to_px(run.metrics.ascent, run.font_height) +
+          Vec2 extent{run_width, au_to_px(run.metrics.ascent, run.font_height) +
                                      ln.metrics.height};
           Vec2 offset{cursor, line_y - ln.metrics.height};
           rect(ShapeDesc{.center = desc.center,
@@ -484,11 +484,11 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
           GlyphShape const &sh  = layout.glyphs[run.first_glyph + g];
           Glyph const      &gl  = font.glyphs[sh.glyph];
           AtlasGlyph const &agl = atlas->glyphs[sh.glyph];
-          Vec2 const extent     = pt_to_px(gl.metrics.extent, run.font_height);
+          Vec2 const extent     = au_to_px(gl.metrics.extent, run.font_height);
           Vec2 const offset =
               Vec2{glyph_cursor, baseline} +
-              pt_to_px(gl.metrics.bearing, run.font_height) * Vec2{1, -1} +
-              pt_to_px(sh.offset, run.font_height);
+              au_to_px(gl.metrics.bearing, run.font_height) * Vec2{1, -1} +
+              au_to_px(sh.offset, run.font_height);
 
           if (pass == PASS_GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
               !is_transparent(run_style.shadow))
@@ -527,7 +527,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                            .edge_smoothness = desc.edge_smoothness});
           }
 
-          glyph_cursor += pt_to_px(sh.advance.x, run.font_height);
+          glyph_cursor += au_to_px(sh.advance.x, run.font_height);
         }
 
         if (pass == PASS_STRIKETHROUGH &&
