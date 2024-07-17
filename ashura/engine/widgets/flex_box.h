@@ -15,6 +15,7 @@ struct FlexBox : public Widget
 {
   Axis           axis        = Axis::X;
   bool           wrap        = true;
+  bool           reverse     = false;
   MainAlign      main_align  = MainAlign::Start;
   f32            cross_align = 0;
   SizeConstraint width       = {};
@@ -139,6 +140,14 @@ struct FlexBox : public Widget
 
         default:
           break;
+      }
+
+      if (reverse)
+      {
+        for (u32 b0 = first, b1 = first + count - 1; b0 < b1; b0++, b1--)
+        {
+          swap(offsets[b0][main_axis], offsets[b1][main_axis]);
+        }
       }
 
       cross_cursor += cross_extent;
