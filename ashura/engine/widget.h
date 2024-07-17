@@ -116,6 +116,11 @@ enum class WidgetAttributes : u32
 ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
 
 /// @brief Global Widget Context
+/// @param app_data_header global app data header, used to recognize the data
+/// payload, should be used to check if the data matches the expected
+/// content/type.
+/// @param app_data the user context data for this application, initialized at
+/// startup.
 /// @param has_focus the current widget scope (window) has focus
 /// @param button current button states
 /// @param drag_payload attached drag and drop payload data
@@ -127,6 +132,8 @@ ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
 /// keyboard, etc)
 struct WidgetContext
 {
+  Span<u8 const>  app_data_header            = {};
+  void           *app_data                   = nullptr;
   bool            has_focus                  = false;
   MouseButtons    button                     = MouseButtons::None;
   Vec2            mouse_position             = {};
