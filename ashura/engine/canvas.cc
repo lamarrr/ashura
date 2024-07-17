@@ -312,6 +312,26 @@ void Path::triangles(Span<Vec2 const> points, Vec<u32> &indices)
   }
 }
 
+void Path::triangulate_convex(Vec<u32> &idx, u32 first_vertex, u32 num_vertices)
+{
+  if (num_vertices < 3)
+  {
+    return;
+  }
+
+  u32 const num_indices = (num_vertices - 2) * 3;
+  u32 const first_index = idx.size32();
+
+  CHECK(idx.extend_uninitialized(num_indices));
+
+  for (u32 i = 0, v = 1; i < num_indices; i += 3, v++)
+  {
+    idx[first_index + i]     = first_vertex;
+    idx[first_index + i + 1] = first_vertex + v;
+    idx[first_index + i + 2] = first_vertex + v + 1;
+  }
+}
+
 void Canvas::init()
 {
 }
@@ -626,6 +646,40 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
   u32 const num_indices = (vertices.size32() - first_vertex);
 
   CHECK(ngon_index_counts.push(num_indices));
+
+  add_run(*this, CanvasPassType::Ngon);
+}
+
+void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points,
+                       Span<u32 const> idx)
+{
+  if (points.size() < 3)
+  {
+    return;
+  }
+
+  u32 const first_index  = indices.size32();
+  u32 const first_vertex = vertices.size32();
+
+  CHECK(vertices.extend_copy(points));
+  CHECK(indices.extend_copy(idx));
+
+  for (u32 &v : to_span(indices).slice(first_index))
+  {
+    v += first_vertex;
+  }
+
+  CHECK(ngon_params.push(NgonParam{
+      .transform    = mvp(desc.transform, desc.center, desc.extent),
+      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+      .uv           = {desc.uv[0], desc.uv[1]},
+      .tiling       = desc.tiling,
+      .sampler      = desc.sampler,
+      .albedo       = desc.texture,
+      .first_index  = first_index,
+      .first_vertex = first_vertex}));
+
+  CHECK(ngon_index_counts.push(idx.size32()));
 
   add_run(*this, CanvasPassType::Ngon);
 }

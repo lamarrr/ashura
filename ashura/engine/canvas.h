@@ -85,7 +85,8 @@ struct Path
   static void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vtx,
                                  Vec<u32> &idx, f32 thickness);
   static void triangles(Span<Vec2 const> points, Vec<u32> &idx);
-  // static void triangulate_convex(Vec<>);
+  static void triangulate_convex(Vec<u32> &idx, u32 first_vertex,
+                                 u32 num_vertices);
 };
 
 /// @param viewport viewport region of the surface the canvas is being drawn
@@ -145,6 +146,9 @@ struct Canvas
             Span<FontAtlasResource const *const> atlases);
 
   void triangles(ShapeDesc const &desc, Span<Vec2 const> vertices);
+
+  void triangles(ShapeDesc const &desc, Span<Vec2 const> vertices,
+                 Span<u32 const> indices);
 
   void line(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
