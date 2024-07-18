@@ -130,43 +130,43 @@ template <typename E>
   return static_cast<E>(enum_uv_not(a));
 }
 
-#define ASH_DEFINE_ENUM_BIT_OPS(E)                 \
-  [[nodiscard]] constexpr E operator|(E a, E b)    \
-  {                                                \
-    return ::ash::enum_or(a, b);                   \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E operator&(E a, E b)    \
-  {                                                \
-    return ::ash::enum_and(a, b);                  \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E operator^(E a, E b)    \
-  {                                                \
-    return ::ash::enum_xor(a, b);                  \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E operator~(E a)         \
-  {                                                \
-    return ::ash::enum_not(a);                     \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E &operator|=(E &a, E b) \
-  {                                                \
-    a = a | b;                                     \
-    return a;                                      \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E &operator&=(E &a, E b) \
-  {                                                \
-    a = a & b;                                     \
-    return a;                                      \
-  }                                                \
-                                                   \
-  [[nodiscard]] constexpr E &operator^=(E &a, E b) \
-  {                                                \
-    a = a ^ b;                                     \
-    return a;                                      \
+#define ASH_DEFINE_ENUM_BIT_OPS(E)              \
+  [[nodiscard]] constexpr E operator|(E a, E b) \
+  {                                             \
+    return ::ash::enum_or(a, b);                \
+  }                                             \
+                                                \
+  [[nodiscard]] constexpr E operator&(E a, E b) \
+  {                                             \
+    return ::ash::enum_and(a, b);               \
+  }                                             \
+                                                \
+  [[nodiscard]] constexpr E operator^(E a, E b) \
+  {                                             \
+    return ::ash::enum_xor(a, b);               \
+  }                                             \
+                                                \
+  [[nodiscard]] constexpr E operator~(E a)      \
+  {                                             \
+    return ::ash::enum_not(a);                  \
+  }                                             \
+                                                \
+  constexpr E &operator|=(E &a, E b)            \
+  {                                             \
+    a = a | b;                                  \
+    return a;                                   \
+  }                                             \
+                                                \
+  constexpr E &operator&=(E &a, E b)            \
+  {                                             \
+    a = a & b;                                  \
+    return a;                                   \
+  }                                             \
+                                                \
+  constexpr E &operator^=(E &a, E b)            \
+  {                                             \
+    a = a ^ b;                                  \
+    return a;                                   \
   }
 
 template <typename T>
