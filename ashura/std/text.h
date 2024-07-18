@@ -1,12 +1,16 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/error.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 
 namespace ash
 {
 
 constexpr bool is_valid_utf8(Span<u8 const> text);
 
+/// @brief count number of utf8 codepoints found in the text. does no
+/// utf8-validation
 constexpr usize count_utf8_codepoints(Span<u8 const> text)
 {
   u8 const *in    = text.data();
@@ -97,6 +101,36 @@ constexpr usize utf8_encode(Span<u32 const> decoded, Span<u8> encoded)
   }
 
   return out - encoded.begin();
+}
+
+/// @brief converts UTF-8 text from @p encoded to UTF-32 and appends into @p
+/// `decoded`
+inline bool utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
+{
+  usize const first = decoded.size();
+  usize const count = count_utf8_codepoints(encoded);
+  if (!decoded.extend_uninitialized(count))
+  {
+    return false;
+  }
+  utf8_decode(encoded, span(decoded).slice(first, count));
+  return true;
+}
+
+/// @brief converts UTF-32 text from @p decoded to UTF-8 and appends into @p
+/// `encoded`
+inline bool utf8_encode(Span<u32 const> decoded, Vec<u8> &encoded)
+{
+  usize const first     = encoded.size();
+  usize const max_count = decoded.size();
+  if (!encoded.extend_uninitialized(max_count))
+  {
+    return false;
+  }
+  usize const count =
+      utf8_encode(decoded, span(encoded).slice(first, max_count));
+  CHECK(!encoded.resize_defaulted(first + count));
+  return true;
 }
 
 constexpr void replace_invalid_codepoints(Span<u32 const> input,
