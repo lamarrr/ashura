@@ -52,7 +52,7 @@ struct CheckBox : public Widget
                     WidgetEventTypes     events) override
   {
     if (!disabled && has_bits(events, WidgetEventTypes::MouseDown) &&
-        ctx.button == MouseButtons::Primary)
+        has_bits(ctx.mouse_buttons, MouseButtons::Primary))
     {
       value = !value;
       on_changed(value);

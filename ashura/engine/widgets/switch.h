@@ -51,11 +51,11 @@ struct Switch : public Widget
         .tint = ColorGradient::uniform(state ? active_color : inactive_color)});
   }
 
-  virtual void tick(WidgetContext const &ctx, CRect const &, nanoseconds,
+  virtual void tick(WidgetContext const &ctx, CRect const &,
                     WidgetEventTypes     events) override
   {
     if (!disabled && has_bits(events, WidgetEventTypes::MouseDown) &&
-        ctx.button == MouseButtons::Primary)
+        has_bits(ctx.mouse_buttons, MouseButtons::Primary))
     {
       state = !state;
       on_changed(state);
