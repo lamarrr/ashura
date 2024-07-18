@@ -633,4 +633,52 @@ struct WindowEvent
   WindowEventTypes type = WindowEventTypes::None;
 };
 
+/// @param Default Default cursor. Usually an arrow
+/// @param Text Text selection. Usually an I-beam
+/// @param Wait Wait. Usually an hourglass or watch or spinning ball.
+/// @param CrossHair
+/// @param Progress Program is busy but still interactive. Usually it's WAIT
+/// with an arrow.
+/// @param NWSEResize Double arrow pointing northwest and
+/// southeast.
+/// @param NESWResize  Double arrow pointing northeast and
+/// southwest.
+/// @param EWResize  Double arrow pointing west and east.
+/// @param NSResize  Double arrow pointing north and south.
+/// @param Move Four pointed arrow pointing north, south, east, and west.
+/// @param NotAllowed Not permitted. Usually a slashed circle or crossbones.
+/// @param Pointer Pointer that indicates a link. Usually a pointing hand.
+/// @param NWResize Window resize top-left
+/// @param NorthResize Window resize top
+/// @param NEResize  Window resize top-right
+/// @param EastResize Window resize right
+/// @param SEResize resize bottom-right
+/// @param SouthResize  Window resize bottom
+/// @param SWResize Window resize bottom-left
+/// @param WestResize  Window resize left
+enum class Cursor
+{
+  None        = 0,
+  Default     = 1,
+  Text        = 2,
+  Wait        = 3,
+  CrossHair   = 4,
+  Progress    = 5,
+  NWSEResize  = 6,
+  NESWResize  = 7,
+  EWResize    = 8,
+  NSResize    = 9,
+  Move        = 10,
+  NotAllowed  = 11,
+  Pointer     = 12,
+  NWResize    = 13,
+  NorthResize = 14,
+  NEResize    = 15,
+  EastResize  = 16,
+  SEResize    = 17,
+  SouthResize = 18,
+  SWResize    = 19,
+  WestResize  = 20
+};
+
 }        // namespace ash
