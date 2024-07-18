@@ -15,8 +15,8 @@ struct Button : public Widget
   SizeConstraint width      = {};
   SizeConstraint height     = {};
   bool           disabled   = false;
-  Fn<void()>     on_clicked = to_fn([] {});
-  Fn<void()>     on_hovered = to_fn([] {});
+  Fn<void()>     on_clicked = fn([] {});
+  Fn<void()>     on_hovered = fn([] {});
 
   virtual Widget *child(u32 i) override final
   {

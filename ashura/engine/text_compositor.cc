@@ -268,7 +268,7 @@ void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
     case TextCommand::InputText:
     {
       Slice32 selection = cursor.as_slice(text.size32());
-      delete_selection(text, to_fn([](Slice32) {}));
+      delete_selection(text, fn([](Slice32) {}));
       append_record(true, selection.offset, input);
       erase(selection);
       insert(selection.offset, input);
@@ -459,7 +459,7 @@ void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
     {
       Span<u32 const> clipboard_input = get_clipboard();
       Slice32         selection       = cursor.as_slice(text.size32());
-      delete_selection(text, to_fn([](Slice32) {}));
+      delete_selection(text, fn([](Slice32) {}));
       append_record(true, selection.offset, clipboard_input);
       erase(selection);
       insert(selection.offset, clipboard_input);

@@ -39,7 +39,7 @@ struct Task
   usize                num_awaits     = 0;
   Semaphore           *await_sems     = nullptr;
   u64                 *awaits         = nullptr;
-  Fn<bool()>           task           = to_fn([] { return false; });
+  Fn<bool()>           task           = fn([] { return false; });
   usize                num_increments = 0;
   Semaphore           *increment_sems = nullptr;
   u64                 *increments     = nullptr;

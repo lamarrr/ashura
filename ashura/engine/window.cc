@@ -16,7 +16,7 @@ namespace sdl
 {
 struct WindowEventListener
 {
-  Fn<void(WindowEvent const &)> callback = to_fn([](WindowEvent const &) {});
+  Fn<void(WindowEvent const &)> callback = fn([](WindowEvent const &) {});
   WindowEventTypes              types    = WindowEventTypes::None;
 };
 

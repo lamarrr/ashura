@@ -3588,7 +3588,7 @@ struct FunctorTraits : public MemberFnTraits<decltype(&T::operator())>
 
 /// @brief make a function view from a raw function pointer.
 template <typename R, typename... Args>
-auto to_fn(R (*pfn)(Args...))
+auto fn(R (*pfn)(Args...))
 {
   using Traits     = PFnTraits<R(Args...)>;
   using Fn         = typename Traits::Fn;
@@ -3597,17 +3597,17 @@ auto to_fn(R (*pfn)(Args...))
   return Fn{&Dispatcher::dispatch, reinterpret_cast<void *>(pfn)};
 }
 
-/// @brief make a function view from a non-capturing functor (i.e. lambdas
+/// @brief make a function view from a captureless lambda/functor (i.e. lambdas
 /// without data)
 template <typename StaticFunctor>
-auto to_fn(StaticFunctor functor)
+auto fn(StaticFunctor functor)
 {
   using Traits = FunctorTraits<StaticFunctor>;
   using PFn    = typename Traits::Ptr;
 
   PFn pfn = static_cast<PFn>(functor);
 
-  return to_fn(pfn);
+  return fn(pfn);
 }
 
 /// @brief make a function view from a functor reference. Functor should outlive

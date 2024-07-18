@@ -28,9 +28,8 @@ struct Spec
 /// @sratch_buffer: minimum recommended size of 256 bytes
 struct Context
 {
-  Fn<bool(Span<char const>)> push =
-      to_fn([](Span<char const>) { return true; });
-  Span<char> scratch_buffer = {};
+  Fn<bool(Span<char const>)> push = fn([](Span<char const>) { return true; });
+  Span<char>                 scratch_buffer = {};
 };
 
 template <typename T>

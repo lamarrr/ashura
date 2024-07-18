@@ -10,7 +10,7 @@ namespace ash
 
 struct CheckBox : public Widget
 {
-  Fn<void(bool)> on_changed = to_fn([](bool) {});
+  Fn<void(bool)> on_changed = fn([](bool) {});
   bool           value      = false;
   Vec4           color      = material::BLUE_A700.norm();
   f32            width      = 20;

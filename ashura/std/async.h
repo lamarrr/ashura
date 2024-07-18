@@ -10,7 +10,7 @@ namespace ash
 
 struct TaskInfo
 {
-  Fn<bool()>            task                 = to_fn([] { return false; });
+  Fn<bool()>            task                 = fn([] { return false; });
   Span<Semaphore const> await_semaphores     = {};
   Span<u64 const>       awaits               = {};
   Span<Semaphore const> signal_semaphores    = {};

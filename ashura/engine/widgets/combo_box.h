@@ -16,7 +16,7 @@ struct ComboItem : public Widget
 // TODO(lamarrr):
 struct ComboBox : public Widget
 {
-  Fn<void(u32)> on_selected = to_fn([](u32) {});
+  Fn<void(u32)> on_selected = fn([](u32) {});
   // or produce as many combo boxes as the number of children. or use one combo
   // box for all children.
 
