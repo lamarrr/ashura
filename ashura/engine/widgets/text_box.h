@@ -8,7 +8,7 @@
 namespace ash
 {
 
-// TODO(lamarrr): re-layout hints i.e. Once
+// TODO(lamarrr): selection for copy and paste, copyable attribute
 struct TextBox : public Widget
 {
   TextBlock      block  = {};

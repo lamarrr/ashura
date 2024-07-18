@@ -9,7 +9,9 @@
 namespace ash
 {
 
-struct CollapsableHeader: public Widget{};
+struct CollapsableHeader : public Widget
+{
+};
 
 // TODO(lamarrr)
 struct Collapsable : public Widget

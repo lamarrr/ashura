@@ -186,8 +186,9 @@ struct WidgetSystem
     // TODO(lamarrr)
     // process events across widgets, hit-test, dispatch events
     //
+    // [ ] Update timestamp and dt
     // [ ] click - forward directly unless draggable
-    // [ ] touch -
+    // [ ] focus and keyboard management
     // [ ] widget drag & drop
     // [ ] mouse over, mouse leave
     // [ ] view hit, view miss -
@@ -195,11 +196,17 @@ struct WidgetSystem
     // [ ] clip board copy & paste with custom media format
     // [ ] text input
     // [ ] gamepad input: use another system?
-    //
+    // [ ] hit testing on clipped rects
+    // [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
+    // Tab to move focus forwards)
+    // [ ] scroll on child focus for viewports
+    // [ ] on click or focus of focusable objects, system requests keyboard
+    // input if object has a text area attribute
+    // [ ] cursor management via hit testing
     for (u32 i = 0; i < widgets.size32(); i++)
     {
       widgets[i]->tick(ctx, CRect{.center = positions[i], .extent = sizes[i]},
-                       dt, WidgetEventTypes::None);
+                       WidgetEventTypes::None);
     }
   }
 

@@ -3,7 +3,7 @@
 
 #include "ashura/engine/canvas.h"
 #include "ashura/engine/event.h"
-#include "ashura/engine/key.h"
+#include "ashura/engine/mime.h"
 #include "ashura/engine/renderer.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/math.h"
@@ -115,12 +115,23 @@ enum class WidgetAttributes : u32
 
 ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
 
-/// @brief Global Widget Context
-/// @param app_data_header global app data header, used to recognize the data
-/// payload, should be used to check if the data matches the expected
-/// content/type.
-/// @param app_data the user context data for this application, initialized at
-/// startup.
+/// @brief It is important that widgets only access data from
+/// context objects and not some global state to ensure portability and
+/// adaptiveness, i.e. during hot-reloading. The App context may also contain
+/// references to other subsystems.
+/// @param type used to recognize the payload, should be used to check if the
+/// data matches the expected content/type.
+/// @param data the user context data for this application
+/// @param next link to the next attached context.
+struct AppContext
+{
+  Span<u8 const> type = {};
+  AppContext    *next = nullptr;
+  void          *data = nullptr;
+};
+
+/// @brief Global Widget Context, Properties of the context all the widgets for
+/// a specific window are in.
 /// @param has_focus the current widget scope (window) has focus
 /// @param button current button states
 /// @param drag_payload attached drag and drop payload data
@@ -132,22 +143,33 @@ ASH_DEFINE_ENUM_BIT_OPS(WidgetAttributes)
 /// keyboard, etc)
 struct WidgetContext
 {
-  Span<u8 const>  app_data_header            = {};
-  void           *app_data                   = nullptr;
-  bool            has_focus                  = false;
-  MouseButtons    button                     = MouseButtons::None;
-  Vec2            mouse_position             = {};
-  Vec2            mouse_translation          = {};
-  u32             num_clicks                 = 0;
-  Vec2            mouse_wheel_translation    = {};
-  Span<u8 const>  drag_payload               = {};
-  SystemTheme     theme                      = SystemTheme::None;
-  TextDirection   direction                  = TextDirection::LeftToRight;
-  u64             key_states[NUM_KEYS / 64]  = {};
-  u64             scan_states[NUM_KEYS / 64] = {};
-  Span<u32 const> text                       = {};
+  AppContext              *app                     = nullptr;
+  bool                     has_focus               = false;
+  MouseButtons             mouse_buttons           = MouseButtons::None;
+  Vec2                     mouse_position          = {};
+  Vec2                     mouse_translation       = {};
+  u32                      num_clicks              = 0;
+  Vec2                     mouse_wheel_translation = {};
+  Span<u8 const>           drag_payload            = {};
+  SystemTheme              theme                   = SystemTheme::None;
+  TextDirection            direction               = TextDirection::LeftToRight;
+  u64                      key_states[NUM_KEYS / 64]  = {};
+  u64                      scan_states[NUM_KEYS / 64] = {};
+  Span<u32 const>          text                       = {};
+  steady_clock::time_point time_stamp                 = {};
+  nanoseconds              time_delta                 = {};
 
-  constexpr bool get_key_state(KeyCode key) const
+  virtual void change_cursor(Cursor cursor) const
+  {
+    (void) cursor;
+  }
+
+  virtual Cursor get_cursor() const
+  {
+    return Cursor::None;
+  }
+
+  constexpr bool key_down(KeyCode key) const
   {
     u16 const i     = (u32) key;
     u64       state = key_states[i >> 6];
@@ -155,12 +177,35 @@ struct WidgetContext
     return state != 0;
   }
 
-  constexpr bool get_scan_state(ScanCode key) const
+  constexpr bool scan_down(ScanCode key) const
   {
     u16 const i     = (u32) key;
     u64       state = scan_states[i >> 6];
     state           = (state >> (i & 63)) & 1;
     return state != 0;
+  }
+
+  virtual Span<u8 const> get_clipboard_data(Span<char const> mime) const
+  {
+    (void) mime;
+    return {};
+  }
+
+  virtual void set_clipboard_data(Span<char const> mime,
+                                  Span<u8 const>   data) const
+  {
+    (void) mime;
+    (void) data;
+  }
+
+  Span<u8 const> get_clipboard_text() const
+  {
+    return get_clipboard_data(span(MIME_TEXT_UTF8));
+  }
+
+  void set_clipboard_text(Span<char const> text) const
+  {
+    set_clipboard_data(span(MIME_TEXT_UTF8), text.as_u8());
   }
 };
 
@@ -237,6 +282,13 @@ struct Widget
     return WidgetAttributes::Visible;
   }
 
+  virtual Cursor cursor(CRect const &region, Vec2 offset)
+  {
+    (void) region;
+    (void) offset;
+    return Cursor::Default;
+  }
+
   /// @brief returns the z-index of itself and assigns z-indices to its children
   /// @param z_index z-index allocated to this widget by parent
   /// @param[out] allocation z-index assigned to children
@@ -282,11 +334,10 @@ struct Widget
   /// @param dt time passed since last call to this method
   //
   virtual void tick(WidgetContext const &ctx, CRect const &region,
-                    nanoseconds dt, WidgetEventTypes events)
+                    WidgetEventTypes events)
   {
     (void) ctx;
     (void) region;
-    (void) dt;
     (void) events;
   }
 };

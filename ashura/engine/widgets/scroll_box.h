@@ -18,7 +18,7 @@ struct ScrollBar : public Widget
   Vec2          content_extent    = {};
   f32           scroll_percentage = 0;
   bool          disabled          = false;
-  Fn<void(f32)> on_scrolled       = to_fn([](f32) {});
+  Fn<void(f32)> on_scrolled       = fn([](f32) {});
 
   explicit ScrollBar(Axis direction) : direction{direction}
   {
@@ -78,7 +78,7 @@ struct ScrollBar : public Widget
                                thumb_color * to_vec4({1, 1, 1}, opacity))});
   }
 
-  virtual void tick(WidgetContext const &ctx, CRect const &region, nanoseconds,
+  virtual void tick(WidgetContext const &ctx, CRect const &region,
                     WidgetEventTypes events) override
   {
     u8 const main_axis = (direction == Axis::X) ? 0 : 1;
