@@ -189,25 +189,25 @@ add_library(
   ashura/engine/shader.cc
   ashura/engine/text_compositor.cc
   ashura/engine/window.cc
-  ashura/engine/widget.cc
-  ashura/engine/widget_system.cc
-  ashura/engine/widgets/button.cc
-  ashura/engine/widgets/check_box.cc
-  ashura/engine/widgets/collapsable.cc
-  ashura/engine/widgets/color_picker.cc
-  ashura/engine/widgets/combo_box.cc
-  ashura/engine/widgets/demo.cc
-  ashura/engine/widgets/flex_box.cc
-  ashura/engine/widgets/input_box.cc
-  ashura/engine/widgets/plot.cc
-  ashura/engine/widgets/progress_bar.cc
-  ashura/engine/widgets/radio_box.cc
-  ashura/engine/widgets/scroll_box.cc
-  ashura/engine/widgets/slider.cc
-  ashura/engine/widgets/stack_box.cc
-  ashura/engine/widgets/switch.cc
-  ashura/engine/widgets/tab.cc
-  ashura/engine/widgets/text_box.cc
+  ashura/engine/view.cc
+  ashura/engine/view_system.cc
+  ashura/engine/views/button.cc
+  ashura/engine/views/check_box.cc
+  ashura/engine/views/collapsable.cc
+  ashura/engine/views/color_picker.cc
+  ashura/engine/views/combo_box.cc
+  ashura/engine/views/demo.cc
+  ashura/engine/views/flex_box.cc
+  ashura/engine/views/input_box.cc
+  ashura/engine/views/plot.cc
+  ashura/engine/views/progress_bar.cc
+  ashura/engine/views/radio_box.cc
+  ashura/engine/views/scroll_box.cc
+  ashura/engine/views/slider.cc
+  ashura/engine/views/stack_box.cc
+  ashura/engine/views/switch.cc
+  ashura/engine/views/tab.cc
+  ashura/engine/views/text_box.cc
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc
