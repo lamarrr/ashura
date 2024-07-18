@@ -34,8 +34,8 @@ void TextCompositor::pop_records(u32 num)
   {
     reclaimed += records[i].slice.span;
   }
-  mem::move(to_span(buffer).slice(reclaimed).as_const(), to_span(buffer));
-  mem::move(to_span(records).slice(num).as_const(), to_span(records));
+  mem::move(span(buffer).slice(reclaimed).as_const(), span(buffer));
+  mem::move(span(records).slice(num).as_const(), span(records));
   buffer_usage -= reclaimed;
   latest_record -= num;
   current_record -= num;
@@ -65,7 +65,7 @@ void TextCompositor::append_record(bool is_insert, u32 text_pos,
     pop_records(max(records.size32() >> 1, 1U));
   }
 
-  mem::copy(segment, to_span(buffer).slice(buffer_pos));
+  mem::copy(segment, span(buffer).slice(buffer_pos));
 
   current_record++;
   latest_record          = current_record;
@@ -90,7 +90,7 @@ void TextCompositor::undo(Insert insert, Erase erase)
   else
   {
     insert(record.slice.offset,
-           to_span(buffer).slice(buffer_pos, record.slice.span));
+           span(buffer).slice(buffer_pos, record.slice.span));
   }
   current_record--;
   if (record.is_insert)
@@ -111,7 +111,7 @@ void TextCompositor::redo(Insert insert, Erase erase)
   if (record.is_insert)
   {
     insert(record.slice.offset,
-           to_span(buffer).slice(buffer_pos, record.slice.span));
+           span(buffer).slice(buffer_pos, record.slice.span));
   }
   else
   {

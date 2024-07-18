@@ -165,8 +165,8 @@ struct TextCompositor
   u32                 buffer_pos     = 0;
   u32                 latest_record  = 0;
   u32                 current_record = 0;
-  Span<u32 const>     word_symbols   = to_span(DEFAULT_WORD_SYMBOLS);
-  Span<u32 const>     line_symbols   = to_span(DEFAULT_LINE_SYMBOLS);
+  Span<u32 const>     word_symbols   = span(DEFAULT_WORD_SYMBOLS);
+  Span<u32 const>     line_symbols   = span(DEFAULT_LINE_SYMBOLS);
 
   void init(u32 num_buffer_codepoints, u32 num_records)
   {
@@ -187,8 +187,8 @@ struct TextCompositor
     buffer_pos     = 0;
     latest_record  = 0;
     current_record = 0;
-    word_symbols   = to_span(DEFAULT_WORD_SYMBOLS);
-    line_symbols   = to_span(DEFAULT_LINE_SYMBOLS);
+    word_symbols   = span(DEFAULT_WORD_SYMBOLS);
+    line_symbols   = span(DEFAULT_LINE_SYMBOLS);
   }
 
   void uninit()

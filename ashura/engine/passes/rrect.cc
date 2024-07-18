@@ -41,8 +41,7 @@ void RRectPass::init(RenderContext &ctx)
        .alpha_blend_op         = gfx::BlendOp::Add,
        .color_write_mask       = gfx::ColorComponents::All}};
 
-  gfx::ColorBlendState color_blend_state{.attachments =
-                                             to_span(attachment_states),
+  gfx::ColorBlendState color_blend_state{.attachments = span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
   gfx::DescriptorSetLayout set_layouts[] = {
@@ -64,7 +63,7 @@ void RRectPass::init(RenderContext &ctx)
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = 0,
-      .descriptor_set_layouts = to_span(set_layouts),
+      .descriptor_set_layouts = span(set_layouts),
       .primitive_topology     = gfx::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
@@ -86,9 +85,8 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
                               gfx::GraphicsState{.scissor  = params.scissor,
                                                  .viewport = params.viewport});
   encoder->bind_descriptor_sets(
-      encoder.self,
-      to_span({params.params_ssbo, ctx.samplers, params.textures}),
-      to_span<u32>({0}));
+      encoder.self, span({params.params_ssbo, ctx.samplers, params.textures}),
+      span<u32>({0}));
   encoder->draw(encoder.self, 4, params.num_instances, 0,
                 params.first_instance);
   encoder->end_rendering(encoder.self);

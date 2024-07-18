@@ -86,8 +86,8 @@ struct WidgetSystem
     {
       // allocate sizes to children
       WidgetNode const &node = nodes[i];
-      widgets[i]->size(
-          sizes[i], to_span(sizes).slice(node.first_child, node.num_children));
+      widgets[i]->size(sizes[i],
+                       span(sizes).slice(node.first_child, node.num_children));
     }
 
     for (u32 i = 0; i < num_widgets; i++)
@@ -96,8 +96,8 @@ struct WidgetSystem
       // assign positions to the children based on their sizes.
       WidgetNode const &node = nodes[i];
       sizes[i]               = widgets[i]->fit(
-          sizes[i], to_span(sizes).slice(node.first_child, node.num_children),
-          to_span(positions).slice(node.first_child, node.num_children));
+          sizes[i], span(sizes).slice(node.first_child, node.num_children),
+          span(positions).slice(node.first_child, node.num_children));
     }
 
     for (u32 i = 0; i < num_widgets; i++)
@@ -106,7 +106,7 @@ struct WidgetSystem
       // translation
       WidgetNode const &node = nodes[i];
       for (Vec2 &pos :
-           to_span(positions).slice(node.first_child, node.num_children))
+           span(positions).slice(node.first_child, node.num_children))
       {
         pos += positions[i];
       }
@@ -128,7 +128,7 @@ struct WidgetSystem
       WidgetNode const &node = nodes[i];
       z_indices[i]           = widgets[i]->stack(
           z_indices[i],
-          to_span(z_indices).slice(node.first_child, node.num_children));
+          span(z_indices).slice(node.first_child, node.num_children));
     }
   }
 
@@ -140,14 +140,14 @@ struct WidgetSystem
       WidgetNode const &node = nodes[i];
       clips[i]               = widgets[i]->clip(
           CRect{.center = positions[i], .extent = sizes[i]}, clips[i]);
-      fill(to_span(clips).slice(node.first_child, node.num_children), clips[i]);
+      fill(span(clips).slice(node.first_child, node.num_children), clips[i]);
     }
   }
 
   void sort_layers()
   {
-    iota(to_span(layered), 0U);
-    indirect_sort(to_span(z_indices), to_span(layered),
+    iota(span(layered), 0U);
+    indirect_sort(span(z_indices), span(layered),
                   [](i32 za, i32 zb) { return za < zb; });
   }
 
@@ -160,7 +160,7 @@ struct WidgetSystem
       if (!has_bits(attributes[i], WidgetAttributes::Visible))
       {
         for (WidgetAttributes &attr :
-             to_span(attributes).slice(node.first_child, node.num_children))
+             span(attributes).slice(node.first_child, node.num_children))
         {
           attr = attr & ~WidgetAttributes::Visible;
         }

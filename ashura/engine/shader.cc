@@ -349,7 +349,7 @@ ShaderCompileError
   {
     return ShaderCompileError::OutOfMemory;
   }
-  if (!preamble_s.extend_copy(to_span({'\n', '\0'})))
+  if (!preamble_s.extend_copy(span({'\n', '\0'})))
   {
     return ShaderCompileError::OutOfMemory;
   }
@@ -408,7 +408,7 @@ ShaderCompileError
     logger.warn(conv_messages);
   }
 
-  if (!spirv.extend_copy(to_span(spirv_v)))
+  if (!spirv.extend_copy(span(spirv_v)))
   {
     return ShaderCompileError::OutOfMemory;
   }
@@ -450,8 +450,8 @@ ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
   Vec<u32>           spirv;
   defer              spirv_del{[&] { spirv.reset(); }};
   ShaderCompileError error =
-      compile_shader(*default_logger, spirv, to_span(file_path), type, preamble,
-                     "main"_span, to_span({root_directory}), {});
+      compile_shader(*default_logger, spirv, span(file_path), type, preamble,
+                     "main"_span, span({root_directory}), {});
 
   if (error != ShaderCompileError::None)
   {

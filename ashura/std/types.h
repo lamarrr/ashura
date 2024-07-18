@@ -3293,19 +3293,19 @@ struct BitSpan
 };
 
 template <typename T>
-constexpr Span<T const> to_span(std::initializer_list<T> list)
+constexpr Span<T const> span(std::initializer_list<T> list)
 {
   return Span<T const>{list.begin(), list.size()};
 }
 
 template <typename T, usize N>
-constexpr Span<T> to_span(T (&array)[N])
+constexpr Span<T> span(T (&array)[N])
 {
   return Span<T>{array, N};
 }
 
 template <typename Container>
-constexpr auto to_span(Container &c) -> decltype(Span{data(c), size(c)})
+constexpr auto span(Container &c) -> decltype(Span{data(c), size(c)})
 {
   return Span{data(c), size(c)};
 }

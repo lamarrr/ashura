@@ -1400,7 +1400,7 @@ void set_resource_name(Device *dev, Span<char const> label,
                        VkDebugReportObjectTypeEXT debug_type)
 {
   char buff[256];
-  to_c_str(label, to_span(buff));
+  to_c_str(label, span(buff));
   VkDebugUtilsObjectNameInfoEXT name_info{
       .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
       .pNext        = nullptr,
@@ -3024,7 +3024,7 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
       .pData = desc.compute_shader.specialization_constants_data.data()};
 
   char entry_point[256];
-  to_c_str(desc.compute_shader.entry_point, to_span(entry_point));
+  to_c_str(desc.compute_shader.entry_point, span(entry_point));
 
   VkPipelineShaderStageCreateInfo vk_stage{
       .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -3153,8 +3153,8 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
 
   char vs_entry_point[256];
   char fs_entry_point[256];
-  to_c_str(desc.vertex_shader.entry_point, to_span(vs_entry_point));
-  to_c_str(desc.fragment_shader.entry_point, to_span(fs_entry_point));
+  to_c_str(desc.vertex_shader.entry_point, span(vs_entry_point));
+  to_c_str(desc.fragment_shader.entry_point, span(fs_entry_point));
 
   VkPipelineShaderStageCreateInfo vk_stages[2] = {
       {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -4830,7 +4830,7 @@ void CommandEncoderInterface::begin_debug_marker(gfx::CommandEncoder self_,
   CHECK(!self->is_in_pass());
   CHECK(region_name.size() < 256);
   char region_name_cstr[256];
-  to_c_str(region_name, to_span(region_name_cstr));
+  to_c_str(region_name, span(region_name_cstr));
 
   VkDebugMarkerMarkerInfoEXT info{
       .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,

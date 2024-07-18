@@ -7,7 +7,7 @@ namespace ash
 
 void Path::rect(Vec<Vec2> &vtx)
 {
-  CHECK(vtx.extend_copy(to_span<Vec2>({{-1, -1}, {1, -1}, {1, 1}, {-1, 1}})));
+  CHECK(vtx.extend_copy(span<Vec2>({{-1, -1}, {1, -1}, {1, 1}, {-1, 1}})));
 }
 
 void Path::arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop)
@@ -168,7 +168,7 @@ void Path::brect(Vec<Vec2> &vtx, Vec4 slant)
                            {1 - slant.z, 1},   {-1 + slant.w, 1},
                            {-1, 1 - slant.w},  {-1, -1 + slant.x}};
 
-  CHECK(vtx.extend_copy(to_span(vertices)));
+  CHECK(vtx.extend_copy(span(vertices)));
 }
 
 void Path::bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1, Vec2 cp2)
@@ -510,7 +510,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
       f32 cursor = space_align(block_width, ln.metrics.width, alignment) -
                    ln.metrics.width * 0.5F;
       for (TextRun const &run :
-           to_span(layout.runs).slice(ln.first_run, ln.num_runs))
+           span(layout.runs).slice(ln.first_run, ln.num_runs))
       {
         FontStyle const         &font_style = block.fonts[run.style];
         TextStyle const         &run_style  = style.runs[run.style];
@@ -669,7 +669,7 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points,
   CHECK(vertices.extend_copy(points));
   CHECK(indices.extend_copy(idx));
 
-  for (u32 &v : to_span(indices).slice(first_index))
+  for (u32 &v : span(indices).slice(first_index))
   {
     v += first_vertex;
   }

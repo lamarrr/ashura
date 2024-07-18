@@ -665,13 +665,13 @@ struct BitVec
 };
 
 template <typename Rep>
-constexpr auto to_span(BitVec<Rep> &container) -> BitSpan<Rep>
+constexpr auto span(BitVec<Rep> &container) -> BitSpan<Rep>
 {
   return BitSpan{container.data(), container.size()};
 }
 
 template <typename Rep>
-constexpr auto to_span(BitVec<Rep> const &container) -> BitSpan<Rep>
+constexpr auto span(BitVec<Rep> const &container) -> BitSpan<Rep>
 {
   return BitSpan{container.data(), container.size()};
 }

@@ -56,7 +56,7 @@ Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
                       },
                           .data = logger,
               },
-                  .scratch_buffer = to_span(logger->scratch_buffer)}};
+                  .scratch_buffer = span(logger->scratch_buffer)}};
 }
 
 void destroy_logger(Logger *logger)

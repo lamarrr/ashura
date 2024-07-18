@@ -107,7 +107,7 @@ void FontAtlasResource::init(RenderContext &c, FontAtlas const &atlas,
   c.release(staging_buffer);
 
   CHECK(textures.resize_defaulted(atlas.num_layers));
-  CHECK(glyphs.extend_copy(to_span(atlas.glyphs)));
+  CHECK(glyphs.extend_copy(span(atlas.glyphs)));
 
   for (u32 i = 0; i < atlas.num_layers; i++)
   {
@@ -118,7 +118,7 @@ void FontAtlasResource::init(RenderContext &c, FontAtlas const &atlas,
             .set     = c.texture_views,
             .binding = 0,
             .element = textures[i],
-            .images  = to_span({gfx::ImageBinding{.image_view = views[i]}})});
+            .images  = span({gfx::ImageBinding{.image_view = views[i]}})});
   }
 }
 

@@ -44,11 +44,11 @@ struct CheckBox : public Widget
                     .stroke       = 0,
                     .thickness    = 2.5,
                     .tint         = ColorGradient::uniform(color)},
-          to_span<Vec2>({{0.125f, 0.5f}, {0.374f, 0.75f}, {0.775f, 0.25f}}));
+          span<Vec2>({{0.125f, 0.5f}, {0.374f, 0.75f}, {0.775f, 0.25f}}));
     }
   }
 
-  virtual void tick(WidgetContext const &ctx, CRect const &, nanoseconds,
+  virtual void tick(WidgetContext const &ctx, CRect const &,
                     WidgetEventTypes     events) override
   {
     if (!disabled && has_bits(events, WidgetEventTypes::MouseDown) &&

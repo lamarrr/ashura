@@ -71,7 +71,7 @@ void SSBO::reserve(RenderContext &ctx, u64 p_size, Span<char const> label)
           .set     = ssbo,
           .binding = 0,
           .element = 0,
-          .buffers = to_span({gfx::BufferBinding{
+          .buffers = span({gfx::BufferBinding{
               .buffer = buffer, .offset = 0, .size = p_size}})});
 
   size = p_size;
@@ -130,12 +130,10 @@ void CanvasRenderer::begin(RenderContext &ctx, PassContext &passes,
 {
   (void) passes;
   CanvasResources &r = resources[ctx.ring_index()];
-  r.vertices.copy(ctx, to_span(canvas.vertices).as_u8(),
-                  "Canvas Vertices"_span);
-  r.indices.copy(ctx, to_span(canvas.indices).as_u8(), "Canvas Indices"_span);
-  r.ngon_params.copy(ctx, to_span(canvas.ngon_params).as_u8(),
-                     "Ngon Params"_span);
-  r.rrect_params.copy(ctx, to_span(canvas.rrect_params).as_u8(),
+  r.vertices.copy(ctx, span(canvas.vertices).as_u8(), "Canvas Vertices"_span);
+  r.indices.copy(ctx, span(canvas.indices).as_u8(), "Canvas Indices"_span);
+  r.ngon_params.copy(ctx, span(canvas.ngon_params).as_u8(), "Ngon Params"_span);
+  r.rrect_params.copy(ctx, span(canvas.rrect_params).as_u8(),
                       "RRect Params"_span);
 }
 
@@ -166,7 +164,7 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
 {
   CanvasResources &r = resources[ctx.ring_index()];
 
-  for (CanvasPassRun const &run : to_span(canvas.pass_runs).slice(first, num))
+  for (CanvasPassRun const &run : span(canvas.pass_runs).slice(first, num))
   {
     gfx::Rect scissor = clip_to_scissor(viewport, run.clip, surface_extent);
     switch (run.type)
@@ -174,7 +172,7 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
       case CanvasPassType::Blur:
       {
         for (CanvasBlurParam const &params :
-             to_span(canvas.blur_params).slice(run.first, run.count))
+             span(canvas.blur_params).slice(run.first, run.count))
         {
           passes.blur.add_pass(
               ctx, BlurPassParams{.image_view = info.color_attachments[0].view,
@@ -190,7 +188,7 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
       case CanvasPassType::Custom:
       {
         for (CustomCanvasPass pass :
-             to_span(canvas.custom_passes).slice(run.first, run.count))
+             span(canvas.custom_passes).slice(run.first, run.count))
         {
           pass(ctx, passes, info, texture);
         }
@@ -207,7 +205,7 @@ void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
                            .indices_ssbo   = r.indices.ssbo,
                            .params_ssbo    = r.ngon_params.ssbo,
                            .textures       = ctx.texture_views,
-                           .index_counts   = to_span(canvas.ngon_index_counts)
+                           .index_counts   = span(canvas.ngon_index_counts)
                                                .slice(run.first, run.count)});
       }
       break;

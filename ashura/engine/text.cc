@@ -285,7 +285,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   CHECK(block.runs.size() == block.fonts.size());
 
   CHECK(layout.segments.resize_defaulted(block.text.size()));
-  Span segments = to_span(layout.segments);
+  Span segments = span(layout.segments);
 
   for (TextSegment &s : segments)
   {
@@ -428,7 +428,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
     CHECK(layout.lines.push(line));
 
-    reorder_line(to_span(layout.runs).slice(first, i - first));
+    reorder_line(span(layout.runs).slice(first, i - first));
 
     extent.x = max(extent.x, width);
     extent.y += height;

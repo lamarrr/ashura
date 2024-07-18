@@ -11,10 +11,10 @@ TEST(AsyncTest, Basic)
 {
   using namespace ash;
   StdioSink sink;
-  default_logger = create_logger(to_span<LogSink *>({&sink}), heap_allocator);
+  default_logger = create_logger(span<LogSink *>({&sink}), heap_allocator);
 
   Semaphore sem = create_semaphore(1);
-  scheduler->init(to_span<nanoseconds>({1ns, 2ns}), to_span({2ns, 5ns}));
+  scheduler->init(span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));
 
   for (u32 i = 0; i < 5'000; i++)
   {

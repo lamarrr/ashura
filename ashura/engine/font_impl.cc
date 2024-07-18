@@ -448,7 +448,7 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
     return false;
   }
 
-  ImageLayerSpan<u8, 1> atlas_span{.channels = to_span(atlas.channels),
+  ImageLayerSpan<u8, 1> atlas_span{.channels = span(atlas.channels),
                                    .width    = atlas_extent.x,
                                    .height   = atlas_extent.y,
                                    .layers   = num_layers};

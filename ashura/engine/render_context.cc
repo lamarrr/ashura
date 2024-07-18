@@ -95,7 +95,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
               device.self,
               gfx::DescriptorSetLayoutDesc{
                   .label    = "UBO Layout"_span,
-                  .bindings = to_span({gfx::DescriptorBindingDesc{
+                  .bindings = span({gfx::DescriptorBindingDesc{
                       .type  = gfx::DescriptorType::DynamicUniformBuffer,
                       .count = 1,
                       .is_variable_length = false}})})
@@ -107,7 +107,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
               device.self,
               gfx::DescriptorSetLayoutDesc{
                   .label    = "SSBO Layout"_span,
-                  .bindings = to_span({gfx::DescriptorBindingDesc{
+                  .bindings = span({gfx::DescriptorBindingDesc{
                       .type  = gfx::DescriptorType::DynamicStorageBuffer,
                       .count = 1,
                       .is_variable_length = false}})})
@@ -118,7 +118,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                             device.self,
                             gfx::DescriptorSetLayoutDesc{
                                 .label    = "Textures Layout"_span,
-                                .bindings = to_span({gfx::DescriptorBindingDesc{
+                                .bindings = span({gfx::DescriptorBindingDesc{
                                     .type  = gfx::DescriptorType::SampledImage,
                                     .count = NUM_TEXTURE_SLOTS,
                                     .is_variable_length = true}})})
@@ -129,7 +129,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                             device.self,
                             gfx::DescriptorSetLayoutDesc{
                                 .label    = "Samplers Layout"_span,
-                                .bindings = to_span({gfx::DescriptorBindingDesc{
+                                .bindings = span({gfx::DescriptorBindingDesc{
                                     .type  = gfx::DescriptorType::Sampler,
                                     .count = NUM_SAMPLER_SLOTS,
                                     .is_variable_length = true}})})
@@ -137,12 +137,12 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
 
   texture_views = device
                       ->create_descriptor_set(device.self, textures_layout,
-                                              to_span<u32>({NUM_TEXTURE_SLOTS}))
+                                              span<u32>({NUM_TEXTURE_SLOTS}))
                       .unwrap();
 
   samplers = device
                  ->create_descriptor_set(device.self, samplers_layout,
-                                         to_span<u32>({NUM_SAMPLER_SLOTS}))
+                                         span<u32>({NUM_SAMPLER_SLOTS}))
                  .unwrap();
 
   recreate_framebuffers(p_initial_extent);
@@ -299,7 +299,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
                            .set     = texture_views,
                            .binding = 0,
                            .element = slot,
-                           .images  = to_span({gfx::ImageBinding{
+                           .images  = span({gfx::ImageBinding{
                                 .image_view = default_image_views[i]}})});
     }
   }
@@ -376,7 +376,7 @@ static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
   fb.color_texture =
       ctx.device
           ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
-                                  to_span<u32>({1}))
+                                  span<u32>({1}))
           .unwrap();
 
   ctx.device->update_descriptor_set(
@@ -385,7 +385,7 @@ static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
           .set     = fb.color_texture,
           .binding = 0,
           .element = 0,
-          .images = to_span({gfx::ImageBinding{.image_view = fb.color.view}})});
+          .images  = span({gfx::ImageBinding{.image_view = fb.color.view}})});
 
   fb.extent = new_extent;
 }
@@ -481,7 +481,7 @@ CachedSampler RenderContext::create_sampler(gfx::SamplerDesc const &desc)
           .set     = samplers,
           .binding = 0,
           .element = sampler.slot,
-          .images  = to_span({gfx::ImageBinding{.sampler = sampler.sampler}})});
+          .images  = span({gfx::ImageBinding{.sampler = sampler.sampler}})});
 
   bool exists;
   CHECK(sampler_cache.insert(exists, nullptr, desc, sampler) && !exists);
@@ -658,7 +658,7 @@ void RenderContext::idle_reclaim()
   device->wait_idle(device.self).unwrap();
   for (u32 i = 0; i < buffering; i++)
   {
-    destroy_objects(device, to_span(released_objects[i]));
+    destroy_objects(device, span(released_objects[i]));
     released_objects[i].reset();
   }
 }
@@ -666,51 +666,51 @@ void RenderContext::idle_reclaim()
 void RenderContext::begin_frame(gfx::Swapchain swapchain)
 {
   device->begin_frame(device.self, swapchain).unwrap();
-  destroy_objects(device, to_span(released_objects[ring_index()]));
+  destroy_objects(device, span(released_objects[ring_index()]));
   released_objects[ring_index()].clear();
 
   gfx::CommandEncoderImpl enc = encoder();
 
   enc->clear_color_image(
       enc.self, screen_fb.color.image, gfx::Color{.float32 = {0, 0, 0, 0}},
-      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
-                                          .first_mip_level   = 0,
-                                          .num_mip_levels    = 1,
-                                          .first_array_layer = 0,
-                                          .num_array_layers  = 1}}));
+      span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                       .first_mip_level   = 0,
+                                       .num_mip_levels    = 1,
+                                       .first_array_layer = 0,
+                                       .num_array_layers  = 1}}));
 
   for (Framebuffer const &f : scratch_fbs)
   {
     enc->clear_color_image(
         enc.self, f.color.image, gfx::Color{.float32 = {0, 0, 0, 0}},
-        to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
-                                            .first_mip_level   = 0,
-                                            .num_mip_levels    = 1,
-                                            .first_array_layer = 0,
-                                            .num_array_layers  = 1}}));
+        span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                         .first_mip_level   = 0,
+                                         .num_mip_levels    = 1,
+                                         .first_array_layer = 0,
+                                         .num_array_layers  = 1}}));
   }
 
   enc->clear_depth_stencil_image(
       enc.self, screen_fb.depth_stencil.image,
       gfx::DepthStencil{.depth = 0, .stencil = 0},
-      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
-                                                     gfx::ImageAspects::Stencil,
-                                          .first_mip_level   = 0,
-                                          .num_mip_levels    = 1,
-                                          .first_array_layer = 0,
-                                          .num_array_layers  = 1}}));
+      span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
+                                                  gfx::ImageAspects::Stencil,
+                                       .first_mip_level   = 0,
+                                       .num_mip_levels    = 1,
+                                       .first_array_layer = 0,
+                                       .num_array_layers  = 1}}));
 
   for (Framebuffer const &f : scratch_fbs)
   {
     enc->clear_depth_stencil_image(
         enc.self, f.depth_stencil.image,
         gfx::DepthStencil{.depth = 0, .stencil = 0},
-        to_span({gfx::ImageSubresourceRange{
-            .aspects = gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
-            .first_mip_level   = 0,
-            .num_mip_levels    = 1,
-            .first_array_layer = 0,
-            .num_array_layers  = 1}}));
+        span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
+                                                    gfx::ImageAspects::Stencil,
+                                         .first_mip_level   = 0,
+                                         .num_mip_levels    = 1,
+                                         .first_array_layer = 0,
+                                         .num_array_layers  = 1}}));
   }
 }
 
@@ -727,7 +727,7 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
       enc->blit_image(
           enc.self, screen_fb.color.image,
           swapchain_state.images[swapchain_state.current_image.unwrap()],
-          to_span({gfx::ImageBlit{
+          span({gfx::ImageBlit{
               .src_layers  = {.aspects           = gfx::ImageAspects::Color,
                               .mip_level         = 0,
                               .first_array_layer = 0,
