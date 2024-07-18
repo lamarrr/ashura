@@ -274,7 +274,8 @@ struct TextBlock
   bool                  use_ligatures = true;
 };
 
-/// @param styles styles for each run in the source text
+/// @param styles styles for each run in the source text, for each
+/// `TextBlock::runs`
 /// @param align_width width to align the text block to when rendering.
 /// @param alignment alignment of the text to its base direction. -1 = line
 /// start, +1 = line end, 0 = center of line, the direction depends on the
