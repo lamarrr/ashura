@@ -189,7 +189,7 @@ struct ViewSystem
     // [ ] Update timestamp and dt
     // [ ] click - forward directly unless draggable
     // [ ] focus and keyboard management
-    // [ ] widget drag & drop
+    // [ ] view drag & drop
     // [ ] mouse over, mouse leave
     // [ ] view hit, view miss -
     // [ ] keyboard input: use another system?

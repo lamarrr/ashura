@@ -49,22 +49,22 @@ enum class MainAlign : u8
   SpaceEvenly  = 4
 };
 
-/// @param DragStart drag event has begun on this widget
-/// @param DragUpdate the mouse has been moved whilst this widget is being
+/// @param DragStart drag event has begun on this view
+/// @param DragUpdate the mouse has been moved whilst this view is being
 /// dragged
-/// @param DragEnd the dragging of this widget has completed
-/// @param DragEnter drag data has entered this widget and might be dropped
-/// @param DragLeave drag data has left the widget without being dropped
-/// @param Drop drag data is now available for the widget to consume
-/// @param ViewHit called on every frame the widget is viewed on the viewport.
+/// @param DragEnd the dragging of this view has completed
+/// @param DragEnter drag data has entered this view and might be dropped
+/// @param DragLeave drag data has left the view without being dropped
+/// @param Drop drag data is now available for the view to consume
+/// @param ViewHit called on every frame the view is viewed on the viewport.
 /// Can be used for partial loading
-/// @param ViewMiss called on every frame that the widget is not seen on the
+/// @param ViewMiss called on every frame that the view is not seen on the
 /// viewport this can be because it has hidden visibility, is clipped away, or
 /// parent positioned out of the visible region. Can be used for
 /// partial unloading.
-/// @param FocusIn the widget has received keyboard focus
-/// @param FocusOut the widget has lost keyboard focus
-/// @param TextInput the widget has received composition text
+/// @param FocusIn the view has received keyboard focus
+/// @param FocusOut the view has lost keyboard focus
+/// @param TextInput the view has received composition text
 enum class ViewEventTypes : u64
 {
   None         = 0x0000000000000000ULL,
@@ -95,11 +95,11 @@ enum class ViewEventTypes : u64
 
 ASH_DEFINE_ENUM_BIT_OPS(ViewEventTypes)
 
-/// @param Visible if the widget is visible or not. Visibility propagates down
+/// @param Visible if the view is visible or not. Visibility propagates down
 /// to the children
-/// @param Draggable if the widget can receive drag events
-/// @param Droppable if the widget can receive drop events
-/// @param Focusable can receive widget focus events (typically keyboard events)
+/// @param Draggable if the view can receive drag events
+/// @param Droppable if the view can receive drop events
+/// @param Focusable can receive view focus events (typically keyboard events)
 /// @param TextArea receives text input and not just Keyboard press/release
 enum class ViewAttributes : u32
 {
@@ -132,7 +132,7 @@ struct AppContext
 
 /// @brief Global View Context, Properties of the context all the widgets for
 /// a specific window are in.
-/// @param has_focus the current widget scope (window) has focus
+/// @param has_focus the current view scope (window) has focus
 /// @param button current button states
 /// @param drag_payload attached drag and drop payload data
 /// @param theme the current theme from the UI system
@@ -209,9 +209,10 @@ struct ViewContext
   }
 };
 
-/// @brief Base widget class. All widget types must inherit from this struct.
+/// @brief Base view class. All view types must inherit from this struct.
 /// Views are plain visual elements that define spatial relationships,
 /// visual state changes, and forward events to other subsystems.
+/// @note State changes should only happen in the `tick` method
 struct View
 {
   uid id = UID_MAX;
@@ -226,7 +227,7 @@ struct View
   /// @brief get child widgets, this is a virtual iterator, return null once
   /// there's no other children
   /// @param i child index
-  /// @return child widget pointer or nullptr meaning no more child left.
+  /// @return child view pointer or nullptr meaning no more child left.
   virtual View *child(u32 i)
   {
     (void) i;
@@ -234,7 +235,7 @@ struct View
   }
 
   /// @brief distributes the size allocated to it to its child widgets.
-  /// @param allocated the size allocated to this widget
+  /// @param allocated the size allocated to this view
   /// @param[out] sizes sizes allocated to the children.
   virtual void size(Vec2 allocated, Span<Vec2> sizes)
   {
@@ -244,10 +245,10 @@ struct View
 
   /// @brief fits itself around its children and positions child widgets
   /// relative to its center
-  /// @param allocated the size allocated to this widget
+  /// @param allocated the size allocated to this view
   /// @param sizes sizes of the child widgets
   /// @param[out] offsets offsets of the widgets from the parent's center
-  /// @return this widget's fitted extent
+  /// @return this view's fitted extent
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> offsets)
   {
     (void) allocated;
@@ -256,8 +257,8 @@ struct View
     return Vec2{0, 0};
   }
 
-  /// @brief this is used for absolute positioning of the widget
-  /// @param center the allocated absolute center of this widget relative
+  /// @brief this is used for absolute positioning of the view
+  /// @param center the allocated absolute center of this view relative
   /// to the viewport
   virtual Vec2 position(CRect const &region)
   {
@@ -265,7 +266,7 @@ struct View
   }
 
   /// @brief Used for hit-testing regions of widgets.
-  /// @param area area of widget within the viewport
+  /// @param area area of view within the viewport
   /// @param offset offset of pointer within area
   /// @return
   virtual bool hit(CRect const &region, Vec2 offset)
@@ -290,7 +291,7 @@ struct View
   }
 
   /// @brief returns the z-index of itself and assigns z-indices to its children
-  /// @param z_index z-index allocated to this widget by parent
+  /// @param z_index z-index allocated to this view by parent
   /// @param[out] allocation z-index assigned to children
   /// @return
   virtual i32 stack(i32 z_index, Span<i32> allocation)
@@ -308,7 +309,7 @@ struct View
     return 0;
   }
 
-  /// @brief this is used for clipping widget views. the provided clip is
+  /// @brief this is used for clipping views. the provided clip is
   /// relative to the root viewport. Used for nested viewports where there are
   /// multiple intersecting clips.
   virtual CRect clip(CRect const &region, CRect const &allocated)
@@ -317,8 +318,8 @@ struct View
     return allocated;
   }
 
-  /// @brief record draw commands needed to render this widget. this method is
-  /// only called if the widget passes the visibility tests. this is called on
+  /// @brief record draw commands needed to render this view. this method is
+  /// only called if the view passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas
   virtual void render(CRect const &region, Canvas &canvas)
