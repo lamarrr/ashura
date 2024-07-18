@@ -1,4 +1,5 @@
 /// SPDX-License-Identifier: MIT
+#include "SDL3/SDL.h"
 #include "ashura/engine/color.h"
 #include "ashura/engine/render_context.h"
 #include "ashura/engine/renderer.h"
@@ -19,7 +20,7 @@ int main(int, char **)
 {
   using namespace ash;
   StdioSink sink;
-  default_logger = create_logger(to_span<LogSink *>({&sink}), heap_allocator);
+  default_logger = create_logger(span<LogSink *>({&sink}), heap_allocator);
   defer default_logger_del{[&] { destroy_logger(default_logger); }};
   defer shutdown{[&] { default_logger->info("Shutting down"); }};
 
@@ -31,7 +32,7 @@ int main(int, char **)
 
   defer font_data_del{[&] { font_data.uninit(); }};
 
-  Font font = load_font(to_span(font_data), 0, default_allocator).unwrap();
+  Font font = load_font(span(font_data), 0, default_allocator).unwrap();
 
   FontAtlas font_atlas;
   CHECK(rasterize_font(font, 60, font_atlas, default_allocator));
@@ -65,14 +66,14 @@ int main(int, char **)
   gfx::DeviceImpl device =
       instance
           ->create_device(instance.self, default_allocator,
-                          to_span({
+                          span({
                               gfx::DeviceType::DiscreteGpu,
                               gfx::DeviceType::VirtualGpu,
                               gfx::DeviceType::IntegratedGpu,
                               gfx::DeviceType::Cpu,
                               gfx::DeviceType::Other,
                           }),
-                          to_span({surface}), 2)
+                          span({surface}), 2)
           .unwrap();
   defer device_del{
       [&] { instance->destroy_device(instance.self, device.self); }};
@@ -82,7 +83,7 @@ int main(int, char **)
   CHECK(
       pack_shaders(
           spirvs,
-          to_span<ShaderUnit>(
+          span<ShaderUnit>(
               {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
                {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
                {.id       = "Blur_UpSample:FS"_span,
@@ -115,7 +116,7 @@ int main(int, char **)
         device
             ->create_shader(
                 device.self,
-                gfx::ShaderDesc{.label = id, .spirv_code = to_span(spirv)})
+                gfx::ShaderDesc{.label = id, .spirv_code = span(spirv)})
             .unwrap()));
     CHECK(!exists);
     spirv.reset();
@@ -142,7 +143,7 @@ int main(int, char **)
         device->get_surface_formats(device.self, surface, {}).unwrap();
     CHECK(num_formats != 0);
     CHECK(formats.resize_uninitialized(num_formats));
-    CHECK(device->get_surface_formats(device.self, surface, to_span(formats))
+    CHECK(device->get_surface_formats(device.self, surface, span(formats))
                         .unwrap() == num_formats);
 
     Vec<gfx::PresentMode> present_modes;
@@ -153,7 +154,7 @@ int main(int, char **)
     CHECK(present_modes.resize_uninitialized(num_present_modes));
     CHECK(device
                         ->get_surface_present_modes(device.self, surface,
-                                                    to_span(present_modes))
+                                                    span(present_modes))
                         .unwrap() == num_present_modes);
 
     Vec2U surface_extent = win_sys->get_surface_size(win);
@@ -188,7 +189,7 @@ int main(int, char **)
 
     for (gfx::ColorSpace cp : preferred_color_spaces)
     {
-      Span sel = find_if(to_span(formats), [&](gfx::SurfaceFormat a) {
+      Span sel = find_if(span(formats), [&](gfx::SurfaceFormat a) {
         return a.color_space == cp;
       });
       if (!sel.is_empty())
@@ -206,7 +207,7 @@ int main(int, char **)
 
     for (gfx::PresentMode pm : preferred_present_modes)
     {
-      if (!find(to_span(present_modes), pm).is_empty())
+      if (!find(span(present_modes), pm).is_empty())
       {
         found_present_mode = true;
         present_mode       = pm;
@@ -298,8 +299,8 @@ int main(int, char **)
 ( 1 ) لكل فرد حرية التنقل واختيار محل إقامته داخل حدود كل دولة.
 ( 2 ) يحق لكل فرد أن يغادر أية بلاد بما في ذلك بلده كما يحق له العودة إليه.
 )"_span),
-                       .runs      = to_span(runs),
-                       .fonts     = to_span(font_styles),
+                       .runs      = span(runs),
+                       .fonts     = span(font_styles),
                        .direction = TextDirection::RightToLeft,
                        .language  = "en"_span};
 
@@ -330,7 +331,7 @@ int main(int, char **)
                   .thickness = 20,
                   .tint      = {f(colors::RED) / 255, f(colors::BLUE) / 255,
                                 f(colors::MAGENTA) / 255, f(colors::CYAN) /
-       255}}, to_span({// Vec2{0, 0},
+       255}}, span({// Vec2{0, 0},
                  //
                  Vec2{1, 0},
                  //
@@ -351,7 +352,7 @@ int main(int, char **)
                                 colors::MAGENTA.norm(), colors::CYAN.norm()}},
         text_block, text_layout,
         TextBlockStyle{
-            .runs        = to_span<TextStyle>({TextStyle{
+            .runs        = span<TextStyle>({TextStyle{
                        .underline_thickness     = 0,
                        .strikethrough_thickness = 0,
                        .shadow_scale            = 0,
@@ -363,8 +364,8 @@ int main(int, char **)
                        .shadow        = ColorGradient::uniform(colors::WHITE)}}),
             .alignment   = 0,
             .align_width = 1920},
-        to_span<FontAtlasResource const *>({&font_resource}));
-    // canvas.blur({.scissor = {{0, 0}, {U32_MAX, U32_MAX}}}, rr);
+        span<FontAtlasResource const *>({&font_resource}));
+    canvas.blur(CRect{{1920 / 2, 1080 / 2}, {1920 / 1.25, 1080 / 1.25}}, 4);
     /*canvas.triangles(
         ShapeDesc{.center    = Vec2{0, 0},
                   .extent    = {800, 800},
@@ -373,43 +374,45 @@ int main(int, char **)
                                 f(colors::MAGENTA) / 255, f(colors::CYAN) /
        255}},
 
-        to_span({Vec2{-1, -1}, Vec2{1, -1}, Vec2{1, 1}, Vec2{1, 1}, Vec2{-1, 1},
+        span({Vec2{-1, -1}, Vec2{1, -1}, Vec2{1, 1}, Vec2{1, 1}, Vec2{-1, 1},
                  Vec2{-1, -1}}));*/
 
+    // TODO(lamarrr) add squircle to canvas
+    // TODO(lamarrr): add multi-sampling
     Vec<Vec2> squircle;
     Path::squircle(squircle, 1024, 4);
     Vec<u32> idx;
     Path::triangulate_convex(idx, 0, squircle.size32());
     canvas.triangles(ShapeDesc{.center    = {1920 / 2, 1080 / 2},
-                               .extent    = {560, 560},
+                               .extent    = {260, 260},
                                .stroke    = 1,
                                .thickness = 8,
                                .tint      = ColorGradient{{colors::RED.norm(),
                                                            colors::CYAN.norm(),
                                                            colors::YELLOW.norm(),
                                                            colors::MAGENTA.norm()}}},
-                     to_span(squircle), to_span(idx));
+                     span(squircle), span(idx));
     squircle.reset();
     idx.reset();
 
-    renderer.begin(ctx, pctx, canvas,
-                   gfx::RenderingInfo{
-                       .render_area       = {{0, 0}, {1920, 1080}},
-                       .num_layers        = 1,
-                       .color_attachments = to_span({gfx::RenderingAttachment{
-                           .view = ctx.screen_fb.color.view}})},
-                   ctx.screen_fb.color_texture);
-    renderer.render(ctx, pctx,
-                    gfx::RenderingInfo{
-                        .render_area       = {{0, 0}, {1920, 1080}},
-                        .num_layers        = 1,
-                        .color_attachments = to_span({gfx::RenderingAttachment{
-                            .view = ctx.screen_fb.color.view}})},
-                    gfx::Viewport{.offset    = {0, 0},
-                                  .extent    = {1920, 1080},
-                                  .min_depth = 0,
-                                  .max_depth = 1},
-                    {1920, 1080}, ctx.screen_fb.color_texture, canvas);
+    renderer.begin(
+        ctx, pctx, canvas,
+        gfx::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
+                           .num_layers        = 1,
+                           .color_attachments = span({gfx::RenderingAttachment{
+                               .view = ctx.screen_fb.color.view}})},
+        ctx.screen_fb.color_texture);
+    renderer.render(
+        ctx, pctx,
+        gfx::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
+                           .num_layers        = 1,
+                           .color_attachments = span({gfx::RenderingAttachment{
+                               .view = ctx.screen_fb.color.view}})},
+        gfx::Viewport{.offset    = {0, 0},
+                      .extent    = {1920, 1080},
+                      .min_depth = 0,
+                      .max_depth = 1},
+        {1920, 1080}, ctx.screen_fb.color_texture, canvas);
     ctx.end_frame(swapchain);
     canvas.clear();
   }
