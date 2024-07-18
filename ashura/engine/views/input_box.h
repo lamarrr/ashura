@@ -303,7 +303,7 @@ struct TextInputView : View
 // DragBox: text input + dragging when alt is pressed down
 struct ScalarDragBox : View
 {
-  Fn<void(fmt::Context &, ScalarInput)> formatter  = fn(default_formatter);
+  Fn<void(fmt::Context &, ScalarInput)> format     = fn(default_format);
   ScalarInput                           value      = {};
   ScalarInput                           min        = {};
   ScalarInput                           max        = {};
@@ -313,7 +313,7 @@ struct ScalarDragBox : View
   SizeConstraint                        height     = {.offset = 20};
   bool                                  disabled   = false;
 
-  static void default_formatter(fmt::Context &ctx, ScalarInput v)
+  static void default_format(fmt::Context &ctx, ScalarInput v)
   {
     fmt::format(ctx, v);
   }
@@ -355,8 +355,8 @@ struct ScalarDragBox : View
 /// Generic Numeric Input: Scalars, Vectors, Matrices, Tensors
 struct ScalarBox : View
 {
-  Fn<void(ScalarInput &, ScalarInput, ScalarInput, ScalarInput, bool)> stepper =
-      fn(default_stepper);
+  Fn<void(ScalarInput &, ScalarInput, ScalarInput, ScalarInput, bool)> step =
+      fn(default_step);
   bool steppable = false;
   bool draggable = false;
   bool disabled  = false;
@@ -372,14 +372,14 @@ struct ScalarBox : View
     positive_stepper.text.block.text = utf(U"+"_span);
 
     positive_stepper.on_clicked = fn(this, [](ScalarBox *b) {
-      b->stepper(b->dragger.value, b->dragger.min, b->dragger.max,
-                 b->dragger.step, true);
+      b->step(b->dragger.value, b->dragger.min, b->dragger.max, b->dragger.step,
+              true);
       b->dragger.on_changed(b->dragger.value);
     });
 
     negative_stepper.on_clicked = fn(this, [](ScalarBox *b) {
-      b->stepper(b->dragger.value, b->dragger.min, b->dragger.max,
-                 b->dragger.step, false);
+      b->step(b->dragger.value, b->dragger.min, b->dragger.max, b->dragger.step,
+              false);
       b->dragger.on_changed(b->dragger.value);
     });
 
@@ -387,8 +387,8 @@ struct ScalarBox : View
         fn(this, [](ScalarBox *b, ScalarInput value) { b->on_changed(value); });
   }
 
-  static void default_stepper(ScalarInput &v, ScalarInput min, ScalarInput max,
-                              ScalarInput step, bool direction)
+  static void default_step(ScalarInput &v, ScalarInput min, ScalarInput max,
+                           ScalarInput step, bool direction)
   {
     switch (v.type)
     {
