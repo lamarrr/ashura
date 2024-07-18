@@ -539,10 +539,18 @@ inline Vec2 rotor(f32 a)
   return Vec2{cosf(a), sinf(a)};
 }
 
-// find intepolated value v, given points a and b, and interpolator t
+/// @brief linearly interpolate between points `low` and `high` given
+/// interpolator `t`
 constexpr f32 lerp(f32 low, f32 high, f32 t)
 {
   return (1 - t) * low + t * high;
+}
+
+/// @brief logarithmically interpolate between points `low` and `high` given
+/// interpolator `t`
+inline f32 log_interp(f32 low, f32 high, f32 t)
+{
+  return low * expf(t * logf(high / low));
 }
 
 /// @brief frame-independent damped lerp
