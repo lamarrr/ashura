@@ -5,6 +5,7 @@
 #include "ashura/engine/text_compositor.h"
 #include "ashura/engine/widget.h"
 #include "ashura/engine/widgets/button.h"
+#include "ashura/std/text.h"
 
 namespace ash
 {
@@ -40,7 +41,7 @@ struct ScalarInput
 namespace fmt
 {
 
-inline bool push(Context &ctx, Spec const &spec, ScalarInput const &value)
+inline bool push(Context const &ctx, Spec const &spec, ScalarInput const &value)
 {
   switch (value.type)
   {
@@ -70,101 +71,244 @@ struct TextInput : Widget
   bool            disabled            = false;
   bool            is_multiline        = false;
   bool            is_submittable      = false;
-  Span<u32 const> placeholder         = {};
   Vec<u32>        text                = {};
   TextLayout      layout              = {};
   TextBlockStyle  style               = {};
-  Fn<void()>      on_editing          = to_fn([] {});
-  Fn<void()>      on_editing_finished = to_fn([] {});
-  Fn<void()>      on_submit           = to_fn([] {});
+  Span<u32 const> placeholder_text    = {};
+  TextBlockStyle  placeholder_style   = {};
   TextCompositor  compositor          = {};
+  Fn<void()>      on_editing          = fn([] {});
+  Fn<void()>      on_editing_finished = fn([] {});
+  Fn<void()>      on_submit           = fn([] {});
 
   virtual WidgetAttributes attributes() override
   {
-    // TODO(lamarrr): don't accept text input if disabled
-    return WidgetAttributes::Visible | WidgetAttributes::Draggable |
-           WidgetAttributes::Focusable | WidgetAttributes::Scrollable |
-           WidgetAttributes::TextArea;
+    WidgetAttributes attributes =
+        WidgetAttributes::Visible | WidgetAttributes::TextArea;
+
+    if (!disabled)
+    {
+      attributes |= WidgetAttributes::Focusable | WidgetAttributes::Draggable;
+    }
+
+    return attributes;
+  }
+
+  virtual Cursor cursor(CRect const &region, Vec2 offset) override
+  {
+    (void) region;
+    (void) offset;
+    return Cursor::Text;
+  }
+
+  static constexpr TextCommand key_to_command(WidgetContext const &ctx)
+  {
+    if (ctx.key_down(KeyCode::Escape))
+    {
+      return TextCommand::Escape;
+    }
+    if (ctx.key_down(KeyCode::Backspace))
+    {
+      return TextCommand::BackSpace;
+    }
+    if (ctx.key_down(KeyCode::Delete))
+    {
+      return TextCommand::Delete;
+    }
+    if (ctx.key_down(KeyCode::Left))
+    {
+      return TextCommand::Left;
+    }
+    if (ctx.key_down(KeyCode::Right))
+    {
+      return TextCommand::Right;
+    }
+    if (ctx.key_down(KeyCode::Home))
+    {
+      return TextCommand::LineStart;
+    }
+    if (ctx.key_down(KeyCode::End))
+    {
+      return TextCommand::LineEnd;
+    }
+    if (ctx.key_down(KeyCode::Up))
+    {
+      return TextCommand::Up;
+    }
+    if (ctx.key_down(KeyCode::Down))
+    {
+      return TextCommand::Down;
+    }
+    if (ctx.key_down(KeyCode::PageUp))
+    {
+      return TextCommand::PageUp;
+    }
+    if (ctx.key_down(KeyCode::PageDown))
+    {
+      return TextCommand::PageDown;
+    }
+    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
+        ctx.key_down(KeyCode::Left))
+    {
+      return TextCommand::SelectLeft;
+    }
+    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
+        ctx.key_down(KeyCode::Right))
+    {
+      return TextCommand::SelectRight;
+    }
+    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
+        ctx.key_down(KeyCode::Up))
+    {
+      return TextCommand::SelectUp;
+    }
+    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
+        ctx.key_down(KeyCode::Down))
+    {
+      return TextCommand::SelectDown;
+    }
+    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
+        ctx.key_down(KeyCode::PageUp))
+    {
+      return TextCommand::SelectPageUp;
+    }
+    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
+        ctx.key_down(KeyCode::PageDown))
+    {
+      return TextCommand::SelectPageDown;
+    }
+    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
+        ctx.key_down(KeyCode::A))
+    {
+      return TextCommand::SelectAll;
+    }
+    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
+        ctx.key_down(KeyCode::X))
+    {
+      return TextCommand::Cut;
+    }
+    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
+        ctx.key_down(KeyCode::C))
+    {
+      return TextCommand::Copy;
+    }
+    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
+        ctx.key_down(KeyCode::V))
+    {
+      return TextCommand::Paste;
+    }
+    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
+        ctx.key_down(KeyCode::Z))
+    {
+      return TextCommand::Undo;
+    }
+    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
+        ctx.key_down(KeyCode::Y))
+    {
+      return TextCommand::Redo;
+    }
+    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
+        ctx.key_down(KeyCode::Left) &&
+        has_bits(ctx.mouse_buttons, MouseButtons::Primary))
+    {
+      return TextCommand::HitSelect;
+    }
+
+    return TextCommand::None;
   }
 
   virtual void tick(WidgetContext const &ctx, CRect const &region,
-                    nanoseconds dt, WidgetEventTypes events) override
+                    WidgetEventTypes events) override
   {
-    (void) ctx;
-    (void) dt;
-    (void) events;
-    // on click or focus, request keyboard
-    // for text area, change cursor type to editing
-    // calculate lines per page
-    //
-    auto erase  = [this](Slice32 s) { this->text.erase(s); };
-    auto insert = [this](u32 pos, Span<u32 const> t) {
-      CHECK(!this->text.insert_span_copy(pos, t));
+    Vec<u32> clipboard_data_u32;
+    Vec<u8>  clipboard_data_u8;
+    defer    clipboard_data_u32_del{[&] { clipboard_data_u32.reset(); }};
+    defer    clipboard_data_u8_del{[&] { clipboard_data_u8.reset(); }};
+    auto     erase  = [this](Slice32 s) { this->text.erase(s); };
+    auto     insert = [this](u32 pos, Span<u32 const> t) {
+      CHECK(this->text.insert_span_copy(pos, t));
+    };
+    auto get_content = [&clipboard_data_u32, &ctx]() -> Span<u32 const> {
+      clipboard_data_u32.clear();
+      CHECK(utf8_decode(ctx.get_clipboard_data(span(MIME_TEXT_UTF8)),
+                        clipboard_data_u32));
+      return span(clipboard_data_u32);
+    };
+    auto set_content = [&clipboard_data_u8, &ctx](Span<u32 const> data) {
+      clipboard_data_u8.clear();
+      CHECK(utf8_encode(data, clipboard_data_u8));
+      ctx.set_clipboard_data(span(MIME_TEXT_UTF8), span(clipboard_data_u8));
     };
 
     if (disabled)
     {
       return;
     }
+    TextCommand cmd = TextCommand::None;
     if (has_bits(events, WidgetEventTypes::TextInput))
     {
-      compositor.command(to_span(text), layout, style, TextCommand::InputText,
-                         fn(&insert), fn(&erase), ctx.text,
-                         to_fn([]() { return Span<u32 const>{}; }),
-                         to_fn([](Span<u32 const>) {}), 1, ctx.mouse_position);
+      cmd = TextCommand::InputText;
     }
     else if (has_bits(events, WidgetEventTypes::DragStart))
     {
-      compositor.command(to_span(text), layout, style, TextCommand::Hit,
-                         fn(&insert), fn(&erase), ctx.text,
-                         to_fn([]() { return Span<u32 const>{}; }),
-                         to_fn([](Span<u32 const>) {}), 1, ctx.mouse_position);
+      cmd = TextCommand::Hit;
     }
     else if (has_bits(events, WidgetEventTypes::DragUpdate))
     {
-      compositor.command(to_span(text), layout, style, TextCommand::HitSelect,
-                         fn(&insert), fn(&erase), ctx.text,
-                         to_fn([]() { return Span<u32 const>{}; }),
-                         to_fn([](Span<u32 const>) {}), 1, ctx.mouse_position);
+      cmd = TextCommand::HitSelect;
     }
     else if (has_bits(events, WidgetEventTypes::KeyDown))
     {
-      // control codes
-      // consult key map
+      cmd = key_to_command(ctx);
     }
 
+    Vec2 offset = region.begin() - ctx.mouse_position;
+    compositor.command(span(text), layout, style, cmd, fn(&insert), fn(&erase),
+                       ctx.text, fn(&get_content), fn(&set_content), 1, offset);
+
     // TODO(lamarrr):
-    // - [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
-    // Tab to move focus forwards)
-    // - [ ] clipboard api
-    // - [ ] keymap
-    // - [ ] multi-line mode or single line mode (i.e.) -> on press enter ?
+    //
+    // [ ] tab (navigate? enter text?): depends on attributes?
+    // [ ] escape?
+    // [ ] multi-line mode or single line mode (i.e.) -> on press enter ?
     // submit
-    // - [ ] cursor rendering/API (system cursor, custom cursor)
-    // - [ ] textinputbegin, textinputend
-    // - [ ] debouncing of keyboard and mouse (timestamp of pressed time)
-    // - [ ] color space, pixel info for color pickers
-    // - [ ] hit testing on clipped rects
-    // - [ ] scroll on child focus
-    // - [ ] submittable: clicking with enter keyboard when focused
-    // - [ ] viewport text with scrollable region
+    // [ ] submittable: clicking with enter keyboard when focused
+    // [ ] use placeholder when text empty
+    // [ ] present one won't work when we have say ctrl + click
+    //
+    //
+    // [ ] SDL_SetCursor()
+    //     SDL_CreateSystemCursor(); - all created at startup
+    //     SDL_HideCursor();
+    //     SDL_ShowCursor();
+    //
+    //
     // https://github.com/ocornut/imgui/issues/787#issuecomment-361419796 enter
-    /// parent: prod children, nav to children
-    /// https://user-images.githubusercontent.com/8225057/74143829-ce67b900-4bfb-11ea-90d9-0de40c944b26.gif
-    ///
+    // parent: prod children, nav to children
+    // https://user-images.githubusercontent.com/8225057/74143829-ce67b900-4bfb-11ea-90d9-0de40c944b26.gif
+    //
+
     layout_text({}, F32_MAX, layout);
   }
+};
+
+struct TextInputView : Widget
+{
+  TextInput input;
+  // [ ] calculate lines per page
+  // [ ] viewport text with scrollable region
+  //  WidgetAttributes::Scrollable |
 };
 
 // DragBox: text input + dragging when alt is pressed down
 struct ScalarDragBox : Widget
 {
-  Fn<void(fmt::Context &, ScalarInput)> formatter  = to_fn(default_formatter);
+  Fn<void(fmt::Context &, ScalarInput)> formatter  = fn(default_formatter);
   ScalarInput                           value      = {};
   ScalarInput                           min        = {};
   ScalarInput                           max        = {};
   ScalarInput                           step       = {};
-  Fn<void(ScalarInput)>                 on_changed = to_fn([](ScalarInput) {});
+  Fn<void(ScalarInput)>                 on_changed = fn([](ScalarInput) {});
   SizeConstraint                        width      = {.offset = 100};
   SizeConstraint                        height     = {.offset = 20};
   bool                                  disabled   = false;
@@ -192,7 +336,7 @@ struct ScalarDragBox : Widget
   }
 
   virtual void tick(WidgetContext const &ctx, CRect const &region,
-                    nanoseconds dt, WidgetEventTypes events) override
+                    WidgetEventTypes events) override
   {
     // if focused, read text input and parse
     // if dragging, update
@@ -212,7 +356,7 @@ struct ScalarDragBox : Widget
 struct ScalarBox : Widget
 {
   Fn<void(ScalarInput &, ScalarInput, ScalarInput, ScalarInput, bool)> stepper =
-      to_fn(default_stepper);
+      fn(default_stepper);
   bool steppable = false;
   bool draggable = false;
   bool disabled  = false;
@@ -220,7 +364,7 @@ struct ScalarBox : Widget
   TextButton            negative_stepper;
   TextButton            positive_stepper;
   ScalarDragBox         dragger;
-  Fn<void(ScalarInput)> on_changed = to_fn([](ScalarInput) {});
+  Fn<void(ScalarInput)> on_changed = fn([](ScalarInput) {});
 
   ScalarBox()
   {
