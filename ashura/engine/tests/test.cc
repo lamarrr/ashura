@@ -357,15 +357,14 @@ int main(int, char **)
                        .strikethrough_thickness = 0,
                        .shadow_scale            = 0,
                        .shadow_offset           = Vec2{1, 1},
-                       .foreground    = ColorGradient::y(colors::RED, colors::YELLOW),
-                       .background    = ColorGradient::uniform(Vec4{0, 0, 0, 1}),
-                       .underline     = ColorGradient::uniform(colors::WHITE),
+                       .foreground = ColorGradient::y(colors::MAGENTA, colors::BLUE),
+                       .background = ColorGradient::uniform(Vec4{0, 0, 0, 1}),
+                       .underline  = ColorGradient::uniform(colors::WHITE),
                        .strikethrough = ColorGradient::uniform(colors::WHITE),
                        .shadow        = ColorGradient::uniform(colors::WHITE)}}),
             .alignment   = 0,
             .align_width = 1920},
         span<FontAtlasResource const *>({&font_resource}));
-    canvas.blur(CRect{{1920 / 2, 1080 / 2}, {1920 / 1.25, 1080 / 1.25}}, 4);
     /*canvas.triangles(
         ShapeDesc{.center    = Vec2{0, 0},
                   .extent    = {800, 800},
@@ -380,20 +379,29 @@ int main(int, char **)
     // TODO(lamarrr) add squircle to canvas
     // TODO(lamarrr): add multi-sampling
     Vec<Vec2> squircle;
-    Path::squircle(squircle, 1024, 4);
+    Path::squircle(squircle, 1024, 5);
     Vec<u32> idx;
     Path::triangulate_convex(idx, 0, squircle.size32());
     canvas.triangles(ShapeDesc{.center    = {1920 / 2, 1080 / 2},
-                               .extent    = {260, 260},
+                               .extent    = {150, 150},
                                .stroke    = 1,
                                .thickness = 8,
                                .tint      = ColorGradient{{colors::RED.norm(),
-                                                           colors::CYAN.norm(),
+                                                           colors::RED.norm(),
                                                            colors::YELLOW.norm(),
                                                            colors::MAGENTA.norm()}}},
                      span(squircle), span(idx));
     squircle.reset();
     idx.reset();
+    canvas.rrect(ShapeDesc{
+        .center       = {1920 / 2 + 100, 1080 / 2 + 100},
+        .extent       = {150, 150},
+        .border_radii = {35, 35, 35, 35},
+        .stroke       = 0,
+        .tint =
+            ColorGradient{{colors::WHITE.norm(), colors::BLACK.norm(),
+                           colors::WHITE.norm(), colors::WHITE.norm()}}});
+    // canvas.blur(CRect{{1920 / 2, 1080 / 2}, {1920 / 1.25, 1080 / 1.25}}, 1);
 
     renderer.begin(
         ctx, pctx, canvas,
