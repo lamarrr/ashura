@@ -43,12 +43,11 @@ layout(location = 1) out vec2 o_pos;
 
 void main()
 {
-  Params p     = params[gl_InstanceIndex];
-  vec2   pos   = VERTEX_BUFFER[gl_VertexIndex];
-  vec2   uv[4] = {p.uv.xy, p.uv.zy, p.uv.zw, p.uv.xw};
-  o_idx        = gl_InstanceIndex;
-  o_pos        = pos;
-  gl_Position  = p.transform * vec4(pos, 0.0, 1.0);
+  Params p    = params[gl_InstanceIndex];
+  vec2   pos  = VERTEX_BUFFER[gl_VertexIndex];
+  o_idx       = gl_InstanceIndex;
+  o_pos       = pos;
+  gl_Position = p.transform * vec4(pos, 0.0, 1.0);
 }
 #endif
 
@@ -56,7 +55,6 @@ void main()
 
 layout(location = 0) flat in uint i_idx;
 layout(location = 1) in vec2 i_pos;
-layout(location = 2) in vec2 i_tex_uv;
 
 layout(location = 0) out vec4 o_color;
 
