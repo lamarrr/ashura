@@ -68,14 +68,14 @@ struct ScrollBar : public View
                            .stroke       = 1,
                            .thickness    = 1,
                            .tint         = ColorGradient::uniform(
-                               track_color * to_vec4({1, 1, 1}, opacity))});
+                               track_color * vec4({1, 1, 1}, opacity))});
 
     canvas.rrect(ShapeDesc{.center       = thumb_center,
                            .extent       = thumb_extent,
                            .border_radii = border_radii,
                            .stroke       = 0,
                            .tint         = ColorGradient::uniform(
-                               thumb_color * to_vec4({1, 1, 1}, opacity))});
+                               thumb_color * vec4({1, 1, 1}, opacity))});
   }
 
   virtual void tick(ViewContext const &ctx, CRect const &region,

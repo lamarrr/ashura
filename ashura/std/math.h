@@ -753,14 +753,14 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Vec3 offset, Vec3 extent)
 {
   constexpr u8 NUM_CORNERS          = 8;
   Vec4 const   corners[NUM_CORNERS] = {
-      mvp * to_vec4(offset, 1),
-      mvp * to_vec4(offset + Vec3{extent.x, 0, 0}, 1),
-      mvp * to_vec4(offset + Vec3{extent.x, extent.y, 0}, 1),
-      mvp * to_vec4(offset + Vec3{0, extent.y, 0}, 1),
-      mvp * to_vec4(offset + Vec3{0, 0, extent.z}, 1),
-      mvp * to_vec4(offset + Vec3{extent.x, 0, extent.z}, 1),
-      mvp * to_vec4(offset + extent, 1),
-      mvp * to_vec4(offset + Vec3{0, extent.y, extent.z}, 1)};
+      mvp * vec4(offset, 1),
+      mvp * vec4(offset + Vec3{extent.x, 0, 0}, 1),
+      mvp * vec4(offset + Vec3{extent.x, extent.y, 0}, 1),
+      mvp * vec4(offset + Vec3{0, extent.y, 0}, 1),
+      mvp * vec4(offset + Vec3{0, 0, extent.z}, 1),
+      mvp * vec4(offset + Vec3{extent.x, 0, extent.z}, 1),
+      mvp * vec4(offset + extent, 1),
+      mvp * vec4(offset + Vec3{0, extent.y, extent.z}, 1)};
   u8 left   = 0;
   u8 right  = 0;
   u8 top    = 0;

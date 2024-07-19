@@ -146,9 +146,9 @@ struct ViewContext
   AppContext              *app                     = nullptr;
   bool                     has_focus               = false;
   MouseButtons             mouse_buttons           = MouseButtons::None;
+  u32                      num_clicks              = 0;
   Vec2                     mouse_position          = {};
   Vec2                     mouse_translation       = {};
-  u32                      num_clicks              = 0;
   Vec2                     mouse_wheel_translation = {};
   Span<u8 const>           drag_payload            = {};
   SystemTheme              theme                   = SystemTheme::None;
@@ -343,7 +343,7 @@ struct View
   }
 };
 
-template <usize N>
+template <u32 N>
 constexpr View *child_iter(View *const (&children)[N], u32 i)
 {
   return i < N ? children[i] : nullptr;

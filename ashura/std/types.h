@@ -1217,12 +1217,12 @@ struct Vec3
   }
 };
 
-constexpr Vec3 to_vec3(Vec2 xy, f32 z)
+constexpr Vec3 vec3(Vec2 xy, f32 z)
 {
   return Vec3{xy.x, xy.y, z};
 }
 
-constexpr Vec3 to_vec3(f32 x, Vec2 yz)
+constexpr Vec3 vec3(f32 x, Vec2 yz)
 {
   return Vec3{x, yz.x, yz.y};
 }
@@ -1349,12 +1349,12 @@ struct alignas(16) Vec4
   }
 };
 
-constexpr Vec4 to_vec4(Vec3 xyz, f32 w)
+constexpr Vec4 vec4(Vec3 xyz, f32 w)
 {
   return Vec4{xyz.x, xyz.y, xyz.z, w};
 }
 
-constexpr Vec4 to_vec4(f32 x, Vec3 yzw)
+constexpr Vec4 vec4(f32 x, Vec3 yzw)
 {
   return Vec4{x, yzw.x, yzw.y, yzw.z};
 }
