@@ -62,7 +62,7 @@ void main()
 {
   Params p      = params[i_idx];
   vec2   tex_uv = mix(p.uv.xy, p.uv.zw, i_uv);
-  o_color       = bilerp(p.tint, i_uv, 0.5) *
+  o_color       = bilerp(p.tint, i_uv) *
             texture(sampler2D(textures[nonuniformEXT(p.albedo)],
                               samplers[nonuniformEXT(p.isampler)]),
                     tex_uv * p.tiling);

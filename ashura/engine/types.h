@@ -22,7 +22,7 @@ struct ColorGradient
 
   static constexpr ColorGradient x(Vec4 x0, Vec4 x1)
   {
-    return ColorGradient{{x0, x1, x1, x0}};
+    return ColorGradient{{x0, x1, x0, x1}};
   }
 
   static constexpr ColorGradient x(Vec4U8 x0, Vec4U8 x1)
