@@ -71,20 +71,66 @@ typedef Fn<void(RenderContext &, PassContext &, gfx::RenderingInfo const &,
 struct Path
 {
   static void rect(Vec<Vec2> &vtx);
+
+  /// @brief generate vertices for an arc
+  /// @param segments upper bound on the number of segments to divide the arc
+  /// into
+  /// @param start start angle
+  /// @param stop stop angle
   static void arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop);
+
+  /// @brief generate vertices for a circle
+  /// @param segments upper bound on the number of segments to divide the circle
+  /// into
   static void circle(Vec<Vec2> &vtx, u32 segments);
+
+  /// @brief generate vertices for a circle
+  /// @param segments upper bound on the number of segments to divide the circle
+  /// into
+  /// @param degree number of degrees of the super-ellipse
   static void squircle(Vec<Vec2> &vtx, u32 segments, f32 degree);
-  static void rrect(Vec<Vec2> &vtx, u32 segments, Vec4 border_radii);
+
+  /// @brief generate vertices for a circle
+  /// @param segments upper bound on the number of segments to divide the circle
+  /// into
+  /// @param corner_radii border radius of each corner
+  static void rrect(Vec<Vec2> &vtx, u32 segments, Vec4 corner_radii);
+
+  /// @brief generate vertices of a bevel rect
+  /// @param vtx
+  /// @param slants each component represents the relative distance from the
+  /// corners of each bevel
   static void brect(Vec<Vec2> &vtx, Vec4 slants);
+
+  /// @brief generate vertices for a quadratic bezier curve
+  /// @param segments upper bound on the number of segments to divide the bezier
+  /// curve into
+  /// @param cp[0-2] control points
   static void bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
                      Vec2 cp2);
+
+  /// @brief generate vertices for a quadratic bezier curve
+  /// @param segments upper bound on the number of segments to divide the bezier
+  /// curve into
+  /// @param cp[0-3] control points
   static void cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
                            Vec2 cp2, Vec2 cp3);
+
+  /// @brief generate a catmull rom spline
+  /// @param segments upper bound on the number of segments to divide the bezier
+  /// curve into
+  /// @param cp[0-3] control points
   static void catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
                           Vec2 cp2, Vec2 cp3);
+
+  /// @brief triangulate a stroke path, given the vertices for its points
   static void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vtx,
                                  Vec<u32> &idx, f32 thickness);
-  static void triangles(Span<Vec2 const> points, Vec<u32> &idx);
+
+  /// @brief generate indices for a triangle list
+  static void triangles(u32 first_vertex, u32 num_vertices, Vec<u32> &idx);
+
+  /// @brief generate vertices for a quadratic bezier curve
   static void triangulate_convex(Vec<u32> &idx, u32 first_vertex,
                                  u32 num_vertices);
 };
@@ -112,6 +158,12 @@ struct Canvas
                                       (viewport_extent.x / viewport_extent.y);
   }
 
+  /// @brief generate a model-view-projection matrix for the object in the
+  /// canvas space
+  /// @param transform object-space transform
+  /// @param center canvas-space position/center of the object
+  /// @param extent extent of the object (used to scale from the [-1, +1]
+  /// object-space coordinate)
   constexpr Mat4 mvp(Mat4 const &transform, Vec2 center, Vec2 extent) const
   {
     return
@@ -129,14 +181,18 @@ struct Canvas
 
   void begin(Vec2 viewport_extent);
 
+  /// @brief Clear all commands and reset state
   void clear();
 
   void clip(CRect const &area);
 
+  /// @brief render a circle
   void circle(ShapeDesc const &desc);
 
+  /// @brief render a rectangle
   void rect(ShapeDesc const &desc);
 
+  /// @brief render a rounded rectangle
   void rrect(ShapeDesc const &desc);
 
   /// @brief render a beveled rectangle
@@ -149,19 +205,35 @@ struct Canvas
 
   void nine_slice(ShapeDesc const &desc, ScaleMode mode, Span<Vec2 const> uvs);
 
+  /// @brief Render text using font atlases
+  /// @param desc only desc.center, desc.transform, desc.tiling, and
+  /// desc.sampler are used
+  /// @param block Text Block to be rendered
+  /// @param layout Layout of text block to be rendered
+  /// @param style styling of the text block, contains styling for the runs and
+  /// alignment of the block
+  /// @param atlases font atlases
   void text(ShapeDesc const &desc, TextBlock const &block,
             TextLayout const &layout, TextBlockStyle const &style,
             Span<FontAtlasResource const *const> atlases);
 
+  /// @brief Render Non-Indexed Triangles
   void triangles(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
+  /// @brief Render Indexed Triangles
   void triangles(ShapeDesc const &desc, Span<Vec2 const> vertices,
                  Span<u32 const> indices);
 
+  /// @brief triangulate and render line
   void line(ShapeDesc const &desc, Span<Vec2 const> vertices);
 
+  /// @brief perform a Canvas-space blur
+  /// @param area region in the canvas to apply the blur to
+  /// @param num_passes number of blur passes to execute, higher values result
+  /// in blurrier results
   void blur(CRect const &area, u32 num_passes);
 
+  /// @brief register a custom canvas pass to be executed in the render thread
   void custom(CustomCanvasPass pass);
 };
 

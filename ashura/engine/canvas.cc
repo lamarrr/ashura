@@ -297,14 +297,10 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
   }
 }
 
-void Path::triangles(Span<Vec2 const> points, Vec<u32> &indices)
+void Path::triangles(u32 first_vertex, u32 num_vertices, Vec<u32> &indices)
 {
-  if (points.size() < 3)
-  {
-    return;
-  }
-  u32 const num_points    = points.size32();
-  u32 const num_triangles = num_points / 3;
+  CHECK(num_vertices > 3);
+  u32 const num_triangles = num_vertices / 3;
   u32 const first_idx     = indices.size32();
   CHECK(indices.extend_uninitialized(num_triangles * 3));
 
@@ -668,7 +664,7 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
   u32 const first_vertex = vertices.size32();
 
   CHECK(vertices.extend_copy(points));
-  Path::triangles(points, indices);
+  Path::triangles(first_vertex, points.size32(), indices);
 
   CHECK(ngon_params.push(NgonParam{
       .transform    = mvp(desc.transform, desc.center, desc.extent),
@@ -679,7 +675,8 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));
-  u32 const num_indices = (vertices.size32() - first_vertex);
+
+  u32 const num_indices = vertices.size32() - first_vertex;
 
   CHECK(ngon_index_counts.push(num_indices));
 
@@ -740,7 +737,8 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
       .albedo       = desc.texture,
       .first_index  = first_index,
       .first_vertex = first_vertex}));
-  u32 const num_indices = (indices.size32() - first_index);
+
+  u32 const num_indices = indices.size32() - first_index;
 
   CHECK(ngon_index_counts.push(num_indices));
 
