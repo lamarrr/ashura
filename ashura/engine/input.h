@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ashura/engine/mime.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -678,6 +679,31 @@ enum class Cursor
   SouthResize = 18,
   SWResize    = 19,
   WestResize  = 20
+};
+
+struct ClipBoard
+{
+  virtual Span<u8 const> get(Span<char const> mime)
+  {
+    (void) mime;
+    return {};
+  }
+
+  virtual void set(Span<char const> mime, Span<u8 const> data)
+  {
+    (void) mime;
+    (void) data;
+  }
+
+  Span<u8 const> get_text()
+  {
+    return get(span(MIME_TEXT_UTF8));
+  }
+
+  void set_text(Span<u8 const> text)
+  {
+    set(span(MIME_TEXT_UTF8), text);
+  }
 };
 
 }        // namespace ash

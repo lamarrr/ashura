@@ -3,6 +3,7 @@
 #include "ashura/std/error.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/range.h"
+#include "ashura/std/text.h"
 
 namespace ash
 {
@@ -125,6 +126,11 @@ void TextCompositor::redo(Insert insert, Erase erase)
   }
 }
 
+void TextCompositor::unselect()
+{
+  cursor = cursor.unselect();
+}
+
 void TextCompositor::delete_selection(Span<u32 const> text, Erase erase)
 {
   if (cursor.is_empty())
@@ -233,15 +239,13 @@ static inline LinePosition line_translate(TextLayout const &layout, u32 cursor,
 void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
                              TextBlockStyle const &style, TextCommand cmd,
                              Insert insert, Erase erase, Span<u32 const> input,
-                             Fn<Span<u32 const>()>     get_clipboard,
-                             Fn<void(Span<u32 const>)> set_clipboard,
-                             u32 lines_per_page, Vec2 pos)
+                             ClipBoard &clipboard, u32 lines_per_page, Vec2 pos)
 {
   switch (cmd)
   {
-    case TextCommand::Escape:
+    case TextCommand::Unselect:
     {
-      cursor.first = cursor.last;
+      unselect();
     }
     break;
     case TextCommand::BackSpace:
@@ -446,23 +450,31 @@ void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
     break;
     case TextCommand::Cut:
     {
-      set_clipboard(text.slice(cursor.as_slice(text.size32())));
+      Vec<u8> data_u8;
+      defer   deta_u8_del{[&] { data_u8.reset(); }};
+      utf8_encode(text.slice(cursor.as_slice(text.size32())), data_u8);
       delete_selection(text, erase);
+      clipboard.set_text(span(data_u8));
     }
     break;
     case TextCommand::Copy:
     {
-      set_clipboard(text.slice(cursor.as_slice(text.size32())));
+      Vec<u8> data_u8;
+      defer   deta_u8_del{[&] { data_u8.reset(); }};
+      utf8_encode(text.slice(cursor.as_slice(text.size32())), data_u8);
+      clipboard.set_text(span(data_u8));
     }
     break;
     case TextCommand::Paste:
     {
-      Span<u32 const> clipboard_input = get_clipboard();
-      Slice32         selection       = cursor.as_slice(text.size32());
+      Vec<u32> data_u32;
+      defer    data_u32_del{[&] { data_u32.reset(); }};
+      utf8_decode(clipboard.get_text(), data_u32);
+      Slice32 selection = cursor.as_slice(text.size32());
       delete_selection(text, fn([](Slice32) {}));
-      append_record(true, selection.offset, clipboard_input);
+      append_record(true, selection.offset, span(data_u32));
       erase(selection);
-      insert(selection.offset, clipboard_input);
+      insert(selection.offset, span(data_u32));
     }
     break;
     case TextCommand::Undo:
@@ -485,6 +497,26 @@ void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
     {
       TextHitResult const hit = hit_text(layout, style, pos);
       cursor.last             = hit.cluster;
+    }
+    break;
+    case TextCommand::NewLine:
+    {
+      Span<u32 const> input     = utf(U"\n"_span);
+      Slice32         selection = cursor.as_slice(text.size32());
+      delete_selection(text, fn([](Slice32) {}));
+      append_record(true, selection.offset, input);
+      erase(selection);
+      insert(selection.offset, input);
+    }
+    break;
+    case TextCommand::Tab:
+    {
+      Span<u32 const> input     = span(TAB_STRING).slice(0, tab_width);
+      Slice32         selection = cursor.as_slice(text.size32());
+      delete_selection(text, fn([](Slice32) {}));
+      append_record(true, selection.offset, input);
+      erase(selection);
+      insert(selection.offset, input);
     }
     break;
     case TextCommand::None:

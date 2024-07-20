@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/input.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/types.h"
 
@@ -20,7 +21,7 @@ enum class TextCommand : u32
   None = 0,
 
   /// Cursor State
-  Escape = 1,
+  Unselect = 1,
 
   /// Editing
   BackSpace = 2,
@@ -68,7 +69,11 @@ enum class TextCommand : u32
 
   /// Mouse Selection (Visual)
   Hit       = 34,
-  HitSelect = 35
+  HitSelect = 35,
+
+  /// Insert new line
+  NewLine = 36,
+  Tab     = 37
 };
 
 /// @param first includes the first selected codepoint in the selection range.
@@ -122,7 +127,7 @@ struct [[nodiscard]] TextCursor
     return c;
   }
 
-  constexpr TextCursor escape() const
+  constexpr TextCursor unselect() const
   {
     return TextCursor{last, last};
   }
@@ -143,6 +148,8 @@ struct [[nodiscard]] TextCursor
 /// record
 struct TextCompositor
 {
+  static constexpr u32 MAX_TAB_WIDTH = 8;
+
   /// @brief Text insert callback.
   /// @param index destination index, needs to be clamped to the size of the
   /// destination container.
@@ -157,6 +164,8 @@ struct TextCompositor
 
   static constexpr u32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
   static constexpr u32 DEFAULT_LINE_SYMBOLS[] = {'\n', 0x2029};
+  static constexpr u32 TAB_STRING[]           = {'\t', '\t', '\t', '\t',
+                                                 '\t', '\t', '\t', '\t'};
 
   TextCursor          cursor         = {};
   Vec<u32>            buffer         = {};
@@ -165,6 +174,7 @@ struct TextCompositor
   u32                 buffer_pos     = 0;
   u32                 latest_record  = 0;
   u32                 current_record = 0;
+  u32                 tab_width      = 1;
   Span<u32 const>     word_symbols   = span(DEFAULT_WORD_SYMBOLS);
   Span<u32 const>     line_symbols   = span(DEFAULT_LINE_SYMBOLS);
 
@@ -204,16 +214,16 @@ struct TextCompositor
 
   void redo(Insert insert, Erase erase);
 
+  void unselect();
+
   void delete_selection(Span<u32 const> text, Erase erase);
 
   /// @param text original text
   /// @param input text from IME to insert
   void command(Span<u32 const> text, TextLayout const &layout,
                TextBlockStyle const &style, TextCommand cmd, Insert insert,
-               Erase erase, Span<u32 const> input,
-               Fn<Span<u32 const>()>     get_content,
-               Fn<void(Span<u32 const>)> set_content, u32 lines_per_page,
-               Vec2 pos);
+               Erase erase, Span<u32 const> input, ClipBoard &clipboard,
+               u32 lines_per_page, Vec2 pos);
 };
 
 }        // namespace ash
