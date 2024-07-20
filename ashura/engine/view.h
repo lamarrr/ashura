@@ -18,25 +18,25 @@ namespace ash
 /// be source size - 20px
 /// @param scale scales the source size, i.e. value should be 0.5 of source
 /// size
-/// @param min clamps the source size, i.e. value should be at least 20px
-/// @param max clamps the source size, i.e. value should be at most 100px
 /// @param rmin  clamps the source size relatively. i.e. value should be at
 /// least 0.5 of source size
 /// @param rmax  clamps the source size relatively. i.e. value should be at
 /// most 0.5 of source size
+/// @param min clamps the source size, i.e. value should be at least 20px
+/// @param max clamps the source size, i.e. value should be at most 100px
 struct SizeConstraint
 {
   f32 offset = 0;
   f32 scale  = 0;
-  f32 min    = F32_MIN;
-  f32 max    = F32_MAX;
   f32 rmin   = 0;
   f32 rmax   = 1;
+  f32 min    = F32_MIN;
+  f32 max    = F32_MAX;
 
-  constexpr f32 resolve(f32 value) const
+  constexpr f32 operator()(f32 value) const
   {
-    return clamp(clamp(offset + value * scale, min, max), rmin * value,
-                 rmax * value);
+    return clamp(clamp(offset + value * scale, rmin * value, rmax * value), min,
+                 max);
   }
 };
 
