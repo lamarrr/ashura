@@ -18,6 +18,15 @@ struct StrEqual
   }
 };
 
+struct BitEqual
+{
+  template <typename T>
+  bool operator()(T const &a, T const &b) const
+  {
+    return memcmp(&a, &b, sizeof(T)) == 0;
+  }
+};
+
 struct StrHasher
 {
   Hash operator()(Span<char const> str) const
@@ -26,8 +35,20 @@ struct StrHasher
   }
 };
 
+struct BitHasher
+{
+  template <typename T>
+  Hash operator()(T const &a) const
+  {
+    return hash_bytes(Span<T const>{&a, 1}.as_u8());
+  }
+};
+
 constexpr StrEqual  str_equal;
 constexpr StrHasher str_hash;
+
+constexpr BitEqual  bit_equal;
+constexpr BitHasher bit_hash;
 
 template <typename K, typename V>
 struct HashMapEntry
@@ -380,7 +401,10 @@ struct HashMap
   }
 };
 
-template <typename V, typename D = u32>
-using StrHashMap = HashMap<Span<char const>, V, StrHasher, StrEqual, u16>;
+template <typename V, typename D = usize>
+using StrHashMap = HashMap<Span<char const>, V, StrHasher, StrEqual, D>;
+
+template <typename T, typename V, typename D = usize>
+using BitHashMap = HashMap<T, V, BitHasher, BitEqual, D>;
 
 }        // namespace ash
