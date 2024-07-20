@@ -35,7 +35,7 @@ struct ShapeDesc
   Vec2          center          = {0, 0};
   Vec2          extent          = {0, 0};
   Mat4          transform       = Mat4::identity();
-  Vec4          border_radii    = {0, 0, 0, 0};
+  Vec4          corner_radii    = {0, 0, 0, 0};
   f32           stroke          = 0.0f;
   f32           thickness       = 1.0f;
   ColorGradient tint            = {};

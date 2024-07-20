@@ -113,12 +113,12 @@ float circular_geometrical_smoothmin(float a, float b, float k)
 // https://www.shadertoy.com/view/fsdyzB
 // https://iquilezles.org/articles/distfunctions/
 // https://iquilezles.org/articles/distfunctions2d/
-// length(...+ border_radius) - border_radius -> gives the rounding of the
-// border
-float rrect_sdf(vec2 pos, vec2 half_extent, float border_radius)
+// length(...+ corner_radius) - corner_radius -> gives the rounding of the
+// corners
+float rrect_sdf(vec2 pos, vec2 half_extent, float corner_radius)
 {
-  vec2 q = abs(pos) - half_extent + border_radius;
-  return min(max(q.x, q.y), 0) + length(max(q, 0)) - border_radius;
+  vec2 q = abs(pos) - half_extent + corner_radius;
+  return min(max(q.x, q.y), 0) + length(max(q, 0)) - corner_radius;
 }
 
 // SDF functions: https://iquilezles.org/articles/distfunctions2d/

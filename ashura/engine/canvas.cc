@@ -453,7 +453,7 @@ void Canvas::rrect(ShapeDesc const &desc)
   CHECK(rrect_params.push(RRectParam{
       .transform    = mvp(desc.transform, desc.center, desc.extent),
       .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .radii        = desc.border_radii / desc.extent.y,
+      .radii        = desc.corner_radii / desc.extent.y,
       .uv           = {desc.uv[0], desc.uv[1]},
       .tiling       = desc.tiling,
       .aspect_ratio = desc.extent.x / desc.extent.y,
