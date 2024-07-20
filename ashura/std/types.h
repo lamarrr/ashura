@@ -2734,7 +2734,7 @@ struct Slice
     return offset + span;
   }
 
-  constexpr Slice resolve(usize size) const
+  constexpr Slice operator()(usize size) const
   {
     // written such that overflow will not occur even if both offset and span
     // are set to USIZE_MAX
@@ -2759,7 +2759,7 @@ struct Slice32
     return offset + span;
   }
 
-  constexpr Slice32 resolve(u32 size) const
+  constexpr Slice32 operator()(u32 size) const
   {
     // written such that overflow will not occur even if both offset and span
     // are set to U32_MAX
@@ -2789,7 +2789,7 @@ struct Slice64
     return offset + span;
   }
 
-  constexpr Slice64 resolve(u64 size) const
+  constexpr Slice64 operator()(u64 size) const
   {
     // written such that overflow will not occur even if both offset and span
     // are set to U64_MAX
@@ -3066,7 +3066,7 @@ struct Span
 
   constexpr Span slice(Slice s) const
   {
-    s = s.resolve(size_);
+    s = s(size_);
     return Span{data_ + s.offset, s.span};
   }
 

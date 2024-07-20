@@ -207,7 +207,7 @@ struct Vec
 
   void erase(Slice slice)
   {
-    slice = slice.resolve(size_);
+    slice = slice(size_);
     if constexpr (TriviallyRelocatable<T>)
     {
       mem::move(data_ + slice.end(), data_ + slice.offset, size_ - slice.end());
