@@ -77,7 +77,7 @@ struct Path
   /// into
   /// @param start start angle
   /// @param stop stop angle
-  static void arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop);
+  static void arc(Vec<Vec2> &vtx, f32 start, f32 stop, u32 segments);
 
   /// @brief generate vertices for a circle
   /// @param segments upper bound on the number of segments to divide the circle
@@ -88,13 +88,13 @@ struct Path
   /// @param segments upper bound on the number of segments to divide the circle
   /// into
   /// @param degree number of degrees of the super-ellipse
-  static void squircle(Vec<Vec2> &vtx, u32 segments, f32 degree);
+  static void squircle(Vec<Vec2> &vtx, f32 degree, u32 segments);
 
   /// @brief generate vertices for a circle
   /// @param segments upper bound on the number of segments to divide the circle
   /// into
   /// @param corner_radii border radius of each corner
-  static void rrect(Vec<Vec2> &vtx, u32 segments, Vec4 corner_radii);
+  static void rrect(Vec<Vec2> &vtx, Vec4 corner_radii, u32 segments);
 
   /// @brief generate vertices of a bevel rect
   /// @param vtx
@@ -106,22 +106,22 @@ struct Path
   /// @param segments upper bound on the number of segments to divide the bezier
   /// curve into
   /// @param cp[0-2] control points
-  static void bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
-                     Vec2 cp2);
+  static void bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2,
+                     u32 segments);
 
   /// @brief generate vertices for a quadratic bezier curve
   /// @param segments upper bound on the number of segments to divide the bezier
   /// curve into
   /// @param cp[0-3] control points
-  static void cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
-                           Vec2 cp2, Vec2 cp3);
+  static void cubic_bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2,
+                           Vec2 cp3, u32 segments);
 
   /// @brief generate a catmull rom spline
   /// @param segments upper bound on the number of segments to divide the bezier
   /// curve into
   /// @param cp[0-3] control points
-  static void catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
-                          Vec2 cp2, Vec2 cp3);
+  static void catmull_rom(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2,
+                          Vec2 cp3, u32 segments);
 
   /// @brief triangulate a stroke path, given the vertices for its points
   static void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vtx,
@@ -201,7 +201,7 @@ struct Canvas
   /// @brief render a squircle (triangulation based)
   /// @param num_segments an upper bound on the number of segments to
   /// @param degree
-  void squircle(ShapeDesc const &desc, u32 segments, f32 degree = 5);
+  void squircle(ShapeDesc const &desc, f32 degree, u32 segments);
 
   void nine_slice(ShapeDesc const &desc, ScaleMode mode, Span<Vec2 const> uvs);
 

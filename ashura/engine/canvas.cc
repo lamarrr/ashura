@@ -10,7 +10,7 @@ void Path::rect(Vec<Vec2> &vtx)
   CHECK(vtx.extend_copy(span<Vec2>({{-1, -1}, {1, -1}, {1, 1}, {-1, 1}})));
 }
 
-void Path::arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop)
+void Path::arc(Vec<Vec2> &vtx, f32 start, f32 stop, u32 segments)
 {
   if (segments < 2)
   {
@@ -44,45 +44,30 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
 
   for (u32 i = 0; i < segments; i++)
   {
-    vtx[first + i] = rotor(i * step) * 2 - 1;
+    vtx[first + i] = rotor(i * step);
   }
 }
 
-static inline f32 squircle(f32 x, f32 deg)
+void Path::squircle(Vec<Vec2> &vtx, f32 elasticity, u32 segments)
 {
-  deg = clamp(deg, 2.0F, 20.0F);
-  return std::pow(1 - std::pow(std::abs(x), deg), 1 / deg);
-}
-
-void Path::squircle(Vec<Vec2> &vtx, u32 segments, f32 degree)
-{
-  if (segments < 4)
+  if (segments < 128)
   {
     return;
   }
 
-  u32 const first      = vtx.size32();
-  u32 const num_halves = segments >> 1;
-  f32 const step       = 2.0F / (num_halves - 1);
+  elasticity = clamp(elasticity, 0.0F, 1.0F);
 
-  CHECK(vtx.extend_uninitialized(num_halves << 1));
-
-  for (u32 i = 0; i < num_halves; i++)
-  {
-    f32 const x    = -1.0F + step * i;
-    f32 const y    = ::ash::squircle(x, degree);
-    vtx[first + i] = Vec2{x, y};
-  }
-
-  for (u32 i = 0; i < num_halves; i++)
-  {
-    f32 const x                 = 1.0F - step * i;
-    f32 const y                 = ::ash::squircle(x, degree);
-    vtx[first + num_halves + i] = Vec2{x, -y};
-  }
+  Path::cubic_bezier(vtx, {0, -1}, {elasticity, -1}, {1, -1}, {1, 0},
+                     segments >> 2);
+  Path::cubic_bezier(vtx, {1, 0}, {1, elasticity}, {1, 1}, {0, 1},
+                     segments >> 2);
+  Path::cubic_bezier(vtx, {0, 1}, {-elasticity, 1}, {-1, 1}, {-1, 0},
+                     segments >> 2);
+  Path::cubic_bezier(vtx, {-1, 0}, {-1, -elasticity}, {-1, -1}, {0, -1},
+                     segments >> 2);
 }
 
-void Path::rrect(Vec<Vec2> &vtx, u32 segments, Vec4 radii)
+void Path::rrect(Vec<Vec2> &vtx, Vec4 radii, u32 segments)
 {
   if (segments < 8)
   {
@@ -171,7 +156,7 @@ void Path::brect(Vec<Vec2> &vtx, Vec4 slant)
   CHECK(vtx.extend_copy(span(vertices)));
 }
 
-void Path::bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1, Vec2 cp2)
+void Path::bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments)
 {
   if (segments < 3)
   {
@@ -191,8 +176,8 @@ void Path::bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1, Vec2 cp2)
   }
 }
 
-void Path::cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
-                        Vec2 cp2, Vec2 cp3)
+void Path::cubic_bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
+                        u32 segments)
 {
   if (segments < 4)
   {
@@ -213,8 +198,8 @@ void Path::cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
   }
 }
 
-void Path::catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
-                       Vec2 cp2, Vec2 cp3)
+void Path::catmull_rom(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
+                       u32 segments)
 {
   if (segments < 4)
   {
@@ -475,23 +460,43 @@ void Canvas::brect(ShapeDesc const &desc)
 
   u32 const num_indices = indices.size32() - first_index;
 
+  CHECK(ngon_params.push(NgonParam{
+      .transform    = mvp(desc.transform, desc.center, desc.extent),
+      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+      .uv           = {desc.uv[0], desc.uv[1]},
+      .tiling       = desc.tiling,
+      .sampler      = desc.sampler,
+      .albedo       = desc.texture,
+      .first_index  = first_index,
+      .first_vertex = first_vertex}));
+
   CHECK(ngon_index_counts.push(num_indices));
 
   add_run(*this, CanvasPassType::Ngon);
 }
 
-void Canvas::squircle(ShapeDesc const &desc, u32 segments, f32 degree)
+void Canvas::squircle(ShapeDesc const &desc, f32 elasticity, u32 segments)
 {
   u32 const first_vertex = vertices.size32();
   u32 const first_index  = indices.size32();
 
-  Path::squircle(vertices, segments, degree);
+  Path::squircle(vertices, elasticity, segments);
 
   u32 const num_vertices = vertices.size32() - first_vertex;
 
   Path::triangulate_convex(indices, first_vertex, num_vertices);
 
   u32 const num_indices = indices.size32() - first_index;
+
+  CHECK(ngon_params.push(NgonParam{
+      .transform    = mvp(desc.transform, desc.center, desc.extent),
+      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+      .uv           = {desc.uv[0], desc.uv[1]},
+      .tiling       = desc.tiling,
+      .sampler      = desc.sampler,
+      .albedo       = desc.texture,
+      .first_index  = first_index,
+      .first_vertex = first_vertex}));
 
   CHECK(ngon_index_counts.push(num_indices));
 
