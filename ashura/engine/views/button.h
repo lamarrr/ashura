@@ -18,15 +18,17 @@ struct Button : public View
   Fn<void()>     on_clicked = fn([] {});
   Fn<void()>     on_hovered = fn([] {});
 
-  virtual View *child(u32 i) override final
+  virtual View *child(u32 i) const override final
   {
-    return child_iter({item()}, i);
+    return subview({item()}, i);
   }
 
-  virtual View *item()
+  virtual View *item() const
   {
     return nullptr;
   }
+
+  // TODO(lamarrr): handle focus
 };
 
 // TODO(lamarrr):

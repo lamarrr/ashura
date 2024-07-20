@@ -68,44 +68,43 @@ inline bool push(Context const &ctx, Spec const &spec, ScalarInput const &value)
 
 struct TextInput : View
 {
-  bool            disabled            = false;
-  bool            is_multiline        = false;
-  bool            is_submittable      = false;
-  Vec<u32>        text                = {};
-  TextLayout      layout              = {};
-  TextBlockStyle  style               = {};
-  Span<u32 const> placeholder_text    = {};
-  TextBlockStyle  placeholder_style   = {};
-  TextCompositor  compositor          = {};
-  Fn<void()>      on_editing          = fn([] {});
-  Fn<void()>      on_editing_finished = fn([] {});
-  Fn<void()>      on_submit           = fn([] {});
-
-  virtual ViewAttributes attributes() override
+  struct Text
   {
-    ViewAttributes attributes =
-        ViewAttributes::Visible | ViewAttributes::TextArea;
+    Vec<u32>         text       = {};
+    Vec<u32>         runs       = {};
+    Vec<TextStyle>   run_styles = {};
+    TextDirection    direction  = TextDirection::LeftToRight;
+    Span<char const> language   = {};
+    TextLayout       layout     = {};
+    f32              alignment  = -1;
 
-    if (!disabled)
+    void reset()
     {
-      attributes |= ViewAttributes::Focusable | ViewAttributes::Draggable;
+      text.reset();
+      runs.reset();
+      run_styles.reset();
+      layout.reset();
     }
+  };
 
-    return attributes;
-  }
+  bool           disabled : 1      = false;
+  bool           is_multiline : 1  = false;
+  bool           enter_submits : 1 = false;
+  bool           tab_input : 1     = false;
+  u32            lines_per_page    = 1;
+  mutable Text   content           = {};
+  mutable Text   placeholder       = {};
+  TextCompositor compositor        = {};
+  Fn<void()>     on_edit           = fn([] {});
+  Fn<void()>     on_submit         = fn([] {});
+  Fn<void()>     on_focus_in       = fn([] {});
+  Fn<void()>     on_focus_out      = fn([] {});
 
-  virtual Cursor cursor(CRect const &region, Vec2 offset) override
-  {
-    (void) region;
-    (void) offset;
-    return Cursor::Text;
-  }
-
-  static constexpr TextCommand key_to_command(ViewContext const &ctx)
+  constexpr TextCommand command(ViewContext const &ctx) const
   {
     if (ctx.key_down(KeyCode::Escape))
     {
-      return TextCommand::Escape;
+      return TextCommand::Unselect;
     }
     if (ctx.key_down(KeyCode::Backspace))
     {
@@ -213,74 +212,79 @@ struct TextInput : View
     {
       return TextCommand::HitSelect;
     }
-
+    if (is_multiline && !enter_submits && ctx.key_down(KeyCode::Return))
+    {
+      return TextCommand::NewLine;
+    }
+    if (tab_input && ctx.key_down(KeyCode::Tab))
+    {
+      return TextCommand::Tab;
+    }
     return TextCommand::None;
   }
 
-  virtual void tick(ViewContext const &ctx, CRect const &region,
-                    ViewEventTypes events) override
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events) override
   {
-    Vec<u32> clipboard_data_u32;
-    Vec<u8>  clipboard_data_u8;
-    defer    clipboard_data_u32_del{[&] { clipboard_data_u32.reset(); }};
-    defer    clipboard_data_u8_del{[&] { clipboard_data_u8.reset(); }};
-    auto     erase  = [this](Slice32 s) { this->text.erase(s); };
-    auto     insert = [this](u32 pos, Span<u32 const> t) {
-      CHECK(this->text.insert_span_copy(pos, t));
-    };
-    auto get_content = [&clipboard_data_u32, &ctx]() -> Span<u32 const> {
-      clipboard_data_u32.clear();
-      CHECK(utf8_decode(ctx.get_clipboard_data(span(MIME_TEXT_UTF8)),
-                        clipboard_data_u32));
-      return span(clipboard_data_u32);
-    };
-    auto set_content = [&clipboard_data_u8, &ctx](Span<u32 const> data) {
-      clipboard_data_u8.clear();
-      CHECK(utf8_encode(data, clipboard_data_u8));
-      ctx.set_clipboard_data(span(MIME_TEXT_UTF8), span(clipboard_data_u8));
+    bool edited = false;
+    auto erase  = [this, &edited](Slice32 s) {
+      this->content.text.erase(s);
+      edited |= s.is_empty();
     };
 
-    if (disabled)
-    {
-      return;
-    }
+    auto insert = [this, &edited](u32 pos, Span<u32 const> t) {
+      CHECK(this->content.text.insert_span_copy(pos, t));
+      edited |= t.is_empty();
+    };
+
     TextCommand cmd = TextCommand::None;
-    if (has_bits(events, ViewEventTypes::TextInput))
+    if (!disabled)
     {
-      cmd = TextCommand::InputText;
-    }
-    else if (has_bits(events, ViewEventTypes::DragStart))
-    {
-      cmd = TextCommand::Hit;
-    }
-    else if (has_bits(events, ViewEventTypes::DragUpdate))
-    {
-      cmd = TextCommand::HitSelect;
-    }
-    else if (has_bits(events, ViewEventTypes::KeyDown))
-    {
-      cmd = key_to_command(ctx);
+      if (events.text_input)
+      {
+        cmd = TextCommand::InputText;
+      }
+      else if (events.key_down)
+      {
+        cmd = command(ctx);
+      }
+      else if (events.drag_start)
+      {
+        cmd = TextCommand::Hit;
+      }
+      else if (events.drag_update)
+      {
+        cmd = TextCommand::HitSelect;
+      }
     }
 
     Vec2 offset = region.begin() - ctx.mouse_position;
-    compositor.command(span(text), layout, style, cmd, fn(&insert), fn(&erase),
-                       ctx.text, fn(&get_content), fn(&set_content), 1, offset);
+    compositor.command(span(content.text), content.layout,
+                       TextBlockStyle{.runs        = span(content.run_styles),
+                                      .alignment   = content.alignment,
+                                      .align_width = region.extent.x},
+                       cmd, fn(&insert), fn(&erase), ctx.text, *ctx.clipboard,
+                       lines_per_page, offset);
+
+    if (edited)
+    {
+      on_edit();
+    }
+
+    if (events.focus_in)
+    {
+      on_focus_in();
+    }
+    else if (events.focus_out)
+    {
+      on_focus_out();
+      compositor.unselect();
+    }
 
     // TODO(lamarrr):
     //
-    // [ ] tab (navigate? enter text?): depends on attributes?
-    // [ ] escape?
-    // [ ] multi-line mode or single line mode (i.e.) -> on press enter ?
-    // submit
-    // [ ] submittable: clicking with enter keyboard when focused
-    // [ ] use placeholder when text empty
-    // [ ] present one won't work when we have say ctrl + click
-    //
-    //
-    // [ ] SDL_SetCursor()
-    //     SDL_CreateSystemCursor(); - all created at startup
-    //     SDL_HideCursor();
-    //     SDL_ShowCursor();
+    // [ ] font hashmap
+    // [ ] word layout cache
     //
     //
     // https://github.com/ocornut/imgui/issues/787#issuecomment-361419796 enter
@@ -288,7 +292,83 @@ struct TextInput : View
     // https://user-images.githubusercontent.com/8225057/74143829-ce67b900-4bfb-11ea-90d9-0de40c944b26.gif
     //
 
-    layout_text({}, F32_MAX, layout);
+    if (enter_submits && ctx.key_down(KeyCode::Return))
+    {
+      on_submit();
+    }
+
+    return ViewState{.draggable  = !disabled,
+                     .focusable  = !disabled,
+                     .text_input = !disabled,
+                     .tab_input  = tab_input,
+                     .lose_focus = ctx.key_down(KeyCode::Escape)};
+  }
+
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) const override
+  {
+    if (content.text.is_empty())
+    {
+      layout_text(TextBlock{.text          = span(placeholder.text),
+                            .runs          = span(placeholder.runs),
+                            .fonts         = {},
+                            .direction     = placeholder.direction,
+                            .language      = placeholder.language,
+                            .use_kerning   = true,
+                            .use_ligatures = true},
+                  allocated.x, placeholder.layout);
+      return placeholder.layout.extent;
+    }
+
+    layout_text(TextBlock{.text          = span(content.text),
+                          .runs          = span(content.runs),
+                          .fonts         = {},
+                          .direction     = content.direction,
+                          .language      = content.language,
+                          .use_kerning   = true,
+                          .use_ligatures = true},
+                allocated.x, content.layout);
+    return content.layout.extent;
+  }
+
+  virtual void render(CRect const &region, Canvas &canvas) const override
+  {
+    if (content.text.is_empty())
+    {
+      canvas.text({.center = region.center},
+                  TextBlock{.text          = span(placeholder.text),
+                            .runs          = span(placeholder.runs),
+                            .fonts         = {},
+                            .direction     = placeholder.direction,
+                            .language      = placeholder.language,
+                            .use_kerning   = true,
+                            .use_ligatures = true},
+                  placeholder.layout,
+                  TextBlockStyle{.runs        = span(placeholder.run_styles),
+                                 .alignment   = placeholder.alignment,
+                                 .align_width = region.extent.x},
+                  Span<FontAtlasResource const *>{});
+    }
+    else
+    {
+      canvas.text({.center = region.center},
+                  TextBlock{.text          = span(content.text),
+                            .runs          = span(content.runs),
+                            .fonts         = {},
+                            .direction     = content.direction,
+                            .language      = content.language,
+                            .use_kerning   = true,
+                            .use_ligatures = true},
+                  placeholder.layout,
+                  TextBlockStyle{.runs        = span(content.run_styles),
+                                 .alignment   = content.alignment,
+                                 .align_width = region.extent.x},
+                  Span<FontAtlasResource const *>{});
+    }
+  }
+
+  virtual Cursor cursor(CRect const &, Vec2) const override
+  {
+    return Cursor::Text;
   }
 };
 
@@ -318,32 +398,27 @@ struct ScalarDragBox : View
     fmt::format(ctx, v);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
-  {
-    return Vec2{width.resolve(allocated.x), height.resolve(allocated.y)};
-  }
-
-  virtual ViewAttributes attributes() override
-  {
-    return ViewAttributes::Visible | ViewAttributes::Clickable |
-           ViewAttributes::Draggable;
-  }
-
-  virtual void render(CRect const &region, Canvas &canvas) override
-  {
-    (void) region;
-    (void) canvas;
-  }
-
-  virtual void tick(ViewContext const &ctx, CRect const &region,
-                    ViewEventTypes events) override
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events) override
   {
     // if focused, read text input and parse
     // if dragging, update
     // if clicked, move to position
-    // should widgets handle this? no! systems.
+    // should views handle this? no! systems.
     // mouse enter + mouse down => focuse enter, mouse click elsewhere (focus
     // lost), navigation event
+    return ViewState{.clickable = true, .draggable = true};
+  }
+
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) const override
+  {
+    return Vec2{width(allocated.x), height(allocated.y)};
+  }
+
+  virtual void render(CRect const &region, Canvas &canvas) const override
+  {
+    (void) region;
+    (void) canvas;
   }
 };
 

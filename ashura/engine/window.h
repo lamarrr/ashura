@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/event.h"
+#include "ashura/engine/input.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/image.h"
 #include "ashura/std/option.h"

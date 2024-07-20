@@ -21,28 +21,28 @@ struct FlexBox : public View
   SizeConstraint width       = {};
   SizeConstraint height      = {};
 
-  virtual View *child(u32 i) override final
+  virtual View *child(u32 i) const override final
   {
     return item(i);
   }
 
-  virtual View *item(u32 i)
+  virtual View *item(u32 i) const
   {
     (void) i;
     return nullptr;
   }
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) const override
   {
-    Vec2 const frame{width.resolve(allocated.x), height.resolve(allocated.y)};
+    Vec2 const frame{width(allocated.x), height(allocated.y)};
     fill(sizes, frame);
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+                   Span<Vec2> offsets) const override
   {
     u32 const  num_children = sizes.size32();
-    Vec2 const frame{width.resolve(allocated.x), height.resolve(allocated.y)};
+    Vec2 const frame{width(allocated.x), height(allocated.y)};
     Vec2       span;
     f32        cross_cursor = 0;
     u8 const   main_axis    = (axis == Axis::X) ? 0 : 1;

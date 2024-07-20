@@ -23,6 +23,8 @@ struct Slider : public View
   bool           disabled     = false;
 
   f32 value = 0, min = 0, max = 1;
+  
+    // TODO(lamarrr): handle focus
 
   /*
     virtual vec2 fit(Context &ctx, vec2 allocated_size,
@@ -30,7 +32,7 @@ struct Slider : public View
                      stx::Span<vec2 const> children_sizes,
                      stx::Span<vec2>       children_positions) override
     {
-      return vec2{props.width.resolve(allocated_size.x), props.thumb_radius *
+      return vec2{props.width(allocated_size.x), props.thumb_radius *
     2};
     }
 

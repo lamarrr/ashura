@@ -2,8 +2,7 @@
 #pragma once
 
 #include "ashura/engine/canvas.h"
-#include "ashura/engine/event.h"
-#include "ashura/engine/mime.h"
+#include "ashura/engine/input.h"
 #include "ashura/engine/renderer.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/math.h"
@@ -65,73 +64,40 @@ enum class MainAlign : u8
 /// @param FocusIn the view has received keyboard focus
 /// @param FocusOut the view has lost keyboard focus
 /// @param TextInput the view has received composition text
-enum class ViewEventTypes : u64
+struct ViewEvents
 {
-  None         = 0x0000000000000000ULL,
-  MouseDown    = 0x0000000000000001ULL,
-  MouseUp      = 0x0000000000000002ULL,
-  MousePressed = 0x0000000000000004ULL,
-  MouseMove    = 0x0000000000000008ULL,
-  MouseEnter   = 0x0000000000000010ULL,
-  MouseEscaped = 0x0000000000000020ULL,
-  MouseLeave   = 0x0000000000000040ULL,
-  MouseScroll  = 0x0000000000000080ULL,
-  DragStart    = 0x0000000000000100ULL,
-  DragUpdate   = 0x0000000000000200ULL,
-  DragEnd      = 0x0000000000000400ULL,
-  DragEnter    = 0x0000000000000800ULL,
-  DragOver     = 0x0000000000001000ULL,
-  DragLeave    = 0x0000000000002000ULL,
-  Drop         = 0x0000000000004000ULL,
-  ViewHit      = 0x0000000000008000ULL,
-  ViewMiss     = 0x0000000000010000ULL,
-  FocusIn      = 0x0000000000020000ULL,
-  FocusOut     = 0x0000000000040000ULL,
-  KeyDown      = 0x0000000000080000ULL,
-  KeyUp        = 0x0000000000100000ULL,
-  KeyPressed   = 0x0000000000200000ULL,
-  TextInput    = 0x0000000000400000ULL
+  bool mouse_down : 1    = false;
+  bool mouse_up : 1      = false;
+  bool mouse_pressed : 1 = false;
+  bool mouse_move : 1    = false;
+  bool mouse_enter : 1   = false;
+  bool mouse_escaped : 1 = false;
+  bool mouse_leave : 1   = false;
+  bool mouse_scroll : 1  = false;
+  bool drag_start : 1    = false;
+  bool drag_update : 1   = false;
+  bool drag_end : 1      = false;
+  bool drag_enter : 1    = false;
+  bool drag_over : 1     = false;
+  bool drag_leave : 1    = false;
+  bool drop : 1          = false;
+  bool view_hit : 1      = false;
+  bool view_miss : 1     = false;
+  bool focus_in : 1      = false;
+  bool focus_out : 1     = false;
+  bool key_down : 1      = false;
+  bool key_up : 1        = false;
+  bool key_pressed : 1   = false;
+  bool text_input : 1    = false;
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(ViewEventTypes)
-
-/// @param Visible if the view is visible or not. Visibility propagates down
-/// to the children
-/// @param Draggable if the view can receive drag events
-/// @param Droppable if the view can receive drop events
-/// @param Focusable can receive view focus events (typically keyboard events)
-/// @param TextArea receives text input and not just Keyboard press/release
-enum class ViewAttributes : u32
-{
-  None       = 0x00000000U,
-  Visible    = 0x00000001U,
-  Clickable  = 0x00000002U,
-  Scrollable = 0x00000004U,
-  Draggable  = 0x00000008U,
-  Droppable  = 0x00000010U,
-  Focusable  = 0x00000020U,
-  TextArea   = 0x00000040U
-};
-
-ASH_DEFINE_ENUM_BIT_OPS(ViewAttributes)
-
-/// @brief It is important that widgets only access data from
-/// context objects and not some global state to ensure portability and
-/// adaptiveness, i.e. during hot-reloading. The App context may also contain
-/// references to other subsystems.
-/// @param type used to recognize the payload, should be used to check if the
-/// data matches the expected content/type.
-/// @param data the user context data for this application
-/// @param next link to the next attached context.
-struct AppContext
-{
-  Span<u8 const> type = {};
-  AppContext    *next = nullptr;
-  void          *data = nullptr;
-};
-
-/// @brief Global View Context, Properties of the context all the widgets for
+/// @brief Global View Context, Properties of the context all the views for
 /// a specific window are in.
+/// @param globals It is important that views only access data from
+/// global/system objects and not some global state to ensure portability and
+/// adaptiveness, i.e. during hot-reloading where they might be attached to a
+/// different context. The ViewGlobals may also contain references to other
+/// subsystems.
 /// @param has_focus the current view scope (window) has focus
 /// @param button current button states
 /// @param drag_payload attached drag and drop payload data
@@ -141,9 +107,12 @@ struct AppContext
 /// @param scan_states bit array of the key states (indexed by scancode)
 /// @param text current text input data from the IME (keyboard, TTS, virtual
 /// keyboard, etc)
+/// @param timestamp timestamp of current frame
+/// @param timedelta time elapsed between previous and current frame
 struct ViewContext
 {
-  AppContext              *app                     = nullptr;
+  StrHashMap<void *>       globals                 = {};
+  ClipBoard               *clipboard               = nullptr;
   bool                     has_focus               = false;
   MouseButtons             mouse_buttons           = MouseButtons::None;
   u32                      num_clicks              = 0;
@@ -156,18 +125,8 @@ struct ViewContext
   u64                      key_states[NUM_KEYS / 64]  = {};
   u64                      scan_states[NUM_KEYS / 64] = {};
   Span<u32 const>          text                       = {};
-  steady_clock::time_point time_stamp                 = {};
-  nanoseconds              time_delta                 = {};
-
-  virtual void change_cursor(Cursor cursor) const
-  {
-    (void) cursor;
-  }
-
-  virtual Cursor get_cursor() const
-  {
-    return Cursor::None;
-  }
+  steady_clock::time_point timestamp                  = {};
+  nanoseconds              timedelta                  = {};
 
   constexpr bool key_down(KeyCode key) const
   {
@@ -184,35 +143,43 @@ struct ViewContext
     state           = (state >> (i & 63)) & 1;
     return state != 0;
   }
+};
 
-  virtual Span<u8 const> get_clipboard_data(Span<char const> mime) const
-  {
-    (void) mime;
-    return {};
-  }
-
-  virtual void set_clipboard_data(Span<char const> mime,
-                                  Span<u8 const>   data) const
-  {
-    (void) mime;
-    (void) data;
-  }
-
-  Span<u8 const> get_clipboard_text() const
-  {
-    return get_clipboard_data(span(MIME_TEXT_UTF8));
-  }
-
-  void set_clipboard_text(Span<char const> text) const
-  {
-    set_clipboard_data(span(MIME_TEXT_UTF8), text.as_u8());
-  }
+// We don't want to take requests post-tick. or can we structure such that we
+// take tick at start of frame, probably best.
+//
+// by default, special non-text keys will always be forwarded, to reject keys,
+// i.e. prevent tab from navigating. make PgUp have special meaning within
+// viewport, etc.
+//
+// [ ] viewport child focus and key navigation?
+//
+//
+/// @param tab Tab Index for Focus-Based Navigation. desired tab index, 0
+/// meaning the default tab order based on the hierarchy of the parent to
+/// children and siblings. negative values have higher tab index priority while
+/// positive indices have lower tab priority.
+struct ViewState
+{
+  i32  tab            = 0;
+  bool hidden : 1     = false;
+  bool clickable : 1  = false;
+  bool scrollable : 1 = false;
+  bool draggable : 1  = false;
+  bool droppable : 1  = false;
+  bool focusable : 1  = false;
+  bool text_input : 1 = false;
+  bool tab_input : 1  = false;
+  bool grab_focus : 1 = false;
+  bool lose_focus : 1 = false;
 };
 
 /// @brief Base view class. All view types must inherit from this struct.
 /// Views are plain visual elements that define spatial relationships,
 /// visual state changes, and forward events to other subsystems.
-/// @note State changes should only happen in the `tick` method
+/// @note State changes must only happen in the `tick` method. for child view
+/// switching, it should be handled by a flag in the tick method and switch in
+/// the child method based on the flag.
 struct View
 {
   uid id = UID_MAX;
@@ -224,32 +191,48 @@ struct View
   View &operator=(View &&)      = default;
   virtual ~View()               = default;
 
-  /// @brief get child widgets, this is a virtual iterator, return null once
-  /// there's no other children
+  /// @brief get child views, this is a virtual iterator, return null once
+  /// there's no other children, if returning from an array of sub-views
+  /// consider using the `subview` method.
   /// @param i child index
   /// @return child view pointer or nullptr meaning no more child left.
-  virtual View *child(u32 i)
+  virtual View *child(u32 i) const
   {
     (void) i;
     return nullptr;
   }
 
-  /// @brief distributes the size allocated to it to its child widgets.
+  /// @brief called on every frame. used for state changes, animations, task
+  /// dispatch and lightweight processing related to the GUI. heavy-weight and
+  /// non-sub-millisecond tasks should be dispatched to a Subsystem that would
+  /// handle that. i.e. using the multi-tasking system.
+  //
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events)
+  {
+    (void) ctx;
+    (void) region;
+    (void) events;
+    return ViewState{};
+  }
+
+  /// @brief distributes the size allocated to it to its child views.
   /// @param allocated the size allocated to this view
   /// @param[out] sizes sizes allocated to the children.
-  virtual void size(Vec2 allocated, Span<Vec2> sizes)
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) const
   {
     (void) allocated;
     fill(sizes, Vec2{0, 0});
   }
 
-  /// @brief fits itself around its children and positions child widgets
+  /// @brief fits itself around its children and positions child views
   /// relative to its center
   /// @param allocated the size allocated to this view
-  /// @param sizes sizes of the child widgets
-  /// @param[out] offsets offsets of the widgets from the parent's center
+  /// @param sizes sizes of the child views
+  /// @param[out] offsets offsets of the views from the parent's center
   /// @return this view's fitted extent
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> offsets)
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
+                   Span<Vec2> offsets) const
   {
     (void) allocated;
     (void) sizes;
@@ -260,59 +243,25 @@ struct View
   /// @brief this is used for absolute positioning of the view
   /// @param center the allocated absolute center of this view relative
   /// to the viewport
-  virtual Vec2 position(CRect const &region)
+  virtual Vec2 position(CRect const &region) const
   {
     return region.center;
-  }
-
-  /// @brief Used for hit-testing regions of widgets.
-  /// @param area area of view within the viewport
-  /// @param offset offset of pointer within area
-  /// @return
-  virtual bool hit(CRect const &region, Vec2 offset)
-  {
-    (void) region;
-    (void) offset;
-    return true;
-  }
-
-  /// @brief Used for visibility, scroll, and drag testing
-  /// @return
-  virtual ViewAttributes attributes()
-  {
-    return ViewAttributes::Visible;
-  }
-
-  virtual Cursor cursor(CRect const &region, Vec2 offset)
-  {
-    (void) region;
-    (void) offset;
-    return Cursor::Default;
   }
 
   /// @brief returns the z-index of itself and assigns z-indices to its children
   /// @param z_index z-index allocated to this view by parent
   /// @param[out] allocation z-index assigned to children
   /// @return
-  virtual i32 stack(i32 z_index, Span<i32> allocation)
+  virtual i32 stack(i32 z_index, Span<i32> allocation) const
   {
     fill(allocation, z_index + 1);
     return z_index;
   }
 
-  /// @brief Tab Index for Focus-Based Navigation.
-  /// @return desired tab index, 0 meaning the default tab order based on the
-  /// hierarchy of the parent to children and siblings. negative values have
-  /// higher tab index priority while positive indices have lower tab priority.
-  virtual i32 tab()
-  {
-    return 0;
-  }
-
   /// @brief this is used for clipping views. the provided clip is
   /// relative to the root viewport. Used for nested viewports where there are
   /// multiple intersecting clips.
-  virtual CRect clip(CRect const &region, CRect const &allocated)
+  virtual CRect clip(CRect const &region, CRect const &allocated) const
   {
     (void) region;
     return allocated;
@@ -322,36 +271,41 @@ struct View
   /// only called if the view passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas
-  virtual void render(CRect const &region, Canvas &canvas)
+  virtual void render(CRect const &region, Canvas &canvas) const
   {
     (void) region;
     (void) canvas;
   }
 
-  /// @brief called on every frame. used for state changes, animations, task
-  /// dispatch and lightweight processing related to the GUI. heavy-weight and
-  /// non-sub-millisecond tasks should be dispatched to a Subsystem that would
-  /// handle that. i.e. using the multi-tasking system.
-  /// @param dt time passed since last call to this method
-  //
-  virtual void tick(ViewContext const &ctx, CRect const &region,
-                    ViewEventTypes events)
+  /// @brief Used for hit-testing regions of views.
+  /// @param area area of view within the viewport
+  /// @param offset offset of pointer within area
+  /// @return true if in hit region
+  virtual bool hit(CRect const &region, Vec2 offset) const
   {
-    (void) ctx;
     (void) region;
-    (void) events;
+    (void) offset;
+    return true;
+  }
+
+  /// @brief Select cursor type given a highlighted region of the view.
+  virtual Cursor cursor(CRect const &region, Vec2 offset) const
+  {
+    (void) region;
+    (void) offset;
+    return Cursor::Default;
   }
 };
 
 template <u32 N>
-constexpr View *child_iter(View *const (&children)[N], u32 i)
+constexpr View *subview(View *const (&subviews)[N], u32 i)
 {
-  return i < N ? children[i] : nullptr;
+  return i < N ? subviews[i] : nullptr;
 }
 
-constexpr View *child_iter(Span<View *const> children, u32 i)
+constexpr View *subview(Span<View *const> subviews, u32 i)
 {
-  return i < children.size() ? children[i] : nullptr;
+  return i < subviews.size() ? subviews[i] : nullptr;
 }
 
 }        // namespace ash

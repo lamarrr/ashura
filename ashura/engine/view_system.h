@@ -21,21 +21,21 @@ struct ViewNode
 
 struct ViewSystem
 {
-  ViewContext         ctx           = {};
-  uid                 next_id       = 0;
-  Vec<View *>         widgets       = {};
-  Vec<ViewAttributes> attributes    = {};
-  Vec<ViewNode>       nodes         = {};
-  Vec<Vec2>           sizes         = {};
-  Vec<Vec2>           positions     = {};
-  Vec<CRect>          clips         = {};
-  Vec<i32>            z_indices     = {};
-  Vec<u32>            layered       = {};
-  Vec2                viewport_size = {};
+  ViewContext    ctx           = {};
+  uid            next_id       = 0;
+  Vec<View *>    views         = {};
+  Vec<ViewState> states        = {};
+  Vec<ViewNode>  nodes         = {};
+  Vec<Vec2>      sizes         = {};
+  Vec<Vec2>      positions     = {};
+  Vec<CRect>     clips         = {};
+  Vec<i32>       z_indices     = {};
+  Vec<u32>       layered       = {};
+  Vec2           viewport_size = {};
 
-  void insert_children(View *parent)
+  void insert_subview(View *parent)
   {
-    u32 const first_child  = widgets.size32();
+    u32 const first_child  = views.size32();
     u32       num_children = 0;
     while (true)
     {
@@ -44,7 +44,7 @@ struct ViewSystem
       {
         break;
       }
-      CHECK(widgets.push(child));
+      CHECK(views.push(child));
       num_children++;
       CHECK(num_children < U32_MAX);
     }
@@ -53,13 +53,13 @@ struct ViewSystem
 
     for (u32 i = 0; i < num_children; i++)
     {
-      insert_children(widgets[first_child + i]);
+      insert_subview(views[first_child + i]);
     }
   }
 
   void allocate_ids()
   {
-    for (View *w : widgets)
+    for (View *w : views)
     {
       if (w->id == UID_MAX)
       {
@@ -69,38 +69,68 @@ struct ViewSystem
     CHECK(next_id != UID_MAX);
   }
 
-  void attribute()
+  void tick(nanoseconds dt)
   {
-    for (u32 i = 0; i < widgets.size32(); i++)
+    // TODO(lamarrr)
+    // process events across views, hit-test, dispatch events
+    //
+    //
+    //
+    //
+    // [ ] SDL_SetCursor()
+    //     SDL_CreateSystemCursor(); - all created at startup
+    //     SDL_HideCursor();
+    //     SDL_ShowCursor();
+    //
+    //
+    // [ ] Update timestamp and dt
+    // [ ] click - forward directly unless draggable
+    // [ ] focus and keyboard management
+    // [ ] view drag & drop
+    // [ ] mouse over, mouse leave
+    // [ ] view hit, view miss -
+    // [ ] keyboard input: use another system?
+    // [ ] clip board copy & paste with custom media format
+    // [ ] text input
+    // [ ] gamepad input: use another system?
+    // [ ] hit testing on clipped rects
+    // [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
+    // Tab to move focus forwards)
+    // [ ] scroll on child focus for viewports
+    // [ ] on click or focus of focusable objects, system requests keyboard
+    // input if object has a text area attribute
+    // [ ] cursor management via hit testing
+    for (u32 i = 0; i < views.size32(); i++)
     {
-      attributes[i] = widgets[i]->attributes();
+      states[i] = views[i]->tick(
+          ctx, CRect{.center = positions[i], .extent = sizes[i]}, ViewEvents{});
     }
   }
 
   void layout()
   {
-    sizes[0]              = viewport_size;
-    positions[0]          = Vec2{0, 0};
-    u32 const num_widgets = widgets.size32();
-    for (u32 i = 0; i < num_widgets; i++)
+    sizes[0]            = viewport_size;
+    positions[0]        = Vec2{0, 0};
+    u32 const num_views = views.size32();
+    for (u32 i = 0; i < num_views; i++)
     {
       // allocate sizes to children
       ViewNode const &node = nodes[i];
-      widgets[i]->size(sizes[i],
-                       span(sizes).slice(node.first_child, node.num_children));
+      views[i]->size(sizes[i],
+                     span(sizes).slice(node.first_child, node.num_children));
     }
 
-    for (u32 i = 0; i < num_widgets; i++)
+    for (u32 i = 0; i < num_views; i++)
     {
-      // fit parent widgets along the finalized sizes of the child widgets and
+      // fit parent views along the finalized sizes of the child views and
       // assign positions to the children based on their sizes.
       ViewNode const &node = nodes[i];
-      sizes[i]             = widgets[i]->fit(
+      sizes[i]             = views[i]->fit(
           sizes[i], span(sizes).slice(node.first_child, node.num_children),
           span(positions).slice(node.first_child, node.num_children));
     }
 
-    for (u32 i = 0; i < num_widgets; i++)
+    for (u32 i = 0; i < num_views; i++)
     {
       // convert from parent positions to absolute positions by recursive
       // translation
@@ -112,21 +142,21 @@ struct ViewSystem
       }
     }
 
-    // allow widgets to pop out of their parents
-    for (u32 i = 0; i < num_widgets; i++)
+    // allow views to pop out of their parents
+    for (u32 i = 0; i < num_views; i++)
     {
-      positions[i] = widgets[i]->position(
-          CRect{.center = positions[i], .extent = sizes[i]});
+      positions[i] =
+          views[i]->position(CRect{.center = positions[i], .extent = sizes[i]});
     }
   }
 
   void stack()
   {
     z_indices[0] = 0;
-    for (u32 i = 0; i < widgets.size32(); i++)
+    for (u32 i = 0; i < views.size32(); i++)
     {
       ViewNode const &node = nodes[i];
-      z_indices[i]         = widgets[i]->stack(
+      z_indices[i]         = views[i]->stack(
           z_indices[i],
           span(z_indices).slice(node.first_child, node.num_children));
     }
@@ -135,10 +165,10 @@ struct ViewSystem
   void clip()
   {
     clips[0] = CRect{.center = {0, 0}, .extent = viewport_size};
-    for (u32 i = 0; i < widgets.size32(); i++)
+    for (u32 i = 0; i < views.size32(); i++)
     {
       ViewNode const &node = nodes[i];
-      clips[i]             = widgets[i]->clip(
+      clips[i]             = views[i]->clip(
           CRect{.center = positions[i], .extent = sizes[i]}, clips[i]);
       fill(span(clips).slice(node.first_child, node.num_children), clips[i]);
     }
@@ -153,7 +183,7 @@ struct ViewSystem
 
   void visibility()
   {
-    for (u32 i = 0; i < widgets.size32(); i++)
+    for (u32 i = 0; i < views.size32(); i++)
     {
       ViewNode const &node = nodes[i];
       // if parent not visibile. make children not visible
@@ -175,66 +205,48 @@ struct ViewSystem
       canvas.clip(clips[i]);
       if (has_bits(attributes[i], ViewAttributes::Visible))
       {
-        widgets[i]->render(CRect{.center = positions[i], .extent = sizes[i]},
-                           canvas);
+        views[i]->render(CRect{.center = positions[i], .extent = sizes[i]},
+                         canvas);
       }
-    }
-  }
-
-  void tick(nanoseconds dt)
-  {
-    // TODO(lamarrr)
-    // process events across widgets, hit-test, dispatch events
-    //
-    // [ ] Update timestamp and dt
-    // [ ] click - forward directly unless draggable
-    // [ ] focus and keyboard management
-    // [ ] view drag & drop
-    // [ ] mouse over, mouse leave
-    // [ ] view hit, view miss -
-    // [ ] keyboard input: use another system?
-    // [ ] clip board copy & paste with custom media format
-    // [ ] text input
-    // [ ] gamepad input: use another system?
-    // [ ] hit testing on clipped rects
-    // [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
-    // Tab to move focus forwards)
-    // [ ] scroll on child focus for viewports
-    // [ ] on click or focus of focusable objects, system requests keyboard
-    // input if object has a text area attribute
-    // [ ] cursor management via hit testing
-    for (u32 i = 0; i < widgets.size32(); i++)
-    {
-      widgets[i]->tick(ctx, CRect{.center = positions[i], .extent = sizes[i]},
-                       ViewEventTypes::None);
     }
   }
 
   void frame(View *root, Canvas &canvas, nanoseconds dt)
   {
-    widgets.clear();
+    views.clear();
     if (root != nullptr)
     {
-      CHECK(widgets.push(root));
-      insert_children(root);
+      CHECK(views.push(root));
+      insert_subview(root);
     }
     allocate_ids();
-    u32 const num_widgets = widgets.size32();
-    CHECK(attributes.resize_uninitialized(num_widgets));
-    CHECK(sizes.resize_uninitialized(num_widgets));
-    CHECK(positions.resize_uninitialized(num_widgets));
-    CHECK(clips.resize_uninitialized(num_widgets));
-    CHECK(z_indices.resize_uninitialized(num_widgets));
-    CHECK(layered.resize_uninitialized(num_widgets));
+    u32 const num_views = views.size32();
+    CHECK(states.resize_uninitialized(num_views));
+    CHECK(sizes.resize_uninitialized(num_views));
+    CHECK(positions.resize_uninitialized(num_views));
+    CHECK(clips.resize_uninitialized(num_views));
+    CHECK(z_indices.resize_uninitialized(num_views));
+    CHECK(layered.resize_uninitialized(num_views));
 
-    attribute();
+    // child()
+    // - hashmap of ids to node and pointers need to be built every frame
+    // tick() => S
+    // size()          => S
+    // fit()           => S
+    // position()      => S
+    // stack() => S
+    // clip()          => S
+    // render()        => S
+    // hit()
+    //
+
+    tick(dt);
     layout();
     stack();
     clip();
     sort_layers();
     visibility();
     render(canvas);
-    tick(dt);
   }
 };
 

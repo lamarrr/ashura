@@ -15,23 +15,24 @@ struct StackBox : public View
   SizeConstraint width     = {};
   SizeConstraint height    = {};
 
-  virtual View *child(u32 i) override final
+  virtual View *child(u32 i) const override final
   {
     return item(i);
   }
 
-  virtual View *item(u32 i)
+  virtual View *item(u32 i) const
   {
     (void) i;
     return nullptr;
   }
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) const override
   {
     fill(sizes, allocated);
   }
 
-  virtual Vec2 fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> offsets) override
+  virtual Vec2 fit(Vec2, Span<Vec2 const> sizes,
+                   Span<Vec2> offsets) const override
   {
     Vec2      span;
     u32 const num_children = sizes.size32();
@@ -50,7 +51,7 @@ struct StackBox : public View
     return span;
   }
 
-  virtual i32 stack(i32 z_index, Span<i32> allocation) override
+  virtual i32 stack(i32 z_index, Span<i32> allocation) const override
   {
     if (!reverse)
     {
