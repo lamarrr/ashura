@@ -466,9 +466,40 @@ void Canvas::rrect(ShapeDesc const &desc)
   add_run(*this, CanvasPassType::RRect);
 }
 
-constexpr bool is_transparent(ColorGradient const &g)
+void Canvas::brect(ShapeDesc const &desc)
 {
-  return g[0].w == 0 && g[1].w == 0 && g[2].w == 0 && g[3].w == 0;
+  u32 const first_vertex = vertices.size32();
+  u32 const first_index  = indices.size32();
+
+  Path::brect(vertices, desc.corner_radii);
+
+  u32 const num_vertices = vertices.size32() - first_vertex;
+
+  Path::triangulate_convex(indices, first_vertex, num_vertices);
+
+  u32 const num_indices = indices.size32() - first_index;
+
+  CHECK(ngon_index_counts.push(num_indices));
+
+  add_run(*this, CanvasPassType::Ngon);
+}
+
+void Canvas::squircle(ShapeDesc const &desc, u32 segments, f32 degree)
+{
+  u32 const first_vertex = vertices.size32();
+  u32 const first_index  = indices.size32();
+
+  Path::squircle(vertices, segments, degree);
+
+  u32 const num_vertices = vertices.size32() - first_vertex;
+
+  Path::triangulate_convex(indices, first_vertex, num_vertices);
+
+  u32 const num_indices = indices.size32() - first_index;
+
+  CHECK(ngon_index_counts.push(num_indices));
+
+  add_run(*this, CanvasPassType::Ngon);
 }
 
 void Canvas::text(ShapeDesc const &desc, TextBlock const &block,

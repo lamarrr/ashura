@@ -139,6 +139,14 @@ struct Canvas
 
   void rrect(ShapeDesc const &desc);
 
+  /// @brief render a beveled rectangle
+  void brect(ShapeDesc const &desc);
+
+  /// @brief render a squircle (triangulation based)
+  /// @param num_segments an upper bound on the number of segments to
+  /// @param degree
+  void squircle(ShapeDesc const &desc, u32 segments, f32 degree = 5);
+
   void nine_slice(ShapeDesc const &desc, ScaleMode mode, Span<Vec2 const> uvs);
 
   void text(ShapeDesc const &desc, TextBlock const &block,
