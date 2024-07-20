@@ -49,6 +49,12 @@ struct ColorGradient
   {
     return colors[i];
   }
+
+  constexpr bool is_transparent() const
+  {
+    return colors[0].w == 0 && colors[1].w == 0 && colors[2].w == 0 &&
+           colors[3].w == 0;
+  }
 };
 
 }        // namespace ash

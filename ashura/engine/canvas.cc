@@ -545,7 +545,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
         FontAtlasResource const *atlas      = atlases[run.style];
         f32 const run_width = au_to_px(run.metrics.advance, run.font_height);
 
-        if (pass == PASS_BACKGROUND && !is_transparent(run_style.background))
+        if (pass == PASS_BACKGROUND && !run_style.background.is_transparent())
         {
           Vec2 extent{run_width, au_to_px(run.metrics.ascent, run.font_height) +
                                      ln.metrics.height};
@@ -572,7 +572,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
               au_to_px(sh.offset, run.font_height);
 
           if (pass == PASS_GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
-              !is_transparent(run_style.shadow))
+              !run_style.shadow.is_transparent())
           {
             Vec2 shadow_extent = extent * run_style.shadow_scale;
             Vec2 shadow_offset = (offset + extent / 2) - shadow_extent / 2 +
@@ -592,7 +592,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                 .edge_smoothness = desc.edge_smoothness});
           }
 
-          if (pass == PASS_GLYPHS && !is_transparent(run_style.foreground))
+          if (pass == PASS_GLYPHS && !run_style.foreground.is_transparent())
           {
             rect(ShapeDesc{.center = desc.center,
                            .extent = extent,
