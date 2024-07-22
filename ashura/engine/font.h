@@ -76,6 +76,9 @@ struct AtlasGlyph
   Vec2      uv[2] = {};
 };
 
+typedef struct CpuFontAtlas CpuFontAtlas;
+typedef struct GpuFontAtlas GpuFontAtlas;
+
 /// @param postscript_name ASCII. i.e. RobotoBold
 /// @param family_name ASCII. i.e. Roboto
 /// @param style_name ASCII. i.e. Bold
@@ -83,66 +86,25 @@ struct AtlasGlyph
 /// found, otherwise glyph index 0
 /// @param ellipsis_glyph glyph for the ellipsis character '…'
 /// @param font_height font height at which the this atlas was rendered (px)
+/// @param cpu_atlas cpu font atlas if loaded
+/// @param gpu_atlas gpu font atlas if loaded
 struct FontInfo
 {
-  Span<char const>  postscript_name   = {};
-  Span<char const>  family_name       = {};
-  Span<char const>  style_name        = {};
-  Span<Glyph const> glyphs            = {};
-  u32               replacement_glyph = 0;
-  u32               space_glyph       = 0;
-  u32               ellipsis_glyph    = 0;
-  FontMetrics       metrics           = {};
+  Span<char const>             postscript_name   = {};
+  Span<char const>             family_name       = {};
+  Span<char const>             style_name        = {};
+  Span<Glyph const>            glyphs            = {};
+  u32                          replacement_glyph = 0;
+  u32                          space_glyph       = 0;
+  u32                          ellipsis_glyph    = 0;
+  FontMetrics                  metrics           = {};
+  Option<CpuFontAtlas const *> cpu_atlas         = None;
+  Option<GpuFontAtlas const *> gpu_atlas         = None;
 };
 
-struct FontAtlas
-{
-  i32             font_height = 0;
-  Vec2U           extent      = {};
-  u32             num_layers  = 0;
-  Vec<AtlasGlyph> glyphs      = {};
-  Vec<u8>         channels    = {};
-
-  ImageLayerSpan<u8, 1> span() const
-  {
-    return ImageLayerSpan<u8, 1>{.channels = ::ash::span(channels),
-                                 .width    = extent.x,
-                                 .height   = extent.y,
-                                 .layers   = num_layers};
-  }
-
-  void uninit()
-  {
-    glyphs.uninit();
-    channels.uninit();
-  }
-};
-
-struct FontAtlasResource
-{
-  gfx::Image          image    = nullptr;
-  Vec<gfx::ImageView> views    = {};
-  Vec<u32>            textures = {};
-  Vec<AtlasGlyph>     glyphs   = {};
-  gfx::Format         format   = gfx::Format::Undefined;
-
-  void init(RenderContext &c, FontAtlas const &atlas,
-            AllocatorImpl const &allocator);
-  void release(RenderContext &c);
-
-  void uninit()
-  {
-    image = nullptr;
-    views.uninit();
-    textures.uninit();
-    glyphs.uninit();
-    format = gfx::Format::Undefined;
-  }
-};
-
-/// @param face font face to use
-Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
-                                   AllocatorImpl const &allocator);
+Result<Font, FontStatus>
+    load_font(Span<u8 const> encoded, u32 face = 0,
+              AllocatorImpl const &allocator = default_allocator);
 
 FontInfo get_font_info(Font font);
 
@@ -153,7 +115,12 @@ void destroy_font(Font font);
 /// @note rasterizing mutates the font's internal data, not thread-safe
 /// @param font_height the font height at which the texture should be rasterized
 /// at (px)
-bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
-                    AllocatorImpl const &allocator);
+bool rasterize_font(Font font, u32 font_height,
+                    AllocatorImpl const &allocator = default_allocator);
+
+void upload_font_to_device(Font font, RenderContext &c,
+                           AllocatorImpl const &allocator = default_allocator);
+
+void unload_font_from_device(Font font, RenderContext &c);
 
 }        // namespace ash

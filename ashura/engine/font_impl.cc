@@ -4,6 +4,7 @@
 
 #include "ashura/engine/font_impl.h"
 #include "ashura/engine/font.h"
+#include "ashura/engine/font_atlas.h"
 #include "ashura/gfx/image.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/arena_allocator.h"
@@ -279,20 +280,38 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
 FontInfo get_font_info(Font font)
 {
   FontImpl *f = (FontImpl *) font;
-  return FontInfo{
-      .postscript_name   = {f->postscript_name, f->postscript_name_size},
-      .family_name       = {f->family_name, f->family_name_size},
-      .style_name        = {f->style_name, f->style_name_size},
-      .glyphs            = {f->glyphs, f->num_glyphs},
-      .replacement_glyph = f->replacement_glyph,
-      .space_glyph       = f->space_glyph,
-      .ellipsis_glyph    = f->ellipsis_glyph,
-      .metrics           = f->metrics};
+  FontInfo  info{
+       .postscript_name   = {f->postscript_name, f->postscript_name_size},
+       .family_name       = {f->family_name, f->family_name_size},
+       .style_name        = {f->style_name, f->style_name_size},
+       .glyphs            = {f->glyphs, f->num_glyphs},
+       .replacement_glyph = f->replacement_glyph,
+       .space_glyph       = f->space_glyph,
+       .ellipsis_glyph    = f->ellipsis_glyph,
+       .metrics           = f->metrics};
+
+  if (f->cpu_atlas.is_some())
+  {
+    info.cpu_atlas = Some<CpuFontAtlas const *>{&f->cpu_atlas.value()};
+  }
+
+  if (f->gpu_atlas.is_some())
+  {
+    info.gpu_atlas = Some<GpuFontAtlas const *>{&f->gpu_atlas.value()};
+  }
+
+  return info;
 }
 
 void destroy_font(Font font)
 {
   FontImpl *f = (FontImpl *) font;
+  f->gpu_atlas.expect_none("GPU font atlas has not been unloaded");
+  if (f->cpu_atlas.is_some())
+  {
+    f->cpu_atlas.value().reset();
+    f->cpu_atlas = None;
+  }
   f->allocator.ndealloc(f->postscript_name, f->postscript_name_size);
   f->allocator.ndealloc(f->family_name, f->family_name_size);
   f->allocator.ndealloc(f->style_name, f->style_name_size);
@@ -306,8 +325,7 @@ void destroy_font(Font font)
   f->allocator.ndealloc(f, 1);
 }
 
-bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
-                    AllocatorImpl const &allocator)
+bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
 {
   constexpr u32 MIN_ATLAS_EXTENT = 512;
   static_assert(MIN_ATLAS_EXTENT > 0, "Font atlas extent must be non-zero");
@@ -323,6 +341,11 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
   Vec2U atlas_extent{MIN_ATLAS_EXTENT, MIN_ATLAS_EXTENT};
 
   FontImpl *f = (FontImpl *) font;
+
+  f->cpu_atlas.expect_none("CPU font atlas has already been loaded");
+
+  CpuFontAtlas atlas;
+  defer        atlas_del{[&] { atlas.reset(); }};
 
   if (!atlas.glyphs.resize_defaulted(f->num_glyphs))
   {
@@ -487,7 +510,170 @@ bool rasterize_font(Font font, u32 font_height, FontAtlas &atlas,
   atlas.extent      = atlas_extent;
   atlas.num_layers  = num_layers;
 
+  f->cpu_atlas = Some{atlas};
+  atlas        = {};
+
   return true;
+}
+
+void upload_font_to_device(Font font, RenderContext &c,
+                           AllocatorImpl const &allocator)
+{
+  gfx::CommandEncoderImpl const &enc = c.encoder();
+  gfx::DeviceImpl const         &d   = c.device;
+
+  CHECK(font != nullptr);
+  FontImpl *f = (FontImpl *) font;
+  CHECK(f->cpu_atlas.is_some());
+  CHECK(f->gpu_atlas.is_none());
+
+  CpuFontAtlas const &atlas = f->cpu_atlas.value();
+
+  CHECK(atlas.num_layers > 0);
+  CHECK(atlas.extent.x > 0);
+  CHECK(atlas.extent.y > 0);
+
+  gfx::Image image =
+      d->create_image(
+           d.self, gfx::ImageDesc{.label  = "Font Atlas Image"_span,
+                                  .type   = gfx::ImageType::Type2D,
+                                  .format = gfx::Format::B8G8R8A8_UNORM,
+                                  .usage  = gfx::ImageUsage::Sampled |
+                                           gfx::ImageUsage::InputAttachment |
+                                           gfx::ImageUsage::Storage |
+                                           gfx::ImageUsage::TransferSrc |
+                                           gfx::ImageUsage::TransferDst,
+                                  .aspects = gfx::ImageAspects::Color,
+                                  .extent = {atlas.extent.x, atlas.extent.y, 1},
+                                  .mip_levels   = 1,
+                                  .array_layers = atlas.num_layers,
+                                  .sample_count = gfx::SampleCount::Count1})
+          .unwrap();
+
+  Vec<gfx::ImageView> views;
+
+  views.resize_defaulted(atlas.num_layers).unwrap();
+
+  for (u32 i = 0; i < atlas.num_layers; i++)
+  {
+    views[i] =
+        d->create_image_view(
+             d.self,
+             gfx::ImageViewDesc{.label           = "Font Atlas Image View"_span,
+                                .image           = image,
+                                .view_type       = gfx::ImageViewType::Type2D,
+                                .view_format     = gfx::Format::B8G8R8A8_UNORM,
+                                .mapping         = {},
+                                .aspects         = gfx::ImageAspects::Color,
+                                .first_mip_level = 0,
+                                .num_mip_levels  = 1,
+                                .first_array_layer = i,
+                                .num_array_layers  = 1})
+            .unwrap();
+  }
+
+  gfx::BufferImageCopy *copies;
+
+  CHECK(allocator.nalloc(atlas.num_layers, &copies));
+
+  defer copies_del{[&] { allocator.ndealloc(copies, atlas.num_layers); }};
+
+  u64 const   atlas_size = atlas.channels.size() * (u64) 4;
+  gfx::Buffer staging_buffer =
+      d->create_buffer(
+           d.self, gfx::BufferDesc{.label = "Font Atlas Staging Buffer"_span,
+                                   .size  = atlas_size,
+                                   .host_mapped = true,
+                                   .usage = gfx::BufferUsage::TransferSrc |
+                                            gfx::BufferUsage::TransferDst})
+          .unwrap();
+
+  u8 *map = (u8 *) d->map_buffer_memory(d.self, staging_buffer).unwrap();
+
+  ImageLayerSpan<u8, 4> dst{.channels = {map, atlas_size},
+                            .width    = atlas.extent.x,
+                            .height   = atlas.extent.y,
+                            .layers   = atlas.num_layers};
+
+  for (u32 i = 0; i < atlas.num_layers; i++)
+  {
+    copy_alpha_image_to_BGRA(
+        f->cpu_atlas.value().span().get_layer(i).as_const(), dst.get_layer(i),
+        U8_MAX, U8_MAX, U8_MAX);
+  }
+
+  d->flush_mapped_buffer_memory(d.self, staging_buffer,
+                                {.offset = 0, .size = gfx::WHOLE_SIZE})
+      .unwrap();
+  d->unmap_buffer_memory(d.self, staging_buffer);
+
+  for (u32 layer = 0; layer < atlas.num_layers; layer++)
+  {
+    u64 offset = (u64) atlas.extent.x * (u64) atlas.extent.y * 4 * (u64) layer;
+    copies[layer] = gfx::BufferImageCopy{
+        .buffer_offset       = offset,
+        .buffer_row_length   = atlas.extent.x,
+        .buffer_image_height = atlas.extent.y,
+        .image_layers        = {.aspects           = gfx::ImageAspects::Color,
+                                .mip_level         = 0,
+                                .first_array_layer = layer,
+                                .num_array_layers  = 1},
+        .image_offset        = {0, 0, 0},
+        .image_extent        = {atlas.extent.x, atlas.extent.y, 1}};
+  }
+
+  enc->copy_buffer_to_image(enc.self, staging_buffer, image,
+                            Span{copies, atlas.num_layers});
+
+  gfx::Format format = gfx::Format::B8G8R8A8_UNORM;
+  c.release(staging_buffer);
+
+  Vec<u32>        textures;
+  Vec<AtlasGlyph> glyphs;
+
+  textures.resize_defaulted(atlas.num_layers).unwrap();
+  glyphs.extend_copy(span(atlas.glyphs)).unwrap();
+
+  for (u32 i = 0; i < atlas.num_layers; i++)
+  {
+    textures[i] = c.alloc_texture_slot();
+    d->update_descriptor_set(
+        d.self,
+        gfx::DescriptorSetUpdate{
+            .set     = c.texture_views,
+            .binding = 0,
+            .element = textures[i],
+            .images  = span({gfx::ImageBinding{.image_view = views[i]}})});
+  }
+
+  f->gpu_atlas = Some{GpuFontAtlas{.image       = image,
+                                   .views       = views,
+                                   .textures    = textures,
+                                   .font_height = atlas.font_height,
+                                   .num_layers  = atlas.num_layers,
+                                   .extent      = atlas.extent,
+                                   .glyphs      = glyphs,
+                                   .format      = format}};
+}
+
+void unload_font_from_device(Font font, RenderContext &c)
+{
+  FontImpl *f = (FontImpl *) font;
+  CHECK(f->gpu_atlas.is_some());
+  for (u32 slot : f->gpu_atlas.value().textures)
+  {
+    c.release_texture_slot(slot);
+  }
+
+  for (gfx::ImageView view : f->gpu_atlas.value().views)
+  {
+    c.release(view);
+  }
+  c.release(f->gpu_atlas.value().image);
+
+  f->gpu_atlas.value().reset();
+
+  f->gpu_atlas = None;
 }
 
 }        // namespace ash

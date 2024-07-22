@@ -214,8 +214,7 @@ struct Canvas
   /// alignment of the block
   /// @param atlases font atlases
   void text(ShapeDesc const &desc, TextBlock const &block,
-            TextLayout const &layout, TextBlockStyle const &style,
-            Span<FontAtlasResource const *const> atlases);
+            TextLayout const &layout, TextBlockStyle const &style);
 
   /// @brief Render Non-Indexed Triangles
   void triangles(ShapeDesc const &desc, Span<Vec2 const> vertices);
