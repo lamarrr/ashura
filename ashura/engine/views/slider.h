@@ -12,19 +12,18 @@ namespace ash
 /// REQUIREMENTS: multi-directional
 struct Slider : public View
 {
-  Fn<void(f32)>  on_changed   = fn([](f32) {});
-  Axis           direction    = Axis::X;
-  SizeConstraint width        = {};
-  SizeConstraint height       = {};
-  f32            thumb_radius = 0.5F;
-  Vec4           track_color  = material::BLUE_A700.norm();
-  Vec4           thumb_color  = material::GRAY_500.norm();
-  bool           add_stepper  = false;
-  bool           disabled     = false;
+  Fn<void(f32)> on_changed   = fn([](f32) {});
+  Axis          direction    = Axis::X;
+  Frame         frame        = {};
+  f32           thumb_radius = 0.5F;
+  Vec4          track_color  = material::BLUE_A700.norm();
+  Vec4          thumb_color  = material::GRAY_500.norm();
+  bool          add_stepper  = false;
+  bool          disabled     = false;
 
   f32 value = 0, min = 0, max = 1;
-  
-    // TODO(lamarrr): handle focus
+
+  // TODO(lamarrr): handle focus
 
   /*
     virtual vec2 fit(Context &ctx, vec2 allocated_size,

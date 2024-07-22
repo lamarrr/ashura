@@ -12,11 +12,11 @@ namespace ash
 
 struct Button : public View
 {
-  SizeConstraint width      = {};
-  SizeConstraint height     = {};
-  bool           disabled   = false;
-  Fn<void()>     on_clicked = fn([] {});
-  Fn<void()>     on_hovered = fn([] {});
+  bool       disabled   = false;
+  Frame      frame      = {};
+  Fn<void()> on_clicked = fn([] {});
+  Fn<void()> on_hovered = fn([] {});
+  Fn<void()> on_focused = fn([] {});
 
   virtual View *child(u32 i) const override final
   {

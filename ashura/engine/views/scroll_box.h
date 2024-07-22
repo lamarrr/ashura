@@ -10,6 +10,7 @@ namespace ash
 
 struct ScrollBar : public View
 {
+  bool          disabled : 1      = false;
   Axis          direction         = Axis::X;
   f32           opacity           = 0.65F;
   Vec4          thumb_color       = material::GRAY_400.norm();
@@ -17,7 +18,6 @@ struct ScrollBar : public View
   Vec2          frame_extent      = {};
   Vec2          content_extent    = {};
   f32           scroll_percentage = 0;
-  bool          disabled          = false;
   Fn<void(f32)> on_scrolled       = fn([](f32) {});
 
   explicit ScrollBar(Axis direction) : direction{direction}
@@ -105,8 +105,7 @@ struct ScrollBox : public View
   mutable ScrollBar x_bar      = ScrollBar{Axis::X};
   mutable ScrollBar y_bar      = ScrollBar{Axis::Y};
   Axes              axes       = Axes::X | Axes::Y;
-  SizeConstraint    width      = {.scale = 1, .max = 200};
-  SizeConstraint    height     = {.scale = 1, .max = 200};
+  Frame             frame      = {.width = 200, .height = 200};
   SizeConstraint    x_bar_size = {.offset = 10};
   SizeConstraint    y_bar_size = {.offset = 10};
 
@@ -122,9 +121,9 @@ struct ScrollBox : public View
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) const override
   {
-    Vec2      frame{width(allocated.x), height(allocated.y)};
-    f32 const x_bar_size_r = x_bar_size(allocated.x);
-    f32 const y_bar_size_r = y_bar_size(allocated.y);
+    Vec2 const frame        = this->frame(allocated);
+    f32 const  x_bar_size_r = x_bar_size(allocated.x);
+    f32 const  y_bar_size_r = y_bar_size(allocated.y);
 
     sizes[0] = {frame.x, x_bar_size_r};
 
@@ -141,10 +140,9 @@ struct ScrollBox : public View
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
                    Span<Vec2> offsets) const override
   {
-    Vec2 frame{width(allocated.x), height(allocated.y)};
-
-    offsets[0] = space_align(frame, sizes[0], Vec2{1, 0});
-    offsets[1] = space_align(frame, sizes[1], Vec2{-1, 1});
+    Vec2 const frame = this->frame(allocated);
+    offsets[0]       = space_align(frame, sizes[0], Vec2{1, 0});
+    offsets[1]       = space_align(frame, sizes[1], Vec2{-1, 1});
 
     Vec2 content_size;
     for (Vec2 const &sz : sizes.slice(2))

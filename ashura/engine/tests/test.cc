@@ -34,8 +34,7 @@ int main(int, char **)
 
   Font font = load_font(span(font_data), 0, default_allocator).unwrap();
 
-  FontAtlas font_atlas;
-  CHECK(rasterize_font(font, 60, font_atlas, default_allocator));
+  CHECK(rasterize_font(font, 60, default_allocator));
 
   WindowSystem *win_sys = init_sdl_window_system();
   CHECK(win_sys != nullptr);
@@ -142,7 +141,7 @@ int main(int, char **)
     u32                     num_formats =
         device->get_surface_formats(device.self, surface, {}).unwrap();
     CHECK(num_formats != 0);
-    CHECK(formats.resize_uninitialized(num_formats));
+    formats.resize_uninitialized(num_formats).unwrap();
     CHECK(device->get_surface_formats(device.self, surface, span(formats))
                         .unwrap() == num_formats);
 
@@ -151,7 +150,7 @@ int main(int, char **)
     u32                   num_present_modes =
         device->get_surface_present_modes(device.self, surface, {}).unwrap();
     CHECK(num_present_modes != 0);
-    CHECK(present_modes.resize_uninitialized(num_present_modes));
+    present_modes.resize_uninitialized(num_present_modes).unwrap();
     CHECK(device
                         ->get_surface_present_modes(device.self, surface,
                                                     span(present_modes))
@@ -281,10 +280,8 @@ int main(int, char **)
 
   defer dev_wait{[&] { device->wait_idle(device.self).unwrap(); }};
 
-  FontAtlasResource font_resource;
-
-  font_resource.init(ctx, font_atlas, default_allocator);
-  defer fr_del{[&] { font_resource.release(ctx); }};
+  upload_font_to_device(font, ctx);
+  defer fr_del{[&] { unload_font_from_device(font, ctx); }};
 
   // TODO(lamarrr): create transfer queue, calculate total required setup size
   u32       runs[]        = {U32_MAX};
@@ -314,7 +311,7 @@ int main(int, char **)
 
     canvas.rrect(ShapeDesc{.center       = Vec2{1920 / 2, 1080 / 2},
                            .extent       = {1920, 1080},
-                           .border_radii = {0, 0, 0, 0},
+                           .corner_radii = {0, 0, 0, 0},
                            .stroke       = 1,
                            .thickness    = 20,
                            .tint = ColorGradient::uniform(colors::WHITE)});
@@ -363,45 +360,35 @@ int main(int, char **)
                        .strikethrough = ColorGradient::uniform(colors::WHITE),
                        .shadow        = ColorGradient::uniform(colors::WHITE)}}),
             .alignment   = 0,
-            .align_width = 1920},
-        span<FontAtlasResource const *>({&font_resource}));
-    /*canvas.triangles(
-        ShapeDesc{.center    = Vec2{0, 0},
-                  .extent    = {800, 800},
-                  .thickness = 0,
-                  .tint      = {f(colors::RED) / 255, f(colors::BLUE) / 255,
-                                f(colors::MAGENTA) / 255, f(colors::CYAN) /
-       255}},
+            .align_width = 1920});
 
-        span({Vec2{-1, -1}, Vec2{1, -1}, Vec2{1, 1}, Vec2{1, 1}, Vec2{-1, 1},
-                 Vec2{-1, -1}}));*/
-
-    // TODO(lamarrr) add squircle to canvas
     // TODO(lamarrr): add multi-sampling
-    Vec<Vec2> squircle;
-    Path::squircle(squircle, 1024, 5);
-    Vec<u32> idx;
-    Path::triangulate_convex(idx, 0, squircle.size32());
-    canvas.triangles(ShapeDesc{.center    = {1920 / 2, 1080 / 2},
-                               .extent    = {150, 150},
-                               .stroke    = 1,
-                               .thickness = 8,
-                               .tint      = ColorGradient{{colors::RED.norm(),
-                                                           colors::RED.norm(),
-                                                           colors::YELLOW.norm(),
-                                                           colors::MAGENTA.norm()}}},
-                     span(squircle), span(idx));
-    squircle.reset();
-    idx.reset();
-    canvas.rrect(ShapeDesc{
-        .center       = {1920 / 2 + 100, 1080 / 2 + 100},
+    canvas.brect(ShapeDesc{
+        .center       = {1920 / 2, 1080 / 2},
         .extent       = {150, 150},
-        .border_radii = {35, 35, 35, 35},
-        .stroke       = 0,
+        .corner_radii = Vec4::splat(0.125f),
+        .stroke       = 1,
+        .thickness    = 8,
         .tint =
-            ColorGradient{{colors::WHITE.norm(), colors::BLACK.norm(),
-                           colors::WHITE.norm(), colors::WHITE.norm()}}});
-    // canvas.blur(CRect{{1920 / 2, 1080 / 2}, {1920 / 1.25, 1080 / 1.25}}, 1);
+            ColorGradient{{colors::RED.norm(), colors::RED.norm(),
+                           colors::YELLOW.norm(), colors::MAGENTA.norm()}}});
+    canvas.squircle(
+        ShapeDesc{.center    = {1920 / 2 + 100, 1080 / 2 + 100},
+                  .extent    = {250, 150},
+                  .stroke    = 1,
+                  .thickness = 8,
+                  .tint = ColorGradient{{colors::RED.norm(), colors::RED.norm(),
+                                         colors::YELLOW.norm(),
+                                         colors::MAGENTA.norm()}}},
+        0.6, 128);
+    canvas.rrect(ShapeDesc{
+        .center       = {1920 / 2 + 200, 1080 / 2 + 200},
+        .extent       = {150, 150},
+        .corner_radii = {35, 35, 35, 35},
+        .stroke       = 0,
+        .tint = ColorGradient{{colors::WHITE.norm(), colors::BLACK.norm(),
+                               colors::WHITE.norm(), colors::WHITE.norm()}}});
+    // canvas.blur(CRect{{1920 / 2, 1080 / 2}, {1920 / 1.25, 1080 / 1.25}}, 4);
 
     renderer.begin(
         ctx, pctx, canvas,

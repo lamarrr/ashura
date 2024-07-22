@@ -683,24 +683,24 @@ enum class Cursor
 
 struct ClipBoard
 {
-  virtual Span<u8 const> get(Span<char const> mime)
+  constexpr virtual Span<u8 const> get(Span<char const> mime)
   {
     (void) mime;
     return {};
   }
 
-  virtual void set(Span<char const> mime, Span<u8 const> data)
+  constexpr virtual void set(Span<char const> mime, Span<u8 const> data)
   {
     (void) mime;
     (void) data;
   }
 
-  Span<u8 const> get_text()
+  constexpr Span<u8 const> get_text()
   {
     return get(span(MIME_TEXT_UTF8));
   }
 
-  void set_text(Span<u8 const> text)
+  constexpr void set_text(Span<u8 const> text)
   {
     set(span(MIME_TEXT_UTF8), text);
   }

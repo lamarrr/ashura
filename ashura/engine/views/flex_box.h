@@ -13,13 +13,12 @@ namespace ash
 /// the cross axis
 struct FlexBox : public View
 {
-  Axis           axis        = Axis::X;
-  bool           wrap        = true;
-  bool           reverse     = false;
-  MainAlign      main_align  = MainAlign::Start;
-  f32            cross_align = 0;
-  SizeConstraint width       = {};
-  SizeConstraint height      = {};
+  Axis      axis        = Axis::X;
+  bool      wrap        = true;
+  bool      reverse     = false;
+  MainAlign main_align  = MainAlign::Start;
+  f32       cross_align = 0;
+  Frame     frame       = {};
 
   virtual View *child(u32 i) const override final
   {
@@ -34,7 +33,7 @@ struct FlexBox : public View
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) const override
   {
-    Vec2 const frame{width(allocated.x), height(allocated.y)};
+    Vec2 const frame = this->frame(allocated);
     fill(sizes, frame);
   }
 
@@ -42,7 +41,7 @@ struct FlexBox : public View
                    Span<Vec2> offsets) const override
   {
     u32 const  num_children = sizes.size32();
-    Vec2 const frame{width(allocated.x), height(allocated.y)};
+    Vec2 const frame        = this->frame(allocated);
     Vec2       span;
     f32        cross_cursor = 0;
     u8 const   main_axis    = (axis == Axis::X) ? 0 : 1;

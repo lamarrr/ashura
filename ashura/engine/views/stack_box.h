@@ -10,10 +10,9 @@ namespace ash
 
 struct StackBox : public View
 {
-  bool           reverse   = false;
-  Vec2           alignment = {0, 0};
-  SizeConstraint width     = {};
-  SizeConstraint height    = {};
+  bool  reverse   = false;
+  Vec2  alignment = {0, 0};
+  Frame frame     = {};
 
   virtual View *child(u32 i) const override final
   {
@@ -28,7 +27,7 @@ struct StackBox : public View
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) const override
   {
-    fill(sizes, allocated);
+    fill(sizes, frame(allocated));
   }
 
   virtual Vec2 fit(Vec2, Span<Vec2 const> sizes,

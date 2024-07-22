@@ -5,6 +5,7 @@
 #include "ashura/engine/text_compositor.h"
 #include "ashura/engine/view.h"
 #include "ashura/engine/views/button.h"
+#include "ashura/engine/views/scroll_box.h"
 #include "ashura/std/text.h"
 
 namespace ash
@@ -66,334 +67,122 @@ inline bool push(Context const &ctx, Spec const &spec, ScalarInput const &value)
 
 }        // namespace fmt
 
-struct TextInput : View
+enum class AxisScale : u8
 {
-  struct Text
+  Linear = 0,
+  Log10  = 1,
+  Log2   = 2,
+};
+
+/// @param start starting value, this is the value to be reset to when cancel is
+/// requested
+/// @param min minimum value of the scalar
+/// @param max maximum value of the scalar
+/// @param current current value of the scalar, mutated by the GUI system
+struct ScalarState
+{
+  ScalarInput         base    = {};
+  ScalarInput         min     = {};
+  ScalarInput         max     = {};
+  AxisScale           scale   = AxisScale::Linear;
+  mutable ScalarInput current = {};
+
+  template <typename T>
+  static constexpr void log10_step()
   {
-    Vec<u32>         text       = {};
-    Vec<u32>         runs       = {};
-    Vec<TextStyle>   run_styles = {};
-    TextDirection    direction  = TextDirection::LeftToRight;
-    Span<char const> language   = {};
-    TextLayout       layout     = {};
-    f32              alignment  = -1;
-
-    void reset()
-    {
-      text.reset();
-      runs.reset();
-      run_styles.reset();
-      layout.reset();
-    }
-  };
-
-  bool           disabled : 1      = false;
-  bool           is_multiline : 1  = false;
-  bool           enter_submits : 1 = false;
-  bool           tab_input : 1     = false;
-  u32            lines_per_page    = 1;
-  mutable Text   content           = {};
-  mutable Text   placeholder       = {};
-  TextCompositor compositor        = {};
-  Fn<void()>     on_edit           = fn([] {});
-  Fn<void()>     on_submit         = fn([] {});
-  Fn<void()>     on_focus_in       = fn([] {});
-  Fn<void()>     on_focus_out      = fn([] {});
-
-  constexpr TextCommand command(ViewContext const &ctx) const
-  {
-    if (ctx.key_down(KeyCode::Escape))
-    {
-      return TextCommand::Unselect;
-    }
-    if (ctx.key_down(KeyCode::Backspace))
-    {
-      return TextCommand::BackSpace;
-    }
-    if (ctx.key_down(KeyCode::Delete))
-    {
-      return TextCommand::Delete;
-    }
-    if (ctx.key_down(KeyCode::Left))
-    {
-      return TextCommand::Left;
-    }
-    if (ctx.key_down(KeyCode::Right))
-    {
-      return TextCommand::Right;
-    }
-    if (ctx.key_down(KeyCode::Home))
-    {
-      return TextCommand::LineStart;
-    }
-    if (ctx.key_down(KeyCode::End))
-    {
-      return TextCommand::LineEnd;
-    }
-    if (ctx.key_down(KeyCode::Up))
-    {
-      return TextCommand::Up;
-    }
-    if (ctx.key_down(KeyCode::Down))
-    {
-      return TextCommand::Down;
-    }
-    if (ctx.key_down(KeyCode::PageUp))
-    {
-      return TextCommand::PageUp;
-    }
-    if (ctx.key_down(KeyCode::PageDown))
-    {
-      return TextCommand::PageDown;
-    }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::Left))
-    {
-      return TextCommand::SelectLeft;
-    }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::Right))
-    {
-      return TextCommand::SelectRight;
-    }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::Up))
-    {
-      return TextCommand::SelectUp;
-    }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::Down))
-    {
-      return TextCommand::SelectDown;
-    }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::PageUp))
-    {
-      return TextCommand::SelectPageUp;
-    }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::PageDown))
-    {
-      return TextCommand::SelectPageDown;
-    }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::A))
-    {
-      return TextCommand::SelectAll;
-    }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::X))
-    {
-      return TextCommand::Cut;
-    }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::C))
-    {
-      return TextCommand::Copy;
-    }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::V))
-    {
-      return TextCommand::Paste;
-    }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::Z))
-    {
-      return TextCommand::Undo;
-    }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::Y))
-    {
-      return TextCommand::Redo;
-    }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::Left) &&
-        has_bits(ctx.mouse_buttons, MouseButtons::Primary))
-    {
-      return TextCommand::HitSelect;
-    }
-    if (is_multiline && !enter_submits && ctx.key_down(KeyCode::Return))
-    {
-      return TextCommand::NewLine;
-    }
-    if (tab_input && ctx.key_down(KeyCode::Tab))
-    {
-      return TextCommand::Tab;
-    }
-    return TextCommand::None;
   }
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events) override
+  constexpr void step(i32 direction, ScalarInput value) const
   {
-    bool edited = false;
-    auto erase  = [this, &edited](Slice32 s) {
-      this->content.text.erase(s);
-      edited |= s.is_empty();
-    };
-
-    auto insert = [this, &edited](u32 pos, Span<u32 const> t) {
-      CHECK(this->content.text.insert_span_copy(pos, t));
-      edited |= t.is_empty();
-    };
-
-    TextCommand cmd = TextCommand::None;
-    if (!disabled)
-    {
-      if (events.text_input)
-      {
-        cmd = TextCommand::InputText;
-      }
-      else if (events.key_down)
-      {
-        cmd = command(ctx);
-      }
-      else if (events.drag_start)
-      {
-        cmd = TextCommand::Hit;
-      }
-      else if (events.drag_update)
-      {
-        cmd = TextCommand::HitSelect;
-      }
-    }
-
-    Vec2 offset = region.begin() - ctx.mouse_position;
-    compositor.command(span(content.text), content.layout,
-                       TextBlockStyle{.runs        = span(content.run_styles),
-                                      .alignment   = content.alignment,
-                                      .align_width = region.extent.x},
-                       cmd, fn(&insert), fn(&erase), ctx.text, *ctx.clipboard,
-                       lines_per_page, offset);
-
-    if (edited)
-    {
-      on_edit();
-    }
-
-    if (events.focus_in)
-    {
-      on_focus_in();
-    }
-    else if (events.focus_out)
-    {
-      on_focus_out();
-      compositor.unselect();
-    }
-
-    // TODO(lamarrr):
-    //
-    // [ ] font hashmap
-    // [ ] word layout cache
-    //
-    //
-    // https://github.com/ocornut/imgui/issues/787#issuecomment-361419796 enter
-    // parent: prod children, nav to children
-    // https://user-images.githubusercontent.com/8225057/74143829-ce67b900-4bfb-11ea-90d9-0de40c944b26.gif
-    //
-
-    if (enter_submits && ctx.key_down(KeyCode::Return))
-    {
-      on_submit();
-    }
-
-    return ViewState{.draggable  = !disabled,
-                     .focusable  = !disabled,
-                     .text_input = !disabled,
-                     .tab_input  = tab_input,
-                     .lose_focus = ctx.key_down(KeyCode::Escape)};
+    /*   switch (v.type)
+     {
+       case ScalarInputType::u8:
+         v.u8 = (u8) ash::clamp((i64) v.u32 +
+                                    (i64) (direction ? step.u32 : -step.u32),
+                                (i64) min.u32, (i64) max.u32);
+         return;
+       case ScalarInputType::u16:
+         v.u16 = (u16) ash::clamp((i64) v.u32 +
+                                      (i64) (direction ? step.u32 : -step.u32),
+                                  (i64) min.u32, (i64) max.u32);
+         return;
+       case ScalarInputType::u32:
+         v.u32 = (u32) ash::clamp((i64) v.u32 +
+                                      (i64) (direction ? step.u32 : -step.u32),
+                                  (i64) min.u32, (i64) max.u32);
+         return;
+       case ScalarInputType::i8:
+         v.i8 = (i8) ash::clamp((i64) v.i32 +
+                                    (i64) (direction ? step.i32 : -step.i32),
+                                (i64) min.i32, (i64) max.i32);
+         return;
+       case ScalarInputType::i16:
+         v.i16 = (i16) ash::clamp((i64) v.i32 +
+                                      (i64) (direction ? step.i32 : -step.i32),
+                                  (i64) min.i32, (i64) max.i32);
+         return;
+       case ScalarInputType::i32:
+         v.i32 = (i32) ash::clamp((i64) v.i32 +
+                                      (i64) (direction ? step.i32 : -step.i32),
+                                  (i64) min.i32, (i64) max.i32);
+         return;
+       case ScalarInputType::f32:
+         v.f32 = (f32) ash::clamp((f64) v.f32 +
+                                      (f64) (direction ? step.f32 : -step.f32),
+                                  (f64) min.f32, (f64) max.f32);
+         return;
+       default:
+         return;
+     }*/
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) const override
-  {
-    if (content.text.is_empty())
-    {
-      layout_text(TextBlock{.text          = span(placeholder.text),
-                            .runs          = span(placeholder.runs),
-                            .fonts         = {},
-                            .direction     = placeholder.direction,
-                            .language      = placeholder.language,
-                            .use_kerning   = true,
-                            .use_ligatures = true},
-                  allocated.x, placeholder.layout);
-      return placeholder.layout.extent;
-    }
+  constexpr f32 uninterp() const;
 
-    layout_text(TextBlock{.text          = span(content.text),
-                          .runs          = span(content.runs),
-                          .fonts         = {},
-                          .direction     = content.direction,
-                          .language      = content.language,
-                          .use_kerning   = true,
-                          .use_ligatures = true},
-                allocated.x, content.layout);
-    return content.layout.extent;
-  }
-
-  virtual void render(CRect const &region, Canvas &canvas) const override
+  constexpr void interp(f32 t) const
   {
-    if (content.text.is_empty())
-    {
-      canvas.text({.center = region.center},
-                  TextBlock{.text          = span(placeholder.text),
-                            .runs          = span(placeholder.runs),
-                            .fonts         = {},
-                            .direction     = placeholder.direction,
-                            .language      = placeholder.language,
-                            .use_kerning   = true,
-                            .use_ligatures = true},
-                  placeholder.layout,
-                  TextBlockStyle{.runs        = span(placeholder.run_styles),
-                                 .alignment   = placeholder.alignment,
-                                 .align_width = region.extent.x},
-                  Span<FontAtlasResource const *>{});
-    }
-    else
-    {
-      canvas.text({.center = region.center},
-                  TextBlock{.text          = span(content.text),
-                            .runs          = span(content.runs),
-                            .fonts         = {},
-                            .direction     = content.direction,
-                            .language      = content.language,
-                            .use_kerning   = true,
-                            .use_ligatures = true},
-                  placeholder.layout,
-                  TextBlockStyle{.runs        = span(content.run_styles),
-                                 .alignment   = content.alignment,
-                                 .align_width = region.extent.x},
-                  Span<FontAtlasResource const *>{});
-    }
-  }
-
-  virtual Cursor cursor(CRect const &, Vec2) const override
-  {
-    return Cursor::Text;
+    /*     switch (a.type)
+         {
+           case ScalarInputType::u8:
+             return ScalarInput{.u8   = clamp((u8) lerp(a.u8, b.u8, t), a.u8,
+       b.u8), .type = ScalarInputType::u8}; case ScalarInputType::u16: return
+       ScalarInput{.u16 = clamp((u16) lerp(a.u16, b.u16, t), a.u16, b.u16),
+       .type = ScalarInputType::u16}; case ScalarInputType::u32: return
+       ScalarInput{.u32 = clamp((u32) lerp(a.u32, b.u32, t), a.u32, b.u32),
+       .type = ScalarInputType::u32}; case ScalarInputType::i8: return
+       ScalarInput{.i8   = clamp((i8) lerp(a.i8, b.i8, t), a.i8, b.i8), .type =
+       ScalarInputType::i8}; case ScalarInputType::i16: return ScalarInput{.i16
+       = clamp((i16) lerp(a.i16, b.i16, t), a.i16, b.i16), .type =
+       ScalarInputType::i16}; case ScalarInputType::i32: return ScalarInput{.i32
+       = clamp((i32) lerp(a.i32, b.i32, t), a.i32, b.i32), .type =
+       ScalarInputType::i32}; case ScalarInputType::f32: return ScalarInput{.f32
+       = clamp((f32) lerp(a.f32, b.f32, t), a.f32, b.f32), .type =
+       ScalarInputType::f32}; default: break;
+         }*/
   }
 };
 
-struct TextInputView : View
+struct ScalarDragBox : View, Pin<void>
 {
-  TextInput input;
-  // [ ] calculate lines per page
-  // [ ] viewport text with scrollable region
-  //  ViewAttributes::Scrollable |
-};
+  typedef Fn<void(fmt::Context &, ScalarInput)> Fmt;
 
-// DragBox: text input + dragging when alt is pressed down
-struct ScalarDragBox : View
-{
-  Fn<void(fmt::Context &, ScalarInput)> format     = fn(default_format);
-  ScalarInput                           value      = {};
-  ScalarInput                           min        = {};
-  ScalarInput                           max        = {};
-  ScalarInput                           step       = {};
-  Fn<void(ScalarInput)>                 on_changed = fn([](ScalarInput) {});
-  SizeConstraint                        width      = {.offset = 100};
-  SizeConstraint                        height     = {.offset = 20};
-  bool                                  disabled   = false;
+  bool               disabled : 1   = false;
+  bool               input_mode : 1 = false;
+  bool               dragging : 1   = false;
+  ScalarState const *scalar         = nullptr;
+  Fmt                fmt            = fn(default_fmt);
+  Fn<void(f32)>      on_dragged     = fn([](f32) {});
+  Frame     frame   = {.width = {.offset = 100}, .height = {.offset = 20}};
+  f32       padding = 5;
+  TextInput input   = {};
 
-  static void default_format(fmt::Context &ctx, ScalarInput v)
+  ScalarDragBox()
+  {
+    input.is_multiline  = false;
+    input.tab_input     = false;
+    input.enter_submits = false;
+  }
+
+  static void default_fmt(fmt::Context &ctx, ScalarInput v)
   {
     fmt::format(ctx, v);
   }
@@ -401,24 +190,74 @@ struct ScalarDragBox : View
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
                          ViewEvents events) override
   {
-    // if focused, read text input and parse
-    // if dragging, update
-    // if clicked, move to position
-    // should views handle this? no! systems.
-    // mouse enter + mouse down => focuse enter, mouse click elsewhere (focus
-    // lost), navigation event
-    return ViewState{.clickable = true, .draggable = true};
+    dragging = false;
+
+    f32 t = 0;
+
+    if (!disabled && events.drag_update)
+    {
+      t = clamp(unlerp(region.begin().x, region.end().x, ctx.mouse_position.x),
+                0.0F, 1.0F);
+      dragging = true;
+    }
+
+    if (input.editing)
+    {
+      // [ ] update value
+      // [ ] read text input and parse
+      // [ ] action on clear
+      // [ ] action on edit
+      // [ ] placeholder or always set to value
+      // [ ] what value to set input field to
+      // [ ] input.content.text;
+    }
+    else
+    {
+      // update text content
+      input.flush_text();
+    }
+
+    input_mode =
+        !disabled && (!input.focus_out ||
+                      (events.mouse_down && (ctx.key_down(KeyCode::LCtrl) ||
+                                             ctx.key_down(KeyCode::RCtrl))));
+
+    input.disabled = input_mode;
+
+    if (dragging)
+    {
+      on_dragged(t);
+    }
+
+    return ViewState{.draggable = !input.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) const override
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) const
   {
-    return Vec2{width(allocated.x), height(allocated.y)};
+    Vec2 child = frame(allocated) - padding;
+    child.x    = max(child.x, 0.0F);
+    child.y    = max(child.y, 0.0F);
+    fill(sizes, child);
+  }
+
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
+                   Span<Vec2> offsets) const override
+  {
+    fill(offsets, Vec2{0, 0});
+    return sizes[0] + padding;
   }
 
   virtual void render(CRect const &region, Canvas &canvas) const override
   {
-    (void) region;
-    (void) canvas;
+    canvas.rrect(
+        ShapeDesc{.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = Vec4::splat(region.extent.y * 0.125),
+                  .thickness    = 1.0f,
+                  .stroke       = 1,
+                  .tint = ColorGradient::y(colors::GREEN, colors::BLUE)});
+    // slider
+    canvas.rrect({});
   }
 };
 
@@ -428,97 +267,64 @@ struct ScalarDragBox : View
 /// Drag-Based Input
 /// Text-Field Input of exact values
 /// Generic Numeric Input: Scalars, Vectors, Matrices, Tensors
-struct ScalarBox : View
+struct ScalarBox : View, Pin<void>
 {
-  Fn<void(ScalarInput &, ScalarInput, ScalarInput, ScalarInput, bool)> step =
-      fn(default_step);
-  bool steppable = false;
-  bool draggable = false;
-  bool disabled  = false;
-
-  TextButton            negative_stepper;
-  TextButton            positive_stepper;
-  ScalarDragBox         dragger;
-  Fn<void(ScalarInput)> on_changed = fn([](ScalarInput) {});
+  bool                  disabled : 1   = false;
+  bool                  steppable : 1  = true;
+  bool                  draggable : 1  = true;
+  bool                  inputtable : 1 = true;
+  ScalarState const    *scalar         = nullptr;
+  ScalarInput           step           = {};
+  TextButton            decr           = {};
+  TextButton            incr           = {};
+  ScalarDragBox         dragger        = {};
+  Fn<void(ScalarInput)> on_changed     = fn([](ScalarInput) {});
 
   ScalarBox()
   {
-    negative_stepper.text.block.text = utf(U"-"_span);
-    positive_stepper.text.block.text = utf(U"+"_span);
+    // decr.text.block.text = utf(U"-"_span);
+    // incr.text.block.text = utf(U"+"_span);
 
-    positive_stepper.on_clicked = fn(this, [](ScalarBox *b) {
-      b->step(b->dragger.value, b->dragger.min, b->dragger.max, b->dragger.step,
-              true);
-      b->dragger.on_changed(b->dragger.value);
+    decr.on_clicked = fn(this, [](ScalarBox *b) {
+      if (b->scalar != nullptr)
+      {
+        b->scalar->step(-1, b->step);
+        b->on_changed(b->scalar->current);
+      }
     });
 
-    negative_stepper.on_clicked = fn(this, [](ScalarBox *b) {
-      b->step(b->dragger.value, b->dragger.min, b->dragger.max, b->dragger.step,
-              false);
-      b->dragger.on_changed(b->dragger.value);
+    incr.on_clicked = fn(this, [](ScalarBox *b) {
+      if (b->scalar != nullptr)
+      {
+        b->scalar->step(1, b->step);
+        b->on_changed(b->scalar->current);
+      }
     });
 
-    dragger.on_changed =
-        fn(this, [](ScalarBox *b, ScalarInput value) { b->on_changed(value); });
-  }
-
-  static void default_step(ScalarInput &v, ScalarInput min, ScalarInput max,
-                           ScalarInput step, bool direction)
-  {
-    switch (v.type)
-    {
-      case ScalarInputType::u8:
-        v.u8 = (u8) ash::clamp((i64) v.u32 +
-                                   (i64) (direction ? step.u32 : -step.u32),
-                               (i64) min.u32, (i64) max.u32);
-        return;
-      case ScalarInputType::u16:
-        v.u16 = (u16) ash::clamp((i64) v.u32 +
-                                     (i64) (direction ? step.u32 : -step.u32),
-                                 (i64) min.u32, (i64) max.u32);
-        return;
-      case ScalarInputType::u32:
-        v.u32 = (u32) ash::clamp((i64) v.u32 +
-                                     (i64) (direction ? step.u32 : -step.u32),
-                                 (i64) min.u32, (i64) max.u32);
-        return;
-      case ScalarInputType::i8:
-        v.i8 = (i8) ash::clamp((i64) v.i32 +
-                                   (i64) (direction ? step.i32 : -step.i32),
-                               (i64) min.i32, (i64) max.i32);
-        return;
-      case ScalarInputType::i16:
-        v.i16 = (i16) ash::clamp((i64) v.i32 +
-                                     (i64) (direction ? step.i32 : -step.i32),
-                                 (i64) min.i32, (i64) max.i32);
-        return;
-      case ScalarInputType::i32:
-        v.i32 = (i32) ash::clamp((i64) v.i32 +
-                                     (i64) (direction ? step.i32 : -step.i32),
-                                 (i64) min.i32, (i64) max.i32);
-        return;
-      case ScalarInputType::f32:
-        v.f32 = (f32) ash::clamp((f64) v.f32 +
-                                     (f64) (direction ? step.f32 : -step.f32),
-                                 (f64) min.f32, (f64) max.f32);
-        return;
-      default:
-        return;
-    }
+    dragger.on_dragged = fn(this, [](ScalarBox *b, f32 t) {
+      if (b->scalar != nullptr)
+      {
+        // synchronize values
+        b->scalar->interp(t);
+      }
+    });
   }
 };
 
+template <u32 N>
 struct VectorInputBox : View
 {
-  ScalarBox scalars[8];
-  u32       num = 0;
+  ScalarBox scalars[N];
 };
 
-struct MatrixInputBox : View
-{
-  VectorInputBox vectors[8];
-  u32            num_rows    = 0;
-  u32            num_columns = 0;
-};
+// struct ScrollableTextInput : ScrollBox, Pin<void>
+// {
+//   TextInput input;
+//   ScrollableTextInput()          = default;
+//   virtual ~ScrollableTextInput() = default;
+//   // [ ] calculate lines per page
+//   // [ ] viewport text with scrollable region, scroll direction
+//   // [ ] text input while in view, i.e. page down
+// };
 
 }        // namespace ash

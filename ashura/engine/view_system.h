@@ -63,9 +63,10 @@ struct ViewSystem
   {
     for (View *w : views)
     {
-      if (w->id == UID_MAX)
+      if (w->inner.id == UID_MAX)
       {
-        w->id = next_id++;
+        w->inner.id = next_id++;
+        // [ ] MOUNT
       }
     }
     CHECK(next_id != UID_MAX);
@@ -184,24 +185,25 @@ struct ViewSystem
   }
 
   void visibility()
-  {
-    for (u32 i = 0; i < views.size32(); i++)
-    {
-      ViewNode const &node = nodes[i];
-      // if parent not visibile. make children not visible
-      if (!has_bits(attributes[i], ViewAttributes::Visible))
-      {
-        for (ViewAttributes &attr :
-             span(attributes).slice(node.first_child, node.num_children))
-        {
-          attr = attr & ~ViewAttributes::Visible;
-        }
-      }
-    }
+  { /*
+     for (u32 i = 0; i < views.size32(); i++)
+     {
+       ViewNode const &node = nodes[i];
+       // if parent not visibile. make children not visible
+       if (!has_bits(attributes[i], ViewAttributes::Visible))
+       {
+         for (ViewAttributes &attr :
+              span(attributes).slice(node.first_child, node.num_children))
+         {
+           attr = attr & ~ViewAttributes::Visible;
+         }
+       }
+     }*/
   }
 
   void render(Canvas &canvas)
   {
+    /*
     for (u32 i : layered)
     {
       canvas.clip(clips[i]);
@@ -210,7 +212,7 @@ struct ViewSystem
         views[i]->render(CRect{.center = positions[i], .extent = sizes[i]},
                          canvas);
       }
-    }
+    }*/
   }
 
   void frame(View *root, Canvas &canvas, nanoseconds dt)

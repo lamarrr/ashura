@@ -10,19 +10,25 @@ namespace ash
 
 struct CheckBox : public View
 {
-  Fn<void(bool)> on_changed = fn([](bool) {});
-  bool           value      = false;
-  Vec4           color      = material::BLUE_A700.norm();
-  f32            width      = 20;
-  bool           disabled   = false;
+  bool           disabled : 1 = false;
+  bool           pressed : 1  = false;
+  bool           value : 1    = false;
+  Fn<void(bool)> on_changed   = fn([](bool) {});
+  Vec4           color        = material::BLUE_A700.norm();
+  SizeConstraint width        = {.offset = 20};
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events) override
   {
+    if (pressed && events.mouse_up)
+    {
+      pressed = false;
+    }
     if (!disabled && events.mouse_down &&
         has_bits(ctx.mouse_buttons, MouseButtons::Primary))
     {
-      value = !value;
+      pressed = true;
+      value   = !value;
       on_changed(value);
     }
 
@@ -31,9 +37,10 @@ struct CheckBox : public View
     return ViewState{.clickable = !disabled, .focusable = true};
   }
 
-  virtual Vec2 fit(Vec2, Span<Vec2 const>, Span<Vec2>) const override
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) const override
   {
-    return Vec2{width, width};
+    Vec2 extent = Frame{width, width}(allocated);
+    return Vec2::splat(min(extent.x, extent.y));
   }
 
   virtual void render(CRect const &region, Canvas &canvas) const override

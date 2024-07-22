@@ -39,6 +39,17 @@ struct SizeConstraint
   }
 };
 
+struct Frame
+{
+  SizeConstraint width  = {};
+  SizeConstraint height = {};
+
+  constexpr Vec2 operator()(Vec2 extent) const
+  {
+    return Vec2{width(extent.x), height(extent.y)};
+  }
+};
+
 enum class MainAlign : u8
 {
   Start        = 0,
@@ -48,24 +59,27 @@ enum class MainAlign : u8
   SpaceEvenly  = 4
 };
 
-/// @param DragStart drag event has begun on this view
-/// @param DragUpdate the mouse has been moved whilst this view is being
+/// @param mounted widget has been mounted to the widget tree and has now
+/// received an ID.
+/// @param drag_start drag event has begun on this view
+/// @param drag_update the mouse has been moved whilst this view is being
 /// dragged
-/// @param DragEnd the dragging of this view has completed
-/// @param DragEnter drag data has entered this view and might be dropped
-/// @param DragLeave drag data has left the view without being dropped
-/// @param Drop drag data is now available for the view to consume
-/// @param ViewHit called on every frame the view is viewed on the viewport.
+/// @param drag_end the dragging of this view has completed
+/// @param drag_enter drag data has entered this view and might be dropped
+/// @param drag_leave drag data has left the view without being dropped
+/// @param drop drag data is now available for the view to consume
+/// @param view_hit called on every frame the view is viewed on the viewport.
 /// Can be used for partial loading
-/// @param ViewMiss called on every frame that the view is not seen on the
+/// @param view_miss called on every frame that the view is not seen on the
 /// viewport this can be because it has hidden visibility, is clipped away, or
 /// parent positioned out of the visible region. Can be used for
 /// partial unloading.
-/// @param FocusIn the view has received keyboard focus
-/// @param FocusOut the view has lost keyboard focus
-/// @param TextInput the view has received composition text
+/// @param focus_in the view has received keyboard focus
+/// @param focus_out the view has lost keyboard focus
+/// @param text_input the view has received composition text
 struct ViewEvents
 {
+  bool mounted : 1       = false;
   bool mouse_down : 1    = false;
   bool mouse_up : 1      = false;
   bool mouse_pressed : 1 = false;
@@ -111,6 +125,7 @@ struct ViewEvents
 /// @param timedelta time elapsed between previous and current frame
 struct ViewContext
 {
+  void                    *app                     = nullptr;
   StrHashMap<void *>       globals                 = {};
   ClipBoard               *clipboard               = nullptr;
   bool                     has_focus               = false;
@@ -182,21 +197,29 @@ struct ViewState
 /// the child method based on the flag.
 struct View
 {
-  uid id = UID_MAX;
+  struct
+  {
+    uid id = UID_MAX;
+  } inner;
 
-  View()                        = default;
-  View(View const &)            = default;
-  View(View &&)                 = default;
-  View &operator=(View const &) = default;
-  View &operator=(View &&)      = default;
-  virtual ~View()               = default;
+  constexpr View()                        = default;
+  constexpr View(View const &)            = default;
+  constexpr View(View &&)                 = default;
+  constexpr View &operator=(View const &) = default;
+  constexpr View &operator=(View &&)      = default;
+  constexpr virtual ~View()               = default;
+
+  constexpr uid id() const
+  {
+    return inner.id;
+  }
 
   /// @brief get child views, this is a virtual iterator, return null once
   /// there's no other children, if returning from an array of sub-views
   /// consider using the `subview` method.
   /// @param i child index
   /// @return child view pointer or nullptr meaning no more child left.
-  virtual View *child(u32 i) const
+  constexpr virtual View *child(u32 i) const
   {
     (void) i;
     return nullptr;
@@ -207,8 +230,8 @@ struct View
   /// non-sub-millisecond tasks should be dispatched to a Subsystem that would
   /// handle that. i.e. using the multi-tasking system.
   //
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events)
+  constexpr virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                                   ViewEvents events)
   {
     (void) ctx;
     (void) region;
@@ -219,7 +242,7 @@ struct View
   /// @brief distributes the size allocated to it to its child views.
   /// @param allocated the size allocated to this view
   /// @param[out] sizes sizes allocated to the children.
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) const
+  constexpr virtual void size(Vec2 allocated, Span<Vec2> sizes) const
   {
     (void) allocated;
     fill(sizes, Vec2{0, 0});
@@ -231,8 +254,8 @@ struct View
   /// @param sizes sizes of the child views
   /// @param[out] offsets offsets of the views from the parent's center
   /// @return this view's fitted extent
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) const
+  constexpr virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
+                             Span<Vec2> offsets) const
   {
     (void) allocated;
     (void) sizes;
@@ -243,7 +266,7 @@ struct View
   /// @brief this is used for absolute positioning of the view
   /// @param center the allocated absolute center of this view relative
   /// to the viewport
-  virtual Vec2 position(CRect const &region) const
+  constexpr virtual Vec2 position(CRect const &region) const
   {
     return region.center;
   }
@@ -252,7 +275,7 @@ struct View
   /// @param z_index z-index allocated to this view by parent
   /// @param[out] allocation z-index assigned to children
   /// @return
-  virtual i32 stack(i32 z_index, Span<i32> allocation) const
+  constexpr virtual i32 stack(i32 z_index, Span<i32> allocation) const
   {
     fill(allocation, z_index + 1);
     return z_index;
@@ -261,7 +284,8 @@ struct View
   /// @brief this is used for clipping views. the provided clip is
   /// relative to the root viewport. Used for nested viewports where there are
   /// multiple intersecting clips.
-  virtual CRect clip(CRect const &region, CRect const &allocated) const
+  constexpr virtual CRect clip(CRect const &region,
+                               CRect const &allocated) const
   {
     (void) region;
     return allocated;
@@ -271,7 +295,7 @@ struct View
   /// only called if the view passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas
-  virtual void render(CRect const &region, Canvas &canvas) const
+  constexpr virtual void render(CRect const &region, Canvas &canvas) const
   {
     (void) region;
     (void) canvas;
@@ -281,7 +305,7 @@ struct View
   /// @param area area of view within the viewport
   /// @param offset offset of pointer within area
   /// @return true if in hit region
-  virtual bool hit(CRect const &region, Vec2 offset) const
+  constexpr virtual bool hit(CRect const &region, Vec2 offset) const
   {
     (void) region;
     (void) offset;
@@ -289,7 +313,7 @@ struct View
   }
 
   /// @brief Select cursor type given a highlighted region of the view.
-  virtual Cursor cursor(CRect const &region, Vec2 offset) const
+  constexpr virtual Cursor cursor(CRect const &region, Vec2 offset) const
   {
     (void) region;
     (void) offset;

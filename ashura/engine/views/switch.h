@@ -10,12 +10,12 @@ namespace ash
 
 struct Switch : public View
 {
+  bool           disabled : 1   = false;
+  bool           value : 1      = false;
   Fn<void(bool)> on_changed     = fn([](bool) {});
-  bool           state          = false;
   Vec4           active_color   = material::BLUE_A700.norm();
   Vec4           inactive_color = material::GRAY_500.norm();
   f32            height         = 20;
-  bool           disabled       = false;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events) override
@@ -23,8 +23,8 @@ struct Switch : public View
     if (!disabled && events.mouse_down &&
         has_bits(ctx.mouse_buttons, MouseButtons::Primary))
     {
-      state = !state;
-      on_changed(state);
+      value = !value;
+      on_changed(value);
     }
 
     // TODO(lamarrr): handle focus
@@ -53,11 +53,11 @@ struct Switch : public View
                            .tint = ColorGradient::uniform(active_color)});
 
     canvas.circle(ShapeDesc{
-        .center       = {state ? on_pos : off_pos, region.center.y},
+        .center       = {value ? on_pos : off_pos, region.center.y},
         .extent       = thumb_extent,
         .corner_radii = Vec4::splat(thumb_radius),
         .stroke       = 0,
-        .tint = ColorGradient::uniform(state ? active_color : inactive_color)});
+        .tint = ColorGradient::uniform(value ? active_color : inactive_color)});
   }
 };
 
