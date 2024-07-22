@@ -125,7 +125,8 @@ struct SparseVec
   }
 
   template <u8 I = 0>
-  constexpr Result<TupleType<I, T...> *, Void> try_get(uid id)
+  constexpr Result<decltype(get<I>(std::declval<Tuple<T...>>())) *, Void>
+      try_get(uid id)
   {
     Result index = try_to_index(id);
     if (!index)
@@ -138,7 +139,8 @@ struct SparseVec
   }
 
   template <u8 I = 0>
-  constexpr Result<TupleType<I, T...> *, Void> try_get(u64 id) const
+  constexpr Result<decltype(get<I>(std::declval<Tuple<T...>>())) *, Void>
+      try_get(u64 id) const
   {
     Result index = try_to_index(id);
     if (!index)
