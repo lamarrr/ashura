@@ -3,6 +3,7 @@
 
 #include "ashura/std/allocator.h"
 #include "ashura/std/mem.h"
+#include "ashura/std/result.h"
 #include "ashura/std/traits.h"
 #include "ashura/std/types.h"
 
@@ -110,18 +111,18 @@ struct Vec
     allocator_ = default_allocator;
   }
 
-  [[nodiscard]] bool reserve(usize target_capacity)
+  constexpr Result<Void, Void> reserve(usize target_capacity)
   {
     if (capacity_ >= target_capacity)
     {
-      return true;
+      return Ok{};
     }
 
     if constexpr (TriviallyRelocatable<T>)
     {
       if (!allocator_.nrealloc(capacity_, target_capacity, &data_))
       {
-        return false;
+        return Err{};
       }
     }
     else
@@ -129,7 +130,7 @@ struct Vec
       T *new_data;
       if (!allocator_.nalloc(target_capacity, &new_data))
       {
-        return false;
+        return Err{};
       }
 
       for (usize i = 0; i < size_; i++)
@@ -147,21 +148,21 @@ struct Vec
     }
 
     capacity_ = target_capacity;
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool fit()
+  constexpr Result<Void, Void> fit()
   {
     if (size_ == capacity_)
     {
-      return true;
+      return Ok{};
     }
 
     if constexpr (TriviallyRelocatable<T>)
     {
       if (!allocator_.nrealloc(capacity_, size_, &data_))
       {
-        return false;
+        return Err{};
       }
     }
     else
@@ -169,7 +170,7 @@ struct Vec
       T *new_data;
       if (!allocator_.nalloc(size_, &new_data))
       {
-        return false;
+        return Err{};
       }
 
       for (usize i = 0; i < size_; i++)
@@ -187,25 +188,25 @@ struct Vec
     }
 
     capacity_ = size_;
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool grow(usize target_size)
+  constexpr Result<Void, Void> grow(usize target_size)
   {
     if (capacity_ >= target_size)
     {
-      return true;
+      return Ok{};
     }
 
     return reserve(max(target_size, capacity_ + (capacity_ >> 1)));
   }
 
-  void erase(usize first, usize num)
+  constexpr void erase(usize first, usize num)
   {
     return erase(Slice{first, num});
   }
 
-  void erase(Slice slice)
+  constexpr void erase(Slice slice)
   {
     slice = slice(size_);
     if constexpr (TriviallyRelocatable<T>)
@@ -230,18 +231,18 @@ struct Vec
   void erase_non_destructing();
 
   template <typename... Args>
-  [[nodiscard]] bool push(Args &&...args)
+  constexpr Result<Void, Void> push(Args &&...args)
   {
     if (!grow(size_ + 1))
     {
-      return false;
+      return Err{};
     }
 
     new (data_ + size_) T{((Args &&) args)...};
 
     size_++;
 
-    return true;
+    return Ok{};
   }
 
   constexpr void pop(usize num = 1)
@@ -258,23 +259,24 @@ struct Vec
     size_ -= num;
   }
 
-  [[nodiscard]] constexpr bool try_pop(usize num = 1)
+  constexpr Result<Void, Void> try_pop(usize num = 1)
   {
     if (size_ < num)
     {
-      return false;
+      return Err{};
     }
 
     pop(num);
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool shift_uninitialized(usize first, usize distance)
+  Result<Void, Void> shift_uninitialized(usize first, usize distance)
   {
+    first = min(first, size_);
     if (!grow(size_ + distance))
     {
-      return false;
+      return Err{};
     }
 
     if constexpr (TriviallyRelocatable<T>)
@@ -308,26 +310,28 @@ struct Vec
 
     size_ += distance;
 
-    return true;
+    return Ok{};
   }
 
   template <typename... Args>
-  [[nodiscard]] bool insert(usize dst, Args &&...args)
+  constexpr Result<Void, Void> insert(usize dst, Args &&...args)
   {
+    dst = min(dst, size_);
     if (!shift_uninitialized(dst, 1))
     {
-      return false;
+      return Err{};
     }
 
     new (data_ + dst) T{((Args &&) args)...};
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool insert_span_copy(usize dst, Span<T const> span)
+  constexpr Result<Void, Void> insert_span_copy(usize dst, Span<T const> span)
   {
+    dst = min(dst, size_);
     if (!shift_uninitialized(dst, span.size()))
     {
-      return false;
+      return Err{};
     }
 
     if constexpr (TriviallyCopyConstructible<T>)
@@ -342,14 +346,15 @@ struct Vec
       }
     }
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool insert_span_move(usize dst, Span<T> span)
+  constexpr Result<Void, Void> insert_span_move(usize dst, Span<T> span)
   {
+    dst = min(dst, size_);
     if (!shift_uninitialized(dst, span.size()))
     {
-      return false;
+      return Err{};
     }
 
     if constexpr (TriviallyMoveConstructible<T>)
@@ -364,27 +369,27 @@ struct Vec
       }
     }
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool extend_uninitialized(usize extension)
+  constexpr Result<Void, Void> extend_uninitialized(usize extension)
   {
     if (!grow(size_ + extension))
     {
-      return false;
+      return Err{};
     }
 
     size_ += extension;
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool extend_defaulted(usize extension)
+  constexpr Result<Void, Void> extend_defaulted(usize extension)
   {
     usize const pos = size_;
     if (!extend_uninitialized(extension))
     {
-      return false;
+      return Err{};
     }
 
     for (usize i = pos; i < size_; i++)
@@ -392,15 +397,15 @@ struct Vec
       new (data_ + i) T{};
     }
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool extend_copy(Span<T const> span)
+  constexpr Result<Void, Void> extend_copy(Span<T const> span)
   {
     usize const pos = size_;
     if (!extend_uninitialized(span.size()))
     {
-      return false;
+      return Err{};
     }
 
     // free to use memcpy because the source range is not overlapping with this
@@ -417,15 +422,15 @@ struct Vec
       }
     }
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool extend_move(Span<T> span)
+  constexpr Result<Void, Void> extend_move(Span<T> span)
   {
     usize const pos = size_;
     if (!extend_uninitialized(span.size()))
     {
-      return false;
+      return Err{};
     }
 
     // non-overlapping, use memcpy
@@ -441,7 +446,7 @@ struct Vec
       }
     }
 
-    return true;
+    return Ok{};
   }
 
   constexpr void swap(usize a, usize b) const
@@ -449,23 +454,23 @@ struct Vec
     ::ash::swap(data_[a], data_[b]);
   }
 
-  [[nodiscard]] bool resize_uninitialized(usize new_size)
+  constexpr Result<Void, Void> resize_uninitialized(usize new_size)
   {
     if (new_size <= size_)
     {
       erase(new_size, size_ - new_size);
-      return true;
+      return Ok{};
     }
 
     return extend_uninitialized(new_size - size_);
   }
 
-  [[nodiscard]] bool resize_defaulted(usize new_size)
+  constexpr Result<Void, Void> resize_defaulted(usize new_size)
   {
     if (new_size <= size_)
     {
       erase(new_size, size_ - new_size);
-      return true;
+      return Ok{};
     }
 
     return extend_defaulted(new_size - size_);
@@ -542,25 +547,25 @@ struct BitVec
            ((num_bits & (NumTraits<Rep>::NUM_BITS - 1)) == 0 ? 0 : 1);
   }
 
-  [[nodiscard]] bool reserve(usize target_capacity)
+  constexpr Result<Void, Void> reserve(usize target_capacity)
   {
     return vec.reserve(num_packs(target_capacity));
   }
 
-  [[nodiscard]] bool grow(usize target_size)
+  constexpr Result<Void, Void> grow(usize target_size)
   {
     return vec.grow(num_packs(target_size));
   }
 
-  [[nodiscard]] bool push(bool bit)
+  constexpr Result<Void, Void> push(bool bit)
   {
     if (!grow(num_bits + 1))
     {
-      return false;
+      return Err{};
     }
     this->operator[](num_bits) = bit;
     num_bits++;
-    return true;
+    return Ok{};
   }
 
   constexpr void pop(usize num = 1)
@@ -574,14 +579,14 @@ struct BitVec
     }
   }
 
-  [[nodiscard]] constexpr bool try_pop(usize num = 1)
+  constexpr Result<Void, Void> try_pop(usize num = 1)
   {
     if (num_bits < num)
     {
-      return false;
+      return Err{};
     }
     pop(num);
-    return true;
+    return Ok{};
   }
 
   void erase(usize index, usize num = 1)
@@ -595,30 +600,30 @@ struct BitVec
   }
 
   template <typename T>
-  [[nodiscard]] bool extend_span_copy(BitSpan<T const> span);
+  constexpr Result<Void, Void> extend_span_copy(BitSpan<T const> span);
 
   template <typename T>
-  [[nodiscard]] bool extend_span_move(BitSpan<T const> span);
+  constexpr Result<Void, Void> extend_span_move(BitSpan<T const> span);
 
-  [[nodiscard]] bool extend_uninitialized(usize extension)
+  constexpr Result<Void, Void> extend_uninitialized(usize extension)
   {
     if (!vec.extend_uninitialized(num_packs(num_bits + extension) -
                                   num_packs(num_bits)))
     {
-      return false;
+      return Err{};
     }
 
     num_bits += extension;
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool extend_defaulted(usize extension)
+  constexpr Result<Void, Void> extend_defaulted(usize extension)
   {
     usize const pos = num_bits;
     if (!extend_uninitialized(extension))
     {
-      return false;
+      return Err{};
     }
 
     for (usize i = pos; i < num_bits; i++)
@@ -626,26 +631,26 @@ struct BitVec
       this->operator[](i) = false;
     }
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool resize_uninitialized(usize new_size)
+  constexpr Result<Void, Void> resize_uninitialized(usize new_size)
   {
     if (new_size <= num_bits)
     {
       erase(new_size, num_bits - new_size);
-      return true;
+      return Ok{};
     }
 
     return extend_uninitialized(new_size - num_bits);
   }
 
-  [[nodiscard]] bool resize_defaulted(usize new_size)
+  constexpr Result<Void, Void> resize_defaulted(usize new_size)
   {
     if (new_size <= num_bits)
     {
       erase(new_size, num_bits - new_size);
-      return true;
+      return Ok{};
     }
 
     return extend_defaulted(new_size - num_bits);
