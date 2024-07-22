@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/canvas.h"
+#include "ashura/engine/font_atlas.h"
 #include "ashura/std/math.h"
 
 namespace ash
