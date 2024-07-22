@@ -6,7 +6,7 @@
 namespace ash
 {
 
-template <typename T>
+template <typename T = Void>
 struct [[nodiscard]] Ok
 {
   using Type = T;
@@ -16,7 +16,7 @@ struct [[nodiscard]] Ok
 template <typename T>
 Ok(T) -> Ok<T>;
 
-template <typename E>
+template <typename E = Void>
 struct [[nodiscard]] Err
 {
   using Type = E;
