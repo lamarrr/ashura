@@ -22,12 +22,11 @@ struct WindowEventListener
 
 struct WindowImpl
 {
-  SDL_Window              *win              = nullptr;
-  gfx::Surface             surface          = nullptr;
-  uid                      backend_id       = UID_MAX;
-  Vec<WindowEventListener> listeners        = {};
-  SparseVec                listeners_id_map = {};
-  gfx::InstanceImpl        instance         = {};
+  SDL_Window                    *win        = nullptr;
+  gfx::Surface                   surface    = nullptr;
+  uid                            backend_id = UID_MAX;
+  SparseVec<WindowEventListener> listeners  = {};
+  gfx::InstanceImpl              instance   = {};
 };
 
 struct WindowSystemImpl final : public WindowSystem
@@ -94,7 +93,7 @@ struct WindowSystemImpl final : public WindowSystem
       WindowImpl *win = (WindowImpl *) window;
       win->instance->destroy_surface(win->instance.self, win->surface);
       SDL_DestroyWindow(win->win);
-      win->listeners_id_map.reset(win->listeners);
+      win->listeners.reset();
       default_allocator.ndealloc(win, 1);
     }
   }
@@ -278,21 +277,15 @@ struct WindowSystemImpl final : public WindowSystem
   uid listen(Window window, WindowEventTypes event_types,
              Fn<void(WindowEvent const &)> callback) override
   {
-    uid         out_id;
     WindowImpl *pwin = (WindowImpl *) window;
-    CHECK(pwin->listeners_id_map.push(
-        [&](uid id, u32) {
-          out_id = id;
-          CHECK(pwin->listeners.push(callback, event_types));
-        },
-        pwin->listeners));
-    return out_id;
+    return pwin->listeners.push(WindowEventListener{callback, event_types})
+        .unwrap();
   }
 
   void unlisten(Window window, uid listener) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
-    pwin->listeners_id_map.erase(listener, pwin->listeners);
+    pwin->listeners.erase(listener);
   }
 
   gfx::Surface get_surface(Window window) override
@@ -310,7 +303,7 @@ struct WindowSystemImpl final : public WindowSystem
         (WindowImpl *) SDL_GetProperty(props_id, "impl_object", nullptr);
     CHECK(impl != nullptr);
 
-    for (WindowEventListener const &listener : impl->listeners)
+    for (WindowEventListener const &listener : impl->listeners.dense.v0)
     {
       if (has_bits(listener.types, event.type))
       {
