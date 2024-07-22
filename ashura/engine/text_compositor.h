@@ -167,63 +167,125 @@ struct TextCompositor
   static constexpr u32 TAB_STRING[]           = {'\t', '\t', '\t', '\t',
                                                  '\t', '\t', '\t', '\t'};
 
-  TextCursor          cursor         = {};
-  Vec<u32>            buffer         = {};
-  Vec<TextEditRecord> records        = {};
-  u32                 buffer_usage   = 0;
-  u32                 buffer_pos     = 0;
-  u32                 latest_record  = 0;
-  u32                 current_record = 0;
-  u32                 tab_width      = 1;
-  Span<u32 const>     word_symbols   = span(DEFAULT_WORD_SYMBOLS);
-  Span<u32 const>     line_symbols   = span(DEFAULT_LINE_SYMBOLS);
+  struct Inner
+  {
+    TextCursor          cursor         = {};
+    Vec<u32>            buffer         = {};
+    Vec<TextEditRecord> records        = {};
+    u32                 buffer_usage   = 0;
+    u32                 buffer_pos     = 0;
+    u32                 latest_record  = 0;
+    u32                 current_record = 0;
+    u32                 tab_width      = 1;
+    Span<u32 const>     word_symbols   = span(DEFAULT_WORD_SYMBOLS);
+    Span<u32 const>     line_symbols   = span(DEFAULT_LINE_SYMBOLS);
+
+    void init(u32 num_buffer_codepoints, u32 num_records)
+    {
+      CHECK(num_buffer_codepoints > 0);
+      CHECK(num_records > 0);
+      CHECK(is_pow2(num_buffer_codepoints));
+      CHECK(is_pow2(num_records));
+      buffer.resize_uninitialized(num_buffer_codepoints).unwrap();
+      records.resize_defaulted(num_records).unwrap();
+    }
+
+    void reset()
+    {
+      cursor = {};
+      buffer.reset();
+      records.reset();
+      buffer_usage   = 0;
+      buffer_pos     = 0;
+      latest_record  = 0;
+      current_record = 0;
+      word_symbols   = span(DEFAULT_WORD_SYMBOLS);
+      line_symbols   = span(DEFAULT_LINE_SYMBOLS);
+    }
+
+    void uninit()
+    {
+      reset();
+    }
+
+    void pop_records(u32 num);
+
+    void append_record(bool is_insert, u32 text_pos, Span<u32 const> segment);
+
+    void undo(Insert insert, Erase erase);
+
+    void redo(Insert insert, Erase erase);
+
+    void unselect();
+
+    void delete_selection(Span<u32 const> text, Erase erase);
+
+    void command(Span<u32 const> text, TextLayout const &layout,
+                 f32 align_width, f32 alignment, TextCommand cmd, Insert insert,
+                 Erase erase, Span<u32 const> input, ClipBoard &clipboard,
+                 u32 lines_per_page, Vec2 pos);
+  } inner = {};
 
   void init(u32 num_buffer_codepoints, u32 num_records)
   {
-    CHECK(num_buffer_codepoints > 0);
-    CHECK(num_records > 0);
-    CHECK(is_pow2(num_buffer_codepoints));
-    CHECK(is_pow2(num_records));
-    buffer.resize_uninitialized(num_buffer_codepoints).unwrap();
-    records.resize_defaulted(num_records).unwrap();
+    inner.init(num_buffer_codepoints, num_records);
+  }
+
+  TextCursor get_cursor() const
+  {
+    return inner.cursor;
   }
 
   void reset()
   {
-    cursor = {};
-    buffer.reset();
-    records.reset();
-    buffer_usage   = 0;
-    buffer_pos     = 0;
-    latest_record  = 0;
-    current_record = 0;
-    word_symbols   = span(DEFAULT_WORD_SYMBOLS);
-    line_symbols   = span(DEFAULT_LINE_SYMBOLS);
+    inner.reset();
   }
 
   void uninit()
   {
-    reset();
+    inner.uninit();
   }
 
-  void pop_records(u32 num);
+  void pop_records(u32 num)
+  {
+    inner.pop_records(num);
+  }
 
-  void append_record(bool is_insert, u32 text_pos, Span<u32 const> segment);
+  void append_record(bool is_insert, u32 text_pos, Span<u32 const> segment)
+  {
+    inner.append_record(is_insert, text_pos, segment);
+  }
 
-  void undo(Insert insert, Erase erase);
+  void undo(Insert insert, Erase erase)
+  {
+    inner.undo(insert, erase);
+  }
 
-  void redo(Insert insert, Erase erase);
+  void redo(Insert insert, Erase erase)
+  {
+    inner.redo(insert, erase);
+  }
 
-  void unselect();
+  void unselect()
+  {
+    inner.unselect();
+  }
 
-  void delete_selection(Span<u32 const> text, Erase erase);
+  void delete_selection(Span<u32 const> text, Erase erase)
+  {
+    inner.delete_selection(text, erase);
+  }
 
   /// @param text original text
   /// @param input text from IME to insert
-  void command(Span<u32 const> text, TextLayout const &layout,
-               TextBlockStyle const &style, TextCommand cmd, Insert insert,
-               Erase erase, Span<u32 const> input, ClipBoard &clipboard,
-               u32 lines_per_page, Vec2 pos);
+  void command(Span<u32 const> text, TextLayout const &layout, f32 align_width,
+               f32 alignment, TextCommand cmd, Insert insert, Erase erase,
+               Span<u32 const> input, ClipBoard &clipboard, u32 lines_per_page,
+               Vec2 pos)
+  {
+    inner.command(text, layout, align_width, alignment, cmd, insert, erase,
+                  input, clipboard, lines_per_page, pos);
+  }
 };
 
 }        // namespace ash

@@ -439,8 +439,8 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   layout.extent    = extent;
 }
 
-TextHitResult hit_text(TextLayout const &layout, TextBlockStyle const &style,
-                       Vec2 pos)
+TextHitResult hit_text(TextLayout const &layout, f32 style_align_width,
+                       f32 style_alignment, Vec2 pos)
 {
   u32 const num_lines = layout.lines.size32();
 
@@ -467,8 +467,8 @@ TextHitResult hit_text(TextLayout const &layout, TextBlockStyle const &style,
   Line const         &ln        = layout.lines[l];
   TextDirection const direction = level_to_direction(ln.metrics.level);
   f32 const           alignment =
-      style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
-  f32 cursor = space_align(style.align_width, ln.metrics.width, alignment) -
+      style_alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
+  f32 cursor = space_align(style_align_width, ln.metrics.width, alignment) -
                ln.metrics.width * 0.5F;
 
   for (u32 r = 0; r < ln.num_runs; r++)

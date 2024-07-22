@@ -27,7 +27,7 @@ static inline u32 goto_line(TextLayout const &layout, u32 alignment, u32 line)
   return ln.first_codepoint + alignment;
 }
 
-void TextCompositor::pop_records(u32 num)
+void TextCompositor::Inner::pop_records(u32 num)
 {
   CHECK(num <= records.size32());
   u32 reclaimed = 0;
@@ -42,8 +42,8 @@ void TextCompositor::pop_records(u32 num)
   current_record -= num;
 }
 
-void TextCompositor::append_record(bool is_insert, u32 text_pos,
-                                   Span<u32 const> segment)
+void TextCompositor::Inner::append_record(bool is_insert, u32 text_pos,
+                                          Span<u32 const> segment)
 {
   if (segment.size32() > buffer.size32())
   {
@@ -75,7 +75,7 @@ void TextCompositor::append_record(bool is_insert, u32 text_pos,
   buffer_pos += segment.size32();
 }
 
-void TextCompositor::undo(Insert insert, Erase erase)
+void TextCompositor::Inner::undo(Insert insert, Erase erase)
 {
   if (current_record == 0)
   {
@@ -100,7 +100,7 @@ void TextCompositor::undo(Insert insert, Erase erase)
   }
 }
 
-void TextCompositor::redo(Insert insert, Erase erase)
+void TextCompositor::Inner::redo(Insert insert, Erase erase)
 {
   if (current_record + 1 > latest_record)
   {
@@ -126,12 +126,12 @@ void TextCompositor::redo(Insert insert, Erase erase)
   }
 }
 
-void TextCompositor::unselect()
+void TextCompositor::Inner::unselect()
 {
   cursor = cursor.unselect();
 }
 
-void TextCompositor::delete_selection(Span<u32 const> text, Erase erase)
+void TextCompositor::Inner::delete_selection(Span<u32 const> text, Erase erase)
 {
   if (cursor.is_empty())
   {
@@ -236,10 +236,12 @@ static inline LinePosition line_translate(TextLayout const &layout, u32 cursor,
   return LinePosition{};
 }
 
-void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
-                             TextBlockStyle const &style, TextCommand cmd,
-                             Insert insert, Erase erase, Span<u32 const> input,
-                             ClipBoard &clipboard, u32 lines_per_page, Vec2 pos)
+void TextCompositor::Inner::command(Span<u32 const>   text,
+                                    TextLayout const &layout, f32 align_width,
+                                    f32 alignment, TextCommand cmd,
+                                    Insert insert, Erase erase,
+                                    Span<u32 const> input, ClipBoard &clipboard,
+                                    u32 lines_per_page, Vec2 pos)
 {
   switch (cmd)
   {
@@ -489,19 +491,19 @@ void TextCompositor::command(Span<u32 const> text, TextLayout const &layout,
     break;
     case TextCommand::Hit:
     {
-      TextHitResult const hit = hit_text(layout, style, pos);
+      TextHitResult const hit = hit_text(layout, align_width, alignment, pos);
       cursor.first = cursor.last = hit.cluster;
     }
     break;
     case TextCommand::HitSelect:
     {
-      TextHitResult const hit = hit_text(layout, style, pos);
+      TextHitResult const hit = hit_text(layout, align_width, alignment, pos);
       cursor.last             = hit.cluster;
     }
     break;
     case TextCommand::NewLine:
     {
-      Span<u32 const> input     = utf(U"\n"_span);
+      Span<u32 const> input     = U"\n"_utf;
       Slice32         selection = cursor.as_slice(text.size32());
       delete_selection(text, fn([](Slice32) {}));
       append_record(true, selection.offset, input);

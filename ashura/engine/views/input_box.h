@@ -161,7 +161,7 @@ struct ScalarState
   }
 };
 
-struct ScalarDragBox : View, Pin<void>
+struct ScalarDragBox : View, Pin<>
 {
   typedef Fn<void(fmt::Context &, ScalarInput)> Fmt;
 
@@ -214,7 +214,24 @@ struct ScalarDragBox : View, Pin<void>
     else
     {
       // update text content
-      input.flush_text();
+      char         scratch[256];
+      char         text[512];
+      Span<char>   it;
+      fmt::Context ctx{.push           = fn(&it,
+                                            [](Span<char> *it, Span<char const> in) {
+                                    if (in.size() > it->size())
+                                    {
+                                      return false;
+                                    }
+                                    copy(in, *it);
+                                    it->data_ += in.size();
+                                    it->size_ -= in.size();
+                                    return true;
+                                  }),
+                       .scratch_buffer = span(scratch)};
+      fmt(ctx, scalar->current);
+      input.content.set_text_utf8(Span{text, (usize) (it.data_ - text)}.as_u8(),
+                                  {}, {});
     }
 
     input_mode =
@@ -268,7 +285,7 @@ struct ScalarDragBox : View, Pin<void>
 /// Drag-Based Input
 /// Text-Field Input of exact values
 /// Generic Numeric Input: Scalars, Vectors, Matrices, Tensors
-struct ScalarBox : View, Pin<void>
+struct ScalarBox : View, Pin<>
 {
   bool                  disabled : 1   = false;
   bool                  steppable : 1  = true;
@@ -283,8 +300,8 @@ struct ScalarBox : View, Pin<void>
 
   ScalarBox()
   {
-    // decr.text.block.text = utf(U"-"_span);
-    // incr.text.block.text = utf(U"+"_span);
+    decr.text.text.set_text(U"-"_utf, {}, {});
+    incr.text.text.set_text(U"+"_utf, {}, {});
 
     decr.on_clicked = fn(this, [](ScalarBox *b) {
       if (b->scalar != nullptr)
@@ -318,7 +335,7 @@ struct VectorInputBox : View
   ScalarBox scalars[N];
 };
 
-// struct ScrollableTextInput : ScrollBox, Pin<void>
+// struct ScrollableTextInput : ScrollBox, Pin<>
 // {
 //   TextInput input;
 //   ScrollableTextInput()          = default;

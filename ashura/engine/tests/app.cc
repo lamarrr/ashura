@@ -289,13 +289,13 @@ int main(int, char **)
       {.font = font, .font_height = 30, .line_height = 1.25}};
   TextLayout text_layout;
 
-  TextBlock text_block{.text      = utf(UR"(
+  TextBlock text_block{.text      = UR"(
 المادة 12.
 لا يعرض أحد لتدخل تعسفي في حياته الخاصة أو أسرته أو مسكنه أو مراسلاته أو لحملات على شرفه وسمعته، ولكل شخص الحق في حماية القانون من مثل هذا التدخل أو تلك الحملات.
 المادة 13.
 ( 1 ) لكل فرد حرية التنقل واختيار محل إقامته داخل حدود كل دولة.
 ( 2 ) يحق لكل فرد أن يغادر أية بلاد بما في ذلك بلده كما يحق له العودة إليه.
-)"_span),
+)"_utf,
                        .runs      = span(runs),
                        .fonts     = span(font_styles),
                        .direction = TextDirection::RightToLeft,

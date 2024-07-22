@@ -186,6 +186,7 @@ add_library(
   ashura/engine/text.cc
   ashura/engine/canvas.cc
   ashura/engine/image_decoder.cc
+  ashura/engine/render_text.cc
   ashura/engine/shader.cc
   ashura/engine/text_compositor.cc
   ashura/engine/window.cc
@@ -240,5 +241,11 @@ target_include_directories(
   ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
                        ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
 
-add_executable(ashura_engine_test ashura/engine/tests/test.cc)
-target_link_libraries(ashura_engine_test ashura_engine)
+add_executable(
+  ashura_engine_tests
+  ashura/engine/tests/main.cc ashura/engine/tests/render_text.cc
+  ashura/engine/tests/text_compositor.cc)
+target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
+
+add_executable(ashura_app_test ashura/engine/tests/app.cc)
+target_link_libraries(ashura_app_test ashura_engine)
