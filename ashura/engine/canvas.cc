@@ -504,18 +504,10 @@ void Canvas::squircle(ShapeDesc const &desc, f32 elasticity, u32 segments)
 }
 
 void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
-                  TextLayout const &layout, TextBlockStyle const &style,
-                  Span<FontAtlasResource const *const> atlases)
+                  TextLayout const &layout, TextBlockStyle const &style)
 {
   CHECK(style.runs.size() == block.runs.size());
   CHECK(style.runs.size() == block.fonts.size());
-  for (u32 i = 0; i < block.fonts.size32(); i++)
-  {
-    CHECK(atlases[i] != nullptr);
-    CHECK(block.fonts[i].font != nullptr);
-    FontInfo f = get_font_info(block.fonts[i].font);
-    CHECK(atlases[i]->glyphs.size() == f.glyphs.size());
-  }
 
   f32 const  block_width = max(layout.extent.x, style.align_width);
   Vec2 const half_block_extent{block_width / 2, layout.extent.y / 2};
@@ -544,10 +536,10 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
       for (TextRun const &run :
            span(layout.runs).slice(ln.first_run, ln.num_runs))
       {
-        FontStyle const         &font_style = block.fonts[run.style];
-        TextStyle const         &run_style  = style.runs[run.style];
-        FontInfo const           font       = get_font_info(font_style.font);
-        FontAtlasResource const *atlas      = atlases[run.style];
+        FontStyle const    &font_style = block.fonts[run.style];
+        TextStyle const    &run_style  = style.runs[run.style];
+        FontInfo const      font       = get_font_info(font_style.font);
+        GpuFontAtlas const *atlas      = font.gpu_atlas.value();
         f32 const run_width = au_to_px(run.metrics.advance, run.font_height);
 
         if (pass == PASS_BACKGROUND && !run_style.background.is_transparent())
