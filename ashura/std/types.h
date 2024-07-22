@@ -952,7 +952,7 @@ constexpr auto &&get(Tuple<T...> &&tuple)
 }
 
 template <typename Fn, typename Tuple>
-constexpr void impl_apply(Fn &&op, Tuple &&tuple)
+constexpr void impl_for_each(Fn &&op, Tuple &&tuple)
 {
   constexpr u8 NUM_ELEMENTS = remove_ref<Tuple>::NUM_ELEMENTS;
   if constexpr (NUM_ELEMENTS > 0)
@@ -1022,27 +1022,21 @@ constexpr void impl_apply(Fn &&op, Tuple &&tuple)
 }
 
 template <typename Fn, typename... T>
-constexpr void apply(Fn &&op, Tuple<T...> const &tuple)
+constexpr void for_each(Fn &&op, Tuple<T...> const &tuple)
 {
-  impl_apply((Fn &&) op, tuple);
+  impl_for_each((Fn &&) op, tuple);
 }
 
 template <typename Fn, typename... T>
-constexpr void apply(Fn &&op, Tuple<T...> &tuple)
+constexpr void for_each(Fn &&op, Tuple<T...> &tuple)
 {
-  impl_apply((Fn &&) op, tuple);
+  impl_for_each((Fn &&) op, tuple);
 }
 
 template <typename Fn, typename... T>
-constexpr void apply(Fn &&op, Tuple<T...> const &&tuple)
+constexpr void for_each(Fn &&op, Tuple<T...> &&tuple)
 {
-  impl_apply((Fn &&) op, tuple);
-}
-
-template <typename Fn, typename... T>
-constexpr void apply(Fn &&op, Tuple<T...> &&tuple)
-{
-  impl_apply((Fn &&) op, tuple);
+  impl_for_each((Fn &&) op, tuple);
 }
 
 enum class Axis : u8
