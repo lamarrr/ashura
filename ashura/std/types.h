@@ -14,6 +14,9 @@
 
 namespace ash
 {
+typedef char8_t   c8;
+typedef char16_t  c16;
+typedef char32_t  c32;
 typedef uint8_t   u8;
 typedef uint16_t  u16;
 typedef uint32_t  u32;
@@ -1828,11 +1831,6 @@ constexpr Vec2U operator+(u32 a, Vec2U b)
   return Vec2U{a + b.x, a + b.y};
 }
 
-constexpr Vec2U operator-(Vec2U a)
-{
-  return Vec2U{-a.x, -a.y};
-}
-
 constexpr Vec2U operator-(Vec2U a, Vec2U b)
 {
   return Vec2U{a.x - b.x, a.y - b.y};
@@ -3075,29 +3073,34 @@ constexpr Span<char const> operator""_span(char const *lit, usize n)
   return Span<char const>{lit, n};
 }
 
-constexpr Span<char8_t const> operator""_span(char8_t const *lit, usize n)
+constexpr Span<c8 const> operator""_span(c8 const *lit, usize n)
 {
-  return Span<char8_t const>{lit, n};
+  return Span<c8 const>{lit, n};
 }
 
-constexpr Span<char16_t const> operator""_span(char16_t const *lit, usize n)
+constexpr Span<c16 const> operator""_span(c16 const *lit, usize n)
 {
-  return Span<char16_t const>{lit, n};
+  return Span<c16 const>{lit, n};
 }
 
-constexpr Span<char32_t const> operator""_span(char32_t const *lit, usize n)
+constexpr Span<c32 const> operator""_span(c32 const *lit, usize n)
 {
-  return Span<char32_t const>{lit, n};
+  return Span<c32 const>{lit, n};
 }
 
-constexpr Span<u8 const> utf(Span<char8_t const> s)
+constexpr Span<u8 const> operator""_utf(c8 const *lit, usize n)
 {
-  return Span<u8 const>{(u8 const *) s.data_, s.size_};
+  return Span<u8 const>{(u8 const *) lit, n};
 }
 
-constexpr Span<u32 const> utf(Span<char32_t const> s)
+constexpr Span<u16 const> operator""_utf(c16 const *lit, usize n)
 {
-  return Span<u32 const>{(u32 const *) s.data_, s.size_};
+  return Span<u16 const>{(u16 const *) lit, n};
+}
+
+constexpr Span<u32 const> operator""_utf(c32 const *lit, usize n)
+{
+  return Span<u32 const>{(u32 const *) lit, n};
 }
 
 /// @param bit_index max of Rep::NUM_BITS - 1
@@ -3694,7 +3697,7 @@ struct [[nodiscard]] SourceLocation
   u32         column   = 0;
 };
 
-template <typename T>
+template <typename T = void>
 struct Pin
 {
   typedef T Type;
@@ -3721,5 +3724,35 @@ struct Pin<void>
   constexpr Pin &operator=(Pin &&)      = delete;
   constexpr ~Pin()                      = default;
 };
+
+constexpr u8 sat_add(u8 a, u8 b)
+{
+  return (u8) min((u16) ((u16) a + (u16) b), (u16) U8_MAX);
+}
+
+constexpr u16 sat_add(u16 a, u16 b)
+{
+  return (u16) min((u32) a + (u32) b, (u32) U16_MAX);
+}
+
+constexpr u32 sat_add(u32 a, u32 b)
+{
+  return (u32) min((u64) a + (u64) b, (u64) U32_MAX);
+}
+
+constexpr i8 sat_add(i8 a, u8 b)
+{
+  return (i8) min((i16) ((i16) a + (i16) b), (i16) I8_MAX);
+}
+
+constexpr i16 sat_add(i16 a, i16 b)
+{
+  return (i16) min((i32) a + (i32) b, (i32) I16_MAX);
+}
+
+constexpr i32 sat_add(i32 a, i32 b)
+{
+  return (i32) min((i64) a + (i64) b, (i64) I32_MAX);
+}
 
 }        // namespace ash
