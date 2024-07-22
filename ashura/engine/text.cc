@@ -206,7 +206,7 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
   u32 const first_glyph = l.glyphs.size32();
   i32       advance     = 0;
 
-  CHECK(l.glyphs.extend_uninitialized(num_glyphs));
+  l.glyphs.extend_uninitialized(num_glyphs).unwrap();
 
   for (u32 i = 0; i < num_glyphs; i++)
   {
@@ -221,21 +221,22 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
     advance += pos.x_advance;
   }
 
-  CHECK(l.runs.push(
-      TextRun{.first_codepoint = first,
-              .num_codepoints  = count,
-              .style           = style,
-              .font_height     = s.font_height,
-              .line_height     = max(s.line_height, 1.0f),
-              .first_glyph     = first_glyph,
-              .num_glyphs      = num_glyphs,
-              .metrics         = TextRunMetrics{.advance = advance,
-                                                .ascent  = font_metrics.ascent,
-                                                .descent = font_metrics.descent},
-              .base_level      = base_level,
-              .level           = level,
-              .paragraph       = paragraph,
-              .breakable       = breakable}));
+  l.runs
+      .push(TextRun{.first_codepoint = first,
+                    .num_codepoints  = count,
+                    .style           = style,
+                    .font_height     = s.font_height,
+                    .line_height     = max(s.line_height, 1.0f),
+                    .first_glyph     = first_glyph,
+                    .num_glyphs      = num_glyphs,
+                    .metrics         = TextRunMetrics{.advance = advance,
+                                                      .ascent  = font_metrics.ascent,
+                                                      .descent = font_metrics.descent},
+                    .base_level      = base_level,
+                    .level           = level,
+                    .paragraph       = paragraph,
+                    .breakable       = breakable})
+      .unwrap();
 }
 
 /// See Unicode Embedding Level Reordering:
@@ -284,7 +285,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   CHECK(block.fonts.size() <= U16_MAX);
   CHECK(block.runs.size() == block.fonts.size());
 
-  CHECK(layout.segments.resize_defaulted(block.text.size()));
+  layout.segments.resize_defaulted(block.text.size()).unwrap();
   Span segments = span(layout.segments);
 
   for (TextSegment &s : segments)
@@ -426,7 +427,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
                                              .level   = base_level},
               .paragraph       = paragraph};
 
-    CHECK(layout.lines.push(line));
+    layout.lines.push(line).unwrap();
 
     reorder_line(span(layout.runs).slice(first, i - first));
 

@@ -44,12 +44,14 @@ struct ViewSystem
       {
         break;
       }
-      CHECK(views.push(child));
+      views.push(child).unwrap();
       num_children++;
       CHECK(num_children < U32_MAX);
     }
-    CHECK(nodes.push(
-        ViewNode{.first_child = first_child, .num_children = num_children}));
+    nodes
+        .push(
+            ViewNode{.first_child = first_child, .num_children = num_children})
+        .unwrap();
 
     for (u32 i = 0; i < num_children; i++)
     {
@@ -216,17 +218,17 @@ struct ViewSystem
     views.clear();
     if (root != nullptr)
     {
-      CHECK(views.push(root));
+      views.push(root).unwrap();
       insert_subview(root);
     }
     allocate_ids();
     u32 const num_views = views.size32();
-    CHECK(states.resize_uninitialized(num_views));
-    CHECK(sizes.resize_uninitialized(num_views));
-    CHECK(positions.resize_uninitialized(num_views));
-    CHECK(clips.resize_uninitialized(num_views));
-    CHECK(z_indices.resize_uninitialized(num_views));
-    CHECK(layered.resize_uninitialized(num_views));
+    states.resize_uninitialized(num_views).unwrap();
+    sizes.resize_uninitialized(num_views).unwrap();
+    positions.resize_uninitialized(num_views).unwrap();
+    clips.resize_uninitialized(num_views).unwrap();
+    z_indices.resize_uninitialized(num_views).unwrap();
+    layered.resize_uninitialized(num_views).unwrap();
 
     // child()
     // - hashmap of ids to node and pointers need to be built every frame

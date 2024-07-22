@@ -184,8 +184,8 @@ struct TextCompositor
     CHECK(num_records > 0);
     CHECK(is_pow2(num_buffer_codepoints));
     CHECK(is_pow2(num_records));
-    CHECK(buffer.resize_uninitialized(num_buffer_codepoints));
-    CHECK(records.resize_defaulted(num_records));
+    buffer.resize_uninitialized(num_buffer_codepoints).unwrap();
+    records.resize_defaulted(num_records).unwrap();
   }
 
   void reset()
