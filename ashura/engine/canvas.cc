@@ -7,7 +7,7 @@ namespace ash
 
 void Path::rect(Vec<Vec2> &vtx)
 {
-  CHECK(vtx.extend_copy(span<Vec2>({{-1, -1}, {1, -1}, {1, 1}, {-1, 1}})));
+  vtx.extend_copy(span<Vec2>({{-1, -1}, {1, -1}, {1, 1}, {-1, 1}})).unwrap();
 }
 
 void Path::arc(Vec<Vec2> &vtx, f32 start, f32 stop, u32 segments)
@@ -19,7 +19,7 @@ void Path::arc(Vec<Vec2> &vtx, f32 start, f32 stop, u32 segments)
 
   u32 const first = vtx.size32();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   f32 const step = (stop - start) / (segments - 1);
 
@@ -38,7 +38,7 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
 
   u32 const first = vtx.size32();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   f32 const step = (2 * PI) / (segments - 1);
 
@@ -91,7 +91,7 @@ void Path::rrect(Vec<Vec2> &vtx, Vec4 radii, u32 segments)
   f32 const step  = (curve_segments == 0) ? 0.0f : ((PI / 2) / curve_segments);
   u32 const first = vtx.size32();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   u32 i = 0;
 
@@ -153,7 +153,7 @@ void Path::brect(Vec<Vec2> &vtx, Vec4 slant)
                            {1 - slant.z, 1},   {-1 + slant.w, 1},
                            {-1, 1 - slant.w},  {-1, -1 + slant.x}};
 
-  CHECK(vtx.extend_copy(span(vertices)));
+  vtx.extend_copy(span(vertices)).unwrap();
 }
 
 void Path::bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments)
@@ -165,7 +165,7 @@ void Path::bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments)
 
   u32 const first = vtx.size32();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   f32 const step = 1.0f / (segments - 1);
 
@@ -186,7 +186,7 @@ void Path::cubic_bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
 
   u32 const first = vtx.size32();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   f32 const step = 1.0f / (segments - 1);
 
@@ -208,7 +208,7 @@ void Path::catmull_rom(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
 
   u32 const beg = vtx.size();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   f32 const step = 1.0f / (segments - 1);
 
@@ -233,8 +233,8 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
   u32 const num_points   = points.size32();
   u32 const num_vertices = (num_points - 1) * 4;
   u32 const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
-  CHECK(vertices.extend_uninitialized(num_vertices));
-  CHECK(indices.extend_uninitialized(num_indices));
+  vertices.extend_uninitialized(num_vertices).unwrap();
+  indices.extend_uninitialized(num_indices).unwrap();
 
   Vec2 *vtx  = vertices.data() + first_vtx;
   u32  *idx  = indices.data() + first_idx;
@@ -287,7 +287,7 @@ void Path::triangles(u32 first_vertex, u32 num_vertices, Vec<u32> &indices)
   CHECK(num_vertices > 3);
   u32 const num_triangles = num_vertices / 3;
   u32 const first_idx     = indices.size32();
-  CHECK(indices.extend_uninitialized(num_triangles * 3));
+  indices.extend_uninitialized(num_triangles * 3).unwrap();
 
   u32 *idx = indices.data() + first_idx;
   for (u32 i = 0; i < num_triangles * 3; i += 3)
@@ -308,7 +308,7 @@ void Path::triangulate_convex(Vec<u32> &idx, u32 first_vertex, u32 num_vertices)
   u32 const num_indices = (num_vertices - 2) * 3;
   u32 const first_index = idx.size32();
 
-  CHECK(idx.extend_uninitialized(num_indices));
+  idx.extend_uninitialized(num_indices).unwrap();
 
   for (u32 i = 0, v = 1; i < num_indices; i += 3, v++)
   {
@@ -387,62 +387,70 @@ static inline void add_run(Canvas &canvas, CanvasPassType type)
       break;
   }
 
-  CHECK(canvas.pass_runs.push(CanvasPassRun{.type  = type,
-                                            .clip  = canvas.current_clip,
-                                            .first = num - 1,
-                                            .count = 1}));
+  canvas.pass_runs
+      .push(CanvasPassRun{.type  = type,
+                          .clip  = canvas.current_clip,
+                          .first = num - 1,
+                          .count = 1})
+      .unwrap();
 }
 
 void Canvas::circle(ShapeDesc const &desc)
 {
-  CHECK(rrect_params.push(RRectParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .radii        = {1, 1, 1, 1},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .aspect_ratio = desc.extent.x / desc.extent.y,
-      .stroke       = desc.stroke,
-      .thickness    = desc.thickness / desc.extent.y,
-      .edge_smoothness = desc.edge_smoothness,
-      .sampler         = desc.sampler,
-      .albedo          = desc.texture}));
+  rrect_params
+      .push(RRectParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .radii     = {1, 1, 1, 1},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .aspect_ratio    = desc.extent.x / desc.extent.y,
+          .stroke          = desc.stroke,
+          .thickness       = desc.thickness / desc.extent.y,
+          .edge_smoothness = desc.edge_smoothness,
+          .sampler         = desc.sampler,
+          .albedo          = desc.texture})
+      .unwrap();
 
   add_run(*this, CanvasPassType::RRect);
 }
 
 void Canvas::rect(ShapeDesc const &desc)
 {
-  CHECK(rrect_params.push(RRectParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .radii        = {0, 0, 0, 0},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .aspect_ratio = desc.extent.x / desc.extent.y,
-      .stroke       = desc.stroke,
-      .thickness    = desc.thickness / desc.extent.y,
-      .edge_smoothness = desc.edge_smoothness,
-      .sampler         = desc.sampler,
-      .albedo          = desc.texture}));
+  rrect_params
+      .push(RRectParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .radii     = {0, 0, 0, 0},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .aspect_ratio    = desc.extent.x / desc.extent.y,
+          .stroke          = desc.stroke,
+          .thickness       = desc.thickness / desc.extent.y,
+          .edge_smoothness = desc.edge_smoothness,
+          .sampler         = desc.sampler,
+          .albedo          = desc.texture})
+      .unwrap();
 
   add_run(*this, CanvasPassType::RRect);
 }
 
 void Canvas::rrect(ShapeDesc const &desc)
 {
-  CHECK(rrect_params.push(RRectParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .radii        = desc.corner_radii / desc.extent.y,
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .aspect_ratio = desc.extent.x / desc.extent.y,
-      .stroke       = desc.stroke,
-      .thickness    = desc.thickness / desc.extent.y,
-      .edge_smoothness = desc.edge_smoothness,
-      .sampler         = desc.sampler,
-      .albedo          = desc.texture}));
+  rrect_params
+      .push(RRectParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .radii     = desc.corner_radii / desc.extent.y,
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .aspect_ratio    = desc.extent.x / desc.extent.y,
+          .stroke          = desc.stroke,
+          .thickness       = desc.thickness / desc.extent.y,
+          .edge_smoothness = desc.edge_smoothness,
+          .sampler         = desc.sampler,
+          .albedo          = desc.texture})
+      .unwrap();
 
   add_run(*this, CanvasPassType::RRect);
 }
@@ -460,17 +468,19 @@ void Canvas::brect(ShapeDesc const &desc)
 
   u32 const num_indices = indices.size32() - first_index;
 
-  CHECK(ngon_params.push(NgonParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .sampler      = desc.sampler,
-      .albedo       = desc.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex}));
+  ngon_params
+      .push(NgonParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .sampler   = desc.sampler,
+          .albedo    = desc.texture,
+          .first_index  = first_index,
+          .first_vertex = first_vertex})
+      .unwrap();
 
-  CHECK(ngon_index_counts.push(num_indices));
+  ngon_index_counts.push(num_indices).unwrap();
 
   add_run(*this, CanvasPassType::Ngon);
 }
@@ -488,17 +498,19 @@ void Canvas::squircle(ShapeDesc const &desc, f32 elasticity, u32 segments)
 
   u32 const num_indices = indices.size32() - first_index;
 
-  CHECK(ngon_params.push(NgonParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .sampler      = desc.sampler,
-      .albedo       = desc.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex}));
+  ngon_params
+      .push(NgonParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .sampler   = desc.sampler,
+          .albedo    = desc.texture,
+          .first_index  = first_index,
+          .first_vertex = first_vertex})
+      .unwrap();
 
-  CHECK(ngon_index_counts.push(num_indices));
+  ngon_index_counts.push(num_indices).unwrap();
 
   add_run(*this, CanvasPassType::Ngon);
 }
@@ -660,22 +672,24 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
   u32 const first_index  = indices.size32();
   u32 const first_vertex = vertices.size32();
 
-  CHECK(vertices.extend_copy(points));
+  vertices.extend_copy(points).unwrap();
   Path::triangles(first_vertex, points.size32(), indices);
 
-  CHECK(ngon_params.push(NgonParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .sampler      = desc.sampler,
-      .albedo       = desc.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex}));
+  ngon_params
+      .push(NgonParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .sampler   = desc.sampler,
+          .albedo    = desc.texture,
+          .first_index  = first_index,
+          .first_vertex = first_vertex})
+      .unwrap();
 
   u32 const num_indices = vertices.size32() - first_vertex;
 
-  CHECK(ngon_index_counts.push(num_indices));
+  ngon_index_counts.push(num_indices).unwrap();
 
   add_run(*this, CanvasPassType::Ngon);
 }
@@ -691,25 +705,27 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points,
   u32 const first_index  = indices.size32();
   u32 const first_vertex = vertices.size32();
 
-  CHECK(vertices.extend_copy(points));
-  CHECK(indices.extend_copy(idx));
+  vertices.extend_copy(points).unwrap();
+  indices.extend_copy(idx).unwrap();
 
   for (u32 &v : span(indices).slice(first_index))
   {
     v += first_vertex;
   }
 
-  CHECK(ngon_params.push(NgonParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .sampler      = desc.sampler,
-      .albedo       = desc.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex}));
+  ngon_params
+      .push(NgonParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .sampler   = desc.sampler,
+          .albedo    = desc.texture,
+          .first_index  = first_index,
+          .first_vertex = first_vertex})
+      .unwrap();
 
-  CHECK(ngon_index_counts.push(idx.size32()));
+  ngon_index_counts.push(idx.size32()).unwrap();
 
   add_run(*this, CanvasPassType::Ngon);
 }
@@ -725,19 +741,21 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
   u32 const first_vertex = vertices.size32();
   Path::triangulate_stroke(points, vertices, indices,
                            desc.thickness / desc.extent.y);
-  CHECK(ngon_params.push(NgonParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .sampler      = desc.sampler,
-      .albedo       = desc.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex}));
+  ngon_params
+      .push(NgonParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .sampler   = desc.sampler,
+          .albedo    = desc.texture,
+          .first_index  = first_index,
+          .first_vertex = first_vertex})
+      .unwrap();
 
   u32 const num_indices = indices.size32() - first_index;
 
-  CHECK(ngon_index_counts.push(num_indices));
+  ngon_index_counts.push(num_indices).unwrap();
 
   add_run(*this, CanvasPassType::Ngon);
 }
@@ -745,14 +763,14 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
 void Canvas::blur(CRect const &area, u32 num_passes)
 {
   CHECK(num_passes > 0);
-  CHECK(blur_params.push(
-      CanvasBlurParam{.area = area, .num_passes = num_passes}));
+  blur_params.push(CanvasBlurParam{.area = area, .num_passes = num_passes})
+      .unwrap();
   add_run(*this, CanvasPassType::Blur);
 }
 
 void Canvas::custom(CustomCanvasPass pass)
 {
-  CHECK(custom_passes.push(pass));
+  custom_passes.push(pass).unwrap();
   add_run(*this, CanvasPassType::Custom);
 }
 

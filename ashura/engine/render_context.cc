@@ -553,8 +553,9 @@ void RenderContext::release(gfx::Image image)
   {
     return;
   }
-  CHECK(released_objects[ring_index()].push(
-      gfx::Object{.image = image, .type = gfx::ObjectType::Image}));
+  released_objects[ring_index()]
+      .push(gfx::Object{.image = image, .type = gfx::ObjectType::Image})
+      .unwrap();
 }
 
 void RenderContext::release(gfx::ImageView view)
@@ -563,8 +564,9 @@ void RenderContext::release(gfx::ImageView view)
   {
     return;
   }
-  CHECK(released_objects[ring_index()].push(
-      gfx::Object{.image_view = view, .type = gfx::ObjectType::ImageView}));
+  released_objects[ring_index()]
+      .push(gfx::Object{.image_view = view, .type = gfx::ObjectType::ImageView})
+      .unwrap();
 }
 
 void RenderContext::release(gfx::Buffer buffer)
@@ -573,8 +575,9 @@ void RenderContext::release(gfx::Buffer buffer)
   {
     return;
   }
-  CHECK(released_objects[ring_index()].push(
-      gfx::Object{.buffer = buffer, .type = gfx::ObjectType::Buffer}));
+  released_objects[ring_index()]
+      .push(gfx::Object{.buffer = buffer, .type = gfx::ObjectType::Buffer})
+      .unwrap();
 }
 
 void RenderContext::release(gfx::BufferView view)
@@ -583,8 +586,10 @@ void RenderContext::release(gfx::BufferView view)
   {
     return;
   }
-  CHECK(released_objects[ring_index()].push(
-      gfx::Object{.buffer_view = view, .type = gfx::ObjectType::BufferView}));
+  released_objects[ring_index()]
+      .push(
+          gfx::Object{.buffer_view = view, .type = gfx::ObjectType::BufferView})
+      .unwrap();
 }
 
 void RenderContext::release(gfx::DescriptorSetLayout layout)
@@ -593,9 +598,10 @@ void RenderContext::release(gfx::DescriptorSetLayout layout)
   {
     return;
   }
-  CHECK(released_objects[ring_index()].push(
-      gfx::Object{.descriptor_set_layout = layout,
-                  .type = gfx::ObjectType::DescriptorSetLayout}));
+  released_objects[ring_index()]
+      .push(gfx::Object{.descriptor_set_layout = layout,
+                        .type = gfx::ObjectType::DescriptorSetLayout})
+      .unwrap();
 }
 
 void RenderContext::release(gfx::DescriptorSet set)
@@ -604,8 +610,10 @@ void RenderContext::release(gfx::DescriptorSet set)
   {
     return;
   }
-  CHECK(released_objects[ring_index()].push(gfx::Object{
-      .descriptor_set = set, .type = gfx::ObjectType::DescriptorSet}));
+  released_objects[ring_index()]
+      .push(gfx::Object{.descriptor_set = set,
+                        .type           = gfx::ObjectType::DescriptorSet})
+      .unwrap();
 }
 
 void RenderContext::release(gfx::Sampler sampler)
@@ -614,8 +622,9 @@ void RenderContext::release(gfx::Sampler sampler)
   {
     return;
   }
-  CHECK(released_objects[ring_index()].push(
-      gfx::Object{.sampler = sampler, .type = gfx::ObjectType::Sampler}));
+  released_objects[ring_index()]
+      .push(gfx::Object{.sampler = sampler, .type = gfx::ObjectType::Sampler})
+      .unwrap();
 }
 
 static void destroy_objects(gfx::DeviceImpl const  &d,
