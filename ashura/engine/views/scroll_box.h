@@ -56,7 +56,8 @@ struct ScrollBar : public View
     return allocated;
   }
 
-  virtual void render(CRect const &region, Canvas &canvas) const override
+  virtual void render(CRect const &region, CRect const &,
+                      Canvas      &canvas) const override
   {
     u8 const   main_axis    = (direction == Axis::X) ? 0 : 1;
     u8 const   cross_axis   = (direction == Axis::Y) ? 1 : 0;

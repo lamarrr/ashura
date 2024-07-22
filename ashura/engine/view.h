@@ -295,9 +295,11 @@ struct View
   /// only called if the view passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas
-  constexpr virtual void render(CRect const &region, Canvas &canvas) const
+  constexpr virtual void render(CRect const &region, CRect const &clip,
+                                Canvas &canvas) const
   {
     (void) region;
+    (void) clip;
     (void) canvas;
   }
 

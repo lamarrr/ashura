@@ -36,7 +36,8 @@ struct Switch : public View
     return Vec2{height * 2, height};
   }
 
-  virtual void render(CRect const &region, Canvas &canvas) const override
+  virtual void render(CRect const &region, CRect const &,
+                      Canvas      &canvas) const override
   {
     f32 const  padding       = (1.75f / 20) * region.extent.y;
     f32 const  corner_radius = 0.06125f * region.extent.y;

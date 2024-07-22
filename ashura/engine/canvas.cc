@@ -517,7 +517,8 @@ void Canvas::squircle(ShapeDesc const &desc, f32 elasticity, u32 segments)
 }
 
 void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
-                  TextLayout const &layout, TextBlockStyle const &style)
+                  TextLayout const &layout, TextBlockStyle const &style,
+                  CRect const &clip)
 {
   CHECK(style.runs.size() == block.runs.size());
   CHECK(style.runs.size() == block.fonts.size());
@@ -537,6 +538,12 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
     f32 line_y = 0;
     for (Line const &ln : layout.lines)
     {
+      if (!overlaps(clip.offseted(),
+                    Rect{desc.center - half_block_extent + Vec2{0, line_y},
+                         Vec2{block_width, ln.metrics.height}}))
+      {
+        continue;
+      }
       line_y += ln.metrics.height;
       f32 const           baseline  = line_y - ln.metrics.descent;
       TextDirection const direction = level_to_direction(ln.metrics.level);

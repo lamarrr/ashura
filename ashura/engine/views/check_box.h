@@ -43,7 +43,8 @@ struct CheckBox : public View
     return Vec2::splat(min(extent.x, extent.y));
   }
 
-  virtual void render(CRect const &region, Canvas &canvas) const override
+  virtual void render(CRect const &region, CRect const &,
+                      Canvas      &canvas) const override
   {
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,

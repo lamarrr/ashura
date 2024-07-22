@@ -247,14 +247,15 @@ struct ScalarDragBox : View, Pin<void>
     return sizes[0] + padding;
   }
 
-  virtual void render(CRect const &region, Canvas &canvas) const override
+  virtual void render(CRect const &region, CRect const &,
+                      Canvas      &canvas) const override
   {
     canvas.rrect(
         ShapeDesc{.center       = region.center,
                   .extent       = region.extent,
-                  .corner_radii = Vec4::splat(region.extent.y * 0.125),
-                  .thickness    = 1.0f,
+                  .corner_radii = Vec4::splat(region.extent.y * 0.125F),
                   .stroke       = 1,
+                  .thickness    = 1.0f,
                   .tint = ColorGradient::y(colors::GREEN, colors::BLUE)});
     // slider
     canvas.rrect({});
