@@ -450,7 +450,7 @@ ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
   Vec<u32>           spirv;
   defer              spirv_del{[&] { spirv.reset(); }};
   ShaderCompileError error =
-      compile_shader(*default_logger, spirv, span(file_path), type, preamble,
+      compile_shader(default_logger, spirv, span(file_path), type, preamble,
                      "main"_span, span({root_directory}), {});
 
   if (error != ShaderCompileError::None)

@@ -454,7 +454,7 @@ void TextCompositor::Inner::command(Span<u32 const>   text,
     {
       Vec<u8> data_u8;
       defer   deta_u8_del{[&] { data_u8.reset(); }};
-      utf8_encode(text.slice(cursor.as_slice(text.size32())), data_u8);
+      utf8_encode(text.slice(cursor.as_slice(text.size32())), data_u8).unwrap();
       delete_selection(text, erase);
       clipboard.set_text(span(data_u8));
     }
@@ -463,7 +463,7 @@ void TextCompositor::Inner::command(Span<u32 const>   text,
     {
       Vec<u8> data_u8;
       defer   deta_u8_del{[&] { data_u8.reset(); }};
-      utf8_encode(text.slice(cursor.as_slice(text.size32())), data_u8);
+      utf8_encode(text.slice(cursor.as_slice(text.size32())), data_u8).unwrap();
       clipboard.set_text(span(data_u8));
     }
     break;
@@ -471,7 +471,7 @@ void TextCompositor::Inner::command(Span<u32 const>   text,
     {
       Vec<u32> data_u32;
       defer    data_u32_del{[&] { data_u32.reset(); }};
-      utf8_decode(clipboard.get_text(), data_u32);
+      utf8_decode(clipboard.get_text(), data_u32).unwrap();
       Slice32 selection = cursor.as_slice(text.size32());
       delete_selection(text, fn([](Slice32) {}));
       append_record(true, selection.offset, span(data_u32));
