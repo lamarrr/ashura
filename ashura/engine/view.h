@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/engine/canvas.h"
+#include "ashura/engine/color.h"
 #include "ashura/engine/input.h"
 #include "ashura/engine/renderer.h"
 #include "ashura/engine/text.h"
@@ -188,6 +189,20 @@ struct ViewState
   bool grab_focus : 1 = false;
   bool lose_focus : 1 = false;
 };
+
+struct CoreViewTheme
+{
+  ColorGradient background = ColorGradient::uniform(mdc::GRAY_900);
+  ColorGradient header     = ColorGradient::uniform(mdc::GRAY_800);
+  ColorGradient text       = ColorGradient::uniform(mdc::WHITE);
+  ColorGradient inactive   = ColorGradient::uniform(mdc::GRAY_600);
+  ColorGradient active     = ColorGradient::uniform(mdc::BLUE_300);
+  ColorGradient error      = ColorGradient::uniform(mdc::RED_300);
+  ColorGradient warning    = ColorGradient::uniform(mdc::YELLOW_300);
+  ColorGradient success    = ColorGradient::uniform(mdc::GREEN_300);
+};
+
+constexpr CoreViewTheme DEFAULT_THEME = {};
 
 /// @brief Base view class. All view types must inherit from this struct.
 /// Views are plain visual elements that define spatial relationships,

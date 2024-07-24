@@ -19,7 +19,9 @@ struct TaskInfo
   Span<u64 const>       increments           = {};
 };
 
-/// all tasks execute out-of-order. but have dependencies enforced by
+/// @brief Static Thread Pool Scheduler.
+///
+/// all tasks execute out-of-order and have dependencies enforced by
 /// semaphores.
 ///
 /// it has 2 types of threads: worker threads and dedicated threads.
@@ -31,10 +33,11 @@ struct TaskInfo
 /// worker threads process any type of tasks, although might not be as
 /// responsive as dedicated threads.
 ///
-/// work submitted to the main thread MUST be extremely light-weight and
+///
+/// @note work submitted to the main thread MUST be extremely light-weight and
 /// non-blocking.
 ///
-/// # Requirements:
+/// Requirements:
 /// [x] result collection
 /// [x] inter-task communication
 /// [x] inter-task sharing

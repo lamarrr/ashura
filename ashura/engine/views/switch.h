@@ -13,8 +13,8 @@ struct Switch : public View
   bool           disabled : 1   = false;
   bool           value : 1      = false;
   Fn<void(bool)> on_changed     = fn([](bool) {});
-  Vec4           active_color   = material::BLUE_A700.norm();
-  Vec4           inactive_color = material::GRAY_500.norm();
+  ColorGradient  active_color   = DEFAULT_THEME.inactive;
+  ColorGradient  inactive_color = DEFAULT_THEME.inactive;
   f32            height         = 20;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
@@ -27,7 +27,7 @@ struct Switch : public View
       on_changed(value);
     }
 
-    // TODO(lamarrr): handle focus
+    // [ ] handle focus
     return ViewState{.clickable = true, .focusable = true};
   }
 
@@ -51,14 +51,14 @@ struct Switch : public View
                            .corner_radii = Vec4::splat(corner_radius),
                            .stroke       = 1,
                            .thickness    = 1,
-                           .tint = ColorGradient::uniform(active_color)});
+                           .tint         = active_color});
 
-    canvas.circle(ShapeDesc{
-        .center       = {value ? on_pos : off_pos, region.center.y},
-        .extent       = thumb_extent,
-        .corner_radii = Vec4::splat(thumb_radius),
-        .stroke       = 0,
-        .tint = ColorGradient::uniform(value ? active_color : inactive_color)});
+    canvas.circle(
+        ShapeDesc{.center       = {value ? on_pos : off_pos, region.center.y},
+                  .extent       = thumb_extent,
+                  .corner_radii = Vec4::splat(thumb_radius),
+                  .stroke       = 0,
+                  .tint         = value ? active_color : inactive_color});
   }
 };
 

@@ -19,14 +19,14 @@ namespace ash
 
 static_assert(AU_UNIT % 64 == 0);
 
-Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
-                                   AllocatorImpl const &allocator)
+Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
+                                          AllocatorImpl const &allocator)
 {
   u32   font_data_size = encoded.size32();
   char *font_data;
   if (!allocator.nalloc(font_data_size, &font_data))
   {
-    return Err{FontStatus::OutOfMemory};
+    return Err{FontDecodeError::OutOfMemory};
   }
 
   defer font_data_del{[&] {
@@ -43,7 +43,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
 
   if (hb_blob == nullptr)
   {
-    return Err{FontStatus::DecodingFailed};
+    return Err{FontDecodeError::DecodingFailed};
   }
 
   defer hb_blob_del{[&] {
@@ -57,14 +57,14 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
 
   if (face >= num_faces)
   {
-    return Err{FontStatus::FaceNotFound};
+    return Err{FontDecodeError::FaceNotFound};
   }
 
   hb_face_t *hb_face = hb_face_create(hb_blob, face);
 
   if (hb_face == nullptr)
   {
-    return Err{FontStatus::DecodingFailed};
+    return Err{FontDecodeError::DecodingFailed};
   }
 
   defer hb_face_del{[&] {
@@ -78,7 +78,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
 
   if (hb_font == nullptr)
   {
-    return Err{FontStatus::DecodingFailed};
+    return Err{FontDecodeError::DecodingFailed};
   }
 
   hb_font_set_scale(hb_font, AU_UNIT, AU_UNIT);
@@ -93,7 +93,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
   FT_Library ft_lib;
   if (FT_Init_FreeType(&ft_lib) != 0)
   {
-    return Err{FontStatus::DecodingFailed};
+    return Err{FontDecodeError::DecodingFailed};
   }
 
   defer ft_lib_del{[&] {
@@ -108,12 +108,12 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
   if (FT_New_Memory_Face(ft_lib, (FT_Byte const *) font_data,
                          (FT_Long) font_data_size, 0, &ft_face) != 0)
   {
-    return Err{FontStatus::DecodingFailed};
+    return Err{FontDecodeError::DecodingFailed};
   }
 
   if (FT_Set_Char_Size(ft_face, AU_UNIT, AU_UNIT, 72, 72) != 0)
   {
-    return Err{FontStatus::DecodingFailed};
+    return Err{FontDecodeError::DecodingFailed};
   }
 
   defer ft_face_del{[&] {
@@ -132,7 +132,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
     postscript_name_size = strlen(ft_postscript_name);
     if (!allocator.nalloc(postscript_name_size, &postscript_name))
     {
-      return Err{FontStatus::OutOfMemory};
+      return Err{FontDecodeError::OutOfMemory};
     }
     mem::copy(ft_postscript_name, postscript_name, postscript_name_size);
   }
@@ -152,7 +152,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
     family_name_size = strlen(ft_face->family_name);
     if (!allocator.nalloc(family_name_size, &family_name))
     {
-      return Err{FontStatus::OutOfMemory};
+      return Err{FontDecodeError::OutOfMemory};
     }
     mem::copy(ft_face->family_name, family_name, family_name_size);
   }
@@ -172,7 +172,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
     style_name_size = strlen(ft_face->style_name);
     if (!allocator.nalloc(style_name_size, &style_name))
     {
-      return Err{FontStatus::OutOfMemory};
+      return Err{FontDecodeError::OutOfMemory};
     }
     mem::copy(ft_face->style_name, style_name, style_name_size);
   }
@@ -198,7 +198,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
   Glyph *glyphs;
   if (!allocator.nalloc(num_glyphs, &glyphs))
   {
-    return Err{FontStatus::OutOfMemory};
+    return Err{FontDecodeError::OutOfMemory};
   }
 
   defer glyphs_del{[&] {
@@ -236,7 +236,7 @@ Result<Font, FontStatus> load_font(Span<u8 const> encoded, u32 face,
   FontImpl *f;
   if (!allocator.nalloc(1, &f))
   {
-    return Err{FontStatus::OutOfMemory};
+    return Err{FontDecodeError::OutOfMemory};
   }
 
   new (f)

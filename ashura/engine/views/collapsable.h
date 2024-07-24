@@ -13,7 +13,7 @@ struct CollapsableHeader : public View
 {
 };
 
-// TODO(lamarrr)
+// [ ]
 struct Collapsable : public View
 {
   CollapsableHeader header;

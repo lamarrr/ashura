@@ -19,16 +19,16 @@ struct RenderText
 {
   struct
   {
-    bool             dirty                  = true;
-    bool             use_kerning            = true;
-    bool             use_ligatures          = true;
+    bool             dirty : 1              = true;
+    bool             use_kerning : 1        = true;
+    bool             use_ligatures : 1      = true;
+    TextDirection    direction : 2          = TextDirection::LeftToRight;
+    f32              alignment              = -1;
     Vec<u32>         text                   = {};
     Vec<u32>         runs                   = {};
     Vec<TextStyle>   styles                 = {};
     Vec<FontStyle>   fonts                  = {};
-    TextDirection    direction              = TextDirection::LeftToRight;
     Span<char const> language               = {};
-    f32              alignment              = -1;
     TextLayout       layout                 = {};
     Vec<Slice32>     highlights             = {};
     ColorGradient    highlight_color        = {};
@@ -126,6 +126,8 @@ struct RenderText
         last_run -= num_erase;
       }
 
+      (void) last_run;
+
       /// run splitting
       if (!(first_run_begin == first && last_run_end == end))
       {
@@ -166,18 +168,21 @@ struct RenderText
     inner.dirty = true;
   }
 
-  void set_highlights(Span<Slice32 const> highlight, ColorGradient color,
-                      Vec4 corner_radii)
+  void set_highlights(Span<Slice32 const> highlight)
   {
     inner.highlights.clear();
     inner.highlights.extend_copy(highlight).unwrap();
-    inner.highlight_color        = color;
-    inner.highlight_corner_radii = corner_radii;
   }
 
-  void set_highlight(Slice32 highlight, ColorGradient color, Vec4 corner_radii)
+  void set_highlight(Slice32 highlight)
   {
-    set_highlights(span({highlight}), color, corner_radii);
+    set_highlights(span({highlight}));
+  }
+
+  void set_highlight_style(ColorGradient color, Vec4 corner_radii)
+  {
+    inner.highlight_color        = color;
+    inner.highlight_corner_radii = corner_radii;
   }
 
   void set_direction(TextDirection direction)
@@ -198,6 +203,11 @@ struct RenderText
     flush_text();
   }
 
+  Span<u32 const> get_text() const
+  {
+    return span(inner.text);
+  }
+
   void set_text(Span<u32 const> utf32, TextStyle const &style,
                 FontStyle const &font)
   {
@@ -207,12 +217,12 @@ struct RenderText
     flush_text();
   }
 
-  void set_text_utf8(Span<u8 const> utf8, TextStyle const &style,
-                     FontStyle const &font)
+  void set_text(Span<u8 const> utf8, TextStyle const &style,
+                FontStyle const &font)
   {
     inner.style(0, U32_MAX, style, font);
     inner.text.clear();
-    utf8_decode(utf8, inner.text);
+    utf8_decode(utf8, inner.text).unwrap();
     flush_text();
   }
 
@@ -254,8 +264,9 @@ struct RenderText
   {
     canvas.text({.center = region.center}, block(), inner.layout,
                 block_style(region.extent.x), clip);
-    // TODO(lamarrr): render highlights
-    // use overlays on intersecting graphemes
+    // [ ] render
+    // [ ] are the cursor indexing correct?
+    // [ ] use overlays on intersecting graphemes
   }
 
   void reset()

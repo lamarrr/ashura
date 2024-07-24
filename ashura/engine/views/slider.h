@@ -8,7 +8,7 @@
 namespace ash
 {
 
-// TODO(lamarrr): implement
+// [ ] implement
 /// REQUIREMENTS: multi-directional
 struct Slider : public View
 {
@@ -16,14 +16,14 @@ struct Slider : public View
   Axis          direction    = Axis::X;
   Frame         frame        = {};
   f32           thumb_radius = 0.5F;
-  Vec4          track_color  = material::BLUE_A700.norm();
-  Vec4          thumb_color  = material::GRAY_500.norm();
+  Vec4          track_color  = mdc::BLUE_A700.norm();
+  Vec4          thumb_color  = mdc::GRAY_500.norm();
   bool          add_stepper  = false;
   bool          disabled     = false;
 
   f32 value = 0, min = 0, max = 1;
 
-  // TODO(lamarrr): handle focus
+  // [ ] handle focus
 
   /*
     virtual vec2 fit(Context &ctx, vec2 allocated_size,

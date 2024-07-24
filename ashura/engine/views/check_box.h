@@ -14,7 +14,7 @@ struct CheckBox : public View
   bool           pressed : 1  = false;
   bool           value : 1    = false;
   Fn<void(bool)> on_changed   = fn([](bool) {});
-  Vec4           color        = material::BLUE_A700.norm();
+  ColorGradient  color        = DEFAULT_THEME.active;
   SizeConstraint width        = {.offset = 20};
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
@@ -32,7 +32,7 @@ struct CheckBox : public View
       on_changed(value);
     }
 
-    // TODO(lamarrr): process enter keyboard
+    // [ ] process enter keyboard
 
     return ViewState{.clickable = !disabled, .focusable = true};
   }
@@ -51,7 +51,7 @@ struct CheckBox : public View
                            .corner_radii = Vec4::splat(region.extent.x / 8),
                            .stroke       = 1,
                            .thickness    = 2,
-                           .tint         = ColorGradient::uniform(color)});
+                           .tint         = color});
 
     if (value)
     {
@@ -60,8 +60,8 @@ struct CheckBox : public View
                     .extent       = region.extent,
                     .corner_radii = Vec4::splat(0),
                     .stroke       = 0,
-                    .thickness    = 2.5,
-                    .tint         = ColorGradient::uniform(color)},
+                    .thickness    = 2.5F,
+                    .tint         = color},
           span<Vec2>({{0.125f, 0.5f}, {0.374f, 0.75f}, {0.775f, 0.25f}}));
     }
   }

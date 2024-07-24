@@ -9,7 +9,7 @@
 namespace ash
 {
 
-// TODO(lamarrr): implement
+// [ ] implement
 /// REQUIREMENTS
 /// - Linear and Non-Linear Color Space Independence
 /// - Rectangular Box with visualizations

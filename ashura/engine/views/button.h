@@ -28,10 +28,10 @@ struct Button : public View
     return nullptr;
   }
 
-  // TODO(lamarrr): handle focus
+  // [ ] handle focus
 };
 
-// TODO(lamarrr):
+// [ ]
 struct TextButton : public Button
 {
   TextBox text = {};

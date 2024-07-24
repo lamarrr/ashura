@@ -13,7 +13,7 @@ struct ComboItem : public View
   // wrap child
 };
 
-// TODO(lamarrr):
+// [ ]
 struct ComboBox : public View
 {
   Fn<void(u32)> on_selected = fn([](u32) {});

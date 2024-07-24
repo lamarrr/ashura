@@ -67,8 +67,12 @@ struct TextInput : View, Pin<>
   Fn<void()>         on_focus_in            = fn([] {});
   Fn<void()>         on_focus_out           = fn([] {});
 
-  TextInput()                   = default;
-  virtual ~TextInput() override = default;
+  TextInput() = default;
+  virtual ~TextInput() override
+  {
+    content.reset();
+    placeholder.reset();
+  }
 
   constexpr TextCommand command(ViewContext const &ctx) const
   {
@@ -243,8 +247,8 @@ struct TextInput : View, Pin<>
                        lines_per_page, offset);
 
     content.set_highlight(
-        compositor.get_cursor().as_slice(content.inner.text.size32()),
-        highlight_color, highlight_corner_radii);
+        compositor.get_cursor().as_slice(content.inner.text.size32()));
+    content.set_highlight_style(highlight_color, highlight_corner_radii);
 
     if (edited)
     {

@@ -74,10 +74,7 @@ struct ViewSystem
 
   void tick(nanoseconds dt)
   {
-    // TODO(lamarrr)
-    // process events across views, hit-test, dispatch events
-    //
-    //
+    // [ ] process events across views, hit-test, dispatch events
     //
     //
     // [ ] SDL_SetCursor()

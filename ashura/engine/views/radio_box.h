@@ -8,7 +8,7 @@
 namespace ash
 {
 
-// TODO(lamarrr): implement
+// [ ] implement
 struct Radio : public View
 {
 };

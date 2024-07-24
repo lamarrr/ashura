@@ -13,8 +13,8 @@ struct ScrollBar : public View
   bool          disabled : 1      = false;
   Axis          direction         = Axis::X;
   f32           opacity           = 0.65F;
-  Vec4          thumb_color       = material::GRAY_400.norm();
-  Vec4          track_color       = material::GRAY_800.norm();
+  ColorGradient thumb_color       = DEFAULT_THEME.inactive;
+  ColorGradient track_color       = DEFAULT_THEME.inactive;
   Vec2          frame_extent      = {};
   Vec2          content_extent    = {};
   f32           scroll_percentage = 0;
@@ -46,7 +46,7 @@ struct ScrollBar : public View
       on_scrolled(scroll_percentage);
     }
 
-    // TODO(lamarrr): handle focus
+    // [ ] handle focus
 
     return ViewState{.clickable = true, .draggable = true, .focusable = true};
   }
@@ -67,7 +67,7 @@ struct ScrollBar : public View
                            .extent       = region.extent,
                            .corner_radii = corner_radii,
                            .stroke       = 0,
-                           .tint = ColorGradient::uniform(track_color)});
+                           .tint         = track_color});
 
     // calculate thumb main axis extent
     f32 const scale = frame_extent[main_axis] / content_extent[main_axis];
@@ -89,15 +89,13 @@ struct ScrollBar : public View
                            .corner_radii = corner_radii,
                            .stroke       = 1,
                            .thickness    = 1,
-                           .tint         = ColorGradient::uniform(
-                               track_color * vec4({1, 1, 1}, opacity))});
+                           .tint         = track_color});
 
     canvas.rrect(ShapeDesc{.center       = thumb_center,
                            .extent       = thumb_extent,
                            .corner_radii = corner_radii,
                            .stroke       = 0,
-                           .tint         = ColorGradient::uniform(
-                               thumb_color * vec4({1, 1, 1}, opacity))});
+                           .tint         = thumb_color});
   }
 };
 

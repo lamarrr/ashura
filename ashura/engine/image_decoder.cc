@@ -18,13 +18,14 @@ constexpr u64 rgba8_size(bool has_alpha, u32 width, u32 height)
 {
   return ((u64) width) * ((u64) height) * (has_alpha ? 4ULL : 3ULL);
 }
-DecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
+
+ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
 {
   WebPBitstreamFeatures features;
 
   if (WebPGetFeatures(bytes.data(), bytes.size(), &features) != VP8_STATUS_OK)
   {
-    return DecodeError::DecodeFailed;
+    return ImageDecodeError::DecodeFailed;
   }
 
   u32 const pitch = features.width * (features.has_alpha == 0 ? 3U : 4U);
@@ -33,7 +34,7 @@ DecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
 
   if (!image.channels.resize_uninitialized(buffer_size))
   {
-    return DecodeError::OutOfMemory;
+    return ImageDecodeError::OutOfMemory;
   }
 
   if (features.has_alpha != 0)
@@ -42,7 +43,7 @@ DecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
                            buffer_size, pitch) == nullptr)
     {
       image.channels.reset();
-      return DecodeError::DecodeFailed;
+      return ImageDecodeError::DecodeFailed;
     }
   }
   else
@@ -51,7 +52,7 @@ DecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
                           buffer_size, pitch) == nullptr)
     {
       image.channels.reset();
-      return DecodeError::DecodeFailed;
+      return ImageDecodeError::DecodeFailed;
     }
   }
 
@@ -59,7 +60,7 @@ DecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
                                            gfx::Format::R8G8B8A8_UNORM;
   image.width  = (u32) features.width;
   image.height = (u32) features.height;
-  return DecodeError::None;
+  return ImageDecodeError::None;
 }
 
 inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
@@ -70,7 +71,7 @@ inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
   *input = input->slice(nbytes_to_read);
 }
 
-DecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
+ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
 {
   // skip magic number
   bytes = bytes.slice(8);
@@ -80,7 +81,7 @@ DecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
 
   if (png_ptr == nullptr)
   {
-    return DecodeError::OutOfMemory;
+    return ImageDecodeError::OutOfMemory;
   }
 
   png_infop info_ptr = png_create_info_struct(png_ptr);
@@ -88,7 +89,7 @@ DecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
   if (png_ptr == nullptr)
   {
     png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-    return DecodeError::OutOfMemory;
+    return ImageDecodeError::OutOfMemory;
   }
 
   Span stream = bytes;
@@ -107,13 +108,13 @@ DecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
 
   if (status != 1)
   {
-    return DecodeError::DecodeFailed;
+    return ImageDecodeError::DecodeFailed;
   }
 
   if (color_type != PNG_COLOR_TYPE_RGB && color_type != PNG_COLOR_TYPE_RGBA)
   {
     png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-    return DecodeError::UnsupportedFormat;
+    return ImageDecodeError::UnsupportedFormat;
   }
 
   usize       ncomponents = (color_type == PNG_COLOR_TYPE_RGB) ? 3 : 4;
@@ -124,7 +125,7 @@ DecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
 
   if (!image.channels.resize_uninitialized(buffer_size))
   {
-    return DecodeError::OutOfMemory;
+    return ImageDecodeError::OutOfMemory;
   }
 
   u8 *row = image.channels.data();
@@ -139,10 +140,10 @@ DecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
   image.format = fmt;
   image.width  = width;
   image.height = height;
-  return DecodeError::None;
+  return ImageDecodeError::None;
 }
 
-DecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
+ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -154,19 +155,19 @@ DecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
   if (jpeg_read_header(&info, true) != JPEG_HEADER_OK)
   {
     jpeg_destroy_decompress(&info);
-    return DecodeError::DecodeFailed;
+    return ImageDecodeError::DecodeFailed;
   }
 
   if (jpeg_start_decompress(&info) == 0)
   {
     jpeg_destroy_decompress(&info);
-    return DecodeError::DecodeFailed;
+    return ImageDecodeError::DecodeFailed;
   }
 
   if (info.num_components != 3 && info.num_components != 4)
   {
     jpeg_destroy_decompress(&info);
-    return DecodeError::UnsupportedFormat;
+    return ImageDecodeError::UnsupportedFormat;
   }
 
   u32         width       = info.output_width;
@@ -180,7 +181,7 @@ DecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
   if (!image.channels.resize_uninitialized(buffer_size))
   {
     jpeg_destroy_decompress(&info);
-    return DecodeError::OutOfMemory;
+    return ImageDecodeError::OutOfMemory;
   }
 
   u8 *scanline = image.channels.data();
@@ -196,10 +197,10 @@ DecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
   image.format = fmt;
   image.width  = width;
   image.height = height;
-  return DecodeError::None;
+  return ImageDecodeError::None;
 }
 
-DecodeError decode_image(Span<u8 const> bytes, DecodedImage &image)
+ImageDecodeError decode_image(Span<u8 const> bytes, DecodedImage &image)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 
@@ -225,7 +226,7 @@ DecodeError decode_image(Span<u8 const> bytes, DecodedImage &image)
     return decode_webp(bytes, image);
   }
 
-  return DecodeError::UnsupportedFormat;
+  return ImageDecodeError::UnsupportedFormat;
 }
 
 }        // namespace ash

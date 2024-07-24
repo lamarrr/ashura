@@ -9,7 +9,7 @@
 namespace ash
 {
 
-// TODO(lamarrr): implement
+// [ ] implement
 struct ProgressBar : public View
 {
 };

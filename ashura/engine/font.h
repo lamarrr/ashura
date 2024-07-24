@@ -24,13 +24,12 @@ constexpr Vec2 au_to_px(Vec2I au, f32 base)
   return Vec2{au_to_px(au.x, base), au_to_px(au.y, base)};
 }
 
-enum class FontStatus : u8
+enum class FontDecodeError : u8
 {
-  Loaded         = 0,
-  Loading        = 1,
-  DecodingFailed = 2,
-  FaceNotFound   = 3,
-  OutOfMemory    = 4,
+  None           = 0,
+  DecodingFailed = 1,
+  FaceNotFound   = 2,
+  OutOfMemory    = 3
 };
 
 /// @param bearing offset from cursor baseline to start drawing glyph from (au)
@@ -102,9 +101,9 @@ struct FontInfo
   Option<GpuFontAtlas const *> gpu_atlas         = None;
 };
 
-Result<Font, FontStatus>
-    load_font(Span<u8 const> encoded, u32 face = 0,
-              AllocatorImpl const &allocator = default_allocator);
+Result<Font, FontDecodeError>
+    decode_font(Span<u8 const> encoded, u32 face = 0,
+                AllocatorImpl const &allocator = default_allocator);
 
 FontInfo get_font_info(Font font);
 

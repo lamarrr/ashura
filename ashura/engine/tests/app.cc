@@ -24,7 +24,7 @@ int main(int, char **)
 
   defer font_data_del{[&] { font_data.uninit(); }};
 
-  Font font = load_font(span(font_data), 0, default_allocator).unwrap();
+  Font font = decode_font(span(font_data), 0, default_allocator).unwrap();
 
   CHECK(rasterize_font(font, 60, default_allocator));
 
