@@ -6,65 +6,33 @@
 namespace ash
 {
 
-Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
+Logger *create_logger(Span<LogSink *const> sinks)
 {
-  u32 const num_sinks = sinks.size32();
-  LogSink **log_sinks;
+  Vec<LogSink *> sinks_list;
+  sinks_list.extend_copy(sinks).unwrap();
 
-  if (!allocator.nalloc(num_sinks, &log_sinks))
-  {
-    abort();
-  }
-
-  mem::copy(sinks, log_sinks);
   Logger *logger;
 
-  if (!allocator.nalloc(1, &logger))
+  if (!default_allocator.nalloc(1, &logger))
   {
     abort();
   }
 
-  return new (logger) Logger{
-      .sinks           = log_sinks,
-      .num_sinks       = num_sinks,
-      .buffer          = nullptr,
-      .buffer_size     = 0,
-      .buffer_capacity = 0,
-      .allocator       = allocator,
-      .fmt_ctx         = fmt::Context{
-                  .push =
-                      {
-                          .dispatcher =
-                      [](void *data, Span<char const> buffer) {
-                        Logger     *logger = (Logger *) data;
-                        usize const required_size =
-                            logger->buffer_size + buffer.size_bytes();
-                        if (required_size > logger->buffer_capacity)
-                        {
-                          if (!logger->allocator.nrealloc(
-                                  logger->buffer_capacity, required_size,
-                                  &logger->buffer))
-                          {
-                            return false;
-                          }
+  fmt::Context ctx{.push =
+                       fn(logger,
+                          [](Logger *logger, Span<char const> input) {
+                            return logger->buffer.extend_copy(input).is_ok();
+                          }),
+                   .scratch_buffer = span(logger->scratch)};
 
-                          logger->buffer_capacity = required_size;
-                        }
-                        mem::copy(buffer, logger->buffer + logger->buffer_size);
-                        logger->buffer_size += buffer.size_bytes();
-                        return true;
-                      },
-                          .data = logger,
-              },
-                  .scratch_buffer = span(logger->scratch_buffer)}};
+  return new (logger) Logger{.sinks = sinks_list, .buffer = {}, .fmt_ctx = ctx};
 }
 
 void destroy_logger(Logger *logger)
 {
-  logger->allocator.ndealloc(logger->sinks, logger->num_sinks);
-  logger->allocator.ndealloc(logger->buffer, logger->buffer_capacity);
+  logger->reset();
   logger->~Logger();
-  logger->allocator.ndealloc(logger, 1);
+  default_allocator.ndealloc(logger, 1);
 }
 
 char const *get_level_str(LogLevels level)

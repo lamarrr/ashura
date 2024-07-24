@@ -35,11 +35,11 @@ struct TaskInfo
 /// non-blocking.
 ///
 /// # Requirements:
-/// [v] result collection
-/// [v] inter-task communication
-/// [v] inter-task sharing
-/// [v] inter-task data flow, reporting cancelation
-/// [v] external polling contexts
+/// [x] result collection
+/// [x] inter-task communication
+/// [x] inter-task sharing
+/// [x] inter-task data flow, reporting cancelation
+/// [x] external polling contexts
 struct Scheduler
 {
   virtual void init(Span<nanoseconds const> dedicated_thread_sleep,

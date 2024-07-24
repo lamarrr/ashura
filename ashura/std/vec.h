@@ -28,6 +28,11 @@ struct Vec
     return size_ == 0;
   }
 
+  constexpr operator bool() const
+  {
+    return !is_empty();
+  }
+
   [[nodiscard]] constexpr T *data() const
   {
     return data_;

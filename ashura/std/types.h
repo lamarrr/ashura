@@ -2990,6 +2990,11 @@ struct Span
     return size_ == 0;
   }
 
+  constexpr operator bool() const
+  {
+    return !is_empty();
+  }
+
   constexpr T *data() const
   {
     return data_;
@@ -3286,6 +3291,11 @@ struct BitSpan
   constexpr bool is_empty() const
   {
     return num_bits_ == 0;
+  }
+
+  constexpr operator bool() const
+  {
+    return !is_empty();
   }
 };
 
@@ -3701,12 +3711,11 @@ template <typename T = void>
 struct Pin
 {
   typedef T Type;
+  T         v;
   template <typename... Args>
-  constexpr Pin(Args &&...args) : value{((Args &&) args)...}
+  constexpr Pin(Args &&...args) : v{((Args &&) args)...}
   {
   }
-  T value;
-
   constexpr Pin(Pin const &)            = delete;
   constexpr Pin(Pin &&)                 = delete;
   constexpr Pin &operator=(Pin const &) = delete;
@@ -3717,6 +3726,7 @@ struct Pin
 template <>
 struct Pin<void>
 {
+  typedef void Type;
   constexpr Pin()                       = default;
   constexpr Pin(Pin const &)            = delete;
   constexpr Pin(Pin &&)                 = delete;

@@ -6,6 +6,7 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/runtime.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 #include <atomic>
 #include <mutex>
 #include <stdlib.h>
@@ -32,53 +33,48 @@ struct LogSink
   virtual void flush()                                            = 0;
 };
 
-// to be flushed into trace format style, utc, time encoding, etc.
-// format context should append to the buffer
 struct Logger
 {
-  static constexpr u32 SCRATCH_BUFFER_SIZE                 = 256;
-  LogSink            **sinks                               = nullptr;
-  u32                  num_sinks                           = 0;
-  char                *buffer                              = nullptr;
-  usize                buffer_size                         = 0;
-  usize                buffer_capacity                     = 0;
-  char                 scratch_buffer[SCRATCH_BUFFER_SIZE] = {};
-  AllocatorImpl        allocator                           = {};
-  fmt::Context         fmt_ctx                             = {};
-  std::mutex           mutex                               = {};
+  static constexpr u32 SCRATCH_SIZE = 256;
+
+  Vec<LogSink *> sinks                 = {};
+  Vec<char>      buffer                = {};
+  char           scratch[SCRATCH_SIZE] = {};
+  fmt::Context   fmt_ctx               = {};
+  std::mutex     mutex                 = {};
 
   template <typename... Args>
-  bool debug(Args const &...args)
+  [[maybe_unused]] Result<Void, Void> debug(Args const &...args)
   {
     return log(LogLevels::Debug, args...);
   }
 
   template <typename... Args>
-  bool trace(Args const &...args)
+  [[maybe_unused]] Result<Void, Void> trace(Args const &...args)
   {
     return log(LogLevels::Trace, args...);
   }
 
   template <typename... Args>
-  bool info(Args const &...args)
+  [[maybe_unused]] Result<Void, Void> info(Args const &...args)
   {
     return log(LogLevels::Info, args...);
   }
 
   template <typename... Args>
-  bool warn(Args const &...args)
+  [[maybe_unused]] Result<Void, Void> warn(Args const &...args)
   {
     return log(LogLevels::Warning, args...);
   }
 
   template <typename... Args>
-  bool error(Args const &...args)
+  [[maybe_unused]] Result<Void, Void> error(Args const &...args)
   {
     return log(LogLevels::Error, args...);
   }
 
   template <typename... Args>
-  bool fatal(Args const &...args)
+  [[maybe_unused]] Result<Void, Void> fatal(Args const &...args)
   {
     return log(LogLevels::Fatal, args...);
   }
@@ -86,28 +82,28 @@ struct Logger
   void flush()
   {
     std::lock_guard lock{mutex};
-    for (u32 i = 0; i < num_sinks; i++)
+    for (LogSink *sink : sinks)
     {
-      sinks[i]->flush();
+      sink->flush();
     }
   }
 
   template <typename... Args>
-  bool log(LogLevels level, Args const &...args)
+  [[maybe_unused]] Result<Void, Void> log(LogLevels level, Args const &...args)
   {
     std::lock_guard lock{mutex};
     if (fmt::format(fmt_ctx, args..., "\n"))
     {
-      for (u32 i = 0; i < num_sinks; i++)
+      for (LogSink *sink : sinks)
       {
-        sinks[i]->log(level, Span{buffer, buffer_size});
+        sink->log(level, span(buffer));
       }
-      buffer_size = 0;
-      return true;
+      buffer.clear();
+      return Ok{};
     }
 
-    buffer_size = 0;
-    return false;
+    buffer.clear();
+    return Err{};
   }
 
   template <typename... Args>
@@ -119,7 +115,8 @@ struct Logger
       (void) fflush(stderr);
       abort();
     }
-    fatal(args...);
+    fatal(args...).expect(
+        "formatting failed while processing a panic. aborting...");
     flush();
     if (panic_handler != nullptr)
     {
@@ -127,9 +124,16 @@ struct Logger
     }
     abort();
   }
+
+  void reset()
+  {
+    std::lock_guard lock{mutex};
+    sinks.reset();
+    buffer.reset();
+  }
 };
 
-Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator);
+Logger *create_logger(Span<LogSink *const> sinks);
 
 void destroy_logger(Logger *logger);
 

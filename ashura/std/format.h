@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/types.h"
+#include "ashura/std/range.h"
 #include <string>
 #include <string_view>
 
@@ -33,6 +34,23 @@ struct Context
   Fn<bool(Span<char const>)> push = fn([](Span<char const>) { return true; });
   Span<char>                 scratch_buffer = {};
 };
+
+inline Context buffer(Span<char> dst, Span<char> scratch, Span<char> *iter)
+{
+  *iter = dst;
+  return Context{.push           = fn(iter,
+                                      [](Span<char> *iter, Span<char const> input) {
+                              if (iter->is_empty())
+                              {
+                                return false;
+                              }
+                              copy(input, *iter);
+                              iter->data_ += input.size();
+                              iter->size_ -= input.size();
+                              return true;
+                            }),
+                 .scratch_buffer = scratch};
+}
 
 template <typename T>
 bool push(Context const &ctx, Spec const &, T const &)
