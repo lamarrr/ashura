@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/std/types.h"
 #include "ashura/std/range.h"
+#include "ashura/std/types.h"
 #include <string>
 #include <string_view>
 
@@ -28,28 +28,31 @@ struct Spec
 
 /// @param push function to be called to insert text into the format context.
 /// should return true when it is successful.
-/// @param sratch_buffer minimum recommended size of 256 bytes
+/// @param sratch scratch buffer. minimum recommended size of 256 bytes
 struct Context
 {
   Fn<bool(Span<char const>)> push = fn([](Span<char const>) { return true; });
-  Span<char>                 scratch_buffer = {};
+  Span<char>                 scratch = {};
 };
 
-inline Context buffer(Span<char> dst, Span<char> scratch, Span<char> *iter)
+struct Buffer
 {
-  *iter = dst;
-  return Context{.push           = fn(iter,
-                                      [](Span<char> *iter, Span<char const> input) {
-                              if (iter->is_empty())
-                              {
-                                return false;
-                              }
-                              copy(input, *iter);
-                              iter->data_ += input.size();
-                              iter->size_ -= input.size();
-                              return true;
-                            }),
-                 .scratch_buffer = scratch};
+  Span<char> buffer = {};
+  usize      pos    = 0;
+};
+
+inline Context buffer(Buffer *b, Span<char> scratch)
+{
+  auto f = [](Buffer *b, Span<char const> in) {
+    if ((b->pos + in.size()) > b->buffer.size())
+    {
+      return false;
+    }
+    copy(in, b->buffer.slice(b->pos));
+    b->pos += in.size();
+    return true;
+  };
+  return Context{.push = fn(b, f), .scratch = scratch};
 }
 
 template <typename T>

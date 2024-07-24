@@ -6,35 +6,6 @@
 namespace ash
 {
 
-Logger *create_logger(Span<LogSink *const> sinks)
-{
-  Vec<LogSink *> sinks_list;
-  sinks_list.extend_copy(sinks).unwrap();
-
-  Logger *logger;
-
-  if (!default_allocator.nalloc(1, &logger))
-  {
-    abort();
-  }
-
-  fmt::Context ctx{.push =
-                       fn(logger,
-                          [](Logger *logger, Span<char const> input) {
-                            return logger->buffer.extend_copy(input).is_ok();
-                          }),
-                   .scratch_buffer = span(logger->scratch)};
-
-  return new (logger) Logger{.sinks = sinks_list, .buffer = {}, .fmt_ctx = ctx};
-}
-
-void destroy_logger(Logger *logger)
-{
-  logger->reset();
-  logger->~Logger();
-  default_allocator.ndealloc(logger, 1);
-}
-
 char const *get_level_str(LogLevels level)
 {
   switch (level)
@@ -153,5 +124,8 @@ void FileSink::flush()
   std::unique_lock lock{mutex};
   (void) fflush(file);
 }
+
+Logger    default_logger = Logger{};
+StdioSink stdio_sink     = {};
 
 }        // namespace ash

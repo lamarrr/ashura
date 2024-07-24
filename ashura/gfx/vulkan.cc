@@ -331,16 +331,16 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
     level = LogLevels::Trace;
   }
 
-  default_logger->log(
+  default_logger.log(
       level, "[Type: ", string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
       ", Id: ", data->messageIdNumber, ", Name: ", data->pMessageIdName, "] ",
       data->pMessage == nullptr ? "(empty message)" : data->pMessage);
   if (data->objectCount != 0)
   {
-    default_logger->log(level, "Objects Involved:");
+    default_logger.log(level, "Objects Involved:");
     for (u32 i = 0; i < data->objectCount; i++)
     {
-      default_logger->log(
+      default_logger.log(
           level, "[Type: ", string_VkObjectType(data->pObjects[i].objectType),
           "] ",
           data->pObjects[i].pObjectName == nullptr ?
@@ -1129,22 +1129,22 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     CHECK(num_read_layers == num_layers);
   }
 
-  default_logger->trace("Available Extensions:");
+  default_logger.trace("Available Extensions:");
 
   for (VkExtensionProperties const &ext : Span{exts, num_exts})
   {
-    default_logger->trace(ext.extensionName, "\t\t(spec version ",
-                          VK_API_VERSION_MAJOR(ext.specVersion), ".",
-                          VK_API_VERSION_MINOR(ext.specVersion), ".",
-                          VK_API_VERSION_PATCH(ext.specVersion), " variant ",
-                          VK_API_VERSION_VARIANT(ext.specVersion), ")");
+    default_logger.trace(ext.extensionName, "\t\t(spec version ",
+                         VK_API_VERSION_MAJOR(ext.specVersion), ".",
+                         VK_API_VERSION_MINOR(ext.specVersion), ".",
+                         VK_API_VERSION_PATCH(ext.specVersion), " variant ",
+                         VK_API_VERSION_VARIANT(ext.specVersion), ")");
   }
 
-  default_logger->trace("Available Validation Layers:");
+  default_logger.trace("Available Validation Layers:");
 
   for (VkLayerProperties const &layer : Span{layers, num_layers})
   {
-    default_logger->trace(
+    default_logger.trace(
         layer.layerName, "\t\t(spec version ",
         VK_API_VERSION_MAJOR(layer.specVersion), ".",
         VK_API_VERSION_MINOR(layer.specVersion), ".",
@@ -1188,9 +1188,9 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     }
     else
     {
-      default_logger->warn("Required Vulkan "
-                           "Extension: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-                           " is not supported on device");
+      default_logger.warn("Required Vulkan "
+                          "Extension: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+                          " is not supported on device");
     }
   }
 
@@ -1214,7 +1214,7 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     }
     else
     {
-      default_logger->warn(
+      default_logger.warn(
           "Required Vulkan Validation Layer: VK_LAYER_KHRONOS_validation is "
           "not supported");
     }
@@ -1697,12 +1697,12 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     self->vk_table.GetPhysicalDeviceProperties(vk_dev, &dev.vk_properties);
   }
 
-  default_logger->trace("Available Devices:");
+  default_logger.trace("Available Devices:");
   for (u32 i = 0; i < num_devs; i++)
   {
     PhysicalDevice const             &dev        = physical_devs[i];
     VkPhysicalDeviceProperties const &properties = dev.vk_properties;
-    default_logger->trace(
+    default_logger.trace(
         "[Device: ", i, "] ",
         string_VkPhysicalDeviceType(properties.deviceType), " ",
         properties.deviceName, " Vulkan API version ",
@@ -1734,7 +1734,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
     for (u32 i = 0; i < num_queue_families; i++)
     {
-      default_logger->trace(
+      default_logger.trace(
           "\t\tQueue Family: ", i,
           ", Count: ", queue_family_properties[i].queueCount, ", Flags: ",
           string_VkQueueFlags(queue_family_properties[i].queueFlags));
@@ -1804,7 +1804,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   if (selected_dev_idx == num_devs)
   {
-    default_logger->trace("No Suitable Device Found");
+    default_logger.trace("No Suitable Device Found");
     return Err{Status::DeviceLost};
   }
 
@@ -1813,7 +1813,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   check_device_limits(selected_dev.vk_properties.limits);
   check_device_features(selected_dev.vk_features);
 
-  default_logger->trace("Selected Device ", selected_dev_idx);
+  default_logger.trace("Selected Device ", selected_dev_idx);
 
   u32 num_exts;
   result = self->vk_table.EnumerateDeviceExtensionProperties(
@@ -1873,32 +1873,32 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     CHECK(num_read_layers == num_layers);
   }
 
-  default_logger->trace("Available Extensions:");
+  default_logger.trace("Available Extensions:");
 
   for (u32 i = 0; i < num_exts; i++)
   {
     VkExtensionProperties const &ext = exts[i];
-    default_logger->trace("\t\t", ext.extensionName, " (spec version: ",
-                          VK_API_VERSION_MAJOR(ext.specVersion), ".",
-                          VK_API_VERSION_MINOR(ext.specVersion), ".",
-                          VK_API_VERSION_PATCH(ext.specVersion), " variant ",
-                          VK_API_VERSION_VARIANT(ext.specVersion), ")");
+    default_logger.trace("\t\t", ext.extensionName, " (spec version: ",
+                         VK_API_VERSION_MAJOR(ext.specVersion), ".",
+                         VK_API_VERSION_MINOR(ext.specVersion), ".",
+                         VK_API_VERSION_PATCH(ext.specVersion), " variant ",
+                         VK_API_VERSION_VARIANT(ext.specVersion), ")");
   }
 
-  default_logger->trace("Available Layers:");
+  default_logger.trace("Available Layers:");
 
   for (u32 i = 0; i < num_layers; i++)
   {
     VkLayerProperties const &layer = layers[i];
 
-    default_logger->trace("\t\t", layer.layerName, " (spec version: ",
-                          VK_API_VERSION_MAJOR(layer.specVersion), ".",
-                          VK_API_VERSION_MINOR(layer.specVersion), ".",
-                          VK_API_VERSION_PATCH(layer.specVersion), " variant ",
-                          VK_API_VERSION_VARIANT(layer.specVersion),
-                          ", "
-                          "implementation version: ",
-                          layer.implementationVersion, ")");
+    default_logger.trace("\t\t", layer.layerName, " (spec version: ",
+                         VK_API_VERSION_MAJOR(layer.specVersion), ".",
+                         VK_API_VERSION_MINOR(layer.specVersion), ".",
+                         VK_API_VERSION_PATCH(layer.specVersion), " variant ",
+                         VK_API_VERSION_VARIANT(layer.specVersion),
+                         ", "
+                         "implementation version: ",
+                         layer.implementationVersion, ")");
   }
 
   constexpr char const *required_exts[] = {
@@ -1942,8 +1942,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   {
     if (!required_ext_found[i])
     {
-      default_logger->trace("Required Extension: ", required_exts[i],
-                            " Not Present");
+      default_logger.trace("Required Extension: ", required_exts[i],
+                           " Not Present");
       return Err{Status::ExtensionNotPresent};
     }
 

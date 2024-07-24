@@ -3752,17 +3752,17 @@ constexpr u32 sat_add(u32 a, u32 b)
 
 constexpr i8 sat_add(i8 a, u8 b)
 {
-  return (i8) min((i16) ((i16) a + (i16) b), (i16) I8_MAX);
+  return (i8) clamp((i16) ((i16) a + (i16) b), (i16) I8_MIN, (i16) I8_MAX);
 }
 
 constexpr i16 sat_add(i16 a, i16 b)
 {
-  return (i16) min((i32) a + (i32) b, (i32) I16_MAX);
+  return (i16) clamp((i32) a + (i32) b, (i32) I16_MIN, (i32) I16_MAX);
 }
 
 constexpr i32 sat_add(i32 a, i32 b)
 {
-  return (i32) min((i64) a + (i64) b, (i64) I32_MAX);
+  return (i32) clamp((i64) a + (i64) b, (i64) I32_MIN, (i64) I32_MAX);
 }
 
 }        // namespace ash

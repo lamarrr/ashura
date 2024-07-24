@@ -1,12 +1,10 @@
 
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/std/allocator.h"
 #include "ashura/std/format.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/runtime.h"
 #include "ashura/std/types.h"
-#include "ashura/std/vec.h"
 #include <atomic>
 #include <mutex>
 #include <stdlib.h>
@@ -33,48 +31,53 @@ struct LogSink
   virtual void flush()                                            = 0;
 };
 
-struct Logger
+/// @brief Logger needs to use fixed-size memory as malloc can fail and make
+/// logging unreliable. This means each log statement's content is limited to
+/// `BUFFER_CAPACITY`
+struct Logger : Pin<>
 {
-  static constexpr u32 SCRATCH_SIZE = 256;
+  static constexpr usize BUFFER_CAPACITY = 16_KB;
+  static constexpr usize SCRATCH_SIZE    = 256;
+  static constexpr u32   MAX_SINKS       = 8;
 
-  Vec<LogSink *> sinks                 = {};
-  Vec<char>      buffer                = {};
-  char           scratch[SCRATCH_SIZE] = {};
-  fmt::Context   fmt_ctx               = {};
-  std::mutex     mutex                 = {};
+  LogSink   *sinks[MAX_SINKS]        = {};
+  u32        num_sinks               = 0;
+  char       buffer[BUFFER_CAPACITY] = {};
+  char       scratch[SCRATCH_SIZE]   = {};
+  std::mutex mutex                   = {};
 
   template <typename... Args>
-  [[maybe_unused]] Result<Void, Void> debug(Args const &...args)
+  bool debug(Args const &...args)
   {
     return log(LogLevels::Debug, args...);
   }
 
   template <typename... Args>
-  [[maybe_unused]] Result<Void, Void> trace(Args const &...args)
+  bool trace(Args const &...args)
   {
     return log(LogLevels::Trace, args...);
   }
 
   template <typename... Args>
-  [[maybe_unused]] Result<Void, Void> info(Args const &...args)
+  bool info(Args const &...args)
   {
     return log(LogLevels::Info, args...);
   }
 
   template <typename... Args>
-  [[maybe_unused]] Result<Void, Void> warn(Args const &...args)
+  bool warn(Args const &...args)
   {
     return log(LogLevels::Warning, args...);
   }
 
   template <typename... Args>
-  [[maybe_unused]] Result<Void, Void> error(Args const &...args)
+  bool error(Args const &...args)
   {
     return log(LogLevels::Error, args...);
   }
 
   template <typename... Args>
-  [[maybe_unused]] Result<Void, Void> fatal(Args const &...args)
+  bool fatal(Args const &...args)
   {
     return log(LogLevels::Fatal, args...);
   }
@@ -82,28 +85,28 @@ struct Logger
   void flush()
   {
     std::lock_guard lock{mutex};
-    for (LogSink *sink : sinks)
+    for (LogSink *sink : Span{sinks, num_sinks})
     {
       sink->flush();
     }
   }
 
   template <typename... Args>
-  [[maybe_unused]] Result<Void, Void> log(LogLevels level, Args const &...args)
+  bool log(LogLevels level, Args const &...args)
   {
     std::lock_guard lock{mutex};
-    if (fmt::format(fmt_ctx, args..., "\n"))
+    fmt::Buffer     b{.buffer = span(buffer)};
+    fmt::Context    ctx = fmt::buffer(&b, span(scratch));
+    if (!fmt::format(ctx, args..., "\n"))
     {
-      for (LogSink *sink : sinks)
-      {
-        sink->log(level, span(buffer));
-      }
-      buffer.clear();
-      return Ok{};
+      return false;
     }
 
-    buffer.clear();
-    return Err{};
+    for (LogSink *sink : Span{sinks, num_sinks})
+    {
+      sink->log(level, span(buffer).slice(0, b.pos));
+    }
+    return true;
   }
 
   template <typename... Args>
@@ -115,8 +118,10 @@ struct Logger
       (void) fflush(stderr);
       abort();
     }
-    fatal(args...).expect(
-        "formatting failed while processing a panic. aborting...");
+    if (!fatal(args...))
+    {
+      (void) fputs("ran out of log buffer memory while panicking.", stderr);
+    }
     flush();
     if (panic_handler != nullptr)
     {
@@ -125,17 +130,30 @@ struct Logger
     abort();
   }
 
+  void init(Span<LogSink *const> sinks_list)
+  {
+    copy(sinks_list.slice(0, MAX_SINKS), span(sinks));
+    num_sinks = sinks_list.size();
+  }
+
+  bool add_sink(LogSink *s)
+  {
+    std::lock_guard lock{mutex};
+    if ((num_sinks + 1) > MAX_SINKS)
+    {
+      return false;
+    }
+
+    sinks[num_sinks++] = s;
+    return true;
+  }
+
   void reset()
   {
     std::lock_guard lock{mutex};
-    sinks.reset();
-    buffer.reset();
+    num_sinks = 0;
   }
 };
-
-Logger *create_logger(Span<LogSink *const> sinks);
-
-void destroy_logger(Logger *logger);
 
 struct StdioSink final : LogSink
 {
@@ -154,6 +172,7 @@ struct FileSink final : LogSink
   void flush() override;
 };
 
-extern ash::Logger *default_logger;
+extern ash::Logger default_logger;
+extern StdioSink   stdio_sink;
 
 }        // namespace ash

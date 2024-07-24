@@ -11,18 +11,10 @@
 #include "stdlib.h"
 #include <thread>
 
-namespace ash
-{
-Logger *default_logger;
-}
-
 int main(int, char **)
 {
   using namespace ash;
-  StdioSink sink;
-  default_logger = create_logger(span<LogSink *>({&sink}), heap_allocator);
-  defer default_logger_del{[&] { destroy_logger(default_logger); }};
-  defer shutdown{[&] { default_logger->info("Shutting down"); }};
+  default_logger.add_sink(&stdio_sink);
 
   Vec<u8> font_data;
   CHECK(
@@ -123,7 +115,7 @@ int main(int, char **)
 
   spirvs.reset();
 
-  default_logger->info("Finished Shader Compilation");
+  default_logger.info("Finished Shader Compilation");
 
   gfx::ColorSpace  color_space_spec  = gfx::ColorSpace::DCI_P3_NONLINEAR;
   gfx::PresentMode present_mode_spec = gfx::PresentMode::Immediate;
@@ -283,7 +275,7 @@ int main(int, char **)
   upload_font_to_device(font, ctx);
   defer fr_del{[&] { unload_font_from_device(font, ctx); }};
 
-  // TODO(lamarrr): create transfer queue, calculate total required setup size
+  // [ ] create transfer queue, calculate total required setup size
   u32       runs[]        = {U32_MAX};
   FontStyle font_styles[] = {
       {.font = font, .font_height = 30, .line_height = 1.25}};
@@ -306,7 +298,7 @@ int main(int, char **)
   {
     win_sys->poll_events();
     ctx.begin_frame(swapchain);
-    // TODO(lamarrr): maybe check for frame begin before accepting commands
+    // [ ] maybe check for frame begin before accepting commands
     canvas.begin({1920, 1080});
 
     canvas.rrect(ShapeDesc{.center       = Vec2{1920 / 2, 1080 / 2},
@@ -362,7 +354,7 @@ int main(int, char **)
             .alignment   = 0,
             .align_width = 1920});
 
-    // TODO(lamarrr): add multi-sampling
+    // [ ] add multi-sampling
     canvas.brect(ShapeDesc{
         .center       = {1920 / 2, 1080 / 2},
         .extent       = {150, 150},
@@ -411,5 +403,5 @@ int main(int, char **)
     ctx.end_frame(swapchain);
     canvas.clear();
   }
-  default_logger->info("closing");
+  default_logger.info("closing");
 }
