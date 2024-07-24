@@ -57,7 +57,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   VulkanLoader
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Loader.git
-  GIT_TAG vulkan-sdk-1.3.283.0)
+  GIT_TAG be0e1c3)
 
 FetchContent_Declare(
   VulkanMemoryAllocator
