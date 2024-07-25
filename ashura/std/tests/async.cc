@@ -12,7 +12,7 @@ TEST(AsyncTest, Basic)
   using namespace ash;
   default_logger.add_sink(&stdio_sink);
 
-  Semaphore sem = create_semaphore(1);
+  SemaphoreRef sem = create_semaphore(1, default_allocator);
   scheduler->init(span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));
 
   for (u32 i = 0; i < 5'000; i++)
@@ -52,9 +52,9 @@ TEST(AsyncTest, Basic)
                               std::this_thread::sleep_for(8ms);
                               return true;
                             })});
-  signal_semaphore(sem, 1);
+  sem->signal(1);
   scheduler->execute_main_thread_work(5s);
   std::this_thread::sleep_for(1min);
   scheduler->uninit();
-  destroy_semaphore(sem);
+  destroy_semaphore(sem, default_allocator);
 }

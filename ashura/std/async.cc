@@ -37,14 +37,14 @@ struct TaskArena
 struct Task
 {
   usize                num_awaits     = 0;
-  Semaphore           *await_sems     = nullptr;
+  SemaphoreRef        *await_sems     = nullptr;
   u64                 *awaits         = nullptr;
   Fn<bool()>           task           = fn([] { return false; });
   usize                num_increments = 0;
-  Semaphore           *increment_sems = nullptr;
+  SemaphoreRef        *increment_sems = nullptr;
   u64                 *increments     = nullptr;
   usize                num_signals    = 0;
-  Semaphore           *signal_sems    = nullptr;
+  SemaphoreRef        *signal_sems    = nullptr;
   u64                 *signals        = nullptr;
   ListNode<TaskArena> *arena          = nullptr;
 };
@@ -154,13 +154,12 @@ struct SchedulerImpl final : Scheduler
 
       for (usize i = 0; i < task->data.num_signals; i++)
       {
-        signal_semaphore(task->data.signal_sems[i], task->data.signals[i]);
+        task->data.signal_sems[i]->signal(task->data.signals[i]);
       }
 
       for (usize i = 0; i < task->data.num_increments; i++)
       {
-        increment_semaphore(task->data.increment_sems[i],
-                            task->data.increments[i]);
+        task->data.increment_sems[i]->increment(task->data.increments[i]);
       }
 
       if (should_requeue)
@@ -201,13 +200,12 @@ struct SchedulerImpl final : Scheduler
 
       for (usize i = 0; i < task->data.num_signals; i++)
       {
-        signal_semaphore(task->data.signal_sems[i], task->data.signals[i]);
+        task->data.signal_sems[i]->increment(task->data.signals[i]);
       }
 
       for (usize i = 0; i < task->data.num_increments; i++)
       {
-        increment_semaphore(task->data.increment_sems[i],
-                            task->data.increments[i]);
+        task->data.increment_sems[i]->increment(task->data.increments[i]);
       }
 
       if (should_requeue)
@@ -263,12 +261,12 @@ struct SchedulerImpl final : Scheduler
 
   static bool alloc_task_data(Arena &arena, u32 awaits_cap, u32 increments_cap,
                               u32 signals_cap, ListNode<Task> **t,
-                              Semaphore **await_sems, u64 **awaits,
-                              Semaphore **increment_sems, u64 **increments,
-                              Semaphore **signal_sems, u64 **signals)
+                              SemaphoreRef **await_sems, u64 **awaits,
+                              SemaphoreRef **increment_sems, u64 **increments,
+                              SemaphoreRef **signal_sems, u64 **signals)
   {
     usize const min_task_size = sizeof(ListNode<Task>) +
-                                (sizeof(Semaphore) + sizeof(u64)) *
+                                (sizeof(SemaphoreRef) + sizeof(u64)) *
                                     (awaits_cap + increments_cap + signals_cap);
     CHECK(min_task_size < (ARENA_SIZE / 4));
     u8 *begin = arena.offset;
@@ -295,15 +293,15 @@ struct SchedulerImpl final : Scheduler
     CHECK(info.signals.size() <= U32_MAX);
     CHECK(info.increments.size() <= U32_MAX);
 
-    u32        num_awaits     = info.awaits.size32();
-    u32        num_signals    = info.signals.size32();
-    u32        num_increments = info.increments.size32();
-    Semaphore *await_sems     = nullptr;
-    u64       *awaits         = nullptr;
-    Semaphore *increment_sems = nullptr;
-    u64       *increments     = nullptr;
-    Semaphore *signal_sems    = nullptr;
-    u64       *signals        = nullptr;
+    u32           num_awaits     = info.awaits.size32();
+    u32           num_signals    = info.signals.size32();
+    u32           num_increments = info.increments.size32();
+    SemaphoreRef *await_sems     = nullptr;
+    u64          *awaits         = nullptr;
+    SemaphoreRef *increment_sems = nullptr;
+    u64          *increments     = nullptr;
+    SemaphoreRef *signal_sems    = nullptr;
+    u64          *signals        = nullptr;
 
     if (!alloc_task_data(arena->data.arena, num_awaits, num_increments,
                          num_signals, task, &await_sems, &awaits,
