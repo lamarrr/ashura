@@ -293,9 +293,9 @@ void Path::triangles(u32 first_vertex, u32 num_vertices, Vec<u32> &indices)
   u32 *idx = indices.data() + first_idx;
   for (u32 i = 0; i < num_triangles * 3; i += 3)
   {
-    idx[i]     = i;
-    idx[i + 1] = i + 1;
-    idx[i + 2] = i + 2;
+    idx[i]     = first_vertex + i;
+    idx[i + 1] = first_vertex + i + 1;
+    idx[i + 2] = first_vertex + i + 2;
   }
 }
 
