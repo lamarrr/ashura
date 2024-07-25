@@ -10,13 +10,13 @@ namespace ash
 
 struct TaskInfo
 {
-  Fn<bool()>            task                 = fn([] { return false; });
-  Span<Semaphore const> await_semaphores     = {};
-  Span<u64 const>       awaits               = {};
-  Span<Semaphore const> signal_semaphores    = {};
-  Span<u64 const>       signals              = {};
-  Span<Semaphore const> increment_semaphores = {};
-  Span<u64 const>       increments           = {};
+  Fn<bool()>               task                 = fn([] { return false; });
+  Span<SemaphoreRef const> await_semaphores     = {};
+  Span<u64 const>          awaits               = {};
+  Span<SemaphoreRef const> signal_semaphores    = {};
+  Span<u64 const>          signals              = {};
+  Span<SemaphoreRef const> increment_semaphores = {};
+  Span<u64 const>          increments           = {};
 };
 
 /// @brief Static Thread Pool Scheduler.
