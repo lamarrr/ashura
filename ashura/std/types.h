@@ -3737,17 +3737,22 @@ struct Pin<void>
 
 constexpr u8 sat_add(u8 a, u8 b)
 {
-  return (u8) min((u16) ((u16) a + (u16) b), (u16) U8_MAX);
+  return (((a + b)) < a) ? U8_MAX : (a + b);
 }
 
 constexpr u16 sat_add(u16 a, u16 b)
 {
-  return (u16) min((u32) a + (u32) b, (u32) U16_MAX);
+  return (((a + b)) < a) ? U16_MAX : (a + b);
 }
 
 constexpr u32 sat_add(u32 a, u32 b)
 {
-  return (u32) min((u64) a + (u64) b, (u64) U32_MAX);
+  return (((a + b)) < a) ? U32_MAX : (a + b);
+}
+
+constexpr u64 sat_add(u64 a, u64 b)
+{
+  return (((a + b)) < a) ? U64_MAX : (a + b);
 }
 
 constexpr i8 sat_add(i8 a, u8 b)
@@ -3763,6 +3768,20 @@ constexpr i16 sat_add(i16 a, i16 b)
 constexpr i32 sat_add(i32 a, i32 b)
 {
   return (i32) clamp((i64) a + (i64) b, (i64) I32_MIN, (i64) I32_MAX);
+}
+
+constexpr i64 sat_add(i64 a, i64 b)
+{
+  if (a > 0)
+  {
+    b = I64_MAX - a;
+  }
+  else if (b < (I64_MIN - a))
+  {
+    b = I64_MIN - a;
+  }
+
+  return a + b;
 }
 
 }        // namespace ash
