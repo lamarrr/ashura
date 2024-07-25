@@ -274,7 +274,7 @@ struct RenderText
 
   void render(CRect const &region, CRect const &clip, Canvas &canvas) const
   {
-    canvas.text({.center = region.center}, block(), inner.layout,
+    canvas.text(ShapeDesc{.center = region.center}, block(), inner.layout,
                 block_style(region.extent.x), clip);
     // [ ] render
     // [ ] are the cursor indexing correct?

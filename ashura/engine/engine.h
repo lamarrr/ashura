@@ -7,8 +7,14 @@
 namespace ash
 {
 
+enum class FontLoadError : i32
+{
+};
+
 struct Engine
 {
+  void              *app     = nullptr;
+  StrHashMap<void *> globals = {};
   // [ ] Font Manager
   // [ ] Shader Manager
   // [ ] Image Manager
@@ -17,9 +23,13 @@ struct Engine
   // [ ] Renderer
   // [ ] Async Task Executor
   // [ ] Window Manager? We might need to attach new contexts to new windows
-  // [ ] Audio Device
-  Font              default_font = nullptr;
-  Result<Font, int> load_font(char const *);
+  // [ ] Audio Device/Manager (FFMPEG, SDL)
+  // [ ] Video Manager (Vulkan, FFMPEG)
+  // [ ] Custom Subsystems
+  // [ ] Engine Startup() -> Tick () -> Shutdown() Tasks
+  Font                        default_font = nullptr;
+  Result<Font, FontLoadError> load_font(Span<char const> name);
+  Result<Void, FontLoadError> unload_font(Span<char const> name);
 
   void init();
   void uninit();

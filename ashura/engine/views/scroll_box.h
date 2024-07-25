@@ -104,7 +104,7 @@ struct ScrollBox : public View
   mutable ScrollBar x_bar      = ScrollBar{Axis::X};
   mutable ScrollBar y_bar      = ScrollBar{Axis::Y};
   Axes              axes       = Axes::X | Axes::Y;
-  Frame             frame      = {.width = 200, .height = 200};
+  Frame             frame      = {.width = {200}, .height = {200}};
   SizeConstraint    x_bar_size = {.offset = 10};
   SizeConstraint    y_bar_size = {.offset = 10};
 

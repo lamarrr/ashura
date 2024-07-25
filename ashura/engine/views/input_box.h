@@ -229,7 +229,7 @@ struct ScalarDragBox : View, Pin<>
       fmt::Buffer  buffer{.buffer = span(text), .pos = 0};
       fmt::Context ctx = fmt::buffer(&buffer, span(scratch));
       fmt(ctx, value.current);
-      input.content.set_text(span(text).slice(0, buffer.pos).as_u8(), {}, {});
+      input.content.set_text(span(text).slice(0, buffer.pos).as_u8());
     }
 
     input_mode =
@@ -280,7 +280,8 @@ struct ScalarDragBox : View, Pin<>
     thumb_center.x =
         space_align(region.extent.x, thumb_extent.x, norm_to_axis(t));
 
-    canvas.rrect({.center       = thumb_center,
+    canvas.rrect(
+        ShapeDesc{.center       = thumb_center,
                   .extent       = thumb_extent,
                   .corner_radii = Vec4::splat(region.extent.y * 0.125F),
                   .tint         = thumb_color});
