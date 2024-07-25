@@ -634,6 +634,7 @@ struct WindowEvent
 };
 
 /// @param Default Default cursor. Usually an arrow
+/// @param None No cursor (disable cursor).
 /// @param Text Text selection. Usually an I-beam
 /// @param Wait Wait. Usually an hourglass or watch or spinning ball.
 /// @param CrossHair
@@ -658,8 +659,8 @@ struct WindowEvent
 /// @param WestResize  Window resize left
 enum class Cursor
 {
-  None        = 0,
-  Default     = 1,
+  Default     = 0,
+  None        = 1,
   Text        = 2,
   Wait        = 3,
   CrossHair   = 4,
