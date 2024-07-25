@@ -107,7 +107,7 @@ template <typename... Args>
 bool format(Context const &ctx, Args const &...args)
 {
   Spec spec;
-  return true && (push(ctx, spec, args) && ...);
+  return (true && ... && push(ctx, spec, args));
 }
 
 }        // namespace fmt
