@@ -216,7 +216,8 @@ struct Canvas
   /// @param clip clip rect for culling draw commands of the text block
   void text(ShapeDesc const &desc, TextBlock const &block,
             TextLayout const &layout, TextBlockStyle const &style,
-            CRect const &clip = {{0, 0}, {F32_MAX, F32_MAX}});
+            CRect const &clip = {{F32_MAX / 2, F32_MAX / 2},
+                                 {F32_MAX, F32_MAX}});
 
   /// @brief Render Non-Indexed Triangles
   void triangles(ShapeDesc const &desc, Span<Vec2 const> vertices);
