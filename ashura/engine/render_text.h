@@ -212,6 +212,12 @@ struct RenderText
                 FontStyle const &font)
   {
     inner.style(0, U32_MAX, style, font);
+    set_text(utf32);
+    flush_text();
+  }
+
+  void set_text(Span<u32 const> utf32)
+  {
     inner.text.clear();
     inner.text.extend_copy(utf32).unwrap();
     flush_text();
@@ -221,6 +227,12 @@ struct RenderText
                 FontStyle const &font)
   {
     inner.style(0, U32_MAX, style, font);
+    set_text(utf8);
+    flush_text();
+  }
+
+  void set_text(Span<u8 const> utf8)
+  {
     inner.text.clear();
     utf8_decode(utf8, inner.text).unwrap();
     flush_text();
