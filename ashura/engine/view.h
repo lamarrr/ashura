@@ -161,20 +161,22 @@ struct ViewContext
   }
 };
 
-// We don't want to take requests post-tick. or can we structure such that we
-// take tick at start of frame, probably best.
-//
-// by default, special non-text keys will always be forwarded, to reject keys,
-// i.e. prevent tab from navigating. make PgUp have special meaning within
-// viewport, etc.
-//
-// [ ] viewport child focus and key navigation?
-//
-//
 /// @param tab Tab Index for Focus-Based Navigation. desired tab index, 0
 /// meaning the default tab order based on the hierarchy of the parent to
 /// children and siblings. negative values have higher tab index priority while
 /// positive indices have lower tab priority.
+/// @param hidden if the widget should be hidden from view (will not receive
+/// visual events, but still receive tick events)
+/// @param clickable can receive mouse press events
+/// @param scrollable can receive mouse scroll events
+/// @param draggable can receive drag events
+/// @param focusable can receive keyboard focus (ordered by `tab`) and keyboard
+/// events
+/// @param text_input can receive text input when focused (excluding tab
+/// key/non-text keys)
+/// @param tab_input can receive `Tab` key as input when focused
+/// @param grab_focus user to focus on view
+/// @param lose_focus lose widget focus
 struct ViewState
 {
   i32  tab            = 0;
@@ -215,7 +217,7 @@ struct View
   struct
   {
     uid id = UID_MAX;
-  } inner;
+  } inner = {};
 
   constexpr View()                        = default;
   constexpr View(View const &)            = default;

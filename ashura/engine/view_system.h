@@ -100,6 +100,19 @@ struct ViewSystem
     // [ ] on click or focus of focusable objects, system requests keyboard
     // input if object has a text area attribute
     // [ ] cursor management via hit testing
+    //
+    //
+    // We don't want to take requests post-tick. or can we structure such that
+    // we take tick at start of frame, probably best.
+    //
+    // by default, special non-text keys will always be forwarded, to reject
+    // keys, i.e. prevent tab from navigating. make PgUp have special meaning
+    // within viewport, etc.
+    //
+    // [ ] viewport child focus and key navigation?
+    //
+    //
+    //
     for (u32 i = 0; i < views.size32(); i++)
     {
       states[i] = views[i]->tick(
