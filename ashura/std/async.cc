@@ -379,8 +379,7 @@ struct SchedulerImpl final : Scheduler
     CHECK(allocator.nalloc(num_dedicated_threads, &dedicated_threads));
     CHECK(allocator.nalloc(num_worker_threads, &worker_threads));
 
-    u32 tid = 1;
-    for (u32 i = 0; i < num_dedicated_threads; i++, tid++)
+    for (u32 i = 0; i < num_dedicated_threads; i++)
     {
       TaskThread *t = dedicated_threads + i;
       new (t) TaskThread{.dedicated_queue = {},
@@ -393,7 +392,7 @@ struct SchedulerImpl final : Scheduler
       }};
     }
 
-    for (u32 i = 0; i < num_worker_threads; i++, tid++)
+    for (u32 i = 0; i < num_worker_threads; i++)
     {
       TaskThread *t = worker_threads + i;
       new (t) TaskThread{.dedicated_queue = {},
