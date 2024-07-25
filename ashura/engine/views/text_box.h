@@ -42,7 +42,7 @@ struct TextBox : View, Pin<>
 
   virtual Cursor cursor(CRect const &, Vec2) const override
   {
-    return Cursor::Text;
+    return copyable ? Cursor::Text : Cursor::Default;
   }
 };
 
