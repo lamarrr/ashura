@@ -18,27 +18,32 @@ struct FlexBox : public View
   bool      reverse     = false;
   MainAlign main_align  = MainAlign::Start;
   f32       cross_align = 0;
-  Frame     frame       = {};
+  Frame     frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
 
-  virtual View *child(u32 i) const override final
+  virtual View *child(u32 i) override final
   {
     return item(i);
   }
 
-  virtual View *item(u32 i) const
+  virtual View *item(u32 i)
   {
     (void) i;
     return nullptr;
   }
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) const override
+  virtual f32 align_item(u32 i)
+  {
+    return cross_align;
+  }
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override final
   {
     Vec2 const frame = this->frame(allocated);
     fill(sizes, frame);
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) const override
+                   Span<Vec2> offsets) override final
   {
     u32 const  num_children = sizes.size32();
     Vec2 const frame        = this->frame(allocated);
@@ -73,7 +78,7 @@ struct FlexBox : public View
       {
         offsets[b][cross_axis] =
             cross_cursor +
-            space_align(frame[cross_axis], sizes[b][cross_axis], cross_align);
+            space_align(frame[cross_axis], sizes[b][cross_axis], align_item(b));
       }
 
       switch (main_align)

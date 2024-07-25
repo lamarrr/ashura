@@ -472,13 +472,4 @@ void iota(Span<T> s, T first)
   };
 }
 
-template <typename T>
-void riota(Span<T> s, T first)
-{
-  for (auto &v : s)
-  {
-    v = first--;
-  };
-}
-
 }        // namespace  ash

@@ -1,43 +1,41 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/color.h"
 #include "ashura/engine/view.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
+// [ ] change implementation
 struct Switch : public View
 {
   bool           disabled : 1   = false;
   bool           value : 1      = false;
   Fn<void(bool)> on_changed     = fn([](bool) {});
-  ColorGradient  active_color   = DEFAULT_THEME.inactive;
+  ColorGradient  active_color   = DEFAULT_THEME.active;
   ColorGradient  inactive_color = DEFAULT_THEME.inactive;
   f32            height         = 20;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events) override
   {
-    if (!disabled && events.mouse_down &&
-        has_bits(ctx.mouse_buttons, MouseButtons::Primary))
+    if (events.mouse_down && has_bits(ctx.mouse_buttons, MouseButtons::Primary))
     {
       value = !value;
       on_changed(value);
     }
 
-    // [ ] handle focus
-    return ViewState{.clickable = true, .focusable = true};
+    return ViewState{.clickable = !disabled, .focusable = !disabled};
   }
 
-  virtual Vec2 fit(Vec2, Span<Vec2 const>, Span<Vec2>) const override
+  virtual Vec2 fit(Vec2, Span<Vec2 const>, Span<Vec2>) override
   {
     return Vec2{height * 2, height};
   }
 
   virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) const override
+                      Canvas      &canvas) override
   {
     f32 const  padding       = (1.75f / 20) * region.extent.y;
     f32 const  corner_radius = 0.06125f * region.extent.y;
@@ -53,7 +51,7 @@ struct Switch : public View
                            .thickness    = 1,
                            .tint         = active_color});
 
-    canvas.circle(
+    canvas.rrect(
         ShapeDesc{.center       = {value ? on_pos : off_pos, region.center.y},
                   .extent       = thumb_extent,
                   .corner_radii = Vec4::splat(thumb_radius),

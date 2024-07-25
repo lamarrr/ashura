@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/color.h"
+#include "ashura/engine/engine.h"
 #include "ashura/engine/render_text.h"
 #include "ashura/engine/text_compositor.h"
 #include "ashura/engine/view.h"
@@ -13,34 +13,62 @@ namespace ash
 
 struct TextBox : View, Pin<>
 {
-  bool               copyable : 1           = false;
-  ColorGradient      highlight_color        = {};
-  Vec4               highlight_corner_radii = {0, 0, 0, 0};
-  mutable RenderText text                   = {};
+  bool           copyable : 1           = false;
+  ColorGradient  highlight_color        = {};
+  Vec4           highlight_corner_radii = {0, 0, 0, 0};
+  RenderText     text                   = {};
+  TextCompositor compositor             = {};
 
-  TextBox()                   = default;
-  virtual ~TextBox() override = default;
+  TextBox()
+  {
+    text.style(0, U32_MAX, TextStyle{.foreground = DEFAULT_THEME.text},
+               FontStyle{.font        = engine.default_font,
+                         .font_height = DEFAULT_THEME.body_font_height,
+                         .line_height = DEFAULT_THEME.line_height});
+  }
+
+  virtual ~TextBox() override
+  {
+    text.reset();
+  }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
                          ViewEvents events) override
   {
-    // [ ] if(events.drag_update )
+    TextCommand cmd = TextCommand::None;
+    if (events.drag_start)
+    {
+      cmd = TextCommand::Hit;
+    }
+    else if (events.drag_update)
+    {
+      cmd = TextCommand::HitSelect;
+    }
+
+    compositor.command(text.get_text(), text.inner.layout, region.extent.x,
+                       text.inner.alignment, cmd,
+                       fn([](u32, Span<u32 const>) {}), fn([](Slice32) {}), {},
+                       *ctx.clipboard, 1, ctx.mouse_position);
+    text.set_highlight(
+        compositor.get_cursor().as_slice(text.get_text().size32()));
+    text.set_highlight_style(highlight_color, highlight_corner_radii);
+
     return ViewState{.draggable = copyable};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) const override
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     text.calculate_layout(allocated.x);
     return text.inner.layout.extent;
   }
 
   virtual void render(CRect const &region, CRect const &clip,
-                      Canvas &canvas) const override
+                      Canvas &canvas) override
   {
     text.render(region, clip, canvas);
   }
 
-  virtual Cursor cursor(CRect const &, Vec2) const override
+  virtual Cursor cursor(CRect const &, Vec2) override
   {
     return copyable ? Cursor::Text : Cursor::Default;
   }
@@ -48,26 +76,38 @@ struct TextBox : View, Pin<>
 
 struct TextInput : View, Pin<>
 {
-  bool               disabled : 1           = false;
-  bool               editing : 1            = false;
-  bool               submit : 1             = false;
-  bool               focus_in : 1           = false;
-  bool               focus_out : 1          = false;
-  bool               is_multiline : 1       = false;
-  bool               enter_submits : 1      = false;
-  bool               tab_input : 1          = false;
-  ColorGradient      highlight_color        = {};
-  Vec4               highlight_corner_radii = {0, 0, 0, 0};
-  u32                lines_per_page         = 1;
-  mutable RenderText content                = {};
-  mutable RenderText placeholder            = {};
-  TextCompositor     compositor             = {};
-  Fn<void()>         on_edit                = fn([] {});
-  Fn<void()>         on_submit              = fn([] {});
-  Fn<void()>         on_focus_in            = fn([] {});
-  Fn<void()>         on_focus_out           = fn([] {});
+  bool           disabled : 1           = false;
+  bool           editing : 1            = false;
+  bool           submit : 1             = false;
+  bool           focus_in : 1           = false;
+  bool           focus_out : 1          = false;
+  bool           is_multiline : 1       = false;
+  bool           enter_submits : 1      = false;
+  bool           tab_input : 1          = false;
+  ColorGradient  highlight_color        = {};
+  Vec4           highlight_corner_radii = {0, 0, 0, 0};
+  u32            lines_per_page         = 1;
+  RenderText     content                = {};
+  RenderText     placeholder            = {};
+  TextCompositor compositor             = {};
+  Fn<void()>     on_edit                = fn([] {});
+  Fn<void()>     on_submit              = fn([] {});
+  Fn<void()>     on_focus_in            = fn([] {});
+  Fn<void()>     on_focus_out           = fn([] {});
 
-  TextInput() = default;
+  TextInput()
+  {
+    content.style(0, U32_MAX, TextStyle{.foreground = DEFAULT_THEME.inactive},
+                  FontStyle{.font        = engine.default_font,
+                            .font_height = DEFAULT_THEME.body_font_height,
+                            .line_height = DEFAULT_THEME.line_height});
+    placeholder.style(0, U32_MAX,
+                      TextStyle{.foreground = DEFAULT_THEME.inactive},
+                      FontStyle{.font        = engine.default_font,
+                                .font_height = DEFAULT_THEME.body_font_height,
+                                .line_height = DEFAULT_THEME.line_height});
+  }
+
   virtual ~TextInput() override
   {
     content.reset();
@@ -297,7 +337,7 @@ struct TextInput : View, Pin<>
                      .lose_focus = ctx.key_down(KeyCode::Escape)};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) const override
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     placeholder.calculate_layout(allocated.x);
     content.calculate_layout(allocated.x);
@@ -309,7 +349,7 @@ struct TextInput : View, Pin<>
   }
 
   virtual void render(CRect const &region, CRect const &clip,
-                      Canvas &canvas) const override
+                      Canvas &canvas) override
   {
     if (content.inner.text.is_empty())
     {
@@ -321,14 +361,10 @@ struct TextInput : View, Pin<>
     }
   }
 
-  virtual Cursor cursor(CRect const &, Vec2) const override
+  virtual Cursor cursor(CRect const &, Vec2) override
   {
     return Cursor::Text;
   }
 };
-
-// [ ] selection for copy and paste, copyable attribute
-// [ ] font hashmap and loader
-// [ ] using strings for font ids and its atlases
 
 }        // namespace ash

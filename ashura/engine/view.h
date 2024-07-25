@@ -86,7 +86,6 @@ struct ViewEvents
   bool mouse_pressed : 1 = false;
   bool mouse_move : 1    = false;
   bool mouse_enter : 1   = false;
-  bool mouse_escaped : 1 = false;
   bool mouse_leave : 1   = false;
   bool mouse_scroll : 1  = false;
   bool drag_start : 1    = false;
@@ -194,14 +193,20 @@ struct ViewState
 
 struct CoreViewTheme
 {
-  ColorGradient background = ColorGradient::uniform(mdc::GRAY_900);
-  ColorGradient header     = ColorGradient::uniform(mdc::GRAY_800);
-  ColorGradient text       = ColorGradient::uniform(mdc::WHITE);
-  ColorGradient inactive   = ColorGradient::uniform(mdc::GRAY_600);
-  ColorGradient active     = ColorGradient::uniform(mdc::BLUE_300);
-  ColorGradient error      = ColorGradient::uniform(mdc::RED_300);
-  ColorGradient warning    = ColorGradient::uniform(mdc::YELLOW_300);
-  ColorGradient success    = ColorGradient::uniform(mdc::GREEN_300);
+  ColorGradient background            = ColorGradient::uniform(mdc::GRAY_900);
+  ColorGradient background_complement = ColorGradient::uniform(mdc::GRAY_800);
+  ColorGradient header                = ColorGradient::uniform(mdc::GRAY_700);
+  ColorGradient text                  = ColorGradient::uniform(mdc::WHITE);
+  ColorGradient inactive              = ColorGradient::uniform(mdc::GRAY_600);
+  ColorGradient active                = ColorGradient::uniform(mdc::BLUE_300);
+  ColorGradient error                 = ColorGradient::uniform(mdc::RED_300);
+  ColorGradient warning               = ColorGradient::uniform(mdc::YELLOW_300);
+  ColorGradient success               = ColorGradient::uniform(mdc::GREEN_300);
+  f32           body_font_height      = 16;
+  f32           h1_font_height        = 30;
+  f32           h2_font_height        = 27;
+  f32           h3_font_height        = 22;
+  f32           line_height           = 1.2F;
 };
 
 constexpr CoreViewTheme DEFAULT_THEME = {};
@@ -236,7 +241,7 @@ struct View
   /// consider using the `subview` method.
   /// @param i child index
   /// @return child view pointer or nullptr meaning no more child left.
-  constexpr virtual View *child(u32 i) const
+  constexpr virtual View *child(u32 i)
   {
     (void) i;
     return nullptr;
@@ -259,7 +264,7 @@ struct View
   /// @brief distributes the size allocated to it to its child views.
   /// @param allocated the size allocated to this view
   /// @param[out] sizes sizes allocated to the children.
-  constexpr virtual void size(Vec2 allocated, Span<Vec2> sizes) const
+  constexpr virtual void size(Vec2 allocated, Span<Vec2> sizes)
   {
     (void) allocated;
     fill(sizes, Vec2{0, 0});
@@ -272,7 +277,7 @@ struct View
   /// @param[out] offsets offsets of the views from the parent's center
   /// @return this view's fitted extent
   constexpr virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                             Span<Vec2> offsets) const
+                             Span<Vec2> offsets)
   {
     (void) allocated;
     (void) sizes;
@@ -283,26 +288,25 @@ struct View
   /// @brief this is used for absolute positioning of the view
   /// @param center the allocated absolute center of this view relative
   /// to the viewport
-  constexpr virtual Vec2 position(CRect const &region) const
+  constexpr virtual Vec2 position(CRect const &region)
   {
     return region.center;
   }
 
   /// @brief returns the z-index of itself and assigns z-indices to its children
-  /// @param z_index z-index allocated to this view by parent
-  /// @param[out] allocation z-index assigned to children
+  /// @param allocated z-index allocated to this view by parent
+  /// @param[out] indices z-index assigned to children
   /// @return
-  constexpr virtual i32 stack(i32 z_index, Span<i32> allocation) const
+  constexpr virtual i32 stack(i32 allocated, Span<i32> indices)
   {
-    fill(allocation, z_index + 1);
-    return z_index;
+    fill(indices, allocated + 1);
+    return allocated;
   }
 
   /// @brief this is used for clipping views. the provided clip is
   /// relative to the root viewport. Used for nested viewports where there are
   /// multiple intersecting clips.
-  constexpr virtual CRect clip(CRect const &region,
-                               CRect const &allocated) const
+  constexpr virtual CRect clip(CRect const &region, CRect const &allocated)
   {
     (void) region;
     return allocated;
@@ -313,7 +317,7 @@ struct View
   /// every frame.
   /// @param canvas
   constexpr virtual void render(CRect const &region, CRect const &clip,
-                                Canvas &canvas) const
+                                Canvas &canvas)
   {
     (void) region;
     (void) clip;
@@ -324,7 +328,7 @@ struct View
   /// @param area area of view within the viewport
   /// @param offset offset of pointer within area
   /// @return true if in hit region
-  constexpr virtual bool hit(CRect const &region, Vec2 offset) const
+  constexpr virtual bool hit(CRect const &region, Vec2 offset)
   {
     (void) region;
     (void) offset;
@@ -332,7 +336,7 @@ struct View
   }
 
   /// @brief Select cursor type given a highlighted region of the view.
-  constexpr virtual Cursor cursor(CRect const &region, Vec2 offset) const
+  constexpr virtual Cursor cursor(CRect const &region, Vec2 offset)
   {
     (void) region;
     (void) offset;

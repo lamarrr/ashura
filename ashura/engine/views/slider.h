@@ -1,91 +1,70 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/color.h"
 #include "ashura/engine/view.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
-// [ ] implement
-/// REQUIREMENTS: multi-directional
+/// multi-directional slider
 struct Slider : public View
 {
-  Fn<void(f32)> on_changed   = fn([](f32) {});
-  Axis          direction    = Axis::X;
-  Frame         frame        = {};
-  f32           thumb_radius = 0.5F;
-  Vec4          track_color  = mdc::BLUE_A700.norm();
-  Vec4          thumb_color  = mdc::GRAY_500.norm();
-  bool          add_stepper  = false;
-  bool          disabled     = false;
+  bool          disabled : 1      = false;
+  bool          pointer_enter : 1 = false;
+  bool          pointer_leave : 1 = false;
+  bool          pointer_down : 1  = false;
+  bool          pointer_up : 1    = false;
+  bool          hovered : 1       = false;
+  bool          pressed : 1       = false;
+  Fn<void(f32)> on_changed        = fn([](f32) {});
+  Axis          direction         = Axis::X;
+  Frame         frame             = {};
+  Frame         thumb             = {};
+  ColorGradient track_color       = DEFAULT_THEME.inactive;
+  ColorGradient thumb_color       = DEFAULT_THEME.active;
+  f32           t                 = 0;
+  f32           min               = 0;
+  f32           max               = 1;
+  u8            steps             = U8_MAX;
 
-  f32 value = 0, min = 0, max = 1;
-
-  // [ ] handle focus
-
-  /*
-    virtual vec2 fit(Context &ctx, vec2 allocated_size,
-                     stx::Span<vec2 const> children_allocations,
-                     stx::Span<vec2 const> children_sizes,
-                     stx::Span<vec2>       children_positions) override
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events) override
+  {
+    u8 const main_axis  = (direction == Axis::X) ? 0 : 1;
+    u8 const cross_axis = (direction == Axis::X) ? 1 : 0;
+    if (events.mouse_down)
     {
-      return vec2{props.width(allocated_size.x), props.thumb_radius *
-    2};
+      t         = unlerp(region.begin()[main_axis], region.end()[main_axis],
+                         ctx.mouse_position[main_axis]);
+      t         = (steps == U8_MAX) ? t : grid_snap(t, 1.0F / steps);
+      f32 value = clamp(lerp(min, max, t), min, max);
+      on_changed(value);
     }
+    return ViewState{.draggable = !disabled};
+  }
 
-    virtual void draw(Context &ctx, gfx::Canvas &canvas) override
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
+                   Span<Vec2> offsets) override
+  {
+    fill(offsets, Vec2{0, 0});
+    return Vec2{0, 0};
+  }
+
+  virtual void render(CRect const &region, CRect const &clip,
+                      Canvas &canvas) override
+  {
+    // inactive tracks, then active thumb
+    if (steps != U8_MAX)
     {
-      f32 percentage = (value - min) / (max - min);
-
-      track_area = area;
-      track_area.offset.x += props.thumb_radius;
-      track_area.extent.x -= props.thumb_radius * 2;
-      track_area.offset.y += props.thumb_radius;
-      track_area.offset.y -= props.track_height / 2;
-      track_area.extent.y = props.track_height;
-
-      vec2 thumb_center{track_area.offset.x + percentage * track_area.extent.x,
-                        area.offset.y + area.extent.y / 2};
-      f32  thumb_radius =
-          thumb_animation.animate(thumb_animation_curve, thumb_tween);
-
-      canvas
-          .draw_round_rect_filled(track_area, vec4::splat(props.track_height /
-    2), 45, props.track_color) .draw_circle_filled(thumb_center, thumb_radius,
-    360, props.track_color);
+      for (u8 i = 0; i < steps; i++)
+      {
+      }
     }
-
-    virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
+    else
     {
-      thumb_animation.tick(interval);
     }
-
-    virtual bool hit_test(Context &ctx, vec2 mouse_position) override
-    {
-      return true;
-    }
-
-    virtual stx::Option<DragData> on_drag_start(Context &ctx,
-                                                vec2     mouse_position)
-    override
-    {
-      return stx::Some(DragData{
-          .type = "STUB",
-          .data = stx::Unique{stx::Span<u8 const>{}, stx::manager_stub}});
-    }
-
-    virtual void on_drag_update(Context &ctx, vec2 mouse_position,
-                                vec2            translation,
-                                DragData const &drag_data) override
-    {
-      on_change_start.handle(*this, ctx, value);
-      f32 diff = translation.x / track_area.extent.x;
-      value    = std::clamp(value + diff * (max - min), min, max);
-      on_changed.handle(*this, ctx, value);
-    }
-    */
+  }
 };
 
 }        // namespace ash

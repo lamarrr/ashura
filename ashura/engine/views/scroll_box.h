@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/color.h"
 #include "ashura/engine/view.h"
 #include "ashura/std/types.h"
 
@@ -12,7 +11,6 @@ struct ScrollBar : public View
 {
   bool          disabled : 1      = false;
   Axis          direction         = Axis::X;
-  f32           opacity           = 0.65F;
   ColorGradient thumb_color       = DEFAULT_THEME.inactive;
   ColorGradient track_color       = DEFAULT_THEME.inactive;
   Vec2          frame_extent      = {};
@@ -29,7 +27,7 @@ struct ScrollBar : public View
   {
     u8 const main_axis = (direction == Axis::X) ? 0 : 1;
 
-    if (!disabled && events.drag_update)
+    if (events.drag_update)
     {
       scroll_percentage +=
           ctx.mouse_translation[main_axis] / region.extent[main_axis];
@@ -37,7 +35,7 @@ struct ScrollBar : public View
       on_scrolled(scroll_percentage);
     }
 
-    if (!disabled && events.drag_end)
+    if (events.drag_end)
     {
       scroll_percentage =
           clamp((ctx.mouse_position[main_axis] - region.extent[main_axis] / 2) /
@@ -46,18 +44,16 @@ struct ScrollBar : public View
       on_scrolled(scroll_percentage);
     }
 
-    // [ ] handle focus
-
-    return ViewState{.clickable = true, .draggable = true, .focusable = true};
+    return ViewState{.clickable = !disabled, .draggable = !disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) const override
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     return allocated;
   }
 
   virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) const override
+                      Canvas      &canvas) override
   {
     u8 const   main_axis    = (direction == Axis::X) ? 0 : 1;
     u8 const   cross_axis   = (direction == Axis::Y) ? 1 : 0;
@@ -101,24 +97,24 @@ struct ScrollBar : public View
 
 struct ScrollBox : public View
 {
-  mutable ScrollBar x_bar      = ScrollBar{Axis::X};
-  mutable ScrollBar y_bar      = ScrollBar{Axis::Y};
-  Axes              axes       = Axes::X | Axes::Y;
-  Frame             frame      = {.width = {200}, .height = {200}};
-  SizeConstraint    x_bar_size = {.offset = 10};
-  SizeConstraint    y_bar_size = {.offset = 10};
+  ScrollBar      x_bar      = ScrollBar{Axis::X};
+  ScrollBar      y_bar      = ScrollBar{Axis::Y};
+  Axes           axes       = Axes::X | Axes::Y;
+  Frame          frame      = {.width = {200}, .height = {200}};
+  SizeConstraint x_bar_size = {.offset = 10};
+  SizeConstraint y_bar_size = {.offset = 10};
 
-  virtual View *child(u32 i) const override final
+  virtual View *child(u32 i) override final
   {
     return subview({&x_bar, &y_bar, item()}, i);
   }
 
-  virtual View *item() const
+  virtual View *item()
   {
     return nullptr;
   }
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) const override
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
     Vec2 const frame        = this->frame(allocated);
     f32 const  x_bar_size_r = x_bar_size(allocated.x);
@@ -137,7 +133,7 @@ struct ScrollBox : public View
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) const override
+                   Span<Vec2> offsets) override
   {
     Vec2 const frame = this->frame(allocated);
     offsets[0]       = space_align(frame, sizes[0], Vec2{1, 0});
@@ -164,16 +160,16 @@ struct ScrollBox : public View
     return frame;
   }
 
-  virtual i32 stack(i32 z_index, Span<i32> allocation) const override
+  virtual i32 stack(i32 z_index, Span<i32> indices) override
   {
     static constexpr i32 ELEVATION = 128;
-    allocation[0]                  = z_index + ELEVATION;
-    allocation[1]                  = z_index + ELEVATION;
-    fill(allocation.slice(2), z_index + 1);
+    indices[0]                     = z_index + ELEVATION;
+    indices[1]                     = z_index + ELEVATION;
+    fill(indices.slice(2), z_index + 1);
     return z_index;
   }
 
-  virtual CRect clip(CRect const &region, CRect const &allocated) const override
+  virtual CRect clip(CRect const &region, CRect const &allocated) override
   {
     return intersect(region.offseted(), allocated.offseted()).centered();
   }

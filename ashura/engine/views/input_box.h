@@ -1,11 +1,11 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/color.h"
 #include "ashura/engine/engine.h"
 #include "ashura/engine/text_compositor.h"
 #include "ashura/engine/view.h"
 #include "ashura/engine/views/button.h"
+#include "ashura/engine/views/flex_box.h"
 #include "ashura/engine/views/scroll_box.h"
 #include "ashura/std/text.h"
 
@@ -62,18 +62,19 @@ struct ScalarState
   ScalarInput step    = {};
   ScalarInput current = {};
 
-  constexpr void step_value(bool direction)
+  constexpr void step_value(i32 direction)
   {
     switch (base.type)
     {
       case ScalarInputType::i32:
         current.i32 =
-            clamp(sat_add(current.i32, direction ? step.i32 : -step.i32),
+            clamp(sat_add(current.i32, (direction > 0) ? step.i32 : -step.i32),
                   min.i32, max.i32);
         return;
       case ScalarInputType::f32:
-        current.f32 = clamp(current.f32 + (direction ? step.f32 : -step.f32),
-                            min.f32, max.f32);
+        current.f32 =
+            clamp(current.f32 + ((direction > 0) ? step.f32 : -step.f32),
+                  min.f32, max.f32);
         return;
       default:
         return;
@@ -137,7 +138,7 @@ struct ScalarDragBox : View, Pin<>
   ScalarState           value          = {};
   Fmt                   fmt            = fn(scalar_fmt);
   Parse                 parse          = fn(scalar_parse);
-  Fn<void(ScalarState)> on_update      = fn([](ScalarState) {});
+  Fn<void(ScalarInput)> on_update      = fn([](ScalarInput) {});
   Frame                 frame          = {.width = {100}, .height = {20}};
   f32                   padding        = 5;
   SizeConstraint        thumb_width    = {2.75F};
@@ -150,11 +151,10 @@ struct ScalarDragBox : View, Pin<>
     input.is_multiline  = false;
     input.tab_input     = false;
     input.enter_submits = false;
-    input.placeholder.set_text(
-        U""_utf, TextStyle{.foreground = DEFAULT_THEME.inactive},
-        FontStyle{.font = engine.default_font, .font_height = 10});
-    input.content.set_text(U""_utf, TextStyle{.foreground = DEFAULT_THEME.text},
-                           {.font = engine.default_font, .font_height = 10});
+  }
+
+  virtual ~ScalarDragBox() override
+  {
   }
 
   static void scalar_fmt(fmt::Context const &ctx, ScalarInput v)
@@ -171,9 +171,10 @@ struct ScalarDragBox : View, Pin<>
 
     Vec<u8> utf8;
     utf8_encode(text, utf8).unwrap();
+    defer utf8_reset{[&] { utf8.reset(); }};
 
-    char *first = (char *) utf8.begin();
-    char *last  = (char *) utf8.end();
+    char const *const first = (char const *) utf8.begin();
+    char const *const last  = (char const *) utf8.end();
 
     switch (s.base.type)
     {
@@ -241,13 +242,13 @@ struct ScalarDragBox : View, Pin<>
 
     if (input.editing || dragging)
     {
-      on_update(value);
+      on_update(value.current);
     }
 
     return ViewState{.draggable = !input.disabled};
   }
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) const override
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
     Vec2 child = frame(allocated) - padding;
     child.x    = max(child.x, 0.0F);
@@ -256,14 +257,14 @@ struct ScalarDragBox : View, Pin<>
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) const override
+                   Span<Vec2> offsets) override
   {
     fill(offsets, Vec2{0, 0});
     return sizes[0] + padding;
   }
 
   virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) const override
+                      Canvas      &canvas) override
   {
     canvas.rrect(
         ShapeDesc{.center       = region.center,
@@ -287,7 +288,7 @@ struct ScalarDragBox : View, Pin<>
                   .tint         = thumb_color});
   }
 
-  virtual Cursor cursor(CRect const &region, Vec2 offset) const override
+  virtual Cursor cursor(CRect const &region, Vec2 offset) override
   {
     (void) region;
     (void) offset;
@@ -295,37 +296,65 @@ struct ScalarDragBox : View, Pin<>
   }
 };
 
-struct ScalarBox : View, Pin<>
+struct ScalarBox : FlexBox, Pin<>
 {
-  bool                  disabled : 1   = false;
-  bool                  steppable : 1  = true;
-  bool                  draggable : 1  = true;
-  bool                  inputtable : 1 = true;
-  ScalarInput           step           = {};
-  TextButton            decr           = {};
-  TextButton            incr           = {};
-  ScalarDragBox         dragger        = {};
-  Fn<void(ScalarInput)> on_changed     = fn([](ScalarInput) {});
+  bool                  disabled : 1  = false;
+  bool                  steppable : 1 = true;
+  bool                  draggable : 1 = true;
+  TextButton            decr          = {};
+  TextButton            incr          = {};
+  ScalarDragBox         drag          = {};
+  Fn<void(ScalarInput)> on_update     = fn([](ScalarInput) {});
 
   ScalarBox()
   {
-    decr.text.text.set_text(U"-"_utf, {}, {});
-    incr.text.text.set_text(U"+"_utf, {}, {});
+    axis        = Axis::X;
+    wrap        = false;
+    reverse     = false;
+    main_align  = MainAlign::Start;
+    cross_align = 0;
+    frame       = Frame{.width = {.scale = 1}, .height = {.scale = 1}};
 
-    decr.on_clicked =
-        fn(this, [](ScalarBox *b) { b->dragger.value.step_value(false); });
+    decr.text.text.set_text(
+        U"-"_utf, TextStyle{.foreground = DEFAULT_THEME.text},
+        FontStyle{.font        = engine.default_font,
+                  .font_height = DEFAULT_THEME.body_font_height,
+                  .line_height = DEFAULT_THEME.line_height});
+    incr.text.text.set_text(
+        U"+"_utf, TextStyle{.foreground = DEFAULT_THEME.text},
+        FontStyle{.font        = engine.default_font,
+                  .font_height = DEFAULT_THEME.body_font_height,
+                  .line_height = DEFAULT_THEME.line_height});
 
-    incr.on_clicked =
-        fn(this, [](ScalarBox *b) { b->dragger.value.step_value(true); });
+    // [ ] set button styles
+
+    decr.on_pressed = fn(this, [](ScalarBox *b) {
+      b->drag.value.step_value(-1);
+      b->on_update(b->drag.value.current);
+    });
+
+    incr.on_pressed = fn(this, [](ScalarBox *b) {
+      b->drag.value.step_value(1);
+      b->on_update(b->drag.value.current);
+    });
+
+    drag.on_update =
+        fn(this, [](ScalarBox *b, ScalarInput in) { b->on_update(in); });
   }
-};
 
-/// REQUIREMENTS:
-/// [ ] Generic Numeric Input: Scalars, Vectors, Matrices, Tensors
-template <u32 N>
-struct VectorInputBox : View
-{
-  ScalarBox scalars[N];
+  virtual View *item(u32 i) override
+  {
+    return subview({&decr, &drag, &incr}, i);
+  }
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events) override
+  {
+    decr.disabled = disabled || !steppable;
+    incr.disabled = disabled || !steppable;
+    drag.disabled = disabled || !draggable;
+    return ViewState{};
+  }
 };
 
 // struct ScrollableTextInput : ScrollBox, Pin<>

@@ -11,6 +11,10 @@ enum class FontLoadError : i32
 {
 };
 
+enum class ImageLoadError : i32
+{
+};
+
 struct Engine
 {
   void              *app     = nullptr;

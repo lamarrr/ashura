@@ -203,7 +203,28 @@ struct Canvas
   /// @param degree
   void squircle(ShapeDesc const &desc, f32 degree, u32 segments);
 
-  void nine_slice(ShapeDesc const &desc, ScaleMode mode, Span<Vec2 const> uvs);
+  /// @brief
+  ///
+  ///
+  /// ┏━━━━━━━━━━━━━━━━━┑
+  /// ┃  0  ┃  1  ┃  2  ┃
+  /// ┃╸╸╸╸╸┃╸╸╸╸╸┃╸╸╸╸╸┃
+  /// ┃  3  ┃  4  ┃  5  ┃
+  /// ┃╸╸╸╸╸┃╸╸╸╸╸┃╸╸╸╸╸┃
+  /// ┃  6  ┃  7  ┃  8  ┃
+  /// ┗━━━━━━━━━━━━━━━━━┛
+  ///
+  /// Scaling:
+  ///
+  /// 0 2 6 8; None
+  /// 1 7; Horizontal
+  /// 3 5;	Vertical
+  /// 4;	Horizontal + Vertical
+  ///
+  /// @param desc
+  /// @param mode
+  /// @param uvs
+  void nine_slice(ShapeDesc const &desc, ScaleMode mode, Span<Vec4 const> uvs);
 
   /// @brief Render text using font atlases
   /// @param desc only desc.center, desc.transform, desc.tiling, and
