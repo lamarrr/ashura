@@ -26,8 +26,8 @@ struct CheckBox : public View
       pressed = false;
     }
 
-    if (!disabled && (events.mouse_down &&
-                          has_bits(ctx.mouse_buttons, MouseButtons::Primary) ||
+    if (!disabled && ((events.mouse_down &&
+                       has_bits(ctx.mouse_buttons, MouseButtons::Primary)) ||
                       (events.key_down && ctx.key_down(KeyCode::Return))))
     {
       pressed = true;

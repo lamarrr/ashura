@@ -31,6 +31,7 @@ struct Slider : public View
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
                          ViewEvents events) override
   {
+    // [ ] process events
     u8 const main_axis  = (direction == Axis::X) ? 0 : 1;
     u8 const cross_axis = (direction == Axis::X) ? 1 : 0;
     if (events.mouse_down)
@@ -54,7 +55,7 @@ struct Slider : public View
   virtual void render(CRect const &region, CRect const &clip,
                       Canvas &canvas) override
   {
-    // inactive tracks, then active thumb
+    // [ ] inactive tracks/split in halves, then active thumb
     if (steps != U8_MAX)
     {
       for (u8 i = 0; i < steps; i++)

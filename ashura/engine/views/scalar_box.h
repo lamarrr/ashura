@@ -135,15 +135,19 @@ struct ScalarDragBox : View, Pin<>
   bool                  disabled : 1   = false;
   bool                  input_mode : 1 = false;
   bool                  dragging : 1   = false;
+  Fn<void(ScalarInput)> on_update      = fn([](ScalarInput) {});
   ScalarState           value          = {};
   Fmt                   fmt            = fn(scalar_fmt);
   Parse                 parse          = fn(scalar_parse);
-  Fn<void(ScalarInput)> on_update      = fn([](ScalarInput) {});
-  Frame                 frame          = {.width = {100}, .height = {20}};
-  f32                   padding        = 5;
+  Frame                 frame          = {.width = {.min = 100},
+                                          .height = {.min = DEFAULT_THEME.body_font_height + 10}};
+  Frame                 padding        = {.width = {5}, .height = {5}};
   SizeConstraint        thumb_width    = {2.75F};
-  ColorGradient         border_color   = DEFAULT_THEME.inactive;
+  Vec4                  corner_radii   = Vec4::splat(0.125F);
+  ColorGradient         color          = DEFAULT_THEME.inactive;
   ColorGradient         thumb_color    = DEFAULT_THEME.inactive;
+  f32                   stroke         = 1.0F;
+  f32                   thickness      = 1.0F;
   TextInput             input          = {};
 
   ScalarDragBox()
@@ -250,7 +254,7 @@ struct ScalarDragBox : View, Pin<>
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
-    Vec2 child = frame(allocated) - padding;
+    Vec2 child = frame(allocated) - 2 * padding(allocated);
     child.x    = max(child.x, 0.0F);
     child.y    = max(child.y, 0.0F);
     fill(sizes, child);
@@ -260,32 +264,34 @@ struct ScalarDragBox : View, Pin<>
                    Span<Vec2> offsets) override
   {
     fill(offsets, Vec2{0, 0});
-    return sizes[0] + padding;
+    return sizes[0] + 2 * padding(allocated);
   }
 
   virtual void render(CRect const &region, CRect const &,
                       Canvas      &canvas) override
   {
-    canvas.rrect(
-        ShapeDesc{.center       = region.center,
-                  .extent       = region.extent,
-                  .corner_radii = Vec4::splat(region.extent.y * 0.125F),
-                  .stroke       = 1,
-                  .thickness    = 1.0f,
-                  .tint         = border_color});
+    canvas.rrect(ShapeDesc{.center       = region.center,
+                           .extent       = region.extent,
+                           .corner_radii = region.extent.y * corner_radii,
+                           .stroke       = stroke,
+                           .thickness    = thickness,
+                           .tint         = color});
 
-    f32 const  t = value.uninterp();
-    Vec2 const thumb_extent{thumb_width(region.extent.x), region.extent.y};
-    Vec2       thumb_center{0, region.center.y};
+    if (!input_mode)
+    {
+      f32 const  t = value.uninterp();
+      Vec2 const thumb_extent{thumb_width(region.extent.x), region.extent.y};
+      Vec2       thumb_center{0, region.center.y};
 
-    thumb_center.x =
-        space_align(region.extent.x, thumb_extent.x, norm_to_axis(t));
+      thumb_center.x =
+          space_align(region.extent.x, thumb_extent.x, norm_to_axis(t));
 
-    canvas.rrect(
-        ShapeDesc{.center       = thumb_center,
-                  .extent       = thumb_extent,
-                  .corner_radii = Vec4::splat(region.extent.y * 0.125F),
-                  .tint         = thumb_color});
+      canvas.rrect(
+          ShapeDesc{.center       = thumb_center,
+                    .extent       = thumb_extent,
+                    .corner_radii = Vec4::splat(region.extent.y * 0.125F),
+                    .tint         = thumb_color});
+    }
   }
 
   virtual Cursor cursor(CRect const &region, Vec2 offset) override
@@ -301,39 +307,51 @@ struct ScalarBox : FlexBox, Pin<>
   bool                  disabled : 1  = false;
   bool                  steppable : 1 = true;
   bool                  draggable : 1 = true;
-  TextButton            decr          = {};
-  TextButton            incr          = {};
-  ScalarDragBox         drag          = {};
   Fn<void(ScalarInput)> on_update     = fn([](ScalarInput) {});
+  TextButton            dec           = {};
+  TextButton            inc           = {};
+  ScalarDragBox         drag          = {};
 
   ScalarBox()
   {
-    axis        = Axis::X;
-    wrap        = false;
-    reverse     = false;
-    main_align  = MainAlign::Start;
-    cross_align = 0;
-    frame       = Frame{.width = {.scale = 1}, .height = {.scale = 1}};
+    FlexBox::axis        = Axis::X;
+    FlexBox::wrap        = false;
+    FlexBox::reverse     = false;
+    FlexBox::main_align  = MainAlign::Start;
+    FlexBox::cross_align = 0;
+    FlexBox::frame       = Frame{.width = {.scale = 1}, .height = {.scale = 1}};
 
-    decr.text.text.set_text(
+    dec.text.text.set_text(
         U"-"_utf, TextStyle{.foreground = DEFAULT_THEME.text},
-        FontStyle{.font        = engine.default_font,
+        FontStyle{.font        = engine->default_font,
                   .font_height = DEFAULT_THEME.body_font_height,
                   .line_height = DEFAULT_THEME.line_height});
-    incr.text.text.set_text(
+    inc.text.text.set_text(
         U"+"_utf, TextStyle{.foreground = DEFAULT_THEME.text},
-        FontStyle{.font        = engine.default_font,
+        FontStyle{.font        = engine->default_font,
                   .font_height = DEFAULT_THEME.body_font_height,
                   .line_height = DEFAULT_THEME.line_height});
 
-    // [ ] set button styles
+    dec.stroke       = drag.stroke;
+    dec.thickness    = drag.thickness;
+    dec.padding      = drag.padding;
+    dec.frame.width  = drag.frame.height;
+    dec.frame.height = drag.frame.height;
+    dec.corner_radii = drag.corner_radii;
 
-    decr.on_pressed = fn(this, [](ScalarBox *b) {
+    inc.stroke       = drag.stroke;
+    inc.thickness    = drag.thickness;
+    inc.padding      = drag.padding;
+    inc.frame.width  = drag.frame.height;
+    inc.frame.height = drag.frame.height;
+    inc.corner_radii = drag.corner_radii;
+
+    dec.on_pressed = fn(this, [](ScalarBox *b) {
       b->drag.value.step_value(-1);
       b->on_update(b->drag.value.current);
     });
 
-    incr.on_pressed = fn(this, [](ScalarBox *b) {
+    inc.on_pressed = fn(this, [](ScalarBox *b) {
       b->drag.value.step_value(1);
       b->on_update(b->drag.value.current);
     });
@@ -344,27 +362,17 @@ struct ScalarBox : FlexBox, Pin<>
 
   virtual View *item(u32 i) override
   {
-    return subview({&decr, &drag, &incr}, i);
+    return subview({&dec, &drag, &inc}, i);
   }
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events) override
+  virtual ViewState tick(ViewContext const &, CRect const &,
+                         ViewEvents) override
   {
-    decr.disabled = disabled || !steppable;
-    incr.disabled = disabled || !steppable;
+    dec.disabled  = disabled || !steppable;
+    inc.disabled  = disabled || !steppable;
     drag.disabled = disabled || !draggable;
     return ViewState{};
   }
 };
-
-// struct ScrollableTextInput : ScrollBox, Pin<>
-// {
-//   TextInput input;
-//   ScrollableTextInput()          = default;
-//   virtual ~ScrollableTextInput() = default;
-//   // [ ] calculate lines per page
-//   // [ ] viewport text with scrollable region, scroll direction
-//   // [ ] text input while in view, i.e. page down
-// };
 
 }        // namespace ash

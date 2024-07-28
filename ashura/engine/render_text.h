@@ -277,7 +277,7 @@ struct RenderText
     canvas.text(ShapeDesc{.center = region.center}, block(), inner.layout,
                 block_style(region.extent.x), clip);
     // [ ] render
-    // [ ] are the cursor indexing correct?
+    // [ ] are the cursor indexes correct?
     // [ ] use overlays on intersecting graphemes
   }
 

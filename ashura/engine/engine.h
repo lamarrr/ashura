@@ -3,6 +3,7 @@
 #include "ashura/engine/font.h"
 #include "ashura/engine/image_decoder.h"
 #include "ashura/std/async.h"
+#include "ashura/std/cfg.h"
 
 namespace ash
 {
@@ -17,8 +18,9 @@ enum class ImageLoadError : i32
 
 struct Engine
 {
-  void              *app     = nullptr;
-  StrHashMap<void *> globals = {};
+  void              *app          = nullptr;
+  StrHashMap<void *> globals      = {};
+  Font               default_font = nullptr;
   // [ ] Font Manager
   // [ ] Shader Manager
   // [ ] Image Manager
@@ -31,7 +33,6 @@ struct Engine
   // [ ] Video Manager (Vulkan, FFMPEG)
   // [ ] Custom Subsystems
   // [ ] Engine Startup() -> Tick () -> Shutdown() Tasks
-  Font                        default_font = nullptr;
   Result<Font, FontLoadError> load_font(Span<char const> name);
   Result<Void, FontLoadError> unload_font(Span<char const> name);
 

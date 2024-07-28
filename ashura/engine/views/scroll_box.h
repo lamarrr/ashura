@@ -10,13 +10,13 @@ namespace ash
 struct ScrollBar : public View
 {
   bool          disabled : 1      = false;
-  Axis          direction         = Axis::X;
+  Fn<void(f32)> on_scrolled       = fn([](f32) {});
+  Axis          direction : 2     = Axis::X;
   ColorGradient thumb_color       = DEFAULT_THEME.inactive;
   ColorGradient track_color       = DEFAULT_THEME.inactive;
   Vec2          frame_extent      = {};
   Vec2          content_extent    = {};
   f32           scroll_percentage = 0;
-  Fn<void(f32)> on_scrolled       = fn([](f32) {});
 
   explicit ScrollBar(Axis direction) : direction{direction}
   {
@@ -97,9 +97,9 @@ struct ScrollBar : public View
 
 struct ScrollBox : public View
 {
+  Axes           axes       = Axes::X | Axes::Y;
   ScrollBar      x_bar      = ScrollBar{Axis::X};
   ScrollBar      y_bar      = ScrollBar{Axis::Y};
-  Axes           axes       = Axes::X | Axes::Y;
   Frame          frame      = {.width = {200}, .height = {200}};
   SizeConstraint x_bar_size = {.offset = 10};
   SizeConstraint y_bar_size = {.offset = 10};

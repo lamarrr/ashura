@@ -22,7 +22,7 @@ struct TextBox : View, Pin<>
   TextBox()
   {
     text.style(0, U32_MAX, TextStyle{.foreground = DEFAULT_THEME.text},
-               FontStyle{.font        = engine.default_font,
+               FontStyle{.font        = engine->default_font,
                          .font_height = DEFAULT_THEME.body_font_height,
                          .line_height = DEFAULT_THEME.line_height});
   }
@@ -97,13 +97,12 @@ struct TextInput : View, Pin<>
 
   TextInput()
   {
-    content.style(0, U32_MAX, TextStyle{.foreground = DEFAULT_THEME.inactive},
-                  FontStyle{.font        = engine.default_font,
+    content.style(0, U32_MAX, TextStyle{.foreground = DEFAULT_THEME.text},
+                  FontStyle{.font        = engine->default_font,
                             .font_height = DEFAULT_THEME.body_font_height,
                             .line_height = DEFAULT_THEME.line_height});
-    placeholder.style(0, U32_MAX,
-                      TextStyle{.foreground = DEFAULT_THEME.inactive},
-                      FontStyle{.font        = engine.default_font,
+    placeholder.style(0, U32_MAX, TextStyle{.foreground = DEFAULT_THEME.text},
+                      FontStyle{.font        = engine->default_font,
                                 .font_height = DEFAULT_THEME.body_font_height,
                                 .line_height = DEFAULT_THEME.line_height});
   }
@@ -366,5 +365,15 @@ struct TextInput : View, Pin<>
     return Cursor::Text;
   }
 };
+
+// struct ScrollableTextInput : ScrollBox, Pin<>
+// {
+//   TextInput input;
+//   ScrollableTextInput()          = default;
+//   virtual ~ScrollableTextInput() = default;
+//   // [ ] calculate lines per page
+//   // [ ] viewport text with scrollable region, scroll direction
+//   // [ ] text input while in view, i.e. page down
+// };
 
 }        // namespace ash

@@ -13,12 +13,12 @@ namespace ash
 /// the cross axis
 struct FlexBox : public View
 {
-  Axis      axis        = Axis::X;
-  bool      wrap        = true;
-  bool      reverse     = false;
-  MainAlign main_align  = MainAlign::Start;
-  f32       cross_align = 0;
-  Frame     frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
+  Axis      axis : 3       = Axis::X;
+  bool      wrap : 1       = true;
+  bool      reverse : 1    = false;
+  MainAlign main_align : 3 = MainAlign::Start;
+  f32       cross_align    = 0;
+  Frame     frame          = {.width = {.scale = 1}, .height = {.scale = 1}};
 
   virtual View *child(u32 i) override final
   {
@@ -33,6 +33,7 @@ struct FlexBox : public View
 
   virtual f32 align_item(u32 i)
   {
+    (void) i;
     return cross_align;
   }
 
