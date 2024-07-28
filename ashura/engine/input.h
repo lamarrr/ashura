@@ -633,6 +633,30 @@ struct WindowEvent
   WindowEventTypes type = WindowEventTypes::None;
 };
 
+/// @param Normal region is normal and has no special properties
+/// @param Draggable region can drag entire window
+/// @param ResizeTopLeft region can resize top left window
+/// @param ResizeTop region can resize top window
+/// @param ResizeTopRight region can resize top right window
+/// @param ResizeRight region can resize right window
+/// @param ResizeBottomRight region can resize bottom right window
+/// @param ResizeBottom region can resize bottom window
+/// @param ResizeBottomLeft region can resize bottom left window
+/// @param ResizeLeft region can resize left window
+enum class WindowRegion : u8
+{
+  Normal            = 0,
+  Draggable         = 1,
+  ResizeTopLeft     = 2,
+  ResizeTop         = 3,
+  ResizeTopRight    = 4,
+  ResizeRight       = 5,
+  ResizeBottomRight = 6,
+  ResizeBottom      = 7,
+  ResizeBottomLeft  = 8,
+  ResizeLeft        = 9
+};
+
 /// @param Default Default cursor. Usually an arrow
 /// @param None No cursor (disable cursor).
 /// @param Text Text selection. Usually an I-beam

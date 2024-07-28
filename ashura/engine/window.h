@@ -5,6 +5,7 @@
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/image.h"
 #include "ashura/std/option.h"
+#include "ashura/std/result.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -47,8 +48,10 @@ struct WindowSystem
   virtual uid            listen(Window window, WindowEventTypes event_types,
                                 Fn<void(WindowEvent const &)> callback)   = 0;
   virtual void           unlisten(Window window, uid listener)            = 0;
-  virtual gfx::Surface   get_surface(Window window)                       = 0;
-  virtual void           poll_events()                                    = 0;
+  virtual Result<Void, Void> set_hit_test(Window                  window,
+                                          Fn<WindowRegion(Vec2U)> hit)    = 0;
+  virtual gfx::Surface       get_surface(Window window)                   = 0;
+  virtual void               poll_events()                                = 0;
 };
 
 WindowSystem *init_sdl_window_system();

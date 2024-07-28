@@ -27,6 +27,8 @@ struct WindowImpl
   uid                            backend_id = UID_MAX;
   SparseVec<WindowEventListener> listeners  = {};
   gfx::InstanceImpl              instance   = {};
+  Fn<WindowRegion(Vec2U)>        hit_test =
+      fn([](Vec2U) { return WindowRegion::Normal; });
 };
 
 struct WindowSystemImpl final : public WindowSystem
@@ -288,6 +290,51 @@ struct WindowSystemImpl final : public WindowSystem
     pwin->listeners.erase(listener);
   }
 
+  static SDL_HitTestResult sdl_hit_test(SDL_Window *, SDL_Point const *area,
+                                        void *data)
+  {
+    WindowImpl  *win    = (WindowImpl *) data;
+    WindowRegion region = win->hit_test(Vec2U{(u32) area->x, (u32) area->y});
+    switch (region)
+    {
+      case WindowRegion::Normal:
+        return SDL_HITTEST_NORMAL;
+      case WindowRegion::Draggable:
+        return SDL_HITTEST_DRAGGABLE;
+      case WindowRegion::ResizeTopLeft:
+        return SDL_HITTEST_RESIZE_TOPLEFT;
+      case WindowRegion::ResizeTop:
+        return SDL_HITTEST_RESIZE_TOP;
+      case WindowRegion::ResizeTopRight:
+        return SDL_HITTEST_RESIZE_TOPRIGHT;
+      case WindowRegion::ResizeRight:
+        return SDL_HITTEST_RESIZE_RIGHT;
+      case WindowRegion::ResizeBottomRight:
+        return SDL_HITTEST_RESIZE_BOTTOMRIGHT;
+      case WindowRegion::ResizeBottom:
+        return SDL_HITTEST_RESIZE_BOTTOM;
+      case WindowRegion::ResizeBottomLeft:
+        return SDL_HITTEST_RESIZE_BOTTOMLEFT;
+      case WindowRegion::ResizeLeft:
+        return SDL_HITTEST_RESIZE_LEFT;
+      default:
+        return SDL_HITTEST_NORMAL;
+    }
+  }
+
+  Result<Void, Void> set_hit_test(Window                  window,
+                                  Fn<WindowRegion(Vec2U)> hit) override
+  {
+    WindowImpl *pwin = (WindowImpl *) window;
+    pwin->hit_test   = hit;
+    if (SDL_SetWindowHitTest(pwin->win, sdl_hit_test, pwin) != 0)
+    {
+      return Err{};
+    }
+
+    return Ok{};
+  }
+
   gfx::Surface get_surface(Window window) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
@@ -523,32 +570,6 @@ struct WindowSystemImpl final : public WindowSystem
     }
   }
 };
-
-/*
-  // void enable_hit_testing();
-  //
-  // SDL_HITTEST_NORMAL
-  // region is normal and has no special properties
-  // SDL_HITTEST_DRAGGABLE
-  // region can drag entire window
-  // SDL_HITTEST_RESIZE_TOPLEFT
-  // region can resize top left window
-  // SDL_HITTEST_RESIZE_TOP
-  // region can resize top window
-  // SDL_HITTEST_RESIZE_TOPRIGHT
-  // region can resize top right window
-  // SDL_HITTEST_RESIZE_RIGHT
-  // region can resize right window
-  // SDL_HITTEST_RESIZE_BOTTOMRIGHT
-  // region can resize bottom right window
-  // SDL_HITTEST_RESIZE_BOTTOM
-  // region can resize bottom window
-  // SDL_HITTEST_RESIZE_BOTTOMLEFT
-  // region can resize bottom left window
-  // SDL_HITTEST_RESIZE_LEFT
-  // region can resize left window
-  //
-*/
 
 }        // namespace sdl
 
