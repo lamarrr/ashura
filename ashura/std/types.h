@@ -3707,7 +3707,7 @@ struct [[nodiscard]] SourceLocation
   u32         column   = 0;
 };
 
-template <typename T = void>
+template <typename T = Void>
 struct Pin
 {
   typedef T Type;
@@ -3716,18 +3716,6 @@ struct Pin
   constexpr Pin(Args &&...args) : v{((Args &&) args)...}
   {
   }
-  constexpr Pin(Pin const &)            = delete;
-  constexpr Pin(Pin &&)                 = delete;
-  constexpr Pin &operator=(Pin const &) = delete;
-  constexpr Pin &operator=(Pin &&)      = delete;
-  constexpr ~Pin()                      = default;
-};
-
-template <>
-struct Pin<void>
-{
-  typedef void Type;
-  constexpr Pin()                       = default;
   constexpr Pin(Pin const &)            = delete;
   constexpr Pin(Pin &&)                 = delete;
   constexpr Pin &operator=(Pin const &) = delete;
