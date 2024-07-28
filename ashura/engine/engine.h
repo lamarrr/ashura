@@ -39,6 +39,8 @@ struct Engine
   void uninit();
 };
 
-extern Engine engine;
+/// Global Engine Pointer. Can be hooked at runtime for dynamically loaded
+/// executables.
+ASH_C_LINKAGE ASH_DLL_EXPORT Engine *engine;
 
 }        // namespace ash

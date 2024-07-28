@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/allocator.h"
+#include "ashura/std/cfg.h"
 #include "ashura/std/semaphore.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
@@ -54,6 +55,6 @@ struct Scheduler
   virtual void execute_main_thread_work(nanoseconds timeout)        = 0;
 };
 
-extern Scheduler *scheduler;
+ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler *scheduler;
 
 }        // namespace ash

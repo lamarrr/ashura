@@ -234,6 +234,8 @@
 #  endif
 #endif
 
+#define ASH_C_LINKAGE extern "C"
+
 /*********************** INLINING MACROS ***********************/
 
 // also used for hiding static variables and hookable functions that should not

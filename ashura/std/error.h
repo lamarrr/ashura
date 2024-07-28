@@ -19,16 +19,16 @@
     }                                                                          \
   } while (false)
 
-#define CHECK_DESC_SRC(src_loc_expr, cond_expr, description_expr, ...)       \
-  CHECK_EX(::ash::default_logger, src_loc_expr, cond_expr, description_expr, \
+#define CHECK_DESC_SRC(src_loc_expr, cond_expr, description_expr, ...) \
+  CHECK_EX(*::ash::logger, src_loc_expr, cond_expr, description_expr,  \
            __VA_ARGS__)
 
-#define CHECK_DESC(cond_expr, description_expr, ...)                           \
-  CHECK_EX(::ash::default_logger, ::ash::SourceLocation::current(), cond_expr, \
+#define CHECK_DESC(cond_expr, description_expr, ...)                    \
+  CHECK_EX(*::ash::logger, ::ash::SourceLocation::current(), cond_expr, \
            description_expr, __VA_ARGS__)
 
-#define CHECK(cond_expr)                                                       \
-  CHECK_EX(::ash::default_logger, ::ash::SourceLocation::current(), cond_expr, \
+#define CHECK(cond_expr)                                                \
+  CHECK_EX(*::ash::logger, ::ash::SourceLocation::current(), cond_expr, \
            "[no description provided]")
 
 #define UNREACHABLE() \

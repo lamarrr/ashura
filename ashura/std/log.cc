@@ -125,7 +125,10 @@ void FileSink::flush()
   (void) fflush(file);
 }
 
-Logger    default_logger = Logger{};
-StdioSink stdio_sink     = {};
+static Logger logger_impl = Logger{};
+
+ASH_C_LINKAGE ASH_DLL_EXPORT Logger *logger = &logger_impl;
+
+StdioSink stdio_sink = {};
 
 }        // namespace ash

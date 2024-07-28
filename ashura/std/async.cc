@@ -476,6 +476,7 @@ struct SchedulerImpl final : Scheduler
   }
 };
 
-static SchedulerImpl task_scheduler_impl;
-Scheduler           *scheduler = &task_scheduler_impl;
+static SchedulerImpl scheduler_impl;
+
+ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler *scheduler = &scheduler_impl;
 }        // namespace ash

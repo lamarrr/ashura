@@ -10,7 +10,7 @@ std::atomic<uint64_t> invocs = 0;
 TEST(AsyncTest, Basic)
 {
   using namespace ash;
-  default_logger.add_sink(&stdio_sink);
+  logger->add_sink(&stdio_sink);
 
   SemaphoreRef sem = create_semaphore(1, default_allocator);
   scheduler->init(span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));

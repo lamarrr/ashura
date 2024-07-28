@@ -1,11 +1,11 @@
 
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/cfg.h"
 #include "ashura/std/format.h"
 #include "ashura/std/mem.h"
-#include "ashura/std/runtime.h"
+#include "ashura/std/panic.h"
 #include "ashura/std/types.h"
-#include <atomic>
 #include <mutex>
 #include <stdlib.h>
 
@@ -32,8 +32,8 @@ struct LogSink
 };
 
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
-/// logging unreliable. This means each log statement's content is limited to
-/// `BUFFER_CAPACITY`
+/// logging unreliable. This means each log statement's content/payload is
+/// limited to `BUFFER_CAPACITY`.
 struct Logger : Pin<>
 {
   static constexpr usize BUFFER_CAPACITY = 16_KB;
@@ -112,7 +112,7 @@ struct Logger : Pin<>
   template <typename... Args>
   [[noreturn]] void panic(Args const &...args)
   {
-    if (panic_count.fetch_add(1, std::memory_order::relaxed))
+    if (panic_count->fetch_add(1, std::memory_order::relaxed))
     {
       (void) fputs("panicked while processing a panic. aborting...", stderr);
       (void) fflush(stderr);
@@ -172,7 +172,8 @@ struct FileSink final : LogSink
   void flush() override;
 };
 
-extern ash::Logger default_logger;
-extern StdioSink   stdio_sink;
+ASH_C_LINKAGE ASH_DLL_EXPORT ash::Logger *logger;
+
+extern StdioSink stdio_sink;
 
 }        // namespace ash
