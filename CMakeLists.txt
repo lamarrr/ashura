@@ -143,15 +143,15 @@ endif()
 
 add_library(
   ashura_std
-  ashura/std/semaphore.cc
-  ashura/std/async.cc
-  ashura/std/io.cc
   ashura/std/allocator.cc
-  ashura/std/hash.cc
   ashura/std/arena_allocator.cc
+  ashura/std/async.cc
   ashura/std/format.cc
+  ashura/std/hash.cc
+  ashura/std/io.cc
   ashura/std/log.cc
-  ashura/std/runtime.cc)
+  ashura/std/panic.cc
+  ashura/std/semaphore.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ashura_std PUBLIC xxHash::xxhash Threads::Threads)
 
@@ -200,10 +200,10 @@ add_library(
   ashura/engine/views/combo_box.cc
   ashura/engine/views/demo.cc
   ashura/engine/views/flex_box.cc
-  ashura/engine/views/input_box.cc
   ashura/engine/views/plot.cc
   ashura/engine/views/progress_bar.cc
   ashura/engine/views/radio_box.cc
+  ashura/engine/views/scalar_box.cc
   ashura/engine/views/scroll_box.cc
   ashura/engine/views/slider.cc
   ashura/engine/views/stack_box.cc
