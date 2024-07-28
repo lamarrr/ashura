@@ -9,7 +9,7 @@
 int main(int argc, char **argv)
 {
   using namespace ash;
-  default_logger.add_sink(&stdio_sink);
+  logger->add_sink(&stdio_sink);
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

@@ -14,7 +14,7 @@
 int main(int, char **)
 {
   using namespace ash;
-  default_logger.add_sink(&stdio_sink);
+  logger->add_sink(&stdio_sink);
 
   Vec<u8> font_data;
   CHECK(
@@ -115,7 +115,7 @@ int main(int, char **)
 
   spirvs.reset();
 
-  default_logger.info("Finished Shader Compilation");
+  logger->info("Finished Shader Compilation");
 
   gfx::ColorSpace  color_space_spec  = gfx::ColorSpace::DCI_P3_NONLINEAR;
   gfx::PresentMode present_mode_spec = gfx::PresentMode::Immediate;
@@ -357,25 +357,25 @@ int main(int, char **)
     // [ ] add multi-sampling
     canvas.brect(ShapeDesc{
         .center       = {1920 / 2, 1080 / 2},
-        .extent       = {150, 150},
+        .extent       = {250, 250},
         .corner_radii = Vec4::splat(0.125f),
         .stroke       = 1,
         .thickness    = 8,
         .tint =
-            ColorGradient{{colors::RED.norm(), colors::RED.norm(),
+            ColorGradient{{colors::RED.norm(), colors::BLUE.norm(),
                            colors::YELLOW.norm(), colors::MAGENTA.norm()}}});
-    canvas.squircle(
-        ShapeDesc{.center    = {1920 / 2 + 100, 1080 / 2 + 100},
-                  .extent    = {250, 150},
-                  .stroke    = 1,
-                  .thickness = 8,
-                  .tint = ColorGradient{{colors::RED.norm(), colors::RED.norm(),
-                                         colors::YELLOW.norm(),
-                                         colors::MAGENTA.norm()}}},
-        0.6, 128);
+    canvas.squircle(ShapeDesc{.center    = {1920 / 2 + 100, 1080 / 2 + 100},
+                              .extent    = {250, 250},
+                              .stroke    = 1,
+                              .thickness = 8,
+                              .tint      = ColorGradient{{colors::RED.norm(),
+                                                          colors::BLUE.norm(),
+                                                          colors::YELLOW.norm(),
+                                                          colors::MAGENTA.norm()}}},
+                    0.8, 128);
     canvas.rrect(ShapeDesc{
         .center       = {1920 / 2 + 200, 1080 / 2 + 200},
-        .extent       = {150, 150},
+        .extent       = {250, 250},
         .corner_radii = {35, 35, 35, 35},
         .stroke       = 0,
         .tint = ColorGradient{{colors::WHITE.norm(), colors::BLACK.norm(),
@@ -403,5 +403,5 @@ int main(int, char **)
     ctx.end_frame(swapchain);
     canvas.clear();
   }
-  default_logger.info("closing");
+  logger->info("closing");
 }
