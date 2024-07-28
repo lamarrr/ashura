@@ -39,7 +39,7 @@ struct ViewSystem
     u32       num_children = 0;
     while (true)
     {
-      View *child = parent->child(num_children);
+      View *child = parent->iter(num_children);
       if (child == nullptr)
       {
         break;
@@ -102,6 +102,7 @@ struct ViewSystem
     // [ ] cursor management via hit testing
     // [ ] window hit testing
     // [ ] context menu support when right-clicked?
+    // [ ] non-clickable should not receive pointer events
     // [ ] ? by default, special non-text keys will always be forwarded, to
     // reject keys, i.e. prevent tab from navigating. make PgUp have special
     // meaning within viewport, etc. [ ] viewport child focus and key
@@ -238,15 +239,14 @@ struct ViewSystem
     layered.resize_uninitialized(num_views).unwrap();
 
     // child()
-    // - hashmap of ids to node and pointers need to be built every frame
-    // tick() => S
-    // size()          => S
-    // fit()           => S
-    // position()      => S
-    // stack() => S
-    // clip()          => S
-    // render()        => S
+    // size()
+    // fit()
+    // position()
+    // stack()
+    // clip()
+    // render()
     // hit()
+    // tick() - needed so we don't have to persist state across frames
     //
 
     tick(dt);

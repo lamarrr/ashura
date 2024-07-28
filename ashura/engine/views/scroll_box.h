@@ -9,14 +9,17 @@ namespace ash
 
 struct ScrollBar : public View
 {
-  bool          disabled : 1      = false;
-  Fn<void(f32)> on_scrolled       = fn([](f32) {});
-  Axis          direction : 2     = Axis::X;
-  ColorGradient thumb_color       = DEFAULT_THEME.inactive;
-  ColorGradient track_color       = DEFAULT_THEME.inactive;
-  Vec2          frame_extent      = {};
-  Vec2          content_extent    = {};
-  f32           scroll_percentage = 0;
+  bool          disabled : 1        = false;
+  bool          hovered : 1         = false;
+  bool          pressed : 1         = false;
+  Fn<void(f32)> on_scrolled         = fn([](f32) {});
+  Axis          direction : 2       = Axis::X;
+  Vec4          thumb_color         = DEFAULT_THEME.inactive;
+  Vec4          thumb_pressed_color = DEFAULT_THEME.active;
+  Vec4          track_color         = DEFAULT_THEME.inactive;
+  Vec2          frame_extent        = {};
+  Vec2          content_extent      = {};
+  f32           scroll_percentage   = 0;
 
   explicit ScrollBar(Axis direction) : direction{direction}
   {
@@ -27,8 +30,21 @@ struct ScrollBar : public View
   {
     u8 const main_axis = (direction == Axis::X) ? 0 : 1;
 
+    if (events.mouse_enter)
+    {
+      hovered = true;
+    }
+
+    if (events.mouse_leave)
+    {
+      hovered = false;
+    }
+
+    pressed = false;
+
     if (events.drag_update)
     {
+      pressed = true;
       scroll_percentage +=
           ctx.mouse_translation[main_axis] / region.extent[main_axis];
       scroll_percentage = clamp(scroll_percentage, 0.0f, 1.0f);
@@ -37,6 +53,7 @@ struct ScrollBar : public View
 
     if (events.drag_end)
     {
+      pressed = true;
       scroll_percentage =
           clamp((ctx.mouse_position[main_axis] - region.extent[main_axis] / 2) /
                     region.extent[main_axis],
@@ -63,7 +80,7 @@ struct ScrollBar : public View
                            .extent       = region.extent,
                            .corner_radii = corner_radii,
                            .stroke       = 0,
-                           .tint         = track_color});
+                           .tint         = ColorGradient::all(track_color)});
 
     // calculate thumb main axis extent
     f32 const scale = frame_extent[main_axis] / content_extent[main_axis];
@@ -85,13 +102,14 @@ struct ScrollBar : public View
                            .corner_radii = corner_radii,
                            .stroke       = 1,
                            .thickness    = 1,
-                           .tint         = track_color});
+                           .tint         = ColorGradient::all(track_color)});
 
     canvas.rrect(ShapeDesc{.center       = thumb_center,
                            .extent       = thumb_extent,
                            .corner_radii = corner_radii,
                            .stroke       = 0,
-                           .tint         = thumb_color});
+                           .tint         = ColorGradient::all(
+                               pressed ? thumb_pressed_color : thumb_color)});
   }
 };
 
@@ -104,7 +122,7 @@ struct ScrollBox : public View
   SizeConstraint x_bar_size = {.offset = 10};
   SizeConstraint y_bar_size = {.offset = 10};
 
-  virtual View *child(u32 i) override final
+  virtual View *iter(u32 i) override final
   {
     return subview({&x_bar, &y_bar, item()}, i);
   }

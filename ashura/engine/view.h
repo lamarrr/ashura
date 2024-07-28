@@ -193,23 +193,56 @@ struct ViewState
 
 struct CoreViewTheme
 {
-  ColorGradient background            = ColorGradient::uniform(mdc::GRAY_900);
-  ColorGradient background_complement = ColorGradient::uniform(mdc::GRAY_800);
-  ColorGradient header                = ColorGradient::uniform(mdc::GRAY_700);
-  ColorGradient text                  = ColorGradient::uniform(mdc::WHITE);
-  ColorGradient inactive              = ColorGradient::uniform(mdc::GRAY_600);
-  ColorGradient active                = ColorGradient::uniform(mdc::BLUE_300);
-  ColorGradient error                 = ColorGradient::uniform(mdc::RED_300);
-  ColorGradient warning               = ColorGradient::uniform(mdc::YELLOW_300);
-  ColorGradient success               = ColorGradient::uniform(mdc::GREEN_300);
-  f32           body_font_height      = 16;
-  f32           h1_font_height        = 30;
-  f32           h2_font_height        = 27;
-  f32           h3_font_height        = 22;
-  f32           line_height           = 1.2F;
+  Vec4 background        = {};
+  Vec4 surface           = {};
+  Vec4 surface_variant   = {};
+  Vec4 primary           = {};
+  Vec4 primary_variant   = {};
+  Vec4 secondary         = {};
+  Vec4 secondary_variant = {};
+  Vec4 error             = {};
+  Vec4 warning           = {};
+  Vec4 success           = {};
+  Vec4 active            = {};
+  Vec4 inactive          = {};
+  Vec4 on_background     = {};
+  Vec4 on_surface        = {};
+  Vec4 on_primary        = {};
+  Vec4 on_secondary      = {};
+  Vec4 on_error          = {};
+  Vec4 on_warning        = {};
+  Vec4 on_success        = {};
+  f32  body_font_height  = {};
+  f32  h1_font_height    = {};
+  f32  h2_font_height    = {};
+  f32  h3_font_height    = {};
+  f32  line_height       = {};
 };
 
-constexpr CoreViewTheme DEFAULT_THEME = {};
+constexpr CoreViewTheme DEFAULT_THEME = {
+    .background        = Vec4U8{0x19, 0x19, 0x19, 0xFF}.norm(),
+    .surface           = Vec4U8{0x33, 0x33, 0x33, 0xFF}.norm(),
+    .primary           = mdc::DEEP_ORANGE_600.norm(),
+    .primary_variant   = mdc::DEEP_ORANGE_400.norm(),
+    .secondary         = mdc::PURPLE_600.norm(),
+    .secondary_variant = mdc::PURPLE_400.norm(),
+    .error             = mdc::RED_500.norm(),
+    .warning           = mdc::YELLOW_800.norm(),
+    .success           = mdc::GREEN_700.norm(),
+    .active            = Vec4U8{0x70, 0x70, 0x70, 0xFF}.norm(),
+    .inactive          = Vec4U8{0x47, 0x47, 0x47, 0xFF}.norm(),
+    .on_background     = mdc::WHITE.norm(),
+    .on_surface        = mdc::WHITE.norm(),
+    .on_primary        = mdc::WHITE.norm(),
+    .on_secondary      = mdc::WHITE.norm(),
+    .on_error          = mdc::WHITE.norm(),
+    .on_warning        = mdc::WHITE.norm(),
+    .on_success        = mdc::WHITE.norm(),
+    .body_font_height  = 16,
+    .h1_font_height    = 30,
+    .h2_font_height    = 27,
+    .h3_font_height    = 22,
+    .line_height       = 1.2F};
 
 /// @brief Base view class. All view types must inherit from this struct.
 /// Views are plain visual elements that define spatial relationships,
@@ -241,7 +274,7 @@ struct View
   /// consider using the `subview` method.
   /// @param i child index
   /// @return child view pointer or nullptr meaning no more child left.
-  constexpr virtual View *child(u32 i)
+  constexpr virtual View *iter(u32 i)
   {
     (void) i;
     return nullptr;

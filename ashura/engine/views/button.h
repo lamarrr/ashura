@@ -26,12 +26,14 @@ struct Button : public View
   Fn<void()>    on_focused        = fn([] {});
   Frame         frame             = {};
   Frame         padding           = {};
-  ColorGradient color             = DEFAULT_THEME.active;
-  Vec4          corner_radii      = Vec4::splat(0.125F);
-  f32           stroke            = 0.0F;
-  f32           thickness         = 1.0F;
+  ColorGradient color             = ColorGradient::all(DEFAULT_THEME.primary);
+  ColorGradient hovered_color =
+      ColorGradient::all(DEFAULT_THEME.primary_variant);
+  Vec4 corner_radii = Vec4::splat(0.125F);
+  f32  stroke       = 0.0F;
+  f32  thickness    = 1.0F;
 
-  virtual View *child(u32 i) override final
+  virtual View *iter(u32 i) override final
   {
     return subview({item()}, i);
   }
@@ -52,10 +54,6 @@ struct Button : public View
     pointer_leave = events.mouse_leave;
     focus_in      = events.focus_in;
     focus_out     = events.focus_out;
-
-    pressed = false;
-    focused = false;
-    hovered = false;
 
     if (events.focus_in)
     {
@@ -84,19 +82,25 @@ struct Button : public View
     {
       pressed = false;
     }
-    else if (focused && ctx.key_down(KeyCode::Return))
+    else if (events.key_down && ctx.key_down(KeyCode::Return))
     {
       pressed = true;
+    }
+    else if (events.key_up && !ctx.key_down(KeyCode::Return))
+    {
+      pressed = false;
     }
 
     if (pressed)
     {
       on_pressed();
     }
+
     if (focused)
     {
       on_focused();
     }
+
     if (hovered)
     {
       on_hovered();
@@ -123,12 +127,13 @@ struct Button : public View
   virtual void render(CRect const &region, CRect const &,
                       Canvas      &canvas) override
   {
-    canvas.rrect(ShapeDesc{.center       = region.center,
-                           .extent       = region.extent,
-                           .corner_radii = corner_radii * region.extent.y,
-                           .stroke       = stroke,
-                           .thickness    = thickness,
-                           .tint         = color});
+    canvas.rrect(
+        ShapeDesc{.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = corner_radii * region.extent.y,
+                  .stroke       = stroke,
+                  .thickness    = thickness,
+                  .tint = (hovered && !pressed) ? hovered_color : color});
   }
 };
 

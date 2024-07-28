@@ -29,7 +29,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
     else
     {
       logger->warn("HDR mode requested but Device does not support "
-                          "HDR render target, trying UNORM color");
+                   "HDR render target, trying UNORM color");
     }
   }
 

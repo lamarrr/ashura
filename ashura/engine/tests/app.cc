@@ -306,7 +306,7 @@ int main(int, char **)
                            .corner_radii = {0, 0, 0, 0},
                            .stroke       = 1,
                            .thickness    = 20,
-                           .tint = ColorGradient::uniform(colors::WHITE)});
+                           .tint = ColorGradient::all(colors::WHITE)});
     /*  for (u32 i = 0; i < 2000; i++)
         canvas.rect(
             ShapeDesc{.center = Vec2{20, 20},
@@ -347,10 +347,10 @@ int main(int, char **)
                        .shadow_scale            = 0,
                        .shadow_offset           = Vec2{1, 1},
                        .foreground = ColorGradient::y(colors::MAGENTA, colors::BLUE),
-                       .background = ColorGradient::uniform(Vec4{0, 0, 0, 1}),
-                       .underline  = ColorGradient::uniform(colors::WHITE),
-                       .strikethrough = ColorGradient::uniform(colors::WHITE),
-                       .shadow        = ColorGradient::uniform(colors::WHITE)}}),
+                       .background = ColorGradient::all(Vec4{0, 0, 0, 1}),
+                       .underline  = ColorGradient::all(colors::WHITE),
+                       .strikethrough = ColorGradient::all(colors::WHITE),
+                       .shadow        = ColorGradient::all(colors::WHITE)}}),
             .alignment   = 0,
             .align_width = 1920});
 

@@ -29,6 +29,8 @@ typedef float     f32;
 typedef double    f64;
 typedef size_t    usize;
 typedef ptrdiff_t isize;
+typedef uintptr_t uptr;
+typedef intptr_t  iptr;
 typedef u64       uid;
 typedef u64       Hash;
 

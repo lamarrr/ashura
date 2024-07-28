@@ -10,14 +10,14 @@ struct ColorGradient
 {
   Vec4 colors[4] = {};
 
-  static constexpr ColorGradient uniform(Vec4 c)
+  static constexpr ColorGradient all(Vec4 c)
   {
     return ColorGradient{{c, c, c, c}};
   }
 
-  static constexpr ColorGradient uniform(Vec4U8 c)
+  static constexpr ColorGradient all(Vec4U8 c)
   {
-    return uniform(c.norm());
+    return all(c.norm());
   }
 
   static constexpr ColorGradient x(Vec4 x0, Vec4 x1)

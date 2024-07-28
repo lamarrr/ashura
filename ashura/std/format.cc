@@ -243,7 +243,7 @@ bool fmt::push(fmt::Context const &ctx, fmt::Spec const &spec, char const *str)
 bool fmt::push(fmt::Context const &ctx, fmt::Spec const &, void const *ptr)
 {
   Spec const ptr_spec{.style = Style::Hex};
-  return ctx.push("0x"_span) && push_int(ctx, ptr_spec, (uintptr_t) ptr);
+  return ctx.push("0x"_span) && push_int(ctx, ptr_spec, (uptr) ptr);
 }
 
 }        // namespace ash

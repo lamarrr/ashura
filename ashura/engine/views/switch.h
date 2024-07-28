@@ -13,8 +13,8 @@ struct Switch : public View
   bool           disabled : 1   = false;
   bool           value : 1      = false;
   Fn<void(bool)> on_changed     = fn([](bool) {});
-  ColorGradient  active_color   = DEFAULT_THEME.active;
-  ColorGradient  inactive_color = DEFAULT_THEME.inactive;
+  Vec4           active_color   = DEFAULT_THEME.active;
+  Vec4           inactive_color = DEFAULT_THEME.inactive;
   f32            height         = 20;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
@@ -49,14 +49,14 @@ struct Switch : public View
                            .corner_radii = Vec4::splat(corner_radius),
                            .stroke       = 1,
                            .thickness    = 1,
-                           .tint         = active_color});
+                           .tint         = ColorGradient::all(active_color)});
 
-    canvas.rrect(
-        ShapeDesc{.center       = {value ? on_pos : off_pos, region.center.y},
-                  .extent       = thumb_extent,
-                  .corner_radii = Vec4::splat(thumb_radius),
-                  .stroke       = 0,
-                  .tint         = value ? active_color : inactive_color});
+    canvas.rrect(ShapeDesc{
+        .center       = {value ? on_pos : off_pos, region.center.y},
+        .extent       = thumb_extent,
+        .corner_radii = Vec4::splat(thumb_radius),
+        .stroke       = 0,
+        .tint = ColorGradient::all(value ? active_color : inactive_color)});
   }
 };
 

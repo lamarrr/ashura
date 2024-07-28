@@ -9,11 +9,11 @@ namespace ash
 
 struct StackBox : public View
 {
-  bool  reverse   = false;
-  Vec2  alignment = {0, 0};
-  Frame frame     = {};
+  bool  reverse : 1 = false;
+  Vec2  alignment   = {0, 0};
+  Frame frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
 
-  virtual View *child(u32 i) override final
+  virtual View *iter(u32 i) override final
   {
     return item(i);
   }

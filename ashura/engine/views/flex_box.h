@@ -20,7 +20,7 @@ struct FlexBox : public View
   f32       cross_align    = 0;
   Frame     frame          = {.width = {.scale = 1}, .height = {.scale = 1}};
 
-  virtual View *child(u32 i) override final
+  virtual View *iter(u32 i) override final
   {
     return item(i);
   }

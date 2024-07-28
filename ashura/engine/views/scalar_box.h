@@ -144,8 +144,8 @@ struct ScalarDragBox : View, Pin<>
   Frame                 padding        = {.width = {5}, .height = {5}};
   SizeConstraint        thumb_width    = {2.75F};
   Vec4                  corner_radii   = Vec4::splat(0.125F);
-  ColorGradient         color          = DEFAULT_THEME.inactive;
-  ColorGradient         thumb_color    = DEFAULT_THEME.inactive;
+  Vec4                  color          = DEFAULT_THEME.inactive;
+  Vec4                  thumb_color    = DEFAULT_THEME.inactive;
   f32                   stroke         = 1.0F;
   f32                   thickness      = 1.0F;
   TextInput             input          = {};
@@ -212,15 +212,21 @@ struct ScalarDragBox : View, Pin<>
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
                          ViewEvents events) override
   {
-    dragging = false;
+    dragging = events.drag_update;
 
-    if (!disabled && events.drag_update)
+    if (events.drag_update)
     {
-      f32 const t =
-          clamp(unlerp(region.begin().x, region.end().x, ctx.mouse_position.x),
-                0.0F, 1.0F);
-      value.interp(t);
-      dragging = true;
+      if (ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl))
+      {
+        input_mode = !input_mode;
+      }
+      else
+      {
+        f32 const t = clamp(
+            unlerp(region.begin().x, region.end().x, ctx.mouse_position.x),
+            0.0F, 1.0F);
+        value.interp(t);
+      }
     }
 
     if (input.editing)
@@ -237,19 +243,14 @@ struct ScalarDragBox : View, Pin<>
       input.content.set_text(span(text).slice(0, buffer.pos).as_u8());
     }
 
-    input_mode =
-        !disabled && (!input.focus_out ||
-                      (events.mouse_down && (ctx.key_down(KeyCode::LCtrl) ||
-                                             ctx.key_down(KeyCode::RCtrl))));
-
-    input.disabled = input_mode;
+    input.disabled = !input_mode;
 
     if (input.editing || dragging)
     {
       on_update(value.current);
     }
 
-    return ViewState{.draggable = !input.disabled};
+    return ViewState{.draggable = !disabled};
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
@@ -275,7 +276,7 @@ struct ScalarDragBox : View, Pin<>
                            .corner_radii = region.extent.y * corner_radii,
                            .stroke       = stroke,
                            .thickness    = thickness,
-                           .tint         = color});
+                           .tint         = ColorGradient::all(color)});
 
     if (!input_mode)
     {
@@ -290,7 +291,7 @@ struct ScalarDragBox : View, Pin<>
           ShapeDesc{.center       = thumb_center,
                     .extent       = thumb_extent,
                     .corner_radii = Vec4::splat(region.extent.y * 0.125F),
-                    .tint         = thumb_color});
+                    .tint         = ColorGradient::all(thumb_color)});
     }
   }
 
@@ -322,12 +323,14 @@ struct ScalarBox : FlexBox, Pin<>
     FlexBox::frame       = Frame{.width = {.scale = 1}, .height = {.scale = 1}};
 
     dec.text.text.set_text(
-        U"-"_utf, TextStyle{.foreground = DEFAULT_THEME.text},
+        U"-"_utf,
+        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_primary)},
         FontStyle{.font        = engine->default_font,
                   .font_height = DEFAULT_THEME.body_font_height,
                   .line_height = DEFAULT_THEME.line_height});
     inc.text.text.set_text(
-        U"+"_utf, TextStyle{.foreground = DEFAULT_THEME.text},
+        U"+"_utf,
+        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_primary)},
         FontStyle{.font        = engine->default_font,
                   .font_height = DEFAULT_THEME.body_font_height,
                   .line_height = DEFAULT_THEME.line_height});

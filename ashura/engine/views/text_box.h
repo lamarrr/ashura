@@ -14,17 +14,19 @@ namespace ash
 struct TextBox : View, Pin<>
 {
   bool           copyable : 1           = false;
-  ColorGradient  highlight_color        = {};
+  Vec4           highlight_color        = {};
   Vec4           highlight_corner_radii = {0, 0, 0, 0};
   RenderText     text                   = {};
   TextCompositor compositor             = {};
 
   TextBox()
   {
-    text.style(0, U32_MAX, TextStyle{.foreground = DEFAULT_THEME.text},
-               FontStyle{.font        = engine->default_font,
-                         .font_height = DEFAULT_THEME.body_font_height,
-                         .line_height = DEFAULT_THEME.line_height});
+    text.style(
+        0, U32_MAX,
+        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_surface)},
+        FontStyle{.font        = engine->default_font,
+                  .font_height = DEFAULT_THEME.body_font_height,
+                  .line_height = DEFAULT_THEME.line_height});
   }
 
   virtual ~TextBox() override
@@ -51,7 +53,8 @@ struct TextBox : View, Pin<>
                        *ctx.clipboard, 1, ctx.mouse_position);
     text.set_highlight(
         compositor.get_cursor().as_slice(text.get_text().size32()));
-    text.set_highlight_style(highlight_color, highlight_corner_radii);
+    text.set_highlight_style(ColorGradient::all(highlight_color),
+                             highlight_corner_radii);
 
     return ViewState{.draggable = copyable};
   }
@@ -81,10 +84,11 @@ struct TextInput : View, Pin<>
   bool           submit : 1             = false;
   bool           focus_in : 1           = false;
   bool           focus_out : 1          = false;
+  bool           focused : 1            = false;
   bool           is_multiline : 1       = false;
   bool           enter_submits : 1      = false;
   bool           tab_input : 1          = false;
-  ColorGradient  highlight_color        = {};
+  Vec4           highlight_color        = {};
   Vec4           highlight_corner_radii = {0, 0, 0, 0};
   u32            lines_per_page         = 1;
   RenderText     content                = {};
@@ -97,14 +101,18 @@ struct TextInput : View, Pin<>
 
   TextInput()
   {
-    content.style(0, U32_MAX, TextStyle{.foreground = DEFAULT_THEME.text},
-                  FontStyle{.font        = engine->default_font,
-                            .font_height = DEFAULT_THEME.body_font_height,
-                            .line_height = DEFAULT_THEME.line_height});
-    placeholder.style(0, U32_MAX, TextStyle{.foreground = DEFAULT_THEME.text},
-                      FontStyle{.font        = engine->default_font,
-                                .font_height = DEFAULT_THEME.body_font_height,
-                                .line_height = DEFAULT_THEME.line_height});
+    content.style(
+        0, U32_MAX,
+        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_surface)},
+        FontStyle{.font        = engine->default_font,
+                  .font_height = DEFAULT_THEME.body_font_height,
+                  .line_height = DEFAULT_THEME.line_height});
+    placeholder.style(
+        0, U32_MAX,
+        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_surface)},
+        FontStyle{.font        = engine->default_font,
+                  .font_height = DEFAULT_THEME.body_font_height,
+                  .line_height = DEFAULT_THEME.line_height});
   }
 
   virtual ~TextInput() override
@@ -254,57 +262,58 @@ struct TextInput : View, Pin<>
 
     editing   = false;
     submit    = false;
-    focus_in  = false;
-    focus_out = false;
+    focus_in  = events.focus_in;
+    focus_out = events.focus_out;
 
-    TextCommand cmd = TextCommand::None;
-    if (!disabled)
+    if (events.focus_in)
     {
-      if (events.text_input)
-      {
-        cmd = TextCommand::InputText;
-      }
-      else if (events.key_down)
-      {
-        cmd = command(ctx);
-      }
-      else if (events.drag_start)
-      {
-        cmd = TextCommand::Hit;
-      }
-      else if (events.drag_update)
-      {
-        cmd = TextCommand::HitSelect;
-      }
+      focused = true;
     }
 
-    Vec2 offset = region.begin() - ctx.mouse_position;
+    if (events.focus_out)
+    {
+      focused = false;
+    }
+
+    TextCommand cmd = TextCommand::None;
+    if (events.text_input)
+    {
+      cmd = TextCommand::InputText;
+    }
+    else if (events.key_down)
+    {
+      cmd = command(ctx);
+    }
+    else if (events.drag_start)
+    {
+      cmd = TextCommand::Hit;
+    }
+    else if (events.drag_update)
+    {
+      cmd = TextCommand::HitSelect;
+    }
 
     compositor.command(span(content.inner.text), content.inner.layout,
                        region.extent.x, content.inner.alignment, cmd,
                        fn(&insert), fn(&erase), ctx.text, *ctx.clipboard,
-                       lines_per_page, offset);
+                       lines_per_page, ctx.mouse_position - region.begin());
 
     content.set_highlight(
         compositor.get_cursor().as_slice(content.inner.text.size32()));
-    content.set_highlight_style(highlight_color, highlight_corner_radii);
+    content.set_highlight_style(ColorGradient::all(highlight_color),
+                                highlight_corner_radii);
 
     if (edited)
     {
       editing = true;
     }
 
-    if (events.focus_in)
-    {
-      focus_in = true;
-    }
-    else if (events.focus_out)
+    if (events.focus_out)
     {
       compositor.unselect();
-      focus_out = true;
     }
 
-    if (enter_submits && ctx.key_down(KeyCode::Return))
+    if (events.key_down && enter_submits && ctx.key_down(KeyCode::Return))
     {
       submit = true;
     }
