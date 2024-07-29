@@ -10,12 +10,16 @@ namespace ash
 // [ ] change implementation
 struct Switch : public View
 {
-  bool           disabled : 1   = false;
-  bool           value : 1      = false;
-  Fn<void(bool)> on_changed     = fn([](bool) {});
-  Vec4           active_color   = DEFAULT_THEME.active;
-  Vec4           inactive_color = DEFAULT_THEME.inactive;
-  f32            height         = 20;
+  bool           disabled : 1 = false;
+  bool           value : 1    = false;
+  bool           hovered : 1  = false;
+  bool           pressed : 1  = false;
+  Fn<void(bool)> on_changed   = fn([](bool) {});
+  Vec4           on_color     = DEFAULT_THEME.primary;
+  Vec4           off_color    = DEFAULT_THEME.active;
+  Vec4           track_color  = DEFAULT_THEME.inactive;
+  Frame          frame        = {.width = {40}, .height = {20}};
+  Frame          thumb_frame  = {.width = {40}, .height = {20}};
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events) override
@@ -26,7 +30,8 @@ struct Switch : public View
       on_changed(value);
     }
 
-    return ViewState{.clickable = !disabled, .focusable = !disabled};
+    return ViewState{
+        .pointable = !disabled, .clickable = !disabled, .focusable = !disabled};
   }
 
   virtual Vec2 fit(Vec2, Span<Vec2 const>, Span<Vec2>) override

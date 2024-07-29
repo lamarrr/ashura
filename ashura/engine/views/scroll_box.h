@@ -9,17 +9,17 @@ namespace ash
 
 struct ScrollBar : public View
 {
-  bool          disabled : 1        = false;
-  bool          hovered : 1         = false;
-  bool          pressed : 1         = false;
-  Fn<void(f32)> on_scrolled         = fn([](f32) {});
-  Axis          direction : 2       = Axis::X;
-  Vec4          thumb_color         = DEFAULT_THEME.inactive;
-  Vec4          thumb_pressed_color = DEFAULT_THEME.active;
-  Vec4          track_color         = DEFAULT_THEME.inactive;
-  Vec2          frame_extent        = {};
-  Vec2          content_extent      = {};
-  f32           scroll_percentage   = 0;
+  bool          disabled : 1         = false;
+  bool          hovered : 1          = false;
+  bool          dragging : 1         = false;
+  Fn<void(f32)> on_scrolled          = fn([](f32) {});
+  Axis          direction : 2        = Axis::X;
+  Vec4          thumb_color          = DEFAULT_THEME.inactive * opacity(0.75F);
+  Vec4          thumb_dragging_color = DEFAULT_THEME.active * opacity(0.75F);
+  Vec4          track_color          = DEFAULT_THEME.inactive * opacity(0.75F);
+  Vec2          frame_extent         = {};
+  Vec2          content_extent       = {};
+  f32           t                    = 0;
 
   explicit ScrollBar(Axis direction) : direction{direction}
   {
@@ -40,28 +40,21 @@ struct ScrollBar : public View
       hovered = false;
     }
 
-    pressed = false;
-
-    if (events.drag_update)
+    if (events.dragging)
     {
-      pressed = true;
-      scroll_percentage +=
-          ctx.mouse_translation[main_axis] / region.extent[main_axis];
-      scroll_percentage = clamp(scroll_percentage, 0.0f, 1.0f);
-      on_scrolled(scroll_percentage);
+      dragging = true;
+      t = clamp((ctx.mouse_position[main_axis] - region.extent[main_axis] / 2) /
+                    region.extent[main_axis],
+                0.0f, 1.0f);
+      on_scrolled(t);
     }
 
     if (events.drag_end)
     {
-      pressed = true;
-      scroll_percentage =
-          clamp((ctx.mouse_position[main_axis] - region.extent[main_axis] / 2) /
-                    region.extent[main_axis],
-                0.0f, 1.0f);
-      on_scrolled(scroll_percentage);
+      dragging = false;
     }
 
-    return ViewState{.clickable = !disabled, .draggable = !disabled};
+    return ViewState{.pointable = !disabled, .draggable = !disabled};
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
@@ -92,9 +85,8 @@ struct ScrollBar : public View
     Vec2 const bar_offset  = region.begin();
     f32 const main_spacing = thumb_extent[main_axis] - region.extent[main_axis];
     Vec2      thumb_center;
-    thumb_center[main_axis] = bar_offset[main_axis] +
-                              main_spacing * scroll_percentage +
-                              thumb_extent[main_axis] / 2;
+    thumb_center[main_axis] =
+        bar_offset[main_axis] + main_spacing * t + thumb_extent[main_axis] / 2;
     thumb_center[cross_axis] = region.center[cross_axis];
 
     canvas.rrect(ShapeDesc{.center       = region.center,
@@ -109,18 +101,19 @@ struct ScrollBar : public View
                            .corner_radii = corner_radii,
                            .stroke       = 0,
                            .tint         = ColorGradient::all(
-                               pressed ? thumb_pressed_color : thumb_color)});
+                               dragging ? thumb_dragging_color : thumb_color)});
   }
 };
 
 struct ScrollBox : public View
 {
-  Axes           axes       = Axes::X | Axes::Y;
-  ScrollBar      x_bar      = ScrollBar{Axis::X};
-  ScrollBar      y_bar      = ScrollBar{Axis::Y};
-  Frame          frame      = {.width = {200}, .height = {200}};
-  SizeConstraint x_bar_size = {.offset = 10};
-  SizeConstraint y_bar_size = {.offset = 10};
+  bool           disabled : 1 = false;
+  Axes           axes         = Axes::X | Axes::Y;
+  ScrollBar      x_bar        = ScrollBar{Axis::X};
+  ScrollBar      y_bar        = ScrollBar{Axis::Y};
+  Frame          frame        = {.width = {200}, .height = {200}};
+  SizeConstraint x_bar_size   = {.offset = 10};
+  SizeConstraint y_bar_size   = {.offset = 10};
 
   virtual View *iter(u32 i) override final
   {
@@ -130,6 +123,14 @@ struct ScrollBox : public View
   virtual View *item()
   {
     return nullptr;
+  }
+
+  virtual ViewState tick(ViewContext const &, CRect const &,
+                         ViewEvents) override
+  {
+    x_bar.disabled = disabled;
+    y_bar.disabled = disabled;
+    return ViewState{};
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
@@ -165,8 +166,7 @@ struct ScrollBox : public View
     }
 
     Vec2 const displacement =
-        -1 * (content_size - frame) *
-        Vec2{x_bar.scroll_percentage, y_bar.scroll_percentage};
+        -1 * (content_size - frame) * Vec2{x_bar.t, y_bar.t};
 
     fill(offsets.slice(2), displacement);
 

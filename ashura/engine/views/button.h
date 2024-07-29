@@ -22,16 +22,15 @@ struct Button : public View
   bool          hovered : 1       = false;
   bool          pressed : 1       = false;
   Fn<void()>    on_pressed        = fn([] {});
-  Fn<void()>    on_hovered        = fn([] {});
-  Fn<void()>    on_focused        = fn([] {});
   Frame         frame             = {};
   Frame         padding           = {};
   ColorGradient color             = ColorGradient::all(DEFAULT_THEME.primary);
   ColorGradient hovered_color =
       ColorGradient::all(DEFAULT_THEME.primary_variant);
-  Vec4 corner_radii = Vec4::splat(0.125F);
-  f32  stroke       = 0.0F;
-  f32  thickness    = 1.0F;
+  ColorGradient disabled_color = ColorGradient::all(DEFAULT_THEME.inactive);
+  Vec4          corner_radii   = Vec4::splat(0.125F);
+  f32           stroke         = 0.0F;
+  f32           thickness      = 1.0F;
 
   virtual View *iter(u32 i) override final
   {
@@ -46,10 +45,8 @@ struct Button : public View
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events) override
   {
-    pointer_down =
-        events.mouse_down && has_bits(ctx.mouse_buttons, MouseButtons::Primary);
-    pointer_up =
-        events.mouse_up && has_bits(ctx.mouse_buttons, MouseButtons::Primary);
+    pointer_down  = events.mouse_down && ctx.mouse_down(MouseButtons::Primary);
+    pointer_up    = events.mouse_up && ctx.mouse_up(MouseButtons::Primary);
     pointer_enter = events.mouse_enter;
     pointer_leave = events.mouse_leave;
     focus_in      = events.focus_in;
@@ -59,54 +56,35 @@ struct Button : public View
     {
       focused = true;
     }
-    else if (events.focus_out)
+
+    if (events.focus_out)
     {
       focused = false;
     }
 
-    if (events.mouse_enter)
+    if (pointer_enter)
     {
       hovered = true;
     }
-    else if (events.mouse_leave)
+
+    if (pointer_leave)
     {
       hovered = false;
     }
 
-    if (events.mouse_down && has_bits(ctx.mouse_buttons, MouseButtons::Primary))
-    {
-      pressed = true;
-    }
-    else if (events.mouse_up &&
-             has_bits(ctx.mouse_buttons, MouseButtons::Primary))
-    {
-      pressed = false;
-    }
-    else if (events.key_down && ctx.key_down(KeyCode::Return))
-    {
-      pressed = true;
-    }
-    else if (events.key_up && !ctx.key_down(KeyCode::Return))
-    {
-      pressed = false;
-    }
-
-    if (pressed)
+    if (pointer_down || (events.key_down && ctx.key_down(KeyCode::Return)))
     {
       on_pressed();
+      pressed = true;
     }
 
-    if (focused)
+    if (pointer_up || (events.key_up && ctx.key_up(KeyCode::Return)))
     {
-      on_focused();
+      pressed = false;
     }
 
-    if (hovered)
-    {
-      on_hovered();
-    }
-
-    return ViewState{.clickable = !disabled, .focusable = !disabled};
+    return ViewState{
+        .pointable = !disabled, .clickable = !disabled, .focusable = !disabled};
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
@@ -127,13 +105,14 @@ struct Button : public View
   virtual void render(CRect const &region, CRect const &,
                       Canvas      &canvas) override
   {
-    canvas.rrect(
-        ShapeDesc{.center       = region.center,
-                  .extent       = region.extent,
-                  .corner_radii = corner_radii * region.extent.y,
-                  .stroke       = stroke,
-                  .thickness    = thickness,
-                  .tint = (hovered && !pressed) ? hovered_color : color});
+    ColorGradient tint = (hovered && !pressed) ? hovered_color : color;
+    tint               = disabled ? disabled_color : tint;
+    canvas.rrect(ShapeDesc{.center       = region.center,
+                           .extent       = region.extent,
+                           .corner_radii = corner_radii * region.extent.y,
+                           .stroke       = stroke,
+                           .thickness    = thickness,
+                           .tint         = tint});
   }
 };
 

@@ -213,21 +213,20 @@ struct ScalarDragBox : View, Pin<>
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
                          ViewEvents events) override
   {
-    dragging = events.drag_update;
+    dragging = events.dragging;
 
-    if (events.drag_update)
+    if (events.drag_start &&
+        (ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)))
     {
-      if (ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl))
-      {
-        input_mode = !input_mode;
-      }
-      else
-      {
-        f32 const t = clamp(
-            unlerp(region.begin().x, region.end().x, ctx.mouse_position.x),
-            0.0F, 1.0F);
-        value.interp(t);
-      }
+      input_mode = !input_mode;
+    }
+
+    if (dragging && !input_mode)
+    {
+      f32 const t =
+          clamp(unlerp(region.begin().x, region.end().x, ctx.mouse_position.x),
+                0.0F, 1.0F);
+      value.interp(t);
     }
 
     if (input.editing)
@@ -251,7 +250,7 @@ struct ScalarDragBox : View, Pin<>
       on_update(value.current);
     }
 
-    return ViewState{.draggable = !disabled};
+    return ViewState{.pointable = !disabled, .draggable = !disabled};
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override

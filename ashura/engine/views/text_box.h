@@ -42,7 +42,7 @@ struct TextBox : View, Pin<>
     {
       cmd = TextCommand::Hit;
     }
-    else if (events.drag_update)
+    else if (events.dragging)
     {
       cmd = TextCommand::HitSelect;
     }
@@ -288,7 +288,7 @@ struct TextInput : View, Pin<>
     {
       cmd = TextCommand::Hit;
     }
-    else if (events.drag_update)
+    else if (events.dragging)
     {
       cmd = TextCommand::HitSelect;
     }

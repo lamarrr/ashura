@@ -63,8 +63,7 @@ enum class MainAlign : u8
 /// @param mounted widget has been mounted to the widget tree and has now
 /// received an ID.
 /// @param drag_start drag event has begun on this view
-/// @param drag_update the mouse has been moved whilst this view is being
-/// dragged
+/// @param dragging an update on the drag state has been gotten
 /// @param drag_end the dragging of this view has completed
 /// @param drag_enter drag data has entered this view and might be dropped
 /// @param drag_leave drag data has left the view without being dropped
@@ -89,7 +88,7 @@ struct ViewEvents
   bool mouse_leave : 1   = false;
   bool mouse_scroll : 1  = false;
   bool drag_start : 1    = false;
-  bool drag_update : 1   = false;
+  bool dragging : 1      = false;
   bool drag_end : 1      = false;
   bool drag_enter : 1    = false;
   bool drag_over : 1     = false;
@@ -129,7 +128,9 @@ struct ViewContext
   StrHashMap<void *>       globals                 = {};
   ClipBoard               *clipboard               = nullptr;
   bool                     has_focus               = false;
-  MouseButtons             mouse_buttons           = MouseButtons::None;
+  MouseButtons             mouse_downs             = MouseButtons::None;
+  MouseButtons             mouse_ups               = MouseButtons::None;
+  MouseButtons             mouse_state             = MouseButtons::None;
   u32                      num_clicks              = 0;
   Vec2                     mouse_position          = {};
   Vec2                     mouse_translation       = {};
@@ -137,7 +138,11 @@ struct ViewContext
   Span<u8 const>           drag_payload            = {};
   SystemTheme              theme                   = SystemTheme::None;
   TextDirection            direction               = TextDirection::LeftToRight;
+  u64                      key_downs[NUM_KEYS / 64]   = {};
+  u64                      key_ups[NUM_KEYS / 64]     = {};
   u64                      key_states[NUM_KEYS / 64]  = {};
+  u64                      scan_downs[NUM_KEYS / 64]  = {};
+  u64                      scan_ups[NUM_KEYS / 64]    = {};
   u64                      scan_states[NUM_KEYS / 64] = {};
   Span<u32 const>          text                       = {};
   steady_clock::time_point timestamp                  = {};
@@ -145,18 +150,47 @@ struct ViewContext
 
   constexpr bool key_down(KeyCode key) const
   {
-    u16 const i     = (u32) key;
-    u64       state = key_states[i >> 6];
-    state           = (state >> (i & 63)) & 1;
-    return state != 0;
+    return get_bit(key_downs, (usize) key);
   }
 
-  constexpr bool scan_down(ScanCode key) const
+  constexpr bool key_up(KeyCode key) const
   {
-    u16 const i     = (u32) key;
-    u64       state = scan_states[i >> 6];
-    state           = (state >> (i & 63)) & 1;
-    return state != 0;
+    return get_bit(key_ups, (usize) key);
+  }
+
+  constexpr bool key_state(KeyCode key) const
+  {
+    return get_bit(key_states, (usize) key);
+  }
+
+  constexpr bool key_down(ScanCode key) const
+  {
+    return get_bit(scan_downs, (usize) key);
+  }
+
+  constexpr bool key_up(ScanCode key) const
+  {
+    return get_bit(scan_ups, (usize) key);
+  }
+
+  constexpr bool key_state(ScanCode key) const
+  {
+    return get_bit(scan_states, (usize) key);
+  }
+
+  constexpr bool mouse_down(MouseButtons b) const
+  {
+    return has_bits(mouse_downs, MouseButtons::Primary);
+  }
+
+  constexpr bool mouse_up(MouseButtons b) const
+  {
+    return has_bits(mouse_ups, MouseButtons::Primary);
+  }
+
+  constexpr bool mouse_state(MouseButtons b) const
+  {
+    return has_bits(mouse_state, MouseButtons::Primary);
   }
 };
 
@@ -166,6 +200,7 @@ struct ViewContext
 /// positive indices have lower tab priority.
 /// @param hidden if the widget should be hidden from view (will not receive
 /// visual events, but still receive tick events)
+/// @param pointable can receive mouse enter/move/leave events
 /// @param clickable can receive mouse press events
 /// @param scrollable can receive mouse scroll events
 /// @param draggable can receive drag events
@@ -180,6 +215,7 @@ struct ViewState
 {
   i32  tab            = 0;
   bool hidden : 1     = false;
+  bool pointable : 1  = false;
   bool clickable : 1  = false;
   bool scrollable : 1 = false;
   bool draggable : 1  = false;
@@ -380,12 +416,12 @@ struct View
 template <u32 N>
 constexpr View *subview(View *const (&subviews)[N], u32 i)
 {
-  return i < N ? subviews[i] : nullptr;
+  return (i < N) ? subviews[i] : nullptr;
 }
 
 constexpr View *subview(Span<View *const> subviews, u32 i)
 {
-  return i < subviews.size() ? subviews[i] : nullptr;
+  return (i < subviews.size()) ? subviews[i] : nullptr;
 }
 
 }        // namespace ash

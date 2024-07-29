@@ -17,7 +17,7 @@ struct CheckBox : public View
   Vec4           box_color         = DEFAULT_THEME.inactive;
   Vec4           box_hovered_color = DEFAULT_THEME.active;
   Vec4           tick_color        = DEFAULT_THEME.primary;
-  SizeConstraint width             = {.offset = 20};
+  Frame          frame             = {.width = {20}, .height = {20}};
   f32            stroke            = 1;
   f32            thickness         = 1;
   f32            tick_thickness    = 1.5F;
@@ -36,34 +36,35 @@ struct CheckBox : public View
       hovered = false;
     }
 
-    if ((events.mouse_down &&
-         has_bits(ctx.mouse_buttons, MouseButtons::Primary)) ||
+    if ((events.mouse_down && ctx.mouse_down(MouseButtons::Primary)) ||
         (events.key_down && ctx.key_down(KeyCode::Return)))
     {
       pressed = true;
       value   = !value;
       on_changed(value);
     }
-    else if ((events.mouse_up &&
-              !has_bits(ctx.mouse_buttons, MouseButtons::Primary)) ||
-             (events.key_up && !ctx.key_down(KeyCode::Return)))
+
+    if ((events.mouse_up && ctx.mouse_up(MouseButtons::Primary)) ||
+        (events.key_up && ctx.key_up(KeyCode::Return)))
     {
       pressed = false;
     }
 
-    return ViewState{.clickable = !disabled, .focusable = !disabled};
+    return ViewState{
+        .pointable = !disabled, .clickable = !disabled, .focusable = !disabled};
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    Vec2 extent = Frame{width, width}(allocated);
+    Vec2 extent = frame(allocated);
     return Vec2::splat(min(extent.x, extent.y));
   }
 
   virtual void render(CRect const &region, CRect const &,
                       Canvas      &canvas) override
   {
-    Vec4 tint = (hovered && !pressed) ? box_hovered_color : box_color;
+    Vec4 tint =
+        (hovered && !pressed && !disabled) ? box_hovered_color : box_color;
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
                            .corner_radii = corner_radius * region.extent.y,
