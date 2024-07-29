@@ -8,6 +8,7 @@
 #include "ashura/engine/views/flex_box.h"
 #include "ashura/engine/views/scroll_box.h"
 #include "ashura/std/text.h"
+#include <charconv>
 
 namespace ash
 {
