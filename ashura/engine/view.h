@@ -111,7 +111,7 @@ struct ViewEvents
 /// adaptiveness, i.e. during hot-reloading where they might be attached to a
 /// different context. The ViewGlobals may also contain references to other
 /// subsystems.
-/// @param has_focus the current view scope (window) has focus
+/// @param focused the current view scope (window) has focus
 /// @param button current button states
 /// @param drag_payload attached drag and drop payload data
 /// @param theme the current theme from the UI system
@@ -127,10 +127,12 @@ struct ViewContext
   void                    *app                     = nullptr;
   StrHashMap<void *>       globals                 = {};
   ClipBoard               *clipboard               = nullptr;
-  bool                     has_focus               = false;
+  bool                     focus_in                = false;
+  bool                     focus_out               = false;
+  bool                     focused                 = false;
   MouseButtons             mouse_downs             = MouseButtons::None;
   MouseButtons             mouse_ups               = MouseButtons::None;
-  MouseButtons             mouse_state             = MouseButtons::None;
+  MouseButtons             mouse_states            = MouseButtons::None;
   u32                      num_clicks              = 0;
   Vec2                     mouse_position          = {};
   Vec2                     mouse_translation       = {};
@@ -180,17 +182,17 @@ struct ViewContext
 
   constexpr bool mouse_down(MouseButtons b) const
   {
-    return has_bits(mouse_downs, MouseButtons::Primary);
+    return has_bits(mouse_downs, b);
   }
 
   constexpr bool mouse_up(MouseButtons b) const
   {
-    return has_bits(mouse_ups, MouseButtons::Primary);
+    return has_bits(mouse_ups, b);
   }
 
   constexpr bool mouse_state(MouseButtons b) const
   {
-    return has_bits(mouse_state, MouseButtons::Primary);
+    return has_bits(mouse_states, b);
   }
 };
 

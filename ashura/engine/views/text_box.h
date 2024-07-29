@@ -123,121 +123,120 @@ struct TextInput : View, Pin<>
 
   constexpr TextCommand command(ViewContext const &ctx) const
   {
-    if (ctx.key_down(KeyCode::Escape))
+    if (ctx.key_state(KeyCode::Escape))
     {
       return TextCommand::Unselect;
     }
-    if (ctx.key_down(KeyCode::Backspace))
+    if (ctx.key_state(KeyCode::Backspace))
     {
       return TextCommand::BackSpace;
     }
-    if (ctx.key_down(KeyCode::Delete))
+    if (ctx.key_state(KeyCode::Delete))
     {
       return TextCommand::Delete;
     }
-    if (ctx.key_down(KeyCode::Left))
+    if (ctx.key_state(KeyCode::Left))
     {
       return TextCommand::Left;
     }
-    if (ctx.key_down(KeyCode::Right))
+    if (ctx.key_state(KeyCode::Right))
     {
       return TextCommand::Right;
     }
-    if (ctx.key_down(KeyCode::Home))
+    if (ctx.key_state(KeyCode::Home))
     {
       return TextCommand::LineStart;
     }
-    if (ctx.key_down(KeyCode::End))
+    if (ctx.key_state(KeyCode::End))
     {
       return TextCommand::LineEnd;
     }
-    if (ctx.key_down(KeyCode::Up))
+    if (ctx.key_state(KeyCode::Up))
     {
       return TextCommand::Up;
     }
-    if (ctx.key_down(KeyCode::Down))
+    if (ctx.key_state(KeyCode::Down))
     {
       return TextCommand::Down;
     }
-    if (ctx.key_down(KeyCode::PageUp))
+    if (ctx.key_state(KeyCode::PageUp))
     {
       return TextCommand::PageUp;
     }
-    if (ctx.key_down(KeyCode::PageDown))
+    if (ctx.key_state(KeyCode::PageDown))
     {
       return TextCommand::PageDown;
     }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::Left))
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::Left))
     {
       return TextCommand::SelectLeft;
     }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::Right))
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::Right))
     {
       return TextCommand::SelectRight;
     }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::Up))
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::Up))
     {
       return TextCommand::SelectUp;
     }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::Down))
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::Down))
     {
       return TextCommand::SelectDown;
     }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::PageUp))
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::PageUp))
     {
       return TextCommand::SelectPageUp;
     }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::PageDown))
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::PageDown))
     {
       return TextCommand::SelectPageDown;
     }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::A))
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::A))
     {
       return TextCommand::SelectAll;
     }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::X))
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::X))
     {
       return TextCommand::Cut;
     }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::C))
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::C))
     {
       return TextCommand::Copy;
     }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::V))
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::V))
     {
       return TextCommand::Paste;
     }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::Z))
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::Z))
     {
       return TextCommand::Undo;
     }
-    if ((ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)) &&
-        ctx.key_down(KeyCode::Y))
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::Y))
     {
       return TextCommand::Redo;
     }
-    if ((ctx.key_down(KeyCode::LShift) || ctx.key_down(KeyCode::RShift)) &&
-        ctx.key_down(KeyCode::Left) &&
-        has_bits(ctx.mouse_buttons, MouseButtons::Primary))
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::Left) && ctx.mouse_state(MouseButtons::Primary))
     {
       return TextCommand::HitSelect;
     }
-    if (is_multiline && !enter_submits && ctx.key_down(KeyCode::Return))
+    if (is_multiline && !enter_submits && ctx.key_state(KeyCode::Return))
     {
       return TextCommand::NewLine;
     }
-    if (tab_input && ctx.key_down(KeyCode::Tab))
+    if (tab_input && ctx.key_state(KeyCode::Tab))
     {
       return TextCommand::Tab;
     }
@@ -280,10 +279,6 @@ struct TextInput : View, Pin<>
     {
       cmd = TextCommand::InputText;
     }
-    else if (events.key_down)
-    {
-      cmd = command(ctx);
-    }
     else if (events.drag_start)
     {
       cmd = TextCommand::Hit;
@@ -291,6 +286,10 @@ struct TextInput : View, Pin<>
     else if (events.dragging)
     {
       cmd = TextCommand::HitSelect;
+    }
+    else if (focused)
+    {
+      cmd = command(ctx);
     }
 
     compositor.command(span(content.inner.text), content.inner.layout,
@@ -313,7 +312,7 @@ struct TextInput : View, Pin<>
       compositor.unselect();
     }
 
-    if (events.key_down && enter_submits && ctx.key_down(KeyCode::Return))
+    if (events.key_down && ctx.key_state(KeyCode::Return) && enter_submits)
     {
       submit = true;
     }
@@ -342,7 +341,7 @@ struct TextInput : View, Pin<>
                      .focusable  = !disabled,
                      .text_input = !disabled,
                      .tab_input  = tab_input,
-                     .lose_focus = ctx.key_down(KeyCode::Escape)};
+                     .lose_focus = ctx.key_state(KeyCode::Escape)};
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override

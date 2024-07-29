@@ -354,6 +354,10 @@ struct NumTraits<T const volatile> : NumTraits<T>
 {
 };
 
+template <typename Rep, usize N>
+inline constexpr usize BIT_PACKS =
+    (N + (NumTraits<Rep>::NUM_BITS - 1)) / NumTraits<Rep>::NUM_BITS;
+
 /// regular void
 struct Void
 {
@@ -2978,6 +2982,12 @@ struct Array
     return data_;
   }
 };
+
+template <typename Rep, usize N>
+using Bits = Rep[BIT_PACKS<Rep, N>];
+
+template <typename Rep, usize N>
+using BitArray = Array<Rep, BIT_PACKS<Rep, N>>;
 
 template <typename T>
 struct Span
