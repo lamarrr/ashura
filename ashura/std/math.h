@@ -695,6 +695,11 @@ constexpr Vec4 axis_to_norm(Vec4 axis)
   return axis * 0.5F + 0.5F;
 }
 
+constexpr Vec4 opacity(f32 v)
+{
+  return Vec4{1, 1, 1, v};
+}
+
 /// @param x_mag The horizontal magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
 /// @param y_mag The vertical magnification of the view. This value
