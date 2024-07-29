@@ -186,94 +186,6 @@ constexpr bool has_any_bit(T src, T cmp)
   return (src & cmp) != (T) 0;
 }
 
-[[nodiscard]] constexpr bool get_bit(u8 const *s, usize i)
-{
-  return (s[i >> 3] >> (i & 7)) & 1;
-}
-
-[[nodiscard]] constexpr bool get_bit(u16 const *s, usize i)
-{
-  return (s[i >> 4] >> (i & 15)) & 1;
-}
-
-[[nodiscard]] constexpr bool get_bit(u32 const *s, usize i)
-{
-  return (s[i >> 5] >> (i & 31)) & 1;
-}
-
-[[nodiscard]] constexpr bool get_bit(u64 const *s, usize i)
-{
-  return (s[i >> 6] >> (i & 63)) & 1;
-}
-
-constexpr void set_bit(u8 *s, usize i, bool v = true)
-{
-  u8 &pack = s[i >> 3];
-  pack &= ~(((u8) 1) << (i & 7));
-  pack |= (((u8) v) << (i & 7));
-}
-
-constexpr void set_bit(u16 *s, usize i, bool v = true)
-{
-  u16 &pack = s[i >> 4];
-  pack &= ~(((u16) 1) << (i & 15));
-  pack |= (((u16) v) << (i & 15));
-}
-
-constexpr void set_bit(u32 *s, usize i, bool v = true)
-{
-  u32 &pack = s[i >> 5];
-  pack &= ~(((u32) 1) << (i & 31));
-  pack |= (((u32) v) << (i & 31));
-}
-
-constexpr void set_bit(u64 *s, usize i, bool v = true)
-{
-  u64 &pack = s[i >> 6];
-  pack &= ~(((u64) 1) << (i & 63));
-  pack |= (((u64) v) << (i & 63));
-}
-
-[[nodiscard]] constexpr bool get_bit(Span<u8 const> s, usize i)
-{
-  return get_bit(s.data(), i);
-}
-
-[[nodiscard]] constexpr bool get_bit(Span<u16 const> s, usize i)
-{
-  return get_bit(s.data(), i);
-}
-
-[[nodiscard]] constexpr bool get_bit(Span<u32 const> s, usize i)
-{
-  return get_bit(s.data(), i);
-}
-
-[[nodiscard]] constexpr bool get_bit(Span<u64 const> s, usize i)
-{
-  return get_bit(s.data(), i);
-}
-
-constexpr void set_bit(Span<u8> s, usize i, bool v = true)
-{
-  set_bit(s.data(), i, v);
-}
-
-constexpr void set_bit(Span<u16> s, usize i, bool v = true)
-{
-  set_bit(s.data(), i, v);
-}
-
-constexpr void set_bit(Span<u32> s, usize i, bool v = true)
-{
-  set_bit(s.data(), i, v);
-}
-
-constexpr void set_bit(Span<u64> s, usize i, bool v = true)
-{
-  set_bit(s.data(), i, v);
-}
-
 constexpr bool is_pow2(u8 x)
 {
   return (x & (x - 1)) == 0U;
@@ -3196,6 +3108,54 @@ constexpr Span<u16 const> operator""_utf(c16 const *lit, usize n)
 constexpr Span<u32 const> operator""_utf(c32 const *lit, usize n)
 {
   return Span<u32 const>{(u32 const *) lit, n};
+}
+
+[[nodiscard]] constexpr bool get_bit(Span<u8 const> s, usize i)
+{
+  return (s[i >> 3] >> (i & 7)) & 1;
+}
+
+[[nodiscard]] constexpr bool get_bit(Span<u16 const> s, usize i)
+{
+  return (s[i >> 4] >> (i & 15)) & 1;
+}
+
+[[nodiscard]] constexpr bool get_bit(Span<u32 const> s, usize i)
+{
+  return (s[i >> 5] >> (i & 31)) & 1;
+}
+
+[[nodiscard]] constexpr bool get_bit(Span<u64 const> s, usize i)
+{
+  return (s[i >> 6] >> (i & 63)) & 1;
+}
+
+constexpr void set_bit(Span<u8> s, usize i, bool v = true)
+{
+  u8 &pack = s[i >> 3];
+  pack &= ~(((u8) 1) << (i & 7));
+  pack |= (((u8) v) << (i & 7));
+}
+
+constexpr void set_bit(Span<u16> s, usize i, bool v = true)
+{
+  u16 &pack = s[i >> 4];
+  pack &= ~(((u16) 1) << (i & 15));
+  pack |= (((u16) v) << (i & 15));
+}
+
+constexpr void set_bit(Span<u32> s, usize i, bool v = true)
+{
+  u32 &pack = s[i >> 5];
+  pack &= ~(((u32) 1) << (i & 31));
+  pack |= (((u32) v) << (i & 31));
+}
+
+constexpr void set_bit(Span<u64> s, usize i, bool v = true)
+{
+  u64 &pack = s[i >> 6];
+  pack &= ~(((u64) 1) << (i & 63));
+  pack |= (((u64) v) << (i & 63));
 }
 
 /// @param bit_index max of Rep::NUM_BITS - 1
