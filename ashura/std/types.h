@@ -3085,6 +3085,24 @@ struct Span
   }
 };
 
+template <typename T>
+constexpr Span<T const> span(std::initializer_list<T> list)
+{
+  return Span<T const>{list.begin(), list.size()};
+}
+
+template <typename T, usize N>
+constexpr Span<T> span(T (&array)[N])
+{
+  return Span<T>{array, N};
+}
+
+template <typename Container>
+constexpr auto span(Container &c) -> decltype(Span{data(c), size(c)})
+{
+  return Span{data(c), size(c)};
+}
+
 constexpr Span<char const> operator""_span(char const *lit, usize n)
 {
   return Span<char const>{lit, n};
@@ -3364,24 +3382,6 @@ struct BitSpan
     return !is_empty();
   }
 };
-
-template <typename T>
-constexpr Span<T const> span(std::initializer_list<T> list)
-{
-  return Span<T const>{list.begin(), list.size()};
-}
-
-template <typename T, usize N>
-constexpr Span<T> span(T (&array)[N])
-{
-  return Span<T>{array, N};
-}
-
-template <typename Container>
-constexpr auto span(Container &c) -> decltype(Span{data(c), size(c)})
-{
-  return Span{data(c), size(c)};
-}
 
 template <typename Lambda>
 struct defer
