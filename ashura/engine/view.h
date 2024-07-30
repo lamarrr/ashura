@@ -364,6 +364,15 @@ struct View
     return region.center;
   }
 
+  /// @brief returns the stacking layer index
+  /// @param allocated stacking layer index allocated to this view
+  /// by parent. This functions similar to the CSS stacking context.
+  /// @return
+  constexpr virtual i32 layer(i32 layer)
+  {
+    return layer;
+  }
+
   /// @brief returns the z-index of itself and assigns z-indices to its children
   /// @param allocated z-index allocated to this view by parent
   /// @param[out] indices z-index assigned to children
