@@ -303,7 +303,7 @@ struct ScalarDragBox : View, Pin<>
   }
 };
 
-struct ScalarBox : FlexBox, Pin<>
+struct ScalarBox : FlexView, Pin<>
 {
   bool                  disabled : 1  = false;
   bool                  steppable : 1 = true;
@@ -315,12 +315,12 @@ struct ScalarBox : FlexBox, Pin<>
 
   ScalarBox()
   {
-    FlexBox::axis        = Axis::X;
-    FlexBox::wrap        = false;
-    FlexBox::reverse     = false;
-    FlexBox::main_align  = MainAlign::Start;
-    FlexBox::cross_align = 0;
-    FlexBox::frame       = Frame{.width = {.scale = 1}, .height = {.scale = 1}};
+    FlexView::axis        = Axis::X;
+    FlexView::wrap        = false;
+    FlexView::reverse     = false;
+    FlexView::main_align  = MainAlign::Start;
+    FlexView::cross_align = 0;
+    FlexView::frame = Frame{.width = {.scale = 1}, .height = {.scale = 1}};
 
     dec.text.text.set_text(
         U"-"_utf,

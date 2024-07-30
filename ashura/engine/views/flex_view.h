@@ -11,7 +11,7 @@ namespace ash
 /// the main axis
 /// @param cross_align cross-axis alignment. affects how free space is used on
 /// the cross axis
-struct FlexBox : public View
+struct FlexView : public View
 {
   Axis      axis : 3       = Axis::X;
   bool      wrap : 1       = true;
