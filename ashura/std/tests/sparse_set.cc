@@ -44,17 +44,6 @@ TEST(SparseSetTest, Start)
   ASSERT_EQ(f.data(), nullptr);
   ASSERT_EQ(f.capacity(), 0);
 
-  BitVec<u64> bv{Vec<u64>{default_allocator}, 0};
-
-  EXPECT_TRUE(bv.push(false));
-  EXPECT_TRUE(bv.push(true));
-  EXPECT_FALSE(bv[0]);
-  EXPECT_TRUE(bv[1]);
-  EXPECT_EQ(bv.size(), 2);
-  bv.erase(0, 1);
-  EXPECT_EQ(bv.size(), 1);
-  EXPECT_TRUE(bv[0]);
-
   SparseVec<u64, u64> set;
 
   ASSERT_TRUE(set.push(69U, 67U));
@@ -73,6 +62,5 @@ TEST(SparseSetTest, Start)
   ASSERT_EQ(set.size(), set.dense.v0.size());
 
   f.reset();
-  bv.reset();
   set.reset();
 }

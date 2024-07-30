@@ -807,12 +807,19 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Vec3 offset, Vec3 extent)
 }
 
 constexpr void frustum_cull(Mat4 const &mvp, Span<Mat4 const> global_transform,
-                            Span<Box const> aabb, BitSpan<u64> is_visible)
+                            Span<Box const> aabb, Span<u64> is_visible)
 {
   for (u32 i = 0; i < aabb.size32(); i++)
   {
-    is_visible[i] = !is_outside_frustum(mvp * global_transform[i],
-                                        aabb[i].offset, aabb[i].extent);
+    if (is_outside_frustum(mvp * global_transform[i], aabb[i].offset,
+                           aabb[i].extent))
+    {
+      clear_bit(is_visible, i);
+    }
+    else
+    {
+      set_bit(is_visible, i);
+    }
   }
 }
 

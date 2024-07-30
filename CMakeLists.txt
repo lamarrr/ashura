@@ -163,7 +163,6 @@ add_executable(
   ashura/std/tests/list.cc
   ashura/std/tests/hash_map.cc
   ashura/std/tests/result.cc
-  ashura/std/tests/bit_span.cc
   ashura/std/tests/sparse_set.cc)
 add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
 
@@ -199,17 +198,17 @@ add_library(
   ashura/engine/views/color_picker.cc
   ashura/engine/views/combo_box.cc
   ashura/engine/views/demo.cc
-  ashura/engine/views/flex_box.cc
+  ashura/engine/views/flex_view.cc
   ashura/engine/views/plot.cc
   ashura/engine/views/progress_bar.cc
   ashura/engine/views/radio_box.cc
   ashura/engine/views/scalar_box.cc
-  ashura/engine/views/scroll_box.cc
+  ashura/engine/views/scroll_view.cc
   ashura/engine/views/slider.cc
-  ashura/engine/views/stack_box.cc
+  ashura/engine/views/stack_view.cc
   ashura/engine/views/switch.cc
   ashura/engine/views/tab.cc
-  ashura/engine/views/text_box.cc
+  ashura/engine/views/text_view.cc
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc

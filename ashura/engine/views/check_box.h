@@ -21,7 +21,7 @@ struct CheckBox : public View
   f32            stroke            = 1;
   f32            thickness         = 1;
   f32            tick_thickness    = 1.5F;
-  Vec4           corner_radius     = Vec4::splat(0.125F);
+  Vec4           corner_radii      = Vec4::splat(0.125F);
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events) override
@@ -67,7 +67,7 @@ struct CheckBox : public View
         (hovered && !pressed && !disabled) ? box_hovered_color : box_color;
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
-                           .corner_radii = corner_radius * region.extent.y,
+                           .corner_radii = corner_radii * region.extent.y,
                            .stroke       = 1,
                            .thickness    = 2,
                            .tint         = ColorGradient::all(tint)});

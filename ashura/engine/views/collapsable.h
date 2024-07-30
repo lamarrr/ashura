@@ -9,15 +9,9 @@
 namespace ash
 {
 
-struct CollapsableHeader : public View
-{
-};
-
 // [ ]
 struct Collapsable : public View
 {
-  CollapsableHeader header;
-  // body
 };
 
 }        // namespace ash

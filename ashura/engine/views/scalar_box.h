@@ -5,8 +5,8 @@
 #include "ashura/engine/text_compositor.h"
 #include "ashura/engine/view.h"
 #include "ashura/engine/views/button.h"
-#include "ashura/engine/views/flex_box.h"
-#include "ashura/engine/views/scroll_box.h"
+#include "ashura/engine/views/flex_view.h"
+#include "ashura/engine/views/scroll_view.h"
 #include "ashura/std/text.h"
 #include <charconv>
 

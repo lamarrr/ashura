@@ -491,59 +491,28 @@ CachedSampler RenderContext::create_sampler(gfx::SamplerDesc const &desc)
 
 u32 RenderContext::alloc_texture_slot()
 {
-  // [ ] use find_bit and set_bit
-  for (u16 i = 0; i < (NUM_TEXTURE_SLOTS >> 6); i++)
-  {
-    u64 const mask = texture_slots[i];
-    if (mask == U64_MAX)
-    {
-      continue;
-    }
-
-    for (u16 j = 0; j < 64; j++)
-    {
-      if (((mask >> j) & 0x1) == 0)
-      {
-        texture_slots[i] = mask | (((u64) 1) << j);
-        return (i << 6) + j;
-      }
-    }
-  }
-
-  CHECK_DESC(false, "Ran out of Texture slots");
+  usize i = find_clear_bit(span(texture_slots));
+  CHECK_DESC(i < size_bits(texture_slots), "Out of Texture Slots");
+  set_bit(span(texture_slots), i);
+  return (u32) i;
 }
 
 void RenderContext::release_texture_slot(u32 slot)
 {
-  set_bit(span(texture_slots), slot, false);
+  clear_bit(span(texture_slots), slot);
 }
 
 u32 RenderContext::alloc_sampler_slot()
 {
-  for (u16 i = 0; i < (NUM_SAMPLER_SLOTS >> 6); i++)
-  {
-    u64 const mask = sampler_slots[i];
-    if (mask == U64_MAX)
-    {
-      continue;
-    }
-
-    for (u16 j = 0; j < 64; j++)
-    {
-      if (((mask >> j) & 0x1) == 0)
-      {
-        sampler_slots[i] = mask | (((u64) 1) << j);
-        return (i << 6) + j;
-      }
-    }
-  }
-
-  CHECK_DESC(false, "Ran out of Sampler slots");
+  usize i = find_clear_bit(span(sampler_slots));
+  CHECK_DESC(i < size_bits(sampler_slots), "Out of Sampler Slots");
+  set_bit(span(sampler_slots), i);
+  return (u32) i;
 }
 
 void RenderContext::release_sampler_slot(u32 slot)
 {
-  set_bit(span(sampler_slots), slot, false);
+  clear_bit(span(sampler_slots), slot);
 }
 
 void RenderContext::release(gfx::Image image)

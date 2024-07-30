@@ -11,7 +11,7 @@
 namespace ash
 {
 
-struct TextBox : View, Pin<>
+struct TextView : View, Pin<>
 {
   bool           copyable : 1           = false;
   Vec4           highlight_color        = {};
@@ -19,7 +19,7 @@ struct TextBox : View, Pin<>
   RenderText     text                   = {};
   TextCompositor compositor             = {};
 
-  TextBox()
+  TextView()
   {
     text.style(
         0, U32_MAX,
@@ -29,7 +29,7 @@ struct TextBox : View, Pin<>
                   .line_height = DEFAULT_THEME.line_height});
   }
 
-  virtual ~TextBox() override
+  virtual ~TextView() override
   {
     text.reset();
   }
@@ -294,7 +294,7 @@ struct TextInput : View, Pin<>
 
     compositor.command(span(content.inner.text), content.inner.layout,
                        region.extent.x, content.inner.alignment, cmd,
-                       fn(&insert), fn(&erase), ctx.text, *ctx.clipboard,
+                       fn(&insert), fn(&erase), ctx.text_utf32, *ctx.clipboard,
                        lines_per_page, ctx.mouse_position - region.begin());
 
     content.set_highlight(
@@ -374,14 +374,14 @@ struct TextInput : View, Pin<>
   }
 };
 
-// struct ScrollableTextInput : ScrollBox, Pin<>
-// {
-//   TextInput input;
-//   ScrollableTextInput()          = default;
-//   virtual ~ScrollableTextInput() = default;
-//   // [ ] calculate lines per page
-//   // [ ] viewport text with scrollable region, scroll direction
-//   // [ ] text input while in view, i.e. page down
-// };
+// [ ] calculate lines per page
+// [ ] viewport text with scrollable region, scroll direction
+// [ ] text input while in view, i.e. page down
+struct ScrollableTextInput : View, Pin<>
+{
+  TextInput input;
+  ScrollableTextInput()          = default;
+  virtual ~ScrollableTextInput() = default;
+};
 
 }        // namespace ash

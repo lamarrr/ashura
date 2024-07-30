@@ -7,25 +7,63 @@
 namespace ash
 {
 
-struct ComboItem : public View
+// [ ] items
+// [ ] placeholder
+// [ ] item alignment
+// [ ] scrolling
+// [ ] selection
+// [ ] clipping
+struct ComboBoxItem : public View
 {
-  // wrap child
+  bool            disabled : 1  = false;
+  bool            hovered : 1   = false;
+  bool            selected : 1  = false;
+  Span<u32 const> text          = {};
+  Vec4            text_color    = DEFAULT_THEME.on_surface;
+  Vec4            hovered_color = DEFAULT_THEME.surface_variant;
+  Frame           frame         = {};
+  f32             alignment     = 0;
 };
 
-// [ ]
+struct ComboBoxButton : public View
+{
+};
+
+/// [ ] z-index on expanded?
+/// [ ] z-index effects on viewport
+struct ComboBoxScrollView : public View
+{
+  bool                           disabled : 1 = false;
+  u32                            selected     = 0;
+  Fn<void(u32, Span<u32 const>)> on_selected  = fn([](u32, Span<u32 const>) {});
+  struct Inner
+  {
+    Vec<u32>          text  = {};
+    Vec<u32>          runs  = {};
+    Vec<ComboBoxItem> items = {};
+  } inner = {};
+
+  Frame frame        = {};
+  f32   alignment    = 0;
+  Vec4  corner_radii = {};
+  Vec4  color        = DEFAULT_THEME.surface;
+
+  virtual View *iter(u32 i) override
+  {
+    if (i >= inner.items.size32())
+    {
+      return nullptr;
+    }
+    return &inner.items[i];
+  }
+
+  void clear_items();
+  void add_item();
+};
+
 struct ComboBox : public View
 {
-  Fn<void(u32)> on_selected = fn([](u32) {});
-  // or produce as many combo boxes as the number of children. or use one combo
-  // box for all children.
-
-  virtual ComboItem *item(u32 i)
-  {
-    (void) i;
-    return nullptr;
-  }
+  ComboBoxScrollView scroll_view;
 };
-
-// combo text
 
 }        // namespace ash

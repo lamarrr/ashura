@@ -68,11 +68,13 @@ constexpr f32 F32_MIN          = -FLT_MAX;
 constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
 constexpr f32 F32_MAX          = FLT_MAX;
 constexpr f32 F32_EPSILON      = FLT_EPSILON;
+constexpr f32 F32_INFINITY     = INFINITY;
 
 constexpr f64 F64_MIN          = -DBL_MAX;
 constexpr f64 F64_MIN_POSITIVE = DBL_MIN;
 constexpr f64 F64_MAX          = DBL_MAX;
-constexpr f32 F64_EPSILON      = DBL_EPSILON;
+constexpr f64 F64_EPSILON      = DBL_EPSILON;
+constexpr f64 F64_INFINITY     = INFINITY;
 
 constexpr uid UID_MAX = U64_MAX;
 
@@ -2855,6 +2857,30 @@ constexpr auto size(T &&a) -> decltype(a.size())
   return a.size();
 }
 
+template <typename T, usize N>
+constexpr usize size_bytes(T (&)[N])
+{
+  return sizeof(T) * N;
+}
+
+template <typename T>
+constexpr auto size_bytes(T &&a) -> decltype(a.size())
+{
+  return sizeof(T) * a.size();
+}
+
+template <typename T, usize N>
+constexpr usize size_bits(T (&)[N])
+{
+  return sizeof(T) * 8 * N;
+}
+
+template <typename T>
+constexpr auto size_bits(T &&a) -> decltype(a.size())
+{
+  return sizeof(T) * 8 * a.size();
+}
+
 template <typename T>
 constexpr auto is_empty(T &&a)
 {
@@ -3138,250 +3164,193 @@ constexpr Span<u32 const> operator""_utf(c32 const *lit, usize n)
   return Span<u32 const>{(u32 const *) lit, n};
 }
 
+[[nodiscard]] constexpr bool get_bit(u8 s, usize i)
+{
+  return (s >> i) & 1;
+}
+
+[[nodiscard]] constexpr bool get_bit(u16 s, usize i)
+{
+  return (s >> i) & 1;
+}
+
+[[nodiscard]] constexpr bool get_bit(u32 s, usize i)
+{
+  return (s >> i) & 1;
+}
+
+[[nodiscard]] constexpr bool get_bit(u64 s, usize i)
+{
+  return (s >> i) & 1;
+}
+
+constexpr void clear_bit(u8 &s, usize i)
+{
+  s &= ~(((u8) 1) << i);
+}
+
+constexpr void set_bit(u8 &s, usize i)
+{
+  s |= (((u8) 1) << i);
+}
+
+constexpr void clear_bit(u16 &s, usize i)
+{
+  s &= ~(((u16) 1) << i);
+}
+
+constexpr void set_bit(u16 &s, usize i)
+{
+  s |= (((u16) 1) << i);
+}
+
+constexpr void clear_bit(u32 &s, usize i)
+{
+  s &= ~(((u32) 1) << i);
+}
+
+constexpr void set_bit(u32 &s, usize i)
+{
+  s |= (((u32) 1) << i);
+}
+
+constexpr void clear_bit(u64 &s, usize i)
+{
+  s &= ~(((u64) 1) << i);
+}
+
+constexpr void set_bit(u64 &s, usize i)
+{
+  s |= (((u64) 1) << i);
+}
+
 [[nodiscard]] constexpr bool get_bit(Span<u8 const> s, usize i)
 {
-  return (s[i >> 3] >> (i & 7)) & 1;
+  return get_bit(s[i >> 3], i & 7);
 }
 
 [[nodiscard]] constexpr bool get_bit(Span<u16 const> s, usize i)
 {
-  return (s[i >> 4] >> (i & 15)) & 1;
+  return get_bit(s[i >> 4], i & 15);
 }
 
 [[nodiscard]] constexpr bool get_bit(Span<u32 const> s, usize i)
 {
-  return (s[i >> 5] >> (i & 31)) & 1;
+  return get_bit(s[i >> 5], i & 31);
 }
 
 [[nodiscard]] constexpr bool get_bit(Span<u64 const> s, usize i)
 {
-  return (s[i >> 6] >> (i & 63)) & 1;
+  return get_bit(s[i >> 6], i & 63);
 }
 
-constexpr void set_bit(Span<u8> s, usize i, bool v)
+constexpr void set_bit(Span<u8> s, usize i)
 {
-  u8 &pack = s[i >> 3];
-  pack &= ~(((u8) 1) << (i & 7));
-  pack |= (((u8) v) << (i & 7));
+  set_bit(s[i >> 3], i & 7);
 }
 
-constexpr void set_bit(Span<u16> s, usize i, bool v)
+constexpr void set_bit(Span<u16> s, usize i)
 {
-  u16 &pack = s[i >> 4];
-  pack &= ~(((u16) 1) << (i & 15));
-  pack |= (((u16) v) << (i & 15));
+  set_bit(s[i >> 4], i & 15);
 }
 
-constexpr void set_bit(Span<u32> s, usize i, bool v)
+constexpr void set_bit(Span<u32> s, usize i)
 {
-  u32 &pack = s[i >> 5];
-  pack &= ~(((u32) 1) << (i & 31));
-  pack |= (((u32) v) << (i & 31));
+  set_bit(s[i >> 5], i & 31);
 }
 
-constexpr void set_bit(Span<u64> s, usize i, bool v)
+constexpr void set_bit(Span<u64> s, usize i)
 {
-  u64 &pack = s[i >> 6];
-  pack &= ~(((u64) 1) << (i & 63));
-  pack |= (((u64) v) << (i & 63));
+  set_bit(s[i >> 6], i & 63);
 }
 
-/// [ ] implement
-constexpr usize find_bit(Span<u8 const> s, bool bit);
-constexpr usize find_bit(Span<u16 const> s, bool bit);
-constexpr usize find_bit(Span<u32 const> s, bool bit);
-constexpr usize find_bit(Span<u64 const> s, bool bit);
-
-/// @param bit_index max of Rep::NUM_BITS - 1
-template <typename RepT>
-struct BitRef
+constexpr void clear_bit(Span<u8> s, usize i)
 {
-  using Rep = RepT;
-
-  Rep *pack      = nullptr;
-  u16  bit_index = 0;
-
-  template <typename U>
-  constexpr BitRef const &operator=(BitRef<U> bit) const
-    requires(OutputIterator<Rep *>)
-  {
-    return (*this = static_cast<bool>(bit));
-  }
-
-  constexpr BitRef const &operator=(BitRef const &bit) const
-    requires(OutputIterator<Rep *>)
-  {
-    return (*this = static_cast<bool>(bit));
-  }
-
-  constexpr BitRef const &operator=(bool bit) const
-    requires(OutputIterator<Rep *>)
-  {
-    *pack = (*pack & ~(((Rep) 1) << bit_index)) | (((Rep) (bit)) << bit_index);
-    return *this;
-  }
-
-  constexpr operator bool() const
-  {
-    return (*pack >> bit_index) & 1;
-  }
-
-  constexpr operator BitRef<Rep const>() const
-  {
-    return BitRef<Rep const>{pack, bit_index};
-  }
-
-  bool operator|(bool other) const
-  {
-    return this->operator bool() || other;
-  }
-
-  bool operator&(bool other) const
-  {
-    return this->operator bool() && other;
-  }
-
-  bool operator~() const
-  {
-    return !(this->operator bool());
-  }
-};
-
-/// @param data is never changed
-template <typename RepT>
-struct BitIterator
-{
-  using Rep  = RepT;
-  using Type = bool;
-
-  Rep  *data  = nullptr;
-  usize index = 0;
-
-  constexpr BitIterator operator+(usize advance) const
-  {
-    return BitIterator{data, index + advance};
-  }
-
-  constexpr BitIterator operator-(usize advance) const
-  {
-    return BitIterator{data, index - advance};
-  }
-
-  constexpr BitIterator &operator++()
-  {
-    index++;
-    return *this;
-  }
-
-  constexpr BitIterator operator++(int)
-  {
-    BitIterator out{data, index};
-    index++;
-    return out;
-  }
-
-  constexpr BitIterator &operator--()
-  {
-    index--;
-    return *this;
-  }
-
-  constexpr BitIterator operator--(int)
-  {
-    BitIterator out{data, index};
-    index--;
-    return out;
-  }
-
-  constexpr operator BitIterator<Rep const>() const
-  {
-    return BitIterator{data, index};
-  }
-};
-
-template <typename Rep>
-constexpr bool operator==(BitIterator<Rep> a, BitIterator<Rep> b)
-{
-  return a.index == b.index;
+  clear_bit(s[i >> 3], i & 7);
 }
 
-template <typename Rep>
-constexpr bool operator!=(BitIterator<Rep> a, BitIterator<Rep> b)
+constexpr void clear_bit(Span<u16> s, usize i)
 {
-  return a.index != b.index;
+  clear_bit(s[i >> 4], i & 15);
 }
 
-template <typename Rep>
-constexpr bool operator<(BitIterator<Rep> a, BitIterator<Rep> b)
+constexpr void clear_bit(Span<u32> s, usize i)
 {
-  return a.index < b.index;
+  clear_bit(s[i >> 5], i & 31);
 }
 
-template <typename Rep>
-constexpr bool operator>(BitIterator<Rep> a, BitIterator<Rep> b)
+constexpr void clear_bit(Span<u64> s, usize i)
 {
-  return a.index > b.index;
+  clear_bit(s[i >> 6], i & 63);
 }
 
-template <typename Rep>
-constexpr BitRef<Rep> operator*(BitIterator<Rep> it)
+template <typename T>
+constexpr usize impl_find_set_bit(Span<T const> s)
 {
-  constexpr u16 INDEX_SHIFT = NumTraits<Rep>::LOG2_NUM_BITS;
-  constexpr u16 INDEX_MASK  = NumTraits<Rep>::NUM_BITS - 1;
-  return BitRef{it.data + (it.index >> INDEX_SHIFT),
-                static_cast<u16>(it.index & INDEX_MASK)};
+  for (usize i = 0; i < s.size(); i++)
+  {
+    if (s[i] != 0)
+    {
+      return (i << NumTraits<T>::LOG2_NUM_BITS) | std::countr_zero(s[i]);
+    }
+  }
+
+  return s.size() << NumTraits<T>::LOG2_NUM_BITS;
 }
 
-/// UB if not pointing to the same data
-template <typename Rep>
-constexpr usize operator-(BitIterator<Rep> a, BitIterator<Rep> b)
+template <typename T>
+constexpr usize impl_find_clear_bit(Span<T const> s)
 {
-  return a.index - b.index;
+  for (usize i = 0; i < s.size(); i++)
+  {
+    if (s[i] != NumTraits<T>::MAX)
+    {
+      return (i << NumTraits<T>::LOG2_NUM_BITS) | std::countr_one(s[i]);
+    }
+  }
+
+  return s.size() << NumTraits<T>::LOG2_NUM_BITS;
 }
 
-/// no slice support
-template <typename RepT>
-struct BitSpan
+constexpr usize find_set_bit(Span<u8 const> s)
 {
-  using Rep  = RepT;
-  using Type = bool;
+  return impl_find_set_bit(s);
+}
 
-  Rep  *data_     = nullptr;
-  usize num_bits_ = 0;
+constexpr usize find_set_bit(Span<u16 const> s)
+{
+  return impl_find_set_bit(s);
+}
 
-  constexpr BitRef<Rep> operator[](usize index) const
-  {
-    constexpr u16 INDEX_SHIFT = NumTraits<Rep>::LOG2_NUM_BITS;
-    constexpr u16 INDEX_MASK  = NumTraits<Rep>::NUM_BITS - 1;
-    return BitRef{data_ + (index >> INDEX_SHIFT),
-                  static_cast<u16>(index & INDEX_MASK)};
-  }
+constexpr usize find_set_bit(Span<u32 const> s)
+{
+  return impl_find_set_bit(s);
+}
 
-  constexpr operator BitSpan<Rep const>() const
-  {
-    return BitSpan<Rep const>{data_, num_bits_};
-  }
+constexpr usize find_set_bit(Span<u64 const> s)
+{
+  return impl_find_set_bit(s);
+}
 
-  constexpr BitIterator<Rep> begin() const
-  {
-    return BitIterator<Rep>{data_, 0};
-  }
+constexpr usize find_clear_bit(Span<u8 const> s)
+{
+  return impl_find_clear_bit(s);
+}
 
-  constexpr BitIterator<Rep> end() const
-  {
-    return BitIterator<Rep>{data_, num_bits_};
-  }
+constexpr usize find_clear_bit(Span<u16 const> s)
+{
+  return impl_find_clear_bit(s);
+}
 
-  constexpr bool is_empty() const
-  {
-    return num_bits_ == 0;
-  }
+constexpr usize find_clear_bit(Span<u32 const> s)
+{
+  return impl_find_clear_bit(s);
+}
 
-  constexpr operator bool() const
-  {
-    return !is_empty();
-  }
-};
+constexpr usize find_clear_bit(Span<u64 const> s)
+{
+  return impl_find_clear_bit(s);
+}
 
 template <typename Lambda>
 struct defer

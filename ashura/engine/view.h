@@ -118,8 +118,7 @@ struct ViewEvents
 /// @param direction the text direction of the host system
 /// @param key_states bit array of the key states (indexed by keycode)
 /// @param scan_states bit array of the key states (indexed by scancode)
-/// @param text current text input data from the IME (keyboard, TTS, virtual
-/// keyboard, etc)
+/// @param text, text_utf32 current text input data from the IME or keyboard
 /// @param timestamp timestamp of current frame
 /// @param timedelta time elapsed between previous and current frame
 struct ViewContext
@@ -147,6 +146,7 @@ struct ViewContext
   Bits<u64, NUM_KEYS>      scan_ups                = {};
   Bits<u64, NUM_KEYS>      scan_states             = {};
   Span<u8 const>           text                    = {};
+  Span<u32 const>          text_utf32              = {};
   steady_clock::time_point timestamp               = {};
   nanoseconds              timedelta               = {};
 

@@ -26,8 +26,8 @@ struct RadioBox : public View
   Vec4           inner_color         = DEFAULT_THEME.primary;
   Vec4           inner_hovered_color = DEFAULT_THEME.primary_variant;
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events) override
+  virtual ViewState tick(ViewContext const &ctx, CRect const &,
+                         ViewEvents         events) override
   {
     if (events.mouse_enter)
     {
@@ -72,8 +72,8 @@ struct RadioBox : public View
     return frame(allocated);
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
-                      Canvas &canvas) override
+  virtual void render(CRect const &region, CRect const &,
+                      Canvas      &canvas) override
   {
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,

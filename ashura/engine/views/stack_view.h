@@ -7,7 +7,7 @@
 namespace ash
 {
 
-struct StackBox : public View
+struct StackView : public View
 {
   bool  reverse : 1 = false;
   Vec2  alignment   = {0, 0};

@@ -105,7 +105,7 @@ struct ScrollBar : public View
   }
 };
 
-struct ScrollBox : public View
+struct ScrollView : public View
 {
   bool           disabled : 1 = false;
   Axes           axes         = Axes::X | Axes::Y;
