@@ -3140,28 +3140,28 @@ constexpr Span<u32 const> operator""_utf(c32 const *lit, usize n)
   return (s[i >> 6] >> (i & 63)) & 1;
 }
 
-constexpr void set_bit(Span<u8> s, usize i, bool v = true)
+constexpr void set_bit(Span<u8> s, usize i, bool v)
 {
   u8 &pack = s[i >> 3];
   pack &= ~(((u8) 1) << (i & 7));
   pack |= (((u8) v) << (i & 7));
 }
 
-constexpr void set_bit(Span<u16> s, usize i, bool v = true)
+constexpr void set_bit(Span<u16> s, usize i, bool v)
 {
   u16 &pack = s[i >> 4];
   pack &= ~(((u16) 1) << (i & 15));
   pack |= (((u16) v) << (i & 15));
 }
 
-constexpr void set_bit(Span<u32> s, usize i, bool v = true)
+constexpr void set_bit(Span<u32> s, usize i, bool v)
 {
   u32 &pack = s[i >> 5];
   pack &= ~(((u32) 1) << (i & 31));
   pack |= (((u32) v) << (i & 31));
 }
 
-constexpr void set_bit(Span<u64> s, usize i, bool v = true)
+constexpr void set_bit(Span<u64> s, usize i, bool v)
 {
   u64 &pack = s[i >> 6];
   pack &= ~(((u64) 1) << (i & 63));
@@ -3169,10 +3169,10 @@ constexpr void set_bit(Span<u64> s, usize i, bool v = true)
 }
 
 /// [ ] implement
-constexpr usize find_bit(Span<u8 const> s, usize i, bool v = true);
-constexpr usize find_bit(Span<u16 const> s, usize i, bool v = true);
-constexpr usize find_bit(Span<u32 const> s, usize i, bool v = true);
-constexpr usize find_bit(Span<u64 const> s, usize i, bool v = true);
+constexpr usize find_bit(Span<u8 const> s, bool bit);
+constexpr usize find_bit(Span<u16 const> s, bool bit);
+constexpr usize find_bit(Span<u32 const> s, bool bit);
+constexpr usize find_bit(Span<u64 const> s, bool bit);
 
 /// @param bit_index max of Rep::NUM_BITS - 1
 template <typename RepT>
