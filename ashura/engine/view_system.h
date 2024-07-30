@@ -101,6 +101,7 @@ struct ViewSystem
     // input if object has a text area attribute
     // [ ] cursor management via hit testing
     // [ ] window hit testing
+    // [ ] draw on focus
     // [ ] context menu support when right-clicked?
     // [ ] non-clickable should not receive pointer events
     // [ ] ? by default, special non-text keys will always be forwarded, to
