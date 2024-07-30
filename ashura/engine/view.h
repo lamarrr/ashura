@@ -368,9 +368,9 @@ struct View
   /// @param allocated stacking layer index allocated to this view
   /// by parent. This functions similar to the CSS stacking context.
   /// @return
-  constexpr virtual i32 layer(i32 layer)
+  constexpr virtual i32 layer(i32 allocated)
   {
-    return layer;
+    return allocated;
   }
 
   /// @brief returns the z-index of itself and assigns z-indices to its children
