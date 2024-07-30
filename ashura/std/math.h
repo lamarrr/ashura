@@ -65,18 +65,32 @@ constexpr f64 to_radians(f64 degree)
   return PI * degree * 0.00555555555;
 }
 
-// Undefined behaviour if value is 0
-inline u32 u32log2(u32 value)
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u8 ulog2(u8 value)
 {
-#if ASH_CFG(COMPILER, MSVC)
-  return 31U - __lzcnt(value);
-#else
-#  if defined(__has_builtin) && __has_builtin(__builtin_clz)
-  return 31U - __builtin_clz(value);
-#  else
-  return 31U - std::count_lzero(value);
-#  endif
-#endif
+  return 7 - std::countl_zero(value);
+}
+
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u16 ulog2(u16 value)
+{
+  return 15 - std::countl_zero(value);
+}
+
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u32 ulog2(u32 value)
+{
+  return 31 - std::countl_zero(value);
+}
+
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u64 ulog2(u64 value)
+{
+  return 63 - std::countl_zero(value);
 }
 
 constexpr u32 mip_down(u32 a, u32 level)
@@ -101,27 +115,27 @@ constexpr Vec4U mip_down(Vec4U a, u32 level)
                max(a.z >> level, 1U), max(a.w >> level, 1U)};
 }
 
-inline u32 num_mip_levels(u32 a)
+constexpr u32 num_mip_levels(u32 a)
 {
-  return a == 0 ? 0 : u32log2(a);
+  return (a == 0) ? 0 : ulog2(a);
 }
 
-inline u32 num_mip_levels(Vec2U a)
+constexpr u32 num_mip_levels(Vec2U a)
 {
   u32 max = ash::max(a.x, a.y);
-  return max == 0 ? 0 : (u32log2(max) + 1);
+  return (max == 0) ? 0 : (ulog2(max) + 1);
 }
 
-inline u32 num_mip_levels(Vec3U a)
+constexpr u32 num_mip_levels(Vec3U a)
 {
   u32 max = ash::max(ash::max(a.x, a.y), a.z);
-  return max == 0 ? 0 : (u32log2(max) + 1);
+  return (max == 0) ? 0 : (ulog2(max) + 1);
 }
 
-inline u32 num_mip_levels(Vec4U a)
+constexpr u32 num_mip_levels(Vec4U a)
 {
   u32 max = ash::max(ash::max(ash::max(a.x, a.y), a.z), a.w);
-  return max == 0 ? 0 : (u32log2(max) + 1);
+  return (max == 0) ? 0 : (ulog2(max) + 1);
 }
 
 constexpr Mat2 transpose(Mat2 const &a)
