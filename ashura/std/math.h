@@ -6,10 +6,6 @@
 #include <bit>
 #include <math.h>
 
-#if ASH_CFG(COMPILER, MSVC)
-#  include <intrin.h>
-#endif
-
 namespace ash
 {
 
