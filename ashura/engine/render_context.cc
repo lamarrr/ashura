@@ -491,6 +491,7 @@ CachedSampler RenderContext::create_sampler(gfx::SamplerDesc const &desc)
 
 u32 RenderContext::alloc_texture_slot()
 {
+  // [ ] use find_bit and set_bit
   for (u16 i = 0; i < (NUM_TEXTURE_SLOTS >> 6); i++)
   {
     u64 const mask = texture_slots[i];
@@ -514,8 +515,7 @@ u32 RenderContext::alloc_texture_slot()
 
 void RenderContext::release_texture_slot(u32 slot)
 {
-  texture_slots[slot >> 6] =
-      texture_slots[slot >> 6] & ~(((u64) 1) << (slot & 63));
+  set_bit(span(texture_slots), slot, false);
 }
 
 u32 RenderContext::alloc_sampler_slot()
@@ -543,8 +543,7 @@ u32 RenderContext::alloc_sampler_slot()
 
 void RenderContext::release_sampler_slot(u32 slot)
 {
-  sampler_slots[slot >> 6] =
-      sampler_slots[slot >> 6] & ~(((u64) 1) << (slot & 63));
+  set_bit(span(sampler_slots), slot, false);
 }
 
 void RenderContext::release(gfx::Image image)

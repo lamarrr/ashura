@@ -140,15 +140,15 @@ struct ViewContext
   Span<u8 const>           drag_payload            = {};
   SystemTheme              theme                   = SystemTheme::None;
   TextDirection            direction               = TextDirection::LeftToRight;
-  u64                      key_downs[NUM_KEYS / 64]   = {};
-  u64                      key_ups[NUM_KEYS / 64]     = {};
-  u64                      key_states[NUM_KEYS / 64]  = {};
-  u64                      scan_downs[NUM_KEYS / 64]  = {};
-  u64                      scan_ups[NUM_KEYS / 64]    = {};
-  u64                      scan_states[NUM_KEYS / 64] = {};
-  Span<u32 const>          text                       = {};
-  steady_clock::time_point timestamp                  = {};
-  nanoseconds              timedelta                  = {};
+  Bits<u64, NUM_KEYS>      key_downs               = {};
+  Bits<u64, NUM_KEYS>      key_ups                 = {};
+  Bits<u64, NUM_KEYS>      key_states              = {};
+  Bits<u64, NUM_KEYS>      scan_downs              = {};
+  Bits<u64, NUM_KEYS>      scan_ups                = {};
+  Bits<u64, NUM_KEYS>      scan_states             = {};
+  Span<u8 const>           text                    = {};
+  steady_clock::time_point timestamp               = {};
+  nanoseconds              timedelta               = {};
 
   constexpr bool key_down(KeyCode key) const
   {

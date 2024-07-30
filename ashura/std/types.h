@@ -3168,6 +3168,12 @@ constexpr void set_bit(Span<u64> s, usize i, bool v = true)
   pack |= (((u64) v) << (i & 63));
 }
 
+/// [ ] implement
+constexpr usize find_bit(Span<u8 const> s, usize i, bool v = true);
+constexpr usize find_bit(Span<u16 const> s, usize i, bool v = true);
+constexpr usize find_bit(Span<u32 const> s, usize i, bool v = true);
+constexpr usize find_bit(Span<u64 const> s, usize i, bool v = true);
+
 /// @param bit_index max of Rep::NUM_BITS - 1
 template <typename RepT>
 struct BitRef
