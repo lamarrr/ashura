@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/error.h"
 #include "ashura/std/log.h"
@@ -5,7 +6,7 @@
 namespace ash
 {
 
-template <typename T>
+template <typename T = Void>
 struct [[nodiscard]] Some
 {
   using Type = T;
@@ -21,7 +22,7 @@ struct NoneType
 
 constexpr NoneType None;
 
-template <typename T>
+template <typename T = Void>
 struct [[nodiscard]] Option
 {
   using Type = T;

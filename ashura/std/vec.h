@@ -1,7 +1,9 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 
 #include "ashura/std/allocator.h"
 #include "ashura/std/mem.h"
+#include "ashura/std/result.h"
 #include "ashura/std/traits.h"
 #include "ashura/std/types.h"
 
@@ -9,7 +11,7 @@ namespace ash
 {
 
 template <typename T>
-struct Vec
+struct [[nodiscard]] Vec
 {
   using Type          = T;
   using Rep           = T;
@@ -21,42 +23,63 @@ struct Vec
   usize         capacity_  = 0;
   usize         size_      = 0;
 
-  [[nodiscard]] constexpr bool is_empty() const
+  constexpr bool is_empty() const
   {
     return size_ == 0;
   }
 
-  [[nodiscard]] constexpr T *data() const
+  constexpr T *data() const
   {
     return data_;
   }
 
-  [[nodiscard]] constexpr usize size() const
+  constexpr usize size() const
   {
     return size_;
   }
 
-  [[nodiscard]] constexpr usize capacity() const
+  constexpr u32 size32() const
+  {
+    return (u32) size_;
+  }
+
+  constexpr u64 size64() const
+  {
+    return (u64) size_;
+  }
+
+  constexpr usize capacity() const
   {
     return capacity_;
   }
 
-  [[nodiscard]] constexpr T *begin() const
+  constexpr T *begin() const
   {
     return data_;
   }
 
-  [[nodiscard]] constexpr T *end() const
+  constexpr T *end() const
   {
     return data_ + size_;
   }
 
-  [[nodiscard]] constexpr T &operator[](usize index) const
+  constexpr T &operator[](usize index) const
   {
     return data_[index];
   }
 
-  [[nodiscard]] constexpr T *try_get(usize index) const
+  constexpr T &get(usize index) const
+  {
+    return data_[index];
+  }
+
+  template <typename... Args>
+  constexpr void set(usize index, Args &&...args) const
+  {
+    data_[index] = T{((Args &&) args)...};
+  }
+
+  constexpr T *try_get(usize index) const
   {
     if (index < size_)
     {
@@ -99,18 +122,18 @@ struct Vec
     allocator_ = default_allocator;
   }
 
-  [[nodiscard]] bool reserve(usize target_capacity)
+  constexpr Result<Void, Void> reserve(usize target_capacity)
   {
     if (capacity_ >= target_capacity)
     {
-      return true;
+      return Ok{};
     }
 
     if constexpr (TriviallyRelocatable<T>)
     {
       if (!allocator_.nrealloc(capacity_, target_capacity, &data_))
       {
-        return false;
+        return Err{};
       }
     }
     else
@@ -118,7 +141,7 @@ struct Vec
       T *new_data;
       if (!allocator_.nalloc(target_capacity, &new_data))
       {
-        return false;
+        return Err{};
       }
 
       for (usize i = 0; i < size_; i++)
@@ -136,21 +159,21 @@ struct Vec
     }
 
     capacity_ = target_capacity;
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool fit()
+  constexpr Result<Void, Void> fit()
   {
     if (size_ == capacity_)
     {
-      return true;
+      return Ok{};
     }
 
     if constexpr (TriviallyRelocatable<T>)
     {
       if (!allocator_.nrealloc(capacity_, size_, &data_))
       {
-        return false;
+        return Err{};
       }
     }
     else
@@ -158,7 +181,7 @@ struct Vec
       T *new_data;
       if (!allocator_.nalloc(size_, &new_data))
       {
-        return false;
+        return Err{};
       }
 
       for (usize i = 0; i < size_; i++)
@@ -176,27 +199,27 @@ struct Vec
     }
 
     capacity_ = size_;
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool grow(usize target_size)
+  constexpr Result<Void, Void> grow(usize target_size)
   {
     if (capacity_ >= target_size)
     {
-      return true;
+      return Ok{};
     }
 
     return reserve(max(target_size, capacity_ + (capacity_ >> 1)));
   }
 
-  void erase(usize first, usize num)
+  constexpr void erase(usize first, usize num)
   {
     return erase(Slice{first, num});
   }
 
-  void erase(Slice slice)
+  constexpr void erase(Slice slice)
   {
-    slice = slice.resolve(size_);
+    slice = slice(size_);
     if constexpr (TriviallyRelocatable<T>)
     {
       mem::move(data_ + slice.end(), data_ + slice.offset, size_ - slice.end());
@@ -216,21 +239,19 @@ struct Vec
     size_ -= slice.span;
   }
 
-  void erase_non_destructing();
-
   template <typename... Args>
-  [[nodiscard]] bool push(Args &&...args)
+  constexpr Result<Void, Void> push(Args &&...args)
   {
     if (!grow(size_ + 1))
     {
-      return false;
+      return Err{};
     }
 
     new (data_ + size_) T{((Args &&) args)...};
 
     size_++;
 
-    return true;
+    return Ok{};
   }
 
   constexpr void pop(usize num = 1)
@@ -247,23 +268,24 @@ struct Vec
     size_ -= num;
   }
 
-  [[nodiscard]] constexpr bool try_pop(usize num = 1)
+  constexpr Result<Void, Void> try_pop(usize num = 1)
   {
     if (size_ < num)
     {
-      return false;
+      return Err{};
     }
 
     pop(num);
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool shift_uninitialized(usize first, usize distance)
+  Result<Void, Void> shift_uninitialized(usize first, usize distance)
   {
+    first = min(first, size_);
     if (!grow(size_ + distance))
     {
-      return false;
+      return Err{};
     }
 
     if constexpr (TriviallyRelocatable<T>)
@@ -297,83 +319,86 @@ struct Vec
 
     size_ += distance;
 
-    return true;
+    return Ok{};
   }
 
   template <typename... Args>
-  [[nodiscard]] bool insert(usize dst, Args &&...args)
+  constexpr Result<Void, Void> insert(usize pos, Args &&...args)
   {
-    if (!shift_uninitialized(dst, 1))
+    pos = min(pos, size_);
+    if (!shift_uninitialized(pos, 1))
     {
-      return false;
+      return Err{};
     }
 
-    new (data_ + dst) T{((Args &&) args)...};
-    return true;
+    new (data_ + pos) T{((Args &&) args)...};
+    return Ok{};
   }
 
-  [[nodiscard]] bool insert_span_copy(usize dst, Span<T const> span)
+  constexpr Result<Void, Void> insert_span_copy(usize pos, Span<T const> span)
   {
-    if (!shift_uninitialized(dst, span.size()))
+    pos = min(pos, size_);
+    if (!shift_uninitialized(pos, span.size()))
     {
-      return false;
+      return Err{};
     }
 
     if constexpr (TriviallyCopyConstructible<T>)
     {
-      mem::copy(span.data(), data_ + dst, span.size());
+      mem::copy(span.data(), data_ + pos, span.size());
     }
     else
     {
       for (usize i = 0; i < span.size(); i++)
       {
-        new (data_ + dst + i) T{span[i]};
+        new (data_ + pos + i) T{span[i]};
       }
     }
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool insert_span_move(usize dst, Span<T> span)
+  constexpr Result<Void, Void> insert_span_move(usize pos, Span<T> span)
   {
-    if (!shift_uninitialized(dst, span.size()))
+    pos = min(pos, size_);
+    if (!shift_uninitialized(pos, span.size()))
     {
-      return false;
+      return Err{};
     }
 
     if constexpr (TriviallyMoveConstructible<T>)
     {
-      mem::copy(span.data(), data_ + dst, span.size());
+      mem::copy(span.data(), data_ + pos, span.size());
     }
     else
     {
       for (usize i = 0; i < span.size(); i++)
       {
-        new (data_ + dst + i) T{(T &&) span[i]};
+        new (data_ + pos + i) T{(T &&) span[i]};
       }
     }
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool extend_uninitialized(usize extension)
+  constexpr Result<Void, Void> extend_uninitialized(usize extension)
   {
     if (!grow(size_ + extension))
     {
-      return false;
+      return Err{};
     }
 
     size_ += extension;
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool extend_defaulted(usize extension)
+  constexpr Result<Void, Void> extend_defaulted(usize extension)
   {
     usize const pos = size_;
     if (!extend_uninitialized(extension))
     {
-      return false;
+      return Err{};
     }
 
     for (usize i = pos; i < size_; i++)
@@ -381,15 +406,15 @@ struct Vec
       new (data_ + i) T{};
     }
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool extend_copy(Span<T const> span)
+  constexpr Result<Void, Void> extend_copy(Span<T const> span)
   {
     usize const pos = size_;
     if (!extend_uninitialized(span.size()))
     {
-      return false;
+      return Err{};
     }
 
     // free to use memcpy because the source range is not overlapping with this
@@ -406,15 +431,15 @@ struct Vec
       }
     }
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool extend_move(Span<T> span)
+  constexpr Result<Void, Void> extend_move(Span<T> span)
   {
     usize const pos = size_;
     if (!extend_uninitialized(span.size()))
     {
-      return false;
+      return Err{};
     }
 
     // non-overlapping, use memcpy
@@ -430,7 +455,7 @@ struct Vec
       }
     }
 
-    return true;
+    return Ok{};
   }
 
   constexpr void swap(usize a, usize b) const
@@ -438,229 +463,250 @@ struct Vec
     ::ash::swap(data_[a], data_[b]);
   }
 
-  [[nodiscard]] bool resize_uninitialized(usize new_size)
+  constexpr Result<Void, Void> resize_uninitialized(usize new_size)
   {
     if (new_size <= size_)
     {
       erase(new_size, size_ - new_size);
-      return true;
+      return Ok{};
     }
 
     return extend_uninitialized(new_size - size_);
   }
 
-  [[nodiscard]] bool resize_defaulted(usize new_size)
+  constexpr Result<Void, Void> resize_defaulted(usize new_size)
   {
     if (new_size <= size_)
     {
       erase(new_size, size_ - new_size);
-      return true;
+      return Ok{};
     }
 
     return extend_defaulted(new_size - size_);
   }
 };
 
-// Adapter
-template <typename RepT>
-struct BitVec
+template <typename R>
+struct [[nodiscard]] BitVec
 {
-  using Type          = bool;
-  using Rep           = RepT;
-  using Iterator      = BitIterator<Rep>;
-  using ConstIterator = BitIterator<Rep const>;
+  using Type = bool;
+  using Repr = R;
 
-  Vec<Rep> vec      = {};
-  usize    num_bits = 0;
+  Vec<R> repr_     = {};
+  usize  bit_size_ = 0;
 
-  [[nodiscard]] constexpr BitRef<Rep> operator[](usize index) const
+  constexpr bool operator[](usize index) const
   {
-    return *(begin() + index);
+    return get_bit(span(repr_), index);
   }
 
-  [[nodiscard]] constexpr operator BitSpan<Rep>() const
+  constexpr bool get(usize index) const
   {
-    return BitSpan<Rep>{vec.data(), num_bits};
+    return get_bit(span(repr_), index);
   }
 
-  [[nodiscard]] constexpr bool is_empty() const
+  constexpr void set(usize index, bool value) const
   {
-    return num_bits == 0;
+    assign_bit(span(repr_), index, value);
   }
 
-  [[nodiscard]] constexpr Rep *data() const
+  constexpr Vec<R> const &repr() const
   {
-    return vec.data();
+    return repr_;
   }
 
-  [[nodiscard]] constexpr BitIterator<Rep> begin() const
+  constexpr Vec<R> &repr()
   {
-    return BitIterator<Rep>{vec.data(), 0};
+    return repr_;
   }
 
-  [[nodiscard]] constexpr BitIterator<Rep> end() const
+  constexpr usize size() const
   {
-    return BitIterator<Rep>{vec.data(), num_bits};
+    return bit_size_;
   }
 
-  [[nodiscard]] constexpr usize size() const
+  constexpr bool is_empty() const
   {
-    return num_bits;
+    return bit_size_ == 0;
   }
 
-  [[nodiscard]] constexpr usize capacity() const
+  constexpr bool has_trailing() const
   {
-    return vec.capacity() * NumTraits<Rep>::NUM_BITS;
+    return bit_size_ != (repr_.size_ * sizeof(R) * 8);
   }
 
-  void clear()
+  constexpr usize capacity() const
   {
-    num_bits = 0;
-    vec.clear();
+    return repr_.capacity_ * sizeof(R) * 8;
   }
 
-  void reset()
+  constexpr void clear()
   {
-    num_bits = 0;
-    vec.reset();
+    bit_size_ = 0;
+    repr_.clear();
   }
 
-  static constexpr usize num_packs(usize num_bits)
+  constexpr void reset()
   {
-    return (num_bits >> NumTraits<Rep>::LOG2_NUM_BITS) +
-           ((num_bits & (NumTraits<Rep>::NUM_BITS - 1)) == 0 ? 0 : 1);
+    bit_size_ = 0;
+    repr_.reset();
   }
 
-  [[nodiscard]] bool reserve(usize target_capacity)
+  constexpr Result<Void, Void> reserve(usize target_capacity)
   {
-    return vec.reserve(num_packs(target_capacity));
+    return repr_.reserve(bit_packs<R>(target_capacity));
   }
 
-  [[nodiscard]] bool grow(usize target_size)
+  constexpr Result<Void, Void> fit()
   {
-    return vec.grow(num_packs(target_size));
+    return repr_.fit();
   }
 
-  [[nodiscard]] bool push(bool bit)
+  constexpr Result<Void, Void> grow(usize target_size)
   {
-    if (!grow(num_bits + 1))
+    return repr_.grow(bit_packs<R>(target_size));
+  }
+
+  constexpr Result<Void, Void> push(bool bit)
+  {
+    usize index = bit_size_;
+    if (!extend_uninitialized(1))
     {
-      return false;
+      return Err{};
     }
-    this->operator[](num_bits) = bit;
-    num_bits++;
-    return true;
+    set(index, bit);
+    return Ok{};
   }
 
   constexpr void pop(usize num = 1)
   {
-    num = min(num_bits, num);
-    num_bits -= num;
-    usize diff = vec.size() - num_packs(num_bits);
-    if (diff > 0)
-    {
-      vec.pop(diff);
-    }
+    num = min(bit_size_, num);
+    bit_size_ -= num;
+    usize diff = repr_.size() - bit_packs<R>(bit_size_);
+    repr_.pop(diff);
   }
 
-  [[nodiscard]] constexpr bool try_pop(usize num = 1)
+  constexpr Result<Void, Void> try_pop(usize num = 1)
   {
-    if (num_bits < num)
+    if (bit_size_ < num)
     {
-      return false;
+      return Err{};
     }
     pop(num);
-    return true;
+    return Ok{};
   }
 
-  void erase(usize index, usize num = 1)
+  constexpr Result<Void, Void> insert(usize pos, bool value)
   {
-    for (BitIterator out = begin() + index, src = out + num; src != end();
-         out++, src++)
+    pos = min(pos, bit_size_);
+    if (!extend_uninitialized(1))
     {
-      *out = *src;
-    };
-    pop(num);
+      return Err{};
+    }
+    for (usize src = pos, dst = src + 1; src < bit_size_; src++, dst++)
+    {
+      set(dst, get(src));
+    }
+    set(pos, value);
+    return Ok{};
   }
 
-  template <typename T>
-  [[nodiscard]] bool extend_span_copy(BitSpan<T const> span);
-
-  template <typename T>
-  [[nodiscard]] bool extend_span_move(BitSpan<T const> span);
-
-  [[nodiscard]] bool extend_uninitialized(usize extension)
+  constexpr void erase(usize first, usize num)
   {
-    if (!vec.extend_uninitialized(num_packs(num_bits + extension) -
-                                  num_packs(num_bits)))
+    return erase(Slice{first, num});
+  }
+
+  constexpr void erase(Slice slice)
+  {
+    slice = slice(bit_size_);
+    for (usize dst = slice.offset, src = slice.end(); src != bit_size_;
+         dst++, src++)
     {
-      return false;
+      set(dst, get(src));
+    }
+    pop(slice.span);
+  }
+
+  constexpr Result<Void, Void> extend_uninitialized(usize extension)
+  {
+    if (!repr_.extend_uninitialized(bit_packs<R>(bit_size_ + extension) -
+                                    bit_packs<R>(bit_size_)))
+    {
+      return Err{};
     }
 
-    num_bits += extension;
+    bit_size_ += extension;
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool extend_defaulted(usize extension)
+  constexpr Result<Void, Void> extend_defaulted(usize extension)
   {
-    usize const pos = num_bits;
+    usize const pos = bit_size_;
     if (!extend_uninitialized(extension))
     {
-      return false;
+      return Err{};
     }
 
-    for (usize i = pos; i < num_bits; i++)
+    for (usize i = pos; i < bit_size_; i++)
     {
-      this->operator[](i) = false;
+      set(i, false);
     }
 
-    return true;
+    return Ok{};
   }
 
-  [[nodiscard]] bool resize_uninitialized(usize new_size)
+  constexpr Result<Void, Void> resize_uninitialized(usize new_size)
   {
-    if (new_size <= num_bits)
+    if (new_size <= bit_size_)
     {
-      erase(new_size, num_bits - new_size);
-      return true;
+      erase(new_size, bit_size_ - new_size);
+      return Ok{};
     }
 
-    return extend_uninitialized(new_size - num_bits);
+    return extend_uninitialized(new_size - bit_size_);
   }
 
-  [[nodiscard]] bool resize_defaulted(usize new_size)
+  constexpr Result<Void, Void> resize_defaulted(usize new_size)
   {
-    if (new_size <= num_bits)
+    if (new_size <= bit_size_)
     {
-      erase(new_size, num_bits - new_size);
-      return true;
+      erase(new_size, bit_size_ - new_size);
+      return Ok{};
     }
 
-    return extend_defaulted(new_size - num_bits);
+    return extend_defaulted(new_size - bit_size_);
   }
-
-  // flip
-  // insert
 
   constexpr void swap(usize a, usize b) const
   {
-    BitRef<Rep> a_r = this->operator[](a);
-    BitRef<Rep> b_r = this->operator[](b);
-    bool        a_v = a_r;
-    a_r             = b_r;
-    b_r             = a_v;
+    bool av = get(a);
+    bool bv = get(b);
+    set(a, bv);
+    set(b, av);
   }
 };
 
 template <typename Rep>
-constexpr auto to_span(BitVec<Rep> &container) -> BitSpan<Rep>
+constexpr auto bit_span(BitVec<Rep> &container) -> BitSpan<Rep>
 {
   return BitSpan{container.data(), container.size()};
 }
 
 template <typename Rep>
-constexpr auto to_span(BitVec<Rep> const &container) -> BitSpan<Rep>
+constexpr auto bit_span(BitVec<Rep> const &container) -> BitSpan<Rep>
+{
+  return BitSpan{container.data(), container.size()};
+}
+
+template <typename Rep>
+constexpr auto span(BitVec<Rep> &container) -> BitSpan<Rep>
+{
+  return BitSpan{container.data(), container.size()};
+}
+
+template <typename Rep>
+constexpr auto span(BitVec<Rep> const &container) -> BitSpan<Rep>
 {
   return BitSpan{container.data(), container.size()};
 }

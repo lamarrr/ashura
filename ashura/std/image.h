@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 
 #include "ashura/std/error.h"
@@ -7,7 +8,7 @@
 namespace ash
 {
 
-/// @brief A dense, multi-channel, and row-major image span
+/// @brief A dense, multi-channel, and row-major image span, format insensitive.
 /// @param stride number of pixels to skip to move from row i to row i+1
 /// i+1
 ///

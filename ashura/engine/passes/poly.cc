@@ -1,17 +1,18 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/passes/poly.h"
 
 namespace ash
 {
 
-void PolyPass::init(RenderContext &ctx)
+void PolyPass::init(RenderContext &)
 {
 }
 
-void PolyPass::uninit(RenderContext &ctx)
+void PolyPass::uninit(RenderContext &)
 {
 }
 
-void PolyPass::add_pass(RenderContext &ctx, PolyPassParams const &params)
+void PolyPass::add_pass(RenderContext &, PolyPassParams const &)
 {
 }
 

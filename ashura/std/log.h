@@ -1,11 +1,11 @@
 
+/// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/std/allocator.h"
+#include "ashura/std/cfg.h"
 #include "ashura/std/format.h"
 #include "ashura/std/mem.h"
-#include "ashura/std/runtime.h"
+#include "ashura/std/panic.h"
 #include "ashura/std/types.h"
-#include <atomic>
 #include <mutex>
 #include <stdlib.h>
 
@@ -31,20 +31,20 @@ struct LogSink
   virtual void flush()                                            = 0;
 };
 
-// to be flushed into trace format style, utc, time encoding, etc.
-// format context should append to the buffer
-struct Logger
+/// @brief Logger needs to use fixed-size memory as malloc can fail and make
+/// logging unreliable. This means each log statement's content/payload is
+/// limited to `BUFFER_CAPACITY`.
+struct Logger : Pin<>
 {
-  static constexpr u32 SCRATCH_BUFFER_SIZE                 = 256;
-  LogSink            **sinks                               = nullptr;
-  u32                  num_sinks                           = 0;
-  char                *buffer                              = nullptr;
-  usize                buffer_size                         = 0;
-  usize                buffer_capacity                     = 0;
-  char                 scratch_buffer[SCRATCH_BUFFER_SIZE] = {};
-  AllocatorImpl        allocator                           = {};
-  fmt::Context         fmt_ctx                             = {};
-  std::mutex           mutex                               = {};
+  static constexpr usize BUFFER_CAPACITY = 16_KB;
+  static constexpr usize SCRATCH_SIZE    = 256;
+  static constexpr u32   MAX_SINKS       = 8;
+
+  LogSink   *sinks[MAX_SINKS]        = {};
+  u32        num_sinks               = 0;
+  char       buffer[BUFFER_CAPACITY] = {};
+  char       scratch[SCRATCH_SIZE]   = {};
+  std::mutex mutex                   = {};
 
   template <typename... Args>
   bool debug(Args const &...args)
@@ -85,9 +85,9 @@ struct Logger
   void flush()
   {
     std::lock_guard lock{mutex};
-    for (u32 i = 0; i < num_sinks; i++)
+    for (LogSink *sink : Span{sinks, num_sinks})
     {
-      sinks[i]->flush();
+      sink->flush();
     }
   }
 
@@ -95,30 +95,33 @@ struct Logger
   bool log(LogLevels level, Args const &...args)
   {
     std::lock_guard lock{mutex};
-    if (fmt::format(fmt_ctx, args..., "\n"))
+    fmt::Buffer     b{.buffer = span(buffer)};
+    fmt::Context    ctx = fmt::buffer(&b, span(scratch));
+    if (!fmt::format(ctx, args..., "\n"))
     {
-      for (u32 i = 0; i < num_sinks; i++)
-      {
-        sinks[i]->log(level, Span{buffer, buffer_size});
-      }
-      buffer_size = 0;
-      return true;
+      return false;
     }
 
-    buffer_size = 0;
-    return false;
+    for (LogSink *sink : Span{sinks, num_sinks})
+    {
+      sink->log(level, span(buffer).slice(0, b.pos));
+    }
+    return true;
   }
 
   template <typename... Args>
   [[noreturn]] void panic(Args const &...args)
   {
-    if (panic_count.fetch_add(1, std::memory_order::relaxed))
+    if (panic_count->fetch_add(1, std::memory_order::relaxed))
     {
       (void) fputs("panicked while processing a panic. aborting...", stderr);
       (void) fflush(stderr);
       abort();
     }
-    fatal(args...);
+    if (!fatal(args...))
+    {
+      (void) fputs("ran out of log buffer memory while panicking.", stderr);
+    }
     flush();
     if (panic_handler != nullptr)
     {
@@ -126,11 +129,31 @@ struct Logger
     }
     abort();
   }
+
+  void init(Span<LogSink *const> sinks_list)
+  {
+    copy(sinks_list.slice(0, MAX_SINKS), span(sinks));
+    num_sinks = sinks_list.size();
+  }
+
+  bool add_sink(LogSink *s)
+  {
+    std::lock_guard lock{mutex};
+    if ((num_sinks + 1) > MAX_SINKS)
+    {
+      return false;
+    }
+
+    sinks[num_sinks++] = s;
+    return true;
+  }
+
+  void reset()
+  {
+    std::lock_guard lock{mutex};
+    num_sinks = 0;
+  }
 };
-
-Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator);
-
-void destroy_logger(Logger *logger);
 
 struct StdioSink final : LogSink
 {
@@ -149,6 +172,8 @@ struct FileSink final : LogSink
   void flush() override;
 };
 
-extern ash::Logger *default_logger;
+ASH_C_LINKAGE ASH_DLL_EXPORT ash::Logger *logger;
+
+extern StdioSink stdio_sink;
 
 }        // namespace ash

@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/error.h"
@@ -16,11 +17,13 @@ constexpr u32 TEXTURE_TRANSPARENT  = 2;
 constexpr u32 TEXTURE_RED          = 3;
 constexpr u32 TEXTURE_GREEN        = 4;
 constexpr u32 TEXTURE_BLUE         = 5;
-constexpr u32 NUM_DEFAULT_TEXTURES = 6;
+constexpr u32 NUM_DEFAULT_TEXTURES = TEXTURE_BLUE + 1;
 
-constexpr u32 SAMPLER_LINEAR       = 0;
-constexpr u32 SAMPLER_NEAREST      = 1;
-constexpr u32 NUM_DEFAULT_SAMPLERS = 2;
+constexpr u32 SAMPLER_LINEAR          = 0;
+constexpr u32 SAMPLER_NEAREST         = 1;
+constexpr u32 SAMPLER_LINEAR_CLAMPED  = 2;
+constexpr u32 SAMPLER_NEAREST_CLAMPED = 3;
+constexpr u32 NUM_DEFAULT_SAMPLERS    = SAMPLER_NEAREST_CLAMPED + 1;
 
 struct FramebufferAttachment
 {
@@ -100,32 +103,31 @@ struct RenderContext
       gfx::BufferUsage::UniformTexelBuffer |
       gfx::BufferUsage::StorageTexelBuffer | gfx::BufferUsage::IndirectBuffer |
       gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst;
-  static constexpr u16 NUM_TEXTURE_SLOTS = 2048;
-  static constexpr u16 NUM_SAMPLER_SLOTS = 128;
 
-  static_assert(NUM_TEXTURE_SLOTS % 64 == 0);
-  static_assert(NUM_SAMPLER_SLOTS % 64 == 0);
+  static constexpr u16 NUM_TEXTURE_SLOTS        = 1024;
+  static constexpr u16 NUM_SAMPLER_SLOTS        = 128;
+  static constexpr u16 NUM_SCRATCH_FRAMEBUFFERS = 2;
 
-  u64                      texture_slots[NUM_TEXTURE_SLOTS / 64] = {};
-  u64                      sampler_slots[NUM_SAMPLER_SLOTS / 64] = {};
-  gfx::DeviceImpl          device                                = {};
-  gfx::PipelineCache       pipeline_cache                        = nullptr;
-  u32                      buffering                             = 0;
-  StrHashMap<gfx::Shader>  shader_map                            = {};
-  gfx::Format              color_format         = gfx::Format::Undefined;
-  gfx::Format              depth_stencil_format = gfx::Format::Undefined;
-  gfx::DescriptorSetLayout ubo_layout           = nullptr;
-  gfx::DescriptorSetLayout ssbo_layout          = nullptr;
-  gfx::DescriptorSetLayout textures_layout      = nullptr;
-  gfx::DescriptorSetLayout samplers_layout      = nullptr;
-  gfx::DescriptorSet       texture_views        = nullptr;
-  gfx::DescriptorSet       samplers             = nullptr;
-  Vec<gfx::Object>         released_objects[gfx::MAX_FRAME_BUFFERING] = {};
-  SamplerCache             sampler_cache                              = {};
-  Framebuffer              screen_fb                                  = {};
-  Framebuffer              scratch_fbs[2]                             = {};
-  gfx::Image               default_image                              = nullptr;
-  gfx::ImageView           default_image_views[NUM_DEFAULT_TEXTURES]  = {};
+  Bits<u64, NUM_TEXTURE_SLOTS> texture_slots        = {};
+  Bits<u64, NUM_SAMPLER_SLOTS> sampler_slots        = {};
+  gfx::DeviceImpl              device               = {};
+  gfx::PipelineCache           pipeline_cache       = nullptr;
+  u32                          buffering            = 0;
+  StrHashMap<gfx::Shader>      shader_map           = {};
+  gfx::Format                  color_format         = gfx::Format::Undefined;
+  gfx::Format                  depth_stencil_format = gfx::Format::Undefined;
+  gfx::DescriptorSetLayout     ubo_layout           = nullptr;
+  gfx::DescriptorSetLayout     ssbo_layout          = nullptr;
+  gfx::DescriptorSetLayout     textures_layout      = nullptr;
+  gfx::DescriptorSetLayout     samplers_layout      = nullptr;
+  gfx::DescriptorSet           texture_views        = nullptr;
+  gfx::DescriptorSet           samplers             = nullptr;
+  Vec<gfx::Object>             released_objects[gfx::MAX_FRAME_BUFFERING] = {};
+  SamplerCache                 sampler_cache                              = {};
+  Framebuffer                  screen_fb                                  = {};
+  Framebuffer                  scratch_fbs[NUM_SCRATCH_FRAMEBUFFERS]      = {};
+  gfx::Image                   default_image = nullptr;
+  gfx::ImageView               default_image_views[NUM_DEFAULT_TEXTURES] = {};
 
   void init(gfx::DeviceImpl device, bool use_hdr, u32 buffering,
             gfx::Extent initial_extent, StrHashMap<gfx::Shader> shader_map);

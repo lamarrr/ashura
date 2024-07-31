@@ -1,4 +1,5 @@
 
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/types.h"
 
@@ -102,7 +103,8 @@ constexpr Vec4U8 DARK_GRAY_6  = Vec4U8{36, 36, 36, 0xFF};
 
 }        // namespace ios
 
-namespace material
+/// @brief Material Design Colors
+namespace mdc
 {
 constexpr Vec4U8 RED_50   = Vec4U8{0xFF, 0xEB, 0xEE, 0xFF};
 constexpr Vec4U8 RED_100  = Vec4U8{0xFF, 0xCD, 0xD2, 0xFF};
@@ -380,6 +382,6 @@ constexpr Vec4U8 BLUE_GRAY_900 = Vec4U8{0x26, 0x32, 0x38, 0xFF};
 constexpr Vec4U8 WHITE = Vec4U8{0xFF, 0xFF, 0xFF, 0xFF};
 constexpr Vec4U8 BLACK = Vec4U8{0x00, 0x00, 0x00, 0xFF};
 
-}        // namespace material
+}        // namespace mdc
 
 }        // namespace ash

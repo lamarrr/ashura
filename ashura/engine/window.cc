@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/window.h"
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_vulkan.h"
@@ -15,25 +16,26 @@ namespace sdl
 {
 struct WindowEventListener
 {
-  Fn<void(WindowEvent const &)> callback = to_fn([](WindowEvent const &) {});
+  Fn<void(WindowEvent const &)> callback = fn([](WindowEvent const &) {});
   WindowEventTypes              types    = WindowEventTypes::None;
 };
 
 struct WindowImpl
 {
-  SDL_Window              *win              = nullptr;
-  gfx::Surface             surface          = nullptr;
-  uid                      backend_id       = UID_MAX;
-  Vec<WindowEventListener> listeners        = {};
-  SparseVec                listeners_id_map = {};
-  gfx::InstanceImpl        instance         = {};
+  SDL_Window                         *win       = nullptr;
+  gfx::Surface                        surface   = nullptr;
+  SDL_WindowID                        id        = 0;
+  SparseVec<Vec<WindowEventListener>> listeners = {};
+  gfx::InstanceImpl                   instance  = {};
+  Fn<WindowRegion(Vec2U)>             hit_test =
+      fn([](Vec2U) { return WindowRegion::Normal; });
 };
 
 struct WindowSystemImpl final : public WindowSystem
 {
-  SDL_Window *hnd(Window w)
+  SDL_Window *hnd(Window window)
   {
-    return ((WindowImpl *) w)->win;
+    return ((WindowImpl *) window)->win;
   }
 
   void init()
@@ -59,8 +61,8 @@ struct WindowSystemImpl final : public WindowSystem
     SDL_Window *window = SDL_CreateWindow(
         title_c_str, 1920, 1080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     CHECKSdl(window != nullptr);
-    uid backend_id = SDL_GetWindowID(window);
-    CHECKSdl(backend_id != 0);
+    SDL_WindowID id = SDL_GetWindowID(window);
+    CHECKSdl(id != 0);
 
     CHECK(instance.interface->get_backend(instance.self) ==
           gfx::Backend::Vulkan);
@@ -75,10 +77,10 @@ struct WindowSystemImpl final : public WindowSystem
 
     CHECK(default_allocator.nalloc(1, &impl));
 
-    new (impl) WindowImpl{.win        = window,
-                          .surface    = (gfx::Surface) surface,
-                          .backend_id = backend_id,
-                          .instance   = instance};
+    new (impl) WindowImpl{.win      = window,
+                          .surface  = (gfx::Surface) surface,
+                          .id       = id,
+                          .instance = instance};
 
     SDL_PropertiesID props_id = SDL_GetWindowProperties(window);
     CHECK(SDL_SetProperty(props_id, "impl_object", impl) == 0);
@@ -86,19 +88,19 @@ struct WindowSystemImpl final : public WindowSystem
     return Some{(Window) impl};
   }
 
-  void destroy_window(Window w) override
+  void destroy_window(Window window) override
   {
-    if (w != nullptr)
+    if (window != nullptr)
     {
-      WindowImpl *win = (WindowImpl *) w;
+      WindowImpl *win = (WindowImpl *) window;
       win->instance->destroy_surface(win->instance.self, win->surface);
       SDL_DestroyWindow(win->win);
-      win->listeners_id_map.reset(win->listeners);
+      win->listeners.reset();
       default_allocator.ndealloc(win, 1);
     }
   }
 
-  void set_title(Window w, Span<char const> title) override
+  void set_title(Window window, Span<char const> title) override
   {
     char *title_c_str;
     CHECK(default_allocator.nalloc(title.size() + 1, &title_c_str));
@@ -109,91 +111,91 @@ struct WindowSystemImpl final : public WindowSystem
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
 
-    CHECKSdl(!SDL_SetWindowTitle(hnd(w), title_c_str));
+    CHECKSdl(!SDL_SetWindowTitle(hnd(window), title_c_str));
   }
 
-  char const *get_title(Window w) override
+  char const *get_title(Window window) override
   {
-    char const *title = SDL_GetWindowTitle(hnd(w));
+    char const *title = SDL_GetWindowTitle(hnd(window));
     CHECKSdl(title != nullptr);
     return title;
   }
 
-  void maximize(Window w) override
+  void maximize(Window window) override
   {
-    CHECKSdl(!SDL_MaximizeWindow(hnd(w)));
+    CHECKSdl(!SDL_MaximizeWindow(hnd(window)));
   }
 
-  void minimize(Window w) override
+  void minimize(Window window) override
   {
-    CHECKSdl(!SDL_MinimizeWindow(hnd(w)));
+    CHECKSdl(!SDL_MinimizeWindow(hnd(window)));
   }
 
-  void set_size(Window w, Vec2U size) override
+  void set_size(Window window, Vec2U size) override
   {
-    CHECKSdl(!SDL_SetWindowSize(hnd(w), static_cast<int>(size.x),
+    CHECKSdl(!SDL_SetWindowSize(hnd(window), static_cast<int>(size.x),
                                 static_cast<int>(size.y)));
   }
 
-  void center(Window w) override
+  void center(Window window) override
   {
-    CHECKSdl(!SDL_SetWindowPosition(hnd(w), SDL_WINDOWPOS_CENTERED,
+    CHECKSdl(!SDL_SetWindowPosition(hnd(window), SDL_WINDOWPOS_CENTERED,
                                     SDL_WINDOWPOS_CENTERED));
   }
 
-  Vec2U get_size(Window w) override
+  Vec2U get_size(Window window) override
   {
     int width, height;
-    CHECKSdl(!SDL_GetWindowSize(hnd(w), &width, &height));
+    CHECKSdl(!SDL_GetWindowSize(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  Vec2U get_surface_size(Window w) override
+  Vec2U get_surface_size(Window window) override
   {
     int width, height;
-    CHECKSdl(!SDL_GetWindowSizeInPixels(hnd(w), &width, &height));
+    CHECKSdl(!SDL_GetWindowSizeInPixels(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  void set_position(Window w, Vec2I pos) override
+  void set_position(Window window, Vec2I pos) override
   {
-    CHECKSdl(!SDL_SetWindowPosition(hnd(w), pos.x, pos.y));
+    CHECKSdl(!SDL_SetWindowPosition(hnd(window), pos.x, pos.y));
   }
 
-  Vec2I get_position(Window w) override
+  Vec2I get_position(Window window) override
   {
     int x, y;
-    CHECKSdl(!SDL_GetWindowPosition(hnd(w), &x, &y));
+    CHECKSdl(!SDL_GetWindowPosition(hnd(window), &x, &y));
     return Vec2I{x, y};
   }
 
-  void set_min_size(Window w, Vec2U min) override
+  void set_min_size(Window window, Vec2U min) override
   {
-    CHECKSdl(!SDL_SetWindowMinimumSize(hnd(w), static_cast<int>(min.x),
+    CHECKSdl(!SDL_SetWindowMinimumSize(hnd(window), static_cast<int>(min.x),
                                        static_cast<int>(min.y)));
   }
 
-  Vec2U get_min_size(Window w) override
+  Vec2U get_min_size(Window window) override
   {
     int width, height;
-    CHECKSdl(!SDL_GetWindowMinimumSize(hnd(w), &width, &height));
+    CHECKSdl(!SDL_GetWindowMinimumSize(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  void set_max_size(Window w, Vec2U max) override
+  void set_max_size(Window window, Vec2U max) override
   {
-    CHECKSdl(!SDL_SetWindowMaximumSize(hnd(w), static_cast<int>(max.x),
+    CHECKSdl(!SDL_SetWindowMaximumSize(hnd(window), static_cast<int>(max.x),
                                        static_cast<int>(max.y)));
   }
 
-  Vec2U get_max_size(Window w) override
+  Vec2U get_max_size(Window window) override
   {
     int width, height;
-    CHECKSdl(!SDL_GetWindowMaximumSize(hnd(w), &width, &height));
+    CHECKSdl(!SDL_GetWindowMaximumSize(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  void set_icon(Window w, ImageSpan<u8 const, 4> image,
+  void set_icon(Window window, ImageSpan<u8 const, 4> image,
                 gfx::Format format) override
   {
     SDL_PixelFormatEnum fmt = SDL_PIXELFORMAT_RGBA8888;
@@ -214,89 +216,128 @@ struct WindowSystemImpl final : public WindowSystem
         (void *) image.channels.data(), static_cast<int>(image.width),
         static_cast<int>(image.height), static_cast<int>(image.pitch()), fmt);
     CHECKSdl(icon != nullptr);
-    CHECKSdl(!SDL_SetWindowIcon(hnd(w), icon));
+    CHECKSdl(!SDL_SetWindowIcon(hnd(window), icon));
     SDL_DestroySurface(icon);
   }
 
-  void make_bordered(Window w) override
+  void make_bordered(Window window) override
   {
-    CHECKSdl(!SDL_SetWindowBordered(hnd(w), SDL_TRUE));
+    CHECKSdl(!SDL_SetWindowBordered(hnd(window), SDL_TRUE));
   }
 
-  void make_borderless(Window w) override
+  void make_borderless(Window window) override
   {
-    CHECKSdl(!SDL_SetWindowBordered(hnd(w), SDL_FALSE));
+    CHECKSdl(!SDL_SetWindowBordered(hnd(window), SDL_FALSE));
   }
 
-  void show(Window w) override
+  void show(Window window) override
   {
-    CHECKSdl(!SDL_ShowWindow(hnd(w)));
+    CHECKSdl(!SDL_ShowWindow(hnd(window)));
   }
 
-  void hide(Window w) override
+  void hide(Window window) override
   {
-    CHECKSdl(!SDL_HideWindow(hnd(w)));
+    CHECKSdl(!SDL_HideWindow(hnd(window)));
   }
 
-  void raise(Window w) override
+  void raise(Window window) override
   {
-    CHECKSdl(!SDL_RaiseWindow(hnd(w)));
+    CHECKSdl(!SDL_RaiseWindow(hnd(window)));
   }
 
-  void restore(Window w) override
+  void restore(Window window) override
   {
-    CHECKSdl(!SDL_RestoreWindow(hnd(w)));
+    CHECKSdl(!SDL_RestoreWindow(hnd(window)));
   }
 
-  void request_attention(Window w, bool briefly) override
+  void request_attention(Window window, bool briefly) override
   {
-    CHECKSdl(!SDL_FlashWindow(hnd(w), briefly ? SDL_FLASH_BRIEFLY :
-                                                SDL_FLASH_UNTIL_FOCUSED));
+    CHECKSdl(!SDL_FlashWindow(hnd(window), briefly ? SDL_FLASH_BRIEFLY :
+                                                     SDL_FLASH_UNTIL_FOCUSED));
   }
 
-  void make_fullscreen(Window w) override
+  void make_fullscreen(Window window) override
   {
-    CHECKSdl(!SDL_SetWindowFullscreen(hnd(w), SDL_TRUE));
+    CHECKSdl(!SDL_SetWindowFullscreen(hnd(window), SDL_TRUE));
   }
 
-  void make_windowed(Window w) override
+  void make_windowed(Window window) override
   {
-    CHECKSdl(!SDL_SetWindowFullscreen(hnd(w), SDL_FALSE));
+    CHECKSdl(!SDL_SetWindowFullscreen(hnd(window), SDL_FALSE));
   }
 
-  void make_resizable(Window w) override
+  void make_resizable(Window window) override
   {
-    CHECKSdl(!SDL_SetWindowResizable(hnd(w), SDL_TRUE));
+    CHECKSdl(!SDL_SetWindowResizable(hnd(window), SDL_TRUE));
   }
 
-  void make_unresizable(Window w) override
+  void make_unresizable(Window window) override
   {
-    CHECKSdl(!SDL_SetWindowResizable(hnd(w), SDL_FALSE));
+    CHECKSdl(!SDL_SetWindowResizable(hnd(window), SDL_FALSE));
   }
 
-  uid listen(Window w, WindowEventTypes event_types,
+  uid listen(Window window, WindowEventTypes event_types,
              Fn<void(WindowEvent const &)> callback) override
   {
-    uid         out_id;
-    WindowImpl *pwin = (WindowImpl *) w;
-    CHECK(pwin->listeners_id_map.push(
-        [&](uid id, u32) {
-          out_id = id;
-          CHECK(pwin->listeners.push(callback, event_types));
-        },
-        pwin->listeners));
-    return out_id;
+    WindowImpl *pwin = (WindowImpl *) window;
+    return pwin->listeners.push(WindowEventListener{callback, event_types})
+        .unwrap();
   }
 
-  void unlisten(Window w, uid listener) override
+  void unlisten(Window window, uid listener) override
   {
-    WindowImpl *pwin = (WindowImpl *) w;
-    pwin->listeners_id_map.erase(listener, pwin->listeners);
+    WindowImpl *pwin = (WindowImpl *) window;
+    pwin->listeners.erase(listener);
   }
 
-  gfx::Surface get_surface(Window w) override
+  static SDL_HitTestResult sdl_hit_test(SDL_Window *, SDL_Point const *area,
+                                        void *data)
   {
-    WindowImpl *pwin = (WindowImpl *) w;
+    WindowImpl  *win    = (WindowImpl *) data;
+    WindowRegion region = win->hit_test(Vec2U{(u32) area->x, (u32) area->y});
+    switch (region)
+    {
+      case WindowRegion::Normal:
+        return SDL_HITTEST_NORMAL;
+      case WindowRegion::Draggable:
+        return SDL_HITTEST_DRAGGABLE;
+      case WindowRegion::ResizeTopLeft:
+        return SDL_HITTEST_RESIZE_TOPLEFT;
+      case WindowRegion::ResizeTop:
+        return SDL_HITTEST_RESIZE_TOP;
+      case WindowRegion::ResizeTopRight:
+        return SDL_HITTEST_RESIZE_TOPRIGHT;
+      case WindowRegion::ResizeRight:
+        return SDL_HITTEST_RESIZE_RIGHT;
+      case WindowRegion::ResizeBottomRight:
+        return SDL_HITTEST_RESIZE_BOTTOMRIGHT;
+      case WindowRegion::ResizeBottom:
+        return SDL_HITTEST_RESIZE_BOTTOM;
+      case WindowRegion::ResizeBottomLeft:
+        return SDL_HITTEST_RESIZE_BOTTOMLEFT;
+      case WindowRegion::ResizeLeft:
+        return SDL_HITTEST_RESIZE_LEFT;
+      default:
+        return SDL_HITTEST_NORMAL;
+    }
+  }
+
+  Result<Void, Void> set_hit_test(Window                  window,
+                                  Fn<WindowRegion(Vec2U)> hit) override
+  {
+    WindowImpl *pwin = (WindowImpl *) window;
+    pwin->hit_test   = hit;
+    if (SDL_SetWindowHitTest(pwin->win, sdl_hit_test, pwin) != 0)
+    {
+      return Err{};
+    }
+
+    return Ok{};
+  }
+
+  gfx::Surface get_surface(Window window) override
+  {
+    WindowImpl *pwin = (WindowImpl *) window;
     return pwin->surface;
   }
 
@@ -309,7 +350,7 @@ struct WindowSystemImpl final : public WindowSystem
         (WindowImpl *) SDL_GetProperty(props_id, "impl_object", nullptr);
     CHECK(impl != nullptr);
 
-    for (WindowEventListener const &listener : impl->listeners)
+    for (WindowEventListener const &listener : impl->listeners.dense.v0)
     {
       if (has_bits(listener.types, event.type))
       {
@@ -480,12 +521,16 @@ struct WindowSystemImpl final : public WindowSystem
           publish_event(
               event.key.windowID,
               WindowEvent{
-                  .key  = KeyEvent{.key       = (Key) event.key.keysym.sym,
-                                   .modifiers = static_cast<KeyModifiers>(
-                                      event.key.keysym.mod),
-                                   .action = event.type == SDL_EVENT_KEY_DOWN ?
-                                                 KeyAction::Press :
-                                                 KeyAction::Release},
+                  .key =
+                      KeyEvent{
+                          .scan_code = (ScanCode) (event.key.keysym.scancode),
+                          .key_code  = (KeyCode) ((u16) event.key.keysym.sym &
+                                                 ~SDLK_SCANCODE_MASK),
+                          .modifiers =
+                              static_cast<KeyModifiers>(event.key.keysym.mod),
+                          .action = event.type == SDL_EVENT_KEY_DOWN ?
+                                        KeyAction::Press :
+                                        KeyAction::Release},
                   .type = WindowEventTypes::Key});
           return;
 
@@ -525,32 +570,6 @@ struct WindowSystemImpl final : public WindowSystem
     }
   }
 };
-
-/*
-  // void enable_hit_testing();
-  //
-  // SDL_HITTEST_NORMAL
-  // region is normal and has no special properties
-  // SDL_HITTEST_DRAGGABLE
-  // region can drag entire window
-  // SDL_HITTEST_RESIZE_TOPLEFT
-  // region can resize top left window
-  // SDL_HITTEST_RESIZE_TOP
-  // region can resize top window
-  // SDL_HITTEST_RESIZE_TOPRIGHT
-  // region can resize top right window
-  // SDL_HITTEST_RESIZE_RIGHT
-  // region can resize right window
-  // SDL_HITTEST_RESIZE_BOTTOMRIGHT
-  // region can resize bottom right window
-  // SDL_HITTEST_RESIZE_BOTTOM
-  // region can resize bottom window
-  // SDL_HITTEST_RESIZE_BOTTOMLEFT
-  // region can resize bottom left window
-  // SDL_HITTEST_RESIZE_LEFT
-  // region can resize left window
-  //
-*/
 
 }        // namespace sdl
 

@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/canvas.h"
 #include "ashura/engine/passes/bloom.h"

@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include <utility>
 
@@ -14,7 +15,7 @@ namespace ash
 /// @InvalidData: detected image but image seems to be corrupted
 /// @UnsupportedChannels: image contains unsupported channel types
 /// @UnsupportedFormat: the image file format is unsupported
-enum class [[nodiscard]] DecodeError : i32
+enum class [[nodiscard]] ImageDecodeError : i32
 {
   None              = 0,
   OutOfMemory       = 1,
@@ -31,9 +32,9 @@ struct DecodedImage
   gfx::Format format   = gfx::Format::Undefined;
 };
 
-DecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image);
-DecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image);
-DecodeError decode_png(Span<u8 const> bytes, DecodedImage &image);
-DecodeError decode_image(Span<u8 const> bytes, DecodedImage &image);
+ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image);
+ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image);
+ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage &image);
+ImageDecodeError decode_image(Span<u8 const> bytes, DecodedImage &image);
 
 }        // namespace ash

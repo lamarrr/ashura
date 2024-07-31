@@ -1,4 +1,6 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/canvas.h"
+#include "ashura/engine/font_atlas.h"
 #include "ashura/std/math.h"
 
 namespace ash
@@ -6,19 +8,19 @@ namespace ash
 
 void Path::rect(Vec<Vec2> &vtx)
 {
-  CHECK(vtx.extend_copy(to_span<Vec2>({{-1, -1}, {1, -1}, {1, 1}, {-1, 1}})));
+  vtx.extend_copy(span<Vec2>({{-1, -1}, {1, -1}, {1, 1}, {-1, 1}})).unwrap();
 }
 
-void Path::arc(Vec<Vec2> &vtx, u32 segments, f32 start, f32 stop)
+void Path::arc(Vec<Vec2> &vtx, f32 start, f32 stop, u32 segments)
 {
   if (segments < 2)
   {
     return;
   }
 
-  u32 const first = (u32) vtx.size();
+  u32 const first = vtx.size32();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   f32 const step = (stop - start) / (segments - 1);
 
@@ -35,19 +37,38 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
     return;
   }
 
-  u32 const first = (u32) vtx.size();
+  u32 const first = vtx.size32();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   f32 const step = (2 * PI) / (segments - 1);
 
   for (u32 i = 0; i < segments; i++)
   {
-    vtx[first + i] = rotor(i * step) * 2 - 1;
+    vtx[first + i] = rotor(i * step);
   }
 }
 
-void Path::rrect(Vec<Vec2> &vtx, u32 segments, Vec4 radii)
+void Path::squircle(Vec<Vec2> &vtx, f32 elasticity, u32 segments)
+{
+  if (segments < 128)
+  {
+    return;
+  }
+
+  elasticity = clamp(elasticity, 0.0F, 1.0F);
+
+  Path::cubic_bezier(vtx, {0, -1}, {elasticity, -1}, {1, -1}, {1, 0},
+                     segments >> 2);
+  Path::cubic_bezier(vtx, {1, 0}, {1, elasticity}, {1, 1}, {0, 1},
+                     segments >> 2);
+  Path::cubic_bezier(vtx, {0, 1}, {-elasticity, 1}, {-1, 1}, {-1, 0},
+                     segments >> 2);
+  Path::cubic_bezier(vtx, {-1, 0}, {-1, -elasticity}, {-1, -1}, {0, -1},
+                     segments >> 2);
+}
+
+void Path::rrect(Vec<Vec2> &vtx, Vec4 radii, u32 segments)
 {
   if (segments < 8)
   {
@@ -69,9 +90,9 @@ void Path::rrect(Vec<Vec2> &vtx, u32 segments, Vec4 radii)
 
   u32 const curve_segments = (segments - 8) / 4;
   f32 const step  = (curve_segments == 0) ? 0.0f : ((PI / 2) / curve_segments);
-  u32 const first = (u32) vtx.size();
+  u32 const first = vtx.size32();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   u32 i = 0;
 
@@ -133,19 +154,19 @@ void Path::brect(Vec<Vec2> &vtx, Vec4 slant)
                            {1 - slant.z, 1},   {-1 + slant.w, 1},
                            {-1, 1 - slant.w},  {-1, -1 + slant.x}};
 
-  CHECK(vtx.extend_copy(to_span(vertices)));
+  vtx.extend_copy(span(vertices)).unwrap();
 }
 
-void Path::bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1, Vec2 cp2)
+void Path::bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments)
 {
   if (segments < 3)
   {
     return;
   }
 
-  u32 const first = (u32) vtx.size();
+  u32 const first = vtx.size32();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   f32 const step = 1.0f / (segments - 1);
 
@@ -156,17 +177,17 @@ void Path::bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1, Vec2 cp2)
   }
 }
 
-void Path::cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
-                        Vec2 cp2, Vec2 cp3)
+void Path::cubic_bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
+                        u32 segments)
 {
   if (segments < 4)
   {
     return;
   }
 
-  u32 const first = (u32) vtx.size();
+  u32 const first = vtx.size32();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   f32 const step = 1.0f / (segments - 1);
 
@@ -178,8 +199,8 @@ void Path::cubic_bezier(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
   }
 }
 
-void Path::catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
-                       Vec2 cp2, Vec2 cp3)
+void Path::catmull_rom(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
+                       u32 segments)
 {
   if (segments < 4)
   {
@@ -188,7 +209,7 @@ void Path::catmull_rom(Vec<Vec2> &vtx, u32 segments, Vec2 cp0, Vec2 cp1,
 
   u32 const beg = vtx.size();
 
-  CHECK(vtx.extend_uninitialized(segments));
+  vtx.extend_uninitialized(segments).unwrap();
 
   f32 const step = 1.0f / (segments - 1);
 
@@ -208,13 +229,13 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
     return;
   }
 
-  u32 const first_vtx    = (u32) vertices.size();
-  u32 const first_idx    = (u32) indices.size();
-  u32 const num_points   = (u32) points.size();
+  u32 const first_vtx    = vertices.size32();
+  u32 const first_idx    = indices.size32();
+  u32 const num_points   = points.size32();
   u32 const num_vertices = (num_points - 1) * 4;
   u32 const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
-  CHECK(vertices.extend_uninitialized(num_vertices));
-  CHECK(indices.extend_uninitialized(num_indices));
+  vertices.extend_uninitialized(num_vertices).unwrap();
+  indices.extend_uninitialized(num_indices).unwrap();
 
   Vec2 *vtx  = vertices.data() + first_vtx;
   u32  *idx  = indices.data() + first_idx;
@@ -262,23 +283,39 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
   }
 }
 
-void Path::triangles(Span<Vec2 const> points, Vec<u32> &indices)
+void Path::triangles(u32 first_vertex, u32 num_vertices, Vec<u32> &indices)
 {
-  if (points.size() < 3)
-  {
-    return;
-  }
-  u32 const num_points    = (u32) points.size();
-  u32 const num_triangles = num_points / 3;
-  u32 const first_idx     = (u32) indices.size();
-  CHECK(indices.extend_uninitialized(num_triangles * 3));
+  CHECK(num_vertices > 3);
+  u32 const num_triangles = num_vertices / 3;
+  u32 const first_idx     = indices.size32();
+  indices.extend_uninitialized(num_triangles * 3).unwrap();
 
   u32 *idx = indices.data() + first_idx;
   for (u32 i = 0; i < num_triangles * 3; i += 3)
   {
-    idx[i]     = i;
-    idx[i + 1] = i + 1;
-    idx[i + 2] = i + 2;
+    idx[i]     = first_vertex + i;
+    idx[i + 1] = first_vertex + i + 1;
+    idx[i + 2] = first_vertex + i + 2;
+  }
+}
+
+void Path::triangulate_convex(Vec<u32> &idx, u32 first_vertex, u32 num_vertices)
+{
+  if (num_vertices < 3)
+  {
+    return;
+  }
+
+  u32 const num_indices = (num_vertices - 2) * 3;
+  u32 const first_index = idx.size32();
+
+  idx.extend_uninitialized(num_indices).unwrap();
+
+  for (u32 i = 0, v = 1; i < num_indices; i += 3, v++)
+  {
+    idx[first_index + i]     = first_vertex;
+    idx[first_index + i + 1] = first_vertex + v;
+    idx[first_index + i + 2] = first_vertex + v + 1;
   }
 }
 
@@ -294,7 +331,7 @@ void Canvas::uninit()
   ngon_params.uninit();
   rrect_params.uninit();
   blur_params.uninit();
-  custom_params.uninit();
+  custom_passes.uninit();
   pass_runs.uninit();
 }
 
@@ -312,7 +349,7 @@ void Canvas::clear()
   ngon_params.clear();
   rrect_params.clear();
   blur_params.clear();
-  custom_params.clear();
+  custom_passes.clear();
   pass_runs.clear();
 }
 
@@ -335,259 +372,300 @@ static inline void add_run(Canvas &canvas, CanvasPassType type)
   switch (type)
   {
     case CanvasPassType::Blur:
-      num = (u32) canvas.blur_params.size();
+      num = canvas.blur_params.size32();
       break;
     case CanvasPassType::Custom:
-      num = (u32) canvas.custom_params.size();
+      num = canvas.custom_passes.size32();
       break;
     case CanvasPassType::Ngon:
-      num = (u32) canvas.ngon_params.size();
+      num = canvas.ngon_params.size32();
       break;
     case CanvasPassType::RRect:
-      num = (u32) canvas.rrect_params.size();
+      num = canvas.rrect_params.size32();
       break;
     default:
       UNREACHABLE();
       break;
   }
 
-  CHECK(canvas.pass_runs.push(CanvasPassRun{.type  = type,
-                                            .clip  = canvas.current_clip,
-                                            .first = num - 1,
-                                            .count = 1}));
+  canvas.pass_runs
+      .push(CanvasPassRun{.type  = type,
+                          .clip  = canvas.current_clip,
+                          .first = num - 1,
+                          .count = 1})
+      .unwrap();
 }
 
 void Canvas::circle(ShapeDesc const &desc)
 {
-  CHECK(rrect_params.push(RRectParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .radii        = {1, 1, 1, 1},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .aspect_ratio = desc.extent.x / desc.extent.y,
-      .stroke       = desc.stroke,
-      .thickness    = desc.thickness / desc.extent.y,
-      .edge_smoothness = desc.edge_smoothness,
-      .sampler         = desc.sampler,
-      .albedo          = desc.texture}));
+  rrect_params
+      .push(RRectParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .radii     = {1, 1, 1, 1},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .aspect_ratio    = desc.extent.x / desc.extent.y,
+          .stroke          = desc.stroke,
+          .thickness       = desc.thickness / desc.extent.y,
+          .edge_smoothness = desc.edge_smoothness,
+          .sampler         = desc.sampler,
+          .albedo          = desc.texture})
+      .unwrap();
 
   add_run(*this, CanvasPassType::RRect);
 }
 
 void Canvas::rect(ShapeDesc const &desc)
 {
-  CHECK(rrect_params.push(RRectParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .radii        = {0, 0, 0, 0},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .aspect_ratio = desc.extent.x / desc.extent.y,
-      .stroke       = desc.stroke,
-      .thickness    = desc.thickness / desc.extent.y,
-      .edge_smoothness = desc.edge_smoothness,
-      .sampler         = desc.sampler,
-      .albedo          = desc.texture}));
+  rrect_params
+      .push(RRectParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .radii     = {0, 0, 0, 0},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .aspect_ratio    = desc.extent.x / desc.extent.y,
+          .stroke          = desc.stroke,
+          .thickness       = desc.thickness / desc.extent.y,
+          .edge_smoothness = desc.edge_smoothness,
+          .sampler         = desc.sampler,
+          .albedo          = desc.texture})
+      .unwrap();
 
   add_run(*this, CanvasPassType::RRect);
 }
 
 void Canvas::rrect(ShapeDesc const &desc)
 {
-  CHECK(rrect_params.push(RRectParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .radii        = desc.border_radii / desc.extent.y,
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .aspect_ratio = desc.extent.x / desc.extent.y,
-      .stroke       = desc.stroke,
-      .thickness    = desc.thickness / desc.extent.y,
-      .edge_smoothness = desc.edge_smoothness,
-      .sampler         = desc.sampler,
-      .albedo          = desc.texture}));
+  rrect_params
+      .push(RRectParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .radii     = desc.corner_radii / desc.extent.y,
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .aspect_ratio    = desc.extent.x / desc.extent.y,
+          .stroke          = desc.stroke,
+          .thickness       = desc.thickness / desc.extent.y,
+          .edge_smoothness = desc.edge_smoothness,
+          .sampler         = desc.sampler,
+          .albedo          = desc.texture})
+      .unwrap();
 
   add_run(*this, CanvasPassType::RRect);
 }
 
-constexpr bool is_transparent(ColorGradient const &g)
+void Canvas::brect(ShapeDesc const &desc)
 {
-  return g[0].w == 0 && g[1].w == 0 && g[2].w == 0 && g[3].w == 0;
+  u32 const first_vertex = vertices.size32();
+  u32 const first_index  = indices.size32();
+
+  Path::brect(vertices, desc.corner_radii);
+
+  u32 const num_vertices = vertices.size32() - first_vertex;
+
+  Path::triangulate_convex(indices, first_vertex, num_vertices);
+
+  u32 const num_indices = indices.size32() - first_index;
+
+  ngon_params
+      .push(NgonParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .sampler   = desc.sampler,
+          .albedo    = desc.texture,
+          .first_index  = first_index,
+          .first_vertex = first_vertex})
+      .unwrap();
+
+  ngon_index_counts.push(num_indices).unwrap();
+
+  add_run(*this, CanvasPassType::Ngon);
+}
+
+void Canvas::squircle(ShapeDesc const &desc, f32 elasticity, u32 segments)
+{
+  u32 const first_vertex = vertices.size32();
+  u32 const first_index  = indices.size32();
+
+  Path::squircle(vertices, elasticity, segments);
+
+  u32 const num_vertices = vertices.size32() - first_vertex;
+
+  Path::triangulate_convex(indices, first_vertex, num_vertices);
+
+  u32 const num_indices = indices.size32() - first_index;
+
+  ngon_params
+      .push(NgonParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .sampler   = desc.sampler,
+          .albedo    = desc.texture,
+          .first_index  = first_index,
+          .first_vertex = first_vertex})
+      .unwrap();
+
+  ngon_index_counts.push(num_indices).unwrap();
+
+  add_run(*this, CanvasPassType::Ngon);
 }
 
 void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
                   TextLayout const &layout, TextBlockStyle const &style,
-                  Span<FontAtlasResource const *const> atlases)
+                  CRect const &clip)
 {
   CHECK(style.runs.size() == block.runs.size());
   CHECK(style.runs.size() == block.fonts.size());
-  for (u32 i = 0; i < (u32) block.fonts.size(); i++)
-  {
-    CHECK(atlases[i] != nullptr);
-    CHECK(block.fonts[i].font != nullptr);
-    FontInfo f = get_font_info(block.fonts[i].font);
-    CHECK(atlases[i]->glyphs.size() == f.glyphs.size());
-  }
 
   f32 const  block_width = max(layout.extent.x, style.align_width);
   Vec2 const half_block_extent{block_width / 2, layout.extent.y / 2};
-  f32        line_y = 0;
-  for (Line const &l : layout.lines)
+
+  constexpr u8 PASS_BACKGROUND    = 0;
+  constexpr u8 PASS_GLYPH_SHADOWS = 1;
+  constexpr u8 PASS_GLYPHS        = 2;
+  constexpr u8 PASS_UNDERLINE     = 3;
+  constexpr u8 PASS_STRIKETHROUGH = 4;
+  constexpr u8 NUM_PASSES         = 5;
+
+  for (u8 pass = 0; pass < NUM_PASSES; pass++)
   {
-    line_y += l.metrics.height;
-    f32 const baseline = line_y - l.metrics.descent;
-    f32 const spacing  = max(block_width - l.metrics.width, 0.0f);
-    f32 const aligned_spacing =
-        (l.metrics.base_direction == TextDirection::LeftToRight) ?
-            space_align(spacing, style.alignment) :
-            space_align(spacing, -style.alignment);
-    f32 cursor = aligned_spacing;
-    for (u32 r = 0; r < l.num_runs;)
+    f32 line_y = 0;
+    for (Line const &ln : layout.lines)
     {
-      u32 const      first     = r++;
-      TextRun const &first_run = layout.runs[l.first_run + first];
-      f32            dir_advance =
-          pt_to_px(first_run.metrics.advance, first_run.font_height);
-
-      while (r < l.num_runs &&
-             layout.runs[l.first_run + r].direction == first_run.direction)
+      if (!overlaps(clip.offseted(),
+                    Rect{desc.center - half_block_extent + Vec2{0, line_y},
+                         Vec2{block_width, ln.metrics.height}}))
       {
-        TextRun const &run = layout.runs[l.first_run + r];
-        dir_advance += pt_to_px(run.metrics.advance, run.font_height);
-        r++;
+        continue;
       }
-
-      f32 advance =
-          (first_run.direction == TextDirection::LeftToRight) ? 0 : dir_advance;
-      for (u32 ri = first; ri < r; ri++)
+      line_y += ln.metrics.height;
+      f32 const           baseline  = line_y - ln.metrics.descent;
+      TextDirection const direction = level_to_direction(ln.metrics.level);
+      // flip the alignment axis direction if it is an RTL line
+      f32 const alignment =
+          style.alignment *
+          ((direction == TextDirection::LeftToRight) ? 1 : -1);
+      f32 cursor = space_align(block_width, ln.metrics.width, alignment) -
+                   ln.metrics.width * 0.5F;
+      for (TextRun const &run :
+           span(layout.runs).slice(ln.first_run, ln.num_runs))
       {
-        TextRun const           &run        = layout.runs[l.first_run + ri];
-        FontStyle const         &font_style = block.fonts[run.style];
-        TextStyle const         &run_style  = style.runs[run.style];
-        FontInfo                 font       = get_font_info(font_style.font);
-        FontAtlasResource const *atlas      = atlases[run.style];
+        FontStyle const    &font_style = block.fonts[run.style];
+        TextStyle const    &run_style  = style.runs[run.style];
+        FontInfo const      font       = get_font_info(font_style.font);
+        GpuFontAtlas const *atlas      = font.gpu_atlas.value();
+        f32 const run_width = au_to_px(run.metrics.advance, run.font_height);
 
-        if (run.direction == TextDirection::RightToLeft)
+        if (pass == PASS_BACKGROUND && !run_style.background.is_transparent())
         {
-          advance -= pt_to_px(run.metrics.advance, run.font_height);
+          Vec2 extent{run_width, au_to_px(run.metrics.ascent, run.font_height) +
+                                     ln.metrics.height};
+          Vec2 offset{cursor, line_y - ln.metrics.height};
+          rect(
+              ShapeDesc{.center    = desc.center,
+                        .extent    = extent,
+                        .transform = desc.transform *
+                                     translate3d(vec3(offset + extent / 2, 0)) *
+                                     translate3d(vec3(-half_block_extent, 0)),
+                        .tint = run_style.background});
         }
 
-        if (!is_transparent(run_style.background))
+        f32 glyph_cursor = cursor;
+        for (u32 g = 0; g < run.num_glyphs; g++)
         {
-          Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
-                      pt_to_px(run.metrics.ascent, run.font_height) +
-                          l.metrics.height};
-          Vec2 offset{cursor + advance, line_y - l.metrics.height};
-          rect(ShapeDesc{.center = desc.center,
-                         .extent = extent,
-                         .transform =
-                             desc.transform *
-                             translate3d(to_vec3(offset + extent / 2, 0)) *
-                             translate3d(to_vec3(-half_block_extent, 0)),
-                         .tint = run_style.background});
-        }
+          GlyphShape const &sh  = layout.glyphs[run.first_glyph + g];
+          Glyph const      &gl  = font.glyphs[sh.glyph];
+          AtlasGlyph const &agl = atlas->glyphs[sh.glyph];
+          Vec2 const extent     = au_to_px(gl.metrics.extent, run.font_height);
+          Vec2 const offset =
+              Vec2{glyph_cursor, baseline} +
+              au_to_px(gl.metrics.bearing, run.font_height) * Vec2{1, -1} +
+              au_to_px(sh.offset, run.font_height);
 
-        for (u32 layer = 0; layer < 2; layer++)
-        {
-          f32 g_cursor = 0;
-          for (u32 g = 0; g < run.num_glyphs; g++)
+          if (pass == PASS_GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
+              !run_style.shadow.is_transparent())
           {
-            GlyphShape const &sh  = layout.glyphs[run.first_glyph + g];
-            Glyph const      &gl  = font.glyphs[sh.glyph];
-            AtlasGlyph const &agl = atlas->glyphs[sh.glyph];
-            Vec2 const extent = pt_to_px(gl.metrics.extent, run.font_height);
-            Vec2 const offset =
-                Vec2{cursor + advance + g_cursor, baseline} +
-                pt_to_px(gl.metrics.bearing, run.font_height) * Vec2{1, -1} +
-                pt_to_px(sh.offset, run.font_height);
-
-            if (layer == 0 && run_style.shadow_scale != 0 &&
-                !is_transparent(run_style.shadow))
-            {
-              Vec2 shadow_extent = extent * run_style.shadow_scale;
-              Vec2 shadow_offset = (offset + extent / 2) - shadow_extent / 2 +
-                                   run_style.shadow_offset;
-              rect(ShapeDesc{.center = desc.center,
-                             .extent = shadow_extent,
-                             .transform =
-                                 desc.transform *
-                                 translate3d(to_vec3(
-                                     shadow_offset + shadow_extent / 2, 0)) *
-                                 translate3d(to_vec3(-half_block_extent, 0)),
-                             .tint            = run_style.shadow,
-                             .sampler         = desc.sampler,
-                             .texture         = atlas->textures[agl.layer],
-                             .uv              = {agl.uv[0], agl.uv[1]},
-                             .tiling          = desc.tiling,
-                             .edge_smoothness = desc.edge_smoothness});
-            }
-
-            if (layer == 1 && !is_transparent(run_style.foreground))
-            {
-              rect(ShapeDesc{.center = desc.center,
-                             .extent = extent,
-                             .transform =
-                                 desc.transform *
-                                 translate3d(to_vec3(offset + extent / 2, 0)) *
-                                 translate3d(to_vec3(-half_block_extent, 0)),
-                             .tint            = run_style.foreground,
-                             .sampler         = desc.sampler,
-                             .texture         = atlas->textures[agl.layer],
-                             .uv              = {agl.uv[0], agl.uv[1]},
-                             .tiling          = desc.tiling,
-                             .edge_smoothness = desc.edge_smoothness});
-            }
-
-            g_cursor += pt_to_px(sh.advance.x, run.font_height);
+            Vec2 shadow_extent = extent * run_style.shadow_scale;
+            Vec2 shadow_offset = (offset + extent / 2) - shadow_extent / 2 +
+                                 run_style.shadow_offset;
+            rect(ShapeDesc{
+                .center = desc.center,
+                .extent = shadow_extent,
+                .transform =
+                    desc.transform *
+                    translate3d(vec3(shadow_offset + shadow_extent / 2, 0)) *
+                    translate3d(vec3(-half_block_extent, 0)),
+                .tint            = run_style.shadow,
+                .sampler         = desc.sampler,
+                .texture         = atlas->textures[agl.layer],
+                .uv              = {agl.uv[0], agl.uv[1]},
+                .tiling          = desc.tiling,
+                .edge_smoothness = desc.edge_smoothness});
           }
+
+          if (pass == PASS_GLYPHS && !run_style.foreground.is_transparent())
+          {
+            rect(ShapeDesc{.center = desc.center,
+                           .extent = extent,
+                           .transform =
+                               desc.transform *
+                               translate3d(vec3(offset + extent / 2, 0)) *
+                               translate3d(vec3(-half_block_extent, 0)),
+                           .tint            = run_style.foreground,
+                           .sampler         = desc.sampler,
+                           .texture         = atlas->textures[agl.layer],
+                           .uv              = {agl.uv[0], agl.uv[1]},
+                           .tiling          = desc.tiling,
+                           .edge_smoothness = desc.edge_smoothness});
+          }
+
+          glyph_cursor += au_to_px(sh.advance.x, run.font_height);
         }
 
-        if (run_style.strikethrough_thickness != 0)
+        if (pass == PASS_STRIKETHROUGH &&
+            run_style.strikethrough_thickness != 0)
         {
-          Vec2 offset{cursor + advance, baseline - run.font_height / 2};
-          Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
-                      run_style.strikethrough_thickness};
-          rect(ShapeDesc{.center = desc.center,
-                         .extent = extent,
-                         .transform =
-                             desc.transform *
-                             translate3d(to_vec3(offset + extent / 2, 0)) *
-                             translate3d(to_vec3(-half_block_extent, 0)),
-                         .tint            = run_style.strikethrough,
-                         .sampler         = desc.sampler,
-                         .texture         = 0,
-                         .uv              = {},
-                         .tiling          = desc.tiling,
-                         .edge_smoothness = desc.edge_smoothness});
+          Vec2 offset{cursor, baseline - run.font_height / 2};
+          Vec2 extent{run_width, run_style.strikethrough_thickness};
+          rect(
+              ShapeDesc{.center    = desc.center,
+                        .extent    = extent,
+                        .transform = desc.transform *
+                                     translate3d(vec3(offset + extent / 2, 0)) *
+                                     translate3d(vec3(-half_block_extent, 0)),
+                        .tint            = run_style.strikethrough,
+                        .sampler         = desc.sampler,
+                        .texture         = 0,
+                        .uv              = {},
+                        .tiling          = desc.tiling,
+                        .edge_smoothness = desc.edge_smoothness});
         }
 
-        if (run_style.underline_thickness != 0)
+        if (pass == PASS_UNDERLINE && run_style.underline_thickness != 0)
         {
-          Vec2 offset{cursor + advance, baseline + 2};
-          Vec2 extent{pt_to_px(run.metrics.advance, run.font_height),
-                      run_style.underline_thickness};
-          rect(ShapeDesc{.center = desc.center,
-                         .extent = extent,
-                         .transform =
-                             desc.transform *
-                             translate3d(to_vec3(offset + extent / 2, 0)) *
-                             translate3d(to_vec3(-half_block_extent, 0)),
-                         .tint            = run_style.underline,
-                         .sampler         = desc.sampler,
-                         .texture         = 0,
-                         .uv              = {},
-                         .tiling          = desc.tiling,
-                         .edge_smoothness = desc.edge_smoothness});
+          Vec2 offset{cursor, baseline + 2};
+          Vec2 extent{run_width, run_style.underline_thickness};
+          rect(
+              ShapeDesc{.center    = desc.center,
+                        .extent    = extent,
+                        .transform = desc.transform *
+                                     translate3d(vec3(offset + extent / 2, 0)) *
+                                     translate3d(vec3(-half_block_extent, 0)),
+                        .tint            = run_style.underline,
+                        .sampler         = desc.sampler,
+                        .texture         = 0,
+                        .uv              = {},
+                        .tiling          = desc.tiling,
+                        .edge_smoothness = desc.edge_smoothness});
         }
-
-        if (run.direction == TextDirection::LeftToRight)
-        {
-          advance += pt_to_px(run.metrics.advance, run.font_height);
-        }
+        cursor += run_width;
       }
-
-      cursor += dir_advance;
     }
   }
 }
@@ -599,24 +677,63 @@ void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
     return;
   }
 
-  u32 const first_index  = (u32) indices.size();
-  u32 const first_vertex = (u32) vertices.size();
+  u32 const first_index  = indices.size32();
+  u32 const first_vertex = vertices.size32();
 
-  CHECK(vertices.extend_copy(points));
-  Path::triangles(points, indices);
+  vertices.extend_copy(points).unwrap();
+  Path::triangles(first_vertex, points.size32(), indices);
 
-  CHECK(ngon_params.push(NgonParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .sampler      = desc.sampler,
-      .albedo       = desc.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex}));
-  u32 const num_indices = (u32) (vertices.size() - first_vertex);
+  ngon_params
+      .push(NgonParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .sampler   = desc.sampler,
+          .albedo    = desc.texture,
+          .first_index  = first_index,
+          .first_vertex = first_vertex})
+      .unwrap();
 
-  CHECK(ngon_index_counts.push(num_indices));
+  u32 const num_indices = vertices.size32() - first_vertex;
+
+  ngon_index_counts.push(num_indices).unwrap();
+
+  add_run(*this, CanvasPassType::Ngon);
+}
+
+void Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points,
+                       Span<u32 const> idx)
+{
+  if (points.size() < 3)
+  {
+    return;
+  }
+
+  u32 const first_index  = indices.size32();
+  u32 const first_vertex = vertices.size32();
+
+  vertices.extend_copy(points).unwrap();
+  indices.extend_copy(idx).unwrap();
+
+  for (u32 &v : span(indices).slice(first_index))
+  {
+    v += first_vertex;
+  }
+
+  ngon_params
+      .push(NgonParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .sampler   = desc.sampler,
+          .albedo    = desc.texture,
+          .first_index  = first_index,
+          .first_vertex = first_vertex})
+      .unwrap();
+
+  ngon_index_counts.push(idx.size32()).unwrap();
 
   add_run(*this, CanvasPassType::Ngon);
 }
@@ -628,22 +745,25 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
     return;
   }
 
-  u32 const first_index  = (u32) indices.size();
-  u32 const first_vertex = (u32) vertices.size();
+  u32 const first_index  = indices.size32();
+  u32 const first_vertex = vertices.size32();
   Path::triangulate_stroke(points, vertices, indices,
                            desc.thickness / desc.extent.y);
-  CHECK(ngon_params.push(NgonParam{
-      .transform    = mvp(desc.transform, desc.center, desc.extent),
-      .tint         = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-      .uv           = {desc.uv[0], desc.uv[1]},
-      .tiling       = desc.tiling,
-      .sampler      = desc.sampler,
-      .albedo       = desc.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex}));
-  u32 const num_indices = (u32) (indices.size() - first_index);
+  ngon_params
+      .push(NgonParam{
+          .transform = mvp(desc.transform, desc.center, desc.extent),
+          .tint      = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
+          .uv        = {desc.uv[0], desc.uv[1]},
+          .tiling    = desc.tiling,
+          .sampler   = desc.sampler,
+          .albedo    = desc.texture,
+          .first_index  = first_index,
+          .first_vertex = first_vertex})
+      .unwrap();
 
-  CHECK(ngon_index_counts.push(num_indices));
+  u32 const num_indices = indices.size32() - first_index;
+
+  ngon_index_counts.push(num_indices).unwrap();
 
   add_run(*this, CanvasPassType::Ngon);
 }
@@ -651,14 +771,14 @@ void Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
 void Canvas::blur(CRect const &area, u32 num_passes)
 {
   CHECK(num_passes > 0);
-  CHECK(blur_params.push(
-      CanvasBlurParam{.area = area, .num_passes = num_passes}));
+  blur_params.push(CanvasBlurParam{.area = area, .num_passes = num_passes})
+      .unwrap();
   add_run(*this, CanvasPassType::Blur);
 }
 
-void Canvas::custom(CustomCanvasPassInfo const &pass)
+void Canvas::custom(CustomCanvasPass pass)
 {
-  CHECK(custom_params.push(pass));
+  custom_passes.push(pass).unwrap();
   add_run(*this, CanvasPassType::Custom);
 }
 

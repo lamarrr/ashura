@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/hash.h"
 #include "xxh3.h"
 

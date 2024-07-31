@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/passes/blur.h"
 
 namespace ash
@@ -50,8 +51,7 @@ void BlurPass::init(RenderContext &ctx)
        .alpha_blend_op         = gfx::BlendOp::Add,
        .color_write_mask       = gfx::ColorComponents::All}};
 
-  gfx::ColorBlendState color_blend_state{.attachments =
-                                             to_span(attachment_states),
+  gfx::ColorBlendState color_blend_state{.attachments = span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
   gfx::DescriptorSetLayout set_layouts[] = {ctx.samplers_layout,
@@ -73,7 +73,7 @@ void BlurPass::init(RenderContext &ctx)
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(BlurParam),
-      .descriptor_set_layouts = to_span(set_layouts),
+      .descriptor_set_layouts = span(set_layouts),
       .primitive_topology     = gfx::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
@@ -110,17 +110,18 @@ void sample(BlurPass &b, RenderContext &c, gfx::CommandEncoderImpl const &e,
   Vec2 uv1    = as_vec2(src_area.end()) / as_vec2(src_extent);
 
   e->begin_rendering(
-      e.self, gfx::RenderingInfo{
-                  .render_area = {.offset = {0, 0}, .extent = src_area.extent},
-                  .num_layers  = 1,
-                  .color_attachments  = to_span({gfx::RenderingAttachment{
-                       .view         = dst,
-                       .resolve      = nullptr,
-                       .resolve_mode = gfx::ResolveModes::None,
-                       .load_op      = gfx::LoadOp::Clear,
-                       .store_op     = gfx::StoreOp::Store}}),
-                  .depth_attachment   = {},
-                  .stencil_attachment = {}});
+      e.self,
+      gfx::RenderingInfo{
+          .render_area = {.offset = dst_offset, .extent = src_area.extent},
+          .num_layers  = 1,
+          .color_attachments = span(
+              {gfx::RenderingAttachment{.view         = dst,
+                                        .resolve      = nullptr,
+                                        .resolve_mode = gfx::ResolveModes::None,
+                                        .load_op      = gfx::LoadOp::Clear,
+                                        .store_op     = gfx::StoreOp::Store}}),
+          .depth_attachment   = {},
+          .stencil_attachment = {}});
 
   e->bind_graphics_pipeline(e.self, upsample ? b.upsample_pipeline :
                                                b.downsample_pipeline);
@@ -129,11 +130,11 @@ void sample(BlurPass &b, RenderContext &c, gfx::CommandEncoderImpl const &e,
                   .scissor  = {.offset = dst_offset, .extent = src_area.extent},
                   .viewport = {.offset = as_vec2(dst_offset),
                                .extent = as_vec2(src_area.extent)}});
-  e->bind_descriptor_sets(e.self, to_span({c.samplers, src_texture}), {});
-  e->push_constants(e.self, to_span({BlurParam{.uv      = {uv0, uv1},
-                                               .radius  = radius,
-                                               .sampler = SAMPLER_LINEAR,
-                                               .texture = src_index}})
+  e->bind_descriptor_sets(e.self, span({c.samplers, src_texture}), {});
+  e->push_constants(e.self, span({BlurParam{.uv      = {uv0, uv1},
+                                            .radius  = radius,
+                                            .sampler = SAMPLER_LINEAR_CLAMPED,
+                                            .texture = src_index}})
                                 .as_u8());
   e->draw(e.self, 4, 1, 0, 0);
   e->end_rendering(e.self);

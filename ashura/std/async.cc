@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/async.h"
 #include "ashura/std/alias_count.h"
 #include "ashura/std/arena_allocator.h"
@@ -36,15 +37,14 @@ struct TaskArena
 struct Task
 {
   usize                num_awaits     = 0;
-  Semaphore           *await_sems     = nullptr;
+  SemaphoreRef        *await_sems     = nullptr;
   u64                 *awaits         = nullptr;
-  Fn<bool(void *)>     task           = to_fn([](void *) { return false; });
-  void                *data           = nullptr;
+  Fn<bool()>           task           = fn([] { return false; });
   usize                num_increments = 0;
-  Semaphore           *increment_sems = nullptr;
+  SemaphoreRef        *increment_sems = nullptr;
   u64                 *increments     = nullptr;
   usize                num_signals    = 0;
-  Semaphore           *signal_sems    = nullptr;
+  SemaphoreRef        *signal_sems    = nullptr;
   u64                 *signals        = nullptr;
   ListNode<TaskArena> *arena          = nullptr;
 };
@@ -150,17 +150,16 @@ struct SchedulerImpl final : Scheduler
       // we've gotten multiple tasks but none have been ready.
       poll = 0;
 
-      bool const should_requeue = task->data.task(task->data.data);
+      bool const should_requeue = task->data.task();
 
       for (usize i = 0; i < task->data.num_signals; i++)
       {
-        signal_semaphore(task->data.signal_sems[i], task->data.signals[i]);
+        task->data.signal_sems[i]->signal(task->data.signals[i]);
       }
 
       for (usize i = 0; i < task->data.num_increments; i++)
       {
-        increment_semaphore(task->data.increment_sems[i],
-                            task->data.increments[i]);
+        task->data.increment_sems[i]->increment(task->data.increments[i]);
       }
 
       if (should_requeue)
@@ -197,17 +196,16 @@ struct SchedulerImpl final : Scheduler
         continue;
       }
 
-      bool const should_requeue = task->data.task(task->data.data);
+      bool const should_requeue = task->data.task();
 
       for (usize i = 0; i < task->data.num_signals; i++)
       {
-        signal_semaphore(task->data.signal_sems[i], task->data.signals[i]);
+        task->data.signal_sems[i]->increment(task->data.signals[i]);
       }
 
       for (usize i = 0; i < task->data.num_increments; i++)
       {
-        increment_semaphore(task->data.increment_sems[i],
-                            task->data.increments[i]);
+        task->data.increment_sems[i]->increment(task->data.increments[i]);
       }
 
       if (should_requeue)
@@ -263,12 +261,12 @@ struct SchedulerImpl final : Scheduler
 
   static bool alloc_task_data(Arena &arena, u32 awaits_cap, u32 increments_cap,
                               u32 signals_cap, ListNode<Task> **t,
-                              Semaphore **await_sems, u64 **awaits,
-                              Semaphore **increment_sems, u64 **increments,
-                              Semaphore **signal_sems, u64 **signals)
+                              SemaphoreRef **await_sems, u64 **awaits,
+                              SemaphoreRef **increment_sems, u64 **increments,
+                              SemaphoreRef **signal_sems, u64 **signals)
   {
     usize const min_task_size = sizeof(ListNode<Task>) +
-                                (sizeof(Semaphore) + sizeof(u64)) *
+                                (sizeof(SemaphoreRef) + sizeof(u64)) *
                                     (awaits_cap + increments_cap + signals_cap);
     CHECK(min_task_size < (ARENA_SIZE / 4));
     u8 *begin = arena.offset;
@@ -295,15 +293,15 @@ struct SchedulerImpl final : Scheduler
     CHECK(info.signals.size() <= U32_MAX);
     CHECK(info.increments.size() <= U32_MAX);
 
-    u32        num_awaits     = (u32) info.awaits.size();
-    u32        num_signals    = (u32) info.signals.size();
-    u32        num_increments = (u32) info.increments.size();
-    Semaphore *await_sems     = nullptr;
-    u64       *awaits         = nullptr;
-    Semaphore *increment_sems = nullptr;
-    u64       *increments     = nullptr;
-    Semaphore *signal_sems    = nullptr;
-    u64       *signals        = nullptr;
+    u32           num_awaits     = info.awaits.size32();
+    u32           num_signals    = info.signals.size32();
+    u32           num_increments = info.increments.size32();
+    SemaphoreRef *await_sems     = nullptr;
+    u64          *awaits         = nullptr;
+    SemaphoreRef *increment_sems = nullptr;
+    u64          *increments     = nullptr;
+    SemaphoreRef *signal_sems    = nullptr;
+    u64          *signals        = nullptr;
 
     if (!alloc_task_data(arena->data.arena, num_awaits, num_increments,
                          num_signals, task, &await_sems, &awaits,
@@ -325,7 +323,6 @@ struct SchedulerImpl final : Scheduler
                                             .await_sems     = await_sems,
                                             .awaits         = awaits,
                                             .task           = info.task,
-                                            .data           = info.data,
                                             .num_increments = num_increments,
                                             .increment_sems = increment_sems,
                                             .increments     = increments,
@@ -377,13 +374,12 @@ struct SchedulerImpl final : Scheduler
   {
     CHECK(dedicated_thread_sleep.size() <= U32_MAX);
     CHECK(worker_thread_sleep.size() <= U32_MAX);
-    num_dedicated_threads = (u32) dedicated_thread_sleep.size();
-    num_worker_threads    = (u32) worker_thread_sleep.size();
+    num_dedicated_threads = dedicated_thread_sleep.size32();
+    num_worker_threads    = worker_thread_sleep.size32();
     CHECK(allocator.nalloc(num_dedicated_threads, &dedicated_threads));
     CHECK(allocator.nalloc(num_worker_threads, &worker_threads));
 
-    u32 tid = 1;
-    for (u32 i = 0; i < num_dedicated_threads; i++, tid++)
+    for (u32 i = 0; i < num_dedicated_threads; i++)
     {
       TaskThread *t = dedicated_threads + i;
       new (t) TaskThread{.dedicated_queue = {},
@@ -396,7 +392,7 @@ struct SchedulerImpl final : Scheduler
       }};
     }
 
-    for (u32 i = 0; i < num_worker_threads; i++, tid++)
+    for (u32 i = 0; i < num_worker_threads; i++)
     {
       TaskThread *t = worker_threads + i;
       new (t) TaskThread{.dedicated_queue = {},
@@ -480,6 +476,7 @@ struct SchedulerImpl final : Scheduler
   }
 };
 
-static SchedulerImpl task_scheduler_impl;
-Scheduler           *scheduler = &task_scheduler_impl;
+static SchedulerImpl scheduler_impl;
+
+ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler *scheduler = &scheduler_impl;
 }        // namespace ash

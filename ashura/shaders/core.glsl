@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #ifndef _CORE_GLSL_
 #define _CORE_GLSL_
 
@@ -20,9 +21,9 @@ vec3 to_srgb(vec3 v)
   return pow_vec3(v, 1.0 / GAMMA);
 }
 
-vec4 bilerp(vec4 v[4], vec2 t0, float t1)
+vec4 bilerp(vec4 v[4], vec2 t)
 {
-  return mix(mix(v[0], v[1], t0.x), mix(v[2], v[3], t0.y), t1);
+  return mix(mix(v[0], v[1], t.x), mix(v[2], v[3], t.x), t.y);
 }
 
 /// SIGGRAPH 2015 - Bandwidth-Efficient Rendering, Marius Bjorge, ARM
@@ -112,12 +113,12 @@ float circular_geometrical_smoothmin(float a, float b, float k)
 // https://www.shadertoy.com/view/fsdyzB
 // https://iquilezles.org/articles/distfunctions/
 // https://iquilezles.org/articles/distfunctions2d/
-// length(...+ border_radius) - border_radius -> gives the rounding of the
-// border
-float rrect_sdf(vec2 pos, vec2 half_extent, float border_radius)
+// length(...+ corner_radii) - corner_radii -> gives the rounding of the
+// corners
+float rrect_sdf(vec2 pos, vec2 half_extent, float corner_radii)
 {
-  vec2 q = abs(pos) - half_extent + border_radius;
-  return min(max(q.x, q.y), 0) + length(max(q, 0)) - border_radius;
+  vec2 q = abs(pos) - half_extent + corner_radii;
+  return min(max(q.x, q.y), 0) + length(max(q, 0)) - corner_radii;
 }
 
 // SDF functions: https://iquilezles.org/articles/distfunctions2d/

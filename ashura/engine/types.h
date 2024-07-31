@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 
 #include "ashura/std/types.h"
@@ -9,19 +10,19 @@ struct ColorGradient
 {
   Vec4 colors[4] = {};
 
-  static constexpr ColorGradient uniform(Vec4 c)
+  static constexpr ColorGradient all(Vec4 c)
   {
     return ColorGradient{{c, c, c, c}};
   }
 
-  static constexpr ColorGradient uniform(Vec4U8 c)
+  static constexpr ColorGradient all(Vec4U8 c)
   {
-    return uniform(c.norm());
+    return all(c.norm());
   }
 
   static constexpr ColorGradient x(Vec4 x0, Vec4 x1)
   {
-    return ColorGradient{{x0, x1, x1, x0}};
+    return ColorGradient{{x0, x1, x0, x1}};
   }
 
   static constexpr ColorGradient x(Vec4U8 x0, Vec4U8 x1)
@@ -47,6 +48,12 @@ struct ColorGradient
   constexpr Vec4 &operator[](usize i)
   {
     return colors[i];
+  }
+
+  constexpr bool is_transparent() const
+  {
+    return colors[0].w == 0 && colors[1].w == 0 && colors[2].w == 0 &&
+           colors[3].w == 0;
   }
 };
 

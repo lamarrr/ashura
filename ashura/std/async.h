@@ -1,5 +1,7 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/allocator.h"
+#include "ashura/std/cfg.h"
 #include "ashura/std/semaphore.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
@@ -9,17 +11,18 @@ namespace ash
 
 struct TaskInfo
 {
-  Fn<bool(void *)>      task              = to_fn([](void *) { return false; });
-  void                 *data              = nullptr;
-  Span<Semaphore const> await_semaphores  = {};
-  Span<u64 const>       awaits            = {};
-  Span<Semaphore const> signal_semaphores = {};
-  Span<u64 const>       signals           = {};
-  Span<Semaphore const> increment_semaphores = {};
-  Span<u64 const>       increments           = {};
+  Fn<bool()>               task                 = fn([] { return false; });
+  Span<SemaphoreRef const> await_semaphores     = {};
+  Span<u64 const>          awaits               = {};
+  Span<SemaphoreRef const> signal_semaphores    = {};
+  Span<u64 const>          signals              = {};
+  Span<SemaphoreRef const> increment_semaphores = {};
+  Span<u64 const>          increments           = {};
 };
 
-/// all tasks execute out-of-order. but have dependencies enforced by
+/// @brief Static Thread Pool Scheduler.
+///
+/// all tasks execute out-of-order and have dependencies enforced by
 /// semaphores.
 ///
 /// it has 2 types of threads: worker threads and dedicated threads.
@@ -31,15 +34,16 @@ struct TaskInfo
 /// worker threads process any type of tasks, although might not be as
 /// responsive as dedicated threads.
 ///
-/// work submitted to the main thread MUST be extremely light-weight and
+///
+/// @note work submitted to the main thread MUST be extremely light-weight and
 /// non-blocking.
 ///
-/// # Requirements:
-/// [v] result collection
-/// [v] inter-task communication
-/// [v] inter-task sharing
-/// [v] inter-task data flow, reporting cancelation
-/// [v] external polling contexts
+/// Requirements:
+/// [x] result collection
+/// [x] inter-task communication
+/// [x] inter-task sharing
+/// [x] inter-task data flow, reporting cancelation
+/// [x] external polling contexts
 struct Scheduler
 {
   virtual void init(Span<nanoseconds const> dedicated_thread_sleep,
@@ -51,6 +55,6 @@ struct Scheduler
   virtual void execute_main_thread_work(nanoseconds timeout)        = 0;
 };
 
-extern Scheduler *scheduler;
+ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler *scheduler;
 
 }        // namespace ash

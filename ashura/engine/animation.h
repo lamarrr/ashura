@@ -1,9 +1,14 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/math.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
+
+/// [ ] Animation forward and backwards
+/// [ ] Animation cancelation
+/// [ ] https://create.roblox.com/docs/ui/animation#style
 
 /// @brief Frame-independent smooth animation ticker
 ///

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 cmake_minimum_required(VERSION 3.6)
 
 project(Ashura)
@@ -54,6 +55,11 @@ FetchContent_Declare(
   GIT_TAG vulkan-sdk-1.3.283.0)
 
 FetchContent_Declare(
+  VulkanLoader
+  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Loader.git
+  GIT_TAG be0e1c3)
+
+FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
@@ -101,6 +107,7 @@ find_package(Threads REQUIRED)
 
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
+FetchContent_MakeAvailable(VulkanLoader)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(VulkanGLSL)
 FetchContent_MakeAvailable(harfbuzz)
@@ -110,8 +117,6 @@ FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
 FetchContent_MakeAvailable(WebP)
 FetchContent_MakeAvailable(CURL)
-
-find_package(Vulkan REQUIRED)
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
@@ -138,15 +143,15 @@ endif()
 
 add_library(
   ashura_std
-  ashura/std/semaphore.cc
-  ashura/std/async.cc
-  ashura/std/io.cc
   ashura/std/allocator.cc
-  ashura/std/hash.cc
   ashura/std/arena_allocator.cc
+  ashura/std/async.cc
   ashura/std/format.cc
+  ashura/std/hash.cc
+  ashura/std/io.cc
   ashura/std/log.cc
-  ashura/std/runtime.cc)
+  ashura/std/panic.cc
+  ashura/std/semaphore.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ashura_std PUBLIC xxHash::xxhash Threads::Threads)
 
@@ -158,8 +163,7 @@ add_executable(
   ashura/std/tests/list.cc
   ashura/std/tests/hash_map.cc
   ashura/std/tests/result.cc
-  ashura/std/tests/bit_span.cc
-  ashura/std/tests/sparse_set.cc)
+  ashura/std/tests/sparse_vec.cc)
 add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
 
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
@@ -170,21 +174,41 @@ target_link_libraries(ashura_std_bench benchmark::benchmark
 add_library(ashura_gfx ashura/gfx/gfx.cc ashura/gfx/vma_def.cc
                        ashura/gfx/vulkan.cc)
 target_link_libraries(
-  ashura_gfx ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Vulkan
+  ashura_gfx ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
   GPUOpen::VulkanMemoryAllocator)
 target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
   ashura_engine
+  ashura/engine/engine.cc
   ashura/engine/font.cc
   ashura/engine/font_impl.cc
   ashura/engine/text.cc
   ashura/engine/canvas.cc
   ashura/engine/image_decoder.cc
+  ashura/engine/render_text.cc
   ashura/engine/shader.cc
+  ashura/engine/text_compositor.cc
   ashura/engine/window.cc
-  ashura/engine/widget.cc
-  ashura/engine/widget_system.cc
+  ashura/engine/view.cc
+  ashura/engine/view_system.cc
+  ashura/engine/views/button.cc
+  ashura/engine/views/check_box.cc
+  ashura/engine/views/collapsable.cc
+  ashura/engine/views/color_picker.cc
+  ashura/engine/views/combo_box.cc
+  ashura/engine/views/demo.cc
+  ashura/engine/views/flex_view.cc
+  ashura/engine/views/plot.cc
+  ashura/engine/views/progress_bar.cc
+  ashura/engine/views/radio_box.cc
+  ashura/engine/views/scalar_box.cc
+  ashura/engine/views/scroll_view.cc
+  ashura/engine/views/slider.cc
+  ashura/engine/views/stack_view.cc
+  ashura/engine/views/switch.cc
+  ashura/engine/views/tab.cc
+  ashura/engine/views/text_view.cc
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc
@@ -217,5 +241,11 @@ target_include_directories(
   ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
                        ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
 
-add_executable(ashura_engine_test ashura/engine/tests/test.cc)
-target_link_libraries(ashura_engine_test ashura_engine)
+add_executable(
+  ashura_engine_tests
+  ashura/engine/tests/main.cc ashura/engine/tests/render_text.cc
+  ashura/engine/tests/text_compositor.cc)
+target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
+
+add_executable(ashura_app_test ashura/engine/tests/app.cc)
+target_link_libraries(ashura_app_test ashura_engine)

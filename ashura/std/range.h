@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/types.h"
 #include <algorithm>
@@ -215,7 +216,7 @@ constexpr Span<T> find(Span<T> span, U &&value, Cmp &&cmp = {})
       break;
     }
   }
-  return span[Slice{offset, 1}];
+  return span.slice(offset, 1);
 }
 
 template <typename T, typename Predicate>
@@ -229,7 +230,7 @@ constexpr Span<T> find_if(Span<T> span, Predicate &&predicate)
       break;
     }
   }
-  return span[Slice{offset, 1}];
+  return span.slice(offset, 1);
 }
 
 template <InputRange R, typename Target, typename Cmp = Equal>
@@ -357,42 +358,24 @@ constexpr void unique(Span<T>, Cmp &&cmp = {});        // destroy? retain?
 template <OutputRange R, typename SwapOp = Swap>
 constexpr void reverse(R &&range, SwapOp &&swap = {})
 {
-  OutputIterator auto head = begin(range);
-  OutputIterator auto tail = end(range);
+  if (is_empty(range))
+  {
+    return;
+  }
 
-  while (head != --tail)
+  OutputIterator auto head = begin(range);
+  OutputIterator auto tail = end(range) - 1;
+
+  while (head < tail)
   {
     swap(*head, *tail);
     head++;
+    tail--;
   }
 }
 
 template <typename T, typename SwapOp = Swap>
 constexpr void rotate(Span<T>, SwapOp &&swap = {});
-
-template <typename T, typename Cmp = Lesser>
-constexpr Span<T> range_lex(Span<T> span, Cmp &&cmp = {})
-{
-  if (span.is_empty())
-  {
-    return Span<T>{};
-  }
-
-  T *const end = span.end();
-  T       *min = span.begin();
-  T       *it  = min + 1;
-
-  while (it < end)
-  {
-    if (cmp(*it, *min))
-    {
-      min = it;
-    }
-    it++;
-  }
-
-  return Span<T>{min, 1};
-}
 
 template <typename T, typename U, typename Op, typename Cmp = Equal>
 constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp &&cmp = {});
@@ -411,12 +394,6 @@ template <typename S, typename Cmp = Lesser>
 constexpr void sort(S &&span, Cmp &&cmp = {})
 {
   std::sort(begin(span), end(span), cmp);
-}
-
-template <typename T, typename K>
-constexpr void radix_sort(Span<T>, Span<K>)
-{
-  // usize frequency[256];
 }
 
 template <typename S, typename IndexType, typename Cmp = Lesser>
@@ -486,15 +463,6 @@ void iota(Span<T> s, T first)
   for (auto &v : s)
   {
     v = first++;
-  };
-}
-
-template <typename T>
-void riota(Span<T> s, T first)
-{
-  for (auto &v : s)
-  {
-    v = first--;
   };
 }
 

@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_nonuniform_qualifier : require
 
@@ -39,19 +40,14 @@ const vec2 VERTEX_BUFFER[] = {vec2(-1, -1), vec2(1, -1), vec2(1, 1),
 
 layout(location = 0) flat out uint o_idx;
 layout(location = 1) out vec2 o_pos;
-layout(location = 2) out vec2 o_tex_uv;
-layout(location = 3) out vec4 o_color;
 
 void main()
 {
-  Params p     = params[gl_InstanceIndex];
-  vec2   pos   = VERTEX_BUFFER[gl_VertexIndex];
-  vec2   uv[4] = {p.uv.xy, p.uv.zy, p.uv.zw, p.uv.xw};
-  o_idx        = gl_InstanceIndex;
-  o_pos        = pos;
-  o_tex_uv     = uv[gl_VertexIndex];
-  o_color      = p.tint[gl_VertexIndex];
-  gl_Position  = p.transform * vec4(pos, 0.0, 1.0);
+  Params p    = params[gl_InstanceIndex];
+  vec2   pos  = VERTEX_BUFFER[gl_VertexIndex];
+  o_idx       = gl_InstanceIndex;
+  o_pos       = pos;
+  gl_Position = p.transform * vec4(pos, 0.0, 1.0);
 }
 #endif
 
@@ -59,8 +55,6 @@ void main()
 
 layout(location = 0) flat in uint i_idx;
 layout(location = 1) in vec2 i_pos;
-layout(location = 2) in vec2 i_tex_uv;
-layout(location = 3) in vec4 i_color;
 
 layout(location = 0) out vec4 o_color;
 
@@ -75,10 +69,12 @@ void main()
   vec2  pos         = i_pos * vec2(p.aspect_ratio, 1);
   vec2  half_extent = vec2(p.aspect_ratio, 1);
   float dist        = rrect_sdf(pos, half_extent, radius);
+  vec2  uv          = (i_pos + 1.0) * 0.5;
+  vec2  tex_uv      = mix(p.uv.xy, p.uv.zw, uv);
   vec4  color       = texture(sampler2D(textures[nonuniformEXT(p.albedo)],
                                         samplers[nonuniformEXT(p.isampler)]),
-                              i_tex_uv * p.tiling) *
-               i_color;
+                              tex_uv * p.tiling) *
+               bilerp(p.tint, uv);
   float fill_alpha = 1 - smoothstep(0, p.edge_smoothness, dist);
   float stroke_alpha =
       1 - smoothstep(p.thickness, p.thickness + p.edge_smoothness,

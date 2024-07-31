@@ -1,70 +1,10 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/log.h"
 #include <stdio.h>
 #include <time.h>
 
 namespace ash
 {
-
-Logger *create_logger(Span<LogSink *const> sinks, AllocatorImpl allocator)
-{
-  u32 const num_sinks = (u32) sinks.size();
-  LogSink **log_sinks;
-
-  if (!allocator.nalloc(num_sinks, &log_sinks))
-  {
-    abort();
-  }
-
-  mem::copy(sinks, log_sinks);
-  Logger *logger;
-
-  if (!allocator.nalloc(1, &logger))
-  {
-    abort();
-  }
-
-  return new (logger) Logger{
-      .sinks           = log_sinks,
-      .num_sinks       = num_sinks,
-      .buffer          = nullptr,
-      .buffer_size     = 0,
-      .buffer_capacity = 0,
-      .allocator       = allocator,
-      .fmt_ctx         = fmt::Context{
-                  .push =
-                      {
-                          .dispatcher =
-                      [](void *data, Span<char const> buffer) {
-                        Logger     *logger = (Logger *) data;
-                        usize const required_size =
-                            logger->buffer_size + buffer.size_bytes();
-                        if (required_size > logger->buffer_capacity)
-                        {
-                          if (!logger->allocator.nrealloc(
-                                  logger->buffer_capacity, required_size,
-                                  &logger->buffer))
-                          {
-                            return false;
-                          }
-
-                          logger->buffer_capacity = required_size;
-                        }
-                        mem::copy(buffer, logger->buffer + logger->buffer_size);
-                        logger->buffer_size += buffer.size_bytes();
-                        return true;
-                      },
-                          .data = logger,
-              },
-                  .scratch_buffer = to_span(logger->scratch_buffer)}};
-}
-
-void destroy_logger(Logger *logger)
-{
-  logger->allocator.ndealloc(logger->sinks, logger->num_sinks);
-  logger->allocator.ndealloc(logger->buffer, logger->buffer_capacity);
-  logger->~Logger();
-  logger->allocator.ndealloc(logger, 1);
-}
 
 char const *get_level_str(LogLevels level)
 {
@@ -184,5 +124,11 @@ void FileSink::flush()
   std::unique_lock lock{mutex};
   (void) fflush(file);
 }
+
+static Logger logger_impl = Logger{};
+
+ASH_C_LINKAGE ASH_DLL_EXPORT Logger *logger = &logger_impl;
+
+StdioSink stdio_sink = {};
 
 }        // namespace ash

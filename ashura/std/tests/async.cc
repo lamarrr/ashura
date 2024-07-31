@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "gtest/gtest.h"
 
 #include "ashura/std/async.h"
@@ -9,19 +10,18 @@ std::atomic<uint64_t> invocs = 0;
 TEST(AsyncTest, Basic)
 {
   using namespace ash;
-  StdioSink sink;
-  default_logger = create_logger(to_span<LogSink *>({&sink}), heap_allocator);
+  logger->add_sink(&stdio_sink);
 
-  Semaphore sem = create_semaphore(1);
-  scheduler->init(to_span<nanoseconds>({1ns, 2ns}), to_span({2ns, 5ns}));
+  SemaphoreRef sem = create_semaphore(1, default_allocator);
+  scheduler->init(span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));
 
   for (u32 i = 0; i < 5'000; i++)
   {
-    scheduler->schedule_worker({.task = to_fn([](void *) {
+    scheduler->schedule_worker({.task = fn([]() {
                                   invocs.fetch_add(1);
                                   return false;
                                 })});
-    scheduler->schedule_dedicated(0, {.task = to_fn([](void *) {
+    scheduler->schedule_dedicated(0, {.task = fn([]() {
                                         static int x = 0;
                                         x++;
                                         if (x > 10)
@@ -31,7 +31,7 @@ TEST(AsyncTest, Basic)
                                         std::this_thread::sleep_for(7ms);
                                         return true;
                                       })});
-    scheduler->schedule_dedicated(1, {.task = to_fn([](void *) {
+    scheduler->schedule_dedicated(1, {.task = fn([]() {
                                         invocs.fetch_add(1);
                                         return false;
                                       })});
@@ -42,7 +42,7 @@ TEST(AsyncTest, Basic)
     }
   }
 
-  scheduler->schedule_main({.task = to_fn([](void *) {
+  scheduler->schedule_main({.task = fn([]() {
                               static int x = 0;
                               x++;
                               if (x > 10)
@@ -52,9 +52,9 @@ TEST(AsyncTest, Basic)
                               std::this_thread::sleep_for(8ms);
                               return true;
                             })});
-  signal_semaphore(sem, 1);
+  sem->signal(1);
   scheduler->execute_main_thread_work(5s);
   std::this_thread::sleep_for(1min);
   scheduler->uninit();
-  destroy_semaphore(sem);
+  destroy_semaphore(sem, default_allocator);
 }

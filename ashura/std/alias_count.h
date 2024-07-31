@@ -7,7 +7,7 @@
 namespace ash
 {
 
-/// @struct Alias counting/tracking, similar to reference counting but 0-based.
+/// @brief Alias counting/tracking, similar to reference counting but 0-based.
 ///
 /// having access to and being able to reference this struct already implies a
 /// reference count of 1, meaning total refs = 1 + num_other_aliases.

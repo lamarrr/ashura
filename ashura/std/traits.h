@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include <type_traits>
 
@@ -86,5 +87,14 @@ concept TriviallyMoveConstructible = std::is_trivially_move_constructible_v<T>;
 
 template <typename T, typename Base>
 concept Derives = std::is_base_of_v<Base, T>;
+
+template <typename T>
+concept Unsigned = std::is_unsigned_v<T>;
+
+template <typename T>
+concept Signed = std::is_signed_v<T>;
+
+template <typename T>
+concept FloatingPoint = std::is_floating_point_v<T>;
 
 }        // namespace ash

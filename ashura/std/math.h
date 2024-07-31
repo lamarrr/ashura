@@ -1,13 +1,10 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/cfg.h"
 #include "ashura/std/range.h"
 #include "ashura/std/types.h"
 #include <bit>
 #include <math.h>
-
-#if ASH_CFG(COMPILER, MSVC)
-#  include <intrin.h>
-#endif
 
 namespace ash
 {
@@ -64,18 +61,32 @@ constexpr f64 to_radians(f64 degree)
   return PI * degree * 0.00555555555;
 }
 
-// Undefined behaviour if value is 0
-inline u32 u32log2(u32 value)
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u8 ulog2(u8 value)
 {
-#if ASH_CFG(COMPILER, MSVC)
-  return 31U - __lzcnt(value);
-#else
-#  if defined(__has_builtin) && __has_builtin(__builtin_clz)
-  return 31U - __builtin_clz(value);
-#  else
-  return 31U - std::count_lzero(value);
-#  endif
-#endif
+  return 7 - std::countl_zero(value);
+}
+
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u16 ulog2(u16 value)
+{
+  return 15 - std::countl_zero(value);
+}
+
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u32 ulog2(u32 value)
+{
+  return 31 - std::countl_zero(value);
+}
+
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u64 ulog2(u64 value)
+{
+  return 63 - std::countl_zero(value);
 }
 
 constexpr u32 mip_down(u32 a, u32 level)
@@ -100,27 +111,27 @@ constexpr Vec4U mip_down(Vec4U a, u32 level)
                max(a.z >> level, 1U), max(a.w >> level, 1U)};
 }
 
-inline u32 num_mip_levels(u32 a)
+constexpr u32 num_mip_levels(u32 a)
 {
-  return a == 0 ? 0 : u32log2(a);
+  return (a == 0) ? 0 : ulog2(a);
 }
 
-inline u32 num_mip_levels(Vec2U a)
+constexpr u32 num_mip_levels(Vec2U a)
 {
   u32 max = ash::max(a.x, a.y);
-  return max == 0 ? 0 : (u32log2(max) + 1);
+  return (max == 0) ? 0 : (ulog2(max) + 1);
 }
 
-inline u32 num_mip_levels(Vec3U a)
+constexpr u32 num_mip_levels(Vec3U a)
 {
   u32 max = ash::max(ash::max(a.x, a.y), a.z);
-  return max == 0 ? 0 : (u32log2(max) + 1);
+  return (max == 0) ? 0 : (ulog2(max) + 1);
 }
 
-inline u32 num_mip_levels(Vec4U a)
+constexpr u32 num_mip_levels(Vec4U a)
 {
   u32 max = ash::max(ash::max(ash::max(a.x, a.y), a.z), a.w);
-  return max == 0 ? 0 : (u32log2(max) + 1);
+  return (max == 0) ? 0 : (ulog2(max) + 1);
 }
 
 constexpr Mat2 transpose(Mat2 const &a)
@@ -538,10 +549,18 @@ inline Vec2 rotor(f32 a)
   return Vec2{cosf(a), sinf(a)};
 }
 
-// find intepolated value v, given points a and b, and interpolator t
+/// @brief linearly interpolate between points `low` and `high` given
+/// interpolator `t`
 constexpr f32 lerp(f32 low, f32 high, f32 t)
 {
   return (1 - t) * low + t * high;
+}
+
+/// @brief logarithmically interpolate between points `low` and `high` given
+/// interpolator `t`
+inline f32 log_interp(f32 low, f32 high, f32 t)
+{
+  return low * expf(t * logf(high / low));
 }
 
 /// @brief frame-independent damped lerp
@@ -629,18 +648,21 @@ inline f32 grid_snap(f32 a, f32 unit)
   return floorf((a + unit * 0.5F) / unit) * unit;
 }
 
-/// @brief get the aligned offset relative to a fixed amount of space
+/// @brief get the aligned center relative to a fixed amount of space
 /// @param space the space to align to
-/// @param alignment the alignment to align to. [-1, +1]
+/// @param alignment the alignment to align to [-1, +1]
 /// @return
-constexpr f32 space_align(f32 space, f32 alignment)
+constexpr f32 space_align(f32 space, f32 content, f32 alignment)
 {
-  return (alignment * 0.5F + 0.5F) * space;
+  f32 const trailing = space - content;
+  f32       padding  = (alignment * 0.5F + 0.5F) * trailing;
+  return padding + content / 2;
 }
 
-constexpr Vec2 space_align(Vec2 space, Vec2 alignment)
+constexpr Vec2 space_align(Vec2 space, Vec2 content, Vec2 alignment)
 {
-  return (alignment * 0.5F + 0.5F) * space;
+  return Vec2{space_align(space.x, content.x, alignment.x),
+              space_align(space.y, content.y, alignment.y)};
 }
 
 constexpr f32 norm_to_axis(f32 norm)
@@ -681,6 +703,11 @@ constexpr Vec4 norm_to_axis(Vec4 norm)
 constexpr Vec4 axis_to_norm(Vec4 axis)
 {
   return axis * 0.5F + 0.5F;
+}
+
+constexpr Vec4 opacity(f32 v)
+{
+  return Vec4{1, 1, 1, v};
 }
 
 /// @param x_mag The horizontal magnification of the view. This value
@@ -725,6 +752,8 @@ constexpr Mat4 look_at(Vec3 eye, Vec3 center, Vec3 up)
            {-dot(s, eye), -dot(u, eye), -dot(f, eye), 1}}};
 }
 
+/// @brief Given an object-clip space (mvp) matrix, determine if the object is
+/// within the camera's area of view.
 /// https://github.com/GPUOpen-LibrariesAndSDKs/Cauldron/blob/b92d559bd083f44df9f8f42a6ad149c1584ae94c/src/common/Misc/Misc.cpp#L265
 /// https://bruop.github.io/frustum_culling/
 ///
@@ -739,14 +768,14 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Vec3 offset, Vec3 extent)
 {
   constexpr u8 NUM_CORNERS          = 8;
   Vec4 const   corners[NUM_CORNERS] = {
-      mvp * to_vec4(offset, 1),
-      mvp * to_vec4(offset + Vec3{extent.x, 0, 0}, 1),
-      mvp * to_vec4(offset + Vec3{extent.x, extent.y, 0}, 1),
-      mvp * to_vec4(offset + Vec3{0, extent.y, 0}, 1),
-      mvp * to_vec4(offset + Vec3{0, 0, extent.z}, 1),
-      mvp * to_vec4(offset + Vec3{extent.x, 0, extent.z}, 1),
-      mvp * to_vec4(offset + extent, 1),
-      mvp * to_vec4(offset + Vec3{0, extent.y, extent.z}, 1)};
+      mvp * vec4(offset, 1),
+      mvp * vec4(offset + Vec3{extent.x, 0, 0}, 1),
+      mvp * vec4(offset + Vec3{extent.x, extent.y, 0}, 1),
+      mvp * vec4(offset + Vec3{0, extent.y, 0}, 1),
+      mvp * vec4(offset + Vec3{0, 0, extent.z}, 1),
+      mvp * vec4(offset + Vec3{extent.x, 0, extent.z}, 1),
+      mvp * vec4(offset + extent, 1),
+      mvp * vec4(offset + Vec3{0, extent.y, extent.z}, 1)};
   u8 left   = 0;
   u8 right  = 0;
   u8 top    = 0;
@@ -788,12 +817,19 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Vec3 offset, Vec3 extent)
 }
 
 constexpr void frustum_cull(Mat4 const &mvp, Span<Mat4 const> global_transform,
-                            Span<Box const> aabb, BitSpan<u64> is_visible)
+                            Span<Box const> aabb, Span<u64> is_visible)
 {
-  for (u32 i = 0; i < (u32) aabb.size(); i++)
+  for (u32 i = 0; i < aabb.size32(); i++)
   {
-    is_visible[i] = !is_outside_frustum(mvp * global_transform[i],
-                                        aabb[i].offset, aabb[i].extent);
+    if (is_outside_frustum(mvp * global_transform[i], aabb[i].offset,
+                           aabb[i].extent))
+    {
+      clear_bit(is_visible, i);
+    }
+    else
+    {
+      set_bit(is_visible, i);
+    }
   }
 }
 

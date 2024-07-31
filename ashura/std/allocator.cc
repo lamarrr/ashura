@@ -1,6 +1,8 @@
 
+/// SPDX-License-Identifier: MIT
 #include "ashura/std/allocator.h"
 #include "ashura/std/cfg.h"
+#include "ashura/std/mem.h"
 
 #if (!ASH_CFG(OS, WINDOWS)) && \
     (ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, GNUC))

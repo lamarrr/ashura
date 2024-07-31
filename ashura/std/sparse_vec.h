@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 
 #include "ashura/std/types.h"
@@ -6,6 +7,16 @@
 namespace ash
 {
 
+/// @brief Sparse Vector (a.k.a Sparse Set) are used for stable ID-tagging of
+/// objects in high-perf scenarious i.e. ECS, where a stable identity is needed
+/// for objects and they need to be processed in batches for efficiency. They
+/// have an indirect index into their elements, although they don't guarantee
+/// stability of the addresses of the elements they guarantee that the IDs
+/// persist until the id is released. Unlike typical Sparse Sets, Sparse Vec's
+/// elements are always contiguous without holes in them, making them suitable
+/// for operations like batch-processing and branchless SIMD.
+///
+/// @tparam V dense containers for the properties, i.e. Vec<i32>, Vec<f32>
 /// @param index_to_id id of data, ordered relative to {data}
 /// @param id_to_index map of id to index in {data}
 /// @param size the number of valid elements in the sparse set
@@ -16,129 +27,100 @@ namespace ash
 /// The index and id either point to valid indices/ids or are an implicit free
 /// list of ids and indices masked by RELEASE_MASK
 ///
+///
+template <typename... V>
 struct SparseVec
 {
   static constexpr u64 RELEASE_MASK = U64_MAX >> 1;
   static constexpr u64 STUB         = U64_MAX;
 
-  Vec<u64> index_to_id  = {};
-  Vec<u64> id_to_index  = {};
-  u64      free_id_head = STUB;
+  Vec<u64>    index_to_id  = {};
+  Vec<u64>    id_to_index  = {};
+  Tuple<V...> dense        = {};
+  u64         free_id_head = STUB;
 
-  [[nodiscard]] constexpr bool is_empty() const
+  constexpr bool is_empty() const
   {
     return size() == 0;
   }
 
-  [[nodiscard]] constexpr u64 *data() const
-  {
-    return index_to_id.data();
-  }
-
-  [[nodiscard]] constexpr u64 size() const
+  constexpr u64 size() const
   {
     return static_cast<u64>(index_to_id.size());
   }
 
-  [[nodiscard]] constexpr u64 *begin() const
+  constexpr void clear()
   {
-    return index_to_id.begin();
-  }
-
-  [[nodiscard]] constexpr u64 *end() const
-  {
-    return index_to_id.end();
-  }
-
-  template <typename... VecT>
-  constexpr void clear(VecT &...dense)
-  {
-    (dense.clear(), ...);
+    for_each([](auto &d) { d.clear(); }, dense);
     id_to_index.clear();
     index_to_id.clear();
     free_id_head = STUB;
   }
 
-  template <typename... VecT>
-  constexpr void reset(VecT &...dense)
+  constexpr void reset()
   {
-    (dense.reset(), ...);
+    for_each([](auto &d) { d.reset(); }, dense);
     id_to_index.reset();
     index_to_id.reset();
     free_id_head = STUB;
   }
 
-  [[nodiscard]] constexpr bool is_valid_id(u64 id) const
+  constexpr bool is_valid_id(u64 id) const
   {
     return id < id_to_index.size() && !(id_to_index[id] & RELEASE_MASK);
   }
 
-  [[nodiscard]] constexpr bool is_valid_index(u64 index) const
+  constexpr bool is_valid_index(u64 index) const
   {
     return index < size();
   }
 
-  [[nodiscard]] constexpr u64 operator[](u64 id) const
+  constexpr u64 operator[](uid id) const
   {
     return id_to_index[id];
   }
 
-  [[nodiscard]] constexpr u64 to_index(u64 id) const
+  constexpr u64 to_index(uid id) const
   {
     return id_to_index[id];
   }
 
-  [[nodiscard]] constexpr bool try_to_index(u64 id, u64 &index) const
+  constexpr Result<u64, Void> try_to_index(uid id) const
   {
     if (!is_valid_id(id))
     {
-      return false;
+      return Err{};
     }
 
-    index = to_index(id);
-    return true;
+    return Ok{to_index(id)};
   }
 
-  [[nodiscard]] constexpr u64 to_id(u64 index) const
+  constexpr u64 to_id(u64 index) const
   {
     return index_to_id[index];
   }
 
-  [[nodiscard]] constexpr bool try_to_id(u64 index, u64 &id) const
+  constexpr Result<u64, Void> try_to_id(u64 index) const
   {
     if (!is_valid_index(index))
     {
-      return false;
+      return Err{};
     }
 
-    id = to_id(id);
-    return true;
+    return Ok{to_id(index)};
   }
 
-  template <typename VecT>
-  constexpr bool try_get(u64 id, VecT::Iterator &iterator, VecT &vec)
-  {
-    u64 index;
-    if (!try_to_index(id, index))
-    {
-      return false;
-    }
-    iterator = vec.begin() + index;
-    return true;
-  }
-
-  template <typename... VecT>
-  constexpr void erase(u64 id, VecT &...dense)
+  constexpr void erase(uid id)
   {
     u64 const index = id_to_index[id];
     u64 const last  = size() - 1;
 
     if (index != last)
     {
-      (dense.swap(index, last), ...);
+      for_each([&](auto &d) { d.swap(index, last); }, dense);
     }
 
-    (dense.pop(), ...);
+    for_each([](auto &d) { d.pop(); }, dense);
 
     // adjust id and index mapping
     if (index != last)
@@ -152,68 +134,113 @@ struct SparseVec
     index_to_id.pop();
   }
 
-  template <typename... VecT>
-  [[nodiscard]] constexpr bool try_erase(u64 id, VecT &...dense)
+  constexpr Result<Void, Void> try_erase(uid id)
   {
     if (!is_valid_id(id))
     {
-      return false;
+      return Err{};
     }
-    erase(id, dense...);
-    return true;
+    erase(id);
+    return Ok{};
   }
 
-  template <typename... VecT>
-  [[nodiscard]] bool reserve(u64 target_capacity, VecT &...dense)
+  constexpr Result<Void, Void> reserve(u64 target_capacity)
   {
-    return ((id_to_index.reserve(target_capacity) &&
-             index_to_id.reserve(target_capacity)) &&
-            ... && dense.reserve(target_capacity));
+    if (!(id_to_index.reserve(target_capacity) &&
+          index_to_id.reserve(target_capacity)))
+    {
+      return Err{};
+    }
+
+    bool failed = false;
+    for_each([&](auto &d) { failed |= !d.reserve(target_capacity); }, dense);
+
+    if (failed)
+    {
+      return Err{};
+    }
+
+    return Ok{};
   }
 
-  template <typename... VecT>
-  [[nodiscard]] bool grow(u64 target_size, VecT &...dense)
+  constexpr Result<Void, Void> grow(u64 target_size)
   {
-    return ((id_to_index.grow(target_size) && index_to_id.grow(target_size)) &&
-            ... && dense.grow(target_size));
+    if (!(id_to_index.grow(target_size) && index_to_id.grow(target_size)))
+    {
+      return Err{};
+    }
+
+    bool failed = false;
+    for_each([&](auto &d) { failed |= !d.grow(target_size); }, dense);
+
+    if (failed)
+    {
+      return Err{};
+    }
+
+    return Ok{};
   }
 
   /// make new id and map the unique id to the unique index
-  [[nodiscard]] bool make_id(u64 index, u64 &out_id)
+  constexpr Result<u64, Void> make_id(u64 index)
   {
     if (free_id_head != STUB)
     {
-      out_id              = free_id_head;
-      id_to_index[out_id] = index;
-      free_id_head        = ~RELEASE_MASK & id_to_index[free_id_head];
-      return true;
+      u64 id          = free_id_head;
+      id_to_index[id] = index;
+      free_id_head    = ~RELEASE_MASK & id_to_index[free_id_head];
+      return Ok{id};
     }
     else
     {
       if (!id_to_index.push(index))
       {
-        return false;
+        return Err{};
       }
-      out_id = static_cast<u64>(id_to_index.size() - 1);
-      return true;
+      u64 id = static_cast<u64>(id_to_index.size() - 1);
+      return Ok{id};
     }
   }
 
-  template <typename PushOp, typename... VecT>
-  [[nodiscard]] bool push(PushOp &&push_op, VecT &...dense)
+  template <usize I = 0>
+  struct Pusher
+  {
+    template <typename Tuple, typename Head, typename... Tail>
+    static constexpr void push(Tuple &t, Head &&head, Tail &&...tail)
+    {
+      get<I>(t).push((Head &&) head).unwrap();
+      if constexpr (sizeof...(tail) != 0)
+      {
+        Pusher<I + 1>::push(t, ((Tail &&) tail)...);
+      }
+    }
+  };
+
+  template <typename... Args>
+  constexpr Result<uid, Void> push(Args &&...args)
+    requires(sizeof...(Args) == sizeof...(V))
   {
     u64 const index = size();
-    u64       id;
 
-    if (!(grow(size() + 1, dense...) && make_id(index, id) &&
-          index_to_id.push(id)))
+    if (!grow(size() + 1))
     {
-      return false;
+      return Err{};
     }
 
-    push_op(id, index);
+    Result id = make_id(index);
 
-    return true;
+    if (!id)
+    {
+      return Err{};
+    }
+
+    if (!index_to_id.push(id.unwrap()))
+    {
+      return Err{};
+    }
+
+    Pusher<0>::push(dense, ((Args &&) args)...);
+    return id;
   }
 };
 

@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/allocator.h"
 #include "ashura/std/mem.h"
@@ -60,7 +61,7 @@ struct Arena
       return true;
     }
 
-    u8 *aligned    = (u8 *) mem::align_offset(alignment, (uintptr_t) offset);
+    u8 *aligned    = (u8 *) mem::align_offset(alignment, (uptr) offset);
     u8 *new_offset = aligned + size;
     if (new_offset > end)
     {

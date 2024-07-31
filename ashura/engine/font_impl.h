@@ -1,6 +1,8 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 
 #include "ashura/engine/font.h"
+#include "ashura/engine/font_atlas.h"
 
 extern "C"
 {
@@ -36,6 +38,8 @@ struct FontImpl
   u32           space_glyph          = 0;
   Glyph        *glyphs               = nullptr;
   FontMetrics   metrics              = {};
+  Option<CpuFontAtlas> cpu_atlas     = None;
+  Option<GpuFontAtlas> gpu_atlas     = None;
 };
 
 }        // namespace ash

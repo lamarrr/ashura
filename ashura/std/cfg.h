@@ -1,4 +1,5 @@
 
+/// SPDX-License-Identifier: MIT
 #pragma once
 
 /// configuration macro
@@ -232,6 +233,8 @@
 #    define ASH_DLL_HIDDEN
 #  endif
 #endif
+
+#define ASH_C_LINKAGE extern "C"
 
 /*********************** INLINING MACROS ***********************/
 

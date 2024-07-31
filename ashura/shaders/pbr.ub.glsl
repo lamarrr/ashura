@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_nonuniform_qualifier : require
 #include "core.glsl"
@@ -149,7 +150,7 @@ void main()
   roughness           = pow(roughness, 2);
   clearcoat_roughness = pow(clearcoat_roughness, 2);
 
-  // TODO(lamarrr): is this correct?
+  // [ ] is this correct?
   albedo *= occlusion;
 
   vec3 luminance = emissive;
@@ -186,7 +187,7 @@ void main()
     luminance += radiance;
   }
 
-  // TODO(lamarrr): emissive bloom
+  // [ ] emissive bloom
   o_color = vec4(luminance, 1);
 }
 #endif

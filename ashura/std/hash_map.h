@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/allocator.h"
 #include "ashura/std/error.h"
@@ -17,6 +18,15 @@ struct StrEqual
   }
 };
 
+struct BitEqual
+{
+  template <typename T>
+  bool operator()(T const &a, T const &b) const
+  {
+    return memcmp(&a, &b, sizeof(T)) == 0;
+  }
+};
+
 struct StrHasher
 {
   Hash operator()(Span<char const> str) const
@@ -25,8 +35,20 @@ struct StrHasher
   }
 };
 
+struct BitHasher
+{
+  template <typename T>
+  Hash operator()(T const &a) const
+  {
+    return hash_bytes(Span<T const>{&a, 1}.as_u8());
+  }
+};
+
 constexpr StrEqual  str_equal;
 constexpr StrHasher str_hash;
+
+constexpr BitEqual  bit_equal;
+constexpr BitHasher bit_hash;
 
 template <typename K, typename V>
 struct HashMapEntry
@@ -38,7 +60,7 @@ struct HashMapEntry
   V value{};
 };
 
-/// Robin-hood open-address probing hashmap
+/// @brief Robin-hood open-address probing hashmap
 template <typename K, typename V, typename H, typename KCmp, typename D>
 struct HashMap
 {
@@ -98,15 +120,14 @@ struct HashMap
     max_probe_dist_ = 0;
   }
 
-  [[nodiscard]] constexpr V *operator[](K const &key) const
+  [[nodiscard]] constexpr V *get(K const &key, Hash hash) const
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
       return nullptr;
     }
-    Hash const hash       = hasher_(key);
-    usize      probe_idx  = hash & (num_probes_ - 1);
-    Distance   probe_dist = 0;
+    usize    probe_idx  = hash & (num_probes_ - 1);
+    Distance probe_dist = 0;
     while (probe_dist <= max_probe_dist_)
     {
       if (probe_dists_[probe_idx] == PROBE_SENTINEL)
@@ -124,9 +145,25 @@ struct HashMap
     return nullptr;
   }
 
+  [[nodiscard]] constexpr V *get(K const &key) const
+  {
+    Hash const hash = hasher_(key);
+    return get(key, hash);
+  }
+
+  [[nodiscard]] constexpr V *operator[](K const &key) const
+  {
+    return get(key);
+  }
+
   [[nodiscard]] constexpr bool has(K const &key) const
   {
-    return (*this)[key] != nullptr;
+    return get(key) != nullptr;
+  }
+
+  [[nodiscard]] constexpr bool has(K const &key, Hash hash) const
+  {
+    return get(key, hash) != nullptr;
   }
 
   static constexpr bool needs_rehash_(usize num_entries, usize num_probes)
@@ -306,15 +343,15 @@ struct HashMap
     }
   }
 
-  constexpr bool erase(K const &key, V *erased_uninit = nullptr)
+  constexpr bool erase_hashed(K const &key, Hash hash,
+                              V *erased_uninit = nullptr)
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
       return false;
     }
-    Hash const hash       = hasher_(key);
-    usize      probe_idx  = hash & (num_probes_ - 1);
-    Distance   probe_dist = 0;
+    usize    probe_idx  = hash & (num_probes_ - 1);
+    Distance probe_dist = 0;
 
     while (probe_dist <= max_probe_dist_)
     {
@@ -346,6 +383,11 @@ struct HashMap
     return false;
   }
 
+  constexpr bool erase(K const &key, V *erased_uninit = nullptr)
+  {
+    return erase_hashed(key, hasher_(key), erased_uninit);
+  }
+
   template <typename Fn>
   constexpr void for_each(Fn &&fn)
   {
@@ -359,7 +401,10 @@ struct HashMap
   }
 };
 
-template <typename V, typename D = u32>
-using StrHashMap = HashMap<Span<char const>, V, StrHasher, StrEqual, u16>;
+template <typename V, typename D = usize>
+using StrHashMap = HashMap<Span<char const>, V, StrHasher, StrEqual, D>;
+
+template <typename T, typename V, typename D = usize>
+using BitHashMap = HashMap<T, V, BitHasher, BitEqual, D>;
 
 }        // namespace ash

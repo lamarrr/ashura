@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/passes/pbr.h"
 
 namespace ash
@@ -39,8 +40,7 @@ void PBRPass::init(RenderContext &ctx)
        .alpha_blend_op         = gfx::BlendOp::Add,
        .color_write_mask       = gfx::ColorComponents::All}};
 
-  gfx::ColorBlendState color_blend_state{.attachments =
-                                             to_span(attachment_states),
+  gfx::ColorBlendState color_blend_state{.attachments = span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
   gfx::DescriptorSetLayout const set_layouts[] = {
@@ -64,7 +64,7 @@ void PBRPass::init(RenderContext &ctx)
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = 0,
-      .descriptor_set_layouts = to_span(set_layouts),
+      .descriptor_set_layouts = span(set_layouts),
       .primitive_topology     = gfx::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
@@ -100,9 +100,9 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
                                        .depth_write_enable = true});
   encoder->bind_descriptor_sets(
       encoder.self,
-      to_span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
-               params.lights_ssbo, ctx.samplers, params.textures}),
-      to_span<u32>({0, 0, 0, 0}));
+      span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
+            params.lights_ssbo, ctx.samplers, params.textures}),
+      span<u32>({0, 0, 0, 0}));
   encoder->draw(encoder.self, params.num_indices, 1, 0, params.instance);
   encoder->end_rendering(encoder.self);
 }

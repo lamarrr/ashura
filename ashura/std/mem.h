@@ -1,3 +1,4 @@
+/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/traits.h"
 #include "ashura/std/types.h"
@@ -5,6 +6,17 @@
 
 namespace ash
 {
+
+constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
+
+/// @brief Just a hint, this is a common cacheline size. not the actual target's
+/// cacheline size
+constexpr usize CACHELINE_ALIGNMENT = 64;
+
+/// @brief Just a hint, this is the common page alignment. not the actual
+/// target's page alignment.
+constexpr usize PAGE_ALIGNMENT = 16_KB;
+
 namespace mem
 {
 
@@ -37,7 +49,7 @@ void copy(Span<T const> src, Span<T> dst)
   {
     return;
   }
-  memcpy(dst.data, src.data(), src.size_bytes());
+  memcpy(dst.data(), src.data(), src.size_bytes());
 }
 
 template <typename T>
