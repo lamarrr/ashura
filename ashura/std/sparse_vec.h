@@ -16,7 +16,7 @@ namespace ash
 /// elements are always contiguous without holes in them, making them suitable
 /// for operations like batch-processing and branchless SIMD.
 ///
-/// @tparam D dense containers for the properties, i.e. Vec<i32>, Vec<f32>
+/// @tparam V dense containers for the properties, i.e. Vec<i32>, Vec<f32>
 /// @param index_to_id id of data, ordered relative to {data}
 /// @param id_to_index map of id to index in {data}
 /// @param size the number of valid elements in the sparse set
@@ -28,7 +28,7 @@ namespace ash
 /// list of ids and indices masked by RELEASE_MASK
 ///
 ///
-template <typename... D>
+template <typename... V>
 struct SparseVec
 {
   static constexpr u64 RELEASE_MASK = U64_MAX >> 1;
@@ -36,32 +36,17 @@ struct SparseVec
 
   Vec<u64>    index_to_id  = {};
   Vec<u64>    id_to_index  = {};
-  Tuple<D...> dense        = {};
+  Tuple<V...> dense        = {};
   u64         free_id_head = STUB;
 
-  [[nodiscard]] constexpr bool is_empty() const
+  constexpr bool is_empty() const
   {
     return size() == 0;
   }
 
-  [[nodiscard]] constexpr u64 *data() const
-  {
-    return index_to_id.data();
-  }
-
-  [[nodiscard]] constexpr u64 size() const
+  constexpr u64 size() const
   {
     return static_cast<u64>(index_to_id.size());
-  }
-
-  [[nodiscard]] constexpr u64 *begin() const
-  {
-    return index_to_id.begin();
-  }
-
-  [[nodiscard]] constexpr u64 *end() const
-  {
-    return index_to_id.end();
   }
 
   constexpr void clear()
@@ -80,22 +65,22 @@ struct SparseVec
     free_id_head = STUB;
   }
 
-  [[nodiscard]] constexpr bool is_valid_id(u64 id) const
+  constexpr bool is_valid_id(u64 id) const
   {
     return id < id_to_index.size() && !(id_to_index[id] & RELEASE_MASK);
   }
 
-  [[nodiscard]] constexpr bool is_valid_index(u64 index) const
+  constexpr bool is_valid_index(u64 index) const
   {
     return index < size();
   }
 
-  [[nodiscard]] constexpr u64 operator[](uid id) const
+  constexpr u64 operator[](uid id) const
   {
     return id_to_index[id];
   }
 
-  [[nodiscard]] constexpr u64 to_index(uid id) const
+  constexpr u64 to_index(uid id) const
   {
     return id_to_index[id];
   }
@@ -110,7 +95,7 @@ struct SparseVec
     return Ok{to_index(id)};
   }
 
-  [[nodiscard]] constexpr u64 to_id(u64 index) const
+  constexpr u64 to_id(u64 index) const
   {
     return index_to_id[index];
   }
@@ -233,7 +218,7 @@ struct SparseVec
 
   template <typename... Args>
   constexpr Result<uid, Void> push(Args &&...args)
-    requires(sizeof...(Args) == sizeof...(D))
+    requires(sizeof...(Args) == sizeof...(V))
   {
     u64 const index = size();
 

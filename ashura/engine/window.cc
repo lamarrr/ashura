@@ -22,12 +22,12 @@ struct WindowEventListener
 
 struct WindowImpl
 {
-  SDL_Window                    *win        = nullptr;
-  gfx::Surface                   surface    = nullptr;
-  uid                            backend_id = UID_MAX;
-  SparseVec<WindowEventListener> listeners  = {};
-  gfx::InstanceImpl              instance   = {};
-  Fn<WindowRegion(Vec2U)>        hit_test =
+  SDL_Window                         *win       = nullptr;
+  gfx::Surface                        surface   = nullptr;
+  SDL_WindowID                        id        = 0;
+  SparseVec<Vec<WindowEventListener>> listeners = {};
+  gfx::InstanceImpl                   instance  = {};
+  Fn<WindowRegion(Vec2U)>             hit_test =
       fn([](Vec2U) { return WindowRegion::Normal; });
 };
 
@@ -61,8 +61,8 @@ struct WindowSystemImpl final : public WindowSystem
     SDL_Window *window = SDL_CreateWindow(
         title_c_str, 1920, 1080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     CHECKSdl(window != nullptr);
-    uid backend_id = SDL_GetWindowID(window);
-    CHECKSdl(backend_id != 0);
+    SDL_WindowID id = SDL_GetWindowID(window);
+    CHECKSdl(id != 0);
 
     CHECK(instance.interface->get_backend(instance.self) ==
           gfx::Backend::Vulkan);
@@ -77,10 +77,10 @@ struct WindowSystemImpl final : public WindowSystem
 
     CHECK(default_allocator.nalloc(1, &impl));
 
-    new (impl) WindowImpl{.win        = window,
-                          .surface    = (gfx::Surface) surface,
-                          .backend_id = backend_id,
-                          .instance   = instance};
+    new (impl) WindowImpl{.win      = window,
+                          .surface  = (gfx::Surface) surface,
+                          .id       = id,
+                          .instance = instance};
 
     SDL_PropertiesID props_id = SDL_GetWindowProperties(window);
     CHECK(SDL_SetProperty(props_id, "impl_object", impl) == 0);

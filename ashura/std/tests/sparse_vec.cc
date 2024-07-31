@@ -44,16 +44,18 @@ TEST(SparseVecTest, Start)
   ASSERT_EQ(f.data(), nullptr);
   ASSERT_EQ(f.capacity(), 0);
 
-  SparseVec<Vec<u64>, Vec<u64>> set;
+  SparseVec<Vec<u64>, Vec<u64>, BitVec<usize>> set;
 
-  ASSERT_TRUE(set.push(69U, 67U));
+  ASSERT_TRUE(set.push(69U, 67U, true));
   ASSERT_EQ(set.size(), 1);
   ASSERT_EQ(set.size(), set.dense.v0.size());
-  ASSERT_TRUE(set.push(42U, 32U));
+  ASSERT_TRUE(set.push(42U, 32U, false));
   ASSERT_EQ(set.size(), 2);
   ASSERT_EQ(set.size(), set.dense.v0.size());
   ASSERT_EQ(set.dense.v0[0], 69U);
   ASSERT_EQ(set.dense.v0[1], 42U);
+  ASSERT_EQ(set.dense.v2[0], true);
+  ASSERT_EQ(set.dense.v2[1], false);
   ASSERT_TRUE(set.try_erase(0));
   ASSERT_EQ(set.size(), 1);
   ASSERT_EQ(set.size(), set.dense.v0.size());

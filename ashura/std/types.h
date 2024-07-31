@@ -80,101 +80,164 @@ constexpr uid UID_MAX = U64_MAX;
 
 constexpr f32 PI = 3.14159265358979323846F;
 
-template <typename E>
-using enum_ut = std::underlying_type_t<E>;
-
-template <typename E>
-[[nodiscard]] constexpr enum_ut<E> enum_uv(E a)
+struct Noop
 {
-  return static_cast<enum_ut<E>>(a);
-}
-
-template <typename E>
-[[nodiscard]] constexpr enum_ut<E> enum_uv_or(E a, E b)
-{
-  return static_cast<enum_ut<E>>(enum_uv(a) | enum_uv(b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr enum_ut<E> enum_uv_and(E a, E b)
-{
-  return static_cast<enum_ut<E>>(enum_uv(a) & enum_uv(b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr enum_ut<E> enum_uv_not(E a)
-{
-  return static_cast<enum_ut<E>>(~enum_uv(a));
-}
-
-template <typename E>
-[[nodiscard]] constexpr enum_ut<E> enum_uv_xor(E a, E b)
-{
-  return static_cast<enum_ut<E>>(enum_uv(a) ^ enum_uv(b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr E enum_or(E a, E b)
-{
-  return static_cast<E>(enum_uv_or(a, b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr E enum_and(E a, E b)
-{
-  return static_cast<E>(enum_uv_and(a, b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr E enum_xor(E a, E b)
-{
-  return static_cast<E>(enum_uv_xor(a, b));
-}
-
-template <typename E>
-[[nodiscard]] constexpr E enum_not(E a)
-{
-  return static_cast<E>(enum_uv_not(a));
-}
-
-#define ASH_DEFINE_ENUM_BIT_OPS(E)              \
-  [[nodiscard]] constexpr E operator|(E a, E b) \
-  {                                             \
-    return ::ash::enum_or(a, b);                \
-  }                                             \
-                                                \
-  [[nodiscard]] constexpr E operator&(E a, E b) \
-  {                                             \
-    return ::ash::enum_and(a, b);               \
-  }                                             \
-                                                \
-  [[nodiscard]] constexpr E operator^(E a, E b) \
-  {                                             \
-    return ::ash::enum_xor(a, b);               \
-  }                                             \
-                                                \
-  [[nodiscard]] constexpr E operator~(E a)      \
-  {                                             \
-    return ::ash::enum_not(a);                  \
-  }                                             \
-                                                \
-  constexpr E &operator|=(E &a, E b)            \
-  {                                             \
-    a = a | b;                                  \
-    return a;                                   \
-  }                                             \
-                                                \
-  constexpr E &operator&=(E &a, E b)            \
-  {                                             \
-    a = a & b;                                  \
-    return a;                                   \
-  }                                             \
-                                                \
-  constexpr E &operator^=(E &a, E b)            \
-  {                                             \
-    a = a ^ b;                                  \
-    return a;                                   \
+  constexpr void operator()(auto &&...) const
+  {
   }
+};
+
+struct Add
+{
+  constexpr auto operator()(auto const &a, auto const &b) const
+  {
+    return a + b;
+  }
+};
+
+struct Sub
+{
+  constexpr auto operator()(auto const &a, auto const &b) const
+  {
+    return a - b;
+  }
+};
+
+struct Mul
+{
+  constexpr auto operator()(auto const &a, auto const &b) const
+  {
+    return a * b;
+  }
+};
+
+struct Div
+{
+  constexpr auto operator()(auto const &a, auto const &b) const
+  {
+    return a / b;
+  }
+};
+
+struct Equal
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a == b;
+  }
+};
+
+struct NotEqual
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a != b;
+  }
+};
+
+struct Lesser
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a < b;
+  }
+};
+
+struct LesserOrEqual
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a <= b;
+  }
+};
+
+struct Greater
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a > b;
+  }
+};
+
+struct GreaterOrEqual
+{
+  constexpr bool operator()(auto const &a, auto const &b) const
+  {
+    return a >= b;
+  }
+};
+
+struct Compare
+{
+  constexpr int operator()(auto const &a, auto const &b) const
+  {
+    if (a == b)
+    {
+      return 0;
+    }
+    if (a > b)
+    {
+      return -1;
+    }
+    return 1;
+  }
+};
+
+struct Min
+{
+  template <typename T>
+  constexpr T const &operator()(T const &a, T const &b) const
+  {
+    return a < b ? a : b;
+  }
+};
+
+struct Max
+{
+  template <typename T>
+  constexpr auto const &operator()(T const &a, T const &b) const
+  {
+    return a > b ? a : b;
+  }
+};
+
+struct Swap
+{
+  template <typename T>
+  constexpr void operator()(T &a, T &b) const
+  {
+    T a_tmp{(T &&) a};
+    a = (T &&) b;
+    b = (T &&) a_tmp;
+  }
+};
+
+struct Clamp
+{
+  template <typename T>
+  constexpr T const &operator()(T const &value, T const &min,
+                                T const &max) const
+  {
+    return value < min ? min : (value > max ? max : value);
+  }
+};
+
+constexpr Noop           noop;
+constexpr Add            add;
+constexpr Sub            sub;
+constexpr Mul            mul;
+constexpr Div            div;
+constexpr Equal          equal;
+constexpr NotEqual       not_equal;
+constexpr Lesser         lesser;
+constexpr LesserOrEqual  lesser_or_equal;
+constexpr Greater        greater;
+constexpr GreaterOrEqual greater_or_equal;
+constexpr Compare        compare;
+constexpr Min            min;
+constexpr Max            max;
+constexpr Swap           swap;
+constexpr Clamp          clamp;
 
 template <typename T>
 constexpr bool has_bits(T src, T cmp)
@@ -206,6 +269,110 @@ constexpr bool is_pow2(u32 x)
 constexpr bool is_pow2(u64 x)
 {
   return (x & (x - 1)) == 0ULL;
+}
+
+constexpr bool get_bit(u8 s, usize i)
+{
+  return (s >> i) & 1;
+}
+
+constexpr bool get_bit(u16 s, usize i)
+{
+  return (s >> i) & 1;
+}
+
+constexpr bool get_bit(u32 s, usize i)
+{
+  return (s >> i) & 1;
+}
+
+constexpr bool get_bit(u64 s, usize i)
+{
+  return (s >> i) & 1;
+}
+
+constexpr void clear_bit(u8 &s, usize i)
+{
+  s &= ~(((u8) 1) << i);
+}
+
+constexpr void clear_bit(u16 &s, usize i)
+{
+  s &= ~(((u16) 1) << i);
+}
+
+constexpr void clear_bit(u32 &s, usize i)
+{
+  s &= ~(((u32) 1) << i);
+}
+
+constexpr void clear_bit(u64 &s, usize i)
+{
+  s &= ~(((u64) 1) << i);
+}
+
+constexpr void set_bit(u8 &s, usize i)
+{
+  s |= (((u8) 1) << i);
+}
+
+constexpr void set_bit(u16 &s, usize i)
+{
+  s |= (((u16) 1) << i);
+}
+
+constexpr void set_bit(u32 &s, usize i)
+{
+  s |= (((u32) 1) << i);
+}
+
+constexpr void set_bit(u64 &s, usize i)
+{
+  s |= (((u64) 1) << i);
+}
+
+constexpr void assign_bit(u8 &s, usize i, bool b)
+{
+  s &= ~(((u8) 1) << i);
+  s |= (((u8) b) << i);
+}
+
+constexpr void assign_bit(u16 &s, usize i, bool b)
+{
+  s &= ~(((u16) 1) << i);
+  s |= (((u16) b) << i);
+}
+
+constexpr void assign_bit(u32 &s, usize i, bool b)
+{
+  s &= ~(((u32) 1) << i);
+  s |= (((u32) b) << i);
+}
+
+constexpr void assign_bit(u64 &s, usize i, bool b)
+{
+  s &= ~(((u64) 1) << i);
+  s |= (((u64) b) << i);
+}
+
+constexpr void flip_bit(u8 &s, usize i)
+{
+  s = s ^ (((usize) 1) << i);
+}
+
+constexpr void flip_bit(u16 &s, usize i)
+{
+  s = s ^ (((usize) 1) << i);
+}
+
+constexpr void flip_bit(u32 &s, usize i)
+{
+  s = s ^ (((usize) 1) << i);
+}
+
+constexpr void flip_bit(u64 &s, usize i)
+{
+  s = s ^ (((usize) 1) << i);
 }
 
 constexpr unsigned long long operator""_KB(unsigned long long x)
@@ -360,10 +527,113 @@ template <typename Rep, usize N>
 inline constexpr usize BIT_PACKS =
     (N + (NumTraits<Rep>::NUM_BITS - 1)) / NumTraits<Rep>::NUM_BITS;
 
+template <typename Rep>
+constexpr usize bit_packs(usize num_bits)
+{
+  return (num_bits + (NumTraits<Rep>::NUM_BITS - 1)) >>
+         NumTraits<Rep>::LOG2_NUM_BITS;
+}
+
 /// regular void
 struct Void
 {
 };
+
+template <typename E>
+using enum_ut = std::underlying_type_t<E>;
+
+template <typename E>
+constexpr enum_ut<E> enum_uv(E a)
+{
+  return static_cast<enum_ut<E>>(a);
+}
+
+template <typename E>
+constexpr enum_ut<E> enum_uv_or(E a, E b)
+{
+  return static_cast<enum_ut<E>>(enum_uv(a) | enum_uv(b));
+}
+
+template <typename E>
+constexpr enum_ut<E> enum_uv_and(E a, E b)
+{
+  return static_cast<enum_ut<E>>(enum_uv(a) & enum_uv(b));
+}
+
+template <typename E>
+constexpr enum_ut<E> enum_uv_not(E a)
+{
+  return static_cast<enum_ut<E>>(~enum_uv(a));
+}
+
+template <typename E>
+constexpr enum_ut<E> enum_uv_xor(E a, E b)
+{
+  return static_cast<enum_ut<E>>(enum_uv(a) ^ enum_uv(b));
+}
+
+template <typename E>
+constexpr E enum_or(E a, E b)
+{
+  return static_cast<E>(enum_uv_or(a, b));
+}
+
+template <typename E>
+constexpr E enum_and(E a, E b)
+{
+  return static_cast<E>(enum_uv_and(a, b));
+}
+
+template <typename E>
+constexpr E enum_xor(E a, E b)
+{
+  return static_cast<E>(enum_uv_xor(a, b));
+}
+
+template <typename E>
+constexpr E enum_not(E a)
+{
+  return static_cast<E>(enum_uv_not(a));
+}
+
+#define ASH_DEFINE_ENUM_BIT_OPS(E)   \
+  constexpr E operator|(E a, E b)    \
+  {                                  \
+    return ::ash::enum_or(a, b);     \
+  }                                  \
+                                     \
+  constexpr E operator&(E a, E b)    \
+  {                                  \
+    return ::ash::enum_and(a, b);    \
+  }                                  \
+                                     \
+  constexpr E operator^(E a, E b)    \
+  {                                  \
+    return ::ash::enum_xor(a, b);    \
+  }                                  \
+                                     \
+  constexpr E operator~(E a)         \
+  {                                  \
+    return ::ash::enum_not(a);       \
+  }                                  \
+                                     \
+  constexpr E &operator|=(E &a, E b) \
+  {                                  \
+    a = a | b;                       \
+    return a;                        \
+  }                                  \
+                                     \
+  constexpr E &operator&=(E &a, E b) \
+  {                                  \
+    a = a & b;                       \
+    return a;                        \
+  }                                  \
+                                     \
+  constexpr E &operator^=(E &a, E b) \
+  {                                  \
+    a = a ^ b;                       \
+    return a;                        \
+  }
 
 template <typename... T>
 struct Tuple
@@ -3028,11 +3298,6 @@ struct Span
     return size_ == 0;
   }
 
-  constexpr operator bool() const
-  {
-    return !is_empty();
-  }
-
   constexpr T *data() const
   {
     return data_;
@@ -3071,6 +3336,18 @@ struct Span
   constexpr T &operator[](usize index) const
   {
     return data_[index];
+  }
+
+  constexpr T &get(usize index) const
+  {
+    return data_[index];
+  }
+
+  template <typename... Args>
+  constexpr void set(usize index, Args &&...args) const
+    requires(NonConst<T>)
+  {
+    data_[index] = T{((Args &&) args)...};
   }
 
   constexpr operator Span<T const>() const
@@ -3164,102 +3441,22 @@ constexpr Span<u32 const> operator""_utf(c32 const *lit, usize n)
   return Span<u32 const>{(u32 const *) lit, n};
 }
 
-[[nodiscard]] constexpr bool get_bit(u8 s, usize i)
-{
-  return (s >> i) & 1;
-}
-
-[[nodiscard]] constexpr bool get_bit(u16 s, usize i)
-{
-  return (s >> i) & 1;
-}
-
-[[nodiscard]] constexpr bool get_bit(u32 s, usize i)
-{
-  return (s >> i) & 1;
-}
-
-[[nodiscard]] constexpr bool get_bit(u64 s, usize i)
-{
-  return (s >> i) & 1;
-}
-
-constexpr void clear_bit(u8 &s, usize i)
-{
-  s &= ~(((u8) 1) << i);
-}
-
-constexpr void set_bit(u8 &s, usize i)
-{
-  s |= (((u8) 1) << i);
-}
-
-constexpr void flip_bit(u8 &s, usize i)
-{
-  s = s ^ (((usize) 1) << i);
-}
-
-constexpr void clear_bit(u16 &s, usize i)
-{
-  s &= ~(((u16) 1) << i);
-}
-
-constexpr void set_bit(u16 &s, usize i)
-{
-  s |= (((u16) 1) << i);
-}
-
-constexpr void flip_bit(u16 &s, usize i)
-{
-  s = s ^ (((usize) 1) << i);
-}
-
-constexpr void clear_bit(u32 &s, usize i)
-{
-  s &= ~(((u32) 1) << i);
-}
-
-constexpr void set_bit(u32 &s, usize i)
-{
-  s |= (((u32) 1) << i);
-}
-
-constexpr void flip_bit(u32 &s, usize i)
-{
-  s = s ^ (((usize) 1) << i);
-}
-
-constexpr void clear_bit(u64 &s, usize i)
-{
-  s &= ~(((u64) 1) << i);
-}
-
-constexpr void set_bit(u64 &s, usize i)
-{
-  s |= (((u64) 1) << i);
-}
-
-constexpr void flip_bit(u64 &s, usize i)
-{
-  s = s ^ (((usize) 1) << i);
-}
-
-[[nodiscard]] constexpr bool get_bit(Span<u8 const> s, usize i)
+constexpr bool get_bit(Span<u8 const> s, usize i)
 {
   return get_bit(s[i >> 3], i & 7);
 }
 
-[[nodiscard]] constexpr bool get_bit(Span<u16 const> s, usize i)
+constexpr bool get_bit(Span<u16 const> s, usize i)
 {
   return get_bit(s[i >> 4], i & 15);
 }
 
-[[nodiscard]] constexpr bool get_bit(Span<u32 const> s, usize i)
+constexpr bool get_bit(Span<u32 const> s, usize i)
 {
   return get_bit(s[i >> 5], i & 31);
 }
 
-[[nodiscard]] constexpr bool get_bit(Span<u64 const> s, usize i)
+constexpr bool get_bit(Span<u64 const> s, usize i)
 {
   return get_bit(s[i >> 6], i & 63);
 }
@@ -3284,6 +3481,26 @@ constexpr void set_bit(Span<u64> s, usize i)
   set_bit(s[i >> 6], i & 63);
 }
 
+constexpr void assign_bit(Span<u8> s, usize i, bool b)
+{
+  assign_bit(s[i >> 3], i & 7, b);
+}
+
+constexpr void assign_bit(Span<u16> s, usize i, bool b)
+{
+  assign_bit(s[i >> 4], i & 15, b);
+}
+
+constexpr void assign_bit(Span<u32> s, usize i, bool b)
+{
+  assign_bit(s[i >> 5], i & 31, b);
+}
+
+constexpr void assign_bit(Span<u64> s, usize i, bool b)
+{
+  assign_bit(s[i >> 6], i & 63, b);
+}
+
 constexpr void clear_bit(Span<u8> s, usize i)
 {
   clear_bit(s[i >> 3], i & 7);
@@ -3302,6 +3519,26 @@ constexpr void clear_bit(Span<u32> s, usize i)
 constexpr void clear_bit(Span<u64> s, usize i)
 {
   clear_bit(s[i >> 6], i & 63);
+}
+
+constexpr void flip_bit(Span<u8> s, usize i)
+{
+  flip_bit(s[i >> 3], i & 7);
+}
+
+constexpr void flip_bit(Span<u16> s, usize i)
+{
+  flip_bit(s[i >> 4], i & 15);
+}
+
+constexpr void flip_bit(Span<u32> s, usize i)
+{
+  flip_bit(s[i >> 5], i & 31);
+}
+
+constexpr void flip_bit(Span<u64> s, usize i)
+{
+  flip_bit(s[i >> 6], i & 63);
 }
 
 template <typename T>
@@ -3372,54 +3609,163 @@ constexpr usize find_clear_bit(Span<u64 const> s)
   return impl_find_clear_bit(s);
 }
 
-// [ ] add Repr to Span and BitVec
-template <typename ReprT>
+template <typename R>
 struct BitSpan
 {
-  using Repr = ReprT;
+  using Repr = R;
   using Type = bool;
 
-  Repr *repr_      = nullptr;
-  usize repr_size_ = 0;
-  usize trailing_  = 0;
+  Span<R> repr_     = {};
+  usize   bit_size_ = 0;
 
-  constexpr bool operator[](usize index) const
+  constexpr Span<R> repr() const
   {
+    return repr_;
   }
 
-  // get() - span
-  // set(i, bool) - span
-  // set_bit(i)
-  // clear_bit(i)
-  // all()
-  // any()
-  // none()
-  // find_set()
-  // find_clear()
-  // find_last_set()
-  // find_last_clear()
-  // atom_slice()
-  // repr_slice()
-  // flip()
-  // size()
-  // trailing()
-  // repr_size()
-  // size()
-
-  constexpr operator BitSpan<Rep const>() const
+  constexpr usize trailing() const
   {
-    return BitSpan<Rep const>{data_, num_bits_};
+    return repr_.size() - bit_size_;
+  }
+
+  constexpr usize size() const
+  {
+    return bit_size_;
   }
 
   constexpr bool is_empty() const
   {
-    return num_bits_ == 0;
+    return bit_size_ == 0;
+  }
+
+  constexpr bool has_trailing() const
+  {
+    return bit_size_ != (repr_.size_bytes() * 8);
+  }
+
+  constexpr bool operator[](usize index) const
+  {
+    return get_bit(repr_, index);
+  }
+
+  constexpr bool get(usize index) const
+  {
+    return get_bit(repr_, index);
+  }
+
+  constexpr void set(usize index, bool value) const
+  {
+    assign_bit(span(repr_), index, value);
+  }
+
+  constexpr operator BitSpan<R const>() const
+  {
+    return BitSpan<R const>{repr_, bit_size_};
+  }
+
+  constexpr BitSpan<R const> as_const() const
+  {
+    return BitSpan<R const>{repr_, bit_size_};
   }
 };
 
-// [] implement
-template <typename T>
-constexpr BitSpan<T> bit_span(Span<T> span, usize num_bits);
+template <typename R>
+constexpr BitSpan<R> bit_span(Span<R> span, usize num_bits)
+{
+  return BitSpan<R>{.repr_ = span, .bit_size_ = num_bits};
+}
+
+constexpr void clear_bit(BitSpan<u8> s, usize index)
+{
+  clear_bit(s.repr(), index);
+}
+
+constexpr void clear_bit(BitSpan<u16> s, usize index)
+{
+  clear_bit(s.repr(), index);
+}
+
+constexpr void clear_bit(BitSpan<u32> s, usize index)
+{
+  clear_bit(s.repr(), index);
+}
+
+constexpr void clear_bit(BitSpan<u64> s, usize index)
+{
+  clear_bit(s.repr(), index);
+}
+
+constexpr void set_bit(BitSpan<u8> s, usize index)
+{
+  set_bit(s.repr(), index);
+}
+
+constexpr void set_bit(BitSpan<u16> s, usize index)
+{
+  set_bit(s.repr(), index);
+}
+
+constexpr void set_bit(BitSpan<u32> s, usize index)
+{
+  set_bit(s.repr(), index);
+}
+
+constexpr void set_bit(BitSpan<u64> s, usize index)
+{
+  set_bit(s.repr(), index);
+}
+
+constexpr void assign_bit(BitSpan<u8> s, usize index, bool b)
+{
+  assign_bit(s.repr(), index, b);
+}
+
+constexpr void assign_bit(BitSpan<u16> s, usize index, bool b)
+{
+  assign_bit(s.repr(), index, b);
+}
+
+constexpr void assign_bit(BitSpan<u32> s, usize index, bool b)
+{
+  assign_bit(s.repr(), index, b);
+}
+
+constexpr void assign_bit(BitSpan<u64> s, usize index, bool b)
+{
+  assign_bit(s.repr(), index, b);
+}
+
+constexpr void flip_bit(BitSpan<u8> s, usize index)
+{
+  flip_bit(s.repr(), index);
+}
+
+constexpr void flip_bit(BitSpan<u16> s, usize index)
+{
+  flip_bit(s.repr(), index);
+}
+
+constexpr void flip_bit(BitSpan<u32> s, usize index)
+{
+  flip_bit(s.repr(), index);
+}
+
+constexpr void flip_bit(BitSpan<u64> s, usize index)
+{
+  flip_bit(s.repr(), index);
+}
+
+template <typename R>
+constexpr usize find_set_bit(BitSpan<R> s)
+{
+  return min(find_set_bit(s.repr()), s.size());
+}
+
+template <typename R>
+constexpr usize find_clear_bit(BitSpan<R> s)
+{
+  return min(find_clear_bit(s.repr()), s.size());
+}
 
 template <typename Lambda>
 struct defer
@@ -3440,165 +3786,6 @@ struct defer
 
 template <typename Lambda>
 defer(Lambda &&) -> defer<Lambda>;
-
-struct Noop
-{
-  constexpr void operator()(auto &&...) const
-  {
-  }
-};
-
-struct Add
-{
-  constexpr auto operator()(auto const &a, auto const &b) const
-  {
-    return a + b;
-  }
-};
-
-struct Sub
-{
-  constexpr auto operator()(auto const &a, auto const &b) const
-  {
-    return a - b;
-  }
-};
-
-struct Mul
-{
-  constexpr auto operator()(auto const &a, auto const &b) const
-  {
-    return a * b;
-  }
-};
-
-struct Div
-{
-  constexpr auto operator()(auto const &a, auto const &b) const
-  {
-    return a / b;
-  }
-};
-
-struct Equal
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a == b;
-  }
-};
-
-struct NotEqual
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a != b;
-  }
-};
-
-struct Lesser
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a < b;
-  }
-};
-
-struct LesserOrEqual
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a <= b;
-  }
-};
-
-struct Greater
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a > b;
-  }
-};
-
-struct GreaterOrEqual
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a >= b;
-  }
-};
-
-struct Compare
-{
-  constexpr int operator()(auto const &a, auto const &b) const
-  {
-    if (a == b)
-    {
-      return 0;
-    }
-    if (a > b)
-    {
-      return -1;
-    }
-    return 1;
-  }
-};
-
-struct Min
-{
-  template <typename T>
-  constexpr T const &operator()(T const &a, T const &b) const
-  {
-    return a < b ? a : b;
-  }
-};
-
-struct Max
-{
-  template <typename T>
-  constexpr auto const &operator()(T const &a, T const &b) const
-  {
-    return a > b ? a : b;
-  }
-};
-
-struct Swap
-{
-  template <typename T>
-  constexpr void operator()(T &a, T &b) const
-  {
-    T a_tmp{(T &&) a};
-    a = (T &&) b;
-    b = (T &&) a_tmp;
-  }
-};
-
-struct Clamp
-{
-  template <typename T>
-  constexpr T const &operator()(T const &value, T const &min,
-                                T const &max) const
-  {
-    return value < min ? min : (value > max ? max : value);
-  }
-};
-
-constexpr Noop           noop;
-constexpr Add            add;
-constexpr Sub            sub;
-constexpr Mul            mul;
-constexpr Div            div;
-constexpr Equal          equal;
-constexpr NotEqual       not_equal;
-constexpr Lesser         lesser;
-constexpr LesserOrEqual  lesser_or_equal;
-constexpr Greater        greater;
-constexpr GreaterOrEqual greater_or_equal;
-constexpr Compare        compare;
-constexpr Min            min;
-constexpr Max            max;
-constexpr Swap           swap;
-constexpr Clamp          clamp;
 
 template <typename Sig>
 struct Fn;
@@ -3766,7 +3953,7 @@ auto fn(T *t, StaticFunctor functor)
 ///
 /// based on: https://en.cppreference.com/w/cpp/utility/source_location
 ///
-struct [[nodiscard]] SourceLocation
+struct SourceLocation
 {
   static constexpr SourceLocation current(
 #if ASH_HAS_BUILTIN(FILE) || (defined(__cpp_lib_source_location) && \
