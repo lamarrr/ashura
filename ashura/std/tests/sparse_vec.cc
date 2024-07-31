@@ -7,7 +7,7 @@
 
 using namespace ash;
 
-TEST(SparseSetTest, Start)
+TEST(SparseVecTest, Start)
 {
   Vec<int> f{default_allocator};
 
@@ -44,7 +44,7 @@ TEST(SparseSetTest, Start)
   ASSERT_EQ(f.data(), nullptr);
   ASSERT_EQ(f.capacity(), 0);
 
-  SparseVec<u64, u64> set;
+  SparseVec<Vec<u64>, Vec<u64>> set;
 
   ASSERT_TRUE(set.push(69U, 67U));
   ASSERT_EQ(set.size(), 1);

@@ -482,4 +482,202 @@ struct Vec
   }
 };
 
+/// Adapter
+// [ ] implement
+template <typename ReprT>
+struct BitVec
+{
+  using Type = bool;
+  using Repr = ReprT;
+
+  Vec<Rep> repr_     = {};
+  usize    trailing_ = 0;
+
+  [[nodiscard]] constexpr bool operator[](usize index) const
+  {
+    return *(begin() + index);
+  }
+
+  [[nodiscard]] constexpr operator BitSpan<Rep>() const
+  {
+    return BitSpan<Rep>{vec.data(), num_bits};
+  }
+
+  [[nodiscard]] constexpr bool is_empty() const
+  {
+    return num_bits == 0;
+  }
+
+  [[nodiscard]] constexpr Rep *repr() const
+  {
+    return vec.data();
+  }
+
+  [[nodiscard]] constexpr usize size() const
+  {
+    return num_bits;
+  }
+
+  [[nodiscard]] constexpr usize capacity() const
+  {
+    return vec.capacity() * NumTraits<Rep>::NUM_BITS;
+  }
+
+  void clear()
+  {
+    num_bits = 0;
+    vec.clear();
+  }
+
+  void reset()
+  {
+    num_bits = 0;
+    vec.reset();
+  }
+
+  static constexpr usize num_packs(usize num_bits)
+  {
+    return (num_bits >> NumTraits<Rep>::LOG2_NUM_BITS) +
+           ((num_bits & (NumTraits<Rep>::NUM_BITS - 1)) == 0 ? 0 : 1);
+  }
+
+  constexpr Result<Void, Void> reserve(usize target_capacity)
+  {
+    return vec.reserve(num_packs(target_capacity));
+  }
+
+  constexpr Result<Void, Void> grow(usize target_size)
+  {
+    return vec.grow(num_packs(target_size));
+  }
+
+  constexpr Result<Void, Void> push(bool bit)
+  {
+    if (!grow(num_bits + 1))
+    {
+      return Err{};
+    }
+    this->operator[](num_bits) = bit;
+    num_bits++;
+    return Ok{};
+  }
+
+  constexpr void pop(usize num = 1)
+  {
+    num = min(num_bits, num);
+    num_bits -= num;
+    usize diff = vec.size() - num_packs(num_bits);
+    if (diff > 0)
+    {
+      vec.pop(diff);
+    }
+  }
+
+  constexpr Result<Void, Void> try_pop(usize num = 1)
+  {
+    if (num_bits < num)
+    {
+      return Err{};
+    }
+    pop(num);
+    return Ok{};
+  }
+
+  void erase(usize index, usize num = 1)
+  {
+    for (BitIterator out = begin() + index, src = out + num; src != end();
+         out++, src++)
+    {
+      *out = *src;
+    };
+    pop(num);
+  }
+
+  template <typename T>
+  constexpr Result<Void, Void> extend_span_copy(BitSpan<T const> span);
+
+  template <typename T>
+  constexpr Result<Void, Void> extend_span_move(BitSpan<T const> span);
+
+  constexpr Result<Void, Void> extend_uninitialized(usize extension)
+  {
+    if (!vec.extend_uninitialized(num_packs(num_bits + extension) -
+                                  num_packs(num_bits)))
+    {
+      return Err{};
+    }
+
+    num_bits += extension;
+
+    return Ok{};
+  }
+
+  constexpr Result<Void, Void> extend_defaulted(usize extension)
+  {
+    usize const pos = num_bits;
+    if (!extend_uninitialized(extension))
+    {
+      return Err{};
+    }
+
+    for (usize i = pos; i < num_bits; i++)
+    {
+      this->operator[](i) = false;
+    }
+
+    return Ok{};
+  }
+
+  constexpr Result<Void, Void> resize_uninitialized(usize new_size)
+  {
+    if (new_size <= num_bits)
+    {
+      erase(new_size, num_bits - new_size);
+      return Ok{};
+    }
+
+    return extend_uninitialized(new_size - num_bits);
+  }
+
+  constexpr Result<Void, Void> resize_defaulted(usize new_size)
+  {
+    if (new_size <= num_bits)
+    {
+      erase(new_size, num_bits - new_size);
+      return Ok{};
+    }
+
+    return extend_defaulted(new_size - num_bits);
+  }
+
+  constexpr void swap(usize a, usize b) const
+  {
+    BitRef<Rep> a_r = this->operator[](a);
+    BitRef<Rep> b_r = this->operator[](b);
+    bool        a_v = a_r;
+    a_r             = b_r;
+    b_r             = a_v;
+  }
+
+  // erase [same for vec]
+  // get [same for vec]
+  // set [same for vec]
+  // clear [same for vec]
+  // swap [same for vec]
+  // pop
+  // push
+};
+
+template <typename Rep>
+constexpr auto bit_span(BitVec<Rep> &container) -> BitSpan<Rep>
+{
+  return BitSpan{container.data(), container.size()};
+}
+
+template <typename Rep>
+constexpr auto bit_span(BitVec<Rep> const &container) -> BitSpan<Rep>
+{
+  return BitSpan{container.data(), container.size()};
+}
+
 }        // namespace ash

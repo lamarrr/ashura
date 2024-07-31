@@ -16,7 +16,7 @@ namespace ash
 /// elements are always contiguous without holes in them, making them suitable
 /// for operations like batch-processing and branchless SIMD.
 ///
-///
+/// @tparam D dense containers for the properties, i.e. Vec<i32>, Vec<f32>
 /// @param index_to_id id of data, ordered relative to {data}
 /// @param id_to_index map of id to index in {data}
 /// @param size the number of valid elements in the sparse set
@@ -27,16 +27,17 @@ namespace ash
 /// The index and id either point to valid indices/ids or are an implicit free
 /// list of ids and indices masked by RELEASE_MASK
 ///
-template <typename... T>
+///
+template <typename... D>
 struct SparseVec
 {
   static constexpr u64 RELEASE_MASK = U64_MAX >> 1;
   static constexpr u64 STUB         = U64_MAX;
 
-  Vec<u64>         index_to_id  = {};
-  Vec<u64>         id_to_index  = {};
-  Tuple<Vec<T>...> dense        = {};
-  u64              free_id_head = STUB;
+  Vec<u64>    index_to_id  = {};
+  Vec<u64>    id_to_index  = {};
+  Tuple<D...> dense        = {};
+  u64         free_id_head = STUB;
 
   [[nodiscard]] constexpr bool is_empty() const
   {
@@ -122,34 +123,6 @@ struct SparseVec
     }
 
     return Ok{to_id(index)};
-  }
-
-  template <u8 I = 0>
-  constexpr Result<decltype(get<I>(std::declval<Tuple<T...>>())) *, Void>
-      try_get(uid id)
-  {
-    Result index = try_to_index(id);
-    if (!index)
-    {
-      return Err{};
-    }
-
-    auto &d = get<I>(dense);
-    return Ok{d.begin() + index.unwrap()};
-  }
-
-  template <u8 I = 0>
-  constexpr Result<decltype(get<I>(std::declval<Tuple<T...>>())) *, Void>
-      try_get(u64 id) const
-  {
-    Result index = try_to_index(id);
-    if (!index)
-    {
-      return Err{};
-    }
-
-    auto &d = get<I>(dense);
-    return Ok{d.begin() + index.unwrap()};
   }
 
   constexpr void erase(uid id)
@@ -260,7 +233,7 @@ struct SparseVec
 
   template <typename... Args>
   constexpr Result<uid, Void> push(Args &&...args)
-    requires(sizeof...(Args) == sizeof...(T))
+    requires(sizeof...(Args) == sizeof...(D))
   {
     u64 const index = size();
 

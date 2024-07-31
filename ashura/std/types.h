@@ -3194,6 +3194,11 @@ constexpr void set_bit(u8 &s, usize i)
   s |= (((u8) 1) << i);
 }
 
+constexpr void flip_bit(u8 &s, usize i)
+{
+  s = s ^ (((usize) 1) << i);
+}
+
 constexpr void clear_bit(u16 &s, usize i)
 {
   s &= ~(((u16) 1) << i);
@@ -3202,6 +3207,11 @@ constexpr void clear_bit(u16 &s, usize i)
 constexpr void set_bit(u16 &s, usize i)
 {
   s |= (((u16) 1) << i);
+}
+
+constexpr void flip_bit(u16 &s, usize i)
+{
+  s = s ^ (((usize) 1) << i);
 }
 
 constexpr void clear_bit(u32 &s, usize i)
@@ -3214,6 +3224,11 @@ constexpr void set_bit(u32 &s, usize i)
   s |= (((u32) 1) << i);
 }
 
+constexpr void flip_bit(u32 &s, usize i)
+{
+  s = s ^ (((usize) 1) << i);
+}
+
 constexpr void clear_bit(u64 &s, usize i)
 {
   s &= ~(((u64) 1) << i);
@@ -3222,6 +3237,11 @@ constexpr void clear_bit(u64 &s, usize i)
 constexpr void set_bit(u64 &s, usize i)
 {
   s |= (((u64) 1) << i);
+}
+
+constexpr void flip_bit(u64 &s, usize i)
+{
+  s = s ^ (((usize) 1) << i);
 }
 
 [[nodiscard]] constexpr bool get_bit(Span<u8 const> s, usize i)
@@ -3351,6 +3371,55 @@ constexpr usize find_clear_bit(Span<u64 const> s)
 {
   return impl_find_clear_bit(s);
 }
+
+// [ ] add Repr to Span and BitVec
+template <typename ReprT>
+struct BitSpan
+{
+  using Repr = ReprT;
+  using Type = bool;
+
+  Repr *repr_      = nullptr;
+  usize repr_size_ = 0;
+  usize trailing_  = 0;
+
+  constexpr bool operator[](usize index) const
+  {
+  }
+
+  // get() - span
+  // set(i, bool) - span
+  // set_bit(i)
+  // clear_bit(i)
+  // all()
+  // any()
+  // none()
+  // find_set()
+  // find_clear()
+  // find_last_set()
+  // find_last_clear()
+  // atom_slice()
+  // repr_slice()
+  // flip()
+  // size()
+  // trailing()
+  // repr_size()
+  // size()
+
+  constexpr operator BitSpan<Rep const>() const
+  {
+    return BitSpan<Rep const>{data_, num_bits_};
+  }
+
+  constexpr bool is_empty() const
+  {
+    return num_bits_ == 0;
+  }
+};
+
+// [] implement
+template <typename T>
+constexpr BitSpan<T> bit_span(Span<T> span, usize num_bits);
 
 template <typename Lambda>
 struct defer
@@ -3806,5 +3875,9 @@ constexpr i64 sat_add(i64 a, i64 b)
 
   return a + b;
 }
+
+// [ ] sat_sub
+// [ ] sat_mul
+// [ ] sat_div
 
 }        // namespace ash
