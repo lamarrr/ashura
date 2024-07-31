@@ -29,19 +29,19 @@ struct AnimationTick
   bool loop       = false;
   bool alternate  = false;
 
-  constexpr void pause()
+  void pause()
   {
     speed = 0;
   }
 
-  constexpr void resume()
+  void resume()
   {
     speed = 1;
   }
 
-  constexpr void reset();
+  void reset();
 
-  constexpr f32 tick(f32 dt)
+  f32 tick(f32 dt)
   {
     damplerp(0, 0, 0, 0);
 
