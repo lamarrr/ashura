@@ -9,6 +9,8 @@ namespace ash
 /// [ ] Animation forward and backwards
 /// [ ] Animation cancelation
 /// [ ] https://create.roblox.com/docs/ui/animation#style
+/// [ ] must be possible to make it complete at a speed/framerate, i.e. during
+/// automated testing
 
 /// @brief Frame-independent smooth animation ticker
 ///
