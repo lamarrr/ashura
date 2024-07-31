@@ -34,7 +34,6 @@ struct ComboBoxButton : public View
 struct ComboBoxScrollView : public View
 {
   bool                           disabled : 1 = false;
-  u32                            selected     = 0;
   Fn<void(u32, Span<u32 const>)> on_selected  = fn([](u32, Span<u32 const>) {});
   struct Inner
   {
