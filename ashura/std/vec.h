@@ -664,6 +664,7 @@ struct BitVec
   // set [same for vec]
   // clear [same for vec]
   // swap [same for vec]
+  // insert
   // pop
   // push
 };
