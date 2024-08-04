@@ -13,10 +13,8 @@ namespace ash
 template <typename T>
 struct [[nodiscard]] Vec
 {
-  using Type          = T;
-  using Rep           = T;
-  using Iterator      = T *;
-  using ConstIterator = T const *;
+  using Type = T;
+  using Repr = T;
 
   AllocatorImpl allocator_ = default_allocator;
   T            *data_      = nullptr;
@@ -710,5 +708,386 @@ constexpr auto span(BitVec<Rep> const &container) -> BitSpan<Rep>
 {
   return BitSpan{container.data(), container.size()};
 }
+
+template <typename T, usize C>
+struct [[nodiscard]] InplaceVec
+{
+  using Type = T;
+  using Repr = T;
+
+  static constexpr usize Capacity = C;
+
+  alignas(T) u8 data_[C * sizeof(T)];
+  usize size_ = 0;
+
+  constexpr bool is_empty() const
+  {
+    return size_ == 0;
+  }
+
+  constexpr T *data() const
+  {
+    return (T *) data_;
+  }
+
+  constexpr usize size() const
+  {
+    return size_;
+  }
+
+  constexpr u32 size32() const
+  {
+    return (u32) size_;
+  }
+
+  constexpr u64 size64() const
+  {
+    return (u64) size_;
+  }
+
+  constexpr usize capacity() const
+  {
+    return Capacity;
+  }
+
+  constexpr T *begin() const
+  {
+    return data();
+  }
+
+  constexpr T *end() const
+  {
+    return data() + size_;
+  }
+
+  constexpr T &operator[](usize index) const
+  {
+    return data()[index];
+  }
+
+  constexpr T &get(usize index) const
+  {
+    return data()[index];
+  }
+
+  template <typename... Args>
+  constexpr void set(usize index, Args &&...args) const
+  {
+    data()[index] = T{((Args &&) args)...};
+  }
+
+  constexpr T *try_get(usize index) const
+  {
+    if (index < size_)
+    {
+      return data() + index;
+    }
+
+    return nullptr;
+  }
+
+  constexpr void clear()
+  {
+    if constexpr (!TriviallyDestructible<T>)
+    {
+      for (T *iter = begin(); iter < end(); iter++)
+      {
+        iter->~T();
+      }
+    }
+    size_ = 0;
+  }
+
+  constexpr void reset()
+  {
+    if constexpr (!TriviallyDestructible<T>)
+    {
+      for (T *iter = begin(); iter < end(); iter++)
+      {
+        iter->~T();
+      }
+    }
+    size_ = 0;
+  }
+
+  constexpr void uninit()
+  {
+    reset();
+  }
+
+  constexpr void erase(usize first, usize num)
+  {
+    return erase(Slice{first, num});
+  }
+
+  constexpr void erase(Slice slice)
+  {
+    slice = slice(size_);
+    if constexpr (TriviallyRelocatable<T>)
+    {
+      mem::move(data() + slice.end(), data() + slice.offset,
+                size_ - slice.end());
+    }
+    else
+    {
+      for (usize i = slice.offset; i < size_ - slice.span; i++)
+      {
+        data()[i] = (T &&) (data()[i + slice.span]);
+      }
+
+      for (usize i = size_ - slice.span; i < size_; i++)
+      {
+        (data() + i)->~T();
+      }
+    }
+    size_ -= slice.span;
+  }
+
+  template <typename... Args>
+  constexpr Result<Void, Void> push(Args &&...args)
+  {
+    if ((size_ + 1) > Capacity)
+    {
+      return Err{};
+    }
+
+    new (data() + size_) T{((Args &&) args)...};
+
+    size_++;
+
+    return Ok{};
+  }
+
+  constexpr void pop(usize num = 1)
+  {
+    num = min(num, size_);
+    if constexpr (!TriviallyDestructible<T>)
+    {
+      for (usize i = size_ - num; i < size_; i++)
+      {
+        (data() + i)->~T();
+      }
+    }
+
+    size_ -= num;
+  }
+
+  constexpr Result<Void, Void> try_pop(usize num = 1)
+  {
+    if (size_ < num)
+    {
+      return Err{};
+    }
+
+    pop(num);
+
+    return Ok{};
+  }
+
+  Result<Void, Void> shift_uninitialized(usize first, usize distance)
+  {
+    first = min(first, size_);
+    if ((size_ + distance) > Capacity)
+    {
+      return Err{};
+    }
+
+    if constexpr (TriviallyRelocatable<T>)
+    {
+      mem::move(data() + first, data() + first + distance, size_ - first);
+    }
+    else
+    {
+      // move construct tail elements
+      usize const tail_first = max(first, min(size_, distance) - size_);
+      for (usize i = tail_first; i < size_; i++)
+      {
+        new (data() + i + distance) T{(T &&) data()[i]};
+      }
+
+      // move non-tail elements towards end
+      for (usize i = first; i < tail_first; i++)
+      {
+        data()[i + distance] = (T &&) data()[i];
+      }
+
+      if constexpr (!TriviallyDestructible<T>)
+      {
+        // destruct previous position of non-tail elements
+        for (usize i = first; i < tail_first; i++)
+        {
+          (data() + i)->~T();
+        }
+      }
+    }
+
+    size_ += distance;
+
+    return Ok{};
+  }
+
+  template <typename... Args>
+  constexpr Result<Void, Void> insert(usize pos, Args &&...args)
+  {
+    pos = min(pos, size_);
+    if (!shift_uninitialized(pos, 1))
+    {
+      return Err{};
+    }
+
+    new (data() + pos) T{((Args &&) args)...};
+    return Ok{};
+  }
+
+  constexpr Result<Void, Void> insert_span_copy(usize pos, Span<T const> span)
+  {
+    pos = min(pos, size_);
+    if (!shift_uninitialized(pos, span.size()))
+    {
+      return Err{};
+    }
+
+    if constexpr (TriviallyCopyConstructible<T>)
+    {
+      mem::copy(span.data(), data() + pos, span.size());
+    }
+    else
+    {
+      for (usize i = 0; i < span.size(); i++)
+      {
+        new (data() + pos + i) T{span[i]};
+      }
+    }
+
+    return Ok{};
+  }
+
+  constexpr Result<Void, Void> insert_span_move(usize pos, Span<T> span)
+  {
+    pos = min(pos, size_);
+    if (!shift_uninitialized(pos, span.size()))
+    {
+      return Err{};
+    }
+
+    if constexpr (TriviallyMoveConstructible<T>)
+    {
+      mem::copy(span.data(), data() + pos, span.size());
+    }
+    else
+    {
+      for (usize i = 0; i < span.size(); i++)
+      {
+        new (data() + pos + i) T{(T &&) span[i]};
+      }
+    }
+
+    return Ok{};
+  }
+
+  constexpr Result<Void, Void> extend_uninitialized(usize extension)
+  {
+    if ((size_ + extension) > Capacity)
+    {
+      return Err{};
+    }
+
+    size_ += extension;
+
+    return Ok{};
+  }
+
+  constexpr Result<Void, Void> extend_defaulted(usize extension)
+  {
+    usize const pos = size_;
+    if (!extend_uninitialized(extension))
+    {
+      return Err{};
+    }
+
+    for (usize i = pos; i < size_; i++)
+    {
+      new (data() + i) T{};
+    }
+
+    return Ok{};
+  }
+
+  constexpr Result<Void, Void> extend_copy(Span<T const> span)
+  {
+    usize const pos = size_;
+    if (!extend_uninitialized(span.size()))
+    {
+      return Err{};
+    }
+
+    // free to use memcpy because the source range is not overlapping with this
+    // anyway
+    if constexpr (TriviallyCopyConstructible<T>)
+    {
+      mem::copy(span.data(), data() + pos, span.size());
+    }
+    else
+    {
+      for (usize i = 0; i < span.size(); i++)
+      {
+        new (data() + pos + i) T{span[i]};
+      }
+    }
+
+    return Ok{};
+  }
+
+  constexpr Result<Void, Void> extend_move(Span<T> span)
+  {
+    usize const pos = size_;
+    if (!extend_uninitialized(span.size()))
+    {
+      return Err{};
+    }
+
+    // non-overlapping, use memcpy
+    if constexpr (TriviallyMoveConstructible<T>)
+    {
+      mem::copy(span.data(), data() + pos, span.size());
+    }
+    else
+    {
+      for (usize i = 0; i < span.size(); i++)
+      {
+        new (data() + pos + i) T{(T &&) span[i]};
+      }
+    }
+
+    return Ok{};
+  }
+
+  constexpr void swap(usize a, usize b) const
+  {
+    ::ash::swap(data()[a], data()[b]);
+  }
+
+  constexpr Result<Void, Void> resize_uninitialized(usize new_size)
+  {
+    if (new_size <= size_)
+    {
+      erase(new_size, size_ - new_size);
+      return Ok{};
+    }
+
+    return extend_uninitialized(new_size - size_);
+  }
+
+  constexpr Result<Void, Void> resize_defaulted(usize new_size)
+  {
+    if (new_size <= size_)
+    {
+      erase(new_size, size_ - new_size);
+      return Ok{};
+    }
+
+    return extend_defaulted(new_size - size_);
+  }
+};
 
 }        // namespace ash

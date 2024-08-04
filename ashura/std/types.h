@@ -5,6 +5,7 @@
 #include <bit>
 #include <cfloat>
 #include <cinttypes>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -523,15 +524,16 @@ struct NumTraits<T const volatile> : NumTraits<T>
 {
 };
 
-template <typename Rep, usize N>
+template <typename Repr, usize NumBits>
 inline constexpr usize BIT_PACKS =
-    (N + (NumTraits<Rep>::NUM_BITS - 1)) / NumTraits<Rep>::NUM_BITS;
+    (NumBits + (NumTraits<Repr>::NUM_BITS - 1)) >>
+    NumTraits<Repr>::LOG2_NUM_BITS;
 
-template <typename Rep>
+template <typename Repr>
 constexpr usize bit_packs(usize num_bits)
 {
-  return (num_bits + (NumTraits<Rep>::NUM_BITS - 1)) >>
-         NumTraits<Rep>::LOG2_NUM_BITS;
+  return (num_bits + (NumTraits<Repr>::NUM_BITS - 1)) >>
+         NumTraits<Repr>::LOG2_NUM_BITS;
 }
 
 /// regular void
@@ -3195,14 +3197,22 @@ concept OutputIterator = InputIterator<It> && requires(It it) {
 
 template <typename R>
 concept InputRange = requires(R r) {
-  { begin(r) } -> InputIterator;
-  { end(r) } -> InputIterator;
+  {
+    begin(r)
+  } -> InputIterator;
+  {
+    end(r)
+  } -> InputIterator;
 };
 
 template <typename R>
 concept OutputRange = requires(R r) {
-  { begin(r) } -> OutputIterator;
-  { end(r) } -> OutputIterator;
+  {
+    begin(r)
+  } -> OutputIterator;
+  {
+    end(r)
+  } -> OutputIterator;
 };
 
 template <typename T, usize N>
@@ -3279,16 +3289,17 @@ struct Array
   }
 };
 
-template <typename Rep, usize N>
-using Bits = Rep[BIT_PACKS<Rep, N>];
+template <typename Repr, usize N>
+using Bits = Repr[BIT_PACKS<Repr, N>];
 
-template <typename Rep, usize N>
-using BitArray = Array<Rep, BIT_PACKS<Rep, N>>;
+template <typename Repr, usize N>
+using BitArray = Array<Repr, BIT_PACKS<Repr, N>>;
 
 template <typename T>
 struct Span
 {
   using Type = T;
+  using Repr = T;
 
   T    *data_ = nullptr;
   usize size_ = 0;
@@ -3612,8 +3623,8 @@ constexpr usize find_clear_bit(Span<u64 const> s)
 template <typename R>
 struct BitSpan
 {
-  using Repr = R;
   using Type = bool;
+  using Repr = R;
 
   Span<R> repr_     = {};
   usize   bit_size_ = 0;
