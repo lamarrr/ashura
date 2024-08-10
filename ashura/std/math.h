@@ -334,216 +334,6 @@ constexpr Vec3 transform(Mat4Affine const &t, Vec3 value)
   return Vec3{v.x, v.y, v.z};
 }
 
-constexpr bool overlaps(Vec2 a_begin, Vec2 a_end, Vec2 b_begin, Vec2 b_end)
-{
-  return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
-         a_end.y >= b_begin.y;
-}
-
-constexpr bool contains_point(Vec2 begin, Vec2 end, Vec2 point)
-{
-  return begin.x <= point.x && begin.y <= point.y && end.x >= point.x &&
-         end.y >= point.y;
-}
-
-constexpr void intersect(Vec2 a_begin, Vec2 a_end, Vec2 &b_begin, Vec2 &b_end)
-{
-  if (!overlaps(a_begin, a_end, b_begin, b_end))
-  {
-    b_begin = {};
-    b_end   = {};
-    return;
-  }
-
-  b_begin = Vec2{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)};
-  b_end   = Vec2{min(a_end.x, b_end.x), min(a_end.y, b_end.y)};
-}
-
-struct Rect
-{
-  Vec2 offset = {};
-  Vec2 extent = {};
-
-  constexpr Vec2 center() const
-  {
-    return offset + (extent * 0.5F);
-  }
-
-  constexpr Vec2 begin() const
-  {
-    return offset;
-  }
-
-  constexpr Vec2 end() const
-  {
-    return offset + extent;
-  }
-
-  constexpr f32 area() const
-  {
-    return extent.x * extent.y;
-  }
-
-  constexpr CRect centered() const;
-};
-
-struct CRect
-{
-  Vec2 center = {};
-  Vec2 extent = {};
-
-  constexpr Vec2 begin() const
-  {
-    return center - (extent * 0.5F);
-  }
-
-  constexpr Vec2 end() const
-  {
-    return center + extent * 0.5F;
-  }
-
-  constexpr f32 area() const
-  {
-    return extent.x * extent.y;
-  }
-
-  constexpr Rect offseted() const;
-};
-
-constexpr CRect Rect::centered() const
-{
-  return CRect{.center = offset + extent * 0.5F, .extent = extent};
-}
-
-constexpr Rect CRect::offseted() const
-{
-  return Rect{.offset = center - extent * 0.5F, .extent = extent};
-}
-
-constexpr bool operator==(CRect const &a, CRect const &b)
-{
-  return a.center == b.center && a.extent == b.extent;
-}
-
-constexpr bool operator!=(CRect const &a, CRect const &b)
-{
-  return a.center != b.center || a.extent != b.extent;
-}
-
-struct RectU
-{
-  Vec2U offset = {};
-  Vec2U extent = {};
-
-  constexpr Vec2U end() const
-  {
-    return offset + extent;
-  }
-};
-
-constexpr bool operator==(RectU const &a, RectU const &b)
-{
-  return a.offset == b.offset && a.extent == b.extent;
-}
-
-constexpr bool operator!=(RectU const &a, RectU const &b)
-{
-  return a.offset != b.offset || a.extent != b.extent;
-}
-
-struct Box
-{
-  Vec3 offset = {};
-  Vec3 extent = {};
-
-  constexpr Vec3 center() const
-  {
-    return offset + (extent * 0.5F);
-  }
-
-  constexpr Vec3 end() const
-  {
-    return offset + extent;
-  }
-
-  constexpr f32 volume() const
-  {
-    return extent.x * extent.y * extent.z;
-  }
-
-  constexpr CBox centered() const;
-};
-
-struct CBox
-{
-  Vec3 center = {};
-  Vec3 extent = {};
-
-  constexpr Vec3 begin() const
-  {
-    return center - extent * 0.5F;
-  }
-
-  constexpr Vec3 end() const
-  {
-    return center + extent * 0.5F;
-  }
-
-  constexpr f32 volume() const
-  {
-    return extent.x * extent.y * extent.z;
-  }
-
-  constexpr Box offseted() const;
-};
-
-constexpr CBox Box::centered() const
-{
-  return CBox{.center = offset + extent * 0.5F, .extent = extent};
-}
-
-constexpr Box CBox::offseted() const
-{
-  return Box{.offset = center - extent * 0.5F, .extent = extent};
-}
-
-constexpr bool contains(Rect const &rect, Vec2 point)
-{
-  return contains_point(rect.begin(), rect.end(), point);
-}
-
-constexpr bool overlaps(Rect const &a, Rect const &b)
-{
-  return ash::overlaps(a.begin(), a.end(), b.begin(), b.end());
-}
-
-constexpr Rect intersect(Rect const &a, Rect const &b)
-{
-  Vec2 begin = b.begin();
-  Vec2 end   = b.end();
-  intersect(a.begin(), a.end(), begin, end);
-  return Rect{.offset = begin, .extent = end - begin};
-}
-
-constexpr bool contains(Box const &box, Vec3 point)
-{
-  return box.offset.x <= point.x && box.offset.y <= point.y &&
-         box.offset.z <= point.z && (box.offset.x + box.extent.x) >= point.x &&
-         (box.offset.y + box.extent.y) >= point.y &&
-         (box.offset.z + box.extent.z) >= point.z;
-  return true;
-}
-
-constexpr bool overlaps(Box const &a, Box const &b)
-{
-  Vec3 a_begin = a.offset;
-  Vec3 a_end   = a.offset + a.extent;
-  Vec3 b_begin = b.offset;
-  Vec3 b_end   = b.offset + b.extent;
-  return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
-         a_end.y >= b_begin.y && a_begin.z <= b_end.z && a_end.z >= b_begin.z;
-}
-
 inline Vec2 rotor(f32 a)
 {
   return Vec2{cosf(a), sinf(a)};
@@ -710,6 +500,274 @@ constexpr Vec4 opacity(f32 v)
   return Vec4{1, 1, 1, v};
 }
 
+struct Rect
+{
+  Vec2 offset = {};
+  Vec2 extent = {};
+
+  static constexpr Rect from_center(Vec2 center, Vec2 extent)
+  {
+    return Rect{.offset = center - extent * 0.5F, .extent = extent};
+  }
+
+  constexpr Vec2 center() const
+  {
+    return offset + (extent * 0.5F);
+  }
+
+  constexpr Vec2 begin() const
+  {
+    return offset;
+  }
+
+  constexpr Vec2 end() const
+  {
+    return offset + extent;
+  }
+
+  constexpr f32 area() const
+  {
+    return extent.x * extent.y;
+  }
+
+  constexpr CRect centered() const;
+};
+
+constexpr bool operator==(Rect const &a, Rect const &b)
+{
+  return a.offset == b.offset && a.extent == b.extent;
+}
+
+constexpr bool operator!=(Rect const &a, Rect const &b)
+{
+  return a.offset != b.offset || a.extent != b.extent;
+}
+
+struct CRect
+{
+  Vec2 center = {};
+  Vec2 extent = {};
+
+  static constexpr CRect from_offset(Vec2 offset, Vec2 extent)
+  {
+    return CRect{.center = offset + extent * 0.5F, .extent = extent};
+  }
+
+  constexpr Vec2 begin() const
+  {
+    return center - (extent * 0.5F);
+  }
+
+  constexpr Vec2 end() const
+  {
+    return center + extent * 0.5F;
+  }
+
+  constexpr f32 area() const
+  {
+    return extent.x * extent.y;
+  }
+
+  constexpr Rect offseted() const;
+};
+
+constexpr CRect Rect::centered() const
+{
+  return CRect::from_offset(offset, extent);
+}
+
+constexpr Rect CRect::offseted() const
+{
+  return Rect::from_center(center, extent);
+}
+
+constexpr bool operator==(CRect const &a, CRect const &b)
+{
+  return a.center == b.center && a.extent == b.extent;
+}
+
+constexpr bool operator!=(CRect const &a, CRect const &b)
+{
+  return a.center != b.center || a.extent != b.extent;
+}
+
+struct RectU
+{
+  Vec2U offset = {};
+  Vec2U extent = {};
+
+  constexpr Vec2U end() const
+  {
+    return offset + extent;
+  }
+};
+
+constexpr bool operator==(RectU const &a, RectU const &b)
+{
+  return a.offset == b.offset && a.extent == b.extent;
+}
+
+constexpr bool operator!=(RectU const &a, RectU const &b)
+{
+  return a.offset != b.offset || a.extent != b.extent;
+}
+
+struct Box
+{
+  Vec3 offset = {};
+  Vec3 extent = {};
+
+  static constexpr Box from_center(Vec3 center, Vec3 extent)
+  {
+    return Box{.offset = center - extent * 0.5F, .extent = extent};
+  }
+
+  constexpr Vec3 center() const
+  {
+    return offset + (extent * 0.5F);
+  }
+
+  constexpr Vec3 end() const
+  {
+    return offset + extent;
+  }
+
+  constexpr f32 volume() const
+  {
+    return extent.x * extent.y * extent.z;
+  }
+
+  constexpr CBox centered() const;
+};
+
+constexpr bool operator==(Box const &a, Box const &b)
+{
+  return a.offset == b.offset && a.extent == b.extent;
+}
+
+constexpr bool operator!=(Box const &a, Box const &b)
+{
+  return a.offset != b.offset || a.extent != b.extent;
+}
+
+struct CBox
+{
+  Vec3 center = {};
+  Vec3 extent = {};
+
+  static constexpr CBox from_offset(Vec3 offset, Vec3 extent)
+  {
+    return CBox{.center = offset + extent * 0.5F, .extent = extent};
+  }
+
+  constexpr Vec3 begin() const
+  {
+    return center - extent * 0.5F;
+  }
+
+  constexpr Vec3 end() const
+  {
+    return center + extent * 0.5F;
+  }
+
+  constexpr f32 volume() const
+  {
+    return extent.x * extent.y * extent.z;
+  }
+
+  constexpr Box offseted() const;
+};
+
+constexpr CBox Box::centered() const
+{
+  return CBox::from_offset(offset, extent);
+}
+
+constexpr Box CBox::offseted() const
+{
+  return Box::from_center(center, extent);
+}
+
+constexpr bool operator==(CBox const &a, CBox const &b)
+{
+  return a.center == b.center && a.extent == b.extent;
+}
+
+constexpr bool operator!=(CBox const &a, CBox const &b)
+{
+  return a.center != b.center || a.extent != b.extent;
+}
+
+constexpr bool overlaps(Vec2 a_begin, Vec2 a_end, Vec2 b_begin, Vec2 b_end)
+{
+  return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
+         a_end.y >= b_begin.y;
+}
+
+constexpr bool contains_point(Vec2 begin, Vec2 end, Vec2 point)
+{
+  return begin.x <= point.x && begin.y <= point.y && end.x >= point.x &&
+         end.y >= point.y;
+}
+
+constexpr void intersect(Vec2 a_begin, Vec2 a_end, Vec2 &b_begin, Vec2 &b_end)
+{
+  if (!overlaps(a_begin, a_end, b_begin, b_end))
+  {
+    b_begin = {};
+    b_end   = {};
+    return;
+  }
+
+  b_begin = Vec2{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)};
+  b_end   = Vec2{min(a_end.x, b_end.x), min(a_end.y, b_end.y)};
+}
+
+constexpr bool contains(Rect const &rect, Vec2 point)
+{
+  return contains_point(rect.begin(), rect.end(), point);
+}
+
+constexpr bool overlaps(Rect const &a, Rect const &b)
+{
+  return ash::overlaps(a.begin(), a.end(), b.begin(), b.end());
+}
+
+constexpr Rect intersect(Rect const &a, Rect const &b)
+{
+  Vec2 begin = b.begin();
+  Vec2 end   = b.end();
+  intersect(a.begin(), a.end(), begin, end);
+  return Rect{.offset = begin, .extent = end - begin};
+}
+
+constexpr CRect intersect(CRect const &a, CRect const &b)
+{
+  Vec2 begin = b.begin();
+  Vec2 end   = b.end();
+  intersect(a.begin(), a.end(), begin, end);
+  return CRect::from_offset(begin, end - begin);
+}
+
+constexpr bool contains(Box const &box, Vec3 point)
+{
+  return box.offset.x <= point.x && box.offset.y <= point.y &&
+         box.offset.z <= point.z && (box.offset.x + box.extent.x) >= point.x &&
+         (box.offset.y + box.extent.y) >= point.y &&
+         (box.offset.z + box.extent.z) >= point.z;
+  return true;
+}
+
+constexpr bool overlaps(Box const &a, Box const &b)
+{
+  Vec3 a_begin = a.offset;
+  Vec3 a_end   = a.offset + a.extent;
+  Vec3 b_begin = b.offset;
+  Vec3 b_end   = b.offset + b.extent;
+  return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
+         a_end.y >= b_begin.y && a_begin.z <= b_end.z && a_end.z >= b_begin.z;
+}
+
 /// @param x_mag The horizontal magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
 /// @param y_mag The vertical magnification of the view. This value
@@ -817,19 +875,13 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Vec3 offset, Vec3 extent)
 }
 
 constexpr void frustum_cull(Mat4 const &mvp, Span<Mat4 const> global_transform,
-                            Span<Box const> aabb, Span<u64> is_visible)
+                            Span<Box const> aabb, BitSpan<u64> is_visible)
 {
   for (u32 i = 0; i < aabb.size32(); i++)
   {
-    if (is_outside_frustum(mvp * global_transform[i], aabb[i].offset,
-                           aabb[i].extent))
-    {
-      clear_bit(is_visible, i);
-    }
-    else
-    {
-      set_bit(is_visible, i);
-    }
+    assign_bit(is_visible, i,
+               !is_outside_frustum(mvp * global_transform[i], aabb[i].offset,
+                                   aabb[i].extent));
   }
 }
 
