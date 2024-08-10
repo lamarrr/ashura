@@ -101,6 +101,7 @@ struct ViewSystem
     // input if object has a text area attribute
     // [ ] cursor management via hit testing
     // [ ] window hit testing
+    // [ ] layer id + z-index. layer id is just for id-ing, the z-index is still used.
     // [ ] draw on focus
     // [ ] context menu support when right-clicked?
     // [ ] non-clickable should not receive pointer events
