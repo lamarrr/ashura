@@ -3858,7 +3858,7 @@ struct MemberFnTraits
 
 /// @brief non-const member function traits
 template <class T, typename R, typename... Args>
-struct MemberFnTraits<R (T:: *)(Args...)>
+struct MemberFnTraits<R (T::*)(Args...)>
 {
   using Ptr        = R (*)(Args...);
   using Signature  = R(Args...);
@@ -3870,7 +3870,7 @@ struct MemberFnTraits<R (T:: *)(Args...)>
 
 /// @brief const member function traits
 template <class T, typename R, typename... Args>
-struct MemberFnTraits<R (T:: *)(Args...) const>
+struct MemberFnTraits<R (T::*)(Args...) const>
 {
   using Ptr        = R (*)(Args...);
   using Signature  = R(Args...);
