@@ -77,8 +77,6 @@ constexpr f64 F64_MAX          = DBL_MAX;
 constexpr f64 F64_EPSILON      = DBL_EPSILON;
 constexpr f64 F64_INFINITY     = INFINITY;
 
-constexpr uid UID_MAX = U64_MAX;
-
 constexpr f32 PI = 3.14159265358979323846F;
 
 struct Noop

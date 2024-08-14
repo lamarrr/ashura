@@ -570,14 +570,14 @@ struct KeyEvent
 
 struct MouseMotionEvent
 {
-  uid  mouse_id    = UID_MAX;
+  u64  mouse_id    = U64_MAX;
   Vec2 position    = {};
   Vec2 translation = {};
 };
 
 struct MouseClickEvent
 {
-  uid          mouse_id = UID_MAX;
+  u64          mouse_id = U64_MAX;
   Vec2         position = {};
   u32          clicks   = 0;
   MouseButtons button   = MouseButtons::None;
@@ -586,7 +586,7 @@ struct MouseClickEvent
 
 struct MouseWheelEvent
 {
-  uid  mouse_id    = UID_MAX;
+  u64  mouse_id    = U64_MAX;
   Vec2 position    = {};
   Vec2 translation = {};
 };

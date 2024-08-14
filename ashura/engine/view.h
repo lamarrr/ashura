@@ -292,7 +292,7 @@ struct View
 {
   struct
   {
-    uid id = UID_MAX;
+    u64 id = U64_MAX;
   } inner = {};
 
   constexpr View()                        = default;
@@ -302,7 +302,7 @@ struct View
   constexpr View &operator=(View &&)      = default;
   constexpr virtual ~View()               = default;
 
-  constexpr uid id() const
+  constexpr u64 id() const
   {
     return inner.id;
   }

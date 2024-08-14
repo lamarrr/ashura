@@ -14,9 +14,9 @@ namespace ash
 /// root node at depth 0
 struct SceneNode
 {
-  uid parent       = UID_MAX;
-  uid next_sibling = UID_MAX;
-  uid first_child  = UID_MAX;
+  u64 parent       = U64_MAX;
+  u64 next_sibling = U64_MAX;
+  u64 first_child  = U64_MAX;
   u32 depth        = 0;
 };
 

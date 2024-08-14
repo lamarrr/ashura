@@ -22,7 +22,7 @@ struct ViewNode
 struct ViewSystem
 {
   ViewContext    ctx           = {};
-  uid            next_id       = 0;
+  u64            next_id       = 0;
   Vec<View *>    views         = {};
   Vec<ViewState> states        = {};
   Vec<ViewNode>  nodes         = {};
@@ -63,13 +63,13 @@ struct ViewSystem
   {
     for (View *w : views)
     {
-      if (w->inner.id == UID_MAX)
+      if (w->inner.id == U64_MAX)
       {
         w->inner.id = next_id++;
         // [ ] MOUNT
       }
     }
-    CHECK(next_id != UID_MAX);
+    CHECK(next_id != U64_MAX);
   }
 
   void tick(nanoseconds dt)
