@@ -104,8 +104,18 @@ struct RenderContext
       gfx::BufferUsage::StorageTexelBuffer | gfx::BufferUsage::IndirectBuffer |
       gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst;
 
-  static constexpr u16 NUM_TEXTURE_SLOTS        = 1024;
-  static constexpr u16 NUM_SAMPLER_SLOTS        = 128;
+  static constexpr gfx::Format HDR_COLOR_FORMATS[] = {
+      gfx::Format::R16G16B16A16_SFLOAT};
+
+  static constexpr gfx::Format SDR_COLOR_FORMATS[] = {
+      gfx::Format::B8G8R8A8_UNORM, gfx::Format::R8G8B8A8_UNORM};
+
+  static constexpr gfx::Format DEPTH_STENCIL_FORMATS[] = {
+      gfx::Format::D16_UNORM_S8_UINT, gfx::Format::D24_UNORM_S8_UINT,
+      gfx::Format::D32_SFLOAT_S8_UINT};
+
+  static constexpr u16 NUM_TEXTURE_SLOTS        = 256;
+  static constexpr u16 NUM_SAMPLER_SLOTS        = 16;
   static constexpr u16 NUM_SCRATCH_FRAMEBUFFERS = 2;
 
   Bits<u64, NUM_TEXTURE_SLOTS> texture_slots        = {};

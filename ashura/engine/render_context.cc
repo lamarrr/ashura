@@ -12,82 +12,92 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   CHECK(p_initial_extent.x > 0 && p_initial_extent.y > 0);
   device = p_device;
 
-  gfx::Format sel_color_format         = gfx::Format::Undefined;
-  gfx::Format sel_depth_stencil_format = gfx::Format::Undefined;
+  u32 sel_hdr_color_format     = 0;
+  u32 sel_sdr_color_format     = 0;
+  u32 sel_depth_stencil_format = 0;
 
   if (p_use_hdr)
   {
-    gfx::FormatProperties properties =
-        device
-            ->get_format_properties(device.self,
-                                    gfx::Format::R16G16B16A16_SFLOAT)
-            .unwrap();
-    if (has_bits(properties.optimal_tiling_features, COLOR_FEATURES))
+    for (; sel_hdr_color_format < size(HDR_COLOR_FORMATS);
+         sel_hdr_color_format++)
     {
-      sel_color_format = gfx::Format::R16G16B16A16_SFLOAT;
+      gfx::FormatProperties props =
+          device
+              ->get_format_properties(device.self,
+                                      HDR_COLOR_FORMATS[sel_hdr_color_format])
+              .unwrap();
+      if (has_bits(props.optimal_tiling_features, COLOR_FEATURES))
+      {
+        break;
+      }
     }
-    else
+
+    if (sel_hdr_color_format >= size(HDR_COLOR_FORMATS))
     {
       logger->warn("HDR mode requested but Device does not support "
                    "HDR render target, trying UNORM color");
     }
   }
 
-  if (sel_color_format == gfx::Format::Undefined)
+  if (!p_use_hdr || sel_hdr_color_format >= size(HDR_COLOR_FORMATS))
   {
-    gfx::FormatProperties properties =
-        device->get_format_properties(device.self, gfx::Format::B8G8R8A8_UNORM)
-            .unwrap();
-    if (has_bits(properties.optimal_tiling_features, COLOR_FEATURES))
+    for (; sel_sdr_color_format < size(SDR_COLOR_FORMATS);
+         sel_sdr_color_format++)
     {
-      sel_color_format = gfx::Format::B8G8R8A8_UNORM;
+      gfx::FormatProperties props =
+          device
+              ->get_format_properties(device.self,
+                                      SDR_COLOR_FORMATS[sel_sdr_color_format])
+              .unwrap();
+      if (has_bits(props.optimal_tiling_features, COLOR_FEATURES))
+      {
+        break;
+      }
     }
   }
 
-  if (sel_color_format == gfx::Format::Undefined)
+  for (; sel_depth_stencil_format < size(DEPTH_STENCIL_FORMATS);
+       sel_depth_stencil_format++)
   {
-    gfx::FormatProperties properties =
-        device->get_format_properties(device.self, gfx::Format::R8G8B8A8_UNORM)
-            .unwrap();
-    if (has_bits(properties.optimal_tiling_features, COLOR_FEATURES))
-    {
-      sel_color_format = gfx::Format::R8G8B8A8_UNORM;
-    }
-  }
-
-  {
-    gfx::FormatProperties properties =
+    gfx::FormatProperties props =
         device
-            ->get_format_properties(device.self, gfx::Format::D16_UNORM_S8_UINT)
+            ->get_format_properties(
+                device.self, DEPTH_STENCIL_FORMATS[sel_depth_stencil_format])
             .unwrap();
-    if (has_bits(properties.optimal_tiling_features, DEPTH_STENCIL_FEATURES))
+    if (has_bits(props.optimal_tiling_features, DEPTH_STENCIL_FEATURES))
     {
-      sel_depth_stencil_format = gfx::Format::D16_UNORM_S8_UINT;
+      break;
     }
   }
 
-  if (sel_depth_stencil_format == gfx::Format::Undefined)
+  if (p_use_hdr)
   {
-    gfx::FormatProperties properties =
-        device
-            ->get_format_properties(device.self, gfx::Format::D24_UNORM_S8_UINT)
-            .unwrap();
-    if (has_bits(properties.optimal_tiling_features, DEPTH_STENCIL_FEATURES))
+    CHECK_DESC(sel_sdr_color_format != size(SDR_COLOR_FORMATS) ||
+                   sel_hdr_color_format != size(HDR_COLOR_FORMATS),
+               "Device doesn't support any known color format");
+    if (sel_hdr_color_format != size(HDR_COLOR_FORMATS))
     {
-      sel_depth_stencil_format = gfx::Format::D24_UNORM_S8_UINT;
+      color_format = HDR_COLOR_FORMATS[sel_hdr_color_format];
+    }
+    else
+    {
+      color_format = SDR_COLOR_FORMATS[sel_sdr_color_format];
     }
   }
+  else
+  {
+    CHECK_DESC(sel_sdr_color_format != size(SDR_COLOR_FORMATS),
+               "Device doesn't support any known color format");
+    color_format = SDR_COLOR_FORMATS[sel_sdr_color_format];
+  }
 
-  CHECK_DESC(sel_color_format != gfx::Format::Undefined,
-             "Device doesn't support any known color format");
-  CHECK_DESC(sel_depth_stencil_format != gfx::Format::Undefined,
-             "Device doesn't support any depth stencil format");
+  CHECK_DESC(sel_depth_stencil_format != size(DEPTH_STENCIL_FORMATS),
+             "Device doesn't support any known depth stencil format");
+  depth_stencil_format = DEPTH_STENCIL_FORMATS[sel_depth_stencil_format];
 
-  pipeline_cache       = nullptr;
-  buffering            = p_buffering;
-  shader_map           = p_shader_map;
-  color_format         = sel_color_format;
-  depth_stencil_format = sel_depth_stencil_format;
+  pipeline_cache = nullptr;
+  buffering      = p_buffering;
+  shader_map     = p_shader_map;
 
   ubo_layout =
       device
