@@ -114,8 +114,8 @@ struct RenderContext
       gfx::Format::D16_UNORM_S8_UINT, gfx::Format::D24_UNORM_S8_UINT,
       gfx::Format::D32_SFLOAT_S8_UINT};
 
-  static constexpr u16 NUM_TEXTURE_SLOTS        = 256;
-  static constexpr u16 NUM_SAMPLER_SLOTS        = 16;
+  static constexpr u16 NUM_TEXTURE_SLOTS        = 1024;
+  static constexpr u16 NUM_SAMPLER_SLOTS        = 64;
   static constexpr u16 NUM_SCRATCH_FRAMEBUFFERS = 2;
 
   Bits<u64, NUM_TEXTURE_SLOTS> texture_slots        = {};
