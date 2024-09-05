@@ -43,7 +43,6 @@ struct Logger : Pin<>
   LogSink   *sinks[MAX_SINKS]        = {};
   u32        num_sinks               = 0;
   char       buffer[BUFFER_CAPACITY] = {};
-  char       scratch[SCRATCH_SIZE]   = {};
   std::mutex mutex                   = {};
 
   template <typename... Args>
@@ -95,6 +94,7 @@ struct Logger : Pin<>
   bool log(LogLevels level, Args const &...args)
   {
     std::lock_guard lock{mutex};
+    char            scratch[SCRATCH_SIZE];
     fmt::Buffer     b{.buffer = span(buffer)};
     fmt::Context    ctx = fmt::buffer(&b, span(scratch));
     if (!fmt::format(ctx, args..., "\n"))
