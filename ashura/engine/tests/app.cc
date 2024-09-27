@@ -16,10 +16,12 @@ int main(int, char **)
   using namespace ash;
   logger->add_sink(&stdio_sink);
 
+  // [ ] env/config to get paths for system: fonts, font cache, images, music,
+  // etc.
   Vec<u8> font_data;
   CHECK(
       read_file(
-          R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
+          R"(C:\Users\bayantunde\workspace\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
           font_data) == IoError::None);
 
   defer font_data_del{[&] { font_data.uninit(); }};
@@ -71,30 +73,29 @@ int main(int, char **)
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
-  CHECK(
-      pack_shaders(
-          spirvs,
-          span<ShaderUnit>(
-              {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
-               {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
-               {.id       = "Blur_UpSample:FS"_span,
-                .file     = "blur.frag"_span,
-                .preamble = "#define UPSAMPLE 1"_span},
-               {.id       = "Blur_UpSample:VS"_span,
-                .file     = "blur.vert"_span,
-                .preamble = "#define UPSAMPLE 1"_span},
-               {.id       = "Blur_DownSample:FS"_span,
-                .file     = "blur.frag"_span,
-                .preamble = "#define UPSAMPLE 0"_span},
-               {.id       = "Blur_DownSample:VS"_span,
-                .file     = "blur.vert"_span,
-                .preamble = "#define UPSAMPLE 0"_span},
-               {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
-               {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
-               {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
-               {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-          R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders)"_span) ==
-      ShaderCompileError::None);
+  CHECK(pack_shaders(
+            spirvs,
+            span<ShaderUnit>(
+                {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
+                 {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
+                 {.id       = "Blur_UpSample:FS"_span,
+                  .file     = "blur.frag"_span,
+                  .preamble = "#define UPSAMPLE 1"_span},
+                 {.id       = "Blur_UpSample:VS"_span,
+                  .file     = "blur.vert"_span,
+                  .preamble = "#define UPSAMPLE 1"_span},
+                 {.id       = "Blur_DownSample:FS"_span,
+                  .file     = "blur.frag"_span,
+                  .preamble = "#define UPSAMPLE 0"_span},
+                 {.id       = "Blur_DownSample:VS"_span,
+                  .file     = "blur.vert"_span,
+                  .preamble = "#define UPSAMPLE 0"_span},
+                 {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
+                 {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
+                 {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
+                 {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
+            R"(C:\Users\bayantunde\workspace\ashura\ashura\shaders)"_span) ==
+        ShaderCompileError::None);
 
   StrHashMap<gfx::Shader> shaders;
   defer                   shaders_del{[&] { shaders.reset(); }};
@@ -306,7 +307,7 @@ int main(int, char **)
                            .corner_radii = {0, 0, 0, 0},
                            .stroke       = 1,
                            .thickness    = 20,
-                           .tint = ColorGradient::all(colors::WHITE)});
+                           .tint         = ColorGradient::all(colors::WHITE)});
     /*  for (u32 i = 0; i < 2000; i++)
         canvas.rect(
             ShapeDesc{.center = Vec2{20, 20},

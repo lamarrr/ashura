@@ -113,6 +113,10 @@ struct Button : public View
                            .stroke       = stroke,
                            .thickness    = thickness,
                            .tint         = tint});
+    if (focused)
+    {
+      // [ ] draw focus interaction for all widgets
+    }
   }
 };
 

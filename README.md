@@ -15,6 +15,7 @@ Ashura is a high-performance App & Game Engine.
 - [ ] Navigation Accessibility
 - [ ] TTS Accessibility
 - [x] Fast & Efficient [Standard Library](./ashura/std/README.md)
+- [ ] Emoji Text Rendering
 
 ## Design Goals
 
