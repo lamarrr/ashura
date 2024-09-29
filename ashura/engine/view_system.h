@@ -9,70 +9,235 @@ namespace ash
 {
 
 /// @brief flattened hierarchical tree node, all siblings are packed
-/// sequentially.
+/// sequentially to the right of the parent.
 /// This only represents the parent node.
 /// Since the tree is rebuilt from scratch every time, the order is preserved in
 /// that parents always come before children.
 struct ViewNode
 {
+  u32 depth        = 0;
+  u32 parent       = U32_MAX;
   u32 first_child  = 0;
   u32 num_children = 0;
 };
 
 struct ViewSystem
 {
-  ViewContext    ctx           = {};
-  u64            next_id       = 0;
-  Vec<View *>    views         = {};
-  Vec<ViewState> states        = {};
-  Vec<ViewNode>  nodes         = {};
-  Vec<Vec2>      sizes         = {};
-  Vec<Vec2>      positions     = {};
-  Vec<CRect>     clips         = {};
-  Vec<i32>       z_indices     = {};
-  Vec<u32>       layered       = {};
-  Vec2           viewport_size = {};
+  ViewContext   ctx               = {};
+  u64           next_id           = 1;
+  Vec<View *>   views             = {};
+  Vec<ViewNode> nodes             = {};
+  Vec<Vec2>     centers           = {};
+  Vec<Vec2>     extents           = {};
+  Vec<CRect>    clips             = {};
+  BitVec<u64>   is_hidden         = {};
+  Vec<i32>      z_indices         = {};
+  Vec<i32>      stacking_contexts = {};
+  Vec<u32>      z_ordering        = {};
 
-  void insert_subview(View *parent)
+  void reset()
   {
-    u32 const first_child  = views.size32();
-    u32       num_children = 0;
-    while (true)
+    views.reset();
+    nodes.reset();
+    centers.reset();
+    extents.reset();
+    clips.reset();
+    is_hidden.reset();
+    z_indices.reset();
+    stacking_contexts.reset();
+    z_ordering.reset();
+  }
+
+  ViewEvents process_events(View *view)
+  {
+    ViewEvents events;
+
+    if (view->inner.id == 0)
     {
-      View *child = parent->iter(num_children);
-      if (child == nullptr)
-      {
-        break;
-      }
-      views.push(child).unwrap();
-      num_children++;
-      CHECK(num_children < U32_MAX);
+      CHECK(next_id != U64_MAX);
+      view->inner.id = next_id++;
+      events.mounted = true;
     }
+
+    // [ ] process other events
+
+    return events;
+  }
+
+  void build_recursive(View *parent, nanoseconds dt, u32 depth = 0)
+  {
+    u32 const first_child = views.size32();
+
+    auto builder = [&](View *sub) { views.push(sub).unwrap(); };
+
+    parent->inner.state = parent->tick(ctx, parent->inner.region,
+                                       process_events(parent), fn(&builder));
+
+    u32 const num_children = views.size32() - first_child;
+    u32 const node_idx     = nodes.size32();
     nodes
-        .push(
-            ViewNode{.first_child = first_child, .num_children = num_children})
+        .push(ViewNode{.depth        = depth,
+                       .first_child  = first_child,
+                       .num_children = num_children})
         .unwrap();
 
     for (u32 i = 0; i < num_children; i++)
     {
-      insert_subview(views[first_child + i]);
+      build_recursive(views[first_child + i], dt, depth + 1);
+      nodes[first_child + i].parent = node_idx;
     }
   }
 
-  void allocate_ids()
+  void build(View *root, nanoseconds dt)
   {
-    for (View *w : views)
+    if (root != nullptr)
     {
-      if (w->inner.id == U64_MAX)
+      views.push(root).unwrap();
+      build_recursive(root, dt, 0);
+    }
+  }
+
+  void layout(Vec2 viewport_size)
+  {
+    u32 const num_views = views.size32();
+
+    // allocate sizes to children recursively
+    views[0]->inner.region.extent = viewport_size;
+    for (u32 i = 0; i < num_views; i++)
+    {
+      ViewNode const &node = nodes[i];
+      View           *view = views[i];
+      view->size(view->inner.region.extent,
+                 span(extents).slice(node.first_child, node.num_children));
+      for (u32 c = node.first_child; c < (node.first_child + node.num_children);
+           c++)
       {
-        w->inner.id = next_id++;
-        // [ ] MOUNT
+        views[c]->inner.region.extent = extents[c];
       }
     }
-    CHECK(next_id != U64_MAX);
+
+    // fit parent views along the finalized sizes of the child views and
+    // assign centers to the children based on their sizes.
+    for (u32 i = num_views; i != 0;)
+    {
+      i--;
+      ViewNode const &node          = nodes[i];
+      views[i]->inner.region.extent = extents[i] = views[i]->fit(
+          extents[i], span(extents).slice(node.first_child, node.num_children),
+          span(centers).slice(node.first_child, node.num_children));
+      for (u32 c = node.first_child; c < (node.first_child + node.num_children);
+           c++)
+      {
+        views[c]->inner.region.center = centers[c];
+      }
+    }
+
+    // convert from parent centers to absolute centers by recursive
+    // translation
+    for (u32 i = 0; i < num_views; i++)
+    {
+      ViewNode const &node = nodes[i];
+      for (u32 c = node.first_child; c < (node.first_child + node.num_children);
+           c++)
+      {
+        centers[c] += centers[i];
+        views[c]->inner.region.center = centers[c];
+      }
+    }
+
+    // absolute re-positioning
+    for (u32 i = 0; i < num_views; i++)
+    {
+      centers[i] =
+          views[i]->position(CRect{.center = centers[i], .extent = extents[i]});
+      views[i]->inner.region.center = centers[i];
+    }
   }
 
-  void tick(nanoseconds dt)
+  void clip(Vec2 viewport_size)
+  {
+    clips[0] = CRect{.center = {0, 0}, .extent = viewport_size};
+    for (u32 i = 0; i < views.size32(); i++)
+    {
+      ViewNode const &node = nodes[i];
+      clips[i]             = views[i]->clip(
+          CRect{.center = centers[i], .extent = extents[i]}, clips[i]);
+      fill(span(clips).slice(node.first_child, node.num_children), clips[i]);
+    }
+  }
+
+  void stack()
+  {
+    z_indices[0] = 0;
+    for (u32 i = 0; i < views.size32(); i++)
+    {
+      ViewNode const &node = nodes[i];
+      z_indices[i]         = views[i]->z_index(
+          z_indices[i],
+          span(z_indices).slice(node.first_child, node.num_children));
+    }
+
+    stacking_contexts[0] = 0;
+    for (u32 i = 0; i < views.size32(); i++)
+    {
+      ViewNode const &node = nodes[i];
+      if (node.parent != U32_MAX)
+      {
+        stacking_contexts[i] = views[i]->stack(stacking_contexts[node.parent]);
+      }
+    }
+
+    // sort using z-index while having stacking context as higher priority
+    indirect_sort(span(z_ordering), [&](u32 a, u32 b) {
+      if (stacking_contexts[a] < stacking_contexts[b])
+      {
+        return true;
+      }
+      return z_indices[a] < z_indices[b];
+    });
+  }
+
+  void visibility(Vec2 viewport_size)
+  {
+    for (u32 i = 0; i < views.size32(); i++)
+    {
+      ViewNode const &node = nodes[i];
+      View           *view = views[i];
+      bool const      hidden =
+          view->inner.state.hidden || !view->inner.region.is_visible() ||
+          !clips[i].is_visible() ||
+          !overlaps(view->inner.region,
+                    CRect{.center = {0, 0}, .extent = viewport_size}) ||
+          !overlaps(view->inner.region, clips[i]);
+
+      is_hidden.set(i, hidden);
+
+      // if parent hidden by itself. make children hidden
+      if (view->inner.state.hidden) [[unlikely]]
+      {
+        for (u32 c = node.first_child;
+             c < (node.first_child + node.num_children); c++)
+        {
+          is_hidden.set(c, true);
+        }
+      }
+    }
+  }
+
+  void render(Canvas &canvas)
+  {
+    for (u32 i : z_ordering)
+    {
+      if (!is_hidden.get(i)) [[unlikely]]
+      {
+        View *view = views[i];
+        view->render(view->inner.region, clips[i], canvas);
+      }
+    }
+  }
+
+  void process_frame(View *root, Canvas &canvas, nanoseconds dt,
+                     Vec2 viewport_size)
   {
     // [ ] process events across views, hit-test, dispatch events
     //
@@ -83,7 +248,6 @@ struct ViewSystem
     //     SDL_ShowCursor();
     //
     // [ ] UI tick rate (time-based/adaptive frame rate)
-    // [ ] Update timestamp and dt
     // [ ] click - forward directly unless draggable
     // [ ] focus and keyboard management
     // [ ] view drag & drop
@@ -101,164 +265,52 @@ struct ViewSystem
     // input if object has a text area attribute
     // [ ] cursor management via hit testing
     // [ ] window hit testing
-    // [ ] layer id + z-index. layer id is just for id-ing, the z-index is still used.
-    // [ ] draw on focus
-    // [ ] context menu support when right-clicked?
-    // [ ] non-clickable should not receive pointer events
-    // [ ] ? by default, special non-text keys will always be forwarded, to
-    // reject keys, i.e. prevent tab from navigating. make PgUp have special
-    // meaning within viewport, etc. [ ] viewport child focus and key
-    // navigation?
+    // [ ] layer id + z-index. layer id is just for id-ing, the z-index is still
+    // used. [ ] draw on focus [ ] context menu support when right-clicked? [ ]
+    // non-clickable should not receive pointer events [ ] ? by default, special
+    // non-text keys will always be forwarded, to reject keys, i.e. prevent tab
+    // from navigating. make PgUp have special meaning within viewport, etc. [ ]
+    // viewport child focus and key navigation?
     //
     //
-    for (u32 i = 0; i < views.size32(); i++)
-    {
-      states[i] = views[i]->tick(
-          ctx, CRect{.center = positions[i], .extent = sizes[i]}, ViewEvents{});
-    }
-  }
+    //- process events by diffing with previous frame
+    //- tick all widgets and build children along the way
+    //- layout all widgets
+    //- z-stack widgets
+    //- clip and cull widgets
+    // - occlusion culling not that useful
+    // - render all widgets
+    //
 
-  void layout()
-  {
-    sizes[0]            = viewport_size;
-    positions[0]        = Vec2{0, 0};
-    u32 const num_views = views.size32();
-    for (u32 i = 0; i < num_views; i++)
-    {
-      // allocate sizes to children
-      ViewNode const &node = nodes[i];
-      views[i]->size(sizes[i],
-                     span(sizes).slice(node.first_child, node.num_children));
-    }
+    // [ ] after all are built and positioned, we need to process events based
+    // on the final tree
 
-    for (u32 i = 0; i < num_views; i++)
-    {
-      // fit parent views along the finalized sizes of the child views and
-      // assign positions to the children based on their sizes.
-      ViewNode const &node = nodes[i];
-      sizes[i]             = views[i]->fit(
-          sizes[i], span(sizes).slice(node.first_child, node.num_children),
-          span(positions).slice(node.first_child, node.num_children));
-    }
-
-    for (u32 i = 0; i < num_views; i++)
-    {
-      // convert from parent positions to absolute positions by recursive
-      // translation
-      ViewNode const &node = nodes[i];
-      for (Vec2 &pos :
-           span(positions).slice(node.first_child, node.num_children))
-      {
-        pos += positions[i];
-      }
-    }
-
-    // allow views to pop out of their parents
-    for (u32 i = 0; i < num_views; i++)
-    {
-      positions[i] =
-          views[i]->position(CRect{.center = positions[i], .extent = sizes[i]});
-    }
-  }
-
-  void stack()
-  {
-    z_indices[0] = 0;
-    for (u32 i = 0; i < views.size32(); i++)
-    {
-      ViewNode const &node = nodes[i];
-      z_indices[i]         = views[i]->stack(
-          z_indices[i],
-          span(z_indices).slice(node.first_child, node.num_children));
-    }
-  }
-
-  void clip()
-  {
-    clips[0] = CRect{.center = {0, 0}, .extent = viewport_size};
-    for (u32 i = 0; i < views.size32(); i++)
-    {
-      ViewNode const &node = nodes[i];
-      clips[i]             = views[i]->clip(
-          CRect{.center = positions[i], .extent = sizes[i]}, clips[i]);
-      fill(span(clips).slice(node.first_child, node.num_children), clips[i]);
-    }
-  }
-
-  void sort_layers()
-  {
-    iota(span(layered), 0U);
-    indirect_sort(span(z_indices), span(layered),
-                  [](i32 za, i32 zb) { return za < zb; });
-  }
-
-  void visibility()
-  { /*
-     for (u32 i = 0; i < views.size32(); i++)
-     {
-       ViewNode const &node = nodes[i];
-       // if parent not visibile. make children not visible
-       if (!has_bits(attributes[i], ViewAttributes::Visible))
-       {
-         for (ViewAttributes &attr :
-              span(attributes).slice(node.first_child, node.num_children))
-         {
-           attr = attr & ~ViewAttributes::Visible;
-         }
-       }
-     }*/
-  }
-
-  void render(Canvas &canvas)
-  {
-    /*
-    for (u32 i : layered)
-    {
-      canvas.clip(clips[i]);
-      if (has_bits(attributes[i], ViewAttributes::Visible))
-      {
-        views[i]->render(CRect{.center = positions[i], .extent = sizes[i]},
-                         canvas);
-      }
-    }*/
-  }
-
-  void frame(View *root, Canvas &canvas, nanoseconds dt)
-  {
     views.clear();
-    if (root != nullptr)
-    {
-      views.push(root).unwrap();
-      insert_subview(root);
-    }
-    allocate_ids();
+    nodes.clear();
+    build(root, dt);
     u32 const num_views = views.size32();
-    states.resize_uninitialized(num_views).unwrap();
-    sizes.resize_uninitialized(num_views).unwrap();
-    positions.resize_uninitialized(num_views).unwrap();
+    centers.resize_uninitialized(num_views).unwrap();
+    extents.resize_uninitialized(num_views).unwrap();
     clips.resize_uninitialized(num_views).unwrap();
+    is_hidden.resize_uninitialized(num_views).unwrap();
+    fill(is_hidden.repr_, 0);
     z_indices.resize_uninitialized(num_views).unwrap();
-    layered.resize_uninitialized(num_views).unwrap();
+    stacking_contexts.resize_uninitialized(num_views).unwrap();
+    z_ordering.resize_uninitialized(num_views).unwrap();
+    iota(span(z_ordering), 0U);
 
-    // child()
-    // size()
-    // fit()
-    // position()
-    // layer()
-    // stack()
-    // clip()
-    // render()
-    // hit()
-    // tick() - needed so we don't have to persist state across frames
-    //
-
-    tick(dt);
-    layout();
-    stack();
-    clip();
-    sort_layers();
-    visibility();
-    render(canvas);
+    if (num_views > 0)
+    {
+      layout(viewport_size);
+      clip(viewport_size);
+      stack();
+      visibility(viewport_size);
+      render(canvas);
+      // hit testing, process states, how long should states be preserved? what
+      // if widget is removed?
+      // render cursor
+      // [ ] context menus?
+    }
   }
 };
 

@@ -13,33 +13,25 @@ namespace ash
 /// the cross axis
 struct FlexView : public View
 {
-  Axis      axis : 3       = Axis::X;
-  bool      wrap : 1       = true;
-  bool      reverse : 1    = false;
-  MainAlign main_align : 3 = MainAlign::Start;
-  f32       cross_align    = 0;
-  Frame     frame          = {.width = {.scale = 1}, .height = {.scale = 1}};
-
-  virtual View *iter(u32 i) override final
+  struct Style
   {
-    return item(i);
-  }
-
-  virtual View *item(u32 i)
-  {
-    (void) i;
-    return nullptr;
-  }
+    Axis      axis : 3       = Axis::X;
+    bool      wrap : 1       = true;
+    bool      reverse : 1    = false;
+    MainAlign main_align : 3 = MainAlign::Start;
+    f32       cross_align    = 0;
+    Frame     frame          = {.width = {.scale = 1}, .height = {.scale = 1}};
+  } style;
 
   virtual f32 align_item(u32 i)
   {
     (void) i;
-    return cross_align;
+    return style.cross_align;
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override final
   {
-    Vec2 const frame = this->frame(allocated);
+    Vec2 const frame = style.frame(allocated);
     fill(sizes, frame);
   }
 
@@ -47,11 +39,11 @@ struct FlexView : public View
                    Span<Vec2> offsets) override final
   {
     u32 const  num_children = sizes.size32();
-    Vec2 const frame        = this->frame(allocated);
+    Vec2 const frame        = style.frame(allocated);
     Vec2       span;
     f32        cross_cursor = 0;
-    u8 const   main_axis    = (axis == Axis::X) ? 0 : 1;
-    u8 const   cross_axis   = (axis == Axis::X) ? 1 : 0;
+    u8 const   main_axis    = (style.axis == Axis::X) ? 0 : 1;
+    u8 const   cross_axis   = (style.axis == Axis::X) ? 1 : 0;
 
     for (u32 i = 0; i < num_children;)
     {
@@ -61,7 +53,8 @@ struct FlexView : public View
       f32 main_spacing = 0;
 
       while (i < num_children &&
-             !(wrap && (main_extent + sizes[i][main_axis]) > frame[main_axis]))
+             !(style.wrap &&
+               (main_extent + sizes[i][main_axis]) > frame[main_axis]))
       {
         main_extent += sizes[i][main_axis];
         cross_extent = max(cross_extent, sizes[i][cross_axis]);
@@ -70,7 +63,7 @@ struct FlexView : public View
 
       u32 const count = i - first;
 
-      if (main_align != MainAlign::Start)
+      if (style.main_align != MainAlign::Start)
       {
         main_spacing = max(frame[main_axis] - main_extent, 0.0f);
       }
@@ -82,7 +75,7 @@ struct FlexView : public View
             space_align(frame[cross_axis], sizes[b][cross_axis], align_item(b));
       }
 
-      switch (main_align)
+      switch (style.main_align)
       {
         case MainAlign::Start:
         {
@@ -147,7 +140,7 @@ struct FlexView : public View
           break;
       }
 
-      if (reverse)
+      if (style.reverse)
       {
         for (u32 b0 = first, b1 = first + count - 1; b0 < b1; b0++, b1--)
         {

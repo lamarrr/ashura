@@ -133,29 +133,38 @@ struct ScalarDragBox : View, Pin<>
   typedef Fn<void(fmt::Context const &, ScalarInput)> Fmt;
   typedef Fn<void(Span<u32 const>, ScalarState &)>    Parse;
 
-  bool                  disabled : 1   = false;
-  bool                  input_mode : 1 = false;
-  bool                  dragging : 1   = false;
-  Fn<void(ScalarInput)> on_update      = fn([](ScalarInput) {});
-  ScalarState           value          = {};
-  Fmt                   fmt            = fn(scalar_fmt);
-  Parse                 parse          = fn(scalar_parse);
-  Frame                 frame          = {.width = {.min = 100},
-                                          .height = {.min = DEFAULT_THEME.body_font_height + 10}};
-  Frame                 padding        = {.width = {5}, .height = {5}};
-  SizeConstraint        thumb_width    = {2.75F};
-  Vec4                  corner_radii   = Vec4::splat(0.125F);
-  Vec4                  color          = DEFAULT_THEME.inactive;
-  Vec4                  thumb_color    = DEFAULT_THEME.inactive;
-  f32                   stroke         = 1.0F;
-  f32                   thickness      = 1.0F;
-  TextInput             input          = {};
+  struct State
+  {
+    bool        disabled : 1   = false;
+    bool        input_mode : 1 = false;
+    bool        dragging : 1   = false;
+    ScalarState value          = {};
+  } state;
+
+  struct Style
+  {
+    Frame         frame        = {.width = {.min = 100},
+                                  .height = {.min = DEFAULT_THEME.body_font_height + 10}};
+    Frame         padding      = {.width = {5}, .height = {5}};
+    Size          thumb_width  = {2.75F};
+    CornerRadii   corner_radii = CornerRadii({.scale = 0.125F});
+    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.inactive);
+    ColorGradient thumb_color  = ColorGradient::all(DEFAULT_THEME.inactive);
+    f32           stroke       = 1.0F;
+    f32           thickness    = 1.0F;
+  } style;
+
+  TextInput input = {};
+  Fmt       fmt   = fn(scalar_fmt);
+  Parse     parse = fn(scalar_parse);
+
+  Fn<void(ScalarInput)> on_update = fn([](ScalarInput) {});
 
   ScalarDragBox()
   {
-    input.is_multiline  = false;
-    input.tab_input     = false;
-    input.enter_submits = false;
+    input.state.is_multiline  = false;
+    input.state.tab_input     = false;
+    input.state.enter_submits = false;
   }
 
   virtual ~ScalarDragBox() override
@@ -211,27 +220,27 @@ struct ScalarDragBox : View, Pin<>
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events) override
+                         ViewEvents events, Fn<void(View *)>) override
   {
-    dragging = events.dragging;
+    state.dragging = events.dragging;
 
     if (events.drag_start &&
         (ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)))
     {
-      input_mode = !input_mode;
+      state.input_mode = !state.input_mode;
     }
 
-    if (dragging && !input_mode)
+    if (state.dragging && !state.input_mode)
     {
       f32 const t =
           clamp(unlerp(region.begin().x, region.end().x, ctx.mouse_position.x),
                 0.0F, 1.0F);
-      value.interp(t);
+      state.value.interp(t);
     }
 
-    if (input.editing)
+    if (input.state.editing)
     {
-      parse(input.content.get_text(), value);
+      parse(input.content.get_text(), state.value);
     }
     else
     {
@@ -239,23 +248,24 @@ struct ScalarDragBox : View, Pin<>
       char         text[128];
       fmt::Buffer  buffer{.buffer = span(text), .pos = 0};
       fmt::Context ctx = fmt::buffer(&buffer, span(scratch));
-      fmt(ctx, value.current);
+      fmt(ctx, state.value.current);
       input.content.set_text(span(text).slice(0, buffer.pos).as_u8());
     }
 
-    input.disabled = !input_mode;
+    input.state.disabled = !state.input_mode;
 
-    if (input.editing || dragging)
+    if (input.state.editing || state.dragging)
     {
-      on_update(value.current);
+      on_update(state.value.current);
     }
 
-    return ViewState{.pointable = !disabled, .draggable = !disabled};
+    return ViewState{.pointable = !state.disabled,
+                     .draggable = !state.disabled};
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
-    Vec2 child = frame(allocated) - 2 * padding(allocated);
+    Vec2 child = style.frame(allocated) - 2 * style.padding(allocated);
     child.x    = max(child.x, 0.0F);
     child.y    = max(child.y, 0.0F);
     fill(sizes, child);
@@ -265,7 +275,7 @@ struct ScalarDragBox : View, Pin<>
                    Span<Vec2> offsets) override
   {
     fill(offsets, Vec2{0, 0});
-    return sizes[0] + 2 * padding(allocated);
+    return sizes[0] + 2 * style.padding(allocated);
   }
 
   virtual void render(CRect const &region, CRect const &,
@@ -273,15 +283,16 @@ struct ScalarDragBox : View, Pin<>
   {
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
-                           .corner_radii = region.extent.y * corner_radii,
-                           .stroke       = stroke,
-                           .thickness    = thickness,
-                           .tint         = ColorGradient::all(color)});
+                           .corner_radii = style.corner_radii(region.extent.y),
+                           .stroke       = style.stroke,
+                           .thickness    = style.thickness,
+                           .tint         = style.color});
 
-    if (!input_mode)
+    if (!state.input_mode)
     {
-      f32 const  t = value.uninterp();
-      Vec2 const thumb_extent{thumb_width(region.extent.x), region.extent.y};
+      f32 const  t = state.value.uninterp();
+      Vec2 const thumb_extent{style.thumb_width(region.extent.x),
+                              region.extent.y};
       Vec2       thumb_center{0, region.center.y};
 
       thumb_center.x =
@@ -291,7 +302,7 @@ struct ScalarDragBox : View, Pin<>
           ShapeDesc{.center       = thumb_center,
                     .extent       = thumb_extent,
                     .corner_radii = Vec4::splat(region.extent.y * 0.125F),
-                    .tint         = ColorGradient::all(thumb_color)});
+                    .tint         = style.thumb_color});
     }
   }
 
@@ -299,28 +310,34 @@ struct ScalarDragBox : View, Pin<>
   {
     (void) region;
     (void) offset;
-    return disabled ? Cursor::Default : Cursor::EWResize;
+    return state.disabled ? Cursor::Default : Cursor::EWResize;
   }
 };
 
 struct ScalarBox : FlexView, Pin<>
 {
-  bool                  disabled : 1  = false;
-  bool                  steppable : 1 = true;
-  bool                  draggable : 1 = true;
-  Fn<void(ScalarInput)> on_update     = fn([](ScalarInput) {});
-  TextButton            dec           = {};
-  TextButton            inc           = {};
-  ScalarDragBox         drag          = {};
+  struct State
+  {
+    bool disabled : 1  = false;
+    bool steppable : 1 = true;
+    bool draggable : 1 = true;
+  } state;
+
+  Fn<void(ScalarInput)> on_update = fn([](ScalarInput) {});
+
+  TextButton    dec  = {};
+  TextButton    inc  = {};
+  ScalarDragBox drag = {};
 
   ScalarBox()
   {
-    FlexView::axis        = Axis::X;
-    FlexView::wrap        = false;
-    FlexView::reverse     = false;
-    FlexView::main_align  = MainAlign::Start;
-    FlexView::cross_align = 0;
-    FlexView::frame = Frame{.width = {.scale = 1}, .height = {.scale = 1}};
+    FlexView::style.axis        = Axis::X;
+    FlexView::style.wrap        = false;
+    FlexView::style.reverse     = false;
+    FlexView::style.main_align  = MainAlign::Start;
+    FlexView::style.cross_align = 0;
+    FlexView::style.frame =
+        Frame{.width = {.scale = 1}, .height = {.scale = 1}};
 
     dec.text.text.set_text(
         U"-"_utf,
@@ -335,45 +352,36 @@ struct ScalarBox : FlexView, Pin<>
                   .font_height = DEFAULT_THEME.body_font_height,
                   .line_height = DEFAULT_THEME.line_height});
 
-    dec.stroke       = drag.stroke;
-    dec.thickness    = drag.thickness;
-    dec.padding      = drag.padding;
-    dec.frame.width  = drag.frame.height;
-    dec.frame.height = drag.frame.height;
-    dec.corner_radii = drag.corner_radii;
-
-    inc.stroke       = drag.stroke;
-    inc.thickness    = drag.thickness;
-    inc.padding      = drag.padding;
-    inc.frame.width  = drag.frame.height;
-    inc.frame.height = drag.frame.height;
-    inc.corner_radii = drag.corner_radii;
+    inc.style.stroke = dec.style.stroke = drag.style.stroke;
+    inc.style.thickness = dec.style.thickness = drag.style.thickness;
+    inc.style.padding = dec.style.padding = drag.style.padding;
+    inc.style.frame.width = dec.style.frame.width = drag.style.frame.height;
+    inc.style.frame.height = dec.style.frame.height = drag.style.frame.height;
+    inc.style.corner_radii = dec.style.corner_radii = drag.style.corner_radii;
 
     dec.on_pressed = fn(this, [](ScalarBox *b) {
-      b->drag.value.step_value(-1);
-      b->on_update(b->drag.value.current);
+      b->drag.state.value.step_value(-1);
+      b->on_update(b->drag.state.value.current);
     });
 
     inc.on_pressed = fn(this, [](ScalarBox *b) {
-      b->drag.value.step_value(1);
-      b->on_update(b->drag.value.current);
+      b->drag.state.value.step_value(1);
+      b->on_update(b->drag.state.value.current);
     });
 
     drag.on_update =
         fn(this, [](ScalarBox *b, ScalarInput in) { b->on_update(in); });
   }
 
-  virtual View *item(u32 i) override
+  virtual ViewState tick(ViewContext const &, CRect const &, ViewEvents,
+                         Fn<void(View *)> build) override
   {
-    return subview({&dec, &drag, &inc}, i);
-  }
-
-  virtual ViewState tick(ViewContext const &, CRect const &,
-                         ViewEvents) override
-  {
-    dec.disabled  = disabled || !steppable;
-    inc.disabled  = disabled || !steppable;
-    drag.disabled = disabled || !draggable;
+    dec.state.disabled  = state.disabled || !state.steppable;
+    inc.state.disabled  = state.disabled || !state.steppable;
+    drag.state.disabled = state.disabled || !state.draggable;
+    build(&dec);
+    build(&drag);
+    build(&inc);
     return ViewState{};
   }
 };

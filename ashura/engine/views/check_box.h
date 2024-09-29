@@ -9,77 +9,87 @@ namespace ash
 
 struct CheckBox : public View
 {
-  bool           disabled : 1      = false;
-  bool           hovered : 1       = false;
-  bool           pressed : 1       = false;
-  bool           value : 1         = false;
-  Fn<void(bool)> on_changed        = fn([](bool) {});
-  Vec4           box_color         = DEFAULT_THEME.inactive;
-  Vec4           box_hovered_color = DEFAULT_THEME.active;
-  Vec4           tick_color        = DEFAULT_THEME.primary;
-  Frame          frame             = {.width = {20}, .height = {20}};
-  f32            stroke            = 1;
-  f32            thickness         = 1;
-  f32            tick_thickness    = 1.5F;
-  Vec4           corner_radii      = Vec4::splat(0.125F);
+  struct State
+  {
+    bool disabled : 1 = false;
+    bool hovered : 1  = false;
+    bool pressed : 1  = false;
+    bool value : 1    = false;
+  } state;
+
+  struct Style
+  {
+    ColorGradient box_color = ColorGradient::all(DEFAULT_THEME.inactive);
+    ColorGradient box_hovered_color = ColorGradient::all(DEFAULT_THEME.active);
+    ColorGradient tick_color        = ColorGradient::all(DEFAULT_THEME.primary);
+    f32           stroke            = 1;
+    f32           thickness         = 1;
+    f32           tick_thickness    = 1.5F;
+    CornerRadii   corner_radii      = CornerRadii::all({.scale = 0.125F});
+    Frame         frame             = Frame{.width = {20}, .height = {20}};
+  } style;
+
+  Fn<void(bool)> on_changed = fn([](bool) {});
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
-                         ViewEvents         events) override
+                         ViewEvents         events, Fn<void(View *)>) override
   {
     if (events.mouse_enter)
     {
-      hovered = true;
+      state.hovered = true;
     }
 
     if (events.mouse_leave)
     {
-      hovered = false;
+      state.hovered = false;
     }
 
     if ((events.mouse_down && ctx.mouse_down(MouseButtons::Primary)) ||
         (events.key_down && ctx.key_down(KeyCode::Return)))
     {
-      pressed = true;
-      value   = !value;
-      on_changed(value);
+      state.pressed = true;
+      state.value   = !state.value;
+      on_changed(state.value);
     }
 
     if ((events.mouse_up && ctx.mouse_up(MouseButtons::Primary)) ||
         (events.key_up && ctx.key_up(KeyCode::Return)))
     {
-      pressed = false;
+      state.pressed = false;
     }
 
-    return ViewState{
-        .pointable = !disabled, .clickable = !disabled, .focusable = !disabled};
+    return ViewState{.pointable = !state.disabled,
+                     .clickable = !state.disabled,
+                     .focusable = !state.disabled};
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    Vec2 extent = frame(allocated);
+    Vec2 extent = style.frame(allocated);
     return Vec2::splat(min(extent.x, extent.y));
   }
 
   virtual void render(CRect const &region, CRect const &,
                       Canvas      &canvas) override
   {
-    Vec4 tint =
-        (hovered && !pressed && !disabled) ? box_hovered_color : box_color;
+    ColorGradient tint = (state.hovered && !state.pressed && !state.disabled) ?
+                             style.box_hovered_color :
+                             style.box_color;
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
-                           .corner_radii = corner_radii * region.extent.y,
+                           .corner_radii = style.corner_radii(region.extent.y),
                            .stroke       = 1,
                            .thickness    = 2,
-                           .tint         = ColorGradient::all(tint)});
+                           .tint         = tint});
 
-    if (value)
+    if (state.value)
     {
       canvas.line(
           ShapeDesc{.center    = region.center,
                     .extent    = region.extent,
                     .stroke    = 0,
-                    .thickness = tick_thickness,
-                    .tint      = ColorGradient::all(tick_color)},
+                    .thickness = style.tick_thickness,
+                    .tint      = style.tick_color},
           span<Vec2>({{0.125f, 0.5f}, {0.374f, 0.75f}, {0.775f, 0.25f}}));
     }
   }

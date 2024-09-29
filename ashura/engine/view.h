@@ -24,7 +24,7 @@ namespace ash
 /// most 0.5 of source size
 /// @param min clamps the source size, i.e. value should be at least 20px
 /// @param max clamps the source size, i.e. value should be at most 100px
-struct SizeConstraint
+struct Size
 {
   f32 offset = 0;
   f32 scale  = 0;
@@ -42,12 +42,31 @@ struct SizeConstraint
 
 struct Frame
 {
-  SizeConstraint width  = {};
-  SizeConstraint height = {};
+  Size width  = {};
+  Size height = {};
 
   constexpr Vec2 operator()(Vec2 extent) const
   {
     return Vec2{width(extent.x), height(extent.y)};
+  }
+};
+
+struct CornerRadii
+{
+  Size top_left     = Size{};
+  Size top_right    = Size{};
+  Size bottom_left  = Size{};
+  Size bottom_right = Size{};
+
+  static constexpr CornerRadii all(Size s)
+  {
+    return CornerRadii{s, s, s, s};
+  }
+
+  constexpr Vec4 operator()(f32 height) const
+  {
+    return Vec4{top_left(height), top_right(height), bottom_left(height),
+                bottom_right(height)};
   }
 };
 
@@ -292,7 +311,9 @@ struct View
 {
   struct
   {
-    u64 id = U64_MAX;
+    u64       id     = 0;
+    CRect     region = {};
+    ViewState state  = {};
   } inner = {};
 
   constexpr View()                        = default;
@@ -307,28 +328,19 @@ struct View
     return inner.id;
   }
 
-  /// @brief get child views, this is a virtual iterator, return null once
-  /// there's no other children, if returning from an array of sub-views
-  /// consider using the `subview` method.
-  /// @param i child index
-  /// @return child view pointer or nullptr meaning no more child left.
-  constexpr virtual View *iter(u32 i)
-  {
-    (void) i;
-    return nullptr;
-  }
-
   /// @brief called on every frame. used for state changes, animations, task
   /// dispatch and lightweight processing related to the GUI. heavy-weight and
   /// non-sub-millisecond tasks should be dispatched to a Subsystem that would
   /// handle that. i.e. using the multi-tasking system.
+  /// @param build callback to be called to insert subviews.
   //
   constexpr virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                                   ViewEvents events)
+                                   ViewEvents events, Fn<void(View *)> build)
   {
     (void) ctx;
     (void) region;
     (void) events;
+    (void) build;
     return ViewState{};
   }
 
@@ -369,7 +381,7 @@ struct View
   /// by parent. This functions similar to the CSS stacking context. The layer
   /// index has a higher priority over the z-index.
   /// @return
-  constexpr virtual i32 layer(i32 allocated)
+  constexpr virtual i32 stack(i32 allocated)
   {
     return allocated;
   }
@@ -378,7 +390,7 @@ struct View
   /// @param allocated z-index allocated to this view by parent
   /// @param[out] indices z-index assigned to children
   /// @return
-  constexpr virtual i32 stack(i32 allocated, Span<i32> indices)
+  constexpr virtual i32 z_index(i32 allocated, Span<i32> indices)
   {
     fill(indices, allocated + 1);
     return allocated;
@@ -424,16 +436,5 @@ struct View
     return Cursor::Default;
   }
 };
-
-template <u32 N>
-constexpr View *subview(View *const (&subviews)[N], u32 i)
-{
-  return (i < N) ? subviews[i] : nullptr;
-}
-
-constexpr View *subview(Span<View *const> subviews, u32 i)
-{
-  return (i < subviews.size()) ? subviews[i] : nullptr;
-}
 
 }        // namespace ash

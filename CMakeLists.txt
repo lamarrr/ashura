@@ -197,7 +197,6 @@ add_library(
   ashura/engine/views/collapsable.cc
   ashura/engine/views/color_picker.cc
   ashura/engine/views/combo_box.cc
-  ashura/engine/views/demo.cc
   ashura/engine/views/flex_view.cc
   ashura/engine/views/plot.cc
   ashura/engine/views/progress_bar.cc
@@ -232,7 +231,7 @@ target_link_libraries(
   simdjson::simdjson
   webp
   webpdecoder
-  $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
+  libjpeg-turbo::turbojpeg
   PNG::PNG
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)

@@ -9,31 +9,23 @@ namespace ash
 
 struct StackView : public View
 {
-  bool  reverse : 1 = false;
-  Vec2  alignment   = {0, 0};
-  Frame frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
-
-  virtual View *iter(u32 i) override final
+  struct Style
   {
-    return item(i);
-  }
-
-  virtual View *item(u32 i)
-  {
-    (void) i;
-    return nullptr;
-  }
+    bool  reverse : 1 = false;
+    Vec2  alignment   = {0, 0};
+    Frame frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
+  } style;
 
   virtual Vec2 align_item(u32 i)
   {
     (void) i;
-    return alignment;
+    return style.alignment;
   }
 
   virtual i32 stack_item(i32 base, u32 i, u32 num)
   {
     i64 z = base + 1;
-    if (!reverse)
+    if (!style.reverse)
     {
       z += (i32) i;
     }
@@ -46,7 +38,7 @@ struct StackView : public View
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override final
   {
-    fill(sizes, frame(allocated));
+    fill(sizes, style.frame(allocated));
   }
 
   virtual Vec2 fit(Vec2, Span<Vec2 const> sizes,
@@ -69,7 +61,7 @@ struct StackView : public View
     return span;
   }
 
-  virtual i32 stack(i32 allocated, Span<i32> indices) override
+  virtual i32 z_index(i32 allocated, Span<i32> indices) override
   {
     for (u32 i = 0; i < indices.size32(); i++)
     {

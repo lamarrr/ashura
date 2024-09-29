@@ -9,67 +9,77 @@ namespace ash
 
 struct RadioBox : public View
 {
-  bool           disabled : 1        = false;
-  bool           pointer_enter : 1   = false;
-  bool           pointer_leave : 1   = false;
-  bool           pointer_down : 1    = false;
-  bool           pointer_up : 1      = false;
-  bool           hovered : 1         = false;
-  bool           focused : 1         = false;
-  bool           pressed : 1         = false;
-  bool           value : 1           = false;
-  Fn<void(bool)> on_changed          = fn([](bool) {});
-  Frame          frame               = {.width = {50}, .height = {50}};
-  Vec4           corner_radii        = Vec4::splat(0.125F);
-  f32            thickness           = 1.0F;
-  Vec4           color               = DEFAULT_THEME.inactive;
-  Vec4           inner_color         = DEFAULT_THEME.primary;
-  Vec4           inner_hovered_color = DEFAULT_THEME.primary_variant;
+  struct State
+  {
+    bool disabled : 1      = false;
+    bool pointer_enter : 1 = false;
+    bool pointer_leave : 1 = false;
+    bool pointer_down : 1  = false;
+    bool pointer_up : 1    = false;
+    bool hovered : 1       = false;
+    bool focused : 1       = false;
+    bool pressed : 1       = false;
+    bool value : 1         = false;
+  } state;
+
+  struct Style
+  {
+    Frame         frame        = {.width = {50}, .height = {50}};
+    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
+    f32           thickness    = 1.0F;
+    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.inactive);
+    ColorGradient inner_color  = ColorGradient::all(DEFAULT_THEME.primary);
+    ColorGradient inner_hovered_color =
+        ColorGradient::all(DEFAULT_THEME.primary_variant);
+  } style;
+
+  Fn<void(bool)> on_changed = fn([](bool) {});
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
-                         ViewEvents         events) override
+                         ViewEvents         events, Fn<void(View *)>) override
   {
     if (events.mouse_enter)
     {
-      hovered = true;
+      state.hovered = true;
     }
 
     if (events.mouse_leave)
     {
-      hovered = false;
+      state.hovered = false;
     }
 
     if (events.focus_in)
     {
-      focused = true;
+      state.focused = true;
     }
 
     if (events.focus_out)
     {
-      focused = false;
+      state.focused = false;
     }
 
     if ((events.mouse_down && ctx.mouse_down(MouseButtons::Primary)) ||
         (events.key_down && ctx.key_down(KeyCode::Return)))
     {
-      pressed = true;
-      value   = !value;
-      on_changed(value);
+      state.pressed = true;
+      state.value   = !state.value;
+      on_changed(state.value);
     }
 
     if ((events.mouse_up && ctx.mouse_down(MouseButtons::Primary)) ||
         (events.key_up && ctx.key_up(KeyCode::Return)))
     {
-      pressed = false;
+      state.pressed = false;
     }
 
-    return ViewState{
-        .pointable = !disabled, .clickable = !disabled, .focusable = !disabled};
+    return ViewState{.pointable = !state.disabled,
+                     .clickable = !state.disabled,
+                     .focusable = !state.disabled};
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return frame(allocated);
+    return style.frame(allocated);
   }
 
   virtual void render(CRect const &region, CRect const &,
@@ -77,20 +87,20 @@ struct RadioBox : public View
   {
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
-                           .corner_radii = corner_radii * region.extent.y,
+                           .corner_radii = style.corner_radii(region.extent.y),
                            .stroke       = 1,
-                           .thickness    = thickness,
-                           .tint         = ColorGradient::all(color)});
+                           .thickness    = style.thickness,
+                           .tint         = style.color});
 
-    if (value)
+    if (state.value)
     {
-      Vec2 inner_extent = region.extent * (hovered ? 0.75F : 0.5F);
-      Vec4 inner_color =
-          hovered ? this->inner_hovered_color : this->inner_color;
+      Vec2 inner_extent = region.extent * (state.hovered ? 0.75F : 0.5F);
+      ColorGradient inner_color =
+          state.hovered ? style.inner_hovered_color : style.inner_color;
 
       canvas.circle(ShapeDesc{.center = region.center,
                               .extent = inner_extent,
-                              .tint   = ColorGradient::all(inner_color)});
+                              .tint   = inner_color});
     }
   }
 };

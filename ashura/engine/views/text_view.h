@@ -35,7 +35,7 @@ struct TextView : View, Pin<>
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events) override
+                         ViewEvents events, Fn<void(View *)>) override
   {
     TextCommand cmd = TextCommand::None;
     if (events.drag_start)
@@ -79,25 +79,34 @@ struct TextView : View, Pin<>
 
 struct TextInput : View, Pin<>
 {
-  bool           disabled : 1           = false;
-  bool           editing : 1            = false;
-  bool           submit : 1             = false;
-  bool           focus_in : 1           = false;
-  bool           focus_out : 1          = false;
-  bool           focused : 1            = false;
-  bool           is_multiline : 1       = false;
-  bool           enter_submits : 1      = false;
-  bool           tab_input : 1          = false;
-  Vec4           highlight_color        = {};
-  Vec4           highlight_corner_radii = {0, 0, 0, 0};
-  u32            lines_per_page         = 1;
-  RenderText     content                = {};
-  RenderText     placeholder            = {};
-  TextCompositor compositor             = {};
-  Fn<void()>     on_edit                = fn([] {});
-  Fn<void()>     on_submit              = fn([] {});
-  Fn<void()>     on_focus_in            = fn([] {});
-  Fn<void()>     on_focus_out           = fn([] {});
+  struct State
+  {
+    bool disabled : 1      = false;
+    bool editing : 1       = false;
+    bool submit : 1        = false;
+    bool focus_in : 1      = false;
+    bool focus_out : 1     = false;
+    bool focused : 1       = false;
+    bool is_multiline : 1  = false;
+    bool enter_submits : 1 = false;
+    bool tab_input : 1     = false;
+  } state;
+
+  struct Style
+  {
+    ColorGradient highlight_color        = {};
+    CornerRadii   highlight_corner_radii = {};
+    u32           lines_per_page         = 1;
+  } style;
+
+  RenderText     content     = {};
+  RenderText     placeholder = {};
+  TextCompositor compositor  = {};
+
+  Fn<void()> on_edit      = fn([] {});
+  Fn<void()> on_submit    = fn([] {});
+  Fn<void()> on_focus_in  = fn([] {});
+  Fn<void()> on_focus_out = fn([] {});
 
   TextInput()
   {
@@ -232,11 +241,12 @@ struct TextInput : View, Pin<>
     {
       return TextCommand::HitSelect;
     }
-    if (is_multiline && !enter_submits && ctx.key_state(KeyCode::Return))
+    if (state.is_multiline && !state.enter_submits &&
+        ctx.key_state(KeyCode::Return))
     {
       return TextCommand::NewLine;
     }
-    if (tab_input && ctx.key_state(KeyCode::Tab))
+    if (state.tab_input && ctx.key_state(KeyCode::Tab))
     {
       return TextCommand::Tab;
     }
@@ -244,7 +254,7 @@ struct TextInput : View, Pin<>
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events) override
+                         ViewEvents events, Fn<void(View *)>) override
   {
     bool edited = false;
     auto erase  = [this, &edited](Slice32 s) {
@@ -259,19 +269,19 @@ struct TextInput : View, Pin<>
       this->content.flush_text();
     };
 
-    editing   = false;
-    submit    = false;
-    focus_in  = events.focus_in;
-    focus_out = events.focus_out;
+    state.editing   = false;
+    state.submit    = false;
+    state.focus_in  = events.focus_in;
+    state.focus_out = events.focus_out;
 
     if (events.focus_in)
     {
-      focused = true;
+      state.focused = true;
     }
 
     if (events.focus_out)
     {
-      focused = false;
+      state.focused = false;
     }
 
     TextCommand cmd = TextCommand::None;
@@ -287,7 +297,7 @@ struct TextInput : View, Pin<>
     {
       cmd = TextCommand::HitSelect;
     }
-    else if (focused)
+    else if (state.focused)
     {
       cmd = command(ctx);
     }
@@ -295,16 +305,17 @@ struct TextInput : View, Pin<>
     compositor.command(span(content.inner.text), content.inner.layout,
                        region.extent.x, content.inner.alignment, cmd,
                        fn(&insert), fn(&erase), ctx.text_utf32, *ctx.clipboard,
-                       lines_per_page, ctx.mouse_position - region.begin());
+                       style.lines_per_page,
+                       ctx.mouse_position - region.begin());
 
     content.set_highlight(
         compositor.get_cursor().as_slice(content.inner.text.size32()));
-    content.set_highlight_style(ColorGradient::all(highlight_color),
-                                highlight_corner_radii);
+    content.set_highlight_style(style.highlight_color,
+                                style.highlight_corner_radii(region.extent.y));
 
     if (edited)
     {
-      editing = true;
+      state.editing = true;
     }
 
     if (events.focus_out)
@@ -312,22 +323,23 @@ struct TextInput : View, Pin<>
       compositor.unselect();
     }
 
-    if (events.key_down && ctx.key_state(KeyCode::Return) && enter_submits)
+    if (events.key_down && ctx.key_state(KeyCode::Return) &&
+        state.enter_submits)
     {
-      submit = true;
+      state.submit = true;
     }
 
-    if (focus_in)
+    if (state.focus_in)
     {
       on_focus_in();
     }
 
-    if (focus_out)
+    if (state.focus_out)
     {
       on_focus_out();
     }
 
-    if (submit)
+    if (state.submit)
     {
       on_submit();
     }
@@ -337,10 +349,10 @@ struct TextInput : View, Pin<>
       on_edit();
     }
 
-    return ViewState{.draggable  = !disabled,
-                     .focusable  = !disabled,
-                     .text_input = !disabled,
-                     .tab_input  = tab_input,
+    return ViewState{.draggable  = !state.disabled,
+                     .focusable  = !state.disabled,
+                     .text_input = !state.disabled,
+                     .tab_input  = state.tab_input,
                      .lose_focus = ctx.key_state(KeyCode::Escape)};
   }
 

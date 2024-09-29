@@ -531,6 +531,11 @@ struct Rect
   }
 
   constexpr CRect centered() const;
+
+  constexpr bool is_visible() const
+  {
+    return extent.x != 0 && extent.y != 0;
+  }
 };
 
 constexpr bool operator==(Rect const &a, Rect const &b)
@@ -569,6 +574,11 @@ struct CRect
   }
 
   constexpr Rect offseted() const;
+
+  constexpr bool is_visible() const
+  {
+    return extent.x != 0 && extent.y != 0;
+  }
 };
 
 constexpr CRect Rect::centered() const
@@ -638,6 +648,11 @@ struct Box
   }
 
   constexpr CBox centered() const;
+
+  constexpr bool is_visible() const
+  {
+    return extent.x != 0 && extent.y != 0 && extent.z != 0;
+  }
 };
 
 constexpr bool operator==(Box const &a, Box const &b)
@@ -676,6 +691,11 @@ struct CBox
   }
 
   constexpr Box offseted() const;
+
+  constexpr bool is_visible() const
+  {
+    return extent.x != 0 && extent.y != 0 && extent.z != 0;
+  }
 };
 
 constexpr CBox Box::centered() const
@@ -729,6 +749,11 @@ constexpr bool contains(Rect const &rect, Vec2 point)
 }
 
 constexpr bool overlaps(Rect const &a, Rect const &b)
+{
+  return ash::overlaps(a.begin(), a.end(), b.begin(), b.end());
+}
+
+constexpr bool overlaps(CRect const &a, CRect const &b)
 {
   return ash::overlaps(a.begin(), a.end(), b.begin(), b.end());
 }

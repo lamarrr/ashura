@@ -11,85 +11,86 @@ namespace ash
 
 struct Button : public View
 {
-  bool          disabled : 1      = false;
-  bool          pointer_down : 1  = false;
-  bool          pointer_up : 1    = false;
-  bool          pointer_enter : 1 = false;
-  bool          pointer_leave : 1 = false;
-  bool          focus_in : 1      = false;
-  bool          focus_out : 1     = false;
-  bool          focused : 1       = false;
-  bool          hovered : 1       = false;
-  bool          pressed : 1       = false;
-  Fn<void()>    on_pressed        = fn([] {});
-  Frame         frame             = {};
-  Frame         padding           = {};
-  ColorGradient color             = ColorGradient::all(DEFAULT_THEME.primary);
-  ColorGradient hovered_color =
-      ColorGradient::all(DEFAULT_THEME.primary_variant);
-  ColorGradient disabled_color = ColorGradient::all(DEFAULT_THEME.inactive);
-  Vec4          corner_radii   = Vec4::splat(0.125F);
-  f32           stroke         = 0.0F;
-  f32           thickness      = 1.0F;
-
-  virtual View *iter(u32 i) override final
+  struct State
   {
-    return subview({item()}, i);
-  }
+    bool disabled : 1      = false;
+    bool pointer_down : 1  = false;
+    bool pointer_up : 1    = false;
+    bool pointer_enter : 1 = false;
+    bool pointer_leave : 1 = false;
+    bool focus_in : 1      = false;
+    bool focus_out : 1     = false;
+    bool focused : 1       = false;
+    bool hovered : 1       = false;
+    bool pressed : 1       = false;
+  } state;
 
-  virtual View *item()
+  struct Style
   {
-    return nullptr;
-  }
+    ColorGradient color = ColorGradient::all(DEFAULT_THEME.primary);
+    ColorGradient hovered_color =
+        ColorGradient::all(DEFAULT_THEME.primary_variant);
+    ColorGradient disabled_color = ColorGradient::all(DEFAULT_THEME.inactive);
+    CornerRadii   corner_radii   = CornerRadii::all({.scale = 0.125F});
+    f32           stroke         = 0.0F;
+    f32           thickness      = 1.0F;
+    Frame         frame          = {};
+    Frame         padding        = {};
+  } style;
+
+  Fn<void()> on_pressed = fn([] {});
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
-                         ViewEvents         events) override
+                         ViewEvents         events, Fn<void(View *)>) override
   {
-    pointer_down  = events.mouse_down && ctx.mouse_down(MouseButtons::Primary);
-    pointer_up    = events.mouse_up && ctx.mouse_up(MouseButtons::Primary);
-    pointer_enter = events.mouse_enter;
-    pointer_leave = events.mouse_leave;
-    focus_in      = events.focus_in;
-    focus_out     = events.focus_out;
+    state.pointer_down =
+        events.mouse_down && ctx.mouse_down(MouseButtons::Primary);
+    state.pointer_up = events.mouse_up && ctx.mouse_up(MouseButtons::Primary);
+    state.pointer_enter = events.mouse_enter;
+    state.pointer_leave = events.mouse_leave;
+    state.focus_in      = events.focus_in;
+    state.focus_out     = events.focus_out;
 
     if (events.focus_in)
     {
-      focused = true;
+      state.focused = true;
     }
 
     if (events.focus_out)
     {
-      focused = false;
+      state.focused = false;
     }
 
-    if (pointer_enter)
+    if (state.pointer_enter)
     {
-      hovered = true;
+      state.hovered = true;
     }
 
-    if (pointer_leave)
+    if (state.pointer_leave)
     {
-      hovered = false;
+      state.hovered = false;
     }
 
-    if (pointer_down || (events.key_down && ctx.key_down(KeyCode::Return)))
+    if (state.pointer_down ||
+        (events.key_down && ctx.key_down(KeyCode::Return)))
     {
       on_pressed();
-      pressed = true;
+      state.pressed = true;
     }
 
-    if (pointer_up || (events.key_up && ctx.key_up(KeyCode::Return)))
+    if (state.pointer_up || (events.key_up && ctx.key_up(KeyCode::Return)))
     {
-      pressed = false;
+      state.pressed = false;
     }
 
-    return ViewState{
-        .pointable = !disabled, .clickable = !disabled, .focusable = !disabled};
+    return ViewState{.pointable = !state.disabled,
+                     .clickable = !state.disabled,
+                     .focusable = !state.disabled};
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
-    Vec2 size = allocated - 2 * padding(allocated);
+    Vec2 size = allocated - 2 * style.padding(allocated);
     size.x    = max(size.x, 0.0F);
     size.y    = max(size.y, 0.0F);
     fill(sizes, size);
@@ -99,21 +100,23 @@ struct Button : public View
                    Span<Vec2> offsets) override
   {
     fill(offsets, Vec2{0, 0});
-    return (sizes.is_empty() ? Vec2{0, 0} : sizes[0]) + 2 * padding(allocated);
+    return (sizes.is_empty() ? Vec2{0, 0} : sizes[0]) +
+           2 * style.padding(allocated);
   }
 
   virtual void render(CRect const &region, CRect const &,
                       Canvas      &canvas) override
   {
-    ColorGradient tint = (hovered && !pressed) ? hovered_color : color;
-    tint               = disabled ? disabled_color : tint;
+    ColorGradient tint =
+        (state.hovered && !state.pressed) ? style.hovered_color : style.color;
+    tint = state.disabled ? style.disabled_color : tint;
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
-                           .corner_radii = corner_radii * region.extent.y,
-                           .stroke       = stroke,
-                           .thickness    = thickness,
+                           .corner_radii = style.corner_radii(region.extent.y),
+                           .stroke       = style.stroke,
+                           .thickness    = style.thickness,
                            .tint         = tint});
-    if (focused)
+    if (state.focused)
     {
       // [ ] draw focus interaction for all widgets
     }
@@ -130,11 +133,6 @@ struct TextButton : public Button
   }
 
   virtual ~TextButton() override = default;
-
-  virtual View *item() override
-  {
-    return &text;
-  }
 };
 
 }        // namespace ash
