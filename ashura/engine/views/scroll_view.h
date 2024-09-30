@@ -41,12 +41,12 @@ struct ScrollBar : public View
   {
     u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
 
-    if (events.mouse_enter)
+    if (events.mouse_in)
     {
       state.hovered = true;
     }
 
-    if (events.mouse_leave)
+    if (events.mouse_out)
     {
       state.hovered = false;
     }
@@ -55,7 +55,7 @@ struct ScrollBar : public View
     {
       state.dragging = true;
       state.t =
-          clamp((ctx.mouse_position[main_axis] - region.extent[main_axis] / 2) /
+          clamp((ctx.mouse.position[main_axis] - region.extent[main_axis] / 2) /
                     region.extent[main_axis],
                 0.0f, 1.0f);
       on_scrolled(state.t);

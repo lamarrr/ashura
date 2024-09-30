@@ -45,9 +45,9 @@ struct WindowSystem
   virtual void           make_windowed(Window window)                     = 0;
   virtual void           make_resizable(Window window)                    = 0;
   virtual void           make_unresizable(Window window)                  = 0;
-  virtual uid            listen(Window window, WindowEventTypes event_types,
+  virtual u64            listen(Window window, WindowEventTypes event_types,
                                 Fn<void(WindowEvent const &)> callback)   = 0;
-  virtual void           unlisten(Window window, uid listener)            = 0;
+  virtual void           unlisten(Window window, u64 listener)            = 0;
   virtual Result<Void, Void> set_hit_test(Window                  window,
                                           Fn<WindowRegion(Vec2U)> hit)    = 0;
   virtual gfx::Surface       get_surface(Window window)                   = 0;

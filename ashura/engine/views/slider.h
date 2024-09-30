@@ -49,7 +49,7 @@ struct Slider : public View
     if (events.dragging)
     {
       t = unlerp(region.begin()[main_axis], region.end()[main_axis],
-                 ctx.mouse_position[main_axis]);
+                 ctx.mouse.position[main_axis]);
       t = (style.levels == 0) ? t : grid_snap(t, 1.0F / style.levels);
       f32 const value = clamp(lerp(low, high, t), low, high);
       on_changed(value);

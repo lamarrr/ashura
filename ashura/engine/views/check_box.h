@@ -34,12 +34,12 @@ struct CheckBox : public View
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events, Fn<void(View *)>) override
   {
-    if (events.mouse_enter)
+    if (events.mouse_in)
     {
       state.hovered = true;
     }
 
-    if (events.mouse_leave)
+    if (events.mouse_out)
     {
       state.hovered = false;
     }

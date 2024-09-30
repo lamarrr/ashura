@@ -50,7 +50,7 @@ struct TextView : View, Pin<>
     compositor.command(text.get_text(), text.inner.layout, region.extent.x,
                        text.inner.alignment, cmd,
                        fn([](u32, Span<u32 const>) {}), fn([](Slice32) {}), {},
-                       *ctx.clipboard, 1, ctx.mouse_position);
+                       *ctx.clipboard, 1, ctx.mouse.position);
     text.set_highlight(
         compositor.get_cursor().as_slice(text.get_text().size32()));
     text.set_highlight_style(ColorGradient::all(highlight_color),
@@ -304,9 +304,9 @@ struct TextInput : View, Pin<>
 
     compositor.command(span(content.inner.text), content.inner.layout,
                        region.extent.x, content.inner.alignment, cmd,
-                       fn(&insert), fn(&erase), ctx.text_utf32, *ctx.clipboard,
-                       style.lines_per_page,
-                       ctx.mouse_position - region.begin());
+                       fn(&insert), fn(&erase), ctx.text_input_utf32,
+                       *ctx.clipboard, style.lines_per_page,
+                       ctx.mouse.position - region.begin());
 
     content.set_highlight(
         compositor.get_cursor().as_slice(content.inner.text.size32()));

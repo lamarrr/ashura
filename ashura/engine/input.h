@@ -545,7 +545,7 @@ enum class KeyCode : u16
 
 constexpr u16 NUM_KEYS = 512;
 
-enum class MouseButtons : u16
+enum class MouseButtons : u8
 {
   None      = 0x00,
   Primary   = 0x01,
@@ -555,7 +555,8 @@ enum class MouseButtons : u16
   A2        = 0x10,
   A3        = 0x20,
   A4        = 0x40,
-  A5        = 0x80
+  A5        = 0x80,
+  All       = 0xFF
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(MouseButtons)

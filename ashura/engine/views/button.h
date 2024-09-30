@@ -13,16 +13,16 @@ struct Button : public View
 {
   struct State
   {
-    bool disabled : 1      = false;
-    bool pointer_down : 1  = false;
-    bool pointer_up : 1    = false;
-    bool pointer_enter : 1 = false;
-    bool pointer_leave : 1 = false;
-    bool focus_in : 1      = false;
-    bool focus_out : 1     = false;
-    bool focused : 1       = false;
-    bool hovered : 1       = false;
-    bool pressed : 1       = false;
+    bool disabled : 1     = false;
+    bool pointer_down : 1 = false;
+    bool pointer_up : 1   = false;
+    bool pointer_in : 1   = false;
+    bool pointer_out : 1  = false;
+    bool focus_in : 1     = false;
+    bool focus_out : 1    = false;
+    bool focused : 1      = false;
+    bool hovered : 1      = false;
+    bool pressed : 1      = false;
   } state;
 
   struct Style
@@ -45,11 +45,11 @@ struct Button : public View
   {
     state.pointer_down =
         events.mouse_down && ctx.mouse_down(MouseButtons::Primary);
-    state.pointer_up = events.mouse_up && ctx.mouse_up(MouseButtons::Primary);
-    state.pointer_enter = events.mouse_enter;
-    state.pointer_leave = events.mouse_leave;
-    state.focus_in      = events.focus_in;
-    state.focus_out     = events.focus_out;
+    state.pointer_up  = events.mouse_up && ctx.mouse_up(MouseButtons::Primary);
+    state.pointer_in  = events.mouse_in;
+    state.pointer_out = events.mouse_out;
+    state.focus_in    = events.focus_in;
+    state.focus_out   = events.focus_out;
 
     if (events.focus_in)
     {
@@ -61,12 +61,12 @@ struct Button : public View
       state.focused = false;
     }
 
-    if (state.pointer_enter)
+    if (state.pointer_in)
     {
       state.hovered = true;
     }
 
-    if (state.pointer_leave)
+    if (state.pointer_out)
     {
       state.hovered = false;
     }

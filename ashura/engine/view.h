@@ -84,8 +84,8 @@ enum class MainAlign : u8
 /// @param drag_start drag event has begun on this view
 /// @param dragging an update on the drag state has been gotten
 /// @param drag_end the dragging of this view has completed
-/// @param drag_enter drag data has entered this view and might be dropped
-/// @param drag_leave drag data has left the view without being dropped
+/// @param drag_in drag data has entered this view and might be dropped
+/// @param drag_out drag data has left the view without being dropped
 /// @param drop drag data is now available for the view to consume
 /// @param view_hit called on every frame the view is viewed on the viewport.
 /// Can be used for partial loading
@@ -103,15 +103,15 @@ struct ViewEvents
   bool mouse_up : 1      = false;
   bool mouse_pressed : 1 = false;
   bool mouse_move : 1    = false;
-  bool mouse_enter : 1   = false;
-  bool mouse_leave : 1   = false;
+  bool mouse_in : 1      = false;
+  bool mouse_out : 1     = false;
   bool mouse_scroll : 1  = false;
   bool drag_start : 1    = false;
   bool dragging : 1      = false;
   bool drag_end : 1      = false;
-  bool drag_enter : 1    = false;
+  bool drag_in : 1       = false;
+  bool drag_out : 1      = false;
   bool drag_over : 1     = false;
-  bool drag_leave : 1    = false;
   bool drop : 1          = false;
   bool view_hit : 1      = false;
   bool view_miss : 1     = false;
@@ -142,76 +142,93 @@ struct ViewEvents
 /// @param timedelta time elapsed between previous and current frame
 struct ViewContext
 {
-  void                    *app                     = nullptr;
-  StrHashMap<void *>       globals                 = {};
-  ClipBoard               *clipboard               = nullptr;
-  bool                     focus_in                = false;
-  bool                     focus_out               = false;
-  bool                     focused                 = false;
-  MouseButtons             mouse_downs             = MouseButtons::None;
-  MouseButtons             mouse_ups               = MouseButtons::None;
-  MouseButtons             mouse_states            = MouseButtons::None;
-  u32                      num_clicks              = 0;
-  Vec2                     mouse_position          = {};
-  Vec2                     mouse_translation       = {};
-  Vec2                     mouse_wheel_translation = {};
-  Span<u8 const>           drag_payload            = {};
-  SystemTheme              theme                   = SystemTheme::None;
-  TextDirection            direction               = TextDirection::LeftToRight;
-  Bits<u64, NUM_KEYS>      key_downs               = {};
-  Bits<u64, NUM_KEYS>      key_ups                 = {};
-  Bits<u64, NUM_KEYS>      key_states              = {};
-  Bits<u64, NUM_KEYS>      scan_downs              = {};
-  Bits<u64, NUM_KEYS>      scan_ups                = {};
-  Bits<u64, NUM_KEYS>      scan_states             = {};
-  Span<u8 const>           text                    = {};
-  Span<u32 const>          text_utf32              = {};
-  steady_clock::time_point timestamp               = {};
-  nanoseconds              timedelta               = {};
+  struct Mouse
+  {
+    bool         in : 1             = false;
+    bool         out : 1            = false;
+    bool         pointed : 1        = false;
+    bool         moved : 1          = false;
+    bool         wheel_scrolled : 1 = false;
+    MouseButtons downs : 8          = MouseButtons::None;
+    MouseButtons ups : 8            = MouseButtons::None;
+    MouseButtons states : 8         = MouseButtons::None;
+    u32          num_clicks         = 0;
+    Vec2         position           = {};
+    Vec2         translation        = {};
+    Vec2         wheel_translation  = {};
+  };
+
+  struct KeyBoard
+  {
+    bool                in : 1      = false;
+    bool                out : 1     = false;
+    bool                focused : 1 = false;
+    bool                down : 1    = false;
+    bool                up : 1      = false;
+    Bits<u64, NUM_KEYS> downs       = {};
+    Bits<u64, NUM_KEYS> ups         = {};
+    Bits<u64, NUM_KEYS> states      = {};
+    Bits<u64, NUM_KEYS> scan_downs  = {};
+    Bits<u64, NUM_KEYS> scan_ups    = {};
+    Bits<u64, NUM_KEYS> scan_states = {};
+  };
+
+  void                    *app              = nullptr;
+  StrHashMap<void *>       globals          = {};
+  steady_clock::time_point timestamp        = {};
+  nanoseconds              timedelta        = {};
+  ClipBoard               *clipboard        = nullptr;
+  SystemTheme              theme : 2        = SystemTheme::None;
+  TextDirection            direction : 1    = TextDirection::LeftToRight;
+  Mouse                    mouse            = {};
+  KeyBoard                 keyboard         = {};
+  Span<u8 const>           drag_payload     = {};
+  Span<u8 const>           text_input       = {};
+  Span<u32 const>          text_input_utf32 = {};
 
   constexpr bool key_down(KeyCode key) const
   {
-    return get_bit(span(key_downs), (usize) key);
+    return get_bit(span(keyboard.downs), (usize) key);
   }
 
   constexpr bool key_up(KeyCode key) const
   {
-    return get_bit(span(key_ups), (usize) key);
+    return get_bit(span(keyboard.ups), (usize) key);
   }
 
   constexpr bool key_state(KeyCode key) const
   {
-    return get_bit(span(key_states), (usize) key);
+    return get_bit(span(keyboard.states), (usize) key);
   }
 
   constexpr bool key_down(ScanCode key) const
   {
-    return get_bit(span(scan_downs), (usize) key);
+    return get_bit(span(keyboard.scan_downs), (usize) key);
   }
 
   constexpr bool key_up(ScanCode key) const
   {
-    return get_bit(span(scan_ups), (usize) key);
+    return get_bit(span(keyboard.scan_ups), (usize) key);
   }
 
   constexpr bool key_state(ScanCode key) const
   {
-    return get_bit(span(scan_states), (usize) key);
+    return get_bit(span(keyboard.scan_states), (usize) key);
   }
 
   constexpr bool mouse_down(MouseButtons b) const
   {
-    return has_bits(mouse_downs, b);
+    return has_bits(mouse.downs, b);
   }
 
   constexpr bool mouse_up(MouseButtons b) const
   {
-    return has_bits(mouse_ups, b);
+    return has_bits(mouse.ups, b);
   }
 
   constexpr bool mouse_state(MouseButtons b) const
   {
-    return has_bits(mouse_states, b);
+    return has_bits(mouse.states, b);
   }
 };
 

@@ -48,12 +48,12 @@ struct Switch : public View
       state.pressed = false;
     }
 
-    if (events.mouse_enter)
+    if (events.mouse_in)
     {
       state.hovered = true;
     }
 
-    if (events.mouse_leave)
+    if (events.mouse_out)
     {
       state.hovered = false;
     }

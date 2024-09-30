@@ -233,7 +233,7 @@ struct ScalarDragBox : View, Pin<>
     if (state.dragging && !state.input_mode)
     {
       f32 const t =
-          clamp(unlerp(region.begin().x, region.end().x, ctx.mouse_position.x),
+          clamp(unlerp(region.begin().x, region.end().x, ctx.mouse.position.x),
                 0.0F, 1.0F);
       state.value.interp(t);
     }

@@ -276,7 +276,7 @@ struct WindowSystemImpl final : public WindowSystem
     CHECKSdl(!SDL_SetWindowResizable(hnd(window), SDL_FALSE));
   }
 
-  uid listen(Window window, WindowEventTypes event_types,
+  u64 listen(Window window, WindowEventTypes event_types,
              Fn<void(WindowEvent const &)> callback) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
@@ -284,7 +284,7 @@ struct WindowSystemImpl final : public WindowSystem
         .unwrap();
   }
 
-  void unlisten(Window window, uid listener) override
+  void unlisten(Window window, u64 listener) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
     pwin->listeners.erase(listener);

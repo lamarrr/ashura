@@ -60,12 +60,12 @@ struct ComboBoxItem : public View
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
                          ViewEvents events, Fn<void(View *)>) override
   {
-    if (events.mouse_enter)
+    if (events.mouse_in)
     {
       state.hovered = true;
     }
 
-    if (events.mouse_leave)
+    if (events.mouse_out)
     {
       state.hovered = false;
     }
@@ -234,12 +234,12 @@ struct ComboBox : public View
       }
     }
 
-    if (events.mouse_enter)
+    if (events.mouse_in)
     {
       state.hovered = true;
     }
 
-    if (events.mouse_leave)
+    if (events.mouse_out)
     {
       state.hovered = false;
     }
