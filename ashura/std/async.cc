@@ -108,7 +108,7 @@ struct SchedulerImpl final : Scheduler
     // free list.
     if (arena->data.ac.unalias())
     {
-      arena->data.arena.reset();
+      arena->data.arena.reclaim();
       free_list_lock.lock();
       free_list.push_back(arena);
       free_list_lock.unlock();
@@ -352,7 +352,7 @@ struct SchedulerImpl final : Scheduler
       {
         if (current_arena->data.ac.unalias())
         {
-          current_arena->data.arena.reset();
+          current_arena->data.arena.reclaim();
         }
         else
         {

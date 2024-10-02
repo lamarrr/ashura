@@ -48,7 +48,7 @@ struct Arena
     return end - offset;
   }
 
-  constexpr void reset()
+  constexpr void reclaim()
   {
     offset = begin;
   }
@@ -188,9 +188,9 @@ static AllocatorInterface const arena_sub_interface{
 ///
 /// @source: allocation memory source
 /// @max_num_arenas: maximum number of arenas that can be allocated
-/// @min_arena_size: minimum size of each arena allocation, recommended >= 4096
-/// bytes (approx 1 memory page). allocations having sizes higher than that will
-/// have a dedicated arena.
+/// @min_arena_size: minimum size of each arena allocation, recommended >= 16KB
+/// bytes (approx 1 huge memory page). allocations having sizes higher than that
+/// will have a dedicated arena.
 /// @max_total_size: total maximum size of all allocations performed.
 ///
 struct ArenaPool
@@ -199,16 +199,16 @@ struct ArenaPool
   Arena        *arenas              = nullptr;
   usize         num_arenas          = 0;
   usize         max_num_arenas      = USIZE_MAX;
-  usize         min_arena_size      = 4096;
+  usize         min_arena_size      = 16_KB;
   usize         max_arena_size      = USIZE_MAX;
   usize         max_total_size      = USIZE_MAX;
   usize         min_arena_alignment = MAX_STANDARD_ALIGNMENT;
 
-  void reset()
+  void reclaim()
   {
     for (usize i = num_arenas; i-- > 0;)
     {
-      arenas[i].reset();
+      arenas[i].reclaim();
     }
   }
 
@@ -222,7 +222,7 @@ struct ArenaPool
     return s;
   }
 
-  void release()
+  void reset()
   {
     for (usize i = num_arenas; i-- > 0;)
     {

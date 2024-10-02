@@ -21,18 +21,36 @@ struct ViewNode
   u32 num_children = 0;
 };
 
+struct ViewSystemState
+{
+  u64  keyboard_focused_view   = 0;
+  u64  mouse_focused_view      = 0;
+  u64  mouse_dragging_view     = 0;
+  u64  mouse_hovered_view      = 0;
+  u64  mouse_scroll_focus_view = 0;
+  bool keyboard_down : 1       = false;
+  bool keyboard_up : 1         = false;
+  bool mouse_down : 1          = false;
+  bool mouse_up : 1            = false;
+  bool mouse_scrolled : 1      = false;
+  bool text_input : 1          = false;
+};
+
 struct ViewSystem
 {
-  u64           next_id           = 1;
-  Vec<View *>   views             = {};
-  Vec<ViewNode> nodes             = {};
-  Vec<Vec2>     centers           = {};
-  Vec<Vec2>     extents           = {};
-  Vec<CRect>    clips             = {};
-  BitVec<u64>   is_hidden         = {};
-  Vec<i32>      z_indices         = {};
-  Vec<i32>      stacking_contexts = {};
-  Vec<u32>      z_ordering        = {};
+  u64             frame             = 0;
+  ViewSystemState state             = {};
+  ViewSystemState previous_state    = {};
+  u64             last_id           = 0;
+  Vec<View *>     views             = {};
+  Vec<ViewNode>   nodes             = {};
+  Vec<Vec2>       centers           = {};
+  Vec<Vec2>       extents           = {};
+  Vec<CRect>      clips             = {};
+  BitVec<u64>     is_hidden         = {};
+  Vec<i32>        z_indices         = {};
+  Vec<i32>        stacking_contexts = {};
+  Vec<u32>        z_ordering        = {};
 
   void reset()
   {
@@ -47,18 +65,60 @@ struct ViewSystem
     z_ordering.reset();
   }
 
-  ViewEvents process_events(View *view)
+  ViewEvents process_events(ViewContext const &ctx, View *view)
   {
     ViewEvents events;
 
-    if (view->inner.id == 0)
+    if (view->id() == 0) [[unlikely]]
     {
-      CHECK(next_id != U64_MAX);
-      view->inner.id = next_id++;
+      CHECK(last_id != U64_MAX);
+      view->inner.id = ++last_id;
       events.mounted = true;
     }
 
-    // [ ] process other events
+    events.view_hit = (view->inner.last_rendered_frame == (frame - 1));
+
+    if (state.mouse_focused_view == view->id())
+    {
+      events.mouse_in   = (previous_state.mouse_focused_view != view->id());
+      events.mouse_down = state.mouse_down;
+      events.mouse_up   = state.mouse_up;
+      // [ ] mouse_pressed: mouse down but not released on same widget? need to
+      // process a cancelation? HOW WILL THIS WORK?
+      //
+      // [ ] mouse_move
+    }
+    else if (previous_state.mouse_focused_view == view->id())
+    {
+      events.mouse_out = true;
+    }
+
+    if (state.mouse_scroll_focus_view == view->id() && state.mouse_scrolled)
+    {
+      events.mouse_scroll = true;
+    }
+
+    // [ ] drag acceptance ? drag via different buttons?
+    // [ ] drag start
+    // [ ] dragging
+    // [ ] drag_end
+    // [ ] drag_in
+    // [ ] drag_out
+    // [ ] drag_over
+    // [ ] drop
+
+    if (state.keyboard_focused_view == view->id())
+    {
+      events.focus_in = previous_state.keyboard_focused_view != view->id();
+      events.key_down = state.keyboard_down;
+      events.key_up   = state.keyboard_up;
+      // [ ] key pressed : released with another widget in focus
+      events.text_input = state.text_input;
+    }
+    else if (previous_state.keyboard_focused_view == view->id())
+    {
+      events.focus_out = true;
+    }
 
     return events;
   }
@@ -69,8 +129,8 @@ struct ViewSystem
 
     auto builder = [&](View *sub) { views.push(sub).unwrap(); };
 
-    parent->inner.state = parent->tick(ctx, parent->inner.region,
-                                       process_events(parent), fn(&builder));
+    parent->inner.state = parent->tick(
+        ctx, parent->inner.region, process_events(ctx, parent), fn(&builder));
 
     u32 const num_children = views.size32() - first_child;
     u32 const node_idx     = nodes.size32();
@@ -98,6 +158,11 @@ struct ViewSystem
 
   void layout(Vec2 viewport_size)
   {
+    if (views.is_empty())
+    {
+      return;
+    }
+
     u32 const num_views = views.size32();
 
     // allocate sizes to children recursively
@@ -155,6 +220,11 @@ struct ViewSystem
 
   void clip(Vec2 viewport_size)
   {
+    if (views.is_empty())
+    {
+      return;
+    }
+
     clips[0] = CRect{.center = {0, 0}, .extent = viewport_size};
     for (u32 i = 0; i < views.size32(); i++)
     {
@@ -167,6 +237,11 @@ struct ViewSystem
 
   void stack()
   {
+    if (views.is_empty())
+    {
+      return;
+    }
+
     z_indices[0] = 0;
     for (u32 i = 0; i < views.size32(); i++)
     {
@@ -231,23 +306,26 @@ struct ViewSystem
       {
         View *view = views[i];
         view->render(view->inner.region, clips[i], canvas);
+        view->inner.last_rendered_frame = frame;
       }
     }
   }
 
   void events(ViewContext const &ctx)
   {
-    struct ViewState
-    {
-      u64 prev_focused  = 0;
-      u64 prev_pressed  = 0;
-      u64 prev_hovered  = 0;
-      u64 prev_dragging = 0;
-      u64 focus_out     = 0;
-      u64 focused       = 0;
-      u64 hovered       = 0;
-      u64 pressed       = 0;
-    } view;
+    /// [ ] mouse active ? (mouse down? click test :  hover test)
+    /// [ ] key pressed ? (is_tab : current accepts tab? , is in input mode?
+    /// focused widget? navigate, otherwise input)
+    ///
+    /// [ ] hit testing, process
+    /// states, how long should states be preserved? what
+    ///
+    /// [ ] if widget is
+    /// removed?
+    ///
+    /// [ ] render cursor
+    ///
+    /// [ ] context menus?
 
     if (ctx.mouse.out)
     {
@@ -274,8 +352,7 @@ struct ViewSystem
     }
   }
 
-  void tick(ViewContext const &ctx, View *root, Canvas &canvas,
-            Vec2 viewport_size)
+  void tick(ViewContext const &ctx, View *root, Canvas &canvas)
   {
     // [ ] process events across views, hit-test, dispatch events
     //
@@ -289,21 +366,20 @@ struct ViewSystem
     // [ ] click - forward directly unless draggable
     // [ ] focus and keyboard management
     // [ ] view drag & drop
-    // [ ] mouse over, mouse leave
-    // [ ] view hit, view miss -
     // [ ] keyboard input: use another system?
     // [ ] clip board copy & paste with custom media format
     // [ ] text input
     // [ ] gamepad input: use another system?
     // [ ] hit testing on clipped rects
     // [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
-    // Tab to move focus forwards)
+    /// Tab to move focus forwards) - we can follow along the tree and allow
+    /// widgets to specify integers of focus direction of their children
+    ///
     // [ ] scroll on child focus for viewports
     // [ ] on click or focus of focusable objects, system requests keyboard
     // input if object has a text area attribute
     // [ ] cursor management via hit testing
     // [ ] window hit testing
-    // [ ] draw on focus
     // [ ] context menu support when right-clicked?
     // [ ] non-clickable should not receive pointer events
     // [ ] ? by default, special
@@ -311,8 +387,6 @@ struct ViewSystem
     // from navigating. make PgUp have special meaning within viewport, etc.
     // [ ] viewport child focus and key navigation?
     //
-    //
-    //- process events by diffing with previous frame
     //
     //
     // [ ] after all are built and positioned, we need to process events based
@@ -323,6 +397,7 @@ struct ViewSystem
     // widget,
     // [ ] how will states be persisted across frames?
     //
+    frame++;
 
     views.clear();
     nodes.clear();
@@ -332,26 +407,18 @@ struct ViewSystem
     extents.resize_uninitialized(num_views).unwrap();
     clips.resize_uninitialized(num_views).unwrap();
     is_hidden.resize_uninitialized(num_views).unwrap();
-    fill(is_hidden.repr_, 0);
+    fill(is_hidden.repr(), 0U);
     z_indices.resize_uninitialized(num_views).unwrap();
     stacking_contexts.resize_uninitialized(num_views).unwrap();
     z_ordering.resize_uninitialized(num_views).unwrap();
     iota(span(z_ordering), 0U);
 
-    if (num_views > 0)
-    {
-      layout(viewport_size);
-      clip(viewport_size);
-      stack();
-      visibility(viewport_size);
-      render(canvas);
-      events(ctx);
-      /// [ ] mouse active ? (mouse down? click test :  hover test)
-      /// [ ] key pressed ? (is_tab : current accepts tab? , is in input mode?
-      /// focused widget? navigate, otherwise input) [ ] hit testing, process
-      /// states, how long should states be preserved? what [ ] if widget is
-      /// removed? [ ] render cursor [ ] context menus?
-    }
+    layout(ctx.viewport_size);
+    clip(ctx.viewport_size);
+    stack();
+    visibility(ctx.viewport_size);
+    render(canvas);
+    events(ctx);
   }
 };
 

@@ -155,7 +155,7 @@ struct ComboBoxScrollView : public View
     return ViewState{};
   }
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes)
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
     (void) allocated;
     fill(sizes, Vec2{0, 0});
@@ -167,7 +167,7 @@ struct ComboBoxScrollView : public View
     return Vec2{0, 0};
   }
 
-  virtual CRect clip(CRect const &region, CRect const &allocated)
+  virtual CRect clip(CRect const &region, CRect const &allocated) override
   {
     return intersect(region, allocated);
   }

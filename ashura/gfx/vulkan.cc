@@ -4781,7 +4781,7 @@ Result<gfx::PipelineStatistics, Status>
   }                                                      \
   defer prelude_reset_arg_pool                           \
   {                                                      \
-    [&] { self->arg_pool.reset(); }                      \
+    [&] { self->arg_pool.reclaim(); }                    \
   }
 
 void CommandEncoderInterface::reset_timestamp_query(gfx::CommandEncoder self_,

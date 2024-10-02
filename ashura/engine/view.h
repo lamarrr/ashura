@@ -99,12 +99,13 @@ enum class MainAlign : u8
 struct ViewEvents
 {
   bool mounted : 1       = false;
+  bool view_hit : 1      = false;
+  bool mouse_in : 1      = false;
+  bool mouse_out : 1     = false;
   bool mouse_down : 1    = false;
   bool mouse_up : 1      = false;
   bool mouse_pressed : 1 = false;
   bool mouse_move : 1    = false;
-  bool mouse_in : 1      = false;
-  bool mouse_out : 1     = false;
   bool mouse_scroll : 1  = false;
   bool drag_start : 1    = false;
   bool dragging : 1      = false;
@@ -113,8 +114,6 @@ struct ViewEvents
   bool drag_out : 1      = false;
   bool drag_over : 1     = false;
   bool drop : 1          = false;
-  bool view_hit : 1      = false;
-  bool view_miss : 1     = false;
   bool focus_in : 1      = false;
   bool focus_out : 1     = false;
   bool key_down : 1      = false;
@@ -185,6 +184,7 @@ struct ViewContext
   Span<u8 const>           drag_payload     = {};
   Span<u8 const>           text_input       = {};
   Span<u32 const>          text_input_utf32 = {};
+  Vec2                     viewport_size    = {};
 
   constexpr bool key_down(KeyCode key) const
   {
@@ -328,9 +328,10 @@ struct View
 {
   struct
   {
-    u64       id     = 0;
-    CRect     region = {};
-    ViewState state  = {};
+    u64       id                  = 0;
+    u64       last_rendered_frame = 0;
+    CRect     region              = {};
+    ViewState state               = {};
   } inner = {};
 
   constexpr View()                        = default;
