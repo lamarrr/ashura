@@ -41,7 +41,7 @@ struct Button : public View
   Fn<void()> on_pressed = fn([] {});
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
-                         ViewEvents         events, Fn<void(View *)>) override
+                         ViewEvents         events, Fn<void(View &)>) override
   {
     state.pointer_down =
         events.mouse_down && ctx.mouse_down(MouseButtons::Primary);

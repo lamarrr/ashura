@@ -37,7 +37,7 @@ struct ScrollBar : public View
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View *)>) override
+                         ViewEvents events, Fn<void(View &)>) override
   {
     u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
 
@@ -138,11 +138,11 @@ struct ScrollView : public View
   ScrollBar y_bar = ScrollBar{Axis::Y};
 
   virtual ViewState tick(ViewContext const &, CRect const &, ViewEvents,
-                         Fn<void(View *)> build) override
+                         Fn<void(View &)> build) override
   {
     x_bar.state.disabled = y_bar.state.disabled = state.disabled;
-    build(&x_bar);
-    build(&y_bar);
+    build(x_bar);
+    build(y_bar);
     return ViewState{};
   }
 

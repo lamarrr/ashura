@@ -36,13 +36,12 @@ struct StackView : public View
     return z;
   }
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override final
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
     fill(sizes, style.frame(allocated));
   }
 
-  virtual Vec2 fit(Vec2, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override final
+  virtual Vec2 fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> offsets) override
   {
     Vec2      span;
     u32 const num_children = sizes.size32();

@@ -220,7 +220,7 @@ struct ScalarDragBox : View, Pin<>
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View *)>) override
+                         ViewEvents events, Fn<void(View &)>) override
   {
     state.dragging = events.dragging;
 
@@ -374,14 +374,14 @@ struct ScalarBox : FlexView, Pin<>
   }
 
   virtual ViewState tick(ViewContext const &, CRect const &, ViewEvents,
-                         Fn<void(View *)> build) override
+                         Fn<void(View &)> build) override
   {
     dec.state.disabled  = state.disabled || !state.steppable;
     inc.state.disabled  = state.disabled || !state.steppable;
     drag.state.disabled = state.disabled || !state.draggable;
-    build(&dec);
-    build(&drag);
-    build(&inc);
+    build(dec);
+    build(drag);
+    build(inc);
     return ViewState{};
   }
 };

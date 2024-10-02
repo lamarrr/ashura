@@ -36,7 +36,7 @@ struct RadioBox : public View
   Fn<void(bool)> on_changed = fn([](bool) {});
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
-                         ViewEvents         events, Fn<void(View *)>) override
+                         ViewEvents         events, Fn<void(View &)>) override
   {
     if (events.mouse_in)
     {

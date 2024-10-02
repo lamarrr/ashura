@@ -35,7 +35,7 @@ struct TextView : View, Pin<>
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View *)>) override
+                         ViewEvents events, Fn<void(View &)>) override
   {
     TextCommand cmd = TextCommand::None;
     if (events.drag_start)
@@ -254,7 +254,7 @@ struct TextInput : View, Pin<>
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View *)>) override
+                         ViewEvents events, Fn<void(View &)>) override
   {
     bool edited = false;
     auto erase  = [this, &edited](Slice32 s) {

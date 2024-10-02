@@ -23,16 +23,17 @@ struct ViewNode
 
 struct ViewSystemState
 {
-  u64  keyboard_focused_view   = 0;
   u64  mouse_focused_view      = 0;
   u64  mouse_dragging_view     = 0;
   u64  mouse_hovered_view      = 0;
   u64  mouse_scroll_focus_view = 0;
-  bool keyboard_down : 1       = false;
-  bool keyboard_up : 1         = false;
+  u64  keyboard_focused_view   = 0;
   bool mouse_down : 1          = false;
   bool mouse_up : 1            = false;
+  bool mouse_moved : 1         = false;
   bool mouse_scrolled : 1      = false;
+  bool keyboard_down : 1       = false;
+  bool keyboard_up : 1         = false;
   bool text_input : 1          = false;
 };
 
@@ -65,35 +66,36 @@ struct ViewSystem
     z_ordering.reset();
   }
 
-  ViewEvents process_events(ViewContext const &ctx, View *view)
+  ViewEvents process_events(ViewContext const &ctx, View &view)
   {
     ViewEvents events;
 
-    if (view->id() == 0) [[unlikely]]
+    if (view.id() == 0) [[unlikely]]
     {
       CHECK(last_id != U64_MAX);
-      view->inner.id = ++last_id;
+      view.inner.id  = ++last_id;
       events.mounted = true;
     }
 
-    events.view_hit = (view->inner.last_rendered_frame == (frame - 1));
+    events.view_hit = (view.inner.last_rendered_frame == (frame - 1));
 
-    if (state.mouse_focused_view == view->id())
+    if (state.mouse_focused_view == view.id()) [[unlikely]]
     {
-      events.mouse_in   = (previous_state.mouse_focused_view != view->id());
-      events.mouse_down = state.mouse_down;
-      events.mouse_up   = state.mouse_up;
-      // [ ] mouse_pressed: mouse down but not released on same widget? need to
-      // process a cancelation? HOW WILL THIS WORK?
-      //
-      // [ ] mouse_move
+      events.mouse_in      = (previous_state.mouse_focused_view != view.id());
+      events.mouse_down    = state.mouse_down;
+      events.mouse_up      = state.mouse_up;
+      events.mouse_pressed = previous_state.mouse_down && state.mouse_up &&
+                             (previous_state.mouse_focused_view == view.id());
+      events.mouse_moved =
+          state.mouse_moved && (previous_state.mouse_focused_view == view.id());
     }
-    else if (previous_state.mouse_focused_view == view->id())
+    else if (previous_state.mouse_focused_view == view.id()) [[unlikely]]
     {
       events.mouse_out = true;
     }
 
-    if (state.mouse_scroll_focus_view == view->id() && state.mouse_scrolled)
+    if (state.mouse_scroll_focus_view == view.id() && state.mouse_scrolled)
+        [[unlikely]]
     {
       events.mouse_scroll = true;
     }
@@ -107,15 +109,16 @@ struct ViewSystem
     // [ ] drag_over
     // [ ] drop
 
-    if (state.keyboard_focused_view == view->id())
+    if (state.keyboard_focused_view == view.id()) [[unlikely]]
     {
-      events.focus_in = previous_state.keyboard_focused_view != view->id();
-      events.key_down = state.keyboard_down;
-      events.key_up   = state.keyboard_up;
-      // [ ] key pressed : released with another widget in focus
+      events.focus_in    = previous_state.keyboard_focused_view != view.id();
+      events.key_down    = state.keyboard_down;
+      events.key_up      = state.keyboard_up;
+      events.key_pressed = previous_state.keyboard_down && state.keyboard_up &&
+                           (previous_state.keyboard_focused_view == view.id());
       events.text_input = state.text_input;
     }
-    else if (previous_state.keyboard_focused_view == view->id())
+    else if (previous_state.keyboard_focused_view == view.id()) [[unlikely]]
     {
       events.focus_out = true;
     }
@@ -127,10 +130,10 @@ struct ViewSystem
   {
     u32 const first_child = views.size32();
 
-    auto builder = [&](View *sub) { views.push(sub).unwrap(); };
+    auto builder = [&](View &child) { views.push(&child).unwrap(); };
 
     parent->inner.state = parent->tick(
-        ctx, parent->inner.region, process_events(ctx, parent), fn(&builder));
+        ctx, parent->inner.region, process_events(ctx, *parent), fn(&builder));
 
     u32 const num_children = views.size32() - first_child;
     u32 const node_idx     = nodes.size32();
@@ -166,18 +169,12 @@ struct ViewSystem
     u32 const num_views = views.size32();
 
     // allocate sizes to children recursively
-    views[0]->inner.region.extent = viewport_size;
+    extents[0] = viewport_size;
     for (u32 i = 0; i < num_views; i++)
     {
       ViewNode const &node = nodes[i];
-      View           *view = views[i];
-      view->size(view->inner.region.extent,
-                 span(extents).slice(node.first_child, node.num_children));
-      for (u32 c = node.first_child; c < (node.first_child + node.num_children);
-           c++)
-      {
-        views[c]->inner.region.extent = extents[c];
-      }
+      views[i]->size(extents[i],
+                     span(extents).slice(node.first_child, node.num_children));
     }
 
     // fit parent views along the finalized sizes of the child views and
@@ -185,18 +182,13 @@ struct ViewSystem
     for (u32 i = num_views; i != 0;)
     {
       i--;
-      ViewNode const &node          = nodes[i];
-      views[i]->inner.region.extent = extents[i] = views[i]->fit(
+      ViewNode const &node = nodes[i];
+      extents[i]           = views[i]->fit(
           extents[i], span(extents).slice(node.first_child, node.num_children),
           span(centers).slice(node.first_child, node.num_children));
-      for (u32 c = node.first_child; c < (node.first_child + node.num_children);
-           c++)
-      {
-        views[c]->inner.region.center = centers[c];
-      }
     }
 
-    // convert from parent centers to absolute centers by recursive
+    // convert from parent positions to absolute positions by recursive
     // translation
     for (u32 i = 0; i < num_views; i++)
     {
@@ -205,7 +197,6 @@ struct ViewSystem
            c++)
       {
         centers[c] += centers[i];
-        views[c]->inner.region.center = centers[c];
       }
     }
 
@@ -214,7 +205,12 @@ struct ViewSystem
     {
       centers[i] =
           views[i]->position(CRect{.center = centers[i], .extent = extents[i]});
+    }
+
+    for (u32 i = 0; i < num_views; i++)
+    {
       views[i]->inner.region.center = centers[i];
+      views[i]->inner.region.extent = extents[i];
     }
   }
 
@@ -276,18 +272,19 @@ struct ViewSystem
     for (u32 i = 0; i < views.size32(); i++)
     {
       ViewNode const &node = nodes[i];
-      View           *view = views[i];
+      View           &view = *views[i];
       bool const      hidden =
-          view->inner.state.hidden || !view->inner.region.is_visible() ||
+          view.inner.state.hidden || !view.inner.region.is_visible() ||
           !clips[i].is_visible() ||
-          !overlaps(view->inner.region,
+          !overlaps(view.inner.region,
                     CRect{.center = {0, 0}, .extent = viewport_size}) ||
-          !overlaps(view->inner.region, clips[i]);
+          !overlaps(view.inner.region, clips[i]);
 
+      // [ ] should be OR?
       is_hidden.set(i, hidden);
 
       // if parent hidden by itself. make children hidden
-      if (view->inner.state.hidden) [[unlikely]]
+      if (view.inner.state.hidden) [[unlikely]]
       {
         for (u32 c = node.first_child;
              c < (node.first_child + node.num_children); c++)
@@ -304,9 +301,9 @@ struct ViewSystem
     {
       if (!is_hidden.get(i)) [[unlikely]]
       {
-        View *view = views[i];
-        view->render(view->inner.region, clips[i], canvas);
-        view->inner.last_rendered_frame = frame;
+        View &view = *views[i];
+        view.render(view.inner.region, clips[i], canvas);
+        view.inner.last_rendered_frame = frame;
       }
     }
   }

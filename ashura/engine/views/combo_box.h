@@ -58,7 +58,7 @@ struct ComboBoxItem : public View
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View *)>) override
+                         ViewEvents events, Fn<void(View &)>) override
   {
     if (events.mouse_in)
     {
@@ -144,13 +144,13 @@ struct ComboBoxScrollView : public View
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View *)> build) override
+                         ViewEvents events, Fn<void(View &)> build) override
   {
     // [ ] scrolling
     // on scroll increase offset of views
     for (ComboBoxItem &item : items)
     {
-      build(&item);
+      build(item);
     }
     return ViewState{};
   }
@@ -220,7 +220,7 @@ struct ComboBox : public View
   } style;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View *)> build) override
+                         ViewEvents events, Fn<void(View &)> build) override
   {
     if (ctx.mouse_down(MouseButtons::Primary))
     {
@@ -248,7 +248,7 @@ struct ComboBox : public View
     {
     }
 
-    build(&scroll_view);
+    build(scroll_view);
 
     return ViewState{.clickable = !state.disabled,
                      .focusable = !state.disabled};

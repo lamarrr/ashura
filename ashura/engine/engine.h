@@ -29,7 +29,8 @@ enum class ImageLoadError : i32
 // [ ] Custom Subsystems
 // [ ] Engine Startup() -> Tick () -> Shutdown() Tasks
 // [ ] URI system and parser with specifications: caching behaviour, identifier
-// name, etc. generic resource type. load status, registered? etc.
+// name, etc. generic resource type. load status, registered? etc. named paths,
+// i.e. $HOME $FONTS $IMAGES $ASSETS/
 struct Engine
 {
   void              *app          = nullptr;

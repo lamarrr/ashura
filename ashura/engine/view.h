@@ -105,7 +105,7 @@ struct ViewEvents
   bool mouse_down : 1    = false;
   bool mouse_up : 1      = false;
   bool mouse_pressed : 1 = false;
-  bool mouse_move : 1    = false;
+  bool mouse_moved : 1   = false;
   bool mouse_scroll : 1  = false;
   bool drag_start : 1    = false;
   bool dragging : 1      = false;
@@ -353,7 +353,7 @@ struct View
   /// @param build callback to be called to insert subviews.
   //
   constexpr virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                                   ViewEvents events, Fn<void(View *)> build)
+                                   ViewEvents events, Fn<void(View &)> build)
   {
     (void) ctx;
     (void) region;

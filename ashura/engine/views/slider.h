@@ -43,7 +43,7 @@ struct Slider : public View
   Fn<void(f32)> on_changed = fn([](f32) {});
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View *)>) override
+                         ViewEvents events, Fn<void(View &)>) override
   {
     u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
     if (events.dragging)

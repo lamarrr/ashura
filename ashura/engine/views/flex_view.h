@@ -29,14 +29,14 @@ struct FlexView : public View
     return style.cross_align;
   }
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override final
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
     Vec2 const frame = style.frame(allocated);
     fill(sizes, frame);
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override final
+                   Span<Vec2> offsets) override
   {
     u32 const  num_children = sizes.size32();
     Vec2 const frame        = style.frame(allocated);
