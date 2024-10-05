@@ -15,6 +15,7 @@ int main(int, char **)
 {
   using namespace ash;
   logger->add_sink(&stdio_sink);
+  defer shutdown{[&] { logger->info("Exiting"); }};
 
   // [ ] env/config to get paths for system: fonts, font cache, images, music,
   // etc.
@@ -30,18 +31,18 @@ int main(int, char **)
 
   CHECK(rasterize_font(font, 60, default_allocator));
 
-  WindowSystem *win_sys = init_sdl_window_system();
-  CHECK(win_sys != nullptr);
+  sdl_window_system->init();
+  defer sdl_shutdown{[&] { sdl_window_system->uninit(); }};
 
   gfx::InstanceImpl instance =
       gfx::create_vulkan_instance(heap_allocator, false).unwrap();
 
   defer  instance_del{[&] { instance->destroy(instance.self); }};
-  Window win = win_sys->create_window(instance, "Main"_span).unwrap();
-  defer  win_del{[&] { win_sys->destroy_window(win); }};
+  Window win = sdl_window_system->create_window(instance, "Main"_span).unwrap();
+  defer  win_del{[&] { sdl_window_system->destroy_window(win); }};
 
-  win_sys->maximize(win);
-  win_sys->set_title(win, "Harro"_span);
+  sdl_window_system->maximize(win);
+  sdl_window_system->set_title(win, "Harro"_span);
 
   bool should_close = false;
   auto close_fn     = [&](WindowEvent const &) { should_close = true; };
@@ -53,9 +54,10 @@ int main(int, char **)
     rr += 1;
   };
 
-  win_sys->listen(win, WindowEventTypes::CloseRequested, fn(&close_fn));
-  win_sys->listen(win, WindowEventTypes::Key, fn(&key_fn));
-  gfx::Surface    surface = win_sys->get_surface(win);
+  sdl_window_system->listen(win, WindowEventTypes::CloseRequested,
+                            fn(&close_fn));
+  sdl_window_system->listen(win, WindowEventTypes::Key, fn(&key_fn));
+  gfx::Surface    surface = sdl_window_system->get_surface(win);
   gfx::DeviceImpl device =
       instance
           ->create_device(instance.self, default_allocator,
@@ -149,7 +151,7 @@ int main(int, char **)
                                                     span(present_modes))
                         .unwrap() == num_present_modes);
 
-    Vec2U surface_extent = win_sys->get_surface_size(win);
+    Vec2U surface_extent = sdl_window_system->get_surface_size(win);
     surface_extent.x     = max(surface_extent.x, 1U);
     surface_extent.y     = max(surface_extent.y, 1U);
 
@@ -297,7 +299,7 @@ int main(int, char **)
   ctx.end_frame(swapchain);
   while (!should_close)
   {
-    win_sys->poll_events();
+    sdl_window_system->poll_events();
     ctx.begin_frame(swapchain);
     // [ ] maybe check for frame begin before accepting commands
     canvas.begin({1920, 1080});

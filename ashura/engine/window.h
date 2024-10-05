@@ -15,6 +15,8 @@ typedef struct Window_T *Window;
 
 struct WindowSystem
 {
+  virtual void           init()                                           = 0;
+  virtual void           uninit()                                         = 0;
   virtual Option<Window> create_window(gfx::InstanceImpl instance,
                                        Span<char const>  title)            = 0;
   virtual void           destroy_window(Window window)                    = 0;
@@ -54,6 +56,6 @@ struct WindowSystem
   virtual void               poll_events()                                = 0;
 };
 
-WindowSystem *init_sdl_window_system();
+extern WindowSystem *sdl_window_system;
 
 }        // namespace ash
