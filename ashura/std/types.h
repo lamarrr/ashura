@@ -3645,17 +3645,47 @@ struct BitSpan
 
   constexpr bool operator[](usize index) const
   {
-    return get_bit(repr_, index);
+    return ::ash::get_bit(repr_, index);
   }
 
   constexpr bool get(usize index) const
   {
-    return get_bit(repr_, index);
+    return ::ash::get_bit(repr_, index);
   }
 
   constexpr void set(usize index, bool value) const
   {
-    assign_bit(span(repr_), index, value);
+    ::ash::assign_bit(repr_, index, value);
+  }
+
+  constexpr bool get_bit(usize index) const
+  {
+    return ::ash::get_bit(repr_, index);
+  }
+
+  constexpr bool set_bit(usize index) const
+  {
+    return ::ash::set_bit(repr_, index);
+  }
+
+  constexpr bool clear_bit(usize index) const
+  {
+    return ::ash::clear_bit(repr_, index);
+  }
+
+  constexpr void flip_bit(usize index) const
+  {
+    ::ash::flip_bit(repr_, index);
+  }
+
+  constexpr usize find_set_bit()
+  {
+    return min(::ash::find_set_bit(repr_), size());
+  }
+
+  constexpr usize find_clear_bit()
+  {
+    return min(::ash::find_clear_bit(repr_), size());
   }
 
   constexpr operator BitSpan<R const>() const
@@ -3673,98 +3703,6 @@ template <typename R>
 constexpr BitSpan<R> bit_span(Span<R> span, usize num_bits)
 {
   return BitSpan<R>{.repr_ = span, .bit_size_ = num_bits};
-}
-
-constexpr void clear_bit(BitSpan<u8> s, usize index)
-{
-  clear_bit(s.repr(), index);
-}
-
-constexpr void clear_bit(BitSpan<u16> s, usize index)
-{
-  clear_bit(s.repr(), index);
-}
-
-constexpr void clear_bit(BitSpan<u32> s, usize index)
-{
-  clear_bit(s.repr(), index);
-}
-
-constexpr void clear_bit(BitSpan<u64> s, usize index)
-{
-  clear_bit(s.repr(), index);
-}
-
-constexpr void set_bit(BitSpan<u8> s, usize index)
-{
-  set_bit(s.repr(), index);
-}
-
-constexpr void set_bit(BitSpan<u16> s, usize index)
-{
-  set_bit(s.repr(), index);
-}
-
-constexpr void set_bit(BitSpan<u32> s, usize index)
-{
-  set_bit(s.repr(), index);
-}
-
-constexpr void set_bit(BitSpan<u64> s, usize index)
-{
-  set_bit(s.repr(), index);
-}
-
-constexpr void assign_bit(BitSpan<u8> s, usize index, bool b)
-{
-  assign_bit(s.repr(), index, b);
-}
-
-constexpr void assign_bit(BitSpan<u16> s, usize index, bool b)
-{
-  assign_bit(s.repr(), index, b);
-}
-
-constexpr void assign_bit(BitSpan<u32> s, usize index, bool b)
-{
-  assign_bit(s.repr(), index, b);
-}
-
-constexpr void assign_bit(BitSpan<u64> s, usize index, bool b)
-{
-  assign_bit(s.repr(), index, b);
-}
-
-constexpr void flip_bit(BitSpan<u8> s, usize index)
-{
-  flip_bit(s.repr(), index);
-}
-
-constexpr void flip_bit(BitSpan<u16> s, usize index)
-{
-  flip_bit(s.repr(), index);
-}
-
-constexpr void flip_bit(BitSpan<u32> s, usize index)
-{
-  flip_bit(s.repr(), index);
-}
-
-constexpr void flip_bit(BitSpan<u64> s, usize index)
-{
-  flip_bit(s.repr(), index);
-}
-
-template <typename R>
-constexpr usize find_set_bit(BitSpan<R> s)
-{
-  return min(find_set_bit(s.repr()), s.size());
-}
-
-template <typename R>
-constexpr usize find_clear_bit(BitSpan<R> s)
-{
-  return min(find_clear_bit(s.repr()), s.size());
 }
 
 template <typename Lambda>

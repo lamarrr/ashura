@@ -495,17 +495,7 @@ struct [[nodiscard]] BitVec
 
   constexpr bool operator[](usize index) const
   {
-    return get_bit(span(repr_), index);
-  }
-
-  constexpr bool get(usize index) const
-  {
-    return get_bit(span(repr_), index);
-  }
-
-  constexpr void set(usize index, bool value) const
-  {
-    assign_bit(span(repr_), index, value);
+    return ::ash::get_bit(span(repr_), index);
   }
 
   constexpr Vec<R> const &repr() const
@@ -548,6 +538,36 @@ struct [[nodiscard]] BitVec
   {
     bit_size_ = 0;
     repr_.reset();
+  }
+
+  constexpr bool get(usize index) const
+  {
+    return ::ash::get_bit(span(repr_), index);
+  }
+
+  constexpr void set(usize index, bool value) const
+  {
+    ::ash::assign_bit(span(repr_), index, value);
+  }
+
+  constexpr bool get_bit(usize index) const
+  {
+    return ::ash::get_bit(span(repr_), index);
+  }
+
+  constexpr bool set_bit(usize index) const
+  {
+    return ::ash::set_bit(span(repr_), index);
+  }
+
+  constexpr bool clear_bit(usize index) const
+  {
+    return ::ash::clear_bit(span(repr_), index);
+  }
+
+  constexpr void flip_bit(usize index) const
+  {
+    ::ash::flip_bit(span(repr_), index);
   }
 
   constexpr Result<Void, Void> reserve(usize target_capacity)
