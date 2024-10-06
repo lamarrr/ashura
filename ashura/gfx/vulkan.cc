@@ -1085,7 +1085,7 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{Status::OutOfHostMemory};
   }
 
-  defer exts_del{[&] { allocator.ndealloc(exts, num_exts); }};
+  defer _{[&] { allocator.ndealloc(exts, num_exts); }};
 
   {
     u32 num_read_exts = num_exts;
@@ -1115,7 +1115,7 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{Status::OutOfHostMemory};
   }
 
-  defer layers_del{[&] { allocator.ndealloc(layers, num_layers); }};
+  defer _{[&] { allocator.ndealloc(layers, num_layers); }};
 
   {
     u32 num_read_layers = num_layers;
@@ -1238,7 +1238,7 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{Status::OutOfHostMemory};
   }
 
-  defer instance_del{[&] {
+  defer _{[&] {
     if (instance != nullptr)
     {
       allocator.ndealloc(instance, 1);
@@ -1295,7 +1295,7 @@ Result<gfx::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{(Status) result};
   }
 
-  defer vk_instance_del{[&] {
+  defer _{[&] {
     if (vk_instance != nullptr)
     {
       vkDestroyInstance(vk_instance, nullptr);
@@ -1494,28 +1494,28 @@ Status create_frame_context(Device *dev, u32 buffering)
   u32 num_submit_f  = 0;
   u32 num_submit_s  = 0;
 
-  defer encs_del{[&] {
+  defer _{[&] {
     for (u32 i = num_encs; i-- > 0;)
     {
       destroy_command_encoder(dev, ctx.encs + i);
     }
   }};
 
-  defer acquire_del{[&] {
+  defer _{[&] {
     for (u32 i = num_acquire_s; i-- > 0;)
     {
       dev->vk_table.DestroySemaphore(dev->vk_dev, ctx.acquire_s[i], nullptr);
     }
   }};
 
-  defer submit_f_del{[&] {
+  defer _{[&] {
     for (u32 i = num_submit_f; i-- > 0;)
     {
       dev->vk_table.DestroyFence(dev->vk_dev, ctx.submit_f[i], nullptr);
     }
   }};
 
-  defer submit_s_del{[&] {
+  defer _{[&] {
     for (u32 i = num_submit_s; i-- > 0;)
     {
       dev->vk_table.DestroySemaphore(dev->vk_dev, ctx.submit_s[i], nullptr);
@@ -1664,8 +1664,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer vk_phy_devs_del{
-      [&] { self->allocator.ndealloc(vk_phy_devs, num_devs); }};
+  defer _{[&] { self->allocator.ndealloc(vk_phy_devs, num_devs); }};
 
   {
     u32 num_read_devs = num_devs;
@@ -1686,8 +1685,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer physical_devs_del{
-      [&] { self->allocator.ndealloc(physical_devs, num_devs); }};
+  defer _{[&] { self->allocator.ndealloc(physical_devs, num_devs); }};
 
   for (u32 i = 0; i < num_devs; i++)
   {
@@ -1833,7 +1831,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer exts_del{[&] { self->allocator.ndealloc(exts, num_exts); }};
+  defer _{[&] { self->allocator.ndealloc(exts, num_exts); }};
 
   {
     u32 num_read_exts = num_exts;
@@ -1862,7 +1860,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer layers_del{[&] { self->allocator.ndealloc(layers, num_layers); }};
+  defer _{[&] { self->allocator.ndealloc(layers, num_layers); }};
 
   {
     u32 num_read_layers = num_layers;
@@ -2119,7 +2117,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   load_vma_table(self->vk_table, vk_table, vma_table);
 
-  defer vk_dev_del{[&] {
+  defer _{[&] {
     if (vk_dev != nullptr)
     {
       vk_table.DestroyDevice(vk_dev, nullptr);
@@ -2150,7 +2148,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{(Status) result};
   }
 
-  defer vma_allocator_del{[&] {
+  defer _{[&] {
     if (vma_allocator != nullptr)
     {
       vmaDestroyAllocator(vma_allocator);
@@ -2182,7 +2180,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                                       .num_pools = 0,
                                       .scratch_size = 0}};
 
-  defer device_del{[&] {
+  defer _{[&] {
     if (dev != nullptr)
     {
       destroy_device((gfx::Instance) self, (gfx::Device) dev);
@@ -2753,7 +2751,7 @@ Result<gfx::DescriptorSetLayout, Status>
     return Err{(Status) result};
   }
 
-  defer vk_layout_del{[&] {
+  defer _{[&] {
     if (vk_layout != nullptr)
     {
       self->vk_table.DestroyDescriptorSetLayout(self->vk_dev, vk_layout,
@@ -2868,7 +2866,7 @@ Result<gfx::DescriptorSet, Status>
       return Err{(Status) result};
     }
 
-    defer vk_pool_del{[&] {
+    defer _{[&] {
       self->vk_table.DestroyDescriptorPool(self->vk_dev, vk_pool, nullptr);
     }};
 
@@ -2890,7 +2888,7 @@ Result<gfx::DescriptorSet, Status>
   DescriptorBinding bindings[gfx::MAX_DESCRIPTOR_SET_BINDINGS] = {};
   u32               num_bindings                               = 0;
 
-  defer bindings_del{[&] {
+  defer _{[&] {
     for (u32 i = num_bindings; i-- > 0;)
     {
       if (bindings[i].sync_resources != nullptr)
@@ -3577,7 +3575,7 @@ inline VkResult recreate_swapchain(Device *self, Swapchain *swapchain)
 
   CHECK(result == VK_SUCCESS);
 
-  defer new_vk_swapchain_del{[&] {
+  defer _{[&] {
     if (new_vk_swapchain != nullptr)
     {
       self->vk_table.DestroySwapchainKHR(self->vk_dev, new_vk_swapchain,
@@ -4442,8 +4440,7 @@ Result<u32, Status> DeviceInterface::get_surface_formats(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer vk_formats_del{
-      [&] { self->allocator.ndealloc(vk_formats, num_supported); }};
+  defer _{[&] { self->allocator.ndealloc(vk_formats, num_supported); }};
 
   {
     u32 num_read = num_supported;
@@ -4491,8 +4488,7 @@ Result<u32, Status> DeviceInterface::get_surface_present_modes(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer vk_present_modes_del{
-      [&] { self->allocator.ndealloc(vk_present_modes, num_supported); }};
+  defer _{[&] { self->allocator.ndealloc(vk_present_modes, num_supported); }};
 
   {
     u32 num_read = num_supported;
@@ -4779,7 +4775,7 @@ Result<gfx::PipelineStatistics, Status>
   {                                                      \
     return;                                              \
   }                                                      \
-  defer prelude_reset_arg_pool                           \
+  defer _                                                \
   {                                                      \
     [&] { self->arg_pool.reclaim(); }                    \
   }

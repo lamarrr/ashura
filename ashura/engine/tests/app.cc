@@ -15,7 +15,7 @@ int main(int, char **)
 {
   using namespace ash;
   logger->add_sink(&stdio_sink);
-  defer shutdown{[&] { logger->info("Exiting"); }};
+  defer _{[&] { logger->info("Exiting"); }};
 
   // [ ] env/config to get paths for system: fonts, font cache, images, music,
   // etc.
@@ -25,14 +25,14 @@ int main(int, char **)
           R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
           font_data) == IoError::None);
 
-  defer font_data_del{[&] { font_data.uninit(); }};
+  defer _{[&] { font_data.uninit(); }};
 
   Font font = decode_font(span(font_data), 0, default_allocator).unwrap();
 
   CHECK(rasterize_font(font, 60, default_allocator));
 
   sdl_window_system->init();
-  defer sdl_shutdown{[&] { sdl_window_system->uninit(); }};
+  defer _{[&] { sdl_window_system->uninit(); }};
 
   gfx::InstanceImpl instance =
       gfx::create_vulkan_instance(heap_allocator, false).unwrap();
@@ -70,8 +70,7 @@ int main(int, char **)
                           }),
                           span({surface}), 2)
           .unwrap();
-  defer device_del{
-      [&] { instance->destroy_device(instance.self, device.self); }};
+  defer _{[&] { instance->destroy_device(instance.self, device.self); }};
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
@@ -251,33 +250,32 @@ int main(int, char **)
 
   invalidate_swapchain();
 
-  defer swapchain_del{
-      [&] { device->destroy_swapchain(device.self, swapchain); }};
+  defer _{[&] { device->destroy_swapchain(device.self, swapchain); }};
 
   // job submission to render context to prepare resources ahead of frame.
   RenderContext ctx;
   ctx.init(device, true, 2, {1920, 1080}, shaders);
   shaders = {};
-  defer ctx_del{[&] { ctx.uninit(); }};
+  defer _{[&] { ctx.uninit(); }};
 
   PassContext pctx;
   pctx.init(ctx);
-  defer pctx_del{[&] { pctx.uninit(ctx); }};
+  defer _{[&] { pctx.uninit(ctx); }};
 
   ctx.begin_frame(swapchain);
 
   CanvasRenderer renderer;
   renderer.init(ctx);
-  defer renderer_del{[&] { renderer.uninit(ctx); }};
+  defer _{[&] { renderer.uninit(ctx); }};
 
   Canvas canvas;
   canvas.init();
-  defer canvas_del{[&] { canvas.uninit(); }};
+  defer _{[&] { canvas.uninit(); }};
 
-  defer dev_wait{[&] { device->wait_idle(device.self).unwrap(); }};
+  defer _{[&] { device->wait_idle(device.self).unwrap(); }};
 
   upload_font_to_device(font, ctx);
-  defer fr_del{[&] { unload_font_from_device(font, ctx); }};
+  defer _{[&] { unload_font_from_device(font, ctx); }};
 
   // [ ] create transfer queue, calculate total required setup size
   u32       runs[]        = {U32_MAX};

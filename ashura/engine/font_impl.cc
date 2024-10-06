@@ -29,7 +29,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     return Err{FontDecodeError::OutOfMemory};
   }
 
-  defer font_data_del{[&] {
+  defer _{[&] {
     if (font_data != nullptr)
     {
       allocator.ndealloc(font_data, font_data_size);
@@ -46,7 +46,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     return Err{FontDecodeError::DecodingFailed};
   }
 
-  defer hb_blob_del{[&] {
+  defer _{[&] {
     if (hb_blob != nullptr)
     {
       hb_blob_destroy(hb_blob);
@@ -67,7 +67,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     return Err{FontDecodeError::DecodingFailed};
   }
 
-  defer hb_face_del{[&] {
+  defer _{[&] {
     if (hb_face != nullptr)
     {
       hb_face_destroy(hb_face);
@@ -83,7 +83,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
 
   hb_font_set_scale(hb_font, AU_UNIT, AU_UNIT);
 
-  defer hb_font_del{[&] {
+  defer _{[&] {
     if (hb_font != nullptr)
     {
       hb_font_destroy(hb_font);
@@ -96,7 +96,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     return Err{FontDecodeError::DecodingFailed};
   }
 
-  defer ft_lib_del{[&] {
+  defer _{[&] {
     if (ft_lib != nullptr)
     {
       FT_Done_FreeType(ft_lib);
@@ -116,7 +116,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     return Err{FontDecodeError::DecodingFailed};
   }
 
-  defer ft_face_del{[&] {
+  defer _{[&] {
     if (ft_face != nullptr)
     {
       FT_Done_Face(ft_face);
@@ -137,7 +137,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     mem::copy(ft_postscript_name, postscript_name, postscript_name_size);
   }
 
-  defer postscript_name_del{[&] {
+  defer _{[&] {
     if (postscript_name != nullptr)
     {
       allocator.ndealloc(postscript_name, postscript_name_size);
@@ -157,7 +157,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     mem::copy(ft_face->family_name, family_name, family_name_size);
   }
 
-  defer family_name_del{[&] {
+  defer _{[&] {
     if (family_name != nullptr)
     {
       allocator.ndealloc(family_name, family_name_size);
@@ -177,7 +177,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     mem::copy(ft_face->style_name, style_name, style_name_size);
   }
 
-  defer style_name_del{[&] {
+  defer _{[&] {
     if (style_name != nullptr)
     {
       allocator.ndealloc(style_name, style_name_size);
@@ -201,7 +201,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     return Err{FontDecodeError::OutOfMemory};
   }
 
-  defer glyphs_del{[&] {
+  defer _{[&] {
     if (glyphs != nullptr)
     {
       allocator.ndealloc(glyphs, num_glyphs);
@@ -391,7 +391,7 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
       return false;
     }
 
-    defer rects_del{[&] { allocator.ndealloc(rects, num_rasterized_glyphs); }};
+    defer _{[&] { allocator.ndealloc(rects, num_rasterized_glyphs); }};
 
     for (u32 g = 0, irect = 0; g < f->num_glyphs; g++)
     {
@@ -423,7 +423,7 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
       return false;
     }
 
-    defer nodes_del{[&] { allocator.ndealloc(nodes, atlas_extent.x); }};
+    defer _{[&] { allocator.ndealloc(nodes, atlas_extent.x); }};
 
     u32  num_packed = 0;
     bool all_packed = false;
@@ -576,7 +576,7 @@ void upload_font_to_device(Font font, RenderContext &c,
 
   CHECK(allocator.nalloc(atlas.num_layers, &copies));
 
-  defer copies_del{[&] { allocator.ndealloc(copies, atlas.num_layers); }};
+  defer _{[&] { allocator.ndealloc(copies, atlas.num_layers); }};
 
   u64 const   atlas_size = atlas.channels.size() * (u64) 4;
   gfx::Buffer staging_buffer =

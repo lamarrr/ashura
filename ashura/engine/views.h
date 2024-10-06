@@ -1555,8 +1555,8 @@ struct ScalarDragBox : View, Pin<>
     }
 
     Vec<u8> utf8;
+    defer   _{[&] { utf8.reset(); }};
     utf8_encode(text, utf8).unwrap();
-    defer utf8_reset{[&] { utf8.reset(); }};
 
     char const *const first = (char const *) utf8.begin();
     char const *const last  = (char const *) utf8.end();
