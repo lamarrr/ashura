@@ -192,22 +192,7 @@ add_library(
   ashura/engine/window.cc
   ashura/engine/view.cc
   ashura/engine/view_system.cc
-  ashura/engine/views/button.cc
-  ashura/engine/views/check_box.cc
-  ashura/engine/views/collapsable.cc
-  ashura/engine/views/color_picker.cc
-  ashura/engine/views/combo_box.cc
-  ashura/engine/views/flex_view.cc
-  ashura/engine/views/plot.cc
-  ashura/engine/views/progress_bar.cc
-  ashura/engine/views/radio_box.cc
-  ashura/engine/views/scalar_box.cc
-  ashura/engine/views/scroll_view.cc
-  ashura/engine/views/slider.cc
-  ashura/engine/views/stack_view.cc
-  ashura/engine/views/switch.cc
-  ashura/engine/views/tab.cc
-  ashura/engine/views/text_view.cc
+  ashura/engine/views.cc
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc
