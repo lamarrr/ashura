@@ -231,8 +231,8 @@ struct StackView : public View
 struct TextView : View, Pin<>
 {
   bool           copyable : 1           = false;
-  Vec4           highlight_color        = {};
-  Vec4           highlight_corner_radii = {0, 0, 0, 0};
+  ColorGradient  highlight_color        = {};
+  CornerRadii    highlight_corner_radii = {};
   RenderText     text                   = {};
   TextCompositor compositor             = {};
 
@@ -270,8 +270,8 @@ struct TextView : View, Pin<>
                        *ctx.clipboard, 1, ctx.mouse.position);
     text.set_highlight(
         compositor.get_cursor().as_slice(text.get_text().size32()));
-    text.set_highlight_style(ColorGradient::all(highlight_color),
-                             highlight_corner_radii);
+    text.set_highlight_style(highlight_color,
+                             highlight_corner_radii(region.extent.y));
 
     return ViewState{.draggable = copyable};
   }
@@ -827,19 +827,202 @@ struct CheckBox : public View
   }
 };
 
-// [ ]
-struct Collapsable : public View
+/// @brief Multi-directional Slider
+struct Slider : public View
 {
+  struct State
+  {
+    bool disabled : 1      = false;
+    bool pointer_enter : 1 = false;
+    bool pointer_leave : 1 = false;
+    bool pointer_down : 1  = false;
+    bool pointer_up : 1    = false;
+    bool hovered : 1       = false;
+    bool pressed : 1       = false;
+  } state;
+
+  struct Style
+  {
+    Axis          direction    = Axis::X;
+    Frame         frame        = {.width = {100}, .height = {30}};
+    Frame         thumb_frame  = {.width = {20}, .height = {20}};
+    Size          track_height = {10};
+    ColorGradient track_color  = ColorGradient::all(DEFAULT_THEME.inactive);
+    ColorGradient thumb_color  = ColorGradient::all(DEFAULT_THEME.primary);
+    ColorGradient thumb_hovered_color =
+        ColorGradient::all(DEFAULT_THEME.primary_variant);
+    CornerRadii track_corner_radii = CornerRadii::all({.scale = 0.125F});
+    CornerRadii thumb_corner_radii = CornerRadii::all({.scale = 0.125F});
+    u8          levels             = 0;
+  } style;
+
+  f32 t    = 0;
+  f32 low  = 0;
+  f32 high = 1;
+
+  Fn<void(f32)> on_changed = fn([](f32) {});
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events, Fn<void(View &)>) override
+  {
+    u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
+    if (events.dragging)
+    {
+      t = unlerp(region.begin()[main_axis], region.end()[main_axis],
+                 ctx.mouse.position[main_axis]);
+      t = (style.levels == 0) ? t : grid_snap(t, 1.0F / style.levels);
+      f32 const value = clamp(lerp(low, high, t), low, high);
+      on_changed(value);
+    }
+    return ViewState{.pointable = !state.disabled,
+                     .draggable = !state.disabled};
+  }
+
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  {
+    return style.frame(allocated);
+  }
+
+  virtual void render(CRect const &region, CRect const &,
+                      Canvas      &canvas) override
+  {
+    Vec2 const track_extent =
+        Frame{style.frame.width, style.track_height}(region.extent);
+    canvas.rrect(
+        ShapeDesc{.center       = region.center,
+                  .extent       = track_extent,
+                  .corner_radii = style.track_corner_radii(region.extent.y),
+                  .tint         = style.track_color});
+
+    if (style.levels != 0)
+    {
+      f32 const unit = 1 / (f32) style.levels;
+      for (i32 i = 1; i < style.levels; i++)
+      {
+        Vec2 center = region.begin();
+        center.x += unit * i * region.extent.x;
+        center.y += region.extent.y / 2;
+
+        canvas.rrect(ShapeDesc{
+            .center       = center,
+            .extent       = Vec2::splat(min(track_extent.y, track_extent.x)),
+            .corner_radii = Vec4::splat(1.0F),
+            .tint         = style.thumb_color});
+      }
+    }
+
+    Vec2 thumb_center =
+        region.begin() + Vec2{region.extent.x * t, region.extent.y / 2};
+    ColorGradient thumb_color =
+        (state.hovered && !state.pressed && !state.disabled) ?
+            style.thumb_hovered_color :
+            style.thumb_color;
+    f32 dilation =
+        (state.hovered && !state.pressed && !state.disabled) ? 1.0F : 0.8F;
+    Vec2 thumb_extent = style.thumb_frame(region.extent) * dilation;
+
+    canvas.rrect(
+        ShapeDesc{.center       = thumb_center,
+                  .extent       = thumb_extent,
+                  .corner_radii = style.thumb_corner_radii(thumb_extent.y),
+                  .tint         = thumb_color});
+  }
+};
+
+struct Switch : public View
+{
+  struct State
+  {
+    bool disabled : 1 = false;
+    bool value : 1    = false;
+    bool hovered : 1  = false;
+    bool pressed : 1  = false;
+  } state;
+
+  struct Style
+  {
+    ColorGradient on_color = ColorGradient::all(DEFAULT_THEME.primary);
+    ColorGradient on_hovered_color =
+        ColorGradient::all(DEFAULT_THEME.primary_variant);
+    ColorGradient off_color = ColorGradient::all(DEFAULT_THEME.active);
+    ColorGradient off_hovered_color =
+        ColorGradient::all(DEFAULT_THEME.inactive);
+    ColorGradient track_color  = ColorGradient::all(DEFAULT_THEME.inactive);
+    Frame         frame        = {.width = {40}, .height = {20}};
+    Frame         thumb_frame  = {.width = {17.5}, .height = {17.5}};
+    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
+  } style;
+
+  Fn<void(bool)> on_changed = fn([](bool) {});
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &,
+                         ViewEvents         events, Fn<void(View &)>) override
+  {
+    if (events.mouse_down && ctx.mouse_down(MouseButtons::Primary))
+    {
+      state.value = !state.value;
+      on_changed(state.value);
+      state.pressed = true;
+    }
+
+    if (events.mouse_up && ctx.mouse_up(MouseButtons::Primary))
+    {
+      state.pressed = false;
+    }
+
+    if (events.mouse_in)
+    {
+      state.hovered = true;
+    }
+
+    if (events.mouse_out)
+    {
+      state.hovered = false;
+    }
+
+    return ViewState{.pointable = !state.disabled,
+                     .clickable = !state.disabled,
+                     .focusable = !state.disabled};
+  }
+
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  {
+    return style.frame(allocated);
+  }
+
+  virtual void render(CRect const &region, CRect const &,
+                      Canvas      &canvas) override
+  {
+    canvas.rrect(ShapeDesc{.center       = region.center,
+                           .extent       = region.extent,
+                           .corner_radii = style.corner_radii(region.extent.y),
+                           .tint         = style.track_color});
+
+    Vec2 const thumb_extent = style.thumb_frame(region.extent);
+    Vec2 const thumb_center =
+        region.begin() + space_align(region.extent, thumb_extent,
+                                     Vec2{state.value ? -1.0F : 1.0F, 0});
+
+    ColorGradient thumb_color;
+    if (state.hovered)
+    {
+      thumb_color =
+          state.value ? style.on_hovered_color : style.off_hovered_color;
+    }
+    else
+    {
+      thumb_color = state.value ? style.on_color : style.off_color;
+    }
+
+    canvas.rrect(ShapeDesc{.center       = thumb_center,
+                           .extent       = thumb_extent,
+                           .corner_radii = style.corner_radii(region.extent.y),
+                           .tint         = thumb_color});
+  }
 };
 
 // [ ] implement
-/// REQUIREMENTS
-/// - Linear and Non-Linear Color Space Independence
-/// - Rectangular Box with visualizations
-/// - Text-based manual input
-/// - RGB, SRGB, HSV, HEX, Linear, Hue, YUV
-// - [ ] color space, pixel info for color pickers
-struct ColorPicker : public View
+struct Collapsable : public View
 {
 };
 
@@ -1101,24 +1284,6 @@ struct ComboBox : public View
     //[ ]  draw button: scroll_view.opened?
     // [ ] focus
   }
-};
-
-// [ ]
-struct ContextMenu : public View
-{
-};
-
-/// [ ] REQUIREMENTS:
-/// - plot modes: histogram, lines, scale, log
-/// - plot from user buffer: can be at specific index and will plot rest from
-/// head.
-struct Plot : public View
-{
-};
-
-// [ ] implement
-struct ProgressBar : public View
-{
 };
 
 struct RadioBox : public View
@@ -1789,198 +1954,33 @@ struct ScrollView : public View
   }
 };
 
-/// @brief Multi-directional Slider
-struct Slider : public View
+// [ ] implement
+struct ContextMenu : public View
 {
-  struct State
-  {
-    bool disabled : 1      = false;
-    bool pointer_enter : 1 = false;
-    bool pointer_leave : 1 = false;
-    bool pointer_down : 1  = false;
-    bool pointer_up : 1    = false;
-    bool hovered : 1       = false;
-    bool pressed : 1       = false;
-  } state;
-
-  struct Style
-  {
-    Axis          direction    = Axis::X;
-    Frame         frame        = {.width = {100}, .height = {30}};
-    Frame         thumb_frame  = {.width = {20}, .height = {20}};
-    Size          track_height = {10};
-    ColorGradient track_color  = ColorGradient::all(DEFAULT_THEME.inactive);
-    ColorGradient thumb_color  = ColorGradient::all(DEFAULT_THEME.primary);
-    ColorGradient thumb_hovered_color =
-        ColorGradient::all(DEFAULT_THEME.primary_variant);
-    CornerRadii track_corner_radii = CornerRadii::all({.scale = 0.125F});
-    CornerRadii thumb_corner_radii = CornerRadii::all({.scale = 0.125F});
-    u8          levels             = 0;
-  } style;
-
-  f32 t    = 0;
-  f32 low  = 0;
-  f32 high = 1;
-
-  Fn<void(f32)> on_changed = fn([](f32) {});
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)>) override
-  {
-    u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
-    if (events.dragging)
-    {
-      t = unlerp(region.begin()[main_axis], region.end()[main_axis],
-                 ctx.mouse.position[main_axis]);
-      t = (style.levels == 0) ? t : grid_snap(t, 1.0F / style.levels);
-      f32 const value = clamp(lerp(low, high, t), low, high);
-      on_changed(value);
-    }
-    return ViewState{.pointable = !state.disabled,
-                     .draggable = !state.disabled};
-  }
-
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
-  {
-    return style.frame(allocated);
-  }
-
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
-  {
-    Vec2 const track_extent =
-        Frame{style.frame.width, style.track_height}(region.extent);
-    canvas.rrect(
-        ShapeDesc{.center       = region.center,
-                  .extent       = track_extent,
-                  .corner_radii = style.track_corner_radii(region.extent.y),
-                  .tint         = style.track_color});
-
-    if (style.levels != 0)
-    {
-      f32 const unit = 1 / (f32) style.levels;
-      for (i32 i = 1; i < style.levels; i++)
-      {
-        Vec2 center = region.begin();
-        center.x += unit * i * region.extent.x;
-        center.y += region.extent.y / 2;
-
-        canvas.rrect(ShapeDesc{
-            .center       = center,
-            .extent       = Vec2::splat(min(track_extent.y, track_extent.x)),
-            .corner_radii = Vec4::splat(1.0F),
-            .tint         = style.thumb_color});
-      }
-    }
-
-    Vec2 thumb_center =
-        region.begin() + Vec2{region.extent.x * t, region.extent.y / 2};
-    ColorGradient thumb_color =
-        (state.hovered && !state.pressed && !state.disabled) ?
-            style.thumb_hovered_color :
-            style.thumb_color;
-    f32 dilation =
-        (state.hovered && !state.pressed && !state.disabled) ? 1.0F : 0.8F;
-    Vec2 thumb_extent = style.thumb_frame(region.extent) * dilation;
-
-    canvas.rrect(
-        ShapeDesc{.center       = thumb_center,
-                  .extent       = thumb_extent,
-                  .corner_radii = style.thumb_corner_radii(thumb_extent.y),
-                  .tint         = thumb_color});
-  }
 };
 
-struct Switch : public View
+// [ ] implement
+/// REQUIREMENTS
+/// - Linear and Non-Linear Color Space Independence
+/// - Rectangular Box with visualizations
+/// - Text-based manual input
+/// - RGB, SRGB, HSV, HEX, Linear, Hue, YUV
+// - [ ] color space, pixel info for color pickers
+struct ColorPicker : public View
 {
-  struct State
-  {
-    bool disabled : 1 = false;
-    bool value : 1    = false;
-    bool hovered : 1  = false;
-    bool pressed : 1  = false;
-  } state;
+};
 
-  struct Style
-  {
-    ColorGradient on_color = ColorGradient::all(DEFAULT_THEME.primary);
-    ColorGradient on_hovered_color =
-        ColorGradient::all(DEFAULT_THEME.primary_variant);
-    ColorGradient off_color = ColorGradient::all(DEFAULT_THEME.active);
-    ColorGradient off_hovered_color =
-        ColorGradient::all(DEFAULT_THEME.inactive);
-    ColorGradient track_color  = ColorGradient::all(DEFAULT_THEME.inactive);
-    Frame         frame        = {.width = {40}, .height = {20}};
-    Frame         thumb_frame  = {.width = {17.5}, .height = {17.5}};
-    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
-  } style;
+/// [ ] REQUIREMENTS:
+/// - plot modes: histogram, lines, scale, log
+/// - plot from user buffer: can be at specific index and will plot rest from
+/// head.
+struct Plot : public View
+{
+};
 
-  Fn<void(bool)> on_changed = fn([](bool) {});
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &,
-                         ViewEvents         events, Fn<void(View &)>) override
-  {
-    if (events.mouse_down && ctx.mouse_down(MouseButtons::Primary))
-    {
-      state.value = !state.value;
-      on_changed(state.value);
-      state.pressed = true;
-    }
-
-    if (events.mouse_up && ctx.mouse_up(MouseButtons::Primary))
-    {
-      state.pressed = false;
-    }
-
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
-
-    if (events.mouse_out)
-    {
-      state.hovered = false;
-    }
-
-    return ViewState{.pointable = !state.disabled,
-                     .clickable = !state.disabled,
-                     .focusable = !state.disabled};
-  }
-
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
-  {
-    return style.frame(allocated);
-  }
-
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
-  {
-    canvas.rrect(ShapeDesc{.center       = region.center,
-                           .extent       = region.extent,
-                           .corner_radii = style.corner_radii(region.extent.y),
-                           .tint         = style.track_color});
-
-    Vec2 const thumb_extent = style.thumb_frame(region.extent);
-    Vec2 const thumb_center =
-        region.begin() + space_align(region.extent, thumb_extent,
-                                     Vec2{state.value ? -1.0F : 1.0F, 0});
-
-    ColorGradient thumb_color;
-    if (state.hovered)
-    {
-      thumb_color =
-          state.value ? style.on_hovered_color : style.off_hovered_color;
-    }
-    else
-    {
-      thumb_color = state.value ? style.on_color : style.off_color;
-    }
-
-    canvas.rrect(ShapeDesc{.center       = thumb_center,
-                           .extent       = thumb_extent,
-                           .corner_radii = style.corner_radii(region.extent.y),
-                           .tint         = thumb_color});
-  }
+// [ ] implement
+struct ProgressBar : public View
+{
 };
 
 // [ ] header selectors.

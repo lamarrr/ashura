@@ -6,7 +6,6 @@
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
-
 namespace ash
 {
 

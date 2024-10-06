@@ -79,14 +79,14 @@ enum class MainAlign : u8
   SpaceEvenly  = 4
 };
 
-/// @param mounted widget has been mounted to the widget tree and has now
+/// @param mounted view has been mounted to the view tree and has now
 /// received an ID.
 /// @param drag_start drag event has begun on this view
 /// @param dragging an update on the drag state has been gotten
 /// @param drag_end the dragging of this view has completed
 /// @param drag_in drag data has entered this view and might be dropped
 /// @param drag_out drag data has left the view without being dropped
-/// @param drag_over drag data is moving over this widget as destination without
+/// @param drag_over drag data is moving over this view as destination without
 /// beiung dropped
 /// @param drop drag data is now available for the view to consume
 /// @param view_hit called on every frame the view is viewed on the viewport.
@@ -145,7 +145,7 @@ struct ViewContext
   {
     bool         in : 1             = false;
     bool         out : 1            = false;
-    bool         pointed : 1        = false;
+    bool         focused : 1        = false;
     bool         moved : 1          = false;
     bool         wheel_scrolled : 1 = false;
     MouseButtons downs : 8          = MouseButtons::None;
@@ -159,9 +159,6 @@ struct ViewContext
 
   struct KeyBoard
   {
-    bool                in : 1      = false;
-    bool                out : 1     = false;
-    bool                focused : 1 = false;
     bool                down : 1    = false;
     bool                up : 1      = false;
     Bits<u64, NUM_KEYS> downs       = {};
@@ -236,7 +233,7 @@ struct ViewContext
 /// meaning the default tab order based on the hierarchy of the parent to
 /// children and siblings. negative values have higher tab index priority while
 /// positive indices have lower tab priority.
-/// @param hidden if the widget should be hidden from view (will not receive
+/// @param hidden if the view should be hidden from view (will not receive
 /// visual events, but still receive tick events)
 /// @param pointable can receive mouse enter/move/leave events
 /// @param clickable can receive mouse press events
@@ -248,7 +245,7 @@ struct ViewContext
 /// key/non-text keys)
 /// @param tab_input can receive `Tab` key as input when focused
 /// @param grab_focus user to focus on view
-/// @param lose_focus lose widget focus
+/// @param lose_focus lose view focus
 struct ViewState
 {
   i32  tab            = 0;
@@ -452,6 +449,16 @@ struct View
     (void) region;
     (void) offset;
     return Cursor::Default;
+  }
+
+  /// @brief performs tab-index ordering of children relative to itself.
+  /// @param allocated tab index allocated to this view
+  /// @param indices tab indices of children
+  constexpr virtual i32 tab(i32 allocated, Span<i32> indices)
+  {
+    // [ ] HOW TO GO DEPTH FIRST?
+    iota(indices, allocated + 1);
+    return allocated;
   }
 };
 

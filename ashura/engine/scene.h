@@ -9,15 +9,22 @@
 
 namespace ash
 {
-/// linearly-tilted tree node
+
+/// @brief flattened hierarchical tree node, all siblings are packed
+/// sequentially to the right of the parent.
+/// This only represents the parent node.
+/// Since the tree is rebuilt from scratch every time, the order is preserved in
+/// that parents always come before children.
 /// @param depth depth of the tree this node belongs to. there's ever only one
-/// root node at depth 0
+/// node at depth 0: the root node.
 struct SceneNode
 {
-  u64 parent       = U64_MAX;
-  u64 next_sibling = U64_MAX;
-  u64 first_child  = U64_MAX;
   u32 depth        = 0;
+  u32 parent       = U32_MAX;
+  u32 first_child  = U32_MAX;
+  u32 num_children = 0;
+  u32 prev_sibling = U32_MAX;
+  u32 next_sibling = U32_MAX;
 };
 
 }        // namespace ash

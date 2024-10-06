@@ -13,25 +13,34 @@ namespace ash
 /// This only represents the parent node.
 /// Since the tree is rebuilt from scratch every time, the order is preserved in
 /// that parents always come before children.
+/// @param depth depth of the tree this node belongs to. there's ever only one
+/// node at depth 0: the root node.
 struct ViewNode
 {
   u32 depth        = 0;
   u32 parent       = U32_MAX;
-  u32 first_child  = 0;
+  u32 first_child  = U32_MAX;
   u32 num_children = 0;
+  u32 prev_sibling = U32_MAX;
+  u32 next_sibling = U32_MAX;
 };
 
 struct ViewSystemState
 {
   u64  mouse_focused_view      = 0;
-  u64  mouse_dragging_view     = 0;
   u64  mouse_hovered_view      = 0;
   u64  mouse_scroll_focus_view = 0;
+  u64  drag_source_view        = 0;
+  u64  drag_target_view        = 0;
   u64  keyboard_focused_view   = 0;
   bool mouse_down : 1          = false;
   bool mouse_up : 1            = false;
   bool mouse_moved : 1         = false;
   bool mouse_scrolled : 1      = false;
+  bool mouse_drag_start : 1    = false;
+  bool mouse_drag_end : 1      = false;
+  bool mouse_dragging : 1      = false;
+  bool mouse_drag_drop : 1     = false;
   bool keyboard_down : 1       = false;
   bool keyboard_up : 1         = false;
   bool text_input : 1          = false;
@@ -66,7 +75,7 @@ struct ViewSystem
     z_ordering.reset();
   }
 
-  ViewEvents process_events(ViewContext const &ctx, View &view)
+  ViewEvents process_events(View &view)
   {
     ViewEvents events;
 
@@ -77,15 +86,13 @@ struct ViewSystem
       events.mounted = true;
     }
 
-    events.view_hit = (view.inner.last_rendered_frame == (frame - 1));
+    events.view_hit = (view.inner.last_rendered_frame + 1) == frame;
 
     if (state.mouse_focused_view == view.id()) [[unlikely]]
     {
-      events.mouse_in      = (previous_state.mouse_focused_view != view.id());
-      events.mouse_down    = state.mouse_down;
-      events.mouse_up      = state.mouse_up;
-      events.mouse_pressed = previous_state.mouse_down && state.mouse_up &&
-                             (previous_state.mouse_focused_view == view.id());
+      events.mouse_in   = (previous_state.mouse_focused_view != view.id());
+      events.mouse_down = state.mouse_down;
+      events.mouse_up   = state.mouse_up;
       events.mouse_moved =
           state.mouse_moved && (previous_state.mouse_focused_view == view.id());
     }
@@ -94,28 +101,35 @@ struct ViewSystem
       events.mouse_out = true;
     }
 
-    if (state.mouse_scroll_focus_view == view.id() && state.mouse_scrolled)
-        [[unlikely]]
+    if (state.mouse_scroll_focus_view == view.id()) [[unlikely]]
     {
-      events.mouse_scroll = true;
+      events.mouse_scroll = state.mouse_scrolled;
     }
 
-    // [ ] drag acceptance ? drag via different buttons?
-    // [ ] drag start
-    // [ ] dragging
-    // [ ] drag_end
-    // [ ] drag_in
-    // [ ] drag_out
-    // [ ] drag_over
-    // [ ] drop
+    if (state.drag_target_view == view.id()) [[unlikely]]
+    {
+      events.drag_in =
+          (previous_state.drag_target_view != state.drag_target_view);
+      events.drop      = state.mouse_drag_drop;
+      events.drag_over = state.mouse_dragging;
+    }
+    else if (previous_state.drag_target_view == view.id()) [[unlikely]]
+    {
+      events.drag_out = state.mouse_dragging;
+    }
+
+    if (state.drag_source_view == view.id()) [[unlikely]]
+    {
+      events.drag_start = state.mouse_drag_start;
+      events.dragging   = state.mouse_dragging;
+      events.drag_end   = state.mouse_drag_end;
+    }
 
     if (state.keyboard_focused_view == view.id()) [[unlikely]]
     {
-      events.focus_in    = previous_state.keyboard_focused_view != view.id();
-      events.key_down    = state.keyboard_down;
-      events.key_up      = state.keyboard_up;
-      events.key_pressed = previous_state.keyboard_down && state.keyboard_up &&
-                           (previous_state.keyboard_focused_view == view.id());
+      events.focus_in   = previous_state.keyboard_focused_view != view.id();
+      events.key_down   = state.keyboard_down;
+      events.key_up     = state.keyboard_up;
       events.text_input = state.text_input;
     }
     else if (previous_state.keyboard_focused_view == view.id()) [[unlikely]]
@@ -132,8 +146,8 @@ struct ViewSystem
 
     auto builder = [&](View &child) { views.push(&child).unwrap(); };
 
-    parent->inner.state = parent->tick(
-        ctx, parent->inner.region, process_events(ctx, *parent), fn(&builder));
+    parent->inner.state = parent->tick(ctx, parent->inner.region,
+                                       process_events(*parent), fn(&builder));
 
     u32 const num_children = views.size32() - first_child;
     u32 const node_idx     = nodes.size32();
@@ -147,6 +161,7 @@ struct ViewSystem
     {
       build_recursive(ctx, views[c], depth + 1);
       nodes[c].parent = node_idx;
+      // [ ] next_sibling & prev_sibling
     }
   }
 
@@ -280,10 +295,9 @@ struct ViewSystem
                     CRect{.center = {0, 0}, .extent = viewport_size}) ||
           !overlaps(view.inner.region, clips[i]);
 
-      // [ ] should be OR?
-      is_hidden.set(i, hidden);
+      is_hidden.set(i, hidden || is_hidden[i]);
 
-      // if parent hidden by itself. make children hidden
+      // if parent requested to be hidden, make children hidden
       if (view.inner.state.hidden) [[unlikely]]
       {
         for (u32 c = node.first_child;
@@ -310,92 +324,171 @@ struct ViewSystem
 
   void events(ViewContext const &ctx)
   {
-    /// [ ] mouse active ? (mouse down? click test :  hover test)
-    /// [ ] key pressed ? (is_tab : current accepts tab? , is in input mode?
-    /// focused widget? navigate, otherwise input)
-    ///
-    /// [ ] hit testing, process
-    /// states, how long should states be preserved? what
-    ///
-    /// [ ] if widget is
-    /// removed?
-    ///
-    /// [ ] render cursor
-    ///
-    /// [ ] context menus?
+    // [ ] if widget is removed?
+    // [ ] render cursor & manage cursor
+    // [ ] UI tick rate (time-based/adaptive frame rate), with custom frequency
+    // allowed, need to be able to merge inputs?
+    //
+    // [ ] can clicking be handled in the widget? i.e.
+    // using ClickDetector that checks time interval and based on some
+    // time or debouncing parameters
+    //
+    // [ ] state continuation? i.e. dragging
+    // [ ] mouse/keyboard lose or gain focus
 
-    if (ctx.mouse.out)
+    ViewSystemState new_state;
+
+    if (ctx.mouse.focused)
     {
-      //
-    }
-    else if (ctx.mouse.pointed)
-    {
-      //
-      if (ctx.mouse.in)
+      // mouse click & drag
+      if (has_bits(ctx.mouse.downs, MouseButtons::Primary))
       {
+        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        {
+          z_i--;
+          u32 i = z_ordering[z_i];
+          if (!is_hidden[i])
+          {
+            View &view = *views[i];
+            if ((view.inner.state.clickable || view.inner.state.draggable) &&
+                view.hit(view.inner.region, ctx.mouse.position))
+            {
+              if (view.inner.state.draggable)
+              {
+                new_state.mouse_dragging   = true;
+                new_state.drag_source_view = view.id();
+                new_state.mouse_dragging   = true;
+                new_state.mouse_drag_start = true;
+              }
+              else
+              {
+                new_state.mouse_down         = true;
+                new_state.mouse_focused_view = view.id();
+              }
+              break;
+            }
+          }
+        }
+      }
+      // mouse press events
+      else if ((ctx.mouse.downs != MouseButtons::None ||
+                ctx.mouse.ups != MouseButtons::None) &&
+               !state.mouse_dragging)
+      {
+        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        {
+          z_i--;
+          u32 i = z_ordering[z_i];
+          if (!is_hidden[i])
+          {
+            View &view = *views[i];
+            if (view.inner.state.clickable &&
+                view.hit(view.inner.region, ctx.mouse.position))
+            {
+              new_state.mouse_down = ctx.mouse.downs != MouseButtons::None;
+              new_state.mouse_up   = ctx.mouse.ups != MouseButtons::None;
+              new_state.mouse_focused_view = view.id();
+              break;
+            }
+          }
+        }
+      }
+      // mouse dragging update event
+      else if (ctx.mouse.moved && state.mouse_dragging)
+      {
+        new_state.drag_source_view = previous_state.drag_source_view;
+        new_state.mouse_dragging   = true;
+        // how is dropping accepted or rejected?
+        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        {
+          z_i--;
+          u32 i = z_ordering[z_i];
+          if (!is_hidden[i])
+          {
+            View &view = *views[i];
+            if (view.inner.state.droppable &&
+                view.hit(view.inner.region, ctx.mouse.position))
+            {
+              new_state.drag_target_view = view.id();
+              break;
+            }
+          }
+        }
+      }
+      // mouse drop event
+      else if (has_bits(ctx.mouse.ups, MouseButtons::Primary) &&
+               state.mouse_dragging)
+      {
+        // cancelation and acceptance
+        // new_state.mouse_drag_drop = true;
+      }
+      // mouse scroll event
+      else if (ctx.mouse.wheel_scrolled)
+      {
+        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        {
+          z_i--;
+          u32 i = z_ordering[z_i];
+          if (!is_hidden[i])
+          {
+            View &view = *views[i];
+            if (view.inner.state.scrollable &&
+                view.hit(view.inner.region, ctx.mouse.position))
+            {
+              new_state.mouse_scroll_focus_view = view.id();
+              new_state.mouse_scrolled          = true;
+              break;
+            }
+          }
+        }
+      }
+      // pointing event
+      else if (!state.mouse_dragging)
+      {
+        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        {
+          z_i--;
+          u32 i = z_ordering[z_i];
+          if (!is_hidden[i])
+          {
+            View &view = *views[i];
+            if (view.inner.state.pointable &&
+                view.hit(view.inner.region, ctx.mouse.position))
+            {
+              new_state.mouse_hovered_view = view.id();
+              break;
+            }
+          }
+        }
       }
     }
 
-    if (ctx.keyboard.out)
-    {
-      //
-    }
-    else if (ctx.keyboard.focused)
-    {
-      //
-      if (ctx.keyboard.in)
-      {
-      }
-    }
+    // [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
+    // Tab to move focus forwards) - we can follow along the tree and allow
+    // widgets to specify integers of focus direction of their children
+    //
+    // [ ] on click or focus of focusable objects, system requests keyboard
+    // input if object has a text area attribute
+    // [ ] ? by default, special non-text keys will always be forwarded, to
+    // reject keys, i.e. prevent tab from navigating. make PgUp have special
+    // meaning within viewport, etc.
+    //
+    // [ ] viewport child focus and key navigation?
+    // [ ] focus navigation logic
+    // [ ] focus request
+    // [ ] key pressed ? (is_tab : current accepts tab? , is in input mode?
+    // focused widget? navigate, otherwise input)
+    //
+
+    // if only tab down, it shouldn't be an input??? it should
+    new_state.keyboard_down = ctx.keyboard.down;
+    new_state.keyboard_up   = ctx.keyboard.up;
+
+    // focus nav
   }
 
   void tick(ViewContext const &ctx, View *root, Canvas &canvas)
   {
-    // [ ] process events across views, hit-test, dispatch events
-    //
-    //
-    // [ ] SDL_SetCursor()
-    //     SDL_CreateSystemCursor(); - all created at startup
-    //     SDL_HideCursor();
-    //     SDL_ShowCursor();
-    //
-    // [ ] UI tick rate (time-based/adaptive frame rate)
-    // [ ] click - forward directly unless draggable
-    // [ ] focus and keyboard management
-    // [ ] view drag & drop
-    // [ ] keyboard input: use another system?
-    // [ ] clip board copy & paste with custom media format
-    // [ ] text input
-    // [ ] gamepad input: use another system?
-    // [ ] hit testing on clipped rects
-    // [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
-    /// Tab to move focus forwards) - we can follow along the tree and allow
-    /// widgets to specify integers of focus direction of their children
-    ///
-    // [ ] scroll on child focus for viewports
-    // [ ] on click or focus of focusable objects, system requests keyboard
-    // input if object has a text area attribute
-    // [ ] cursor management via hit testing
-    // [ ] window hit testing
-    // [ ] context menu support when right-clicked?
-    // [ ] non-clickable should not receive pointer events
-    // [ ] ? by default, special
-    // non-text keys will always be forwarded, to reject keys, i.e. prevent tab
-    // from navigating. make PgUp have special meaning within viewport, etc.
-    // [ ] viewport child focus and key navigation?
-    //
-    //
-    //
-    // [ ] after all are built and positioned, we need to process events based
-    // on the final tree
-    // [ ] need to store whether view was hit? and reset after reading.
-    // need event store to store: last focused widget, last pressed widget, last
-    // hovered widget, last entered widget, last dragged widget, last dropped
-    // widget,
-    // [ ] how will states be persisted across frames?
-    //
-    frame++;
-
     views.clear();
     nodes.clear();
     build(ctx, root);
@@ -416,6 +509,8 @@ struct ViewSystem
     visibility(ctx.viewport_size);
     render(canvas);
     events(ctx);
+
+    frame++;
   }
 };
 
