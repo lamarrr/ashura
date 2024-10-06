@@ -86,6 +86,8 @@ enum class MainAlign : u8
 /// @param drag_end the dragging of this view has completed
 /// @param drag_in drag data has entered this view and might be dropped
 /// @param drag_out drag data has left the view without being dropped
+/// @param drag_over drag data is moving over this widget as destination without
+/// beiung dropped
 /// @param drop drag data is now available for the view to consume
 /// @param view_hit called on every frame the view is viewed on the viewport.
 /// Can be used for partial loading
@@ -98,28 +100,26 @@ enum class MainAlign : u8
 /// @param text_input the view has received composition text
 struct ViewEvents
 {
-  bool mounted : 1       = false;
-  bool view_hit : 1      = false;
-  bool mouse_in : 1      = false;
-  bool mouse_out : 1     = false;
-  bool mouse_down : 1    = false;
-  bool mouse_up : 1      = false;
-  bool mouse_pressed : 1 = false;
-  bool mouse_moved : 1   = false;
-  bool mouse_scroll : 1  = false;
-  bool drag_start : 1    = false;
-  bool dragging : 1      = false;
-  bool drag_end : 1      = false;
-  bool drag_in : 1       = false;
-  bool drag_out : 1      = false;
-  bool drag_over : 1     = false;
-  bool drop : 1          = false;
-  bool focus_in : 1      = false;
-  bool focus_out : 1     = false;
-  bool key_down : 1      = false;
-  bool key_up : 1        = false;
-  bool key_pressed : 1   = false;
-  bool text_input : 1    = false;
+  bool mounted : 1      = false;
+  bool view_hit : 1     = false;
+  bool mouse_in : 1     = false;
+  bool mouse_out : 1    = false;
+  bool mouse_down : 1   = false;
+  bool mouse_up : 1     = false;
+  bool mouse_moved : 1  = false;
+  bool mouse_scroll : 1 = false;
+  bool drag_start : 1   = false;
+  bool dragging : 1     = false;
+  bool drag_end : 1     = false;
+  bool drag_in : 1      = false;
+  bool drag_out : 1     = false;
+  bool drag_over : 1    = false;
+  bool drop : 1         = false;
+  bool focus_in : 1     = false;
+  bool focus_out : 1    = false;
+  bool key_down : 1     = false;
+  bool key_up : 1       = false;
+  bool text_input : 1   = false;
 };
 
 /// @brief Global View Context, Properties of the context all the views for
