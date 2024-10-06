@@ -13,6 +13,606 @@
 namespace ash
 {
 
+/// @param axis flex axis to layout children along
+/// @param main_align main-axis alignment. specifies how free space is used on
+/// the main axis
+/// @param cross_align cross-axis alignment. affects how free space is used on
+/// the cross axis
+struct FlexView : public View
+{
+  struct Style
+  {
+    Axis      axis : 3       = Axis::X;
+    bool      wrap : 1       = true;
+    bool      reverse : 1    = false;
+    MainAlign main_align : 3 = MainAlign::Start;
+    f32       cross_align    = 0;
+    Frame     frame          = {.width = {.scale = 1}, .height = {.scale = 1}};
+  } style;
+
+  virtual f32 align_item(u32 i)
+  {
+    (void) i;
+    return style.cross_align;
+  }
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  {
+    Vec2 const frame = style.frame(allocated);
+    fill(sizes, frame);
+  }
+
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
+                   Span<Vec2> offsets) override
+  {
+    u32 const  num_children = sizes.size32();
+    Vec2 const frame        = style.frame(allocated);
+    Vec2       span;
+    f32        cross_cursor = 0;
+    u8 const   main_axis    = (style.axis == Axis::X) ? 0 : 1;
+    u8 const   cross_axis   = (style.axis == Axis::X) ? 1 : 0;
+
+    for (u32 i = 0; i < num_children;)
+    {
+      u32 first        = i++;
+      f32 main_extent  = sizes[first][main_axis];
+      f32 cross_extent = sizes[first][cross_axis];
+      f32 main_spacing = 0;
+
+      while (i < num_children &&
+             !(style.wrap &&
+               (main_extent + sizes[i][main_axis]) > frame[main_axis]))
+      {
+        main_extent += sizes[i][main_axis];
+        cross_extent = max(cross_extent, sizes[i][cross_axis]);
+        i++;
+      }
+
+      u32 const count = i - first;
+
+      if (style.main_align != MainAlign::Start)
+      {
+        main_spacing = max(frame[main_axis] - main_extent, 0.0f);
+      }
+
+      for (u32 b = first; b < first + count; b++)
+      {
+        offsets[b][cross_axis] =
+            cross_cursor +
+            space_align(frame[cross_axis], sizes[b][cross_axis], align_item(b));
+      }
+
+      switch (style.main_align)
+      {
+        case MainAlign::Start:
+        {
+          f32 main_spacing_cursor = 0;
+          for (u32 b = first; b < first + count; b++)
+          {
+            offsets[b][main_axis] = main_spacing_cursor;
+            main_spacing_cursor += sizes[b][main_axis];
+          }
+        }
+        break;
+
+        case MainAlign::SpaceAround:
+        {
+          f32 spacing             = main_spacing / (count * 2);
+          f32 main_spacing_cursor = 0;
+          for (u32 b = first; b < first + count; b++)
+          {
+            main_spacing_cursor += spacing;
+            offsets[b][main_axis] = main_spacing_cursor;
+            main_spacing_cursor += sizes[b][main_axis] + spacing;
+          }
+        }
+        break;
+
+        case MainAlign::SpaceBetween:
+        {
+          f32 spacing             = main_spacing / (count - 1);
+          f32 main_spacing_cursor = 0;
+          for (u32 b = first; b < first + count; b++)
+          {
+            offsets[b][main_axis] = main_spacing_cursor;
+            main_spacing_cursor += sizes[b][main_axis] + spacing;
+          }
+        }
+        break;
+
+        case MainAlign::SpaceEvenly:
+        {
+          f32 spacing             = main_spacing / (count + 1);
+          f32 main_spacing_cursor = spacing;
+          for (u32 b = first; b < first + count; b++)
+          {
+            offsets[b][main_axis] = main_spacing_cursor;
+            main_spacing_cursor += sizes[b][main_axis] + spacing;
+          }
+        }
+        break;
+
+        case MainAlign::End:
+        {
+          f32 main_spacing_cursor = main_spacing;
+          for (u32 b = first; b < first + count; b++)
+          {
+            offsets[b][main_axis] = main_spacing_cursor;
+            main_spacing_cursor += sizes[b][main_axis];
+          }
+        }
+        break;
+
+        default:
+          break;
+      }
+
+      if (style.reverse)
+      {
+        for (u32 b0 = first, b1 = first + count - 1; b0 < b1; b0++, b1--)
+        {
+          swap(offsets[b0][main_axis], offsets[b1][main_axis]);
+        }
+      }
+
+      cross_cursor += cross_extent;
+
+      span[main_axis]  = max(span[main_axis], main_extent + main_spacing);
+      span[cross_axis] = cross_cursor;
+    }
+
+    return span;
+  }
+};
+
+struct StackView : public View
+{
+  struct Style
+  {
+    bool  reverse : 1 = false;
+    Vec2  alignment   = {0, 0};
+    Frame frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
+  } style;
+
+  virtual Vec2 align_item(u32 i)
+  {
+    (void) i;
+    return style.alignment;
+  }
+
+  virtual i32 stack_item(i32 base, u32 i, u32 num)
+  {
+    i64 z = base + 1;
+    if (!style.reverse)
+    {
+      z += (i32) i;
+    }
+    else
+    {
+      z += (i32) (num - (i + 1));
+    }
+    return z;
+  }
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  {
+    fill(sizes, style.frame(allocated));
+  }
+
+  virtual Vec2 fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> offsets) override
+  {
+    Vec2      span;
+    u32 const num_children = sizes.size32();
+
+    for (Vec2 s : sizes)
+    {
+      span.x = max(span.x, s.x);
+      span.y = max(span.y, s.y);
+    }
+
+    for (u32 i = 0; i < num_children; i++)
+    {
+      offsets[i] = space_align(span, sizes[i], align_item(i));
+    }
+
+    return span;
+  }
+
+  virtual i32 z_index(i32 allocated, Span<i32> indices) override
+  {
+    for (u32 i = 0; i < indices.size32(); i++)
+    {
+      indices[i] = stack_item(allocated, i, indices.size32());
+    }
+    return allocated;
+  }
+};
+
+struct TextView : View, Pin<>
+{
+  bool           copyable : 1           = false;
+  Vec4           highlight_color        = {};
+  Vec4           highlight_corner_radii = {0, 0, 0, 0};
+  RenderText     text                   = {};
+  TextCompositor compositor             = {};
+
+  TextView()
+  {
+    text.style(
+        0, U32_MAX,
+        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_surface)},
+        FontStyle{.font        = engine->default_font,
+                  .font_height = DEFAULT_THEME.body_font_height,
+                  .line_height = DEFAULT_THEME.line_height});
+  }
+
+  virtual ~TextView() override
+  {
+    text.reset();
+  }
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events, Fn<void(View &)>) override
+  {
+    TextCommand cmd = TextCommand::None;
+    if (events.drag_start)
+    {
+      cmd = TextCommand::Hit;
+    }
+    else if (events.dragging)
+    {
+      cmd = TextCommand::HitSelect;
+    }
+
+    compositor.command(text.get_text(), text.inner.layout, region.extent.x,
+                       text.inner.alignment, cmd,
+                       fn([](u32, Span<u32 const>) {}), fn([](Slice32) {}), {},
+                       *ctx.clipboard, 1, ctx.mouse.position);
+    text.set_highlight(
+        compositor.get_cursor().as_slice(text.get_text().size32()));
+    text.set_highlight_style(ColorGradient::all(highlight_color),
+                             highlight_corner_radii);
+
+    return ViewState{.draggable = copyable};
+  }
+
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  {
+    text.calculate_layout(allocated.x);
+    return text.inner.layout.extent;
+  }
+
+  virtual void render(CRect const &region, CRect const &clip,
+                      Canvas &canvas) override
+  {
+    text.render(region, clip, canvas);
+  }
+
+  virtual Cursor cursor(CRect const &, Vec2) override
+  {
+    return copyable ? Cursor::Text : Cursor::Default;
+  }
+};
+
+struct TextInput : View, Pin<>
+{
+  struct State
+  {
+    bool disabled : 1      = false;
+    bool editing : 1       = false;
+    bool submit : 1        = false;
+    bool focus_in : 1      = false;
+    bool focus_out : 1     = false;
+    bool focused : 1       = false;
+    bool is_multiline : 1  = false;
+    bool enter_submits : 1 = false;
+    bool tab_input : 1     = false;
+  } state;
+
+  struct Style
+  {
+    ColorGradient highlight_color        = {};
+    CornerRadii   highlight_corner_radii = {};
+    u32           lines_per_page         = 1;
+  } style;
+
+  RenderText     content     = {};
+  RenderText     placeholder = {};
+  TextCompositor compositor  = {};
+
+  Fn<void()> on_edit      = fn([] {});
+  Fn<void()> on_submit    = fn([] {});
+  Fn<void()> on_focus_in  = fn([] {});
+  Fn<void()> on_focus_out = fn([] {});
+
+  TextInput()
+  {
+    content.style(
+        0, U32_MAX,
+        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_surface)},
+        FontStyle{.font        = engine->default_font,
+                  .font_height = DEFAULT_THEME.body_font_height,
+                  .line_height = DEFAULT_THEME.line_height});
+    placeholder.style(
+        0, U32_MAX,
+        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_surface)},
+        FontStyle{.font        = engine->default_font,
+                  .font_height = DEFAULT_THEME.body_font_height,
+                  .line_height = DEFAULT_THEME.line_height});
+  }
+
+  virtual ~TextInput() override
+  {
+    content.reset();
+    placeholder.reset();
+  }
+
+  constexpr TextCommand command(ViewContext const &ctx) const
+  {
+    if (ctx.key_state(KeyCode::Escape))
+    {
+      return TextCommand::Unselect;
+    }
+    if (ctx.key_state(KeyCode::Backspace))
+    {
+      return TextCommand::BackSpace;
+    }
+    if (ctx.key_state(KeyCode::Delete))
+    {
+      return TextCommand::Delete;
+    }
+    if (ctx.key_state(KeyCode::Left))
+    {
+      return TextCommand::Left;
+    }
+    if (ctx.key_state(KeyCode::Right))
+    {
+      return TextCommand::Right;
+    }
+    if (ctx.key_state(KeyCode::Home))
+    {
+      return TextCommand::LineStart;
+    }
+    if (ctx.key_state(KeyCode::End))
+    {
+      return TextCommand::LineEnd;
+    }
+    if (ctx.key_state(KeyCode::Up))
+    {
+      return TextCommand::Up;
+    }
+    if (ctx.key_state(KeyCode::Down))
+    {
+      return TextCommand::Down;
+    }
+    if (ctx.key_state(KeyCode::PageUp))
+    {
+      return TextCommand::PageUp;
+    }
+    if (ctx.key_state(KeyCode::PageDown))
+    {
+      return TextCommand::PageDown;
+    }
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::Left))
+    {
+      return TextCommand::SelectLeft;
+    }
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::Right))
+    {
+      return TextCommand::SelectRight;
+    }
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::Up))
+    {
+      return TextCommand::SelectUp;
+    }
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::Down))
+    {
+      return TextCommand::SelectDown;
+    }
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::PageUp))
+    {
+      return TextCommand::SelectPageUp;
+    }
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::PageDown))
+    {
+      return TextCommand::SelectPageDown;
+    }
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::A))
+    {
+      return TextCommand::SelectAll;
+    }
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::X))
+    {
+      return TextCommand::Cut;
+    }
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::C))
+    {
+      return TextCommand::Copy;
+    }
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::V))
+    {
+      return TextCommand::Paste;
+    }
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::Z))
+    {
+      return TextCommand::Undo;
+    }
+    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
+        ctx.key_state(KeyCode::Y))
+    {
+      return TextCommand::Redo;
+    }
+    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
+        ctx.key_state(KeyCode::Left) && ctx.mouse_state(MouseButtons::Primary))
+    {
+      return TextCommand::HitSelect;
+    }
+    if (state.is_multiline && !state.enter_submits &&
+        ctx.key_state(KeyCode::Return))
+    {
+      return TextCommand::NewLine;
+    }
+    if (state.tab_input && ctx.key_state(KeyCode::Tab))
+    {
+      return TextCommand::Tab;
+    }
+    return TextCommand::None;
+  }
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events, Fn<void(View &)>) override
+  {
+    bool edited = false;
+    auto erase  = [this, &edited](Slice32 s) {
+      this->content.inner.text.erase(s);
+      edited |= s.is_empty();
+      this->content.flush_text();
+    };
+
+    auto insert = [this, &edited](u32 pos, Span<u32 const> t) {
+      CHECK(this->content.inner.text.insert_span_copy(pos, t));
+      edited |= t.is_empty();
+      this->content.flush_text();
+    };
+
+    state.editing   = false;
+    state.submit    = false;
+    state.focus_in  = events.focus_in;
+    state.focus_out = events.focus_out;
+
+    if (events.focus_in)
+    {
+      state.focused = true;
+    }
+
+    if (events.focus_out)
+    {
+      state.focused = false;
+    }
+
+    TextCommand cmd = TextCommand::None;
+    if (events.text_input)
+    {
+      cmd = TextCommand::InputText;
+    }
+    else if (events.drag_start)
+    {
+      cmd = TextCommand::Hit;
+    }
+    else if (events.dragging)
+    {
+      cmd = TextCommand::HitSelect;
+    }
+    else if (state.focused)
+    {
+      cmd = command(ctx);
+    }
+
+    compositor.command(span(content.inner.text), content.inner.layout,
+                       region.extent.x, content.inner.alignment, cmd,
+                       fn(&insert), fn(&erase), ctx.text_input_utf32,
+                       *ctx.clipboard, style.lines_per_page,
+                       ctx.mouse.position - region.begin());
+
+    content.set_highlight(
+        compositor.get_cursor().as_slice(content.inner.text.size32()));
+    content.set_highlight_style(style.highlight_color,
+                                style.highlight_corner_radii(region.extent.y));
+
+    if (edited)
+    {
+      state.editing = true;
+    }
+
+    if (events.focus_out)
+    {
+      compositor.unselect();
+    }
+
+    if (events.key_down && ctx.key_state(KeyCode::Return) &&
+        state.enter_submits)
+    {
+      state.submit = true;
+    }
+
+    if (state.focus_in)
+    {
+      on_focus_in();
+    }
+
+    if (state.focus_out)
+    {
+      on_focus_out();
+    }
+
+    if (state.submit)
+    {
+      on_submit();
+    }
+
+    if (edited)
+    {
+      on_edit();
+    }
+
+    return ViewState{.draggable  = !state.disabled,
+                     .focusable  = !state.disabled,
+                     .text_input = !state.disabled,
+                     .tab_input  = state.tab_input,
+                     .lose_focus = ctx.key_state(KeyCode::Escape)};
+  }
+
+  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  {
+    placeholder.calculate_layout(allocated.x);
+    content.calculate_layout(allocated.x);
+    if (content.inner.text.is_empty())
+    {
+      return placeholder.inner.layout.extent;
+    }
+    return content.inner.layout.extent;
+  }
+
+  virtual void render(CRect const &region, CRect const &clip,
+                      Canvas &canvas) override
+  {
+    if (content.inner.text.is_empty())
+    {
+      placeholder.render(region, clip, canvas);
+    }
+    else
+    {
+      content.render(region, clip, canvas);
+    }
+  }
+
+  virtual Cursor cursor(CRect const &, Vec2) override
+  {
+    return Cursor::Text;
+  }
+};
+
+// [ ] calculate lines per page
+// [ ] viewport text with scrollable region, scroll direction
+// [ ] text input while in view, i.e. page down
+struct ScrollableTextInput : View, Pin<>
+{
+  TextInput input;
+  ScrollableTextInput()          = default;
+  virtual ~ScrollableTextInput() = default;
+};
+
 struct Button : public View
 {
   struct State
@@ -506,158 +1106,6 @@ struct ComboBox : public View
 // [ ]
 struct ContextMenu : public View
 {
-};
-
-/// @param axis flex axis to layout children along
-/// @param main_align main-axis alignment. specifies how free space is used on
-/// the main axis
-/// @param cross_align cross-axis alignment. affects how free space is used on
-/// the cross axis
-struct FlexView : public View
-{
-  struct Style
-  {
-    Axis      axis : 3       = Axis::X;
-    bool      wrap : 1       = true;
-    bool      reverse : 1    = false;
-    MainAlign main_align : 3 = MainAlign::Start;
-    f32       cross_align    = 0;
-    Frame     frame          = {.width = {.scale = 1}, .height = {.scale = 1}};
-  } style;
-
-  virtual f32 align_item(u32 i)
-  {
-    (void) i;
-    return style.cross_align;
-  }
-
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
-  {
-    Vec2 const frame = style.frame(allocated);
-    fill(sizes, frame);
-  }
-
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
-  {
-    u32 const  num_children = sizes.size32();
-    Vec2 const frame        = style.frame(allocated);
-    Vec2       span;
-    f32        cross_cursor = 0;
-    u8 const   main_axis    = (style.axis == Axis::X) ? 0 : 1;
-    u8 const   cross_axis   = (style.axis == Axis::X) ? 1 : 0;
-
-    for (u32 i = 0; i < num_children;)
-    {
-      u32 first        = i++;
-      f32 main_extent  = sizes[first][main_axis];
-      f32 cross_extent = sizes[first][cross_axis];
-      f32 main_spacing = 0;
-
-      while (i < num_children &&
-             !(style.wrap &&
-               (main_extent + sizes[i][main_axis]) > frame[main_axis]))
-      {
-        main_extent += sizes[i][main_axis];
-        cross_extent = max(cross_extent, sizes[i][cross_axis]);
-        i++;
-      }
-
-      u32 const count = i - first;
-
-      if (style.main_align != MainAlign::Start)
-      {
-        main_spacing = max(frame[main_axis] - main_extent, 0.0f);
-      }
-
-      for (u32 b = first; b < first + count; b++)
-      {
-        offsets[b][cross_axis] =
-            cross_cursor +
-            space_align(frame[cross_axis], sizes[b][cross_axis], align_item(b));
-      }
-
-      switch (style.main_align)
-      {
-        case MainAlign::Start:
-        {
-          f32 main_spacing_cursor = 0;
-          for (u32 b = first; b < first + count; b++)
-          {
-            offsets[b][main_axis] = main_spacing_cursor;
-            main_spacing_cursor += sizes[b][main_axis];
-          }
-        }
-        break;
-
-        case MainAlign::SpaceAround:
-        {
-          f32 spacing             = main_spacing / (count * 2);
-          f32 main_spacing_cursor = 0;
-          for (u32 b = first; b < first + count; b++)
-          {
-            main_spacing_cursor += spacing;
-            offsets[b][main_axis] = main_spacing_cursor;
-            main_spacing_cursor += sizes[b][main_axis] + spacing;
-          }
-        }
-        break;
-
-        case MainAlign::SpaceBetween:
-        {
-          f32 spacing             = main_spacing / (count - 1);
-          f32 main_spacing_cursor = 0;
-          for (u32 b = first; b < first + count; b++)
-          {
-            offsets[b][main_axis] = main_spacing_cursor;
-            main_spacing_cursor += sizes[b][main_axis] + spacing;
-          }
-        }
-        break;
-
-        case MainAlign::SpaceEvenly:
-        {
-          f32 spacing             = main_spacing / (count + 1);
-          f32 main_spacing_cursor = spacing;
-          for (u32 b = first; b < first + count; b++)
-          {
-            offsets[b][main_axis] = main_spacing_cursor;
-            main_spacing_cursor += sizes[b][main_axis] + spacing;
-          }
-        }
-        break;
-
-        case MainAlign::End:
-        {
-          f32 main_spacing_cursor = main_spacing;
-          for (u32 b = first; b < first + count; b++)
-          {
-            offsets[b][main_axis] = main_spacing_cursor;
-            main_spacing_cursor += sizes[b][main_axis];
-          }
-        }
-        break;
-
-        default:
-          break;
-      }
-
-      if (style.reverse)
-      {
-        for (u32 b0 = first, b1 = first + count - 1; b0 < b1; b0++, b1--)
-        {
-          swap(offsets[b0][main_axis], offsets[b1][main_axis]);
-        }
-      }
-
-      cross_cursor += cross_extent;
-
-      span[main_axis]  = max(span[main_axis], main_extent + main_spacing);
-      span[cross_axis] = cross_cursor;
-    }
-
-    return span;
-  }
 };
 
 /// [ ] REQUIREMENTS:
@@ -1443,69 +1891,6 @@ struct Slider : public View
   }
 };
 
-struct StackView : public View
-{
-  struct Style
-  {
-    bool  reverse : 1 = false;
-    Vec2  alignment   = {0, 0};
-    Frame frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
-  } style;
-
-  virtual Vec2 align_item(u32 i)
-  {
-    (void) i;
-    return style.alignment;
-  }
-
-  virtual i32 stack_item(i32 base, u32 i, u32 num)
-  {
-    i64 z = base + 1;
-    if (!style.reverse)
-    {
-      z += (i32) i;
-    }
-    else
-    {
-      z += (i32) (num - (i + 1));
-    }
-    return z;
-  }
-
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
-  {
-    fill(sizes, style.frame(allocated));
-  }
-
-  virtual Vec2 fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> offsets) override
-  {
-    Vec2      span;
-    u32 const num_children = sizes.size32();
-
-    for (Vec2 s : sizes)
-    {
-      span.x = max(span.x, s.x);
-      span.y = max(span.y, s.y);
-    }
-
-    for (u32 i = 0; i < num_children; i++)
-    {
-      offsets[i] = space_align(span, sizes[i], align_item(i));
-    }
-
-    return span;
-  }
-
-  virtual i32 z_index(i32 allocated, Span<i32> indices) override
-  {
-    for (u32 i = 0; i < indices.size32(); i++)
-    {
-      indices[i] = stack_item(allocated, i, indices.size32());
-    }
-    return allocated;
-  }
-};
-
 struct Switch : public View
 {
   struct State
@@ -1602,391 +1987,6 @@ struct Switch : public View
 // [ ] navigation model, with keyboard and gamepad
 struct Tab : public View
 {
-};
-
-struct TextView : View, Pin<>
-{
-  bool           copyable : 1           = false;
-  Vec4           highlight_color        = {};
-  Vec4           highlight_corner_radii = {0, 0, 0, 0};
-  RenderText     text                   = {};
-  TextCompositor compositor             = {};
-
-  TextView()
-  {
-    text.style(
-        0, U32_MAX,
-        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_surface)},
-        FontStyle{.font        = engine->default_font,
-                  .font_height = DEFAULT_THEME.body_font_height,
-                  .line_height = DEFAULT_THEME.line_height});
-  }
-
-  virtual ~TextView() override
-  {
-    text.reset();
-  }
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)>) override
-  {
-    TextCommand cmd = TextCommand::None;
-    if (events.drag_start)
-    {
-      cmd = TextCommand::Hit;
-    }
-    else if (events.dragging)
-    {
-      cmd = TextCommand::HitSelect;
-    }
-
-    compositor.command(text.get_text(), text.inner.layout, region.extent.x,
-                       text.inner.alignment, cmd,
-                       fn([](u32, Span<u32 const>) {}), fn([](Slice32) {}), {},
-                       *ctx.clipboard, 1, ctx.mouse.position);
-    text.set_highlight(
-        compositor.get_cursor().as_slice(text.get_text().size32()));
-    text.set_highlight_style(ColorGradient::all(highlight_color),
-                             highlight_corner_radii);
-
-    return ViewState{.draggable = copyable};
-  }
-
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
-  {
-    text.calculate_layout(allocated.x);
-    return text.inner.layout.extent;
-  }
-
-  virtual void render(CRect const &region, CRect const &clip,
-                      Canvas &canvas) override
-  {
-    text.render(region, clip, canvas);
-  }
-
-  virtual Cursor cursor(CRect const &, Vec2) override
-  {
-    return copyable ? Cursor::Text : Cursor::Default;
-  }
-};
-
-struct TextInput : View, Pin<>
-{
-  struct State
-  {
-    bool disabled : 1      = false;
-    bool editing : 1       = false;
-    bool submit : 1        = false;
-    bool focus_in : 1      = false;
-    bool focus_out : 1     = false;
-    bool focused : 1       = false;
-    bool is_multiline : 1  = false;
-    bool enter_submits : 1 = false;
-    bool tab_input : 1     = false;
-  } state;
-
-  struct Style
-  {
-    ColorGradient highlight_color        = {};
-    CornerRadii   highlight_corner_radii = {};
-    u32           lines_per_page         = 1;
-  } style;
-
-  RenderText     content     = {};
-  RenderText     placeholder = {};
-  TextCompositor compositor  = {};
-
-  Fn<void()> on_edit      = fn([] {});
-  Fn<void()> on_submit    = fn([] {});
-  Fn<void()> on_focus_in  = fn([] {});
-  Fn<void()> on_focus_out = fn([] {});
-
-  TextInput()
-  {
-    content.style(
-        0, U32_MAX,
-        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_surface)},
-        FontStyle{.font        = engine->default_font,
-                  .font_height = DEFAULT_THEME.body_font_height,
-                  .line_height = DEFAULT_THEME.line_height});
-    placeholder.style(
-        0, U32_MAX,
-        TextStyle{.foreground = ColorGradient::all(DEFAULT_THEME.on_surface)},
-        FontStyle{.font        = engine->default_font,
-                  .font_height = DEFAULT_THEME.body_font_height,
-                  .line_height = DEFAULT_THEME.line_height});
-  }
-
-  virtual ~TextInput() override
-  {
-    content.reset();
-    placeholder.reset();
-  }
-
-  constexpr TextCommand command(ViewContext const &ctx) const
-  {
-    if (ctx.key_state(KeyCode::Escape))
-    {
-      return TextCommand::Unselect;
-    }
-    if (ctx.key_state(KeyCode::Backspace))
-    {
-      return TextCommand::BackSpace;
-    }
-    if (ctx.key_state(KeyCode::Delete))
-    {
-      return TextCommand::Delete;
-    }
-    if (ctx.key_state(KeyCode::Left))
-    {
-      return TextCommand::Left;
-    }
-    if (ctx.key_state(KeyCode::Right))
-    {
-      return TextCommand::Right;
-    }
-    if (ctx.key_state(KeyCode::Home))
-    {
-      return TextCommand::LineStart;
-    }
-    if (ctx.key_state(KeyCode::End))
-    {
-      return TextCommand::LineEnd;
-    }
-    if (ctx.key_state(KeyCode::Up))
-    {
-      return TextCommand::Up;
-    }
-    if (ctx.key_state(KeyCode::Down))
-    {
-      return TextCommand::Down;
-    }
-    if (ctx.key_state(KeyCode::PageUp))
-    {
-      return TextCommand::PageUp;
-    }
-    if (ctx.key_state(KeyCode::PageDown))
-    {
-      return TextCommand::PageDown;
-    }
-    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-        ctx.key_state(KeyCode::Left))
-    {
-      return TextCommand::SelectLeft;
-    }
-    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-        ctx.key_state(KeyCode::Right))
-    {
-      return TextCommand::SelectRight;
-    }
-    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-        ctx.key_state(KeyCode::Up))
-    {
-      return TextCommand::SelectUp;
-    }
-    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-        ctx.key_state(KeyCode::Down))
-    {
-      return TextCommand::SelectDown;
-    }
-    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-        ctx.key_state(KeyCode::PageUp))
-    {
-      return TextCommand::SelectPageUp;
-    }
-    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-        ctx.key_state(KeyCode::PageDown))
-    {
-      return TextCommand::SelectPageDown;
-    }
-    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-        ctx.key_state(KeyCode::A))
-    {
-      return TextCommand::SelectAll;
-    }
-    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-        ctx.key_state(KeyCode::X))
-    {
-      return TextCommand::Cut;
-    }
-    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-        ctx.key_state(KeyCode::C))
-    {
-      return TextCommand::Copy;
-    }
-    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-        ctx.key_state(KeyCode::V))
-    {
-      return TextCommand::Paste;
-    }
-    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-        ctx.key_state(KeyCode::Z))
-    {
-      return TextCommand::Undo;
-    }
-    if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-        ctx.key_state(KeyCode::Y))
-    {
-      return TextCommand::Redo;
-    }
-    if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-        ctx.key_state(KeyCode::Left) && ctx.mouse_state(MouseButtons::Primary))
-    {
-      return TextCommand::HitSelect;
-    }
-    if (state.is_multiline && !state.enter_submits &&
-        ctx.key_state(KeyCode::Return))
-    {
-      return TextCommand::NewLine;
-    }
-    if (state.tab_input && ctx.key_state(KeyCode::Tab))
-    {
-      return TextCommand::Tab;
-    }
-    return TextCommand::None;
-  }
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)>) override
-  {
-    bool edited = false;
-    auto erase  = [this, &edited](Slice32 s) {
-      this->content.inner.text.erase(s);
-      edited |= s.is_empty();
-      this->content.flush_text();
-    };
-
-    auto insert = [this, &edited](u32 pos, Span<u32 const> t) {
-      CHECK(this->content.inner.text.insert_span_copy(pos, t));
-      edited |= t.is_empty();
-      this->content.flush_text();
-    };
-
-    state.editing   = false;
-    state.submit    = false;
-    state.focus_in  = events.focus_in;
-    state.focus_out = events.focus_out;
-
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
-    }
-
-    TextCommand cmd = TextCommand::None;
-    if (events.text_input)
-    {
-      cmd = TextCommand::InputText;
-    }
-    else if (events.drag_start)
-    {
-      cmd = TextCommand::Hit;
-    }
-    else if (events.dragging)
-    {
-      cmd = TextCommand::HitSelect;
-    }
-    else if (state.focused)
-    {
-      cmd = command(ctx);
-    }
-
-    compositor.command(span(content.inner.text), content.inner.layout,
-                       region.extent.x, content.inner.alignment, cmd,
-                       fn(&insert), fn(&erase), ctx.text_input_utf32,
-                       *ctx.clipboard, style.lines_per_page,
-                       ctx.mouse.position - region.begin());
-
-    content.set_highlight(
-        compositor.get_cursor().as_slice(content.inner.text.size32()));
-    content.set_highlight_style(style.highlight_color,
-                                style.highlight_corner_radii(region.extent.y));
-
-    if (edited)
-    {
-      state.editing = true;
-    }
-
-    if (events.focus_out)
-    {
-      compositor.unselect();
-    }
-
-    if (events.key_down && ctx.key_state(KeyCode::Return) &&
-        state.enter_submits)
-    {
-      state.submit = true;
-    }
-
-    if (state.focus_in)
-    {
-      on_focus_in();
-    }
-
-    if (state.focus_out)
-    {
-      on_focus_out();
-    }
-
-    if (state.submit)
-    {
-      on_submit();
-    }
-
-    if (edited)
-    {
-      on_edit();
-    }
-
-    return ViewState{.draggable  = !state.disabled,
-                     .focusable  = !state.disabled,
-                     .text_input = !state.disabled,
-                     .tab_input  = state.tab_input,
-                     .lose_focus = ctx.key_state(KeyCode::Escape)};
-  }
-
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
-  {
-    placeholder.calculate_layout(allocated.x);
-    content.calculate_layout(allocated.x);
-    if (content.inner.text.is_empty())
-    {
-      return placeholder.inner.layout.extent;
-    }
-    return content.inner.layout.extent;
-  }
-
-  virtual void render(CRect const &region, CRect const &clip,
-                      Canvas &canvas) override
-  {
-    if (content.inner.text.is_empty())
-    {
-      placeholder.render(region, clip, canvas);
-    }
-    else
-    {
-      content.render(region, clip, canvas);
-    }
-  }
-
-  virtual Cursor cursor(CRect const &, Vec2) override
-  {
-    return Cursor::Text;
-  }
-};
-
-// [ ] calculate lines per page
-// [ ] viewport text with scrollable region, scroll direction
-// [ ] text input while in view, i.e. page down
-struct ScrollableTextInput : View, Pin<>
-{
-  TextInput input;
-  ScrollableTextInput()          = default;
-  virtual ~ScrollableTextInput() = default;
 };
 
 }        // namespace ash
