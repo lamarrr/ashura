@@ -144,14 +144,13 @@ endif()
 add_library(
   ashura_std
   ashura/std/allocator.cc
-  ashura/std/arena_allocator.cc
+  ashura/std/allocators.cc
   ashura/std/async.cc
   ashura/std/format.cc
+  ashura/std/fs.cc
   ashura/std/hash.cc
-  ashura/std/io.cc
   ashura/std/log.cc
-  ashura/std/panic.cc
-  ashura/std/semaphore.cc)
+  ashura/std/panic.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ashura_std PUBLIC xxHash::xxhash Threads::Threads)
 
@@ -196,12 +195,7 @@ add_library(
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc
-  ashura/engine/passes/bloom.cc
-  ashura/engine/passes/blur.cc
-  ashura/engine/passes/ngon.cc
-  ashura/engine/passes/pbr.cc
-  ashura/engine/passes/poly.cc
-  ashura/engine/passes/rrect.cc)
+  ashura/engine/passes.cc)
 target_link_libraries(
   ashura_engine
   ashura_std

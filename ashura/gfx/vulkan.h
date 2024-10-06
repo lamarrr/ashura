@@ -6,7 +6,7 @@
 
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/allocator.h"
-#include "ashura/std/arena_allocator.h"
+#include "ashura/std/allocators.h"
 #include "ashura/std/vec.h"
 #include "vk_mem_alloc.h"
 #include "vulkan/vk_enum_string_helper.h"

@@ -1,11 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/canvas.h"
-#include "ashura/engine/passes/bloom.h"
-#include "ashura/engine/passes/blur.h"
-#include "ashura/engine/passes/ngon.h"
-#include "ashura/engine/passes/pbr.h"
-#include "ashura/engine/passes/rrect.h"
+#include "ashura/engine/passes.h"
 #include "ashura/engine/render_context.h"
 #include "ashura/std/hash_map.h"
 #include "ashura/std/math.h"

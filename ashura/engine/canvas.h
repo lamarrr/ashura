@@ -2,13 +2,10 @@
 #pragma once
 #include "ashura/engine/color.h"
 #include "ashura/engine/font.h"
-#include "ashura/engine/passes/blur.h"
-#include "ashura/engine/passes/ngon.h"
-#include "ashura/engine/passes/rrect.h"
+#include "ashura/engine/passes.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/math.h"
 #include "ashura/std/types.h"
-
 
 namespace ash
 {

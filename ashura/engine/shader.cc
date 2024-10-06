@@ -4,7 +4,6 @@
 #include "SPIRV/spirv.hpp"
 #include "SPIRV/spvIR.h"
 #include "ashura/std/fs.h"
-#include "ashura/std/io.h"
 #include "ashura/std/vec.h"
 #include "glslang/Public/ShaderLang.h"
 #include <filesystem>
