@@ -98,7 +98,7 @@ FetchContent_Declare(
 
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
-find_package(libjpeg-turbo REQUIRED)
+find_package(libjpeg-turbo CONFIG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
@@ -210,7 +210,7 @@ target_link_libraries(
   simdjson::simdjson
   webp
   webpdecoder
-  libjpeg-turbo::turbojpeg
+  $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
   PNG::PNG
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
