@@ -49,9 +49,9 @@ struct ViewSystemState
 struct ViewSystem
 {
   u64             frame             = 0;
+  u64             last_id           = 0;
   ViewSystemState state             = {};
   ViewSystemState previous_state    = {};
-  u64             last_id           = 0;
   Vec<View *>     views             = {};
   Vec<ViewNode>   nodes             = {};
   Vec<Vec2>       centers           = {};
@@ -161,7 +161,14 @@ struct ViewSystem
     {
       build_recursive(ctx, views[c], depth + 1);
       nodes[c].parent = node_idx;
-      // [ ] next_sibling & prev_sibling
+      if (c != first_child)
+      {
+        nodes[c].prev_sibling = c - 1;
+      }
+      if (c != (first_child + num_children) - 1)
+      {
+        nodes[c].next_sibling = c + 1;
+      }
     }
   }
 
@@ -324,16 +331,13 @@ struct ViewSystem
 
   void events(ViewContext const &ctx)
   {
-    // [ ] if widget is removed?
     // [ ] render cursor & manage cursor
     // [ ] UI tick rate (time-based/adaptive frame rate), with custom frequency
     // allowed, need to be able to merge inputs?
     //
-    // [ ] can clicking be handled in the widget? i.e.
-    // using ClickDetector that checks time interval and based on some
-    // time or debouncing parameters
+    // [ ] can clicking be handled in the widget? i.e. using ClickDetector that
+    // checks time interval and based on some time or debouncing parameters
     //
-    // [ ] state continuation? i.e. dragging
     // [ ] mouse/keyboard lose or gain focus
 
     ViewSystemState new_state;
@@ -398,7 +402,6 @@ struct ViewSystem
       {
         new_state.drag_source_view = previous_state.drag_source_view;
         new_state.mouse_dragging   = true;
-        // how is dropping accepted or rejected?
         for (u32 z_i = z_ordering.size32(); z_i != 0;)
         {
           z_i--;
@@ -419,8 +422,24 @@ struct ViewSystem
       else if (has_bits(ctx.mouse.ups, MouseButtons::Primary) &&
                state.mouse_dragging)
       {
-        // cancelation and acceptance
-        // new_state.mouse_drag_drop = true;
+        new_state.drag_source_view = state.drag_source_view;
+        new_state.mouse_drag_drop  = true;
+        new_state.mouse_dragging   = true;
+        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        {
+          z_i--;
+          u32 i = z_ordering[z_i];
+          if (!is_hidden[i])
+          {
+            View &view = *views[i];
+            if (view.inner.state.droppable &&
+                view.hit(view.inner.region, ctx.mouse.position))
+            {
+              new_state.drag_target_view = view.id();
+              break;
+            }
+          }
+        }
       }
       // mouse scroll event
       else if (ctx.mouse.wheel_scrolled)
