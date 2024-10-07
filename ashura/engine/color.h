@@ -1,6 +1,7 @@
 
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/math.h"
 #include "ashura/std/types.h"
 
 namespace ash
