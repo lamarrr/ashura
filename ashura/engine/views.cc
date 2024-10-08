@@ -1,6 +1,5 @@
 /// SPDX-License-Identifier: MIT
-
-#include "ashura/engine/views/demo.h"
+#include "ashura/engine/views.h"
 
 namespace ash
 {

@@ -2,7 +2,7 @@
 #pragma once
 #include <utility>
 
-#include "ashura/gfx/gfx.h"
+#include "ashura/gpu/gpu.h"
 #include "ashura/std/image.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
@@ -29,7 +29,7 @@ struct DecodedImage
   Vec<u8>     channels = {};
   u32         width    = 0;
   u32         height   = 0;
-  gfx::Format format   = gfx::Format::Undefined;
+  gpu::Format format   = gpu::Format::Undefined;
 };
 
 ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image);

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/engine/mime.h"
+#include "ashura/std/math.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -545,7 +546,7 @@ enum class KeyCode : u16
 
 constexpr u16 NUM_KEYS = 512;
 
-enum class MouseButtons : u16
+enum class MouseButtons : u8
 {
   None      = 0x00,
   Primary   = 0x01,
@@ -555,7 +556,8 @@ enum class MouseButtons : u16
   A2        = 0x10,
   A3        = 0x20,
   A4        = 0x40,
-  A5        = 0x80
+  A5        = 0x80,
+  All       = 0xFF
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(MouseButtons)
@@ -570,14 +572,14 @@ struct KeyEvent
 
 struct MouseMotionEvent
 {
-  uid  mouse_id    = UID_MAX;
+  u64  mouse_id    = U64_MAX;
   Vec2 position    = {};
   Vec2 translation = {};
 };
 
 struct MouseClickEvent
 {
-  uid          mouse_id = UID_MAX;
+  u64          mouse_id = U64_MAX;
   Vec2         position = {};
   u32          clicks   = 0;
   MouseButtons button   = MouseButtons::None;
@@ -586,35 +588,37 @@ struct MouseClickEvent
 
 struct MouseWheelEvent
 {
-  uid  mouse_id    = UID_MAX;
+  u64  mouse_id    = U64_MAX;
   Vec2 position    = {};
   Vec2 translation = {};
 };
 
 enum class WindowEventTypes : u32
 {
-  None           = 0x000000,
-  Shown          = 0x000001,
-  Hidden         = 0x000002,
-  Exposed        = 0x000004,
-  Moved          = 0x000008,
-  Resized        = 0x000010,
-  SurfaceResized = 0x000020,
-  Minimized      = 0x000040,
-  Maximized      = 0x000080,
-  Restored       = 0x000100,
-  MouseEnter     = 0x000200,
-  MouseLeave     = 0x000400,
-  FocusGained    = 0x000800,
-  FocusLost      = 0x001000,
-  CloseRequested = 0x002000,
-  TakeFocus      = 0x004000,
-  Key            = 0x008000,
-  MouseMotion    = 0x010000,
-  MouseClick     = 0x020000,
-  MouseWheel     = 0x040000,
-  Destroyed      = 0x080000,
-  All            = 0xFFFFFF
+  None            = 0x000000,
+  Shown           = 0x000001,
+  Hidden          = 0x000002,
+  Exposed         = 0x000004,
+  Moved           = 0x000008,
+  Resized         = 0x000010,
+  SurfaceResized  = 0x000020,
+  Minimized       = 0x000040,
+  Maximized       = 0x000080,
+  Restored        = 0x000100,
+  MouseEnter      = 0x000200,
+  MouseLeave      = 0x000400,
+  FocusIn         = 0x000800,
+  FocusOut        = 0x001000,
+  CloseRequested  = 0x002000,
+  Occluded        = 0x004000,
+  EnterFullScreen = 0x008000,
+  LeaveFullScreen = 0x010000,
+  Key             = 0x020000,
+  MouseMotion     = 0x040000,
+  MouseClick      = 0x080000,
+  MouseWheel      = 0x100000,
+  Destroyed       = 0x200000,
+  All             = 0xFFFFFF
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(WindowEventTypes)
@@ -705,6 +709,7 @@ enum class Cursor
   WestResize  = 20
 };
 
+// [ ] implement for SDL
 struct ClipBoard
 {
   constexpr virtual Span<u8 const> get(Span<char const> mime)

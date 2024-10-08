@@ -3,7 +3,7 @@
 #include "gtest/gtest.h"
 #include <cstdio>
 
-#include "ashura/engine/views/text_view.h"
+#include "ashura/engine/views.h"
 
 TEST(TextCompositor, Main)
 {

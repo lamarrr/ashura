@@ -1,13 +1,13 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/gfx/gfx.h"
+#include "ashura/gpu/gpu.h"
 #include "ashura/std/error.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
-namespace gfx
+namespace gpu
 {
 ///
 /// Supported Formats:
@@ -53,6 +53,6 @@ inline u64 packed_image_size(u32 width, u32 height, Format format)
   return (u64) width * (u64) height * (u64) pixel_pitch(format);
 }
 
-}        // namespace gfx
+}        // namespace gpu
 
 }        // namespace ash

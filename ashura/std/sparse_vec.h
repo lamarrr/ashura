@@ -75,17 +75,17 @@ struct SparseVec
     return index < size();
   }
 
-  constexpr u64 operator[](uid id) const
+  constexpr u64 operator[](u64 id) const
   {
     return id_to_index[id];
   }
 
-  constexpr u64 to_index(uid id) const
+  constexpr u64 to_index(u64 id) const
   {
     return id_to_index[id];
   }
 
-  constexpr Result<u64, Void> try_to_index(uid id) const
+  constexpr Result<u64, Void> try_to_index(u64 id) const
   {
     if (!is_valid_id(id))
     {
@@ -110,7 +110,7 @@ struct SparseVec
     return Ok{to_id(index)};
   }
 
-  constexpr void erase(uid id)
+  constexpr void erase(u64 id)
   {
     u64 const index = id_to_index[id];
     u64 const last  = size() - 1;
@@ -134,7 +134,7 @@ struct SparseVec
     index_to_id.pop();
   }
 
-  constexpr Result<Void, Void> try_erase(uid id)
+  constexpr Result<Void, Void> try_erase(u64 id)
   {
     if (!is_valid_id(id))
     {
@@ -217,7 +217,7 @@ struct SparseVec
   };
 
   template <typename... Args>
-  constexpr Result<uid, Void> push(Args &&...args)
+  constexpr Result<u64, Void> push(Args &&...args)
     requires(sizeof...(Args) == sizeof...(V))
   {
     u64 const index = size();

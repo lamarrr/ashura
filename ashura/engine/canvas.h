@@ -1,11 +1,9 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/color.h"
 #include "ashura/engine/font.h"
-#include "ashura/engine/passes/blur.h"
-#include "ashura/engine/passes/ngon.h"
-#include "ashura/engine/passes/rrect.h"
+#include "ashura/engine/passes.h"
 #include "ashura/engine/text.h"
-#include "ashura/engine/types.h"
 #include "ashura/std/math.h"
 #include "ashura/std/types.h"
 
@@ -62,8 +60,8 @@ struct CanvasBlurParam
 
 /// @brief encoder function to encode the pass onto the renderer, will be called
 /// from the render thread
-typedef Fn<void(RenderContext &, PassContext &, gfx::RenderingInfo const &,
-                gfx::DescriptorSet)>
+typedef Fn<void(RenderContext &, PassContext &, gpu::RenderingInfo const &,
+                gpu::DescriptorSet)>
     CustomCanvasPass;
 
 /// @brief all points are stored in the [-1, +1] range, all arguments must be
@@ -140,7 +138,7 @@ struct Path
 /// @param extent extent of the surface the canvas is being drawn onto.
 struct Canvas
 {
-  gfx::Format           format            = gfx::Format::Undefined;
+  gpu::Format           format            = gpu::Format::Undefined;
   Vec2                  viewport_extent   = {};
   CRect                 current_clip      = {{0, 0}, {0, 0}};
   Vec<Vec2>             vertices          = {};

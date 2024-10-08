@@ -49,13 +49,13 @@ void SSBO::reserve(RenderContext &ctx, u64 p_size, Span<char const> label)
   buffer = ctx.device
                ->create_buffer(
                    ctx.device.self,
-                   gfx::BufferDesc{.label       = label,
+                   gpu::BufferDesc{.label       = label,
                                    .size        = p_size,
                                    .host_mapped = true,
-                                   .usage = gfx::BufferUsage::TransferSrc |
-                                            gfx::BufferUsage::TransferDst |
-                                            gfx::BufferUsage::UniformBuffer |
-                                            gfx::BufferUsage::StorageBuffer})
+                                   .usage = gpu::BufferUsage::TransferSrc |
+                                            gpu::BufferUsage::TransferDst |
+                                            gpu::BufferUsage::UniformBuffer |
+                                            gpu::BufferUsage::StorageBuffer})
                .unwrap();
 
   if (ssbo == nullptr)
@@ -67,11 +67,11 @@ void SSBO::reserve(RenderContext &ctx, u64 p_size, Span<char const> label)
 
   ctx.device->update_descriptor_set(
       ctx.device.self,
-      gfx::DescriptorSetUpdate{
+      gpu::DescriptorSetUpdate{
           .set     = ssbo,
           .binding = 0,
           .element = 0,
-          .buffers = span({gfx::BufferBinding{
+          .buffers = span({gpu::BufferBinding{
               .buffer = buffer, .offset = 0, .size = p_size}})});
 
   size = p_size;
@@ -100,7 +100,7 @@ void SSBO::flush(RenderContext &ctx)
 {
   ctx.device
       ->flush_mapped_buffer_memory(ctx.device.self, buffer,
-                                   gfx::MemoryRange{0, gfx::WHOLE_SIZE})
+                                   gpu::MemoryRange{0, gpu::WHOLE_SIZE})
       .unwrap();
 }
 
@@ -125,8 +125,8 @@ void CanvasRenderer::uninit(RenderContext &ctx)
 }
 
 void CanvasRenderer::begin(RenderContext &ctx, PassContext &passes,
-                           Canvas const &canvas, gfx::RenderingInfo const &,
-                           gfx::DescriptorSet)
+                           Canvas const &canvas, gpu::RenderingInfo const &,
+                           gpu::DescriptorSet)
 {
   (void) passes;
   CanvasResources &r = resources[ctx.ring_index()];
@@ -137,7 +137,7 @@ void CanvasRenderer::begin(RenderContext &ctx, PassContext &passes,
                       "RRect Params"_span);
 }
 
-constexpr RectU clip_to_scissor(gfx::Viewport const &viewport,
+constexpr RectU clip_to_scissor(gpu::Viewport const &viewport,
                                 CRect const &clip, Vec2U surface_extent)
 {
   Rect  rect{viewport.offset + clip.center - clip.extent / 2, clip.extent};
@@ -156,17 +156,17 @@ constexpr RectU clip_to_scissor(gfx::Viewport const &viewport,
 }
 
 void CanvasRenderer::render(RenderContext &ctx, PassContext &passes,
-                            gfx::RenderingInfo const &info,
-                            gfx::Viewport const      &viewport,
-                            gfx::Extent               surface_extent,
-                            gfx::DescriptorSet texture, Canvas const &canvas,
+                            gpu::RenderingInfo const &info,
+                            gpu::Viewport const      &viewport,
+                            gpu::Extent               surface_extent,
+                            gpu::DescriptorSet texture, Canvas const &canvas,
                             u32 first, u32 num)
 {
   CanvasResources &r = resources[ctx.ring_index()];
 
   for (CanvasPassRun const &run : span(canvas.pass_runs).slice(first, num))
   {
-    gfx::Rect scissor = clip_to_scissor(viewport, run.clip, surface_extent);
+    gpu::Rect scissor = clip_to_scissor(viewport, run.clip, surface_extent);
     switch (run.type)
     {
       case CanvasPassType::Blur:

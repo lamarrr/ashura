@@ -396,11 +396,22 @@ constexpr void sort(S &&span, Cmp &&cmp = {})
   std::sort(begin(span), end(span), cmp);
 }
 
-template <typename S, typename IndexType, typename Cmp = Lesser>
-constexpr void indirect_sort(S &&span, Span<IndexType> indices, Cmp &&cmp = {})
+template <typename I, typename Cmp>
+constexpr void indirect_sort(Span<I> indices, Cmp &&cmp = {})
 {
-  sort(indices,
-       [&](IndexType a, IndexType b) { return cmp(span[a], span[b]); });
+  sort(indices, [&](I a, I b) { return cmp(a, b); });
+}
+
+template <typename S, typename Cmp = Lesser>
+constexpr void stable_sort(S &&span, Cmp &&cmp = {})
+{
+  std::stable_sort(begin(span), end(span), cmp);
+}
+
+template <typename I, typename Cmp = Lesser>
+constexpr void indirect_stable_sort(Span<I> indices, Cmp &&cmp = {})
+{
+  stable_sort(indices, [&](I a, I b) { return cmp(a, b); });
 }
 
 template <OutputRange R, typename Predicate>

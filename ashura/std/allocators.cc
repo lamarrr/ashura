@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/std/arena_allocator.h"
+#include "ashura/std/allocators.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/range.h"
 #include <string.h>

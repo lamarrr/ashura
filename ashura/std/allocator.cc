@@ -174,6 +174,7 @@ bool HeapInterface::realloc(Allocator self, usize alignment, usize old_size,
     (void) std::memcpy(m, *mem, old_size);
     std::free(*mem);
     *mem = m;
+    return true;
   }
   return false;
 #endif

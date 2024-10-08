@@ -1,6 +1,6 @@
 
 /// SPDX-License-Identifier: MIT
-#include "ashura/std/io.h"
+#include "ashura/std/fs.h"
 #include "ashura/std/error.h"
 #include "ashura/std/log.h"
 
@@ -22,7 +22,7 @@ IoError read_file(Span<char const> path, Vec<u8> &buff)
   {
     return (IoError) errno;
   }
-  defer file_close{[&] { fclose(file); }};
+  defer _{[&] { fclose(file); }};
 
   int error = fseek(file, 0, SEEK_END);
   if (error != 0)
