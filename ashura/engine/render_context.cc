@@ -4,11 +4,11 @@
 namespace ash
 {
 
-void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
-                         u32 p_buffering, gfx::Extent p_initial_extent,
-                         StrHashMap<gfx::Shader> p_shader_map)
+void RenderContext::init(gpu::DeviceImpl p_device, bool p_use_hdr,
+                         u32 p_buffering, gpu::Extent p_initial_extent,
+                         StrHashMap<gpu::Shader> p_shader_map)
 {
-  CHECK(p_buffering <= gfx::MAX_FRAME_BUFFERING && p_buffering > 0);
+  CHECK(p_buffering <= gpu::MAX_FRAME_BUFFERING && p_buffering > 0);
   CHECK(p_initial_extent.x > 0 && p_initial_extent.y > 0);
   device = p_device;
 
@@ -21,7 +21,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
     for (; sel_hdr_color_format < size(HDR_COLOR_FORMATS);
          sel_hdr_color_format++)
     {
-      gfx::FormatProperties props =
+      gpu::FormatProperties props =
           device
               ->get_format_properties(device.self,
                                       HDR_COLOR_FORMATS[sel_hdr_color_format])
@@ -44,7 +44,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
     for (; sel_sdr_color_format < size(SDR_COLOR_FORMATS);
          sel_sdr_color_format++)
     {
-      gfx::FormatProperties props =
+      gpu::FormatProperties props =
           device
               ->get_format_properties(device.self,
                                       SDR_COLOR_FORMATS[sel_sdr_color_format])
@@ -59,7 +59,7 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   for (; sel_depth_stencil_format < size(DEPTH_STENCIL_FORMATS);
        sel_depth_stencil_format++)
   {
-    gfx::FormatProperties props =
+    gpu::FormatProperties props =
         device
             ->get_format_properties(
                 device.self, DEPTH_STENCIL_FORMATS[sel_depth_stencil_format])
@@ -103,10 +103,10 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
       device
           ->create_descriptor_set_layout(
               device.self,
-              gfx::DescriptorSetLayoutDesc{
+              gpu::DescriptorSetLayoutDesc{
                   .label    = "UBO Layout"_span,
-                  .bindings = span({gfx::DescriptorBindingDesc{
-                      .type  = gfx::DescriptorType::DynamicUniformBuffer,
+                  .bindings = span({gpu::DescriptorBindingDesc{
+                      .type  = gpu::DescriptorType::DynamicUniformBuffer,
                       .count = 1,
                       .is_variable_length = false}})})
           .unwrap();
@@ -115,10 +115,10 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
       device
           ->create_descriptor_set_layout(
               device.self,
-              gfx::DescriptorSetLayoutDesc{
+              gpu::DescriptorSetLayoutDesc{
                   .label    = "SSBO Layout"_span,
-                  .bindings = span({gfx::DescriptorBindingDesc{
-                      .type  = gfx::DescriptorType::DynamicStorageBuffer,
+                  .bindings = span({gpu::DescriptorBindingDesc{
+                      .type  = gpu::DescriptorType::DynamicStorageBuffer,
                       .count = 1,
                       .is_variable_length = false}})})
           .unwrap();
@@ -126,10 +126,10 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   textures_layout = device
                         ->create_descriptor_set_layout(
                             device.self,
-                            gfx::DescriptorSetLayoutDesc{
+                            gpu::DescriptorSetLayoutDesc{
                                 .label    = "Textures Layout"_span,
-                                .bindings = span({gfx::DescriptorBindingDesc{
-                                    .type  = gfx::DescriptorType::SampledImage,
+                                .bindings = span({gpu::DescriptorBindingDesc{
+                                    .type  = gpu::DescriptorType::SampledImage,
                                     .count = NUM_TEXTURE_SLOTS,
                                     .is_variable_length = true}})})
                         .unwrap();
@@ -137,10 +137,10 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   samplers_layout = device
                         ->create_descriptor_set_layout(
                             device.self,
-                            gfx::DescriptorSetLayoutDesc{
+                            gpu::DescriptorSetLayoutDesc{
                                 .label    = "Samplers Layout"_span,
-                                .bindings = span({gfx::DescriptorBindingDesc{
-                                    .type  = gfx::DescriptorType::Sampler,
+                                .bindings = span({gpu::DescriptorBindingDesc{
+                                    .type  = gpu::DescriptorType::Sampler,
                                     .count = NUM_SAMPLER_SLOTS,
                                     .is_variable_length = true}})})
                         .unwrap();
@@ -158,81 +158,81 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
   recreate_framebuffers(p_initial_extent);
 
   CachedSampler sampler = create_sampler(
-      gfx::SamplerDesc{.label             = "Linear+Repeat Sampler"_span,
-                       .mag_filter        = gfx::Filter::Linear,
-                       .min_filter        = gfx::Filter::Linear,
-                       .mip_map_mode      = gfx::SamplerMipMapMode::Linear,
-                       .address_mode_u    = gfx::SamplerAddressMode::Repeat,
-                       .address_mode_v    = gfx::SamplerAddressMode::Repeat,
-                       .address_mode_w    = gfx::SamplerAddressMode::Repeat,
+      gpu::SamplerDesc{.label             = "Linear+Repeat Sampler"_span,
+                       .mag_filter        = gpu::Filter::Linear,
+                       .min_filter        = gpu::Filter::Linear,
+                       .mip_map_mode      = gpu::SamplerMipMapMode::Linear,
+                       .address_mode_u    = gpu::SamplerAddressMode::Repeat,
+                       .address_mode_v    = gpu::SamplerAddressMode::Repeat,
+                       .address_mode_w    = gpu::SamplerAddressMode::Repeat,
                        .mip_lod_bias      = 0,
                        .anisotropy_enable = false,
                        .max_anisotropy    = 1.0,
                        .compare_enable    = false,
-                       .compare_op        = gfx::CompareOp::Never,
+                       .compare_op        = gpu::CompareOp::Never,
                        .min_lod           = 0,
                        .max_lod           = 0,
-                       .border_color = gfx::BorderColor::FloatTransparentBlack,
+                       .border_color = gpu::BorderColor::FloatTransparentBlack,
                        .unnormalized_coordinates = false});
 
   CHECK(sampler.slot == SAMPLER_LINEAR);
 
   sampler = create_sampler(
-      gfx::SamplerDesc{.label             = "Nearest+Repeat Sampler"_span,
-                       .mag_filter        = gfx::Filter::Nearest,
-                       .min_filter        = gfx::Filter::Nearest,
-                       .mip_map_mode      = gfx::SamplerMipMapMode::Nearest,
-                       .address_mode_u    = gfx::SamplerAddressMode::Repeat,
-                       .address_mode_v    = gfx::SamplerAddressMode::Repeat,
-                       .address_mode_w    = gfx::SamplerAddressMode::Repeat,
+      gpu::SamplerDesc{.label             = "Nearest+Repeat Sampler"_span,
+                       .mag_filter        = gpu::Filter::Nearest,
+                       .min_filter        = gpu::Filter::Nearest,
+                       .mip_map_mode      = gpu::SamplerMipMapMode::Nearest,
+                       .address_mode_u    = gpu::SamplerAddressMode::Repeat,
+                       .address_mode_v    = gpu::SamplerAddressMode::Repeat,
+                       .address_mode_w    = gpu::SamplerAddressMode::Repeat,
                        .mip_lod_bias      = 0,
                        .anisotropy_enable = false,
                        .max_anisotropy    = 1.0,
                        .compare_enable    = false,
-                       .compare_op        = gfx::CompareOp::Never,
+                       .compare_op        = gpu::CompareOp::Never,
                        .min_lod           = 0,
                        .max_lod           = 0,
-                       .border_color = gfx::BorderColor::FloatTransparentBlack,
+                       .border_color = gpu::BorderColor::FloatTransparentBlack,
                        .unnormalized_coordinates = false});
 
   CHECK(sampler.slot == SAMPLER_NEAREST);
 
   sampler = create_sampler(
-      gfx::SamplerDesc{.label          = "Linear+EdgeClamped Sampler"_span,
-                       .mag_filter     = gfx::Filter::Linear,
-                       .min_filter     = gfx::Filter::Linear,
-                       .mip_map_mode   = gfx::SamplerMipMapMode::Linear,
-                       .address_mode_u = gfx::SamplerAddressMode::ClampToEdge,
-                       .address_mode_v = gfx::SamplerAddressMode::ClampToEdge,
-                       .address_mode_w = gfx::SamplerAddressMode::ClampToEdge,
+      gpu::SamplerDesc{.label          = "Linear+EdgeClamped Sampler"_span,
+                       .mag_filter     = gpu::Filter::Linear,
+                       .min_filter     = gpu::Filter::Linear,
+                       .mip_map_mode   = gpu::SamplerMipMapMode::Linear,
+                       .address_mode_u = gpu::SamplerAddressMode::ClampToEdge,
+                       .address_mode_v = gpu::SamplerAddressMode::ClampToEdge,
+                       .address_mode_w = gpu::SamplerAddressMode::ClampToEdge,
                        .mip_lod_bias   = 0,
                        .anisotropy_enable = false,
                        .max_anisotropy    = 1.0,
                        .compare_enable    = false,
-                       .compare_op        = gfx::CompareOp::Never,
+                       .compare_op        = gpu::CompareOp::Never,
                        .min_lod           = 0,
                        .max_lod           = 0,
-                       .border_color = gfx::BorderColor::FloatTransparentBlack,
+                       .border_color = gpu::BorderColor::FloatTransparentBlack,
                        .unnormalized_coordinates = false});
 
   CHECK(sampler.slot == SAMPLER_LINEAR_CLAMPED);
 
   sampler = create_sampler(
-      gfx::SamplerDesc{.label          = "Nearest+EdgeClamped Sampler"_span,
-                       .mag_filter     = gfx::Filter::Nearest,
-                       .min_filter     = gfx::Filter::Nearest,
-                       .mip_map_mode   = gfx::SamplerMipMapMode::Nearest,
-                       .address_mode_u = gfx::SamplerAddressMode::ClampToEdge,
-                       .address_mode_v = gfx::SamplerAddressMode::ClampToEdge,
-                       .address_mode_w = gfx::SamplerAddressMode::ClampToEdge,
+      gpu::SamplerDesc{.label          = "Nearest+EdgeClamped Sampler"_span,
+                       .mag_filter     = gpu::Filter::Nearest,
+                       .min_filter     = gpu::Filter::Nearest,
+                       .mip_map_mode   = gpu::SamplerMipMapMode::Nearest,
+                       .address_mode_u = gpu::SamplerAddressMode::ClampToEdge,
+                       .address_mode_v = gpu::SamplerAddressMode::ClampToEdge,
+                       .address_mode_w = gpu::SamplerAddressMode::ClampToEdge,
                        .mip_lod_bias   = 0,
                        .anisotropy_enable = false,
                        .max_anisotropy    = 1.0,
                        .compare_enable    = false,
-                       .compare_op        = gfx::CompareOp::Never,
+                       .compare_op        = gpu::CompareOp::Never,
                        .min_lod           = 0,
                        .max_lod           = 0,
-                       .border_color = gfx::BorderColor::FloatTransparentBlack,
+                       .border_color = gpu::BorderColor::FloatTransparentBlack,
                        .unnormalized_coordinates = false});
 
   CHECK(sampler.slot == SAMPLER_NEAREST_CLAMPED);
@@ -241,46 +241,46 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
       device
           ->create_image(
               device.self,
-              gfx::ImageDesc{.label  = "Default Texture Image"_span,
-                             .type   = gfx::ImageType::Type2D,
-                             .format = gfx::Format::B8G8R8A8_UNORM,
-                             .usage  = gfx::ImageUsage::Sampled |
-                                      gfx::ImageUsage::TransferDst |
-                                      gfx::ImageUsage::Storage |
-                                      gfx::ImageUsage::Storage,
-                             .aspects      = gfx::ImageAspects::Color,
+              gpu::ImageDesc{.label  = "Default Texture Image"_span,
+                             .type   = gpu::ImageType::Type2D,
+                             .format = gpu::Format::B8G8R8A8_UNORM,
+                             .usage  = gpu::ImageUsage::Sampled |
+                                      gpu::ImageUsage::TransferDst |
+                                      gpu::ImageUsage::Storage |
+                                      gpu::ImageUsage::Storage,
+                             .aspects      = gpu::ImageAspects::Color,
                              .extent       = {1, 1, 1},
                              .mip_levels   = 1,
                              .array_layers = 1,
-                             .sample_count = gfx::SampleCount::Count1})
+                             .sample_count = gpu::SampleCount::Count1})
           .unwrap();
 
   {
-    gfx::ComponentMapping mappings[NUM_DEFAULT_TEXTURES] = {};
-    mappings[TEXTURE_WHITE]       = {.r = gfx::ComponentSwizzle::One,
-                                     .g = gfx::ComponentSwizzle::One,
-                                     .b = gfx::ComponentSwizzle::One,
-                                     .a = gfx::ComponentSwizzle::One};
-    mappings[TEXTURE_BLACK]       = {.r = gfx::ComponentSwizzle::Zero,
-                                     .g = gfx::ComponentSwizzle::Zero,
-                                     .b = gfx::ComponentSwizzle::Zero,
-                                     .a = gfx::ComponentSwizzle::One};
-    mappings[TEXTURE_TRANSPARENT] = {.r = gfx::ComponentSwizzle::Zero,
-                                     .g = gfx::ComponentSwizzle::Zero,
-                                     .b = gfx::ComponentSwizzle::Zero,
-                                     .a = gfx::ComponentSwizzle::Zero};
-    mappings[TEXTURE_RED]         = {.r = gfx::ComponentSwizzle::One,
-                                     .g = gfx::ComponentSwizzle::Zero,
-                                     .b = gfx::ComponentSwizzle::Zero,
-                                     .a = gfx::ComponentSwizzle::One};
-    mappings[TEXTURE_GREEN]       = {.r = gfx::ComponentSwizzle::Zero,
-                                     .g = gfx::ComponentSwizzle::One,
-                                     .b = gfx::ComponentSwizzle::Zero,
-                                     .a = gfx::ComponentSwizzle::One};
-    mappings[TEXTURE_BLUE]        = {.r = gfx::ComponentSwizzle::Zero,
-                                     .g = gfx::ComponentSwizzle::Zero,
-                                     .b = gfx::ComponentSwizzle::One,
-                                     .a = gfx::ComponentSwizzle::One};
+    gpu::ComponentMapping mappings[NUM_DEFAULT_TEXTURES] = {};
+    mappings[TEXTURE_WHITE]       = {.r = gpu::ComponentSwizzle::One,
+                                     .g = gpu::ComponentSwizzle::One,
+                                     .b = gpu::ComponentSwizzle::One,
+                                     .a = gpu::ComponentSwizzle::One};
+    mappings[TEXTURE_BLACK]       = {.r = gpu::ComponentSwizzle::Zero,
+                                     .g = gpu::ComponentSwizzle::Zero,
+                                     .b = gpu::ComponentSwizzle::Zero,
+                                     .a = gpu::ComponentSwizzle::One};
+    mappings[TEXTURE_TRANSPARENT] = {.r = gpu::ComponentSwizzle::Zero,
+                                     .g = gpu::ComponentSwizzle::Zero,
+                                     .b = gpu::ComponentSwizzle::Zero,
+                                     .a = gpu::ComponentSwizzle::Zero};
+    mappings[TEXTURE_RED]         = {.r = gpu::ComponentSwizzle::One,
+                                     .g = gpu::ComponentSwizzle::Zero,
+                                     .b = gpu::ComponentSwizzle::Zero,
+                                     .a = gpu::ComponentSwizzle::One};
+    mappings[TEXTURE_GREEN]       = {.r = gpu::ComponentSwizzle::Zero,
+                                     .g = gpu::ComponentSwizzle::One,
+                                     .b = gpu::ComponentSwizzle::Zero,
+                                     .a = gpu::ComponentSwizzle::One};
+    mappings[TEXTURE_BLUE]        = {.r = gpu::ComponentSwizzle::Zero,
+                                     .g = gpu::ComponentSwizzle::Zero,
+                                     .b = gpu::ComponentSwizzle::One,
+                                     .a = gpu::ComponentSwizzle::One};
 
     for (u32 i = 0; i < NUM_DEFAULT_TEXTURES; i++)
     {
@@ -288,12 +288,12 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
           device
               ->create_image_view(
                   device.self,
-                  gfx::ImageViewDesc{.label = "Default Texture Image View"_span,
+                  gpu::ImageViewDesc{.label = "Default Texture Image View"_span,
                                      .image = default_image,
-                                     .view_type   = gfx::ImageViewType::Type2D,
-                                     .view_format = gfx::Format::B8G8R8A8_UNORM,
+                                     .view_type   = gpu::ImageViewType::Type2D,
+                                     .view_format = gpu::Format::B8G8R8A8_UNORM,
                                      .mapping     = mappings[i],
-                                     .aspects     = gfx::ImageAspects::Color,
+                                     .aspects     = gpu::ImageAspects::Color,
                                      .first_mip_level   = 0,
                                      .num_mip_levels    = 1,
                                      .first_array_layer = 0,
@@ -305,44 +305,44 @@ void RenderContext::init(gfx::DeviceImpl p_device, bool p_use_hdr,
       CHECK(slot == i);
 
       device->update_descriptor_set(
-          device.self, gfx::DescriptorSetUpdate{
+          device.self, gpu::DescriptorSetUpdate{
                            .set     = texture_views,
                            .binding = 0,
                            .element = slot,
-                           .images  = span({gfx::ImageBinding{
+                           .images  = span({gpu::ImageBinding{
                                 .image_view = default_image_views[i]}})});
     }
   }
 }
 
 static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
-                                 gfx::Extent new_extent)
+                                 gpu::Extent new_extent)
 {
   ctx.release(fb);
 
-  fb.color.desc = gfx::ImageDesc{
+  fb.color.desc = gpu::ImageDesc{
       .label  = "Framebuffer Color Image"_span,
-      .type   = gfx::ImageType::Type2D,
+      .type   = gpu::ImageType::Type2D,
       .format = ctx.color_format,
-      .usage  = gfx::ImageUsage::ColorAttachment | gfx::ImageUsage::Sampled |
-               gfx::ImageUsage::Storage | gfx::ImageUsage::TransferDst |
-               gfx::ImageUsage::TransferSrc,
-      .aspects      = gfx::ImageAspects::Color,
-      .extent       = gfx::Extent3D{new_extent.x, new_extent.y, 1},
+      .usage  = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::Sampled |
+               gpu::ImageUsage::Storage | gpu::ImageUsage::TransferDst |
+               gpu::ImageUsage::TransferSrc,
+      .aspects      = gpu::ImageAspects::Color,
+      .extent       = gpu::Extent3D{new_extent.x, new_extent.y, 1},
       .mip_levels   = 1,
       .array_layers = 1,
-      .sample_count = gfx::SampleCount::Count1};
+      .sample_count = gpu::SampleCount::Count1};
 
   fb.color.image =
       ctx.device->create_image(ctx.device.self, fb.color.desc).unwrap();
 
   fb.color.view_desc =
-      gfx::ImageViewDesc{.label           = "Framebuffer Color Image View"_span,
+      gpu::ImageViewDesc{.label           = "Framebuffer Color Image View"_span,
                          .image           = fb.color.image,
-                         .view_type       = gfx::ImageViewType::Type2D,
+                         .view_type       = gpu::ImageViewType::Type2D,
                          .view_format     = fb.color.desc.format,
                          .mapping         = {},
-                         .aspects         = gfx::ImageAspects::Color,
+                         .aspects         = gpu::ImageAspects::Color,
                          .first_mip_level = 0,
                          .num_mip_levels  = 1,
                          .first_array_layer = 0,
@@ -351,29 +351,29 @@ static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
       ctx.device->create_image_view(ctx.device.self, fb.color.view_desc)
           .unwrap();
 
-  fb.depth_stencil.desc = gfx::ImageDesc{
+  fb.depth_stencil.desc = gpu::ImageDesc{
       .label  = "Framebuffer Depth Stencil Image"_span,
-      .type   = gfx::ImageType::Type2D,
+      .type   = gpu::ImageType::Type2D,
       .format = ctx.depth_stencil_format,
-      .usage  = gfx::ImageUsage::DepthStencilAttachment |
-               gfx::ImageUsage::Sampled | gfx::ImageUsage::TransferDst |
-               gfx::ImageUsage::TransferSrc,
-      .aspects      = gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
-      .extent       = gfx::Extent3D{new_extent.x, new_extent.y, 1},
+      .usage  = gpu::ImageUsage::DepthStencilAttachment |
+               gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
+               gpu::ImageUsage::TransferSrc,
+      .aspects      = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
+      .extent       = gpu::Extent3D{new_extent.x, new_extent.y, 1},
       .mip_levels   = 1,
       .array_layers = 1,
-      .sample_count = gfx::SampleCount::Count1};
+      .sample_count = gpu::SampleCount::Count1};
 
   fb.depth_stencil.image =
       ctx.device->create_image(ctx.device.self, fb.depth_stencil.desc).unwrap();
 
-  fb.depth_stencil.view_desc = gfx::ImageViewDesc{
+  fb.depth_stencil.view_desc = gpu::ImageViewDesc{
       .label           = "Framebuffer Depth Stencil Image View"_span,
       .image           = fb.depth_stencil.image,
-      .view_type       = gfx::ImageViewType::Type2D,
+      .view_type       = gpu::ImageViewType::Type2D,
       .view_format     = fb.depth_stencil.desc.format,
       .mapping         = {},
-      .aspects         = gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
+      .aspects         = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
       .first_mip_level = 0,
       .num_mip_levels  = 1,
       .first_array_layer = 0,
@@ -391,11 +391,11 @@ static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
 
   ctx.device->update_descriptor_set(
       ctx.device.self,
-      gfx::DescriptorSetUpdate{
+      gpu::DescriptorSetUpdate{
           .set     = fb.color_texture,
           .binding = 0,
           .element = 0,
-          .images  = span({gfx::ImageBinding{.image_view = fb.color.view}})});
+          .images  = span({gpu::ImageBinding{.image_view = fb.color.view}})});
 
   fb.extent = new_extent;
 }
@@ -403,7 +403,7 @@ static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
 void RenderContext::uninit()
 {
   release(default_image);
-  for (gfx::ImageView v : default_image_views)
+  for (gpu::ImageView v : default_image_views)
   {
     release(v);
   }
@@ -418,19 +418,19 @@ void RenderContext::uninit()
   {
     release(f);
   }
-  sampler_cache.for_each([&](gfx::SamplerDesc const &, CachedSampler sampler) {
+  sampler_cache.for_each([&](gpu::SamplerDesc const &, CachedSampler sampler) {
     release(sampler.sampler);
   });
   idle_reclaim();
   device->destroy_pipeline_cache(device.self, pipeline_cache);
 
-  shader_map.for_each([&](Span<char const>, gfx::Shader shader) {
+  shader_map.for_each([&](Span<char const>, gpu::Shader shader) {
     device->destroy_shader(device.self, shader);
   });
   shader_map.reset();
 }
 
-void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
+void RenderContext::recreate_framebuffers(gpu::Extent new_extent)
 {
   recreate_framebuffer(*this, screen_fb, new_extent);
   for (Framebuffer &f : scratch_fbs)
@@ -439,33 +439,33 @@ void RenderContext::recreate_framebuffers(gfx::Extent new_extent)
   }
 }
 
-gfx::CommandEncoderImpl RenderContext::encoder()
+gpu::CommandEncoderImpl RenderContext::encoder()
 {
-  gfx::FrameContext ctx = device->get_frame_context(device.self);
+  gpu::FrameContext ctx = device->get_frame_context(device.self);
   return ctx.encoders[ctx.ring_index];
 }
 
 u32 RenderContext::ring_index()
 {
-  gfx::FrameContext ctx = device->get_frame_context(device.self);
+  gpu::FrameContext ctx = device->get_frame_context(device.self);
   return ctx.ring_index;
 }
 
-gfx::FrameId RenderContext::frame_id()
+gpu::FrameId RenderContext::frame_id()
 {
-  gfx::FrameContext ctx = device->get_frame_context(device.self);
+  gpu::FrameContext ctx = device->get_frame_context(device.self);
   return ctx.current;
 }
 
-gfx::FrameId RenderContext::tail_frame_id()
+gpu::FrameId RenderContext::tail_frame_id()
 {
-  gfx::FrameContext ctx = device->get_frame_context(device.self);
+  gpu::FrameContext ctx = device->get_frame_context(device.self);
   return ctx.tail;
 }
 
-Option<gfx::Shader> RenderContext::get_shader(Span<char const> name)
+Option<gpu::Shader> RenderContext::get_shader(Span<char const> name)
 {
-  gfx::Shader *shader = shader_map[name];
+  gpu::Shader *shader = shader_map[name];
   if (shader == nullptr)
   {
     return None;
@@ -473,7 +473,7 @@ Option<gfx::Shader> RenderContext::get_shader(Span<char const> name)
   return Some{*shader};
 }
 
-CachedSampler RenderContext::create_sampler(gfx::SamplerDesc const &desc)
+CachedSampler RenderContext::create_sampler(gpu::SamplerDesc const &desc)
 {
   CachedSampler *cached = sampler_cache[desc];
   if (cached != nullptr)
@@ -487,11 +487,11 @@ CachedSampler RenderContext::create_sampler(gfx::SamplerDesc const &desc)
 
   device->update_descriptor_set(
       device.self,
-      gfx::DescriptorSetUpdate{
+      gpu::DescriptorSetUpdate{
           .set     = samplers,
           .binding = 0,
           .element = sampler.slot,
-          .images  = span({gfx::ImageBinding{.sampler = sampler.sampler}})});
+          .images  = span({gpu::ImageBinding{.sampler = sampler.sampler}})});
 
   bool exists;
   CHECK(sampler_cache.insert(exists, nullptr, desc, sampler) && !exists);
@@ -525,40 +525,40 @@ void RenderContext::release_sampler_slot(u32 slot)
   clear_bit(span(sampler_slots), slot);
 }
 
-void RenderContext::release(gfx::Image image)
+void RenderContext::release(gpu::Image image)
 {
   if (image == nullptr)
   {
     return;
   }
   released_objects[ring_index()]
-      .push(gfx::Object{.image = image, .type = gfx::ObjectType::Image})
+      .push(gpu::Object{.image = image, .type = gpu::ObjectType::Image})
       .unwrap();
 }
 
-void RenderContext::release(gfx::ImageView view)
+void RenderContext::release(gpu::ImageView view)
 {
   if (view == nullptr)
   {
     return;
   }
   released_objects[ring_index()]
-      .push(gfx::Object{.image_view = view, .type = gfx::ObjectType::ImageView})
+      .push(gpu::Object{.image_view = view, .type = gpu::ObjectType::ImageView})
       .unwrap();
 }
 
-void RenderContext::release(gfx::Buffer buffer)
+void RenderContext::release(gpu::Buffer buffer)
 {
   if (buffer == nullptr)
   {
     return;
   }
   released_objects[ring_index()]
-      .push(gfx::Object{.buffer = buffer, .type = gfx::ObjectType::Buffer})
+      .push(gpu::Object{.buffer = buffer, .type = gpu::ObjectType::Buffer})
       .unwrap();
 }
 
-void RenderContext::release(gfx::BufferView view)
+void RenderContext::release(gpu::BufferView view)
 {
   if (view == nullptr)
   {
@@ -566,72 +566,72 @@ void RenderContext::release(gfx::BufferView view)
   }
   released_objects[ring_index()]
       .push(
-          gfx::Object{.buffer_view = view, .type = gfx::ObjectType::BufferView})
+          gpu::Object{.buffer_view = view, .type = gpu::ObjectType::BufferView})
       .unwrap();
 }
 
-void RenderContext::release(gfx::DescriptorSetLayout layout)
+void RenderContext::release(gpu::DescriptorSetLayout layout)
 {
   if (layout == nullptr)
   {
     return;
   }
   released_objects[ring_index()]
-      .push(gfx::Object{.descriptor_set_layout = layout,
-                        .type = gfx::ObjectType::DescriptorSetLayout})
+      .push(gpu::Object{.descriptor_set_layout = layout,
+                        .type = gpu::ObjectType::DescriptorSetLayout})
       .unwrap();
 }
 
-void RenderContext::release(gfx::DescriptorSet set)
+void RenderContext::release(gpu::DescriptorSet set)
 {
   if (set == nullptr)
   {
     return;
   }
   released_objects[ring_index()]
-      .push(gfx::Object{.descriptor_set = set,
-                        .type           = gfx::ObjectType::DescriptorSet})
+      .push(gpu::Object{.descriptor_set = set,
+                        .type           = gpu::ObjectType::DescriptorSet})
       .unwrap();
 }
 
-void RenderContext::release(gfx::Sampler sampler)
+void RenderContext::release(gpu::Sampler sampler)
 {
   if (sampler == nullptr)
   {
     return;
   }
   released_objects[ring_index()]
-      .push(gfx::Object{.sampler = sampler, .type = gfx::ObjectType::Sampler})
+      .push(gpu::Object{.sampler = sampler, .type = gpu::ObjectType::Sampler})
       .unwrap();
 }
 
-static void destroy_objects(gfx::DeviceImpl const  &d,
-                            Span<gfx::Object const> objects)
+static void destroy_objects(gpu::DeviceImpl const  &d,
+                            Span<gpu::Object const> objects)
 {
   for (u32 i = 0; i < objects.size32(); i++)
   {
-    gfx::Object obj = objects[i];
+    gpu::Object obj = objects[i];
     switch (obj.type)
     {
-      case gfx::ObjectType::Image:
+      case gpu::ObjectType::Image:
         d->destroy_image(d.self, obj.image);
         break;
-      case gfx::ObjectType::ImageView:
+      case gpu::ObjectType::ImageView:
         d->destroy_image_view(d.self, obj.image_view);
         break;
-      case gfx::ObjectType::Buffer:
+      case gpu::ObjectType::Buffer:
         d->destroy_buffer(d.self, obj.buffer);
         break;
-      case gfx::ObjectType::BufferView:
+      case gpu::ObjectType::BufferView:
         d->destroy_buffer_view(d.self, obj.buffer_view);
         break;
-      case gfx::ObjectType::Sampler:
+      case gpu::ObjectType::Sampler:
         d->destroy_sampler(d.self, obj.sampler);
         break;
-      case gfx::ObjectType::DescriptorSet:
+      case gpu::ObjectType::DescriptorSet:
         d->destroy_descriptor_set(d.self, obj.descriptor_set);
         break;
-      case gfx::ObjectType::DescriptorSetLayout:
+      case gpu::ObjectType::DescriptorSetLayout:
         d->destroy_descriptor_set_layout(d.self, obj.descriptor_set_layout);
         break;
       default:
@@ -650,17 +650,17 @@ void RenderContext::idle_reclaim()
   }
 }
 
-void RenderContext::begin_frame(gfx::Swapchain swapchain)
+void RenderContext::begin_frame(gpu::Swapchain swapchain)
 {
   device->begin_frame(device.self, swapchain).unwrap();
   destroy_objects(device, span(released_objects[ring_index()]));
   released_objects[ring_index()].clear();
 
-  gfx::CommandEncoderImpl enc = encoder();
+  gpu::CommandEncoderImpl enc = encoder();
 
   enc->clear_color_image(
-      enc.self, screen_fb.color.image, gfx::Color{.float32 = {0, 0, 0, 0}},
-      span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+      enc.self, screen_fb.color.image, gpu::Color{.float32 = {0, 0, 0, 0}},
+      span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
                                        .first_mip_level   = 0,
                                        .num_mip_levels    = 1,
                                        .first_array_layer = 0,
@@ -669,8 +669,8 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
   for (Framebuffer const &f : scratch_fbs)
   {
     enc->clear_color_image(
-        enc.self, f.color.image, gfx::Color{.float32 = {0, 0, 0, 0}},
-        span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+        enc.self, f.color.image, gpu::Color{.float32 = {0, 0, 0, 0}},
+        span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
                                          .first_mip_level   = 0,
                                          .num_mip_levels    = 1,
                                          .first_array_layer = 0,
@@ -679,9 +679,9 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
 
   enc->clear_depth_stencil_image(
       enc.self, screen_fb.depth_stencil.image,
-      gfx::DepthStencil{.depth = 0, .stencil = 0},
-      span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
-                                                  gfx::ImageAspects::Stencil,
+      gpu::DepthStencil{.depth = 0, .stencil = 0},
+      span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Depth |
+                                                  gpu::ImageAspects::Stencil,
                                        .first_mip_level   = 0,
                                        .num_mip_levels    = 1,
                                        .first_array_layer = 0,
@@ -691,9 +691,9 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
   {
     enc->clear_depth_stencil_image(
         enc.self, f.depth_stencil.image,
-        gfx::DepthStencil{.depth = 0, .stencil = 0},
-        span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Depth |
-                                                    gfx::ImageAspects::Stencil,
+        gpu::DepthStencil{.depth = 0, .stencil = 0},
+        span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Depth |
+                                                    gpu::ImageAspects::Stencil,
                                          .first_mip_level   = 0,
                                          .num_mip_levels    = 1,
                                          .first_array_layer = 0,
@@ -701,12 +701,12 @@ void RenderContext::begin_frame(gfx::Swapchain swapchain)
   }
 }
 
-void RenderContext::end_frame(gfx::Swapchain swapchain)
+void RenderContext::end_frame(gpu::Swapchain swapchain)
 {
-  gfx::CommandEncoderImpl enc = encoder();
+  gpu::CommandEncoderImpl enc = encoder();
   if (swapchain != nullptr)
   {
-    gfx::SwapchainState swapchain_state =
+    gpu::SwapchainState swapchain_state =
         device->get_swapchain_state(device.self, swapchain).unwrap();
 
     if (swapchain_state.current_image.is_some())
@@ -714,21 +714,21 @@ void RenderContext::end_frame(gfx::Swapchain swapchain)
       enc->blit_image(
           enc.self, screen_fb.color.image,
           swapchain_state.images[swapchain_state.current_image.unwrap()],
-          span({gfx::ImageBlit{
-              .src_layers  = {.aspects           = gfx::ImageAspects::Color,
+          span({gpu::ImageBlit{
+              .src_layers  = {.aspects           = gpu::ImageAspects::Color,
                               .mip_level         = 0,
                               .first_array_layer = 0,
                               .num_array_layers  = 1},
               .src_offsets = {{0, 0, 0},
                               {screen_fb.extent.x, screen_fb.extent.y, 1}},
-              .dst_layers  = {.aspects           = gfx::ImageAspects::Color,
+              .dst_layers  = {.aspects           = gpu::ImageAspects::Color,
                               .mip_level         = 0,
                               .first_array_layer = 0,
                               .num_array_layers  = 1},
               .dst_offsets = {{0, 0, 0},
                               {swapchain_state.extent.x,
                                swapchain_state.extent.y, 1}}}}),
-          gfx::Filter::Linear);
+          gpu::Filter::Linear);
     }
   }
   device->submit_frame(device.self, swapchain).unwrap();

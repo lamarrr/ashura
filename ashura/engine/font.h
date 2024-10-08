@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/engine/render_context.h"
-#include "ashura/gfx/gfx.h"
+#include "ashura/gpu/gpu.h"
 #include "ashura/std/image.h"
 #include "ashura/std/types.h"
 
@@ -71,7 +71,7 @@ struct Glyph
 struct AtlasGlyph
 {
   u32       layer = 0;
-  gfx::Rect area  = {};
+  gpu::Rect area  = {};
   Vec2      uv[2] = {};
 };
 

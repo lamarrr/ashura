@@ -170,12 +170,12 @@ target_link_libraries(ashura_std_tests ashura_std GTest::gtest
 target_link_libraries(ashura_std_bench benchmark::benchmark
                       benchmark::benchmark_main ashura_std)
 
-add_library(ashura_gfx ashura/gfx/gfx.cc ashura/gfx/vma_def.cc
-                       ashura/gfx/vulkan.cc)
+add_library(ashura_gpu ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
+                       ashura/gpu/vulkan.cc)
 target_link_libraries(
-  ashura_gfx ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
+  ashura_gpu ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
   GPUOpen::VulkanMemoryAllocator)
-target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
   ashura_engine
@@ -199,7 +199,7 @@ add_library(
 target_link_libraries(
   ashura_engine
   ashura_std
-  ashura_gfx
+  ashura_gpu
   SPIRV
   glslang
   spirv-reflect-static

@@ -35,9 +35,9 @@ struct PassContext
 
 struct SSBO
 {
-  gfx::Buffer        buffer = nullptr;
+  gpu::Buffer        buffer = nullptr;
   u64                size   = 0;
-  gfx::DescriptorSet ssbo   = nullptr;
+  gpu::DescriptorSet ssbo   = nullptr;
 
   void  uninit(RenderContext &ctx);
   void  reserve(RenderContext &ctx, u64 size, Span<char const> label);
@@ -59,15 +59,15 @@ struct CanvasResources
 
 struct CanvasRenderer
 {
-  CanvasResources resources[gfx::MAX_FRAME_BUFFERING];
+  CanvasResources resources[gpu::MAX_FRAME_BUFFERING];
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
   void begin(RenderContext &ctx, PassContext &passes, Canvas const &canvas,
-             gfx::RenderingInfo const &info, gfx::DescriptorSet texture);
+             gpu::RenderingInfo const &info, gpu::DescriptorSet texture);
   void render(RenderContext &ctx, PassContext &passes,
-              gfx::RenderingInfo const &info, gfx::Viewport const &viewport,
-              gfx::Extent surface_extent, gfx::DescriptorSet texture,
+              gpu::RenderingInfo const &info, gpu::Viewport const &viewport,
+              gpu::Extent surface_extent, gpu::DescriptorSet texture,
               Canvas const &canvas, u32 first = 0, u32 num = U32_MAX);
 };
 
@@ -83,15 +83,15 @@ struct PBRResources
 
 struct PBRRenderer
 {
-  PBRResources resources[gfx::MAX_FRAME_BUFFERING];
+  PBRResources resources[gpu::MAX_FRAME_BUFFERING];
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
 
   void begin(RenderContext &ctx, PassContext &passes,
-             gfx::RenderingInfo const &info);
+             gpu::RenderingInfo const &info);
   void render(RenderContext &ctx, PassContext &passes,
-              gfx::RenderingInfo const &info);
+              gpu::RenderingInfo const &info);
 };
 
 }        // namespace ash

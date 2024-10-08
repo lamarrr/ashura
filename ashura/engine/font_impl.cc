@@ -6,7 +6,7 @@
 #include "ashura/engine/font.h"
 #include "ashura/engine/font_atlas.h"
 #include "ashura/engine/rect_pack.h"
-#include "ashura/gfx/image.h"
+#include "ashura/gpu/image.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/allocators.h"
 #include "ashura/std/error.h"
@@ -333,7 +333,7 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
                 "Font atlas extent must be at least 128px");
   static_assert(MIN_ATLAS_EXTENT % 64 == 0,
                 "Font atlas extent should be a multiple of 64");
-  static_assert(MIN_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT_2D,
+  static_assert(MIN_ATLAS_EXTENT <= gpu::MAX_IMAGE_EXTENT_2D,
                 "Font atlas extent too large for GPU platform");
   CHECK(font_height <= 1024);
   CHECK(font_height <= MIN_ATLAS_EXTENT / 8);
@@ -414,8 +414,8 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
       }
     }
 
-    CHECK(atlas_extent.x <= gfx::MAX_IMAGE_EXTENT_2D);
-    CHECK(atlas_extent.y <= gfx::MAX_IMAGE_EXTENT_2D);
+    CHECK(atlas_extent.x <= gpu::MAX_IMAGE_EXTENT_2D);
+    CHECK(atlas_extent.y <= gpu::MAX_IMAGE_EXTENT_2D);
 
     rect_pack::Node *nodes;
     if (!allocator.nalloc(atlas_extent.x, &nodes))
@@ -519,8 +519,8 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
 void upload_font_to_device(Font font, RenderContext &c,
                            AllocatorImpl const &allocator)
 {
-  gfx::CommandEncoderImpl const &enc = c.encoder();
-  gfx::DeviceImpl const         &d   = c.device;
+  gpu::CommandEncoderImpl const &enc = c.encoder();
+  gpu::DeviceImpl const         &d   = c.device;
 
   CHECK(font != nullptr);
   FontImpl *f = (FontImpl *) font;
@@ -533,24 +533,24 @@ void upload_font_to_device(Font font, RenderContext &c,
   CHECK(atlas.extent.x > 0);
   CHECK(atlas.extent.y > 0);
 
-  gfx::Image image =
+  gpu::Image image =
       d->create_image(
-           d.self, gfx::ImageDesc{.label  = "Font Atlas Image"_span,
-                                  .type   = gfx::ImageType::Type2D,
-                                  .format = gfx::Format::B8G8R8A8_UNORM,
-                                  .usage  = gfx::ImageUsage::Sampled |
-                                           gfx::ImageUsage::InputAttachment |
-                                           gfx::ImageUsage::Storage |
-                                           gfx::ImageUsage::TransferSrc |
-                                           gfx::ImageUsage::TransferDst,
-                                  .aspects = gfx::ImageAspects::Color,
+           d.self, gpu::ImageDesc{.label  = "Font Atlas Image"_span,
+                                  .type   = gpu::ImageType::Type2D,
+                                  .format = gpu::Format::B8G8R8A8_UNORM,
+                                  .usage  = gpu::ImageUsage::Sampled |
+                                           gpu::ImageUsage::InputAttachment |
+                                           gpu::ImageUsage::Storage |
+                                           gpu::ImageUsage::TransferSrc |
+                                           gpu::ImageUsage::TransferDst,
+                                  .aspects = gpu::ImageAspects::Color,
                                   .extent = {atlas.extent.x, atlas.extent.y, 1},
                                   .mip_levels   = 1,
                                   .array_layers = atlas.num_layers,
-                                  .sample_count = gfx::SampleCount::Count1})
+                                  .sample_count = gpu::SampleCount::Count1})
           .unwrap();
 
-  Vec<gfx::ImageView> views;
+  Vec<gpu::ImageView> views;
 
   views.resize_defaulted(atlas.num_layers).unwrap();
 
@@ -559,12 +559,12 @@ void upload_font_to_device(Font font, RenderContext &c,
     views[i] =
         d->create_image_view(
              d.self,
-             gfx::ImageViewDesc{.label           = "Font Atlas Image View"_span,
+             gpu::ImageViewDesc{.label           = "Font Atlas Image View"_span,
                                 .image           = image,
-                                .view_type       = gfx::ImageViewType::Type2D,
-                                .view_format     = gfx::Format::B8G8R8A8_UNORM,
+                                .view_type       = gpu::ImageViewType::Type2D,
+                                .view_format     = gpu::Format::B8G8R8A8_UNORM,
                                 .mapping         = {},
-                                .aspects         = gfx::ImageAspects::Color,
+                                .aspects         = gpu::ImageAspects::Color,
                                 .first_mip_level = 0,
                                 .num_mip_levels  = 1,
                                 .first_array_layer = i,
@@ -572,20 +572,20 @@ void upload_font_to_device(Font font, RenderContext &c,
             .unwrap();
   }
 
-  gfx::BufferImageCopy *copies;
+  gpu::BufferImageCopy *copies;
 
   CHECK(allocator.nalloc(atlas.num_layers, &copies));
 
   defer _{[&] { allocator.ndealloc(copies, atlas.num_layers); }};
 
   u64 const   atlas_size = atlas.channels.size() * (u64) 4;
-  gfx::Buffer staging_buffer =
+  gpu::Buffer staging_buffer =
       d->create_buffer(
-           d.self, gfx::BufferDesc{.label = "Font Atlas Staging Buffer"_span,
+           d.self, gpu::BufferDesc{.label = "Font Atlas Staging Buffer"_span,
                                    .size  = atlas_size,
                                    .host_mapped = true,
-                                   .usage = gfx::BufferUsage::TransferSrc |
-                                            gfx::BufferUsage::TransferDst})
+                                   .usage = gpu::BufferUsage::TransferSrc |
+                                            gpu::BufferUsage::TransferDst})
           .unwrap();
 
   u8 *map = (u8 *) d->map_buffer_memory(d.self, staging_buffer).unwrap();
@@ -603,18 +603,18 @@ void upload_font_to_device(Font font, RenderContext &c,
   }
 
   d->flush_mapped_buffer_memory(d.self, staging_buffer,
-                                {.offset = 0, .size = gfx::WHOLE_SIZE})
+                                {.offset = 0, .size = gpu::WHOLE_SIZE})
       .unwrap();
   d->unmap_buffer_memory(d.self, staging_buffer);
 
   for (u32 layer = 0; layer < atlas.num_layers; layer++)
   {
     u64 offset = (u64) atlas.extent.x * (u64) atlas.extent.y * 4 * (u64) layer;
-    copies[layer] = gfx::BufferImageCopy{
+    copies[layer] = gpu::BufferImageCopy{
         .buffer_offset       = offset,
         .buffer_row_length   = atlas.extent.x,
         .buffer_image_height = atlas.extent.y,
-        .image_layers        = {.aspects           = gfx::ImageAspects::Color,
+        .image_layers        = {.aspects           = gpu::ImageAspects::Color,
                                 .mip_level         = 0,
                                 .first_array_layer = layer,
                                 .num_array_layers  = 1},
@@ -625,7 +625,7 @@ void upload_font_to_device(Font font, RenderContext &c,
   enc->copy_buffer_to_image(enc.self, staging_buffer, image,
                             Span{copies, atlas.num_layers});
 
-  gfx::Format format = gfx::Format::B8G8R8A8_UNORM;
+  gpu::Format format = gpu::Format::B8G8R8A8_UNORM;
   c.release(staging_buffer);
 
   Vec<u32>        textures;
@@ -639,11 +639,11 @@ void upload_font_to_device(Font font, RenderContext &c,
     textures[i] = c.alloc_texture_slot();
     d->update_descriptor_set(
         d.self,
-        gfx::DescriptorSetUpdate{
+        gpu::DescriptorSetUpdate{
             .set     = c.texture_views,
             .binding = 0,
             .element = textures[i],
-            .images  = span({gfx::ImageBinding{.image_view = views[i]}})});
+            .images  = span({gpu::ImageBinding{.image_view = views[i]}})});
   }
 
   f->gpu_atlas = Some{GpuFontAtlas{.image       = image,
@@ -665,7 +665,7 @@ void unload_font_from_device(Font font, RenderContext &c)
     c.release_texture_slot(slot);
   }
 
-  for (gfx::ImageView view : f->gpu_atlas.value().views)
+  for (gpu::ImageView view : f->gpu_atlas.value().views)
   {
     c.release(view);
   }

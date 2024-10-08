@@ -5,7 +5,7 @@ Ashura is a high-performance App & Game Engine.
 ## Features
 
 - [x] GPU-accelerated 3D & 2D Batch Renderer with PBR, Custom Pass, and Custom Materials Support
-- [x] Custom Graphics Backend; [GFX](./ashura/gfx/README.md)
+- [x] Custom Graphics Backend; [GPU](./ashura/gpu/README.md)
 - [x] GPU-accelerated UI framework with Custom Rendering Support
 - [ ] Artist-Authored Shader (Shader Graph) Support
 - [x] Archetype ECS Support

@@ -2,7 +2,7 @@
 #include "ashura/engine/window.h"
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_vulkan.h"
-#include "ashura/gfx/vulkan.h"
+#include "ashura/gpu/vulkan.h"
 #include "ashura/std/error.h"
 #include "ashura/std/sparse_vec.h"
 #include "ashura/std/vec.h"
@@ -23,10 +23,10 @@ struct WindowEventListener
 struct WindowImpl
 {
   SDL_Window                         *win       = nullptr;
-  gfx::Surface                        surface   = nullptr;
+  gpu::Surface                        surface   = nullptr;
   SDL_WindowID                        id        = 0;
   SparseVec<Vec<WindowEventListener>> listeners = {};
-  gfx::InstanceImpl                   instance  = {};
+  gpu::InstanceImpl                   instance  = {};
   Fn<WindowRegion(Vec2U)>             hit_test =
       fn([](Vec2U) { return WindowRegion::Normal; });
 };
@@ -48,7 +48,7 @@ struct WindowSystemImpl final : public WindowSystem
     SDL_Quit();
   }
 
-  Option<Window> create_window(gfx::InstanceImpl instance,
+  Option<Window> create_window(gpu::InstanceImpl instance,
                                Span<char const>  title) override
   {
     char *title_c_str;
@@ -69,7 +69,7 @@ struct WindowSystemImpl final : public WindowSystem
     CHECKSdl(id != 0);
 
     CHECK(instance.interface->get_backend(instance.self) ==
-          gfx::Backend::Vulkan);
+          gpu::Backend::Vulkan);
 
     vk::Instance *vk_instance = (vk::Instance *) instance.self;
     VkSurfaceKHR  surface;
@@ -82,7 +82,7 @@ struct WindowSystemImpl final : public WindowSystem
     CHECK(default_allocator.nalloc(1, &impl));
 
     new (impl) WindowImpl{.win      = window,
-                          .surface  = (gfx::Surface) surface,
+                          .surface  = (gpu::Surface) surface,
                           .id       = id,
                           .instance = instance};
 
@@ -199,16 +199,16 @@ struct WindowSystemImpl final : public WindowSystem
   }
 
   void set_icon(Window window, ImageSpan<u8 const, 4> image,
-                gfx::Format format) override
+                gpu::Format format) override
   {
     SDL_PixelFormat fmt = SDL_PIXELFORMAT_RGBA8888;
 
     switch (format)
     {
-      case gfx::Format::R8G8B8A8_UNORM:
+      case gpu::Format::R8G8B8A8_UNORM:
         fmt = SDL_PIXELFORMAT_RGBA8888;
         break;
-      case gfx::Format::B8G8R8A8_UNORM:
+      case gpu::Format::B8G8R8A8_UNORM:
         fmt = SDL_PIXELFORMAT_BGRA8888;
         break;
       default:
@@ -338,7 +338,7 @@ struct WindowSystemImpl final : public WindowSystem
     return Ok{};
   }
 
-  gfx::Surface get_surface(Window window) override
+  gpu::Surface get_surface(Window window) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
     return pwin->surface;

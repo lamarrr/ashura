@@ -3,7 +3,7 @@
 
 #include "ashura/engine/font.h"
 #include "ashura/engine/render_context.h"
-#include "ashura/gfx/gfx.h"
+#include "ashura/gpu/gpu.h"
 #include "ashura/std/image.h"
 #include "ashura/std/types.h"
 
@@ -35,14 +35,14 @@ struct CpuFontAtlas
 
 struct GpuFontAtlas
 {
-  gfx::Image          image       = nullptr;
-  Vec<gfx::ImageView> views       = {};
+  gpu::Image          image       = nullptr;
+  Vec<gpu::ImageView> views       = {};
   Vec<u32>            textures    = {};
   i32                 font_height = 0;
   u32                 num_layers  = 0;
   Vec2U               extent      = {};
   Vec<AtlasGlyph>     glyphs      = {};
-  gfx::Format         format      = gfx::Format::Undefined;
+  gpu::Format         format      = gpu::Format::Undefined;
 
   void reset()
   {
@@ -50,7 +50,7 @@ struct GpuFontAtlas
     views.reset();
     textures.reset();
     glyphs.reset();
-    format = gfx::Format::Undefined;
+    format = gpu::Format::Undefined;
   }
 };
 

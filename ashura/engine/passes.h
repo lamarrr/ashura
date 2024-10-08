@@ -2,7 +2,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/render_context.h"
-#include "ashura/gfx/gfx.h"
+#include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -12,8 +12,8 @@ struct BloomPassParams
 {
   Vec2U          offset = {};
   Vec2U          extent = {};
-  gfx::Image     image  = nullptr;
-  gfx::ImageView view   = nullptr;
+  gpu::Image     image  = nullptr;
+  gpu::ImageView view   = nullptr;
 };
 
 struct BloomPass
@@ -33,18 +33,18 @@ struct BlurParam
 
 struct BlurPassParams
 {
-  gfx::ImageView     image_view   = nullptr;
+  gpu::ImageView     image_view   = nullptr;
   Vec2U              extent       = {};
-  gfx::DescriptorSet texture_view = nullptr;
+  gpu::DescriptorSet texture_view = nullptr;
   u32                texture      = 0;
   u32                passes       = 1;
-  gfx::Rect          area         = {};
+  gpu::Rect          area         = {};
 };
 
 struct BlurPass
 {
-  gfx::GraphicsPipeline downsample_pipeline = nullptr;
-  gfx::GraphicsPipeline upsample_pipeline   = nullptr;
+  gpu::GraphicsPipeline downsample_pipeline = nullptr;
+  gpu::GraphicsPipeline upsample_pipeline   = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
@@ -66,19 +66,19 @@ struct NgonParam
 
 struct NgonPassParams
 {
-  gfx::RenderingInfo rendering_info = {};
-  gfx::Rect          scissor        = {};
-  gfx::Viewport      viewport       = {};
-  gfx::DescriptorSet vertices_ssbo  = nullptr;
-  gfx::DescriptorSet indices_ssbo   = nullptr;
-  gfx::DescriptorSet params_ssbo    = nullptr;
-  gfx::DescriptorSet textures       = nullptr;
+  gpu::RenderingInfo rendering_info = {};
+  gpu::Rect          scissor        = {};
+  gpu::Viewport      viewport       = {};
+  gpu::DescriptorSet vertices_ssbo  = nullptr;
+  gpu::DescriptorSet indices_ssbo   = nullptr;
+  gpu::DescriptorSet params_ssbo    = nullptr;
+  gpu::DescriptorSet textures       = nullptr;
   Span<u32 const>    index_counts   = {};
 };
 
 struct NgonPass
 {
-  gfx::GraphicsPipeline pipeline = nullptr;
+  gpu::GraphicsPipeline pipeline = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
@@ -126,23 +126,23 @@ struct PBRVertex
 
 struct PBRPassParams
 {
-  gfx::RenderingInfo rendering_info = {};
-  gfx::Rect          scissor        = {};
-  gfx::Viewport      viewport       = {};
+  gpu::RenderingInfo rendering_info = {};
+  gpu::Rect          scissor        = {};
+  gpu::Viewport      viewport       = {};
   bool               wireframe      = false;
-  gfx::DescriptorSet vertices_ssbo  = nullptr;
-  gfx::DescriptorSet indices_ssbo   = nullptr;
-  gfx::DescriptorSet params_ssbo    = nullptr;
-  gfx::DescriptorSet lights_ssbo    = nullptr;
-  gfx::DescriptorSet textures       = nullptr;
+  gpu::DescriptorSet vertices_ssbo  = nullptr;
+  gpu::DescriptorSet indices_ssbo   = nullptr;
+  gpu::DescriptorSet params_ssbo    = nullptr;
+  gpu::DescriptorSet lights_ssbo    = nullptr;
+  gpu::DescriptorSet textures       = nullptr;
   u32                instance       = 0;
   u32                num_indices    = 0;
 };
 
 struct PBRPass
 {
-  gfx::GraphicsPipeline pipeline           = nullptr;
-  gfx::GraphicsPipeline wireframe_pipeline = nullptr;
+  gpu::GraphicsPipeline pipeline           = nullptr;
+  gpu::GraphicsPipeline wireframe_pipeline = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
@@ -170,20 +170,20 @@ struct PolyParam
 
 struct PolyPassParams
 {
-  gfx::RenderingInfo   rendering_info = {};
-  gfx::Rect            scissor        = {};
-  gfx::Viewport        viewport       = {};
-  gfx::DescriptorSet   vertices_ssbo  = nullptr;
-  gfx::DescriptorSet   indices_ssbo   = nullptr;
-  gfx::DescriptorSet   params_ssbo    = nullptr;
-  gfx::DescriptorSet   textures       = nullptr;
+  gpu::RenderingInfo   rendering_info = {};
+  gpu::Rect            scissor        = {};
+  gpu::Viewport        viewport       = {};
+  gpu::DescriptorSet   vertices_ssbo  = nullptr;
+  gpu::DescriptorSet   indices_ssbo   = nullptr;
+  gpu::DescriptorSet   params_ssbo    = nullptr;
+  gpu::DescriptorSet   textures       = nullptr;
   Span<u32 const>      index_counts   = {};
   Span<FillRule const> fill_rules     = {};
 };
 
 struct PolyPass
 {
-  gfx::GraphicsPipeline pipeline = nullptr;
+  gpu::GraphicsPipeline pipeline = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);
@@ -208,18 +208,18 @@ struct RRectParam
 
 struct RRectPassParams
 {
-  gfx::RenderingInfo rendering_info = {};
-  gfx::Rect          scissor        = {};
-  gfx::Viewport      viewport       = {};
-  gfx::DescriptorSet params_ssbo    = nullptr;
-  gfx::DescriptorSet textures       = nullptr;
+  gpu::RenderingInfo rendering_info = {};
+  gpu::Rect          scissor        = {};
+  gpu::Viewport      viewport       = {};
+  gpu::DescriptorSet params_ssbo    = nullptr;
+  gpu::DescriptorSet textures       = nullptr;
   u32                first_instance = 0;
   u32                num_instances  = 0;
 };
 
 struct RRectPass
 {
-  gfx::GraphicsPipeline pipeline = nullptr;
+  gpu::GraphicsPipeline pipeline = nullptr;
 
   void init(RenderContext &ctx);
   void uninit(RenderContext &ctx);

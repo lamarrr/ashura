@@ -8,7 +8,7 @@
 
 namespace ash
 {
-namespace gfx
+namespace gpu
 {
 
 constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
@@ -1005,18 +1005,18 @@ struct RasterizationState
 
 struct GraphicsState
 {
-  Rect           scissor                  = {};
-  Viewport       viewport                 = {};
-  Vec4           blend_constant           = {};
-  bool           stencil_test_enable      = false;
-  StencilState   front_face_stencil       = {};
-  StencilState   back_face_stencil        = {};
-  gfx::CullMode  cull_mode                = gfx::CullMode::None;
-  gfx::FrontFace front_face               = gfx::FrontFace::CounterClockWise;
-  bool           depth_test_enable        = false;
-  gfx::CompareOp depth_compare_op         = gfx::CompareOp::Never;
-  bool           depth_write_enable       = false;
-  bool           depth_bounds_test_enable = false;
+  Rect         scissor                  = {};
+  Viewport     viewport                 = {};
+  Vec4         blend_constant           = {};
+  bool         stencil_test_enable      = false;
+  StencilState front_face_stencil       = {};
+  StencilState back_face_stencil        = {};
+  CullMode     cull_mode                = CullMode::None;
+  FrontFace    front_face               = FrontFace::CounterClockWise;
+  bool         depth_test_enable        = false;
+  CompareOp    depth_compare_op         = CompareOp::Never;
+  bool         depth_write_enable       = false;
+  bool         depth_bounds_test_enable = false;
 };
 
 /// @param color_format, depth_format, stencil_format: with Format::Undefined
@@ -1426,6 +1426,6 @@ struct InstanceImpl
 Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
                                                     bool enable_validation);
 
-}        // namespace gfx
+}        // namespace gpu
 
 }        // namespace ash

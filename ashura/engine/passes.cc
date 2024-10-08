@@ -33,25 +33,25 @@ void BlurPass::init(RenderContext &ctx)
   // Algorithm described here:
   // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
   //
-  gfx::Shader vertex_shader =
+  gpu::Shader vertex_shader =
       ctx.get_shader("Blur_DownSample:VS"_span).unwrap();
-  gfx::Shader fragment_shader =
+  gpu::Shader fragment_shader =
       ctx.get_shader("Blur_DownSample:FS"_span).unwrap();
 
-  gfx::RasterizationState raster_state{.depth_clamp_enable = false,
-                                       .polygon_mode = gfx::PolygonMode::Fill,
-                                       .cull_mode    = gfx::CullMode::None,
+  gpu::RasterizationState raster_state{.depth_clamp_enable = false,
+                                       .polygon_mode = gpu::PolygonMode::Fill,
+                                       .cull_mode    = gpu::CullMode::None,
                                        .front_face =
-                                           gfx::FrontFace::CounterClockWise,
+                                           gpu::FrontFace::CounterClockWise,
                                        .depth_bias_enable          = false,
                                        .depth_bias_constant_factor = 0,
                                        .depth_bias_clamp           = 0,
                                        .depth_bias_slope_factor    = 0};
 
-  gfx::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
+  gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
                                              .depth_compare_op =
-                                                 gfx::CompareOp::Greater,
+                                                 gpu::CompareOp::Greater,
                                              .depth_bounds_test_enable = false,
                                              .stencil_test_enable      = false,
                                              .front_stencil            = {},
@@ -59,31 +59,31 @@ void BlurPass::init(RenderContext &ctx)
                                              .min_depth_bounds         = 0,
                                              .max_depth_bounds         = 0};
 
-  gfx::ColorBlendAttachmentState attachment_states[] = {
+  gpu::ColorBlendAttachmentState attachment_states[] = {
       {.blend_enable           = false,
-       .src_color_blend_factor = gfx::BlendFactor::Zero,
-       .dst_color_blend_factor = gfx::BlendFactor::Zero,
-       .color_blend_op         = gfx::BlendOp::Add,
-       .src_alpha_blend_factor = gfx::BlendFactor::Zero,
-       .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
-       .alpha_blend_op         = gfx::BlendOp::Add,
-       .color_write_mask       = gfx::ColorComponents::All}};
+       .src_color_blend_factor = gpu::BlendFactor::Zero,
+       .dst_color_blend_factor = gpu::BlendFactor::Zero,
+       .color_blend_op         = gpu::BlendOp::Add,
+       .src_alpha_blend_factor = gpu::BlendFactor::Zero,
+       .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
+       .alpha_blend_op         = gpu::BlendOp::Add,
+       .color_write_mask       = gpu::ColorComponents::All}};
 
-  gfx::ColorBlendState color_blend_state{.attachments = span(attachment_states),
+  gpu::ColorBlendState color_blend_state{.attachments = span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout set_layouts[] = {ctx.samplers_layout,
+  gpu::DescriptorSetLayout set_layouts[] = {ctx.samplers_layout,
                                             ctx.textures_layout};
 
-  gfx::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineDesc pipeline_desc{
       .label = "Blur Graphics Pipeline"_span,
       .vertex_shader =
-          gfx::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageDesc{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gfx::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageDesc{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
@@ -92,7 +92,7 @@ void BlurPass::init(RenderContext &ctx)
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(BlurParam),
       .descriptor_set_layouts = span(set_layouts),
-      .primitive_topology     = gfx::PrimitiveTopology::TriangleFan,
+      .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
       .color_blend_state      = color_blend_state,
@@ -118,9 +118,9 @@ void BlurPass::uninit(RenderContext &ctx)
   ctx.device->destroy_graphics_pipeline(ctx.device.self, upsample_pipeline);
 }
 
-void sample(BlurPass &b, RenderContext &c, gfx::CommandEncoderImpl const &e,
-            f32 rad, gfx::DescriptorSet src_texture, u32 src_index,
-            gfx::Extent src_extent, gfx::Rect src_area, gfx::ImageView dst,
+void sample(BlurPass &b, RenderContext &c, gpu::CommandEncoderImpl const &e,
+            f32 rad, gpu::DescriptorSet src_texture, u32 src_index,
+            gpu::Extent src_extent, gpu::Rect src_area, gpu::ImageView dst,
             Vec2U dst_offset, bool upsample)
 {
   Vec2 radius = rad / as_vec2(src_extent);
@@ -129,22 +129,22 @@ void sample(BlurPass &b, RenderContext &c, gfx::CommandEncoderImpl const &e,
 
   e->begin_rendering(
       e.self,
-      gfx::RenderingInfo{
+      gpu::RenderingInfo{
           .render_area = {.offset = dst_offset, .extent = src_area.extent},
           .num_layers  = 1,
           .color_attachments = span(
-              {gfx::RenderingAttachment{.view         = dst,
+              {gpu::RenderingAttachment{.view         = dst,
                                         .resolve      = nullptr,
-                                        .resolve_mode = gfx::ResolveModes::None,
-                                        .load_op      = gfx::LoadOp::Clear,
-                                        .store_op     = gfx::StoreOp::Store}}),
+                                        .resolve_mode = gpu::ResolveModes::None,
+                                        .load_op      = gpu::LoadOp::Clear,
+                                        .store_op     = gpu::StoreOp::Store}}),
           .depth_attachment   = {},
           .stencil_attachment = {}});
 
   e->bind_graphics_pipeline(e.self, upsample ? b.upsample_pipeline :
                                                b.downsample_pipeline);
   e->set_graphics_state(
-      e.self, gfx::GraphicsState{
+      e.self, gpu::GraphicsState{
                   .scissor  = {.offset = dst_offset, .extent = src_area.extent},
                   .viewport = {.offset = as_vec2(dst_offset),
                                .extent = as_vec2(src_area.extent)}});
@@ -161,7 +161,7 @@ void sample(BlurPass &b, RenderContext &c, gfx::CommandEncoderImpl const &e,
 void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 {
   CHECK(params.passes > 0);
-  gfx::CommandEncoderImpl e      = ctx.encoder();
+  gpu::CommandEncoderImpl e      = ctx.encoder();
   Vec2U                   extent = params.area.extent;
   extent.x                       = min(extent.x, ctx.scratch_fbs[0].extent.x);
   extent.y                       = min(extent.y, ctx.scratch_fbs[0].extent.y);
@@ -180,7 +180,7 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
     radius += 1;
     sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
            ctx.scratch_fbs[src].extent,
-           gfx::Rect{Vec2U{0, 0}, params.area.extent},
+           gpu::Rect{Vec2U{0, 0}, params.area.extent},
            ctx.scratch_fbs[dst].color.view, Vec2U{0, 0}, false);
     src = (src + 1) & 1;
     dst = (dst + 1) & 1;
@@ -191,7 +191,7 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
   {
     sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
            ctx.scratch_fbs[src].extent,
-           gfx::Rect{Vec2U{0, 0}, params.area.extent},
+           gpu::Rect{Vec2U{0, 0}, params.area.extent},
            ctx.scratch_fbs[dst].color.view, Vec2U{0, 0}, true);
     src = (src + 1) & 1;
     dst = (dst + 1) & 1;
@@ -200,29 +200,29 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
 
   sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
          ctx.scratch_fbs[src].extent,
-         gfx::Rect{Vec2U{0, 0}, params.area.extent}, params.image_view,
+         gpu::Rect{Vec2U{0, 0}, params.area.extent}, params.image_view,
          params.area.offset, true);
 }
 
 void NgonPass::init(RenderContext &ctx)
 {
-  gfx::Shader vertex_shader   = ctx.get_shader("Ngon:VS"_span).unwrap();
-  gfx::Shader fragment_shader = ctx.get_shader("Ngon:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = ctx.get_shader("Ngon:VS"_span).unwrap();
+  gpu::Shader fragment_shader = ctx.get_shader("Ngon:FS"_span).unwrap();
 
-  gfx::RasterizationState raster_state{.depth_clamp_enable = false,
-                                       .polygon_mode = gfx::PolygonMode::Fill,
-                                       .cull_mode    = gfx::CullMode::None,
+  gpu::RasterizationState raster_state{.depth_clamp_enable = false,
+                                       .polygon_mode = gpu::PolygonMode::Fill,
+                                       .cull_mode    = gpu::CullMode::None,
                                        .front_face =
-                                           gfx::FrontFace::CounterClockWise,
+                                           gpu::FrontFace::CounterClockWise,
                                        .depth_bias_enable          = false,
                                        .depth_bias_constant_factor = 0,
                                        .depth_bias_clamp           = 0,
                                        .depth_bias_slope_factor    = 0};
 
-  gfx::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
+  gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
                                              .depth_compare_op =
-                                                 gfx::CompareOp::Greater,
+                                                 gpu::CompareOp::Greater,
                                              .depth_bounds_test_enable = false,
                                              .stencil_test_enable      = false,
                                              .front_stencil            = {},
@@ -230,32 +230,32 @@ void NgonPass::init(RenderContext &ctx)
                                              .min_depth_bounds         = 0,
                                              .max_depth_bounds         = 0};
 
-  gfx::ColorBlendAttachmentState attachment_states[] = {
+  gpu::ColorBlendAttachmentState attachment_states[] = {
       {.blend_enable           = true,
-       .src_color_blend_factor = gfx::BlendFactor::SrcAlpha,
-       .dst_color_blend_factor = gfx::BlendFactor::OneMinusSrcAlpha,
-       .color_blend_op         = gfx::BlendOp::Add,
-       .src_alpha_blend_factor = gfx::BlendFactor::One,
-       .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
-       .alpha_blend_op         = gfx::BlendOp::Add,
-       .color_write_mask       = gfx::ColorComponents::All}};
+       .src_color_blend_factor = gpu::BlendFactor::SrcAlpha,
+       .dst_color_blend_factor = gpu::BlendFactor::OneMinusSrcAlpha,
+       .color_blend_op         = gpu::BlendOp::Add,
+       .src_alpha_blend_factor = gpu::BlendFactor::One,
+       .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
+       .alpha_blend_op         = gpu::BlendOp::Add,
+       .color_write_mask       = gpu::ColorComponents::All}};
 
-  gfx::ColorBlendState color_blend_state{.attachments = span(attachment_states),
+  gpu::ColorBlendState color_blend_state{.attachments = span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout set_layouts[] = {
+  gpu::DescriptorSetLayout set_layouts[] = {
       ctx.ssbo_layout, ctx.ssbo_layout, ctx.ssbo_layout, ctx.samplers_layout,
       ctx.textures_layout};
 
-  gfx::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineDesc pipeline_desc{
       .label = "Ngon Graphics Pipeline"_span,
       .vertex_shader =
-          gfx::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageDesc{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gfx::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageDesc{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
@@ -264,7 +264,7 @@ void NgonPass::init(RenderContext &ctx)
       .vertex_attributes      = {},
       .push_constants_size    = 0,
       .descriptor_set_layouts = span(set_layouts),
-      .primitive_topology     = gfx::PrimitiveTopology::TriangleList,
+      .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
       .color_blend_state      = color_blend_state,
@@ -277,7 +277,7 @@ void NgonPass::init(RenderContext &ctx)
 
 void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
 {
-  gfx::CommandEncoderImpl encoder = ctx.encoder();
+  gpu::CommandEncoderImpl encoder = ctx.encoder();
 
   encoder->begin_rendering(encoder.self, params.rendering_info);
   encoder->bind_graphics_pipeline(encoder.self, pipeline);
@@ -287,7 +287,7 @@ void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
             ctx.samplers, params.textures}),
       span<u32>({0, 0, 0}));
   encoder->set_graphics_state(encoder.self,
-                              gfx::GraphicsState{.scissor  = params.scissor,
+                              gpu::GraphicsState{.scissor  = params.scissor,
                                                  .viewport = params.viewport});
   u32 const num_instances = params.index_counts.size32();
   for (u32 i = 0; i < num_instances; i++)
@@ -305,23 +305,23 @@ void NgonPass::uninit(RenderContext &ctx)
 
 void PBRPass::init(RenderContext &ctx)
 {
-  gfx::Shader vertex_shader   = ctx.get_shader("PBR:VS"_span).unwrap();
-  gfx::Shader fragment_shader = ctx.get_shader("PBR:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = ctx.get_shader("PBR:VS"_span).unwrap();
+  gpu::Shader fragment_shader = ctx.get_shader("PBR:FS"_span).unwrap();
 
-  gfx::RasterizationState raster_state{.depth_clamp_enable = false,
-                                       .polygon_mode = gfx::PolygonMode::Fill,
-                                       .cull_mode    = gfx::CullMode::None,
+  gpu::RasterizationState raster_state{.depth_clamp_enable = false,
+                                       .polygon_mode = gpu::PolygonMode::Fill,
+                                       .cull_mode    = gpu::CullMode::None,
                                        .front_face =
-                                           gfx::FrontFace::CounterClockWise,
+                                           gpu::FrontFace::CounterClockWise,
                                        .depth_bias_enable          = false,
                                        .depth_bias_constant_factor = 0,
                                        .depth_bias_clamp           = 0,
                                        .depth_bias_slope_factor    = 0};
 
-  gfx::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
+  gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
                                              .depth_compare_op =
-                                                 gfx::CompareOp::Greater,
+                                                 gpu::CompareOp::Greater,
                                              .depth_bounds_test_enable = false,
                                              .stencil_test_enable      = false,
                                              .front_stencil            = {},
@@ -329,32 +329,32 @@ void PBRPass::init(RenderContext &ctx)
                                              .min_depth_bounds         = 0,
                                              .max_depth_bounds         = 1};
 
-  gfx::ColorBlendAttachmentState attachment_states[] = {
+  gpu::ColorBlendAttachmentState attachment_states[] = {
       {.blend_enable           = false,
-       .src_color_blend_factor = gfx::BlendFactor::Zero,
-       .dst_color_blend_factor = gfx::BlendFactor::Zero,
-       .color_blend_op         = gfx::BlendOp::Add,
-       .src_alpha_blend_factor = gfx::BlendFactor::Zero,
-       .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
-       .alpha_blend_op         = gfx::BlendOp::Add,
-       .color_write_mask       = gfx::ColorComponents::All}};
+       .src_color_blend_factor = gpu::BlendFactor::Zero,
+       .dst_color_blend_factor = gpu::BlendFactor::Zero,
+       .color_blend_op         = gpu::BlendOp::Add,
+       .src_alpha_blend_factor = gpu::BlendFactor::Zero,
+       .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
+       .alpha_blend_op         = gpu::BlendOp::Add,
+       .color_write_mask       = gpu::ColorComponents::All}};
 
-  gfx::ColorBlendState color_blend_state{.attachments = span(attachment_states),
+  gpu::ColorBlendState color_blend_state{.attachments = span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout const set_layouts[] = {
+  gpu::DescriptorSetLayout const set_layouts[] = {
       ctx.ssbo_layout, ctx.ssbo_layout,     ctx.ssbo_layout,
       ctx.ssbo_layout, ctx.samplers_layout, ctx.textures_layout};
 
-  gfx::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineDesc pipeline_desc{
       .label = "PBR Graphics Pipeline"_span,
       .vertex_shader =
-          gfx::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageDesc{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gfx::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageDesc{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
@@ -364,7 +364,7 @@ void PBRPass::init(RenderContext &ctx)
       .vertex_attributes      = {},
       .push_constants_size    = 0,
       .descriptor_set_layouts = span(set_layouts),
-      .primitive_topology     = gfx::PrimitiveTopology::TriangleList,
+      .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
       .color_blend_state      = color_blend_state,
@@ -374,7 +374,7 @@ void PBRPass::init(RenderContext &ctx)
       ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
           .unwrap();
 
-  pipeline_desc.rasterization_state.polygon_mode = gfx::PolygonMode::Line;
+  pipeline_desc.rasterization_state.polygon_mode = gpu::PolygonMode::Line;
 
   wireframe_pipeline =
       ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
@@ -383,7 +383,7 @@ void PBRPass::init(RenderContext &ctx)
 
 void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
 {
-  gfx::CommandEncoderImpl encoder = ctx.encoder();
+  gpu::CommandEncoderImpl encoder = ctx.encoder();
 
   encoder->begin_rendering(encoder.self, params.rendering_info);
   encoder->bind_graphics_pipeline(encoder.self, params.wireframe ?
@@ -391,11 +391,11 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
                                                     this->pipeline);
 
   encoder->set_graphics_state(
-      encoder.self, gfx::GraphicsState{.scissor           = params.scissor,
+      encoder.self, gpu::GraphicsState{.scissor           = params.scissor,
                                        .viewport          = params.viewport,
                                        .blend_constant    = {1, 1, 1, 1},
                                        .depth_test_enable = true,
-                                       .depth_compare_op = gfx::CompareOp::Less,
+                                       .depth_compare_op = gpu::CompareOp::Less,
                                        .depth_write_enable = true});
   encoder->bind_descriptor_sets(
       encoder.self,
@@ -426,23 +426,23 @@ void PolyPass::add_pass(RenderContext &, PolyPassParams const &)
 
 void RRectPass::init(RenderContext &ctx)
 {
-  gfx::Shader vertex_shader   = ctx.get_shader("RRect:VS"_span).unwrap();
-  gfx::Shader fragment_shader = ctx.get_shader("RRect:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = ctx.get_shader("RRect:VS"_span).unwrap();
+  gpu::Shader fragment_shader = ctx.get_shader("RRect:FS"_span).unwrap();
 
-  gfx::RasterizationState raster_state{.depth_clamp_enable = false,
-                                       .polygon_mode = gfx::PolygonMode::Fill,
-                                       .cull_mode    = gfx::CullMode::None,
+  gpu::RasterizationState raster_state{.depth_clamp_enable = false,
+                                       .polygon_mode = gpu::PolygonMode::Fill,
+                                       .cull_mode    = gpu::CullMode::None,
                                        .front_face =
-                                           gfx::FrontFace::CounterClockWise,
+                                           gpu::FrontFace::CounterClockWise,
                                        .depth_bias_enable          = false,
                                        .depth_bias_constant_factor = 0,
                                        .depth_bias_clamp           = 0,
                                        .depth_bias_slope_factor    = 0};
 
-  gfx::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
+  gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
                                              .depth_compare_op =
-                                                 gfx::CompareOp::Greater,
+                                                 gpu::CompareOp::Greater,
                                              .depth_bounds_test_enable = false,
                                              .stencil_test_enable      = false,
                                              .front_stencil            = {},
@@ -450,31 +450,31 @@ void RRectPass::init(RenderContext &ctx)
                                              .min_depth_bounds         = 0,
                                              .max_depth_bounds         = 0};
 
-  gfx::ColorBlendAttachmentState attachment_states[] = {
+  gpu::ColorBlendAttachmentState attachment_states[] = {
       {.blend_enable           = true,
-       .src_color_blend_factor = gfx::BlendFactor::SrcAlpha,
-       .dst_color_blend_factor = gfx::BlendFactor::OneMinusSrcAlpha,
-       .color_blend_op         = gfx::BlendOp::Add,
-       .src_alpha_blend_factor = gfx::BlendFactor::One,
-       .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
-       .alpha_blend_op         = gfx::BlendOp::Add,
-       .color_write_mask       = gfx::ColorComponents::All}};
+       .src_color_blend_factor = gpu::BlendFactor::SrcAlpha,
+       .dst_color_blend_factor = gpu::BlendFactor::OneMinusSrcAlpha,
+       .color_blend_op         = gpu::BlendOp::Add,
+       .src_alpha_blend_factor = gpu::BlendFactor::One,
+       .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
+       .alpha_blend_op         = gpu::BlendOp::Add,
+       .color_write_mask       = gpu::ColorComponents::All}};
 
-  gfx::ColorBlendState color_blend_state{.attachments = span(attachment_states),
+  gpu::ColorBlendState color_blend_state{.attachments = span(attachment_states),
                                          .blend_constant = {1, 1, 1, 1}};
 
-  gfx::DescriptorSetLayout set_layouts[] = {
+  gpu::DescriptorSetLayout set_layouts[] = {
       ctx.ssbo_layout, ctx.samplers_layout, ctx.textures_layout};
 
-  gfx::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineDesc pipeline_desc{
       .label = "RRect Graphics Pipeline"_span,
       .vertex_shader =
-          gfx::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageDesc{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gfx::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageDesc{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
@@ -483,7 +483,7 @@ void RRectPass::init(RenderContext &ctx)
       .vertex_attributes      = {},
       .push_constants_size    = 0,
       .descriptor_set_layouts = span(set_layouts),
-      .primitive_topology     = gfx::PrimitiveTopology::TriangleFan,
+      .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
       .color_blend_state      = color_blend_state,
@@ -496,12 +496,12 @@ void RRectPass::init(RenderContext &ctx)
 
 void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
 {
-  gfx::CommandEncoderImpl encoder = ctx.encoder();
+  gpu::CommandEncoderImpl encoder = ctx.encoder();
 
   encoder->begin_rendering(encoder.self, params.rendering_info);
   encoder->bind_graphics_pipeline(encoder.self, pipeline);
   encoder->set_graphics_state(encoder.self,
-                              gfx::GraphicsState{.scissor  = params.scissor,
+                              gpu::GraphicsState{.scissor  = params.scissor,
                                                  .viewport = params.viewport});
   encoder->bind_descriptor_sets(
       encoder.self, span({params.params_ssbo, ctx.samplers, params.textures}),
