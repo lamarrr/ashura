@@ -15,7 +15,7 @@ int main(int, char **)
 {
   using namespace ash;
   logger->add_sink(&stdio_sink);
-  defer _{[&] { logger->info("Exiting"); }};
+  defer log_{[&] { logger->info("Exiting"); }};
 
   // [ ] env/config to get paths for system: fonts, font cache, images, music,
   // etc.
@@ -25,21 +25,21 @@ int main(int, char **)
           R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
           font_data) == IoError::None);
 
-  defer _{[&] { font_data.uninit(); }};
+  defer font_data_{[&] { font_data.uninit(); }};
 
   Font font = decode_font(span(font_data), 0, default_allocator).unwrap();
 
   CHECK(rasterize_font(font, 60, default_allocator));
 
   sdl_window_system->init();
-  defer _{[&] { sdl_window_system->uninit(); }};
+  defer sdl_window_system_{[&] { sdl_window_system->uninit(); }};
 
   gpu::InstanceImpl instance =
       gpu::create_vulkan_instance(heap_allocator, false).unwrap();
 
-  defer  instance_del{[&] { instance->destroy(instance.self); }};
+  defer  instance_{[&] { instance->destroy(instance.self); }};
   Window win = sdl_window_system->create_window(instance, "Main"_span).unwrap();
-  defer  win_del{[&] { sdl_window_system->destroy_window(win); }};
+  defer  win_{[&] { sdl_window_system->destroy_window(win); }};
 
   sdl_window_system->maximize(win);
   sdl_window_system->set_title(win, "Harro"_span);
@@ -70,7 +70,7 @@ int main(int, char **)
                           }),
                           span({surface}), 2)
           .unwrap();
-  defer _{[&] { instance->destroy_device(instance.self, device.self); }};
+  defer device_{[&] { instance->destroy_device(instance.self, device.self); }};
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
@@ -100,7 +100,7 @@ int main(int, char **)
       ShaderCompileError::None);
 
   StrHashMap<gpu::Shader> shaders;
-  defer                   shaders_del{[&] { shaders.reset(); }};
+  defer                   shaders_{[&] { shaders.reset(); }};
 
   for (auto &[id, spirv] : spirvs)
   {
@@ -132,7 +132,7 @@ int main(int, char **)
                                  gpu::ImageUsage::ColorAttachment));
 
     Vec<gpu::SurfaceFormat> formats;
-    defer                   formats_del{[&] { formats.reset(); }};
+    defer                   formats_{[&] { formats.reset(); }};
     u32                     num_formats =
         device->get_surface_formats(device.self, surface, {}).unwrap();
     CHECK(num_formats != 0);
@@ -141,7 +141,7 @@ int main(int, char **)
                         .unwrap() == num_formats);
 
     Vec<gpu::PresentMode> present_modes;
-    defer                 present_modes_del{[&] { present_modes.reset(); }};
+    defer                 present_modes_{[&] { present_modes.reset(); }};
     u32                   num_present_modes =
         device->get_surface_present_modes(device.self, surface, {}).unwrap();
     CHECK(num_present_modes != 0);
@@ -250,32 +250,32 @@ int main(int, char **)
 
   invalidate_swapchain();
 
-  defer _{[&] { device->destroy_swapchain(device.self, swapchain); }};
+  defer swapchain_{[&] { device->destroy_swapchain(device.self, swapchain); }};
 
   // job submission to render context to prepare resources ahead of frame.
   RenderContext ctx;
   ctx.init(device, true, 2, {1920, 1080}, shaders);
   shaders = {};
-  defer _{[&] { ctx.uninit(); }};
+  defer ctx_{[&] { ctx.uninit(); }};
 
   PassContext pctx;
   pctx.init(ctx);
-  defer _{[&] { pctx.uninit(ctx); }};
+  defer pctx_{[&] { pctx.uninit(ctx); }};
 
   ctx.begin_frame(swapchain);
 
   CanvasRenderer renderer;
   renderer.init(ctx);
-  defer _{[&] { renderer.uninit(ctx); }};
+  defer renderer_{[&] { renderer.uninit(ctx); }};
 
   Canvas canvas;
   canvas.init();
-  defer _{[&] { canvas.uninit(); }};
+  defer canvas_{[&] { canvas.uninit(); }};
 
-  defer _{[&] { device->wait_idle(device.self).unwrap(); }};
+  defer wait_{[&] { device->wait_idle(device.self).unwrap(); }};
 
   upload_font_to_device(font, ctx);
-  defer _{[&] { unload_font_from_device(font, ctx); }};
+  defer font_{[&] { unload_font_from_device(font, ctx); }};
 
   // [ ] create transfer queue, calculate total required setup size
   u32       runs[]        = {U32_MAX};

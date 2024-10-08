@@ -406,7 +406,7 @@ struct SchedulerImpl final : Scheduler
   bool create_task(TaskInfo const &info, ListNode<Task> **task)
   {
     current_arena_lock.lock();
-    defer _{[&] { current_arena_lock.unlock(); }};
+    defer unlock_{[&] { current_arena_lock.unlock(); }};
 
     if (current_arena == nullptr)
     {

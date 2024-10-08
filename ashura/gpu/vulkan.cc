@@ -1085,7 +1085,7 @@ Result<gpu::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{Status::OutOfHostMemory};
   }
 
-  defer _{[&] { allocator.ndealloc(exts, num_exts); }};
+  defer exts_{[&] { allocator.ndealloc(exts, num_exts); }};
 
   {
     u32 num_read_exts = num_exts;
@@ -1115,7 +1115,7 @@ Result<gpu::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{Status::OutOfHostMemory};
   }
 
-  defer _{[&] { allocator.ndealloc(layers, num_layers); }};
+  defer layers_{[&] { allocator.ndealloc(layers, num_layers); }};
 
   {
     u32 num_read_layers = num_layers;
@@ -1238,7 +1238,7 @@ Result<gpu::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{Status::OutOfHostMemory};
   }
 
-  defer _{[&] {
+  defer instance_{[&] {
     if (instance != nullptr)
     {
       allocator.ndealloc(instance, 1);
@@ -1295,7 +1295,7 @@ Result<gpu::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
     return Err{(Status) result};
   }
 
-  defer _{[&] {
+  defer vk_instance_{[&] {
     if (vk_instance != nullptr)
     {
       vkDestroyInstance(vk_instance, nullptr);
@@ -1494,28 +1494,28 @@ Status create_frame_context(Device *dev, u32 buffering)
   u32 num_submit_f  = 0;
   u32 num_submit_s  = 0;
 
-  defer _{[&] {
+  defer encs_{[&] {
     for (u32 i = num_encs; i-- > 0;)
     {
       destroy_command_encoder(dev, ctx.encs + i);
     }
   }};
 
-  defer _{[&] {
+  defer acquire_s_{[&] {
     for (u32 i = num_acquire_s; i-- > 0;)
     {
       dev->vk_table.DestroySemaphore(dev->vk_dev, ctx.acquire_s[i], nullptr);
     }
   }};
 
-  defer _{[&] {
+  defer submit_f_{[&] {
     for (u32 i = num_submit_f; i-- > 0;)
     {
       dev->vk_table.DestroyFence(dev->vk_dev, ctx.submit_f[i], nullptr);
     }
   }};
 
-  defer _{[&] {
+  defer submit_s_{[&] {
     for (u32 i = num_submit_s; i-- > 0;)
     {
       dev->vk_table.DestroySemaphore(dev->vk_dev, ctx.submit_s[i], nullptr);
@@ -1664,7 +1664,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer _{[&] { self->allocator.ndealloc(vk_phy_devs, num_devs); }};
+  defer vk_phy_devs_{[&] { self->allocator.ndealloc(vk_phy_devs, num_devs); }};
 
   {
     u32 num_read_devs = num_devs;
@@ -1685,7 +1685,8 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer _{[&] { self->allocator.ndealloc(physical_devs, num_devs); }};
+  defer physical_devs_{
+      [&] { self->allocator.ndealloc(physical_devs, num_devs); }};
 
   for (u32 i = 0; i < num_devs; i++)
   {
@@ -1831,7 +1832,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer _{[&] { self->allocator.ndealloc(exts, num_exts); }};
+  defer exts_{[&] { self->allocator.ndealloc(exts, num_exts); }};
 
   {
     u32 num_read_exts = num_exts;
@@ -1860,7 +1861,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer _{[&] { self->allocator.ndealloc(layers, num_layers); }};
+  defer layers_{[&] { self->allocator.ndealloc(layers, num_layers); }};
 
   {
     u32 num_read_layers = num_layers;
@@ -2117,7 +2118,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
 
   load_vma_table(self->vk_table, vk_table, vma_table);
 
-  defer _{[&] {
+  defer vk_dev_{[&] {
     if (vk_dev != nullptr)
     {
       vk_table.DestroyDevice(vk_dev, nullptr);
@@ -2148,7 +2149,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{(Status) result};
   }
 
-  defer _{[&] {
+  defer vma_allocator_{[&] {
     if (vma_allocator != nullptr)
     {
       vmaDestroyAllocator(vma_allocator);
@@ -2180,7 +2181,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
                                       .num_pools = 0,
                                       .scratch_size = 0}};
 
-  defer _{[&] {
+  defer dev_{[&] {
     if (dev != nullptr)
     {
       destroy_device((gpu::Instance) self, (gpu::Device) dev);
@@ -2751,7 +2752,7 @@ Result<gpu::DescriptorSetLayout, Status>
     return Err{(Status) result};
   }
 
-  defer _{[&] {
+  defer vk_layout_{[&] {
     if (vk_layout != nullptr)
     {
       self->vk_table.DestroyDescriptorSetLayout(self->vk_dev, vk_layout,
@@ -2866,7 +2867,7 @@ Result<gpu::DescriptorSet, Status>
       return Err{(Status) result};
     }
 
-    defer _{[&] {
+    defer vk_pool_{[&] {
       self->vk_table.DestroyDescriptorPool(self->vk_dev, vk_pool, nullptr);
     }};
 
@@ -2888,7 +2889,7 @@ Result<gpu::DescriptorSet, Status>
   DescriptorBinding bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
   u32               num_bindings                               = 0;
 
-  defer _{[&] {
+  defer sync_resources_{[&] {
     for (u32 i = num_bindings; i-- > 0;)
     {
       if (bindings[i].sync_resources != nullptr)
@@ -3497,7 +3498,7 @@ inline VkResult recreate_swapchain(Device *self, Swapchain *swapchain)
 
   // take ownership of internal data for re-use/release
   VkSwapchainKHR old_vk_swapchain = swapchain->vk_swapchain;
-  defer          old_vk_swapchain_del{[&] {
+  defer          old_vk_swapchain_{[&] {
     if (old_vk_swapchain != nullptr)
     {
       self->vk_table.DestroySwapchainKHR(self->vk_dev, old_vk_swapchain,
@@ -3575,7 +3576,7 @@ inline VkResult recreate_swapchain(Device *self, Swapchain *swapchain)
 
   CHECK(result == VK_SUCCESS);
 
-  defer _{[&] {
+  defer new_vk_swapchain_{[&] {
     if (new_vk_swapchain != nullptr)
     {
       self->vk_table.DestroySwapchainKHR(self->vk_dev, new_vk_swapchain,
@@ -4440,7 +4441,8 @@ Result<u32, Status> DeviceInterface::get_surface_formats(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer _{[&] { self->allocator.ndealloc(vk_formats, num_supported); }};
+  defer vk_formats_{
+      [&] { self->allocator.ndealloc(vk_formats, num_supported); }};
 
   {
     u32 num_read = num_supported;
@@ -4488,7 +4490,8 @@ Result<u32, Status> DeviceInterface::get_surface_present_modes(
     return Err{Status::OutOfHostMemory};
   }
 
-  defer _{[&] { self->allocator.ndealloc(vk_present_modes, num_supported); }};
+  defer vk_present_modes_{
+      [&] { self->allocator.ndealloc(vk_present_modes, num_supported); }};
 
   {
     u32 num_read = num_supported;
@@ -4775,7 +4778,7 @@ Result<gpu::PipelineStatistics, Status>
   {                                                      \
     return;                                              \
   }                                                      \
-  defer _                                                \
+  defer pool_reclaim_                                    \
   {                                                      \
     [&] { self->arg_pool.reclaim(); }                    \
   }

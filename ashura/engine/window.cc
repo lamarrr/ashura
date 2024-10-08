@@ -57,7 +57,8 @@ struct WindowSystemImpl final : public WindowSystem
       return None;
     }
 
-    defer _{[&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};
+    defer title_c_str_{
+        [&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};
 
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
@@ -109,7 +110,8 @@ struct WindowSystemImpl final : public WindowSystem
     char *title_c_str;
     CHECK(default_allocator.nalloc(title.size() + 1, &title_c_str));
 
-    defer _{[&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};
+    defer title_c_str_{
+        [&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};
 
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;

@@ -318,7 +318,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
                                    .stringLength   = text_size};
     SBAlgorithmRef      algorithm = SBAlgorithmCreate(&codepoints);
     CHECK(algorithm != nullptr);
-    defer _{[&] { SBAlgorithmRelease(algorithm); }};
+    defer algorithm_{[&] { SBAlgorithmRelease(algorithm); }};
     segment_levels(block.text, algorithm, block.direction, segments);
   }
 
@@ -330,7 +330,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
                                     (i32) block.language.size());
     hb_buffer_t *buffer = hb_buffer_create();
     CHECK(buffer != nullptr);
-    defer _{[&] { hb_buffer_destroy(buffer); }};
+    defer buffer_{[&] { hb_buffer_destroy(buffer); }};
 
     for (u32 p = 0; p < text_size;)
     {

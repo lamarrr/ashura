@@ -22,7 +22,7 @@ IoError read_file(Span<char const> path, Vec<u8> &buff)
   {
     return (IoError) errno;
   }
-  defer _{[&] { fclose(file); }};
+  defer file_{[&] { fclose(file); }};
 
   int error = fseek(file, 0, SEEK_END);
   if (error != 0)
