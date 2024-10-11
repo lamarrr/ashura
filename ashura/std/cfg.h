@@ -265,3 +265,9 @@
 #    define ASH_RESTRICT
 #  endif
 #endif
+
+#if ASH_CFG(COMPILER, CLANG)
+#  define ASH_TAILCALL [[clang::musttail]]
+#else
+#  define ASH_TAILCALL
+#endif
