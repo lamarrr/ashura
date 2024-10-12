@@ -441,33 +441,6 @@ constexpr Tuple<Slice, Slice> partition(R &&range, Predicate &&predicate)
   return Tuple{Slice{0, first_size}, Slice{first_size, second_size}};
 }
 
-template <typename S, typename IndexType, typename Cmp = Lesser>
-constexpr void stable_indirect_sort(S &&span, Span<IndexType> indices,
-                                    Cmp &&cmp = {})
-{
-  std::stable_sort(begin(indices), end(indices), [&](IndexType a, IndexType b) {
-    return cmp(span[a], span[b]);
-  });
-}
-
-template <typename S, typename IndexType, typename Fn, typename Cmp = Equal>
-void for_each_partition_indirect(S &&span, Span<IndexType> indices, Fn &&op,
-                                 Cmp &&cmp = {})
-{
-  IndexType *partition_begin = begin(indices);
-  IndexType *iter            = begin(indices);
-
-  while (iter != end(indices))
-  {
-    while (iter != end(indices) && cmp(span[*partition_begin], span[*iter]))
-    {
-      iter++;
-    }
-    op(Span{partition_begin, static_cast<usize>(iter - partition_begin)});
-    partition_begin = iter;
-  }
-}
-
 template <typename T>
 void iota(Span<T> s, T first)
 {
