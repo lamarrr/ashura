@@ -258,8 +258,8 @@ struct ViewState
   bool focusable : 1  = false;
   bool text_input : 1 = false;
   bool tab_input : 1  = false;
+  bool esc_input : 1  = false;
   bool grab_focus : 1 = false;
-  bool lose_focus : 1 = false;
 };
 
 struct CoreViewTheme
@@ -325,8 +325,9 @@ struct View
 {
   struct
   {
-    u64   id                  = 0;
+    u64   id                  = U64_MAX;
     u64   last_rendered_frame = 0;
+    u32   focus_idx           = 0;
     CRect region              = {};
   } inner = {};
 
@@ -337,7 +338,7 @@ struct View
   constexpr View &operator=(View &&)      = default;
   constexpr virtual ~View()               = default;
 
-  /// @returns the ID currently allocated to the view or 0
+  /// @returns the ID currently allocated to the view or U64_MAX
   constexpr u64 id() const
   {
     return inner.id;

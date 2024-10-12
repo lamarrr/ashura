@@ -571,8 +571,7 @@ struct TextInput : View, Pin<>
     return ViewState{.draggable  = !state.disabled,
                      .focusable  = !state.disabled,
                      .text_input = !state.disabled,
-                     .tab_input  = state.tab_input,
-                     .lose_focus = ctx.key_state(KeyCode::Escape)};
+                     .tab_input  = state.tab_input};
   }
 
   virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
