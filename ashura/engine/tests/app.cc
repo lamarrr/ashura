@@ -136,7 +136,7 @@ int main(int, char **)
     u32                     num_formats =
         device->get_surface_formats(device.self, surface, {}).unwrap();
     CHECK(num_formats != 0);
-    formats.resize_uninitialized(num_formats).unwrap();
+    formats.resize_uninit(num_formats).unwrap();
     CHECK(device->get_surface_formats(device.self, surface, span(formats))
                         .unwrap() == num_formats);
 
@@ -145,7 +145,7 @@ int main(int, char **)
     u32                   num_present_modes =
         device->get_surface_present_modes(device.self, surface, {}).unwrap();
     CHECK(num_present_modes != 0);
-    present_modes.resize_uninitialized(num_present_modes).unwrap();
+    present_modes.resize_uninit(num_present_modes).unwrap();
     CHECK(device
                         ->get_surface_present_modes(device.self, surface,
                                                     span(present_modes))

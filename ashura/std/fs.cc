@@ -43,7 +43,7 @@ IoError read_file(Span<char const> path, Vec<u8> &buff)
   }
 
   usize buff_offset = buff.size();
-  if (!buff.extend_uninitialized(file_size))
+  if (!buff.extend_uninit(file_size))
   {
     return IoError::OutOfMemory;
   }

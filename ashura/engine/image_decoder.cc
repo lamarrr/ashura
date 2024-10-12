@@ -32,7 +32,7 @@ ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
   u64 const buffer_size =
       rgba8_size(features.has_alpha != 0, features.width, features.height);
 
-  if (!image.channels.resize_uninitialized(buffer_size))
+  if (!image.channels.resize_uninit(buffer_size))
   {
     return ImageDecodeError::OutOfMemory;
   }
@@ -123,7 +123,7 @@ ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
   u32         pitch       = width * ncomponents;
   u64         buffer_size = (u64) height * pitch;
 
-  if (!image.channels.resize_uninitialized(buffer_size))
+  if (!image.channels.resize_uninit(buffer_size))
   {
     return ImageDecodeError::OutOfMemory;
   }
@@ -178,7 +178,7 @@ ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
   gpu::Format fmt         = (ncomponents == 3) ? gpu::Format::R8G8B8_UNORM :
                                                  gpu::Format::R8G8B8A8_UNORM;
 
-  if (!image.channels.resize_uninitialized(buffer_size))
+  if (!image.channels.resize_uninit(buffer_size))
   {
     jpeg_destroy_decompress(&info);
     return ImageDecodeError::OutOfMemory;

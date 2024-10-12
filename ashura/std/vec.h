@@ -278,7 +278,7 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  Result<Void, Void> shift_uninitialized(usize first, usize distance)
+  Result<Void, Void> shift_uninit(usize first, usize distance)
   {
     first = min(first, size_);
     if (!grow(size_ + distance))
@@ -324,7 +324,7 @@ struct [[nodiscard]] Vec
   constexpr Result<Void, Void> insert(usize pos, Args &&...args)
   {
     pos = min(pos, size_);
-    if (!shift_uninitialized(pos, 1))
+    if (!shift_uninit(pos, 1))
     {
       return Err{};
     }
@@ -336,7 +336,7 @@ struct [[nodiscard]] Vec
   constexpr Result<Void, Void> insert_span_copy(usize pos, Span<T const> span)
   {
     pos = min(pos, size_);
-    if (!shift_uninitialized(pos, span.size()))
+    if (!shift_uninit(pos, span.size()))
     {
       return Err{};
     }
@@ -359,7 +359,7 @@ struct [[nodiscard]] Vec
   constexpr Result<Void, Void> insert_span_move(usize pos, Span<T> span)
   {
     pos = min(pos, size_);
-    if (!shift_uninitialized(pos, span.size()))
+    if (!shift_uninit(pos, span.size()))
     {
       return Err{};
     }
@@ -379,7 +379,7 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  constexpr Result<Void, Void> extend_uninitialized(usize extension)
+  constexpr Result<Void, Void> extend_uninit(usize extension)
   {
     if (!grow(size_ + extension))
     {
@@ -394,7 +394,7 @@ struct [[nodiscard]] Vec
   constexpr Result<Void, Void> extend_defaulted(usize extension)
   {
     usize const pos = size_;
-    if (!extend_uninitialized(extension))
+    if (!extend_uninit(extension))
     {
       return Err{};
     }
@@ -410,7 +410,7 @@ struct [[nodiscard]] Vec
   constexpr Result<Void, Void> extend_copy(Span<T const> span)
   {
     usize const pos = size_;
-    if (!extend_uninitialized(span.size()))
+    if (!extend_uninit(span.size()))
     {
       return Err{};
     }
@@ -435,7 +435,7 @@ struct [[nodiscard]] Vec
   constexpr Result<Void, Void> extend_move(Span<T> span)
   {
     usize const pos = size_;
-    if (!extend_uninitialized(span.size()))
+    if (!extend_uninit(span.size()))
     {
       return Err{};
     }
@@ -461,7 +461,7 @@ struct [[nodiscard]] Vec
     ::ash::swap(data_[a], data_[b]);
   }
 
-  constexpr Result<Void, Void> resize_uninitialized(usize new_size)
+  constexpr Result<Void, Void> resize_uninit(usize new_size)
   {
     if (new_size <= size_)
     {
@@ -469,7 +469,7 @@ struct [[nodiscard]] Vec
       return Ok{};
     }
 
-    return extend_uninitialized(new_size - size_);
+    return extend_uninit(new_size - size_);
   }
 
   constexpr Result<Void, Void> resize_defaulted(usize new_size)
@@ -588,7 +588,7 @@ struct [[nodiscard]] BitVec
   constexpr Result<Void, Void> push(bool bit)
   {
     usize index = bit_size_;
-    if (!extend_uninitialized(1))
+    if (!extend_uninit(1))
     {
       return Err{};
     }
@@ -617,7 +617,7 @@ struct [[nodiscard]] BitVec
   constexpr Result<Void, Void> insert(usize pos, bool value)
   {
     pos = min(pos, bit_size_);
-    if (!extend_uninitialized(1))
+    if (!extend_uninit(1))
     {
       return Err{};
     }
@@ -645,10 +645,10 @@ struct [[nodiscard]] BitVec
     pop(slice.span);
   }
 
-  constexpr Result<Void, Void> extend_uninitialized(usize extension)
+  constexpr Result<Void, Void> extend_uninit(usize extension)
   {
-    if (!repr_.extend_uninitialized(bit_packs<R>(bit_size_ + extension) -
-                                    bit_packs<R>(bit_size_)))
+    if (!repr_.extend_uninit(bit_packs<R>(bit_size_ + extension) -
+                             bit_packs<R>(bit_size_)))
     {
       return Err{};
     }
@@ -661,7 +661,7 @@ struct [[nodiscard]] BitVec
   constexpr Result<Void, Void> extend_defaulted(usize extension)
   {
     usize const pos = bit_size_;
-    if (!extend_uninitialized(extension))
+    if (!extend_uninit(extension))
     {
       return Err{};
     }
@@ -674,7 +674,7 @@ struct [[nodiscard]] BitVec
     return Ok{};
   }
 
-  constexpr Result<Void, Void> resize_uninitialized(usize new_size)
+  constexpr Result<Void, Void> resize_uninit(usize new_size)
   {
     if (new_size <= bit_size_)
     {
@@ -682,7 +682,7 @@ struct [[nodiscard]] BitVec
       return Ok{};
     }
 
-    return extend_uninitialized(new_size - bit_size_);
+    return extend_uninit(new_size - bit_size_);
   }
 
   constexpr Result<Void, Void> resize_defaulted(usize new_size)
@@ -904,7 +904,7 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  Result<Void, Void> shift_uninitialized(usize first, usize distance)
+  Result<Void, Void> shift_uninit(usize first, usize distance)
   {
     first = min(first, size_);
     if ((size_ + distance) > Capacity)
@@ -950,7 +950,7 @@ struct [[nodiscard]] InplaceVec
   constexpr Result<Void, Void> insert(usize pos, Args &&...args)
   {
     pos = min(pos, size_);
-    if (!shift_uninitialized(pos, 1))
+    if (!shift_uninit(pos, 1))
     {
       return Err{};
     }
@@ -962,7 +962,7 @@ struct [[nodiscard]] InplaceVec
   constexpr Result<Void, Void> insert_span_copy(usize pos, Span<T const> span)
   {
     pos = min(pos, size_);
-    if (!shift_uninitialized(pos, span.size()))
+    if (!shift_uninit(pos, span.size()))
     {
       return Err{};
     }
@@ -985,7 +985,7 @@ struct [[nodiscard]] InplaceVec
   constexpr Result<Void, Void> insert_span_move(usize pos, Span<T> span)
   {
     pos = min(pos, size_);
-    if (!shift_uninitialized(pos, span.size()))
+    if (!shift_uninit(pos, span.size()))
     {
       return Err{};
     }
@@ -1005,7 +1005,7 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  constexpr Result<Void, Void> extend_uninitialized(usize extension)
+  constexpr Result<Void, Void> extend_uninit(usize extension)
   {
     if ((size_ + extension) > Capacity)
     {
@@ -1020,7 +1020,7 @@ struct [[nodiscard]] InplaceVec
   constexpr Result<Void, Void> extend_defaulted(usize extension)
   {
     usize const pos = size_;
-    if (!extend_uninitialized(extension))
+    if (!extend_uninit(extension))
     {
       return Err{};
     }
@@ -1036,7 +1036,7 @@ struct [[nodiscard]] InplaceVec
   constexpr Result<Void, Void> extend_copy(Span<T const> span)
   {
     usize const pos = size_;
-    if (!extend_uninitialized(span.size()))
+    if (!extend_uninit(span.size()))
     {
       return Err{};
     }
@@ -1061,7 +1061,7 @@ struct [[nodiscard]] InplaceVec
   constexpr Result<Void, Void> extend_move(Span<T> span)
   {
     usize const pos = size_;
-    if (!extend_uninitialized(span.size()))
+    if (!extend_uninit(span.size()))
     {
       return Err{};
     }
@@ -1087,7 +1087,7 @@ struct [[nodiscard]] InplaceVec
     ::ash::swap(data()[a], data()[b]);
   }
 
-  constexpr Result<Void, Void> resize_uninitialized(usize new_size)
+  constexpr Result<Void, Void> resize_uninit(usize new_size)
   {
     if (new_size <= size_)
     {
@@ -1095,7 +1095,7 @@ struct [[nodiscard]] InplaceVec
       return Ok{};
     }
 
-    return extend_uninitialized(new_size - size_);
+    return extend_uninit(new_size - size_);
   }
 
   constexpr Result<Void, Void> resize_defaulted(usize new_size)

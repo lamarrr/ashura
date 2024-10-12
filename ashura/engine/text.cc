@@ -206,7 +206,7 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
   u32 const first_glyph = l.glyphs.size32();
   i32       advance     = 0;
 
-  l.glyphs.extend_uninitialized(num_glyphs).unwrap();
+  l.glyphs.extend_uninit(num_glyphs).unwrap();
 
   for (u32 i = 0; i < num_glyphs; i++)
   {
