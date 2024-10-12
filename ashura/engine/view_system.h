@@ -8,59 +8,76 @@
 namespace ash
 {
 
-/// @brief flattened hierarchical tree node, all siblings are packed
-/// sequentially to the right of the parent.
-/// This only represents the parent node.
-/// Since the tree is rebuilt from scratch every time, the order is preserved in
-/// that parents always come before children.
+/// @brief flattened hierarchical tree node, all siblings are
+/// packed sequentially. This only represents the parent node. Since the tree is
+/// rebuilt from scratch every time, the order is preserved in that parents
+/// always come before children.
 /// @param depth depth of the tree this node belongs to. there's ever only one
 /// node at depth 0: the root node.
 struct ViewNode
 {
   u32 depth        = 0;
+  u32 breadth      = 0;
   u32 parent       = U32_MAX;
   u32 first_child  = U32_MAX;
   u32 num_children = 0;
-  u32 prev_sibling = U32_MAX;
-  u32 next_sibling = U32_MAX;
 };
 
 struct ViewSystemState
 {
-  u64  mouse_focused_view      = 0;
-  u64  mouse_hovered_view      = 0;
-  u64  mouse_scroll_focus_view = 0;
-  u64  drag_source_view        = 0;
-  u64  drag_target_view        = 0;
-  u64  keyboard_focused_view   = 0;
-  bool mouse_down : 1          = false;
-  bool mouse_up : 1            = false;
-  bool mouse_moved : 1         = false;
-  bool mouse_scrolled : 1      = false;
-  bool mouse_drag_start : 1    = false;
-  bool mouse_drag_end : 1      = false;
-  bool mouse_dragging : 1      = false;
-  bool mouse_drag_drop : 1     = false;
-  bool keyboard_down : 1       = false;
-  bool keyboard_up : 1         = false;
-  bool text_input : 1          = false;
+  u64  mouse_pointed_view   = 0;
+  u64  mouse_scrolling_view = 0;
+  u64  drag_source_view     = 0;
+  u64  drag_target_view     = 0;
+  u64  focused_view         = 0;
+  u32  focus                = U32_MAX;
+  bool mouse_down : 1       = false;
+  bool mouse_up : 1         = false;
+  bool mouse_moved : 1      = false;
+  bool mouse_scrolled : 1   = false;
+  bool mouse_drag_start : 1 = false;
+  bool mouse_drag_end : 1   = false;
+  bool mouse_dragging : 1   = false;
+  bool mouse_drag_drop : 1  = false;
+  bool keyboard_down : 1    = false;
+  bool keyboard_up : 1      = false;
+  bool text_input : 1       = false;
+  bool tab_input : 1        = false;
+};
+
+enum class FocusDirection : u8
+{
+  None     = 0,
+  Forward  = 1,
+  Backward = 2
 };
 
 struct ViewSystem
 {
   u64             frame             = 0;
   u64             last_id           = 0;
-  ViewSystemState state             = {};
-  ViewSystemState previous_state    = {};
+  ViewSystemState state[2]          = {};
   Vec<View *>     views             = {};
   Vec<ViewNode>   nodes             = {};
   Vec<Vec2>       centers           = {};
   Vec<Vec2>       extents           = {};
   Vec<CRect>      clips             = {};
-  BitVec<u64>     is_hidden         = {};
   Vec<i32>        z_indices         = {};
+  Vec<i32>        tab_indices       = {};
   Vec<i32>        stacking_contexts = {};
   Vec<u32>        z_ordering        = {};
+  Vec<u32>        tab_ordering      = {};
+  BitVec<u64>     is_hidden         = {};
+  BitVec<u64>     is_pointable      = {};
+  BitVec<u64>     is_clickable      = {};
+  BitVec<u64>     is_scrollable     = {};
+  BitVec<u64>     is_draggable      = {};
+  BitVec<u64>     is_droppable      = {};
+  BitVec<u64>     is_focusable      = {};
+  BitVec<u64>     is_text_input     = {};
+  BitVec<u64>     is_tab_input      = {};
+  BitVec<u64>     is_grab_focus     = {};
+  BitVec<u64>     is_lose_focus     = {};
 
   void reset()
   {
@@ -69,10 +86,47 @@ struct ViewSystem
     centers.reset();
     extents.reset();
     clips.reset();
-    is_hidden.reset();
     z_indices.reset();
+    tab_indices.reset();
     stacking_contexts.reset();
     z_ordering.reset();
+    tab_ordering.reset();
+    is_hidden.reset();
+    is_pointable.reset();
+    is_clickable.reset();
+    is_scrollable.reset();
+    is_draggable.reset();
+    is_droppable.reset();
+    is_focusable.reset();
+    is_text_input.reset();
+    is_tab_input.reset();
+    is_grab_focus.reset();
+    is_lose_focus.reset();
+  }
+
+  void clear()
+  {
+    views.clear();
+    nodes.clear();
+    centers.clear();
+    extents.clear();
+    clips.clear();
+    z_indices.clear();
+    tab_indices.clear();
+    stacking_contexts.clear();
+    z_ordering.clear();
+    tab_ordering.clear();
+    is_hidden.clear();
+    is_pointable.clear();
+    is_clickable.clear();
+    is_scrollable.clear();
+    is_draggable.clear();
+    is_droppable.clear();
+    is_focusable.clear();
+    is_text_input.clear();
+    is_tab_input.clear();
+    is_grab_focus.clear();
+    is_lose_focus.clear();
   }
 
   ViewEvents process_events(View &view)
@@ -88,51 +142,50 @@ struct ViewSystem
 
     events.view_hit = (view.inner.last_rendered_frame + 1) == frame;
 
-    if (state.mouse_focused_view == view.id()) [[unlikely]]
+    if (state[1].mouse_pointed_view == view.id()) [[unlikely]]
     {
-      events.mouse_in   = (previous_state.mouse_focused_view != view.id());
-      events.mouse_down = state.mouse_down;
-      events.mouse_up   = state.mouse_up;
+      events.mouse_in   = (state[0].mouse_pointed_view != view.id());
+      events.mouse_down = state[1].mouse_down;
+      events.mouse_up   = state[1].mouse_up;
       events.mouse_moved =
-          state.mouse_moved && (previous_state.mouse_focused_view == view.id());
+          state[1].mouse_moved && (state[0].mouse_pointed_view == view.id());
     }
-    else if (previous_state.mouse_focused_view == view.id()) [[unlikely]]
+    else if (state[0].mouse_pointed_view == view.id()) [[unlikely]]
     {
       events.mouse_out = true;
     }
 
-    if (state.mouse_scroll_focus_view == view.id()) [[unlikely]]
+    if (state[1].mouse_scrolling_view == view.id()) [[unlikely]]
     {
-      events.mouse_scroll = state.mouse_scrolled;
+      events.mouse_scroll = state[1].mouse_scrolled;
     }
 
-    if (state.drag_target_view == view.id()) [[unlikely]]
+    if (state[1].drag_target_view == view.id()) [[unlikely]]
     {
-      events.drag_in =
-          (previous_state.drag_target_view != state.drag_target_view);
-      events.drop      = state.mouse_drag_drop;
-      events.drag_over = state.mouse_dragging;
+      events.drag_in = (state[0].drag_target_view != state[1].drag_target_view);
+      events.drop    = state[1].mouse_drag_drop;
+      events.drag_over = state[1].mouse_dragging;
     }
-    else if (previous_state.drag_target_view == view.id()) [[unlikely]]
+    else if (state[0].drag_target_view == view.id()) [[unlikely]]
     {
-      events.drag_out = state.mouse_dragging;
-    }
-
-    if (state.drag_source_view == view.id()) [[unlikely]]
-    {
-      events.drag_start = state.mouse_drag_start;
-      events.dragging   = state.mouse_dragging;
-      events.drag_end   = state.mouse_drag_end;
+      events.drag_out = state[1].mouse_dragging;
     }
 
-    if (state.keyboard_focused_view == view.id()) [[unlikely]]
+    if (state[1].drag_source_view == view.id()) [[unlikely]]
     {
-      events.focus_in   = previous_state.keyboard_focused_view != view.id();
-      events.key_down   = state.keyboard_down;
-      events.key_up     = state.keyboard_up;
-      events.text_input = state.text_input;
+      events.drag_start = state[1].mouse_drag_start;
+      events.dragging   = state[1].mouse_dragging;
+      events.drag_end   = state[1].mouse_drag_end;
     }
-    else if (previous_state.keyboard_focused_view == view.id()) [[unlikely]]
+
+    if (state[1].focused_view == view.id()) [[unlikely]]
+    {
+      events.focus_in   = state[0].focused_view != view.id();
+      events.key_down   = state[1].keyboard_down;
+      events.key_up     = state[1].keyboard_up;
+      events.text_input = state[1].text_input;
+    }
+    else if (state[0].focused_view == view.id()) [[unlikely]]
     {
       events.focus_out = true;
     }
@@ -140,35 +193,64 @@ struct ViewSystem
     return events;
   }
 
-  void build_recursive(ViewContext const &ctx, View *parent, u32 depth = 0)
+  void push_view(View &view, u32 depth, u32 breadth, u32 parent)
   {
-    u32 const first_child = views.size32();
-
-    auto builder = [&](View &child) { views.push(&child).unwrap(); };
-
-    parent->inner.state = parent->tick(ctx, parent->inner.region,
-                                       process_events(*parent), fn(&builder));
-
-    u32 const num_children = views.size32() - first_child;
-    u32 const node_idx     = nodes.size32();
+    views.push(&view).unwrap();
     nodes
         .push(ViewNode{.depth        = depth,
-                       .first_child  = first_child,
-                       .num_children = num_children})
+                       .breadth      = breadth,
+                       .parent       = parent,
+                       .first_child  = 0,
+                       .num_children = 0})
         .unwrap();
+    tab_indices.push(0).unwrap();
+    is_hidden.push(false).unwrap();
+    is_pointable.push(false).unwrap();
+    is_clickable.push(false).unwrap();
+    is_scrollable.push(false).unwrap();
+    is_draggable.push(false).unwrap();
+    is_droppable.push(false).unwrap();
+    is_focusable.push(false).unwrap();
+    is_text_input.push(false).unwrap();
+    is_tab_input.push(false).unwrap();
+    is_grab_focus.push(false).unwrap();
+    is_lose_focus.push(false).unwrap();
+  }
+
+  void build_children(ViewContext const &ctx, View &view, u32 depth,
+                      i32 &tab_index)
+  {
+    u32 const idx          = views.size32() - 1;
+    u32 const first_child  = views.size32();
+    u32       num_children = 0;
+
+    auto builder = [&](View &child) {
+      push_view(child, depth + 1, num_children++, idx);
+    };
+
+    ViewState state =
+        view.tick(ctx, view.inner.region, process_events(view), fn(&builder));
+
+    is_hidden.set(idx, state.hidden);
+    is_pointable.set(idx, state.pointable);
+    is_clickable.set(idx, state.clickable);
+    is_scrollable.set(idx, state.scrollable);
+    is_draggable.set(idx, state.draggable);
+    is_droppable.set(idx, state.droppable);
+    is_focusable.set(idx, state.focusable);
+    is_text_input.set(idx, state.text_input);
+    is_tab_input.set(idx, state.tab_input);
+    is_grab_focus.set(idx, state.grab_focus);
+    is_lose_focus.set(idx, state.lose_focus);
+    tab_indices.set(idx, (state.tab == I32_MIN) ? tab_index : state.tab);
+
+    nodes[idx].first_child  = first_child;
+    nodes[idx].num_children = num_children;
 
     for (u32 c = first_child; c < (first_child + num_children); c++)
     {
-      build_recursive(ctx, views[c], depth + 1);
-      nodes[c].parent = node_idx;
-      if (c != first_child)
-      {
-        nodes[c].prev_sibling = c - 1;
-      }
-      if (c != (first_child + num_children) - 1)
-      {
-        nodes[c].next_sibling = c + 1;
-      }
+      tab_index++;
+      build_children(ctx, *views[c], depth + 1, tab_index);
     }
   }
 
@@ -176,9 +258,19 @@ struct ViewSystem
   {
     if (root != nullptr)
     {
-      views.push(root).unwrap();
-      build_recursive(ctx, root, 0);
+      push_view(*root, 0, 0, U32_MAX);
+      i32 tab_index = 0;
+      build_children(ctx, *root, 0, tab_index);
     }
+  }
+
+  void focus_order()
+  {
+    iota(span(tab_ordering), 0U);
+
+    indirect_sort(span(tab_ordering), [&](u32 a, u32 b) {
+      return tab_indices[a] < tab_indices[b];
+    });
   }
 
   void layout(Vec2 viewport_size)
@@ -188,11 +280,11 @@ struct ViewSystem
       return;
     }
 
-    u32 const num_views = views.size32();
+    u32 const n = views.size32();
 
     // allocate sizes to children recursively
     extents[0] = viewport_size;
-    for (u32 i = 0; i < num_views; i++)
+    for (u32 i = 0; i < n; i++)
     {
       ViewNode const &node = nodes[i];
       views[i]->size(extents[i],
@@ -201,7 +293,7 @@ struct ViewSystem
 
     // fit parent views along the finalized sizes of the child views and
     // assign centers to the children based on their sizes.
-    for (u32 i = num_views; i != 0;)
+    for (u32 i = n; i != 0;)
     {
       i--;
       ViewNode const &node = nodes[i];
@@ -212,7 +304,7 @@ struct ViewSystem
 
     // convert from parent positions to absolute positions by recursive
     // translation
-    for (u32 i = 0; i < num_views; i++)
+    for (u32 i = 0; i < n; i++)
     {
       ViewNode const &node = nodes[i];
       for (u32 c = node.first_child; c < (node.first_child + node.num_children);
@@ -223,13 +315,13 @@ struct ViewSystem
     }
 
     // absolute re-positioning
-    for (u32 i = 0; i < num_views; i++)
+    for (u32 i = 0; i < n; i++)
     {
       centers[i] =
           views[i]->position(CRect{.center = centers[i], .extent = extents[i]});
     }
 
-    for (u32 i = 0; i < num_views; i++)
+    for (u32 i = 0; i < n; i++)
     {
       views[i]->inner.region.center = centers[i];
       views[i]->inner.region.extent = extents[i];
@@ -279,6 +371,8 @@ struct ViewSystem
       }
     }
 
+    iota(span(z_ordering), 0U);
+
     // sort using z-index while having stacking context as higher priority
     indirect_sort(span(z_ordering), [&](u32 a, u32 b) {
       if (stacking_contexts[a] < stacking_contexts[b])
@@ -294,24 +388,26 @@ struct ViewSystem
     for (u32 i = 0; i < views.size32(); i++)
     {
       ViewNode const &node = nodes[i];
-      View           &view = *views[i];
-      bool const      hidden =
-          view.inner.state.hidden || !view.inner.region.is_visible() ||
-          !clips[i].is_visible() ||
-          !overlaps(view.inner.region,
-                    CRect{.center = {0, 0}, .extent = viewport_size}) ||
-          !overlaps(view.inner.region, clips[i]);
+      View const     &view = *views[i];
 
-      is_hidden.set(i, hidden || is_hidden[i]);
-
-      // if parent requested to be hidden, make children hidden
-      if (view.inner.state.hidden) [[unlikely]]
+      if (is_hidden[i])
       {
+        // if parent requested to be hidden, make children hidden
         for (u32 c = node.first_child;
              c < (node.first_child + node.num_children); c++)
         {
           is_hidden.set(c, true);
         }
+      }
+      else
+      {
+        bool const hidden =
+            !view.inner.region.is_visible() || !clips[i].is_visible() ||
+            !overlaps(view.inner.region,
+                      CRect{.center = {0, 0}, .extent = viewport_size}) ||
+            !overlaps(view.inner.region, clips[i]);
+
+        is_hidden.set(i, hidden);
       }
     }
   }
@@ -332,42 +428,39 @@ struct ViewSystem
   void events(ViewContext const &ctx)
   {
     // [ ] render cursor & manage cursor
-    // [ ] UI tick rate (time-based/adaptive frame rate), with custom frequency
-    // allowed, need to be able to merge inputs?
-    //
-    // [ ] can clicking be handled in the widget? i.e. using ClickDetector that
-    // checks time interval and based on some time or debouncing parameters
-    //
     // [ ] mouse/keyboard lose or gain focus
 
-    ViewSystemState new_state;
+    state[0] = state[1];
+    state[1] = {};
+
+    u32 const n = views.size32();
 
     if (ctx.mouse.focused)
     {
       // mouse click & drag
       if (has_bits(ctx.mouse.downs, MouseButtons::Primary))
       {
-        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        for (u32 z_i = n; z_i != 0;)
         {
           z_i--;
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if ((view.inner.state.clickable || view.inner.state.draggable) &&
-                view.hit(view.inner.region, ctx.mouse.position))
+            if ((is_clickable[i] || is_draggable[i]) &&
+                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
             {
-              if (view.inner.state.draggable)
+              if (is_clickable[i])
               {
-                new_state.mouse_dragging   = true;
-                new_state.drag_source_view = view.id();
-                new_state.mouse_dragging   = true;
-                new_state.mouse_drag_start = true;
+                state[1].mouse_dragging   = true;
+                state[1].drag_source_view = view.id();
+                state[1].mouse_dragging   = true;
+                state[1].mouse_drag_start = true;
               }
               else
               {
-                new_state.mouse_down         = true;
-                new_state.mouse_focused_view = view.id();
+                state[1].mouse_down         = true;
+                state[1].mouse_pointed_view = view.id();
               }
               break;
             }
@@ -377,42 +470,42 @@ struct ViewSystem
       // mouse press events
       else if ((ctx.mouse.downs != MouseButtons::None ||
                 ctx.mouse.ups != MouseButtons::None) &&
-               !state.mouse_dragging)
+               !state[0].mouse_dragging)
       {
-        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        for (u32 z_i = n; z_i != 0;)
         {
           z_i--;
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if (view.inner.state.clickable &&
-                view.hit(view.inner.region, ctx.mouse.position))
+            if (is_clickable[i] &&
+                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
             {
-              new_state.mouse_down = ctx.mouse.downs != MouseButtons::None;
-              new_state.mouse_up   = ctx.mouse.ups != MouseButtons::None;
-              new_state.mouse_focused_view = view.id();
+              state[1].mouse_down = ctx.mouse.downs != MouseButtons::None;
+              state[1].mouse_up   = ctx.mouse.ups != MouseButtons::None;
+              state[1].mouse_pointed_view = view.id();
               break;
             }
           }
         }
       }
       // mouse dragging update event
-      else if (ctx.mouse.moved && state.mouse_dragging)
+      else if (ctx.mouse.moved && state[0].mouse_dragging)
       {
-        new_state.drag_source_view = previous_state.drag_source_view;
-        new_state.mouse_dragging   = true;
-        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        state[1].drag_source_view = state[0].drag_source_view;
+        state[1].mouse_dragging   = true;
+        for (u32 z_i = n; z_i != 0;)
         {
           z_i--;
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if (view.inner.state.droppable &&
-                view.hit(view.inner.region, ctx.mouse.position))
+            if (is_droppable[i] &&
+                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
             {
-              new_state.drag_target_view = view.id();
+              state[1].drag_target_view = view.id();
               break;
             }
           }
@@ -420,22 +513,22 @@ struct ViewSystem
       }
       // mouse drop event
       else if (has_bits(ctx.mouse.ups, MouseButtons::Primary) &&
-               state.mouse_dragging)
+               state[0].mouse_dragging)
       {
-        new_state.drag_source_view = state.drag_source_view;
-        new_state.mouse_drag_drop  = true;
-        new_state.mouse_dragging   = true;
-        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        state[1].drag_source_view = state[1].drag_source_view;
+        state[1].mouse_drag_drop  = true;
+        state[1].mouse_dragging   = true;
+        for (u32 z_i = n; z_i != 0;)
         {
           z_i--;
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if (view.inner.state.droppable &&
-                view.hit(view.inner.region, ctx.mouse.position))
+            if (is_droppable[i] &&
+                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
             {
-              new_state.drag_target_view = view.id();
+              state[1].drag_target_view = view.id();
               break;
             }
           }
@@ -444,37 +537,37 @@ struct ViewSystem
       // mouse scroll event
       else if (ctx.mouse.wheel_scrolled)
       {
-        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        for (u32 z_i = n; z_i != 0;)
         {
           z_i--;
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if (view.inner.state.scrollable &&
-                view.hit(view.inner.region, ctx.mouse.position))
+            if (is_scrollable[i] &&
+                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
             {
-              new_state.mouse_scroll_focus_view = view.id();
-              new_state.mouse_scrolled          = true;
+              state[1].mouse_scrolling_view = view.id();
+              state[1].mouse_scrolled       = true;
               break;
             }
           }
         }
       }
       // pointing event
-      else if (!state.mouse_dragging)
+      else if (!state[0].mouse_dragging)
       {
-        for (u32 z_i = z_ordering.size32(); z_i != 0;)
+        for (u32 z_i = n; z_i != 0;)
         {
           z_i--;
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if (view.inner.state.pointable &&
-                view.hit(view.inner.region, ctx.mouse.position))
+            if (is_pointable[i] &&
+                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
             {
-              new_state.mouse_hovered_view = view.id();
+              state[1].mouse_pointed_view = view.id();
               break;
             }
           }
@@ -482,46 +575,155 @@ struct ViewSystem
       }
     }
 
-    // [ ] focus model (keymap navigation Tab to move focus backwards, Shift +
-    // Tab to move focus forwards) - we can follow along the tree and allow
-    // widgets to specify integers of focus direction of their children
+    for (u32 i = 0; i < n; i++)
+    {
+      View const &view = *views[i];
+      if (is_grab_focus[i])
+      {
+        state[1].focused_view = view.id();
+        state[1].text_input   = is_text_input[i];
+        state[1].tab_input    = is_tab_input[i];
+        break;
+      }
+      else if (view.id() == state[1].focused_view && is_lose_focus[i])
+      {
+        state[1].focused_view = 0;
+        state[1].text_input   = false;
+        state[1].tab_input    = false;
+        break;
+      }
+    }
+
+    state[1].keyboard_down = ctx.keyboard.down;
+    state[1].keyboard_up   = ctx.keyboard.up;
+
+    // [ ] focus widget on clicked
+
+    // [ ] grab attention would need to scroll down to widget; would need
+    // virtual scrolling support. offset based?
+    // [ ] action on click of a focusable widget, f
     //
     // [ ] on click or focus of focusable objects, system requests keyboard
     // input if object has a text area attribute
-    // [ ] ? by default, special non-text keys will always be forwarded, to
-    // reject keys, i.e. prevent tab from navigating. make PgUp have special
-    // meaning within viewport, etc.
     //
     // [ ] viewport child focus and key navigation?
-    // [ ] focus navigation logic
-    // [ ] focus request
-    // [ ] key pressed ? (is_tab : current accepts tab? , is in input mode?
-    // focused widget? navigate, otherwise input)
     //
+    //
+    // [ ] if a click occured; and clicked widget is not the currently
+    // keyboard focused widget then lose keyboard focus for the widget; or
+    // esc key is pressed.
+    //
+    // [ ] we need to preserve tab index upon focus removal (i.e. esc or outer
+    // click)
+    //
+    //
+    state[1].focused_view;
 
-    // if only tab down, it shouldn't be an input??? it should
-    new_state.keyboard_down = ctx.keyboard.down;
-    new_state.keyboard_up   = ctx.keyboard.up;
+    FocusDirection focus_direction = FocusDirection::None;
 
-    // focus nav
+    if (!state[1].tab_input && ctx.key_state(KeyCode::Tab))
+    {
+      focus_direction =
+          (ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) ?
+              FocusDirection::Backward :
+              FocusDirection::Forward;
+    }
+
+    switch (focus_direction)
+    {
+      case FocusDirection::None:
+      {
+        // if currently focused widget is removed or hidden, change focus to
+        // None
+        if (state[0].focus >= n || is_hidden[tab_ordering[state[0].focus]])
+        {
+          state[1].focus = U32_MAX;
+        }
+      }
+      break;
+
+      case FocusDirection::Forward:
+      {
+        // if none is focused, move to first focusable widget
+        if (state[0].focus == U32_MAX || state[0].focus >= n ||
+            is_hidden[tab_ordering[state[0].focus]])
+        {
+          state[1].focus = U32_MAX;
+          for (u32 i = 0; i < n; i++)
+          {
+            if (!is_hidden[tab_ordering[i]] && is_focusable[tab_ordering[i]])
+            {
+              state[1].focus = i;
+              break;
+            }
+          }
+        }
+        else
+        {
+          // if widget is focused and visible; move to next/prev if any,
+          // otherwise stay
+          for (u32 i = state[0].focus + 1; i < n; i++)
+          {
+            if (!is_hidden[tab_ordering[i]] && is_focusable[tab_ordering[i]])
+            {
+              state[1].focus = i;
+              break;
+            }
+          }
+        }
+      }
+      break;
+
+      case FocusDirection::Backward:
+      {
+        if (state[0].focus == U32_MAX || state[0].focus >= n ||
+            is_hidden[tab_ordering[state[0].focus]])
+        {
+          state[1].focus = U32_MAX;
+          for (u32 i = n; i > 0;)
+          {
+            i--;
+            if (!is_hidden[tab_ordering[i]] && is_focusable[tab_ordering[i]])
+            {
+              state[1].focus = i;
+              break;
+            }
+          }
+        }
+        else
+        {
+          for (u32 i = state[0].focus; i > 0;)
+          {
+            i--;
+            if (!is_hidden[tab_ordering[i]] && is_focusable[tab_ordering[i]])
+            {
+              state[1].focus = i;
+              break;
+            }
+          }
+        }
+      }
+      break;
+
+      default:
+        break;
+    }
   }
 
   void tick(ViewContext const &ctx, View *root, Canvas &canvas)
   {
-    views.clear();
-    nodes.clear();
+    clear();
     build(ctx, root);
-    u32 const num_views = views.size32();
-    centers.resize_uninitialized(num_views).unwrap();
-    extents.resize_uninitialized(num_views).unwrap();
-    clips.resize_uninitialized(num_views).unwrap();
-    is_hidden.resize_uninitialized(num_views).unwrap();
-    fill(is_hidden.repr(), 0U);
-    z_indices.resize_uninitialized(num_views).unwrap();
-    stacking_contexts.resize_uninitialized(num_views).unwrap();
-    z_ordering.resize_uninitialized(num_views).unwrap();
-    iota(span(z_ordering), 0U);
+    u32 const n = views.size32();
+    centers.resize_uninit(n).unwrap();
+    extents.resize_uninit(n).unwrap();
+    clips.resize_uninit(n).unwrap();
+    z_indices.resize_uninit(n).unwrap();
+    stacking_contexts.resize_uninit(n).unwrap();
+    z_ordering.resize_uninit(n).unwrap();
+    tab_ordering.resize_uninit(n).unwrap();
 
+    focus_order();
     layout(ctx.viewport_size);
     clip(ctx.viewport_size);
     stack();

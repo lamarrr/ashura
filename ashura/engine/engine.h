@@ -31,6 +31,9 @@ enum class ImageLoadError : i32
 // [ ] URI system and parser with specifications: caching behaviour, identifier
 // name, etc. generic resource type. load status, registered? etc. named paths,
 // i.e. $HOME $FONTS $IMAGES $ASSETS/
+// [ ] UI tick rate (time-based/adaptive frame rate), with custom frequency
+// allowed, need to be able to merge inputs?
+//
 struct Engine
 {
   void              *app          = nullptr;

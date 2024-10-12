@@ -294,6 +294,8 @@ struct TextView : View, Pin<>
   }
 };
 
+// [ ] ClickDetector with timing and debouncing
+// [ ] input box focus request on click (i.e. grab focus)
 struct TextInput : View, Pin<>
 {
   struct State

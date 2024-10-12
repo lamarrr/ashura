@@ -229,10 +229,10 @@ struct ViewContext
   }
 };
 
-/// @param tab Tab Index for Focus-Based Navigation. desired tab index, 0
+/// @param tab Tab Index for Focus-Based Navigation. desired tab index, I32_MIN
 /// meaning the default tab order based on the hierarchy of the parent to
-/// children and siblings. negative values have higher tab index priority while
-/// positive indices have lower tab priority.
+/// children and siblings (depth-first traversal). Negative values have are
+/// focused before positive values.
 /// @param hidden if the view should be hidden from view (will not receive
 /// visual events, but still receive tick events)
 /// @param pointable can receive mouse enter/move/leave events
@@ -248,7 +248,7 @@ struct ViewContext
 /// @param lose_focus lose view focus
 struct ViewState
 {
-  i32  tab            = 0;
+  i32  tab            = I32_MIN;
   bool hidden : 1     = false;
   bool pointable : 1  = false;
   bool clickable : 1  = false;
@@ -325,10 +325,9 @@ struct View
 {
   struct
   {
-    u64       id                  = 0;
-    u64       last_rendered_frame = 0;
-    CRect     region              = {};
-    ViewState state               = {};
+    u64   id                  = 0;
+    u64   last_rendered_frame = 0;
+    CRect region              = {};
   } inner = {};
 
   constexpr View()                        = default;
@@ -338,6 +337,7 @@ struct View
   constexpr View &operator=(View &&)      = default;
   constexpr virtual ~View()               = default;
 
+  /// @returns the ID currently allocated to the view or 0
   constexpr u64 id() const
   {
     return inner.id;
@@ -449,16 +449,6 @@ struct View
     (void) region;
     (void) offset;
     return Cursor::Default;
-  }
-
-  /// @brief performs tab-index ordering of children relative to itself.
-  /// @param allocated tab index allocated to this view
-  /// @param indices tab indices of children
-  constexpr virtual i32 tab(i32 allocated, Span<i32> indices)
-  {
-    // [ ] HOW TO GO DEPTH FIRST?
-    iota(indices, allocated + 1);
-    return allocated;
   }
 };
 

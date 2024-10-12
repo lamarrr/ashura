@@ -11,7 +11,7 @@ namespace ash
 {
 
 /// @brief flattened hierarchical tree node, all siblings are packed
-/// sequentially to the right of the parent.
+/// sequentially.
 /// This only represents the parent node.
 /// Since the tree is rebuilt from scratch every time, the order is preserved in
 /// that parents always come before children.
@@ -23,8 +23,6 @@ struct SceneNode
   u32 parent       = U32_MAX;
   u32 first_child  = U32_MAX;
   u32 num_children = 0;
-  u32 prev_sibling = U32_MAX;
-  u32 next_sibling = U32_MAX;
 };
 
 }        // namespace ash
