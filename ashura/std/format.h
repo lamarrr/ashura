@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/buffer.h"
 #include "ashura/std/math.h"
 #include "ashura/std/range.h"
 #include "ashura/std/types.h"
@@ -36,23 +37,9 @@ struct Context
   Span<char>                 scratch = {};
 };
 
-struct Buffer
+inline Context buffer(Buffer<char> *b, Span<char> scratch)
 {
-  Span<char> buffer = {};
-  usize      pos    = 0;
-};
-
-inline Context buffer(Buffer *b, Span<char> scratch)
-{
-  auto f = [](Buffer *b, Span<char const> in) {
-    if ((b->pos + in.size()) > b->buffer.size())
-    {
-      return false;
-    }
-    copy(in, b->buffer.slice(b->pos));
-    b->pos += in.size();
-    return true;
-  };
+  auto f = [](Buffer<char> *b, Span<char const> in) { return b->extend(in); };
   return Context{.push = fn(b, f), .scratch = scratch};
 }
 

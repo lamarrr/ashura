@@ -7,42 +7,97 @@
 namespace ash
 {
 
+template <typename T>
+struct Buffer
+{
+  T    *data_     = nullptr;
+  usize capacity_ = 0;
+  usize size_     = 0;
+
+  constexpr T *data() const
+  {
+    return data_;
+  }
+
+  constexpr usize capacity() const
+  {
+    return capacity_;
+  }
+
+  constexpr usize size() const
+  {
+    return size_;
+  }
+
+  constexpr bool extend(Span<T const> in)
+  {
+    if ((size_ + in.size()) > capacity_)
+    {
+      return false;
+    }
+
+    copy(in, Span{data_ + size_, in.size()});
+
+    size_ += in.size();
+    return true;
+  }
+};
+
+template <typename T>
+constexpr Buffer<T> buffer(Span<T> span)
+{
+  return Buffer<T>{.data_ = span.data(), .capacity_ = span.size(), .size_ = 0};
+}
+
+template <typename T>
+constexpr Span<T> span(Buffer<T> buffer)
+{
+  return Span<T>{.data_ = buffer.data(), .size_ = buffer.size()};
+}
+
 /// @capacity: must be a non-zero power of 2
 template <typename T>
 struct RingBuffer
 {
   usize produce_next_ = 0;
   usize consume_next_ = 0;
-  T    *buffer_       = nullptr;
+  T    *data_         = nullptr;
   usize capacity_     = 0;
 
-  usize capacity() const
+  constexpr T *data() const
+  {
+    return data_;
+  }
+
+  constexpr usize capacity() const
   {
     return capacity_;
   }
 
-  bool try_consume(T *out)
+  constexpr usize size() const;
+
+  constexpr bool try_consume(T *out)
   {
     if (produce_next_ == consume_next_)
     {
       return false;
     }
 
-    mem::copy(buffer_ + consume_next_, out, 1);
+    mem::copy(data_ + consume_next_, out, 1);
 
     consume_next_ = (consume_next_ + 1) & (capacity_ - 1);
 
     return true;
   }
 
-  bool try_produce(T const &in)
+  constexpr bool try_produce(T const &in)
   {
     if (produce_next_ == consume_next_)
     {
       return false;
     }
 
-    mem::copy(&in, buffer_ + produce_next_, 1);
+    mem::copy(&in, data_ + produce_next_, 1);
 
     produce_next_ = (produce_next_ + 1) & (capacity_ - 1);
 
@@ -57,7 +112,7 @@ struct SPSCRingBuffer
   alignas(CACHELINE_ALIGNMENT) std::atomic<usize> produce_next_ = 0;
   alignas(CACHELINE_ALIGNMENT) std::atomic<usize> consume_next_ = 0;
 
-  T    *buffer_   = nullptr;
+  T    *data_     = nullptr;
   usize capacity_ = 0;
 
   usize capacity() const
@@ -76,7 +131,7 @@ struct SPSCRingBuffer
 
     (void) produce_next_.load(std::memory_order_acquire);
 
-    mem::copy(buffer_ + c_idx, out, 1);
+    mem::copy(data_ + c_idx, out, 1);
 
     c_idx = (c_idx + 1) & (capacity_ - 1);
 
@@ -94,7 +149,7 @@ struct SPSCRingBuffer
       return false;
     }
 
-    mem::copy(&in, buffer_ + p_idx, 1);
+    mem::copy(&in, data_ + p_idx, 1);
 
     p_idx = (p_idx + 1) & (capacity_ - 1);
 
