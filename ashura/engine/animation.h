@@ -9,6 +9,7 @@ namespace ash
 /// [ ] Animation forward and backwards
 /// [ ] Animation cancelation
 /// [ ] https://create.roblox.com/docs/ui/animation#style
+/// [ ] Procedural Animation https://www.youtube.com/watch?v=qlfh_rv6khY
 /// [ ] must be possible to make it complete at a speed/framerate, i.e. during
 /// automated testing
 

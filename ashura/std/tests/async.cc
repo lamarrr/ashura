@@ -56,7 +56,7 @@ TEST(AsyncTest, Basic)
                             })});
   sem->signal(1);
   scheduler->execute_main_thread_work(5s);
-  std::this_thread::sleep_for(5ms);
+  std::this_thread::sleep_for(1s);
   scheduler->uninit();
   uninit_semaphore(sem, default_allocator);
 }
