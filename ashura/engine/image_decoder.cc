@@ -117,7 +117,7 @@ ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
     return ImageDecodeError::UnsupportedFormat;
   }
 
-  usize       ncomponents = (color_type == PNG_COLOR_TYPE_RGB) ? 3 : 4;
+  u32         ncomponents = (color_type == PNG_COLOR_TYPE_RGB) ? 3 : 4;
   gpu::Format fmt         = (ncomponents == 3) ? gpu::Format::R8G8B8_UNORM :
                                                  gpu::Format::R8G8B8A8_UNORM;
   u32         pitch       = width * ncomponents;

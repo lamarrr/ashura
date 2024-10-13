@@ -182,7 +182,7 @@ struct StackView : View
 
   virtual i32 stack_item(i32 base, u32 i, u32 num)
   {
-    i64 z = base + 1;
+    i32 z = base + 1;
     if (!style.reverse)
     {
       z += (i32) i;
@@ -1464,7 +1464,8 @@ struct ScalarState
     switch (base.type)
     {
       case ScalarInputType::i32:
-        return clamp(unlerp(min.i32, max.i32, current.i32), 0.0F, 1.0F);
+        return clamp(unlerp((f32) min.i32, (f32) max.i32, (f32) current.i32),
+                     0.0F, 1.0F);
       case ScalarInputType::f32:
         return clamp(unlerp(min.f32, max.f32, current.f32), 0.0F, 1.0F);
       default:

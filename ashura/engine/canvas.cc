@@ -207,7 +207,7 @@ void Path::catmull_rom(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
     return;
   }
 
-  u32 const beg = vtx.size();
+  u32 const beg = vtx.size32();
 
   vtx.extend_uninit(segments).unwrap();
 

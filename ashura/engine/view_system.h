@@ -259,8 +259,9 @@ struct ViewSystem
     {
       state[1].focused = FocusInfo{.view       = view.id(),
                                    .idx        = view.inner.focus_idx,
+                                   .text_input = s.text_input,
                                    .tab_input  = s.tab_input,
-                                   .text_input = s.text_input};
+                                   .esc_input  = s.esc_input};
     }
 
     nodes[idx].first_child  = first_child;
@@ -491,9 +492,9 @@ struct ViewSystem
 
               focused = FocusInfo{.view       = view.id(),
                                   .idx        = view.inner.focus_idx,
+                                  .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
-                                  .esc_input  = is_esc_input[i],
-                                  .text_input = is_text_input[i]};
+                                  .esc_input  = is_esc_input[i]};
               cursor  = view.cursor(view.inner.region, ctx.mouse.position);
               break;
             }
@@ -521,9 +522,9 @@ struct ViewSystem
 
               focused = FocusInfo{.view       = view.id(),
                                   .idx        = view.inner.focus_idx,
+                                  .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
-                                  .esc_input  = is_esc_input[i],
-                                  .text_input = is_text_input[i]};
+                                  .esc_input  = is_esc_input[i]};
               cursor  = view.cursor(view.inner.region, ctx.mouse.position);
               break;
             }
@@ -549,9 +550,9 @@ struct ViewSystem
 
               focused = FocusInfo{.view       = view.id(),
                                   .idx        = view.inner.focus_idx,
+                                  .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
-                                  .esc_input  = is_esc_input[i],
-                                  .text_input = is_text_input[i]};
+                                  .esc_input  = is_esc_input[i]};
               cursor  = view.cursor(view.inner.region, ctx.mouse.position);
               break;
             }
@@ -579,9 +580,9 @@ struct ViewSystem
 
               focused = FocusInfo{.view       = view.id(),
                                   .idx        = view.inner.focus_idx,
+                                  .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
-                                  .esc_input  = is_esc_input[i],
-                                  .text_input = is_text_input[i]};
+                                  .esc_input  = is_esc_input[i]};
               cursor  = view.cursor(view.inner.region, ctx.mouse.position);
               break;
             }
@@ -652,7 +653,6 @@ struct ViewSystem
     // virtual scrolling support. offset based?
     //
     //
-    //
 
     switch (focus_action)
     {
@@ -660,7 +660,7 @@ struct ViewSystem
       {
         u32 start = 0;
 
-        // if none is focused, start from first focusable widget
+        // if none is focused, start from first focusable view
         if (focused.idx >= n)
         {
           start = 0;
@@ -671,17 +671,17 @@ struct ViewSystem
           start = focused.idx + 1;
         }
 
-        // find next focusable widget
+        // find next focusable view
         for (u32 f_i = start; f_i < n; f_i++)
         {
           u32 i = focus_ordering[f_i];
           if (!is_hidden[i] && is_focusable[i])
           {
-            focused = FocusInfo{.idx        = f_i,
-                                .view       = views[i]->id(),
+            focused = FocusInfo{.view       = views[i]->id(),
+                                .idx        = f_i,
+                                .text_input = is_text_input[i],
                                 .tab_input  = is_tab_input[i],
-                                .esc_input  = is_esc_input[i],
-                                .text_input = is_text_input[i]};
+                                .esc_input  = is_esc_input[i]};
             break;
           }
         }
@@ -702,18 +702,18 @@ struct ViewSystem
           start = focused.idx;
         }
 
-        // find prev focusable widget
+        // find prev focusable view
         for (u32 f_i = start; f_i != 0;)
         {
           f_i--;
           u32 i = focus_ordering[f_i];
           if (!is_hidden[i] && is_focusable[i])
           {
-            focused = FocusInfo{.idx        = f_i,
-                                .view       = views[i]->id(),
+            focused = FocusInfo{.view       = views[i]->id(),
+                                .idx        = f_i,
+                                .text_input = is_text_input[i],
                                 .tab_input  = is_tab_input[i],
-                                .esc_input  = is_esc_input[i],
-                                .text_input = is_text_input[i]};
+                                .esc_input  = is_esc_input[i]};
             break;
           }
         }
