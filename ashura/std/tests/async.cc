@@ -4,8 +4,8 @@
 #include "ashura/std/async.h"
 #include "ashura/std/error.h"
 #include "ashura/std/list.h"
-#include <thread>
 #include <chrono>
+#include <thread>
 
 std::atomic<uint64_t> invocs = 0;
 
@@ -30,7 +30,7 @@ TEST(AsyncTest, Basic)
                                         {
                                           return false;
                                         }
-                                        std::this_thread::sleep_for(7ms);
+                                        std::this_thread::sleep_for(8us);
                                         return true;
                                       })});
     scheduler->schedule_dedicated(1, {.task = fn([]() {
@@ -51,12 +51,12 @@ TEST(AsyncTest, Basic)
                               {
                                 return false;
                               }
-                              std::this_thread::sleep_for(8ms);
+                              std::this_thread::sleep_for(8us);
                               return true;
                             })});
   sem->signal(1);
   scheduler->execute_main_thread_work(5s);
-  std::this_thread::sleep_for(1min);
+  std::this_thread::sleep_for(5ms);
   scheduler->uninit();
   uninit_semaphore(sem, default_allocator);
 }
