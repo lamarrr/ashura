@@ -443,6 +443,7 @@ struct ViewSystem
       if (!is_hidden.get(i)) [[unlikely]]
       {
         View &view = *views[i];
+        canvas.clip(clips[i]);
         view.render(view.inner.region, clips[i], canvas);
         view.inner.last_rendered_frame = frame;
       }
