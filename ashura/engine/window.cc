@@ -93,12 +93,12 @@ struct WindowSystemImpl : WindowSystem
     return Some{(Window) impl};
   }
 
-  void destroy_window(Window window) override
+  void uninit_window(Window window) override
   {
     if (window != nullptr)
     {
       WindowImpl *win = (WindowImpl *) window;
-      win->instance->destroy_surface(win->instance.self, win->surface);
+      win->instance->uninit_surface(win->instance.self, win->surface);
       SDL_DestroyWindow(win->win);
       win->listeners.reset();
       default_allocator.ndealloc(win, 1);

@@ -303,7 +303,7 @@ FontInfo get_font_info(Font font)
   return info;
 }
 
-void destroy_font(Font font)
+void uninit_font(Font font)
 {
   FontImpl *f = (FontImpl *) font;
   f->gpu_atlas.expect_none("GPU font atlas has not been unloaded");

@@ -24,7 +24,7 @@ SemaphoreRef create_semaphore(u64 num_stages, AllocatorImpl const &allocator)
   return (SemaphoreRef) s;
 }
 
-void destroy_semaphore(SemaphoreRef sem, AllocatorImpl const &allocator)
+void uninit_semaphore(SemaphoreRef sem, AllocatorImpl const &allocator)
 {
   sem->reset();
   allocator.ndealloc(sem, 1);

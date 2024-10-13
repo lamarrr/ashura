@@ -32,8 +32,8 @@ void PassContext::uninit(RenderContext &ctx)
 
 void SSBO::uninit(RenderContext &ctx)
 {
-  ctx.device->destroy_descriptor_set(ctx.device.self, ssbo);
-  ctx.device->destroy_buffer(ctx.device.self, buffer);
+  ctx.device->uninit_descriptor_set(ctx.device.self, ssbo);
+  ctx.device->uninit_buffer(ctx.device.self, buffer);
 }
 
 void SSBO::reserve(RenderContext &ctx, u64 p_size, Span<char const> label)
@@ -44,7 +44,7 @@ void SSBO::reserve(RenderContext &ctx, u64 p_size, Span<char const> label)
     return;
   }
 
-  ctx.device->destroy_buffer(ctx.device.self, buffer);
+  ctx.device->uninit_buffer(ctx.device.self, buffer);
 
   buffer = ctx.device
                ->create_buffer(

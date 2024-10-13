@@ -107,7 +107,7 @@ Result<Font, FontDecodeError>
 
 FontInfo get_font_info(Font font);
 
-void destroy_font(Font font);
+void uninit_font(Font font);
 
 /// @brief rasterize the font at the specified font height. Note: raster is
 /// stored as alpha values.

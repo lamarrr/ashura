@@ -195,7 +195,7 @@ typedef Semaphore *SemaphoreRef;
 
 /// @brief
 /// @param sem can be null
-void destroy_semaphore(SemaphoreRef sem, AllocatorImpl const &allocator);
+void uninit_semaphore(SemaphoreRef sem, AllocatorImpl const &allocator);
 
 ///
 /// @brief no syscalls are made unless timeout_ns is non-zero.
@@ -246,6 +246,10 @@ struct TaskInfo
 /// [x] inter-task sharing
 /// [x] inter-task data flow, reporting cancelation
 /// [x] external polling contexts
+/// [ ] task data allocation/a type-punned span of u8 along with alignment info,
+/// we can just pass this and use templates to get it correctly
+/// [ ] finalize callback for the context destruction? upon completion of the
+/// task
 struct Scheduler
 {
   virtual void init(Span<nanoseconds const> dedicated_thread_sleep,

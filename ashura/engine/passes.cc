@@ -114,8 +114,8 @@ void BlurPass::init(RenderContext &ctx)
 
 void BlurPass::uninit(RenderContext &ctx)
 {
-  ctx.device->destroy_graphics_pipeline(ctx.device.self, downsample_pipeline);
-  ctx.device->destroy_graphics_pipeline(ctx.device.self, upsample_pipeline);
+  ctx.device->uninit_graphics_pipeline(ctx.device.self, downsample_pipeline);
+  ctx.device->uninit_graphics_pipeline(ctx.device.self, upsample_pipeline);
 }
 
 void sample(BlurPass &b, RenderContext &c, gpu::CommandEncoderImpl const &e,
@@ -300,7 +300,7 @@ void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
 
 void NgonPass::uninit(RenderContext &ctx)
 {
-  ctx.device->destroy_graphics_pipeline(ctx.device.self, pipeline);
+  ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
 }
 
 void PBRPass::init(RenderContext &ctx)
@@ -408,8 +408,8 @@ void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
 
 void PBRPass::uninit(RenderContext &ctx)
 {
-  ctx.device->destroy_graphics_pipeline(ctx.device.self, pipeline);
-  ctx.device->destroy_graphics_pipeline(ctx.device.self, wireframe_pipeline);
+  ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
+  ctx.device->uninit_graphics_pipeline(ctx.device.self, wireframe_pipeline);
 }
 
 void PolyPass::init(RenderContext &)
@@ -513,7 +513,7 @@ void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
 
 void RRectPass::uninit(RenderContext &ctx)
 {
-  ctx.device->destroy_graphics_pipeline(ctx.device.self, pipeline);
+  ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
 }
 
 }        // namespace ash

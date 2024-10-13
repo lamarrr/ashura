@@ -58,5 +58,5 @@ TEST(AsyncTest, Basic)
   scheduler->execute_main_thread_work(5s);
   std::this_thread::sleep_for(1min);
   scheduler->uninit();
-  destroy_semaphore(sem, default_allocator);
+  uninit_semaphore(sem, default_allocator);
 }

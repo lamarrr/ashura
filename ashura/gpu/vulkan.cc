@@ -1346,7 +1346,7 @@ Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
 namespace vk
 {
 
-void InstanceInterface::destroy(gpu::Instance instance_)
+void InstanceInterface::uninit(gpu::Instance instance_)
 {
   Instance *const instance = (Instance *) instance_;
 
@@ -1476,7 +1476,7 @@ Status create_command_encoder(Device *dev, CommandEncoder *enc)
   return Status::Success;
 }
 
-void destroy_command_encoder(Device *dev, CommandEncoder *enc)
+void uninit_command_encoder(Device *dev, CommandEncoder *enc)
 {
   enc->render_ctx.commands.reset();
   dev->vk_table.DestroyCommandPool(dev->vk_dev, enc->vk_command_pool, nullptr);
@@ -1497,7 +1497,7 @@ Status create_frame_context(Device *dev, u32 buffering)
   defer encs_{[&] {
     for (u32 i = num_encs; i-- > 0;)
     {
-      destroy_command_encoder(dev, ctx.encs + i);
+      uninit_command_encoder(dev, ctx.encs + i);
     }
   }};
 
@@ -1598,12 +1598,12 @@ Status create_frame_context(Device *dev, u32 buffering)
   return Status::Success;
 }
 
-void destroy_frame_context(Device *dev)
+void uninit_frame_context(Device *dev)
 {
   FrameContext &ctx = dev->frame_ctx;
   for (u32 i = ctx.buffering; i-- > 0;)
   {
-    destroy_command_encoder(dev, ctx.encs + i);
+    uninit_command_encoder(dev, ctx.encs + i);
   }
   for (u32 i = ctx.buffering; i-- > 0;)
   {
@@ -1619,7 +1619,7 @@ void destroy_frame_context(Device *dev)
   }
 }
 
-void destroy_descriptor_heap(Device *self, DescriptorHeap *heap)
+void uninit_descriptor_heap(Device *self, DescriptorHeap *heap)
 {
   for (u32 i = heap->num_pools; i-- > 0;)
   {
@@ -2184,7 +2184,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
   defer dev_{[&] {
     if (dev != nullptr)
     {
-      destroy_device((gpu::Instance) self, (gpu::Device) dev);
+      uninit_device((gpu::Instance) self, (gpu::Device) dev);
     }
   }};
 
@@ -2209,8 +2209,8 @@ gpu::Backend InstanceInterface::get_backend(gpu::Instance)
   return gpu::Backend::Vulkan;
 }
 
-void InstanceInterface::destroy_device(gpu::Instance instance_,
-                                       gpu::Device   device_)
+void InstanceInterface::uninit_device(gpu::Instance instance_,
+                                      gpu::Device   device_)
 {
   Instance *const instance = (Instance *) instance_;
   Device *const   dev      = (Device *) device_;
@@ -2220,15 +2220,15 @@ void InstanceInterface::destroy_device(gpu::Instance instance_,
     return;
   }
 
-  destroy_frame_context(dev);
-  destroy_descriptor_heap(dev, &dev->descriptor_heap);
+  uninit_frame_context(dev);
+  uninit_descriptor_heap(dev, &dev->descriptor_heap);
   vmaDestroyAllocator(dev->vma_allocator);
   dev->vk_table.DestroyDevice(dev->vk_dev, nullptr);
   instance->allocator.ndealloc(dev, 1);
 }
 
-void InstanceInterface::destroy_surface(gpu::Instance self_,
-                                        gpu::Surface  surface)
+void InstanceInterface::uninit_surface(gpu::Instance self_,
+                                       gpu::Surface  surface)
 {
   Instance *const self = (Instance *) self_;
   self->vk_table.DestroySurfaceKHR(self->vk_instance, (Surface) surface,
@@ -3741,7 +3741,7 @@ Result<gpu::StatisticsQuery, Status>
   return Ok{(gpu::StatisticsQuery) vk_pool};
 }
 
-void DeviceInterface::destroy_buffer(gpu::Device self_, gpu::Buffer buffer_)
+void DeviceInterface::uninit_buffer(gpu::Device self_, gpu::Buffer buffer_)
 {
   Device *const self   = (Device *) self_;
   Buffer *const buffer = (Buffer *) buffer_;
@@ -3756,8 +3756,8 @@ void DeviceInterface::destroy_buffer(gpu::Device self_, gpu::Buffer buffer_)
   self->allocator.ndealloc(buffer, 1);
 }
 
-void DeviceInterface::destroy_buffer_view(gpu::Device     self_,
-                                          gpu::BufferView buffer_view_)
+void DeviceInterface::uninit_buffer_view(gpu::Device     self_,
+                                         gpu::BufferView buffer_view_)
 {
   Device *const     self        = (Device *) self_;
   BufferView *const buffer_view = (BufferView *) buffer_view_;
@@ -3771,7 +3771,7 @@ void DeviceInterface::destroy_buffer_view(gpu::Device     self_,
   self->allocator.ndealloc(buffer_view, 1);
 }
 
-void DeviceInterface::destroy_image(gpu::Device self_, gpu::Image image_)
+void DeviceInterface::uninit_image(gpu::Device self_, gpu::Image image_)
 {
   Device *const self  = (Device *) self_;
   Image *const  image = (Image *) image_;
@@ -3787,8 +3787,8 @@ void DeviceInterface::destroy_image(gpu::Device self_, gpu::Image image_)
   self->allocator.ndealloc(image, 1);
 }
 
-void DeviceInterface::destroy_image_view(gpu::Device    self_,
-                                         gpu::ImageView image_view_)
+void DeviceInterface::uninit_image_view(gpu::Device    self_,
+                                        gpu::ImageView image_view_)
 {
   Device *const    self       = (Device *) self_;
   ImageView *const image_view = (ImageView *) image_view_;
@@ -3802,21 +3802,21 @@ void DeviceInterface::destroy_image_view(gpu::Device    self_,
   self->allocator.ndealloc(image_view, 1);
 }
 
-void DeviceInterface::destroy_sampler(gpu::Device self_, gpu::Sampler sampler_)
+void DeviceInterface::uninit_sampler(gpu::Device self_, gpu::Sampler sampler_)
 {
   Device *const self = (Device *) self_;
 
   self->vk_table.DestroySampler(self->vk_dev, (Sampler) sampler_, nullptr);
 }
 
-void DeviceInterface::destroy_shader(gpu::Device self_, gpu::Shader shader_)
+void DeviceInterface::uninit_shader(gpu::Device self_, gpu::Shader shader_)
 {
   Device *const self = (Device *) self_;
 
   self->vk_table.DestroyShaderModule(self->vk_dev, (Shader) shader_, nullptr);
 }
 
-void DeviceInterface::destroy_descriptor_set_layout(
+void DeviceInterface::uninit_descriptor_set_layout(
     gpu::Device self_, gpu::DescriptorSetLayout layout_)
 {
   Device *const              self   = (Device *) self_;
@@ -3832,8 +3832,8 @@ void DeviceInterface::destroy_descriptor_set_layout(
   self->allocator.ndealloc(layout, 1);
 }
 
-void DeviceInterface::destroy_descriptor_set(gpu::Device        self_,
-                                             gpu::DescriptorSet set_)
+void DeviceInterface::uninit_descriptor_set(gpu::Device        self_,
+                                            gpu::DescriptorSet set_)
 {
   Device *const        self = (Device *) self_;
   DescriptorSet *const set  = (DescriptorSet *) set_;
@@ -3866,16 +3866,16 @@ void DeviceInterface::destroy_descriptor_set(gpu::Device        self_,
   heap.allocator.ndealloc(set, 1);
 }
 
-void DeviceInterface::destroy_pipeline_cache(gpu::Device        self_,
-                                             gpu::PipelineCache cache_)
+void DeviceInterface::uninit_pipeline_cache(gpu::Device        self_,
+                                            gpu::PipelineCache cache_)
 {
   Device *const self = (Device *) self_;
   self->vk_table.DestroyPipelineCache(self->vk_dev, (PipelineCache) cache_,
                                       nullptr);
 }
 
-void DeviceInterface::destroy_compute_pipeline(gpu::Device          self_,
-                                               gpu::ComputePipeline pipeline_)
+void DeviceInterface::uninit_compute_pipeline(gpu::Device          self_,
+                                              gpu::ComputePipeline pipeline_)
 {
   Device *const          self     = (Device *) self_;
   ComputePipeline *const pipeline = (ComputePipeline *) pipeline_;
@@ -3891,8 +3891,8 @@ void DeviceInterface::destroy_compute_pipeline(gpu::Device          self_,
   self->allocator.ndealloc(pipeline, 1);
 }
 
-void DeviceInterface::destroy_graphics_pipeline(gpu::Device           self_,
-                                                gpu::GraphicsPipeline pipeline_)
+void DeviceInterface::uninit_graphics_pipeline(gpu::Device           self_,
+                                               gpu::GraphicsPipeline pipeline_)
 {
   Device *const           self     = (Device *) self_;
   GraphicsPipeline *const pipeline = (GraphicsPipeline *) pipeline_;
@@ -3908,8 +3908,8 @@ void DeviceInterface::destroy_graphics_pipeline(gpu::Device           self_,
   self->allocator.ndealloc(pipeline, 1);
 }
 
-void DeviceInterface::destroy_swapchain(gpu::Device    self_,
-                                        gpu::Swapchain swapchain_)
+void DeviceInterface::uninit_swapchain(gpu::Device    self_,
+                                       gpu::Swapchain swapchain_)
 {
   Device *const    self      = (Device *) self_;
   Swapchain *const swapchain = (Swapchain *) swapchain_;
@@ -3924,8 +3924,8 @@ void DeviceInterface::destroy_swapchain(gpu::Device    self_,
   self->allocator.ndealloc(swapchain, 1);
 }
 
-void DeviceInterface::destroy_timestamp_query(gpu::Device         self_,
-                                              gpu::TimeStampQuery query_)
+void DeviceInterface::uninit_timestamp_query(gpu::Device         self_,
+                                             gpu::TimeStampQuery query_)
 {
   Device *const     self    = (Device *) self_;
   VkQueryPool const vk_pool = (VkQueryPool) query_;
@@ -3933,8 +3933,8 @@ void DeviceInterface::destroy_timestamp_query(gpu::Device         self_,
   self->vk_table.DestroyQueryPool(self->vk_dev, vk_pool, nullptr);
 }
 
-void DeviceInterface::destroy_statistics_query(gpu::Device          self_,
-                                               gpu::StatisticsQuery query_)
+void DeviceInterface::uninit_statistics_query(gpu::Device          self_,
+                                              gpu::StatisticsQuery query_)
 {
   Device *const     self    = (Device *) self_;
   VkQueryPool const vk_pool = (VkQueryPool) query_;

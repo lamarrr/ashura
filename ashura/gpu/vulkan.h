@@ -30,15 +30,15 @@ constexpr u8  NUM_DESCRIPTOR_TYPES       = 11;
 
 struct InstanceInterface
 {
-  static void destroy(gpu::Instance self);
+  static void uninit(gpu::Instance self);
   static Result<gpu::DeviceImpl, Status>
                       create_device(gpu::Instance self, AllocatorImpl allocator,
                                     Span<gpu::DeviceType const> preferred_types,
                                     Span<gpu::Surface const>    compatible_surfaces,
                                     u32                         buffering);
   static gpu::Backend get_backend(gpu::Instance self);
-  static void         destroy_device(gpu::Instance self, gpu::Device device);
-  static void         destroy_surface(gpu::Instance self, gpu::Surface surface);
+  static void         uninit_device(gpu::Instance self, gpu::Device device);
+  static void         uninit_surface(gpu::Instance self, gpu::Surface surface);
 };
 
 struct DeviceInterface
@@ -80,27 +80,25 @@ struct DeviceInterface
       create_timestamp_query(gpu::Device self);
   static Result<gpu::StatisticsQuery, Status>
               create_statistics_query(gpu::Device self);
-  static void destroy_buffer(gpu::Device self, gpu::Buffer buffer);
-  static void destroy_buffer_view(gpu::Device     self,
-                                  gpu::BufferView buffer_view);
-  static void destroy_image(gpu::Device self, gpu::Image image);
-  static void destroy_image_view(gpu::Device self, gpu::ImageView image_view);
-  static void destroy_sampler(gpu::Device self, gpu::Sampler sampler);
-  static void destroy_shader(gpu::Device self, gpu::Shader shader);
-  static void destroy_descriptor_set_layout(gpu::Device              self,
-                                            gpu::DescriptorSetLayout layout);
-  static void destroy_descriptor_set(gpu::Device self, gpu::DescriptorSet set);
-  static void destroy_pipeline_cache(gpu::Device        self,
-                                     gpu::PipelineCache cache);
-  static void destroy_compute_pipeline(gpu::Device          self,
-                                       gpu::ComputePipeline pipeline);
-  static void destroy_graphics_pipeline(gpu::Device           self,
-                                        gpu::GraphicsPipeline pipeline);
-  static void destroy_swapchain(gpu::Device self, gpu::Swapchain swapchain);
-  static void destroy_timestamp_query(gpu::Device         self,
-                                      gpu::TimeStampQuery query);
-  static void destroy_statistics_query(gpu::Device          self,
-                                       gpu::StatisticsQuery query);
+  static void uninit_buffer(gpu::Device self, gpu::Buffer buffer);
+  static void uninit_buffer_view(gpu::Device self, gpu::BufferView buffer_view);
+  static void uninit_image(gpu::Device self, gpu::Image image);
+  static void uninit_image_view(gpu::Device self, gpu::ImageView image_view);
+  static void uninit_sampler(gpu::Device self, gpu::Sampler sampler);
+  static void uninit_shader(gpu::Device self, gpu::Shader shader);
+  static void uninit_descriptor_set_layout(gpu::Device              self,
+                                           gpu::DescriptorSetLayout layout);
+  static void uninit_descriptor_set(gpu::Device self, gpu::DescriptorSet set);
+  static void uninit_pipeline_cache(gpu::Device self, gpu::PipelineCache cache);
+  static void uninit_compute_pipeline(gpu::Device          self,
+                                      gpu::ComputePipeline pipeline);
+  static void uninit_graphics_pipeline(gpu::Device           self,
+                                       gpu::GraphicsPipeline pipeline);
+  static void uninit_swapchain(gpu::Device self, gpu::Swapchain swapchain);
+  static void uninit_timestamp_query(gpu::Device         self,
+                                     gpu::TimeStampQuery query);
+  static void uninit_statistics_query(gpu::Device          self,
+                                      gpu::StatisticsQuery query);
   static gpu::FrameContext      get_frame_context(gpu::Device self);
   static Result<void *, Status> map_buffer_memory(gpu::Device self,
                                                   gpu::Buffer buffer);
@@ -226,11 +224,11 @@ struct CommandEncoderInterface
 };
 
 static gpu::InstanceInterface const instance_interface{
-    .destroy         = InstanceInterface::destroy,
-    .create_device   = InstanceInterface::create_device,
-    .get_backend     = InstanceInterface::get_backend,
-    .destroy_device  = InstanceInterface::destroy_device,
-    .destroy_surface = InstanceInterface::destroy_surface};
+    .uninit         = InstanceInterface::uninit,
+    .create_device  = InstanceInterface::create_device,
+    .get_backend    = InstanceInterface::get_backend,
+    .uninit_device  = InstanceInterface::uninit_device,
+    .uninit_surface = InstanceInterface::uninit_surface};
 
 static gpu::DeviceInterface const device_interface{
     .get_device_properties = DeviceInterface::get_device_properties,
@@ -250,24 +248,24 @@ static gpu::DeviceInterface const device_interface{
     .create_swapchain         = DeviceInterface::create_swapchain,
     .create_timestamp_query   = DeviceInterface::create_timestamp_query,
     .create_statistics_query  = DeviceInterface::create_statistics_query,
-    .destroy_buffer           = DeviceInterface::destroy_buffer,
-    .destroy_buffer_view      = DeviceInterface::destroy_buffer_view,
-    .destroy_image            = DeviceInterface::destroy_image,
-    .destroy_image_view       = DeviceInterface::destroy_image_view,
-    .destroy_sampler          = DeviceInterface::destroy_sampler,
-    .destroy_shader           = DeviceInterface::destroy_shader,
-    .destroy_descriptor_set_layout =
-        DeviceInterface::destroy_descriptor_set_layout,
-    .destroy_descriptor_set    = DeviceInterface::destroy_descriptor_set,
-    .destroy_pipeline_cache    = DeviceInterface::destroy_pipeline_cache,
-    .destroy_compute_pipeline  = DeviceInterface::destroy_compute_pipeline,
-    .destroy_graphics_pipeline = DeviceInterface::destroy_graphics_pipeline,
-    .destroy_swapchain         = DeviceInterface::destroy_swapchain,
-    .destroy_timestamp_query   = DeviceInterface::destroy_timestamp_query,
-    .destroy_statistics_query  = DeviceInterface::destroy_statistics_query,
-    .get_frame_context         = DeviceInterface::get_frame_context,
-    .map_buffer_memory         = DeviceInterface::map_buffer_memory,
-    .unmap_buffer_memory       = DeviceInterface::unmap_buffer_memory,
+    .uninit_buffer            = DeviceInterface::uninit_buffer,
+    .uninit_buffer_view       = DeviceInterface::uninit_buffer_view,
+    .uninit_image             = DeviceInterface::uninit_image,
+    .uninit_image_view        = DeviceInterface::uninit_image_view,
+    .uninit_sampler           = DeviceInterface::uninit_sampler,
+    .uninit_shader            = DeviceInterface::uninit_shader,
+    .uninit_descriptor_set_layout =
+        DeviceInterface::uninit_descriptor_set_layout,
+    .uninit_descriptor_set    = DeviceInterface::uninit_descriptor_set,
+    .uninit_pipeline_cache    = DeviceInterface::uninit_pipeline_cache,
+    .uninit_compute_pipeline  = DeviceInterface::uninit_compute_pipeline,
+    .uninit_graphics_pipeline = DeviceInterface::uninit_graphics_pipeline,
+    .uninit_swapchain         = DeviceInterface::uninit_swapchain,
+    .uninit_timestamp_query   = DeviceInterface::uninit_timestamp_query,
+    .uninit_statistics_query  = DeviceInterface::uninit_statistics_query,
+    .get_frame_context        = DeviceInterface::get_frame_context,
+    .map_buffer_memory        = DeviceInterface::map_buffer_memory,
+    .unmap_buffer_memory      = DeviceInterface::unmap_buffer_memory,
     .invalidate_mapped_buffer_memory =
         DeviceInterface::invalidate_mapped_buffer_memory,
     .flush_mapped_buffer_memory = DeviceInterface::flush_mapped_buffer_memory,

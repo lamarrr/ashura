@@ -37,9 +37,9 @@ int main(int, char **)
   gpu::InstanceImpl instance =
       gpu::create_vulkan_instance(heap_allocator, false).unwrap();
 
-  defer  instance_{[&] { instance->destroy(instance.self); }};
+  defer  instance_{[&] { instance->uninit(instance.self); }};
   Window win = sdl_window_system->create_window(instance, "Main"_span).unwrap();
-  defer  win_{[&] { sdl_window_system->destroy_window(win); }};
+  defer  win_{[&] { sdl_window_system->uninit_window(win); }};
 
   sdl_window_system->maximize(win);
   sdl_window_system->set_title(win, "Harro"_span);
@@ -70,7 +70,7 @@ int main(int, char **)
                           }),
                           span({surface}), 2)
           .unwrap();
-  defer device_{[&] { instance->destroy_device(instance.self, device.self); }};
+  defer device_{[&] { instance->uninit_device(instance.self, device.self); }};
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
@@ -250,7 +250,7 @@ int main(int, char **)
 
   invalidate_swapchain();
 
-  defer swapchain_{[&] { device->destroy_swapchain(device.self, swapchain); }};
+  defer swapchain_{[&] { device->uninit_swapchain(device.self, swapchain); }};
 
   // job submission to render context to prepare resources ahead of frame.
   RenderContext ctx;

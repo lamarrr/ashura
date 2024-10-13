@@ -422,10 +422,10 @@ void RenderContext::uninit()
     release(sampler.sampler);
   });
   idle_reclaim();
-  device->destroy_pipeline_cache(device.self, pipeline_cache);
+  device->uninit_pipeline_cache(device.self, pipeline_cache);
 
   shader_map.for_each([&](Span<char const>, gpu::Shader shader) {
-    device->destroy_shader(device.self, shader);
+    device->uninit_shader(device.self, shader);
   });
   shader_map.reset();
 }
@@ -605,8 +605,8 @@ void RenderContext::release(gpu::Sampler sampler)
       .unwrap();
 }
 
-static void destroy_objects(gpu::DeviceImpl const  &d,
-                            Span<gpu::Object const> objects)
+static void uninit_objects(gpu::DeviceImpl const  &d,
+                           Span<gpu::Object const> objects)
 {
   for (u32 i = 0; i < objects.size32(); i++)
   {
@@ -614,25 +614,25 @@ static void destroy_objects(gpu::DeviceImpl const  &d,
     switch (obj.type)
     {
       case gpu::ObjectType::Image:
-        d->destroy_image(d.self, obj.image);
+        d->uninit_image(d.self, obj.image);
         break;
       case gpu::ObjectType::ImageView:
-        d->destroy_image_view(d.self, obj.image_view);
+        d->uninit_image_view(d.self, obj.image_view);
         break;
       case gpu::ObjectType::Buffer:
-        d->destroy_buffer(d.self, obj.buffer);
+        d->uninit_buffer(d.self, obj.buffer);
         break;
       case gpu::ObjectType::BufferView:
-        d->destroy_buffer_view(d.self, obj.buffer_view);
+        d->uninit_buffer_view(d.self, obj.buffer_view);
         break;
       case gpu::ObjectType::Sampler:
-        d->destroy_sampler(d.self, obj.sampler);
+        d->uninit_sampler(d.self, obj.sampler);
         break;
       case gpu::ObjectType::DescriptorSet:
-        d->destroy_descriptor_set(d.self, obj.descriptor_set);
+        d->uninit_descriptor_set(d.self, obj.descriptor_set);
         break;
       case gpu::ObjectType::DescriptorSetLayout:
-        d->destroy_descriptor_set_layout(d.self, obj.descriptor_set_layout);
+        d->uninit_descriptor_set_layout(d.self, obj.descriptor_set_layout);
         break;
       default:
         UNREACHABLE();
@@ -645,7 +645,7 @@ void RenderContext::idle_reclaim()
   device->wait_idle(device.self).unwrap();
   for (u32 i = 0; i < buffering; i++)
   {
-    destroy_objects(device, span(released_objects[i]));
+    uninit_objects(device, span(released_objects[i]));
     released_objects[i].reset();
   }
 }
@@ -653,7 +653,7 @@ void RenderContext::idle_reclaim()
 void RenderContext::begin_frame(gpu::Swapchain swapchain)
 {
   device->begin_frame(device.self, swapchain).unwrap();
-  destroy_objects(device, span(released_objects[ring_index()]));
+  uninit_objects(device, span(released_objects[ring_index()]));
   released_objects[ring_index()].clear();
 
   gpu::CommandEncoderImpl enc = encoder();
