@@ -2101,7 +2101,7 @@ struct PFnTraits<R(Args...)>
 };
 
 template <typename R, typename... Args>
-struct PFnTraits<R (*)(Args...)> : public PFnTraits<R(Args...)>
+struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
 {
 };
 
@@ -2144,7 +2144,7 @@ struct MemberFnTraits<R (T::*)(Args...) const>
 };
 
 template <class T>
-struct FunctorTraits : public MemberFnTraits<decltype(&T::operator())>
+struct FunctorTraits : MemberFnTraits<decltype(&T::operator())>
 {
 };
 

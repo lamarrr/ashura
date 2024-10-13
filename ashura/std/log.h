@@ -155,7 +155,7 @@ struct Logger : Pin<>
   }
 };
 
-struct StdioSink final : LogSink
+struct StdioSink : LogSink
 {
   std::mutex mutex;
 
@@ -163,7 +163,7 @@ struct StdioSink final : LogSink
   void flush() override;
 };
 
-struct FileSink final : LogSink
+struct FileSink : LogSink
 {
   FILE      *file = nullptr;
   std::mutex mutex;

@@ -31,7 +31,7 @@ struct WindowImpl
       fn([](Vec2U) { return WindowRegion::Normal; });
 };
 
-struct WindowSystemImpl final : public WindowSystem
+struct WindowSystemImpl : WindowSystem
 {
   SDL_Window *hnd(Window window)
   {

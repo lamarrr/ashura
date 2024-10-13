@@ -18,7 +18,7 @@ namespace ash
 /// the main axis
 /// @param cross_align cross-axis alignment. affects how free space is used on
 /// the cross axis
-struct FlexView : public View
+struct FlexView : View
 {
   struct Style
   {
@@ -165,7 +165,7 @@ struct FlexView : public View
   }
 };
 
-struct StackView : public View
+struct StackView : View
 {
   struct Style
   {
@@ -228,7 +228,12 @@ struct StackView : public View
   }
 };
 
-struct TextView : View, Pin<>
+// [ ] pre-determined height, scrolling of each item. bidirectional
+struct ListView : View
+{
+};
+
+struct TextView : View
 {
   bool           copyable : 1           = false;
   ColorGradient  highlight_color        = {};
@@ -296,7 +301,7 @@ struct TextView : View, Pin<>
 
 // [ ] ClickDetector with timing and debouncing
 // [ ] input box focus request on click (i.e. grab focus)
-struct TextInput : View, Pin<>
+struct TextInput : View
 {
   struct State
   {
@@ -607,14 +612,14 @@ struct TextInput : View, Pin<>
 // [ ] calculate lines per page
 // [ ] viewport text with scrollable region, scroll direction
 // [ ] text input while in view, i.e. page down
-struct ScrollableTextInput : View, Pin<>
+struct ScrollableTextInput : View
 {
   TextInput input;
   ScrollableTextInput()          = default;
   virtual ~ScrollableTextInput() = default;
 };
 
-struct Button : public View
+struct Button : View
 {
   struct State
   {
@@ -728,7 +733,7 @@ struct Button : public View
   }
 };
 
-struct TextButton : public Button
+struct TextButton : Button
 {
   TextView text{};
 
@@ -740,7 +745,7 @@ struct TextButton : public Button
   virtual ~TextButton() override = default;
 };
 
-struct CheckBox : public View
+struct CheckBox : View
 {
   struct State
   {
@@ -829,7 +834,7 @@ struct CheckBox : public View
 };
 
 /// @brief Multi-directional Slider
-struct Slider : public View
+struct Slider : View
 {
   struct State
   {
@@ -930,7 +935,7 @@ struct Slider : public View
   }
 };
 
-struct Switch : public View
+struct Switch : View
 {
   struct State
   {
@@ -1023,7 +1028,7 @@ struct Switch : public View
 };
 
 // [ ] implement
-struct Collapsable : public View
+struct Collapsable : View
 {
 };
 
@@ -1032,7 +1037,7 @@ struct Collapsable : public View
 // [ ] clipping
 // [ ] ios-style combo box
 /// @param alignment alignment of the item, based on the text direction
-struct ComboBoxItem : public View
+struct ComboBoxItem : View
 {
   struct State
   {
@@ -1136,7 +1141,7 @@ struct ComboBoxItem : public View
 
 /// [ ] z-index on expanded?
 /// [ ] z-index effects on viewport
-struct ComboBoxScrollView : public View
+struct ComboBoxScrollView : View
 {
   typedef Fn<void(u32, Span<u32 const>)> Selected;
 
@@ -1211,7 +1216,7 @@ enum class ComboBoxMode : u8
   Dialog = 1
 };
 
-struct ComboBox : public View
+struct ComboBox : View
 {
   typedef ComboBoxScrollView::Selected Selected;
 
@@ -1287,7 +1292,7 @@ struct ComboBox : public View
   }
 };
 
-struct RadioBox : public View
+struct RadioBox : View
 {
   struct State
   {
@@ -1618,10 +1623,10 @@ struct ScalarDragBox : View, Pin<>
     {
       char         scratch[128];
       char         text[128];
-      fmt::Buffer  buffer{.buffer = span(text), .pos = 0};
-      fmt::Context ctx = fmt::buffer(&buffer, span(scratch));
+      Buffer       buffer = ash::buffer(span(text));
+      fmt::Context ctx    = fmt::buffer(&buffer, span(scratch));
       fmt(ctx, state.value.current);
-      input.content.set_text(span(text).slice(0, buffer.pos).as_u8());
+      input.content.set_text(span(buffer).as_u8());
     }
 
     input.state.disabled = !state.input_mode;
@@ -1758,7 +1763,7 @@ struct ScalarBox : FlexView, Pin<>
   }
 };
 
-struct ScrollBar : public View
+struct ScrollBar : View
 {
   struct State
   {
@@ -1870,7 +1875,7 @@ struct ScrollBar : public View
   }
 };
 
-struct ScrollView : public View
+struct ScrollView : View
 {
   struct State
   {
@@ -1956,7 +1961,7 @@ struct ScrollView : public View
 };
 
 // [ ] implement
-struct ContextMenu : public View
+struct ContextMenu : View
 {
 };
 
@@ -1967,7 +1972,7 @@ struct ContextMenu : public View
 /// - Text-based manual input
 /// - RGB, SRGB, HSV, HEX, Linear, Hue, YUV
 // - [ ] color space, pixel info for color pickers
-struct ColorPicker : public View
+struct ColorPicker : View
 {
 };
 
@@ -1975,18 +1980,18 @@ struct ColorPicker : public View
 /// - plot modes: histogram, lines, scale, log
 /// - plot from user buffer: can be at specific index and will plot rest from
 /// head.
-struct Plot : public View
+struct Plot : View
 {
 };
 
 // [ ] implement
-struct ProgressBar : public View
+struct ProgressBar : View
 {
 };
 
 // [ ] header selectors.
 // [ ] navigation model, with keyboard and gamepad
-struct Tab : public View
+struct Tab : View
 {
 };
 

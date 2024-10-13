@@ -155,7 +155,7 @@ struct alignas(CACHELINE_ALIGNMENT) TaskThread
 /// @param free_list arena free list. arenas not in use by any tasks are
 /// inserted here
 /// @param current_arena current arena being allocated from
-struct SchedulerImpl final : Scheduler
+struct SchedulerImpl : Scheduler
 {
   static constexpr usize ARENA_SIZE = PAGE_ALIGNMENT;
 
