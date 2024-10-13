@@ -29,6 +29,11 @@ struct Buffer
     return size_;
   }
 
+  constexpr bool is_empty() const
+  {
+    return size_ == 0;
+  }
+
   constexpr bool extend(Span<T const> in)
   {
     if ((size_ + in.size()) > capacity_)
@@ -59,26 +64,29 @@ constexpr Span<T> span(Buffer<T> buffer)
 template <typename T>
 struct RingBuffer
 {
-  usize produce_next_ = 0;
-  usize consume_next_ = 0;
   T    *data_         = nullptr;
   usize capacity_     = 0;
-
-  constexpr T *data() const
-  {
-    return data_;
-  }
+  usize size_         = 0;
+  usize consume_next_ = 0;
 
   constexpr usize capacity() const
   {
     return capacity_;
   }
 
-  constexpr usize size() const;
+  constexpr usize size() const
+  {
+    return size_;
+  }
+
+  constexpr bool is_empty() const
+  {
+    return size_ == 0;
+  }
 
   constexpr bool try_consume(T *out)
   {
-    if (produce_next_ == consume_next_)
+    if (size_ == 0)
     {
       return false;
     }
@@ -86,20 +94,22 @@ struct RingBuffer
     mem::copy(data_ + consume_next_, out, 1);
 
     consume_next_ = (consume_next_ + 1) & (capacity_ - 1);
+    size_--;
 
     return true;
   }
 
   constexpr bool try_produce(T const &in)
   {
-    if (produce_next_ == consume_next_)
+    if (size_ == capacity_)
     {
       return false;
     }
 
-    mem::copy(&in, data_ + produce_next_, 1);
+    usize const produce_next = (consume_next_ + size_) & (capacity_ - 1);
+    mem::copy(&in, data_ + produce_next, 1);
 
-    produce_next_ = (produce_next_ + 1) & (capacity_ - 1);
+    size_++;
 
     return true;
   }
