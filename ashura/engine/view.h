@@ -24,7 +24,7 @@ namespace ash
 /// most 0.5 of source size
 /// @param min clamps the source size, i.e. value should be at least 20px
 /// @param max clamps the source size, i.e. value should be at most 100px
-struct SizeConstraint
+struct Size
 {
   f32 offset = 0;
   f32 scale  = 0;
@@ -42,12 +42,31 @@ struct SizeConstraint
 
 struct Frame
 {
-  SizeConstraint width  = {};
-  SizeConstraint height = {};
+  Size width  = {};
+  Size height = {};
 
   constexpr Vec2 operator()(Vec2 extent) const
   {
     return Vec2{width(extent.x), height(extent.y)};
+  }
+};
+
+struct CornerRadii
+{
+  Size top_left     = Size{};
+  Size top_right    = Size{};
+  Size bottom_left  = Size{};
+  Size bottom_right = Size{};
+
+  static constexpr CornerRadii all(Size s)
+  {
+    return CornerRadii{s, s, s, s};
+  }
+
+  constexpr Vec4 operator()(f32 height) const
+  {
+    return Vec4{top_left(height), top_right(height), bottom_left(height),
+                bottom_right(height)};
   }
 };
 
@@ -60,13 +79,15 @@ enum class MainAlign : u8
   SpaceEvenly  = 4
 };
 
-/// @param mounted widget has been mounted to the widget tree and has now
+/// @param mounted view has been mounted to the view tree and has now
 /// received an ID.
 /// @param drag_start drag event has begun on this view
 /// @param dragging an update on the drag state has been gotten
 /// @param drag_end the dragging of this view has completed
-/// @param drag_enter drag data has entered this view and might be dropped
-/// @param drag_leave drag data has left the view without being dropped
+/// @param drag_in drag data has entered this view and might be dropped
+/// @param drag_out drag data has left the view without being dropped
+/// @param drag_over drag data is moving over this view as destination without
+/// beiung dropped
 /// @param drop drag data is now available for the view to consume
 /// @param view_hit called on every frame the view is viewed on the viewport.
 /// Can be used for partial loading
@@ -79,29 +100,26 @@ enum class MainAlign : u8
 /// @param text_input the view has received composition text
 struct ViewEvents
 {
-  bool mounted : 1       = false;
-  bool mouse_down : 1    = false;
-  bool mouse_up : 1      = false;
-  bool mouse_pressed : 1 = false;
-  bool mouse_move : 1    = false;
-  bool mouse_enter : 1   = false;
-  bool mouse_leave : 1   = false;
-  bool mouse_scroll : 1  = false;
-  bool drag_start : 1    = false;
-  bool dragging : 1      = false;
-  bool drag_end : 1      = false;
-  bool drag_enter : 1    = false;
-  bool drag_over : 1     = false;
-  bool drag_leave : 1    = false;
-  bool drop : 1          = false;
-  bool view_hit : 1      = false;
-  bool view_miss : 1     = false;
-  bool focus_in : 1      = false;
-  bool focus_out : 1     = false;
-  bool key_down : 1      = false;
-  bool key_up : 1        = false;
-  bool key_pressed : 1   = false;
-  bool text_input : 1    = false;
+  bool mounted : 1      = false;
+  bool view_hit : 1     = false;
+  bool mouse_in : 1     = false;
+  bool mouse_out : 1    = false;
+  bool mouse_down : 1   = false;
+  bool mouse_up : 1     = false;
+  bool mouse_moved : 1  = false;
+  bool mouse_scroll : 1 = false;
+  bool drag_start : 1   = false;
+  bool dragging : 1     = false;
+  bool drag_end : 1     = false;
+  bool drag_in : 1      = false;
+  bool drag_out : 1     = false;
+  bool drag_over : 1    = false;
+  bool drop : 1         = false;
+  bool focus_in : 1     = false;
+  bool focus_out : 1    = false;
+  bool key_down : 1     = false;
+  bool key_up : 1       = false;
+  bool text_input : 1   = false;
 };
 
 /// @brief Global View Context, Properties of the context all the views for
@@ -123,84 +141,99 @@ struct ViewEvents
 /// @param timedelta time elapsed between previous and current frame
 struct ViewContext
 {
-  void                    *app                     = nullptr;
-  StrHashMap<void *>       globals                 = {};
-  ClipBoard               *clipboard               = nullptr;
-  bool                     focus_in                = false;
-  bool                     focus_out               = false;
-  bool                     focused                 = false;
-  MouseButtons             mouse_downs             = MouseButtons::None;
-  MouseButtons             mouse_ups               = MouseButtons::None;
-  MouseButtons             mouse_states            = MouseButtons::None;
-  u32                      num_clicks              = 0;
-  Vec2                     mouse_position          = {};
-  Vec2                     mouse_translation       = {};
-  Vec2                     mouse_wheel_translation = {};
-  Span<u8 const>           drag_payload            = {};
-  SystemTheme              theme                   = SystemTheme::None;
-  TextDirection            direction               = TextDirection::LeftToRight;
-  Bits<u64, NUM_KEYS>      key_downs               = {};
-  Bits<u64, NUM_KEYS>      key_ups                 = {};
-  Bits<u64, NUM_KEYS>      key_states              = {};
-  Bits<u64, NUM_KEYS>      scan_downs              = {};
-  Bits<u64, NUM_KEYS>      scan_ups                = {};
-  Bits<u64, NUM_KEYS>      scan_states             = {};
-  Span<u8 const>           text                    = {};
-  Span<u32 const>          text_utf32              = {};
-  steady_clock::time_point timestamp               = {};
-  nanoseconds              timedelta               = {};
+  struct Mouse
+  {
+    bool         in : 1             = false;
+    bool         out : 1            = false;
+    bool         focused : 1        = false;
+    bool         moved : 1          = false;
+    bool         wheel_scrolled : 1 = false;
+    MouseButtons downs : 8          = MouseButtons::None;
+    MouseButtons ups : 8            = MouseButtons::None;
+    MouseButtons states : 8         = MouseButtons::None;
+    u32          num_clicks         = 0;
+    Vec2         position           = {};
+    Vec2         translation        = {};
+    Vec2         wheel_translation  = {};
+  };
+
+  struct KeyBoard
+  {
+    bool                down : 1    = false;
+    bool                up : 1      = false;
+    Bits<u64, NUM_KEYS> downs       = {};
+    Bits<u64, NUM_KEYS> ups         = {};
+    Bits<u64, NUM_KEYS> states      = {};
+    Bits<u64, NUM_KEYS> scan_downs  = {};
+    Bits<u64, NUM_KEYS> scan_ups    = {};
+    Bits<u64, NUM_KEYS> scan_states = {};
+  };
+
+  void                    *app              = nullptr;
+  StrHashMap<void *>       globals          = {};
+  steady_clock::time_point timestamp        = {};
+  nanoseconds              timedelta        = {};
+  ClipBoard               *clipboard        = nullptr;
+  SystemTheme              theme : 2        = SystemTheme::None;
+  TextDirection            direction : 1    = TextDirection::LeftToRight;
+  Mouse                    mouse            = {};
+  KeyBoard                 keyboard         = {};
+  Span<u8 const>           drag_payload     = {};
+  Span<u8 const>           text_input       = {};
+  Span<u32 const>          text_input_utf32 = {};
+  Vec2                     viewport_size    = {};
 
   constexpr bool key_down(KeyCode key) const
   {
-    return get_bit(span(key_downs), (usize) key);
+    return get_bit(span(keyboard.downs), (usize) key);
   }
 
   constexpr bool key_up(KeyCode key) const
   {
-    return get_bit(span(key_ups), (usize) key);
+    return get_bit(span(keyboard.ups), (usize) key);
   }
 
   constexpr bool key_state(KeyCode key) const
   {
-    return get_bit(span(key_states), (usize) key);
+    return get_bit(span(keyboard.states), (usize) key);
   }
 
   constexpr bool key_down(ScanCode key) const
   {
-    return get_bit(span(scan_downs), (usize) key);
+    return get_bit(span(keyboard.scan_downs), (usize) key);
   }
 
   constexpr bool key_up(ScanCode key) const
   {
-    return get_bit(span(scan_ups), (usize) key);
+    return get_bit(span(keyboard.scan_ups), (usize) key);
   }
 
   constexpr bool key_state(ScanCode key) const
   {
-    return get_bit(span(scan_states), (usize) key);
+    return get_bit(span(keyboard.scan_states), (usize) key);
   }
 
   constexpr bool mouse_down(MouseButtons b) const
   {
-    return has_bits(mouse_downs, b);
+    return has_bits(mouse.downs, b);
   }
 
   constexpr bool mouse_up(MouseButtons b) const
   {
-    return has_bits(mouse_ups, b);
+    return has_bits(mouse.ups, b);
   }
 
   constexpr bool mouse_state(MouseButtons b) const
   {
-    return has_bits(mouse_states, b);
+    return has_bits(mouse.states, b);
   }
 };
 
-/// @param tab Tab Index for Focus-Based Navigation. desired tab index, 0
+/// @param tab Tab Index for Focus-Based Navigation. desired tab index, I32_MIN
 /// meaning the default tab order based on the hierarchy of the parent to
-/// children and siblings. negative values have higher tab index priority while
-/// positive indices have lower tab priority.
-/// @param hidden if the widget should be hidden from view (will not receive
+/// children and siblings (depth-first traversal). Negative values have are
+/// focused before positive values.
+/// @param hidden if the view should be hidden from view (will not receive
 /// visual events, but still receive tick events)
 /// @param pointable can receive mouse enter/move/leave events
 /// @param clickable can receive mouse press events
@@ -212,10 +245,10 @@ struct ViewContext
 /// key/non-text keys)
 /// @param tab_input can receive `Tab` key as input when focused
 /// @param grab_focus user to focus on view
-/// @param lose_focus lose widget focus
+/// @param lose_focus lose view focus
 struct ViewState
 {
-  i32  tab            = 0;
+  i32  tab            = I32_MIN;
   bool hidden : 1     = false;
   bool pointable : 1  = false;
   bool clickable : 1  = false;
@@ -225,8 +258,8 @@ struct ViewState
   bool focusable : 1  = false;
   bool text_input : 1 = false;
   bool tab_input : 1  = false;
+  bool esc_input : 1  = false;
   bool grab_focus : 1 = false;
-  bool lose_focus : 1 = false;
 };
 
 struct CoreViewTheme
@@ -292,7 +325,10 @@ struct View
 {
   struct
   {
-    uid id = UID_MAX;
+    u64   id                  = U64_MAX;
+    u64   last_rendered_frame = 0;
+    u32   focus_idx           = 0;
+    CRect region              = {};
   } inner = {};
 
   constexpr View()                        = default;
@@ -302,33 +338,25 @@ struct View
   constexpr View &operator=(View &&)      = default;
   constexpr virtual ~View()               = default;
 
-  constexpr uid id() const
+  /// @returns the ID currently allocated to the view or U64_MAX
+  constexpr u64 id() const
   {
     return inner.id;
-  }
-
-  /// @brief get child views, this is a virtual iterator, return null once
-  /// there's no other children, if returning from an array of sub-views
-  /// consider using the `subview` method.
-  /// @param i child index
-  /// @return child view pointer or nullptr meaning no more child left.
-  constexpr virtual View *iter(u32 i)
-  {
-    (void) i;
-    return nullptr;
   }
 
   /// @brief called on every frame. used for state changes, animations, task
   /// dispatch and lightweight processing related to the GUI. heavy-weight and
   /// non-sub-millisecond tasks should be dispatched to a Subsystem that would
   /// handle that. i.e. using the multi-tasking system.
+  /// @param build callback to be called to insert subviews.
   //
   constexpr virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                                   ViewEvents events)
+                                   ViewEvents events, Fn<void(View &)> build)
   {
     (void) ctx;
     (void) region;
     (void) events;
+    (void) build;
     return ViewState{};
   }
 
@@ -366,9 +394,10 @@ struct View
 
   /// @brief returns the stacking layer index
   /// @param allocated stacking layer index allocated to this view
-  /// by parent. This functions similar to the CSS stacking context.
+  /// by parent. This functions similar to the CSS stacking context. The layer
+  /// index has a higher priority over the z-index.
   /// @return
-  constexpr virtual i32 layer(i32 allocated)
+  constexpr virtual i32 stack(i32 allocated)
   {
     return allocated;
   }
@@ -377,7 +406,7 @@ struct View
   /// @param allocated z-index allocated to this view by parent
   /// @param[out] indices z-index assigned to children
   /// @return
-  constexpr virtual i32 stack(i32 allocated, Span<i32> indices)
+  constexpr virtual i32 z_index(i32 allocated, Span<i32> indices)
   {
     fill(indices, allocated + 1);
     return allocated;
@@ -423,16 +452,5 @@ struct View
     return Cursor::Default;
   }
 };
-
-template <u32 N>
-constexpr View *subview(View *const (&subviews)[N], u32 i)
-{
-  return (i < N) ? subviews[i] : nullptr;
-}
-
-constexpr View *subview(Span<View *const> subviews, u32 i)
-{
-  return (i < subviews.size()) ? subviews[i] : nullptr;
-}
 
 }        // namespace ash

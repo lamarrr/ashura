@@ -1,8 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ashura/engine/color.h"
 #include "ashura/engine/font.h"
-#include "ashura/engine/types.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 

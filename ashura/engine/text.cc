@@ -206,7 +206,7 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
   u32 const first_glyph = l.glyphs.size32();
   i32       advance     = 0;
 
-  l.glyphs.extend_uninitialized(num_glyphs).unwrap();
+  l.glyphs.extend_uninit(num_glyphs).unwrap();
 
   for (u32 i = 0; i < num_glyphs; i++)
   {
@@ -318,7 +318,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
                                    .stringLength   = text_size};
     SBAlgorithmRef      algorithm = SBAlgorithmCreate(&codepoints);
     CHECK(algorithm != nullptr);
-    defer algorithm_del{[&] { SBAlgorithmRelease(algorithm); }};
+    defer algorithm_{[&] { SBAlgorithmRelease(algorithm); }};
     segment_levels(block.text, algorithm, block.direction, segments);
   }
 
@@ -330,7 +330,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
                                     (i32) block.language.size());
     hb_buffer_t *buffer = hb_buffer_create();
     CHECK(buffer != nullptr);
-    defer buffer_del{[&] { hb_buffer_destroy(buffer); }};
+    defer buffer_{[&] { hb_buffer_destroy(buffer); }};
 
     for (u32 p = 0; p < text_size;)
     {

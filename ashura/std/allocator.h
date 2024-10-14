@@ -26,11 +26,11 @@ typedef struct Allocator_T *Allocator;
 struct AllocatorInterface
 {
   bool (*alloc)(Allocator self, usize alignment, usize size,
-                u8 **mem)                   = nullptr;
+                u8 *&mem)                   = nullptr;
   bool (*alloc_zeroed)(Allocator self, usize alignment, usize size,
-                       u8 **mem)            = nullptr;
+                       u8 *&mem)            = nullptr;
   bool (*realloc)(Allocator self, usize alignment, usize old_size,
-                  usize new_size, u8 **mem) = nullptr;
+                  usize new_size, u8 *&mem) = nullptr;
   void (*dealloc)(Allocator self, usize alignment, u8 *mem,
                   usize size)               = nullptr;
 };
@@ -41,19 +41,19 @@ struct AllocatorImpl
   AllocatorInterface const *interface = nullptr;
 
   [[nodiscard]] constexpr bool alloc(usize alignment, usize size,
-                                     u8 **mem) const
+                                     u8 *&mem) const
   {
     return interface->alloc(self, alignment, size, mem);
   }
 
   [[nodiscard]] constexpr bool alloc_zeroed(usize alignment, usize size,
-                                            u8 **mem) const
+                                            u8 *&mem) const
   {
     return interface->alloc_zeroed(self, alignment, size, mem);
   }
 
   [[nodiscard]] constexpr bool realloc(usize alignment, usize old_size,
-                                       usize new_size, u8 **mem) const
+                                       usize new_size, u8 *&mem) const
   {
     return interface->realloc(self, alignment, old_size, new_size, mem);
   }
@@ -64,24 +64,24 @@ struct AllocatorImpl
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nalloc(usize num, T **mem) const
+  [[nodiscard]] constexpr bool nalloc(usize num, T *&mem) const
   {
-    return interface->alloc(self, alignof(T), sizeof(T) * num, (u8 **) mem);
+    return interface->alloc(self, alignof(T), sizeof(T) * num, (u8 *&) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T **mem) const
+  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T *&mem) const
   {
     return interface->alloc_zeroed(self, alignof(T), sizeof(T) * num,
-                                   (u8 **) mem);
+                                   (u8 *&) mem);
   }
 
   template <typename T>
   [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num,
-                                        T **mem) const
+                                        T *&mem) const
   {
     return interface->realloc(self, alignof(T), sizeof(T) * old_num,
-                              sizeof(T) * new_num, (u8 **) mem);
+                              sizeof(T) * new_num, (u8 *&) mem);
   }
 
   template <typename T>
@@ -96,11 +96,11 @@ struct AllocatorImpl
 /// available and supported it can allocate over-aligned memory.
 struct HeapInterface
 {
-  static bool alloc(Allocator self, usize alignment, usize size, u8 **mem);
+  static bool alloc(Allocator self, usize alignment, usize size, u8 *&mem);
   static bool alloc_zeroed(Allocator self, usize alignment, usize size,
-                           u8 **mem);
+                           u8 *&mem);
   static bool realloc(Allocator self, usize alignment, usize old_size,
-                      usize new_size, u8 **mem);
+                      usize new_size, u8 *&mem);
   static void dealloc(Allocator self, usize alignment, u8 *mem, usize size);
 };
 

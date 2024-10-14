@@ -3,6 +3,7 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/cfg.h"
 #include "ashura/std/mem.h"
+#include <cstring>
 
 #if (!ASH_CFG(OS, WINDOWS)) && \
     (ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, GNUC))
@@ -30,13 +31,13 @@
 namespace ash
 {
 
-bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 **mem)
+bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 *&mem)
 {
   (void) self;
 
   if (size == 0)
   {
-    *mem = nullptr;
+    mem = nullptr;
     return true;
   }
 
@@ -44,30 +45,30 @@ bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 **mem)
   {
     if (u8 *m = (u8 *) std::malloc(size); m != nullptr)
     {
-      *mem = m;
+      mem = m;
       return true;
     }
-    *mem = nullptr;
+    mem = nullptr;
     return false;
   }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
   if (u8 *m = (u8 *) _aligned_malloc(size, alignment); m != nullptr)
   {
-    *mem = m;
+    mem = m;
     return true;
   }
-  *mem = nullptr;
+  mem = nullptr;
   return false;
 #endif
 
 #if USE_STDC_ALIGNED_ALLOC
   if (u8 *m = (u8 *) std::aligned_alloc(alignment, size); m != nullptr)
   {
-    *mem = m;
+    mem = m;
     return true;
   }
-  *mem = nullptr;
+  mem = nullptr;
   return false;
 #endif
 
@@ -76,19 +77,19 @@ bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 **mem)
       stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
       (u64) alignment);
   (void) std::fflush(stderr);
-  *mem = nullptr;
+  mem = nullptr;
   return false;
 #endif
 }
 
 bool HeapInterface::alloc_zeroed(Allocator self, usize alignment, usize size,
-                                 u8 **mem)
+                                 u8 *&mem)
 {
   (void) self;
 
   if (size == 0)
   {
-    *mem = nullptr;
+    mem = nullptr;
     return true;
   }
 
@@ -96,10 +97,10 @@ bool HeapInterface::alloc_zeroed(Allocator self, usize alignment, usize size,
   {
     if (u8 *m = (u8 *) std::calloc(size, 1); m != nullptr)
     {
-      *mem = m;
+      mem = m;
       return true;
     }
-    *mem = nullptr;
+    mem = nullptr;
     return false;
   }
 
@@ -107,10 +108,10 @@ bool HeapInterface::alloc_zeroed(Allocator self, usize alignment, usize size,
   if (u8 *m = (u8 *) _aligned_malloc(size, alignment); m != nullptr)
   {
     std::memset(m, 0, size);
-    *mem = m;
+    mem = m;
     return true;
   }
-  *mem = nullptr;
+  mem = nullptr;
   return false;
 #endif
 
@@ -118,10 +119,10 @@ bool HeapInterface::alloc_zeroed(Allocator self, usize alignment, usize size,
   if (u8 *m = (u8 *) std::aligned_alloc(alignment, size); m != nullptr)
   {
     std::memset(m, 0, size);
-    *mem = m;
+    mem = m;
     return true;
   }
-  *mem = nullptr;
+  mem = nullptr;
   return false;
 #endif
 
@@ -131,18 +132,18 @@ bool HeapInterface::alloc_zeroed(Allocator self, usize alignment, usize size,
                       " not supported\n",
                       (u64) alignment);
   (void) std::fflush(stderr);
-  *mem = nullptr;
+  mem = nullptr;
   return false;
 #endif
 }
 
 bool HeapInterface::realloc(Allocator self, usize alignment, usize old_size,
-                            usize new_size, u8 **mem)
+                            usize new_size, u8 *&mem)
 {
   if (new_size == 0)
   {
-    HeapInterface::dealloc(self, alignment, *mem, old_size);
-    *mem = nullptr;
+    HeapInterface::dealloc(self, alignment, mem, old_size);
+    mem = nullptr;
     return true;
   }
 
@@ -150,18 +151,18 @@ bool HeapInterface::realloc(Allocator self, usize alignment, usize old_size,
 
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
-    if (u8 *m = (u8 *) std::realloc(*mem, new_size); m != nullptr)
+    if (u8 *m = (u8 *) std::realloc(mem, new_size); m != nullptr)
     {
-      *mem = m;
+      mem = m;
       return true;
     }
     return false;
   }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
-  if (u8 *m = (u8 *) _aligned_realloc(*mem, new_size, alignment); m != nullptr)
+  if (u8 *m = (u8 *) _aligned_realloc(mem, new_size, alignment); m != nullptr)
   {
-    *mem = m;
+    mem = m;
     return true;
   }
   return false;
@@ -171,9 +172,10 @@ bool HeapInterface::realloc(Allocator self, usize alignment, usize old_size,
   // stdc realloc doesn't guarantee preservation of alignment
   if (u8 *m = (u8 *) std::aligned_alloc(alignment, new_size); m != nullptr)
   {
-    (void) std::memcpy(m, *mem, old_size);
-    std::free(*mem);
-    *mem = m;
+    (void) std::memcpy(m, mem, old_size);
+    std::free(mem);
+    mem = m;
+    return true;
   }
   return false;
 #endif

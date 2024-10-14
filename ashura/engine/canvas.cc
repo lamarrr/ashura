@@ -20,7 +20,7 @@ void Path::arc(Vec<Vec2> &vtx, f32 start, f32 stop, u32 segments)
 
   u32 const first = vtx.size32();
 
-  vtx.extend_uninitialized(segments).unwrap();
+  vtx.extend_uninit(segments).unwrap();
 
   f32 const step = (stop - start) / (segments - 1);
 
@@ -39,7 +39,7 @@ void Path::circle(Vec<Vec2> &vtx, u32 segments)
 
   u32 const first = vtx.size32();
 
-  vtx.extend_uninitialized(segments).unwrap();
+  vtx.extend_uninit(segments).unwrap();
 
   f32 const step = (2 * PI) / (segments - 1);
 
@@ -92,7 +92,7 @@ void Path::rrect(Vec<Vec2> &vtx, Vec4 radii, u32 segments)
   f32 const step  = (curve_segments == 0) ? 0.0f : ((PI / 2) / curve_segments);
   u32 const first = vtx.size32();
 
-  vtx.extend_uninitialized(segments).unwrap();
+  vtx.extend_uninit(segments).unwrap();
 
   u32 i = 0;
 
@@ -166,7 +166,7 @@ void Path::bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments)
 
   u32 const first = vtx.size32();
 
-  vtx.extend_uninitialized(segments).unwrap();
+  vtx.extend_uninit(segments).unwrap();
 
   f32 const step = 1.0f / (segments - 1);
 
@@ -187,7 +187,7 @@ void Path::cubic_bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
 
   u32 const first = vtx.size32();
 
-  vtx.extend_uninitialized(segments).unwrap();
+  vtx.extend_uninit(segments).unwrap();
 
   f32 const step = 1.0f / (segments - 1);
 
@@ -207,9 +207,9 @@ void Path::catmull_rom(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
     return;
   }
 
-  u32 const beg = vtx.size();
+  u32 const beg = vtx.size32();
 
-  vtx.extend_uninitialized(segments).unwrap();
+  vtx.extend_uninit(segments).unwrap();
 
   f32 const step = 1.0f / (segments - 1);
 
@@ -234,8 +234,8 @@ void Path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vertices,
   u32 const num_points   = points.size32();
   u32 const num_vertices = (num_points - 1) * 4;
   u32 const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
-  vertices.extend_uninitialized(num_vertices).unwrap();
-  indices.extend_uninitialized(num_indices).unwrap();
+  vertices.extend_uninit(num_vertices).unwrap();
+  indices.extend_uninit(num_indices).unwrap();
 
   Vec2 *vtx  = vertices.data() + first_vtx;
   u32  *idx  = indices.data() + first_idx;
@@ -288,7 +288,7 @@ void Path::triangles(u32 first_vertex, u32 num_vertices, Vec<u32> &indices)
   CHECK(num_vertices > 3);
   u32 const num_triangles = num_vertices / 3;
   u32 const first_idx     = indices.size32();
-  indices.extend_uninitialized(num_triangles * 3).unwrap();
+  indices.extend_uninit(num_triangles * 3).unwrap();
 
   u32 *idx = indices.data() + first_idx;
   for (u32 i = 0; i < num_triangles * 3; i += 3)
@@ -309,7 +309,7 @@ void Path::triangulate_convex(Vec<u32> &idx, u32 first_vertex, u32 num_vertices)
   u32 const num_indices = (num_vertices - 2) * 3;
   u32 const first_index = idx.size32();
 
-  idx.extend_uninitialized(num_indices).unwrap();
+  idx.extend_uninit(num_indices).unwrap();
 
   for (u32 i = 0, v = 1; i < num_indices; i += 3, v++)
   {

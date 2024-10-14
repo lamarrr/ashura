@@ -4,7 +4,6 @@
 #include "SPIRV/spirv.hpp"
 #include "SPIRV/spvIR.h"
 #include "ashura/std/fs.h"
-#include "ashura/std/io.h"
 #include "ashura/std/vec.h"
 #include "glslang/Public/ShaderLang.h"
 #include <filesystem>
@@ -246,12 +245,12 @@ struct Includer : glslang::TShader::Includer
   IncludeResult *include_file(char const *header_name, char const *path)
   {
     Vec<u8> *blob;
-    if (!default_allocator.nalloc(1, &blob))
+    if (!default_allocator.nalloc(1, blob))
     {
       return nullptr;
     }
     new (blob) Vec<u8>{};
-    defer blob_del{[&] {
+    defer blob_{[&] {
       if (blob != nullptr)
       {
         blob->reset();
@@ -265,7 +264,7 @@ struct Includer : glslang::TShader::Includer
     }
 
     IncludeResult *result;
-    if (!default_allocator.nalloc(1, &result))
+    if (!default_allocator.nalloc(1, result))
     {
       return nullptr;
     }
@@ -292,11 +291,11 @@ ShaderCompileError
   {
     return ShaderCompileError::InitError;
   }
-  defer       glsl_del([] { glslang::FinalizeProcess(); });
+  defer       glsl_([] { glslang::FinalizeProcess(); });
   EShLanguage language = EShLanguage::EShLangVertex;
 
   Vec<u8> buff;
-  defer   buff_del{[&] { buff.reset(); }};
+  defer   buff_{[&] { buff.reset(); }};
 
   IoError io_err = read_file(file, buff);
   if (io_err != IoError::None)
@@ -332,7 +331,7 @@ ShaderCompileError
   shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
 
   Vec<char> entry_point_s;
-  defer     entry_point_del{[&] { entry_point_s.reset(); }};
+  defer     entry_point_{[&] { entry_point_s.reset(); }};
   if (!entry_point_s.extend_copy(entry_point))
   {
     return ShaderCompileError::OutOfMemory;
@@ -344,7 +343,7 @@ ShaderCompileError
   shader.setEntryPoint(entry_point_s.data());
   shader.setSourceEntryPoint(entry_point_s.data());
   Vec<char> preamble_s;
-  defer     preamble_del{[&] { preamble_s.reset(); }};
+  defer     preamble_{[&] { preamble_s.reset(); }};
   if (!preamble_s.extend_copy(preamble))
   {
     return ShaderCompileError::OutOfMemory;
@@ -441,14 +440,14 @@ ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
   }
 
   Vec<char> file_path;
-  defer     file_path_del{[&] { file_path.reset(); }};
+  defer     file_path_{[&] { file_path.reset(); }};
   if (!file_path.extend_copy(root_directory) || !path_append(file_path, file))
   {
     return ShaderCompileError::OutOfMemory;
   }
 
   Vec<u32>           spirv;
-  defer              spirv_del{[&] { spirv.reset(); }};
+  defer              spirv_{[&] { spirv.reset(); }};
   ShaderCompileError error =
       compile_shader(*logger, spirv, span(file_path), type, preamble,
                      "main"_span, span({root_directory}), {});

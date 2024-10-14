@@ -5,9 +5,9 @@
 #include "ashura/engine/renderer.h"
 #include "ashura/engine/shader.h"
 #include "ashura/engine/window.h"
-#include "ashura/gfx/vulkan.h"
+#include "ashura/gpu/vulkan.h"
+#include "ashura/std/fs.h"
 #include "ashura/std/hash_map.h"
-#include "ashura/std/io.h"
 #include "stdlib.h"
 #include <thread>
 
@@ -15,33 +15,34 @@ int main(int, char **)
 {
   using namespace ash;
   logger->add_sink(&stdio_sink);
+  defer log_{[&] { logger->info("Exiting"); }};
 
   // [ ] env/config to get paths for system: fonts, font cache, images, music,
   // etc.
   Vec<u8> font_data;
   CHECK(
       read_file(
-          R"(C:\Users\bayantunde\workspace\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
+          R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
           font_data) == IoError::None);
 
-  defer font_data_del{[&] { font_data.uninit(); }};
+  defer font_data_{[&] { font_data.uninit(); }};
 
   Font font = decode_font(span(font_data), 0, default_allocator).unwrap();
 
   CHECK(rasterize_font(font, 60, default_allocator));
 
-  WindowSystem *win_sys = init_sdl_window_system();
-  CHECK(win_sys != nullptr);
+  sdl_window_system->init();
+  defer sdl_window_system_{[&] { sdl_window_system->uninit(); }};
 
-  gfx::InstanceImpl instance =
-      gfx::create_vulkan_instance(heap_allocator, false).unwrap();
+  gpu::InstanceImpl instance =
+      gpu::create_vulkan_instance(heap_allocator, false).unwrap();
 
-  defer  instance_del{[&] { instance->destroy(instance.self); }};
-  Window win = win_sys->create_window(instance, "Main"_span).unwrap();
-  defer  win_del{[&] { win_sys->destroy_window(win); }};
+  defer  instance_{[&] { instance->uninit(instance.self); }};
+  Window win = sdl_window_system->create_window(instance, "Main"_span).unwrap();
+  defer  win_{[&] { sdl_window_system->uninit_window(win); }};
 
-  win_sys->maximize(win);
-  win_sys->set_title(win, "Harro"_span);
+  sdl_window_system->maximize(win);
+  sdl_window_system->set_title(win, "Harro"_span);
 
   bool should_close = false;
   auto close_fn     = [&](WindowEvent const &) { should_close = true; };
@@ -53,52 +54,53 @@ int main(int, char **)
     rr += 1;
   };
 
-  win_sys->listen(win, WindowEventTypes::CloseRequested, fn(&close_fn));
-  win_sys->listen(win, WindowEventTypes::Key, fn(&key_fn));
-  gfx::Surface    surface = win_sys->get_surface(win);
-  gfx::DeviceImpl device =
+  sdl_window_system->listen(win, WindowEventTypes::CloseRequested,
+                            fn(&close_fn));
+  sdl_window_system->listen(win, WindowEventTypes::Key, fn(&key_fn));
+  gpu::Surface    surface = sdl_window_system->get_surface(win);
+  gpu::DeviceImpl device =
       instance
           ->create_device(instance.self, default_allocator,
                           span({
-                              gfx::DeviceType::DiscreteGpu,
-                              gfx::DeviceType::VirtualGpu,
-                              gfx::DeviceType::IntegratedGpu,
-                              gfx::DeviceType::Cpu,
-                              gfx::DeviceType::Other,
+                              gpu::DeviceType::DiscreteGpu,
+                              gpu::DeviceType::VirtualGpu,
+                              gpu::DeviceType::IntegratedGpu,
+                              gpu::DeviceType::Cpu,
+                              gpu::DeviceType::Other,
                           }),
                           span({surface}), 2)
           .unwrap();
-  defer device_del{
-      [&] { instance->destroy_device(instance.self, device.self); }};
+  defer device_{[&] { instance->uninit_device(instance.self, device.self); }};
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
-  CHECK(pack_shaders(
-            spirvs,
-            span<ShaderUnit>(
-                {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
-                 {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
-                 {.id       = "Blur_UpSample:FS"_span,
-                  .file     = "blur.frag"_span,
-                  .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "Blur_UpSample:VS"_span,
-                  .file     = "blur.vert"_span,
-                  .preamble = "#define UPSAMPLE 1"_span},
-                 {.id       = "Blur_DownSample:FS"_span,
-                  .file     = "blur.frag"_span,
-                  .preamble = "#define UPSAMPLE 0"_span},
-                 {.id       = "Blur_DownSample:VS"_span,
-                  .file     = "blur.vert"_span,
-                  .preamble = "#define UPSAMPLE 0"_span},
-                 {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
-                 {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
-                 {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
-                 {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-            R"(C:\Users\bayantunde\workspace\ashura\ashura\shaders)"_span) ==
-        ShaderCompileError::None);
+  CHECK(
+      pack_shaders(
+          spirvs,
+          span<ShaderUnit>(
+              {{.id = "Ngon:FS"_span, .file = "ngon.frag"_span},
+               {.id = "Ngon:VS"_span, .file = "ngon.vert"_span},
+               {.id       = "Blur_UpSample:FS"_span,
+                .file     = "blur.frag"_span,
+                .preamble = "#define UPSAMPLE 1"_span},
+               {.id       = "Blur_UpSample:VS"_span,
+                .file     = "blur.vert"_span,
+                .preamble = "#define UPSAMPLE 1"_span},
+               {.id       = "Blur_DownSample:FS"_span,
+                .file     = "blur.frag"_span,
+                .preamble = "#define UPSAMPLE 0"_span},
+               {.id       = "Blur_DownSample:VS"_span,
+                .file     = "blur.vert"_span,
+                .preamble = "#define UPSAMPLE 0"_span},
+               {.id = "PBR:FS"_span, .file = "pbr.frag"_span},
+               {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
+               {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
+               {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
+          R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders)"_span) ==
+      ShaderCompileError::None);
 
-  StrHashMap<gfx::Shader> shaders;
-  defer                   shaders_del{[&] { shaders.reset(); }};
+  StrHashMap<gpu::Shader> shaders;
+  defer                   shaders_{[&] { shaders.reset(); }};
 
   for (auto &[id, spirv] : spirvs)
   {
@@ -108,7 +110,7 @@ int main(int, char **)
         device
             ->create_shader(
                 device.self,
-                gfx::ShaderDesc{.label = id, .spirv_code = span(spirv)})
+                gpu::ShaderDesc{.label = id, .spirv_code = span(spirv)})
             .unwrap()));
     CHECK(!exists);
     spirv.reset();
@@ -118,70 +120,70 @@ int main(int, char **)
 
   logger->info("Finished Shader Compilation");
 
-  gfx::ColorSpace  color_space_spec  = gfx::ColorSpace::DCI_P3_NONLINEAR;
-  gfx::PresentMode present_mode_spec = gfx::PresentMode::Immediate;
+  gpu::ColorSpace  color_space_spec  = gpu::ColorSpace::DCI_P3_NONLINEAR;
+  gpu::PresentMode present_mode_spec = gpu::PresentMode::Immediate;
 
-  gfx::Swapchain swapchain            = nullptr;
+  gpu::Swapchain swapchain            = nullptr;
   auto           invalidate_swapchain = [&] {
-    gfx::SurfaceCapabilities capabilities =
+    gpu::SurfaceCapabilities capabilities =
         device->get_surface_capabilities(device.self, surface).unwrap();
     CHECK(has_bits(capabilities.image_usage,
-                             gfx::ImageUsage::TransferDst |
-                                 gfx::ImageUsage::ColorAttachment));
+                             gpu::ImageUsage::TransferDst |
+                                 gpu::ImageUsage::ColorAttachment));
 
-    Vec<gfx::SurfaceFormat> formats;
-    defer                   formats_del{[&] { formats.reset(); }};
+    Vec<gpu::SurfaceFormat> formats;
+    defer                   formats_{[&] { formats.reset(); }};
     u32                     num_formats =
         device->get_surface_formats(device.self, surface, {}).unwrap();
     CHECK(num_formats != 0);
-    formats.resize_uninitialized(num_formats).unwrap();
+    formats.resize_uninit(num_formats).unwrap();
     CHECK(device->get_surface_formats(device.self, surface, span(formats))
                         .unwrap() == num_formats);
 
-    Vec<gfx::PresentMode> present_modes;
-    defer                 present_modes_del{[&] { present_modes.reset(); }};
+    Vec<gpu::PresentMode> present_modes;
+    defer                 present_modes_{[&] { present_modes.reset(); }};
     u32                   num_present_modes =
         device->get_surface_present_modes(device.self, surface, {}).unwrap();
     CHECK(num_present_modes != 0);
-    present_modes.resize_uninitialized(num_present_modes).unwrap();
+    present_modes.resize_uninit(num_present_modes).unwrap();
     CHECK(device
                         ->get_surface_present_modes(device.self, surface,
                                                     span(present_modes))
                         .unwrap() == num_present_modes);
 
-    Vec2U surface_extent = win_sys->get_surface_size(win);
+    Vec2U surface_extent = sdl_window_system->get_surface_size(win);
     surface_extent.x     = max(surface_extent.x, 1U);
     surface_extent.y     = max(surface_extent.y, 1U);
 
-    gfx::ColorSpace preferred_color_spaces[] = {
+    gpu::ColorSpace preferred_color_spaces[] = {
         color_space_spec,
-        gfx::ColorSpace::DCI_P3_NONLINEAR,
-        gfx::ColorSpace::DISPLAY_P3_NONLINEAR,
-        gfx::ColorSpace::DISPLAY_P3_LINEAR,
-        gfx::ColorSpace::ADOBERGB_LINEAR,
-        gfx::ColorSpace::ADOBERGB_NONLINEAR,
-        gfx::ColorSpace::SRGB_NONLINEAR,
-        gfx::ColorSpace::EXTENDED_SRGB_LINEAR,
-        gfx::ColorSpace::EXTENDED_SRGB_NONLINEAR,
-        gfx::ColorSpace::DOLBYVISION,
-        gfx::ColorSpace::HDR10_ST2084,
-        gfx::ColorSpace::HDR10_HLG,
-        gfx::ColorSpace::BT709_LINEAR,
-        gfx::ColorSpace::BT709_NONLINEAR,
-        gfx::ColorSpace::BT2020_LINEAR,
-        gfx::ColorSpace::PASS_THROUGH};
+        gpu::ColorSpace::DCI_P3_NONLINEAR,
+        gpu::ColorSpace::DISPLAY_P3_NONLINEAR,
+        gpu::ColorSpace::DISPLAY_P3_LINEAR,
+        gpu::ColorSpace::ADOBERGB_LINEAR,
+        gpu::ColorSpace::ADOBERGB_NONLINEAR,
+        gpu::ColorSpace::SRGB_NONLINEAR,
+        gpu::ColorSpace::EXTENDED_SRGB_LINEAR,
+        gpu::ColorSpace::EXTENDED_SRGB_NONLINEAR,
+        gpu::ColorSpace::DOLBYVISION,
+        gpu::ColorSpace::HDR10_ST2084,
+        gpu::ColorSpace::HDR10_HLG,
+        gpu::ColorSpace::BT709_LINEAR,
+        gpu::ColorSpace::BT709_NONLINEAR,
+        gpu::ColorSpace::BT2020_LINEAR,
+        gpu::ColorSpace::PASS_THROUGH};
 
-    gfx::PresentMode preferred_present_modes[] = {
-        present_mode_spec, gfx::PresentMode::Immediate,
-        gfx::PresentMode::Mailbox, gfx::PresentMode::Fifo,
-        gfx::PresentMode::FifoRelaxed};
+    gpu::PresentMode preferred_present_modes[] = {
+        present_mode_spec, gpu::PresentMode::Immediate,
+        gpu::PresentMode::Mailbox, gpu::PresentMode::Fifo,
+        gpu::PresentMode::FifoRelaxed};
 
     bool               found_format = false;
-    gfx::SurfaceFormat format;
+    gpu::SurfaceFormat format;
 
-    for (gfx::ColorSpace cp : preferred_color_spaces)
+    for (gpu::ColorSpace cp : preferred_color_spaces)
     {
-      Span sel = find_if(span(formats), [&](gfx::SurfaceFormat a) {
+      Span sel = find_if(span(formats), [&](gpu::SurfaceFormat a) {
         return a.color_space == cp;
       });
       if (!sel.is_empty())
@@ -194,10 +196,10 @@ int main(int, char **)
 
     CHECK(found_format);
 
-    gfx::PresentMode present_mode       = gfx::PresentMode::Immediate;
+    gpu::PresentMode present_mode       = gpu::PresentMode::Immediate;
     bool             found_present_mode = false;
 
-    for (gfx::PresentMode pm : preferred_present_modes)
+    for (gpu::PresentMode pm : preferred_present_modes)
     {
       if (!find(span(present_modes), pm).is_empty())
       {
@@ -209,16 +211,16 @@ int main(int, char **)
 
     CHECK(found_present_mode);
 
-    gfx::CompositeAlpha alpha      = gfx::CompositeAlpha::None;
-    gfx::CompositeAlpha alpha_spec = gfx::CompositeAlpha::Opaque;
-    gfx::CompositeAlpha preferred_alpha[] = {
+    gpu::CompositeAlpha alpha      = gpu::CompositeAlpha::None;
+    gpu::CompositeAlpha alpha_spec = gpu::CompositeAlpha::Opaque;
+    gpu::CompositeAlpha preferred_alpha[] = {
         alpha_spec,
-        gfx::CompositeAlpha::Opaque,
-        gfx::CompositeAlpha::Inherit,
-        gfx::CompositeAlpha::Inherit,
-        gfx::CompositeAlpha::PreMultiplied,
-        gfx::CompositeAlpha::PostMultiplied};
-    for (gfx::CompositeAlpha a : preferred_alpha)
+        gpu::CompositeAlpha::Opaque,
+        gpu::CompositeAlpha::Inherit,
+        gpu::CompositeAlpha::Inherit,
+        gpu::CompositeAlpha::PreMultiplied,
+        gpu::CompositeAlpha::PostMultiplied};
+    for (gpu::CompositeAlpha a : preferred_alpha)
     {
       if (has_bits(capabilities.composite_alpha, a))
       {
@@ -227,10 +229,10 @@ int main(int, char **)
       }
     }
 
-    gfx::SwapchainDesc desc{.label  = "Window Swapchain"_span,
+    gpu::SwapchainDesc desc{.label  = "Window Swapchain"_span,
                                       .format = format,
-                                      .usage  = gfx::ImageUsage::TransferDst |
-                                     gfx::ImageUsage::ColorAttachment,
+                                      .usage  = gpu::ImageUsage::TransferDst |
+                                     gpu::ImageUsage::ColorAttachment,
                                       .preferred_buffering = 2,
                                       .present_mode        = present_mode,
                                       .preferred_extent    = surface_extent,
@@ -248,33 +250,32 @@ int main(int, char **)
 
   invalidate_swapchain();
 
-  defer swapchain_del{
-      [&] { device->destroy_swapchain(device.self, swapchain); }};
+  defer swapchain_{[&] { device->uninit_swapchain(device.self, swapchain); }};
 
   // job submission to render context to prepare resources ahead of frame.
   RenderContext ctx;
   ctx.init(device, true, 2, {1920, 1080}, shaders);
   shaders = {};
-  defer ctx_del{[&] { ctx.uninit(); }};
+  defer ctx_{[&] { ctx.uninit(); }};
 
   PassContext pctx;
   pctx.init(ctx);
-  defer pctx_del{[&] { pctx.uninit(ctx); }};
+  defer pctx_{[&] { pctx.uninit(ctx); }};
 
   ctx.begin_frame(swapchain);
 
   CanvasRenderer renderer;
   renderer.init(ctx);
-  defer renderer_del{[&] { renderer.uninit(ctx); }};
+  defer renderer_{[&] { renderer.uninit(ctx); }};
 
   Canvas canvas;
   canvas.init();
-  defer canvas_del{[&] { canvas.uninit(); }};
+  defer canvas_{[&] { canvas.uninit(); }};
 
-  defer dev_wait{[&] { device->wait_idle(device.self).unwrap(); }};
+  defer wait_{[&] { device->wait_idle(device.self).unwrap(); }};
 
   upload_font_to_device(font, ctx);
-  defer fr_del{[&] { unload_font_from_device(font, ctx); }};
+  defer font_{[&] { unload_font_from_device(font, ctx); }};
 
   // [ ] create transfer queue, calculate total required setup size
   u32       runs[]        = {U32_MAX};
@@ -297,7 +298,7 @@ int main(int, char **)
   ctx.end_frame(swapchain);
   while (!should_close)
   {
-    win_sys->poll_events();
+    sdl_window_system->poll_events();
     ctx.begin_frame(swapchain);
     // [ ] maybe check for frame begin before accepting commands
     canvas.begin({1920, 1080});
@@ -385,18 +386,18 @@ int main(int, char **)
 
     renderer.begin(
         ctx, pctx, canvas,
-        gfx::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
+        gpu::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
                            .num_layers        = 1,
-                           .color_attachments = span({gfx::RenderingAttachment{
+                           .color_attachments = span({gpu::RenderingAttachment{
                                .view = ctx.screen_fb.color.view}})},
         ctx.screen_fb.color_texture);
     renderer.render(
         ctx, pctx,
-        gfx::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
+        gpu::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
                            .num_layers        = 1,
-                           .color_attachments = span({gfx::RenderingAttachment{
+                           .color_attachments = span({gpu::RenderingAttachment{
                                .view = ctx.screen_fb.color.view}})},
-        gfx::Viewport{.offset    = {0, 0},
+        gpu::Viewport{.offset    = {0, 0},
                       .extent    = {1920, 1080},
                       .min_depth = 0,
                       .max_depth = 1},
@@ -404,5 +405,4 @@ int main(int, char **)
     ctx.end_frame(swapchain);
     canvas.clear();
   }
-  logger->info("closing");
 }

@@ -5,6 +5,7 @@
 #include <bit>
 #include <cfloat>
 #include <cinttypes>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -31,7 +32,6 @@ typedef size_t    usize;
 typedef ptrdiff_t isize;
 typedef uintptr_t uptr;
 typedef intptr_t  iptr;
-typedef u64       uid;
 typedef u64       Hash;
 
 constexpr u8 U8_MIN = 0;
@@ -75,8 +75,6 @@ constexpr f64 F64_MIN_POSITIVE = DBL_MIN;
 constexpr f64 F64_MAX          = DBL_MAX;
 constexpr f64 F64_EPSILON      = DBL_EPSILON;
 constexpr f64 F64_INFINITY     = INFINITY;
-
-constexpr uid UID_MAX = U64_MAX;
 
 constexpr f32 PI = 3.14159265358979323846F;
 
@@ -523,15 +521,16 @@ struct NumTraits<T const volatile> : NumTraits<T>
 {
 };
 
-template <typename Rep, usize N>
+template <typename Repr, usize NumBits>
 inline constexpr usize BIT_PACKS =
-    (N + (NumTraits<Rep>::NUM_BITS - 1)) / NumTraits<Rep>::NUM_BITS;
+    (NumBits + (NumTraits<Repr>::NUM_BITS - 1)) >>
+    NumTraits<Repr>::LOG2_NUM_BITS;
 
-template <typename Rep>
+template <typename Repr>
 constexpr usize bit_packs(usize num_bits)
 {
-  return (num_bits + (NumTraits<Rep>::NUM_BITS - 1)) >>
-         NumTraits<Rep>::LOG2_NUM_BITS;
+  return (num_bits + (NumTraits<Repr>::NUM_BITS - 1)) >>
+         NumTraits<Repr>::LOG2_NUM_BITS;
 }
 
 /// regular void
@@ -838,8 +837,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7,
-      T8) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9>
@@ -872,8 +871,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8,
-      T9) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -910,8 +909,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9,
-      T10) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -950,8 +949,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10,
-      T11) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -992,8 +991,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11,
-      T12) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -1036,8 +1035,8 @@ struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12, typename T13>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12,
-      T13) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
@@ -1133,9 +1132,9 @@ template <typename T0, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8, typename T9,
           typename T10, typename T11, typename T12, typename T13, typename T14,
           typename T15>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
-      T15) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13,
-                    T14, T15>;
+Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)
+    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
+             T15>;
 
 template <unsigned int Index, typename Tuple>
 constexpr auto &&impl_get(Tuple &&tuple)
@@ -1318,1680 +1317,6 @@ template <typename Fn, typename... T>
 constexpr void for_each(Fn &&op, Tuple<T...> &&tuple)
 {
   impl_for_each((Fn &&) op, tuple);
-}
-
-enum class Axis : u8
-{
-  X = 0,
-  Y = 1,
-  Z = 2,
-  W = 3
-};
-
-enum class Axes : u8
-{
-  None = 0x00,
-  X    = 0x01,
-  Y    = 0x02,
-  Z    = 0x04,
-  W    = 0x08
-};
-
-ASH_DEFINE_ENUM_BIT_OPS(Axes)
-
-typedef struct Vec2   Vec2;
-typedef struct Vec3   Vec3;
-typedef struct Vec4   Vec4;
-typedef struct Vec4U8 Vec4U8;
-typedef struct Vec2I  Vec2I;
-typedef struct Vec3I  Vec3I;
-typedef struct Vec4I  Vec4I;
-typedef struct Vec2U  Vec2U;
-typedef struct Vec3U  Vec3U;
-typedef struct Vec4U  Vec4U;
-
-struct alignas(8) Vec2
-{
-  f32 x = 0;
-  f32 y = 0;
-
-  static constexpr Vec2 splat(f32 value)
-  {
-    return Vec2{value, value};
-  }
-
-  constexpr f32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr f32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-constexpr bool operator==(Vec2 a, Vec2 b)
-{
-  return a.x == b.x && a.y == b.y;
-}
-
-constexpr bool operator!=(Vec2 a, Vec2 b)
-{
-  return a.x != b.x || a.y != b.y;
-}
-
-constexpr Vec2 operator+(Vec2 a, Vec2 b)
-{
-  return Vec2{a.x + b.x, a.y + b.y};
-}
-
-constexpr Vec2 operator+(Vec2 a, f32 b)
-{
-  return Vec2{a.x + b, a.y + b};
-}
-
-constexpr Vec2 operator+(f32 a, Vec2 b)
-{
-  return Vec2{a + b.x, a + b.y};
-}
-
-constexpr Vec2 operator-(Vec2 a)
-{
-  return Vec2{-a.x, -a.y};
-}
-
-constexpr Vec2 operator-(Vec2 a, Vec2 b)
-{
-  return Vec2{a.x - b.x, a.y - b.y};
-}
-
-constexpr Vec2 operator-(Vec2 a, f32 b)
-{
-  return Vec2{a.x - b, a.y - b};
-}
-
-constexpr Vec2 operator-(f32 a, Vec2 b)
-{
-  return Vec2{a - b.x, a - b.y};
-}
-
-constexpr Vec2 operator*(Vec2 a, Vec2 b)
-{
-  return Vec2{a.x * b.x, a.y * b.y};
-}
-
-constexpr Vec2 operator*(Vec2 a, f32 b)
-{
-  return Vec2{a.x * b, a.y * b};
-}
-
-constexpr Vec2 operator*(f32 a, Vec2 b)
-{
-  return Vec2{a * b.x, a * b.y};
-}
-
-constexpr Vec2 operator/(Vec2 a, Vec2 b)
-{
-  return Vec2{a.x / b.x, a.y / b.y};
-}
-
-constexpr Vec2 operator/(Vec2 a, f32 b)
-{
-  return Vec2{a.x / b, a.y / b};
-}
-
-constexpr Vec2 operator/(f32 a, Vec2 b)
-{
-  return Vec2{a / b.x, a / b.y};
-}
-
-constexpr Vec2 &operator+=(Vec2 &a, Vec2 b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Vec2 &operator-=(Vec2 &a, Vec2 b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Vec2 &operator*=(Vec2 &a, Vec2 b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Vec2 &operator/=(Vec2 &a, Vec2 b)
-{
-  a = a / b;
-  return a;
-}
-
-struct Vec3
-{
-  f32 x = 0;
-  f32 y = 0;
-  f32 z = 0;
-
-  static constexpr Vec3 splat(f32 value)
-  {
-    return Vec3{value, value, value};
-  }
-
-  constexpr f32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr f32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-constexpr Vec3 vec3(Vec2 xy, f32 z)
-{
-  return Vec3{xy.x, xy.y, z};
-}
-
-constexpr Vec3 vec3(f32 x, Vec2 yz)
-{
-  return Vec3{x, yz.x, yz.y};
-}
-
-constexpr bool operator==(Vec3 a, Vec3 b)
-{
-  return a.x == b.x && a.y == b.y && a.z == b.z;
-}
-
-constexpr bool operator!=(Vec3 a, Vec3 b)
-{
-  return a.x != b.x || a.y != b.y || a.z != b.z;
-}
-
-constexpr Vec3 operator+(Vec3 a, Vec3 b)
-{
-  return Vec3{a.x + b.x, a.y + b.y, a.z + b.z};
-}
-
-constexpr Vec3 operator+(Vec3 a, f32 b)
-{
-  return Vec3{a.x + b, a.y + b, a.z + b};
-}
-
-constexpr Vec3 operator+(f32 a, Vec3 b)
-{
-  return Vec3{a + b.x, a + b.y, a + b.z};
-}
-
-constexpr Vec3 operator-(Vec3 a)
-{
-  return Vec3{-a.x, -a.y, -a.z};
-}
-
-constexpr Vec3 operator-(Vec3 a, Vec3 b)
-{
-  return Vec3{a.x - b.x, a.y - b.y, a.z - b.z};
-}
-
-constexpr Vec3 operator-(Vec3 a, f32 b)
-{
-  return Vec3{a.x - b, a.y - b, a.z - b};
-}
-
-constexpr Vec3 operator-(f32 a, Vec3 b)
-{
-  return Vec3{a - b.x, a - b.y, a - b.z};
-}
-
-constexpr Vec3 operator*(Vec3 a, Vec3 b)
-{
-  return Vec3{a.x * b.x, a.y * b.y, a.z * b.z};
-}
-
-constexpr Vec3 operator*(Vec3 a, f32 b)
-{
-  return Vec3{a.x * b, a.y * b, a.z * b};
-}
-
-constexpr Vec3 operator*(f32 a, Vec3 b)
-{
-  return Vec3{a * b.x, a * b.y, a * b.z};
-}
-
-constexpr Vec3 operator/(Vec3 a, Vec3 b)
-{
-  return Vec3{a.x / b.x, a.y / b.y, a.z / b.z};
-}
-
-constexpr Vec3 operator/(Vec3 a, f32 b)
-{
-  return Vec3{a.x / b, a.y / b, a.z / b};
-}
-
-constexpr Vec3 operator/(f32 a, Vec3 b)
-{
-  return Vec3{a / b.x, a / b.y, a / b.z};
-}
-
-constexpr Vec3 &operator+=(Vec3 &a, Vec3 b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Vec3 &operator-=(Vec3 &a, Vec3 b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Vec3 &operator*=(Vec3 &a, Vec3 b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Vec3 &operator/=(Vec3 &a, Vec3 b)
-{
-  a = a / b;
-  return a;
-}
-
-struct alignas(16) Vec4
-{
-  f32 x = 0;
-  f32 y = 0;
-  f32 z = 0;
-  f32 w = 0;
-
-  static constexpr Vec4 splat(f32 value)
-  {
-    return Vec4{value, value, value, value};
-  }
-
-  constexpr f32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr f32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-constexpr Vec4 vec4(Vec3 xyz, f32 w)
-{
-  return Vec4{xyz.x, xyz.y, xyz.z, w};
-}
-
-constexpr Vec4 vec4(f32 x, Vec3 yzw)
-{
-  return Vec4{x, yzw.x, yzw.y, yzw.z};
-}
-
-constexpr bool operator==(Vec4 a, Vec4 b)
-{
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
-constexpr bool operator!=(Vec4 a, Vec4 b)
-{
-  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
-}
-
-constexpr Vec4 operator+(Vec4 a, Vec4 b)
-{
-  return Vec4{a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
-}
-
-constexpr Vec4 operator+(Vec4 a, f32 b)
-{
-  return Vec4{a.x + b, a.y + b, a.z + b, a.w + b};
-}
-
-constexpr Vec4 operator+(f32 a, Vec4 b)
-{
-  return Vec4{a + b.x, a + b.y, a + b.z, a + b.w};
-}
-
-constexpr Vec4 operator-(Vec4 a)
-{
-  return Vec4{-a.x, -a.y, -a.z, -a.w};
-}
-
-constexpr Vec4 operator-(Vec4 a, Vec4 b)
-{
-  return Vec4{a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
-}
-
-constexpr Vec4 operator-(Vec4 a, f32 b)
-{
-  return Vec4{a.x - b, a.y - b, a.z - b, a.w - b};
-}
-
-constexpr Vec4 operator-(f32 a, Vec4 b)
-{
-  return Vec4{a - b.x, a - b.y, a - b.z, a - b.w};
-}
-
-constexpr Vec4 operator*(Vec4 a, Vec4 b)
-{
-  return Vec4{a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
-}
-
-constexpr Vec4 operator*(Vec4 a, f32 b)
-{
-  return Vec4{a.x * b, a.y * b, a.z * b, a.w * b};
-}
-
-constexpr Vec4 operator*(f32 a, Vec4 b)
-{
-  return Vec4{a * b.x, a * b.y, a * b.z, a * b.w};
-}
-
-constexpr Vec4 operator/(Vec4 a, Vec4 b)
-{
-  return Vec4{a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w};
-}
-
-constexpr Vec4 operator/(Vec4 a, f32 b)
-{
-  return Vec4{a.x / b, a.y / b, a.z / b, a.w / b};
-}
-
-constexpr Vec4 operator/(f32 a, Vec4 b)
-{
-  return Vec4{a / b.x, a / b.y, a / b.z, a / b.w};
-}
-
-constexpr Vec4 &operator+=(Vec4 &a, Vec4 b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Vec4 &operator-=(Vec4 &a, Vec4 b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Vec4 &operator*=(Vec4 &a, Vec4 b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Vec4 &operator/=(Vec4 &a, Vec4 b)
-{
-  a = a / b;
-  return a;
-}
-
-struct alignas(4) Vec4U8
-{
-  u8 x = 0;
-  u8 y = 0;
-  u8 z = 0;
-  u8 w = 0;
-
-  static constexpr Vec4U8 splat(u8 value)
-  {
-    return Vec4U8{value, value, value, value};
-  }
-
-  constexpr Vec4 norm() const
-  {
-    return Vec4{
-        .x = x / 255.0f, .y = y / 255.0f, .z = z / 255.0f, .w = w / 255.0f};
-  }
-
-  constexpr u8 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr u8 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-constexpr bool operator==(Vec4U8 a, Vec4U8 b)
-{
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
-constexpr bool operator!=(Vec4U8 a, Vec4U8 b)
-{
-  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
-}
-
-constexpr Vec4U8 operator+(Vec4U8 a, Vec4U8 b)
-{
-  return Vec4U8{static_cast<u8>(a.x + b.x), static_cast<u8>(a.y + b.y),
-                static_cast<u8>(a.z + b.z), static_cast<u8>(a.w + b.w)};
-}
-
-constexpr Vec4U8 operator-(Vec4U8 a, Vec4U8 b)
-{
-  return Vec4U8{static_cast<u8>(a.x - b.x), static_cast<u8>(a.y - b.y),
-                static_cast<u8>(a.z - b.z), static_cast<u8>(a.w - b.w)};
-}
-
-constexpr Vec4U8 operator*(Vec4U8 a, Vec4U8 b)
-{
-  return Vec4U8{static_cast<u8>(a.x * b.x), static_cast<u8>(a.y * b.y),
-                static_cast<u8>(a.z * b.z), static_cast<u8>(a.w * b.w)};
-}
-
-constexpr Vec4U8 operator/(Vec4U8 a, Vec4U8 b)
-{
-  return Vec4U8{static_cast<u8>(a.x / b.x), static_cast<u8>(a.y / b.y),
-                static_cast<u8>(a.z / b.z), static_cast<u8>(a.w / b.w)};
-}
-
-constexpr Vec4U8 &operator+=(Vec4U8 &a, Vec4U8 b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Vec4U8 &operator-=(Vec4U8 &a, Vec4U8 b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Vec4U8 &operator*=(Vec4U8 &a, Vec4U8 b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Vec4U8 &operator/=(Vec4U8 &a, Vec4U8 b)
-{
-  a = a / b;
-  return a;
-}
-
-struct alignas(8) Vec2I
-{
-  i32 x = 0;
-  i32 y = 0;
-
-  static constexpr Vec2I splat(i32 value)
-  {
-    return Vec2I{value, value};
-  }
-
-  constexpr i32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr i32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-constexpr bool operator==(Vec2I a, Vec2I b)
-{
-  return a.x == b.x && a.y == b.y;
-}
-
-constexpr bool operator!=(Vec2I a, Vec2I b)
-{
-  return a.x != b.x || a.y != b.y;
-}
-
-constexpr Vec2I operator+(Vec2I a, Vec2I b)
-{
-  return Vec2I{a.x + b.x, a.y + b.y};
-}
-
-constexpr Vec2I operator-(Vec2I a)
-{
-  return Vec2I{-a.x, -a.y};
-}
-
-constexpr Vec2I operator-(Vec2I a, Vec2I b)
-{
-  return Vec2I{a.x - b.x, a.y - b.y};
-}
-
-constexpr Vec2I operator*(Vec2I a, Vec2I b)
-{
-  return Vec2I{a.x * b.x, a.y * b.y};
-}
-
-constexpr Vec2I operator*(i32 a, Vec2I b)
-{
-  return Vec2I{a * b.x, a * b.y};
-}
-
-constexpr Vec2I operator*(Vec2I a, i32 b)
-{
-  return Vec2I{a.x * b, a.y * b};
-}
-
-constexpr Vec2I operator/(Vec2I a, Vec2I b)
-{
-  return Vec2I{a.x / b.x, a.y / b.y};
-}
-
-constexpr Vec2I &operator+=(Vec2I &a, Vec2I b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Vec2I &operator-=(Vec2I &a, Vec2I b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Vec2I &operator*=(Vec2I &a, Vec2I b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Vec2I &operator/=(Vec2I &a, Vec2I b)
-{
-  a = a / b;
-  return a;
-}
-
-struct Vec3I
-{
-  i32 x = 0;
-  i32 y = 0;
-  i32 z = 0;
-
-  constexpr i32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr i32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-constexpr bool operator==(Vec3I a, Vec3I b)
-{
-  return a.x == b.x && a.y == b.y && a.z == b.z;
-}
-
-constexpr bool operator!=(Vec3I a, Vec3I b)
-{
-  return a.x != b.x || a.y != b.y || a.z != b.z;
-}
-
-constexpr Vec3I operator+(Vec3I a, Vec3I b)
-{
-  return Vec3I{a.x + b.x, a.y + b.y, a.z + b.z};
-}
-
-constexpr Vec3I operator-(Vec3I a, Vec3I b)
-{
-  return Vec3I{a.x - b.x, a.y - b.y, a.z - b.z};
-}
-
-constexpr Vec3I operator*(Vec3I a, Vec3I b)
-{
-  return Vec3I{a.x * b.x, a.y * b.y, a.z * b.z};
-}
-
-constexpr Vec3I operator/(Vec3I a, Vec3I b)
-{
-  return Vec3I{a.x / b.x, a.y / b.y, a.z / b.z};
-}
-
-constexpr Vec3I &operator+=(Vec3I &a, Vec3I b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Vec3I &operator-=(Vec3I &a, Vec3I b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Vec3I &operator*=(Vec3I &a, Vec3I b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Vec3I &operator/=(Vec3I &a, Vec3I b)
-{
-  a = a / b;
-  return a;
-}
-
-struct alignas(16) Vec4I
-{
-  i32 x = 0;
-  i32 y = 0;
-  i32 z = 0;
-  i32 w = 0;
-
-  static constexpr Vec4I splat(i32 value)
-  {
-    return Vec4I{value, value, value, value};
-  }
-
-  constexpr i32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr i32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-constexpr bool operator==(Vec4I a, Vec4I b)
-{
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
-constexpr bool operator!=(Vec4I a, Vec4I b)
-{
-  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
-}
-
-constexpr Vec4I operator+(Vec4I a, Vec4I b)
-{
-  return Vec4I{a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
-}
-
-constexpr Vec4I operator-(Vec4I a, Vec4I b)
-{
-  return Vec4I{a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
-}
-
-constexpr Vec4I operator*(Vec4I a, Vec4I b)
-{
-  return Vec4I{a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
-}
-
-constexpr Vec4I operator/(Vec4I a, Vec4I b)
-{
-  return Vec4I{a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w};
-}
-
-constexpr Vec4I &operator+=(Vec4I &a, Vec4I b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Vec4I &operator-=(Vec4I &a, Vec4I b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Vec4I &operator*=(Vec4I &a, Vec4I b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Vec4I &operator/=(Vec4I &a, Vec4I b)
-{
-  a = a / b;
-  return a;
-}
-
-struct alignas(8) Vec2U
-{
-  u32 x = 0;
-  u32 y = 0;
-
-  static constexpr Vec2U splat(u32 value)
-  {
-    return Vec2U{value, value};
-  }
-
-  constexpr u32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr u32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-constexpr Vec2 as_vec2(Vec2U a)
-{
-  return Vec2{(f32) a.x, (f32) a.y};
-}
-
-constexpr bool operator==(Vec2U a, Vec2U b)
-{
-  return a.x == b.x && a.y == b.y;
-}
-
-constexpr bool operator!=(Vec2U a, Vec2U b)
-{
-  return a.x != b.x || a.y != b.y;
-}
-
-constexpr Vec2U operator+(Vec2U a, Vec2U b)
-{
-  return Vec2U{a.x + b.x, a.y + b.y};
-}
-
-constexpr Vec2U operator+(Vec2U a, u32 b)
-{
-  return Vec2U{a.x + b, a.y + b};
-}
-
-constexpr Vec2U operator+(u32 a, Vec2U b)
-{
-  return Vec2U{a + b.x, a + b.y};
-}
-
-constexpr Vec2U operator-(Vec2U a, Vec2U b)
-{
-  return Vec2U{a.x - b.x, a.y - b.y};
-}
-
-constexpr Vec2U operator-(Vec2U a, u32 b)
-{
-  return Vec2U{a.x - b, a.y - b};
-}
-
-constexpr Vec2U operator-(u32 a, Vec2U b)
-{
-  return Vec2U{a - b.x, a - b.y};
-}
-
-constexpr Vec2U operator*(Vec2U a, Vec2U b)
-{
-  return Vec2U{a.x * b.x, a.y * b.y};
-}
-
-constexpr Vec2U operator*(Vec2U a, u32 b)
-{
-  return Vec2U{a.x * b, a.y * b};
-}
-
-constexpr Vec2U operator*(u32 a, Vec2U b)
-{
-  return Vec2U{a * b.x, a * b.y};
-}
-
-constexpr Vec2U operator/(Vec2U a, Vec2U b)
-{
-  return Vec2U{a.x / b.x, a.y / b.y};
-}
-
-constexpr Vec2U operator/(Vec2U a, u32 b)
-{
-  return Vec2U{a.x / b, a.y / b};
-}
-
-constexpr Vec2U operator/(u32 a, Vec2U b)
-{
-  return Vec2U{a / b.x, a / b.y};
-}
-
-constexpr Vec2U &operator+=(Vec2U &a, Vec2U b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Vec2U &operator-=(Vec2U &a, Vec2U b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Vec2U &operator*=(Vec2U &a, Vec2U b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Vec2U &operator/=(Vec2U &a, Vec2U b)
-{
-  a = a / b;
-  return a;
-}
-
-struct Vec3U
-{
-  u32 x = 0;
-  u32 y = 0;
-  u32 z = 0;
-
-  static constexpr Vec3U splat(u32 value)
-  {
-    return Vec3U{value, value, value};
-  }
-
-  constexpr u32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr u32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-constexpr bool operator==(Vec3U a, Vec3U b)
-{
-  return a.x == b.x && a.y == b.y && a.z == b.z;
-}
-
-constexpr bool operator!=(Vec3U a, Vec3U b)
-{
-  return a.x != b.x || a.y != b.y || a.z != b.z;
-}
-
-constexpr Vec3U operator+(Vec3U a, Vec3U b)
-{
-  return Vec3U{a.x + b.x, a.y + b.y, a.z + b.z};
-}
-
-constexpr Vec3U operator-(Vec3U a, Vec3U b)
-{
-  return Vec3U{a.x - b.x, a.y - b.y, a.z - b.z};
-}
-
-constexpr Vec3U operator*(Vec3U a, Vec3U b)
-{
-  return Vec3U{a.x * b.x, a.y * b.y, a.z * b.z};
-}
-
-constexpr Vec3U operator/(Vec3U a, Vec3U b)
-{
-  return Vec3U{a.x / b.x, a.y / b.y, a.z / b.z};
-}
-
-constexpr Vec3U &operator+=(Vec3U &a, Vec3U b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Vec3U &operator-=(Vec3U &a, Vec3U b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Vec3U &operator*=(Vec3U &a, Vec3U b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Vec3U &operator/=(Vec3U &a, Vec3U b)
-{
-  a = a / b;
-  return a;
-}
-
-struct alignas(16) Vec4U
-{
-  u32 x = 0;
-  u32 y = 0;
-  u32 z = 0;
-  u32 w = 0;
-
-  static constexpr Vec4U splat(u32 value)
-  {
-    return Vec4U{value, value, value, value};
-  }
-
-  constexpr u32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr u32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-constexpr bool operator==(Vec4U a, Vec4U b)
-{
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
-constexpr bool operator!=(Vec4U a, Vec4U b)
-{
-  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
-}
-
-constexpr Vec4U operator+(Vec4U a, Vec4U b)
-{
-  return Vec4U{a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
-}
-
-constexpr Vec4U operator-(Vec4U a, Vec4U b)
-{
-  return Vec4U{a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
-}
-
-constexpr Vec4U operator*(Vec4U a, Vec4U b)
-{
-  return Vec4U{a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
-}
-
-constexpr Vec4U operator/(Vec4U a, Vec4U b)
-{
-  return Vec4U{a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w};
-}
-
-constexpr Vec4U &operator+=(Vec4U &a, Vec4U b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Vec4U &operator-=(Vec4U &a, Vec4U b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Vec4U &operator*=(Vec4U &a, Vec4U b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Vec4U &operator/=(Vec4U &a, Vec4U b)
-{
-  a = a / b;
-  return a;
-}
-
-constexpr f32 dot(Vec2 a, Vec2 b)
-{
-  return a.x * b.x + a.y * b.y;
-}
-
-constexpr i32 dot(Vec2I a, Vec2I b)
-{
-  return a.x * b.x + a.y * b.y;
-}
-
-constexpr f32 dot(Vec3 a, Vec3 b)
-{
-  return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-constexpr i32 dot(Vec3I a, Vec3I b)
-{
-  return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-constexpr f32 dot(Vec4 a, Vec4 b)
-{
-  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
-}
-
-constexpr i32 dot(Vec4I a, Vec4I b)
-{
-  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
-}
-
-constexpr f32 cross(Vec2 a, Vec2 b)
-{
-  return a.x * b.y - b.x * a.y;
-}
-
-constexpr i32 cross(Vec2I a, Vec2I b)
-{
-  return a.x * b.y - b.x * a.y;
-}
-
-constexpr Vec3 cross(Vec3 a, Vec3 b)
-{
-  return Vec3{a.y * b.z - a.z * b.y, -(a.x * b.z - a.z * b.x),
-              a.x * b.y - a.y * b.x};
-}
-
-constexpr Vec3I cross(Vec3I a, Vec3I b)
-{
-  return Vec3I{a.y * b.z - a.z * b.y, -(a.x * b.z - a.z * b.x),
-               a.x * b.y - a.y * b.x};
-}
-
-constexpr f32 inverse_sqrt(f32 num)
-{
-  // (enable only on IEEE 754)
-  static_assert(std::numeric_limits<f32>::is_iec559);
-  f32 const y = std::bit_cast<f32>(0x5f3759df - (std::bit_cast<u32>(num) >> 1));
-  return y * (1.5f - (num * 0.5f * y * y));
-}
-
-constexpr Vec2 normalize(Vec2 a)
-{
-  return a * inverse_sqrt(dot(a, a));
-}
-
-constexpr Vec3 normalize(Vec3 a)
-{
-  return a * inverse_sqrt(dot(a, a));
-}
-
-constexpr Vec4 normalize(Vec4 a)
-{
-  return a * inverse_sqrt(dot(a, a));
-}
-
-struct Mat2
-{
-  Vec2 rows[2] = {};
-
-  static constexpr Mat2 splat(f32 value)
-  {
-    return Mat2{.rows = {{value, value}, {value, value}}};
-  }
-
-  static constexpr Mat2 diagonal(f32 value)
-  {
-    return Mat2{.rows = {{value, 0}, {0, value}}};
-  }
-
-  static constexpr Mat2 identity()
-  {
-    return diagonal(1);
-  }
-
-  constexpr Vec2 &operator[](usize index)
-  {
-    return rows[index];
-  }
-
-  constexpr Vec2 const &operator[](usize index) const
-  {
-    return rows[index];
-  }
-
-  constexpr Vec2 x() const
-  {
-    return Vec2{rows[0].x, rows[1].x};
-  }
-
-  constexpr Vec2 y() const
-  {
-    return Vec2{rows[0].y, rows[1].y};
-  }
-};
-
-constexpr bool operator==(Mat2 const &a, Mat2 const &b)
-{
-  return a[0] == b[0] && a[1] == b[1];
-}
-
-constexpr bool operator!=(Mat2 const &a, Mat2 const &b)
-{
-  return a[0] != b[0] || a[1] != b[1];
-}
-
-constexpr Mat2 operator+(Mat2 const &a, Mat2 const &b)
-{
-  return Mat2{.rows = {a[0] + b[0], a[1] + b[1]}};
-}
-
-constexpr Mat2 operator-(Mat2 const &a, Mat2 const &b)
-{
-  return Mat2{.rows = {a[0] - b[0], a[1] - b[1]}};
-}
-
-constexpr Vec2 operator*(Mat2 const &a, Vec2 const &b)
-{
-  return Vec2{dot(a[0], b), dot(a[1], b)};
-}
-
-constexpr Mat2 operator*(Mat2 const &a, Mat2 const &b)
-{
-  return Mat2{.rows = {{dot(a[0], b.x()), dot(a[0], b.y())},
-                       {dot(a[1], b.x()), dot(a[1], b.y())}}};
-}
-
-constexpr Mat2 operator/(Mat2 const &a, Mat2 const &b)
-{
-  return Mat2{.rows = {a[0] / b[0], a[1] / b[1]}};
-}
-
-constexpr Mat2 &operator+=(Mat2 &a, Mat2 const &b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Mat2 &operator-=(Mat2 &a, Mat2 const &b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Mat2 &operator*=(Mat2 &a, Mat2 const &b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Mat2 &operator/=(Mat2 &a, Mat2 const &b)
-{
-  a = a / b;
-  return a;
-}
-
-struct Mat3
-{
-  Vec3 rows[3] = {};
-
-  static constexpr Mat3 splat(f32 value)
-  {
-    return Mat3{.rows = {{value, value, value},
-                         {value, value, value},
-                         {value, value, value}}};
-  }
-
-  static constexpr Mat3 diagonal(f32 value)
-  {
-    return Mat3{.rows = {{value, 0, 0}, {0, value, 0}, {0, 0, value}}};
-  }
-
-  static constexpr Mat3 identity()
-  {
-    return diagonal(1);
-  }
-
-  constexpr Vec3 &operator[](usize index)
-  {
-    return rows[index];
-  }
-
-  constexpr Vec3 const &operator[](usize index) const
-  {
-    return rows[index];
-  }
-
-  constexpr Vec3 x() const
-  {
-    return Vec3{rows[0].x, rows[1].x, rows[2].x};
-  }
-
-  constexpr Vec3 y() const
-  {
-    return Vec3{rows[0].y, rows[1].y, rows[2].y};
-  }
-
-  constexpr Vec3 z() const
-  {
-    return Vec3{rows[0].z, rows[1].z, rows[2].z};
-  }
-};
-
-constexpr bool operator==(Mat3 const &a, Mat3 const &b)
-{
-  return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
-}
-
-constexpr bool operator!=(Mat3 const &a, Mat3 const &b)
-{
-  return a[0] != b[0] || a[1] != b[1] || a[2] != b[2];
-}
-
-constexpr Mat3 operator+(Mat3 const &a, Mat3 const &b)
-{
-  return Mat3{.rows = {a[0] + b[0], a[1] + b[1], a[2] + b[2]}};
-}
-
-constexpr Mat3 operator-(Mat3 const &a, Mat3 const &b)
-{
-  return Mat3{.rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2]}};
-}
-
-constexpr Vec3 operator*(Mat3 const &a, Vec3 const &b)
-{
-  return Vec3{dot(a[0], b), dot(a[1], b), dot(a[2], b)};
-}
-
-constexpr Mat3 operator*(Mat3 const &a, Mat3 const &b)
-{
-  return Mat3{.rows = {
-                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-                  {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())},
-              }};
-}
-
-constexpr Mat3 operator/(Mat3 const &a, Mat3 const &b)
-{
-  return Mat3{.rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2]}};
-}
-
-constexpr Mat3 &operator+=(Mat3 &a, Mat3 const &b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Mat3 &operator-=(Mat3 &a, Mat3 const &b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Mat3 &operator*=(Mat3 &a, Mat3 const &b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Mat3 &operator/=(Mat3 &a, Mat3 const &b)
-{
-  a = a / b;
-  return a;
-}
-
-struct Mat3Affine
-{
-  static constexpr Vec3 trailing_row = Vec3{0, 0, 1};
-  Vec3                  rows[2]      = {};
-
-  constexpr Vec3 &operator[](usize index)
-  {
-    return rows[index];
-  }
-
-  constexpr Vec3 const &operator[](usize index) const
-  {
-    return rows[index];
-  }
-
-  constexpr operator Mat3() const
-  {
-    return Mat3{.rows = {rows[0], rows[1], {0, 0, 1}}};
-  }
-
-  constexpr Vec3 x() const
-  {
-    return Vec3{rows[0].x, rows[1].x, 0};
-  }
-
-  constexpr Vec3 y() const
-  {
-    return Vec3{rows[0].y, rows[1].y, 0};
-  }
-
-  constexpr Vec3 z() const
-  {
-    return Vec3{rows[0].z, rows[1].z, 1};
-  }
-};
-
-constexpr bool operator==(Mat3Affine const &a, Mat3Affine const &b)
-{
-  return a[0] == b[0] && a[1] == b[1];
-}
-
-constexpr bool operator!=(Mat3Affine const &a, Mat3Affine const &b)
-{
-  return a[0] != b[0] || a[1] != b[1];
-}
-
-constexpr Mat3Affine operator+(Mat3Affine const &a, Mat3Affine const &b)
-{
-  return Mat3Affine{.rows = {a[0] + b[0], a[1] + b[1]}};
-}
-
-constexpr Mat3Affine operator-(Mat3Affine const &a, Mat3Affine const &b)
-{
-  return Mat3Affine{.rows = {a[0] - b[0], a[1] - b[1]}};
-}
-
-constexpr Vec3 operator*(Mat3Affine const &a, Vec3 const &b)
-{
-  return Vec3{dot(a[0], b), dot(a[1], b), dot(Mat3Affine::trailing_row, b)};
-}
-
-constexpr Mat3 operator*(Mat3Affine const &a, Mat3 const &b)
-{
-  return Mat3{.rows = {
-                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-                  {dot(Mat3Affine::trailing_row, b.x()),
-                   dot(Mat3Affine::trailing_row, b.y()),
-                   dot(Mat3Affine::trailing_row, b.z())},
-              }};
-}
-
-constexpr Mat3 operator*(Mat3 const &a, Mat3Affine const &b)
-{
-  return Mat3{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-                       {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-                       {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())}}};
-}
-
-constexpr Mat3Affine operator*(Mat3Affine const &a, Mat3Affine const &b)
-{
-  return Mat3Affine{
-      .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())}}};
-}
-
-constexpr Mat3Affine operator/(Mat3Affine const &a, Mat3Affine const &b)
-{
-  return Mat3Affine{.rows = {a[0] / b[0], a[1] / b[1]}};
-}
-
-constexpr Mat3Affine &operator+=(Mat3Affine &a, Mat3Affine const &b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Mat3Affine &operator-=(Mat3Affine &a, Mat3Affine const &b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Mat3Affine &operator*=(Mat3Affine &a, Mat3Affine const &b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Mat3Affine &operator/=(Mat3Affine &a, Mat3Affine const &b)
-{
-  a = a / b;
-  return a;
-}
-
-struct Mat4
-{
-  Vec4 rows[4] = {};
-
-  static constexpr Mat4 splat(f32 value)
-  {
-    return Mat4{.rows = {{value, value, value, value},
-                         {value, value, value, value},
-                         {value, value, value, value},
-                         {value, value, value, value}}};
-  }
-
-  static constexpr Mat4 diagonal(f32 value)
-  {
-    return Mat4{.rows = {{value, 0, 0, 0},
-                         {0, value, 0, 0},
-                         {0, 0, value, 0},
-                         {0, 0, 0, value}}};
-  }
-
-  static constexpr Mat4 identity()
-  {
-    return diagonal(1);
-  }
-
-  constexpr Vec4 &operator[](usize index)
-  {
-    return rows[index];
-  }
-
-  constexpr Vec4 const &operator[](usize index) const
-  {
-    return rows[index];
-  }
-
-  constexpr Vec4 x() const
-  {
-    return Vec4{rows[0].x, rows[1].x, rows[2].x, rows[3].x};
-  }
-
-  constexpr Vec4 y() const
-  {
-    return Vec4{rows[0].y, rows[1].y, rows[2].y, rows[3].y};
-  }
-
-  constexpr Vec4 z() const
-  {
-    return Vec4{rows[0].z, rows[1].z, rows[2].z, rows[3].z};
-  }
-
-  constexpr Vec4 w() const
-  {
-    return Vec4{rows[0].w, rows[1].w, rows[2].w, rows[3].w};
-  }
-};
-
-constexpr bool operator==(Mat4 const &a, Mat4 const &b)
-{
-  return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
-}
-
-constexpr bool operator!=(Mat4 const &a, Mat4 const &b)
-{
-  return a[0] != b[0] || a[1] != b[1] || a[2] != b[2] || a[3] != b[3];
-}
-
-constexpr Mat4 operator+(Mat4 const &a, Mat4 const &b)
-{
-  return Mat4{.rows = {a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]}};
-}
-
-constexpr Mat4 operator-(Mat4 const &a, Mat4 const &b)
-{
-  return Mat4{.rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2], a[3] - b[3]}};
-}
-
-constexpr Vec4 operator*(Mat4 const &a, Vec4 const &b)
-{
-  return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b), dot(a[3], b)};
-}
-
-constexpr Mat4 operator*(Mat4 const &a, Mat4 const &b)
-{
-  return Mat4{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-                        dot(a[0], b.w())},
-                       {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-                        dot(a[1], b.w())},
-                       {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-                        dot(a[2], b.w())},
-                       {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
-                        dot(a[3], b.w())}}};
-}
-
-constexpr Mat4 operator/(Mat4 const &a, Mat4 const &b)
-{
-  return Mat4{.rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2], a[3] / b[3]}};
-}
-
-constexpr Mat4 &operator+=(Mat4 &a, Mat4 const &b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Mat4 &operator-=(Mat4 &a, Mat4 const &b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Mat4 &operator*=(Mat4 &a, Mat4 const &b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Mat4 &operator/=(Mat4 &a, Mat4 const &b)
-{
-  a = a / b;
-  return a;
-}
-
-struct Mat4Affine
-{
-  static constexpr Vec4 trailing_row = Vec4{0, 0, 0, 1};
-  Vec4                  rows[3]      = {};
-
-  constexpr Vec4 &operator[](usize index)
-  {
-    return rows[index];
-  }
-
-  constexpr Vec4 const &operator[](usize index) const
-  {
-    return rows[index];
-  }
-
-  constexpr operator Mat4() const
-  {
-    return Mat4{.rows = {rows[0], rows[1], rows[2], {0, 0, 0, 1}}};
-  }
-
-  static constexpr Mat4Affine identity()
-  {
-    return Mat4Affine{.rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}}};
-  }
-
-  constexpr Vec4 x() const
-  {
-    return Vec4{rows[0].x, rows[1].x, rows[2].x, 0};
-  }
-
-  constexpr Vec4 y() const
-  {
-    return Vec4{rows[0].y, rows[1].y, rows[2].y, 0};
-  }
-
-  constexpr Vec4 z() const
-  {
-    return Vec4{rows[0].z, rows[1].z, rows[2].z, 0};
-  }
-
-  constexpr Vec4 w() const
-  {
-    return Vec4{rows[0].w, rows[1].w, rows[2].w, 1};
-  }
-};
-
-constexpr bool operator==(Mat4Affine const &a, Mat4Affine const &b)
-{
-  return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
-}
-
-constexpr bool operator!=(Mat4Affine const &a, Mat4Affine const &b)
-{
-  return a[0] != b[0] || a[1] != b[1] || a[2] != b[2];
-}
-
-constexpr Mat4Affine operator+(Mat4Affine const &a, Mat4Affine const &b)
-{
-  return Mat4Affine{.rows = {a[0] + b[0], a[1] + b[1], a[2] + b[2]}};
-}
-
-constexpr Mat4Affine operator-(Mat4Affine const &a, Mat4Affine const &b)
-{
-  return Mat4Affine{.rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2]}};
-}
-
-constexpr Vec4 operator*(Mat4Affine const &a, Vec4 const &b)
-{
-  return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b),
-              dot(Mat4Affine::trailing_row, b)};
-}
-
-constexpr Mat4 operator*(Mat4Affine const &a, Mat4 const &b)
-{
-  return Mat4{.rows = {
-                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-                   dot(a[0], b.w())},
-                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-                   dot(a[1], b.w())},
-                  {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-                   dot(a[2], b.w())},
-                  {dot(Mat4Affine::trailing_row, b.x()),
-                   dot(Mat4Affine::trailing_row, b.y()),
-                   dot(Mat4Affine::trailing_row, b.z()),
-                   dot(Mat4Affine::trailing_row, b.w())},
-              }};
-}
-
-constexpr Mat4 operator*(Mat4 const &a, Mat4Affine const &b)
-{
-  return Mat4{.rows = {
-                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-                   dot(a[0], b.w())},
-                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-                   dot(a[1], b.w())},
-                  {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-                   dot(a[2], b.w())},
-                  {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
-                   dot(a[3], b.w())},
-              }};
-}
-
-constexpr Mat4Affine operator*(Mat4Affine const &a, Mat4Affine const &b)
-{
-  return Mat4Affine{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()),
-                              dot(a[0], b.z()), dot(a[0], b.w())},
-                             {dot(a[1], b.x()), dot(a[1], b.y()),
-                              dot(a[1], b.z()), dot(a[1], b.w())},
-                             {dot(a[2], b.x()), dot(a[2], b.y()),
-                              dot(a[2], b.z()), dot(a[2], b.w())}}};
-}
-
-constexpr Mat4Affine operator/(Mat4Affine const &a, Mat4Affine const &b)
-{
-  return Mat4Affine{.rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2]}};
-}
-
-constexpr Mat4Affine &operator+=(Mat4Affine &a, Mat4Affine const &b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Mat4Affine &operator-=(Mat4Affine &a, Mat4Affine const &b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Mat4Affine &operator*=(Mat4Affine &a, Mat4Affine const &b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Mat4Affine &operator/=(Mat4Affine &a, Mat4Affine const &b)
-{
-  a = a / b;
-  return a;
 }
 
 struct Slice
@@ -3279,16 +1604,17 @@ struct Array
   }
 };
 
-template <typename Rep, usize N>
-using Bits = Rep[BIT_PACKS<Rep, N>];
+template <typename Repr, usize N>
+using Bits = Repr[BIT_PACKS<Repr, N>];
 
-template <typename Rep, usize N>
-using BitArray = Array<Rep, BIT_PACKS<Rep, N>>;
+template <typename Repr, usize N>
+using BitArray = Array<Repr, BIT_PACKS<Repr, N>>;
 
 template <typename T>
 struct Span
 {
   using Type = T;
+  using Repr = T;
 
   T    *data_ = nullptr;
   usize size_ = 0;
@@ -3612,8 +1938,8 @@ constexpr usize find_clear_bit(Span<u64 const> s)
 template <typename R>
 struct BitSpan
 {
-  using Repr = R;
   using Type = bool;
+  using Repr = R;
 
   Span<R> repr_     = {};
   usize   bit_size_ = 0;
@@ -3645,17 +1971,47 @@ struct BitSpan
 
   constexpr bool operator[](usize index) const
   {
-    return get_bit(repr_, index);
+    return ::ash::get_bit(repr_, index);
   }
 
   constexpr bool get(usize index) const
   {
-    return get_bit(repr_, index);
+    return ::ash::get_bit(repr_, index);
   }
 
   constexpr void set(usize index, bool value) const
   {
-    assign_bit(span(repr_), index, value);
+    ::ash::assign_bit(repr_, index, value);
+  }
+
+  constexpr bool get_bit(usize index) const
+  {
+    return ::ash::get_bit(repr_, index);
+  }
+
+  constexpr bool set_bit(usize index) const
+  {
+    return ::ash::set_bit(repr_, index);
+  }
+
+  constexpr bool clear_bit(usize index) const
+  {
+    return ::ash::clear_bit(repr_, index);
+  }
+
+  constexpr void flip_bit(usize index) const
+  {
+    ::ash::flip_bit(repr_, index);
+  }
+
+  constexpr usize find_set_bit()
+  {
+    return min(::ash::find_set_bit(repr_), size());
+  }
+
+  constexpr usize find_clear_bit()
+  {
+    return min(::ash::find_clear_bit(repr_), size());
   }
 
   constexpr operator BitSpan<R const>() const
@@ -3673,98 +2029,6 @@ template <typename R>
 constexpr BitSpan<R> bit_span(Span<R> span, usize num_bits)
 {
   return BitSpan<R>{.repr_ = span, .bit_size_ = num_bits};
-}
-
-constexpr void clear_bit(BitSpan<u8> s, usize index)
-{
-  clear_bit(s.repr(), index);
-}
-
-constexpr void clear_bit(BitSpan<u16> s, usize index)
-{
-  clear_bit(s.repr(), index);
-}
-
-constexpr void clear_bit(BitSpan<u32> s, usize index)
-{
-  clear_bit(s.repr(), index);
-}
-
-constexpr void clear_bit(BitSpan<u64> s, usize index)
-{
-  clear_bit(s.repr(), index);
-}
-
-constexpr void set_bit(BitSpan<u8> s, usize index)
-{
-  set_bit(s.repr(), index);
-}
-
-constexpr void set_bit(BitSpan<u16> s, usize index)
-{
-  set_bit(s.repr(), index);
-}
-
-constexpr void set_bit(BitSpan<u32> s, usize index)
-{
-  set_bit(s.repr(), index);
-}
-
-constexpr void set_bit(BitSpan<u64> s, usize index)
-{
-  set_bit(s.repr(), index);
-}
-
-constexpr void assign_bit(BitSpan<u8> s, usize index, bool b)
-{
-  assign_bit(s.repr(), index, b);
-}
-
-constexpr void assign_bit(BitSpan<u16> s, usize index, bool b)
-{
-  assign_bit(s.repr(), index, b);
-}
-
-constexpr void assign_bit(BitSpan<u32> s, usize index, bool b)
-{
-  assign_bit(s.repr(), index, b);
-}
-
-constexpr void assign_bit(BitSpan<u64> s, usize index, bool b)
-{
-  assign_bit(s.repr(), index, b);
-}
-
-constexpr void flip_bit(BitSpan<u8> s, usize index)
-{
-  flip_bit(s.repr(), index);
-}
-
-constexpr void flip_bit(BitSpan<u16> s, usize index)
-{
-  flip_bit(s.repr(), index);
-}
-
-constexpr void flip_bit(BitSpan<u32> s, usize index)
-{
-  flip_bit(s.repr(), index);
-}
-
-constexpr void flip_bit(BitSpan<u64> s, usize index)
-{
-  flip_bit(s.repr(), index);
-}
-
-template <typename R>
-constexpr usize find_set_bit(BitSpan<R> s)
-{
-  return min(find_set_bit(s.repr()), s.size());
-}
-
-template <typename R>
-constexpr usize find_clear_bit(BitSpan<R> s)
-{
-  return min(find_clear_bit(s.repr()), s.size());
 }
 
 template <typename Lambda>
@@ -3837,7 +2101,7 @@ struct PFnTraits<R(Args...)>
 };
 
 template <typename R, typename... Args>
-struct PFnTraits<R (*)(Args...)> : public PFnTraits<R(Args...)>
+struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
 {
 };
 
@@ -3880,7 +2144,7 @@ struct MemberFnTraits<R (T::*)(Args...) const>
 };
 
 template <class T>
-struct FunctorTraits : public MemberFnTraits<decltype(&T::operator())>
+struct FunctorTraits : MemberFnTraits<decltype(&T::operator())>
 {
 };
 

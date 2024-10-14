@@ -44,7 +44,7 @@ TEST(SparseVecTest, Start)
   ASSERT_EQ(f.data(), nullptr);
   ASSERT_EQ(f.capacity(), 0);
 
-  SparseVec<Vec<u64>, Vec<u64>, BitVec<usize>> set;
+  SparseVec<Vec<u64>, Vec<u64>, BitVec<u64>> set;
 
   ASSERT_TRUE(set.push(69U, 67U, true));
   ASSERT_EQ(set.size(), 1);

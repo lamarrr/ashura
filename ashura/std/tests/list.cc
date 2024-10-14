@@ -1,6 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/list.h"
-#include "ashura/std/arena_allocator.h"
+#include "ashura/std/allocators.h"
 #include "ashura/std/error.h"
 #include "gtest/gtest.h"
 
@@ -12,8 +12,8 @@ TEST(ListTest, Insertion)
   List<int>      l;
   ListNode<int> *x;
   ListNode<int> *y;
-  CHECK(pool.nalloc(1, &x));
-  CHECK(pool.nalloc(1, &y));
+  CHECK(pool.nalloc(1, x));
+  CHECK(pool.nalloc(1, y));
   x->link();
   y->link();
 

@@ -6,8 +6,11 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/panic.h"
 #include "ashura/std/types.h"
+#include <atomic>
 #include <mutex>
 #include <stdlib.h>
+
+#define ASH_DUMP(x) ::ash::logger->trace(#x, " = ", x);
 
 namespace ash
 {
@@ -95,8 +98,8 @@ struct Logger : Pin<>
   {
     std::lock_guard lock{mutex};
     char            scratch[SCRATCH_SIZE];
-    fmt::Buffer     b{.buffer = span(buffer)};
-    fmt::Context    ctx = fmt::buffer(&b, span(scratch));
+    Buffer<char>    msg = ash::buffer(span(buffer));
+    fmt::Context    ctx = fmt::buffer(&msg, span(scratch));
     if (!fmt::format(ctx, args..., "\n"))
     {
       return false;
@@ -104,7 +107,7 @@ struct Logger : Pin<>
 
     for (LogSink *sink : Span{sinks, num_sinks})
     {
-      sink->log(level, span(buffer).slice(0, b.pos));
+      sink->log(level, span(msg));
     }
     return true;
   }
@@ -112,7 +115,8 @@ struct Logger : Pin<>
   template <typename... Args>
   [[noreturn]] void panic(Args const &...args)
   {
-    if (panic_count->fetch_add(1, std::memory_order::relaxed))
+    std::atomic_ref panic_count{*ash::panic_count};
+    if (panic_count.fetch_add(1, std::memory_order::relaxed))
     {
       (void) fputs("panicked while processing a panic. aborting...", stderr);
       (void) fflush(stderr);
@@ -133,7 +137,7 @@ struct Logger : Pin<>
   void init(Span<LogSink *const> sinks_list)
   {
     copy(sinks_list.slice(0, MAX_SINKS), span(sinks));
-    num_sinks = sinks_list.size();
+    num_sinks = sinks_list.size32();
   }
 
   bool add_sink(LogSink *s)
@@ -155,7 +159,7 @@ struct Logger : Pin<>
   }
 };
 
-struct StdioSink final : LogSink
+struct StdioSink : LogSink
 {
   std::mutex mutex;
 
@@ -163,7 +167,7 @@ struct StdioSink final : LogSink
   void flush() override;
 };
 
-struct FileSink final : LogSink
+struct FileSink : LogSink
 {
   FILE      *file = nullptr;
   std::mutex mutex;

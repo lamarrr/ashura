@@ -8,7 +8,7 @@
 
 namespace ash
 {
-namespace gfx
+namespace gpu
 {
 
 constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
@@ -1005,18 +1005,18 @@ struct RasterizationState
 
 struct GraphicsState
 {
-  Rect           scissor                  = {};
-  Viewport       viewport                 = {};
-  Vec4           blend_constant           = {};
-  bool           stencil_test_enable      = false;
-  StencilState   front_face_stencil       = {};
-  StencilState   back_face_stencil        = {};
-  gfx::CullMode  cull_mode                = gfx::CullMode::None;
-  gfx::FrontFace front_face               = gfx::FrontFace::CounterClockWise;
-  bool           depth_test_enable        = false;
-  gfx::CompareOp depth_compare_op         = gfx::CompareOp::Never;
-  bool           depth_write_enable       = false;
-  bool           depth_bounds_test_enable = false;
+  Rect         scissor                  = {};
+  Viewport     viewport                 = {};
+  Vec4         blend_constant           = {};
+  bool         stencil_test_enable      = false;
+  StencilState front_face_stencil       = {};
+  StencilState back_face_stencil        = {};
+  CullMode     cull_mode                = CullMode::None;
+  FrontFace    front_face               = FrontFace::CounterClockWise;
+  bool         depth_test_enable        = false;
+  CompareOp    depth_compare_op         = CompareOp::Never;
+  bool         depth_write_enable       = false;
+  bool         depth_bounds_test_enable = false;
 };
 
 /// @param color_format, depth_format, stencil_format: with Format::Undefined
@@ -1332,28 +1332,27 @@ struct DeviceInterface
       nullptr;
   Result<StatisticsQuery, Status> (*create_statistics_query)(Device self) =
       nullptr;
-  void (*destroy_buffer)(Device self, Buffer buffer)                 = nullptr;
-  void (*destroy_buffer_view)(Device self, BufferView buffer_view)   = nullptr;
-  void (*destroy_image)(Device self, Image image)                    = nullptr;
-  void (*destroy_image_view)(Device self, ImageView image_view)      = nullptr;
-  void (*destroy_sampler)(Device self, Sampler sampler)              = nullptr;
-  void (*destroy_shader)(Device self, Shader shader)                 = nullptr;
-  void (*destroy_descriptor_set_layout)(Device              self,
-                                        DescriptorSetLayout layout)  = nullptr;
-  void (*destroy_descriptor_set)(Device self, DescriptorSet set)     = nullptr;
-  void (*destroy_pipeline_cache)(Device self, PipelineCache cache)   = nullptr;
-  void (*destroy_compute_pipeline)(Device          self,
-                                   ComputePipeline pipeline)         = nullptr;
-  void (*destroy_graphics_pipeline)(Device           self,
-                                    GraphicsPipeline pipeline)       = nullptr;
-  void (*destroy_swapchain)(Device self, Swapchain swapchain)        = nullptr;
-  void (*destroy_timestamp_query)(Device self, TimeStampQuery query) = nullptr;
-  void (*destroy_statistics_query)(Device          self,
-                                   StatisticsQuery query)            = nullptr;
-  FrameContext (*get_frame_context)(Device self)                     = nullptr;
+  void (*uninit_buffer)(Device self, Buffer buffer)                   = nullptr;
+  void (*uninit_buffer_view)(Device self, BufferView buffer_view)     = nullptr;
+  void (*uninit_image)(Device self, Image image)                      = nullptr;
+  void (*uninit_image_view)(Device self, ImageView image_view)        = nullptr;
+  void (*uninit_sampler)(Device self, Sampler sampler)                = nullptr;
+  void (*uninit_shader)(Device self, Shader shader)                   = nullptr;
+  void (*uninit_descriptor_set_layout)(Device              self,
+                                       DescriptorSetLayout layout)    = nullptr;
+  void (*uninit_descriptor_set)(Device self, DescriptorSet set)       = nullptr;
+  void (*uninit_pipeline_cache)(Device self, PipelineCache cache)     = nullptr;
+  void (*uninit_compute_pipeline)(Device          self,
+                                  ComputePipeline pipeline)           = nullptr;
+  void (*uninit_graphics_pipeline)(Device           self,
+                                   GraphicsPipeline pipeline)         = nullptr;
+  void (*uninit_swapchain)(Device self, Swapchain swapchain)          = nullptr;
+  void (*uninit_timestamp_query)(Device self, TimeStampQuery query)   = nullptr;
+  void (*uninit_statistics_query)(Device self, StatisticsQuery query) = nullptr;
+  FrameContext (*get_frame_context)(Device self)                      = nullptr;
   Result<void *, Status> (*map_buffer_memory)(Device self,
-                                              Buffer buffer)         = nullptr;
-  void (*unmap_buffer_memory)(Device self, Buffer buffer)            = nullptr;
+                                              Buffer buffer)          = nullptr;
+  void (*unmap_buffer_memory)(Device self, Buffer buffer)             = nullptr;
   Result<Void, Status> (*invalidate_mapped_buffer_memory)(
       Device self, Buffer buffer, MemoryRange range) = nullptr;
   Result<Void, Status> (*flush_mapped_buffer_memory)(
@@ -1402,14 +1401,14 @@ struct DeviceImpl
 
 struct InstanceInterface
 {
-  void (*destroy)(Instance self) = nullptr;
+  void (*uninit)(Instance self) = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance self, AllocatorImpl allocator,
       Span<DeviceType const> preferred_types,
       Span<Surface const> compatible_surfaces, u32 buffering) = nullptr;
   Backend (*get_backend)(Instance self)                       = nullptr;
-  void (*destroy_device)(Instance self, Device device)        = nullptr;
-  void (*destroy_surface)(Instance self, Surface surface)     = nullptr;
+  void (*uninit_device)(Instance self, Device device)         = nullptr;
+  void (*uninit_surface)(Instance self, Surface surface)      = nullptr;
 };
 
 struct InstanceImpl
@@ -1426,6 +1425,6 @@ struct InstanceImpl
 Result<InstanceImpl, Status> create_vulkan_instance(AllocatorImpl allocator,
                                                     bool enable_validation);
 
-}        // namespace gfx
+}        // namespace gpu
 
 }        // namespace ash

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.6)
 
 project(Ashura)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
@@ -68,7 +68,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG 98499d6)
+  GIT_TAG preview-3.1.3)
 
 FetchContent_Declare(
   harfbuzz
@@ -98,7 +98,7 @@ FetchContent_Declare(
 
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
-find_package(libjpeg-turbo REQUIRED)
+find_package(libjpeg-turbo CONFIG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
@@ -144,14 +144,13 @@ endif()
 add_library(
   ashura_std
   ashura/std/allocator.cc
-  ashura/std/arena_allocator.cc
+  ashura/std/allocators.cc
   ashura/std/async.cc
   ashura/std/format.cc
+  ashura/std/fs.cc
   ashura/std/hash.cc
-  ashura/std/io.cc
   ashura/std/log.cc
-  ashura/std/panic.cc
-  ashura/std/semaphore.cc)
+  ashura/std/panic.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ashura_std PUBLIC xxHash::xxhash Threads::Threads)
 
@@ -171,12 +170,12 @@ target_link_libraries(ashura_std_tests ashura_std GTest::gtest
 target_link_libraries(ashura_std_bench benchmark::benchmark
                       benchmark::benchmark_main ashura_std)
 
-add_library(ashura_gfx ashura/gfx/gfx.cc ashura/gfx/vma_def.cc
-                       ashura/gfx/vulkan.cc)
+add_library(ashura_gpu ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
+                       ashura/gpu/vulkan.cc)
 target_link_libraries(
-  ashura_gfx ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
+  ashura_gpu ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
   GPUOpen::VulkanMemoryAllocator)
-target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
   ashura_engine
@@ -192,36 +191,15 @@ add_library(
   ashura/engine/window.cc
   ashura/engine/view.cc
   ashura/engine/view_system.cc
-  ashura/engine/views/button.cc
-  ashura/engine/views/check_box.cc
-  ashura/engine/views/collapsable.cc
-  ashura/engine/views/color_picker.cc
-  ashura/engine/views/combo_box.cc
-  ashura/engine/views/demo.cc
-  ashura/engine/views/flex_view.cc
-  ashura/engine/views/plot.cc
-  ashura/engine/views/progress_bar.cc
-  ashura/engine/views/radio_box.cc
-  ashura/engine/views/scalar_box.cc
-  ashura/engine/views/scroll_view.cc
-  ashura/engine/views/slider.cc
-  ashura/engine/views/stack_view.cc
-  ashura/engine/views/switch.cc
-  ashura/engine/views/tab.cc
-  ashura/engine/views/text_view.cc
+  ashura/engine/views.cc
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc
-  ashura/engine/passes/bloom.cc
-  ashura/engine/passes/blur.cc
-  ashura/engine/passes/ngon.cc
-  ashura/engine/passes/pbr.cc
-  ashura/engine/passes/poly.cc
-  ashura/engine/passes/rrect.cc)
+  ashura/engine/passes.cc)
 target_link_libraries(
   ashura_engine
   ashura_std
-  ashura_gfx
+  ashura_gpu
   SPIRV
   glslang
   spirv-reflect-static

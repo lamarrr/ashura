@@ -112,7 +112,7 @@ inline Result<Void, Void> utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
 {
   usize const first = decoded.size();
   usize const count = count_utf8_codepoints(encoded);
-  if (!decoded.extend_uninitialized(count))
+  if (!decoded.extend_uninit(count))
   {
     return Err{};
   }
@@ -127,7 +127,7 @@ inline Result<Void, Void> utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
 {
   usize const first     = encoded.size();
   usize const max_count = decoded.size();
-  if (!encoded.extend_uninitialized(max_count))
+  if (!encoded.extend_uninit(max_count))
   {
     return Err{};
   }

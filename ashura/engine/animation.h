@@ -9,6 +9,9 @@ namespace ash
 /// [ ] Animation forward and backwards
 /// [ ] Animation cancelation
 /// [ ] https://create.roblox.com/docs/ui/animation#style
+/// [ ] Procedural Animation https://www.youtube.com/watch?v=qlfh_rv6khY
+/// [ ] must be possible to make it complete at a speed/framerate, i.e. during
+/// automated testing
 
 /// @brief Frame-independent smooth animation ticker
 ///
@@ -27,19 +30,19 @@ struct AnimationTick
   bool loop       = false;
   bool alternate  = false;
 
-  constexpr void pause()
+  void pause()
   {
     speed = 0;
   }
 
-  constexpr void resume()
+  void resume()
   {
     speed = 1;
   }
 
-  constexpr void reset();
+  void reset();
 
-  constexpr f32 tick(f32 dt)
+  f32 tick(f32 dt)
   {
     damplerp(0, 0, 0, 0);
 

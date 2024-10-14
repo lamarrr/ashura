@@ -5,14 +5,14 @@
 #include "ashura/engine/font_impl.h"
 #include "ashura/engine/font.h"
 #include "ashura/engine/font_atlas.h"
-#include "ashura/gfx/image.h"
+#include "ashura/engine/rect_pack.h"
+#include "ashura/gpu/image.h"
 #include "ashura/std/allocator.h"
-#include "ashura/std/arena_allocator.h"
+#include "ashura/std/allocators.h"
 #include "ashura/std/error.h"
-#include "ashura/std/io.h"
+#include "ashura/std/fs.h"
 #include "ashura/std/range.h"
 #include "ashura/std/types.h"
-#include "ashura/utils/rect_pack.h"
 
 namespace ash
 {
@@ -24,12 +24,12 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
 {
   u32   font_data_size = encoded.size32();
   char *font_data;
-  if (!allocator.nalloc(font_data_size, &font_data))
+  if (!allocator.nalloc(font_data_size, font_data))
   {
     return Err{FontDecodeError::OutOfMemory};
   }
 
-  defer font_data_del{[&] {
+  defer font_data_{[&] {
     if (font_data != nullptr)
     {
       allocator.ndealloc(font_data, font_data_size);
@@ -46,7 +46,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     return Err{FontDecodeError::DecodingFailed};
   }
 
-  defer hb_blob_del{[&] {
+  defer hb_blob_{[&] {
     if (hb_blob != nullptr)
     {
       hb_blob_destroy(hb_blob);
@@ -67,7 +67,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     return Err{FontDecodeError::DecodingFailed};
   }
 
-  defer hb_face_del{[&] {
+  defer hb_face_{[&] {
     if (hb_face != nullptr)
     {
       hb_face_destroy(hb_face);
@@ -83,7 +83,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
 
   hb_font_set_scale(hb_font, AU_UNIT, AU_UNIT);
 
-  defer hb_font_del{[&] {
+  defer hb_font_{[&] {
     if (hb_font != nullptr)
     {
       hb_font_destroy(hb_font);
@@ -96,7 +96,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     return Err{FontDecodeError::DecodingFailed};
   }
 
-  defer ft_lib_del{[&] {
+  defer ft_lib_{[&] {
     if (ft_lib != nullptr)
     {
       FT_Done_FreeType(ft_lib);
@@ -116,7 +116,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     return Err{FontDecodeError::DecodingFailed};
   }
 
-  defer ft_face_del{[&] {
+  defer ft_face_{[&] {
     if (ft_face != nullptr)
     {
       FT_Done_Face(ft_face);
@@ -130,14 +130,14 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
   if (ft_postscript_name != nullptr)
   {
     postscript_name_size = strlen(ft_postscript_name);
-    if (!allocator.nalloc(postscript_name_size, &postscript_name))
+    if (!allocator.nalloc(postscript_name_size, postscript_name))
     {
       return Err{FontDecodeError::OutOfMemory};
     }
     mem::copy(ft_postscript_name, postscript_name, postscript_name_size);
   }
 
-  defer postscript_name_del{[&] {
+  defer postscript_name_{[&] {
     if (postscript_name != nullptr)
     {
       allocator.ndealloc(postscript_name, postscript_name_size);
@@ -150,14 +150,14 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
   if (ft_face->family_name != nullptr)
   {
     family_name_size = strlen(ft_face->family_name);
-    if (!allocator.nalloc(family_name_size, &family_name))
+    if (!allocator.nalloc(family_name_size, family_name))
     {
       return Err{FontDecodeError::OutOfMemory};
     }
     mem::copy(ft_face->family_name, family_name, family_name_size);
   }
 
-  defer family_name_del{[&] {
+  defer family_name_{[&] {
     if (family_name != nullptr)
     {
       allocator.ndealloc(family_name, family_name_size);
@@ -170,14 +170,14 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
   if (ft_face->style_name != nullptr)
   {
     style_name_size = strlen(ft_face->style_name);
-    if (!allocator.nalloc(style_name_size, &style_name))
+    if (!allocator.nalloc(style_name_size, style_name))
     {
       return Err{FontDecodeError::OutOfMemory};
     }
     mem::copy(ft_face->style_name, style_name, style_name_size);
   }
 
-  defer style_name_del{[&] {
+  defer style_name_{[&] {
     if (style_name != nullptr)
     {
       allocator.ndealloc(style_name, style_name_size);
@@ -196,12 +196,12 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
   i32 const advance = ft_face->size->metrics.max_advance;
 
   Glyph *glyphs;
-  if (!allocator.nalloc(num_glyphs, &glyphs))
+  if (!allocator.nalloc(num_glyphs, glyphs))
   {
     return Err{FontDecodeError::OutOfMemory};
   }
 
-  defer glyphs_del{[&] {
+  defer glyphs_{[&] {
     if (glyphs != nullptr)
     {
       allocator.ndealloc(glyphs, num_glyphs);
@@ -234,7 +234,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
   }
 
   FontImpl *f;
-  if (!allocator.nalloc(1, &f))
+  if (!allocator.nalloc(1, f))
   {
     return Err{FontDecodeError::OutOfMemory};
   }
@@ -303,7 +303,7 @@ FontInfo get_font_info(Font font)
   return info;
 }
 
-void destroy_font(Font font)
+void uninit_font(Font font)
 {
   FontImpl *f = (FontImpl *) font;
   f->gpu_atlas.expect_none("GPU font atlas has not been unloaded");
@@ -333,7 +333,7 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
                 "Font atlas extent must be at least 128px");
   static_assert(MIN_ATLAS_EXTENT % 64 == 0,
                 "Font atlas extent should be a multiple of 64");
-  static_assert(MIN_ATLAS_EXTENT <= gfx::MAX_IMAGE_EXTENT_2D,
+  static_assert(MIN_ATLAS_EXTENT <= gpu::MAX_IMAGE_EXTENT_2D,
                 "Font atlas extent too large for GPU platform");
   CHECK(font_height <= 1024);
   CHECK(font_height <= MIN_ATLAS_EXTENT / 8);
@@ -345,7 +345,7 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
   f->cpu_atlas.expect_none("CPU font atlas has already been loaded");
 
   CpuFontAtlas atlas;
-  defer        atlas_del{[&] { atlas.reset(); }};
+  defer        atlas_{[&] { atlas.reset(); }};
 
   if (!atlas.glyphs.resize_defaulted(f->num_glyphs))
   {
@@ -386,12 +386,12 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
   u32 num_layers = 0;
   {
     rect_pack::rect *rects;
-    if (!allocator.nalloc(num_rasterized_glyphs, &rects))
+    if (!allocator.nalloc(num_rasterized_glyphs, rects))
     {
       return false;
     }
 
-    defer rects_del{[&] { allocator.ndealloc(rects, num_rasterized_glyphs); }};
+    defer rects_{[&] { allocator.ndealloc(rects, num_rasterized_glyphs); }};
 
     for (u32 g = 0, irect = 0; g < f->num_glyphs; g++)
     {
@@ -414,16 +414,16 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
       }
     }
 
-    CHECK(atlas_extent.x <= gfx::MAX_IMAGE_EXTENT_2D);
-    CHECK(atlas_extent.y <= gfx::MAX_IMAGE_EXTENT_2D);
+    CHECK(atlas_extent.x <= gpu::MAX_IMAGE_EXTENT_2D);
+    CHECK(atlas_extent.y <= gpu::MAX_IMAGE_EXTENT_2D);
 
     rect_pack::Node *nodes;
-    if (!allocator.nalloc(atlas_extent.x, &nodes))
+    if (!allocator.nalloc(atlas_extent.x, nodes))
     {
       return false;
     }
 
-    defer nodes_del{[&] { allocator.ndealloc(nodes, atlas_extent.x); }};
+    defer nodes_{[&] { allocator.ndealloc(nodes, atlas_extent.x); }};
 
     u32  num_packed = 0;
     bool all_packed = false;
@@ -519,8 +519,8 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
 void upload_font_to_device(Font font, RenderContext &c,
                            AllocatorImpl const &allocator)
 {
-  gfx::CommandEncoderImpl const &enc = c.encoder();
-  gfx::DeviceImpl const         &d   = c.device;
+  gpu::CommandEncoderImpl const &enc = c.encoder();
+  gpu::DeviceImpl const         &d   = c.device;
 
   CHECK(font != nullptr);
   FontImpl *f = (FontImpl *) font;
@@ -533,24 +533,24 @@ void upload_font_to_device(Font font, RenderContext &c,
   CHECK(atlas.extent.x > 0);
   CHECK(atlas.extent.y > 0);
 
-  gfx::Image image =
+  gpu::Image image =
       d->create_image(
-           d.self, gfx::ImageDesc{.label  = "Font Atlas Image"_span,
-                                  .type   = gfx::ImageType::Type2D,
-                                  .format = gfx::Format::B8G8R8A8_UNORM,
-                                  .usage  = gfx::ImageUsage::Sampled |
-                                           gfx::ImageUsage::InputAttachment |
-                                           gfx::ImageUsage::Storage |
-                                           gfx::ImageUsage::TransferSrc |
-                                           gfx::ImageUsage::TransferDst,
-                                  .aspects = gfx::ImageAspects::Color,
+           d.self, gpu::ImageDesc{.label  = "Font Atlas Image"_span,
+                                  .type   = gpu::ImageType::Type2D,
+                                  .format = gpu::Format::B8G8R8A8_UNORM,
+                                  .usage  = gpu::ImageUsage::Sampled |
+                                           gpu::ImageUsage::InputAttachment |
+                                           gpu::ImageUsage::Storage |
+                                           gpu::ImageUsage::TransferSrc |
+                                           gpu::ImageUsage::TransferDst,
+                                  .aspects = gpu::ImageAspects::Color,
                                   .extent = {atlas.extent.x, atlas.extent.y, 1},
                                   .mip_levels   = 1,
                                   .array_layers = atlas.num_layers,
-                                  .sample_count = gfx::SampleCount::Count1})
+                                  .sample_count = gpu::SampleCount::Count1})
           .unwrap();
 
-  Vec<gfx::ImageView> views;
+  Vec<gpu::ImageView> views;
 
   views.resize_defaulted(atlas.num_layers).unwrap();
 
@@ -559,12 +559,12 @@ void upload_font_to_device(Font font, RenderContext &c,
     views[i] =
         d->create_image_view(
              d.self,
-             gfx::ImageViewDesc{.label           = "Font Atlas Image View"_span,
+             gpu::ImageViewDesc{.label           = "Font Atlas Image View"_span,
                                 .image           = image,
-                                .view_type       = gfx::ImageViewType::Type2D,
-                                .view_format     = gfx::Format::B8G8R8A8_UNORM,
+                                .view_type       = gpu::ImageViewType::Type2D,
+                                .view_format     = gpu::Format::B8G8R8A8_UNORM,
                                 .mapping         = {},
-                                .aspects         = gfx::ImageAspects::Color,
+                                .aspects         = gpu::ImageAspects::Color,
                                 .first_mip_level = 0,
                                 .num_mip_levels  = 1,
                                 .first_array_layer = i,
@@ -572,20 +572,20 @@ void upload_font_to_device(Font font, RenderContext &c,
             .unwrap();
   }
 
-  gfx::BufferImageCopy *copies;
+  gpu::BufferImageCopy *copies;
 
-  CHECK(allocator.nalloc(atlas.num_layers, &copies));
+  CHECK(allocator.nalloc(atlas.num_layers, copies));
 
-  defer copies_del{[&] { allocator.ndealloc(copies, atlas.num_layers); }};
+  defer copies_{[&] { allocator.ndealloc(copies, atlas.num_layers); }};
 
   u64 const   atlas_size = atlas.channels.size() * (u64) 4;
-  gfx::Buffer staging_buffer =
+  gpu::Buffer staging_buffer =
       d->create_buffer(
-           d.self, gfx::BufferDesc{.label = "Font Atlas Staging Buffer"_span,
+           d.self, gpu::BufferDesc{.label = "Font Atlas Staging Buffer"_span,
                                    .size  = atlas_size,
                                    .host_mapped = true,
-                                   .usage = gfx::BufferUsage::TransferSrc |
-                                            gfx::BufferUsage::TransferDst})
+                                   .usage = gpu::BufferUsage::TransferSrc |
+                                            gpu::BufferUsage::TransferDst})
           .unwrap();
 
   u8 *map = (u8 *) d->map_buffer_memory(d.self, staging_buffer).unwrap();
@@ -603,18 +603,18 @@ void upload_font_to_device(Font font, RenderContext &c,
   }
 
   d->flush_mapped_buffer_memory(d.self, staging_buffer,
-                                {.offset = 0, .size = gfx::WHOLE_SIZE})
+                                {.offset = 0, .size = gpu::WHOLE_SIZE})
       .unwrap();
   d->unmap_buffer_memory(d.self, staging_buffer);
 
   for (u32 layer = 0; layer < atlas.num_layers; layer++)
   {
     u64 offset = (u64) atlas.extent.x * (u64) atlas.extent.y * 4 * (u64) layer;
-    copies[layer] = gfx::BufferImageCopy{
+    copies[layer] = gpu::BufferImageCopy{
         .buffer_offset       = offset,
         .buffer_row_length   = atlas.extent.x,
         .buffer_image_height = atlas.extent.y,
-        .image_layers        = {.aspects           = gfx::ImageAspects::Color,
+        .image_layers        = {.aspects           = gpu::ImageAspects::Color,
                                 .mip_level         = 0,
                                 .first_array_layer = layer,
                                 .num_array_layers  = 1},
@@ -625,7 +625,7 @@ void upload_font_to_device(Font font, RenderContext &c,
   enc->copy_buffer_to_image(enc.self, staging_buffer, image,
                             Span{copies, atlas.num_layers});
 
-  gfx::Format format = gfx::Format::B8G8R8A8_UNORM;
+  gpu::Format format = gpu::Format::B8G8R8A8_UNORM;
   c.release(staging_buffer);
 
   Vec<u32>        textures;
@@ -639,11 +639,11 @@ void upload_font_to_device(Font font, RenderContext &c,
     textures[i] = c.alloc_texture_slot();
     d->update_descriptor_set(
         d.self,
-        gfx::DescriptorSetUpdate{
+        gpu::DescriptorSetUpdate{
             .set     = c.texture_views,
             .binding = 0,
             .element = textures[i],
-            .images  = span({gfx::ImageBinding{.image_view = views[i]}})});
+            .images  = span({gpu::ImageBinding{.image_view = views[i]}})});
   }
 
   f->gpu_atlas = Some{GpuFontAtlas{.image       = image,
@@ -665,7 +665,7 @@ void unload_font_from_device(Font font, RenderContext &c)
     c.release_texture_slot(slot);
   }
 
-  for (gfx::ImageView view : f->gpu_atlas.value().views)
+  for (gpu::ImageView view : f->gpu_atlas.value().views)
   {
     c.release(view);
   }

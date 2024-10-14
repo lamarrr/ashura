@@ -1,3 +1,5 @@
+/// SPDX-License-Identifier: MIT
+#pragma once
 
 #include "ashura/std/error.h"
 #include "ashura/std/log.h"
@@ -27,15 +29,17 @@ namespace ash
 ///
 /// https://lwn.net/Articles/693038/
 ///
-struct alias_count
+struct AliasCount
 {
-  /// range: [0, USIZE_MAX], overflow is well-checked.
-  std::atomic<usize> num_others_{0};
+  /// @brief number of other aliases. range: [0, USIZE_MAX], overflow is
+  /// well-checked.
+  usize count_{0};
 
   /// @brief called before sharing an object
   void alias()
   {
-    usize const old = num_others_.fetch_add(1, std::memory_order_release);
+    std::atomic_ref count{count_};
+    usize const     old = count.fetch_add(1, std::memory_order_release);
     // overflow check, transition from USIZE_MAX -> 0, is illegal
     CHECK(old < USIZE_MAX);
   }
@@ -50,20 +54,22 @@ struct alias_count
   /// to a double-release (i.e. double-free).
   [[nodiscard]] bool unalias()
   {
-    usize expected = 0;
-    usize desired  = 0;
-    while (!num_others_.compare_exchange_weak(expected, desired,
-                                              std::memory_order_release,
-                                              std::memory_order_relaxed))
+    usize           expected = 0;
+    usize           desired  = 0;
+    std::atomic_ref count{count_};
+    while (!count.compare_exchange_weak(expected, desired,
+                                        std::memory_order_release,
+                                        std::memory_order_relaxed))
     {
       desired = max((usize) 1, expected) - 1;
     }
     return expected == 0;
   }
 
-  [[nodiscard]] usize num_aliases() const
+  [[nodiscard]] usize count() const
   {
-    return num_others_.load(std::memory_order_relaxed);
+    std::atomic_ref count{count_};
+    return count.load(std::memory_order_relaxed);
   }
 };
 

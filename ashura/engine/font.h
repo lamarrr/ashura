@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/engine/render_context.h"
-#include "ashura/gfx/gfx.h"
+#include "ashura/gpu/gpu.h"
 #include "ashura/std/image.h"
 #include "ashura/std/types.h"
 
@@ -71,7 +71,7 @@ struct Glyph
 struct AtlasGlyph
 {
   u32       layer = 0;
-  gfx::Rect area  = {};
+  gpu::Rect area  = {};
   Vec2      uv[2] = {};
 };
 
@@ -107,7 +107,7 @@ Result<Font, FontDecodeError>
 
 FontInfo get_font_info(Font font);
 
-void destroy_font(Font font);
+void uninit_font(Font font);
 
 /// @brief rasterize the font at the specified font height. Note: raster is
 /// stored as alpha values.

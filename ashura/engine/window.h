@@ -2,8 +2,9 @@
 #pragma once
 
 #include "ashura/engine/input.h"
-#include "ashura/gfx/gfx.h"
+#include "ashura/gpu/gpu.h"
 #include "ashura/std/image.h"
+#include "ashura/std/math.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
@@ -15,9 +16,11 @@ typedef struct Window_T *Window;
 
 struct WindowSystem
 {
-  virtual Option<Window> create_window(gfx::InstanceImpl instance,
+  virtual void           init()                                           = 0;
+  virtual void           uninit()                                         = 0;
+  virtual Option<Window> create_window(gpu::InstanceImpl instance,
                                        Span<char const>  title)            = 0;
-  virtual void           destroy_window(Window window)                    = 0;
+  virtual void           uninit_window(Window window)                     = 0;
   virtual void           set_title(Window window, Span<char const> title) = 0;
   virtual char const    *get_title(Window window)                         = 0;
   virtual void           maximize(Window window)                          = 0;
@@ -33,7 +36,7 @@ struct WindowSystem
   virtual void           set_max_size(Window window, Vec2U max)           = 0;
   virtual Vec2U          get_max_size(Window window)                      = 0;
   virtual void           set_icon(Window window, ImageSpan<u8 const, 4> image,
-                                  gfx::Format format)                     = 0;
+                                  gpu::Format format)                     = 0;
   virtual void           make_bordered(Window window)                     = 0;
   virtual void           make_borderless(Window window)                   = 0;
   virtual void           show(Window window)                              = 0;
@@ -45,15 +48,15 @@ struct WindowSystem
   virtual void           make_windowed(Window window)                     = 0;
   virtual void           make_resizable(Window window)                    = 0;
   virtual void           make_unresizable(Window window)                  = 0;
-  virtual uid            listen(Window window, WindowEventTypes event_types,
+  virtual u64            listen(Window window, WindowEventTypes event_types,
                                 Fn<void(WindowEvent const &)> callback)   = 0;
-  virtual void           unlisten(Window window, uid listener)            = 0;
+  virtual void           unlisten(Window window, u64 listener)            = 0;
   virtual Result<Void, Void> set_hit_test(Window                  window,
                                           Fn<WindowRegion(Vec2U)> hit)    = 0;
-  virtual gfx::Surface       get_surface(Window window)                   = 0;
+  virtual gpu::Surface       get_surface(Window window)                   = 0;
   virtual void               poll_events()                                = 0;
 };
 
-WindowSystem *init_sdl_window_system();
+extern WindowSystem *sdl_window_system;
 
 }        // namespace ash

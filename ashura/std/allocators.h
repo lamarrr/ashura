@@ -8,11 +8,11 @@ namespace ash
 
 struct ArenaInterface
 {
-  static bool alloc(Allocator self, usize alignment, usize size, u8 **mem);
+  static bool alloc(Allocator self, usize alignment, usize size, u8 *&mem);
   static bool alloc_zeroed(Allocator self, usize alignment, usize size,
-                           u8 **mem);
+                           u8 *&mem);
   static bool realloc(Allocator self, usize alignment, usize old_size,
-                      usize new_size, u8 **mem);
+                      usize new_size, u8 *&mem);
   static void dealloc(Allocator self, usize alignment, u8 *mem, usize size);
 };
 
@@ -48,16 +48,16 @@ struct Arena
     return end - offset;
   }
 
-  constexpr void reset()
+  constexpr void reclaim()
   {
     offset = begin;
   }
 
-  [[nodiscard]] bool alloc(usize alignment, usize size, u8 **mem)
+  [[nodiscard]] bool alloc(usize alignment, usize size, u8 *&mem)
   {
     if (size == 0)
     {
-      *mem = nullptr;
+      mem = nullptr;
       return true;
     }
 
@@ -65,53 +65,53 @@ struct Arena
     u8 *new_offset = aligned + size;
     if (new_offset > end)
     {
-      *mem = nullptr;
+      mem = nullptr;
       return false;
     }
 
     offset = new_offset;
-    *mem   = aligned;
+    mem    = aligned;
     return true;
   }
 
-  [[nodiscard]] bool alloc_zeroed(usize alignment, usize size, u8 **mem)
+  [[nodiscard]] bool alloc_zeroed(usize alignment, usize size, u8 *&mem)
   {
     if (size == 0)
     {
-      *mem = nullptr;
+      mem = nullptr;
       return true;
     }
 
     if (!alloc(alignment, size, mem))
     {
-      *mem = nullptr;
+      mem = nullptr;
       return false;
     }
 
-    mem::zero(*mem, size);
+    mem::zero(mem, size);
     return true;
   }
 
   [[nodiscard]] bool realloc(usize alignment, usize old_size, usize new_size,
-                             u8 **mem)
+                             u8 *&mem)
   {
     // if it is the last allocation, just extend the offset
-    if (((*mem + old_size) == offset) && ((*mem + new_size) <= end))
+    if (((mem + old_size) == offset) && ((mem + new_size) <= end))
     {
-      offset = *mem + new_size;
+      offset = mem + new_size;
       return true;
     }
 
     u8 *new_mem;
 
-    if (!alloc(alignment, new_size, &new_mem))
+    if (!alloc(alignment, new_size, new_mem))
     {
       return false;
     }
 
-    mem::copy(*mem, new_mem, old_size);
-    dealloc(alignment, *mem, old_size);
-    *mem = new_mem;
+    mem::copy(mem, new_mem, old_size);
+    dealloc(alignment, mem, old_size);
+    mem = new_mem;
     return true;
   }
 
@@ -129,22 +129,22 @@ struct Arena
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nalloc(usize num, T **mem)
+  [[nodiscard]] constexpr bool nalloc(usize num, T *&mem)
   {
-    return alloc(alignof(T), sizeof(T) * num, (u8 **) mem);
+    return alloc(alignof(T), sizeof(T) * num, (u8 *&) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T **mem)
+  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T *&mem)
   {
-    return alloc_zeroed(alignof(T), sizeof(T) * num, (u8 **) mem);
+    return alloc_zeroed(alignof(T), sizeof(T) * num, (u8 *&) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num, T **mem)
+  [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num, T *&mem)
   {
     return realloc(alignof(T), sizeof(T) * old_num, sizeof(T) * new_num,
-                   (u8 **) mem);
+                   (u8 *&) mem);
   }
 
   template <typename T>
@@ -170,11 +170,11 @@ struct Arena
 
 struct ArenaPoolInterface
 {
-  static bool alloc(Allocator self, usize alignment, usize size, u8 **mem);
+  static bool alloc(Allocator self, usize alignment, usize size, u8 *&mem);
   static bool alloc_zeroed(Allocator self, usize alignment, usize size,
-                           u8 **mem);
+                           u8 *&mem);
   static bool realloc(Allocator self, usize alignment, usize old_size,
-                      usize new_size, u8 **mem);
+                      usize new_size, u8 *&mem);
   static void dealloc(Allocator self, usize alignment, u8 *mem, usize size);
 };
 
@@ -188,9 +188,9 @@ static AllocatorInterface const arena_sub_interface{
 ///
 /// @source: allocation memory source
 /// @max_num_arenas: maximum number of arenas that can be allocated
-/// @min_arena_size: minimum size of each arena allocation, recommended >= 4096
-/// bytes (approx 1 memory page). allocations having sizes higher than that will
-/// have a dedicated arena.
+/// @min_arena_size: minimum size of each arena allocation, recommended >= 16KB
+/// bytes (approx 1 huge memory page). allocations having sizes higher than that
+/// will have a dedicated arena.
 /// @max_total_size: total maximum size of all allocations performed.
 ///
 struct ArenaPool
@@ -199,16 +199,16 @@ struct ArenaPool
   Arena        *arenas              = nullptr;
   usize         num_arenas          = 0;
   usize         max_num_arenas      = USIZE_MAX;
-  usize         min_arena_size      = 4096;
+  usize         min_arena_size      = 16_KB;
   usize         max_arena_size      = USIZE_MAX;
   usize         max_total_size      = USIZE_MAX;
   usize         min_arena_alignment = MAX_STANDARD_ALIGNMENT;
 
-  void reset()
+  void reclaim()
   {
     for (usize i = num_arenas; i-- > 0;)
     {
-      arenas[i].reset();
+      arenas[i].reclaim();
     }
   }
 
@@ -222,7 +222,7 @@ struct ArenaPool
     return s;
   }
 
-  void release()
+  void reset()
   {
     for (usize i = num_arenas; i-- > 0;)
     {
@@ -233,17 +233,17 @@ struct ArenaPool
     num_arenas = 0;
   }
 
-  [[nodiscard]] bool alloc(usize alignment, usize size, u8 **mem)
+  [[nodiscard]] bool alloc(usize alignment, usize size, u8 *&mem)
   {
     if (size == 0)
     {
-      *mem = nullptr;
+      mem = nullptr;
       return true;
     }
 
     if (size > max_arena_size)
     {
-      *mem = nullptr;
+      mem = nullptr;
       return false;
     }
 
@@ -258,7 +258,7 @@ struct ArenaPool
 
     if (num_arenas == max_num_arenas)
     {
-      *mem = nullptr;
+      mem = nullptr;
       return false;
     }
 
@@ -266,22 +266,22 @@ struct ArenaPool
     usize const arena_alignment = max(min_arena_alignment, alignment);
     if ((this->size() + arena_size) > max_total_size)
     {
-      *mem = nullptr;
+      mem = nullptr;
       return false;
     }
 
     u8 *arena_mem;
 
-    if (!source.alloc(arena_alignment, arena_size, &arena_mem))
+    if (!source.alloc(arena_alignment, arena_size, arena_mem))
     {
-      *mem = nullptr;
+      mem = nullptr;
       return false;
     }
 
-    if (!source.nrealloc(num_arenas, num_arenas + 1, &arenas))
+    if (!source.nrealloc(num_arenas, num_arenas + 1, arenas))
     {
       source.dealloc(arena_alignment, arena_mem, arena_size);
-      *mem = nullptr;
+      mem = nullptr;
       return false;
     }
 
@@ -299,18 +299,18 @@ struct ArenaPool
     return true;
   }
 
-  [[nodiscard]] bool alloc_zeroed(usize alignment, usize size, u8 **mem)
+  [[nodiscard]] bool alloc_zeroed(usize alignment, usize size, u8 *&mem)
   {
     if (!alloc(alignment, size, mem))
     {
       return false;
     }
-    mem::zero(*mem, size);
+    mem::zero(mem, size);
     return true;
   }
 
   [[nodiscard]] bool realloc(usize alignment, usize old_size, usize new_size,
-                             u8 **mem)
+                             u8 *&mem)
   {
     if (new_size > max_arena_size)
     {
@@ -320,20 +320,20 @@ struct ArenaPool
     if (usize i = num_arenas; i-- != 0)
     {
       Arena *arena = arenas + i;
-      if (arena->offset == (*mem + old_size))
+      if (arena->offset == (mem + old_size))
       {
         // try to change the allocation if it was the last allocation
         if ((arena->offset + new_size) <= arena->end)
         {
-          arena->offset = *mem + new_size;
+          arena->offset = mem + new_size;
           return mem;
         }
 
         // if only and first allocation on the arena, realloc arena
-        if (arena->begin == *mem)
+        if (arena->begin == mem)
         {
           if (!source.realloc(arena->alignment, arena->size(), new_size,
-                              &arena->begin))
+                              arena->begin))
           {
             return false;
           }
@@ -345,14 +345,14 @@ struct ArenaPool
     }
 
     u8 *new_mem;
-    if (!alloc(alignment, new_size, &new_mem))
+    if (!alloc(alignment, new_size, new_mem))
     {
       return false;
     }
 
-    mem::copy(*mem, new_mem, old_size);
-    dealloc(alignment, *mem, old_size);
-    *mem = new_mem;
+    mem::copy(mem, new_mem, old_size);
+    dealloc(alignment, mem, old_size);
+    mem = new_mem;
     return true;
   }
 
@@ -378,22 +378,22 @@ struct ArenaPool
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nalloc(usize num, T **mem)
+  [[nodiscard]] constexpr bool nalloc(usize num, T *&mem)
   {
-    return alloc(alignof(T), sizeof(T) * num, (u8 **) mem);
+    return alloc(alignof(T), sizeof(T) * num, (u8 *&) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T **mem)
+  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T *&mem)
   {
-    return alloc_zeroed(alignof(T), sizeof(T) * num, (u8 **) mem);
+    return alloc_zeroed(alignof(T), sizeof(T) * num, (u8 *&) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num, T **mem)
+  [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num, T *&mem)
   {
     return realloc(alignof(T), sizeof(T) * old_num, sizeof(T) * new_num,
-                   (u8 **) mem);
+                   (u8 *&) mem);
   }
 
   template <typename T>
