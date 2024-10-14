@@ -4,6 +4,7 @@
 #include "ashura/std/backoff.h"
 #include "ashura/std/cfg.h"
 #include "ashura/std/error.h"
+#include "ashura/std/rc.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include <atomic>
@@ -107,8 +108,9 @@ struct Semaphore
 {
   struct Inner
   {
-    u64              num_stages = 1;
-    std::atomic<u64> stage      = 0;
+    u64              num_stages  = 1;
+    std::atomic<u64> stage       = 0;
+    AliasCount       alias_count = {};
   } inner = {};
 
   /// @brief initialize the semaphore
@@ -119,15 +121,20 @@ struct Semaphore
     inner.num_stages = num_stages;
   }
 
-  void reset()
+  void uninit()
   {
     // no-op
+  }
+
+  void reset()
+  {
+    new (&inner) Inner{};
   }
 
   /// @brief Get the current semaphore stage
   /// @param sem non-null
   /// @return
-  [[nodiscard]] u64 get_stage()
+  [[nodiscard]] u64 get_stage() const
   {
     return inner.stage.load(std::memory_order_acquire);
   }
@@ -135,7 +142,7 @@ struct Semaphore
   /// @brief Get the number of stages in the semaphore
   /// @param sem non-null
   /// @return
-  [[nodiscard]] u64 get_num_stages()
+  [[nodiscard]] u64 get_num_stages() const
   {
     return inner.num_stages;
   }
@@ -143,7 +150,7 @@ struct Semaphore
   /// @brief
   /// @param sem non-null
   /// @return
-  [[nodiscard]] bool is_completed()
+  [[nodiscard]] bool is_completed() const
   {
     return inner.stage.load(std::memory_order_acquire) == inner.num_stages;
   }
@@ -181,8 +188,6 @@ struct Semaphore
   }
 };
 
-typedef Semaphore *SemaphoreRef;
-
 ///
 /// @brief Create an independently allocated semaphore object
 ///
@@ -190,12 +195,8 @@ typedef Semaphore *SemaphoreRef;
 ///  non-zero.
 /// @return Semaphore
 ///
-[[nodiscard]] SemaphoreRef create_semaphore(u64                  num_stages,
-                                            AllocatorImpl const &allocator);
-
-/// @brief
-/// @param sem can be null
-void uninit_semaphore(SemaphoreRef sem, AllocatorImpl const &allocator);
+[[nodiscard]] Rc<Semaphore *> create_semaphore(u64                  num_stages,
+                                               AllocatorImpl const &allocator);
 
 ///
 /// @brief no syscalls are made unless timeout_ns is non-zero.
@@ -207,19 +208,23 @@ void uninit_semaphore(SemaphoreRef sem, AllocatorImpl const &allocator);
 /// semaphore. U64_MAX for an infinite timeout.
 /// @return: true if all semaphores completed the expected stages before the
 /// timeout.
-[[nodiscard]] bool await_semaphores(Span<SemaphoreRef const> await,
-                                    Span<u64 const>          stages,
-                                    nanoseconds              timeout);
+[[nodiscard]] bool await_semaphores(Span<Rc<Semaphore *> const> await,
+                                    Span<u64 const>             stages,
+                                    nanoseconds                 timeout);
 
 struct TaskInfo
 {
-  Fn<bool()>               task                 = fn([] { return false; });
-  Span<SemaphoreRef const> await_semaphores     = {};
-  Span<u64 const>          awaits               = {};
-  Span<SemaphoreRef const> signal_semaphores    = {};
-  Span<u64 const>          signals              = {};
-  Span<SemaphoreRef const> increment_semaphores = {};
-  Span<u64 const>          increments           = {};
+  Fn<bool(void *)>            task          = fn([](void *) { return false; });
+  usize                       ctx_size      = 0;
+  usize                       ctx_alignment = 1;
+  Fn<void(void *)>            ctx_init      = fn([](void *) {});
+  Fn<void(void *)>            ctx_uninit    = fn([](void *) {});
+  Span<Rc<Semaphore *> const> await_semaphores     = {};
+  Span<u64 const>             awaits               = {};
+  Span<Rc<Semaphore *> const> signal_semaphores    = {};
+  Span<u64 const>             signals              = {};
+  Span<Rc<Semaphore *> const> increment_semaphores = {};
+  Span<u64 const>             increments           = {};
 };
 
 /// @brief Static Thread Pool Scheduler.
@@ -246,10 +251,9 @@ struct TaskInfo
 /// [x] inter-task sharing
 /// [x] inter-task data flow, reporting cancelation
 /// [x] external polling contexts
-/// [ ] task data allocation/a type-punned span of u8 along with alignment info,
-/// we can just pass this and use templates to get it correctly
-/// [ ] finalize callback for the context destruction? upon completion of the
-/// task
+/// [ ] helper functions to correctly dispatch to required types.
+/// [ ] shutdown is performed immediately as we can't guarentee when tasks will
+/// complete.
 struct Scheduler
 {
   virtual void init(Span<nanoseconds const> dedicated_thread_sleep,
