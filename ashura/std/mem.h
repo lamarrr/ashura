@@ -163,5 +163,32 @@ void relocate(T *src, T *uninit_dst, usize num)
   }
 }
 
+static constexpr usize flex_extended_size(usize base_size, usize ext_alignment,
+                                          usize ext_size)
+{
+  return mem::align_offset(ext_alignment, base_size) + ext_size;
+}
+
+static constexpr usize flex_size(Span<usize const> member_alignments,
+                                 Span<usize const> member_unit_sizes,
+                                 Span<usize const> member_capacities)
+{
+  usize size = 0;
+  for (usize i = 0; i < member_alignments.size(); i++)
+  {
+    size = flex_extended_size(size, member_alignments[i],
+                              (member_unit_sizes[i] * member_capacities[i]));
+  }
+  return size;
+}
+
+template <typename... T>
+static constexpr usize typed_flex_size(usize const (&capacities)[sizeof...(T)])
+{
+  return flex_size(span<usize const>({alignof(T)...}),
+                   span<usize const>({sizeof(T)...}),
+                   span<usize const>(capacities));
+}
+
 }        // namespace mem
 }        // namespace ash
