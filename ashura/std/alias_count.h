@@ -33,12 +33,13 @@ struct AliasCount
 {
   /// @brief number of other aliases. range: [0, USIZE_MAX], overflow is
   /// well-checked.
-  std::atomic<usize> count_{0};
+  usize count_{0};
 
   /// @brief called before sharing an object
   void alias()
   {
-    usize const old = count_.fetch_add(1, std::memory_order_release);
+    std::atomic_ref count{count_};
+    usize const     old = count.fetch_add(1, std::memory_order_release);
     // overflow check, transition from USIZE_MAX -> 0, is illegal
     CHECK(old < USIZE_MAX);
   }
@@ -53,11 +54,12 @@ struct AliasCount
   /// to a double-release (i.e. double-free).
   [[nodiscard]] bool unalias()
   {
-    usize expected = 0;
-    usize desired  = 0;
-    while (!count_.compare_exchange_weak(expected, desired,
-                                         std::memory_order_release,
-                                         std::memory_order_relaxed))
+    usize           expected = 0;
+    usize           desired  = 0;
+    std::atomic_ref count{count_};
+    while (!count.compare_exchange_weak(expected, desired,
+                                        std::memory_order_release,
+                                        std::memory_order_relaxed))
     {
       desired = max((usize) 1, expected) - 1;
     }
@@ -66,7 +68,8 @@ struct AliasCount
 
   [[nodiscard]] usize count() const
   {
-    return count_.load(std::memory_order_relaxed);
+    std::atomic_ref count{count_};
+    return count.load(std::memory_order_relaxed);
   }
 };
 

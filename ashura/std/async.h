@@ -14,14 +14,15 @@ namespace ash
 
 struct SpinLock
 {
-  std::atomic<bool> flag_{false};
+  bool flag_ = false;
 
   void lock()
   {
-    bool expected = false;
-    bool target   = true;
-    u64  poll     = 0;
-    while (!flag_.compare_exchange_strong(
+    bool            expected = false;
+    bool            target   = true;
+    u64             poll     = 0;
+    std::atomic_ref flag{flag_};
+    while (!flag.compare_exchange_strong(
         expected, target, std::memory_order_acquire, std::memory_order_relaxed))
     {
       expected = false;
@@ -32,16 +33,18 @@ struct SpinLock
 
   [[nodiscard]] bool try_lock()
   {
-    bool expected = false;
-    bool target   = true;
-    flag_.compare_exchange_strong(expected, target, std::memory_order_acquire,
-                                  std::memory_order_relaxed);
+    bool            expected = false;
+    bool            target   = true;
+    std::atomic_ref flag{flag_};
+    flag.compare_exchange_strong(expected, target, std::memory_order_acquire,
+                                 std::memory_order_relaxed);
     return expected;
   }
 
   void unlock()
   {
-    flag_.store(false, std::memory_order_release);
+    std::atomic_ref flag{flag_};
+    flag.store(false, std::memory_order_release);
   }
 };
 
@@ -68,19 +71,21 @@ struct LockGuard
 
 struct StopToken
 {
-  std::atomic<bool> stop_ = false;
+  bool stop_ = false;
 
   /// @brief synchronizes with the scope
   /// @return
   bool is_stop_requested() const
   {
-    return stop_.load(std::memory_order_acquire);
+    std::atomic_ref stop{stop_};
+    return stop.load(std::memory_order_acquire);
   }
 
   /// @brief synchronizes with the scope
   void request_stop()
   {
-    stop_.store(true, std::memory_order_release);
+    std::atomic_ref stop{stop_};
+    stop.store(true, std::memory_order_release);
   }
 };
 
@@ -104,21 +109,20 @@ struct StopToken
 /// possibly be other tasks awaiting it.
 ///
 /// Semaphores never overflows. so it can have a maximum of U64_MAX stages.
-struct Semaphore
+struct Semaphore : Pin<>
 {
   struct Inner
   {
-    u64              num_stages  = 1;
-    std::atomic<u64> stage       = 0;
-    AliasCount       alias_count = {};
+    u64        num_stages  = 1;
+    u64        stage       = 0;
+    AliasCount alias_count = {};
   } inner = {};
 
   /// @brief initialize the semaphore
   void init(u64 num_stages)
   {
     CHECK(num_stages > 0);
-    inner.stage      = 0;
-    inner.num_stages = num_stages;
+    new (&inner) Inner{.num_stages = num_stages, .stage = 0, .alias_count = {}};
   }
 
   void uninit()
@@ -136,7 +140,8 @@ struct Semaphore
   /// @return
   [[nodiscard]] u64 get_stage() const
   {
-    return inner.stage.load(std::memory_order_acquire);
+    std::atomic_ref stage{inner.stage};
+    return stage.load(std::memory_order_acquire);
   }
 
   /// @brief Get the number of stages in the semaphore
@@ -152,7 +157,8 @@ struct Semaphore
   /// @return
   [[nodiscard]] bool is_completed() const
   {
-    return inner.stage.load(std::memory_order_acquire) == inner.num_stages;
+    std::atomic_ref stage{inner.stage};
+    return stage.load(std::memory_order_acquire) == inner.num_stages;
   }
 
   /// @brief
@@ -161,14 +167,15 @@ struct Semaphore
   /// num_stages or U64_MAX means completion of the last stage of the operation.
   /// must be monotonically increasing for each call to signal_semaphore.
   ///
-  void signal(u64 stage)
+  void signal(u64 next)
   {
-    stage       = min(stage, inner.num_stages);
-    u64 current = 0;
-    while (!inner.stage.compare_exchange_strong(
-        current, stage, std::memory_order_release, std::memory_order_relaxed))
+    next                    = min(next, inner.num_stages);
+    u64             current = 0;
+    std::atomic_ref stage{inner.stage};
+    while (!stage.compare_exchange_strong(
+        current, next, std::memory_order_release, std::memory_order_relaxed))
     {
-      CHECK(current <= stage);
+      CHECK(current <= next);
     }
   }
 
@@ -177,10 +184,11 @@ struct Semaphore
   /// equivalent to driving it to completion.
   void increment(u64 inc)
   {
-    inc         = min(inc, inner.num_stages);
-    u64 current = 0;
-    u64 target  = inc;
-    while (!inner.stage.compare_exchange_strong(
+    inc                     = min(inc, inner.num_stages);
+    u64             current = 0;
+    u64             target  = inc;
+    std::atomic_ref stage{inner.stage};
+    while (!stage.compare_exchange_strong(
         current, target, std::memory_order_release, std::memory_order_relaxed))
     {
       target = min(sat_add(current, inc), inner.num_stages);

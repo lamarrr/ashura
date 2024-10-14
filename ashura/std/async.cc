@@ -38,7 +38,7 @@ bool await_semaphores(Span<Rc<Semaphore *> const> semaphores,
   for (usize i = 0; i < n; i++)
   {
     CHECK((stages[i] == U64_MAX) ||
-          (stages[i] < semaphores[i]->inner.num_stages));
+          (stages[i] <= semaphores[i]->inner.num_stages));
   }
 
   steady_clock::time_point begin = steady_clock::time_point{};
@@ -50,7 +50,7 @@ bool await_semaphores(Span<Rc<Semaphore *> const> semaphores,
     while (true)
     {
       // always monotonically increasing
-      if (stage <= s->inner.stage.load(std::memory_order_acquire))
+      if (stage <= s->get_stage())
       {
         break;
       }

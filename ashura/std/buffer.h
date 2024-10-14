@@ -119,8 +119,8 @@ struct RingBuffer
 template <typename T>
 struct SPSCRingBuffer
 {
-  alignas(CACHELINE_ALIGNMENT) std::atomic<usize> produce_next_ = 0;
-  alignas(CACHELINE_ALIGNMENT) std::atomic<usize> consume_next_ = 0;
+  alignas(CACHELINE_ALIGNMENT) usize produce_next_ = 0;
+  alignas(CACHELINE_ALIGNMENT) usize consume_next_ = 0;
 
   T    *data_     = nullptr;
   usize capacity_ = 0;
@@ -132,28 +132,32 @@ struct SPSCRingBuffer
 
   bool try_consume(T *out)
   {
-    usize const p_idx = produce_next_.load(std::memory_order_relaxed);
-    usize       c_idx = consume_next_.load(std::memory_order_relaxed);
+    std::atomic_ref p{produce_next_};
+    std::atomic_ref c{consume_next_};
+    usize const     p_idx = p.load(std::memory_order_relaxed);
+    usize           c_idx = c.load(std::memory_order_relaxed);
     if (p_idx == c_idx)
     {
       return false;
     }
 
-    (void) produce_next_.load(std::memory_order_acquire);
+    (void) p.load(std::memory_order_acquire);
 
     mem::copy(data_ + c_idx, out, 1);
 
     c_idx = (c_idx + 1) & (capacity_ - 1);
 
-    consume_next_.store(c_idx, std::memory_order_relaxed);
+    c.store(c_idx, std::memory_order_relaxed);
 
     return true;
   }
 
   bool try_produce(T const &in)
   {
-    usize       p_idx = produce_next_.load(std::memory_order_relaxed);
-    usize const c_idx = consume_next_.load(std::memory_order_relaxed);
+    std::atomic_ref p{produce_next_};
+    std::atomic_ref c{consume_next_};
+    usize           p_idx = p.load(std::memory_order_relaxed);
+    usize const     c_idx = c.load(std::memory_order_relaxed);
     if (p_idx == c_idx)
     {
       return false;
@@ -163,7 +167,7 @@ struct SPSCRingBuffer
 
     p_idx = (p_idx + 1) & (capacity_ - 1);
 
-    produce_next_.store(p_idx, std::memory_order_release);
+    p.store(p_idx, std::memory_order_release);
 
     return true;
   }

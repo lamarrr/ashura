@@ -6,6 +6,7 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/panic.h"
 #include "ashura/std/types.h"
+#include <atomic>
 #include <mutex>
 #include <stdlib.h>
 
@@ -114,7 +115,8 @@ struct Logger : Pin<>
   template <typename... Args>
   [[noreturn]] void panic(Args const &...args)
   {
-    if (panic_count->fetch_add(1, std::memory_order::relaxed))
+    std::atomic_ref panic_count{*ash::panic_count};
+    if (panic_count.fetch_add(1, std::memory_order::relaxed))
     {
       (void) fputs("panicked while processing a panic. aborting...", stderr);
       (void) fflush(stderr);
