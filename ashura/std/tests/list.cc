@@ -12,8 +12,8 @@ TEST(ListTest, Insertion)
   List<int>      l;
   ListNode<int> *x;
   ListNode<int> *y;
-  CHECK(pool.nalloc(1, &x));
-  CHECK(pool.nalloc(1, &y));
+  CHECK(pool.nalloc(1, x));
+  CHECK(pool.nalloc(1, y));
   x->link();
   y->link();
 

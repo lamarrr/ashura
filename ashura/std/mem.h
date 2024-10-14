@@ -2,7 +2,7 @@
 #pragma once
 #include "ashura/std/traits.h"
 #include "ashura/std/types.h"
-#include <string.h>
+#include <cstring>
 
 namespace ash
 {
@@ -27,9 +27,21 @@ constexpr T align_offset(T alignment, T offset)
 }
 
 template <typename T>
+T *align_ptr(usize alignment, T *p)
+{
+  return (T *) align_offset(alignment, (uptr) p);
+}
+
+template <typename T>
 constexpr bool is_aligned(T alignment, T offset)
 {
   return (offset & (alignment - 1)) == 0;
+}
+
+template <typename T>
+bool is_ptr_aligned(usize alignment, T *p)
+{
+  return is_aligned(alignment, (uptr) p);
 }
 
 template <typename T>
@@ -39,7 +51,7 @@ void copy(T const *src, T *dst, usize num)
   {
     return;
   }
-  memcpy(dst, src, sizeof(T) * num);
+  std::memcpy(dst, src, sizeof(T) * num);
 }
 
 template <typename T>
@@ -49,7 +61,7 @@ void copy(Span<T const> src, Span<T> dst)
   {
     return;
   }
-  memcpy(dst.data(), src.data(), src.size_bytes());
+  std::memcpy(dst.data(), src.data(), src.size_bytes());
 }
 
 template <typename T>
@@ -59,7 +71,7 @@ void copy(Span<T const> src, T *dst)
   {
     return;
   }
-  memcpy(dst, src.data(), src.size_bytes());
+  std::memcpy(dst, src.data(), src.size_bytes());
 }
 
 template <typename T>
@@ -69,7 +81,7 @@ void move(T const *src, T *dst, usize num)
   {
     return;
   }
-  memmove(dst, src, sizeof(T) * num);
+  std::memmove(dst, src, sizeof(T) * num);
 }
 
 template <typename T>
@@ -79,7 +91,7 @@ void move(Span<T const> src, Span<T> dst)
   {
     return;
   }
-  memmove(dst.data(), src.data(), src.size_bytes());
+  std::memmove(dst.data(), src.data(), src.size_bytes());
 }
 
 template <typename T>
@@ -89,7 +101,7 @@ void move(Span<T const> src, T *dst)
   {
     return;
   }
-  memmove(dst, src.data(), src.size_bytes());
+  std::memmove(dst, src.data(), src.size_bytes());
 }
 
 template <typename T>
@@ -99,7 +111,7 @@ void zero(T *dst, usize num)
   {
     return;
   }
-  memset(dst, 0, sizeof(T) * num);
+  std::memset(dst, 0, sizeof(T) * num);
 }
 
 template <typename T>
@@ -109,7 +121,7 @@ void zero(Span<T> dst)
   {
     return;
   }
-  memset(dst.data(), 0, dst.size_bytes());
+  std::memset(dst.data(), 0, dst.size_bytes());
 }
 
 template <typename T>
@@ -119,7 +131,7 @@ void fill(T *dst, usize num, u8 byte)
   {
     return;
   }
-  memset(dst, byte, sizeof(T) * num);
+  std::memset(dst, byte, sizeof(T) * num);
 }
 
 template <typename T>
@@ -129,7 +141,7 @@ void fill(Span<T> dst, u8 byte)
   {
     return;
   }
-  memset(dst.data(), byte, dst.size_bytes());
+  std::memset(dst.data(), byte, dst.size_bytes());
 }
 
 /// move-construct object from src to an uninitialized memory range dst and
@@ -163,31 +175,49 @@ void relocate(T *src, T *uninit_dst, usize num)
   }
 }
 
-static constexpr usize flex_extended_size(usize base_size, usize ext_alignment,
-                                          usize ext_size)
+struct Layout
 {
-  return mem::align_offset(ext_alignment, base_size) + ext_size;
-}
+  usize alignment = 1;
+  usize size      = 0;
 
-static constexpr usize flex_size(Span<usize const> member_alignments,
-                                 Span<usize const> member_unit_sizes,
-                                 Span<usize const> member_capacities)
-{
-  usize size = 0;
-  for (usize i = 0; i < member_alignments.size(); i++)
+  constexpr Layout merge(Layout const &ext) const
   {
-    size = flex_extended_size(size, member_alignments[i],
-                              (member_unit_sizes[i] * member_capacities[i]));
+    return Layout{.alignment = max(alignment, ext.alignment),
+                  .size = mem::align_offset(ext.alignment, size) + ext.size};
   }
-  return size;
+
+  constexpr Layout array(usize n) const
+  {
+    return Layout{.alignment = alignment, .size = size * n};
+  }
+
+  constexpr Layout lanes(usize num_lanes) const
+  {
+    return Layout{.alignment = alignment * num_lanes, .size = size * num_lanes};
+  }
+};
+
+template <typename T>
+constexpr Layout layout = Layout{.alignment = alignof(T), .size = sizeof(T)};
+
+constexpr Layout flex_layout(Span<Layout const> member_layouts,
+                             Span<usize const>  member_capacities)
+{
+  Layout layout;
+  for (usize i = 0; i < member_layouts.size(); i++)
+  {
+    layout = layout.merge(member_layouts[i].array(member_capacities[i]));
+  }
+  return layout;
 }
 
 template <typename... T>
-static constexpr usize typed_flex_size(usize const (&capacities)[sizeof...(T)])
+constexpr Layout typed_flex_layout(usize const (&capacities)[sizeof...(T)],
+                                   Layout ext = {})
 {
-  return flex_size(span<usize const>({alignof(T)...}),
-                   span<usize const>({sizeof(T)...}),
-                   span<usize const>(capacities));
+  return flex_layout(span<Layout const>({layout<T>...}),
+                     span<usize const>(capacities))
+      .merge(ext);
 }
 
 }        // namespace mem

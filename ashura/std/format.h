@@ -81,6 +81,12 @@ bool push(Context const &ctx, Spec const &spec, char const (&str)[N])
 bool push(Context const &ctx, Spec const &spec, char const *str);
 bool push(Context const &ctx, Spec const &spec, void const *ptr);
 
+template <typename T>
+bool push(Context const &ctx, Spec const &spec, T *ptr)
+{
+  return push(ctx, spec, (void const *) ptr);
+}
+
 inline bool push(Context const &ctx, Spec const &spec, std::string const &str)
 {
   return push(ctx, spec, span(str));

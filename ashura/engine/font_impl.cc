@@ -24,7 +24,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
 {
   u32   font_data_size = encoded.size32();
   char *font_data;
-  if (!allocator.nalloc(font_data_size, &font_data))
+  if (!allocator.nalloc(font_data_size, font_data))
   {
     return Err{FontDecodeError::OutOfMemory};
   }
@@ -130,7 +130,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
   if (ft_postscript_name != nullptr)
   {
     postscript_name_size = strlen(ft_postscript_name);
-    if (!allocator.nalloc(postscript_name_size, &postscript_name))
+    if (!allocator.nalloc(postscript_name_size, postscript_name))
     {
       return Err{FontDecodeError::OutOfMemory};
     }
@@ -150,7 +150,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
   if (ft_face->family_name != nullptr)
   {
     family_name_size = strlen(ft_face->family_name);
-    if (!allocator.nalloc(family_name_size, &family_name))
+    if (!allocator.nalloc(family_name_size, family_name))
     {
       return Err{FontDecodeError::OutOfMemory};
     }
@@ -170,7 +170,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
   if (ft_face->style_name != nullptr)
   {
     style_name_size = strlen(ft_face->style_name);
-    if (!allocator.nalloc(style_name_size, &style_name))
+    if (!allocator.nalloc(style_name_size, style_name))
     {
       return Err{FontDecodeError::OutOfMemory};
     }
@@ -196,7 +196,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
   i32 const advance = ft_face->size->metrics.max_advance;
 
   Glyph *glyphs;
-  if (!allocator.nalloc(num_glyphs, &glyphs))
+  if (!allocator.nalloc(num_glyphs, glyphs))
   {
     return Err{FontDecodeError::OutOfMemory};
   }
@@ -234,7 +234,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
   }
 
   FontImpl *f;
-  if (!allocator.nalloc(1, &f))
+  if (!allocator.nalloc(1, f))
   {
     return Err{FontDecodeError::OutOfMemory};
   }
@@ -386,7 +386,7 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
   u32 num_layers = 0;
   {
     rect_pack::rect *rects;
-    if (!allocator.nalloc(num_rasterized_glyphs, &rects))
+    if (!allocator.nalloc(num_rasterized_glyphs, rects))
     {
       return false;
     }
@@ -418,7 +418,7 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
     CHECK(atlas_extent.y <= gpu::MAX_IMAGE_EXTENT_2D);
 
     rect_pack::Node *nodes;
-    if (!allocator.nalloc(atlas_extent.x, &nodes))
+    if (!allocator.nalloc(atlas_extent.x, nodes))
     {
       return false;
     }
@@ -574,7 +574,7 @@ void upload_font_to_device(Font font, RenderContext &c,
 
   gpu::BufferImageCopy *copies;
 
-  CHECK(allocator.nalloc(atlas.num_layers, &copies));
+  CHECK(allocator.nalloc(atlas.num_layers, copies));
 
   defer copies_{[&] { allocator.ndealloc(copies, atlas.num_layers); }};
 

@@ -1158,7 +1158,7 @@ struct std_allocator
   pointer allocate(size_type s, void const * = 0)
   {
     pointer temp;
-    if (!default_allocator.nalloc(s, &temp))
+    if (!default_allocator.nalloc(s, temp))
     {
       throw std::bad_alloc();
     }

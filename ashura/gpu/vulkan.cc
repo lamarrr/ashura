@@ -5,7 +5,8 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/range.h"
 #include "vulkan/vulkan.h"
-#include <stdlib.h>
+#include <cstdlib>
+#include <cstring>
 
 namespace ash
 {
@@ -1080,7 +1081,7 @@ Result<gpu::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
   }
 
   VkExtensionProperties *exts;
-  if (!allocator.nalloc(num_exts, &exts))
+  if (!allocator.nalloc(num_exts, exts))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -1110,7 +1111,7 @@ Result<gpu::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
 
   VkLayerProperties *layers;
 
-  if (!allocator.nalloc(num_layers, &layers))
+  if (!allocator.nalloc(num_layers, layers))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -1233,7 +1234,7 @@ Result<gpu::InstanceImpl, Status> create_instance(AllocatorImpl allocator,
   // setup before vkInstance to allow debug reporter report
   // messages through the pointer to it
   Instance *instance;
-  if (!allocator.nalloc(1, &instance))
+  if (!allocator.nalloc(1, instance))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -1659,7 +1660,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
 
   VkPhysicalDevice *vk_phy_devs;
 
-  if (!self->allocator.nalloc(num_devs, &vk_phy_devs))
+  if (!self->allocator.nalloc(num_devs, vk_phy_devs))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -1680,7 +1681,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
   }
 
   PhysicalDevice *physical_devs;
-  if (!self->allocator.nalloc(num_devs, &physical_devs))
+  if (!self->allocator.nalloc(num_devs, physical_devs))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -1827,7 +1828,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
 
   VkExtensionProperties *exts;
 
-  if (!self->allocator.nalloc(num_exts, &exts))
+  if (!self->allocator.nalloc(num_exts, exts))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -1856,7 +1857,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
 
   VkLayerProperties *layers;
 
-  if (!self->allocator.nalloc(num_layers, &layers))
+  if (!self->allocator.nalloc(num_layers, layers))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -2158,7 +2159,7 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
 
   Device *dev;
 
-  if (!self->allocator.nalloc(1, &dev))
+  if (!self->allocator.nalloc(1, dev))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -2344,7 +2345,7 @@ Result<gpu::Buffer, Status>
                     VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT);
 
   Buffer *buffer;
-  if (!self->allocator.nalloc(1, &buffer))
+  if (!self->allocator.nalloc(1, buffer))
   {
     vmaDestroyBuffer(self->vma_allocator, vk_buffer, vma_allocation);
     return Err{Status::OutOfHostMemory};
@@ -2397,7 +2398,7 @@ Result<gpu::BufferView, Status>
 
   BufferView *view;
 
-  if (!self->allocator.nalloc(1, &view))
+  if (!self->allocator.nalloc(1, view))
   {
     self->vk_table.DestroyBufferView(self->vk_dev, vk_view, nullptr);
     return Err{Status::OutOfHostMemory};
@@ -2495,7 +2496,7 @@ Result<gpu::Image, Status>
 
   Image *image;
 
-  if (!self->allocator.nalloc(1, &image))
+  if (!self->allocator.nalloc(1, image))
   {
     vmaDestroyImage(self->vma_allocator, vk_image, vma_allocation);
     return Err{Status::OutOfHostMemory};
@@ -2574,7 +2575,7 @@ Result<gpu::ImageView, Status>
                     VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT);
 
   ImageView *view;
-  if (!self->allocator.nalloc(1, &view))
+  if (!self->allocator.nalloc(1, view))
   {
     self->vk_table.DestroyImageView(self->vk_dev, vk_view, nullptr);
     return Err{Status::OutOfHostMemory};
@@ -2765,7 +2766,7 @@ Result<gpu::DescriptorSetLayout, Status>
                     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT);
 
   DescriptorSetLayout *layout;
-  if (!self->allocator.nalloc(1, &layout))
+  if (!self->allocator.nalloc(1, layout))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -2872,7 +2873,7 @@ Result<gpu::DescriptorSet, Status>
     }};
 
     if (!heap.allocator.nrealloc(heap.num_pools, heap.num_pools + 1,
-                                 &heap.pools))
+                                 heap.pools))
     {
       return Err{Status::OutOfHostMemory};
     }
@@ -2917,7 +2918,7 @@ Result<gpu::DescriptorSet, Status>
       case gpu::DescriptorType::DynamicUniformBuffer:
       case gpu::DescriptorType::DynamicStorageBuffer:
       case gpu::DescriptorType::InputAttachment:
-        if (!heap.allocator.nalloc_zeroed(count, &sync_resources))
+        if (!heap.allocator.nalloc_zeroed(count, sync_resources))
         {
           return Err{Status::OutOfHostMemory};
         }
@@ -2964,7 +2965,7 @@ Result<gpu::DescriptorSet, Status>
 
   DescriptorSet *set;
 
-  if (!heap.allocator.nalloc(1, &set))
+  if (!heap.allocator.nalloc(1, set))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -3095,7 +3096,7 @@ Result<gpu::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
   ComputePipeline *pipeline;
-  if (!self->allocator.nalloc(1, &pipeline))
+  if (!self->allocator.nalloc(1, pipeline))
   {
     self->vk_table.DestroyPipelineLayout(self->vk_dev, vk_layout, nullptr);
     self->vk_table.DestroyPipeline(self->vk_dev, vk_pipeline, nullptr);
@@ -3442,7 +3443,7 @@ Result<gpu::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
   GraphicsPipeline *pipeline;
-  if (!self->allocator.nalloc(1, &pipeline))
+  if (!self->allocator.nalloc(1, pipeline))
   {
     self->vk_table.DestroyPipelineLayout(self->vk_dev, vk_layout, nullptr);
     self->vk_table.DestroyPipeline(self->vk_dev, vk_pipeline, nullptr);
@@ -3654,7 +3655,7 @@ Result<gpu::Swapchain, Status>
   CHECK(desc.preferred_extent.y > 0);
 
   Swapchain *swapchain;
-  if (!self->allocator.nalloc(1, &swapchain))
+  if (!self->allocator.nalloc(1, swapchain))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -4226,7 +4227,7 @@ void DeviceInterface::update_descriptor_set(
   if (heap->scratch_size < info_size)
   {
     CHECK(heap->allocator.realloc(MAX_STANDARD_ALIGNMENT, heap->scratch_size,
-                                  info_size, &heap->scratch));
+                                  info_size, heap->scratch));
     heap->scratch_size = info_size;
   }
 
@@ -4436,7 +4437,7 @@ Result<u32, Status> DeviceInterface::get_surface_formats(
   }
 
   VkSurfaceFormatKHR *vk_formats;
-  if (!self->allocator.nalloc(num_supported, &vk_formats))
+  if (!self->allocator.nalloc(num_supported, vk_formats))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -4485,7 +4486,7 @@ Result<u32, Status> DeviceInterface::get_surface_present_modes(
   }
 
   VkPresentModeKHR *vk_present_modes;
-  if (!self->allocator.nalloc(num_supported, &vk_present_modes))
+  if (!self->allocator.nalloc(num_supported, vk_present_modes))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -4896,7 +4897,7 @@ void CommandEncoderInterface::copy_buffer(gpu::CommandEncoder self_,
 
   VkBufferCopy *vk_copies;
 
-  if (!self->arg_pool.nalloc(num_copies, &vk_copies))
+  if (!self->arg_pool.nalloc(num_copies, vk_copies))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -4962,7 +4963,7 @@ void CommandEncoderInterface::clear_color_image(
   }
 
   VkImageSubresourceRange *vk_ranges;
-  if (!self->arg_pool.nalloc(num_ranges, &vk_ranges))
+  if (!self->arg_pool.nalloc(num_ranges, vk_ranges))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -4984,7 +4985,7 @@ void CommandEncoderInterface::clear_color_image(
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
   VkClearColorValue vk_clear_color;
-  memcpy(&vk_clear_color, &clear_color, sizeof(VkClearColorValue));
+  std::memcpy(&vk_clear_color, &clear_color, sizeof(VkClearColorValue));
 
   self->dev->vk_table.CmdClearColorImage(self->vk_command_buffer, dst->vk_image,
                                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -5015,7 +5016,7 @@ void CommandEncoderInterface::clear_depth_stencil_image(
   }
 
   VkImageSubresourceRange *vk_ranges;
-  if (!self->arg_pool.nalloc(num_ranges, &vk_ranges))
+  if (!self->arg_pool.nalloc(num_ranges, vk_ranges))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5037,8 +5038,8 @@ void CommandEncoderInterface::clear_depth_stencil_image(
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
   VkClearDepthStencilValue vk_clear_depth_stencil;
-  memcpy(&vk_clear_depth_stencil, &clear_depth_stencil,
-         sizeof(gpu::DepthStencil));
+  std::memcpy(&vk_clear_depth_stencil, &clear_depth_stencil,
+              sizeof(gpu::DepthStencil));
 
   self->dev->vk_table.CmdClearDepthStencilImage(
       self->vk_command_buffer, dst->vk_image,
@@ -5094,7 +5095,7 @@ void CommandEncoderInterface::copy_image(gpu::CommandEncoder self_,
   }
 
   VkImageCopy *vk_copies;
-  if (!self->arg_pool.nalloc(num_copies, &vk_copies))
+  if (!self->arg_pool.nalloc(num_copies, vk_copies))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5178,7 +5179,7 @@ void CommandEncoderInterface::copy_buffer_to_image(
   }
 
   VkBufferImageCopy *vk_copies;
-  if (!self->arg_pool.nalloc(num_copies, &vk_copies))
+  if (!self->arg_pool.nalloc(num_copies, vk_copies))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5272,7 +5273,7 @@ void CommandEncoderInterface::blit_image(gpu::CommandEncoder self_,
   }
 
   VkImageBlit *vk_blits;
-  if (!self->arg_pool.nalloc(num_blits, &vk_blits))
+  if (!self->arg_pool.nalloc(num_blits, vk_blits))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5372,7 +5373,7 @@ void CommandEncoderInterface::resolve_image(
   }
 
   VkImageResolve *vk_resolves;
-  if (!self->arg_pool.nalloc<VkImageResolve>(num_resolves, &vk_resolves))
+  if (!self->arg_pool.nalloc<VkImageResolve>(num_resolves, vk_resolves))
   {
     self->status = Status::OutOfHostMemory;
     return;
@@ -5629,7 +5630,7 @@ void CommandEncoderInterface::end_rendering(gpu::CommandEncoder self_)
           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
       VkImageLayout layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
       VkClearValue  clear_value;
-      memcpy(&clear_value, &attachment.clear, sizeof(VkClearValue));
+      std::memcpy(&clear_value, &attachment.clear, sizeof(VkClearValue));
 
       if (attachment.resolve_mode != gpu::ResolveModes::None)
       {
@@ -5694,7 +5695,7 @@ void CommandEncoderInterface::end_rendering(gpu::CommandEncoder self_)
 
       VkClearValue clear_value;
 
-      memcpy(&clear_value, &attachment.clear, sizeof(VkClearValue));
+      std::memcpy(&clear_value, &attachment.clear, sizeof(VkClearValue));
 
       if (attachment.view != nullptr)
       {
@@ -5754,7 +5755,7 @@ void CommandEncoderInterface::end_rendering(gpu::CommandEncoder self_)
 
       VkClearValue clear_value;
 
-      memcpy(&clear_value, &attachment.clear, sizeof(VkClearValue));
+      std::memcpy(&clear_value, &attachment.clear, sizeof(VkClearValue));
 
       if (attachment.view != nullptr)
       {
@@ -6045,13 +6046,13 @@ void CommandEncoderInterface::bind_descriptor_sets(
     CHECK(self->render_ctx.pipeline != nullptr);
     CHECK(self->render_ctx.pipeline->num_sets == num_sets);
     DescriptorSet **sets;
-    if (!self->render_ctx.arg_pool.nalloc(num_sets, &sets))
+    if (!self->render_ctx.arg_pool.nalloc(num_sets, sets))
     {
       self->status = Status::OutOfHostMemory;
       return;
     }
     u32 *offsets;
-    if (!self->render_ctx.arg_pool.nalloc(num_dynamic_offsets, &offsets))
+    if (!self->render_ctx.arg_pool.nalloc(num_dynamic_offsets, offsets))
     {
       self->render_ctx.arg_pool.ndealloc(sets, num_sets);
       self->status = Status::OutOfHostMemory;
@@ -6096,7 +6097,7 @@ void CommandEncoderInterface::push_constants(gpu::CommandEncoder self_,
     CHECK(push_constants_size ==
           self->render_ctx.pipeline->push_constants_size);
     u8 *data;
-    CHECK(self->render_ctx.arg_pool.nalloc(push_constants_size, &data));
+    CHECK(self->render_ctx.arg_pool.nalloc(push_constants_size, data));
     mem::copy(push_constants_data, data);
     if (!self->render_ctx.commands.push(
             Command{.type          = CommandType::PushConstants,

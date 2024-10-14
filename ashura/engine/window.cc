@@ -52,7 +52,7 @@ struct WindowSystemImpl : WindowSystem
                                Span<char const>  title) override
   {
     char *title_c_str;
-    if (!default_allocator.nalloc(title.size() + 1, &title_c_str))
+    if (!default_allocator.nalloc(title.size() + 1, title_c_str))
     {
       return None;
     }
@@ -80,7 +80,7 @@ struct WindowSystemImpl : WindowSystem
 
     WindowImpl *impl;
 
-    CHECK(default_allocator.nalloc(1, &impl));
+    CHECK(default_allocator.nalloc(1, impl));
 
     new (impl) WindowImpl{.win      = window,
                           .surface  = (gpu::Surface) surface,
@@ -108,7 +108,7 @@ struct WindowSystemImpl : WindowSystem
   void set_title(Window window, Span<char const> title) override
   {
     char *title_c_str;
-    CHECK(default_allocator.nalloc(title.size() + 1, &title_c_str));
+    CHECK(default_allocator.nalloc(title.size() + 1, title_c_str));
 
     defer title_c_str_{
         [&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};

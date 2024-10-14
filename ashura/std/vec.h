@@ -129,7 +129,7 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      if (!allocator_.nrealloc(capacity_, target_capacity, &data_))
+      if (!allocator_.nrealloc(capacity_, target_capacity, data_))
       {
         return Err{};
       }
@@ -137,7 +137,7 @@ struct [[nodiscard]] Vec
     else
     {
       T *new_data;
-      if (!allocator_.nalloc(target_capacity, &new_data))
+      if (!allocator_.nalloc(target_capacity, new_data))
       {
         return Err{};
       }
@@ -169,7 +169,7 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      if (!allocator_.nrealloc(capacity_, size_, &data_))
+      if (!allocator_.nrealloc(capacity_, size_, data_))
       {
         return Err{};
       }
@@ -177,7 +177,7 @@ struct [[nodiscard]] Vec
     else
     {
       T *new_data;
-      if (!allocator_.nalloc(size_, &new_data))
+      if (!allocator_.nalloc(size_, new_data))
       {
         return Err{};
       }

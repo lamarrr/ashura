@@ -245,7 +245,7 @@ struct Includer : glslang::TShader::Includer
   IncludeResult *include_file(char const *header_name, char const *path)
   {
     Vec<u8> *blob;
-    if (!default_allocator.nalloc(1, &blob))
+    if (!default_allocator.nalloc(1, blob))
     {
       return nullptr;
     }
@@ -264,7 +264,7 @@ struct Includer : glslang::TShader::Includer
     }
 
     IncludeResult *result;
-    if (!default_allocator.nalloc(1, &result))
+    if (!default_allocator.nalloc(1, result))
     {
       return nullptr;
     }

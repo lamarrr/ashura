@@ -222,11 +222,10 @@ struct Semaphore : Pin<>
 
 struct TaskInfo
 {
-  Fn<bool(void *)>            task          = fn([](void *) { return false; });
-  usize                       ctx_size      = 0;
-  usize                       ctx_alignment = 1;
-  Fn<void(void *)>            ctx_init      = fn([](void *) {});
-  Fn<void(void *)>            ctx_uninit    = fn([](void *) {});
+  Fn<bool(void *)>            task       = fn([](void *) { return false; });
+  mem::Layout                 ctx_layout = mem::Layout{};
+  Fn<void(void *)>            ctx_init   = fn([](void *) {});
+  Fn<void(void *)>            ctx_uninit = fn([](void *) {});
   Span<Rc<Semaphore *> const> await_semaphores     = {};
   Span<u64 const>             awaits               = {};
   Span<Rc<Semaphore *> const> signal_semaphores    = {};
@@ -260,7 +259,7 @@ struct TaskInfo
 /// [x] inter-task data flow, reporting cancelation
 /// [x] external polling contexts
 /// [ ] helper functions to correctly dispatch to required types.
-/// [ ] shutdown is performed immediately as we can't guarentee when tasks will
+/// [ ] shutdown is performed immediately as we can't guarantee when tasks will
 /// complete.
 struct Scheduler
 {

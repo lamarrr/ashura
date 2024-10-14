@@ -212,13 +212,13 @@ struct HashMap
   constexpr bool rehash_n_(usize new_num_probes)
   {
     Entry *new_probes;
-    if (!allocator_.nalloc(new_num_probes, &new_probes))
+    if (!allocator_.nalloc(new_num_probes, new_probes))
     {
       return false;
     }
 
     Distance *new_probe_dists;
-    if (!allocator_.nalloc(new_num_probes, &new_probe_dists))
+    if (!allocator_.nalloc(new_num_probes, new_probe_dists))
     {
       allocator_.ndealloc(new_probes, new_num_probes);
       return false;
