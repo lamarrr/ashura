@@ -9,6 +9,8 @@
 #include <mutex>
 #include <stdlib.h>
 
+#define ASH_DUMP(x) ::ash::logger->trace(#x, " = ", x);
+
 namespace ash
 {
 
