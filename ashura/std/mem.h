@@ -180,7 +180,7 @@ struct Layout
   usize alignment = 1;
   usize size      = 0;
 
-  constexpr Layout merge(Layout const &ext) const
+  constexpr Layout append(Layout const &ext) const
   {
     return Layout{.alignment = max(alignment, ext.alignment),
                   .size = mem::align_offset(ext.alignment, size) + ext.size};
@@ -189,6 +189,12 @@ struct Layout
   constexpr Layout array(usize n) const
   {
     return Layout{.alignment = alignment, .size = size * n};
+  }
+
+  constexpr Layout aligned() const
+  {
+    return Layout{.alignment = alignment,
+                  .size      = align_offset(alignment, size)};
   }
 
   constexpr Layout lanes(usize num_lanes) const
@@ -200,25 +206,67 @@ struct Layout
 template <typename T>
 constexpr Layout layout = Layout{.alignment = alignof(T), .size = sizeof(T)};
 
-constexpr Layout flex_layout(Span<Layout const> member_layouts,
-                             Span<usize const>  member_capacities)
+constexpr Layout flex_layout(Span<Layout const> member_layouts)
 {
   Layout layout;
   for (usize i = 0; i < member_layouts.size(); i++)
   {
-    layout = layout.merge(member_layouts[i].array(member_capacities[i]));
+    layout = layout.append(member_layouts[i]);
   }
-  return layout;
+  return layout.aligned();
 }
 
-template <typename... T>
-constexpr Layout typed_flex_layout(usize const (&capacities)[sizeof...(T)],
-                                   Layout ext = {})
+template <typename H, typename T>
+void flex_get(Span<Layout const> layout, H *head, usize i, Span<T> &array)
 {
-  return flex_layout(span<Layout const>({layout<T>...}),
-                     span<usize const>(capacities))
-      .merge(ext);
+  Layout prefix;
+  for (usize m = 0; m < i; m++)
+  {
+    prefix = layout[m].append(prefix);
+  }
+
+  array =
+      Span<T>{(T *) align_ptr(layout[i].alignment, ((u8 *) head) + prefix.size),
+              layout[i].size / sizeof(T)};
 }
+
+template <typename H, typename T>
+void flex_get(Span<Layout const> layout, H *head, usize i, T *&ptr)
+{
+  Span<T> array;
+  flex_get(layout, head, i, array);
+  ptr = array.data();
+}
+
+template <usize N>
+struct Flex
+{
+  Layout members[N];
+
+  constexpr Layout layout() const
+  {
+    return flex_layout(span(members));
+  }
+
+  template <typename H, typename T>
+  void get(H *head, usize i, Span<T> &array)
+  {
+    flex_get(span(members), head, i, array);
+  }
+
+  template <typename H, typename T>
+  void get(H *head, usize i, T *&ptr)
+  {
+    flex_get(span(members), head, i, ptr);
+  }
+
+  template <typename H, typename... T>
+  void unpack(H *head, T &...r)
+  {
+    usize i = 1;
+    (get(head, i++, r), ...);
+  }
+};
 
 }        // namespace mem
 }        // namespace ash

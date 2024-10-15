@@ -81,6 +81,8 @@ bool await_semaphores(Span<Rc<Semaphore *> const> semaphores,
   return true;
 }
 
+constexpr usize TASK_ARENA_SIZE = PAGE_ALIGNMENT;
+
 /// memory is returned back to the scheduler once ac reaches 0.
 ///
 /// arenas are individually allocated from heap and span a page boundary.
@@ -90,6 +92,13 @@ struct TaskArena
   AliasCount ac    = {};
   Arena      arena = {};
 };
+
+constexpr mem::Flex<2> task_arena_layout()
+{
+  return {mem::layout<ListNode<TaskArena>>,
+          mem::Layout{.alignment = MAX_STANDARD_ALIGNMENT,
+                      .size      = TASK_ARENA_SIZE}};
+}
 
 /// once task is executed, the arena holding the memory associated with the task
 /// is returned back to the source.
@@ -103,45 +112,65 @@ struct TaskArena
 ///
 struct Task
 {
-  usize                num_awaits     = 0;
-  Rc<Semaphore *>     *await_sems     = nullptr;
-  u64                 *awaits         = nullptr;
-  Fn<bool(void *)>     task           = fn([](void *) { return false; });
-  void                *ctx            = nullptr;
-  Fn<void(void *)>     ctx_uninit     = fn([](void *) {});
-  usize                num_increments = 0;
-  Rc<Semaphore *>     *increment_sems = nullptr;
-  u64                 *increments     = nullptr;
-  usize                num_signals    = 0;
-  Rc<Semaphore *>     *signal_sems    = nullptr;
-  u64                 *signals        = nullptr;
-  ListNode<TaskArena> *arena          = nullptr;
-
-  void uninit()
+  struct Sizing
   {
-    ctx_uninit(ctx);
+    usize       num_awaits     = 0;
+    usize       num_increments = 0;
+    usize       num_signals    = 0;
+    mem::Layout ctx_layout     = {};
+  };
 
-    for (u32 i = 0; i < num_awaits; i++)
-    {
-      await_sems[i].uninit();
-    }
-
-    for (u32 i = 0; i < num_increments; i++)
-    {
-      increment_sems[i].uninit();
-    }
-
-    for (u32 i = 0; i < num_signals; i++)
-    {
-      signal_sems[i].uninit();
-    }
-  }
+  Fn<bool(void *)>     task       = fn([](void *) { return false; });
+  Fn<void(void *)>     ctx_uninit = fn([](void *) {});
+  ListNode<TaskArena> *arena      = nullptr;
+  Sizing               sizing     = {};
 };
+
+constexpr mem::Flex<8> task_layout(Task::Sizing const &sizing)
+{
+  return {mem::layout<ListNode<Task>>,
+          mem::layout<Rc<Semaphore *>>.array(sizing.num_awaits),
+          mem::layout<u64>.array(sizing.num_awaits),
+          mem::layout<Rc<Semaphore *>>.array(sizing.num_increments),
+          mem::layout<u64>.array(sizing.num_increments),
+          mem::layout<Rc<Semaphore *>>.array(sizing.num_signals),
+          mem::layout<u64>.array(sizing.num_signals),
+          sizing.ctx_layout};
+}
+
+void uninit_task(ListNode<Task> *task)
+{
+  Span<Rc<Semaphore *>> await_sems;
+  Span<u64>             awaits;
+  Span<Rc<Semaphore *>> increment_sems;
+  Span<u64>             increments;
+  Span<Rc<Semaphore *>> signal_sems;
+  Span<u64>             signals;
+  u8                   *ctx;
+
+  mem::Flex flex = task_layout(task->data.sizing);
+
+  flex.unpack(task, await_sems, awaits, increment_sems, increments, signal_sems,
+              signals, ctx);
+
+  for (auto &sem : await_sems)
+  {
+    sem.uninit();
+  }
+
+  for (auto &sem : increment_sems)
+  {
+    sem.uninit();
+  }
+
+  for (auto &sem : signal_sems)
+  {
+    sem.uninit();
+  }
+}
 
 struct TaskAllocator
 {
-  static constexpr usize ARENA_SIZE = PAGE_ALIGNMENT;
-
   AllocatorImpl allocator                                  = default_allocator;
   alignas(CACHELINE_ALIGNMENT) SpinLock free_list_lock     = {};
   List<TaskArena> free_list                                = {};
@@ -185,22 +214,24 @@ struct TaskAllocator
 
   bool alloc_arena(ListNode<TaskArena> *&arena)
   {
-    u8 *arena_memory;
-    if (!allocator.alloc(MAX_STANDARD_ALIGNMENT, ARENA_SIZE, arena_memory))
+    mem::Flex   flex   = task_arena_layout();
+    mem::Layout layout = flex.layout();
+
+    u8 *head;
+
+    if (!allocator.alloc(layout.alignment, layout.size, head))
     {
       return false;
     }
 
-    if (!allocator.nalloc(1, arena))
-    {
-      allocator.dealloc(MAX_STANDARD_ALIGNMENT, arena_memory, ARENA_SIZE);
-      return false;
-    }
+    arena = (ListNode<TaskArena> *) head;
+
+    u8 *arena_memory;
+    flex.get(arena, 1, arena_memory);
 
     new (arena) ListNode<TaskArena>{
-        .data = TaskArena{.ac    = {},
-                          .arena = Arena{.begin     = arena_memory,
-                                         .end       = arena_memory + ARENA_SIZE,
+        .data = TaskArena{.arena = Arena{.begin = arena_memory,
+                                         .end = arena_memory + TASK_ARENA_SIZE,
                                          .offset    = arena_memory,
                                          .alignment = MAX_STANDARD_ALIGNMENT}}};
     return true;
@@ -208,9 +239,9 @@ struct TaskAllocator
 
   void dealloc_arena(ListNode<TaskArena> *arena)
   {
-    allocator.dealloc(arena->data.arena.alignment, arena->data.arena.begin,
-                      arena->data.arena.size());
-    allocator.ndealloc(arena, 1);
+    mem::Flex         flex   = task_arena_layout();
+    mem::Layout const layout = flex.layout();
+    allocator.dealloc(layout.alignment, (u8 *) arena, layout.size);
   }
 
   bool request_arena(ListNode<TaskArena> *&arena)
@@ -224,92 +255,59 @@ struct TaskAllocator
     return alloc_arena(arena);
   }
 
-  static bool alloc_task_stack(Arena &arena, u32 awaits_num, u32 increments_cap,
-                               u32 signals_num, ListNode<Task> *&t,
-                               Rc<Semaphore *> *&await_sems, u64 *&awaits,
-                               Rc<Semaphore *> *&increment_sems,
-                               u64 *&increments, Rc<Semaphore *> *&signal_sems,
-                               u64 *&signals, u8 *&ctx, mem::Layout ext)
-  {
-    mem::Layout stack_layout =
-        mem::typed_flex_layout<ListNode<Task>, Rc<Semaphore *>, u64,
-                               Rc<Semaphore *>, u64, Rc<Semaphore *>, u64,
-                               Rc<Semaphore *>, u64>(
-            {1, awaits_num, awaits_num, increments_cap, increments_cap,
-             signals_num, signals_num},
-            ext);
-    CHECK(stack_layout.size <= ARENA_SIZE);
-
-    u8 *stack;
-
-    auto push = [&stack]<typename T>(T *&ptr, mem::Layout layout) {
-      stack = mem::align_ptr(layout.alignment, stack);
-      ptr   = (T *) stack;
-      stack += layout.size;
-    };
-
-    if (!arena.alloc(stack_layout.alignment, stack_layout.size, stack))
-    {
-      return false;
-    }
-
-    push(t, mem::layout<ListNode<Task>>);
-    push(await_sems, mem::layout<Rc<Semaphore *>>.array(awaits_num));
-    push(awaits, mem::layout<Rc<Semaphore *>>.array(awaits_num));
-    push(increment_sems, mem::layout<Rc<Semaphore *>>.array(increments_cap));
-    push(increments, mem::layout<Rc<Semaphore *>>.array(increments_cap));
-    push(signal_sems, mem::layout<Rc<Semaphore *>>.array(signals_num));
-    push(signals, mem::layout<Rc<Semaphore *>>.array(signals_num));
-    push(ctx, ext);
-
-    return true;
-  }
-
   static bool alloc_task(ListNode<TaskArena> &arena, TaskInfo const &info,
                          ListNode<Task> *&task)
   {
     CHECK(info.awaits.size() == info.await_semaphores.size());
     CHECK(info.signals.size() == info.signal_semaphores.size());
     CHECK(info.increments.size() == info.increment_semaphores.size());
-    CHECK(info.awaits.size() <= U32_MAX);
-    CHECK(info.signals.size() <= U32_MAX);
-    CHECK(info.increments.size() <= U32_MAX);
 
-    u32              num_awaits     = info.awaits.size32();
-    u32              num_signals    = info.signals.size32();
-    u32              num_increments = info.increments.size32();
-    Rc<Semaphore *> *await_sems     = nullptr;
-    u64             *awaits         = nullptr;
-    Rc<Semaphore *> *increment_sems = nullptr;
-    u64             *increments     = nullptr;
-    Rc<Semaphore *> *signal_sems    = nullptr;
-    u64             *signals        = nullptr;
-    u8              *ctx            = nullptr;
+    Task::Sizing sizing{.num_awaits     = info.awaits.size(),
+                        .num_increments = info.signals.size(),
+                        .num_signals    = info.increments.size(),
+                        .ctx_layout     = info.ctx_layout};
 
-    if (!alloc_task_stack(arena.data.arena, num_awaits, num_increments,
-                          num_signals, task, await_sems, awaits, increment_sems,
-                          increments, signal_sems, signals, ctx,
-                          info.ctx_layout))
+    mem::Flex   flex   = task_layout(sizing);
+    mem::Layout layout = flex.layout();
+
+    CHECK(layout.size <= TASK_ARENA_SIZE);
+
+    u8 *head;
+
+    if (!arena.data.arena.alloc(layout.alignment, layout.size, head))
     {
       return false;
     }
 
     arena.data.ac.alias();
 
-    for (u32 i = 0; i < num_awaits; i++)
+    task = (ListNode<Task> *) head;
+
+    for (auto const &sem : info.await_semaphores)
     {
-      info.await_semaphores[i].alias();
+      sem.alias();
     }
 
-    for (u32 i = 0; i < num_increments; i++)
+    for (auto const &sem : info.increment_semaphores)
     {
-      info.increment_semaphores[i].alias();
+      sem.alias();
     }
 
-    for (u32 i = 0; i < num_signals; i++)
+    for (auto const &sem : info.signal_semaphores)
     {
-      info.signal_semaphores[i].alias();
+      sem.alias();
     }
+
+    Span<Rc<Semaphore *>> await_sems;
+    Span<u64>             awaits;
+    Span<Rc<Semaphore *>> increment_sems;
+    Span<u64>             increments;
+    Span<Rc<Semaphore *>> signal_sems;
+    Span<u64>             signals;
+    u8                   *ctx;
+
+    flex.unpack(task, await_sems, awaits, increment_sems, increments,
+                signal_sems, signals, ctx);
 
     mem::copy(info.await_semaphores, await_sems);
     mem::copy(info.awaits, awaits);
@@ -320,18 +318,10 @@ struct TaskAllocator
 
     info.ctx_init(ctx);
 
-    new (task) ListNode<Task>{.data = Task{.num_awaits     = num_awaits,
-                                           .await_sems     = await_sems,
-                                           .awaits         = awaits,
-                                           .task           = info.task,
-                                           .ctx            = ctx,
-                                           .ctx_uninit     = info.ctx_uninit,
-                                           .num_increments = num_increments,
-                                           .increment_sems = increment_sems,
-                                           .increments     = increments,
-                                           .signal_sems    = signal_sems,
-                                           .signals        = signals,
-                                           .arena          = &arena}};
+    new (task) ListNode<Task>{.data = Task{.task       = info.task,
+                                           .ctx_uninit = info.ctx_uninit,
+                                           .arena      = &arena,
+                                           .sizing     = sizing}};
 
     return true;
   }
@@ -451,8 +441,20 @@ struct SchedulerImpl : Scheduler
         continue;
       }
 
-      if (!await_semaphores({task->data.await_sems, task->data.num_awaits},
-                            {task->data.awaits, task->data.num_awaits}, 0ns))
+      mem::Flex flex = task_layout(task->data.sizing);
+
+      Span<Rc<Semaphore *>> await_sems;
+      Span<u64>             awaits;
+      Span<Rc<Semaphore *>> increment_sems;
+      Span<u64>             increments;
+      Span<Rc<Semaphore *>> signal_sems;
+      Span<u64>             signals;
+      u8                   *ctx;
+
+      flex.unpack(task, await_sems, awaits, increment_sems, increments,
+                  signal_sems, signals, ctx);
+
+      if (!await_semaphores(await_sems, awaits, 0ns))
       {
         q.push_task(task);
         continue;
@@ -462,16 +464,16 @@ struct SchedulerImpl : Scheduler
       // we've gotten multiple tasks but none have been ready.
       poll = 0;
 
-      bool const should_requeue = task->data.task(task->data.ctx);
+      bool const should_requeue = task->data.task(ctx);
 
-      for (usize i = 0; i < task->data.num_signals; i++)
+      for (usize i = 0; i < increments.size(); i++)
       {
-        task->data.signal_sems[i]->signal(task->data.signals[i]);
+        increment_sems[i]->increment(increments[i]);
       }
 
-      for (usize i = 0; i < task->data.num_increments; i++)
+      for (usize i = 0; i < signals.size(); i++)
       {
-        task->data.increment_sems[i]->increment(task->data.increments[i]);
+        signal_sems[i]->signal(signals[i]);
       }
 
       if (should_requeue)
@@ -481,8 +483,9 @@ struct SchedulerImpl : Scheduler
         continue;
       }
 
-      task->data.uninit();
-      a.release_arena(task->data.arena);
+      ListNode<TaskArena> *arena = task->data.arena;
+      uninit_task(task);
+      a.release_arena(arena);
     }
     // stop execution even if there are pending tasks
     while (!stop_token.is_stop_requested());
@@ -502,23 +505,35 @@ struct SchedulerImpl : Scheduler
         break;
       }
 
-      if (!await_semaphores({task->data.await_sems, task->data.num_awaits},
-                            {task->data.awaits, task->data.num_awaits}, 0ns))
+      mem::Flex flex = task_layout(task->data.sizing);
+
+      Span<Rc<Semaphore *>> await_sems;
+      Span<u64>             awaits;
+      Span<Rc<Semaphore *>> increment_sems;
+      Span<u64>             increments;
+      Span<Rc<Semaphore *>> signal_sems;
+      Span<u64>             signals;
+      u8                   *ctx;
+
+      flex.unpack(task, await_sems, awaits, increment_sems, increments,
+                  signal_sems, signals, ctx);
+
+      if (!await_semaphores(await_sems, awaits, 0ns))
       {
         q.push_task(task);
         continue;
       }
 
-      bool const should_requeue = task->data.task(task->data.ctx);
+      bool const should_requeue = task->data.task(ctx);
 
-      for (usize i = 0; i < task->data.num_signals; i++)
+      for (usize i = 0; i < increments.size(); i++)
       {
-        task->data.signal_sems[i]->increment(task->data.signals[i]);
+        increment_sems[i]->increment(increments[i]);
       }
 
-      for (usize i = 0; i < task->data.num_increments; i++)
+      for (usize i = 0; i < signals.size(); i++)
       {
-        task->data.increment_sems[i]->increment(task->data.increments[i]);
+        signal_sems[i]->increment(signals[i]);
       }
 
       if (should_requeue)
@@ -527,8 +542,9 @@ struct SchedulerImpl : Scheduler
         continue;
       }
 
-      task->data.uninit();
-      a.release_arena(task->data.arena);
+      ListNode<TaskArena> *arena = task->data.arena;
+      uninit_task(task);
+      a.release_arena(arena);
     } while ((steady_clock::now() - begin) < timeout);
   }
 
