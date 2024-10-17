@@ -175,6 +175,9 @@ void relocate(T *src, T *uninit_dst, usize num)
   }
 }
 
+/// @brief Memory layout of a type
+/// @param alignment non-zero alignment of the type
+/// @param size byte-size of the type
 struct Layout
 {
   usize alignment = 1;
@@ -197,15 +200,20 @@ struct Layout
                   .size      = align_offset(alignment, size)};
   }
 
-  constexpr Layout lanes(usize num_lanes) const
+  constexpr Layout lanes(usize n) const
   {
-    return Layout{.alignment = alignment * num_lanes, .size = size * num_lanes};
+    return Layout{.alignment = alignment * n, .size = size * n};
   }
 };
 
 template <typename T>
 constexpr Layout layout = Layout{.alignment = alignof(T), .size = sizeof(T)};
 
+/// @brief A Flex is a struct with multiple variable-sized members packed into a
+/// single address. It ensures the correct calculation of the alignments,
+/// offsets, and sizing requirements of the types and the resulting struct.
+/// @tparam N number of members in the flexible struct
+/// @param members memory layout of the members
 template <usize N>
 struct Flex
 {
