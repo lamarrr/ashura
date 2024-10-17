@@ -186,7 +186,7 @@ struct Layout
   constexpr Layout append(Layout const &ext) const
   {
     return Layout{.alignment = max(alignment, ext.alignment),
-                  .size = mem::align_offset(ext.alignment, size) + ext.size};
+                  .size      = align_offset(ext.alignment, size) + ext.size};
   }
 
   constexpr Layout array(usize n) const
