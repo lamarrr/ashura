@@ -42,8 +42,8 @@ struct FlexView : View
     fill(sizes, frame);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
     u32 const  num_children = sizes.size32();
     Vec2 const frame        = style.frame(allocated);
@@ -161,7 +161,7 @@ struct FlexView : View
       span[cross_axis] = cross_cursor;
     }
 
-    return span;
+    return {.extent = span};
   }
 };
 
@@ -199,7 +199,8 @@ struct StackView : View
     fill(sizes, style.frame(allocated));
   }
 
-  virtual Vec2 fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
     Vec2      span;
     u32 const num_children = sizes.size32();
@@ -215,7 +216,7 @@ struct StackView : View
       offsets[i] = space_align(span, sizes[i], align_item(i));
     }
 
-    return span;
+    return {.extent = span};
   }
 
   virtual i32 z_index(i32 allocated, Span<i32> indices) override
@@ -281,10 +282,10 @@ struct TextView : View
     return ViewState{.draggable = copyable};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     text.calculate_layout(allocated.x);
-    return text.inner.layout.extent;
+    return {.extent = text.inner.layout.extent};
   }
 
   virtual void render(CRect const &region, CRect const &clip,
@@ -579,15 +580,15 @@ struct TextInput : View
                      .tab_input  = state.tab_input};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     placeholder.calculate_layout(allocated.x);
     content.calculate_layout(allocated.x);
     if (content.inner.text.is_empty())
     {
-      return placeholder.inner.layout.extent;
+      return {.extent = placeholder.inner.layout.extent};
     }
-    return content.inner.layout.extent;
+    return {.extent = content.inner.layout.extent};
   }
 
   virtual void render(CRect const &region, CRect const &clip,
@@ -706,12 +707,12 @@ struct Button : View
     fill(sizes, size);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
     fill(offsets, Vec2{0, 0});
-    return (sizes.is_empty() ? Vec2{0, 0} : sizes[0]) +
-           2 * style.padding(allocated);
+    return {.extent = (sizes.is_empty() ? Vec2{0, 0} : sizes[0]) +
+                      2 * style.padding(allocated)};
   }
 
   virtual void render(CRect const &region, CRect const &,
@@ -801,10 +802,10 @@ struct CheckBox : View
                      .focusable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     Vec2 extent = style.frame(allocated);
-    return Vec2::splat(min(extent.x, extent.y));
+    return {.extent = Vec2::splat(min(extent.x, extent.y))};
   }
 
   virtual void render(CRect const &region, CRect const &,
@@ -884,9 +885,9 @@ struct Slider : View
                      .draggable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return style.frame(allocated);
+    return {.extent = style.frame(allocated)};
   }
 
   virtual void render(CRect const &region, CRect const &,
@@ -991,9 +992,9 @@ struct Switch : View
                      .focusable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return style.frame(allocated);
+    return {.extent = style.frame(allocated)};
   }
 
   virtual void render(CRect const &region, CRect const &,
@@ -1185,16 +1186,16 @@ struct ComboBoxScrollView : View
     fill(sizes, Vec2{0, 0});
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
-    return Vec2{0, 0};
+    return {};
   }
 
-  virtual CRect clip(CRect const &region, CRect const &allocated) override
-  {
-    return intersect(region, allocated);
-  }
+  // virtual CRect clip(CRect const &region, CRect const &allocated) override
+  // {
+  //   return intersect(region, allocated);
+  // }
 
   virtual void render(CRect const &region, CRect const &clip,
                       Canvas &canvas) override
@@ -1362,9 +1363,9 @@ struct RadioBox : View
                      .focusable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return style.frame(allocated);
+    return {.extent = style.frame(allocated)};
   }
 
   virtual void render(CRect const &region, CRect const &,
@@ -1649,11 +1650,11 @@ struct ScalarDragBox : View, Pin<>
     fill(sizes, child);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
     fill(offsets, Vec2{0, 0});
-    return sizes[0] + 2 * style.padding(allocated);
+    return {.extent = sizes[0] + 2 * style.padding(allocated)};
   }
 
   virtual void render(CRect const &region, CRect const &,
@@ -1827,9 +1828,9 @@ struct ScrollBar : View
                      .draggable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return allocated;
+    return {.extent = allocated};
   }
 
   virtual void render(CRect const &region, CRect const &,
@@ -1921,8 +1922,8 @@ struct ScrollView : View
     fill(sizes.slice(2), frame);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
     Vec2 const frame = style.frame(allocated);
     offsets[0]       = space_align(frame, sizes[0], Vec2{1, 0});
@@ -1943,7 +1944,7 @@ struct ScrollView : View
     x_bar.style.content_extent = y_bar.style.content_extent = content_size;
     x_bar.style.frame_extent = y_bar.style.frame_extent = frame;
 
-    return frame;
+    return {.extent = frame};
   }
 
   virtual i32 z_index(i32 z_index, Span<i32> indices) override
@@ -1955,10 +1956,10 @@ struct ScrollView : View
     return z_index;
   }
 
-  virtual CRect clip(CRect const &region, CRect const &allocated) override
-  {
-    return intersect(region.offseted(), allocated.offseted()).centered();
-  }
+  // virtual CRect clip(CRect const &region, CRect const &allocated) override
+  // {
+  //   return intersect(region.offseted(), allocated.offseted()).centered();
+  // }
 };
 
 // [ ] implement
