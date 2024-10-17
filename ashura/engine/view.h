@@ -229,10 +229,15 @@ struct ViewContext
   }
 };
 
+/// @param focus_center if viewport, the currently focused position in the
+/// viewport
+/// @param zoom if viewport, current zoom/scale factor of the viewport.
 /// @param tab Tab Index for Focus-Based Navigation. desired tab index, I32_MIN
 /// meaning the default tab order based on the hierarchy of the parent to
 /// children and siblings (depth-first traversal). Negative values have are
 /// focused before positive values.
+/// @param absolute_transform transform to apply in viewport-space. this is used
+/// for absolute positioning of the view in the parent viewport-space.
 /// @param hidden if the view should be hidden from view (will not receive
 /// visual events, but still receive tick events)
 /// @param pointable can receive mouse enter/move/leave events
@@ -245,21 +250,25 @@ struct ViewContext
 /// key/non-text keys)
 /// @param tab_input can receive `Tab` key as input when focused
 /// @param grab_focus user to focus on view
-/// @param lose_focus lose view focus
+/// @param viewport is view a viewport
 struct ViewState
 {
-  i32  tab            = I32_MIN;
-  bool hidden : 1     = false;
-  bool pointable : 1  = false;
-  bool clickable : 1  = false;
-  bool scrollable : 1 = false;
-  bool draggable : 1  = false;
-  bool droppable : 1  = false;
-  bool focusable : 1  = false;
-  bool text_input : 1 = false;
-  bool tab_input : 1  = false;
-  bool esc_input : 1  = false;
-  bool grab_focus : 1 = false;
+  Vec2       focus_center       = {};
+  f32        zoom               = 1.0F;
+  i32        tab                = I32_MIN;
+  Mat3Affine absolute_transform = {};
+  bool       hidden : 1         = false;
+  bool       pointable : 1      = false;
+  bool       clickable : 1      = false;
+  bool       scrollable : 1     = false;
+  bool       draggable : 1      = false;
+  bool       droppable : 1      = false;
+  bool       focusable : 1      = false;
+  bool       text_input : 1     = false;
+  bool       tab_input : 1      = false;
+  bool       esc_input : 1      = false;
+  bool       grab_focus : 1     = false;
+  bool       viewport : 1       = false;
 };
 
 struct CoreViewTheme
@@ -315,6 +324,15 @@ constexpr CoreViewTheme DEFAULT_THEME = {
     .h3_font_height    = 22,
     .line_height       = 1.2F};
 
+/// @param extent extent of the view within the parent, if it is a viewport,
+/// this is the visible extent of the viewport within the parent viewport.
+/// @param viewport inner extent, if it is a viewport
+struct ViewExtent
+{
+  Vec2 extent   = {};
+  Vec2 viewport = {};
+};
+
 /// @brief Base view class. All view types must inherit from this struct.
 /// Views are plain visual elements that define spatial relationships,
 /// visual state changes, and forward events to other subsystems.
@@ -323,7 +341,11 @@ constexpr CoreViewTheme DEFAULT_THEME = {
 /// the child method based on the flag.
 struct View
 {
-  struct
+  /// @param id id of the view if mounted, otherwise U64_MAX
+  /// @param last_rendered_frame last frame the view was rendered at
+  /// @param focus_idx index in the focus tree
+  /// @param region canvas-space region of the view
+  struct Inner
   {
     u64   id                  = U64_MAX;
     u64   last_rendered_frame = 0;
@@ -346,10 +368,10 @@ struct View
 
   /// @brief called on every frame. used for state changes, animations, task
   /// dispatch and lightweight processing related to the GUI. heavy-weight and
-  /// non-sub-millisecond tasks should be dispatched to a Subsystem that would
-  /// handle that. i.e. using the multi-tasking system.
+  /// non-sub-millisecond tasks should be dispatched to a subsystem that would
+  /// handle it. i.e. using the multi-tasking or asset-loading systems.
+  /// @param region region of the canvas-space the view is on
   /// @param build callback to be called to insert subviews.
-  //
   constexpr virtual ViewState tick(ViewContext const &ctx, CRect const &region,
                                    ViewEvents events, Fn<void(View &)> build)
   {
@@ -357,7 +379,7 @@ struct View
     (void) region;
     (void) events;
     (void) build;
-    return ViewState{};
+    return {};
   }
 
   /// @brief distributes the size allocated to it to its child views.
@@ -375,28 +397,20 @@ struct View
   /// @param sizes sizes of the child views
   /// @param[out] offsets offsets of the views from the parent's center
   /// @return this view's fitted extent
-  constexpr virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                             Span<Vec2> offsets)
+  constexpr virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                                   Span<Vec2> offsets)
   {
     (void) allocated;
     (void) sizes;
     fill(offsets, Vec2{0, 0});
-    return Vec2{0, 0};
-  }
-
-  /// @brief this is used for absolute positioning of the view
-  /// @param center the allocated absolute center of this view relative
-  /// to the viewport
-  constexpr virtual Vec2 position(CRect const &region)
-  {
-    return region.center;
+    return {};
   }
 
   /// @brief returns the stacking layer index
   /// @param allocated stacking layer index allocated to this view
   /// by parent. This functions similar to the CSS stacking context. The layer
   /// index has a higher priority over the z-index.
-  /// @return
+  /// @return stack index for the view
   constexpr virtual i32 stack(i32 allocated)
   {
     return allocated;
@@ -405,26 +419,19 @@ struct View
   /// @brief returns the z-index of itself and assigns z-indices to its children
   /// @param allocated z-index allocated to this view by parent
   /// @param[out] indices z-index assigned to children
-  /// @return
+  /// @return preferred z_index
   constexpr virtual i32 z_index(i32 allocated, Span<i32> indices)
   {
     fill(indices, allocated + 1);
     return allocated;
   }
 
-  /// @brief this is used for clipping views. the provided clip is
-  /// relative to the root viewport. Used for nested viewports where there are
-  /// multiple intersecting clips.
-  constexpr virtual CRect clip(CRect const &region, CRect const &allocated)
-  {
-    (void) region;
-    return allocated;
-  }
-
   /// @brief record draw commands needed to render this view. this method is
   /// only called if the view passes the visibility tests. this is called on
   /// every frame.
-  /// @param canvas
+  /// @param region canvas-space region of the view
+  /// @param clip canvas-space clip of the view, applied by viewports.
+  /// @param canvas canvas to render view into
   constexpr virtual void render(CRect const &region, CRect const &clip,
                                 Canvas &canvas)
   {
@@ -434,22 +441,40 @@ struct View
   }
 
   /// @brief Used for hit-testing regions of views.
-  /// @param area area of view within the viewport
-  /// @param offset offset of pointer within area
+  /// @param region canvas-space region of the view
+  /// @param position canvas-space position of the pointer
   /// @return true if in hit region
-  constexpr virtual bool hit(CRect const &region, Vec2 offset)
+  constexpr virtual bool hit(CRect const &region, Vec2 position)
   {
     (void) region;
-    (void) offset;
+    (void) position;
     return true;
   }
 
-  /// @brief Select cursor type given a highlighted region of the view.
-  constexpr virtual Cursor cursor(CRect const &region, Vec2 offset)
+  /// @brief Select cursor type given a pointed region of the view.
+  /// @param region canvas-space region of the view
+  /// @param position canvas-space position of the pointer
+  constexpr virtual Cursor cursor(CRect const &region, Vec2 position)
   {
     (void) region;
-    (void) offset;
+    (void) position;
     return Cursor::Default;
+  }
+
+  /// @brief Called when the viewport is needed to scroll to a position in
+  /// itself
+  /// @param center position within the viewport to scroll into
+  constexpr virtual void scroll(Vec2 center)
+  {
+    (void) center;
+  }
+
+  /// @brief Called when the viewport is needed to zoom itself, scaling its
+  /// inner extent
+  /// @param scale scale to apply to the inner extent
+  constexpr virtual void zoom(f32 scale)
+  {
+    (void) scale;
   }
 };
 
