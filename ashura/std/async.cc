@@ -150,8 +150,8 @@ void uninit_task(ListNode<Task> *task)
 
   mem::Flex flex = task_layout(task->data.sizing);
 
-  flex.unpack(task, await_sems, awaits, increment_sems, increments, signal_sems,
-              signals, ctx);
+  flex.unpack(task, task, await_sems, awaits, increment_sems, increments,
+              signal_sems, signals, ctx);
 
   for (auto &sem : await_sems)
   {
@@ -227,7 +227,7 @@ struct TaskAllocator
     arena = (ListNode<TaskArena> *) head;
 
     u8 *arena_memory;
-    flex.get(arena, 1, arena_memory);
+    flex.unpack(head, arena, arena_memory);
 
     new (arena) ListNode<TaskArena>{
         .data = TaskArena{.arena = Arena{.begin = arena_memory,
@@ -306,7 +306,7 @@ struct TaskAllocator
     Span<u64>             signals;
     u8                   *ctx;
 
-    flex.unpack(task, await_sems, awaits, increment_sems, increments,
+    flex.unpack(task, task, await_sems, awaits, increment_sems, increments,
                 signal_sems, signals, ctx);
 
     mem::copy(info.await_semaphores, await_sems);
@@ -451,7 +451,7 @@ struct SchedulerImpl : Scheduler
       Span<u64>             signals;
       u8                   *ctx;
 
-      flex.unpack(task, await_sems, awaits, increment_sems, increments,
+      flex.unpack(task, task, await_sems, awaits, increment_sems, increments,
                   signal_sems, signals, ctx);
 
       if (!await_semaphores(await_sems, awaits, 0ns))
@@ -515,7 +515,7 @@ struct SchedulerImpl : Scheduler
       Span<u64>             signals;
       u8                   *ctx;
 
-      flex.unpack(task, await_sems, awaits, increment_sems, increments,
+      flex.unpack(task, task, await_sems, awaits, increment_sems, increments,
                   signal_sems, signals, ctx);
 
       if (!await_semaphores(await_sems, awaits, 0ns))

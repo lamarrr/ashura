@@ -206,38 +206,6 @@ struct Layout
 template <typename T>
 constexpr Layout layout = Layout{.alignment = alignof(T), .size = sizeof(T)};
 
-constexpr Layout flex_layout(Span<Layout const> member_layouts)
-{
-  Layout layout;
-  for (usize i = 0; i < member_layouts.size(); i++)
-  {
-    layout = layout.append(member_layouts[i]);
-  }
-  return layout.aligned();
-}
-
-template <typename H, typename T>
-void flex_get(Span<Layout const> layout, H *head, usize i, Span<T> &array)
-{
-  Layout prefix;
-  for (usize m = 0; m < i; m++)
-  {
-    prefix = layout[m].append(prefix);
-  }
-
-  array =
-      Span<T>{(T *) align_ptr(layout[i].alignment, ((u8 *) head) + prefix.size),
-              layout[i].size / sizeof(T)};
-}
-
-template <typename H, typename T>
-void flex_get(Span<Layout const> layout, H *head, usize i, T *&ptr)
-{
-  Span<T> array;
-  flex_get(layout, head, i, array);
-  ptr = array.data();
-}
-
 template <usize N>
 struct Flex
 {
@@ -245,26 +213,37 @@ struct Flex
 
   constexpr Layout layout() const
   {
-    return flex_layout(span(members));
+    Layout l;
+    for (Layout const &m : members)
+    {
+      l = l.append(m);
+    }
+    return l.aligned();
   }
 
-  template <typename H, typename T>
-  void get(H *head, usize i, Span<T> &array)
+  template <typename T>
+  void unpack_at(void const *&stack, usize i, Span<T> &span)
   {
-    flex_get(span(members), head, i, array);
+    stack             = align_ptr(members[i].alignment, stack);
+    usize const count = members[i].size / sizeof(T);
+    span              = Span{(T *) stack, count};
+    stack             = ((u8 const *) stack) + members[i].size;
   }
 
-  template <typename H, typename T>
-  void get(H *head, usize i, T *&ptr)
+  template <typename T>
+  void unpack_at(void const *&stack, usize i, T *&ptr)
   {
-    flex_get(span(members), head, i, ptr);
+    Span<T> span;
+    unpack_at(stack, i, span);
+    ptr = span.data();
   }
 
-  template <typename H, typename... T>
-  void unpack(H *head, T &...r)
+  template <typename... T>
+  void unpack(void const *stack, T &...p)
   {
-    usize i = 1;
-    (get(head, i++, r), ...);
+    static_assert(sizeof...(T) == N);
+    usize i = 0;
+    (unpack_at(stack, i++, p), ...);
   }
 };
 
