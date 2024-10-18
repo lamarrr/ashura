@@ -217,27 +217,34 @@ struct Semaphore : Pin<>
 /// @return: true if all semaphores completed the expected stages before the
 /// timeout.
 [[nodiscard]] bool await_semaphores(Span<Rc<Semaphore *> const> await,
-                                    Span<u64 const>             stages,
-                                    nanoseconds                 timeout);
+                                    Span<u64 const> stages, nanoseconds timeout,
+                                    bool any = false);
 
+/// @brief Task data layout and callbacks
+/// @param task task to be executed on the executor. must return true if it
+/// should be re-queued onto the executor (with the same parameters as it got
+/// in).
+/// @param ctx memory layout of context data associated with the task.
+/// @param init function to initialize the context data associated with the task
+/// to a task stack.
+/// @param poll function to poll for readiness of the task, must be extremely
+/// light-weight and non-blocking.
+/// @param finalize function to uninitialize the task and the associated data
+/// context upon completion of the task.
+/// @note Cancelation is handled within the task itself, as various tasks have
+/// various methods/techniques of reacting to cancelation.
 struct TaskInfo
 {
-  Fn<bool(void *)>            task       = fn([](void *) { return false; });
-  mem::Layout                 ctx_layout = mem::Layout{};
-  Fn<void(void *)>            ctx_init   = fn([](void *) {});
-  Fn<void(void *)>            ctx_uninit = fn([](void *) {});
-  Span<Rc<Semaphore *> const> await_semaphores     = {};
-  Span<u64 const>             awaits               = {};
-  Span<Rc<Semaphore *> const> signal_semaphores    = {};
-  Span<u64 const>             signals              = {};
-  Span<Rc<Semaphore *> const> increment_semaphores = {};
-  Span<u64 const>             increments           = {};
+  Fn<bool(void *)> task   = fn([](void *) { return false; });
+  mem::Layout      ctx    = mem::Layout{};
+  Fn<void(void *)> init   = fn([](void *) {});
+  Fn<bool(void *)> poll   = fn([](void *) { return true; });
+  Fn<void(void *)> uninit = fn([](void *) {});
 };
 
 /// @brief Static Thread Pool Scheduler.
 ///
-/// all tasks execute out-of-order and have dependencies enforced by
-/// semaphores.
+/// all tasks execute out-of-order.
 ///
 /// it has 2 types of threads: worker threads and dedicated threads.
 ///

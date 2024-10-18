@@ -47,7 +47,11 @@ TEST(AsyncTest, Basic)
     }
   }
 
-  scheduler->schedule_main({.task             = fn([](void *) {
+  auto poll = [&](void *) {
+    return await_semaphores(span({sem, sem}), span<u64>({0, 0}), {});
+  };
+
+  scheduler->schedule_main({.task = fn([](void *) {
                               static int x = 0;
                               x++;
                               if (x > 10)
@@ -57,9 +61,8 @@ TEST(AsyncTest, Basic)
                               std::this_thread::sleep_for(8us);
                               return true;
                             }),
-                            .await_semaphores = span({sem, sem}),
-                            .awaits           = span<u64>({0, 0})});
+                            .poll = fn(&poll)});
   sem->signal(1);
   scheduler->execute_main_thread_work(5s);
-  std::this_thread::sleep_for(1s);
+  std::this_thread::sleep_for(500ms);
 }
