@@ -42,8 +42,8 @@ struct FlexView : View
     fill(sizes, frame);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
     u32 const  num_children = sizes.size32();
     Vec2 const frame        = style.frame(allocated);
@@ -161,7 +161,7 @@ struct FlexView : View
       span[cross_axis] = cross_cursor;
     }
 
-    return span;
+    return {.extent = span};
   }
 };
 
@@ -199,7 +199,8 @@ struct StackView : View
     fill(sizes, style.frame(allocated));
   }
 
-  virtual Vec2 fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
     Vec2      span;
     u32 const num_children = sizes.size32();
@@ -215,7 +216,7 @@ struct StackView : View
       offsets[i] = space_align(span, sizes[i], align_item(i));
     }
 
-    return span;
+    return {.extent = span};
   }
 
   virtual i32 z_index(i32 allocated, Span<i32> indices) override
@@ -281,19 +282,19 @@ struct TextView : View
     return ViewState{.draggable = copyable};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     text.calculate_layout(allocated.x);
-    return text.inner.layout.extent;
+    return {.extent = text.inner.layout.extent};
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
+  virtual void render(CRect const &region, f32, CRect const &clip,
                       Canvas &canvas) override
   {
     text.render(region, clip, canvas);
   }
 
-  virtual Cursor cursor(CRect const &, Vec2) override
+  virtual Cursor cursor(CRect const &, f32, Vec2) override
   {
     return copyable ? Cursor::Text : Cursor::Default;
   }
@@ -579,18 +580,18 @@ struct TextInput : View
                      .tab_input  = state.tab_input};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     placeholder.calculate_layout(allocated.x);
     content.calculate_layout(allocated.x);
     if (content.inner.text.is_empty())
     {
-      return placeholder.inner.layout.extent;
+      return {.extent = placeholder.inner.layout.extent};
     }
-    return content.inner.layout.extent;
+    return {.extent = content.inner.layout.extent};
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
+  virtual void render(CRect const &region, f32 scale, CRect const &clip,
                       Canvas &canvas) override
   {
     if (content.inner.text.is_empty())
@@ -603,7 +604,7 @@ struct TextInput : View
     }
   }
 
-  virtual Cursor cursor(CRect const &, Vec2) override
+  virtual Cursor cursor(CRect const &, f32, Vec2) override
   {
     return Cursor::Text;
   }
@@ -706,16 +707,16 @@ struct Button : View
     fill(sizes, size);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
     fill(offsets, Vec2{0, 0});
-    return (sizes.is_empty() ? Vec2{0, 0} : sizes[0]) +
-           2 * style.padding(allocated);
+    return {.extent = (sizes.is_empty() ? Vec2{0, 0} : sizes[0]) +
+                      2 * style.padding(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 scale, CRect const &,
+                      Canvas &canvas) override
   {
     ColorGradient tint =
         (state.hovered && !state.pressed) ? style.hovered_color : style.color;
@@ -801,14 +802,14 @@ struct CheckBox : View
                      .focusable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     Vec2 extent = style.frame(allocated);
-    return Vec2::splat(min(extent.x, extent.y));
+    return {.extent = Vec2::splat(min(extent.x, extent.y))};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 scale, CRect const &,
+                      Canvas &canvas) override
   {
     ColorGradient tint = (state.hovered && !state.pressed && !state.disabled) ?
                              style.box_hovered_color :
@@ -884,13 +885,13 @@ struct Slider : View
                      .draggable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return style.frame(allocated);
+    return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 scale, CRect const &,
+                      Canvas &canvas) override
   {
     Vec2 const track_extent =
         Frame{style.frame.width, style.track_height}(region.extent);
@@ -991,13 +992,13 @@ struct Switch : View
                      .focusable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return style.frame(allocated);
+    return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 scale, CRect const &,
+                      Canvas &canvas) override
   {
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
@@ -1127,7 +1128,7 @@ struct ComboBoxItem : View
                      .focusable = !state.disabled};
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
+  virtual void render(CRect const &region, f32 scale, CRect const &clip,
                       Canvas &canvas) override
   {
     canvas.rrect(ShapeDesc{.center = region.center,
@@ -1185,18 +1186,18 @@ struct ComboBoxScrollView : View
     fill(sizes, Vec2{0, 0});
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
-    return Vec2{0, 0};
+    return {};
   }
 
-  virtual CRect clip(CRect const &region, CRect const &allocated) override
-  {
-    return intersect(region, allocated);
-  }
+  // virtual CRect clip(CRect const &region, CRect const &allocated) override
+  // {
+  //   return intersect(region, allocated);
+  // }
 
-  virtual void render(CRect const &region, CRect const &clip,
+  virtual void render(CRect const &region, f32 scale, CRect const &clip,
                       Canvas &canvas) override
   {
     // render rrect covering region
@@ -1278,7 +1279,7 @@ struct ComboBox : View
                      .focusable = !state.disabled};
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
+  virtual void render(CRect const &region, f32 scale, CRect const &clip,
                       Canvas &canvas) override
   {
     canvas.rrect(
@@ -1362,13 +1363,13 @@ struct RadioBox : View
                      .focusable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return style.frame(allocated);
+    return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 zoom, CRect const &,
+                      Canvas &canvas) override
   {
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
@@ -1649,15 +1650,15 @@ struct ScalarDragBox : View, Pin<>
     fill(sizes, child);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
     fill(offsets, Vec2{0, 0});
-    return sizes[0] + 2 * style.padding(allocated);
+    return {.extent = sizes[0] + 2 * style.padding(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 zoom, CRect const &,
+                      Canvas &canvas) override
   {
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
@@ -1684,7 +1685,7 @@ struct ScalarDragBox : View, Pin<>
     }
   }
 
-  virtual Cursor cursor(CRect const &region, Vec2 offset) override
+  virtual Cursor cursor(CRect const &region, f32, Vec2 offset) override
   {
     (void) region;
     (void) offset;
@@ -1827,13 +1828,13 @@ struct ScrollBar : View
                      .draggable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return allocated;
+    return {.extent = allocated};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 zoom, CRect const &,
+                      Canvas &canvas) override
   {
     u8 const   main_axis    = (style.direction == Axis::X) ? 0 : 1;
     u8 const   cross_axis   = (style.direction == Axis::Y) ? 1 : 0;
@@ -1846,11 +1847,11 @@ struct ScrollBar : View
                            .tint         = style.track_color});
 
     // calculate thumb main axis extent
-    f32 const scale =
+    f32 const thumb_scale =
         style.frame_extent[main_axis] / style.content_extent[main_axis];
     Vec2 thumb_extent        = {0, 0};
     thumb_extent[cross_axis] = region.extent[cross_axis];
-    thumb_extent[main_axis]  = scale * region.extent[main_axis];
+    thumb_extent[main_axis]  = thumb_scale * region.extent[main_axis];
 
     // align thumb to remaining space based on size of visible region
     Vec2 const bar_offset  = region.begin();
@@ -1921,8 +1922,8 @@ struct ScrollView : View
     fill(sizes.slice(2), frame);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> offsets) override
   {
     Vec2 const frame = style.frame(allocated);
     offsets[0]       = space_align(frame, sizes[0], Vec2{1, 0});
@@ -1943,7 +1944,7 @@ struct ScrollView : View
     x_bar.style.content_extent = y_bar.style.content_extent = content_size;
     x_bar.style.frame_extent = y_bar.style.frame_extent = frame;
 
-    return frame;
+    return {.extent = frame};
   }
 
   virtual i32 z_index(i32 z_index, Span<i32> indices) override
@@ -1955,10 +1956,10 @@ struct ScrollView : View
     return z_index;
   }
 
-  virtual CRect clip(CRect const &region, CRect const &allocated) override
-  {
-    return intersect(region.offseted(), allocated.offseted()).centered();
-  }
+  // virtual CRect clip(CRect const &region, CRect const &allocated) override
+  // {
+  //   return intersect(region.offseted(), allocated.offseted()).centered();
+  // }
 };
 
 // [ ] implement

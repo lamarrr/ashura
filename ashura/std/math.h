@@ -1331,6 +1331,11 @@ struct Mat3Affine
     return Mat3{.rows = {rows[0], rows[1], {0, 0, 1}}};
   }
 
+  static constexpr Mat3Affine identity()
+  {
+    return Mat3Affine{.rows = {{1, 0, 0}, {0, 1, 0}}};
+  }
+
   constexpr Vec3 x() const
   {
     return Vec3{rows[0].x, rows[1].x, 0};
