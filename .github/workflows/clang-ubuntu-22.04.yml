@@ -1,4 +1,4 @@
-name: clang:ubuntu-22.04
+name: clang:ubuntu
 
 on: workflow_dispatch
 
@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         build_mode: ["Release", "Debug"]
-        os: ["ubuntu-22.04"]
+        os: ["ubuntu-24.04"]
 
     steps:
       - name: Checkout Code

@@ -1,4 +1,4 @@
-name: msvc-2022:windows
+name: msvc:windows
 
 on: workflow_dispatch
 
