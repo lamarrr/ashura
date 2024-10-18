@@ -181,7 +181,7 @@ struct ViewContext
   Span<u8 const>           drag_payload     = {};
   Span<u8 const>           text_input       = {};
   Span<u32 const>          text_input_utf32 = {};
-  Vec2                     viewport_size    = {};
+  Vec2                     viewport_extent  = {};
 
   constexpr bool key_down(KeyCode key) const
   {
@@ -432,10 +432,11 @@ struct View
   /// @param region canvas-space region of the view
   /// @param clip canvas-space clip of the view, applied by viewports.
   /// @param canvas canvas to render view into
-  constexpr virtual void render(CRect const &region, CRect const &clip,
-                                Canvas &canvas)
+  constexpr virtual void render(CRect const &region, f32 zoom,
+                                CRect const &clip, Canvas &canvas)
   {
     (void) region;
+    (void) zoom;
     (void) clip;
     (void) canvas;
   }
@@ -444,9 +445,10 @@ struct View
   /// @param region canvas-space region of the view
   /// @param position canvas-space position of the pointer
   /// @return true if in hit region
-  constexpr virtual bool hit(CRect const &region, Vec2 position)
+  constexpr virtual bool hit(CRect const &region, f32 zoom, Vec2 position)
   {
     (void) region;
+    (void) zoom;
     (void) position;
     return true;
   }
@@ -454,9 +456,10 @@ struct View
   /// @brief Select cursor type given a pointed region of the view.
   /// @param region canvas-space region of the view
   /// @param position canvas-space position of the pointer
-  constexpr virtual Cursor cursor(CRect const &region, Vec2 position)
+  constexpr virtual Cursor cursor(CRect const &region, f32 zoom, Vec2 position)
   {
     (void) region;
+    (void) zoom;
     (void) position;
     return Cursor::Default;
   }
@@ -471,10 +474,10 @@ struct View
 
   /// @brief Called when the viewport is needed to zoom itself, scaling its
   /// inner extent
-  /// @param scale scale to apply to the inner extent
-  constexpr virtual void zoom(f32 scale)
+  /// @param zoom zoom to apply to the inner extent
+  constexpr virtual void zoom(f32 zoom)
   {
-    (void) scale;
+    (void) zoom;
   }
 };
 

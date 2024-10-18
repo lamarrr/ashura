@@ -330,7 +330,7 @@ struct ViewSystem
     }
   }
 
-  void layout(Vec2 viewport_size)
+  void layout(Vec2 viewport_extent)
   {
     if (views.is_empty())
     {
@@ -340,7 +340,7 @@ struct ViewSystem
     u32 const n = views.size32();
 
     // allocate sizes to children recursively
-    extents[0] = viewport_size;
+    extents[0] = viewport_extent;
     for (u32 i = 0; i < n; i++)
     {
       ViewNode const &node = nodes[i];
@@ -380,26 +380,39 @@ struct ViewSystem
       }
     }
 
-    for (u32 i = 0; i < n; i++)
-    {
-      Mat3Affine const &transform = transforms[i];
-      Vec2              scale     = Vec2{transform[0][0], transform[1][1]};
-      centers[i]                  = ash::transform(transform, centers[i]);
-      extents[i]                  = extents[i] * scale;
-      viewport_extents[i]         = viewport_extents[i] * scale;
-    }
+    // [ ] we need to know where it is located within the parent viewport, so we
+    // can request the viewport focus on it
 
     for (u32 i = 0; i < n; i++)
     {
+      Mat3Affine const &transform = transforms[i];
+      f32               zoom      = transform[0][0];
+      centers[i]                  = ash::transform(transform, centers[i]);
+      extents[i]                  = extents[i] * zoom;
+      viewport_extents[i]         = viewport_extents[i] * zoom;
+      zooms[i]                    = zoom;
+    }
+
+    fill(span(clips), CRect{.center = {0, 0}, .extent = viewport_extent});
+
+    /// recursive view clipping
+    for (u32 i = 0; i < n; i++)
+    {
       u32 const viewport = viewports[i];
-      if (viewport != U32_MAX) [[unlikely]]
+      if (is_viewport[i] && viewport != U32_MAX) [[unlikely]]
       {
-        clips[i] =
-            CRect{.center = centers[viewport], .extent = extents[viewport]};
+        CRect clip{.center = centers[i], .extent = extents[i]};
+        clips[i] = intersect(clip, clips[viewport]);
       }
-      else
+    }
+
+    /// assign viewport clips to contained views
+    for (u32 i = 0; i < n; i++)
+    {
+      u32 const viewport = viewports[i];
+      if (!is_viewport[i] && viewport != U32_MAX) [[likely]]
       {
-        clips[0] = CRect{.center = {0, 0}, .extent = viewport_size};
+        clips[i] = clips[viewport];
       }
     }
 
@@ -448,7 +461,7 @@ struct ViewSystem
     });
   }
 
-  void visibility(Vec2 viewport_size)
+  void visibility(Vec2 viewport_extent)
   {
     for (u32 i = 0; i < views.size32(); i++)
     {
@@ -466,11 +479,12 @@ struct ViewSystem
       else
       {
         CRect        region{.center = centers[i], .extent = extents[i]};
-        CRect const &clip   = clips[i];
-        bool const   hidden = !overlaps(region, clip) ||
-                            !overlaps(region, CRect{.center = {0, 0},
-                                                    .extent = viewport_size}) ||
-                            !region.is_visible() || !clip.is_visible();
+        CRect const &clip = clips[i];
+        bool const   hidden =
+            !overlaps(region, clip) ||
+            !overlaps(region,
+                      CRect{.center = {0, 0}, .extent = viewport_extent}) ||
+            !region.is_visible() || !clip.is_visible();
 
         is_hidden.set(i, hidden);
       }
@@ -483,10 +497,9 @@ struct ViewSystem
     {
       if (!is_hidden.get(i)) [[unlikely]]
       {
-        // scaling? orignal extent, new region
         View &view = *views[i];
         canvas.clip(clips[i]);
-        view.render(view.inner.region, clips[i], canvas);
+        view.render(view.inner.region, zooms[i], clips[i], canvas);
         view.inner.last_rendered_frame = frame;
       }
     }
@@ -516,7 +529,8 @@ struct ViewSystem
           {
             View &view = *views[i];
             if ((is_clickable[i] || is_draggable[i]) &&
-                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
+                view.hit(view.inner.region, zooms[i], ctx.mouse.position))
+                [[unlikely]]
             {
               if (is_clickable[i])
               {
@@ -536,7 +550,8 @@ struct ViewSystem
                                   .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
                                   .esc_input  = is_esc_input[i]};
-              cursor  = view.cursor(view.inner.region, ctx.mouse.position);
+              cursor =
+                  view.cursor(view.inner.region, zooms[i], ctx.mouse.position);
               break;
             }
           }
@@ -554,8 +569,8 @@ struct ViewSystem
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if (is_clickable[i] &&
-                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
+            if (is_clickable[i] && view.hit(view.inner.region, zooms[i],
+                                            ctx.mouse.position)) [[unlikely]]
             {
               s1.mouse_down         = ctx.mouse.downs != MouseButtons::None;
               s1.mouse_up           = ctx.mouse.ups != MouseButtons::None;
@@ -566,7 +581,8 @@ struct ViewSystem
                                   .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
                                   .esc_input  = is_esc_input[i]};
-              cursor  = view.cursor(view.inner.region, ctx.mouse.position);
+              cursor =
+                  view.cursor(view.inner.region, zooms[i], ctx.mouse.position);
               break;
             }
           }
@@ -584,8 +600,8 @@ struct ViewSystem
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if (is_droppable[i] &&
-                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
+            if (is_droppable[i] && view.hit(view.inner.region, zooms[i],
+                                            ctx.mouse.position)) [[unlikely]]
             {
               s1.drag_target_view = view.id();
 
@@ -594,7 +610,8 @@ struct ViewSystem
                                   .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
                                   .esc_input  = is_esc_input[i]};
-              cursor  = view.cursor(view.inner.region, ctx.mouse.position);
+              cursor =
+                  view.cursor(view.inner.region, zooms[i], ctx.mouse.position);
               break;
             }
           }
@@ -614,8 +631,8 @@ struct ViewSystem
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if (is_droppable[i] &&
-                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
+            if (is_droppable[i] && view.hit(view.inner.region, zooms[i],
+                                            ctx.mouse.position)) [[unlikely]]
             {
               s1.drag_target_view = view.id();
 
@@ -624,7 +641,8 @@ struct ViewSystem
                                   .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
                                   .esc_input  = is_esc_input[i]};
-              cursor  = view.cursor(view.inner.region, ctx.mouse.position);
+              cursor =
+                  view.cursor(view.inner.region, zooms[i], ctx.mouse.position);
               break;
             }
           }
@@ -640,12 +658,13 @@ struct ViewSystem
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if (is_scrollable[i] &&
-                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
+            if (is_scrollable[i] && view.hit(view.inner.region, zooms[i],
+                                             ctx.mouse.position)) [[unlikely]]
             {
               s1.mouse_scrolling_view = view.id();
               s1.mouse_scrolled       = true;
-              cursor = view.cursor(view.inner.region, ctx.mouse.position);
+              cursor =
+                  view.cursor(view.inner.region, zooms[i], ctx.mouse.position);
               break;
             }
           }
@@ -661,11 +680,12 @@ struct ViewSystem
           if (!is_hidden[i])
           {
             View &view = *views[i];
-            if (is_pointable[i] &&
-                view.hit(view.inner.region, ctx.mouse.position)) [[unlikely]]
+            if (is_pointable[i] && view.hit(view.inner.region, zooms[i],
+                                            ctx.mouse.position)) [[unlikely]]
             {
               s1.mouse_pointed_view = view.id();
-              cursor = view.cursor(view.inner.region, ctx.mouse.position);
+              cursor =
+                  view.cursor(view.inner.region, zooms[i], ctx.mouse.position);
               break;
             }
           }
@@ -793,9 +813,9 @@ struct ViewSystem
     focus_ordering.resize_uninit(n).unwrap();
 
     focus_order();
-    layout(ctx.viewport_size);
+    layout(ctx.viewport_extent);
     stack();
-    visibility(ctx.viewport_size);
+    visibility(ctx.viewport_extent);
     events(ctx);
     render(canvas);
 

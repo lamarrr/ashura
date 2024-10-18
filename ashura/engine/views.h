@@ -288,13 +288,13 @@ struct TextView : View
     return {.extent = text.inner.layout.extent};
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
+  virtual void render(CRect const &region, f32, CRect const &clip,
                       Canvas &canvas) override
   {
     text.render(region, clip, canvas);
   }
 
-  virtual Cursor cursor(CRect const &, Vec2) override
+  virtual Cursor cursor(CRect const &, f32, Vec2) override
   {
     return copyable ? Cursor::Text : Cursor::Default;
   }
@@ -591,7 +591,7 @@ struct TextInput : View
     return {.extent = content.inner.layout.extent};
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
+  virtual void render(CRect const &region, f32 scale, CRect const &clip,
                       Canvas &canvas) override
   {
     if (content.inner.text.is_empty())
@@ -604,7 +604,7 @@ struct TextInput : View
     }
   }
 
-  virtual Cursor cursor(CRect const &, Vec2) override
+  virtual Cursor cursor(CRect const &, f32, Vec2) override
   {
     return Cursor::Text;
   }
@@ -715,8 +715,8 @@ struct Button : View
                       2 * style.padding(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 scale, CRect const &,
+                      Canvas &canvas) override
   {
     ColorGradient tint =
         (state.hovered && !state.pressed) ? style.hovered_color : style.color;
@@ -808,8 +808,8 @@ struct CheckBox : View
     return {.extent = Vec2::splat(min(extent.x, extent.y))};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 scale, CRect const &,
+                      Canvas &canvas) override
   {
     ColorGradient tint = (state.hovered && !state.pressed && !state.disabled) ?
                              style.box_hovered_color :
@@ -890,8 +890,8 @@ struct Slider : View
     return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 scale, CRect const &,
+                      Canvas &canvas) override
   {
     Vec2 const track_extent =
         Frame{style.frame.width, style.track_height}(region.extent);
@@ -997,8 +997,8 @@ struct Switch : View
     return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 scale, CRect const &,
+                      Canvas &canvas) override
   {
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
@@ -1128,7 +1128,7 @@ struct ComboBoxItem : View
                      .focusable = !state.disabled};
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
+  virtual void render(CRect const &region, f32 scale, CRect const &clip,
                       Canvas &canvas) override
   {
     canvas.rrect(ShapeDesc{.center = region.center,
@@ -1197,7 +1197,7 @@ struct ComboBoxScrollView : View
   //   return intersect(region, allocated);
   // }
 
-  virtual void render(CRect const &region, CRect const &clip,
+  virtual void render(CRect const &region, f32 scale, CRect const &clip,
                       Canvas &canvas) override
   {
     // render rrect covering region
@@ -1279,7 +1279,7 @@ struct ComboBox : View
                      .focusable = !state.disabled};
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
+  virtual void render(CRect const &region, f32 scale, CRect const &clip,
                       Canvas &canvas) override
   {
     canvas.rrect(
@@ -1368,8 +1368,8 @@ struct RadioBox : View
     return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 zoom, CRect const &,
+                      Canvas &canvas) override
   {
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
@@ -1657,8 +1657,8 @@ struct ScalarDragBox : View, Pin<>
     return {.extent = sizes[0] + 2 * style.padding(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 zoom, CRect const &,
+                      Canvas &canvas) override
   {
     canvas.rrect(ShapeDesc{.center       = region.center,
                            .extent       = region.extent,
@@ -1685,7 +1685,7 @@ struct ScalarDragBox : View, Pin<>
     }
   }
 
-  virtual Cursor cursor(CRect const &region, Vec2 offset) override
+  virtual Cursor cursor(CRect const &region, f32, Vec2 offset) override
   {
     (void) region;
     (void) offset;
@@ -1833,8 +1833,8 @@ struct ScrollBar : View
     return {.extent = allocated};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(CRect const &region, f32 zoom, CRect const &,
+                      Canvas &canvas) override
   {
     u8 const   main_axis    = (style.direction == Axis::X) ? 0 : 1;
     u8 const   cross_axis   = (style.direction == Axis::Y) ? 1 : 0;
@@ -1847,11 +1847,11 @@ struct ScrollBar : View
                            .tint         = style.track_color});
 
     // calculate thumb main axis extent
-    f32 const scale =
+    f32 const thumb_scale =
         style.frame_extent[main_axis] / style.content_extent[main_axis];
     Vec2 thumb_extent        = {0, 0};
     thumb_extent[cross_axis] = region.extent[cross_axis];
-    thumb_extent[main_axis]  = scale * region.extent[main_axis];
+    thumb_extent[main_axis]  = thumb_scale * region.extent[main_axis];
 
     // align thumb to remaining space based on size of visible region
     Vec2 const bar_offset  = region.begin();
