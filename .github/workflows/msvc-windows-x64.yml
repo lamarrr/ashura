@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         build_mode: ["Release", "Debug"]
-        os: ["windows-2022", "windows-2019"]
+        os: ["windows-2022"]
 
     steps:
       - name: Checkout Code
@@ -25,29 +25,18 @@ jobs:
             ${{ github.workspace }}/tools
             ./third_party
           key: ${{ matrix.os }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('vcpkg.json') }}
-      
+
       - name: Install Vulkan SDK
         run: |
-         Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/1.3.239.0/windows/VulkanSDK-1.3.239.0-Installer.exe" -OutFile "vulkan_installer.exe" && ./vulkan_installer.exe --root ${{ github.workspace }}/SDKs/VulkanSDK/1.3.239.0 --accept-licenses --default-answer --confirm-command install
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/1.3.239.0/windows/VulkanSDK-1.3.239.0-Installer.exe" -OutFile "vulkan_installer.exe" && ./vulkan_installer.exe --root ${{ github.workspace }}/SDKs/VulkanSDK/1.3.239.0 --accept-licenses --default-answer --confirm-command install
         if: steps.cache-and-install.outputs.cache-hit != 'true'
-
-      - name: Build SDL3
-        run: |
-          git clone --depth=1 https://github.com/libsdl-org/SDL  ${{ github.workspace }}/deps/SDL
-          cd ${{ github.workspace }}/deps/SDL && mkdir build
-          cd build && cmake .. -DSDL_STATIC=ON
-        if: steps.cache-and-install.outputs.cache-hit != 'true'
-        
-      - name: Install SDL3
-        run: |
-         cd ${{ github.workspace }}/deps/SDL/build && cmake --build . --config Release --target install
 
       - name: Install VCPKG
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git ${{ github.workspace }}/tools/vcpkg
           cd ${{ github.workspace }}/tools/vcpkg && ./bootstrap-vcpkg.bat -disableMetrics
         if: steps.cache-and-install.outputs.cache-hit != 'true'
-        
+
       - name: Install Dependencies, Configure, and Build Ashura
         env:
           VULKAN_SDK: ${{ github.workspace }}/SDKs/VulkanSDK/1.3.239.0
@@ -59,4 +48,5 @@ jobs:
 
       - name: Run Ashura Test
         run: |
-         cd build/${{ matrix.build_mode }}/ && ./ashura_std_tests.exe
+          cd build/${{ matrix.build_mode }}/ && ./ashura_std_tests.exe
+          cd build/${{ matrix.build_mode }}/ && ./ashura_engine_tests.exe

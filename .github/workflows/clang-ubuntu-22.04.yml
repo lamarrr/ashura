@@ -4,11 +4,12 @@ on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
         build_mode: ["Release", "Debug"]
+        os: ["ubuntu-22.04"]
 
     steps:
       - name: Checkout Code
@@ -25,7 +26,6 @@ jobs:
             ./third_party
           key: ${{ matrix.os }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('vcpkg.json') }}
 
-
       - name: Update Apt
         run: |
           sudo apt update && sudo apt upgrade && sudo apt dist-upgrade
@@ -34,25 +34,18 @@ jobs:
         run: sudo apt install build-essential ninja-build clang-15 cmake wget
 
       - name: Install Vulkan SDK
-        run:  wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc && sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list && sudo apt update && sudo apt install vulkan-sdk 
+        run: wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc && sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list && sudo apt update && sudo apt install vulkan-sdk
         if: steps.cache-and-install.outputs.cache-hit != 'true'
 
-      - name: Build SDL3
-        run: |
-          git clone --depth=1 https://github.com/libsdl-org/SDL  ${{ github.workspace }}/deps/SDL &&  cd ${{ github.workspace }}/deps/SDL && mkdir build && cd build && cmake .. -DSDL_STATIC=ON -GNinja
-        if: steps.cache-and-install.outputs.cache-hit != 'true'
-        
-      - name: Install SDL3
-        run: |
-         cd ${{ github.workspace }}/deps/SDL/build && sudo ninja install
       - name: Install VCPKG
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git ${{ github.workspace }}/tools/vcpkg && cd ${{ github.workspace }}/tools/vcpkg && ./bootstrap-vcpkg.sh -disableMetrics
         if: steps.cache-and-install.outputs.cache-hit != 'true'
-        
+
       - name: Install Dependencies, Configure, and Build Ashura
         run: |
           sudo apt install nasm && mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_INSTALLED_DIR=${{ github.workspace }}/tools/vcpkg/installed -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -GNinja && ninja
       - name: Run Ashura Test
         run: |
-         cd build/ && ./ashura_std_tests
+          cd build/ && ./ashura_std_tests
+          cd build/ && ./ashura_engine_tests
