@@ -22,10 +22,10 @@ static AllocatorInterface const arena_interface{
     .realloc      = ArenaInterface::realloc,
     .dealloc      = ArenaInterface::dealloc};
 
-/// @begin: where the memory block begins
-/// @end: one byte past the block
-/// @offset: end of the last allocation, must be set to {begin}
-/// @alignment: actual alignment requested from allocator
+/// @param begin where the memory block begins
+/// @param end one byte past the block
+/// @param offset end of the last allocation, must be set to {begin}
+/// @param alignment actual alignment requested from allocator
 struct Arena
 {
   u8   *begin     = nullptr;
@@ -61,7 +61,7 @@ struct Arena
       return true;
     }
 
-    u8 *aligned    = mem::align_ptr(alignment, offset);
+    u8 *aligned    = align_ptr(alignment, offset);
     u8 *new_offset = aligned + size;
     if (new_offset > end)
     {

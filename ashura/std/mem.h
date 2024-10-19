@@ -17,8 +17,6 @@ constexpr usize CACHELINE_ALIGNMENT = 64;
 /// target's page alignment.
 constexpr usize PAGE_ALIGNMENT = 16_KB;
 
-namespace mem
-{
 
 template <typename T>
 constexpr T align_offset(T alignment, T offset)
@@ -43,6 +41,9 @@ bool is_ptr_aligned(usize alignment, T *p)
 {
   return is_aligned(alignment, (uptr) p);
 }
+
+namespace mem
+{
 
 template <typename T>
 void copy(T const *src, T *dst, usize num)
