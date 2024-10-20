@@ -229,15 +229,17 @@ struct ViewContext
   }
 };
 
-/// @param focus_center if viewport, the currently focused position in the
-/// viewport
-/// @param zoom if viewport, current zoom/scale factor of the viewport.
+constexpr Mat3Affine zoom_to(Vec2 center, f32 scale)
+{
+  return translate2d(-center * scale) * scale2d(Vec2::splat(scale));
+}
+
+/// @param zoom if viewport, the zoom matrix that determines the viewport scale
+/// and position.
 /// @param tab Tab Index for Focus-Based Navigation. desired tab index, I32_MIN
 /// meaning the default tab order based on the hierarchy of the parent to
 /// children and siblings (depth-first traversal). Negative values have are
 /// focused before positive values.
-/// @param absolute_transform transform to apply in viewport-space. this is used
-/// for absolute positioning of the view in the parent viewport-space.
 /// @param hidden if the view should be hidden from view (will not receive
 /// visual events, but still receive tick events)
 /// @param pointable can receive mouse enter/move/leave events
@@ -253,22 +255,19 @@ struct ViewContext
 /// @param viewport is view a viewport
 struct ViewState
 {
-  Vec2       focus_center       = {};
-  f32        zoom               = 1.0F;
-  i32        tab                = I32_MIN;
-  Mat3Affine absolute_transform = {};
-  bool       hidden : 1         = false;
-  bool       pointable : 1      = false;
-  bool       clickable : 1      = false;
-  bool       scrollable : 1     = false;
-  bool       draggable : 1      = false;
-  bool       droppable : 1      = false;
-  bool       focusable : 1      = false;
-  bool       text_input : 1     = false;
-  bool       tab_input : 1      = false;
-  bool       esc_input : 1      = false;
-  bool       grab_focus : 1     = false;
-  bool       viewport : 1       = false;
+  i32  tab            = I32_MIN;
+  bool hidden : 1     = false;
+  bool pointable : 1  = false;
+  bool clickable : 1  = false;
+  bool scrollable : 1 = false;
+  bool draggable : 1  = false;
+  bool droppable : 1  = false;
+  bool focusable : 1  = false;
+  bool text_input : 1 = false;
+  bool tab_input : 1  = false;
+  bool esc_input : 1  = false;
+  bool grab_focus : 1 = false;
+  bool viewport : 1   = false;
 };
 
 struct CoreViewTheme
@@ -327,10 +326,14 @@ constexpr CoreViewTheme DEFAULT_THEME = {
 /// @param extent extent of the view within the parent, if it is a viewport,
 /// this is the visible extent of the viewport within the parent viewport.
 /// @param viewport inner extent, if it is a viewport
-struct ViewExtent
+/// @param absolute_transform transform to apply in viewport-space. this is used
+/// for absolute positioning of the view in the parent viewport-space.
+struct ViewLayout
 {
-  Vec2 extent   = {};
-  Vec2 viewport = {};
+  Vec2       extent             = {};
+  Vec2       viewport           = {};
+  Mat3Affine viewport_transform = Mat3Affine::identity();
+  Mat3Affine absolute_transform = Mat3Affine::identity();
 };
 
 /// @brief Base view class. All view types must inherit from this struct.
@@ -339,7 +342,11 @@ struct ViewExtent
 /// @note State changes must only happen in the `tick` method. for child view
 /// switching, it should be handled by a flag in the tick method and switch in
 /// the child method based on the flag.
-struct View
+///
+/// The coordinate system used is one in which the center of the screen is (0,
+/// 0) and ranges from [-0.5, +0.5] on both axes. i.e. top-left is [-0.5, +0.5]
+/// and bottom-right is [0.5, 0.5].
+struct View : Pin<>
 {
   /// @param id id of the view if mounted, otherwise U64_MAX
   /// @param last_rendered_frame last frame the view was rendered at
@@ -354,10 +361,10 @@ struct View
   } inner = {};
 
   constexpr View()                        = default;
-  constexpr View(View const &)            = default;
-  constexpr View(View &&)                 = default;
-  constexpr View &operator=(View const &) = default;
-  constexpr View &operator=(View &&)      = default;
+  constexpr View(View const &)            = delete;
+  constexpr View(View &&)                 = delete;
+  constexpr View &operator=(View const &) = delete;
+  constexpr View &operator=(View &&)      = delete;
   constexpr virtual ~View()               = default;
 
   /// @returns the ID currently allocated to the view or U64_MAX
@@ -370,7 +377,7 @@ struct View
   /// dispatch and lightweight processing related to the GUI. heavy-weight and
   /// non-sub-millisecond tasks should be dispatched to a subsystem that would
   /// handle it. i.e. using the multi-tasking or asset-loading systems.
-  /// @param region region of the canvas-space the view is on
+  /// @param region canvas-space region the view is on
   /// @param build callback to be called to insert subviews.
   constexpr virtual ViewState tick(ViewContext const &ctx, CRect const &region,
                                    ViewEvents events, Fn<void(View &)> build)
@@ -395,14 +402,14 @@ struct View
   /// relative to its center
   /// @param allocated the size allocated to this view
   /// @param sizes sizes of the child views
-  /// @param[out] offsets offsets of the views from the parent's center
+  /// @param[out] centers parent-space centers of the child views
   /// @return this view's fitted extent
-  constexpr virtual ViewExtent fit(Vec2 allocated, Span<Vec2 const> sizes,
-                                   Span<Vec2> offsets)
+  constexpr virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                                   Span<Vec2> centers)
   {
     (void) allocated;
     (void) sizes;
-    fill(offsets, Vec2{0, 0});
+    fill(centers, Vec2{0, 0});
     return {};
   }
 
@@ -430,6 +437,7 @@ struct View
   /// only called if the view passes the visibility tests. this is called on
   /// every frame.
   /// @param region canvas-space region of the view
+  /// @param zoom zoom scale of the view
   /// @param clip canvas-space clip of the view, applied by viewports.
   /// @param canvas canvas to render view into
   constexpr virtual void render(CRect const &region, f32 zoom,
@@ -464,20 +472,12 @@ struct View
     return Cursor::Default;
   }
 
-  /// @brief Called when the viewport is needed to scroll to a position in
-  /// itself
-  /// @param center position within the viewport to scroll into
-  constexpr virtual void scroll(Vec2 center)
-  {
-    (void) center;
-  }
-
   /// @brief Called when the viewport is needed to zoom itself, scaling its
   /// inner extent
   /// @param zoom zoom to apply to the inner extent
-  constexpr virtual void zoom(f32 zoom)
+  constexpr virtual void zoom(Mat3Affine const &transform)
   {
-    (void) zoom;
+    (void) transform;
   }
 };
 
