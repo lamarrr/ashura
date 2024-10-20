@@ -2117,23 +2117,6 @@ inline f32 grid_snap(f32 a, f32 unit)
   return floorf((a + unit * 0.5F) / unit) * unit;
 }
 
-/// @brief get the aligned center relative to a fixed amount of space
-/// @param space the space to align to
-/// @param alignment the alignment to align to [-1, +1]
-/// @return
-constexpr f32 space_align(f32 space, f32 content, f32 alignment)
-{
-  f32 const trailing = space - content;
-  f32       padding  = (alignment * 0.5F + 0.5F) * trailing;
-  return padding + content / 2;
-}
-
-constexpr Vec2 space_align(Vec2 space, Vec2 content, Vec2 alignment)
-{
-  return Vec2{space_align(space.x, content.x, alignment.x),
-              space_align(space.y, content.y, alignment.y)};
-}
-
 constexpr f32 norm_to_axis(f32 norm)
 {
   return norm * 2 - 1;
@@ -2172,6 +2155,22 @@ constexpr Vec4 norm_to_axis(Vec4 norm)
 constexpr Vec4 axis_to_norm(Vec4 axis)
 {
   return axis * 0.5F + 0.5F;
+}
+
+/// @param space available space to align to
+/// @param item extent of the item to align
+/// @param alignment the alignment to align to [-1, +1]
+/// @return returns the aligned position relative to the space's center
+constexpr f32 space_align(f32 space, f32 item, f32 alignment)
+{
+  f32 const trailing = (space - item) * 0.5F;
+  return lerp(-trailing, trailing, axis_to_norm(alignment));
+}
+
+constexpr Vec2 space_align(Vec2 space, Vec2 content, Vec2 alignment)
+{
+  return Vec2{space_align(space.x, content.x, alignment.x),
+              space_align(space.y, content.y, alignment.y)};
 }
 
 constexpr Vec4 opacity(f32 v)
