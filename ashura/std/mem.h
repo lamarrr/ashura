@@ -17,7 +17,6 @@ constexpr usize CACHELINE_ALIGNMENT = 64;
 /// target's page alignment.
 constexpr usize PAGE_ALIGNMENT = 16_KB;
 
-
 template <typename T>
 constexpr T align_offset(T alignment, T offset)
 {
@@ -176,6 +175,8 @@ void relocate(T *src, T *uninit_dst, usize num)
   }
 }
 
+}        // namespace mem
+
 /// @brief Memory layout of a type
 /// @param alignment non-zero alignment of the type
 /// @param size byte-size of the type
@@ -256,5 +257,4 @@ struct Flex
   }
 };
 
-}        // namespace mem
 }        // namespace ash

@@ -236,7 +236,7 @@ struct Semaphore : Pin<>
 struct TaskInfo
 {
   Fn<bool(void *)> task   = fn([](void *) { return false; });
-  mem::Layout      ctx    = mem::Layout{};
+  Layout           ctx    = Layout{};
   Fn<void(void *)> init   = fn([](void *) {});
   Fn<bool(void *)> poll   = fn([](void *) { return true; });
   Fn<void(void *)> uninit = fn([](void *) {});

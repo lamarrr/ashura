@@ -94,11 +94,10 @@ struct TaskArena
   Arena      arena = {};
 };
 
-constexpr mem::Flex<2> task_arena_layout()
+constexpr Flex<2> task_arena_layout()
 {
-  return {mem::layout<ListNode<TaskArena>>,
-          mem::Layout{.alignment = MAX_STANDARD_ALIGNMENT,
-                      .size      = TASK_ARENA_SIZE}};
+  return {layout<ListNode<TaskArena>>,
+          Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}};
 }
 
 /// once task is executed, the arena holding the memory associated with the task
@@ -117,15 +116,15 @@ struct Task
   ListNode<TaskArena> *arena = nullptr;
 };
 
-constexpr mem::Flex<2> task_layout(mem::Layout ctx_layout)
+constexpr Flex<2> task_layout(Layout ctx_layout)
 {
-  return {mem::layout<ListNode<Task>>, ctx_layout};
+  return {layout<ListNode<Task>>, ctx_layout};
 }
 
 void uninit_task(ListNode<Task> *task)
 {
-  mem::Flex flex = task_layout(task->data.info.ctx);
-  u8       *ctx;
+  Flex flex = task_layout(task->data.info.ctx);
+  u8  *ctx;
   flex.unpack(task, task, ctx);
   task->data.info.uninit(ctx);
 }
@@ -175,8 +174,8 @@ struct TaskAllocator
 
   bool alloc_arena(ListNode<TaskArena> *&arena)
   {
-    mem::Flex   flex   = task_arena_layout();
-    mem::Layout layout = flex.layout();
+    Flex   flex   = task_arena_layout();
+    Layout layout = flex.layout();
 
     u8 *head;
 
@@ -200,8 +199,8 @@ struct TaskAllocator
 
   void dealloc_arena(ListNode<TaskArena> *arena)
   {
-    mem::Flex         flex   = task_arena_layout();
-    mem::Layout const layout = flex.layout();
+    Flex         flex   = task_arena_layout();
+    Layout const layout = flex.layout();
     allocator.dealloc(layout.alignment, (u8 *) arena, layout.size);
   }
 
@@ -219,8 +218,8 @@ struct TaskAllocator
   static bool alloc_task(ListNode<TaskArena> &arena, TaskInfo const &info,
                          ListNode<Task> *&task)
   {
-    mem::Flex   flex   = task_layout(info.ctx);
-    mem::Layout layout = flex.layout();
+    Flex   flex   = task_layout(info.ctx);
+    Layout layout = flex.layout();
 
     CHECK(layout.size <= TASK_ARENA_SIZE);
 
@@ -359,7 +358,7 @@ struct SchedulerImpl : Scheduler
         continue;
       }
 
-      mem::Flex flex = task_layout(task->data.info.ctx);
+      Flex flex = task_layout(task->data.info.ctx);
 
       u8 *ctx;
 
@@ -406,8 +405,8 @@ struct SchedulerImpl : Scheduler
         break;
       }
 
-      mem::Flex flex = task_layout(task->data.info.ctx);
-      u8       *ctx;
+      Flex flex = task_layout(task->data.info.ctx);
+      u8  *ctx;
 
       flex.unpack(task, task, ctx);
 
