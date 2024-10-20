@@ -16,7 +16,7 @@ namespace ash
 /// constructed.
 ///
 template <typename T>
-struct ListNode
+struct ListNode : Pin<>
 {
   ListNode<T> *next = this;
   ListNode<T> *prev = this;
