@@ -2259,15 +2259,30 @@ struct SourceLocation
   u32         column   = 0;
 };
 
-template <typename T = Void>
+template <typename T = void>
 struct Pin
 {
   typedef T Type;
-  T         v;
+
+  T v;
+
   template <typename... Args>
   constexpr Pin(Args &&...args) : v{((Args &&) args)...}
   {
   }
+  constexpr Pin(Pin const &)            = delete;
+  constexpr Pin(Pin &&)                 = delete;
+  constexpr Pin &operator=(Pin const &) = delete;
+  constexpr Pin &operator=(Pin &&)      = delete;
+  constexpr ~Pin()                      = default;
+};
+
+template <>
+struct Pin<void>
+{
+  typedef void Type;
+
+  constexpr Pin()                       = default;
   constexpr Pin(Pin const &)            = delete;
   constexpr Pin(Pin &&)                 = delete;
   constexpr Pin &operator=(Pin const &) = delete;
