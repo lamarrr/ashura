@@ -2178,6 +2178,11 @@ constexpr Vec4 opacity(f32 v)
   return Vec4{1, 1, 1, v};
 }
 
+constexpr Vec4 opacity_premultiplied(f32 v)
+{
+  return Vec4::splat(v);
+}
+
 struct Rect
 {
   Vec2 offset = {};
