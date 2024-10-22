@@ -2,6 +2,7 @@
 #pragma once
 #include "ashura/std/alias_count.h"
 #include "ashura/std/allocator.h"
+#include "ashura/std/result.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -19,20 +20,20 @@ namespace ash
 template <typename H>
 struct Rc
 {
-  typedef H                                                Handle;
-  typedef Fn<void(H, AliasCount &, AllocatorImpl const &)> Uninit;
+  typedef H                          Handle;
+  typedef Fn<void(H, AllocatorImpl)> Uninit;
 
   struct Inner
   {
     H             handle      = {};
     AliasCount   *alias_count = nullptr;
     AllocatorImpl allocator   = default_allocator;
-    Uninit        uninit = fn([](H, AliasCount &, AllocatorImpl const &) {});
+    Uninit        uninit      = fn([](H, AllocatorImpl) {});
   };
 
   Inner inner{};
 
-  void init(H handle, AliasCount &alias_count, AllocatorImpl const &allocator,
+  void init(H handle, AliasCount &alias_count, AllocatorImpl allocator,
             Uninit uninit)
   {
     inner = Inner{.handle      = handle,
@@ -45,7 +46,7 @@ struct Rc
   {
     if (inner.alias_count->unalias())
     {
-      inner.uninit(inner.handle, *inner.alias_count, inner.allocator);
+      inner.uninit(inner.handle, inner.allocator);
     }
   }
 
@@ -75,5 +76,39 @@ struct Rc
     return inner.handle;
   }
 };
+
+template <typename T>
+struct AliasCounted : AliasCount
+{
+  T data;
+};
+
+template <typename T, typename... Args>
+Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator, Args &&...args)
+{
+  AliasCounted<T> *object;
+
+  if (!allocator.nalloc(1, object))
+  {
+    return Err{Void{}};
+  }
+
+  new (object) AliasCounted<T>{.data{((Args &&) args)...}};
+
+  return Ok{Rc<T *>{.inner{.handle      = &object->data,
+                           .alias_count = static_cast<AliasCount *>(object),
+                           .allocator   = allocator,
+                           .uninit = fn(object, [](AliasCounted<T> *object, T *,
+                                                   AllocatorImpl    allocator) {
+                             object->~AliasCounted<T>();
+                             allocator.ndealloc(object, 1);
+                           })}}};
+}
+
+template <typename T>
+Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T &&object)
+{
+  return rc_inplace<T>(allocator, (T &&) object);
+}
 
 }        // namespace ash
