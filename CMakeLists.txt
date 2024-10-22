@@ -222,7 +222,7 @@ target_include_directories(
 add_executable(
   ashura_engine_tests
   ashura/engine/tests/main.cc ashura/engine/tests/render_text.cc
-  ashura/engine/tests/text_compositor.cc)
+  ashura/engine/tests/views.cc ashura/engine/tests/text_compositor.cc)
 target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
 
 add_executable(ashura_app_test ashura/engine/tests/app.cc)

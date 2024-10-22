@@ -3,12 +3,25 @@
 
 #include "ashura/engine/canvas.h"
 #include "ashura/engine/text.h"
+#include "ashura/engine/view.h"
 #include "ashura/std/error.h"
 #include "ashura/std/text.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
+
+struct TextHighlightStyle
+{
+  ColorGradient color        = {};
+  CornerRadii   corner_radii = {};
+};
+
+struct TextHighlight
+{
+  Slice32            slice = {};
+  TextHighlightStyle style = {};
+};
 
 /// @brief Controls and manages GUI text state for rendering
 /// - manages runs and run styling
@@ -19,20 +32,18 @@ struct RenderText
 {
   struct
   {
-    bool             dirty : 1              = true;
-    bool             use_kerning : 1        = true;
-    bool             use_ligatures : 1      = true;
-    TextDirection    direction : 2          = TextDirection::LeftToRight;
-    f32              alignment              = -1;
-    Vec<u32>         text                   = {};
-    Vec<u32>         runs                   = {};
-    Vec<TextStyle>   styles                 = {};
-    Vec<FontStyle>   fonts                  = {};
-    Span<char const> language               = {};
-    TextLayout       layout                 = {};
-    Vec<Slice32>     highlights             = {};
-    ColorGradient    highlight_color        = {};
-    Vec4             highlight_corner_radii = {};
+    bool               dirty : 1         = true;
+    bool               use_kerning : 1   = true;
+    bool               use_ligatures : 1 = true;
+    TextDirection      direction : 2     = TextDirection::LeftToRight;
+    f32                alignment         = -1;
+    Vec<u32>           text              = {};
+    Vec<u32>           runs              = {};
+    Vec<TextStyle>     styles            = {};
+    Vec<FontStyle>     fonts             = {};
+    Span<char const>   language          = {};
+    TextLayout         layout            = {};
+    Vec<TextHighlight> highlights        = {};
 
     /// @brief  Styles specified runs of text, performing run merging and
     /// splitting in the process. If there's previously no runs, the first added
@@ -168,21 +179,15 @@ struct RenderText
     inner.dirty = true;
   }
 
-  void set_highlights(Span<Slice32 const> highlight)
+  void set_highlights(Span<TextHighlight const> highlight)
   {
     inner.highlights.clear();
     inner.highlights.extend_copy(highlight).unwrap();
   }
 
-  void set_highlight(Slice32 highlight)
+  void set_highlight(TextHighlight highlight)
   {
     set_highlights(span({highlight}));
-  }
-
-  void set_highlight_style(ColorGradient color, Vec4 corner_radii)
-  {
-    inner.highlight_color        = color;
-    inner.highlight_corner_radii = corner_radii;
   }
 
   void set_direction(TextDirection direction)
@@ -272,13 +277,17 @@ struct RenderText
     layout_text(block(), max_width, inner.layout);
   }
 
-  void render(CRect const &region, CRect const &clip, Canvas &canvas) const
+  void render(Canvas &canvas, CRect const &region, CRect const &clip,
+              f32 zoom) const
   {
+    (void) zoom;
     canvas.text(ShapeDesc{.center = region.center}, block(), inner.layout,
                 block_style(region.extent.x), clip);
-    // [ ] render
+    // [ ] zoom
+    // [ ] render highlights
     // [ ] are the cursor indexes correct?
     // [ ] use overlays on intersecting graphemes
+    // [ ] scaling
   }
 
   void reset()

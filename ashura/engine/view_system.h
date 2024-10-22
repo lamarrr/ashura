@@ -26,7 +26,7 @@ struct ViewNode
 struct FocusInfo
 {
   u64  view       = U64_MAX;
-  u32  idx        = U32_MAX;
+  u32  focus_idx  = U32_MAX;
   bool text_input = false;
   bool tab_input  = false;
   bool esc_input  = false;
@@ -67,9 +67,10 @@ enum class FocusAction : u8
 
 struct ViewSystem
 {
-  u64             frame    = 0;
-  u64             next_id  = 0;
-  ViewSystemState state[2] = {};
+  u64             frame         = 0;
+  u64             next_id       = 0;
+  ViewSystemState state[2]      = {};
+  FocusInfo       focus_request = {};
 
   Vec<View *>   views = {};
   Vec<ViewNode> nodes = {};
@@ -291,14 +292,13 @@ struct ViewSystem
     is_esc_input.set(idx, s.esc_input);
     is_viewport.set(idx, s.viewport);
 
-    // [ ] this won't process the focus request
     if (!s.hidden && s.focusable && s.grab_focus) [[unlikely]]
     {
-      state[1].focused = FocusInfo{.view       = view.id(),
-                                   .idx        = view.inner.focus_idx,
-                                   .text_input = s.text_input,
-                                   .tab_input  = s.tab_input,
-                                   .esc_input  = s.esc_input};
+      focus_request = FocusInfo{.view       = view.id(),
+                                .focus_idx  = view.inner.focus_idx,
+                                .text_input = s.text_input,
+                                .tab_input  = s.tab_input,
+                                .esc_input  = s.esc_input};
     }
 
     nodes[idx].first_child      = first_child;
@@ -512,7 +512,7 @@ struct ViewSystem
       {
         View &view = *views[i];
         canvas.clip(clips[i]);
-        view.render(view.inner.region, transforms[i][0][0], clips[i], canvas);
+        view.render(canvas, view.inner.region, transforms[i][0][0], clips[i]);
         view.inner.last_rendered_frame = frame;
       }
     }
@@ -572,7 +572,7 @@ struct ViewSystem
               }
 
               focused = FocusInfo{.view       = view.id(),
-                                  .idx        = view.inner.focus_idx,
+                                  .focus_idx  = view.inner.focus_idx,
                                   .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
                                   .esc_input  = is_esc_input[i]};
@@ -604,7 +604,7 @@ struct ViewSystem
               s1.mouse_pointed_view = view.id();
 
               focused = FocusInfo{.view       = view.id(),
-                                  .idx        = view.inner.focus_idx,
+                                  .focus_idx  = view.inner.focus_idx,
                                   .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
                                   .esc_input  = is_esc_input[i]};
@@ -634,7 +634,7 @@ struct ViewSystem
               s1.drag_target_view = view.id();
 
               focused = FocusInfo{.view       = view.id(),
-                                  .idx        = view.inner.focus_idx,
+                                  .focus_idx  = view.inner.focus_idx,
                                   .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
                                   .esc_input  = is_esc_input[i]};
@@ -666,7 +666,7 @@ struct ViewSystem
               s1.drag_target_view = view.id();
 
               focused = FocusInfo{.view       = view.id(),
-                                  .idx        = view.inner.focus_idx,
+                                  .focus_idx  = view.inner.focus_idx,
                                   .text_input = is_text_input[i],
                                   .tab_input  = is_tab_input[i],
                                   .esc_input  = is_esc_input[i]};
@@ -744,7 +744,12 @@ struct ViewSystem
     // [ ] grab focus would need to scroll down to widget; would need
     // virtual scrolling support. offset based?
     //
-    //
+
+    if (!focus_request.is_empty() && !focusing)
+    {
+      focused  = focus_request;
+      focusing = true;
+    }
 
     switch (focus_action)
     {
@@ -753,14 +758,14 @@ struct ViewSystem
         u32 start = 0;
 
         // if none is focused, start from first focusable view
-        if (focused.idx >= n)
+        if (focused.focus_idx >= n)
         {
           start = 0;
         }
         else
         {
           // start searching from the next focus point
-          start = focused.idx + 1;
+          start = focused.focus_idx + 1;
         }
 
         // find next focusable view
@@ -770,7 +775,7 @@ struct ViewSystem
           if (!is_hidden[i] && is_focusable[i])
           {
             focused = FocusInfo{.view       = views[i]->id(),
-                                .idx        = f_i,
+                                .focus_idx  = f_i,
                                 .text_input = is_text_input[i],
                                 .tab_input  = is_tab_input[i],
                                 .esc_input  = is_esc_input[i]};
@@ -784,14 +789,14 @@ struct ViewSystem
       {
         u32 start = 0;
 
-        if (focused.idx >= n)
+        if (focused.focus_idx >= n)
         {
           start = n;
         }
         else
         {
           // start searching from the previous focus point
-          start = focused.idx;
+          start = focused.focus_idx;
         }
 
         // find prev focusable view
@@ -802,7 +807,7 @@ struct ViewSystem
           if (!is_hidden[i] && is_focusable[i])
           {
             focused = FocusInfo{.view       = views[i]->id(),
-                                .idx        = f_i,
+                                .focus_idx  = f_i,
                                 .text_input = is_text_input[i],
                                 .tab_input  = is_tab_input[i],
                                 .esc_input  = is_esc_input[i]};
@@ -821,6 +826,7 @@ struct ViewSystem
     s1.cursor        = cursor;
     s1.keyboard_down = ctx.keyboard.down;
     s1.keyboard_up   = ctx.keyboard.up;
+    focus_request    = {};
   }
 
   bool should_show_text_input() const

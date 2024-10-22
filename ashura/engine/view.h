@@ -296,6 +296,7 @@ struct CoreViewTheme
   f32  h2_font_height    = {};
   f32  h3_font_height    = {};
   f32  line_height       = {};
+  f32  focus_thickness   = 0;
 };
 
 constexpr CoreViewTheme DEFAULT_THEME = {
@@ -321,7 +322,8 @@ constexpr CoreViewTheme DEFAULT_THEME = {
     .h1_font_height    = 30,
     .h2_font_height    = 27,
     .h3_font_height    = 22,
-    .line_height       = 1.2F};
+    .line_height       = 1.2F,
+    .focus_thickness   = 1};
 
 /// @param extent extent of the view within the parent, if it is a viewport,
 /// this is the visible extent of the viewport within the parent viewport.
@@ -344,9 +346,9 @@ struct ViewLayout
 /// the child method based on the flag.
 ///
 /// The coordinate system used is one in which the center of the screen is (0,
-/// 0) and ranges from [-0.5, +0.5] on both axes. i.e. top-left is [-0.5, +0.5]
-/// and bottom-right is [0.5, 0.5].
-struct View : Pin<>
+/// 0) and ranges from [-0.5w, +0.5w] on both axes. i.e. top-left is [-0.5w,
+/// -0.5h] and bottom-right is [+0.5w, +0.5h].
+struct View
 {
   /// @param id id of the view if mounted, otherwise U64_MAX
   /// @param last_rendered_frame last frame the view was rendered at
@@ -440,8 +442,8 @@ struct View : Pin<>
   /// @param zoom zoom scale of the view
   /// @param clip canvas-space clip of the view, applied by viewports.
   /// @param canvas canvas to render view into
-  constexpr virtual void render(CRect const &region, f32 zoom,
-                                CRect const &clip, Canvas &canvas)
+  constexpr virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                                CRect const &clip)
   {
     (void) region;
     (void) zoom;

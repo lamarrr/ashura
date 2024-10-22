@@ -14,7 +14,7 @@ void PassContext::init(RenderContext &ctx)
   pbr.init(ctx);
   rrect.init(ctx);
   custom.for_each(
-      [&](Span<char const>, RenderPassImpl const &p) { p.init(p.pass, ctx); });
+      [&](Span<char const>, RenderPassImpl p) { p.init(p.pass, ctx); });
 }
 
 void PassContext::uninit(RenderContext &ctx)
@@ -24,9 +24,8 @@ void PassContext::uninit(RenderContext &ctx)
   ngon.uninit(ctx);
   pbr.uninit(ctx);
   rrect.uninit(ctx);
-  custom.for_each([&](Span<char const>, RenderPassImpl const &p) {
-    p.uninit(p.pass, ctx);
-  });
+  custom.for_each(
+      [&](Span<char const>, RenderPassImpl p) { p.uninit(p.pass, ctx); });
   custom.uninit();
 }
 
