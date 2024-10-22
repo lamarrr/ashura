@@ -2290,6 +2290,30 @@ struct Pin<void>
   constexpr ~Pin()                      = default;
 };
 
+template <typename R>
+constexpr void uninit(R &r)
+{
+  r.uninit();
+};
+
+template <typename R>
+struct Smart
+{
+  typedef R Resource;
+
+  constexpr Smart();
+  constexpr Smart(Smart const &);
+  constexpr Smart(Smart &&);
+  constexpr Smart &operator=(Smart const &);
+  constexpr Smart &operator=(Smart &&);
+  constexpr ~Smart()
+  {
+    uninit(resource);
+  }
+
+  R resource;
+};
+
 constexpr u8 sat_add(u8 a, u8 b)
 {
   return (((a + b)) < a) ? U8_MAX : (a + b);

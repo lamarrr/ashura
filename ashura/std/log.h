@@ -37,7 +37,7 @@ struct LogSink
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
 /// logging unreliable. This means each log statement's content/payload is
 /// limited to `BUFFER_CAPACITY`.
-struct Logger : Pin<>
+struct Logger
 {
   static constexpr usize BUFFER_CAPACITY = 16_KB;
   static constexpr usize SCRATCH_SIZE    = 256;

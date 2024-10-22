@@ -109,20 +109,19 @@ struct StopToken
 /// possibly be other tasks awaiting it.
 ///
 /// Semaphores never overflows. so it can have a maximum of U64_MAX stages.
-struct Semaphore : Pin<>
+struct Semaphore
 {
   struct Inner
   {
-    u64        num_stages  = 1;
-    u64        stage       = 0;
-    AliasCount alias_count = {};
+    u64 num_stages = 1;
+    u64 stage      = 0;
   } inner = {};
 
   /// @brief initialize the semaphore
   void init(u64 num_stages)
   {
     CHECK(num_stages > 0);
-    new (&inner) Inner{.num_stages = num_stages, .stage = 0, .alias_count = {}};
+    new (&inner) Inner{.num_stages = num_stages, .stage = 0};
   }
 
   void uninit()
@@ -203,8 +202,8 @@ struct Semaphore : Pin<>
 ///  non-zero.
 /// @return Semaphore
 ///
-[[nodiscard]] Rc<Semaphore *> create_semaphore(u64                  num_stages,
-                                               AllocatorImpl const &allocator);
+[[nodiscard]] Rc<Semaphore *> create_semaphore(u64           num_stages,
+                                               AllocatorImpl allocator);
 
 ///
 /// @brief no syscalls are made unless timeout_ns is non-zero.

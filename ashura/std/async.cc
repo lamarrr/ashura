@@ -8,6 +8,7 @@
 #include "ashura/std/error.h"
 #include "ashura/std/list.h"
 #include "ashura/std/log.h"
+#include "ashura/std/rc.h"
 #include "ashura/std/time.h"
 #include <chrono>
 #include <thread>
@@ -15,19 +16,12 @@
 namespace ash
 {
 
-Rc<Semaphore *> create_semaphore(u64 num_stages, AllocatorImpl const &allocator)
+Rc<Semaphore *> create_semaphore(u64 num_stages, AllocatorImpl allocator)
 {
-  Semaphore *s;
-  CHECK(allocator.nalloc(1, s));
-  new (s) Semaphore{};
-  s->init(num_stages);
-  Rc<Semaphore *> sem;
-  sem.init(s, s->inner.alias_count, allocator,
-           fn([](Semaphore *s, AliasCount &, AllocatorImpl const &allocator) {
-             s->uninit();
-             allocator.ndealloc(s, 1);
-           }));
-  return sem;
+  CHECK(num_stages > 0);
+  return rc_inplace<Semaphore>(allocator,
+                               Semaphore::Inner{.num_stages = num_stages})
+      .unwrap();
 }
 
 bool await_semaphores(Span<Rc<Semaphore *> const> semaphores,
