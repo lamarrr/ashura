@@ -15,11 +15,11 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Cache and Install Dependencies
         id: cache-and-install
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ github.workspace }}/.deps
@@ -42,9 +42,6 @@ jobs:
           wget https://sdk.lunarg.com/sdk/download/${{ matrix.vulkan }}/linux/vulkansdk-linux-x86_64-${{ matrix.vulkan }}.tar.xz
           mkdir VulkanSDK
           tar -xvf vulkansdk-linux-x86_64-${{ matrix.vulkan }}.tar.xz -C VulkanSDK
-          rm vulkansdk-linux-x86_64-${{ matrix.vulkan }}.tar.xz
-          cd VulkanSDK/${{ matrix.vulkan }}
-          ./vulkansdk
 
       - name: Install VCPKG
         if: steps.cache-and-install.outputs.cache-hit != 'true'
