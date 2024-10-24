@@ -605,12 +605,10 @@ void RenderContext::release(gpu::Sampler sampler)
       .unwrap();
 }
 
-static void uninit_objects(gpu::DeviceImpl const  &d,
-                           Span<gpu::Object const> objects)
+static void uninit_objects(gpu::DeviceImpl d, Span<gpu::Object const> objects)
 {
-  for (u32 i = 0; i < objects.size32(); i++)
+  for (gpu::Object obj : objects)
   {
-    gpu::Object obj = objects[i];
     switch (obj.type)
     {
       case gpu::ObjectType::Image:

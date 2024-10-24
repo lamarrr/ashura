@@ -1752,17 +1752,17 @@ constexpr Span<c32 const> operator""_span(c32 const *lit, usize n)
   return Span<c32 const>{lit, n};
 }
 
-constexpr Span<u8 const> operator""_utf(c8 const *lit, usize n)
+inline Span<u8 const> operator""_utf(c8 const *lit, usize n)
 {
   return Span<u8 const>{(u8 const *) lit, n};
 }
 
-constexpr Span<u16 const> operator""_utf(c16 const *lit, usize n)
+inline Span<u16 const> operator""_utf(c16 const *lit, usize n)
 {
   return Span<u16 const>{(u16 const *) lit, n};
 }
 
-constexpr Span<u32 const> operator""_utf(c32 const *lit, usize n)
+inline Span<u32 const> operator""_utf(c32 const *lit, usize n)
 {
   return Span<u32 const>{(u32 const *) lit, n};
 }
@@ -2094,8 +2094,7 @@ template <typename R, typename... Args>
 struct PFnTraits<R(Args...)>
 {
   using Ptr        = R (*)(Args...);
-  using Signature  = R(Args...);
-  using Fn         = Fn<Signature>;
+  using Fn         = ::ash::Fn<R(Args...)>;
   using ReturnType = R;
   using Dispatcher = PFnDispatcher<R, Args...>;
 };
@@ -2124,8 +2123,7 @@ template <class T, typename R, typename... Args>
 struct MemberFnTraits<R (T::*)(Args...)>
 {
   using Ptr        = R (*)(Args...);
-  using Signature  = R(Args...);
-  using Fn         = Fn<Signature>;
+  using Fn         = ::ash::Fn<R(Args...)>;
   using Type       = T;
   using ReturnType = R;
   using Dispatcher = FunctorDispatcher<T, R, Args...>;
@@ -2136,8 +2134,7 @@ template <class T, typename R, typename... Args>
 struct MemberFnTraits<R (T::*)(Args...) const>
 {
   using Ptr        = R (*)(Args...);
-  using Signature  = R(Args...);
-  using Fn         = Fn<Signature>;
+  using Fn         = ::ash::Fn<R(Args...)>;
   using Type       = T const;
   using ReturnType = R;
   using Dispatcher = FunctorDispatcher<T const, R, Args...>;
@@ -2262,11 +2259,13 @@ struct SourceLocation
   u32         column   = 0;
 };
 
-template <typename T = Void>
+template <typename T = void>
 struct Pin
 {
   typedef T Type;
-  T         v;
+
+  T v;
+
   template <typename... Args>
   constexpr Pin(Args &&...args) : v{((Args &&) args)...}
   {
@@ -2276,6 +2275,43 @@ struct Pin
   constexpr Pin &operator=(Pin const &) = delete;
   constexpr Pin &operator=(Pin &&)      = delete;
   constexpr ~Pin()                      = default;
+};
+
+template <>
+struct Pin<void>
+{
+  typedef void Type;
+
+  constexpr Pin()                       = default;
+  constexpr Pin(Pin const &)            = delete;
+  constexpr Pin(Pin &&)                 = delete;
+  constexpr Pin &operator=(Pin const &) = delete;
+  constexpr Pin &operator=(Pin &&)      = delete;
+  constexpr ~Pin()                      = default;
+};
+
+template <typename R>
+constexpr void uninit(R &r)
+{
+  r.uninit();
+};
+
+template <typename R>
+struct Smart
+{
+  typedef R Resource;
+
+  constexpr Smart();
+  constexpr Smart(Smart const &);
+  constexpr Smart(Smart &&);
+  constexpr Smart &operator=(Smart const &);
+  constexpr Smart &operator=(Smart &&);
+  constexpr ~Smart()
+  {
+    uninit(resource);
+  }
+
+  R resource;
 };
 
 constexpr u8 sat_add(u8 a, u8 b)

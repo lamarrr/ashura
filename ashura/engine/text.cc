@@ -449,8 +449,10 @@ TextHitResult hit_text(TextLayout const &layout, f32 style_align_width,
     return TextHitResult{.cluster = 0, .line = 0, .column = 0};
   }
 
-  f32 line_y = 0;
-  u32 l      = 0;
+  f32 const  block_width = max(layout.extent.x, style_align_width);
+  Vec2 const block_extent{block_width, layout.extent.y};
+  f32        line_y = -block_extent.y * 0.5F;
+  u32        l      = 0;
 
   // separated vertical and horizontal clamped hit test
   for (; l < num_lines; l++)
@@ -468,7 +470,7 @@ TextHitResult hit_text(TextLayout const &layout, f32 style_align_width,
   TextDirection const direction = level_to_direction(ln.metrics.level);
   f32 const           alignment =
       style_alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
-  f32 cursor = space_align(style_align_width, ln.metrics.width, alignment) -
+  f32 cursor = space_align(block_width, ln.metrics.width, alignment) -
                ln.metrics.width * 0.5F;
 
   for (u32 r = 0; r < ln.num_runs; r++)

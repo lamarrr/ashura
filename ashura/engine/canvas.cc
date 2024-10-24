@@ -524,7 +524,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
   CHECK(style.runs.size() == block.fonts.size());
 
   f32 const  block_width = max(layout.extent.x, style.align_width);
-  Vec2 const half_block_extent{block_width / 2, layout.extent.y / 2};
+  Vec2 const block_extent{block_width, layout.extent.y};
 
   constexpr u8 PASS_BACKGROUND    = 0;
   constexpr u8 PASS_GLYPH_SHADOWS = 1;
@@ -535,12 +535,11 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
 
   for (u8 pass = 0; pass < NUM_PASSES; pass++)
   {
-    f32 line_y = 0;
+    f32 line_y = -block_extent.y * 0.5F;
     for (Line const &ln : layout.lines)
     {
-      if (!overlaps(clip.offseted(),
-                    Rect{desc.center - half_block_extent + Vec2{0, line_y},
-                         Vec2{block_width, ln.metrics.height}}))
+      if (!overlaps(clip, CRect{.center = desc.center + line_y,
+                                .extent = {block_width, ln.metrics.height}}))
       {
         continue;
       }
@@ -566,14 +565,13 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
         {
           Vec2 extent{run_width, au_to_px(run.metrics.ascent, run.font_height) +
                                      ln.metrics.height};
-          Vec2 offset{cursor, line_y - ln.metrics.height};
-          rect(
-              ShapeDesc{.center    = desc.center,
-                        .extent    = extent,
-                        .transform = desc.transform *
-                                     translate3d(vec3(offset + extent / 2, 0)) *
-                                     translate3d(vec3(-half_block_extent, 0)),
-                        .tint = run_style.background});
+          Vec2 center =
+              Vec2{cursor + extent.x * 0.5F, line_y - extent.y * 0.5F};
+          rect(ShapeDesc{.center = desc.center,
+                         .extent = extent,
+                         .transform =
+                             desc.transform * translate3d(vec3(center, 0)),
+                         .tint = run_style.background});
         }
 
         f32 glyph_cursor = cursor;
@@ -583,30 +581,26 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
           Glyph const      &gl  = font.glyphs[sh.glyph];
           AtlasGlyph const &agl = atlas->glyphs[sh.glyph];
           Vec2 const extent     = au_to_px(gl.metrics.extent, run.font_height);
-          Vec2 const offset =
+          Vec2 const center =
               Vec2{glyph_cursor, baseline} +
               au_to_px(gl.metrics.bearing, run.font_height) * Vec2{1, -1} +
-              au_to_px(sh.offset, run.font_height);
+              au_to_px(sh.offset, run.font_height) + extent * 0.5F;
 
           if (pass == PASS_GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
               !run_style.shadow.is_transparent())
           {
             Vec2 shadow_extent = extent * run_style.shadow_scale;
-            Vec2 shadow_offset = (offset + extent / 2) - shadow_extent / 2 +
-                                 run_style.shadow_offset;
-            rect(ShapeDesc{
-                .center = desc.center,
-                .extent = shadow_extent,
-                .transform =
-                    desc.transform *
-                    translate3d(vec3(shadow_offset + shadow_extent / 2, 0)) *
-                    translate3d(vec3(-half_block_extent, 0)),
-                .tint            = run_style.shadow,
-                .sampler         = desc.sampler,
-                .texture         = atlas->textures[agl.layer],
-                .uv              = {agl.uv[0], agl.uv[1]},
-                .tiling          = desc.tiling,
-                .edge_smoothness = desc.edge_smoothness});
+            Vec2 shadow_center = center + run_style.shadow_offset;
+            rect(ShapeDesc{.center    = desc.center,
+                           .extent    = shadow_extent,
+                           .transform = desc.transform *
+                                        translate3d(vec3(shadow_center, 0)),
+                           .tint            = run_style.shadow,
+                           .sampler         = desc.sampler,
+                           .texture         = atlas->textures[agl.layer],
+                           .uv              = {agl.uv[0], agl.uv[1]},
+                           .tiling          = desc.tiling,
+                           .edge_smoothness = desc.edge_smoothness});
           }
 
           if (pass == PASS_GLYPHS && !run_style.foreground.is_transparent())
@@ -614,9 +608,7 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
             rect(ShapeDesc{.center = desc.center,
                            .extent = extent,
                            .transform =
-                               desc.transform *
-                               translate3d(vec3(offset + extent / 2, 0)) *
-                               translate3d(vec3(-half_block_extent, 0)),
+                               desc.transform * translate3d(vec3(center, 0)),
                            .tint            = run_style.foreground,
                            .sampler         = desc.sampler,
                            .texture         = atlas->textures[agl.layer],
@@ -631,38 +623,35 @@ void Canvas::text(ShapeDesc const &desc, TextBlock const &block,
         if (pass == PASS_STRIKETHROUGH &&
             run_style.strikethrough_thickness != 0)
         {
-          Vec2 offset{cursor, baseline - run.font_height / 2};
           Vec2 extent{run_width, run_style.strikethrough_thickness};
-          rect(
-              ShapeDesc{.center    = desc.center,
-                        .extent    = extent,
-                        .transform = desc.transform *
-                                     translate3d(vec3(offset + extent / 2, 0)) *
-                                     translate3d(vec3(-half_block_extent, 0)),
-                        .tint            = run_style.strikethrough,
-                        .sampler         = desc.sampler,
-                        .texture         = 0,
-                        .uv              = {},
-                        .tiling          = desc.tiling,
-                        .edge_smoothness = desc.edge_smoothness});
+          Vec2 center =
+              Vec2{cursor, baseline - run.font_height * 0.5F} + extent * 0.5F;
+          rect(ShapeDesc{.center = desc.center,
+                         .extent = extent,
+                         .transform =
+                             desc.transform * translate3d(vec3(center, 0)),
+                         .tint            = run_style.strikethrough,
+                         .sampler         = desc.sampler,
+                         .texture         = 0,
+                         .uv              = {},
+                         .tiling          = desc.tiling,
+                         .edge_smoothness = desc.edge_smoothness});
         }
 
         if (pass == PASS_UNDERLINE && run_style.underline_thickness != 0)
         {
-          Vec2 offset{cursor, baseline + 2};
           Vec2 extent{run_width, run_style.underline_thickness};
-          rect(
-              ShapeDesc{.center    = desc.center,
-                        .extent    = extent,
-                        .transform = desc.transform *
-                                     translate3d(vec3(offset + extent / 2, 0)) *
-                                     translate3d(vec3(-half_block_extent, 0)),
-                        .tint            = run_style.underline,
-                        .sampler         = desc.sampler,
-                        .texture         = 0,
-                        .uv              = {},
-                        .tiling          = desc.tiling,
-                        .edge_smoothness = desc.edge_smoothness});
+          Vec2 center = Vec2{cursor, baseline + 2} + extent * 0.5F;
+          rect(ShapeDesc{.center = desc.center,
+                         .extent = extent,
+                         .transform =
+                             desc.transform * translate3d(vec3(center, 0)),
+                         .tint            = run_style.underline,
+                         .sampler         = desc.sampler,
+                         .texture         = 0,
+                         .uv              = {},
+                         .tiling          = desc.tiling,
+                         .edge_smoothness = desc.edge_smoothness});
         }
         cursor += run_width;
       }

@@ -1045,7 +1045,7 @@ inline bool is_valid_buffer_access(u64 size, u64 access_offset, u64 access_size,
       (access_size == gpu::WHOLE_SIZE) ? (size - access_offset) : access_size;
   return (access_size > 0) && (access_offset < size) &&
          ((access_offset + access_size) <= size) &&
-         mem::is_aligned(offset_alignment, access_offset);
+         is_aligned(offset_alignment, access_offset);
 }
 
 inline bool is_valid_image_access(gpu::ImageAspects aspects, u32 num_levels,
@@ -3013,7 +3013,7 @@ Result<gpu::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
 
   CHECK(num_descriptor_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS);
   CHECK(desc.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE);
-  CHECK(mem::is_aligned(4U, desc.push_constants_size));
+  CHECK(is_aligned(4U, desc.push_constants_size));
   CHECK(desc.compute_shader.entry_point.size() > 0 &&
         desc.compute_shader.entry_point.size() < 256);
   CHECK(desc.compute_shader.shader != nullptr);
@@ -3129,7 +3129,7 @@ Result<gpu::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
           !self->phy_dev.vk_features.fillModeNonSolid));
   CHECK(num_descriptor_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS);
   CHECK(desc.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE);
-  CHECK(mem::is_aligned(4U, desc.push_constants_size));
+  CHECK(is_aligned(4U, desc.push_constants_size));
   CHECK(desc.vertex_shader.entry_point.size() > 0 &&
         desc.vertex_shader.entry_point.size() <= 255);
   CHECK(desc.fragment_shader.entry_point.size() > 0 &&
@@ -4868,7 +4868,7 @@ void CommandEncoderInterface::fill_buffer(gpu::CommandEncoder self_,
   CHECK(!self->is_in_pass());
   CHECK(has_bits(dst->desc.usage, gpu::BufferUsage::TransferDst));
   CHECK(is_valid_buffer_access(dst->desc.size, offset, size, 4));
-  CHECK(mem::is_aligned<u64>(4, size));
+  CHECK(is_aligned<u64>(4, size));
 
   access_buffer(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -4931,7 +4931,7 @@ void CommandEncoderInterface::update_buffer(gpu::CommandEncoder self_,
   CHECK(!self->is_in_pass());
   CHECK(has_bits(dst->desc.usage, gpu::BufferUsage::TransferDst));
   CHECK(is_valid_buffer_access(dst->desc.size, dst_offset, copy_size, 4));
-  CHECK(mem::is_aligned<u64>(4, copy_size));
+  CHECK(is_aligned<u64>(4, copy_size));
   CHECK(copy_size <= gpu::MAX_UPDATE_BUFFER_SIZE);
 
   access_buffer(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -6021,8 +6021,8 @@ void CommandEncoderInterface::bind_descriptor_sets(
 
   for (u32 offset : dynamic_offsets)
   {
-    CHECK(mem::is_aligned<u64>(ubo_offset_alignment, offset) ||
-          mem::is_aligned<u64>(ssbo_offset_alignment, offset));
+    CHECK(is_aligned<u64>(ubo_offset_alignment, offset) ||
+          is_aligned<u64>(ssbo_offset_alignment, offset));
   }
 
   if (self->is_in_compute_pass())
@@ -6078,7 +6078,7 @@ void CommandEncoderInterface::push_constants(gpu::CommandEncoder self_,
   ENCODE_PRELUDE();
   CHECK(push_constants_data.size_bytes() <= gpu::MAX_PUSH_CONSTANTS_SIZE);
   u32 const push_constants_size = (u32) push_constants_data.size_bytes();
-  CHECK(mem::is_aligned(4U, push_constants_size));
+  CHECK(is_aligned(4U, push_constants_size));
   CHECK(self->is_in_pass());
 
   if (self->is_in_compute_pass())
@@ -6222,7 +6222,7 @@ void CommandEncoderInterface::bind_index_buffer(gpu::CommandEncoder self_,
 
   CHECK(self->is_in_render_pass());
   CHECK(offset < index_buffer->desc.size);
-  CHECK(mem::is_aligned(index_size, offset));
+  CHECK(is_aligned(index_size, offset));
   CHECK(has_bits(index_buffer->desc.usage, gpu::BufferUsage::IndexBuffer));
 
   ctx.index_buffer        = index_buffer;
@@ -6299,7 +6299,7 @@ void CommandEncoderInterface::draw_indirect(gpu::CommandEncoder self_,
   CHECK(has_bits(buffer->desc.usage, gpu::BufferUsage::IndirectBuffer));
   CHECK(offset < buffer->desc.size);
   CHECK((offset + (u64) draw_count * stride) <= buffer->desc.size);
-  CHECK(mem::is_aligned(4U, stride));
+  CHECK(is_aligned(4U, stride));
   CHECK(stride >= sizeof(gpu::DrawCommand));
   CHECK(ctx.has_state);
 
@@ -6327,7 +6327,7 @@ void CommandEncoderInterface::draw_indexed_indirect(gpu::CommandEncoder self_,
   CHECK(has_bits(buffer->desc.usage, gpu::BufferUsage::IndirectBuffer));
   CHECK(offset < buffer->desc.size);
   CHECK((offset + (u64) draw_count * stride) <= buffer->desc.size);
-  CHECK(mem::is_aligned(4U, stride));
+  CHECK(is_aligned(4U, stride));
   CHECK(stride >= sizeof(gpu::DrawIndexedCommand));
   CHECK(ctx.has_state);
 
