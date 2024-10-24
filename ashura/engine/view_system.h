@@ -444,7 +444,9 @@ struct ViewSystem
     }
 
     z_indices[0] = 0;
-    for (u32 i = 0; i < views.size32(); i++)
+    u32 const n  = views.size32();
+
+    for (u32 i = 0; i < n; i++)
     {
       ViewNode const &node = nodes[i];
       z_indices[i]         = views[i]->z_index(
@@ -453,7 +455,7 @@ struct ViewSystem
     }
 
     stacking_contexts[0] = 0;
-    for (u32 i = 0; i < views.size32(); i++)
+    for (u32 i = 0; i < n; i++)
     {
       ViewNode const &node = nodes[i];
       if (node.parent != U32_MAX)
@@ -470,7 +472,11 @@ struct ViewSystem
       {
         return true;
       }
-      return z_indices[a] < z_indices[b];
+      if (z_indices[a] < z_indices[b])
+      {
+        return true;
+      }
+      return nodes[a].depth < nodes[b].depth;
     });
   }
 

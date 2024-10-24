@@ -12,6 +12,7 @@
 
 namespace ash
 {
+
 // [ ] draw focus interaction for all views
 // [ ] add keyboard inputs for all focusable views
 // [ ] destructors
@@ -19,6 +20,111 @@ struct FocusStyle
 {
   ColorGradient border_color     = ColorGradient::all(DEFAULT_THEME.primary);
   f32           border_thickness = 1.0F;
+};
+
+struct FocusState
+{
+  bool in      = false;
+  bool out     = false;
+  bool focused = false;
+
+  void tick(ViewEvents const &events)
+  {
+    in  = events.focus_in;
+    out = events.focus_out;
+
+    if (events.focus_in)
+    {
+      focused = true;
+    }
+
+    if (events.focus_out)
+    {
+      focused = false;
+    }
+  }
+};
+
+struct PressState
+{
+  bool       in      = false;
+  bool       out     = false;
+  bool       hovered = false;
+  bool       down    = false;
+  bool       held    = false;
+  FocusState focus   = {};
+
+  void tick(ViewContext const &ctx, ViewEvents const &events)
+  {
+    focus.tick(events);
+
+    in  = events.mouse_in;
+    out = events.mouse_out;
+
+    if (in)
+    {
+      hovered = true;
+    }
+
+    if (out)
+    {
+      hovered = false;
+      held    = false;
+    }
+
+    if (events.focus_out)
+    {
+      held = false;
+    }
+
+    down = (events.mouse_down && ctx.mouse_down(MouseButtons::Primary)) ||
+           (events.key_down && ctx.key_down(KeyCode::Return));
+
+    bool up = (events.mouse_up && ctx.mouse_up(MouseButtons::Primary)) ||
+              (events.key_up && ctx.key_up(KeyCode::Return));
+
+    if (down)
+    {
+      held = true;
+    }
+
+    if (up)
+    {
+      held = false;
+    }
+  }
+};
+
+struct DragState
+{
+  bool       in       = false;
+  bool       out      = false;
+  bool       hovered  = false;
+  bool       start    = false;
+  bool       dragging = false;
+  bool       end      = false;
+  FocusState focus    = {};
+
+  void tick(ViewEvents const &events)
+  {
+    focus.tick(events);
+    in  = events.mouse_in;
+    out = events.mouse_out;
+
+    if (in)
+    {
+      hovered = true;
+    }
+
+    if (out)
+    {
+      hovered = false;
+    }
+
+    start    = events.drag_start;
+    dragging = events.dragging;
+    end      = events.drag_end;
+  }
 };
 
 /// @param axis flex axis to layout children along
@@ -30,11 +136,11 @@ struct FlexView : View
 {
   struct Style
   {
-    Axis      axis : 3       = Axis::X;
-    bool      wrap : 1       = true;
-    MainAlign main_align : 3 = MainAlign::Start;
-    f32       cross_align    = 0;
-    Frame     frame          = {.width = {.scale = 1}, .height = {.scale = 1}};
+    Axis      axis        = Axis::X;
+    bool      wrap        = true;
+    MainAlign main_align  = MainAlign::Start;
+    f32       cross_align = 0;
+    Frame     frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
   } style;
 
   virtual f32 align_item(u32 i, u32 n)
@@ -179,9 +285,9 @@ struct StackView : View
 {
   struct Style
   {
-    bool  reverse : 1 = false;
-    Vec2  alignment   = {0, 0};
-    Frame frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
+    bool  reverse   = false;
+    Vec2  alignment = {0, 0};
+    Frame frame     = {.width = {.scale = 1}, .height = {.scale = 1}};
   } style;
 
   virtual Vec2 align_item(u32 i, u32 num)
@@ -193,14 +299,15 @@ struct StackView : View
 
   virtual i32 stack_item(i32 base, u32 i, u32 num)
   {
-    i32 z = base + 1;
+    // sequential stacking
+    i32 z = base;
     if (!style.reverse)
     {
       z += (i32) i;
     }
     else
     {
-      z += (i32) (num - (i + 1));
+      z += (i32) (num - i);
     }
     return z;
   }
@@ -241,18 +348,13 @@ struct StackView : View
   }
 };
 
-// [ ] pre-determined height, scrolling of each item. bidirectional
-struct ListView : View
-{
-};
-
 // [ ] add more methods to set and get styling for widgets where we don't want
 // users poking into the objects
 struct TextView : View
 {
   struct State
   {
-    bool copyable : 1 = false;
+    bool copyable = false;
   } state;
 
   struct Style
@@ -260,8 +362,8 @@ struct TextView : View
     TextHighlightStyle highlight;
   } style;
 
-  RenderText     text       = {};
-  TextCompositor compositor = {};
+  RenderText     text{};
+  TextCompositor compositor{};
 
   TextView()
   {
@@ -275,14 +377,18 @@ struct TextView : View
 
   virtual ~TextView() override
   {
-    text.reset();
+    text.uninit();
+    compositor.uninit();
   }
 
-  void highlight(Slice32 slice)
+  void highlight(TextHighlight highlight)
   {
-    text.inner.highlights
-        .push(TextHighlight{.slice = slice, .style = style.highlight})
-        .unwrap();
+    text.highlight(highlight);
+  }
+
+  void clear_highlights()
+  {
+    text.clear_highlights();
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
@@ -302,9 +408,6 @@ struct TextView : View
                        text.inner.alignment, cmd,
                        fn([](u32, Span<u32 const>) {}), fn([](Slice32) {}), {},
                        *ctx.clipboard, 1, ctx.mouse.position - region.center);
-    text.set_highlight(TextHighlight{
-        .slice = compositor.get_cursor().as_slice(text.get_text().size32()),
-        .style = style.highlight});
 
     return ViewState{.draggable = state.copyable};
   }
@@ -318,7 +421,11 @@ struct TextView : View
   virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
                       CRect const &clip) override
   {
+    highlight(TextHighlight{
+        .slice = compositor.get_cursor().as_slice(text.get_text().size32()),
+        .style = style.highlight});
     text.render(canvas, region, clip, zoom);
+    text.inner.highlights.pop();
   }
 
   virtual Cursor cursor(CRect const &, f32, Vec2) override
@@ -327,21 +434,22 @@ struct TextView : View
   }
 };
 
+// [ ] scrollable
+// [ ] calculate lines per page
+// [ ] viewport text with scrollable region, scroll direction
+// [ ] text input while in view, i.e. page down
 // [ ] ClickDetector with timing and debouncing
-// [ ] input box focus request on click (i.e. grab focus)
 struct TextInput : View
 {
   struct State
   {
-    bool disabled : 1      = false;
-    bool editing : 1       = false;
-    bool submit : 1        = false;
-    bool focus_in : 1      = false;
-    bool focus_out : 1     = false;
-    bool focused : 1       = false;
-    bool is_multiline : 1  = false;
-    bool enter_submits : 1 = false;
-    bool tab_input : 1     = false;
+    bool       disabled      = false;
+    bool       editing       = false;
+    bool       submit        = false;
+    bool       is_multiline  = false;
+    bool       enter_submits = false;
+    bool       tab_input     = false;
+    FocusState focus         = {};
   } state;
 
   struct Style
@@ -351,9 +459,9 @@ struct TextInput : View
     FocusStyle         focus          = {};
   } style;
 
-  RenderText     content     = {};
-  RenderText     placeholder = {};
-  TextCompositor compositor  = {};
+  RenderText     content{};
+  RenderText     placeholder{};
+  TextCompositor compositor{};
 
   Fn<void()> on_edit      = fn([] {});
   Fn<void()> on_submit    = fn([] {});
@@ -378,8 +486,19 @@ struct TextInput : View
 
   virtual ~TextInput() override
   {
-    content.reset();
-    placeholder.reset();
+    content.uninit();
+    placeholder.uninit();
+    compositor.uninit();
+  }
+
+  void highlight(TextHighlight const &highlight)
+  {
+    content.inner.highlights.push(highlight).unwrap();
+  }
+
+  void clear_highlights()
+  {
+    content.inner.highlights.clear();
   }
 
   constexpr TextCommand command(ViewContext const &ctx) const
@@ -521,20 +640,10 @@ struct TextInput : View
       this->content.flush_text();
     };
 
-    state.editing   = false;
-    state.submit    = false;
-    state.focus_in  = events.focus_in;
-    state.focus_out = events.focus_out;
+    state.editing = false;
+    state.submit  = false;
 
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
-    }
+    state.focus.tick(events);
 
     TextCommand cmd = TextCommand::None;
     if (events.text_input)
@@ -549,7 +658,7 @@ struct TextInput : View
     {
       cmd = TextCommand::HitSelect;
     }
-    else if (state.focused)
+    else if (state.focus.focused)
     {
       cmd = command(ctx);
     }
@@ -559,10 +668,6 @@ struct TextInput : View
                        fn(&insert), fn(&erase), ctx.text_input_utf32,
                        *ctx.clipboard, style.lines_per_page,
                        ctx.mouse.position - region.center);
-
-    content.set_highlight(TextHighlight{
-        .slice = compositor.get_cursor().as_slice(content.inner.text.size32()),
-        .style = style.highlight});
 
     if (edited)
     {
@@ -580,12 +685,12 @@ struct TextInput : View
       state.submit = true;
     }
 
-    if (state.focus_in)
+    if (state.focus.in)
     {
       on_focus_in();
     }
 
-    if (state.focus_out)
+    if (state.focus.out)
     {
       on_focus_out();
     }
@@ -603,17 +708,18 @@ struct TextInput : View
     return ViewState{.draggable  = !state.disabled,
                      .focusable  = !state.disabled,
                      .text_input = !state.disabled,
-                     .tab_input  = state.tab_input};
+                     .tab_input  = state.tab_input,
+                     .grab_focus = events.mouse_down};
   }
 
   virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    placeholder.calculate_layout(allocated.x);
-    content.calculate_layout(allocated.x);
     if (content.inner.text.is_empty())
     {
+      placeholder.calculate_layout(allocated.x);
       return {.extent = placeholder.inner.layout.extent};
     }
+    content.calculate_layout(allocated.x);
     return {.extent = content.inner.layout.extent};
   }
 
@@ -626,16 +732,20 @@ struct TextInput : View
     }
     else
     {
+      highlight(TextHighlight{.slice = compositor.get_cursor().as_slice(
+                                  content.inner.text.size32()),
+                              .style = style.highlight});
       content.render(canvas, region, clip, zoom);
+      content.inner.highlights.pop();
     }
 
-    if (state.focused)
+    if (state.focus.focused)
     {
       canvas.rect({.center    = region.center,
                    .extent    = region.extent,
-                   .tint      = style.focus.border_color,
                    .stroke    = 1,
-                   .thickness = style.focus.border_thickness});
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
   }
 
@@ -645,30 +755,12 @@ struct TextInput : View
   }
 };
 
-// [ ] calculate lines per page
-// [ ] viewport text with scrollable region, scroll direction
-// [ ] text input while in view, i.e. page down
-struct ScrollableTextInput : View
-{
-  TextInput input;
-  ScrollableTextInput()          = default;
-  virtual ~ScrollableTextInput() = default;
-};
-
 struct Button : View
 {
   struct State
   {
-    bool disabled : 1     = false;
-    bool pointer_down : 1 = false;
-    bool pointer_up : 1   = false;
-    bool pointer_in : 1   = false;
-    bool pointer_out : 1  = false;
-    bool focus_in : 1     = false;
-    bool focus_out : 1    = false;
-    bool focused : 1      = false;
-    bool hovered : 1      = false;
-    bool pressed : 1      = false;
+    bool       disabled = false;
+    PressState press    = {};
   } state;
 
   struct Style
@@ -690,45 +782,7 @@ struct Button : View
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events, Fn<void(View &)>) override
   {
-    state.pointer_down =
-        events.mouse_down && ctx.mouse_down(MouseButtons::Primary);
-    state.pointer_up  = events.mouse_up && ctx.mouse_up(MouseButtons::Primary);
-    state.pointer_in  = events.mouse_in;
-    state.pointer_out = events.mouse_out;
-    state.focus_in    = events.focus_in;
-    state.focus_out   = events.focus_out;
-
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
-    }
-
-    if (state.pointer_in)
-    {
-      state.hovered = true;
-    }
-
-    if (state.pointer_out)
-    {
-      state.hovered = false;
-    }
-
-    if (state.pointer_down ||
-        (events.key_down && ctx.key_down(KeyCode::Return)))
-    {
-      on_pressed();
-      state.pressed = true;
-    }
-
-    if (state.pointer_up || (events.key_up && ctx.key_up(KeyCode::Return)))
-    {
-      state.pressed = false;
-    }
+    state.press.tick(ctx, events);
 
     return ViewState{.pointable = !state.disabled,
                      .clickable = !state.disabled,
@@ -754,9 +808,10 @@ struct Button : View
   virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
                       CRect const &) override
   {
-    ColorGradient tint =
-        (state.hovered && !state.pressed) ? style.hovered_color : style.color;
-    tint = state.disabled ? style.disabled_color : tint;
+    ColorGradient tint = (state.press.hovered && !state.press.held) ?
+                             style.hovered_color :
+                             style.color;
+    tint               = state.disabled ? style.disabled_color : tint;
     canvas.rrect({.center       = region.center,
                   .extent       = region.extent,
                   .corner_radii = style.corner_radii(region.extent.y),
@@ -764,20 +819,20 @@ struct Button : View
                   .thickness    = style.thickness,
                   .tint         = tint});
 
-    if (state.focused)
+    if (state.press.focus.focused)
     {
       canvas.rect({.center    = region.center,
                    .extent    = region.extent,
-                   .tint      = style.focus.border_color,
                    .stroke    = 1,
-                   .thickness = style.focus.border_thickness});
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
   }
 };
 
 struct TextButton : Button
 {
-  TextView text;
+  TextView text{};
 
   TextButton()
   {
@@ -798,13 +853,9 @@ struct CheckBox : View
 {
   struct State
   {
-    bool disabled : 1  = false;
-    bool hovered : 1   = false;
-    bool pressed : 1   = false;
-    bool value : 1     = false;
-    bool focus_in : 1  = false;
-    bool focus_out : 1 = false;
-    bool focused : 1   = false;
+    bool       disabled = false;
+    PressState press    = {};
+    bool       value    = false;
   } state;
 
   struct Style
@@ -825,41 +876,12 @@ struct CheckBox : View
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events, Fn<void(View &)>) override
   {
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
+    state.press.tick(ctx, events);
 
-    if (events.mouse_out)
+    if (state.press.down)
     {
-      state.hovered = false;
-    }
-
-    if ((events.mouse_down && ctx.mouse_down(MouseButtons::Primary)) ||
-        (events.key_down && ctx.key_down(KeyCode::Return)))
-    {
-      state.pressed = true;
-      state.value   = !state.value;
+      state.value = !state.value;
       on_changed(state.value);
-    }
-
-    if ((events.mouse_up && ctx.mouse_up(MouseButtons::Primary)) ||
-        (events.key_up && ctx.key_up(KeyCode::Return)))
-    {
-      state.pressed = false;
-    }
-
-    state.focus_in  = events.focus_in;
-    state.focus_out = events.focus_out;
-
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
     }
 
     return ViewState{.pointable = !state.disabled,
@@ -876,9 +898,10 @@ struct CheckBox : View
   virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
                       CRect const &) override
   {
-    ColorGradient tint = (state.hovered && !state.pressed && !state.disabled) ?
-                             style.box_hovered_color :
-                             style.box_color;
+    ColorGradient tint =
+        (state.press.hovered && !state.press.held && !state.disabled) ?
+            style.box_hovered_color :
+            style.box_color;
     canvas.rrect({.center       = region.center,
                   .extent       = region.extent,
                   .corner_radii = style.corner_radii(region.extent.y),
@@ -897,13 +920,13 @@ struct CheckBox : View
           span<Vec2>({{0.125f, 0.5f}, {0.374f, 0.75f}, {0.775f, 0.25f}}));
     }
 
-    if (state.focused)
+    if (state.press.focus.focused)
     {
       canvas.rect({.center    = region.center,
                    .extent    = region.extent,
-                   .tint      = style.focus.border_color,
                    .stroke    = 1,
-                   .thickness = style.focus.border_thickness});
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
   }
 };
@@ -913,16 +936,17 @@ struct Slider : View
 {
   struct State
   {
-    bool disabled : 1      = false;
-    bool pointer_enter : 1 = false;
-    bool pointer_leave : 1 = false;
-    bool pointer_down : 1  = false;
-    bool pointer_up : 1    = false;
-    bool hovered : 1       = false;
-    bool pressed : 1       = false;
-    bool focus_in : 1      = false;
-    bool focus_out : 1     = false;
-    bool focused : 1       = false;
+    bool       disabled      = false;
+    bool       pointer_enter = false;
+    bool       pointer_leave = false;
+    bool       pointer_down  = false;
+    bool       pointer_up    = false;
+    bool       hovered       = false;
+    bool       pressed       = false;
+    FocusState focus         = {};
+    f32        t             = 0;
+    f32        low           = 0;
+    f32        high          = 1;
   } state;
 
   struct Style
@@ -941,10 +965,6 @@ struct Slider : View
     u8          levels             = 0;
   } style;
 
-  f32 t    = 0;
-  f32 low  = 0;
-  f32 high = 1;
-
   Fn<void(f32)> on_changed = fn([](f32) {});
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
@@ -953,25 +973,18 @@ struct Slider : View
     u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
     if (events.dragging)
     {
-      t = unlerp(region.begin()[main_axis], region.end()[main_axis],
-                 ctx.mouse.position[main_axis]);
-      t = (style.levels == 0) ? t : grid_snap(t, 1.0F / style.levels);
-      f32 const value = clamp(lerp(low, high, t), low, high);
+      state.t = unlerp(region.begin()[main_axis], region.end()[main_axis],
+                       ctx.mouse.position[main_axis]);
+      state.t = (style.levels == 0) ? state.t :
+                                      grid_snap(state.t, 1.0F / style.levels);
+      f32 const value =
+          clamp(lerp(state.low, state.high, state.t), state.low, state.high);
       on_changed(value);
     }
 
-    state.focus_in  = events.focus_in;
-    state.focus_out = events.focus_out;
+    state.focus.tick(events);
 
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focus_out = false;
-    }
+    // [ ] keyboard left and right arrow input
 
     return ViewState{.pointable = !state.disabled,
                      .draggable = !state.disabled,
@@ -1011,7 +1024,7 @@ struct Slider : View
     }
 
     Vec2 thumb_center =
-        region.begin() + Vec2{region.extent.x * t, region.extent.y / 2};
+        region.begin() + Vec2{region.extent.x * state.t, region.extent.y / 2};
     ColorGradient thumb_color =
         (state.hovered && !state.pressed && !state.disabled) ?
             style.thumb_hovered_color :
@@ -1025,13 +1038,13 @@ struct Slider : View
                   .corner_radii = style.thumb_corner_radii(thumb_extent.y),
                   .tint         = thumb_color});
 
-    if (state.focused)
+    if (state.focus.focused)
     {
       canvas.rect({.center    = region.center,
                    .extent    = region.extent,
-                   .tint      = style.focus.border_color,
                    .stroke    = 1,
-                   .thickness = style.focus.border_thickness});
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
   }
 };
@@ -1040,13 +1053,9 @@ struct Switch : View
 {
   struct State
   {
-    bool disabled : 1  = false;
-    bool value : 1     = false;
-    bool hovered : 1   = false;
-    bool pressed : 1   = false;
-    bool focus_in : 1  = false;
-    bool focus_out : 1 = false;
-    bool focused : 1   = false;
+    bool       disabled = false;
+    PressState press    = {};
+    bool       value    = false;
   } state;
 
   struct Style
@@ -1069,39 +1078,12 @@ struct Switch : View
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events, Fn<void(View &)>) override
   {
-    if (events.mouse_down && ctx.mouse_down(MouseButtons::Primary))
+    state.press.tick(ctx, events);
+
+    if (state.press.down)
     {
       state.value = !state.value;
       on_changed(state.value);
-      state.pressed = true;
-    }
-
-    if (events.mouse_up && ctx.mouse_up(MouseButtons::Primary))
-    {
-      state.pressed = false;
-    }
-
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
-
-    if (events.mouse_out)
-    {
-      state.hovered = false;
-    }
-
-    state.focus_in  = events.focus_in;
-    state.focus_out = events.focus_out;
-
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
     }
 
     return ViewState{.pointable = !state.disabled,
@@ -1128,7 +1110,7 @@ struct Switch : View
                                     Vec2{state.value ? -1.0F : 1.0F, 0});
 
     ColorGradient thumb_color;
-    if (state.hovered)
+    if (state.press.hovered)
     {
       thumb_color =
           state.value ? style.on_hovered_color : style.off_hovered_color;
@@ -1143,278 +1125,14 @@ struct Switch : View
                   .corner_radii = style.corner_radii(region.extent.y),
                   .tint         = thumb_color});
 
-    if (state.focused)
+    if (state.press.focus.focused)
     {
       canvas.rect({.center    = region.center,
                    .extent    = region.extent,
-                   .tint      = style.focus.border_color,
                    .stroke    = 1,
-                   .thickness = style.focus.border_thickness});
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
-  }
-};
-
-// [ ] implement
-struct Collapsable : View
-{
-};
-
-// [ ] scrolling
-// [ ] selection
-// [ ] clipping
-// [ ] ios-style combo box
-/// @param alignment alignment of the item, based on the text direction
-struct ComboBoxItem : View
-{
-  struct State
-  {
-    bool disabled : 1  = false;
-    bool hovered : 1   = false;
-    bool selected : 1  = false;
-    bool focus_in : 1  = false;
-    bool focus_out : 1 = false;
-    bool focused : 1   = false;
-  } state;
-
-  struct Style
-  {
-    ColorGradient hovered_text_color = ColorGradient::all(DEFAULT_THEME.active);
-    ColorGradient hovered_background_color =
-        ColorGradient::all(DEFAULT_THEME.surface_variant);
-    ColorGradient disabled_text_color =
-        ColorGradient::all(DEFAULT_THEME.inactive);
-    ColorGradient disabled_background_color =
-        ColorGradient::all(DEFAULT_THEME.inactive);
-    ColorGradient selected_background_color =
-        ColorGradient::all(DEFAULT_THEME.surface_variant);
-    ColorGradient selected_text_color =
-        ColorGradient::all(DEFAULT_THEME.surface_variant);
-    ColorGradient text_color = ColorGradient::all(DEFAULT_THEME.on_surface);
-    ColorGradient background_color = ColorGradient::all(DEFAULT_THEME.surface);
-    CornerRadii   corner_radii     = CornerRadii::all({.scale = 0.125F});
-    FocusStyle    focus            = {};
-    Frame         frame            = {};
-    f32           alignment        = -1;
-  } style;
-
-  Fn<void()> on_selected = fn([] {});
-
-  RenderText text;
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)>) override
-  {
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
-
-    if (events.mouse_out)
-    {
-      state.hovered = false;
-    }
-
-    if (events.mouse_down && ctx.mouse_down(MouseButtons::Primary))
-    {
-      if (!state.selected)
-      {
-        state.selected = true;
-        on_selected();
-      }
-    }
-
-    if (events.key_down && ctx.key_down(KeyCode::Return))
-    {
-      if (!state.selected)
-      {
-        state.selected = true;
-        on_selected();
-      }
-    }
-
-    state.focus_in  = events.focus_in;
-    state.focus_out = events.focus_out;
-
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
-    }
-
-    return ViewState{.pointable = !state.disabled,
-                     .clickable = !state.disabled,
-                     .focusable = !state.disabled};
-  }
-
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
-                      CRect const &clip) override
-  {
-    canvas.rrect({.center = region.center,
-                  .extent = region.extent,
-                  .tint   = state.hovered ? style.hovered_background_color :
-                                            style.background_color});
-    text.render(canvas, region, clip, zoom);
-
-    if (state.focused)
-    {
-      canvas.rect({.center    = region.center,
-                   .extent    = region.extent,
-                   .tint      = style.focus.border_color,
-                   .stroke    = 1,
-                   .thickness = style.focus.border_thickness});
-    }
-  }
-};
-
-/// [ ] z-index on expanded?
-/// [ ] z-index effects on viewport
-/// [ ] clip
-struct ComboBoxScrollView : View
-{
-  typedef Fn<void(u32, Span<u32 const>)> Selected;
-
-  struct State
-  {
-    bool disabled : 1 = false;
-    bool expanded : 1 = false;
-  } state;
-
-  struct Style
-  {
-    Frame         frame        = {};
-    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
-    f32           alignment    = 0;
-    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
-  } style;
-
-  // Vec<ComboBoxItem> items       = {};
-  Selected on_selected = fn([](u32, Span<u32 const>) {});
-
-  ~ComboBoxScrollView()
-  {
-    // items.reset();
-  }
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)> build) override
-  {
-    // [ ] scrolling
-    // on scroll increase offset of views
-    // for (ComboBoxItem &item : items)
-    // {
-    // build(item);
-    // }
-    return ViewState{};
-  }
-
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
-  {
-    (void) allocated;
-    fill(sizes, Vec2{0, 0});
-  }
-
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override
-  {
-    return {};
-  }
-
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
-                      CRect const &clip) override
-  {
-    // render rrect covering region
-  }
-
-  void clear_items();
-  void add_item();
-  bool is_opened();
-  void close();
-  void open();
-  bool is_closed();
-};
-
-enum class ComboBoxMode : u8
-{
-  Inline = 0,
-  Dialog = 1
-};
-
-struct ComboBox : View
-{
-  typedef ComboBoxScrollView::Selected Selected;
-
-  struct State
-  {
-    bool disabled : 1 = false;
-    bool hovered : 1  = false;
-    bool pressed : 1  = false;
-  } state;
-
-  ComboBoxScrollView scroll_view;
-
-  struct Style
-  {
-    ComboBoxMode  mode         = ComboBoxMode::Inline;
-    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
-    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
-    ColorGradient hovered_color =
-        ColorGradient::all(DEFAULT_THEME.surface_variant);
-    ColorGradient text_color = ColorGradient::all(DEFAULT_THEME.on_surface);
-    ColorGradient inactive_text_color =
-        ColorGradient::all(DEFAULT_THEME.inactive);
-    Frame frame =
-        Frame{.width = {.scale = 1, .max = 200}, .height = {.offset = 25}};
-  } style;
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)> build) override
-  {
-    if (ctx.mouse_down(MouseButtons::Primary))
-    {
-      if (scroll_view.is_opened())
-      {
-        scroll_view.close();
-      }
-      else if (!state.disabled)
-      {
-        scroll_view.open();
-      }
-    }
-
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
-
-    if (events.mouse_out)
-    {
-      state.hovered = false;
-    }
-
-    if (events.focus_in)
-    {
-    }
-
-    build(scroll_view);
-
-    return ViewState{.clickable = !state.disabled,
-                     .focusable = !state.disabled};
-  }
-
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
-                      CRect const &clip) override
-  {
-    canvas.rrect({.center       = region.center,
-                  .extent       = region.extent,
-                  .corner_radii = style.corner_radii(region.extent.y),
-                  .tint = state.hovered ? style.hovered_color : style.color});
-    //[ ] draw selection text
-    //[ ] draw button: scroll_view.opened?
-    //[ ] focus
   }
 };
 
@@ -1422,17 +1140,9 @@ struct RadioBox : View
 {
   struct State
   {
-    bool disabled : 1      = false;
-    bool pointer_enter : 1 = false;
-    bool pointer_leave : 1 = false;
-    bool pointer_down : 1  = false;
-    bool pointer_up : 1    = false;
-    bool hovered : 1       = false;
-    bool focus_in : 1      = false;
-    bool focus_out : 1     = false;
-    bool focused : 1       = false;
-    bool pressed : 1       = false;
-    bool value : 1         = false;
+    bool       disabled = false;
+    PressState press    = {};
+    bool       value    = false;
   } state;
 
   struct Style
@@ -1452,41 +1162,12 @@ struct RadioBox : View
   virtual ViewState tick(ViewContext const &ctx, CRect const &,
                          ViewEvents         events, Fn<void(View &)>) override
   {
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
+    state.press.tick(ctx, events);
 
-    if (events.mouse_out)
+    if (state.press.down)
     {
-      state.hovered = false;
-    }
-
-    state.focus_in  = events.focus_in;
-    state.focus_out = events.focus_out;
-
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
-    }
-
-    if ((events.mouse_down && ctx.mouse_down(MouseButtons::Primary)) ||
-        (events.key_down && ctx.key_down(KeyCode::Return)))
-    {
-      state.pressed = true;
-      state.value   = !state.value;
+      state.value = !state.value;
       on_changed(state.value);
-    }
-
-    if ((events.mouse_up && ctx.mouse_down(MouseButtons::Primary)) ||
-        (events.key_up && ctx.key_up(KeyCode::Return)))
-    {
-      state.pressed = false;
     }
 
     return ViewState{.pointable = !state.disabled,
@@ -1511,22 +1192,22 @@ struct RadioBox : View
 
     if (state.value)
     {
-      Vec2 inner_extent = region.extent * (state.hovered ? 0.75F : 0.5F);
+      Vec2 inner_extent = region.extent * (state.press.hovered ? 0.75F : 0.5F);
       ColorGradient inner_color =
-          state.hovered ? style.inner_hovered_color : style.inner_color;
+          state.press.hovered ? style.inner_hovered_color : style.inner_color;
 
       canvas.circle({.center = region.center,
                      .extent = inner_extent,
                      .tint   = inner_color});
     }
 
-    if (state.focused)
+    if (state.press.focus.focused)
     {
       canvas.rect({.center    = region.center,
                    .extent    = region.extent,
-                   .tint      = style.focus.border_color,
                    .stroke    = 1,
-                   .thickness = style.focus.border_thickness});
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
   }
 };
@@ -1542,7 +1223,7 @@ struct ScalarInput
 {
   union
   {
-    i32 i32;
+    i32 i32 = 0;
     f32 f32;
   };
   ScalarInputType type = ScalarInputType::i32;
@@ -1654,13 +1335,11 @@ struct ScalarDragBox : View
 
   struct State
   {
-    bool        disabled : 1   = false;
-    bool        input_mode : 1 = false;
-    bool        dragging : 1   = false;
-    bool        focus_in : 1   = false;
-    bool        focus_out : 1  = false;
-    bool        focused : 1    = false;
-    ScalarState value          = {};
+    bool        disabled   = false;
+    bool        input_mode = false;
+    bool        dragging   = false;
+    FocusState  focus      = {};
+    ScalarState value      = {};
   } state;
 
   struct Style
@@ -1677,7 +1356,7 @@ struct ScalarDragBox : View
     FocusStyle    focus        = {};
   } style;
 
-  TextInput input;
+  TextInput input{};
   Fmt       fmt   = fn(scalar_fmt);
   Parse     parse = fn(scalar_parse);
 
@@ -1707,7 +1386,7 @@ struct ScalarDragBox : View
     }
 
     Vec<u8> utf8;
-    defer   utf8_{[&] { utf8.reset(); }};
+    defer   utf8_{[&] { utf8.uninit(); }};
     utf8_encode(text, utf8).unwrap();
 
     char const *const first = (char const *) utf8.begin();
@@ -1782,17 +1461,7 @@ struct ScalarDragBox : View
       on_update(state.value.current);
     }
 
-    state.focus_in  = events.focus_in;
-    state.focus_out = events.focus_out;
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
-    }
+    state.focus.tick(events);
 
     return ViewState{.pointable = !state.disabled,
                      .draggable = !state.disabled,
@@ -1839,13 +1508,13 @@ struct ScalarDragBox : View
                     .tint         = style.thumb_color});
     }
 
-    if (state.focused)
+    if (state.focus.focused)
     {
       canvas.rect({.center    = region.center,
                    .extent    = region.extent,
-                   .tint      = style.focus.border_color,
                    .stroke    = 1,
-                   .thickness = style.focus.border_thickness});
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
   }
 
@@ -1861,18 +1530,17 @@ struct ScalarBox : FlexView
 {
   Fn<void(ScalarInput)> on_update = fn([](ScalarInput) {});
 
-  TextButton    dec;
-  TextButton    inc;
-  ScalarDragBox drag;
+  TextButton    dec{};
+  TextButton    inc{};
+  ScalarDragBox drag{};
 
   ScalarBox()
   {
-    FlexView::style.axis        = Axis::X;
-    FlexView::style.wrap        = false;
-    FlexView::style.main_align  = MainAlign::Start;
-    FlexView::style.cross_align = 0;
-    FlexView::style.frame =
-        Frame{.width = {.scale = 1}, .height = {.scale = 1}};
+    style.axis        = Axis::X;
+    style.wrap        = false;
+    style.main_align  = MainAlign::Start;
+    style.cross_align = 0;
+    style.frame       = Frame{.width = {.scale = 1}, .height = {.scale = 1}};
 
     dec.text.text.set_text(
         U"-"_utf,
@@ -1928,10 +1596,10 @@ struct ScrollBar : View
 {
   struct State
   {
-    bool disabled : 1 = false;
-    bool hovered : 1  = false;
-    bool dragging : 1 = false;
-    f32  t            = 0;
+    bool       disabled = false;
+    DragState  drag     = {};
+    FocusState focus    = {};
+    f32        t        = 0;
   } state;
 
   struct Style
@@ -1943,8 +1611,9 @@ struct ScrollBar : View
         ColorGradient::all(DEFAULT_THEME.active * opacity(0.75F));
     ColorGradient track_color =
         ColorGradient::all(DEFAULT_THEME.inactive * opacity(0.75F));
-    Vec2 frame_extent   = {};
-    Vec2 content_extent = {};
+    Vec2       frame_extent   = {};
+    Vec2       content_extent = {};
+    FocusStyle focus          = {};
   } style;
 
   Fn<void(f32)> on_scrolled = fn([](f32) {});
@@ -1958,19 +1627,11 @@ struct ScrollBar : View
   {
     u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
 
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
+    state.drag.tick(events);
+    state.focus.tick(events);
 
-    if (events.mouse_out)
+    if (state.drag.dragging)
     {
-      state.hovered = false;
-    }
-
-    if (events.dragging)
-    {
-      state.dragging = true;
       state.t =
           clamp((ctx.mouse.position[main_axis] - region.extent[main_axis] / 2) /
                     region.extent[main_axis],
@@ -1978,13 +1639,11 @@ struct ScrollBar : View
       on_scrolled(state.t);
     }
 
-    if (events.drag_end)
-    {
-      state.dragging = false;
-    }
+    // [ ] keyboard left and right scrolling
 
     return ViewState{.pointable = !state.disabled,
-                     .draggable = !state.disabled};
+                     .draggable = !state.disabled,
+                     .focusable = !state.disabled};
   }
 
   virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
@@ -2031,8 +1690,17 @@ struct ScrollBar : View
                   .extent       = thumb_extent,
                   .corner_radii = corner_radii,
                   .stroke       = 0,
-                  .tint         = state.dragging ? style.thumb_dragging_color :
-                                                   style.thumb_color});
+                  .tint = state.drag.dragging ? style.thumb_dragging_color :
+                                                style.thumb_color});
+
+    if (state.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
+    }
   }
 };
 
@@ -2042,7 +1710,7 @@ struct ScrollView : View
 {
   struct State
   {
-    bool disabled : 1 = false;
+    bool disabled = false;
   } state;
 
   struct Style
@@ -2055,8 +1723,8 @@ struct ScrollView : View
 
   // [ ] needs to be at a different stacking context since this will be placed
   // on top of the view
-  ScrollBar x_bar = ScrollBar{Axis::X};
-  ScrollBar y_bar = ScrollBar{Axis::Y};
+  ScrollBar x_bar{Axis::X};
+  ScrollBar y_bar{Axis::Y};
 
   virtual ViewState tick(ViewContext const &, CRect const &, ViewEvents,
                          Fn<void(View &)> build) override
@@ -2115,6 +1783,222 @@ struct ScrollView : View
   }
 };
 
+// [ ] scrolling
+// [ ] selection
+// [ ] clipping
+// [ ] ios-style combo box
+/// @param alignment alignment of the item, based on the text direction
+struct ComboBoxItem : View
+{
+  struct State
+  {
+    bool       disabled = false;
+    PressState press    = {};
+    bool       selected = false;
+  } state;
+
+  struct Style
+  {
+    ColorGradient hovered_text_color = ColorGradient::all(DEFAULT_THEME.active);
+    ColorGradient hovered_background_color =
+        ColorGradient::all(DEFAULT_THEME.surface_variant);
+    ColorGradient disabled_text_color =
+        ColorGradient::all(DEFAULT_THEME.inactive);
+    ColorGradient disabled_background_color =
+        ColorGradient::all(DEFAULT_THEME.inactive);
+    ColorGradient selected_background_color =
+        ColorGradient::all(DEFAULT_THEME.surface_variant);
+    ColorGradient selected_text_color =
+        ColorGradient::all(DEFAULT_THEME.surface_variant);
+    ColorGradient text_color = ColorGradient::all(DEFAULT_THEME.on_surface);
+    ColorGradient background_color = ColorGradient::all(DEFAULT_THEME.surface);
+    CornerRadii   corner_radii     = CornerRadii::all({.scale = 0.125F});
+    FocusStyle    focus            = {};
+    Frame         frame            = {};
+    f32           alignment        = -1;
+  } style;
+
+  Fn<void()> on_selected = fn([] {});
+
+  RenderText text{};
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events, Fn<void(View &)>) override
+  {
+    state.press.tick(ctx, events);
+
+    if (state.press.down && !state.selected)
+    {
+      state.selected = true;
+      on_selected();
+    }
+
+    return ViewState{.pointable = !state.disabled,
+                     .clickable = !state.disabled,
+                     .focusable = !state.disabled};
+  }
+
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &clip) override
+  {
+    canvas.rrect({.center = region.center,
+                  .extent = region.extent,
+                  .tint = state.press.hovered ? style.hovered_background_color :
+                                                style.background_color});
+    text.render(canvas, region, clip, zoom);
+
+    if (state.press.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
+    }
+  }
+};
+
+/// [ ] z-index on expanded?
+/// [ ] z-index effects on viewport
+/// [ ] clip
+struct ComboBoxScrollView : View
+{
+  typedef Fn<void(u32, Span<u32 const>)> Selected;
+
+  struct State
+  {
+    bool disabled = false;
+    bool expanded = false;
+  } state;
+
+  struct Style
+  {
+    Frame         frame        = {};
+    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
+    f32           alignment    = 0;
+    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
+  } style;
+
+  // Vec<ComboBoxItem> items       = {};
+  Selected on_selected = fn([](u32, Span<u32 const>) {});
+
+  ~ComboBoxScrollView()
+  {
+    // items.reset();
+  }
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events, Fn<void(View &)> build) override
+  {
+    // [ ] scrolling
+    // on scroll increase offset of views
+    // for (ComboBoxItem &item : items)
+    // {
+    // build(item);
+    // }
+    return ViewState{};
+  }
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  {
+    (void) allocated;
+    fill(sizes, Vec2{0, 0});
+  }
+
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
+  {
+    return {};
+  }
+
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &clip) override
+  {
+    // render rrect covering region
+  }
+
+  void clear_items();
+  void add_item();
+  bool is_opened();
+  void close();
+  void open();
+  bool is_closed();
+};
+
+struct ComboBox : View
+{
+  typedef ComboBoxScrollView::Selected Selected;
+
+  struct State
+  {
+    bool disabled = false;
+    bool hovered  = false;
+    bool pressed  = false;
+  } state;
+
+  ComboBoxScrollView scroll_view;
+
+  struct Style
+  {
+    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
+    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
+    ColorGradient hovered_color =
+        ColorGradient::all(DEFAULT_THEME.surface_variant);
+    ColorGradient text_color = ColorGradient::all(DEFAULT_THEME.on_surface);
+    ColorGradient inactive_text_color =
+        ColorGradient::all(DEFAULT_THEME.inactive);
+    Frame frame =
+        Frame{.width = {.scale = 1, .max = 200}, .height = {.offset = 25}};
+  } style;
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events, Fn<void(View &)> build) override
+  {
+    if (ctx.mouse_down(MouseButtons::Primary))
+    {
+      if (scroll_view.is_opened())
+      {
+        scroll_view.close();
+      }
+      else if (!state.disabled)
+      {
+        scroll_view.open();
+      }
+    }
+
+    if (events.mouse_in)
+    {
+      state.hovered = true;
+    }
+
+    if (events.mouse_out)
+    {
+      state.hovered = false;
+    }
+
+    if (events.focus_in)
+    {
+    }
+
+    build(scroll_view);
+
+    return ViewState{.clickable = !state.disabled,
+                     .focusable = !state.disabled};
+  }
+
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &clip) override
+  {
+    canvas.rrect({.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = style.corner_radii(region.extent.y),
+                  .tint = state.hovered ? style.hovered_color : style.color});
+    //[ ] draw selection text
+    //[ ] draw button: scroll_view.opened?
+    //[ ] focus
+  }
+};
+
 // [ ] implement
 struct ContextMenu : View
 {
@@ -2141,12 +2025,6 @@ struct Plot : View
 
 // [ ] implement
 struct ProgressBar : View
-{
-};
-
-// [ ] header selectors.
-// [ ] navigation model, with keyboard and gamepad
-struct Tab : View
 {
 };
 

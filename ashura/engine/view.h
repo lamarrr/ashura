@@ -348,7 +348,7 @@ struct ViewLayout
 /// The coordinate system used is one in which the center of the screen is (0,
 /// 0) and ranges from [-0.5w, +0.5w] on both axes. i.e. top-left is [-0.5w,
 /// -0.5h] and bottom-right is [+0.5w, +0.5h].
-struct View
+struct View : Pin<>
 {
   /// @param id id of the view if mounted, otherwise U64_MAX
   /// @param last_rendered_frame last frame the view was rendered at
@@ -431,7 +431,7 @@ struct View
   /// @return preferred z_index
   constexpr virtual i32 z_index(i32 allocated, Span<i32> indices)
   {
-    fill(indices, allocated + 1);
+    fill(indices, allocated);
     return allocated;
   }
 

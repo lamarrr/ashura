@@ -174,20 +174,37 @@ struct RenderText
     }
   } inner = {};
 
+  void reset()
+  {
+    inner.text.reset();
+    inner.runs.reset();
+    inner.styles.reset();
+    inner.fonts.reset();
+    inner.layout.reset();
+  }
+
+  void uninit()
+  {
+    inner.text.uninit();
+    inner.runs.uninit();
+    inner.styles.uninit();
+    inner.fonts.uninit();
+    inner.layout.uninit();
+  }
+
   void flush_text()
   {
     inner.dirty = true;
   }
 
-  void set_highlights(Span<TextHighlight const> highlight)
+  void highlight(TextHighlight const &highlight)
   {
-    inner.highlights.clear();
-    inner.highlights.extend_copy(highlight).unwrap();
+    inner.highlights.push(highlight).unwrap();
   }
 
-  void set_highlight(TextHighlight highlight)
+  void clear_highlights()
   {
-    set_highlights(span({highlight}));
+    inner.highlights.clear();
   }
 
   void set_direction(TextDirection direction)
@@ -288,15 +305,6 @@ struct RenderText
     // [ ] are the cursor indexes correct?
     // [ ] use overlays on intersecting graphemes
     // [ ] scaling
-  }
-
-  void reset()
-  {
-    inner.text.reset();
-    inner.runs.reset();
-    inner.styles.reset();
-    inner.fonts.reset();
-    inner.layout.reset();
   }
 };
 

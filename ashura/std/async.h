@@ -109,13 +109,19 @@ struct StopToken
 /// possibly be other tasks awaiting it.
 ///
 /// Semaphores never overflows. so it can have a maximum of U64_MAX stages.
-struct Semaphore
+struct Semaphore : Pin<>
 {
   struct Inner
   {
     u64 num_stages = 1;
     u64 stage      = 0;
   } inner = {};
+
+  explicit constexpr Semaphore(Inner in) : inner{in}
+  {
+  }
+
+  constexpr Semaphore() = default;
 
   /// @brief initialize the semaphore
   void init(u64 num_stages)
