@@ -1,16 +1,74 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/allocator.h"
-#include "ashura/std/backoff.h"
 #include "ashura/std/cfg.h"
 #include "ashura/std/error.h"
 #include "ashura/std/rc.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include <atomic>
+#include <thread>
+
+#if ASH_CFG(ARCH, X86) || ASH_CFG(ARCH, X86_64)
+#  include <emmintrin.h>
+#endif
 
 namespace ash
 {
+
+inline void yielding_backoff(u64 poll)
+{
+  if (poll < 8)
+  {
+    return;
+  }
+
+  if (poll < 16)
+  {
+#if ASH_CFG(ARCH, X86) || ASH_CFG(ARCH, X86_64)
+    _mm_pause();
+#else
+#  if ASH_CFG(ARCH, ARM32) || ASH_CFG(ARCH, ARM64)
+    __asm("yield");
+#  endif
+#endif
+
+    return;
+  }
+
+  std::this_thread::yield();
+  return;
+}
+
+inline void sleepy_backoff(u64 poll, nanoseconds sleep)
+{
+  if (poll < 8)
+  {
+    return;
+  }
+
+  if (poll < 16)
+  {
+#if ASH_CFG(ARCH, X86) || ASH_CFG(ARCH, X86_64)
+    _mm_pause();
+#else
+#  if ASH_CFG(ARCH, ARM32) || ASH_CFG(ARCH, ARM64)
+    __asm("yield");
+#  endif
+#endif
+
+    return;
+  }
+
+  if (poll <= 64)
+  {
+    std::this_thread::yield();
+    return;
+  }
+
+  std::this_thread::sleep_for(sleep);
+  return;
+}
 
 struct SpinLock
 {
