@@ -1,6 +1,5 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/std/error.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -16,13 +15,13 @@ namespace ash
 /// constructed.
 ///
 template <typename T>
-struct ListNode
+struct ListNode : Pin<>
 {
   ListNode<T> *next = this;
   ListNode<T> *prev = this;
   T            data = {};
 
-  void link()
+  void isolate()
   {
     next = this;
     prev = this;
@@ -141,14 +140,19 @@ struct List
 {
   ListNode<T> *head = nullptr;
 
-  [[nodiscard]] constexpr ListNode<T> *tail() const
-  {
-    return head == nullptr ? nullptr : head->prev;
-  }
-
   constexpr bool is_empty() const
   {
     return head == nullptr;
+  }
+
+  [[nodiscard]] constexpr ListNode<T> *tail() const
+  {
+    if (head == nullptr) [[unlikely]]
+    {
+      return nullptr;
+    }
+
+    return head->prev;
   }
 
   [[nodiscard]] constexpr ListNode<T> *pop_front()
