@@ -153,41 +153,43 @@ struct List
 
   [[nodiscard]] constexpr ListNode<T> *pop_front()
   {
-    return head == nullptr ? nullptr : list::pop_front(head);
+    if (head == nullptr) [[unlikely]]
+    {
+      return nullptr;
+    }
+
+    return list::pop_front(head);
   }
 
   [[nodiscard]] constexpr ListNode<T> *pop_back()
   {
-    return head == nullptr ? nullptr : list::pop_back(head);
+    if (head == nullptr) [[unlikely]]
+    {
+      return nullptr;
+    }
+
+    return list::pop_back(head);
   }
 
   constexpr void push_front(ListNode<T> *ext)
   {
-    if (ext == nullptr)
-    {
-      return;
-    }
-    CHECK(ext->is_linked());
-    if (head == nullptr)
+    if (head == nullptr) [[unlikely]]
     {
       head = ext;
       return;
     }
+
     head = list::push_front(head, ext);
   }
 
   constexpr void push_back(ListNode<T> *ext)
   {
-    if (ext == nullptr)
-    {
-      return;
-    }
-    CHECK(ext->is_linked());
-    if (head == nullptr)
+    if (head == nullptr) [[unlikely]]
     {
       head = ext;
       return;
     }
+
     head = list::push_back(head, ext);
   }
 };
