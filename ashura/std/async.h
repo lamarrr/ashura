@@ -420,7 +420,8 @@ struct TaskInfo
 /// [x] external polling contexts
 /// [ ] helper functions to correctly dispatch to required types.
 /// [ ] shutdown is performed immediately as we can't guarantee when tasks will
-/// complete.
+/// complete. send a purge signal to the threads so they purge their task queue
+/// before returning.
 struct Scheduler
 {
   virtual void init(Span<nanoseconds const> dedicated_thread_sleep,
