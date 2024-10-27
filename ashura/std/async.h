@@ -111,7 +111,7 @@ struct LockGuard
 {
   L *lock_ = nullptr;
 
-  explicit constexpr LockGuard(L &lock) : lock_{&lock}
+  explicit LockGuard(L &lock) : lock_{&lock}
   {
     lock_->lock();
   }
@@ -121,7 +121,7 @@ struct LockGuard
   LockGuard(LockGuard &&)                 = delete;
   LockGuard &operator=(LockGuard &&)      = delete;
 
-  constexpr ~LockGuard()
+  ~LockGuard()
   {
     lock_->unlock();
   }
@@ -183,16 +183,16 @@ struct ReadLock
 {
   ReadWriteLock *lock_ = nullptr;
 
-  explicit constexpr ReadLock(ReadWriteLock &rwlock) : lock_{&rwlock}
+  explicit ReadLock(ReadWriteLock &rwlock) : lock_{&rwlock}
   {
   }
 
-  constexpr void lock()
+  void lock()
   {
     lock_->lock_read();
   }
 
-  constexpr void unlock()
+  void unlock()
   {
     lock_->unlock_read();
   }
@@ -202,16 +202,16 @@ struct WriteLock
 {
   ReadWriteLock *lock_ = nullptr;
 
-  explicit constexpr WriteLock(ReadWriteLock &rwlock) : lock_{&rwlock}
+  explicit WriteLock(ReadWriteLock &rwlock) : lock_{&rwlock}
   {
   }
 
-  constexpr void lock()
+  void lock()
   {
     lock_->lock_write();
   }
 
-  constexpr void unlock()
+  void unlock()
   {
     lock_->unlock_write();
   }
