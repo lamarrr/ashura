@@ -32,18 +32,18 @@ struct RenderText
 {
   struct
   {
-    bool               dirty : 1         = true;
-    bool               use_kerning : 1   = true;
-    bool               use_ligatures : 1 = true;
-    TextDirection      direction : 2     = TextDirection::LeftToRight;
-    f32                alignment         = -1;
-    Vec<u32>           text              = {};
-    Vec<u32>           runs              = {};
-    Vec<TextStyle>     styles            = {};
-    Vec<FontStyle>     fonts             = {};
-    Span<char const>   language          = {};
-    TextLayout         layout            = {};
-    Vec<TextHighlight> highlights        = {};
+    bool               dirty         = true;
+    bool               use_kerning   = true;
+    bool               use_ligatures = true;
+    TextDirection      direction     = TextDirection::LeftToRight;
+    f32                alignment     = -1;
+    Vec<u32>           text          = {};
+    Vec<u32>           runs          = {};
+    Vec<TextStyle>     styles        = {};
+    Vec<FontStyle>     fonts         = {};
+    Span<char const>   language      = {};
+    TextLayout         layout        = {};
+    Vec<TextHighlight> highlights    = {};
 
     /// @brief  Styles specified runs of text, performing run merging and
     /// splitting in the process. If there's previously no runs, the first added
