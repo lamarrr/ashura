@@ -311,7 +311,7 @@ struct RenderText
               f32 zoom) const
   {
     (void) zoom;
-    canvas.text(ShapeDesc{.center = region.center}, block(), inner.layout,
+    canvas.text({.center = region.center}, block(), inner.layout,
                 block_style(region.extent.x), clip);
     // [ ] zoom
     // [ ] render highlights
