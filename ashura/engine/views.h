@@ -8,14 +8,12 @@
 #include "ashura/engine/view.h"
 #include "ashura/std/text.h"
 #include "ashura/std/types.h"
+#include "ashura/std/unique.h"
 #include <charconv>
 
 namespace ash
 {
 
-// [ ] draw focus interaction for all views
-// [ ] add keyboard inputs for all focusable views
-// [ ] destructors
 struct FocusStyle
 {
   ColorGradient border_color     = ColorGradient::all(DEFAULT_THEME.primary);
@@ -348,8 +346,6 @@ struct StackView : View
   }
 };
 
-// [ ] add more methods to set and get styling for widgets where we don't want
-// users poking into the objects
 struct TextView : View
 {
   struct State
@@ -435,10 +431,8 @@ struct TextView : View
 };
 
 // [ ] scrollable
-// [ ] calculate lines per page
 // [ ] viewport text with scrollable region, scroll direction
 // [ ] text input while in view, i.e. page down
-// [ ] ClickDetector with timing and debouncing
 struct TextInput : View
 {
   struct State
@@ -662,6 +656,12 @@ struct TextInput : View
     {
       cmd = command(ctx);
     }
+
+    style.lines_per_page =
+        content.inner.layout.lines.is_empty() ?
+            0 :
+            (u32) (region.extent.y /
+                   content.inner.layout.lines[0].metrics.height);
 
     compositor.command(span(content.inner.text), content.inner.layout,
                        region.extent.x, content.inner.alignment, cmd,
@@ -936,33 +936,30 @@ struct Slider : View
 {
   struct State
   {
-    bool       disabled      = false;
-    bool       pointer_enter = false;
-    bool       pointer_leave = false;
-    bool       pointer_down  = false;
-    bool       pointer_up    = false;
-    bool       hovered       = false;
-    bool       pressed       = false;
-    FocusState focus         = {};
-    f32        t             = 0;
-    f32        low           = 0;
-    f32        high          = 1;
+    bool      disabled = false;
+    DragState drag     = {};
+    f32       t        = 0;
+    f32       low      = 0;
+    f32       high     = 1;
   } state;
 
   struct Style
   {
-    Axis          direction    = Axis::X;
-    Frame         frame        = {.width = {100}, .height = {30}};
-    Frame         thumb_frame  = {.width = {20}, .height = {20}};
-    Size          track_height = {10};
-    ColorGradient track_color  = ColorGradient::all(DEFAULT_THEME.inactive);
-    ColorGradient thumb_color  = ColorGradient::all(DEFAULT_THEME.primary);
+    Axis          axis        = Axis::X;
+    Frame         frame       = {.width = {100}, .height = {30}};
+    Frame         thumb_frame = {.width = {20}, .height = {20}};
+    Frame         track_frame = {.width = {97.5F}, .height = {27.5F}};
+    ColorGradient thumb_color =
+        ColorGradient::all(DEFAULT_THEME.primary * opacity(0.5F));
     ColorGradient thumb_hovered_color =
-        ColorGradient::all(DEFAULT_THEME.primary_variant);
-    CornerRadii track_corner_radii = CornerRadii::all({.scale = 0.125F});
-    CornerRadii thumb_corner_radii = CornerRadii::all({.scale = 0.125F});
-    FocusStyle  focus              = {};
-    u8          levels             = 0;
+        ColorGradient::all(DEFAULT_THEME.primary * opacity(0.75F));
+    ColorGradient thumb_dragging_color =
+        ColorGradient::all(DEFAULT_THEME.primary);
+    CornerRadii   thumb_corner_radii = CornerRadii::all({.scale = 0.125F});
+    ColorGradient track_color = ColorGradient::all(DEFAULT_THEME.inactive);
+    CornerRadii   track_corner_radii = CornerRadii::all({.scale = 0.125F});
+    FocusStyle    focus              = {};
+    f32           delta              = 0.1F;
   } style;
 
   Fn<void(f32)> on_changed = fn([](f32) {});
@@ -970,21 +967,36 @@ struct Slider : View
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
                          ViewEvents events, Fn<void(View &)>) override
   {
-    u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
-    if (events.dragging)
+    u8 const main_axis = (style.axis == Axis::X) ? 0 : 1;
+
+    state.drag.tick(events);
+
+    if (state.drag.dragging)
     {
-      state.t = unlerp(region.begin()[main_axis], region.end()[main_axis],
-                       ctx.mouse.position[main_axis]);
-      state.t = (style.levels == 0) ? state.t :
-                                      grid_snap(state.t, 1.0F / style.levels);
+      Vec2 const track_extent = style.track_frame(region.extent);
+      Vec2 const track_begin  = region.center - track_extent * 0.5F;
+      Vec2 const track_end    = region.center + track_extent * 0.5F;
+      state.t = clamp(unlerp(track_begin[main_axis], track_end[main_axis],
+                             ctx.mouse.position[main_axis]),
+                      0.0F, 1.0F);
       f32 const value =
           clamp(lerp(state.low, state.high, state.t), state.low, state.high);
       on_changed(value);
     }
 
-    state.focus.tick(events);
-
-    // [ ] keyboard left and right arrow input
+    if (state.drag.focus.focused)
+    {
+      if ((style.axis == Axis::X && ctx.key_state(KeyCode::Left)) ||
+          (style.axis == Axis::Y && ctx.key_state(KeyCode::Up)))
+      {
+        state.t = max(state.t - style.delta, 0.0F);
+      }
+      else if ((style.axis == Axis::X && ctx.key_state(KeyCode::Right)) ||
+               (style.axis == Axis::Y && ctx.key_state(KeyCode::Down)))
+      {
+        state.t = min(state.t + style.delta, 1.0F);
+      }
+    }
 
     return ViewState{.pointable = !state.disabled,
                      .draggable = !state.disabled,
@@ -999,46 +1011,58 @@ struct Slider : View
   virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
                       CRect const &) override
   {
-    Vec2 const track_extent =
-        Frame{style.frame.width, style.track_height}(region.extent);
+    u8 const   main_axis          = (style.axis == Axis::X) ? 0 : 1;
+    u8 const   cross_axis         = (style.axis == Axis::X) ? 1 : 0;
+    Vec2 const frame              = region.extent;
+    Vec2 const track_frame        = style.track_frame(frame);
+    Vec4 const thumb_corner_radii = style.thumb_corner_radii(region.extent.y);
+    ColorGradient thumb_color;
+
+    if (state.drag.dragging)
+    {
+      thumb_color = style.thumb_dragging_color;
+    }
+    else if (state.drag.hovered)
+    {
+      thumb_color = style.thumb_hovered_color;
+    }
+    else
+    {
+      thumb_color = style.thumb_color;
+    }
+
+    f32 dilation = 1.0F;
+
+    if (state.drag.dragging || state.drag.hovered)
+    {
+      dilation = 1.0F;
+    }
+    else
+    {
+      dilation = 0.8F;
+    }
+
     canvas.rrect({.center       = region.center,
-                  .extent       = track_extent,
+                  .extent       = track_frame,
                   .corner_radii = style.track_corner_radii(region.extent.y),
                   .tint         = style.track_color});
 
-    if (style.levels != 0)
-    {
-      f32 const unit = 1 / (f32) style.levels;
-      for (i32 i = 1; i < style.levels; i++)
-      {
-        Vec2 center = region.begin();
-        center.x += unit * i * region.extent.x;
-        center.y += region.extent.y / 2;
+    Vec2 const track_begin = region.center - track_frame * 0.5F;
+    Vec2 const track_end   = region.center + track_frame * 0.5F;
 
-        canvas.rrect(
-            {.center       = center,
-             .extent       = Vec2::splat(min(track_extent.y, track_extent.x)),
-             .corner_radii = Vec4::splat(1.0F),
-             .tint         = style.thumb_color});
-      }
-    }
+    Vec2 thumb_center;
+    thumb_center[main_axis] =
+        track_begin[main_axis] + track_frame[main_axis] * state.t;
+    thumb_center[cross_axis] = region.center[cross_axis];
 
-    Vec2 thumb_center =
-        region.begin() + Vec2{region.extent.x * state.t, region.extent.y / 2};
-    ColorGradient thumb_color =
-        (state.hovered && !state.pressed && !state.disabled) ?
-            style.thumb_hovered_color :
-            style.thumb_color;
-    f32 dilation =
-        (state.hovered && !state.pressed && !state.disabled) ? 1.0F : 0.8F;
-    Vec2 thumb_extent = style.thumb_frame(region.extent) * dilation;
+    Vec2 const thumb_extent = style.thumb_frame(region.extent) * dilation;
 
     canvas.rrect({.center       = thumb_center,
                   .extent       = thumb_extent,
                   .corner_radii = style.thumb_corner_radii(thumb_extent.y),
                   .tint         = thumb_color});
 
-    if (state.focus.focused)
+    if (state.drag.focus.focused)
     {
       canvas.rect({.center    = region.center,
                    .extent    = region.extent,
@@ -1596,39 +1620,38 @@ struct ScrollBar : View
 {
   struct State
   {
-    bool       disabled = false;
-    DragState  drag     = {};
-    FocusState focus    = {};
-    f32        t        = 0;
+    bool      disabled = false;
+    DragState drag     = {};
+    f32       t        = 0;
   } state;
 
   struct Style
   {
-    Axis          direction = Axis::X;
+    Axis          axis           = Axis::X;
+    Vec2          frame          = {};
+    Vec2          content_extent = {};
     ColorGradient thumb_color =
-        ColorGradient::all(DEFAULT_THEME.inactive * opacity(0.75F));
+        ColorGradient::all(DEFAULT_THEME.primary * opacity(0.5F));
+    ColorGradient thumb_hovered_color =
+        ColorGradient::all(DEFAULT_THEME.primary * opacity(0.75F));
     ColorGradient thumb_dragging_color =
-        ColorGradient::all(DEFAULT_THEME.active * opacity(0.75F));
+        ColorGradient::all(DEFAULT_THEME.primary);
+    CornerRadii   thumb_corner_radii = CornerRadii::all({{0}});
     ColorGradient track_color =
         ColorGradient::all(DEFAULT_THEME.inactive * opacity(0.75F));
-    Vec2       frame_extent   = {};
-    Vec2       content_extent = {};
-    FocusStyle focus          = {};
+    CornerRadii track_corner_radii = CornerRadii::all({{0}});
+    FocusStyle  focus              = {};
+    f32         delta              = 0.1F;
   } style;
 
   Fn<void(f32)> on_scrolled = fn([](f32) {});
 
-  explicit ScrollBar(Axis direction) : style{.direction = direction}
-  {
-  }
-
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
                          ViewEvents events, Fn<void(View &)>) override
   {
-    u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
+    u8 const main_axis = (style.axis == Axis::X) ? 0 : 1;
 
     state.drag.tick(events);
-    state.focus.tick(events);
 
     if (state.drag.dragging)
     {
@@ -1639,7 +1662,19 @@ struct ScrollBar : View
       on_scrolled(state.t);
     }
 
-    // [ ] keyboard left and right scrolling
+    if (state.drag.focus.focused)
+    {
+      if ((style.axis == Axis::X && ctx.key_state(KeyCode::Left)) ||
+          (style.axis == Axis::Y && ctx.key_state(KeyCode::Up)))
+      {
+        state.t = max(state.t - style.delta, 0.0F);
+      }
+      else if ((style.axis == Axis::X && ctx.key_state(KeyCode::Right)) ||
+               (style.axis == Axis::Y && ctx.key_state(KeyCode::Down)))
+      {
+        state.t = min(state.t + style.delta, 1.0F);
+      }
+    }
 
     return ViewState{.pointable = !state.disabled,
                      .draggable = !state.disabled,
@@ -1651,23 +1686,25 @@ struct ScrollBar : View
     return {.extent = allocated};
   }
 
+  virtual i32 stack(i32 allocated) override
+  {
+    // needs to be at a different stacking context since this will be placed
+    // on top of the viewport
+    return allocated + 1;
+  }
+
   virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
                       CRect const &) override
   {
-    u8 const   main_axis    = (style.direction == Axis::X) ? 0 : 1;
-    u8 const   cross_axis   = (style.direction == Axis::Y) ? 1 : 0;
-    Vec4 const corner_radii = Vec4::splat(region.extent.y * 0.09F);
-
-    canvas.rrect({.center       = region.center,
-                  .extent       = region.extent,
-                  .corner_radii = corner_radii,
-                  .stroke       = 0,
-                  .tint         = style.track_color});
+    u8 const   main_axis          = (style.axis == Axis::X) ? 0 : 1;
+    u8 const   cross_axis         = (style.axis == Axis::X) ? 1 : 0;
+    Vec4 const thumb_corner_radii = style.thumb_corner_radii(region.extent.y);
+    Vec4 const track_corner_radii = style.track_corner_radii(region.extent.y);
 
     // calculate thumb main axis extent
     f32 const thumb_scale =
-        style.frame_extent[main_axis] / style.content_extent[main_axis];
-    Vec2 thumb_extent        = {0, 0};
+        style.frame[main_axis] / style.content_extent[main_axis];
+    Vec2 thumb_extent;
     thumb_extent[cross_axis] = region.extent[cross_axis];
     thumb_extent[main_axis]  = thumb_scale * region.extent[main_axis];
 
@@ -1676,24 +1713,36 @@ struct ScrollBar : View
     f32 const main_spacing = thumb_extent[main_axis] - region.extent[main_axis];
     Vec2      thumb_center;
     thumb_center[main_axis] = bar_offset[main_axis] + main_spacing * state.t +
-                              thumb_extent[main_axis] / 2;
+                              thumb_extent[main_axis] * 0.5F;
     thumb_center[cross_axis] = region.center[cross_axis];
+
+    ColorGradient thumb_color;
+    if (state.drag.dragging)
+    {
+      thumb_color = style.thumb_dragging_color;
+    }
+    else if (state.drag.hovered)
+    {
+      thumb_color = style.thumb_hovered_color;
+    }
+    else
+    {
+      thumb_color = style.thumb_color;
+    }
 
     canvas.rrect({.center       = region.center,
                   .extent       = region.extent,
-                  .corner_radii = corner_radii,
-                  .stroke       = 1,
-                  .thickness    = 1,
+                  .corner_radii = track_corner_radii,
+                  .stroke       = 0,
                   .tint         = style.track_color});
 
     canvas.rrect({.center       = thumb_center,
                   .extent       = thumb_extent,
-                  .corner_radii = corner_radii,
+                  .corner_radii = thumb_corner_radii,
                   .stroke       = 0,
-                  .tint = state.drag.dragging ? style.thumb_dragging_color :
-                                                style.thumb_color});
+                  .tint         = thumb_color});
 
-    if (state.focus.focused)
+    if (state.drag.focus.focused)
     {
       canvas.rect({.center    = region.center,
                    .extent    = region.extent,
@@ -1704,8 +1753,13 @@ struct ScrollBar : View
   }
 };
 
+struct ScrollViewViewport : View
+{
+};
+
 // [ ] re-write this, since this is a viewport, it would contain and clip the
 // children
+// the scroll bars need to be outside the scroll view
 struct ScrollView : View
 {
   struct State
@@ -1721,10 +1775,14 @@ struct ScrollView : View
     Size  y_bar_size = {.offset = 10};
   } style;
 
-  // [ ] needs to be at a different stacking context since this will be placed
-  // on top of the view
-  ScrollBar x_bar{Axis::X};
-  ScrollBar y_bar{Axis::Y};
+  ScrollBar x_bar{};
+  ScrollBar y_bar{};
+
+  ScrollView()
+  {
+    x_bar.style.axis = Axis::X;
+    y_bar.style.axis = Axis::Y;
+  }
 
   virtual ViewState tick(ViewContext const &, CRect const &, ViewEvents,
                          Fn<void(View &)> build) override
@@ -1737,18 +1795,18 @@ struct ScrollView : View
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
-    Vec2 const frame        = style.frame(allocated);
-    f32 const  x_bar_size_r = style.x_bar_size(allocated.x);
-    f32 const  y_bar_size_r = style.y_bar_size(allocated.y);
+    Vec2 const frame      = style.frame(allocated);
+    f32 const  x_bar_size = style.x_bar_size(allocated.x);
+    f32 const  y_bar_size = style.y_bar_size(allocated.y);
 
-    sizes[0] = {frame.x, x_bar_size_r};
+    sizes[0] = {frame.x, x_bar_size};
 
     if (has_bits(style.axes, Axes::Y))
     {
-      sizes[0].x -= y_bar_size_r;
+      sizes[0].x -= y_bar_size;
     }
 
-    sizes[1] = {y_bar_size_r, frame.y};
+    sizes[1] = {y_bar_size, frame.y};
 
     fill(sizes.slice(2), frame);
   }
@@ -1774,8 +1832,10 @@ struct ScrollView : View
 
     x_bar.style.content_extent = content_size;
     y_bar.style.content_extent = content_size;
-    x_bar.style.frame_extent   = frame;
-    y_bar.style.frame_extent   = frame;
+    x_bar.style.frame          = frame;
+    y_bar.style.frame          = frame;
+
+    // [ ] on scroll update. update t of views?
 
     return {.extent             = frame,
             .viewport           = content_size,
@@ -1783,18 +1843,15 @@ struct ScrollView : View
   }
 };
 
-// [ ] scrolling
-// [ ] selection
-// [ ] clipping
-// [ ] ios-style combo box
-/// @param alignment alignment of the item, based on the text direction
+// [ ] scrolling, selection, clipping
 struct ComboBoxItem : View
 {
   struct State
   {
-    bool       disabled = false;
-    PressState press    = {};
-    bool       selected = false;
+    bool                        disabled = false;
+    PressState                  press    = {};
+    Option<Option<u32> const *> selected = None;
+    u32                         index    = 0;
   } state;
 
   struct Style
@@ -1815,22 +1872,38 @@ struct ComboBoxItem : View
     CornerRadii   corner_radii     = CornerRadii::all({.scale = 0.125F});
     FocusStyle    focus            = {};
     Frame         frame            = {};
-    f32           alignment        = -1;
-  } style;
+    f32           alignment        = 0;
+  };
 
-  Fn<void()> on_selected = fn([] {});
+  Option<Style const *> style = None;
+
+  Fn<void(Option<u32>)> on_selected = fn([](Option<u32>) {});
 
   RenderText text{};
 
+  Option<View *> left  = None;
+  Option<View *> right = None;
+
+  void update_text(Span<u32 const> text);
+
   virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)>) override
+                         ViewEvents events, Fn<void(View &)> build) override
   {
     state.press.tick(ctx, events);
 
     if (state.press.down && !state.selected)
     {
-      state.selected = true;
-      on_selected();
+      on_selected(Some{state.index});
+    }
+
+    if (left)
+    {
+      build(*left.value());
+    }
+
+    if (right)
+    {
+      build(*right.value());
     }
 
     return ViewState{.pointable = !state.disabled,
@@ -1838,14 +1911,239 @@ struct ComboBoxItem : View
                      .focusable = !state.disabled};
   }
 
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  {
+    // allocate size to children
+    (void) allocated;
+    fill(sizes, Vec2{0, 0});
+  }
+
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
+  {
+    // [ ] assign positions to left and right
+    return {};
+  }
+
   virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
                       CRect const &clip) override
   {
     canvas.rrect({.center = region.center,
                   .extent = region.extent,
-                  .tint = state.press.hovered ? style.hovered_background_color :
-                                                style.background_color});
+                  .tint   = state.press.hovered ?
+                                style.value()->hovered_background_color :
+                                style.value()->background_color});
+
+    // [ ] render selected color
     text.render(canvas, region, clip, zoom);
+
+    if (state.press.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.value()->focus.border_thickness,
+                   .tint      = style.value()->focus.border_color});
+    }
+  }
+};
+
+/// [ ] z-index on expanded?
+/// [ ] z-index effects on viewport
+/// [ ] clip
+struct ComboBoxScrollView : View
+{
+  struct State
+  {
+    bool        disabled = false;
+    bool        opened   = false;
+    Option<u32> selected = None;
+  } state;
+
+  struct Style
+  {
+    Frame               frame        = {.width = {150}, .height = {450}};
+    Size                item_height  = {25};
+    CornerRadii         corner_radii = CornerRadii::all({.scale = 0.125F});
+    f32                 alignment    = 0;
+    ColorGradient       color = ColorGradient::all(DEFAULT_THEME.surface);
+    ComboBoxItem::Style item  = {};
+  } style;
+
+  struct Inner
+  {
+    Vec<Unique<ComboBoxItem *>> items = {};
+  } inner;
+
+  Fn<void(Option<u32>)> on_selected = fn([](Option<u32>) {});
+
+  virtual ~ComboBoxScrollView() override
+  {
+    for (auto &item : inner.items)
+    {
+      item.uninit();
+    }
+    inner.items.uninit();
+  }
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events, Fn<void(View &)> build) override
+  {
+    // [ ] scrolling
+    // on scroll increase offset of views
+    for (auto &item : inner.items)
+    {
+      build(*item);
+    }
+
+    return ViewState{.scrollable = !state.disabled};
+  }
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  {
+    fill(sizes,
+         Vec2{style.frame.width(allocated.x), style.item_height(allocated.y)});
+  }
+
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
+  {
+    Vec2 size = style.frame(allocated);
+
+    f32 items_height = 0;
+    for (Vec2 const &s : sizes)
+    {
+      items_height += s.y;
+    }
+
+    size.y = min(size.y, items_height);
+
+    // [ ] scrolling
+    // [ ] absolute positioning to center of screen???
+
+    return ViewLayout{.extent             = size,
+                      .viewport           = {size.x, items_height},
+                      .absolute_transform = {},
+                      .viewport_transform = {}};
+  }
+
+  virtual i32 stack(i32 allocated)
+  {
+    return allocated + 255;
+  }
+
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &clip) override
+  {
+    canvas.rrect({.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = style.corner_radii(region.extent.y),
+                  .tint         = style.color});
+  }
+
+  u64 add_item(Span<u32 const> text, Option<View *> left = None,
+               Option<View *> right = None, bool disable = false)
+  {
+    Unique<ComboBoxItem *> item =
+        unique_inplace<ComboBoxItem>(default_allocator).unwrap();
+    item->state.disabled = disable;
+    item->style          = Some<ComboBoxItem::Style const *>{&style.item};
+    item->on_selected = fn(this, [](ComboBoxScrollView *v, Option<u32> item) {
+      v->set_selected(item);
+    });
+    item->state.index = inner.items.size32();
+    item->state.selected = Some<Option<u32> const *>{&state.selected};
+    item->left           = left;
+    item->right          = right;
+    item->update_text(text);
+    inner.items.push(item).unwrap();
+  }
+
+  u32 num_items() const
+  {
+    inner.items.size32();
+  }
+
+  void set_selected(Option<u32> item)
+  {
+    state.selected = item;
+    on_selected(item);
+  }
+
+  Option<u32> get_selected()
+  {
+    return state.selected;
+  }
+
+  bool is_opened() const
+  {
+    return state.opened;
+  }
+
+  void close();
+
+  void open();
+};
+
+struct ComboBox : View
+{
+  struct State
+  {
+    bool       disabled = false;
+    PressState press    = {};
+  } state;
+
+  ComboBoxScrollView scroll_view;
+
+  struct Style
+  {
+    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
+    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
+    ColorGradient hovered_color =
+        ColorGradient::all(DEFAULT_THEME.surface_variant);
+    Frame frame =
+        Frame{.width = {.scale = 1, .max = 200}, .height = {.offset = 25}};
+    FocusStyle focus = {};
+  } style;
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+                         ViewEvents events, Fn<void(View &)> build) override
+  {
+    state.press.tick(ctx, events);
+
+    if (state.press.down)
+    {
+      if (scroll_view.is_opened())
+      {
+        scroll_view.close();
+      }
+      else
+      {
+        scroll_view.open();
+      }
+    }
+
+    // TODO:lamarrr: on click outside, lose focus?
+
+    build(scroll_view);
+
+    return ViewState{.clickable = !state.disabled,
+                     .focusable = !state.disabled};
+  }
+
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &clip) override
+  {
+    canvas.rrect(
+        {.center       = region.center,
+         .extent       = region.extent,
+         .corner_radii = style.corner_radii(region.extent.y),
+         .tint = state.press.hovered ? style.hovered_color : style.color});
+    //[ ] draw selection text
+    //[ ] draw button: scroll_view.opened?
+
+    scroll_view.state.selected;
+    scroll_view.inner.items[0];
 
     if (state.press.focus.focused)
     {
@@ -1858,164 +2156,19 @@ struct ComboBoxItem : View
   }
 };
 
-/// [ ] z-index on expanded?
-/// [ ] z-index effects on viewport
-/// [ ] clip
-struct ComboBoxScrollView : View
-{
-  typedef Fn<void(u32, Span<u32 const>)> Selected;
-
-  struct State
-  {
-    bool disabled = false;
-    bool expanded = false;
-  } state;
-
-  struct Style
-  {
-    Frame         frame        = {};
-    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
-    f32           alignment    = 0;
-    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
-  } style;
-
-  // Vec<ComboBoxItem> items       = {};
-  Selected on_selected = fn([](u32, Span<u32 const>) {});
-
-  ~ComboBoxScrollView()
-  {
-    // items.reset();
-  }
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)> build) override
-  {
-    // [ ] scrolling
-    // on scroll increase offset of views
-    // for (ComboBoxItem &item : items)
-    // {
-    // build(item);
-    // }
-    return ViewState{};
-  }
-
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
-  {
-    (void) allocated;
-    fill(sizes, Vec2{0, 0});
-  }
-
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override
-  {
-    return {};
-  }
-
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
-                      CRect const &clip) override
-  {
-    // render rrect covering region
-  }
-
-  void clear_items();
-  void add_item();
-  bool is_opened();
-  void close();
-  void open();
-  bool is_closed();
-};
-
-struct ComboBox : View
-{
-  typedef ComboBoxScrollView::Selected Selected;
-
-  struct State
-  {
-    bool disabled = false;
-    bool hovered  = false;
-    bool pressed  = false;
-  } state;
-
-  ComboBoxScrollView scroll_view;
-
-  struct Style
-  {
-    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
-    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
-    ColorGradient hovered_color =
-        ColorGradient::all(DEFAULT_THEME.surface_variant);
-    ColorGradient text_color = ColorGradient::all(DEFAULT_THEME.on_surface);
-    ColorGradient inactive_text_color =
-        ColorGradient::all(DEFAULT_THEME.inactive);
-    Frame frame =
-        Frame{.width = {.scale = 1, .max = 200}, .height = {.offset = 25}};
-  } style;
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)> build) override
-  {
-    if (ctx.mouse_down(MouseButtons::Primary))
-    {
-      if (scroll_view.is_opened())
-      {
-        scroll_view.close();
-      }
-      else if (!state.disabled)
-      {
-        scroll_view.open();
-      }
-    }
-
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
-
-    if (events.mouse_out)
-    {
-      state.hovered = false;
-    }
-
-    if (events.focus_in)
-    {
-    }
-
-    build(scroll_view);
-
-    return ViewState{.clickable = !state.disabled,
-                     .focusable = !state.disabled};
-  }
-
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
-                      CRect const &clip) override
-  {
-    canvas.rrect({.center       = region.center,
-                  .extent       = region.extent,
-                  .corner_radii = style.corner_radii(region.extent.y),
-                  .tint = state.hovered ? style.hovered_color : style.color});
-    //[ ] draw selection text
-    //[ ] draw button: scroll_view.opened?
-    //[ ] focus
-  }
-};
-
-// [ ] implement
-struct ContextMenu : View
-{
-};
-
 // [ ] implement
 /// REQUIREMENTS
 /// - Linear and Non-Linear Color Space Independence
 /// - Rectangular Box with visualizations
 /// - Text-based manual input
 /// - RGB, SRGB, HSV, HEX, Linear, Hue, YUV
-// - [ ] color space, pixel info for color pickers
+/// - color space, pixel info for color pickers
 struct ColorPicker : View
 {
 };
 
-/// [ ] REQUIREMENTS:
+/// [ ] implement
+/// REQUIREMENTS:
 /// - plot modes: histogram, lines, scale, log
 /// - plot from user buffer: can be at specific index and will plot rest from
 /// head.
