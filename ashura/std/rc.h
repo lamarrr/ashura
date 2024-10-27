@@ -66,7 +66,7 @@ struct Rc
     return inner.handle;
   }
 
-  constexpr H &operator*() const
+  constexpr auto &operator*() const
   {
     return *inner.handle;
   }
