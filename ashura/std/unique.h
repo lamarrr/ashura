@@ -63,10 +63,11 @@ Result<Unique<T *>, Void> unique_inplace(AllocatorImpl allocator,
   return Ok{Unique<T *>{
       .inner = {.handle    = object,
                 .allocator = allocator,
-                .uninit    = fn([](T *object, AllocatorImpl allocator) {
-                  object->~T();
-                  allocator.ndealloc(object, 1);
-                })}}};
+                .uninit =
+                    fn(object, [](T *object, T *, AllocatorImpl allocator) {
+                      object->~T();
+                      allocator.ndealloc(object, 1);
+                    })}}};
 }
 
 template <typename T>
