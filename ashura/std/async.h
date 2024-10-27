@@ -106,12 +106,14 @@ struct SpinLock
   }
 };
 
-template <typename R>
+template <typename L>
 struct LockGuard
 {
-  explicit constexpr LockGuard(R &resource) : r{&resource}
+  L *lock_ = nullptr;
+
+  explicit constexpr LockGuard(L &lock) : lock_{&lock}
   {
-    r->lock();
+    lock_->lock();
   }
 
   LockGuard(LockGuard const &)            = delete;
@@ -121,10 +123,98 @@ struct LockGuard
 
   constexpr ~LockGuard()
   {
-    r->unlock();
+    lock_->unlock();
+  }
+};
+
+struct ReadWriteLock
+{
+  SpinLock lock_{};
+  usize    num_writers_ = 0;
+  usize    num_readers_ = 0;
+
+  void lock_read()
+  {
+    u64 poll = 0;
+    while (true)
+    {
+      LockGuard guard{lock_};
+      if (num_writers_ == 0)
+      {
+        num_readers_++;
+        return;
+      }
+      yielding_backoff(poll);
+      poll++;
+    }
   }
 
-  R *r;
+  void lock_write()
+  {
+    u64 poll = 0;
+
+    while (true)
+    {
+      LockGuard guard{lock_};
+      if (num_writers_ == 0 && num_readers_ == 0)
+      {
+        num_writers_++;
+        return;
+      }
+      yielding_backoff(poll);
+      poll++;
+    }
+  }
+
+  void unlock_read()
+  {
+    LockGuard guard{lock_};
+    num_readers_--;
+  }
+
+  void unlock_write()
+  {
+    LockGuard guard{lock_};
+    num_writers_--;
+  }
+};
+
+struct ReadLock
+{
+  ReadWriteLock *lock_ = nullptr;
+
+  explicit constexpr ReadLock(ReadWriteLock &rwlock) : lock_{&rwlock}
+  {
+  }
+
+  constexpr void lock()
+  {
+    lock_->lock_read();
+  }
+
+  constexpr void unlock()
+  {
+    lock_->unlock_read();
+  }
+};
+
+struct WriteLock
+{
+  ReadWriteLock *lock_ = nullptr;
+
+  explicit constexpr WriteLock(ReadWriteLock &rwlock) : lock_{&rwlock}
+  {
+  }
+
+  constexpr void lock()
+  {
+    lock_->lock_write();
+  }
+
+  constexpr void unlock()
+  {
+    lock_->unlock_write();
+  }
 };
 
 struct StopToken
