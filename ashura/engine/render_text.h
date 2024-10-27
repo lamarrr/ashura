@@ -209,18 +209,30 @@ struct RenderText
 
   void set_direction(TextDirection direction)
   {
+    if (inner.direction == direction)
+    {
+      return;
+    }
     inner.direction = direction;
     flush_text();
   }
 
   void set_language(Span<char const> language)
   {
+    if (range_equal(inner.language, language))
+    {
+      return;
+    }
     inner.language = language;
     flush_text();
   }
 
   void set_alignment(f32 alignment)
   {
+    if (inner.alignment == alignment)
+    {
+      return;
+    }
     inner.alignment = alignment;
     flush_text();
   }
@@ -233,8 +245,8 @@ struct RenderText
   void set_text(Span<u32 const> utf32, TextStyle const &style,
                 FontStyle const &font)
   {
-    inner.style(0, U32_MAX, style, font);
     set_text(utf32);
+    inner.style(0, U32_MAX, style, font);
     flush_text();
   }
 
@@ -291,6 +303,7 @@ struct RenderText
     {
       return;
     }
+
     layout_text(block(), max_width, inner.layout);
   }
 
