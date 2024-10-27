@@ -396,8 +396,7 @@ struct View : Pin<>
   /// @param[out] sizes sizes allocated to the children.
   constexpr virtual void size(Vec2 allocated, Span<Vec2> sizes)
   {
-    (void) allocated;
-    fill(sizes, Vec2{0, 0});
+    fill(sizes, allocated);
   }
 
   /// @brief fits itself around its children and positions child views
@@ -445,10 +444,10 @@ struct View : Pin<>
   constexpr virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
                                 CRect const &clip)
   {
+    (void) canvas;
     (void) region;
     (void) zoom;
     (void) clip;
-    (void) canvas;
   }
 
   /// @brief Used for hit-testing regions of views.
