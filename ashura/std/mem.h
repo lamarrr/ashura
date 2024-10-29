@@ -4,6 +4,26 @@
 #include "ashura/std/types.h"
 #include <cstring>
 
+#if ASH_HAS_BUILTIN(nontemporal_load)
+#  define ASH_NON_TEMPORAL_LOAD(addr) __builtin_nontemporal_load(addr)
+#else
+#  define ASH_NON_TEMPORAL_LOAD(addr) *addr
+#endif
+
+#if ASH_HAS_BUILTIN(nontemporal_store)
+#  define ASH_NON_TEMPORAL_STORE(addr, value) \
+    __builtin_nontemporal_store(value, addr)
+#else
+#  define ASH_NON_TEMPORAL_STORE(addr, value) *addr = value
+#endif
+
+#if ASH_HAS_BUILTIN(prefetch)
+#  define ASH_PREFETCH(addr, rw, locality) \
+    __builtin_prefetch(addr, rw, locality)
+#else
+#  define ASH_PREFETCH(addr, rw, locality)
+#endif
+
 namespace ash
 {
 
