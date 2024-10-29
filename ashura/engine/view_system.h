@@ -93,7 +93,8 @@ struct ViewSystem
   Vec<Vec2>       extents             = {};
   Vec<Vec2>       viewport_extents    = {};
   Vec<Mat3Affine> viewport_transforms = {};
-  Vec<Mat3Affine> absolute_transforms = {};
+  BitVec<u64>     is_fixed_positioned = {};
+  Vec<Vec2>       fixed_positions     = {};
   Vec<i32>        z_indices           = {};
   Vec<i32>        stacking_contexts   = {};
 
@@ -130,7 +131,8 @@ struct ViewSystem
     extents.reset();
     viewport_extents.reset();
     viewport_transforms.reset();
-    absolute_transforms.reset();
+    is_fixed_positioned.reset();
+    fixed_positions.reset();
     z_indices.reset();
     stacking_contexts.reset();
 
@@ -163,7 +165,8 @@ struct ViewSystem
     extents.clear();
     viewport_extents.clear();
     viewport_transforms.clear();
-    absolute_transforms.clear();
+    is_fixed_positioned.clear();
+    fixed_positions.clear();
     z_indices.clear();
     stacking_contexts.clear();
 
@@ -275,8 +278,8 @@ struct ViewSystem
       push_view(child, depth + 1, num_children++, idx);
     };
 
-    ViewState s =
-        view.tick(ctx, view.inner.region, process_events(view), fn(&builder));
+    ViewState s = view.tick(ctx, view.inner.region, view.inner.zoom,
+                            process_events(view), fn(&builder));
 
     tab_indices.set(idx, (s.tab == I32_MIN) ? tab_index : s.tab);
     viewports.set(idx, viewport);
@@ -367,9 +370,13 @@ struct ViewSystem
           extents[i], span(extents).slice(node.first_child, node.num_children),
           span(centers).slice(node.first_child, node.num_children));
       extents[i]             = layout.extent;
-      viewport_extents[i]    = layout.viewport;
+      viewport_extents[i]    = layout.viewport_extent;
       viewport_transforms[i] = layout.viewport_transform;
-      absolute_transforms[i] = layout.absolute_transform;
+      is_fixed_positioned.set(i, layout.fixed_position.is_some());
+      if (layout.fixed_position.is_some()) [[unlikely]]
+      {
+        fixed_positions[i] = layout.fixed_position.value();
+      }
     }
 
     // transform views to canvas-space
@@ -380,23 +387,31 @@ struct ViewSystem
     {
       ViewNode const &node = nodes[i];
       // parent-space to local viewport-space transformation matrix
-      Mat3Affine viewport_transform = viewport_transforms[i];
-      Mat3Affine parent_transform   = transforms[i];
+      Mat3Affine const &viewport_transform = viewport_transforms[i];
+      Mat3Affine const &ancestor_transform = transforms[i];
       for (u32 c = node.first_child; c < (node.first_child + node.num_children);
            c++)
       {
-        transforms[c] = viewport_transform * absolute_transforms[c] *
-                        translate2d(centers[c]) * parent_transform;
+        transforms[c] =
+            viewport_transform * translate2d(centers[c]) * ancestor_transform;
       }
     }
 
     for (u32 i = 0; i < n; i++)
     {
-      Mat3Affine transform = transforms[i];
-      f32 const  zoom      = transform[0][0];
-      centers[i]           = ash::transform(transform, centers[i]);
-      extents[i]           = extents[i] * zoom;
-      viewport_extents[i]  = viewport_extents[i] * zoom;
+      Mat3Affine const &transform = transforms[i];
+      f32 const         zoom      = transform[0][0];
+      centers[i]                  = ash::transform(transform, centers[i]);
+      extents[i]                  = extents[i] * zoom;
+      viewport_extents[i]         = viewport_extents[i] * zoom;
+    }
+
+    for (u32 i = 0; i < n; i++)
+    {
+      if (is_fixed_positioned[i]) [[unlikely]]
+      {
+        centers[i] = fixed_positions[i];
+      }
     }
 
     fill(span(clips), CRect{.center = {0, 0}, .extent = viewport_extent});
@@ -433,6 +448,7 @@ struct ViewSystem
     {
       views[i]->inner.region =
           CRect{.center = centers[i], .extent = extents[i]};
+      views[i]->inner.zoom = transforms[i][0][0];
     }
   }
 
@@ -547,6 +563,8 @@ struct ViewSystem
     FocusInfo        focused = s0.focused;
     Cursor cursor   = ctx.mouse.focused ? Cursor::Default : Cursor::None;
     bool   focusing = s0.focusing;
+
+    // [ ] clear existing focus on mouse click
 
     if (ctx.mouse.focused)
     {
@@ -849,7 +867,8 @@ struct ViewSystem
     extents.resize_uninit(n).unwrap();
     viewport_extents.resize_uninit(n).unwrap();
     viewport_transforms.resize_uninit(n).unwrap();
-    absolute_transforms.resize_uninit(n).unwrap();
+    is_fixed_positioned.resize_uninit(n).unwrap();
+    fixed_positions.resize_uninit(n).unwrap();
     z_indices.resize_uninit(n).unwrap();
     stacking_contexts.resize_uninit(n).unwrap();
     transforms.resize_uninit(n).unwrap();

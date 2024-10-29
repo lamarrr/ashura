@@ -22,8 +22,8 @@ struct SwitchStack : StackView
     switches[1].style.frame = Frame{.width = {20}, .height = {20}};
   }
 
-  virtual ViewState tick(ViewContext const &, CRect const &, ViewEvents events,
-                         Fn<void(View &)> build) override
+  virtual ViewState tick(ViewContext const &, CRect const &, f32,
+                         ViewEvents events, Fn<void(View &)> build) override
   {
     build(switches[0]);
     build(switches[1]);
@@ -39,8 +39,8 @@ struct BasicViewport : View
   {
   }
 
-  virtual ViewState tick(ViewContext const &, CRect const &, ViewEvents events,
-                         Fn<void(View &)> build) override
+  virtual ViewState tick(ViewContext const &, CRect const &, f32,
+                         ViewEvents events, Fn<void(View &)> build) override
   {
     build(stack);
     return {.viewport = true};
@@ -55,10 +55,10 @@ struct BasicViewport : View
                                    Span<Vec2> centers) override
   {
     fill(centers, Vec2{0, 0});
-    return {.extent             = {2, 2},
-            .viewport           = {20, 20},
-            .viewport_transform = zoom_to({0, 0}, 1),
-            .absolute_transform = Mat3Affine::identity()};
+    return {.extent          = {2, 2},
+            .viewport_extent = {20, 20},
+            .viewport_transform =
+                scroll_transform({20, 20}, {2, 2}, {0, 0}, 1)};
   }
 };
 

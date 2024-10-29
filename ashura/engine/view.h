@@ -213,25 +213,32 @@ struct ViewContext
     return get_bit(span(keyboard.scan_states), (usize) key);
   }
 
-  constexpr bool mouse_down(MouseButtons b) const
+  constexpr bool mouse_down(MouseButtons btn) const
   {
-    return has_bits(mouse.downs, b);
+    return has_bits(mouse.downs, btn);
   }
 
-  constexpr bool mouse_up(MouseButtons b) const
+  constexpr bool mouse_up(MouseButtons btn) const
   {
-    return has_bits(mouse.ups, b);
+    return has_bits(mouse.ups, btn);
   }
 
-  constexpr bool mouse_state(MouseButtons b) const
+  constexpr bool mouse_state(MouseButtons btn) const
   {
-    return has_bits(mouse.states, b);
+    return has_bits(mouse.states, btn);
   }
 };
 
-constexpr Mat3Affine zoom_to(Vec2 center, f32 scale)
+/// @brief makes a zoom transform matrix relative to the center of a viewport.
+/// defines the translation and scaling components.
+/// @return zoom transform matrix
+constexpr Mat3Affine scroll_transform(Vec2 viewport_extent, Vec2 view_extent,
+                                      Vec2 t, f32 scale)
 {
-  return translate2d(-center * scale) * scale2d(Vec2::splat(scale));
+  Vec2 const low    = -0.5F * viewport_extent + 0.5F * view_extent;
+  Vec2 const high   = 0.5F * viewport_extent - 0.5F * view_extent;
+  Vec2 const center = lerp(low, high, t);
+  return translate2d(center * scale) * scale2d(Vec2::splat(scale));
 }
 
 /// @param zoom if viewport, the zoom matrix that determines the viewport scale
@@ -325,17 +332,18 @@ constexpr CoreViewTheme DEFAULT_THEME = {
     .line_height       = 1.2F,
     .focus_thickness   = 1};
 
-/// @param extent extent of the view within the parent, if it is a viewport,
+/// @param extent extent of the view within the parent. if it is a viewport,
 /// this is the visible extent of the viewport within the parent viewport.
-/// @param viewport inner extent, if it is a viewport
-/// @param absolute_transform transform to apply in viewport-space. this is used
-/// for absolute positioning of the view in the parent viewport-space.
+/// @param viewport_extent inner extent, if it is a viewport
+/// @param viewport_transform the transform a viewport applies to its contained
+/// views, this is recursively applied to contained views.
+/// @param fixed_position the canvas-space re-positioning of the view
 struct ViewLayout
 {
-  Vec2       extent             = {};
-  Vec2       viewport           = {};
-  Mat3Affine viewport_transform = Mat3Affine::identity();
-  Mat3Affine absolute_transform = Mat3Affine::identity();
+  Vec2         extent             = {};
+  Vec2         viewport_extent    = {};
+  Mat3Affine   viewport_transform = Mat3Affine::identity();
+  Option<Vec2> fixed_position     = None;
 };
 
 /// @brief Base view class. All view types must inherit from this struct.
@@ -360,6 +368,7 @@ struct View : Pin<>
     u64   last_rendered_frame = 0;
     u32   focus_idx           = 0;
     CRect region              = {};
+    f32   zoom                = 1;
   } inner = {};
 
   constexpr View()                        = default;
@@ -382,10 +391,12 @@ struct View : Pin<>
   /// @param region canvas-space region the view is on
   /// @param build callback to be called to insert subviews.
   constexpr virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                                   ViewEvents events, Fn<void(View &)> build)
+                                   f32 zoom, ViewEvents events,
+                                   Fn<void(View &)> build)
   {
     (void) ctx;
     (void) region;
+    (void) zoom;
     (void) events;
     (void) build;
     return {};
