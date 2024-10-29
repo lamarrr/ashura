@@ -4,26 +4,6 @@
 #include "ashura/std/types.h"
 #include <cstring>
 
-#if ASH_HAS_BUILTIN(nontemporal_load)
-#  define ASH_NON_TEMPORAL_LOAD(addr) __builtin_nontemporal_load(addr)
-#else
-#  define ASH_NON_TEMPORAL_LOAD(addr) *addr
-#endif
-
-#if ASH_HAS_BUILTIN(nontemporal_store)
-#  define ASH_NON_TEMPORAL_STORE(addr, value) \
-    __builtin_nontemporal_store(value, addr)
-#else
-#  define ASH_NON_TEMPORAL_STORE(addr, value) *addr = value
-#endif
-
-#if ASH_HAS_BUILTIN(prefetch)
-#  define ASH_PREFETCH(addr, rw, locality) \
-    __builtin_prefetch(addr, rw, locality)
-#else
-#  define ASH_PREFETCH(addr, rw, locality)
-#endif
-
 namespace ash
 {
 
@@ -193,6 +173,34 @@ void relocate(T *src, T *uninit_dst, usize num)
       in++;
     }
   }
+}
+
+template <typename T>
+ASH_FORCE_INLINE T nontemporal_load(T const &src)
+{
+#if ASH_HAS_BUILTIN(nontemporal_load)
+  return __builtin_nontemporal_load(&src);
+#else
+  return src;
+#endif
+}
+
+template <typename T>
+ASH_FORCE_INLINE void nontemporal_store(T &dst, T data)
+{
+#if ASH_HAS_BUILTIN(nontemporal_store)
+  __builtin_nontemporal_store(data, &dst)
+#else
+  dst = data;
+#endif
+}
+
+template <typename T>
+ASH_FORCE_INLINE void prefetch(T const *src, int rw, int locality)
+{
+#if ASH_HAS_BUILTIN(prefetch)
+  __builtin_prefetch(src, rw, locality)
+#endif
 }
 
 }        // namespace mem
