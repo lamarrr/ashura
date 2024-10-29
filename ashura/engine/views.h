@@ -2045,7 +2045,7 @@ struct ComboBoxScrollView : View
       state.t = clamp(state.t, 0.0F, 1.0F);
     }
 
-    return ViewState{.scrollable = !state.disabled, .hidden = !state.opened};
+    return ViewState{.hidden = !state.opened, .scrollable = !state.disabled};
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
