@@ -17,9 +17,6 @@ constexpr usize CACHELINE_ALIGNMENT = 64;
 /// target's page alignment.
 constexpr usize PAGE_ALIGNMENT = 16_KB;
 
-namespace mem
-{
-
 template <typename T>
 constexpr T align_offset(T alignment, T offset)
 {
@@ -43,6 +40,9 @@ bool is_ptr_aligned(usize alignment, T *p)
 {
   return is_aligned(alignment, (uptr) p);
 }
+
+namespace mem
+{
 
 template <typename T>
 void copy(T const *src, T *dst, usize num)
@@ -175,15 +175,48 @@ void relocate(T *src, T *uninit_dst, usize num)
   }
 }
 
+template <typename T>
+ASH_FORCE_INLINE T nontemporal_load(T const &src)
+{
+#if ASH_HAS_BUILTIN(nontemporal_load)
+  return __builtin_nontemporal_load(&src);
+#else
+  return src;
+#endif
+}
+
+template <typename T>
+ASH_FORCE_INLINE void nontemporal_store(T &dst, T data)
+{
+#if ASH_HAS_BUILTIN(nontemporal_store)
+  __builtin_nontemporal_store(data, &dst);
+#else
+  dst = data;
+#endif
+}
+
+template <typename T>
+ASH_FORCE_INLINE void prefetch(T const *src, int rw, int locality)
+{
+#if ASH_HAS_BUILTIN(prefetch)
+  __builtin_prefetch(src, rw, locality);
+#endif
+}
+
+}        // namespace mem
+
+/// @brief Memory layout of a type
+/// @param alignment non-zero alignment of the type
+/// @param size byte-size of the type
 struct Layout
 {
   usize alignment = 1;
   usize size      = 0;
 
-  constexpr Layout merge(Layout const &ext) const
+  constexpr Layout append(Layout const &ext) const
   {
     return Layout{.alignment = max(alignment, ext.alignment),
-                  .size = mem::align_offset(ext.alignment, size) + ext.size};
+                  .size      = align_offset(ext.alignment, size) + ext.size};
   }
 
   constexpr Layout array(usize n) const
@@ -191,34 +224,65 @@ struct Layout
     return Layout{.alignment = alignment, .size = size * n};
   }
 
-  constexpr Layout lanes(usize num_lanes) const
+  constexpr Layout aligned() const
   {
-    return Layout{.alignment = alignment * num_lanes, .size = size * num_lanes};
+    return Layout{.alignment = alignment,
+                  .size      = align_offset(alignment, size)};
+  }
+
+  constexpr Layout lanes(usize n) const
+  {
+    return Layout{.alignment = alignment * n, .size = size * n};
   }
 };
 
 template <typename T>
 constexpr Layout layout = Layout{.alignment = alignof(T), .size = sizeof(T)};
 
-constexpr Layout flex_layout(Span<Layout const> member_layouts,
-                             Span<usize const>  member_capacities)
+/// @brief A Flex is a struct with multiple variable-sized members packed into a
+/// single address. It ensures the correct calculation of the alignments,
+/// offsets, and sizing requirements of the types and the resulting struct.
+/// @tparam N number of members in the flexible struct
+/// @param members memory layout of the members
+template <usize N>
+struct Flex
 {
-  Layout layout;
-  for (usize i = 0; i < member_layouts.size(); i++)
+  Layout members[N];
+
+  constexpr Layout layout() const
   {
-    layout = layout.merge(member_layouts[i].array(member_capacities[i]));
+    Layout l;
+    for (Layout const &m : members)
+    {
+      l = l.append(m);
+    }
+    return l.aligned();
   }
-  return layout;
-}
 
-template <typename... T>
-constexpr Layout typed_flex_layout(usize const (&capacities)[sizeof...(T)],
-                                   Layout ext = {})
-{
-  return flex_layout(span<Layout const>({layout<T>...}),
-                     span<usize const>(capacities))
-      .merge(ext);
-}
+  template <typename T>
+  void unpack_at(void const *&stack, usize i, Span<T> &span)
+  {
+    stack             = align_ptr(members[i].alignment, stack);
+    usize const count = members[i].size / sizeof(T);
+    span              = Span{(T *) stack, count};
+    stack             = ((u8 const *) stack) + members[i].size;
+  }
 
-}        // namespace mem
+  template <typename T>
+  void unpack_at(void const *&stack, usize i, T *&ptr)
+  {
+    Span<T> span;
+    unpack_at(stack, i, span);
+    ptr = span.data();
+  }
+
+  template <typename... T>
+  void unpack(void const *stack, T &...p)
+  {
+    static_assert(sizeof...(T) == N);
+    usize i = 0;
+    (unpack_at(stack, i++, p), ...);
+  }
+};
+
 }        // namespace ash

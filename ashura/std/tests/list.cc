@@ -14,8 +14,8 @@ TEST(ListTest, Insertion)
   ListNode<int> *y;
   CHECK(pool.nalloc(1, x));
   CHECK(pool.nalloc(1, y));
-  x->link();
-  y->link();
+  x->isolate();
+  y->isolate();
 
   l.push_front(x);
   EXPECT_NE(l.head, nullptr);

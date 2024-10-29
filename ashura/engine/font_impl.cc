@@ -20,7 +20,7 @@ namespace ash
 static_assert(AU_UNIT % 64 == 0);
 
 Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
-                                          AllocatorImpl const &allocator)
+                                          AllocatorImpl allocator)
 {
   u32   font_data_size = encoded.size32();
   char *font_data;
@@ -325,7 +325,7 @@ void uninit_font(Font font)
   f->allocator.ndealloc(f, 1);
 }
 
-bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
+bool rasterize_font(Font font, u32 font_height, AllocatorImpl allocator)
 {
   constexpr u32 MIN_ATLAS_EXTENT = 512;
   static_assert(MIN_ATLAS_EXTENT > 0, "Font atlas extent must be non-zero");
@@ -516,11 +516,10 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl const &allocator)
   return true;
 }
 
-void upload_font_to_device(Font font, RenderContext &c,
-                           AllocatorImpl const &allocator)
+void upload_font_to_device(Font font, RenderContext &c, AllocatorImpl allocator)
 {
-  gpu::CommandEncoderImpl const &enc = c.encoder();
-  gpu::DeviceImpl const         &d   = c.device;
+  gpu::CommandEncoderImpl enc = c.encoder();
+  gpu::DeviceImpl         d   = c.device;
 
   CHECK(font != nullptr);
   FontImpl *f = (FontImpl *) font;

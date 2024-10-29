@@ -118,8 +118,8 @@ void BlurPass::uninit(RenderContext &ctx)
   ctx.device->uninit_graphics_pipeline(ctx.device.self, upsample_pipeline);
 }
 
-void sample(BlurPass &b, RenderContext &c, gpu::CommandEncoderImpl const &e,
-            f32 rad, gpu::DescriptorSet src_texture, u32 src_index,
+void sample(BlurPass &b, RenderContext &c, gpu::CommandEncoderImpl e, f32 rad,
+            gpu::DescriptorSet src_texture, u32 src_index,
             gpu::Extent src_extent, gpu::Rect src_area, gpu::ImageView dst,
             Vec2U dst_offset, bool upsample)
 {

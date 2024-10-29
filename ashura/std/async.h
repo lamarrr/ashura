@@ -1,16 +1,74 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/allocator.h"
-#include "ashura/std/backoff.h"
 #include "ashura/std/cfg.h"
 #include "ashura/std/error.h"
 #include "ashura/std/rc.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include <atomic>
+#include <thread>
+
+#if ASH_CFG(ARCH, X86) || ASH_CFG(ARCH, X86_64)
+#  include <emmintrin.h>
+#endif
 
 namespace ash
 {
+
+inline void yielding_backoff(u64 poll)
+{
+  if (poll < 8)
+  {
+    return;
+  }
+
+  if (poll < 16)
+  {
+#if ASH_CFG(ARCH, X86) || ASH_CFG(ARCH, X86_64)
+    _mm_pause();
+#else
+#  if ASH_CFG(ARCH, ARM32) || ASH_CFG(ARCH, ARM64)
+    __asm("yield");
+#  endif
+#endif
+
+    return;
+  }
+
+  std::this_thread::yield();
+  return;
+}
+
+inline void sleepy_backoff(u64 poll, nanoseconds sleep)
+{
+  if (poll < 8)
+  {
+    return;
+  }
+
+  if (poll < 16)
+  {
+#if ASH_CFG(ARCH, X86) || ASH_CFG(ARCH, X86_64)
+    _mm_pause();
+#else
+#  if ASH_CFG(ARCH, ARM32) || ASH_CFG(ARCH, ARM64)
+    __asm("yield");
+#  endif
+#endif
+
+    return;
+  }
+
+  if (poll <= 64)
+  {
+    std::this_thread::yield();
+    return;
+  }
+
+  std::this_thread::sleep_for(sleep);
+  return;
+}
 
 struct SpinLock
 {
@@ -48,12 +106,14 @@ struct SpinLock
   }
 };
 
-template <typename R>
+template <typename L>
 struct LockGuard
 {
-  explicit constexpr LockGuard(R &resource) : r{&resource}
+  L *lock_ = nullptr;
+
+  explicit LockGuard(L &lock) : lock_{&lock}
   {
-    r->lock();
+    lock_->lock();
   }
 
   LockGuard(LockGuard const &)            = delete;
@@ -61,12 +121,100 @@ struct LockGuard
   LockGuard(LockGuard &&)                 = delete;
   LockGuard &operator=(LockGuard &&)      = delete;
 
-  constexpr ~LockGuard()
+  ~LockGuard()
   {
-    r->unlock();
+    lock_->unlock();
+  }
+};
+
+struct ReadWriteLock
+{
+  SpinLock lock_{};
+  usize    num_writers_ = 0;
+  usize    num_readers_ = 0;
+
+  void lock_read()
+  {
+    u64 poll = 0;
+    while (true)
+    {
+      LockGuard guard{lock_};
+      if (num_writers_ == 0)
+      {
+        num_readers_++;
+        return;
+      }
+      yielding_backoff(poll);
+      poll++;
+    }
   }
 
-  R *r;
+  void lock_write()
+  {
+    u64 poll = 0;
+
+    while (true)
+    {
+      LockGuard guard{lock_};
+      if (num_writers_ == 0 && num_readers_ == 0)
+      {
+        num_writers_++;
+        return;
+      }
+      yielding_backoff(poll);
+      poll++;
+    }
+  }
+
+  void unlock_read()
+  {
+    LockGuard guard{lock_};
+    num_readers_--;
+  }
+
+  void unlock_write()
+  {
+    LockGuard guard{lock_};
+    num_writers_--;
+  }
+};
+
+struct ReadLock
+{
+  ReadWriteLock *lock_ = nullptr;
+
+  explicit ReadLock(ReadWriteLock &rwlock) : lock_{&rwlock}
+  {
+  }
+
+  void lock()
+  {
+    lock_->lock_read();
+  }
+
+  void unlock()
+  {
+    lock_->unlock_read();
+  }
+};
+
+struct WriteLock
+{
+  ReadWriteLock *lock_ = nullptr;
+
+  explicit WriteLock(ReadWriteLock &rwlock) : lock_{&rwlock}
+  {
+  }
+
+  void lock()
+  {
+    lock_->lock_write();
+  }
+
+  void unlock()
+  {
+    lock_->unlock_write();
+  }
 };
 
 struct StopToken
@@ -113,16 +261,21 @@ struct Semaphore : Pin<>
 {
   struct Inner
   {
-    u64        num_stages  = 1;
-    u64        stage       = 0;
-    AliasCount alias_count = {};
+    u64 num_stages = 1;
+    u64 stage      = 0;
   } inner = {};
+
+  explicit constexpr Semaphore(Inner in) : inner{in}
+  {
+  }
+
+  constexpr Semaphore() = default;
 
   /// @brief initialize the semaphore
   void init(u64 num_stages)
   {
     CHECK(num_stages > 0);
-    new (&inner) Inner{.num_stages = num_stages, .stage = 0, .alias_count = {}};
+    new (&inner) Inner{.num_stages = num_stages, .stage = 0};
   }
 
   void uninit()
@@ -203,8 +356,8 @@ struct Semaphore : Pin<>
 ///  non-zero.
 /// @return Semaphore
 ///
-[[nodiscard]] Rc<Semaphore *> create_semaphore(u64                  num_stages,
-                                               AllocatorImpl const &allocator);
+[[nodiscard]] Rc<Semaphore *> create_semaphore(u64           num_stages,
+                                               AllocatorImpl allocator);
 
 ///
 /// @brief no syscalls are made unless timeout_ns is non-zero.
@@ -217,27 +370,34 @@ struct Semaphore : Pin<>
 /// @return: true if all semaphores completed the expected stages before the
 /// timeout.
 [[nodiscard]] bool await_semaphores(Span<Rc<Semaphore *> const> await,
-                                    Span<u64 const>             stages,
-                                    nanoseconds                 timeout);
+                                    Span<u64 const> stages, nanoseconds timeout,
+                                    bool any = false);
 
+/// @brief Task data layout and callbacks
+/// @param task task to be executed on the executor. must return true if it
+/// should be re-queued onto the executor (with the same parameters as it got
+/// in).
+/// @param ctx memory layout of context data associated with the task.
+/// @param init function to initialize the context data associated with the task
+/// to a task stack.
+/// @param poll function to poll for readiness of the task, must be extremely
+/// light-weight and non-blocking.
+/// @param finalize function to uninitialize the task and the associated data
+/// context upon completion of the task.
+/// @note Cancelation is handled within the task itself, as various tasks have
+/// various methods/techniques of reacting to cancelation.
 struct TaskInfo
 {
-  Fn<bool(void *)>            task       = fn([](void *) { return false; });
-  mem::Layout                 ctx_layout = mem::Layout{};
-  Fn<void(void *)>            ctx_init   = fn([](void *) {});
-  Fn<void(void *)>            ctx_uninit = fn([](void *) {});
-  Span<Rc<Semaphore *> const> await_semaphores     = {};
-  Span<u64 const>             awaits               = {};
-  Span<Rc<Semaphore *> const> signal_semaphores    = {};
-  Span<u64 const>             signals              = {};
-  Span<Rc<Semaphore *> const> increment_semaphores = {};
-  Span<u64 const>             increments           = {};
+  Fn<bool(void *)> task   = fn([](void *) { return false; });
+  Layout           ctx    = Layout{};
+  Fn<void(void *)> init   = fn([](void *) {});
+  Fn<bool(void *)> poll   = fn([](void *) { return true; });
+  Fn<void(void *)> uninit = fn([](void *) {});
 };
 
 /// @brief Static Thread Pool Scheduler.
 ///
-/// all tasks execute out-of-order and have dependencies enforced by
-/// semaphores.
+/// all tasks execute out-of-order.
 ///
 /// it has 2 types of threads: worker threads and dedicated threads.
 ///
@@ -260,7 +420,8 @@ struct TaskInfo
 /// [x] external polling contexts
 /// [ ] helper functions to correctly dispatch to required types.
 /// [ ] shutdown is performed immediately as we can't guarantee when tasks will
-/// complete.
+/// complete. send a purge signal to the threads so they purge their task queue
+/// before returning.
 struct Scheduler
 {
   virtual void init(Span<nanoseconds const> dedicated_thread_sleep,

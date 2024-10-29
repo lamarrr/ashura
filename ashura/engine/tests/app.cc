@@ -303,21 +303,21 @@ int main(int, char **)
     // [ ] maybe check for frame begin before accepting commands
     canvas.begin({1920, 1080});
 
-    canvas.rrect(ShapeDesc{.center       = Vec2{1920 / 2, 1080 / 2},
-                           .extent       = {1920, 1080},
-                           .corner_radii = {0, 0, 0, 0},
-                           .stroke       = 1,
-                           .thickness    = 20,
-                           .tint         = ColorGradient::all(colors::WHITE)});
+    canvas.rrect({.center       = Vec2{1920 / 2, 1080 / 2},
+                  .extent       = {1920, 1080},
+                  .corner_radii = {0, 0, 0, 0},
+                  .stroke       = 1,
+                  .thickness    = 20,
+                  .tint         = ColorGradient::all(colors::WHITE)});
     /*  for (u32 i = 0; i < 2000; i++)
         canvas.rect(
-            ShapeDesc{.center = Vec2{20, 20},
+            {.center = Vec2{20, 20},
                       .extent = {160, 160},
                       .tint   = {f(colors::RED) / 255, f(colors::BLUE) / 255,
                                  f(colors::MAGENTA) / 255, f(colors::CYAN) /
        255}});*/
     /*canvas.line(
-        ShapeDesc{.center    = Vec2{0, 0},
+        {.center    = Vec2{0, 0},
                   .extent    = {800, 800},
                   .thickness = 20,
                   .tint      = {f(colors::RED) / 255, f(colors::BLUE) / 255,
@@ -336,11 +336,11 @@ int main(int, char **)
     layout_text(text_block, 1920, text_layout);
 
     canvas.text(
-        ShapeDesc{.center    = Vec2{1920 / 2.0f, 1080 / 2.0f},
-                  .transform = Mat4::identity(),
-                  .thickness = 20,
-                  .tint      = {colors::RED.norm(), colors::BLUE.norm(),
-                                colors::MAGENTA.norm(), colors::CYAN.norm()}},
+        {.center    = Vec2{1920 / 2.0f, 1080 / 2.0f},
+         .transform = Mat4::identity(),
+         .thickness = 20,
+         .tint      = {colors::RED.norm(), colors::BLUE.norm(),
+                       colors::MAGENTA.norm(), colors::CYAN.norm()}},
         text_block, text_layout,
         TextBlockStyle{
             .runs        = span<TextStyle>({TextStyle{
@@ -357,31 +357,30 @@ int main(int, char **)
             .align_width = 1920});
 
     // [ ] add multi-sampling
-    canvas.brect(ShapeDesc{
-        .center       = {1920 / 2, 1080 / 2},
-        .extent       = {250, 250},
-        .corner_radii = Vec4::splat(0.125f),
-        .stroke       = 1,
-        .thickness    = 8,
-        .tint =
-            ColorGradient{{colors::RED.norm(), colors::BLUE.norm(),
-                           colors::YELLOW.norm(), colors::MAGENTA.norm()}}});
-    canvas.squircle(ShapeDesc{.center    = {1920 / 2 + 100, 1080 / 2 + 100},
-                              .extent    = {250, 250},
-                              .stroke    = 1,
-                              .thickness = 8,
-                              .tint      = ColorGradient{{colors::RED.norm(),
-                                                          colors::BLUE.norm(),
-                                                          colors::YELLOW.norm(),
-                                                          colors::MAGENTA.norm()}}},
-                    0.8, 128);
-    canvas.rrect(ShapeDesc{
-        .center       = {1920 / 2 + 200, 1080 / 2 + 200},
-        .extent       = {250, 250},
-        .corner_radii = {35, 35, 35, 35},
-        .stroke       = 0,
-        .tint = ColorGradient{{colors::WHITE.norm(), colors::BLACK.norm(),
-                               colors::WHITE.norm(), colors::WHITE.norm()}}});
+    canvas.brect({.center       = {1920 / 2, 1080 / 2},
+                  .extent       = {250, 250},
+                  .corner_radii = Vec4::splat(0.125f),
+                  .stroke       = 1,
+                  .thickness    = 8,
+                  .tint         = ColorGradient{
+                              {colors::RED.norm(), colors::BLUE.norm(),
+                               colors::YELLOW.norm(), colors::MAGENTA.norm()}}});
+    canvas.squircle(
+        {.center    = {1920 / 2 + 100, 1080 / 2 + 100},
+         .extent    = {250, 250},
+         .stroke    = 1,
+         .thickness = 8,
+         .tint =
+             ColorGradient{{colors::RED.norm(), colors::BLUE.norm(),
+                            colors::YELLOW.norm(), colors::MAGENTA.norm()}}},
+        0.8, 128);
+    canvas.rrect(
+        {.center       = {1920 / 2 + 200, 1080 / 2 + 200},
+         .extent       = {250, 250},
+         .corner_radii = {35, 35, 35, 35},
+         .stroke       = 0,
+         .tint = ColorGradient{{colors::WHITE.norm(), colors::BLACK.norm(),
+                                colors::WHITE.norm(), colors::WHITE.norm()}}});
     // canvas.blur(CRect{{1920 / 2, 1080 / 2}, {1920 / 1.25, 1080 / 1.25}}, 4);
 
     renderer.begin(

@@ -1331,6 +1331,11 @@ struct Mat3Affine
     return Mat3{.rows = {rows[0], rows[1], {0, 0, 1}}};
   }
 
+  static constexpr Mat3Affine identity()
+  {
+    return Mat3Affine{.rows = {{1, 0, 0}, {0, 1, 0}}};
+  }
+
   constexpr Vec3 x() const
   {
     return Vec3{rows[0].x, rows[1].x, 0};
@@ -2015,16 +2020,193 @@ inline Vec2 rotor(f32 a)
 
 /// @brief linearly interpolate between points `low` and `high` given
 /// interpolator `t`
-constexpr f32 lerp(f32 low, f32 high, f32 t)
+template <typename T>
+constexpr T lerp(T const &low, T const &high, T const &t)
 {
   return (1 - t) * low + t * high;
 }
 
+inline f32 sin(f32 v)
+{
+  return std::sin(v);
+}
+
+inline f64 sin(f64 v)
+{
+  return std::sin(v);
+}
+
+inline Vec2 sin(Vec2 v)
+{
+  return Vec2{sin(v.x), sin(v.y)};
+}
+
+inline Vec3 sin(Vec3 v)
+{
+  return Vec3{sin(v.x), sin(v.y), sin(v.z)};
+}
+
+inline Vec4 sin(Vec4 v)
+{
+  return Vec4{sin(v.x), sin(v.y), sin(v.z), sin(v.w)};
+}
+
+inline f32 cos(f32 v)
+{
+  return std::cos(v);
+}
+
+inline f64 cos(f64 v)
+{
+  return std::cos(v);
+}
+
+inline Vec2 cos(Vec2 v)
+{
+  return Vec2{cos(v.x), cos(v.y)};
+}
+
+inline Vec3 cos(Vec3 v)
+{
+  return Vec3{cos(v.x), cos(v.y), cos(v.z)};
+}
+
+inline Vec4 cos(Vec4 v)
+{
+  return Vec4{cos(v.x), cos(v.y), cos(v.z), cos(v.w)};
+}
+
+inline f32 tan(f32 v)
+{
+  return std::tan(v);
+}
+
+inline f64 tan(f64 v)
+{
+  return std::tan(v);
+}
+
+inline Vec2 tan(Vec2 v)
+{
+  return Vec2{tan(v.x), tan(v.y)};
+}
+
+inline Vec3 tan(Vec3 v)
+{
+  return Vec3{tan(v.x), tan(v.y), tan(v.z)};
+}
+
+inline Vec4 tan(Vec4 v)
+{
+  return Vec4{tan(v.x), tan(v.y), tan(v.z), tan(v.w)};
+}
+
+inline f32 exp(f32 v)
+{
+  return std::exp(v);
+}
+
+inline f64 exp(f64 v)
+{
+  return std::exp(v);
+}
+
+inline Vec2 exp(Vec2 v)
+{
+  return Vec2{exp(v.x), exp(v.y)};
+}
+
+inline Vec3 exp(Vec3 v)
+{
+  return Vec3{exp(v.x), exp(v.y), exp(v.z)};
+}
+
+inline Vec4 exp(Vec4 v)
+{
+  return Vec4{exp(v.x), exp(v.y), exp(v.z), exp(v.w)};
+}
+
+inline f32 exp2(f32 v)
+{
+  return std::exp2(v);
+}
+
+inline f64 exp2(f64 v)
+{
+  return std::exp2(v);
+}
+
+inline Vec2 exp2(Vec2 v)
+{
+  return Vec2{exp2(v.x), exp2(v.y)};
+}
+
+inline Vec3 exp2(Vec3 v)
+{
+  return Vec3{exp2(v.x), exp2(v.y), exp2(v.z)};
+}
+
+inline Vec4 exp2(Vec4 v)
+{
+  return Vec4{exp2(v.x), exp2(v.y), exp2(v.z), exp2(v.w)};
+}
+
+inline f32 log(f32 v)
+{
+  return std::log(v);
+}
+
+inline f64 log(f64 v)
+{
+  return std::log(v);
+}
+
+inline Vec2 log(Vec2 v)
+{
+  return Vec2{log(v.x), log(v.y)};
+}
+
+inline Vec3 log(Vec3 v)
+{
+  return Vec3{log(v.x), log(v.y), log(v.z)};
+}
+
+inline Vec4 log(Vec4 v)
+{
+  return Vec4{log(v.x), log(v.y), log(v.z), log(v.w)};
+}
+
+inline f32 floor(f32 v)
+{
+  return std::floor(v);
+}
+
+inline f64 floor(f64 v)
+{
+  return std::floor(v);
+}
+
+inline Vec2 floor(Vec2 v)
+{
+  return Vec2{floor(v.x), floor(v.y)};
+}
+
+inline Vec3 floor(Vec3 v)
+{
+  return Vec3{floor(v.x), floor(v.y), floor(v.z)};
+}
+
+inline Vec4 floor(Vec4 v)
+{
+  return Vec4{floor(v.x), floor(v.y), floor(v.z), floor(v.w)};
+}
+
 /// @brief logarithmically interpolate between points `low` and `high` given
 /// interpolator `t`
-inline f32 log_interp(f32 low, f32 high, f32 t)
+template <typename T>
+inline T log_interp(T const &low, T const &high, T const &t)
 {
-  return low * expf(t * logf(high / low));
+  return low * exp(t * log(high / low));
 }
 
 /// @brief frame-independent damped lerp
@@ -2035,49 +2217,60 @@ inline f32 log_interp(f32 low, f32 high, f32 t)
 /// @param dt time delta
 /// @param half_life time to complete half of the whole operation
 ///
-inline f32 damplerp(f32 low, f32 high, f32 dt, f32 half_life)
+template <typename T>
+inline T damplerp(T const &low, T const &high, T const &dt, T const &half_life)
 {
-  return lerp(low, high, 1 - exp2f(-half_life * dt));
+  return lerp(low, high, 1 - exp2(-half_life * dt));
 }
 
 /// find interpolator t, given points a and b, and interpolated value v
-constexpr f32 unlerp(f32 low, f32 high, f32 v)
+template <typename T>
+constexpr T unlerp(T const &low, T const &high, T const &v)
 {
   return (v - low) / (high - low);
 }
 
-constexpr f32 relerp(f32 in_low, f32 in_high, f32 out_low, f32 out_high, f32 &v)
+template <typename T>
+constexpr T relerp(T const &in_low, T const &in_high, T const &out_low,
+                   T const &out_high, T const &v)
 {
   return lerp(out_low, out_high, unlerp(in_low, in_high, v));
 }
 
 // SEE: https://www.youtube.com/watch?v=jvPPXbo87ds
-constexpr f32 linear(f32 t)
+template <typename T>
+constexpr T linear(T const &t)
 {
   return t;
 }
 
-constexpr f32 ease_in(f32 t)
+template <typename T>
+constexpr T ease_in(T const &t)
 {
   return t * t;
 }
 
-constexpr f32 ease_out(f32 t)
+template <typename T>
+constexpr T ease_out(T const &t)
 {
   return 1 - (1 - t) * (1 - t);
 }
 
-constexpr f32 ease_in_out(f32 t)
+template <typename T>
+constexpr T ease_in_out(T const &t)
 {
   return lerp(ease_in(t), ease_out(t), t);
 }
 
-constexpr f32 bezier(f32 p0, f32 p1, f32 p2, f32 t)
+template <typename T>
+constexpr T bezier(T const &p0, T const &p1, T const &p2, T const &t)
 {
   return (1 - t) * (1 - t) * p0 + 2 * (1 - t) * t * p1 + t * t * p2;
 }
 
-constexpr f32 cubic_bezier(f32 p0, f32 p1, f32 p2, f32 p3, f32 t)
+template <typename T>
+constexpr T cubic_bezier(T const &p0, T const &p1, T const &p2, T const &p3,
+                         T const &t)
 {
   return (1 - t) * (1 - t) * (1 - t) * p0 + 3 * (1 - t) * (1 - t) * t * p1 +
          3 * (1 - t) * t * t * p2 + t * t * t * p3;
@@ -2089,7 +2282,9 @@ constexpr f32 cubic_bezier(f32 p0, f32 p1, f32 p2, f32 p3, f32 t)
 /// has automatic tangent. use for animation and path smoothing
 /// ne of the features of the Catmull-Rom spline is that the specified curve
 /// will pass through all of the control points.
-constexpr f32 catmull_rom(f32 p0, f32 p1, f32 p2, f32 p3, f32 t)
+template <typename T>
+constexpr T catmull_rom(T const &p0, T const &p1, T const &p2, T const &p3,
+                        T const &t)
 {
   return 0.5f *
          ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
@@ -2107,71 +2302,73 @@ constexpr f32 smoothstep(f32 a, f32 b, f32 t)
   return t * t * (3.0f - 2.0f * t);
 }
 
-inline f32 grid_snap(f32 a, f32 unit)
+template <typename T>
+inline T grid_snap(T const &a, T const &unit)
 {
-  return floorf((a + unit * 0.5F) / unit) * unit;
+  return floor((a + unit * 0.5F) / unit) * unit;
 }
 
-/// @brief get the aligned center relative to a fixed amount of space
-/// @param space the space to align to
+template <typename T>
+constexpr T norm_to_axis(T const &norm)
+{
+  return norm * 2 - 1;
+}
+
+template <typename T>
+constexpr T axis_to_norm(T const &axis)
+{
+  return axis * 0.5F + 0.5F;
+}
+
+template <typename T>
+constexpr T norm_to_space(T const &norm)
+{
+  return norm - 0.5F;
+}
+
+template <typename T>
+constexpr T space_to_norm(T const &space)
+{
+  return space + 0.5F;
+}
+
+template <typename T>
+constexpr T space_to_axis(T const &space)
+{
+  return space * 2;
+}
+
+template <typename T>
+constexpr T axis_to_space(T const &axis)
+{
+  return axis * 0.5F;
+}
+
+constexpr Vec2 ALIGNMENT_CENTER{0, 0};
+constexpr Vec2 ALIGNMENT_TOP_LEFT{-1, -1};
+constexpr Vec2 ALIGNMENT_TOP_RIGHT{1, -1};
+constexpr Vec2 ALIGNMENT_BOTTOM_LEFT{-1, 1};
+constexpr Vec2 ALIGNMENT_BOTTOM_RIGHT{1, 1};
+
+/// @param space available space to align to
+/// @param item extent of the item to align
 /// @param alignment the alignment to align to [-1, +1]
-/// @return
-constexpr f32 space_align(f32 space, f32 content, f32 alignment)
+/// @return returns the aligned position relative to the space's center
+template <typename T>
+constexpr T space_align(T const &space, T const &item, T const &alignment)
 {
-  f32 const trailing = space - content;
-  f32       padding  = (alignment * 0.5F + 0.5F) * trailing;
-  return padding + content / 2;
-}
-
-constexpr Vec2 space_align(Vec2 space, Vec2 content, Vec2 alignment)
-{
-  return Vec2{space_align(space.x, content.x, alignment.x),
-              space_align(space.y, content.y, alignment.y)};
-}
-
-constexpr f32 norm_to_axis(f32 norm)
-{
-  return norm * 2 - 1;
-}
-
-constexpr f32 axis_to_norm(f32 axis)
-{
-  return axis * 0.5F + 0.5F;
-}
-
-constexpr Vec2 norm_to_axis(Vec2 norm)
-{
-  return norm * 2 - 1;
-}
-
-constexpr Vec2 axis_to_norm(Vec2 axis)
-{
-  return axis * 0.5F + 0.5F;
-}
-
-constexpr Vec3 norm_to_axis(Vec3 norm)
-{
-  return norm * 2 - 1;
-}
-
-constexpr Vec3 axis_to_norm(Vec3 axis)
-{
-  return axis * 0.5F + 0.5F;
-}
-
-constexpr Vec4 norm_to_axis(Vec4 norm)
-{
-  return norm * 2 - 1;
-}
-
-constexpr Vec4 axis_to_norm(Vec4 axis)
-{
-  return axis * 0.5F + 0.5F;
+  T const trailing = (space - item) * 0.5F;
+  return lerp(-trailing, trailing, axis_to_norm(alignment));
 }
 
 constexpr Vec4 opacity(f32 v)
 {
   return Vec4{1, 1, 1, v};
+}
+
+constexpr Vec4 opacity_premultiplied(f32 v)
+{
+  return Vec4::splat(v);
 }
 
 struct Rect
@@ -2418,6 +2615,11 @@ constexpr void intersect(Vec2 a_begin, Vec2 a_end, Vec2 &b_begin, Vec2 &b_end)
 }
 
 constexpr bool contains(Rect const &rect, Vec2 point)
+{
+  return contains_point(rect.begin(), rect.end(), point);
+}
+
+constexpr bool contains(CRect const &rect, Vec2 point)
 {
   return contains_point(rect.begin(), rect.end(), point);
 }

@@ -133,7 +133,7 @@ inline Result<Void, Void> utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
   }
   usize const count =
       utf8_encode(decoded, span(encoded).slice(first, max_count));
-  CHECK(!encoded.resize_defaulted(first + count));
+  CHECK(!encoded.resize_uninit(first + count));
   return Ok{};
 }
 

@@ -8,10 +8,122 @@
 #include "ashura/engine/view.h"
 #include "ashura/std/text.h"
 #include "ashura/std/types.h"
+#include "ashura/std/unique.h"
 #include <charconv>
 
 namespace ash
 {
+
+struct FocusStyle
+{
+  ColorGradient border_color     = ColorGradient::all(DEFAULT_THEME.primary);
+  f32           border_thickness = 1.0F;
+};
+
+struct FocusState
+{
+  bool in      = false;
+  bool out     = false;
+  bool focused = false;
+
+  void tick(ViewEvents const &events)
+  {
+    in  = events.focus_in;
+    out = events.focus_out;
+
+    if (events.focus_in)
+    {
+      focused = true;
+    }
+
+    if (events.focus_out)
+    {
+      focused = false;
+    }
+  }
+};
+
+struct PressState
+{
+  bool       in      = false;
+  bool       out     = false;
+  bool       hovered = false;
+  bool       down    = false;
+  bool       held    = false;
+  FocusState focus   = {};
+
+  void tick(ViewContext const &ctx, ViewEvents const &events)
+  {
+    focus.tick(events);
+
+    in  = events.mouse_in;
+    out = events.mouse_out;
+
+    if (in)
+    {
+      hovered = true;
+    }
+
+    if (out)
+    {
+      hovered = false;
+      held    = false;
+    }
+
+    if (events.focus_out)
+    {
+      held = false;
+    }
+
+    down = (events.mouse_down && ctx.mouse_down(MouseButtons::Primary)) ||
+           (events.key_down && ctx.key_down(KeyCode::Return));
+
+    bool up = (events.mouse_up && ctx.mouse_up(MouseButtons::Primary)) ||
+              (events.key_up && ctx.key_up(KeyCode::Return));
+
+    if (down)
+    {
+      held = true;
+    }
+
+    if (up)
+    {
+      held = false;
+    }
+  }
+};
+
+struct DragState
+{
+  bool       in       = false;
+  bool       out      = false;
+  bool       hovered  = false;
+  bool       start    = false;
+  bool       dragging = false;
+  bool       end      = false;
+  FocusState focus    = {};
+
+  void tick(ViewEvents const &events)
+  {
+    focus.tick(events);
+    in  = events.mouse_in;
+    out = events.mouse_out;
+
+    if (in)
+    {
+      hovered = true;
+    }
+
+    if (out)
+    {
+      hovered = false;
+    }
+
+    start    = events.drag_start;
+    dragging = events.dragging;
+    end      = events.drag_end;
+  }
+};
 
 /// @param axis flex axis to layout children along
 /// @param main_align main-axis alignment. specifies how free space is used on
@@ -22,17 +134,17 @@ struct FlexView : View
 {
   struct Style
   {
-    Axis      axis : 3       = Axis::X;
-    bool      wrap : 1       = true;
-    bool      reverse : 1    = false;
-    MainAlign main_align : 3 = MainAlign::Start;
-    f32       cross_align    = 0;
-    Frame     frame          = {.width = {.scale = 1}, .height = {.scale = 1}};
+    Axis      axis        = Axis::X;
+    bool      wrap        = true;
+    MainAlign main_align  = MainAlign::Start;
+    f32       cross_align = 0;
+    Frame     frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
   } style;
 
-  virtual f32 align_item(u32 i)
+  virtual f32 align_item(u32 i, u32 n)
   {
     (void) i;
+    (void) n;
     return style.cross_align;
   }
 
@@ -42,26 +154,25 @@ struct FlexView : View
     fill(sizes, frame);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
   {
-    u32 const  num_children = sizes.size32();
+    u32 const  n            = sizes.size32();
     Vec2 const frame        = style.frame(allocated);
-    Vec2       span;
-    f32        cross_cursor = 0;
     u8 const   main_axis    = (style.axis == Axis::X) ? 0 : 1;
     u8 const   cross_axis   = (style.axis == Axis::X) ? 1 : 0;
+    Vec2       span         = {};
+    f32        cross_cursor = 0;
 
-    for (u32 i = 0; i < num_children;)
+    for (u32 i = 0; i < n;)
     {
       u32 first        = i++;
       f32 main_extent  = sizes[first][main_axis];
       f32 cross_extent = sizes[first][cross_axis];
       f32 main_spacing = 0;
 
-      while (i < num_children &&
-             !(style.wrap &&
-               (main_extent + sizes[i][main_axis]) > frame[main_axis]))
+      while (i < n && !(style.wrap &&
+                        (main_extent + sizes[i][main_axis]) > frame[main_axis]))
       {
         main_extent += sizes[i][main_axis];
         cross_extent = max(cross_extent, sizes[i][cross_axis]);
@@ -72,14 +183,14 @@ struct FlexView : View
 
       if (style.main_align != MainAlign::Start)
       {
-        main_spacing = max(frame[main_axis] - main_extent, 0.0f);
+        main_spacing = max(frame[main_axis] - main_extent, 0.0F);
       }
 
       for (u32 b = first; b < first + count; b++)
       {
-        offsets[b][cross_axis] =
-            cross_cursor +
-            space_align(frame[cross_axis], sizes[b][cross_axis], align_item(b));
+        f32 const pos =
+            space_align(cross_extent, sizes[b][cross_axis], align_item(b, n));
+        centers[b][cross_axis] = cross_cursor + cross_extent * 0.5F + pos;
       }
 
       switch (style.main_align)
@@ -89,8 +200,9 @@ struct FlexView : View
           f32 main_spacing_cursor = 0;
           for (u32 b = first; b < first + count; b++)
           {
-            offsets[b][main_axis] = main_spacing_cursor;
-            main_spacing_cursor += sizes[b][main_axis];
+            f32 const size        = sizes[b][main_axis];
+            centers[b][main_axis] = main_spacing_cursor + size * 0.5F;
+            main_spacing_cursor += size;
           }
         }
         break;
@@ -101,9 +213,10 @@ struct FlexView : View
           f32 main_spacing_cursor = 0;
           for (u32 b = first; b < first + count; b++)
           {
+            f32 const size = sizes[b][main_axis];
             main_spacing_cursor += spacing;
-            offsets[b][main_axis] = main_spacing_cursor;
-            main_spacing_cursor += sizes[b][main_axis] + spacing;
+            centers[b][main_axis] = main_spacing_cursor + size * 0.5F;
+            main_spacing_cursor += size + spacing;
           }
         }
         break;
@@ -114,8 +227,9 @@ struct FlexView : View
           f32 main_spacing_cursor = 0;
           for (u32 b = first; b < first + count; b++)
           {
-            offsets[b][main_axis] = main_spacing_cursor;
-            main_spacing_cursor += sizes[b][main_axis] + spacing;
+            f32 const size        = sizes[b][main_axis];
+            centers[b][main_axis] = main_spacing_cursor + size * 0.5F;
+            main_spacing_cursor += size + spacing;
           }
         }
         break;
@@ -126,8 +240,9 @@ struct FlexView : View
           f32 main_spacing_cursor = spacing;
           for (u32 b = first; b < first + count; b++)
           {
-            offsets[b][main_axis] = main_spacing_cursor;
-            main_spacing_cursor += sizes[b][main_axis] + spacing;
+            f32 const size        = sizes[b][main_axis];
+            centers[b][main_axis] = main_spacing_cursor + size * 0.5F;
+            main_spacing_cursor += size + spacing;
           }
         }
         break;
@@ -137,8 +252,9 @@ struct FlexView : View
           f32 main_spacing_cursor = main_spacing;
           for (u32 b = first; b < first + count; b++)
           {
-            offsets[b][main_axis] = main_spacing_cursor;
-            main_spacing_cursor += sizes[b][main_axis];
+            f32 const size        = sizes[b][main_axis];
+            centers[b][main_axis] = main_spacing_cursor + size * 0.5F;
+            main_spacing_cursor += size;
           }
         }
         break;
@@ -147,21 +263,19 @@ struct FlexView : View
           break;
       }
 
-      if (style.reverse)
-      {
-        for (u32 b0 = first, b1 = first + count - 1; b0 < b1; b0++, b1--)
-        {
-          swap(offsets[b0][main_axis], offsets[b1][main_axis]);
-        }
-      }
-
       cross_cursor += cross_extent;
 
       span[main_axis]  = max(span[main_axis], main_extent + main_spacing);
       span[cross_axis] = cross_cursor;
     }
 
-    return span;
+    // convert from cursor space [0, w] to parent space [-0.5w, 0.5w]
+    for (Vec2 &center : centers)
+    {
+      center -= span * 0.5F;
+    }
+
+    return {.extent = span};
   }
 };
 
@@ -169,27 +283,29 @@ struct StackView : View
 {
   struct Style
   {
-    bool  reverse : 1 = false;
-    Vec2  alignment   = {0, 0};
-    Frame frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
+    bool  reverse   = false;
+    Vec2  alignment = {0, 0};
+    Frame frame     = {.width = {.scale = 1}, .height = {.scale = 1}};
   } style;
 
-  virtual Vec2 align_item(u32 i)
+  virtual Vec2 align_item(u32 i, u32 num)
   {
     (void) i;
+    (void) num;
     return style.alignment;
   }
 
   virtual i32 stack_item(i32 base, u32 i, u32 num)
   {
-    i32 z = base + 1;
+    // sequential stacking
+    i32 z = base;
     if (!style.reverse)
     {
       z += (i32) i;
     }
     else
     {
-      z += (i32) (num - (i + 1));
+      z += (i32) (num - i);
     }
     return z;
   }
@@ -199,10 +315,11 @@ struct StackView : View
     fill(sizes, style.frame(allocated));
   }
 
-  virtual Vec2 fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> offsets) override
+  virtual ViewLayout fit(Vec2, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
   {
     Vec2      span;
-    u32 const num_children = sizes.size32();
+    u32 const n = sizes.size32();
 
     for (Vec2 s : sizes)
     {
@@ -210,36 +327,39 @@ struct StackView : View
       span.y = max(span.y, s.y);
     }
 
-    for (u32 i = 0; i < num_children; i++)
+    for (u32 i = 0; i < n; i++)
     {
-      offsets[i] = space_align(span, sizes[i], align_item(i));
+      centers[i] = space_align(span, sizes[i], align_item(i, n));
     }
 
-    return span;
+    return {.extent = span};
   }
 
   virtual i32 z_index(i32 allocated, Span<i32> indices) override
   {
-    for (u32 i = 0; i < indices.size32(); i++)
+    u32 const n = indices.size32();
+    for (u32 i = 0; i < n; i++)
     {
-      indices[i] = stack_item(allocated, i, indices.size32());
+      indices[i] = stack_item(allocated, i, n);
     }
     return allocated;
   }
 };
 
-// [ ] pre-determined height, scrolling of each item. bidirectional
-struct ListView : View
-{
-};
-
 struct TextView : View
 {
-  bool           copyable : 1           = false;
-  ColorGradient  highlight_color        = {};
-  CornerRadii    highlight_corner_radii = {};
-  RenderText     text                   = {};
-  TextCompositor compositor             = {};
+  struct State
+  {
+    bool copyable = false;
+  } state;
+
+  struct Style
+  {
+    TextHighlightStyle highlight;
+  } style;
+
+  RenderText     text{};
+  TextCompositor compositor{};
 
   TextView()
   {
@@ -253,10 +373,21 @@ struct TextView : View
 
   virtual ~TextView() override
   {
-    text.reset();
+    text.uninit();
+    compositor.uninit();
   }
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+  void highlight(TextHighlight highlight)
+  {
+    text.highlight(highlight);
+  }
+
+  void clear_highlights()
+  {
+    text.clear_highlights();
+  }
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32 zoom,
                          ViewEvents events, Fn<void(View &)>) override
   {
     TextCommand cmd = TextCommand::None;
@@ -272,60 +403,61 @@ struct TextView : View
     compositor.command(text.get_text(), text.inner.layout, region.extent.x,
                        text.inner.alignment, cmd,
                        fn([](u32, Span<u32 const>) {}), fn([](Slice32) {}), {},
-                       *ctx.clipboard, 1, ctx.mouse.position);
-    text.set_highlight(
-        compositor.get_cursor().as_slice(text.get_text().size32()));
-    text.set_highlight_style(highlight_color,
-                             highlight_corner_radii(region.extent.y));
+                       *ctx.clipboard, 1,
+                       (ctx.mouse.position - region.center) * zoom);
 
-    return ViewState{.draggable = copyable};
+    return ViewState{.draggable = state.copyable};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     text.calculate_layout(allocated.x);
-    return text.inner.layout.extent;
+    return {.extent = text.inner.layout.extent};
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
-                      Canvas &canvas) override
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &clip) override
   {
-    text.render(region, clip, canvas);
+    highlight(TextHighlight{
+        .slice = compositor.get_cursor().as_slice(text.get_text().size32()),
+        .style = style.highlight});
+    text.render(canvas, region, clip, zoom);
+    text.inner.highlights.pop();
   }
 
-  virtual Cursor cursor(CRect const &, Vec2) override
+  virtual Cursor cursor(CRect const &, f32, Vec2) override
   {
-    return copyable ? Cursor::Text : Cursor::Default;
+    return state.copyable ? Cursor::Text : Cursor::Default;
   }
 };
 
-// [ ] ClickDetector with timing and debouncing
-// [ ] input box focus request on click (i.e. grab focus)
+// [ ] scrollable
+// [ ] viewport text with scrollable region, scroll direction
+// [ ] scroll on pagedown and cursor change
+// [ ] text input while in view, i.e. page down
 struct TextInput : View
 {
   struct State
   {
-    bool disabled : 1      = false;
-    bool editing : 1       = false;
-    bool submit : 1        = false;
-    bool focus_in : 1      = false;
-    bool focus_out : 1     = false;
-    bool focused : 1       = false;
-    bool is_multiline : 1  = false;
-    bool enter_submits : 1 = false;
-    bool tab_input : 1     = false;
+    bool       disabled       = false;
+    bool       editing        = false;
+    bool       submit         = false;
+    bool       is_multiline   = false;
+    bool       enter_submits  = false;
+    bool       tab_input      = false;
+    u32        lines_per_page = 1;
+    FocusState focus          = {};
   } state;
 
   struct Style
   {
-    ColorGradient highlight_color        = {};
-    CornerRadii   highlight_corner_radii = {};
-    u32           lines_per_page         = 1;
+    TextHighlightStyle highlight = {};
+    FocusStyle         focus     = {};
   } style;
 
-  RenderText     content     = {};
-  RenderText     placeholder = {};
-  TextCompositor compositor  = {};
+  RenderText     content{};
+  RenderText     placeholder{};
+  TextCompositor compositor{};
 
   Fn<void()> on_edit      = fn([] {});
   Fn<void()> on_submit    = fn([] {});
@@ -350,8 +482,19 @@ struct TextInput : View
 
   virtual ~TextInput() override
   {
-    content.reset();
-    placeholder.reset();
+    content.uninit();
+    placeholder.uninit();
+    compositor.uninit();
+  }
+
+  void highlight(TextHighlight const &highlight)
+  {
+    content.inner.highlights.push(highlight).unwrap();
+  }
+
+  void clear_highlights()
+  {
+    content.inner.highlights.clear();
   }
 
   constexpr TextCommand command(ViewContext const &ctx) const
@@ -477,7 +620,7 @@ struct TextInput : View
     return TextCommand::None;
   }
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32 zoom,
                          ViewEvents events, Fn<void(View &)>) override
   {
     bool edited = false;
@@ -493,20 +636,10 @@ struct TextInput : View
       this->content.flush_text();
     };
 
-    state.editing   = false;
-    state.submit    = false;
-    state.focus_in  = events.focus_in;
-    state.focus_out = events.focus_out;
+    state.editing = false;
+    state.submit  = false;
 
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
-    }
+    state.focus.tick(events);
 
     TextCommand cmd = TextCommand::None;
     if (events.text_input)
@@ -521,21 +654,27 @@ struct TextInput : View
     {
       cmd = TextCommand::HitSelect;
     }
-    else if (state.focused)
+    else if (state.focus.focused)
     {
       cmd = command(ctx);
+    }
+
+    if (content.inner.layout.lines.is_empty())
+    {
+      state.lines_per_page = 1;
+    }
+    else
+    {
+      state.lines_per_page =
+          (u32) (region.extent.y /
+                 (content.inner.layout.lines[0].metrics.height * zoom));
     }
 
     compositor.command(span(content.inner.text), content.inner.layout,
                        region.extent.x, content.inner.alignment, cmd,
                        fn(&insert), fn(&erase), ctx.text_input_utf32,
-                       *ctx.clipboard, style.lines_per_page,
-                       ctx.mouse.position - region.begin());
-
-    content.set_highlight(
-        compositor.get_cursor().as_slice(content.inner.text.size32()));
-    content.set_highlight_style(style.highlight_color,
-                                style.highlight_corner_radii(region.extent.y));
+                       *ctx.clipboard, state.lines_per_page,
+                       (ctx.mouse.position - region.center) * zoom);
 
     if (edited)
     {
@@ -553,12 +692,12 @@ struct TextInput : View
       state.submit = true;
     }
 
-    if (state.focus_in)
+    if (state.focus.in)
     {
       on_focus_in();
     }
 
-    if (state.focus_out)
+    if (state.focus.out)
     {
       on_focus_out();
     }
@@ -576,63 +715,59 @@ struct TextInput : View
     return ViewState{.draggable  = !state.disabled,
                      .focusable  = !state.disabled,
                      .text_input = !state.disabled,
-                     .tab_input  = state.tab_input};
+                     .tab_input  = state.tab_input,
+                     .grab_focus = events.mouse_down};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    placeholder.calculate_layout(allocated.x);
-    content.calculate_layout(allocated.x);
     if (content.inner.text.is_empty())
     {
-      return placeholder.inner.layout.extent;
+      placeholder.calculate_layout(allocated.x);
+      return {.extent = placeholder.inner.layout.extent};
     }
-    return content.inner.layout.extent;
+    content.calculate_layout(allocated.x);
+    return {.extent = content.inner.layout.extent};
   }
 
-  virtual void render(CRect const &region, CRect const &clip,
-                      Canvas &canvas) override
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &clip) override
   {
     if (content.inner.text.is_empty())
     {
-      placeholder.render(region, clip, canvas);
+      placeholder.render(canvas, region, clip, zoom);
     }
     else
     {
-      content.render(region, clip, canvas);
+      highlight(TextHighlight{.slice = compositor.get_cursor().as_slice(
+                                  content.inner.text.size32()),
+                              .style = style.highlight});
+      content.render(canvas, region, clip, zoom);
+      content.inner.highlights.pop();
+    }
+
+    if (state.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
   }
 
-  virtual Cursor cursor(CRect const &, Vec2) override
+  virtual Cursor cursor(CRect const &, f32, Vec2) override
   {
     return Cursor::Text;
   }
-};
-
-// [ ] calculate lines per page
-// [ ] viewport text with scrollable region, scroll direction
-// [ ] text input while in view, i.e. page down
-struct ScrollableTextInput : View
-{
-  TextInput input;
-  ScrollableTextInput()          = default;
-  virtual ~ScrollableTextInput() = default;
 };
 
 struct Button : View
 {
   struct State
   {
-    bool disabled : 1     = false;
-    bool pointer_down : 1 = false;
-    bool pointer_up : 1   = false;
-    bool pointer_in : 1   = false;
-    bool pointer_out : 1  = false;
-    bool focus_in : 1     = false;
-    bool focus_out : 1    = false;
-    bool focused : 1      = false;
-    bool hovered : 1      = false;
-    bool pressed : 1      = false;
+    bool       disabled = false;
+    PressState press    = {};
   } state;
 
   struct Style
@@ -646,51 +781,25 @@ struct Button : View
     f32           thickness      = 1.0F;
     Frame         frame          = {};
     Frame         padding        = {};
+    FocusStyle    focus          = {};
   } style;
 
   Fn<void()> on_pressed = fn([] {});
+  Fn<void()> on_hovered = fn([] {});
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &,
+  virtual ViewState tick(ViewContext const &ctx, CRect const &, f32,
                          ViewEvents         events, Fn<void(View &)>) override
   {
-    state.pointer_down =
-        events.mouse_down && ctx.mouse_down(MouseButtons::Primary);
-    state.pointer_up  = events.mouse_up && ctx.mouse_up(MouseButtons::Primary);
-    state.pointer_in  = events.mouse_in;
-    state.pointer_out = events.mouse_out;
-    state.focus_in    = events.focus_in;
-    state.focus_out   = events.focus_out;
+    state.press.tick(ctx, events);
 
-    if (events.focus_in)
+    if (state.press.in)
     {
-      state.focused = true;
+      on_hovered();
     }
 
-    if (events.focus_out)
-    {
-      state.focused = false;
-    }
-
-    if (state.pointer_in)
-    {
-      state.hovered = true;
-    }
-
-    if (state.pointer_out)
-    {
-      state.hovered = false;
-    }
-
-    if (state.pointer_down ||
-        (events.key_down && ctx.key_down(KeyCode::Return)))
+    if (state.press.down)
     {
       on_pressed();
-      state.pressed = true;
-    }
-
-    if (state.pointer_up || (events.key_up && ctx.key_up(KeyCode::Return)))
-    {
-      state.pressed = false;
     }
 
     return ViewState{.pointable = !state.disabled,
@@ -706,29 +815,35 @@ struct Button : View
     fill(sizes, size);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
   {
-    fill(offsets, Vec2{0, 0});
-    return (sizes.is_empty() ? Vec2{0, 0} : sizes[0]) +
-           2 * style.padding(allocated);
+    fill(centers, Vec2{0, 0});
+    return {.extent = (sizes.is_empty() ? Vec2{0, 0} : sizes[0]) +
+                      2 * style.padding(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &) override
   {
-    ColorGradient tint =
-        (state.hovered && !state.pressed) ? style.hovered_color : style.color;
-    tint = state.disabled ? style.disabled_color : tint;
-    canvas.rrect(ShapeDesc{.center       = region.center,
-                           .extent       = region.extent,
-                           .corner_radii = style.corner_radii(region.extent.y),
-                           .stroke       = style.stroke,
-                           .thickness    = style.thickness,
-                           .tint         = tint});
-    if (state.focused)
+    ColorGradient tint = (state.press.hovered && !state.press.held) ?
+                             style.hovered_color :
+                             style.color;
+    tint               = state.disabled ? style.disabled_color : tint;
+    canvas.rrect({.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = style.corner_radii(region.extent.y),
+                  .stroke       = style.stroke,
+                  .thickness    = style.thickness,
+                  .tint         = tint});
+
+    if (state.press.focus.focused)
     {
-      // [ ] draw focus interaction for all widgets
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
   }
 };
@@ -739,20 +854,26 @@ struct TextButton : Button
 
   TextButton()
   {
-    text.copyable = false;
+    text.state.copyable = false;
   }
 
   virtual ~TextButton() override = default;
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32 zoom,
+                         ViewEvents events, Fn<void(View &)> build) override
+  {
+    Button::tick(ctx, region, zoom, events, build);
+    build(text);
+  }
 };
 
 struct CheckBox : View
 {
   struct State
   {
-    bool disabled : 1 = false;
-    bool hovered : 1  = false;
-    bool pressed : 1  = false;
-    bool value : 1    = false;
+    bool       disabled = false;
+    PressState press    = {};
+    bool       value    = false;
   } state;
 
   struct Style
@@ -765,35 +886,20 @@ struct CheckBox : View
     f32           tick_thickness    = 1.5F;
     CornerRadii   corner_radii      = CornerRadii::all({.scale = 0.125F});
     Frame         frame             = Frame{.width = {20}, .height = {20}};
+    FocusStyle    focus             = {};
   } style;
 
   Fn<void(bool)> on_changed = fn([](bool) {});
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &,
+  virtual ViewState tick(ViewContext const &ctx, CRect const &, f32,
                          ViewEvents         events, Fn<void(View &)>) override
   {
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
+    state.press.tick(ctx, events);
 
-    if (events.mouse_out)
+    if (state.press.down)
     {
-      state.hovered = false;
-    }
-
-    if ((events.mouse_down && ctx.mouse_down(MouseButtons::Primary)) ||
-        (events.key_down && ctx.key_down(KeyCode::Return)))
-    {
-      state.pressed = true;
-      state.value   = !state.value;
+      state.value = !state.value;
       on_changed(state.value);
-    }
-
-    if ((events.mouse_up && ctx.mouse_up(MouseButtons::Primary)) ||
-        (events.key_up && ctx.key_up(KeyCode::Return)))
-    {
-      state.pressed = false;
     }
 
     return ViewState{.pointable = !state.disabled,
@@ -801,34 +907,44 @@ struct CheckBox : View
                      .focusable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
     Vec2 extent = style.frame(allocated);
-    return Vec2::splat(min(extent.x, extent.y));
+    return {.extent = Vec2::splat(min(extent.x, extent.y))};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &) override
   {
-    ColorGradient tint = (state.hovered && !state.pressed && !state.disabled) ?
-                             style.box_hovered_color :
-                             style.box_color;
-    canvas.rrect(ShapeDesc{.center       = region.center,
-                           .extent       = region.extent,
-                           .corner_radii = style.corner_radii(region.extent.y),
-                           .stroke       = 1,
-                           .thickness    = 2,
-                           .tint         = tint});
+    ColorGradient tint =
+        (state.press.hovered && !state.press.held && !state.disabled) ?
+            style.box_hovered_color :
+            style.box_color;
+    canvas.rrect({.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = style.corner_radii(region.extent.y),
+                  .stroke       = 1,
+                  .thickness    = 2,
+                  .tint         = tint});
 
     if (state.value)
     {
       canvas.line(
-          ShapeDesc{.center    = region.center,
-                    .extent    = region.extent,
-                    .stroke    = 0,
-                    .thickness = style.tick_thickness,
-                    .tint      = style.tick_color},
+          {.center    = region.center,
+           .extent    = region.extent,
+           .stroke    = 0,
+           .thickness = style.tick_thickness,
+           .tint      = style.tick_color},
           span<Vec2>({{0.125f, 0.5f}, {0.374f, 0.75f}, {0.775f, 0.25f}}));
+    }
+
+    if (state.press.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
   }
 };
@@ -838,100 +954,140 @@ struct Slider : View
 {
   struct State
   {
-    bool disabled : 1      = false;
-    bool pointer_enter : 1 = false;
-    bool pointer_leave : 1 = false;
-    bool pointer_down : 1  = false;
-    bool pointer_up : 1    = false;
-    bool hovered : 1       = false;
-    bool pressed : 1       = false;
+    bool      disabled = false;
+    DragState drag     = {};
+    f32       t        = 0;
+    f32       low      = 0;
+    f32       high     = 1;
   } state;
 
   struct Style
   {
-    Axis          direction    = Axis::X;
-    Frame         frame        = {.width = {100}, .height = {30}};
-    Frame         thumb_frame  = {.width = {20}, .height = {20}};
-    Size          track_height = {10};
-    ColorGradient track_color  = ColorGradient::all(DEFAULT_THEME.inactive);
-    ColorGradient thumb_color  = ColorGradient::all(DEFAULT_THEME.primary);
+    Axis          axis        = Axis::X;
+    Frame         frame       = {.width = {100}, .height = {30}};
+    Frame         thumb_frame = {.width = {20}, .height = {20}};
+    Frame         track_frame = {.width = {97.5F}, .height = {27.5F}};
+    ColorGradient thumb_color =
+        ColorGradient::all(DEFAULT_THEME.primary * opacity(0.5F));
     ColorGradient thumb_hovered_color =
-        ColorGradient::all(DEFAULT_THEME.primary_variant);
-    CornerRadii track_corner_radii = CornerRadii::all({.scale = 0.125F});
-    CornerRadii thumb_corner_radii = CornerRadii::all({.scale = 0.125F});
-    u8          levels             = 0;
+        ColorGradient::all(DEFAULT_THEME.primary * opacity(0.75F));
+    ColorGradient thumb_dragging_color =
+        ColorGradient::all(DEFAULT_THEME.primary);
+    CornerRadii   thumb_corner_radii = CornerRadii::all({.scale = 0.125F});
+    ColorGradient track_color = ColorGradient::all(DEFAULT_THEME.inactive);
+    CornerRadii   track_corner_radii = CornerRadii::all({.scale = 0.125F});
+    FocusStyle    focus              = {};
+    f32           delta              = 0.1F;
   } style;
-
-  f32 t    = 0;
-  f32 low  = 0;
-  f32 high = 1;
 
   Fn<void(f32)> on_changed = fn([](f32) {});
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
                          ViewEvents events, Fn<void(View &)>) override
   {
-    u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
-    if (events.dragging)
+    u8 const main_axis = (style.axis == Axis::X) ? 0 : 1;
+
+    state.drag.tick(events);
+
+    if (state.drag.dragging)
     {
-      t = unlerp(region.begin()[main_axis], region.end()[main_axis],
-                 ctx.mouse.position[main_axis]);
-      t = (style.levels == 0) ? t : grid_snap(t, 1.0F / style.levels);
-      f32 const value = clamp(lerp(low, high, t), low, high);
+      Vec2 const track_extent = style.track_frame(region.extent);
+      Vec2 const track_begin  = region.center - track_extent * 0.5F;
+      Vec2 const track_end    = region.center + track_extent * 0.5F;
+      state.t = clamp(unlerp(track_begin[main_axis], track_end[main_axis],
+                             ctx.mouse.position[main_axis]),
+                      0.0F, 1.0F);
+      f32 const value =
+          clamp(lerp(state.low, state.high, state.t), state.low, state.high);
       on_changed(value);
     }
-    return ViewState{.pointable = !state.disabled,
-                     .draggable = !state.disabled};
-  }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
-  {
-    return style.frame(allocated);
-  }
-
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
-  {
-    Vec2 const track_extent =
-        Frame{style.frame.width, style.track_height}(region.extent);
-    canvas.rrect(
-        ShapeDesc{.center       = region.center,
-                  .extent       = track_extent,
-                  .corner_radii = style.track_corner_radii(region.extent.y),
-                  .tint         = style.track_color});
-
-    if (style.levels != 0)
+    if (state.drag.focus.focused)
     {
-      f32 const unit = 1 / (f32) style.levels;
-      for (i32 i = 1; i < style.levels; i++)
+      if ((style.axis == Axis::X && ctx.key_state(KeyCode::Left)) ||
+          (style.axis == Axis::Y && ctx.key_state(KeyCode::Up)))
       {
-        Vec2 center = region.begin();
-        center.x += unit * i * region.extent.x;
-        center.y += region.extent.y / 2;
-
-        canvas.rrect(ShapeDesc{
-            .center       = center,
-            .extent       = Vec2::splat(min(track_extent.y, track_extent.x)),
-            .corner_radii = Vec4::splat(1.0F),
-            .tint         = style.thumb_color});
+        state.t = max(state.t - style.delta, 0.0F);
+      }
+      else if ((style.axis == Axis::X && ctx.key_state(KeyCode::Right)) ||
+               (style.axis == Axis::Y && ctx.key_state(KeyCode::Down)))
+      {
+        state.t = min(state.t + style.delta, 1.0F);
       }
     }
 
-    Vec2 thumb_center =
-        region.begin() + Vec2{region.extent.x * t, region.extent.y / 2};
-    ColorGradient thumb_color =
-        (state.hovered && !state.pressed && !state.disabled) ?
-            style.thumb_hovered_color :
-            style.thumb_color;
-    f32 dilation =
-        (state.hovered && !state.pressed && !state.disabled) ? 1.0F : 0.8F;
-    Vec2 thumb_extent = style.thumb_frame(region.extent) * dilation;
+    return ViewState{.pointable = !state.disabled,
+                     .draggable = !state.disabled,
+                     .focusable = !state.disabled};
+  }
 
-    canvas.rrect(
-        ShapeDesc{.center       = thumb_center,
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  {
+    return {.extent = style.frame(allocated)};
+  }
+
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &) override
+  {
+    u8 const   main_axis          = (style.axis == Axis::X) ? 0 : 1;
+    u8 const   cross_axis         = (style.axis == Axis::X) ? 1 : 0;
+    Vec2 const frame              = region.extent;
+    Vec2 const track_frame        = style.track_frame(frame);
+    Vec4 const thumb_corner_radii = style.thumb_corner_radii(region.extent.y);
+    ColorGradient thumb_color;
+
+    if (state.drag.dragging)
+    {
+      thumb_color = style.thumb_dragging_color;
+    }
+    else if (state.drag.hovered)
+    {
+      thumb_color = style.thumb_hovered_color;
+    }
+    else
+    {
+      thumb_color = style.thumb_color;
+    }
+
+    f32 dilation = 1.0F;
+
+    if (state.drag.dragging || state.drag.hovered)
+    {
+      dilation = 1.0F;
+    }
+    else
+    {
+      dilation = 0.8F;
+    }
+
+    canvas.rrect({.center       = region.center,
+                  .extent       = track_frame,
+                  .corner_radii = style.track_corner_radii(region.extent.y),
+                  .tint         = style.track_color});
+
+    Vec2 const track_begin = region.center - track_frame * 0.5F;
+    Vec2 const track_end   = region.center + track_frame * 0.5F;
+
+    Vec2 thumb_center;
+    thumb_center[main_axis] =
+        track_begin[main_axis] + track_frame[main_axis] * state.t;
+    thumb_center[cross_axis] = region.center[cross_axis];
+
+    Vec2 const thumb_extent = style.thumb_frame(region.extent) * dilation;
+
+    canvas.rrect({.center       = thumb_center,
                   .extent       = thumb_extent,
                   .corner_radii = style.thumb_corner_radii(thumb_extent.y),
                   .tint         = thumb_color});
+
+    if (state.drag.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
+    }
   }
 };
 
@@ -939,10 +1095,9 @@ struct Switch : View
 {
   struct State
   {
-    bool disabled : 1 = false;
-    bool value : 1    = false;
-    bool hovered : 1  = false;
-    bool pressed : 1  = false;
+    bool       disabled = false;
+    PressState press    = {};
+    bool       value    = false;
   } state;
 
   struct Style
@@ -957,33 +1112,20 @@ struct Switch : View
     Frame         frame        = {.width = {40}, .height = {20}};
     Frame         thumb_frame  = {.width = {17.5}, .height = {17.5}};
     CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
+    FocusStyle    focus        = {};
   } style;
 
   Fn<void(bool)> on_changed = fn([](bool) {});
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &,
+  virtual ViewState tick(ViewContext const &ctx, CRect const &, f32,
                          ViewEvents         events, Fn<void(View &)>) override
   {
-    if (events.mouse_down && ctx.mouse_down(MouseButtons::Primary))
+    state.press.tick(ctx, events);
+
+    if (state.press.down)
     {
       state.value = !state.value;
       on_changed(state.value);
-      state.pressed = true;
-    }
-
-    if (events.mouse_up && ctx.mouse_up(MouseButtons::Primary))
-    {
-      state.pressed = false;
-    }
-
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
-
-    if (events.mouse_out)
-    {
-      state.hovered = false;
     }
 
     return ViewState{.pointable = !state.disabled,
@@ -991,26 +1133,26 @@ struct Switch : View
                      .focusable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return style.frame(allocated);
+    return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &) override
   {
-    canvas.rrect(ShapeDesc{.center       = region.center,
-                           .extent       = region.extent,
-                           .corner_radii = style.corner_radii(region.extent.y),
-                           .tint         = style.track_color});
+    canvas.rrect({.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = style.corner_radii(region.extent.y),
+                  .tint         = style.track_color});
 
     Vec2 const thumb_extent = style.thumb_frame(region.extent);
     Vec2 const thumb_center =
-        region.begin() + space_align(region.extent, thumb_extent,
-                                     Vec2{state.value ? -1.0F : 1.0F, 0});
+        region.center + space_align(region.extent, thumb_extent,
+                                    Vec2{state.value ? -1.0F : 1.0F, 0});
 
     ColorGradient thumb_color;
-    if (state.hovered)
+    if (state.press.hovered)
     {
       thumb_color =
           state.value ? style.on_hovered_color : style.off_hovered_color;
@@ -1020,275 +1162,19 @@ struct Switch : View
       thumb_color = state.value ? style.on_color : style.off_color;
     }
 
-    canvas.rrect(ShapeDesc{.center       = thumb_center,
-                           .extent       = thumb_extent,
-                           .corner_radii = style.corner_radii(region.extent.y),
-                           .tint         = thumb_color});
-  }
-};
-
-// [ ] implement
-struct Collapsable : View
-{
-};
-
-// [ ] scrolling
-// [ ] selection
-// [ ] clipping
-// [ ] ios-style combo box
-/// @param alignment alignment of the item, based on the text direction
-struct ComboBoxItem : View
-{
-  struct State
-  {
-    bool disabled : 1 = false;
-    bool hovered : 1  = false;
-    bool selected : 1 = false;
-    bool focused : 1  = false;
-  } state;
-
-  struct Style
-  {
-    ColorGradient hovered_text_color = ColorGradient::all(DEFAULT_THEME.active);
-    ColorGradient hovered_background_color =
-        ColorGradient::all(DEFAULT_THEME.surface_variant);
-    ColorGradient disabled_text_color =
-        ColorGradient::all(DEFAULT_THEME.inactive);
-    ColorGradient disabled_background_color =
-        ColorGradient::all(DEFAULT_THEME.inactive);
-    ColorGradient selected_background_color =
-        ColorGradient::all(DEFAULT_THEME.surface_variant);
-    ColorGradient selected_text_color =
-        ColorGradient::all(DEFAULT_THEME.surface_variant);
-    ColorGradient text_color = ColorGradient::all(DEFAULT_THEME.on_surface);
-    ColorGradient background_color = ColorGradient::all(DEFAULT_THEME.surface);
-    CornerRadii   corner_radii     = CornerRadii::all({.scale = 0.125F});
-    Frame         frame            = {};
-    f32           alignment        = -1;
-  } style;
-
-  Fn<void()> on_selected = fn([] {});
-
-  RenderText text = {};
-
-  ComboBoxItem()                                = default;
-  ComboBoxItem(ComboBoxItem const &)            = delete;
-  ComboBoxItem &operator=(ComboBoxItem const &) = delete;
-  ComboBoxItem(ComboBoxItem &&);
-  ComboBoxItem &operator=(ComboBoxItem &&);
-  ~ComboBoxItem()
-  {
-    text.reset();
-  }
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)>) override
-  {
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
-
-    if (events.mouse_out)
-    {
-      state.hovered = false;
-    }
-
-    if (events.mouse_down && ctx.mouse_down(MouseButtons::Primary))
-    {
-      if (!state.selected)
-      {
-        state.selected = true;
-        on_selected();
-      }
-    }
-
-    if (events.key_down && ctx.key_down(KeyCode::Return))
-    {
-      if (!state.selected)
-      {
-        state.selected = true;
-        on_selected();
-      }
-    }
-
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
-    }
-
-    return ViewState{.pointable = !state.disabled,
-                     .clickable = !state.disabled,
-                     .focusable = !state.disabled};
-  }
-
-  virtual void render(CRect const &region, CRect const &clip,
-                      Canvas &canvas) override
-  {
-    canvas.rrect(ShapeDesc{.center = region.center,
-                           .extent = region.extent,
-                           .tint   = state.hovered ?
-                                         style.hovered_background_color :
-                                         style.background_color});
-    text.render(region, clip, canvas);
-  }
-};
-
-/// [ ] z-index on expanded?
-/// [ ] z-index effects on viewport
-struct ComboBoxScrollView : View
-{
-  typedef Fn<void(u32, Span<u32 const>)> Selected;
-
-  struct State
-  {
-    bool disabled : 1 = false;
-    bool expanded : 1 = false;
-  } state;
-
-  struct Style
-  {
-    Frame         frame        = {};
-    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
-    f32           alignment    = 0;
-    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
-  } style;
-
-  Vec<ComboBoxItem> items       = {};
-  Selected          on_selected = fn([](u32, Span<u32 const>) {});
-
-  ~ComboBoxScrollView()
-  {
-    items.reset();
-  }
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)> build) override
-  {
-    // [ ] scrolling
-    // on scroll increase offset of views
-    for (ComboBoxItem &item : items)
-    {
-      build(item);
-    }
-    return ViewState{};
-  }
-
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
-  {
-    (void) allocated;
-    fill(sizes, Vec2{0, 0});
-  }
-
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
-  {
-    return Vec2{0, 0};
-  }
-
-  virtual CRect clip(CRect const &region, CRect const &allocated) override
-  {
-    return intersect(region, allocated);
-  }
-
-  virtual void render(CRect const &region, CRect const &clip,
-                      Canvas &canvas) override
-  {
-    // render rrect covering region
-  }
-
-  void clear_items();
-  void add_item();
-  bool is_opened();
-  void close();
-  void open();
-  bool is_closed();
-};
-
-enum class ComboBoxMode : u8
-{
-  Inline = 0,
-  Dialog = 1
-};
-
-struct ComboBox : View
-{
-  typedef ComboBoxScrollView::Selected Selected;
-
-  struct State
-  {
-    bool disabled : 1 = false;
-    bool hovered : 1  = false;
-    bool pressed : 1  = false;
-  } state;
-
-  ComboBoxScrollView scroll_view;
-
-  struct Style
-  {
-    ComboBoxMode  mode         = ComboBoxMode::Inline;
-    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
-    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
-    ColorGradient hovered_color =
-        ColorGradient::all(DEFAULT_THEME.surface_variant);
-    ColorGradient text_color = ColorGradient::all(DEFAULT_THEME.on_surface);
-    ColorGradient inactive_text_color =
-        ColorGradient::all(DEFAULT_THEME.inactive);
-    Frame frame =
-        Frame{.width = {.scale = 1, .max = 200}, .height = {.offset = 25}};
-  } style;
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                         ViewEvents events, Fn<void(View &)> build) override
-  {
-    if (ctx.mouse_down(MouseButtons::Primary))
-    {
-      if (scroll_view.is_opened())
-      {
-        scroll_view.close();
-      }
-      else if (!state.disabled)
-      {
-        scroll_view.open();
-      }
-    }
-
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
-
-    if (events.mouse_out)
-    {
-      state.hovered = false;
-    }
-
-    if (events.focus_in)
-    {
-    }
-
-    build(scroll_view);
-
-    return ViewState{.clickable = !state.disabled,
-                     .focusable = !state.disabled};
-  }
-
-  virtual void render(CRect const &region, CRect const &clip,
-                      Canvas &canvas) override
-  {
-    canvas.rrect(
-        ShapeDesc{.center       = region.center,
-                  .extent       = region.extent,
+    canvas.rrect({.center       = thumb_center,
+                  .extent       = thumb_extent,
                   .corner_radii = style.corner_radii(region.extent.y),
-                  .tint = state.hovered ? style.hovered_color : style.color});
-    //[ ] draw selection text
-    //[ ]  draw button: scroll_view.opened?
-    // [ ] focus
+                  .tint         = thumb_color});
+
+    if (state.press.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
+    }
   }
 };
 
@@ -1296,15 +1182,9 @@ struct RadioBox : View
 {
   struct State
   {
-    bool disabled : 1      = false;
-    bool pointer_enter : 1 = false;
-    bool pointer_leave : 1 = false;
-    bool pointer_down : 1  = false;
-    bool pointer_up : 1    = false;
-    bool hovered : 1       = false;
-    bool focused : 1       = false;
-    bool pressed : 1       = false;
-    bool value : 1         = false;
+    bool       disabled = false;
+    PressState press    = {};
+    bool       value    = false;
   } state;
 
   struct Style
@@ -1316,45 +1196,20 @@ struct RadioBox : View
     ColorGradient inner_color  = ColorGradient::all(DEFAULT_THEME.primary);
     ColorGradient inner_hovered_color =
         ColorGradient::all(DEFAULT_THEME.primary_variant);
+    FocusStyle focus = {};
   } style;
 
   Fn<void(bool)> on_changed = fn([](bool) {});
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &,
+  virtual ViewState tick(ViewContext const &ctx, CRect const &, f32,
                          ViewEvents         events, Fn<void(View &)>) override
   {
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
+    state.press.tick(ctx, events);
 
-    if (events.mouse_out)
+    if (state.press.down)
     {
-      state.hovered = false;
-    }
-
-    if (events.focus_in)
-    {
-      state.focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      state.focused = false;
-    }
-
-    if ((events.mouse_down && ctx.mouse_down(MouseButtons::Primary)) ||
-        (events.key_down && ctx.key_down(KeyCode::Return)))
-    {
-      state.pressed = true;
-      state.value   = !state.value;
+      state.value = !state.value;
       on_changed(state.value);
-    }
-
-    if ((events.mouse_up && ctx.mouse_down(MouseButtons::Primary)) ||
-        (events.key_up && ctx.key_up(KeyCode::Return)))
-    {
-      state.pressed = false;
     }
 
     return ViewState{.pointable = !state.disabled,
@@ -1362,30 +1217,39 @@ struct RadioBox : View
                      .focusable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return style.frame(allocated);
+    return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &) override
   {
-    canvas.rrect(ShapeDesc{.center       = region.center,
-                           .extent       = region.extent,
-                           .corner_radii = style.corner_radii(region.extent.y),
-                           .stroke       = 1,
-                           .thickness    = style.thickness,
-                           .tint         = style.color});
+    canvas.rrect({.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = style.corner_radii(region.extent.y),
+                  .stroke       = 1,
+                  .thickness    = style.thickness,
+                  .tint         = style.color});
 
     if (state.value)
     {
-      Vec2 inner_extent = region.extent * (state.hovered ? 0.75F : 0.5F);
+      Vec2 inner_extent = region.extent * (state.press.hovered ? 0.75F : 0.5F);
       ColorGradient inner_color =
-          state.hovered ? style.inner_hovered_color : style.inner_color;
+          state.press.hovered ? style.inner_hovered_color : style.inner_color;
 
-      canvas.circle(ShapeDesc{.center = region.center,
-                              .extent = inner_extent,
-                              .tint   = inner_color});
+      canvas.circle({.center = region.center,
+                     .extent = inner_extent,
+                     .tint   = inner_color});
+    }
+
+    if (state.press.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
     }
   }
 };
@@ -1401,7 +1265,7 @@ struct ScalarInput
 {
   union
   {
-    i32 i32;
+    i32 i32 = 0;
     f32 f32;
   };
   ScalarInputType type = ScalarInputType::i32;
@@ -1506,17 +1370,18 @@ constexpr ScalarState scalar(i32 base, i32 min, i32 max, i32 step)
                      .step = {.i32 = step, .type = ScalarInputType::i32}};
 }
 
-struct ScalarDragBox : View, Pin<>
+struct ScalarDragBox : View
 {
   typedef Fn<void(fmt::Context const &, ScalarInput)> Fmt;
   typedef Fn<void(Span<u32 const>, ScalarState &)>    Parse;
 
   struct State
   {
-    bool        disabled : 1   = false;
-    bool        input_mode : 1 = false;
-    bool        dragging : 1   = false;
-    ScalarState value          = {};
+    bool        disabled   = false;
+    bool        input_mode = false;
+    bool        dragging   = false;
+    FocusState  focus      = {};
+    ScalarState value      = {};
   } state;
 
   struct Style
@@ -1530,9 +1395,10 @@ struct ScalarDragBox : View, Pin<>
     ColorGradient thumb_color  = ColorGradient::all(DEFAULT_THEME.inactive);
     f32           stroke       = 1.0F;
     f32           thickness    = 1.0F;
+    FocusStyle    focus        = {};
   } style;
 
-  TextInput input = {};
+  TextInput input{};
   Fmt       fmt   = fn(scalar_fmt);
   Parse     parse = fn(scalar_parse);
 
@@ -1562,7 +1428,7 @@ struct ScalarDragBox : View, Pin<>
     }
 
     Vec<u8> utf8;
-    defer   utf8_{[&] { utf8.reset(); }};
+    defer   utf8_{[&] { utf8.uninit(); }};
     utf8_encode(text, utf8).unwrap();
 
     char const *const first = (char const *) utf8.begin();
@@ -1597,7 +1463,7 @@ struct ScalarDragBox : View, Pin<>
     }
   }
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
                          ViewEvents events, Fn<void(View &)>) override
   {
     state.dragging = events.dragging;
@@ -1637,8 +1503,11 @@ struct ScalarDragBox : View, Pin<>
       on_update(state.value.current);
     }
 
+    state.focus.tick(events);
+
     return ViewState{.pointable = !state.disabled,
-                     .draggable = !state.disabled};
+                     .draggable = !state.disabled,
+                     .focusable = !state.disabled};
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
@@ -1649,42 +1518,49 @@ struct ScalarDragBox : View, Pin<>
     fill(sizes, child);
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
   {
-    fill(offsets, Vec2{0, 0});
-    return sizes[0] + 2 * style.padding(allocated);
+    fill(centers, Vec2{0, 0});
+    return {.extent = sizes[0] + 2 * style.padding(allocated)};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &) override
   {
-    canvas.rrect(ShapeDesc{.center       = region.center,
-                           .extent       = region.extent,
-                           .corner_radii = style.corner_radii(region.extent.y),
-                           .stroke       = style.stroke,
-                           .thickness    = style.thickness,
-                           .tint         = style.color});
+    canvas.rrect({.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = style.corner_radii(region.extent.y),
+                  .stroke       = style.stroke,
+                  .thickness    = style.thickness,
+                  .tint         = style.color});
 
     if (!state.input_mode)
     {
       f32 const  t = state.value.uninterp();
       Vec2 const thumb_extent{style.thumb_width(region.extent.x),
                               region.extent.y};
-      Vec2       thumb_center{0, region.center.y};
-
-      thumb_center.x =
+      Vec2       thumb_center = region.center;
+      thumb_center.x +=
           space_align(region.extent.x, thumb_extent.x, norm_to_axis(t));
 
-      canvas.rrect(
-          ShapeDesc{.center       = thumb_center,
+      canvas.rrect({.center       = thumb_center,
                     .extent       = thumb_extent,
                     .corner_radii = Vec4::splat(region.extent.y * 0.125F),
                     .tint         = style.thumb_color});
     }
+
+    if (state.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
+    }
   }
 
-  virtual Cursor cursor(CRect const &region, Vec2 offset) override
+  virtual Cursor cursor(CRect const &region, f32, Vec2 offset) override
   {
     (void) region;
     (void) offset;
@@ -1692,30 +1568,21 @@ struct ScalarDragBox : View, Pin<>
   }
 };
 
-struct ScalarBox : FlexView, Pin<>
+struct ScalarBox : FlexView
 {
-  struct State
-  {
-    bool disabled : 1  = false;
-    bool steppable : 1 = true;
-    bool draggable : 1 = true;
-  } state;
-
   Fn<void(ScalarInput)> on_update = fn([](ScalarInput) {});
 
-  TextButton    dec  = {};
-  TextButton    inc  = {};
-  ScalarDragBox drag = {};
+  TextButton    dec{};
+  TextButton    inc{};
+  ScalarDragBox drag{};
 
   ScalarBox()
   {
-    FlexView::style.axis        = Axis::X;
-    FlexView::style.wrap        = false;
-    FlexView::style.reverse     = false;
-    FlexView::style.main_align  = MainAlign::Start;
-    FlexView::style.cross_align = 0;
-    FlexView::style.frame =
-        Frame{.width = {.scale = 1}, .height = {.scale = 1}};
+    style.axis        = Axis::X;
+    style.wrap        = false;
+    style.main_align  = MainAlign::Start;
+    style.cross_align = 0;
+    style.frame       = Frame{.width = {.scale = 1}, .height = {.scale = 1}};
 
     dec.text.text.set_text(
         U"-"_utf,
@@ -1730,12 +1597,18 @@ struct ScalarBox : FlexView, Pin<>
                   .font_height = DEFAULT_THEME.body_font_height,
                   .line_height = DEFAULT_THEME.line_height});
 
-    inc.style.stroke = dec.style.stroke = drag.style.stroke;
-    inc.style.thickness = dec.style.thickness = drag.style.thickness;
-    inc.style.padding = dec.style.padding = drag.style.padding;
-    inc.style.frame.width = dec.style.frame.width = drag.style.frame.height;
-    inc.style.frame.height = dec.style.frame.height = drag.style.frame.height;
-    inc.style.corner_radii = dec.style.corner_radii = drag.style.corner_radii;
+    inc.style.stroke       = drag.style.stroke;
+    inc.style.thickness    = drag.style.thickness;
+    inc.style.padding      = drag.style.padding;
+    inc.style.frame.width  = drag.style.frame.height;
+    inc.style.frame.height = drag.style.frame.height;
+    inc.style.corner_radii = drag.style.corner_radii;
+    dec.style.stroke       = drag.style.stroke;
+    dec.style.thickness    = drag.style.thickness;
+    dec.style.padding      = drag.style.padding;
+    dec.style.frame.width  = drag.style.frame.height;
+    dec.style.frame.height = drag.style.frame.height;
+    dec.style.corner_radii = drag.style.corner_radii;
 
     dec.on_pressed = fn(this, [](ScalarBox *b) {
       b->drag.state.value.step_value(-1);
@@ -1751,12 +1624,9 @@ struct ScalarBox : FlexView, Pin<>
         fn(this, [](ScalarBox *b, ScalarInput in) { b->on_update(in); });
   }
 
-  virtual ViewState tick(ViewContext const &, CRect const &, ViewEvents,
+  virtual ViewState tick(ViewContext const &, CRect const &, f32, ViewEvents,
                          Fn<void(View &)> build) override
   {
-    dec.state.disabled  = state.disabled || !state.steppable;
-    inc.state.disabled  = state.disabled || !state.steppable;
-    drag.state.disabled = state.disabled || !state.draggable;
     build(dec);
     build(drag);
     build(inc);
@@ -1768,49 +1638,41 @@ struct ScrollBar : View
 {
   struct State
   {
-    bool disabled : 1 = false;
-    bool hovered : 1  = false;
-    bool dragging : 1 = false;
-    f32  t            = 0;
+    bool      disabled = false;
+    bool      hidden   = false;
+    DragState drag     = {};
+    f32       t        = 0;
   } state;
 
   struct Style
   {
-    Axis          direction = Axis::X;
+    Axis          axis           = Axis::X;
+    f32           content_extent = 1;
     ColorGradient thumb_color =
-        ColorGradient::all(DEFAULT_THEME.inactive * opacity(0.75F));
+        ColorGradient::all(DEFAULT_THEME.primary * opacity(0.5F));
+    ColorGradient thumb_hovered_color =
+        ColorGradient::all(DEFAULT_THEME.primary * opacity(0.75F));
     ColorGradient thumb_dragging_color =
-        ColorGradient::all(DEFAULT_THEME.active * opacity(0.75F));
+        ColorGradient::all(DEFAULT_THEME.primary);
+    CornerRadii   thumb_corner_radii = CornerRadii::all({{0}});
     ColorGradient track_color =
         ColorGradient::all(DEFAULT_THEME.inactive * opacity(0.75F));
-    Vec2 frame_extent   = {};
-    Vec2 content_extent = {};
+    CornerRadii track_corner_radii = CornerRadii::all({{0}});
+    FocusStyle  focus              = {};
+    f32         delta              = 0.1F;
   } style;
 
   Fn<void(f32)> on_scrolled = fn([](f32) {});
 
-  explicit ScrollBar(Axis direction) : style{.direction = direction}
-  {
-  }
-
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region,
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
                          ViewEvents events, Fn<void(View &)>) override
   {
-    u8 const main_axis = (style.direction == Axis::X) ? 0 : 1;
+    u8 const main_axis = (style.axis == Axis::X) ? 0 : 1;
 
-    if (events.mouse_in)
-    {
-      state.hovered = true;
-    }
+    state.drag.tick(events);
 
-    if (events.mouse_out)
+    if (state.drag.dragging)
     {
-      state.hovered = false;
-    }
-
-    if (events.dragging)
-    {
-      state.dragging = true;
       state.t =
           clamp((ctx.mouse.position[main_axis] - region.extent[main_axis] / 2) /
                     region.extent[main_axis],
@@ -1818,61 +1680,147 @@ struct ScrollBar : View
       on_scrolled(state.t);
     }
 
-    if (events.drag_end)
+    if (state.drag.focus.focused)
     {
-      state.dragging = false;
+      if ((style.axis == Axis::X && ctx.key_state(KeyCode::Left)) ||
+          (style.axis == Axis::Y && ctx.key_state(KeyCode::Up)))
+      {
+        state.t = max(state.t - style.delta, 0.0F);
+      }
+      else if ((style.axis == Axis::X && ctx.key_state(KeyCode::Right)) ||
+               (style.axis == Axis::Y && ctx.key_state(KeyCode::Down)))
+      {
+        state.t = min(state.t + style.delta, 1.0F);
+      }
     }
 
-    return ViewState{.pointable = !state.disabled,
-                     .draggable = !state.disabled};
+    return ViewState{.hidden    = state.hidden,
+                     .pointable = !state.disabled,
+                     .draggable = !state.disabled,
+                     .focusable = !state.disabled};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override
   {
-    return allocated;
+    return {.extent = allocated};
   }
 
-  virtual void render(CRect const &region, CRect const &,
-                      Canvas      &canvas) override
+  virtual i32 stack(i32 allocated) override
   {
-    u8 const   main_axis    = (style.direction == Axis::X) ? 0 : 1;
-    u8 const   cross_axis   = (style.direction == Axis::Y) ? 1 : 0;
-    Vec4 const corner_radii = Vec4::splat(region.extent.y * 0.09F);
+    // needs to be at a different stacking context since this will be placed
+    // on top of the viewport
+    return allocated + 1;
+  }
 
-    canvas.rrect(ShapeDesc{.center       = region.center,
-                           .extent       = region.extent,
-                           .corner_radii = corner_radii,
-                           .stroke       = 0,
-                           .tint         = style.track_color});
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &) override
+  {
+    u8 const   main_axis          = (style.axis == Axis::X) ? 0 : 1;
+    u8 const   cross_axis         = (style.axis == Axis::X) ? 1 : 0;
+    Vec4 const thumb_corner_radii = style.thumb_corner_radii(region.extent.y);
+    Vec4 const track_corner_radii = style.track_corner_radii(region.extent.y);
 
     // calculate thumb main axis extent
-    f32 const scale =
-        style.frame_extent[main_axis] / style.content_extent[main_axis];
-    Vec2 thumb_extent        = {0, 0};
+    f32 const thumb_scale = region.extent[main_axis] / style.content_extent;
+    Vec2      thumb_extent;
     thumb_extent[cross_axis] = region.extent[cross_axis];
-    thumb_extent[main_axis]  = scale * region.extent[main_axis];
+    thumb_extent[main_axis]  = thumb_scale * region.extent[main_axis];
 
     // align thumb to remaining space based on size of visible region
     Vec2 const bar_offset  = region.begin();
     f32 const main_spacing = thumb_extent[main_axis] - region.extent[main_axis];
     Vec2      thumb_center;
     thumb_center[main_axis] = bar_offset[main_axis] + main_spacing * state.t +
-                              thumb_extent[main_axis] / 2;
+                              thumb_extent[main_axis] * 0.5F;
     thumb_center[cross_axis] = region.center[cross_axis];
 
-    canvas.rrect(ShapeDesc{.center       = region.center,
-                           .extent       = region.extent,
-                           .corner_radii = corner_radii,
-                           .stroke       = 1,
-                           .thickness    = 1,
-                           .tint         = style.track_color});
+    ColorGradient thumb_color;
+    if (state.drag.dragging)
+    {
+      thumb_color = style.thumb_dragging_color;
+    }
+    else if (state.drag.hovered)
+    {
+      thumb_color = style.thumb_hovered_color;
+    }
+    else
+    {
+      thumb_color = style.thumb_color;
+    }
 
-    canvas.rrect(ShapeDesc{.center       = thumb_center,
-                           .extent       = thumb_extent,
-                           .corner_radii = corner_radii,
-                           .stroke       = 0,
-                           .tint = state.dragging ? style.thumb_dragging_color :
-                                                    style.thumb_color});
+    canvas.rrect({.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = track_corner_radii,
+                  .stroke       = 0,
+                  .tint         = style.track_color});
+
+    canvas.rrect({.center       = thumb_center,
+                  .extent       = thumb_extent,
+                  .corner_radii = thumb_corner_radii,
+                  .stroke       = 0,
+                  .tint         = thumb_color});
+
+    if (state.drag.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
+    }
+  }
+};
+
+struct ScrollViewFrame : View
+{
+  struct State
+  {
+    Vec2 t              = {0, 0};
+    f32  zoom           = 1;
+    Vec2 content_extent = {};
+  } state;
+
+  Option<View *> child = None;
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
+                         ViewEvents events, Fn<void(View &)> build) override
+  {
+    if (child)
+    {
+      build(*child.value());
+    }
+
+    if (events.mouse_scroll)
+    {
+      state.t += (ctx.mouse.wheel_translation / region.extent);
+      state.t.x = clamp(state.t.x, 0.0F, 1.0F);
+      state.t.x = clamp(state.t.y, 0.0F, 1.0F);
+    }
+
+    return ViewState{.viewport = true};
+  }
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  {
+    if (!sizes.is_empty())
+    {
+      sizes[0] = {F32_MAX, F32_MAX};
+    }
+  }
+
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
+  {
+    Vec2 content_size;
+    if (!sizes.is_empty())
+    {
+      content_size = sizes[0];
+    }
+
+    return {.extent          = allocated,
+            .viewport_extent = state.content_extent,
+            .viewport_transform =
+                scroll_transform(content_size, allocated, state.t, state.zoom)};
   }
 };
 
@@ -1880,7 +1828,7 @@ struct ScrollView : View
 {
   struct State
   {
-    bool disabled : 1 = false;
+    bool disabled = false;
   } state;
 
   struct Style
@@ -1891,13 +1839,25 @@ struct ScrollView : View
     Size  y_bar_size = {.offset = 10};
   } style;
 
-  ScrollBar x_bar = ScrollBar{Axis::X};
-  ScrollBar y_bar = ScrollBar{Axis::Y};
+  ScrollViewFrame view_frame{};
+  ScrollBar       x_bar{};
+  ScrollBar       y_bar{};
 
-  virtual ViewState tick(ViewContext const &, CRect const &, ViewEvents,
+  ScrollView()
+  {
+    x_bar.style.axis = Axis::X;
+    y_bar.style.axis = Axis::Y;
+  }
+
+  virtual ViewState tick(ViewContext const &, CRect const &, f32, ViewEvents,
                          Fn<void(View &)> build) override
   {
-    x_bar.state.disabled = y_bar.state.disabled = state.disabled;
+    x_bar.state.disabled = state.disabled;
+    y_bar.state.disabled = state.disabled;
+    x_bar.state.hidden   = has_bits(style.axes, Axes::X);
+    y_bar.state.hidden   = has_bits(style.axes, Axes::Y);
+    view_frame.state.t   = {x_bar.state.t, y_bar.state.t};
+    build(view_frame);
     build(x_bar);
     build(y_bar);
     return ViewState{};
@@ -1905,65 +1865,394 @@ struct ScrollView : View
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
-    Vec2 const frame        = style.frame(allocated);
-    f32 const  x_bar_size_r = style.x_bar_size(allocated.x);
-    f32 const  y_bar_size_r = style.y_bar_size(allocated.y);
+    Vec2 const frame      = style.frame(allocated);
+    f32 const  x_bar_size = style.x_bar_size(allocated.x);
+    f32 const  y_bar_size = style.y_bar_size(allocated.y);
 
-    sizes[0] = {frame.x, x_bar_size_r};
+    sizes[0] = frame;
+    sizes[1] = {frame.x, x_bar_size};
 
-    if (has_bits(style.axes, Axes::Y))
+    if (has_bits(style.axes, Axes::X | Axes::Y))
     {
-      sizes[0].x -= y_bar_size_r;
+      sizes[1].x -= y_bar_size;
     }
 
-    sizes[1] = {y_bar_size_r, frame.y};
-
-    fill(sizes.slice(2), frame);
+    sizes[2] = {y_bar_size, frame.y};
   }
 
-  virtual Vec2 fit(Vec2 allocated, Span<Vec2 const> sizes,
-                   Span<Vec2> offsets) override
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
   {
     Vec2 const frame = style.frame(allocated);
-    offsets[0]       = space_align(frame, sizes[0], Vec2{1, 0});
-    offsets[1]       = space_align(frame, sizes[1], Vec2{-1, 1});
+    centers[0]       = {0, 0};
+    centers[1]       = space_align(frame, sizes[1], ALIGNMENT_BOTTOM_LEFT);
+    centers[2]       = space_align(frame, sizes[2], ALIGNMENT_TOP_RIGHT);
+    x_bar.style.content_extent = view_frame.state.content_extent.x;
+    y_bar.style.content_extent = view_frame.state.content_extent.y;
 
-    Vec2 content_size;
-    for (Vec2 const &sz : sizes.slice(2))
-    {
-      content_size.x = max(content_size.x, sz.x);
-      content_size.y = max(content_size.y, sz.y);
-    }
-
-    Vec2 const displacement =
-        -1 * (content_size - frame) * Vec2{x_bar.state.t, y_bar.state.t};
-
-    fill(offsets.slice(2), displacement);
-
-    x_bar.style.content_extent = y_bar.style.content_extent = content_size;
-    x_bar.style.frame_extent = y_bar.style.frame_extent = frame;
-
-    return frame;
-  }
-
-  virtual i32 z_index(i32 z_index, Span<i32> indices) override
-  {
-    static constexpr i32 ELEVATION = 128;
-    indices[0]                     = z_index + ELEVATION;
-    indices[1]                     = z_index + ELEVATION;
-    fill(indices.slice(2), z_index + 1);
-    return z_index;
-  }
-
-  virtual CRect clip(CRect const &region, CRect const &allocated) override
-  {
-    return intersect(region.offseted(), allocated.offseted()).centered();
+    return {.extent = frame};
   }
 };
 
-// [ ] implement
-struct ContextMenu : View
+struct ComboBoxItem : View
 {
+  struct State
+  {
+    bool                        disabled = false;
+    PressState                  press    = {};
+    Option<Option<u32> const *> selected = None;
+    u32                         index    = 0;
+  } state;
+
+  struct Style
+  {
+    ColorGradient hovered_text_color = ColorGradient::all(DEFAULT_THEME.active);
+    ColorGradient hovered_background_color =
+        ColorGradient::all(DEFAULT_THEME.surface_variant);
+    ColorGradient disabled_text_color =
+        ColorGradient::all(DEFAULT_THEME.inactive);
+    ColorGradient disabled_background_color =
+        ColorGradient::all(DEFAULT_THEME.inactive);
+    ColorGradient selected_background_color =
+        ColorGradient::all(DEFAULT_THEME.surface_variant);
+    ColorGradient selected_text_color =
+        ColorGradient::all(DEFAULT_THEME.surface_variant);
+    ColorGradient text_color = ColorGradient::all(DEFAULT_THEME.on_surface);
+    ColorGradient background_color = ColorGradient::all(DEFAULT_THEME.surface);
+    CornerRadii   corner_radii     = CornerRadii::all({.scale = 0.125F});
+    FocusStyle    focus            = {};
+    Frame         frame            = {};
+    f32           alignment        = 0;
+  };
+
+  Option<Style const *> style = None;
+
+  Fn<void(Option<u32>)> on_selected = fn([](Option<u32>) {});
+
+  Option<View *> child = None;
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
+                         ViewEvents events, Fn<void(View &)> build) override
+  {
+    state.press.tick(ctx, events);
+
+    if (state.press.down && !state.selected)
+    {
+      on_selected(Some{state.index});
+    }
+
+    if (child)
+    {
+      build(*child.value());
+    }
+
+    return ViewState{.pointable = !state.disabled,
+                     .clickable = !state.disabled,
+                     .focusable = !state.disabled};
+  }
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  {
+    fill(sizes, allocated);
+  }
+
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
+  {
+    for (u32 i = 0; i < centers.size32(); i++)
+    {
+      centers[i] =
+          space_align(allocated, sizes[i], Vec2{style.value()->alignment, 0});
+    }
+    return {.extent = allocated};
+  }
+
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &clip) override
+  {
+    canvas.rrect({.center = region.center,
+                  .extent = region.extent,
+                  .tint   = state.press.hovered ?
+                                style.value()->hovered_background_color :
+                                style.value()->background_color});
+
+    if (state.press.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.value()->focus.border_thickness,
+                   .tint      = style.value()->focus.border_color});
+    }
+  }
+};
+
+struct TextComboBoxItem : ComboBoxItem
+{
+  TextView text{};
+
+  TextComboBoxItem()
+  {
+    text.state.copyable = false;
+  }
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32 zoom,
+                         ViewEvents events, Fn<void(View &)> build) override
+  {
+    build(text);
+
+    return ComboBoxItem::tick(ctx, region, zoom, events, build);
+  }
+};
+
+struct ComboBoxScrollView : View
+{
+  struct State
+  {
+    bool disabled = false;
+    bool opened   = false;
+    f32  t        = 0;
+  } state;
+
+  struct Style
+  {
+    Frame         frame        = {.width = {150}, .height = {450}};
+    Size          item_height  = {25};
+    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
+    f32           alignment    = 0;
+    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
+    f32           scroll_delta = 0;
+  } style;
+
+  Vec<ComboBoxItem *> items = {};
+
+  virtual ~ComboBoxScrollView() override
+  {
+    items.uninit();
+  }
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
+                         ViewEvents events, Fn<void(View &)> build) override
+  {
+    for (ComboBoxItem *item : items)
+    {
+      build(*item);
+    }
+
+    if (events.mouse_scroll)
+    {
+      state.t += (ctx.mouse.wheel_translation.y / region.extent.y);
+      state.t = clamp(state.t, 0.0F, 1.0F);
+    }
+
+    return ViewState{.hidden = !state.opened, .scrollable = !state.disabled};
+  }
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  {
+    fill(sizes,
+         Vec2{style.frame.width(allocated.x), style.item_height(allocated.y)});
+  }
+
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override
+  {
+    Vec2 size = style.frame(allocated);
+
+    f32 items_height = 0;
+    for (Vec2 const &s : sizes)
+    {
+      items_height += s.y;
+    }
+
+    size.y = min(size.y, items_height);
+
+    Vec2 viewport_extent{size.x, items_height};
+
+    return ViewLayout{.extent             = size,
+                      .viewport_extent    = viewport_extent,
+                      .viewport_transform = scroll_transform(
+                          viewport_extent, size, Vec2{state.t, 0.5F}, 1),
+                      .fixed_position = Some{Vec2{0, 0}}};
+  }
+
+  virtual i32 stack(i32 allocated)
+  {
+    return allocated + 25;
+  }
+
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &clip) override
+  {
+    canvas.rrect({.center       = region.center,
+                  .extent       = region.extent,
+                  .corner_radii = style.corner_radii(region.extent.y),
+                  .tint         = style.color});
+  }
+};
+
+struct ComboBox : View
+{
+  struct State
+  {
+    bool        disabled = false;
+    PressState  press    = {};
+    Option<u32> selected = None;
+  } state;
+
+  ComboBoxScrollView     scroll_view{};
+  Fn<void(Option<u32>)>  on_selected = fn([](Option<u32>) {});
+  Option<ComboBoxItem *> header      = None;
+
+  struct Style
+  {
+    CornerRadii   corner_radii = CornerRadii::all({.scale = 0.125F});
+    ColorGradient color        = ColorGradient::all(DEFAULT_THEME.surface);
+    ColorGradient hovered_color =
+        ColorGradient::all(DEFAULT_THEME.surface_variant);
+    f32   alignment = 0;
+    Frame frame =
+        Frame{.width = {.scale = 1, .max = 200}, .height = {.offset = 25}};
+    FocusStyle          focus = {};
+    ComboBoxItem::Style item  = {};
+  } style;
+
+  u32 add_item(ComboBoxItem &item)
+  {
+    u32 const index = scroll_view.items.size32();
+    scroll_view.items.push(&item).unwrap();
+    item.state.index = index;
+    item.style       = Some<ComboBoxItem::Style const *>{&style.item};
+    item.on_selected =
+        fn(this, [](ComboBox *b, Option<u32> item) { b->set_selected(item); });
+    item.state.selected = Some<Option<u32> const *>{&state.selected};
+    return index;
+  }
+
+  void set_header(ComboBoxItem &item)
+  {
+    header              = Some<ComboBoxItem *>{&item};
+    item.state.index    = 0;
+    item.on_selected    = fn(this, [](ComboBox *b, Option<u32>) { b->open(); });
+    item.style          = Some<ComboBoxItem::Style const *>{&style.item};
+    item.state.selected = None;
+  }
+
+  u32 num_items() const
+  {
+    scroll_view.items.size32();
+  }
+
+  void set_selected(Option<u32> item)
+  {
+    CHECK(!(item.is_some() && item.value_ > scroll_view.items.size32()));
+    state.selected = item;
+    on_selected(item);
+  }
+
+  Option<u32> get_selected()
+  {
+    return state.selected;
+  }
+
+  bool is_opened() const
+  {
+    return scroll_view.state.opened;
+  }
+
+  void close()
+  {
+    scroll_view.state.opened = false;
+  }
+
+  void open()
+  {
+    scroll_view.state.opened = true;
+  }
+
+  void toggle()
+  {
+    if (scroll_view.state.opened)
+    {
+      open();
+    }
+    else
+    {
+      close();
+    }
+  }
+
+  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
+                         ViewEvents events, Fn<void(View &)> build) override
+  {
+    state.press.tick(ctx, events);
+
+    if (state.press.down)
+    {
+      toggle();
+    }
+
+    if (is_opened() && ctx.mouse_down(MouseButtons::All) &&
+        !contains(scroll_view.inner.region, ctx.mouse.position))
+    {
+      close();
+    }
+
+    build(scroll_view);
+
+    if (header)
+    {
+      build(*header.value());
+    }
+
+    return ViewState{.clickable = !state.disabled,
+                     .focusable = !state.disabled};
+  }
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  {
+    fill(sizes, style.frame(allocated));
+  }
+
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> extents,
+                         Span<Vec2> centers) override
+  {
+    Vec2 const frame = style.frame(allocated);
+    for (u32 i = 0; i < extents.size32(); i++)
+    {
+      centers[i] = space_align(frame, extents[i], Vec2{style.alignment, 0});
+    }
+    return {.extent = frame};
+  }
+
+  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+                      CRect const &clip) override
+  {
+    canvas.rrect(
+        {.center       = region.center,
+         .extent       = region.extent,
+         .corner_radii = style.corner_radii(region.extent.y),
+         .tint = state.press.hovered ? style.hovered_color : style.color});
+
+    if (state.press.focus.focused)
+    {
+      canvas.rect({.center    = region.center,
+                   .extent    = region.extent,
+                   .stroke    = 1,
+                   .thickness = style.focus.border_thickness,
+                   .tint      = style.focus.border_color});
+    }
+  }
+};
+
+struct TextComboBox : ComboBox
+{
+  TextComboBoxItem header_item;
+
+  TextComboBox()
+  {
+    set_header(header_item);
+  }
 };
 
 // [ ] implement
@@ -1972,12 +2261,13 @@ struct ContextMenu : View
 /// - Rectangular Box with visualizations
 /// - Text-based manual input
 /// - RGB, SRGB, HSV, HEX, Linear, Hue, YUV
-// - [ ] color space, pixel info for color pickers
+/// - color space, pixel info for color pickers
 struct ColorPicker : View
 {
 };
 
-/// [ ] REQUIREMENTS:
+/// [ ] implement
+/// REQUIREMENTS:
 /// - plot modes: histogram, lines, scale, log
 /// - plot from user buffer: can be at specific index and will plot rest from
 /// head.
@@ -1987,12 +2277,6 @@ struct Plot : View
 
 // [ ] implement
 struct ProgressBar : View
-{
-};
-
-// [ ] header selectors.
-// [ ] navigation model, with keyboard and gamepad
-struct Tab : View
 {
 };
 

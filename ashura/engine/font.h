@@ -103,7 +103,7 @@ struct FontInfo
 
 Result<Font, FontDecodeError>
     decode_font(Span<u8 const> encoded, u32 face = 0,
-                AllocatorImpl const &allocator = default_allocator);
+                AllocatorImpl allocator = default_allocator);
 
 FontInfo get_font_info(Font font);
 
@@ -115,10 +115,10 @@ void uninit_font(Font font);
 /// @param font_height the font height at which the texture should be rasterized
 /// at (px)
 bool rasterize_font(Font font, u32 font_height,
-                    AllocatorImpl const &allocator = default_allocator);
+                    AllocatorImpl allocator = default_allocator);
 
 void upload_font_to_device(Font font, RenderContext &c,
-                           AllocatorImpl const &allocator = default_allocator);
+                           AllocatorImpl allocator = default_allocator);
 
 void unload_font_from_device(Font font, RenderContext &c);
 
