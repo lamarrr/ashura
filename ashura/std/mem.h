@@ -189,7 +189,7 @@ template <typename T>
 ASH_FORCE_INLINE void nontemporal_store(T &dst, T data)
 {
 #if ASH_HAS_BUILTIN(nontemporal_store)
-  __builtin_nontemporal_store(data, &dst)
+  __builtin_nontemporal_store(data, &dst);
 #else
   dst = data;
 #endif
@@ -199,7 +199,7 @@ template <typename T>
 ASH_FORCE_INLINE void prefetch(T const *src, int rw, int locality)
 {
 #if ASH_HAS_BUILTIN(prefetch)
-  __builtin_prefetch(src, rw, locality)
+  __builtin_prefetch(src, rw, locality);
 #endif
 }
 
