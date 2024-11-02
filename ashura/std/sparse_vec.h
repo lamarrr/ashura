@@ -65,6 +65,13 @@ struct SparseVec
     free_id_head = STUB;
   }
 
+  constexpr void uninit()
+  {
+    for_each([](auto &d) { d.uninit(); }, dense);
+    id_to_index.uninit();
+    index_to_id.uninit();
+  }
+
   constexpr bool is_valid_id(u64 id) const
   {
     return id < id_to_index.size() && !(id_to_index[id] & RELEASE_MASK);
