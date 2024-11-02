@@ -1634,11 +1634,9 @@ void uninit_descriptor_heap(Device *self, DescriptorHeap *heap)
 
 Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
     gpu::Instance self_, AllocatorImpl allocator,
-    Span<gpu::DeviceType const> preferred_types,
-    Span<gpu::Surface const> compatible_surfaces, u32 buffering)
+    Span<gpu::DeviceType const> preferred_types, u32 buffering)
 {
   Instance *const self               = (Instance *) self_;
-  u32 const       num_surfaces       = compatible_surfaces.size32();
   constexpr u32   MAX_QUEUE_FAMILIES = 16;
 
   CHECK(buffering > 0);
@@ -1779,25 +1777,9 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
                                        VK_QUEUE_GRAPHICS_BIT |
                                        VK_QUEUE_TRANSFER_BIT)))
           {
-            u32 num_supported_surfaces = 0;
-            for (u32 isurface = 0; isurface < num_surfaces; isurface++)
-            {
-              VkBool32 supported;
-              self->vk_table.GetPhysicalDeviceSurfaceSupportKHR(
-                  dev.vk_phy_dev, iqueue_family,
-                  (Surface) compatible_surfaces[isurface], &supported);
-              if (supported == VK_TRUE)
-              {
-                num_supported_surfaces++;
-              }
-            }
-
-            if (num_supported_surfaces == num_surfaces)
-            {
-              selected_dev_idx      = idev;
-              selected_queue_family = iqueue_family;
-              break;
-            }
+            selected_dev_idx      = idev;
+            selected_queue_family = iqueue_family;
+            break;
           }
         }
       }

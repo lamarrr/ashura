@@ -1404,11 +1404,10 @@ struct InstanceInterface
   void (*uninit)(Instance self) = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance self, AllocatorImpl allocator,
-      Span<DeviceType const> preferred_types,
-      Span<Surface const> compatible_surfaces, u32 buffering) = nullptr;
-  Backend (*get_backend)(Instance self)                       = nullptr;
-  void (*uninit_device)(Instance self, Device device)         = nullptr;
-  void (*uninit_surface)(Instance self, Surface surface)      = nullptr;
+      Span<DeviceType const> preferred_types, u32 buffering) = nullptr;
+  Backend (*get_backend)(Instance self)                      = nullptr;
+  void (*uninit_device)(Instance self, Device device)        = nullptr;
+  void (*uninit_surface)(Instance self, Surface surface)     = nullptr;
 };
 
 struct InstanceImpl
