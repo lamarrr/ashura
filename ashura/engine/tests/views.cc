@@ -22,8 +22,8 @@ struct SwitchStack : StackView
     switches[1].style.frame = Frame{.width = {20}, .height = {20}};
   }
 
-  virtual ViewState tick(ViewContext const &, CRect const &, f32,
-                         ViewEvents events, Fn<void(View &)> build) override
+  virtual ViewState tick(ViewContext const &, CRect const &, f32, ViewEvents,
+                         Fn<void(View &)> build) override
   {
     build(switches[0]);
     build(switches[1]);
@@ -39,8 +39,8 @@ struct BasicViewport : View
   {
   }
 
-  virtual ViewState tick(ViewContext const &, CRect const &, f32,
-                         ViewEvents events, Fn<void(View &)> build) override
+  virtual ViewState tick(ViewContext const &, CRect const &, f32, ViewEvents,
+                         Fn<void(View &)> build) override
   {
     build(stack);
     return {.viewport = true};
@@ -51,7 +51,7 @@ struct BasicViewport : View
     fill(sizes, allocated);
   }
 
-  constexpr virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+  constexpr virtual ViewLayout fit(Vec2, Span<Vec2 const> sizes,
                                    Span<Vec2> centers) override
   {
     fill(centers, Vec2{0, 0});
@@ -72,5 +72,5 @@ TEST(ViewSystem, Basic)
   ctx.viewport_extent = {200, 200};
   Canvas canvas;
   defer  canvas_{[&] { canvas.uninit(); }};
-  view_sys.tick(ctx, &root, canvas);
+  view_sys.tick(ctx, root, canvas);
 }

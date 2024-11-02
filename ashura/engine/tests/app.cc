@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "SDL3/SDL.h"
-#include "ashura/engine/color.h"
-#include "ashura/engine/render_context.h"
+#include "ashura/engine/canvas.h"
+#include "ashura/engine/gpu_context.h"
 #include "ashura/engine/renderer.h"
 #include "ashura/engine/shader.h"
 #include "ashura/engine/window.h"
@@ -68,7 +68,7 @@ int main(int, char **)
                               gpu::DeviceType::Cpu,
                               gpu::DeviceType::Other,
                           }),
-                          span({surface}), 2)
+                          2)
           .unwrap();
   defer device_{[&] { instance->uninit_device(instance.self, device.self); }};
 
@@ -120,7 +120,6 @@ int main(int, char **)
 
   logger->info("Finished Shader Compilation");
 
-  gpu::ColorSpace  color_space_spec  = gpu::ColorSpace::DCI_P3_NONLINEAR;
   gpu::PresentMode present_mode_spec = gpu::PresentMode::Immediate;
 
   gpu::Swapchain swapchain            = nullptr;
@@ -156,7 +155,6 @@ int main(int, char **)
     surface_extent.y     = max(surface_extent.y, 1U);
 
     gpu::ColorSpace preferred_color_spaces[] = {
-        color_space_spec,
         gpu::ColorSpace::DCI_P3_NONLINEAR,
         gpu::ColorSpace::DISPLAY_P3_NONLINEAR,
         gpu::ColorSpace::DISPLAY_P3_LINEAR,
@@ -253,7 +251,7 @@ int main(int, char **)
   defer swapchain_{[&] { device->uninit_swapchain(device.self, swapchain); }};
 
   // job submission to render context to prepare resources ahead of frame.
-  RenderContext ctx;
+  GpuContext ctx;
   ctx.init(device, true, 2, {1920, 1080}, shaders);
   shaders = {};
   defer ctx_{[&] { ctx.uninit(); }};
@@ -383,24 +381,24 @@ int main(int, char **)
                                 colors::WHITE.norm(), colors::WHITE.norm()}}});
     // canvas.blur(CRect{{1920 / 2, 1080 / 2}, {1920 / 1.25, 1080 / 1.25}}, 4);
 
-    renderer.begin(
-        ctx, pctx, canvas,
-        gpu::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
-                           .num_layers        = 1,
-                           .color_attachments = span({gpu::RenderingAttachment{
-                               .view = ctx.screen_fb.color.view}})},
-        ctx.screen_fb.color_texture);
-    renderer.render(
-        ctx, pctx,
-        gpu::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
-                           .num_layers        = 1,
-                           .color_attachments = span({gpu::RenderingAttachment{
-                               .view = ctx.screen_fb.color.view}})},
-        gpu::Viewport{.offset    = {0, 0},
-                      .extent    = {1920, 1080},
-                      .min_depth = 0,
-                      .max_depth = 1},
-        {1920, 1080}, ctx.screen_fb.color_texture, canvas);
+    // renderer.begin(
+    //     ctx, pctx, canvas,
+    //     gpu::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
+    //                        .num_layers        = 1,
+    //                        .color_attachments = span({gpu::RenderingAttachment{
+    //                            .view = ctx.screen_fb.color.view}})},
+    //     ctx.screen_fb.color_texture);
+    // renderer.render(
+    //     ctx, pctx,
+    //     gpu::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
+    //                        .num_layers        = 1,
+    //                        .color_attachments = span({gpu::RenderingAttachment{
+    //                            .view = ctx.screen_fb.color.view}})},
+    //     gpu::Viewport{.offset    = {0, 0},
+    //                   .extent    = {1920, 1080},
+    //                   .min_depth = 0,
+    //                   .max_depth = 1},
+    //     {1920, 1080}, ctx.screen_fb.color_texture, canvas);
     ctx.end_frame(swapchain);
     canvas.clear();
   }

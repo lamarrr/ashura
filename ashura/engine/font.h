@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/render_context.h"
+#include "ashura/engine/gpu_context.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/image.h"
 #include "ashura/std/types.h"
@@ -117,9 +117,9 @@ void uninit_font(Font font);
 bool rasterize_font(Font font, u32 font_height,
                     AllocatorImpl allocator = default_allocator);
 
-void upload_font_to_device(Font font, RenderContext &c,
+void upload_font_to_device(Font font, GpuContext &c,
                            AllocatorImpl allocator = default_allocator);
 
-void unload_font_from_device(Font font, RenderContext &c);
+void unload_font_from_device(Font font, GpuContext &c);
 
 }        // namespace ash

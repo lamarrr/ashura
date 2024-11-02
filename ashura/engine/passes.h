@@ -1,12 +1,24 @@
 
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/engine/render_context.h"
+#include "ashura/engine/gpu_context.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
+
+/// @brief Passes are re-usable and stateless compute and graphics pipeline
+/// components. They set up static resources: pipelines, shaders, and render
+/// data needed for executing rendering operations. Passes dispatch
+/// compute/graphics shaders using their specified arguments. They are mostly
+/// used by renderers.
+struct Pass
+{
+  virtual Span<char const> id()                 = 0;
+  virtual void             init(GpuContext &)   = 0;
+  virtual void             uninit(GpuContext &) = 0;
+};
 
 struct BloomPassParams
 {
@@ -16,11 +28,19 @@ struct BloomPassParams
   gpu::ImageView view   = nullptr;
 };
 
-struct BloomPass
+struct BloomPass : Pass
 {
-  void init(RenderContext &ctx);
-  void uninit(RenderContext &ctx);
-  void add_pass(RenderContext &ctx, BloomPassParams const &params);
+  virtual Span<char const> id() override
+  {
+    return "Bloom"_span;
+  }
+
+  virtual void init(GpuContext &ctx) override;
+
+  virtual void uninit(GpuContext &ctx) override;
+
+  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+              BloomPassParams const &params);
 };
 
 struct BlurParam
@@ -41,14 +61,22 @@ struct BlurPassParams
   gpu::Rect          area         = {};
 };
 
-struct BlurPass
+struct BlurPass : Pass
 {
   gpu::GraphicsPipeline downsample_pipeline = nullptr;
   gpu::GraphicsPipeline upsample_pipeline   = nullptr;
 
-  void init(RenderContext &ctx);
-  void uninit(RenderContext &ctx);
-  void add_pass(RenderContext &ctx, BlurPassParams const &params);
+  virtual Span<char const> id() override
+  {
+    return "Blur"_span;
+  }
+
+  virtual void init(GpuContext &ctx);
+
+  virtual void uninit(GpuContext &ctx);
+
+  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+              BlurPassParams const &params);
 };
 
 /// @param transform needs to transform from [-1, +1] to clip space
@@ -69,6 +97,7 @@ struct NgonPassParams
   gpu::RenderingInfo rendering_info = {};
   gpu::Rect          scissor        = {};
   gpu::Viewport      viewport       = {};
+  Mat4               world_to_view  = {};
   gpu::DescriptorSet vertices_ssbo  = nullptr;
   gpu::DescriptorSet indices_ssbo   = nullptr;
   gpu::DescriptorSet params_ssbo    = nullptr;
@@ -76,13 +105,21 @@ struct NgonPassParams
   Span<u32 const>    index_counts   = {};
 };
 
-struct NgonPass
+struct NgonPass : Pass
 {
   gpu::GraphicsPipeline pipeline = nullptr;
 
-  void init(RenderContext &ctx);
-  void uninit(RenderContext &ctx);
-  void add_pass(RenderContext &ctx, NgonPassParams const &params);
+  virtual Span<char const> id() override
+  {
+    return "Ngon"_span;
+  }
+
+  virtual void init(GpuContext &ctx) override;
+
+  virtual void uninit(GpuContext &ctx) override;
+
+  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+              NgonPassParams const &params);
 };
 
 /// @see https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
@@ -90,9 +127,7 @@ struct NgonPass
 /// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
 struct PBRParam
 {
-  Mat4 model                   = {};
-  Mat4 view                    = {};
-  Mat4 projection              = {};
+  Mat4 transform               = {};
   Vec4 eye_position            = {0, 0, 0, 0};
   Vec4 albedo                  = {1, 1, 1, 1};
   f32  metallic                = 0;
@@ -129,6 +164,7 @@ struct PBRPassParams
   gpu::RenderingInfo rendering_info = {};
   gpu::Rect          scissor        = {};
   gpu::Viewport      viewport       = {};
+  Mat4               world_to_view  = {};
   bool               wireframe      = false;
   gpu::DescriptorSet vertices_ssbo  = nullptr;
   gpu::DescriptorSet indices_ssbo   = nullptr;
@@ -139,55 +175,22 @@ struct PBRPassParams
   u32                num_indices    = 0;
 };
 
-struct PBRPass
+struct PBRPass : Pass
 {
   gpu::GraphicsPipeline pipeline           = nullptr;
   gpu::GraphicsPipeline wireframe_pipeline = nullptr;
 
-  void init(RenderContext &ctx);
-  void uninit(RenderContext &ctx);
-  void add_pass(RenderContext &ctx, PBRPassParams const &params);
-};
+  virtual Span<char const> id() override
+  {
+    return "PBR"_span;
+  }
 
-enum class FillRule : u8
-{
-  EvenOdd = 0,
-  NonZero = 1
-};
+  virtual void init(GpuContext &ctx) override;
 
-/// @param transform needs to transform from [-1, +1] to clip space
-struct PolyParam
-{
-  Mat4 transform    = {};
-  Vec4 tint[4]      = {};
-  Vec2 uv[2]        = {};
-  f32  tiling       = 1;
-  u32  sampler      = 0;
-  u32  albedo       = 0;
-  u32  first_index  = 0;
-  u32  first_vertex = 0;
-};
+  virtual void uninit(GpuContext &ctx) override;
 
-struct PolyPassParams
-{
-  gpu::RenderingInfo   rendering_info = {};
-  gpu::Rect            scissor        = {};
-  gpu::Viewport        viewport       = {};
-  gpu::DescriptorSet   vertices_ssbo  = nullptr;
-  gpu::DescriptorSet   indices_ssbo   = nullptr;
-  gpu::DescriptorSet   params_ssbo    = nullptr;
-  gpu::DescriptorSet   textures       = nullptr;
-  Span<u32 const>      index_counts   = {};
-  Span<FillRule const> fill_rules     = {};
-};
-
-struct PolyPass
-{
-  gpu::GraphicsPipeline pipeline = nullptr;
-
-  void init(RenderContext &ctx);
-  void uninit(RenderContext &ctx);
-  void add_pass(RenderContext &ctx, PolyPassParams const &params);
+  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+              PBRPassParams const &params);
 };
 
 /// @param transform needs to transform from [-1, +1] to clip space
@@ -211,19 +214,28 @@ struct RRectPassParams
   gpu::RenderingInfo rendering_info = {};
   gpu::Rect          scissor        = {};
   gpu::Viewport      viewport       = {};
+  Mat4               world_to_view  = {};
   gpu::DescriptorSet params_ssbo    = nullptr;
   gpu::DescriptorSet textures       = nullptr;
   u32                first_instance = 0;
   u32                num_instances  = 0;
 };
 
-struct RRectPass
+struct RRectPass : Pass
 {
   gpu::GraphicsPipeline pipeline = nullptr;
 
-  void init(RenderContext &ctx);
-  void uninit(RenderContext &ctx);
-  void add_pass(RenderContext &ctx, RRectPassParams const &params);
+  virtual Span<char const> id() override
+  {
+    return "RRect"_span;
+  }
+
+  virtual void init(GpuContext &ctx) override;
+
+  virtual void uninit(GpuContext &ctx) override;
+
+  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+              RRectPassParams const &params);
 };
 
 }        // namespace ash
