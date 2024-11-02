@@ -89,7 +89,7 @@ typedef HashMap<gpu::SamplerDesc, CachedSampler, SamplerHasher, SamplerEq, u32>
 ///
 /// scratch images resized when swapchain extents changes
 ///
-struct RenderContext
+struct GpuContext
 {
   static constexpr gpu::FormatFeatures COLOR_FEATURES =
       gpu::FormatFeatures::ColorAttachment |
@@ -118,26 +118,45 @@ struct RenderContext
   static constexpr u16 NUM_SAMPLER_SLOTS        = 64;
   static constexpr u16 NUM_SCRATCH_FRAMEBUFFERS = 2;
 
-  Bits<u64, NUM_TEXTURE_SLOTS> texture_slots        = {};
-  Bits<u64, NUM_SAMPLER_SLOTS> sampler_slots        = {};
-  gpu::DeviceImpl              device               = {};
-  gpu::PipelineCache           pipeline_cache       = nullptr;
-  u32                          buffering            = 0;
-  StrHashMap<gpu::Shader>      shader_map           = {};
-  gpu::Format                  color_format         = gpu::Format::Undefined;
-  gpu::Format                  depth_stencil_format = gpu::Format::Undefined;
-  gpu::DescriptorSetLayout     ubo_layout           = nullptr;
-  gpu::DescriptorSetLayout     ssbo_layout          = nullptr;
-  gpu::DescriptorSetLayout     textures_layout      = nullptr;
-  gpu::DescriptorSetLayout     samplers_layout      = nullptr;
-  gpu::DescriptorSet           texture_views        = nullptr;
-  gpu::DescriptorSet           samplers             = nullptr;
-  Vec<gpu::Object>             released_objects[gpu::MAX_FRAME_BUFFERING] = {};
-  SamplerCache                 sampler_cache                              = {};
-  Framebuffer                  screen_fb                                  = {};
-  Framebuffer                  scratch_fbs[NUM_SCRATCH_FRAMEBUFFERS]      = {};
-  gpu::Image                   default_image = nullptr;
-  gpu::ImageView               default_image_views[NUM_DEFAULT_TEXTURES] = {};
+  Bits<u64, NUM_TEXTURE_SLOTS> texture_slots = {};
+
+  Bits<u64, NUM_SAMPLER_SLOTS> sampler_slots = {};
+
+  gpu::DeviceImpl device = {};
+
+  gpu::PipelineCache pipeline_cache = nullptr;
+
+  u32 buffering = 0;
+
+  StrHashMap<gpu::Shader> shader_map = {};
+
+  gpu::Format color_format = gpu::Format::Undefined;
+
+  gpu::Format depth_stencil_format = gpu::Format::Undefined;
+
+  gpu::DescriptorSetLayout ubo_layout = nullptr;
+
+  gpu::DescriptorSetLayout ssbo_layout = nullptr;
+
+  gpu::DescriptorSetLayout textures_layout = nullptr;
+
+  gpu::DescriptorSetLayout samplers_layout = nullptr;
+
+  gpu::DescriptorSet texture_views = nullptr;
+
+  gpu::DescriptorSet samplers = nullptr;
+
+  InplaceVec<Vec<gpu::Object>, gpu::MAX_FRAME_BUFFERING> released_objects = {};
+
+  SamplerCache sampler_cache = {};
+
+  Framebuffer screen_fb = {};
+
+  Framebuffer scratch_fbs[NUM_SCRATCH_FRAMEBUFFERS] = {};
+
+  gpu::Image default_image = nullptr;
+
+  gpu::ImageView default_image_views[NUM_DEFAULT_TEXTURES] = {};
 
   void init(gpu::DeviceImpl device, bool use_hdr, u32 buffering,
             gpu::Extent initial_extent, StrHashMap<gpu::Shader> shader_map);
@@ -181,6 +200,28 @@ struct RenderContext
 
   void begin_frame(gpu::Swapchain swapchain);
   void end_frame(gpu::Swapchain swapchain);
+};
+
+struct SSBO
+{
+  gpu::Buffer        buffer     = nullptr;
+  u64                size       = 0;
+  gpu::DescriptorSet descriptor = nullptr;
+  Span<char const>   label      = "SSBO"_span;
+
+  void uninit(GpuContext &ctx);
+
+  void reserve(GpuContext &ctx, u64 size);
+
+  void copy(GpuContext &ctx, Span<u8 const> src);
+
+  void *map(GpuContext &ctx);
+
+  void unmap(GpuContext &ctx);
+
+  void flush(GpuContext &ctx);
+
+  void release(GpuContext &ctx);
 };
 
 }        // namespace ash
