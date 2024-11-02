@@ -1,9 +1,10 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/mime.h"
 #include "ashura/std/math.h"
+#include "ashura/std/result.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 
 namespace ash
 {
@@ -572,14 +573,14 @@ struct KeyEvent
 
 struct MouseMotionEvent
 {
-  u64  mouse_id    = U64_MAX;
+  u64  id          = U64_MAX;
   Vec2 position    = {};
   Vec2 translation = {};
 };
 
 struct MouseClickEvent
 {
-  u64          mouse_id = U64_MAX;
+  u64          id       = U64_MAX;
   Vec2         position = {};
   u32          clicks   = 0;
   MouseButtons button   = MouseButtons::None;
@@ -588,7 +589,7 @@ struct MouseClickEvent
 
 struct MouseWheelEvent
 {
-  u64  mouse_id    = U64_MAX;
+  u64  id          = U64_MAX;
   Vec2 position    = {};
   Vec2 translation = {};
 };
@@ -634,6 +635,31 @@ struct WindowEvent
     char             none_ = 0;
   };
   WindowEventTypes type = WindowEventTypes::None;
+};
+
+enum class SystemEventTypes : u32
+{
+  None                     = 0x0000,
+  ThemeChanged             = 0x0001,
+  KeymapChanged            = 0x0002,
+  AudioDeviceAdded         = 0x0004,
+  AudioDeviceRemoved       = 0x0008,
+  AudioDeviceFormatChanged = 0x0010,
+  DisplayReoriented        = 0x0020,
+  DisplayAdded             = 0x0040,
+  DisplayRemoved           = 0x0080,
+  DisplayMoved             = 0x0100,
+  CameraAdded              = 0x0200,
+  CameraRemoved            = 0x0400,
+  CameraApproved           = 0x0800,
+  CameraDenied             = 0x1000
+};
+
+ASH_DEFINE_ENUM_BIT_OPS(SystemEventTypes)
+
+struct SystemEvent
+{
+  SystemEventTypes type = SystemEventTypes::None;
 };
 
 /// @param Normal region is normal and has no special properties
@@ -709,29 +735,70 @@ enum class Cursor
   WestResize  = 20
 };
 
-// [ ] implement for SDL
+/// @brief default charset is ASCII
+constexpr char const MIME_TEXT_PLAIN[]    = "text/plain";
+constexpr char const MIME_TEXT_UTF8[]     = "text/plain;charset=UTF-8";
+constexpr char const MIME_TEXT_CSS[]      = "text/css";
+constexpr char const MIME_TEXT_CSV[]      = "text/csv";
+constexpr char const MIME_TEXT_HTML[]     = "text/html";
+constexpr char const MIME_TEXT_JS[]       = "text/javascript";
+constexpr char const MIME_TEXT_MARKDOWN[] = "text/markdown";
+
+constexpr char const MIME_IMAGE_AVIF[] = "image/avif";
+constexpr char const MIME_IMAGE_BMP[]  = "image/bmp";
+constexpr char const MIME_IMAGE_HEIF[] = "image/heif";
+constexpr char const MIME_IMAGE_JPEG[] = "image/jpeg";
+constexpr char const MIME_IMAGE_PNG[]  = "image/png";
+constexpr char const MIME_IMAGE_SVG[]  = "image/svg+xml";
+constexpr char const MIME_IMAGE_WEBP[] = "image/webp";
+
+constexpr char const MIME_VIDEO_AV1[]      = "video/AV1";
+constexpr char const MIME_VIDEO_H264[]     = "video/H264";
+constexpr char const MIME_VIDEO_H265[]     = "video/H265";
+constexpr char const MIME_VIDEO_H266[]     = "video/H266";
+constexpr char const MIME_VIDEO_MATROSKA[] = "video/matroska";
+constexpr char const MIME_VIDEO_MP4[]      = "video/mp4";
+constexpr char const MIME_VIDEO_RAW[]      = "video/raw";
+constexpr char const MIME_VIDEO_VP8[]      = "video/VP8";
+constexpr char const MIME_VIDEO_VP9[]      = "video/VP9";
+
+constexpr char const MIME_MODEL_GLTF_BINARY[] = "model/gltf+binary";
+constexpr char const MIME_MODEL_GLTF_JSON[]   = "model/gltf+json";
+constexpr char const MIME_MODEL_MESH[]        = "model/mesh";
+constexpr char const MIME_MODEL_MTL[]         = "model/mtl";
+constexpr char const MIME_MODEL_OBJ[]         = "model/obj";
+constexpr char const MIME_MODEL_STL[]         = "model/stl";
+
+constexpr char const MIME_FONT_OTF[]   = "font/otf";
+constexpr char const MIME_FONT_SFNT[]  = "font/sfnt";
+constexpr char const MIME_FONT_TTF[]   = "font/ttf";
+constexpr char const MIME_FONT_WOFF[]  = "font/woff";
+constexpr char const MIME_FONT_WOFF2[] = "font/woff2";
+
 struct ClipBoard
 {
-  constexpr virtual Span<u8 const> get(Span<char const> mime)
+  virtual Result<Void, Void> get(Span<char const> mime, Vec<u8> &out)
   {
     (void) mime;
-    return {};
+    (void) out;
+    return Err{};
   }
 
-  constexpr virtual void set(Span<char const> mime, Span<u8 const> data)
+  virtual Result<Void, Void> set(Span<char const> mime, Span<u8 const> data)
   {
     (void) mime;
     (void) data;
+    return Err{};
   }
 
-  constexpr Span<u8 const> get_text()
+  Result<Void, Void> get_text(Vec<u8> &out)
   {
-    return get(span(MIME_TEXT_UTF8));
+    return get(span(MIME_TEXT_UTF8), out);
   }
 
-  constexpr void set_text(Span<u8 const> text)
+  Result<Void, Void> set_text(Span<u8 const> text)
   {
-    set(span(MIME_TEXT_UTF8), text);
+    return set(span(MIME_TEXT_UTF8), text);
   }
 };
 

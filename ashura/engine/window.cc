@@ -31,8 +31,85 @@ struct WindowImpl
       fn([](Vec2U) { return WindowRegion::Normal; });
 };
 
+struct SystemEventListener
+{
+  Fn<void(SystemEvent const &)> callback = fn([](SystemEvent const &) {});
+  SystemEventTypes              types    = SystemEventTypes::None;
+};
+
+struct ClipBoardImpl : ClipBoard
+{
+  virtual Result<Void, Void> get(Span<char const> mime, Vec<u8> &out) override
+  {
+    char mime_c_str[256];
+    CHECK(mem::to_c_str(mime, span(mime_c_str)));
+    usize mime_data_len;
+    void *data = SDL_GetClipboardData(mime_c_str, &mime_data_len);
+    if (data == nullptr)
+    {
+      return Err{};
+    }
+    defer data_{[&] { SDL_free(data); }};
+
+    out.extend_copy(Span<u8 const>{(u8 *) data, mime_data_len}).unwrap();
+    return Ok{};
+  }
+
+  virtual Result<Void, Void> set(Span<char const> mime,
+                                 Span<u8 const>   data) override
+  {
+    if (data.is_empty() || mime.is_empty())
+    {
+      if (SDL_ClearClipboardData())
+      {
+        return Ok{};
+      }
+      return Err{};
+    }
+
+    char mime_c_str[256];
+    CHECK(mem::to_c_str(mime, span(mime_c_str)));
+
+    char const *mime_types[] = {mime_c_str};
+
+    Vec<u8> *data_ctx;
+    CHECK(default_allocator.nalloc(1, data_ctx));
+    new (data_ctx) Vec<u8>{};
+
+    data_ctx->extend_copy(data).unwrap();
+
+    bool failed = SDL_SetClipboardData(
+        [](void *userdata, const char *mime_type, usize *size) -> void const * {
+          if (mime_type == nullptr)
+          {
+            *size = 0;
+            return nullptr;
+          }
+          Vec<u8> *ctx = (Vec<u8> *) userdata;
+          *size        = ctx->size();
+          return ctx->data();
+        },
+        [](void *userdata) {
+          Vec<u8> *ctx = (Vec<u8> *) userdata;
+          ctx->uninit();
+          default_allocator.ndealloc(ctx, 1);
+        },
+        data_ctx, mime_types, 1);
+
+    if (failed)
+    {
+      return Err{};
+    }
+
+    return Ok{};
+  }
+};
+
 struct WindowSystemImpl : WindowSystem
 {
+  SparseVec<Vec<SystemEventListener>> listeners;
+  ClipBoardImpl                       clipboard;
+
   SDL_Window *hnd(Window window)
   {
     return ((WindowImpl *) window)->win;
@@ -45,6 +122,7 @@ struct WindowSystemImpl : WindowSystem
 
   virtual void uninit() override
   {
+    listeners.uninit();
     SDL_Quit();
   }
 
@@ -281,6 +359,14 @@ struct WindowSystemImpl : WindowSystem
     CHECKSdl(SDL_SetWindowResizable(hnd(window), false));
   }
 
+  u64 listen(SystemEventTypes              event_types,
+             Fn<void(SystemEvent const &)> callback) override
+  {
+    return listeners
+        .push(SystemEventListener{.callback = callback, .types = event_types})
+        .unwrap();
+  }
+
   u64 listen(Window window, WindowEventTypes event_types,
              Fn<void(WindowEvent const &)> callback) override
   {
@@ -346,7 +432,7 @@ struct WindowSystemImpl : WindowSystem
     return pwin->surface;
   }
 
-  void publish_event(SDL_WindowID window_id, WindowEvent const &event)
+  void push_window_event(SDL_WindowID window_id, WindowEvent const &event)
   {
     SDL_Window *win = SDL_GetWindowFromID(window_id);
     CHECK(win != nullptr);
@@ -364,6 +450,17 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
+  void push_system_event(SystemEvent const &event)
+  {
+    for (SystemEventListener const &listener : listeners.dense.v0)
+    {
+      if (has_bits(listener.types, event.type))
+      {
+        listener.callback(event);
+      }
+    }
+  }
+
   void poll_events() override
   {
     SDL_Event event;
@@ -373,94 +470,98 @@ struct WindowSystemImpl : WindowSystem
       switch (event.type)
       {
         case SDL_EVENT_WINDOW_SHOWN:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::Shown});
           return;
         case SDL_EVENT_WINDOW_HIDDEN:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::Hidden});
           return;
         case SDL_EVENT_WINDOW_EXPOSED:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::Exposed});
           return;
         case SDL_EVENT_WINDOW_MOVED:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::Moved});
           return;
         case SDL_EVENT_WINDOW_RESIZED:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::Resized});
           return;
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-          publish_event(event.window.windowID,
-                        WindowEvent{.none_ = 0,
-                                    .type  = WindowEventTypes::SurfaceResized});
+          push_window_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0,
+                          .type  = WindowEventTypes::SurfaceResized});
           return;
         case SDL_EVENT_WINDOW_MINIMIZED:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::Minimized});
           return;
         case SDL_EVENT_WINDOW_MAXIMIZED:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::Maximized});
           return;
         case SDL_EVENT_WINDOW_RESTORED:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::Restored});
           return;
         case SDL_EVENT_WINDOW_MOUSE_ENTER:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::MouseEnter});
           return;
         case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::MouseLeave});
           return;
         case SDL_EVENT_WINDOW_FOCUS_GAINED:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::FocusIn});
           return;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::FocusOut});
           return;
         case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-          publish_event(event.window.windowID,
-                        WindowEvent{.none_ = 0,
-                                    .type  = WindowEventTypes::CloseRequested});
+          push_window_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0,
+                          .type  = WindowEventTypes::CloseRequested});
           return;
         case SDL_EVENT_WINDOW_OCCLUDED:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::Occluded});
           break;
         case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
-          publish_event(event.window.windowID,
-                        WindowEvent{.none_ = 0,
-                                    .type = WindowEventTypes::EnterFullScreen});
+          push_window_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0,
+                          .type  = WindowEventTypes::EnterFullScreen});
           break;
         case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
-          publish_event(event.window.windowID,
-                        WindowEvent{.none_ = 0,
-                                    .type = WindowEventTypes::LeaveFullScreen});
+          push_window_event(
+              event.window.windowID,
+              WindowEvent{.none_ = 0,
+                          .type  = WindowEventTypes::LeaveFullScreen});
           break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
         {
-          MouseClickEvent mouse_event{.mouse_id = event.button.which,
+          MouseClickEvent mouse_event{.id = event.button.which,
                                       .position =
                                           Vec2{event.button.x, event.button.y},
                                       .clicks = event.button.clicks};
@@ -499,19 +600,19 @@ struct WindowSystemImpl : WindowSystem
               return;
           }
 
-          publish_event(event.button.windowID,
-                        WindowEvent{.mouse_click = mouse_event,
-                                    .type = WindowEventTypes::MouseClick});
+          push_window_event(event.button.windowID,
+                            WindowEvent{.mouse_click = mouse_event,
+                                        .type = WindowEventTypes::MouseClick});
           return;
         }
 
         case SDL_EVENT_MOUSE_MOTION:
-          publish_event(
+          push_window_event(
               event.motion.windowID,
               WindowEvent{
                   .mouse_motion =
                       MouseMotionEvent{
-                          .mouse_id = event.motion.which,
+                          .id       = event.motion.which,
                           .position = Vec2{event.motion.x, event.motion.y},
                           .translation =
                               Vec2{event.motion.xrel, event.motion.yrel}},
@@ -519,12 +620,12 @@ struct WindowSystemImpl : WindowSystem
           return;
 
         case SDL_EVENT_MOUSE_WHEEL:
-          publish_event(
+          push_window_event(
               event.wheel.windowID,
               WindowEvent{
                   .mouse_wheel =
                       MouseWheelEvent{
-                          .mouse_id = event.wheel.which,
+                          .id = event.wheel.which,
                           .position =
                               Vec2{event.wheel.mouse_x, event.wheel.mouse_y},
                           .translation = Vec2{event.wheel.x, event.wheel.y}},
@@ -533,7 +634,7 @@ struct WindowSystemImpl : WindowSystem
 
         case SDL_EVENT_KEY_DOWN:
         case SDL_EVENT_KEY_UP:
-          publish_event(
+          push_window_event(
               event.key.windowID,
               WindowEvent{
                   .key  = KeyEvent{.scan_code = (ScanCode) (event.key.scancode),
@@ -548,39 +649,95 @@ struct WindowSystemImpl : WindowSystem
           return;
 
         case SDL_EVENT_WINDOW_DESTROYED:
-          publish_event(
+          push_window_event(
               event.window.windowID,
               WindowEvent{.none_ = 0, .type = WindowEventTypes::Destroyed});
           return;
 
-        case SDL_EVENT_SYSTEM_THEME_CHANGED:
+        case SDL_EVENT_TEXT_EDITING:
+        case SDL_EVENT_TEXT_INPUT:
+          // [ ] handle
           return;
+
+        case SDL_EVENT_DROP_BEGIN:
+          // [ ] check
+          return;
+
+        case SDL_EVENT_DROP_POSITION:
+          //  [ ] check
+          logger->info("drop pos:", "x: ", event.drop.x, ", y", event.drop.y);
+          return;
+
+        case SDL_EVENT_DROP_FILE:
+          // [ ] how to handle in view system
+          logger->info("x: ", event.drop.x, "y: ", event.drop.y,
+                       "text: ", event.drop.data);
+          return;
+
+        case SDL_EVENT_DROP_TEXT:
+          logger->info("x: ", event.drop.x, "y: ", event.drop.y,
+                       "text: ", event.drop.data);
+          return;
+
+        case SDL_EVENT_SYSTEM_THEME_CHANGED:
+          push_system_event(
+              SystemEvent{.type = SystemEventTypes::ThemeChanged});
+          return;
+
+        case SDL_EVENT_KEYMAP_CHANGED:
+          push_system_event(
+              SystemEvent{.type = SystemEventTypes::KeymapChanged});
+          return;
+
+        case SDL_EVENT_AUDIO_DEVICE_ADDED:
+          push_system_event(
+              SystemEvent{.type = SystemEventTypes::AudioDeviceAdded});
+          return;
+
+        case SDL_EVENT_AUDIO_DEVICE_REMOVED:
+          push_system_event(
+              SystemEvent{.type = SystemEventTypes::AudioDeviceRemoved});
+          return;
+
+        case SDL_EVENT_AUDIO_DEVICE_FORMAT_CHANGED:
+          push_system_event(
+              SystemEvent{.type = SystemEventTypes::AudioDeviceFormatChanged});
+          return;
+
+        case SDL_EVENT_DISPLAY_ORIENTATION:
+          push_system_event(
+              SystemEvent{.type = SystemEventTypes::DisplayReoriented});
+          return;
+
+        case SDL_EVENT_DISPLAY_ADDED:
+          push_system_event(
+              SystemEvent{.type = SystemEventTypes::DisplayAdded});
+          return;
+
+        case SDL_EVENT_DISPLAY_REMOVED:
+          push_system_event(
+              SystemEvent{.type = SystemEventTypes::DisplayRemoved});
+          return;
+
+        case SDL_EVENT_DISPLAY_MOVED:
+          push_system_event(
+              SystemEvent{.type = SystemEventTypes::DisplayMoved});
+          return;
+
         case SDL_EVENT_FINGER_DOWN:
         case SDL_EVENT_FINGER_UP:
         case SDL_EVENT_FINGER_MOTION:
-          return;
-        case SDL_EVENT_DROP_BEGIN:
-        case SDL_EVENT_DROP_COMPLETE:
-        case SDL_EVENT_DROP_FILE:
-        case SDL_EVENT_DROP_POSITION:
-        case SDL_EVENT_DROP_TEXT:
-          return;
-        case SDL_EVENT_TEXT_EDITING:
-        case SDL_EVENT_TEXT_INPUT:
-        case SDL_EVENT_KEYMAP_CHANGED:
-        case SDL_EVENT_AUDIO_DEVICE_ADDED:
-        case SDL_EVENT_AUDIO_DEVICE_REMOVED:
-        case SDL_EVENT_AUDIO_DEVICE_FORMAT_CHANGED:
-        case SDL_EVENT_DISPLAY_ORIENTATION:
-        case SDL_EVENT_DISPLAY_ADDED:
-        case SDL_EVENT_DISPLAY_REMOVED:
-        case SDL_EVENT_DISPLAY_MOVED:
           return;
 
         default:
           return;
       }
     }
+  }
+
+  virtual ClipBoard &get_clipboard() override
+  {
+    return clipboard;
   }
 };
 
