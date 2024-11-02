@@ -823,7 +823,7 @@ struct Button : View
                       2 * style.padding(allocated)};
   }
 
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+  virtual void render(Canvas &canvas, CRect const &region, f32,
                       CRect const &) override
   {
     ColorGradient tint = (state.press.hovered && !state.press.held) ?
@@ -862,8 +862,9 @@ struct TextButton : Button
   virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32 zoom,
                          ViewEvents events, Fn<void(View &)> build) override
   {
-    Button::tick(ctx, region, zoom, events, build);
+    ViewState state = Button::tick(ctx, region, zoom, events, build);
     build(text);
+    return state;
   }
 };
 
@@ -913,7 +914,7 @@ struct CheckBox : View
     return {.extent = Vec2::splat(min(extent.x, extent.y))};
   }
 
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+  virtual void render(Canvas &canvas, CRect const &region, f32,
                       CRect const &) override
   {
     ColorGradient tint =
@@ -1026,14 +1027,13 @@ struct Slider : View
     return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+  virtual void render(Canvas &canvas, CRect const &region, f32,
                       CRect const &) override
   {
-    u8 const   main_axis          = (style.axis == Axis::X) ? 0 : 1;
-    u8 const   cross_axis         = (style.axis == Axis::X) ? 1 : 0;
-    Vec2 const frame              = region.extent;
-    Vec2 const track_frame        = style.track_frame(frame);
-    Vec4 const thumb_corner_radii = style.thumb_corner_radii(region.extent.y);
+    u8 const      main_axis   = (style.axis == Axis::X) ? 0 : 1;
+    u8 const      cross_axis  = (style.axis == Axis::X) ? 1 : 0;
+    Vec2 const    frame       = region.extent;
+    Vec2 const    track_frame = style.track_frame(frame);
     ColorGradient thumb_color;
 
     if (state.drag.dragging)
@@ -1066,7 +1066,6 @@ struct Slider : View
                   .tint         = style.track_color});
 
     Vec2 const track_begin = region.center - track_frame * 0.5F;
-    Vec2 const track_end   = region.center + track_frame * 0.5F;
 
     Vec2 thumb_center;
     thumb_center[main_axis] =
@@ -1138,7 +1137,7 @@ struct Switch : View
     return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+  virtual void render(Canvas &canvas, CRect const &region, f32,
                       CRect const &) override
   {
     canvas.rrect({.center       = region.center,
@@ -1222,7 +1221,7 @@ struct RadioBox : View
     return {.extent = style.frame(allocated)};
   }
 
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+  virtual void render(Canvas &canvas, CRect const &region, f32,
                       CRect const &) override
   {
     canvas.rrect({.center       = region.center,
@@ -1525,7 +1524,7 @@ struct ScalarDragBox : View
     return {.extent = sizes[0] + 2 * style.padding(allocated)};
   }
 
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+  virtual void render(Canvas &canvas, CRect const &region, f32,
                       CRect const &) override
   {
     canvas.rrect({.center       = region.center,
@@ -1654,10 +1653,10 @@ struct ScrollBar : View
         ColorGradient::all(DEFAULT_THEME.primary * opacity(0.75F));
     ColorGradient thumb_dragging_color =
         ColorGradient::all(DEFAULT_THEME.primary);
-    CornerRadii   thumb_corner_radii = CornerRadii::all({{0}});
+    CornerRadii   thumb_corner_radii = CornerRadii::all(Size{});
     ColorGradient track_color =
         ColorGradient::all(DEFAULT_THEME.inactive * opacity(0.75F));
-    CornerRadii track_corner_radii = CornerRadii::all({{0}});
+    CornerRadii track_corner_radii = CornerRadii::all(Size{});
     FocusStyle  focus              = {};
     f32         delta              = 0.1F;
   } style;
@@ -1712,7 +1711,7 @@ struct ScrollBar : View
     return allocated + 1;
   }
 
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
+  virtual void render(Canvas &canvas, CRect const &region, f32,
                       CRect const &) override
   {
     u8 const   main_axis          = (style.axis == Axis::X) ? 0 : 1;
@@ -1800,7 +1799,7 @@ struct ScrollViewFrame : View
     return ViewState{.viewport = true};
   }
 
-  virtual void size(Vec2 allocated, Span<Vec2> sizes) override
+  virtual void size(Vec2, Span<Vec2> sizes) override
   {
     if (!sizes.is_empty())
     {
@@ -1816,6 +1815,7 @@ struct ScrollViewFrame : View
     {
       content_size = sizes[0];
     }
+    fill(centers, Vec2{0, 0});
 
     return {.extent          = allocated,
             .viewport_extent = state.content_extent,
@@ -1931,7 +1931,7 @@ struct ComboBoxItem : View
 
   Option<View *> child = None;
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
+  virtual ViewState tick(ViewContext const &ctx, CRect const &, f32,
                          ViewEvents events, Fn<void(View &)> build) override
   {
     state.press.tick(ctx, events);
@@ -1967,8 +1967,8 @@ struct ComboBoxItem : View
     return {.extent = allocated};
   }
 
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
-                      CRect const &clip) override
+  virtual void render(Canvas &canvas, CRect const &region, f32,
+                      CRect const &) override
   {
     canvas.rrect({.center = region.center,
                   .extent = region.extent,
@@ -2065,6 +2065,8 @@ struct ComboBoxScrollView : View
       items_height += s.y;
     }
 
+    //[ ] centers
+
     size.y = min(size.y, items_height);
 
     Vec2 viewport_extent{size.x, items_height};
@@ -2076,13 +2078,13 @@ struct ComboBoxScrollView : View
                       .fixed_position = Some{Vec2{0, 0}}};
   }
 
-  virtual i32 stack(i32 allocated)
+  virtual i32 stack(i32 allocated) override
   {
     return allocated + 25;
   }
 
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
-                      CRect const &clip) override
+  virtual void render(Canvas &canvas, CRect const &region, f32,
+                      CRect const &) override
   {
     canvas.rrect({.center       = region.center,
                   .extent       = region.extent,
@@ -2140,7 +2142,7 @@ struct ComboBox : View
 
   u32 num_items() const
   {
-    scroll_view.items.size32();
+    return scroll_view.items.size32();
   }
 
   void set_selected(Option<u32> item)
@@ -2182,7 +2184,7 @@ struct ComboBox : View
     }
   }
 
-  virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
+  virtual ViewState tick(ViewContext const &ctx, CRect const &, f32,
                          ViewEvents events, Fn<void(View &)> build) override
   {
     state.press.tick(ctx, events);
@@ -2225,8 +2227,8 @@ struct ComboBox : View
     return {.extent = frame};
   }
 
-  virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
-                      CRect const &clip) override
+  virtual void render(Canvas &canvas, CRect const &region, f32,
+                      CRect const &) override
   {
     canvas.rrect(
         {.center       = region.center,
