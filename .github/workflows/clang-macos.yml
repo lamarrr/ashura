@@ -1,4 +1,4 @@
-name: clang:ubuntu
+name: clang:macos
 
 on: push
 
