@@ -371,45 +371,30 @@ Canvas &Canvas::begin_recording(Vec2 new_viewport_extent)
     viewport_aspect_ratio = viewport_extent.x / viewport_extent.y;
   }
 
-  // [ ] calculate world to view matrix
-
-  /// @brief generate a model-view-projection matrix for the object in the
-  /// canvas space
-  /// @param transform object-space transform
-  /// @param center canvas-space position/center of the object
-  /// @param extent extent of the object (used to scale from the [-1, +1]
-  /// object-space coordinate)
-  /* constexpr Mat4 mvp(Mat4 const &transform, Vec2 center, Vec2 extent) const
-   {
-     // [ ] TODO: prevent re-calculating this, it is expensive
-     return
-         // translate the object to its screen position, using (0, 0) as top
-         translate3d(vec3((center / (0.5f * viewport_extent)) - 1, 0)) *
-         // scale the object in the -1 to + 1 space
-         scale3d(vec3(2 / viewport_extent, 1)) *
-         // perform object-space transformation
-         transform * scale3d(vec3(extent * 0.5F, 1));
-   }*/
+  world_to_view =
+      translate3d(Vec3{-1, -1, 0}) * scale3d(vec3(2 / viewport_extent, 1));
 
   return *this;
 }
 
 constexpr RectU clip_to_scissor(gpu::Viewport const &viewport,
-                                CRect const &clip, Vec2U surface_extent)
+                                CRect const         &clip)
 {
-  Rect  rect{viewport.offset + clip.center - clip.extent / 2, clip.extent};
-  Vec2I offset_i{(i32) rect.offset.x, (i32) rect.offset.y};
-  Vec2I extent_i{(i32) rect.extent.x, (i32) rect.extent.y};
+  // clips only apply translations. no scaling
+  Rect s{viewport.offset + clip.begin(), clip.extent};
 
-  RectU scissor{.offset{(u32) max(0, offset_i.x), (u32) max(0, offset_i.y)},
-                .extent{(u32) max(0, extent_i.x), (u32) max(0, extent_i.y)}};
+  s.offset.x = clamp(s.offset.x, 0.0F, viewport.extent.x);
 
-  scissor.offset.x = min(scissor.offset.x, surface_extent.x);
-  scissor.offset.y = min(scissor.offset.y, surface_extent.y);
-  scissor.extent.x = min(surface_extent.x - scissor.offset.x, scissor.extent.x);
-  scissor.extent.y = min(surface_extent.y - scissor.offset.y, scissor.extent.y);
+  s.offset.y = clamp(s.offset.y, 0.0F, viewport.extent.y);
 
-  return scissor;
+  s.extent.x =
+      clamp(s.offset.x + s.extent.x, 0.0F, viewport.extent.x) - s.offset.x;
+
+  s.extent.y =
+      clamp(s.offset.y + s.extent.y, 0.0F, viewport.extent.y) - s.offset.y;
+
+  return RectU{.offset{(u32) s.offset.x, (u32) s.offset.y},
+               .extent{(u32) s.extent.x, (u32) s.extent.y}};
 }
 
 static inline void flush_batch(Canvas &c)
@@ -417,18 +402,19 @@ static inline void flush_batch(Canvas &c)
   switch (c.batch.type)
   {
     case Canvas::BatchType::RRect:
-      c.add_pass(
-          "RRect"_span, [batch = c.batch](Canvas::RenderContext const &ctx) {
-            RRectPassParams params{.rendering_info = ctx.rt.info,
-                                   .scissor        = batch.clip,
-                                   .viewport       = ctx.rt.viewport,
-                                   .params_ssbo    = ctx.rrects.descriptor,
-                                   .textures       = ctx.gpu.texture_views,
-                                   .first_instance = batch.objects.offset,
-                                   .num_instances  = batch.objects.span};
+      c.add_pass("RRect"_span,
+                 [batch = c.batch](Canvas::RenderContext const &ctx) {
+                   RRectPassParams params{
+                       .rendering_info = ctx.rt.info,
+                       .scissor  = clip_to_scissor(ctx.rt.viewport, batch.clip),
+                       .viewport = ctx.rt.viewport,
+                       .params_ssbo    = ctx.rrects.descriptor,
+                       .textures       = ctx.gpu.texture_views,
+                       .first_instance = batch.objects.offset,
+                       .num_instances  = batch.objects.span};
 
-            ctx.passes.rrect->encode(ctx.gpu, ctx.enc, params);
-          });
+                   ctx.passes.rrect->encode(ctx.gpu, ctx.enc, params);
+                 });
       c.batch = Canvas::Batch{.type = Canvas::BatchType::None};
       return;
 
@@ -437,7 +423,7 @@ static inline void flush_batch(Canvas &c)
           "Ngon"_span, [batch = c.batch](Canvas::RenderContext const &ctx) {
             NgonPassParams params{
                 .rendering_info = ctx.rt.info,
-                .scissor        = batch.clip,
+                .scissor        = clip_to_scissor(ctx.rt.viewport, batch.clip),
                 .viewport       = ctx.rt.viewport,
                 .vertices_ssbo  = ctx.ngon_vertices.descriptor,
                 .indices_ssbo   = ctx.ngon_indices.descriptor,
@@ -872,10 +858,16 @@ Canvas &Canvas::blur(CRect const &area, u32 num_passes)
 {
   flush_batch(*this);
 
-  CHECK(num_passes > 0);
-  blur_params.push(CanvasBlurParam{.area = area, .num_passes = num_passes})
-      .unwrap();
-  add_run(*this, CanvasPassType::Blur);
+  add_pass("Blur"_span, [num_passes, area](Canvas::RenderContext const &ctx) {
+    BlurPassParams params{.image_view   = ctx.rt.info.color_attachments[0].view,
+                          .extent       = ctx.rt.extent,
+                          .texture_view = ctx.rt.color_descriptor,
+                          .texture      = 0,
+                          .passes       = num_passes,
+                          .area = clip_to_scissor(ctx.rt.viewport, area)};
+    ctx.passes.blur->encode(ctx.gpu, ctx.enc, params);
+  });
+
   return *this;
 }
 

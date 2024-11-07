@@ -17,6 +17,7 @@ namespace ash
 /// normalized to same range.
 namespace path
 {
+
 void rect(Vec<Vec2> &vtx);
 
 /// @brief generate vertices for an arc
@@ -78,6 +79,7 @@ void triangles(u32 first_vertex, u32 num_vertices, Vec<u32> &idx);
 
 /// @brief generate vertices for a quadratic bezier curve
 void triangulate_convex(Vec<u32> &idx, u32 first_vertex, u32 num_vertices);
+
 };        // namespace path
 
 enum class ScaleMode : u8
@@ -152,8 +154,8 @@ struct Canvas
   struct Batch
   {
     BatchType type = BatchType::None;
-    CRect     clip{.center{0, 0}, .extent{F32_MAX, F32_MAX}};
-    Slice32   objects{};
+    CRect   clip{.center{F32_MAX / 2, F32_MAX / 2}, .extent{F32_MAX, F32_MAX}};
+    Slice32 objects{};
   };
 
   struct Pass
@@ -173,7 +175,8 @@ struct Canvas
 
   Mat4 world_to_view = Mat4::identity();
 
-  CRect current_clip{.center{0, 0}, .extent{F32_MAX, F32_MAX}};
+  CRect current_clip{.center{F32_MAX / 2, F32_MAX / 2},
+                     .extent{F32_MAX, F32_MAX}};
 
   Vec<RRectParam> rrect_params{};
 
@@ -292,15 +295,15 @@ struct Canvas
   }
 
   template <typename Lambda>
-  Canvas &add_pass(Span<char const> name, Lambda &&lambda)
+  Canvas &add_pass(Span<char const> name, Lambda &&task)
   {
     Lambda *lambda = alloc<Lambda>();
-    new (lambda) Lambda{(Lambda &&) lambda};
-    auto lambda_fn = fn(lamda);
+    new (lambda) Lambda{(Lambda &&) task};
+    auto lambda_fn = fn(lambda);
 
     Pass pass{.name = name, .task = lambda_fn, .uninit = [](void *l) {
                 Lambda *lambda = static_cast<Lambda *>(l);
-                lambda->~lambda();
+                lambda->~Lambda();
               }};
 
     return add_pass(pass);

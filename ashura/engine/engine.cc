@@ -134,8 +134,10 @@ static void recreate_swapchain(Engine *e)
 void Engine::init()
 {
   logger->trace("Initializing Engine");
+  // [ ] flags to enable validation layer
   instance = gpu::create_vulkan_instance(heap_allocator, false).unwrap();
 
+  // [ ] read device preference from config
   device =
       instance
           ->create_device(
@@ -146,6 +148,7 @@ void Engine::init()
               2)
           .unwrap();
 
+  logger->trace("Initializing Window System");
   sdl_window_system->init();
   window = sdl_window_system->create_window(instance, "Ashura"_span).unwrap();
   sdl_window_system->maximize(window);
@@ -161,10 +164,12 @@ void Engine::init()
 
   // recreate_swapchain
 
+  logger->trace("Initializing GPU Context");
   gpu_ctx.init(device, true, 2, {{}}, {});
-  passes.init(gpu_ctx);
-  renderer.init(gpu_ctx, passes);
+  logger->trace("Initializing Renderer");
+  renderer.init(gpu_ctx);
   canvas.init();
+  renderer.canvas = &canvas;
   view_system.init();
   logger->trace("Engine Initialized");
 }
@@ -174,10 +179,12 @@ void Engine::uninit()
   logger->trace("Uninitializing Engine");
   view_system.uninit();
   canvas.uninit();
-  renderer.uninit(gpu_ctx, passes);
-  passes.uninit(gpu_ctx);
+  logger->trace("Uninitializing Renderer");
+  renderer.uninit(gpu_ctx);
+  logger->trace("Uninitializing GPU Context");
   gpu_ctx.uninit();
   sdl_window_system->uninit_window(window);
+  logger->trace("Uninitializing Window System");
   sdl_window_system->uninit();
   instance->uninit_device(instance.self, device.self);
   instance->uninit(instance.self);
@@ -186,7 +193,17 @@ void Engine::uninit()
 
 void Engine::run(void *app, View &view)
 {
-  view_system.tick(view_ctx, view, canvas);
+  logger->trace("Starting Engine Run Loop");
+  while (false)
+  {
+    renderer.begin_frame(gpu_ctx);
+    // view_system.tick(view_ctx, view, canvas);
+    renderer.render_frame(gpu_ctx);
+    renderer.end_frame(gpu_ctx);
+  }
+
+  logger->trace("Ended Engine Run Loop");
+
   // poll window events
   // preprocess window events
 }

@@ -8,6 +8,7 @@ void GpuContext::init(gpu::DeviceImpl p_device, bool p_use_hdr, u32 p_buffering,
                       gpu::Extent             p_initial_extent,
                       StrHashMap<gpu::Shader> p_shader_map)
 {
+  // [ ] trace LOG selections
   CHECK(p_buffering <= gpu::MAX_FRAME_BUFFERING && p_buffering > 0);
   CHECK(p_initial_extent.x > 0 && p_initial_extent.y > 0);
   device = p_device;

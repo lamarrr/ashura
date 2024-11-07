@@ -7,7 +7,7 @@
 namespace ash
 {
 
-void Renderer::begin_frame(GpuContext &ctx, RenderTarget const &rt)
+void Renderer::begin_frame(GpuContext &ctx, RenderTarget const &)
 {
   gpu::CommandEncoderImpl enc = ctx.encoder();
   Resources              &r   = resources[ctx.ring_index()];

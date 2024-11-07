@@ -31,19 +31,6 @@ int main(int, char **)
 
   CHECK(rasterize_font(font, 60, default_allocator));
 
-  sdl_window_system->init();
-  defer sdl_window_system_{[&] { sdl_window_system->uninit(); }};
-
-  gpu::InstanceImpl instance =
-      gpu::create_vulkan_instance(heap_allocator, false).unwrap();
-
-  defer  instance_{[&] { instance->uninit(instance.self); }};
-  Window win = sdl_window_system->create_window(instance, "Main"_span).unwrap();
-  defer  win_{[&] { sdl_window_system->uninit_window(win); }};
-
-  sdl_window_system->maximize(win);
-  sdl_window_system->set_title(win, "Harro"_span);
-
   bool should_close = false;
   auto close_fn     = [&](WindowEvent const &) { should_close = true; };
 
@@ -57,20 +44,6 @@ int main(int, char **)
   sdl_window_system->listen(win, WindowEventTypes::CloseRequested,
                             fn(&close_fn));
   sdl_window_system->listen(win, WindowEventTypes::Key, fn(&key_fn));
-  gpu::Surface    surface = sdl_window_system->get_surface(win);
-  gpu::DeviceImpl device =
-      instance
-          ->create_device(instance.self, default_allocator,
-                          span({
-                              gpu::DeviceType::DiscreteGpu,
-                              gpu::DeviceType::VirtualGpu,
-                              gpu::DeviceType::IntegratedGpu,
-                              gpu::DeviceType::Cpu,
-                              gpu::DeviceType::Other,
-                          }),
-                          2)
-          .unwrap();
-  defer device_{[&] { instance->uninit_device(instance.self, device.self); }};
 
   Vec<Tuple<Span<char const>, Vec<u32>>> spirvs;
 
@@ -122,129 +95,7 @@ int main(int, char **)
 
   gpu::PresentMode present_mode_spec = gpu::PresentMode::Immediate;
 
-  gpu::Swapchain swapchain            = nullptr;
-  auto           invalidate_swapchain = [&] {
-    gpu::SurfaceCapabilities capabilities =
-        device->get_surface_capabilities(device.self, surface).unwrap();
-    CHECK(has_bits(capabilities.image_usage,
-                             gpu::ImageUsage::TransferDst |
-                                 gpu::ImageUsage::ColorAttachment));
-
-    Vec<gpu::SurfaceFormat> formats;
-    defer                   formats_{[&] { formats.reset(); }};
-    u32                     num_formats =
-        device->get_surface_formats(device.self, surface, {}).unwrap();
-    CHECK(num_formats != 0);
-    formats.resize_uninit(num_formats).unwrap();
-    CHECK(device->get_surface_formats(device.self, surface, span(formats))
-                        .unwrap() == num_formats);
-
-    Vec<gpu::PresentMode> present_modes;
-    defer                 present_modes_{[&] { present_modes.reset(); }};
-    u32                   num_present_modes =
-        device->get_surface_present_modes(device.self, surface, {}).unwrap();
-    CHECK(num_present_modes != 0);
-    present_modes.resize_uninit(num_present_modes).unwrap();
-    CHECK(device
-                        ->get_surface_present_modes(device.self, surface,
-                                                    span(present_modes))
-                        .unwrap() == num_present_modes);
-
-    Vec2U surface_extent = sdl_window_system->get_surface_size(win);
-    surface_extent.x     = max(surface_extent.x, 1U);
-    surface_extent.y     = max(surface_extent.y, 1U);
-
-    gpu::ColorSpace preferred_color_spaces[] = {
-        gpu::ColorSpace::DCI_P3_NONLINEAR,
-        gpu::ColorSpace::DISPLAY_P3_NONLINEAR,
-        gpu::ColorSpace::DISPLAY_P3_LINEAR,
-        gpu::ColorSpace::ADOBERGB_LINEAR,
-        gpu::ColorSpace::ADOBERGB_NONLINEAR,
-        gpu::ColorSpace::SRGB_NONLINEAR,
-        gpu::ColorSpace::EXTENDED_SRGB_LINEAR,
-        gpu::ColorSpace::EXTENDED_SRGB_NONLINEAR,
-        gpu::ColorSpace::DOLBYVISION,
-        gpu::ColorSpace::HDR10_ST2084,
-        gpu::ColorSpace::HDR10_HLG,
-        gpu::ColorSpace::BT709_LINEAR,
-        gpu::ColorSpace::BT709_NONLINEAR,
-        gpu::ColorSpace::BT2020_LINEAR,
-        gpu::ColorSpace::PASS_THROUGH};
-
-    gpu::PresentMode preferred_present_modes[] = {
-        present_mode_spec, gpu::PresentMode::Immediate,
-        gpu::PresentMode::Mailbox, gpu::PresentMode::Fifo,
-        gpu::PresentMode::FifoRelaxed};
-
-    bool               found_format = false;
-    gpu::SurfaceFormat format;
-
-    for (gpu::ColorSpace cp : preferred_color_spaces)
-    {
-      Span sel = find_if(span(formats), [&](gpu::SurfaceFormat a) {
-        return a.color_space == cp;
-      });
-      if (!sel.is_empty())
-      {
-        found_format = true;
-        format       = sel[0];
-        break;
-      }
-    }
-
-    CHECK(found_format);
-
-    gpu::PresentMode present_mode       = gpu::PresentMode::Immediate;
-    bool             found_present_mode = false;
-
-    for (gpu::PresentMode pm : preferred_present_modes)
-    {
-      if (!find(span(present_modes), pm).is_empty())
-      {
-        found_present_mode = true;
-        present_mode       = pm;
-        break;
-      }
-    }
-
-    CHECK(found_present_mode);
-
-    gpu::CompositeAlpha alpha      = gpu::CompositeAlpha::None;
-    gpu::CompositeAlpha alpha_spec = gpu::CompositeAlpha::Opaque;
-    gpu::CompositeAlpha preferred_alpha[] = {
-        alpha_spec,
-        gpu::CompositeAlpha::Opaque,
-        gpu::CompositeAlpha::Inherit,
-        gpu::CompositeAlpha::Inherit,
-        gpu::CompositeAlpha::PreMultiplied,
-        gpu::CompositeAlpha::PostMultiplied};
-    for (gpu::CompositeAlpha a : preferred_alpha)
-    {
-      if (has_bits(capabilities.composite_alpha, a))
-      {
-        alpha = a;
-        break;
-      }
-    }
-
-    gpu::SwapchainDesc desc{.label  = "Window Swapchain"_span,
-                                      .format = format,
-                                      .usage  = gpu::ImageUsage::TransferDst |
-                                     gpu::ImageUsage::ColorAttachment,
-                                      .preferred_buffering = 2,
-                                      .present_mode        = present_mode,
-                                      .preferred_extent    = surface_extent,
-                                      .composite_alpha     = alpha};
-
-    if (swapchain == nullptr)
-    {
-      swapchain = device->create_swapchain(device.self, surface, desc).unwrap();
-    }
-    else
-    {
-      device->invalidate_swapchain(device.self, swapchain, desc).unwrap();
-    }
-  };
+  gpu::Swapchain swapchain = nullptr;
 
   invalidate_swapchain();
 
@@ -385,14 +236,16 @@ int main(int, char **)
     //     ctx, pctx, canvas,
     //     gpu::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
     //                        .num_layers        = 1,
-    //                        .color_attachments = span({gpu::RenderingAttachment{
+    //                        .color_attachments =
+    //                        span({gpu::RenderingAttachment{
     //                            .view = ctx.screen_fb.color.view}})},
     //     ctx.screen_fb.color_texture);
     // renderer.render(
     //     ctx, pctx,
     //     gpu::RenderingInfo{.render_area       = {{0, 0}, {1920, 1080}},
     //                        .num_layers        = 1,
-    //                        .color_attachments = span({gpu::RenderingAttachment{
+    //                        .color_attachments =
+    //                        span({gpu::RenderingAttachment{
     //                            .view = ctx.screen_fb.color.view}})},
     //     gpu::Viewport{.offset    = {0, 0},
     //                   .extent    = {1920, 1080},

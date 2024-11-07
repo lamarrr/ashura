@@ -71,9 +71,9 @@ struct BlurPass : Pass
     return "Blur"_span;
   }
 
-  virtual void init(GpuContext &ctx);
+  virtual void init(GpuContext &ctx) override;
 
-  virtual void uninit(GpuContext &ctx);
+  virtual void uninit(GpuContext &ctx) override;
 
   void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
               BlurPassParams const &params);

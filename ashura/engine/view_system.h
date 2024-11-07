@@ -327,9 +327,9 @@ struct ViewSystem
 
   void build(ViewContext const &ctx, View &root)
   {
-      push_view(root, 0, 0, U32_MAX);
-      i32 tab_index = 0;
-      build_children(ctx, root, 0, 0, tab_index, U32_MAX);
+    push_view(root, 0, 0, U32_MAX);
+    i32 tab_index = 0;
+    build_children(ctx, root, 0, 0, tab_index, U32_MAX);
   }
 
   void focus_order()

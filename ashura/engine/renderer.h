@@ -21,6 +21,7 @@ struct PassContext
   {
     for (auto const &p : all)
     {
+      logger->info("Initializing Pass: ", p->id());
       p->init(ctx);
     };
   }
@@ -29,6 +30,7 @@ struct PassContext
   {
     for (auto const &p : all)
     {
+      logger->info("Unintializing Pass: ", p->id());
       p->uninit(ctx);
       p.uninit();
     };
@@ -55,7 +57,9 @@ struct RenderTarget
   gpu::RenderingInfo info{};
   gpu::Viewport      viewport{};
   gpu::Extent        extent{};
-  gpu::DescriptorSet descriptor = nullptr;
+  gpu::DescriptorSet color_descriptor   = nullptr;
+  gpu::DescriptorSet depth_descriptor   = nullptr;
+  gpu::DescriptorSet stencil_descriptor = nullptr;
 };
 
 struct Canvas;
