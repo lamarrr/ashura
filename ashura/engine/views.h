@@ -1451,13 +1451,13 @@ struct ScalarDragBox : View
       case ScalarInputType::f32:
       {
         f32 value = 0;
-        auto [ptr, ec] =
-            std::from_chars(first, last, value, std::chars_format::fixed);
-        if (ec != std::errc{} || value < s.min.f32 || value > s.max.f32)
-        {
-          return;
-        }
-        s.current = ScalarInput{.f32 = value, .type = ScalarInputType::f32};
+        // auto [ptr, ec] =
+        //     std::from_chars(first, last, value, std::chars_format::fixed);
+        // if (ec != std::errc{} || value < s.min.f32 || value > s.max.f32)
+        // {
+        //   return;
+        // }
+        // s.current = ScalarInput{.f32 = value, .type = ScalarInputType::f32};
       }
       break;
     }

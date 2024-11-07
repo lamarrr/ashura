@@ -219,13 +219,13 @@ struct WriteLock
 
 struct StopToken
 {
-  bool stop_ = false;
+  mutable bool stop_ = false;
 
   /// @brief synchronizes with the scope
   /// @return
   bool is_stop_requested() const
   {
-    std::atomic_ref stop{stop_};
+    std::atomic_ref<bool> stop{stop_};
     return stop.load(std::memory_order_acquire);
   }
 
@@ -262,7 +262,7 @@ struct Semaphore : Pin<>
   struct Inner
   {
     u64 num_stages = 1;
-    u64 stage      = 0;
+    mutable u64 stage      = 0;
   } inner = {};
 
   explicit constexpr Semaphore(Inner in) : inner{in}

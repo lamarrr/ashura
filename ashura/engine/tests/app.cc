@@ -21,8 +21,7 @@ int main(int, char **)
   // etc.
   Vec<u8> font_data;
   CHECK(
-      read_file(
-          R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets\fonts\Amiri\Amiri-Regular.ttf)"_span,
+      read_file(R"(assets/fonts/Amiri/Amiri-Regular.ttf)"_span,
           font_data) == IoError::None);
 
   defer font_data_{[&] { font_data.uninit(); }};
@@ -96,7 +95,7 @@ int main(int, char **)
                {.id = "PBR:VS"_span, .file = "pbr.vert"_span},
                {.id = "RRect:FS"_span, .file = "rrect.frag"_span},
                {.id = "RRect:VS"_span, .file = "rrect.vert"_span}}),
-          R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\shaders)"_span) ==
+          R"(ashura/shaders)"_span) ==
       ShaderCompileError::None);
 
   StrHashMap<gpu::Shader> shaders;
