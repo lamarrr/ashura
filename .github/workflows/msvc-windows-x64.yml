@@ -8,7 +8,6 @@ jobs:
       matrix:
         build_mode: ["Release", "Debug"]
         os: ["windows-2022"]
-        vulkan: ["1.3.296.0"]
 
     runs-on: ${{ matrix.os }}
 
@@ -22,7 +21,7 @@ jobs:
         with:
           path: |
             ${{ github.workspace }}/.deps
-          key: ${{ matrix.os }}-${{ matrix.vulkan }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('vcpkg.json') }}
+          key: ${{ matrix.os }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('vcpkg.json') }}
 
       - name: Install VCPKG
         if: steps.cache-and-install.outputs.cache-hit != 'true'
@@ -33,7 +32,6 @@ jobs:
 
       - name: Install Dependencies, Configure, and Build Ashura
         env:
-          VULKAN_SDK: ${{ github.workspace }}/.deps/VulkanSDK/${{ matrix.vulkan }}
           VCPKG_ROOT: ${{ github.workspace }}/.deps/vcpkg
         run: |
           mkdir build
