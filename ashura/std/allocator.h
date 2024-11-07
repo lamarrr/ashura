@@ -91,6 +91,37 @@ struct AllocatorImpl
   }
 };
 
+struct NoopAllocatorInterface
+{
+  static bool alloc(Allocator, usize, usize, u8 *&)
+  {
+    return false;
+  }
+
+  static bool alloc_zeroed(Allocator, usize, usize, u8 *&)
+  {
+    return false;
+  }
+
+  static bool realloc(Allocator, usize, usize, usize, u8 *&)
+  {
+    return false;
+  }
+
+  static void dealloc(Allocator, usize, u8 *, usize)
+  {
+  }
+};
+
+inline constexpr AllocatorInterface noop_allocator_interface{
+    .alloc        = NoopAllocatorInterface::alloc,
+    .alloc_zeroed = NoopAllocatorInterface::alloc_zeroed,
+    .realloc      = NoopAllocatorInterface::realloc,
+    .dealloc      = NoopAllocatorInterface::dealloc};
+
+inline constexpr AllocatorImpl noop_allocator{
+    .self = nullptr, .interface = &noop_allocator_interface};
+
 /// @brief General Purpose Heap allocator. guarantees at least
 /// MAX_STANDARD_ALIGNMENT alignment, when overaligned memory allocators are
 /// available and supported it can allocate over-aligned memory.
