@@ -23,56 +23,105 @@ Rc<Semaphore *> create_semaphore(u64 num_stages, AllocatorImpl allocator)
       .unwrap();
 }
 
-bool await_semaphores(Span<Rc<Semaphore *> const> semaphores,
-                      Span<u64 const> stages, nanoseconds timeout, bool any)
+bool await_semaphores(Span<Rc<Semaphore *> const> sems, Span<u64 const> stages,
+                      nanoseconds timeout, bool any)
 {
-  // [ ] handle any
-  CHECK(semaphores.size() == stages.size());
-  usize const n = semaphores.size();
+  CHECK(sems.size() == stages.size());
+  usize const n = sems.size();
   for (usize i = 0; i < n; i++)
   {
-    CHECK((stages[i] == U64_MAX) ||
-          (stages[i] <= semaphores[i]->inner.num_stages));
+    CHECK((stages[i] == U64_MAX) || (stages[i] <= sems[i]->inner.num_stages));
   }
 
-  steady_clock::time_point begin = steady_clock::time_point{};
-  for (usize i = 0; i < n; i++)
+  // number of times we've polled so far, counting begins from 0
+  u64 poll = 0;
+
+  // avoid sys-calls unless absolutely needed
+  steady_clock::time_point poll_begin{};
+
+  // speeds up checks for the 'all' case. points to the next semaphore to be
+  // checked
+  usize next = 0;
+
+  while (true)
   {
-    Rc<Semaphore *> const &s     = semaphores[i];
-    u64 const              stage = min(stages[i], s->inner.num_stages - 1);
-    u64                    poll  = 0;
-    while (true)
+    if (any)
     {
-      // always monotonically increasing
-      if (stage <= s->get_stage())
+      bool any_ready = false;
+
+      for (usize i = 0; i < n; i++)
       {
-        break;
+        Rc<Semaphore *> const &s     = sems[i];
+        u64 const              stage = min(stages[i], s->inner.num_stages - 1);
+        bool const             is_ready = stage <= s->get_stage();
+        any_ready                       = any_ready || is_ready;
+
+        if (is_ready)
+        {
+          break;
+        }
       }
 
-      /// we want to avoid syscalls if timeout is 0
-      if (timeout == 0ns)
+      if (any_ready)
       {
-        return false;
+        return true;
       }
-
-      if (begin == steady_clock::time_point{}) [[unlikely]]
-      {
-        begin = steady_clock::now();
-      }
-
-      steady_clock::time_point const curr = steady_clock::now();
-      nanoseconds const dur = duration_cast<nanoseconds>(curr - begin);
-      if (dur > timeout) [[unlikely]]
-      {
-        return false;
-      }
-
-      yielding_backoff(poll);
-      poll++;
     }
+    else
+    {
+      bool all_ready = false;
+
+      for (; next < n; next++)
+      {
+        Rc<Semaphore *> const &s = sems[next];
+        u64 const  stage         = min(stages[next], s->inner.num_stages - 1);
+        bool const is_ready      = stage <= s->get_stage();
+        all_ready                = all_ready && is_ready;
+
+        if (!is_ready)
+        {
+          break;
+        }
+      }
+
+      if (all_ready)
+      {
+        return true;
+      }
+    }
+
+    // fast-path to avoid syscalls
+    if (timeout == nanoseconds{0}) [[likely]]
+    {
+      return false;
+    }
+
+    // fast-path to avoid syscalls
+    if (timeout == nanoseconds::max()) [[likely]]
+    {
+      // infinite timeout
+    }
+    else
+    {
+      if (poll_begin == steady_clock::time_point{}) [[unlikely]]
+      {
+        poll_begin = steady_clock::now();
+      }
+
+      nanoseconds const time_past =
+          duration_cast<nanoseconds>(steady_clock::now() - poll_begin);
+
+      if (time_past > timeout) [[unlikely]]
+      {
+        return false;
+      }
+    }
+
+    yielding_backoff(poll);
+    poll++;
   }
 
-  return true;
+  return false;
 }
 
 constexpr usize TASK_ARENA_SIZE = PAGE_ALIGNMENT;
@@ -103,10 +152,14 @@ constexpr Flex<2> task_arena_layout()
 /// @param arena always non-null. arena used to allocate the memory belonging
 /// to this task.
 ///
+/// @param instance once this atomic counter reaches 0, the task is
+/// released.
+///
 struct Task
 {
-  TaskInfo             info  = {};
-  ListNode<TaskArena> *arena = nullptr;
+  TaskInfo             info      = {};
+  u64                  instances = 1;        // be careful when purging
+  ListNode<TaskArena> *arena     = nullptr;
 };
 
 constexpr Flex<2> task_layout(Layout ctx_layout)
@@ -484,6 +537,16 @@ struct SchedulerImpl : Scheduler
     dedicated_threads     = nullptr;
     num_worker_threads    = 0;
     num_dedicated_threads = 0;
+  }
+
+  virtual u32 num_dedicated() override
+  {
+    return num_dedicated_threads;
+  }
+
+  virtual u32 num_workers() override
+  {
+    return num_worker_threads;
   }
 
   virtual void schedule_dedicated(u32 thread, TaskInfo const &info) override
