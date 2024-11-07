@@ -37,8 +37,8 @@ jobs:
 
       - name: Install Dependencies, Configure, and Build Ashura
         env:
-          CC: clang
-          CXX: clang++
+          CC: /opt/homebrew/opt/llvm/bin/clang
+          CXX: /opt/homebrew/opt/llvm/bin/clang++
           VCPKG_ROOT: ${{ github.workspace }}/.deps/vcpkg
         run: |
           mkdir build
