@@ -2063,27 +2063,27 @@ struct Fn;
 /// @brief Fn is a type-erased function containing a callback and a pointer. Fn
 /// is a reference to both the function to be called and its associated data, it
 /// doesn't manage any lifetime.
-/// @param dispatcher function/callback to be invoked. typically a
+/// @param thunk function/callback to be invoked. typically a
 /// dispatcher/thunk.
-/// @param data associated data/context for the dispatcher to operate on.
+/// @param data associated data/context for the thunk to operate on.
 template <typename R, typename... Args>
 struct Fn<R(Args...)>
 {
-  using Dispatcher = R (*)(void *, Args...);
+  using Thunk = R (*)(void *, Args...);
 
   constexpr R operator()(Args... args) const
   {
-    return dispatcher(data, static_cast<Args &&>(args)...);
+    return thunk(data, static_cast<Args &&>(args)...);
   }
 
-  Dispatcher dispatcher = nullptr;
-  void      *data       = nullptr;
+  Thunk thunk = nullptr;
+  void *data  = nullptr;
 };
 
 template <typename R, typename... Args>
-struct PFnDispatcher
+struct PFnThunk
 {
-  static constexpr R dispatch(void *data, Args... args)
+  static constexpr R thunk(void *data, Args... args)
   {
     using PFn = R (*)(Args...);
 
@@ -2102,7 +2102,7 @@ struct PFnTraits<R(Args...)>
   using Ptr        = R (*)(Args...);
   using Fn         = ::ash::Fn<R(Args...)>;
   using ReturnType = R;
-  using Dispatcher = PFnDispatcher<R, Args...>;
+  using Thunk      = PFnThunk<R, Args...>;
 };
 
 template <typename R, typename... Args>
@@ -2111,9 +2111,9 @@ struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
 };
 
 template <typename T, typename R, typename... Args>
-struct FunctorDispatcher
+struct FunctorThunk
 {
-  static constexpr R dispatch(void *data, Args... args)
+  static constexpr R thunk(void *data, Args... args)
   {
     return (*(reinterpret_cast<T *>(data)))(static_cast<Args &&>(args)...);
   }
@@ -2132,7 +2132,7 @@ struct MemberFnTraits<R (T::*)(Args...)>
   using Fn         = ::ash::Fn<R(Args...)>;
   using Type       = T;
   using ReturnType = R;
-  using Dispatcher = FunctorDispatcher<T, R, Args...>;
+  using Thunk      = FunctorThunk<T, R, Args...>;
 };
 
 /// @brief const member function traits
@@ -2143,7 +2143,7 @@ struct MemberFnTraits<R (T::*)(Args...) const>
   using Fn         = ::ash::Fn<R(Args...)>;
   using Type       = T const;
   using ReturnType = R;
-  using Dispatcher = FunctorDispatcher<T const, R, Args...>;
+  using Thunk      = FunctorThunk<T const, R, Args...>;
 };
 
 template <class T>
@@ -2155,11 +2155,11 @@ struct FunctorTraits : MemberFnTraits<decltype(&T::operator())>
 template <typename R, typename... Args>
 auto fn(R (*pfn)(Args...))
 {
-  using Traits     = PFnTraits<R(Args...)>;
-  using Fn         = typename Traits::Fn;
-  using Dispatcher = typename Traits::Dispatcher;
+  using Traits = PFnTraits<R(Args...)>;
+  using Fn     = typename Traits::Fn;
+  using Thunk  = typename Traits::Thunk;
 
-  return Fn{&Dispatcher::dispatch, reinterpret_cast<void *>(pfn)};
+  return Fn{&Thunk::thunk, reinterpret_cast<void *>(pfn)};
 }
 
 /// @brief make a function view from a captureless lambda/functor (i.e. lambdas
@@ -2180,16 +2180,16 @@ auto fn(StaticFunctor functor)
 template <typename Functor>
 auto fn(Functor *functor)
 {
-  using Traits     = FunctorTraits<Functor>;
-  using Fn         = typename Traits::Fn;
-  using Dispatcher = typename Traits::Dispatcher;
+  using Traits = FunctorTraits<Functor>;
+  using Fn     = typename Traits::Fn;
+  using Thunk  = typename Traits::Thunk;
 
-  return Fn{&Dispatcher::dispatch,
+  return Fn{&Thunk::thunk,
             const_cast<void *>(reinterpret_cast<void const *>(functor))};
 }
 
 /// @brief create a function view from an object reference and a function
-/// dispatcher to execute using the object reference as its first argument.
+/// thunk to execute using the object reference as its first argument.
 template <typename T, typename R, typename... Args>
 auto fn(T *t, R (*fn)(T *, Args...))
 {
