@@ -9,5 +9,6 @@
     "benchmark",
     "ffmpeg",
     "xxhash"
-  ]
+  ],
+  "builtin-baseline": "7fd612ee1c57192d49028ed6a922e5e8bdb257f3"
 }
