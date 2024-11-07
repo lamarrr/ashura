@@ -8,7 +8,7 @@ namespace ash
 {
 
 template <typename H>
-struct Unique
+struct [[nodiscard]] Unique
 {
   typedef H                          Handle;
   typedef Fn<void(H, AllocatorImpl)> Uninit;

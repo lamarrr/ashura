@@ -18,7 +18,7 @@ namespace ash
 ///
 /// @tparam H : handle type
 template <typename H>
-struct Rc
+struct [[nodiscard]] Rc
 {
   typedef H                          Handle;
   typedef Fn<void(H, AllocatorImpl)> Uninit;
