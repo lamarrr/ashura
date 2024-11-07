@@ -26,7 +26,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install llvm molten-vk cmake ninja
+          brew install llvm molten-vk cmake ninja nasm make
 
       - name: Install VCPKG
         if: steps.cache-and-install.outputs.cache-hit != 'true'
@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DVCPKG_INSTALLED_DIR=${{ env.VCPKG_ROOT }}/installed -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -GNinja
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DVCPKG_INSTALLED_DIR=${{ env.VCPKG_ROOT }}/installed -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DCMAKE_EXPORT_COMPILE_COMMANDS=1
           ninja
 
       - name: Run Tests
