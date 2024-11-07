@@ -69,14 +69,11 @@ bool await_semaphores(Span<Rc<Semaphore *> const> sems, Span<u64 const> stages,
     }
     else
     {
-      bool all_ready = false;
-
       for (; next < n; next++)
       {
         Rc<Semaphore *> const &s = sems[next];
         u64 const  stage         = min(stages[next], s->inner.num_stages - 1);
         bool const is_ready      = stage <= s->get_stage();
-        all_ready                = all_ready && is_ready;
 
         if (!is_ready)
         {
@@ -84,7 +81,7 @@ bool await_semaphores(Span<Rc<Semaphore *> const> sems, Span<u64 const> stages,
         }
       }
 
-      if (all_ready)
+      if (next == n)
       {
         return true;
       }
