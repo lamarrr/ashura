@@ -24,12 +24,6 @@ jobs:
             ${{ github.workspace }}/.deps
           key: ${{ matrix.os }}-${{ matrix.vulkan }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('vcpkg.json') }}
 
-      - name: Install Vulkan SDK
-        if: steps.cache-and-install.outputs.cache-hit != 'true'
-        run: |
-          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/${{ matrix.vulkan }}/windows/VulkanSDK-${{ matrix.vulkan }}-Installer.exe" -OutFile "vulkan_installer.exe"
-          ./vulkan_installer.exe --root ${{ github.workspace }}/.deps/VulkanSDK/${{ matrix.vulkan }} --accept-licenses --default-answer --confirm-command install
-
       - name: Install VCPKG
         if: steps.cache-and-install.outputs.cache-hit != 'true'
         run: |
@@ -40,10 +34,11 @@ jobs:
       - name: Install Dependencies, Configure, and Build Ashura
         env:
           VULKAN_SDK: ${{ github.workspace }}/.deps/VulkanSDK/${{ matrix.vulkan }}
+          VCPKG_ROOT: ${{ github.workspace }}/.deps/vcpkg
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/.deps/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DVCPKG_HOST_TRIPLET=x64-windows -DVCPKG_INSTALLED_DIR=${{ github.workspace }}/.deps/vcpkg/installed
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DVCPKG_HOST_TRIPLET=x64-windows -DVCPKG_INSTALLED_DIR=${{ env.VCPKG_ROOT }}/installed
           cmake --build . --config ${{ matrix.build_mode }}
 
       - name: Run Tests
