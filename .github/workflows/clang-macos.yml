@@ -42,8 +42,9 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DVCPKG_INSTALLED_DIR=${{ env.VCPKG_ROOT }}/installed -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DCMAKE_EXPORT_COMPILE_COMMANDS=1
-          make
+          export PATH="$PATH:/opt/homebrew/bin/ninja"
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DVCPKG_INSTALLED_DIR=${{ env.VCPKG_ROOT }}/installed -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -GNinja
+          ninja
 
       - name: Run Tests
         run: |
