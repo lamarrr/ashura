@@ -340,6 +340,7 @@ add_library(
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc
   ashura/engine/passes.cc
+  ashura/engine/animation.cc
  )
 target_link_libraries(
   ashura_engine
