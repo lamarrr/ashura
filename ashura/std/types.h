@@ -1712,6 +1712,12 @@ struct Span
   {
     return slice(offset, USIZE_MAX);
   }
+
+  template <typename U>
+  Span<U> reinterpret() const
+  {
+    return Span<U>{(U *) data_, (sizeof(T) * size_) / sizeof(U)};
+  }
 };
 
 template <typename T>

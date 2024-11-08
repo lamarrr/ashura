@@ -100,18 +100,6 @@ bool load_instance_table(VkInstance                instance,
   return all_loaded;
 }
 
-bool to_c_str(Span<char const> str, Span<char> out)
-{
-  if (out.size() == 0)
-  {
-    return false;
-  }
-  usize cut_size = min(str.size(), out.size() - 1);
-  mem::copy(str.slice(0, cut_size), out.data());
-  out[cut_size] = 0;
-  return true;
-}
-
 bool load_device_table(VkDevice dev, InstanceTable const &instance_table,
                        DeviceTable &vk_table, bool debug_marker_enabled)
 {
@@ -1403,21 +1391,21 @@ void set_resource_name(Device *dev, Span<char const> label,
                        void const *resource, VkObjectType type,
                        VkDebugReportObjectTypeEXT debug_type)
 {
-  char buff[256];
-  to_c_str(label, span(buff));
+  char label_c_str[256];
+  CHECK(mem::to_c_str(label, span(label_c_str)));
   VkDebugUtilsObjectNameInfoEXT name_info{
       .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
       .pNext        = nullptr,
       .objectType   = type,
       .objectHandle = (u64) resource,
-      .pObjectName  = buff};
+      .pObjectName  = label_c_str};
   dev->instance->vk_table.SetDebugUtilsObjectNameEXT(dev->vk_dev, &name_info);
   VkDebugMarkerObjectNameInfoEXT debug_info{
       .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
       .pNext       = nullptr,
       .objectType  = debug_type,
       .object      = (u64) resource,
-      .pObjectName = buff};
+      .pObjectName = label_c_str};
   dev->vk_table.DebugMarkerSetObjectNameEXT(dev->vk_dev, &debug_info);
 }
 
@@ -1634,11 +1622,9 @@ void uninit_descriptor_heap(Device *self, DescriptorHeap *heap)
 
 Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
     gpu::Instance self_, AllocatorImpl allocator,
-    Span<gpu::DeviceType const> preferred_types,
-    Span<gpu::Surface const> compatible_surfaces, u32 buffering)
+    Span<gpu::DeviceType const> preferred_types, u32 buffering)
 {
   Instance *const self               = (Instance *) self_;
-  u32 const       num_surfaces       = compatible_surfaces.size32();
   constexpr u32   MAX_QUEUE_FAMILIES = 16;
 
   CHECK(buffering > 0);
@@ -1779,25 +1765,9 @@ Result<gpu::DeviceImpl, Status> InstanceInterface::create_device(
                                        VK_QUEUE_GRAPHICS_BIT |
                                        VK_QUEUE_TRANSFER_BIT)))
           {
-            u32 num_supported_surfaces = 0;
-            for (u32 isurface = 0; isurface < num_surfaces; isurface++)
-            {
-              VkBool32 supported;
-              self->vk_table.GetPhysicalDeviceSurfaceSupportKHR(
-                  dev.vk_phy_dev, iqueue_family,
-                  (Surface) compatible_surfaces[isurface], &supported);
-              if (supported == VK_TRUE)
-              {
-                num_supported_surfaces++;
-              }
-            }
-
-            if (num_supported_surfaces == num_surfaces)
-            {
-              selected_dev_idx      = idev;
-              selected_queue_family = iqueue_family;
-              break;
-            }
+            selected_dev_idx      = idev;
+            selected_queue_family = iqueue_family;
+            break;
           }
         }
       }
@@ -3035,7 +3005,7 @@ Result<gpu::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
       .pData = desc.compute_shader.specialization_constants_data.data()};
 
   char entry_point[256];
-  to_c_str(desc.compute_shader.entry_point, span(entry_point));
+  CHECK(mem::to_c_str(desc.compute_shader.entry_point, span(entry_point)));
 
   VkPipelineShaderStageCreateInfo vk_stage{
       .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -3164,8 +3134,8 @@ Result<gpu::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
 
   char vs_entry_point[256];
   char fs_entry_point[256];
-  to_c_str(desc.vertex_shader.entry_point, span(vs_entry_point));
-  to_c_str(desc.fragment_shader.entry_point, span(fs_entry_point));
+  CHECK(mem::to_c_str(desc.vertex_shader.entry_point, span(vs_entry_point)));
+  CHECK(mem::to_c_str(desc.fragment_shader.entry_point, span(fs_entry_point)));
 
   VkPipelineShaderStageCreateInfo vk_stages[2] = {
       {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -4841,7 +4811,7 @@ void CommandEncoderInterface::begin_debug_marker(gpu::CommandEncoder self_,
   CHECK(!self->is_in_pass());
   CHECK(region_name.size() < 256);
   char region_name_cstr[256];
-  to_c_str(region_name, span(region_name_cstr));
+  CHECK(mem::to_c_str(region_name, span(region_name_cstr)));
 
   VkDebugMarkerMarkerInfoEXT info{
       .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,

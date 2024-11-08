@@ -25,4 +25,6 @@ struct SceneNode
   u32 num_children = 0;
 };
 
+struct Scene;
+
 }        // namespace ash

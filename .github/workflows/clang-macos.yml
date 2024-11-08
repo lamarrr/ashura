@@ -1,4 +1,4 @@
-name: clang:ubuntu
+name: clang:macos
 
 on: push
 
@@ -7,8 +7,7 @@ jobs:
     strategy:
       matrix:
         build_mode: ["Release", "Debug"]
-        os: ["ubuntu-24.04"]
-        clang: ["18"]
+        os: ["macos-15"]
 
     runs-on: ${{ matrix.os }}
 
@@ -24,14 +23,9 @@ jobs:
             ${{ github.workspace }}/.deps
           key: ${{ matrix.os }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('vcpkg.json') }}
 
-      - name: Update Apt
+      - name: Install Dependencies
         run: |
-          sudo apt update
-          sudo apt upgrade
-          sudo apt dist-upgrade
-
-      - name: Install Build Tools
-        run: sudo apt install build-essential ninja-build clang-${{ matrix.clang }} cmake wget libxrandr-dev nasm libstdc++-14-dev
+          brew install llvm molten-vk cmake ninja nasm make
 
       - name: Install VCPKG
         if: steps.cache-and-install.outputs.cache-hit != 'true'
@@ -42,13 +36,14 @@ jobs:
 
       - name: Install Dependencies, Configure, and Build Ashura
         env:
-          CC: clang-${{ matrix.clang }}
-          CXX: clang++-${{ matrix.clang }}
+          CC: /opt/homebrew/opt/llvm/bin/clang
+          CXX: /opt/homebrew/opt/llvm/bin/clang++
           VCPKG_ROOT: ${{ github.workspace }}/.deps/vcpkg
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/.deps/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_INSTALLED_DIR=${{ github.workspace }}/.deps/vcpkg/installed -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -GNinja
+          export PATH="$PATH:/opt/homebrew/bin/ninja"
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DVCPKG_INSTALLED_DIR=${{ env.VCPKG_ROOT }}/installed -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -GNinja
           ninja
 
       - name: Run Tests

@@ -516,7 +516,7 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl allocator)
   return true;
 }
 
-void upload_font_to_device(Font font, RenderContext &c, AllocatorImpl allocator)
+void upload_font_to_device(Font font, GpuContext &c, AllocatorImpl allocator)
 {
   gpu::CommandEncoderImpl enc = c.encoder();
   gpu::DeviceImpl         d   = c.device;
@@ -655,7 +655,7 @@ void upload_font_to_device(Font font, RenderContext &c, AllocatorImpl allocator)
                                    .format      = format}};
 }
 
-void unload_font_from_device(Font font, RenderContext &c)
+void unload_font_from_device(Font font, GpuContext &c)
 {
   FontImpl *f = (FontImpl *) font;
   CHECK(f->gpu_atlas.is_some());

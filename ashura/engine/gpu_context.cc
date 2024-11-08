@@ -1,12 +1,12 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/engine/render_context.h"
+#include "ashura/engine/gpu_context.h"
 
 namespace ash
 {
 
-void RenderContext::init(gpu::DeviceImpl p_device, bool p_use_hdr,
-                         u32 p_buffering, gpu::Extent p_initial_extent,
-                         StrHashMap<gpu::Shader> p_shader_map)
+void GpuContext::init(gpu::DeviceImpl p_device, bool p_use_hdr, u32 p_buffering,
+                      gpu::Extent             p_initial_extent,
+                      StrHashMap<gpu::Shader> p_shader_map)
 {
   CHECK(p_buffering <= gpu::MAX_FRAME_BUFFERING && p_buffering > 0);
   CHECK(p_initial_extent.x > 0 && p_initial_extent.y > 0);
@@ -313,9 +313,11 @@ void RenderContext::init(gpu::DeviceImpl p_device, bool p_use_hdr,
                                 .image_view = default_image_views[i]}})});
     }
   }
+
+  released_objects.resize_defaulted(buffering).unwrap();
 }
 
-static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
+static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
                                  gpu::Extent new_extent)
 {
   ctx.release(fb);
@@ -400,7 +402,7 @@ static void recreate_framebuffer(RenderContext &ctx, Framebuffer &fb,
   fb.extent = new_extent;
 }
 
-void RenderContext::uninit()
+void GpuContext::uninit()
 {
   release(default_image);
   for (gpu::ImageView v : default_image_views)
@@ -430,7 +432,7 @@ void RenderContext::uninit()
   shader_map.reset();
 }
 
-void RenderContext::recreate_framebuffers(gpu::Extent new_extent)
+void GpuContext::recreate_framebuffers(gpu::Extent new_extent)
 {
   recreate_framebuffer(*this, screen_fb, new_extent);
   for (Framebuffer &f : scratch_fbs)
@@ -439,31 +441,31 @@ void RenderContext::recreate_framebuffers(gpu::Extent new_extent)
   }
 }
 
-gpu::CommandEncoderImpl RenderContext::encoder()
+gpu::CommandEncoderImpl GpuContext::encoder()
 {
   gpu::FrameContext ctx = device->get_frame_context(device.self);
   return ctx.encoders[ctx.ring_index];
 }
 
-u32 RenderContext::ring_index()
+u32 GpuContext::ring_index()
 {
   gpu::FrameContext ctx = device->get_frame_context(device.self);
   return ctx.ring_index;
 }
 
-gpu::FrameId RenderContext::frame_id()
+gpu::FrameId GpuContext::frame_id()
 {
   gpu::FrameContext ctx = device->get_frame_context(device.self);
   return ctx.current;
 }
 
-gpu::FrameId RenderContext::tail_frame_id()
+gpu::FrameId GpuContext::tail_frame_id()
 {
   gpu::FrameContext ctx = device->get_frame_context(device.self);
   return ctx.tail;
 }
 
-Option<gpu::Shader> RenderContext::get_shader(Span<char const> name)
+Option<gpu::Shader> GpuContext::get_shader(Span<char const> name)
 {
   gpu::Shader *shader = shader_map[name];
   if (shader == nullptr)
@@ -473,7 +475,7 @@ Option<gpu::Shader> RenderContext::get_shader(Span<char const> name)
   return Some{*shader};
 }
 
-CachedSampler RenderContext::create_sampler(gpu::SamplerDesc const &desc)
+CachedSampler GpuContext::create_sampler(gpu::SamplerDesc const &desc)
 {
   CachedSampler *cached = sampler_cache[desc];
   if (cached != nullptr)
@@ -499,7 +501,7 @@ CachedSampler RenderContext::create_sampler(gpu::SamplerDesc const &desc)
   return sampler;
 }
 
-u32 RenderContext::alloc_texture_slot()
+u32 GpuContext::alloc_texture_slot()
 {
   usize i = find_clear_bit(span(texture_slots));
   CHECK_DESC(i < size_bits(texture_slots), "Out of Texture Slots");
@@ -507,12 +509,12 @@ u32 RenderContext::alloc_texture_slot()
   return (u32) i;
 }
 
-void RenderContext::release_texture_slot(u32 slot)
+void GpuContext::release_texture_slot(u32 slot)
 {
   clear_bit(span(texture_slots), slot);
 }
 
-u32 RenderContext::alloc_sampler_slot()
+u32 GpuContext::alloc_sampler_slot()
 {
   usize i = find_clear_bit(span(sampler_slots));
   CHECK_DESC(i < size_bits(sampler_slots), "Out of Sampler Slots");
@@ -520,12 +522,12 @@ u32 RenderContext::alloc_sampler_slot()
   return (u32) i;
 }
 
-void RenderContext::release_sampler_slot(u32 slot)
+void GpuContext::release_sampler_slot(u32 slot)
 {
   clear_bit(span(sampler_slots), slot);
 }
 
-void RenderContext::release(gpu::Image image)
+void GpuContext::release(gpu::Image image)
 {
   if (image == nullptr)
   {
@@ -536,7 +538,7 @@ void RenderContext::release(gpu::Image image)
       .unwrap();
 }
 
-void RenderContext::release(gpu::ImageView view)
+void GpuContext::release(gpu::ImageView view)
 {
   if (view == nullptr)
   {
@@ -547,7 +549,7 @@ void RenderContext::release(gpu::ImageView view)
       .unwrap();
 }
 
-void RenderContext::release(gpu::Buffer buffer)
+void GpuContext::release(gpu::Buffer buffer)
 {
   if (buffer == nullptr)
   {
@@ -558,7 +560,7 @@ void RenderContext::release(gpu::Buffer buffer)
       .unwrap();
 }
 
-void RenderContext::release(gpu::BufferView view)
+void GpuContext::release(gpu::BufferView view)
 {
   if (view == nullptr)
   {
@@ -570,7 +572,7 @@ void RenderContext::release(gpu::BufferView view)
       .unwrap();
 }
 
-void RenderContext::release(gpu::DescriptorSetLayout layout)
+void GpuContext::release(gpu::DescriptorSetLayout layout)
 {
   if (layout == nullptr)
   {
@@ -582,7 +584,7 @@ void RenderContext::release(gpu::DescriptorSetLayout layout)
       .unwrap();
 }
 
-void RenderContext::release(gpu::DescriptorSet set)
+void GpuContext::release(gpu::DescriptorSet set)
 {
   if (set == nullptr)
   {
@@ -594,7 +596,7 @@ void RenderContext::release(gpu::DescriptorSet set)
       .unwrap();
 }
 
-void RenderContext::release(gpu::Sampler sampler)
+void GpuContext::release(gpu::Sampler sampler)
 {
   if (sampler == nullptr)
   {
@@ -638,17 +640,17 @@ static void uninit_objects(gpu::DeviceImpl d, Span<gpu::Object const> objects)
   }
 }
 
-void RenderContext::idle_reclaim()
+void GpuContext::idle_reclaim()
 {
   device->wait_idle(device.self).unwrap();
-  for (u32 i = 0; i < buffering; i++)
+  for (auto &objects : released_objects)
   {
-    uninit_objects(device, span(released_objects[i]));
-    released_objects[i].reset();
+    uninit_objects(device, span(objects));
+    objects.reset();
   }
 }
 
-void RenderContext::begin_frame(gpu::Swapchain swapchain)
+void GpuContext::begin_frame(gpu::Swapchain swapchain)
 {
   device->begin_frame(device.self, swapchain).unwrap();
   uninit_objects(device, span(released_objects[ring_index()]));
@@ -699,7 +701,7 @@ void RenderContext::begin_frame(gpu::Swapchain swapchain)
   }
 }
 
-void RenderContext::end_frame(gpu::Swapchain swapchain)
+void GpuContext::end_frame(gpu::Swapchain swapchain)
 {
   gpu::CommandEncoderImpl enc = encoder();
   if (swapchain != nullptr)
@@ -730,6 +732,89 @@ void RenderContext::end_frame(gpu::Swapchain swapchain)
     }
   }
   device->submit_frame(device.self, swapchain).unwrap();
+}
+
+void SSBO::uninit(GpuContext &ctx)
+{
+  ctx.device->uninit_descriptor_set(ctx.device.self, descriptor);
+  ctx.device->uninit_buffer(ctx.device.self, buffer);
+}
+
+void SSBO::reserve(GpuContext &ctx, u64 p_size)
+{
+  p_size = max(p_size, (u64) 1);
+  if (buffer != nullptr && size >= p_size)
+  {
+    return;
+  }
+
+  ctx.device->uninit_buffer(ctx.device.self, buffer);
+
+  buffer = ctx.device
+               ->create_buffer(
+                   ctx.device.self,
+                   gpu::BufferDesc{.label       = label,
+                                   .size        = p_size,
+                                   .host_mapped = true,
+                                   .usage = gpu::BufferUsage::TransferSrc |
+                                            gpu::BufferUsage::TransferDst |
+                                            gpu::BufferUsage::UniformBuffer |
+                                            gpu::BufferUsage::StorageBuffer})
+               .unwrap();
+
+  if (descriptor == nullptr)
+  {
+    descriptor =
+        ctx.device->create_descriptor_set(ctx.device.self, ctx.ssbo_layout, {})
+            .unwrap();
+  }
+
+  ctx.device->update_descriptor_set(
+      ctx.device.self,
+      gpu::DescriptorSetUpdate{
+          .set     = descriptor,
+          .binding = 0,
+          .element = 0,
+          .buffers = span({gpu::BufferBinding{
+              .buffer = buffer, .offset = 0, .size = p_size}})});
+
+  size = p_size;
+}
+
+void SSBO::copy(GpuContext &ctx, Span<u8 const> src)
+{
+  reserve(ctx, (u64) src.size());
+  u8 *data = (u8 *) map(ctx);
+  mem::copy(src, data);
+  flush(ctx);
+  unmap(ctx);
+}
+
+void *SSBO::map(GpuContext &ctx)
+{
+  return ctx.device->map_buffer_memory(ctx.device.self, buffer).unwrap();
+}
+
+void SSBO::unmap(GpuContext &ctx)
+{
+  ctx.device->unmap_buffer_memory(ctx.device.self, buffer);
+}
+
+void SSBO::flush(GpuContext &ctx)
+{
+  ctx.device
+      ->flush_mapped_buffer_memory(ctx.device.self, buffer,
+                                   gpu::MemoryRange{0, gpu::WHOLE_SIZE})
+      .unwrap();
+}
+
+void SSBO::release(GpuContext &ctx)
+{
+  ctx.release(buffer);
+  ctx.release(descriptor);
+  buffer     = nullptr;
+  size       = 0;
+  descriptor = nullptr;
 }
 
 }        // namespace ash
