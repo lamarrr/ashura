@@ -252,12 +252,12 @@ if(APPLE)
   endif()
 endif()
 
-# GoogleTest configuration
+
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
-# FetchContent_MakeAvailable(googletest)
+
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 add_library(SheenBidi ${SheenBidi_SOURCES})
 target_include_directories(
