@@ -30,7 +30,7 @@ namespace ash
 // [ ] stop after timepoint
 // [ ] alternate
 // [x] pause
-// [ ] resume in direction
+// [x] resume in direction
 // [x] reset animation state to beginning
 
 // TODO: Support ash Span type instead of using std::string
@@ -74,7 +74,91 @@ struct Timeline;
 namespace animation
 {
 
-/// @brief Timeline concept to compose and synchronize multiple animations
+enum class GridDirection
+{
+  RowMajor,          // Left to right, top to bottom
+  ColumnMajor        // Top to bottom, left to right
+};
+
+struct StaggerOptions
+{
+  f32 start = 0.0f;
+  f32 from  = 0.0f;
+  struct Grid
+  {
+    i32           rows      = 1;
+    i32           cols      = 1;
+    GridDirection direction = GridDirection::RowMajor;
+  } grid;
+  std::function<f32(i32 row, i32 col, i32 index, i32 total)> easing = nullptr;
+};
+
+static std::pair<i32, i32> grid_position(i32 index, i32 rows, i32 cols,
+                                         GridDirection direction)
+{
+  if (direction == GridDirection::RowMajor)
+  {
+    return {
+        index / cols,        // row
+        index % cols         // col
+    };
+  }
+  else
+  {
+    return {
+        index % rows,        // row
+        index / rows         // col
+    };
+  }
+}
+
+f32 stagger_grid_delay(i32 index, i32 count, const StaggerOptions &stagger_opts)
+{
+  auto [row, col] = animation::grid_position(index, stagger_opts.grid.rows,
+                                             stagger_opts.grid.cols,
+                                             stagger_opts.grid.direction);
+
+  if (!stagger_opts.easing)
+  {
+    return stagger_opts.easing(row, col, index, count);
+  }
+  else
+  {
+    // Default grid-based delay calculation
+    f32 normalized_row = static_cast<f32>(row) / (stagger_opts.grid.rows - 1);
+    f32 normalized_col = static_cast<f32>(col) / (stagger_opts.grid.cols - 1);
+
+    switch (stagger_opts.grid.direction)
+    {
+      case animation::GridDirection::RowMajor:
+        return normalized_row + (normalized_col * 0.5f);
+      case animation::GridDirection::ColumnMajor:
+        return normalized_col + (normalized_row * 0.5f);
+    }
+  }
+}
+
+f32 stagger_linear_delay(i32 i, i32 count,
+                         const StaggerOptions &stagger_opts = StaggerOptions{})
+{
+  return stagger_opts.easing ? stagger_opts.easing(0, 0, i, count) :
+                               static_cast<f32>(i) / count;
+}
+
+f32 stagger_delay(i32 i, i32 count,
+                  const StaggerOptions &stagger_opts = StaggerOptions{})
+{
+  bool is_grid_based = stagger_opts.grid.rows > 1 || stagger_opts.grid.cols > 1;
+
+  if (is_grid_based)
+  {
+    return animation::stagger_grid_delay(i, count, stagger_opts);
+  }
+
+  return animation::stagger_linear_delay(i, count, stagger_opts);
+}
+
+
 namespace timeline
 {
 // Segment types
@@ -86,30 +170,23 @@ enum class SegmentType
   Staggered         // Staggered animations
 };
 
-struct StaggerOptions
-{
-  f32                                start   = 0.0f;
-  f32                                from    = 0.0f;
-  std::string                        grid[2] = {"", ""};
-  std::function<f32(size_t, size_t)> easing  = nullptr;
-};
 
 template <Animatable T>
-struct AnimationSegment
+struct TimelineSegment
 {
   std::string label;        // Useful for grouping multiple segments
   f32         start    = 0.0f;
   f32         duration = 0.0f;
   SegmentType type     = SegmentType::Basic;
-  std::function<void(const T &)> onUpdate;
+  std::function<void(const T &)> on_update;
 
-  virtual ~AnimationSegment()                  = default;
+  virtual ~TimelineSegment()                   = default;
   virtual void update(f32 time, f32 deltaTime) = 0;
   virtual void reset()                         = 0;
 };
 
 template <Animatable T>
-struct BasicSegment : AnimationSegment<T>
+struct BasicSegment : TimelineSegment<T>
 {
   Animation<T> animation;
 
@@ -132,7 +209,7 @@ struct BasicSegment : AnimationSegment<T>
 };
 
 template <Animatable T>
-struct KeyframeSegment : AnimationSegment<T>
+struct KeyframeSegment : TimelineSegment<T>
 {
   std::vector<Keyframe<T>> keyframes;
   f32                      current_time = 0.0f;
@@ -152,7 +229,7 @@ struct KeyframeSegment : AnimationSegment<T>
     }
   }
 
-  void update(f32 time, f32 delta) override
+  void update(f32 time, f32 _delta) override
   {
     if (keyframes.size() < 2)
       return;
@@ -176,15 +253,6 @@ struct KeyframeSegment : AnimationSegment<T>
 
         if (this->on_update)
         {
-          //   T interpolated_value;
-          //   if constexpr (std::is_arithmetic_v<T>)
-          //   {
-          //     interpolated_value =
-          //         lerp(current_kf.value, next_kf.value, eased_time);
-          //   } else {
-          //     interpolated_value = T::lerp(current_kf.value, next_kf.value,
-          //     eased_time);
-          //   }
           T interpolated_value =
               lerp(current_kf.value, next_kf.value, eased_time);
 
@@ -293,9 +361,70 @@ struct Animation : IAnimation
 };
 
 // Manage multiple animations.
-struct AnimationController
+// - play multiple animations
+// - pause all animations
+// - reset all animations
+// - grid based animations
+// - set a callback function to track animation updates
+// ```
+// AnimationManager animator;
+//
+// auto anim1 = animator.create<Vec2>(
+//     start_pos,
+//     end_pos,
+//     AnimationConfig{.duration = 1.0f, .loop = true},
+//     [](const Vec2& pos) { /* update logic */ }
+// );
+//
+// auto anim2 = animator.create<Vec2>(
+//     start_pos,
+//     end_pos,
+//     AnimationConfig{.duration = 1.0f, .loop = true},
+//     [](const Vec2& pos) { /* update logic */ }
+// );
+//
+// // Play individual animation
+// anim2.play();
+// // Or play all the animations
+// animator.play_all();
+//
+// ```
+//
+//
+// ### Staggered (Grid) animations
+//--------
+// ### Example: Ripple Pattern Animation
+//```
+// animator.stagger<f32>(
+//  0.0f, // start
+//  1.0f, // end
+//  AnimationConfig{.duration = 1.0f, .loop = true},
+//  10, // total count
+//  StaggerOptions {
+//      .grid = {4, 4},
+//      .easing = [](int row, int col, int index, int total) {
+//          // Ripple effect
+//          f32 center_row = 1.5f;
+//          f32 center_col = 1.5f;
+//          f32 distance = std::sqrt(
+//              std::pow(row - center_row, 2) +
+//              std::pow(col - center_col, 2)
+//          );
+//          return distance * 0.15f;
+//  },
+//  [](const f32& value, index) { /* update logic */ }
+//);
+//```
+struct AnimationManager
 {
+private:
   std::vector<std::shared_ptr<IAnimation>> animations;
+
+public:
+
+  void reserve(u32 size){
+    animations.reserve(size);
+  }
 
   template <typename T>
   std::shared_ptr<Animation<T>> create(T start, T end, AnimationConfig config,
@@ -349,6 +478,30 @@ struct AnimationController
       }
     }
   }
+
+  template <typename T>
+  void stagger(const T &start, const T &end, const AnimationConfig &base_config,
+               size_t                           count,
+               const animation::StaggerOptions &stagger_opts =
+                   animation::StaggerOptions{},
+               std::function<void(const T &, size_t)> callback = nullptr)
+  {
+    for (size_t i = 0; i < count; ++i)
+    {
+      f32 base_delay = animation::stagger_delay(i, count, stagger_opts);
+
+      auto config  = base_config;
+      config.delay = stagger_opts.start + (base_delay * stagger_opts.from);
+
+      // Create animation with grid index-aware callback
+      create<T>(start, end, config, [callback, i](const T &value) {
+        if (callback)
+          callback(value, i);
+      });
+
+      play_all();
+    }
+  }
 };
 
 enum class CurveType
@@ -357,8 +510,6 @@ enum class CurveType
   EaseIn,
   EaseOut,
   EaseInOut,
-  //   Bezier,
-  //   CubicBezier,
   Custom
 };
 
@@ -421,16 +572,58 @@ struct Keyframe : KeyframeBase
   }
 };
 
+// Timeline: A more robust way to manage multiple animations
+// -  Timeline animations or keyframes can be run in parallel or staggered.
+// -  Set a callback to track each animation or keyframe update.
+// -  Direction control
+// -  Playback control
+// ```
+// TimelineOptions options{
+//         .autoplay = true,
+//         .loop = true
+// };
+// Timeline<Vec2> timeline(options);
+//
+// std::vector<Keyframe<Vec2>> keyframes = {
+//     Keyframe<Vec2>(0.5f, "start", {0, 100.0f}, CurveType::EaseInOut),
+//     Keyframe<Vec2>(0.5f, "middle", {150.0f, 50.0f}, CurveType::EaseInOut),
+//     Keyframe<Vec2>(0.5f, "end", {0, 200.0f}, CurveType::EaseInOut)
+// };
+//
+// timeline.add(keyframes);
+// // Basic controls
+// timeline.play();
+// timeline.pause();
+// timeline.reverse();
+// timeline.seek(2.0f);
+// timeline.seek_percentage(0.5f);
+//
+//  // Playback controls
+// timeline.play_from_start();  // Forward from start
+// timeline.play_from_end();    // Reverse from end
+// timeline.stop();          // Reset to start
+// ```
+// ---
+//
+// ### Chainable calls
+// ```
+// timeline
+//     .add(start, end, config)                  // Simple animation
+//     .add(keyframes)                           // Keyframe sequence
+//     .parallel(configs, values)                // Parallel animations
+//     .stagger(start, end, config, count);      // Staggered animations
+// ```
 template <typename T>
 struct Timeline
 {
-  using SegmentPtr = std::shared_ptr<animation::timeline::AnimationSegment<T>>;
+  using SegmentPtr = std::shared_ptr<animation::timeline::TimelineSegment<T>>;
 
   std::vector<SegmentPtr> segments;
   TimelineOptions         options;
   f32                     current_time   = 0.0f;
   bool                    is_playing     = false;
   f32                     total_duration = 0.0f;
+  f32                     time_direction = 1.0f;
 
   Timeline(const TimelineOptions &opts = TimelineOptions{}) : options(opts)
   {
@@ -438,6 +631,10 @@ struct Timeline
     {
       is_playing = true;
     }
+  }
+
+  Timeline &reserve(u32 size) {
+    segments.reserve(size);
   }
 
   Timeline &add(const T &start, const T &end, AnimationConfig config)
@@ -481,31 +678,29 @@ struct Timeline
   }
 
   Timeline &stagger(const T &start, const T &end, AnimationConfig config,
-                    size_t                                     count,
-                    const animation::timeline::StaggerOptions &stagger_opts =
-                        animation::timeline::StaggerOptions{})
+                    size_t                           count,
+                    const animation::StaggerOptions &stagger_opts =
+                        animation::StaggerOptions{})
   {
-    f32 stagger_delay = config.duration / static_cast<f32>(count);
-    f32 startTime     = total_duration;
+    f32 base_delay = 0.0f;
+    f32 start_time = total_duration;
 
     for (size_t i = 0; i < count; ++i)
     {
-      f32 delay = stagger_opts.start +
-                  (stagger_delay * (stagger_opts.easing ?
-                                        stagger_opts.easing(i, count) :
-                                        static_cast<f32>(i) / count));
-
-      auto segment_config  = config;
-      segment_config.delay = delay;
-
-      auto segment = std::make_shared<animation::timeline::BasicSegment<T>>(
-          start, end, segment_config);
-      segment->startTime = startTime;
-      segment->type      = animation::timeline::SegmentType::Staggered;
-      segments.push_back(segment);
+      base_delay = animation::stagger_delay(i, count, stagger_opts);
     }
 
-    total_duration += config.duration + (stagger_delay * (count - 1));
+    f32 delay = stagger_opts.start + (base_delay * stagger_opts.from);
+
+    auto segment_config  = config;
+    segment_config.delay = delay;
+
+    auto segment = std::make_shared<animation::timeline::BasicSegment<T>>(
+        start, end, segment_config);
+    segment->start_time = start_time;
+    segment->type       = animation::timeline::SegmentType::Staggered;
+    segments.push_back(segment);
+
     return *this;
   }
 
@@ -514,9 +709,10 @@ struct Timeline
     if (!is_playing)
       return;
 
-    current_time += delta;
+    f32 adjusted_delta = delta * time_direction;
+    current_time += adjusted_delta;
 
-    if (current_time >= total_duration)
+    if (time_direction > 0 && current_time >= total_duration)
     {
       if (options.loop)
       {
@@ -532,34 +728,173 @@ struct Timeline
         is_playing   = false;
       }
     }
-
-    for (auto &segment : segments)
+    else if (time_direction < 0 && current_time <= 0)
     {
-      segment->update(current_time, delta);
+      if (options.loop)
+      {
+        current_time = total_duration + std::fmod(current_time, total_duration);
+        for (auto &segment : segments)
+        {
+          segment->reset();
+        }
+      }
+      else
+      {
+        current_time = 0;
+        is_playing   = false;
+      }
     }
+
+    update_segments(delta);
   }
 
   void play()
   {
     is_playing = true;
   }
+
+  void play_from_start()
+  {
+    for (auto &segment : segments)
+    {
+      segment->reset();
+    }
+    current_time   = 0;
+    time_direction = 1.0f;
+    is_playing     = true;
+  }
+
+  void play_from_end()
+  {
+    for (auto &segment : segments)
+    {
+      segment->reset();
+    }
+    current_time   = total_duration;
+    time_direction = -1.0f;
+    is_playing     = true;
+  }
+
   void pause()
   {
     is_playing = false;
   }
-  void reset()
+
+  void stop()
   {
-    current_time = 0.0f;
+    is_playing     = false;
+    current_time   = 0;
+    time_direction = 1.0f;
     for (auto &segment : segments)
     {
       segment->reset();
     }
   }
+
+  void seek(f32 time)
+  {
+    f32 target_time = std::clamp(time, 0.0f, total_duration);
+    f32 delta       = target_time - current_time;
+
+    // Reset all segments if seeking backwards
+    if (delta < 0)
+    {
+      for (auto &segment : segments)
+      {
+        segment->reset();
+      }
+      current_time = 0;
+      update_segments(target_time);
+    }
+    else
+    {
+      update_segments(delta);
+    }
+
+    current_time = target_time;
+  }
+
+  // Seek to percentage of duration
+  void seek_percentage(f32 percentage)
+  {
+    percentage = std::clamp(percentage, 0.0f, 1.0f);
+    seek(total_duration * percentage);
+  }
+
+  void reverse()
+  {
+    time_direction *= -1.0f;
+  }
+
+  // Force a direction: `1` is forward or `-1` is backward
+  void set_direction(i32 direction)
+  {
+    if (direction == -1)
+    {
+      time_direction = -1.0f;
+      return;
+    }
+    if (direction >= 1)
+    {
+      time_direction = 1.0f;
+      return;
+    }
+  }
+
+  f32 get_current_time() const
+  {
+    return current_time;
+  }
+  f32 get_duration() const
+  {
+    return total_duration;
+  }
+  f32 get_progress() const
+  {
+    return current_time / total_duration;
+  }
+  bool is_reversed() const
+  {
+    return time_direction < 0;
+  }
+  bool is_finished() const
+  {
+    return !options.loop &&
+           ((time_direction > 0 && current_time >= total_duration) ||
+            (time_direction < 0 && current_time <= 0));
+  }
+
   void set_callback(std::function<void(const T &)> callback)
   {
     for (auto &segment : segments)
     {
-      segment->onUpdate = callback;
+      segment->on_update = callback;
+    }
+  }
+
+private:
+  void update_segments(f32 delta)
+  {
+    for (auto &segment : segments)
+    {
+      if (time_direction > 0)
+      {
+        // Forward playback
+        if (current_time >= segment->start_time &&
+            current_time <= segment->start_time + segment->duration)
+        {
+          segment->update(current_time, std::abs(delta));
+        }
+      }
+      else
+      {
+        // Reverse playback
+        f32 segment_end = segment->startTime + segment->duration;
+        if (current_time <= segment_end && current_time >= segment->start_time)
+        {
+          segment->update(current_time, std::abs(delta));
+        }
+      }
     }
   }
 };
