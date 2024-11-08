@@ -4,7 +4,6 @@ cmake_minimum_required(VERSION 3.6)
 if(APPLE)
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
     set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Build architectures for macOS" FORCE)
-    set(CMAKE_SYSTEM_PROCESSOR "arm64")
     set(CMAKE_APPLE_SILICON_PROCESSOR "arm64")
   endif()
 endif()
@@ -55,12 +54,10 @@ if(APPLE)
     message(FATAL_ERROR "glslc not found. Please install the Vulkan SDK from https://vulkan.lunarg.com/sdk/home#mac")
   endif()
 
-  
   message(STATUS "GLSLC path: ${GLSLC_EXECUTABLE}")
   message(STATUS "Vulkan include dirs: ${Vulkan_INCLUDE_DIRS}")
   message(STATUS "Vulkan libraries: ${Vulkan_LIBRARIES}")
 
-  
   set(ENV{VULKAN_SDK} "${VULKAN_SDK}/macOS")
   set(ENV{VK_ICD_FILENAMES} "${VULKAN_SDK}/macOS/share/vulkan/icd.d/MoltenVK_icd.json")
   set(ENV{VK_LAYER_PATH} "${VULKAN_SDK}/macOS/share/vulkan/explicit_layer.d")
@@ -74,40 +71,10 @@ if(APPLE)
 
   message(STATUS "SPIRV library: ${SPIRV_LIBRARY}")
 
-
   list(APPEND CMAKE_PREFIX_PATH
-    "${HOMEBREW_PREFIX}/opt/giflib"
-    "${HOMEBREW_PREFIX}/opt/jpeg-turbo"
-    "${HOMEBREW_PREFIX}/opt/libpng"
-    "${HOMEBREW_PREFIX}/opt/ffmpeg"
     "${HOMEBREW_PREFIX}/opt/vulkan-sdk"
     "${HOMEBREW_PREFIX}/opt/molten-vk"
   )
-
-  find_package(GIF QUIET)
-  find_package(WEBP QUIET)
-
-  if(NOT GIF_FOUND)
-    message(STATUS "GIF library not found, installing via Homebrew...")
-    execute_process(
-      COMMAND brew install giflib
-      RESULT_VARIABLE BREW_RESULT
-    )
-
-    if(NOT BREW_RESULT EQUAL 0)
-      message(FATAL_ERROR "Failed to install giflib via Homebrew")
-    endif()
-
-    find_package(GIF REQUIRED)
-  endif()
-
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-    set(GIF_INCLUDE_DIR "${HOMEBREW_PREFIX}/include")
-    set(GIF_LIBRARY "${HOMEBREW_PREFIX}/lib/libgif.dylib")
-  else()
-    set(GIF_INCLUDE_DIR "/usr/local/include")
-    set(GIF_LIBRARY "/usr/local/lib/libgif.dylib")
-  endif()
 
   include_directories(SYSTEM
     "${HOMEBREW_PREFIX}/include"
@@ -117,7 +84,6 @@ if(APPLE)
   link_directories(
     "${HOMEBREW_PREFIX}/lib"
     "${VULKAN_SDK_PATH}/lib"
-    "${HOMEBREW_PREFIX}/opt/giflib/lib"
   )
 
   set(ENV{PKG_CONFIG_PATH} "${HOMEBREW_PREFIX}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
@@ -137,36 +103,39 @@ FetchContent_Declare(
   GIT_TAG vulkan-sdk-1.3.296.0
 )
 
-FetchContent_GetProperties(VulkanHeaders)
+if(APPLE)
+  FetchContent_GetProperties(VulkanHeaders)
 
-if(NOT vulkanheaders_POPULATED)
-  FetchContent_MakeAvailable(VulkanHeaders)
+  if(NOT vulkanheaders_POPULATED)
+    FetchContent_MakeAvailable(VulkanHeaders)
 
-  # Configure and install VulkanHeaders
-  execute_process(
-    COMMAND ${CMAKE_COMMAND}
-    -S ${vulkanheaders_SOURCE_DIR}
-    -B ${vulkanheaders_BINARY_DIR}
-    -DCMAKE_INSTALL_PREFIX=${vulkanheaders_BINARY_DIR}/install
-  )
+    # Configure and install VulkanHeaders
+    execute_process(
+      COMMAND ${CMAKE_COMMAND}
+      -S ${vulkanheaders_SOURCE_DIR}
+      -B ${vulkanheaders_BINARY_DIR}
+      -DCMAKE_INSTALL_PREFIX=${vulkanheaders_BINARY_DIR}/install
+    )
 
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} --build ${vulkanheaders_BINARY_DIR} --target install
-  )
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} --build ${vulkanheaders_BINARY_DIR} --target install
+    )
+  endif()
+
+  list(APPEND CMAKE_PREFIX_PATH ${vulkanheaders_BINARY_DIR}/install)
+
+  set(VulkanHeaders_DIR ${VULKAN_HEADERS_INSTALL_DIR}/share/cmake/VulkanHeaders)
+
+  set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "")
+  set(ENABLE_GLSLANG_JS OFF CACHE BOOL "")
+  set(ENABLE_HLSL OFF CACHE BOOL "")
+  set(ENABLE_OPT OFF CACHE BOOL "")
+  set(BUILD_TESTING OFF CACHE BOOL "")
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
+  set(SKIP_GLSLANG_INSTALL ON CACHE BOOL "")
+  set(ENABLE_PCH OFF CACHE BOOL "")
 endif()
 
-list(APPEND CMAKE_PREFIX_PATH ${vulkanheaders_BINARY_DIR}/install)
-
-set(VulkanHeaders_DIR ${VULKAN_HEADERS_INSTALL_DIR}/share/cmake/VulkanHeaders)
-
-set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "")
-set(ENABLE_GLSLANG_JS OFF CACHE BOOL "")
-set(ENABLE_HLSL OFF CACHE BOOL "")
-set(ENABLE_OPT OFF CACHE BOOL "")
-set(BUILD_TESTING OFF CACHE BOOL "")
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
-set(SKIP_GLSLANG_INSTALL ON CACHE BOOL "")
-set(ENABLE_PCH OFF CACHE BOOL "")
 FetchContent_Declare(
   VulkanGLSL
   GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
@@ -229,13 +198,11 @@ set(WEBP_ENABLE_GIF OFF CACHE BOOL "Enable GIF support" FORCE)
 set(WEBP_BUILD_DEPS ON CACHE BOOL "Build dependencies" FORCE)
 set(WEBP_ENABLE_SWAP_16BIT_CSP ON CACHE BOOL "Enable byte swap for 16 bit colorspaces" FORCE)
 
-if(NOT APPLE)
-  FetchContent_Declare(
-    WebP
-    GIT_REPOSITORY https://chromium.googlesource.com/webm/libwebp
-    GIT_TAG 1.4.0
-  )
-endif()
+FetchContent_Declare(
+  WebP
+  GIT_REPOSITORY https://chromium.googlesource.com/webm/libwebp
+  GIT_TAG 1.4.0
+)
 
 FetchContent_Declare(
   CURL
@@ -243,32 +210,12 @@ FetchContent_Declare(
   GIT_TAG curl-8_8_0
 )
 
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.14.0
-)
-
 find_package(simdjson CONFIG REQUIRED)
+find_package(GTest REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(libjpeg-turbo CONFIG REQUIRED)
 find_package(PNG REQUIRED)
-find_package(PkgConfig REQUIRED)
-
-# FFMPEG configuration
-if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-  set(ENV{PKG_CONFIG_PATH} "${HOMEBREW_PREFIX}/ffmpeg/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
-endif()
-
-pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
-  libavcodec
-  libavformat
-  libavutil
-  libswscale
-  libswresample
-)
-set(FFMPEG_LIBRARIES PkgConfig::FFMPEG)
-
+find_package(FFMPEG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
 find_package(Threads REQUIRED)
@@ -283,11 +230,7 @@ FetchContent_MakeAvailable(Freetype)
 FetchContent_MakeAvailable(SheenBidi)
 FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
-
-if(NOT APPLE)
-  FetchContent_MakeAvailable(WebP)
-endif()
-
+FetchContent_MakeAvailable(WebP)
 FetchContent_MakeAvailable(CURL)
 
 if(APPLE)
@@ -313,8 +256,8 @@ endif()
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
 
+# FetchContent_MakeAvailable(googletest)
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 add_library(SheenBidi ${SheenBidi_SOURCES})
 target_include_directories(
@@ -378,7 +321,6 @@ target_link_libraries(
   GPUOpen::VulkanMemoryAllocator
 )
 
-
 add_library(
   ashura_engine
   ashura/engine/engine.cc
@@ -398,8 +340,7 @@ add_library(
   ashura/engine/renderer.cc
   ashura/engine/render_context.cc
   ashura/engine/passes.cc
-)
-
+ )
 target_link_libraries(
   ashura_engine
   ashura_std
@@ -422,7 +363,6 @@ target_link_libraries(
 if(APPLE)
   target_link_libraries(
     ashura_engine
-    ${GIF_LIBRARY}
     ${SPIRV_LIBRARY}
   )
 else()
@@ -439,10 +379,10 @@ target_include_directories(
   ${JPEG_INCLUDE_DIR}
   ${FFMPEG_INCLUDE_DIRS}
   ${FFMPEG_LIBRARY_DIRS}
-  PRIVATE
-  ${GIF_INCLUDE_DIR}
-)
 
+  # PRIVATE
+  # ${GIF_INCLUDE_DIR}
+)
 
 add_executable(
   ashura_std_tests
