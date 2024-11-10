@@ -1,7 +1,10 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/font.h"
+#include "ashura/engine/gpu_context.h"
 #include "ashura/engine/image_decoder.h"
+#include "ashura/engine/view_system.h"
+#include "ashura/engine/window.h"
 #include "ashura/std/async.h"
 #include "ashura/std/cfg.h"
 
@@ -28,23 +31,38 @@ enum class ImageLoadError : i32
 // [ ] Video Manager (Vulkan, FFMPEG)
 // [ ] Custom Subsystems
 // [ ] Engine Startup() -> Tick () -> Shutdown() Tasks
-// [ ] URI system and parser with specifications: caching behaviour, identifier
-// name, etc. generic resource type. load status, registered? etc. named paths,
-// i.e. $HOME $FONTS $IMAGES $ASSETS/
 // [ ] UI tick rate (time-based/adaptive frame rate), with custom frequency
 // allowed, need to be able to merge inputs?
 //
 struct Engine
 {
-  void              *app          = nullptr;
-  StrHashMap<void *> globals      = {};
-  Font               default_font = nullptr;
+  gpu::InstanceImpl instance = {};
 
-  Result<Font, FontLoadError> load_font(Span<char const> uri);
-  Result<Void, FontLoadError> unload_font(Span<char const> uri);
+  gpu::DeviceImpl device = {};
+
+  Window window = nullptr;
+
+  gpu::Surface surface = nullptr;
+
+  gpu::Swapchain swapchain = nullptr;
+
+  gpu::PresentMode present_mode_preference = gpu::PresentMode::Immediate;
+
+  GpuContext gpu_ctx = {};
+
+  Renderer renderer = {};
+
+  Canvas canvas = {};
+
+  ViewSystem view_system = {};
+
+  ViewContext view_ctx = {};
+
+  Font default_font = nullptr;
 
   void init();
   void uninit();
+  void run(void *app, View &view);
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded

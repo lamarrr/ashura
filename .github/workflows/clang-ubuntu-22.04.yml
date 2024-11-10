@@ -8,7 +8,6 @@ jobs:
       matrix:
         build_mode: ["Release", "Debug"]
         os: ["ubuntu-24.04"]
-        vulkan: ["1.3.296.0"]
         clang: ["18"]
 
     runs-on: ${{ matrix.os }}
@@ -23,7 +22,7 @@ jobs:
         with:
           path: |
             ${{ github.workspace }}/.deps
-          key: ${{ matrix.os }}-${{ matrix.vulkan }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('vcpkg.json') }}
+          key: ${{ matrix.os }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('vcpkg.json') }}
 
       - name: Update Apt
         run: |
@@ -33,16 +32,6 @@ jobs:
 
       - name: Install Build Tools
         run: sudo apt install build-essential ninja-build clang-${{ matrix.clang }} cmake wget libxrandr-dev nasm libstdc++-14-dev
-
-      - name: Install Vulkan SDK
-        if: steps.cache-and-install.outputs.cache-hit != 'true'
-        run: |
-          mkdir .deps
-          cd .deps
-          wget https://sdk.lunarg.com/sdk/download/${{ matrix.vulkan }}/linux/vulkansdk-linux-x86_64-${{ matrix.vulkan }}.tar.xz
-          mkdir VulkanSDK
-          tar -xvf vulkansdk-linux-x86_64-${{ matrix.vulkan }}.tar.xz -C VulkanSDK
-          sudo chmod +x VulkanSDK/${{ matrix.vulkan }}/setup-env.sh
 
       - name: Install VCPKG
         if: steps.cache-and-install.outputs.cache-hit != 'true'
@@ -55,8 +44,8 @@ jobs:
         env:
           CC: clang-${{ matrix.clang }}
           CXX: clang++-${{ matrix.clang }}
+          VCPKG_ROOT: ${{ github.workspace }}/.deps/vcpkg
         run: |
-          .deps/VulkanSDK/${{ matrix.vulkan }}/setup-env.sh
           mkdir build
           cd build
           cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/.deps/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_INSTALLED_DIR=${{ github.workspace }}/.deps/vcpkg/installed -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -GNinja

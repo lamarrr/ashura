@@ -17,6 +17,8 @@ constexpr usize CACHELINE_ALIGNMENT = 64;
 /// target's page alignment.
 constexpr usize PAGE_ALIGNMENT = 16_KB;
 
+constexpr usize PAGE_SIZE = PAGE_ALIGNMENT;
+
 template <typename T>
 constexpr T align_offset(T alignment, T offset)
 {
@@ -173,6 +175,18 @@ void relocate(T *src, T *uninit_dst, usize num)
       in++;
     }
   }
+}
+
+[[nodiscard]] inline bool to_c_str(Span<char const> str, Span<char> c_str)
+{
+  if ((str.size() + 1) > c_str.size())
+  {
+    return false;
+  }
+
+  mem::copy(str, c_str);
+  c_str[str.size()] = 0;
+  return true;
 }
 
 template <typename T>

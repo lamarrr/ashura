@@ -33,9 +33,7 @@ struct InstanceInterface
   static void uninit(gpu::Instance self);
   static Result<gpu::DeviceImpl, Status>
                       create_device(gpu::Instance self, AllocatorImpl allocator,
-                                    Span<gpu::DeviceType const> preferred_types,
-                                    Span<gpu::Surface const>    compatible_surfaces,
-                                    u32                         buffering);
+                                    Span<gpu::DeviceType const> preferred_types, u32 buffering);
   static gpu::Backend get_backend(gpu::Instance self);
   static void         uninit_device(gpu::Instance self, gpu::Device device);
   static void         uninit_surface(gpu::Instance self, gpu::Surface surface);

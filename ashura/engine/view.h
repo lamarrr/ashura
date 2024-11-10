@@ -170,7 +170,6 @@ struct ViewContext
   };
 
   void                    *app              = nullptr;
-  StrHashMap<void *>       globals          = {};
   steady_clock::time_point timestamp        = {};
   nanoseconds              timedelta        = {};
   ClipBoard               *clipboard        = nullptr;

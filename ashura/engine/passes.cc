@@ -5,15 +5,16 @@
 namespace ash
 {
 
-void BloomPass::init(RenderContext &)
+void BloomPass::init(GpuContext &)
 {
 }
 
-void BloomPass::uninit(RenderContext &)
+void BloomPass::uninit(GpuContext &)
 {
 }
 
-void BloomPass::add_pass(RenderContext &, BloomPassParams const &)
+void BloomPass::encode(GpuContext &, gpu::CommandEncoderImpl const &,
+                       BloomPassParams const &)
 {
   /// E' = Blur(E)
   /// D' = Blur(D) + E'
@@ -22,7 +23,7 @@ void BloomPass::add_pass(RenderContext &, BloomPassParams const &)
   /// A' = Blur(A) + B'
 }
 
-void BlurPass::init(RenderContext &ctx)
+void BlurPass::init(GpuContext &ctx)
 {
   // https://www.youtube.com/watch?v=ml-5OGZC7vE
   //
@@ -112,13 +113,13 @@ void BlurPass::init(RenderContext &ctx)
           .unwrap();
 }
 
-void BlurPass::uninit(RenderContext &ctx)
+void BlurPass::uninit(GpuContext &ctx)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, downsample_pipeline);
   ctx.device->uninit_graphics_pipeline(ctx.device.self, upsample_pipeline);
 }
 
-void sample(BlurPass &b, RenderContext &c, gpu::CommandEncoderImpl e, f32 rad,
+void sample(BlurPass &b, GpuContext &c, gpu::CommandEncoderImpl e, f32 rad,
             gpu::DescriptorSet src_texture, u32 src_index,
             gpu::Extent src_extent, gpu::Rect src_area, gpu::ImageView dst,
             Vec2U dst_offset, bool upsample)
@@ -158,14 +159,14 @@ void sample(BlurPass &b, RenderContext &c, gpu::CommandEncoderImpl e, f32 rad,
   e->end_rendering(e.self);
 }
 
-void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
+void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
+                      BlurPassParams const &params)
 {
   CHECK(params.passes > 0);
-  gpu::CommandEncoderImpl e      = ctx.encoder();
-  Vec2U                   extent = params.area.extent;
-  extent.x                       = min(extent.x, ctx.scratch_fbs[0].extent.x);
-  extent.y                       = min(extent.y, ctx.scratch_fbs[0].extent.y);
-  u32 radius                     = 1;
+  Vec2U extent = params.area.extent;
+  extent.x     = min(extent.x, ctx.scratch_fbs[0].extent.x);
+  extent.y     = min(extent.y, ctx.scratch_fbs[0].extent.y);
+  u32 radius   = 1;
 
   // downsample pass
   sample(*this, ctx, e, (f32) radius, params.texture_view, params.texture,
@@ -204,7 +205,7 @@ void BlurPass::add_pass(RenderContext &ctx, BlurPassParams const &params)
          params.area.offset, true);
 }
 
-void NgonPass::init(RenderContext &ctx)
+void NgonPass::init(GpuContext &ctx)
 {
   gpu::Shader vertex_shader   = ctx.get_shader("Ngon:VS"_span).unwrap();
   gpu::Shader fragment_shader = ctx.get_shader("Ngon:FS"_span).unwrap();
@@ -275,35 +276,35 @@ void NgonPass::init(RenderContext &ctx)
           .unwrap();
 }
 
-void NgonPass::add_pass(RenderContext &ctx, NgonPassParams const &params)
+void NgonPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
+                      NgonPassParams const &params)
 {
-  gpu::CommandEncoderImpl encoder = ctx.encoder();
-
-  encoder->begin_rendering(encoder.self, params.rendering_info);
-  encoder->bind_graphics_pipeline(encoder.self, pipeline);
-  encoder->bind_descriptor_sets(
-      encoder.self,
+  e->begin_rendering(e.self, params.rendering_info);
+  e->bind_graphics_pipeline(e.self, pipeline);
+  e->bind_descriptor_sets(
+      e.self,
       span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
             ctx.samplers, params.textures}),
       span<u32>({0, 0, 0}));
-  encoder->set_graphics_state(encoder.self,
-                              gpu::GraphicsState{.scissor  = params.scissor,
-                                                 .viewport = params.viewport});
+  e->push_constants(e.self, span({params.world_to_view}).as_u8());
+  e->set_graphics_state(e.self,
+                        gpu::GraphicsState{.scissor  = params.scissor,
+                                           .viewport = params.viewport});
   u32 const num_instances = params.index_counts.size32();
   for (u32 i = 0; i < num_instances; i++)
   {
     u32 vertex_count = params.index_counts[i];
-    encoder->draw(encoder.self, vertex_count, 1, 0, i);
+    e->draw(e.self, vertex_count, 1, 0, i);
   }
-  encoder->end_rendering(encoder.self);
+  e->end_rendering(e.self);
 }
 
-void NgonPass::uninit(RenderContext &ctx)
+void NgonPass::uninit(GpuContext &ctx)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
 }
 
-void PBRPass::init(RenderContext &ctx)
+void PBRPass::init(GpuContext &ctx)
 {
   gpu::Shader vertex_shader   = ctx.get_shader("PBR:VS"_span).unwrap();
   gpu::Shader fragment_shader = ctx.get_shader("PBR:FS"_span).unwrap();
@@ -381,50 +382,37 @@ void PBRPass::init(RenderContext &ctx)
           .unwrap();
 }
 
-void PBRPass::add_pass(RenderContext &ctx, PBRPassParams const &params)
+void PBRPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
+                     PBRPassParams const &params)
 {
-  gpu::CommandEncoderImpl encoder = ctx.encoder();
+  e->begin_rendering(e.self, params.rendering_info);
+  e->bind_graphics_pipeline(
+      e.self, params.wireframe ? this->wireframe_pipeline : this->pipeline);
 
-  encoder->begin_rendering(encoder.self, params.rendering_info);
-  encoder->bind_graphics_pipeline(encoder.self, params.wireframe ?
-                                                    this->wireframe_pipeline :
-                                                    this->pipeline);
-
-  encoder->set_graphics_state(
-      encoder.self, gpu::GraphicsState{.scissor           = params.scissor,
-                                       .viewport          = params.viewport,
-                                       .blend_constant    = {1, 1, 1, 1},
-                                       .depth_test_enable = true,
-                                       .depth_compare_op = gpu::CompareOp::Less,
-                                       .depth_write_enable = true});
-  encoder->bind_descriptor_sets(
-      encoder.self,
+  e->set_graphics_state(
+      e.self, gpu::GraphicsState{.scissor            = params.scissor,
+                                 .viewport           = params.viewport,
+                                 .blend_constant     = {1, 1, 1, 1},
+                                 .depth_test_enable  = true,
+                                 .depth_compare_op   = gpu::CompareOp::Less,
+                                 .depth_write_enable = true});
+  e->bind_descriptor_sets(
+      e.self,
       span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
             params.lights_ssbo, ctx.samplers, params.textures}),
       span<u32>({0, 0, 0, 0}));
-  encoder->draw(encoder.self, params.num_indices, 1, 0, params.instance);
-  encoder->end_rendering(encoder.self);
+  e->push_constants(e.self, span({params.world_to_view}).as_u8());
+  e->draw(e.self, params.num_indices, 1, 0, params.instance);
+  e->end_rendering(e.self);
 }
 
-void PBRPass::uninit(RenderContext &ctx)
+void PBRPass::uninit(GpuContext &ctx)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
   ctx.device->uninit_graphics_pipeline(ctx.device.self, wireframe_pipeline);
 }
 
-void PolyPass::init(RenderContext &)
-{
-}
-
-void PolyPass::uninit(RenderContext &)
-{
-}
-
-void PolyPass::add_pass(RenderContext &, PolyPassParams const &)
-{
-}
-
-void RRectPass::init(RenderContext &ctx)
+void RRectPass::init(GpuContext &ctx)
 {
   gpu::Shader vertex_shader   = ctx.get_shader("RRect:VS"_span).unwrap();
   gpu::Shader fragment_shader = ctx.get_shader("RRect:FS"_span).unwrap();
@@ -494,24 +482,23 @@ void RRectPass::init(RenderContext &ctx)
           .unwrap();
 }
 
-void RRectPass::add_pass(RenderContext &ctx, RRectPassParams const &params)
+void RRectPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
+                       RRectPassParams const &params)
 {
-  gpu::CommandEncoderImpl encoder = ctx.encoder();
-
-  encoder->begin_rendering(encoder.self, params.rendering_info);
-  encoder->bind_graphics_pipeline(encoder.self, pipeline);
-  encoder->set_graphics_state(encoder.self,
-                              gpu::GraphicsState{.scissor  = params.scissor,
-                                                 .viewport = params.viewport});
-  encoder->bind_descriptor_sets(
-      encoder.self, span({params.params_ssbo, ctx.samplers, params.textures}),
+  e->begin_rendering(e.self, params.rendering_info);
+  e->bind_graphics_pipeline(e.self, pipeline);
+  e->set_graphics_state(e.self,
+                        gpu::GraphicsState{.scissor  = params.scissor,
+                                           .viewport = params.viewport});
+  e->bind_descriptor_sets(
+      e.self, span({params.params_ssbo, ctx.samplers, params.textures}),
       span<u32>({0}));
-  encoder->draw(encoder.self, 4, params.num_instances, 0,
-                params.first_instance);
-  encoder->end_rendering(encoder.self);
+  e->push_constants(e.self, span({params.world_to_view}).as_u8());
+  e->draw(e.self, 4, params.num_instances, 0, params.first_instance);
+  e->end_rendering(e.self);
 }
 
-void RRectPass::uninit(RenderContext &ctx)
+void RRectPass::uninit(GpuContext &ctx)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
 }

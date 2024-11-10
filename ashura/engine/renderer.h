@@ -1,97 +1,126 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/engine/canvas.h"
+#include "ashura/engine/gpu_context.h"
 #include "ashura/engine/passes.h"
-#include "ashura/engine/render_context.h"
-#include "ashura/std/hash_map.h"
 #include "ashura/std/math.h"
+#include "ashura/std/unique.h"
 
 namespace ash
 {
 
-typedef struct RenderPass_T *RenderPass;
-
-struct RenderPassImpl
-{
-  RenderPass pass                                = nullptr;
-  void (*init)(RenderPass p, RenderContext &r)   = nullptr;
-  void (*uninit)(RenderPass p, RenderContext &r) = nullptr;
-};
-
-/// @brief sets up resources, pipelines, shaders, and data needed for rendering
-/// the passes
 struct PassContext
 {
-  BloomPass                  bloom  = {};
-  BlurPass                   blur   = {};
-  NgonPass                   ngon   = {};
-  PBRPass                    pbr    = {};
-  RRectPass                  rrect  = {};
-  StrHashMap<RenderPassImpl> custom = {};
+  BloomPass          *bloom = nullptr;
+  BlurPass           *blur  = nullptr;
+  NgonPass           *ngon  = nullptr;
+  PBRPass            *pbr   = nullptr;
+  RRectPass          *rrect = nullptr;
+  Vec<Unique<Pass *>> all   = {};
 
-  void init(RenderContext &ctx);
-  void uninit(RenderContext &ctx);
+  void init(GpuContext &ctx)
+  {
+    for (auto const &p : all)
+    {
+      p->init(ctx);
+    };
+  }
+
+  void uninit(GpuContext &ctx)
+  {
+    for (auto const &p : all)
+    {
+      p->uninit(ctx);
+      p.uninit();
+    };
+  }
 };
 
-struct SSBO
+struct RenderPipeline
 {
-  gpu::Buffer        buffer = nullptr;
-  u64                size   = 0;
-  gpu::DescriptorSet ssbo   = nullptr;
+  virtual Span<char const> id() = 0;
 
-  void  uninit(RenderContext &ctx);
-  void  reserve(RenderContext &ctx, u64 size, Span<char const> label);
-  void  copy(RenderContext &ctx, Span<u8 const> src, Span<char const> label);
-  void *map(RenderContext &ctx);
-  void  unmap(RenderContext &ctx);
-  void  flush(RenderContext &ctx);
+  virtual void init(GpuContext &ctx, PassContext &) = 0;
+
+  virtual void uninit(GpuContext &ctx, PassContext &) = 0;
+
+  virtual void begin_frame(GpuContext &ctx, PassContext &,
+                           gpu::CommandEncoderImpl const &) = 0;
+
+  virtual void end_frame(GpuContext &ctx, PassContext &,
+                         gpu::CommandEncoderImpl const &) = 0;
 };
 
-struct CanvasResources
+struct RenderTarget
 {
-  SSBO vertices     = {};
-  SSBO indices      = {};
-  SSBO ngon_params  = {};
-  SSBO rrect_params = {};
-
-  void uninit(RenderContext &ctx);
+  gpu::RenderingInfo info{};
+  gpu::Viewport      viewport{};
+  gpu::Extent        extent{};
+  gpu::DescriptorSet descriptor = nullptr;
 };
 
-struct CanvasRenderer
+struct Canvas;
+
+struct Renderer
 {
-  CanvasResources resources[gpu::MAX_FRAME_BUFFERING];
+  struct Resources
+  {
+    SSBO pbr_params       = {.label = "PBR Params SSBO"_span};
+    SSBO pbr_light_params = {.label = "Params Lights Params SSBO"_span};
+    SSBO ngon_vertices    = {.label = "Ngon Vertices SSBO"_span};
+    SSBO ngon_indices     = {.label = "Ngon Indices SSBO"_span};
+    SSBO ngon_params      = {.label = "Ngon Params SSBO"_span};
+    SSBO rrect_params     = {.label = "RRect Params SSBO"_span};
+  };
 
-  void init(RenderContext &ctx);
-  void uninit(RenderContext &ctx);
-  void begin(RenderContext &ctx, PassContext &passes, Canvas const &canvas,
-             gpu::RenderingInfo const &info, gpu::DescriptorSet texture);
-  void render(RenderContext &ctx, PassContext &passes,
-              gpu::RenderingInfo const &info, gpu::Viewport const &viewport,
-              gpu::Extent surface_extent, gpu::DescriptorSet texture,
-              Canvas const &canvas, u32 first = 0, u32 num = U32_MAX);
-};
+  InplaceVec<Resources, gpu::MAX_FRAME_BUFFERING> resources;
 
-struct PBRResources
-{
-  SSBO params = {};
-  SSBO lights = {};
+  PassContext passes{};
 
-  void init(RenderContext &ctx);
-  void uninit(RenderContext &ctx);
-  void reserve(RenderContext &ctx, u32 num_objects, u32 num_lights);
-};
+  Canvas *canvas = nullptr;
 
-struct PBRRenderer
-{
-  PBRResources resources[gpu::MAX_FRAME_BUFFERING];
+  Vec<Unique<RenderPipeline *>> pipelines{};
 
-  void init(RenderContext &ctx);
-  void uninit(RenderContext &ctx);
+  void init(GpuContext &ctx)
+  {
+    passes.init(ctx);
+    for (auto &p : pipelines)
+    {
+      p->init(ctx, passes);
+      logger->info("Initialized Pipeline: ", p->id());
+    }
+    resources.resize_defaulted(ctx.buffering).unwrap();
+  }
 
-  void begin(RenderContext &ctx, PassContext &passes,
-             gpu::RenderingInfo const &info);
-  void render(RenderContext &ctx, PassContext &passes,
-              gpu::RenderingInfo const &info);
+  void uninit(GpuContext &ctx)
+  {
+    for (auto &p : pipelines)
+    {
+      logger->info("Uninitializing Pipeline: ", p->id());
+      p->uninit(ctx, passes);
+      p.uninit();
+    }
+    pipelines.uninit();
+    for (Resources &r : resources)
+    {
+      r.pbr_params.uninit(ctx);
+      r.pbr_light_params.uninit(ctx);
+      r.ngon_vertices.uninit(ctx);
+      r.ngon_indices.uninit(ctx);
+      r.ngon_params.uninit(ctx);
+      r.rrect_params.uninit(ctx);
+    }
+    resources.uninit();
+    passes.uninit(ctx);
+  }
+
+  void register_pass();
+  void register_pipeline();
+
+  void begin_frame(GpuContext &ctx, RenderTarget const &);
+
+  void end_frame(GpuContext &ctx, RenderTarget const &);
+
+  void render_frame(GpuContext &ctx, RenderTarget const &rt);
 };
 
 }        // namespace ash

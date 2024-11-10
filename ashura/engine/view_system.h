@@ -142,6 +142,15 @@ struct ViewSystem
     focus_ordering.reset();
   }
 
+  void init()
+  {
+  }
+
+  void uninit()
+  {
+    reset();
+  }
+
   void clear()
   {
     views.clear();
@@ -316,14 +325,11 @@ struct ViewSystem
     }
   }
 
-  void build(ViewContext const &ctx, View *root)
+  void build(ViewContext const &ctx, View &root)
   {
-    if (root != nullptr)
-    {
-      push_view(*root, 0, 0, U32_MAX);
+      push_view(root, 0, 0, U32_MAX);
       i32 tab_index = 0;
-      build_children(ctx, *root, 0, 0, tab_index, U32_MAX);
-    }
+      build_children(ctx, root, 0, 0, tab_index, U32_MAX);
   }
 
   void focus_order()
@@ -858,7 +864,7 @@ struct ViewSystem
     return state[1].focused.text_input;
   }
 
-  void tick(ViewContext const &ctx, View *root, Canvas &canvas)
+  void tick(ViewContext const &ctx, View &root, Canvas &canvas)
   {
     clear();
     build(ctx, root);

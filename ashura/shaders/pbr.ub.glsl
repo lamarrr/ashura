@@ -7,9 +7,7 @@ layout(constant_id = 0) const uint NUM_OBJECT_LIGHTS = 4;
 
 struct Params
 {
-  mat4x4 model;
-  mat4x4 view;
-  mat4x4 projection;
+  mat4x4 transform;
   vec4   eye_position;
   vec4   albedo;        // only xyz
   float  metallic;
@@ -71,17 +69,18 @@ layout(location = 0) out vec4 o_world_pos;
 layout(location = 1) out vec2 o_uv;
 layout(location = 2) flat out uint o_idx;
 
+layout(push_constant, row_major) mat4x4 world_to_view;
+
 void main()
 {
   Params p         = params[gl_InstanceIndex];
   uint   idx       = idx_buffer[gl_VertexIndex];
   Vertex vtx       = vtx_buffer[p.first_vertex + idx];
-  vec4   world_pos = p.model * vec4(vtx.pos.xyz, 1);
-  vec4   pos       = p.projection * p.view * world_pos;
+  vec4   world_pos = p.transform * vec4(vtx.pos.xyz, 1);
   o_world_pos      = world_pos;
   o_uv             = vtx.uv;
   o_idx            = gl_InstanceIndex;
-  gl_Position      = pos;
+  gl_Position      = world_to_view * world_pos;
 }
 #endif
 

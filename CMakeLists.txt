@@ -211,6 +211,7 @@ add_library(
   ashura/engine/font_impl.cc
   ashura/engine/text.cc
   ashura/engine/canvas.cc
+  ashura/engine/gpu_context.cc
   ashura/engine/image_decoder.cc
   ashura/engine/render_text.cc
   ashura/engine/shader.cc

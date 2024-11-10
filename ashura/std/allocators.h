@@ -43,7 +43,7 @@ struct Arena
     return offset - begin;
   }
 
-  [[nodiscard]] constexpr usize remaining() const
+  [[nodiscard]] constexpr usize available() const
   {
     return end - offset;
   }
@@ -184,7 +184,11 @@ static AllocatorInterface const arena_sub_interface{
     .realloc      = ArenaPoolInterface::realloc,
     .dealloc      = ArenaPoolInterface::dealloc};
 
-/// Forward growing allocator. All allocations are reset/free-d at once.
+/// An Arena Pool is a collection of arenas. All allocations are reset/free-d at
+/// once. Allocation, Reallocation, Deallocation, and Reclamation.
+/// Memory can be reclaimed in rare cases. i.e. when `realloc` is called with
+/// the last allocated memory on the block and the allocation can easily be
+/// extended.
 ///
 /// @source: allocation memory source
 /// @max_num_arenas: maximum number of arenas that can be allocated
@@ -198,18 +202,21 @@ struct ArenaPool
   AllocatorImpl source              = default_allocator;
   Arena        *arenas              = nullptr;
   usize         num_arenas          = 0;
+  usize         current_arena       = 0;
   usize         max_num_arenas      = USIZE_MAX;
-  usize         min_arena_size      = 16_KB;
+  usize         min_arena_size      = PAGE_SIZE;
   usize         max_arena_size      = USIZE_MAX;
   usize         max_total_size      = USIZE_MAX;
   usize         min_arena_alignment = MAX_STANDARD_ALIGNMENT;
 
   void reclaim()
   {
-    for (usize i = num_arenas; i-- > 0;)
+    for (usize i = 0; i < num_arenas; i++)
     {
       arenas[i].reclaim();
     }
+
+    current_arena = 0;
   }
 
   [[nodiscard]] usize size() const
@@ -219,18 +226,47 @@ struct ArenaPool
     {
       s += arenas[i].size();
     }
+
     return s;
   }
 
-  void reset()
+  [[nodiscard]] usize used() const
+  {
+    usize s = 0;
+    for (usize i = 0; i < num_arenas; i++)
+    {
+      s += arenas[i].used();
+    }
+
+    return s;
+  }
+
+  [[nodiscard]] usize available() const
+  {
+    usize s = 0;
+    for (usize i = 0; i < num_arenas; i++)
+    {
+      s += arenas[i].available();
+    }
+
+    return s;
+  }
+
+  void uninit()
   {
     for (usize i = num_arenas; i-- > 0;)
     {
       source.dealloc(arenas[i].alignment, arenas[i].begin, arenas[i].size());
     }
     source.ndealloc(arenas, num_arenas);
-    arenas     = nullptr;
-    num_arenas = 0;
+  }
+
+  void reset()
+  {
+    uninit();
+    arenas        = nullptr;
+    num_arenas    = 0;
+    current_arena = 0;
   }
 
   [[nodiscard]] bool alloc(usize alignment, usize size, u8 *&mem)
@@ -247,10 +283,9 @@ struct ArenaPool
       return false;
     }
 
-    if (usize idx = num_arenas; idx-- != 0)
+    for (usize i = current_arena; i < num_arenas; i++)
     {
-      Arena *arena = arenas + idx;
-      if (arena->alloc(alignment, size, mem))
+      if (arenas[i].alloc(alignment, size, mem))
       {
         return true;
       }
@@ -290,12 +325,16 @@ struct ArenaPool
                                         .end       = arena_mem + arena_size,
                                         .offset    = arena_mem,
                                         .alignment = arena_alignment};
+
+    current_arena = num_arenas;
+
     num_arenas++;
 
     if (!arena->alloc(alignment, size, mem))
     {
       return false;
     }
+
     return true;
   }
 
@@ -317,28 +356,28 @@ struct ArenaPool
       return false;
     }
 
-    if (usize i = num_arenas; i-- != 0)
+    if (num_arenas != 0)
     {
-      Arena *arena = arenas + i;
-      if (arena->offset == (mem + old_size))
+      Arena &arena = arenas[current_arena];
+      if (arena.offset == (mem + old_size))
       {
         // try to change the allocation if it was the last allocation
-        if ((arena->offset + new_size) <= arena->end)
+        if ((arena.offset + new_size) <= arena.end)
         {
-          arena->offset = mem + new_size;
-          return mem;
+          arena.offset = mem + new_size;
+          return true;
         }
 
         // if only and first allocation on the arena, realloc arena
-        if (arena->begin == mem)
+        if (arena.begin == mem)
         {
-          if (!source.realloc(arena->alignment, arena->size(), new_size,
-                              arena->begin))
+          if (!source.realloc(arena.alignment, arena.size(), new_size,
+                              arena.begin))
           {
             return false;
           }
-          arena->end    = arena->begin + new_size;
-          arena->offset = arena->begin + new_size;
+          arena.end    = arena.begin + new_size;
+          arena.offset = arena.begin + new_size;
           return true;
         }
       }
@@ -359,21 +398,28 @@ struct ArenaPool
   void dealloc(usize alignment, u8 *mem, usize size)
   {
     (void) alignment;
-    if (mem == nullptr || size == 0)
+    if (mem == nullptr || size == 0 || num_arenas == 0)
     {
       return;
     }
 
     // we can try to reclaim some memory, although we'd lose alignment padding.
     // best case: if is at end of arena, shrink arena.
-    if (usize i = num_arenas; i-- != 0)
+    Arena &arena = arenas[current_arena];
+    if (arena.begin == mem && arena.offset == (mem + size))
     {
-      Arena *arena = arenas + i;
-      if (arena->offset == (mem + size))
+      arena.reclaim();
+      if (current_arena != 0)
       {
-        arena->offset = mem;
-        return;
+        current_arena--;
       }
+      return;
+    }
+
+    if (arena.offset == (mem + size))
+    {
+      arena.offset = mem;
+      return;
     }
   }
 

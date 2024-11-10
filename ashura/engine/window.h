@@ -48,6 +48,8 @@ struct WindowSystem
   virtual void           make_windowed(Window window)                     = 0;
   virtual void           make_resizable(Window window)                    = 0;
   virtual void           make_unresizable(Window window)                  = 0;
+  virtual u64            listen(SystemEventTypes              event_types,
+                                Fn<void(SystemEvent const &)> callback)   = 0;
   virtual u64            listen(Window window, WindowEventTypes event_types,
                                 Fn<void(WindowEvent const &)> callback)   = 0;
   virtual void           unlisten(Window window, u64 listener)            = 0;
@@ -55,6 +57,7 @@ struct WindowSystem
                                           Fn<WindowRegion(Vec2U)> hit)    = 0;
   virtual gpu::Surface       get_surface(Window window)                   = 0;
   virtual void               poll_events()                                = 0;
+  virtual ClipBoard         &get_clipboard()                              = 0;
 };
 
 extern WindowSystem *sdl_window_system;
