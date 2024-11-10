@@ -54,7 +54,7 @@ T lerp(const T &start, const T &end, T t)
 template <Animatable T>
 struct Animation;
 template <typename T>
-struct Keyframe;
+struct KeyFrame;
 template <typename T>
 struct Timeline;
 
@@ -199,7 +199,7 @@ static Duration
 enum class SegmentType
 {
   Basic,            // Single Animation
-  Keyframed,        // Multiple Keyframes
+  KeyFramed,        // Multiple KeyFrames
   Parallel,         // Multiple parallel animations
   Staggered         // Staggered animations
 };
@@ -248,14 +248,14 @@ struct BasicSegment : TimelineSegment<T>
 };
 
 template <Animatable T>
-struct KeyframeSegment : TimelineSegment<T>
+struct KeyFrameSegment : TimelineSegment<T>
 {
-  std::vector<Keyframe<T>> keyframes;
+  std::vector<KeyFrame<T>> keyframes;
   Duration                 current_time{std::chrono::seconds(1)};
 
-  KeyframeSegment(const std::vector<Keyframe<T>> &kf) : keyframes(kf)
+  KeyFrameSegment(const std::vector<KeyFrame<T>> &kf) : keyframes(kf)
   {
-    this->type = SegmentType::Keyframed;
+    this->type = SegmentType::KeyFramed;
     calculate_duration();
   }
 
@@ -484,20 +484,20 @@ public:
   }
 };
 
-struct KeyframeBase
+struct KeyFrameBase
 {
   Duration                     duration;
   std::string                  key;
   CurveType                    curve_type;
   std::function<f32(Duration)> custom_easing;
 
-  KeyframeBase(Duration dur, std::string k,
+  KeyFrameBase(Duration dur, std::string k,
                CurveType curve = CurveType::Linear) :
       duration(dur), key(std::move(k)), curve_type(curve)
   {
   }
 
-  KeyframeBase(Duration dur, std::string k,
+  KeyFrameBase(Duration dur, std::string k,
                std::function<f32(Duration)> easing) :
       duration(dur),
       key(std::move(k)),
@@ -531,19 +531,19 @@ struct KeyframeBase
 };
 
 template <typename T>
-struct Keyframe : KeyframeBase
+struct KeyFrame : KeyFrameBase
 {
   T value;
 
-  Keyframe(Duration dur, std::string k, T val,
+  KeyFrame(Duration dur, std::string k, T val,
            CurveType curve = CurveType::Linear) :
-      KeyframeBase(dur, std::move(k), curve), value(std::move(val))
+      KeyFrameBase(dur, std::move(k), curve), value(std::move(val))
   {
   }
 
-  Keyframe(Duration dur, std::string k, T val,
+  KeyFrame(Duration dur, std::string k, T val,
            std::function<f32(Duration)> easing) :
-      KeyframeBase(dur, std::move(k), std::move(easing)), value(std::move(val))
+      KeyFrameBase(dur, std::move(k), std::move(easing)), value(std::move(val))
   {
   }
 };
@@ -560,10 +560,10 @@ struct Keyframe : KeyframeBase
 // };
 // Timeline<Vec2> timeline(options);
 //
-// std::vector<Keyframe<Vec2>> keyframes = {
-//     Keyframe<Vec2>(500ms, "start", {0, 100.0f}, CurveType::EaseInOut),
-//     Keyframe<Vec2>(500ms, "middle", {150.0f, 50.0f}, CurveType::EaseInOut),
-//     Keyframe<Vec2>(500ms, "end", {0, 200.0f}, CurveType::EaseInOut)
+// std::vector<KeyFrame<Vec2>> keyframes = {
+//     KeyFrame<Vec2>(500ms, "start", {0, 100.0f}, CurveType::EaseInOut),
+//     KeyFrame<Vec2>(500ms, "middle", {150.0f, 50.0f}, CurveType::EaseInOut),
+//     KeyFrame<Vec2>(500ms, "end", {0, 200.0f}, CurveType::EaseInOut)
 // };
 //
 // timeline.add(keyframes);
@@ -585,7 +585,7 @@ struct Keyframe : KeyframeBase
 // ```
 // timeline
 //     .add(start, end, config)                  // Simple animation
-//     .add(keyframes)                           // Keyframe sequence
+//     .add(keyframes)                           // KeyFrame sequence
 //     .parallel(configs, values)                // Parallel animations
 //     .stagger(start, end, config, count);      // Staggered animations
 // ```
@@ -617,7 +617,7 @@ struct Timeline
 
   Timeline &add(const T &start, const T &end, AnimationConfig config);
 
-  Timeline &add(const std::vector<Keyframe<T>> &keyframes,
+  Timeline &add(const std::vector<KeyFrame<T>> &keyframes,
                 std::optional<Span<const char>> label);
 
   Timeline &parallel(const std::vector<AnimationConfig> &configs,

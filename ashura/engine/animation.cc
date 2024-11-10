@@ -191,10 +191,10 @@ Timeline<T> &Timeline<T>::add(const T &start, const T &end,
 }
 
 template <typename T>
-Timeline<T> &Timeline<T>::add(const std::vector<Keyframe<T>> &keyframes,
+Timeline<T> &Timeline<T>::add(const std::vector<KeyFrame<T>> &keyframes,
                               std::optional<Span<const char>> label)
 {
-  auto segment = std::make_shared<KeyframeSegment<T>>(keyframes);
+  auto segment = std::make_shared<KeyFrameSegment<T>>(keyframes);
   if (label.has_value())
   {
     segment->label = label.value();
@@ -437,7 +437,7 @@ void BasicSegment<T>::update(Duration current_time, Duration delta)
 }
 
 template <Animatable T>
-void KeyframeSegment<T>::calculate_duration()
+void KeyFrameSegment<T>::calculate_duration()
 {
   this->duration = 0.0f;
   for (const auto &kf : keyframes)
@@ -447,7 +447,7 @@ void KeyframeSegment<T>::calculate_duration()
 }
 
 template <Animatable T>
-void KeyframeSegment<T>::update(Duration _time, Duration delta)
+void KeyFrameSegment<T>::update(Duration _time, Duration delta)
 {
   if (keyframes.size() < 2)
     return;
@@ -461,7 +461,7 @@ void KeyframeSegment<T>::update(Duration _time, Duration delta)
 
     if (current_time <= accumulated_time)
     {
-      const Keyframe<T> &current_kf = keyframes[i];
+      const KeyFrame<T> &current_kf = keyframes[i];
       const auto        &next_kf    = keyframes[i + 1];
 
       Duration local_start_time = accumulated_time - current_kf.duration;
