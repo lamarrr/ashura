@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.6)
 
 project(Ashura)
 
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
@@ -32,7 +31,6 @@ set(SPIRV_REFLECT_STATIC_LIB
 set(SDL_STATIC
   ON
   CACHE BOOL "")
-
 
 include(FetchContent)
 
@@ -119,7 +117,6 @@ FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
 FetchContent_MakeAvailable(WebP)
 FetchContent_MakeAvailable(CURL)
-
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
