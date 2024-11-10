@@ -26,7 +26,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install llvm molten-vk cmake ninja nasm make spirv-tools
+          brew install llvm molten-vk cmake ninja nasm make
 
       - name: Install VCPKG
         if: steps.cache-and-install.outputs.cache-hit != 'true'
