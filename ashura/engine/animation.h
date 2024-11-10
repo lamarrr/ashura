@@ -251,7 +251,11 @@ struct KeyframeSegment : TimelineSegment<T>
   void update(f32 _time, f32 delta);
 
   void reset();
-  T    value() const override;
+
+  T value() const override
+  {
+    return this->interpolated_value;
+  }
 };
 
 struct IAnimation
@@ -433,7 +437,7 @@ public:
 
   template <typename T>
   void stagger(const T &start, const T &end, const AnimationConfig &base_config,
-               usize               count,
+               usize                 count,
                const StaggerOptions &stagger_opts = StaggerOptions{},
                std::function<void(const T &, usize)> callback = nullptr);
 

@@ -552,10 +552,4 @@ void KeyframeSegment<T>::reset()
   current_time = 0.0f;
 }
 
-template <Animatable T>
-T KeyframeSegment<T>::value() const
-{
-  return this->interpolated_value;
-}
-
 }        // namespace ash

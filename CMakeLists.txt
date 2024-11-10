@@ -222,7 +222,7 @@ add_library(
   ashura/engine/views.cc
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
-  ashura/engine/render_context.cc
+  # ashura/engine/render_context.cc
   ashura/engine/passes.cc
   ashura/engine/animation.cc
 )
