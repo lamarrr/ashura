@@ -58,17 +58,15 @@ struct Keyframe;
 template <typename T>
 struct Timeline;
 
-struct AnimationTime
-{
-  using Clock     = std::chrono::steady_clock;
-  using TimePoint = Clock::time_point;
-  using Duration  = std::chrono::duration<float>;
+using Clock     = std::chrono::steady_clock;
+using TimePoint = Clock::time_point;
+using Duration  = std::chrono::duration<float>;
 
-  static f32 get_delta(const TimePoint &current, const TimePoint &previous)
-  {
-    return std::chrono::duration_cast<Duration>(current - previous).count();
-  }
-};
+static inline f32 get_delta(const TimePoint &current, const TimePoint &previous)
+{
+  return std::chrono::duration_cast<Duration>(current - previous).count();
+}
+
 
 enum class CurveType
 {
@@ -305,14 +303,14 @@ public:
   T                        end;
   AnimationConfig          config;
   AnimationState           state;
-  AnimationTime::TimePoint last_update_time;
+  TimePoint last_update_time;
 
   Animation(T start, T end, AnimationConfig cfg) :
       start(start), end(end), config(cfg)
   {
     state.delay      = config.delay;
     is_reset         = false;
-    last_update_time = AnimationTime::Clock::now();
+    last_update_time = Clock::now();
   }
 
   void tick() override
@@ -321,8 +319,8 @@ public:
     if (!state.is_playing)
       return;
 
-    auto current_time = AnimationTime::Clock::now();
-    f32  delta       = AnimationTime::get_delta(current_time, last_update_time);
+    auto current_time = Clock::now();
+    f32  delta       = get_delta(current_time, last_update_time);
     last_update_time = current_time;
 
     run(delta);
@@ -561,11 +559,11 @@ struct Timeline
   bool                     is_playing     = false;
   f32                      total_duration = 0.0f;
   f32                      time_direction = 1.0f;
-  AnimationTime::TimePoint last_update_time;
+  TimePoint last_update_time;
 
   Timeline(const TimelineOptions &opts = TimelineOptions{}) : options(opts)
   {
-    last_update_time = AnimationTime::Clock::now();
+    last_update_time = Clock::now();
     if (options.autoplay)
     {
       is_playing = true;

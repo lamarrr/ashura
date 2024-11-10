@@ -10,7 +10,7 @@ template <Animatable T>
 void Animation<T>::play()
 {
   state.is_playing = true;
-  last_update_time = AnimationTime::Clock::now();
+  last_update_time = Clock::now();
 }
 template <Animatable T>
 void Animation<T>::pause()
@@ -22,7 +22,7 @@ void Animation<T>::resume()
 {
   if (!state.is_playing)
   {
-    last_update_time = AnimationTime::Clock::now();
+    last_update_time = Clock::now();
     state.is_playing = true;
   }
 }
@@ -95,7 +95,7 @@ void Animation<T>::update(f32 _time, f32 delta)
   if (!state.is_playing)
     return;
 
-  last_update_time   = AnimationTime::Clock::now();
+  last_update_time   = Clock::now();
   state.current_time = state.current_time - _time;
 
   run(delta);
@@ -274,8 +274,8 @@ void Timeline<T>::update()
   if (!is_playing)
     return;
 
-  auto current_time_point = AnimationTime::Clock::now();
-  f32  delta = AnimationTime::get_delta(current_time_point, last_update_time);
+  auto current_time_point = Clock::now();
+  f32  delta = get_delta(current_time_point, last_update_time);
   last_update_time = current_time_point;
 
   f32 adjusted_delta = delta * time_direction;
@@ -321,7 +321,7 @@ template <typename T>
 void Timeline<T>::play()
 {
   is_playing       = true;
-  last_update_time = AnimationTime::Clock::now();
+  last_update_time = Clock::now();
 }
 
 template <typename T>
@@ -334,7 +334,7 @@ void Timeline<T>::play_from_start()
   current_time     = 0;
   time_direction   = 1.0f;
   is_playing       = true;
-  last_update_time = AnimationTime::Clock::now();
+  last_update_time = Clock::now();
 }
 
 template <typename T>
@@ -347,7 +347,7 @@ void Timeline<T>::play_from_end()
   current_time     = total_duration;
   time_direction   = -1.0f;
   is_playing       = true;
-  last_update_time = AnimationTime::Clock::now();
+  last_update_time = Clock::now();
 }
 
 template <typename T>
