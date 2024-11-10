@@ -26,17 +26,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install llvm molten-vk cmake ninja nasm make
-
-      - name: Install Vulkan SDK
-        if: steps.cache-and-install.outputs.cache-hit != 'true'
-        run: |
-          mkdir .deps
-          cd .deps
-          wget https://sdk.lunarg.com/sdk/download/${{ matrix.vulkan }}/mac/vulkansdk-macos-${{ matrix.vulkan }}.zip
-          mkdir VulkanSDK
-          tar -xvf vulkansdk-macos-${{ matrix.vulkan }}.zip -C VulkanSDK
-          sudo ./VulkanSDK/InstallVulkan.app/Contents/MacOS/InstallVulkan --root ${{ github.workspace }}/.deps/VulkanSDK/${{ matrix.vulkan }} --accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.core com.lunarg.vulkan.usr com.lunarg.vulkan.sdl2 com.lunarg.vulkan.glm com.lunarg.vulkan.volk com.lunarg.vulkan.vma
+          brew install llvm molten-vk cmake ninja nasm make spirv-tools
 
       - name: Install VCPKG
         if: steps.cache-and-install.outputs.cache-hit != 'true'

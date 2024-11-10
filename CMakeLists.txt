@@ -22,45 +22,7 @@ if(APPLE)
     set(HOMEBREW_PREFIX "/usr/local")
   endif()
 
-  set(VULKAN_SDK $ENV{VULKAN_SDK})
-  set(VULKAN_VERSION "1.3.296.0")
-  set(VK_HEADER_VERSION "1.3.296.0")
-
-  if(NOT VULKAN_SDK)
-    # Try to find the latest SDK version in the home directory
-    file(GLOB VULKAN_SDK_VERSIONS RELATIVE "$ENV{HOME}/VulkanSDK" "$ENV{HOME}/VulkanSDK/*")
-    list(SORT VULKAN_SDK_VERSIONS)
-    list(GET VULKAN_SDK_VERSIONS -1 VULKAN_VERSION)
-    set(VULKAN_SDK "$ENV{HOME}/VulkanSDK/${LATEST_VERSION}")
-  endif()
-
-  message(STATUS "Looking for Vulkan SDK in: ${VULKAN_SDK}")
-
-  find_program(GLSLC_EXECUTABLE glslc
-    HINTS
-    "${VULKAN_SDK}/macOS/bin"
-    "${VULKAN_SDK}/bin"
-    REQUIRED
-  )
-
-  set(Vulkan_INCLUDE_DIRS "${VULKAN_SDK}/macOS/include")
-  set(Vulkan_LIBRARIES "${VULKAN_SDK}/macOS/lib")
-
-  find_package(Vulkan REQUIRED)
-
   add_definitions(-DVULKAN_STRING_HELPER_NO_AMDX)
-
-  if(NOT GLSLC_EXECUTABLE)
-    message(FATAL_ERROR "glslc not found. Please install the Vulkan SDK from https://vulkan.lunarg.com/sdk/home#mac")
-  endif()
-
-  message(STATUS "GLSLC path: ${GLSLC_EXECUTABLE}")
-  message(STATUS "Vulkan include dirs: ${Vulkan_INCLUDE_DIRS}")
-  message(STATUS "Vulkan libraries: ${Vulkan_LIBRARIES}")
-
-  set(ENV{VULKAN_SDK} "${VULKAN_SDK}/macOS")
-  set(ENV{VK_ICD_FILENAMES} "${VULKAN_SDK}/macOS/share/vulkan/icd.d/MoltenVK_icd.json")
-  set(ENV{VK_LAYER_PATH} "${VULKAN_SDK}/macOS/share/vulkan/explicit_layer.d")
 
   find_library(SPIRV_LIBRARY
     NAMES SPIRV
@@ -72,18 +34,15 @@ if(APPLE)
   message(STATUS "SPIRV library: ${SPIRV_LIBRARY}")
 
   list(APPEND CMAKE_PREFIX_PATH
-    "${HOMEBREW_PREFIX}/opt/vulkan-sdk"
     "${HOMEBREW_PREFIX}/opt/molten-vk"
   )
 
   include_directories(SYSTEM
     "${HOMEBREW_PREFIX}/include"
-    "${VULKAN_SDK_PATH}/include"
     "${HOMEBREW_PREFIX}/include/spirv-tools"
   )
   link_directories(
     "${HOMEBREW_PREFIX}/lib"
-    "${VULKAN_SDK_PATH}/lib"
   )
 
   set(ENV{PKG_CONFIG_PATH} "${HOMEBREW_PREFIX}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
@@ -315,9 +274,9 @@ target_link_libraries(
   ashura_gpu
   PUBLIC
   ashura_std
-  $<IF:$<BOOL:${APPLE}>,Vulkan::Vulkan,Vulkan-Headers>
+  Vulkan-Headers
   Vulkan::UtilityHeaders
-  $<IF:$<BOOL:${APPLE}>,${MOLTEN_VK_LIBRARY},Vulkan::Loader>
+  Vulkan::Loader
   GPUOpen::VulkanMemoryAllocator
 )
 
@@ -431,3 +390,7 @@ add_executable(ashura_app_test
 )
 
 target_link_libraries(ashura_app_test ashura_engine)
+
+add_executable(ashura_animation_test ashura/engine/tests/animation_test.cc)
+
+target_link_libraries(ashura_animation_test ashura_engine)
