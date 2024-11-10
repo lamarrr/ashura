@@ -35,7 +35,7 @@ namespace ash
 
 // Animatable trait applicable to complex types like Color, Vec2, Vec3 etc
 template <typename T>
-concept Animatable = requires(T a, T b, f32 t) {
+concept Animatable = requires(T a, T b, T t) {
   { lerp(a, b, t) } -> std::convertible_to<T>;
 };
 
@@ -44,7 +44,7 @@ namespace anim
 // Lerp implementations for different types
 // Basic arithmetic types
 template <typename T>
-T lerp(const T &start, const T &end, f32 t)
+T lerp(const T &start, const T &end, T t)
   requires std::is_arithmetic_v<T>
 {
   return ash::lerp<T>(start, end, t);
@@ -207,15 +207,15 @@ enum class SegmentType
 template <Animatable T>
 struct TimelineSegment
 {
-  std::string label = "default";
-  Duration    start_time{std::chrono::nanoseconds(0)};
-  Duration    duration{std::chrono::nanoseconds(0)};
-  SegmentType type = SegmentType::Basic;
+  Span<const char> label = R"(default)"_span;
+  Duration         start_time{std::chrono::nanoseconds(0)};
+  Duration         duration{std::chrono::nanoseconds(0)};
+  SegmentType      type = SegmentType::Basic;
 
-  virtual ~TimelineSegment()                                = default;
-  virtual void        update(Duration time, Duration delta) = 0;
-  virtual void        reset()                               = 0;
-  virtual std::string get_label()
+  virtual ~TimelineSegment()                                     = default;
+  virtual void             update(Duration time, Duration delta) = 0;
+  virtual void             reset()                               = 0;
+  virtual Span<const char> get_label()
   {
     return label;
   }
@@ -231,21 +231,27 @@ struct BasicSegment : TimelineSegment<T>
   Animation<T> animation;
 
   BasicSegment(const T &start, const T &end, AnimationConfig config) :
-      animation(start, end, config, this->onUpdate)
+      animation(start, end, config)
   {
     this->duration = config.duration;
     this->type     = SegmentType::Basic;
   }
-  void update(f32 current_time, f32 delta) override;
-  void reset() override;
-  T    value() const override;
+  void update(Duration current_time, Duration delta) override;
+  void reset() override
+  {
+    this->animation->reset();
+  }
+  T value() const override
+  {
+    this->interpolated_value;
+  };
 };
 
 template <Animatable T>
 struct KeyframeSegment : TimelineSegment<T>
 {
   std::vector<Keyframe<T>> keyframes;
-  f32                      current_time = 0.0f;
+  Duration                 current_time{std::chrono::seconds(1)};
 
   KeyframeSegment(const std::vector<Keyframe<T>> &kf) : keyframes(kf)
   {
@@ -255,9 +261,12 @@ struct KeyframeSegment : TimelineSegment<T>
 
   void calculate_duration();
 
-  void update(f32 _time, f32 delta);
+  void update(Duration _time, Duration delta);
 
-  void reset();
+  void reset() override
+  {
+    current_time = Duration::zero();
+  }
 
   T value() const override
   {
@@ -290,7 +299,7 @@ struct IAnimation
 // Animation anim = Animation<f32>(
 //  0.0f, // start
 //  10.0f, // end
-//  AnimationConfig{.duration = 2.0f, .loop = true, .easing =
+//  AnimationConfig{.duration = 2000ms, .loop = true, .easing =
 //  CurveType::EaseInOut},
 //);
 // anim.play();
@@ -367,14 +376,14 @@ private:
 // auto anim1 = animator.create<Vec2>(
 //     start_pos,
 //     end_pos,
-//     AnimationConfig{.duration = 1.0f, .loop = true, .easing =
+//     AnimationConfig{.duration = 1000ms, .loop = true, .easing =
 //     CurveType::EaseInOut},
 // );
 //
 // auto anim2 = animator.create<Vec2>(
 //     start_pos,
 //     end_pos,
-//     AnimationConfig{.duration = 1.0f, .loop = true, .easing =
+//     AnimationConfig{.duration = 1000ms, .loop = true, .easing =
 //     CurveType::EaseInOut},
 // );
 //
@@ -397,7 +406,7 @@ private:
 // animator.stagger<f32>(
 //  0.0f, // start
 //  1.0f, // end
-//  AnimationConfig{.duration = 1.0f, .loop = true},
+//  AnimationConfig{.duration = 1000ms, .loop = true},
 //  10, // total count
 //  StaggerOptions {
 //      .grid = {4, 4},
@@ -562,7 +571,7 @@ struct Keyframe : KeyframeBase
 // timeline.play();
 // timeline.pause();
 // timeline.reverse();
-// timeline.seek(2.0f);
+// timeline.seek(2000ms);
 // timeline.seek_percentage(0.5f);
 //
 //  // Playback controls
@@ -609,7 +618,7 @@ struct Timeline
   Timeline &add(const T &start, const T &end, AnimationConfig config);
 
   Timeline &add(const std::vector<Keyframe<T>> &keyframes,
-                std::optional<std::string>      label);
+                std::optional<Span<const char>> label);
 
   Timeline &parallel(const std::vector<AnimationConfig> &configs,
                      const std::vector<std::pair<T, T>> &values);
@@ -678,8 +687,11 @@ struct Timeline
             (time_direction < 0 && current_time <= Duration::zero()));
   };
 
-  SegmentPtr get_segment(std::string label);
-  SegmentPtr get_segment(u32 index);
+  SegmentPtr get_segment(Span<const char> label);
+  SegmentPtr get_segment(u32 index)
+  {
+    return segments[index];
+  }
 
 private:
   void update_segments(Duration delta);

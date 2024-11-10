@@ -475,10 +475,10 @@ int main()
     auto &_simple_animation = manager.get_table("Simple");
     _simple_animation.clear_rows();
     _simple_animation.add_row(
-        {std::format("{:4.1f}", linear_animation->value()),
-         std::format("{:4.1f}", easein_animation->value()),
-         std::format("{:4.1f}", easeout_animation->value()),
-         std::format("{:4.1f}", easein_out_animation->value())});
+        {std::format("{:4.4f}", linear_animation->value()),
+         std::format("{:4.4f}", easein_animation->value()),
+         std::format("{:4.4f}", easeout_animation->value()),
+         std::format("{:4.4f}", easein_out_animation->value())});
 
     ui.update(manager.render());
 

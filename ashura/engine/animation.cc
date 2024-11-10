@@ -192,7 +192,7 @@ Timeline<T> &Timeline<T>::add(const T &start, const T &end,
 
 template <typename T>
 Timeline<T> &Timeline<T>::add(const std::vector<Keyframe<T>> &keyframes,
-                              std::optional<std::string>      label)
+                              std::optional<Span<const char>> label)
 {
   auto segment = std::make_shared<KeyframeSegment<T>>(keyframes);
   if (label.has_value())
@@ -391,7 +391,7 @@ void Timeline<T>::seek(Duration time)
 }
 
 template <typename T>
-Timeline<T>::SegmentPtr Timeline<T>::get_segment(std::string label)
+Timeline<T>::SegmentPtr Timeline<T>::get_segment(Span<const char> label)
 {
   auto filter_segment = [&label](SegmentPtr seg) {
     return seg->get_label().compare(label);
@@ -402,11 +402,7 @@ Timeline<T>::SegmentPtr Timeline<T>::get_segment(std::string label)
     return result;
   }
 }
-template <typename T>
-Timeline<T>::SegmentPtr Timeline<T>::get_segment(u32 index)
-{
-  return segments[index];
-}
+
 template <typename T>
 void Timeline<T>::update_segments(Duration delta)
 {
@@ -434,19 +430,10 @@ void Timeline<T>::update_segments(Duration delta)
 }
 
 template <Animatable T>
-void BasicSegment<T>::update(f32 current_time, f32 delta)
+void BasicSegment<T>::update(Duration current_time, Duration delta)
 {
   animation.update(current_time, delta);
-}
-template <Animatable T>
-void BasicSegment<T>::reset()
-{
-  animation.reset();
-}
-template <Animatable T>
-T BasicSegment<T>::value() const
-{
-  return this->interpolated_value;
+  this->interpolated_value = animation.current_value;
 }
 
 template <Animatable T>
@@ -460,13 +447,13 @@ void KeyframeSegment<T>::calculate_duration()
 }
 
 template <Animatable T>
-void KeyframeSegment<T>::update(f32 _time, f32 delta)
+void KeyframeSegment<T>::update(Duration _time, Duration delta)
 {
   if (keyframes.size() < 2)
     return;
 
-  current_time         = (_time - this->start) + delta;
-  f32 accumulated_time = 0.0f;
+  current_time              = (_time - this->start_time) + delta;
+  Duration accumulated_time = Duration::zero();
 
   for (size_t i = 0; i < keyframes.size() - 1; ++i)
   {
@@ -477,8 +464,9 @@ void KeyframeSegment<T>::update(f32 _time, f32 delta)
       const Keyframe<T> &current_kf = keyframes[i];
       const auto        &next_kf    = keyframes[i + 1];
 
-      f32 local_start_time = accumulated_time - current_kf.duration;
-      f32 local_time = (current_time - local_start_time) / current_kf.duration;
+      Duration local_start_time = accumulated_time - current_kf.duration;
+      Duration local_time =
+          (current_time - local_start_time) / current_kf.duration;
       f32 eased_time = current_kf.get_ease_fn(local_time);
 
       this->interpolated_value =
@@ -486,12 +474,6 @@ void KeyframeSegment<T>::update(f32 _time, f32 delta)
       break;
     }
   }
-}
-
-template <Animatable T>
-void KeyframeSegment<T>::reset()
-{
-  current_time = 0.0f;
 }
 
 }        // namespace ash
