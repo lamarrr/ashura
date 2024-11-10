@@ -4,6 +4,21 @@
 
 namespace ash
 {
+
+template <typename T>
+struct RemoveConst
+{
+  using Type = T;
+};
+
+template <typename T>
+struct RemoveConst<T const> : RemoveConst<T>
+{
+};
+
+template <typename T>
+using remove_const = typename RemoveConst<T>::Type;
+
 template <typename T>
 struct RemoveConstVolatile
 {
@@ -41,6 +56,9 @@ struct RemoveRef<T &&> : RemoveRef<T>
 
 template <typename T>
 using remove_ref = typename RemoveRef<T>::Type;
+
+template <typename T>
+using decay = std::decay_t<T>;
 
 template <typename T, typename U>
 struct SameImpl
@@ -124,5 +142,10 @@ concept Callable = requires(F &&f, Args &&...args) {
 
 template <typename F, typename... Args>
 using CallResult = decltype(std::declval<F>()((std::declval<Args>())...));
+
+namespace trait
+{
+
+};
 
 }        // namespace ash

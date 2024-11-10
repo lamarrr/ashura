@@ -15,112 +15,6 @@
 namespace ash
 {
 
-Rc<Semaphore *> create_semaphore(u64 num_stages, AllocatorImpl allocator)
-{
-  CHECK(num_stages > 0);
-  return rc_inplace<Semaphore>(allocator,
-                               Semaphore::Inner{.num_stages = num_stages})
-      .unwrap();
-}
-
-bool await_semaphores(Span<Rc<Semaphore *> const> sems, Span<u64 const> stages,
-                      nanoseconds timeout, bool any)
-{
-  CHECK(sems.size() == stages.size());
-  usize const n = sems.size();
-  for (usize i = 0; i < n; i++)
-  {
-    CHECK((stages[i] == U64_MAX) || (stages[i] <= sems[i]->inner.num_stages));
-  }
-
-  // number of times we've polled so far, counting begins from 0
-  u64 poll = 0;
-
-  // avoid sys-calls unless absolutely needed
-  steady_clock::time_point poll_begin{};
-
-  // speeds up checks for the 'all' case. points to the next semaphore to be
-  // checked
-  usize next = 0;
-
-  while (true)
-  {
-    if (any)
-    {
-      bool any_ready = false;
-
-      for (usize i = 0; i < n; i++)
-      {
-        Rc<Semaphore *> const &s     = sems[i];
-        u64 const              stage = min(stages[i], s->inner.num_stages - 1);
-        bool const             is_ready = stage <= s->get_stage();
-        any_ready                       = any_ready || is_ready;
-
-        if (is_ready)
-        {
-          break;
-        }
-      }
-
-      if (any_ready)
-      {
-        return true;
-      }
-    }
-    else
-    {
-      for (; next < n; next++)
-      {
-        Rc<Semaphore *> const &s = sems[next];
-        u64 const  stage         = min(stages[next], s->inner.num_stages - 1);
-        bool const is_ready      = stage <= s->get_stage();
-
-        if (!is_ready)
-        {
-          break;
-        }
-      }
-
-      if (next == n)
-      {
-        return true;
-      }
-    }
-
-    // fast-path to avoid syscalls
-    if (timeout == nanoseconds{0}) [[likely]]
-    {
-      return false;
-    }
-
-    // fast-path to avoid syscalls
-    if (timeout == nanoseconds::max()) [[likely]]
-    {
-      // infinite timeout
-    }
-    else
-    {
-      if (poll_begin == steady_clock::time_point{}) [[unlikely]]
-      {
-        poll_begin = steady_clock::now();
-      }
-
-      nanoseconds const time_past =
-          duration_cast<nanoseconds>(steady_clock::now() - poll_begin);
-
-      if (time_past > timeout) [[unlikely]]
-      {
-        return false;
-      }
-    }
-
-    yielding_backoff(poll);
-    poll++;
-  }
-
-  return false;
-}
-
 constexpr usize TASK_ARENA_SIZE = PAGE_ALIGNMENT;
 
 /// memory is returned back to the scheduler once ac reaches 0.
@@ -154,9 +48,10 @@ constexpr Flex<2> task_arena_layout()
 ///
 struct Task
 {
-  TaskInfo             info      = {};
-  u64                  instances = 1;        // be careful when purging
-  ListNode<TaskArena> *arena     = nullptr;
+  // TaskInfo             info      = {};
+  u64                  alive = 1;        // alive count of this task. this refers to the number of instances of this task still queued. be careful when purging
+  bool                 ready = false;        // if the poller has returned true, the poll function is never called again once the readiness is true
+  ListNode<TaskArena> *arena = nullptr;
 };
 
 constexpr Flex<2> task_layout(Layout ctx_layout)
@@ -513,7 +408,7 @@ struct SchedulerImpl : Scheduler
     t->~TaskThread();
   }
 
-  virtual void uninit() override
+  void uninit()
   {
     for (u32 i = 0; i < num_worker_threads; i++)
     {
@@ -534,6 +429,11 @@ struct SchedulerImpl : Scheduler
     dedicated_threads     = nullptr;
     num_worker_threads    = 0;
     num_dedicated_threads = 0;
+  }
+
+  virtual ~SchedulerImpl() override
+  {
+    uninit();
   }
 
   virtual u32 num_dedicated() override

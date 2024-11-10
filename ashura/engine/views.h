@@ -6,9 +6,9 @@
 #include "ashura/engine/render_text.h"
 #include "ashura/engine/text_compositor.h"
 #include "ashura/engine/view.h"
+#include "ashura/std/dyn.h"
 #include "ashura/std/text.h"
 #include "ashura/std/types.h"
-#include "ashura/std/unique.h"
 #include <charconv>
 
 namespace ash
@@ -371,11 +371,7 @@ struct TextView : View
                   .line_height = DEFAULT_THEME.line_height});
   }
 
-  virtual ~TextView() override
-  {
-    text.uninit();
-    compositor.uninit();
-  }
+  virtual ~TextView() override = default;
 
   void highlight(TextHighlight highlight)
   {
@@ -401,8 +397,7 @@ struct TextView : View
     }
 
     compositor.command(text.get_text(), text.inner.layout, region.extent.x,
-                       text.inner.alignment, cmd,
-                       fn([](u32, Span<u32 const>) {}), fn([](Slice32) {}), {},
+                       text.inner.alignment, cmd, noop, noop, {},
                        *ctx.clipboard, 1,
                        (ctx.mouse.position - region.center) * zoom);
 
@@ -459,10 +454,10 @@ struct TextInput : View
   RenderText     placeholder{};
   TextCompositor compositor{};
 
-  Fn<void()> on_edit      = fn([] {});
-  Fn<void()> on_submit    = fn([] {});
-  Fn<void()> on_focus_in  = fn([] {});
-  Fn<void()> on_focus_out = fn([] {});
+  Fn<void()> on_edit      = noop;
+  Fn<void()> on_submit    = noop;
+  Fn<void()> on_focus_in  = noop;
+  Fn<void()> on_focus_out = noop;
 
   TextInput()
   {
@@ -480,12 +475,7 @@ struct TextInput : View
                   .line_height = DEFAULT_THEME.line_height});
   }
 
-  virtual ~TextInput() override
-  {
-    content.uninit();
-    placeholder.uninit();
-    compositor.uninit();
-  }
+  virtual ~TextInput() override = default;
 
   void highlight(TextHighlight const &highlight)
   {
@@ -784,8 +774,8 @@ struct Button : View
     FocusStyle    focus          = {};
   } style;
 
-  Fn<void()> on_pressed = fn([] {});
-  Fn<void()> on_hovered = fn([] {});
+  Fn<void()> on_pressed = noop;
+  Fn<void()> on_hovered = noop;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &, f32,
                          ViewEvents         events, Fn<void(View &)>) override
@@ -890,7 +880,7 @@ struct CheckBox : View
     FocusStyle    focus             = {};
   } style;
 
-  Fn<void(bool)> on_changed = fn([](bool) {});
+  Fn<void(bool)> on_changed = noop;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &, f32,
                          ViewEvents         events, Fn<void(View &)>) override
@@ -981,7 +971,7 @@ struct Slider : View
     f32           delta              = 0.1F;
   } style;
 
-  Fn<void(f32)> on_changed = fn([](f32) {});
+  Fn<void(f32)> on_changed = noop;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
                          ViewEvents events, Fn<void(View &)>) override
@@ -1114,7 +1104,7 @@ struct Switch : View
     FocusStyle    focus        = {};
   } style;
 
-  Fn<void(bool)> on_changed = fn([](bool) {});
+  Fn<void(bool)> on_changed = noop;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &, f32,
                          ViewEvents         events, Fn<void(View &)>) override
@@ -1198,7 +1188,7 @@ struct RadioBox : View
     FocusStyle focus = {};
   } style;
 
-  Fn<void(bool)> on_changed = fn([](bool) {});
+  Fn<void(bool)> on_changed = noop;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &, f32,
                          ViewEvents         events, Fn<void(View &)>) override
@@ -1401,7 +1391,7 @@ struct ScalarDragBox : View
   Fmt       fmt   = fn(scalar_fmt);
   Parse     parse = fn(scalar_parse);
 
-  Fn<void(ScalarInput)> on_update = fn([](ScalarInput) {});
+  Fn<void(ScalarInput)> on_update = noop;
 
   ScalarDragBox()
   {
@@ -1427,7 +1417,6 @@ struct ScalarDragBox : View
     }
 
     Vec<u8> utf8;
-    defer   utf8_{[&] { utf8.uninit(); }};
     utf8_encode(text, utf8).unwrap();
 
     char const *const first = (char const *) utf8.begin();
@@ -1569,7 +1558,7 @@ struct ScalarDragBox : View
 
 struct ScalarBox : FlexView
 {
-  Fn<void(ScalarInput)> on_update = fn([](ScalarInput) {});
+  Fn<void(ScalarInput)> on_update = noop;
 
   TextButton    dec{};
   TextButton    inc{};
@@ -1661,7 +1650,7 @@ struct ScrollBar : View
     f32         delta              = 0.1F;
   } style;
 
-  Fn<void(f32)> on_scrolled = fn([](f32) {});
+  Fn<void(f32)> on_scrolled = noop;
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
                          ViewEvents events, Fn<void(View &)>) override
@@ -1927,7 +1916,7 @@ struct ComboBoxItem : View
 
   Option<Style const *> style = None;
 
-  Fn<void(Option<u32>)> on_selected = fn([](Option<u32>) {});
+  Fn<void(Option<u32>)> on_selected = noop;
 
   Option<View *> child = None;
 
@@ -2026,11 +2015,6 @@ struct ComboBoxScrollView : View
 
   Vec<ComboBoxItem *> items = {};
 
-  virtual ~ComboBoxScrollView() override
-  {
-    items.uninit();
-  }
-
   virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
                          ViewEvents events, Fn<void(View &)> build) override
   {
@@ -2103,7 +2087,7 @@ struct ComboBox : View
   } state;
 
   ComboBoxScrollView     scroll_view{};
-  Fn<void(Option<u32>)>  on_selected = fn([](Option<u32>) {});
+  Fn<void(Option<u32>)>  on_selected = noop;
   Option<ComboBoxItem *> header      = None;
 
   struct Style

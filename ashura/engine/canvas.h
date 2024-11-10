@@ -158,14 +158,13 @@ struct Canvas
     Slice32 objects{};
   };
 
+  typedef Dyn<Fn<void(RenderContext const &)>> PassFn;
+
   struct Pass
   {
-    Span<char const>                name{};
-    Fn<void(RenderContext const &)> task = fn([](RenderContext const &) {});
-    void (*uninit)(void *)               = [](void *) {};
+    Span<char const> name = {};
+    PassFn           task{};
   };
-
-  ArenaPool frame_arena{.min_arena_size = 100_KB, .max_arena_size = 100_KB};
 
   Vec2 viewport_extent{};
 
@@ -192,9 +191,9 @@ struct Canvas
 
   Vec<Pass> passes{};
 
-  void init();
-
-  void uninit();
+  // declared last so it would release allocated memory after all operations
+  // are done executing
+  ArenaPool frame_arena{};
 
   Canvas &begin_recording(Vec2 viewport_extent);
 
@@ -276,37 +275,21 @@ struct Canvas
   Canvas &blur(CRect const &area, u32 num_passes);
 
   /// @brief register a custom canvas pass to be executed in the render thread
-  Canvas &add_pass(Pass pass);
-
-  template <typename T>
-  T *alloc()
-  {
-    T *out;
-    CHECK(frame_arena.nalloc(1, out));
-    return out;
-  }
-
-  template <typename T>
-  Span<T> alloc(usize n)
-  {
-    T *out;
-    CHECK(frame_arena.nalloc(n, out));
-    return Span{out, n};
-  }
+  Canvas &add_pass(Pass &&pass);
 
   template <typename Lambda>
   Canvas &add_pass(Span<char const> name, Lambda &&task)
   {
-    Lambda *lambda = alloc<Lambda>();
-    new (lambda) Lambda{(Lambda &&) task};
-    auto lambda_fn = fn(lambda);
+    // relocate lambda to heap
+    Dyn<Lambda *> lambda =
+        dyn(frame_arena.to_allocator(), (Lambda &&) task).unwrap();
+    // allocator is noop-ed but destructor still runs when the dynamic object is
+    // uninitialized. the memory is freed by at the end of the frame anyway so
+    // no need to free it
+    lambda.inner.allocator = noop_allocator;
 
-    Pass pass{.name = name, .task = lambda_fn, .uninit = [](void *l) {
-                Lambda *lambda = static_cast<Lambda *>(l);
-                lambda->~Lambda();
-              }};
-
-    return add_pass(pass);
+    return add_pass(Pass{
+        .name = name, .task = transmute(std::move(lambda), fn(lambda.get()))});
   }
 };
 

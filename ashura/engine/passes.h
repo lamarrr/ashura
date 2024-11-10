@@ -15,9 +15,10 @@ namespace ash
 /// used by renderers.
 struct Pass
 {
-  virtual Span<char const> id()                 = 0;
-  virtual void             init(GpuContext &)   = 0;
-  virtual void             uninit(GpuContext &) = 0;
+  virtual Span<char const> id()                  = 0;
+  virtual void             acquire(GpuContext &) = 0;
+  virtual void             release(GpuContext &) = 0;
+  virtual ~Pass()                                = 0;
 };
 
 struct BloomPassParams
@@ -30,17 +31,23 @@ struct BloomPassParams
 
 struct BloomPass : Pass
 {
+  BloomPass() = default;
+
   virtual Span<char const> id() override
   {
     return "Bloom"_span;
   }
 
-  virtual void init(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx) override;
 
-  virtual void uninit(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx) override;
 
   void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
               BloomPassParams const &params);
+
+  virtual ~BloomPass() override
+  {
+  }
 };
 
 struct BlurParam
@@ -66,14 +73,20 @@ struct BlurPass : Pass
   gpu::GraphicsPipeline downsample_pipeline = nullptr;
   gpu::GraphicsPipeline upsample_pipeline   = nullptr;
 
+  BlurPass() = default;
+
   virtual Span<char const> id() override
   {
     return "Blur"_span;
   }
 
-  virtual void init(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx) override;
 
-  virtual void uninit(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx) override;
+
+  virtual ~BlurPass() override
+  {
+  }
 
   void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
               BlurPassParams const &params);
@@ -109,14 +122,20 @@ struct NgonPass : Pass
 {
   gpu::GraphicsPipeline pipeline = nullptr;
 
+  NgonPass() = default;
+
   virtual Span<char const> id() override
   {
     return "Ngon"_span;
   }
 
-  virtual void init(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx) override;
 
-  virtual void uninit(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx) override;
+
+  virtual ~NgonPass() override
+  {
+  }
 
   void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
               NgonPassParams const &params);
@@ -180,14 +199,20 @@ struct PBRPass : Pass
   gpu::GraphicsPipeline pipeline           = nullptr;
   gpu::GraphicsPipeline wireframe_pipeline = nullptr;
 
+  PBRPass() = default;
+
   virtual Span<char const> id() override
   {
     return "PBR"_span;
   }
 
-  virtual void init(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx) override;
 
-  virtual void uninit(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx) override;
+
+  virtual ~PBRPass() override
+  {
+  }
 
   void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
               PBRPassParams const &params);
@@ -230,9 +255,15 @@ struct RRectPass : Pass
     return "RRect"_span;
   }
 
-  virtual void init(GpuContext &ctx) override;
+  RRectPass() = default;
 
-  virtual void uninit(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx) override;
+
+  virtual void release(GpuContext &ctx) override;
+
+  virtual ~RRectPass() override
+  {
+  }
 
   void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
               RRectPassParams const &params);

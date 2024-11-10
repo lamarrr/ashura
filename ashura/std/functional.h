@@ -5,36 +5,47 @@
 namespace ash
 {
 
-template <usize I, typename... Funcs, typename... Inputs>
-  requires(sizeof...(Funcs) > 0)
-constexpr auto fold_impl(Tuple<Funcs...> &funcs, Inputs &&...inputs)
+template <usize I, typename Tuple, typename... In>
+constexpr decltype(auto) foldl_impl_reduce(Tuple &fns, In &&...in)
 {
-  if constexpr (I < (sizeof...(Funcs) - 1))
+  if constexpr (I == (Tuple::SIZE - 1))
   {
-    if constexpr (Same<CallResult<decltype(get<I>(funcs)), Inputs...>, void>)
-    {
-      get<I>(funcs)(((Inputs &&) inputs)...);
-      return fold_impl<I + 1>(funcs);
-    }
-    else
-    {
-      return fold_impl<I + 1>(funcs, get<I>(funcs)(((Inputs &&) inputs)...));
-    }
+    return get<I>(fns)(((In &&) in)...);
   }
   else
   {
-    return get<I>(funcs)(((Inputs &&) inputs)...);
+    if constexpr (Same<CallResult<decltype(get<I>(fns)), In...>, void>)
+    {
+      get<I>(fns)(((In &&) in)...);
+      return foldl_impl_reduce<I + 1, Tuple>(fns);
+    }
+    else
+    {
+      return foldl_impl_reduce<I + 1, Tuple>(fns, get<I>(fns)(((In &&) in)...));
+    }
   }
 }
 
-/// @brief Fold-call a tuple of functions, passing the return type of func_0 as
-/// argument to func_1
-/// @return the return value of the last function
-template <typename... Funcs>
-  requires(sizeof...(Funcs) > 0)
-auto fold(Tuple<Funcs...> &funcs)
+template <class Tuple, typename... In>
+constexpr decltype(auto) foldl_impl(Tuple &fns, In &&...in)
 {
-  return fold_impl<0>(funcs);
+  if constexpr (Tuple::SIZE == 0)
+  {
+    return;
+  }
+  else
+  {
+    return foldl_impl_reduce<0, Tuple>(fns, ((In &&) in)...);
+  }
+}
+
+/// @brief Folds left call a tuple of functions, acting as a single function.
+/// i.e. result = ( fn.0(in...) -> fn.1 -> fn.2 -> return )
+/// @return the return value of the last function
+template <class Tuple, typename... In>
+constexpr decltype(auto) foldl(Tuple &fns, In &&...in)
+{
+  return foldl_impl(fns, ((In &&) in)...);
 }
 
 }        // namespace ash

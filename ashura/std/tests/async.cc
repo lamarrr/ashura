@@ -22,11 +22,11 @@ TEST(AsyncTest, Basic)
 
   for (u32 i = 0; i < 5'000; i++)
   {
-    scheduler->schedule_worker({.task = fn([](void *) {
+    scheduler->schedule_worker({.task = fn([](TaskInstance, void *) {
                                   invocs.fetch_add(1);
                                   return false;
                                 })});
-    scheduler->schedule_dedicated(0, {.task = fn([](void *) {
+    scheduler->schedule_dedicated(0, {.task = fn([](TaskInstance, void *) {
                                         static int x = 0;
                                         x++;
                                         if (x > 10)
@@ -36,7 +36,7 @@ TEST(AsyncTest, Basic)
                                         std::this_thread::sleep_for(8us);
                                         return true;
                                       })});
-    scheduler->schedule_dedicated(1, {.task = fn([](void *) {
+    scheduler->schedule_dedicated(1, {.task = fn([](TaskInstance, void *) {
                                         invocs.fetch_add(1);
                                         return false;
                                       })});
@@ -48,10 +48,11 @@ TEST(AsyncTest, Basic)
   }
 
   auto poll = [&](void *) {
-    return await_semaphores(span({sem, sem}), span<u64>({0, 0}), {});
+    return await_semaphores(span({sem.get(), sem.get()}), span<u64>({0, 0}),
+                            {});
   };
 
-  scheduler->schedule_main({.task = fn([](void *) {
+  scheduler->schedule_main({.task = fn([](TaskInstance, void *) {
                               static int x = 0;
                               x++;
                               if (x > 10)

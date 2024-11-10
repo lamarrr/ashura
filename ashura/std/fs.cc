@@ -11,7 +11,6 @@ IoError read_file(Span<char const> path, Vec<u8> &buff)
 {
   CHECK(!path.is_empty());
   Vec<char> path_s;
-  defer     path_cleanup{[&] { path_s.reset(); }};
   if (!path_s.extend_copy(path) || !path_s.push((char) 0))
   {
     return IoError::OutOfMemory;

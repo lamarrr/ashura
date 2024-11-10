@@ -1,4 +1,7 @@
 /// SPDX-License-Identifier: MIT
+///
+/// Stage-based Asynchrony
+///
 #pragma once
 #include "ashura/std/allocator.h"
 #include "ashura/std/cfg.h"
@@ -285,13 +288,9 @@ struct Semaphore : Pin<>
   {
   }
 
-  constexpr Semaphore() = default;
-
-  /// @brief initialize the semaphore
-  void init(u64 num_stages)
+  explicit constexpr Semaphore(u64 num_stages = 1) :
+      inner{.num_stages = num_stages}
   {
-    CHECK(num_stages > 0);
-    new (&inner) Inner{.num_stages = num_stages, .stage = 0};
   }
 
   void uninit()
@@ -301,7 +300,7 @@ struct Semaphore : Pin<>
 
   void reset()
   {
-    new (&inner) Inner{};
+    inner = Inner{};
   }
 
   /// @brief Get the current semaphore stage. This represents the current stage
@@ -378,12 +377,14 @@ struct Semaphore : Pin<>
 ///
 /// @brief Create an independently allocated semaphore object
 ///
-/// @param num_stages: number of stages represented by this semaphore. must be
-///  non-zero.
+/// @param num_stages: number of stages represented by this semaphore
 /// @return Semaphore
 ///
 [[nodiscard]] Rc<Semaphore *> create_semaphore(u64           num_stages,
-                                               AllocatorImpl allocator);
+                                               AllocatorImpl allocator)
+{
+  return rc_inplace<Semaphore>(allocator, num_stages).unwrap();
+}
 
 /// @brief await semaphores at the specified stages.
 /// @param sems semaphores to wait for
@@ -397,9 +398,78 @@ struct Semaphore : Pin<>
 /// @param any if to wait for all semaphores or atleast 1 semaphore.
 /// @returns returns if the semaphore await operation completed successfully
 /// based on the `any` criteria.
-[[nodiscard]] bool await_semaphores(Span<Rc<Semaphore *> const> sems,
-                                    Span<u64 const> stages, nanoseconds timeout,
-                                    bool any = false);
+[[nodiscard]] bool await_semaphores(Span<Semaphore const *const> sems,
+                                    Span<u64 const> stages, nanoseconds timeout)
+{
+  CHECK(sems.size() == stages.size());
+  usize const n = sems.size();
+  for (usize i = 0; i < n; i++)
+  {
+    CHECK((stages[i] == U64_MAX) || (stages[i] <= sems[i]->inner.num_stages));
+  }
+
+  // number of times we've polled so far, counting begins from 0
+  u64 poll = 0;
+
+  // avoid sys-calls unless absolutely needed
+  steady_clock::time_point poll_begin{};
+
+  // speeds up checks for the 'all' case. points to the next semaphore to be
+  // checked
+  usize next = 0;
+
+  while (true)
+  {
+    for (; next < n; next++)
+    {
+      Semaphore const *const &s = sems[next];
+      u64 const  stage          = min(stages[next], s->inner.num_stages - 1);
+      bool const is_ready       = stage <= s->get_stage();
+
+      if (!is_ready)
+      {
+        break;
+      }
+    }
+
+    if (next == n)
+    {
+      return true;
+    }
+
+    // fast-path to avoid syscalls
+    if (timeout <= nanoseconds{0}) [[likely]]
+    {
+      return false;
+    }
+
+    // fast-path to avoid syscalls
+    if (timeout == nanoseconds::max()) [[likely]]
+    {
+      // infinite timeout
+    }
+    else
+    {
+      if (poll_begin == steady_clock::time_point{}) [[unlikely]]
+      {
+        poll_begin = steady_clock::now();
+      }
+
+      nanoseconds const past =
+          duration_cast<nanoseconds>(steady_clock::now() - poll_begin);
+
+      if (past > timeout) [[unlikely]]
+      {
+        return false;
+      }
+    }
+
+    yielding_backoff(poll);
+    poll++;
+  }
+
+  return false;
+}
 
 struct TaskInstance
 {
@@ -407,42 +477,45 @@ struct TaskInstance
   u64 idx       = 0;
 };
 
-template <typename B>
-concept TaskBody =
-    Callable<B, TaskInstance const &> &&
-    Same<CallResult<B, TaskInstance const &>, bool> && (sizeof(B) <= PAGE_SIZE);
+constexpr usize MAX_TASK_FRAME_SIZE = PAGE_SIZE >> 4;
+
+template <typename F>
+concept TaskFrame = requires(F f, TaskInstance instance) {
+  { !f.poll() };
+  { !f.run(instance) };
+} && (sizeof(F) <= MAX_TASK_FRAME_SIZE);
 
 /// @brief Task data layout and callbacks
-/// @param task task to be executed on the executor. must return true if it
-/// should be re-queued onto the executor (with the same parameters as it got
-/// in).
 /// @param ctx memory layout of context data associated with the task.
 /// @param init function to initialize the context data associated with the task
 /// to a task stack.
-/// @param poll function to poll for readiness of the task, must be extremely
-/// light-weight and non-blocking.
 /// @param uninit function to uninitialize the task and the associated data
 /// context upon completion of the task.
+/// @param poll function to poll for readiness of the task, must be extremely
+/// light-weight and non-blocking.
+/// @param run task to be executed on the executor. must return true if it
+/// should be re-queued onto the executor (with the same parameters as it got
+/// in).
 /// @param instances number of instances of the task to spawn. all instances
 /// share the same state/stack.
 /// @note Cancelation is handled within the task itself, as various tasks have
 /// various methods/techniques of reacting to cancelation.
 struct TaskInfo
 {
-  typedef Fn<bool(TaskInstance const &, void *)> Poll;
-  typedef Fn<bool(TaskInstance const &, void *)> Task;
-  typedef Fn<void(void *)>                       Init;
-  typedef Fn<void(void *)>                       Uninit;
+  typedef Fn<void(void *)> Init;
+  typedef void (*Uninit)(void *);
+  typedef bool (*Poll)(void *);
+  typedef bool (*Run)(void *, TaskInstance);
 
-  Task task = fn([](TaskInstance const &, void *) { return false; });
+  Layout frame_layout{};
 
-  Layout ctx{};
+  Init init = noop;
 
-  Init init = fn([](void *) {});
+  Uninit uninit = noop;
 
-  Poll poll = fn([](TaskInstance const &, void *) { return true; });
+  Poll poll = [](void *) { return true; };
 
-  Uninit uninit = fn([](void *) {});
+  Run run = [](void *, TaskInstance) { return true; };
 
   u64 instances = 1;
 };
@@ -460,48 +533,34 @@ struct TaskSchedule
   u32        thread = U32_MAX;
 };
 
-template <TaskBody B>
-struct TaskRunner
-{
-  B body{};
-
-  Fn<bool(B *)> poll = fn([](B *) { return true; });
-
-  u64 instances = 1;
-
-  TaskSchedule schedule{};
-};
-
-/// @brief Wrap a lambda into a task info struct
-/// @param task the task to be wrapped
-/// @param poll function to query readiness of the task
+/// @brief Wrap a Task frame
 /// @return TaskInfo struct to be passed to the scheduler for execution
-template <TaskBody B>
-TaskInfo to_task_info(TaskRunner<B> &runner)
+template <TaskFrame F>
+TaskInfo to_task_info(F &frame, u64 instances)
 {
-  Fn init =
-      fn(&runner.body, [](B *body, void *mem) { new (mem) B{(B &&) (*body)}; });
+  Fn init = fn(&frame, [](F *f, void *mem) { new (mem) F{(F &&) (*f)}; });
 
-  Fn uninit = fn([](void *ctx) {
-    B *body = (B *) ctx;
-    body->~B();
-  });
+  TaskInfo::Uninit uninit = [](void *frame) {
+    F *f = (F *) frame;
+    f->~F();
+  };
 
-  Fn task = fn([](void *ctx) {
-    B *body = (B *) ctx;
-    return (*body)();
-  });
+  TaskInfo::Poll poll = [](void *frame) -> bool {
+    F *f = (F *) frame;
+    return f->poll();
+  };
 
-  using PollThunk = bool (*)(void *, void *);
+  TaskInfo::Run run = [](void *frame, TaskInstance instance) -> bool {
+    F *f = (F *) frame;
+    return f->run(instance);
+  };
 
-  Fn poll{.thunk = (PollThunk) (runner.poll.thunk), .data = runner.poll.data};
-
-  return TaskInfo{.task      = task,
-                  .ctx       = layout<B>,
-                  .init      = init,
-                  .poll      = poll,
-                  .uninit    = uninit,
-                  .instances = runner.instances};
+  return TaskInfo{.frame_layout = layout<F>,
+                  .init         = init,
+                  .uninit       = uninit,
+                  .poll         = poll,
+                  .run          = run,
+                  .instances    = instances};
 }
 
 /// @brief Static Thread Pool Scheduler.
@@ -531,6 +590,8 @@ struct Scheduler
 
   virtual void uninit() = 0;
 
+  virtual ~Scheduler() = 0;
+
   virtual u32 num_dedicated() = 0;
 
   virtual u32 num_workers() = 0;
@@ -544,18 +605,17 @@ struct Scheduler
 
   virtual void execute_main_thread_work(nanoseconds timeout) = 0;
 
-  template <TaskBody B>
-  void schedule(TaskRunner<B> &&task)
+  void schedule(TaskFrame auto &&task, TaskSchedule schedule, u64 instances)
   {
-    TaskInfo info = to_task_info(task);
+    TaskInfo info = to_task_info(task, instances);
 
-    switch (task.schedule.target)
+    switch (schedule.target)
     {
       case TaskTarget::Worker:
         schedule_worker(info);
         return;
       case TaskTarget::Dedicated:
-        schedule_dedicated(task.schedule.thread, info);
+        schedule_dedicated(schedule.thread, info);
         return;
       case TaskTarget::Main:
         schedule_main(info);
@@ -600,11 +660,11 @@ struct [[nodiscard]] Future
   Rc<Semaphore *> semaphore{};
   u64             stage = 0;
 
-  Future<T> alias() const
+  Future alias() const
   {
-    return Future<T>{.result    = result.alias(),
-                     .semaphore = semaphore.alias(),
-                     .stage     = stage};
+    return Future{.result    = result.alias(),
+                  .semaphore = semaphore.alias(),
+                  .stage     = stage};
   }
 
   [[nodiscard]] bool is_ready() const
@@ -623,9 +683,9 @@ struct [[nodiscard]] Future<void>
   Rc<Semaphore *> semaphore{};
   u64             stage = 0;
 
-  Future<void> alias() const
+  Future alias() const
   {
-    return Future<void>{.semaphore = semaphore.alias(), .stage = stage};
+    return Future{.semaphore = semaphore.alias(), .stage = stage};
   }
 
   [[nodiscard]] bool is_ready() const
@@ -642,16 +702,33 @@ struct [[nodiscard]] Future<void>
 };
 
 template <typename... T>
-bool await_futures(nanoseconds timeout, bool any, Future<T> const &...futures)
+bool await_futures(nanoseconds timeout, Future<T> const &...futures)
 {
   Rc<Semaphore *> const semaphores[] = {(futures.semaphore)...};
 
   u64 const stages[] = {(futures.stage)...};
 
-  return await_semaphores(span(semaphores), span(stages), timeout, any);
+  return await_semaphores(span(semaphores), span(stages), timeout);
 }
 
-typedef Rc<::ash::StopToken *> StopToken;
+struct StagedStopToken;
+
+struct StopToken
+{
+  Rc<::ash::StopToken *> stop_token{};
+
+  bool is_stop_requested(u64 stage) const
+  {
+    return stop_token->is_stop_requested(stage);
+  }
+
+  void request_stop(u64 stage) const
+  {
+    stop_token->request_stop(stage);
+  }
+
+  StagedStopToken stage(u64 stage) const;
+};
 
 struct StagedStopToken
 {
@@ -660,14 +737,19 @@ struct StagedStopToken
 
   bool is_stop_requested() const
   {
-    return stop_token->is_stop_requested(stage);
+    return stop_token.is_stop_requested(stage);
   }
 
-  void request_stop()
+  void request_stop() const
   {
-    stop_token->request_stop(stage);
+    stop_token.request_stop(stage);
   }
 };
+
+StagedStopToken StopToken::stage(u64 stage) const
+{
+  return StagedStopToken{StopToken{stop_token.alias()}, stage};
+}
 
 template <typename T>
 struct StoppableFuture
@@ -676,22 +758,71 @@ struct StoppableFuture
   StagedStopToken stop_token{};
 };
 
-template <typename T>
-concept Poll = Callable<T> && Convertible<CallResult<T>, bool>;
+template <typename P>
+concept Poll = requires(P p) {
+  { !p() };
+};
 
-template <usize N>
-struct AwaitAny
+template <typename R>
+concept Run = requires(R r) {
+  { !r() };
+};
+
+template <typename R>
+concept InstanceRun = requires(R r, TaskInstance instance) {
+  { !r(instance) };
+};
+
+template <Run R, Poll P>
+struct TaskBody
 {
-  constexpr void operator()()
+  typedef R Runner;
+  typedef P Poller;
+
+  R run_{};
+  P poll{};
+
+  constexpr bool run(TaskInstance)
   {
+    return run_();
   }
 };
 
-template <usize N>
+template <InstanceRun R, Poll P>
+struct InstanceTaskBody
+{
+  typedef R Runner;
+  typedef P Poller;
+
+  R run{};
+  P poll{};
+};
+
+template <typename... Futures>
+struct AwaitAny
+{
+  Tuple<Futures...> futures;
+
+  bool operator()() const
+  {
+    return apply(
+        [](auto const &...f) {
+          return (false || ... || await_futures(nanoseconds{0}, f));
+        },
+        futures);
+  }
+};
+
+template <typename... Futures>
 struct AwaitAll
 {
-  constexpr void operator()()
+  Tuple<Futures...> futures;
+
+  bool operator()() const
   {
+    return apply(
+        [](auto const &...f) { return await_futures(nanoseconds{0}, f...); },
+        futures);
   }
 };
 
@@ -760,30 +891,6 @@ StoppableFuture<void> bulk(StoppableTag, F &&fn, u64 count, P &&poll = Ready{},
                            TaskSchedule  schedule  = {},
                            AllocatorImpl allocator = default_allocator);
 
-template <typename... Funcs>
-  requires(sizeof...(Funcs) > 0)
-struct Fold
-{
-  Tuple<Funcs...> funcs{};
-
-  //
-  //
-  // for all futures in the task queue, create a poll entry.
-  //
-  // for their lambda slots, add a function that just returns the results of the
-  // futures
-  //
-  // We should be able to plug a type-erased awaiter to any task
-  //
-  //
-  //
-
-  constexpr auto operator()()
-  {
-    return fold(funcs);
-  }
-};
-
 // block_result; future? Future, Callable? CallResult<F>
 //
 //
@@ -799,13 +906,13 @@ struct Fold
 ///
 /// BlockContext{ dedicated, worker, main?; cancelable?; interruptable;  };
 ///
-template <SyncPoint... Func>
-void seq(Context &&context, Func &&...func);
+// template <SyncPoint... Func>
+// void seq(Context &&context, Func &&...func);
 
-template <SyncPoint... Func>
-StoppableFuture<void> seq(StoppableTag, Func &&...func)
-{
-}
+// template <SyncPoint... Func>
+// StoppableFuture<void> seq(StoppableTag, Func &&...func)
+// {
+// }
 
 /// @brief execute all tasks at once but wait until all are done before
 /// returning result.

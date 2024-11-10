@@ -42,7 +42,7 @@ ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
     if (WebPDecodeRGBAInto(bytes.data(), bytes.size(), image.channels.data(),
                            buffer_size, pitch) == nullptr)
     {
-      image.channels.reset();
+      image.channels.clear();
       return ImageDecodeError::DecodeFailed;
     }
   }
@@ -51,7 +51,7 @@ ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
     if (WebPDecodeRGBInto(bytes.data(), bytes.size(), image.channels.data(),
                           buffer_size, pitch) == nullptr)
     {
-      image.channels.reset();
+      image.channels.clear();
       return ImageDecodeError::DecodeFailed;
     }
   }

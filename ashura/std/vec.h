@@ -17,9 +17,49 @@ struct [[nodiscard]] Vec
   using Repr = T;
 
   AllocatorImpl allocator_ = default_allocator;
-  T            *data_      = nullptr;
+  T            *storage_   = nullptr;
   usize         capacity_  = 0;
   usize         size_      = 0;
+
+  explicit constexpr Vec(AllocatorImpl allocator) : allocator_{allocator}
+  {
+  }
+
+  constexpr Vec() : Vec{default_allocator}
+  {
+  }
+
+  constexpr Vec(Vec const &) = delete;
+
+  constexpr Vec &operator=(Vec const &) = delete;
+
+  constexpr Vec(Vec &&other) :
+      allocator_{other.allocator_},
+      storage_{other.storage_},
+      capacity_{other.capacity_},
+      size_{other.size_}
+  {
+    other.allocator_ = default_allocator;
+    other.storage_   = nullptr;
+    other.capacity_  = 0;
+    other.size_      = 0;
+  }
+
+  constexpr Vec &operator=(Vec &&other)
+  {
+    if (this == &other)
+    {
+      return *this;
+    }
+    uninit();
+    new (this) Vec{(Vec &&) other};
+    return *this;
+  }
+
+  constexpr ~Vec()
+  {
+    uninit();
+  }
 
   constexpr bool is_empty() const
   {
@@ -28,7 +68,7 @@ struct [[nodiscard]] Vec
 
   constexpr T *data() const
   {
-    return data_;
+    return storage_;
   }
 
   constexpr usize size() const
@@ -53,35 +93,35 @@ struct [[nodiscard]] Vec
 
   constexpr T *begin() const
   {
-    return data_;
+    return data();
   }
 
   constexpr T *end() const
   {
-    return data_ + size_;
+    return data() + size_;
   }
 
   constexpr T &operator[](usize index) const
   {
-    return data_[index];
+    return data()[index];
   }
 
   constexpr T &get(usize index) const
   {
-    return data_[index];
+    return data()[index];
   }
 
   template <typename... Args>
   constexpr void set(usize index, Args &&...args) const
   {
-    data_[index] = T{((Args &&) args)...};
+    data()[index] = T{((Args &&) args)...};
   }
 
   constexpr T *try_get(usize index) const
   {
     if (index < size_)
     {
-      return data_ + index;
+      return data() + index;
     }
 
     return nullptr;
@@ -89,35 +129,23 @@ struct [[nodiscard]] Vec
 
   constexpr void clear()
   {
-    if constexpr (!TriviallyDestructible<T>)
-    {
-      for (T *iter = begin(); iter < end(); iter++)
-      {
-        iter->~T();
-      }
-    }
+    obj::destruct(Span{data(), size_});
     size_ = 0;
-  }
-
-  constexpr void reset()
-  {
-    if constexpr (!TriviallyDestructible<T>)
-    {
-      for (T *iter = begin(); iter < end(); iter++)
-      {
-        iter->~T();
-      }
-    }
-    allocator_.ndealloc(data_, capacity_);
-    data_     = nullptr;
-    size_     = 0;
-    capacity_ = 0;
   }
 
   constexpr void uninit()
   {
-    reset();
+    obj::destruct(Span{data(), size_});
+    allocator_.ndealloc(storage_, capacity_);
+  }
+
+  constexpr void reset()
+  {
+    uninit();
     allocator_ = default_allocator;
+    storage_   = nullptr;
+    size_      = 0;
+    capacity_  = 0;
   }
 
   constexpr Result<Void, Void> reserve(usize target_capacity)
@@ -129,31 +157,22 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      if (!allocator_.nrealloc(capacity_, target_capacity, data_))
+      if (!allocator_.nrealloc(capacity_, target_capacity, storage_))
       {
         return Err{};
       }
     }
     else
     {
-      T *new_data;
-      if (!allocator_.nalloc(target_capacity, new_data))
+      T *new_storage;
+      if (!allocator_.nalloc(target_capacity, new_storage))
       {
         return Err{};
       }
 
-      for (usize i = 0; i < size_; i++)
-      {
-        new (new_data + i) T{(T &&) data_[i]};
-      }
-
-      for (usize i = 0; i < size_; i++)
-      {
-        (data_ + i)->~T();
-      }
-
-      allocator_.ndealloc(data_, capacity_);
-      data_ = new_data;
+      obj::relocate_non_overlapping(Span{data(), size_}, new_storage);
+      allocator_.ndealloc(storage_, capacity_);
+      storage_ = new_storage;
     }
 
     capacity_ = target_capacity;
@@ -169,31 +188,22 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      if (!allocator_.nrealloc(capacity_, size_, data_))
+      if (!allocator_.nrealloc(capacity_, size_, storage_))
       {
         return Err{};
       }
     }
     else
     {
-      T *new_data;
-      if (!allocator_.nalloc(size_, new_data))
+      T *new_storage;
+      if (!allocator_.nalloc(size_, new_storage))
       {
         return Err{};
       }
 
-      for (usize i = 0; i < size_; i++)
-      {
-        new (new_data + i) T{(T &&) data_[i]};
-      }
-
-      for (usize i = 0; i < size_; i++)
-      {
-        (data_ + i)->~T();
-      }
-
-      allocator_.ndealloc(data_, capacity_);
-      data_ = new_data;
+      obj::relocate(Span{data(), size_}, new_storage);
+      allocator_.ndealloc(storage_, capacity_);
+      storage_ = new_storage;
     }
 
     capacity_ = size_;
@@ -220,19 +230,15 @@ struct [[nodiscard]] Vec
     slice = slice(size_);
     if constexpr (TriviallyRelocatable<T>)
     {
-      mem::move(data_ + slice.end(), data_ + slice.offset, size_ - slice.end());
+      mem::move(Span{data() + slice.end(), size_ - slice.end()},
+                data() + slice.begin());
     }
     else
     {
-      for (usize i = slice.offset; i < size_ - slice.span; i++)
-      {
-        data_[i] = (T &&) (data_[i + slice.span]);
-      }
+      obj::move(Span{data() + slice.end(), size_ - slice.end()},
+                data() + slice.begin());
 
-      for (usize i = size_ - slice.span; i < size_; i++)
-      {
-        (data_ + i)->~T();
-      }
+      obj::destruct(Span{data() + size_ - slice.span, slice.span});
     }
     size_ -= slice.span;
   }
@@ -245,7 +251,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    new (data_ + size_) T{((Args &&) args)...};
+    new (storage_ + size_) T{((Args &&) args)...};
 
     size_++;
 
@@ -255,14 +261,7 @@ struct [[nodiscard]] Vec
   constexpr void pop(usize num = 1)
   {
     num = min(num, size_);
-    if constexpr (!TriviallyDestructible<T>)
-    {
-      for (usize i = size_ - num; i < size_; i++)
-      {
-        (data_ + i)->~T();
-      }
-    }
-
+    obj::destruct(Span{data() + size_ - num, num});
     size_ -= num;
   }
 
@@ -288,31 +287,23 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      mem::move(data_ + first, data_ + first + distance, size_ - first);
+      // potentially overlapping
+      mem::move(Span{data() + first, size_ - first}, data() + first + distance);
     }
     else
     {
-      // move construct tail elements
       usize const tail_first = max(first, min(size_, distance) - size_);
-      for (usize i = tail_first; i < size_; i++)
-      {
-        new (data_ + i + distance) T{(T &&) data_[i]};
-      }
+
+      // move construct tail elements to uninitialized placements
+      obj::move_construct(Span{data() + tail_first, size_ - tail_first},
+                          data() + tail_first + distance);
 
       // move non-tail elements towards end
-      for (usize i = first; i < tail_first; i++)
-      {
-        data_[i + distance] = (T &&) data_[i];
-      }
+      obj::move(Span{data() + first, tail_first - first},
+                data() + first + distance);
 
-      if constexpr (!TriviallyDestructible<T>)
-      {
-        // destruct previous position of non-tail elements
-        for (usize i = first; i < tail_first; i++)
-        {
-          (data_ + i)->~T();
-        }
-      }
+      // destruct previous placements of non-tail elements
+      obj::destruct(Span{data() + first, tail_first - first});
     }
 
     size_ += distance;
@@ -329,7 +320,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    new (data_ + pos) T{((Args &&) args)...};
+    new (storage_ + pos) T{((Args &&) args)...};
     return Ok{};
   }
 
@@ -343,14 +334,11 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyCopyConstructible<T>)
     {
-      mem::copy(span.data(), data_ + pos, span.size());
+      mem::copy(span, data() + pos);
     }
     else
     {
-      for (usize i = 0; i < span.size(); i++)
-      {
-        new (data_ + pos + i) T{span[i]};
-      }
+      obj::copy(span, data() + pos);
     }
 
     return Ok{};
@@ -366,14 +354,11 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyMoveConstructible<T>)
     {
-      mem::copy(span.data(), data_ + pos, span.size());
+      mem::copy(span, data() + pos);
     }
     else
     {
-      for (usize i = 0; i < span.size(); i++)
-      {
-        new (data_ + pos + i) T{(T &&) span[i]};
-      }
+      obj::move(span, data() + pos);
     }
 
     return Ok{};
@@ -399,10 +384,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    for (usize i = pos; i < size_; i++)
-    {
-      new (data_ + i) T{};
-    }
+    obj::default_construct(Span{data() + pos, extension});
 
     return Ok{};
   }
@@ -419,14 +401,11 @@ struct [[nodiscard]] Vec
     // anyway
     if constexpr (TriviallyCopyConstructible<T>)
     {
-      mem::copy(span.data(), data_ + pos, span.size());
+      mem::copy(span, data() + pos);
     }
     else
     {
-      for (usize i = 0; i < span.size(); i++)
-      {
-        new (data_ + pos + i) T{span[i]};
-      }
+      obj::copy(span, data() + pos);
     }
 
     return Ok{};
@@ -443,14 +422,11 @@ struct [[nodiscard]] Vec
     // non-overlapping, use memcpy
     if constexpr (TriviallyMoveConstructible<T>)
     {
-      mem::copy(span.data(), data_ + pos, span.size());
+      mem::copy(span, data() + pos);
     }
     else
     {
-      for (usize i = 0; i < span.size(); i++)
-      {
-        new (data_ + pos + i) T{(T &&) span[i]};
-      }
+      obj::move(span, data() + pos);
     }
 
     return Ok{};
@@ -458,7 +434,7 @@ struct [[nodiscard]] Vec
 
   constexpr void swap(usize a, usize b) const
   {
-    ::ash::swap(data_[a], data_[b]);
+    ::ash::swap(data()[a], data()[b]);
   }
 
   constexpr Result<Void, Void> resize_uninit(usize new_size)
@@ -492,6 +468,37 @@ struct [[nodiscard]] BitVec
 
   Vec<R> repr_     = {};
   usize  bit_size_ = 0;
+
+  explicit constexpr BitVec(AllocatorImpl allocator) : repr_{allocator}
+  {
+  }
+
+  constexpr BitVec() : BitVec{default_allocator}
+  {
+  }
+
+  constexpr BitVec(BitVec const &) = delete;
+
+  constexpr BitVec &operator=(BitVec const &) = delete;
+
+  constexpr BitVec(BitVec &&other) :
+      repr_{(Vec<R> &&) other.repr_}, bit_size_{other.bit_size_}
+  {
+    other.bit_size_ = 0;
+  }
+
+  constexpr BitVec &operator=(BitVec &&other)
+  {
+    if (this == &other)
+    {
+      return *this;
+    }
+    uninit();
+    new (this) BitVec{(BitVec &&) other};
+    return *this;
+  }
+
+  constexpr ~BitVec() = default;
 
   constexpr bool operator[](usize index) const
   {
@@ -637,7 +644,7 @@ struct [[nodiscard]] BitVec
   constexpr void erase(Slice slice)
   {
     slice = slice(bit_size_);
-    for (usize dst = slice.offset, src = slice.end(); src != bit_size_;
+    for (usize dst = slice.begin(), src = slice.end(); src != bit_size_;
          dst++, src++)
     {
       set(dst, get(src));
@@ -737,8 +744,49 @@ struct [[nodiscard]] InplaceVec
 
   static constexpr usize Capacity = C;
 
-  alignas(T) u8 data_[C * sizeof(T)];
+  // uninitialized storage
+  alignas(T) u8 storage_[C * sizeof(T)];
   usize size_ = 0;
+
+  constexpr InplaceVec() = default;
+
+  constexpr InplaceVec(InplaceVec const &other) : size_{other.size_}
+  {
+    copy_construct(Span{other.data(), other.size_}, data());
+  }
+
+  constexpr InplaceVec &operator=(InplaceVec const &other)
+  {
+    if (this == &other)
+    {
+      return *this;
+    }
+    uninit();
+    new (this) InplaceVec{other};
+    return *this;
+  }
+
+  constexpr InplaceVec(InplaceVec &&other) : size_{other.size_}
+  {
+    obj::relocate(Span{other.data(), other.size_}, data());
+    other.size_ = 0;
+  }
+
+  constexpr InplaceVec &operator=(InplaceVec &&other)
+  {
+    if (this == &other)
+    {
+      return *this;
+    }
+    uninit();
+    new (this) InplaceVec{(InplaceVec &&) other};
+    return *this;
+  }
+
+  constexpr ~InplaceVec()
+  {
+    uninit();
+  }
 
   constexpr bool is_empty() const
   {
@@ -747,7 +795,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr T *data() const
   {
-    return (T *) data_;
+    return (T *) storage_;
   }
 
   constexpr usize size() const
@@ -808,31 +856,19 @@ struct [[nodiscard]] InplaceVec
 
   constexpr void clear()
   {
-    if constexpr (!TriviallyDestructible<T>)
-    {
-      for (T *iter = begin(); iter < end(); iter++)
-      {
-        iter->~T();
-      }
-    }
-    size_ = 0;
-  }
-
-  constexpr void reset()
-  {
-    if constexpr (!TriviallyDestructible<T>)
-    {
-      for (T *iter = begin(); iter < end(); iter++)
-      {
-        iter->~T();
-      }
-    }
+    obj::destruct(Span{data(), size_});
     size_ = 0;
   }
 
   constexpr void uninit()
   {
-    reset();
+    obj::destruct(Span{data(), size_});
+  }
+
+  constexpr void reset()
+  {
+    uninit();
+    size_ = 0;
   }
 
   constexpr void erase(usize first, usize num)
@@ -843,23 +879,20 @@ struct [[nodiscard]] InplaceVec
   constexpr void erase(Slice slice)
   {
     slice = slice(size_);
+
     if constexpr (TriviallyRelocatable<T>)
     {
-      mem::move(data() + slice.end(), data() + slice.offset,
-                size_ - slice.end());
+      mem::move(Span{data() + slice.end(), size_ - slice.end()},
+                data() + slice.begin());
     }
     else
     {
-      for (usize i = slice.offset; i < size_ - slice.span; i++)
-      {
-        data()[i] = (T &&) (data()[i + slice.span]);
-      }
+      obj::move(Span{data() + slice.end(), size_ - slice.end()},
+                data() + slice.begin());
 
-      for (usize i = size_ - slice.span; i < size_; i++)
-      {
-        (data() + i)->~T();
-      }
+      obj::destruct(Span{data() + size_ - slice.span, slice.span});
     }
+
     size_ -= slice.span;
   }
 
@@ -881,14 +914,7 @@ struct [[nodiscard]] InplaceVec
   constexpr void pop(usize num = 1)
   {
     num = min(num, size_);
-    if constexpr (!TriviallyDestructible<T>)
-    {
-      for (usize i = size_ - num; i < size_; i++)
-      {
-        (data() + i)->~T();
-      }
-    }
-
+    obj::destruct(Span{data() + size_ - num, num});
     size_ -= num;
   }
 
@@ -914,31 +940,23 @@ struct [[nodiscard]] InplaceVec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      mem::move(data() + first, data() + first + distance, size_ - first);
+      // potentially overlapping
+      mem::move(Span{data() + first, size_ - first}, data() + first + distance);
     }
     else
     {
-      // move construct tail elements
       usize const tail_first = max(first, min(size_, distance) - size_);
-      for (usize i = tail_first; i < size_; i++)
-      {
-        new (data() + i + distance) T{(T &&) data()[i]};
-      }
+
+      // move construct tail elements to uninitialized placements
+      obj::move_construct(Span{data() + tail_first, size_ - tail_first},
+                          data() + tail_first + distance);
 
       // move non-tail elements towards end
-      for (usize i = first; i < tail_first; i++)
-      {
-        data()[i + distance] = (T &&) data()[i];
-      }
+      obj::move(Span{data() + first, tail_first - first},
+                data() + first + distance);
 
-      if constexpr (!TriviallyDestructible<T>)
-      {
-        // destruct previous position of non-tail elements
-        for (usize i = first; i < tail_first; i++)
-        {
-          (data() + i)->~T();
-        }
-      }
+      // destruct previous placements of non-tail elements
+      obj::destruct(Span{data() + first, tail_first - first});
     }
 
     size_ += distance;
@@ -969,14 +987,12 @@ struct [[nodiscard]] InplaceVec
 
     if constexpr (TriviallyCopyConstructible<T>)
     {
-      mem::copy(span.data(), data() + pos, span.size());
+      // non-overlapping, use memcpy
+      mem::copy(span, data() + pos);
     }
     else
     {
-      for (usize i = 0; i < span.size(); i++)
-      {
-        new (data() + pos + i) T{span[i]};
-      }
+      obj::copy(span, data() + pos);
     }
 
     return Ok{};
@@ -992,14 +1008,12 @@ struct [[nodiscard]] InplaceVec
 
     if constexpr (TriviallyMoveConstructible<T>)
     {
-      mem::copy(span.data(), data() + pos, span.size());
+      // non-overlapping, use memcpy
+      mem::copy(span, data() + pos);
     }
     else
     {
-      for (usize i = 0; i < span.size(); i++)
-      {
-        new (data() + pos + i) T{(T &&) span[i]};
-      }
+      obj::move(span, data() + pos);
     }
 
     return Ok{};
@@ -1025,10 +1039,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    for (usize i = pos; i < size_; i++)
-    {
-      new (data() + i) T{};
-    }
+    obj::default_construct(Span{data() + pos, extension});
 
     return Ok{};
   }
@@ -1041,18 +1052,14 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    // free to use memcpy because the source range is not overlapping with this
-    // anyway
     if constexpr (TriviallyCopyConstructible<T>)
     {
-      mem::copy(span.data(), data() + pos, span.size());
+      // non-overlapping, use memcpy
+      mem::copy(span, data() + pos);
     }
     else
     {
-      for (usize i = 0; i < span.size(); i++)
-      {
-        new (data() + pos + i) T{span[i]};
-      }
+      obj::copy(span, data() + pos);
     }
 
     return Ok{};
@@ -1066,17 +1073,14 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    // non-overlapping, use memcpy
     if constexpr (TriviallyMoveConstructible<T>)
     {
-      mem::copy(span.data(), data() + pos, span.size());
+      // non-overlapping, use memcpy
+      mem::copy(span, data() + pos);
     }
     else
     {
-      for (usize i = 0; i < span.size(); i++)
-      {
-        new (data() + pos + i) T{(T &&) span[i]};
-      }
+      obj::move(span, data() + pos);
     }
 
     return Ok{};
@@ -1108,6 +1112,24 @@ struct [[nodiscard]] InplaceVec
 
     return extend_defaulted(new_size - size_);
   }
+};
+
+template <typename T>
+struct IsTriviallyRelocatable<Vec<T>>
+{
+  static constexpr bool value = true;
+};
+
+template <typename T>
+struct IsTriviallyRelocatable<BitVec<T>>
+{
+  static constexpr bool value = TriviallyRelocatable<Vec<T>>;
+};
+
+template <typename T, usize C>
+struct IsTriviallyRelocatable<InplaceVec<T, C>>
+{
+  static constexpr bool value = TriviallyRelocatable<T>;
 };
 
 }        // namespace ash

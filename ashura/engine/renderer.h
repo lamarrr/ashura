@@ -2,20 +2,20 @@
 #pragma once
 #include "ashura/engine/gpu_context.h"
 #include "ashura/engine/passes.h"
+#include "ashura/std/dyn.h"
 #include "ashura/std/math.h"
-#include "ashura/std/unique.h"
 
 namespace ash
 {
 
 struct PassContext
 {
-  BloomPass          *bloom = nullptr;
-  BlurPass           *blur  = nullptr;
-  NgonPass           *ngon  = nullptr;
-  PBRPass            *pbr   = nullptr;
-  RRectPass          *rrect = nullptr;
-  Vec<Unique<Pass *>> all   = {};
+  BloomPass       *bloom = nullptr;
+  BlurPass        *blur  = nullptr;
+  NgonPass        *ngon  = nullptr;
+  PBRPass         *pbr   = nullptr;
+  RRectPass       *rrect = nullptr;
+  Vec<Dyn<Pass *>> all   = {};
 
   void init(GpuContext &ctx)
   {
@@ -41,15 +41,17 @@ struct RenderPipeline
 {
   virtual Span<char const> id() = 0;
 
-  virtual void init(GpuContext &ctx, PassContext &) = 0;
+  virtual void acquire(GpuContext &ctx, PassContext &) = 0;
 
-  virtual void uninit(GpuContext &ctx, PassContext &) = 0;
+  virtual void release(GpuContext &ctx, PassContext &) = 0;
 
   virtual void begin_frame(GpuContext &ctx, PassContext &,
                            gpu::CommandEncoderImpl const &) = 0;
 
   virtual void end_frame(GpuContext &ctx, PassContext &,
                          gpu::CommandEncoderImpl const &) = 0;
+
+  virtual ~RenderPipeline() = 0;
 };
 
 struct RenderTarget
@@ -82,7 +84,7 @@ struct Renderer
 
   Canvas *canvas = nullptr;
 
-  Vec<Unique<RenderPipeline *>> pipelines{};
+  Vec<Dyn<RenderPipeline *>> pipelines{};
 
   void init(GpuContext &ctx)
   {
@@ -101,7 +103,6 @@ struct Renderer
     {
       logger->info("Uninitializing Pipeline: ", p->id());
       p->uninit(ctx, passes);
-      p.uninit();
     }
     pipelines.uninit();
     for (Resources &r : resources)

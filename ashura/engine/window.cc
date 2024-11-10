@@ -16,7 +16,7 @@ namespace sdl
 {
 struct WindowEventListener
 {
-  Fn<void(WindowEvent const &)> callback = fn([](WindowEvent const &) {});
+  Fn<void(WindowEvent const &)> callback = noop;
   WindowEventTypes              types    = WindowEventTypes::None;
 };
 
@@ -33,7 +33,7 @@ struct WindowImpl
 
 struct SystemEventListener
 {
-  Fn<void(SystemEvent const &)> callback = fn([](SystemEvent const &) {});
+  Fn<void(SystemEvent const &)> callback = noop;
   SystemEventTypes              types    = SystemEventTypes::None;
 };
 
@@ -42,7 +42,7 @@ struct ClipBoardImpl : ClipBoard
   virtual Result<Void, Void> get(Span<char const> mime, Vec<u8> &out) override
   {
     char mime_c_str[256];
-    CHECK(mem::to_c_str(mime, span(mime_c_str)));
+    CHECK(to_c_str(mime, span(mime_c_str)));
     usize mime_data_len;
     void *data = SDL_GetClipboardData(mime_c_str, &mime_data_len);
     if (data == nullptr)
@@ -68,7 +68,7 @@ struct ClipBoardImpl : ClipBoard
     }
 
     char mime_c_str[256];
-    CHECK(mem::to_c_str(mime, span(mime_c_str)));
+    CHECK(to_c_str(mime, span(mime_c_str)));
 
     char const *mime_types[] = {mime_c_str};
 
@@ -122,7 +122,7 @@ struct WindowSystemImpl : WindowSystem
 
   virtual void uninit() override
   {
-    listeners.uninit();
+    listeners.reset();
     SDL_Quit();
   }
 

@@ -103,53 +103,7 @@ struct ViewSystem
   Vec<u32>        z_ordering     = {};
   Vec<u32>        focus_ordering = {};
 
-  void reset()
-  {
-    frame    = 0;
-    next_id  = 0;
-    state[0] = {};
-    state[1] = {};
-
-    views.reset();
-    nodes.reset();
-
-    tab_indices.reset();
-    viewports.reset();
-    is_hidden.reset();
-    is_pointable.reset();
-    is_clickable.reset();
-    is_scrollable.reset();
-    is_draggable.reset();
-    is_droppable.reset();
-    is_focusable.reset();
-    is_text_input.reset();
-    is_tab_input.reset();
-    is_esc_input.reset();
-    is_viewport.reset();
-
-    centers.reset();
-    extents.reset();
-    viewport_extents.reset();
-    viewport_transforms.reset();
-    is_fixed_positioned.reset();
-    fixed_positions.reset();
-    z_indices.reset();
-    stacking_contexts.reset();
-
-    transforms.reset();
-    clips.reset();
-    z_ordering.reset();
-    focus_ordering.reset();
-  }
-
-  void init()
-  {
-  }
-
-  void uninit()
-  {
-    reset();
-  }
+ 
 
   void clear()
   {

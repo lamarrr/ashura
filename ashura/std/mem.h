@@ -46,147 +46,72 @@ bool is_ptr_aligned(usize alignment, T *p)
 namespace mem
 {
 
-template <typename T>
-void copy(T const *src, T *dst, usize num)
+template <typename T, typename U>
+void copy(Span<T> src, U *dst)
 {
-  if (num == 0)
+  if (src.is_empty()) [[unlikely]]
   {
     return;
   }
-  std::memcpy(dst, src, sizeof(T) * num);
-}
 
-template <typename T>
-void copy(Span<T const> src, Span<T> dst)
-{
-  if (src.is_empty())
-  {
-    return;
-  }
-  std::memcpy(dst.data(), src.data(), src.size_bytes());
-}
-
-template <typename T>
-void copy(Span<T const> src, T *dst)
-{
-  if (src.is_empty())
-  {
-    return;
-  }
   std::memcpy(dst, src.data(), src.size_bytes());
 }
 
-template <typename T>
-void move(T const *src, T *dst, usize num)
+template <typename T, typename U>
+void copy(Span<T> src, Span<U> dst)
 {
-  if (num == 0)
-  {
-    return;
-  }
-  std::memmove(dst, src, sizeof(T) * num);
+  copy(src, dst.data());
 }
 
-template <typename T>
-void move(Span<T const> src, Span<T> dst)
+template <typename T, typename U>
+void move(Span<T> src, U *dst)
 {
-  if (src.is_empty())
+  if (src.is_empty()) [[unlikely]]
   {
     return;
   }
-  std::memmove(dst.data(), src.data(), src.size_bytes());
-}
 
-template <typename T>
-void move(Span<T const> src, T *dst)
-{
-  if (src.is_empty())
-  {
-    return;
-  }
   std::memmove(dst, src.data(), src.size_bytes());
 }
 
-template <typename T>
-void zero(T *dst, usize num)
+template <typename T, typename U>
+void move(Span<T> src, Span<U> dst)
 {
-  if (num == 0)
+  move(src, dst.data());
+}
+
+template <typename T>
+void zero(T *dst, usize n)
+{
+  if (n == 0) [[unlikely]]
   {
     return;
   }
-  std::memset(dst, 0, sizeof(T) * num);
+
+  std::memset(dst, 0, sizeof(T) * n);
 }
 
 template <typename T>
 void zero(Span<T> dst)
 {
-  if (dst.is_empty())
-  {
-    return;
-  }
-  std::memset(dst.data(), 0, dst.size_bytes());
+  zero(dst.data(), dst.size());
 }
 
 template <typename T>
-void fill(T *dst, usize num, u8 byte)
+void fill(T *dst, usize n, u8 byte)
 {
-  if (num == 0)
+  if (n == 0) [[unlikely]]
   {
     return;
   }
-  std::memset(dst, byte, sizeof(T) * num);
+
+  std::memset(dst, byte, sizeof(T) * n);
 }
 
 template <typename T>
 void fill(Span<T> dst, u8 byte)
 {
-  if (dst.is_empty())
-  {
-    return;
-  }
-  std::memset(dst.data(), byte, dst.size_bytes());
-}
-
-/// move-construct object from src to an uninitialized memory range dst and
-/// destroy object at src, leaving src uninitialized.
-///
-/// src and dst must not be same nor overlapping.
-template <typename T>
-void relocate(T *src, T *uninit_dst, usize num)
-{
-  if constexpr (TriviallyRelocatable<T>)
-  {
-    copy(src, uninit_dst, num);
-  }
-  else
-  {
-    T       *in  = src;
-    T       *out = uninit_dst;
-    T *const end = src + num;
-    while (in != end)
-    {
-      new (out) T{(T &&) *in};
-      in++;
-      out++;
-    }
-    in = src;
-    while (in != end)
-    {
-      in->~T();
-      in++;
-    }
-  }
-}
-
-[[nodiscard]] inline bool to_c_str(Span<char const> str, Span<char> c_str)
-{
-  if ((str.size() + 1) > c_str.size())
-  {
-    return false;
-  }
-
-  mem::copy(str, c_str);
-  c_str[str.size()] = 0;
-  return true;
+  fill(dst.data(), dst.size(), byte);
 }
 
 template <typename T>
@@ -218,6 +143,18 @@ ASH_FORCE_INLINE void prefetch(T const *src, int rw, int locality)
 }
 
 }        // namespace mem
+
+[[nodiscard]] inline bool to_c_str(Span<char const> str, Span<char> c_str)
+{
+  if ((str.size() + 1) > c_str.size()) [[unlikely]]
+  {
+    return false;
+  }
+
+  mem::copy(str, c_str);
+  c_str[str.size()] = 0;
+  return true;
+}
 
 /// @brief Memory layout of a type
 /// @param alignment non-zero alignment of the type
@@ -298,5 +235,136 @@ struct Flex
     (unpack_at(stack, i++, p), ...);
   }
 };
+
+namespace obj
+{
+
+template <typename T>
+constexpr void default_construct(Span<T> dst)
+{
+  for (T *iter = dst.begin(); iter != dst.end(); iter++)
+  {
+    new (iter) T{};
+  }
+}
+
+template <typename T, typename U>
+constexpr void move_construct(Span<T> src, U *dst)
+{
+  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  {
+    new (dst) T{(T &&) (*in)};
+  }
+}
+
+template <typename T, typename U>
+constexpr void move_construct(Span<T> src, Span<U> dst)
+{
+  move_construct(src, dst.data());
+}
+
+template <typename T, typename U>
+constexpr void copy_construct(Span<T> src, U *dst)
+{
+  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  {
+    new (dst) T{*in};
+  }
+}
+
+template <typename T, typename U>
+constexpr void copy_construct(Span<T> src, Span<U> dst)
+{
+  copy_construct(src, dst.data());
+}
+
+template <typename T>
+constexpr void destruct(Span<T> src)
+{
+  if constexpr (!TriviallyDestructible<T>)
+  {
+    for (T *iter = src.begin(); iter != src.end(); iter++)
+    {
+      iter->~T();
+    }
+  }
+}
+
+template <typename T, typename U>
+constexpr void move(Span<T> src, U *dst)
+{
+  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  {
+    *in = (T &&) (*dst);
+  }
+}
+
+template <typename T, typename U>
+constexpr void move(Span<T> src, Span<U> dst)
+{
+  move(src, dst.data());
+}
+
+template <typename T, typename U>
+constexpr void copy(Span<T> src, U *dst)
+{
+  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  {
+    *dst = *in;
+  }
+}
+
+template <typename T, typename U>
+constexpr void copy(Span<T> src, Span<U> dst)
+{
+  copy(src, dst.data());
+}
+
+/// @brief move-construct object from src to an uninitialized memory range
+/// dst_mem and destroy object at src_mem, leaving src's objects uninitialized.
+template <typename T, typename U>
+constexpr void relocate(Span<T> src, U *dst)
+{
+  if constexpr (TriviallyRelocatable<T>)
+  {
+    mem::move(src, dst);
+  }
+  else
+  {
+    move_construct(src, dst);
+    destruct(src);
+  }
+}
+
+template <typename T, typename U>
+constexpr void relocate(Span<T> src, Span<U> dst)
+{
+  relocate(src, dst.data());
+}
+
+/// @brief same as relocate but for non-overlapping memory placements
+///
+/// @note src_mem and dst_mem must not be same nor overlapping.
+template <typename T, typename U>
+constexpr void relocate_non_overlapping(Span<T> src, U *dst)
+{
+  if constexpr (TriviallyRelocatable<T>)
+  {
+    mem::copy(src, dst);
+  }
+  else
+  {
+    move_construct(src, dst);
+    destruct(src);
+  }
+}
+
+template <typename T, typename U>
+constexpr void relocate_non_overlapping(Span<T> src, Span<U> dst)
+{
+  relocate_non_overlapping(src, dst.data());
+}
+
+}        // namespace obj
 
 }        // namespace ash

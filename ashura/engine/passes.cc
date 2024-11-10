@@ -5,11 +5,11 @@
 namespace ash
 {
 
-void BloomPass::init(GpuContext &)
+void BloomPass::acquire(GpuContext &)
 {
 }
 
-void BloomPass::uninit(GpuContext &)
+void BloomPass::release(GpuContext &)
 {
 }
 
@@ -23,7 +23,7 @@ void BloomPass::encode(GpuContext &, gpu::CommandEncoderImpl const &,
   /// A' = Blur(A) + B'
 }
 
-void BlurPass::init(GpuContext &ctx)
+void BlurPass::acquire(GpuContext &ctx)
 {
   // https://www.youtube.com/watch?v=ml-5OGZC7vE
   //
@@ -113,7 +113,7 @@ void BlurPass::init(GpuContext &ctx)
           .unwrap();
 }
 
-void BlurPass::uninit(GpuContext &ctx)
+void BlurPass::release(GpuContext &ctx)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, downsample_pipeline);
   ctx.device->uninit_graphics_pipeline(ctx.device.self, upsample_pipeline);
@@ -205,7 +205,7 @@ void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
          params.area.offset, true);
 }
 
-void NgonPass::init(GpuContext &ctx)
+void NgonPass::acquire(GpuContext &ctx)
 {
   gpu::Shader vertex_shader   = ctx.get_shader("Ngon:VS"_span).unwrap();
   gpu::Shader fragment_shader = ctx.get_shader("Ngon:FS"_span).unwrap();
@@ -299,12 +299,12 @@ void NgonPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
   e->end_rendering(e.self);
 }
 
-void NgonPass::uninit(GpuContext &ctx)
+void NgonPass::release(GpuContext &ctx)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
 }
 
-void PBRPass::init(GpuContext &ctx)
+void PBRPass::acquire(GpuContext &ctx)
 {
   gpu::Shader vertex_shader   = ctx.get_shader("PBR:VS"_span).unwrap();
   gpu::Shader fragment_shader = ctx.get_shader("PBR:FS"_span).unwrap();
@@ -406,13 +406,13 @@ void PBRPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
   e->end_rendering(e.self);
 }
 
-void PBRPass::uninit(GpuContext &ctx)
+void PBRPass::release(GpuContext &ctx)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
   ctx.device->uninit_graphics_pipeline(ctx.device.self, wireframe_pipeline);
 }
 
-void RRectPass::init(GpuContext &ctx)
+void RRectPass::acquire(GpuContext &ctx)
 {
   gpu::Shader vertex_shader   = ctx.get_shader("RRect:VS"_span).unwrap();
   gpu::Shader fragment_shader = ctx.get_shader("RRect:FS"_span).unwrap();
@@ -498,7 +498,7 @@ void RRectPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
   e->end_rendering(e.self);
 }
 
-void RRectPass::uninit(GpuContext &ctx)
+void RRectPass::release(GpuContext &ctx)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
 }

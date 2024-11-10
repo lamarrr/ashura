@@ -27,15 +27,14 @@ struct [[nodiscard]] Option
 {
   using Type = T;
 
+  usize is_some_;
+
   union
   {
-    char none_;
-    T    value_;
+    T value_;
   };
 
-  bool is_some_ = false;
-
-  constexpr Option() : none_{}, is_some_{false}
+  constexpr Option() : is_some_{false}
   {
   }
 
@@ -47,11 +46,11 @@ struct [[nodiscard]] Option
     }
   }
 
-  constexpr Option(Some<T> some) : value_{(T &&) some.value}, is_some_{true}
+  constexpr Option(Some<T> some) : is_some_{true}, value_{(T &&) some.value}
   {
   }
 
-  constexpr Option(NoneType) : none_{}, is_some_{false}
+  constexpr Option(NoneType) : is_some_{false}
   {
   }
 
@@ -61,8 +60,8 @@ struct [[nodiscard]] Option
     {
       value_.~T();
     }
-    new (&value_) T{(T &&) other.value};
     is_some_ = true;
+    new (&value_) T{(T &&) other.value};
     return *this;
   }
 
@@ -76,57 +75,62 @@ struct [[nodiscard]] Option
     return *this;
   }
 
-  constexpr Option(Option &&other) : none_{}, is_some_{false}
+  constexpr Option(Option &&other) : is_some_{other.is_some_}
   {
     if (other.is_some_)
     {
       new (&value_) T{(T &&) other.value_};
-      is_some_ = true;
     }
   }
 
   constexpr Option &operator=(Option &&other)
   {
+    if (this == &other)
+    {
+      return *this;
+    }
+
     if (is_some_)
     {
       value_.~T();
     }
 
+    is_some_ = other.is_some_;
+
     if (other.is_some_)
     {
       new (&value_) T{(T &&) other.value_};
-      is_some_ = true;
     }
-    else
-    {
-      is_some_ = false;
-    }
+
     return *this;
   }
 
-  constexpr Option(Option const &other) : none_{}, is_some_{false}
+  constexpr Option(Option const &other) : is_some_{other.is_some_}
   {
     if (other.is_some_)
     {
       new (&value_) T{other.value_};
-      is_some_ = true;
     }
   }
 
   constexpr Option &operator=(Option const &other)
   {
+    if (this == &other)
+    {
+      return *this;
+    }
+
     if (is_some_)
     {
       value_.~T();
     }
+
+    is_some_ = other.is_some_;
+
     if (other.is_some_)
     {
       new (&value_) T{other.value_};
       is_some_ = true;
-    }
-    else
-    {
-      is_some_ = false;
     }
     return *this;
   }

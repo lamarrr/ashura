@@ -319,32 +319,9 @@ void path::triangulate_convex(Vec<u32> &idx, u32 first_vertex, u32 num_vertices)
   }
 }
 
-void Canvas::init()
-{
-}
-
-void Canvas::uninit()
-{
-  frame_arena.uninit();
-  rrect_params.uninit();
-  ngon_params.uninit();
-  ngon_vertices.uninit();
-  ngon_indices.uninit();
-  ngon_index_counts.uninit();
-
-  for (Canvas::Pass const &p : passes)
-  {
-    p.uninit(p.task.data);
-  }
-  passes.uninit();
-}
-
 Canvas &Canvas::reset()
 {
-  for (Canvas::Pass const &pass : passes)
-  {
-    pass.uninit(pass.task.data);
-  }
+  frame_arena.reclaim();
   passes.clear();
   rrect_params.clear();
   ngon_params.clear();
@@ -871,10 +848,10 @@ Canvas &Canvas::blur(CRect const &area, u32 num_passes)
   return *this;
 }
 
-Canvas &Canvas::add_pass(Pass pass)
+Canvas &Canvas::add_pass(Pass &&pass)
 {
   flush_batch(*this);
-  passes.push(pass).unwrap();
+  passes.push(std::move(pass)).unwrap();
   return *this;
 }
 

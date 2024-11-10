@@ -10,11 +10,8 @@ TEST(TextCompositor, Main)
   using namespace ash;
 
   TextCompositor cmp;
-  defer          cmp_uninit{[&] { cmp.reset(); }};
   TextLayout     layout;
   ClipBoard      clip;
-
-  cmp.init(1024, 256);
 
   Span text = U"HELLO, MOTO"_utf;
 
@@ -26,16 +23,16 @@ TEST(TextCompositor, Main)
     ASSERT_TRUE(range_equal(str, text));
   };
 
-  cmp.command(U""_utf, layout, 0, 0, TextCommand::InputText, fn(&insert),
-              fn([](Slice32) {}), text, clip, 1, {});
+  cmp.command(U""_utf, layout, 0, 0, TextCommand::InputText, fn(&insert), noop,
+              text, clip, 1, {});
 
   ASSERT_TRUE(inserted);
   ASSERT_EQ(cmp.inner.current_record, 1);
   ASSERT_EQ(cmp.inner.latest_record, 1);
   ASSERT_EQ(cmp.inner.buffer_pos, text.size32());
 
-  cmp.command(text, layout, 0, 0, TextCommand::SelectLine, fn(&insert),
-              fn([](Slice32) {}), {}, clip, 1, {});
+  cmp.command(text, layout, 0, 0, TextCommand::SelectLine, fn(&insert), noop,
+              {}, clip, 1, {});
 
   ASSERT_EQ(cmp.inner.current_record, 1);
   ASSERT_EQ(cmp.inner.latest_record, 1);

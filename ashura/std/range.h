@@ -1,73 +1,14 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include <algorithm>
+
 
 namespace ash
 {
 
-template <typename T>
-constexpr void default_construct(Span<T> span)
-{
-  for (T *iter = begin(span); iter != end(span); iter++)
-  {
-    new (iter) T{};
-  }
-}
-
-template <typename Src, typename Dst>
-constexpr void move_construct(Span<Src> src, Span<Dst> dst)
-{
-  Src *input  = begin(src);
-  Dst *output = begin(dst);
-  for (; input != end(src); output++, input++)
-  {
-    new (*output) Dst{(Src &&) (*input)};
-  }
-}
-
-template <typename Src, typename Dst>
-constexpr void copy_construct(Span<Src> src, Span<Dst> dst)
-{
-  Src *input  = begin(src);
-  Dst *output = begin(dst);
-  for (; input != end(src); output++, input++)
-  {
-    new (*output) Dst{*input};
-  }
-}
-
-template <typename T>
-constexpr void destruct(Span<T> span)
-{
-  for (T *iter = begin(span); iter != end(span); iter++)
-  {
-    iter->~T();
-  }
-}
-
-template <typename Src, typename Dst>
-constexpr void move(Span<Src> src, Span<Dst> dst)
-{
-  Src *input  = begin(src);
-  Dst *output = begin(dst);
-  for (; input != end(src); output++, input++)
-  {
-    *output = (Src &&) *input;
-  }
-}
-
-template <typename Src, typename Dst>
-constexpr void copy(Span<Src> src, Span<Dst> dst)
-{
-  Src *input  = begin(src);
-  Dst *output = begin(dst);
-  for (; input != end(src); output++, input++)
-  {
-    *output = *input;
-  }
-}
-
+// TODO: lamarrr view namespace
 template <typename A, typename B, typename SwapOpT = Swap>
 constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
 {
@@ -78,11 +19,6 @@ constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
     swap_op(*a_iter, *b_iter);
   }
 }
-
-/// destroys elements that don't match a predicate.
-/// warning: the order of elements are not preserved!
-template <typename T, typename Predicate>
-constexpr void destruct_if(Span<T> span, usize &new_size);
 
 template <OutputRange R, typename U>
 constexpr void fill(R &&dst, U &&value)

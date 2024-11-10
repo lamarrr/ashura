@@ -9,8 +9,6 @@
 namespace ash
 {
 
-typedef struct Font_T *Font;
-
 // App Unit (AU) = 1/1024 of a px
 constexpr i32 AU_UNIT = 1024;
 
@@ -100,6 +98,8 @@ struct FontInfo
   Option<CpuFontAtlas const *> cpu_atlas         = None;
   Option<GpuFontAtlas const *> gpu_atlas         = None;
 };
+
+typedef struct Font_T *Font;
 
 Result<Font, FontDecodeError>
     decode_font(Span<u8 const> encoded, u32 face = 0,

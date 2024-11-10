@@ -32,14 +32,13 @@ struct [[nodiscard]] Result
   using Type    = T;
   using ErrType = E;
 
+  usize is_ok_;
+
   union
   {
-    char none_;
-    T    value_;
-    E    err_;
+    T value_;
+    E err_;
   };
-
-  bool is_ok_ = false;
 
   constexpr Result() = delete;
 
@@ -55,15 +54,15 @@ struct [[nodiscard]] Result
     }
   }
 
-  constexpr Result(Ok<T> ok) : value_{(T &&) ok.value}, is_ok_{true}
+  constexpr Result(Ok<T> ok) : is_ok_{true}, value_{(T &&) ok.value}
   {
   }
 
-  constexpr Result(Err<E> err) : err_{(E &&) err.value}, is_ok_{false}
+  constexpr Result(Err<E> err) : is_ok_{false}, err_{(E &&) err.value}
   {
   }
 
-  constexpr Result(Result &&other) : none_{}, is_ok_{}
+  constexpr Result(Result &&other) : is_ok_{other.is_ok_}
   {
     if (other.is_ok_)
     {
@@ -73,11 +72,15 @@ struct [[nodiscard]] Result
     {
       new (&err_) E{(E &&) other.err_};
     }
-    is_ok_ = other.is_ok_;
   }
 
   constexpr Result &operator=(Result &&other)
   {
+    if (this == &other)
+    {
+      return *this;
+    }
+
     if (is_ok_)
     {
       value_.~T();
@@ -87,6 +90,8 @@ struct [[nodiscard]] Result
       err_.~E();
     }
 
+    is_ok_ = other.is_ok_;
+
     if (other.is_ok_)
     {
       new (&value_) T{(T &&) other.value_};
@@ -96,7 +101,6 @@ struct [[nodiscard]] Result
       new (&err_) E{(E &&) other.err_};
     }
 
-    is_ok_ = other.is_ok_;
     return *this;
   }
 
@@ -111,8 +115,8 @@ struct [[nodiscard]] Result
       err_.~E();
     }
 
-    new (&value_) T{(T &&) other.value};
     is_ok_ = true;
+    new (&value_) T{(T &&) other.value};
     return *this;
   }
 
@@ -127,12 +131,12 @@ struct [[nodiscard]] Result
       err_.~E();
     }
 
-    new (&err_) E{(E &&) other.value};
     is_ok_ = false;
+    new (&err_) E{(E &&) other.value};
     return *this;
   }
 
-  constexpr Result(Result const &other) : none_{}, is_ok_{}
+  constexpr Result(Result const &other) : is_ok_{other.is_ok_}
   {
     if (other.is_ok_)
     {
@@ -142,11 +146,15 @@ struct [[nodiscard]] Result
     {
       new (&err_) E{other.err_};
     }
-    is_ok_ = other.is_ok_;
   }
 
   constexpr Result &operator=(Result const &other)
   {
+    if (this == &other)
+    {
+      return *this;
+    }
+
     if (is_ok_)
     {
       value_.~T();
@@ -156,6 +164,8 @@ struct [[nodiscard]] Result
       err_.~E();
     }
 
+    is_ok_ = other.is_ok_;
+
     if (other.is_ok_)
     {
       new (&value_) T{other.value_};
@@ -165,7 +175,6 @@ struct [[nodiscard]] Result
       new (&err_) E{other.err_};
     }
 
-    is_ok_ = other.is_ok_;
     return *this;
   }
 

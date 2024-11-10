@@ -61,6 +61,12 @@ struct HashMapEntry
 };
 
 /// @brief Robin-hood open-address probing hashmap
+/// @tparam K key type
+/// @tparam V value type
+/// @tparam H key hasher functor type
+/// @tparam KCmp key comparator type
+/// @tparam D unsigned integer to use to encode probe distances, ideally 32 bits
+/// or more
 template <typename K, typename V, typename H, typename KCmp, typename D>
 struct HashMap
 {
@@ -73,32 +79,60 @@ struct HashMap
 
   static constexpr Distance PROBE_SENTINEL = -1;
 
+  AllocatorImpl allocator_      = default_allocator;
   Hasher        hasher_         = {};
   KeyCmp        cmp_            = {};
-  AllocatorImpl allocator_      = default_allocator;
   Entry        *probes_         = nullptr;
   Distance     *probe_dists_    = nullptr;
   usize         num_probes_     = 0;
   usize         num_entries_    = 0;
   Distance      max_probe_dist_ = 0;
 
-  constexpr void reset()
+  constexpr HashMap(AllocatorImpl allocator = default_allocator,
+                    Hasher hasher = {}, KeyCmp cmp = {}) :
+      allocator_{allocator}, hasher_{(Hasher &&) hasher}, cmp_{(KeyCmp &&) cmp}
   {
-    clear();
-    allocator_.ndealloc(probes_, num_probes_);
-    allocator_.ndealloc(probe_dists_, num_probes_);
-    probes_      = nullptr;
-    probe_dists_ = nullptr;
-    num_probes_  = 0;
   }
 
-  constexpr void uninit()
+  constexpr HashMap(HashMap const &) = delete;
+
+  constexpr HashMap &operator=(HashMap const &) = delete;
+
+  constexpr HashMap(HashMap &&other) :
+      allocator_{other.allocator_},
+      hasher_{(Hasher &&) other.hasher_},
+      cmp_{(KeyCmp &&) other.cmp_},
+      probes_{other.probes_},
+      probe_dists_{other.probe_dists_},
+      num_probes_{other.num_probes_},
+      num_entries_{other.num_entries_},
+      max_probe_dist_{other.max_probe_dist_}
   {
-    reset();
-    allocator_ = default_allocator;
+    other.allocator_      = default_allocator;
+    other.probes_         = nullptr;
+    other.probe_dists_    = nullptr;
+    other.num_probes_     = 0;
+    other.num_entries_    = 0;
+    other.max_probe_dist_ = 0;
   }
 
-  constexpr void clear()
+  constexpr HashMap &operator=(HashMap &&other)
+  {
+    if (this == &other)
+    {
+      return *this;
+    }
+    uninit();
+    new (this) HashMap{(HashMap &&) other};
+    return *this;
+  }
+
+  constexpr ~HashMap()
+  {
+    uninit();
+  }
+
+  constexpr void destruct_probes__()
   {
     if constexpr (!TriviallyDestructible<Entry>)
     {
@@ -110,6 +144,29 @@ struct HashMap
         }
       }
     }
+  }
+
+  constexpr void uninit()
+  {
+    destruct_probes__();
+    allocator_.ndealloc(probes_, num_probes_);
+    allocator_.ndealloc(probe_dists_, num_probes_);
+  }
+
+  constexpr void reset()
+  {
+    uninit();
+    allocator_      = default_allocator;
+    probes_         = nullptr;
+    probe_dists_    = nullptr;
+    num_probes_     = 0;
+    num_entries_    = 0;
+    max_probe_dist_ = 0;
+  }
+
+  constexpr void clear()
+  {
+    destruct_probes__();
 
     for (usize i = 0; i < num_probes_; i++)
     {
@@ -335,7 +392,7 @@ struct HashMap
       Entry    *insert_probe      = probes_ + insert_idx;
       Distance *insert_probe_dist = probe_dists_ + insert_idx;
 
-      mem::relocate(probe, insert_probe, 1);
+      obj::relocate(Span{probe, 1}, insert_probe);
       *insert_probe_dist = *probe_dist - 1;
       *probe_dist        = PROBE_SENTINEL;
       probe_idx          = (probe_idx + 1) & (num_probes_ - 1);
@@ -365,7 +422,7 @@ struct HashMap
       {
         if (erased_uninit != nullptr)
         {
-          mem::relocate(&dst_probe->value, erased_uninit, 1);
+          obj::relocate(Span{&dst_probe->value, 1}, erased_uninit);
           dst_probe->key.~K();
         }
         else
@@ -389,7 +446,7 @@ struct HashMap
   }
 
   template <typename Fn>
-  constexpr void for_each(Fn &&fn)
+  constexpr void iter(Fn &&fn)
   {
     for (usize i = 0; i < num_probes_; i++)
     {

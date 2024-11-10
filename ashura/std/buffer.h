@@ -41,7 +41,7 @@ struct Buffer
       return false;
     }
 
-    copy(in, Span{data_ + size_, in.size()});
+    obj::copy(in, data_ + size_);
 
     size_ += in.size();
     return true;
@@ -57,7 +57,7 @@ constexpr Buffer<T> buffer(Span<T> span)
 template <typename T>
 constexpr Span<T> span(Buffer<T> buffer)
 {
-  return Span<T>{.data_ = buffer.data(), .size_ = buffer.size()};
+  return Span<T>{buffer.data(), buffer.size()};
 }
 
 /// @capacity: must be a non-zero power of 2
@@ -91,7 +91,7 @@ struct RingBuffer
       return false;
     }
 
-    mem::copy(data_ + consume_next_, out, 1);
+    mem::copy(Span{data_ + consume_next_, 1}, out);
 
     consume_next_ = (consume_next_ + 1) & (capacity_ - 1);
     size_--;
@@ -107,7 +107,7 @@ struct RingBuffer
     }
 
     usize const produce_next = (consume_next_ + size_) & (capacity_ - 1);
-    mem::copy(&in, data_ + produce_next, 1);
+    mem::copy(Span{&in, 1}, data_ + produce_next);
 
     size_++;
 
@@ -143,7 +143,7 @@ struct SPSCRingBuffer
 
     (void) p.load(std::memory_order_acquire);
 
-    mem::copy(data_ + c_idx, out, 1);
+    mem::copy(Span{data_ + c_idx, 1}, out);
 
     c_idx = (c_idx + 1) & (capacity_ - 1);
 
@@ -163,7 +163,7 @@ struct SPSCRingBuffer
       return false;
     }
 
-    mem::copy(&in, data_ + p_idx, 1);
+    mem::copy(Span{&in, 1}, data_ + p_idx);
 
     p_idx = (p_idx + 1) & (capacity_ - 1);
 

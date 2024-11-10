@@ -13,41 +13,84 @@ namespace ash
 /// Requirements
 /// ===========
 /// - non-type-centric custom callback for uninitializing resources
-/// - non-memory resources, i.e. devices
+/// - support for non-memory resources, i.e. devices
 /// - intrusive and extrusive reference counting
 ///
 /// @tparam H : handle type
 template <typename H>
 struct [[nodiscard]] Rc
 {
-  typedef H                          Handle;
-  typedef Fn<void(H, AllocatorImpl)> Uninit;
+  typedef H                       Handle;
+  typedef Fn<void(AllocatorImpl)> Uninit;
 
   struct Inner
   {
     H             handle      = {};
     AliasCount   *alias_count = nullptr;
     AllocatorImpl allocator   = default_allocator;
-    Uninit        uninit      = fn([](H, AllocatorImpl) {});
+    Uninit        uninit      = noop;
   };
 
   Inner inner{};
 
-  void init(H handle, AliasCount &alias_count, AllocatorImpl allocator,
-            Uninit uninit)
+  constexpr Rc(H handle, AliasCount &alias_count, AllocatorImpl allocator,
+               Uninit uninit) :
+      inner{.handle      = handle,
+            .alias_count = &alias_count,
+            .allocator   = allocator,
+            .uninit      = uninit}
   {
-    inner = Inner{.handle      = handle,
-                  .alias_count = &alias_count,
-                  .allocator   = allocator,
-                  .uninit      = uninit};
+  }
+
+  explicit Rc() = default;
+
+  constexpr Rc(Rc const &) = delete;
+
+  constexpr Rc &operator=(Rc const &) = delete;
+
+  constexpr Rc(Rc &&other) : inner{other.inner}
+  {
+    other.inner = Inner{};
+  }
+
+  constexpr Rc &operator=(Rc &&other)
+  {
+    if (this == &other)
+    {
+      return *this;
+    }
+
+    uninit();
+    new (this) Rc{(Rc &&) other};
+  }
+
+  ~Rc()
+  {
+    uninit();
   }
 
   constexpr void uninit() const
   {
+    if (inner.alias_count == nullptr)
+    {
+      return;
+    }
+
     if (inner.alias_count->unalias())
     {
-      inner.uninit(inner.handle, inner.allocator);
+      inner.uninit(inner.allocator);
     }
+  }
+
+  constexpr void reset()
+  {
+    uninit();
+    inner = Inner{};
+  }
+
+  bool is_valid() const
+  {
+    return inner.alias_count != nullptr;
   }
 
   constexpr usize num_aliases() const
@@ -55,10 +98,10 @@ struct [[nodiscard]] Rc
     return inner.alias_count->count();
   }
 
-  constexpr Rc<H> alias() const
+  constexpr Rc alias() const
   {
     inner.alias_count->alias();
-    return *this;
+    return Rc{inner.handle, *inner.alias_count, inner.allocator, inner.uninit};
   }
 
   constexpr H get() const
@@ -66,9 +109,15 @@ struct [[nodiscard]] Rc
     return inner.handle;
   }
 
-  constexpr auto &operator*() const
+  constexpr decltype(auto) operator*() const
   {
     return *inner.handle;
+  }
+
+  template <typename... Args>
+  constexpr decltype(auto) operator()(Args &&...args) const
+  {
+    return inner.handle(forward<Args>(args)...);
   }
 
   constexpr H operator->() const
@@ -95,14 +144,12 @@ Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator, Args &&...args)
 
   new (object) AliasCounted<T>{.data{((Args &&) args)...}};
 
-  return Ok{Rc<T *>{.inner{.handle      = &object->data,
-                           .alias_count = static_cast<AliasCount *>(object),
-                           .allocator   = allocator,
-                           .uninit = fn(object, [](AliasCounted<T> *object, T *,
-                                                   AllocatorImpl    allocator) {
-                             object->~AliasCounted<T>();
-                             allocator.ndealloc(object, 1);
-                           })}}};
+  return Ok{
+      Rc<T *>{&object->data, *object, allocator,
+              fn(object, [](AliasCounted<T> *object, AllocatorImpl allocator) {
+                object->~AliasCounted<T>();
+                allocator.ndealloc(object, 1);
+              })}};
 }
 
 template <typename T>

@@ -136,7 +136,7 @@ struct Logger : Pin<>
 
   void init(Span<LogSink *const> sinks_list)
   {
-    copy(sinks_list.slice(0, MAX_SINKS), span(sinks));
+    obj::copy(sinks_list.slice(0, MAX_SINKS), span(sinks));
     num_sinks = sinks_list.size32();
   }
 

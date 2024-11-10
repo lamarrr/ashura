@@ -10,7 +10,6 @@ TEST(RenderText, RunManagement)
   using namespace ash;
 
   RenderText text;
-  defer      text_uninit{[&] { text.reset(); }};
 
   ASSERT_EQ(text.inner.runs.size32(), 0);
 

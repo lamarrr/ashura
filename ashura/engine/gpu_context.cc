@@ -98,7 +98,7 @@ void GpuContext::init(gpu::DeviceImpl p_device, bool p_use_hdr, u32 p_buffering,
 
   pipeline_cache = nullptr;
   buffering      = p_buffering;
-  shader_map     = p_shader_map;
+  shader_map     = std::move(p_shader_map);
 
   ubo_layout =
       device
@@ -421,16 +421,15 @@ void GpuContext::uninit()
   {
     release(f);
   }
-  sampler_cache.for_each([&](gpu::SamplerDesc const &, CachedSampler sampler) {
+  sampler_cache.iter([&](gpu::SamplerDesc const &, CachedSampler sampler) {
     release(sampler.sampler);
   });
   idle_reclaim();
   device->uninit_pipeline_cache(device.self, pipeline_cache);
 
-  shader_map.for_each([&](Span<char const>, gpu::Shader shader) {
+  shader_map.iter([&](Span<char const>, gpu::Shader shader) {
     device->uninit_shader(device.self, shader);
   });
-  shader_map.reset();
 }
 
 void GpuContext::recreate_framebuffers(gpu::Extent new_extent)
@@ -647,7 +646,7 @@ void GpuContext::idle_reclaim()
   for (auto &objects : released_objects)
   {
     uninit_objects(device, span(objects));
-    objects.reset();
+    objects.clear();
   }
 }
 

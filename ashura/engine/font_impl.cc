@@ -134,7 +134,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     {
       return Err{FontDecodeError::OutOfMemory};
     }
-    mem::copy(ft_postscript_name, postscript_name, postscript_name_size);
+    mem::copy(Span{ft_postscript_name, postscript_name_size}, postscript_name);
   }
 
   defer postscript_name_{[&] {
@@ -154,7 +154,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     {
       return Err{FontDecodeError::OutOfMemory};
     }
-    mem::copy(ft_face->family_name, family_name, family_name_size);
+    mem::copy(Span{ft_face->family_name, family_name_size}, family_name);
   }
 
   defer family_name_{[&] {
@@ -174,7 +174,7 @@ Result<Font, FontDecodeError> decode_font(Span<u8 const> encoded, u32 face,
     {
       return Err{FontDecodeError::OutOfMemory};
     }
-    mem::copy(ft_face->style_name, style_name, style_name_size);
+    mem::copy(Span{ft_face->style_name, style_name_size}, style_name);
   }
 
   defer style_name_{[&] {
@@ -307,11 +307,7 @@ void uninit_font(Font font)
 {
   FontImpl *f = (FontImpl *) font;
   f->gpu_atlas.expect_none("GPU font atlas has not been unloaded");
-  if (f->cpu_atlas.is_some())
-  {
-    f->cpu_atlas.value().reset();
-    f->cpu_atlas = None;
-  }
+  f->cpu_atlas = None;
   f->allocator.ndealloc(f->postscript_name, f->postscript_name_size);
   f->allocator.ndealloc(f->family_name, f->family_name_size);
   f->allocator.ndealloc(f->style_name, f->style_name_size);
@@ -345,7 +341,6 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl allocator)
   f->cpu_atlas.expect_none("CPU font atlas has already been loaded");
 
   CpuFontAtlas atlas;
-  defer        atlas_{[&] { atlas.reset(); }};
 
   if (!atlas.glyphs.resize_defaulted(f->num_glyphs))
   {
@@ -510,7 +505,7 @@ bool rasterize_font(Font font, u32 font_height, AllocatorImpl allocator)
   atlas.extent      = atlas_extent;
   atlas.num_layers  = num_layers;
 
-  f->cpu_atlas = Some{atlas};
+  f->cpu_atlas = Some{std::move(atlas)};
   atlas        = {};
 
   return true;
@@ -646,12 +641,12 @@ void upload_font_to_device(Font font, GpuContext &c, AllocatorImpl allocator)
   }
 
   f->gpu_atlas = Some{GpuFontAtlas{.image       = image,
-                                   .views       = views,
-                                   .textures    = textures,
+                                   .views       = std::move(views),
+                                   .textures    = std::move(textures),
                                    .font_height = atlas.font_height,
                                    .num_layers  = atlas.num_layers,
                                    .extent      = atlas.extent,
-                                   .glyphs      = glyphs,
+                                   .glyphs      = std::move(glyphs),
                                    .format      = format}};
 }
 
@@ -669,8 +664,6 @@ void unload_font_from_device(Font font, GpuContext &c)
     c.release(view);
   }
   c.release(f->gpu_atlas.value().image);
-
-  f->gpu_atlas.value().reset();
 
   f->gpu_atlas = None;
 }

@@ -1392,7 +1392,7 @@ void set_resource_name(Device *dev, Span<char const> label,
                        VkDebugReportObjectTypeEXT debug_type)
 {
   char label_c_str[256];
-  CHECK(mem::to_c_str(label, span(label_c_str)));
+  CHECK(to_c_str(label, span(label_c_str)));
   VkDebugUtilsObjectNameInfoEXT name_info{
       .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
       .pNext        = nullptr,
@@ -2247,10 +2247,10 @@ gpu::DeviceProperties DeviceInterface::get_device_properties(gpu::Device self_)
       .max_compute_shared_memory_size =
           vk_properties.limits.maxComputeSharedMemorySize};
 
-  mem::copy(vk_properties.limits.maxComputeWorkGroupCount,
-            properties.max_compute_work_group_count, 3);
-  mem::copy(vk_properties.limits.maxComputeWorkGroupSize,
-            properties.max_compute_work_group_size, 3);
+  mem::copy(Span{vk_properties.limits.maxComputeWorkGroupCount, 3},
+            properties.max_compute_work_group_count);
+  mem::copy(Span{vk_properties.limits.maxComputeWorkGroupSize, 3},
+            properties.max_compute_work_group_size);
 
   return properties;
 }
@@ -2746,7 +2746,7 @@ Result<gpu::DescriptorSetLayout, Status>
                                    .num_variable_length = num_variable_length};
 
   mem::copy(desc.bindings, layout->bindings);
-  mem::copy(sizing, layout->sizing, NUM_DESCRIPTOR_TYPES);
+  mem::copy(Span{sizing, NUM_DESCRIPTOR_TYPES}, layout->sizing);
   vk_layout = nullptr;
 
   return Ok{(gpu::DescriptorSetLayout) layout};
@@ -2943,7 +2943,7 @@ Result<gpu::DescriptorSet, Status>
   new (set) DescriptorSet{
       .vk_set = vk_set, .num_bindings = num_bindings, .pool = ipool};
 
-  mem::copy(bindings, set->bindings, num_bindings);
+  mem::copy(Span{bindings, num_bindings}, set->bindings);
   num_bindings = 0;
 
   return Ok{(gpu::DescriptorSet) set};
@@ -3005,7 +3005,7 @@ Result<gpu::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
       .pData = desc.compute_shader.specialization_constants_data.data()};
 
   char entry_point[256];
-  CHECK(mem::to_c_str(desc.compute_shader.entry_point, span(entry_point)));
+  CHECK(to_c_str(desc.compute_shader.entry_point, span(entry_point)));
 
   VkPipelineShaderStageCreateInfo vk_stage{
       .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -3134,8 +3134,8 @@ Result<gpu::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
 
   char vs_entry_point[256];
   char fs_entry_point[256];
-  CHECK(mem::to_c_str(desc.vertex_shader.entry_point, span(vs_entry_point)));
-  CHECK(mem::to_c_str(desc.fragment_shader.entry_point, span(fs_entry_point)));
+  CHECK(to_c_str(desc.vertex_shader.entry_point, span(vs_entry_point)));
+  CHECK(to_c_str(desc.fragment_shader.entry_point, span(fs_entry_point)));
 
   VkPipelineShaderStageCreateInfo vk_stages[2] = {
       {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -4811,7 +4811,7 @@ void CommandEncoderInterface::begin_debug_marker(gpu::CommandEncoder self_,
   CHECK(!self->is_in_pass());
   CHECK(region_name.size() < 256);
   char region_name_cstr[256];
-  CHECK(mem::to_c_str(region_name, span(region_name_cstr)));
+  CHECK(to_c_str(region_name, span(region_name_cstr)));
 
   VkDebugMarkerMarkerInfoEXT info{
       .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,

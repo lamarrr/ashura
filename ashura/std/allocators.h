@@ -109,7 +109,7 @@ struct Arena
       return false;
     }
 
-    mem::copy(mem, new_mem, old_size);
+    mem::copy(Span{mem, old_size}, new_mem);
     dealloc(alignment, mem, old_size);
     mem = new_mem;
     return true;
@@ -184,6 +184,21 @@ static AllocatorInterface const arena_sub_interface{
     .realloc      = ArenaPoolInterface::realloc,
     .dealloc      = ArenaPoolInterface::dealloc};
 
+/// @max_num_arenas: maximum number of arenas that can be allocated
+/// @min_arena_size: minimum size of each arena allocation, recommended >= 16KB
+/// bytes (approx 1 huge memory page). allocations having sizes higher than that
+/// will have a dedicated arena.
+/// @max_total_size: total maximum size of all allocations performed.
+///
+struct ArenaPoolCfg
+{
+  usize max_num_arenas      = USIZE_MAX;
+  usize min_arena_size      = PAGE_SIZE;
+  usize max_arena_size      = USIZE_MAX;
+  usize max_total_size      = USIZE_MAX;
+  usize min_arena_alignment = MAX_STANDARD_ALIGNMENT;
+};
+
 /// An Arena Pool is a collection of arenas. All allocations are reset/free-d at
 /// once. Allocation, Reallocation, Deallocation, and Reclamation.
 /// Memory can be reclaimed in rare cases. i.e. when `realloc` is called with
@@ -191,23 +206,53 @@ static AllocatorInterface const arena_sub_interface{
 /// extended.
 ///
 /// @source: allocation memory source
-/// @max_num_arenas: maximum number of arenas that can be allocated
-/// @min_arena_size: minimum size of each arena allocation, recommended >= 16KB
-/// bytes (approx 1 huge memory page). allocations having sizes higher than that
-/// will have a dedicated arena.
-/// @max_total_size: total maximum size of all allocations performed.
-///
 struct ArenaPool
 {
-  AllocatorImpl source              = default_allocator;
-  Arena        *arenas              = nullptr;
-  usize         num_arenas          = 0;
-  usize         current_arena       = 0;
-  usize         max_num_arenas      = USIZE_MAX;
-  usize         min_arena_size      = PAGE_SIZE;
-  usize         max_arena_size      = USIZE_MAX;
-  usize         max_total_size      = USIZE_MAX;
-  usize         min_arena_alignment = MAX_STANDARD_ALIGNMENT;
+  AllocatorImpl source        = default_allocator;
+  Arena        *arenas        = nullptr;
+  usize         num_arenas    = 0;
+  usize         current_arena = 0;
+  ArenaPoolCfg  cfg           = {};
+
+  ArenaPool() = default;
+
+  explicit ArenaPool(AllocatorImpl source, ArenaPoolCfg const &cfg = {}) :
+      source{source}, cfg{cfg}
+  {
+  }
+
+  ArenaPool(ArenaPool const &) = delete;
+
+  ArenaPool &operator=(ArenaPool const &) = delete;
+
+  ArenaPool(ArenaPool &&other) :
+      source{other.source},
+      arenas{other.arenas},
+      num_arenas{other.num_arenas},
+      current_arena{other.current_arena},
+      cfg{other.cfg}
+  {
+    other.source        = default_allocator;
+    other.arenas        = nullptr;
+    other.num_arenas    = 0;
+    other.current_arena = 0;
+  }
+
+  ArenaPool &operator=(ArenaPool &&other)
+  {
+    if (this == &other)
+    {
+      return *this;
+    }
+    uninit();
+    new (this) ArenaPool{(ArenaPool &&) other};
+    return *this;
+  }
+
+  ~ArenaPool()
+  {
+    uninit();
+  }
 
   void reclaim()
   {
@@ -277,7 +322,7 @@ struct ArenaPool
       return true;
     }
 
-    if (size > max_arena_size)
+    if (size > cfg.max_arena_size)
     {
       mem = nullptr;
       return false;
@@ -291,15 +336,15 @@ struct ArenaPool
       }
     }
 
-    if (num_arenas == max_num_arenas)
+    if (num_arenas == cfg.max_num_arenas)
     {
       mem = nullptr;
       return false;
     }
 
-    usize const arena_size      = max(size, min_arena_size);
-    usize const arena_alignment = max(min_arena_alignment, alignment);
-    if ((this->size() + arena_size) > max_total_size)
+    usize const arena_size      = max(size, cfg.min_arena_size);
+    usize const arena_alignment = max(cfg.min_arena_alignment, alignment);
+    if ((this->size() + arena_size) > cfg.max_total_size)
     {
       mem = nullptr;
       return false;
@@ -344,14 +389,14 @@ struct ArenaPool
     {
       return false;
     }
-    mem::zero(mem, size);
+    mem::zero(Span{mem, size});
     return true;
   }
 
   [[nodiscard]] bool realloc(usize alignment, usize old_size, usize new_size,
                              u8 *&mem)
   {
-    if (new_size > max_arena_size)
+    if (new_size > cfg.max_arena_size)
     {
       return false;
     }
@@ -389,7 +434,7 @@ struct ArenaPool
       return false;
     }
 
-    mem::copy(mem, new_mem, old_size);
+    mem::copy(Span{mem, old_size}, new_mem);
     dealloc(alignment, mem, old_size);
     mem = new_mem;
     return true;

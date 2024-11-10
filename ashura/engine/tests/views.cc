@@ -65,12 +65,10 @@ struct BasicViewport : View
 TEST(ViewSystem, Basic)
 {
   ViewSystem view_sys;
-  defer      view_sys_{[&] { view_sys.reset(); }};
 
   BasicViewport root;
   ViewContext   ctx;
   ctx.viewport_extent = {200, 200};
   Canvas canvas;
-  defer  canvas_{[&] { canvas.uninit(); }};
   view_sys.tick(ctx, root, canvas);
 }

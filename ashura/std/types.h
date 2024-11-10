@@ -12,6 +12,7 @@
 #include <limits>
 #include <new>
 #include <type_traits>
+#include <utility>
 
 namespace ash
 {
@@ -77,13 +78,6 @@ constexpr f64 F64_EPSILON      = DBL_EPSILON;
 constexpr f64 F64_INFINITY     = INFINITY;
 
 constexpr f32 PI = 3.14159265358979323846F;
-
-struct Noop
-{
-  constexpr void operator()(auto &&...) const
-  {
-  }
-};
 
 struct Add
 {
@@ -220,7 +214,6 @@ struct Clamp
   }
 };
 
-constexpr Noop           noop;
 constexpr Add            add;
 constexpr Sub            sub;
 constexpr Mul            mul;
@@ -639,6 +632,11 @@ struct Slice
   usize offset = 0;
   usize span   = 0;
 
+  constexpr usize begin() const
+  {
+    return offset;
+  }
+
   constexpr usize end() const
   {
     return offset + span;
@@ -663,6 +661,11 @@ struct Slice32
 {
   u32 offset = 0;
   u32 span   = 0;
+
+  constexpr usize begin() const
+  {
+    return offset;
+  }
 
   constexpr usize end() const
   {
@@ -919,6 +922,12 @@ struct Array
   }
 };
 
+template <typename T, usize N>
+struct IsTriviallyRelocatable<Array<T, N>>
+{
+  static constexpr bool value = TriviallyRelocatable<T>;
+};
+
 template <typename Repr, usize N>
 using Bits = Repr[BIT_PACKS<Repr, N>];
 
@@ -933,6 +942,28 @@ struct Span
 
   T    *data_ = nullptr;
   usize size_ = 0;
+
+  constexpr Span() = default;
+
+  constexpr Span(T *data, usize size) : data_{data}, size_{size}
+  {
+  }
+
+  template <typename U>
+    requires(Convertible<U (*)[], T (*)[]>)
+  constexpr Span(Span<U> const &span) : data_{span.data_}, size_{span.size_}
+  {
+  }
+
+  constexpr Span(Span const &) = default;
+
+  constexpr Span(Span &&) = default;
+
+  constexpr Span &operator=(Span const &) = default;
+
+  constexpr Span &operator=(Span &&) = default;
+
+  constexpr ~Span() = default;
 
   constexpr bool is_empty() const
   {
@@ -989,11 +1020,6 @@ struct Span
     requires(NonConst<T>)
   {
     data_[index] = T{((Args &&) args)...};
-  }
-
-  constexpr operator Span<T const>() const
-  {
-    return Span<T const>{data_, size_};
   }
 
   constexpr Span<T const> as_const() const
@@ -1265,6 +1291,23 @@ struct BitSpan
   Span<R> repr_     = {};
   usize   bit_size_ = 0;
 
+  constexpr BitSpan() = default;
+
+  constexpr BitSpan(Span<R> repr, usize bit_size) :
+      repr_{repr}, bit_size_{bit_size}
+  {
+  }
+
+  constexpr BitSpan(BitSpan const &) = default;
+
+  constexpr BitSpan(BitSpan &&) = default;
+
+  constexpr BitSpan &operator=(BitSpan const &) = default;
+
+  constexpr BitSpan &operator=(BitSpan &&) = default;
+
+  constexpr ~BitSpan() = default;
+
   constexpr Span<R> repr() const
   {
     return repr_;
@@ -1395,8 +1438,11 @@ struct Fn<R(Args...)>
   void *data  = nullptr;
 };
 
+template <typename Sig>
+struct PFnThunk;
+
 template <typename R, typename... Args>
-struct PFnThunk
+struct PFnThunk<R(Args...)>
 {
   static constexpr R thunk(void *data, Args... args)
   {
@@ -1414,10 +1460,10 @@ struct PFnTraits;
 template <typename R, typename... Args>
 struct PFnTraits<R(Args...)>
 {
-  using Ptr        = R (*)(Args...);
-  using Fn         = ::ash::Fn<R(Args...)>;
-  using ReturnType = R;
-  using Thunk      = PFnThunk<R, Args...>;
+  using Ptr    = R (*)(Args...);
+  using Fn     = ::ash::Fn<R(Args...)>;
+  using Return = R;
+  using Thunk  = PFnThunk<R(Args...)>;
 };
 
 template <typename R, typename... Args>
@@ -1425,8 +1471,11 @@ struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
 {
 };
 
+template <typename T, typename Sig>
+struct FunctorThunk;
+
 template <typename T, typename R, typename... Args>
-struct FunctorThunk
+struct FunctorThunk<T, R(Args...)>
 {
   static constexpr R thunk(void *data, Args... args)
   {
@@ -1434,31 +1483,29 @@ struct FunctorThunk
   }
 };
 
-template <class Sig>
-struct MemberFnTraits
-{
-};
+template <class MemberSig>
+struct MemberFnTraits;
 
 /// @brief non-const member function traits
 template <class T, typename R, typename... Args>
 struct MemberFnTraits<R (T::*)(Args...)>
 {
-  using Ptr        = R (*)(Args...);
-  using Fn         = ::ash::Fn<R(Args...)>;
-  using Type       = T;
-  using ReturnType = R;
-  using Thunk      = FunctorThunk<T, R, Args...>;
+  using Ptr    = R (*)(Args...);
+  using Fn     = ::ash::Fn<R(Args...)>;
+  using Type   = T;
+  using Return = R;
+  using Thunk  = FunctorThunk<T, R(Args...)>;
 };
 
 /// @brief const member function traits
 template <class T, typename R, typename... Args>
 struct MemberFnTraits<R (T::*)(Args...) const>
 {
-  using Ptr        = R (*)(Args...);
-  using Fn         = ::ash::Fn<R(Args...)>;
-  using Type       = T const;
-  using ReturnType = R;
-  using Thunk      = FunctorThunk<T const, R, Args...>;
+  using Ptr    = R (*)(Args...);
+  using Fn     = ::ash::Fn<R(Args...)>;
+  using Type   = T const;
+  using Return = R;
+  using Thunk  = FunctorThunk<T const, R(Args...)>;
 };
 
 template <class T>
@@ -1525,6 +1572,34 @@ auto fn(T *t, StaticFunctor functor)
 
   return fn(t, pfn);
 }
+
+struct Noop
+{
+  template <typename... Args>
+  using Sig = void(Args...);
+
+  template <typename... Args>
+  using FnType = Fn<void(Args...)>;
+
+  template <typename... Args>
+  constexpr operator Sig<Args...> *() const
+  {
+    return [](Args...) {};
+  }
+
+  template <typename... Args>
+  constexpr operator FnType<Args...>() const
+  {
+    return fn([](Args...) {});
+  }
+
+  template <typename... Args>
+  constexpr void operator()(Args &&...) const
+  {
+  }
+};
+
+constexpr Noop noop;
 
 /// @brief The `SourceLocation`  class represents certain information about the
 /// source code, such as file names, line numbers, and function names.
@@ -1611,28 +1686,10 @@ struct Pin<void>
   constexpr ~Pin()                      = default;
 };
 
-template <typename R>
-constexpr void uninit(R &r)
+template <typename R, typename... Ctx>
+constexpr void uninit(R &r, Ctx &&...ctx)
 {
-  r.uninit();
-};
-
-template <typename R>
-struct Smart
-{
-  typedef R Resource;
-
-  constexpr Smart();
-  constexpr Smart(Smart const &);
-  constexpr Smart(Smart &&);
-  constexpr Smart &operator=(Smart const &);
-  constexpr Smart &operator=(Smart &&);
-  constexpr ~Smart()
-  {
-    uninit(resource);
-  }
-
-  R resource;
+  r.uninit(((Ctx &&) ctx)...);
 };
 
 constexpr u8 sat_add(u8 a, u8 b)

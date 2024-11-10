@@ -407,23 +407,6 @@ struct TextLayout
     runs.clear();
     lines.clear();
   }
-
-  void uninit()
-  {
-    segments.uninit();
-    glyphs.uninit();
-    runs.uninit();
-    lines.uninit();
-  }
-
-  void reset()
-  {
-    clear();
-    segments.reset();
-    glyphs.reset();
-    runs.reset();
-    lines.reset();
-  }
 };
 
 constexpr TextDirection level_to_direction(u8 level)

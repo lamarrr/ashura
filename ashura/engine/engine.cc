@@ -13,7 +13,6 @@ static void recreate_swapchain(Engine *e)
                                              gpu::ImageUsage::ColorAttachment));
 
   Vec<gpu::SurfaceFormat> formats;
-  defer                   formats_{[&] { formats.uninit(); }};
   u32                     num_formats =
       e->device->get_surface_formats(e->device.self, e->surface, {}).unwrap();
   CHECK(num_formats != 0);
@@ -23,7 +22,6 @@ static void recreate_swapchain(Engine *e)
           .unwrap() == num_formats);
 
   Vec<gpu::PresentMode> present_modes;
-  defer                 present_modes_{[&] { present_modes.uninit(); }};
   u32                   num_present_modes =
       e->device->get_surface_present_modes(e->device.self, e->surface, {})
           .unwrap();
@@ -168,17 +166,13 @@ void Engine::init()
   gpu_ctx.init(device, true, 2, {{}}, {});
   logger->trace("Initializing Renderer");
   renderer.init(gpu_ctx);
-  canvas.init();
   renderer.canvas = &canvas;
-  view_system.init();
   logger->trace("Engine Initialized");
 }
 
 void Engine::uninit()
 {
   logger->trace("Uninitializing Engine");
-  view_system.uninit();
-  canvas.uninit();
   logger->trace("Uninitializing Renderer");
   renderer.uninit(gpu_ctx);
   logger->trace("Uninitializing GPU Context");
