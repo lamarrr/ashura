@@ -38,9 +38,9 @@ bool Animation<T>::is_playing() const
 }
 
 template <Animatable T>
-void Animation<T>::run(f32 delta)
+void Animation<T>::run(Duration delta)
 {
-  if (state.delay > 0)
+  if (state.delay > Duration::zero())
   {
     state.delay -= delta;
     return;
@@ -52,7 +52,12 @@ void Animation<T>::run(f32 delta)
   {
     if (config.loop)
     {
-      state.current_time = std::fmod(state.current_time, config.duration);
+      if (config.duration.count() <= 0)
+        state.current_time = Duration::zero();
+      // Modulo
+      auto division =
+          std::lldiv(state.current_time.count(), config.duration.count());
+      state.current_time = Duration{division.rem};
     }
     else
     {
@@ -61,36 +66,40 @@ void Animation<T>::run(f32 delta)
     }
   }
 
-  f32 t      = state.current_time / config.duration;
-  f32 easedT = 0.0f;
+  // Convert time to float for easing calculations
+  float t = std::chrono::duration<float>(state.current_time) /
+            std::chrono::duration<float>(config.duration);
 
+  float easedT = 0.0f;
   switch (config.easing)
   {
     case CurveType::EaseIn:
-      easedT = ease_in<f32>(t);
+      easedT = ease_in<float>(t);
       break;
     case CurveType::EaseOut:
-      easedT = ease_out<f32>(t);
+      easedT = ease_out<float>(t);
       break;
     case CurveType::EaseInOut:
-      easedT = ease_in_out<f32>(t);
+      easedT = ease_in_out<float>(t);
       break;
     default:
-      easedT = linear<f32>(t);
+      easedT = linear<float>(t);
       break;
   }
 
-  current_value = animation::lerp(start, end, easedT);
+  current_value = lerp(start, end, easedT);
 
   if (is_reset)
   {
-    state.current_time = 0;
+    state.current_time = Duration::zero();
     state.delay        = config.delay;
     current_value      = start;
+    is_reset           = false;
   }
 }
+
 template <Animatable T>
-void Animation<T>::update(f32 _time, f32 delta)
+void Animation<T>::update(Duration _time, Duration delta)
 {
   if (!state.is_playing)
     return;
@@ -155,29 +164,6 @@ void AnimationManager::reset_all()
   }
 }
 
-template <typename T>
-void AnimationManager::stagger(const T &start, const T &end,
-                               const AnimationConfig &base_config, size_t count,
-                               const StaggerOptions &stagger_opts,
-                               std::function<void(const T &, size_t)> callback)
-{
-  for (size_t i = 0; i < count; ++i)
-  {
-    f32 base_delay = stagger_delay(i, count, stagger_opts);
-
-    auto config  = base_config;
-    config.delay = stagger_opts.start + (base_delay * stagger_opts.from);
-
-    // Create animation with grid index-aware callback
-    auto anim = create<T>(start, end, config, [callback, i](const T &value) {
-      if (callback)
-        callback(value, i);
-    });
-
-    anim->play();
-  }
-}
-
 // Timeline
 
 template <typename T>
@@ -223,8 +209,8 @@ template <typename T>
 Timeline<T> &Timeline<T>::parallel(const std::vector<AnimationConfig> &configs,
                                    const std::vector<std::pair<T, T>> &values)
 {
-  f32 max_duration = 0.0f;
-  f32 start_time   = total_duration;
+  Duration max_duration = Duration::zero();
+  Duration start_time   = total_duration;
 
   for (size_t i = 0; i < configs.size(); ++i)
   {
@@ -246,15 +232,15 @@ Timeline<T> &Timeline<T>::stagger(const T &start, const T &end,
                                   AnimationConfig config, size_t count,
                                   const StaggerOptions &stagger_opts)
 {
-  f32 base_delay = 0.0f;
-  f32 start_time = total_duration;
+  Duration base_delay = Duration::zero();
+  Duration start_time = total_duration;
 
   for (size_t i = 0; i < count; ++i)
   {
     base_delay = stagger_delay(i, count, stagger_opts);
   }
 
-  f32 delay = stagger_opts.start + (base_delay * stagger_opts.from);
+  Duration delay = stagger_opts.start + base_delay;
 
   auto segment_config  = config;
   segment_config.delay = delay;
@@ -274,18 +260,19 @@ void Timeline<T>::update()
   if (!is_playing)
     return;
 
-  auto current_time_point = Clock::now();
-  f32  delta = get_delta(current_time_point, last_update_time);
-  last_update_time = current_time_point;
+  auto     current_time_point = Clock::now();
+  Duration delta              = get_delta(current_time_point, last_update_time);
+  last_update_time            = current_time_point;
 
-  f32 adjusted_delta = delta * time_direction;
+  Duration adjusted_delta = delta * time_direction;
   current_time += adjusted_delta;
 
   if (time_direction > 0 && current_time >= total_duration)
   {
     if (options.loop)
     {
-      current_time = std::fmod(current_time, total_duration);
+      current_time =
+          Duration{std::fmod(current_time.count(), total_duration.count())};
       for (auto &segment : segments)
       {
         segment->reset();
@@ -297,11 +284,13 @@ void Timeline<T>::update()
       is_playing   = false;
     }
   }
-  else if (time_direction < 0 && current_time <= 0)
+  else if (time_direction < 0 && current_time <= Duration::zero())
   {
     if (options.loop)
     {
-      current_time = total_duration + std::fmod(current_time, total_duration);
+      current_time =
+          total_duration +
+          Duration{std::fmod(current_time.count(), total_duration.count())};
       for (auto &segment : segments)
       {
         segment->reset();
@@ -309,7 +298,7 @@ void Timeline<T>::update()
     }
     else
     {
-      current_time = 0;
+      current_time = Duration::zero();
       is_playing   = false;
     }
   }
@@ -331,7 +320,7 @@ void Timeline<T>::play_from_start()
   {
     segment->reset();
   }
-  current_time     = 0;
+  current_time     = Duration::zero();
   time_direction   = 1.0f;
   is_playing       = true;
   last_update_time = Clock::now();
@@ -369,7 +358,7 @@ template <typename T>
 void Timeline<T>::stop()
 {
   is_playing     = false;
-  current_time   = 0;
+  current_time   = Duration::zero();
   time_direction = 1.0f;
   for (auto &segment : segments)
   {
@@ -378,74 +367,27 @@ void Timeline<T>::stop()
 }
 
 template <typename T>
-void Timeline<T>::seek(f32 time)
+void Timeline<T>::seek(Duration time)
 {
-  f32 target_time = std::clamp(time, 0.0f, total_duration);
-  f32 delta       = target_time - current_time;
+  Duration target_time = std::clamp(time, Duration::zero(), total_duration);
 
-  // Reset all segments if seeking backwards
-  if (delta < 0)
+  if (target_time < current_time)
   {
+    // Reset all segments if seeking backwards
     for (auto &segment : segments)
     {
       segment->reset();
     }
-    current_time = 0;
+    current_time = Duration::zero();
     update_segments(target_time);
   }
   else
   {
+    Duration delta = target_time - current_time;
     update_segments(delta);
   }
 
   current_time = target_time;
-}
-
-template <typename T>
-void Timeline<T>::seek_percentage(f32 percentage)
-{
-  percentage = std::clamp(percentage, 0.0f, 1.0f);
-  seek(total_duration * percentage);
-}
-
-template <typename T>
-void Timeline<T>::reverse()
-{
-  time_direction *= -1.0f;
-}
-
-template <typename T>
-void Timeline<T>::set_direction(i32 direction)
-{
-  time_direction = direction < 0 ? -1.0f : 1.0f;
-}
-
-template <typename T>
-f32 Timeline<T>::get_current_time() const
-{
-  return current_time;
-}
-template <typename T>
-f32 Timeline<T>::get_duration() const
-{
-  return total_duration;
-}
-template <typename T>
-f32 Timeline<T>::get_progress() const
-{
-  return current_time / total_duration;
-}
-template <typename T>
-bool Timeline<T>::is_reversed() const
-{
-  return time_direction < 0;
-}
-template <typename T>
-bool Timeline<T>::is_finished() const
-{
-  return !options.loop &&
-         ((time_direction > 0 && current_time >= total_duration) ||
-          (time_direction < 0 && current_time <= 0));
 }
 
 template <typename T>
@@ -466,7 +408,7 @@ Timeline<T>::SegmentPtr Timeline<T>::get_segment(u32 index)
   return segments[index];
 }
 template <typename T>
-void Timeline<T>::update_segments(f32 delta)
+void Timeline<T>::update_segments(Duration delta)
 {
   for (auto &segment : segments)
   {
@@ -482,7 +424,7 @@ void Timeline<T>::update_segments(f32 delta)
     else
     {
       // Reverse playback
-      f32 segment_end = segment->startTime + segment->duration;
+      Duration segment_end = segment->startTime + segment->duration;
       if (current_time <= segment_end && current_time >= segment->start_time)
       {
         segment->update(current_time, delta);

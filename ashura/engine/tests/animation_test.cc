@@ -15,6 +15,8 @@
 
 typedef struct ash::Vec2 Position;
 
+using namespace std::chrono_literals;
+
 class TerminalUI
 {
 private:
@@ -406,7 +408,7 @@ public:
 };
 
 std::shared_ptr<ash::Animation<ash::f32>> create_simple_animation(
-    const ash::f32       duration = 1.0f,
+    const ash::Duration       duration = 1000ms,
     const ash::CurveType easing   = ash::CurveType::Linear,
     const bool           loop     = false)
 {
@@ -434,7 +436,7 @@ int main()
                                      TerminalTable::Column::Alignment::CENTER);
   simple_animation_table->add_column("EaseInOut", 10,
                                      TerminalTable::Column::Alignment::CENTER);
-  const ash::f32 duration         = 10.0f;
+  const ash::Duration duration         = 10000ms;
   const ash::f32 start            = 0.0f;
   const ash::f32 end              = 10.0f;
   auto           linear_animation = animator->create<ash::f32>(
@@ -456,7 +458,7 @@ int main()
 
   auto easein_out_animation = animator->create<ash::f32>(
       start, end,
-      ash::AnimationConfig{.duration = 10.0f,
+      ash::AnimationConfig{.duration = duration,
                            .loop     = false,
                            .easing   = ash::CurveType::EaseInOut});
 

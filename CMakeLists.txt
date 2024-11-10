@@ -7,6 +7,25 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
+if(APPLE)
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+    set(HOMEBREW_PREFIX "/opt/homebrew")
+  else()
+    set(HOMEBREW_PREFIX "/usr/local")
+  endif()
+  add_definitions(-DVULKAN_STRING_HELPER_NO_AMDX)
+  list(APPEND CMAKE_PREFIX_PATH
+    "${HOMEBREW_PREFIX}/opt/molten-vk"
+  )
+  include_directories(SYSTEM
+    "${HOMEBREW_PREFIX}/include"
+  )
+  link_directories(
+    "${HOMEBREW_PREFIX}/lib"
+  )
+  set(ENV{PKG_CONFIG_PATH} "${HOMEBREW_PREFIX}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+endif()
+
 set(VMA_DYNAMIC_VULKAN_FUNCTIONS
   ON
   CACHE BOOL "")
@@ -184,7 +203,6 @@ add_library(
   ashura/engine/font_impl.cc
   ashura/engine/text.cc
   ashura/engine/canvas.cc
-  ashura/engine/gpu_context.cc
   ashura/engine/image_decoder.cc
   ashura/engine/render_text.cc
   ashura/engine/shader.cc
@@ -195,7 +213,7 @@ add_library(
   ashura/engine/views.cc
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
-  # ashura/engine/render_context.cc
+  ashura/engine/render_context.cc
   ashura/engine/passes.cc
   ashura/engine/animation.cc
 )

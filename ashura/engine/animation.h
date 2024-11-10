@@ -39,7 +39,7 @@ concept Animatable = requires(T a, T b, f32 t) {
   { lerp(a, b, t) } -> std::convertible_to<T>;
 };
 
-namespace animation
+namespace anim
 {
 // Lerp implementations for different types
 // Basic arithmetic types
@@ -49,7 +49,7 @@ T lerp(const T &start, const T &end, f32 t)
 {
   return ash::lerp<T>(start, end, t);
 }
-}        // namespace animation
+}        // namespace anim
 
 template <Animatable T>
 struct Animation;
@@ -62,40 +62,40 @@ using Clock     = std::chrono::steady_clock;
 using TimePoint = Clock::time_point;
 using Duration  = std::chrono::duration<float>;
 
-static inline f32 get_delta(const TimePoint &current, const TimePoint &previous)
+static inline Duration get_delta(const TimePoint &current,
+                                 const TimePoint &previous)
 {
-  return std::chrono::duration_cast<Duration>(current - previous).count();
+  return std::chrono::duration_cast<Duration>(current - previous);
 }
-
 
 enum class CurveType
 {
-  Linear,
-  EaseIn,
-  EaseOut,
-  EaseInOut,
-  Custom
+  Linear    = 0,
+  EaseIn    = 1,
+  EaseOut   = 2,
+  EaseInOut = 3,
+  Custom    = 4
 };
 
 struct AnimationConfig
 {
-  f32         duration = 1.0f;
-  f32         delay    = 0.0f;
-  bool        loop     = false;
-  CurveType   easing   = CurveType::Linear;
-  std::string label    = "default";
+  Duration    duration{std::chrono::seconds(1)};
+  Duration    delay{std::chrono::nanoseconds(0)};
+  bool        loop   = false;
+  CurveType   easing = CurveType::Linear;
+  std::string label  = "default";
 };
 
 struct AnimationState
 {
-  bool is_playing   = false;
-  f32  current_time = 0.0f;
-  f32  delay        = 0.0f;
+  bool     is_playing = false;
+  Duration current_time{std::chrono::nanoseconds(0)};
+  Duration delay{std::chrono::nanoseconds(0)};
 };
 
 struct TimelineOptions
 {
-  f32         delay    = 0.0f;
+  Duration    delay{std::chrono::nanoseconds(0)};
   bool        autoplay = true;
   bool        loop     = false;
   std::string label    = "default";
@@ -103,14 +103,14 @@ struct TimelineOptions
 
 enum class GridDirection
 {
-  RowMajor,          // Left to right, top to bottom
-  ColumnMajor        // Top to bottom, left to right
+  RowMajor    = 0,        // Left to right, top to bottom
+  ColumnMajor = 1         // Top to bottom, left to right
 };
 
 struct StaggerOptions
 {
-  f32 start = 0.0f;
-  f32 from  = 0.0f;
+  Duration start{std::chrono::nanoseconds(0)};
+  Duration from{std::chrono::nanoseconds(0)};
   struct Grid
   {
     i32           rows      = 1;
@@ -139,8 +139,8 @@ static std::pair<i32, i32> grid_position(i32 index, i32 rows, i32 cols,
   }
 }
 
-static f32 stagger_grid_delay(i32 index, i32 count,
-                              const StaggerOptions &stagger_opts)
+static Duration stagger_grid_delay(i32 index, i32 count,
+                                   const StaggerOptions &stagger_opts)
 {
   auto [row, col] =
       grid_position(index, stagger_opts.grid.rows, stagger_opts.grid.cols,
@@ -148,7 +148,8 @@ static f32 stagger_grid_delay(i32 index, i32 count,
 
   if (!stagger_opts.easing)
   {
-    return stagger_opts.easing(row, col, index, count);
+    f32 factor = stagger_opts.easing(row, col, index, count);
+    return std::chrono::duration_cast<Duration>(stagger_opts.from * factor);
   }
   else
   {
@@ -159,23 +160,31 @@ static f32 stagger_grid_delay(i32 index, i32 count,
     switch (stagger_opts.grid.direction)
     {
       case GridDirection::RowMajor:
-        return normalized_row + (normalized_col * 0.5f);
+      {
+        f32 factor = normalized_row + (normalized_col * 0.5f);
+        return std::chrono::duration_cast<Duration>(stagger_opts.from * factor);
+      }
       case GridDirection::ColumnMajor:
-        return normalized_col + (normalized_row * 0.5f);
+      {
+        f32 factor = normalized_col + (normalized_row * 0.5f);
+        return std::chrono::duration_cast<Duration>(stagger_opts.from * factor);
+      }
     }
   }
 }
 
-static f32
+static Duration
     stagger_linear_delay(i32 i, i32 count,
                          const StaggerOptions &stagger_opts = StaggerOptions{})
 {
-  return stagger_opts.easing ? stagger_opts.easing(0, 0, i, count) :
-                               static_cast<f32>(i) / count;
+  f32 factor = stagger_opts.easing ? stagger_opts.easing(0, 0, i, count) :
+                                     static_cast<f32>(i) / count;
+  return std::chrono::duration_cast<Duration>(stagger_opts.from * factor);
 }
 
-static f32 stagger_delay(i32 i, i32 count,
-                         const StaggerOptions &stagger_opts = StaggerOptions{})
+static Duration
+    stagger_delay(i32 i, i32 count,
+                  const StaggerOptions &stagger_opts = StaggerOptions{})
 {
   bool is_grid_based = stagger_opts.grid.rows > 1 || stagger_opts.grid.cols > 1;
 
@@ -198,14 +207,14 @@ enum class SegmentType
 template <Animatable T>
 struct TimelineSegment
 {
-  std::string label    = "default";
-  f32         start    = 0.0f;
-  f32         duration = 0.0f;
-  SegmentType type     = SegmentType::Basic;
+  std::string label = "default";
+  Duration    start_time{std::chrono::nanoseconds(0)};
+  Duration    duration{std::chrono::nanoseconds(0)};
+  SegmentType type = SegmentType::Basic;
 
-  virtual ~TimelineSegment()                      = default;
-  virtual void        update(f32 time, f32 delta) = 0;
-  virtual void        reset()                     = 0;
+  virtual ~TimelineSegment()                                = default;
+  virtual void        update(Duration time, Duration delta) = 0;
+  virtual void        reset()                               = 0;
   virtual std::string get_label()
   {
     return label;
@@ -299,11 +308,11 @@ private:
   bool is_reset;
 
 public:
-  T                        start;
-  T                        end;
-  AnimationConfig          config;
-  AnimationState           state;
-  TimePoint last_update_time;
+  T               start;
+  T               end;
+  AnimationConfig config;
+  AnimationState  state;
+  TimePoint       last_update_time;
 
   Animation(T start, T end, AnimationConfig cfg) :
       start(start), end(end), config(cfg)
@@ -319,9 +328,9 @@ public:
     if (!state.is_playing)
       return;
 
-    auto current_time = Clock::now();
-    f32  delta       = get_delta(current_time, last_update_time);
-    last_update_time = current_time;
+    auto     current_time = Clock::now();
+    Duration delta        = get_delta(current_time, last_update_time);
+    last_update_time      = current_time;
 
     run(delta);
   }
@@ -342,8 +351,8 @@ public:
   }
 
 private:
-  void run(f32 delta);
-  void update(f32 _time, f32 delta);
+  void run(Duration delta);
+  void update(Duration _time, Duration delta);
 };
 
 // Animation utility to create and manage or more animatins.
@@ -437,7 +446,25 @@ public:
   void stagger(const T &start, const T &end, const AnimationConfig &base_config,
                usize                 count,
                const StaggerOptions &stagger_opts = StaggerOptions{},
-               std::function<void(const T &, usize)> callback = nullptr);
+               std::function<void(const T &, usize)> callback = nullptr)
+  {
+    for (size_t i = 0; i < count; ++i)
+    {
+      Duration base_delay = stagger_delay(i, count, stagger_opts);
+
+      auto config  = base_config;
+      config.delay = stagger_opts.start + base_delay;
+
+      // Create animation with grid index-aware
+      // callback
+      auto anim = create<T>(start, end, config, [callback, i](const T &value) {
+        if (callback)
+          callback(value, i);
+      });
+
+      anim->play();
+    }
+  }
 
   template <Animatable T>
   std::shared_ptr<Animation<T>> get_animation(usize index)
@@ -450,17 +477,19 @@ public:
 
 struct KeyframeBase
 {
-  f32                     duration;
-  std::string             key;
-  CurveType               curve_type;
-  std::function<f32(f32)> custom_easing;
+  Duration                     duration;
+  std::string                  key;
+  CurveType                    curve_type;
+  std::function<f32(Duration)> custom_easing;
 
-  KeyframeBase(f32 dur, std::string k, CurveType curve = CurveType::Linear) :
+  KeyframeBase(Duration dur, std::string k,
+               CurveType curve = CurveType::Linear) :
       duration(dur), key(std::move(k)), curve_type(curve)
   {
   }
 
-  KeyframeBase(f32 dur, std::string k, std::function<f32(f32)> easing) :
+  KeyframeBase(Duration dur, std::string k,
+               std::function<f32(Duration)> easing) :
       duration(dur),
       key(std::move(k)),
       curve_type(CurveType::Custom),
@@ -468,25 +497,26 @@ struct KeyframeBase
   {
   }
 
-  f32 get_ease_fn(f32 t) const
+  f32 get_ease_fn(Duration t) const
   {
     if (curve_type == CurveType::Custom && custom_easing)
     {
       return custom_easing(t);
     }
 
+    f32 easeT = t.count();
     switch (curve_type)
     {
       case CurveType::Linear:
-        return linear(t);
+        return linear(easeT);
       case CurveType::EaseIn:
-        return ease_in(t);
+        return ease_in(easeT);
       case CurveType::EaseOut:
-        return ease_out(t);
+        return ease_out(easeT);
       case CurveType::EaseInOut:
-        return ease_in_out(t);
+        return ease_in_out(easeT);
       default:
-        return t;
+        return easeT;
     }
   }
 };
@@ -496,12 +526,14 @@ struct Keyframe : KeyframeBase
 {
   T value;
 
-  Keyframe(f32 dur, std::string k, T val, CurveType curve = CurveType::Linear) :
+  Keyframe(Duration dur, std::string k, T val,
+           CurveType curve = CurveType::Linear) :
       KeyframeBase(dur, std::move(k), curve), value(std::move(val))
   {
   }
 
-  Keyframe(f32 dur, std::string k, T val, std::function<f32(f32)> easing) :
+  Keyframe(Duration dur, std::string k, T val,
+           std::function<f32(Duration)> easing) :
       KeyframeBase(dur, std::move(k), std::move(easing)), value(std::move(val))
   {
   }
@@ -520,9 +552,9 @@ struct Keyframe : KeyframeBase
 // Timeline<Vec2> timeline(options);
 //
 // std::vector<Keyframe<Vec2>> keyframes = {
-//     Keyframe<Vec2>(0.5f, "start", {0, 100.0f}, CurveType::EaseInOut),
-//     Keyframe<Vec2>(0.5f, "middle", {150.0f, 50.0f}, CurveType::EaseInOut),
-//     Keyframe<Vec2>(0.5f, "end", {0, 200.0f}, CurveType::EaseInOut)
+//     Keyframe<Vec2>(500ms, "start", {0, 100.0f}, CurveType::EaseInOut),
+//     Keyframe<Vec2>(500ms, "middle", {150.0f, 50.0f}, CurveType::EaseInOut),
+//     Keyframe<Vec2>(500ms, "end", {0, 200.0f}, CurveType::EaseInOut)
 // };
 //
 // timeline.add(keyframes);
@@ -553,13 +585,13 @@ struct Timeline
 {
   using SegmentPtr = std::shared_ptr<TimelineSegment<T>>;
 
-  std::vector<SegmentPtr>  segments;
-  TimelineOptions          options;
-  f32                      current_time   = 0.0f;
-  bool                     is_playing     = false;
-  f32                      total_duration = 0.0f;
-  f32                      time_direction = 1.0f;
-  TimePoint last_update_time;
+  std::vector<SegmentPtr> segments;
+  TimelineOptions         options;
+  Duration                current_time{Duration::zero()};
+  Duration                total_duration{Duration::zero()};
+  bool                    is_playing     = false;
+  f32                     time_direction = 1.0f;
+  TimePoint               last_update_time;
 
   Timeline(const TimelineOptions &opts = TimelineOptions{}) : options(opts)
   {
@@ -599,25 +631,58 @@ struct Timeline
 
   void stop();
 
-  void seek(f32 time);
+  void seek(Duration time);
 
   // Seek to percentage of duration
-  void seek_percentage(f32 percentage);
-  void reverse();
-  // Force a direction: `1` is forward or `-1` is backward
-  void set_direction(i32 direction);
+  void seek_percentage(f32 percentage)
+  {
+    percentage  = std::clamp(percentage, 0.0f, 1.0f);
+    auto target = Duration{
+        static_cast<Duration::rep>(total_duration.count() * percentage)};
+    seek(target);
+  }
 
-  f32  get_current_time() const;
-  f32  get_duration() const;
-  f32  get_progress() const;
-  bool is_reversed() const;
-  bool is_finished() const;
+  void reverse()
+  {
+    time_direction *= -1.0f;
+  }
+  // Force a direction: `1` is forward or `-1` is backward
+  void set_direction(i32 direction)
+  {
+    time_direction = direction < 0 ? -1.0f : 1.0f;
+  }
+
+  Duration get_current_time() const
+  {
+    return current_time;
+  };
+  Duration get_total_duration() const
+  {
+    return total_duration;
+  };
+  f32 get_progress() const
+  {
+    if (total_duration.count() == 0)
+      return 0.0f;
+    return static_cast<float>(current_time.count()) /
+           static_cast<float>(total_duration.count());
+  }
+  bool is_reversed() const
+  {
+    return time_direction < 0;
+  }
+  bool is_finished() const
+  {
+    return !options.loop &&
+           ((time_direction > 0 && current_time >= total_duration) ||
+            (time_direction < 0 && current_time <= Duration::zero()));
+  };
 
   SegmentPtr get_segment(std::string label);
   SegmentPtr get_segment(u32 index);
 
 private:
-  void update_segments(f32 delta);
+  void update_segments(Duration delta);
 };
 
 }        // namespace ash
