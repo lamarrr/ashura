@@ -3,34 +3,9 @@ cmake_minimum_required(VERSION 3.6)
 
 project(Ashura)
 
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
-
-if(APPLE)
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-    set(HOMEBREW_PREFIX "/opt/homebrew")
-  else()
-    set(HOMEBREW_PREFIX "/usr/local")
-  endif()
-
-  add_definitions(-DVULKAN_STRING_HELPER_NO_AMDX)
-
-  list(APPEND CMAKE_PREFIX_PATH
-    "${HOMEBREW_PREFIX}/opt/molten-vk"
-  )
-
-  include_directories(SYSTEM
-    "${HOMEBREW_PREFIX}/include"
-  )
-  link_directories(
-    "${HOMEBREW_PREFIX}/lib"
-  )
-
-
-  set(ENV{PKG_CONFIG_PATH} "${HOMEBREW_PREFIX}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
-endif()
 
 set(VMA_DYNAMIC_VULKAN_FUNCTIONS
   ON
@@ -56,7 +31,6 @@ set(SPIRV_REFLECT_STATIC_LIB
 set(SDL_STATIC
   ON
   CACHE BOOL "")
-
 
 include(FetchContent)
 
@@ -143,7 +117,6 @@ FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
 FetchContent_MakeAvailable(WebP)
 FetchContent_MakeAvailable(CURL)
-
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
