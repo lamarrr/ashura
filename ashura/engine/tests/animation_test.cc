@@ -407,14 +407,15 @@ public:
   }
 };
 
-std::shared_ptr<ash::Animation<ash::f32>> create_simple_animation(
-    const ash::Duration       duration = 1000ms,
+template <ash::Animatable T>
+std::shared_ptr<ash::Animation<T>> create_simple_animation(
+    const ash::Duration  duration = 1000ms,
     const ash::CurveType easing   = ash::CurveType::Linear,
     const bool           loop     = false)
 {
-  auto anim = std::make_shared<ash::Animation<ash::f32>>(
+  auto anim = std::make_shared<ash::Animation<T>>(
       0.0f, 10.0f,
-      ash::AnimationConfig{
+      ash::AnimationConfig<T>{
           .duration = duration, .loop = loop, .easing = easing});
 
   return anim;
@@ -422,10 +423,13 @@ std::shared_ptr<ash::Animation<ash::f32>> create_simple_animation(
 
 int main()
 {
+  TerminalUI ui;
+  auto       animator = std::make_shared<ash::AnimationManager>();
 
-  TerminalUI            ui;
-  auto animator = std::make_shared<ash::AnimationManager>();
-  TableManager          manager(80, 24);
+  // ash::TimelineOptions options{.autoplay = true, .loop = true};
+
+  // auto         timeline = std::make_shared<ash::Timeline>(options);
+  TableManager manager(100, 24);
 
   auto simple_animation_table = std::make_unique<TerminalTable>();
   simple_animation_table->add_column("Linear", 10,
@@ -436,37 +440,75 @@ int main()
                                      TerminalTable::Column::Alignment::CENTER);
   simple_animation_table->add_column("EaseInOut", 10,
                                      TerminalTable::Column::Alignment::CENTER);
+  simple_animation_table->add_column("Elastic", 10,
+                                     TerminalTable::Column::Alignment::CENTER);
+  simple_animation_table->add_column("Bounce", 10,
+                                     TerminalTable::Column::Alignment::CENTER);
+  simple_animation_table->add_column("Spring", 10,
+                                     TerminalTable::Column::Alignment::CENTER);
+
   const ash::Duration duration         = 10000ms;
-  const ash::f32 start            = 0.0f;
-  const ash::f32 end              = 10.0f;
-  auto           linear_animation = animator->create<ash::f32>(
+  const ash::f32      start            = 0.0f;
+  const ash::f32      end              = 10.0f;
+  auto                linear_animation = animator->create(
       start, end,
-      ash::AnimationConfig{.duration = duration,
+      ash::AnimationConfig<ash::f32>{.duration = duration,
+                                                    .loop     = false,
+                                                    .easing = ash::anim::linear<ash::f32>()});
+  auto easein_animation =
+      animator->create(start, end,
+                       ash::AnimationConfig<ash::f32>{
+                           .duration = duration,
+                           .loop     = false,
+                           .easing   = ash::anim::ease_in_quad<ash::f32>()});
+
+  auto easeout_animation =
+      animator->create(start, end,
+                       ash::AnimationConfig<ash::f32>{
+                           .duration = duration,
+                           .loop     = false,
+                           .easing   = ash::anim::ease_out_quad<ash::f32>()});
+  auto easein_out_animation =
+      animator->create(start, end,
+                       ash::AnimationConfig<ash::f32>{
+                           .duration = duration,
+                           .loop     = false,
+                           .easing = ash::anim::ease_in_out_quad<ash::f32>()});
+
+  auto elastic_animation = animator->create(
+      start, end,
+      ash::AnimationConfig<ash::f32>{.duration = duration,
                                      .loop     = false,
-                                     .easing   = ash::CurveType::Linear});
-  auto easein_animation = animator->create<ash::f32>(
-      start, end,
-      ash::AnimationConfig{.duration = duration,
-                           .loop     = false,
-                           .easing   = ash::CurveType::EaseIn});
+                                     .easing = ash::anim::elastic<ash::f32>()});
 
-  auto easeout_animation = animator->create<ash::f32>(
+  auto bounce_animation = animator->create(
       start, end,
-      ash::AnimationConfig{.duration = duration,
-                           .loop     = false,
-                           .easing   = ash::CurveType::EaseOut});
+      ash::AnimationConfig<ash::f32>{.duration = duration,
+                                     .loop     = false,
+                                     .easing = ash::anim::bounce<ash::f32>()});
 
-  auto easein_out_animation = animator->create<ash::f32>(
+  auto spring_animation = animator->create(
       start, end,
-      ash::AnimationConfig{.duration = duration,
-                           .loop     = false,
-                           .easing   = ash::CurveType::EaseInOut});
+      ash::AnimationConfig<ash::f32>{.duration = duration,
+                                     .loop     = false,
+                                     .easing = ash::anim::spring<ash::f32>()});
 
   manager.add_table("Simple", std::move(simple_animation_table),
                     {.x = 1, .y = 1}, "Simple Animation");
 
   animator->play_all();
-  
+
+  auto keyframe_animation_table = std::make_unique<TerminalTable>();
+
+  keyframe_animation_table->add_column(
+      "Elastic", 10, TerminalTable::Column::Alignment::CENTER);
+  keyframe_animation_table->add_column(
+      "Bounce", 10, TerminalTable::Column::Alignment::CENTER);
+  keyframe_animation_table->add_column(
+      "Spring", 10, TerminalTable::Column::Alignment::CENTER);
+
+  manager.add_table("Keyframe", std::move(keyframe_animation_table),
+                    {.x = 1, .y = 8}, "Keyframe Animation (TODO)");
 
   while (true)
   {
@@ -478,11 +520,20 @@ int main()
         {std::format("{:4.4f}", linear_animation->value()),
          std::format("{:4.4f}", easein_animation->value()),
          std::format("{:4.4f}", easeout_animation->value()),
-         std::format("{:4.4f}", easein_out_animation->value())});
+         std::format("{:4.4f}", easein_out_animation->value()),
+         std::format("{:4.4f}", elastic_animation->value()),
+         std::format("{:4.4f}", bounce_animation->value()),
+         std::format("{:4.4f}", spring_animation->value())});
+
+    auto &_keyframe_animation = manager.get_table("Keyframe");
+    _keyframe_animation.clear_rows();
+    _keyframe_animation.add_row({"0.0000", "0.0000", "0.0000"});
 
     ui.update(manager.render());
 
-    if(easein_out_animation->value() == 10.0f){
+    if (easein_out_animation->value() == easein_out_animation->end)
+    {
+      animator->pause_all();
       animator->clear();
       break;
     }

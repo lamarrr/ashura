@@ -4,39 +4,6 @@
 namespace ash
 {
 
-template struct Animation<f32>;
-
-template <Animatable T>
-void Animation<T>::play()
-{
-  state.is_playing = true;
-  last_update_time = Clock::now();
-}
-template <Animatable T>
-void Animation<T>::pause()
-{
-  state.is_playing = false;
-}
-template <Animatable T>
-void Animation<T>::resume()
-{
-  if (!state.is_playing)
-  {
-    last_update_time = Clock::now();
-    state.is_playing = true;
-  }
-}
-template <Animatable T>
-void Animation<T>::reset()
-{
-  is_reset = true;
-}
-template <Animatable T>
-bool Animation<T>::is_playing() const
-{
-  return state.is_playing;
-}
-
 template <Animatable T>
 void Animation<T>::run(Duration delta)
 {
@@ -67,27 +34,9 @@ void Animation<T>::run(Duration delta)
   }
 
   // Convert time to float for easing calculations
-  float t = std::chrono::duration<float>(state.current_time) /
-            std::chrono::duration<float>(config.duration);
+  f32 t =  std::chrono::duration<f32>(state.current_time) / std::chrono::duration<f32>(config.duration);
 
-  float easedT = 0.0f;
-  switch (config.easing)
-  {
-    case CurveType::EaseIn:
-      easedT = ease_in<float>(t);
-      break;
-    case CurveType::EaseOut:
-      easedT = ease_out<float>(t);
-      break;
-    case CurveType::EaseInOut:
-      easedT = ease_in_out<float>(t);
-      break;
-    default:
-      easedT = linear<float>(t);
-      break;
-  }
-
-  current_value = lerp(start, end, easedT);
+  current_value = config.easing.evaluate(this->start, this->end, t);
 
   if (is_reset)
   {
@@ -166,59 +115,54 @@ void AnimationManager::reset_all()
 
 // Timeline
 
-template <typename T>
-Timeline<T> &Timeline<T>::reserve(u32 size)
+Timeline &Timeline::reserve(u32 size)
 {
   segments.reserve(size);
 }
 
-template <typename T>
-void Timeline<T>::clear()
+void Timeline::clear()
 {
   segments.clear();
 }
 
-template <typename T>
-Timeline<T> &Timeline<T>::add(const T &start, const T &end,
-                              AnimationConfig config)
+template <Animatable T>
+Timeline &Timeline::add(const T &start, const T &end, AnimationConfig<T> config)
 {
-  auto segment       = std::make_shared<BasicSegment<T>>(start, end, config);
-  segment->label     = config.label;
-  segment->startTime = total_duration;
+  auto segment        = std::make_shared<BasicSegment<T>>(start, end, config);
+  segment->label      = config.label;
+  segment->start_time = total_duration;
   total_duration += segment->duration;
   segments.push_back(segment);
   return *this;
 }
 
-template <typename T>
-Timeline<T> &Timeline<T>::add(const std::vector<KeyFrame<T>> &keyframes,
-                              std::optional<Span<const char>> label)
+template <Animatable T>
+Timeline &Timeline::add(const std::vector<KeyFrame<T>> &keyframes,
+                        const Span<const char>          label)
 {
   auto segment = std::make_shared<KeyFrameSegment<T>>(keyframes);
-  if (label.has_value())
-  {
-    segment->label = label.value();
-  }
-  segment->startTime = total_duration;
+
+  segment->label      = label;
+  segment->start_time = total_duration;
   total_duration += segment->duration;
   segments.push_back(segment);
   return *this;
 }
 
-template <typename T>
-Timeline<T> &Timeline<T>::parallel(const std::vector<AnimationConfig> &configs,
-                                   const std::vector<std::pair<T, T>> &values)
+template <Animatable T>
+Timeline &Timeline::parallel(const std::vector<AnimationConfig<T>>  &configs,
+                             const std::vector<std::pair<f32, f32>> &values)
 {
   Duration max_duration = Duration::zero();
   Duration start_time   = total_duration;
 
   for (size_t i = 0; i < configs.size(); ++i)
   {
-    auto segment = std::make_shared<BasicSegment<T>>(
-        values[i].first, values[i].second, configs[i]);
-    segment->label = configs[i].label;
-    segment->start = start_time;
-    segment->type  = SegmentType::Parallel;
+    auto segment        = std::make_shared<BasicSegment>(values[i].first,
+                                                         values[i].second, configs[i]);
+    segment->label      = configs[i].label;
+    segment->start_time = start_time;
+    segment->type       = SegmentType::Parallel;
     segments.push_back(segment);
     max_duration = std::max(max_duration, configs[i].duration);
   }
@@ -227,25 +171,25 @@ Timeline<T> &Timeline<T>::parallel(const std::vector<AnimationConfig> &configs,
   return *this;
 }
 
-template <typename T>
-Timeline<T> &Timeline<T>::stagger(const T &start, const T &end,
-                                  AnimationConfig config, size_t count,
-                                  const StaggerOptions &stagger_opts)
+template <Animatable T>
+Timeline &Timeline::stagger(const f32 &start, const f32 &end,
+                            AnimationConfig<T> config, u32 count,
+                            const StaggerPattern &stagger_pattern)
 {
   Duration base_delay = Duration::zero();
   Duration start_time = total_duration;
 
   for (size_t i = 0; i < count; ++i)
   {
-    base_delay = stagger_delay(i, count, stagger_opts);
+    base_delay = stagger_pattern.delay(i, count);
   }
 
-  Duration delay = stagger_opts.start + base_delay;
+  Duration delay = stagger_pattern.start + base_delay;
 
   auto segment_config  = config;
   segment_config.delay = delay;
 
-  auto segment = std::make_shared<BasicSegment<T>>(start, end, segment_config);
+  auto segment = std::make_shared<BasicSegment>(start, end, segment_config);
   segment->start_time = start_time;
   segment->type       = SegmentType::Staggered;
   segment->label      = config.label;
@@ -254,8 +198,7 @@ Timeline<T> &Timeline<T>::stagger(const T &start, const T &end,
   return *this;
 }
 
-template <typename T>
-void Timeline<T>::update()
+void Timeline::update()
 {
   if (!is_playing)
     return;
@@ -306,15 +249,13 @@ void Timeline<T>::update()
   update_segments(adjusted_delta);
 }
 
-template <typename T>
-void Timeline<T>::play()
+void Timeline::play()
 {
   is_playing       = true;
   last_update_time = Clock::now();
 }
 
-template <typename T>
-void Timeline<T>::play_from_start()
+void Timeline::play_from_start()
 {
   for (auto &segment : segments)
   {
@@ -326,8 +267,7 @@ void Timeline<T>::play_from_start()
   last_update_time = Clock::now();
 }
 
-template <typename T>
-void Timeline<T>::play_from_end()
+void Timeline::play_from_end()
 {
   for (auto &segment : segments)
   {
@@ -339,14 +279,12 @@ void Timeline<T>::play_from_end()
   last_update_time = Clock::now();
 }
 
-template <typename T>
-void Timeline<T>::pause()
+void Timeline::pause()
 {
   is_playing = false;
 }
 
-template <typename T>
-void Timeline<T>::resume()
+void Timeline::resume()
 {
   if (!is_playing)
   {
@@ -354,8 +292,7 @@ void Timeline<T>::resume()
   }
 }
 
-template <typename T>
-void Timeline<T>::stop()
+void Timeline::stop()
 {
   is_playing     = false;
   current_time   = Duration::zero();
@@ -366,8 +303,7 @@ void Timeline<T>::stop()
   }
 }
 
-template <typename T>
-void Timeline<T>::seek(Duration time)
+void Timeline::seek(Duration time)
 {
   Duration target_time = std::clamp(time, Duration::zero(), total_duration);
 
@@ -390,21 +326,21 @@ void Timeline<T>::seek(Duration time)
   current_time = target_time;
 }
 
-template <typename T>
-Timeline<T>::SegmentPtr Timeline<T>::get_segment(Span<const char> label)
+std::optional<Timeline::SegmentPtr>
+    Timeline::get_segment(Span<const char> label)
 {
   auto filter_segment = [&label](SegmentPtr seg) {
-    return seg->get_label().compare(label);
+    return seg->get_label().data() == label.data();
   };
-  if (SegmentPtr result = std::ranges::find_if(segments, filter_segment);
-      result != segments->end())
+  if (auto result = std::ranges::find_if(segments, filter_segment);
+      result != segments.end())
   {
-    return result;
+    return *result;
   }
+  return std::nullopt;
 }
 
-template <typename T>
-void Timeline<T>::update_segments(Duration delta)
+void Timeline::update_segments(Duration delta)
 {
   for (auto &segment : segments)
   {
@@ -420,7 +356,7 @@ void Timeline<T>::update_segments(Duration delta)
     else
     {
       // Reverse playback
-      Duration segment_end = segment->startTime + segment->duration;
+      Duration segment_end = segment->start_time + segment->duration;
       if (current_time <= segment_end && current_time >= segment->start_time)
       {
         segment->update(current_time, delta);
@@ -430,16 +366,9 @@ void Timeline<T>::update_segments(Duration delta)
 }
 
 template <Animatable T>
-void BasicSegment<T>::update(Duration current_time, Duration delta)
-{
-  animation.update(current_time, delta);
-  this->interpolated_value = animation.current_value;
-}
-
-template <Animatable T>
 void KeyFrameSegment<T>::calculate_duration()
 {
-  this->duration = 0.0f;
+  this->duration = Duration::zero();
   for (const auto &kf : keyframes)
   {
     this->duration += kf.duration;
@@ -465,9 +394,9 @@ void KeyFrameSegment<T>::update(Duration _time, Duration delta)
       const auto        &next_kf    = keyframes[i + 1];
 
       Duration local_start_time = accumulated_time - current_kf.duration;
-      Duration local_time =
-          (current_time - local_start_time) / current_kf.duration;
-      f32 eased_time = current_kf.get_ease_fn(local_time);
+      f32      local_time = (current_time.count() - local_start_time.count()) /
+                       current_kf.duration.count();
+      f32 eased_time = current_kf.evaluate_ease_fn(local_time);
 
       this->interpolated_value =
           lerp(current_kf.value, next_kf.value, eased_time);
