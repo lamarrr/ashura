@@ -34,7 +34,8 @@ void Animation<T>::run(Duration delta)
   }
 
   // Convert time to float for easing calculations
-  f32 t =  std::chrono::duration<f32>(state.current_time) / std::chrono::duration<f32>(config.duration);
+  f32 t = std::chrono::duration<f32>(state.current_time) /
+          std::chrono::duration<f32>(config.duration);
 
   current_value = config.easing.evaluate(this->start, this->end, t);
 
@@ -73,10 +74,7 @@ void AnimationManager::tick()
 {
   for (auto &anim : animations)
   {
-    if (auto ianim = std::static_pointer_cast<IAnimation>(anim))
-    {
-      ianim->tick();
-    }
+    anim->tick();
   }
 }
 
@@ -84,10 +82,7 @@ void AnimationManager::play_all()
 {
   for (auto &anim : animations)
   {
-    if (auto ianim = std::static_pointer_cast<IAnimation>(anim))
-    {
-      ianim->play();
-    }
+    anim->play();
   }
 }
 
@@ -95,10 +90,7 @@ void AnimationManager::pause_all()
 {
   for (auto &anim : animations)
   {
-    if (auto ianim = std::static_pointer_cast<IAnimation>(anim))
-    {
-      ianim->pause();
-    }
+    anim->pause();
   }
 }
 
@@ -106,10 +98,7 @@ void AnimationManager::reset_all()
 {
   for (auto &anim : animations)
   {
-    if (auto ianim = std::static_pointer_cast<IAnimation>(anim))
-    {
-      ianim->reset();
-    }
+    anim->reset();
   }
 }
 

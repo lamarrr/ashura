@@ -335,7 +335,7 @@ public:
 struct AnimationManager
 {
 private:
-  std::vector<std::shared_ptr<IAnimation>> animations;
+  std::vector<std::unique_ptr<IAnimation>> animations;
 
 public:
   void reserve(u32 size);
@@ -343,12 +343,12 @@ public:
   void clear();
 
   template <Animatable T>
-  std::shared_ptr<Animation<T>> create(T start, T end,
-                                       AnimationConfig<T> config)
+  Animation<T> *create(T start, T end, AnimationConfig<T> config)
   {
-    auto anim = std::make_shared<Animation<T>>(start, end, config);
-    animations.push_back(anim);
-    return anim;
+    auto          anim = std::make_unique<Animation<T>>(start, end, config);
+    Animation<T> *ptr  = anim.get();        // Get raw pointer before moving
+    animations.push_back(std::move(anim));
+    return ptr;
   }
 
   void tick();
@@ -377,11 +377,11 @@ public:
   }
 
   template <Animatable T>
-  std::shared_ptr<Animation<T>> get_animation(usize index)
+  Animation<T> *get_animation(usize index)
   {
     if (index >= animations.size())
       return nullptr;
-    return std::dynamic_pointer_cast<Animation<T>>(animations[index]);
+    return &animations[index];
   }
 };
 
