@@ -938,6 +938,7 @@ public:
 
   void reset_all();
 
+  // stagger implementation for simple animations
   template <Animatable T>
   void stagger(const f32 &start, const f32 &end,
                const AnimationConfig<T> &base_config, usize count,
@@ -950,8 +951,28 @@ public:
       auto config  = base_config;
       config.delay = stagger_pattern.start + base_delay;
 
-      auto anim = create(start, end, config);
+      auto *anim = create(start, end, config);
       anim->play();
+    }
+  }
+
+  // stagger implementation for keyframe animations
+  template <Animatable T>
+  void stagger(const f32 &start, const f32 &end,
+               const TimelineOptions          &base_config,
+               const std::vector<KeyFrame<T>> &keyframes, usize count,
+               const StaggerPattern &stagger_pattern = StaggerPatternDefault{})
+  {
+    for (u32 i = 0; i < count; ++i)
+    {
+      Duration base_delay = stagger_pattern.delay(i, count);
+
+      auto config  = base_config;
+      config.delay = stagger_pattern.start + base_delay;
+
+      auto *timeline = create(config);
+      timeline->add(keyframes);
+      timeline->play();
     }
   }
 
