@@ -60,19 +60,42 @@ void Animation<T>::update(Duration _time, Duration delta)
   run(delta);
 }
 
-void AnimationManager::reserve(u32 size)
+void AnimationManager::reserve(u32 count)
 {
-  animations.reserve(size);
+  animations.reserve(count);
+
+  usize max_size      = std::max(sizeof(Timeline), sizeof(Animation<Vec4>));
+  usize required_size = count * max_size;
+
+  if (required_size > pool_size)
+  {
+    u8 *new_pool = new u8[required_size];
+    if (memory_pool)
+    {
+      std::memcpy(new_pool, memory_pool, pool_size);
+      delete[] memory_pool;
+    }
+    memory_pool = new_pool;
+    pool_size   = required_size;
+  }
 }
 
 void AnimationManager::clear()
 {
+  for (auto *anim : animations)
+  {
+    if (anim)
+    {
+      anim->~IAnimation();
+    }
+  }
   animations.clear();
+  pool_offset = 0;
 }
 
 void AnimationManager::tick()
 {
-  for (auto &anim : animations)
+  for (auto *anim : animations)
   {
     anim->tick();
   }
@@ -80,7 +103,7 @@ void AnimationManager::tick()
 
 void AnimationManager::play_all()
 {
-  for (auto &anim : animations)
+  for (auto *anim : animations)
   {
     anim->play();
   }
@@ -88,7 +111,7 @@ void AnimationManager::play_all()
 
 void AnimationManager::pause_all()
 {
-  for (auto &anim : animations)
+  for (auto *anim : animations)
   {
     anim->pause();
   }
@@ -96,7 +119,7 @@ void AnimationManager::pause_all()
 
 void AnimationManager::reset_all()
 {
-  for (auto &anim : animations)
+  for (auto *anim : animations)
   {
     anim->reset();
   }
@@ -107,6 +130,7 @@ void AnimationManager::reset_all()
 Timeline &Timeline::reserve(u32 size)
 {
   segments.reserve(size);
+  return *this;
 }
 
 void Timeline::clear()
@@ -187,9 +211,9 @@ Timeline &Timeline::stagger(const f32 &start, const f32 &end,
   return *this;
 }
 
-void Timeline::update()
+void Timeline::tick()
 {
-  if (!is_playing)
+  if (!is_playing_)
     return;
 
   auto     current_time_point = Clock::now();
@@ -213,7 +237,7 @@ void Timeline::update()
     else
     {
       current_time = total_duration;
-      is_playing   = false;
+      is_playing_  = false;
     }
   }
   else if (time_direction < 0 && current_time <= Duration::zero())
@@ -231,7 +255,7 @@ void Timeline::update()
     else
     {
       current_time = Duration::zero();
-      is_playing   = false;
+      is_playing_  = false;
     }
   }
 
@@ -240,7 +264,7 @@ void Timeline::update()
 
 void Timeline::play()
 {
-  is_playing       = true;
+  is_playing_      = true;
   last_update_time = Clock::now();
 }
 
@@ -252,7 +276,7 @@ void Timeline::play_from_start()
   }
   current_time     = Duration::zero();
   time_direction   = 1.0f;
-  is_playing       = true;
+  is_playing_      = true;
   last_update_time = Clock::now();
 }
 
@@ -264,18 +288,18 @@ void Timeline::play_from_end()
   }
   current_time     = total_duration;
   time_direction   = -1.0f;
-  is_playing       = true;
+  is_playing_      = true;
   last_update_time = Clock::now();
 }
 
 void Timeline::pause()
 {
-  is_playing = false;
+  is_playing_ = false;
 }
 
 void Timeline::resume()
 {
-  if (!is_playing)
+  if (!is_playing_)
   {
     play();
   }
@@ -283,13 +307,23 @@ void Timeline::resume()
 
 void Timeline::stop()
 {
-  is_playing     = false;
+  is_playing_    = false;
   current_time   = Duration::zero();
   time_direction = 1.0f;
   for (auto &segment : segments)
   {
     segment->reset();
   }
+}
+
+void Timeline::reset()
+{
+  stop();
+}
+
+bool Timeline::is_playing() const
+{
+  return is_playing_;
 }
 
 void Timeline::seek(Duration time)

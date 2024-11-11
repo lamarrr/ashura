@@ -268,123 +268,6 @@ public:
   void update(Duration _time, Duration delta);
 };
 
-// Animation utility to create and manage or more animatins.
-// - play animations
-// - pause animations
-// - reset animations
-// - staggered animations
-// - set a callback function to track animation updates
-// ```
-// AnimationManager animator;
-//
-// auto anim1 = animator.create<Vec2>(
-//     start_pos,
-//     end_pos,
-//     AnimationConfig{.duration = 1000ms, .loop = true, .easing =
-//     CurveType::EaseInOut},
-// );
-//
-// auto anim2 = animator.create<Vec2>(
-//     start_pos,
-//     end_pos,
-//     AnimationConfig{.duration = 1000ms, .loop = true, .easing =
-//     CurveType::EaseInOut},
-// );
-//
-// // Play individual animation
-// animator.get_animation(0).play();
-// animator.get_animation(1).play();
-// // Or play all the animations
-// animator.play_all();
-//
-// // Get value from animation
-// anim1_value = animator.get_animation(0).value();
-// anim2_value = animator.get_animation(1).value();
-// ```
-//
-//
-// ### Staggered (Grid) animations
-//--------
-// ### Example: Ripple Pattern Animation
-//```
-// struct RipplePattern:StaggerPattern {
-//  Duration delay(u32 index, u32 total_count) const override {
-//    f32 center_row = 1.5f;
-//    f32 center_col = 1.5f;
-//    f32 distance = std::sqrt(
-//         std::pow(row - center_row, 2) +
-//         std::pow(col - center_col, 2)
-//     );
-//    return Duration{std::chrono::seconds(distance * 0.15f)};
-//  }
-//}
-// animator.stagger<f32>(
-//  0.0f, // start
-//  1.0f, // end
-//  AnimationConfig{.duration = 1000ms, .loop = true},
-//  10, // total count
-//  RipplePattern{.grid = {.rows = 4, .cols = 4}}
-//);
-//
-// // Get the staggered animations
-// auto anim1 = animator.get_animation(0); // get animation at index 0
-// auto anim1_value = anim1.value(); // get the value at anim1
-// auto anim2 = animator.get_animation(1); // get animation at index 1
-// auto anim2_value = anim2.value(); // get the value at anim2
-//```
-struct AnimationManager
-{
-private:
-  std::vector<std::unique_ptr<IAnimation>> animations;
-
-public:
-  void reserve(u32 size);
-
-  void clear();
-
-  template <Animatable T>
-  Animation<T> *create(T start, T end, AnimationConfig<T> config)
-  {
-    auto          anim = std::make_unique<Animation<T>>(start, end, config);
-    Animation<T> *ptr  = anim.get();        // Get raw pointer before moving
-    animations.push_back(std::move(anim));
-    return ptr;
-  }
-
-  void tick();
-
-  void play_all();
-
-  void pause_all();
-
-  void reset_all();
-
-  template <Animatable T>
-  void stagger(const f32 &start, const f32 &end,
-               const AnimationConfig<T> &base_config, usize count,
-               const StaggerPattern &stagger_pattern = StaggerPatternDefault{})
-  {
-    for (u32 i = 0; i < count; ++i)
-    {
-      Duration base_delay = stagger_pattern.delay(i, count);
-
-      auto config  = base_config;
-      config.delay = stagger_pattern.start + base_delay;
-
-      auto anim = create(start, end, config);
-      anim->play();
-    }
-  }
-
-  template <Animatable T>
-  Animation<T> *get_animation(usize index)
-  {
-    if (index >= animations.size())
-      return nullptr;
-    return &animations[index];
-  }
-};
-
 template <Animatable T>
 struct KeyFrame
 {
@@ -527,7 +410,7 @@ struct KeyFrameSegment : TimelineSegment
 //     .stagger(start, end, config, count);      // Staggered animations
 // ```
 
-struct Timeline
+struct Timeline : IAnimation
 {
   using SegmentPtr = std::shared_ptr<TimelineSegment>;
 
@@ -535,7 +418,7 @@ struct Timeline
   TimelineOptions         options;
   Duration                current_time{Duration::zero()};
   Duration                total_duration{Duration::zero()};
-  bool                    is_playing     = false;
+  bool                    is_playing_    = false;
   f32                     time_direction = 1.0f;
   TimePoint               last_update_time;
 
@@ -544,8 +427,13 @@ struct Timeline
     last_update_time = Clock::now();
     if (options.autoplay)
     {
-      is_playing = true;
+      is_playing_ = true;
     }
+  }
+
+  ~Timeline()
+  {
+    clear();
   }
 
   Timeline &reserve(u32 size);
@@ -567,18 +455,21 @@ struct Timeline
               u32                   count,
               const StaggerPattern &stagger_opts = StaggerPatternDefault{});
 
-  void update();
+  void tick() override;
 
-  void play();
+  void play() override;
 
   void play_from_start();
 
   void play_from_end();
 
-  void pause();
-  void resume();
+  void pause() override;
+  void resume() override;
 
   void stop();
+  void reset() override;
+
+  bool is_playing() const override;
 
   void seek(Duration time);
 
@@ -883,6 +774,193 @@ struct Easing
     {
       return anim::lerp(start, end, T(t));        // Convert t to type T
     }
+  }
+};
+
+// Animation utility to create and manage one or more animations or timelines.
+// - play animations
+// - pause animations
+// - reset animations
+// - staggered animations
+// - set a callback function to track animation updates
+// ```
+// AnimationManager animator;
+//
+// auto anim1 = animator.create<Vec2>(
+//     start_pos,
+//     end_pos,
+//     AnimationConfig{.duration = 1000ms, .loop = true, .easing =
+//     CurveType::EaseInOut},
+// );
+//
+// auto anim2 = animator.create<Vec2>(
+//     start_pos,
+//     end_pos,
+//     AnimationConfig{.duration = 1000ms, .loop = true, .easing =
+//     CurveType::EaseInOut},
+// );
+//
+// // Play individual animation
+// animator.get_animation(0).play();
+// animator.get_animation(1).play();
+// // Or play all the animations
+// animator.play_all();
+//
+// // Get value from animation
+// anim1_value = animator.get_animation(0).value();
+// anim2_value = animator.get_animation(1).value();
+// ```
+//
+//
+// ### Staggered (Grid) animations
+//--------
+// ### Example: Ripple Pattern Animation
+//```
+// struct RipplePattern:StaggerPattern {
+//  Duration delay(u32 index, u32 total_count) const override {
+//    f32 center_row = 1.5f;
+//    f32 center_col = 1.5f;
+//    f32 distance = std::sqrt(
+//         std::pow(row - center_row, 2) +
+//         std::pow(col - center_col, 2)
+//     );
+//    return Duration{std::chrono::seconds(distance * 0.15f)};
+//  }
+//}
+// animator.stagger<f32>(
+//  0.0f, // start
+//  1.0f, // end
+//  AnimationConfig{.duration = 1000ms, .loop = true},
+//  10, // total count
+//  RipplePattern{.grid = {.rows = 4, .cols = 4}}
+//);
+//
+// // Get the staggered animations
+// auto anim1 = animator.get_animation(0); // get animation at index 0
+// auto anim1_value = anim1.value(); // get the value at anim1
+// auto anim2 = animator.get_animation(1); // get animation at index 1
+// auto anim2_value = anim2.value(); // get the value at anim2
+//```
+struct AnimationManager
+{
+private:
+  static constexpr usize    INITIAL_POOL_SIZE = 32;
+  std::vector<IAnimation *> animations;
+  u8                       *memory_pool = nullptr;
+  usize                     pool_size   = 0;
+  usize                     pool_offset = 0;
+
+  void grow_pool()
+  {
+    usize new_size = pool_size * 2;
+    u8   *new_pool = new u8[new_size];
+
+    if (memory_pool)
+    {
+      std::memcpy(new_pool, memory_pool, pool_size);
+      delete[] memory_pool;
+    }
+
+    memory_pool = new_pool;
+    pool_size   = new_size;
+  }
+
+public:
+  AnimationManager()
+  {
+    // Size for largest possible animation type?
+    pool_size =
+        INITIAL_POOL_SIZE * std::max(sizeof(Timeline), sizeof(Animation<Vec4>));
+    memory_pool = new u8[pool_size];
+    pool_offset = 0;
+  }
+
+  ~AnimationManager()
+  {
+    clear();
+    delete[] memory_pool;
+  }
+
+  // Non-copyable
+  AnimationManager(const AnimationManager &)            = delete;
+  AnimationManager &operator=(const AnimationManager &) = delete;
+
+  // Movable
+  AnimationManager(AnimationManager &&other) noexcept;
+  AnimationManager &operator=(AnimationManager &&other) noexcept;
+
+  void reserve(u32 size);
+
+  void clear();
+
+  template <Animatable T>
+  Animation<T> *create(T start, T end, AnimationConfig<T> config)
+  {
+    constexpr usize size = sizeof(Animation<T>);
+
+    if (pool_offset + size > pool_size)
+    {
+      grow_pool();
+    }
+
+    void *memory = memory_pool + pool_offset;
+    pool_offset += size;
+
+    Animation<T> *anim = new (memory) Animation<T>(start, end, config);
+    animations.push_back(anim);
+
+    return anim;
+  }
+
+  Timeline *create(const TimelineOptions &options = TimelineOptions{})
+  {
+    constexpr usize size = sizeof(Timeline);
+
+    if (pool_offset + size > pool_size)
+    {
+      grow_pool();
+    }
+
+    void *memory = memory_pool + pool_offset;
+    pool_offset += size;
+
+    Timeline *timeline = new (memory) Timeline(options);
+    animations.push_back(timeline);
+
+    return timeline;
+  }
+
+  void tick();
+
+  void play_all();
+
+  void pause_all();
+
+  void reset_all();
+
+  template <Animatable T>
+  void stagger(const f32 &start, const f32 &end,
+               const AnimationConfig<T> &base_config, usize count,
+               const StaggerPattern &stagger_pattern = StaggerPatternDefault{})
+  {
+    for (u32 i = 0; i < count; ++i)
+    {
+      Duration base_delay = stagger_pattern.delay(i, count);
+
+      auto config  = base_config;
+      config.delay = stagger_pattern.start + base_delay;
+
+      auto anim = create(start, end, config);
+      anim->play();
+    }
+  }
+
+  template <Animatable T>
+  Animation<T> *get_animation(usize index)
+  {
+    if (index >= animations.size())
+      return nullptr;
+    return &animations[index];
   }
 };
 
