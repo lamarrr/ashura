@@ -637,9 +637,9 @@ constexpr Easing<T> elastic(f32 amplitude = 1.0f, f32 period = 0.3f)
                      const f32 TWO_PI = 2.0f * M_PI;
 
                      if (t <= 0)
-                       return 0.0f;
+                       return start;
                      if (t >= 1)
-                       return 1.0f;
+                       return end;
 
                      f32 s = period / TWO_PI * std::asin(1 / amplitude);
 
@@ -714,14 +714,16 @@ constexpr Easing<T> spring(f32 mass = 1.0f, f32 stiffness = 20.0f,
         // Calculate critical damping factors
         f32 omega0           = std::sqrt(stiffness / mass);
         f32 critical_damping = 2.0f * std::sqrt(mass * stiffness);
-        f32 zeta             = damping / critical_damping;
+        f32 zeta = damping / critical_damping;        // damping ratio
 
         if (zeta < 1.0f)
         {        // Underdamped
-          f32 omega_d = omega0 * std::sqrt(1.0f - zeta * zeta);
-          return 1.0f - std::exp(-zeta * omega0 * t) *
-                            (std::cos(omega_d * t) +
-                             (zeta * omega0 / omega_d) * std::sin(omega_d * t));
+          f32  omega_d = omega0 * std::sqrt(1.0f - zeta * zeta);
+          auto factor =
+              1.0f - std::exp(-zeta * omega0 * t) *
+                         (std::cos(omega_d * t) +
+                          (zeta * omega0 / omega_d) * std::sin(omega_d * t));
+          return lerp(start, end, factor);
         }
         // Overdamped or critically damped
         f32  alpha = -zeta * omega0;
