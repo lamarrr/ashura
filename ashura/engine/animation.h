@@ -570,55 +570,43 @@ inline Vec4U8 lerp(const Vec4U8 &start, const Vec4U8 &end, f32 t)
 }
 
 template <Animatable T>
-T linear_ease(const T &start, const T &end, f32 *params)
-{
-  f32 t = params[0];
-  return lerp(start, end, t);
-}
-
-template <Animatable T>
-T ease_in_quad_t(const T &start, const T &end, f32 *params)
-{
-  f32 t = params[0];
-  return lerp(start, end, ash::ease_in(t));
-}
-
-template <Animatable T>
-T ease_out_quad_t(const T &start, const T &end, f32 *params)
-{
-  f32 t = params[0];
-  return lerp(start, end, ash::ease_out(t));
-}
-
-template <Animatable T>
-T ease_in_out_quad_t(const T &start, const T &end, f32 *params)
-{
-  f32 t = params[0];
-  return lerp(start, end, ash::ease_in_out(t));
-}
-
-template <Animatable T>
 constexpr Easing<T> linear()
 {
-  return Easing{.params = {}, .easing = linear_ease<T>};
+  return Easing<T>{.params = {},
+                .easing = [](const T &start, const T &end, f32 *params) {
+                  f32 t = params[0];
+                  return lerp(start, end, ash::linear(t));
+                }};
 }
 
 template <Animatable T>
-constexpr Easing<T> ease_in_quad()
+constexpr Easing<T> ease_in()
 {
-  return Easing{.params = {}, .easing = ease_in_quad_t<T>};
+  return Easing<T>{.params = {},
+                .easing = [](const T &start, const T &end, f32 *params) {
+                  f32 t = params[0];
+                  return lerp(start, end, ash::ease_in(t));
+                }};
 }
 
 template <Animatable T>
-constexpr Easing<T> ease_out_quad()
+constexpr Easing<T> ease_out()
 {
-  return Easing{.params = {}, .easing = ease_out_quad_t<T>};
+  return Easing<T>{.params = {},
+                .easing = [](const T &start, const T &end, f32 *params) {
+                  f32 t = params[0];
+                  return lerp(start, end, ash::ease_out(t));
+                }};
 }
 
 template <Animatable T>
-constexpr Easing<T> ease_in_out_quad()
+constexpr Easing<T> ease_in_out()
 {
-  return Easing{.params = {}, .easing = ease_in_out_quad_t<T>};
+  return Easing<T>{.params = {},
+                .easing = [](const T &start, const T &end, f32 *params) {
+                  f32 t = params[0];
+                  return lerp(start, end, ash::ease_in_out(t));
+                }};
 }
 
 // Based on Robert Penner's elastic easing:
@@ -769,6 +757,43 @@ struct Easing
       return anim::lerp(start, end, T(t));        // Convert t to type T
     }
   }
+
+  // TODO: More Easing functions , see https://github.com/EmmanuelOga/easing
+  // - outInQuad
+  // - inCubic 
+  // - outCubic 
+  // - inOutCubic 
+  // - outInCubic
+  // - inQuart 
+  // - outQuart 
+  // - inOutQuart 
+  // - outInQuart 
+  // - inQuint 
+  // - outQuint
+  // - inOutQuint 
+  // - outInQuint 
+  // - inSine 
+  // - outSine
+  // - inOutSine
+  // - outInSine 
+  // - inExpo
+  // - outExpo
+  // - inOutExpo
+  // - outInExpo
+  // - inCirc
+  // - outCirc
+  // - inOutCirc
+  // - outInCirc 
+  // - outElastic 
+  // - inOutElastic
+  // - outInElastic 
+  // - inBack
+  // - outBack
+  // - inOutBack
+  // - outInBack 
+  // - inBounce 
+  // - inOutBounce 
+  // - outInBounce
 };
 
 // Animation utility to create and manage one or more animations or timelines.
