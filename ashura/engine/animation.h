@@ -57,15 +57,6 @@ static inline Duration get_delta(const TimePoint &current,
   return std::chrono::duration_cast<Duration>(current - previous);
 }
 
-enum class CurveType
-{
-  Linear    = 0,
-  EaseIn    = 1,
-  EaseOut   = 2,
-  EaseInOut = 3,
-  Custom    = 4
-};
-
 template <Animatable T>
 struct AnimationConfig
 {
@@ -170,7 +161,7 @@ struct IAnimation
   virtual bool is_playing() const = 0;
 };
 
-// Simple linear animation: perform basic interpolation on opacity, color,
+// Simple animation: perform basic interpolation on opacity, color,
 // rotation etc.
 // - play
 // - pause
@@ -185,7 +176,7 @@ struct IAnimation
 //  0.0f, // start
 //  10.0f, // end
 //  AnimationConfig{.duration = 2000ms, .loop = true, .easing =
-//  CurveType::EaseInOut},
+//  ash::anim::ease_in_out_quad<Vec2>()},
 //);
 // anim.play();
 //
@@ -381,9 +372,10 @@ struct KeyFrameSegment : TimelineSegment
 // Timeline<Vec2> timeline(options);
 //
 // std::vector<KeyFrame<Vec2>> keyframes = {
-//     KeyFrame<Vec2>(500ms, "start", {0, 100.0f}, CurveType::EaseInOut),
-//     KeyFrame<Vec2>(500ms, "middle", {150.0f, 50.0f}, CurveType::EaseInOut),
-//     KeyFrame<Vec2>(500ms, "end", {0, 200.0f}, CurveType::EaseInOut)
+//     KeyFrame<Vec2>(500ms, "start", {0, 100.0f},
+//     ash::anim::ease_in_out_quad<Vec2>()), KeyFrame<Vec2>(500ms, "middle",
+//     {150.0f, 50.0f}, ash::anim::ease_out_quad<Vec2>()), KeyFrame<Vec2>(500ms,
+//     "end", {0, 200.0f}, ash::anim::ease_in_out_quad<Vec2>())
 // };
 //
 // timeline.add(keyframes);
@@ -790,14 +782,14 @@ struct Easing
 //     start_pos,
 //     end_pos,
 //     AnimationConfig{.duration = 1000ms, .loop = true, .easing =
-//     CurveType::EaseInOut},
+//     ash::anim::ease_in_out_quad<Vec2>()},
 // );
 //
 // auto anim2 = animator.create<Vec2>(
 //     start_pos,
 //     end_pos,
 //     AnimationConfig{.duration = 1000ms, .loop = true, .easing =
-//     CurveType::EaseInOut},
+//     ash::anim::ease_in_out_quad<Vec2>()},
 // );
 //
 // // Play individual animation
@@ -958,8 +950,7 @@ public:
 
   // stagger implementation for keyframe animations
   template <Animatable T>
-  void stagger(const f32 &start, const f32 &end,
-               const TimelineOptions          &base_config,
+  void stagger(const TimelineOptions          &base_config,
                const std::vector<KeyFrame<T>> &keyframes, usize count,
                const StaggerPattern &stagger_pattern = StaggerPatternDefault{})
   {
