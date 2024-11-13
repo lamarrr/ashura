@@ -605,6 +605,12 @@ static constexpr std::size_t size(){
 
 
 
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
+
 
 };
 
@@ -663,6 +669,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -729,6 +741,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -803,6 +821,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -885,6 +909,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -975,6 +1005,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -1073,6 +1109,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -1179,6 +1221,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -1293,6 +1341,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -1415,6 +1469,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -1545,6 +1605,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -1683,6 +1749,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -1829,6 +1901,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -1983,6 +2061,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -2145,6 +2229,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -2315,6 +2405,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :
@@ -2493,6 +2589,12 @@ constexpr ~Enum()
 }
 
 
+
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}
 
 
 constexpr Enum(T0 v) :

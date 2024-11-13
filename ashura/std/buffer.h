@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/mem.h"
+#include "ashura/std/obj.h"
 #include "ashura/std/types.h"
 #include <atomic>
 
@@ -8,7 +9,7 @@ namespace ash
 {
 
 template <typename T>
-struct Buffer
+struct [[nodiscard]] Buffer
 {
   T    *data_     = nullptr;
   usize capacity_ = 0;
@@ -34,7 +35,7 @@ struct Buffer
     return size_ == 0;
   }
 
-  constexpr bool extend(Span<T const> in)
+  [[nodiscard]] constexpr bool extend(Span<T const> in)
   {
     if ((size_ + in.size()) > capacity_)
     {
@@ -62,7 +63,7 @@ constexpr Span<T> span(Buffer<T> buffer)
 
 /// @capacity: must be a non-zero power of 2
 template <typename T>
-struct RingBuffer
+struct [[nodiscard]] RingBuffer
 {
   T    *data_         = nullptr;
   usize capacity_     = 0;
@@ -84,7 +85,7 @@ struct RingBuffer
     return size_ == 0;
   }
 
-  constexpr bool try_consume(T *out)
+  [[nodiscard]] constexpr bool try_consume(T *out)
   {
     if (size_ == 0)
     {
@@ -99,7 +100,7 @@ struct RingBuffer
     return true;
   }
 
-  constexpr bool try_produce(T const &in)
+  [[nodiscard]] constexpr bool try_produce(T const &in)
   {
     if (size_ == capacity_)
     {
@@ -117,7 +118,7 @@ struct RingBuffer
 
 /// @param capacity must be a non-zero power of 2
 template <typename T>
-struct SPSCRingBuffer
+struct [[nodiscard]] SPSCRingBuffer
 {
   alignas(CACHELINE_ALIGNMENT) usize produce_next_ = 0;
   alignas(CACHELINE_ALIGNMENT) usize consume_next_ = 0;
@@ -130,7 +131,7 @@ struct SPSCRingBuffer
     return capacity_;
   }
 
-  bool try_consume(T *out)
+  [[nodiscard]] bool try_consume(T *out)
   {
     std::atomic_ref p{produce_next_};
     std::atomic_ref c{consume_next_};
@@ -152,7 +153,7 @@ struct SPSCRingBuffer
     return true;
   }
 
-  bool try_produce(T const &in)
+  [[nodiscard]] bool try_produce(T const &in)
   {
     std::atomic_ref p{produce_next_};
     std::atomic_ref c{consume_next_};

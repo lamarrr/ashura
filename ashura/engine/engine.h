@@ -60,7 +60,12 @@ struct Engine
 
   Font default_font = nullptr;
 
+  static void init();
+
+  static void uninit();
+
   Engine() = default;
+
   ~Engine();
 
   void run(void *app, View &view);

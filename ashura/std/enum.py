@@ -226,6 +226,12 @@ static constexpr std::size_t size(){{
 {storage_def}
 {base_constructors if size != 0 else ""}
 
+template<std::size_t I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args)
+{{
+    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+}}
+
 {"\n".join(value_constructors)}
 }};
 

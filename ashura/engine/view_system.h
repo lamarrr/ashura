@@ -103,8 +103,6 @@ struct ViewSystem
   Vec<u32>        z_ordering     = {};
   Vec<u32>        focus_ordering = {};
 
- 
-
   void clear()
   {
     views.clear();

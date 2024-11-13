@@ -529,7 +529,7 @@ void upload_font_to_device(Font font, GpuContext &c, AllocatorImpl allocator)
 
   gpu::Image image =
       d->create_image(
-           d.self, gpu::ImageDesc{.label  = "Font Atlas Image"_span,
+           d.self, gpu::ImageInfo{.label  = "Font Atlas Image"_span,
                                   .type   = gpu::ImageType::Type2D,
                                   .format = gpu::Format::B8G8R8A8_UNORM,
                                   .usage  = gpu::ImageUsage::Sampled |
@@ -553,7 +553,7 @@ void upload_font_to_device(Font font, GpuContext &c, AllocatorImpl allocator)
     views[i] =
         d->create_image_view(
              d.self,
-             gpu::ImageViewDesc{.label           = "Font Atlas Image View"_span,
+             gpu::ImageViewInfo{.label           = "Font Atlas Image View"_span,
                                 .image           = image,
                                 .view_type       = gpu::ImageViewType::Type2D,
                                 .view_format     = gpu::Format::B8G8R8A8_UNORM,
@@ -575,7 +575,7 @@ void upload_font_to_device(Font font, GpuContext &c, AllocatorImpl allocator)
   u64 const   atlas_size = atlas.channels.size() * (u64) 4;
   gpu::Buffer staging_buffer =
       d->create_buffer(
-           d.self, gpu::BufferDesc{.label = "Font Atlas Staging Buffer"_span,
+           d.self, gpu::BufferInfo{.label = "Font Atlas Staging Buffer"_span,
                                    .size  = atlas_size,
                                    .host_mapped = true,
                                    .usage = gpu::BufferUsage::TransferSrc |

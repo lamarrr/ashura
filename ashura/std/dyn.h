@@ -40,7 +40,7 @@ struct [[nodiscard]] Dyn
 
   constexpr Dyn &operator=(Dyn &&other)
   {
-    if (this == &other)
+    if (this == &other) [[unlikely]]
     {
       return *this;
     }
@@ -91,7 +91,7 @@ template <typename T, typename... Args>
 Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator, Args &&...args)
 {
   T *object;
-  if (!allocator.nalloc(1, object))
+  if (!allocator.nalloc(1, object)) [[unlikely]]
   {
     return Err{Void{}};
   }

@@ -27,8 +27,8 @@ constexpr u32 NUM_DEFAULT_SAMPLERS    = SAMPLER_NEAREST_CLAMPED + 1;
 
 struct FramebufferAttachment
 {
-  gpu::ImageDesc     desc      = {};
-  gpu::ImageViewDesc view_desc = {};
+  gpu::ImageInfo     info      = {};
+  gpu::ImageViewInfo view_info = {};
   gpu::Image         image     = nullptr;
   gpu::ImageView     view      = nullptr;
 };
@@ -44,23 +44,23 @@ struct Framebuffer
 
 struct SamplerHasher
 {
-  constexpr Hash operator()(gpu::SamplerDesc const &desc) const
+  constexpr Hash operator()(gpu::SamplerInfo const &info) const
   {
     return hash_combine_n(
-        (Hash) desc.mag_filter, (Hash) desc.min_filter,
-        (Hash) desc.mip_map_mode, (Hash) desc.address_mode_u,
-        (Hash) desc.address_mode_v, (Hash) desc.address_mode_w,
-        (Hash) desc.mip_lod_bias, (Hash) desc.anisotropy_enable,
-        (Hash) desc.max_anisotropy, (Hash) desc.compare_enable,
-        (Hash) desc.compare_op, (Hash) desc.min_lod, (Hash) desc.max_lod,
-        (Hash) desc.border_color, (Hash) desc.unnormalized_coordinates);
+        (Hash) info.mag_filter, (Hash) info.min_filter,
+        (Hash) info.mip_map_mode, (Hash) info.address_mode_u,
+        (Hash) info.address_mode_v, (Hash) info.address_mode_w,
+        (Hash) info.mip_lod_bias, (Hash) info.anisotropy_enable,
+        (Hash) info.max_anisotropy, (Hash) info.compare_enable,
+        (Hash) info.compare_op, (Hash) info.min_lod, (Hash) info.max_lod,
+        (Hash) info.border_color, (Hash) info.unnormalized_coordinates);
   }
 };
 
 struct SamplerEq
 {
-  constexpr Hash operator()(gpu::SamplerDesc const &a,
-                            gpu::SamplerDesc const &b) const
+  constexpr Hash operator()(gpu::SamplerInfo const &a,
+                            gpu::SamplerInfo const &b) const
   {
     return a.mag_filter == b.mag_filter && a.mip_map_mode == b.mip_map_mode &&
            a.address_mode_u == b.address_mode_u &&
@@ -82,7 +82,7 @@ struct CachedSampler
   u32          slot    = 0;
 };
 
-typedef HashMap<gpu::SamplerDesc, CachedSampler, SamplerHasher, SamplerEq, u32>
+typedef HashMap<gpu::SamplerInfo, CachedSampler, SamplerHasher, SamplerEq, u32>
     SamplerCache;
 
 /// @param color_format hdr if hdr supported and required.
@@ -170,7 +170,7 @@ struct GpuContext
   gpu::FrameId            tail_frame_id();
 
   Option<gpu::Shader> get_shader(Span<char const> name);
-  CachedSampler       create_sampler(gpu::SamplerDesc const &desc);
+  CachedSampler       create_sampler(gpu::SamplerInfo const &info);
 
   u32  alloc_texture_slot();
   void release_texture_slot(u32 slot);

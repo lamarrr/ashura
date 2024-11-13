@@ -4,7 +4,6 @@
 #include "ashura/std/types.h"
 #include <algorithm>
 
-
 namespace ash
 {
 

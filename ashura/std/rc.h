@@ -55,7 +55,7 @@ struct [[nodiscard]] Rc
 
   constexpr Rc &operator=(Rc &&other)
   {
-    if (this == &other)
+    if (this == &other) [[unlikely]]
     {
       return *this;
     }

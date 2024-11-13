@@ -12,8 +12,6 @@ namespace ash
 
 #define CHECKSdl(cond_expr) CHECK_DESC(cond_expr, "SDL Error: ", SDL_GetError())
 
-namespace sdl
-{
 struct WindowEventListener
 {
   Fn<void(WindowEvent const &)> callback = noop;
@@ -39,7 +37,7 @@ struct SystemEventListener
 
 struct ClipBoardImpl : ClipBoard
 {
-  virtual Result<Void, Void> get(Span<char const> mime, Vec<u8> &out) override
+  virtual Result<> get(Span<char const> mime, Vec<u8> &out) override
   {
     char mime_c_str[256];
     CHECK(to_c_str(mime, span(mime_c_str)));
@@ -55,8 +53,7 @@ struct ClipBoardImpl : ClipBoard
     return Ok{};
   }
 
-  virtual Result<Void, Void> set(Span<char const> mime,
-                                 Span<u8 const>   data) override
+  virtual Result<> set(Span<char const> mime, Span<u8 const> data) override
   {
     if (data.is_empty() || mime.is_empty())
     {
@@ -413,8 +410,7 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  Result<Void, Void> set_hit_test(Window                  window,
-                                  Fn<WindowRegion(Vec2U)> hit) override
+  Result<> set_hit_test(Window window, Fn<WindowRegion(Vec2U)> hit) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
     pwin->hit_test   = hit;
@@ -741,10 +737,11 @@ struct WindowSystemImpl : WindowSystem
   }
 };
 
-}        // namespace sdl
+static WindowSystemImpl window_system_impl;
 
-static sdl::WindowSystemImpl sdl_window_system_impl;
+ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem *window_system = nullptr;
 
-WindowSystem *sdl_window_system = &sdl_window_system_impl;
+// [ ] init
+// [ ] uninit
 
 }        // namespace ash

@@ -83,7 +83,7 @@ int main(int, char **)
         device
             ->create_shader(
                 device.self,
-                gpu::ShaderDesc{.label = id, .spirv_code = span(spirv)})
+                gpu::ShaderInfo{.label = id, .spirv_code = span(spirv)})
             .unwrap()));
     CHECK(!exists);
     spirv.reset();

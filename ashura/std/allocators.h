@@ -28,10 +28,9 @@ static AllocatorInterface const arena_interface{
 /// @param alignment actual alignment requested from allocator
 struct Arena
 {
-  u8   *begin     = nullptr;
-  u8   *end       = nullptr;
-  u8   *offset    = nullptr;
-  usize alignment = 1;
+  u8 *begin  = nullptr;
+  u8 *end    = nullptr;
+  u8 *offset = nullptr;
 
   [[nodiscard]] constexpr usize size() const
   {
@@ -160,12 +159,10 @@ struct Arena
   }
 };
 
-[[nodiscard]] inline Arena to_arena(Span<u8> buffer, usize alignment)
+[[nodiscard]] inline Arena to_arena(Span<u8> buffer)
 {
-  return Arena{.begin     = buffer.data(),
-               .end       = buffer.data() + buffer.size(),
-               .offset    = buffer.begin(),
-               .alignment = alignment};
+  return Arena{
+      .begin = buffer.data(), .end = buffer.end(), .offset = buffer.begin()};
 }
 
 struct ArenaPoolInterface
@@ -192,11 +189,11 @@ static AllocatorInterface const arena_sub_interface{
 ///
 struct ArenaPoolCfg
 {
-  usize max_num_arenas      = USIZE_MAX;
-  usize min_arena_size      = PAGE_SIZE;
-  usize max_arena_size      = USIZE_MAX;
-  usize max_total_size      = USIZE_MAX;
-  usize min_arena_alignment = MAX_STANDARD_ALIGNMENT;
+  usize max_num_arenas  = USIZE_MAX;
+  usize min_arena_size  = PAGE_SIZE;
+  usize max_arena_size  = USIZE_MAX;
+  usize max_total_size  = USIZE_MAX;
+  usize arena_alignment = MAX_STANDARD_ALIGNMENT;
 };
 
 /// An Arena Pool is a collection of arenas. All allocations are reset/free-d at
@@ -240,7 +237,7 @@ struct ArenaPool
 
   ArenaPool &operator=(ArenaPool &&other)
   {
-    if (this == &other)
+    if (this == &other) [[unlikely]]
     {
       return *this;
     }
@@ -301,7 +298,7 @@ struct ArenaPool
   {
     for (usize i = num_arenas; i-- > 0;)
     {
-      source.dealloc(arenas[i].alignment, arenas[i].begin, arenas[i].size());
+      source.dealloc(cfg.arena_alignment, arenas[i].begin, arenas[i].size());
     }
     source.ndealloc(arenas, num_arenas);
   }
@@ -342,8 +339,7 @@ struct ArenaPool
       return false;
     }
 
-    usize const arena_size      = max(size, cfg.min_arena_size);
-    usize const arena_alignment = max(cfg.min_arena_alignment, alignment);
+    usize const arena_size = max(size, cfg.min_arena_size);
     if ((this->size() + arena_size) > cfg.max_total_size)
     {
       mem = nullptr;
@@ -352,7 +348,7 @@ struct ArenaPool
 
     u8 *arena_mem;
 
-    if (!source.alloc(arena_alignment, arena_size, arena_mem))
+    if (!source.alloc(cfg.arena_alignment, arena_size, arena_mem))
     {
       mem = nullptr;
       return false;
@@ -360,16 +356,13 @@ struct ArenaPool
 
     if (!source.nrealloc(num_arenas, num_arenas + 1, arenas))
     {
-      source.dealloc(arena_alignment, arena_mem, arena_size);
+      source.dealloc(cfg.arena_alignment, arena_mem, arena_size);
       mem = nullptr;
       return false;
     }
 
-    Arena *arena =
-        new (arenas + num_arenas) Arena{.begin     = arena_mem,
-                                        .end       = arena_mem + arena_size,
-                                        .offset    = arena_mem,
-                                        .alignment = arena_alignment};
+    Arena *arena = new (arenas + num_arenas) Arena{
+        .begin = arena_mem, .end = arena_mem + arena_size, .offset = arena_mem};
 
     current_arena = num_arenas;
 
@@ -416,7 +409,7 @@ struct ArenaPool
         // if only and first allocation on the arena, realloc arena
         if (arena.begin == mem)
         {
-          if (!source.realloc(arena.alignment, arena.size(), new_size,
+          if (!source.realloc(cfg.arena_alignment, arena.size(), new_size,
                               arena.begin))
           {
             return false;

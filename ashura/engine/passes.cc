@@ -76,15 +76,15 @@ void BlurPass::acquire(GpuContext &ctx)
   gpu::DescriptorSetLayout set_layouts[] = {ctx.samplers_layout,
                                             ctx.textures_layout};
 
-  gpu::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineInfo pipeline_info{
       .label = "Blur Graphics Pipeline"_span,
       .vertex_shader =
-          gpu::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageInfo{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gpu::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageInfo{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
@@ -100,16 +100,16 @@ void BlurPass::acquire(GpuContext &ctx)
       .cache                  = ctx.pipeline_cache};
 
   downsample_pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
+      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_info)
           .unwrap();
 
-  pipeline_desc.vertex_shader.shader =
+  pipeline_info.vertex_shader.shader =
       ctx.get_shader("Blur_UpSample:VS"_span).unwrap();
-  pipeline_desc.fragment_shader.shader =
+  pipeline_info.fragment_shader.shader =
       ctx.get_shader("Blur_UpSample:FS"_span).unwrap();
 
   upsample_pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
+      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_info)
           .unwrap();
 }
 
@@ -248,15 +248,15 @@ void NgonPass::acquire(GpuContext &ctx)
       ctx.ssbo_layout, ctx.ssbo_layout, ctx.ssbo_layout, ctx.samplers_layout,
       ctx.textures_layout};
 
-  gpu::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineInfo pipeline_info{
       .label = "Ngon Graphics Pipeline"_span,
       .vertex_shader =
-          gpu::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageInfo{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gpu::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageInfo{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
@@ -272,7 +272,7 @@ void NgonPass::acquire(GpuContext &ctx)
       .cache                  = ctx.pipeline_cache};
 
   pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
+      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_info)
           .unwrap();
 }
 
@@ -347,15 +347,15 @@ void PBRPass::acquire(GpuContext &ctx)
       ctx.ssbo_layout, ctx.ssbo_layout,     ctx.ssbo_layout,
       ctx.ssbo_layout, ctx.samplers_layout, ctx.textures_layout};
 
-  gpu::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineInfo pipeline_info{
       .label = "PBR Graphics Pipeline"_span,
       .vertex_shader =
-          gpu::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageInfo{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gpu::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageInfo{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
@@ -372,13 +372,13 @@ void PBRPass::acquire(GpuContext &ctx)
       .cache                  = ctx.pipeline_cache};
 
   pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
+      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_info)
           .unwrap();
 
-  pipeline_desc.rasterization_state.polygon_mode = gpu::PolygonMode::Line;
+  pipeline_info.rasterization_state.polygon_mode = gpu::PolygonMode::Line;
 
   wireframe_pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
+      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_info)
           .unwrap();
 }
 
@@ -454,15 +454,15 @@ void RRectPass::acquire(GpuContext &ctx)
   gpu::DescriptorSetLayout set_layouts[] = {
       ctx.ssbo_layout, ctx.samplers_layout, ctx.textures_layout};
 
-  gpu::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineInfo pipeline_info{
       .label = "RRect Graphics Pipeline"_span,
       .vertex_shader =
-          gpu::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageInfo{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gpu::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageInfo{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
@@ -478,7 +478,7 @@ void RRectPass::acquire(GpuContext &ctx)
       .cache                  = ctx.pipeline_cache};
 
   pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
+      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_info)
           .unwrap();
 }
 

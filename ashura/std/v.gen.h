@@ -1,5 +1,7 @@
 
 /// SPDX-License-Identifier: MIT
+/// Meta-Generated Source Code
+// clang-format off
 #pragma once
 #include <cstddef>
 
@@ -15,7 +17,7 @@ struct V
     return INDEX;
   }
 };
-    
+
 constexpr V<0> v0;
 constexpr V<1> v1;
 constexpr V<2> v2;

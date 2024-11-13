@@ -4,6 +4,7 @@
 #include "ashura/std/cfg.h"
 #include "ashura/std/format.h"
 #include "ashura/std/mem.h"
+#include "ashura/std/obj.h"
 #include "ashura/std/panic.h"
 #include "ashura/std/types.h"
 #include <atomic>

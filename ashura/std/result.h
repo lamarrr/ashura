@@ -26,7 +26,7 @@ struct [[nodiscard]] Err
 template <typename T>
 Err(T) -> Err<T>;
 
-template <typename T, typename E>
+template <typename T = Void, typename E = Void>
 struct [[nodiscard]] Result
 {
   using Type    = T;
@@ -76,7 +76,7 @@ struct [[nodiscard]] Result
 
   constexpr Result &operator=(Result &&other)
   {
-    if (this == &other)
+    if (this == &other) [[unlikely]]
     {
       return *this;
     }
@@ -150,7 +150,7 @@ struct [[nodiscard]] Result
 
   constexpr Result &operator=(Result const &other)
   {
-    if (this == &other)
+    if (this == &other) [[unlikely]]
     {
       return *this;
     }

@@ -777,26 +777,26 @@ constexpr char const MIME_FONT_WOFF2[] = "font/woff2";
 
 struct ClipBoard
 {
-  virtual Result<Void, Void> get(Span<char const> mime, Vec<u8> &out)
+  virtual Result<> get(Span<char const> mime, Vec<u8> &out)
   {
     (void) mime;
     (void) out;
     return Err{};
   }
 
-  virtual Result<Void, Void> set(Span<char const> mime, Span<u8 const> data)
+  virtual Result<> set(Span<char const> mime, Span<u8 const> data)
   {
     (void) mime;
     (void) data;
     return Err{};
   }
 
-  Result<Void, Void> get_text(Vec<u8> &out)
+  Result<> get_text(Vec<u8> &out)
   {
     return get(span(MIME_TEXT_UTF8), out);
   }
 
-  Result<Void, Void> set_text(Span<u8 const> text)
+  Result<> set_text(Span<u8 const> text)
   {
     return set(span(MIME_TEXT_UTF8), text);
   }

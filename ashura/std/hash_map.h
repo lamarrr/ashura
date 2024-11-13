@@ -4,6 +4,7 @@
 #include "ashura/std/error.h"
 #include "ashura/std/hash.h"
 #include "ashura/std/mem.h"
+#include "ashura/std/obj.h"
 #include "ashura/std/types.h"
 #include <string.h>
 
@@ -68,7 +69,7 @@ struct HashMapEntry
 /// @tparam D unsigned integer to use to encode probe distances, ideally 32 bits
 /// or more
 template <typename K, typename V, typename H, typename KCmp, typename D>
-struct HashMap
+struct [[nodiscard]] HashMap
 {
   using Key      = K;
   using Value    = V;
@@ -118,7 +119,7 @@ struct HashMap
 
   constexpr HashMap &operator=(HashMap &&other)
   {
-    if (this == &other)
+    if (this == &other) [[unlikely]]
     {
       return *this;
     }
@@ -392,7 +393,7 @@ struct HashMap
       Entry    *insert_probe      = probes_ + insert_idx;
       Distance *insert_probe_dist = probe_dists_ + insert_idx;
 
-      obj::relocate(Span{probe, 1}, insert_probe);
+      obj::relocate_non_overlapping(Span{probe, 1}, insert_probe);
       *insert_probe_dist = *probe_dist - 1;
       *probe_dist        = PROBE_SENTINEL;
       probe_idx          = (probe_idx + 1) & (num_probes_ - 1);
@@ -422,7 +423,8 @@ struct HashMap
       {
         if (erased_uninit != nullptr)
         {
-          obj::relocate(Span{&dst_probe->value, 1}, erased_uninit);
+          obj::relocate_non_overlapping(Span{&dst_probe->value, 1},
+                                        erased_uninit);
           dst_probe->key.~K();
         }
         else

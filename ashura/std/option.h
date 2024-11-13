@@ -2,6 +2,7 @@
 #pragma once
 #include "ashura/std/error.h"
 #include "ashura/std/log.h"
+#include "ashura/std/v.h"
 
 namespace ash
 {
@@ -50,6 +51,12 @@ struct [[nodiscard]] Option
   {
   }
 
+  template <typename... Args>
+  explicit constexpr Option(V<0>, Args &&...args) :
+      is_some_{true}, value_{((Args &&) args)...}
+  {
+  }
+
   constexpr Option(NoneType) : is_some_{false}
   {
   }
@@ -85,7 +92,7 @@ struct [[nodiscard]] Option
 
   constexpr Option &operator=(Option &&other)
   {
-    if (this == &other)
+    if (this == &other) [[unlikely]]
     {
       return *this;
     }
@@ -115,7 +122,7 @@ struct [[nodiscard]] Option
 
   constexpr Option &operator=(Option const &other)
   {
-    if (this == &other)
+    if (this == &other) [[unlikely]]
     {
       return *this;
     }
@@ -130,8 +137,8 @@ struct [[nodiscard]] Option
     if (other.is_some_)
     {
       new (&value_) T{other.value_};
-      is_some_ = true;
     }
+
     return *this;
   }
 

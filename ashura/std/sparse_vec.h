@@ -68,7 +68,7 @@ struct SparseVec
 
   SparseVec &operator=(SparseVec &&other)
   {
-    if (this == &other)
+    if (this == &other) [[unlikely]]
     {
       return *this;
     }
@@ -134,7 +134,7 @@ struct SparseVec
 
   constexpr Result<u64, Void> try_to_index(u64 id) const
   {
-    if (!is_valid_id(id))
+    if (!is_valid_id(id)) [[unlikely]]
     {
       return Err{};
     }
@@ -149,7 +149,7 @@ struct SparseVec
 
   constexpr Result<u64, Void> try_to_id(u64 index) const
   {
-    if (!is_valid_index(index))
+    if (!is_valid_index(index)) [[unlikely]]
     {
       return Err{};
     }
@@ -181,9 +181,9 @@ struct SparseVec
     index_to_id.pop();
   }
 
-  constexpr Result<Void, Void> try_erase(u64 id)
+  constexpr Result<> try_erase(u64 id)
   {
-    if (!is_valid_id(id))
+    if (!is_valid_id(id)) [[unlikely]]
     {
       return Err{};
     }
@@ -191,10 +191,10 @@ struct SparseVec
     return Ok{};
   }
 
-  constexpr Result<Void, Void> reserve(u64 target_capacity)
+  constexpr Result<> reserve(u64 target_capacity)
   {
     if (!(id_to_index.reserve(target_capacity) &&
-          index_to_id.reserve(target_capacity)))
+          index_to_id.reserve(target_capacity))) [[unlikely]]
     {
       return Err{};
     }
@@ -205,7 +205,7 @@ struct SparseVec
         },
         dense);
 
-    if (failed)
+    if (failed) [[unlikely]]
     {
       return Err{};
     }
@@ -213,9 +213,10 @@ struct SparseVec
     return Ok{};
   }
 
-  constexpr Result<Void, Void> grow(u64 target_size)
+  constexpr Result<> grow(u64 target_size)
   {
     if (!(id_to_index.grow(target_size) && index_to_id.grow(target_size)))
+        [[unlikely]]
     {
       return Err{};
     }
@@ -226,7 +227,7 @@ struct SparseVec
         },
         dense);
 
-    if (failed)
+    if (failed) [[unlikely]]
     {
       return Err{};
     }
@@ -246,7 +247,7 @@ struct SparseVec
     }
     else
     {
-      if (!id_to_index.push(index))
+      if (!id_to_index.push(index)) [[unlikely]]
       {
         return Err{};
       }
@@ -275,19 +276,19 @@ struct SparseVec
   {
     u64 const index = size();
 
-    if (!grow(size() + 1))
+    if (!grow(size() + 1)) [[unlikely]]
     {
       return Err{};
     }
 
     Result id = make_id(index);
 
-    if (!id)
+    if (!id) [[unlikely]]
     {
       return Err{};
     }
 
-    if (!index_to_id.push(id.unwrap()))
+    if (!index_to_id.push(id.unwrap())) [[unlikely]]
     {
       return Err{};
     }

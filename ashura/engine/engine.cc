@@ -108,7 +108,7 @@ static void recreate_swapchain(Engine *e)
     }
   }
 
-  gpu::SwapchainDesc desc{.label  = "Window Swapchain"_span,
+  gpu::SwapchainInfo info{.label  = "Window Swapchain"_span,
                           .format = format,
                           .usage  = gpu::ImageUsage::TransferDst |
                                    gpu::ImageUsage::ColorAttachment,
@@ -120,11 +120,11 @@ static void recreate_swapchain(Engine *e)
   if (e->swapchain == nullptr)
   {
     e->swapchain =
-        e->device->create_swapchain(e->device.self, e->surface, desc).unwrap();
+        e->device->create_swapchain(e->device.self, e->surface, info).unwrap();
   }
   else
   {
-    e->device->invalidate_swapchain(e->device.self, e->swapchain, desc)
+    e->device->invalidate_swapchain(e->device.self, e->swapchain, info)
         .unwrap();
   }
 }

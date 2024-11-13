@@ -11,6 +11,8 @@ def out(code): return file.write(code)
 
 out(f"""
 /// SPDX-License-Identifier: MIT
+/// Meta-Generated Source Code
+// clang-format off
 #pragma once
 #include <cstddef>
 

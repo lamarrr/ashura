@@ -14,56 +14,35 @@ TEST(AsyncTest, Basic)
   using namespace ash;
   logger->add_sink(&stdio_sink);
 
-  Rc<Semaphore *> sem = create_semaphore(1, default_allocator);
-  defer           sem_{[&] { sem.uninit(); }};
+  Semaphore sem = create_semaphore(1, default_allocator);
 
-  scheduler->init(span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));
+  scheduler->init(default_allocator, std::this_thread::get_id(),
+                  span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));
   defer scheduler_{[&] { scheduler->uninit(); }};
 
-  for (u32 i = 0; i < 5'000; i++)
-  {
-    scheduler->schedule_worker({.task = fn([](TaskInstance, void *) {
-                                  invocs.fetch_add(1);
-                                  return false;
-                                })});
-    scheduler->schedule_dedicated(0, {.task = fn([](TaskInstance, void *) {
-                                        static int x = 0;
-                                        x++;
-                                        if (x > 10)
-                                        {
-                                          return false;
-                                        }
-                                        std::this_thread::sleep_for(8us);
-                                        return true;
-                                      })});
-    scheduler->schedule_dedicated(1, {.task = fn([](TaskInstance, void *) {
-                                        invocs.fetch_add(1);
-                                        return false;
-                                      })});
-
-    if (i % 1'000 == 0)
+  async::once([]() { logger->info("Hi"); });
+  async::once([]() { logger->info("Hello"); });
+  async::once([]() { logger->info("Sshh"); });
+  logger->info("scheduled");
+  async::once([]() { logger->info("Timer passed"); },
+              async::Delay{.from = steady_clock::now(), .delay = 1ms});
+  async::loop([x = (u64) 0]() mutable -> bool {
+    x++;
+    logger->info(x, " iteration");
+    if (x == 10)
     {
-      std::this_thread::sleep_for(1ms);
+      logger->info("loop exited");
+      return false;
     }
-  }
 
-  auto poll = [&](void *) {
-    return await_semaphores(span({sem.get(), sem.get()}), span<u64>({0, 0}),
-                            {});
-  };
+    return true;
+  });
+  async::shard(
+      [](async::TaskInstance instance) {
+        logger->info("shard: ", instance.idx, " of ", instance.instances);
+      },
+      10);
 
-  scheduler->schedule_main({.task = fn([](TaskInstance, void *) {
-                              static int x = 0;
-                              x++;
-                              if (x > 10)
-                              {
-                                return false;
-                              }
-                              std::this_thread::sleep_for(8us);
-                              return true;
-                            }),
-                            .poll = fn(&poll)});
-  sem->signal(1);
-  scheduler->execute_main_thread_work(5s);
   std::this_thread::sleep_for(500ms);
+  scheduler->join();
 }
