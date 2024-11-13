@@ -783,7 +783,7 @@ struct ImageSubresourceLayers
   u32          num_array_layers  = 0;
 };
 
-struct BufferDesc
+struct BufferInfo
 {
   Span<char const> label       = {};
   u64              size        = 0;
@@ -792,7 +792,7 @@ struct BufferDesc
 };
 
 /// format interpretation of a buffer's contents
-struct BufferViewDesc
+struct BufferViewInfo
 {
   Span<char const> label  = {};
   Buffer           buffer = nullptr;
@@ -801,7 +801,7 @@ struct BufferViewDesc
   u64              size   = 0;
 };
 
-struct ImageDesc
+struct ImageInfo
 {
   Span<char const> label        = {};
   ImageType        type         = ImageType::Type1D;
@@ -821,7 +821,7 @@ struct ImageDesc
 /// R8G8B8_UNORM the non-existent Alpha component is always 0. To set it to 1 we
 /// set its component mapping (mapping.a) to ComponentSwizzle::One.
 ///
-struct ImageViewDesc
+struct ImageViewInfo
 {
   Span<char const> label             = {};
   Image            image             = nullptr;
@@ -835,7 +835,7 @@ struct ImageViewDesc
   u32              num_array_layers  = 0;
 };
 
-struct SamplerDesc
+struct SamplerInfo
 {
   Span<char const>   label             = {};
   Filter             mag_filter        = Filter::Nearest;
@@ -855,7 +855,7 @@ struct SamplerDesc
   bool               unnormalized_coordinates = false;
 };
 
-struct ShaderDesc
+struct ShaderInfo
 {
   Span<char const> label      = {};
   Span<u32 const>  spirv_code = {};
@@ -864,20 +864,20 @@ struct ShaderDesc
 /// @param count represents maximum count of the binding if
 /// `is_variable_length` is true.
 /// @param is_variable_length if it is a dynamically sized binding
-struct DescriptorBindingDesc
+struct DescriptorBindingInfo
 {
   DescriptorType type               = DescriptorType::Sampler;
   u32            count              = 0;
   bool           is_variable_length = false;
 };
 
-struct DescriptorSetLayoutDesc
+struct DescriptorSetLayoutInfo
 {
   Span<char const>                  label    = {};
-  Span<DescriptorBindingDesc const> bindings = {};
+  Span<DescriptorBindingInfo const> bindings = {};
 };
 
-struct PipelineCacheDesc
+struct PipelineCacheInfo
 {
   Span<char const> label        = {};
   Span<u8 const>   initial_data = {};
@@ -913,7 +913,7 @@ struct SpecializationConstant
   usize size        = 0;
 };
 
-struct ShaderStageDesc
+struct ShaderStageInfo
 {
   Shader                             shader                        = nullptr;
   Span<char const>                   entry_point                   = {};
@@ -921,10 +921,10 @@ struct ShaderStageDesc
   Span<u8 const>                     specialization_constants_data = {};
 };
 
-struct ComputePipelineDesc
+struct ComputePipelineInfo
 {
   Span<char const>                label                  = {};
-  ShaderStageDesc                 compute_shader         = {};
+  ShaderStageInfo                 compute_shader         = {};
   u32                             push_constants_size    = 0;
   Span<DescriptorSetLayout const> descriptor_set_layouts = {};
   PipelineCache                   cache                  = nullptr;
@@ -1021,11 +1021,11 @@ struct GraphicsState
 
 /// @param color_format, depth_format, stencil_format: with Format::Undefined
 /// means the attachment is unused.
-struct GraphicsPipelineDesc
+struct GraphicsPipelineInfo
 {
   Span<char const>                label                  = {};
-  ShaderStageDesc                 vertex_shader          = {};
-  ShaderStageDesc                 fragment_shader        = {};
+  ShaderStageInfo                 vertex_shader          = {};
+  ShaderStageInfo                 fragment_shader        = {};
   Span<Format const>              color_formats          = {};
   Span<Format const>              depth_format           = {};
   Span<Format const>              stencil_format         = {};
@@ -1133,7 +1133,7 @@ struct SurfaceCapabilities
   CompositeAlpha composite_alpha = CompositeAlpha::None;
 };
 
-struct SwapchainDesc
+struct SwapchainInfo
 {
   Span<char const> label               = {};
   SurfaceFormat    format              = {};
@@ -1213,69 +1213,101 @@ struct RenderingInfo
 struct CommandEncoderInterface
 {
   void (*reset_timestamp_query)(CommandEncoder self,
-                                TimeStampQuery query)                 = nullptr;
+                                TimeStampQuery query) = nullptr;
+
   void (*reset_statistics_query)(CommandEncoder  self,
-                                 StatisticsQuery query)               = nullptr;
-  void (*write_timestamp)(CommandEncoder self, TimeStampQuery query)  = nullptr;
+                                 StatisticsQuery query) = nullptr;
+
+  void (*write_timestamp)(CommandEncoder self, TimeStampQuery query) = nullptr;
+
   void (*begin_statistics)(CommandEncoder  self,
-                           StatisticsQuery query)                     = nullptr;
-  void (*end_statistics)(CommandEncoder self, StatisticsQuery query)  = nullptr;
+                           StatisticsQuery query) = nullptr;
+
+  void (*end_statistics)(CommandEncoder self, StatisticsQuery query) = nullptr;
+
   void (*begin_debug_marker)(CommandEncoder self, Span<char const> region_name,
-                             Vec4 color)                              = nullptr;
-  void (*end_debug_marker)(CommandEncoder self)                       = nullptr;
+                             Vec4 color) = nullptr;
+
+  void (*end_debug_marker)(CommandEncoder self) = nullptr;
+
   void (*fill_buffer)(CommandEncoder self, Buffer dst, u64 offset, u64 size,
-                      u32 data)                                       = nullptr;
+                      u32 data) = nullptr;
+
   void (*copy_buffer)(CommandEncoder self, Buffer src, Buffer dst,
-                      Span<BufferCopy const> copies)                  = nullptr;
+                      Span<BufferCopy const> copies) = nullptr;
+
   void (*update_buffer)(CommandEncoder self, Span<u8 const> src, u64 dst_offset,
-                        Buffer dst)                                   = nullptr;
+                        Buffer dst) = nullptr;
+
   void (*clear_color_image)(CommandEncoder self, Image dst, Color clear_color,
                             Span<ImageSubresourceRange const> ranges) = nullptr;
+
   void (*clear_depth_stencil_image)(
       CommandEncoder self, Image dst, DepthStencil clear_depth_stencil,
-      Span<ImageSubresourceRange const> ranges)                    = nullptr;
+      Span<ImageSubresourceRange const> ranges) = nullptr;
+
   void (*copy_image)(CommandEncoder self, Image src, Image dst,
-                     Span<ImageCopy const> copies)                 = nullptr;
+                     Span<ImageCopy const> copies) = nullptr;
+
   void (*copy_buffer_to_image)(CommandEncoder self, Buffer src, Image dst,
                                Span<BufferImageCopy const> copies) = nullptr;
+
   void (*blit_image)(CommandEncoder self, Image src, Image dst,
-                     Span<ImageBlit const> blits, Filter filter)   = nullptr;
+                     Span<ImageBlit const> blits, Filter filter) = nullptr;
+
   void (*resolve_image)(CommandEncoder self, Image src, Image dst,
-                        Span<ImageResolve const> resolves)         = nullptr;
-  void (*begin_compute_pass)(CommandEncoder self)                  = nullptr;
-  void (*end_compute_pass)(CommandEncoder self)                    = nullptr;
+                        Span<ImageResolve const> resolves) = nullptr;
+
+  void (*begin_compute_pass)(CommandEncoder self) = nullptr;
+
+  void (*end_compute_pass)(CommandEncoder self) = nullptr;
+
   void (*begin_rendering)(CommandEncoder       self,
-                          RenderingInfo const &info)               = nullptr;
-  void (*end_rendering)(CommandEncoder self)                       = nullptr;
+                          RenderingInfo const &info) = nullptr;
+
+  void (*end_rendering)(CommandEncoder self) = nullptr;
+
   void (*bind_compute_pipeline)(CommandEncoder  self,
-                                ComputePipeline pipeline)          = nullptr;
+                                ComputePipeline pipeline) = nullptr;
+
   void (*bind_graphics_pipeline)(CommandEncoder   self,
-                                 GraphicsPipeline pipeline)        = nullptr;
+                                 GraphicsPipeline pipeline) = nullptr;
+
   void (*bind_descriptor_sets)(CommandEncoder            self,
                                Span<DescriptorSet const> descriptor_sets,
-                               Span<u32 const> dynamic_offsets)    = nullptr;
+                               Span<u32 const> dynamic_offsets) = nullptr;
+
   void (*push_constants)(CommandEncoder self,
-                         Span<u8 const> push_constants_data)       = nullptr;
+                         Span<u8 const> push_constants_data) = nullptr;
+
   void (*dispatch)(CommandEncoder self, u32 group_count_x, u32 group_count_y,
-                   u32 group_count_z)                              = nullptr;
+                   u32 group_count_z) = nullptr;
+
   void (*dispatch_indirect)(CommandEncoder self, Buffer buffer,
-                            u64 offset)                            = nullptr;
+                            u64 offset) = nullptr;
+
   void (*set_graphics_state)(CommandEncoder       self,
-                             GraphicsState const &state)           = nullptr;
+                             GraphicsState const &state) = nullptr;
+
   void (*bind_vertex_buffers)(CommandEncoder     self,
                               Span<Buffer const> vertex_buffers,
-                              Span<u64 const>    offsets)             = nullptr;
+                              Span<u64 const>    offsets) = nullptr;
+
   void (*bind_index_buffer)(CommandEncoder self, Buffer index_buffer,
-                            u64 offset, IndexType index_type)      = nullptr;
+                            u64 offset, IndexType index_type) = nullptr;
+
   void (*draw)(CommandEncoder self, u32 vertex_count, u32 instance_count,
-               u32 first_vertex_id, u32 first_instance_id)         = nullptr;
+               u32 first_vertex_id, u32 first_instance_id) = nullptr;
+
   void (*draw_indexed)(CommandEncoder self, u32 first_index, u32 num_indices,
                        i32 vertex_offset, u32 first_instance_id,
-                       u32 num_instances)                          = nullptr;
+                       u32 num_instances) = nullptr;
+
   void (*draw_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
-                        u32 draw_count, u32 stride)                = nullptr;
+                        u32 draw_count, u32 stride) = nullptr;
+
   void (*draw_indexed_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
-                                u32 draw_count, u32 stride)        = nullptr;
+                                u32 draw_count, u32 stride) = nullptr;
 };
 
 struct CommandEncoderImpl
@@ -1301,89 +1333,136 @@ struct FrameContext
 struct DeviceInterface
 {
   DeviceProperties (*get_device_properties)(Device self) = nullptr;
+
   Result<FormatProperties, Status> (*get_format_properties)(
-      Device self, Format format)                                 = nullptr;
+      Device self, Format format) = nullptr;
+
   Result<Buffer, Status> (*create_buffer)(Device            self,
-                                          BufferDesc const &desc) = nullptr;
+                                          BufferInfo const &info) = nullptr;
+
   Result<BufferView, Status> (*create_buffer_view)(
-      Device self, BufferViewDesc const &desc)                 = nullptr;
+      Device self, BufferViewInfo const &info) = nullptr;
+
   Result<Image, Status> (*create_image)(Device           self,
-                                        ImageDesc const &desc) = nullptr;
+                                        ImageInfo const &info) = nullptr;
+
   Result<ImageView, Status> (*create_image_view)(
-      Device self, ImageViewDesc const &desc)                        = nullptr;
+      Device self, ImageViewInfo const &info) = nullptr;
+
   Result<Sampler, Status> (*create_sampler)(Device             self,
-                                            SamplerDesc const &desc) = nullptr;
+                                            SamplerInfo const &info) = nullptr;
+
   Result<Shader, Status> (*create_shader)(Device            self,
-                                          ShaderDesc const &desc)    = nullptr;
+                                          ShaderInfo const &info) = nullptr;
+
   Result<DescriptorSetLayout, Status> (*create_descriptor_set_layout)(
-      Device self, DescriptorSetLayoutDesc const &desc) = nullptr;
+      Device self, DescriptorSetLayoutInfo const &info) = nullptr;
+
   Result<DescriptorSet, Status> (*create_descriptor_set)(
       Device self, DescriptorSetLayout layout,
       Span<u32 const> variable_lengths) = nullptr;
+
   Result<PipelineCache, Status> (*create_pipeline_cache)(
-      Device self, PipelineCacheDesc const &desc) = nullptr;
+      Device self, PipelineCacheInfo const &info) = nullptr;
+
   Result<ComputePipeline, Status> (*create_compute_pipeline)(
-      Device self, ComputePipelineDesc const &desc) = nullptr;
+      Device self, ComputePipelineInfo const &info) = nullptr;
+
   Result<GraphicsPipeline, Status> (*create_graphics_pipeline)(
-      Device self, GraphicsPipelineDesc const &desc) = nullptr;
+      Device self, GraphicsPipelineInfo const &info) = nullptr;
+
   Result<Swapchain, Status> (*create_swapchain)(
-      Device self, Surface surface, SwapchainDesc const &desc) = nullptr;
+      Device self, Surface surface, SwapchainInfo const &info) = nullptr;
+
   Result<TimeStampQuery, Status> (*create_timestamp_query)(Device self) =
       nullptr;
   Result<StatisticsQuery, Status> (*create_statistics_query)(Device self) =
       nullptr;
-  void (*uninit_buffer)(Device self, Buffer buffer)                   = nullptr;
-  void (*uninit_buffer_view)(Device self, BufferView buffer_view)     = nullptr;
-  void (*uninit_image)(Device self, Image image)                      = nullptr;
-  void (*uninit_image_view)(Device self, ImageView image_view)        = nullptr;
-  void (*uninit_sampler)(Device self, Sampler sampler)                = nullptr;
-  void (*uninit_shader)(Device self, Shader shader)                   = nullptr;
+  void (*uninit_buffer)(Device self, Buffer buffer) = nullptr;
+
+  void (*uninit_buffer_view)(Device self, BufferView buffer_view) = nullptr;
+
+  void (*uninit_image)(Device self, Image image) = nullptr;
+
+  void (*uninit_image_view)(Device self, ImageView image_view) = nullptr;
+
+  void (*uninit_sampler)(Device self, Sampler sampler) = nullptr;
+
+  void (*uninit_shader)(Device self, Shader shader) = nullptr;
+
   void (*uninit_descriptor_set_layout)(Device              self,
-                                       DescriptorSetLayout layout)    = nullptr;
-  void (*uninit_descriptor_set)(Device self, DescriptorSet set)       = nullptr;
-  void (*uninit_pipeline_cache)(Device self, PipelineCache cache)     = nullptr;
+                                       DescriptorSetLayout layout) = nullptr;
+
+  void (*uninit_descriptor_set)(Device self, DescriptorSet set) = nullptr;
+
+  void (*uninit_pipeline_cache)(Device self, PipelineCache cache) = nullptr;
+
   void (*uninit_compute_pipeline)(Device          self,
-                                  ComputePipeline pipeline)           = nullptr;
+                                  ComputePipeline pipeline) = nullptr;
+
   void (*uninit_graphics_pipeline)(Device           self,
-                                   GraphicsPipeline pipeline)         = nullptr;
-  void (*uninit_swapchain)(Device self, Swapchain swapchain)          = nullptr;
-  void (*uninit_timestamp_query)(Device self, TimeStampQuery query)   = nullptr;
+                                   GraphicsPipeline pipeline) = nullptr;
+
+  void (*uninit_swapchain)(Device self, Swapchain swapchain) = nullptr;
+
+  void (*uninit_timestamp_query)(Device self, TimeStampQuery query) = nullptr;
+
   void (*uninit_statistics_query)(Device self, StatisticsQuery query) = nullptr;
-  FrameContext (*get_frame_context)(Device self)                      = nullptr;
+
+  FrameContext (*get_frame_context)(Device self) = nullptr;
+
   Result<void *, Status> (*map_buffer_memory)(Device self,
-                                              Buffer buffer)          = nullptr;
-  void (*unmap_buffer_memory)(Device self, Buffer buffer)             = nullptr;
+                                              Buffer buffer) = nullptr;
+
+  void (*unmap_buffer_memory)(Device self, Buffer buffer) = nullptr;
+
   Result<Void, Status> (*invalidate_mapped_buffer_memory)(
       Device self, Buffer buffer, MemoryRange range) = nullptr;
+
   Result<Void, Status> (*flush_mapped_buffer_memory)(
       Device self, Buffer buffer, MemoryRange range) = nullptr;
+
   Result<usize, Status> (*get_pipeline_cache_size)(
-      Device self, PipelineCache cache)                          = nullptr;
+      Device self, PipelineCache cache) = nullptr;
+
   Result<usize, Status> (*get_pipeline_cache_data)(Device        self,
                                                    PipelineCache cache,
                                                    Span<u8>      out) = nullptr;
+
   Result<Void, Status> (*merge_pipeline_cache)(
       Device self, PipelineCache dst, Span<PipelineCache const> srcs) = nullptr;
+
   void (*update_descriptor_set)(Device                     self,
-                                DescriptorSetUpdate const &update)    = nullptr;
-  Result<Void, Status> (*wait_idle)(Device self)                      = nullptr;
-  Result<Void, Status> (*wait_queue_idle)(Device self)                = nullptr;
+                                DescriptorSetUpdate const &update) = nullptr;
+
+  Result<Void, Status> (*wait_idle)(Device self) = nullptr;
+
+  Result<Void, Status> (*wait_queue_idle)(Device self) = nullptr;
+
   Result<u32, Status> (*get_surface_formats)(
       Device self, Surface surface, Span<SurfaceFormat> formats) = nullptr;
+
   Result<u32, Status> (*get_surface_present_modes)(
       Device self, Surface surface, Span<PresentMode> modes) = nullptr;
+
   Result<SurfaceCapabilities, Status> (*get_surface_capabilities)(
       Device self, Surface surface) = nullptr;
+
   Result<SwapchainState, Status> (*get_swapchain_state)(
       Device self, Swapchain swapchain) = nullptr;
+
   Result<Void, Status> (*invalidate_swapchain)(
-      Device self, Swapchain swapchain, SwapchainDesc const &desc) = nullptr;
+      Device self, Swapchain swapchain, SwapchainInfo const &info) = nullptr;
+
   Result<Void, Status> (*begin_frame)(Device    self,
-                                      Swapchain swapchain)         = nullptr;
+                                      Swapchain swapchain) = nullptr;
+
   Result<Void, Status> (*submit_frame)(Device    self,
-                                       Swapchain swapchain)        = nullptr;
+                                       Swapchain swapchain) = nullptr;
+
   Result<u64, Status> (*get_timestamp_query_result)(
       Device self, TimeStampQuery query) = nullptr;
+
   Result<PipelineStatistics, Status> (*get_statistics_query_result)(
       Device self, StatisticsQuery query) = nullptr;
 };
@@ -1402,12 +1481,16 @@ struct DeviceImpl
 struct InstanceInterface
 {
   void (*uninit)(Instance self) = nullptr;
+
   Result<DeviceImpl, Status> (*create_device)(
       Instance self, AllocatorImpl allocator,
       Span<DeviceType const> preferred_types, u32 buffering) = nullptr;
-  Backend (*get_backend)(Instance self)                      = nullptr;
-  void (*uninit_device)(Instance self, Device device)        = nullptr;
-  void (*uninit_surface)(Instance self, Surface surface)     = nullptr;
+
+  Backend (*get_backend)(Instance self) = nullptr;
+
+  void (*uninit_device)(Instance self, Device device) = nullptr;
+
+  void (*uninit_surface)(Instance self, Surface surface) = nullptr;
 };
 
 struct InstanceImpl

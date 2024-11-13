@@ -102,7 +102,7 @@ enum class ScaleMode : u8
 /// @param uv uv coordinates of the upper-left and lower-right
 /// @param tiling tiling factor
 /// @param edge_smoothness edge smoothness to apply if it is a rrect
-struct ShapeDesc
+struct ShapeInfo
 {
   Vec2 center = {0, 0};
 
@@ -204,21 +204,21 @@ struct Canvas
   Canvas &clip(CRect const &area);
 
   /// @brief render a circle
-  Canvas &circle(ShapeDesc const &desc);
+  Canvas &circle(ShapeInfo const &info);
 
   /// @brief render a rectangle
-  Canvas &rect(ShapeDesc const &desc);
+  Canvas &rect(ShapeInfo const &info);
 
   /// @brief render a rounded rectangle
-  Canvas &rrect(ShapeDesc const &desc);
+  Canvas &rrect(ShapeInfo const &info);
 
   /// @brief render a beveled rectangle
-  Canvas &brect(ShapeDesc const &desc);
+  Canvas &brect(ShapeInfo const &info);
 
   /// @brief render a squircle (triangulation based)
   /// @param num_segments an upper bound on the number of segments to
   /// @param degree
-  Canvas &squircle(ShapeDesc const &desc, f32 degree, u32 segments);
+  Canvas &squircle(ShapeInfo const &info, f32 degree, u32 segments);
 
   /// @brief
   ///
@@ -238,35 +238,35 @@ struct Canvas
   /// 3 5;	Vertical
   /// 4;	Horizontal + Vertical
   ///
-  /// @param desc
+  /// @param info
   /// @param mode
   /// @param uvs
-  Canvas &nine_slice(ShapeDesc const &desc, ScaleMode mode,
+  Canvas &nine_slice(ShapeInfo const &info, ScaleMode mode,
                      Span<Vec4 const> uvs);
 
   /// @brief Render text using font atlases
-  /// @param desc only desc.center, desc.transform, desc.tiling, and
-  /// desc.sampler are used
+  /// @param info only info.center, info.transform, info.tiling, and
+  /// info.sampler are used
   /// @param block Text Block to be rendered
   /// @param layout Layout of text block to be rendered
   /// @param style styling of the text block, contains styling for the runs and
   /// alignment of the block
   /// @param atlases font atlases
   /// @param clip clip rect for culling draw commands of the text block
-  Canvas &text(ShapeDesc const &desc, TextBlock const &block,
+  Canvas &text(ShapeInfo const &info, TextBlock const &block,
                TextLayout const &layout, TextBlockStyle const &style,
                CRect const &clip = {{F32_MAX / 2, F32_MAX / 2},
                                     {F32_MAX, F32_MAX}});
 
   /// @brief Render Non-Indexed Triangles
-  Canvas &triangles(ShapeDesc const &desc, Span<Vec2 const> vertices);
+  Canvas &triangles(ShapeInfo const &info, Span<Vec2 const> vertices);
 
   /// @brief Render Indexed Triangles
-  Canvas &triangles(ShapeDesc const &desc, Span<Vec2 const> vertices,
+  Canvas &triangles(ShapeInfo const &info, Span<Vec2 const> vertices,
                     Span<u32 const> indices);
 
   /// @brief triangulate and render line
-  Canvas &line(ShapeDesc const &desc, Span<Vec2 const> vertices);
+  Canvas &line(ShapeInfo const &info, Span<Vec2 const> vertices);
 
   /// @brief perform a Canvas-space blur
   /// @param area region in the canvas to apply the blur to

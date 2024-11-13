@@ -31,113 +31,166 @@ constexpr u8  NUM_DESCRIPTOR_TYPES       = 11;
 struct InstanceInterface
 {
   static void uninit(gpu::Instance self);
+
   static Result<gpu::DeviceImpl, Status>
-                      create_device(gpu::Instance self, AllocatorImpl allocator,
-                                    Span<gpu::DeviceType const> preferred_types, u32 buffering);
+      create_device(gpu::Instance self, AllocatorImpl allocator,
+                    Span<gpu::DeviceType const> preferred_types, u32 buffering);
+
   static gpu::Backend get_backend(gpu::Instance self);
-  static void         uninit_device(gpu::Instance self, gpu::Device device);
-  static void         uninit_surface(gpu::Instance self, gpu::Surface surface);
+
+  static void uninit_device(gpu::Instance self, gpu::Device device);
+
+  static void uninit_surface(gpu::Instance self, gpu::Surface surface);
 };
 
 struct DeviceInterface
 {
   static gpu::DeviceProperties get_device_properties(gpu::Device self);
+
   static Result<gpu::FormatProperties, Status>
       get_format_properties(gpu::Device self, gpu::Format format);
+
   static Result<gpu::Buffer, Status> create_buffer(gpu::Device            self,
-                                                   gpu::BufferDesc const &desc);
+                                                   gpu::BufferInfo const &info);
+
   static Result<gpu::BufferView, Status>
-      create_buffer_view(gpu::Device self, gpu::BufferViewDesc const &desc);
+      create_buffer_view(gpu::Device self, gpu::BufferViewInfo const &info);
+
   static Result<gpu::Image, Status> create_image(gpu::Device           self,
-                                                 gpu::ImageDesc const &desc);
+                                                 gpu::ImageInfo const &info);
+
   static Result<gpu::ImageView, Status>
-      create_image_view(gpu::Device self, gpu::ImageViewDesc const &desc);
+      create_image_view(gpu::Device self, gpu::ImageViewInfo const &info);
+
   static Result<gpu::Sampler, Status>
-      create_sampler(gpu::Device self, gpu::SamplerDesc const &desc);
+      create_sampler(gpu::Device self, gpu::SamplerInfo const &info);
+
   static Result<gpu::Shader, Status> create_shader(gpu::Device            self,
-                                                   gpu::ShaderDesc const &desc);
+                                                   gpu::ShaderInfo const &info);
+
   static Result<gpu::DescriptorSetLayout, Status>
       create_descriptor_set_layout(gpu::Device                         self,
-                                   gpu::DescriptorSetLayoutDesc const &desc);
+                                   gpu::DescriptorSetLayoutInfo const &info);
+
   static Result<gpu::DescriptorSet, Status>
       create_descriptor_set(gpu::Device self, gpu::DescriptorSetLayout layout,
                             Span<u32 const> variable_lengths);
+
   static Result<gpu::PipelineCache, Status>
       create_pipeline_cache(gpu::Device                   self,
-                            gpu::PipelineCacheDesc const &desc);
+                            gpu::PipelineCacheInfo const &info);
+
   static Result<gpu::ComputePipeline, Status>
       create_compute_pipeline(gpu::Device                     self,
-                              gpu::ComputePipelineDesc const &desc);
+                              gpu::ComputePipelineInfo const &info);
+
   static Result<gpu::GraphicsPipeline, Status>
       create_graphics_pipeline(gpu::Device                      self,
-                               gpu::GraphicsPipelineDesc const &desc);
+                               gpu::GraphicsPipelineInfo const &info);
+
   static Result<gpu::Swapchain, Status>
       create_swapchain(gpu::Device self, gpu::Surface surface,
-                       gpu::SwapchainDesc const &desc);
+                       gpu::SwapchainInfo const &info);
+
   static Result<gpu::TimeStampQuery, Status>
       create_timestamp_query(gpu::Device self);
+
   static Result<gpu::StatisticsQuery, Status>
-              create_statistics_query(gpu::Device self);
+      create_statistics_query(gpu::Device self);
+
   static void uninit_buffer(gpu::Device self, gpu::Buffer buffer);
+
   static void uninit_buffer_view(gpu::Device self, gpu::BufferView buffer_view);
+
   static void uninit_image(gpu::Device self, gpu::Image image);
+
   static void uninit_image_view(gpu::Device self, gpu::ImageView image_view);
+
   static void uninit_sampler(gpu::Device self, gpu::Sampler sampler);
+
   static void uninit_shader(gpu::Device self, gpu::Shader shader);
+
   static void uninit_descriptor_set_layout(gpu::Device              self,
                                            gpu::DescriptorSetLayout layout);
+
   static void uninit_descriptor_set(gpu::Device self, gpu::DescriptorSet set);
+
   static void uninit_pipeline_cache(gpu::Device self, gpu::PipelineCache cache);
+
   static void uninit_compute_pipeline(gpu::Device          self,
                                       gpu::ComputePipeline pipeline);
+
   static void uninit_graphics_pipeline(gpu::Device           self,
                                        gpu::GraphicsPipeline pipeline);
+
   static void uninit_swapchain(gpu::Device self, gpu::Swapchain swapchain);
+
   static void uninit_timestamp_query(gpu::Device         self,
                                      gpu::TimeStampQuery query);
+
   static void uninit_statistics_query(gpu::Device          self,
                                       gpu::StatisticsQuery query);
-  static gpu::FrameContext      get_frame_context(gpu::Device self);
+
+  static gpu::FrameContext get_frame_context(gpu::Device self);
+
   static Result<void *, Status> map_buffer_memory(gpu::Device self,
                                                   gpu::Buffer buffer);
+
   static void unmap_buffer_memory(gpu::Device self, gpu::Buffer buffer);
+
   static Result<Void, Status>
       invalidate_mapped_buffer_memory(gpu::Device self, gpu::Buffer buffer,
                                       gpu::MemoryRange range);
+
   static Result<Void, Status>
       flush_mapped_buffer_memory(gpu::Device self, gpu::Buffer buffer,
                                  gpu::MemoryRange range);
+
   static Result<usize, Status>
       get_pipeline_cache_size(gpu::Device self, gpu::PipelineCache cache);
+
   static Result<usize, Status> get_pipeline_cache_data(gpu::Device        self,
                                                        gpu::PipelineCache cache,
                                                        Span<u8>           out);
+
   static Result<Void, Status>
-              merge_pipeline_cache(gpu::Device self, gpu::PipelineCache dst,
-                                   Span<gpu::PipelineCache const> srcs);
+      merge_pipeline_cache(gpu::Device self, gpu::PipelineCache dst,
+                           Span<gpu::PipelineCache const> srcs);
+
   static void update_descriptor_set(gpu::Device                     self,
                                     gpu::DescriptorSetUpdate const &update);
+
   static Result<Void, Status> wait_idle(gpu::Device self);
+
   static Result<Void, Status> wait_queue_idle(gpu::Device self);
+
   static Result<u32, Status>
       get_surface_formats(gpu::Device self, gpu::Surface surface,
                           Span<gpu::SurfaceFormat> formats);
+
   static Result<u32, Status>
       get_surface_present_modes(gpu::Device self, gpu::Surface surface,
                                 Span<gpu::PresentMode> modes);
+
   static Result<gpu::SurfaceCapabilities, Status>
       get_surface_capabilities(gpu::Device self, gpu::Surface surface);
+
   static Result<gpu::SwapchainState, Status>
       get_swapchain_state(gpu::Device self, gpu::Swapchain swapchain);
+
   static Result<Void, Status>
       invalidate_swapchain(gpu::Device self, gpu::Swapchain swapchain,
-                           gpu::SwapchainDesc const &desc);
+                           gpu::SwapchainInfo const &info);
+
   static Result<Void, Status> begin_frame(gpu::Device    self,
                                           gpu::Swapchain swapchain);
+
   static Result<Void, Status> submit_frame(gpu::Device    self,
                                            gpu::Swapchain swapchain);
+
   static Result<u64, Status>
       get_timestamp_query_result(gpu::Device self, gpu::TimeStampQuery query);
+
   static Result<gpu::PipelineStatistics, Status>
       get_statistics_query_result(gpu::Device self, gpu::StatisticsQuery query);
 };
@@ -146,76 +199,108 @@ struct CommandEncoderInterface
 {
   static void reset_timestamp_query(gpu::CommandEncoder self,
                                     gpu::TimeStampQuery query);
+
   static void reset_statistics_query(gpu::CommandEncoder  self,
                                      gpu::StatisticsQuery query);
+
   static void write_timestamp(gpu::CommandEncoder self,
                               gpu::TimeStampQuery query);
+
   static void begin_statistics(gpu::CommandEncoder  self,
                                gpu::StatisticsQuery query);
+
   static void end_statistics(gpu::CommandEncoder  self,
                              gpu::StatisticsQuery query);
+
   static void begin_debug_marker(gpu::CommandEncoder self,
                                  Span<char const> region_name, Vec4 color);
+
   static void end_debug_marker(gpu::CommandEncoder self);
+
   static void fill_buffer(gpu::CommandEncoder self, gpu::Buffer dst, u64 offset,
                           u64 size, u32 data);
+
   static void copy_buffer(gpu::CommandEncoder self, gpu::Buffer src,
                           gpu::Buffer dst, Span<gpu::BufferCopy const> copies);
+
   static void update_buffer(gpu::CommandEncoder self, Span<u8 const> src,
                             u64 dst_offset, gpu::Buffer dst);
+
   static void clear_color_image(gpu::CommandEncoder self, gpu::Image dst,
                                 gpu::Color clear_color,
                                 Span<gpu::ImageSubresourceRange const> ranges);
+
   static void
       clear_depth_stencil_image(gpu::CommandEncoder self, gpu::Image dst,
                                 gpu::DepthStencil clear_depth_stencil,
                                 Span<gpu::ImageSubresourceRange const> ranges);
+
   static void copy_image(gpu::CommandEncoder self, gpu::Image src,
                          gpu::Image dst, Span<gpu::ImageCopy const> copies);
+
   static void copy_buffer_to_image(gpu::CommandEncoder self, gpu::Buffer src,
                                    gpu::Image                       dst,
                                    Span<gpu::BufferImageCopy const> copies);
+
   static void blit_image(gpu::CommandEncoder self, gpu::Image src,
                          gpu::Image dst, Span<gpu::ImageBlit const> blits,
                          gpu::Filter filter);
+
   static void resolve_image(gpu::CommandEncoder self, gpu::Image src,
                             gpu::Image                    dst,
                             Span<gpu::ImageResolve const> resolves);
+
   static void begin_compute_pass(gpu::CommandEncoder self);
+
   static void end_compute_pass(gpu::CommandEncoder self);
+
   static void begin_rendering(gpu::CommandEncoder       self,
                               gpu::RenderingInfo const &info);
+
   static void end_rendering(gpu::CommandEncoder self);
+
   static void bind_compute_pipeline(gpu::CommandEncoder  self,
                                     gpu::ComputePipeline pipeline);
+
   static void bind_graphics_pipeline(gpu::CommandEncoder   self,
                                      gpu::GraphicsPipeline pipeline);
+
   static void
-              bind_descriptor_sets(gpu::CommandEncoder            self,
-                                   Span<gpu::DescriptorSet const> descriptor_sets,
-                                   Span<u32 const>                dynamic_offsets);
+      bind_descriptor_sets(gpu::CommandEncoder            self,
+                           Span<gpu::DescriptorSet const> descriptor_sets,
+                           Span<u32 const>                dynamic_offsets);
+
   static void push_constants(gpu::CommandEncoder self,
                              Span<u8 const>      push_constants_data);
+
   static void dispatch(gpu::CommandEncoder self, u32 group_count_x,
                        u32 group_count_y, u32 group_count_z);
+
   static void dispatch_indirect(gpu::CommandEncoder self, gpu::Buffer buffer,
                                 u64 offset);
+
   static void set_graphics_state(gpu::CommandEncoder       self,
                                  gpu::GraphicsState const &state);
+
   static void bind_vertex_buffers(gpu::CommandEncoder     self,
                                   Span<gpu::Buffer const> vertex_buffers,
                                   Span<u64 const>         offsets);
+
   static void bind_index_buffer(gpu::CommandEncoder self,
                                 gpu::Buffer index_buffer, u64 offset,
                                 gpu::IndexType index_type);
+
   static void draw(gpu::CommandEncoder self, u32 vertex_count,
                    u32 instance_count, u32 first_vertex_id,
                    u32 first_instance_id);
+
   static void draw_indexed(gpu::CommandEncoder self, u32 first_index,
                            u32 num_indices, i32 vertex_offset,
                            u32 first_instance_id, u32 num_instances);
+
   static void draw_indirect(gpu::CommandEncoder self, gpu::Buffer buffer,
                             u64 offset, u32 draw_count, u32 stride);
+
   static void draw_indexed_indirect(gpu::CommandEncoder self,
                                     gpu::Buffer buffer, u64 offset,
                                     u32 draw_count, u32 stride);
@@ -544,7 +629,7 @@ struct ImageState
 
 struct Buffer
 {
-  gpu::BufferDesc desc           = {};
+  gpu::BufferInfo info           = {};
   VkBuffer        vk_buffer      = nullptr;
   VmaAllocation   vma_allocation = nullptr;
   BufferState     state          = {};
@@ -552,7 +637,7 @@ struct Buffer
 
 struct BufferView
 {
-  gpu::BufferViewDesc desc    = {};
+  gpu::BufferViewInfo info    = {};
   VkBufferView        vk_view = nullptr;
 };
 
@@ -562,7 +647,7 @@ constexpr u32 STENCIL_ASPECT_IDX = 1;
 
 struct Image
 {
-  gpu::ImageDesc    desc                = {};
+  gpu::ImageInfo    info                = {};
   bool              is_swapchain_image  = false;
   VkImage           vk_image            = nullptr;
   VmaAllocation     vma_allocation      = nullptr;
@@ -573,13 +658,13 @@ struct Image
 
 struct ImageView
 {
-  gpu::ImageViewDesc desc    = {};
+  gpu::ImageViewInfo info    = {};
   VkImageView        vk_view = nullptr;
 };
 
 struct DescriptorSetLayout
 {
-  gpu::DescriptorBindingDesc bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
+  gpu::DescriptorBindingInfo bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
   VkDescriptorSetLayout      vk_layout                    = nullptr;
   u32                        sizing[NUM_DESCRIPTOR_TYPES] = {};
   u32                        num_bindings                 = 0;
@@ -814,7 +899,7 @@ struct CommandEncoder
 /// because the surface requested a zero sized image extent
 struct Swapchain
 {
-  gpu::SwapchainDesc  desc            = {};
+  gpu::SwapchainInfo  info            = {};
   bool                is_out_of_date  = true;
   bool                is_optimal      = false;
   bool                is_zero_sized   = false;
