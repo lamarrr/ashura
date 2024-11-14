@@ -7,7 +7,7 @@ namespace ash
 template <Animatable T>
 void Animation<T>::run(Duration delta)
 {
-  if (state.delay > Duration::zero())
+  if (state.delay > 0ns)
   {
     state.delay -= delta;
     return;
@@ -20,7 +20,7 @@ void Animation<T>::run(Duration delta)
     if (config.loop)
     {
       if (config.duration.count() <= 0)
-        state.current_time = Duration::zero();
+        state.current_time = 0ns;
       // Modulo
       auto division =
           std::lldiv(state.current_time.count(), config.duration.count());
@@ -41,7 +41,7 @@ void Animation<T>::run(Duration delta)
 
   if (is_reset)
   {
-    state.current_time = Duration::zero();
+    state.current_time = 0ns;
     state.delay        = config.delay;
     current_value      = start;
     is_reset           = false;
@@ -166,7 +166,7 @@ template <Animatable T>
 Timeline &Timeline::parallel(const std::vector<AnimationConfig<T>>  &configs,
                              const std::vector<std::pair<f32, f32>> &values)
 {
-  Duration max_duration = Duration::zero();
+  Duration max_duration = 0ns;
   Duration start_time   = total_duration;
 
   for (size_t i = 0; i < configs.size(); ++i)
@@ -189,7 +189,7 @@ Timeline &Timeline::stagger(const f32 &start, const f32 &end,
                             AnimationConfig<T> config, u32 count,
                             const StaggerPattern &stagger_pattern)
 {
-  Duration base_delay = Duration::zero();
+  Duration base_delay = 0ns;
   Duration start_time = total_duration;
 
   for (size_t i = 0; i < count; ++i)
@@ -217,7 +217,7 @@ void Timeline::tick()
     return;
 
   auto     current_time_point = Clock::now();
-  Duration delta              = get_delta(current_time_point, last_update_time);
+  Duration delta              = std::chrono::duration_cast<Duration>(current_time_point - last_update_time);
   last_update_time            = current_time_point;
 
   Duration adjusted_delta = delta * time_direction;
@@ -240,7 +240,7 @@ void Timeline::tick()
       is_playing_  = false;
     }
   }
-  else if (time_direction < 0 && current_time <= Duration::zero())
+  else if (time_direction < 0 && current_time <= 0ns)
   {
     if (options.loop)
     {
@@ -254,7 +254,7 @@ void Timeline::tick()
     }
     else
     {
-      current_time = Duration::zero();
+      current_time = 0ns;
       is_playing_  = false;
     }
   }
@@ -274,7 +274,7 @@ void Timeline::play_from_start()
   {
     segment->reset();
   }
-  current_time     = Duration::zero();
+  current_time     = 0ns;
   time_direction   = 1.0f;
   is_playing_      = true;
   last_update_time = Clock::now();
@@ -308,7 +308,7 @@ void Timeline::resume()
 void Timeline::stop()
 {
   is_playing_    = false;
-  current_time   = Duration::zero();
+  current_time   = 0ns;
   time_direction = 1.0f;
   for (auto &segment : segments)
   {
@@ -337,7 +337,7 @@ void Timeline::seek(Duration time)
     {
       segment->reset();
     }
-    current_time = Duration::zero();
+    current_time = 0ns;
     update_segments(target_time);
   }
   else
@@ -391,7 +391,7 @@ void Timeline::update_segments(Duration delta)
 template <Animatable T>
 void KeyFrameSegment<T>::calculate_duration()
 {
-  this->duration = Duration::zero();
+  this->duration = 0ns;
   for (const auto &kf : keyframes)
   {
     this->duration += kf.duration;
@@ -405,7 +405,7 @@ void KeyFrameSegment<T>::update(Duration _time, Duration delta)
     return;
 
   current_time              = (_time - this->start_time) + delta;
-  Duration accumulated_time = Duration::zero();
+  Duration accumulated_time = 0ns;
 
   for (size_t i = 0; i < keyframes.size() - 1; ++i)
   {

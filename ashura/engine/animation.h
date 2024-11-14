@@ -10,6 +10,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+using namespace std::chrono_literals;
 
 namespace ash
 {
@@ -51,17 +52,11 @@ using Clock     = std::chrono::steady_clock;
 using TimePoint = Clock::time_point;
 using Duration  = std::chrono::duration<float>;
 
-static inline Duration get_delta(const TimePoint &current,
-                                 const TimePoint &previous)
-{
-  return std::chrono::duration_cast<Duration>(current - previous);
-}
-
 template <Animatable T>
 struct AnimationConfig
 {
-  Duration         duration{std::chrono::seconds(1)};
-  Duration         delay{std::chrono::nanoseconds(0)};
+  Duration         duration =  1s;
+  Duration         delay  = 0ns;
   bool             loop   = false;
   Easing<T>        easing = Easing<T>{};
   Span<const char> label  = R"(default)"_span;
@@ -69,20 +64,20 @@ struct AnimationConfig
 
 struct AnimationState
 {
-  bool     is_playing = false;
-  Duration current_time{std::chrono::nanoseconds(0)};
-  Duration delay{std::chrono::nanoseconds(0)};
+  bool     is_playing   = false;
+  Duration current_time = 0ns;
+  Duration delay        = 0ns;
 };
 
 struct TimelineOptions
 {
-  Duration    delay{std::chrono::nanoseconds(0)};
+  Duration    delay    = 0ns;
   bool        autoplay = true;
   bool        loop     = false;
   std::string label    = "default";
 };
 
-enum class GridDirection
+enum class GridDirection : u32
 {
   RowMajor    = 0,        // Left to right, top to bottom
   ColumnMajor = 1         // Top to bottom, left to right
@@ -91,8 +86,8 @@ enum class GridDirection
 struct StaggerPattern
 {
   virtual ~StaggerPattern() = default;
-  Duration start{std::chrono::nanoseconds(0)};
-  Duration from{std::chrono::nanoseconds(0)};
+  Duration start            = 0ns;
+  Duration from             = 0ns;
   struct Grid
   {
     u32           rows      = 1;
@@ -214,8 +209,9 @@ public:
       return;
 
     auto     current_time = Clock::now();
-    Duration delta        = get_delta(current_time, last_update_time);
-    last_update_time      = current_time;
+    Duration delta =
+        std::chrono::duration_cast<Duration>(current_time - last_update_time);
+    last_update_time = current_time;
 
     run(delta);
   }
@@ -277,20 +273,20 @@ struct KeyFrame
   }
 };
 
-enum class SegmentType
+enum class SegmentType : u32
 {
-  Basic,            // Single Animation
-  KeyFramed,        // Multiple KeyFrames
-  Parallel,         // Multiple parallel animations
-  Staggered         // Staggered animations
+  Basic     = 0,        // Single Animation
+  KeyFramed = 1,        // Multiple KeyFrames
+  Parallel  = 2,        // Multiple parallel animations
+  Staggered = 3         // Staggered animations
 };
 
 struct TimelineSegment
 {
-  Span<const char> label = R"(default)"_span;
-  Duration         start_time{std::chrono::nanoseconds(0)};
-  Duration         duration{std::chrono::nanoseconds(0)};
-  SegmentType      type = SegmentType::Basic;
+  Span<const char> label      = R"(default)"_span;
+  Duration         start_time = 0ns;
+  Duration         duration   = 0ns;
+  SegmentType      type       = SegmentType::Basic;
 
   virtual ~TimelineSegment()                                     = default;
   virtual void             update(Duration time, Duration delta) = 0;
@@ -335,7 +331,7 @@ template <Animatable T>
 struct KeyFrameSegment : TimelineSegment
 {
   std::vector<KeyFrame<T>> keyframes;
-  Duration                 current_time{std::chrono::seconds(1)};
+  Duration                 current_time = 1s;
   T                        interpolated_value;
 
   KeyFrameSegment(const std::vector<KeyFrame<T>> &kf) : keyframes(std::move(kf))
@@ -573,40 +569,40 @@ template <Animatable T>
 constexpr Easing<T> linear()
 {
   return Easing<T>{.params = {},
-                .easing = [](const T &start, const T &end, f32 *params) {
-                  f32 t = params[0];
-                  return lerp(start, end, ash::linear(t));
-                }};
+                   .easing = [](const T &start, const T &end, f32 *params) {
+                     f32 t = params[0];
+                     return lerp(start, end, ash::linear(t));
+                   }};
 }
 
 template <Animatable T>
 constexpr Easing<T> ease_in()
 {
   return Easing<T>{.params = {},
-                .easing = [](const T &start, const T &end, f32 *params) {
-                  f32 t = params[0];
-                  return lerp(start, end, ash::ease_in(t));
-                }};
+                   .easing = [](const T &start, const T &end, f32 *params) {
+                     f32 t = params[0];
+                     return lerp(start, end, ash::ease_in(t));
+                   }};
 }
 
 template <Animatable T>
 constexpr Easing<T> ease_out()
 {
   return Easing<T>{.params = {},
-                .easing = [](const T &start, const T &end, f32 *params) {
-                  f32 t = params[0];
-                  return lerp(start, end, ash::ease_out(t));
-                }};
+                   .easing = [](const T &start, const T &end, f32 *params) {
+                     f32 t = params[0];
+                     return lerp(start, end, ash::ease_out(t));
+                   }};
 }
 
 template <Animatable T>
 constexpr Easing<T> ease_in_out()
 {
   return Easing<T>{.params = {},
-                .easing = [](const T &start, const T &end, f32 *params) {
-                  f32 t = params[0];
-                  return lerp(start, end, ash::ease_in_out(t));
-                }};
+                   .easing = [](const T &start, const T &end, f32 *params) {
+                     f32 t = params[0];
+                     return lerp(start, end, ash::ease_in_out(t));
+                   }};
 }
 
 // Based on Robert Penner's elastic easing:
@@ -760,22 +756,22 @@ struct Easing
 
   // TODO: More Easing functions , see https://github.com/EmmanuelOga/easing
   // - outInQuad
-  // - inCubic 
-  // - outCubic 
-  // - inOutCubic 
+  // - inCubic
+  // - outCubic
+  // - inOutCubic
   // - outInCubic
-  // - inQuart 
-  // - outQuart 
-  // - inOutQuart 
-  // - outInQuart 
-  // - inQuint 
+  // - inQuart
+  // - outQuart
+  // - inOutQuart
+  // - outInQuart
+  // - inQuint
   // - outQuint
-  // - inOutQuint 
-  // - outInQuint 
-  // - inSine 
+  // - inOutQuint
+  // - outInQuint
+  // - inSine
   // - outSine
   // - inOutSine
-  // - outInSine 
+  // - outInSine
   // - inExpo
   // - outExpo
   // - inOutExpo
@@ -783,16 +779,16 @@ struct Easing
   // - inCirc
   // - outCirc
   // - inOutCirc
-  // - outInCirc 
-  // - outElastic 
+  // - outInCirc
+  // - outElastic
   // - inOutElastic
-  // - outInElastic 
+  // - outInElastic
   // - inBack
   // - outBack
   // - inOutBack
-  // - outInBack 
-  // - inBounce 
-  // - inOutBounce 
+  // - outInBack
+  // - inBounce
+  // - inOutBounce
   // - outInBounce
 };
 
