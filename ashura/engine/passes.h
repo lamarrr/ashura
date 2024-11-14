@@ -18,7 +18,7 @@ struct Pass
   virtual Span<char const> id()                  = 0;
   virtual void             acquire(GpuContext &) = 0;
   virtual void             release(GpuContext &) = 0;
-  virtual ~Pass()                                = 0;
+  virtual ~Pass()                                = default;
 };
 
 struct BloomPassParams

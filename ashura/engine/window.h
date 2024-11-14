@@ -21,7 +21,7 @@ struct WindowSystem
 
   static void uninit();
 
-  virtual ~WindowSystem() = 0;
+  virtual ~WindowSystem() = default;
 
   virtual Option<Window> create_window(gpu::InstanceImpl instance,
                                        Span<char const>  title) = 0;

@@ -9,6 +9,7 @@
 #include "ashura/std/log.h"
 #include "ashura/std/rc.h"
 #include "ashura/std/time.h"
+#include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 #include <chrono>
 #include <thread>

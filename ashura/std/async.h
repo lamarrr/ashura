@@ -651,9 +651,7 @@ struct Scheduler
   static void uninit();
 
   /// @brief Destroys the scheduler. The scheduler must have been joined.
-  virtual ~Scheduler()
-  {
-  }
+  virtual ~Scheduler() = default;
 
   /// @brief Request that the threads stop executing and purges the tasks on the
   /// task queue.

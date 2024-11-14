@@ -51,7 +51,7 @@ struct RenderPipeline
   virtual void end_frame(GpuContext &ctx, PassContext &,
                          gpu::CommandEncoderImpl const &) = 0;
 
-  virtual ~RenderPipeline() = 0;
+  virtual ~RenderPipeline() = default;
 };
 
 struct RenderTarget

@@ -476,7 +476,7 @@ struct [[nodiscard]] Vec
 };
 
 template <typename T>
-constexpr Result<PinVec<T>> vec(AllocatorImpl allocator, usize capacity)
+constexpr Result<Vec<T>> vec(AllocatorImpl allocator, usize capacity)
 {
   T *storage;
   if (!allocator.nalloc(capacity, storage)) [[unlikely]]
@@ -488,7 +488,7 @@ constexpr Result<PinVec<T>> vec(AllocatorImpl allocator, usize capacity)
 }
 
 template <typename T, usize N>
-constexpr Result<PinVec<T>> vec(AllocatorImpl allocator, T (&&data)[N])
+constexpr Result<Vec<T>> vec(AllocatorImpl allocator, T (&&data)[N])
 {
   T *storage;
   if (!allocator.nalloc(N, storage)) [[unlikely]]
