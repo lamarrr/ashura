@@ -35,10 +35,57 @@ struct AllocatorInterface
                   usize size)               = nullptr;
 };
 
+struct NoopAllocatorInterface
+{
+  static bool alloc(Allocator, usize, usize, u8 *&)
+  {
+    return false;
+  }
+
+  static bool alloc_zeroed(Allocator, usize, usize, u8 *&)
+  {
+    return false;
+  }
+
+  static bool realloc(Allocator, usize, usize, usize, u8 *&)
+  {
+    return false;
+  }
+
+  static void dealloc(Allocator, usize, u8 *, usize)
+  {
+  }
+};
+
+inline constexpr AllocatorInterface noop_allocator_interface{
+    .alloc        = NoopAllocatorInterface::alloc,
+    .alloc_zeroed = NoopAllocatorInterface::alloc_zeroed,
+    .realloc      = NoopAllocatorInterface::realloc,
+    .dealloc      = NoopAllocatorInterface::dealloc};
+
+/// @brief General Purpose Heap allocator. guarantees at least
+/// MAX_STANDARD_ALIGNMENT alignment, when overaligned memory allocators are
+/// available and supported it can allocate over-aligned memory.
+struct HeapInterface
+{
+  static bool alloc(Allocator self, usize alignment, usize size, u8 *&mem);
+  static bool alloc_zeroed(Allocator self, usize alignment, usize size,
+                           u8 *&mem);
+  static bool realloc(Allocator self, usize alignment, usize old_size,
+                      usize new_size, u8 *&mem);
+  static void dealloc(Allocator self, usize alignment, u8 *mem, usize size);
+};
+
+inline constexpr AllocatorInterface heap_interface{
+    .alloc        = HeapInterface::alloc,
+    .alloc_zeroed = HeapInterface::alloc_zeroed,
+    .realloc      = HeapInterface::realloc,
+    .dealloc      = HeapInterface::dealloc};
+
 struct AllocatorImpl
 {
   Allocator                 self      = nullptr;
-  AllocatorInterface const *interface = nullptr;
+  AllocatorInterface const *interface = &heap_interface;
 
   [[nodiscard]] constexpr bool alloc(usize alignment, usize size,
                                      u8 *&mem) const
@@ -91,55 +138,8 @@ struct AllocatorImpl
   }
 };
 
-struct NoopAllocatorInterface
-{
-  static bool alloc(Allocator, usize, usize, u8 *&)
-  {
-    return false;
-  }
-
-  static bool alloc_zeroed(Allocator, usize, usize, u8 *&)
-  {
-    return false;
-  }
-
-  static bool realloc(Allocator, usize, usize, usize, u8 *&)
-  {
-    return false;
-  }
-
-  static void dealloc(Allocator, usize, u8 *, usize)
-  {
-  }
-};
-
-inline constexpr AllocatorInterface noop_allocator_interface{
-    .alloc        = NoopAllocatorInterface::alloc,
-    .alloc_zeroed = NoopAllocatorInterface::alloc_zeroed,
-    .realloc      = NoopAllocatorInterface::realloc,
-    .dealloc      = NoopAllocatorInterface::dealloc};
-
 inline constexpr AllocatorImpl noop_allocator{
     .self = nullptr, .interface = &noop_allocator_interface};
-
-/// @brief General Purpose Heap allocator. guarantees at least
-/// MAX_STANDARD_ALIGNMENT alignment, when overaligned memory allocators are
-/// available and supported it can allocate over-aligned memory.
-struct HeapInterface
-{
-  static bool alloc(Allocator self, usize alignment, usize size, u8 *&mem);
-  static bool alloc_zeroed(Allocator self, usize alignment, usize size,
-                           u8 *&mem);
-  static bool realloc(Allocator self, usize alignment, usize old_size,
-                      usize new_size, u8 *&mem);
-  static void dealloc(Allocator self, usize alignment, u8 *mem, usize size);
-};
-
-inline constexpr AllocatorInterface heap_interface{
-    .alloc        = HeapInterface::alloc,
-    .alloc_zeroed = HeapInterface::alloc_zeroed,
-    .realloc      = HeapInterface::realloc,
-    .dealloc      = HeapInterface::dealloc};
 
 inline constexpr AllocatorImpl heap_allocator{.self      = nullptr,
                                               .interface = &heap_interface};

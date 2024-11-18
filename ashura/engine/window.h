@@ -16,7 +16,6 @@ typedef struct Window_T *Window;
 
 struct WindowSystem
 {
-  // [ ] implement
   static void init();
 
   static void uninit();

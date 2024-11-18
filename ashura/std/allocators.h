@@ -205,7 +205,7 @@ struct ArenaPoolCfg
 /// @source: allocation memory source
 struct ArenaPool
 {
-  AllocatorImpl source        = default_allocator;
+  AllocatorImpl source        = {};
   Arena        *arenas        = nullptr;
   usize         num_arenas    = 0;
   usize         current_arena = 0;
@@ -229,7 +229,7 @@ struct ArenaPool
       current_arena{other.current_arena},
       cfg{other.cfg}
   {
-    other.source        = default_allocator;
+    other.source        = {};
     other.arenas        = nullptr;
     other.num_arenas    = 0;
     other.current_arena = 0;

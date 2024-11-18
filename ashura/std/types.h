@@ -951,7 +951,7 @@ struct Span
 
   template <typename U>
     requires(Convertible<U (*)[], T (*)[]>)
-  constexpr Span(Span<U> const &span) : data_{span.data_}, size_{span.size_}
+  constexpr Span(Span<U> span) : data_{span.data_}, size_{span.size_}
   {
   }
 
@@ -1027,12 +1027,26 @@ struct Span
     return Span<T const>{data_, size_};
   }
 
+  constexpr Span<u8> as_u8() const
+    requires(NonConst<T>)
+  {
+    return Span<u8>{reinterpret_cast<u8 *>(data_), size_bytes()};
+  }
+
   constexpr Span<u8 const> as_u8() const
+    requires(Const<T>)
   {
     return Span<u8 const>{reinterpret_cast<u8 const *>(data_), size_bytes()};
   }
 
   constexpr Span<char const> as_char() const
+    requires(NonConst<T>)
+  {
+    return Span<char>{reinterpret_cast<char *>(data_), size_bytes()};
+  }
+
+  constexpr Span<char const> as_char() const
+    requires(Const<T>)
   {
     return Span<char const>{reinterpret_cast<char const *>(data_),
                             size_bytes()};

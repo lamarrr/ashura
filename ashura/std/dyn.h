@@ -16,7 +16,7 @@ struct [[nodiscard]] Dyn
   struct Inner
   {
     H             handle    = {};
-    AllocatorImpl allocator = default_allocator;
+    AllocatorImpl allocator = {};
     Uninit        uninit    = noop;
   };
 
@@ -106,13 +106,13 @@ Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator, Args &&...args)
 }
 
 template <typename T>
-Result<Dyn<T *>, Void> dyn(AllocatorImpl allocator, T &&object)
+Result<Dyn<T *>, Void> dyn(AllocatorImpl allocator, T object)
 {
   return dyn_inplace<T>(allocator, (T &&) object);
 }
 
 template <typename Base, typename H>
-Dyn<H> transmute(Dyn<Base> &&base, H &&handle)
+Dyn<H> transmute(Dyn<Base> &&base, H handle)
 {
   Dyn<H> t{(H &&) handle, base.inner.allocator, base.inner.uninit};
   base.inner.handle    = {};

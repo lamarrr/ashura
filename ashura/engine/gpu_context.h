@@ -95,9 +95,11 @@ struct GpuContext
       gpu::FormatFeatures::ColorAttachment |
       gpu::FormatFeatures::ColorAttachmentBlend |
       gpu::FormatFeatures::StorageImage | gpu::FormatFeatures::SampledImage;
+
   static constexpr gpu::FormatFeatures DEPTH_STENCIL_FEATURES =
       gpu::FormatFeatures::DepthStencilAttachment |
       gpu::FormatFeatures::SampledImage;
+
   static constexpr gpu::BufferUsage SSBO_USAGE =
       gpu::BufferUsage::UniformBuffer | gpu::BufferUsage::StorageBuffer |
       gpu::BufferUsage::UniformTexelBuffer |
@@ -118,77 +120,151 @@ struct GpuContext
   static constexpr u16 NUM_SAMPLER_SLOTS        = 64;
   static constexpr u16 NUM_SCRATCH_FRAMEBUFFERS = 2;
 
-  Bits<u64, NUM_TEXTURE_SLOTS> texture_slots = {};
+  gpu::DeviceImpl device;
 
-  Bits<u64, NUM_SAMPLER_SLOTS> sampler_slots = {};
+  gpu::PipelineCache pipeline_cache;
 
-  gpu::DeviceImpl device = {};
+  u32 buffering;
 
-  gpu::PipelineCache pipeline_cache = nullptr;
+  gpu::Format color_format;
 
-  u32 buffering = 0;
+  gpu::Format depth_stencil_format;
 
-  StrHashMap<gpu::Shader> shader_map = {};
+  gpu::DescriptorSetLayout ubo_layout;
 
-  gpu::Format color_format = gpu::Format::Undefined;
+  gpu::DescriptorSetLayout ssbo_layout;
 
-  gpu::Format depth_stencil_format = gpu::Format::Undefined;
+  gpu::DescriptorSetLayout textures_layout;
 
-  gpu::DescriptorSetLayout ubo_layout = nullptr;
+  gpu::DescriptorSetLayout samplers_layout;
 
-  gpu::DescriptorSetLayout ssbo_layout = nullptr;
+  gpu::DescriptorSet texture_views;
 
-  gpu::DescriptorSetLayout textures_layout = nullptr;
+  gpu::DescriptorSet samplers;
 
-  gpu::DescriptorSetLayout samplers_layout = nullptr;
+  SamplerCache sampler_cache;
 
-  gpu::DescriptorSet texture_views = nullptr;
+  Framebuffer screen_fb;
 
-  gpu::DescriptorSet samplers = nullptr;
+  Array<Framebuffer, NUM_SCRATCH_FRAMEBUFFERS> scratch_fbs;
 
-  InplaceVec<Vec<gpu::Object>, gpu::MAX_FRAME_BUFFERING> released_objects = {};
+  gpu::Image default_image;
 
-  SamplerCache sampler_cache = {};
+  Array<gpu::ImageView, NUM_DEFAULT_TEXTURES> default_image_views;
 
-  Framebuffer screen_fb = {};
+  InplaceVec<Vec<gpu::Object>, gpu::MAX_FRAME_BUFFERING> released_objects;
 
-  Framebuffer scratch_fbs[NUM_SCRATCH_FRAMEBUFFERS] = {};
+  Bits<u64, NUM_TEXTURE_SLOTS> texture_slots;
 
-  gpu::Image default_image = nullptr;
+  Bits<u64, NUM_SAMPLER_SLOTS> sampler_slots;
 
-  gpu::ImageView default_image_views[NUM_DEFAULT_TEXTURES] = {};
+  static GpuContext create(AllocatorImpl allocator, gpu::DeviceImpl device,
+                           bool use_hdr, u32 buffering,
+                           gpu::Extent initial_extent);
 
-  void init(gpu::DeviceImpl device, bool use_hdr, u32 buffering,
-            gpu::Extent initial_extent, StrHashMap<gpu::Shader> shader_map);
-  void uninit();
+  GpuContext(
+      AllocatorImpl allocator, gpu::DeviceImpl device,
+      gpu::PipelineCache pipeline_cache, u32 buffering,
+      gpu::Format color_format, gpu::Format depth_stencil_format,
+      gpu::DescriptorSetLayout ubo_layout, gpu::DescriptorSetLayout ssbo_layout,
+      gpu::DescriptorSetLayout textures_layout,
+      gpu::DescriptorSetLayout samplers_layout,
+      gpu::DescriptorSet texture_views, gpu::DescriptorSet samplers,
+      gpu::Image                                  default_image,
+      Array<gpu::ImageView, NUM_DEFAULT_TEXTURES> default_image_views,
+      InplaceVec<Vec<gpu::Object>, gpu::MAX_FRAME_BUFFERING> released_objects) :
+      device{device},
+      pipeline_cache{pipeline_cache},
+      buffering{buffering},
+      color_format{color_format},
+      depth_stencil_format{depth_stencil_format},
+      ubo_layout{ubo_layout},
+      ssbo_layout{ssbo_layout},
+      textures_layout{textures_layout},
+      samplers_layout{samplers_layout},
+      texture_views{texture_views},
+      samplers{samplers},
+      sampler_cache{allocator},
+      screen_fb{},
+      scratch_fbs{},
+      default_image{default_image},
+      default_image_views{default_image_views},
+      released_objects{std::move(released_objects)},
+      texture_slots{},
+      sampler_slots{}
+  {
+  }
+
+  GpuContext(GpuContext const &)            = delete;
+  GpuContext(GpuContext &&)                 = default;
+  GpuContext &operator=(GpuContext const &) = delete;
+  GpuContext &operator=(GpuContext &&)      = default;
+
+  ~GpuContext()
+  {
+    release(default_image);
+    for (gpu::ImageView v : default_image_views)
+    {
+      release(v);
+    }
+    release(texture_views);
+    release(samplers);
+    release(ubo_layout);
+    release(ssbo_layout);
+    release(textures_layout);
+    release(samplers_layout);
+    release(screen_fb);
+    for (Framebuffer &f : scratch_fbs)
+    {
+      release(f);
+    }
+    sampler_cache.iter([&](gpu::SamplerInfo const &, CachedSampler sampler) {
+      release(sampler.sampler);
+    });
+    idle_reclaim();
+    device->uninit_pipeline_cache(device.self, pipeline_cache);
+  }
 
   void recreate_framebuffers(gpu::Extent new_extent);
 
   gpu::CommandEncoderImpl encoder();
-  u32                     ring_index();
-  gpu::FrameId            frame_id();
-  gpu::FrameId            tail_frame_id();
 
-  Option<gpu::Shader> get_shader(Span<char const> name);
-  CachedSampler       create_sampler(gpu::SamplerInfo const &info);
+  u32 ring_index();
 
-  u32  alloc_texture_slot();
+  gpu::FrameId frame_id();
+
+  gpu::FrameId tail_frame_id();
+
+  CachedSampler create_sampler(gpu::SamplerInfo const &info);
+
+  u32 alloc_texture_slot();
+
   void release_texture_slot(u32 slot);
-  u32  alloc_sampler_slot();
+
+  u32 alloc_sampler_slot();
+
   void release_sampler_slot(u32 slot);
 
   void release(gpu::Image image);
+
   void release(gpu::ImageView view);
+
   void release(gpu::Buffer view);
+
   void release(gpu::BufferView view);
+
   void release(gpu::DescriptorSetLayout layout);
+
   void release(gpu::DescriptorSet set);
+
   void release(gpu::Sampler sampler);
+
   void release(FramebufferAttachment fb)
   {
     release(fb.image);
     release(fb.view);
   }
+
   void release(Framebuffer fb)
   {
     release(fb.color);
@@ -199,15 +275,19 @@ struct GpuContext
   void idle_reclaim();
 
   void begin_frame(gpu::Swapchain swapchain);
+
   void end_frame(gpu::Swapchain swapchain);
 };
 
 struct SSBO
 {
-  gpu::Buffer        buffer     = nullptr;
-  u64                size       = 0;
+  gpu::Buffer buffer = nullptr;
+
+  u64 size = 0;
+
   gpu::DescriptorSet descriptor = nullptr;
-  Span<char const>   label      = "SSBO"_span;
+
+  Span<char const> label = "SSBO"_span;
 
   void uninit(GpuContext &ctx);
 

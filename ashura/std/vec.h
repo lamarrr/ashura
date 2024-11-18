@@ -20,7 +20,7 @@ struct [[nodiscard]] Vec
   T            *storage_   = nullptr;
   usize         size_      = 0;
   usize         capacity_  = 0;
-  AllocatorImpl allocator_ = default_allocator;
+  AllocatorImpl allocator_ = {};
 
   explicit constexpr Vec(AllocatorImpl allocator) :
       storage_{nullptr}, size_{0}, capacity_{0}, allocator_{allocator}
@@ -50,7 +50,7 @@ struct [[nodiscard]] Vec
     other.storage_   = nullptr;
     other.size_      = 0;
     other.capacity_  = 0;
-    other.allocator_ = default_allocator;
+    other.allocator_ = {};
   }
 
   constexpr Vec &operator=(Vec &&other)
@@ -501,6 +501,21 @@ constexpr Result<Vec<T>> vec(AllocatorImpl allocator, T (&&data)[N])
   return Ok{Vec<T>{allocator, storage, N, N}};
 }
 
+template <typename T>
+constexpr Result<Vec<remove_const<T>>> vec(AllocatorImpl allocator,
+                                           Span<T>       data)
+{
+  remove_const<T> *storage;
+  if (!allocator.nalloc(data.size(), storage)) [[unlikely]]
+  {
+    return Err{};
+  }
+
+  obj::copy_construct(data, storage);
+
+  return Ok{Vec<remove_const<T>>{allocator, storage, data.size(), data.size()}};
+}
+
 /// @brief A vector with elements pinned to memory, The address of the vector is
 /// stable over its lifetime and guarantees that there's never reference
 /// invalidation. The elements are never relocated during their lifetime. It can
@@ -571,7 +586,7 @@ struct [[nodiscard]] PinVec
     storage_   = nullptr;
     size_      = 0;
     capacity_  = 0;
-    allocator_ = default_allocator;
+    allocator_ = {};
   }
 
   constexpr bool is_empty() const
@@ -754,14 +769,19 @@ struct [[nodiscard]] BitVec
 
   constexpr void clear()
   {
-    bit_size_ = 0;
     repr_.clear();
+    bit_size_ = 0;
+  }
+
+  constexpr void uninit()
+  {
+    repr_.uninit();
   }
 
   constexpr void reset()
   {
-    bit_size_ = 0;
     repr_.reset();
+    bit_size_ = 0;
   }
 
   constexpr bool get(usize index) const

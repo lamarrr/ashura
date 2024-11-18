@@ -5,29 +5,21 @@
 namespace ash
 {
 
-/*
-  // copy
-  // move
-  // destroy
-  // in-place using tags
-  //   bool is(usize i);
-  // <>
-  // bool is();
-  // destructor
+  // [ ]   bool is(usize i);
+  // [ ] bool is();
 
-  template <usize I>
-  auto &&operator|(V<I>)
-  {
-  }
+// [ ]  template <usize I>
+// auto &&operator|(V<I>)
+// {
+//  }
 
-  template <typename... Lambda>
-    requires(sizeof...(Lambda) == SIZE)
-  void map(Lambda &&...lambda);
-template <typename... T, typename... Lambda>
-void map(Enum<T...> &&e, Lambda &&...lambda)
-{
-  // switch on types and invoke lambda based on the type contasined
-}
-*/
+//  template <typename... Lambda>
+//    requires(sizeof...(Lambda) == SIZE)
+//  void map(Lambda &&...lambda);
+// template <typename... T, typename... Lambda>
+// void map(Enum<T...> &&e, Lambda &&...lambda)
+// {
+//  // switch on types and invoke lambda based on the type contasined
+// }
 
 }

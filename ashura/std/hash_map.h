@@ -6,6 +6,7 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/obj.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 #include <string.h>
 
 namespace ash
@@ -14,6 +15,14 @@ namespace ash
 struct StrEqual
 {
   bool operator()(Span<char const> a, Span<char const> b) const
+  {
+    return a.size() == b.size() && (memcmp(a.data(), b.data(), a.size()) == 0);
+  }
+};
+
+struct StrVecEqual
+{
+  bool operator()(Vec<char> const &a, Vec<char> const &b) const
   {
     return a.size() == b.size() && (memcmp(a.data(), b.data(), a.size()) == 0);
   }
@@ -36,6 +45,14 @@ struct StrHasher
   }
 };
 
+struct StrVecHasher
+{
+  Hash operator()(Vec<char> const &str) const
+  {
+    return hash_bytes(span(str).as_u8());
+  }
+};
+
 struct BitHasher
 {
   template <typename T>
@@ -45,8 +62,10 @@ struct BitHasher
   }
 };
 
-constexpr StrEqual  str_equal;
-constexpr StrHasher str_hash;
+constexpr StrEqual     str_equal;
+constexpr StrVecEqual  str_vec_equal;
+constexpr StrHasher    str_hash;
+constexpr StrVecHasher str_vec_hash;
 
 constexpr BitEqual  bit_equal;
 constexpr BitHasher bit_hash;
@@ -80,18 +99,25 @@ struct [[nodiscard]] HashMap
 
   static constexpr Distance PROBE_SENTINEL = -1;
 
-  AllocatorImpl allocator_      = default_allocator;
-  Hasher        hasher_         = {};
-  KeyCmp        cmp_            = {};
-  Entry        *probes_         = nullptr;
-  Distance     *probe_dists_    = nullptr;
-  usize         num_probes_     = 0;
-  usize         num_entries_    = 0;
-  Distance      max_probe_dist_ = 0;
+  Distance     *probe_dists_;
+  Entry        *probes_;
+  usize         num_probes_;
+  usize         num_entries_;
+  Distance      max_probe_dist_;
+  AllocatorImpl allocator_;
+  Hasher        hasher_;
+  KeyCmp        cmp_;
 
-  constexpr HashMap(AllocatorImpl allocator = default_allocator,
-                    Hasher hasher = {}, KeyCmp cmp = {}) :
-      allocator_{allocator}, hasher_{(Hasher &&) hasher}, cmp_{(KeyCmp &&) cmp}
+  constexpr HashMap(AllocatorImpl allocator = {}, Hasher hasher = {},
+                    KeyCmp cmp = {}) :
+      probe_dists_{nullptr},
+      probes_{nullptr},
+      num_probes_{0},
+      num_entries_{0},
+      max_probe_dist_{0},
+      allocator_{allocator},
+      hasher_{(Hasher &&) hasher},
+      cmp_{(KeyCmp &&) cmp}
   {
   }
 
@@ -100,21 +126,23 @@ struct [[nodiscard]] HashMap
   constexpr HashMap &operator=(HashMap const &) = delete;
 
   constexpr HashMap(HashMap &&other) :
-      allocator_{other.allocator_},
-      hasher_{(Hasher &&) other.hasher_},
-      cmp_{(KeyCmp &&) other.cmp_},
-      probes_{other.probes_},
       probe_dists_{other.probe_dists_},
+      probes_{other.probes_},
       num_probes_{other.num_probes_},
       num_entries_{other.num_entries_},
-      max_probe_dist_{other.max_probe_dist_}
+      max_probe_dist_{other.max_probe_dist_},
+      allocator_{other.allocator_},
+      hasher_{(Hasher &&) other.hasher_},
+      cmp_{(KeyCmp &&) other.cmp_}
   {
-    other.allocator_      = default_allocator;
-    other.probes_         = nullptr;
     other.probe_dists_    = nullptr;
+    other.probes_         = nullptr;
     other.num_probes_     = 0;
     other.num_entries_    = 0;
     other.max_probe_dist_ = 0;
+    other.allocator_      = {};
+    other.hasher_         = {};
+    other.cmp_            = {};
   }
 
   constexpr HashMap &operator=(HashMap &&other)
@@ -150,19 +178,19 @@ struct [[nodiscard]] HashMap
   constexpr void uninit()
   {
     destruct_probes__();
-    allocator_.ndealloc(probes_, num_probes_);
     allocator_.ndealloc(probe_dists_, num_probes_);
+    allocator_.ndealloc(probes_, num_probes_);
   }
 
   constexpr void reset()
   {
     uninit();
-    allocator_      = default_allocator;
-    probes_         = nullptr;
     probe_dists_    = nullptr;
+    probes_         = nullptr;
     num_probes_     = 0;
     num_entries_    = 0;
     max_probe_dist_ = 0;
+    allocator_      = {};
   }
 
   constexpr void clear()
@@ -178,7 +206,22 @@ struct [[nodiscard]] HashMap
     max_probe_dist_ = 0;
   }
 
-  [[nodiscard]] constexpr V *get(K const &key, Hash hash) const
+  constexpr bool is_empty() const
+  {
+    return num_entries_ == 0;
+  }
+
+  constexpr usize size() const
+  {
+    return num_entries_;
+  }
+
+  constexpr usize capacity() const
+  {
+    return num_probes_;
+  }
+
+  [[nodiscard]] constexpr V *try_get(K const &key, Hash hash) const
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
@@ -203,25 +246,27 @@ struct [[nodiscard]] HashMap
     return nullptr;
   }
 
-  [[nodiscard]] constexpr V *get(K const &key) const
+  [[nodiscard]] constexpr V *try_get(K const &key) const
   {
     Hash const hash = hasher_(key);
-    return get(key, hash);
+    return try_get(key, hash);
   }
 
-  [[nodiscard]] constexpr V *operator[](K const &key) const
+  [[nodiscard]] constexpr V &operator[](K const &key) const
   {
-    return get(key);
+    V *v = try_get(key);
+    CHECK(v != nullptr);
+    return *v;
   }
 
   [[nodiscard]] constexpr bool has(K const &key) const
   {
-    return get(key) != nullptr;
+    return try_get(key) != nullptr;
   }
 
   [[nodiscard]] constexpr bool has(K const &key, Hash hash) const
   {
-    return get(key, hash) != nullptr;
+    return try_get(key, hash) != nullptr;
   }
 
   static constexpr bool needs_rehash_(usize num_entries, usize num_probes)
@@ -269,16 +314,16 @@ struct [[nodiscard]] HashMap
 
   constexpr bool rehash_n_(usize new_num_probes)
   {
-    Entry *new_probes;
-    if (!allocator_.nalloc(new_num_probes, new_probes))
+    Distance *new_probe_dists;
+    if (!allocator_.nalloc(new_num_probes, new_probe_dists))
     {
       return false;
     }
 
-    Distance *new_probe_dists;
-    if (!allocator_.nalloc(new_num_probes, new_probe_dists))
+    Entry *new_probes;
+    if (!allocator_.nalloc(new_num_probes, new_probes))
     {
-      allocator_.ndealloc(new_probes, new_num_probes);
+      allocator_.ndealloc(new_probe_dists, new_num_probes);
       return false;
     }
 
@@ -297,8 +342,8 @@ struct [[nodiscard]] HashMap
     max_probe_dist_           = 0;
 
     reinsert_(old_probes, old_probe_dists, old_num_probes);
-    allocator_.ndealloc(old_probes, old_num_probes);
     allocator_.ndealloc(old_probe_dists, old_num_probes);
+    allocator_.ndealloc(old_probes, old_num_probes);
     return true;
   }
 
@@ -448,7 +493,7 @@ struct [[nodiscard]] HashMap
   }
 
   template <typename Fn>
-  constexpr void iter(Fn &&fn)
+  constexpr void iter(Fn &&fn) const
   {
     for (usize i = 0; i < num_probes_; i++)
     {
@@ -462,6 +507,9 @@ struct [[nodiscard]] HashMap
 
 template <typename V, typename D = usize>
 using StrHashMap = HashMap<Span<char const>, V, StrHasher, StrEqual, D>;
+
+template <typename V, typename D = usize>
+using StrVecHashMap = HashMap<Vec<char>, V, StrVecHasher, StrVecEqual, D>;
 
 template <typename T, typename V, typename D = usize>
 using BitHashMap = HashMap<T, V, BitHasher, BitEqual, D>;

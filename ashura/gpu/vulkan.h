@@ -706,7 +706,7 @@ struct DescriptorPool
 /// @param pool_size each pool will have `pool_size` of each descriptor type
 struct DescriptorHeap
 {
-  AllocatorImpl   allocator    = default_allocator;
+  AllocatorImpl   allocator    = {};
   DescriptorPool *pools        = nullptr;
   u32             pool_size    = 0;
   u8             *scratch      = nullptr;

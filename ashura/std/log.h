@@ -135,13 +135,11 @@ struct Logger : Pin<>
     abort();
   }
 
-  void init(Span<LogSink *const> sinks_list)
-  {
-    obj::copy(sinks_list.slice(0, MAX_SINKS), span(sinks));
-    num_sinks = sinks_list.size32();
-  }
+  static void init();
 
-  bool add_sink(LogSink *s)
+  static void uninit();
+
+  [[nodiscard]] bool add_sink(LogSink *s)
   {
     std::lock_guard lock{mutex};
     if ((num_sinks + 1) > MAX_SINKS)

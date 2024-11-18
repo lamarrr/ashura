@@ -3,6 +3,7 @@
 
 #include "ashura/engine/gpu_context.h"
 #include "ashura/gpu/gpu.h"
+#include "ashura/std/dyn.h"
 #include "ashura/std/image.h"
 #include "ashura/std/types.h"
 
@@ -11,6 +12,8 @@ namespace ash
 
 // App Unit (AU) = 1/1024 of a px
 constexpr i32 AU_UNIT = 1024;
+
+static_assert(AU_UNIT % 64 == 0);
 
 constexpr f32 au_to_px(i32 au, f32 base)
 {
@@ -99,27 +102,27 @@ struct FontInfo
   Option<GpuFontAtlas const *> gpu_atlas         = None;
 };
 
-typedef struct Font_T *Font;
+struct Font
+{
+  static Result<Dyn<Font *>, FontDecodeError>
+      decode(Span<u8 const> encoded, u32 face = 0,
+             AllocatorImpl allocator = {});
 
-Result<Font, FontDecodeError>
-    decode_font(Span<u8 const> encoded, u32 face = 0,
-                AllocatorImpl allocator = default_allocator);
+  /// @brief rasterize the font at the specified font height. Note: raster is
+  /// stored as alpha values.
+  /// @note rasterizing mutates the font's internal data, not thread-safe
+  /// @param font_height the font height at which the texture should be
+  /// rasterized at (px)
+  /// @param allocator scratch allocator to use for storing intermediates
+  virtual Result<> rasterize(u32 font_height, AllocatorImpl allocator) = 0;
 
-FontInfo get_font_info(Font font);
+  virtual FontInfo info() = 0;
 
-void uninit_font(Font font);
+  virtual void upload_to_device(GpuContext &c, AllocatorImpl allocator) = 0;
 
-/// @brief rasterize the font at the specified font height. Note: raster is
-/// stored as alpha values.
-/// @note rasterizing mutates the font's internal data, not thread-safe
-/// @param font_height the font height at which the texture should be rasterized
-/// at (px)
-bool rasterize_font(Font font, u32 font_height,
-                    AllocatorImpl allocator = default_allocator);
+  virtual void unload_from_device(GpuContext &c) = 0;
 
-void upload_font_to_device(Font font, GpuContext &c,
-                           AllocatorImpl allocator = default_allocator);
-
-void unload_font_from_device(Font font, GpuContext &c);
+  virtual ~Font() = default;
+};
 
 }        // namespace ash

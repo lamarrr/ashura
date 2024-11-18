@@ -10,29 +10,42 @@ namespace ash
 
 struct PassContext
 {
-  BloomPass       *bloom = nullptr;
-  BlurPass        *blur  = nullptr;
-  NgonPass        *ngon  = nullptr;
-  PBRPass         *pbr   = nullptr;
-  RRectPass       *rrect = nullptr;
-  Vec<Dyn<Pass *>> all   = {};
+  BloomPass    *    bloom;
+  BlurPass     *    blur;
+  NgonPass     *    ngon;
+  PBRPass      *    pbr;
+  RRectPass    *    rrect;
+  Vec<Dyn<Pass *>> all;
 
-  void init(GpuContext &ctx)
+  explicit PassContext(AllocatorImpl allocator) :
+      bloom{}, blur{}, ngon{}, pbr{}, rrect{}, all{allocator}
+  {
+    all.push(Dyn<Pass *>{&bloom, noop_allocator, noop}).unwrap();
+    all.push(Dyn<Pass *>{&blur, noop_allocator, noop}).unwrap();
+    all.push(Dyn<Pass *>{&ngon, noop_allocator, noop}).unwrap();
+    all.push(Dyn<Pass *>{&pbr, noop_allocator, noop}).unwrap();
+    all.push(Dyn<Pass *>{&rrect, noop_allocator, noop}).unwrap();
+  }
+
+  PassContext(PassContext const &)            = delete;
+  PassContext(PassContext &&)                 = delete;
+  PassContext &operator=(PassContext const &) = delete;
+  PassContext &operator=(PassContext &&)      = delete;
+  ~PassContext()                              = default;
+
+  void acquire(GpuContext &ctx)
   {
     for (auto const &p : all)
     {
-      logger->info("Initializing Pass: ", p->id());
-      p->init(ctx);
+      p->acquire(ctx);
     };
   }
 
-  void uninit(GpuContext &ctx)
+  void release(GpuContext &ctx)
   {
     for (auto const &p : all)
     {
-      logger->info("Unintializing Pass: ", p->id());
-      p->uninit(ctx);
-      p.uninit();
+      p->release(ctx);
     };
   }
 };
@@ -41,15 +54,15 @@ struct RenderPipeline
 {
   virtual Span<char const> id() = 0;
 
-  virtual void acquire(GpuContext &ctx, PassContext &) = 0;
+  virtual void acquire(GpuContext &ctx, PassContext &passes) = 0;
 
-  virtual void release(GpuContext &ctx, PassContext &) = 0;
+  virtual void release(GpuContext &ctx, PassContext &passes) = 0;
 
-  virtual void begin_frame(GpuContext &ctx, PassContext &,
-                           gpu::CommandEncoderImpl const &) = 0;
+  virtual void begin_frame(GpuContext &ctx, PassContext &passes,
+                           gpu::CommandEncoderImpl const &enc) = 0;
 
-  virtual void end_frame(GpuContext &ctx, PassContext &,
-                         gpu::CommandEncoderImpl const &) = 0;
+  virtual void end_frame(GpuContext &ctx, PassContext &passes,
+                         gpu::CommandEncoderImpl const &enc) = 0;
 
   virtual ~RenderPipeline() = default;
 };
@@ -70,41 +83,50 @@ struct Renderer
 {
   struct Resources
   {
-    SSBO pbr_params       = {.label = "PBR Params SSBO"_span};
-    SSBO pbr_light_params = {.label = "Params Lights Params SSBO"_span};
-    SSBO ngon_vertices    = {.label = "Ngon Vertices SSBO"_span};
-    SSBO ngon_indices     = {.label = "Ngon Indices SSBO"_span};
-    SSBO ngon_params      = {.label = "Ngon Params SSBO"_span};
-    SSBO rrect_params     = {.label = "RRect Params SSBO"_span};
+    SSBO pbr_params{.label = "PBR Params SSBO"_span};
+
+    SSBO pbr_light_params{.label = "Params Lights Params SSBO"_span};
+
+    SSBO ngon_vertices{.label = "Ngon Vertices SSBO"_span};
+
+    SSBO ngon_indices{.label = "Ngon Indices SSBO"_span};
+
+    SSBO ngon_params{.label = "Ngon Params SSBO"_span};
+
+    SSBO rrect_params{.label = "RRect Params SSBO"_span};
   };
 
   InplaceVec<Resources, gpu::MAX_FRAME_BUFFERING> resources;
 
-  PassContext passes{};
+  PassContext passes;
 
-  Canvas *canvas = nullptr;
+  Vec<Dyn<RenderPipeline *>> pipelines;
 
-  Vec<Dyn<RenderPipeline *>> pipelines{};
-
-  void init(GpuContext &ctx)
+  explicit Renderer(AllocatorImpl allocator) :
+      resources{}, passes{allocator}, pipelines{allocator}
   {
-    passes.init(ctx);
-    for (auto &p : pipelines)
+  }
+
+  Renderer(Renderer const &)            = delete;
+  Renderer(Renderer &&)                 = default;
+  Renderer &operator=(Renderer const &) = delete;
+  Renderer &operator=(Renderer &&)      = default;
+  ~Renderer()                           = default;
+
+  void acquire(GpuContext &ctx)
+  {
+    passes.acquire(ctx);
+
+    for (Dyn<RenderPipeline *> const &p : pipelines)
     {
-      p->init(ctx, passes);
-      logger->info("Initialized Pipeline: ", p->id());
+      p->acquire(ctx, passes);
     }
+
     resources.resize_defaulted(ctx.buffering).unwrap();
   }
 
-  void uninit(GpuContext &ctx)
+  void release(GpuContext &ctx)
   {
-    for (auto &p : pipelines)
-    {
-      logger->info("Uninitializing Pipeline: ", p->id());
-      p->uninit(ctx, passes);
-    }
-    pipelines.uninit();
     for (Resources &r : resources)
     {
       r.pbr_params.uninit(ctx);
@@ -114,18 +136,34 @@ struct Renderer
       r.ngon_params.uninit(ctx);
       r.rrect_params.uninit(ctx);
     }
-    resources.uninit();
-    passes.uninit(ctx);
+
+    resources.reset();
+
+    for (Dyn<RenderPipeline *> const &p : pipelines)
+    {
+      p->release(ctx, passes);
+    }
+
+    passes.release(ctx);
   }
 
-  void register_pass();
-  void register_pipeline();
+  void add_pass(GpuContext &ctx, Dyn<Pass *> pass)
+  {
+    pass->acquire(ctx);
+    passes.all.push(std::move(pass)).unwrap();
+  }
 
-  void begin_frame(GpuContext &ctx, RenderTarget const &);
+  void add_pipeline(GpuContext &ctx, Dyn<RenderPipeline *> pipeline)
+  {
+    pipeline->acquire(ctx, passes);
+    pipelines.push(std::move(pipeline)).unwrap();
+  }
 
-  void end_frame(GpuContext &ctx, RenderTarget const &);
+  void begin_frame(GpuContext &ctx, RenderTarget const &rt, Canvas &canvas);
 
-  void render_frame(GpuContext &ctx, RenderTarget const &rt);
+  void end_frame(GpuContext &ctx, RenderTarget const &rt, Canvas &canvas);
+
+  void render_frame(GpuContext &ctx, RenderTarget const &rt, Canvas &canvas);
 };
 
 }        // namespace ash

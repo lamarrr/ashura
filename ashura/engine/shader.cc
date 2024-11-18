@@ -258,7 +258,7 @@ struct Includer : glslang::TShader::Includer
       }
     }};
 
-    if (read_file(Span{path, strlen(path)}, *blob) != IoError::None)
+    if (!read_file(Span{path, strlen(path)}, *blob))
     {
       return nullptr;
     }
@@ -296,8 +296,7 @@ ShaderCompileError
 
   Vec<u8> buff;
 
-  IoError io_err = read_file(file, buff);
-  if (io_err != IoError::None)
+  if (!read_file(file, buff))
   {
     return ShaderCompileError::IOError;
   }

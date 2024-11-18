@@ -72,36 +72,72 @@ struct ViewSystem
   ViewSystemState state[2]      = {};
   FocusInfo       focus_request = {};
 
-  Vec<View *>   views = {};
-  Vec<ViewNode> nodes = {};
+  Vec<View *>   views;
+  Vec<ViewNode> nodes;
 
-  Vec<i32>    tab_indices   = {};
-  Vec<u32>    viewports     = {};
-  BitVec<u64> is_hidden     = {};
-  BitVec<u64> is_pointable  = {};
-  BitVec<u64> is_clickable  = {};
-  BitVec<u64> is_scrollable = {};
-  BitVec<u64> is_draggable  = {};
-  BitVec<u64> is_droppable  = {};
-  BitVec<u64> is_focusable  = {};
-  BitVec<u64> is_text_input = {};
-  BitVec<u64> is_tab_input  = {};
-  BitVec<u64> is_esc_input  = {};
-  BitVec<u64> is_viewport   = {};
+  Vec<i32>    tab_indices;
+  Vec<u32>    viewports;
+  BitVec<u64> is_hidden;
+  BitVec<u64> is_pointable;
+  BitVec<u64> is_clickable;
+  BitVec<u64> is_scrollable;
+  BitVec<u64> is_draggable;
+  BitVec<u64> is_droppable;
+  BitVec<u64> is_focusable;
+  BitVec<u64> is_text_input;
+  BitVec<u64> is_tab_input;
+  BitVec<u64> is_esc_input;
+  BitVec<u64> is_viewport;
 
-  Vec<Vec2>       centers             = {};
-  Vec<Vec2>       extents             = {};
-  Vec<Vec2>       viewport_extents    = {};
-  Vec<Mat3Affine> viewport_transforms = {};
-  BitVec<u64>     is_fixed_positioned = {};
-  Vec<Vec2>       fixed_positions     = {};
-  Vec<i32>        z_indices           = {};
-  Vec<i32>        stacking_contexts   = {};
+  Vec<Vec2>       centers;
+  Vec<Vec2>       extents;
+  Vec<Vec2>       viewport_extents;
+  Vec<Mat3Affine> viewport_transforms;
+  BitVec<u64>     is_fixed_positioned;
+  Vec<Vec2>       fixed_positions;
+  Vec<i32>        z_indices;
+  Vec<i32>        stacking_contexts;
 
-  Vec<Mat3Affine> transforms     = {};
-  Vec<CRect>      clips          = {};
-  Vec<u32>        z_ordering     = {};
-  Vec<u32>        focus_ordering = {};
+  Vec<Mat3Affine> transforms;
+  Vec<CRect>      clips;
+  Vec<u32>        z_ordering;
+  Vec<u32>        focus_ordering;
+
+  explicit ViewSystem(AllocatorImpl allocator) :
+      views{allocator},
+      nodes{allocator},
+      tab_indices{allocator},
+      viewports{allocator},
+      is_hidden{allocator},
+      is_pointable{allocator},
+      is_clickable{allocator},
+      is_scrollable{allocator},
+      is_draggable{allocator},
+      is_droppable{allocator},
+      is_focusable{allocator},
+      is_text_input{allocator},
+      is_tab_input{allocator},
+      is_esc_input{allocator},
+      centers{allocator},
+      extents{allocator},
+      viewport_extents{allocator},
+      viewport_transforms{allocator},
+      is_fixed_positioned{allocator},
+      fixed_positions{allocator},
+      z_indices{allocator},
+      stacking_contexts{allocator},
+      transforms{allocator},
+      clips{allocator},
+      z_ordering{allocator},
+      focus_ordering{allocator}
+  {
+  }
+
+  ViewSystem(ViewSystem const &)            = delete;
+  ViewSystem(ViewSystem &&)                 = default;
+  ViewSystem &operator=(ViewSystem const &) = delete;
+  ViewSystem &operator=(ViewSystem &&)      = default;
+  ~ViewSystem()                             = default;
 
   void clear()
   {

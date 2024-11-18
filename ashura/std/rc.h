@@ -27,7 +27,7 @@ struct [[nodiscard]] Rc
   {
     H             handle      = {};
     AliasCount   *alias_count = nullptr;
-    AllocatorImpl allocator   = default_allocator;
+    AllocatorImpl allocator   = {};
     Uninit        uninit      = noop;
   };
 
@@ -153,7 +153,7 @@ Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator, Args &&...args)
 }
 
 template <typename T>
-Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T &&object)
+Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T object)
 {
   return rc_inplace<T>(allocator, (T &&) object);
 }

@@ -64,11 +64,6 @@ struct Task
 
   Run run = [](void *) { return false; };
 
-  /// @brief number of instances of this frame currently scheduled for
-  /// execution. once it atomically reaches 0, the task is uninitialized and its
-  /// memory reclaimed.
-  u64 instances = 1;
-
   Uninit uninit = noop;
 
   /// @brief arena this task was allocated from. always non-null.
@@ -107,7 +102,7 @@ static_assert(TASK_ARENA_SIZE >= MAX_TASK_NODE_FLEX_LAYOUT.size,
 struct TaskAllocator
 {
   /// @brief The source allocator the arenas are allocated from
-  AllocatorImpl source = default_allocator;
+  AllocatorImpl source;
 
   /// @brief Arena free list. all arenas on the free list a fully reclaimed and
   /// can be immediately used.
@@ -237,7 +232,6 @@ struct TaskAllocator
     new (task) ListNode<Task>{.v{.frame_layout = info.frame_layout,
                                  .poll         = info.poll,
                                  .run          = info.run,
-                                 .instances    = info.instances,
                                  .uninit       = info.uninit,
                                  .arena        = &arena}};
 
@@ -257,13 +251,8 @@ struct TaskAllocator
   void release_task(ListNode<Task> *task)
   {
     ListNode<TaskArena> *arena = task->v.arena;
-    std::atomic_ref      instances{task->v.instances};
-    // acquire semantics as the task's frame may have been written to
-    if (instances.fetch_sub(1, std::memory_order_acquire) == 1) [[unlikely]]
-    {
-      uninit_task(task);
-      release_arena(arena);
-    }
+    uninit_task(task);
+    release_arena(arena);
   }
 
   bool create_task(TaskInfo const &info, ListNode<Task> *&task)
@@ -346,7 +335,6 @@ struct TaskQueue
 
   void push_task(TaskInfo const &info)
   {
-    CHECK(info.instances > 0);
     ListNode<Task> *t;
     CHECK(allocator.create_task(info, t));
     push_task(t);
@@ -575,9 +563,6 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
   virtual void schedule_dedicated(TaskInfo const &info, u32 thread) override
   {
-    // [ ] WE NEED TO DISTRIBUTE INSTANCES
-    //
-    // how do we distribute instances to dedicated threads?
     CHECK_DESC(thread < dedicated_threads.size32(),
                "Invalid dedicated thread ID");
     TaskThread &t = dedicated_threads[thread];
@@ -603,8 +588,6 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
 ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler *scheduler = nullptr;
 
-alignas(SchedulerImpl) static u8 scheduler_storage[sizeof(SchedulerImpl)];
-
 void Scheduler::init(AllocatorImpl allocator, std::thread::id main_thread_id,
                      Span<nanoseconds const> dedicated_thread_sleep,
                      Span<nanoseconds const> worker_thread_sleep)
@@ -613,8 +596,9 @@ void Scheduler::init(AllocatorImpl allocator, std::thread::id main_thread_id,
   CHECK(dedicated_thread_sleep.size() <= U32_MAX);
   CHECK(worker_thread_sleep.size() <= U32_MAX);
 
-  SchedulerImpl *impl =
-      new (scheduler_storage) SchedulerImpl{allocator, main_thread_id};
+  alignas(SchedulerImpl) static u8 storage[sizeof(SchedulerImpl)];
+
+  SchedulerImpl *impl = new (storage) SchedulerImpl{allocator, main_thread_id};
 
   u32 const num_dedicated_threads = dedicated_thread_sleep.size32();
   u32 const num_worker_threads    = worker_thread_sleep.size32();

@@ -64,11 +64,11 @@ struct BasicViewport : View
 
 TEST(ViewSystem, Basic)
 {
-  ViewSystem view_sys;
+  ViewSystem view_sys{default_allocator};
 
   BasicViewport root;
   ViewContext   ctx;
   ctx.viewport_extent = {200, 200};
-  Canvas canvas;
+  Canvas canvas{default_allocator};
   view_sys.tick(ctx, root, canvas);
 }

@@ -112,17 +112,6 @@ struct WindowSystemImpl : WindowSystem
     return ((WindowImpl *) window)->win;
   }
 
-  virtual void init() override
-  {
-    CHECKSdl(SDL_Init(SDL_INIT_VIDEO));
-  }
-
-  virtual void uninit() override
-  {
-    listeners.reset();
-    SDL_Quit();
-  }
-
   Option<Window> create_window(gpu::InstanceImpl instance,
                                Span<char const>  title) override
   {
@@ -737,11 +726,22 @@ struct WindowSystemImpl : WindowSystem
   }
 };
 
-static WindowSystemImpl window_system_impl;
-
 ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem *window_system = nullptr;
 
-// [ ] init
-// [ ] uninit
+void WindowSystem::init()
+{
+  CHECK(window_system == nullptr);
+  CHECKSdl(SDL_Init(SDL_INIT_VIDEO));
+  alignas(WindowSystemImpl) static u8 storage[sizeof(WindowSystemImpl)] = {};
+  window_system = new (storage) WindowSystemImpl{};
+}
+
+void WindowSystem::uninit()
+{
+  CHECK(window_system != nullptr);
+  window_system->~WindowSystem();
+  window_system = nullptr;
+  SDL_Quit();
+}
 
 }        // namespace ash

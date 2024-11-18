@@ -177,23 +177,40 @@ struct Canvas
   CRect current_clip{.center{F32_MAX / 2, F32_MAX / 2},
                      .extent{F32_MAX, F32_MAX}};
 
-  Vec<RRectParam> rrect_params{};
+  Vec<RRectParam> rrect_params;
 
-  Vec<NgonParam> ngon_params{};
+  Vec<NgonParam> ngon_params;
 
-  Vec<Vec2> ngon_vertices{};
+  Vec<Vec2> ngon_vertices;
 
-  Vec<u32> ngon_indices{};
+  Vec<u32> ngon_indices;
 
-  Vec<u32> ngon_index_counts{};
+  Vec<u32> ngon_index_counts;
 
-  Batch batch = {};
+  Batch batch{};
 
-  Vec<Pass> passes{};
+  Vec<Pass> passes;
 
   // declared last so it would release allocated memory after all operations
   // are done executing
-  ArenaPool frame_arena{};
+  ArenaPool frame_arena;
+
+  explicit Canvas(AllocatorImpl allocator) :
+      rrect_params{allocator},
+      ngon_params{allocator},
+      ngon_vertices{allocator},
+      ngon_indices{allocator},
+      ngon_index_counts{allocator},
+      passes{allocator},
+      frame_arena{allocator}
+  {
+  }
+
+  Canvas(Canvas const &)            = delete;
+  Canvas(Canvas &&)                 = default;
+  Canvas &operator=(Canvas const &) = delete;
+  Canvas &operator=(Canvas &&)      = default;
+  ~Canvas()                         = default;
 
   Canvas &begin_recording(Vec2 viewport_extent);
 
