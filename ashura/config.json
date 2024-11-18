@@ -1,3 +1,40 @@
 {
-
+    "$schema": "./config.schema.json",
+    "version": "0.0.1",
+    "gpu": {
+        "validation": false,
+        "vsync": false,
+        "preferences": [
+            "dgpu",
+            "vgpu",
+            "igpu",
+            "other",
+            "cpu"
+        ],
+        "hdr": true,
+        "buffering": 2
+    },
+    "window": {
+        "resizable": true,
+        "maximized": false,
+        "width": 1920,
+        "height": 1080
+    },
+    "shaders": {
+        "Blur:VS": "shaders/blur.vs.spv",
+        "Blur:FS": "shaders/blur.fs.spv",
+        "Ngon:VS": "shaders/ngon.vs.spv",
+        "Ngon:FS": "shaders/ngon.fs.spv",
+        "Pbr:VS": "shaders/pbr.vs.spv",
+        "Pbr:FS": "shaders/pbr.fs.spv",
+        "Rrect:VS": "shaders/rrect.vs.spv",
+        "Rrect:FS": "shaders/rrect.fs.spv"
+    },
+    "default_font": "Amiri",
+    "fonts": {
+        "Amiri": "fonts/Amiri-Regular.ttf",
+        "MaterialIcons": "fonts/MaterialIcons-Regular.ttf",
+        "Roboto": "fonts/Roboto-Regular.ttf",
+        "RobotoMono": "fonts/RobotoMono-Regular.ttf"
+    }
 }
