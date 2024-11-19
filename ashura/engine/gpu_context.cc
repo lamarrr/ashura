@@ -490,8 +490,7 @@ CachedSampler GpuContext::create_sampler(gpu::SamplerInfo const &info)
           .element = sampler.slot,
           .images  = span({gpu::ImageBinding{.sampler = sampler.sampler}})});
 
-  bool exists;
-  CHECK(sampler_cache.insert(exists, nullptr, info, sampler) && !exists);
+  sampler_cache.insert(info, sampler).unwrap();
 
   return sampler;
 }

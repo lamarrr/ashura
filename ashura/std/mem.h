@@ -114,6 +114,13 @@ void fill(Span<T> dst, u8 byte)
   fill(dst.data(), dst.size(), byte);
 }
 
+template <typename T, typename U>
+bool eq(Span<T> a, Span<U> b)
+{
+  return (a.size_bytes() == b.size_bytes()) &&
+         (std::memcmp(a.data(), b.data(), a.size_bytes()) == 0);
+}
+
 template <typename T>
 ASH_FORCE_INLINE T nontemporal_load(T const &src)
 {

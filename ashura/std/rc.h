@@ -62,6 +62,7 @@ struct [[nodiscard]] Rc
 
     uninit();
     new (this) Rc{(Rc &&) other};
+    return *this;
   }
 
   ~Rc()

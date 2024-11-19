@@ -47,6 +47,7 @@ struct [[nodiscard]] Dyn
 
     uninit();
     new (this) Dyn{(Dyn &&) other};
+    return *this;
   }
 
   constexpr ~Dyn()

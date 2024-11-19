@@ -1,6 +1,7 @@
 
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/assets.h"
 #include "ashura/engine/gpu_context.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
@@ -15,10 +16,10 @@ namespace ash
 /// used by renderers.
 struct Pass
 {
-  virtual Span<char const> id()                  = 0;
-  virtual void             acquire(GpuContext &) = 0;
-  virtual void             release(GpuContext &) = 0;
-  virtual ~Pass()                                = default;
+  virtual Span<char const> id()                              = 0;
+  virtual void             acquire(GpuContext &, AssetMap &) = 0;
+  virtual void             release(GpuContext &, AssetMap &) = 0;
+  virtual ~Pass()                                            = default;
 };
 
 struct BloomPassParams
@@ -38,9 +39,9 @@ struct BloomPass : Pass
     return "Bloom"_span;
   }
 
-  virtual void acquire(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ct, AssetMap &assets) override;
 
-  virtual void release(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx, AssetMap &assets) override;
 
   void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
               BloomPassParams const &params);
@@ -78,9 +79,9 @@ struct BlurPass : Pass
     return "Blur"_span;
   }
 
-  virtual void acquire(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
 
-  virtual void release(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx, AssetMap &assets) override;
 
   virtual ~BlurPass() override = default;
 
@@ -125,9 +126,9 @@ struct NgonPass : Pass
     return "Ngon"_span;
   }
 
-  virtual void acquire(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
 
-  virtual void release(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx, AssetMap &assets) override;
 
   virtual ~NgonPass() override = default;
 
@@ -200,9 +201,9 @@ struct PBRPass : Pass
     return "PBR"_span;
   }
 
-  virtual void acquire(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
 
-  virtual void release(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx, AssetMap &assets) override;
 
   virtual ~PBRPass() override = default;
 
@@ -249,9 +250,9 @@ struct RRectPass : Pass
 
   RRectPass() = default;
 
-  virtual void acquire(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
 
-  virtual void release(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx, AssetMap &assets) override;
 
   virtual ~RRectPass() override = default;
 

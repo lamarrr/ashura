@@ -5,35 +5,42 @@
 #include "ashura/std/hash.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/obj.h"
+#include "ashura/std/result.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
-#include <string.h>
 
 namespace ash
 {
 
-struct StrEqual
+struct StrEq
 {
   bool operator()(Span<char const> a, Span<char const> b) const
   {
-    return a.size() == b.size() && (memcmp(a.data(), b.data(), a.size()) == 0);
+    return mem::eq(a, b);
   }
-};
 
-struct StrVecEqual
-{
+  bool operator()(Vec<char> const &a, Span<char const> b) const
+  {
+    return this->operator()(span(a), b);
+  }
+
+  bool operator()(Span<char const> a, Vec<char> const &b) const
+  {
+    return this->operator()(a, span(b));
+  }
+
   bool operator()(Vec<char> const &a, Vec<char> const &b) const
   {
-    return a.size() == b.size() && (memcmp(a.data(), b.data(), a.size()) == 0);
+    return this->operator()(span(a), span(b));
   }
 };
 
-struct BitEqual
+struct BitEq
 {
   template <typename T>
   bool operator()(T const &a, T const &b) const
   {
-    return memcmp(&a, &b, sizeof(T)) == 0;
+    return mem::eq(a, b);
   }
 };
 
@@ -43,10 +50,7 @@ struct StrHasher
   {
     return hash_bytes(str.as_u8());
   }
-};
 
-struct StrVecHasher
-{
   Hash operator()(Vec<char> const &str) const
   {
     return hash_bytes(span(str).as_u8());
@@ -62,16 +66,14 @@ struct BitHasher
   }
 };
 
-constexpr StrEqual     str_equal;
-constexpr StrVecEqual  str_vec_equal;
-constexpr StrHasher    str_hash;
-constexpr StrVecHasher str_vec_hash;
+constexpr StrEq     str_eq;
+constexpr StrHasher str_hash;
 
-constexpr BitEqual  bit_equal;
+constexpr BitEq     bit_eq;
 constexpr BitHasher bit_hash;
 
 template <typename K, typename V>
-struct HashMapEntry
+struct MapEntry
 {
   using Key   = K;
   using Value = V;
@@ -80,7 +82,7 @@ struct HashMapEntry
   V value{};
 };
 
-/// @brief Robin-hood open-address probing hashmap
+/// @brief Robin-hood open-address probing Map
 /// @tparam K key type
 /// @tparam V value type
 /// @tparam H key hasher functor type
@@ -88,13 +90,13 @@ struct HashMapEntry
 /// @tparam D unsigned integer to use to encode probe distances, ideally 32 bits
 /// or more
 template <typename K, typename V, typename H, typename KCmp, typename D>
-struct [[nodiscard]] HashMap
+struct [[nodiscard]] Map
 {
   using Key      = K;
   using Value    = V;
   using Hasher   = H;
   using KeyCmp   = KCmp;
-  using Entry    = HashMapEntry<K, V>;
+  using Entry    = MapEntry<K, V>;
   using Distance = D;
 
   static constexpr Distance PROBE_SENTINEL = -1;
@@ -108,8 +110,8 @@ struct [[nodiscard]] HashMap
   Hasher        hasher_;
   KeyCmp        cmp_;
 
-  constexpr HashMap(AllocatorImpl allocator = {}, Hasher hasher = {},
-                    KeyCmp cmp = {}) :
+  constexpr Map(AllocatorImpl allocator = {}, Hasher hasher = {},
+                KeyCmp cmp = {}) :
       probe_dists_{nullptr},
       probes_{nullptr},
       num_probes_{0},
@@ -121,11 +123,11 @@ struct [[nodiscard]] HashMap
   {
   }
 
-  constexpr HashMap(HashMap const &) = delete;
+  constexpr Map(Map const &) = delete;
 
-  constexpr HashMap &operator=(HashMap const &) = delete;
+  constexpr Map &operator=(Map const &) = delete;
 
-  constexpr HashMap(HashMap &&other) :
+  constexpr Map(Map &&other) :
       probe_dists_{other.probe_dists_},
       probes_{other.probes_},
       num_probes_{other.num_probes_},
@@ -145,18 +147,18 @@ struct [[nodiscard]] HashMap
     other.cmp_            = {};
   }
 
-  constexpr HashMap &operator=(HashMap &&other)
+  constexpr Map &operator=(Map &&other)
   {
     if (this == &other) [[unlikely]]
     {
       return *this;
     }
     uninit();
-    new (this) HashMap{(HashMap &&) other};
+    new (this) Map{(Map &&) other};
     return *this;
   }
 
-  constexpr ~HashMap()
+  constexpr ~Map()
   {
     uninit();
   }
@@ -216,12 +218,22 @@ struct [[nodiscard]] HashMap
     return num_entries_;
   }
 
+  constexpr u32 size32() const
+  {
+    return (u32) num_entries_;
+  }
+
+  constexpr u64 size64() const
+  {
+    return (u64) num_entries_;
+  }
+
   constexpr usize capacity() const
   {
     return num_probes_;
   }
 
-  [[nodiscard]] constexpr V *try_get(K const &key, Hash hash) const
+  [[nodiscard]] constexpr V *try_get(auto const &key, Hash hash) const
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
@@ -246,25 +258,25 @@ struct [[nodiscard]] HashMap
     return nullptr;
   }
 
-  [[nodiscard]] constexpr V *try_get(K const &key) const
+  [[nodiscard]] constexpr V *try_get(auto const &key) const
   {
     Hash const hash = hasher_(key);
     return try_get(key, hash);
   }
 
-  [[nodiscard]] constexpr V &operator[](K const &key) const
+  [[nodiscard]] constexpr V &operator[](auto const &key) const
   {
     V *v = try_get(key);
     CHECK(v != nullptr);
     return *v;
   }
 
-  [[nodiscard]] constexpr bool has(K const &key) const
+  [[nodiscard]] constexpr bool has(auto const &key) const
   {
     return try_get(key) != nullptr;
   }
 
-  [[nodiscard]] constexpr bool has(K const &key, Hash hash) const
+  [[nodiscard]] constexpr bool has(auto const &key, Hash hash) const
   {
     return try_get(key, hash) != nullptr;
   }
@@ -353,32 +365,44 @@ struct [[nodiscard]] HashMap
     return rehash_n_(new_num_probes);
   }
 
-  constexpr bool reserve(usize n)
+  constexpr Result<> reserve(usize n)
   {
     if (n <= num_probes_)
     {
-      return true;
+      return Ok{};
     }
-    return rehash_n_(n);
+
+    if (rehash_n_(n))
+    {
+      return Ok{};
+    }
+
+    return Err{};
   }
 
-  template <typename KeyArg, typename... Args>
-  [[nodiscard]] constexpr bool insert(bool &exists, V *replaced_uninit,
-                                      KeyArg &&key_arg, Args &&...value_args)
+  /// @brief Insert a new entry into the Map
+  /// @param exists set to true if the object already exists
+  /// @param replaced if true, the original value is replaced
+  /// @return true if the insert was successful without a memory allocation
+  /// error
+  [[nodiscard]] constexpr Result<>
+      insert(K key, V value, bool *exists = nullptr, bool replace = true)
   {
-    exists = false;
+    if (exists != nullptr)
+    {
+      *exists = false;
+    }
 
     if (needs_rehash_(num_entries_ + 1, num_probes_) && !rehash_())
     {
-      return false;
+      return Err{};
     }
 
-    Hash const hash       = hasher_(key_arg);
+    Hash const hash       = hasher_(key);
     usize      probe_idx  = hash & (num_probes_ - 1);
     usize      insert_idx = USIZE_MAX;
     Distance   probe_dist = 0;
-    Entry      entry{.key   = K{(KeyArg &&) key_arg},
-                     .value = V{((Args &&) value_args)...}};
+    Entry      entry{.key{(K &&) key}, .value{(V &&) value}};
 
     while (true)
     {
@@ -395,11 +419,13 @@ struct [[nodiscard]] HashMap
       if (insert_idx == USIZE_MAX && probe_dist <= max_probe_dist_ &&
           cmp_(entry.key, dst_probe->key))
       {
-        exists     = true;
         insert_idx = probe_idx;
-        if (replaced_uninit != nullptr)
+        if (exists != nullptr)
         {
-          new (replaced_uninit) V{(V &&) dst_probe->value};
+          *exists = true;
+        }
+        if (replace)
+        {
           dst_probe->value = (V &&) entry.value;
         }
         break;
@@ -418,7 +444,7 @@ struct [[nodiscard]] HashMap
     }
 
     max_probe_dist_ = max(max_probe_dist_, probe_dist);
-    return true;
+    return Ok{};
   }
 
   constexpr void pop_probe_(usize pop_idx)
@@ -446,13 +472,13 @@ struct [[nodiscard]] HashMap
     }
   }
 
-  constexpr bool erase_hashed(K const &key, Hash hash,
-                              V *erased_uninit = nullptr)
+  constexpr bool erase(auto const &key)
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
       return false;
     }
+    Hash     hash       = hasher_(key);
     usize    probe_idx  = hash & (num_probes_ - 1);
     Distance probe_dist = 0;
 
@@ -466,16 +492,7 @@ struct [[nodiscard]] HashMap
       Entry *dst_probe = probes_ + probe_idx;
       if (cmp_(dst_probe->key, key))
       {
-        if (erased_uninit != nullptr)
-        {
-          obj::relocate_non_overlapping(Span{&dst_probe->value, 1},
-                                        erased_uninit);
-          dst_probe->key.~K();
-        }
-        else
-        {
-          dst_probe->~Entry();
-        }
+        dst_probe->~Entry();
         *dst_probe_dist = PROBE_SENTINEL;
         pop_probe_(probe_idx);
         num_entries_--;
@@ -485,11 +502,6 @@ struct [[nodiscard]] HashMap
       probe_dist++;
     }
     return false;
-  }
-
-  constexpr bool erase(K const &key, V *erased_uninit = nullptr)
-  {
-    return erase_hashed(key, hasher_(key), erased_uninit);
   }
 
   template <typename Fn>
@@ -506,12 +518,12 @@ struct [[nodiscard]] HashMap
 };
 
 template <typename V, typename D = usize>
-using StrHashMap = HashMap<Span<char const>, V, StrHasher, StrEqual, D>;
+using StaticStrMap = Map<Span<char const>, V, StrHasher, StrEq, D>;
 
 template <typename V, typename D = usize>
-using StrVecHashMap = HashMap<Vec<char>, V, StrVecHasher, StrVecEqual, D>;
+using StrMap = Map<Vec<char>, V, StrHasher, StrEq, D>;
 
 template <typename T, typename V, typename D = usize>
-using BitHashMap = HashMap<T, V, BitHasher, BitEqual, D>;
+using BitMap = Map<T, V, BitHasher, BitEq, D>;
 
 }        // namespace ash

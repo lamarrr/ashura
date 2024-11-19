@@ -113,6 +113,10 @@
         "default_font": {
             "description": "The default font for the Engine",
             "type": "string"
+        },
+        "images": {
+            "description": "Locations of the images to be loaded at startup",
+            "type": "object"
         }
     },
     "additionalProperties": false,
@@ -122,6 +126,7 @@
         "window",
         "shaders",
         "fonts",
-        "default_font"
+        "default_font",
+        "images"
     ]
 }

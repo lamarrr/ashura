@@ -16,6 +16,7 @@
 
 namespace ash
 {
+
 typedef char8_t   c8;
 typedef char16_t  c16;
 typedef char32_t  c32;
@@ -111,7 +112,7 @@ struct Div
   }
 };
 
-struct Equal
+struct Eq
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -119,7 +120,7 @@ struct Equal
   }
 };
 
-struct NotEqual
+struct NEq
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -127,7 +128,7 @@ struct NotEqual
   }
 };
 
-struct Lesser
+struct Less
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -135,7 +136,7 @@ struct Lesser
   }
 };
 
-struct LesserOrEqual
+struct LEq
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -143,7 +144,7 @@ struct LesserOrEqual
   }
 };
 
-struct Greater
+struct Gt
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -151,7 +152,7 @@ struct Greater
   }
 };
 
-struct GreaterOrEqual
+struct GEq
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -159,7 +160,7 @@ struct GreaterOrEqual
   }
 };
 
-struct Compare
+struct Cmp
 {
   constexpr int operator()(auto const &a, auto const &b) const
   {
@@ -214,21 +215,21 @@ struct Clamp
   }
 };
 
-constexpr Add            add;
-constexpr Sub            sub;
-constexpr Mul            mul;
-constexpr Div            div;
-constexpr Equal          equal;
-constexpr NotEqual       not_equal;
-constexpr Lesser         lesser;
-constexpr LesserOrEqual  lesser_or_equal;
-constexpr Greater        greater;
-constexpr GreaterOrEqual greater_or_equal;
-constexpr Compare        compare;
-constexpr Min            min;
-constexpr Max            max;
-constexpr Swap           swap;
-constexpr Clamp          clamp;
+constexpr Add   add;
+constexpr Sub   sub;
+constexpr Mul   mul;
+constexpr Div   div;
+constexpr Eq    eq;
+constexpr NEq   neq;
+constexpr Less  lt;
+constexpr LEq   leq;
+constexpr Gt    gt;
+constexpr GEq   geq;
+constexpr Cmp   cmp;
+constexpr Min   min;
+constexpr Max   max;
+constexpr Swap  swap;
+constexpr Clamp clamp;
 
 template <typename T>
 constexpr bool has_bits(T src, T cmp)

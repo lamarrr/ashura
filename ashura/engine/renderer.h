@@ -10,42 +10,68 @@ namespace ash
 
 struct PassContext
 {
-  BloomPass    *    bloom;
-  BlurPass     *    blur;
-  NgonPass     *    ngon;
-  PBRPass      *    pbr;
-  RRectPass    *    rrect;
+  BloomPass       *bloom;
+  BlurPass        *blur;
+  NgonPass        *ngon;
+  PBRPass         *pbr;
+  RRectPass       *rrect;
   Vec<Dyn<Pass *>> all;
 
-  explicit PassContext(AllocatorImpl allocator) :
-      bloom{}, blur{}, ngon{}, pbr{}, rrect{}, all{allocator}
+  explicit PassContext(BloomPass &bloom, BlurPass &blur, NgonPass &ngon,
+                       PBRPass &pbr, RRectPass &rrect, Vec<Dyn<Pass *>> all) :
+      bloom{&bloom},
+      blur{&blur},
+      ngon{&ngon},
+      pbr{&pbr},
+      rrect{&rrect},
+      all{std::move(all)}
   {
-    all.push(Dyn<Pass *>{&bloom, noop_allocator, noop}).unwrap();
-    all.push(Dyn<Pass *>{&blur, noop_allocator, noop}).unwrap();
-    all.push(Dyn<Pass *>{&ngon, noop_allocator, noop}).unwrap();
-    all.push(Dyn<Pass *>{&pbr, noop_allocator, noop}).unwrap();
-    all.push(Dyn<Pass *>{&rrect, noop_allocator, noop}).unwrap();
+  }
+
+  static PassContext create(AllocatorImpl allocator)
+  {
+    Dyn bloom = dyn(allocator, BloomPass{}).unwrap();
+    Dyn blur  = dyn(allocator, BlurPass{}).unwrap();
+    Dyn ngon  = dyn(allocator, NgonPass{}).unwrap();
+    Dyn pbr   = dyn(allocator, PBRPass{}).unwrap();
+    Dyn rrect = dyn(allocator, RRectPass{}).unwrap();
+
+    BloomPass *pbloom = bloom.get();
+    BlurPass  *pblur  = blur.get();
+    NgonPass  *pngon  = ngon.get();
+    PBRPass   *ppbr   = pbr.get();
+    RRectPass *prrect = rrect.get();
+
+    Vec<Dyn<Pass *>> all{allocator};
+
+    all.push(transmute(std::move(bloom), static_cast<Pass *>(pbloom))).unwrap();
+    all.push(transmute(std::move(blur), static_cast<Pass *>(pblur))).unwrap();
+    all.push(transmute(std::move(ngon), static_cast<Pass *>(pngon))).unwrap();
+    all.push(transmute(std::move(pbr), static_cast<Pass *>(ppbr))).unwrap();
+    all.push(transmute(std::move(rrect), static_cast<Pass *>(prrect))).unwrap();
+
+    return PassContext{*pbloom, *pblur, *pngon, *ppbr, *prrect, std::move(all)};
   }
 
   PassContext(PassContext const &)            = delete;
-  PassContext(PassContext &&)                 = delete;
+  PassContext(PassContext &&)                 = default;
   PassContext &operator=(PassContext const &) = delete;
-  PassContext &operator=(PassContext &&)      = delete;
+  PassContext &operator=(PassContext &&)      = default;
   ~PassContext()                              = default;
 
-  void acquire(GpuContext &ctx)
+  void acquire(GpuContext &ctx, AssetMap &assets)
   {
     for (auto const &p : all)
     {
-      p->acquire(ctx);
+      p->acquire(ctx, assets);
     };
   }
 
-  void release(GpuContext &ctx)
+  void release(GpuContext &ctx, AssetMap &assets)
   {
     for (auto const &p : all)
     {
-      p->release(ctx);
+      p->release(ctx, assets);
     };
   }
 };
@@ -54,9 +80,11 @@ struct RenderPipeline
 {
   virtual Span<char const> id() = 0;
 
-  virtual void acquire(GpuContext &ctx, PassContext &passes) = 0;
+  virtual void acquire(GpuContext &ctx, PassContext &passes,
+                       AssetMap &assets) = 0;
 
-  virtual void release(GpuContext &ctx, PassContext &passes) = 0;
+  virtual void release(GpuContext &ctx, PassContext &passes,
+                       AssetMap &assets) = 0;
 
   virtual void begin_frame(GpuContext &ctx, PassContext &passes,
                            gpu::CommandEncoderImpl const &enc) = 0;
@@ -102,9 +130,15 @@ struct Renderer
 
   Vec<Dyn<RenderPipeline *>> pipelines;
 
-  explicit Renderer(AllocatorImpl allocator) :
-      resources{}, passes{allocator}, pipelines{allocator}
+  Renderer(AllocatorImpl allocator, PassContext passes) :
+      resources{}, passes{std::move(passes)}, pipelines{allocator}
   {
+  }
+
+  static Renderer create(AllocatorImpl allocator)
+  {
+    PassContext passes = PassContext::create(allocator);
+    return Renderer{allocator, std::move(passes)};
   }
 
   Renderer(Renderer const &)            = delete;
@@ -113,19 +147,19 @@ struct Renderer
   Renderer &operator=(Renderer &&)      = default;
   ~Renderer()                           = default;
 
-  void acquire(GpuContext &ctx)
+  void acquire(GpuContext &ctx, AssetMap &assets)
   {
-    passes.acquire(ctx);
+    passes.acquire(ctx, assets);
 
     for (Dyn<RenderPipeline *> const &p : pipelines)
     {
-      p->acquire(ctx, passes);
+      p->acquire(ctx, passes, assets);
     }
 
     resources.resize_defaulted(ctx.buffering).unwrap();
   }
 
-  void release(GpuContext &ctx)
+  void release(GpuContext &ctx, AssetMap &assets)
   {
     for (Resources &r : resources)
     {
@@ -141,21 +175,22 @@ struct Renderer
 
     for (Dyn<RenderPipeline *> const &p : pipelines)
     {
-      p->release(ctx, passes);
+      p->release(ctx, passes, assets);
     }
 
-    passes.release(ctx);
+    passes.release(ctx, assets);
   }
 
-  void add_pass(GpuContext &ctx, Dyn<Pass *> pass)
+  void add_pass(GpuContext &ctx, Dyn<Pass *> pass, AssetMap &assets)
   {
-    pass->acquire(ctx);
+    pass->acquire(ctx, assets);
     passes.all.push(std::move(pass)).unwrap();
   }
 
-  void add_pipeline(GpuContext &ctx, Dyn<RenderPipeline *> pipeline)
+  void add_pipeline(GpuContext &ctx, Dyn<RenderPipeline *> pipeline,
+                    AssetMap &assets)
   {
-    pipeline->acquire(ctx, passes);
+    pipeline->acquire(ctx, passes, assets);
     pipelines.push(std::move(pipeline)).unwrap();
   }
 

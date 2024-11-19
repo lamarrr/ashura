@@ -25,13 +25,40 @@ constexpr Vec2 au_to_px(Vec2I au, f32 base)
   return Vec2{au_to_px(au.x, base), au_to_px(au.y, base)};
 }
 
-enum class FontDecodeError : u8
+enum class FontErr : u8
 {
   None           = 0,
   DecodingFailed = 1,
   FaceNotFound   = 2,
   OutOfMemory    = 3
 };
+
+constexpr Span<char const> to_string(FontErr err)
+{
+  switch (err)
+  {
+    case FontErr::None:
+      return "None"_span;
+    case FontErr::DecodingFailed:
+      return "DecodingFailed"_span;
+    case FontErr::FaceNotFound:
+      return "FaceNotFound"_span;
+    case FontErr::OutOfMemory:
+      return "OutOfMemory"_span;
+    default:
+      return "Unidentified"_span;
+  }
+}
+
+namespace fmt
+{
+
+inline bool push(Context const &ctx, Spec const &spec, FontErr const &err)
+{
+  return push(ctx, spec, to_string(err));
+}
+
+}        // namespace fmt
 
 /// @param bearing offset from cursor baseline to start drawing glyph from (au)
 /// @param descent distance from baseline to the bottom of the glyph (au)
@@ -104,9 +131,9 @@ struct FontInfo
 
 struct Font
 {
-  static Result<Dyn<Font *>, FontDecodeError>
-      decode(Span<u8 const> encoded, u32 face = 0,
-             AllocatorImpl allocator = {});
+  static Result<Dyn<Font *>, FontErr> decode(Span<u8 const> encoded,
+                                             u32            face      = 0,
+                                             AllocatorImpl  allocator = {});
 
   /// @brief rasterize the font at the specified font height. Note: raster is
   /// stored as alpha values.

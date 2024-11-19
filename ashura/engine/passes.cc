@@ -5,11 +5,11 @@
 namespace ash
 {
 
-void BloomPass::acquire(GpuContext &)
+void BloomPass::acquire(GpuContext &, AssetMap &)
 {
 }
 
-void BloomPass::release(GpuContext &)
+void BloomPass::release(GpuContext &, AssetMap &)
 {
 }
 
@@ -23,7 +23,7 @@ void BloomPass::encode(GpuContext &, gpu::CommandEncoderImpl const &,
   /// A' = Blur(A) + B'
 }
 
-void BlurPass::acquire(GpuContext &ctx)
+void BlurPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
   // https://www.youtube.com/watch?v=ml-5OGZC7vE
   //
@@ -34,10 +34,8 @@ void BlurPass::acquire(GpuContext &ctx)
   // Algorithm described here:
   // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
   //
-  gpu::Shader vertex_shader =
-      ctx.get_shader("Blur_DownSample:VS"_span).unwrap();
-  gpu::Shader fragment_shader =
-      ctx.get_shader("Blur_DownSample:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = assets.shaders["Blur_DownSample:VS"_span];
+  gpu::Shader fragment_shader = assets.shaders["Blur_DownSample:FS"_span];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -103,17 +101,16 @@ void BlurPass::acquire(GpuContext &ctx)
       ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_info)
           .unwrap();
 
-  pipeline_info.vertex_shader.shader =
-      ctx.get_shader("Blur_UpSample:VS"_span).unwrap();
+  pipeline_info.vertex_shader.shader = assets.shaders["Blur_UpSample:VS"_span];
   pipeline_info.fragment_shader.shader =
-      ctx.get_shader("Blur_UpSample:FS"_span).unwrap();
+      assets.shaders["Blur_UpSample:FS"_span];
 
   upsample_pipeline =
       ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_info)
           .unwrap();
 }
 
-void BlurPass::release(GpuContext &ctx)
+void BlurPass::release(GpuContext &ctx, AssetMap &)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, downsample_pipeline);
   ctx.device->uninit_graphics_pipeline(ctx.device.self, upsample_pipeline);
@@ -205,10 +202,10 @@ void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
          params.area.offset, true);
 }
 
-void NgonPass::acquire(GpuContext &ctx)
+void NgonPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
-  gpu::Shader vertex_shader   = ctx.get_shader("Ngon:VS"_span).unwrap();
-  gpu::Shader fragment_shader = ctx.get_shader("Ngon:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = assets.shaders["Ngon:VS"_span];
+  gpu::Shader fragment_shader = assets.shaders["Ngon:FS"_span];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -299,15 +296,15 @@ void NgonPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
   e->end_rendering(e.self);
 }
 
-void NgonPass::release(GpuContext &ctx)
+void NgonPass::release(GpuContext &ctx, AssetMap &)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
 }
 
-void PBRPass::acquire(GpuContext &ctx)
+void PBRPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
-  gpu::Shader vertex_shader   = ctx.get_shader("PBR:VS"_span).unwrap();
-  gpu::Shader fragment_shader = ctx.get_shader("PBR:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = assets.shaders["PBR:VS"_span];
+  gpu::Shader fragment_shader = assets.shaders["PBR:FS"_span];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -406,16 +403,16 @@ void PBRPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
   e->end_rendering(e.self);
 }
 
-void PBRPass::release(GpuContext &ctx)
+void PBRPass::release(GpuContext &ctx, AssetMap &)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
   ctx.device->uninit_graphics_pipeline(ctx.device.self, wireframe_pipeline);
 }
 
-void RRectPass::acquire(GpuContext &ctx)
+void RRectPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
-  gpu::Shader vertex_shader   = ctx.get_shader("RRect:VS"_span).unwrap();
-  gpu::Shader fragment_shader = ctx.get_shader("RRect:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = assets.shaders["RRect:VS"_span];
+  gpu::Shader fragment_shader = assets.shaders["RRect:FS"_span];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -498,7 +495,7 @@ void RRectPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
   e->end_rendering(e.self);
 }
 
-void RRectPass::release(GpuContext &ctx)
+void RRectPass::release(GpuContext &ctx, AssetMap &)
 {
   ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
 }

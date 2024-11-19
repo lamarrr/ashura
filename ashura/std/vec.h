@@ -1386,4 +1386,12 @@ struct IsTriviallyRelocatable<InplaceVec<T, C>>
   static constexpr bool value = TriviallyRelocatable<T>;
 };
 
+namespace fmt
+{
+inline bool push(Context const &ctx, Spec const &spec, Vec<char> str)
+{
+  return push(ctx, spec, span(str));
+}
+}        // namespace fmt
+
 }        // namespace ash

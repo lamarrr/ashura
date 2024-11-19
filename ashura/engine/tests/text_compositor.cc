@@ -20,7 +20,7 @@ TEST(TextCompositor, Main)
   auto insert = [&](u32 i, Span<u32 const> str) {
     inserted = true;
     ASSERT_EQ(i, 0);
-    ASSERT_TRUE(range_equal(str, text));
+    ASSERT_TRUE(range_eq(str, text));
   };
 
   cmp.command(U""_utf, layout, 0, 0, TextCommand::InputText, fn(&insert), noop,

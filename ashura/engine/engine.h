@@ -38,12 +38,19 @@ struct EngineCfg
     u32  height    = 1080;
   };
 
-  Gpu                      gpu{};
-  Window                   window{};
-  StrVecHashMap<Vec<char>> shaders{};
-  StrVecHashMap<Vec<char>> fonts{};
+  Gpu gpu{};
 
-  static EngineCfg parse(Span<u8 const> json);
+  Window window{};
+
+  Vec<char> default_font{};
+
+  StrMap<Vec<char>> shaders{};
+
+  StrMap<Vec<char>> fonts{};
+
+  StrMap<Vec<char>> images{};
+
+  static EngineCfg parse(AllocatorImpl allocator, Span<u8 const> json);
 };
 
 // [ ] Font Manager
@@ -87,9 +94,9 @@ struct Engine
 
   ViewContext view_ctx;
 
-  StrHashMap<gpu::Shader> shaders;
+  AssetMap assets;
 
-  StrHashMap<Dyn<Font *>> fonts;
+  Vec<char> default_font_name;
 
   Font *default_font = nullptr;
 
@@ -111,8 +118,8 @@ struct Engine
       canvas{std::move(canvas)},
       view_system{std::move(view_system)},
       view_ctx{std::move(view_ctx)},
-      shaders{allocator},
-      fonts{allocator}
+      assets{allocator},
+      default_font_name{allocator}
   {
   }
 
@@ -122,26 +129,6 @@ struct Engine
                    Span<char const> config_path, Span<char const> assets_dir);
 
   static void uninit();
-
-  Option<gpu::Shader> get_shader(Span<char const> name)
-  {
-    gpu::Shader *shader = shaders.try_get(name);
-    if (shader == nullptr)
-    {
-      return None;
-    }
-    return Some{*shader};
-  }
-
-  Option<Font *> get_font(Span<char const> name)
-  {
-    Dyn<Font *> *font = fonts.try_get(name);
-    if (font == nullptr)
-    {
-      return None;
-    }
-    return Some{font->get()};
-  }
 
   void recreate_swapchain_();
 

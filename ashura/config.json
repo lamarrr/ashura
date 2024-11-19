@@ -30,11 +30,12 @@
         "Rrect:VS": "shaders/rrect.vs.spv",
         "Rrect:FS": "shaders/rrect.fs.spv"
     },
-    "default_font": "Amiri",
     "fonts": {
         "Amiri": "fonts/Amiri-Regular.ttf",
         "MaterialIcons": "fonts/MaterialIcons-Regular.ttf",
         "Roboto": "fonts/Roboto-Regular.ttf",
         "RobotoMono": "fonts/RobotoMono-Regular.ttf"
-    }
+    },
+    "default_font": "Amiri",
+    "images": {}
 }

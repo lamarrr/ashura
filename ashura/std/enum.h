@@ -5,8 +5,8 @@
 namespace ash
 {
 
-  // [ ]   bool is(usize i);
-  // [ ] bool is();
+// [ ]   bool is(usize i);
+// [ ] bool is();
 
 // [ ]  template <usize I>
 // auto &&operator|(V<I>)
@@ -22,4 +22,4 @@ namespace ash
 //  // switch on types and invoke lambda based on the type contasined
 // }
 
-}
+}        // namespace ash

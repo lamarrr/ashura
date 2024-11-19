@@ -67,7 +67,7 @@ TEST(ViewSystem, Basic)
   ViewSystem view_sys{default_allocator};
 
   BasicViewport root;
-  ViewContext   ctx;
+  ViewContext   ctx{nullptr, window_system->get_clipboard()};
   ctx.viewport_extent = {200, 200};
   Canvas canvas{default_allocator};
   view_sys.tick(ctx, root, canvas);

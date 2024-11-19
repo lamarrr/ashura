@@ -467,13 +467,13 @@ struct FontImpl : Font
   }
 };
 
-Result<Dyn<Font *>, FontDecodeError>
-    Font::decode(Span<u8 const> encoded, u32 face, AllocatorImpl allocator)
+Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
+                                          AllocatorImpl allocator)
 {
   Vec<char> font_data;
   if (!font_data.extend_copy(encoded.as_char()))
   {
-    return Err{FontDecodeError::OutOfMemory};
+    return Err{FontErr::OutOfMemory};
   }
 
   hb_blob_t *hb_blob =
@@ -482,7 +482,7 @@ Result<Dyn<Font *>, FontDecodeError>
 
   if (hb_blob == nullptr)
   {
-    return Err{FontDecodeError::DecodingFailed};
+    return Err{FontErr::DecodingFailed};
   }
 
   defer hb_blob_{[&] {
@@ -496,14 +496,14 @@ Result<Dyn<Font *>, FontDecodeError>
 
   if (face >= num_faces)
   {
-    return Err{FontDecodeError::FaceNotFound};
+    return Err{FontErr::FaceNotFound};
   }
 
   hb_face_t *hb_face = hb_face_create(hb_blob, face);
 
   if (hb_face == nullptr)
   {
-    return Err{FontDecodeError::DecodingFailed};
+    return Err{FontErr::DecodingFailed};
   }
 
   defer hb_face_{[&] {
@@ -517,7 +517,7 @@ Result<Dyn<Font *>, FontDecodeError>
 
   if (hb_font == nullptr)
   {
-    return Err{FontDecodeError::DecodingFailed};
+    return Err{FontErr::DecodingFailed};
   }
 
   hb_font_set_scale(hb_font, AU_UNIT, AU_UNIT);
@@ -532,7 +532,7 @@ Result<Dyn<Font *>, FontDecodeError>
   FT_Library ft_lib;
   if (FT_Init_FreeType(&ft_lib) != 0)
   {
-    return Err{FontDecodeError::DecodingFailed};
+    return Err{FontErr::DecodingFailed};
   }
 
   defer ft_lib_{[&] {
@@ -547,12 +547,12 @@ Result<Dyn<Font *>, FontDecodeError>
   if (FT_New_Memory_Face(ft_lib, (FT_Byte const *) font_data.data(),
                          (FT_Long) font_data.size(), 0, &ft_face) != 0)
   {
-    return Err{FontDecodeError::DecodingFailed};
+    return Err{FontErr::DecodingFailed};
   }
 
   if (FT_Set_Char_Size(ft_face, AU_UNIT, AU_UNIT, 72, 72) != 0)
   {
-    return Err{FontDecodeError::DecodingFailed};
+    return Err{FontErr::DecodingFailed};
   }
 
   defer ft_face_{[&] {
@@ -573,7 +573,7 @@ Result<Dyn<Font *>, FontDecodeError>
     if (!postscript_name.extend_copy(
             Span{ft_postscript_name, postscript_name_size}))
     {
-      return Err{FontDecodeError::OutOfMemory};
+      return Err{FontErr::OutOfMemory};
     }
   }
 
@@ -585,7 +585,7 @@ Result<Dyn<Font *>, FontDecodeError>
     family_name_size = strlen(ft_face->family_name);
     if (!family_name.extend_copy(Span{ft_face->family_name, family_name_size}))
     {
-      return Err{FontDecodeError::OutOfMemory};
+      return Err{FontErr::OutOfMemory};
     }
   }
 
@@ -597,7 +597,7 @@ Result<Dyn<Font *>, FontDecodeError>
     style_name_size = strlen(ft_face->style_name);
     if (!style_name.extend_copy(Span{ft_face->style_name, style_name_size}))
     {
-      return Err{FontDecodeError::OutOfMemory};
+      return Err{FontErr::OutOfMemory};
     }
   }
 
@@ -616,7 +616,7 @@ Result<Dyn<Font *>, FontDecodeError>
 
   if (!glyphs.resize_uninit(num_glyphs))
   {
-    return Err{FontDecodeError::OutOfMemory};
+    return Err{FontErr::OutOfMemory};
   }
 
   for (u32 i = 0; i < num_glyphs; i++)
@@ -653,7 +653,7 @@ Result<Dyn<Font *>, FontDecodeError>
 
   if (!font)
   {
-    return Err{FontDecodeError::OutOfMemory};
+    return Err{FontErr::OutOfMemory};
   }
 
   hb_blob = nullptr;

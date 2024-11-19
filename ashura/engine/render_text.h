@@ -201,7 +201,7 @@ struct RenderText
 
   void set_language(Span<char const> language)
   {
-    if (range_equal(inner.language, language))
+    if (range_eq(inner.language, language))
     {
       return;
     }

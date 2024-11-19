@@ -2,7 +2,7 @@
 #pragma once
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/error.h"
-#include "ashura/std/hash_map.h"
+#include "ashura/std/map.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
@@ -82,7 +82,7 @@ struct CachedSampler
   u32          slot    = 0;
 };
 
-typedef HashMap<gpu::SamplerInfo, CachedSampler, SamplerHasher, SamplerEq, u32>
+typedef Map<gpu::SamplerInfo, CachedSampler, SamplerHasher, SamplerEq, u32>
     SamplerCache;
 
 /// @param color_format hdr if hdr supported and required.

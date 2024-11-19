@@ -8,9 +8,9 @@ namespace ash
 
 ASH_C_LINKAGE ASH_DLL_EXPORT Engine *engine = nullptr;
 
-EngineCfg EngineCfg::parse(Span<u8 const> json)
+EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
 {
-  EngineCfg                    cfg;
+  EngineCfg                    out;
   simdjson::ondemand::parser   parser;
   simdjson::padded_string      str{json.as_char().data(), json.size()};
   simdjson::ondemand::document doc = parser.iterate(str);
@@ -21,8 +21,8 @@ EngineCfg EngineCfg::parse(Span<u8 const> json)
   CHECK(version == "0.0.1");
 
   auto gpu           = config["gpu"].get_object().value();
-  cfg.gpu.validation = gpu["validation"].get_bool().value();
-  cfg.gpu.vsync      = gpu["vsync"].get_bool().value();
+  out.gpu.validation = gpu["validation"].get_bool().value();
+  out.gpu.vsync      = gpu["vsync"].get_bool().value();
 
   auto gpu_prefs = gpu["preferences"].get_array().value();
   CHECK(gpu_prefs.count_elements().value() <= 5);
@@ -32,23 +32,23 @@ EngineCfg EngineCfg::parse(Span<u8 const> json)
     std::string_view s = pref.get_string().value();
     if (s == "dgpu")
     {
-      cfg.gpu.preferences.push(gpu::DeviceType::DiscreteGpu).unwrap();
+      out.gpu.preferences.push(gpu::DeviceType::DiscreteGpu).unwrap();
     }
     else if (s == "vgpu")
     {
-      cfg.gpu.preferences.push(gpu::DeviceType::VirtualGpu).unwrap();
+      out.gpu.preferences.push(gpu::DeviceType::VirtualGpu).unwrap();
     }
     else if (s == "igpu")
     {
-      cfg.gpu.preferences.push(gpu::DeviceType::IntegratedGpu).unwrap();
+      out.gpu.preferences.push(gpu::DeviceType::IntegratedGpu).unwrap();
     }
     else if (s == "other")
     {
-      cfg.gpu.preferences.push(gpu::DeviceType::Other).unwrap();
+      out.gpu.preferences.push(gpu::DeviceType::Other).unwrap();
     }
     else if (s == "cpu")
     {
-      cfg.gpu.preferences.push(gpu::DeviceType::Cpu).unwrap();
+      out.gpu.preferences.push(gpu::DeviceType::Cpu).unwrap();
     }
     else
     {
@@ -56,16 +56,16 @@ EngineCfg EngineCfg::parse(Span<u8 const> json)
     }
   }
 
-  cfg.gpu.hdr = gpu["hdr"].get_bool().value();
-  cfg.gpu.buffering =
+  out.gpu.hdr = gpu["hdr"].get_bool().value();
+  out.gpu.buffering =
       (u32) clamp(gpu["buffering"].get_int64().value(), (i64) 0, (i64) 4);
 
   auto window          = config["window"].get_object().value();
-  cfg.window.resizable = window["resizable"].get_bool().value();
-  cfg.window.maximized = window["maximized"].get_bool().value();
-  cfg.window.width =
+  out.window.resizable = window["resizable"].get_bool().value();
+  out.window.maximized = window["maximized"].get_bool().value();
+  out.window.width =
       (u32) clamp(window["width"].get_int64().value(), (i64) 0, (i64) U32_MAX);
-  cfg.window.height =
+  out.window.height =
       (u32) clamp(window["height"].get_int64().value(), (i64) 0, (i64) U32_MAX);
 
   auto shaders = config["shaders"].get_object().value();
@@ -73,9 +73,10 @@ EngineCfg EngineCfg::parse(Span<u8 const> json)
   {
     auto id   = entry.escaped_key().value();
     auto path = entry.value().get_string().value();
-    bool exists;
-    CHECK(cfg.shaders.insert(exists, nullptr, vec({}, span(id)).unwrap(),
-                             vec({}, span(path)).unwrap()));
+    out.shaders
+        .insert(vec(allocator, span(id)).unwrap(),
+                vec(allocator, span(path)).unwrap())
+        .unwrap();
   }
 
   auto fonts = config["fonts"].get_object().value();
@@ -83,21 +84,46 @@ EngineCfg EngineCfg::parse(Span<u8 const> json)
   {
     auto id   = entry.escaped_key().value();
     auto path = entry.value().get_string().value();
-    bool exists;
-    CHECK(cfg.fonts.insert(exists, nullptr, vec({}, span(id)).unwrap(),
-                           vec({}, span(path)).unwrap()));
+    out.fonts
+        .insert(vec(allocator, span(id)).unwrap(),
+                vec(allocator, span(path)).unwrap())
+        .unwrap();
   }
 
-  return cfg;
+  std::string_view default_font_sv =
+      config["default_font"].get_string().value();
+  out.default_font = vec(allocator, span(default_font_sv)).unwrap();
+
+  // check that it is a valid entry
+  fonts[default_font_sv].get_string().value();
+
+  auto images = config["images"].get_object().value();
+  for (auto entry : images)
+  {
+    auto id   = entry.escaped_key().value();
+    auto path = entry.value().get_string().value();
+    out.images
+        .insert(vec(allocator, span(id)).unwrap(),
+                vec(allocator, span(path)).unwrap())
+        .unwrap();
+  }
+
+  return out;
 }
 
 void Engine::init(AllocatorImpl allocator, void *app,
                   Span<char const> config_path, Span<char const> assets_dir)
 {
+  if (logger == nullptr)
+  {
+    abort();
+  }
+  CHECK(scheduler != nullptr);
   CHECK(engine == nullptr);
 
-  CHECK(logger != nullptr);
-  CHECK(scheduler != nullptr);
+  logger->trace("Initializing Window System");
+
+  WindowSystem::init();
 
   logger->trace("Loading Engine config file");
 
@@ -105,7 +131,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   read_file(config_path, json).unwrap();
 
-  EngineCfg cfg = EngineCfg::parse(span(json));
+  EngineCfg cfg = EngineCfg::parse(allocator, span(json));
 
   logger->trace("Initializing Engine");
 
@@ -123,17 +149,13 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   logger->trace("Initializing Renderer");
 
-  Renderer renderer{allocator};
+  Renderer renderer = Renderer::create(allocator);
 
   Canvas canvas{allocator};
 
   ViewSystem view_system{allocator};
 
   ViewContext view_ctx{app, window_system->get_clipboard()};
-
-  logger->trace("Initializing Window System");
-
-  WindowSystem::init();
 
   logger->trace("Creating Root Window");
 
@@ -164,19 +186,19 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   alignas(Engine) static u8 storage[sizeof(Engine)] = {};
 
-  new (storage) Engine{allocator,
-                       app,
-                       instance,
-                       device,
-                       window,
-                       surface,
-                       cfg.gpu.vsync ? gpu::PresentMode::Mailbox :
-                                       gpu::PresentMode::Immediate,
-                       std::move(gpu_ctx),
-                       std::move(renderer),
-                       std::move(canvas),
-                       std::move(view_system),
-                       std::move(view_ctx)};
+  engine = new (storage) Engine{allocator,
+                                app,
+                                instance,
+                                device,
+                                window,
+                                surface,
+                                cfg.gpu.vsync ? gpu::PresentMode::Mailbox :
+                                                gpu::PresentMode::Immediate,
+                                std::move(gpu_ctx),
+                                std::move(renderer),
+                                std::move(canvas),
+                                std::move(view_system),
+                                std::move(view_ctx)};
 
   window_system->listen(SystemEventTypes::All,
                         fn(engine, [](Engine *engine, SystemEvent const &) {
@@ -191,26 +213,30 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   // [ ] setup window event listeners
   // [ ] recreate_swapchain
-  // [ ] load shaders, pipelines, fonts
 
-  Semaphore shaders_semaphores =
-      create_semaphore(allocator, cfg.shaders.size() * 2).unwrap();
-  Semaphore font_semaphores =
-      create_semaphore(allocator, cfg.fonts.size() * 2).unwrap();
+  Semaphore sem =
+      create_semaphore(allocator, cfg.shaders.size() + cfg.fonts.size())
+          .unwrap();
 
   cfg.shaders.iter([&](Vec<char> &id, Vec<char> &path) {
     Vec<char> resolved_path = vec(allocator, assets_dir).unwrap();
     path_append(resolved_path, span(path)).unwrap();
 
     async::once([shader_id   = vec(allocator, span(id)).unwrap(),
-                 shader_path = std::move(resolved_path),
-                 semaphore = shaders_semaphores.alias(), allocator]() mutable {
+                 shader_path = std::move(resolved_path), sem = sem.alias(),
+                 allocator]() mutable {
       logger->trace("Loading shader ", span(shader_id), " from ",
                     span(shader_path));
 
       Vec<u8> data{allocator};
 
-      read_file(span(shader_path), data).unwrap();
+      if (Result result = read_file(span(shader_path), data); !result)
+      {
+        logger->error("Unable to load shader at ", span(shader_path),
+                      ", IO Error: ", result.err());
+        sem->increment(1);
+        return;
+      }
 
       CHECK((data.size() & 3ULL) == 0);
 
@@ -222,16 +248,12 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
       mem::copy(span(data), span(data_u32).as_u8());
 
-      semaphore->increment(1);
-
       logger->trace("Loaded shader ", span(shader_id), " from file");
 
       async::once(
-          [shader_id = std::move(shader_id), semaphore = std::move(semaphore),
-           data_u32 = std::move(data_u32)]() {
+          [shader_id = std::move(shader_id), sem = std::move(sem),
+           data_u32 = std::move(data_u32)]() mutable {
             logger->trace("Sending shader ", span(shader_id), " to GPU");
-
-            bool exists;
 
             gpu::Shader shader =
                 engine->device
@@ -241,12 +263,12 @@ void Engine::init(AllocatorImpl allocator, void *app,
                                         .spirv_code = span(data_u32)})
                     .unwrap();
 
-            CHECK(engine->shaders.insert(exists, nullptr, std::move(shader_id),
-                                         shader));
+            engine->assets.shaders.insert(std::move(shader_id), shader)
+                .unwrap();
 
             logger->trace("Shader", span(shader_id), " loaded to GPU");
 
-            semaphore->increment(1);
+            sem->increment(1);
           },
           async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
     });
@@ -257,15 +279,33 @@ void Engine::init(AllocatorImpl allocator, void *app,
     path_append(resolved_path, span(path)).unwrap();
 
     async::once([font_id   = vec(allocator, span(id)).unwrap(),
-                 font_path = std::move(resolved_path),
-                 semaphore = font_semaphores.alias(), allocator]() mutable {
+                 font_path = std::move(resolved_path), sem = sem.alias(),
+                 allocator]() mutable {
       logger->trace("Loading font ", span(font_id), " from ", span(font_path));
 
       Vec<u8> data{allocator};
 
-      read_file(span(font_path), data).unwrap();
+      Result read_result = read_file(span(font_path), data);
 
-      Dyn<Font *> font = Font::decode(span(data), 0, allocator).unwrap();
+      if (!read_result)
+      {
+        logger->error("Unable to load font at ", span(font_path),
+                      ", IO Error: ", read_result.err());
+        sem->increment(1);
+        return;
+      }
+
+      Result decode_result = Font::decode(span(data), 0, allocator);
+
+      if (!decode_result)
+      {
+        logger->error("Unable to decode font at ", span(font_path),
+                      "Error: ", decode_result.err());
+        sem->increment(1);
+        return;
+      }
+
+      Dyn<Font *> font = decode_result.unwrap();
 
       logger->trace("Loaded font ", span(font_id), " from file");
 
@@ -278,35 +318,33 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
       logger->trace("Rasterized font ", span(font_id));
 
-      semaphore->increment(1);
-
       async::once(
-          [font_id = std::move(font_id), semaphore = std::move(semaphore),
-           font = std::move(font), allocator]() {
+          [font_id = std::move(font_id), sem = std::move(sem),
+           font = std::move(font), allocator]() mutable {
             logger->trace("Uploading font ", span(font_id), " to GPU");
-
-            bool exists;
 
             font->upload_to_device(engine->gpu_ctx, allocator);
 
-            CHECK(engine->fonts.insert(exists, nullptr, std::move(font_id),
-                                       std::move(font)));
+            engine->assets.fonts.insert(std::move(font_id), std::move(font))
+                .unwrap();
 
             logger->trace("Uploaded font ", span(font_id), " to GPU");
 
-            semaphore->increment(1);
+            sem->increment(1);
           },
           async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
     });
   });
 
-  while (!font_semaphores->is_completed() &&
-         !shaders_semaphores->is_completed())
+  while (!sem->is_completed())
   {
     scheduler->execute_main_thread_loop(1ms, 2ms);
   }
 
-  engine->renderer.acquire(engine->gpu_ctx);
+  engine->default_font_name = vec(allocator, span(cfg.default_font)).unwrap();
+  engine->default_font = engine->assets.fonts[engine->default_font_name].get();
+
+  engine->renderer.acquire(engine->gpu_ctx, engine->assets);
 
   logger->trace("Engine Initialized");
 }
