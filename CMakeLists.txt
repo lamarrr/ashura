@@ -225,3 +225,6 @@ add_executable(
   ashura/engine/tests/main.cc ashura/engine/tests/render_text.cc
   ashura/engine/tests/views.cc ashura/engine/tests/text_compositor.cc)
 target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
+
+add_executable(ashura_editor ashura/editor/editor.cc)
+target_link_libraries(ashura_editor ashura_std ashura_engine GTest::gtest)
