@@ -315,8 +315,8 @@ struct FontImpl : Font
 
   virtual void upload_to_device(GpuContext &c, AllocatorImpl allocator) override
   {
-    gpu::CommandEncoderImpl enc = c.encoder();
-    gpu::DeviceImpl         d   = c.device;
+    gpu::CommandEncoder &enc = c.encoder();
+    gpu::Device         &dev = *c.device;
 
     CHECK(cpu_atlas.is_some());
     CHECK(gpu_atlas.is_none());
@@ -328,21 +328,20 @@ struct FontImpl : Font
     CHECK(atlas.extent.y > 0);
 
     gpu::Image image =
-        d->create_image(
-             d.self,
-             gpu::ImageInfo{.label  = "Font Atlas Image"_span,
-                            .type   = gpu::ImageType::Type2D,
-                            .format = gpu::Format::B8G8R8A8_UNORM,
-                            .usage  = gpu::ImageUsage::Sampled |
-                                     gpu::ImageUsage::InputAttachment |
-                                     gpu::ImageUsage::Storage |
-                                     gpu::ImageUsage::TransferSrc |
-                                     gpu::ImageUsage::TransferDst,
-                            .aspects      = gpu::ImageAspects::Color,
-                            .extent       = {atlas.extent.x, atlas.extent.y, 1},
-                            .mip_levels   = 1,
-                            .array_layers = atlas.num_layers,
-                            .sample_count = gpu::SampleCount::Count1})
+        dev.create_image(
+               gpu::ImageInfo{.label  = "Font Atlas Image"_span,
+                              .type   = gpu::ImageType::Type2D,
+                              .format = gpu::Format::B8G8R8A8_UNORM,
+                              .usage  = gpu::ImageUsage::Sampled |
+                                       gpu::ImageUsage::InputAttachment |
+                                       gpu::ImageUsage::Storage |
+                                       gpu::ImageUsage::TransferSrc |
+                                       gpu::ImageUsage::TransferDst,
+                              .aspects    = gpu::ImageAspects::Color,
+                              .extent     = {atlas.extent.x, atlas.extent.y, 1},
+                              .mip_levels = 1,
+                              .array_layers = atlas.num_layers,
+                              .sample_count = gpu::SampleCount::Count1})
             .unwrap();
 
     Vec<gpu::ImageView> views;
@@ -352,32 +351,31 @@ struct FontImpl : Font
     for (u32 i = 0; i < atlas.num_layers; i++)
     {
       views[i] =
-          d->create_image_view(
-               d.self,
-               gpu::ImageViewInfo{.label       = "Font Atlas Image View"_span,
-                                  .image       = image,
-                                  .view_type   = gpu::ImageViewType::Type2D,
-                                  .view_format = gpu::Format::B8G8R8A8_UNORM,
-                                  .mapping     = {},
-                                  .aspects     = gpu::ImageAspects::Color,
-                                  .first_mip_level   = 0,
-                                  .num_mip_levels    = 1,
-                                  .first_array_layer = i,
-                                  .num_array_layers  = 1})
+          dev.create_image_view(
+                 gpu::ImageViewInfo{.label       = "Font Atlas Image View"_span,
+                                    .image       = image,
+                                    .view_type   = gpu::ImageViewType::Type2D,
+                                    .view_format = gpu::Format::B8G8R8A8_UNORM,
+                                    .mapping     = {},
+                                    .aspects     = gpu::ImageAspects::Color,
+                                    .first_mip_level   = 0,
+                                    .num_mip_levels    = 1,
+                                    .first_array_layer = i,
+                                    .num_array_layers  = 1})
               .unwrap();
     }
 
     u64 const   atlas_size = atlas.channels.size() * (u64) 4;
     gpu::Buffer staging_buffer =
-        d->create_buffer(
-             d.self, gpu::BufferInfo{.label = "Font Atlas Staging Buffer"_span,
-                                     .size  = atlas_size,
-                                     .host_mapped = true,
-                                     .usage = gpu::BufferUsage::TransferSrc |
-                                              gpu::BufferUsage::TransferDst})
+        dev.create_buffer(
+               gpu::BufferInfo{.label       = "Font Atlas Staging Buffer"_span,
+                               .size        = atlas_size,
+                               .host_mapped = true,
+                               .usage       = gpu::BufferUsage::TransferSrc |
+                                        gpu::BufferUsage::TransferDst})
             .unwrap();
 
-    u8 *map = (u8 *) d->map_buffer_memory(d.self, staging_buffer).unwrap();
+    u8 *map = (u8 *) dev.map_buffer_memory(staging_buffer).unwrap();
 
     ImageLayerSpan<u8, 4> dst{.channels = {map, atlas_size},
                               .width    = atlas.extent.x,
@@ -390,10 +388,10 @@ struct FontImpl : Font
                                dst.get_layer(i), U8_MAX, U8_MAX, U8_MAX);
     }
 
-    d->flush_mapped_buffer_memory(d.self, staging_buffer,
-                                  {.offset = 0, .size = gpu::WHOLE_SIZE})
+    dev.flush_mapped_buffer_memory(staging_buffer,
+                                   {.offset = 0, .size = gpu::WHOLE_SIZE})
         .unwrap();
-    d->unmap_buffer_memory(d.self, staging_buffer);
+    dev.unmap_buffer_memory(staging_buffer);
 
     Vec<gpu::BufferImageCopy> copies{allocator};
 
@@ -415,7 +413,7 @@ struct FontImpl : Font
           .image_extent        = {atlas.extent.x, atlas.extent.y, 1}};
     }
 
-    enc->copy_buffer_to_image(enc.self, staging_buffer, image, span(copies));
+    enc.copy_buffer_to_image(staging_buffer, image, span(copies));
 
     gpu::Format format = gpu::Format::B8G8R8A8_UNORM;
     c.release(staging_buffer);
@@ -429,13 +427,11 @@ struct FontImpl : Font
     for (u32 i = 0; i < atlas.num_layers; i++)
     {
       textures[i] = c.alloc_texture_slot();
-      d->update_descriptor_set(
-          d.self,
-          gpu::DescriptorSetUpdate{
-              .set     = c.texture_views,
-              .binding = 0,
-              .element = textures[i],
-              .images  = span({gpu::ImageBinding{.image_view = views[i]}})});
+      dev.update_descriptor_set(gpu::DescriptorSetUpdate{
+          .set     = c.texture_views,
+          .binding = 0,
+          .element = textures[i],
+          .images  = span({gpu::ImageBinding{.image_view = views[i]}})});
     }
 
     gpu_atlas = Some{GpuFontAtlas{.image       = image,

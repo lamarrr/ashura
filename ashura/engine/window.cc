@@ -24,7 +24,7 @@ struct WindowImpl
   gpu::Surface                        surface   = nullptr;
   SDL_WindowID                        id        = 0;
   SparseVec<Vec<WindowEventListener>> listeners = {};
-  gpu::InstanceImpl                   instance  = {};
+  gpu::Instance                      *instance  = nullptr;
   Fn<WindowRegion(Vec2U)>             hit_test =
       fn([](Vec2U) { return WindowRegion::Normal; });
 };
@@ -112,8 +112,8 @@ struct WindowSystemImpl : WindowSystem
     return ((WindowImpl *) window)->win;
   }
 
-  Option<Window> create_window(gpu::InstanceImpl instance,
-                               Span<char const>  title) override
+  Option<Window> create_window(gpu::Instance   &instance,
+                               Span<char const> title) override
   {
     char *title_c_str;
     if (!default_allocator.nalloc(title.size() + 1, title_c_str))
@@ -133,13 +133,12 @@ struct WindowSystemImpl : WindowSystem
     SDL_WindowID id = SDL_GetWindowID(window);
     CHECKSdl(id != 0);
 
-    CHECK(instance.interface->get_backend(instance.self) ==
-          gpu::Backend::Vulkan);
+    CHECK(instance.get_backend() == gpu::Backend::Vulkan);
 
-    vk::Instance *vk_instance = (vk::Instance *) instance.self;
+    vk::Instance &vk_instance = (vk::Instance &) instance;
     VkSurfaceKHR  surface;
 
-    CHECKSdl(SDL_Vulkan_CreateSurface(window, vk_instance->vk_instance, nullptr,
+    CHECKSdl(SDL_Vulkan_CreateSurface(window, vk_instance.vk_instance, nullptr,
                                       &surface));
 
     WindowImpl *impl;
@@ -149,7 +148,7 @@ struct WindowSystemImpl : WindowSystem
     new (impl) WindowImpl{.win      = window,
                           .surface  = (gpu::Surface) surface,
                           .id       = id,
-                          .instance = instance};
+                          .instance = &instance};
 
     SDL_PropertiesID props_id = SDL_GetWindowProperties(window);
     CHECK(SDL_SetPointerProperty(props_id, "impl", impl));
@@ -162,7 +161,7 @@ struct WindowSystemImpl : WindowSystem
     if (window != nullptr)
     {
       WindowImpl *win = (WindowImpl *) window;
-      win->instance->uninit_surface(win->instance.self, win->surface);
+      win->instance->uninit_surface(win->surface);
       SDL_DestroyWindow(win->win);
       win->listeners.reset();
       default_allocator.ndealloc(win, 1);

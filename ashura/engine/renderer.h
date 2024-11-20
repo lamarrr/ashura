@@ -87,10 +87,10 @@ struct RenderPipeline
                        AssetMap &assets) = 0;
 
   virtual void begin_frame(GpuContext &ctx, PassContext &passes,
-                           gpu::CommandEncoderImpl const &enc) = 0;
+                           gpu::CommandEncoder &enc) = 0;
 
   virtual void end_frame(GpuContext &ctx, PassContext &passes,
-                         gpu::CommandEncoderImpl const &enc) = 0;
+                         gpu::CommandEncoder &enc) = 0;
 
   virtual ~RenderPipeline() = default;
 };

@@ -43,7 +43,7 @@ struct BloomPass : Pass
 
   virtual void release(GpuContext &ctx, AssetMap &assets) override;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
               BloomPassParams const &params);
 
   virtual ~BloomPass() override = default;
@@ -85,7 +85,7 @@ struct BlurPass : Pass
 
   virtual ~BlurPass() override = default;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
               BlurPassParams const &params);
 };
 
@@ -132,7 +132,7 @@ struct NgonPass : Pass
 
   virtual ~NgonPass() override = default;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
               NgonPassParams const &params);
 };
 
@@ -207,7 +207,7 @@ struct PBRPass : Pass
 
   virtual ~PBRPass() override = default;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
               PBRPassParams const &params);
 };
 
@@ -256,7 +256,7 @@ struct RRectPass : Pass
 
   virtual ~RRectPass() override = default;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
               RRectPassParams const &params);
 };
 

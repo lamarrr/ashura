@@ -120,7 +120,7 @@ struct GpuContext
   static constexpr u16 NUM_SAMPLER_SLOTS        = 64;
   static constexpr u16 NUM_SCRATCH_FRAMEBUFFERS = 2;
 
-  gpu::DeviceImpl device;
+  gpu::Device *device;
 
   gpu::PipelineCache pipeline_cache;
 
@@ -158,12 +158,12 @@ struct GpuContext
 
   Bits<u64, NUM_SAMPLER_SLOTS> sampler_slots;
 
-  static GpuContext create(AllocatorImpl allocator, gpu::DeviceImpl device,
+  static GpuContext create(AllocatorImpl allocator, gpu::Device *device,
                            bool use_hdr, u32 buffering,
                            gpu::Extent initial_extent);
 
   GpuContext(
-      AllocatorImpl allocator, gpu::DeviceImpl device,
+      AllocatorImpl allocator, gpu::Device *device,
       gpu::PipelineCache pipeline_cache, u32 buffering,
       gpu::Format color_format, gpu::Format depth_stencil_format,
       gpu::DescriptorSetLayout ubo_layout, gpu::DescriptorSetLayout ssbo_layout,
@@ -222,12 +222,12 @@ struct GpuContext
       release(sampler.sampler);
     });
     idle_reclaim();
-    device->uninit_pipeline_cache(device.self, pipeline_cache);
+    device->uninit_pipeline_cache(pipeline_cache);
   }
 
   void recreate_framebuffers(gpu::Extent new_extent);
 
-  gpu::CommandEncoderImpl encoder();
+  gpu::CommandEncoder &encoder();
 
   u32 ring_index();
 

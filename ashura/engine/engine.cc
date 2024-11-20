@@ -135,13 +135,11 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   logger->trace("Initializing Engine");
 
-  gpu::InstanceImpl instance =
+  Dyn<gpu::Instance *> instance =
       gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
 
-  gpu::DeviceImpl device = instance
-                               ->create_device(instance.self, allocator,
-                                               span(cfg.gpu.preferences), 2)
-                               .unwrap();
+  gpu::Device *device =
+      instance->create_device(allocator, span(cfg.gpu.preferences), 2).unwrap();
 
   GpuContext gpu_ctx =
       GpuContext::create(allocator, device, cfg.gpu.hdr, cfg.gpu.buffering,
@@ -160,7 +158,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
   logger->trace("Creating Root Window");
 
   Window window =
-      window_system->create_window(instance, "Ashura"_span).unwrap();
+      window_system->create_window(*instance, "Ashura"_span).unwrap();
 
   if (cfg.window.maximized)
   {
@@ -188,7 +186,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   engine = new (storage) Engine{allocator,
                                 app,
-                                instance,
+                                std::move(instance),
                                 device,
                                 window,
                                 surface,
@@ -210,6 +208,8 @@ void Engine::init(AllocatorImpl allocator, void *app,
       fn(engine, [](Engine *engine, WindowEvent const &event) {
 
       }));
+
+  engine->device->begin_frame(nullptr).unwrap();
 
   // [ ] setup window event listeners
   // [ ] recreate_swapchain
@@ -257,16 +257,12 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
             gpu::Shader shader =
                 engine->device
-                    ->create_shader(
-                        engine->device.self,
-                        gpu::ShaderInfo{.label      = "Shader"_span,
-                                        .spirv_code = span(data_u32)})
+                    ->create_shader(gpu::ShaderInfo{
+                        .label = "Shader"_span, .spirv_code = span(data_u32)})
                     .unwrap();
 
             engine->assets.shaders.insert(std::move(shader_id), shader)
                 .unwrap();
-
-            logger->trace("Shader", span(shader_id), " loaded to GPU");
 
             sem->increment(1);
           },
@@ -328,8 +324,6 @@ void Engine::init(AllocatorImpl allocator, void *app,
             engine->assets.fonts.insert(std::move(font_id), std::move(font))
                 .unwrap();
 
-            logger->trace("Uploaded font ", span(font_id), " to GPU");
-
             sem->increment(1);
           },
           async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
@@ -346,6 +340,8 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   engine->renderer.acquire(engine->gpu_ctx, engine->assets);
 
+  engine->device->submit_frame(nullptr).unwrap();
+
   logger->trace("Engine Initialized");
 }
 
@@ -354,7 +350,7 @@ void Engine::uninit()
   // check resources have been purged
   // TODO(lamarrr):
   //  shader_map.iter([&](Span<char const>, gpu::Shader shader) {
-  //    device->uninit_shader(device.self, shader);
+  //    device->uninit_shader(device, shader);
   //  });
   CHECK(engine != nullptr);
   logger->trace("Uninitializing Engine");
@@ -365,39 +361,35 @@ void Engine::uninit()
 
 Engine::~Engine()
 {
-  device->uninit_swapchain(device.self, swapchain);
+  device->uninit_swapchain(swapchain);
   window_system->uninit_window(window);
   logger->trace("Uninitializing Window System");
   WindowSystem::uninit();
-  instance->uninit_device(instance.self, device.self);
-  instance->uninit(instance.self);
+  instance->uninit_device(device);
 }
 
 void Engine::recreate_swapchain_()
 {
   gpu::SurfaceCapabilities capabilities =
-      device->get_surface_capabilities(device.self, surface).unwrap();
+      device->get_surface_capabilities(surface).unwrap();
   CHECK(
       has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
                                              gpu::ImageUsage::ColorAttachment));
 
   Vec<gpu::SurfaceFormat> formats;
-  u32                     num_formats =
-      device->get_surface_formats(device.self, surface, {}).unwrap();
+  u32 num_formats = device->get_surface_formats(surface, {}).unwrap();
   CHECK(num_formats != 0);
   formats.resize_uninit(num_formats).unwrap();
-  CHECK(device->get_surface_formats(device.self, surface, span(formats))
-            .unwrap() == num_formats);
+  CHECK(device->get_surface_formats(surface, span(formats)).unwrap() ==
+        num_formats);
 
   Vec<gpu::PresentMode> present_modes;
   u32                   num_present_modes =
-      device->get_surface_present_modes(device.self, surface, {}).unwrap();
+      device->get_surface_present_modes(surface, {}).unwrap();
   CHECK(num_present_modes != 0);
   present_modes.resize_uninit(num_present_modes).unwrap();
-  CHECK(
-      device
-          ->get_surface_present_modes(device.self, surface, span(present_modes))
-          .unwrap() == num_present_modes);
+  CHECK(device->get_surface_present_modes(surface, span(present_modes))
+            .unwrap() == num_present_modes);
 
   Vec2U surface_extent = window_system->get_surface_size(window);
   surface_extent.x     = max(surface_extent.x, 1U);
@@ -486,11 +478,11 @@ void Engine::recreate_swapchain_()
 
   if (swapchain == nullptr)
   {
-    swapchain = device->create_swapchain(device.self, surface, info).unwrap();
+    swapchain = device->create_swapchain(surface, info).unwrap();
   }
   else
   {
-    device->invalidate_swapchain(device.self, swapchain, info).unwrap();
+    device->invalidate_swapchain(swapchain, info).unwrap();
   }
 }
 

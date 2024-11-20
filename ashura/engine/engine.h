@@ -72,9 +72,9 @@ struct Engine
 {
   void *app;
 
-  gpu::InstanceImpl instance;
+  Dyn<gpu::Instance *> instance;
 
-  gpu::DeviceImpl device;
+  gpu::Device *device;
 
   Window window;
 
@@ -102,13 +102,13 @@ struct Engine
 
   bool should_shutdown = false;
 
-  Engine(AllocatorImpl allocator, void *app, gpu::InstanceImpl instance,
-         gpu::DeviceImpl device, Window window, gpu::Surface surface,
+  Engine(AllocatorImpl allocator, void *app, Dyn<gpu::Instance *> instance,
+         gpu::Device *device, Window window, gpu::Surface surface,
          gpu::PresentMode present_mode_preference, GpuContext gpu_ctx,
          Renderer renderer, Canvas canvas, ViewSystem view_system,
          ViewContext view_ctx) :
       app{app},
-      instance{instance},
+      instance{std::move(instance)},
       device{device},
       window{window},
       surface{surface},

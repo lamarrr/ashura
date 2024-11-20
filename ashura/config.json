@@ -21,20 +21,22 @@
         "height": 1080
     },
     "shaders": {
-        "Blur:VS": "shaders/blur.vs.spv",
-        "Blur:FS": "shaders/blur.fs.spv",
-        "Ngon:VS": "shaders/ngon.vs.spv",
-        "Ngon:FS": "shaders/ngon.fs.spv",
-        "Pbr:VS": "shaders/pbr.vs.spv",
-        "Pbr:FS": "shaders/pbr.fs.spv",
-        "Rrect:VS": "shaders/rrect.vs.spv",
-        "Rrect:FS": "shaders/rrect.fs.spv"
+        "Blur/Downsample:VS": "shaders/blur_downsample.vert.spv",
+        "Blur/Downsample:FS": "shaders/blur_downsample.frag.spv",
+        "Blur/Upsample:VS": "shaders/blur_upsample.vert.spv",
+        "Blur/Upsample:FS": "shaders/blur_upsample.frag.spv",
+        "Ngon:VS": "shaders/ngon.vert.spv",
+        "Ngon:FS": "shaders/ngon.frag.spv",
+        "PBR:VS": "shaders/pbr.vert.spv",
+        "PBR:FS": "shaders/pbr.frag.spv",
+        "RRect:VS": "shaders/rrect.vert.spv",
+        "RRect:FS": "shaders/rrect.frag.spv"
     },
     "fonts": {
-        "Amiri": "fonts/Amiri-Regular.ttf",
-        "MaterialIcons": "fonts/MaterialIcons-Regular.ttf",
-        "Roboto": "fonts/Roboto-Regular.ttf",
-        "RobotoMono": "fonts/RobotoMono-Regular.ttf"
+        "Amiri": "fonts/Amiri/Amiri-Regular.ttf",
+        "MaterialIcons": "fonts/MaterialIcons/MaterialIcons-Regular.ttf",
+        "Roboto": "fonts/Roboto/Roboto-Regular.ttf",
+        "RobotoMono": "fonts/RobotoMono/RobotoMono-Regular.ttf"
     },
     "default_font": "Amiri",
     "images": {}

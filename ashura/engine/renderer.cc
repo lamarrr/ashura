@@ -10,8 +10,8 @@ namespace ash
 void Renderer::begin_frame(GpuContext &ctx, RenderTarget const &,
                            Canvas     &canvas)
 {
-  gpu::CommandEncoderImpl enc = ctx.encoder();
-  Resources              &r   = resources[ctx.ring_index()];
+  gpu::CommandEncoder &enc = ctx.encoder();
+  Resources           &r   = resources[ctx.ring_index()];
 
   canvas.end_recording();
 
@@ -29,7 +29,7 @@ void Renderer::begin_frame(GpuContext &ctx, RenderTarget const &,
 
 void Renderer::end_frame(GpuContext &ctx, RenderTarget const &, Canvas &canvas)
 {
-  gpu::CommandEncoderImpl enc = ctx.encoder();
+  gpu::CommandEncoder &enc = ctx.encoder();
 
   for (Dyn<RenderPipeline *> const &p : pipelines)
   {
@@ -40,14 +40,14 @@ void Renderer::end_frame(GpuContext &ctx, RenderTarget const &, Canvas &canvas)
 void Renderer::render_frame(GpuContext &ctx, RenderTarget const &rt,
                             Canvas &canvas)
 {
-  Resources              &r       = resources[ctx.ring_index()];
-  gpu::CommandEncoderImpl encoder = ctx.encoder();
+  Resources           &r   = resources[ctx.ring_index()];
+  gpu::CommandEncoder &enc = ctx.encoder();
 
   Canvas::RenderContext render_ctx{.canvas        = canvas,
                                    .gpu           = ctx,
                                    .passes        = passes,
                                    .rt            = rt,
-                                   .enc           = encoder,
+                                   .enc           = enc,
                                    .rrects        = r.rrect_params,
                                    .ngons         = r.ngon_params,
                                    .ngon_vertices = r.ngon_vertices,

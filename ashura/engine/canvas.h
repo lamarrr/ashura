@@ -133,15 +133,15 @@ struct Canvas
 {
   struct RenderContext
   {
-    Canvas                        &canvas;
-    GpuContext                    &gpu;
-    PassContext                   &passes;
-    RenderTarget const            &rt;
-    gpu::CommandEncoderImpl const &enc;
-    SSBO const                    &rrects;
-    SSBO const                    &ngons;
-    SSBO const                    &ngon_vertices;
-    SSBO const                    &ngon_indices;
+    Canvas              &canvas;
+    GpuContext          &gpu;
+    PassContext         &passes;
+    RenderTarget const  &rt;
+    gpu::CommandEncoder &enc;
+    SSBO const          &rrects;
+    SSBO const          &ngons;
+    SSBO const          &ngon_vertices;
+    SSBO const          &ngon_indices;
   };
 
   enum class BatchType : u8
