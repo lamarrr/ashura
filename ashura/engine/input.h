@@ -596,30 +596,30 @@ struct MouseWheelEvent
 
 enum class WindowEventTypes : u32
 {
-  None            = 0x000000,
-  Shown           = 0x000001,
-  Hidden          = 0x000002,
-  Exposed         = 0x000004,
-  Moved           = 0x000008,
-  Resized         = 0x000010,
-  SurfaceResized  = 0x000020,
-  Minimized       = 0x000040,
-  Maximized       = 0x000080,
-  Restored        = 0x000100,
-  MouseEnter      = 0x000200,
-  MouseLeave      = 0x000400,
-  FocusIn         = 0x000800,
-  FocusOut        = 0x001000,
-  CloseRequested  = 0x002000,
-  Occluded        = 0x004000,
-  EnterFullScreen = 0x008000,
-  LeaveFullScreen = 0x010000,
-  Key             = 0x020000,
-  MouseMotion     = 0x040000,
-  MouseClick      = 0x080000,
-  MouseWheel      = 0x100000,
-  Destroyed       = 0x200000,
-  All             = 0xFFFFFF
+  None            = 0x00000000,
+  Shown           = 0x00000001,
+  Hidden          = 0x00000002,
+  Exposed         = 0x00000004,
+  Moved           = 0x00000008,
+  Resized         = 0x00000010,
+  SurfaceResized  = 0x00000020,
+  Minimized       = 0x00000040,
+  Maximized       = 0x00000080,
+  Restored        = 0x00000100,
+  MouseEnter      = 0x00000200,
+  MouseLeave      = 0x00000400,
+  FocusIn         = 0x00000800,
+  FocusOut        = 0x00001000,
+  CloseRequested  = 0x00002000,
+  Occluded        = 0x00004000,
+  EnterFullScreen = 0x00008000,
+  LeaveFullScreen = 0x00010000,
+  Key             = 0x00020000,
+  MouseMotion     = 0x00040000,
+  MouseClick      = 0x00080000,
+  MouseWheel      = 0x00100000,
+  Destroyed       = 0x00200000,
+  All             = 0xFFFFFFFF
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(WindowEventTypes)
@@ -639,20 +639,21 @@ struct WindowEvent
 
 enum class SystemEventTypes : u32
 {
-  None                     = 0x0000,
-  ThemeChanged             = 0x0001,
-  KeymapChanged            = 0x0002,
-  AudioDeviceAdded         = 0x0004,
-  AudioDeviceRemoved       = 0x0008,
-  AudioDeviceFormatChanged = 0x0010,
-  DisplayReoriented        = 0x0020,
-  DisplayAdded             = 0x0040,
-  DisplayRemoved           = 0x0080,
-  DisplayMoved             = 0x0100,
-  CameraAdded              = 0x0200,
-  CameraRemoved            = 0x0400,
-  CameraApproved           = 0x0800,
-  CameraDenied             = 0x1000
+  None                     = 0x00000000,
+  ThemeChanged             = 0x00000001,
+  KeymapChanged            = 0x00000002,
+  AudioDeviceAdded         = 0x00000004,
+  AudioDeviceRemoved       = 0x00000008,
+  AudioDeviceFormatChanged = 0x00000010,
+  DisplayReoriented        = 0x00000020,
+  DisplayAdded             = 0x00000040,
+  DisplayRemoved           = 0x00000080,
+  DisplayMoved             = 0x00000100,
+  CameraAdded              = 0x00000200,
+  CameraRemoved            = 0x00000400,
+  CameraApproved           = 0x00000800,
+  CameraDenied             = 0x00001000,
+  All                      = 0xFFFFFFFF
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(SystemEventTypes)
@@ -777,26 +778,26 @@ constexpr char const MIME_FONT_WOFF2[] = "font/woff2";
 
 struct ClipBoard
 {
-  virtual Result<Void, Void> get(Span<char const> mime, Vec<u8> &out)
+  virtual Result<> get(Span<char const> mime, Vec<u8> &out)
   {
     (void) mime;
     (void) out;
     return Err{};
   }
 
-  virtual Result<Void, Void> set(Span<char const> mime, Span<u8 const> data)
+  virtual Result<> set(Span<char const> mime, Span<u8 const> data)
   {
     (void) mime;
     (void) data;
     return Err{};
   }
 
-  Result<Void, Void> get_text(Vec<u8> &out)
+  Result<> get_text(Vec<u8> &out)
   {
     return get(span(MIME_TEXT_UTF8), out);
   }
 
-  Result<Void, Void> set_text(Span<u8 const> text)
+  Result<> set_text(Span<u8 const> text)
   {
     return set(span(MIME_TEXT_UTF8), text);
   }

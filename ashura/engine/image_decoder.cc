@@ -42,7 +42,7 @@ ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
     if (WebPDecodeRGBAInto(bytes.data(), bytes.size(), image.channels.data(),
                            buffer_size, pitch) == nullptr)
     {
-      image.channels.reset();
+      image.channels.clear();
       return ImageDecodeError::DecodeFailed;
     }
   }
@@ -51,7 +51,7 @@ ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
     if (WebPDecodeRGBInto(bytes.data(), bytes.size(), image.channels.data(),
                           buffer_size, pitch) == nullptr)
     {
-      image.channels.reset();
+      image.channels.clear();
       return ImageDecodeError::DecodeFailed;
     }
   }
@@ -210,18 +210,18 @@ ImageDecodeError decode_image(Span<u8 const> bytes, DecodedImage &image)
   constexpr u8 WEBP_MAGIC1[] = {'R', 'I', 'F', 'F'};
   constexpr u8 WEBP_MAGIC2[] = {'W', 'E', 'B', 'P'};
 
-  if (range_equal(bytes.slice(0, size(JPG_MAGIC)), JPG_MAGIC))
+  if (range_eq(bytes.slice(0, size(JPG_MAGIC)), JPG_MAGIC))
   {
     return decode_jpg(bytes, image);
   }
 
-  if (range_equal(bytes.slice(0, size(PNG_MAGIC)), PNG_MAGIC))
+  if (range_eq(bytes.slice(0, size(PNG_MAGIC)), PNG_MAGIC))
   {
     return decode_png(bytes, image);
   }
 
-  if (range_equal(bytes.slice(0, size(WEBP_MAGIC1)), WEBP_MAGIC1) &&
-      range_equal(bytes.slice(8, size(WEBP_MAGIC2)), WEBP_MAGIC2))
+  if (range_eq(bytes.slice(0, size(WEBP_MAGIC1)), WEBP_MAGIC1) &&
+      range_eq(bytes.slice(8, size(WEBP_MAGIC2)), WEBP_MAGIC2))
   {
     return decode_webp(bytes, image);
   }

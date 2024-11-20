@@ -31,10 +31,11 @@
 namespace ash
 {
 
-bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 *&mem)
-{
-  (void) self;
+NoopAllocator noop_allocator_impl{};
+HeapAllocator heap_allocator_impl{};
 
+bool HeapAllocator::alloc(usize alignment, usize size, u8 *&mem)
+{
   if (size == 0)
   {
     mem = nullptr;
@@ -82,11 +83,8 @@ bool HeapInterface::alloc(Allocator self, usize alignment, usize size, u8 *&mem)
 #endif
 }
 
-bool HeapInterface::alloc_zeroed(Allocator self, usize alignment, usize size,
-                                 u8 *&mem)
+bool HeapAllocator::alloc_zeroed(usize alignment, usize size, u8 *&mem)
 {
-  (void) self;
-
   if (size == 0)
   {
     mem = nullptr;
@@ -137,12 +135,12 @@ bool HeapInterface::alloc_zeroed(Allocator self, usize alignment, usize size,
 #endif
 }
 
-bool HeapInterface::realloc(Allocator self, usize alignment, usize old_size,
-                            usize new_size, u8 *&mem)
+bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
+                            u8 *&mem)
 {
   if (new_size == 0)
   {
-    HeapInterface::dealloc(self, alignment, mem, old_size);
+    HeapAllocator::dealloc(alignment, mem, old_size);
     mem = nullptr;
     return true;
   }
@@ -189,10 +187,8 @@ bool HeapInterface::realloc(Allocator self, usize alignment, usize old_size,
 #endif
 }
 
-void HeapInterface::dealloc(Allocator self, usize alignment, u8 *mem,
-                            usize size)
+void HeapAllocator::dealloc(usize alignment, u8 *mem, usize size)
 {
-  (void) self;
   (void) alignment;
   (void) mem;
   (void) size;

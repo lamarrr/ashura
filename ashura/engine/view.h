@@ -170,17 +170,27 @@ struct ViewContext
   };
 
   void                    *app              = nullptr;
+  ClipBoard               *clipboard        = nullptr;
   steady_clock::time_point timestamp        = {};
   nanoseconds              timedelta        = {};
-  ClipBoard               *clipboard        = nullptr;
-  SystemTheme              theme : 2        = SystemTheme::None;
-  TextDirection            direction : 1    = TextDirection::LeftToRight;
+  SystemTheme              theme            = SystemTheme::None;
+  TextDirection            direction        = TextDirection::LeftToRight;
   Mouse                    mouse            = {};
   KeyBoard                 keyboard         = {};
   Span<u8 const>           drag_payload     = {};
   Span<u8 const>           text_input       = {};
   Span<u32 const>          text_input_utf32 = {};
   Vec2                     viewport_extent  = {};
+
+  constexpr ViewContext(void *app, ClipBoard &clipboard) :
+      app{app}, clipboard{&clipboard}
+  {
+  }
+  constexpr ViewContext(ViewContext const &)            = delete;
+  constexpr ViewContext(ViewContext &&)                 = default;
+  constexpr ViewContext &operator=(ViewContext const &) = delete;
+  constexpr ViewContext &operator=(ViewContext &&)      = default;
+  constexpr ~ViewContext()                              = default;
 
   constexpr bool key_down(KeyCode key) const
   {
@@ -355,7 +365,7 @@ struct ViewLayout
 /// The coordinate system used is one in which the center of the screen is (0,
 /// 0) and ranges from [-0.5w, +0.5w] on both axes. i.e. top-left is [-0.5w,
 /// -0.5h] and bottom-right is [+0.5w, +0.5h].
-struct View : Pin<>
+struct View
 {
   /// @param id id of the view if mounted, otherwise U64_MAX
   /// @param last_rendered_frame last frame the view was rendered at

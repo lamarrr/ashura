@@ -1715,12 +1715,12 @@ constexpr SignedType abs(SignedType x)
   return x > SignedType{} ? x : -x;
 }
 
-constexpr bool approx_equal(f32 a, f32 b)
+constexpr bool approx_eq(f32 a, f32 b)
 {
   return abs(b - a) <= F32_EPSILON;
 }
 
-constexpr bool approx_equal(f64 a, f64 b)
+constexpr bool approx_eq(f64 a, f64 b)
 {
   return abs(b - a) <= F64_EPSILON;
 }

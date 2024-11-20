@@ -4,6 +4,21 @@
 
 namespace ash
 {
+
+template <typename T>
+struct RemoveConst
+{
+  using Type = T;
+};
+
+template <typename T>
+struct RemoveConst<T const> : RemoveConst<T>
+{
+};
+
+template <typename T>
+using remove_const = typename RemoveConst<T>::Type;
+
 template <typename T>
 struct RemoveConstVolatile
 {
@@ -41,6 +56,29 @@ struct RemoveRef<T &&> : RemoveRef<T>
 
 template <typename T>
 using remove_ref = typename RemoveRef<T>::Type;
+
+template <typename T>
+using decay = std::decay_t<T>;
+
+template <typename T, typename U>
+struct SameImpl
+{
+  static constexpr bool value = false;
+};
+
+template <typename T>
+struct SameImpl<T, T>
+{
+  static constexpr bool value = true;
+};
+
+template <typename T, typename U>
+concept Same = SameImpl<T, U>::value;
+
+template <typename From, typename To>
+concept Convertible = requires(From &&from) {
+  { static_cast<To>((From &&) from) };
+};
 
 template <typename T>
 struct IsConstImpl
@@ -96,5 +134,18 @@ concept Signed = std::is_signed_v<T>;
 
 template <typename T>
 concept FloatingPoint = std::is_floating_point_v<T>;
+
+template <typename F, typename... Args>
+concept Callable = requires(F &&f, Args &&...args) {
+  { ((F &&) f)(((Args &&) args)...) };
+};
+
+template <typename F, typename... Args>
+using CallResult = decltype(std::declval<F>()((std::declval<Args>())...));
+
+namespace trait
+{
+
+};
 
 }        // namespace ash

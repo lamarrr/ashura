@@ -9,73 +9,15 @@
 #include "ashura/std/log.h"
 #include "ashura/std/rc.h"
 #include "ashura/std/time.h"
+#include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 #include <chrono>
 #include <thread>
 
 namespace ash
 {
 
-Rc<Semaphore *> create_semaphore(u64 num_stages, AllocatorImpl allocator)
-{
-  CHECK(num_stages > 0);
-  return rc_inplace<Semaphore>(allocator,
-                               Semaphore::Inner{.num_stages = num_stages})
-      .unwrap();
-}
-
-bool await_semaphores(Span<Rc<Semaphore *> const> semaphores,
-                      Span<u64 const> stages, nanoseconds timeout, bool any)
-{
-  // [ ] handle any
-  CHECK(semaphores.size() == stages.size());
-  usize const n = semaphores.size();
-  for (usize i = 0; i < n; i++)
-  {
-    CHECK((stages[i] == U64_MAX) ||
-          (stages[i] <= semaphores[i]->inner.num_stages));
-  }
-
-  steady_clock::time_point begin = steady_clock::time_point{};
-  for (usize i = 0; i < n; i++)
-  {
-    Rc<Semaphore *> const &s     = semaphores[i];
-    u64 const              stage = min(stages[i], s->inner.num_stages - 1);
-    u64                    poll  = 0;
-    while (true)
-    {
-      // always monotonically increasing
-      if (stage <= s->get_stage())
-      {
-        break;
-      }
-
-      /// we want to avoid syscalls if timeout is 0
-      if (timeout == 0ns)
-      {
-        return false;
-      }
-
-      if (begin == steady_clock::time_point{}) [[unlikely]]
-      {
-        begin = steady_clock::now();
-      }
-
-      steady_clock::time_point const curr = steady_clock::now();
-      nanoseconds const dur = duration_cast<nanoseconds>(curr - begin);
-      if (dur > timeout) [[unlikely]]
-      {
-        return false;
-      }
-
-      yielding_backoff(poll);
-      poll++;
-    }
-  }
-
-  return true;
-}
-
-constexpr usize TASK_ARENA_SIZE = PAGE_ALIGNMENT;
+constexpr usize TASK_ARENA_SIZE = PAGE_SIZE;
 
 /// memory is returned back to the scheduler once ac reaches 0.
 ///
@@ -83,64 +25,136 @@ constexpr usize TASK_ARENA_SIZE = PAGE_ALIGNMENT;
 ///
 struct TaskArena
 {
-  AliasCount ac    = {};
-  Arena      arena = {};
-};
+  AliasCount ac{};
+  Arena      arena{};
 
-constexpr Flex<2> task_arena_layout()
-{
-  return {layout<ListNode<TaskArena>>,
-          Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}};
-}
+  static constexpr auto node_flex()
+  {
+    return Flex{
+        {layout<ListNode<TaskArena>>,
+         Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}}};
+  }
+};
 
 /// once task is executed, the arena holding the memory associated with the task
 /// is returned back to the source.
 ///
-/// tasks are always owned exclusively. the arena holds the memory for this Task
-/// struct, and the memory for its related data. this has the advantage that
-/// accessing the struct is cache-local.
+/// the arena holds the memory for this Task struct, and the memory for its
+/// related data. this has the advantage that accessing the struct is
+/// cache-local.
 ///
-/// @param arena always non-null. arena used to allocate the memory belonging
-/// to this task.
+///
+/// @note this struct is a flexible struct with the task frame appended to the
+/// end of its allocation. The struct is carefully ordered based on the access
+/// pattern by the executors.
 ///
 struct Task
 {
-  TaskInfo             info  = {};
+  typedef Fn<void(void *)> Init;
+
+  typedef void (*Uninit)(void *);
+
+  typedef bool (*Poll)(void *);
+
+  typedef bool (*Run)(void *);
+
+  Layout frame_layout{};
+
+  Poll poll = [](void *) { return true; };
+
+  Run run = [](void *) { return false; };
+
+  Uninit uninit = noop;
+
+  /// @brief arena this task was allocated from. always non-null.
   ListNode<TaskArena> *arena = nullptr;
+
+  static constexpr auto node_flex(Layout frame_layout)
+  {
+    return Flex{{layout<ListNode<Task>>, frame_layout}};
+  }
 };
 
-constexpr Flex<2> task_layout(Layout ctx_layout)
-{
-  return {layout<ListNode<Task>>, ctx_layout};
-}
+static_assert(TASK_ARENA_SIZE != 0,
+              "Task arena size must be a non-zero power of 2");
 
-void uninit_task(ListNode<Task> *task)
-{
-  Flex flex = task_layout(task->data.info.ctx);
-  u8  *ctx;
-  flex.unpack(task, task, ctx);
-  task->data.info.uninit(ctx);
-}
+static_assert(is_pow2(TASK_ARENA_SIZE),
+              "Task arena size must be a non-zero power of 2");
+
+static_assert(TASK_ARENA_SIZE >= (MAX_TASK_FRAME_SIZE << 2),
+              "Task arena size is too small");
+
+static_assert(MAX_TASK_FRAME_SIZE >= MAX_STANDARD_ALIGNMENT,
+              "Task frame size is too small");
+
+// assuming it has maximum alignment as well, although this would typically be
+// maximum of MAX_STANDARD_ALIGNMENT
+constexpr Layout MAX_TASK_FRAME_LAYOUT{.alignment = MAX_TASK_FRAME_SIZE,
+                                       .size      = MAX_TASK_FRAME_SIZE};
+
+constexpr Layout MAX_TASK_NODE_FLEX_LAYOUT =
+    Task::node_flex(MAX_TASK_FRAME_LAYOUT).layout();
+
+static_assert(TASK_ARENA_SIZE >= MAX_TASK_NODE_FLEX_LAYOUT.size,
+              "Task arena size is too small to fit the maximum task frame and "
+              "task metadata");
 
 struct TaskAllocator
 {
-  AllocatorImpl allocator                                  = default_allocator;
-  alignas(CACHELINE_ALIGNMENT) SpinLock free_list_lock     = {};
-  List<TaskArena> free_list                                = {};
-  alignas(CACHELINE_ALIGNMENT) SpinLock current_arena_lock = {};
-  ListNode<TaskArena> *current_arena                       = nullptr;
+  /// @brief The source allocator the arenas are allocated from
+  AllocatorImpl source;
 
-  void uninit()
+  /// @brief Arena free list. all arenas on the free list a fully reclaimed and
+  /// can be immediately used.
+  /// This is appended to by the task executors once they are done with the
+  /// arenas.
+  struct alignas(CACHELINE_ALIGNMENT)
   {
-    if (current_arena != nullptr)
+    SpinLock        lock{};
+    List<TaskArena> list{};
+
+    ListNode<TaskArena> *pop()
     {
-      dealloc_arena(current_arena);
-      current_arena = nullptr;
+      LockGuard guard{lock};
+      // return the most recently used arena
+      ListNode<TaskArena> *arena = list.pop_back();
+      return arena;
     }
 
-    while (!free_list.is_empty())
+  } free_list{};
+
+  /// @brief current arena being used for allocating new tasks. once this arena
+  /// is exhausted, we query from the freelist, and if that is empty, we
+  /// allocate a new arena and make it the current arena.
+  struct alignas(CACHELINE_ALIGNMENT)
+  {
+    SpinLock             lock{};
+    ListNode<TaskArena> *node = nullptr;
+
+  } current_arena{};
+
+  explicit TaskAllocator(AllocatorImpl src) : source{src}
+  {
+  }
+
+  TaskAllocator(TaskAllocator const &) = delete;
+
+  TaskAllocator(TaskAllocator &&) = default;
+
+  TaskAllocator &operator=(TaskAllocator const &) = delete;
+
+  TaskAllocator &operator=(TaskAllocator &&) = default;
+
+  ~TaskAllocator()
+  {
+    if (current_arena.node != nullptr)
     {
-      dealloc_arena(free_list.pop_front());
+      dealloc_arena(current_arena.node);
+    }
+
+    while (!free_list.list.is_empty())
+    {
+      dealloc_arena(free_list.list.pop_front());
     }
   }
 
@@ -148,58 +162,46 @@ struct TaskAllocator
   {
     // decrease alias count of arena, if only alias left, add to the arena
     // free list.
-    if (arena->data.ac.unalias())
+    if (arena->v.ac.unalias())
     {
-      arena->data.arena.reclaim();
-      free_list_lock.lock();
-      free_list.push_back(arena);
-      free_list_lock.unlock();
+      arena->v.arena.reclaim();
+      LockGuard guard{free_list.lock};
+      free_list.list.push_back(arena);
     }
-  }
-
-  ListNode<TaskArena> *pop_free_list()
-  {
-    free_list_lock.lock();
-    ListNode<TaskArena> *arena = free_list.pop_front();
-    free_list_lock.unlock();
-    return arena;
   }
 
   bool alloc_arena(ListNode<TaskArena> *&arena)
   {
-    Flex   flex   = task_arena_layout();
-    Layout layout = flex.layout();
+    Flex const   flex   = TaskArena::node_flex();
+    Layout const layout = flex.layout();
 
     u8 *head;
 
-    if (!allocator.alloc(layout.alignment, layout.size, head))
+    if (!source.alloc(layout.alignment, layout.size, head))
     {
       return false;
     }
 
-    arena = (ListNode<TaskArena> *) head;
-
-    u8 *arena_memory;
-    flex.unpack(head, arena, arena_memory);
+    u8 *memory;
+    flex.unpack(head, arena, memory);
 
     new (arena) ListNode<TaskArena>{
-        .data = TaskArena{.arena = Arena{.begin = arena_memory,
-                                         .end = arena_memory + TASK_ARENA_SIZE,
-                                         .offset    = arena_memory,
-                                         .alignment = MAX_STANDARD_ALIGNMENT}}};
+        .v{.arena = to_arena(Span{memory, TASK_ARENA_SIZE})}};
+
     return true;
   }
 
   void dealloc_arena(ListNode<TaskArena> *arena)
   {
-    Flex         flex   = task_arena_layout();
+    Flex const   flex   = TaskArena::node_flex();
     Layout const layout = flex.layout();
-    allocator.dealloc(layout.alignment, (u8 *) arena, layout.size);
+    source.dealloc(layout.alignment, (u8 *) arena, layout.size);
   }
 
   bool request_arena(ListNode<TaskArena> *&arena)
   {
-    ListNode<TaskArena> *a = pop_free_list();
+    /// get from free list, otherwise allocate a new arena
+    ListNode<TaskArena> *a = free_list.pop();
     if (a != nullptr)
     {
       arena = a;
@@ -211,96 +213,124 @@ struct TaskAllocator
   static bool alloc_task(ListNode<TaskArena> &arena, TaskInfo const &info,
                          ListNode<Task> *&task)
   {
-    Flex   flex   = task_layout(info.ctx);
-    Layout layout = flex.layout();
-
-    CHECK(layout.size <= TASK_ARENA_SIZE);
+    Flex const   flex   = Task::node_flex(info.frame_layout);
+    Layout const layout = flex.layout();
 
     u8 *head;
 
-    if (!arena.data.arena.alloc(layout.alignment, layout.size, head))
+    if (!arena.v.arena.alloc(layout.alignment, layout.size, head))
     {
       return false;
     }
 
-    arena.data.ac.alias();
+    arena.v.ac.alias();
 
     u8 *ctx;
 
     flex.unpack(head, task, ctx);
 
+    new (task) ListNode<Task>{.v{.frame_layout = info.frame_layout,
+                                 .poll         = info.poll,
+                                 .run          = info.run,
+                                 .uninit       = info.uninit,
+                                 .arena        = &arena}};
+
     info.init(ctx);
 
-    new (task) ListNode<Task>{.data = Task{.info = info, .arena = &arena}};
-
     return true;
+  }
+
+  static void uninit_task(ListNode<Task> *task)
+  {
+    Flex const flex = Task::node_flex(task->v.frame_layout);
+    u8        *ctx;
+    flex.unpack(task, task, ctx);
+    task->v.uninit(ctx);
+  }
+
+  void release_task(ListNode<Task> *task)
+  {
+    ListNode<TaskArena> *arena = task->v.arena;
+    uninit_task(task);
+    release_arena(arena);
   }
 
   bool create_task(TaskInfo const &info, ListNode<Task> *&task)
   {
-    current_arena_lock.lock();
-    defer unlock_{[&] { current_arena_lock.unlock(); }};
+    LockGuard guard{current_arena.lock};
 
-    if (current_arena == nullptr)
+    // no arena is set as current, request a new arena
+    if (current_arena.node == nullptr && !request_arena(current_arena.node))
+        [[unlikely]]
     {
-      if (!request_arena(current_arena))
-      {
-        return false;
-      }
-      CHECK(alloc_task(*current_arena, info, task));
+      return false;
+    }
+
+    // try to allocate on the current arena
+    if (alloc_task(*current_arena.node, info, task)) [[likely]]
+    {
+      return true;
+    }
+
+    // decrease alias count of current arena, if last alias, reclaim the memory
+    // instead
+    if (current_arena.node->v.ac.unalias()) [[unlikely]]
+    {
+      current_arena.node->v.arena.reclaim();
     }
     else
     {
-      if (!alloc_task(*current_arena, info, task))
+      current_arena.node = nullptr;
+      // request new arena from free-list or source allocator
+      if (!request_arena(current_arena.node)) [[unlikely]]
       {
-        if (current_arena->data.ac.unalias())
-        {
-          current_arena->data.arena.reclaim();
-        }
-        else
-        {
-          current_arena = nullptr;
-          if (!request_arena(current_arena))
-          {
-            return false;
-          }
-        }
-        CHECK(alloc_task(*current_arena, info, task));
+        return false;
       }
     }
 
-    return true;
+    return alloc_task(*current_arena.node, info, task);
   }
 };
 
+/// @brief FIFO task queue backed by a linked list
 struct TaskQueue
 {
-  SpinLock      lock      = {};
-  List<Task>    tasks     = {};
-  TaskAllocator allocator = {};
+  SpinLock      lock{};
+  List<Task>    tasks{};
+  TaskAllocator allocator;
 
-  void uninit()
+  explicit TaskQueue(AllocatorImpl src) : allocator{src}
   {
-    CHECK(tasks.is_empty());
-    allocator.uninit();
+  }
+
+  TaskQueue(TaskQueue const &) = delete;
+
+  TaskQueue(TaskQueue &&) = default;
+
+  TaskQueue &operator=(TaskQueue const &) = delete;
+
+  TaskQueue &operator=(TaskQueue &&) = default;
+
+  ~TaskQueue() = default;
+
+  bool is_empty() const
+  {
+    return tasks.is_empty();
   }
 
   ListNode<Task> *pop_task()
   {
-    lock.lock();
+    LockGuard       guard{lock};
     ListNode<Task> *t = tasks.pop_front();
-    lock.unlock();
     return t;
   }
 
+  /// @brief push task on the queue
+  /// @param t non-null task node
   void push_task(ListNode<Task> *t)
   {
-    CHECK(t != nullptr);
-    CHECK(t->is_isolated());
-    CHECK(t->is_linked());
-    lock.lock();
+    LockGuard guard{lock};
     tasks.push_back(t);
-    lock.unlock();
   }
 
   void push_task(TaskInfo const &info)
@@ -313,83 +343,145 @@ struct TaskQueue
 
 /// @param queue dedicated queue only used when the thread is a dedicated
 /// thread.
-///
 struct alignas(CACHELINE_ALIGNMENT) TaskThread
 {
-  TaskQueue   queue      = {};
-  StopToken   stop_token = {};
-  std::thread thread     = {};
-  nanoseconds max_sleep  = {};
+  TaskQueue      queue;
+  StopTokenState stop_token;
+  nanoseconds    max_sleep;
+  std::thread    thread;
+
+  TaskThread(AllocatorImpl allocator, nanoseconds max_sleep) :
+      queue{allocator}, stop_token{}, max_sleep{max_sleep}, thread{}
+  {
+  }
 };
 
 /// @param allocator must be thread-safe.
 /// @param free_list arena free list. arenas not in use by any tasks are
 /// inserted here
 /// @param current_arena current arena being allocated from
-struct SchedulerImpl : Scheduler
+struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 {
-  AllocatorImpl allocator                             = default_allocator;
-  TaskThread   *dedicated_threads                     = nullptr;
-  TaskThread   *worker_threads                        = nullptr;
-  u32           num_dedicated_threads                 = 0;
-  u32           num_worker_threads                    = 0;
-  alignas(CACHELINE_ALIGNMENT) TaskQueue main_queue   = {};
-  alignas(CACHELINE_ALIGNMENT) TaskQueue worker_queue = {};
+  PinVec<TaskThread> dedicated_threads;
 
-  static void thread_task(TaskAllocator &a, TaskQueue &q, StopToken &stop_token,
+  PinVec<TaskThread> worker_threads;
+
+  alignas(CACHELINE_ALIGNMENT) TaskQueue main_queue;
+
+  alignas(CACHELINE_ALIGNMENT) TaskQueue worker_queue;
+
+  std::thread::id main_thread_id;
+
+  bool joined;
+
+  explicit SchedulerImpl(AllocatorImpl   allocator,
+                         std::thread::id main_thread_id) :
+      dedicated_threads{},
+      worker_threads{},
+      main_queue{allocator},
+      worker_queue{allocator},
+      main_thread_id{main_thread_id},
+      joined{false}
+  {
+  }
+
+  virtual ~SchedulerImpl() override
+  {
+    CHECK_DESC(joined, "Scheduler not joined yet");
+  }
+
+  virtual void join() override
+  {
+    CHECK_DESC(main_thread_id == std::this_thread::get_id(),
+               "Scheduler can only be joined on the main thread");
+
+    for (TaskThread &t : dedicated_threads)
+    {
+      t.stop_token.request_stop();
+    }
+
+    for (TaskThread &t : worker_threads)
+    {
+      t.stop_token.request_stop();
+    }
+
+    for (TaskThread &t : dedicated_threads)
+    {
+      t.thread.join();
+    }
+
+    for (TaskThread &t : worker_threads)
+    {
+      t.thread.join();
+    }
+
+    while (true)
+    {
+      ListNode<Task> *task = main_queue.pop_task();
+
+      if (task == nullptr)
+      {
+        break;
+      }
+
+      main_queue.allocator.release_task(task);
+    }
+
+    joined = true;
+  }
+
+  static void thread_loop(TaskAllocator &a, TaskQueue &q, StopTokenState &s,
                           nanoseconds max_sleep)
   {
     u64 poll = 0;
-    do
+
+    while (true)
     {
+      // stop execution even if there are pending tasks
+      if (s.is_stop_requested()) [[unlikely]]
+      {
+        break;
+      }
+
       ListNode<Task> *task = q.pop_task();
 
-      if (task == nullptr)
+      if (task == nullptr) [[unlikely]]
       {
         sleepy_backoff(poll, max_sleep);
         poll++;
         continue;
       }
 
-      Flex flex = task_layout(task->data.info.ctx);
+      Flex const flex = Task::node_flex(task->v.frame_layout);
 
-      u8 *ctx;
+      u8 *frame;
 
-      flex.unpack(task, task, ctx);
+      flex.unpack(task, task, frame);
 
-      if (!task->data.info.poll(ctx))
+      if (!task->v.poll(frame)) [[unlikely]]
       {
         q.push_task(task);
         continue;
       }
 
-      // finally gotten a ready task, resetting here will prevent  when
-      // we've gotten multiple tasks but none have been ready.
+      // finally gotten a ready task, reset poll counter
       poll = 0;
 
-      bool const should_requeue = task->data.info.task(ctx);
+      bool const repeat = task->v.run(frame);
 
-      if (should_requeue)
+      if (repeat) [[unlikely]]
       {
-        // add back to end of queue
+        // add to the back of the queue, giving pending tasks the opportunity to
+        // run
         q.push_task(task);
         continue;
       }
 
-      ListNode<TaskArena> *arena = task->data.arena;
-      uninit_task(task);
-      a.release_arena(arena);
+      a.release_task(task);
     }
-    // stop execution even if there are pending tasks
-    while (!stop_token.is_stop_requested());
-  }
 
-  static void main_thread_task(TaskAllocator &a, TaskQueue &q,
-                               nanoseconds timeout)
-  {
-    auto begin = steady_clock::now();
-
-    do
+    // run loop done. purge pending tasks
+    while (true)
     {
       ListNode<Task> *task = q.pop_task();
 
@@ -398,97 +490,81 @@ struct SchedulerImpl : Scheduler
         break;
       }
 
-      Flex flex = task_layout(task->data.info.ctx);
-      u8  *ctx;
+      a.release_task(task);
+    }
+  }
 
-      flex.unpack(task, task, ctx);
+  static void main_thread_loop(TaskAllocator &a, TaskQueue &q,
+                               nanoseconds grace_period, nanoseconds duration)
+  {
+    steady_clock::time_point const begin = steady_clock::now();
 
-      if (!task->data.info.poll(ctx))
+    while (true)
+    {
+      // avoid syscalls when duration is .max
+      if (duration != nanoseconds::max() &&
+          (steady_clock::now() - begin) > duration)
+      {
+        break;
+      }
+
+      ListNode<Task> *task = q.pop_task();
+
+      if (task == nullptr) [[unlikely]]
+      {
+        // if within grace period, continue polling.
+        // avoid syscalls when timeout is 0
+        if (grace_period == nanoseconds{} ||
+            (steady_clock::now() - begin) > grace_period)
+        {
+          break;
+        }
+        else
+        {
+          continue;
+        }
+      }
+
+      Flex const flex = Task::node_flex(task->v.frame_layout);
+
+      u8 *frame;
+
+      flex.unpack(task, task, frame);
+
+      if (!task->v.poll(frame)) [[unlikely]]
       {
         q.push_task(task);
         continue;
       }
 
-      bool const should_requeue = task->data.info.task(ctx);
+      bool const repeat = task->v.run(frame);
 
-      if (should_requeue)
+      if (repeat) [[unlikely]]
       {
+        // add to the back of the queue, giving pending tasks the opportunity to
+        // run
         q.push_task(task);
         continue;
       }
 
-      ListNode<TaskArena> *arena = task->data.arena;
-      uninit_task(task);
-      a.release_arena(arena);
-    } while ((steady_clock::now() - begin) < timeout);
-  }
-
-  virtual void init(Span<nanoseconds const> dedicated_thread_sleep,
-                    Span<nanoseconds const> worker_thread_sleep) override
-  {
-    CHECK(dedicated_thread_sleep.size() <= U32_MAX);
-    CHECK(worker_thread_sleep.size() <= U32_MAX);
-    num_dedicated_threads = dedicated_thread_sleep.size32();
-    num_worker_threads    = worker_thread_sleep.size32();
-    CHECK(allocator.nalloc(num_dedicated_threads, dedicated_threads));
-    CHECK(allocator.nalloc(num_worker_threads, worker_threads));
-
-    for (u32 i = 0; i < num_dedicated_threads; i++)
-    {
-      TaskThread *t = dedicated_threads + i;
-      new (t) TaskThread{.max_sleep = dedicated_thread_sleep[i]};
-
-      t->thread = std::thread{[t] {
-        thread_task(t->queue.allocator, t->queue, t->stop_token, t->max_sleep);
-      }};
-    }
-
-    for (u32 i = 0; i < num_worker_threads; i++)
-    {
-      TaskThread *t = worker_threads + i;
-      new (t) TaskThread{.max_sleep = worker_thread_sleep[i]};
-
-      t->thread = std::thread{[t, this] {
-        thread_task(worker_queue.allocator, worker_queue, t->stop_token,
-                    t->max_sleep);
-      }};
+      a.release_task(task);
     }
   }
 
-  static void shutdown_thread(TaskThread *t)
+  virtual u32 num_dedicated() override
   {
-    t->stop_token.request_stop();
-    t->thread.join();
-    t->queue.uninit();
-    t->~TaskThread();
+    return dedicated_threads.size32();
   }
 
-  virtual void uninit() override
+  virtual u32 num_workers() override
   {
-    for (u32 i = 0; i < num_worker_threads; i++)
-    {
-      shutdown_thread(worker_threads + i);
-    }
-
-    for (u32 i = 0; i < num_dedicated_threads; i++)
-    {
-      shutdown_thread(dedicated_threads + i);
-    }
-
-    worker_queue.uninit();
-    main_queue.uninit();
-
-    allocator.ndealloc(worker_threads, num_worker_threads);
-    allocator.ndealloc(dedicated_threads, num_dedicated_threads);
-    worker_threads        = nullptr;
-    dedicated_threads     = nullptr;
-    num_worker_threads    = 0;
-    num_dedicated_threads = 0;
+    return worker_threads.size32();
   }
 
-  virtual void schedule_dedicated(u32 thread, TaskInfo const &info) override
+  virtual void schedule_dedicated(TaskInfo const &info, u32 thread) override
   {
-    CHECK(thread < num_dedicated_threads);
+    CHECK_DESC(thread < dedicated_threads.size32(),
+               "Invalid dedicated thread ID");
     TaskThread &t = dedicated_threads[thread];
     t.queue.push_task(info);
   }
@@ -503,13 +579,68 @@ struct SchedulerImpl : Scheduler
     main_queue.push_task(info);
   }
 
-  virtual void execute_main_thread_work(nanoseconds timeout) override
+  virtual void execute_main_thread_loop(nanoseconds grace_period,
+                                        nanoseconds duration) override
   {
-    main_thread_task(main_queue.allocator, main_queue, timeout);
+    main_thread_loop(main_queue.allocator, main_queue, grace_period, duration);
   }
 };
 
-static SchedulerImpl scheduler_impl;
+ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler *scheduler = nullptr;
 
-ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler *scheduler = &scheduler_impl;
+void Scheduler::init(AllocatorImpl allocator, std::thread::id main_thread_id,
+                     Span<nanoseconds const> dedicated_thread_sleep,
+                     Span<nanoseconds const> worker_thread_sleep)
+{
+  if (logger == nullptr)
+  {
+    abort();
+  }
+  CHECK(scheduler == nullptr);
+  CHECK(dedicated_thread_sleep.size() <= U32_MAX);
+  CHECK(worker_thread_sleep.size() <= U32_MAX);
+
+  alignas(SchedulerImpl) static u8 storage[sizeof(SchedulerImpl)];
+
+  SchedulerImpl *impl = new (storage) SchedulerImpl{allocator, main_thread_id};
+
+  u32 const num_dedicated_threads = dedicated_thread_sleep.size32();
+  u32 const num_worker_threads    = worker_thread_sleep.size32();
+
+  impl->dedicated_threads =
+      pin_vec<TaskThread>(allocator, num_dedicated_threads).unwrap();
+
+  impl->worker_threads =
+      pin_vec<TaskThread>(allocator, num_worker_threads).unwrap();
+
+  for (u32 i = 0; i < num_dedicated_threads; i++)
+  {
+    impl->dedicated_threads.push(allocator, dedicated_thread_sleep[i]).unwrap();
+    TaskThread &t = impl->dedicated_threads[i];
+    t.thread      = std::thread{[&t] {
+      SchedulerImpl::thread_loop(t.queue.allocator, t.queue, t.stop_token,
+                                      t.max_sleep);
+    }};
+  }
+
+  for (u32 i = 0; i < num_worker_threads; i++)
+  {
+    impl->worker_threads.push(allocator, worker_thread_sleep[i]).unwrap();
+    TaskThread &t = impl->worker_threads[i];
+    t.thread      = std::thread{[&t, impl] {
+      SchedulerImpl::thread_loop(impl->worker_queue.allocator,
+                                      impl->worker_queue, t.stop_token, t.max_sleep);
+    }};
+  }
+
+  scheduler = impl;
+}
+
+void Scheduler::uninit()
+{
+  CHECK(scheduler != nullptr);
+  scheduler->~Scheduler();
+  scheduler = nullptr;
+}
+
 }        // namespace ash

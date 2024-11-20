@@ -1,68 +1,59 @@
 /// SPDX-License-Identifier: MIT
 #include "gtest/gtest.h"
 
+#include "ashura/std/allocator.h"
 #include "ashura/std/async.h"
 #include "ashura/std/error.h"
 #include "ashura/std/list.h"
+#include "ashura/std/rc.h"
 #include <chrono>
 #include <thread>
-
-std::atomic<uint64_t> invocs = 0;
 
 TEST(AsyncTest, Basic)
 {
   using namespace ash;
-  logger->add_sink(&stdio_sink);
+  CHECK(logger->add_sink(&stdio_sink));
 
-  Rc<Semaphore *> sem = create_semaphore(1, default_allocator);
-  defer           sem_{[&] { sem.uninit(); }};
+  Semaphore sem = create_semaphore({}, 1).unwrap();
 
-  scheduler->init(span<nanoseconds>({1ns, 2ns}), span({2ns, 5ns}));
-  defer scheduler_{[&] { scheduler->uninit(); }};
+  scheduler->init({}, std::this_thread::get_id(), span<nanoseconds>({1ns, 2ns}),
+                  span({2ns, 5ns}));
+  defer       scheduler_{[&] { scheduler->uninit(); }};
+  Stream<int> s = stream({}, 1, 20).unwrap();
 
-  for (u32 i = 0; i < 5'000; i++)
-  {
-    scheduler->schedule_worker({.task = fn([](void *) {
-                                  invocs.fetch_add(1);
-                                  return false;
-                                })});
-    scheduler->schedule_dedicated(0, {.task = fn([](void *) {
-                                        static int x = 0;
-                                        x++;
-                                        if (x > 10)
-                                        {
-                                          return false;
-                                        }
-                                        std::this_thread::sleep_for(8us);
-                                        return true;
-                                      })});
-    scheduler->schedule_dedicated(1, {.task = fn([](void *) {
-                                        invocs.fetch_add(1);
-                                        return false;
-                                      })});
+  async::once([]() { logger->info("Hi"); },
+              async::AwaitStreams{{0}, s.alias()});
+  async::once([]() { logger->info("Hello"); });
+  async::once([]() { logger->info("Sshh"); });
+  logger->info("scheduled");
+  async::once([]() { logger->info("Timer passed"); },
+              async::Delay{.from = steady_clock::now(), .delay = 1ms});
 
-    if (i % 1'000 == 0)
-    {
-      std::this_thread::sleep_for(1ms);
-    }
-  }
+  auto fut = future<int>({}).unwrap();
 
-  auto poll = [&](void *) {
-    return await_semaphores(span({sem, sem}), span<u64>({0, 0}), {});
-  };
+  async::loop(
+      [x = (u64) 0, f = fut.alias(), s = s.alias()]() mutable -> bool {
+        x++;
+        logger->info(x, " iteration");
+        logger->info("future value: ", f.get());
+        s.yield_unseq([x](int &v) { v = x; }, 1);
+        if (x == 10)
+        {
+          logger->info("loop exited");
+          return false;
+        }
 
-  scheduler->schedule_main({.task = fn([](void *) {
-                              static int x = 0;
-                              x++;
-                              if (x > 10)
-                              {
-                                return false;
-                              }
-                              std::this_thread::sleep_for(8us);
-                              return true;
-                            }),
-                            .poll = fn(&poll)});
-  sem->signal(1);
-  scheduler->execute_main_thread_work(5s);
+        return true;
+      },
+      async::AwaitFutures{fut.alias()});
+  fut.complete(69);
+  async::shard(fn([](async::TaskInstance shard, std::atomic<int> &count_ref) {
+                 int count = count_ref.fetch_add(1);
+                 logger->info("shard: ", shard.idx, " of ", shard.n,
+                              ", sync i: ", count);
+               }),
+               rc_inplace<std::atomic<int>>({}, 0).unwrap(), 10);
+
   std::this_thread::sleep_for(500ms);
+  scheduler->join();
 }

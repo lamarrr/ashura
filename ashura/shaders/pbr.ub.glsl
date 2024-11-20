@@ -69,7 +69,11 @@ layout(location = 0) out vec4 o_world_pos;
 layout(location = 1) out vec2 o_uv;
 layout(location = 2) flat out uint o_idx;
 
-layout(push_constant, row_major) mat4x4 world_to_view;
+layout(push_constant, row_major) uniform PushConstants
+{
+  mat4x4 world_to_view;
+}
+push_constants;
 
 void main()
 {
@@ -80,7 +84,7 @@ void main()
   o_world_pos      = world_pos;
   o_uv             = vtx.uv;
   o_idx            = gl_InstanceIndex;
-  gl_Position      = world_to_view * world_pos;
+  gl_Position      = push_constants.world_to_view * world_pos;
 }
 #endif
 

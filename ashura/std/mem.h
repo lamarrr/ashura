@@ -46,147 +46,79 @@ bool is_ptr_aligned(usize alignment, T *p)
 namespace mem
 {
 
-template <typename T>
-void copy(T const *src, T *dst, usize num)
+template <typename T, typename U>
+void copy(Span<T> src, U *dst)
 {
-  if (num == 0)
+  if (src.is_empty()) [[unlikely]]
   {
     return;
   }
-  std::memcpy(dst, src, sizeof(T) * num);
-}
 
-template <typename T>
-void copy(Span<T const> src, Span<T> dst)
-{
-  if (src.is_empty())
-  {
-    return;
-  }
-  std::memcpy(dst.data(), src.data(), src.size_bytes());
-}
-
-template <typename T>
-void copy(Span<T const> src, T *dst)
-{
-  if (src.is_empty())
-  {
-    return;
-  }
   std::memcpy(dst, src.data(), src.size_bytes());
 }
 
-template <typename T>
-void move(T const *src, T *dst, usize num)
+template <typename T, typename U>
+void copy(Span<T> src, Span<U> dst)
 {
-  if (num == 0)
-  {
-    return;
-  }
-  std::memmove(dst, src, sizeof(T) * num);
+  copy(src, dst.data());
 }
 
-template <typename T>
-void move(Span<T const> src, Span<T> dst)
+template <typename T, typename U>
+void move(Span<T> src, U *dst)
 {
-  if (src.is_empty())
+  if (src.is_empty()) [[unlikely]]
   {
     return;
   }
-  std::memmove(dst.data(), src.data(), src.size_bytes());
-}
 
-template <typename T>
-void move(Span<T const> src, T *dst)
-{
-  if (src.is_empty())
-  {
-    return;
-  }
   std::memmove(dst, src.data(), src.size_bytes());
 }
 
-template <typename T>
-void zero(T *dst, usize num)
+template <typename T, typename U>
+void move(Span<T> src, Span<U> dst)
 {
-  if (num == 0)
+  move(src, dst.data());
+}
+
+template <typename T>
+void zero(T *dst, usize n)
+{
+  if (n == 0) [[unlikely]]
   {
     return;
   }
-  std::memset(dst, 0, sizeof(T) * num);
+
+  std::memset(dst, 0, sizeof(T) * n);
 }
 
 template <typename T>
 void zero(Span<T> dst)
 {
-  if (dst.is_empty())
-  {
-    return;
-  }
-  std::memset(dst.data(), 0, dst.size_bytes());
+  zero(dst.data(), dst.size());
 }
 
 template <typename T>
-void fill(T *dst, usize num, u8 byte)
+void fill(T *dst, usize n, u8 byte)
 {
-  if (num == 0)
+  if (n == 0) [[unlikely]]
   {
     return;
   }
-  std::memset(dst, byte, sizeof(T) * num);
+
+  std::memset(dst, byte, sizeof(T) * n);
 }
 
 template <typename T>
 void fill(Span<T> dst, u8 byte)
 {
-  if (dst.is_empty())
-  {
-    return;
-  }
-  std::memset(dst.data(), byte, dst.size_bytes());
+  fill(dst.data(), dst.size(), byte);
 }
 
-/// move-construct object from src to an uninitialized memory range dst and
-/// destroy object at src, leaving src uninitialized.
-///
-/// src and dst must not be same nor overlapping.
-template <typename T>
-void relocate(T *src, T *uninit_dst, usize num)
+template <typename T, typename U>
+bool eq(Span<T> a, Span<U> b)
 {
-  if constexpr (TriviallyRelocatable<T>)
-  {
-    copy(src, uninit_dst, num);
-  }
-  else
-  {
-    T       *in  = src;
-    T       *out = uninit_dst;
-    T *const end = src + num;
-    while (in != end)
-    {
-      new (out) T{(T &&) *in};
-      in++;
-      out++;
-    }
-    in = src;
-    while (in != end)
-    {
-      in->~T();
-      in++;
-    }
-  }
-}
-
-[[nodiscard]] inline bool to_c_str(Span<char const> str, Span<char> c_str)
-{
-  if ((str.size() + 1) > c_str.size())
-  {
-    return false;
-  }
-
-  mem::copy(str, c_str);
-  c_str[str.size()] = 0;
-  return true;
+  return (a.size_bytes() == b.size_bytes()) &&
+         (std::memcmp(a.data(), b.data(), a.size_bytes()) == 0);
 }
 
 template <typename T>
@@ -219,8 +151,20 @@ ASH_FORCE_INLINE void prefetch(T const *src, int rw, int locality)
 
 }        // namespace mem
 
+[[nodiscard]] inline bool to_c_str(Span<char const> str, Span<char> c_str)
+{
+  if ((str.size() + 1) > c_str.size()) [[unlikely]]
+  {
+    return false;
+  }
+
+  mem::copy(str, c_str);
+  c_str[str.size()] = 0;
+  return true;
+}
+
 /// @brief Memory layout of a type
-/// @param alignment non-zero alignment of the type
+/// @param alignment non-zero power-of-2 alignment of the type
 /// @param size byte-size of the type
 struct Layout
 {
@@ -261,7 +205,7 @@ constexpr Layout layout = Layout{.alignment = alignof(T), .size = sizeof(T)};
 template <usize N>
 struct Flex
 {
-  Layout members[N];
+  Layout members[N]{};
 
   constexpr Layout layout() const
   {
@@ -274,7 +218,7 @@ struct Flex
   }
 
   template <typename T>
-  void unpack_at(void const *&stack, usize i, Span<T> &span)
+  void unpack_at(void const *&stack, usize i, Span<T> &span) const
   {
     stack             = align_ptr(members[i].alignment, stack);
     usize const count = members[i].size / sizeof(T);
@@ -283,7 +227,7 @@ struct Flex
   }
 
   template <typename T>
-  void unpack_at(void const *&stack, usize i, T *&ptr)
+  void unpack_at(void const *&stack, usize i, T *&ptr) const
   {
     Span<T> span;
     unpack_at(stack, i, span);
@@ -291,9 +235,9 @@ struct Flex
   }
 
   template <typename... T>
-  void unpack(void const *stack, T &...p)
+    requires(sizeof...(T) == N)
+  void unpack(void const *stack, T &...p) const
   {
-    static_assert(sizeof...(T) == N);
     usize i = 0;
     (unpack_at(stack, i++, p), ...);
   }

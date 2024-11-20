@@ -174,24 +174,6 @@ struct RenderText
     }
   } inner = {};
 
-  void reset()
-  {
-    inner.text.reset();
-    inner.runs.reset();
-    inner.styles.reset();
-    inner.fonts.reset();
-    inner.layout.reset();
-  }
-
-  void uninit()
-  {
-    inner.text.uninit();
-    inner.runs.uninit();
-    inner.styles.uninit();
-    inner.fonts.uninit();
-    inner.layout.uninit();
-  }
-
   void flush_text()
   {
     inner.dirty = true;
@@ -219,7 +201,7 @@ struct RenderText
 
   void set_language(Span<char const> language)
   {
-    if (range_equal(inner.language, language))
+    if (range_eq(inner.language, language))
     {
       return;
     }

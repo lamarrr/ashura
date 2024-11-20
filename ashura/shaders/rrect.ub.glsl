@@ -41,15 +41,20 @@ const vec2 VERTEX_BUFFER[] = {vec2(-1, -1), vec2(1, -1), vec2(1, 1),
 layout(location = 0) flat out uint o_idx;
 layout(location = 1) out vec2 o_pos;
 
-layout(push_constant, row_major) mat4x4 world_to_view;
+layout(push_constant, row_major) uniform PushConstants
+{
+  mat4x4 world_to_view;
+}
+push_constants;
 
 void main()
 {
-  Params p    = params[gl_InstanceIndex];
-  vec2   pos  = VERTEX_BUFFER[gl_VertexIndex];
-  o_idx       = gl_InstanceIndex;
-  o_pos       = pos;
-  gl_Position = world_to_view * p.transform * vec4(pos, 0.0, 1.0);
+  Params p   = params[gl_InstanceIndex];
+  vec2   pos = VERTEX_BUFFER[gl_VertexIndex];
+  o_idx      = gl_InstanceIndex;
+  o_pos      = pos;
+  gl_Position =
+      push_constants.world_to_view * p.transform * vec4(pos, 0.0, 1.0);
 }
 #endif
 

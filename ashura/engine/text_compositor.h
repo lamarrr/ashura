@@ -180,7 +180,7 @@ struct TextCompositor
     Span<u32 const>     word_symbols   = span(DEFAULT_WORD_SYMBOLS);
     Span<u32 const>     line_symbols   = span(DEFAULT_LINE_SYMBOLS);
 
-    void init(u32 num_buffer_codepoints, u32 num_records)
+    Inner(u32 num_buffer_codepoints, u32 num_records)
     {
       CHECK(num_buffer_codepoints > 0);
       CHECK(num_records > 0);
@@ -188,24 +188,6 @@ struct TextCompositor
       CHECK(is_pow2(num_records));
       buffer.resize_uninit(num_buffer_codepoints).unwrap();
       records.resize_defaulted(num_records).unwrap();
-    }
-
-    void reset()
-    {
-      cursor = {};
-      buffer.reset();
-      records.reset();
-      buffer_usage   = 0;
-      buffer_pos     = 0;
-      latest_record  = 0;
-      current_record = 0;
-      word_symbols   = span(DEFAULT_WORD_SYMBOLS);
-      line_symbols   = span(DEFAULT_LINE_SYMBOLS);
-    }
-
-    void uninit()
-    {
-      reset();
     }
 
     void pop_records(u32 num);
@@ -224,26 +206,18 @@ struct TextCompositor
                  f32 align_width, f32 alignment, TextCommand cmd, Insert insert,
                  Erase erase, Span<u32 const> input, ClipBoard &clipboard,
                  u32 lines_per_page, Vec2 pos);
-  } inner = {};
+  };
 
-  void init(u32 num_buffer_codepoints, u32 num_records)
+  Inner inner;
+
+  TextCompositor(u32 num_buffer_codepoints = 16_KB, u32 num_records = 1024) :
+      inner{num_buffer_codepoints, num_records}
   {
-    inner.init(num_buffer_codepoints, num_records);
   }
 
   TextCursor get_cursor() const
   {
     return inner.cursor;
-  }
-
-  void reset()
-  {
-    inner.reset();
-  }
-
-  void uninit()
-  {
-    inner.uninit();
   }
 
   void pop_records(u32 num)

@@ -1,40 +1,397 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/engine.h"
+#include "ashura/std/fs.h"
+#include "simdjson.h"
 
 namespace ash
 {
 
-static void recreate_swapchain(Engine *e)
+ASH_C_LINKAGE ASH_DLL_EXPORT Engine *engine = nullptr;
+
+EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
+{
+  EngineCfg                    out;
+  simdjson::ondemand::parser   parser;
+  simdjson::padded_string      str{json.as_char().data(), json.size()};
+  simdjson::ondemand::document doc = parser.iterate(str);
+
+  auto config = doc.get_object().value();
+
+  auto version = config["version"].get_string().value();
+  CHECK(version == "0.0.1");
+
+  auto gpu           = config["gpu"].get_object().value();
+  out.gpu.validation = gpu["validation"].get_bool().value();
+  out.gpu.vsync      = gpu["vsync"].get_bool().value();
+
+  auto gpu_prefs = gpu["preferences"].get_array().value();
+  CHECK(gpu_prefs.count_elements().value() <= 5);
+
+  for (auto pref : gpu_prefs)
+  {
+    std::string_view s = pref.get_string().value();
+    if (s == "dgpu")
+    {
+      out.gpu.preferences.push(gpu::DeviceType::DiscreteGpu).unwrap();
+    }
+    else if (s == "vgpu")
+    {
+      out.gpu.preferences.push(gpu::DeviceType::VirtualGpu).unwrap();
+    }
+    else if (s == "igpu")
+    {
+      out.gpu.preferences.push(gpu::DeviceType::IntegratedGpu).unwrap();
+    }
+    else if (s == "other")
+    {
+      out.gpu.preferences.push(gpu::DeviceType::Other).unwrap();
+    }
+    else if (s == "cpu")
+    {
+      out.gpu.preferences.push(gpu::DeviceType::Cpu).unwrap();
+    }
+    else
+    {
+      CHECK(false);
+    }
+  }
+
+  out.gpu.hdr = gpu["hdr"].get_bool().value();
+  out.gpu.buffering =
+      (u32) clamp(gpu["buffering"].get_int64().value(), (i64) 0, (i64) 4);
+
+  auto window          = config["window"].get_object().value();
+  out.window.resizable = window["resizable"].get_bool().value();
+  out.window.maximized = window["maximized"].get_bool().value();
+  out.window.width =
+      (u32) clamp(window["width"].get_int64().value(), (i64) 0, (i64) U32_MAX);
+  out.window.height =
+      (u32) clamp(window["height"].get_int64().value(), (i64) 0, (i64) U32_MAX);
+
+  auto shaders = config["shaders"].get_object().value();
+  for (auto entry : shaders)
+  {
+    auto id   = entry.escaped_key().value();
+    auto path = entry.value().get_string().value();
+    out.shaders
+        .insert(vec(allocator, span(id)).unwrap(),
+                vec(allocator, span(path)).unwrap())
+        .unwrap();
+  }
+
+  auto fonts = config["fonts"].get_object().value();
+  for (auto entry : fonts)
+  {
+    auto id   = entry.escaped_key().value();
+    auto path = entry.value().get_string().value();
+    out.fonts
+        .insert(vec(allocator, span(id)).unwrap(),
+                vec(allocator, span(path)).unwrap())
+        .unwrap();
+  }
+
+  std::string_view default_font_sv =
+      config["default_font"].get_string().value();
+  out.default_font = vec(allocator, span(default_font_sv)).unwrap();
+
+  // check that it is a valid entry
+  fonts[default_font_sv].get_string().value();
+
+  auto images = config["images"].get_object().value();
+  for (auto entry : images)
+  {
+    auto id   = entry.escaped_key().value();
+    auto path = entry.value().get_string().value();
+    out.images
+        .insert(vec(allocator, span(id)).unwrap(),
+                vec(allocator, span(path)).unwrap())
+        .unwrap();
+  }
+
+  return out;
+}
+
+void Engine::init(AllocatorImpl allocator, void *app,
+                  Span<char const> config_path, Span<char const> assets_dir)
+{
+  if (logger == nullptr)
+  {
+    abort();
+  }
+  CHECK(scheduler != nullptr);
+  CHECK(engine == nullptr);
+
+  logger->trace("Initializing Window System");
+
+  WindowSystem::init();
+
+  logger->trace("Loading Engine config file");
+
+  Vec<u8> json{allocator};
+
+  read_file(config_path, json).unwrap();
+
+  EngineCfg cfg = EngineCfg::parse(allocator, span(json));
+
+  logger->trace("Initializing Engine");
+
+  Dyn<gpu::Instance *> instance =
+      gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
+
+  gpu::Device *device =
+      instance->create_device(allocator, span(cfg.gpu.preferences), 2).unwrap();
+
+  GpuContext gpu_ctx =
+      GpuContext::create(allocator, device, cfg.gpu.hdr, cfg.gpu.buffering,
+                         Vec2U{cfg.window.width, cfg.window.height});
+
+  logger->trace("Initializing Renderer");
+
+  Renderer renderer = Renderer::create(allocator);
+
+  Canvas canvas{allocator};
+
+  ViewSystem view_system{allocator};
+
+  ViewContext view_ctx{app, window_system->get_clipboard()};
+
+  logger->trace("Creating Root Window");
+
+  Window window =
+      window_system->create_window(*instance, "Ashura"_span).unwrap();
+
+  if (cfg.window.maximized)
+  {
+    window_system->maximize(window);
+  }
+  else
+  {
+    window_system->set_size(window, Vec2U{cfg.window.width, cfg.window.height});
+  }
+
+  if (cfg.window.resizable)
+  {
+    window_system->make_resizable(window);
+  }
+  else
+  {
+    window_system->make_unresizable(window);
+  }
+
+  gpu::Surface surface = window_system->get_surface(window);
+
+  logger->trace("Initializing GPU Context");
+
+  alignas(Engine) static u8 storage[sizeof(Engine)] = {};
+
+  engine = new (storage) Engine{allocator,
+                                app,
+                                std::move(instance),
+                                device,
+                                window,
+                                surface,
+                                cfg.gpu.vsync ? gpu::PresentMode::Mailbox :
+                                                gpu::PresentMode::Immediate,
+                                std::move(gpu_ctx),
+                                std::move(renderer),
+                                std::move(canvas),
+                                std::move(view_system),
+                                std::move(view_ctx)};
+
+  window_system->listen(SystemEventTypes::All,
+                        fn(engine, [](Engine *engine, SystemEvent const &) {
+
+                        }));
+
+  window_system->listen(
+      window, WindowEventTypes::All,
+      fn(engine, [](Engine *engine, WindowEvent const &event) {
+
+      }));
+
+  engine->device->begin_frame(nullptr).unwrap();
+
+  // [ ] setup window event listeners
+  // [ ] recreate_swapchain
+
+  Semaphore sem =
+      create_semaphore(allocator, cfg.shaders.size() + cfg.fonts.size())
+          .unwrap();
+
+  cfg.shaders.iter([&](Vec<char> &id, Vec<char> &path) {
+    Vec<char> resolved_path = vec(allocator, assets_dir).unwrap();
+    path_append(resolved_path, span(path)).unwrap();
+
+    async::once([shader_id   = vec(allocator, span(id)).unwrap(),
+                 shader_path = std::move(resolved_path), sem = sem.alias(),
+                 allocator]() mutable {
+      logger->trace("Loading shader ", span(shader_id), " from ",
+                    span(shader_path));
+
+      Vec<u8> data{allocator};
+
+      if (Result result = read_file(span(shader_path), data); !result)
+      {
+        logger->error("Unable to load shader at ", span(shader_path),
+                      ", IO Error: ", result.err());
+        sem->increment(1);
+        return;
+      }
+
+      CHECK((data.size() & 3ULL) == 0);
+
+      static_assert(std::endian::native == std::endian::little);
+
+      Vec<u32> data_u32{allocator};
+
+      data_u32.resize_uninit(data.size() >> 2).unwrap();
+
+      mem::copy(span(data), span(data_u32).as_u8());
+
+      logger->trace("Loaded shader ", span(shader_id), " from file");
+
+      async::once(
+          [shader_id = std::move(shader_id), sem = std::move(sem),
+           data_u32 = std::move(data_u32)]() mutable {
+            logger->trace("Sending shader ", span(shader_id), " to GPU");
+
+            gpu::Shader shader =
+                engine->device
+                    ->create_shader(gpu::ShaderInfo{
+                        .label = "Shader"_span, .spirv_code = span(data_u32)})
+                    .unwrap();
+
+            engine->assets.shaders.insert(std::move(shader_id), shader)
+                .unwrap();
+
+            sem->increment(1);
+          },
+          async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
+    });
+  });
+
+  cfg.fonts.iter([&](Vec<char> &id, Vec<char> &path) {
+    Vec<char> resolved_path = vec(allocator, assets_dir).unwrap();
+    path_append(resolved_path, span(path)).unwrap();
+
+    async::once([font_id   = vec(allocator, span(id)).unwrap(),
+                 font_path = std::move(resolved_path), sem = sem.alias(),
+                 allocator]() mutable {
+      logger->trace("Loading font ", span(font_id), " from ", span(font_path));
+
+      Vec<u8> data{allocator};
+
+      Result read_result = read_file(span(font_path), data);
+
+      if (!read_result)
+      {
+        logger->error("Unable to load font at ", span(font_path),
+                      ", IO Error: ", read_result.err());
+        sem->increment(1);
+        return;
+      }
+
+      Result decode_result = Font::decode(span(data), 0, allocator);
+
+      if (!decode_result)
+      {
+        logger->error("Unable to decode font at ", span(font_path),
+                      "Error: ", decode_result.err());
+        sem->increment(1);
+        return;
+      }
+
+      Dyn<Font *> font = decode_result.unwrap();
+
+      logger->trace("Loaded font ", span(font_id), " from file");
+
+      u32 const font_height = 64;
+
+      logger->trace("Rasterizing font ", span(font_id), " @", font_height,
+                    "px ");
+
+      font->rasterize(font_height, allocator).unwrap();
+
+      logger->trace("Rasterized font ", span(font_id));
+
+      async::once(
+          [font_id = std::move(font_id), sem = std::move(sem),
+           font = std::move(font), allocator]() mutable {
+            logger->trace("Uploading font ", span(font_id), " to GPU");
+
+            font->upload_to_device(engine->gpu_ctx, allocator);
+
+            engine->assets.fonts.insert(std::move(font_id), std::move(font))
+                .unwrap();
+
+            sem->increment(1);
+          },
+          async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
+    });
+  });
+
+  while (!sem->is_completed())
+  {
+    scheduler->execute_main_thread_loop(1ms, 2ms);
+  }
+
+  engine->default_font_name = vec(allocator, span(cfg.default_font)).unwrap();
+  engine->default_font = engine->assets.fonts[engine->default_font_name].get();
+
+  engine->renderer.acquire(engine->gpu_ctx, engine->assets);
+
+  engine->device->submit_frame(nullptr).unwrap();
+
+  logger->trace("Engine Initialized");
+}
+
+void Engine::uninit()
+{
+  // check resources have been purged
+  // TODO(lamarrr):
+  //  shader_map.iter([&](Span<char const>, gpu::Shader shader) {
+  //    device->uninit_shader(device, shader);
+  //  });
+  CHECK(engine != nullptr);
+  logger->trace("Uninitializing Engine");
+  engine->~Engine();
+  engine = nullptr;
+  logger->trace("Engine Uninitialized");
+}
+
+Engine::~Engine()
+{
+  device->uninit_swapchain(swapchain);
+  window_system->uninit_window(window);
+  logger->trace("Uninitializing Window System");
+  WindowSystem::uninit();
+  instance->uninit_device(device);
+}
+
+void Engine::recreate_swapchain_()
 {
   gpu::SurfaceCapabilities capabilities =
-      e->device->get_surface_capabilities(e->device.self, e->surface).unwrap();
+      device->get_surface_capabilities(surface).unwrap();
   CHECK(
       has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
                                              gpu::ImageUsage::ColorAttachment));
 
   Vec<gpu::SurfaceFormat> formats;
-  defer                   formats_{[&] { formats.uninit(); }};
-  u32                     num_formats =
-      e->device->get_surface_formats(e->device.self, e->surface, {}).unwrap();
+  u32 num_formats = device->get_surface_formats(surface, {}).unwrap();
   CHECK(num_formats != 0);
   formats.resize_uninit(num_formats).unwrap();
-  CHECK(
-      e->device->get_surface_formats(e->device.self, e->surface, span(formats))
-          .unwrap() == num_formats);
+  CHECK(device->get_surface_formats(surface, span(formats)).unwrap() ==
+        num_formats);
 
   Vec<gpu::PresentMode> present_modes;
-  defer                 present_modes_{[&] { present_modes.uninit(); }};
   u32                   num_present_modes =
-      e->device->get_surface_present_modes(e->device.self, e->surface, {})
-          .unwrap();
+      device->get_surface_present_modes(surface, {}).unwrap();
   CHECK(num_present_modes != 0);
   present_modes.resize_uninit(num_present_modes).unwrap();
-  CHECK(e->device
-            ->get_surface_present_modes(e->device.self, e->surface,
-                                        span(present_modes))
+  CHECK(device->get_surface_present_modes(surface, span(present_modes))
             .unwrap() == num_present_modes);
 
-  Vec2U surface_extent = sdl_window_system->get_surface_size(e->window);
+  Vec2U surface_extent = window_system->get_surface_size(window);
   surface_extent.x     = max(surface_extent.x, 1U);
   surface_extent.y     = max(surface_extent.y, 1U);
 
@@ -56,7 +413,7 @@ static void recreate_swapchain(Engine *e)
       gpu::ColorSpace::PASS_THROUGH};
 
   gpu::PresentMode preferred_present_modes[] = {
-      e->present_mode_preference, gpu::PresentMode::Immediate,
+      present_mode_preference, gpu::PresentMode::Immediate,
       gpu::PresentMode::Mailbox, gpu::PresentMode::Fifo,
       gpu::PresentMode::FifoRelaxed};
 
@@ -110,83 +467,38 @@ static void recreate_swapchain(Engine *e)
     }
   }
 
-  gpu::SwapchainDesc desc{.label  = "Window Swapchain"_span,
+  gpu::SwapchainInfo info{.label  = "Window Swapchain"_span,
                           .format = format,
                           .usage  = gpu::ImageUsage::TransferDst |
                                    gpu::ImageUsage::ColorAttachment,
-                          .preferred_buffering = 2,
+                          .preferred_buffering = gpu_ctx.buffering,
                           .present_mode        = present_mode,
                           .preferred_extent    = surface_extent,
                           .composite_alpha     = alpha};
 
-  if (e->swapchain == nullptr)
+  if (swapchain == nullptr)
   {
-    e->swapchain =
-        e->device->create_swapchain(e->device.self, e->surface, desc).unwrap();
+    swapchain = device->create_swapchain(surface, info).unwrap();
   }
   else
   {
-    e->device->invalidate_swapchain(e->device.self, e->swapchain, desc)
-        .unwrap();
+    device->invalidate_swapchain(swapchain, info).unwrap();
   }
 }
 
-void Engine::init()
+void Engine::run(View &view)
 {
-  logger->trace("Initializing Engine");
-  instance = gpu::create_vulkan_instance(heap_allocator, false).unwrap();
-
-  device =
-      instance
-          ->create_device(
-              instance.self, default_allocator,
-              span({gpu::DeviceType::DiscreteGpu, gpu::DeviceType::VirtualGpu,
-                    gpu::DeviceType::IntegratedGpu, gpu::DeviceType::Cpu,
-                    gpu::DeviceType::Other}),
-              2)
-          .unwrap();
-
-  sdl_window_system->init();
-  window = sdl_window_system->create_window(instance, "Ashura"_span).unwrap();
-  sdl_window_system->maximize(window);
-
-  // get window config
-  // color space config
-  // present mode config
-  // setup window event listeners
-  // load default shaders? in SPIRV mode!!!
-  // compile shaders if necessary
-
-  surface = sdl_window_system->get_surface(window);
-
-  // recreate_swapchain
-
-  gpu_ctx.init(device, true, 2, {{}}, {});
-  passes.init(gpu_ctx);
-  renderer.init(gpu_ctx, passes);
-  canvas.init();
-  view_system.init();
-  logger->trace("Engine Initialized");
-}
-
-void Engine::uninit()
-{
-  logger->trace("Uninitializing Engine");
-  view_system.uninit();
-  canvas.uninit();
-  renderer.uninit(gpu_ctx, passes);
-  passes.uninit(gpu_ctx);
-  gpu_ctx.uninit();
-  sdl_window_system->uninit_window(window);
-  sdl_window_system->uninit();
-  instance->uninit_device(instance.self, device.self);
-  instance->uninit(instance.self);
-  logger->trace("Engine Uninitialized");
-}
-
-void Engine::run(void *app, View &view)
-{
-  view_system.tick(view_ctx, view, canvas);
+  logger->trace("Starting Engine Run Loop");
+  while (!should_shutdown)
+  {
+    window_system->poll_events();
+    renderer.begin_frame(gpu_ctx, {}, canvas);
+    // // view_system.tick(view_ctx, view, canvas);
+    // renderer.render_frame(gpu_ctx);
+    renderer.render_frame(gpu_ctx, {}, canvas);
+    renderer.end_frame(gpu_ctx, {}, canvas);
+  }
+  logger->trace("Ended Engine Run Loop");
   // poll window events
   // preprocess window events
 }

@@ -4,27 +4,24 @@
 namespace ash
 {
 
-void GpuContext::init(gpu::DeviceImpl p_device, bool p_use_hdr, u32 p_buffering,
-                      gpu::Extent             p_initial_extent,
-                      StrHashMap<gpu::Shader> p_shader_map)
+GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
+                              bool use_hdr, u32 buffering,
+                              gpu::Extent initial_extent)
 {
-  CHECK(p_buffering <= gpu::MAX_FRAME_BUFFERING && p_buffering > 0);
-  CHECK(p_initial_extent.x > 0 && p_initial_extent.y > 0);
-  device = p_device;
+  CHECK(buffering <= gpu::MAX_FRAME_BUFFERING);
+  CHECK(initial_extent.x > 0 && initial_extent.y > 0);
 
   u32 sel_hdr_color_format     = 0;
   u32 sel_sdr_color_format     = 0;
   u32 sel_depth_stencil_format = 0;
 
-  if (p_use_hdr)
+  if (use_hdr)
   {
     for (; sel_hdr_color_format < size(HDR_COLOR_FORMATS);
          sel_hdr_color_format++)
     {
       gpu::FormatProperties props =
-          device
-              ->get_format_properties(device.self,
-                                      HDR_COLOR_FORMATS[sel_hdr_color_format])
+          device->get_format_properties(HDR_COLOR_FORMATS[sel_hdr_color_format])
               .unwrap();
       if (has_bits(props.optimal_tiling_features, COLOR_FEATURES))
       {
@@ -39,15 +36,13 @@ void GpuContext::init(gpu::DeviceImpl p_device, bool p_use_hdr, u32 p_buffering,
     }
   }
 
-  if (!p_use_hdr || sel_hdr_color_format >= size(HDR_COLOR_FORMATS))
+  if (!use_hdr || sel_hdr_color_format >= size(HDR_COLOR_FORMATS))
   {
     for (; sel_sdr_color_format < size(SDR_COLOR_FORMATS);
          sel_sdr_color_format++)
     {
       gpu::FormatProperties props =
-          device
-              ->get_format_properties(device.self,
-                                      SDR_COLOR_FORMATS[sel_sdr_color_format])
+          device->get_format_properties(SDR_COLOR_FORMATS[sel_sdr_color_format])
               .unwrap();
       if (has_bits(props.optimal_tiling_features, COLOR_FEATURES))
       {
@@ -62,7 +57,7 @@ void GpuContext::init(gpu::DeviceImpl p_device, bool p_use_hdr, u32 p_buffering,
     gpu::FormatProperties props =
         device
             ->get_format_properties(
-                device.self, DEPTH_STENCIL_FORMATS[sel_depth_stencil_format])
+                DEPTH_STENCIL_FORMATS[sel_depth_stencil_format])
             .unwrap();
     if (has_bits(props.optimal_tiling_features, DEPTH_STENCIL_FEATURES))
     {
@@ -70,7 +65,9 @@ void GpuContext::init(gpu::DeviceImpl p_device, bool p_use_hdr, u32 p_buffering,
     }
   }
 
-  if (p_use_hdr)
+  gpu::Format color_format = gpu::Format::Undefined;
+
+  if (use_hdr)
   {
     CHECK_DESC(sel_sdr_color_format != size(SDR_COLOR_FORMATS) ||
                    sel_hdr_color_format != size(HDR_COLOR_FORMATS),
@@ -93,167 +90,91 @@ void GpuContext::init(gpu::DeviceImpl p_device, bool p_use_hdr, u32 p_buffering,
 
   CHECK_DESC(sel_depth_stencil_format != size(DEPTH_STENCIL_FORMATS),
              "Device doesn't support any known depth stencil format");
-  depth_stencil_format = DEPTH_STENCIL_FORMATS[sel_depth_stencil_format];
+  gpu::Format depth_stencil_format =
+      DEPTH_STENCIL_FORMATS[sel_depth_stencil_format];
 
-  pipeline_cache = nullptr;
-  buffering      = p_buffering;
-  shader_map     = p_shader_map;
+  logger->trace("Selected color format: ", color_format);
 
-  ubo_layout =
+  logger->trace("Selected depth stencil format: ", depth_stencil_format);
+
+  gpu::PipelineCache pipeline_cache = nullptr;
+
+  gpu::DescriptorSetLayout ubo_layout =
       device
           ->create_descriptor_set_layout(
-              device.self,
-              gpu::DescriptorSetLayoutDesc{
+
+              gpu::DescriptorSetLayoutInfo{
                   .label    = "UBO Layout"_span,
-                  .bindings = span({gpu::DescriptorBindingDesc{
+                  .bindings = span({gpu::DescriptorBindingInfo{
                       .type  = gpu::DescriptorType::DynamicUniformBuffer,
                       .count = 1,
                       .is_variable_length = false}})})
           .unwrap();
 
-  ssbo_layout =
+  gpu::DescriptorSetLayout ssbo_layout =
       device
           ->create_descriptor_set_layout(
-              device.self,
-              gpu::DescriptorSetLayoutDesc{
+
+              gpu::DescriptorSetLayoutInfo{
                   .label    = "SSBO Layout"_span,
-                  .bindings = span({gpu::DescriptorBindingDesc{
+                  .bindings = span({gpu::DescriptorBindingInfo{
                       .type  = gpu::DescriptorType::DynamicStorageBuffer,
                       .count = 1,
                       .is_variable_length = false}})})
           .unwrap();
 
-  textures_layout = device
-                        ->create_descriptor_set_layout(
-                            device.self,
-                            gpu::DescriptorSetLayoutDesc{
-                                .label    = "Textures Layout"_span,
-                                .bindings = span({gpu::DescriptorBindingDesc{
-                                    .type  = gpu::DescriptorType::SampledImage,
-                                    .count = NUM_TEXTURE_SLOTS,
-                                    .is_variable_length = true}})})
-                        .unwrap();
-
-  samplers_layout = device
-                        ->create_descriptor_set_layout(
-                            device.self,
-                            gpu::DescriptorSetLayoutDesc{
-                                .label    = "Samplers Layout"_span,
-                                .bindings = span({gpu::DescriptorBindingDesc{
-                                    .type  = gpu::DescriptorType::Sampler,
-                                    .count = NUM_SAMPLER_SLOTS,
-                                    .is_variable_length = true}})})
-                        .unwrap();
-
-  texture_views = device
-                      ->create_descriptor_set(device.self, textures_layout,
-                                              span<u32>({NUM_TEXTURE_SLOTS}))
-                      .unwrap();
-
-  samplers = device
-                 ->create_descriptor_set(device.self, samplers_layout,
-                                         span<u32>({NUM_SAMPLER_SLOTS}))
-                 .unwrap();
-
-  recreate_framebuffers(p_initial_extent);
-
-  CachedSampler sampler = create_sampler(
-      gpu::SamplerDesc{.label             = "Linear+Repeat Sampler"_span,
-                       .mag_filter        = gpu::Filter::Linear,
-                       .min_filter        = gpu::Filter::Linear,
-                       .mip_map_mode      = gpu::SamplerMipMapMode::Linear,
-                       .address_mode_u    = gpu::SamplerAddressMode::Repeat,
-                       .address_mode_v    = gpu::SamplerAddressMode::Repeat,
-                       .address_mode_w    = gpu::SamplerAddressMode::Repeat,
-                       .mip_lod_bias      = 0,
-                       .anisotropy_enable = false,
-                       .max_anisotropy    = 1.0,
-                       .compare_enable    = false,
-                       .compare_op        = gpu::CompareOp::Never,
-                       .min_lod           = 0,
-                       .max_lod           = 0,
-                       .border_color = gpu::BorderColor::FloatTransparentBlack,
-                       .unnormalized_coordinates = false});
-
-  CHECK(sampler.slot == SAMPLER_LINEAR);
-
-  sampler = create_sampler(
-      gpu::SamplerDesc{.label             = "Nearest+Repeat Sampler"_span,
-                       .mag_filter        = gpu::Filter::Nearest,
-                       .min_filter        = gpu::Filter::Nearest,
-                       .mip_map_mode      = gpu::SamplerMipMapMode::Nearest,
-                       .address_mode_u    = gpu::SamplerAddressMode::Repeat,
-                       .address_mode_v    = gpu::SamplerAddressMode::Repeat,
-                       .address_mode_w    = gpu::SamplerAddressMode::Repeat,
-                       .mip_lod_bias      = 0,
-                       .anisotropy_enable = false,
-                       .max_anisotropy    = 1.0,
-                       .compare_enable    = false,
-                       .compare_op        = gpu::CompareOp::Never,
-                       .min_lod           = 0,
-                       .max_lod           = 0,
-                       .border_color = gpu::BorderColor::FloatTransparentBlack,
-                       .unnormalized_coordinates = false});
-
-  CHECK(sampler.slot == SAMPLER_NEAREST);
-
-  sampler = create_sampler(
-      gpu::SamplerDesc{.label          = "Linear+EdgeClamped Sampler"_span,
-                       .mag_filter     = gpu::Filter::Linear,
-                       .min_filter     = gpu::Filter::Linear,
-                       .mip_map_mode   = gpu::SamplerMipMapMode::Linear,
-                       .address_mode_u = gpu::SamplerAddressMode::ClampToEdge,
-                       .address_mode_v = gpu::SamplerAddressMode::ClampToEdge,
-                       .address_mode_w = gpu::SamplerAddressMode::ClampToEdge,
-                       .mip_lod_bias   = 0,
-                       .anisotropy_enable = false,
-                       .max_anisotropy    = 1.0,
-                       .compare_enable    = false,
-                       .compare_op        = gpu::CompareOp::Never,
-                       .min_lod           = 0,
-                       .max_lod           = 0,
-                       .border_color = gpu::BorderColor::FloatTransparentBlack,
-                       .unnormalized_coordinates = false});
-
-  CHECK(sampler.slot == SAMPLER_LINEAR_CLAMPED);
-
-  sampler = create_sampler(
-      gpu::SamplerDesc{.label          = "Nearest+EdgeClamped Sampler"_span,
-                       .mag_filter     = gpu::Filter::Nearest,
-                       .min_filter     = gpu::Filter::Nearest,
-                       .mip_map_mode   = gpu::SamplerMipMapMode::Nearest,
-                       .address_mode_u = gpu::SamplerAddressMode::ClampToEdge,
-                       .address_mode_v = gpu::SamplerAddressMode::ClampToEdge,
-                       .address_mode_w = gpu::SamplerAddressMode::ClampToEdge,
-                       .mip_lod_bias   = 0,
-                       .anisotropy_enable = false,
-                       .max_anisotropy    = 1.0,
-                       .compare_enable    = false,
-                       .compare_op        = gpu::CompareOp::Never,
-                       .min_lod           = 0,
-                       .max_lod           = 0,
-                       .border_color = gpu::BorderColor::FloatTransparentBlack,
-                       .unnormalized_coordinates = false});
-
-  CHECK(sampler.slot == SAMPLER_NEAREST_CLAMPED);
-
-  default_image =
+  gpu::DescriptorSetLayout textures_layout =
       device
-          ->create_image(
-              device.self,
-              gpu::ImageDesc{.label  = "Default Texture Image"_span,
-                             .type   = gpu::ImageType::Type2D,
-                             .format = gpu::Format::B8G8R8A8_UNORM,
-                             .usage  = gpu::ImageUsage::Sampled |
-                                      gpu::ImageUsage::TransferDst |
-                                      gpu::ImageUsage::Storage |
-                                      gpu::ImageUsage::Storage,
-                             .aspects      = gpu::ImageAspects::Color,
-                             .extent       = {1, 1, 1},
-                             .mip_levels   = 1,
-                             .array_layers = 1,
-                             .sample_count = gpu::SampleCount::Count1})
+          ->create_descriptor_set_layout(
+
+              gpu::DescriptorSetLayoutInfo{
+                  .label    = "Textures Layout"_span,
+                  .bindings = span({gpu::DescriptorBindingInfo{
+                      .type               = gpu::DescriptorType::SampledImage,
+                      .count              = NUM_TEXTURE_SLOTS,
+                      .is_variable_length = true}})})
           .unwrap();
+
+  gpu::DescriptorSetLayout samplers_layout =
+      device
+          ->create_descriptor_set_layout(
+
+              gpu::DescriptorSetLayoutInfo{
+                  .label    = "Samplers Layout"_span,
+                  .bindings = span({gpu::DescriptorBindingInfo{
+                      .type               = gpu::DescriptorType::Sampler,
+                      .count              = NUM_SAMPLER_SLOTS,
+                      .is_variable_length = true}})})
+          .unwrap();
+
+  gpu::DescriptorSet texture_views =
+      device
+          ->create_descriptor_set(textures_layout,
+                                  span<u32>({NUM_TEXTURE_SLOTS}))
+          .unwrap();
+
+  gpu::DescriptorSet samplers =
+      device
+          ->create_descriptor_set(samplers_layout,
+                                  span<u32>({NUM_SAMPLER_SLOTS}))
+          .unwrap();
+
+  gpu::Image default_image =
+      device
+          ->create_image(gpu::ImageInfo{
+              .label  = "Default Texture Image"_span,
+              .type   = gpu::ImageType::Type2D,
+              .format = gpu::Format::B8G8R8A8_UNORM,
+              .usage = gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
+                       gpu::ImageUsage::Storage | gpu::ImageUsage::Storage,
+              .aspects      = gpu::ImageAspects::Color,
+              .extent       = {1, 1, 1},
+              .mip_levels   = 1,
+              .array_layers = 1,
+              .sample_count = gpu::SampleCount::Count1})
+          .unwrap();
+
+  Array<gpu::ImageView, NUM_DEFAULT_TEXTURES> default_image_views;
 
   {
     gpu::ComponentMapping mappings[NUM_DEFAULT_TEXTURES] = {};
@@ -287,8 +208,8 @@ void GpuContext::init(gpu::DeviceImpl p_device, bool p_use_hdr, u32 p_buffering,
       default_image_views[i] =
           device
               ->create_image_view(
-                  device.self,
-                  gpu::ImageViewDesc{.label = "Default Texture Image View"_span,
+
+                  gpu::ImageViewInfo{.label = "Default Texture Image View"_span,
                                      .image = default_image,
                                      .view_type   = gpu::ImageViewType::Type2D,
                                      .view_format = gpu::Format::B8G8R8A8_UNORM,
@@ -300,21 +221,127 @@ void GpuContext::init(gpu::DeviceImpl p_device, bool p_use_hdr, u32 p_buffering,
                                      .num_array_layers  = 1})
               .unwrap();
 
-      u32 slot = alloc_texture_slot();
-
-      CHECK(slot == i);
-
-      device->update_descriptor_set(
-          device.self, gpu::DescriptorSetUpdate{
-                           .set     = texture_views,
-                           .binding = 0,
-                           .element = slot,
-                           .images  = span({gpu::ImageBinding{
-                                .image_view = default_image_views[i]}})});
+      device->update_descriptor_set(gpu::DescriptorSetUpdate{
+          .set     = texture_views,
+          .binding = 0,
+          .element = i,
+          .images =
+              span({gpu::ImageBinding{.image_view = default_image_views[i]}})});
     }
   }
 
-  released_objects.resize_defaulted(buffering).unwrap();
+  InplaceVec<Vec<gpu::Object>, gpu::MAX_FRAME_BUFFERING> released_objects;
+
+  for (u32 i = 0; i < buffering; i++)
+  {
+    released_objects.push(Vec<gpu::Object>{allocator}).unwrap();
+  }
+
+  GpuContext ctx{allocator,
+                 device,
+                 pipeline_cache,
+                 buffering,
+                 color_format,
+                 depth_stencil_format,
+                 ubo_layout,
+                 ssbo_layout,
+                 textures_layout,
+                 samplers_layout,
+                 texture_views,
+                 samplers,
+                 default_image,
+                 default_image_views,
+                 std::move(released_objects)};
+
+  for (u32 i = 0; i < NUM_DEFAULT_TEXTURES; i++)
+  {
+    u32 slot = ctx.alloc_texture_slot();
+    CHECK(slot == i);
+  }
+
+  CachedSampler sampler = ctx.create_sampler(
+      gpu::SamplerInfo{.label             = "Linear+Repeat Sampler"_span,
+                       .mag_filter        = gpu::Filter::Linear,
+                       .min_filter        = gpu::Filter::Linear,
+                       .mip_map_mode      = gpu::SamplerMipMapMode::Linear,
+                       .address_mode_u    = gpu::SamplerAddressMode::Repeat,
+                       .address_mode_v    = gpu::SamplerAddressMode::Repeat,
+                       .address_mode_w    = gpu::SamplerAddressMode::Repeat,
+                       .mip_lod_bias      = 0,
+                       .anisotropy_enable = false,
+                       .max_anisotropy    = 1.0,
+                       .compare_enable    = false,
+                       .compare_op        = gpu::CompareOp::Never,
+                       .min_lod           = 0,
+                       .max_lod           = 0,
+                       .border_color = gpu::BorderColor::FloatTransparentBlack,
+                       .unnormalized_coordinates = false});
+
+  CHECK(sampler.slot == SAMPLER_LINEAR);
+
+  sampler = ctx.create_sampler(
+      gpu::SamplerInfo{.label             = "Nearest+Repeat Sampler"_span,
+                       .mag_filter        = gpu::Filter::Nearest,
+                       .min_filter        = gpu::Filter::Nearest,
+                       .mip_map_mode      = gpu::SamplerMipMapMode::Nearest,
+                       .address_mode_u    = gpu::SamplerAddressMode::Repeat,
+                       .address_mode_v    = gpu::SamplerAddressMode::Repeat,
+                       .address_mode_w    = gpu::SamplerAddressMode::Repeat,
+                       .mip_lod_bias      = 0,
+                       .anisotropy_enable = false,
+                       .max_anisotropy    = 1.0,
+                       .compare_enable    = false,
+                       .compare_op        = gpu::CompareOp::Never,
+                       .min_lod           = 0,
+                       .max_lod           = 0,
+                       .border_color = gpu::BorderColor::FloatTransparentBlack,
+                       .unnormalized_coordinates = false});
+
+  CHECK(sampler.slot == SAMPLER_NEAREST);
+
+  sampler = ctx.create_sampler(
+      gpu::SamplerInfo{.label          = "Linear+EdgeClamped Sampler"_span,
+                       .mag_filter     = gpu::Filter::Linear,
+                       .min_filter     = gpu::Filter::Linear,
+                       .mip_map_mode   = gpu::SamplerMipMapMode::Linear,
+                       .address_mode_u = gpu::SamplerAddressMode::ClampToEdge,
+                       .address_mode_v = gpu::SamplerAddressMode::ClampToEdge,
+                       .address_mode_w = gpu::SamplerAddressMode::ClampToEdge,
+                       .mip_lod_bias   = 0,
+                       .anisotropy_enable = false,
+                       .max_anisotropy    = 1.0,
+                       .compare_enable    = false,
+                       .compare_op        = gpu::CompareOp::Never,
+                       .min_lod           = 0,
+                       .max_lod           = 0,
+                       .border_color = gpu::BorderColor::FloatTransparentBlack,
+                       .unnormalized_coordinates = false});
+
+  CHECK(sampler.slot == SAMPLER_LINEAR_CLAMPED);
+
+  sampler = ctx.create_sampler(
+      gpu::SamplerInfo{.label          = "Nearest+EdgeClamped Sampler"_span,
+                       .mag_filter     = gpu::Filter::Nearest,
+                       .min_filter     = gpu::Filter::Nearest,
+                       .mip_map_mode   = gpu::SamplerMipMapMode::Nearest,
+                       .address_mode_u = gpu::SamplerAddressMode::ClampToEdge,
+                       .address_mode_v = gpu::SamplerAddressMode::ClampToEdge,
+                       .address_mode_w = gpu::SamplerAddressMode::ClampToEdge,
+                       .mip_lod_bias   = 0,
+                       .anisotropy_enable = false,
+                       .max_anisotropy    = 1.0,
+                       .compare_enable    = false,
+                       .compare_op        = gpu::CompareOp::Never,
+                       .min_lod           = 0,
+                       .max_lod           = 0,
+                       .border_color = gpu::BorderColor::FloatTransparentBlack,
+                       .unnormalized_coordinates = false});
+
+  CHECK(sampler.slot == SAMPLER_NEAREST_CLAMPED);
+
+  ctx.recreate_framebuffers(initial_extent);
+
+  return ctx;
 }
 
 static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
@@ -322,7 +349,7 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
 {
   ctx.release(fb);
 
-  fb.color.desc = gpu::ImageDesc{
+  fb.color.info = gpu::ImageInfo{
       .label  = "Framebuffer Color Image"_span,
       .type   = gpu::ImageType::Type2D,
       .format = ctx.color_format,
@@ -335,25 +362,22 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
       .array_layers = 1,
       .sample_count = gpu::SampleCount::Count1};
 
-  fb.color.image =
-      ctx.device->create_image(ctx.device.self, fb.color.desc).unwrap();
+  fb.color.image = ctx.device->create_image(fb.color.info).unwrap();
 
-  fb.color.view_desc =
-      gpu::ImageViewDesc{.label           = "Framebuffer Color Image View"_span,
+  fb.color.view_info =
+      gpu::ImageViewInfo{.label           = "Framebuffer Color Image View"_span,
                          .image           = fb.color.image,
                          .view_type       = gpu::ImageViewType::Type2D,
-                         .view_format     = fb.color.desc.format,
+                         .view_format     = fb.color.info.format,
                          .mapping         = {},
                          .aspects         = gpu::ImageAspects::Color,
                          .first_mip_level = 0,
                          .num_mip_levels  = 1,
                          .first_array_layer = 0,
                          .num_array_layers  = 1};
-  fb.color.view =
-      ctx.device->create_image_view(ctx.device.self, fb.color.view_desc)
-          .unwrap();
+  fb.color.view = ctx.device->create_image_view(fb.color.view_info).unwrap();
 
-  fb.depth_stencil.desc = gpu::ImageDesc{
+  fb.depth_stencil.info = gpu::ImageInfo{
       .label  = "Framebuffer Depth Stencil Image"_span,
       .type   = gpu::ImageType::Type2D,
       .format = ctx.depth_stencil_format,
@@ -367,13 +391,13 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
       .sample_count = gpu::SampleCount::Count1};
 
   fb.depth_stencil.image =
-      ctx.device->create_image(ctx.device.self, fb.depth_stencil.desc).unwrap();
+      ctx.device->create_image(fb.depth_stencil.info).unwrap();
 
-  fb.depth_stencil.view_desc = gpu::ImageViewDesc{
+  fb.depth_stencil.view_info = gpu::ImageViewInfo{
       .label           = "Framebuffer Depth Stencil Image View"_span,
       .image           = fb.depth_stencil.image,
       .view_type       = gpu::ImageViewType::Type2D,
-      .view_format     = fb.depth_stencil.desc.format,
+      .view_format     = fb.depth_stencil.info.format,
       .mapping         = {},
       .aspects         = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
       .first_mip_level = 0,
@@ -382,17 +406,14 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
       .num_array_layers  = 1};
 
   fb.depth_stencil.view =
-      ctx.device->create_image_view(ctx.device.self, fb.depth_stencil.view_desc)
-          .unwrap();
+      ctx.device->create_image_view(fb.depth_stencil.view_info).unwrap();
 
   fb.color_texture =
-      ctx.device
-          ->create_descriptor_set(ctx.device.self, ctx.textures_layout,
-                                  span<u32>({1}))
+      ctx.device->create_descriptor_set(ctx.textures_layout, span<u32>({1}))
           .unwrap();
 
   ctx.device->update_descriptor_set(
-      ctx.device.self,
+
       gpu::DescriptorSetUpdate{
           .set     = fb.color_texture,
           .binding = 0,
@@ -400,36 +421,6 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
           .images  = span({gpu::ImageBinding{.image_view = fb.color.view}})});
 
   fb.extent = new_extent;
-}
-
-void GpuContext::uninit()
-{
-  release(default_image);
-  for (gpu::ImageView v : default_image_views)
-  {
-    release(v);
-  }
-  release(texture_views);
-  release(samplers);
-  release(ubo_layout);
-  release(ssbo_layout);
-  release(textures_layout);
-  release(samplers_layout);
-  release(screen_fb);
-  for (Framebuffer &f : scratch_fbs)
-  {
-    release(f);
-  }
-  sampler_cache.for_each([&](gpu::SamplerDesc const &, CachedSampler sampler) {
-    release(sampler.sampler);
-  });
-  idle_reclaim();
-  device->uninit_pipeline_cache(device.self, pipeline_cache);
-
-  shader_map.for_each([&](Span<char const>, gpu::Shader shader) {
-    device->uninit_shader(device.self, shader);
-  });
-  shader_map.reset();
 }
 
 void GpuContext::recreate_framebuffers(gpu::Extent new_extent)
@@ -441,62 +432,50 @@ void GpuContext::recreate_framebuffers(gpu::Extent new_extent)
   }
 }
 
-gpu::CommandEncoderImpl GpuContext::encoder()
+gpu::CommandEncoder &GpuContext::encoder()
 {
-  gpu::FrameContext ctx = device->get_frame_context(device.self);
-  return ctx.encoders[ctx.ring_index];
+  gpu::FrameContext ctx = device->get_frame_context();
+  return *ctx.encoders[ctx.ring_index];
 }
 
 u32 GpuContext::ring_index()
 {
-  gpu::FrameContext ctx = device->get_frame_context(device.self);
+  gpu::FrameContext ctx = device->get_frame_context();
   return ctx.ring_index;
 }
 
 gpu::FrameId GpuContext::frame_id()
 {
-  gpu::FrameContext ctx = device->get_frame_context(device.self);
+  gpu::FrameContext ctx = device->get_frame_context();
   return ctx.current;
 }
 
 gpu::FrameId GpuContext::tail_frame_id()
 {
-  gpu::FrameContext ctx = device->get_frame_context(device.self);
+  gpu::FrameContext ctx = device->get_frame_context();
   return ctx.tail;
 }
 
-Option<gpu::Shader> GpuContext::get_shader(Span<char const> name)
+CachedSampler GpuContext::create_sampler(gpu::SamplerInfo const &info)
 {
-  gpu::Shader *shader = shader_map[name];
-  if (shader == nullptr)
-  {
-    return None;
-  }
-  return Some{*shader};
-}
-
-CachedSampler GpuContext::create_sampler(gpu::SamplerDesc const &desc)
-{
-  CachedSampler *cached = sampler_cache[desc];
+  CachedSampler *cached = sampler_cache.try_get(info);
   if (cached != nullptr)
   {
     return *cached;
   }
 
-  CachedSampler sampler{.sampler =
-                            device->create_sampler(device.self, desc).unwrap(),
-                        .slot = alloc_sampler_slot()};
+  CachedSampler sampler{.sampler = device->create_sampler(info).unwrap(),
+                        .slot    = alloc_sampler_slot()};
 
   device->update_descriptor_set(
-      device.self,
+
       gpu::DescriptorSetUpdate{
           .set     = samplers,
           .binding = 0,
           .element = sampler.slot,
           .images  = span({gpu::ImageBinding{.sampler = sampler.sampler}})});
 
-  bool exists;
-  CHECK(sampler_cache.insert(exists, nullptr, desc, sampler) && !exists);
+  sampler_cache.insert(info, sampler).unwrap();
 
   return sampler;
 }
@@ -607,32 +586,32 @@ void GpuContext::release(gpu::Sampler sampler)
       .unwrap();
 }
 
-static void uninit_objects(gpu::DeviceImpl d, Span<gpu::Object const> objects)
+static void uninit_objects(gpu::Device *d, Span<gpu::Object const> objects)
 {
   for (gpu::Object obj : objects)
   {
     switch (obj.type)
     {
       case gpu::ObjectType::Image:
-        d->uninit_image(d.self, obj.image);
+        d->uninit_image(obj.image);
         break;
       case gpu::ObjectType::ImageView:
-        d->uninit_image_view(d.self, obj.image_view);
+        d->uninit_image_view(obj.image_view);
         break;
       case gpu::ObjectType::Buffer:
-        d->uninit_buffer(d.self, obj.buffer);
+        d->uninit_buffer(obj.buffer);
         break;
       case gpu::ObjectType::BufferView:
-        d->uninit_buffer_view(d.self, obj.buffer_view);
+        d->uninit_buffer_view(obj.buffer_view);
         break;
       case gpu::ObjectType::Sampler:
-        d->uninit_sampler(d.self, obj.sampler);
+        d->uninit_sampler(obj.sampler);
         break;
       case gpu::ObjectType::DescriptorSet:
-        d->uninit_descriptor_set(d.self, obj.descriptor_set);
+        d->uninit_descriptor_set(obj.descriptor_set);
         break;
       case gpu::ObjectType::DescriptorSetLayout:
-        d->uninit_descriptor_set_layout(d.self, obj.descriptor_set_layout);
+        d->uninit_descriptor_set_layout(obj.descriptor_set_layout);
         break;
       default:
         UNREACHABLE();
@@ -642,24 +621,24 @@ static void uninit_objects(gpu::DeviceImpl d, Span<gpu::Object const> objects)
 
 void GpuContext::idle_reclaim()
 {
-  device->wait_idle(device.self).unwrap();
+  device->wait_idle().unwrap();
   for (auto &objects : released_objects)
   {
     uninit_objects(device, span(objects));
-    objects.reset();
+    objects.clear();
   }
 }
 
 void GpuContext::begin_frame(gpu::Swapchain swapchain)
 {
-  device->begin_frame(device.self, swapchain).unwrap();
+  device->begin_frame(swapchain).unwrap();
   uninit_objects(device, span(released_objects[ring_index()]));
   released_objects[ring_index()].clear();
 
-  gpu::CommandEncoderImpl enc = encoder();
+  gpu::CommandEncoder &enc = encoder();
 
-  enc->clear_color_image(
-      enc.self, screen_fb.color.image, gpu::Color{.float32 = {0, 0, 0, 0}},
+  enc.clear_color_image(
+      screen_fb.color.image, gpu::Color{.float32 = {0, 0, 0, 0}},
       span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
                                        .first_mip_level   = 0,
                                        .num_mip_levels    = 1,
@@ -668,8 +647,8 @@ void GpuContext::begin_frame(gpu::Swapchain swapchain)
 
   for (Framebuffer const &f : scratch_fbs)
   {
-    enc->clear_color_image(
-        enc.self, f.color.image, gpu::Color{.float32 = {0, 0, 0, 0}},
+    enc.clear_color_image(
+        f.color.image, gpu::Color{.float32 = {0, 0, 0, 0}},
         span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
                                          .first_mip_level   = 0,
                                          .num_mip_levels    = 1,
@@ -677,8 +656,8 @@ void GpuContext::begin_frame(gpu::Swapchain swapchain)
                                          .num_array_layers  = 1}}));
   }
 
-  enc->clear_depth_stencil_image(
-      enc.self, screen_fb.depth_stencil.image,
+  enc.clear_depth_stencil_image(
+      screen_fb.depth_stencil.image,
       gpu::DepthStencil{.depth = 0, .stencil = 0},
       span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Depth |
                                                   gpu::ImageAspects::Stencil,
@@ -689,9 +668,8 @@ void GpuContext::begin_frame(gpu::Swapchain swapchain)
 
   for (Framebuffer const &f : scratch_fbs)
   {
-    enc->clear_depth_stencil_image(
-        enc.self, f.depth_stencil.image,
-        gpu::DepthStencil{.depth = 0, .stencil = 0},
+    enc.clear_depth_stencil_image(
+        f.depth_stencil.image, gpu::DepthStencil{.depth = 0, .stencil = 0},
         span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Depth |
                                                     gpu::ImageAspects::Stencil,
                                          .first_mip_level   = 0,
@@ -703,16 +681,16 @@ void GpuContext::begin_frame(gpu::Swapchain swapchain)
 
 void GpuContext::end_frame(gpu::Swapchain swapchain)
 {
-  gpu::CommandEncoderImpl enc = encoder();
+  gpu::CommandEncoder &enc = encoder();
   if (swapchain != nullptr)
   {
     gpu::SwapchainState swapchain_state =
-        device->get_swapchain_state(device.self, swapchain).unwrap();
+        device->get_swapchain_state(swapchain).unwrap();
 
     if (swapchain_state.current_image.is_some())
     {
-      enc->blit_image(
-          enc.self, screen_fb.color.image,
+      enc.blit_image(
+          screen_fb.color.image,
           swapchain_state.images[swapchain_state.current_image.unwrap()],
           span({gpu::ImageBlit{
               .src_layers  = {.aspects           = gpu::ImageAspects::Color,
@@ -731,13 +709,13 @@ void GpuContext::end_frame(gpu::Swapchain swapchain)
           gpu::Filter::Linear);
     }
   }
-  device->submit_frame(device.self, swapchain).unwrap();
+  device->submit_frame(swapchain).unwrap();
 }
 
 void SSBO::uninit(GpuContext &ctx)
 {
-  ctx.device->uninit_descriptor_set(ctx.device.self, descriptor);
-  ctx.device->uninit_buffer(ctx.device.self, buffer);
+  ctx.device->uninit_descriptor_set(descriptor);
+  ctx.device->uninit_buffer(buffer);
 }
 
 void SSBO::reserve(GpuContext &ctx, u64 p_size)
@@ -748,12 +726,12 @@ void SSBO::reserve(GpuContext &ctx, u64 p_size)
     return;
   }
 
-  ctx.device->uninit_buffer(ctx.device.self, buffer);
+  ctx.device->uninit_buffer(buffer);
 
   buffer = ctx.device
                ->create_buffer(
-                   ctx.device.self,
-                   gpu::BufferDesc{.label       = label,
+
+                   gpu::BufferInfo{.label       = label,
                                    .size        = p_size,
                                    .host_mapped = true,
                                    .usage = gpu::BufferUsage::TransferSrc |
@@ -765,18 +743,15 @@ void SSBO::reserve(GpuContext &ctx, u64 p_size)
   if (descriptor == nullptr)
   {
     descriptor =
-        ctx.device->create_descriptor_set(ctx.device.self, ctx.ssbo_layout, {})
-            .unwrap();
+        ctx.device->create_descriptor_set(ctx.ssbo_layout, {}).unwrap();
   }
 
-  ctx.device->update_descriptor_set(
-      ctx.device.self,
-      gpu::DescriptorSetUpdate{
-          .set     = descriptor,
-          .binding = 0,
-          .element = 0,
-          .buffers = span({gpu::BufferBinding{
-              .buffer = buffer, .offset = 0, .size = p_size}})});
+  ctx.device->update_descriptor_set(gpu::DescriptorSetUpdate{
+      .set     = descriptor,
+      .binding = 0,
+      .element = 0,
+      .buffers = span({gpu::BufferBinding{
+          .buffer = buffer, .offset = 0, .size = p_size}})});
 
   size = p_size;
 }
@@ -792,19 +767,18 @@ void SSBO::copy(GpuContext &ctx, Span<u8 const> src)
 
 void *SSBO::map(GpuContext &ctx)
 {
-  return ctx.device->map_buffer_memory(ctx.device.self, buffer).unwrap();
+  return ctx.device->map_buffer_memory(buffer).unwrap();
 }
 
 void SSBO::unmap(GpuContext &ctx)
 {
-  ctx.device->unmap_buffer_memory(ctx.device.self, buffer);
+  ctx.device->unmap_buffer_memory(buffer);
 }
 
 void SSBO::flush(GpuContext &ctx)
 {
   ctx.device
-      ->flush_mapped_buffer_memory(ctx.device.self, buffer,
-                                   gpu::MemoryRange{0, gpu::WHOLE_SIZE})
+      ->flush_mapped_buffer_memory(buffer, gpu::MemoryRange{0, gpu::WHOLE_SIZE})
       .unwrap();
 }
 

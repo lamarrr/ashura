@@ -12,11 +12,9 @@ namespace ash
 
 #define CHECKSdl(cond_expr) CHECK_DESC(cond_expr, "SDL Error: ", SDL_GetError())
 
-namespace sdl
-{
 struct WindowEventListener
 {
-  Fn<void(WindowEvent const &)> callback = fn([](WindowEvent const &) {});
+  Fn<void(WindowEvent const &)> callback = noop;
   WindowEventTypes              types    = WindowEventTypes::None;
 };
 
@@ -26,23 +24,23 @@ struct WindowImpl
   gpu::Surface                        surface   = nullptr;
   SDL_WindowID                        id        = 0;
   SparseVec<Vec<WindowEventListener>> listeners = {};
-  gpu::InstanceImpl                   instance  = {};
+  gpu::Instance                      *instance  = nullptr;
   Fn<WindowRegion(Vec2U)>             hit_test =
       fn([](Vec2U) { return WindowRegion::Normal; });
 };
 
 struct SystemEventListener
 {
-  Fn<void(SystemEvent const &)> callback = fn([](SystemEvent const &) {});
+  Fn<void(SystemEvent const &)> callback = noop;
   SystemEventTypes              types    = SystemEventTypes::None;
 };
 
 struct ClipBoardImpl : ClipBoard
 {
-  virtual Result<Void, Void> get(Span<char const> mime, Vec<u8> &out) override
+  virtual Result<> get(Span<char const> mime, Vec<u8> &out) override
   {
     char mime_c_str[256];
-    CHECK(mem::to_c_str(mime, span(mime_c_str)));
+    CHECK(to_c_str(mime, span(mime_c_str)));
     usize mime_data_len;
     void *data = SDL_GetClipboardData(mime_c_str, &mime_data_len);
     if (data == nullptr)
@@ -55,8 +53,7 @@ struct ClipBoardImpl : ClipBoard
     return Ok{};
   }
 
-  virtual Result<Void, Void> set(Span<char const> mime,
-                                 Span<u8 const>   data) override
+  virtual Result<> set(Span<char const> mime, Span<u8 const> data) override
   {
     if (data.is_empty() || mime.is_empty())
     {
@@ -68,7 +65,7 @@ struct ClipBoardImpl : ClipBoard
     }
 
     char mime_c_str[256];
-    CHECK(mem::to_c_str(mime, span(mime_c_str)));
+    CHECK(to_c_str(mime, span(mime_c_str)));
 
     char const *mime_types[] = {mime_c_str};
 
@@ -115,19 +112,8 @@ struct WindowSystemImpl : WindowSystem
     return ((WindowImpl *) window)->win;
   }
 
-  virtual void init() override
-  {
-    CHECKSdl(SDL_Init(SDL_INIT_VIDEO));
-  }
-
-  virtual void uninit() override
-  {
-    listeners.uninit();
-    SDL_Quit();
-  }
-
-  Option<Window> create_window(gpu::InstanceImpl instance,
-                               Span<char const>  title) override
+  Option<Window> create_window(gpu::Instance   &instance,
+                               Span<char const> title) override
   {
     char *title_c_str;
     if (!default_allocator.nalloc(title.size() + 1, title_c_str))
@@ -147,13 +133,12 @@ struct WindowSystemImpl : WindowSystem
     SDL_WindowID id = SDL_GetWindowID(window);
     CHECKSdl(id != 0);
 
-    CHECK(instance.interface->get_backend(instance.self) ==
-          gpu::Backend::Vulkan);
+    CHECK(instance.get_backend() == gpu::Backend::Vulkan);
 
-    vk::Instance *vk_instance = (vk::Instance *) instance.self;
+    vk::Instance &vk_instance = (vk::Instance &) instance;
     VkSurfaceKHR  surface;
 
-    CHECKSdl(SDL_Vulkan_CreateSurface(window, vk_instance->vk_instance, nullptr,
+    CHECKSdl(SDL_Vulkan_CreateSurface(window, vk_instance.vk_instance, nullptr,
                                       &surface));
 
     WindowImpl *impl;
@@ -163,7 +148,7 @@ struct WindowSystemImpl : WindowSystem
     new (impl) WindowImpl{.win      = window,
                           .surface  = (gpu::Surface) surface,
                           .id       = id,
-                          .instance = instance};
+                          .instance = &instance};
 
     SDL_PropertiesID props_id = SDL_GetWindowProperties(window);
     CHECK(SDL_SetPointerProperty(props_id, "impl", impl));
@@ -176,7 +161,7 @@ struct WindowSystemImpl : WindowSystem
     if (window != nullptr)
     {
       WindowImpl *win = (WindowImpl *) window;
-      win->instance->uninit_surface(win->instance.self, win->surface);
+      win->instance->uninit_surface(win->surface);
       SDL_DestroyWindow(win->win);
       win->listeners.reset();
       default_allocator.ndealloc(win, 1);
@@ -413,8 +398,7 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  Result<Void, Void> set_hit_test(Window                  window,
-                                  Fn<WindowRegion(Vec2U)> hit) override
+  Result<> set_hit_test(Window window, Fn<WindowRegion(Vec2U)> hit) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
     pwin->hit_test   = hit;
@@ -741,10 +725,22 @@ struct WindowSystemImpl : WindowSystem
   }
 };
 
-}        // namespace sdl
+ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem *window_system = nullptr;
 
-static sdl::WindowSystemImpl sdl_window_system_impl;
+void WindowSystem::init()
+{
+  CHECK(window_system == nullptr);
+  CHECKSdl(SDL_Init(SDL_INIT_VIDEO));
+  alignas(WindowSystemImpl) static u8 storage[sizeof(WindowSystemImpl)] = {};
+  window_system = new (storage) WindowSystemImpl{};
+}
 
-WindowSystem *sdl_window_system = &sdl_window_system_impl;
+void WindowSystem::uninit()
+{
+  CHECK(window_system != nullptr);
+  window_system->~WindowSystem();
+  window_system = nullptr;
+  SDL_Quit();
+}
 
 }        // namespace ash

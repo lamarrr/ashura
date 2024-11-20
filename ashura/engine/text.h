@@ -232,9 +232,9 @@ enum class TextScript : u8
 /// @param line_height relative. multiplied by font_height
 struct FontStyle
 {
-  Font font        = nullptr;
-  f32  font_height = 20;
-  f32  line_height = 1.2f;
+  Font *font        = nullptr;
+  f32   font_height = 20;
+  f32   line_height = 1.2f;
 };
 
 /// @param shadow_scale relative. multiplied by font_height
@@ -406,23 +406,6 @@ struct TextLayout
     glyphs.clear();
     runs.clear();
     lines.clear();
-  }
-
-  void uninit()
-  {
-    segments.uninit();
-    glyphs.uninit();
-    runs.uninit();
-    lines.uninit();
-  }
-
-  void reset()
-  {
-    clear();
-    segments.reset();
-    glyphs.reset();
-    runs.reset();
-    lines.reset();
   }
 };
 

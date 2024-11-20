@@ -6,6 +6,32 @@
 namespace ash
 {
 
+ASH_C_LINKAGE ASH_DLL_EXPORT Logger *logger = nullptr;
+
+void Logger::init()
+{
+  if (logger != nullptr)
+  {
+    std::abort();
+  }
+
+  alignas(Logger) static u8 storage[sizeof(Logger)] = {};
+
+  logger = new (storage) Logger{};
+}
+
+void Logger::uninit()
+{
+  if (logger == nullptr)
+  {
+    std::abort();
+  }
+  logger->~Logger();
+  logger = nullptr;
+}
+
+StdioSink stdio_sink{};
+
 char const *get_level_str(LogLevels level)
 {
   switch (level)
@@ -124,11 +150,5 @@ void FileSink::flush()
   std::unique_lock lock{mutex};
   (void) fflush(file);
 }
-
-static Logger logger_impl = Logger{};
-
-ASH_C_LINKAGE ASH_DLL_EXPORT Logger *logger = &logger_impl;
-
-StdioSink stdio_sink = {};
 
 }        // namespace ash
