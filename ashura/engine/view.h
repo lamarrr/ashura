@@ -42,8 +42,8 @@ struct Size
 
 struct Frame
 {
-  Size width  = {};
-  Size height = {};
+  Size width{};
+  Size height{};
 
   constexpr Vec2 operator()(Vec2 extent) const
   {
@@ -53,20 +53,32 @@ struct Frame
 
 struct CornerRadii
 {
-  Size top_left     = Size{};
-  Size top_right    = Size{};
-  Size bottom_left  = Size{};
-  Size bottom_right = Size{};
+  Size tl;
+  Size tr;
+  Size bl;
+  Size br;
 
-  static constexpr CornerRadii all(Size s)
+  constexpr CornerRadii() : tl{}, tr{}, bl{}, br{}
   {
-    return CornerRadii{s, s, s, s};
+  }
+
+  constexpr CornerRadii(Size tl, Size tr, Size bl, Size br) :
+      tl{tl}, tr{tr}, bl{bl}, br{br}
+  {
+  }
+
+  constexpr CornerRadii(Size s) : tl{s}, tr{s}, bl{s}, br{s}
+  {
+  }
+
+  constexpr CornerRadii(f32 s, bool constrained) :
+      CornerRadii{Size{.offset = s, .rmax = constrained ? 1 : F32_INF}}
+  {
   }
 
   constexpr Vec4 operator()(f32 height) const
   {
-    return Vec4{top_left(height), top_right(height), bottom_left(height),
-                bottom_right(height)};
+    return Vec4{tl(height), tr(height), bl(height), br(height)};
   }
 };
 
@@ -169,18 +181,17 @@ struct ViewContext
     Bits<u64, NUM_KEYS> scan_states = {};
   };
 
-  void                    *app              = nullptr;
-  ClipBoard               *clipboard        = nullptr;
-  steady_clock::time_point timestamp        = {};
-  nanoseconds              timedelta        = {};
-  SystemTheme              theme            = SystemTheme::None;
-  TextDirection            direction        = TextDirection::LeftToRight;
-  Mouse                    mouse            = {};
-  KeyBoard                 keyboard         = {};
-  Span<u8 const>           drag_payload     = {};
-  Span<u8 const>           text_input       = {};
-  Span<u32 const>          text_input_utf32 = {};
-  Vec2                     viewport_extent  = {};
+  void          *app             = nullptr;
+  ClipBoard     *clipboard       = nullptr;
+  time_point     timestamp       = {};
+  nanoseconds    timedelta       = {};
+  SystemTheme    theme           = SystemTheme::None;
+  TextDirection  direction       = TextDirection::LeftToRight;
+  Mouse          mouse           = {};
+  KeyBoard       keyboard        = {};
+  Span<u8 const> drag_payload    = {};
+  Span<u8 const> text_input      = {};
+  Vec2           viewport_extent = {};
 
   constexpr ViewContext(void *app, ClipBoard &clipboard) :
       app{app}, clipboard{&clipboard}

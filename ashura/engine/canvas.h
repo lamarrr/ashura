@@ -212,7 +212,7 @@ struct Canvas
   Canvas &operator=(Canvas &&)      = default;
   ~Canvas()                         = default;
 
-  Canvas &begin_recording(Vec2 viewport_extent);
+  Canvas &begin_recording(Vec2 viewport_extent, Vec2U surface_extent);
 
   Canvas &end_recording();
 
@@ -311,8 +311,3 @@ struct Canvas
 };
 
 }        // namespace ash
-
-// we are trying to batch together related render params/commands belonging to
-// the same pipeline
-//
-//

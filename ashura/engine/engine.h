@@ -11,14 +11,6 @@
 namespace ash
 {
 
-enum class FontLoadError : i32
-{
-};
-
-enum class ImageLoadError : i32
-{
-};
-
 struct EngineCfg
 {
   struct Gpu
@@ -53,23 +45,18 @@ struct EngineCfg
   static EngineCfg parse(AllocatorImpl allocator, Span<u8 const> json);
 };
 
-// [ ] Font Manager
-// [ ] Shader Manager
 // [ ] Image Manager
-// [ ] Graphics Device
-// [ ] Render Context : Shader Manager + input
-// [ ] Renderer
-// [ ] Window Manager? We might need to attach new contexts to new windows
 // [ ] Audio Device/Manager (FFMPEG, SDL)
 // [ ] Video Manager (Vulkan, FFMPEG)
 // [ ] Custom Subsystems
-// [ ] Engine Startup() -> Tick () -> Shutdown() Tasks
 // [ ] UI tick rate (time-based/adaptive frame rate), with custom frequency
 // allowed, need to be able to merge inputs?
 //
 
 struct Engine
 {
+  AllocatorImpl allocator;
+
   void *app;
 
   Dyn<gpu::Instance *> instance;
@@ -107,6 +94,7 @@ struct Engine
          gpu::PresentMode present_mode_preference, GpuContext gpu_ctx,
          Renderer renderer, Canvas canvas, ViewSystem view_system,
          ViewContext view_ctx) :
+      allocator{allocator},
       app{app},
       instance{std::move(instance)},
       device{device},

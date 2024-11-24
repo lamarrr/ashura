@@ -45,6 +45,8 @@ enum class Axes : u8
 
 ASH_DEFINE_ENUM_BIT_OPS(Axes)
 
+// [ ] add more constructors, i.e implicit splat
+
 struct alignas(8) Vec2
 {
   f32 x = 0;
@@ -1717,17 +1719,17 @@ constexpr SignedType abs(SignedType x)
 
 constexpr bool approx_eq(f32 a, f32 b)
 {
-  return abs(b - a) <= F32_EPSILON;
+  return abs(b - a) <= F32_EPS;
 }
 
 constexpr bool approx_eq(f64 a, f64 b)
 {
-  return abs(b - a) <= F64_EPSILON;
+  return abs(b - a) <= F64_EPS;
 }
 
 constexpr f32 epsilon_clamp(f32 x)
 {
-  return abs(x) > F32_EPSILON ? x : F32_EPSILON;
+  return abs(x) > F32_EPS ? x : F32_EPS;
 }
 
 constexpr f32 to_radians(f32 degree)

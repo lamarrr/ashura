@@ -387,21 +387,34 @@ constexpr Vec4U8 BLACK = Vec4U8{0x00, 0x00, 0x00, 0xFF};
 
 struct ColorGradient
 {
-  Vec4 colors[4] = {};
+  Vec4 tl;
+  Vec4 tr;
+  Vec4 bl;
+  Vec4 br;
 
-  static constexpr ColorGradient all(Vec4 c)
+  constexpr ColorGradient() = default;
+
+  constexpr ColorGradient(Vec4 c) : tl{c}, tr{c}, bl{c}, br{c}
   {
-    return ColorGradient{{c, c, c, c}};
   }
 
-  static constexpr ColorGradient all(Vec4U8 c)
+  constexpr ColorGradient(Vec4U8 c) : ColorGradient{c.norm()}
   {
-    return all(c.norm());
+  }
+
+  constexpr ColorGradient(Vec4 tl, Vec4 tr, Vec4 bl, Vec4 br) :
+      tl{tl}, tr{tr}, bl{bl}, br{br}
+  {
+  }
+
+  constexpr ColorGradient(Vec4U8 tl, Vec4U8 tr, Vec4U8 bl, Vec4U8 br) :
+      ColorGradient{tl.norm(), tr.norm(), bl.norm(), br.norm()}
+  {
   }
 
   static constexpr ColorGradient x(Vec4 x0, Vec4 x1)
   {
-    return ColorGradient{{x0, x1, x0, x1}};
+    return ColorGradient{x0, x1, x0, x1};
   }
 
   static constexpr ColorGradient x(Vec4U8 x0, Vec4U8 x1)
@@ -411,7 +424,7 @@ struct ColorGradient
 
   static constexpr ColorGradient y(Vec4 y0, Vec4 y1)
   {
-    return ColorGradient{{y0, y0, y1, y1}};
+    return ColorGradient{y0, y0, y1, y1};
   }
 
   static constexpr ColorGradient y(Vec4U8 y0, Vec4U8 y1)
@@ -421,18 +434,17 @@ struct ColorGradient
 
   constexpr Vec4 const &operator[](usize i) const
   {
-    return colors[i];
+    return (&tl)[i];
   }
 
   constexpr Vec4 &operator[](usize i)
   {
-    return colors[i];
+    return (&tl)[i];
   }
 
   constexpr bool is_transparent() const
   {
-    return colors[0].w == 0 && colors[1].w == 0 && colors[2].w == 0 &&
-           colors[3].w == 0;
+    return tl.w == 0 && tr.w == 0 && bl.w == 0 && br.w == 0;
   }
 };
 

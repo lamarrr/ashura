@@ -821,8 +821,8 @@ struct Device final : gpu::Device
   virtual Result<usize, Status>
       get_pipeline_cache_size(gpu::PipelineCache cache) override;
 
-  virtual Result<usize, Status>
-      get_pipeline_cache_data(gpu::PipelineCache cache, Span<u8> out) override;
+  virtual Result<Void, Status> get_pipeline_cache_data(gpu::PipelineCache cache,
+                                                       Vec<u8> &out) override;
 
   virtual Result<Void, Status>
       merge_pipeline_cache(gpu::PipelineCache             dst,
@@ -835,13 +835,13 @@ struct Device final : gpu::Device
 
   virtual Result<Void, Status> wait_queue_idle() override;
 
-  virtual Result<u32, Status>
+  virtual Result<Void, Status>
       get_surface_formats(gpu::Surface             surface,
-                          Span<gpu::SurfaceFormat> formats) override;
+                          Vec<gpu::SurfaceFormat> &formats) override;
 
-  virtual Result<u32, Status>
+  virtual Result<Void, Status>
       get_surface_present_modes(gpu::Surface           surface,
-                                Span<gpu::PresentMode> modes) override;
+                                Vec<gpu::PresentMode> &modes) override;
 
   virtual Result<gpu::SurfaceCapabilities, Status>
       get_surface_capabilities(gpu::Surface surface) override;

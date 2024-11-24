@@ -11,9 +11,10 @@ namespace ash
 
 enum class SystemTheme : u8
 {
-  None  = 0,
-  Light = 1,
-  Dark  = 2
+  None    = 0,
+  Unknown = 1,
+  Light   = 2,
+  Dark    = 3
 };
 
 enum class KeyAction : u8
@@ -632,7 +633,6 @@ struct WindowEvent
     MouseMotionEvent mouse_motion;
     MouseClickEvent  mouse_click;
     MouseWheelEvent  mouse_wheel;
-    char             none_ = 0;
   };
   WindowEventTypes type = WindowEventTypes::None;
 };
@@ -660,6 +660,10 @@ ASH_DEFINE_ENUM_BIT_OPS(SystemEventTypes)
 
 struct SystemEvent
 {
+  union
+  {
+    SystemTheme theme;
+  };
   SystemEventTypes type = SystemEventTypes::None;
 };
 

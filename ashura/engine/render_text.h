@@ -52,8 +52,8 @@ struct RenderText
     /// @param count range of the number of codepoints to be patched
     /// @param style font style to be applied
     /// @param font font configuration to be applied
-    void style(u32 first, u32 count, TextStyle const &style,
-               FontStyle const &font)
+    void style(TextStyle const &style, FontStyle const &font, u32 first = 0,
+               u32 count = U32_MAX)
     {
       if (count == 0)
       {
@@ -71,29 +71,23 @@ struct RenderText
 
       u32 const end = sat_add(first, count);
 
-      // if this becomes a bottleneck, might be improvable by using a binary
-      // search. although more complex.
-      u32 first_run       = 0;
-      u32 first_run_begin = 0;
+      u32 first_run = 0;
       for (; first_run < runs.size32(); first_run++)
       {
         if (runs[first_run] > first)
         {
           break;
         }
-        first_run_begin = runs[first_run];
       }
 
       /// should never happen since there's always a U32_MAX run end
       CHECK(first_run < runs.size32());
 
-      u32 last_run     = first_run;
-      u32 last_run_end = 0;
+      u32 last_run = first_run;
 
       for (; last_run < runs.size32(); last_run++)
       {
-        last_run_end = runs[last_run];
-        if (last_run_end >= end)
+        if (runs[last_run] >= end)
         {
           break;
         }
@@ -102,9 +96,13 @@ struct RenderText
       /// should never happen since there's always a U32_MAX run end
       CHECK(last_run < runs.size32());
 
+      u32 const first_run_begin = (first_run == 0) ? 0 : runs[first_run - 1];
+      u32 const last_run_end    = runs[last_run];
+
       /// run merging
 
       /// merge middle
+
       if (last_run > (first_run + 1))
       {
         u32 const first_erase = first_run + 1;
@@ -140,7 +138,12 @@ struct RenderText
       (void) last_run;
 
       /// run splitting
-      if (!(first_run_begin == first && last_run_end == end))
+      if (first_run_begin == first && last_run_end == end)
+      {
+        styles[first_run] = style;
+        fonts[first_run]  = font;
+      }
+      else
       {
         if (first_run_begin == first)
         {
@@ -228,7 +231,7 @@ struct RenderText
                 FontStyle const &font)
   {
     set_text(utf32);
-    inner.style(0, U32_MAX, style, font);
+    inner.style(style, font);
     flush_text();
   }
 
@@ -242,7 +245,7 @@ struct RenderText
   void set_text(Span<u8 const> utf8, TextStyle const &style,
                 FontStyle const &font)
   {
-    inner.style(0, U32_MAX, style, font);
+    inner.style(style, font);
     set_text(utf8);
     flush_text();
   }
@@ -254,10 +257,10 @@ struct RenderText
     flush_text();
   }
 
-  void style(u32 first, u32 count, TextStyle const &style,
-             FontStyle const &font)
+  void style(TextStyle const &style, FontStyle const &font, u32 first = 0,
+             u32 count = U32_MAX)
   {
-    inner.style(first, count, style, font);
+    inner.style(style, font, first, count);
     flush_text();
   }
 
@@ -279,7 +282,7 @@ struct RenderText
                           .align_width = aligned_width};
   }
 
-  void calculate_layout(f32 max_width)
+  void layout(f32 max_width)
   {
     if (!inner.dirty && max_width == inner.layout.extent.x)
     {

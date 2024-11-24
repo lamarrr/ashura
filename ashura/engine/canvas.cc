@@ -334,11 +334,14 @@ Canvas &Canvas::reset()
   return *this;
 }
 
-Canvas &Canvas::begin_recording(Vec2 new_viewport_extent)
+Canvas &Canvas::begin_recording(Vec2  new_viewport_extent,
+                                Vec2U new_surface_extent)
 {
   reset();
 
   viewport_extent = new_viewport_extent;
+  surface_extent  = new_surface_extent;
+
   if (new_viewport_extent.y == 0 || new_viewport_extent.x == 0)
   {
     viewport_aspect_ratio = 1;
@@ -376,41 +379,44 @@ constexpr RectU clip_to_scissor(gpu::Viewport const &viewport,
 
 static inline void flush_batch(Canvas &c)
 {
-  switch (c.batch.type)
+  Canvas::Batch batch = c.batch;
+  c.batch             = Canvas::Batch{.type = Canvas::BatchType::None};
+
+  switch (batch.type)
   {
     case Canvas::BatchType::RRect:
-      c.add_pass("RRect"_span,
-                 [batch = c.batch](Canvas::RenderContext const &ctx) {
-                   RRectPassParams params{
-                       .rendering_info = ctx.rt.info,
-                       .scissor  = clip_to_scissor(ctx.rt.viewport, batch.clip),
-                       .viewport = ctx.rt.viewport,
-                       .params_ssbo    = ctx.rrects.descriptor,
-                       .textures       = ctx.gpu.texture_views,
-                       .first_instance = batch.objects.offset,
-                       .num_instances  = batch.objects.span};
+      c.add_pass("RRect"_span, [batch, world_to_view = c.world_to_view](
+                                   Canvas::RenderContext const &ctx) {
+        RRectPassParams params{.rendering_info = ctx.rt.info,
+                               .scissor =
+                                   clip_to_scissor(ctx.rt.viewport, batch.clip),
+                               .viewport       = ctx.rt.viewport,
+                               .world_to_view  = world_to_view,
+                               .params_ssbo    = ctx.rrects.descriptor,
+                               .textures       = ctx.gpu.texture_views,
+                               .first_instance = batch.objects.offset,
+                               .num_instances  = batch.objects.span};
 
-                   ctx.passes.rrect->encode(ctx.gpu, ctx.enc, params);
-                 });
-      c.batch = Canvas::Batch{.type = Canvas::BatchType::None};
+        ctx.passes.rrect->encode(ctx.gpu, ctx.enc, params);
+      });
       return;
 
     case Canvas::BatchType::Ngon:
-      c.add_pass(
-          "Ngon"_span, [batch = c.batch](Canvas::RenderContext const &ctx) {
-            NgonPassParams params{
-                .rendering_info = ctx.rt.info,
-                .scissor        = clip_to_scissor(ctx.rt.viewport, batch.clip),
-                .viewport       = ctx.rt.viewport,
-                .vertices_ssbo  = ctx.ngon_vertices.descriptor,
-                .indices_ssbo   = ctx.ngon_indices.descriptor,
-                .params_ssbo    = ctx.ngons.descriptor,
-                .textures       = ctx.gpu.texture_views,
-                .index_counts =
-                    span(ctx.canvas.ngon_index_counts).slice(batch.objects)};
-            ctx.passes.ngon->encode(ctx.gpu, ctx.enc, params);
-          });
-      c.batch = Canvas::Batch{.type = Canvas::BatchType::None};
+      c.add_pass("Ngon"_span, [batch, world_to_view = c.world_to_view](
+                                  Canvas::RenderContext const &ctx) {
+        NgonPassParams params{
+            .rendering_info = ctx.rt.info,
+            .scissor        = clip_to_scissor(ctx.rt.viewport, batch.clip),
+            .viewport       = ctx.rt.viewport,
+            .world_to_view  = world_to_view,
+            .vertices_ssbo  = ctx.ngon_vertices.descriptor,
+            .indices_ssbo   = ctx.ngon_indices.descriptor,
+            .params_ssbo    = ctx.ngons.descriptor,
+            .textures       = ctx.gpu.texture_views,
+            .index_counts =
+                span(ctx.canvas.ngon_index_counts).slice(batch.objects)};
+        ctx.passes.ngon->encode(ctx.gpu, ctx.enc, params);
+      });
       return;
 
     default:

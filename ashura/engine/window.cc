@@ -112,8 +112,8 @@ struct WindowSystemImpl : WindowSystem
     return ((WindowImpl *) window)->win;
   }
 
-  Option<Window> create_window(gpu::Instance   &instance,
-                               Span<char const> title) override
+  virtual Option<Window> create_window(gpu::Instance   &instance,
+                                       Span<char const> title) override
   {
     char *title_c_str;
     if (!default_allocator.nalloc(title.size() + 1, title_c_str))
@@ -156,7 +156,7 @@ struct WindowSystemImpl : WindowSystem
     return Some{(Window) impl};
   }
 
-  void uninit_window(Window window) override
+  virtual void uninit_window(Window window) override
   {
     if (window != nullptr)
     {
@@ -168,7 +168,7 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  void set_title(Window window, Span<char const> title) override
+  virtual void set_title(Window window, Span<char const> title) override
   {
     char *title_c_str;
     CHECK(default_allocator.nalloc(title.size() + 1, title_c_str));
@@ -182,89 +182,89 @@ struct WindowSystemImpl : WindowSystem
     CHECKSdl(SDL_SetWindowTitle(hnd(window), title_c_str));
   }
 
-  char const *get_title(Window window) override
+  virtual char const *get_title(Window window) override
   {
     char const *title = SDL_GetWindowTitle(hnd(window));
     CHECKSdl(title != nullptr);
     return title;
   }
 
-  void maximize(Window window) override
+  virtual void maximize(Window window) override
   {
     CHECKSdl(SDL_MaximizeWindow(hnd(window)));
   }
 
-  void minimize(Window window) override
+  virtual void minimize(Window window) override
   {
     CHECKSdl(SDL_MinimizeWindow(hnd(window)));
   }
 
-  void set_size(Window window, Vec2U size) override
+  virtual void set_size(Window window, Vec2U size) override
   {
     CHECKSdl(SDL_SetWindowSize(hnd(window), static_cast<int>(size.x),
                                static_cast<int>(size.y)));
   }
 
-  void center(Window window) override
+  virtual void center(Window window) override
   {
     CHECKSdl(SDL_SetWindowPosition(hnd(window), SDL_WINDOWPOS_CENTERED,
                                    SDL_WINDOWPOS_CENTERED));
   }
 
-  Vec2U get_size(Window window) override
+  virtual Vec2U get_size(Window window) override
   {
     int width, height;
     CHECKSdl(SDL_GetWindowSize(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  Vec2U get_surface_size(Window window) override
+  virtual Vec2U get_surface_size(Window window) override
   {
     int width, height;
     CHECKSdl(SDL_GetWindowSizeInPixels(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  void set_position(Window window, Vec2I pos) override
+  virtual void set_position(Window window, Vec2I pos) override
   {
     CHECKSdl(SDL_SetWindowPosition(hnd(window), pos.x, pos.y));
   }
 
-  Vec2I get_position(Window window) override
+  virtual Vec2I get_position(Window window) override
   {
     int x, y;
     CHECKSdl(SDL_GetWindowPosition(hnd(window), &x, &y));
     return Vec2I{x, y};
   }
 
-  void set_min_size(Window window, Vec2U min) override
+  virtual void set_min_size(Window window, Vec2U min) override
   {
     CHECKSdl(SDL_SetWindowMinimumSize(hnd(window), static_cast<int>(min.x),
                                       static_cast<int>(min.y)));
   }
 
-  Vec2U get_min_size(Window window) override
+  virtual Vec2U get_min_size(Window window) override
   {
     int width, height;
     CHECKSdl(SDL_GetWindowMinimumSize(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  void set_max_size(Window window, Vec2U max) override
+  virtual void set_max_size(Window window, Vec2U max) override
   {
     CHECKSdl(SDL_SetWindowMaximumSize(hnd(window), static_cast<int>(max.x),
                                       static_cast<int>(max.y)));
   }
 
-  Vec2U get_max_size(Window window) override
+  virtual Vec2U get_max_size(Window window) override
   {
     int width, height;
     CHECKSdl(SDL_GetWindowMaximumSize(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
-  void set_icon(Window window, ImageSpan<u8 const, 4> image,
-                gpu::Format format) override
+  virtual void set_icon(Window window, ImageSpan<u8 const, 4> image,
+                        gpu::Format format) override
   {
     SDL_PixelFormat fmt = SDL_PIXELFORMAT_RGBA8888;
 
@@ -288,79 +288,79 @@ struct WindowSystemImpl : WindowSystem
     SDL_DestroySurface(icon);
   }
 
-  void make_bordered(Window window) override
+  virtual void make_bordered(Window window) override
   {
     CHECKSdl(SDL_SetWindowBordered(hnd(window), true));
   }
 
-  void make_borderless(Window window) override
+  virtual void make_borderless(Window window) override
   {
     CHECKSdl(SDL_SetWindowBordered(hnd(window), false));
   }
 
-  void show(Window window) override
+  virtual void show(Window window) override
   {
     CHECKSdl(SDL_ShowWindow(hnd(window)));
   }
 
-  void hide(Window window) override
+  virtual void hide(Window window) override
   {
     CHECKSdl(SDL_HideWindow(hnd(window)));
   }
 
-  void raise(Window window) override
+  virtual void raise(Window window) override
   {
     CHECKSdl(SDL_RaiseWindow(hnd(window)));
   }
 
-  void restore(Window window) override
+  virtual void restore(Window window) override
   {
     CHECKSdl(SDL_RestoreWindow(hnd(window)));
   }
 
-  void request_attention(Window window, bool briefly) override
+  virtual void request_attention(Window window, bool briefly) override
   {
     CHECKSdl(SDL_FlashWindow(hnd(window), briefly ? SDL_FLASH_BRIEFLY :
                                                     SDL_FLASH_UNTIL_FOCUSED));
   }
 
-  void make_fullscreen(Window window) override
+  virtual void make_fullscreen(Window window) override
   {
     CHECKSdl(SDL_SetWindowFullscreen(hnd(window), true));
   }
 
-  void make_windowed(Window window) override
+  virtual void make_windowed(Window window) override
   {
     CHECKSdl(SDL_SetWindowFullscreen(hnd(window), false));
   }
 
-  void make_resizable(Window window) override
+  virtual void make_resizable(Window window) override
   {
     CHECKSdl(SDL_SetWindowResizable(hnd(window), true));
   }
 
-  void make_unresizable(Window window) override
+  virtual void make_unresizable(Window window) override
   {
     CHECKSdl(SDL_SetWindowResizable(hnd(window), false));
   }
 
-  u64 listen(SystemEventTypes              event_types,
-             Fn<void(SystemEvent const &)> callback) override
+  virtual u64 listen(SystemEventTypes              event_types,
+                     Fn<void(SystemEvent const &)> callback) override
   {
     return listeners
         .push(SystemEventListener{.callback = callback, .types = event_types})
         .unwrap();
   }
 
-  u64 listen(Window window, WindowEventTypes event_types,
-             Fn<void(WindowEvent const &)> callback) override
+  virtual u64 listen(Window window, WindowEventTypes event_types,
+                     Fn<void(WindowEvent const &)> callback) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
     return pwin->listeners.push(WindowEventListener{callback, event_types})
         .unwrap();
   }
 
-  void unlisten(Window window, u64 listener) override
+  virtual void unlisten(Window window, u64 listener) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
     pwin->listeners.erase(listener);
@@ -398,7 +398,8 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  Result<> set_hit_test(Window window, Fn<WindowRegion(Vec2U)> hit) override
+  virtual Result<> set_hit_test(Window                  window,
+                                Fn<WindowRegion(Vec2U)> hit) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
     pwin->hit_test   = hit;
@@ -410,7 +411,7 @@ struct WindowSystemImpl : WindowSystem
     return Ok{};
   }
 
-  gpu::Surface get_surface(Window window) override
+  virtual gpu::Surface get_surface(Window window) override
   {
     WindowImpl *pwin = (WindowImpl *) window;
     return pwin->surface;
@@ -445,7 +446,23 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  void poll_events() override
+  virtual SystemTheme get_theme() override
+  {
+    SDL_SystemTheme theme = SDL_GetSystemTheme();
+    switch (theme)
+    {
+      case SDL_SystemTheme::SDL_SYSTEM_THEME_DARK:
+        return SystemTheme::Dark;
+      case SDL_SystemTheme::SDL_SYSTEM_THEME_LIGHT:
+        return SystemTheme::Light;
+      case SDL_SystemTheme::SDL_SYSTEM_THEME_UNKNOWN:
+        return SystemTheme::Unknown;
+      default:
+        UNREACHABLE();
+    }
+  }
+
+  virtual void poll_events() override
   {
     SDL_Event event;
 
@@ -454,93 +471,76 @@ struct WindowSystemImpl : WindowSystem
       switch (event.type)
       {
         case SDL_EVENT_WINDOW_SHOWN:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::Shown});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::Shown});
           return;
         case SDL_EVENT_WINDOW_HIDDEN:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::Hidden});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::Hidden});
           return;
         case SDL_EVENT_WINDOW_EXPOSED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::Exposed});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::Exposed});
           return;
         case SDL_EVENT_WINDOW_MOVED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::Moved});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::Moved});
           return;
         case SDL_EVENT_WINDOW_RESIZED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::Resized});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::Resized});
           return;
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
           push_window_event(
               event.window.windowID,
-              WindowEvent{.none_ = 0,
-                          .type  = WindowEventTypes::SurfaceResized});
+              WindowEvent{.type = WindowEventTypes::SurfaceResized});
           return;
         case SDL_EVENT_WINDOW_MINIMIZED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::Minimized});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::Minimized});
           return;
         case SDL_EVENT_WINDOW_MAXIMIZED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::Maximized});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::Maximized});
           return;
         case SDL_EVENT_WINDOW_RESTORED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::Restored});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::Restored});
           return;
         case SDL_EVENT_WINDOW_MOUSE_ENTER:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::MouseEnter});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::MouseEnter});
           return;
         case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::MouseLeave});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::MouseLeave});
           return;
         case SDL_EVENT_WINDOW_FOCUS_GAINED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::FocusIn});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::FocusIn});
           return;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::FocusOut});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::FocusOut});
           return;
         case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
           push_window_event(
               event.window.windowID,
-              WindowEvent{.none_ = 0,
-                          .type  = WindowEventTypes::CloseRequested});
+              WindowEvent{.type = WindowEventTypes::CloseRequested});
           return;
         case SDL_EVENT_WINDOW_OCCLUDED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::Occluded});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::Occluded});
           break;
         case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
           push_window_event(
               event.window.windowID,
-              WindowEvent{.none_ = 0,
-                          .type  = WindowEventTypes::EnterFullScreen});
+              WindowEvent{.type = WindowEventTypes::EnterFullScreen});
           break;
         case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
           push_window_event(
               event.window.windowID,
-              WindowEvent{.none_ = 0,
-                          .type  = WindowEventTypes::LeaveFullScreen});
+              WindowEvent{.type = WindowEventTypes::LeaveFullScreen});
           break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
@@ -633,9 +633,8 @@ struct WindowSystemImpl : WindowSystem
           return;
 
         case SDL_EVENT_WINDOW_DESTROYED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.none_ = 0, .type = WindowEventTypes::Destroyed});
+          push_window_event(event.window.windowID,
+                            WindowEvent{.type = WindowEventTypes::Destroyed});
           return;
 
         case SDL_EVENT_TEXT_EDITING:
@@ -645,27 +644,33 @@ struct WindowSystemImpl : WindowSystem
 
         case SDL_EVENT_DROP_BEGIN:
           // [ ] check
+          logger->info("drop begin");
+          return;
+
+        case SDL_EVENT_DROP_COMPLETE:
+          // [ ] check
+          logger->info("drop complete");
           return;
 
         case SDL_EVENT_DROP_POSITION:
           //  [ ] check
-          logger->info("drop pos:", "x: ", event.drop.x, ", y", event.drop.y);
+          logger->info("drop pos:", "x: ", event.drop.x, ", y: ", event.drop.y);
           return;
 
         case SDL_EVENT_DROP_FILE:
           // [ ] how to handle in view system
-          logger->info("x: ", event.drop.x, "y: ", event.drop.y,
-                       "text: ", event.drop.data);
+          logger->info("x: ", event.drop.x, ", y: ", event.drop.y,
+                       ", file: ", std::string{event.drop.data});
           return;
 
         case SDL_EVENT_DROP_TEXT:
-          logger->info("x: ", event.drop.x, "y: ", event.drop.y,
-                       "text: ", event.drop.data);
+          logger->info("x: ", event.drop.x, ", y: ", event.drop.y,
+                       ", text: ", std::string{event.drop.data});
           return;
 
         case SDL_EVENT_SYSTEM_THEME_CHANGED:
-          push_system_event(
-              SystemEvent{.type = SystemEventTypes::ThemeChanged});
+          push_system_event(SystemEvent{
+              .theme = get_theme(), .type = SystemEventTypes::ThemeChanged});
           return;
 
         case SDL_EVENT_KEYMAP_CHANGED:

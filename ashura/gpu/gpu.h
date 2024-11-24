@@ -6,6 +6,7 @@
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 
 namespace ash
 {
@@ -1393,8 +1394,8 @@ struct Device
   virtual Result<usize, Status>
       get_pipeline_cache_size(PipelineCache cache) = 0;
 
-  virtual Result<usize, Status> get_pipeline_cache_data(PipelineCache cache,
-                                                        Span<u8>      out) = 0;
+  virtual Result<Void, Status> get_pipeline_cache_data(PipelineCache cache,
+                                                       Vec<u8>      &out) = 0;
 
   virtual Result<Void, Status>
       merge_pipeline_cache(PipelineCache             dst,
@@ -1406,11 +1407,11 @@ struct Device
 
   virtual Result<Void, Status> wait_queue_idle() = 0;
 
-  virtual Result<u32, Status>
-      get_surface_formats(Surface surface, Span<SurfaceFormat> formats) = 0;
+  virtual Result<Void, Status>
+      get_surface_formats(Surface surface, Vec<SurfaceFormat> &formats) = 0;
 
-  virtual Result<u32, Status>
-      get_surface_present_modes(Surface surface, Span<PresentMode> modes) = 0;
+  virtual Result<Void, Status>
+      get_surface_present_modes(Surface surface, Vec<PresentMode> &modes) = 0;
 
   virtual Result<SurfaceCapabilities, Status>
       get_surface_capabilities(Surface surface) = 0;

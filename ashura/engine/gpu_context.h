@@ -276,7 +276,7 @@ struct GpuContext
 
   void begin_frame(gpu::Swapchain swapchain);
 
-  void end_frame(gpu::Swapchain swapchain);
+  void submit_frame(gpu::Swapchain swapchain);
 };
 
 struct SSBO

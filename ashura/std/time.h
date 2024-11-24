@@ -14,6 +14,7 @@ using std::chrono::months;
 using std::chrono::nanoseconds;
 using std::chrono::seconds;
 using std::chrono::steady_clock;
+using time_point = std::chrono::steady_clock::time_point;
 using std::chrono::years;
 using namespace std::chrono_literals;
 

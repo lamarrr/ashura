@@ -69,14 +69,14 @@ constexpr isize ISIZE_MAX = PTRDIFF_MAX;
 constexpr f32 F32_MIN          = -FLT_MAX;
 constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
 constexpr f32 F32_MAX          = FLT_MAX;
-constexpr f32 F32_EPSILON      = FLT_EPSILON;
-constexpr f32 F32_INFINITY     = INFINITY;
+constexpr f32 F32_EPS          = FLT_EPSILON;
+constexpr f32 F32_INF          = INFINITY;
 
 constexpr f64 F64_MIN          = -DBL_MAX;
 constexpr f64 F64_MIN_POSITIVE = DBL_MIN;
 constexpr f64 F64_MAX          = DBL_MAX;
-constexpr f64 F64_EPSILON      = DBL_EPSILON;
-constexpr f64 F64_INFINITY     = INFINITY;
+constexpr f64 F64_EPS          = DBL_EPSILON;
+constexpr f64 F64_INF          = INFINITY;
 
 constexpr f32 PI = 3.14159265358979323846F;
 
@@ -1578,12 +1578,12 @@ auto fn(T *t, R (*fn)(T *, Args...))
 /// non-capturing lambda to execute using the object reference as its first
 /// argument.
 template <typename T, typename StaticFunctor>
-auto fn(T *t, StaticFunctor functor)
+auto fn(T *t, StaticFunctor thunk)
 {
   using Traits = FunctorTraits<StaticFunctor>;
   using PFn    = typename Traits::Ptr;
 
-  PFn pfn = static_cast<PFn>(functor);
+  PFn pfn = static_cast<PFn>(thunk);
 
   return fn(t, pfn);
 }

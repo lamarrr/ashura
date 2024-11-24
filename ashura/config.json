@@ -21,10 +21,10 @@
         "height": 1080
     },
     "shaders": {
-        "Blur/Downsample:VS": "shaders/blur_downsample.vert.spv",
-        "Blur/Downsample:FS": "shaders/blur_downsample.frag.spv",
-        "Blur/Upsample:VS": "shaders/blur_upsample.vert.spv",
-        "Blur/Upsample:FS": "shaders/blur_upsample.frag.spv",
+        "Blur/DownSample:VS": "shaders/blur_downsample.vert.spv",
+        "Blur/DownSample:FS": "shaders/blur_downsample.frag.spv",
+        "Blur/UpSample:VS": "shaders/blur_upsample.vert.spv",
+        "Blur/UpSample:FS": "shaders/blur_upsample.frag.spv",
         "Ngon:VS": "shaders/ngon.vert.spv",
         "Ngon:FS": "shaders/ngon.frag.spv",
         "PBR:VS": "shaders/pbr.vert.spv",

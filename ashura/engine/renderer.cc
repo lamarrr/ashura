@@ -13,8 +13,6 @@ void Renderer::begin_frame(GpuContext &ctx, RenderTarget const &,
   gpu::CommandEncoder &enc = ctx.encoder();
   Resources           &r   = resources[ctx.ring_index()];
 
-  canvas.end_recording();
-
   r.ngon_vertices.copy(ctx, span(canvas.ngon_vertices).as_u8());
   r.ngon_indices.copy(ctx, span(canvas.ngon_indices).as_u8());
   r.ngon_params.copy(ctx, span(canvas.ngon_params).as_u8());
@@ -27,7 +25,7 @@ void Renderer::begin_frame(GpuContext &ctx, RenderTarget const &,
   }
 }
 
-void Renderer::end_frame(GpuContext &ctx, RenderTarget const &, Canvas &canvas)
+void Renderer::end_frame(GpuContext &ctx, RenderTarget const &, Canvas &)
 {
   gpu::CommandEncoder &enc = ctx.encoder();
 

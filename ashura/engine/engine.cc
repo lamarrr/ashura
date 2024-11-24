@@ -198,15 +198,22 @@ void Engine::init(AllocatorImpl allocator, void *app,
                                 std::move(view_system),
                                 std::move(view_ctx)};
 
-  window_system->listen(SystemEventTypes::All,
-                        fn(engine, [](Engine *engine, SystemEvent const &) {
-
-                        }));
+  window_system->listen(
+      SystemEventTypes::All,
+      fn(engine, [](Engine *engine, SystemEvent const &event) {
+        if (event.type == SystemEventTypes::ThemeChanged)
+        {
+          engine->view_ctx.theme = event.theme;
+        }
+      }));
 
   window_system->listen(
       window, WindowEventTypes::All,
       fn(engine, [](Engine *engine, WindowEvent const &event) {
-
+        if (event.type == WindowEventTypes::CloseRequested)
+        {
+          engine->should_shutdown = true;
+        }
       }));
 
   engine->device->begin_frame(nullptr).unwrap();
@@ -347,11 +354,6 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
 void Engine::uninit()
 {
-  // check resources have been purged
-  // TODO(lamarrr):
-  //  shader_map.iter([&](Span<char const>, gpu::Shader shader) {
-  //    device->uninit_shader(device, shader);
-  //  });
   CHECK(engine != nullptr);
   logger->trace("Uninitializing Engine");
   engine->~Engine();
@@ -361,6 +363,15 @@ void Engine::uninit()
 
 Engine::~Engine()
 {
+  // [ ] renderer must be uninit before device
+  // [ ] canvas
+  assets.shaders.iter(
+      [&](Vec<char> &, gpu::Shader shader) { device->uninit_shader(shader); });
+  assets.shaders.clear();
+  assets.fonts.iter([&](Vec<char> &, Dyn<Font *> &font) {
+    font->unload_from_device(gpu_ctx);
+  });
+  assets.fonts.clear();
   device->uninit_swapchain(swapchain);
   window_system->uninit_window(window);
   logger->trace("Uninitializing Window System");
@@ -376,20 +387,11 @@ void Engine::recreate_swapchain_()
       has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
                                              gpu::ImageUsage::ColorAttachment));
 
-  Vec<gpu::SurfaceFormat> formats;
-  u32 num_formats = device->get_surface_formats(surface, {}).unwrap();
-  CHECK(num_formats != 0);
-  formats.resize_uninit(num_formats).unwrap();
-  CHECK(device->get_surface_formats(surface, span(formats)).unwrap() ==
-        num_formats);
+  Vec<gpu::SurfaceFormat> formats{allocator};
+  device->get_surface_formats(surface, formats).unwrap();
 
-  Vec<gpu::PresentMode> present_modes;
-  u32                   num_present_modes =
-      device->get_surface_present_modes(surface, {}).unwrap();
-  CHECK(num_present_modes != 0);
-  present_modes.resize_uninit(num_present_modes).unwrap();
-  CHECK(device->get_surface_present_modes(surface, span(present_modes))
-            .unwrap() == num_present_modes);
+  Vec<gpu::PresentMode> present_modes{allocator};
+  device->get_surface_present_modes(surface, present_modes).unwrap();
 
   Vec2U surface_extent = window_system->get_surface_size(window);
   surface_extent.x     = max(surface_extent.x, 1U);
@@ -488,19 +490,91 @@ void Engine::recreate_swapchain_()
 
 void Engine::run(View &view)
 {
+  view_ctx.timestamp = steady_clock::now();
+  view_ctx.timedelta = 0ms;
+
   logger->trace("Starting Engine Run Loop");
+
+  if (swapchain == nullptr)
+  {
+    recreate_swapchain_();
+  }
+
   while (!should_shutdown)
   {
+    // [ ] preprocess window events
+    //
+    // [ ] recreate frame buffers when extent changed
+    //
+    time_point const timestamp = steady_clock::now();
+    view_ctx.timedelta         = timestamp - view_ctx.timestamp;
+    view_ctx.timestamp         = timestamp;
+
     window_system->poll_events();
-    renderer.begin_frame(gpu_ctx, {}, canvas);
-    // // view_system.tick(view_ctx, view, canvas);
-    // renderer.render_frame(gpu_ctx);
-    renderer.render_frame(gpu_ctx, {}, canvas);
-    renderer.end_frame(gpu_ctx, {}, canvas);
+    gpu_ctx.begin_frame(swapchain);
+
+    view_ctx.viewport_extent = as_vec2(gpu_ctx.screen_fb.extent);
+
+    // prepare view_ctx for new frame:  clear events
+
+    // view_ctx.viewport_extent;
+    // view_ctx.text_input;
+    // view_ctx.drag_payload
+    // view_ctx.keyboard;
+    // view_ctx.mouse;
+    //
+    // enum class DragSource{ ext; view; };
+    //
+    // drop type:
+    //
+    // outside drag and drop?
+    //
+    //
+    // [ ] canvas recording needs to happen before renderer render frame, two
+    // separate thingaa
+    //
+    //
+    //
+
+    gpu::RenderingAttachment attachments[] = {
+        {.view         = gpu_ctx.screen_fb.color.view,
+         .resolve      = nullptr,
+         .resolve_mode = gpu::ResolveModes::None,
+         .load_op      = gpu::LoadOp::Load,
+         .store_op     = gpu::StoreOp::Store,
+         .clear        = {}}};
+
+    RenderTarget rt{
+        .info =
+            gpu::RenderingInfo{
+                .render_area        = {.offset = {},
+                                       .extent = gpu_ctx.screen_fb.extent},
+                .num_layers         = 1,
+                .color_attachments  = span(attachments),
+                .depth_attachment   = {},
+                .stencil_attachment = {}},
+        .viewport           = gpu::Viewport{.offset = {0, 0},
+                                            .extent = as_vec2(gpu_ctx.screen_fb.extent),
+                                            .min_depth = 0,
+                                            .max_depth = 1},
+        .extent             = gpu_ctx.screen_fb.extent,
+        .color_descriptor   = gpu_ctx.screen_fb.color_texture,
+        .depth_descriptor   = nullptr,
+        .stencil_descriptor = nullptr};
+
+    canvas.begin_recording(Vec2{(f32) rt.extent.x, (f32) rt.extent.y},
+                           rt.extent);
+
+    view_system.tick(view_ctx, view, canvas);
+
+    canvas.end_recording();
+
+    renderer.begin_frame(gpu_ctx, rt, canvas);
+    renderer.render_frame(gpu_ctx, rt, canvas);
+    renderer.end_frame(gpu_ctx, rt, canvas);
+    gpu_ctx.submit_frame(swapchain);
   }
   logger->trace("Ended Engine Run Loop");
-  // poll window events
-  // preprocess window events
 }
 
 }        // namespace ash

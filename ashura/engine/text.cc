@@ -280,6 +280,12 @@ static inline void reorder_line(Span<TextRun> runs)
 void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 {
   layout.clear();
+
+  if (block.text.is_empty())
+  {
+    return;
+  }
+
   u32 const text_size = block.text.size32();
   CHECK(block.text.size() <= I32_MAX);
   CHECK(block.fonts.size() <= U16_MAX);

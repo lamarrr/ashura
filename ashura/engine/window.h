@@ -92,6 +92,8 @@ struct WindowSystem
 
   virtual gpu::Surface get_surface(Window window) = 0;
 
+  virtual SystemTheme get_theme() = 0;
+
   virtual void poll_events() = 0;
 
   virtual ClipBoard &get_clipboard() = 0;

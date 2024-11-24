@@ -679,7 +679,7 @@ void GpuContext::begin_frame(gpu::Swapchain swapchain)
   }
 }
 
-void GpuContext::end_frame(gpu::Swapchain swapchain)
+void GpuContext::submit_frame(gpu::Swapchain swapchain)
 {
   gpu::CommandEncoder &enc = encoder();
   if (swapchain != nullptr)

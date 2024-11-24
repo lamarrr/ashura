@@ -1681,7 +1681,7 @@ void Device::set_resource_name(Span<char const> label, void const *resource,
                                VkObjectType               type,
                                VkDebugReportObjectTypeEXT debug_type)
 {
-  char label_c_str[256 + 1];
+  char label_c_str[256];
   CHECK(to_c_str(label, span(label_c_str)));
   VkDebugUtilsObjectNameInfoEXT name_info{
       .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
@@ -2571,10 +2571,8 @@ Result<gpu::GraphicsPipeline, Status>
   CHECK(num_descriptor_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS);
   CHECK(info.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE);
   CHECK(is_aligned(4U, info.push_constants_size));
-  CHECK(info.vertex_shader.entry_point.size() > 0 &&
-        info.vertex_shader.entry_point.size() <= 255);
-  CHECK(info.fragment_shader.entry_point.size() > 0 &&
-        info.fragment_shader.entry_point.size() <= 255);
+  CHECK(!info.vertex_shader.entry_point.is_empty());
+  CHECK(!info.fragment_shader.entry_point.is_empty());
   CHECK(num_attributes <= gpu::MAX_VERTEX_ATTRIBUTES);
   CHECK(num_colors <= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS);
   CHECK(num_depths <= 1);
@@ -3621,18 +3619,41 @@ Result<usize, Status> Device::get_pipeline_cache_size(gpu::PipelineCache cache)
   return Ok{(usize) size};
 }
 
-Result<usize, Status> Device::get_pipeline_cache_data(gpu::PipelineCache cache,
-                                                      Span<u8>           out)
+Result<Void, Status> Device::get_pipeline_cache_data(gpu::PipelineCache cache,
+                                                     Vec<u8>           &out)
 {
-  usize size = out.size_bytes();
+  usize size = 0;
 
   VkResult result = vk_table.GetPipelineCacheData(vk_dev, (PipelineCache) cache,
-                                                  &size, out.data());
-  if (result != VK_SUCCESS)
+                                                  &size, nullptr);
+
+  if (result == VK_SUCCESS)
+  {
+    return Ok{};
+  }
+
+  if (result != VK_INCOMPLETE)
   {
     return Err{(Status) result};
   }
-  return Ok{(usize) size};
+
+  usize const offset = out.size();
+
+  if (!out.extend_uninit(size))
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  result = vk_table.GetPipelineCacheData(vk_dev, (PipelineCache) cache, &size,
+                                         out.data() + offset);
+
+  if (result != VK_SUCCESS)
+  {
+    out.resize_uninit(offset).unwrap();
+    return Err{(Status) result};
+  }
+
+  return Ok{};
 }
 
 Result<Void, Status>
@@ -3995,9 +4016,9 @@ Result<Void, Status> Device::wait_queue_idle()
   return Ok{Void{}};
 }
 
-Result<u32, Status>
+Result<Void, Status>
     Device::get_surface_formats(gpu::Surface             surface_,
-                                Span<gpu::SurfaceFormat> formats)
+                                Vec<gpu::SurfaceFormat> &formats)
 {
   VkSurfaceKHR const surface = (VkSurfaceKHR) surface_;
 
@@ -4031,20 +4052,26 @@ Result<u32, Status>
     CHECK(num_read == num_supported && result != VK_INCOMPLETE);
   }
 
-  u32 num_copies = min(num_supported, formats.size32());
+  usize const offset = formats.size();
 
-  for (u32 i = 0; i < num_copies; i++)
+  if (!formats.extend_uninit(num_supported))
   {
-    formats[i].format      = (gpu::Format) vk_formats[i].format;
-    formats[i].color_space = (gpu::ColorSpace) vk_formats[i].colorSpace;
+    return Err{Status::OutOfHostMemory};
   }
 
-  return Ok{(u32) num_supported};
+  for (u32 i = 0; i < num_supported; i++)
+  {
+    formats[offset + i].format = (gpu::Format) vk_formats[i].format;
+    formats[offset + i].color_space =
+        (gpu::ColorSpace) vk_formats[i].colorSpace;
+  }
+
+  return Ok{};
 }
 
-Result<u32, Status>
+Result<Void, Status>
     Device::get_surface_present_modes(gpu::Surface           surface_,
-                                      Span<gpu::PresentMode> modes)
+                                      Vec<gpu::PresentMode> &modes)
 {
   VkSurfaceKHR const surface = (VkSurfaceKHR) surface_;
 
@@ -4079,14 +4106,19 @@ Result<u32, Status>
     CHECK(num_read == num_supported && result != VK_INCOMPLETE);
   }
 
-  u32 num_copies = min(num_supported, modes.size32());
+  usize const offset = modes.size();
 
-  for (u32 i = 0; i < num_copies; i++)
+  if (!modes.extend_uninit(num_supported))
   {
-    modes[i] = (gpu::PresentMode) vk_present_modes[i];
+    return Err{Status::OutOfHostMemory};
   }
 
-  return Ok{(u32) num_supported};
+  for (u32 i = 0; i < num_supported; i++)
+  {
+    modes[offset + i] = (gpu::PresentMode) vk_present_modes[i];
+  }
+
+  return Ok{};
 }
 
 Result<gpu::SurfaceCapabilities, Status>
@@ -4395,7 +4427,6 @@ void CommandEncoder::begin_debug_marker(Span<char const> region_name,
 {
   ENCODE_PRELUDE();
   CHECK(!is_in_pass());
-  CHECK(region_name.size() < 256);
   char region_name_cstr[256];
   CHECK(to_c_str(region_name, span(region_name_cstr)));
 
