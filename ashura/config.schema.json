@@ -80,6 +80,11 @@
                     "type": "boolean",
                     "default": false
                 },
+                "full_screen": {
+                    "description": "Set window to full-screen during startup",
+                    "type": "boolean",
+                    "default": false
+                },
                 "width": {
                     "description": "Initial width of the window",
                     "type": "integer",
