@@ -182,7 +182,7 @@ struct [[nodiscard]] Option
     return value_;
   }
 
-  constexpr Option<T const *> as_ref() const
+  constexpr Option<T const *> as_ptr() const
   {
     if (is_some_)
     {
@@ -191,7 +191,7 @@ struct [[nodiscard]] Option
     return None;
   }
 
-  constexpr Option<T *> as_ref()
+  constexpr Option<T *> as_ptr()
   {
     if (is_some_)
     {
@@ -255,7 +255,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename Fn, typename AltFn>
-  constexpr auto map_or_else(Fn op, AltFn alt_fn)
+  constexpr decltype(auto) map_or_else(Fn &&op, AltFn &&alt_fn)
   {
     if (is_some_)
     {
@@ -299,7 +299,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename SomeFn, typename NoneFn>
-  constexpr auto match(SomeFn &&some_fn, NoneFn &&none_fn)
+  constexpr decltype(auto) match(SomeFn &&some_fn, NoneFn &&none_fn)
   {
     if (is_some_)
     {
@@ -309,7 +309,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename SomeFn, typename NoneFn>
-  constexpr auto match(SomeFn &&some_fn, NoneFn &&none_fn) const
+  constexpr decltype(auto) match(SomeFn &&some_fn, NoneFn &&none_fn) const
   {
     if (is_some_)
     {

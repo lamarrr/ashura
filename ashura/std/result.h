@@ -239,7 +239,7 @@ struct [[nodiscard]] Result
     return err_;
   }
 
-  constexpr Result<T const *, E const *> as_ref() const
+  constexpr Result<T const *, E const *> as_ptr() const
   {
     if (is_ok_)
     {
@@ -248,7 +248,7 @@ struct [[nodiscard]] Result
     return Err{&err_};
   }
 
-  constexpr Result<T *, E *> as_ref()
+  constexpr Result<T *, E *> as_ptr()
   {
     if (is_ok_)
     {
@@ -279,7 +279,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename Fn, typename AltFn>
-  constexpr auto map_or_else(Fn &&op, AltFn &&alt_op)
+  constexpr decltype(auto) map_or_else(Fn &&op, AltFn &&alt_op)
   {
     if (is_ok_)
     {
@@ -359,7 +359,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename OkFn, typename ErrFn>
-  constexpr auto match(OkFn &&ok_fn, ErrFn &&err_fn)
+  constexpr decltype(auto) match(OkFn &&ok_fn, ErrFn &&err_fn)
   {
     if (is_ok_)
     {
@@ -369,7 +369,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename OkFn, typename ErrFn>
-  constexpr auto match(OkFn &&ok_fn, ErrFn &&err_fn) const
+  constexpr decltype(auto) match(OkFn &&ok_fn, ErrFn &&err_fn) const
   {
     if (is_ok_)
     {
