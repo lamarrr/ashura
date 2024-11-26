@@ -45,9 +45,74 @@ struct Frame
   Size width{};
   Size height{};
 
+  constexpr Frame()                         = default;
+  constexpr Frame(Frame const &)            = default;
+  constexpr Frame(Frame &&)                 = default;
+  constexpr Frame &operator=(Frame const &) = default;
+  constexpr Frame &operator=(Frame &&)      = default;
+  constexpr ~Frame()                        = default;
+
+  constexpr Frame(Size width, Size height) : width{width}, height{height}
+  {
+  }
+
+  constexpr Frame(f32 width, f32 height, bool constrain = true) :
+      width{.offset = width, .rmax = constrain ? 1 : F32_INF},
+      height{.offset = height, .rmax = constrain ? 1 : F32_INF}
+  {
+  }
+
   constexpr Vec2 operator()(Vec2 extent) const
   {
     return Vec2{width(extent.x), height(extent.y)};
+  }
+
+  constexpr Frame offset(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.offset  = w;
+    out.height.offset = h;
+    return out;
+  }
+
+  constexpr Frame scale(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.scale  = w;
+    out.height.scale = h;
+    return out;
+  }
+
+  constexpr Frame rmin(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.rmin  = w;
+    out.height.rmin = h;
+    return out;
+  }
+
+  constexpr Frame rmax(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.rmax  = w;
+    out.height.rmax = h;
+    return out;
+  }
+
+  constexpr Frame min(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.min  = w;
+    out.height.min = h;
+    return out;
+  }
+
+  constexpr Frame max(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.max  = w;
+    out.height.max = h;
+    return out;
   }
 };
 

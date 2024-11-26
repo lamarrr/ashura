@@ -125,6 +125,11 @@ struct DragState
   }
 };
 
+// [ ] implement
+struct Spacer : View
+{
+};
+
 /// @param axis flex axis to layout children along
 /// @param main_align main-axis alignment. specifies how free space is used on
 /// the main axis
@@ -138,7 +143,7 @@ struct FlexView : View
     bool      wrap        = true;
     MainAlign main_align  = MainAlign::Start;
     f32       cross_align = 0;
-    Frame     frame       = {.width = {.scale = 1}, .height = {.scale = 1}};
+    Frame     frame       = Frame{}.scale(1, 1);
   } styling;
 
   struct Inner
@@ -172,9 +177,7 @@ struct FlexView : View
 
   FlexView &frame(f32 width, f32 height, bool constrain = true)
   {
-    styling.frame = Frame{
-        .width  = Size{.offset = width, .rmax = constrain ? 1 : F32_INF},
-        .height = Size{.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -194,6 +197,17 @@ struct FlexView : View
   {
     inner.items.extend_copy(list).unwrap();
     return *this;
+  }
+
+  virtual ViewState tick(ViewContext const &, CRect const &, f32, ViewEvents,
+                         Fn<void(View &)> build) override
+  {
+    for (View *item : inner.items)
+    {
+      build(*item);
+    }
+
+    return ViewState{};
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
@@ -333,7 +347,7 @@ struct StackView : View
   {
     bool  reverse   = false;
     Vec2  alignment = {0, 0};
-    Frame frame     = {.width = {.scale = 1}, .height = {.scale = 1}};
+    Frame frame     = Frame{}.scale(1, 1);
   } styling;
 
   struct Inner
@@ -361,9 +375,7 @@ struct StackView : View
 
   StackView &frame(f32 width, f32 height, bool constrain = true)
   {
-    styling.frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -398,6 +410,17 @@ struct StackView : View
       z += (i32) (num - i);
     }
     return z;
+  }
+
+  virtual ViewState tick(ViewContext const &, CRect const &, f32, ViewEvents,
+                         Fn<void(View &)> build) override
+  {
+    for (View *item : inner.items)
+    {
+      build(*item);
+    }
+
+    return ViewState{};
   }
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override
@@ -566,7 +589,7 @@ struct TextInput : View
     bool       disabled       = false;
     bool       editing        = false;
     bool       submit         = false;
-    bool       is_multiline   = false;
+    bool       multiline      = false;
     bool       enter_submits  = false;
     bool       tab_input      = false;
     u32        lines_per_page = 1;
@@ -607,6 +630,25 @@ struct TextInput : View
   }
 
   virtual ~TextInput() override = default;
+
+  TextInput &multiline(bool e)
+  {
+    state.multiline = e;
+    return *this;
+  }
+
+  TextInput &enter_submits(bool e)
+  {
+    state.enter_submits = e;
+
+    return *this;
+  }
+
+  TextInput &tab_input(bool e)
+  {
+    state.tab_input = e;
+    return *this;
+  }
 
   TextInput &highlight(TextHighlight const &highlight)
   {
@@ -793,7 +835,7 @@ struct TextInput : View
     {
       return TextCommand::HitSelect;
     }
-    if (state.is_multiline && !state.enter_submits &&
+    if (state.multiline && !state.enter_submits &&
         ctx.key_state(KeyCode::Return))
     {
       return TextCommand::NewLine;
@@ -964,7 +1006,7 @@ struct Button : View
     ColorGradient color          = DEFAULT_THEME.primary;
     ColorGradient hovered_color  = DEFAULT_THEME.primary_variant;
     ColorGradient disabled_color = DEFAULT_THEME.inactive;
-    CornerRadii   corner_radii   = Size{.scale = 0.125F};
+    CornerRadii   corner_radii   = Size{.scale = 0.25};
     f32           stroke         = 0.0F;
     f32           thickness      = 1.0F;
     Frame         frame          = {};
@@ -1104,9 +1146,7 @@ struct TextButton : Button
 
   TextButton &frame(f32 width, f32 height, bool constrain = true)
   {
-    styling.frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -1118,7 +1158,7 @@ struct TextButton : Button
 
   TextButton &padding(f32 x, f32 y)
   {
-    styling.padding = Frame{.width = {.offset = x}, .height = {.offset = y}};
+    styling.padding = Frame{x, y};
     return *this;
   }
 
@@ -1167,8 +1207,8 @@ struct CheckBox : View
     f32           thickness         = 1;
     f32           tick_thickness    = 1.5F;
     CornerRadii   corner_radii      = Size{.scale = 0.125F};
-    Frame         frame             = Frame{.width = {20}, .height = {20}};
-    FocusStyle    focus             = {};
+    Frame         frame{20, 20};
+    FocusStyle    focus = {};
   } styling;
 
   struct Callbacks
@@ -1226,9 +1266,7 @@ struct CheckBox : View
 
   CheckBox &frame(f32 width, f32 height, bool constrain = true)
   {
-    styling.frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -1316,12 +1354,12 @@ struct Slider : View
 
   struct Style
   {
-    Axis          axis                 = Axis::X;
-    Frame         frame                = {.width = {100}, .height = {30}};
-    Frame         thumb_frame          = {.width = {20}, .height = {20}};
-    Frame         track_frame          = {.width = {97.5F}, .height = {27.5F}};
-    ColorGradient thumb_color          = DEFAULT_THEME.primary * opacity(0.5F);
-    ColorGradient thumb_hovered_color  = DEFAULT_THEME.primary * opacity(0.75F);
+    Axis          axis = Axis::X;
+    Frame         frame{100, 20};
+    Frame         thumb_frame{20, 20};
+    Frame         track_frame{100, 20};
+    ColorGradient thumb_color          = DEFAULT_THEME.primary;
+    ColorGradient thumb_hovered_color  = DEFAULT_THEME.primary;
     ColorGradient thumb_dragging_color = DEFAULT_THEME.primary;
     CornerRadii   thumb_corner_radii   = Size{.scale = 0.125F};
     ColorGradient track_color          = DEFAULT_THEME.inactive;
@@ -1335,6 +1373,19 @@ struct Slider : View
     Fn<void(f32)> changed = noop;
   } cb;
 
+  Slider &range(f32 low, f32 high)
+  {
+    state.low  = low;
+    state.high = high;
+    return *this;
+  }
+
+  Slider &interp(f32 t)
+  {
+    state.t = t;
+    return *this;
+  }
+
   Slider &axis(Axis a)
   {
     styling.axis = a;
@@ -1343,9 +1394,7 @@ struct Slider : View
 
   Slider &frame(f32 width, f32 height, bool constrain = true)
   {
-    styling.frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -1357,9 +1406,7 @@ struct Slider : View
 
   Slider &thumb_frame(f32 width, f32 height, bool constrain = true)
   {
-    styling.thumb_frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.thumb_frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -1371,9 +1418,7 @@ struct Slider : View
 
   Slider &track_frame(f32 width, f32 height, bool constrain = true)
   {
-    styling.track_frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.track_frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -1549,15 +1594,42 @@ struct Switch : View
     ColorGradient off_hovered_color = DEFAULT_THEME.inactive;
     ColorGradient track_color       = DEFAULT_THEME.inactive;
     CornerRadii   corner_radii      = Size{.scale = 0.125F};
-    Frame         frame             = {.width = {40}, .height = {20}};
-    Frame         thumb_frame       = {.width = {17.5}, .height = {17.5}};
-    FocusStyle    focus             = {};
+    Frame         frame{40, 20};
+    Frame         thumb_frame{17.5, 17.5};
+    FocusStyle    focus = {};
   } styling;
 
   struct Callbacks
   {
     Fn<void(bool)> changed = noop;
   } cb;
+
+  Switch &on()
+  {
+    state.value = true;
+    cb.changed(true);
+    return *this;
+  }
+
+  Switch &off()
+  {
+    state.value = false;
+    cb.changed(false);
+    return *this;
+  }
+
+  Switch &toggle()
+  {
+    if (state.value)
+    {
+      on();
+    }
+    else
+    {
+      off();
+    }
+    return *this;
+  }
 
   Switch &on_color(ColorGradient c)
   {
@@ -1597,9 +1669,7 @@ struct Switch : View
 
   Switch &frame(f32 width, f32 height, bool constrain = true)
   {
-    styling.frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -1611,9 +1681,7 @@ struct Switch : View
 
   Switch &thumb_frame(f32 width, f32 height, bool constrain = true)
   {
-    styling.thumb_frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.thumb_frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -1647,12 +1715,10 @@ struct Switch : View
   virtual void render(Canvas &canvas, CRect const &region, f32,
                       CRect const &) override
   {
-    ;
-
     Vec2 const thumb_extent = styling.thumb_frame(region.extent);
     Vec2 const thumb_center =
         region.center + space_align(region.extent, thumb_extent,
-                                    Vec2{state.value ? -1.0F : 1.0F, 0});
+                                    Vec2{state.value ? 1.0F : -1.0F, 0});
 
     ColorGradient thumb_color;
     if (state.press.hovered)
@@ -1697,7 +1763,7 @@ struct RadioBox : View
 
   struct Style
   {
-    Frame         frame               = {.width = {50}, .height = {50}};
+    Frame         frame{20, 20};
     CornerRadii   corner_radii        = Size{.scale = 0.125F};
     f32           thickness           = 1.0F;
     ColorGradient color               = DEFAULT_THEME.inactive;
@@ -1743,9 +1809,7 @@ struct RadioBox : View
 
   RadioBox &frame(f32 width, f32 height, bool constrain = true)
   {
-    styling.frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -1861,9 +1925,9 @@ struct ScalarState
 {
   ScalarInput base    = {};
   ScalarInput min     = {};
-  ScalarInput max     = {};
+  ScalarInput max     = {.i32 = 200};
   ScalarInput step    = {};
-  ScalarInput current = {};
+  ScalarInput current = {.i32 = 100};
 
   constexpr void step_value(i32 direction)
   {
@@ -1947,10 +2011,9 @@ struct ScalarDragBox : View
 
   struct Style
   {
-    Frame         frame        = {.width = {.min = 100},
-                                  .height = {.min = DEFAULT_THEME.body_font_height + 10}};
-    Frame         padding      = {.width = {5}, .height = {5}};
-    Size          thumb_width  = {2.75F};
+    Frame         frame = Frame{}.min(100, DEFAULT_THEME.body_font_height + 10);
+    Frame         padding{5, 5};
+    Size          thumb_width  = {5};
     CornerRadii   corner_radii = Size{.scale = 0.125F};
     ColorGradient color        = DEFAULT_THEME.inactive;
     ColorGradient thumb_color  = DEFAULT_THEME.inactive;
@@ -1973,9 +2036,7 @@ struct ScalarDragBox : View
 
   ScalarDragBox()
   {
-    inner.input.state.is_multiline  = false;
-    inner.input.state.tab_input     = false;
-    inner.input.state.enter_submits = false;
+    inner.input.multiline(false).tab_input(false).enter_submits(false);
   }
 
   virtual ~ScalarDragBox() override
@@ -2034,7 +2095,7 @@ struct ScalarDragBox : View
   }
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
-                         ViewEvents events, Fn<void(View &)>) override
+                         ViewEvents events, Fn<void(View &)> build) override
   {
     state.dragging = events.dragging;
 
@@ -2074,6 +2135,8 @@ struct ScalarDragBox : View
     }
 
     state.focus.tick(events);
+
+    build(inner.input);
 
     return ViewState{.pointable = !state.disabled,
                      .draggable = !state.disabled,
@@ -2158,27 +2221,45 @@ struct ScalarBox : FlexView
         .wrap(false)
         .main_align(MainAlign::Start)
         .cross_align(0)
-        .frame(Frame{.width = {.scale = 1}, .height = {.scale = 1}});
+        .frame(Frame{}.scale(1, 1));
 
     inner.dec.text(U"-"_utf)
-        .style(TextStyle{.foreground = DEFAULT_THEME.on_primary},
+        .style(TextStyle{.shadow_scale  = 1,
+                         .shadow_offset = {1, 1},
+                         .foreground    = DEFAULT_THEME.on_primary,
+                         .shadow        = colors::BLACK},
                FontStyle{.font        = engine->default_font,
                          .font_height = DEFAULT_THEME.body_font_height,
-                         .line_height = DEFAULT_THEME.line_height})
-        .on_pressed(fn(this, [](ScalarBox *b) {
-          b->inner.drag.state.value.step_value(-1);
-          b->cb.update(b->inner.drag.state.value.current);
-        }));
+                         .line_height = 1})
+        .on_pressed(fn(this,
+                       [](ScalarBox *b) {
+                         b->inner.drag.state.value.step_value(-1);
+                         b->cb.update(b->inner.drag.state.value.current);
+                       }))
+        .padding(5, 5);
 
     inner.inc.text(U"+"_utf)
-        .style(TextStyle{.foreground = DEFAULT_THEME.on_primary},
+        .style(TextStyle{.shadow_scale  = 1,
+                         .shadow_offset = {1, 1},
+                         .foreground    = DEFAULT_THEME.on_primary,
+                         .shadow        = colors::BLACK},
                FontStyle{.font        = engine->default_font,
                          .font_height = DEFAULT_THEME.body_font_height,
-                         .line_height = DEFAULT_THEME.line_height})
-        .on_pressed(fn(this, [](ScalarBox *b) {
-          b->inner.drag.state.value.step_value(1);
-          b->cb.update(b->inner.drag.state.value.current);
-        }));
+                         .line_height = 1})
+        .on_pressed(fn(this,
+                       [](ScalarBox *b) {
+                         b->inner.drag.state.value.step_value(1);
+                         b->cb.update(b->inner.drag.state.value.current);
+                       }))
+        .padding(5, 5);
+
+    // [ ] color, stroke color, etc. the rectangles at small sizes seem to have
+    // bad border radii.
+    //
+    // [ ] probably due to incorrect rrect rendering
+    //
+    // [ ] fix interpolation of slider
+    //
 
     inner.drag.cb.update =
         fn(this, [](ScalarBox *b, ScalarInput in) { b->cb.update(in); });
@@ -2189,6 +2270,8 @@ struct ScalarBox : FlexView
   }
 
   virtual ~ScalarBox() override = default;
+
+  // [ ] placeholder
 
   ScalarBox &stroke(f32 s)
   {
@@ -2206,8 +2289,7 @@ struct ScalarBox : FlexView
   {
     inner.dec.padding(x, y);
     inner.inc.padding(x, y);
-    inner.drag.styling.padding = Frame{.width  = {.offset = x, .rmax = 1},
-                                       .height = {.offset = y, .rmax = 1}};
+    inner.drag.styling.padding = Frame{x, y};
     return *this;
   }
 
@@ -2223,9 +2305,7 @@ struct ScalarBox : FlexView
   {
     inner.dec.frame(width, height, constrain);
     inner.inc.frame(width, height, constrain);
-    inner.drag.styling.frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    inner.drag.styling.frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -2473,8 +2553,8 @@ struct ScrollView : View
 
   struct Style
   {
-    Axes  axes       = Axes::X | Axes::Y;
-    Frame frame      = {.width = {200}, .height = {200}};
+    Axes  axes = Axes::X | Axes::Y;
+    Frame frame{200, 200};
     Size  x_bar_size = {.offset = 10};
     Size  y_bar_size = {.offset = 10};
   } styling;
@@ -2566,9 +2646,7 @@ struct ScrollView : View
 
   ScrollView &frame(f32 width, f32 height, bool constrain)
   {
-    styling.frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.frame = Frame{width, height, constrain};
     return *this;
   }
 
@@ -2761,7 +2839,7 @@ struct ComboBoxScrollView : View
 
   struct Style
   {
-    Frame         frame        = {.width = {150}, .height = {450}};
+    Frame         frame{150, 450};
     Size          item_height  = {25};
     CornerRadii   corner_radii = Size{.scale = 0.125F};
     f32           alignment    = 0;
@@ -2836,6 +2914,8 @@ struct ComboBoxScrollView : View
   }
 };
 
+// [ ] re-work combobox
+// [ ] add list view
 struct ComboBox : View
 {
   struct State
@@ -2857,10 +2937,9 @@ struct ComboBox : View
     ColorGradient color         = DEFAULT_THEME.surface;
     ColorGradient hovered_color = DEFAULT_THEME.surface_variant;
     f32           alignment     = 0;
-    Frame         frame =
-        Frame{.width = {.scale = 1, .max = 200}, .height = {.offset = 25}};
-    FocusStyle          focus = {};
-    ComboBoxItem::Style item  = {};
+    Frame         frame = Frame{}.scale(1, 0).offset(0, 25).max(200, F32_INF);
+    FocusStyle    focus = {};
+    ComboBoxItem::Style item = {};
   } styling;
 
   struct Callbacks
@@ -2896,9 +2975,7 @@ struct ComboBox : View
 
   ComboBox &frame(f32 width, f32 height, bool constrain)
   {
-    styling.frame =
-        Frame{.width  = {.offset = width, .rmax = constrain ? 1 : F32_INF},
-              .height = {.offset = height, .rmax = constrain ? 1 : F32_INF}};
+    styling.frame = Frame{width, height, constrain};
     return *this;
   }
 
