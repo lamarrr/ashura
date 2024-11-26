@@ -28,6 +28,7 @@ struct TextHighlight
 /// - manages and checks for text layout invalidation
 /// - recalculate text layout when it changes if necessary
 /// - renders the text using the computed style information
+/// @param runs  Run-End encoded sequences of the runs
 struct RenderText
 {
   struct

@@ -165,13 +165,10 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
 
       GlyphMetrics m;
 
-      // expressed on a AU_UNIT scale
-      m.bearing.x = s->metrics.horiBearingX;
-      m.bearing.y = s->metrics.horiBearingY;
-      m.advance   = s->metrics.horiAdvance;
-      m.extent.x  = s->metrics.width;
-      m.extent.y  = s->metrics.height;
-      m.descent   = max(m.extent.y - m.bearing.y, 0);
+      // expressed on an AU_UNIT scale
+      m.bearing = Vec2I{s->metrics.horiBearingX, -s->metrics.horiBearingY};
+      m.advance = s->metrics.horiAdvance;
+      m.extent  = Vec2I{s->metrics.width, s->metrics.height};
 
       // bin offsets are determined after binning and during rect packing
       glyphs[i] = Glyph{.is_valid = true, .metrics = m};

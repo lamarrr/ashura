@@ -126,7 +126,7 @@ struct ShapeInfo
 
   f32 tiling = 1;
 
-  f32 edge_smoothness = 0.0015F;
+  f32 edge_smoothness = 0.015F;
 };
 
 struct Canvas

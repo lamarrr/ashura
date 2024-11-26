@@ -3,7 +3,7 @@
     "version": "0.0.1",
     "gpu": {
         "validation": false,
-        "vsync": false,
+        "vsync": true,
         "preferences": [
             "dgpu",
             "vgpu",
@@ -16,6 +16,7 @@
     },
     "window": {
         "resizable": true,
+        "full_screen": false,
         "maximized": false,
         "width": 1920,
         "height": 1080
@@ -38,6 +39,6 @@
         "Roboto": "fonts/Roboto/Roboto-Regular.ttf",
         "RobotoMono": "fonts/RobotoMono/RobotoMono-Regular.ttf"
     },
-    "default_font": "Amiri",
+    "default_font": "RobotoMono",
     "images": {}
 }

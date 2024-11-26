@@ -10,14 +10,18 @@
 namespace ash
 {
 
-// App Unit (AU) = 1/1024 of a px
-constexpr i32 AU_UNIT = 1024;
+// App Unit (AU)
+constexpr i32 AU_UNIT = 128 * 64;
 
-static_assert(AU_UNIT % 64 == 0);
+static_assert((AU_UNIT % 64) == 0,
+              "App Unit needs to be in 26.6 Fractional Unit");
+
+static_assert((AU_UNIT / 64) >= 64,
+              "App Unit needs to be at least 64 26.6 Fractional Units");
 
 constexpr f32 au_to_px(i32 au, f32 base)
 {
-  return au / (f32) AU_UNIT * base;
+  return (au / (f32) AU_UNIT) * base;
 }
 
 constexpr Vec2 au_to_px(Vec2I au, f32 base)
@@ -67,7 +71,6 @@ inline bool push(Context const &ctx, Spec const &spec, FontErr const &err)
 struct GlyphMetrics
 {
   Vec2I bearing = {};
-  i32   descent = 0;
   i32   advance = 0;
   Vec2I extent  = {};
 };

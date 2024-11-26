@@ -295,7 +295,7 @@ struct GlyphShape
 {
   u32   glyph   = 0;
   u32   cluster = 0;
-  Vec2I advance = {};
+  i32   advance = 0;
   Vec2I offset  = {};
 };
 
@@ -324,6 +324,11 @@ struct TextRunMetrics
   i32 advance = 0;
   i32 ascent  = 0;
   i32 descent = 0;
+
+  constexpr i32 height() const
+  {
+    return ascent + descent;
+  }
 };
 
 /// @param first index of first codepoint in the source text

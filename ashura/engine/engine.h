@@ -26,6 +26,7 @@ struct EngineCfg
   {
     bool resizable = true;
     bool maximized = false;
+    bool full_screen = false;
     u32  width     = 1920;
     u32  height    = 1080;
   };

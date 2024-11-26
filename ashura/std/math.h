@@ -45,8 +45,6 @@ enum class Axes : u8
 
 ASH_DEFINE_ENUM_BIT_OPS(Axes)
 
-// [ ] add more constructors, i.e implicit splat
-
 struct alignas(8) Vec2
 {
   f32 x = 0;

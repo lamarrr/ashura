@@ -14,12 +14,12 @@ out(f"""
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include <cstddef>
+#include "ashura/std/types.h"
+#include "ashura/std/v.h"
 
 namespace ash{{
 
-static constexpr std::size_t MAX_TUPLE_SIZE = {
-    MAX_TUPLE_SIZE};
+static constexpr usize MAX_TUPLE_SIZE = {MAX_TUPLE_SIZE};
 
 """)
 
@@ -32,19 +32,25 @@ if constexpr(I == {i})
 }}
 """ for i in range(MAX_TUPLE_SIZE)]
 
-tuple_member_func = f"""
-template<std::size_t I, typename Tuple>
-constexpr decltype(auto) tuple_member(Tuple& t){{
+out(f"""
+namespace intr
+{{
+
+template<usize I, typename Tuple>
+constexpr decltype(auto) tuple_member(Tuple& t)
+{{
 {"else".join(tuple_cases)}
 }};
-"""
 
-out(tuple_member_func)
+}}
+""")
+
 
 out(
     f"""
 template<typename ... T>
-struct Tuple{{
+struct Tuple
+{{
 static_assert("Tuple size exceeds MAX_TUPLE_SIZE");
 }};
 """
@@ -67,13 +73,26 @@ struct Tuple<{", ".join(types)}>
 
 {"\n".join(alias_decls)}
 
-static constexpr std::size_t SIZE = {size};
+static constexpr usize SIZE = {size};
 
-static constexpr std::size_t size(){{
+static constexpr usize size()
+{{
     return SIZE;
 }}
 
 {"\n".join(value_decls)}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{{
+    return intr::tuple_member<I>(*this);
+}}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{{
+    return intr::tuple_member<I>(*this);
+}}
 
 }};
 

@@ -3,20 +3,27 @@
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include <cstddef>
 #include "ashura/std/v.h"
+#include "ashura/std/error.h"
+#include "ashura/std/log.h"
+#include "ashura/std/types.h"
 
-namespace ash{
+namespace ash
+{
 
-static constexpr std::size_t MAX_ENUM_SIZE = 16;
+static constexpr usize MAX_ENUM_SIZE = 16;
 
 template<typename ... T>
-struct Enum{
+struct Enum
+{
 static_assert("Enum size exceeds MAX_ENUM_SIZE");
 };
 
-template<std::size_t I, typename Enum>
-constexpr decltype(auto) enum_member(Enum& e){
+namespace intr{
+
+template<usize I, typename Enum>
+constexpr decltype(auto) enum_member(Enum& e)
+{
 
 if constexpr(I == 0)
 {
@@ -99,8 +106,6 @@ if constexpr(I == 15)
 }
 
 };
-
-namespace intr{
 
 template<typename E, typename... Args>
 constexpr void enum_member_construct(E * e, Args&&... args )
@@ -595,9 +600,10 @@ struct Enum<>
 
 
 
-static constexpr std::size_t SIZE = 0;
+static constexpr usize SIZE = 0;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -605,12 +611,49 @@ static constexpr std::size_t size(){
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
+
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
 
 };
 
@@ -621,16 +664,18 @@ struct Enum<T0>
 
 typedef T0 E0;
 
-static constexpr std::size_t SIZE = 1;
+static constexpr usize SIZE = 1;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -670,10 +715,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -681,6 +726,43 @@ constexpr Enum(T0 v) :
 index_{0},
 v0_{(T0 &&) v}
 { }
+
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
 
 };
 
@@ -692,16 +774,18 @@ struct Enum<T0, T1>
 typedef T0 E0;
 typedef T1 E1;
 
-static constexpr std::size_t SIZE = 2;
+static constexpr usize SIZE = 2;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -742,10 +826,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -760,6 +844,43 @@ index_{1},
 v1_{(T1 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -771,16 +892,18 @@ typedef T0 E0;
 typedef T1 E1;
 typedef T2 E2;
 
-static constexpr std::size_t SIZE = 3;
+static constexpr usize SIZE = 3;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -822,10 +945,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -846,6 +969,43 @@ index_{2},
 v2_{(T2 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -858,16 +1018,18 @@ typedef T1 E1;
 typedef T2 E2;
 typedef T3 E3;
 
-static constexpr std::size_t SIZE = 4;
+static constexpr usize SIZE = 4;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -910,10 +1072,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -940,6 +1102,43 @@ index_{3},
 v3_{(T3 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -953,16 +1152,18 @@ typedef T2 E2;
 typedef T3 E3;
 typedef T4 E4;
 
-static constexpr std::size_t SIZE = 5;
+static constexpr usize SIZE = 5;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -1006,10 +1207,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -1042,6 +1243,43 @@ index_{4},
 v4_{(T4 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -1056,16 +1294,18 @@ typedef T3 E3;
 typedef T4 E4;
 typedef T5 E5;
 
-static constexpr std::size_t SIZE = 6;
+static constexpr usize SIZE = 6;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -1110,10 +1350,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -1152,6 +1392,43 @@ index_{5},
 v5_{(T5 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -1167,16 +1444,18 @@ typedef T4 E4;
 typedef T5 E5;
 typedef T6 E6;
 
-static constexpr std::size_t SIZE = 7;
+static constexpr usize SIZE = 7;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -1222,10 +1501,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -1270,6 +1549,43 @@ index_{6},
 v6_{(T6 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -1286,16 +1602,18 @@ typedef T5 E5;
 typedef T6 E6;
 typedef T7 E7;
 
-static constexpr std::size_t SIZE = 8;
+static constexpr usize SIZE = 8;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -1342,10 +1660,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -1396,6 +1714,43 @@ index_{7},
 v7_{(T7 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -1413,16 +1768,18 @@ typedef T6 E6;
 typedef T7 E7;
 typedef T8 E8;
 
-static constexpr std::size_t SIZE = 9;
+static constexpr usize SIZE = 9;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -1470,10 +1827,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -1530,6 +1887,43 @@ index_{8},
 v8_{(T8 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -1548,16 +1942,18 @@ typedef T7 E7;
 typedef T8 E8;
 typedef T9 E9;
 
-static constexpr std::size_t SIZE = 10;
+static constexpr usize SIZE = 10;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -1606,10 +2002,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -1672,6 +2068,43 @@ index_{9},
 v9_{(T9 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -1691,16 +2124,18 @@ typedef T8 E8;
 typedef T9 E9;
 typedef T10 E10;
 
-static constexpr std::size_t SIZE = 11;
+static constexpr usize SIZE = 11;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -1750,10 +2185,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -1822,6 +2257,43 @@ index_{10},
 v10_{(T10 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -1842,16 +2314,18 @@ typedef T9 E9;
 typedef T10 E10;
 typedef T11 E11;
 
-static constexpr std::size_t SIZE = 12;
+static constexpr usize SIZE = 12;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -1902,10 +2376,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -1980,6 +2454,43 @@ index_{11},
 v11_{(T11 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -2001,16 +2512,18 @@ typedef T10 E10;
 typedef T11 E11;
 typedef T12 E12;
 
-static constexpr std::size_t SIZE = 13;
+static constexpr usize SIZE = 13;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -2062,10 +2575,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -2146,6 +2659,43 @@ index_{12},
 v12_{(T12 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -2168,16 +2718,18 @@ typedef T11 E11;
 typedef T12 E12;
 typedef T13 E13;
 
-static constexpr std::size_t SIZE = 14;
+static constexpr usize SIZE = 14;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -2230,10 +2782,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -2320,6 +2872,43 @@ index_{13},
 v13_{(T13 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -2343,16 +2932,18 @@ typedef T12 E12;
 typedef T13 E13;
 typedef T14 E14;
 
-static constexpr std::size_t SIZE = 15;
+static constexpr usize SIZE = 15;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -2406,10 +2997,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -2502,6 +3093,43 @@ index_{14},
 v14_{(T14 &&) v}
 { }
 
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
+
 };
 
     
@@ -2526,16 +3154,18 @@ typedef T13 E13;
 typedef T14 E14;
 typedef T15 E15;
 
-static constexpr std::size_t SIZE = 16;
+static constexpr usize SIZE = 16;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {
+constexpr usize index() const
+{
 return index_;
 }
 
@@ -2590,10 +3220,10 @@ constexpr ~Enum()
 
 
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }
 
 
@@ -2691,6 +3321,43 @@ constexpr Enum(T15 v) :
 index_{15},
 v15_{(T15 &&) v}
 { }
+
+
+constexpr bool is(usize i){
+    return index_ == i;
+}
+
+template<usize I>
+constexpr bool is()
+{
+    return index_ == I;
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{
+
+}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{
+
+}
 
 };
 

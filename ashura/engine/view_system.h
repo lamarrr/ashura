@@ -382,22 +382,32 @@ struct ViewSystem
       ViewNode const &node = nodes[i];
       // parent-space to local viewport-space transformation matrix
       Mat3Affine const &viewport_transform = viewport_transforms[i];
+      // accumulated transform of all ancestors, determines position until this
+      // parent
       Mat3Affine const &ancestor_transform = transforms[i];
       for (u32 c = node.first_child; c < (node.first_child + node.num_children);
            c++)
       {
         transforms[c] =
-            viewport_transform * translate2d(centers[c]) * ancestor_transform;
+            // apply viewport-space transform
+            viewport_transform
+            // apply parent-space transform
+            * translate2d(centers[c])
+            // first use accumulated ancestor transform
+            * ancestor_transform;
       }
     }
+
+    // need to convert to 0, viewport_extent space
 
     for (u32 i = 0; i < n; i++)
     {
       Mat3Affine const &transform = transforms[i];
       f32 const         zoom      = transform[0][0];
-      centers[i]                  = ash::transform(transform, centers[i]);
-      extents[i]                  = extents[i] * zoom;
-      viewport_extents[i]         = viewport_extents[i] * zoom;
+      centers[i] =
+          ash::transform(transform, Vec2{0, 0}) + viewport_extent * 0.5F;
+      extents[i]          = extents[i] * zoom;
+      viewport_extents[i] = viewport_extents[i] * zoom;
     }
 
     for (u32 i = 0; i < n; i++)
@@ -408,7 +418,7 @@ struct ViewSystem
       }
     }
 
-    fill(span(clips), CRect{.center = {0, 0}, .extent = viewport_extent});
+    fill(span(clips), CRect::from_offset({0, 0}, viewport_extent));
 
     /// recursive view clipping
     for (u32 i = 0; i < n; i++)
@@ -476,15 +486,23 @@ struct ViewSystem
 
     iota(span(z_ordering), 0U);
 
-    // sort using z-index while having stacking context as higher priority
+    // sort layers with priority: stacking_context, z_index, node depth
     indirect_sort(span(z_ordering), [&](u32 a, u32 b) {
       if (stacking_contexts[a] < stacking_contexts[b])
       {
         return true;
       }
+      if (stacking_contexts[a] > stacking_contexts[b])
+      {
+        return false;
+      }
       if (z_indices[a] < z_indices[b])
       {
         return true;
+      }
+      if (z_indices[a] > z_indices[b])
+      {
+        return false;
       }
       return nodes[a].depth < nodes[b].depth;
     });
@@ -511,8 +529,7 @@ struct ViewSystem
         CRect const &clip = clips[i];
         bool const   hidden =
             !overlaps(region, clip) ||
-            !overlaps(region,
-                      CRect{.center = {0, 0}, .extent = viewport_extent}) ||
+            !overlaps(region, CRect::from_offset({0, 0}, viewport_extent)) ||
             !region.is_visible() || !clip.is_visible();
 
         is_hidden.set(i, hidden);

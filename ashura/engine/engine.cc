@@ -60,9 +60,10 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
   out.gpu.buffering =
       (u32) clamp(gpu["buffering"].get_int64().value(), (i64) 0, (i64) 4);
 
-  auto window          = config["window"].get_object().value();
-  out.window.resizable = window["resizable"].get_bool().value();
-  out.window.maximized = window["maximized"].get_bool().value();
+  auto window            = config["window"].get_object().value();
+  out.window.resizable   = window["resizable"].get_bool().value();
+  out.window.maximized   = window["maximized"].get_bool().value();
+  out.window.full_screen = window["full_screen"].get_bool().value();
   out.window.width =
       (u32) clamp(window["width"].get_int64().value(), (i64) 0, (i64) U32_MAX);
   out.window.height =
@@ -169,6 +170,15 @@ void Engine::init(AllocatorImpl allocator, void *app,
     window_system->set_size(window, Vec2U{cfg.window.width, cfg.window.height});
   }
 
+  if (cfg.window.full_screen)
+  {
+    window_system->make_fullscreen(window);
+  }
+  else
+  {
+    window_system->make_windowed(window);
+  }
+
   if (cfg.window.resizable)
   {
     window_system->make_resizable(window);
@@ -190,7 +200,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
                                 device,
                                 window,
                                 surface,
-                                cfg.gpu.vsync ? gpu::PresentMode::Mailbox :
+                                cfg.gpu.vsync ? gpu::PresentMode::Fifo :
                                                 gpu::PresentMode::Immediate,
                                 std::move(gpu_ctx),
                                 std::move(renderer),
@@ -512,6 +522,9 @@ void Engine::run(View &view)
 
     window_system->poll_events();
     gpu_ctx.begin_frame(swapchain);
+
+    // [ ] VIEWS should not be ticked often, they should not be ticked when
+    // there's no viewport
 
     view_ctx.viewport_extent = as_vec2(gpu_ctx.screen_fb.extent);
 

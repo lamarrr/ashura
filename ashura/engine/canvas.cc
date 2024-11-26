@@ -647,10 +647,12 @@ Canvas &Canvas::text(ShapeInfo const &info, TextBlock const &block,
 
         if (pass == PASS_BACKGROUND && !run_style.background.is_transparent())
         {
-          Vec2 extent{run_width, au_to_px(run.metrics.ascent, run.font_height) +
-                                     ln.metrics.height};
+          Vec2 extent{run_width,
+                      au_to_px(run.metrics.height(), run.font_height)};
           Vec2 center =
-              Vec2{cursor + extent.x * 0.5F, line_y - extent.y * 0.5F};
+              Vec2{cursor + extent.x * 0.5F,
+                   baseline - au_to_px(run.metrics.ascent, run.font_height) +
+                       extent.y * 0.5F};
           rect({.center    = info.center,
                 .extent    = extent,
                 .transform = info.transform * translate3d(vec3(center, 0)),
@@ -664,10 +666,10 @@ Canvas &Canvas::text(ShapeInfo const &info, TextBlock const &block,
           Glyph const      &gl  = font.glyphs[sh.glyph];
           AtlasGlyph const &agl = atlas->glyphs[sh.glyph];
           Vec2 const extent     = au_to_px(gl.metrics.extent, run.font_height);
-          Vec2 const center =
-              Vec2{glyph_cursor, baseline} +
-              au_to_px(gl.metrics.bearing, run.font_height) * Vec2{1, -1} +
-              au_to_px(sh.offset, run.font_height) + extent * 0.5F;
+          Vec2 const center     = Vec2{glyph_cursor, baseline} +
+                              au_to_px(gl.metrics.bearing, run.font_height) +
+                              au_to_px(sh.offset, run.font_height) +
+                              extent * 0.5F;
 
           if (pass == PASS_GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
               !run_style.shadow.is_transparent())
@@ -699,15 +701,15 @@ Canvas &Canvas::text(ShapeInfo const &info, TextBlock const &block,
                   .edge_smoothness = info.edge_smoothness});
           }
 
-          glyph_cursor += au_to_px(sh.advance.x, run.font_height);
+          glyph_cursor += au_to_px(sh.advance, run.font_height);
         }
 
         if (pass == PASS_STRIKETHROUGH &&
             run_style.strikethrough_thickness != 0)
         {
           Vec2 extent{run_width, run_style.strikethrough_thickness};
-          Vec2 center =
-              Vec2{cursor, baseline - run.font_height * 0.5F} + extent * 0.5F;
+          Vec2 center = Vec2{cursor, baseline - run.metrics.ascent * 0.5F} +
+                        extent * 0.5F;
           rect({.center    = info.center,
                 .extent    = extent,
                 .transform = info.transform * translate3d(vec3(center, 0)),

@@ -15,15 +15,19 @@ out(f"""
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include <cstddef>
 #include "ashura/std/v.h"
+#include "ashura/std/error.h"
+#include "ashura/std/log.h"
+#include "ashura/std/types.h"
 
-namespace ash{{
+namespace ash
+{{
 
-static constexpr std::size_t MAX_ENUM_SIZE = {MAX_ENUM_SIZE};
+static constexpr usize MAX_ENUM_SIZE = {MAX_ENUM_SIZE};
 
 template<typename ... T>
-struct Enum{{
+struct Enum
+{{
 static_assert("Enum size exceeds MAX_ENUM_SIZE");
 }};
 """
@@ -37,12 +41,7 @@ if constexpr(I == {i})
 }}
 """ for i in range(MAX_ENUM_SIZE)]
 
-out(f"""
-template<std::size_t I, typename Enum>
-constexpr decltype(auto) enum_member(Enum& e){{
-{"else".join(member_cases)}
-}};
-""")
+ 
 
 move_constructor_cases = [f"""
 if constexpr(Dst::SIZE > {i})
@@ -77,6 +76,12 @@ if(e->index_ == {i})
 
 out(f"""
 namespace intr{{
+
+template<usize I, typename Enum>
+constexpr decltype(auto) enum_member(Enum& e)
+{{
+{"else".join(member_cases)}
+}};
 
 template<typename E, typename... Args>
 constexpr void enum_member_construct(E * e, Args&&... args )
@@ -152,9 +157,10 @@ for size in range(0,  MAX_ENUM_SIZE + 1):
         pass
     else:
         index_def = f"""
-std::size_t index_;
+usize index_;
 
-constexpr std::size_t index() const {{
+constexpr usize index() const
+{{
 return index_;
 }}
 """
@@ -216,9 +222,10 @@ struct Enum<{", ".join(types)}>
 
 {"\n".join(alias_decls)}
 
-static constexpr std::size_t SIZE = {size};
+static constexpr usize SIZE = {size};
 
-static constexpr std::size_t size(){{
+static constexpr usize size()
+{{
     return SIZE;
 }}
 
@@ -226,13 +233,50 @@ static constexpr std::size_t size(){{
 {storage_def}
 {base_constructors if size != 0 else ""}
 
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {{
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
 }}
 
 {"\n".join(value_constructors)}
+
+constexpr bool is(usize i){{
+    return index_ == i;
+}}
+
+template<usize I>
+constexpr bool is()
+{{
+    return index_ == I;
+}}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{{
+
+}}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{{
+
+}}
+
 }};
 
     """)
