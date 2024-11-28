@@ -78,7 +78,7 @@ struct Task
 static_assert(TASK_ARENA_SIZE != 0,
               "Task arena size must be a non-zero power of 2");
 
-static_assert(is_pow2(TASK_ARENA_SIZE),
+static_assert(is_pow2((u64) TASK_ARENA_SIZE),
               "Task arena size must be a non-zero power of 2");
 
 static_assert(TASK_ARENA_SIZE >= (MAX_TASK_FRAME_SIZE << 2),

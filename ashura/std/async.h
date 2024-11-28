@@ -533,9 +533,9 @@ inline Result<StopToken> create_stop_token(AllocatorImpl allocator)
 /// @param any if to wait for all semaphores or atleast 1 semaphore.
 /// @returns returns if the semaphore await operation completed successfully
 /// based on the `any` criteria.
-[[nodiscard]] inline bool
-    await_semaphores(Span<SemaphoreState const *const> sems,
-                     Span<u64 const> stages, nanoseconds timeout)
+[[nodiscard]] inline bool await_semaphores(Span<SemaphoreState *const> sems,
+                                           Span<u64 const>             stages,
+                                           nanoseconds                 timeout)
 {
   CHECK(sems.size() == stages.size());
   usize const n = sems.size();
@@ -558,9 +558,9 @@ inline Result<StopToken> create_stop_token(AllocatorImpl allocator)
   {
     for (; next < n; next++)
     {
-      SemaphoreState const *const &s = sems[next];
-      u64 const  stage               = min(stages[next], s->num_stages_ - 1);
-      bool const is_ready            = stage < s->stage();
+      SemaphoreState *const &s        = sems[next];
+      u64 const              stage    = min(stages[next], s->num_stages_ - 1);
+      bool const             is_ready = stage < s->stage();
 
       if (!is_ready)
       {
@@ -685,7 +685,7 @@ template <typename... T>
 [[nodiscard]] bool await_streams(nanoseconds timeout, Span<u64 const> stages,
                                  Stream<T> const &...streams)
 {
-  SemaphoreState const *semaphores[] = {(streams.semaphore_.get())...};
+  SemaphoreState *semaphores[] = {(streams.semaphore_.get())...};
 
   return await_semaphores(span(semaphores), stages, timeout);
 }
@@ -752,8 +752,8 @@ template <typename... T>
 [[nodiscard]] bool await_futures(nanoseconds timeout,
                                  Future<T> const &...futures)
 {
-  SemaphoreState const *semaphores[] = {(futures.stream_.semaphore_.get())...};
-  u64 const             stages[]     = {futures.stage_...};
+  SemaphoreState *semaphores[] = {(futures.stream_.semaphore_.get())...};
+  u64 const       stages[]     = {futures.stage_...};
   return await_semaphores(span(semaphores), span(stages), timeout);
 }
 
