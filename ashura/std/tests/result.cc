@@ -166,8 +166,8 @@ TEST(ResultTest, MapOrElse)
 
 TEST(ResultTest, AndThen)
 {
-  auto a = [](int v) -> Result<float, int> { return Ok{v * 2.0f}; };
-  EXPECT_FLOAT_EQ((make_ok<int, int>(20).and_then(a).unwrap()), 40.0f);
+  auto a = [](int v) -> Result<float, int> { return Ok{v * 2.0F}; };
+  EXPECT_FLOAT_EQ((make_ok<int, int>(20).and_then(a).unwrap()), 40.0F);
 
   EXPECT_TRUE((make_err<int, int>(-20).and_then(a).is_err()));
 
@@ -179,7 +179,7 @@ TEST(ResultTest, AndThen)
     return Ok{res};
   };
 
-  EXPECT_EQ((make_ok<int, int>(80).and_then(b).unwrap()), (std::vector{80.0f}));
+  EXPECT_EQ((make_ok<int, int>(80).and_then(b).unwrap()), (std::vector{80.0F}));
 
   EXPECT_TRUE((make_err<int, int>(-20).and_then(b).is_err()));
   EXPECT_EQ((make_err<int, int>(-20).and_then(b).unwrap_err()), -20);
