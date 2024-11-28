@@ -247,9 +247,9 @@ constexpr Init reduce(R &&range, Init &&init, Reduce &&reducer = {})
   return (Init &&) init;
 }
 
-template <InputRange R, typename Init, typename Map, typename Reduce>
+template <InputRange R, typename Init, typename Map, typename Reduce = Add>
 constexpr Init map_reduce(R &&range, Init &&init, Map &&mapper,
-                          Reduce &&reducer)
+                          Reduce &&reducer = {})
 {
   InputIterator auto it = begin(range);
   while (it != end(range))

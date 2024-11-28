@@ -122,4 +122,10 @@ Dyn<H> transmute(Dyn<Base> &&base, H handle)
   return t;
 }
 
+template <typename To, typename From>
+Dyn<To> cast(Dyn<From> &&from)
+{
+  return transmute((Dyn<From> &&) from, static_cast<To>(from.get()));
+}
+
 }        // namespace ash
