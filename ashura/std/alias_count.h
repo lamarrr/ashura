@@ -65,7 +65,7 @@ struct AliasCount
     return expected == 0;
   }
 
-  [[nodiscard]] usize count() const
+  [[nodiscard]] usize count()
   {
     std::atomic_ref count{count_};
     return count.load(std::memory_order_relaxed);

@@ -315,18 +315,6 @@ struct AtomicInit
     }
     return &v_;
   }
-
-  /// @brief Get the wrapped value
-  /// @return null if value is not initialized yet
-  T *get() const
-  {
-    std::atomic_ref stage{stage_};
-    if (stage.load(std::memory_order_acquire) != AtomicInitStage::Init)
-    {
-      return nullptr;
-    }
-    return &v_;
-  }
 };
 
 template <typename T>
@@ -491,7 +479,7 @@ struct StopTokenState
   /// @brief check whether the specified stage has been canceled. synchronizes
   /// with the scope
   /// @return
-  bool is_stop_requested(u64 stage = 0) const
+  bool is_stop_requested(u64 stage = 0)
   {
     std::atomic_ref stop_point{stop_point_};
     return stop_point.load(std::memory_order_acquire) <= stage;
