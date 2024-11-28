@@ -8,13 +8,13 @@
 namespace ash
 {
 
-[[nodiscard]] constexpr bool is_valid_utf8(Span<u8 const> text);
+[[nodiscard]] constexpr bool is_valid_utf8(Span<c8 const> text);
 
 /// @brief count number of utf8 codepoints found in the text. does no
 /// utf8-validation
-[[nodiscard]] constexpr usize count_utf8_codepoints(Span<u8 const> text)
+[[nodiscard]] constexpr usize count_utf8_codepoints(Span<c8 const> text)
 {
-  u8 const *in    = text.data();
+  c8 const *in    = text.data();
   usize     count = 0;
   while (in != text.end())
   {
@@ -29,37 +29,37 @@ namespace ash
 
 /// @brief decoded.size() must be at least count_utf8_codepoints(encoded).
 /// estimate: encoded.size()
-[[nodiscard]] constexpr usize utf8_decode(Span<u8 const> encoded,
-                                          Span<u32>      decoded)
+[[nodiscard]] constexpr usize utf8_decode(Span<c8 const> encoded,
+                                          Span<c32>      decoded)
 {
-  u8 const *in  = encoded.data();
-  u32      *out = decoded.data();
+  c8 const *in  = encoded.data();
+  c32      *out = decoded.data();
   while (in != encoded.end())
   {
     if ((*in & 0xF8) == 0xF0)
     {
-      u32 c1 = *in++;
-      u32 c2 = *in++;
-      u32 c3 = *in++;
-      u32 c4 = *in++;
+      c32 c1 = *in++;
+      c32 c2 = *in++;
+      c32 c3 = *in++;
+      c32 c4 = *in++;
       *out++ = c1 << 24 | c2 << 16 | c3 << 8 | c4;
     }
     else if ((*in & 0xF0) == 0xE0)
     {
-      u32 c1 = *in++;
-      u32 c2 = *in++;
-      u32 c3 = *in++;
+      c32 c1 = *in++;
+      c32 c2 = *in++;
+      c32 c3 = *in++;
       *out++ = c1 << 16 | c2 << 8 | c3;
     }
     else if ((*in & 0xE0) == 0xC0)
     {
-      u32 c1 = *in++;
-      u32 c2 = *in++;
+      c32 c1 = *in++;
+      c32 c2 = *in++;
       *out++ = c1 << 8 | c2;
     }
     else
     {
-      u32 c1 = *in++;
+      c32 c1 = *in++;
       *out++ = c1;
     }
   }
@@ -67,11 +67,11 @@ namespace ash
 }
 
 /// @brief encoded.size must be at least decoded.size * 4
-[[nodiscard]] constexpr usize utf8_encode(Span<u32 const> decoded,
-                                          Span<u8>        encoded)
+[[nodiscard]] constexpr usize utf8_encode(Span<c32 const> decoded,
+                                          Span<c8>        encoded)
 {
-  u8        *out = encoded.data();
-  u32 const *in  = decoded.data();
+  c8        *out = encoded.data();
+  c32 const *in  = decoded.data();
 
   while (in != decoded.end())
   {
@@ -108,7 +108,7 @@ namespace ash
 
 /// @brief converts UTF-8 text from @p encoded to UTF-32 and appends into @p
 /// `decoded`
-inline Result<> utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
+inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> &decoded)
 {
   usize const first = decoded.size();
   usize const count = count_utf8_codepoints(encoded);
@@ -122,8 +122,8 @@ inline Result<> utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
 
 /// @brief converts UTF-32 text from @p decoded to UTF-8 and appends into @p
 /// `encoded`
-[[nodiscard]] inline Result<> utf8_encode(Span<u32 const> decoded,
-                                          Vec<u8>        &encoded)
+[[nodiscard]] inline Result<> utf8_encode(Span<c32 const> decoded,
+                                          Vec<c8>        &encoded)
 {
   usize const first     = encoded.size();
   usize const max_count = decoded.size();
@@ -137,11 +137,11 @@ inline Result<> utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
   return Ok{};
 }
 
-constexpr void replace_invalid_codepoints(Span<u32 const> input,
-                                          Span<u32> output, u32 replacement)
+constexpr void replace_invalid_codepoints(Span<c32 const> input,
+                                          Span<c32> output, c32 replacement)
 {
-  u32 const *in  = input.begin();
-  u32       *out = output.begin();
+  c32 const *in  = input.begin();
+  c32       *out = output.begin();
 
   while (in < input.end())
   {

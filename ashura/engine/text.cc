@@ -21,7 +21,7 @@ namespace ash
 /// @param script OpenType (ISO15924) Script
 /// Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
 static inline void shape(hb_font_t *font, hb_buffer_t *buffer,
-                         Span<u32 const> text, u32 first, u32 count,
+                         Span<c32 const> text, u32 first, u32 count,
                          hb_script_t script, hb_direction_t direction,
                          hb_language_t language, bool use_kerning,
                          bool use_ligatures, Span<hb_glyph_info_t const> &infos,
@@ -54,8 +54,8 @@ static inline void shape(hb_font_t *font, hb_buffer_t *buffer,
   // OpenType BCP-47 language tag specifying locale-sensitive shaping operations
   // as defined in the font
   hb_buffer_set_language(buffer, language);
-  hb_buffer_add_codepoints(buffer, text.data(), (i32) text.size(), first,
-                           (i32) count);
+  hb_buffer_add_codepoints(buffer, (u32 const *) text.data(), (i32) text.size(),
+                           first, (i32) count);
   hb_shape(font, buffer, shaping_features, (u32) size(shaping_features));
 
   u32                        num_pos;
@@ -75,7 +75,7 @@ static inline void shape(hb_font_t *font, hb_buffer_t *buffer,
 }
 
 /// @brief only needs to be called if it contains multiple paragraphs
-static inline void segment_paragraphs(Span<u32 const>   text,
+static inline void segment_paragraphs(Span<c32 const>   text,
                                       Span<TextSegment> segments)
 {
   u32 const text_size = text.size32();
@@ -103,7 +103,7 @@ static inline void segment_paragraphs(Span<u32 const>   text,
 
 /// @brief only needs to be called if it contains multiple scripts
 /// outputs iso15924 or OpenType tags
-static inline void segment_scripts(Span<u32 const>   text,
+static inline void segment_scripts(Span<c32 const>   text,
                                    Span<TextSegment> segments)
 {
   SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
@@ -129,7 +129,7 @@ static inline void segment_scripts(Span<u32 const>   text,
 }
 
 /// @brief only needs to be called if it is a bidirectional text
-static inline void segment_levels(Span<u32 const> text,
+static inline void segment_levels(Span<c32 const> text,
                                   SBAlgorithmRef algorithm, TextDirection base,
                                   Span<TextSegment> segments)
 {
@@ -176,7 +176,7 @@ static inline void segment_levels(Span<u32 const> text,
 }
 
 /// @brief only needs to be called if line breaking is required.
-static inline void segment_breakpoints(Span<u32 const>   text,
+static inline void segment_breakpoints(Span<c32 const>   text,
                                        Span<TextSegment> segments)
 {
   u32 const text_size = text.size32();

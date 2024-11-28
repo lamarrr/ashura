@@ -35,7 +35,7 @@ scalar.frame(250, 100);
 
   // Don't use whole font metrics for line metrics
 
-  btn.text(U"replay RELOAD"_utf)
+  btn.text(U"replay RELOAD"_span)
       .style(TextStyle{.foreground = colors::WHITE, .background = colors::BLUE},
              FontStyle{.font = engine->assets.fonts["RobotoMono"_span].get(),
                        .font_height = 50,
@@ -47,7 +47,7 @@ scalar.frame(250, 100);
              0, 6)
       .padding(10, 10)
       .color(colors::CYAN);
-  btn_home.text(U"home HOME"_utf)
+  btn_home.text(U"home HOME"_span)
       .style(TextStyle{.foreground = colors::WHITE, .background = colors::BLUE},
              FontStyle{.font = engine->assets.fonts["RobotoMono"_span].get(),
                        .font_height = 50,
@@ -61,7 +61,7 @@ scalar.frame(250, 100);
       .color(colors::CYAN);
 
   btn2.text(
-          U"بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ١ ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَـٰلَمِينَ ٢ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ٣ مَـٰلِكِ يَوْمِ ٱلدِّينِ ٤ إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ ٥ ٱهْدِنَا ٱلصِّرَٰطَ ٱلْمُسْتَقِيمَ ٦ صِرَٰطَ ٱلَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ ٱلْمَغْضُوبِ عَلَيْهِمْ وَلَا ٱلضَّآلِّينَ ٧"_utf)
+          U"بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ١ ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَـٰلَمِينَ ٢ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ٣ مَـٰلِكِ يَوْمِ ٱلدِّينِ ٤ إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ ٥ ٱهْدِنَا ٱلصِّرَٰطَ ٱلْمُسْتَقِيمَ ٦ صِرَٰطَ ٱلَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ ٱلْمَغْضُوبِ عَلَيْهِمْ وَلَا ٱلضَّآلِّينَ ٧"_span)
       .style(
           TextStyle{.foreground = colors::WHITE, .background = colors::YELLOW},
           FontStyle{.font        = engine->assets.fonts["Amiri"_span].get(),

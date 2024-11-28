@@ -38,7 +38,7 @@ struct RenderText
     bool               use_ligatures = true;
     TextDirection      direction     = TextDirection::LeftToRight;
     f32                alignment     = -1;
-    Vec<u32>           text          = {};
+    Vec<c32>           text          = {};
     Vec<u32>           runs          = {};
     Vec<TextStyle>     styles        = {};
     Vec<FontStyle>     fonts         = {};
@@ -223,12 +223,12 @@ struct RenderText
     flush_text();
   }
 
-  Span<u32 const> get_text() const
+  Span<c32 const> get_text() const
   {
     return span(inner.text);
   }
 
-  void set_text(Span<u32 const> utf32, TextStyle const &style,
+  void set_text(Span<c32 const> utf32, TextStyle const &style,
                 FontStyle const &font)
   {
     set_text(utf32);
@@ -236,14 +236,14 @@ struct RenderText
     flush_text();
   }
 
-  void set_text(Span<u32 const> utf32)
+  void set_text(Span<c32 const> utf32)
   {
     inner.text.clear();
     inner.text.extend_copy(utf32).unwrap();
     flush_text();
   }
 
-  void set_text(Span<u8 const> utf8, TextStyle const &style,
+  void set_text(Span<c8 const> utf8, TextStyle const &style,
                 FontStyle const &font)
   {
     inner.style(style, font);
@@ -251,7 +251,7 @@ struct RenderText
     flush_text();
   }
 
-  void set_text(Span<u8 const> utf8)
+  void set_text(Span<c8 const> utf8)
   {
     inner.text.clear();
     utf8_decode(utf8, inner.text).unwrap();

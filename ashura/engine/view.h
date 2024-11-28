@@ -255,7 +255,7 @@ struct ViewContext
   Mouse          mouse           = {};
   KeyBoard       keyboard        = {};
   Span<u8 const> drag_payload    = {};
-  Span<u8 const> text_input      = {};
+  Span<c8 const> text_input      = {};
   Vec2           viewport_extent = {};
 
   constexpr ViewContext(void *app, ClipBoard &clipboard) :

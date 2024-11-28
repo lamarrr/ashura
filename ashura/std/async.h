@@ -88,7 +88,7 @@ struct SpinLock
     usize           target   = true;
     u64             poll     = 0;
     std::atomic_ref flag{flag_};
-    while (!flag.compare_exchange_strong(
+    while (!flag.compare_exchange_weak(
         expected, target, std::memory_order_acquire, std::memory_order_relaxed))
     {
       expected = false;
@@ -102,8 +102,8 @@ struct SpinLock
     usize           expected = false;
     usize           target   = true;
     std::atomic_ref flag{flag_};
-    flag.compare_exchange_strong(expected, target, std::memory_order_acquire,
-                                 std::memory_order_relaxed);
+    flag.compare_exchange_weak(expected, target, std::memory_order_acquire,
+                               std::memory_order_relaxed);
     return expected;
   }
 
@@ -270,6 +270,7 @@ struct AtomicInit
   constexpr AtomicInit(AtomicInit &&)                 = delete;
   constexpr AtomicInit &operator=(AtomicInit const &) = delete;
   constexpr AtomicInit &operator=(AtomicInit &&)      = delete;
+
   ~AtomicInit()
   {
     // this is the last reference to the object at this point, but we still need
@@ -395,7 +396,7 @@ struct SemaphoreState
   /// being worked on.
   /// @param sem non-null
   /// @return
-  [[nodiscard]] u64 stage() const
+  [[nodiscard]] u64 stage()
   {
     std::atomic_ref stage{stage_};
     return stage.load(std::memory_order_acquire);
@@ -413,7 +414,7 @@ struct SemaphoreState
   /// last declared stage.
   /// @param sem non-null
   /// @return
-  [[nodiscard]] bool is_completed() const
+  [[nodiscard]] bool is_completed()
   {
     std::atomic_ref stage{stage_};
     return stage.load(std::memory_order_acquire) == num_stages_;
@@ -434,7 +435,7 @@ struct SemaphoreState
     next                    = min(next, num_stages_);
     u64             current = 0;
     std::atomic_ref stage{stage_};
-    while (!stage.compare_exchange_strong(
+    while (!stage.compare_exchange_weak(
         current, next, std::memory_order_release, std::memory_order_relaxed))
         [[unlikely]]
     {
@@ -455,7 +456,7 @@ struct SemaphoreState
     u64             current = 0;
     u64             target  = inc;
     std::atomic_ref stage{stage_};
-    while (!stage.compare_exchange_strong(
+    while (!stage.compare_exchange_weak(
         current, target, std::memory_order_release, std::memory_order_relaxed))
         [[unlikely]]
     {
@@ -492,7 +493,7 @@ struct StopTokenState
     std::atomic_ref stop_point{stop_point_};
     u64             expected = U64_MAX;
     u64             target   = min(expected, stage);
-    while (!stop_point.compare_exchange_strong(
+    while (!stop_point.compare_exchange_weak(
         expected, target, std::memory_order_release, std::memory_order_relaxed))
         [[unlikely]]
     {
@@ -532,9 +533,9 @@ inline Result<StopToken> create_stop_token(AllocatorImpl allocator)
 /// @param any if to wait for all semaphores or atleast 1 semaphore.
 /// @returns returns if the semaphore await operation completed successfully
 /// based on the `any` criteria.
-[[nodiscard]] inline bool
-    await_semaphores(Span<SemaphoreState const *const> sems,
-                     Span<u64 const> stages, nanoseconds timeout)
+[[nodiscard]] inline bool await_semaphores(Span<SemaphoreState *const> sems,
+                                           Span<u64 const>             stages,
+                                           nanoseconds                 timeout)
 {
   CHECK(sems.size() == stages.size());
   usize const n = sems.size();
@@ -557,9 +558,9 @@ inline Result<StopToken> create_stop_token(AllocatorImpl allocator)
   {
     for (; next < n; next++)
     {
-      SemaphoreState const *const &s = sems[next];
-      u64 const  stage               = min(stages[next], s->num_stages_ - 1);
-      bool const is_ready            = stage < s->stage();
+      SemaphoreState *const &s        = sems[next];
+      u64 const              stage    = min(stages[next], s->num_stages_ - 1);
+      bool const             is_ready = stage < s->stage();
 
       if (!is_ready)
       {
@@ -684,7 +685,7 @@ template <typename... T>
 [[nodiscard]] bool await_streams(nanoseconds timeout, Span<u64 const> stages,
                                  Stream<T> const &...streams)
 {
-  SemaphoreState const *semaphores[] = {(streams.semaphore_.get())...};
+  SemaphoreState *semaphores[] = {(streams.semaphore_.get())...};
 
   return await_semaphores(span(semaphores), stages, timeout);
 }
@@ -751,8 +752,8 @@ template <typename... T>
 [[nodiscard]] bool await_futures(nanoseconds timeout,
                                  Future<T> const &...futures)
 {
-  SemaphoreState const *semaphores[] = {(futures.stream_.semaphore_.get())...};
-  u64 const             stages[]     = {futures.stage_...};
+  SemaphoreState *semaphores[] = {(futures.stream_.semaphore_.get())...};
+  u64 const       stages[]     = {futures.stage_...};
   return await_semaphores(span(semaphores), span(stages), timeout);
 }
 

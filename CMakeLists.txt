@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.20)
 
 project(Ashura)
 
@@ -96,6 +96,12 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/curl/curl.git
   GIT_TAG curl-8_8_0)
 
+FetchContent_Declare(
+  fast_float
+  GIT_REPOSITORY https://github.com/fastfloat/fast_float.git
+  GIT_TAG v7.0.0
+  CONFIGURE_COMMAND "" BUILD_COMMAND "")
+
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
 find_package(libjpeg-turbo CONFIG REQUIRED)
@@ -117,8 +123,11 @@ FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
 FetchContent_MakeAvailable(WebP)
 FetchContent_MakeAvailable(CURL)
+FetchContent_MakeAvailable(fast_float)
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
+
+set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)
 
 add_library(SheenBidi ${SheenBidi_SOURCES})
 target_include_directories(
@@ -151,7 +160,9 @@ add_library(
   ashura/std/hash.cc
   ashura/std/log.cc
   ashura/std/panic.cc)
-target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(
+  ashura_std
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ashura_std PUBLIC xxHash::xxhash Threads::Threads)
 
 add_executable(
@@ -202,8 +213,7 @@ target_link_libraries(
   ashura_engine
   ashura_std
   ashura_gpu
-  SPIRV
-  glslang
+  glslang::glslang
   spirv-reflect-static
   SDL3::SDL3-static
   harfbuzz
@@ -218,8 +228,10 @@ target_link_libraries(
   SheenBidi::SheenBidi)
 
 target_include_directories(
-  ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
-                       ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
+  ashura_engine
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR} ${FFMPEG_INCLUDE_DIRS}
+         ${FFMPEG_LIBRARY_DIRS}
+  PRIVATE ${fast_float_INCLUDE_DIR})
 
 add_executable(
   ashura_engine_tests
