@@ -265,7 +265,7 @@ struct TextStyle
 /// @param use_ligatures use standard and contextual font ligature substitution
 struct TextBlock
 {
-  Span<u32 const>       text          = {};
+  Span<c32 const>       text          = {};
   Span<u32 const>       runs          = {};
   Span<FontStyle const> fonts         = {};
   TextDirection         direction     = TextDirection::LeftToRight;

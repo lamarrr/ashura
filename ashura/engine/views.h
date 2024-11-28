@@ -517,19 +517,19 @@ struct TextView : View
     return *this;
   }
 
-  TextView &text(Span<u32 const> t)
+  TextView &text(Span<c32 const> t)
   {
     inner.text.set_text(t);
     return *this;
   }
 
-  TextView &text(Span<u8 const> t)
+  TextView &text(Span<c8 const> t)
   {
     inner.text.set_text(t);
     return *this;
   }
 
-  Span<u32 const> text()
+  Span<c32 const> text()
   {
     return inner.text.get_text();
   }
@@ -685,13 +685,13 @@ struct TextInput : View
     return *this;
   }
 
-  TextInput &content(Span<u8 const> t)
+  TextInput &content(Span<c8 const> t)
   {
     inner.content.set_text(t);
     return *this;
   }
 
-  TextInput &content(Span<u32 const> t)
+  TextInput &content(Span<c32 const> t)
   {
     inner.content.set_text(t);
     return *this;
@@ -704,13 +704,13 @@ struct TextInput : View
     return *this;
   }
 
-  TextInput &stub(Span<u8 const> t)
+  TextInput &stub(Span<c8 const> t)
   {
     inner.stub.set_text(t);
     return *this;
   }
 
-  TextInput &stub(Span<u32 const> t)
+  TextInput &stub(Span<c32 const> t)
   {
     inner.stub.set_text(t);
     return *this;
@@ -856,7 +856,7 @@ struct TextInput : View
       this->inner.content.flush_text();
     };
 
-    auto insert = [this, &edited](u32 pos, Span<u32 const> t) {
+    auto insert = [this, &edited](u32 pos, Span<c32 const> t) {
       CHECK(this->inner.content.inner.text.insert_span_copy(pos, t));
       edited |= t.is_empty();
       this->inner.content.flush_text();
@@ -896,7 +896,7 @@ struct TextInput : View
                  (inner.content.inner.layout.lines[0].metrics.height * zoom));
     }
 
-    Vec<u32> text_input_utf32{default_allocator};
+    Vec<c32> text_input_utf32{default_allocator};
 
     utf8_decode(ctx.text_input, text_input_utf32).unwrap();
 
@@ -1107,13 +1107,13 @@ struct TextButton : Button
     return *this;
   }
 
-  TextButton &text(Span<u32 const> t)
+  TextButton &text(Span<c32 const> t)
   {
     inner.text.text(t);
     return *this;
   }
 
-  TextButton &text(Span<u8 const> t)
+  TextButton &text(Span<c8 const> t)
   {
     inner.text.text(t);
     return *this;
@@ -1997,7 +1997,7 @@ constexpr ScalarState scalar(i32 base, i32 min, i32 max, i32 step)
 struct ScalarDragBox : View
 {
   typedef Fn<void(fmt::Context const &, ScalarInput)> Fmt;
-  typedef Fn<void(Span<u32 const>, ScalarState &)>    Parse;
+  typedef Fn<void(Span<c32 const>, ScalarState &)>    Parse;
 
   struct State
   {
@@ -2047,7 +2047,7 @@ struct ScalarDragBox : View
     fmt::format(ctx, v);
   }
 
-  static void scalar_parse(Span<u32 const> text, ScalarState &styling);
+  static void scalar_parse(Span<c32 const> text, ScalarState &styling);
 
   virtual ViewState tick(ViewContext const &ctx, CRect const &region, f32,
                          ViewEvents events, Fn<void(View &)> build) override
@@ -2075,11 +2075,11 @@ struct ScalarDragBox : View
     else
     {
       char         scratch[128];
-      char         text[128];
-      Buffer       buffer = ash::buffer(span(text));
+      c8           text[128];
+      Buffer       buffer = ash::buffer(span(text).as_char());
       fmt::Context ctx    = fmt::buffer(&buffer, span(scratch));
       styling.fmt(ctx, state.value.current);
-      inner.input.inner.content.set_text(span(buffer).as_u8());
+      inner.input.inner.content.set_text(span(text).slice(0, buffer.size()));
     }
 
     inner.input.state.disabled = !state.input_mode;
@@ -2178,7 +2178,7 @@ struct ScalarBox : FlexView
         .cross_align(0)
         .frame(Frame{}.scale(1, 1));
 
-    inner.dec.text(U"-"_utf)
+    inner.dec.text(U"-"_span)
         .style(TextStyle{.shadow_scale  = 1,
                          .shadow_offset = {1, 1},
                          .foreground    = DEFAULT_THEME.on_primary,
@@ -2193,7 +2193,7 @@ struct ScalarBox : FlexView
                        }))
         .padding(5, 5);
 
-    inner.inc.text(U"+"_utf)
+    inner.inc.text(U"+"_span)
         .style(TextStyle{.shadow_scale  = 1,
                          .shadow_offset = {1, 1},
                          .foreground    = DEFAULT_THEME.on_primary,

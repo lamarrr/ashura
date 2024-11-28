@@ -1040,7 +1040,7 @@ struct Span
     return Span<u8 const>{reinterpret_cast<u8 const *>(data_), size_bytes()};
   }
 
-  constexpr Span<char const> as_char() const
+  constexpr Span<char> as_char() const
     requires(NonConst<T>)
   {
     return Span<char>{reinterpret_cast<char *>(data_), size_bytes()};
@@ -1112,21 +1112,6 @@ constexpr Span<c16 const> operator""_span(c16 const *lit, usize n)
 constexpr Span<c32 const> operator""_span(c32 const *lit, usize n)
 {
   return Span<c32 const>{lit, n};
-}
-
-inline Span<u8 const> operator""_utf(c8 const *lit, usize n)
-{
-  return Span<u8 const>{(u8 const *) lit, n};
-}
-
-inline Span<u16 const> operator""_utf(c16 const *lit, usize n)
-{
-  return Span<u16 const>{(u16 const *) lit, n};
-}
-
-inline Span<u32 const> operator""_utf(c32 const *lit, usize n)
-{
-  return Span<u32 const>{(u32 const *) lit, n};
 }
 
 constexpr bool get_bit(Span<u8 const> s, usize i)

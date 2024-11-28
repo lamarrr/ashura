@@ -13,17 +13,17 @@ TEST(TextCompositor, Main)
   TextLayout     layout;
   ClipBoard      clip;
 
-  Span text = U"HELLO, MOTO"_utf;
+  Span text = U"HELLO, MOTO"_span;
 
   bool inserted = false;
 
-  auto insert = [&](u32 i, Span<u32 const> str) {
+  auto insert = [&](u32 i, Span<c32 const> str) {
     inserted = true;
     ASSERT_EQ(i, 0);
     ASSERT_TRUE(range_eq(str, text));
   };
 
-  cmp.command(U""_utf, layout, 0, 0, TextCommand::InputText, fn(&insert), noop,
+  cmp.command(U""_span, layout, 0, 0, TextCommand::InputText, fn(&insert), noop,
               text, clip, 1, {});
 
   ASSERT_TRUE(inserted);
