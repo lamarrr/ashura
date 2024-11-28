@@ -88,7 +88,7 @@ struct SpinLock
     usize           target   = true;
     u64             poll     = 0;
     std::atomic_ref flag{flag_};
-    while (!flag.compare_exchange_strong(
+    while (!flag.compare_exchange_weak(
         expected, target, std::memory_order_acquire, std::memory_order_relaxed))
     {
       expected = false;
@@ -102,8 +102,8 @@ struct SpinLock
     usize           expected = false;
     usize           target   = true;
     std::atomic_ref flag{flag_};
-    flag.compare_exchange_strong(expected, target, std::memory_order_acquire,
-                                 std::memory_order_relaxed);
+    flag.compare_exchange_weak(expected, target, std::memory_order_acquire,
+                               std::memory_order_relaxed);
     return expected;
   }
 
@@ -435,7 +435,7 @@ struct SemaphoreState
     next                    = min(next, num_stages_);
     u64             current = 0;
     std::atomic_ref stage{stage_};
-    while (!stage.compare_exchange_strong(
+    while (!stage.compare_exchange_weak(
         current, next, std::memory_order_release, std::memory_order_relaxed))
         [[unlikely]]
     {
@@ -456,7 +456,7 @@ struct SemaphoreState
     u64             current = 0;
     u64             target  = inc;
     std::atomic_ref stage{stage_};
-    while (!stage.compare_exchange_strong(
+    while (!stage.compare_exchange_weak(
         current, target, std::memory_order_release, std::memory_order_relaxed))
         [[unlikely]]
     {
@@ -493,7 +493,7 @@ struct StopTokenState
     std::atomic_ref stop_point{stop_point_};
     u64             expected = U64_MAX;
     u64             target   = min(expected, stage);
-    while (!stop_point.compare_exchange_strong(
+    while (!stop_point.compare_exchange_weak(
         expected, target, std::memory_order_release, std::memory_order_relaxed))
         [[unlikely]]
     {
