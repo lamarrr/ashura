@@ -40,15 +40,15 @@ bool push_int(fmt::Context const &ctx, fmt::Spec const &spec, IntT value)
     break;
   }
 
-  std::to_chars_result result =
+  auto [ptr, ec] =
       std::to_chars(ctx.scratch.begin(), ctx.scratch.end(), value, base);
-  if (result.ec == std::errc{})
+  if (ec != std::errc{})
   {
-    return ctx.push(
-        Span{ctx.scratch.begin(), (usize) (result.ptr - ctx.scratch.begin())});
+    return false;
   }
 
-  return false;
+  return ctx.push(
+      Span{ctx.scratch.begin(), (usize) (ptr - ctx.scratch.begin())});
 }
 
 template <typename FloatT>
