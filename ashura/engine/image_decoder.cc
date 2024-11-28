@@ -150,7 +150,7 @@ ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
   info.err = jpeg_std_error(&error_mgr);
   jpeg_create_decompress(&info);
 
-  jpeg_mem_src(&info, const_cast<unsigned char*>(bytes.data()), static_cast<unsigned long>(bytes.size()));
+  jpeg_mem_src(&info, bytes.data(), static_cast<unsigned long>(bytes.size()));
 
   if (jpeg_read_header(&info, true) != JPEG_HEADER_OK)
   {

@@ -32,7 +32,7 @@ struct AliasCount
 {
   /// @brief number of other aliases. range: [0, USIZE_MAX], overflow is
   /// well-checked.
-  mutable usize count_{0};
+  usize count_{0};
 
   /// @brief called before sharing an object
   void alias()
@@ -67,7 +67,7 @@ struct AliasCount
 
   [[nodiscard]] usize count() const
   {
-    std::atomic_ref<usize> count{count_};
+    std::atomic_ref count{count_};
     return count.load(std::memory_order_relaxed);
   }
 };

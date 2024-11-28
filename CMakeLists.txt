@@ -8,29 +8,29 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
 set(VMA_DYNAMIC_VULKAN_FUNCTIONS
-  ON
-  CACHE BOOL "")
+    ON
+    CACHE BOOL "")
 set(ENABLE_OPT
-  OFF
-  CACHE BOOL "")
+    OFF
+    CACHE BOOL "")
 set(ENABLE_HLSL
-  OFF
-  CACHE BOOL "")
+    OFF
+    CACHE BOOL "")
 set(ENABLE_GLSLANG_BINARIES
-  OFF
-  CACHE BOOL "")
+    OFF
+    CACHE BOOL "")
 set(ENABLE_SPVREMAPPER
-  OFF
-  CACHE BOOL "")
+    OFF
+    CACHE BOOL "")
 set(SPIRV_REFLECT_EXECUTABLE
-  OFF
-  CACHE BOOL "")
+    OFF
+    CACHE BOOL "")
 set(SPIRV_REFLECT_STATIC_LIB
-  ON
-  CACHE BOOL "")
+    ON
+    CACHE BOOL "")
 set(SDL_STATIC
-  ON
-  CACHE BOOL "")
+    ON
+    CACHE BOOL "")
 
 include(FetchContent)
 
@@ -62,7 +62,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
-  https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+    https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
   GIT_TAG v3.1.0)
 
 FetchContent_Declare(
@@ -132,7 +132,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
 else()
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-Wall -Wextra -Wpedantic -Wno-nullability-completeness
-      -Wno-nullability-extension)
+                        -Wno-nullability-extension)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
       add_compile_options(/W3 /Zc:preprocessor)
@@ -168,12 +168,12 @@ add_executable(
 add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
 
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
-  GTest::gtest_main)
+                      GTest::gtest_main)
 target_link_libraries(ashura_std_bench benchmark::benchmark
-  benchmark::benchmark_main ashura_std)
+                      benchmark::benchmark_main ashura_std)
 
 add_library(ashura_gpu ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
-  ashura/gpu/vulkan.cc)
+                       ashura/gpu/vulkan.cc)
 target_link_libraries(
   ashura_gpu ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
   GPUOpen::VulkanMemoryAllocator)
@@ -186,6 +186,7 @@ add_library(
   ashura/engine/font_impl.cc
   ashura/engine/text.cc
   ashura/engine/canvas.cc
+  ashura/engine/gpu_context.cc
   ashura/engine/image_decoder.cc
   ashura/engine/render_text.cc
   ashura/engine/shader.cc
@@ -196,14 +197,12 @@ add_library(
   ashura/engine/views.cc
   ashura/engine/scene.cc
   ashura/engine/renderer.cc
-  ashura/engine/render_context.cc
-  ashura/engine/passes.cc
-  ashura/engine/animation.cc
-)
+  ashura/engine/passes.cc)
 target_link_libraries(
   ashura_engine
   ashura_std
   ashura_gpu
+  SPIRV
   glslang
   spirv-reflect-static
   SDL3::SDL3-static
@@ -218,16 +217,9 @@ target_link_libraries(
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
 
-if(NOT APPLE)
-  target_link_libraries(
-    ashura_engine
-    SPIRV
-  )
-endif()
-
 target_include_directories(
   ashura_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
-  ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
+                       ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
 
 add_executable(
   ashura_engine_tests
