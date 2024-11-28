@@ -436,22 +436,22 @@ TEST(OptionLifetimeTest, MapOrElse)
 TEST(OptionTest, AndThen)
 {
   auto &&a = Option(Some(90)).and_then(
-      [](int &x) { return Option(Some(static_cast<float>(x) + 90.0f)); });
+      [](int &x) { return Option(Some(static_cast<float>(x) + 90.0F)); });
 
-  EXPECT_FLOAT_EQ(std::move(a).unwrap(), 180.0f);
+  EXPECT_FLOAT_EQ(std::move(a).unwrap(), 180.0F);
 
   auto &&b = make_none<int>().and_then(
-      [](int &x) { return Option(Some(static_cast<float>(x) + 90.0f)); });
+      [](int &x) { return Option(Some(static_cast<float>(x) + 90.0F)); });
   EXPECT_EQ(b, None);
 }
 
 TEST(OptionTest, OrElse)
 {
-  auto &&a = Option(Some(90.0f)).or_else([]() { return Option(Some(0.5f)); });
-  EXPECT_FLOAT_EQ(std::move(a).unwrap(), 90.0f);
+  auto &&a = Option(Some(90.0F)).or_else([]() { return Option(Some(0.5F)); });
+  EXPECT_FLOAT_EQ(std::move(a).unwrap(), 90.0F);
 
-  auto &&b = Option<float>(None).or_else([]() { return Option(Some(0.5f)); });
-  EXPECT_FLOAT_EQ(std::move(b).unwrap(), 0.5f);
+  auto &&b = Option<float>(None).or_else([]() { return Option(Some(0.5F)); });
+  EXPECT_FLOAT_EQ(std::move(b).unwrap(), 0.5F);
 
   auto &&c = Option<float>(None).or_else([]() { return Option<float>(None); });
   EXPECT_EQ(c, None);

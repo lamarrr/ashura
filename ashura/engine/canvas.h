@@ -112,9 +112,9 @@ struct ShapeInfo
 
   Vec4 corner_radii = {0, 0, 0, 0};
 
-  f32 stroke = 0.0f;
+  f32 stroke = 0.0F;
 
-  f32 thickness = 1.0f;
+  f32 thickness = 1.0F;
 
   ColorGradient tint = {};
 

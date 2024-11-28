@@ -76,20 +76,20 @@ void path::rrect(Vec<Vec2> &vtx, Vec4 radii, u32 segments)
   }
 
   radii   = radii * 2;
-  radii.x = min(radii.x, 2.0f);
-  radii.y = min(radii.y, 2.0f);
-  radii.z = min(radii.z, 2.0f);
-  radii.w = min(radii.w, 2.0f);
+  radii.x = min(radii.x, 2.0F);
+  radii.y = min(radii.y, 2.0F);
+  radii.z = min(radii.z, 2.0F);
+  radii.w = min(radii.w, 2.0F);
 
   /// clipping
-  radii.y          = min(radii.y, 2.0f - radii.x);
-  f32 max_radius_z = min(2.0f - radii.x, 1.0f - radii.y);
+  radii.y          = min(radii.y, 2.0F - radii.x);
+  f32 max_radius_z = min(2.0F - radii.x, 1.0F - radii.y);
   radii.z          = min(radii.z, max_radius_z);
-  f32 max_radius_w = min(max_radius_z, 1.0f - radii.z);
+  f32 max_radius_w = min(max_radius_z, 1.0F - radii.z);
   radii.w          = min(radii.w, max_radius_w);
 
   u32 const curve_segments = (segments - 8) / 4;
-  f32 const step  = (curve_segments == 0) ? 0.0f : ((PI / 2) / curve_segments);
+  f32 const step  = (curve_segments == 0) ? 0.0F : ((PI / 2) / curve_segments);
   u32 const first = vtx.size32();
 
   vtx.extend_uninit(segments).unwrap();
@@ -129,7 +129,7 @@ void path::rrect(Vec<Vec2> &vtx, Vec4 radii, u32 segments)
   for (u32 s = 0; s < curve_segments; s++)
   {
     vtx[first + i++] = Vec2{1 - radii.y, (-1 + radii.y)} +
-                       radii.y * rotor(PI * 3.0f / 2.0f + s * step);
+                       radii.y * rotor(PI * 3.0F / 2.0F + s * step);
   }
 
   vtx[first + i++] = Vec2{1, -1 + radii.y};
@@ -137,16 +137,16 @@ void path::rrect(Vec<Vec2> &vtx, Vec4 radii, u32 segments)
 
 void path::brect(Vec<Vec2> &vtx, Vec4 slant)
 {
-  slant   = slant * 2.0f;
-  slant.x = min(slant.x, 2.0f);
-  slant.y = min(slant.y, 2.0f);
-  slant.z = min(slant.z, 2.0f);
-  slant.w = min(slant.w, 2.0f);
+  slant   = slant * 2.0F;
+  slant.x = min(slant.x, 2.0F);
+  slant.y = min(slant.y, 2.0F);
+  slant.z = min(slant.z, 2.0F);
+  slant.w = min(slant.w, 2.0F);
 
-  slant.y          = min(slant.y, 2.0f - slant.x);
-  f32 max_radius_z = min(2.0f - slant.x, 2.0f - slant.y);
+  slant.y          = min(slant.y, 2.0F - slant.x);
+  f32 max_radius_z = min(2.0F - slant.x, 2.0F - slant.y);
   slant.z          = min(slant.z, max_radius_z);
-  f32 max_radius_w = min(max_radius_z, 2.0f - slant.z);
+  f32 max_radius_w = min(max_radius_z, 2.0F - slant.z);
   slant.w          = min(slant.w, max_radius_w);
 
   Vec2 const vertices[] = {{-1 + slant.x, -1}, {1 - slant.y, -1},
@@ -168,7 +168,7 @@ void path::bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments)
 
   vtx.extend_uninit(segments).unwrap();
 
-  f32 const step = 1.0f / (segments - 1);
+  f32 const step = 1.0F / (segments - 1);
 
   for (u32 i = 0; i < segments; i++)
   {
@@ -189,7 +189,7 @@ void path::cubic_bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
 
   vtx.extend_uninit(segments).unwrap();
 
-  f32 const step = 1.0f / (segments - 1);
+  f32 const step = 1.0F / (segments - 1);
 
   for (u32 i = 0; i < segments; i++)
   {
@@ -211,7 +211,7 @@ void path::catmull_rom(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
 
   vtx.extend_uninit(segments).unwrap();
 
-  f32 const step = 1.0f / (segments - 1);
+  f32 const step = 1.0F / (segments - 1);
 
   for (u32 i = 0; i < segments; i++)
   {
