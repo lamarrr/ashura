@@ -2079,9 +2079,8 @@ struct ScalarDragBox : View
 
       case ScalarInputType::f32:
       {
-        f32 value = 0;
-        auto [ptr, ec] =
-            std::from_chars(first, last, value, std::chars_format::fixed);
+        f32 value      = 0;
+        auto [ptr, ec] = std::from_chars(first, last, value);
         if (ec != std::errc{} || value < styling.min.f32 ||
             value > styling.max.f32)
         {
