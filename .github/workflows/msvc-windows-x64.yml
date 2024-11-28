@@ -7,7 +7,7 @@ jobs:
     strategy:
       matrix:
         build_mode: ["Release", "Debug"]
-        os: ["windows-2022"]
+        os: ["windows-latest"]
 
     runs-on: ${{ matrix.os }}
 
