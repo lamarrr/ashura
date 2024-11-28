@@ -134,7 +134,8 @@ struct AliasCounted : AliasCount
 };
 
 template <typename T, typename... Args>
-Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator, Args &&...args)
+constexpr Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator,
+                                           Args &&...args)
 {
   AliasCounted<T> *object;
 
@@ -154,9 +155,25 @@ Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator, Args &&...args)
 }
 
 template <typename T>
-Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T object)
+constexpr Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T object)
 {
   return rc_inplace<T>(allocator, (T &&) object);
+}
+
+template <typename Base, typename H>
+constexpr Rc<H> transmute(Rc<Base> &&base, H handle)
+{
+  Rc<H> t{(H &&) handle, base.inner.allocator, base.inner.uninit};
+  base.inner.handle    = {};
+  base.inner.allocator = noop_allocator;
+  base.inner.uninit    = noop;
+  return t;
+}
+
+template <typename To, typename From>
+constexpr Rc<To> cast(Rc<From> &&from)
+{
+  return transmute((Rc<From> &&) from, static_cast<To>(from.get()));
 }
 
 }        // namespace ash

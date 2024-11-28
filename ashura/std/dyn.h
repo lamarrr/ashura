@@ -89,7 +89,8 @@ struct [[nodiscard]] Dyn
 };
 
 template <typename T, typename... Args>
-Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator, Args &&...args)
+constexpr Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator,
+                                             Args &&...args)
 {
   T *object;
   if (!allocator.nalloc(1, object)) [[unlikely]]
@@ -107,13 +108,13 @@ Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator, Args &&...args)
 }
 
 template <typename T>
-Result<Dyn<T *>, Void> dyn(AllocatorImpl allocator, T object)
+constexpr Result<Dyn<T *>, Void> dyn(AllocatorImpl allocator, T object)
 {
   return dyn_inplace<T>(allocator, (T &&) object);
 }
 
 template <typename Base, typename H>
-Dyn<H> transmute(Dyn<Base> &&base, H handle)
+constexpr Dyn<H> transmute(Dyn<Base> &&base, H handle)
 {
   Dyn<H> t{(H &&) handle, base.inner.allocator, base.inner.uninit};
   base.inner.handle    = {};
@@ -123,7 +124,7 @@ Dyn<H> transmute(Dyn<Base> &&base, H handle)
 }
 
 template <typename To, typename From>
-Dyn<To> cast(Dyn<From> &&from)
+constexpr Dyn<To> cast(Dyn<From> &&from)
 {
   return transmute((Dyn<From> &&) from, static_cast<To>(from.get()));
 }

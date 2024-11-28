@@ -609,54 +609,7 @@ static constexpr usize size()
 
 
 
-
-
-template<usize I, typename ...Args>
-constexpr Enum(V<I>, Args &&... args)
-{
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
-}
-
-
-
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
-constexpr bool is()
-{
-    return index_ == I;
-}
-
-template<usize I> requires(I < SIZE)
-constexpr auto& operator[](V<I>)
-{
-    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
-    return intr::enum_member<I>(*this);
-}
-
-template<usize I> requires(I < SIZE)
-constexpr auto const& operator[](V<I>) const
-{
-    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
-    return intr::enum_member<I>(*this);
-}
-
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
-{
-
-}
-
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
-{
-
-}
-
 };
-
     
 template<typename T0>
 struct Enum<T0>
@@ -676,15 +629,12 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -713,8 +663,6 @@ constexpr ~Enum()
     intr::enum_destruct(this);
 }
 
-
-
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
@@ -728,11 +676,7 @@ v0_{(T0 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -765,7 +709,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1>
 struct Enum<T0, T1>
@@ -786,16 +729,13 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
 T1 v1_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -824,8 +764,6 @@ constexpr ~Enum()
     intr::enum_destruct(this);
 }
 
-
-
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
@@ -845,11 +783,7 @@ v1_{(T1 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -882,7 +816,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2>
 struct Enum<T0, T1, T2>
@@ -904,17 +837,14 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
 T1 v1_;
 T2 v2_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -942,8 +872,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -970,11 +898,7 @@ v2_{(T2 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -1007,7 +931,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3>
 struct Enum<T0, T1, T2, T3>
@@ -1030,9 +953,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -1040,8 +962,6 @@ T1 v1_;
 T2 v2_;
 T3 v3_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -1069,8 +989,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -1103,11 +1021,7 @@ v3_{(T3 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -1140,7 +1054,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4>
 struct Enum<T0, T1, T2, T3, T4>
@@ -1164,9 +1077,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -1175,8 +1087,6 @@ T2 v2_;
 T3 v3_;
 T4 v4_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -1204,8 +1114,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -1244,11 +1152,7 @@ v4_{(T4 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -1281,7 +1185,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5>
 struct Enum<T0, T1, T2, T3, T4, T5>
@@ -1306,9 +1209,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -1318,8 +1220,6 @@ T3 v3_;
 T4 v4_;
 T5 v5_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -1347,8 +1247,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -1393,11 +1291,7 @@ v5_{(T5 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -1430,7 +1324,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6>
 struct Enum<T0, T1, T2, T3, T4, T5, T6>
@@ -1456,9 +1349,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -1469,8 +1361,6 @@ T4 v4_;
 T5 v5_;
 T6 v6_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -1498,8 +1388,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -1550,11 +1438,7 @@ v6_{(T6 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -1587,7 +1471,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7>
 struct Enum<T0, T1, T2, T3, T4, T5, T6, T7>
@@ -1614,9 +1497,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -1628,8 +1510,6 @@ T5 v5_;
 T6 v6_;
 T7 v7_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -1657,8 +1537,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -1715,11 +1593,7 @@ v7_{(T7 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -1752,7 +1626,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8>
 struct Enum<T0, T1, T2, T3, T4, T5, T6, T7, T8>
@@ -1780,9 +1653,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -1795,8 +1667,6 @@ T6 v6_;
 T7 v7_;
 T8 v8_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -1824,8 +1694,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -1888,11 +1756,7 @@ v8_{(T8 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -1925,7 +1789,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9>
 struct Enum<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>
@@ -1954,9 +1817,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -1970,8 +1832,6 @@ T7 v7_;
 T8 v8_;
 T9 v9_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -1999,8 +1859,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -2069,11 +1927,7 @@ v9_{(T9 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -2106,7 +1960,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10>
 struct Enum<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
@@ -2136,9 +1989,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -2153,8 +2005,6 @@ T8 v8_;
 T9 v9_;
 T10 v10_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -2182,8 +2032,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -2258,11 +2106,7 @@ v10_{(T10 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -2295,7 +2139,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
 struct Enum<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
@@ -2326,9 +2169,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -2344,8 +2186,6 @@ T9 v9_;
 T10 v10_;
 T11 v11_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -2373,8 +2213,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -2455,11 +2293,7 @@ v11_{(T11 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -2492,7 +2326,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12>
 struct Enum<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
@@ -2524,9 +2357,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -2543,8 +2375,6 @@ T10 v10_;
 T11 v11_;
 T12 v12_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -2572,8 +2402,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -2660,11 +2488,7 @@ v12_{(T12 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -2697,7 +2521,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12, typename T13>
 struct Enum<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
@@ -2730,9 +2553,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -2750,8 +2572,6 @@ T11 v11_;
 T12 v12_;
 T13 v13_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -2779,8 +2599,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -2873,11 +2691,7 @@ v13_{(T13 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -2910,7 +2724,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12, typename T13, typename T14>
 struct Enum<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>
@@ -2944,9 +2757,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -2965,8 +2777,6 @@ T12 v12_;
 T13 v13_;
 T14 v14_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -2994,8 +2804,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -3094,11 +2902,7 @@ v14_{(T14 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -3131,7 +2935,6 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 template<typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12, typename T13, typename T14, typename T15>
 struct Enum<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>
@@ -3166,9 +2969,8 @@ usize index_;
 
 constexpr usize index() const
 {
-return index_;
+    return index_;
 }
-
 
 union {
 T0 v0_;
@@ -3188,8 +2990,6 @@ T13 v13_;
 T14 v14_;
 T15 v15_;
 };
-
-
 
 constexpr Enum(Enum const& other)
 {
@@ -3217,8 +3017,6 @@ constexpr ~Enum()
 {
     intr::enum_destruct(this);
 }
-
-
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
@@ -3323,11 +3121,7 @@ v15_{(T15 &&) v}
 { }
 
 
-constexpr bool is(usize i){
-    return index_ == i;
-}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {
     return index_ == I;
@@ -3360,6 +3154,5 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 }
 
 };
-
     
 } // namespace ash

@@ -152,30 +152,8 @@ for size in range(0,  MAX_ENUM_SIZE + 1):
     alias_decls = [f"typedef {t} {a};" for t, a in zip(types, aliases)]
     value_decls = [f"{t} {v};" for t, v in zip(types, values)]
 
-    index_def = ""
-    if size == 0:
-        pass
-    else:
-        index_def = f"""
-usize index_;
-
-constexpr usize index() const
-{{
-return index_;
-}}
-"""
-
-    storage_def = ""
-
-    if size == 0:
-        pass
-    else:
-        members_def = [f"T{i} v{i}_;" for i in range(0, size)]
-        storage_def = f"""
-union {{
-{"\n".join(members_def)}
-}};
-"""
+     
+    members_def = [f"T{i} v{i}_;" for i in range(0, size)]
 
     value_constructors = [f"""
 constexpr Enum(T{i} v) :
@@ -183,8 +161,37 @@ index_{{{i}}},
 v{i}_{{(T{i} &&) v}}
 {{ }}
 """ for i in range(0, size)]
+ 
 
-    base_constructors = f"""
+    out(f"""
+template<{", ".join(typename_decls)}>
+struct Enum<{", ".join(types)}>
+{{
+
+{"\n".join(alias_decls)}
+
+static constexpr usize SIZE = {size};
+
+static constexpr usize size()
+{{
+    return SIZE;
+}}
+
+{
+    """
+"""
+if size == 0 else
+f"""
+usize index_;
+
+constexpr usize index() const
+{{
+    return index_;
+}}
+
+union {{
+{"\n".join(members_def)}
+}};
 
 constexpr Enum(Enum const& other)
 {{
@@ -213,26 +220,6 @@ constexpr ~Enum()
     intr::enum_destruct(this);
 }}
 
-"""
-
-    out(f"""
-template<{", ".join(typename_decls)}>
-struct Enum<{", ".join(types)}>
-{{
-
-{"\n".join(alias_decls)}
-
-static constexpr usize SIZE = {size};
-
-static constexpr usize size()
-{{
-    return SIZE;
-}}
-
-{index_def}
-{storage_def}
-{base_constructors if size != 0 else ""}
-
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {{
@@ -241,11 +228,7 @@ constexpr Enum(V<I>, Args &&... args)
 
 {"\n".join(value_constructors)}
 
-constexpr bool is(usize i){{
-    return index_ == i;
-}}
-
-template<usize I>
+template<usize I> requires(I < SIZE)
 constexpr bool is()
 {{
     return index_ == I;
@@ -276,9 +259,9 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {{
 
 }}
-
+"""
+}
 }};
-
     """)
 
     # deduction guides
