@@ -30,7 +30,10 @@ namespace ash
 ///
 struct AliasCount
 {
-  /// @brief number of other aliases. range: [0, USIZE_MAX], overflow is
+  /// @brief Guards against overflow.
+  static constexpr usize MAX = USIZE_MAX - 1;
+
+  /// @brief number of other aliases. range: [0, MAX], overflow is
   /// well-checked.
   usize count_{0};
 
@@ -38,9 +41,15 @@ struct AliasCount
   void alias()
   {
     std::atomic_ref count{count_};
-    usize const     old = count.fetch_add(1, std::memory_order_release);
-    // overflow check, transition from USIZE_MAX -> 0, is illegal
-    CHECK(old < USIZE_MAX);
+    usize           expected = 0;
+    usize           desired  = 1;
+    while (!count.compare_exchange_weak(expected, desired,
+                                        std::memory_order_release,
+                                        std::memory_order_relaxed))
+    {
+      CHECK(expected <= MAX);
+      desired = expected + 1;
+    }
   }
 
   /// @brief called when done with an object.
