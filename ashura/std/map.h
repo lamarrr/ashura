@@ -382,10 +382,11 @@ struct [[nodiscard]] Map
 
   /// @brief Insert a new entry into the Map
   /// @param exists set to true if the object already exists
-  /// @param replaced if true, the original value is replaced
-  /// @return true if the insert was successful without a memory allocation
-  /// error
-  [[nodiscard]] constexpr Result<>
+  /// @param replaced if true, the original value is replaced if it exists,
+  /// otherwise the entry is added
+  /// @return The inserted or existing value if the insert was successful
+  /// without a memory allocation error, otherwise an Err
+  [[nodiscard]] constexpr Result<Entry *>
       insert(K key, V value, bool *exists = nullptr, bool replace = true)
   {
     if (exists != nullptr)
@@ -444,7 +445,7 @@ struct [[nodiscard]] Map
     }
 
     max_probe_dist_ = max(max_probe_dist_, probe_dist);
-    return Ok{};
+    return Ok{probes_ + insert_idx};
   }
 
   constexpr void pop_probe_(usize pop_idx)
