@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/error.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -15,11 +16,11 @@ namespace ash
 /// constructed.
 ///
 template <typename T>
-struct ListNode : Pin<>
+struct [[nodiscard]] ListNode : Pin<>
 {
   ListNode<T> *next = this;
   ListNode<T> *prev = this;
-  T            data = {};
+  T            v    = {};
 
   void isolate()
   {
@@ -135,10 +136,41 @@ template <typename T>
 
 }        // namespace list
 
+/// @brief A non-owning intrusive doubly circularly linked list. This is backed
+/// by an external allocator.
+/// @tparam T type contained by the list's nodes
 template <typename T>
-struct List
+struct [[nodiscard]] List
 {
-  ListNode<T> *head = nullptr;
+  ListNode<T> *head;
+
+  constexpr List() : head{nullptr}
+  {
+  }
+
+  explicit constexpr List(ListNode<T> *head) : head{head}
+  {
+  }
+
+  constexpr List(List const &) = delete;
+
+  constexpr List(List &&other) : head{other.head}
+  {
+    other.head = nullptr;
+  }
+
+  constexpr List &operator=(List const &) = delete;
+
+  constexpr List &operator=(List &&other)
+  {
+    swap(head, other.head);
+    return *this;
+  }
+
+  constexpr ~List()
+  {
+    CHECK_DESC("Linked list's elements were leaked", head == nullptr);
+  }
 
   constexpr bool is_empty() const
   {

@@ -21,7 +21,7 @@ TEST(SparseVecTest, Start)
   ASSERT_EQ(f.size(), 6);
   ASSERT_EQ(f.size(), f.capacity());
   ASSERT_EQ(f[5], 6);
-  ASSERT_TRUE(f.insert(f.size(), 7));
+  ASSERT_TRUE(f.insert(f.size(), 7).is_ok());
   ASSERT_EQ(f.size(), 7);
   ASSERT_EQ(f[0], 1);
   ASSERT_EQ(f[5], 6);

@@ -34,10 +34,50 @@ struct SparseVec
   static constexpr u64 RELEASE_MASK = U64_MAX >> 1;
   static constexpr u64 STUB         = U64_MAX;
 
-  Vec<u64>    index_to_id  = {};
-  Vec<u64>    id_to_index  = {};
-  Tuple<V...> dense        = {};
-  u64         free_id_head = STUB;
+  using Dense = Tuple<V...>;
+
+  Vec<u64> index_to_id  = {};
+  Vec<u64> id_to_index  = {};
+  Dense    dense        = {};
+  u64      free_id_head = STUB;
+
+  explicit SparseVec(AllocatorImpl allocator) :
+      index_to_id{allocator},
+      id_to_index{allocator},
+      dense{},
+      free_id_head{STUB}
+  {
+  }
+
+  SparseVec() : SparseVec{default_allocator}
+  {
+  }
+
+  SparseVec(SparseVec const &) = delete;
+
+  SparseVec &operator=(SparseVec const &) = delete;
+
+  SparseVec(SparseVec &&other) :
+      index_to_id{std::move(other.index_to_id)},
+      id_to_index{std::move(other.id_to_index)},
+      dense{std::move(other.dense)},
+      free_id_head{other.free_id_head}
+  {
+    other.free_id_head = STUB;
+  }
+
+  SparseVec &operator=(SparseVec &&other)
+  {
+    if (this == &other) [[unlikely]]
+    {
+      return *this;
+    }
+    index_to_id  = std::move(other.index_to_id);
+    id_to_index  = std::move(other.id_to_index);
+    dense        = std::move(other.dense);
+    free_id_head = other.free_id_head;
+    return *this;
+  }
 
   constexpr bool is_empty() const
   {
@@ -51,7 +91,7 @@ struct SparseVec
 
   constexpr void clear()
   {
-    for_each([](auto &d) { d.clear(); }, dense);
+    apply([](auto &...d) { (d.clear(), ...); }, dense);
     id_to_index.clear();
     index_to_id.clear();
     free_id_head = STUB;
@@ -59,7 +99,7 @@ struct SparseVec
 
   constexpr void reset()
   {
-    for_each([](auto &d) { d.reset(); }, dense);
+    apply([](auto &...d) { (d.reset(), ...); }, dense);
     id_to_index.reset();
     index_to_id.reset();
     free_id_head = STUB;
@@ -67,7 +107,7 @@ struct SparseVec
 
   constexpr void uninit()
   {
-    for_each([](auto &d) { d.uninit(); }, dense);
+    apply([](auto &...d) { (d.uninit(), ...); }, dense);
     id_to_index.uninit();
     index_to_id.uninit();
   }
@@ -94,7 +134,7 @@ struct SparseVec
 
   constexpr Result<u64, Void> try_to_index(u64 id) const
   {
-    if (!is_valid_id(id))
+    if (!is_valid_id(id)) [[unlikely]]
     {
       return Err{};
     }
@@ -109,7 +149,7 @@ struct SparseVec
 
   constexpr Result<u64, Void> try_to_id(u64 index) const
   {
-    if (!is_valid_index(index))
+    if (!is_valid_index(index)) [[unlikely]]
     {
       return Err{};
     }
@@ -124,10 +164,10 @@ struct SparseVec
 
     if (index != last)
     {
-      for_each([&](auto &d) { d.swap(index, last); }, dense);
+      apply([index, last](auto &...d) { (d.swap(index, last), ...); }, dense);
     }
 
-    for_each([](auto &d) { d.pop(); }, dense);
+    apply([](auto &...d) { (d.pop(), ...); }, dense);
 
     // adjust id and index mapping
     if (index != last)
@@ -141,9 +181,9 @@ struct SparseVec
     index_to_id.pop();
   }
 
-  constexpr Result<Void, Void> try_erase(u64 id)
+  constexpr Result<> try_erase(u64 id)
   {
-    if (!is_valid_id(id))
+    if (!is_valid_id(id)) [[unlikely]]
     {
       return Err{};
     }
@@ -151,18 +191,21 @@ struct SparseVec
     return Ok{};
   }
 
-  constexpr Result<Void, Void> reserve(u64 target_capacity)
+  constexpr Result<> reserve(u64 target_capacity)
   {
     if (!(id_to_index.reserve(target_capacity) &&
-          index_to_id.reserve(target_capacity)))
+          index_to_id.reserve(target_capacity))) [[unlikely]]
     {
       return Err{};
     }
 
-    bool failed = false;
-    for_each([&](auto &d) { failed |= !d.reserve(target_capacity); }, dense);
+    bool failed = apply(
+        [&](auto &...d) {
+          return (false || ... || !d.reserve(target_capacity));
+        },
+        dense);
 
-    if (failed)
+    if (failed) [[unlikely]]
     {
       return Err{};
     }
@@ -170,17 +213,21 @@ struct SparseVec
     return Ok{};
   }
 
-  constexpr Result<Void, Void> grow(u64 target_size)
+  constexpr Result<> grow(u64 target_size)
   {
     if (!(id_to_index.grow(target_size) && index_to_id.grow(target_size)))
+        [[unlikely]]
     {
       return Err{};
     }
 
-    bool failed = false;
-    for_each([&](auto &d) { failed |= !d.grow(target_size); }, dense);
+    bool failed = apply(
+        [target_size](auto &...d) {
+          return (false || ... || !d.grow(target_size));
+        },
+        dense);
 
-    if (failed)
+    if (failed) [[unlikely]]
     {
       return Err{};
     }
@@ -200,7 +247,7 @@ struct SparseVec
     }
     else
     {
-      if (!id_to_index.push(index))
+      if (!id_to_index.push(index)) [[unlikely]]
       {
         return Err{};
       }
@@ -229,19 +276,19 @@ struct SparseVec
   {
     u64 const index = size();
 
-    if (!grow(size() + 1))
+    if (!grow(size() + 1)) [[unlikely]]
     {
       return Err{};
     }
 
     Result id = make_id(index);
 
-    if (!id)
+    if (!id) [[unlikely]]
     {
       return Err{};
     }
 
-    if (!index_to_id.push(id.unwrap()))
+    if (!index_to_id.push(id.unwrap())) [[unlikely]]
     {
       return Err{};
     }

@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: MIT
-#include "ashura/std/hash_map.h"
+#include "ashura/std/map.h"
 #include "ashura/std/types.h"
 #include "stdint.h"
 #include <algorithm>
@@ -1010,16 +1010,15 @@ constexpr Tuple<Span<char const>, int> DATASET[] = {{"Lorem"_span, 0},
                                                     {"sociosqu"_span, 0},
                                                     {"ad"_span, 0}};
 
-static void BM_HashMap16(benchmark::State &state)
+static void BM_Map16(benchmark::State &state)
 {
-  StrHashMap<int> map;
-  int             count = 0;
+  StaticStrMap<int> map;
+  int               count = 0;
   for (auto _ : state)
   {
     for (auto &dp : DATASET)
     {
-      bool exists;
-      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
+      map.insert(dp.v0, dp.v1).unwrap();
     }
     for (auto &dp : DATASET)
     {
@@ -1036,16 +1035,15 @@ static void BM_HashMap16(benchmark::State &state)
   printf("num unique inserts: %d\n", count);
 }
 
-static void BM_HashMap8(benchmark::State &state)
+static void BM_Map8(benchmark::State &state)
 {
-  StrHashMap<int, u8> map;
-  int                 count = 0;
+  StaticStrMap<int, u8> map;
+  int                   count = 0;
   for (auto _ : state)
   {
     for (auto &dp : DATASET)
     {
-      bool exists;
-      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
+      map.insert(dp.v0, dp.v1).unwrap();
     }
     for (auto &dp : DATASET)
     {
@@ -1062,16 +1060,15 @@ static void BM_HashMap8(benchmark::State &state)
   printf("num unique inserts: %d\n", count);
 }
 
-static void BM_HashMap32(benchmark::State &state)
+static void BM_Map32(benchmark::State &state)
 {
-  StrHashMap<int, u32> map;
-  int                  count = 0;
+  StaticStrMap<int, u32> map;
+  int                    count = 0;
   for (auto _ : state)
   {
     for (auto &dp : DATASET)
     {
-      bool exists;
-      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
+      map.insert(dp.v0, dp.v1).unwrap();
     }
     for (auto &dp : DATASET)
     {
@@ -1088,16 +1085,15 @@ static void BM_HashMap32(benchmark::State &state)
   printf("num unique inserts: %d\n", count);
 }
 
-static void BM_HashMap64(benchmark::State &state)
+static void BM_Map64(benchmark::State &state)
 {
-  StrHashMap<int, u64> map;
-  int                  count = 0;
+  StaticStrMap<int, u64> map;
+  int                    count = 0;
   for (auto _ : state)
   {
     for (auto &dp : DATASET)
     {
-      bool exists;
-      (void) map.insert(exists, nullptr, dp.v0, dp.v1);
+      map.insert(dp.v0, dp.v1).unwrap();
     }
     for (auto &dp : DATASET)
     {
@@ -1186,9 +1182,9 @@ struct std_allocator
   }
 };
 
-static void BM_StdHashMap(benchmark::State &state)
+static void BM_StdMap(benchmark::State &state)
 {
-  std::unordered_map<Span<char const>, int, StrHasher, StrEqual,
+  std::unordered_map<Span<char const>, int, StrHasher, StrEq,
                      std_allocator<std::pair<Span<char const> const, int>>>
       map;
   int count = 0;
@@ -1232,10 +1228,9 @@ struct std::hash<Span<char const>>
   }
 };
 
-static void BM_StdHashMapDefaultHash(benchmark::State &state)
+static void BM_StdMapDefaultHash(benchmark::State &state)
 {
-  std::unordered_map<Span<char const>, int, std::hash<Span<char const>>,
-                     StrEqual,
+  std::unordered_map<Span<char const>, int, std::hash<Span<char const>>, StrEq,
                      std_allocator<std::pair<Span<char const> const, int>>>
       map;
   int count = 0;
@@ -1260,10 +1255,9 @@ static void BM_StdHashMapDefaultHash(benchmark::State &state)
   printf("num unique inserts: %d\n", count);
 }
 
-static void BM_StdHashMapDefaultHashDefaultAlloc(benchmark::State &state)
+static void BM_StdMapDefaultHashDefaultAlloc(benchmark::State &state)
 {
-  std::unordered_map<Span<char const>, int, std::hash<Span<char const>>,
-                     StrEqual>
+  std::unordered_map<Span<char const>, int, std::hash<Span<char const>>, StrEq>
       map;
   int count = 0;
   for (auto _ : state)
@@ -1313,12 +1307,12 @@ static void BM_StdOrderedMapDefaultAlloc(benchmark::State &state)
 }
 
 constexpr int ITERATIONS = 100'000;
-BENCHMARK(BM_HashMap8)->Iterations(ITERATIONS);
-BENCHMARK(BM_HashMap16)->Iterations(ITERATIONS);
-BENCHMARK(BM_HashMap32)->Iterations(ITERATIONS);
-BENCHMARK(BM_HashMap64)->Iterations(ITERATIONS);
-BENCHMARK(BM_StdHashMap)->Iterations(ITERATIONS);
-BENCHMARK(BM_StdHashMapDefaultHash)->Iterations(ITERATIONS);
-BENCHMARK(BM_StdHashMapDefaultHashDefaultAlloc)->Iterations(ITERATIONS);
+BENCHMARK(BM_Map8)->Iterations(ITERATIONS);
+BENCHMARK(BM_Map16)->Iterations(ITERATIONS);
+BENCHMARK(BM_Map32)->Iterations(ITERATIONS);
+BENCHMARK(BM_Map64)->Iterations(ITERATIONS);
+BENCHMARK(BM_StdMap)->Iterations(ITERATIONS);
+BENCHMARK(BM_StdMapDefaultHash)->Iterations(ITERATIONS);
+BENCHMARK(BM_StdMapDefaultHashDefaultAlloc)->Iterations(ITERATIONS);
 BENCHMARK(BM_StdOrderedMapDefaultAlloc)->Iterations(ITERATIONS);
 BENCHMARK_MAIN();

@@ -6,6 +6,32 @@
 namespace ash
 {
 
+ASH_C_LINKAGE ASH_DLL_EXPORT Logger *logger = nullptr;
+
+void Logger::init()
+{
+  if (logger != nullptr)
+  {
+    std::abort();
+  }
+
+  alignas(Logger) static u8 storage[sizeof(Logger)] = {};
+
+  logger = new (storage) Logger{};
+}
+
+void Logger::uninit()
+{
+  if (logger == nullptr)
+  {
+    std::abort();
+  }
+  logger->~Logger();
+  logger = nullptr;
+}
+
+StdioSink stdio_sink{};
+
 char const *get_level_str(LogLevels level)
 {
   switch (level)
@@ -42,7 +68,7 @@ char const *get_level_str(LogLevels level)
 void StdioSink::log(LogLevels level, Span<char const> log_message)
 {
   char const *level_str = get_level_str(level);
-  FILE       *file      = stdout;
+  std::FILE  *file      = stdout;
 
   switch (level)
   {
@@ -64,32 +90,32 @@ void StdioSink::log(LogLevels level, Span<char const> log_message)
   char                 time_string[256];
   usize                time_string_length = 0;
 
-  time_t current_time = time(nullptr);
-  if (current_time != (time_t) -1)
+  std::time_t current_time = std::time(nullptr);
+  if (current_time != (std::time_t) -1)
   {
-    tm *current_local_time = localtime(&current_time);
+    tm *current_local_time = std::localtime(&current_time);
     if (current_local_time != nullptr)
     {
-      time_string_length = strftime(time_string, sizeof(time_string),
-                                    time_format, current_local_time);
+      time_string_length = std::strftime(time_string, sizeof(time_string),
+                                         time_format, current_local_time);
     }
   }
 
   std::unique_lock lock{mutex};
 
-  (void) fputs("[", file);
-  (void) fputs(level_str, file);
-  (void) fputs(": ", file);
-  (void) fwrite(time_string, 1, time_string_length, file);
-  (void) fputs("] ", file);
-  (void) fwrite(log_message.data(), 1, log_message.size(), file);
+  (void) std::fputs("[", file);
+  (void) std::fputs(level_str, file);
+  (void) std::fputs(": ", file);
+  (void) std::fwrite(time_string, 1, time_string_length, file);
+  (void) std::fputs("] ", file);
+  (void) std::fwrite(log_message.data(), 1, log_message.size(), file);
 }
 
 void StdioSink::flush()
 {
   std::unique_lock lock{mutex};
-  (void) fflush(stdout);
-  (void) fflush(stderr);
+  (void) std::fflush(stdout);
+  (void) std::fflush(stderr);
 }
 
 void FileSink::log(LogLevels level, Span<char const> log_message)
@@ -99,36 +125,30 @@ void FileSink::log(LogLevels level, Span<char const> log_message)
   char                 time_string[256];
   usize                time_string_length = 0;
 
-  time_t current_time = time(nullptr);
-  if (current_time != (time_t) -1)
+  std::time_t current_time = std::time(nullptr);
+  if (current_time != (std::time_t) -1)
   {
-    tm *current_local_time = localtime(&current_time);
+    std::tm *current_local_time = std::localtime(&current_time);
     if (current_local_time != nullptr)
     {
-      time_string_length = strftime(time_string, sizeof(time_string),
-                                    time_format, current_local_time);
+      time_string_length = std::strftime(time_string, sizeof(time_string),
+                                         time_format, current_local_time);
     }
   }
 
   std::unique_lock lock{mutex};
-  (void) fputs("[", file);
-  (void) fputs(level_str, file);
-  (void) fputs(": ", file);
-  (void) fwrite(time_string, 1, time_string_length, file);
-  (void) fputs("] ", file);
-  (void) fwrite(log_message.data(), 1, log_message.size(), file);
+  (void) std::fputs("[", file);
+  (void) std::fputs(level_str, file);
+  (void) std::fputs(": ", file);
+  (void) std::fwrite(time_string, 1, time_string_length, file);
+  (void) std::fputs("] ", file);
+  (void) std::fwrite(log_message.data(), 1, log_message.size(), file);
 }
 
 void FileSink::flush()
 {
   std::unique_lock lock{mutex};
-  (void) fflush(file);
+  (void) std::fflush(file);
 }
-
-static Logger logger_impl = Logger{};
-
-ASH_C_LINKAGE ASH_DLL_EXPORT Logger *logger = &logger_impl;
-
-StdioSink stdio_sink = {};
 
 }        // namespace ash

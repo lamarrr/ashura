@@ -17,6 +17,7 @@ namespace ash
 /// normalized to same range.
 namespace path
 {
+
 void rect(Vec<Vec2> &vtx);
 
 /// @brief generate vertices for an arc
@@ -78,6 +79,7 @@ void triangles(u32 first_vertex, u32 num_vertices, Vec<u32> &idx);
 
 /// @brief generate vertices for a quadratic bezier curve
 void triangulate_convex(Vec<u32> &idx, u32 first_vertex, u32 num_vertices);
+
 };        // namespace path
 
 enum class ScaleMode : u8
@@ -100,7 +102,7 @@ enum class ScaleMode : u8
 /// @param uv uv coordinates of the upper-left and lower-right
 /// @param tiling tiling factor
 /// @param edge_smoothness edge smoothness to apply if it is a rrect
-struct ShapeDesc
+struct ShapeInfo
 {
   Vec2 center = {0, 0};
 
@@ -124,22 +126,22 @@ struct ShapeDesc
 
   f32 tiling = 1;
 
-  f32 edge_smoothness = 0.0015F;
+  f32 edge_smoothness = 0.015F;
 };
 
 struct Canvas
 {
   struct RenderContext
   {
-    Canvas                        &canvas;
-    GpuContext                    &gpu;
-    PassContext                   &passes;
-    RenderTarget const            &rt;
-    gpu::CommandEncoderImpl const &enc;
-    SSBO const                    &rrects;
-    SSBO const                    &ngons;
-    SSBO const                    &ngon_vertices;
-    SSBO const                    &ngon_indices;
+    Canvas              &canvas;
+    GpuContext          &gpu;
+    PassContext         &passes;
+    RenderTarget const  &rt;
+    gpu::CommandEncoder &enc;
+    SSBO const          &rrects;
+    SSBO const          &ngons;
+    SSBO const          &ngon_vertices;
+    SSBO const          &ngon_indices;
   };
 
   enum class BatchType : u8
@@ -152,18 +154,17 @@ struct Canvas
   struct Batch
   {
     BatchType type = BatchType::None;
-    CRect     clip{.center{0, 0}, .extent{F32_MAX, F32_MAX}};
-    Slice32   objects{};
+    CRect   clip{.center{F32_MAX / 2, F32_MAX / 2}, .extent{F32_MAX, F32_MAX}};
+    Slice32 objects{};
   };
+
+  typedef Dyn<Fn<void(RenderContext const &)>> PassFn;
 
   struct Pass
   {
-    Span<char const>                name{};
-    Fn<void(RenderContext const &)> task = fn([](RenderContext const &) {});
-    void (*uninit)(void *)               = [](void *) {};
+    Span<char const> name = {};
+    PassFn           task{};
   };
-
-  ArenaPool frame_arena{.min_arena_size = 100_KB, .max_arena_size = 100_KB};
 
   Vec2 viewport_extent{};
 
@@ -173,27 +174,45 @@ struct Canvas
 
   Mat4 world_to_view = Mat4::identity();
 
-  CRect current_clip{.center{0, 0}, .extent{F32_MAX, F32_MAX}};
+  CRect current_clip{.center{F32_MAX / 2, F32_MAX / 2},
+                     .extent{F32_MAX, F32_MAX}};
 
-  Vec<RRectParam> rrect_params{};
+  Vec<RRectParam> rrect_params;
 
-  Vec<NgonParam> ngon_params{};
+  Vec<NgonParam> ngon_params;
 
-  Vec<Vec2> ngon_vertices{};
+  Vec<Vec2> ngon_vertices;
 
-  Vec<u32> ngon_indices{};
+  Vec<u32> ngon_indices;
 
-  Vec<u32> ngon_index_counts{};
+  Vec<u32> ngon_index_counts;
 
-  Batch batch = {};
+  Batch batch{};
 
-  Vec<Pass> passes{};
+  Vec<Pass> passes;
 
-  void init();
+  // declared last so it would release allocated memory after all operations
+  // are done executing
+  ArenaPool frame_arena;
 
-  void uninit();
+  explicit Canvas(AllocatorImpl allocator) :
+      rrect_params{allocator},
+      ngon_params{allocator},
+      ngon_vertices{allocator},
+      ngon_indices{allocator},
+      ngon_index_counts{allocator},
+      passes{allocator},
+      frame_arena{allocator}
+  {
+  }
 
-  Canvas &begin_recording(Vec2 viewport_extent);
+  Canvas(Canvas const &)            = delete;
+  Canvas(Canvas &&)                 = default;
+  Canvas &operator=(Canvas const &) = delete;
+  Canvas &operator=(Canvas &&)      = default;
+  ~Canvas()                         = default;
+
+  Canvas &begin_recording(Vec2 viewport_extent, Vec2U surface_extent);
 
   Canvas &end_recording();
 
@@ -202,21 +221,21 @@ struct Canvas
   Canvas &clip(CRect const &area);
 
   /// @brief render a circle
-  Canvas &circle(ShapeDesc const &desc);
+  Canvas &circle(ShapeInfo const &info);
 
   /// @brief render a rectangle
-  Canvas &rect(ShapeDesc const &desc);
+  Canvas &rect(ShapeInfo const &info);
 
   /// @brief render a rounded rectangle
-  Canvas &rrect(ShapeDesc const &desc);
+  Canvas &rrect(ShapeInfo const &info);
 
   /// @brief render a beveled rectangle
-  Canvas &brect(ShapeDesc const &desc);
+  Canvas &brect(ShapeInfo const &info);
 
   /// @brief render a squircle (triangulation based)
   /// @param num_segments an upper bound on the number of segments to
   /// @param degree
-  Canvas &squircle(ShapeDesc const &desc, f32 degree, u32 segments);
+  Canvas &squircle(ShapeInfo const &info, f32 degree, u32 segments);
 
   /// @brief
   ///
@@ -236,35 +255,35 @@ struct Canvas
   /// 3 5;	Vertical
   /// 4;	Horizontal + Vertical
   ///
-  /// @param desc
+  /// @param info
   /// @param mode
   /// @param uvs
-  Canvas &nine_slice(ShapeDesc const &desc, ScaleMode mode,
+  Canvas &nine_slice(ShapeInfo const &info, ScaleMode mode,
                      Span<Vec4 const> uvs);
 
   /// @brief Render text using font atlases
-  /// @param desc only desc.center, desc.transform, desc.tiling, and
-  /// desc.sampler are used
+  /// @param info only info.center, info.transform, info.tiling, and
+  /// info.sampler are used
   /// @param block Text Block to be rendered
   /// @param layout Layout of text block to be rendered
   /// @param style styling of the text block, contains styling for the runs and
   /// alignment of the block
   /// @param atlases font atlases
   /// @param clip clip rect for culling draw commands of the text block
-  Canvas &text(ShapeDesc const &desc, TextBlock const &block,
+  Canvas &text(ShapeInfo const &info, TextBlock const &block,
                TextLayout const &layout, TextBlockStyle const &style,
                CRect const &clip = {{F32_MAX / 2, F32_MAX / 2},
                                     {F32_MAX, F32_MAX}});
 
   /// @brief Render Non-Indexed Triangles
-  Canvas &triangles(ShapeDesc const &desc, Span<Vec2 const> vertices);
+  Canvas &triangles(ShapeInfo const &info, Span<Vec2 const> vertices);
 
   /// @brief Render Indexed Triangles
-  Canvas &triangles(ShapeDesc const &desc, Span<Vec2 const> vertices,
+  Canvas &triangles(ShapeInfo const &info, Span<Vec2 const> vertices,
                     Span<u32 const> indices);
 
   /// @brief triangulate and render line
-  Canvas &line(ShapeDesc const &desc, Span<Vec2 const> vertices);
+  Canvas &line(ShapeInfo const &info, Span<Vec2 const> vertices);
 
   /// @brief perform a Canvas-space blur
   /// @param area region in the canvas to apply the blur to
@@ -273,43 +292,22 @@ struct Canvas
   Canvas &blur(CRect const &area, u32 num_passes);
 
   /// @brief register a custom canvas pass to be executed in the render thread
-  Canvas &add_pass(Pass pass);
-
-  template <typename T>
-  T *alloc()
-  {
-    T *out;
-    CHECK(frame_arena.nalloc(1, out));
-    return out;
-  }
-
-  template <typename T>
-  Span<T> alloc(usize n)
-  {
-    T *out;
-    CHECK(frame_arena.nalloc(n, out));
-    return Span{out, n};
-  }
+  Canvas &add_pass(Pass &&pass);
 
   template <typename Lambda>
-  Canvas &add_pass(Span<char const> name, Lambda &&lambda)
+  Canvas &add_pass(Span<char const> name, Lambda &&task)
   {
-    Lambda *lambda = alloc<Lambda>();
-    new (lambda) Lambda{(Lambda &&) lambda};
-    auto lambda_fn = fn(lamda);
+    // relocate lambda to heap
+    Dyn<Lambda *> lambda =
+        dyn(frame_arena.to_allocator(), (Lambda &&) task).unwrap();
+    // allocator is noop-ed but destructor still runs when the dynamic object is
+    // uninitialized. the memory is freed by at the end of the frame anyway so
+    // no need to free it
+    lambda.inner.allocator = noop_allocator;
 
-    Pass pass{.name = name, .task = lambda_fn, .uninit = [](void *l) {
-                Lambda *lambda = static_cast<Lambda *>(l);
-                lambda->~lambda();
-              }};
-
-    return add_pass(pass);
+    return add_pass(Pass{
+        .name = name, .task = transmute(std::move(lambda), fn(lambda.get()))});
   }
 };
 
 }        // namespace ash
-
-// we are trying to batch together related render params/commands belonging to
-// the same pipeline
-//
-//

@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/mem.h"
+#include "ashura/std/obj.h"
 #include "ashura/std/types.h"
 #include <atomic>
 
@@ -8,7 +9,7 @@ namespace ash
 {
 
 template <typename T>
-struct Buffer
+struct [[nodiscard]] Buffer
 {
   T    *data_     = nullptr;
   usize capacity_ = 0;
@@ -34,14 +35,14 @@ struct Buffer
     return size_ == 0;
   }
 
-  constexpr bool extend(Span<T const> in)
+  [[nodiscard]] constexpr bool extend(Span<T const> in)
   {
     if ((size_ + in.size()) > capacity_)
     {
       return false;
     }
 
-    copy(in, Span{data_ + size_, in.size()});
+    obj::copy(in, data_ + size_);
 
     size_ += in.size();
     return true;
@@ -57,12 +58,12 @@ constexpr Buffer<T> buffer(Span<T> span)
 template <typename T>
 constexpr Span<T> span(Buffer<T> buffer)
 {
-  return Span<T>{.data_ = buffer.data(), .size_ = buffer.size()};
+  return Span<T>{buffer.data(), buffer.size()};
 }
 
 /// @capacity: must be a non-zero power of 2
 template <typename T>
-struct RingBuffer
+struct [[nodiscard]] RingBuffer
 {
   T    *data_         = nullptr;
   usize capacity_     = 0;
@@ -84,14 +85,14 @@ struct RingBuffer
     return size_ == 0;
   }
 
-  constexpr bool try_consume(T *out)
+  [[nodiscard]] constexpr bool try_consume(T *out)
   {
     if (size_ == 0)
     {
       return false;
     }
 
-    mem::copy(data_ + consume_next_, out, 1);
+    mem::copy(Span{data_ + consume_next_, 1}, out);
 
     consume_next_ = (consume_next_ + 1) & (capacity_ - 1);
     size_--;
@@ -99,7 +100,7 @@ struct RingBuffer
     return true;
   }
 
-  constexpr bool try_produce(T const &in)
+  [[nodiscard]] constexpr bool try_produce(T const &in)
   {
     if (size_ == capacity_)
     {
@@ -107,7 +108,7 @@ struct RingBuffer
     }
 
     usize const produce_next = (consume_next_ + size_) & (capacity_ - 1);
-    mem::copy(&in, data_ + produce_next, 1);
+    mem::copy(Span{&in, 1}, data_ + produce_next);
 
     size_++;
 
@@ -117,7 +118,7 @@ struct RingBuffer
 
 /// @param capacity must be a non-zero power of 2
 template <typename T>
-struct SPSCRingBuffer
+struct [[nodiscard]] SPSCRingBuffer
 {
   alignas(CACHELINE_ALIGNMENT) usize produce_next_ = 0;
   alignas(CACHELINE_ALIGNMENT) usize consume_next_ = 0;
@@ -130,7 +131,7 @@ struct SPSCRingBuffer
     return capacity_;
   }
 
-  bool try_consume(T *out)
+  [[nodiscard]] bool try_consume(T *out)
   {
     std::atomic_ref p{produce_next_};
     std::atomic_ref c{consume_next_};
@@ -143,7 +144,7 @@ struct SPSCRingBuffer
 
     (void) p.load(std::memory_order_acquire);
 
-    mem::copy(data_ + c_idx, out, 1);
+    mem::copy(Span{data_ + c_idx, 1}, out);
 
     c_idx = (c_idx + 1) & (capacity_ - 1);
 
@@ -152,7 +153,7 @@ struct SPSCRingBuffer
     return true;
   }
 
-  bool try_produce(T const &in)
+  [[nodiscard]] bool try_produce(T const &in)
   {
     std::atomic_ref p{produce_next_};
     std::atomic_ref c{consume_next_};
@@ -163,7 +164,7 @@ struct SPSCRingBuffer
       return false;
     }
 
-    mem::copy(&in, data_ + p_idx, 1);
+    mem::copy(Span{&in, 1}, data_ + p_idx);
 
     p_idx = (p_idx + 1) & (capacity_ - 1);
 

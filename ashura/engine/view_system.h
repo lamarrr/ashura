@@ -72,84 +72,72 @@ struct ViewSystem
   ViewSystemState state[2]      = {};
   FocusInfo       focus_request = {};
 
-  Vec<View *>   views = {};
-  Vec<ViewNode> nodes = {};
+  Vec<View *>   views;
+  Vec<ViewNode> nodes;
 
-  Vec<i32>    tab_indices   = {};
-  Vec<u32>    viewports     = {};
-  BitVec<u64> is_hidden     = {};
-  BitVec<u64> is_pointable  = {};
-  BitVec<u64> is_clickable  = {};
-  BitVec<u64> is_scrollable = {};
-  BitVec<u64> is_draggable  = {};
-  BitVec<u64> is_droppable  = {};
-  BitVec<u64> is_focusable  = {};
-  BitVec<u64> is_text_input = {};
-  BitVec<u64> is_tab_input  = {};
-  BitVec<u64> is_esc_input  = {};
-  BitVec<u64> is_viewport   = {};
+  Vec<i32>    tab_indices;
+  Vec<u32>    viewports;
+  BitVec<u64> is_hidden;
+  BitVec<u64> is_pointable;
+  BitVec<u64> is_clickable;
+  BitVec<u64> is_scrollable;
+  BitVec<u64> is_draggable;
+  BitVec<u64> is_droppable;
+  BitVec<u64> is_focusable;
+  BitVec<u64> is_text_input;
+  BitVec<u64> is_tab_input;
+  BitVec<u64> is_esc_input;
+  BitVec<u64> is_viewport;
 
-  Vec<Vec2>       centers             = {};
-  Vec<Vec2>       extents             = {};
-  Vec<Vec2>       viewport_extents    = {};
-  Vec<Mat3Affine> viewport_transforms = {};
-  BitVec<u64>     is_fixed_positioned = {};
-  Vec<Vec2>       fixed_positions     = {};
-  Vec<i32>        z_indices           = {};
-  Vec<i32>        stacking_contexts   = {};
+  Vec<Vec2>       centers;
+  Vec<Vec2>       extents;
+  Vec<Vec2>       viewport_extents;
+  Vec<Mat3Affine> viewport_transforms;
+  BitVec<u64>     is_fixed_positioned;
+  Vec<Vec2>       fixed_positions;
+  Vec<i32>        z_indices;
+  Vec<i32>        stacking_contexts;
 
-  Vec<Mat3Affine> transforms     = {};
-  Vec<CRect>      clips          = {};
-  Vec<u32>        z_ordering     = {};
-  Vec<u32>        focus_ordering = {};
+  Vec<Mat3Affine> transforms;
+  Vec<CRect>      clips;
+  Vec<u32>        z_ordering;
+  Vec<u32>        focus_ordering;
 
-  void reset()
-  {
-    frame    = 0;
-    next_id  = 0;
-    state[0] = {};
-    state[1] = {};
-
-    views.reset();
-    nodes.reset();
-
-    tab_indices.reset();
-    viewports.reset();
-    is_hidden.reset();
-    is_pointable.reset();
-    is_clickable.reset();
-    is_scrollable.reset();
-    is_draggable.reset();
-    is_droppable.reset();
-    is_focusable.reset();
-    is_text_input.reset();
-    is_tab_input.reset();
-    is_esc_input.reset();
-    is_viewport.reset();
-
-    centers.reset();
-    extents.reset();
-    viewport_extents.reset();
-    viewport_transforms.reset();
-    is_fixed_positioned.reset();
-    fixed_positions.reset();
-    z_indices.reset();
-    stacking_contexts.reset();
-
-    transforms.reset();
-    clips.reset();
-    z_ordering.reset();
-    focus_ordering.reset();
-  }
-
-  void init()
+  explicit ViewSystem(AllocatorImpl allocator) :
+      views{allocator},
+      nodes{allocator},
+      tab_indices{allocator},
+      viewports{allocator},
+      is_hidden{allocator},
+      is_pointable{allocator},
+      is_clickable{allocator},
+      is_scrollable{allocator},
+      is_draggable{allocator},
+      is_droppable{allocator},
+      is_focusable{allocator},
+      is_text_input{allocator},
+      is_tab_input{allocator},
+      is_esc_input{allocator},
+      centers{allocator},
+      extents{allocator},
+      viewport_extents{allocator},
+      viewport_transforms{allocator},
+      is_fixed_positioned{allocator},
+      fixed_positions{allocator},
+      z_indices{allocator},
+      stacking_contexts{allocator},
+      transforms{allocator},
+      clips{allocator},
+      z_ordering{allocator},
+      focus_ordering{allocator}
   {
   }
 
-  void uninit()
-  {
-    reset();
-  }
+  ViewSystem(ViewSystem const &)            = delete;
+  ViewSystem(ViewSystem &&)                 = default;
+  ViewSystem &operator=(ViewSystem const &) = delete;
+  ViewSystem &operator=(ViewSystem &&)      = default;
+  ~ViewSystem()                             = default;
 
   void clear()
   {
@@ -327,9 +315,9 @@ struct ViewSystem
 
   void build(ViewContext const &ctx, View &root)
   {
-      push_view(root, 0, 0, U32_MAX);
-      i32 tab_index = 0;
-      build_children(ctx, root, 0, 0, tab_index, U32_MAX);
+    push_view(root, 0, 0, U32_MAX);
+    i32 tab_index = 0;
+    build_children(ctx, root, 0, 0, tab_index, U32_MAX);
   }
 
   void focus_order()
@@ -394,22 +382,32 @@ struct ViewSystem
       ViewNode const &node = nodes[i];
       // parent-space to local viewport-space transformation matrix
       Mat3Affine const &viewport_transform = viewport_transforms[i];
+      // accumulated transform of all ancestors, determines position until this
+      // parent
       Mat3Affine const &ancestor_transform = transforms[i];
       for (u32 c = node.first_child; c < (node.first_child + node.num_children);
            c++)
       {
         transforms[c] =
-            viewport_transform * translate2d(centers[c]) * ancestor_transform;
+            // apply viewport-space transform
+            viewport_transform
+            // apply parent-space transform
+            * translate2d(centers[c])
+            // first use accumulated ancestor transform
+            * ancestor_transform;
       }
     }
+
+    // need to convert to 0, viewport_extent space
 
     for (u32 i = 0; i < n; i++)
     {
       Mat3Affine const &transform = transforms[i];
       f32 const         zoom      = transform[0][0];
-      centers[i]                  = ash::transform(transform, centers[i]);
-      extents[i]                  = extents[i] * zoom;
-      viewport_extents[i]         = viewport_extents[i] * zoom;
+      centers[i] =
+          ash::transform(transform, Vec2{0, 0}) + viewport_extent * 0.5F;
+      extents[i]          = extents[i] * zoom;
+      viewport_extents[i] = viewport_extents[i] * zoom;
     }
 
     for (u32 i = 0; i < n; i++)
@@ -420,7 +418,7 @@ struct ViewSystem
       }
     }
 
-    fill(span(clips), CRect{.center = {0, 0}, .extent = viewport_extent});
+    fill(span(clips), CRect::from_offset({0, 0}, viewport_extent));
 
     /// recursive view clipping
     for (u32 i = 0; i < n; i++)
@@ -488,15 +486,23 @@ struct ViewSystem
 
     iota(span(z_ordering), 0U);
 
-    // sort using z-index while having stacking context as higher priority
+    // sort layers with priority: stacking_context, z_index, node depth
     indirect_sort(span(z_ordering), [&](u32 a, u32 b) {
       if (stacking_contexts[a] < stacking_contexts[b])
       {
         return true;
       }
+      if (stacking_contexts[a] > stacking_contexts[b])
+      {
+        return false;
+      }
       if (z_indices[a] < z_indices[b])
       {
         return true;
+      }
+      if (z_indices[a] > z_indices[b])
+      {
+        return false;
       }
       return nodes[a].depth < nodes[b].depth;
     });
@@ -523,8 +529,7 @@ struct ViewSystem
         CRect const &clip = clips[i];
         bool const   hidden =
             !overlaps(region, clip) ||
-            !overlaps(region,
-                      CRect{.center = {0, 0}, .extent = viewport_extent}) ||
+            !overlaps(region, CRect::from_offset({0, 0}, viewport_extent)) ||
             !region.is_visible() || !clip.is_visible();
 
         is_hidden.set(i, hidden);

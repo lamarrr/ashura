@@ -1,6 +1,7 @@
 
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/assets.h"
 #include "ashura/engine/gpu_context.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
@@ -15,9 +16,10 @@ namespace ash
 /// used by renderers.
 struct Pass
 {
-  virtual Span<char const> id()                 = 0;
-  virtual void             init(GpuContext &)   = 0;
-  virtual void             uninit(GpuContext &) = 0;
+  virtual Span<char const> id()                              = 0;
+  virtual void             acquire(GpuContext &, AssetMap &) = 0;
+  virtual void             release(GpuContext &, AssetMap &) = 0;
+  virtual ~Pass()                                            = default;
 };
 
 struct BloomPassParams
@@ -30,17 +32,21 @@ struct BloomPassParams
 
 struct BloomPass : Pass
 {
+  BloomPass() = default;
+
   virtual Span<char const> id() override
   {
     return "Bloom"_span;
   }
 
-  virtual void init(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ct, AssetMap &assets) override;
 
-  virtual void uninit(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx, AssetMap &assets) override;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
               BloomPassParams const &params);
+
+  virtual ~BloomPass() override = default;
 };
 
 struct BlurParam
@@ -66,16 +72,20 @@ struct BlurPass : Pass
   gpu::GraphicsPipeline downsample_pipeline = nullptr;
   gpu::GraphicsPipeline upsample_pipeline   = nullptr;
 
+  BlurPass() = default;
+
   virtual Span<char const> id() override
   {
     return "Blur"_span;
   }
 
-  virtual void init(GpuContext &ctx);
+  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
 
-  virtual void uninit(GpuContext &ctx);
+  virtual void release(GpuContext &ctx, AssetMap &assets) override;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+  virtual ~BlurPass() override = default;
+
+  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
               BlurPassParams const &params);
 };
 
@@ -109,16 +119,20 @@ struct NgonPass : Pass
 {
   gpu::GraphicsPipeline pipeline = nullptr;
 
+  NgonPass() = default;
+
   virtual Span<char const> id() override
   {
     return "Ngon"_span;
   }
 
-  virtual void init(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
 
-  virtual void uninit(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx, AssetMap &assets) override;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+  virtual ~NgonPass() override = default;
+
+  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
               NgonPassParams const &params);
 };
 
@@ -180,16 +194,20 @@ struct PBRPass : Pass
   gpu::GraphicsPipeline pipeline           = nullptr;
   gpu::GraphicsPipeline wireframe_pipeline = nullptr;
 
+  PBRPass() = default;
+
   virtual Span<char const> id() override
   {
     return "PBR"_span;
   }
 
-  virtual void init(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
 
-  virtual void uninit(GpuContext &ctx) override;
+  virtual void release(GpuContext &ctx, AssetMap &assets) override;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+  virtual ~PBRPass() override = default;
+
+  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
               PBRPassParams const &params);
 };
 
@@ -230,11 +248,15 @@ struct RRectPass : Pass
     return "RRect"_span;
   }
 
-  virtual void init(GpuContext &ctx) override;
+  RRectPass() = default;
 
-  virtual void uninit(GpuContext &ctx) override;
+  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoderImpl const &encoder,
+  virtual void release(GpuContext &ctx, AssetMap &assets) override;
+
+  virtual ~RRectPass() override = default;
+
+  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
               RRectPassParams const &params);
 };
 

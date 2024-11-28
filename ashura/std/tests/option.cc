@@ -247,42 +247,42 @@ TEST(OptionLifetimeTest, Contains)
 TEST(OptionTest, AsConstRef)
 {
   Option const a = Some(68);
-  EXPECT_EQ(*a.as_ref().unwrap(), 68);
+  EXPECT_EQ(*a.as_ptr().unwrap(), 68);
 
   Option<int> const b = None;
-  EXPECT_EQ(b.as_ref(), None);
+  EXPECT_EQ(b.as_ptr(), None);
 
   Option const c = Some(std::vector{1, 2, 3, 4});
-  EXPECT_EQ(*c.as_ref().unwrap(), (std::vector{1, 2, 3, 4}));
+  EXPECT_EQ(*c.as_ptr().unwrap(), (std::vector{1, 2, 3, 4}));
 
   Option<std::vector<int>> const d = None;
-  EXPECT_EQ(d.as_ref(), None);
+  EXPECT_EQ(d.as_ptr(), None);
 }
 
 TEST(OptionTest, AsRef)
 {
   Option a             = Some(68);
-  *a.as_ref().unwrap() = 99;
+  *a.as_ptr().unwrap() = 99;
   EXPECT_EQ(a, Some(99));
 
   Option<int> b = None;
-  EXPECT_EQ(b.as_ref(), None);
+  EXPECT_EQ(b.as_ptr(), None);
 
   auto c               = Option(Some(std::vector{1, 2, 3, 4}));
-  *c.as_ref().unwrap() = std::vector{5, 6, 7, 8, 9, 10};
+  *c.as_ptr().unwrap() = std::vector{5, 6, 7, 8, 9, 10};
   EXPECT_EQ(c, Some(std::vector{5, 6, 7, 8, 9, 10}));
 
   auto d = Option<std::vector<int>>(None);
-  EXPECT_EQ(d.as_ref(), None);
+  EXPECT_EQ(d.as_ptr(), None);
 }
 
 TEST(OptionLifeTimeTest, AsRef)
 {
   auto a = Option(Some(make_mv<0>()));
-  EXPECT_TRUE(a.as_ref().is_some());
+  EXPECT_TRUE(a.as_ptr().is_some());
 
   auto b = Option<MoveOnly<1>>(None);
-  EXPECT_TRUE(b.as_ref().is_none());
+  EXPECT_TRUE(b.as_ptr().is_none());
 }
 
 TEST(OptionTest, Unwrap)

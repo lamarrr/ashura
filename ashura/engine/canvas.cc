@@ -319,32 +319,9 @@ void path::triangulate_convex(Vec<u32> &idx, u32 first_vertex, u32 num_vertices)
   }
 }
 
-void Canvas::init()
-{
-}
-
-void Canvas::uninit()
-{
-  frame_arena.uninit();
-  rrect_params.uninit();
-  ngon_params.uninit();
-  ngon_vertices.uninit();
-  ngon_indices.uninit();
-  ngon_index_counts.uninit();
-
-  for (Canvas::Pass const &p : passes)
-  {
-    p.uninit(p.task.data);
-  }
-  passes.uninit();
-}
-
 Canvas &Canvas::reset()
 {
-  for (Canvas::Pass const &pass : passes)
-  {
-    pass.uninit(pass.task.data);
-  }
+  frame_arena.reclaim();
   passes.clear();
   rrect_params.clear();
   ngon_params.clear();
@@ -357,11 +334,14 @@ Canvas &Canvas::reset()
   return *this;
 }
 
-Canvas &Canvas::begin_recording(Vec2 new_viewport_extent)
+Canvas &Canvas::begin_recording(Vec2  new_viewport_extent,
+                                Vec2U new_surface_extent)
 {
   reset();
 
   viewport_extent = new_viewport_extent;
+  surface_extent  = new_surface_extent;
+
   if (new_viewport_extent.y == 0 || new_viewport_extent.x == 0)
   {
     viewport_aspect_ratio = 1;
@@ -371,83 +351,72 @@ Canvas &Canvas::begin_recording(Vec2 new_viewport_extent)
     viewport_aspect_ratio = viewport_extent.x / viewport_extent.y;
   }
 
-  // [ ] calculate world to view matrix
-
-  /// @brief generate a model-view-projection matrix for the object in the
-  /// canvas space
-  /// @param transform object-space transform
-  /// @param center canvas-space position/center of the object
-  /// @param extent extent of the object (used to scale from the [-1, +1]
-  /// object-space coordinate)
-  /* constexpr Mat4 mvp(Mat4 const &transform, Vec2 center, Vec2 extent) const
-   {
-     // [ ] TODO: prevent re-calculating this, it is expensive
-     return
-         // translate the object to its screen position, using (0, 0) as top
-         translate3d(vec3((center / (0.5f * viewport_extent)) - 1, 0)) *
-         // scale the object in the -1 to + 1 space
-         scale3d(vec3(2 / viewport_extent, 1)) *
-         // perform object-space transformation
-         transform * scale3d(vec3(extent * 0.5F, 1));
-   }*/
+  world_to_view =
+      translate3d(Vec3{-1, -1, 0}) * scale3d(vec3(2 / viewport_extent, 1));
 
   return *this;
 }
 
 constexpr RectU clip_to_scissor(gpu::Viewport const &viewport,
-                                CRect const &clip, Vec2U surface_extent)
+                                CRect const         &clip)
 {
-  Rect  rect{viewport.offset + clip.center - clip.extent / 2, clip.extent};
-  Vec2I offset_i{(i32) rect.offset.x, (i32) rect.offset.y};
-  Vec2I extent_i{(i32) rect.extent.x, (i32) rect.extent.y};
+  // clips only apply translations. no scaling
+  Rect s{viewport.offset + clip.begin(), clip.extent};
 
-  RectU scissor{.offset{(u32) max(0, offset_i.x), (u32) max(0, offset_i.y)},
-                .extent{(u32) max(0, extent_i.x), (u32) max(0, extent_i.y)}};
+  s.offset.x = clamp(s.offset.x, 0.0F, viewport.extent.x);
 
-  scissor.offset.x = min(scissor.offset.x, surface_extent.x);
-  scissor.offset.y = min(scissor.offset.y, surface_extent.y);
-  scissor.extent.x = min(surface_extent.x - scissor.offset.x, scissor.extent.x);
-  scissor.extent.y = min(surface_extent.y - scissor.offset.y, scissor.extent.y);
+  s.offset.y = clamp(s.offset.y, 0.0F, viewport.extent.y);
 
-  return scissor;
+  s.extent.x =
+      clamp(s.offset.x + s.extent.x, 0.0F, viewport.extent.x) - s.offset.x;
+
+  s.extent.y =
+      clamp(s.offset.y + s.extent.y, 0.0F, viewport.extent.y) - s.offset.y;
+
+  return RectU{.offset{(u32) s.offset.x, (u32) s.offset.y},
+               .extent{(u32) s.extent.x, (u32) s.extent.y}};
 }
 
 static inline void flush_batch(Canvas &c)
 {
-  switch (c.batch.type)
+  Canvas::Batch batch = c.batch;
+  c.batch             = Canvas::Batch{.type = Canvas::BatchType::None};
+
+  switch (batch.type)
   {
     case Canvas::BatchType::RRect:
-      c.add_pass(
-          "RRect"_span, [batch = c.batch](Canvas::RenderContext const &ctx) {
-            RRectPassParams params{.rendering_info = ctx.rt.info,
-                                   .scissor        = batch.clip,
-                                   .viewport       = ctx.rt.viewport,
-                                   .params_ssbo    = ctx.rrects.descriptor,
-                                   .textures       = ctx.gpu.texture_views,
-                                   .first_instance = batch.objects.offset,
-                                   .num_instances  = batch.objects.span};
+      c.add_pass("RRect"_span, [batch, world_to_view = c.world_to_view](
+                                   Canvas::RenderContext const &ctx) {
+        RRectPassParams params{.rendering_info = ctx.rt.info,
+                               .scissor =
+                                   clip_to_scissor(ctx.rt.viewport, batch.clip),
+                               .viewport       = ctx.rt.viewport,
+                               .world_to_view  = world_to_view,
+                               .params_ssbo    = ctx.rrects.descriptor,
+                               .textures       = ctx.gpu.texture_views,
+                               .first_instance = batch.objects.offset,
+                               .num_instances  = batch.objects.span};
 
-            ctx.passes.rrect->encode(ctx.gpu, ctx.enc, params);
-          });
-      c.batch = Canvas::Batch{.type = Canvas::BatchType::None};
+        ctx.passes.rrect->encode(ctx.gpu, ctx.enc, params);
+      });
       return;
 
     case Canvas::BatchType::Ngon:
-      c.add_pass(
-          "Ngon"_span, [batch = c.batch](Canvas::RenderContext const &ctx) {
-            NgonPassParams params{
-                .rendering_info = ctx.rt.info,
-                .scissor        = batch.clip,
-                .viewport       = ctx.rt.viewport,
-                .vertices_ssbo  = ctx.ngon_vertices.descriptor,
-                .indices_ssbo   = ctx.ngon_indices.descriptor,
-                .params_ssbo    = ctx.ngons.descriptor,
-                .textures       = ctx.gpu.texture_views,
-                .index_counts =
-                    span(ctx.canvas.ngon_index_counts).slice(batch.objects)};
-            ctx.passes.ngon->encode(ctx.gpu, ctx.enc, params);
-          });
-      c.batch = Canvas::Batch{.type = Canvas::BatchType::None};
+      c.add_pass("Ngon"_span, [batch, world_to_view = c.world_to_view](
+                                  Canvas::RenderContext const &ctx) {
+        NgonPassParams params{
+            .rendering_info = ctx.rt.info,
+            .scissor        = clip_to_scissor(ctx.rt.viewport, batch.clip),
+            .viewport       = ctx.rt.viewport,
+            .world_to_view  = world_to_view,
+            .vertices_ssbo  = ctx.ngon_vertices.descriptor,
+            .indices_ssbo   = ctx.ngon_indices.descriptor,
+            .params_ssbo    = ctx.ngons.descriptor,
+            .textures       = ctx.gpu.texture_views,
+            .index_counts =
+                span(ctx.canvas.ngon_index_counts).slice(batch.objects)};
+        ctx.passes.ngon->encode(ctx.gpu, ctx.enc, params);
+      });
       return;
 
     default:
@@ -512,73 +481,73 @@ constexpr Mat4 object_to_world(Mat4 const &transform, Vec2 center, Vec2 extent)
          scale3d(vec3(extent * 0.5F, 1));
 }
 
-Canvas &Canvas::circle(ShapeDesc const &desc)
+Canvas &Canvas::circle(ShapeInfo const &info)
 {
   add_rrect(*this,
-            RRectParam{.transform = object_to_world(desc.transform, desc.center,
-                                                    desc.extent),
-                       .tint      = {desc.tint[0], desc.tint[1], desc.tint[2],
-                                     desc.tint[3]},
+            RRectParam{.transform = object_to_world(info.transform, info.center,
+                                                    info.extent),
+                       .tint      = {info.tint[0], info.tint[1], info.tint[2],
+                                     info.tint[3]},
                        .radii     = {1, 1, 1, 1},
-                       .uv        = {desc.uv[0], desc.uv[1]},
-                       .tiling    = desc.tiling,
-                       .aspect_ratio    = desc.extent.x / desc.extent.y,
-                       .stroke          = desc.stroke,
-                       .thickness       = desc.thickness / desc.extent.y,
-                       .edge_smoothness = desc.edge_smoothness,
-                       .sampler         = desc.sampler,
-                       .albedo          = desc.texture},
+                       .uv        = {info.uv[0], info.uv[1]},
+                       .tiling    = info.tiling,
+                       .aspect_ratio    = info.extent.x / info.extent.y,
+                       .stroke          = info.stroke,
+                       .thickness       = info.thickness / info.extent.y,
+                       .edge_smoothness = info.edge_smoothness,
+                       .sampler         = info.sampler,
+                       .albedo          = info.texture},
             current_clip);
 
   return *this;
 }
 
-Canvas &Canvas::rect(ShapeDesc const &desc)
+Canvas &Canvas::rect(ShapeInfo const &info)
 {
   add_rrect(*this,
-            RRectParam{.transform = object_to_world(desc.transform, desc.center,
-                                                    desc.extent),
-                       .tint      = {desc.tint[0], desc.tint[1], desc.tint[2],
-                                     desc.tint[3]},
+            RRectParam{.transform = object_to_world(info.transform, info.center,
+                                                    info.extent),
+                       .tint      = {info.tint[0], info.tint[1], info.tint[2],
+                                     info.tint[3]},
                        .radii     = {0, 0, 0, 0},
-                       .uv        = {desc.uv[0], desc.uv[1]},
-                       .tiling    = desc.tiling,
-                       .aspect_ratio    = desc.extent.x / desc.extent.y,
-                       .stroke          = desc.stroke,
-                       .thickness       = desc.thickness / desc.extent.y,
-                       .edge_smoothness = desc.edge_smoothness,
-                       .sampler         = desc.sampler,
-                       .albedo          = desc.texture},
+                       .uv        = {info.uv[0], info.uv[1]},
+                       .tiling    = info.tiling,
+                       .aspect_ratio    = info.extent.x / info.extent.y,
+                       .stroke          = info.stroke,
+                       .thickness       = info.thickness / info.extent.y,
+                       .edge_smoothness = info.edge_smoothness,
+                       .sampler         = info.sampler,
+                       .albedo          = info.texture},
             current_clip);
   return *this;
 }
 
-Canvas &Canvas::rrect(ShapeDesc const &desc)
+Canvas &Canvas::rrect(ShapeInfo const &info)
 {
   add_rrect(*this,
-            RRectParam{.transform = object_to_world(desc.transform, desc.center,
-                                                    desc.extent),
-                       .tint      = {desc.tint[0], desc.tint[1], desc.tint[2],
-                                     desc.tint[3]},
-                       .radii     = desc.corner_radii / desc.extent.y,
-                       .uv        = {desc.uv[0], desc.uv[1]},
-                       .tiling    = desc.tiling,
-                       .aspect_ratio    = desc.extent.x / desc.extent.y,
-                       .stroke          = desc.stroke,
-                       .thickness       = desc.thickness / desc.extent.y,
-                       .edge_smoothness = desc.edge_smoothness,
-                       .sampler         = desc.sampler,
-                       .albedo          = desc.texture},
+            RRectParam{.transform = object_to_world(info.transform, info.center,
+                                                    info.extent),
+                       .tint      = {info.tint[0], info.tint[1], info.tint[2],
+                                     info.tint[3]},
+                       .radii     = info.corner_radii / info.extent.y,
+                       .uv        = {info.uv[0], info.uv[1]},
+                       .tiling    = info.tiling,
+                       .aspect_ratio    = info.extent.x / info.extent.y,
+                       .stroke          = info.stroke,
+                       .thickness       = info.thickness / info.extent.y,
+                       .edge_smoothness = info.edge_smoothness,
+                       .sampler         = info.sampler,
+                       .albedo          = info.texture},
             current_clip);
   return *this;
 }
 
-Canvas &Canvas::brect(ShapeDesc const &desc)
+Canvas &Canvas::brect(ShapeInfo const &info)
 {
   u32 const first_vertex = ngon_vertices.size32();
   u32 const first_index  = ngon_indices.size32();
 
-  path::brect(ngon_vertices, desc.corner_radii);
+  path::brect(ngon_vertices, info.corner_radii);
 
   u32 const num_vertices = ngon_vertices.size32() - first_vertex;
 
@@ -589,12 +558,12 @@ Canvas &Canvas::brect(ShapeDesc const &desc)
   add_ngon(*this,
            NgonParam{
                .transform =
-                   object_to_world(desc.transform, desc.center, desc.extent),
-               .tint = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-               .uv   = {desc.uv[0], desc.uv[1]},
-               .tiling       = desc.tiling,
-               .sampler      = desc.sampler,
-               .albedo       = desc.texture,
+                   object_to_world(info.transform, info.center, info.extent),
+               .tint = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+               .uv   = {info.uv[0], info.uv[1]},
+               .tiling       = info.tiling,
+               .sampler      = info.sampler,
+               .albedo       = info.texture,
                .first_index  = first_index,
                .first_vertex = first_vertex},
            current_clip, num_indices);
@@ -602,7 +571,7 @@ Canvas &Canvas::brect(ShapeDesc const &desc)
   return *this;
 }
 
-Canvas &Canvas::squircle(ShapeDesc const &desc, f32 elasticity, u32 segments)
+Canvas &Canvas::squircle(ShapeInfo const &info, f32 elasticity, u32 segments)
 {
   u32 const first_vertex = ngon_vertices.size32();
   u32 const first_index  = ngon_indices.size32();
@@ -618,12 +587,12 @@ Canvas &Canvas::squircle(ShapeDesc const &desc, f32 elasticity, u32 segments)
   add_ngon(*this,
            NgonParam{
                .transform =
-                   object_to_world(desc.transform, desc.center, desc.extent),
-               .tint = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-               .uv   = {desc.uv[0], desc.uv[1]},
-               .tiling       = desc.tiling,
-               .sampler      = desc.sampler,
-               .albedo       = desc.texture,
+                   object_to_world(info.transform, info.center, info.extent),
+               .tint = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+               .uv   = {info.uv[0], info.uv[1]},
+               .tiling       = info.tiling,
+               .sampler      = info.sampler,
+               .albedo       = info.texture,
                .first_index  = first_index,
                .first_vertex = first_vertex},
            current_clip, num_indices);
@@ -631,7 +600,7 @@ Canvas &Canvas::squircle(ShapeDesc const &desc, f32 elasticity, u32 segments)
   return *this;
 }
 
-Canvas &Canvas::text(ShapeDesc const &desc, TextBlock const &block,
+Canvas &Canvas::text(ShapeInfo const &info, TextBlock const &block,
                      TextLayout const &layout, TextBlockStyle const &style,
                      CRect const &clip)
 {
@@ -653,7 +622,7 @@ Canvas &Canvas::text(ShapeDesc const &desc, TextBlock const &block,
     f32 line_y = -block_extent.y * 0.5F;
     for (Line const &ln : layout.lines)
     {
-      if (!overlaps(clip, CRect{.center = desc.center + line_y,
+      if (!overlaps(clip, CRect{.center = info.center + line_y,
                                 .extent = {block_width, ln.metrics.height}}))
       {
         continue;
@@ -672,19 +641,21 @@ Canvas &Canvas::text(ShapeDesc const &desc, TextBlock const &block,
       {
         FontStyle const    &font_style = block.fonts[run.style];
         TextStyle const    &run_style  = style.runs[run.style];
-        FontInfo const      font       = get_font_info(font_style.font);
+        FontInfo const      font       = font_style.font->info();
         GpuFontAtlas const *atlas      = font.gpu_atlas.value();
         f32 const run_width = au_to_px(run.metrics.advance, run.font_height);
 
         if (pass == PASS_BACKGROUND && !run_style.background.is_transparent())
         {
-          Vec2 extent{run_width, au_to_px(run.metrics.ascent, run.font_height) +
-                                     ln.metrics.height};
+          Vec2 extent{run_width,
+                      au_to_px(run.metrics.height(), run.font_height)};
           Vec2 center =
-              Vec2{cursor + extent.x * 0.5F, line_y - extent.y * 0.5F};
-          rect({.center    = desc.center,
+              Vec2{cursor + extent.x * 0.5F,
+                   baseline - au_to_px(run.metrics.ascent, run.font_height) +
+                       extent.y * 0.5F};
+          rect({.center    = info.center,
                 .extent    = extent,
-                .transform = desc.transform * translate3d(vec3(center, 0)),
+                .transform = info.transform * translate3d(vec3(center, 0)),
                 .tint      = run_style.background});
         }
 
@@ -695,74 +666,74 @@ Canvas &Canvas::text(ShapeDesc const &desc, TextBlock const &block,
           Glyph const      &gl  = font.glyphs[sh.glyph];
           AtlasGlyph const &agl = atlas->glyphs[sh.glyph];
           Vec2 const extent     = au_to_px(gl.metrics.extent, run.font_height);
-          Vec2 const center =
-              Vec2{glyph_cursor, baseline} +
-              au_to_px(gl.metrics.bearing, run.font_height) * Vec2{1, -1} +
-              au_to_px(sh.offset, run.font_height) + extent * 0.5F;
+          Vec2 const center     = Vec2{glyph_cursor, baseline} +
+                              au_to_px(gl.metrics.bearing, run.font_height) +
+                              au_to_px(sh.offset, run.font_height) +
+                              extent * 0.5F;
 
           if (pass == PASS_GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
               !run_style.shadow.is_transparent())
           {
             Vec2 shadow_extent = extent * run_style.shadow_scale;
             Vec2 shadow_center = center + run_style.shadow_offset;
-            rect({.center = desc.center,
+            rect({.center = info.center,
                   .extent = shadow_extent,
                   .transform =
-                      desc.transform * translate3d(vec3(shadow_center, 0)),
+                      info.transform * translate3d(vec3(shadow_center, 0)),
                   .tint            = run_style.shadow,
-                  .sampler         = desc.sampler,
+                  .sampler         = info.sampler,
                   .texture         = atlas->textures[agl.layer],
                   .uv              = {agl.uv[0], agl.uv[1]},
-                  .tiling          = desc.tiling,
-                  .edge_smoothness = desc.edge_smoothness});
+                  .tiling          = info.tiling,
+                  .edge_smoothness = info.edge_smoothness});
           }
 
           if (pass == PASS_GLYPHS && !run_style.foreground.is_transparent())
           {
-            rect({.center    = desc.center,
+            rect({.center    = info.center,
                   .extent    = extent,
-                  .transform = desc.transform * translate3d(vec3(center, 0)),
+                  .transform = info.transform * translate3d(vec3(center, 0)),
                   .tint      = run_style.foreground,
-                  .sampler   = desc.sampler,
+                  .sampler   = info.sampler,
                   .texture   = atlas->textures[agl.layer],
                   .uv        = {agl.uv[0], agl.uv[1]},
-                  .tiling    = desc.tiling,
-                  .edge_smoothness = desc.edge_smoothness});
+                  .tiling    = info.tiling,
+                  .edge_smoothness = info.edge_smoothness});
           }
 
-          glyph_cursor += au_to_px(sh.advance.x, run.font_height);
+          glyph_cursor += au_to_px(sh.advance, run.font_height);
         }
 
         if (pass == PASS_STRIKETHROUGH &&
             run_style.strikethrough_thickness != 0)
         {
           Vec2 extent{run_width, run_style.strikethrough_thickness};
-          Vec2 center =
-              Vec2{cursor, baseline - run.font_height * 0.5F} + extent * 0.5F;
-          rect({.center    = desc.center,
+          Vec2 center = Vec2{cursor, baseline - run.metrics.ascent * 0.5F} +
+                        extent * 0.5F;
+          rect({.center    = info.center,
                 .extent    = extent,
-                .transform = desc.transform * translate3d(vec3(center, 0)),
+                .transform = info.transform * translate3d(vec3(center, 0)),
                 .tint      = run_style.strikethrough,
-                .sampler   = desc.sampler,
+                .sampler   = info.sampler,
                 .texture   = 0,
                 .uv        = {},
-                .tiling    = desc.tiling,
-                .edge_smoothness = desc.edge_smoothness});
+                .tiling    = info.tiling,
+                .edge_smoothness = info.edge_smoothness});
         }
 
         if (pass == PASS_UNDERLINE && run_style.underline_thickness != 0)
         {
           Vec2 extent{run_width, run_style.underline_thickness};
           Vec2 center = Vec2{cursor, baseline + 2} + extent * 0.5F;
-          rect({.center    = desc.center,
+          rect({.center    = info.center,
                 .extent    = extent,
-                .transform = desc.transform * translate3d(vec3(center, 0)),
+                .transform = info.transform * translate3d(vec3(center, 0)),
                 .tint      = run_style.underline,
-                .sampler   = desc.sampler,
+                .sampler   = info.sampler,
                 .texture   = 0,
                 .uv        = {},
-                .tiling    = desc.tiling,
-                .edge_smoothness = desc.edge_smoothness});
+                .tiling    = info.tiling,
+                .edge_smoothness = info.edge_smoothness});
         }
         cursor += run_width;
       }
@@ -772,7 +743,7 @@ Canvas &Canvas::text(ShapeDesc const &desc, TextBlock const &block,
   return *this;
 }
 
-Canvas &Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
+Canvas &Canvas::triangles(ShapeInfo const &info, Span<Vec2 const> points)
 {
   if (points.size() < 3)
   {
@@ -790,12 +761,12 @@ Canvas &Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
   add_ngon(*this,
            NgonParam{
                .transform =
-                   object_to_world(desc.transform, desc.center, desc.extent),
-               .tint = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-               .uv   = {desc.uv[0], desc.uv[1]},
-               .tiling       = desc.tiling,
-               .sampler      = desc.sampler,
-               .albedo       = desc.texture,
+                   object_to_world(info.transform, info.center, info.extent),
+               .tint = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+               .uv   = {info.uv[0], info.uv[1]},
+               .tiling       = info.tiling,
+               .sampler      = info.sampler,
+               .albedo       = info.texture,
                .first_index  = first_index,
                .first_vertex = first_vertex},
            current_clip, num_indices);
@@ -803,7 +774,7 @@ Canvas &Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points)
   return *this;
 }
 
-Canvas &Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points,
+Canvas &Canvas::triangles(ShapeInfo const &info, Span<Vec2 const> points,
                           Span<u32 const> idx)
 {
   if (points.size() < 3)
@@ -825,12 +796,12 @@ Canvas &Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points,
   add_ngon(*this,
            NgonParam{
                .transform =
-                   object_to_world(desc.transform, desc.center, desc.extent),
-               .tint = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-               .uv   = {desc.uv[0], desc.uv[1]},
-               .tiling       = desc.tiling,
-               .sampler      = desc.sampler,
-               .albedo       = desc.texture,
+                   object_to_world(info.transform, info.center, info.extent),
+               .tint = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+               .uv   = {info.uv[0], info.uv[1]},
+               .tiling       = info.tiling,
+               .sampler      = info.sampler,
+               .albedo       = info.texture,
                .first_index  = first_index,
                .first_vertex = first_vertex},
            current_clip, idx.size32());
@@ -838,7 +809,7 @@ Canvas &Canvas::triangles(ShapeDesc const &desc, Span<Vec2 const> points,
   return *this;
 }
 
-Canvas &Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
+Canvas &Canvas::line(ShapeInfo const &info, Span<Vec2 const> points)
 {
   if (points.size() < 2)
   {
@@ -848,19 +819,19 @@ Canvas &Canvas::line(ShapeDesc const &desc, Span<Vec2 const> points)
   u32 const first_index  = ngon_indices.size32();
   u32 const first_vertex = ngon_vertices.size32();
   path::triangulate_stroke(points, ngon_vertices, ngon_indices,
-                           desc.thickness / desc.extent.y);
+                           info.thickness / info.extent.y);
 
   u32 const num_indices = ngon_indices.size32() - first_index;
 
   add_ngon(*this,
            NgonParam{
                .transform =
-                   object_to_world(desc.transform, desc.center, desc.extent),
-               .tint = {desc.tint[0], desc.tint[1], desc.tint[2], desc.tint[3]},
-               .uv   = {desc.uv[0], desc.uv[1]},
-               .tiling       = desc.tiling,
-               .sampler      = desc.sampler,
-               .albedo       = desc.texture,
+                   object_to_world(info.transform, info.center, info.extent),
+               .tint = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+               .uv   = {info.uv[0], info.uv[1]},
+               .tiling       = info.tiling,
+               .sampler      = info.sampler,
+               .albedo       = info.texture,
                .first_index  = first_index,
                .first_vertex = first_vertex},
            current_clip, num_indices);
@@ -872,17 +843,23 @@ Canvas &Canvas::blur(CRect const &area, u32 num_passes)
 {
   flush_batch(*this);
 
-  CHECK(num_passes > 0);
-  blur_params.push(CanvasBlurParam{.area = area, .num_passes = num_passes})
-      .unwrap();
-  add_run(*this, CanvasPassType::Blur);
+  add_pass("Blur"_span, [num_passes, area](Canvas::RenderContext const &ctx) {
+    BlurPassParams params{.image_view   = ctx.rt.info.color_attachments[0].view,
+                          .extent       = ctx.rt.extent,
+                          .texture_view = ctx.rt.color_descriptor,
+                          .texture      = 0,
+                          .passes       = num_passes,
+                          .area = clip_to_scissor(ctx.rt.viewport, area)};
+    ctx.passes.blur->encode(ctx.gpu, ctx.enc, params);
+  });
+
   return *this;
 }
 
-Canvas &Canvas::add_pass(Pass pass)
+Canvas &Canvas::add_pass(Pass &&pass)
 {
   flush_batch(*this);
-  passes.push(pass).unwrap();
+  passes.push(std::move(pass)).unwrap();
   return *this;
 }
 

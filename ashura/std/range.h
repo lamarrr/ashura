@@ -1,73 +1,13 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include <algorithm>
 
 namespace ash
 {
 
-template <typename T>
-constexpr void default_construct(Span<T> span)
-{
-  for (T *iter = begin(span); iter != end(span); iter++)
-  {
-    new (iter) T{};
-  }
-}
-
-template <typename Src, typename Dst>
-constexpr void move_construct(Span<Src> src, Span<Dst> dst)
-{
-  Src *input  = begin(src);
-  Dst *output = begin(dst);
-  for (; input != end(src); output++, input++)
-  {
-    new (*output) Dst{(Src &&) (*input)};
-  }
-}
-
-template <typename Src, typename Dst>
-constexpr void copy_construct(Span<Src> src, Span<Dst> dst)
-{
-  Src *input  = begin(src);
-  Dst *output = begin(dst);
-  for (; input != end(src); output++, input++)
-  {
-    new (*output) Dst{*input};
-  }
-}
-
-template <typename T>
-constexpr void destruct(Span<T> span)
-{
-  for (T *iter = begin(span); iter != end(span); iter++)
-  {
-    iter->~T();
-  }
-}
-
-template <typename Src, typename Dst>
-constexpr void move(Span<Src> src, Span<Dst> dst)
-{
-  Src *input  = begin(src);
-  Dst *output = begin(dst);
-  for (; input != end(src); output++, input++)
-  {
-    *output = (Src &&) *input;
-  }
-}
-
-template <typename Src, typename Dst>
-constexpr void copy(Span<Src> src, Span<Dst> dst)
-{
-  Src *input  = begin(src);
-  Dst *output = begin(dst);
-  for (; input != end(src); output++, input++)
-  {
-    *output = *input;
-  }
-}
-
+// TODO: lamarrr view namespace
 template <typename A, typename B, typename SwapOpT = Swap>
 constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
 {
@@ -78,11 +18,6 @@ constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
     swap_op(*a_iter, *b_iter);
   }
 }
-
-/// destroys elements that don't match a predicate.
-/// warning: the order of elements are not preserved!
-template <typename T, typename Predicate>
-constexpr void destruct_if(Span<T> span, usize &new_size);
 
 template <OutputRange R, typename U>
 constexpr void fill(R &&dst, U &&value)
@@ -140,7 +75,7 @@ constexpr bool none_of(R &&range, Predicate &&predicate)
   return true;
 }
 
-template <InputRange R, typename U, typename Cmp = Equal>
+template <InputRange R, typename U, typename Cmp = Eq>
 constexpr bool contains(R &&range, U &&value, Cmp &&cmp = {})
 {
   InputIterator auto it = begin(range);
@@ -155,7 +90,7 @@ constexpr bool contains(R &&range, U &&value, Cmp &&cmp = {})
   return false;
 }
 
-template <InputRange B, InputRange H, typename Cmp = Equal>
+template <InputRange B, InputRange H, typename Cmp = Eq>
 constexpr bool begins_with(B &&body, H &&head, Cmp &&cmp = {})
 {
   if (size(head) > size(body))
@@ -179,7 +114,7 @@ constexpr bool begins_with(B &&body, H &&head, Cmp &&cmp = {})
   return true;
 }
 
-template <InputRange B, InputRange F, typename Cmp = Equal>
+template <InputRange B, InputRange F, typename Cmp = Eq>
 constexpr bool ends_with(B &&body, F &&foot, Cmp &&cmp = {})
 {
   if (size(foot) > size(body))
@@ -205,7 +140,7 @@ constexpr bool ends_with(B &&body, F &&foot, Cmp &&cmp = {})
 }
 
 /// size is 0 if not found, size is 1 if found
-template <typename T, typename U, typename Cmp = Equal>
+template <typename T, typename U, typename Cmp = Eq>
 constexpr Span<T> find(Span<T> span, U &&value, Cmp &&cmp = {})
 {
   usize offset = 0;
@@ -233,7 +168,7 @@ constexpr Span<T> find_if(Span<T> span, Predicate &&predicate)
   return span.slice(offset, 1);
 }
 
-template <InputRange R, typename Target, typename Cmp = Equal>
+template <InputRange R, typename Target, typename Cmp = Eq>
 constexpr usize count(R &&range, Target &&target, Cmp &&cmp = {})
 {
   usize count = 0;
@@ -261,8 +196,8 @@ constexpr usize count_if(R &&range, Predicate &&predicate)
   return count;
 }
 
-template <InputRange A, InputRange B, typename Cmp = Equal>
-constexpr bool range_equal(A &&a, B &&b, Cmp &&cmp = {})
+template <InputRange A, InputRange B, typename Cmp = Eq>
+constexpr bool range_eq(A &&a, B &&b, Cmp &&cmp = {})
 {
   if (size(a) != size(b))
   {
@@ -312,9 +247,9 @@ constexpr Init reduce(R &&range, Init &&init, Reduce &&reducer = {})
   return (Init &&) init;
 }
 
-template <InputRange R, typename Init, typename Map, typename Reduce>
+template <InputRange R, typename Init, typename Map, typename Reduce = Add>
 constexpr Init map_reduce(R &&range, Init &&init, Map &&mapper,
-                          Reduce &&reducer)
+                          Reduce &&reducer = {})
 {
   InputIterator auto it = begin(range);
   while (it != end(range))
@@ -326,7 +261,7 @@ constexpr Init map_reduce(R &&range, Init &&init, Map &&mapper,
   return (Init &&) init;
 }
 
-template <OutputRange R, typename E, typename F, typename Cmp = Equal>
+template <OutputRange R, typename E, typename F, typename Cmp = Eq>
 constexpr void replace(R &&range, E &&target, F &&replacement, Cmp &&cmp = {})
 {
   OutputIterator auto iter = begin(range);
@@ -352,7 +287,7 @@ constexpr void replace_if(R &&range, F &&replacement, Test &&test)
   }
 }
 
-template <typename T, typename Cmp = Equal>
+template <typename T, typename Cmp = Eq>
 constexpr void unique(Span<T>, Cmp &&cmp = {});        // destroy? retain?
 
 template <OutputRange R, typename SwapOp = Swap>
@@ -377,7 +312,7 @@ constexpr void reverse(R &&range, SwapOp &&swap = {})
 template <typename T, typename SwapOp = Swap>
 constexpr void rotate(Span<T>, SwapOp &&swap = {});
 
-template <typename T, typename U, typename Op, typename Cmp = Equal>
+template <typename T, typename U, typename Op, typename Cmp = Eq>
 constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp &&cmp = {});
 
 // first check if src begins with other
@@ -387,10 +322,10 @@ constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp &&cmp = {});
 // if equal, move back from end - other.size
 // if equal again, move back
 // move back until it is no longer equal
-template <typename T, typename U, typename Cmp = Equal>
+template <typename T, typename U, typename Cmp = Eq>
 constexpr Span<T> strip(Span<T> src, Span<U> other, Cmp &&cmp = {});
 
-template <typename S, typename Cmp = Lesser>
+template <typename S, typename Cmp = Less>
 constexpr void sort(S &&span, Cmp &&cmp = {})
 {
   std::sort(begin(span), end(span), cmp);
@@ -402,13 +337,13 @@ constexpr void indirect_sort(Span<I> indices, Cmp &&cmp = {})
   sort(indices, [&](I a, I b) { return cmp(a, b); });
 }
 
-template <typename S, typename Cmp = Lesser>
+template <typename S, typename Cmp = Less>
 constexpr void stable_sort(S &&span, Cmp &&cmp = {})
 {
   std::stable_sort(begin(span), end(span), cmp);
 }
 
-template <typename I, typename Cmp = Lesser>
+template <typename I, typename Cmp = Less>
 constexpr void indirect_stable_sort(Span<I> indices, Cmp &&cmp = {})
 {
   stable_sort(indices, [&](I a, I b) { return cmp(a, b); });

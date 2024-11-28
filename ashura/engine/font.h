@@ -3,20 +3,25 @@
 
 #include "ashura/engine/gpu_context.h"
 #include "ashura/gpu/gpu.h"
+#include "ashura/std/dyn.h"
 #include "ashura/std/image.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
-typedef struct Font_T *Font;
+// App Unit (AU)
+constexpr i32 AU_UNIT = 128 * 64;
 
-// App Unit (AU) = 1/1024 of a px
-constexpr i32 AU_UNIT = 1024;
+static_assert((AU_UNIT % 64) == 0,
+              "App Unit needs to be in 26.6 Fractional Unit");
+
+static_assert((AU_UNIT / 64) >= 64,
+              "App Unit needs to be at least 64 26.6 Fractional Units");
 
 constexpr f32 au_to_px(i32 au, f32 base)
 {
-  return au / (f32) AU_UNIT * base;
+  return (au / (f32) AU_UNIT) * base;
 }
 
 constexpr Vec2 au_to_px(Vec2I au, f32 base)
@@ -24,13 +29,40 @@ constexpr Vec2 au_to_px(Vec2I au, f32 base)
   return Vec2{au_to_px(au.x, base), au_to_px(au.y, base)};
 }
 
-enum class FontDecodeError : u8
+enum class FontErr : u8
 {
   None           = 0,
   DecodingFailed = 1,
   FaceNotFound   = 2,
   OutOfMemory    = 3
 };
+
+constexpr Span<char const> to_string(FontErr err)
+{
+  switch (err)
+  {
+    case FontErr::None:
+      return "None"_span;
+    case FontErr::DecodingFailed:
+      return "DecodingFailed"_span;
+    case FontErr::FaceNotFound:
+      return "FaceNotFound"_span;
+    case FontErr::OutOfMemory:
+      return "OutOfMemory"_span;
+    default:
+      return "Unidentified"_span;
+  }
+}
+
+namespace fmt
+{
+
+inline bool push(Context const &ctx, Spec const &spec, FontErr const &err)
+{
+  return push(ctx, spec, to_string(err));
+}
+
+}        // namespace fmt
 
 /// @param bearing offset from cursor baseline to start drawing glyph from (au)
 /// @param descent distance from baseline to the bottom of the glyph (au)
@@ -39,7 +71,6 @@ enum class FontDecodeError : u8
 struct GlyphMetrics
 {
   Vec2I bearing = {};
-  i32   descent = 0;
   i32   advance = 0;
   Vec2I extent  = {};
 };
@@ -101,25 +132,27 @@ struct FontInfo
   Option<GpuFontAtlas const *> gpu_atlas         = None;
 };
 
-Result<Font, FontDecodeError>
-    decode_font(Span<u8 const> encoded, u32 face = 0,
-                AllocatorImpl allocator = default_allocator);
+struct Font
+{
+  static Result<Dyn<Font *>, FontErr> decode(Span<u8 const> encoded,
+                                             u32            face      = 0,
+                                             AllocatorImpl  allocator = {});
 
-FontInfo get_font_info(Font font);
+  /// @brief rasterize the font at the specified font height. Note: raster is
+  /// stored as alpha values.
+  /// @note rasterizing mutates the font's internal data, not thread-safe
+  /// @param font_height the font height at which the texture should be
+  /// rasterized at (px)
+  /// @param allocator scratch allocator to use for storing intermediates
+  virtual Result<> rasterize(u32 font_height, AllocatorImpl allocator) = 0;
 
-void uninit_font(Font font);
+  virtual FontInfo info() = 0;
 
-/// @brief rasterize the font at the specified font height. Note: raster is
-/// stored as alpha values.
-/// @note rasterizing mutates the font's internal data, not thread-safe
-/// @param font_height the font height at which the texture should be rasterized
-/// at (px)
-bool rasterize_font(Font font, u32 font_height,
-                    AllocatorImpl allocator = default_allocator);
+  virtual void upload_to_device(GpuContext &c, AllocatorImpl allocator) = 0;
 
-void upload_font_to_device(Font font, GpuContext &c,
-                           AllocatorImpl allocator = default_allocator);
+  virtual void unload_from_device(GpuContext &c) = 0;
 
-void unload_font_from_device(Font font, GpuContext &c);
+  virtual ~Font() = default;
+};
 
 }        // namespace ash

@@ -515,6 +515,16 @@ constexpr Vec4U8 &operator/=(Vec4U8 &a, Vec4U8 b)
   return a;
 }
 
+constexpr Vec4U8 as_vec4u8(Vec4 a)
+{
+  return Vec4U8{(u8) a.x, (u8) a.y, (u8) a.z, (u8) a.w};
+}
+
+constexpr Vec4 as_vec4(Vec4U8 a)
+{
+  return Vec4{(f32) a.x, (f32) a.y, (f32) a.z, (f32) a.w};
+}
+
 struct alignas(8) Vec2I
 {
   i32 x = 0;
@@ -1715,19 +1725,19 @@ constexpr SignedType abs(SignedType x)
   return x > SignedType{} ? x : -x;
 }
 
-constexpr bool approx_equal(f32 a, f32 b)
+constexpr bool approx_eq(f32 a, f32 b)
 {
-  return abs(b - a) <= F32_EPSILON;
+  return abs(b - a) <= F32_EPS;
 }
 
-constexpr bool approx_equal(f64 a, f64 b)
+constexpr bool approx_eq(f64 a, f64 b)
 {
-  return abs(b - a) <= F64_EPSILON;
+  return abs(b - a) <= F64_EPS;
 }
 
 constexpr f32 epsilon_clamp(f32 x)
 {
-  return abs(x) > F32_EPSILON ? x : F32_EPSILON;
+  return abs(x) > F32_EPS ? x : F32_EPS;
 }
 
 constexpr f32 to_radians(f32 degree)
@@ -2293,7 +2303,7 @@ constexpr T catmull_rom(T const &p0, T const &p1, T const &p2, T const &p3,
 
 constexpr f32 step(f32 a, f32 t)
 {
-  return t < a ? 0.0f : 1.0f;
+  return (t < a) ? 0.0f : 1.0f;
 }
 
 constexpr f32 smoothstep(f32 a, f32 b, f32 t)

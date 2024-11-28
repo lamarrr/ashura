@@ -158,8 +158,10 @@ add_executable(
   ashura_std_tests
   ashura/std/tests/tests.cc
   ashura/std/tests/option.cc
+  ashura/std/tests/enum.cc
   ashura/std/tests/async.cc
   ashura/std/tests/list.cc
+  ashura/std/tests/main.cc
   ashura/std/tests/hash_map.cc
   ashura/std/tests/result.cc
   ashura/std/tests/sparse_vec.cc)
@@ -233,9 +235,5 @@ add_executable(
   ashura/engine/tests/views.cc ashura/engine/tests/text_compositor.cc)
 target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
 
-add_executable(ashura_app_test ashura/engine/tests/app.cc)
-target_link_libraries(ashura_app_test ashura_engine)
-
-add_executable(ashura_animation_test ashura/engine/tests/animation_test.cc)
-
-target_link_libraries(ashura_animation_test ashura_engine)
+add_executable(ashura_editor ashura/editor/editor.cc)
+target_link_libraries(ashura_editor ashura_std ashura_engine GTest::gtest)

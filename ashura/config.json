@@ -1,0 +1,44 @@
+{
+    "$schema": "./config.schema.json",
+    "version": "0.0.1",
+    "gpu": {
+        "validation": false,
+        "vsync": true,
+        "preferences": [
+            "dgpu",
+            "vgpu",
+            "igpu",
+            "other",
+            "cpu"
+        ],
+        "hdr": true,
+        "buffering": 2
+    },
+    "window": {
+        "resizable": true,
+        "full_screen": false,
+        "maximized": false,
+        "width": 1920,
+        "height": 1080
+    },
+    "shaders": {
+        "Blur/DownSample:VS": "shaders/blur_downsample.vert.spv",
+        "Blur/DownSample:FS": "shaders/blur_downsample.frag.spv",
+        "Blur/UpSample:VS": "shaders/blur_upsample.vert.spv",
+        "Blur/UpSample:FS": "shaders/blur_upsample.frag.spv",
+        "Ngon:VS": "shaders/ngon.vert.spv",
+        "Ngon:FS": "shaders/ngon.frag.spv",
+        "PBR:VS": "shaders/pbr.vert.spv",
+        "PBR:FS": "shaders/pbr.frag.spv",
+        "RRect:VS": "shaders/rrect.vert.spv",
+        "RRect:FS": "shaders/rrect.frag.spv"
+    },
+    "fonts": {
+        "Amiri": "fonts/Amiri/Amiri-Regular.ttf",
+        "MaterialIcons": "fonts/MaterialIcons/MaterialIcons-Regular.ttf",
+        "Roboto": "fonts/Roboto/Roboto-Regular.ttf",
+        "RobotoMono": "fonts/RobotoMono/RobotoMono-Regular.ttf"
+    },
+    "default_font": "RobotoMono",
+    "images": {}
+}

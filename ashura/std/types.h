@@ -12,9 +12,11 @@
 #include <limits>
 #include <new>
 #include <type_traits>
+#include <utility>
 
 namespace ash
 {
+
 typedef char8_t   c8;
 typedef char16_t  c16;
 typedef char32_t  c32;
@@ -67,23 +69,16 @@ constexpr isize ISIZE_MAX = PTRDIFF_MAX;
 constexpr f32 F32_MIN          = -FLT_MAX;
 constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
 constexpr f32 F32_MAX          = FLT_MAX;
-constexpr f32 F32_EPSILON      = FLT_EPSILON;
-constexpr f32 F32_INFINITY     = INFINITY;
+constexpr f32 F32_EPS          = FLT_EPSILON;
+constexpr f32 F32_INF          = INFINITY;
 
 constexpr f64 F64_MIN          = -DBL_MAX;
 constexpr f64 F64_MIN_POSITIVE = DBL_MIN;
 constexpr f64 F64_MAX          = DBL_MAX;
-constexpr f64 F64_EPSILON      = DBL_EPSILON;
-constexpr f64 F64_INFINITY     = INFINITY;
+constexpr f64 F64_EPS          = DBL_EPSILON;
+constexpr f64 F64_INF          = INFINITY;
 
 constexpr f32 PI = 3.14159265358979323846F;
-
-struct Noop
-{
-  constexpr void operator()(auto &&...) const
-  {
-  }
-};
 
 struct Add
 {
@@ -117,7 +112,7 @@ struct Div
   }
 };
 
-struct Equal
+struct Eq
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -125,7 +120,7 @@ struct Equal
   }
 };
 
-struct NotEqual
+struct NEq
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -133,7 +128,7 @@ struct NotEqual
   }
 };
 
-struct Lesser
+struct Less
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -141,7 +136,7 @@ struct Lesser
   }
 };
 
-struct LesserOrEqual
+struct LEq
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -149,7 +144,7 @@ struct LesserOrEqual
   }
 };
 
-struct Greater
+struct Gt
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -157,7 +152,7 @@ struct Greater
   }
 };
 
-struct GreaterOrEqual
+struct GEq
 {
   constexpr bool operator()(auto const &a, auto const &b) const
   {
@@ -165,7 +160,7 @@ struct GreaterOrEqual
   }
 };
 
-struct Compare
+struct Cmp
 {
   constexpr int operator()(auto const &a, auto const &b) const
   {
@@ -220,22 +215,21 @@ struct Clamp
   }
 };
 
-constexpr Noop           noop;
-constexpr Add            add;
-constexpr Sub            sub;
-constexpr Mul            mul;
-constexpr Div            div;
-constexpr Equal          equal;
-constexpr NotEqual       not_equal;
-constexpr Lesser         lesser;
-constexpr LesserOrEqual  lesser_or_equal;
-constexpr Greater        greater;
-constexpr GreaterOrEqual greater_or_equal;
-constexpr Compare        compare;
-constexpr Min            min;
-constexpr Max            max;
-constexpr Swap           swap;
-constexpr Clamp          clamp;
+constexpr Add   add;
+constexpr Sub   sub;
+constexpr Mul   mul;
+constexpr Div   div;
+constexpr Eq    eq;
+constexpr NEq   neq;
+constexpr Less  lt;
+constexpr LEq   leq;
+constexpr Gt    gt;
+constexpr GEq   geq;
+constexpr Cmp   cmp;
+constexpr Min   min;
+constexpr Max   max;
+constexpr Swap  swap;
+constexpr Clamp clamp;
 
 template <typename T>
 constexpr bool has_bits(T src, T cmp)
@@ -634,695 +628,15 @@ constexpr E enum_not(E a)
     return a;                        \
   }
 
-template <typename... T>
-struct Tuple
-{
-  static constexpr u8 NUM_ELEMENTS = 0;
-};
-
-Tuple() -> Tuple<>;
-
-template <typename T0>
-struct Tuple<T0>
-{
-  typedef T0 Type0;
-
-  static constexpr u8 NUM_ELEMENTS = 1;
-
-  T0 v0{};
-};
-
-template <typename T0>
-Tuple(T0) -> Tuple<T0>;
-
-template <typename T0, typename T1>
-struct Tuple<T0, T1>
-{
-  typedef T0 Type0;
-  typedef T1 Type1;
-
-  static constexpr u8 NUM_ELEMENTS = 2;
-
-  T0 v0{};
-  T1 v1{};
-};
-
-template <typename T0, typename T1>
-Tuple(T0, T1) -> Tuple<T0, T1>;
-
-template <typename T0, typename T1, typename T2>
-struct Tuple<T0, T1, T2>
-{
-  typedef T0 Type0;
-  typedef T1 Type1;
-  typedef T2 Type2;
-
-  static constexpr u8 NUM_ELEMENTS = 3;
-
-  T0 v0{};
-  T1 v1{};
-  T2 v2{};
-};
-
-template <typename T0, typename T1, typename T2>
-Tuple(T0, T1, T2) -> Tuple<T0, T1, T2>;
-
-template <typename T0, typename T1, typename T2, typename T3>
-struct Tuple<T0, T1, T2, T3>
-{
-  typedef T0 Type0;
-  typedef T1 Type1;
-  typedef T2 Type2;
-  typedef T3 Type3;
-
-  static constexpr u8 NUM_ELEMENTS = 4;
-
-  T0 v0{};
-  T1 v1{};
-  T2 v2{};
-  T3 v3{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3>
-Tuple(T0, T1, T2, T3) -> Tuple<T0, T1, T2, T3>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4>
-struct Tuple<T0, T1, T2, T3, T4>
-{
-  typedef T0 Type0;
-  typedef T1 Type1;
-  typedef T2 Type2;
-  typedef T3 Type3;
-  typedef T4 Type4;
-
-  static constexpr u8 NUM_ELEMENTS = 5;
-
-  T0 v0{};
-  T1 v1{};
-  T2 v2{};
-  T3 v3{};
-  T4 v4{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4>
-Tuple(T0, T1, T2, T3, T4) -> Tuple<T0, T1, T2, T3, T4>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5>
-struct Tuple<T0, T1, T2, T3, T4, T5>
-{
-  typedef T0 Type0;
-  typedef T1 Type1;
-  typedef T2 Type2;
-  typedef T3 Type3;
-  typedef T4 Type4;
-  typedef T5 Type5;
-
-  static constexpr u8 NUM_ELEMENTS = 6;
-
-  T0 v0{};
-  T1 v1{};
-  T2 v2{};
-  T3 v3{};
-  T4 v4{};
-  T5 v5{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5>
-Tuple(T0, T1, T2, T3, T4, T5) -> Tuple<T0, T1, T2, T3, T4, T5>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6>
-struct Tuple<T0, T1, T2, T3, T4, T5, T6>
-{
-  typedef T0 Type0;
-  typedef T1 Type1;
-  typedef T2 Type2;
-  typedef T3 Type3;
-  typedef T4 Type4;
-  typedef T5 Type5;
-  typedef T6 Type6;
-
-  static constexpr u8 NUM_ELEMENTS = 7;
-
-  T0 v0{};
-  T1 v1{};
-  T2 v2{};
-  T3 v3{};
-  T4 v4{};
-  T5 v5{};
-  T6 v6{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6>
-Tuple(T0, T1, T2, T3, T4, T5, T6) -> Tuple<T0, T1, T2, T3, T4, T5, T6>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7>
-struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7>
-{
-  typedef T0 Type0;
-  typedef T1 Type1;
-  typedef T2 Type2;
-  typedef T3 Type3;
-  typedef T4 Type4;
-  typedef T5 Type5;
-  typedef T6 Type6;
-  typedef T7 Type7;
-
-  static constexpr u8 NUM_ELEMENTS = 8;
-
-  T0 v0{};
-  T1 v1{};
-  T2 v2{};
-  T3 v3{};
-  T4 v4{};
-  T5 v5{};
-  T6 v6{};
-  T7 v7{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7) -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8>
-struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>
-{
-  typedef T0 Type0;
-  typedef T1 Type1;
-  typedef T2 Type2;
-  typedef T3 Type3;
-  typedef T4 Type4;
-  typedef T5 Type5;
-  typedef T6 Type6;
-  typedef T7 Type7;
-  typedef T8 Type8;
-
-  static constexpr u8 NUM_ELEMENTS = 9;
-
-  T0 v0{};
-  T1 v1{};
-  T2 v2{};
-  T3 v3{};
-  T4 v4{};
-  T5 v5{};
-  T6 v6{};
-  T7 v7{};
-  T8 v8{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9>
-struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>
-{
-  typedef T0 Type0;
-  typedef T1 Type1;
-  typedef T2 Type2;
-  typedef T3 Type3;
-  typedef T4 Type4;
-  typedef T5 Type5;
-  typedef T6 Type6;
-  typedef T7 Type7;
-  typedef T8 Type8;
-  typedef T9 Type9;
-
-  static constexpr u8 NUM_ELEMENTS = 10;
-
-  T0 v0{};
-  T1 v1{};
-  T2 v2{};
-  T3 v3{};
-  T4 v4{};
-  T5 v5{};
-  T6 v6{};
-  T7 v7{};
-  T8 v8{};
-  T9 v9{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10>
-struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
-{
-  typedef T0  Type0;
-  typedef T1  Type1;
-  typedef T2  Type2;
-  typedef T3  Type3;
-  typedef T4  Type4;
-  typedef T5  Type5;
-  typedef T6  Type6;
-  typedef T7  Type7;
-  typedef T8  Type8;
-  typedef T9  Type9;
-  typedef T10 Type10;
-
-  static constexpr u8 NUM_ELEMENTS = 11;
-
-  T0  v0{};
-  T1  v1{};
-  T2  v2{};
-  T3  v3{};
-  T4  v4{};
-  T5  v5{};
-  T6  v6{};
-  T7  v7{};
-  T8  v8{};
-  T9  v9{};
-  T10 v10{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10, typename T11>
-struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
-{
-  typedef T0  Type0;
-  typedef T1  Type1;
-  typedef T2  Type2;
-  typedef T3  Type3;
-  typedef T4  Type4;
-  typedef T5  Type5;
-  typedef T6  Type6;
-  typedef T7  Type7;
-  typedef T8  Type8;
-  typedef T9  Type9;
-  typedef T10 Type10;
-  typedef T11 Type11;
-
-  static constexpr u8 NUM_ELEMENTS = 12;
-
-  T0  v0{};
-  T1  v1{};
-  T2  v2{};
-  T3  v3{};
-  T4  v4{};
-  T5  v5{};
-  T6  v6{};
-  T7  v7{};
-  T8  v8{};
-  T9  v9{};
-  T10 v10{};
-  T11 v11{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10, typename T11>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10, typename T11, typename T12>
-struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
-{
-  typedef T0  Type0;
-  typedef T1  Type1;
-  typedef T2  Type2;
-  typedef T3  Type3;
-  typedef T4  Type4;
-  typedef T5  Type5;
-  typedef T6  Type6;
-  typedef T7  Type7;
-  typedef T8  Type8;
-  typedef T9  Type9;
-  typedef T10 Type10;
-  typedef T11 Type11;
-  typedef T12 Type12;
-
-  static constexpr u8 NUM_ELEMENTS = 13;
-
-  T0  v0{};
-  T1  v1{};
-  T2  v2{};
-  T3  v3{};
-  T4  v4{};
-  T5  v5{};
-  T6  v6{};
-  T7  v7{};
-  T8  v8{};
-  T9  v9{};
-  T10 v10{};
-  T11 v11{};
-  T12 v12{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10, typename T11, typename T12>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10, typename T11, typename T12, typename T13>
-struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
-{
-  typedef T0  Type0;
-  typedef T1  Type1;
-  typedef T2  Type2;
-  typedef T3  Type3;
-  typedef T4  Type4;
-  typedef T5  Type5;
-  typedef T6  Type6;
-  typedef T7  Type7;
-  typedef T8  Type8;
-  typedef T9  Type9;
-  typedef T10 Type10;
-  typedef T11 Type11;
-  typedef T12 Type12;
-  typedef T13 Type13;
-
-  static constexpr u8 NUM_ELEMENTS = 14;
-
-  T0  v0{};
-  T1  v1{};
-  T2  v2{};
-  T3  v3{};
-  T4  v4{};
-  T5  v5{};
-  T6  v6{};
-  T7  v7{};
-  T8  v8{};
-  T9  v9{};
-  T10 v10{};
-  T11 v11{};
-  T12 v12{};
-  T13 v13{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10, typename T11, typename T12, typename T13>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10, typename T11, typename T12, typename T13, typename T14>
-struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>
-{
-  typedef T0  Type0;
-  typedef T1  Type1;
-  typedef T2  Type2;
-  typedef T3  Type3;
-  typedef T4  Type4;
-  typedef T5  Type5;
-  typedef T6  Type6;
-  typedef T7  Type7;
-  typedef T8  Type8;
-  typedef T9  Type9;
-  typedef T10 Type10;
-  typedef T11 Type11;
-  typedef T12 Type12;
-  typedef T13 Type13;
-  typedef T14 Type14;
-
-  static constexpr u8 NUM_ELEMENTS = 15;
-
-  T0  v0{};
-  T1  v1{};
-  T2  v2{};
-  T3  v3{};
-  T4  v4{};
-  T5  v5{};
-  T6  v6{};
-  T7  v7{};
-  T8  v8{};
-  T9  v9{};
-  T10 v10{};
-  T11 v11{};
-  T12 v12{};
-  T13 v13{};
-  T14 v14{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10, typename T11, typename T12, typename T13, typename T14>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>;
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10, typename T11, typename T12, typename T13, typename T14,
-          typename T15>
-struct Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
-             T15>
-{
-  typedef T0  Type0;
-  typedef T1  Type1;
-  typedef T2  Type2;
-  typedef T3  Type3;
-  typedef T4  Type4;
-  typedef T5  Type5;
-  typedef T6  Type6;
-  typedef T7  Type7;
-  typedef T8  Type8;
-  typedef T9  Type9;
-  typedef T10 Type10;
-  typedef T11 Type11;
-  typedef T12 Type12;
-  typedef T13 Type13;
-  typedef T14 Type14;
-  typedef T15 Type15;
-
-  static constexpr u8 NUM_ELEMENTS = 16;
-
-  T0  v0{};
-  T1  v1{};
-  T2  v2{};
-  T3  v3{};
-  T4  v4{};
-  T5  v5{};
-  T6  v6{};
-  T7  v7{};
-  T8  v8{};
-  T9  v9{};
-  T10 v10{};
-  T11 v11{};
-  T12 v12{};
-  T13 v13{};
-  T14 v14{};
-  T15 v15{};
-};
-
-template <typename T0, typename T1, typename T2, typename T3, typename T4,
-          typename T5, typename T6, typename T7, typename T8, typename T9,
-          typename T10, typename T11, typename T12, typename T13, typename T14,
-          typename T15>
-Tuple(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)
-    -> Tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14,
-             T15>;
-
-template <unsigned int Index, typename Tuple>
-constexpr auto &&impl_get(Tuple &&tuple)
-{
-  static_assert(Index < remove_ref<Tuple>::NUM_ELEMENTS,
-                "Index of Tuple Elements out of bounds");
-  if constexpr (Index == 0)
-  {
-    return tuple.v0;
-  }
-  if constexpr (Index == 1)
-  {
-    return tuple.v1;
-  }
-  if constexpr (Index == 2)
-  {
-    return tuple.v2;
-  }
-  if constexpr (Index == 3)
-  {
-    return tuple.v3;
-  }
-  if constexpr (Index == 4)
-  {
-    return tuple.v4;
-  }
-  if constexpr (Index == 5)
-  {
-    return tuple.v5;
-  }
-  if constexpr (Index == 6)
-  {
-    return tuple.v6;
-  }
-  if constexpr (Index == 7)
-  {
-    return tuple.v7;
-  }
-  if constexpr (Index == 8)
-  {
-    return tuple.v8;
-  }
-  if constexpr (Index == 9)
-  {
-    return tuple.v9;
-  }
-  if constexpr (Index == 10)
-  {
-    return tuple.v10;
-  }
-  if constexpr (Index == 11)
-  {
-    return tuple.v11;
-  }
-  if constexpr (Index == 12)
-  {
-    return tuple.v12;
-  }
-  if constexpr (Index == 13)
-  {
-    return tuple.v13;
-  }
-  if constexpr (Index == 14)
-  {
-    return tuple.v14;
-  }
-  if constexpr (Index == 15)
-  {
-    return tuple.v15;
-  }
-}
-
-template <u8 Index, typename... T>
-constexpr auto const &get(Tuple<T...> const &tuple)
-{
-  return impl_get<Index>(tuple);
-}
-
-template <u8 Index, typename... T>
-constexpr auto &get(Tuple<T...> &tuple)
-{
-  return impl_get<Index>(tuple);
-}
-
-template <u8 Index, typename... T>
-constexpr auto const &&get(Tuple<T...> const &&tuple)
-{
-  return impl_get<Index>(tuple);
-}
-
-template <u8 Index, typename... T>
-constexpr auto &&get(Tuple<T...> &&tuple)
-{
-  return impl_get<Index>(tuple);
-}
-
-template <typename Fn, typename Tuple>
-constexpr void impl_for_each(Fn &&op, Tuple &&tuple)
-{
-  constexpr u8 NUM_ELEMENTS = remove_ref<Tuple>::NUM_ELEMENTS;
-  if constexpr (NUM_ELEMENTS > 0)
-  {
-    op(tuple.v0);
-  }
-  if constexpr (NUM_ELEMENTS > 1)
-  {
-    op(tuple.v1);
-  }
-  if constexpr (NUM_ELEMENTS > 2)
-  {
-    op(tuple.v2);
-  }
-  if constexpr (NUM_ELEMENTS > 3)
-  {
-    op(tuple.v3);
-  }
-  if constexpr (NUM_ELEMENTS > 4)
-  {
-    op(tuple.v4);
-  }
-  if constexpr (NUM_ELEMENTS > 5)
-  {
-    op(tuple.v5);
-  }
-  if constexpr (NUM_ELEMENTS > 6)
-  {
-    op(tuple.v6);
-  }
-  if constexpr (NUM_ELEMENTS > 7)
-  {
-    op(tuple.v7);
-  }
-  if constexpr (NUM_ELEMENTS > 8)
-  {
-    op(tuple.v8);
-  }
-  if constexpr (NUM_ELEMENTS > 9)
-  {
-    op(tuple.v9);
-  }
-  if constexpr (NUM_ELEMENTS > 10)
-  {
-    op(tuple.v10);
-  }
-  if constexpr (NUM_ELEMENTS > 11)
-  {
-    op(tuple.v11);
-  }
-  if constexpr (NUM_ELEMENTS > 12)
-  {
-    op(tuple.v12);
-  }
-  if constexpr (NUM_ELEMENTS > 13)
-  {
-    op(tuple.v13);
-  }
-  if constexpr (NUM_ELEMENTS > 14)
-  {
-    op(tuple.v14);
-  }
-  if constexpr (NUM_ELEMENTS > 15)
-  {
-    op(tuple.v15);
-  }
-}
-
-template <typename Fn, typename... T>
-constexpr void for_each(Fn &&op, Tuple<T...> const &tuple)
-{
-  impl_for_each((Fn &&) op, tuple);
-}
-
-template <typename Fn, typename... T>
-constexpr void for_each(Fn &&op, Tuple<T...> &tuple)
-{
-  impl_for_each((Fn &&) op, tuple);
-}
-
-template <typename Fn, typename... T>
-constexpr void for_each(Fn &&op, Tuple<T...> &&tuple)
-{
-  impl_for_each((Fn &&) op, tuple);
-}
-
 struct Slice
 {
   usize offset = 0;
   usize span   = 0;
+
+  constexpr usize begin() const
+  {
+    return offset;
+  }
 
   constexpr usize end() const
   {
@@ -1348,6 +662,11 @@ struct Slice32
 {
   u32 offset = 0;
   u32 span   = 0;
+
+  constexpr usize begin() const
+  {
+    return offset;
+  }
 
   constexpr usize end() const
   {
@@ -1604,6 +923,12 @@ struct Array
   }
 };
 
+template <typename T, usize N>
+struct IsTriviallyRelocatable<Array<T, N>>
+{
+  static constexpr bool value = TriviallyRelocatable<T>;
+};
+
 template <typename Repr, usize N>
 using Bits = Repr[BIT_PACKS<Repr, N>];
 
@@ -1618,6 +943,28 @@ struct Span
 
   T    *data_ = nullptr;
   usize size_ = 0;
+
+  constexpr Span() = default;
+
+  constexpr Span(T *data, usize size) : data_{data}, size_{size}
+  {
+  }
+
+  template <typename U>
+    requires(Convertible<U (*)[], T (*)[]>)
+  constexpr Span(Span<U> span) : data_{span.data_}, size_{span.size_}
+  {
+  }
+
+  constexpr Span(Span const &) = default;
+
+  constexpr Span(Span &&) = default;
+
+  constexpr Span &operator=(Span const &) = default;
+
+  constexpr Span &operator=(Span &&) = default;
+
+  constexpr ~Span() = default;
 
   constexpr bool is_empty() const
   {
@@ -1676,22 +1023,31 @@ struct Span
     data_[index] = T{((Args &&) args)...};
   }
 
-  constexpr operator Span<T const>() const
-  {
-    return Span<T const>{data_, size_};
-  }
-
   constexpr Span<T const> as_const() const
   {
     return Span<T const>{data_, size_};
   }
 
+  constexpr Span<u8> as_u8() const
+    requires(NonConst<T>)
+  {
+    return Span<u8>{reinterpret_cast<u8 *>(data_), size_bytes()};
+  }
+
   constexpr Span<u8 const> as_u8() const
+    requires(Const<T>)
   {
     return Span<u8 const>{reinterpret_cast<u8 const *>(data_), size_bytes()};
   }
 
   constexpr Span<char const> as_char() const
+    requires(NonConst<T>)
+  {
+    return Span<char>{reinterpret_cast<char *>(data_), size_bytes()};
+  }
+
+  constexpr Span<char const> as_char() const
+    requires(Const<T>)
   {
     return Span<char const>{reinterpret_cast<char const *>(data_),
                             size_bytes()};
@@ -1950,6 +1306,23 @@ struct BitSpan
   Span<R> repr_     = {};
   usize   bit_size_ = 0;
 
+  constexpr BitSpan() = default;
+
+  constexpr BitSpan(Span<R> repr, usize bit_size) :
+      repr_{repr}, bit_size_{bit_size}
+  {
+  }
+
+  constexpr BitSpan(BitSpan const &) = default;
+
+  constexpr BitSpan(BitSpan &&) = default;
+
+  constexpr BitSpan &operator=(BitSpan const &) = default;
+
+  constexpr BitSpan &operator=(BitSpan &&) = default;
+
+  constexpr ~BitSpan() = default;
+
   constexpr Span<R> repr() const
   {
     return repr_;
@@ -2063,27 +1436,30 @@ struct Fn;
 /// @brief Fn is a type-erased function containing a callback and a pointer. Fn
 /// is a reference to both the function to be called and its associated data, it
 /// doesn't manage any lifetime.
-/// @param dispatcher function/callback to be invoked. typically a
+/// @param thunk function/callback to be invoked. typically a
 /// dispatcher/thunk.
-/// @param data associated data/context for the dispatcher to operate on.
+/// @param data associated data/context for the thunk to operate on.
 template <typename R, typename... Args>
 struct Fn<R(Args...)>
 {
-  using Dispatcher = R (*)(void *, Args...);
+  using Thunk = R (*)(void *, Args...);
 
   constexpr R operator()(Args... args) const
   {
-    return dispatcher(data, static_cast<Args &&>(args)...);
+    return thunk(data, static_cast<Args &&>(args)...);
   }
 
-  Dispatcher dispatcher = nullptr;
-  void      *data       = nullptr;
+  Thunk thunk = nullptr;
+  void *data  = nullptr;
 };
 
+template <typename Sig>
+struct PFnThunk;
+
 template <typename R, typename... Args>
-struct PFnDispatcher
+struct PFnThunk<R(Args...)>
 {
-  static constexpr R dispatch(void *data, Args... args)
+  static constexpr R thunk(void *data, Args... args)
   {
     using PFn = R (*)(Args...);
 
@@ -2099,10 +1475,10 @@ struct PFnTraits;
 template <typename R, typename... Args>
 struct PFnTraits<R(Args...)>
 {
-  using Ptr        = R (*)(Args...);
-  using Fn         = ::ash::Fn<R(Args...)>;
-  using ReturnType = R;
-  using Dispatcher = PFnDispatcher<R, Args...>;
+  using Ptr    = R (*)(Args...);
+  using Fn     = ::ash::Fn<R(Args...)>;
+  using Return = R;
+  using Thunk  = PFnThunk<R(Args...)>;
 };
 
 template <typename R, typename... Args>
@@ -2110,40 +1486,41 @@ struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
 {
 };
 
+template <typename T, typename Sig>
+struct FunctorThunk;
+
 template <typename T, typename R, typename... Args>
-struct FunctorDispatcher
+struct FunctorThunk<T, R(Args...)>
 {
-  static constexpr R dispatch(void *data, Args... args)
+  static constexpr R thunk(void *data, Args... args)
   {
     return (*(reinterpret_cast<T *>(data)))(static_cast<Args &&>(args)...);
   }
 };
 
-template <class Sig>
-struct MemberFnTraits
-{
-};
+template <class MemberSig>
+struct MemberFnTraits;
 
 /// @brief non-const member function traits
 template <class T, typename R, typename... Args>
 struct MemberFnTraits<R (T::*)(Args...)>
 {
-  using Ptr        = R (*)(Args...);
-  using Fn         = ::ash::Fn<R(Args...)>;
-  using Type       = T;
-  using ReturnType = R;
-  using Dispatcher = FunctorDispatcher<T, R, Args...>;
+  using Ptr    = R (*)(Args...);
+  using Fn     = ::ash::Fn<R(Args...)>;
+  using Type   = T;
+  using Return = R;
+  using Thunk  = FunctorThunk<T, R(Args...)>;
 };
 
 /// @brief const member function traits
 template <class T, typename R, typename... Args>
 struct MemberFnTraits<R (T::*)(Args...) const>
 {
-  using Ptr        = R (*)(Args...);
-  using Fn         = ::ash::Fn<R(Args...)>;
-  using Type       = T const;
-  using ReturnType = R;
-  using Dispatcher = FunctorDispatcher<T const, R, Args...>;
+  using Ptr    = R (*)(Args...);
+  using Fn     = ::ash::Fn<R(Args...)>;
+  using Type   = T const;
+  using Return = R;
+  using Thunk  = FunctorThunk<T const, R(Args...)>;
 };
 
 template <class T>
@@ -2155,11 +1532,11 @@ struct FunctorTraits : MemberFnTraits<decltype(&T::operator())>
 template <typename R, typename... Args>
 auto fn(R (*pfn)(Args...))
 {
-  using Traits     = PFnTraits<R(Args...)>;
-  using Fn         = typename Traits::Fn;
-  using Dispatcher = typename Traits::Dispatcher;
+  using Traits = PFnTraits<R(Args...)>;
+  using Fn     = typename Traits::Fn;
+  using Thunk  = typename Traits::Thunk;
 
-  return Fn{&Dispatcher::dispatch, reinterpret_cast<void *>(pfn)};
+  return Fn{&Thunk::thunk, reinterpret_cast<void *>(pfn)};
 }
 
 /// @brief make a function view from a captureless lambda/functor (i.e. lambdas
@@ -2180,16 +1557,16 @@ auto fn(StaticFunctor functor)
 template <typename Functor>
 auto fn(Functor *functor)
 {
-  using Traits     = FunctorTraits<Functor>;
-  using Fn         = typename Traits::Fn;
-  using Dispatcher = typename Traits::Dispatcher;
+  using Traits = FunctorTraits<Functor>;
+  using Fn     = typename Traits::Fn;
+  using Thunk  = typename Traits::Thunk;
 
-  return Fn{&Dispatcher::dispatch,
+  return Fn{&Thunk::thunk,
             const_cast<void *>(reinterpret_cast<void const *>(functor))};
 }
 
 /// @brief create a function view from an object reference and a function
-/// dispatcher to execute using the object reference as its first argument.
+/// thunk to execute using the object reference as its first argument.
 template <typename T, typename R, typename... Args>
 auto fn(T *t, R (*fn)(T *, Args...))
 {
@@ -2201,15 +1578,43 @@ auto fn(T *t, R (*fn)(T *, Args...))
 /// non-capturing lambda to execute using the object reference as its first
 /// argument.
 template <typename T, typename StaticFunctor>
-auto fn(T *t, StaticFunctor functor)
+auto fn(T *t, StaticFunctor thunk)
 {
   using Traits = FunctorTraits<StaticFunctor>;
   using PFn    = typename Traits::Ptr;
 
-  PFn pfn = static_cast<PFn>(functor);
+  PFn pfn = static_cast<PFn>(thunk);
 
   return fn(t, pfn);
 }
+
+struct Noop
+{
+  template <typename... Args>
+  using Sig = void(Args...);
+
+  template <typename... Args>
+  using FnType = Fn<void(Args...)>;
+
+  template <typename... Args>
+  constexpr operator Sig<Args...> *() const
+  {
+    return [](Args...) {};
+  }
+
+  template <typename... Args>
+  constexpr operator FnType<Args...>() const
+  {
+    return fn([](Args...) {});
+  }
+
+  template <typename... Args>
+  constexpr void operator()(Args &&...) const
+  {
+  }
+};
+
+constexpr Noop noop;
 
 /// @brief The `SourceLocation`  class represents certain information about the
 /// source code, such as file names, line numbers, and function names.
@@ -2296,28 +1701,10 @@ struct Pin<void>
   constexpr ~Pin()                      = default;
 };
 
-template <typename R>
-constexpr void uninit(R &r)
+template <typename R, typename... Ctx>
+constexpr void uninit(R &r, Ctx &&...ctx)
 {
-  r.uninit();
-};
-
-template <typename R>
-struct Smart
-{
-  typedef R Resource;
-
-  constexpr Smart();
-  constexpr Smart(Smart const &);
-  constexpr Smart(Smart &&);
-  constexpr Smart &operator=(Smart const &);
-  constexpr Smart &operator=(Smart &&);
-  constexpr ~Smart()
-  {
-    uninit(resource);
-  }
-
-  R resource;
+  r.uninit(((Ctx &&) ctx)...);
 };
 
 constexpr u8 sat_add(u8 a, u8 b)

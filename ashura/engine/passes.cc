@@ -5,15 +5,15 @@
 namespace ash
 {
 
-void BloomPass::init(GpuContext &)
+void BloomPass::acquire(GpuContext &, AssetMap &)
 {
 }
 
-void BloomPass::uninit(GpuContext &)
+void BloomPass::release(GpuContext &, AssetMap &)
 {
 }
 
-void BloomPass::encode(GpuContext &, gpu::CommandEncoderImpl const &,
+void BloomPass::encode(GpuContext &, gpu::CommandEncoder &,
                        BloomPassParams const &)
 {
   /// E' = Blur(E)
@@ -23,7 +23,7 @@ void BloomPass::encode(GpuContext &, gpu::CommandEncoderImpl const &,
   /// A' = Blur(A) + B'
 }
 
-void BlurPass::init(GpuContext &ctx)
+void BlurPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
   // https://www.youtube.com/watch?v=ml-5OGZC7vE
   //
@@ -34,10 +34,8 @@ void BlurPass::init(GpuContext &ctx)
   // Algorithm described here:
   // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
   //
-  gpu::Shader vertex_shader =
-      ctx.get_shader("Blur_DownSample:VS"_span).unwrap();
-  gpu::Shader fragment_shader =
-      ctx.get_shader("Blur_DownSample:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = assets.shaders["Blur/DownSample:VS"_span];
+  gpu::Shader fragment_shader = assets.shaders["Blur/DownSample:FS"_span];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -76,15 +74,15 @@ void BlurPass::init(GpuContext &ctx)
   gpu::DescriptorSetLayout set_layouts[] = {ctx.samplers_layout,
                                             ctx.textures_layout};
 
-  gpu::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineInfo pipeline_info{
       .label = "Blur Graphics Pipeline"_span,
       .vertex_shader =
-          gpu::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageInfo{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gpu::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageInfo{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
@@ -100,26 +98,23 @@ void BlurPass::init(GpuContext &ctx)
       .cache                  = ctx.pipeline_cache};
 
   downsample_pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
-          .unwrap();
+      ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 
-  pipeline_desc.vertex_shader.shader =
-      ctx.get_shader("Blur_UpSample:VS"_span).unwrap();
-  pipeline_desc.fragment_shader.shader =
-      ctx.get_shader("Blur_UpSample:FS"_span).unwrap();
+  pipeline_info.vertex_shader.shader = assets.shaders["Blur/UpSample:VS"_span];
+  pipeline_info.fragment_shader.shader =
+      assets.shaders["Blur/UpSample:FS"_span];
 
   upsample_pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
-          .unwrap();
+      ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void BlurPass::uninit(GpuContext &ctx)
+void BlurPass::release(GpuContext &ctx, AssetMap &)
 {
-  ctx.device->uninit_graphics_pipeline(ctx.device.self, downsample_pipeline);
-  ctx.device->uninit_graphics_pipeline(ctx.device.self, upsample_pipeline);
+  ctx.device->uninit_graphics_pipeline(downsample_pipeline);
+  ctx.device->uninit_graphics_pipeline(upsample_pipeline);
 }
 
-void sample(BlurPass &b, GpuContext &c, gpu::CommandEncoderImpl e, f32 rad,
+void sample(BlurPass &b, GpuContext &c, gpu::CommandEncoder &e, f32 rad,
             gpu::DescriptorSet src_texture, u32 src_index,
             gpu::Extent src_extent, gpu::Rect src_area, gpu::ImageView dst,
             Vec2U dst_offset, bool upsample)
@@ -128,38 +123,35 @@ void sample(BlurPass &b, GpuContext &c, gpu::CommandEncoderImpl e, f32 rad,
   Vec2 uv0    = as_vec2(src_area.offset) / as_vec2(src_extent);
   Vec2 uv1    = as_vec2(src_area.end()) / as_vec2(src_extent);
 
-  e->begin_rendering(
-      e.self,
-      gpu::RenderingInfo{
-          .render_area = {.offset = dst_offset, .extent = src_area.extent},
-          .num_layers  = 1,
-          .color_attachments = span(
-              {gpu::RenderingAttachment{.view         = dst,
-                                        .resolve      = nullptr,
-                                        .resolve_mode = gpu::ResolveModes::None,
-                                        .load_op      = gpu::LoadOp::Clear,
-                                        .store_op     = gpu::StoreOp::Store}}),
-          .depth_attachment   = {},
-          .stencil_attachment = {}});
+  e.begin_rendering(gpu::RenderingInfo{
+      .render_area       = {.offset = dst_offset, .extent = src_area.extent},
+      .num_layers        = 1,
+      .color_attachments = span(
+          {gpu::RenderingAttachment{.view         = dst,
+                                    .resolve      = nullptr,
+                                    .resolve_mode = gpu::ResolveModes::None,
+                                    .load_op      = gpu::LoadOp::Clear,
+                                    .store_op     = gpu::StoreOp::Store}}),
+      .depth_attachment   = {},
+      .stencil_attachment = {}});
 
-  e->bind_graphics_pipeline(e.self, upsample ? b.upsample_pipeline :
-                                               b.downsample_pipeline);
-  e->set_graphics_state(
-      e.self, gpu::GraphicsState{
-                  .scissor  = {.offset = dst_offset, .extent = src_area.extent},
-                  .viewport = {.offset = as_vec2(dst_offset),
-                               .extent = as_vec2(src_area.extent)}});
-  e->bind_descriptor_sets(e.self, span({c.samplers, src_texture}), {});
-  e->push_constants(e.self, span({BlurParam{.uv      = {uv0, uv1},
-                                            .radius  = radius,
-                                            .sampler = SAMPLER_LINEAR_CLAMPED,
-                                            .texture = src_index}})
-                                .as_u8());
-  e->draw(e.self, 4, 1, 0, 0);
-  e->end_rendering(e.self);
+  e.bind_graphics_pipeline(upsample ? b.upsample_pipeline :
+                                      b.downsample_pipeline);
+  e.set_graphics_state(gpu::GraphicsState{
+      .scissor  = {.offset = dst_offset, .extent = src_area.extent},
+      .viewport = {.offset = as_vec2(dst_offset),
+                   .extent = as_vec2(src_area.extent)}});
+  e.bind_descriptor_sets(span({c.samplers, src_texture}), {});
+  e.push_constants(span({BlurParam{.uv      = {uv0, uv1},
+                                   .radius  = radius,
+                                   .sampler = SAMPLER_LINEAR_CLAMPED,
+                                   .texture = src_index}})
+                       .as_u8());
+  e.draw(4, 1, 0, 0);
+  e.end_rendering();
 }
 
-void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
+void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
                       BlurPassParams const &params)
 {
   CHECK(params.passes > 0);
@@ -205,10 +197,10 @@ void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
          params.area.offset, true);
 }
 
-void NgonPass::init(GpuContext &ctx)
+void NgonPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
-  gpu::Shader vertex_shader   = ctx.get_shader("Ngon:VS"_span).unwrap();
-  gpu::Shader fragment_shader = ctx.get_shader("Ngon:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = assets.shaders["Ngon:VS"_span];
+  gpu::Shader fragment_shader = assets.shaders["Ngon:FS"_span];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -248,22 +240,22 @@ void NgonPass::init(GpuContext &ctx)
       ctx.ssbo_layout, ctx.ssbo_layout, ctx.ssbo_layout, ctx.samplers_layout,
       ctx.textures_layout};
 
-  gpu::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineInfo pipeline_info{
       .label = "Ngon Graphics Pipeline"_span,
       .vertex_shader =
-          gpu::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageInfo{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gpu::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageInfo{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .color_formats          = {&ctx.color_format, 1},
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = 0,
+      .push_constants_size    = sizeof(Mat4),
       .descriptor_set_layouts = span(set_layouts),
       .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
@@ -271,43 +263,40 @@ void NgonPass::init(GpuContext &ctx)
       .color_blend_state      = color_blend_state,
       .cache                  = ctx.pipeline_cache};
 
-  pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
-          .unwrap();
+  pipeline = ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void NgonPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
+void NgonPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
                       NgonPassParams const &params)
 {
-  e->begin_rendering(e.self, params.rendering_info);
-  e->bind_graphics_pipeline(e.self, pipeline);
-  e->bind_descriptor_sets(
-      e.self,
+  e.begin_rendering(params.rendering_info);
+  e.bind_graphics_pipeline(pipeline);
+  e.bind_descriptor_sets(
+
       span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
             ctx.samplers, params.textures}),
       span<u32>({0, 0, 0}));
-  e->push_constants(e.self, span({params.world_to_view}).as_u8());
-  e->set_graphics_state(e.self,
-                        gpu::GraphicsState{.scissor  = params.scissor,
-                                           .viewport = params.viewport});
+  e.push_constants(span({params.world_to_view}).as_u8());
+  e.set_graphics_state(gpu::GraphicsState{.scissor  = params.scissor,
+                                          .viewport = params.viewport});
   u32 const num_instances = params.index_counts.size32();
   for (u32 i = 0; i < num_instances; i++)
   {
     u32 vertex_count = params.index_counts[i];
-    e->draw(e.self, vertex_count, 1, 0, i);
+    e.draw(vertex_count, 1, 0, i);
   }
-  e->end_rendering(e.self);
+  e.end_rendering();
 }
 
-void NgonPass::uninit(GpuContext &ctx)
+void NgonPass::release(GpuContext &ctx, AssetMap &)
 {
-  ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
+  ctx.device->uninit_graphics_pipeline(pipeline);
 }
 
-void PBRPass::init(GpuContext &ctx)
+void PBRPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
-  gpu::Shader vertex_shader   = ctx.get_shader("PBR:VS"_span).unwrap();
-  gpu::Shader fragment_shader = ctx.get_shader("PBR:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = assets.shaders["PBR:VS"_span];
+  gpu::Shader fragment_shader = assets.shaders["PBR:FS"_span];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -347,15 +336,15 @@ void PBRPass::init(GpuContext &ctx)
       ctx.ssbo_layout, ctx.ssbo_layout,     ctx.ssbo_layout,
       ctx.ssbo_layout, ctx.samplers_layout, ctx.textures_layout};
 
-  gpu::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineInfo pipeline_info{
       .label = "PBR Graphics Pipeline"_span,
       .vertex_shader =
-          gpu::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageInfo{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gpu::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageInfo{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
@@ -363,7 +352,7 @@ void PBRPass::init(GpuContext &ctx)
       .depth_format           = {&ctx.depth_stencil_format, 1},
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = 0,
+      .push_constants_size    = sizeof(Mat4),
       .descriptor_set_layouts = span(set_layouts),
       .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
@@ -371,51 +360,47 @@ void PBRPass::init(GpuContext &ctx)
       .color_blend_state      = color_blend_state,
       .cache                  = ctx.pipeline_cache};
 
-  pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
-          .unwrap();
+  pipeline = ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 
-  pipeline_desc.rasterization_state.polygon_mode = gpu::PolygonMode::Line;
+  pipeline_info.rasterization_state.polygon_mode = gpu::PolygonMode::Line;
 
   wireframe_pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
-          .unwrap();
+      ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void PBRPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
+void PBRPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
                      PBRPassParams const &params)
 {
-  e->begin_rendering(e.self, params.rendering_info);
-  e->bind_graphics_pipeline(
-      e.self, params.wireframe ? this->wireframe_pipeline : this->pipeline);
+  e.begin_rendering(params.rendering_info);
+  e.bind_graphics_pipeline(params.wireframe ? this->wireframe_pipeline :
+                                              this->pipeline);
 
-  e->set_graphics_state(
-      e.self, gpu::GraphicsState{.scissor            = params.scissor,
-                                 .viewport           = params.viewport,
-                                 .blend_constant     = {1, 1, 1, 1},
-                                 .depth_test_enable  = true,
-                                 .depth_compare_op   = gpu::CompareOp::Less,
-                                 .depth_write_enable = true});
-  e->bind_descriptor_sets(
-      e.self,
+  e.set_graphics_state(
+      gpu::GraphicsState{.scissor            = params.scissor,
+                         .viewport           = params.viewport,
+                         .blend_constant     = {1, 1, 1, 1},
+                         .depth_test_enable  = true,
+                         .depth_compare_op   = gpu::CompareOp::Less,
+                         .depth_write_enable = true});
+  e.bind_descriptor_sets(
       span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
             params.lights_ssbo, ctx.samplers, params.textures}),
       span<u32>({0, 0, 0, 0}));
-  e->push_constants(e.self, span({params.world_to_view}).as_u8());
-  e->draw(e.self, params.num_indices, 1, 0, params.instance);
-  e->end_rendering(e.self);
+  e.push_constants(span({params.world_to_view}).as_u8());
+  e.draw(params.num_indices, 1, 0, params.instance);
+  e.end_rendering();
 }
 
-void PBRPass::uninit(GpuContext &ctx)
+void PBRPass::release(GpuContext &ctx, AssetMap &)
 {
-  ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
-  ctx.device->uninit_graphics_pipeline(ctx.device.self, wireframe_pipeline);
+  ctx.device->uninit_graphics_pipeline(pipeline);
+  ctx.device->uninit_graphics_pipeline(wireframe_pipeline);
 }
 
-void RRectPass::init(GpuContext &ctx)
+void RRectPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
-  gpu::Shader vertex_shader   = ctx.get_shader("RRect:VS"_span).unwrap();
-  gpu::Shader fragment_shader = ctx.get_shader("RRect:FS"_span).unwrap();
+  gpu::Shader vertex_shader   = assets.shaders["RRect:VS"_span];
+  gpu::Shader fragment_shader = assets.shaders["RRect:FS"_span];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -454,22 +439,22 @@ void RRectPass::init(GpuContext &ctx)
   gpu::DescriptorSetLayout set_layouts[] = {
       ctx.ssbo_layout, ctx.samplers_layout, ctx.textures_layout};
 
-  gpu::GraphicsPipelineDesc pipeline_desc{
+  gpu::GraphicsPipelineInfo pipeline_info{
       .label = "RRect Graphics Pipeline"_span,
       .vertex_shader =
-          gpu::ShaderStageDesc{.shader                        = vertex_shader,
+          gpu::ShaderStageInfo{.shader                        = vertex_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
-          gpu::ShaderStageDesc{.shader                        = fragment_shader,
+          gpu::ShaderStageInfo{.shader                        = fragment_shader,
                                .entry_point                   = "main"_span,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .color_formats          = {&ctx.color_format, 1},
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
-      .push_constants_size    = 0,
+      .push_constants_size    = sizeof(Mat4),
       .descriptor_set_layouts = span(set_layouts),
       .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
@@ -477,30 +462,27 @@ void RRectPass::init(GpuContext &ctx)
       .color_blend_state      = color_blend_state,
       .cache                  = ctx.pipeline_cache};
 
-  pipeline =
-      ctx.device->create_graphics_pipeline(ctx.device.self, pipeline_desc)
-          .unwrap();
+  pipeline = ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void RRectPass::encode(GpuContext &ctx, gpu::CommandEncoderImpl const &e,
+void RRectPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
                        RRectPassParams const &params)
 {
-  e->begin_rendering(e.self, params.rendering_info);
-  e->bind_graphics_pipeline(e.self, pipeline);
-  e->set_graphics_state(e.self,
-                        gpu::GraphicsState{.scissor  = params.scissor,
-                                           .viewport = params.viewport});
-  e->bind_descriptor_sets(
-      e.self, span({params.params_ssbo, ctx.samplers, params.textures}),
+  e.begin_rendering(params.rendering_info);
+  e.bind_graphics_pipeline(pipeline);
+  e.set_graphics_state(gpu::GraphicsState{.scissor  = params.scissor,
+                                          .viewport = params.viewport});
+  e.bind_descriptor_sets(
+      span({params.params_ssbo, ctx.samplers, params.textures}),
       span<u32>({0}));
-  e->push_constants(e.self, span({params.world_to_view}).as_u8());
-  e->draw(e.self, 4, params.num_instances, 0, params.first_instance);
-  e->end_rendering(e.self);
+  e.push_constants(span({params.world_to_view}).as_u8());
+  e.draw(4, params.num_instances, 0, params.first_instance);
+  e.end_rendering();
 }
 
-void RRectPass::uninit(GpuContext &ctx)
+void RRectPass::release(GpuContext &ctx, AssetMap &)
 {
-  ctx.device->uninit_graphics_pipeline(ctx.device.self, pipeline);
+  ctx.device->uninit_graphics_pipeline(pipeline);
 }
 
 }        // namespace ash

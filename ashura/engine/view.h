@@ -42,31 +42,108 @@ struct Size
 
 struct Frame
 {
-  Size width  = {};
-  Size height = {};
+  Size width{};
+  Size height{};
+
+  constexpr Frame()                         = default;
+  constexpr Frame(Frame const &)            = default;
+  constexpr Frame(Frame &&)                 = default;
+  constexpr Frame &operator=(Frame const &) = default;
+  constexpr Frame &operator=(Frame &&)      = default;
+  constexpr ~Frame()                        = default;
+
+  constexpr Frame(Size width, Size height) : width{width}, height{height}
+  {
+  }
+
+  constexpr Frame(f32 width, f32 height, bool constrain = true) :
+      width{.offset = width, .rmax = constrain ? 1 : F32_INF},
+      height{.offset = height, .rmax = constrain ? 1 : F32_INF}
+  {
+  }
 
   constexpr Vec2 operator()(Vec2 extent) const
   {
     return Vec2{width(extent.x), height(extent.y)};
   }
+
+  constexpr Frame offset(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.offset  = w;
+    out.height.offset = h;
+    return out;
+  }
+
+  constexpr Frame scale(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.scale  = w;
+    out.height.scale = h;
+    return out;
+  }
+
+  constexpr Frame rmin(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.rmin  = w;
+    out.height.rmin = h;
+    return out;
+  }
+
+  constexpr Frame rmax(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.rmax  = w;
+    out.height.rmax = h;
+    return out;
+  }
+
+  constexpr Frame min(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.min  = w;
+    out.height.min = h;
+    return out;
+  }
+
+  constexpr Frame max(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.max  = w;
+    out.height.max = h;
+    return out;
+  }
 };
 
 struct CornerRadii
 {
-  Size top_left     = Size{};
-  Size top_right    = Size{};
-  Size bottom_left  = Size{};
-  Size bottom_right = Size{};
+  Size tl;
+  Size tr;
+  Size bl;
+  Size br;
 
-  static constexpr CornerRadii all(Size s)
+  constexpr CornerRadii() : tl{}, tr{}, bl{}, br{}
   {
-    return CornerRadii{s, s, s, s};
+  }
+
+  constexpr CornerRadii(Size tl, Size tr, Size bl, Size br) :
+      tl{tl}, tr{tr}, bl{bl}, br{br}
+  {
+  }
+
+  constexpr CornerRadii(Size s) : tl{s}, tr{s}, bl{s}, br{s}
+  {
+  }
+
+  constexpr CornerRadii(f32 s, bool constrained) :
+      CornerRadii{Size{.offset = s, .rmax = constrained ? 1 : F32_INF}}
+  {
   }
 
   constexpr Vec4 operator()(f32 height) const
   {
-    return Vec4{top_left(height), top_right(height), bottom_left(height),
-                bottom_right(height)};
+    return Vec4{tl(height), tr(height), bl(height), br(height)};
   }
 };
 
@@ -169,18 +246,27 @@ struct ViewContext
     Bits<u64, NUM_KEYS> scan_states = {};
   };
 
-  void                    *app              = nullptr;
-  steady_clock::time_point timestamp        = {};
-  nanoseconds              timedelta        = {};
-  ClipBoard               *clipboard        = nullptr;
-  SystemTheme              theme : 2        = SystemTheme::None;
-  TextDirection            direction : 1    = TextDirection::LeftToRight;
-  Mouse                    mouse            = {};
-  KeyBoard                 keyboard         = {};
-  Span<u8 const>           drag_payload     = {};
-  Span<u8 const>           text_input       = {};
-  Span<u32 const>          text_input_utf32 = {};
-  Vec2                     viewport_extent  = {};
+  void          *app             = nullptr;
+  ClipBoard     *clipboard       = nullptr;
+  time_point     timestamp       = {};
+  nanoseconds    timedelta       = {};
+  SystemTheme    theme           = SystemTheme::None;
+  TextDirection  direction       = TextDirection::LeftToRight;
+  Mouse          mouse           = {};
+  KeyBoard       keyboard        = {};
+  Span<u8 const> drag_payload    = {};
+  Span<u8 const> text_input      = {};
+  Vec2           viewport_extent = {};
+
+  constexpr ViewContext(void *app, ClipBoard &clipboard) :
+      app{app}, clipboard{&clipboard}
+  {
+  }
+  constexpr ViewContext(ViewContext const &)            = delete;
+  constexpr ViewContext(ViewContext &&)                 = default;
+  constexpr ViewContext &operator=(ViewContext const &) = delete;
+  constexpr ViewContext &operator=(ViewContext &&)      = default;
+  constexpr ~ViewContext()                              = default;
 
   constexpr bool key_down(KeyCode key) const
   {
@@ -355,7 +441,7 @@ struct ViewLayout
 /// The coordinate system used is one in which the center of the screen is (0,
 /// 0) and ranges from [-0.5w, +0.5w] on both axes. i.e. top-left is [-0.5w,
 /// -0.5h] and bottom-right is [+0.5w, +0.5h].
-struct View : Pin<>
+struct View
 {
   /// @param id id of the view if mounted, otherwise U64_MAX
   /// @param last_rendered_frame last frame the view was rendered at

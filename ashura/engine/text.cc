@@ -204,9 +204,10 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
 {
   u32 const num_glyphs  = infos.size32();
   u32 const first_glyph = l.glyphs.size32();
-  i32       advance     = 0;
 
   l.glyphs.extend_uninit(num_glyphs).unwrap();
+
+  i32 advance = 0;
 
   for (u32 i = 0; i < num_glyphs; i++)
   {
@@ -214,7 +215,7 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
     hb_glyph_position_t const &pos  = positions[i];
     GlyphShape                 shape{.glyph   = info.codepoint,
                                      .cluster = info.cluster,
-                                     .advance = {pos.x_advance, pos.y_advance},
+                                     .advance = pos.x_advance,
                                      .offset  = {pos.x_offset, -pos.y_offset}};
 
     l.glyphs[first_glyph + i] = shape;
@@ -280,6 +281,12 @@ static inline void reorder_line(Span<TextRun> runs)
 void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 {
   layout.clear();
+
+  if (block.text.is_empty())
+  {
+    return;
+  }
+
   u32 const text_size = block.text.size32();
   CHECK(block.text.size() <= I32_MAX);
   CHECK(block.fonts.size() <= U16_MAX);
@@ -391,8 +398,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
     f32 width   = au_to_px(first_run.metrics.advance, first_run.font_height);
     f32 ascent  = au_to_px(first_run.metrics.ascent, first_run.font_height);
     f32 descent = au_to_px(first_run.metrics.descent, first_run.font_height);
-    f32 height  = au_to_px(first_run.metrics.ascent + first_run.metrics.descent,
-                           first_run.font_height) *
+    f32 height  = au_to_px(first_run.metrics.height(), first_run.font_height) *
                  first_run.line_height;
 
     while (
@@ -406,8 +412,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
       width += au_to_px(m.advance, r.font_height);
       ascent  = max(ascent, au_to_px(m.ascent, r.font_height));
       descent = max(descent, au_to_px(m.descent, r.font_height));
-      height  = max(height, au_to_px(m.ascent + m.descent, r.font_height) *
-                                r.line_height);
+      height = max(height, au_to_px(m.height(), r.font_height) * r.line_height);
       i++;
     }
 
@@ -488,7 +493,7 @@ TextHitResult hit_text(TextLayout const &layout, f32 style_align_width,
     for (u32 g = 0; g < run.num_glyphs; g++)
     {
       GlyphShape const &glyph   = layout.glyphs[run.first_glyph + g];
-      f32 const         advance = au_to_px(glyph.advance.x, run.font_height);
+      f32 const         advance = au_to_px(glyph.advance, run.font_height);
       bool const        intersects =
           (pos.x >= glyph_cursor && pos.x <= (glyph_cursor + advance)) ||
           (g == run.num_glyphs - 1);

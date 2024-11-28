@@ -25,12 +25,6 @@ struct CpuFontAtlas
                                  .height   = extent.y,
                                  .layers   = num_layers};
   }
-
-  void reset()
-  {
-    glyphs.reset();
-    channels.reset();
-  }
 };
 
 struct GpuFontAtlas
@@ -43,15 +37,6 @@ struct GpuFontAtlas
   Vec2U               extent      = {};
   Vec<AtlasGlyph>     glyphs      = {};
   gpu::Format         format      = gpu::Format::Undefined;
-
-  void reset()
-  {
-    image = nullptr;
-    views.reset();
-    textures.reset();
-    glyphs.reset();
-    format = gpu::Format::Undefined;
-  }
 };
 
 }        // namespace ash

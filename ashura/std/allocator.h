@@ -5,8 +5,6 @@
 namespace ash
 {
 
-typedef struct Allocator_T *Allocator;
-
 /// @param alloc alloc aligned memory. returns false if failed and sets the
 /// memory pointer to null.
 /// @param alloc_zeroed like alloc but zeroes the allocated memory, this is
@@ -23,96 +21,139 @@ typedef struct Allocator_T *Allocator;
 /// @param alignment must be a power of 2. UB if 0 or otherwise.
 /// @param size must be 0 or multiple of alignment.
 ///
-struct AllocatorInterface
+struct Allocator
 {
-  bool (*alloc)(Allocator self, usize alignment, usize size,
-                u8 *&mem)                   = nullptr;
-  bool (*alloc_zeroed)(Allocator self, usize alignment, usize size,
-                       u8 *&mem)            = nullptr;
-  bool (*realloc)(Allocator self, usize alignment, usize old_size,
-                  usize new_size, u8 *&mem) = nullptr;
-  void (*dealloc)(Allocator self, usize alignment, u8 *mem,
-                  usize size)               = nullptr;
+  virtual bool alloc(usize alignment, usize size, u8 *&mem) = 0;
+
+  virtual bool alloc_zeroed(usize alignment, usize size, u8 *&mem) = 0;
+
+  virtual bool realloc(usize alignment, usize old_size, usize new_size,
+                       u8 *&mem) = 0;
+
+  virtual void dealloc(usize alignment, u8 *mem, usize size) = 0;
+
+  template <typename T>
+  [[nodiscard]] constexpr bool nalloc(usize num, T *&mem)
+  {
+    return alloc(alignof(T), sizeof(T) * num, (u8 *&) mem);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T *&mem)
+  {
+    return alloc_zeroed(alignof(T), sizeof(T) * num, (u8 *&) mem);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num, T *&mem)
+  {
+    return realloc(alignof(T), sizeof(T) * old_num, sizeof(T) * new_num,
+                   (u8 *&) mem);
+  }
+
+  template <typename T>
+  constexpr void ndealloc(T *mem, usize num)
+  {
+    dealloc(alignof(T), (u8 *) mem, sizeof(T) * num);
+  }
 };
 
-struct AllocatorImpl
+struct NoopAllocator final : Allocator
 {
-  Allocator                 self      = nullptr;
-  AllocatorInterface const *interface = nullptr;
-
-  [[nodiscard]] constexpr bool alloc(usize alignment, usize size,
-                                     u8 *&mem) const
+  virtual bool alloc(usize, usize, u8 *&) override
   {
-    return interface->alloc(self, alignment, size, mem);
+    return false;
   }
 
-  [[nodiscard]] constexpr bool alloc_zeroed(usize alignment, usize size,
-                                            u8 *&mem) const
+  virtual bool alloc_zeroed(usize, usize, u8 *&) override
   {
-    return interface->alloc_zeroed(self, alignment, size, mem);
+    return false;
   }
 
-  [[nodiscard]] constexpr bool realloc(usize alignment, usize old_size,
-                                       usize new_size, u8 *&mem) const
+  virtual bool realloc(usize, usize, usize, u8 *&) override
   {
-    return interface->realloc(self, alignment, old_size, new_size, mem);
+    return false;
   }
 
-  constexpr void dealloc(usize alignment, u8 *mem, usize size) const
+  virtual void dealloc(usize, u8 *, usize) override
   {
-    interface->dealloc(self, alignment, mem, size);
-  }
-
-  template <typename T>
-  [[nodiscard]] constexpr bool nalloc(usize num, T *&mem) const
-  {
-    return interface->alloc(self, alignof(T), sizeof(T) * num, (u8 *&) mem);
-  }
-
-  template <typename T>
-  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T *&mem) const
-  {
-    return interface->alloc_zeroed(self, alignof(T), sizeof(T) * num,
-                                   (u8 *&) mem);
-  }
-
-  template <typename T>
-  [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num,
-                                        T *&mem) const
-  {
-    return interface->realloc(self, alignof(T), sizeof(T) * old_num,
-                              sizeof(T) * new_num, (u8 *&) mem);
-  }
-
-  template <typename T>
-  constexpr void ndealloc(T *mem, usize num) const
-  {
-    interface->dealloc(self, alignof(T), (u8 *) mem, sizeof(T) * num);
   }
 };
 
 /// @brief General Purpose Heap allocator. guarantees at least
 /// MAX_STANDARD_ALIGNMENT alignment, when overaligned memory allocators are
 /// available and supported it can allocate over-aligned memory.
-struct HeapInterface
+struct HeapAllocator final : Allocator
 {
-  static bool alloc(Allocator self, usize alignment, usize size, u8 *&mem);
-  static bool alloc_zeroed(Allocator self, usize alignment, usize size,
-                           u8 *&mem);
-  static bool realloc(Allocator self, usize alignment, usize old_size,
-                      usize new_size, u8 *&mem);
-  static void dealloc(Allocator self, usize alignment, u8 *mem, usize size);
+  virtual bool alloc(usize alignment, usize size, u8 *&mem) override;
+
+  virtual bool alloc_zeroed(usize alignment, usize size, u8 *&mem) override;
+
+  virtual bool realloc(usize alignment, usize old_size, usize new_size,
+                       u8 *&mem) override;
+
+  virtual void dealloc(usize alignment, u8 *mem, usize size) override;
 };
 
-inline constexpr AllocatorInterface heap_interface{
-    .alloc        = HeapInterface::alloc,
-    .alloc_zeroed = HeapInterface::alloc_zeroed,
-    .realloc      = HeapInterface::realloc,
-    .dealloc      = HeapInterface::dealloc};
+extern NoopAllocator noop_allocator_impl;
+extern HeapAllocator heap_allocator_impl;
 
-inline constexpr AllocatorImpl heap_allocator{.self      = nullptr,
-                                              .interface = &heap_interface};
+struct AllocatorImpl
+{
+  Allocator *self = &heap_allocator_impl;
 
-inline constexpr ash::AllocatorImpl default_allocator = heap_allocator;
+  [[nodiscard]] constexpr bool alloc(usize alignment, usize size,
+                                     u8 *&mem) const
+  {
+    return self->alloc(alignment, size, mem);
+  }
+
+  [[nodiscard]] constexpr bool alloc_zeroed(usize alignment, usize size,
+                                            u8 *&mem) const
+  {
+    return self->alloc_zeroed(alignment, size, mem);
+  }
+
+  [[nodiscard]] constexpr bool realloc(usize alignment, usize old_size,
+                                       usize new_size, u8 *&mem) const
+  {
+    return self->realloc(alignment, old_size, new_size, mem);
+  }
+
+  constexpr void dealloc(usize alignment, u8 *mem, usize size) const
+  {
+    self->dealloc(alignment, mem, size);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr bool nalloc(usize num, T *&mem) const
+  {
+    return self->alloc(alignof(T), sizeof(T) * num, (u8 *&) mem);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T *&mem) const
+  {
+    return self->alloc_zeroed(alignof(T), sizeof(T) * num, (u8 *&) mem);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num,
+                                        T *&mem) const
+  {
+    return self->realloc(alignof(T), sizeof(T) * old_num, sizeof(T) * new_num,
+                         (u8 *&) mem);
+  }
+
+  template <typename T>
+  constexpr void ndealloc(T *mem, usize num) const
+  {
+    self->dealloc(alignof(T), (u8 *) mem, sizeof(T) * num);
+  }
+};
+
+inline constexpr AllocatorImpl default_allocator{.self = &heap_allocator_impl};
+inline constexpr AllocatorImpl heap_allocator{.self = &heap_allocator_impl};
+inline constexpr AllocatorImpl noop_allocator{.self = &noop_allocator_impl};
 
 }        // namespace ash

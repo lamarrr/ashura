@@ -108,7 +108,7 @@ namespace ash
 
 /// @brief converts UTF-8 text from @p encoded to UTF-32 and appends into @p
 /// `decoded`
-inline Result<Void, Void> utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
+inline Result<> utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
 {
   usize const first = decoded.size();
   usize const count = count_utf8_codepoints(encoded);
@@ -122,8 +122,8 @@ inline Result<Void, Void> utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
 
 /// @brief converts UTF-32 text from @p decoded to UTF-8 and appends into @p
 /// `encoded`
-[[nodiscard]] inline Result<Void, Void> utf8_encode(Span<u32 const> decoded,
-                                                    Vec<u8>        &encoded)
+[[nodiscard]] inline Result<> utf8_encode(Span<u32 const> decoded,
+                                          Vec<u8>        &encoded)
 {
   usize const first     = encoded.size();
   usize const max_count = decoded.size();
@@ -133,7 +133,7 @@ inline Result<Void, Void> utf8_decode(Span<u8 const> encoded, Vec<u32> &decoded)
   }
   usize const count =
       utf8_encode(decoded, span(encoded).slice(first, max_count));
-  CHECK(!encoded.resize_uninit(first + count));
+  encoded.resize_uninit(first + count).unwrap();
   return Ok{};
 }
 
