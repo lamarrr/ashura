@@ -37,7 +37,7 @@ struct SystemEventListener
 
 struct ClipBoardImpl : ClipBoard
 {
-  virtual Result<> get(Span<char const> mime, Vec<u8> &out) override
+  virtual Result<> get(Span<char const> mime, Vec<c8> &out) override
   {
     char mime_c_str[256];
     CHECK(to_c_str(mime, span(mime_c_str)));
@@ -49,11 +49,11 @@ struct ClipBoardImpl : ClipBoard
     }
     defer data_{[&] { SDL_free(data); }};
 
-    out.extend_copy(Span<u8 const>{(u8 *) data, mime_data_len}).unwrap();
+    out.extend_copy(Span<c8 const>{(c8 *) data, mime_data_len}).unwrap();
     return Ok{};
   }
 
-  virtual Result<> set(Span<char const> mime, Span<u8 const> data) override
+  virtual Result<> set(Span<char const> mime, Span<c8 const> data) override
   {
     if (data.is_empty() || mime.is_empty())
     {
@@ -69,9 +69,9 @@ struct ClipBoardImpl : ClipBoard
 
     char const *mime_types[] = {mime_c_str};
 
-    Vec<u8> *data_ctx;
+    Vec<c8> *data_ctx;
     CHECK(default_allocator.nalloc(1, data_ctx));
-    new (data_ctx) Vec<u8>{};
+    new (data_ctx) Vec<c8>{};
 
     data_ctx->extend_copy(data).unwrap();
 
@@ -82,12 +82,12 @@ struct ClipBoardImpl : ClipBoard
             *size = 0;
             return nullptr;
           }
-          Vec<u8> *ctx = (Vec<u8> *) userdata;
+          Vec<c8> *ctx = (Vec<c8> *) userdata;
           *size        = ctx->size();
           return ctx->data();
         },
         [](void *userdata) {
-          Vec<u8> *ctx = (Vec<u8> *) userdata;
+          Vec<c8> *ctx = (Vec<c8> *) userdata;
           ctx->uninit();
           default_allocator.ndealloc(ctx, 1);
         },
