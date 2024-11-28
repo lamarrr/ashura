@@ -64,6 +64,7 @@ inline bool push(Context const &ctx, Spec const &spec, FontErr const &err)
 
 }        // namespace fmt
 
+/// @brief Glyph Metrics. expressed on an AU_UNIT scale
 /// @param bearing offset from cursor baseline to start drawing glyph from (au)
 /// @param descent distance from baseline to the bottom of the glyph (au)
 /// @param advance advancement of the cursor after drawing this glyph (au)
