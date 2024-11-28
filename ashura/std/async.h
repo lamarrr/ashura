@@ -270,6 +270,7 @@ struct AtomicInit
   constexpr AtomicInit(AtomicInit &&)                 = delete;
   constexpr AtomicInit &operator=(AtomicInit const &) = delete;
   constexpr AtomicInit &operator=(AtomicInit &&)      = delete;
+
   ~AtomicInit()
   {
     // this is the last reference to the object at this point, but we still need
@@ -395,7 +396,7 @@ struct SemaphoreState
   /// being worked on.
   /// @param sem non-null
   /// @return
-  [[nodiscard]] u64 stage() const
+  [[nodiscard]] u64 stage()
   {
     std::atomic_ref stage{stage_};
     return stage.load(std::memory_order_acquire);
@@ -413,7 +414,7 @@ struct SemaphoreState
   /// last declared stage.
   /// @param sem non-null
   /// @return
-  [[nodiscard]] bool is_completed() const
+  [[nodiscard]] bool is_completed()
   {
     std::atomic_ref stage{stage_};
     return stage.load(std::memory_order_acquire) == num_stages_;
