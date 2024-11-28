@@ -213,8 +213,7 @@ target_link_libraries(
   ashura_engine
   ashura_std
   ashura_gpu
-  SPIRV
-  glslang
+  glslang::glslang
   spirv-reflect-static
   SDL3::SDL3-static
   harfbuzz
