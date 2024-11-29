@@ -26,7 +26,7 @@ constexpr T align_offset(T alignment, T offset)
 }
 
 template <typename T>
-T *align_ptr(usize alignment, T *p)
+T * align_ptr(usize alignment, T * p)
 {
   return (T *) align_offset(alignment, (uptr) p);
 }
@@ -38,7 +38,7 @@ constexpr bool is_aligned(T alignment, T offset)
 }
 
 template <typename T>
-bool is_ptr_aligned(usize alignment, T *p)
+bool is_ptr_aligned(usize alignment, T * p)
 {
   return is_aligned(alignment, (uptr) p);
 }
@@ -47,7 +47,7 @@ namespace mem
 {
 
 template <typename T, typename U>
-void copy(Span<T> src, U *dst)
+void copy(Span<T> src, U * dst)
 {
   if (src.is_empty()) [[unlikely]]
   {
@@ -64,7 +64,7 @@ void copy(Span<T> src, Span<U> dst)
 }
 
 template <typename T, typename U>
-void move(Span<T> src, U *dst)
+void move(Span<T> src, U * dst)
 {
   if (src.is_empty()) [[unlikely]]
   {
@@ -81,7 +81,7 @@ void move(Span<T> src, Span<U> dst)
 }
 
 template <typename T>
-void zero(T *dst, usize n)
+void zero(T * dst, usize n)
 {
   if (n == 0) [[unlikely]]
   {
@@ -98,7 +98,7 @@ void zero(Span<T> dst)
 }
 
 template <typename T>
-void fill(T *dst, usize n, u8 byte)
+void fill(T * dst, usize n, u8 byte)
 {
   if (n == 0) [[unlikely]]
   {
@@ -122,7 +122,7 @@ bool eq(Span<T> a, Span<U> b)
 }
 
 template <typename T>
-ASH_FORCE_INLINE T nontemporal_load(T const &src)
+ASH_FORCE_INLINE T nontemporal_load(T const & src)
 {
 #if ASH_HAS_BUILTIN(nontemporal_load)
   return __builtin_nontemporal_load(&src);
@@ -132,7 +132,7 @@ ASH_FORCE_INLINE T nontemporal_load(T const &src)
 }
 
 template <typename T>
-ASH_FORCE_INLINE void nontemporal_store(T &dst, T data)
+ASH_FORCE_INLINE void nontemporal_store(T & dst, T data)
 {
 #if ASH_HAS_BUILTIN(nontemporal_store)
   __builtin_nontemporal_store(data, &dst);
@@ -142,7 +142,7 @@ ASH_FORCE_INLINE void nontemporal_store(T &dst, T data)
 }
 
 template <typename T>
-ASH_FORCE_INLINE void prefetch(T const *src, int rw, int locality)
+ASH_FORCE_INLINE void prefetch(T const * src, int rw, int locality)
 {
 #if ASH_HAS_BUILTIN(prefetch)
   __builtin_prefetch(src, rw, locality);
@@ -171,7 +171,7 @@ struct Layout
   usize alignment = 1;
   usize size      = 0;
 
-  constexpr Layout append(Layout const &ext) const
+  constexpr Layout append(Layout const & ext) const
   {
     return Layout{.alignment = max(alignment, ext.alignment),
                   .size      = align_offset(ext.alignment, size) + ext.size};
@@ -210,7 +210,7 @@ struct Flex
   constexpr Layout layout() const
   {
     Layout l;
-    for (Layout const &m : members)
+    for (Layout const & m : members)
     {
       l = l.append(m);
     }
@@ -218,7 +218,7 @@ struct Flex
   }
 
   template <typename T>
-  void unpack_at(void const *&stack, usize i, Span<T> &span) const
+  void unpack_at(void const *& stack, usize i, Span<T> & span) const
   {
     stack             = align_ptr(members[i].alignment, stack);
     usize const count = members[i].size / sizeof(T);
@@ -227,7 +227,7 @@ struct Flex
   }
 
   template <typename T>
-  void unpack_at(void const *&stack, usize i, T *&ptr) const
+  void unpack_at(void const *& stack, usize i, T *& ptr) const
   {
     Span<T> span;
     unpack_at(stack, i, span);
@@ -235,8 +235,8 @@ struct Flex
   }
 
   template <typename... T>
-    requires(sizeof...(T) == N)
-  void unpack(void const *stack, T &...p) const
+  requires (sizeof...(T) == N)
+  void unpack(void const * stack, T &... p) const
   {
     usize i = 0;
     (unpack_at(stack, i++, p), ...);
@@ -269,7 +269,7 @@ struct StrEq
 struct BitEq
 {
   template <typename T>
-  bool operator()(T const &a, T const &b) const
+  bool operator()(T const & a, T const & b) const
   {
     return mem::eq(Span{&a, 1}, Span{&b, 1});
   }

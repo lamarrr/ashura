@@ -117,20 +117,20 @@ struct SpinLock
 template <typename L>
 struct LockGuard
 {
-  L *lock_;
+  L * lock_;
 
-  explicit LockGuard(L &lock) : lock_{&lock}
+  explicit LockGuard(L & lock) : lock_{&lock}
   {
     lock_->lock();
   }
 
   LockGuard(LockGuard const &) = delete;
 
-  LockGuard &operator=(LockGuard const &) = delete;
+  LockGuard & operator=(LockGuard const &) = delete;
 
   LockGuard(LockGuard &&) = delete;
 
-  LockGuard &operator=(LockGuard &&) = delete;
+  LockGuard & operator=(LockGuard &&) = delete;
 
   ~LockGuard()
   {
@@ -192,20 +192,20 @@ struct ReadWriteLock
 
 struct ReadGuard
 {
-  ReadWriteLock *lock_;
+  ReadWriteLock * lock_;
 
-  explicit ReadGuard(ReadWriteLock &lock) : lock_{&lock}
+  explicit ReadGuard(ReadWriteLock & lock) : lock_{&lock}
   {
     lock_->lock_read();
   }
 
   ReadGuard(ReadGuard const &) = delete;
 
-  ReadGuard &operator=(ReadGuard const &) = delete;
+  ReadGuard & operator=(ReadGuard const &) = delete;
 
   ReadGuard(ReadGuard &&) = delete;
 
-  ReadGuard &operator=(ReadGuard &&) = delete;
+  ReadGuard & operator=(ReadGuard &&) = delete;
 
   ~ReadGuard()
   {
@@ -215,20 +215,20 @@ struct ReadGuard
 
 struct WriteGuard
 {
-  ReadWriteLock *lock_;
+  ReadWriteLock * lock_;
 
-  explicit WriteGuard(ReadWriteLock &lock) : lock_{&lock}
+  explicit WriteGuard(ReadWriteLock & lock) : lock_{&lock}
   {
     lock_->lock_write();
   }
 
   WriteGuard(WriteGuard const &) = delete;
 
-  WriteGuard &operator=(WriteGuard const &) = delete;
+  WriteGuard & operator=(WriteGuard const &) = delete;
 
   WriteGuard(WriteGuard &&) = delete;
 
-  WriteGuard &operator=(WriteGuard &&) = delete;
+  WriteGuard & operator=(WriteGuard &&) = delete;
 
   ~WriteGuard()
   {
@@ -251,6 +251,7 @@ template <typename T>
 struct AtomicInit
 {
   AtomicInitStage stage_;
+
   union
   {
     T v_;
@@ -261,15 +262,16 @@ struct AtomicInit
   }
 
   template <typename... Args>
-  constexpr AtomicInit(V<0>, Args &&...args) :
-      stage_{AtomicInitStage::Init}, v_{static_cast<Args &&>(args)...}
+  constexpr AtomicInit(V<0>, Args &&... args) :
+      stage_{AtomicInitStage::Init},
+      v_{static_cast<Args &&>(args)...}
   {
   }
 
-  constexpr AtomicInit(AtomicInit const &)            = delete;
-  constexpr AtomicInit(AtomicInit &&)                 = delete;
-  constexpr AtomicInit &operator=(AtomicInit const &) = delete;
-  constexpr AtomicInit &operator=(AtomicInit &&)      = delete;
+  constexpr AtomicInit(AtomicInit const &)             = delete;
+  constexpr AtomicInit(AtomicInit &&)                  = delete;
+  constexpr AtomicInit & operator=(AtomicInit const &) = delete;
+  constexpr AtomicInit & operator=(AtomicInit &&)      = delete;
 
   ~AtomicInit()
   {
@@ -285,7 +287,7 @@ struct AtomicInit
   }
 
   template <typename... Args>
-  [[nodiscard]] bool init(Args &&...args)
+  [[nodiscard]] bool init(Args &&... args)
   {
     std::atomic_ref stage{stage_};
     AtomicInitStage expected = AtomicInitStage::Uninit;
@@ -307,7 +309,7 @@ struct AtomicInit
 
   /// @brief Get the wrapped value
   /// @return null if value is not initialized yet
-  T *get()
+  T * get()
   {
     std::atomic_ref stage{stage_};
     if (stage.load(std::memory_order_acquire) != AtomicInitStage::Init)
@@ -326,7 +328,9 @@ struct [[nodiscard]] Sync
   ReadWriteLock lock_;
 
   template <typename... Args>
-  constexpr Sync(Args &&...args) : data_{static_cast<Args &&>(args)...}, lock_{}
+  constexpr Sync(Args &&... args) :
+      data_{static_cast<Args &&>(args)...},
+      lock_{}
   {
   }
 
@@ -334,21 +338,21 @@ struct [[nodiscard]] Sync
 
   constexpr Sync(Sync &&) = delete;
 
-  constexpr Sync &operator=(Sync const &) = delete;
+  constexpr Sync & operator=(Sync const &) = delete;
 
-  constexpr Sync &operator=(Sync &&) = delete;
+  constexpr Sync & operator=(Sync &&) = delete;
 
   constexpr ~Sync() = default;
 
   template <Callable<T &> Op>
-  void read(Op &&op)
+  void read(Op && op)
   {
     ReadGuard guard{lock_};
     static_cast<Op &&>(op)(data_);
   }
 
   template <Callable<T &> Op>
-  void write(Op &&op)
+  void write(Op && op)
   {
     WriteGuard guard{lock_};
     static_cast<Op &&>(op)(data_);
@@ -388,7 +392,8 @@ struct SemaphoreState
   u64 stage_;
 
   explicit constexpr SemaphoreState(u64 num_stages) :
-      num_stages_{num_stages}, stage_{0}
+      num_stages_{num_stages},
+      stage_{0}
   {
   }
 
@@ -533,9 +538,9 @@ inline Result<StopToken> create_stop_token(AllocatorImpl allocator)
 /// @param any if to wait for all semaphores or atleast 1 semaphore.
 /// @returns returns if the semaphore await operation completed successfully
 /// based on the `any` criteria.
-[[nodiscard]] inline bool await_semaphores(Span<SemaphoreState *const> sems,
-                                           Span<u64 const>             stages,
-                                           nanoseconds                 timeout)
+[[nodiscard]] inline bool await_semaphores(Span<SemaphoreState * const> sems,
+                                           Span<u64 const>              stages,
+                                           nanoseconds                  timeout)
 {
   CHECK(sems.size() == stages.size());
   usize const n = sems.size();
@@ -558,9 +563,9 @@ inline Result<StopToken> create_stop_token(AllocatorImpl allocator)
   {
     for (; next < n; next++)
     {
-      SemaphoreState *const &s        = sems[next];
-      u64 const              stage    = min(stages[next], s->num_stages_ - 1);
-      bool const             is_ready = stage < s->stage();
+      SemaphoreState * const & s        = sems[next];
+      u64 const                stage    = min(stages[next], s->num_stages_ - 1);
+      bool const               is_ready = stage < s->stage();
 
       if (!is_ready)
       {
@@ -623,7 +628,8 @@ struct [[nodiscard]] Stream
   Semaphore semaphore_;
 
   Stream(Rc<T *> data, Semaphore semaphore) :
-      data_{std::move(data)}, semaphore_{std::move(semaphore)}
+      data_{std::move(data)},
+      semaphore_{std::move(semaphore)}
   {
   }
 
@@ -643,14 +649,14 @@ struct [[nodiscard]] Stream
   }
 
   template <Callable<T &> F>
-  void yield_unseq(F &&op, u64 increment) const
+  void yield_unseq(F && op, u64 increment) const
   {
     static_cast<F &&>(op)(*data_.get());
     semaphore_->increment(increment);
   }
 
   template <Callable<T &> F>
-  void yield_seq(F &&op, u64 stage) const
+  void yield_seq(F && op, u64 stage) const
   {
     static_cast<F &&>(op)(*data_.get());
     CHECK_DESC(semaphore_->signal(stage + 1),
@@ -660,7 +666,7 @@ struct [[nodiscard]] Stream
 
 template <typename T, typename... Args>
 Result<Stream<T>> stream_inplace(AllocatorImpl allocator, u64 num_stages,
-                                 Args &&...args)
+                                 Args &&... args)
 {
   Result data = rc_inplace<T>(allocator, static_cast<Args &&>(args)...);
   if (!data)
@@ -672,7 +678,9 @@ Result<Stream<T>> stream_inplace(AllocatorImpl allocator, u64 num_stages,
   {
     return Err{};
   }
-  return Ok{Stream<T>{std::move(data.value()), std::move(sem.value())}};
+  return Ok{
+      Stream<T>{std::move(data.value()), std::move(sem.value())}
+  };
 }
 
 template <typename T>
@@ -683,9 +691,9 @@ Result<Stream<T>> stream(AllocatorImpl allocator, u64 num_stages, T value)
 
 template <typename... T>
 [[nodiscard]] bool await_streams(nanoseconds timeout, Span<u64 const> stages,
-                                 Stream<T> const &...streams)
+                                 Stream<T> const &... streams)
 {
-  SemaphoreState *semaphores[] = {(streams.semaphore_.get())...};
+  SemaphoreState * semaphores[] = {(streams.semaphore_.get())...};
 
   return await_semaphores(semaphores, stages, timeout);
 }
@@ -702,7 +710,8 @@ struct [[nodiscard]] Future
   u64 stage_;
 
   Future(Stream<AtomicInit<T>> stream, u64 stage) :
-      stream_{std::move(stream)}, stage_{stage}
+      stream_{std::move(stream)},
+      stage_{stage}
   {
   }
 
@@ -716,18 +725,18 @@ struct [[nodiscard]] Future
     return stream_.is_ready(stage_);
   }
 
-  T &get() const
+  T & get() const
   {
-    T *data = stream_.data_.get()->get();
+    T * data = stream_.data_.get()->get();
     CHECK_DESC(data != nullptr, "Called `Future::get()` on a pending Future");
     return *data;
   }
 
   template <typename... Args>
-  void complete(Args &&...args) const
+  void complete(Args &&... args) const
   {
     stream_.yield_seq(
-        [&](AtomicInit<T> &v) {
+        [&](AtomicInit<T> & v) {
           bool const init = v.init(static_cast<Args &&>(args)...);
           CHECK_DESC(
               init,
@@ -745,22 +754,24 @@ Result<Future<T>> future(AllocatorImpl allocator)
   {
     return Err{};
   }
-  return Ok{Future<T>{std::move(stream.value()), 0}};
+  return Ok{
+      Future<T>{std::move(stream.value()), 0}
+  };
 }
 
 template <typename... T>
 [[nodiscard]] bool await_futures(nanoseconds timeout,
-                                 Future<T> const &...futures)
+                                 Future<T> const &... futures)
 {
-  SemaphoreState *semaphores[] = {(futures.stream_.semaphore_.get())...};
-  u64 const       stages[]     = {futures.stage_...};
+  SemaphoreState * semaphores[] = {(futures.stream_.semaphore_.get())...};
+  u64 const        stages[]     = {futures.stage_...};
   return await_semaphores(semaphores, stages, timeout);
 }
 
 constexpr usize MAX_TASK_FRAME_SIZE = PAGE_SIZE >> 4;
 
 template <typename F>
-concept TaskFrame = requires(F f) {
+concept TaskFrame = requires (F f) {
   { !f.poll() };
   { !f.run() };
 } && (sizeof(F) <= MAX_TASK_FRAME_SIZE);
@@ -822,24 +833,24 @@ struct TaskSchedule
 /// @brief Wrap a Task frame
 /// @return TaskInfo struct to be passed to the scheduler for execution
 template <TaskFrame F>
-TaskInfo to_task_info(F &frame)
+TaskInfo to_task_info(F & frame)
 {
-  Fn init = fn(&frame, [](F *frame, void *mem) {
+  Fn init = fn(&frame, [](F * frame, void * mem) {
     new (mem) F{static_cast<F &&>(*frame)};
   });
 
-  TaskInfo::Uninit uninit = [](void *f) {
-    F *frame = reinterpret_cast<F *>(f);
+  TaskInfo::Uninit uninit = [](void * f) {
+    F * frame = reinterpret_cast<F *>(f);
     frame->~F();
   };
 
-  TaskInfo::Poll poll = [](void *f) -> bool {
-    F *frame = reinterpret_cast<F *>(f);
+  TaskInfo::Poll poll = [](void * f) -> bool {
+    F * frame = reinterpret_cast<F *>(f);
     return frame->poll();
   };
 
-  TaskInfo::Run run = [](void *f) -> bool {
-    F *frame = reinterpret_cast<F *>(f);
+  TaskInfo::Run run = [](void * f) -> bool {
+    F * frame = reinterpret_cast<F *>(f);
     return frame->run();
   };
 
@@ -900,16 +911,16 @@ struct Scheduler
   /// @brief Schedule task to a specific dedicated thread
   /// @param info Task frame information
   /// @param thread the index of the dedicated thread to schedule to
-  virtual void schedule_dedicated(TaskInfo const &info, u32 thread) = 0;
+  virtual void schedule_dedicated(TaskInfo const & info, u32 thread) = 0;
 
   /// @brief Schedule task to a worker thread
   /// @param info Task frame information
-  virtual void schedule_worker(TaskInfo const &info) = 0;
+  virtual void schedule_worker(TaskInfo const & info) = 0;
 
   /// @brief Schedule task to the main thread. The tasks are executed once the
   /// main thread loop runs.
   /// @param info Task frame information
-  virtual void schedule_main(TaskInfo const &info) = 0;
+  virtual void schedule_main(TaskInfo const & info) = 0;
 
   /// @brief Execute work on the main thread queue
   /// @param grace_period minimum time (within duration) to wait for tasks when
@@ -919,7 +930,7 @@ struct Scheduler
                                         nanoseconds duration) = 0;
 
   template <TaskFrame F>
-  void schedule(F &&task, TaskSchedule schedule)
+  void schedule(F && task, TaskSchedule schedule)
   {
     TaskInfo info = to_task_info(task);
 
@@ -943,18 +954,18 @@ struct Scheduler
 /// @brief Global scheduler object. Designed for hooking across DLLs. Must be
 /// initialized with `Scheduler::init()` and uninitialized with
 /// `Scheduler::uninit()`.
-ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler *scheduler;
+ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler * scheduler;
 
 namespace async
 {
 
 template <typename P>
-concept Poll = requires(P p) {
+concept Poll = requires (P p) {
   { p() && true };
 };
 
 template <typename R>
-concept Run = requires(R r) {
+concept Run = requires (R r) {
   { r() && true };
 };
 
@@ -981,16 +992,17 @@ struct [[nodiscard]] AwaitStreams
 
   Array<u64, sizeof...(T)> stages;
 
-  explicit AwaitStreams(Array<u64, sizeof...(T)> const &stages,
+  explicit AwaitStreams(Array<u64, sizeof...(T)> const & stages,
                         Stream<T>... streams) :
-      streams{std::move(streams)...}, stages{stages}
+      streams{std::move(streams)...},
+      stages{stages}
   {
   }
 
   bool operator()() const
   {
     return apply(
-        [this](auto const &...s) {
+        [this](auto const &... s) {
           return await_streams(nanoseconds{0}, stages, s...);
         },
         streams);
@@ -1009,7 +1021,7 @@ struct [[nodiscard]] AwaitFutures
   bool operator()() const
   {
     return apply(
-        [](auto const &...f) { return await_futures(nanoseconds{0}, f...); },
+        [](auto const &... f) { return await_futures(nanoseconds{0}, f...); },
         futures);
   }
 };
@@ -1076,7 +1088,7 @@ void once(Tuple<F, F1...> fns, P poll = {}, TaskSchedule schedule = {})
 /// @param poll Poller functor that returns true when ready
 /// @param schedule How to schedule the task
 template <Callable F, Poll P = Ready>
-  requires(Convertible<CallResult<F>, bool>)
+requires (Convertible<CallResult<F>, bool>)
 void loop(F fn, P poll = {}, TaskSchedule schedule = {})
 {
   TaskBody body{[fn = std::move(fn)]() mutable -> bool { return fn(); },
@@ -1094,8 +1106,8 @@ void loop(F fn, P poll = {}, TaskSchedule schedule = {})
 /// @param poll Poller functor that returns true when ready
 /// @param schedule How to schedule the task
 template <Callable<u64> F, Poll P = Ready>
-  requires(Same<CallResult<F, u64>, void> ||
-           Convertible<CallResult<F, u64>, bool>)
+requires (Same<CallResult<F, u64>, void> ||
+          Convertible<CallResult<F, u64>, bool>)
 void repeat(F fn, u64 n, P poll = {}, TaskSchedule schedule = {})
 {
   if (n == 0)
@@ -1132,7 +1144,7 @@ void repeat(F fn, u64 n, P poll = {}, TaskSchedule schedule = {})
 /// @param poll Poller functor that returns true when ready
 /// @param schedule How to schedule the shards
 template <typename State, Poll P = Ready>
-void shard(Fn<void(TaskInstance, State &)> fn, Rc<State *> const &state, u64 n,
+void shard(Fn<void(TaskInstance, State &)> fn, Rc<State *> const & state, u64 n,
            P poll = {}, TaskSchedule schedule = {})
 {
   if (n == 0)

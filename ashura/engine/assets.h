@@ -1,4 +1,3 @@
-
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/font.h"
@@ -18,7 +17,8 @@ typedef StrVecMap<Dyn<Font *>> FontMap;
 struct AssetMap
 {
   explicit AssetMap(AllocatorImpl allocator) :
-      shaders{allocator}, fonts{allocator}
+      shaders{allocator},
+      fonts{allocator}
   {
   }
 

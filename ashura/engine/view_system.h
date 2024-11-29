@@ -44,18 +44,18 @@ struct ViewSystemState
   u64       drag_source_view     = 0;
   u64       drag_target_view     = 0;
   FocusInfo focused              = {};
-  bool      focusing : 1         = false;
-  Cursor    cursor : 5           = Cursor::Default;
-  bool      mouse_down : 1       = false;
-  bool      mouse_up : 1         = false;
-  bool      mouse_moved : 1      = false;
-  bool      mouse_scrolled : 1   = false;
+  bool      focusing         : 1 = false;
+  Cursor    cursor           : 5 = Cursor::Default;
+  bool      mouse_down       : 1 = false;
+  bool      mouse_up         : 1 = false;
+  bool      mouse_moved      : 1 = false;
+  bool      mouse_scrolled   : 1 = false;
   bool      mouse_drag_start : 1 = false;
-  bool      mouse_drag_end : 1   = false;
-  bool      mouse_dragging : 1   = false;
-  bool      mouse_drag_drop : 1  = false;
-  bool      keyboard_down : 1    = false;
-  bool      keyboard_up : 1      = false;
+  bool      mouse_drag_end   : 1 = false;
+  bool      mouse_dragging   : 1 = false;
+  bool      mouse_drag_drop  : 1 = false;
+  bool      keyboard_down    : 1 = false;
+  bool      keyboard_up      : 1 = false;
 };
 
 enum class FocusAction : u8
@@ -133,11 +133,11 @@ struct ViewSystem
   {
   }
 
-  ViewSystem(ViewSystem const &)            = delete;
-  ViewSystem(ViewSystem &&)                 = default;
-  ViewSystem &operator=(ViewSystem const &) = delete;
-  ViewSystem &operator=(ViewSystem &&)      = default;
-  ~ViewSystem()                             = default;
+  ViewSystem(ViewSystem const &)             = delete;
+  ViewSystem(ViewSystem &&)                  = default;
+  ViewSystem & operator=(ViewSystem const &) = delete;
+  ViewSystem & operator=(ViewSystem &&)      = default;
+  ~ViewSystem()                              = default;
 
   void clear()
   {
@@ -173,7 +173,7 @@ struct ViewSystem
     focus_ordering.clear();
   }
 
-  ViewEvents process_events(View &view)
+  ViewEvents process_events(View & view)
   {
     ViewEvents events;
 
@@ -186,8 +186,8 @@ struct ViewSystem
 
     events.view_hit = (view.inner.last_rendered_frame + 1) == frame;
 
-    ViewSystemState const &s0 = state[0];
-    ViewSystemState const &s1 = state[1];
+    ViewSystemState const & s0 = state[0];
+    ViewSystemState const & s1 = state[1];
 
     if (s1.mouse_pointed_view == view.id()) [[unlikely]]
     {
@@ -240,7 +240,7 @@ struct ViewSystem
     return events;
   }
 
-  void push_view(View &view, u32 depth, u32 breadth, u32 parent)
+  void push_view(View & view, u32 depth, u32 breadth, u32 parent)
   {
     views.push(&view).unwrap();
     nodes
@@ -265,13 +265,13 @@ struct ViewSystem
     is_viewport.extend_uninit(1).unwrap();
   }
 
-  void build_children(ViewContext const &ctx, View &view, u32 idx, u32 depth,
-                      i32 &tab_index, u32 viewport)
+  void build_children(ViewContext const & ctx, View & view, u32 idx, u32 depth,
+                      i32 & tab_index, u32 viewport)
   {
     u32 const first_child  = views.size32();
     u32       num_children = 0;
 
-    auto builder = [&](View &child) {
+    auto builder = [&](View & child) {
       push_view(child, depth + 1, num_children++, idx);
     };
 
@@ -313,7 +313,7 @@ struct ViewSystem
     }
   }
 
-  void build(ViewContext const &ctx, View &root)
+  void build(ViewContext const & ctx, View & root)
   {
     push_view(root, 0, 0, U32_MAX);
     i32 tab_index = 0;
@@ -347,7 +347,7 @@ struct ViewSystem
     extents[0] = viewport_extent;
     for (u32 i = 0; i < n; i++)
     {
-      ViewNode const &node = nodes[i];
+      ViewNode const & node = nodes[i];
       views[i]->size(extents[i],
                      span(extents).slice(node.first_child, node.num_children));
     }
@@ -359,8 +359,8 @@ struct ViewSystem
     for (u32 i = n; i != 0;)
     {
       i--;
-      ViewNode const &node   = nodes[i];
-      ViewLayout      layout = views[i]->fit(
+      ViewNode const & node   = nodes[i];
+      ViewLayout       layout = views[i]->fit(
           extents[i], span(extents).slice(node.first_child, node.num_children),
           span(centers).slice(node.first_child, node.num_children));
       extents[i]             = layout.extent;
@@ -379,12 +379,12 @@ struct ViewSystem
 
     for (u32 i = 0; i < n; i++)
     {
-      ViewNode const &node = nodes[i];
+      ViewNode const &   node               = nodes[i];
       // parent-space to local viewport-space transformation matrix
-      Mat3Affine const &viewport_transform = viewport_transforms[i];
+      Mat3Affine const & viewport_transform = viewport_transforms[i];
       // accumulated transform of all ancestors, determines position until this
       // parent
-      Mat3Affine const &ancestor_transform = transforms[i];
+      Mat3Affine const & ancestor_transform = transforms[i];
       for (u32 c = node.first_child; c < (node.first_child + node.num_children);
            c++)
       {
@@ -402,8 +402,8 @@ struct ViewSystem
 
     for (u32 i = 0; i < n; i++)
     {
-      Mat3Affine const &transform = transforms[i];
-      f32 const         zoom      = transform[0][0];
+      Mat3Affine const & transform = transforms[i];
+      f32 const          zoom      = transform[0][0];
       centers[i] =
           ash::transform(transform, Vec2{0, 0}) + viewport_extent * 0.5F;
       extents[i]          = extents[i] * zoom;
@@ -468,8 +468,8 @@ struct ViewSystem
 
     for (u32 i = 0; i < n; i++)
     {
-      ViewNode const &node = nodes[i];
-      z_indices[i]         = views[i]->z_index(
+      ViewNode const & node = nodes[i];
+      z_indices[i]          = views[i]->z_index(
           z_indices[i],
           span(z_indices).slice(node.first_child, node.num_children));
     }
@@ -477,7 +477,7 @@ struct ViewSystem
     stacking_contexts[0] = 0;
     for (u32 i = 0; i < n; i++)
     {
-      ViewNode const &node = nodes[i];
+      ViewNode const & node = nodes[i];
       if (node.parent != U32_MAX)
       {
         stacking_contexts[i] = views[i]->stack(stacking_contexts[node.parent]);
@@ -512,7 +512,7 @@ struct ViewSystem
   {
     for (u32 i = 0; i < views.size32(); i++)
     {
-      ViewNode const &node = nodes[i];
+      ViewNode const & node = nodes[i];
 
       if (is_hidden[i])
       {
@@ -525,9 +525,9 @@ struct ViewSystem
       }
       else
       {
-        CRect        region{.center = centers[i], .extent = extents[i]};
-        CRect const &clip = clips[i];
-        bool const   hidden =
+        CRect         region{.center = centers[i], .extent = extents[i]};
+        CRect const & clip = clips[i];
+        bool const    hidden =
             !overlaps(region, clip) ||
             !overlaps(region, CRect::from_offset({0, 0}, viewport_extent)) ||
             !region.is_visible() || !clip.is_visible();
@@ -537,13 +537,13 @@ struct ViewSystem
     }
   }
 
-  void render(Canvas &canvas)
+  void render(Canvas & canvas)
   {
     for (u32 i : z_ordering)
     {
       if (!is_hidden.get(i)) [[unlikely]]
       {
-        View &view = *views[i];
+        View & view = *views[i];
         canvas.clip(clips[i]);
         view.render(canvas, view.inner.region, transforms[i][0][0], clips[i]);
         view.inner.last_rendered_frame = frame;
@@ -564,14 +564,14 @@ struct ViewSystem
     // scroll into them.
   }
 
-  void events(ViewContext const &ctx)
+  void events(ViewContext const & ctx)
   {
-    state[0]                 = state[1];
-    state[1]                 = {};
-    ViewSystemState &s0      = state[0];
-    ViewSystemState &s1      = state[1];
-    u32 const        n       = views.size32();
-    FocusInfo        focused = s0.focused;
+    state[0]                  = state[1];
+    state[1]                  = {};
+    ViewSystemState & s0      = state[0];
+    ViewSystemState & s1      = state[1];
+    u32 const         n       = views.size32();
+    FocusInfo         focused = s0.focused;
     Cursor cursor   = ctx.mouse.focused ? Cursor::Default : Cursor::None;
     bool   focusing = s0.focusing;
 
@@ -588,7 +588,7 @@ struct ViewSystem
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
-            View &view = *views[i];
+            View & view = *views[i];
             if ((is_clickable[i] || is_draggable[i]) &&
                 view.hit(view.inner.region, transforms[i][0][0],
                          ctx.mouse.position)) [[unlikely]]
@@ -629,7 +629,7 @@ struct ViewSystem
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
-            View &view = *views[i];
+            View & view = *views[i];
             if (is_clickable[i] &&
                 view.hit(view.inner.region, transforms[i][0][0],
                          ctx.mouse.position)) [[unlikely]]
@@ -661,7 +661,7 @@ struct ViewSystem
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
-            View &view = *views[i];
+            View & view = *views[i];
             if (is_droppable[i] &&
                 view.hit(view.inner.region, transforms[i][0][0],
                          ctx.mouse.position)) [[unlikely]]
@@ -693,7 +693,7 @@ struct ViewSystem
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
-            View &view = *views[i];
+            View & view = *views[i];
             if (is_droppable[i] &&
                 view.hit(view.inner.region, transforms[i][0][0],
                          ctx.mouse.position)) [[unlikely]]
@@ -721,7 +721,7 @@ struct ViewSystem
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
-            View &view = *views[i];
+            View & view = *views[i];
             if (is_scrollable[i] &&
                 view.hit(view.inner.region, transforms[i][0][0],
                          ctx.mouse.position)) [[unlikely]]
@@ -744,7 +744,7 @@ struct ViewSystem
           u32 i = z_ordering[z_i];
           if (!is_hidden[i])
           {
-            View &view = *views[i];
+            View & view = *views[i];
             if (is_pointable[i] &&
                 view.hit(view.inner.region, transforms[i][0][0],
                          ctx.mouse.position)) [[unlikely]]
@@ -869,7 +869,7 @@ struct ViewSystem
     return state[1].focused.text_input;
   }
 
-  void tick(ViewContext const &ctx, View &root, Canvas &canvas)
+  void tick(ViewContext const & ctx, View & root, Canvas & canvas)
   {
     clear();
     build(ctx, root);

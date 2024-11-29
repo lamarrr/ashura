@@ -1,4 +1,3 @@
-
 /// SPDX-License-Identifier: MIT
 #pragma once
 
@@ -7,7 +6,8 @@
 
 /*********************** COMPILERS ***********************/
 
-#if defined(__GNUC__)        //  any compiler that implements the GNU compiler
+#if defined( \
+    __GNUC__)        //  any compiler that implements the GNU compiler \
                              //  extensions
 #  define ASH_COMPILER_GNUC 1
 #else

@@ -26,14 +26,14 @@ struct [[nodiscard]] Rc
   struct Inner
   {
     H             handle      = {};
-    AliasCount   *alias_count = nullptr;
+    AliasCount *  alias_count = nullptr;
     AllocatorImpl allocator   = {};
     Uninit        uninit      = noop;
   };
 
   Inner inner{};
 
-  constexpr Rc(H handle, AliasCount &alias_count, AllocatorImpl allocator,
+  constexpr Rc(H handle, AliasCount & alias_count, AllocatorImpl allocator,
                Uninit uninit) :
       inner{.handle      = handle,
             .alias_count = &alias_count,
@@ -46,14 +46,14 @@ struct [[nodiscard]] Rc
 
   constexpr Rc(Rc const &) = delete;
 
-  constexpr Rc &operator=(Rc const &) = delete;
+  constexpr Rc & operator=(Rc const &) = delete;
 
-  constexpr Rc(Rc &&other) : inner{other.inner}
+  constexpr Rc(Rc && other) : inner{other.inner}
   {
     other.inner = Inner{};
   }
 
-  constexpr Rc &operator=(Rc &&other)
+  constexpr Rc & operator=(Rc && other)
   {
     if (this == &other) [[unlikely]]
     {
@@ -116,7 +116,7 @@ struct [[nodiscard]] Rc
   }
 
   template <typename... Args>
-  constexpr decltype(auto) operator()(Args &&...args) const
+  constexpr decltype(auto) operator()(Args &&... args) const
   {
     return inner.handle(forward<Args>(args)...);
   }
@@ -135,9 +135,9 @@ struct AliasCounted : AliasCount
 
 template <typename T, typename... Args>
 constexpr Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator,
-                                           Args &&...args)
+                                           Args &&... args)
 {
-  AliasCounted<T> *object;
+  AliasCounted<T> * object;
 
   if (!allocator.nalloc(1, object))
   {
@@ -148,10 +148,11 @@ constexpr Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator,
 
   return Ok{
       Rc<T *>{&object->data, *object, allocator,
-              fn(object, [](AliasCounted<T> *object, AllocatorImpl allocator) {
+              fn(object, [](AliasCounted<T> * object, AllocatorImpl allocator) {
                 object->~AliasCounted<T>();
                 allocator.ndealloc(object, 1);
-              })}};
+              })}
+  };
 }
 
 template <typename T>
@@ -161,7 +162,7 @@ constexpr Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T object)
 }
 
 template <typename Base, typename H>
-constexpr Rc<H> transmute(Rc<Base> &&base, H handle)
+constexpr Rc<H> transmute(Rc<Base> && base, H handle)
 {
   Rc<H> t{static_cast<H &&>(handle, base.inner.allocator, base.inner.uninit)};
   base.inner.handle    = {};
@@ -171,7 +172,7 @@ constexpr Rc<H> transmute(Rc<Base> &&base, H handle)
 }
 
 template <typename To, typename From>
-constexpr Rc<To> cast(Rc<From> &&from)
+constexpr Rc<To> cast(Rc<From> && from)
 {
   return transmute((Rc<From> &&) from, static_cast<To>(from.get()));
 }

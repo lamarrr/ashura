@@ -23,7 +23,7 @@ void BloomPass::encode(GpuContext &, gpu::CommandEncoder &,
   /// A' = Blur(A) + B'
 }
 
-void BlurPass::acquire(GpuContext &ctx, AssetMap &assets)
+void BlurPass::acquire(GpuContext & ctx, AssetMap & assets)
 {
   // https://www.youtube.com/watch?v=ml-5OGZC7vE
   //
@@ -66,10 +66,12 @@ void BlurPass::acquire(GpuContext &ctx, AssetMap &assets)
        .src_alpha_blend_factor = gpu::BlendFactor::Zero,
        .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
        .alpha_blend_op         = gpu::BlendOp::Add,
-       .color_write_mask       = gpu::ColorComponents::All}};
+       .color_write_mask       = gpu::ColorComponents::All}
+  };
 
-  gpu::ColorBlendState color_blend_state{.attachments    = attachment_states,
-                                         .blend_constant = {1, 1, 1, 1}};
+  gpu::ColorBlendState color_blend_state{
+      .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
+  };
 
   gpu::DescriptorSetLayout set_layouts[] = {ctx.samplers_layout,
                                             ctx.textures_layout};
@@ -95,7 +97,8 @@ void BlurPass::acquire(GpuContext &ctx, AssetMap &assets)
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
       .color_blend_state      = color_blend_state,
-      .cache                  = ctx.pipeline_cache};
+      .cache                  = ctx.pipeline_cache
+  };
 
   downsample_pipeline =
       ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
@@ -107,13 +110,13 @@ void BlurPass::acquire(GpuContext &ctx, AssetMap &assets)
       ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void BlurPass::release(GpuContext &ctx, AssetMap &)
+void BlurPass::release(GpuContext & ctx, AssetMap &)
 {
   ctx.device->uninit_graphics_pipeline(downsample_pipeline);
   ctx.device->uninit_graphics_pipeline(upsample_pipeline);
 }
 
-void sample(BlurPass &b, GpuContext &c, gpu::CommandEncoder &e, f32 rad,
+void sample(BlurPass & b, GpuContext & c, gpu::CommandEncoder & e, f32 rad,
             gpu::DescriptorSet src_texture, u32 src_index,
             gpu::Extent src_extent, gpu::Rect src_area, gpu::ImageView dst,
             Vec2U dst_offset, bool upsample)
@@ -130,28 +133,33 @@ void sample(BlurPass &b, GpuContext &c, gpu::CommandEncoder &e, f32 rad,
                                     .resolve      = nullptr,
                                     .resolve_mode = gpu::ResolveModes::None,
                                     .load_op      = gpu::LoadOp::Clear,
-                                    .store_op     = gpu::StoreOp::Store}}),
+                                    .store_op     = gpu::StoreOp::Store}}
+              ),
       .depth_attachment   = {},
-      .stencil_attachment = {}});
+      .stencil_attachment = {}
+  });
 
   e.bind_graphics_pipeline(upsample ? b.upsample_pipeline :
                                       b.downsample_pipeline);
   e.set_graphics_state(gpu::GraphicsState{
-      .scissor  = {.offset = dst_offset, .extent = src_area.extent},
+      .scissor  = {.offset = dst_offset,          .extent = src_area.extent},
       .viewport = {.offset = as_vec2(dst_offset),
-                   .extent = as_vec2(src_area.extent)}});
+                   .extent = as_vec2(src_area.extent)                      }
+  });
   e.bind_descriptor_sets(span({c.samplers, src_texture}), {});
-  e.push_constants(span({BlurParam{.uv      = {uv0, uv1},
-                                   .radius  = radius,
-                                   .sampler = SAMPLER_LINEAR_CLAMPED,
-                                   .texture = src_index}})
+  e.push_constants(span({
+                            BlurParam{.uv      = {uv0, uv1},
+                                      .radius  = radius,
+                                      .sampler = SAMPLER_LINEAR_CLAMPED,
+                                      .texture = src_index}
+  })
                        .as_u8());
   e.draw(4, 1, 0, 0);
   e.end_rendering();
 }
 
-void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
-                      BlurPassParams const &params)
+void BlurPass::encode(GpuContext & ctx, gpu::CommandEncoder & e,
+                      BlurPassParams const & params)
 {
   CHECK(params.passes > 0);
   Vec2U extent = params.area.extent;
@@ -172,7 +180,10 @@ void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
     radius += 1;
     sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
            ctx.scratch_fbs[src].extent,
-           gpu::Rect{Vec2U{0, 0}, params.area.extent},
+           gpu::Rect{
+               Vec2U{0, 0},
+               params.area.extent
+    },
            ctx.scratch_fbs[dst].color.view, Vec2U{0, 0}, false);
     src = (src + 1) & 1;
     dst = (dst + 1) & 1;
@@ -183,7 +194,10 @@ void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
   {
     sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
            ctx.scratch_fbs[src].extent,
-           gpu::Rect{Vec2U{0, 0}, params.area.extent},
+           gpu::Rect{
+               Vec2U{0, 0},
+               params.area.extent
+    },
            ctx.scratch_fbs[dst].color.view, Vec2U{0, 0}, true);
     src = (src + 1) & 1;
     dst = (dst + 1) & 1;
@@ -192,11 +206,14 @@ void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
 
   sample(*this, ctx, e, (f32) radius, ctx.scratch_fbs[src].color_texture, 0,
          ctx.scratch_fbs[src].extent,
-         gpu::Rect{Vec2U{0, 0}, params.area.extent}, params.image_view,
-         params.area.offset, true);
+         gpu::Rect{
+             Vec2U{0, 0},
+             params.area.extent
+  },
+         params.image_view, params.area.offset, true);
 }
 
-void NgonPass::acquire(GpuContext &ctx, AssetMap &assets)
+void NgonPass::acquire(GpuContext & ctx, AssetMap & assets)
 {
   gpu::Shader vertex_shader   = assets.shaders["Ngon:VS"_str];
   gpu::Shader fragment_shader = assets.shaders["Ngon:FS"_str];
@@ -230,10 +247,12 @@ void NgonPass::acquire(GpuContext &ctx, AssetMap &assets)
        .src_alpha_blend_factor = gpu::BlendFactor::One,
        .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
        .alpha_blend_op         = gpu::BlendOp::Add,
-       .color_write_mask       = gpu::ColorComponents::All}};
+       .color_write_mask       = gpu::ColorComponents::All}
+  };
 
-  gpu::ColorBlendState color_blend_state{.attachments    = attachment_states,
-                                         .blend_constant = {1, 1, 1, 1}};
+  gpu::ColorBlendState color_blend_state{
+      .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
+  };
 
   gpu::DescriptorSetLayout set_layouts[] = {
       ctx.ssbo_layout, ctx.ssbo_layout, ctx.ssbo_layout, ctx.samplers_layout,
@@ -260,13 +279,14 @@ void NgonPass::acquire(GpuContext &ctx, AssetMap &assets)
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
       .color_blend_state      = color_blend_state,
-      .cache                  = ctx.pipeline_cache};
+      .cache                  = ctx.pipeline_cache
+  };
 
   pipeline = ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void NgonPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
-                      NgonPassParams const &params)
+void NgonPass::encode(GpuContext & ctx, gpu::CommandEncoder & e,
+                      NgonPassParams const & params)
 {
   e.begin_rendering(params.rendering_info);
   e.bind_graphics_pipeline(pipeline);
@@ -287,12 +307,12 @@ void NgonPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
   e.end_rendering();
 }
 
-void NgonPass::release(GpuContext &ctx, AssetMap &)
+void NgonPass::release(GpuContext & ctx, AssetMap &)
 {
   ctx.device->uninit_graphics_pipeline(pipeline);
 }
 
-void PBRPass::acquire(GpuContext &ctx, AssetMap &assets)
+void PBRPass::acquire(GpuContext & ctx, AssetMap & assets)
 {
   gpu::Shader vertex_shader   = assets.shaders["PBR:VS"_str];
   gpu::Shader fragment_shader = assets.shaders["PBR:FS"_str];
@@ -326,10 +346,12 @@ void PBRPass::acquire(GpuContext &ctx, AssetMap &assets)
        .src_alpha_blend_factor = gpu::BlendFactor::Zero,
        .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
        .alpha_blend_op         = gpu::BlendOp::Add,
-       .color_write_mask       = gpu::ColorComponents::All}};
+       .color_write_mask       = gpu::ColorComponents::All}
+  };
 
-  gpu::ColorBlendState color_blend_state{.attachments    = attachment_states,
-                                         .blend_constant = {1, 1, 1, 1}};
+  gpu::ColorBlendState color_blend_state{
+      .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
+  };
 
   gpu::DescriptorSetLayout const set_layouts[] = {
       ctx.ssbo_layout, ctx.ssbo_layout,     ctx.ssbo_layout,
@@ -357,7 +379,8 @@ void PBRPass::acquire(GpuContext &ctx, AssetMap &assets)
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
       .color_blend_state      = color_blend_state,
-      .cache                  = ctx.pipeline_cache};
+      .cache                  = ctx.pipeline_cache
+  };
 
   pipeline = ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 
@@ -367,20 +390,21 @@ void PBRPass::acquire(GpuContext &ctx, AssetMap &assets)
       ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void PBRPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
-                     PBRPassParams const &params)
+void PBRPass::encode(GpuContext & ctx, gpu::CommandEncoder & e,
+                     PBRPassParams const & params)
 {
   e.begin_rendering(params.rendering_info);
   e.bind_graphics_pipeline(params.wireframe ? this->wireframe_pipeline :
                                               this->pipeline);
 
-  e.set_graphics_state(
-      gpu::GraphicsState{.scissor            = params.scissor,
-                         .viewport           = params.viewport,
-                         .blend_constant     = {1, 1, 1, 1},
-                         .depth_test_enable  = true,
-                         .depth_compare_op   = gpu::CompareOp::Less,
-                         .depth_write_enable = true});
+  e.set_graphics_state(gpu::GraphicsState{
+      .scissor            = params.scissor,
+      .viewport           = params.viewport,
+      .blend_constant     = {1, 1, 1, 1},
+      .depth_test_enable  = true,
+      .depth_compare_op   = gpu::CompareOp::Less,
+      .depth_write_enable = true
+  });
   e.bind_descriptor_sets(
       span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
             params.lights_ssbo, ctx.samplers, params.textures}),
@@ -390,13 +414,13 @@ void PBRPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
   e.end_rendering();
 }
 
-void PBRPass::release(GpuContext &ctx, AssetMap &)
+void PBRPass::release(GpuContext & ctx, AssetMap &)
 {
   ctx.device->uninit_graphics_pipeline(pipeline);
   ctx.device->uninit_graphics_pipeline(wireframe_pipeline);
 }
 
-void RRectPass::acquire(GpuContext &ctx, AssetMap &assets)
+void RRectPass::acquire(GpuContext & ctx, AssetMap & assets)
 {
   gpu::Shader vertex_shader   = assets.shaders["RRect:VS"_str];
   gpu::Shader fragment_shader = assets.shaders["RRect:FS"_str];
@@ -430,10 +454,12 @@ void RRectPass::acquire(GpuContext &ctx, AssetMap &assets)
        .src_alpha_blend_factor = gpu::BlendFactor::One,
        .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
        .alpha_blend_op         = gpu::BlendOp::Add,
-       .color_write_mask       = gpu::ColorComponents::All}};
+       .color_write_mask       = gpu::ColorComponents::All}
+  };
 
-  gpu::ColorBlendState color_blend_state{.attachments    = attachment_states,
-                                         .blend_constant = {1, 1, 1, 1}};
+  gpu::ColorBlendState color_blend_state{
+      .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
+  };
 
   gpu::DescriptorSetLayout set_layouts[] = {
       ctx.ssbo_layout, ctx.samplers_layout, ctx.textures_layout};
@@ -459,13 +485,14 @@ void RRectPass::acquire(GpuContext &ctx, AssetMap &assets)
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
       .color_blend_state      = color_blend_state,
-      .cache                  = ctx.pipeline_cache};
+      .cache                  = ctx.pipeline_cache
+  };
 
   pipeline = ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void RRectPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
-                       RRectPassParams const &params)
+void RRectPass::encode(GpuContext & ctx, gpu::CommandEncoder & e,
+                       RRectPassParams const & params)
 {
   e.begin_rendering(params.rendering_info);
   e.bind_graphics_pipeline(pipeline);
@@ -479,7 +506,7 @@ void RRectPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
   e.end_rendering();
 }
 
-void RRectPass::release(GpuContext &ctx, AssetMap &)
+void RRectPass::release(GpuContext & ctx, AssetMap &)
 {
   ctx.device->uninit_graphics_pipeline(pipeline);
 }

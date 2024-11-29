@@ -19,7 +19,7 @@ constexpr u64 rgba8_size(bool has_alpha, u32 width, u32 height)
   return ((u64) width) * ((u64) height) * (has_alpha ? 4ULL : 3ULL);
 }
 
-ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
+ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage & image)
 {
   WebPBitstreamFeatures features;
 
@@ -63,15 +63,15 @@ ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image)
   return ImageDecodeError::None;
 }
 
-inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
+inline void png_stream_reader(png_structp png_ptr, unsigned char * out,
                               usize nbytes_to_read)
 {
-  Span<u8 const> *input = (Span<u8 const> *) png_get_io_ptr(png_ptr);
+  Span<u8 const> * input = (Span<u8 const> *) png_get_io_ptr(png_ptr);
   mem::copy(input->slice(0, nbytes_to_read), out);
   *input = input->slice(nbytes_to_read);
 }
 
-ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
+ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage & image)
 {
   // skip magic number
   bytes = bytes.slice(8);
@@ -128,7 +128,7 @@ ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
     return ImageDecodeError::OutOfMemory;
   }
 
-  u8 *row = image.channels.data();
+  u8 * row = image.channels.data();
   for (u32 i = 0; i < height; i++)
   {
     png_read_row(png_ptr, row, nullptr);
@@ -143,7 +143,7 @@ ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage &image)
   return ImageDecodeError::None;
 }
 
-ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
+ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage & image)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -184,10 +184,10 @@ ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
     return ImageDecodeError::OutOfMemory;
   }
 
-  u8 *scanline = image.channels.data();
+  u8 * scanline = image.channels.data();
   while (info.output_scanline < height)
   {
-    u8 *scanlines[] = {scanline};
+    u8 * scanlines[] = {scanline};
     scanline += (u64) jpeg_read_scanlines(&info, scanlines, 1) * pitch;
   }
 
@@ -200,7 +200,7 @@ ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image)
   return ImageDecodeError::None;
 }
 
-ImageDecodeError decode_image(Span<u8 const> bytes, DecodedImage &image)
+ImageDecodeError decode_image(Span<u8 const> bytes, DecodedImage & image)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 

@@ -8,7 +8,7 @@
 namespace ash
 {
 
-static inline u32 goto_line(TextLayout const &layout, u32 alignment, u32 line)
+static inline u32 goto_line(TextLayout const & layout, u32 alignment, u32 line)
 {
   if (layout.lines.is_empty())
   {
@@ -17,7 +17,7 @@ static inline u32 goto_line(TextLayout const &layout, u32 alignment, u32 line)
 
   line = min(line, layout.lines.size32() - 1);
 
-  Line const &ln = layout.lines[line];
+  Line const & ln = layout.lines[line];
 
   if (alignment > ln.num_codepoints)
   {
@@ -71,7 +71,9 @@ void TextCompositor::Inner::append_record(bool is_insert, u32 text_pos,
   current_record++;
   latest_record          = current_record;
   records[latest_record] = TextEditRecord{
-      .slice = Slice32{text_pos, segment.size32()}, .is_insert = is_insert};
+      .slice = Slice32{text_pos, segment.size32()},
+        .is_insert = is_insert
+  };
   buffer_pos += segment.size32();
 }
 
@@ -82,7 +84,7 @@ void TextCompositor::Inner::undo(Insert insert, Erase erase)
     return;
   }
   // undo changes of current record
-  TextEditRecord &record = records[current_record];
+  TextEditRecord & record = records[current_record];
   buffer_pos -= record.slice.span;
   if (record.is_insert)
   {
@@ -108,7 +110,7 @@ void TextCompositor::Inner::redo(Insert insert, Erase erase)
   }
   current_record++;
   // apply changes of next record
-  TextEditRecord &record = records[current_record];
+  TextEditRecord & record = records[current_record];
   if (record.is_insert)
   {
     insert(record.slice.offset,
@@ -212,7 +214,7 @@ struct LinePosition
   u32 alignment = 0;
 };
 
-static inline LinePosition line_translate(TextLayout const &layout, u32 cursor,
+static inline LinePosition line_translate(TextLayout const & layout, u32 cursor,
                                           i64 dy)
 {
   if (layout.lines.is_empty())
@@ -222,7 +224,7 @@ static inline LinePosition line_translate(TextLayout const &layout, u32 cursor,
 
   for (u32 ln = 0; ln < layout.lines.size32(); ln++)
   {
-    Line const &line = layout.lines[ln];
+    Line const & line = layout.lines[ln];
     if (line.first_codepoint <= cursor &&
         (line.first_codepoint + line.num_codepoints) > cursor)
     {
@@ -236,12 +238,10 @@ static inline LinePosition line_translate(TextLayout const &layout, u32 cursor,
   return LinePosition{};
 }
 
-void TextCompositor::Inner::command(Span<c32 const>   text,
-                                    TextLayout const &layout, f32 align_width,
-                                    f32 alignment, TextCommand cmd,
-                                    Insert insert, Erase erase,
-                                    Span<c32 const> input, ClipBoard &clipboard,
-                                    u32 lines_per_page, Vec2 pos)
+void TextCompositor::Inner::command(
+    Span<c32 const> text, TextLayout const & layout, f32 align_width,
+    f32 alignment, TextCommand cmd, Insert insert, Erase erase,
+    Span<c32 const> input, ClipBoard & clipboard, u32 lines_per_page, Vec2 pos)
 {
   switch (cmd)
   {

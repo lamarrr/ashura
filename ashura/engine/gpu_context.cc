@@ -4,7 +4,7 @@
 namespace ash
 {
 
-GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
+GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device * device,
                               bool use_hdr, u32 buffering,
                               gpu::Extent initial_extent)
 {
@@ -108,7 +108,9 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
                   .bindings = span({gpu::DescriptorBindingInfo{
                       .type  = gpu::DescriptorType::DynamicUniformBuffer,
                       .count = 1,
-                      .is_variable_length = false}})})
+                      .is_variable_length = false}}
+                    )
+  })
           .unwrap();
 
   gpu::DescriptorSetLayout ssbo_layout =
@@ -120,7 +122,9 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
                   .bindings = span({gpu::DescriptorBindingInfo{
                       .type  = gpu::DescriptorType::DynamicStorageBuffer,
                       .count = 1,
-                      .is_variable_length = false}})})
+                      .is_variable_length = false}}
+                    )
+  })
           .unwrap();
 
   gpu::DescriptorSetLayout textures_layout =
@@ -132,7 +136,9 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
                   .bindings = span({gpu::DescriptorBindingInfo{
                       .type               = gpu::DescriptorType::SampledImage,
                       .count              = NUM_TEXTURE_SLOTS,
-                      .is_variable_length = true}})})
+                      .is_variable_length = true}}
+                    )
+  })
           .unwrap();
 
   gpu::DescriptorSetLayout samplers_layout =
@@ -144,7 +150,9 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
                   .bindings = span({gpu::DescriptorBindingInfo{
                       .type               = gpu::DescriptorType::Sampler,
                       .count              = NUM_SAMPLER_SLOTS,
-                      .is_variable_length = true}})})
+                      .is_variable_length = true}}
+                    )
+  })
           .unwrap();
 
   gpu::DescriptorSet texture_views =
@@ -171,7 +179,8 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
               .extent       = {1, 1, 1},
               .mip_levels   = 1,
               .array_layers = 1,
-              .sample_count = gpu::SampleCount::Count1})
+              .sample_count = gpu::SampleCount::Count1
+  })
           .unwrap();
 
   Array<gpu::ImageView, NUM_DEFAULT_TEXTURES> default_image_views;
@@ -344,7 +353,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
   return ctx;
 }
 
-static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
+static void recreate_framebuffer(GpuContext & ctx, Framebuffer & fb,
                                  gpu::Extent new_extent)
 {
   ctx.release(fb);
@@ -360,7 +369,8 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
       .extent       = gpu::Extent3D{new_extent.x, new_extent.y, 1},
       .mip_levels   = 1,
       .array_layers = 1,
-      .sample_count = gpu::SampleCount::Count1};
+      .sample_count = gpu::SampleCount::Count1
+  };
 
   fb.color.image = ctx.device->create_image(fb.color.info).unwrap();
 
@@ -388,7 +398,8 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
       .extent       = gpu::Extent3D{new_extent.x, new_extent.y, 1},
       .mip_levels   = 1,
       .array_layers = 1,
-      .sample_count = gpu::SampleCount::Count1};
+      .sample_count = gpu::SampleCount::Count1
+  };
 
   fb.depth_stencil.image =
       ctx.device->create_image(fb.depth_stencil.info).unwrap();
@@ -426,13 +437,13 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
 void GpuContext::recreate_framebuffers(gpu::Extent new_extent)
 {
   recreate_framebuffer(*this, screen_fb, new_extent);
-  for (Framebuffer &f : scratch_fbs)
+  for (Framebuffer & f : scratch_fbs)
   {
     recreate_framebuffer(*this, f, new_extent);
   }
 }
 
-gpu::CommandEncoder &GpuContext::encoder()
+gpu::CommandEncoder & GpuContext::encoder()
 {
   gpu::FrameContext ctx = device->get_frame_context();
   return *ctx.encoders[ctx.ring_index];
@@ -456,9 +467,9 @@ gpu::FrameId GpuContext::tail_frame_id()
   return ctx.tail;
 }
 
-CachedSampler GpuContext::create_sampler(gpu::SamplerInfo const &info)
+CachedSampler GpuContext::create_sampler(gpu::SamplerInfo const & info)
 {
-  CachedSampler *cached = sampler_cache.try_get(info);
+  CachedSampler * cached = sampler_cache.try_get(info);
   if (cached != nullptr)
   {
     return *cached;
@@ -586,7 +597,7 @@ void GpuContext::release(gpu::Sampler sampler)
       .unwrap();
 }
 
-static void uninit_objects(gpu::Device *d, Span<gpu::Object const> objects)
+static void uninit_objects(gpu::Device * d, Span<gpu::Object const> objects)
 {
   for (gpu::Object obj : objects)
   {
@@ -622,7 +633,7 @@ static void uninit_objects(gpu::Device *d, Span<gpu::Object const> objects)
 void GpuContext::idle_reclaim()
 {
   device->wait_idle().unwrap();
-  for (auto &objects : released_objects)
+  for (auto & objects : released_objects)
   {
     uninit_objects(device, objects);
     objects.clear();
@@ -635,20 +646,26 @@ void GpuContext::begin_frame(gpu::Swapchain swapchain)
   uninit_objects(device, released_objects[ring_index()]);
   released_objects[ring_index()].clear();
 
-  gpu::CommandEncoder &enc = encoder();
+  gpu::CommandEncoder & enc = encoder();
 
   enc.clear_color_image(
-      screen_fb.color.image, gpu::Color{.float32 = {0, 0, 0, 0}},
+      screen_fb.color.image,
+      gpu::Color{
+          .float32 = {0, 0, 0, 0}
+  },
       span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
                                        .first_mip_level   = 0,
                                        .num_mip_levels    = 1,
                                        .first_array_layer = 0,
                                        .num_array_layers  = 1}}));
 
-  for (Framebuffer const &f : scratch_fbs)
+  for (Framebuffer const & f : scratch_fbs)
   {
     enc.clear_color_image(
-        f.color.image, gpu::Color{.float32 = {0, 0, 0, 0}},
+        f.color.image,
+        gpu::Color{
+            .float32 = {0, 0, 0, 0}
+    },
         span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
                                          .first_mip_level   = 0,
                                          .num_mip_levels    = 1,
@@ -658,7 +675,9 @@ void GpuContext::begin_frame(gpu::Swapchain swapchain)
 
   enc.clear_depth_stencil_image(
       screen_fb.depth_stencil.image,
-      gpu::DepthStencil{.depth = 0, .stencil = 0},
+      gpu::DepthStencil{
+          .depth = 0, .stencil = 0
+  },
       span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Depth |
                                                   gpu::ImageAspects::Stencil,
                                        .first_mip_level   = 0,
@@ -666,10 +685,13 @@ void GpuContext::begin_frame(gpu::Swapchain swapchain)
                                        .first_array_layer = 0,
                                        .num_array_layers  = 1}}));
 
-  for (Framebuffer const &f : scratch_fbs)
+  for (Framebuffer const & f : scratch_fbs)
   {
     enc.clear_depth_stencil_image(
-        f.depth_stencil.image, gpu::DepthStencil{.depth = 0, .stencil = 0},
+        f.depth_stencil.image,
+        gpu::DepthStencil{
+            .depth = 0, .stencil = 0
+    },
         span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Depth |
                                                     gpu::ImageAspects::Stencil,
                                          .first_mip_level   = 0,
@@ -681,7 +703,7 @@ void GpuContext::begin_frame(gpu::Swapchain swapchain)
 
 void GpuContext::submit_frame(gpu::Swapchain swapchain)
 {
-  gpu::CommandEncoder &enc = encoder();
+  gpu::CommandEncoder & enc = encoder();
   if (swapchain != nullptr)
   {
     gpu::SwapchainState swapchain_state =
@@ -692,33 +714,35 @@ void GpuContext::submit_frame(gpu::Swapchain swapchain)
       enc.blit_image(
           screen_fb.color.image,
           swapchain_state.images[swapchain_state.current_image.unwrap()],
-          span({gpu::ImageBlit{
-              .src_layers  = {.aspects           = gpu::ImageAspects::Color,
-                              .mip_level         = 0,
-                              .first_array_layer = 0,
-                              .num_array_layers  = 1},
-              .src_offsets = {{0, 0, 0},
-                              {screen_fb.extent.x, screen_fb.extent.y, 1}},
-              .dst_layers  = {.aspects           = gpu::ImageAspects::Color,
-                              .mip_level         = 0,
-                              .first_array_layer = 0,
-                              .num_array_layers  = 1},
-              .dst_offsets = {{0, 0, 0},
-                              {swapchain_state.extent.x,
-                               swapchain_state.extent.y, 1}}}}),
+          span({
+              gpu::ImageBlit{
+                             .src_layers  = {.aspects           = gpu::ImageAspects::Color,
+                                  .mip_level         = 0,
+                                  .first_array_layer = 0,
+                                  .num_array_layers  = 1},
+                             .src_offsets = {{0, 0, 0},
+                                  {screen_fb.extent.x, screen_fb.extent.y, 1}},
+                             .dst_layers  = {.aspects           = gpu::ImageAspects::Color,
+                                  .mip_level         = 0,
+                                  .first_array_layer = 0,
+                                  .num_array_layers  = 1},
+                             .dst_offsets = {{0, 0, 0},
+                                  {swapchain_state.extent.x,
+                                   swapchain_state.extent.y, 1}}}
+      }),
           gpu::Filter::Linear);
     }
   }
   device->submit_frame(swapchain).unwrap();
 }
 
-void SSBO::uninit(GpuContext &ctx)
+void SSBO::uninit(GpuContext & ctx)
 {
   ctx.device->uninit_descriptor_set(descriptor);
   ctx.device->uninit_buffer(buffer);
 }
 
-void SSBO::reserve(GpuContext &ctx, u64 p_size)
+void SSBO::reserve(GpuContext & ctx, u64 p_size)
 {
   p_size = max(p_size, (u64) 1);
   if (buffer != nullptr && size >= p_size)
@@ -751,38 +775,40 @@ void SSBO::reserve(GpuContext &ctx, u64 p_size)
       .binding = 0,
       .element = 0,
       .buffers = span({gpu::BufferBinding{
-          .buffer = buffer, .offset = 0, .size = p_size}})});
+          .buffer = buffer, .offset = 0, .size = p_size}}
+        )
+  });
 
   size = p_size;
 }
 
-void SSBO::copy(GpuContext &ctx, Span<u8 const> src)
+void SSBO::copy(GpuContext & ctx, Span<u8 const> src)
 {
   reserve(ctx, (u64) src.size());
-  u8 *data = (u8 *) map(ctx);
+  u8 * data = (u8 *) map(ctx);
   mem::copy(src, data);
   flush(ctx);
   unmap(ctx);
 }
 
-void *SSBO::map(GpuContext &ctx)
+void * SSBO::map(GpuContext & ctx)
 {
   return ctx.device->map_buffer_memory(buffer).unwrap();
 }
 
-void SSBO::unmap(GpuContext &ctx)
+void SSBO::unmap(GpuContext & ctx)
 {
   ctx.device->unmap_buffer_memory(buffer);
 }
 
-void SSBO::flush(GpuContext &ctx)
+void SSBO::flush(GpuContext & ctx)
 {
   ctx.device
       ->flush_mapped_buffer_memory(buffer, gpu::MemoryRange{0, gpu::WHOLE_SIZE})
       .unwrap();
 }
 
-void SSBO::release(GpuContext &ctx)
+void SSBO::release(GpuContext & ctx)
 {
   ctx.release(buffer);
   ctx.release(descriptor);

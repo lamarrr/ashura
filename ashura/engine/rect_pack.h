@@ -121,10 +121,10 @@ struct rect
   i32 was_packed = 0;
 };
 
-constexpr int rect_height_compare(void const *a, void const *b)
+constexpr int rect_height_compare(void const * a, void const * b)
 {
-  rect const *p = (rect const *) a;
-  rect const *q = (rect const *) b;
+  rect const * p = (rect const *) a;
+  rect const * q = (rect const *) b;
   if (p->h > q->h)
     return -1;
   if (p->h < q->h)
@@ -132,10 +132,10 @@ constexpr int rect_height_compare(void const *a, void const *b)
   return (p->w > q->w) ? -1 : (p->w < q->w);
 }
 
-constexpr int rect_original_order(void const *a, void const *b)
+constexpr int rect_original_order(void const * a, void const * b)
 {
-  rect const *p = (rect const *) a;
-  rect const *q = (rect const *) b;
+  rect const * p = (rect const *) a;
+  rect const * q = (rect const *) b;
   return (p->was_packed < q->was_packed) ? -1 : (p->was_packed > q->was_packed);
 }
 
@@ -146,8 +146,8 @@ constexpr int rect_original_order(void const *a, void const *b)
 
 struct Node
 {
-  i32   x = 0, y = 0;
-  Node *next = nullptr;
+  i32    x = 0, y = 0;
+  Node * next = nullptr;
 };
 
 enum class Heuristic
@@ -169,20 +169,20 @@ struct Context
   Mode      init_mode   = Mode::Default;
   Heuristic heuristic   = Heuristic::BL_sortHeight;
   i32       num_nodes   = 0;
-  Node     *active_head = nullptr;
-  Node     *free_head   = nullptr;
+  Node *    active_head = nullptr;
+  Node *    free_head   = nullptr;
   // we allocate two extra nodes so optimal
   // user-node-count is 'width' not 'width+2'
-  Node extra[2];
+  Node      extra[2];
 };
 
 // find minimum y position if it starts at x1
-inline i32 skyline_find_min_y(Context &c, Node *first, i32 x0, i32 width,
-                              i32 *pwaste)
+inline i32 skyline_find_min_y(Context & c, Node * first, i32 x0, i32 width,
+                              i32 * pwaste)
 {
-  Node *node = first;
-  i32   x1   = x0 + width;
-  i32   min_y, visited_width, waste_area;
+  Node * node = first;
+  i32    x1   = x0 + width;
+  i32    min_y, visited_width, waste_area;
 
   (void) c;
 
@@ -235,15 +235,15 @@ inline i32 skyline_find_min_y(Context &c, Node *first, i32 x0, i32 width,
 
 struct FindResult
 {
-  i32    x = 0, y = 0;
-  Node **prev_link = nullptr;
+  i32     x = 0, y = 0;
+  Node ** prev_link = nullptr;
 };
 
-inline FindResult skyline_find_best_pos(Context &ctx, i32 width, i32 height)
+inline FindResult skyline_find_best_pos(Context & ctx, i32 width, i32 height)
 {
   i32        best_waste = (1 << 30), best_x, best_y = (1 << 30);
   FindResult find_result;
-  Node     **prev, *node, *tail, **best = nullptr;
+  Node **    prev, *node, *tail, **best = nullptr;
 
   // align to multiple of ctx.align
   width = (width + ctx.align - 1);
@@ -359,11 +359,11 @@ inline FindResult skyline_find_best_pos(Context &ctx, i32 width, i32 height)
   return find_result;
 }
 
-inline FindResult skyline_pack_rectangle(Context &ctx, i32 width, i32 height)
+inline FindResult skyline_pack_rectangle(Context & ctx, i32 width, i32 height)
 {
   // find best position according to heuristic
   FindResult res = skyline_find_best_pos(ctx, width, height);
-  Node      *node, *cur;
+  Node *     node, *cur;
 
   // bail if:
   //    1. it failed
@@ -391,9 +391,9 @@ inline FindResult skyline_pack_rectangle(Context &ctx, i32 width, i32 height)
   if (cur->x < res.x)
   {
     // preserve the existing one, so start testing with the next one
-    Node *next = cur->next;
-    cur->next  = node;
-    cur        = next;
+    Node * next = cur->next;
+    cur->next   = node;
+    cur         = next;
   }
   else
   {
@@ -404,7 +404,7 @@ inline FindResult skyline_pack_rectangle(Context &ctx, i32 width, i32 height)
   // that shouldn't be freed
   while (cur->next && cur->next->x <= res.x + width)
   {
-    Node *next = cur->next;
+    Node * next   = cur->next;
     // move the current node to the free list
     cur->next     = ctx.free_head;
     ctx.free_head = cur;
@@ -471,7 +471,7 @@ inline FindResult skyline_pack_rectangle(Context &ctx, i32 width, i32 height)
 // algorithm may run out of temporary storage and be unable to pack some
 // rectangles.
 //
-inline Context init(i32 width, i32 height, Node *nodes, i32 num_nodes,
+inline Context init(i32 width, i32 height, Node * nodes, i32 num_nodes,
                     bool allow_out_of_mem)
 {
   Context ctx;
@@ -545,7 +545,7 @@ inline Context init(i32 width, i32 height, Node *nodes, i32 num_nodes,
 //
 // The function returns 1 if all of the rectangles were successfully
 // packed and 0 otherwise.
-inline bool pack_rects(Context &ctx, rect *rects, i32 num_rects)
+inline bool pack_rects(Context & ctx, rect * rects, i32 num_rects)
 {
   i32 all_rects_packed = 1;
 

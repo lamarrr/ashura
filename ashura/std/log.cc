@@ -6,7 +6,7 @@
 namespace ash
 {
 
-ASH_C_LINKAGE ASH_DLL_EXPORT Logger *logger = nullptr;
+ASH_C_LINKAGE ASH_DLL_EXPORT Logger * logger = nullptr;
 
 void Logger::init()
 {
@@ -32,7 +32,7 @@ void Logger::uninit()
 
 StdioSink stdio_sink{};
 
-char const *get_level_str(LogLevels level)
+char const * get_level_str(LogLevels level)
 {
   switch (level)
   {
@@ -67,8 +67,8 @@ char const *get_level_str(LogLevels level)
 
 void StdioSink::log(LogLevels level, Span<char const> log_message)
 {
-  char const *level_str = get_level_str(level);
-  std::FILE  *file      = stdout;
+  char const * level_str = get_level_str(level);
+  std::FILE *  file      = stdout;
 
   switch (level)
   {
@@ -93,7 +93,7 @@ void StdioSink::log(LogLevels level, Span<char const> log_message)
   std::time_t current_time = std::time(nullptr);
   if (current_time != (std::time_t) -1)
   {
-    tm *current_local_time = std::localtime(&current_time);
+    tm * current_local_time = std::localtime(&current_time);
     if (current_local_time != nullptr)
     {
       time_string_length = std::strftime(time_string, sizeof(time_string),
@@ -120,7 +120,7 @@ void StdioSink::flush()
 
 void FileSink::log(LogLevels level, Span<char const> log_message)
 {
-  char const          *level_str     = get_level_str(level);
+  char const *         level_str     = get_level_str(level);
   constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";
   char                 time_string[256];
   usize                time_string_length = 0;
@@ -128,7 +128,7 @@ void FileSink::log(LogLevels level, Span<char const> log_message)
   std::time_t current_time = std::time(nullptr);
   if (current_time != (std::time_t) -1)
   {
-    std::tm *current_local_time = std::localtime(&current_time);
+    std::tm * current_local_time = std::localtime(&current_time);
     if (current_local_time != nullptr)
     {
       time_string_length = std::strftime(time_string, sizeof(time_string),

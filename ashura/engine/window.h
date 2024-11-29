@@ -12,7 +12,7 @@
 namespace ash
 {
 
-typedef struct Window_T *Window;
+typedef struct Window_T * Window;
 
 struct WindowSystem
 {
@@ -22,14 +22,14 @@ struct WindowSystem
 
   virtual ~WindowSystem() = default;
 
-  virtual Option<Window> create_window(gpu::Instance   &instance,
+  virtual Option<Window> create_window(gpu::Instance &  instance,
                                        Span<char const> title) = 0;
 
   virtual void uninit_window(Window window) = 0;
 
   virtual void set_title(Window window, Span<char const> title) = 0;
 
-  virtual char const *get_title(Window window) = 0;
+  virtual char const * get_title(Window window) = 0;
 
   virtual void maximize(Window window) = 0;
 
@@ -96,9 +96,9 @@ struct WindowSystem
 
   virtual void poll_events() = 0;
 
-  virtual ClipBoard &get_clipboard() = 0;
+  virtual ClipBoard & get_clipboard() = 0;
 };
 
-ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem *window_system;
+ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem * window_system;
 
 }        // namespace ash
