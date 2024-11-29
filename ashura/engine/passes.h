@@ -36,7 +36,7 @@ struct BloomPass : Pass
 
   virtual Span<char const> id() override
   {
-    return "Bloom"_span;
+    return "Bloom"_str;
   }
 
   virtual void acquire(GpuContext &ct, AssetMap &assets) override;
@@ -76,7 +76,7 @@ struct BlurPass : Pass
 
   virtual Span<char const> id() override
   {
-    return "Blur"_span;
+    return "Blur"_str;
   }
 
   virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
@@ -123,7 +123,7 @@ struct NgonPass : Pass
 
   virtual Span<char const> id() override
   {
-    return "Ngon"_span;
+    return "Ngon"_str;
   }
 
   virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
@@ -198,7 +198,7 @@ struct PBRPass : Pass
 
   virtual Span<char const> id() override
   {
-    return "PBR"_span;
+    return "PBR"_str;
   }
 
   virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
@@ -245,7 +245,7 @@ struct RRectPass : Pass
 
   virtual Span<char const> id() override
   {
-    return "RRect"_span;
+    return "RRect"_str;
   }
 
   RRectPass() = default;

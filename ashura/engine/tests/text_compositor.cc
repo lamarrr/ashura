@@ -13,7 +13,7 @@ TEST(TextCompositor, Main)
   TextLayout     layout;
   ClipBoard      clip;
 
-  Span text = U"HELLO, MOTO"_span;
+  Span text = U"HELLO, MOTO"_str;
 
   bool inserted = false;
 
@@ -23,7 +23,7 @@ TEST(TextCompositor, Main)
     ASSERT_TRUE(range_eq(str, text));
   };
 
-  cmp.command(U""_span, layout, 0, 0, TextCommand::InputText, fn(&insert), noop,
+  cmp.command(U""_str, layout, 0, 0, TextCommand::InputText, fn(&insert), noop,
               text, clip, 1, {});
 
   ASSERT_TRUE(inserted);

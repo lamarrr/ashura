@@ -177,8 +177,8 @@ struct TextCompositor
     u32                 latest_record  = 0;
     u32                 current_record = 0;
     u32                 tab_width      = 1;
-    Span<c32 const>     word_symbols   = span(DEFAULT_WORD_SYMBOLS);
-    Span<c32 const>     line_symbols   = span(DEFAULT_LINE_SYMBOLS);
+    Span<c32 const>     word_symbols   = DEFAULT_WORD_SYMBOLS;
+    Span<c32 const>     line_symbols   = DEFAULT_LINE_SYMBOLS;
 
     Inner(u32 num_buffer_codepoints, u32 num_records)
     {

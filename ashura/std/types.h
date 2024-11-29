@@ -986,6 +986,23 @@ using Bits = Repr[BIT_PACKS<Repr, N>];
 template <typename Repr, usize N>
 using BitArray = Array<Repr, BIT_PACKS<Repr, N>>;
 
+template <typename U, typename T>
+concept SpanCompatible = Convertible<U (*)[], T (*)[]>;
+
+template <typename Container>
+using ContainerDataType =
+    std::remove_pointer_t<decltype(data(std::declval<Container &>()))>;
+
+template <typename Container>
+concept SpanContainer = requires(Container c) {
+  { data(c) };
+  { size(c) };
+};
+
+template <typename Container, typename T>
+concept SpanCompatibleContainer =
+    SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
+
 template <typename T>
 struct Span
 {
@@ -1001,8 +1018,18 @@ struct Span
   {
   }
 
-  template <typename U>
-    requires(Convertible<U (*)[], T (*)[]>)
+  template <usize N>
+  constexpr Span(T (&data)[N]) : data_{data}, size_{N}
+  {
+  }
+
+  template <SpanCompatibleContainer<T> C>
+  constexpr Span(C &container) :
+      data_{ash::data(container)}, size_{ash::size(container)}
+  {
+  }
+
+  template <SpanCompatible<T> U>
   constexpr Span(Span<U> span) : data_{span.data_}, size_{span.size_}
   {
   }
@@ -1138,6 +1165,12 @@ struct Span
   }
 };
 
+template <typename T, usize N>
+Span(T (&)[N]) -> Span<T>;
+
+template <SpanContainer C>
+Span(C &container) -> Span<std::remove_pointer_t<decltype(data(container))>>;
+
 template <typename T>
 constexpr Span<T const> span(std::initializer_list<T> list)
 {
@@ -1150,28 +1183,28 @@ constexpr Span<T> span(T (&array)[N])
   return Span<T>{array, N};
 }
 
-template <typename Container>
-constexpr auto span(Container &c) -> decltype(Span{data(c), size(c)})
+template <SpanContainer C>
+constexpr auto span(C &c)
 {
   return Span{data(c), size(c)};
 }
 
-constexpr Span<char const> operator""_span(char const *lit, usize n)
+constexpr Span<char const> operator""_str(char const *lit, usize n)
 {
   return Span<char const>{lit, n};
 }
 
-constexpr Span<c8 const> operator""_span(c8 const *lit, usize n)
+constexpr Span<c8 const> operator""_str(c8 const *lit, usize n)
 {
   return Span<c8 const>{lit, n};
 }
 
-constexpr Span<c16 const> operator""_span(c16 const *lit, usize n)
+constexpr Span<c16 const> operator""_str(c16 const *lit, usize n)
 {
   return Span<c16 const>{lit, n};
 }
 
-constexpr Span<c32 const> operator""_span(c32 const *lit, usize n)
+constexpr Span<c32 const> operator""_str(c32 const *lit, usize n)
 {
   return Span<c32 const>{lit, n};
 }

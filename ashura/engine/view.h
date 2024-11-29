@@ -270,32 +270,32 @@ struct ViewContext
 
   constexpr bool key_down(KeyCode key) const
   {
-    return get_bit(span(keyboard.downs), (usize) key);
+    return get_bit(keyboard.downs, (usize) key);
   }
 
   constexpr bool key_up(KeyCode key) const
   {
-    return get_bit(span(keyboard.ups), (usize) key);
+    return get_bit(keyboard.ups, (usize) key);
   }
 
   constexpr bool key_state(KeyCode key) const
   {
-    return get_bit(span(keyboard.states), (usize) key);
+    return get_bit(keyboard.states, (usize) key);
   }
 
   constexpr bool key_down(ScanCode key) const
   {
-    return get_bit(span(keyboard.scan_downs), (usize) key);
+    return get_bit(keyboard.scan_downs, (usize) key);
   }
 
   constexpr bool key_up(ScanCode key) const
   {
-    return get_bit(span(keyboard.scan_ups), (usize) key);
+    return get_bit(keyboard.scan_ups, (usize) key);
   }
 
   constexpr bool key_state(ScanCode key) const
   {
-    return get_bit(span(keyboard.scan_states), (usize) key);
+    return get_bit(keyboard.scan_states, (usize) key);
   }
 
   constexpr bool mouse_down(MouseButtons btn) const

@@ -12,8 +12,8 @@ int main()
 
   Engine::init(
       default_allocator, nullptr,
-      R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\config.json)"_span,
-      R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets)"_span);
+      R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\config.json)"_str,
+      R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets)"_str);
 
   defer engine_{[&] { Engine::uninit(); }};
 
@@ -35,25 +35,25 @@ scalar.frame(250, 100);
 
   // Don't use whole font metrics for line metrics
 
-  btn.text(U"replay RELOAD"_span)
+  btn.text(U"replay RELOAD"_str)
       .style(TextStyle{.foreground = colors::WHITE, .background = colors::BLUE},
-             FontStyle{.font = engine->assets.fonts["RobotoMono"_span].get(),
+             FontStyle{.font = engine->assets.fonts["RobotoMono"_str].get(),
                        .font_height = 50,
                        .line_height = 1.2F})
       .style(TextStyle{.foreground = colors::WHITE, .background = colors::BLUE},
-             FontStyle{.font = engine->assets.fonts["MaterialIcons"_span].get(),
+             FontStyle{.font = engine->assets.fonts["MaterialIcons"_str].get(),
                        .font_height = 40,
                        .line_height = 1},
              0, 6)
       .padding(10, 10)
       .color(colors::CYAN);
-  btn_home.text(U"home HOME"_span)
+  btn_home.text(U"home HOME"_str)
       .style(TextStyle{.foreground = colors::WHITE, .background = colors::BLUE},
-             FontStyle{.font = engine->assets.fonts["RobotoMono"_span].get(),
+             FontStyle{.font = engine->assets.fonts["RobotoMono"_str].get(),
                        .font_height = 50,
                        .line_height = 1.2F})
       .style(TextStyle{.foreground = colors::WHITE, .background = colors::BLUE},
-             FontStyle{.font = engine->assets.fonts["MaterialIcons"_span].get(),
+             FontStyle{.font = engine->assets.fonts["MaterialIcons"_str].get(),
                        .font_height = 40,
                        .line_height = 1},
              0, 4)
@@ -61,10 +61,10 @@ scalar.frame(250, 100);
       .color(colors::CYAN);
 
   btn2.text(
-          U"بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ١ ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَـٰلَمِينَ ٢ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ٣ مَـٰلِكِ يَوْمِ ٱلدِّينِ ٤ إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ ٥ ٱهْدِنَا ٱلصِّرَٰطَ ٱلْمُسْتَقِيمَ ٦ صِرَٰطَ ٱلَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ ٱلْمَغْضُوبِ عَلَيْهِمْ وَلَا ٱلضَّآلِّينَ ٧"_span)
+          U"بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ١ ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَـٰلَمِينَ ٢ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ٣ مَـٰلِكِ يَوْمِ ٱلدِّينِ ٤ إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ ٥ ٱهْدِنَا ٱلصِّرَٰطَ ٱلْمُسْتَقِيمَ ٦ صِرَٰطَ ٱلَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ ٱلْمَغْضُوبِ عَلَيْهِمْ وَلَا ٱلضَّآلِّينَ ٧"_str)
       .style(
           TextStyle{.foreground = colors::WHITE, .background = colors::YELLOW},
-          FontStyle{.font        = engine->assets.fonts["Amiri"_span].get(),
+          FontStyle{.font        = engine->assets.fonts["Amiri"_str].get(),
                     .font_height = 50,
                     .line_height = 1.2F})
       .frame(200, 200)

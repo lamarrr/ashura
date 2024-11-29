@@ -154,7 +154,7 @@ void path::brect(Vec<Vec2> &vtx, Vec4 slant)
                            {1 - slant.z, 1},   {-1 + slant.w, 1},
                            {-1, 1 - slant.w},  {-1, -1 + slant.x}};
 
-  vtx.extend_copy(span(vertices)).unwrap();
+  vtx.extend_copy(vertices).unwrap();
 }
 
 void path::bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments)
@@ -385,8 +385,8 @@ static inline void flush_batch(Canvas &c)
   switch (batch.type)
   {
     case Canvas::BatchType::RRect:
-      c.add_pass("RRect"_span, [batch, world_to_view = c.world_to_view](
-                                   Canvas::RenderContext const &ctx) {
+      c.add_pass("RRect"_str, [batch, world_to_view = c.world_to_view](
+                                  Canvas::RenderContext const &ctx) {
         RRectPassParams params{.rendering_info = ctx.rt.info,
                                .scissor =
                                    clip_to_scissor(ctx.rt.viewport, batch.clip),
@@ -402,8 +402,8 @@ static inline void flush_batch(Canvas &c)
       return;
 
     case Canvas::BatchType::Ngon:
-      c.add_pass("Ngon"_span, [batch, world_to_view = c.world_to_view](
-                                  Canvas::RenderContext const &ctx) {
+      c.add_pass("Ngon"_str, [batch, world_to_view = c.world_to_view](
+                                 Canvas::RenderContext const &ctx) {
         NgonPassParams params{
             .rendering_info = ctx.rt.info,
             .scissor        = clip_to_scissor(ctx.rt.viewport, batch.clip),
@@ -843,7 +843,7 @@ Canvas &Canvas::blur(CRect const &area, u32 num_passes)
 {
   flush_batch(*this);
 
-  add_pass("Blur"_span, [num_passes, area](Canvas::RenderContext const &ctx) {
+  add_pass("Blur"_str, [num_passes, area](Canvas::RenderContext const &ctx) {
     BlurPassParams params{.image_view   = ctx.rt.info.color_attachments[0].view,
                           .extent       = ctx.rt.extent,
                           .texture_view = ctx.rt.color_descriptor,

@@ -403,7 +403,7 @@ ShaderCompileError
     logger.warn(conv_messages);
   }
 
-  if (!spirv.extend_copy(span(spirv_v)))
+  if (!spirv.extend_copy(spirv_v))
   {
     return ShaderCompileError::OutOfMemory;
   }
@@ -418,15 +418,15 @@ ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
 {
   ShaderType type = ShaderType::Compute;
 
-  if (ends_with(file, ".comp"_span))
+  if (ends_with(file, ".comp"_str))
   {
     type = ShaderType::Compute;
   }
-  else if (ends_with(file, ".frag"_span))
+  else if (ends_with(file, ".frag"_str))
   {
     type = ShaderType::Fragment;
   }
-  else if (ends_with(file, ".vert"_span))
+  else if (ends_with(file, ".vert"_str))
   {
     type = ShaderType::Vertex;
   }
@@ -443,8 +443,8 @@ ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
 
   Vec<u32>           spirv;
   ShaderCompileError error =
-      compile_shader(*logger, spirv, span(file_path), type, preamble,
-                     "main"_span, span({root_directory}), {});
+      compile_shader(*logger, spirv, file_path, type, preamble, "main"_str,
+                     span({root_directory}), {});
 
   if (error != ShaderCompileError::None)
   {

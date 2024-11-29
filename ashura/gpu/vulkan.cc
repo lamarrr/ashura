@@ -888,7 +888,7 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorImpl allocator,
       if (strcmp(OPTIONAL_EXTS[iopt], exts[i].extensionName) == 0)
       {
         load_exts[num_load_exts++] = OPTIONAL_EXTS[iopt];
-        set_bit(span(has_optional_ext), iopt);
+        set_bit(has_optional_ext, iopt);
       }
     }
 
@@ -984,7 +984,7 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorImpl allocator,
   VkInstanceCreateInfo create_info{
       .sType                 = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
       .pNext                 = enable_validation ? &debug_create_info : nullptr,
-      .flags                 = get_bit(span(has_optional_ext), 10) ?
+      .flags                 = get_bit(has_optional_ext, 10) ?
                                    VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR :
                                    ((VkInstanceCreateFlags) 0),
       .pApplicationInfo      = &app_info,
@@ -1682,7 +1682,7 @@ void Device::set_resource_name(Span<char const> label, void const *resource,
                                VkDebugReportObjectTypeEXT debug_type)
 {
   char label_c_str[256];
-  CHECK(to_c_str(label, span(label_c_str)));
+  CHECK(to_c_str(label, label_c_str));
   VkDebugUtilsObjectNameInfoEXT name_info{
       .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
       .pNext        = nullptr,
@@ -2478,7 +2478,7 @@ Result<gpu::ComputePipeline, Status>
       .pData = info.compute_shader.specialization_constants_data.data()};
 
   char entry_point[256];
-  CHECK(to_c_str(info.compute_shader.entry_point, span(entry_point)));
+  CHECK(to_c_str(info.compute_shader.entry_point, entry_point));
 
   VkPipelineShaderStageCreateInfo vk_stage{
       .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -2603,8 +2603,8 @@ Result<gpu::GraphicsPipeline, Status>
 
   char vs_entry_point[256];
   char fs_entry_point[256];
-  CHECK(to_c_str(info.vertex_shader.entry_point, span(vs_entry_point)));
-  CHECK(to_c_str(info.fragment_shader.entry_point, span(fs_entry_point)));
+  CHECK(to_c_str(info.vertex_shader.entry_point, vs_entry_point));
+  CHECK(to_c_str(info.fragment_shader.entry_point, fs_entry_point));
 
   VkPipelineShaderStageCreateInfo vk_stages[2] = {
       {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -3113,7 +3113,7 @@ Status Device::init_command_encoder(CommandEncoder *enc)
     return (Status) result;
   }
 
-  set_resource_name("Frame Command Buffer"_span, vk_command_buffer,
+  set_resource_name("Frame Command Buffer"_str, vk_command_buffer,
                     VK_OBJECT_TYPE_COMMAND_BUFFER,
                     VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT);
 
@@ -3203,7 +3203,7 @@ Status Device::init_frame_context(u32 buffering)
     {
       return (Status) result;
     }
-    set_resource_name("Frame Acquire Semaphore"_span,
+    set_resource_name("Frame Acquire Semaphore"_str,
                       ctx.acquire_s[num_acquire_s], VK_OBJECT_TYPE_SEMAPHORE,
                       VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
   }
@@ -3221,7 +3221,7 @@ Status Device::init_frame_context(u32 buffering)
       return (Status) result;
     }
 
-    set_resource_name("Frame Submit Fence"_span, ctx.submit_f[num_submit_f],
+    set_resource_name("Frame Submit Fence"_str, ctx.submit_f[num_submit_f],
                       VK_OBJECT_TYPE_FENCE,
                       VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT);
   }
@@ -3234,7 +3234,7 @@ Status Device::init_frame_context(u32 buffering)
     {
       return (Status) result;
     }
-    set_resource_name("Frame Submit Semaphore"_span, ctx.submit_s[num_submit_s],
+    set_resource_name("Frame Submit Semaphore"_str, ctx.submit_s[num_submit_s],
                       VK_OBJECT_TYPE_SEMAPHORE,
                       VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT);
   }
@@ -4428,7 +4428,7 @@ void CommandEncoder::begin_debug_marker(Span<char const> region_name,
   ENCODE_PRELUDE();
   CHECK(!is_in_pass());
   char region_name_cstr[256];
-  CHECK(to_c_str(region_name, span(region_name_cstr)));
+  CHECK(to_c_str(region_name, region_name_cstr));
 
   VkDebugMarkerMarkerInfoEXT info{
       .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,

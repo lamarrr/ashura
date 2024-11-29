@@ -99,8 +99,8 @@ struct Logger : Pin<>
   {
     std::lock_guard lock{mutex};
     char            scratch[SCRATCH_SIZE];
-    Buffer<char>    msg = ash::buffer(span(buffer));
-    fmt::Context    ctx = fmt::buffer(&msg, span(scratch));
+    Buffer<char>    msg = ash::buffer<char>(buffer);
+    fmt::Context    ctx = fmt::buffer(&msg, scratch);
     if (!fmt::format(ctx, args..., "\n"))
     {
       return false;
@@ -108,7 +108,7 @@ struct Logger : Pin<>
 
     for (LogSink *sink : Span{sinks, num_sinks})
     {
-      sink->log(level, span(msg));
+      sink->log(level, msg);
     }
     return true;
   }

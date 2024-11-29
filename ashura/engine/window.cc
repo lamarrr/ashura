@@ -40,7 +40,7 @@ struct ClipBoardImpl : ClipBoard
   virtual Result<> get(Span<char const> mime, Vec<c8> &out) override
   {
     char mime_c_str[256];
-    CHECK(to_c_str(mime, span(mime_c_str)));
+    CHECK(to_c_str(mime, mime_c_str));
     usize mime_data_len;
     void *data = SDL_GetClipboardData(mime_c_str, &mime_data_len);
     if (data == nullptr)
@@ -66,7 +66,7 @@ struct ClipBoardImpl : ClipBoard
     }
 
     char mime_c_str[256];
-    CHECK(to_c_str(mime, span(mime_c_str)));
+    CHECK(to_c_str(mime, mime_c_str));
 
     char const *mime_types[] = {mime_c_str};
 
@@ -467,7 +467,7 @@ struct WindowSystemImpl : WindowSystem
   {
     SDL_Event event;
 
-    while (SDL_PollEvent(&event) == true)
+    while (SDL_PollEvent(&event))
     {
       switch (event.type)
       {
