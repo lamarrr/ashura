@@ -1,4 +1,3 @@
-
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/allocator.h"
 #include "ashura/std/cfg.h"
@@ -34,7 +33,7 @@ namespace ash
 NoopAllocator noop_allocator_impl{};
 HeapAllocator heap_allocator_impl{};
 
-bool HeapAllocator::alloc(usize alignment, usize size, u8 *&mem)
+bool HeapAllocator::alloc(usize alignment, usize size, u8 *& mem)
 {
   if (size == 0)
   {
@@ -44,7 +43,7 @@ bool HeapAllocator::alloc(usize alignment, usize size, u8 *&mem)
 
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
-    if (u8 *m = (u8 *) std::malloc(size); m != nullptr)
+    if (u8 * m = (u8 *) std::malloc(size); m != nullptr)
     {
       mem = m;
       return true;
@@ -54,7 +53,7 @@ bool HeapAllocator::alloc(usize alignment, usize size, u8 *&mem)
   }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
-  if (u8 *m = (u8 *) _aligned_malloc(size, alignment); m != nullptr)
+  if (u8 * m = (u8 *) _aligned_malloc(size, alignment); m != nullptr)
   {
     mem = m;
     return true;
@@ -64,7 +63,7 @@ bool HeapAllocator::alloc(usize alignment, usize size, u8 *&mem)
 #endif
 
 #if USE_STDC_ALIGNED_ALLOC
-  if (u8 *m = (u8 *) std::aligned_alloc(alignment, size); m != nullptr)
+  if (u8 * m = (u8 *) std::aligned_alloc(alignment, size); m != nullptr)
   {
     mem = m;
     return true;
@@ -83,7 +82,7 @@ bool HeapAllocator::alloc(usize alignment, usize size, u8 *&mem)
 #endif
 }
 
-bool HeapAllocator::alloc_zeroed(usize alignment, usize size, u8 *&mem)
+bool HeapAllocator::alloc_zeroed(usize alignment, usize size, u8 *& mem)
 {
   if (size == 0)
   {
@@ -93,7 +92,7 @@ bool HeapAllocator::alloc_zeroed(usize alignment, usize size, u8 *&mem)
 
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
-    if (u8 *m = (u8 *) std::calloc(size, 1); m != nullptr)
+    if (u8 * m = (u8 *) std::calloc(size, 1); m != nullptr)
     {
       mem = m;
       return true;
@@ -103,7 +102,7 @@ bool HeapAllocator::alloc_zeroed(usize alignment, usize size, u8 *&mem)
   }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
-  if (u8 *m = (u8 *) _aligned_malloc(size, alignment); m != nullptr)
+  if (u8 * m = (u8 *) _aligned_malloc(size, alignment); m != nullptr)
   {
     std::memset(m, 0, size);
     mem = m;
@@ -114,7 +113,7 @@ bool HeapAllocator::alloc_zeroed(usize alignment, usize size, u8 *&mem)
 #endif
 
 #if USE_STDC_ALIGNED_ALLOC
-  if (u8 *m = (u8 *) std::aligned_alloc(alignment, size); m != nullptr)
+  if (u8 * m = (u8 *) std::aligned_alloc(alignment, size); m != nullptr)
   {
     std::memset(m, 0, size);
     mem = m;
@@ -136,7 +135,7 @@ bool HeapAllocator::alloc_zeroed(usize alignment, usize size, u8 *&mem)
 }
 
 bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
-                            u8 *&mem)
+                            u8 *& mem)
 {
   if (new_size == 0)
   {
@@ -149,7 +148,7 @@ bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
 
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
-    if (u8 *m = (u8 *) std::realloc(mem, new_size); m != nullptr)
+    if (u8 * m = (u8 *) std::realloc(mem, new_size); m != nullptr)
     {
       mem = m;
       return true;
@@ -158,7 +157,7 @@ bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
   }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
-  if (u8 *m = (u8 *) _aligned_realloc(mem, new_size, alignment); m != nullptr)
+  if (u8 * m = (u8 *) _aligned_realloc(mem, new_size, alignment); m != nullptr)
   {
     mem = m;
     return true;
@@ -168,7 +167,7 @@ bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
 
 #if USE_STDC_ALIGNED_ALLOC
   // stdc realloc doesn't guarantee preservation of alignment
-  if (u8 *m = (u8 *) std::aligned_alloc(alignment, new_size); m != nullptr)
+  if (u8 * m = (u8 *) std::aligned_alloc(alignment, new_size); m != nullptr)
   {
     (void) std::memcpy(m, mem, old_size);
     std::free(mem);
@@ -187,7 +186,7 @@ bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
 #endif
 }
 
-void HeapAllocator::dealloc(usize alignment, u8 *mem, usize size)
+void HeapAllocator::dealloc(usize alignment, u8 * mem, usize size)
 {
   (void) alignment;
   (void) mem;

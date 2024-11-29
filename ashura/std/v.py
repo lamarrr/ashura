@@ -9,8 +9,7 @@ file = open(sys.argv[1], "w", encoding="ascii")
 def out(code): return file.write(code)
 
 
-out(f"""
-/// SPDX-License-Identifier: MIT
+out(f"""/// SPDX-License-Identifier: MIT
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once

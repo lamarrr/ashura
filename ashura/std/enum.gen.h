@@ -1,4 +1,3 @@
-
 /// SPDX-License-Identifier: MIT
 /// Meta-Generated Source Code
 // clang-format off

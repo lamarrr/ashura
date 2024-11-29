@@ -32,9 +32,9 @@ struct DecodedImage
   gpu::Format format   = gpu::Format::Undefined;
 };
 
-ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image);
-ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image);
-ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage &image);
-ImageDecodeError decode_image(Span<u8 const> bytes, DecodedImage &image);
+ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage & image);
+ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage & image);
+ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage & image);
+ImageDecodeError decode_image(Span<u8 const> bytes, DecodedImage & image);
 
 }        // namespace ash

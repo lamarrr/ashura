@@ -279,16 +279,16 @@ constexpr Span<char const> to_string(IoErr err)
 namespace fmt
 {
 
-inline bool push(Context const &ctx, Spec const &spec, IoErr const &err)
+inline bool push(Context const & ctx, Spec const & spec, IoErr const & err)
 {
   return push(ctx, spec, to_string(err));
 }
 
 }        // namespace fmt
 
-Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> &buff);
+Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff);
 
-inline Result<> path_append(Vec<char> &path, Span<char const> tail)
+inline Result<> path_append(Vec<char> & path, Span<char const> tail)
 {
   if (!path.is_empty() && path.last() != '/' && path.last() != '\\')
   {

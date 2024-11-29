@@ -57,7 +57,7 @@ constexpr Span<char const> to_string(FontErr err)
 namespace fmt
 {
 
-inline bool push(Context const &ctx, Spec const &spec, FontErr const &err)
+inline bool push(Context const & ctx, Spec const & spec, FontErr const & err)
 {
   return push(ctx, spec, to_string(err));
 }
@@ -149,9 +149,9 @@ struct Font
 
   virtual FontInfo info() = 0;
 
-  virtual void upload_to_device(GpuContext &c, AllocatorImpl allocator) = 0;
+  virtual void upload_to_device(GpuContext & c, AllocatorImpl allocator) = 0;
 
-  virtual void unload_from_device(GpuContext &c) = 0;
+  virtual void unload_from_device(GpuContext & c) = 0;
 
   virtual ~Font() = default;
 };

@@ -1,4 +1,3 @@
-
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/cfg.h"
@@ -44,43 +43,43 @@ struct Logger : Pin<>
   static constexpr usize SCRATCH_SIZE    = 256;
   static constexpr u32   MAX_SINKS       = 8;
 
-  LogSink   *sinks[MAX_SINKS]        = {};
+  LogSink *  sinks[MAX_SINKS]        = {};
   u32        num_sinks               = 0;
   char       buffer[BUFFER_CAPACITY] = {};
   std::mutex mutex                   = {};
 
   template <typename... Args>
-  bool debug(Args const &...args)
+  bool debug(Args const &... args)
   {
     return log(LogLevels::Debug, args...);
   }
 
   template <typename... Args>
-  bool trace(Args const &...args)
+  bool trace(Args const &... args)
   {
     return log(LogLevels::Trace, args...);
   }
 
   template <typename... Args>
-  bool info(Args const &...args)
+  bool info(Args const &... args)
   {
     return log(LogLevels::Info, args...);
   }
 
   template <typename... Args>
-  bool warn(Args const &...args)
+  bool warn(Args const &... args)
   {
     return log(LogLevels::Warning, args...);
   }
 
   template <typename... Args>
-  bool error(Args const &...args)
+  bool error(Args const &... args)
   {
     return log(LogLevels::Error, args...);
   }
 
   template <typename... Args>
-  bool fatal(Args const &...args)
+  bool fatal(Args const &... args)
   {
     return log(LogLevels::Fatal, args...);
   }
@@ -88,14 +87,14 @@ struct Logger : Pin<>
   void flush()
   {
     std::lock_guard lock{mutex};
-    for (LogSink *sink : Span{sinks, num_sinks})
+    for (LogSink * sink : Span{sinks, num_sinks})
     {
       sink->flush();
     }
   }
 
   template <typename... Args>
-  bool log(LogLevels level, Args const &...args)
+  bool log(LogLevels level, Args const &... args)
   {
     std::lock_guard lock{mutex};
     char            scratch[SCRATCH_SIZE];
@@ -106,7 +105,7 @@ struct Logger : Pin<>
       return false;
     }
 
-    for (LogSink *sink : Span{sinks, num_sinks})
+    for (LogSink * sink : Span{sinks, num_sinks})
     {
       sink->log(level, msg);
     }
@@ -114,7 +113,7 @@ struct Logger : Pin<>
   }
 
   template <typename... Args>
-  [[noreturn]] void panic(Args const &...args)
+  [[noreturn]] void panic(Args const &... args)
   {
     std::atomic_ref panic_count{*ash::panic_count};
     if (panic_count.fetch_add(1, std::memory_order::relaxed))
@@ -139,7 +138,7 @@ struct Logger : Pin<>
 
   static void uninit();
 
-  [[nodiscard]] bool add_sink(LogSink *s)
+  [[nodiscard]] bool add_sink(LogSink * s)
   {
     std::lock_guard lock{mutex};
     if ((num_sinks + 1) > MAX_SINKS)
@@ -168,14 +167,14 @@ struct StdioSink : LogSink
 
 struct FileSink : LogSink
 {
-  FILE      *file = nullptr;
+  FILE *     file = nullptr;
   std::mutex mutex;
 
   void log(LogLevels level, Span<char const> log_message) override;
   void flush() override;
 };
 
-ASH_C_LINKAGE ASH_DLL_EXPORT ash::Logger *logger;
+ASH_C_LINKAGE ASH_DLL_EXPORT ash::Logger * logger;
 
 extern StdioSink stdio_sink;
 

@@ -55,9 +55,9 @@ struct SparseVec
 
   SparseVec(SparseVec const &) = delete;
 
-  SparseVec &operator=(SparseVec const &) = delete;
+  SparseVec & operator=(SparseVec const &) = delete;
 
-  SparseVec(SparseVec &&other) :
+  SparseVec(SparseVec && other) :
       index_to_id{std::move(other.index_to_id)},
       id_to_index{std::move(other.id_to_index)},
       dense{std::move(other.dense)},
@@ -66,7 +66,7 @@ struct SparseVec
     other.free_id_head = STUB;
   }
 
-  SparseVec &operator=(SparseVec &&other)
+  SparseVec & operator=(SparseVec && other)
   {
     if (this == &other) [[unlikely]]
     {
@@ -91,7 +91,7 @@ struct SparseVec
 
   constexpr void clear()
   {
-    apply([](auto &...d) { (d.clear(), ...); }, dense);
+    apply([](auto &... d) { (d.clear(), ...); }, dense);
     id_to_index.clear();
     index_to_id.clear();
     free_id_head = STUB;
@@ -99,7 +99,7 @@ struct SparseVec
 
   constexpr void reset()
   {
-    apply([](auto &...d) { (d.reset(), ...); }, dense);
+    apply([](auto &... d) { (d.reset(), ...); }, dense);
     id_to_index.reset();
     index_to_id.reset();
     free_id_head = STUB;
@@ -107,7 +107,7 @@ struct SparseVec
 
   constexpr void uninit()
   {
-    apply([](auto &...d) { (d.uninit(), ...); }, dense);
+    apply([](auto &... d) { (d.uninit(), ...); }, dense);
     id_to_index.uninit();
     index_to_id.uninit();
   }
@@ -164,10 +164,10 @@ struct SparseVec
 
     if (index != last)
     {
-      apply([index, last](auto &...d) { (d.swap(index, last), ...); }, dense);
+      apply([index, last](auto &... d) { (d.swap(index, last), ...); }, dense);
     }
 
-    apply([](auto &...d) { (d.pop(), ...); }, dense);
+    apply([](auto &... d) { (d.pop(), ...); }, dense);
 
     // adjust id and index mapping
     if (index != last)
@@ -200,7 +200,7 @@ struct SparseVec
     }
 
     bool failed = apply(
-        [&](auto &...d) {
+        [&](auto &... d) {
           return (false || ... || !d.reserve(target_capacity));
         },
         dense);
@@ -222,7 +222,7 @@ struct SparseVec
     }
 
     bool failed = apply(
-        [target_size](auto &...d) {
+        [target_size](auto &... d) {
           return (false || ... || !d.grow(target_size));
         },
         dense);
@@ -260,7 +260,7 @@ struct SparseVec
   struct Pusher
   {
     template <typename Tuple, typename Head, typename... Tail>
-    static constexpr void push(Tuple &t, Head &&head, Tail &&...tail)
+    static constexpr void push(Tuple & t, Head && head, Tail &&... tail)
     {
       get<I>(t).push(static_cast<Head &&>(head)).unwrap();
       if constexpr (sizeof...(tail) != 0)
@@ -271,8 +271,8 @@ struct SparseVec
   };
 
   template <typename... Args>
-  constexpr Result<u64, Void> push(Args &&...args)
-    requires(sizeof...(Args) == sizeof...(V))
+  constexpr Result<u64, Void> push(Args &&... args)
+      requires (sizeof...(Args) == sizeof...(V))
   {
     u64 const index = size();
 

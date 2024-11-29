@@ -7,7 +7,7 @@ namespace ash
 
 constexpr Hash hash_combine(Hash hash_a, Hash hash_b)
 {
-  hash_a ^= hash_b + 0x9e3779b9 + (hash_a << 6) + (hash_a >> 2);
+  hash_a ^= hash_b + 0x9e37'79b9 + (hash_a << 6) + (hash_a >> 2);
   return hash_a;
 }
 
@@ -31,7 +31,7 @@ struct StrHasher
 struct BitHasher
 {
   template <typename T>
-  Hash operator()(T const &a) const
+  Hash operator()(T const & a) const
   {
     return hash_bytes(Span<T const>{&a, 1}.as_u8());
   }

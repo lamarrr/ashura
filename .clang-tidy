@@ -1,4 +1,16 @@
-Checks: "clang-diagnostic-*,clang-analyzer-*,google-*,-google-readability-casting,readability-*,bugprone-*,-bugprone-easily-swappable-parameters,cert-*,llvm-*,-llvm-header-guard,performance-*"
+Checks: >
+    clang-diagnostic-*
+    clang-analyzer-*
+    google-*
+    -google-readability-casting
+    readability-*
+    -readability-identifier-length
+    bugprone-*
+    -bugprone-easily-swappable-parameters
+    cert-*
+    llvm-*
+    -llvm-header-guard
+    performance-*"
 WarningsAsErrors: ""
 HeaderFilterRegex: ""
 FormatStyle: file

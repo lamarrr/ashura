@@ -18,9 +18,9 @@ namespace ash
 template <typename T>
 struct [[nodiscard]] ListNode : Pin<>
 {
-  ListNode<T> *next = this;
-  ListNode<T> *prev = this;
-  T            v    = {};
+  ListNode<T> * next = this;
+  ListNode<T> * prev = this;
+  T             v    = {};
 
   void isolate()
   {
@@ -46,14 +46,14 @@ namespace list
 /// @tparam T
 /// @param node must be valid and non-null
 template <typename T>
-static constexpr void unlink_node(ListNode<T> *node)
+static constexpr void unlink_node(ListNode<T> * node)
 {
   // detach from siblings
   node->next->prev = node->prev;
   node->prev->next = node->next;
   // create 1 element node
-  node->next = node;
-  node->prev = node;
+  node->next       = node;
+  node->prev       = node;
 }
 
 /// @brief
@@ -61,10 +61,10 @@ static constexpr void unlink_node(ListNode<T> *node)
 /// @param head must be valid and non-null, set to null if empty
 /// @return popped element or null
 template <typename T>
-[[nodiscard]] constexpr ListNode<T> *pop_front(ListNode<T> *&head)
+[[nodiscard]] constexpr ListNode<T> * pop_front(ListNode<T> *& head)
 {
-  ListNode<T> *out      = head;
-  ListNode<T> *new_head = (head->next == head) ? nullptr : head->next;
+  ListNode<T> * out      = head;
+  ListNode<T> * new_head = (head->next == head) ? nullptr : head->next;
   unlink_node(out);
   head = new_head;
   return out;
@@ -75,10 +75,10 @@ template <typename T>
 /// @param head must be valid and non-null, set to null if empty
 /// @return
 template <typename T>
-[[nodiscard]] constexpr ListNode<T> *pop_back(ListNode<T> *&head)
+[[nodiscard]] constexpr ListNode<T> * pop_back(ListNode<T> *& head)
 {
-  ListNode<T> *out      = head->prev;
-  ListNode<T> *new_head = (head->prev == head) ? nullptr : head;
+  ListNode<T> * out      = head->prev;
+  ListNode<T> * new_head = (head->prev == head) ? nullptr : head;
   unlink_node(out);
   head = new_head;
   return out;
@@ -92,16 +92,16 @@ template <typename T>
 /// @param ext must be valid and non-null
 ///
 template <typename T>
-constexpr void attach(ListNode<T> *node, ListNode<T> *ext)
+constexpr void attach(ListNode<T> * node, ListNode<T> * ext)
 {
-  ListNode<T> *node_head = node;
-  ListNode<T> *node_tail = node->prev;
-  ListNode<T> *ext_head  = ext;
-  ListNode<T> *ext_tail  = ext->prev;
-  ext_head->prev         = node_tail;
-  ext_tail->next         = node_head;
-  node_head->prev        = ext_tail;
-  node_tail->next        = ext_head;
+  ListNode<T> * node_head = node;
+  ListNode<T> * node_tail = node->prev;
+  ListNode<T> * ext_head  = ext;
+  ListNode<T> * ext_tail  = ext->prev;
+  ext_head->prev          = node_tail;
+  ext_tail->next          = node_head;
+  node_head->prev         = ext_tail;
+  node_tail->next         = ext_head;
 }
 
 ///
@@ -112,8 +112,8 @@ constexpr void attach(ListNode<T> *node, ListNode<T> *ext)
 /// @param ext must be valid and non-null
 ///
 template <typename T>
-[[nodiscard]] constexpr ListNode<T> *push_back(ListNode<T> *head,
-                                               ListNode<T> *ext)
+[[nodiscard]] constexpr ListNode<T> * push_back(ListNode<T> * head,
+                                                ListNode<T> * ext)
 {
   attach(head, ext);
   return head;
@@ -127,8 +127,8 @@ template <typename T>
 /// @param ext must be valid and non-null
 ///
 template <typename T>
-[[nodiscard]] constexpr ListNode<T> *push_front(ListNode<T> *head,
-                                                ListNode<T> *ext)
+[[nodiscard]] constexpr ListNode<T> * push_front(ListNode<T> * head,
+                                                 ListNode<T> * ext)
 {
   attach(ext, head);
   return ext;
@@ -142,26 +142,26 @@ template <typename T>
 template <typename T>
 struct [[nodiscard]] List
 {
-  ListNode<T> *head;
+  ListNode<T> * head;
 
   constexpr List() : head{nullptr}
   {
   }
 
-  explicit constexpr List(ListNode<T> *head) : head{head}
+  explicit constexpr List(ListNode<T> * head) : head{head}
   {
   }
 
   constexpr List(List const &) = delete;
 
-  constexpr List(List &&other) : head{other.head}
+  constexpr List(List && other) : head{other.head}
   {
     other.head = nullptr;
   }
 
-  constexpr List &operator=(List const &) = delete;
+  constexpr List & operator=(List const &) = delete;
 
-  constexpr List &operator=(List &&other)
+  constexpr List & operator=(List && other)
   {
     swap(head, other.head);
     return *this;
@@ -177,7 +177,7 @@ struct [[nodiscard]] List
     return head == nullptr;
   }
 
-  [[nodiscard]] constexpr ListNode<T> *tail() const
+  [[nodiscard]] constexpr ListNode<T> * tail() const
   {
     if (head == nullptr) [[unlikely]]
     {
@@ -187,7 +187,7 @@ struct [[nodiscard]] List
     return head->prev;
   }
 
-  [[nodiscard]] constexpr ListNode<T> *pop_front()
+  [[nodiscard]] constexpr ListNode<T> * pop_front()
   {
     if (head == nullptr) [[unlikely]]
     {
@@ -197,7 +197,7 @@ struct [[nodiscard]] List
     return list::pop_front(head);
   }
 
-  [[nodiscard]] constexpr ListNode<T> *pop_back()
+  [[nodiscard]] constexpr ListNode<T> * pop_back()
   {
     if (head == nullptr) [[unlikely]]
     {
@@ -207,7 +207,7 @@ struct [[nodiscard]] List
     return list::pop_back(head);
   }
 
-  constexpr void push_front(ListNode<T> *ext)
+  constexpr void push_front(ListNode<T> * ext)
   {
     if (head == nullptr) [[unlikely]]
     {
@@ -218,7 +218,7 @@ struct [[nodiscard]] List
     head = list::push_front(head, ext);
   }
 
-  constexpr void push_back(ListNode<T> *ext)
+  constexpr void push_back(ListNode<T> * ext)
   {
     if (head == nullptr) [[unlikely]]
     {

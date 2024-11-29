@@ -17,12 +17,12 @@ constexpr TBuiltInResource SHADER_RESOURCE_LIMITS = {
     .maxTextureUnits                           = 32,
     .maxTextureCoords                          = 32,
     .maxVertexAttribs                          = 64,
-    .maxVertexUniformComponents                = 4096,
+    .maxVertexUniformComponents                = 4'096,
     .maxVaryingFloats                          = 64,
     .maxVertexTextureImageUnits                = 32,
     .maxCombinedTextureImageUnits              = 80,
     .maxTextureImageUnits                      = 32,
-    .maxFragmentUniformComponents              = 4096,
+    .maxFragmentUniformComponents              = 4'096,
     .maxDrawBuffers                            = 32,
     .maxVertexUniformVectors                   = 128,
     .maxVaryingVectors                         = 8,
@@ -32,13 +32,13 @@ constexpr TBuiltInResource SHADER_RESOURCE_LIMITS = {
     .minProgramTexelOffset                     = -8,
     .maxProgramTexelOffset                     = 7,
     .maxClipDistances                          = 8,
-    .maxComputeWorkGroupCountX                 = 65535,
-    .maxComputeWorkGroupCountY                 = 65535,
-    .maxComputeWorkGroupCountZ                 = 65535,
-    .maxComputeWorkGroupSizeX                  = 1024,
-    .maxComputeWorkGroupSizeY                  = 1024,
+    .maxComputeWorkGroupCountX                 = 65'535,
+    .maxComputeWorkGroupCountY                 = 65'535,
+    .maxComputeWorkGroupCountZ                 = 65'535,
+    .maxComputeWorkGroupSizeX                  = 1'024,
+    .maxComputeWorkGroupSizeY                  = 1'024,
     .maxComputeWorkGroupSizeZ                  = 64,
-    .maxComputeUniformComponents               = 1024,
+    .maxComputeUniformComponents               = 1'024,
     .maxComputeTextureImageUnits               = 16,
     .maxComputeImageUniforms                   = 8,
     .maxComputeAtomicCounters                  = 8,
@@ -60,18 +60,18 @@ constexpr TBuiltInResource SHADER_RESOURCE_LIMITS = {
     .maxCombinedImageUniforms                  = 8,
     .maxGeometryTextureImageUnits              = 16,
     .maxGeometryOutputVertices                 = 256,
-    .maxGeometryTotalOutputComponents          = 1024,
-    .maxGeometryUniformComponents              = 1024,
+    .maxGeometryTotalOutputComponents          = 1'024,
+    .maxGeometryUniformComponents              = 1'024,
     .maxGeometryVaryingComponents              = 64,
     .maxTessControlInputComponents             = 128,
     .maxTessControlOutputComponents            = 128,
     .maxTessControlTextureImageUnits           = 16,
-    .maxTessControlUniformComponents           = 1024,
-    .maxTessControlTotalOutputComponents       = 4096,
+    .maxTessControlUniformComponents           = 1'024,
+    .maxTessControlTotalOutputComponents       = 4'096,
     .maxTessEvaluationInputComponents          = 128,
     .maxTessEvaluationOutputComponents         = 128,
     .maxTessEvaluationTextureImageUnits        = 16,
-    .maxTessEvaluationUniformComponents        = 1024,
+    .maxTessEvaluationUniformComponents        = 1'024,
     .maxTessPatchComponents                    = 120,
     .maxPatchVertices                          = 32,
     .maxTessGenLevel                           = 64,
@@ -89,7 +89,7 @@ constexpr TBuiltInResource SHADER_RESOURCE_LIMITS = {
     .maxGeometryAtomicCounterBuffers           = 0,
     .maxFragmentAtomicCounterBuffers           = 1,
     .maxCombinedAtomicCounterBuffers           = 1,
-    .maxAtomicCounterBufferSize                = 16384,
+    .maxAtomicCounterBufferSize                = 16'384,
     .maxTransformFeedbackBuffers               = 4,
     .maxTransformFeedbackInterleavedComponents = 64,
     .maxCullDistances                          = 8,
@@ -115,16 +115,17 @@ constexpr TBuiltInResource SHADER_RESOURCE_LIMITS = {
     .maxMeshViewCountEXT                       = 4,
     .maxDualSourceDrawBuffersEXT               = 1,
     .limits                                    = {
-                                           .nonInductiveForLoops                 = true,
-                                           .whileLoops                           = true,
-                                           .doWhileLoops                         = true,
-                                           .generalUniformIndexing               = true,
-                                           .generalAttributeMatrixVectorIndexing = true,
-                                           .generalVaryingIndexing               = true,
-                                           .generalSamplerIndexing               = true,
-                                           .generalVariableIndexing              = true,
-                                           .generalConstantMatrixVectorIndexing  = true,
-    }};
+                                                  .nonInductiveForLoops                 = true,
+                                                  .whileLoops                           = true,
+                                                  .doWhileLoops                         = true,
+                                                  .generalUniformIndexing               = true,
+                                                  .generalAttributeMatrixVectorIndexing = true,
+                                                  .generalVaryingIndexing               = true,
+                                                  .generalSamplerIndexing               = true,
+                                                  .generalVariableIndexing              = true,
+                                                  .generalConstantMatrixVectorIndexing  = true,
+                                                  }
+};
 
 struct Includer : glslang::TShader::Includer
 {
@@ -132,32 +133,32 @@ struct Includer : glslang::TShader::Includer
   {
   }
 
-  Includer(Includer const &)            = delete;
-  Includer(Includer &&)                 = delete;
-  Includer &operator=(Includer const &) = delete;
-  Includer &operator=(Includer &&)      = delete;
+  Includer(Includer const &)             = delete;
+  Includer(Includer &&)                  = delete;
+  Includer & operator=(Includer const &) = delete;
+  Includer & operator=(Includer &&)      = delete;
 
-  virtual IncludeResult *includeLocal(const char *header_name,
-                                      const char *includer_name,
-                                      size_t      inclusion_depth) override
+  virtual IncludeResult * includeLocal(char const * header_name,
+                                       char const * includer_name,
+                                       size_t       inclusion_depth) override
   {
     return include_path(header_name, includer_name, (int) inclusion_depth,
                         true);
   }
 
-  virtual IncludeResult *includeSystem(const char *header_name,
-                                       const char *includer_name,
-                                       size_t      inclusion_depth) override
+  virtual IncludeResult * includeSystem(char const * header_name,
+                                        char const * includer_name,
+                                        size_t       inclusion_depth) override
   {
     return include_path(header_name, includer_name, (int) inclusion_depth,
                         false);
   }
 
-  virtual void releaseInclude(IncludeResult *result) override
+  virtual void releaseInclude(IncludeResult * result) override
   {
     if (result != nullptr)
     {
-      auto *blob = reinterpret_cast<Vec<char> *>(result->userData);
+      auto * blob = reinterpret_cast<Vec<char> *>(result->userData);
       blob->reset();
       default_allocator.ndealloc(blob, 1);
       result->~IncludeResult();
@@ -169,11 +170,11 @@ struct Includer : glslang::TShader::Includer
   {
   }
 
-  IncludeResult *include_path(const char *header_name,
-                              const char *includer_name, int depth,
-                              bool is_local)
+  IncludeResult * include_path(char const * header_name,
+                               char const * includer_name, int depth,
+                               bool is_local)
   {
-    IncludeResult *result = nullptr;
+    IncludeResult * result = nullptr;
     if (is_local)
     {
       result = include_local(header_name, includer_name, depth);
@@ -192,8 +193,8 @@ struct Includer : glslang::TShader::Includer
     return include_local(header_name, includer_name, depth);
   }
 
-  IncludeResult *include_local(const char *header_name,
-                               const char *includer_name, int depth)
+  IncludeResult * include_local(char const * header_name,
+                                char const * includer_name, int depth)
   {
     (void) includer_name;
     (void) depth;
@@ -210,7 +211,9 @@ struct Includer : glslang::TShader::Includer
 
     for (Span folder : local_directories)
     {
-      std::filesystem::path cnd{std::string_view{folder.data(), folder.size()}};
+      std::filesystem::path cnd{
+          std::string_view{folder.data(), folder.size()}
+      };
       cnd /= header_name;
 
       if (std::filesystem::exists(cnd))
@@ -223,14 +226,16 @@ struct Includer : glslang::TShader::Includer
     return nullptr;
   }
 
-  IncludeResult *include_system(const char *header_name,
-                                const char *includer_name, int depth)
+  IncludeResult * include_system(char const * header_name,
+                                 char const * includer_name, int depth)
   {
     (void) includer_name;
     (void) depth;
     for (Span folder : system_directories)
     {
-      std::filesystem::path cnd{std::string_view{folder.data(), folder.size()}};
+      std::filesystem::path cnd{
+          std::string_view{folder.data(), folder.size()}
+      };
       cnd /= header_name;
 
       if (std::filesystem::exists(cnd))
@@ -242,9 +247,9 @@ struct Includer : glslang::TShader::Includer
     return nullptr;
   }
 
-  IncludeResult *include_file(char const *header_name, char const *path)
+  IncludeResult * include_file(char const * header_name, char const * path)
   {
-    Vec<u8> *blob;
+    Vec<u8> * blob;
     if (!default_allocator.nalloc(1, blob))
     {
       return nullptr;
@@ -263,7 +268,7 @@ struct Includer : glslang::TShader::Includer
       return nullptr;
     }
 
-    IncludeResult *result;
+    IncludeResult * result;
     if (!default_allocator.nalloc(1, result))
     {
       return nullptr;
@@ -281,7 +286,7 @@ struct Includer : glslang::TShader::Includer
 };
 
 ShaderCompileError
-    compile_shader(Logger &logger, Vec<u32> &spirv, Span<char const> file,
+    compile_shader(Logger & logger, Vec<u32> & spirv, Span<char const> file,
                    ShaderType type, Span<char const> preamble,
                    Span<char const>             entry_point,
                    Span<Span<char const> const> system_directories,
@@ -319,7 +324,7 @@ ShaderCompileError
       UNREACHABLE();
   }
 
-  char const      *buff_p      = (char *) buff.data();
+  char const *     buff_p      = (char *) buff.data();
   int              buff_length = (int) buff.size();
   glslang::TShader shader{language};
   shader.setStringsWithLengths(&buff_p, &buff_length, 1);
@@ -377,7 +382,7 @@ ShaderCompileError
     return ShaderCompileError::LinkFailed;
   }
 
-  glslang::TIntermediate *intermediate = program.getIntermediate(language);
+  glslang::TIntermediate * intermediate = program.getIntermediate(language);
   if (intermediate == nullptr)
   {
     return ShaderCompileError::LinkFailed;
@@ -411,10 +416,10 @@ ShaderCompileError
   return ShaderCompileError::None;
 }
 
-ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
-                               Span<char const>                        id,
-                               Span<char const> root_directory,
-                               Span<char const> file, Span<char const> preamble)
+ShaderCompileError
+    pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> & compiled,
+                Span<char const> id, Span<char const> root_directory,
+                Span<char const> file, Span<char const> preamble)
 {
   ShaderType type = ShaderType::Compute;
 
@@ -460,11 +465,11 @@ ShaderCompileError pack_shader(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
 }
 
 ShaderCompileError
-    pack_shaders(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
-                 Span<ShaderUnit const>                  entries,
-                 Span<char const>                        root_directory)
+    pack_shaders(Vec<Tuple<Span<char const>, Vec<u32>>> & compiled,
+                 Span<ShaderUnit const>                   entries,
+                 Span<char const>                         root_directory)
 {
-  for (ShaderUnit const &entry : entries)
+  for (ShaderUnit const & entry : entries)
   {
     ShaderCompileError error = pack_shader(compiled, entry.id, root_directory,
                                            entry.file, entry.preamble);

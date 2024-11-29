@@ -6,7 +6,7 @@
 namespace ash
 {
 
-ASH_C_LINKAGE ASH_DLL_EXPORT Engine *engine = nullptr;
+ASH_C_LINKAGE ASH_DLL_EXPORT Engine * engine = nullptr;
 
 EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
 {
@@ -112,7 +112,7 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
   return out;
 }
 
-void Engine::init(AllocatorImpl allocator, void *app,
+void Engine::init(AllocatorImpl allocator, void * app,
                   Span<char const> config_path, Span<char const> assets_dir)
 {
   if (logger == nullptr)
@@ -139,7 +139,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
   Dyn<gpu::Instance *> instance =
       gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
 
-  gpu::Device *device =
+  gpu::Device * device =
       instance->create_device(allocator, cfg.gpu.preferences, 2).unwrap();
 
   GpuContext gpu_ctx =
@@ -210,7 +210,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   window_system->listen(
       SystemEventTypes::All,
-      fn(engine, [](Engine *engine, SystemEvent const &event) {
+      fn(engine, [](Engine * engine, SystemEvent const & event) {
         if (event.type == SystemEventTypes::ThemeChanged)
         {
           engine->view_ctx.theme = event.theme;
@@ -219,7 +219,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   window_system->listen(
       window, WindowEventTypes::All,
-      fn(engine, [](Engine *engine, WindowEvent const &event) {
+      fn(engine, [](Engine * engine, WindowEvent const & event) {
         if (event.type == WindowEventTypes::CloseRequested)
         {
           engine->should_shutdown = true;
@@ -235,7 +235,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
       create_semaphore(allocator, cfg.shaders.size() + cfg.fonts.size())
           .unwrap();
 
-  cfg.shaders.iter([&](Vec<char> &id, Vec<char> &path) {
+  cfg.shaders.iter([&](Vec<char> & id, Vec<char> & path) {
     Vec<char> resolved_path = vec(allocator, assets_dir).unwrap();
     path_append(resolved_path, path).unwrap();
 
@@ -287,7 +287,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
     });
   });
 
-  cfg.fonts.iter([&](Vec<char> &id, Vec<char> &path) {
+  cfg.fonts.iter([&](Vec<char> & id, Vec<char> & path) {
     Vec<char> resolved_path = vec(allocator, assets_dir).unwrap();
     path_append(resolved_path, path).unwrap();
 
@@ -379,7 +379,7 @@ Engine::~Engine()
   assets.shaders.iter(
       [&](Vec<char> &, gpu::Shader shader) { device->uninit_shader(shader); });
   assets.shaders.clear();
-  assets.fonts.iter([&](Vec<char> &, Dyn<Font *> &font) {
+  assets.fonts.iter([&](Vec<char> &, Dyn<Font *> & font) {
     font->unload_from_device(gpu_ctx);
   });
   assets.fonts.clear();
@@ -499,7 +499,7 @@ void Engine::recreate_swapchain_()
   }
 }
 
-void Engine::run(View &view)
+void Engine::run(View & view)
 {
   view_ctx.timestamp = steady_clock::now();
   view_ctx.timedelta = 0ms;
@@ -556,25 +556,27 @@ void Engine::run(View &view)
          .resolve_mode = gpu::ResolveModes::None,
          .load_op      = gpu::LoadOp::Load,
          .store_op     = gpu::StoreOp::Store,
-         .clear        = {}}};
+         .clear        = {}}
+    };
 
     RenderTarget rt{
         .info =
             gpu::RenderingInfo{
-                .render_area        = {.offset = {},
+                               .render_area        = {.offset = {},
                                        .extent = gpu_ctx.screen_fb.extent},
-                .num_layers         = 1,
-                .color_attachments  = span(attachments),
-                .depth_attachment   = {},
-                .stencil_attachment = {}},
+                               .num_layers         = 1,
+                               .color_attachments  = span(attachments),
+                               .depth_attachment   = {},
+                               .stencil_attachment = {}},
         .viewport           = gpu::Viewport{.offset = {0, 0},
-                                            .extent = as_vec2(gpu_ctx.screen_fb.extent),
-                                            .min_depth = 0,
-                                            .max_depth = 1},
+                               .extent = as_vec2(gpu_ctx.screen_fb.extent),
+                               .min_depth = 0,
+                               .max_depth = 1},
         .extent             = gpu_ctx.screen_fb.extent,
         .color_descriptor   = gpu_ctx.screen_fb.color_texture,
         .depth_descriptor   = nullptr,
-        .stencil_descriptor = nullptr};
+        .stencil_descriptor = nullptr
+    };
 
     canvas.begin_recording(Vec2{(f32) rt.extent.x, (f32) rt.extent.y},
                            rt.extent);
