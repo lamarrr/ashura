@@ -385,4 +385,52 @@ void iota(Span<T> s, T first)
   };
 }
 
+template <typename T, typename Op = Add>
+constexpr T inclusive_scan(Span<T const> input, Span<T> output, T &&init = {},
+                           Op &&op = {})
+{
+  T const *in  = input.begin();
+  T       *out = output.begin();
+
+  while (in != input.end())
+  {
+    *out = (T &&) init;
+    init = op(*out, *in);
+    in++;
+    out++;
+  }
+
+  return init;
+}
+
+template <typename T>
+constexpr T prefix_sum(Span<T const> input, Span<T> output, T &&init = {})
+{
+  return inclusive_scan(input, output, (T &&) init, Add{});
+}
+
+template <typename T, typename Op = Add>
+constexpr T exclusive_scan(Span<T const> input, Span<T> output,
+                              T &&init = {}, Op &&op = {})
+{
+  T const *in  = input.begin();
+  T       *out = output.begin();
+
+  while (in != input.end())
+  {
+    *out = op((T &&) init, *in);
+    init = *out;
+    in++;
+    out++;
+  }
+
+  return init;
+}
+
+template <typename T>
+constexpr T suffix_sum(Span<T const> input, Span<T> output, T &&init = {})
+{
+  return exclusive_scan(input, output, (T &&) init, Add{});
+}
+
 }        // namespace  ash
