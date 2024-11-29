@@ -29,7 +29,7 @@ Result<> join(Span<Span<C const> const> strings, Span<C const> delimiter,
     }
   }
 
-  if (!out.extend_copy(strings[strings.size() - 1]))
+  if (!out.extend_copy(strings.last()))
   {
     out.resize_uninit(initial_size).unwrap();
     return Err{};

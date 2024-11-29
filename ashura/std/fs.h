@@ -186,8 +186,7 @@ Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> &buff);
 
 inline Result<> path_append(Vec<char> &path, Span<char const> tail)
 {
-  if (!path.is_empty() && path[path.size() - 1] != '/' &&
-      path[path.size() - 1] != '\\')
+  if (!path.is_empty() && path.last() != '/' && path.last() != '\\')
   {
     if (!path.push('/'))
     {

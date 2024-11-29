@@ -857,7 +857,7 @@ struct Array
 
   T data_[SIZE]{};
 
-  constexpr bool is_empty() const
+  static constexpr bool is_empty()
   {
     return false;
   }
@@ -872,19 +872,29 @@ struct Array
     return data_;
   }
 
-  constexpr usize size() const
+  static constexpr usize size()
   {
     return SIZE;
   }
 
-  constexpr usize size_bytes() const
+  static constexpr u32 size32()
   {
-    return sizeof(T) * SIZE;
+    return (u32) SIZE;
   }
 
-  constexpr T const *begin() const
+  static constexpr u64 size64()
   {
-    return data_;
+    return (u64) SIZE;
+  }
+
+  static constexpr usize capacity()
+  {
+    return SIZE;
+  }
+
+  static constexpr usize size_bytes()
+  {
+    return sizeof(T) * SIZE;
   }
 
   constexpr T *begin()
@@ -892,14 +902,55 @@ struct Array
     return data_;
   }
 
-  constexpr T const *end() const
+  constexpr T const *begin() const
   {
-    return data_ + SIZE;
+    return data_;
   }
 
   constexpr T *end()
   {
     return data_ + SIZE;
+  }
+
+  constexpr T const *end() const
+  {
+    return data_ + SIZE;
+  }
+
+  constexpr T &first()
+  {
+    return get(0);
+  }
+
+  constexpr T const &first() const
+  {
+    return get(0);
+  }
+
+  constexpr T &last()
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T const &last() const
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T &get(usize index)
+  {
+    return data_[index];
+  }
+
+  constexpr T const &get(usize index) const
+  {
+    return data_[index];
+  }
+
+  template <typename... Args>
+  constexpr void set(usize index, Args &&...args)
+  {
+    data_[index] = T{((Args &&) args)...};
   }
 
   constexpr T &operator[](usize index)
@@ -912,12 +963,12 @@ struct Array
     return data_[index];
   }
 
-  constexpr operator T const *() const
+  constexpr operator T *()
   {
     return data_;
   }
 
-  constexpr operator T *()
+  constexpr operator T const *() const
   {
     return data_;
   }
@@ -1006,6 +1057,16 @@ struct Span
     return data_ + size_;
   }
 
+  constexpr T &first() const
+  {
+    return get(0);
+  }
+
+  constexpr T &last() const
+  {
+    return get(size_ - 1);
+  }
+
   constexpr T &operator[](usize index) const
   {
     return data_[index];
@@ -1072,7 +1133,8 @@ struct Span
   template <typename U>
   Span<U> reinterpret() const
   {
-    return Span<U>{(U *) data_, (sizeof(T) * size_) / sizeof(U)};
+    return Span<U>{reinterpret_cast<U *>(data_),
+                   (sizeof(T) * size_) / sizeof(U)};
   }
 };
 
@@ -1335,47 +1397,47 @@ struct BitSpan
 
   constexpr bool operator[](usize index) const
   {
-    return ::ash::get_bit(repr_, index);
+    return ash::get_bit(repr_, index);
   }
 
   constexpr bool get(usize index) const
   {
-    return ::ash::get_bit(repr_, index);
+    return ash::get_bit(repr_, index);
   }
 
   constexpr void set(usize index, bool value) const
   {
-    ::ash::assign_bit(repr_, index, value);
+    ash::assign_bit(repr_, index, value);
   }
 
   constexpr bool get_bit(usize index) const
   {
-    return ::ash::get_bit(repr_, index);
+    return ash::get_bit(repr_, index);
   }
 
   constexpr bool set_bit(usize index) const
   {
-    return ::ash::set_bit(repr_, index);
+    return ash::set_bit(repr_, index);
   }
 
   constexpr bool clear_bit(usize index) const
   {
-    return ::ash::clear_bit(repr_, index);
+    return ash::clear_bit(repr_, index);
   }
 
   constexpr void flip_bit(usize index) const
   {
-    ::ash::flip_bit(repr_, index);
+    ash::flip_bit(repr_, index);
   }
 
   constexpr usize find_set_bit()
   {
-    return min(::ash::find_set_bit(repr_), size());
+    return min(ash::find_set_bit(repr_), size());
   }
 
   constexpr usize find_clear_bit()
   {
-    return min(::ash::find_clear_bit(repr_), size());
+    return min(ash::find_clear_bit(repr_), size());
   }
 
   constexpr operator BitSpan<R const>() const
@@ -1461,7 +1523,7 @@ template <typename R, typename... Args>
 struct PFnTraits<R(Args...)>
 {
   using Ptr    = R (*)(Args...);
-  using Fn     = ::ash::Fn<R(Args...)>;
+  using Fn     = ash::Fn<R(Args...)>;
   using Return = R;
   using Thunk  = PFnThunk<R(Args...)>;
 };
@@ -1491,7 +1553,7 @@ template <class T, typename R, typename... Args>
 struct MemberFnTraits<R (T::*)(Args...)>
 {
   using Ptr    = R (*)(Args...);
-  using Fn     = ::ash::Fn<R(Args...)>;
+  using Fn     = ash::Fn<R(Args...)>;
   using Type   = T;
   using Return = R;
   using Thunk  = FunctorThunk<T, R(Args...)>;
@@ -1502,7 +1564,7 @@ template <class T, typename R, typename... Args>
 struct MemberFnTraits<R (T::*)(Args...) const>
 {
   using Ptr    = R (*)(Args...);
-  using Fn     = ::ash::Fn<R(Args...)>;
+  using Fn     = ash::Fn<R(Args...)>;
   using Type   = T const;
   using Return = R;
   using Thunk  = FunctorThunk<T const, R(Args...)>;

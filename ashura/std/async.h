@@ -828,17 +828,17 @@ TaskInfo to_task_info(F &frame)
       fn(&frame, [](F *frame, void *mem) { new (mem) F{(F &&) (*frame)}; });
 
   TaskInfo::Uninit uninit = [](void *f) {
-    F *frame = (F *) f;
+    F *frame = reinterpret_cast<F *>(f);
     frame->~F();
   };
 
   TaskInfo::Poll poll = [](void *f) -> bool {
-    F *frame = (F *) f;
+    F *frame = reinterpret_cast<F *>(f);
     return frame->poll();
   };
 
   TaskInfo::Run run = [](void *f) -> bool {
-    F *frame = (F *) f;
+    F *frame = reinterpret_cast<F *>(f);
     return frame->run();
   };
 
@@ -1060,7 +1060,7 @@ template <Callable F, Callable... F1, Poll P = Ready>
 void once(Tuple<F, F1...> fns, P poll = {}, TaskSchedule schedule = {})
 {
   TaskBody body{[fns = std::move(fns)]() mutable -> bool {
-                  ::ash::fold(fns);
+                  ash::fold(fns);
                   return false;
                 },
                 std::move(poll)};
