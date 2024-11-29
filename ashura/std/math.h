@@ -110,6 +110,24 @@ constexpr f64 to_radians(f64 degree)
   return PI * degree * 0.00555555555;
 }
 
+inline f32 sqrt(f32 x)
+{
+  return std::sqrt(x);
+}
+
+inline f64 sqrt(f64 x)
+{
+  return std::sqrt(x);
+}
+
+constexpr f32 invsqrt(f32 x)
+{
+  // (enable only on IEEE 754)
+  static_assert(std::numeric_limits<f32>::is_iec559);
+  f32 const y = std::bit_cast<f32>(0x5F3759DF - (std::bit_cast<u32>(x) >> 1));
+  return y * (1.5F - (x * 0.5F * y * y));
+}
+
 /// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
 /// value is 0
 constexpr u8 ulog2(u8 value)
@@ -239,6 +257,87 @@ constexpr T catmull_rom(T const &p0, T const &p1, T const &p2, T const &p3,
   return 0.5F *
          ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
           (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+}
+
+/// @brief Elastic Easing
+/// @param amplitude strength of the elastic effect (default = 1.0)
+/// @param period length of the oscillation (default = 0.3)
+/// @note Based on Robert Penner's elastic easing
+/// (http://robertpenner.com/easing/)
+inline f32 elastic(f32 amplitude, f32 period, f32 t)
+{
+  constexpr f32 TWO_PI = 2.0F * PI;
+  f32 const     s      = (period / TWO_PI) * std::asin(1 / amplitude);
+  f32 const     factor = amplitude * std::pow(2.0F, -10.0F * t) *
+                         std::sin((t - s) * (TWO_PI / period)) +
+                     1.0F;
+  return factor;
+}
+
+/// @brief EaseOut Bounce
+/// @param strength strength of the bounce effect (default = 1.0)
+/// @note Based on Robert Penner's easeOutBounce
+/// (http://robertpenner.com/easing/)
+constexpr f32 bounce(f32 strength, f32 t)
+{
+  // Inverse the time to create an ease-out effect
+  t = 1.0F - t;
+
+  if (t < (1.0F / 2.75F))
+  {
+    return 1.0F - (7.5625F * t * t * strength);
+  }
+  else if (t < (2.0F / 2.75F))
+  {
+    t -= 1.5F / 2.75F;
+    return 1.0F - (7.5625F * t * t * strength + 0.75F);
+  }
+  else if (t < (2.5F / 2.75F))
+  {
+    t -= 2.25F / 2.75F;
+    return 1.0F - (7.5625F * t * t * strength + 0.9375F);
+  }
+  else
+  {
+    t -= 2.625F / 2.75F;
+    return 1.0F - (7.5625F * t * t * strength + 0.984375F);
+  }
+}
+
+/// @brief Spring-based Elastic Easing based on simple harmonic motion with
+/// damping
+///
+/// The default behavior is a tight spring effect, tune the parameters to give
+/// a desired effect.
+/// @param mass: Oscillator mass (default: 1.0)
+/// @param stiffness: Spring constant (default: 20.0)
+/// @param damping: Damping coefficient (default: 10.0F)
+///
+/// @note https://www.ryanjuckett.com/damped-springs/
+///
+inline f32 spring(f32 mass, f32 stiffness, f32 damping, f32 t)
+{
+  // Calculate critical damping factors
+  f32 const omega0           = std::sqrt(stiffness / mass);
+  f32 const critical_damping = 2.0F * std::sqrt(mass * stiffness);
+  f32 const damping_ratio    = damping / critical_damping;
+
+  // Underdamped
+  if (damping_ratio < 1.0F)
+  {
+    f32 const omega_d =
+        omega0 * std::sqrt(1.0F - damping_ratio * damping_ratio);
+    return 1.0F -
+           std::exp(-damping_ratio * omega0 * t) *
+               (std::cos(omega_d * t) +
+                (damping_ratio * omega0 / omega_d) * std::sin(omega_d * t));
+  }
+
+  // Overdamped or critically damped
+  f32 const alpha = -damping_ratio * omega0;
+  f32 const beta  = omega0 * std::sqrt(damping_ratio * damping_ratio - 1.0F);
+  return 1.0F - (std::exp(alpha * t) *
+                 (std::cosh(beta * t) + (alpha / beta) * std::sinh(beta * t)));
 }
 
 constexpr f32 step(f32 a, f32 t)
@@ -1384,27 +1483,19 @@ constexpr Vec3I cross(Vec3I a, Vec3I b)
                a.x * b.y - a.y * b.x};
 }
 
-constexpr f32 inverse_sqrt(f32 num)
-{
-  // (enable only on IEEE 754)
-  static_assert(std::numeric_limits<f32>::is_iec559);
-  f32 const y = std::bit_cast<f32>(0x5F3759DF - (std::bit_cast<u32>(num) >> 1));
-  return y * (1.5F - (num * 0.5F * y * y));
-}
-
 constexpr Vec2 normalize(Vec2 a)
 {
-  return a * inverse_sqrt(dot(a, a));
+  return a * invsqrt(dot(a, a));
 }
 
 constexpr Vec3 normalize(Vec3 a)
 {
-  return a * inverse_sqrt(dot(a, a));
+  return a * invsqrt(dot(a, a));
 }
 
 constexpr Vec4 normalize(Vec4 a)
 {
-  return a * inverse_sqrt(dot(a, a));
+  return a * invsqrt(dot(a, a));
 }
 
 struct Mat2
