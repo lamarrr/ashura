@@ -55,7 +55,7 @@ struct ImageSpan
 
   constexpr ImageSpan slice(Vec2U offset) const
   {
-    return slice(offset, Vec2::splat(U32_MAX));
+    return slice(offset, Vec2U::splat(U32_MAX));
   }
 
   constexpr operator ImageSpan<R const, C>() const
