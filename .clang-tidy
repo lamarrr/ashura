@@ -1,5 +1,4 @@
-Checks: "clang-diagnostic-*,clang-analyzer-*,google-*,-google-readability-casting,readability-*,bugprone-*,-bugprone-easily-swappable-parameters,cert-*,llvm-*,-llvm-header-guard,performance-*,cppcoreguidelines-*"
+Checks: "clang-diagnostic-*,clang-analyzer-*,google-*,-google-readability-casting,readability-*,bugprone-*,-bugprone-easily-swappable-parameters,cert-*,llvm-*,-llvm-header-guard,performance-*"
 WarningsAsErrors: ""
 HeaderFilterRegex: ""
-AnalyzeTemporaryDtors: false
 FormatStyle: file
