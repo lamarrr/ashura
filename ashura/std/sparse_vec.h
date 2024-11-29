@@ -262,10 +262,10 @@ struct SparseVec
     template <typename Tuple, typename Head, typename... Tail>
     static constexpr void push(Tuple &t, Head &&head, Tail &&...tail)
     {
-      get<I>(t).push((Head &&) head).unwrap();
+      get<I>(t).push(static_cast<Head &&>(head)).unwrap();
       if constexpr (sizeof...(tail) != 0)
       {
-        Pusher<I + 1>::push(t, ((Tail &&) tail)...);
+        Pusher<I + 1>::push(t, static_cast<Tail &&>(tail)...);
       }
     }
   };
@@ -293,7 +293,7 @@ struct SparseVec
       return Err{};
     }
 
-    Pusher<0>::push(dense, ((Args &&) args)...);
+    Pusher<0>::push(dense, static_cast<Args &&>(args)...);
     return id;
   }
 };

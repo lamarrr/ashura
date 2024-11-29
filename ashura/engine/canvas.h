@@ -299,7 +299,7 @@ struct Canvas
   {
     // relocate lambda to heap
     Dyn<Lambda *> lambda =
-        dyn(frame_arena.to_allocator(), (Lambda &&) task).unwrap();
+        dyn(frame_arena.to_allocator(), static_cast<Lambda &&>(task)).unwrap();
     // allocator is noop-ed but destructor still runs when the dynamic object is
     // uninitialized. the memory is freed by at the end of the frame anyway so
     // no need to free it

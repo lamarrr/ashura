@@ -54,11 +54,12 @@ struct [[nodiscard]] Result
     }
   }
 
-  constexpr Result(Ok<T> ok) : is_ok_{true}, value_{(T &&) ok.value}
+  constexpr Result(Ok<T> ok) : is_ok_{true}, value_{static_cast<T &&>(ok.value)}
   {
   }
 
-  constexpr Result(Err<E> err) : is_ok_{false}, err_{(E &&) err.value}
+  constexpr Result(Err<E> err) :
+      is_ok_{false}, err_{static_cast<E &&>(err.value)}
   {
   }
 
@@ -66,11 +67,11 @@ struct [[nodiscard]] Result
   {
     if (other.is_ok_)
     {
-      new (&value_) T{(T &&) other.value_};
+      new (&value_) T{static_cast<T &&>(other.value_)};
     }
     else
     {
-      new (&err_) E{(E &&) other.err_};
+      new (&err_) E{static_cast<E &&>(other.err_)};
     }
   }
 
@@ -94,11 +95,11 @@ struct [[nodiscard]] Result
 
     if (other.is_ok_)
     {
-      new (&value_) T{(T &&) other.value_};
+      new (&value_) T{static_cast<T &&>(other.value_)};
     }
     else
     {
-      new (&err_) E{(E &&) other.err_};
+      new (&err_) E{static_cast<E &&>(other.err_)};
     }
 
     return *this;
@@ -116,7 +117,7 @@ struct [[nodiscard]] Result
     }
 
     is_ok_ = true;
-    new (&value_) T{(T &&) other.value};
+    new (&value_) T{static_cast<T &&>(other.value)};
     return *this;
   }
 
@@ -132,7 +133,7 @@ struct [[nodiscard]] Result
     }
 
     is_ok_ = false;
-    new (&err_) E{(E &&) other.value};
+    new (&err_) E{static_cast<E &&>(other.value)};
     return *this;
   }
 
@@ -260,10 +261,10 @@ struct [[nodiscard]] Result
   template <typename Fn>
   constexpr auto map(Fn &&op)
   {
-    using U = decltype(((Fn &&) op)(value_));
+    using U = decltype(static_cast<Fn &&>(op)(value_));
     if (is_ok_)
     {
-      return Result<U, E>{Ok<U>{((Fn &&) op)(value_)}};
+      return Result<U, E>{Ok<U>{static_cast<Fn &&>(op)(value_)}};
     }
     return Result<U, E>{Err{err_}};
   }
@@ -273,9 +274,9 @@ struct [[nodiscard]] Result
   {
     if (is_ok_)
     {
-      return ((Fn &&) op)(value_);
+      return static_cast<Fn &&>(op)(value_);
     }
-    return (U &&) alt;
+    return static_cast<U &&>(alt);
   }
 
   template <typename Fn, typename AltFn>
@@ -283,18 +284,18 @@ struct [[nodiscard]] Result
   {
     if (is_ok_)
     {
-      return ((Fn &&) op)(value_);
+      return static_cast<Fn &&>(op)(value_);
     }
-    return ((AltFn &&) alt_op)(err_);
+    return static_cast<AltFn &&>(alt_op)(err_);
   }
 
   template <typename Fn>
   constexpr auto and_then(Fn &&op)
   {
-    using OutResult = decltype(((Fn &&) op)(value_));
+    using OutResult = decltype(static_cast<Fn &&>(op)(value_));
     if (is_ok_)
     {
-      return ((Fn &&) op)(value_);
+      return static_cast<Fn &&>(op)(value_);
     }
     return OutResult{Err{err_}};
   }
@@ -302,12 +303,12 @@ struct [[nodiscard]] Result
   template <typename Fn>
   constexpr auto or_else(Fn &&op)
   {
-    using OutResult = decltype(((Fn &&) op)(err_));
+    using OutResult = decltype(static_cast<Fn &&>(op)(err_));
     if (is_ok_)
     {
       return OutResult{Ok{value_}};
     }
-    return ((Fn &&) op)(err_);
+    return static_cast<Fn &&>(op)(err_);
   }
 
   template <typename U>
@@ -315,9 +316,9 @@ struct [[nodiscard]] Result
   {
     if (is_ok_)
     {
-      return (T &&) value_;
+      return static_cast<T &&>(value_);
     }
-    return (U &&) alt;
+    return static_cast<U &&>(alt);
   }
 
   template <typename Fn>
@@ -325,37 +326,37 @@ struct [[nodiscard]] Result
   {
     if (is_ok_)
     {
-      return (T &&) value_;
+      return static_cast<T &&>(value_);
     }
-    return ((Fn &&) op)(err_);
+    return static_cast<Fn &&>(op)(err_);
   }
 
   constexpr T unwrap(SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, is_ok_,
                    "Expected Value in Result but got Err = ", err_);
-    return (T &&) value_;
+    return static_cast<T &&>(value_);
   }
 
   constexpr T expect(char const    *msg,
                      SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, is_ok_, msg, " ", err_);
-    return (T &&) value_;
+    return static_cast<T &&>(value_);
   }
 
   constexpr E unwrap_err(SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, !is_ok_,
                    "Expected Err in Result but got Value = ", value_);
-    return (E &&) err_;
+    return static_cast<E &&>(err_);
   }
 
   constexpr E expect_err(char const    *msg,
                          SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, !is_ok_, msg, " ", value_);
-    return (E &&) err_;
+    return static_cast<E &&>(err_);
   }
 
   template <typename OkFn, typename ErrFn>

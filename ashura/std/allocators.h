@@ -204,7 +204,7 @@ struct ArenaPool final : Allocator
       return *this;
     }
     uninit();
-    new (this) ArenaPool{(ArenaPool &&) other};
+    new (this) ArenaPool{static_cast<ArenaPool &&>(other)};
     return *this;
   }
 

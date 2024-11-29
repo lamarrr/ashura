@@ -110,7 +110,7 @@ if constexpr(I == 15)
 template<typename E, typename... Args>
 constexpr void enum_member_construct(E * e, Args&&... args )
 {
-    new (e) E { ((Args&&)args)...  };
+    new (e) E { static_cast<Args &&>(args)...  };
 }
 
 template<typename E>
@@ -278,7 +278,7 @@ if constexpr(Dst::SIZE > 0)
 {
 if(src->index_ == 0)
 {
-    enum_member_construct(&dst->v0_, (typename Src::E0 &&) src->v0_);
+    enum_member_construct(&dst->v0_, static_cast<typename Src::E0 &&>(src->v0_));
     return;
 }
 }
@@ -287,7 +287,7 @@ if constexpr(Dst::SIZE > 1)
 {
 if(src->index_ == 1)
 {
-    enum_member_construct(&dst->v1_, (typename Src::E1 &&) src->v1_);
+    enum_member_construct(&dst->v1_, static_cast<typename Src::E1 &&>(src->v1_));
     return;
 }
 }
@@ -296,7 +296,7 @@ if constexpr(Dst::SIZE > 2)
 {
 if(src->index_ == 2)
 {
-    enum_member_construct(&dst->v2_, (typename Src::E2 &&) src->v2_);
+    enum_member_construct(&dst->v2_, static_cast<typename Src::E2 &&>(src->v2_));
     return;
 }
 }
@@ -305,7 +305,7 @@ if constexpr(Dst::SIZE > 3)
 {
 if(src->index_ == 3)
 {
-    enum_member_construct(&dst->v3_, (typename Src::E3 &&) src->v3_);
+    enum_member_construct(&dst->v3_, static_cast<typename Src::E3 &&>(src->v3_));
     return;
 }
 }
@@ -314,7 +314,7 @@ if constexpr(Dst::SIZE > 4)
 {
 if(src->index_ == 4)
 {
-    enum_member_construct(&dst->v4_, (typename Src::E4 &&) src->v4_);
+    enum_member_construct(&dst->v4_, static_cast<typename Src::E4 &&>(src->v4_));
     return;
 }
 }
@@ -323,7 +323,7 @@ if constexpr(Dst::SIZE > 5)
 {
 if(src->index_ == 5)
 {
-    enum_member_construct(&dst->v5_, (typename Src::E5 &&) src->v5_);
+    enum_member_construct(&dst->v5_, static_cast<typename Src::E5 &&>(src->v5_));
     return;
 }
 }
@@ -332,7 +332,7 @@ if constexpr(Dst::SIZE > 6)
 {
 if(src->index_ == 6)
 {
-    enum_member_construct(&dst->v6_, (typename Src::E6 &&) src->v6_);
+    enum_member_construct(&dst->v6_, static_cast<typename Src::E6 &&>(src->v6_));
     return;
 }
 }
@@ -341,7 +341,7 @@ if constexpr(Dst::SIZE > 7)
 {
 if(src->index_ == 7)
 {
-    enum_member_construct(&dst->v7_, (typename Src::E7 &&) src->v7_);
+    enum_member_construct(&dst->v7_, static_cast<typename Src::E7 &&>(src->v7_));
     return;
 }
 }
@@ -350,7 +350,7 @@ if constexpr(Dst::SIZE > 8)
 {
 if(src->index_ == 8)
 {
-    enum_member_construct(&dst->v8_, (typename Src::E8 &&) src->v8_);
+    enum_member_construct(&dst->v8_, static_cast<typename Src::E8 &&>(src->v8_));
     return;
 }
 }
@@ -359,7 +359,7 @@ if constexpr(Dst::SIZE > 9)
 {
 if(src->index_ == 9)
 {
-    enum_member_construct(&dst->v9_, (typename Src::E9 &&) src->v9_);
+    enum_member_construct(&dst->v9_, static_cast<typename Src::E9 &&>(src->v9_));
     return;
 }
 }
@@ -368,7 +368,7 @@ if constexpr(Dst::SIZE > 10)
 {
 if(src->index_ == 10)
 {
-    enum_member_construct(&dst->v10_, (typename Src::E10 &&) src->v10_);
+    enum_member_construct(&dst->v10_, static_cast<typename Src::E10 &&>(src->v10_));
     return;
 }
 }
@@ -377,7 +377,7 @@ if constexpr(Dst::SIZE > 11)
 {
 if(src->index_ == 11)
 {
-    enum_member_construct(&dst->v11_, (typename Src::E11 &&) src->v11_);
+    enum_member_construct(&dst->v11_, static_cast<typename Src::E11 &&>(src->v11_));
     return;
 }
 }
@@ -386,7 +386,7 @@ if constexpr(Dst::SIZE > 12)
 {
 if(src->index_ == 12)
 {
-    enum_member_construct(&dst->v12_, (typename Src::E12 &&) src->v12_);
+    enum_member_construct(&dst->v12_, static_cast<typename Src::E12 &&>(src->v12_));
     return;
 }
 }
@@ -395,7 +395,7 @@ if constexpr(Dst::SIZE > 13)
 {
 if(src->index_ == 13)
 {
-    enum_member_construct(&dst->v13_, (typename Src::E13 &&) src->v13_);
+    enum_member_construct(&dst->v13_, static_cast<typename Src::E13 &&>(src->v13_));
     return;
 }
 }
@@ -404,7 +404,7 @@ if constexpr(Dst::SIZE > 14)
 {
 if(src->index_ == 14)
 {
-    enum_member_construct(&dst->v14_, (typename Src::E14 &&) src->v14_);
+    enum_member_construct(&dst->v14_, static_cast<typename Src::E14 &&>(src->v14_));
     return;
 }
 }
@@ -413,7 +413,7 @@ if constexpr(Dst::SIZE > 15)
 {
 if(src->index_ == 15)
 {
-    enum_member_construct(&dst->v15_, (typename Src::E15 &&) src->v15_);
+    enum_member_construct(&dst->v15_, static_cast<typename Src::E15 &&>(src->v15_));
     return;
 }
 }
@@ -666,13 +666,13 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
@@ -767,19 +767,19 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
@@ -876,25 +876,25 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
@@ -993,31 +993,31 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
@@ -1118,37 +1118,37 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
@@ -1251,43 +1251,43 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
@@ -1392,49 +1392,49 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
 constexpr Enum(T6 v) :
 index_{6},
-v6_{(T6 &&) v}
+v6_{static_cast<T6 &&>(v)}
 { }
 
 
@@ -1541,55 +1541,55 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
 constexpr Enum(T6 v) :
 index_{6},
-v6_{(T6 &&) v}
+v6_{static_cast<T6 &&>(v)}
 { }
 
 
 constexpr Enum(T7 v) :
 index_{7},
-v7_{(T7 &&) v}
+v7_{static_cast<T7 &&>(v)}
 { }
 
 
@@ -1698,61 +1698,61 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
 constexpr Enum(T6 v) :
 index_{6},
-v6_{(T6 &&) v}
+v6_{static_cast<T6 &&>(v)}
 { }
 
 
 constexpr Enum(T7 v) :
 index_{7},
-v7_{(T7 &&) v}
+v7_{static_cast<T7 &&>(v)}
 { }
 
 
 constexpr Enum(T8 v) :
 index_{8},
-v8_{(T8 &&) v}
+v8_{static_cast<T8 &&>(v)}
 { }
 
 
@@ -1863,67 +1863,67 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
 constexpr Enum(T6 v) :
 index_{6},
-v6_{(T6 &&) v}
+v6_{static_cast<T6 &&>(v)}
 { }
 
 
 constexpr Enum(T7 v) :
 index_{7},
-v7_{(T7 &&) v}
+v7_{static_cast<T7 &&>(v)}
 { }
 
 
 constexpr Enum(T8 v) :
 index_{8},
-v8_{(T8 &&) v}
+v8_{static_cast<T8 &&>(v)}
 { }
 
 
 constexpr Enum(T9 v) :
 index_{9},
-v9_{(T9 &&) v}
+v9_{static_cast<T9 &&>(v)}
 { }
 
 
@@ -2036,73 +2036,73 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
 constexpr Enum(T6 v) :
 index_{6},
-v6_{(T6 &&) v}
+v6_{static_cast<T6 &&>(v)}
 { }
 
 
 constexpr Enum(T7 v) :
 index_{7},
-v7_{(T7 &&) v}
+v7_{static_cast<T7 &&>(v)}
 { }
 
 
 constexpr Enum(T8 v) :
 index_{8},
-v8_{(T8 &&) v}
+v8_{static_cast<T8 &&>(v)}
 { }
 
 
 constexpr Enum(T9 v) :
 index_{9},
-v9_{(T9 &&) v}
+v9_{static_cast<T9 &&>(v)}
 { }
 
 
 constexpr Enum(T10 v) :
 index_{10},
-v10_{(T10 &&) v}
+v10_{static_cast<T10 &&>(v)}
 { }
 
 
@@ -2217,79 +2217,79 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
 constexpr Enum(T6 v) :
 index_{6},
-v6_{(T6 &&) v}
+v6_{static_cast<T6 &&>(v)}
 { }
 
 
 constexpr Enum(T7 v) :
 index_{7},
-v7_{(T7 &&) v}
+v7_{static_cast<T7 &&>(v)}
 { }
 
 
 constexpr Enum(T8 v) :
 index_{8},
-v8_{(T8 &&) v}
+v8_{static_cast<T8 &&>(v)}
 { }
 
 
 constexpr Enum(T9 v) :
 index_{9},
-v9_{(T9 &&) v}
+v9_{static_cast<T9 &&>(v)}
 { }
 
 
 constexpr Enum(T10 v) :
 index_{10},
-v10_{(T10 &&) v}
+v10_{static_cast<T10 &&>(v)}
 { }
 
 
 constexpr Enum(T11 v) :
 index_{11},
-v11_{(T11 &&) v}
+v11_{static_cast<T11 &&>(v)}
 { }
 
 
@@ -2406,85 +2406,85 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
 constexpr Enum(T6 v) :
 index_{6},
-v6_{(T6 &&) v}
+v6_{static_cast<T6 &&>(v)}
 { }
 
 
 constexpr Enum(T7 v) :
 index_{7},
-v7_{(T7 &&) v}
+v7_{static_cast<T7 &&>(v)}
 { }
 
 
 constexpr Enum(T8 v) :
 index_{8},
-v8_{(T8 &&) v}
+v8_{static_cast<T8 &&>(v)}
 { }
 
 
 constexpr Enum(T9 v) :
 index_{9},
-v9_{(T9 &&) v}
+v9_{static_cast<T9 &&>(v)}
 { }
 
 
 constexpr Enum(T10 v) :
 index_{10},
-v10_{(T10 &&) v}
+v10_{static_cast<T10 &&>(v)}
 { }
 
 
 constexpr Enum(T11 v) :
 index_{11},
-v11_{(T11 &&) v}
+v11_{static_cast<T11 &&>(v)}
 { }
 
 
 constexpr Enum(T12 v) :
 index_{12},
-v12_{(T12 &&) v}
+v12_{static_cast<T12 &&>(v)}
 { }
 
 
@@ -2603,91 +2603,91 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
 constexpr Enum(T6 v) :
 index_{6},
-v6_{(T6 &&) v}
+v6_{static_cast<T6 &&>(v)}
 { }
 
 
 constexpr Enum(T7 v) :
 index_{7},
-v7_{(T7 &&) v}
+v7_{static_cast<T7 &&>(v)}
 { }
 
 
 constexpr Enum(T8 v) :
 index_{8},
-v8_{(T8 &&) v}
+v8_{static_cast<T8 &&>(v)}
 { }
 
 
 constexpr Enum(T9 v) :
 index_{9},
-v9_{(T9 &&) v}
+v9_{static_cast<T9 &&>(v)}
 { }
 
 
 constexpr Enum(T10 v) :
 index_{10},
-v10_{(T10 &&) v}
+v10_{static_cast<T10 &&>(v)}
 { }
 
 
 constexpr Enum(T11 v) :
 index_{11},
-v11_{(T11 &&) v}
+v11_{static_cast<T11 &&>(v)}
 { }
 
 
 constexpr Enum(T12 v) :
 index_{12},
-v12_{(T12 &&) v}
+v12_{static_cast<T12 &&>(v)}
 { }
 
 
 constexpr Enum(T13 v) :
 index_{13},
-v13_{(T13 &&) v}
+v13_{static_cast<T13 &&>(v)}
 { }
 
 
@@ -2808,97 +2808,97 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
 constexpr Enum(T6 v) :
 index_{6},
-v6_{(T6 &&) v}
+v6_{static_cast<T6 &&>(v)}
 { }
 
 
 constexpr Enum(T7 v) :
 index_{7},
-v7_{(T7 &&) v}
+v7_{static_cast<T7 &&>(v)}
 { }
 
 
 constexpr Enum(T8 v) :
 index_{8},
-v8_{(T8 &&) v}
+v8_{static_cast<T8 &&>(v)}
 { }
 
 
 constexpr Enum(T9 v) :
 index_{9},
-v9_{(T9 &&) v}
+v9_{static_cast<T9 &&>(v)}
 { }
 
 
 constexpr Enum(T10 v) :
 index_{10},
-v10_{(T10 &&) v}
+v10_{static_cast<T10 &&>(v)}
 { }
 
 
 constexpr Enum(T11 v) :
 index_{11},
-v11_{(T11 &&) v}
+v11_{static_cast<T11 &&>(v)}
 { }
 
 
 constexpr Enum(T12 v) :
 index_{12},
-v12_{(T12 &&) v}
+v12_{static_cast<T12 &&>(v)}
 { }
 
 
 constexpr Enum(T13 v) :
 index_{13},
-v13_{(T13 &&) v}
+v13_{static_cast<T13 &&>(v)}
 { }
 
 
 constexpr Enum(T14 v) :
 index_{14},
-v14_{(T14 &&) v}
+v14_{static_cast<T14 &&>(v)}
 { }
 
 
@@ -3021,103 +3021,103 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }
 
 
 constexpr Enum(T0 v) :
 index_{0},
-v0_{(T0 &&) v}
+v0_{static_cast<T0 &&>(v)}
 { }
 
 
 constexpr Enum(T1 v) :
 index_{1},
-v1_{(T1 &&) v}
+v1_{static_cast<T1 &&>(v)}
 { }
 
 
 constexpr Enum(T2 v) :
 index_{2},
-v2_{(T2 &&) v}
+v2_{static_cast<T2 &&>(v)}
 { }
 
 
 constexpr Enum(T3 v) :
 index_{3},
-v3_{(T3 &&) v}
+v3_{static_cast<T3 &&>(v)}
 { }
 
 
 constexpr Enum(T4 v) :
 index_{4},
-v4_{(T4 &&) v}
+v4_{static_cast<T4 &&>(v)}
 { }
 
 
 constexpr Enum(T5 v) :
 index_{5},
-v5_{(T5 &&) v}
+v5_{static_cast<T5 &&>(v)}
 { }
 
 
 constexpr Enum(T6 v) :
 index_{6},
-v6_{(T6 &&) v}
+v6_{static_cast<T6 &&>(v)}
 { }
 
 
 constexpr Enum(T7 v) :
 index_{7},
-v7_{(T7 &&) v}
+v7_{static_cast<T7 &&>(v)}
 { }
 
 
 constexpr Enum(T8 v) :
 index_{8},
-v8_{(T8 &&) v}
+v8_{static_cast<T8 &&>(v)}
 { }
 
 
 constexpr Enum(T9 v) :
 index_{9},
-v9_{(T9 &&) v}
+v9_{static_cast<T9 &&>(v)}
 { }
 
 
 constexpr Enum(T10 v) :
 index_{10},
-v10_{(T10 &&) v}
+v10_{static_cast<T10 &&>(v)}
 { }
 
 
 constexpr Enum(T11 v) :
 index_{11},
-v11_{(T11 &&) v}
+v11_{static_cast<T11 &&>(v)}
 { }
 
 
 constexpr Enum(T12 v) :
 index_{12},
-v12_{(T12 &&) v}
+v12_{static_cast<T12 &&>(v)}
 { }
 
 
 constexpr Enum(T13 v) :
 index_{13},
-v13_{(T13 &&) v}
+v13_{static_cast<T13 &&>(v)}
 { }
 
 
 constexpr Enum(T14 v) :
 index_{14},
-v14_{(T14 &&) v}
+v14_{static_cast<T14 &&>(v)}
 { }
 
 
 constexpr Enum(T15 v) :
 index_{15},
-v15_{(T15 &&) v}
+v15_{static_cast<T15 &&>(v)}
 { }
 
 

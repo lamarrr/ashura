@@ -48,7 +48,7 @@ if constexpr(Dst::SIZE > {i})
 {{
 if(src->index_ == {i})
 {{
-    enum_member_construct(&dst->v{i}_, (typename Src::E{i} &&) src->v{i}_);
+    enum_member_construct(&dst->v{i}_, static_cast<typename Src::E{i} &&>(src->v{i}_));
     return;
 }}
 }}""" for i in range(0, MAX_ENUM_SIZE)]
@@ -86,7 +86,7 @@ constexpr decltype(auto) enum_member(Enum& e)
 template<typename E, typename... Args>
 constexpr void enum_member_construct(E * e, Args&&... args )
 {{
-    new (e) E {{ ((Args&&)args)...  }};
+    new (e) E {{ static_cast<Args &&>(args)...  }};
 }}
 
 template<typename E>
@@ -158,7 +158,7 @@ for size in range(0,  MAX_ENUM_SIZE + 1):
     value_constructors = [f"""
 constexpr Enum(T{i} v) :
 index_{{{i}}},
-v{i}_{{(T{i} &&) v}}
+v{i}_{{static_cast<T{i} &&>(v)}}
 {{ }}
 """ for i in range(0, size)]
  
@@ -223,7 +223,7 @@ constexpr ~Enum()
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {{
-    intr::enum_member_construct(&intr::enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }}
 
 {"\n".join(value_constructors)}

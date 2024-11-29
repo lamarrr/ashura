@@ -60,7 +60,7 @@ struct [[nodiscard]] Vec
       return *this;
     }
     uninit();
-    new (this) Vec{(Vec &&) other};
+    new (this) Vec{static_cast<Vec &&>(other)};
     return *this;
   }
 
@@ -147,7 +147,7 @@ struct [[nodiscard]] Vec
   template <typename... Args>
   constexpr void set(usize index, Args &&...args) const
   {
-    data()[index] = T{((Args &&) args)...};
+    data()[index] = T{static_cast<Args &&>(args)...};
   }
 
   constexpr void clear()
@@ -275,7 +275,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    new (storage_ + size_) T{((Args &&) args)...};
+    new (storage_ + size_) T{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -345,7 +345,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    new (storage_ + pos) T{((Args &&) args)...};
+    new (storage_ + pos) T{static_cast<Args &&>(args)...};
     return Ok{};
   }
 
@@ -579,7 +579,7 @@ struct [[nodiscard]] PinVec
     }
 
     uninit();
-    new (this) PinVec{(PinVec &&) other};
+    new (this) PinVec{static_cast<PinVec &&>(other)};
 
     return *this;
   }
@@ -702,7 +702,7 @@ struct [[nodiscard]] PinVec
       return Err{};
     }
 
-    new (storage_ + size_) T{((Args &&) args)...};
+    new (storage_ + size_) T{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -744,7 +744,7 @@ struct [[nodiscard]] BitVec
   constexpr BitVec &operator=(BitVec const &) = delete;
 
   constexpr BitVec(BitVec &&other) :
-      repr_{(Vec<R> &&) other.repr_}, bit_size_{other.bit_size_}
+      repr_{static_cast<Vec<R> &&>(other.repr_)}, bit_size_{other.bit_size_}
   {
     other.bit_size_ = 0;
   }
@@ -756,7 +756,7 @@ struct [[nodiscard]] BitVec
       return *this;
     }
     uninit();
-    new (this) BitVec{(BitVec &&) other};
+    new (this) BitVec{static_cast<BitVec &&>(other)};
     return *this;
   }
 
@@ -1060,7 +1060,7 @@ struct [[nodiscard]] InplaceVec
       return *this;
     }
     uninit();
-    new (this) InplaceVec{(InplaceVec &&) other};
+    new (this) InplaceVec{static_cast<InplaceVec &&>(other)};
     return *this;
   }
 
@@ -1192,7 +1192,7 @@ struct [[nodiscard]] InplaceVec
   template <typename... Args>
   constexpr void set(usize index, Args &&...args)
   {
-    data()[index] = T{((Args &&) args)...};
+    data()[index] = T{static_cast<Args &&>(args)...};
   }
 
   constexpr void clear()
@@ -1245,7 +1245,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    new (data() + size_) T{((Args &&) args)...};
+    new (data() + size_) T{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -1316,7 +1316,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    new (data() + pos) T{((Args &&) args)...};
+    new (data() + pos) T{static_cast<Args &&>(args)...};
     return Ok{};
   }
 

@@ -47,13 +47,14 @@ struct [[nodiscard]] Option
     }
   }
 
-  constexpr Option(Some<T> some) : is_some_{true}, value_{(T &&) some.value}
+  constexpr Option(Some<T> some) :
+      is_some_{true}, value_{static_cast<T &&>(some.value)}
   {
   }
 
   template <typename... Args>
   explicit constexpr Option(V<0>, Args &&...args) :
-      is_some_{true}, value_{((Args &&) args)...}
+      is_some_{true}, value_{static_cast<Args &&>(args)...}
   {
   }
 
@@ -68,7 +69,7 @@ struct [[nodiscard]] Option
       value_.~T();
     }
     is_some_ = true;
-    new (&value_) T{(T &&) other.value};
+    new (&value_) T{static_cast<T &&>(other.value)};
     return *this;
   }
 
@@ -86,7 +87,7 @@ struct [[nodiscard]] Option
   {
     if (other.is_some_)
     {
-      new (&value_) T{(T &&) other.value_};
+      new (&value_) T{static_cast<T &&>(other.value_)};
     }
   }
 
@@ -106,7 +107,7 @@ struct [[nodiscard]] Option
 
     if (other.is_some_)
     {
-      new (&value_) T{(T &&) other.value_};
+      new (&value_) T{static_cast<T &&>(other.value_)};
     }
 
     return *this;
@@ -204,13 +205,13 @@ struct [[nodiscard]] Option
                      SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, is_some_, msg);
-    return (T &&) value_;
+    return static_cast<T &&>(value_);
   }
 
   constexpr T unwrap(SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, is_some_, "Expected Value in Option but got None");
-    return (T &&) value_;
+    return static_cast<T &&>(value_);
   }
 
   template <typename U>
@@ -218,9 +219,9 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      return (T &&) value_;
+      return static_cast<T &&>(value_);
     }
-    return (U &&) alt;
+    return static_cast<U &&>(alt);
   }
 
   template <typename Fn>
@@ -228,7 +229,7 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      return (T &&) value_;
+      return static_cast<T &&>(value_);
     }
     return op();
   }
@@ -251,7 +252,7 @@ struct [[nodiscard]] Option
     {
       return op(value_);
     }
-    return (U &&) alt;
+    return static_cast<U &&>(alt);
   }
 
   template <typename Fn, typename AltFn>

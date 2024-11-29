@@ -77,7 +77,7 @@ concept Same = SameImpl<T, U>::value;
 
 template <typename From, typename To>
 concept Convertible = requires(From &&from) {
-  { static_cast<To>((From &&) from) };
+  { static_cast<To>(static_cast<From &&>(from)) };
 };
 
 template <typename T>
@@ -137,7 +137,7 @@ concept FloatingPoint = std::is_floating_point_v<T>;
 
 template <typename F, typename... Args>
 concept Callable = requires(F &&f, Args &&...args) {
-  { ((F &&) f)(((Args &&) args)...) };
+  { static_cast<F &&>(f)(static_cast<Args &&>(args)...) };
 };
 
 template <typename F, typename... Args>
