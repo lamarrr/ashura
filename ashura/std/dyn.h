@@ -46,7 +46,7 @@ struct [[nodiscard]] Dyn
     }
 
     uninit();
-    new (this) Dyn{(Dyn &&) other};
+    new (this) Dyn{static_cast<Dyn &&>(other)};
     return *this;
   }
 
@@ -98,7 +98,7 @@ constexpr Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator,
     return Err{Void{}};
   }
 
-  new (object) T{((Args &&) args)...};
+  new (object) T{static_cast<Args &&>(args)...};
 
   return Ok{Dyn<T *>{object, allocator,
                      fn(object, [](T *object, AllocatorImpl allocator) {
@@ -110,13 +110,13 @@ constexpr Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator,
 template <typename T>
 constexpr Result<Dyn<T *>, Void> dyn(AllocatorImpl allocator, T object)
 {
-  return dyn_inplace<T>(allocator, (T &&) object);
+  return dyn_inplace<T>(allocator, static_cast<T &&>(object));
 }
 
 template <typename Base, typename H>
 constexpr Dyn<H> transmute(Dyn<Base> &&base, H handle)
 {
-  Dyn<H> t{(H &&) handle, base.inner.allocator, base.inner.uninit};
+  Dyn<H> t{static_cast<H &&>(handle), base.inner.allocator, base.inner.uninit};
   base.inner.handle    = {};
   base.inner.allocator = noop_allocator;
   base.inner.uninit    = noop;
@@ -126,7 +126,8 @@ constexpr Dyn<H> transmute(Dyn<Base> &&base, H handle)
 template <typename To, typename From>
 constexpr Dyn<To> cast(Dyn<From> &&from)
 {
-  return transmute((Dyn<From> &&) from, static_cast<To>(from.get()));
+  return transmute(static_cast<Dyn<From> &&>(from),
+                   static_cast<To>(from.get()));
 }
 
 }        // namespace ash

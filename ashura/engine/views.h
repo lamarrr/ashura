@@ -1325,7 +1325,7 @@ struct CheckBox : View
            .stroke    = 0,
            .thickness = styling.tick_thickness,
            .tint      = styling.tick_color},
-          span<Vec2>({{0.125f, 0.5f}, {0.374f, 0.75f}, {0.775f, 0.25f}}));
+          span<Vec2>({{0.125F, 0.5F}, {0.374F, 0.75F}, {0.775F, 0.25F}}));
     }
 
     if (state.press.focus.focused)
@@ -2347,7 +2347,7 @@ struct ScrollBar : View
       state.t =
           clamp((ctx.mouse.position[main_axis] - region.extent[main_axis] / 2) /
                     region.extent[main_axis],
-                0.0f, 1.0f);
+                0.0F, 1.0F);
       cb.scrolled(state.t);
     }
 

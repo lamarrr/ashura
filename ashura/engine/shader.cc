@@ -157,7 +157,7 @@ struct Includer : glslang::TShader::Includer
   {
     if (result != nullptr)
     {
-      Vec<char> *blob = (Vec<char> *) result->userData;
+      auto *blob = reinterpret_cast<Vec<char> *>(result->userData);
       blob->reset();
       default_allocator.ndealloc(blob, 1);
       result->~IncludeResult();

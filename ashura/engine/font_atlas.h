@@ -20,7 +20,7 @@ struct CpuFontAtlas
 
   ImageLayerSpan<u8, 1> span() const
   {
-    return ImageLayerSpan<u8, 1>{.channels = ::ash::span(channels),
+    return ImageLayerSpan<u8, 1>{.channels = ash::span(channels),
                                  .width    = extent.x,
                                  .height   = extent.y,
                                  .layers   = num_layers};

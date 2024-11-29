@@ -60,7 +60,7 @@ struct [[nodiscard]] Vec
       return *this;
     }
     uninit();
-    new (this) Vec{(Vec &&) other};
+    new (this) Vec{static_cast<Vec &&>(other)};
     return *this;
   }
 
@@ -82,6 +82,11 @@ struct [[nodiscard]] Vec
   constexpr usize size() const
   {
     return size_;
+  }
+
+  constexpr usize size_bytes() const
+  {
+    return sizeof(T) * size_;
   }
 
   constexpr u32 size32() const
@@ -109,9 +114,19 @@ struct [[nodiscard]] Vec
     return data() + size_;
   }
 
+  constexpr T &first() const
+  {
+    return get(0);
+  }
+
+  constexpr T &last() const
+  {
+    return get(size_ - 1);
+  }
+
   constexpr T &operator[](usize index) const
   {
-    return data()[index];
+    return get(index);
   }
 
   constexpr T &get(usize index) const
@@ -132,7 +147,7 @@ struct [[nodiscard]] Vec
   template <typename... Args>
   constexpr void set(usize index, Args &&...args) const
   {
-    data()[index] = T{((Args &&) args)...};
+    data()[index] = T{static_cast<Args &&>(args)...};
   }
 
   constexpr void clear()
@@ -260,7 +275,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    new (storage_ + size_) T{((Args &&) args)...};
+    new (storage_ + size_) T{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -330,7 +345,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    new (storage_ + pos) T{((Args &&) args)...};
+    new (storage_ + pos) T{static_cast<Args &&>(args)...};
     return Ok{};
   }
 
@@ -449,7 +464,7 @@ struct [[nodiscard]] Vec
 
   constexpr void swap(usize a, usize b) const
   {
-    ::ash::swap(data()[a], data()[b]);
+    ash::swap(data()[a], data()[b]);
   }
 
   constexpr Result<> resize_uninit(usize new_size)
@@ -564,7 +579,7 @@ struct [[nodiscard]] PinVec
     }
 
     uninit();
-    new (this) PinVec{(PinVec &&) other};
+    new (this) PinVec{static_cast<PinVec &&>(other)};
 
     return *this;
   }
@@ -604,6 +619,11 @@ struct [[nodiscard]] PinVec
     return size_;
   }
 
+  constexpr usize size_bytes() const
+  {
+    return sizeof(T) * size_;
+  }
+
   constexpr u32 size32() const
   {
     return (u32) size_;
@@ -629,9 +649,19 @@ struct [[nodiscard]] PinVec
     return data() + size_;
   }
 
+  constexpr T &first() const
+  {
+    return get(0);
+  }
+
+  constexpr T &last() const
+  {
+    return get(size_ - 1);
+  }
+
   constexpr T &operator[](usize index) const
   {
-    return data()[index];
+    return get(index);
   }
 
   constexpr T &get(usize index) const
@@ -672,7 +702,7 @@ struct [[nodiscard]] PinVec
       return Err{};
     }
 
-    new (storage_ + size_) T{((Args &&) args)...};
+    new (storage_ + size_) T{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -714,7 +744,7 @@ struct [[nodiscard]] BitVec
   constexpr BitVec &operator=(BitVec const &) = delete;
 
   constexpr BitVec(BitVec &&other) :
-      repr_{(Vec<R> &&) other.repr_}, bit_size_{other.bit_size_}
+      repr_{static_cast<Vec<R> &&>(other.repr_)}, bit_size_{other.bit_size_}
   {
     other.bit_size_ = 0;
   }
@@ -726,16 +756,11 @@ struct [[nodiscard]] BitVec
       return *this;
     }
     uninit();
-    new (this) BitVec{(BitVec &&) other};
+    new (this) BitVec{static_cast<BitVec &&>(other)};
     return *this;
   }
 
   constexpr ~BitVec() = default;
-
-  constexpr bool operator[](usize index) const
-  {
-    return ::ash::get_bit(span(repr_), index);
-  }
 
   constexpr Vec<R> const &repr() const
   {
@@ -784,34 +809,49 @@ struct [[nodiscard]] BitVec
     bit_size_ = 0;
   }
 
+  constexpr bool operator[](usize index) const
+  {
+    return get(index);
+  }
+
+  constexpr bool first() const
+  {
+    return get(0);
+  }
+
+  constexpr bool last() const
+  {
+    return get(bit_size_ - 1);
+  }
+
   constexpr bool get(usize index) const
   {
-    return ::ash::get_bit(span(repr_), index);
+    return ash::get_bit(span(repr_), index);
   }
 
   constexpr void set(usize index, bool value) const
   {
-    ::ash::assign_bit(span(repr_), index, value);
+    ash::assign_bit(span(repr_), index, value);
   }
 
   constexpr bool get_bit(usize index) const
   {
-    return ::ash::get_bit(span(repr_), index);
+    return get(index);
   }
 
   constexpr bool set_bit(usize index) const
   {
-    return ::ash::set_bit(span(repr_), index);
+    return ash::set_bit(span(repr_), index);
   }
 
   constexpr bool clear_bit(usize index) const
   {
-    return ::ash::clear_bit(span(repr_), index);
+    return ash::clear_bit(span(repr_), index);
   }
 
   constexpr void flip_bit(usize index) const
   {
-    ::ash::flip_bit(span(repr_), index);
+    ash::flip_bit(span(repr_), index);
   }
 
   constexpr Result<> reserve(usize target_capacity)
@@ -1020,7 +1060,7 @@ struct [[nodiscard]] InplaceVec
       return *this;
     }
     uninit();
-    new (this) InplaceVec{(InplaceVec &&) other};
+    new (this) InplaceVec{static_cast<InplaceVec &&>(other)};
     return *this;
   }
 
@@ -1034,14 +1074,24 @@ struct [[nodiscard]] InplaceVec
     return size_ == 0;
   }
 
-  constexpr T *data() const
+  constexpr T *data()
   {
-    return (T *) storage_;
+    return reinterpret_cast<T *>(storage_);
+  }
+
+  constexpr T const *data() const
+  {
+    return reinterpret_cast<T const *>(storage_);
   }
 
   constexpr usize size() const
   {
     return size_;
+  }
+
+  constexpr usize size_bytes() const
+  {
+    return sizeof(T) * size_;
   }
 
   constexpr u32 size32() const
@@ -1054,32 +1104,82 @@ struct [[nodiscard]] InplaceVec
     return (u64) size_;
   }
 
-  constexpr usize capacity() const
+  static constexpr usize capacity()
   {
     return Capacity;
   }
 
-  constexpr T *begin() const
+  constexpr T *begin()
   {
     return data();
   }
 
-  constexpr T *end() const
+  constexpr T const *begin() const
+  {
+    return data();
+  }
+
+  constexpr T *end()
   {
     return data() + size_;
   }
 
-  constexpr T &operator[](usize index) const
+  constexpr T const *end() const
+  {
+    return data() + size_;
+  }
+
+  constexpr T &first()
+  {
+    return get(0);
+  }
+
+  constexpr T const &first() const
+  {
+    return get(0);
+  }
+
+  constexpr T &last()
+  {
+    return get(size_ - 1);
+  }
+
+  constexpr T const &last() const
+  {
+    return get(size_ - 1);
+  }
+
+  constexpr T &operator[](usize index)
+  {
+    return get(index);
+  }
+
+  constexpr T const &operator[](usize index) const
+  {
+    return get(index);
+  }
+
+  constexpr T &get(usize index)
   {
     return data()[index];
   }
 
-  constexpr T &get(usize index) const
+  constexpr T const &get(usize index) const
   {
     return data()[index];
   }
 
-  constexpr T *try_get(usize index) const
+  constexpr T *try_get(usize index)
+  {
+    if (index >= size_) [[unlikely]]
+    {
+      return nullptr;
+    }
+
+    return data() + index;
+  }
+
+  constexpr T const *try_get(usize index) const
   {
     if (index >= size_) [[unlikely]]
     {
@@ -1090,9 +1190,9 @@ struct [[nodiscard]] InplaceVec
   }
 
   template <typename... Args>
-  constexpr void set(usize index, Args &&...args) const
+  constexpr void set(usize index, Args &&...args)
   {
-    data()[index] = T{((Args &&) args)...};
+    data()[index] = T{static_cast<Args &&>(args)...};
   }
 
   constexpr void clear()
@@ -1145,7 +1245,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    new (data() + size_) T{((Args &&) args)...};
+    new (data() + size_) T{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -1216,7 +1316,7 @@ struct [[nodiscard]] InplaceVec
       return Err{};
     }
 
-    new (data() + pos) T{((Args &&) args)...};
+    new (data() + pos) T{static_cast<Args &&>(args)...};
     return Ok{};
   }
 
@@ -1334,9 +1434,9 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  constexpr void swap(usize a, usize b) const
+  constexpr void swap(usize a, usize b)
   {
-    ::ash::swap(data()[a], data()[b]);
+    ash::swap(data()[a], data()[b]);
   }
 
   constexpr Result<> resize_uninit(usize new_size)

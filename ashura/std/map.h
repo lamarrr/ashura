@@ -118,8 +118,8 @@ struct [[nodiscard]] Map
       num_entries_{0},
       max_probe_dist_{0},
       allocator_{allocator},
-      hasher_{(Hasher &&) hasher},
-      cmp_{(KeyCmp &&) cmp}
+      hasher_{static_cast<Hasher &&>(hasher)},
+      cmp_{static_cast<KeyCmp &&>(cmp)}
   {
   }
 
@@ -134,8 +134,8 @@ struct [[nodiscard]] Map
       num_entries_{other.num_entries_},
       max_probe_dist_{other.max_probe_dist_},
       allocator_{other.allocator_},
-      hasher_{(Hasher &&) other.hasher_},
-      cmp_{(KeyCmp &&) other.cmp_}
+      hasher_{static_cast<Hasher &&>(other.hasher_)},
+      cmp_{static_cast<KeyCmp &&>(other.cmp_)}
   {
     other.probe_dists_    = nullptr;
     other.probes_         = nullptr;
@@ -154,7 +154,7 @@ struct [[nodiscard]] Map
       return *this;
     }
     uninit();
-    new (this) Map{(Map &&) other};
+    new (this) Map{static_cast<Map &&>(other)};
     return *this;
   }
 
@@ -294,7 +294,7 @@ struct [[nodiscard]] Map
     {
       if (src_probe_dists[src_probe_idx] != PROBE_SENTINEL)
       {
-        Entry entry{(Entry &&) src_probes[src_probe_idx]};
+        Entry entry{static_cast<Entry &&>(src_probes[src_probe_idx])};
         src_probes[src_probe_idx].~Entry();
         Hash     hash       = hasher_(entry.key);
         usize    probe_idx  = hash & (num_probes_ - 1);
@@ -306,7 +306,7 @@ struct [[nodiscard]] Map
 
           if (*dst_probe_dist == PROBE_SENTINEL)
           {
-            new (dst_probe) Entry{(Entry &&) entry};
+            new (dst_probe) Entry{static_cast<Entry &&>(entry)};
             *dst_probe_dist = probe_dist;
             break;
           }
@@ -403,7 +403,7 @@ struct [[nodiscard]] Map
     usize      probe_idx  = hash & (num_probes_ - 1);
     usize      insert_idx = USIZE_MAX;
     Distance   probe_dist = 0;
-    Entry      entry{.key{(K &&) key}, .value{(V &&) value}};
+    Entry entry{.key{static_cast<K &&>(key)}, .value{static_cast<V &&>(value)}};
 
     while (true)
     {
@@ -413,7 +413,7 @@ struct [[nodiscard]] Map
       {
         insert_idx      = probe_idx;
         *dst_probe_dist = probe_dist;
-        new (dst_probe) Entry{(Entry &&) entry};
+        new (dst_probe) Entry{static_cast<Entry &&>(entry)};
         num_entries_++;
         break;
       }
@@ -427,7 +427,7 @@ struct [[nodiscard]] Map
         }
         if (replace)
         {
-          dst_probe->value = (V &&) entry.value;
+          dst_probe->value = static_cast<V &&>(entry.value);
         }
         break;
       }

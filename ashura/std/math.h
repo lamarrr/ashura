@@ -9,6 +9,401 @@
 namespace ash
 {
 
+inline f32 sin(f32 v)
+{
+  return std::sin(v);
+}
+
+inline f64 sin(f64 v)
+{
+  return std::sin(v);
+}
+
+inline f32 cos(f32 v)
+{
+  return std::cos(v);
+}
+
+inline f64 cos(f64 v)
+{
+  return std::cos(v);
+}
+
+inline f32 tan(f32 v)
+{
+  return std::tan(v);
+}
+
+inline f64 tan(f64 v)
+{
+  return std::tan(v);
+}
+
+inline f32 exp(f32 v)
+{
+  return std::exp(v);
+}
+
+inline f64 exp(f64 v)
+{
+  return std::exp(v);
+}
+
+inline f32 exp2(f32 v)
+{
+  return std::exp2(v);
+}
+
+inline f64 exp2(f64 v)
+{
+  return std::exp2(v);
+}
+
+inline f32 log(f32 v)
+{
+  return std::log(v);
+}
+
+inline f64 log(f64 v)
+{
+  return std::log(v);
+}
+
+inline f32 floor(f32 v)
+{
+  return std::floor(v);
+}
+
+inline f64 floor(f64 v)
+{
+  return std::floor(v);
+}
+
+template <typename SignedType>
+constexpr SignedType abs(SignedType x)
+{
+  return x > SignedType{} ? x : -x;
+}
+
+constexpr bool approx_eq(f32 a, f32 b)
+{
+  return abs(b - a) <= F32_EPS;
+}
+
+constexpr bool approx_eq(f64 a, f64 b)
+{
+  return abs(b - a) <= F64_EPS;
+}
+
+constexpr f32 epsilon_clamp(f32 x)
+{
+  return abs(x) > F32_EPS ? x : F32_EPS;
+}
+
+constexpr f32 to_radians(f32 degree)
+{
+  return PI * degree * 0.00555555555F;
+}
+
+constexpr f64 to_radians(f64 degree)
+{
+  return PI * degree * 0.00555555555;
+}
+
+inline f32 sqrt(f32 x)
+{
+  return std::sqrt(x);
+}
+
+inline f64 sqrt(f64 x)
+{
+  return std::sqrt(x);
+}
+
+constexpr f32 invsqrt(f32 x)
+{
+  // (enable only on IEEE 754)
+  static_assert(std::numeric_limits<f32>::is_iec559);
+  f32 const y = std::bit_cast<f32>(0x5F3759DF - (std::bit_cast<u32>(x) >> 1));
+  return y * (1.5F - (x * 0.5F * y * y));
+}
+
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u8 ulog2(u8 value)
+{
+  return 7 - std::countl_zero(value);
+}
+
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u16 ulog2(u16 value)
+{
+  return 15 - std::countl_zero(value);
+}
+
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u32 ulog2(u32 value)
+{
+  return 31 - std::countl_zero(value);
+}
+
+/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
+/// value is 0
+constexpr u64 ulog2(u64 value)
+{
+  return 63 - std::countl_zero(value);
+}
+
+constexpr u32 mip_down(u32 a, u32 level)
+{
+  return max(a >> level, 1U);
+}
+
+constexpr u32 num_mip_levels(u32 a)
+{
+  return (a == 0) ? 0 : ulog2(a);
+}
+
+/// @brief linearly interpolate between points `low` and `high` given
+/// interpolator `t`
+/// This is the exact form: (1 - t) * A + T * B, optimized for FMA
+template <typename T>
+constexpr T lerp(T const &low, T const &high, T const &t)
+{
+  return low - t * low + t * high;
+}
+
+/// @brief logarithmically interpolate between points `low` and `high` given
+/// interpolator `t`
+template <typename T>
+inline T log_interp(T const &low, T const &high, T const &t)
+{
+  return low * exp(t * log(high / low));
+}
+
+/// @brief frame-independent damped lerp
+///
+/// https://x.com/FreyaHolmer/status/1757836988495847568,
+/// https://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
+///
+/// @param dt time delta
+/// @param half_life time to complete half of the whole operation
+///
+template <typename T>
+inline T damplerp(T const &low, T const &high, T const &dt, T const &half_life)
+{
+  return lerp(low, high, 1 - exp2(-half_life * dt));
+}
+
+/// find interpolator t, given points a and b, and interpolated value v
+template <typename T>
+constexpr T unlerp(T const &low, T const &high, T const &v)
+{
+  return (v - low) / (high - low);
+}
+
+template <typename T>
+constexpr T relerp(T const &in_low, T const &in_high, T const &out_low,
+                   T const &out_high, T const &v)
+{
+  return lerp(out_low, out_high, unlerp(in_low, in_high, v));
+}
+
+// SEE: https://www.youtube.com/watch?v=jvPPXbo87ds
+template <typename T>
+constexpr T ease_in(T const &t)
+{
+  return t * t;
+}
+
+template <typename T>
+constexpr T ease_out(T const &t)
+{
+  return 1 - (1 - t) * (1 - t);
+}
+
+template <typename T>
+constexpr T ease_in_out(T const &t)
+{
+  return lerp(ease_in(t), ease_out(t), t);
+}
+
+template <typename T>
+constexpr T bezier(T const &p0, T const &p1, T const &p2, T const &t)
+{
+  return (1 - t) * (1 - t) * p0 + 2 * (1 - t) * t * p1 + t * t * p2;
+}
+
+template <typename T>
+constexpr T cubic_bezier(T const &p0, T const &p1, T const &p2, T const &p3,
+                         T const &t)
+{
+  return (1 - t) * (1 - t) * (1 - t) * p0 + 3 * (1 - t) * (1 - t) * t * p1 +
+         3 * (1 - t) * t * t * p2 + t * t * t * p3;
+}
+
+/// https://www.youtube.com/watch?v=jvPPXbo87ds&t=1033s - The Continuity of
+/// Splines by Freya Holmer
+///
+/// has automatic tangent. use for animation and path smoothing
+/// ne of the features of the Catmull-Rom spline is that the specified curve
+/// will pass through all of the control points.
+template <typename T>
+constexpr T catmull_rom(T const &p0, T const &p1, T const &p2, T const &p3,
+                        T const &t)
+{
+  return 0.5F *
+         ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
+          (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+}
+
+/// @brief Elastic Easing
+/// @param amplitude strength of the elastic effect (default = 1.0)
+/// @param period length of the oscillation (default = 0.3)
+/// @note Based on Robert Penner's elastic easing
+/// (http://robertpenner.com/easing/)
+inline f32 elastic(f32 amplitude, f32 period, f32 t)
+{
+  constexpr f32 TWO_PI = 2.0F * PI;
+  f32 const     s      = (period / TWO_PI) * std::asin(1 / amplitude);
+  f32 const     factor = amplitude * std::pow(2.0F, -10.0F * t) *
+                         std::sin((t - s) * (TWO_PI / period)) +
+                     1.0F;
+  return factor;
+}
+
+/// @brief EaseOut Bounce
+/// @param strength strength of the bounce effect (default = 1.0)
+/// @note Based on Robert Penner's easeOutBounce
+/// (http://robertpenner.com/easing/)
+constexpr f32 bounce(f32 strength, f32 t)
+{
+  // Inverse the time to create an ease-out effect
+  t = 1.0F - t;
+
+  if (t < (1.0F / 2.75F))
+  {
+    return 1.0F - (7.5625F * t * t * strength);
+  }
+  else if (t < (2.0F / 2.75F))
+  {
+    t -= 1.5F / 2.75F;
+    return 1.0F - (7.5625F * t * t * strength + 0.75F);
+  }
+  else if (t < (2.5F / 2.75F))
+  {
+    t -= 2.25F / 2.75F;
+    return 1.0F - (7.5625F * t * t * strength + 0.9375F);
+  }
+  else
+  {
+    t -= 2.625F / 2.75F;
+    return 1.0F - (7.5625F * t * t * strength + 0.984375F);
+  }
+}
+
+/// @brief Spring-based Elastic Easing based on simple harmonic motion with
+/// damping
+///
+/// The default behavior is a tight spring effect, tune the parameters to give
+/// a desired effect.
+/// @param mass: Oscillator mass (default: 1.0)
+/// @param stiffness: Spring constant (default: 20.0)
+/// @param damping: Damping coefficient (default: 10.0F)
+///
+/// @note https://www.ryanjuckett.com/damped-springs/
+///
+inline f32 spring(f32 mass, f32 stiffness, f32 damping, f32 t)
+{
+  // Calculate critical damping factors
+  f32 const omega0           = std::sqrt(stiffness / mass);
+  f32 const critical_damping = 2.0F * std::sqrt(mass * stiffness);
+  f32 const damping_ratio    = damping / critical_damping;
+
+  // Underdamped
+  if (damping_ratio < 1.0F)
+  {
+    f32 const omega_d =
+        omega0 * std::sqrt(1.0F - damping_ratio * damping_ratio);
+    return 1.0F -
+           std::exp(-damping_ratio * omega0 * t) *
+               (std::cos(omega_d * t) +
+                (damping_ratio * omega0 / omega_d) * std::sin(omega_d * t));
+  }
+
+  // Overdamped or critically damped
+  f32 const alpha = -damping_ratio * omega0;
+  f32 const beta  = omega0 * std::sqrt(damping_ratio * damping_ratio - 1.0F);
+  return 1.0F - (std::exp(alpha * t) *
+                 (std::cosh(beta * t) + (alpha / beta) * std::sinh(beta * t)));
+}
+
+constexpr f32 step(f32 a, f32 t)
+{
+  return (t < a) ? 0.0F : 1.0F;
+}
+
+constexpr f32 smoothstep(f32 a, f32 b, f32 t)
+{
+  t = clamp((t - a) / (b - a), 0.0F, 1.0F);
+  return t * t * (3.0F - 2.0F * t);
+}
+
+template <typename T>
+inline T grid_snap(T const &a, T const &unit)
+{
+  return floor((a + unit * 0.5F) / unit) * unit;
+}
+
+template <typename T>
+constexpr T norm_to_axis(T const &norm)
+{
+  return norm * 2 - 1;
+}
+
+template <typename T>
+constexpr T axis_to_norm(T const &axis)
+{
+  return axis * 0.5F + 0.5F;
+}
+
+template <typename T>
+constexpr T norm_to_space(T const &norm)
+{
+  return norm - 0.5F;
+}
+
+template <typename T>
+constexpr T space_to_norm(T const &space)
+{
+  return space + 0.5F;
+}
+
+template <typename T>
+constexpr T space_to_axis(T const &space)
+{
+  return space * 2;
+}
+
+template <typename T>
+constexpr T axis_to_space(T const &axis)
+{
+  return axis * 0.5F;
+}
+
+/// @param space available space to align to
+/// @param item extent of the item to align
+/// @param alignment the alignment to align to [-1, +1]
+/// @return returns the aligned position relative to the space's center
+template <typename T>
+constexpr T space_align(T const &space, T const &item, T const &alignment)
+{
+  T const trailing = (space - item) * 0.5F;
+  return lerp(-trailing, trailing, axis_to_norm(alignment));
+}
+
 typedef struct Vec2   Vec2;
 typedef struct Vec3   Vec3;
 typedef struct Vec4   Vec4;
@@ -443,7 +838,7 @@ struct alignas(4) Vec4U8
   constexpr Vec4 norm() const
   {
     return Vec4{
-        .x = x / 255.0f, .y = y / 255.0f, .z = z / 255.0f, .w = w / 255.0f};
+        .x = x / 255.0F, .y = y / 255.0F, .z = z / 255.0F, .w = w / 255.0F};
   }
 
   constexpr u8 &operator[](usize i)
@@ -1088,27 +1483,19 @@ constexpr Vec3I cross(Vec3I a, Vec3I b)
                a.x * b.y - a.y * b.x};
 }
 
-constexpr f32 inverse_sqrt(f32 num)
-{
-  // (enable only on IEEE 754)
-  static_assert(std::numeric_limits<f32>::is_iec559);
-  f32 const y = std::bit_cast<f32>(0x5f3759df - (std::bit_cast<u32>(num) >> 1));
-  return y * (1.5f - (num * 0.5f * y * y));
-}
-
 constexpr Vec2 normalize(Vec2 a)
 {
-  return a * inverse_sqrt(dot(a, a));
+  return a * invsqrt(dot(a, a));
 }
 
 constexpr Vec3 normalize(Vec3 a)
 {
-  return a * inverse_sqrt(dot(a, a));
+  return a * invsqrt(dot(a, a));
 }
 
 constexpr Vec4 normalize(Vec4 a)
 {
-  return a * inverse_sqrt(dot(a, a));
+  return a * invsqrt(dot(a, a));
 }
 
 struct Mat2
@@ -1711,98 +2098,29 @@ inline f32 length(Vec2 a)
 
 inline f32 length(Vec3 a)
 {
-  return sqrtf(dot(a, a));
+  return std::sqrt(dot(a, a));
 }
 
 inline f32 length(Vec4 a)
 {
-  return sqrtf(dot(a, a));
-}
-
-template <typename SignedType>
-constexpr SignedType abs(SignedType x)
-{
-  return x > SignedType{} ? x : -x;
-}
-
-constexpr bool approx_eq(f32 a, f32 b)
-{
-  return abs(b - a) <= F32_EPS;
-}
-
-constexpr bool approx_eq(f64 a, f64 b)
-{
-  return abs(b - a) <= F64_EPS;
-}
-
-constexpr f32 epsilon_clamp(f32 x)
-{
-  return abs(x) > F32_EPS ? x : F32_EPS;
-}
-
-constexpr f32 to_radians(f32 degree)
-{
-  return PI * degree * 0.00555555555f;
-}
-
-constexpr f64 to_radians(f64 degree)
-{
-  return PI * degree * 0.00555555555;
-}
-
-/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
-/// value is 0
-constexpr u8 ulog2(u8 value)
-{
-  return 7 - std::countl_zero(value);
-}
-
-/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
-/// value is 0
-constexpr u16 ulog2(u16 value)
-{
-  return 15 - std::countl_zero(value);
-}
-
-/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
-/// value is 0
-constexpr u32 ulog2(u32 value)
-{
-  return 31 - std::countl_zero(value);
-}
-
-/// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
-/// value is 0
-constexpr u64 ulog2(u64 value)
-{
-  return 63 - std::countl_zero(value);
-}
-
-constexpr u32 mip_down(u32 a, u32 level)
-{
-  return max(a >> level, 1U);
+  return std::sqrt(dot(a, a));
 }
 
 constexpr Vec2U mip_down(Vec2U a, u32 level)
 {
-  return Vec2U{max(a.x >> level, 1U), max(a.y >> level, 1U)};
+  return Vec2U{mip_down(a.x, level), mip_down(a.y, level)};
 }
 
 constexpr Vec3U mip_down(Vec3U a, u32 level)
 {
-  return Vec3U{max(a.x >> level, 1U), max(a.y >> level, 1U),
-               max(a.z >> level, 1U)};
+  return Vec3U{mip_down(a.x, level), mip_down(a.y, level),
+               mip_down(a.z, level)};
 }
 
 constexpr Vec4U mip_down(Vec4U a, u32 level)
 {
-  return Vec4U{max(a.x >> level, 1U), max(a.y >> level, 1U),
-               max(a.z >> level, 1U), max(a.w >> level, 1U)};
-}
-
-constexpr u32 num_mip_levels(u32 a)
-{
-  return (a == 0) ? 0 : ulog2(a);
+  return Vec4U{mip_down(a.x, level), mip_down(a.y, level), mip_down(a.z, level),
+               mip_down(a.w, level)};
 }
 
 constexpr u32 num_mip_levels(Vec2U a)
@@ -1974,28 +2292,28 @@ constexpr Mat4Affine scale3d(Vec3 s)
 
 inline Mat3Affine rotate2d(f32 radians)
 {
-  return Mat3Affine{.rows = {{cosf(radians), -sinf(radians), 0},
-                             {sinf(radians), cosf(radians), 0}}};
+  return Mat3Affine{.rows = {{cos(radians), -sin(radians), 0},
+                             {sin(radians), cos(radians), 0}}};
 }
 
 inline Mat4Affine rotate3d_x(f32 radians)
 {
   return Mat4Affine{.rows = {{1, 0, 0, 0},
-                             {0, cosf(radians), -sinf(radians), 0},
-                             {0, sinf(radians), cosf(radians), 0}}};
+                             {0, cos(radians), -sin(radians), 0},
+                             {0, sin(radians), cos(radians), 0}}};
 }
 
 inline Mat4Affine rotate3d_y(f32 radians)
 {
-  return Mat4Affine{.rows = {{cosf(radians), 0, sinf(radians), 0},
+  return Mat4Affine{.rows = {{cos(radians), 0, sin(radians), 0},
                              {0, 1, 0, 0},
-                             {-sinf(radians), 0, cosf(radians), 0}}};
+                             {-sin(radians), 0, cos(radians), 0}}};
 }
 
 inline Mat4Affine rotate3d_z(f32 radians)
 {
-  return Mat4Affine{.rows = {{cosf(radians), -sinf(radians), 0, 0},
-                             {sinf(radians), cosf(radians), 0, 0},
+  return Mat4Affine{.rows = {{cos(radians), -sin(radians), 0, 0},
+                             {sin(radians), cos(radians), 0, 0},
                              {0, 0, 1, 0}}};
 }
 
@@ -2023,29 +2341,6 @@ constexpr Vec3 transform(Mat4Affine const &t, Vec3 value)
   return Vec3{v.x, v.y, v.z};
 }
 
-inline Vec2 rotor(f32 a)
-{
-  return Vec2{cosf(a), sinf(a)};
-}
-
-/// @brief linearly interpolate between points `low` and `high` given
-/// interpolator `t`
-template <typename T>
-constexpr T lerp(T const &low, T const &high, T const &t)
-{
-  return (1 - t) * low + t * high;
-}
-
-inline f32 sin(f32 v)
-{
-  return std::sin(v);
-}
-
-inline f64 sin(f64 v)
-{
-  return std::sin(v);
-}
-
 inline Vec2 sin(Vec2 v)
 {
   return Vec2{sin(v.x), sin(v.y)};
@@ -2059,16 +2354,6 @@ inline Vec3 sin(Vec3 v)
 inline Vec4 sin(Vec4 v)
 {
   return Vec4{sin(v.x), sin(v.y), sin(v.z), sin(v.w)};
-}
-
-inline f32 cos(f32 v)
-{
-  return std::cos(v);
-}
-
-inline f64 cos(f64 v)
-{
-  return std::cos(v);
 }
 
 inline Vec2 cos(Vec2 v)
@@ -2086,16 +2371,6 @@ inline Vec4 cos(Vec4 v)
   return Vec4{cos(v.x), cos(v.y), cos(v.z), cos(v.w)};
 }
 
-inline f32 tan(f32 v)
-{
-  return std::tan(v);
-}
-
-inline f64 tan(f64 v)
-{
-  return std::tan(v);
-}
-
 inline Vec2 tan(Vec2 v)
 {
   return Vec2{tan(v.x), tan(v.y)};
@@ -2109,16 +2384,6 @@ inline Vec3 tan(Vec3 v)
 inline Vec4 tan(Vec4 v)
 {
   return Vec4{tan(v.x), tan(v.y), tan(v.z), tan(v.w)};
-}
-
-inline f32 exp(f32 v)
-{
-  return std::exp(v);
-}
-
-inline f64 exp(f64 v)
-{
-  return std::exp(v);
 }
 
 inline Vec2 exp(Vec2 v)
@@ -2136,16 +2401,6 @@ inline Vec4 exp(Vec4 v)
   return Vec4{exp(v.x), exp(v.y), exp(v.z), exp(v.w)};
 }
 
-inline f32 exp2(f32 v)
-{
-  return std::exp2(v);
-}
-
-inline f64 exp2(f64 v)
-{
-  return std::exp2(v);
-}
-
 inline Vec2 exp2(Vec2 v)
 {
   return Vec2{exp2(v.x), exp2(v.y)};
@@ -2159,16 +2414,6 @@ inline Vec3 exp2(Vec3 v)
 inline Vec4 exp2(Vec4 v)
 {
   return Vec4{exp2(v.x), exp2(v.y), exp2(v.z), exp2(v.w)};
-}
-
-inline f32 log(f32 v)
-{
-  return std::log(v);
-}
-
-inline f64 log(f64 v)
-{
-  return std::log(v);
 }
 
 inline Vec2 log(Vec2 v)
@@ -2186,16 +2431,6 @@ inline Vec4 log(Vec4 v)
   return Vec4{log(v.x), log(v.y), log(v.z), log(v.w)};
 }
 
-inline f32 floor(f32 v)
-{
-  return std::floor(v);
-}
-
-inline f64 floor(f64 v)
-{
-  return std::floor(v);
-}
-
 inline Vec2 floor(Vec2 v)
 {
   return Vec2{floor(v.x), floor(v.y)};
@@ -2211,147 +2446,9 @@ inline Vec4 floor(Vec4 v)
   return Vec4{floor(v.x), floor(v.y), floor(v.z), floor(v.w)};
 }
 
-/// @brief logarithmically interpolate between points `low` and `high` given
-/// interpolator `t`
-template <typename T>
-inline T log_interp(T const &low, T const &high, T const &t)
+inline Vec2 rotor(f32 a)
 {
-  return low * exp(t * log(high / low));
-}
-
-/// @brief frame-independent damped lerp
-///
-/// https://x.com/FreyaHolmer/status/1757836988495847568,
-/// https://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
-///
-/// @param dt time delta
-/// @param half_life time to complete half of the whole operation
-///
-template <typename T>
-inline T damplerp(T const &low, T const &high, T const &dt, T const &half_life)
-{
-  return lerp(low, high, 1 - exp2(-half_life * dt));
-}
-
-/// find interpolator t, given points a and b, and interpolated value v
-template <typename T>
-constexpr T unlerp(T const &low, T const &high, T const &v)
-{
-  return (v - low) / (high - low);
-}
-
-template <typename T>
-constexpr T relerp(T const &in_low, T const &in_high, T const &out_low,
-                   T const &out_high, T const &v)
-{
-  return lerp(out_low, out_high, unlerp(in_low, in_high, v));
-}
-
-// SEE: https://www.youtube.com/watch?v=jvPPXbo87ds
-template <typename T>
-constexpr T linear(T const &t)
-{
-  return t;
-}
-
-template <typename T>
-constexpr T ease_in(T const &t)
-{
-  return t * t;
-}
-
-template <typename T>
-constexpr T ease_out(T const &t)
-{
-  return 1 - (1 - t) * (1 - t);
-}
-
-template <typename T>
-constexpr T ease_in_out(T const &t)
-{
-  return lerp(ease_in(t), ease_out(t), t);
-}
-
-template <typename T>
-constexpr T bezier(T const &p0, T const &p1, T const &p2, T const &t)
-{
-  return (1 - t) * (1 - t) * p0 + 2 * (1 - t) * t * p1 + t * t * p2;
-}
-
-template <typename T>
-constexpr T cubic_bezier(T const &p0, T const &p1, T const &p2, T const &p3,
-                         T const &t)
-{
-  return (1 - t) * (1 - t) * (1 - t) * p0 + 3 * (1 - t) * (1 - t) * t * p1 +
-         3 * (1 - t) * t * t * p2 + t * t * t * p3;
-}
-
-/// https://www.youtube.com/watch?v=jvPPXbo87ds&t=1033s - The Continuity of
-/// Splines by Freya Holmer
-///
-/// has automatic tangent. use for animation and path smoothing
-/// ne of the features of the Catmull-Rom spline is that the specified curve
-/// will pass through all of the control points.
-template <typename T>
-constexpr T catmull_rom(T const &p0, T const &p1, T const &p2, T const &p3,
-                        T const &t)
-{
-  return 0.5f *
-         ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
-          (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
-}
-
-constexpr f32 step(f32 a, f32 t)
-{
-  return (t < a) ? 0.0f : 1.0f;
-}
-
-constexpr f32 smoothstep(f32 a, f32 b, f32 t)
-{
-  t = clamp((t - a) / (b - a), 0.0f, 1.0f);
-  return t * t * (3.0f - 2.0f * t);
-}
-
-template <typename T>
-inline T grid_snap(T const &a, T const &unit)
-{
-  return floor((a + unit * 0.5F) / unit) * unit;
-}
-
-template <typename T>
-constexpr T norm_to_axis(T const &norm)
-{
-  return norm * 2 - 1;
-}
-
-template <typename T>
-constexpr T axis_to_norm(T const &axis)
-{
-  return axis * 0.5F + 0.5F;
-}
-
-template <typename T>
-constexpr T norm_to_space(T const &norm)
-{
-  return norm - 0.5F;
-}
-
-template <typename T>
-constexpr T space_to_norm(T const &space)
-{
-  return space + 0.5F;
-}
-
-template <typename T>
-constexpr T space_to_axis(T const &space)
-{
-  return space * 2;
-}
-
-template <typename T>
-constexpr T axis_to_space(T const &axis)
-{
-  return axis * 0.5F;
+  return Vec2{cos(a), sin(a)};
 }
 
 constexpr Vec2 ALIGNMENT_CENTER{0, 0};
@@ -2359,17 +2456,6 @@ constexpr Vec2 ALIGNMENT_TOP_LEFT{-1, -1};
 constexpr Vec2 ALIGNMENT_TOP_RIGHT{1, -1};
 constexpr Vec2 ALIGNMENT_BOTTOM_LEFT{-1, 1};
 constexpr Vec2 ALIGNMENT_BOTTOM_RIGHT{1, 1};
-
-/// @param space available space to align to
-/// @param item extent of the item to align
-/// @param alignment the alignment to align to [-1, +1]
-/// @return returns the aligned position relative to the space's center
-template <typename T>
-constexpr T space_align(T const &space, T const &item, T const &alignment)
-{
-  T const trailing = (space - item) * 0.5F;
-  return lerp(-trailing, trailing, axis_to_norm(alignment));
-}
 
 constexpr Vec4 opacity(f32 v)
 {

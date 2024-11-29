@@ -234,7 +234,7 @@ struct FontStyle
 {
   Font *font        = nullptr;
   f32   font_height = 20;
-  f32   line_height = 1.2f;
+  f32   line_height = 1.2F;
 };
 
 /// @param shadow_scale relative. multiplied by font_height

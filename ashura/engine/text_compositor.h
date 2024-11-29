@@ -101,8 +101,8 @@ struct [[nodiscard]] TextCursor
 
   constexpr Slice32 as_slice(u32 len) const
   {
-    u32 rfirst = (u32)::ash::clamp(first, (i64) 0, (i64) len);
-    u32 rlast  = (u32)::ash::clamp(last, (i64) 0, (i64) len);
+    u32 rfirst = (u32) ash::clamp(first, (i64) 0, (i64) len);
+    u32 rlast  = (u32) ash::clamp(last, (i64) 0, (i64) len);
     if (rfirst > rlast)
     {
       swap(rfirst, rlast);
@@ -138,8 +138,8 @@ struct [[nodiscard]] TextCursor
     {
       return TextCursor{};
     }
-    return TextCursor{::ash::clamp(first, (i64) 0, (i64) (len - 1)),
-                      ::ash::clamp(last, (i64) 0, (i64) (len - 1))};
+    return TextCursor{ash::clamp(first, (i64) 0, (i64) (len - 1)),
+                      ash::clamp(last, (i64) 0, (i64) (len - 1))};
   }
 };
 

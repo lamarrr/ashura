@@ -23,7 +23,7 @@ constexpr void move_construct(Span<T> src, U *dst)
 {
   for (T *in = src.begin(); in != src.end(); in++, dst++)
   {
-    new (dst) T{(T &&) (*in)};
+    new (dst) T{static_cast<T &&>(*in)};
   }
 }
 

@@ -61,7 +61,7 @@ struct [[nodiscard]] Rc
     }
 
     uninit();
-    new (this) Rc{(Rc &&) other};
+    new (this) Rc{static_cast<Rc &&>(other)};
     return *this;
   }
 
@@ -144,7 +144,7 @@ constexpr Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator,
     return Err{Void{}};
   }
 
-  new (object) AliasCounted<T>{.data{((Args &&) args)...}};
+  new (object) AliasCounted<T>{.data{static_cast<Args &&>(args)...}};
 
   return Ok{
       Rc<T *>{&object->data, *object, allocator,
@@ -157,13 +157,13 @@ constexpr Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator,
 template <typename T>
 constexpr Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T object)
 {
-  return rc_inplace<T>(allocator, (T &&) object);
+  return rc_inplace<T>(allocator, static_cast<T &&>(object));
 }
 
 template <typename Base, typename H>
 constexpr Rc<H> transmute(Rc<Base> &&base, H handle)
 {
-  Rc<H> t{(H &&) handle, base.inner.allocator, base.inner.uninit};
+  Rc<H> t{static_cast<H &&>(handle, base.inner.allocator, base.inner.uninit)};
   base.inner.handle    = {};
   base.inner.allocator = noop_allocator;
   base.inner.uninit    = noop;
