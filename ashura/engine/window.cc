@@ -49,7 +49,8 @@ struct ClipBoardImpl : ClipBoard
     }
     defer data_{[&] { SDL_free(data); }};
 
-    out.extend_copy(Span<c8 const>{(c8 *) data, mime_data_len}).unwrap();
+    out.extend_copy(Span<c8 const>{reinterpret_cast<c8 *>(data), mime_data_len})
+        .unwrap();
     return Ok{};
   }
 
@@ -82,12 +83,12 @@ struct ClipBoardImpl : ClipBoard
             *size = 0;
             return nullptr;
           }
-          Vec<c8> *ctx = (Vec<c8> *) userdata;
-          *size        = ctx->size();
+          auto *ctx = reinterpret_cast<Vec<c8> *>(userdata);
+          *size     = ctx->size();
           return ctx->data();
         },
         [](void *userdata) {
-          Vec<c8> *ctx = (Vec<c8> *) userdata;
+          auto *ctx = reinterpret_cast<Vec<c8> *>(userdata);
           ctx->uninit();
           default_allocator.ndealloc(ctx, 1);
         },

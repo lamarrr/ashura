@@ -199,9 +199,9 @@ struct Swap
   template <typename T>
   constexpr void operator()(T &a, T &b) const
   {
-    T a_tmp{(T &&) a};
-    a = (T &&) b;
-    b = (T &&) a_tmp;
+    T a_tmp{static_cast<T &&>(a)};
+    a = static_cast<T &&>(b);
+    b = static_cast<T &&>(a_tmp);
   }
 };
 
@@ -950,7 +950,7 @@ struct Array
   template <typename... Args>
   constexpr void set(usize index, Args &&...args)
   {
-    data_[index] = T{((Args &&) args)...};
+    data_[index] = T{static_cast<Args &&>(args)...};
   }
 
   constexpr T &operator[](usize index)
@@ -1081,7 +1081,7 @@ struct Span
   constexpr void set(usize index, Args &&...args) const
     requires(NonConst<T>)
   {
-    data_[index] = T{((Args &&) args)...};
+    data_[index] = T{static_cast<Args &&>(args)...};
   }
 
   constexpr Span<T const> as_const() const
@@ -1465,7 +1465,7 @@ struct defer
   constexpr defer(defer const &)            = delete;
   constexpr defer &operator=(defer &&)      = delete;
   constexpr defer &operator=(defer const &) = delete;
-  constexpr defer(Lambda &&l) : lambda{(Lambda &&) l}
+  constexpr defer(Lambda &&l) : lambda{static_cast<Lambda &&>(l)}
   {
   }
   constexpr ~defer()
@@ -1725,7 +1725,7 @@ struct Pin
   T v;
 
   template <typename... Args>
-  constexpr Pin(Args &&...args) : v{((Args &&) args)...}
+  constexpr Pin(Args &&...args) : v{static_cast<Args &&>(args)...}
   {
   }
   constexpr Pin(Pin const &)            = delete;
@@ -1746,12 +1746,6 @@ struct Pin<void>
   constexpr Pin &operator=(Pin const &) = delete;
   constexpr Pin &operator=(Pin &&)      = delete;
   constexpr ~Pin()                      = default;
-};
-
-template <typename R, typename... Ctx>
-constexpr void uninit(R &r, Ctx &&...ctx)
-{
-  r.uninit(((Ctx &&) ctx)...);
 };
 
 constexpr u8 sat_add(u8 a, u8 b)

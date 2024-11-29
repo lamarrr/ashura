@@ -262,7 +262,7 @@ struct AtomicInit
 
   template <typename... Args>
   constexpr AtomicInit(V<0>, Args &&...args) :
-      stage_{AtomicInitStage::Init}, v_{((Args &&) args)...}
+      stage_{AtomicInitStage::Init}, v_{static_cast<Args &&>(args)...}
   {
   }
 
@@ -299,7 +299,7 @@ struct AtomicInit
       return false;
     }
 
-    new (&v_) T{((Args &&) args)...};
+    new (&v_) T{static_cast<Args &&>(args)...};
 
     stage.store(AtomicInitStage::Init, std::memory_order_release);
     return true;
@@ -326,7 +326,7 @@ struct [[nodiscard]] Sync
   ReadWriteLock lock_;
 
   template <typename... Args>
-  constexpr Sync(Args &&...args) : data_{((Args &&) args)...}, lock_{}
+  constexpr Sync(Args &&...args) : data_{static_cast<Args &&>(args)...}, lock_{}
   {
   }
 
@@ -344,14 +344,14 @@ struct [[nodiscard]] Sync
   void read(Op &&op)
   {
     ReadGuard guard{lock_};
-    ((Op &&) op)(data_);
+    static_cast<Op &&>(op)(data_);
   }
 
   template <Callable<T &> Op>
   void write(Op &&op)
   {
     WriteGuard guard{lock_};
-    ((Op &&) op)(data_);
+    static_cast<Op &&>(op)(data_);
   }
 };
 
@@ -645,14 +645,14 @@ struct [[nodiscard]] Stream
   template <Callable<T &> F>
   void yield_unseq(F &&op, u64 increment) const
   {
-    ((F &&) op)(*data_.get());
+    static_cast<F &&>(op)(*data_.get());
     semaphore_->increment(increment);
   }
 
   template <Callable<T &> F>
   void yield_seq(F &&op, u64 stage) const
   {
-    ((F &&) op)(*data_.get());
+    static_cast<F &&>(op)(*data_.get());
     CHECK_DESC(semaphore_->signal(stage + 1),
                "`Stream` yielded with invalid sequencing");
   }
@@ -662,7 +662,7 @@ template <typename T, typename... Args>
 Result<Stream<T>> stream_inplace(AllocatorImpl allocator, u64 num_stages,
                                  Args &&...args)
 {
-  Result data = rc_inplace<T>(allocator, ((Args &&) args)...);
+  Result data = rc_inplace<T>(allocator, static_cast<Args &&>(args)...);
   if (!data)
   {
     return Err{};
@@ -728,7 +728,7 @@ struct [[nodiscard]] Future
   {
     stream_.yield_seq(
         [&](AtomicInit<T> &v) {
-          bool const init = v.init(((Args &&) args)...);
+          bool const init = v.init(static_cast<Args &&>(args)...);
           CHECK_DESC(
               init,
               "Called `Future::complete()` on an already completed `Future`");
@@ -824,8 +824,9 @@ struct TaskSchedule
 template <TaskFrame F>
 TaskInfo to_task_info(F &frame)
 {
-  Fn init =
-      fn(&frame, [](F *frame, void *mem) { new (mem) F{(F &&) (*frame)}; });
+  Fn init = fn(&frame, [](F *frame, void *mem) {
+    new (mem) F{static_cast<F &&>(*frame)};
+  });
 
   TaskInfo::Uninit uninit = [](void *f) {
     F *frame = reinterpret_cast<F *>(f);

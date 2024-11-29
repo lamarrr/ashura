@@ -10,18 +10,19 @@ constexpr decltype(auto) fold_impl_reduce(Tuple &fns, In &&...in)
 {
   if constexpr (I == (Tuple::SIZE - 1))
   {
-    return get<I>(fns)(((In &&) in)...);
+    return get<I>(fns)(static_cast<In &&>(in)...);
   }
   else
   {
     if constexpr (Same<CallResult<decltype(get<I>(fns)), In...>, void>)
     {
-      get<I>(fns)(((In &&) in)...);
+      get<I>(fns)(static_cast<In &&>(in)...);
       return fold_impl_reduce<I + 1, Tuple>(fns);
     }
     else
     {
-      return fold_impl_reduce<I + 1, Tuple>(fns, get<I>(fns)(((In &&) in)...));
+      return fold_impl_reduce<I + 1, Tuple>(
+          fns, get<I>(fns)(static_cast<In &&>(in)...));
     }
   }
 }
@@ -35,7 +36,7 @@ constexpr decltype(auto) fold_impl(Tuple &fns, In &&...in)
   }
   else
   {
-    return fold_impl_reduce<0, Tuple>(fns, ((In &&) in)...);
+    return fold_impl_reduce<0, Tuple>(fns, static_cast<In &&>(in)...);
   }
 }
 
@@ -45,7 +46,7 @@ constexpr decltype(auto) fold_impl(Tuple &fns, In &&...in)
 template <class Tuple, typename... In>
 constexpr decltype(auto) fold(Tuple &fns, In &&...in)
 {
-  return fold_impl(fns, ((In &&) in)...);
+  return fold_impl(fns, static_cast<In &&>(in)...);
 }
 
 }        // namespace ash
