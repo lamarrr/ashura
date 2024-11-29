@@ -93,7 +93,7 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
 
   std::string_view default_font_sv =
       config["default_font"].get_string().value();
-  out.default_font = vec(allocator, span(default_font_sv)).unwrap();
+  out.default_font = vec<char>(allocator, default_font_sv).unwrap();
 
   // check that it is a valid entry
   fonts[default_font_sv].get_string().value();
@@ -132,7 +132,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   read_file(config_path, json).unwrap();
 
-  EngineCfg cfg = EngineCfg::parse(allocator, span(json));
+  EngineCfg cfg = EngineCfg::parse(allocator, json);
 
   logger->trace("Initializing Engine");
 
@@ -140,7 +140,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
       gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
 
   gpu::Device *device =
-      instance->create_device(allocator, span(cfg.gpu.preferences), 2).unwrap();
+      instance->create_device(allocator, cfg.gpu.preferences, 2).unwrap();
 
   GpuContext gpu_ctx =
       GpuContext::create(allocator, device, cfg.gpu.hdr, cfg.gpu.buffering,
@@ -159,7 +159,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
   logger->trace("Creating Root Window");
 
   Window window =
-      window_system->create_window(*instance, "Ashura"_span).unwrap();
+      window_system->create_window(*instance, "Ashura"_str).unwrap();
 
   if (cfg.window.maximized)
   {
@@ -237,9 +237,9 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   cfg.shaders.iter([&](Vec<char> &id, Vec<char> &path) {
     Vec<char> resolved_path = vec(allocator, assets_dir).unwrap();
-    path_append(resolved_path, span(path)).unwrap();
+    path_append(resolved_path, path).unwrap();
 
-    async::once([shader_id   = vec(allocator, span(id)).unwrap(),
+    async::once([shader_id   = vec<char>(allocator, span(id)).unwrap(),
                  shader_path = std::move(resolved_path), sem = sem.alias(),
                  allocator]() mutable {
       logger->trace("Loading shader ", span(shader_id), " from ",
@@ -247,7 +247,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
       Vec<u8> data{allocator};
 
-      if (Result result = read_file(span(shader_path), data); !result)
+      if (Result result = read_file(shader_path, data); !result)
       {
         logger->error("Unable to load shader at ", span(shader_path),
                       ", IO Error: ", result.err());
@@ -274,8 +274,8 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
             gpu::Shader shader =
                 engine->device
-                    ->create_shader(gpu::ShaderInfo{
-                        .label = "Shader"_span, .spirv_code = span(data_u32)})
+                    ->create_shader(gpu::ShaderInfo{.label      = "Shader"_str,
+                                                    .spirv_code = data_u32})
                     .unwrap();
 
             engine->assets.shaders.insert(std::move(shader_id), shader)
@@ -289,16 +289,16 @@ void Engine::init(AllocatorImpl allocator, void *app,
 
   cfg.fonts.iter([&](Vec<char> &id, Vec<char> &path) {
     Vec<char> resolved_path = vec(allocator, assets_dir).unwrap();
-    path_append(resolved_path, span(path)).unwrap();
+    path_append(resolved_path, path).unwrap();
 
-    async::once([font_id   = vec(allocator, span(id)).unwrap(),
+    async::once([font_id   = vec<char>(allocator, span(id)).unwrap(),
                  font_path = std::move(resolved_path), sem = sem.alias(),
                  allocator]() mutable {
       logger->trace("Loading font ", span(font_id), " from ", span(font_path));
 
       Vec<u8> data{allocator};
 
-      Result read_result = read_file(span(font_path), data);
+      Result read_result = read_file(font_path, data);
 
       if (!read_result)
       {
@@ -308,7 +308,7 @@ void Engine::init(AllocatorImpl allocator, void *app,
         return;
       }
 
-      Result decode_result = Font::decode(span(data), 0, allocator);
+      Result decode_result = Font::decode(data, 0, allocator);
 
       if (!decode_result)
       {
@@ -352,7 +352,8 @@ void Engine::init(AllocatorImpl allocator, void *app,
     scheduler->execute_main_thread_loop(1ms, 2ms);
   }
 
-  engine->default_font_name = vec(allocator, span(cfg.default_font)).unwrap();
+  engine->default_font_name =
+      vec<char>(allocator, span(cfg.default_font)).unwrap();
   engine->default_font = engine->assets.fonts[engine->default_font_name].get();
 
   engine->renderer.acquire(engine->gpu_ctx, engine->assets);
@@ -479,7 +480,7 @@ void Engine::recreate_swapchain_()
     }
   }
 
-  gpu::SwapchainInfo info{.label  = "Window Swapchain"_span,
+  gpu::SwapchainInfo info{.label  = "Window Swapchain"_str,
                           .format = format,
                           .usage  = gpu::ImageUsage::TransferDst |
                                    gpu::ImageUsage::ColorAttachment,

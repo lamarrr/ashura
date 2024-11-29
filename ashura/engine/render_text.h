@@ -225,7 +225,7 @@ struct RenderText
 
   Span<c32 const> get_text() const
   {
-    return span(inner.text);
+    return inner.text;
   }
 
   void set_text(Span<c32 const> utf32, TextStyle const &style,
@@ -267,9 +267,9 @@ struct RenderText
 
   TextBlock block() const
   {
-    return TextBlock{.text          = span(inner.text),
-                     .runs          = span(inner.runs),
-                     .fonts         = span(inner.fonts),
+    return TextBlock{.text          = inner.text,
+                     .runs          = inner.runs,
+                     .fonts         = inner.fonts,
                      .direction     = inner.direction,
                      .language      = inner.language,
                      .use_kerning   = inner.use_kerning,
@@ -278,7 +278,7 @@ struct RenderText
 
   TextBlockStyle block_style(f32 aligned_width) const
   {
-    return TextBlockStyle{.runs        = span(inner.styles),
+    return TextBlockStyle{.runs        = inner.styles,
                           .alignment   = inner.alignment,
                           .align_width = aligned_width};
   }

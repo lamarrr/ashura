@@ -243,4 +243,39 @@ struct Flex
   }
 };
 
+struct StrEq
+{
+  bool operator()(Span<char const> a, Span<char const> b) const
+  {
+    return mem::eq(a, b);
+  }
+
+  bool operator()(Span<c8 const> a, Span<c8 const> b) const
+  {
+    return mem::eq(a, b);
+  }
+
+  bool operator()(Span<c16 const> a, Span<c16 const> b) const
+  {
+    return mem::eq(a, b);
+  }
+
+  bool operator()(Span<c32 const> a, Span<c32 const> b) const
+  {
+    return mem::eq(a, b);
+  }
+};
+
+struct BitEq
+{
+  template <typename T>
+  bool operator()(T const &a, T const &b) const
+  {
+    return mem::eq(Span{&a, 1}, Span{&b, 1});
+  }
+};
+
+constexpr StrEq str_eq;
+constexpr BitEq bit_eq;
+
 }        // namespace ash

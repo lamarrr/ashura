@@ -24,11 +24,11 @@ struct EngineCfg
 
   struct Window
   {
-    bool resizable = true;
-    bool maximized = false;
+    bool resizable   = true;
+    bool maximized   = false;
     bool full_screen = false;
-    u32  width     = 1920;
-    u32  height    = 1080;
+    u32  width       = 1920;
+    u32  height      = 1080;
   };
 
   Gpu gpu{};
@@ -37,11 +37,11 @@ struct EngineCfg
 
   Vec<char> default_font{};
 
-  StrMap<Vec<char>> shaders{};
+  StrVecMap<Vec<char>> shaders{};
 
-  StrMap<Vec<char>> fonts{};
+  StrVecMap<Vec<char>> fonts{};
 
-  StrMap<Vec<char>> images{};
+  StrVecMap<Vec<char>> images{};
 
   static EngineCfg parse(AllocatorImpl allocator, Span<u8 const> json);
 };

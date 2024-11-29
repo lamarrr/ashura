@@ -6,7 +6,7 @@
 TEST(EnumTest, Basic)
 {
   using namespace ash;
-  Enum<StaticStrMap<int>, int, float, int *> f{nullptr};
+  Enum<StrMap<int>, int, float, int *> f{nullptr};
   EXPECT_EQ(f.index(), 3);
 
   // [ ] map(   )

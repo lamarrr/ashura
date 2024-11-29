@@ -12,7 +12,7 @@ Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> &buff)
 {
   char path_c_str[MAX_PATH_SIZE + 1];
 
-  CHECK(to_c_str(path, span(path_c_str)));
+  CHECK(to_c_str(path, path_c_str));
 
   std::FILE *file = std::fopen(path_c_str, "rb");
   if (file == nullptr)

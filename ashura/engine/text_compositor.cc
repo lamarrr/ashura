@@ -35,8 +35,8 @@ void TextCompositor::Inner::pop_records(u32 num)
   {
     reclaimed += records[i].slice.span;
   }
-  mem::move(span(buffer).slice(reclaimed).as_const(), span(buffer));
-  mem::move(span(records).slice(num).as_const(), span(records));
+  mem::move(span(buffer).slice(reclaimed), span(buffer));
+  mem::move(span(records).slice(num), span(records));
   buffer_usage -= reclaimed;
   latest_record -= num;
   current_record -= num;
@@ -455,14 +455,14 @@ void TextCompositor::Inner::command(Span<c32 const>   text,
       Vec<c8> data_u8;
       utf8_encode(text.slice(cursor.as_slice(text.size32())), data_u8).unwrap();
       delete_selection(text, erase);
-      clipboard.set_text(span(data_u8)).unwrap();
+      clipboard.set_text(data_u8).unwrap();
     }
     break;
     case TextCommand::Copy:
     {
       Vec<c8> data_u8;
       utf8_encode(text.slice(cursor.as_slice(text.size32())), data_u8).unwrap();
-      clipboard.set_text(span(data_u8)).unwrap();
+      clipboard.set_text(data_u8).unwrap();
     }
     break;
     case TextCommand::Paste:
@@ -470,12 +470,12 @@ void TextCompositor::Inner::command(Span<c32 const>   text,
       Vec<c32> data_u32;
       Vec<c8>  data_u8;
       clipboard.get_text(data_u8).unwrap();
-      utf8_decode(span(data_u8), data_u32).unwrap();
+      utf8_decode(data_u8, data_u32).unwrap();
       Slice32 selection = cursor.as_slice(text.size32());
       delete_selection(text, noop);
-      append_record(true, selection.offset, span(data_u32));
+      append_record(true, selection.offset, data_u32);
       erase(selection);
-      insert(selection.offset, span(data_u32));
+      insert(selection.offset, data_u32);
     }
     break;
     case TextCommand::Undo:
@@ -502,7 +502,7 @@ void TextCompositor::Inner::command(Span<c32 const>   text,
     break;
     case TextCommand::NewLine:
     {
-      Span<c32 const> input     = U"\n"_span;
+      Span<c32 const> input     = U"\n"_str;
       Slice32         selection = cursor.as_slice(text.size32());
       delete_selection(text, noop);
       append_record(true, selection.offset, input);

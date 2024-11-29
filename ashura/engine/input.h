@@ -798,12 +798,12 @@ struct ClipBoard
 
   Result<> get_text(Vec<c8> &out)
   {
-    return get(span(MIME_TEXT_UTF8), out);
+    return get(MIME_TEXT_UTF8, out);
   }
 
   Result<> set_text(Span<c8 const> text)
   {
-    return set(span(MIME_TEXT_UTF8), text);
+    return set(MIME_TEXT_UTF8, text);
   }
 };
 
