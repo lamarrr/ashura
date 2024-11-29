@@ -232,9 +232,9 @@ enum class TextScript : u8
 /// @param line_height relative. multiplied by font_height
 struct FontStyle
 {
-  Font *font        = nullptr;
-  f32   font_height = 20;
-  f32   line_height = 1.2F;
+  Font * font        = nullptr;
+  f32    font_height = 20;
+  f32    line_height = 1.2F;
 };
 
 /// @param shadow_scale relative. multiplied by font_height
@@ -313,8 +313,8 @@ struct alignas(4) TextSegment
   u16        style               = 0;
   TextScript script              = TextScript::None;
   bool       paragraph_begin : 1 = false;
-  bool       paragraph_end : 1   = false;
-  bool       breakable : 1       = false;
+  bool       paragraph_end   : 1 = false;
+  bool       breakable       : 1 = false;
   u8         base_level          = 0;
   u8         level               = 0;
 };
@@ -420,13 +420,13 @@ constexpr TextDirection level_to_direction(u8 level)
                                 TextDirection::RightToLeft;
 }
 
-void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout);
+void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout);
 
 /// @brief given a position in the laid-out text return the location of the
 /// grapheme the cursor points to. returns the last column if the position
 /// overlaps with the row and returns the last line if no overlap was found.
 /// @param pos position in laid-out text to return from.
-TextHitResult hit_text(TextLayout const &layout, f32 align_width, f32 alignment,
-                       Vec2 pos);
+TextHitResult hit_text(TextLayout const & layout, f32 align_width,
+                       f32 alignment, Vec2 pos);
 
 }        // namespace ash

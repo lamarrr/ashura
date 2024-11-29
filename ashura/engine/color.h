@@ -1,4 +1,3 @@
-
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/math.h"
@@ -403,7 +402,10 @@ struct ColorGradient
   }
 
   constexpr ColorGradient(Vec4 tl, Vec4 tr, Vec4 bl, Vec4 br) :
-      tl{tl}, tr{tr}, bl{bl}, br{br}
+      tl{tl},
+      tr{tr},
+      bl{bl},
+      br{br}
   {
   }
 
@@ -432,12 +434,12 @@ struct ColorGradient
     return y(y0.norm(), y1.norm());
   }
 
-  constexpr Vec4 const &operator[](usize i) const
+  constexpr Vec4 const & operator[](usize i) const
   {
     return (&tl)[i];
   }
 
-  constexpr Vec4 &operator[](usize i)
+  constexpr Vec4 & operator[](usize i)
   {
     return (&tl)[i];
   }

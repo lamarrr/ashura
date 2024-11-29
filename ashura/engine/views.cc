@@ -5,7 +5,7 @@
 namespace ash
 {
 
-void ScalarDragBox::scalar_parse(Span<c32 const> text, ScalarState &styling)
+void ScalarDragBox::scalar_parse(Span<c32 const> text, ScalarState & styling)
 {
   if (text.is_empty())
   {

@@ -20,11 +20,11 @@ struct WindowEventListener
 
 struct WindowImpl
 {
-  SDL_Window                         *win       = nullptr;
+  SDL_Window *                        win       = nullptr;
   gpu::Surface                        surface   = nullptr;
   SDL_WindowID                        id        = 0;
   SparseVec<Vec<WindowEventListener>> listeners = {};
-  gpu::Instance                      *instance  = nullptr;
+  gpu::Instance *                     instance  = nullptr;
   Fn<WindowRegion(Vec2U)>             hit_test =
       fn([](Vec2U) { return WindowRegion::Normal; });
 };
@@ -37,12 +37,12 @@ struct SystemEventListener
 
 struct ClipBoardImpl : ClipBoard
 {
-  virtual Result<> get(Span<char const> mime, Vec<c8> &out) override
+  virtual Result<> get(Span<char const> mime, Vec<c8> & out) override
   {
     char mime_c_str[256];
     CHECK(to_c_str(mime, mime_c_str));
-    usize mime_data_len;
-    void *data = SDL_GetClipboardData(mime_c_str, &mime_data_len);
+    usize  mime_data_len;
+    void * data = SDL_GetClipboardData(mime_c_str, &mime_data_len);
     if (data == nullptr)
     {
       return Err{};
@@ -68,27 +68,28 @@ struct ClipBoardImpl : ClipBoard
     char mime_c_str[256];
     CHECK(to_c_str(mime, mime_c_str));
 
-    char const *mime_types[] = {mime_c_str};
+    char const * mime_types[] = {mime_c_str};
 
-    Vec<c8> *data_ctx;
+    Vec<c8> * data_ctx;
     CHECK(default_allocator.nalloc(1, data_ctx));
     new (data_ctx) Vec<c8>{};
 
     data_ctx->extend_copy(data).unwrap();
 
     bool failed = SDL_SetClipboardData(
-        [](void *userdata, const char *mime_type, usize *size) -> void const * {
+        [](void * userdata, char const * mime_type,
+           usize * size) -> void const * {
           if (mime_type == nullptr)
           {
             *size = 0;
             return nullptr;
           }
-          auto *ctx = reinterpret_cast<Vec<c8> *>(userdata);
-          *size     = ctx->size();
+          auto * ctx = reinterpret_cast<Vec<c8> *>(userdata);
+          *size      = ctx->size();
           return ctx->data();
         },
-        [](void *userdata) {
-          auto *ctx = reinterpret_cast<Vec<c8> *>(userdata);
+        [](void * userdata) {
+          auto * ctx = reinterpret_cast<Vec<c8> *>(userdata);
           ctx->uninit();
           default_allocator.ndealloc(ctx, 1);
         },
@@ -108,15 +109,15 @@ struct WindowSystemImpl : WindowSystem
   SparseVec<Vec<SystemEventListener>> listeners;
   ClipBoardImpl                       clipboard;
 
-  SDL_Window *hnd(Window window)
+  SDL_Window * hnd(Window window)
   {
     return ((WindowImpl *) window)->win;
   }
 
-  virtual Option<Window> create_window(gpu::Instance   &instance,
+  virtual Option<Window> create_window(gpu::Instance &  instance,
                                        Span<char const> title) override
   {
-    char *title_c_str;
+    char * title_c_str;
     if (!default_allocator.nalloc(title.size() + 1, title_c_str))
     {
       return None;
@@ -128,21 +129,21 @@ struct WindowSystemImpl : WindowSystem
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
 
-    SDL_Window *window = SDL_CreateWindow(
-        title_c_str, 1920, 1080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+    SDL_Window * window = SDL_CreateWindow(
+        title_c_str, 1'920, 1'080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     CHECKSdl(window != nullptr);
     SDL_WindowID id = SDL_GetWindowID(window);
     CHECKSdl(id != 0);
 
     CHECK(instance.get_backend() == gpu::Backend::Vulkan);
 
-    vk::Instance &vk_instance = (vk::Instance &) instance;
-    VkSurfaceKHR  surface;
+    vk::Instance & vk_instance = (vk::Instance &) instance;
+    VkSurfaceKHR   surface;
 
     CHECKSdl(SDL_Vulkan_CreateSurface(window, vk_instance.vk_instance, nullptr,
                                       &surface));
 
-    WindowImpl *impl;
+    WindowImpl * impl;
 
     CHECK(default_allocator.nalloc(1, impl));
 
@@ -161,7 +162,7 @@ struct WindowSystemImpl : WindowSystem
   {
     if (window != nullptr)
     {
-      WindowImpl *win = (WindowImpl *) window;
+      WindowImpl * win = (WindowImpl *) window;
       win->instance->uninit_surface(win->surface);
       SDL_DestroyWindow(win->win);
       win->listeners.reset();
@@ -171,7 +172,7 @@ struct WindowSystemImpl : WindowSystem
 
   virtual void set_title(Window window, Span<char const> title) override
   {
-    char *title_c_str;
+    char * title_c_str;
     CHECK(default_allocator.nalloc(title.size() + 1, title_c_str));
 
     defer title_c_str_{
@@ -183,9 +184,9 @@ struct WindowSystemImpl : WindowSystem
     CHECKSdl(SDL_SetWindowTitle(hnd(window), title_c_str));
   }
 
-  virtual char const *get_title(Window window) override
+  virtual char const * get_title(Window window) override
   {
-    char const *title = SDL_GetWindowTitle(hnd(window));
+    char const * title = SDL_GetWindowTitle(hnd(window));
     CHECKSdl(title != nullptr);
     return title;
   }
@@ -281,7 +282,7 @@ struct WindowSystemImpl : WindowSystem
         CHECK_DESC(false, "unsupported image format");
     }
 
-    SDL_Surface *icon = SDL_CreateSurfaceFrom(
+    SDL_Surface * icon = SDL_CreateSurfaceFrom(
         static_cast<int>(image.width), static_cast<int>(image.height), fmt,
         (void *) image.channels.data(), static_cast<int>(image.pitch()));
     CHECKSdl(icon != nullptr);
@@ -356,21 +357,21 @@ struct WindowSystemImpl : WindowSystem
   virtual u64 listen(Window window, WindowEventTypes event_types,
                      Fn<void(WindowEvent const &)> callback) override
   {
-    WindowImpl *pwin = (WindowImpl *) window;
+    WindowImpl * pwin = (WindowImpl *) window;
     return pwin->listeners.push(WindowEventListener{callback, event_types})
         .unwrap();
   }
 
   virtual void unlisten(Window window, u64 listener) override
   {
-    WindowImpl *pwin = (WindowImpl *) window;
+    WindowImpl * pwin = (WindowImpl *) window;
     pwin->listeners.erase(listener);
   }
 
-  static SDL_HitTestResult sdl_hit_test(SDL_Window *, SDL_Point const *area,
-                                        void *data)
+  static SDL_HitTestResult sdl_hit_test(SDL_Window *, SDL_Point const * area,
+                                        void * data)
   {
-    WindowImpl  *win    = (WindowImpl *) data;
+    WindowImpl * win    = (WindowImpl *) data;
     WindowRegion region = win->hit_test(Vec2U{(u32) area->x, (u32) area->y});
     switch (region)
     {
@@ -402,8 +403,8 @@ struct WindowSystemImpl : WindowSystem
   virtual Result<> set_hit_test(Window                  window,
                                 Fn<WindowRegion(Vec2U)> hit) override
   {
-    WindowImpl *pwin = (WindowImpl *) window;
-    pwin->hit_test   = hit;
+    WindowImpl * pwin = (WindowImpl *) window;
+    pwin->hit_test    = hit;
     if (SDL_SetWindowHitTest(pwin->win, sdl_hit_test, pwin) != 0)
     {
       return Err{};
@@ -414,20 +415,20 @@ struct WindowSystemImpl : WindowSystem
 
   virtual gpu::Surface get_surface(Window window) override
   {
-    WindowImpl *pwin = (WindowImpl *) window;
+    WindowImpl * pwin = (WindowImpl *) window;
     return pwin->surface;
   }
 
-  void push_window_event(SDL_WindowID window_id, WindowEvent const &event)
+  void push_window_event(SDL_WindowID window_id, WindowEvent const & event)
   {
-    SDL_Window *win = SDL_GetWindowFromID(window_id);
+    SDL_Window * win = SDL_GetWindowFromID(window_id);
     CHECK(win != nullptr);
     SDL_PropertiesID props_id = SDL_GetWindowProperties(win);
-    WindowImpl      *impl =
+    WindowImpl *     impl =
         (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
     CHECK(impl != nullptr);
 
-    for (WindowEventListener const &listener : impl->listeners.dense.v0)
+    for (WindowEventListener const & listener : impl->listeners.dense.v0)
     {
       if (has_bits(listener.types, event.type))
       {
@@ -436,9 +437,9 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  void push_system_event(SystemEvent const &event)
+  void push_system_event(SystemEvent const & event)
   {
-    for (SystemEventListener const &listener : listeners.dense.v0)
+    for (SystemEventListener const & listener : listeners.dense.v0)
     {
       if (has_bits(listener.types, event.type))
       {
@@ -546,10 +547,11 @@ struct WindowSystemImpl : WindowSystem
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
         {
-          MouseClickEvent mouse_event{.id = event.button.which,
-                                      .position =
-                                          Vec2{event.button.x, event.button.y},
-                                      .clicks = event.button.clicks};
+          MouseClickEvent mouse_event{
+              .id       = event.button.which,
+              .position = Vec2{event.button.x, event.button.y},
+              .clicks   = event.button.clicks
+          };
           switch (event.button.button)
           {
             case SDL_BUTTON_LEFT:
@@ -597,11 +599,12 @@ struct WindowSystemImpl : WindowSystem
               WindowEvent{
                   .mouse_motion =
                       MouseMotionEvent{
-                          .id       = event.motion.which,
-                          .position = Vec2{event.motion.x, event.motion.y},
-                          .translation =
+                                       .id       = event.motion.which,
+                                       .position = Vec2{event.motion.x, event.motion.y},
+                                       .translation =
                               Vec2{event.motion.xrel, event.motion.yrel}},
-                  .type = WindowEventTypes::MouseMotion});
+                  .type = WindowEventTypes::MouseMotion
+          });
           return;
 
         case SDL_EVENT_MOUSE_WHEEL:
@@ -610,11 +613,12 @@ struct WindowSystemImpl : WindowSystem
               WindowEvent{
                   .mouse_wheel =
                       MouseWheelEvent{
-                          .id = event.wheel.which,
-                          .position =
+                                      .id = event.wheel.which,
+                                      .position =
                               Vec2{event.wheel.mouse_x, event.wheel.mouse_y},
-                          .translation = Vec2{event.wheel.x, event.wheel.y}},
-                  .type = WindowEventTypes::MouseWheel});
+                                      .translation = Vec2{event.wheel.x, event.wheel.y}},
+                  .type = WindowEventTypes::MouseWheel
+          });
           return;
 
         case SDL_EVENT_KEY_DOWN:
@@ -630,7 +634,8 @@ struct WindowSystemImpl : WindowSystem
                                    .action = event.type == SDL_EVENT_KEY_DOWN ?
                                                  KeyAction::Press :
                                                  KeyAction::Release},
-                  .type = WindowEventTypes::Key});
+                  .type = WindowEventTypes::Key
+          });
           return;
 
         case SDL_EVENT_WINDOW_DESTROYED:
@@ -725,13 +730,13 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  virtual ClipBoard &get_clipboard() override
+  virtual ClipBoard & get_clipboard() override
   {
     return clipboard;
   }
 };
 
-ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem *window_system = nullptr;
+ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem * window_system = nullptr;
 
 void WindowSystem::init()
 {

@@ -9,10 +9,10 @@ namespace ash
 
 // TODO: lamarrr view namespace
 template <typename A, typename B, typename SwapOpT = Swap>
-constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
+constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT && swap_op = {})
 {
-  A *a_iter = begin(a);
-  B *b_iter = begin(b);
+  A * a_iter = begin(a);
+  B * b_iter = begin(b);
   for (; a_iter != end(a); a_iter++, b_iter++)
   {
     swap_op(*a_iter, *b_iter);
@@ -20,7 +20,7 @@ constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
 }
 
 template <OutputRange R, typename U>
-constexpr void fill(R &&dst, U &&value)
+constexpr void fill(R && dst, U && value)
 {
   OutputIterator auto it = begin(dst);
   while (it != end(dst))
@@ -31,7 +31,7 @@ constexpr void fill(R &&dst, U &&value)
 }
 
 template <InputRange R, typename Predicate>
-constexpr bool all_of(R &&range, Predicate &&predicate)
+constexpr bool all_of(R && range, Predicate && predicate)
 {
   InputIterator auto it = begin(range);
   while (it != end(range))
@@ -46,7 +46,7 @@ constexpr bool all_of(R &&range, Predicate &&predicate)
 }
 
 template <InputRange R, typename Predicate>
-constexpr bool any_of(R &&range, Predicate &&predicate)
+constexpr bool any_of(R && range, Predicate && predicate)
 {
   InputIterator auto it = begin(range);
   while (it != end(range))
@@ -61,7 +61,7 @@ constexpr bool any_of(R &&range, Predicate &&predicate)
 }
 
 template <InputRange R, typename Predicate>
-constexpr bool none_of(R &&range, Predicate &&predicate)
+constexpr bool none_of(R && range, Predicate && predicate)
 {
   InputIterator auto it = begin(range);
   while (it != end(range))
@@ -76,7 +76,7 @@ constexpr bool none_of(R &&range, Predicate &&predicate)
 }
 
 template <InputRange R, typename U, typename Cmp = Eq>
-constexpr bool contains(R &&range, U &&value, Cmp &&cmp = {})
+constexpr bool contains(R && range, U && value, Cmp && cmp = {})
 {
   InputIterator auto it = begin(range);
   while (it != end(range))
@@ -91,7 +91,7 @@ constexpr bool contains(R &&range, U &&value, Cmp &&cmp = {})
 }
 
 template <InputRange B, InputRange H, typename Cmp = Eq>
-constexpr bool begins_with(B &&body, H &&head, Cmp &&cmp = {})
+constexpr bool begins_with(B && body, H && head, Cmp && cmp = {})
 {
   if (size(head) > size(body))
   {
@@ -115,7 +115,7 @@ constexpr bool begins_with(B &&body, H &&head, Cmp &&cmp = {})
 }
 
 template <InputRange B, InputRange F, typename Cmp = Eq>
-constexpr bool ends_with(B &&body, F &&foot, Cmp &&cmp = {})
+constexpr bool ends_with(B && body, F && foot, Cmp && cmp = {})
 {
   if (size(foot) > size(body))
   {
@@ -141,7 +141,7 @@ constexpr bool ends_with(B &&body, F &&foot, Cmp &&cmp = {})
 
 /// size is 0 if not found, size is 1 if found
 template <typename T, typename U, typename Cmp = Eq>
-constexpr Span<T> find(Span<T> span, U &&value, Cmp &&cmp = {})
+constexpr Span<T> find(Span<T> span, U && value, Cmp && cmp = {})
 {
   usize offset = 0;
   for (; offset < span.size(); offset++)
@@ -155,7 +155,7 @@ constexpr Span<T> find(Span<T> span, U &&value, Cmp &&cmp = {})
 }
 
 template <typename T, typename Predicate>
-constexpr Span<T> find_if(Span<T> span, Predicate &&predicate)
+constexpr Span<T> find_if(Span<T> span, Predicate && predicate)
 {
   usize offset = 0;
   for (; offset < span.size(); offset++)
@@ -169,10 +169,10 @@ constexpr Span<T> find_if(Span<T> span, Predicate &&predicate)
 }
 
 template <InputRange R, typename Target, typename Cmp = Eq>
-constexpr usize count(R &&range, Target &&target, Cmp &&cmp = {})
+constexpr usize count(R && range, Target && target, Cmp && cmp = {})
 {
   usize count = 0;
-  for (auto &element : range)
+  for (auto & element : range)
   {
     if (cmp(element, target))
     {
@@ -183,10 +183,10 @@ constexpr usize count(R &&range, Target &&target, Cmp &&cmp = {})
 }
 
 template <InputRange R, typename Predicate>
-constexpr usize count_if(R &&range, Predicate &&predicate)
+constexpr usize count_if(R && range, Predicate && predicate)
 {
   usize count = 0;
-  for (auto &element : range)
+  for (auto & element : range)
   {
     if (predicate(element))
     {
@@ -197,7 +197,7 @@ constexpr usize count_if(R &&range, Predicate &&predicate)
 }
 
 template <InputRange A, InputRange B, typename Cmp = Eq>
-constexpr bool range_eq(A &&a, B &&b, Cmp &&cmp = {})
+constexpr bool range_eq(A && a, B && b, Cmp && cmp = {})
 {
   if (size(a) != size(b))
   {
@@ -221,7 +221,7 @@ constexpr bool range_eq(A &&a, B &&b, Cmp &&cmp = {})
 }
 
 template <InputRange I, OutputRange O, typename Map>
-constexpr void map(I &&input, O &&output, Map &&mapper)
+constexpr void map(I && input, O && output, Map && mapper)
 {
   InputIterator auto  input_it  = begin(input);
   OutputIterator auto output_it = begin(output);
@@ -235,7 +235,7 @@ constexpr void map(I &&input, O &&output, Map &&mapper)
 }
 
 template <InputRange R, typename Init, typename Reduce = Add>
-constexpr Init reduce(R &&range, Init &&init, Reduce &&reducer = {})
+constexpr Init reduce(R && range, Init && init, Reduce && reducer = {})
 {
   InputIterator auto it = begin(range);
   while (it != end(range))
@@ -248,8 +248,8 @@ constexpr Init reduce(R &&range, Init &&init, Reduce &&reducer = {})
 }
 
 template <InputRange R, typename Init, typename Map, typename Reduce = Add>
-constexpr Init map_reduce(R &&range, Init &&init, Map &&mapper,
-                          Reduce &&reducer = {})
+constexpr Init map_reduce(R && range, Init && init, Map && mapper,
+                          Reduce && reducer = {})
 {
   InputIterator auto it = begin(range);
   while (it != end(range))
@@ -262,7 +262,8 @@ constexpr Init map_reduce(R &&range, Init &&init, Map &&mapper,
 }
 
 template <OutputRange R, typename E, typename F, typename Cmp = Eq>
-constexpr void replace(R &&range, E &&target, F &&replacement, Cmp &&cmp = {})
+constexpr void replace(R && range, E && target, F && replacement,
+                       Cmp && cmp = {})
 {
   OutputIterator auto iter = begin(range);
   while (iter != end(range))
@@ -275,7 +276,7 @@ constexpr void replace(R &&range, E &&target, F &&replacement, Cmp &&cmp = {})
 }
 
 template <OutputRange R, typename F, typename Test>
-constexpr void replace_if(R &&range, F &&replacement, Test &&test)
+constexpr void replace_if(R && range, F && replacement, Test && test)
 {
   OutputIterator auto iter = begin(range);
   while (iter != end(range))
@@ -288,10 +289,10 @@ constexpr void replace_if(R &&range, F &&replacement, Test &&test)
 }
 
 template <typename T, typename Cmp = Eq>
-constexpr void unique(Span<T>, Cmp &&cmp = {});        // destroy? retain?
+constexpr void unique(Span<T>, Cmp && cmp = {});        // destroy? retain?
 
 template <OutputRange R, typename SwapOp = Swap>
-constexpr void reverse(R &&range, SwapOp &&swap = {})
+constexpr void reverse(R && range, SwapOp && swap = {})
 {
   if (is_empty(range))
   {
@@ -310,10 +311,10 @@ constexpr void reverse(R &&range, SwapOp &&swap = {})
 }
 
 template <typename T, typename SwapOp = Swap>
-constexpr void rotate(Span<T>, SwapOp &&swap = {});
+constexpr void rotate(Span<T>, SwapOp && swap = {});
 
 template <typename T, typename U, typename Op, typename Cmp = Eq>
-constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp &&cmp = {});
+constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp && cmp = {});
 
 // first check if src begins with other
 // keep advancing whilst src begins with other
@@ -323,34 +324,34 @@ constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp &&cmp = {});
 // if equal again, move back
 // move back until it is no longer equal
 template <typename T, typename U, typename Cmp = Eq>
-constexpr Span<T> strip(Span<T> src, Span<U> other, Cmp &&cmp = {});
+constexpr Span<T> strip(Span<T> src, Span<U> other, Cmp && cmp = {});
 
 template <typename S, typename Cmp = Less>
-constexpr void sort(S &&span, Cmp &&cmp = {})
+constexpr void sort(S && span, Cmp && cmp = {})
 {
   std::sort(begin(span), end(span), cmp);
 }
 
 template <typename I, typename Cmp>
-constexpr void indirect_sort(Span<I> indices, Cmp &&cmp = {})
+constexpr void indirect_sort(Span<I> indices, Cmp && cmp = {})
 {
   sort(indices, [&](I a, I b) { return cmp(a, b); });
 }
 
 template <typename S, typename Cmp = Less>
-constexpr void stable_sort(S &&span, Cmp &&cmp = {})
+constexpr void stable_sort(S && span, Cmp && cmp = {})
 {
   std::stable_sort(begin(span), end(span), cmp);
 }
 
 template <typename I, typename Cmp = Less>
-constexpr void indirect_stable_sort(Span<I> indices, Cmp &&cmp = {})
+constexpr void indirect_stable_sort(Span<I> indices, Cmp && cmp = {})
 {
   stable_sort(indices, [&](I a, I b) { return cmp(a, b); });
 }
 
 template <OutputRange R, typename Predicate>
-constexpr Tuple<Slice, Slice> partition(R &&range, Predicate &&predicate)
+constexpr Tuple<Slice, Slice> partition(R && range, Predicate && predicate)
 {
   OutputIterator auto       iter  = begin(range);
   OutputIterator auto const first = begin(range);
@@ -373,16 +374,67 @@ constexpr Tuple<Slice, Slice> partition(R &&range, Predicate &&predicate)
   usize const first_size  = static_cast<usize>(next - first);
   usize const second_size = static_cast<usize>(iter - next);
 
-  return Tuple{Slice{0, first_size}, Slice{first_size, second_size}};
+  return Tuple{
+      Slice{0,          first_size },
+      Slice{first_size, second_size}
+  };
 }
 
 template <typename T>
 void iota(Span<T> s, T first)
 {
-  for (auto &v : s)
+  for (auto & v : s)
   {
     v = first++;
   };
+}
+
+template <typename T, typename Op = Add>
+constexpr T inclusive_scan(Span<T const> input, Span<T> output, T && init = {},
+                           Op && op = {})
+{
+  T const * in  = input.begin();
+  T *       out = output.begin();
+
+  while (in != input.end())
+  {
+    *out = (T &&) init;
+    init = op(*out, *in);
+    in++;
+    out++;
+  }
+
+  return init;
+}
+
+template <typename T>
+constexpr T prefix_sum(Span<T const> input, Span<T> output, T && init = {})
+{
+  return inclusive_scan(input, output, (T &&) init, Add{});
+}
+
+template <typename T, typename Op = Add>
+constexpr T exclusive_scan(Span<T const> input, Span<T> output, T && init = {},
+                           Op && op = {})
+{
+  T const * in  = input.begin();
+  T *       out = output.begin();
+
+  while (in != input.end())
+  {
+    *out = op((T &&) init, *in);
+    init = *out;
+    in++;
+    out++;
+  }
+
+  return init;
+}
+
+template <typename T>
+constexpr T suffix_sum(Span<T const> input, Span<T> output, T && init = {})
+{
+  return exclusive_scan(input, output, (T &&) init, Add{});
 }
 
 }        // namespace  ash

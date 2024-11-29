@@ -12,16 +12,16 @@ namespace obj
 template <typename T>
 constexpr void default_construct(Span<T> dst)
 {
-  for (T *iter = dst.begin(); iter != dst.end(); iter++)
+  for (T * iter = dst.begin(); iter != dst.end(); iter++)
   {
     new (iter) T{};
   }
 }
 
 template <typename T, typename U>
-constexpr void move_construct(Span<T> src, U *dst)
+constexpr void move_construct(Span<T> src, U * dst)
 {
-  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.begin(); in != src.end(); in++, dst++)
   {
     new (dst) T{static_cast<T &&>(*in)};
   }
@@ -34,9 +34,9 @@ constexpr void move_construct(Span<T> src, Span<U> dst)
 }
 
 template <typename T, typename U>
-constexpr void copy_construct(Span<T> src, U *dst)
+constexpr void copy_construct(Span<T> src, U * dst)
 {
-  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.begin(); in != src.end(); in++, dst++)
   {
     new (dst) T{*in};
   }
@@ -53,7 +53,7 @@ constexpr void destruct(Span<T> src)
 {
   if constexpr (!TriviallyDestructible<T>)
   {
-    for (T *iter = src.begin(); iter != src.end(); iter++)
+    for (T * iter = src.begin(); iter != src.end(); iter++)
     {
       iter->~T();
     }
@@ -61,9 +61,9 @@ constexpr void destruct(Span<T> src)
 }
 
 template <typename T, typename U>
-constexpr void move(Span<T> src, U *dst)
+constexpr void move(Span<T> src, U * dst)
 {
-  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.begin(); in != src.end(); in++, dst++)
   {
     *in = (T &&) (*dst);
   }
@@ -76,9 +76,9 @@ constexpr void move(Span<T> src, Span<U> dst)
 }
 
 template <typename T, typename U>
-constexpr void copy(Span<T> src, U *dst)
+constexpr void copy(Span<T> src, U * dst)
 {
-  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.begin(); in != src.end(); in++, dst++)
   {
     *dst = *in;
   }
@@ -93,7 +93,7 @@ constexpr void copy(Span<T> src, Span<U> dst)
 /// @brief move-construct object from src to an uninitialized memory range
 /// dst_mem and destroy object at src_mem, leaving src's objects uninitialized.
 template <typename T, typename U>
-constexpr void relocate(Span<T> src, U *dst)
+constexpr void relocate(Span<T> src, U * dst)
 {
   if constexpr (TriviallyRelocatable<T>)
   {
@@ -116,7 +116,7 @@ constexpr void relocate(Span<T> src, Span<U> dst)
 ///
 /// @note src_mem and dst_mem must not be same nor overlapping.
 template <typename T, typename U>
-constexpr void relocate_non_overlapping(Span<T> src, U *dst)
+constexpr void relocate_non_overlapping(Span<T> src, U * dst)
 {
   if constexpr (TriviallyRelocatable<T>)
   {

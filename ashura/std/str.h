@@ -11,7 +11,7 @@ namespace str
 
 template <typename C>
 Result<> join(Span<Span<C const> const> strings, Span<C const> delimiter,
-              Vec<C> &out)
+              Vec<C> & out)
 {
   if (strings.size() == 0)
   {

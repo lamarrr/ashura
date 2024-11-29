@@ -31,7 +31,7 @@ struct RemoveConstVolatile<T const> : RemoveConstVolatile<T>
 };
 
 template <typename T>
-struct RemoveConstVolatile<volatile T> : RemoveConstVolatile<T>
+struct RemoveConstVolatile<T volatile> : RemoveConstVolatile<T>
 {
 };
 
@@ -76,7 +76,7 @@ template <typename T, typename U>
 concept Same = SameImpl<T, U>::value;
 
 template <typename From, typename To>
-concept Convertible = requires(From &&from) {
+concept Convertible = requires (From && from) {
   { static_cast<To>(static_cast<From &&>(from)) };
 };
 
@@ -136,7 +136,7 @@ template <typename T>
 concept FloatingPoint = std::is_floating_point_v<T>;
 
 template <typename F, typename... Args>
-concept Callable = requires(F &&f, Args &&...args) {
+concept Callable = requires (F && f, Args &&... args) {
   { static_cast<F &&>(f)(static_cast<Args &&>(args)...) };
 };
 

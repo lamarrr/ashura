@@ -202,15 +202,15 @@ struct TextCompositor
 
     void delete_selection(Span<c32 const> text, Erase erase);
 
-    void command(Span<c32 const> text, TextLayout const &layout,
+    void command(Span<c32 const> text, TextLayout const & layout,
                  f32 align_width, f32 alignment, TextCommand cmd, Insert insert,
-                 Erase erase, Span<c32 const> input, ClipBoard &clipboard,
+                 Erase erase, Span<c32 const> input, ClipBoard & clipboard,
                  u32 lines_per_page, Vec2 pos);
   };
 
   Inner inner;
 
-  TextCompositor(u32 num_buffer_codepoints = 16_KB, u32 num_records = 1024) :
+  TextCompositor(u32 num_buffer_codepoints = 16_KB, u32 num_records = 1'024) :
       inner{num_buffer_codepoints, num_records}
   {
   }
@@ -252,9 +252,9 @@ struct TextCompositor
 
   /// @param text original text
   /// @param input text from IME to insert
-  void command(Span<c32 const> text, TextLayout const &layout, f32 align_width,
+  void command(Span<c32 const> text, TextLayout const & layout, f32 align_width,
                f32 alignment, TextCommand cmd, Insert insert, Erase erase,
-               Span<c32 const> input, ClipBoard &clipboard, u32 lines_per_page,
+               Span<c32 const> input, ClipBoard & clipboard, u32 lines_per_page,
                Vec2 pos)
   {
     inner.command(text, layout, align_width, alignment, cmd, insert, erase,

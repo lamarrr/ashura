@@ -1,4 +1,3 @@
-
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/font_impl.h"
 
@@ -14,7 +13,7 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
     return Err{FontErr::OutOfMemory};
   }
 
-  hb_blob_t *hb_blob =
+  hb_blob_t * hb_blob =
       hb_blob_create(font_data.data(), font_data.size(),
                      HB_MEMORY_MODE_READONLY, nullptr, nullptr);
 
@@ -37,7 +36,7 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
     return Err{FontErr::FaceNotFound};
   }
 
-  hb_face_t *hb_face = hb_face_create(hb_blob, face);
+  hb_face_t * hb_face = hb_face_create(hb_blob, face);
 
   if (hb_face == nullptr)
   {
@@ -51,7 +50,7 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
     }
   }};
 
-  hb_font_t *hb_font = hb_font_create(hb_face);
+  hb_font_t * hb_font = hb_font_create(hb_face);
 
   if (hb_font == nullptr)
   {
@@ -100,8 +99,8 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
     }
   }};
 
-  char const *ft_postscript_name   = FT_Get_Postscript_Name(ft_face);
-  usize       postscript_name_size = 0;
+  char const * ft_postscript_name   = FT_Get_Postscript_Name(ft_face);
+  usize        postscript_name_size = 0;
 
   Vec<char> postscript_name{allocator};
 
@@ -139,7 +138,7 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
     }
   }
 
-  u32 const num_glyphs = (u32) ft_face->num_glyphs;
+  u32 const num_glyphs        = (u32) ft_face->num_glyphs;
   // glyph 0 is selected if the replacement codepoint glyph is not found
   u32 const replacement_glyph = FT_Get_Char_Index(ft_face, 0xFFFD);
   u32 const ellipsis_glyph    = FT_Get_Char_Index(ft_face, 0x2026);
@@ -163,10 +162,12 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
     {
       FT_GlyphSlot s = ft_face->glyph;
 
-      GlyphMetrics m{.bearing{(i32) s->metrics.horiBearingX,
-                              (i32) -s->metrics.horiBearingY},
-                     .advance = (i32) s->metrics.horiAdvance,
-                     .extent{(i32) s->metrics.width, (i32) s->metrics.height}};
+      GlyphMetrics m{
+          .bearing{(i32) s->metrics.horiBearingX,
+                   (i32) -s->metrics.horiBearingY                        },
+          .advance = (i32) s->metrics.horiAdvance,
+          .extent{(i32) s->metrics.width,        (i32) s->metrics.height}
+      };
 
       // bin offsets are determined after binning and during rect packing
       glyphs[i] = Glyph{.is_valid = true, .metrics = m};
@@ -195,7 +196,7 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
   ft_lib  = nullptr;
   ft_face = nullptr;
 
-  Font *font_base = font.value().get();
+  Font * font_base = font.value().get();
 
   return Ok{transmute(std::move(font.value()), font_base)};
 }

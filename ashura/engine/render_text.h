@@ -53,7 +53,7 @@ struct RenderText
     /// @param count range of the number of codepoints to be patched
     /// @param style font style to be applied
     /// @param font font configuration to be applied
-    void style(TextStyle const &style, FontStyle const &font, u32 first = 0,
+    void style(TextStyle const & style, FontStyle const & font, u32 first = 0,
                u32 count = U32_MAX)
     {
       if (count == 0)
@@ -183,7 +183,7 @@ struct RenderText
     inner.dirty = true;
   }
 
-  void highlight(TextHighlight const &highlight)
+  void highlight(TextHighlight const & highlight)
   {
     inner.highlights.push(highlight).unwrap();
   }
@@ -228,8 +228,8 @@ struct RenderText
     return inner.text;
   }
 
-  void set_text(Span<c32 const> utf32, TextStyle const &style,
-                FontStyle const &font)
+  void set_text(Span<c32 const> utf32, TextStyle const & style,
+                FontStyle const & font)
   {
     set_text(utf32);
     inner.style(style, font);
@@ -243,8 +243,8 @@ struct RenderText
     flush_text();
   }
 
-  void set_text(Span<c8 const> utf8, TextStyle const &style,
-                FontStyle const &font)
+  void set_text(Span<c8 const> utf8, TextStyle const & style,
+                FontStyle const & font)
   {
     inner.style(style, font);
     set_text(utf8);
@@ -258,7 +258,7 @@ struct RenderText
     flush_text();
   }
 
-  void style(TextStyle const &style, FontStyle const &font, u32 first = 0,
+  void style(TextStyle const & style, FontStyle const & font, u32 first = 0,
              u32 count = U32_MAX)
   {
     inner.style(style, font, first, count);
@@ -293,7 +293,7 @@ struct RenderText
     layout_text(block(), max_width, inner.layout);
   }
 
-  void render(Canvas &canvas, CRect const &region, CRect const &clip,
+  void render(Canvas & canvas, CRect const & region, CRect const & clip,
               f32 zoom) const
   {
     (void) zoom;

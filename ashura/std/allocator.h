@@ -23,36 +23,36 @@ namespace ash
 ///
 struct Allocator
 {
-  virtual bool alloc(usize alignment, usize size, u8 *&mem) = 0;
+  virtual bool alloc(usize alignment, usize size, u8 *& mem) = 0;
 
-  virtual bool alloc_zeroed(usize alignment, usize size, u8 *&mem) = 0;
+  virtual bool alloc_zeroed(usize alignment, usize size, u8 *& mem) = 0;
 
   virtual bool realloc(usize alignment, usize old_size, usize new_size,
-                       u8 *&mem) = 0;
+                       u8 *& mem) = 0;
 
-  virtual void dealloc(usize alignment, u8 *mem, usize size) = 0;
+  virtual void dealloc(usize alignment, u8 * mem, usize size) = 0;
 
   template <typename T>
-  [[nodiscard]] constexpr bool nalloc(usize num, T *&mem)
+  [[nodiscard]] constexpr bool nalloc(usize num, T *& mem)
   {
     return alloc(alignof(T), sizeof(T) * num, (u8 *&) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T *&mem)
+  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T *& mem)
   {
     return alloc_zeroed(alignof(T), sizeof(T) * num, (u8 *&) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num, T *&mem)
+  [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num, T *& mem)
   {
     return realloc(alignof(T), sizeof(T) * old_num, sizeof(T) * new_num,
                    (u8 *&) mem);
   }
 
   template <typename T>
-  constexpr void ndealloc(T *mem, usize num)
+  constexpr void ndealloc(T * mem, usize num)
   {
     dealloc(alignof(T), (u8 *) mem, sizeof(T) * num);
   }
@@ -85,14 +85,14 @@ struct NoopAllocator final : Allocator
 /// available and supported it can allocate over-aligned memory.
 struct HeapAllocator final : Allocator
 {
-  virtual bool alloc(usize alignment, usize size, u8 *&mem) override;
+  virtual bool alloc(usize alignment, usize size, u8 *& mem) override;
 
-  virtual bool alloc_zeroed(usize alignment, usize size, u8 *&mem) override;
+  virtual bool alloc_zeroed(usize alignment, usize size, u8 *& mem) override;
 
   virtual bool realloc(usize alignment, usize old_size, usize new_size,
-                       u8 *&mem) override;
+                       u8 *& mem) override;
 
-  virtual void dealloc(usize alignment, u8 *mem, usize size) override;
+  virtual void dealloc(usize alignment, u8 * mem, usize size) override;
 };
 
 extern NoopAllocator noop_allocator_impl;
@@ -100,53 +100,53 @@ extern HeapAllocator heap_allocator_impl;
 
 struct AllocatorImpl
 {
-  Allocator *self = &heap_allocator_impl;
+  Allocator * self = &heap_allocator_impl;
 
   [[nodiscard]] constexpr bool alloc(usize alignment, usize size,
-                                     u8 *&mem) const
+                                     u8 *& mem) const
   {
     return self->alloc(alignment, size, mem);
   }
 
   [[nodiscard]] constexpr bool alloc_zeroed(usize alignment, usize size,
-                                            u8 *&mem) const
+                                            u8 *& mem) const
   {
     return self->alloc_zeroed(alignment, size, mem);
   }
 
   [[nodiscard]] constexpr bool realloc(usize alignment, usize old_size,
-                                       usize new_size, u8 *&mem) const
+                                       usize new_size, u8 *& mem) const
   {
     return self->realloc(alignment, old_size, new_size, mem);
   }
 
-  constexpr void dealloc(usize alignment, u8 *mem, usize size) const
+  constexpr void dealloc(usize alignment, u8 * mem, usize size) const
   {
     self->dealloc(alignment, mem, size);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nalloc(usize num, T *&mem) const
+  [[nodiscard]] constexpr bool nalloc(usize num, T *& mem) const
   {
     return self->alloc(alignof(T), sizeof(T) * num, (u8 *&) mem);
   }
 
   template <typename T>
-  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T *&mem) const
+  [[nodiscard]] constexpr bool nalloc_zeroed(usize num, T *& mem) const
   {
     return self->alloc_zeroed(alignof(T), sizeof(T) * num, (u8 *&) mem);
   }
 
   template <typename T>
   [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num,
-                                        T *&mem) const
+                                        T *& mem) const
   {
     return self->realloc(alignof(T), sizeof(T) * old_num, sizeof(T) * new_num,
                          (u8 *&) mem);
   }
 
   template <typename T>
-  constexpr void ndealloc(T *mem, usize num) const
+  constexpr void ndealloc(T * mem, usize num) const
   {
     self->dealloc(alignof(T), (u8 *) mem, sizeof(T) * num);
   }

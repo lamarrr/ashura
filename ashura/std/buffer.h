@@ -11,11 +11,11 @@ namespace ash
 template <typename T>
 struct [[nodiscard]] Buffer
 {
-  T    *data_     = nullptr;
+  T *   data_     = nullptr;
   usize capacity_ = 0;
   usize size_     = 0;
 
-  constexpr T *data() const
+  constexpr T * data() const
   {
     return data_;
   }
@@ -65,7 +65,7 @@ constexpr Span<T> span(Buffer<T> buffer)
 template <typename T>
 struct [[nodiscard]] RingBuffer
 {
-  T    *data_         = nullptr;
+  T *   data_         = nullptr;
   usize capacity_     = 0;
   usize size_         = 0;
   usize consume_next_ = 0;
@@ -85,7 +85,7 @@ struct [[nodiscard]] RingBuffer
     return size_ == 0;
   }
 
-  [[nodiscard]] constexpr bool try_consume(T *out)
+  [[nodiscard]] constexpr bool try_consume(T * out)
   {
     if (size_ == 0)
     {
@@ -100,7 +100,7 @@ struct [[nodiscard]] RingBuffer
     return true;
   }
 
-  [[nodiscard]] constexpr bool try_produce(T const &in)
+  [[nodiscard]] constexpr bool try_produce(T const & in)
   {
     if (size_ == capacity_)
     {
@@ -123,7 +123,7 @@ struct [[nodiscard]] SPSCRingBuffer
   alignas(CACHELINE_ALIGNMENT) usize produce_next_ = 0;
   alignas(CACHELINE_ALIGNMENT) usize consume_next_ = 0;
 
-  T    *data_     = nullptr;
+  T *   data_     = nullptr;
   usize capacity_ = 0;
 
   usize capacity() const
@@ -131,7 +131,7 @@ struct [[nodiscard]] SPSCRingBuffer
     return capacity_;
   }
 
-  [[nodiscard]] bool try_consume(T *out)
+  [[nodiscard]] bool try_consume(T * out)
   {
     std::atomic_ref p{produce_next_};
     std::atomic_ref c{consume_next_};
@@ -153,7 +153,7 @@ struct [[nodiscard]] SPSCRingBuffer
     return true;
   }
 
-  [[nodiscard]] bool try_produce(T const &in)
+  [[nodiscard]] bool try_produce(T const & in)
   {
     std::atomic_ref p{produce_next_};
     std::atomic_ref c{consume_next_};
