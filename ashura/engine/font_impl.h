@@ -106,10 +106,10 @@ struct FontImpl : Font
 
   virtual FontInfo info() override
   {
-    FontInfo info{.postscript_name   = span(postscript_name),
-                  .family_name       = span(family_name),
-                  .style_name        = span(style_name),
-                  .glyphs            = span(glyphs),
+    FontInfo info{.postscript_name   = postscript_name,
+                  .family_name       = family_name,
+                  .style_name        = style_name,
+                  .glyphs            = glyphs,
                   .replacement_glyph = replacement_glyph,
                   .space_glyph       = space_glyph,
                   .ellipsis_glyph    = ellipsis_glyph,
@@ -269,7 +269,7 @@ struct FontImpl : Font
       return Err{};
     }
 
-    ImageLayerSpan<u8, 1> atlas_span{.channels = span(atlas.channels),
+    ImageLayerSpan<u8, 1> atlas_span{.channels = atlas.channels,
                                      .width    = atlas_extent.x,
                                      .height   = atlas_extent.y,
                                      .layers   = num_layers};
@@ -329,7 +329,7 @@ struct FontImpl : Font
 
     gpu::Image image =
         dev.create_image(
-               gpu::ImageInfo{.label  = "Font Atlas Image"_span,
+               gpu::ImageInfo{.label  = "Font Atlas Image"_str,
                               .type   = gpu::ImageType::Type2D,
                               .format = gpu::Format::B8G8R8A8_UNORM,
                               .usage  = gpu::ImageUsage::Sampled |
@@ -352,7 +352,7 @@ struct FontImpl : Font
     {
       views[i] =
           dev.create_image_view(
-                 gpu::ImageViewInfo{.label       = "Font Atlas Image View"_span,
+                 gpu::ImageViewInfo{.label       = "Font Atlas Image View"_str,
                                     .image       = image,
                                     .view_type   = gpu::ImageViewType::Type2D,
                                     .view_format = gpu::Format::B8G8R8A8_UNORM,
@@ -368,7 +368,7 @@ struct FontImpl : Font
     u64 const   atlas_size = atlas.channels.size() * (u64) 4;
     gpu::Buffer staging_buffer =
         dev.create_buffer(
-               gpu::BufferInfo{.label       = "Font Atlas Staging Buffer"_span,
+               gpu::BufferInfo{.label       = "Font Atlas Staging Buffer"_str,
                                .size        = atlas_size,
                                .host_mapped = true,
                                .usage       = gpu::BufferUsage::TransferSrc |
@@ -413,7 +413,7 @@ struct FontImpl : Font
           .image_extent        = {atlas.extent.x, atlas.extent.y, 1}};
     }
 
-    enc.copy_buffer_to_image(staging_buffer, image, span(copies));
+    enc.copy_buffer_to_image(staging_buffer, image, copies);
 
     gpu::Format format = gpu::Format::B8G8R8A8_UNORM;
     c.release(staging_buffer);
@@ -422,7 +422,7 @@ struct FontImpl : Font
     Vec<AtlasGlyph> glyphs;
 
     textures.resize_defaulted(atlas.num_layers).unwrap();
-    glyphs.extend_copy(span(atlas.glyphs)).unwrap();
+    glyphs.extend_copy(atlas.glyphs).unwrap();
 
     for (u32 i = 0; i < atlas.num_layers; i++)
     {

@@ -511,16 +511,15 @@ constexpr Result<Vec<T>> vec(AllocatorImpl allocator, T (&&data)[N])
     return Err{};
   }
 
-  obj::relocate_non_overlapping(span(data), storage);
+  obj::relocate_non_overlapping(data, storage);
 
   return Ok{Vec<T>{allocator, storage, N, N}};
 }
 
-template <typename T>
-constexpr Result<Vec<remove_const<T>>> vec(AllocatorImpl allocator,
-                                           Span<T>       data)
+template <NonConst T>
+constexpr Result<Vec<T>> vec(AllocatorImpl allocator, Span<T const> data)
 {
-  remove_const<T> *storage;
+  T *storage;
   if (!allocator.nalloc(data.size(), storage)) [[unlikely]]
   {
     return Err{};
@@ -528,7 +527,7 @@ constexpr Result<Vec<remove_const<T>>> vec(AllocatorImpl allocator,
 
   obj::copy_construct(data, storage);
 
-  return Ok{Vec<remove_const<T>>{allocator, storage, data.size(), data.size()}};
+  return Ok{Vec<T>{allocator, storage, data.size(), data.size()}};
 }
 
 /// @brief A vector with elements pinned to memory, The address of the vector is

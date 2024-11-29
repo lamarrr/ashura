@@ -46,7 +46,7 @@ inline Context buffer(Buffer<char> *b, Span<char> scratch)
 template <typename T>
 bool push(Context const &ctx, Spec const &, T const &)
 {
-  return ctx.push("<unformatted object>"_span);
+  return ctx.push("<unformatted object>"_str);
 }
 
 bool push(Context const &ctx, Spec const &, bool value);

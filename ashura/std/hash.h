@@ -20,4 +20,24 @@ constexpr Hash hash_combine_n(Hash hash_a, H... hash_b)
 
 Hash hash_bytes(Span<u8 const> bytes);
 
+struct StrHasher
+{
+  Hash operator()(Span<char const> str) const
+  {
+    return hash_bytes(str.as_u8());
+  }
+};
+
+struct BitHasher
+{
+  template <typename T>
+  Hash operator()(T const &a) const
+  {
+    return hash_bytes(Span<T const>{&a, 1}.as_u8());
+  }
+};
+
+constexpr StrHasher str_hash;
+constexpr BitHasher bit_hash;
+
 }        // namespace ash

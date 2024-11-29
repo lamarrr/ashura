@@ -9,9 +9,9 @@
 namespace ash
 {
 
-typedef StrMap<gpu::Shader> ShaderMap;
+typedef StrVecMap<gpu::Shader> ShaderMap;
 
-typedef StrMap<Dyn<Font *>> FontMap;
+typedef StrVecMap<Dyn<Font *>> FontMap;
 
 // [ ] images
 

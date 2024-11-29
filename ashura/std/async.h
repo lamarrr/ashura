@@ -687,7 +687,7 @@ template <typename... T>
 {
   SemaphoreState *semaphores[] = {(streams.semaphore_.get())...};
 
-  return await_semaphores(span(semaphores), stages, timeout);
+  return await_semaphores(semaphores, stages, timeout);
 }
 
 /// @brief A future is 1-stage Stream that produces a single value. The value is
@@ -754,7 +754,7 @@ template <typename... T>
 {
   SemaphoreState *semaphores[] = {(futures.stream_.semaphore_.get())...};
   u64 const       stages[]     = {futures.stage_...};
-  return await_semaphores(span(semaphores), span(stages), timeout);
+  return await_semaphores(semaphores, stages, timeout);
 }
 
 constexpr usize MAX_TASK_FRAME_SIZE = PAGE_SIZE >> 4;
@@ -991,7 +991,7 @@ struct [[nodiscard]] AwaitStreams
   {
     return apply(
         [this](auto const &...s) {
-          return await_streams(nanoseconds{0}, span(stages), s...);
+          return await_streams(nanoseconds{0}, stages, s...);
         },
         streams);
   }

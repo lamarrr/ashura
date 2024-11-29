@@ -34,8 +34,8 @@ void BlurPass::acquire(GpuContext &ctx, AssetMap &assets)
   // Algorithm described here:
   // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
   //
-  gpu::Shader vertex_shader   = assets.shaders["Blur/DownSample:VS"_span];
-  gpu::Shader fragment_shader = assets.shaders["Blur/DownSample:FS"_span];
+  gpu::Shader vertex_shader   = assets.shaders["Blur/DownSample:VS"_str];
+  gpu::Shader fragment_shader = assets.shaders["Blur/DownSample:FS"_str];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -68,29 +68,29 @@ void BlurPass::acquire(GpuContext &ctx, AssetMap &assets)
        .alpha_blend_op         = gpu::BlendOp::Add,
        .color_write_mask       = gpu::ColorComponents::All}};
 
-  gpu::ColorBlendState color_blend_state{.attachments = span(attachment_states),
+  gpu::ColorBlendState color_blend_state{.attachments    = attachment_states,
                                          .blend_constant = {1, 1, 1, 1}};
 
   gpu::DescriptorSetLayout set_layouts[] = {ctx.samplers_layout,
                                             ctx.textures_layout};
 
   gpu::GraphicsPipelineInfo pipeline_info{
-      .label = "Blur Graphics Pipeline"_span,
+      .label = "Blur Graphics Pipeline"_str,
       .vertex_shader =
           gpu::ShaderStageInfo{.shader                        = vertex_shader,
-                               .entry_point                   = "main"_span,
+                               .entry_point                   = "main"_str,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gpu::ShaderStageInfo{.shader                        = fragment_shader,
-                               .entry_point                   = "main"_span,
+                               .entry_point                   = "main"_str,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .color_formats          = {&ctx.color_format, 1},
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(BlurParam),
-      .descriptor_set_layouts = span(set_layouts),
+      .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
@@ -100,9 +100,8 @@ void BlurPass::acquire(GpuContext &ctx, AssetMap &assets)
   downsample_pipeline =
       ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
 
-  pipeline_info.vertex_shader.shader = assets.shaders["Blur/UpSample:VS"_span];
-  pipeline_info.fragment_shader.shader =
-      assets.shaders["Blur/UpSample:FS"_span];
+  pipeline_info.vertex_shader.shader   = assets.shaders["Blur/UpSample:VS"_str];
+  pipeline_info.fragment_shader.shader = assets.shaders["Blur/UpSample:FS"_str];
 
   upsample_pipeline =
       ctx.device->create_graphics_pipeline(pipeline_info).unwrap();
@@ -199,8 +198,8 @@ void BlurPass::encode(GpuContext &ctx, gpu::CommandEncoder &e,
 
 void NgonPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
-  gpu::Shader vertex_shader   = assets.shaders["Ngon:VS"_span];
-  gpu::Shader fragment_shader = assets.shaders["Ngon:FS"_span];
+  gpu::Shader vertex_shader   = assets.shaders["Ngon:VS"_str];
+  gpu::Shader fragment_shader = assets.shaders["Ngon:FS"_str];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -233,7 +232,7 @@ void NgonPass::acquire(GpuContext &ctx, AssetMap &assets)
        .alpha_blend_op         = gpu::BlendOp::Add,
        .color_write_mask       = gpu::ColorComponents::All}};
 
-  gpu::ColorBlendState color_blend_state{.attachments = span(attachment_states),
+  gpu::ColorBlendState color_blend_state{.attachments    = attachment_states,
                                          .blend_constant = {1, 1, 1, 1}};
 
   gpu::DescriptorSetLayout set_layouts[] = {
@@ -241,22 +240,22 @@ void NgonPass::acquire(GpuContext &ctx, AssetMap &assets)
       ctx.textures_layout};
 
   gpu::GraphicsPipelineInfo pipeline_info{
-      .label = "Ngon Graphics Pipeline"_span,
+      .label = "Ngon Graphics Pipeline"_str,
       .vertex_shader =
           gpu::ShaderStageInfo{.shader                        = vertex_shader,
-                               .entry_point                   = "main"_span,
+                               .entry_point                   = "main"_str,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gpu::ShaderStageInfo{.shader                        = fragment_shader,
-                               .entry_point                   = "main"_span,
+                               .entry_point                   = "main"_str,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .color_formats          = {&ctx.color_format, 1},
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(Mat4),
-      .descriptor_set_layouts = span(set_layouts),
+      .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
@@ -295,8 +294,8 @@ void NgonPass::release(GpuContext &ctx, AssetMap &)
 
 void PBRPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
-  gpu::Shader vertex_shader   = assets.shaders["PBR:VS"_span];
-  gpu::Shader fragment_shader = assets.shaders["PBR:FS"_span];
+  gpu::Shader vertex_shader   = assets.shaders["PBR:VS"_str];
+  gpu::Shader fragment_shader = assets.shaders["PBR:FS"_str];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -329,7 +328,7 @@ void PBRPass::acquire(GpuContext &ctx, AssetMap &assets)
        .alpha_blend_op         = gpu::BlendOp::Add,
        .color_write_mask       = gpu::ColorComponents::All}};
 
-  gpu::ColorBlendState color_blend_state{.attachments = span(attachment_states),
+  gpu::ColorBlendState color_blend_state{.attachments    = attachment_states,
                                          .blend_constant = {1, 1, 1, 1}};
 
   gpu::DescriptorSetLayout const set_layouts[] = {
@@ -337,15 +336,15 @@ void PBRPass::acquire(GpuContext &ctx, AssetMap &assets)
       ctx.ssbo_layout, ctx.samplers_layout, ctx.textures_layout};
 
   gpu::GraphicsPipelineInfo pipeline_info{
-      .label = "PBR Graphics Pipeline"_span,
+      .label = "PBR Graphics Pipeline"_str,
       .vertex_shader =
           gpu::ShaderStageInfo{.shader                        = vertex_shader,
-                               .entry_point                   = "main"_span,
+                               .entry_point                   = "main"_str,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gpu::ShaderStageInfo{.shader                        = fragment_shader,
-                               .entry_point                   = "main"_span,
+                               .entry_point                   = "main"_str,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .color_formats          = {&ctx.color_format, 1},
@@ -353,7 +352,7 @@ void PBRPass::acquire(GpuContext &ctx, AssetMap &assets)
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(Mat4),
-      .descriptor_set_layouts = span(set_layouts),
+      .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,
@@ -399,8 +398,8 @@ void PBRPass::release(GpuContext &ctx, AssetMap &)
 
 void RRectPass::acquire(GpuContext &ctx, AssetMap &assets)
 {
-  gpu::Shader vertex_shader   = assets.shaders["RRect:VS"_span];
-  gpu::Shader fragment_shader = assets.shaders["RRect:FS"_span];
+  gpu::Shader vertex_shader   = assets.shaders["RRect:VS"_str];
+  gpu::Shader fragment_shader = assets.shaders["RRect:FS"_str];
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -433,29 +432,29 @@ void RRectPass::acquire(GpuContext &ctx, AssetMap &assets)
        .alpha_blend_op         = gpu::BlendOp::Add,
        .color_write_mask       = gpu::ColorComponents::All}};
 
-  gpu::ColorBlendState color_blend_state{.attachments = span(attachment_states),
+  gpu::ColorBlendState color_blend_state{.attachments    = attachment_states,
                                          .blend_constant = {1, 1, 1, 1}};
 
   gpu::DescriptorSetLayout set_layouts[] = {
       ctx.ssbo_layout, ctx.samplers_layout, ctx.textures_layout};
 
   gpu::GraphicsPipelineInfo pipeline_info{
-      .label = "RRect Graphics Pipeline"_span,
+      .label = "RRect Graphics Pipeline"_str,
       .vertex_shader =
           gpu::ShaderStageInfo{.shader                        = vertex_shader,
-                               .entry_point                   = "main"_span,
+                               .entry_point                   = "main"_str,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .fragment_shader =
           gpu::ShaderStageInfo{.shader                        = fragment_shader,
-                               .entry_point                   = "main"_span,
+                               .entry_point                   = "main"_str,
                                .specialization_constants      = {},
                                .specialization_constants_data = {}},
       .color_formats          = {&ctx.color_format, 1},
       .vertex_input_bindings  = {},
       .vertex_attributes      = {},
       .push_constants_size    = sizeof(Mat4),
-      .descriptor_set_layouts = span(set_layouts),
+      .descriptor_set_layouts = set_layouts,
       .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
       .rasterization_state    = raster_state,
       .depth_stencil_state    = depth_stencil_state,

@@ -90,7 +90,7 @@ bool push_float(fmt::Context const &ctx, fmt::Spec const &spec, FloatT value)
 
 bool fmt::push(fmt::Context const &ctx, fmt::Spec const &, bool value)
 {
-  return ctx.push(value ? "true"_span : "false"_span);
+  return ctx.push(value ? "true"_str : "false"_str);
 }
 
 bool fmt::push(fmt::Context const &ctx, fmt::Spec const &spec, u8 value)
@@ -243,7 +243,7 @@ bool fmt::push(fmt::Context const &ctx, fmt::Spec const &spec, char const *str)
 bool fmt::push(fmt::Context const &ctx, fmt::Spec const &, void const *ptr)
 {
   Spec const ptr_spec{.style = Style::Hex};
-  return ctx.push("0x"_span) && push_int(ctx, ptr_spec, (uptr) ptr);
+  return ctx.push("0x"_str) && push_int(ctx, ptr_spec, (uptr) ptr);
 }
 
 }        // namespace ash

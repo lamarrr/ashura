@@ -901,10 +901,10 @@ struct TextInput : View
     utf8_decode(ctx.text_input, text_input_utf32).unwrap();
 
     inner.compositor.command(
-        span(inner.content.inner.text), inner.content.inner.layout,
-        region.extent.x, inner.content.inner.alignment, cmd, fn(&insert),
-        fn(&erase), span(text_input_utf32), *ctx.clipboard,
-        state.lines_per_page, (ctx.mouse.position - region.center) * zoom);
+        inner.content.inner.text, inner.content.inner.layout, region.extent.x,
+        inner.content.inner.alignment, cmd, fn(&insert), fn(&erase),
+        text_input_utf32, *ctx.clipboard, state.lines_per_page,
+        (ctx.mouse.position - region.center) * zoom);
 
     if (edited)
     {
@@ -2077,7 +2077,7 @@ struct ScalarDragBox : View
       char         scratch[128];
       c8           text[128];
       Buffer       buffer = ash::buffer(span(text).as_char());
-      fmt::Context ctx    = fmt::buffer(&buffer, span(scratch));
+      fmt::Context ctx    = fmt::buffer(&buffer, scratch);
       styling.fmt(ctx, state.value.current);
       inner.input.inner.content.set_text(span(text).slice(0, buffer.size()));
     }
@@ -2178,7 +2178,7 @@ struct ScalarBox : FlexView
         .cross_align(0)
         .frame(Frame{}.scale(1, 1));
 
-    inner.dec.text(U"-"_span)
+    inner.dec.text(U"-"_str)
         .style(TextStyle{.shadow_scale  = 1,
                          .shadow_offset = {1, 1},
                          .foreground    = DEFAULT_THEME.on_primary,
@@ -2193,7 +2193,7 @@ struct ScalarBox : FlexView
                        }))
         .padding(5, 5);
 
-    inner.inc.text(U"+"_span)
+    inner.inc.text(U"+"_str)
         .style(TextStyle{.shadow_scale  = 1,
                          .shadow_offset = {1, 1},
                          .foreground    = DEFAULT_THEME.on_primary,

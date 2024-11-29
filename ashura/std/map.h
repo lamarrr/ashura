@@ -12,66 +12,6 @@
 namespace ash
 {
 
-struct StrEq
-{
-  bool operator()(Span<char const> a, Span<char const> b) const
-  {
-    return mem::eq(a, b);
-  }
-
-  bool operator()(Vec<char> const &a, Span<char const> b) const
-  {
-    return this->operator()(span(a), b);
-  }
-
-  bool operator()(Span<char const> a, Vec<char> const &b) const
-  {
-    return this->operator()(a, span(b));
-  }
-
-  bool operator()(Vec<char> const &a, Vec<char> const &b) const
-  {
-    return this->operator()(span(a), span(b));
-  }
-};
-
-struct BitEq
-{
-  template <typename T>
-  bool operator()(T const &a, T const &b) const
-  {
-    return mem::eq(a, b);
-  }
-};
-
-struct StrHasher
-{
-  Hash operator()(Span<char const> str) const
-  {
-    return hash_bytes(str.as_u8());
-  }
-
-  Hash operator()(Vec<char> const &str) const
-  {
-    return hash_bytes(span(str).as_u8());
-  }
-};
-
-struct BitHasher
-{
-  template <typename T>
-  Hash operator()(T const &a) const
-  {
-    return hash_bytes(Span<T const>{&a, 1}.as_u8());
-  }
-};
-
-constexpr StrEq     str_eq;
-constexpr StrHasher str_hash;
-
-constexpr BitEq     bit_eq;
-constexpr BitHasher bit_hash;
-
 template <typename K, typename V>
 struct MapEntry
 {
@@ -82,14 +22,14 @@ struct MapEntry
   V value{};
 };
 
-/// @brief Robin-hood open-address probing Map
+/// @brief Robin-hood open-address probing HashMap
 /// @tparam K key type
 /// @tparam V value type
 /// @tparam H key hasher functor type
 /// @tparam KCmp key comparator type
-/// @tparam D unsigned integer to use to encode probe distances, ideally 32 bits
-/// or more
-template <typename K, typename V, typename H, typename KCmp, typename D>
+/// @tparam D unsigned integer to use to encode probe distances, should be same
+/// or larger than usize
+template <typename K, typename V, typename H, typename KCmp, typename D = usize>
 struct [[nodiscard]] Map
 {
   using Key      = K;
@@ -519,12 +459,12 @@ struct [[nodiscard]] Map
 };
 
 template <typename V, typename D = usize>
-using StaticStrMap = Map<Span<char const>, V, StrHasher, StrEq, D>;
+using StrMap = Map<Span<char const>, V, StrHasher, StrEq, D>;
 
 template <typename V, typename D = usize>
-using StrMap = Map<Vec<char>, V, StrHasher, StrEq, D>;
+using StrVecMap = Map<Vec<char>, V, StrHasher, StrEq, D>;
 
-template <typename T, typename V, typename D = usize>
-using BitMap = Map<T, V, BitHasher, BitEq, D>;
+template <typename K, typename V, typename D = usize>
+using BitMap = Map<K, V, BitHasher, BitEq, D>;
 
 }        // namespace ash

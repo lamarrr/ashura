@@ -42,15 +42,15 @@ constexpr Span<char const> to_string(FontErr err)
   switch (err)
   {
     case FontErr::None:
-      return "None"_span;
+      return "None"_str;
     case FontErr::DecodingFailed:
-      return "DecodingFailed"_span;
+      return "DecodingFailed"_str;
     case FontErr::FaceNotFound:
-      return "FaceNotFound"_span;
+      return "FaceNotFound"_str;
     case FontErr::OutOfMemory:
-      return "OutOfMemory"_span;
+      return "OutOfMemory"_str;
     default:
-      return "Unidentified"_span;
+      return "Unidentified"_str;
   }
 }
 

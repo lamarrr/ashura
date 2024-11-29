@@ -287,7 +287,7 @@ struct SSBO
 
   gpu::DescriptorSet descriptor = nullptr;
 
-  Span<char const> label = "SSBO"_span;
+  Span<char const> label = "SSBO"_str;
 
   void uninit(GpuContext &ctx);
 

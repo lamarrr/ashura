@@ -111,17 +111,17 @@ struct Renderer
 {
   struct Resources
   {
-    SSBO pbr_params{.label = "PBR Params SSBO"_span};
+    SSBO pbr_params{.label = "PBR Params SSBO"_str};
 
-    SSBO pbr_light_params{.label = "Params Lights Params SSBO"_span};
+    SSBO pbr_light_params{.label = "Params Lights Params SSBO"_str};
 
-    SSBO ngon_vertices{.label = "Ngon Vertices SSBO"_span};
+    SSBO ngon_vertices{.label = "Ngon Vertices SSBO"_str};
 
-    SSBO ngon_indices{.label = "Ngon Indices SSBO"_span};
+    SSBO ngon_indices{.label = "Ngon Indices SSBO"_str};
 
-    SSBO ngon_params{.label = "Ngon Params SSBO"_span};
+    SSBO ngon_params{.label = "Ngon Params SSBO"_str};
 
-    SSBO rrect_params{.label = "RRect Params SSBO"_span};
+    SSBO rrect_params{.label = "RRect Params SSBO"_str};
   };
 
   InplaceVec<Resources, gpu::MAX_FRAME_BUFFERING> resources;

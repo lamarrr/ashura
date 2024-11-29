@@ -293,7 +293,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   CHECK(block.runs.size() == block.fonts.size());
 
   layout.segments.resize_defaulted(block.text.size()).unwrap();
-  Span segments = span(layout.segments);
+  Span segments = layout.segments;
 
   for (TextSegment &s : segments)
   {

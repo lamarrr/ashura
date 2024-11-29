@@ -104,7 +104,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
           ->create_descriptor_set_layout(
 
               gpu::DescriptorSetLayoutInfo{
-                  .label    = "UBO Layout"_span,
+                  .label    = "UBO Layout"_str,
                   .bindings = span({gpu::DescriptorBindingInfo{
                       .type  = gpu::DescriptorType::DynamicUniformBuffer,
                       .count = 1,
@@ -116,7 +116,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
           ->create_descriptor_set_layout(
 
               gpu::DescriptorSetLayoutInfo{
-                  .label    = "SSBO Layout"_span,
+                  .label    = "SSBO Layout"_str,
                   .bindings = span({gpu::DescriptorBindingInfo{
                       .type  = gpu::DescriptorType::DynamicStorageBuffer,
                       .count = 1,
@@ -128,7 +128,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
           ->create_descriptor_set_layout(
 
               gpu::DescriptorSetLayoutInfo{
-                  .label    = "Textures Layout"_span,
+                  .label    = "Textures Layout"_str,
                   .bindings = span({gpu::DescriptorBindingInfo{
                       .type               = gpu::DescriptorType::SampledImage,
                       .count              = NUM_TEXTURE_SLOTS,
@@ -140,7 +140,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
           ->create_descriptor_set_layout(
 
               gpu::DescriptorSetLayoutInfo{
-                  .label    = "Samplers Layout"_span,
+                  .label    = "Samplers Layout"_str,
                   .bindings = span({gpu::DescriptorBindingInfo{
                       .type               = gpu::DescriptorType::Sampler,
                       .count              = NUM_SAMPLER_SLOTS,
@@ -162,7 +162,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
   gpu::Image default_image =
       device
           ->create_image(gpu::ImageInfo{
-              .label  = "Default Texture Image"_span,
+              .label  = "Default Texture Image"_str,
               .type   = gpu::ImageType::Type2D,
               .format = gpu::Format::B8G8R8A8_UNORM,
               .usage = gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
@@ -209,7 +209,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
           device
               ->create_image_view(
 
-                  gpu::ImageViewInfo{.label = "Default Texture Image View"_span,
+                  gpu::ImageViewInfo{.label = "Default Texture Image View"_str,
                                      .image = default_image,
                                      .view_type   = gpu::ImageViewType::Type2D,
                                      .view_format = gpu::Format::B8G8R8A8_UNORM,
@@ -260,7 +260,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
   }
 
   CachedSampler sampler = ctx.create_sampler(
-      gpu::SamplerInfo{.label             = "Linear+Repeat Sampler"_span,
+      gpu::SamplerInfo{.label             = "Linear+Repeat Sampler"_str,
                        .mag_filter        = gpu::Filter::Linear,
                        .min_filter        = gpu::Filter::Linear,
                        .mip_map_mode      = gpu::SamplerMipMapMode::Linear,
@@ -280,7 +280,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
   CHECK(sampler.slot == SAMPLER_LINEAR);
 
   sampler = ctx.create_sampler(
-      gpu::SamplerInfo{.label             = "Nearest+Repeat Sampler"_span,
+      gpu::SamplerInfo{.label             = "Nearest+Repeat Sampler"_str,
                        .mag_filter        = gpu::Filter::Nearest,
                        .min_filter        = gpu::Filter::Nearest,
                        .mip_map_mode      = gpu::SamplerMipMapMode::Nearest,
@@ -300,7 +300,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
   CHECK(sampler.slot == SAMPLER_NEAREST);
 
   sampler = ctx.create_sampler(
-      gpu::SamplerInfo{.label          = "Linear+EdgeClamped Sampler"_span,
+      gpu::SamplerInfo{.label          = "Linear+EdgeClamped Sampler"_str,
                        .mag_filter     = gpu::Filter::Linear,
                        .min_filter     = gpu::Filter::Linear,
                        .mip_map_mode   = gpu::SamplerMipMapMode::Linear,
@@ -320,7 +320,7 @@ GpuContext GpuContext::create(AllocatorImpl allocator, gpu::Device *device,
   CHECK(sampler.slot == SAMPLER_LINEAR_CLAMPED);
 
   sampler = ctx.create_sampler(
-      gpu::SamplerInfo{.label          = "Nearest+EdgeClamped Sampler"_span,
+      gpu::SamplerInfo{.label          = "Nearest+EdgeClamped Sampler"_str,
                        .mag_filter     = gpu::Filter::Nearest,
                        .min_filter     = gpu::Filter::Nearest,
                        .mip_map_mode   = gpu::SamplerMipMapMode::Nearest,
@@ -350,7 +350,7 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
   ctx.release(fb);
 
   fb.color.info = gpu::ImageInfo{
-      .label  = "Framebuffer Color Image"_span,
+      .label  = "Framebuffer Color Image"_str,
       .type   = gpu::ImageType::Type2D,
       .format = ctx.color_format,
       .usage  = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::Sampled |
@@ -365,7 +365,7 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
   fb.color.image = ctx.device->create_image(fb.color.info).unwrap();
 
   fb.color.view_info =
-      gpu::ImageViewInfo{.label           = "Framebuffer Color Image View"_span,
+      gpu::ImageViewInfo{.label           = "Framebuffer Color Image View"_str,
                          .image           = fb.color.image,
                          .view_type       = gpu::ImageViewType::Type2D,
                          .view_format     = fb.color.info.format,
@@ -378,7 +378,7 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
   fb.color.view = ctx.device->create_image_view(fb.color.view_info).unwrap();
 
   fb.depth_stencil.info = gpu::ImageInfo{
-      .label  = "Framebuffer Depth Stencil Image"_span,
+      .label  = "Framebuffer Depth Stencil Image"_str,
       .type   = gpu::ImageType::Type2D,
       .format = ctx.depth_stencil_format,
       .usage  = gpu::ImageUsage::DepthStencilAttachment |
@@ -394,7 +394,7 @@ static void recreate_framebuffer(GpuContext &ctx, Framebuffer &fb,
       ctx.device->create_image(fb.depth_stencil.info).unwrap();
 
   fb.depth_stencil.view_info = gpu::ImageViewInfo{
-      .label           = "Framebuffer Depth Stencil Image View"_span,
+      .label           = "Framebuffer Depth Stencil Image View"_str,
       .image           = fb.depth_stencil.image,
       .view_type       = gpu::ImageViewType::Type2D,
       .view_format     = fb.depth_stencil.info.format,
@@ -482,28 +482,28 @@ CachedSampler GpuContext::create_sampler(gpu::SamplerInfo const &info)
 
 u32 GpuContext::alloc_texture_slot()
 {
-  usize i = find_clear_bit(span(texture_slots));
+  usize i = find_clear_bit(texture_slots);
   CHECK_DESC(i < size_bits(texture_slots), "Out of Texture Slots");
-  set_bit(span(texture_slots), i);
+  set_bit(texture_slots, i);
   return (u32) i;
 }
 
 void GpuContext::release_texture_slot(u32 slot)
 {
-  clear_bit(span(texture_slots), slot);
+  clear_bit(texture_slots, slot);
 }
 
 u32 GpuContext::alloc_sampler_slot()
 {
-  usize i = find_clear_bit(span(sampler_slots));
+  usize i = find_clear_bit(sampler_slots);
   CHECK_DESC(i < size_bits(sampler_slots), "Out of Sampler Slots");
-  set_bit(span(sampler_slots), i);
+  set_bit(sampler_slots, i);
   return (u32) i;
 }
 
 void GpuContext::release_sampler_slot(u32 slot)
 {
-  clear_bit(span(sampler_slots), slot);
+  clear_bit(sampler_slots, slot);
 }
 
 void GpuContext::release(gpu::Image image)
@@ -624,7 +624,7 @@ void GpuContext::idle_reclaim()
   device->wait_idle().unwrap();
   for (auto &objects : released_objects)
   {
-    uninit_objects(device, span(objects));
+    uninit_objects(device, objects);
     objects.clear();
   }
 }
@@ -632,7 +632,7 @@ void GpuContext::idle_reclaim()
 void GpuContext::begin_frame(gpu::Swapchain swapchain)
 {
   device->begin_frame(swapchain).unwrap();
-  uninit_objects(device, span(released_objects[ring_index()]));
+  uninit_objects(device, released_objects[ring_index()]);
   released_objects[ring_index()].clear();
 
   gpu::CommandEncoder &enc = encoder();
