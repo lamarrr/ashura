@@ -36,7 +36,7 @@ TEST(AsyncTest, Basic)
         x++;
         logger->info(x, " iteration");
         logger->info("future value: ", f.get());
-        s.yield_unseq([x](int &v) { v = x; }, 1);
+        s.yield_unseq([x](int & v) { v = x; }, 1);
         if (x == 10)
         {
           logger->info("loop exited");
@@ -47,12 +47,14 @@ TEST(AsyncTest, Basic)
       },
       async::AwaitFutures{fut.alias()});
   fut.complete(69);
-  async::shard(fn([](async::TaskInstance shard, std::atomic<int> &count_ref) {
-                 int count = count_ref.fetch_add(1);
-                 logger->info("shard: ", shard.idx, " of ", shard.n,
-                              ", sync i: ", count);
-               }),
-               rc_inplace<std::atomic<int>>({}, 0).unwrap(), 10);
+
+  async::shard<std::atomic<int>>(
+      [](async::TaskInstance shard, std::atomic<int> & count_ref) {
+        int count = count_ref.fetch_add(1);
+        logger->info("shard: ", shard.idx, " of ", shard.n,
+                     ", sync i: ", count);
+      },
+      rc_inplace<std::atomic<int>>({}, 0).unwrap(), 10);
 
   std::this_thread::sleep_for(500ms);
   scheduler->join();
