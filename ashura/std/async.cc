@@ -616,10 +616,10 @@ void Scheduler::init(AllocatorImpl allocator, std::thread::id main_thread_id,
   u32 const num_worker_threads    = worker_thread_sleep.size32();
 
   impl->dedicated_threads =
-      pin_vec<TaskThread>(allocator, num_dedicated_threads).unwrap();
+      pin_vec<TaskThread>(num_dedicated_threads, allocator).unwrap();
 
   impl->worker_threads =
-      pin_vec<TaskThread>(allocator, num_worker_threads).unwrap();
+      pin_vec<TaskThread>(num_worker_threads, allocator).unwrap();
 
   for (u32 i = 0; i < num_dedicated_threads; i++)
   {

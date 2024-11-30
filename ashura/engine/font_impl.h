@@ -234,7 +234,7 @@ struct FontImpl : Font
             rect_pack::pack_rects(pack_context, rects.data() + num_packed,
                                   num_rasterized_glyphs - num_packed);
         auto [just_packed, unpacked] =
-            partition(span(rects).slice(num_packed),
+            partition(rects.span().slice(num_packed),
                       [](rect_pack::rect const & r) { return r.was_packed; });
         for (u32 i = num_packed; i < (num_packed + just_packed.span); i++)
         {

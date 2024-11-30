@@ -89,19 +89,19 @@ struct ViewSystem
   BitVec<u64> is_esc_input;
   BitVec<u64> is_viewport;
 
-  Vec<Vec2>       centers;
-  Vec<Vec2>       extents;
-  Vec<Vec2>       viewport_extents;
-  Vec<Mat3Affine> viewport_transforms;
-  BitVec<u64>     is_fixed_positioned;
-  Vec<Vec2>       fixed_positions;
-  Vec<i32>        z_indices;
-  Vec<i32>        stacking_contexts;
+  Vec<Vec2>    centers;
+  Vec<Vec2>    extents;
+  Vec<Vec2>    viewport_extents;
+  Vec<Affine3> viewport_transforms;
+  BitVec<u64>  is_fixed_positioned;
+  Vec<Vec2>    fixed_positions;
+  Vec<i32>     z_indices;
+  Vec<i32>     stacking_contexts;
 
-  Vec<Mat3Affine> transforms;
-  Vec<CRect>      clips;
-  Vec<u32>        z_ordering;
-  Vec<u32>        focus_ordering;
+  Vec<Affine3> transforms;
+  Vec<CRect>   clips;
+  Vec<u32>     z_ordering;
+  Vec<u32>     focus_ordering;
 
   explicit ViewSystem(AllocatorImpl allocator) :
       views{allocator},
@@ -322,9 +322,9 @@ struct ViewSystem
 
   void focus_order()
   {
-    iota(span(focus_ordering), 0U);
+    iota(focus_ordering.span(), 0U);
 
-    indirect_sort(span(focus_ordering), [&](u32 a, u32 b) {
+    indirect_sort(focus_ordering.span(), [&](u32 a, u32 b) {
       return tab_indices[a] < tab_indices[b];
     });
 
@@ -349,7 +349,7 @@ struct ViewSystem
     {
       ViewNode const & node = nodes[i];
       views[i]->size(extents[i],
-                     span(extents).slice(node.first_child, node.num_children));
+                     extents.span().slice(node.first_child, node.num_children));
     }
 
     centers[0] = Vec2::splat(0);
@@ -361,8 +361,8 @@ struct ViewSystem
       i--;
       ViewNode const & node   = nodes[i];
       ViewLayout       layout = views[i]->fit(
-          extents[i], span(extents).slice(node.first_child, node.num_children),
-          span(centers).slice(node.first_child, node.num_children));
+          extents[i], extents.span().slice(node.first_child, node.num_children),
+          centers.span().slice(node.first_child, node.num_children));
       extents[i]             = layout.extent;
       viewport_extents[i]    = layout.viewport_extent;
       viewport_transforms[i] = layout.viewport_transform;
@@ -375,16 +375,16 @@ struct ViewSystem
 
     // transform views to canvas-space
 
-    transforms[0] = Mat3Affine::identity();
+    transforms[0] = Affine3::identity();
 
     for (u32 i = 0; i < n; i++)
     {
-      ViewNode const &   node               = nodes[i];
+      ViewNode const & node               = nodes[i];
       // parent-space to local viewport-space transformation matrix
-      Mat3Affine const & viewport_transform = viewport_transforms[i];
+      Affine3 const &  viewport_transform = viewport_transforms[i];
       // accumulated transform of all ancestors, determines position until this
       // parent
-      Mat3Affine const & ancestor_transform = transforms[i];
+      Affine3 const &  ancestor_transform = transforms[i];
       for (u32 c = node.first_child; c < (node.first_child + node.num_children);
            c++)
       {
@@ -402,8 +402,8 @@ struct ViewSystem
 
     for (u32 i = 0; i < n; i++)
     {
-      Mat3Affine const & transform = transforms[i];
-      f32 const          zoom      = transform[0][0];
+      Affine3 const & transform = transforms[i];
+      f32 const       zoom      = transform[0][0];
       centers[i] =
           ash::transform(transform, Vec2{0, 0}) + viewport_extent * 0.5F;
       extents[i]          = extents[i] * zoom;
@@ -418,7 +418,7 @@ struct ViewSystem
       }
     }
 
-    fill(span(clips), CRect::from_offset({0, 0}, viewport_extent));
+    fill(clips.span(), CRect::from_offset({0, 0}, viewport_extent));
 
     /// recursive view clipping
     for (u32 i = 0; i < n; i++)
@@ -471,7 +471,7 @@ struct ViewSystem
       ViewNode const & node = nodes[i];
       z_indices[i]          = views[i]->z_index(
           z_indices[i],
-          span(z_indices).slice(node.first_child, node.num_children));
+          z_indices.span().slice(node.first_child, node.num_children));
     }
 
     stacking_contexts[0] = 0;
@@ -484,10 +484,10 @@ struct ViewSystem
       }
     }
 
-    iota(span(z_ordering), 0U);
+    iota(z_ordering.span(), 0U);
 
     // sort layers with priority: stacking_context, z_index, node depth
-    indirect_sort(span(z_ordering), [&](u32 a, u32 b) {
+    indirect_sort(z_ordering.span(), [&](u32 a, u32 b) {
       if (stacking_contexts[a] < stacking_contexts[b])
       {
         return true;

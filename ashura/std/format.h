@@ -26,6 +26,8 @@ struct Spec
 {
   Style style     = Style::Decimal;
   i32   precision = 0;
+  // [ ] implement N-ary list printing
+  // u64   list_limit = U64_MAX;
 };
 
 /// @param push function to be called to insert text into the format context.

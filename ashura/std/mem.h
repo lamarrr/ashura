@@ -46,7 +46,7 @@ bool is_ptr_aligned(usize alignment, T * p)
 namespace mem
 {
 
-template <typename T, typename U>
+template <typename T, NonConst U>
 void copy(Span<T> src, U * dst)
 {
   if (src.is_empty()) [[unlikely]]
@@ -57,13 +57,13 @@ void copy(Span<T> src, U * dst)
   std::memcpy(dst, src.data(), src.size_bytes());
 }
 
-template <typename T, typename U>
+template <typename T, NonConst U>
 void copy(Span<T> src, Span<U> dst)
 {
   copy(src, dst.data());
 }
 
-template <typename T, typename U>
+template <typename T, NonConst U>
 void move(Span<T> src, U * dst)
 {
   if (src.is_empty()) [[unlikely]]
@@ -74,13 +74,13 @@ void move(Span<T> src, U * dst)
   std::memmove(dst, src.data(), src.size_bytes());
 }
 
-template <typename T, typename U>
+template <typename T, NonConst U>
 void move(Span<T> src, Span<U> dst)
 {
   move(src, dst.data());
 }
 
-template <typename T>
+template <NonConst T>
 void zero(T * dst, usize n)
 {
   if (n == 0) [[unlikely]]
@@ -91,13 +91,13 @@ void zero(T * dst, usize n)
   std::memset(dst, 0, sizeof(T) * n);
 }
 
-template <typename T>
+template <NonConst T>
 void zero(Span<T> dst)
 {
   zero(dst.data(), dst.size());
 }
 
-template <typename T>
+template <NonConst T>
 void fill(T * dst, usize n, u8 byte)
 {
   if (n == 0) [[unlikely]]
@@ -108,7 +108,7 @@ void fill(T * dst, usize n, u8 byte)
   std::memset(dst, byte, sizeof(T) * n);
 }
 
-template <typename T>
+template <NonConst T>
 void fill(Span<T> dst, u8 byte)
 {
   fill(dst.data(), dst.size(), byte);
