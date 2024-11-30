@@ -7,9 +7,8 @@
 namespace ash
 {
 
-// TODO: lamarrr view namespace
-template <typename A, typename B, typename SwapOpT = Swap>
-constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT && swap_op = {})
+template <typename A, typename B, typename SwapOp = Swap>
+constexpr void swap_n(Span<A> a, Span<B> b, SwapOp && swap_op = {})
 {
   A * a_iter = begin(a);
   B * b_iter = begin(b);
@@ -240,11 +239,11 @@ constexpr Init reduce(R && range, Init && init, Reduce && reducer = {})
   InputIterator auto it = begin(range);
   while (it != end(range))
   {
-    init = reducer((Init &&) init, *it);
+    init = reducer(static_cast<Init &&>(init), *it);
     it++;
   }
 
-  return (Init &&) init;
+  return static_cast<Init &&>(init);
 }
 
 template <InputRange R, typename Init, typename Map, typename Reduce = Add>
@@ -254,11 +253,11 @@ constexpr Init map_reduce(R && range, Init && init, Map && mapper,
   InputIterator auto it = begin(range);
   while (it != end(range))
   {
-    init = reducer((Init &&) init, mapper(*it));
+    init = reducer(static_cast<Init &&>(init), mapper(*it));
     it++;
   }
 
-  return (Init &&) init;
+  return static_cast<Init &&>(init);
 }
 
 template <OutputRange R, typename E, typename F, typename Cmp = Eq>
@@ -393,12 +392,12 @@ template <typename T, typename Op = Add>
 constexpr T inclusive_scan(Span<T const> input, Span<T> output, T && init = {},
                            Op && op = {})
 {
-  T const * in  = input.begin();
-  T *       out = output.begin();
+  T const * in  = begin(input);
+  T *       out = begin(output);
 
-  while (in != input.end())
+  while (in != end(input))
   {
-    *out = (T &&) init;
+    *out = static_cast<T &&>(init);
     init = op(*out, *in);
     in++;
     out++;
@@ -407,22 +406,24 @@ constexpr T inclusive_scan(Span<T const> input, Span<T> output, T && init = {},
   return init;
 }
 
-template <typename T>
-constexpr T prefix_sum(Span<T const> input, Span<T> output, T && init = {})
+template <typename T, typename Op = Add>
+constexpr T prefix_sum(Span<T const> input, Span<T> output, T && init = {},
+                       Op && op = {})
 {
-  return inclusive_scan(input, output, (T &&) init, Add{});
+  return inclusive_scan(input, output, static_cast<T &&>(init),
+                        static_cast<Op &&>(op));
 }
 
 template <typename T, typename Op = Add>
 constexpr T exclusive_scan(Span<T const> input, Span<T> output, T && init = {},
                            Op && op = {})
 {
-  T const * in  = input.begin();
-  T *       out = output.begin();
+  T const * in  = begin(input);
+  T *       out = begin(output);
 
-  while (in != input.end())
+  while (in != end(input))
   {
-    *out = op((T &&) init, *in);
+    *out = op(static_cast<T &&>(init), *in);
     init = *out;
     in++;
     out++;
@@ -431,10 +432,12 @@ constexpr T exclusive_scan(Span<T const> input, Span<T> output, T && init = {},
   return init;
 }
 
-template <typename T>
-constexpr T suffix_sum(Span<T const> input, Span<T> output, T && init = {})
+template <typename T, typename Op = Add>
+constexpr T suffix_sum(Span<T const> input, Span<T> output, T && init = {},
+                       Op && op = {})
 {
-  return exclusive_scan(input, output, (T &&) init, Add{});
+  return exclusive_scan(input, output, static_cast<T &&>(init),
+                        static_cast<Op &&>(op));
 }
 
 }        // namespace  ash
