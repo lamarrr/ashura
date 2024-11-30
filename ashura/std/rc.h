@@ -25,7 +25,7 @@ struct [[nodiscard]] Rc
 
   struct Inner
   {
-    H             handle      = {};
+    H             handle{};
     AliasCount *  alias_count = nullptr;
     AllocatorImpl allocator   = {};
     Uninit        uninit      = noop;
@@ -147,8 +147,10 @@ constexpr Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator,
   new (object) AliasCounted<T>{.data{static_cast<Args &&>(args)...}};
 
   return Ok{
-      Rc<T *>{&object->data, *object, allocator,
-              fn(object, [](AliasCounted<T> * object, AllocatorImpl allocator) {
+      Rc<T *>{
+              &object->data, *object, allocator,
+              fn(
+              object, +[](AliasCounted<T> * object, AllocatorImpl allocator) {
                 object->~AliasCounted<T>();
                 allocator.ndealloc(object, 1);
               })}

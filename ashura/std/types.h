@@ -34,7 +34,7 @@ typedef size_t    usize;
 typedef ptrdiff_t isize;
 typedef uintptr_t uptr;
 typedef intptr_t  iptr;
-typedef u64       Hash;
+typedef u64       hash64;
 
 constexpr u8 U8_MIN = 0;
 constexpr u8 U8_MAX = 0xFF;
@@ -1510,29 +1510,6 @@ template <typename Lambda>
 defer(Lambda &&) -> defer<Lambda>;
 
 template <typename Sig>
-struct Fn;
-
-/// @brief Fn is a type-erased function containing a callback and a pointer. Fn
-/// is a reference to both the function to be called and its associated data, it
-/// doesn't manage any lifetime.
-/// @param thunk function/callback to be invoked. typically a
-/// dispatcher/thunk.
-/// @param data associated data/context for the thunk to operate on.
-template <typename R, typename... Args>
-struct Fn<R(Args...)>
-{
-  using Thunk = R (*)(void *, Args...);
-
-  constexpr R operator()(Args... args) const
-  {
-    return thunk(data, static_cast<Args &&>(args)...);
-  }
-
-  Thunk  thunk = nullptr;
-  void * data  = nullptr;
-};
-
-template <typename Sig>
 struct PFnThunk;
 
 template <typename R, typename... Args>
@@ -1547,6 +1524,84 @@ struct PFnThunk<R(Args...)>
     return pfn(static_cast<Args &&>(args)...);
   }
 };
+
+template <typename T, typename Sig>
+struct FunctorThunk;
+
+template <typename T, typename R, typename... Args>
+struct FunctorThunk<T, R(Args...)>
+{
+  static constexpr R thunk(void * data, Args... args)
+  {
+    return (*(reinterpret_cast<T *>(data)))(static_cast<Args &&>(args)...);
+  }
+};
+
+template <typename Sig>
+struct Fn;
+
+/// @brief Fn is a type-erased function containing a callback and a pointer. Fn
+/// is a reference to both the function to be called and its associated data, it
+/// doesn't manage any lifetime.
+/// @param thunk function/callback to be invoked. typically a
+/// dispatcher/thunk.
+/// @param data associated data/context for the thunk to operate on.
+template <typename R, typename... Args>
+struct Fn<R(Args...)>
+{
+  using Thunk = R (*)(void *, Args...);
+
+  void * data  = nullptr;
+  Thunk  thunk = nullptr;
+
+  explicit constexpr Fn() = default;
+
+  constexpr Fn(Fn const &)             = default;
+  constexpr Fn(Fn &&)                  = default;
+  constexpr Fn & operator=(Fn const &) = default;
+  constexpr Fn & operator=(Fn &&)      = default;
+  constexpr ~Fn()                      = default;
+
+  constexpr Fn(void * data, Thunk thunk) : data{data}, thunk{thunk}
+  {
+  }
+
+  Fn(R (*pfn)(Args...)) :
+      data{reinterpret_cast<void *>(pfn)},
+      thunk{&PFnThunk<R(Args...)>::thunk}
+  {
+  }
+
+  template <typename PFn>
+  requires (Convertible<PFn, R (*)(Args...)>)
+  Fn(PFn pfn) : Fn{static_cast<R (*)(Args...)>(pfn)}
+  {
+  }
+
+  template <typename T>
+  Fn(T * data, R (*thunk)(T *, Args...)) :
+      data{const_cast<void *>(reinterpret_cast<void const *>(data))},
+      thunk{reinterpret_cast<Thunk>(thunk)}
+  {
+  }
+
+  template <typename T, typename PFn>
+  requires (Convertible<PFn, R (*)(T *, Args...)>)
+  Fn(T * data, PFn thunk) : Fn{data, static_cast<R (*)(T *, Args...)>(thunk)}
+  {
+  }
+
+  constexpr R operator()(Args... args) const
+  {
+    return thunk(data, static_cast<Args &&>(args)...);
+  }
+};
+
+template <typename R, typename... Args>
+Fn(R (*)(Args...)) -> Fn<R(Args...)>;
+
+template <typename T, typename R, typename... Args>
+Fn(T *, R (*)(T *, Args...)) -> Fn<R(Args...)>;
 
 template <typename Sig>
 struct PFnTraits;
@@ -1563,18 +1618,6 @@ struct PFnTraits<R(Args...)>
 template <typename R, typename... Args>
 struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
 {
-};
-
-template <typename T, typename Sig>
-struct FunctorThunk;
-
-template <typename T, typename R, typename... Args>
-struct FunctorThunk<T, R(Args...)>
-{
-  static constexpr R thunk(void * data, Args... args)
-  {
-    return (*(reinterpret_cast<T *>(data)))(static_cast<Args &&>(args)...);
-  }
 };
 
 template <class MemberSig>
@@ -1602,8 +1645,8 @@ struct MemberFnTraits<R (T::*)(Args...) const>
   using Thunk  = FunctorThunk<T const, R(Args...)>;
 };
 
-template <class T>
-struct FunctorTraits : MemberFnTraits<decltype(&T::operator())>
+template <class F>
+struct FunctorTraits : MemberFnTraits<decltype(&F::operator())>
 {
 };
 
@@ -1611,60 +1654,28 @@ struct FunctorTraits : MemberFnTraits<decltype(&T::operator())>
 template <typename R, typename... Args>
 auto fn(R (*pfn)(Args...))
 {
-  using Traits = PFnTraits<R(Args...)>;
-  using Fn     = typename Traits::Fn;
-  using Thunk  = typename Traits::Thunk;
-
-  return Fn{&Thunk::thunk, reinterpret_cast<void *>(pfn)};
-}
-
-/// @brief make a function view from a captureless lambda/functor (i.e. lambdas
-/// without data)
-template <typename StaticFunctor>
-auto fn(StaticFunctor functor)
-{
-  using Traits = FunctorTraits<StaticFunctor>;
-  using PFn    = typename Traits::Ptr;
-
-  PFn pfn = static_cast<PFn>(functor);
-
-  return fn(pfn);
+  return Fn<R(Args...)>{pfn};
 }
 
 /// @brief make a function view from a functor reference. Functor should outlive
 /// the Fn
-template <typename Functor>
-auto fn(Functor * functor)
+template <AnyFunctor F>
+auto fn(F & functor)
 {
-  using Traits = FunctorTraits<Functor>;
+  using Traits = FunctorTraits<F>;
   using Fn     = typename Traits::Fn;
   using Thunk  = typename Traits::Thunk;
 
-  return Fn{&Thunk::thunk,
-            const_cast<void *>(reinterpret_cast<void const *>(functor))};
+  return Fn{const_cast<void *>(reinterpret_cast<void const *>(&functor)),
+            &Thunk::thunk};
 }
 
 /// @brief create a function view from an object reference and a function
 /// thunk to execute using the object reference as its first argument.
 template <typename T, typename R, typename... Args>
-auto fn(T * t, R (*fn)(T *, Args...))
+auto fn(T * data, R (*thunk)(T *, Args...))
 {
-  return Fn<R(Args...)>{reinterpret_cast<R (*)(void *, Args...)>(fn),
-                        const_cast<void *>(reinterpret_cast<void const *>(t))};
-}
-
-/// @brief create a function view from an object reference and a static
-/// non-capturing lambda to execute using the object reference as its first
-/// argument.
-template <typename T, typename StaticFunctor>
-auto fn(T * t, StaticFunctor thunk)
-{
-  using Traits = FunctorTraits<StaticFunctor>;
-  using PFn    = typename Traits::Ptr;
-
-  PFn pfn = static_cast<PFn>(thunk);
-
-  return fn(t, pfn);
+  return Fn<R(Args...)>{data, thunk};
 }
 
 struct Noop
@@ -1673,18 +1684,9 @@ struct Noop
   using Sig = void(Args...);
 
   template <typename... Args>
-  using FnType = Fn<void(Args...)>;
-
-  template <typename... Args>
   constexpr operator Sig<Args...> *() const
   {
     return [](Args...) {};
-  }
-
-  template <typename... Args>
-  constexpr operator FnType<Args...>() const
-  {
-    return fn([](Args...) {});
   }
 
   template <typename... Args>

@@ -173,7 +173,7 @@ struct [[nodiscard]] Map
     return num_probes_;
   }
 
-  [[nodiscard]] constexpr V * try_get(auto const & key, Hash hash) const
+  [[nodiscard]] constexpr V * try_get(auto const & key, hash64 hash) const
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
@@ -200,7 +200,7 @@ struct [[nodiscard]] Map
 
   [[nodiscard]] constexpr V * try_get(auto const & key) const
   {
-    Hash const hash = hasher_(key);
+    hash64 const hash = hasher_(key);
     return try_get(key, hash);
   }
 
@@ -216,7 +216,7 @@ struct [[nodiscard]] Map
     return try_get(key) != nullptr;
   }
 
-  [[nodiscard]] constexpr bool has(auto const & key, Hash hash) const
+  [[nodiscard]] constexpr bool has(auto const & key, hash64 hash) const
   {
     return try_get(key, hash) != nullptr;
   }
@@ -236,7 +236,7 @@ struct [[nodiscard]] Map
       {
         Entry entry{static_cast<Entry &&>(src_probes[src_probe_idx])};
         src_probes[src_probe_idx].~Entry();
-        Hash     hash       = hasher_(entry.key);
+        hash64   hash       = hasher_(entry.key);
         usize    probe_idx  = hash & (num_probes_ - 1);
         Distance probe_dist = 0;
         while (true)
@@ -339,10 +339,10 @@ struct [[nodiscard]] Map
       return Err{};
     }
 
-    Hash const hash       = hasher_(key);
-    usize      probe_idx  = hash & (num_probes_ - 1);
-    usize      insert_idx = USIZE_MAX;
-    Distance   probe_dist = 0;
+    hash64 const hash       = hasher_(key);
+    usize        probe_idx  = hash & (num_probes_ - 1);
+    usize        insert_idx = USIZE_MAX;
+    Distance     probe_dist = 0;
     Entry entry{.key{static_cast<K &&>(key)}, .value{static_cast<V &&>(value)}};
 
     while (true)
@@ -419,7 +419,7 @@ struct [[nodiscard]] Map
     {
       return false;
     }
-    Hash     hash       = hasher_(key);
+    hash64   hash       = hasher_(key);
     usize    probe_idx  = hash & (num_probes_ - 1);
     Distance probe_dist = 0;
 

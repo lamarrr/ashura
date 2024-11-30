@@ -7,7 +7,6 @@
     "simdjson",
     "gtest",
     "benchmark",
-    "ffmpeg",
-    "xxhash"
+    "ffmpeg"
   ]
 }

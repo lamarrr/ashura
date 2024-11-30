@@ -42,25 +42,26 @@ struct Framebuffer
   gpu::Extent           extent        = {};
 };
 
+// [ ] use: enum to bits, and float to bits, not casted
 struct SamplerHasher
 {
-  constexpr Hash operator()(gpu::SamplerInfo const & info) const
+  constexpr hash64 operator()(gpu::SamplerInfo const & info) const
   {
     return hash_combine_n(
-        (Hash) info.mag_filter, (Hash) info.min_filter,
-        (Hash) info.mip_map_mode, (Hash) info.address_mode_u,
-        (Hash) info.address_mode_v, (Hash) info.address_mode_w,
-        (Hash) info.mip_lod_bias, (Hash) info.anisotropy_enable,
-        (Hash) info.max_anisotropy, (Hash) info.compare_enable,
-        (Hash) info.compare_op, (Hash) info.min_lod, (Hash) info.max_lod,
-        (Hash) info.border_color, (Hash) info.unnormalized_coordinates);
+        (hash64) info.mag_filter, (hash64) info.min_filter,
+        (hash64) info.mip_map_mode, (hash64) info.address_mode_u,
+        (hash64) info.address_mode_v, (hash64) info.address_mode_w,
+        (hash64) info.mip_lod_bias, (hash64) info.anisotropy_enable,
+        (hash64) info.max_anisotropy, (hash64) info.compare_enable,
+        (hash64) info.compare_op, (hash64) info.min_lod, (hash64) info.max_lod,
+        (hash64) info.border_color, (hash64) info.unnormalized_coordinates);
   }
 };
 
 struct SamplerEq
 {
-  constexpr Hash operator()(gpu::SamplerInfo const & a,
-                            gpu::SamplerInfo const & b) const
+  constexpr hash64 operator()(gpu::SamplerInfo const & a,
+                              gpu::SamplerInfo const & b) const
   {
     return a.mag_filter == b.mag_filter && a.mip_map_mode == b.mip_map_mode &&
            a.address_mode_u == b.address_mode_u &&

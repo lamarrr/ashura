@@ -901,7 +901,7 @@ struct TextInput : View
 
     inner.compositor.command(
         inner.content.inner.text, inner.content.inner.layout, region.extent.x,
-        inner.content.inner.alignment, cmd, fn(&insert), fn(&erase),
+        inner.content.inner.alignment, cmd, fn(insert), fn(erase),
         text_input_utf32, *ctx.clipboard, state.lines_per_page,
         (ctx.mouse.position - region.center) * zoom);
 
@@ -2085,7 +2085,7 @@ struct ScalarDragBox : View
       char         scratch[128];
       c8           text[128];
       Buffer       buffer = ash::buffer(span(text).as_char());
-      fmt::Context ctx    = fmt::buffer(&buffer, scratch);
+      fmt::Context ctx    = fmt::buffer(buffer, scratch);
       styling.fmt(ctx, state.value.current);
       inner.input.inner.content.set_text(span(text).slice(0, buffer.size()));
     }
@@ -2197,11 +2197,12 @@ struct ScalarBox : FlexView
             FontStyle{.font        = engine->default_font,
                       .font_height = DEFAULT_THEME.body_font_height,
                       .line_height = 1})
-        .on_pressed(fn(this,
-                       [](ScalarBox * b) {
-                         b->inner.drag.state.value.step_value(-1);
-                         b->cb.update(b->inner.drag.state.value.current);
-                       }))
+        .on_pressed(fn(
+            this,
+            +[](ScalarBox * b) {
+              b->inner.drag.state.value.step_value(-1);
+              b->cb.update(b->inner.drag.state.value.current);
+            }))
         .padding(5, 5);
 
     inner.inc.text(U"+"_str)
@@ -2215,11 +2216,12 @@ struct ScalarBox : FlexView
             FontStyle{.font        = engine->default_font,
                       .font_height = DEFAULT_THEME.body_font_height,
                       .line_height = 1})
-        .on_pressed(fn(this,
-                       [](ScalarBox * b) {
-                         b->inner.drag.state.value.step_value(1);
-                         b->cb.update(b->inner.drag.state.value.current);
-                       }))
+        .on_pressed(fn(
+            this,
+            +[](ScalarBox * b) {
+              b->inner.drag.state.value.step_value(1);
+              b->cb.update(b->inner.drag.state.value.current);
+            }))
         .padding(5, 5);
 
     // [ ] color, stroke color, etc. the rectangles at small sizes seem to have
@@ -2231,7 +2233,7 @@ struct ScalarBox : FlexView
     //
 
     inner.drag.cb.update =
-        fn(this, [](ScalarBox * b, ScalarInput in) { b->cb.update(in); });
+        fn(this, +[](ScalarBox * b, ScalarInput in) { b->cb.update(in); });
 
     // [ ] set drag box style: create similar methods for it
     // [ ] all views must have these methods
@@ -2972,8 +2974,8 @@ struct ComboBox : View
     u32 const index  = inner.scroll_view.inner.items.size32();
     item.state.index = index;
     item.style       = Some<ComboBoxItem::Style const *>{&styling.item};
-    item.cb.selected =
-        fn(this, [](ComboBox * b, Option<u32> item) { b->set_selected(item); });
+    item.cb.selected = fn(
+        this, +[](ComboBox * b, Option<u32> item) { b->set_selected(item); });
     item.state.selected = Some<Option<u32> const *>{&state.selected};
     inner.scroll_view.inner.items.push(&item).unwrap();
     return *this;
@@ -2983,7 +2985,7 @@ struct ComboBox : View
   {
     inner.header     = Some<ComboBoxItem *>{&item};
     item.state.index = 0;
-    item.cb.selected = fn(this, [](ComboBox * b, Option<u32>) { b->open(); });
+    item.cb.selected = fn(this, +[](ComboBox * b, Option<u32>) { b->open(); });
     item.style       = Some<ComboBoxItem::Style const *>{&styling.item};
     item.state.selected = None;
     return *this;
