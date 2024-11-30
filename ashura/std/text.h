@@ -116,7 +116,7 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
   {
     return Err{};
   }
-  (void) utf8_decode(encoded, span(decoded).slice(first, count));
+  (void) utf8_decode(encoded, decoded.span().slice(first, count));
   return Ok{};
 }
 
@@ -132,7 +132,7 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
     return Err{};
   }
   usize const count =
-      utf8_encode(decoded, span(encoded).slice(first, max_count));
+      utf8_encode(decoded, encoded.span().slice(first, max_count));
   encoded.resize_uninit(first + count).unwrap();
   return Ok{};
 }

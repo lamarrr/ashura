@@ -42,7 +42,7 @@ struct [[nodiscard]] Buffer
       return false;
     }
 
-    obj::copy(in, data_ + size_);
+    obj::copy_assign(in, data_ + size_);
 
     size_ += in.size();
     return true;

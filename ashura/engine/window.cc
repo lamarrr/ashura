@@ -4,7 +4,6 @@
 #include "SDL3/SDL_vulkan.h"
 #include "ashura/gpu/vulkan.h"
 #include "ashura/std/error.h"
-#include "ashura/std/sparse_vec.h"
 #include "ashura/std/vec.h"
 
 namespace ash

@@ -7,33 +7,8 @@
 namespace ash
 {
 
-typedef void (*ErasedDestroy)(void * storage);
-
-typedef void (*ErasedRelocate)(void * src_storage, void * dst_storage);
-
-template <typename T>
-inline constexpr ErasedDestroy pFn_DESTRUCT =
-    [](void * storage) { reinterpret_cast<T *>(storage)->~T(); };
-
-template <typename T>
-inline constexpr ErasedRelocate pFn_RELOCATE =
-    [](void * src_storage, void * dst_storage) {
-      T * src = reinterpret_cast<T *>(src_storage);
-      T * dst = reinterpret_cast<T *>(dst_storage);
-      obj::relocate(Span{src, 1}, dst);
-    };
-
-template <typename T>
-inline constexpr ErasedRelocate pFn_RELOCATE_NON_OVERLAPPING =
-    [](void * src_storage, void * dst_storage) {
-      T * src = reinterpret_cast<T *>(src_storage);
-      T * dst = reinterpret_cast<T *>(dst_storage);
-      obj::relocate_non_overlapping(Span{src, 1}, dst);
-    };
-
-static constexpr usize DEFAULT_LAMBDA_CAPACITY = 40;
-
-static constexpr usize DEFAULT_LAMBDA_ALIGNMENT = 64;
+static constexpr usize DEFAULT_LAMBDA_ALIGNMENT = 32;
+static constexpr usize DEFAULT_LAMBDA_CAPACITY  = 48;
 
 template <typename Sig, usize Alignment = DEFAULT_LAMBDA_ALIGNMENT,
           usize Capacity = DEFAULT_LAMBDA_CAPACITY>
@@ -43,8 +18,8 @@ struct Lambda;
 /// It only requires that the erased type be relocatable (moved and destroyed).
 /// In order to prevent accessing elements from dynamic offsets, we require that the Type be placeable at the start of the storage.
 ///
-/// x64 minimum size of Lambda = 4 Pointers = 32-bytes
-/// x64 ideal configuration: Alignment = 64 bytes, Capacity = 40 bytes (Gives 64 bytes total. Fits exactly into one cacheline.
+/// x64 minimum size of Lambda = 3 Pointers = 24-bytes
+/// x64 ideal configuration: Alignment = 32 bytes, Capacity = 48 bytes (Gives 64 bytes total. Fits exactly into one cacheline.
 ///
 /// @tparam R return type
 /// @tparam Args argument types
@@ -58,13 +33,13 @@ struct Lambda<R(Args...), Alignment, Capacity>
 
   using Thunk = R (*)(void *, Args...);
 
+  using Lifecycle = PFnLifecycle;
+
   alignas(ALIGNMENT) mutable u8 storage[CAPACITY];
 
   Thunk thunk = nullptr;
 
-  ErasedRelocate relocator = noop;
-
-  ErasedDestroy destructor = noop;
+  Lifecycle lifecycle = noop;
 
   explicit constexpr Lambda() = default;
 
@@ -75,8 +50,7 @@ struct Lambda<R(Args...), Alignment, Capacity>
   constexpr Lambda(Functor && functor,
                    Thunk thunk = &FunctorThunk<Functor, R(Args...)>::thunk) :
       thunk{thunk},
-      relocator{pFn_RELOCATE_NON_OVERLAPPING<Functor>},
-      destructor{pFn_DESTRUCT<Functor>}
+      lifecycle{pFn_LIFECYCLE<Functor>}
   {
     new (storage) Functor{static_cast<Functor &&>(functor)};
   }
@@ -89,13 +63,11 @@ struct Lambda<R(Args...), Alignment, Capacity>
   requires (ALIGNMENT >= SrcAlignment && CAPACITY >= SrcCapacity)
   constexpr Lambda(Lambda<R(Args...), SrcAlignment, SrcCapacity> && other) :
       thunk{other.thunk},
-      relocator{other.relocator},
-      destructor{other.destructor}
+      lifecycle{other.lifecycle}
   {
-    other.relocator(other.storage, storage);
-    other.thunk      = nullptr;
-    other.relocator  = noop;
-    other.destructor = noop;
+    other.lifecycle(other.storage, storage);
+    other.thunk     = nullptr;
+    other.lifecycle = noop;
   }
 
   template <usize SrcAlignment, usize SrcCapacity>
@@ -111,21 +83,19 @@ struct Lambda<R(Args...), Alignment, Capacity>
       }
     }
 
-    destructor(storage);
-    other.relocator(other.storage, storage);
-    relocator        = other.relocator;
-    other.relocator  = noop;
-    destructor       = other.destructor;
-    other.destructor = noop;
-    thunk            = other.thunk;
-    other.thunk      = nullptr;
+    lifecycle(storage, nullptr);
+    other.lifecycle(other.storage, storage);
+    lifecycle       = other.lifecycle;
+    other.lifecycle = noop;
+    thunk           = other.thunk;
+    other.thunk     = nullptr;
 
     return *this;
   }
 
   constexpr ~Lambda()
   {
-    destructor(storage);
+    lifecycle(storage, nullptr);
   }
 
   constexpr R operator()(Args... args) const
@@ -133,14 +103,5 @@ struct Lambda<R(Args...), Alignment, Capacity>
     return thunk(storage, static_cast<Args &&>(args)...);
   }
 };
-
-// TODO (lamarrr):
-template <AnyFunctor Functor>
-constexpr auto lambda(Functor && functor)
-{
-  using Sig = int(int, int);
-  return Lambda<Sig, alignof(Functor), sizeof(Functor)>{
-      static_cast<Functor &&>(functor)};
-}
 
 }        // namespace ash

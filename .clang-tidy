@@ -15,8 +15,6 @@ CheckOptions:
   bugprone-dangling-handle.HandleClasses: >
     std::basic_string_view
     std::experimental::basic_string_view
-    ash::Span
-    ash::Buffer
 WarningsAsErrors: ""
 HeaderFilterRegex: ""
 FormatStyle: file

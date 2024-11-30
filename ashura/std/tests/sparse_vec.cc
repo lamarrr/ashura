@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "gtest/gtest.h"
 
-#include "ashura/std/sparse_vec.h"
+#include "ashura/std/vec.h"
 #include <bitset>
 #include <iostream>
 
