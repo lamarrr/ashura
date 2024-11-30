@@ -34,25 +34,27 @@ set(SDL_STATIC
 
 include(FetchContent)
 
+set(ASH_VULKAN_VERSION "1.3.296.0")
+
 FetchContent_Declare(
   VulkanHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-  GIT_TAG vulkan-sdk-1.3.296.0)
+  GIT_TAG vulkan-sdk-${ASH_VULKAN_VERSION})
 
 FetchContent_Declare(
   VulkanGLSL
   GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
-  GIT_TAG vulkan-sdk-1.3.296.0)
+  GIT_TAG vulkan-sdk-${ASH_VULKAN_VERSION})
 
 FetchContent_Declare(
   SpirvReflect
   GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
-  GIT_TAG vulkan-sdk-1.3.296.0)
+  GIT_TAG vulkan-sdk-${ASH_VULKAN_VERSION})
 
 FetchContent_Declare(
   VulkanUtilityLibraries
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
-  GIT_TAG vulkan-sdk-1.3.296.0)
+  GIT_TAG vulkan-sdk-${ASH_VULKAN_VERSION})
 
 FetchContent_Declare(
   VulkanLoader
@@ -97,6 +99,12 @@ FetchContent_Declare(
   GIT_TAG curl-8_8_0)
 
 FetchContent_Declare(
+  xxHash
+  GIT_REPOSITORY https://github.com/Cyan4973/xxHash.git
+  GIT_TAG dd11140
+  CONFIGURE_COMMAND "" BUILD_COMMAND "")
+
+FetchContent_Declare(
   fast_float
   GIT_REPOSITORY https://github.com/fastfloat/fast_float.git
   GIT_TAG v7.0.0
@@ -107,7 +115,6 @@ find_package(GTest REQUIRED)
 find_package(libjpeg-turbo CONFIG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(FFMPEG REQUIRED)
-find_package(xxHash CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -123,11 +130,13 @@ FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
 FetchContent_MakeAvailable(WebP)
 FetchContent_MakeAvailable(CURL)
+FetchContent_MakeAvailable(xxHash)
 FetchContent_MakeAvailable(fast_float)
 
-file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
-
+set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
 set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)
+
+file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
 add_library(SheenBidi ${SheenBidi_SOURCES})
 target_include_directories(
@@ -162,8 +171,9 @@ add_library(
   ashura/std/panic.cc)
 target_include_directories(
   ashura_std
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(ashura_std PUBLIC xxHash::xxhash Threads::Threads)
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  PRIVATE ${xxHash_INCLUDE_DIR})
+target_link_libraries(ashura_std PUBLIC Threads::Threads)
 
 add_executable(
   ashura_std_tests
@@ -186,8 +196,8 @@ target_link_libraries(ashura_std_bench benchmark::benchmark
 add_library(ashura_gpu ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
                        ashura/gpu/vulkan.cc)
 target_link_libraries(
-  ashura_gpu ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
-  GPUOpen::VulkanMemoryAllocator)
+  ashura_gpu PUBLIC ashura_std Vulkan-Headers Vulkan::UtilityHeaders
+                    Vulkan::Loader GPUOpen::VulkanMemoryAllocator)
 target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
@@ -211,27 +221,27 @@ add_library(
   ashura/engine/passes.cc)
 target_link_libraries(
   ashura_engine
-  ashura_std
-  ashura_gpu
-  glslang::glslang
-  spirv-reflect-static
-  SDL3::SDL3-static
-  harfbuzz
-  CURL::libcurl
-  freetype
-  simdjson::simdjson
-  webp
-  webpdecoder
-  $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
-  PNG::PNG
-  ${FFMPEG_LIBRARIES}
-  SheenBidi::SheenBidi)
+  PUBLIC ashura_std ashura_gpu
+  PRIVATE
+    glslang::glslang
+    spirv-reflect-static
+    SDL3::SDL3-static
+    harfbuzz
+    CURL::libcurl
+    freetype
+    simdjson::simdjson
+    webp
+    webpdecoder
+    $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
+    PNG::PNG
+    ${FFMPEG_LIBRARIES}
+    SheenBidi::SheenBidi)
 
 target_include_directories(
   ashura_engine
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR} ${FFMPEG_INCLUDE_DIRS}
-         ${FFMPEG_LIBRARY_DIRS}
-  PRIVATE ${fast_float_INCLUDE_DIR})
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  PRIVATE ${JPEG_INCLUDE_DIR} ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS}
+          ${fast_float_INCLUDE_DIR})
 
 add_executable(
   ashura_engine_tests
