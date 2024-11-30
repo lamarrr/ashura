@@ -34,7 +34,7 @@ typedef size_t    usize;
 typedef ptrdiff_t isize;
 typedef uintptr_t uptr;
 typedef intptr_t  iptr;
-typedef u64       Hash;
+typedef u64       hash64;
 
 constexpr u8 U8_MIN = 0;
 constexpr u8 U8_MAX = 0xFF;
