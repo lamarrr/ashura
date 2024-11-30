@@ -1733,7 +1733,7 @@ constexpr Mat3 & operator/=(Mat3 & a, Mat3 const & b)
   return a;
 }
 
-struct Mat3Affine
+struct Affine3
 {
   static constexpr Vec3 trailing_row = Vec3{0, 0, 1};
   Vec3                  rows[2]      = {};
@@ -1755,9 +1755,9 @@ struct Mat3Affine
     };
   }
 
-  static constexpr Mat3Affine identity()
+  static constexpr Affine3 identity()
   {
-    return Mat3Affine{
+    return Affine3{
         .rows = {{1, 0, 0}, {0, 1, 0}}
     };
   }
@@ -1778,49 +1778,48 @@ struct Mat3Affine
   }
 };
 
-constexpr bool operator==(Mat3Affine const & a, Mat3Affine const & b)
+constexpr bool operator==(Affine3 const & a, Affine3 const & b)
 {
   return a[0] == b[0] && a[1] == b[1];
 }
 
-constexpr bool operator!=(Mat3Affine const & a, Mat3Affine const & b)
+constexpr bool operator!=(Affine3 const & a, Affine3 const & b)
 {
   return a[0] != b[0] || a[1] != b[1];
 }
 
-constexpr Mat3Affine operator+(Mat3Affine const & a, Mat3Affine const & b)
+constexpr Affine3 operator+(Affine3 const & a, Affine3 const & b)
 {
-  return Mat3Affine{
+  return Affine3{
       .rows = {a[0] + b[0], a[1] + b[1]}
   };
 }
 
-constexpr Mat3Affine operator-(Mat3Affine const & a, Mat3Affine const & b)
+constexpr Affine3 operator-(Affine3 const & a, Affine3 const & b)
 {
-  return Mat3Affine{
+  return Affine3{
       .rows = {a[0] - b[0], a[1] - b[1]}
   };
 }
 
-constexpr Vec3 operator*(Mat3Affine const & a, Vec3 const & b)
+constexpr Vec3 operator*(Affine3 const & a, Vec3 const & b)
 {
-  return Vec3{dot(a[0], b), dot(a[1], b), dot(Mat3Affine::trailing_row, b)};
+  return Vec3{dot(a[0], b), dot(a[1], b), dot(Affine3::trailing_row, b)};
 }
 
-constexpr Mat3 operator*(Mat3Affine const & a, Mat3 const & b)
+constexpr Mat3 operator*(Affine3 const & a, Mat3 const & b)
 {
   return Mat3{
       .rows = {
                {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
                {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-               {dot(Mat3Affine::trailing_row, b.x()),
-           dot(Mat3Affine::trailing_row, b.y()),
-           dot(Mat3Affine::trailing_row, b.z())},
+               {dot(Affine3::trailing_row, b.x()), dot(Affine3::trailing_row, b.y()),
+           dot(Affine3::trailing_row, b.z())},
                }
   };
 }
 
-constexpr Mat3 operator*(Mat3 const & a, Mat3Affine const & b)
+constexpr Mat3 operator*(Mat3 const & a, Affine3 const & b)
 {
   return Mat3{
       .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
@@ -1829,40 +1828,40 @@ constexpr Mat3 operator*(Mat3 const & a, Mat3Affine const & b)
   };
 }
 
-constexpr Mat3Affine operator*(Mat3Affine const & a, Mat3Affine const & b)
+constexpr Affine3 operator*(Affine3 const & a, Affine3 const & b)
 {
-  return Mat3Affine{
+  return Affine3{
       .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
                {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())}}
   };
 }
 
-constexpr Mat3Affine operator/(Mat3Affine const & a, Mat3Affine const & b)
+constexpr Affine3 operator/(Affine3 const & a, Affine3 const & b)
 {
-  return Mat3Affine{
+  return Affine3{
       .rows = {a[0] / b[0], a[1] / b[1]}
   };
 }
 
-constexpr Mat3Affine & operator+=(Mat3Affine & a, Mat3Affine const & b)
+constexpr Affine3 & operator+=(Affine3 & a, Affine3 const & b)
 {
   a = a + b;
   return a;
 }
 
-constexpr Mat3Affine & operator-=(Mat3Affine & a, Mat3Affine const & b)
+constexpr Affine3 & operator-=(Affine3 & a, Affine3 const & b)
 {
   a = a - b;
   return a;
 }
 
-constexpr Mat3Affine & operator*=(Mat3Affine & a, Mat3Affine const & b)
+constexpr Affine3 & operator*=(Affine3 & a, Affine3 const & b)
 {
   a = a * b;
   return a;
 }
 
-constexpr Mat3Affine & operator/=(Mat3Affine & a, Mat3Affine const & b)
+constexpr Affine3 & operator/=(Affine3 & a, Affine3 const & b)
 {
   a = a / b;
   return a;
@@ -2002,7 +2001,7 @@ constexpr Mat4 & operator/=(Mat4 & a, Mat4 const & b)
   return a;
 }
 
-struct Mat4Affine
+struct Affine4
 {
   static constexpr Vec4 trailing_row = Vec4{0, 0, 0, 1};
   Vec4                  rows[3]      = {};
@@ -2024,9 +2023,9 @@ struct Mat4Affine
     };
   }
 
-  static constexpr Mat4Affine identity()
+  static constexpr Affine4 identity()
   {
-    return Mat4Affine{
+    return Affine4{
         .rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}}
     };
   }
@@ -2052,37 +2051,37 @@ struct Mat4Affine
   }
 };
 
-constexpr bool operator==(Mat4Affine const & a, Mat4Affine const & b)
+constexpr bool operator==(Affine4 const & a, Affine4 const & b)
 {
   return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
 }
 
-constexpr bool operator!=(Mat4Affine const & a, Mat4Affine const & b)
+constexpr bool operator!=(Affine4 const & a, Affine4 const & b)
 {
   return a[0] != b[0] || a[1] != b[1] || a[2] != b[2];
 }
 
-constexpr Mat4Affine operator+(Mat4Affine const & a, Mat4Affine const & b)
+constexpr Affine4 operator+(Affine4 const & a, Affine4 const & b)
 {
-  return Mat4Affine{
+  return Affine4{
       .rows = {a[0] + b[0], a[1] + b[1], a[2] + b[2]}
   };
 }
 
-constexpr Mat4Affine operator-(Mat4Affine const & a, Mat4Affine const & b)
+constexpr Affine4 operator-(Affine4 const & a, Affine4 const & b)
 {
-  return Mat4Affine{
+  return Affine4{
       .rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2]}
   };
 }
 
-constexpr Vec4 operator*(Mat4Affine const & a, Vec4 const & b)
+constexpr Vec4 operator*(Affine4 const & a, Vec4 const & b)
 {
   return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b),
-              dot(Mat4Affine::trailing_row, b)};
+              dot(Affine4::trailing_row, b)};
 }
 
-constexpr Mat4 operator*(Mat4Affine const & a, Mat4 const & b)
+constexpr Mat4 operator*(Affine4 const & a, Mat4 const & b)
 {
   return Mat4{
       .rows = {
@@ -2092,15 +2091,14 @@ constexpr Mat4 operator*(Mat4Affine const & a, Mat4 const & b)
            dot(a[1], b.w())},
                {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
            dot(a[2], b.w())},
-               {dot(Mat4Affine::trailing_row, b.x()),
-           dot(Mat4Affine::trailing_row, b.y()),
-           dot(Mat4Affine::trailing_row, b.z()),
-           dot(Mat4Affine::trailing_row, b.w())},
+               {dot(Affine4::trailing_row, b.x()), dot(Affine4::trailing_row, b.y()),
+           dot(Affine4::trailing_row, b.z()),
+           dot(Affine4::trailing_row, b.w())},
                }
   };
 }
 
-constexpr Mat4 operator*(Mat4 const & a, Mat4Affine const & b)
+constexpr Mat4 operator*(Mat4 const & a, Affine4 const & b)
 {
   return Mat4{
       .rows = {
@@ -2116,9 +2114,9 @@ constexpr Mat4 operator*(Mat4 const & a, Mat4Affine const & b)
   };
 }
 
-constexpr Mat4Affine operator*(Mat4Affine const & a, Mat4Affine const & b)
+constexpr Affine4 operator*(Affine4 const & a, Affine4 const & b)
 {
-  return Mat4Affine{
+  return Affine4{
       .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
                 dot(a[0], b.w())},
                {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
@@ -2128,32 +2126,32 @@ constexpr Mat4Affine operator*(Mat4Affine const & a, Mat4Affine const & b)
   };
 }
 
-constexpr Mat4Affine operator/(Mat4Affine const & a, Mat4Affine const & b)
+constexpr Affine4 operator/(Affine4 const & a, Affine4 const & b)
 {
-  return Mat4Affine{
+  return Affine4{
       .rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2]}
   };
 }
 
-constexpr Mat4Affine & operator+=(Mat4Affine & a, Mat4Affine const & b)
+constexpr Affine4 & operator+=(Affine4 & a, Affine4 const & b)
 {
   a = a + b;
   return a;
 }
 
-constexpr Mat4Affine & operator-=(Mat4Affine & a, Mat4Affine const & b)
+constexpr Affine4 & operator-=(Affine4 & a, Affine4 const & b)
 {
   a = a - b;
   return a;
 }
 
-constexpr Mat4Affine & operator*=(Mat4Affine & a, Mat4Affine const & b)
+constexpr Affine4 & operator*=(Affine4 & a, Affine4 const & b)
 {
   a = a * b;
   return a;
 }
 
-constexpr Mat4Affine & operator/=(Mat4Affine & a, Mat4Affine const & b)
+constexpr Affine4 & operator/=(Affine4 & a, Affine4 const & b)
 {
   a = a / b;
   return a;
@@ -2347,63 +2345,63 @@ constexpr Mat4 inverse(Mat4 const & a)
   return Mat4::splat(1.0F / determinant(a)) * adjoint(a);
 }
 
-constexpr Mat3Affine translate2d(Vec2 t)
+constexpr Affine3 translate2d(Vec2 t)
 {
-  return Mat3Affine{
+  return Affine3{
       .rows = {{1, 0, t.x}, {0, 1, t.y}}
   };
 }
 
-constexpr Mat4Affine translate3d(Vec3 t)
+constexpr Affine4 translate3d(Vec3 t)
 {
-  return Mat4Affine{
+  return Affine4{
       .rows = {{1, 0, 0, t.x}, {0, 1, 0, t.y}, {0, 0, 1, t.z}}
   };
 }
 
-constexpr Mat3Affine scale2d(Vec2 s)
+constexpr Affine3 scale2d(Vec2 s)
 {
-  return Mat3Affine{
+  return Affine3{
       .rows = {{s.x, 0, 0}, {0, s.y, 0}}
   };
 }
 
-constexpr Mat4Affine scale3d(Vec3 s)
+constexpr Affine4 scale3d(Vec3 s)
 {
-  return Mat4Affine{
+  return Affine4{
       .rows = {{s.x, 0, 0, 0}, {0, s.y, 0, 0}, {0, 0, s.z, 0}}
   };
 }
 
-inline Mat3Affine rotate2d(f32 radians)
+inline Affine3 rotate2d(f32 radians)
 {
-  return Mat3Affine{
+  return Affine3{
       .rows = {{cos(radians), -sin(radians), 0},
                {sin(radians), cos(radians), 0}}
   };
 }
 
-inline Mat4Affine rotate3d_x(f32 radians)
+inline Affine4 rotate3d_x(f32 radians)
 {
-  return Mat4Affine{
+  return Affine4{
       .rows = {{1, 0, 0, 0},
                {0, cos(radians), -sin(radians), 0},
                {0, sin(radians), cos(radians), 0}}
   };
 }
 
-inline Mat4Affine rotate3d_y(f32 radians)
+inline Affine4 rotate3d_y(f32 radians)
 {
-  return Mat4Affine{
+  return Affine4{
       .rows = {{cos(radians), 0, sin(radians), 0},
                {0, 1, 0, 0},
                {-sin(radians), 0, cos(radians), 0}}
   };
 }
 
-inline Mat4Affine rotate3d_z(f32 radians)
+inline Affine4 rotate3d_z(f32 radians)
 {
-  return Mat4Affine{
+  return Affine4{
       .rows = {{cos(radians), -sin(radians), 0, 0},
                {sin(radians), cos(radians), 0, 0},
                {0, 0, 1, 0}}
@@ -2416,7 +2414,7 @@ constexpr Vec2 transform(Mat3 const & t, Vec2 value)
   return Vec2{v.x, v.y};
 }
 
-constexpr Vec2 transform(Mat3Affine const & t, Vec2 value)
+constexpr Vec2 transform(Affine3 const & t, Vec2 value)
 {
   Vec3 v = t * Vec3{value.x, value.y, 1};
   return Vec2{v.x, v.y};
@@ -2428,7 +2426,7 @@ constexpr Vec3 transform(Mat4 const & t, Vec3 value)
   return Vec3{v.x, v.y, v.z};
 }
 
-constexpr Vec3 transform(Mat4Affine const & t, Vec3 value)
+constexpr Vec3 transform(Affine4 const & t, Vec3 value)
 {
   Vec4 v = t * Vec4{value.x, value.y, 1};
   return Vec3{v.x, v.y, v.z};
@@ -2865,10 +2863,10 @@ constexpr bool overlaps(Box const & a, Box const & b)
 /// @param z_near The distance to the near clipping plane.
 /// @param z_far The distance to the far clipping plane. This value
 /// MUST NOT be equal to zero. zfar MUST be greater than znear.
-constexpr Mat4Affine orthographic(f32 x_mag, f32 y_mag, f32 z_near, f32 z_far)
+constexpr Affine4 orthographic(f32 x_mag, f32 y_mag, f32 z_near, f32 z_far)
 {
   f32 const z_diff = z_near - z_far;
-  return Mat4Affine{
+  return Affine4{
       {{1 / x_mag, 0, 0, 0},
        {0, 1 / y_mag, 0, 0},
        {0, 0, 2 / z_diff, (z_far + z_near) / z_diff}}

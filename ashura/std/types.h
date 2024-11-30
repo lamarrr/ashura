@@ -1481,12 +1481,6 @@ struct BitSpan
   }
 };
 
-template <typename R>
-constexpr BitSpan<R> bit_span(Span<R> span, usize num_bits)
-{
-  return BitSpan<R>{.repr_ = span, .bit_size_ = num_bits};
-}
-
 template <typename Lambda>
 struct defer
 {

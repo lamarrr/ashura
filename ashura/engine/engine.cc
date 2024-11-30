@@ -75,8 +75,8 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
     auto id   = entry.escaped_key().value();
     auto path = entry.value().get_string().value();
     out.shaders
-        .insert(vec(allocator, span(id)).unwrap(),
-                vec(allocator, span(path)).unwrap())
+        .insert(vec(span(id), allocator).unwrap(),
+                vec(span(path), allocator).unwrap())
         .unwrap();
   }
 
@@ -86,14 +86,14 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
     auto id   = entry.escaped_key().value();
     auto path = entry.value().get_string().value();
     out.fonts
-        .insert(vec(allocator, span(id)).unwrap(),
-                vec(allocator, span(path)).unwrap())
+        .insert(vec(span(id), allocator).unwrap(),
+                vec(span(path), allocator).unwrap())
         .unwrap();
   }
 
   std::string_view default_font_sv =
       config["default_font"].get_string().value();
-  out.default_font = vec<char>(allocator, default_font_sv).unwrap();
+  out.default_font = vec<char>(default_font_sv, allocator).unwrap();
 
   // check that it is a valid entry
   fonts[default_font_sv].get_string().value();
@@ -104,8 +104,8 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
     auto id   = entry.escaped_key().value();
     auto path = entry.value().get_string().value();
     out.images
-        .insert(vec(allocator, span(id)).unwrap(),
-                vec(allocator, span(path)).unwrap())
+        .insert(vec(span(id), allocator).unwrap(),
+                vec(span(path), allocator).unwrap())
         .unwrap();
   }
 
@@ -238,20 +238,19 @@ void Engine::init(AllocatorImpl allocator, void * app,
           .unwrap();
 
   cfg.shaders.iter([&](Vec<char> & id, Vec<char> & path) {
-    Vec<char> resolved_path = vec(allocator, assets_dir).unwrap();
+    Vec<char> resolved_path = vec(assets_dir, allocator).unwrap();
     path_append(resolved_path, path).unwrap();
 
-    async::once([shader_id   = vec<char>(allocator, span(id)).unwrap(),
+    async::once([shader_id   = vec<char>(id, allocator).unwrap(),
                  shader_path = std::move(resolved_path), sem = sem.alias(),
                  allocator]() mutable {
-      logger->trace("Loading shader ", span(shader_id), " from ",
-                    span(shader_path));
+      logger->trace("Loading shader ", shader_id, " from ", shader_path);
 
       Vec<u8> data{allocator};
 
       if (Result result = read_file(shader_path, data); !result)
       {
-        logger->error("Unable to load shader at ", span(shader_path),
+        logger->error("Unable to load shader at ", shader_path,
                       ", IO Error: ", result.err());
         sem->increment(1);
         return;
@@ -265,14 +264,14 @@ void Engine::init(AllocatorImpl allocator, void * app,
 
       data_u32.resize_uninit(data.size() >> 2).unwrap();
 
-      mem::copy(span(data), span(data_u32).as_u8());
+      mem::copy(data.span(), data_u32.span().as_u8());
 
-      logger->trace("Loaded shader ", span(shader_id), " from file");
+      logger->trace("Loaded shader ", shader_id, " from file");
 
       async::once(
           [shader_id = std::move(shader_id), sem = std::move(sem),
            data_u32 = std::move(data_u32)]() mutable {
-            logger->trace("Sending shader ", span(shader_id), " to GPU");
+            logger->trace("Sending shader ", shader_id, " to GPU");
 
             gpu::Shader shader =
                 engine->device
@@ -290,13 +289,13 @@ void Engine::init(AllocatorImpl allocator, void * app,
   });
 
   cfg.fonts.iter([&](Vec<char> & id, Vec<char> & path) {
-    Vec<char> resolved_path = vec(allocator, assets_dir).unwrap();
+    Vec<char> resolved_path = vec(assets_dir, allocator).unwrap();
     path_append(resolved_path, path).unwrap();
 
-    async::once([font_id   = vec<char>(allocator, span(id)).unwrap(),
+    async::once([font_id   = vec<char>(id, allocator).unwrap(),
                  font_path = std::move(resolved_path), sem = sem.alias(),
                  allocator]() mutable {
-      logger->trace("Loading font ", span(font_id), " from ", span(font_path));
+      logger->trace("Loading font ", font_id, " from ", font_path);
 
       Vec<u8> data{allocator};
 
@@ -304,7 +303,7 @@ void Engine::init(AllocatorImpl allocator, void * app,
 
       if (!read_result)
       {
-        logger->error("Unable to load font at ", span(font_path),
+        logger->error("Unable to load font at ", font_path,
                       ", IO Error: ", read_result.err());
         sem->increment(1);
         return;
@@ -314,7 +313,7 @@ void Engine::init(AllocatorImpl allocator, void * app,
 
       if (!decode_result)
       {
-        logger->error("Unable to decode font at ", span(font_path),
+        logger->error("Unable to decode font at ", font_path,
                       "Error: ", decode_result.err());
         sem->increment(1);
         return;
@@ -322,21 +321,20 @@ void Engine::init(AllocatorImpl allocator, void * app,
 
       Dyn<Font *> font = decode_result.unwrap();
 
-      logger->trace("Loaded font ", span(font_id), " from file");
+      logger->trace("Loaded font ", font_id, " from file");
 
       u32 const font_height = 64;
 
-      logger->trace("Rasterizing font ", span(font_id), " @", font_height,
-                    "px ");
+      logger->trace("Rasterizing font ", font_id, " @", font_height, "px ");
 
       font->rasterize(font_height, allocator).unwrap();
 
-      logger->trace("Rasterized font ", span(font_id));
+      logger->trace("Rasterized font ", font_id);
 
       async::once(
           [font_id = std::move(font_id), sem = std::move(sem),
            font = std::move(font), allocator]() mutable {
-            logger->trace("Uploading font ", span(font_id), " to GPU");
+            logger->trace("Uploading font ", font_id, " to GPU");
 
             font->upload_to_device(engine->gpu_ctx, allocator);
 
@@ -354,8 +352,7 @@ void Engine::init(AllocatorImpl allocator, void * app,
     scheduler->execute_main_thread_loop(1ms, 2ms);
   }
 
-  engine->default_font_name =
-      vec<char>(allocator, span(cfg.default_font)).unwrap();
+  engine->default_font_name = vec<char>(cfg.default_font, allocator).unwrap();
   engine->default_font = engine->assets.fonts[engine->default_font_name].get();
 
   engine->renderer.acquire(engine->gpu_ctx, engine->assets);
@@ -437,7 +434,7 @@ void Engine::recreate_swapchain_()
 
   for (gpu::ColorSpace cp : preferred_color_spaces)
   {
-    Span sel = find_if(span(formats), [&](gpu::SurfaceFormat a) {
+    Span sel = find_if(formats.span(), [&](gpu::SurfaceFormat a) {
       return a.color_space == cp;
     });
     if (!sel.is_empty())
@@ -455,7 +452,7 @@ void Engine::recreate_swapchain_()
 
   for (gpu::PresentMode pm : preferred_present_modes)
   {
-    if (!find(span(present_modes), pm).is_empty())
+    if (!find(present_modes.span(), pm).is_empty())
     {
       found_present_mode = true;
       present_mode       = pm;
@@ -567,7 +564,7 @@ void Engine::run(View & view)
                                .render_area        = {.offset = {},
                                        .extent = gpu_ctx.screen_fb.extent},
                                .num_layers         = 1,
-                               .color_attachments  = span(attachments),
+                               .color_attachments  = attachments,
                                .depth_attachment   = {},
                                .stencil_attachment = {}},
         .viewport           = gpu::Viewport{.offset = {0, 0},

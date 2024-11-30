@@ -324,8 +324,8 @@ struct ViewContext
 /// @brief makes a zoom transform matrix relative to the center of a viewport.
 /// defines the translation and scaling components.
 /// @return zoom transform matrix
-constexpr Mat3Affine scroll_transform(Vec2 viewport_extent, Vec2 view_extent,
-                                      Vec2 t, f32 scale)
+constexpr Affine3 scroll_transform(Vec2 viewport_extent, Vec2 view_extent,
+                                   Vec2 t, f32 scale)
 {
   Vec2 const low    = -0.5F * viewport_extent + 0.5F * view_extent;
   Vec2 const high   = 0.5F * viewport_extent - 0.5F * view_extent;
@@ -439,7 +439,7 @@ struct ViewLayout
 {
   Vec2         extent             = {};
   Vec2         viewport_extent    = {};
-  Mat3Affine   viewport_transform = Mat3Affine::identity();
+  Affine3      viewport_transform = Affine3::identity();
   Option<Vec2> fixed_position     = None;
 };
 
@@ -584,7 +584,7 @@ struct View
   /// @brief Called when the viewport is needed to zoom itself, scaling its
   /// inner extent
   /// @param zoom zoom to apply to the inner extent
-  constexpr virtual void zoom(Mat3Affine const & transform)
+  constexpr virtual void zoom(Affine3 const & transform)
   {
     (void) transform;
   }

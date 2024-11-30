@@ -258,6 +258,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {{
 
 }}
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 """
 }
 }};
