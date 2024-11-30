@@ -99,7 +99,7 @@ struct Logger : Pin<>
     std::lock_guard lock{mutex};
     char            scratch[SCRATCH_SIZE];
     Buffer<char>    msg = ash::buffer<char>(buffer);
-    fmt::Context    ctx = fmt::buffer(&msg, scratch);
+    fmt::Context    ctx = fmt::buffer(msg, scratch);
     if (!fmt::format(ctx, args..., "\n"))
     {
       return false;

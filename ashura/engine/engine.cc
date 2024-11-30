@@ -210,21 +210,23 @@ void Engine::init(AllocatorImpl allocator, void * app,
 
   window_system->listen(
       SystemEventTypes::All,
-      fn(engine, [](Engine * engine, SystemEvent const & event) {
-        if (event.type == SystemEventTypes::ThemeChanged)
-        {
-          engine->view_ctx.theme = event.theme;
-        }
-      }));
+      fn(
+          engine, +[](Engine * engine, SystemEvent const & event) {
+            if (event.type == SystemEventTypes::ThemeChanged)
+            {
+              engine->view_ctx.theme = event.theme;
+            }
+          }));
 
   window_system->listen(
       window, WindowEventTypes::All,
-      fn(engine, [](Engine * engine, WindowEvent const & event) {
-        if (event.type == WindowEventTypes::CloseRequested)
-        {
-          engine->should_shutdown = true;
-        }
-      }));
+      fn(
+          engine, +[](Engine * engine, WindowEvent const & event) {
+            if (event.type == WindowEventTypes::CloseRequested)
+            {
+              engine->should_shutdown = true;
+            }
+          }));
 
   engine->device->begin_frame(nullptr).unwrap();
 

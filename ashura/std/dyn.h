@@ -15,7 +15,7 @@ struct [[nodiscard]] Dyn
 
   struct Inner
   {
-    H             handle    = {};
+    H             handle{};
     AllocatorImpl allocator = {};
     Uninit        uninit    = noop;
   };
@@ -102,10 +102,11 @@ constexpr Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator,
 
   return Ok{
       Dyn<T *>{object, allocator,
-               fn(object, [](T * object, AllocatorImpl allocator) {
-                 object->~T();
-                 allocator.ndealloc(object, 1);
-               })}
+               fn(
+                   object, +[](T * object, AllocatorImpl allocator) {
+                     object->~T();
+                     allocator.ndealloc(object, 1);
+                   })}
   };
 }
 

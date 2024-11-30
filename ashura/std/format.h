@@ -33,14 +33,14 @@ struct Spec
 /// @param sratch scratch buffer. minimum recommended size of 256 bytes
 struct Context
 {
-  Fn<bool(Span<char const>)> push = fn([](Span<char const>) { return true; });
+  Fn<bool(Span<char const>)> push    = [](Span<char const>) { return true; };
   Span<char>                 scratch = {};
 };
 
-inline Context buffer(Buffer<char> * b, Span<char> scratch)
+inline Context buffer(Buffer<char> & b, Span<char> scratch)
 {
   auto f = [](Buffer<char> * b, Span<char const> in) { return b->extend(in); };
-  return Context{.push = fn(b, f), .scratch = scratch};
+  return Context{.push = fn(&b, +f), .scratch = scratch};
 }
 
 template <typename T>

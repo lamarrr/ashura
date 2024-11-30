@@ -23,7 +23,7 @@ TEST(TextCompositor, Main)
     ASSERT_TRUE(range_eq(str, text));
   };
 
-  cmp.command(U""_str, layout, 0, 0, TextCommand::InputText, fn(&insert), noop,
+  cmp.command(U""_str, layout, 0, 0, TextCommand::InputText, fn(insert), noop,
               text, clip, 1, {});
 
   ASSERT_TRUE(inserted);
@@ -31,8 +31,8 @@ TEST(TextCompositor, Main)
   ASSERT_EQ(cmp.inner.latest_record, 1);
   ASSERT_EQ(cmp.inner.buffer_pos, text.size32());
 
-  cmp.command(text, layout, 0, 0, TextCommand::SelectLine, fn(&insert), noop,
-              {}, clip, 1, {});
+  cmp.command(text, layout, 0, 0, TextCommand::SelectLine, fn(insert), noop, {},
+              clip, 1, {});
 
   ASSERT_EQ(cmp.inner.current_record, 1);
   ASSERT_EQ(cmp.inner.latest_record, 1);

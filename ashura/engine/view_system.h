@@ -276,7 +276,7 @@ struct ViewSystem
     };
 
     ViewState s = view.tick(ctx, view.inner.region, view.inner.zoom,
-                            process_events(view), fn(&builder));
+                            process_events(view), fn(builder));
 
     tab_indices.set(idx, (s.tab == I32_MIN) ? tab_index : s.tab);
     viewports.set(idx, viewport);

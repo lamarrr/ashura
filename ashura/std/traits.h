@@ -61,19 +61,19 @@ template <typename T>
 using decay = std::decay_t<T>;
 
 template <typename T, typename U>
-struct SameImpl
+struct is_same_impl
 {
   static constexpr bool value = false;
 };
 
 template <typename T>
-struct SameImpl<T, T>
+struct is_same_impl<T, T>
 {
   static constexpr bool value = true;
 };
 
 template <typename T, typename U>
-concept Same = SameImpl<T, U>::value;
+concept Same = is_same_impl<T, U>::value;
 
 template <typename From, typename To>
 concept Convertible = requires (From && from) {
@@ -81,22 +81,22 @@ concept Convertible = requires (From && from) {
 };
 
 template <typename T>
-struct IsConstImpl
+struct is_const_impl
 {
   static constexpr bool value = false;
 };
 
 template <typename T>
-struct IsConstImpl<T const>
+struct is_const_impl<T const>
 {
   static constexpr bool value = true;
 };
 
 template <typename T>
-concept Const = IsConstImpl<T>::value;
+concept Const = is_const_impl<T>::value;
 
 template <typename T>
-concept NonConst = !IsConstImpl<T>::value;
+concept NonConst = !is_const_impl<T>::value;
 
 /// can be overloaded for custom types
 template <typename T>
@@ -143,9 +143,24 @@ concept Callable = requires (F && f, Args &&... args) {
 template <typename F, typename... Args>
 using CallResult = decltype(std::declval<F>()((std::declval<Args>())...));
 
-namespace trait
+template <typename T>
+struct is_pfn_impl
 {
+  static constexpr bool value = false;
+};
 
+template <typename R, typename... Args>
+struct is_pfn_impl<R (*)(Args...)>
+{
+  static constexpr bool value = true;
+};
+
+template <typename F>
+concept AnyPFn = is_pfn_impl<F>::value;
+
+template <typename F>
+concept AnyFunctor = requires () {
+  { &F::operator() };
 };
 
 }        // namespace ash
