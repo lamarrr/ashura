@@ -72,6 +72,8 @@ struct RenderText
 
       u32 const end = sat_add(first, count);
 
+      // [ ] use find upper bound instead
+
       u32 first_run = 0;
       for (; first_run < runs.size32(); first_run++)
       {
@@ -239,7 +241,7 @@ struct RenderText
   void set_text(Span<c32 const> utf32)
   {
     inner.text.clear();
-    inner.text.extend_copy(utf32).unwrap();
+    inner.text.extend(utf32).unwrap();
     flush_text();
   }
 

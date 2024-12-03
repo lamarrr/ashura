@@ -14,7 +14,7 @@ TEST(SparseVecTest, Start)
   ASSERT_TRUE(f.push(1));
   ASSERT_EQ(f[0], 1);
   ASSERT_EQ(f.size(), 1);
-  ASSERT_TRUE(f.extend_copy(span({2, 3, 4, 5, 6})));
+  ASSERT_TRUE(f.extend(span({2, 3, 4, 5, 6})));
   ASSERT_EQ(f.size(), 6);
   ASSERT_EQ(f[5], 6);
   ASSERT_TRUE(f.fit());
@@ -26,7 +26,7 @@ TEST(SparseVecTest, Start)
   ASSERT_EQ(f[0], 1);
   ASSERT_EQ(f[5], 6);
   ASSERT_EQ(f[6], 7);
-  ASSERT_TRUE(f.insert_span_copy(f.size(), span({8, 9, 0})));
+  ASSERT_TRUE(f.insert_span(f.size(), span({8, 9, 0})));
   ASSERT_EQ(f.size(), 10);
   ASSERT_EQ(f[7], 8);
   ASSERT_EQ(f[9], 0);

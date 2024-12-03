@@ -6,7 +6,6 @@
 extern "C"
 {
 #include "SBAlgorithm.h"
-#include "SBLine.h"
 #include "SBParagraph.h"
 #include "SBScriptLocator.h"
 #include "hb.h"
@@ -198,7 +197,7 @@ static inline void segment_breakpoints(Span<c32 const>   text,
 }
 
 static inline void insert_run(TextLayout & l, FontStyle const & s, u32 first,
-                              u32 count, u16 style,
+                              u32 count, u32 style,
                               FontMetrics const & font_metrics, u8 base_level,
                               u8 level, bool paragraph, bool breakable,
                               Span<hb_glyph_info_t const>     infos,
@@ -295,16 +294,16 @@ void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout)
 
   u32 const text_size = block.text.size32();
   CHECK(block.text.size() <= I32_MAX);
-  CHECK(block.fonts.size() <= U16_MAX);
+  CHECK(block.fonts.size() <= U32_MAX);
   CHECK(block.runs.size() == block.fonts.size());
 
   layout.segments.resize_defaulted(block.text.size()).unwrap();
   Span segments = layout.segments;
 
-  for (TextSegment & s : segments)
-  {
-    s = TextSegment{};
-  }
+  fill(segments, TextSegment{});
+
+  // [ ] verify REE
+  // [ ] construct segments
 
   {
     u32 prev_run_end = 0;
@@ -461,6 +460,8 @@ TextHitResult hit_text(TextLayout const & layout, f32 style_align_width,
   {
     return TextHitResult{.cluster = 0, .line = 0, .column = 0};
   }
+
+  // TODO(lamarrr): add acceleration structure: block pos
 
   f32 const  block_width = max(layout.extent.x, style_align_width);
   Vec2 const block_extent{block_width, layout.extent.y};

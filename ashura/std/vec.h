@@ -94,7 +94,7 @@ struct [[nodiscard]] Vec
   {
     Vec out{allocator};
 
-    if (!out.extend_copy(*this))
+    if (!out.extend(*this))
     {
       return Err{};
     }
@@ -387,7 +387,7 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  constexpr Result<> insert_span_copy(usize pos, Span<T const> span)
+  constexpr Result<> insert_span(usize pos, Span<T const> span)
   {
     pos = min(pos, size_);
 
@@ -455,7 +455,7 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  constexpr Result<> extend_copy(Span<T const> span)
+  constexpr Result<> extend(Span<T const> span)
   {
     usize const pos = size_;
 
@@ -549,7 +549,7 @@ constexpr Result<Vec<T>> vec(T (&data)[N], AllocatorImpl allocator = {})
     return out;
   }
 
-  out.value().extend_copy(data).unwrap();
+  out.value().extend(data).unwrap();
 
   return out;
 }
@@ -564,7 +564,7 @@ constexpr Result<Vec<T>> vec(Span<T const> data, AllocatorImpl allocator = {})
     return out;
   }
 
-  out.value().extend_copy(data).unwrap();
+  out.value().extend(data).unwrap();
 
   return out;
 }
@@ -843,7 +843,7 @@ struct [[nodiscard]] PinVec
     return Ok{};
   }
 
-  constexpr Result<> extend_copy(Span<T const> span)
+  constexpr Result<> extend(Span<T const> span)
   {
     usize const pos = size_;
 
@@ -1180,7 +1180,7 @@ struct [[nodiscard]] BitVec
 };
 
 template <typename T, usize C>
-requires (NonConst<T>)
+requires (NonConst<T> && C > 0)
 struct [[nodiscard]] InplaceVec
 {
   using Type = T;
@@ -1198,6 +1198,8 @@ struct [[nodiscard]] InplaceVec
   {
     copy_construct(Span{other.data(), other.size_}, data());
   }
+
+  // [ ] copy and move construct and assign from other types
 
   constexpr InplaceVec & operator=(InplaceVec const & other)
   {
@@ -1483,7 +1485,7 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  constexpr Result<> insert_span_copy(usize pos, Span<T const> span)
+  constexpr Result<> insert_span(usize pos, Span<T const> span)
   {
     pos = min(pos, size_);
 
@@ -1553,7 +1555,7 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  constexpr Result<> extend_copy(Span<T const> span)
+  constexpr Result<> extend(Span<T const> span)
   {
     usize const pos = size_;
 
@@ -1657,7 +1659,7 @@ struct [[nodiscard]] InplaceVec
 ///
 ///
 template <typename... V>
-requires (true && ... && NonConst<V>)
+requires (NonConst<V> && ... && true)
 struct SparseVec
 {
   static constexpr u64 RELEASE_MASK = U64_MAX >> 1;

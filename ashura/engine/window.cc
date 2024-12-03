@@ -47,7 +47,7 @@ struct ClipBoardImpl : ClipBoard
     }
     defer data_{[&] { SDL_free(data); }};
 
-    out.extend_copy(Span<c8 const>{reinterpret_cast<c8 *>(data), mime_data_len})
+    out.extend(Span<c8 const>{reinterpret_cast<c8 *>(data), mime_data_len})
         .unwrap();
     return Ok{};
   }
@@ -72,7 +72,7 @@ struct ClipBoardImpl : ClipBoard
     CHECK(default_allocator.nalloc(1, data_ctx));
     new (data_ctx) Vec<c8>{};
 
-    data_ctx->extend_copy(data).unwrap();
+    data_ctx->extend(data).unwrap();
 
     bool failed = SDL_SetClipboardData(
         [](void * userdata, char const * mime_type,

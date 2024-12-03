@@ -13,6 +13,9 @@ typedef StrVecMap<gpu::Shader> ShaderMap;
 typedef StrVecMap<Dyn<Font *>> FontMap;
 
 // [ ] images
+// [ ] animations
+// [ ] audio
+// [ ] ...
 
 struct AssetMap
 {

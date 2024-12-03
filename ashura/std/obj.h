@@ -137,45 +137,4 @@ constexpr void relocate_non_overlapping(Span<T> src, Span<T> dst)
 
 }        // namespace obj
 
-using PFnDestruct = void (*)(void *);
-
-using PFnRelocate = void (*)(void *, void *);
-
-using PFnLifecycle = void (*)(void *, void *);
-
-template <typename T>
-inline constexpr PFnDestruct pFn_DESTRUCT = [](void * mem) {
-  T * obj = reinterpret_cast<T *>(mem);
-
-  obj::destruct(Span{obj, 1});
-};
-
-template <typename T>
-inline constexpr PFnRelocate pFn_RELOCATE = [](void * src_mem, void * dst_mem) {
-  T * src = reinterpret_cast<T *>(src_mem);
-  T * dst = reinterpret_cast<T *>(dst_mem);
-
-  obj::relocate_non_overlapping(Span{src, 1}, dst);
-};
-
-/// @brief An object lifecycle function that relocates and destroys an object.
-/// When the destination memory is nullptr,
-/// the object is to be destroyed.
-/// Otherwise, it should relocate itself to the destination memory.
-template <typename T>
-inline constexpr PFnLifecycle pFn_LIFECYCLE =
-    [](void * src_mem, void * dst_mem) {
-      T * src = reinterpret_cast<T *>(src_mem);
-      T * dst = reinterpret_cast<T *>(dst_mem);
-
-      if (dst_mem == nullptr) [[unlikely]]
-      {
-        src->~T();
-      }
-      else
-      {
-        obj::relocate_non_overlapping(Span{src, 1}, dst);
-      }
-    };
-
 }        // namespace ash

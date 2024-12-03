@@ -428,7 +428,7 @@ struct FontImpl : Font
     Vec<AtlasGlyph> glyphs;
 
     textures.resize_defaulted(atlas.num_layers).unwrap();
-    glyphs.extend_copy(atlas.glyphs).unwrap();
+    glyphs.extend(atlas.glyphs).unwrap();
 
     for (u32 i = 0; i < atlas.num_layers; i++)
     {

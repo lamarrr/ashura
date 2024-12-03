@@ -61,4 +61,67 @@ constexpr decltype(auto) apply(F && f, Tuple && t)
                     std::make_index_sequence<decay<Tuple>::SIZE>{});
 }
 
+template <typename F, usize... I>
+constexpr decltype(auto) impl_index_apply(F && f, std::index_sequence<I...>)
+{
+  return f.template operator()<I...>();
+}
+
+template <typename F, usize N>
+constexpr decltype(auto) index_apply(F && f)
+{
+  return impl_index_apply(static_cast<F &&>(f), std::make_index_sequence<N>{});
+}
+
+template <typename F, typename... Tuples>
+constexpr decltype(auto) zip_apply(F && f, Tuples &&... tuples)
+{
+  // [ ] impl
+  // apply over Index
+}
+
+template <usize I, typename Tuple, typename... In>
+constexpr decltype(auto) impl_fold_reduce(Tuple & fns, In &&... in)
+{
+  if constexpr (I == (Tuple::SIZE - 1))
+  {
+    return get<I>(fns)(static_cast<In &&>(in)...);
+  }
+  else
+  {
+    if constexpr (Same<CallResult<decltype(get<I>(fns)), In...>, void>)
+    {
+      get<I>(fns)(static_cast<In &&>(in)...);
+      return impl_fold_reduce<I + 1, Tuple>(fns);
+    }
+    else
+    {
+      return impl_fold_reduce<I + 1, Tuple>(
+          fns, get<I>(fns)(static_cast<In &&>(in)...));
+    }
+  }
+}
+
+template <class Tuple, typename... In>
+constexpr decltype(auto) impl_fold(Tuple & fns, In &&... in)
+{
+  if constexpr (Tuple::SIZE == 0)
+  {
+    return;
+  }
+  else
+  {
+    return impl_fold_reduce<0, Tuple>(fns, static_cast<In &&>(in)...);
+  }
+}
+
+/// @brief Folds left call a tuple of functions, acting as a single function.
+/// i.e. result = ( in... -> fn.0 -> fn.1 -> fn.2 -> return )
+/// @return the return value of the last function
+template <class Tuple, typename... In>
+constexpr decltype(auto) fold(Tuple & fns, In &&... in)
+{
+  return impl_fold(fns, static_cast<In &&>(in)...);
+}
+
 }        // namespace ash

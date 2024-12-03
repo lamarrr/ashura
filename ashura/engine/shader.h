@@ -1,7 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/renderer.h"
+#include "ashura/std/vec.h"
+#include "ashura/std/log.h"
 #include "ashura/std/types.h"
 
 namespace ash

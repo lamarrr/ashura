@@ -219,9 +219,10 @@ struct GpuContext
     {
       release(f);
     }
-    sampler_cache.iter([&](gpu::SamplerInfo const &, CachedSampler sampler) {
+    for (auto const & [_, sampler] : sampler_cache)
+    {
       release(sampler.sampler);
-    });
+    }
     idle_reclaim();
     device->uninit_pipeline_cache(pipeline_cache);
   }

@@ -187,13 +187,13 @@ struct FlexView : View
 
   FlexView & items(std::initializer_list<View *> list)
   {
-    inner.items.extend_copy(span(list)).unwrap();
+    inner.items.extend(span(list)).unwrap();
     return *this;
   }
 
   FlexView & items(Span<View * const> list)
   {
-    inner.items.extend_copy(list).unwrap();
+    inner.items.extend(list).unwrap();
     return *this;
   }
 
@@ -385,13 +385,13 @@ struct StackView : View
 
   StackView & items(std::initializer_list<View *> list)
   {
-    inner.items.extend_copy(span(list)).unwrap();
+    inner.items.extend(span(list)).unwrap();
     return *this;
   }
 
   StackView & items(Span<View * const> list)
   {
-    inner.items.extend_copy(list).unwrap();
+    inner.items.extend(list).unwrap();
     return *this;
   }
 
@@ -856,7 +856,7 @@ struct TextInput : View
     };
 
     auto insert = [this, &edited](u32 pos, Span<c32 const> t) {
-      CHECK(this->inner.content.inner.text.insert_span_copy(pos, t));
+      CHECK(this->inner.content.inner.text.insert_span(pos, t));
       edited |= t.is_empty();
       this->inner.content.flush_text();
     };

@@ -8,7 +8,7 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
                                           AllocatorImpl allocator)
 {
   Vec<char> font_data{allocator};
-  if (!font_data.extend_copy(encoded.as_char()))
+  if (!font_data.extend(encoded.as_char()))
   {
     return Err{FontErr::OutOfMemory};
   }
@@ -107,7 +107,7 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
   if (ft_postscript_name != nullptr)
   {
     postscript_name_size = strlen(ft_postscript_name);
-    if (!postscript_name.extend_copy(
+    if (!postscript_name.extend(
             Span{ft_postscript_name, postscript_name_size}))
     {
       return Err{FontErr::OutOfMemory};
@@ -120,7 +120,7 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
   if (ft_face->family_name != nullptr)
   {
     family_name_size = strlen(ft_face->family_name);
-    if (!family_name.extend_copy(Span{ft_face->family_name, family_name_size}))
+    if (!family_name.extend(Span{ft_face->family_name, family_name_size}))
     {
       return Err{FontErr::OutOfMemory};
     }
@@ -132,7 +132,7 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
   if (ft_face->style_name != nullptr)
   {
     style_name_size = strlen(ft_face->style_name);
-    if (!style_name.extend_copy(Span{ft_face->style_name, style_name_size}))
+    if (!style_name.extend(Span{ft_face->style_name, style_name_size}))
     {
       return Err{FontErr::OutOfMemory};
     }

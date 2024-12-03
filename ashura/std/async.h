@@ -6,13 +6,12 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/cfg.h"
 #include "ashura/std/error.h"
-#include "ashura/std/functional.h"
+#include "ashura/std/tuple.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/rc.h"
 #include "ashura/std/result.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
-#include "ashura/std/v.h"
 
 #include <atomic>
 #include <thread>
