@@ -237,7 +237,8 @@ void Engine::init(AllocatorImpl allocator, void * app,
       create_semaphore(allocator, cfg.shaders.size() + cfg.fonts.size())
           .unwrap();
 
-  cfg.shaders.iter([&](Vec<char> & id, Vec<char> & path) {
+  for (auto const & [id, path] : cfg.shaders)
+  {
     Vec<char> resolved_path = vec(assets_dir, allocator).unwrap();
     path_append(resolved_path, path).unwrap();
 
@@ -286,9 +287,10 @@ void Engine::init(AllocatorImpl allocator, void * app,
           },
           async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
     });
-  });
+  }
 
-  cfg.fonts.iter([&](Vec<char> & id, Vec<char> & path) {
+  for (auto const & [id, path] : cfg.fonts)
+  {
     Vec<char> resolved_path = vec(assets_dir, allocator).unwrap();
     path_append(resolved_path, path).unwrap();
 
@@ -345,7 +347,7 @@ void Engine::init(AllocatorImpl allocator, void * app,
           },
           async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
     });
-  });
+  }
 
   while (!sem->is_completed())
   {
@@ -375,12 +377,18 @@ Engine::~Engine()
 {
   // [ ] renderer must be uninit before device
   // [ ] canvas
-  assets.shaders.iter(
-      [&](Vec<char> &, gpu::Shader shader) { device->uninit_shader(shader); });
+  for (auto const & [_, shader] : assets.shaders)
+  {
+    device->uninit_shader(shader);
+  }
+
   assets.shaders.clear();
-  assets.fonts.iter([&](Vec<char> &, Dyn<Font *> & font) {
+
+  for (auto const & [_, font] : assets.fonts)
+  {
     font->unload_from_device(gpu_ctx);
-  });
+  }
+
   assets.fonts.clear();
   device->uninit_swapchain(swapchain);
   window_system->uninit_window(window);

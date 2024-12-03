@@ -8,13 +8,14 @@ namespace ash
 
 void path::rect(Vec<Vec2> & vtx)
 {
-  vtx.extend_copy(span<Vec2>({
-                      {-1, -1},
-                      {1,  -1},
-                      {1,  1 },
-                      {-1, 1 }
-  }))
-      .unwrap();
+  Vec2 const coords[] = {
+      {-1, -1},
+      {1,  -1},
+      {1,  1 },
+      {-1, 1 }
+  };
+
+  vtx.extend(coords).unwrap();
 }
 
 void path::arc(Vec<Vec2> & vtx, f32 start, f32 stop, u32 segments)
@@ -166,7 +167,7 @@ void path::brect(Vec<Vec2> & vtx, Vec4 slant)
       {-1,           -1 + slant.x}
   };
 
-  vtx.extend_copy(vertices).unwrap();
+  vtx.extend(vertices).unwrap();
 }
 
 void path::bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments)
@@ -786,7 +787,7 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points)
   u32 const first_index  = ngon_indices.size32();
   u32 const first_vertex = ngon_vertices.size32();
 
-  ngon_vertices.extend_copy(points).unwrap();
+  ngon_vertices.extend(points).unwrap();
   path::triangles(first_vertex, points.size32(), ngon_indices);
 
   u32 const num_indices = ngon_vertices.size32() - first_vertex;
@@ -819,8 +820,8 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points,
   u32 const first_index  = ngon_indices.size32();
   u32 const first_vertex = ngon_vertices.size32();
 
-  ngon_vertices.extend_copy(points).unwrap();
-  ngon_indices.extend_copy(idx).unwrap();
+  ngon_vertices.extend(points).unwrap();
+  ngon_indices.extend(idx).unwrap();
 
   for (u32 & v : ngon_indices.span().slice(first_index))
   {

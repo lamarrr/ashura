@@ -9,6 +9,9 @@
 
 namespace ash
 {
+
+// [ ] formatter concept with formatter object
+
 namespace fmt
 {
 

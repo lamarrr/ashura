@@ -136,6 +136,7 @@ template <typename T>
 
 }        // namespace list
 
+// [ ] iterator model
 /// @brief A non-owning intrusive doubly circularly linked list. This is backed
 /// by an external allocator.
 /// @tparam T type contained by the list's nodes

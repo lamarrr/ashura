@@ -8,7 +8,8 @@ namespace ash
 {
 
 static constexpr usize DEFAULT_LAMBDA_ALIGNMENT = 32;
-static constexpr usize DEFAULT_LAMBDA_CAPACITY  = 48;
+
+static constexpr usize DEFAULT_LAMBDA_CAPACITY = 48;
 
 template <typename Sig, usize Alignment = DEFAULT_LAMBDA_ALIGNMENT,
           usize Capacity = DEFAULT_LAMBDA_CAPACITY>
@@ -29,28 +30,46 @@ template <usize Alignment, usize Capacity, typename R, typename... Args>
 struct Lambda<R(Args...), Alignment, Capacity>
 {
   static constexpr usize ALIGNMENT = Alignment;
-  static constexpr usize CAPACITY  = Capacity;
+
+  static constexpr usize CAPACITY = Capacity;
 
   using Thunk = R (*)(void *, Args...);
 
-  using Lifecycle = PFnLifecycle;
+  /// @brief An object lifecycle function that relocates and destroys an object.
+  /// When the destination memory is nullptr, the object is to be destroyed.
+  /// Otherwise, it should relocate itself to the destination memory.
+  using Lifecycle = void (*)(void *, void *);
+
+  template <typename T>
+  static constexpr auto LIFECYCLE = [](void * src_mem, void * dst_mem) {
+    T * src = reinterpret_cast<T *>(src_mem);
+    T * dst = reinterpret_cast<T *>(dst_mem);
+
+    if (dst_mem == nullptr) [[unlikely]]
+    {
+      src->~T();
+    }
+    else
+    {
+      obj::relocate_non_overlapping(Span{src, 1}, dst);
+    }
+  };
 
   alignas(ALIGNMENT) mutable u8 storage[CAPACITY];
 
-  Thunk thunk = nullptr;
+  Thunk thunk;
 
-  Lifecycle lifecycle = noop;
-
-  explicit constexpr Lambda() = default;
+  Lifecycle lifecycle;
 
   template <AnyFunctor Functor>
   requires (ALIGNMENT >= alignof(Functor) && CAPACITY >= sizeof(Functor) &&
             Callable<Functor, Args...> &&
             Convertible<CallResult<Functor, Args...>, R>)
-  constexpr Lambda(Functor && functor,
-                   Thunk thunk = &FunctorThunk<Functor, R(Args...)>::thunk) :
+  constexpr Lambda(Functor   functor,
+                   Thunk     thunk = &FunctorThunk<Functor, R(Args...)>::thunk,
+                   Lifecycle lifecycle = LIFECYCLE<Functor>) :
       thunk{thunk},
-      lifecycle{pFn_LIFECYCLE<Functor>}
+      lifecycle{lifecycle}
   {
     new (storage) Functor{static_cast<Functor &&>(functor)};
   }
@@ -66,8 +85,8 @@ struct Lambda<R(Args...), Alignment, Capacity>
       lifecycle{other.lifecycle}
   {
     other.lifecycle(other.storage, storage);
-    other.thunk     = nullptr;
     other.lifecycle = noop;
+    other.thunk     = nullptr;
   }
 
   template <usize SrcAlignment, usize SrcCapacity>

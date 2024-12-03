@@ -4,12 +4,10 @@
 #include "ashura/std/traits.h"
 #include <bit>
 #include <cfloat>
-#include <cinttypes>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
-#include <limits>
 #include <new>
 #include <type_traits>
 #include <utility>
@@ -162,7 +160,7 @@ struct GEq
 
 struct Cmp
 {
-  constexpr int operator()(auto const & a, auto const & b) const
+  constexpr i8 operator()(auto const & a, auto const & b) const
   {
     if (a == b)
     {
@@ -179,7 +177,7 @@ struct Cmp
 struct Min
 {
   template <typename T>
-  constexpr T const & operator()(T const & a, T const & b) const
+  constexpr T operator()(T const & a, T const & b) const
   {
     return a < b ? a : b;
   }
@@ -188,7 +186,7 @@ struct Min
 struct Max
 {
   template <typename T>
-  constexpr auto const & operator()(T const & a, T const & b) const
+  constexpr T operator()(T const & a, T const & b) const
   {
     return a > b ? a : b;
   }
@@ -208,8 +206,7 @@ struct Swap
 struct Clamp
 {
   template <typename T>
-  constexpr T const & operator()(T const & value, T const & min,
-                                 T const & max) const
+  constexpr T operator()(T const & value, T const & min, T const & max) const
   {
     return value < min ? min : (value > max ? max : value);
   }
@@ -230,6 +227,121 @@ constexpr Min   min;
 constexpr Max   max;
 constexpr Swap  swap;
 constexpr Clamp clamp;
+
+constexpr u8 sat_add(u8 a, u8 b)
+{
+  return ((a + b) < a) ? U8_MAX : (a + b);
+}
+
+constexpr u16 sat_add(u16 a, u16 b)
+{
+  return ((a + b) < a) ? U16_MAX : (a + b);
+}
+
+constexpr u32 sat_add(u32 a, u32 b)
+{
+  return ((a + b) < a) ? U32_MAX : (a + b);
+}
+
+constexpr u64 sat_add(u64 a, u64 b)
+{
+  return ((a + b) < a) ? U64_MAX : (a + b);
+}
+
+constexpr i8 sat_add(i8 a, u8 b)
+{
+  return (i8) clamp((i16) ((i16) a + (i16) b), (i16) I8_MIN, (i16) I8_MAX);
+}
+
+constexpr i16 sat_add(i16 a, i16 b)
+{
+  return (i16) clamp((i32) a + (i32) b, (i32) I16_MIN, (i32) I16_MAX);
+}
+
+constexpr i32 sat_add(i32 a, i32 b)
+{
+  return (i32) clamp((i64) a + (i64) b, (i64) I32_MIN, (i64) I32_MAX);
+}
+
+constexpr i64 sat_add(i64 a, i64 b)
+{
+  if (a > 0)
+  {
+    b = I64_MAX - a;
+  }
+  else if (b < (I64_MIN - a))
+  {
+    b = I64_MIN - a;
+  }
+
+  return a + b;
+}
+
+constexpr u8 sat_sub(u8 a, u8 b)
+{
+  return (u8) clamp((i16) ((i16) a - (i16) b), (i16) U8_MIN, (i16) U8_MAX);
+}
+
+constexpr u16 sat_sub(u16 a, u16 b)
+{
+  return (u16) clamp((i32) ((i32) a - (i32) b), (i32) U16_MIN, (i32) U16_MAX);
+}
+
+constexpr u32 sat_sub(u32 a, u32 b)
+{
+  return (u32) clamp((i64) ((i64) a - (i64) b), (i64) U32_MIN, (i64) U32_MAX);
+}
+
+constexpr i8 sat_sub(i8 a, i8 b)
+{
+  return (i8) clamp((i16) ((i16) a - (i16) b), (i16) I8_MIN, (i16) I8_MAX);
+}
+
+constexpr i16 sat_sub(i16 a, i16 b)
+{
+  return (i16) clamp((i32) ((i32) a - (i32) b), (i32) I16_MIN, (i32) I16_MAX);
+}
+
+constexpr i32 sat_sub(i32 a, i32 b)
+{
+  return (i32) clamp((i64) ((i64) a - (i64) b), (i64) I32_MIN, (i64) I32_MAX);
+}
+
+// [ ] sat_sub u64, i64
+
+constexpr u8 sat_mul(u8 a, u8 b)
+{
+  return (u8) min((u16) ((u16) a * (u16) b), (u16) U8_MAX);
+}
+
+constexpr u16 sat_mul(u16 a, u16 b)
+{
+  return (u16) min((u32) a * (u32) b, (u32) U16_MAX);
+}
+
+constexpr u32 sat_mul(u32 a, u32 b)
+{
+  return (u32) min((u64) a * (u64) b, (u64) U32_MAX);
+}
+
+constexpr i8 sat_mul(i8 a, i8 b)
+{
+  return (i8) clamp((i16) ((i16) a * (i16) b), (i16) I8_MIN, (i16) I8_MAX);
+}
+
+constexpr i16 sat_mul(i16 a, i16 b)
+{
+  return (i16) clamp((i32) a * (i32) b, (i32) I16_MIN, (i32) I16_MAX);
+}
+
+constexpr i32 sat_mul(i32 a, i32 b)
+{
+  return (i32) clamp((i64) a * (i64) b, (i64) I32_MIN, (i64) I32_MAX);
+}
+
+// [ ] sat_mul u64, i64
+
+// [ ] sat_cast
 
 template <typename T>
 constexpr bool has_bits(T src, T cmp)
@@ -527,6 +639,21 @@ constexpr usize bit_packs(usize num_bits)
          NumTraits<Repr>::LOG2_NUM_BITS;
 }
 
+struct Uninitialized
+{
+};
+
+struct Initialized
+{
+};
+
+inline constexpr Initialized initialized{};
+
+inline constexpr Uninitialized uninitialized{};
+
+template <typename T>
+concept InitTag = Convertible<T, Initialized> || Convertible<T, Uninitialized>;
+
 /// regular void
 struct Void
 {
@@ -723,10 +850,37 @@ struct Slice64
   }
 };
 
-template <typename T, usize N>
-constexpr T * begin(T (&a)[N])
+struct IterEnd
 {
-  return a;
+};
+
+template <typename T>
+struct SpanIterator
+{
+  T * iter_ = nullptr;
+  T * end_  = nullptr;
+
+  constexpr SpanIterator & operator++()
+  {
+    iter_++;
+    return *this;
+  }
+
+  constexpr T & operator*() const
+  {
+    return *iter_;
+  }
+
+  constexpr bool operator!=(IterEnd const &) const
+  {
+    return iter_ != end_;
+  }
+};
+
+template <typename T, usize N>
+constexpr SpanIterator<T> begin(T (&a)[N])
+{
+  return SpanIterator<T>{.iter_ = a, .end_ = a + N};
 }
 
 template <typename T>
@@ -736,9 +890,9 @@ constexpr auto begin(T && a) -> decltype(a.begin())
 }
 
 template <typename T, usize N>
-constexpr T * end(T (&a)[N])
+constexpr IterEnd end(T (&)[N])
 {
-  return a + N;
+  return IterEnd{};
 }
 
 template <typename T>
@@ -801,53 +955,42 @@ constexpr auto is_empty(T && a)
   return size(a) == 0;
 }
 
-template <typename It>
-concept InputIterator = requires (It it) {
+template <typename T>
+concept Iter = requires (T it) {
   {
-    // deref
+    // value producer
     *it
   };
   {
-    // advance
-    it = it++
-  };
-  {
-    // advance
-    it = ++it
-  };
-  {
-    // distance
-    it = it + (it - it)
-  };
-  {
-    // equal
-    (it == it) && true
-  };
-  {
-    // not equal
-    (it != it) && true
-  };
-};
-
-template <typename It>
-concept OutputIterator = InputIterator<It> && requires (It it) {
-  {
-    // assign
-    *it = *it
+    // pre-fix advancement
+    ++it
   };
 };
 
 template <typename R>
-concept InputRange = requires (R r) {
-  { begin(r) } -> InputIterator;
-  { end(r) } -> InputIterator;
+concept Range = requires (R r) {
+  { begin(r) } -> Iter;
+  { !(begin(r) != end(r)) };
 };
 
-template <typename R>
-concept OutputRange = requires (R r) {
-  { begin(r) } -> OutputIterator;
-  { end(r) } -> OutputIterator;
-};
+template <NonConst T, typename Arg = T>
+constexpr void iter_set(T * iterator, Arg && arg)
+{
+  *iterator = static_cast<Arg &&>(arg);
+}
+
+template <typename T, typename Arg = T>
+constexpr void iter_set(Uninitialized, T * iterator, Arg && arg)
+{
+  new (iterator) T{static_cast<Arg &&>(arg)};
+}
+
+// [ ] output iterator - base: set to intial value
+template <typename T>
+concept OutputIter = Iter<T>;
+
+template <typename T>
+concept OutputRange = Range<T>;
 
 template <typename T, usize N>
 struct Array
@@ -974,6 +1117,129 @@ struct Array
   }
 };
 
+template <typename T>
+struct Array<T, 0>
+{
+  using Type                  = T;
+  static constexpr usize SIZE = 0;
+
+  static constexpr bool is_empty()
+  {
+    return true;
+  }
+
+  constexpr T * data()
+  {
+    return nullptr;
+  }
+
+  constexpr T const * data() const
+  {
+    return nullptr;
+  }
+
+  static constexpr usize size()
+  {
+    return SIZE;
+  }
+
+  static constexpr u32 size32()
+  {
+    return (u32) SIZE;
+  }
+
+  static constexpr u64 size64()
+  {
+    return (u64) SIZE;
+  }
+
+  static constexpr usize capacity()
+  {
+    return SIZE;
+  }
+
+  static constexpr usize size_bytes()
+  {
+    return sizeof(T) * SIZE;
+  }
+
+  constexpr T * begin()
+  {
+    return nullptr;
+  }
+
+  constexpr T const * begin() const
+  {
+    return nullptr;
+  }
+
+  constexpr T * end()
+  {
+    return nullptr;
+  }
+
+  constexpr T const * end() const
+  {
+    return nullptr;
+  }
+
+  constexpr T & first() requires (SIZE > 1)
+  {
+    return get(0);
+  }
+
+  constexpr T const & first() const requires (SIZE > 1)
+  {
+    return get(0);
+  }
+
+  constexpr T & last() requires (SIZE > 1)
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T const & last() const requires (SIZE > 1)
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T & get(usize index) requires (SIZE > 1)
+  {
+    return data()[index];
+  }
+
+  constexpr T const & get(usize index) const requires (SIZE > 1)
+  {
+    return data()[index];
+  }
+
+  template <typename... Args>
+  constexpr void set(usize index, Args &&... args) requires (SIZE > 1)
+  {
+    data()[index] = T{static_cast<Args &&>(args)...};
+  }
+
+  constexpr T & operator[](usize index) requires (SIZE > 1)
+  {
+    return data()[index];
+  }
+
+  constexpr T const & operator[](usize index) const
+  {
+    return data()[index];
+  }
+
+  constexpr operator T *()
+  {
+    return nullptr;
+  }
+
+  constexpr operator T const *() const
+  {
+    return nullptr;
+  }
+};
+
 template <typename T, usize N>
 struct IsTriviallyRelocatable<Array<T, N>>
 {
@@ -994,9 +1260,9 @@ using ContainerDataType =
     std::remove_pointer_t<decltype(data(std::declval<Container &>()))>;
 
 template <typename Container>
-concept SpanContainer = requires (Container c) {
-  { data(c) };
-  { size(c) };
+concept SpanContainer = requires (Container cont) {
+  { data(cont) };
+  { size(cont) };
 };
 
 template <typename Container, typename T>
@@ -1018,15 +1284,19 @@ struct Span
   {
   }
 
+  constexpr Span(T * begin, T const * end) :
+      data_{begin},
+      size_{static_cast<usize>(end - begin)}
+  {
+  }
+
   template <usize N>
   constexpr Span(T (&data)[N]) : data_{data}, size_{N}
   {
   }
 
   template <SpanCompatibleContainer<T> C>
-  constexpr Span(C & container) :
-      data_{ash::data(container)},
-      size_{ash::size(container)}
+  constexpr Span(C & cont) : data_{ash::data(cont)}, size_{ash::size(cont)}
   {
   }
 
@@ -1776,58 +2046,5 @@ struct Pin<void>
   constexpr Pin & operator=(Pin &&)      = delete;
   constexpr ~Pin()                       = default;
 };
-
-constexpr u8 sat_add(u8 a, u8 b)
-{
-  return ((a + b) < a) ? U8_MAX : (a + b);
-}
-
-constexpr u16 sat_add(u16 a, u16 b)
-{
-  return ((a + b) < a) ? U16_MAX : (a + b);
-}
-
-constexpr u32 sat_add(u32 a, u32 b)
-{
-  return ((a + b) < a) ? U32_MAX : (a + b);
-}
-
-constexpr u64 sat_add(u64 a, u64 b)
-{
-  return ((a + b) < a) ? U64_MAX : (a + b);
-}
-
-constexpr i8 sat_add(i8 a, u8 b)
-{
-  return (i8) clamp((i16) ((i16) a + (i16) b), (i16) I8_MIN, (i16) I8_MAX);
-}
-
-constexpr i16 sat_add(i16 a, i16 b)
-{
-  return (i16) clamp((i32) a + (i32) b, (i32) I16_MIN, (i32) I16_MAX);
-}
-
-constexpr i32 sat_add(i32 a, i32 b)
-{
-  return (i32) clamp((i64) a + (i64) b, (i64) I32_MIN, (i64) I32_MAX);
-}
-
-constexpr i64 sat_add(i64 a, i64 b)
-{
-  if (a > 0)
-  {
-    b = I64_MAX - a;
-  }
-  else if (b < (I64_MIN - a))
-  {
-    b = I64_MIN - a;
-  }
-
-  return a + b;
-}
-
-// [ ] sat_sub
-// [ ] sat_mul
-// [ ] sat_div
 
 }        // namespace ash

@@ -41,6 +41,66 @@ struct [[nodiscard]] Map
 
   static constexpr Distance PROBE_SENTINEL = -1;
 
+  /// @brief always pointing to a valid element or one past the end of the map
+  struct Iter
+  {
+    Distance *       iter_  = nullptr;
+    Distance const * end_   = nullptr;
+    Entry *          probe_ = nullptr;
+
+    /// @brief seek the next non-empty probe, this iterator inclusive
+    constexpr void seek()
+    {
+      while (iter_ != end_)
+      {
+        if (*iter_ != PROBE_SENTINEL)
+        {
+          break;
+        }
+        iter_++;
+        probe_++;
+      }
+    }
+
+    constexpr Iter & operator++()
+    {
+      // advancement past the current element must occur
+      iter_++;
+      probe_++;
+
+      seek();
+
+      return *this;
+    }
+
+    constexpr Entry & operator*() const
+    {
+      return *probe_;
+    }
+
+    constexpr bool operator!=(IterEnd const &) const
+    {
+      return iter_ != end_;
+    }
+  };
+
+  struct Range
+  {
+    Distance *       iter_  = nullptr;
+    Distance const * end_   = nullptr;
+    Entry *          probe_ = nullptr;
+
+    constexpr auto begin() const
+    {
+      return Iter{.iter_ = iter_, .end_ = end_, .probe_ = probe_};
+    }
+
+    constexpr auto end() const
+    {
+      return IterEnd{};
+    }
+  };
+
   Distance *    probe_dists_;
   Entry *       probes_;
   usize         num_probes_;
@@ -179,19 +239,24 @@ struct [[nodiscard]] Map
     {
       return nullptr;
     }
+
     usize    probe_idx  = hash & (num_probes_ - 1);
     Distance probe_dist = 0;
+
     while (probe_dist <= max_probe_dist_)
     {
       if (probe_dists_[probe_idx] == PROBE_SENTINEL)
       {
         break;
       }
+
       Entry * probe = probes_ + probe_idx;
+
       if (cmp_(probe->key, key))
       {
         return &probe->value;
       }
+
       probe_idx = (probe_idx + 1) & (num_probes_ - 1);
       probe_dist++;
     }
@@ -239,6 +304,7 @@ struct [[nodiscard]] Map
         hash64   hash       = hasher_(entry.key);
         usize    probe_idx  = hash & (num_probes_ - 1);
         Distance probe_dist = 0;
+
         while (true)
         {
           Entry *    dst_probe      = probes_ + probe_idx;
@@ -250,14 +316,17 @@ struct [[nodiscard]] Map
             *dst_probe_dist = probe_dist;
             break;
           }
+
           if (*dst_probe_dist < probe_dist)
           {
             swap(entry, *dst_probe);
             swap(probe_dist, *dst_probe_dist);
           }
+
           probe_dist++;
           probe_idx = (probe_idx + 1) & (num_probes_ - 1);
         }
+
         max_probe_dist_ = max(max_probe_dist_, probe_dist);
         num_entries_++;
       }
@@ -267,12 +336,14 @@ struct [[nodiscard]] Map
   constexpr bool rehash_n_(usize new_num_probes)
   {
     Distance * new_probe_dists;
+
     if (!allocator_.nalloc(new_num_probes, new_probe_dists))
     {
       return false;
     }
 
     Entry * new_probes;
+
     if (!allocator_.nalloc(new_num_probes, new_probes))
     {
       allocator_.ndealloc(new_probe_dists, new_num_probes);
@@ -349,6 +420,7 @@ struct [[nodiscard]] Map
     {
       Entry *    dst_probe      = probes_ + probe_idx;
       Distance * dst_probe_dist = probe_dists_ + probe_idx;
+
       if (*dst_probe_dist == PROBE_SENTINEL)
       {
         insert_idx      = probe_idx;
@@ -357,6 +429,7 @@ struct [[nodiscard]] Map
         num_entries_++;
         break;
       }
+
       if (insert_idx == USIZE_MAX && probe_dist <= max_probe_dist_ &&
           cmp_(entry.key, dst_probe->key))
       {
@@ -371,6 +444,7 @@ struct [[nodiscard]] Map
         }
         break;
       }
+
       if (probe_dist > *dst_probe_dist)
       {
         swap(*dst_probe, entry);
@@ -380,6 +454,7 @@ struct [[nodiscard]] Map
           insert_idx = probe_idx;
         }
       }
+
       probe_idx = (probe_idx + 1) & (num_probes_ - 1);
       probe_dist++;
     }
@@ -392,6 +467,7 @@ struct [[nodiscard]] Map
   {
     usize insert_idx = pop_idx;
     usize probe_idx  = (pop_idx + 1) & (num_probes_ - 1);
+
     while (probe_idx != pop_idx)
     {
       Entry *    probe      = probes_ + probe_idx;
@@ -406,6 +482,7 @@ struct [[nodiscard]] Map
       Distance * insert_probe_dist = probe_dists_ + insert_idx;
 
       obj::relocate_non_overlapping(Span{probe, 1}, insert_probe);
+
       *insert_probe_dist = *probe_dist - 1;
       *probe_dist        = PROBE_SENTINEL;
       probe_idx          = (probe_idx + 1) & (num_probes_ - 1);
@@ -419,6 +496,7 @@ struct [[nodiscard]] Map
     {
       return false;
     }
+
     hash64   hash       = hasher_(key);
     usize    probe_idx  = hash & (num_probes_ - 1);
     Distance probe_dist = 0;
@@ -426,11 +504,14 @@ struct [[nodiscard]] Map
     while (probe_dist <= max_probe_dist_)
     {
       Distance * dst_probe_dist = probe_dists_ + probe_idx;
+
       if (*dst_probe_dist == PROBE_SENTINEL)
       {
         return false;
       }
+
       Entry * dst_probe = probes_ + probe_idx;
+
       if (cmp_(dst_probe->key, key))
       {
         dst_probe->~Entry();
@@ -439,22 +520,32 @@ struct [[nodiscard]] Map
         num_entries_--;
         return true;
       }
+
       probe_idx = (probe_idx + 1) & (num_probes_ - 1);
       probe_dist++;
     }
     return false;
   }
 
-  template <typename Fn>
-  constexpr void iter(Fn && fn) const
+  constexpr Range span() const
   {
-    for (usize i = 0; i < num_probes_; i++)
-    {
-      if (probe_dists_[i] != PROBE_SENTINEL)
-      {
-        fn(probes_[i].key, probes_[i].value);
-      }
-    }
+    Iter iter{.iter_  = probe_dists_,
+              .end_   = probe_dists_ + num_probes_,
+              .probe_ = probes_};
+
+    iter.seek();
+
+    return Range{.iter_ = iter.iter_, .end_ = iter.end_, .probe_ = iter.probe_};
+  }
+
+  constexpr Iter begin() const
+  {
+    return span().begin();
+  }
+
+  constexpr IterEnd end() const
+  {
+    return IterEnd{};
   }
 };
 

@@ -308,9 +308,9 @@ struct GlyphShape
 /// @param level embedding level of the current codepoint in the paragraph
 /// @param breakable if this codepoint begins a breakable text, i.e. has spaces
 /// or tabs before it
-struct alignas(4) TextSegment
+struct TextSegment
 {
-  u16        style               = 0;
+  u32        style               = 0;
   TextScript script              = TextScript::None;
   bool       paragraph_begin : 1 = false;
   bool       paragraph_end   : 1 = false;
@@ -341,7 +341,7 @@ struct TextRun
 {
   u32            first_codepoint = 0;
   u32            num_codepoints  = 0;
-  u16            style           = 0;
+  u32            style           = 0;
   f32            font_height     = 0;
   f32            line_height     = 0;
   u32            first_glyph     = 0;

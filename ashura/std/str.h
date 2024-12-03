@@ -22,14 +22,14 @@ Result<> join(Span<Span<C const> const> strings, Span<C const> delimiter,
 
   for (usize i = 0; i < (strings.size() - 1); i++)
   {
-    if (!out.extend_copy(strings[i]) || !out.extend_copy(delimiter))
+    if (!out.extend(strings[i]) || !out.extend(delimiter))
     {
       out.resize_uninit(initial_size).unwrap();
       return Err{};
     }
   }
 
-  if (!out.extend_copy(strings.last()))
+  if (!out.extend(strings.last()))
   {
     out.resize_uninit(initial_size).unwrap();
     return Err{};

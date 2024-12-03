@@ -297,7 +297,7 @@ inline Result<> path_append(Vec<char> & path, Span<char const> tail)
       return Err{};
     }
   }
-  if (!path.extend_copy(tail))
+  if (!path.extend(tail))
   {
     return Err{};
   }

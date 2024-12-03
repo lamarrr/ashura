@@ -334,7 +334,7 @@ ShaderCompileError
   shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
 
   Vec<char> entry_point_s;
-  if (!entry_point_s.extend_copy(entry_point))
+  if (!entry_point_s.extend(entry_point))
   {
     return ShaderCompileError::OutOfMemory;
   }
@@ -345,11 +345,11 @@ ShaderCompileError
   shader.setEntryPoint(entry_point_s.data());
   shader.setSourceEntryPoint(entry_point_s.data());
   Vec<char> preamble_s;
-  if (!preamble_s.extend_copy(preamble))
+  if (!preamble_s.extend(preamble))
   {
     return ShaderCompileError::OutOfMemory;
   }
-  if (!preamble_s.extend_copy(span({'\n', '\0'})))
+  if (!preamble_s.extend(span({'\n', '\0'})))
   {
     return ShaderCompileError::OutOfMemory;
   }
@@ -408,7 +408,7 @@ ShaderCompileError
     logger.warn(conv_messages);
   }
 
-  if (!spirv.extend_copy(spirv_v))
+  if (!spirv.extend(spirv_v))
   {
     return ShaderCompileError::OutOfMemory;
   }
@@ -441,7 +441,7 @@ ShaderCompileError
   }
 
   Vec<char> file_path;
-  if (!file_path.extend_copy(root_directory) || !path_append(file_path, file))
+  if (!file_path.extend(root_directory) || !path_append(file_path, file))
   {
     return ShaderCompileError::OutOfMemory;
   }

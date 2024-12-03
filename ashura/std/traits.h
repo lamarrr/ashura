@@ -163,4 +163,9 @@ concept AnyFunctor = requires () {
   { &F::operator() };
 };
 
+template <typename Fn, typename... Args>
+concept Predicate = requires (Fn fn, Args... args) {
+  { fn(static_cast<Args>(args)...) && true };
+};
+
 }        // namespace ash
