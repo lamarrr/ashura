@@ -9,21 +9,21 @@ file = open(sys.argv[1], "w", encoding="ascii")
 def out(code): return file.write(code)
 
 
-out(f"""
-/// SPDX-License-Identifier: MIT
+out(f"""/// SPDX-License-Identifier: MIT
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include <cstddef>
+#include "ashura/std/types.h"
 
-namespace ash{{
+namespace ash
+{{
 
-template <std::size_t I>
+template <usize I>
 struct V
 {{
-  static constexpr std::size_t INDEX = I;
+  static constexpr usize INDEX = I;
 
-  static constexpr std::size_t index()
+  static constexpr usize index()
   {{
     return INDEX;
   }}

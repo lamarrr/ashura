@@ -67,134 +67,237 @@ enum class [[nodiscard]] IoErr : i32
 constexpr Span<char const> to_string(IoErr err)
 {
   if (err == IoErr::None)
-    return "None"_span;
+  {
+    return "None"_str;
+  }
   else if (err == IoErr::PermissionDenied)
-    return "PermissionDenied"_span;
+  {
+    return "PermissionDenied"_str;
+  }
   else if (err == IoErr::AddressInUse)
-    return "AddressInUse"_span;
+  {
+    return "AddressInUse"_str;
+  }
   else if (err == IoErr::Again)
-    return "Again"_span;
+  {
+    return "Again"_str;
+  }
   else if (err == IoErr::Already)
-    return "Already"_span;
+  {
+    return "Already"_str;
+  }
   else if (err == IoErr::BadFileDescriptor)
-    return "BadFileDescriptor"_span;
+  {
+    return "BadFileDescriptor"_str;
+  }
   else if (err == IoErr::Busy)
-    return "Busy"_span;
+  {
+    return "Busy"_str;
+  }
   else if (err == IoErr::Canceled)
-    return "Canceled"_span;
+  {
+    return "Canceled"_str;
+  }
   else if (err == IoErr::DeadlockAvoided)
-    return "DeadlockAvoided"_span;
+  {
+    return "DeadlockAvoided"_str;
+  }
   else if (err == IoErr::Exists)
-    return "Exists"_span;
+  {
+    return "Exists"_str;
+  }
   else if (err == IoErr::BadAddress)
-    return "BadAddress"_span;
+  {
+    return "BadAddress"_str;
+  }
   else if (err == IoErr::FileTooBig)
-    return "FileTooBig"_span;
+  {
+    return "FileTooBig"_str;
+  }
   else if (err == IoErr::IllegalCharSequence)
-    return "IllegalCharSequence"_span;
+  {
+    return "IllegalCharSequence"_str;
+  }
   else if (err == IoErr::OpInProgress)
-    return "OpInProgress"_span;
+  {
+    return "OpInProgress"_str;
+  }
   else if (err == IoErr::SysCallInterrupted)
-    return "SysCallInterrupted"_span;
+  {
+    return "SysCallInterrupted"_str;
+  }
   else if (err == IoErr::InvalidArg)
-    return "InvalidArg"_span;
+  {
+    return "InvalidArg"_str;
+  }
   else if (err == IoErr::IOErr)
-    return "IOErr"_span;
+  {
+    return "IOErr"_str;
+  }
   else if (err == IoErr::IsDirectory)
-    return "IsDirectory"_span;
+  {
+    return "IsDirectory"_str;
+  }
   else if (err == IoErr::TooManySymLinks)
-    return "TooManySymLinks"_span;
+  {
+    return "TooManySymLinks"_str;
+  }
   else if (err == IoErr::TooManyOpenFiles)
-    return "TooManyOpenFiles"_span;
+  {
+    return "TooManyOpenFiles"_str;
+  }
   else if (err == IoErr::TooManyLinks)
-    return "TooManyLinks"_span;
+  {
+    return "TooManyLinks"_str;
+  }
   else if (err == IoErr::MsgTooLong)
-    return "MsgTooLong"_span;
+  {
+    return "MsgTooLong"_str;
+  }
   else if (err == IoErr::FileNameTooLong)
-    return "FileNameTooLong"_span;
+  {
+    return "FileNameTooLong"_str;
+  }
   else if (err == IoErr::TooManyOpenSysFiles)
-    return "TooManyOpenSysFiles"_span;
+  {
+    return "TooManyOpenSysFiles"_str;
+  }
   else if (err == IoErr::NoBufferSpace)
-    return "NoBufferSpace"_span;
+  {
+    return "NoBufferSpace"_str;
+  }
   else if (err == IoErr::NoData)
-    return "NoData"_span;
+  {
+    return "NoData"_str;
+  }
   else if (err == IoErr::InvalidDev)
-    return "InvalidDev"_span;
+  {
+    return "InvalidDev"_str;
+  }
   else if (err == IoErr::InvalidFileOrDir)
-    return "InvalidFileOrDir"_span;
+  {
+    return "InvalidFileOrDir"_str;
+  }
   else if (err == IoErr::ExecFormat)
-    return "ExecFormat"_span;
+  {
+    return "ExecFormat"_str;
+  }
   else if (err == IoErr::NoLocksAvailable)
-    return "NoLocksAvailable"_span;
+  {
+    return "NoLocksAvailable"_str;
+  }
   else if (err == IoErr::NoLink)
-    return "NoLink"_span;
+  {
+    return "NoLink"_str;
+  }
   else if (err == IoErr::OutOfMemory)
-    return "OutOfMemory"_span;
+  {
+    return "OutOfMemory"_str;
+  }
   else if (err == IoErr::OutOfSpace)
-    return "OutOfSpace"_span;
+  {
+    return "OutOfSpace"_str;
+  }
   else if (err == IoErr::OutOfStreamRes)
-    return "OutOfStreamRes"_span;
+  {
+    return "OutOfStreamRes"_str;
+  }
   else if (err == IoErr::NotStream)
-    return "NotStream"_span;
+  {
+    return "NotStream"_str;
+  }
   else if (err == IoErr::UnImplemented)
-    return "UnImplemented"_span;
+  {
+    return "UnImplemented"_str;
+  }
   else if (err == IoErr::NotDir)
-    return "NotDir"_span;
+  {
+    return "NotDir"_str;
+  }
   else if (err == IoErr::DirectoryNotEmpty)
-    return "DirectoryNotEmpty"_span;
+  {
+    return "DirectoryNotEmpty"_str;
+  }
   else if (err == IoErr::Unsupported)
-    return "Unsupported"_span;
+  {
+    return "Unsupported"_str;
+  }
   else if (err == IoErr::InvalidDeviceOrAddr)
-    return "InvalidDeviceOrAddr"_span;
+  {
+    return "InvalidDeviceOrAddr"_str;
+  }
   else if (err == IoErr::OpUnsupported)
-    return "OpUnsupported"_span;
+  {
+    return "OpUnsupported"_str;
+  }
   else if (err == IoErr::Overflow)
-    return "Overflow"_span;
+  {
+    return "Overflow"_str;
+  }
   else if (err == IoErr::OwnerDead)
-    return "OwnerDead"_span;
+  {
+    return "OwnerDead"_str;
+  }
   else if (err == IoErr::UnpermittedOp)
-    return "UnpermittedOp"_span;
+  {
+    return "UnpermittedOp"_str;
+  }
   else if (err == IoErr::BrokenPipe)
-    return "BrokenPipe"_span;
+  {
+    return "BrokenPipe"_str;
+  }
   else if (err == IoErr::OutOfRange)
-    return "OutOfRange"_span;
+  {
+    return "OutOfRange"_str;
+  }
   else if (err == IoErr::ReadOnlyFileSys)
-    return "ReadOnlyFileSys"_span;
+  {
+    return "ReadOnlyFileSys"_str;
+  }
   else if (err == IoErr::IllegalSeek)
-    return "IllegalSeek"_span;
+  {
+    return "IllegalSeek"_str;
+  }
   else if (err == IoErr::NoSuchProcess)
-    return "NoSuchProcess"_span;
+  {
+    return "NoSuchProcess"_str;
+  }
   else if (err == IoErr::TextFileBusy)
-    return "TextFileBusy"_span;
+  {
+    return "TextFileBusy"_str;
+  }
   else if (err == IoErr::TemporarilyUnavailable)
-    return "TemporarilyUnavailable"_span;
+  {
+    return "TemporarilyUnavailable"_str;
+  }
   else
-    return "Unidentified Filesystem Error"_span;
+  {
+    return "Unidentified Filesystem Error"_str;
+  }
 }
 
 namespace fmt
 {
 
-inline bool push(Context const &ctx, Spec const &spec, IoErr const &err)
+inline bool push(Context const & ctx, Spec const & spec, IoErr const & err)
 {
   return push(ctx, spec, to_string(err));
 }
 
 }        // namespace fmt
 
-Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> &buff);
+Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff);
 
-inline Result<> path_append(Vec<char> &path, Span<char const> tail)
+inline Result<> path_append(Vec<char> & path, Span<char const> tail)
 {
-  if (!path.is_empty() && path[path.size() - 1] != '/' &&
-      path[path.size() - 1] != '\\')
+  if (!path.is_empty() && path.last() != '/' && path.last() != '\\')
   {
     if (!path.push('/'))
     {
       return Err{};
     }
   }
-  if (!path.extend_copy(tail))
+  if (!path.extend(tail))
   {
     return Err{};
   }

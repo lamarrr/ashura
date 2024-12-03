@@ -37,11 +37,11 @@ struct FontImpl : Font
   /// @brief Font family style name, ASCII. i.e. Bold
   Vec<char> style_name;
 
-  hb_blob_t *hb_blob;
+  hb_blob_t * hb_blob;
 
-  hb_face_t *hb_face;
+  hb_face_t * hb_face;
 
-  hb_font_t *hb_font;
+  hb_font_t * hb_font;
 
   FT_Library ft_lib;
 
@@ -64,8 +64,8 @@ struct FontImpl : Font
   Option<GpuFontAtlas> gpu_atlas = None;
 
   FontImpl(Vec<char> font_data, Vec<char> postscript_name,
-           Vec<char> family_name, Vec<char> style_name, hb_blob_t *hb_blob,
-           hb_face_t *hb_face, hb_font_t *hb_font, FT_Library ft_lib,
+           Vec<char> family_name, Vec<char> style_name, hb_blob_t * hb_blob,
+           hb_face_t * hb_face, hb_font_t * hb_font, FT_Library ft_lib,
            FT_Face ft_face, u32 face, Vec<Glyph> glyphs, u32 replacement_glyph,
            u32 ellipsis_glyph, u32 space_glyph, FontMetrics metrics) :
       font_data{std::move(font_data)},
@@ -90,9 +90,9 @@ struct FontImpl : Font
 
   FontImpl(FontImpl &&) = delete;
 
-  FontImpl &operator=(FontImpl const &) = delete;
+  FontImpl & operator=(FontImpl const &) = delete;
 
-  FontImpl &operator=(FontImpl &&) = delete;
+  FontImpl & operator=(FontImpl &&) = delete;
 
   virtual ~FontImpl() override
   {
@@ -106,10 +106,10 @@ struct FontImpl : Font
 
   virtual FontInfo info() override
   {
-    FontInfo info{.postscript_name   = span(postscript_name),
-                  .family_name       = span(family_name),
-                  .style_name        = span(style_name),
-                  .glyphs            = span(glyphs),
+    FontInfo info{.postscript_name   = postscript_name,
+                  .family_name       = family_name,
+                  .style_name        = style_name,
+                  .glyphs            = glyphs,
                   .replacement_glyph = replacement_glyph,
                   .space_glyph       = space_glyph,
                   .ellipsis_glyph    = ellipsis_glyph,
@@ -138,7 +138,7 @@ struct FontImpl : Font
                   "Font atlas extent should be a multiple of 64");
     static_assert(MIN_ATLAS_EXTENT <= gpu::MAX_IMAGE_EXTENT_2D,
                   "Font atlas extent too large for GPU platform");
-    CHECK(font_height <= 1024);
+    CHECK(font_height <= 1'024);
     CHECK(font_height <= MIN_ATLAS_EXTENT / 8);
 
     Vec2U atlas_extent{MIN_ATLAS_EXTENT, MIN_ATLAS_EXTENT};
@@ -193,21 +193,21 @@ struct FontImpl : Font
 
       for (u32 g = 0, irect = 0; g < glyphs.size32(); g++)
       {
-        Glyph const      &gl  = glyphs[g];
-        AtlasGlyph const &agl = atlas.glyphs[g];
+        Glyph const &      gl  = glyphs[g];
+        AtlasGlyph const & agl = atlas.glyphs[g];
         // only assign packing rects to the valid glyphs
         if (gl.is_valid && agl.area.extent.x != 0 && agl.area.extent.y != 0)
         {
-          rect_pack::rect &r = rects[irect];
-          r.glyph_index      = g;
-          r.x                = 0;
-          r.y                = 0;
+          rect_pack::rect & r = rects[irect];
+          r.glyph_index       = g;
+          r.x                 = 0;
+          r.y                 = 0;
           // added padding to avoid texture spilling due to accumulated
           // floating-point uv interpolation errors
-          r.w            = (i32) (agl.area.extent.x + 2);
-          r.h            = (i32) (agl.area.extent.y + 2);
-          atlas_extent.x = max(atlas_extent.x, agl.area.extent.x + 2);
-          atlas_extent.y = max(atlas_extent.y, agl.area.extent.y + 2);
+          r.w                 = (i32) (agl.area.extent.x + 2);
+          r.h                 = (i32) (agl.area.extent.y + 2);
+          atlas_extent.x      = max(atlas_extent.x, agl.area.extent.x + 2);
+          atlas_extent.y      = max(atlas_extent.y, agl.area.extent.y + 2);
           irect++;
         }
       }
@@ -234,8 +234,8 @@ struct FontImpl : Font
             rect_pack::pack_rects(pack_context, rects.data() + num_packed,
                                   num_rasterized_glyphs - num_packed);
         auto [just_packed, unpacked] =
-            partition(span(rects).slice(num_packed),
-                      [](rect_pack::rect const &r) { return r.was_packed; });
+            partition(rects.span().slice(num_packed),
+                      [](rect_pack::rect const & r) { return r.was_packed; });
         for (u32 i = num_packed; i < (num_packed + just_packed.span); i++)
         {
           rects[i].layer = num_layers;
@@ -251,7 +251,7 @@ struct FontImpl : Font
       for (u32 i = 0; i < num_rasterized_glyphs; i++)
       {
         rect_pack::rect r = rects[i];
-        AtlasGlyph     &g = atlas.glyphs[r.glyph_index];
+        AtlasGlyph &    g = atlas.glyphs[r.glyph_index];
         g.area.offset.x   = (u32) r.x + 1;
         g.area.offset.y   = (u32) r.y + 1;
         g.layer           = r.layer;
@@ -269,15 +269,15 @@ struct FontImpl : Font
       return Err{};
     }
 
-    ImageLayerSpan<u8, 1> atlas_span{.channels = span(atlas.channels),
+    ImageLayerSpan<u8, 1> atlas_span{.channels = atlas.channels,
                                      .width    = atlas_extent.x,
                                      .height   = atlas_extent.y,
                                      .layers   = num_layers};
 
     for (u32 i = 0; i < glyphs.size32(); i++)
     {
-      Glyph const      &g  = glyphs[i];
-      AtlasGlyph const &ag = atlas.glyphs[i];
+      Glyph const &      g  = glyphs[i];
+      AtlasGlyph const & ag = atlas.glyphs[i];
       if (g.is_valid)
       {
         FT_GlyphSlot slot     = ft_face->glyph;
@@ -297,7 +297,8 @@ struct FontImpl : Font
                          slot->bitmap.rows * (u32) slot->bitmap.pitch},
             .width    = slot->bitmap.width,
             .height   = slot->bitmap.rows,
-            .stride   = (u32) slot->bitmap.pitch};
+            .stride   = (u32) slot->bitmap.pitch
+        };
 
         copy_image(src, atlas_span.get_layer(ag.layer).slice(ag.area.offset,
                                                              ag.area.extent));
@@ -313,35 +314,37 @@ struct FontImpl : Font
     return Ok{};
   }
 
-  virtual void upload_to_device(GpuContext &c, AllocatorImpl allocator) override
+  virtual void upload_to_device(GpuContext &  c,
+                                AllocatorImpl allocator) override
   {
-    gpu::CommandEncoder &enc = c.encoder();
-    gpu::Device         &dev = *c.device;
+    gpu::CommandEncoder & enc = c.encoder();
+    gpu::Device &         dev = *c.device;
 
     CHECK(cpu_atlas.is_some());
     CHECK(gpu_atlas.is_none());
 
-    CpuFontAtlas const &atlas = cpu_atlas.value();
+    CpuFontAtlas const & atlas = cpu_atlas.value();
 
     CHECK(atlas.num_layers > 0);
     CHECK(atlas.extent.x > 0);
     CHECK(atlas.extent.y > 0);
 
     gpu::Image image =
-        dev.create_image(
-               gpu::ImageInfo{.label  = "Font Atlas Image"_span,
-                              .type   = gpu::ImageType::Type2D,
-                              .format = gpu::Format::B8G8R8A8_UNORM,
-                              .usage  = gpu::ImageUsage::Sampled |
-                                       gpu::ImageUsage::InputAttachment |
-                                       gpu::ImageUsage::Storage |
-                                       gpu::ImageUsage::TransferSrc |
-                                       gpu::ImageUsage::TransferDst,
-                              .aspects    = gpu::ImageAspects::Color,
-                              .extent     = {atlas.extent.x, atlas.extent.y, 1},
-                              .mip_levels = 1,
-                              .array_layers = atlas.num_layers,
-                              .sample_count = gpu::SampleCount::Count1})
+        dev.create_image(gpu::ImageInfo{
+                             .label  = "Font Atlas Image"_str,
+                             .type   = gpu::ImageType::Type2D,
+                             .format = gpu::Format::B8G8R8A8_UNORM,
+                             .usage  = gpu::ImageUsage::Sampled |
+                                      gpu::ImageUsage::InputAttachment |
+                                      gpu::ImageUsage::Storage |
+                                      gpu::ImageUsage::TransferSrc |
+                                      gpu::ImageUsage::TransferDst,
+                             .aspects    = gpu::ImageAspects::Color,
+                             .extent     = {atlas.extent.x, atlas.extent.y, 1},
+                             .mip_levels = 1,
+                             .array_layers = atlas.num_layers,
+                             .sample_count = gpu::SampleCount::Count1
+    })
             .unwrap();
 
     Vec<gpu::ImageView> views;
@@ -352,7 +355,7 @@ struct FontImpl : Font
     {
       views[i] =
           dev.create_image_view(
-                 gpu::ImageViewInfo{.label       = "Font Atlas Image View"_span,
+                 gpu::ImageViewInfo{.label       = "Font Atlas Image View"_str,
                                     .image       = image,
                                     .view_type   = gpu::ImageViewType::Type2D,
                                     .view_format = gpu::Format::B8G8R8A8_UNORM,
@@ -368,19 +371,21 @@ struct FontImpl : Font
     u64 const   atlas_size = atlas.channels.size() * (u64) 4;
     gpu::Buffer staging_buffer =
         dev.create_buffer(
-               gpu::BufferInfo{.label       = "Font Atlas Staging Buffer"_span,
+               gpu::BufferInfo{.label       = "Font Atlas Staging Buffer"_str,
                                .size        = atlas_size,
                                .host_mapped = true,
                                .usage       = gpu::BufferUsage::TransferSrc |
                                         gpu::BufferUsage::TransferDst})
             .unwrap();
 
-    u8 *map = (u8 *) dev.map_buffer_memory(staging_buffer).unwrap();
+    u8 * map = (u8 *) dev.map_buffer_memory(staging_buffer).unwrap();
 
-    ImageLayerSpan<u8, 4> dst{.channels = {map, atlas_size},
-                              .width    = atlas.extent.x,
-                              .height   = atlas.extent.y,
-                              .layers   = atlas.num_layers};
+    ImageLayerSpan<u8, 4> dst{
+        .channels = {map, atlas_size},
+        .width    = atlas.extent.x,
+        .height   = atlas.extent.y,
+        .layers   = atlas.num_layers
+    };
 
     for (u32 i = 0; i < atlas.num_layers; i++)
     {
@@ -410,10 +415,11 @@ struct FontImpl : Font
                                   .first_array_layer = layer,
                                   .num_array_layers  = 1},
           .image_offset        = {0, 0, 0},
-          .image_extent        = {atlas.extent.x, atlas.extent.y, 1}};
+          .image_extent        = {atlas.extent.x, atlas.extent.y, 1}
+      };
     }
 
-    enc.copy_buffer_to_image(staging_buffer, image, span(copies));
+    enc.copy_buffer_to_image(staging_buffer, image, copies);
 
     gpu::Format format = gpu::Format::B8G8R8A8_UNORM;
     c.release(staging_buffer);
@@ -422,7 +428,7 @@ struct FontImpl : Font
     Vec<AtlasGlyph> glyphs;
 
     textures.resize_defaulted(atlas.num_layers).unwrap();
-    glyphs.extend_copy(span(atlas.glyphs)).unwrap();
+    glyphs.extend(atlas.glyphs).unwrap();
 
     for (u32 i = 0; i < atlas.num_layers; i++)
     {
@@ -434,17 +440,19 @@ struct FontImpl : Font
           .images  = span({gpu::ImageBinding{.image_view = views[i]}})});
     }
 
-    gpu_atlas = Some{GpuFontAtlas{.image       = image,
-                                  .views       = std::move(views),
-                                  .textures    = std::move(textures),
-                                  .font_height = atlas.font_height,
-                                  .num_layers  = atlas.num_layers,
-                                  .extent      = atlas.extent,
-                                  .glyphs      = std::move(glyphs),
-                                  .format      = format}};
+    gpu_atlas = Some{
+        GpuFontAtlas{.image       = image,
+                     .views       = std::move(views),
+                     .textures    = std::move(textures),
+                     .font_height = atlas.font_height,
+                     .num_layers  = atlas.num_layers,
+                     .extent      = atlas.extent,
+                     .glyphs      = std::move(glyphs),
+                     .format      = format}
+    };
   }
 
-  virtual void unload_from_device(GpuContext &c) override
+  virtual void unload_from_device(GpuContext & c) override
   {
     CHECK_DESC(gpu_atlas.is_some(),
                "Requested font to be unloaded from GPU with no GPU atlas");
@@ -462,205 +470,5 @@ struct FontImpl : Font
     gpu_atlas = None;
   }
 };
-
-Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
-                                          AllocatorImpl allocator)
-{
-  Vec<char> font_data;
-  if (!font_data.extend_copy(encoded.as_char()))
-  {
-    return Err{FontErr::OutOfMemory};
-  }
-
-  hb_blob_t *hb_blob =
-      hb_blob_create(font_data.data(), font_data.size(),
-                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
-
-  if (hb_blob == nullptr)
-  {
-    return Err{FontErr::DecodingFailed};
-  }
-
-  defer hb_blob_{[&] {
-    if (hb_blob != nullptr)
-    {
-      hb_blob_destroy(hb_blob);
-    }
-  }};
-
-  u32 num_faces = hb_face_count(hb_blob);
-
-  if (face >= num_faces)
-  {
-    return Err{FontErr::FaceNotFound};
-  }
-
-  hb_face_t *hb_face = hb_face_create(hb_blob, face);
-
-  if (hb_face == nullptr)
-  {
-    return Err{FontErr::DecodingFailed};
-  }
-
-  defer hb_face_{[&] {
-    if (hb_face != nullptr)
-    {
-      hb_face_destroy(hb_face);
-    }
-  }};
-
-  hb_font_t *hb_font = hb_font_create(hb_face);
-
-  if (hb_font == nullptr)
-  {
-    return Err{FontErr::DecodingFailed};
-  }
-
-  hb_font_set_scale(hb_font, AU_UNIT, AU_UNIT);
-
-  defer hb_font_{[&] {
-    if (hb_font != nullptr)
-    {
-      hb_font_destroy(hb_font);
-    }
-  }};
-
-  FT_Library ft_lib;
-  if (FT_Init_FreeType(&ft_lib) != 0)
-  {
-    return Err{FontErr::DecodingFailed};
-  }
-
-  defer ft_lib_{[&] {
-    if (ft_lib != nullptr)
-    {
-      FT_Done_FreeType(ft_lib);
-    }
-  }};
-
-  FT_Face ft_face;
-
-  if (FT_New_Memory_Face(ft_lib, (FT_Byte const *) font_data.data(),
-                         (FT_Long) font_data.size(), 0, &ft_face) != 0)
-  {
-    return Err{FontErr::DecodingFailed};
-  }
-
-  if (FT_Set_Char_Size(ft_face, AU_UNIT, AU_UNIT, 72, 72) != 0)
-  {
-    return Err{FontErr::DecodingFailed};
-  }
-
-  defer ft_face_{[&] {
-    if (ft_face != nullptr)
-    {
-      FT_Done_Face(ft_face);
-    }
-  }};
-
-  char const *ft_postscript_name   = FT_Get_Postscript_Name(ft_face);
-  usize       postscript_name_size = 0;
-
-  Vec<char> postscript_name{allocator};
-
-  if (ft_postscript_name != nullptr)
-  {
-    postscript_name_size = strlen(ft_postscript_name);
-    if (!postscript_name.extend_copy(
-            Span{ft_postscript_name, postscript_name_size}))
-    {
-      return Err{FontErr::OutOfMemory};
-    }
-  }
-
-  Vec<char> family_name{allocator};
-  usize     family_name_size = 0;
-
-  if (ft_face->family_name != nullptr)
-  {
-    family_name_size = strlen(ft_face->family_name);
-    if (!family_name.extend_copy(Span{ft_face->family_name, family_name_size}))
-    {
-      return Err{FontErr::OutOfMemory};
-    }
-  }
-
-  Vec<char> style_name{allocator};
-  usize     style_name_size = 0;
-
-  if (ft_face->style_name != nullptr)
-  {
-    style_name_size = strlen(ft_face->style_name);
-    if (!style_name.extend_copy(Span{ft_face->style_name, style_name_size}))
-    {
-      return Err{FontErr::OutOfMemory};
-    }
-  }
-
-  u32 const num_glyphs = (u32) ft_face->num_glyphs;
-  // glyph 0 is selected if the replacement codepoint glyph is not found
-  u32 const replacement_glyph = FT_Get_Char_Index(ft_face, 0xFFFD);
-  u32 const ellipsis_glyph    = FT_Get_Char_Index(ft_face, 0x2026);
-  u32 const space_glyph       = FT_Get_Char_Index(ft_face, ' ');
-
-  // expressed on a AU_UNIT scale
-  i32 const ascent  = ft_face->size->metrics.ascender;
-  i32 const descent = -ft_face->size->metrics.descender;
-  i32 const advance = ft_face->size->metrics.max_advance;
-
-  Vec<Glyph> glyphs{allocator};
-
-  if (!glyphs.resize_uninit(num_glyphs))
-  {
-    return Err{FontErr::OutOfMemory};
-  }
-
-  for (u32 i = 0; i < num_glyphs; i++)
-  {
-    if (FT_Load_Glyph(ft_face, i, FT_LOAD_DEFAULT) == 0)
-    {
-      FT_GlyphSlot s = ft_face->glyph;
-
-      GlyphMetrics m;
-
-      // expressed on a AU_UNIT scale
-      m.bearing.x = s->metrics.horiBearingX;
-      m.bearing.y = s->metrics.horiBearingY;
-      m.advance   = s->metrics.horiAdvance;
-      m.extent.x  = s->metrics.width;
-      m.extent.y  = s->metrics.height;
-      m.descent   = max(m.extent.y - m.bearing.y, 0);
-
-      // bin offsets are determined after binning and during rect packing
-      glyphs[i] = Glyph{.is_valid = true, .metrics = m};
-    }
-    else
-    {
-      glyphs[i] = Glyph{.is_valid = false, .metrics = {}};
-    }
-  }
-
-  Result font = dyn_inplace<FontImpl>(
-      allocator, std::move(font_data), std::move(postscript_name),
-      std::move(family_name), std::move(style_name), hb_blob, hb_face, hb_font,
-      ft_lib, ft_face, face, std::move(glyphs), replacement_glyph,
-      ellipsis_glyph, space_glyph,
-      FontMetrics{.ascent = ascent, .descent = descent, .advance = advance});
-
-  if (!font)
-  {
-    return Err{FontErr::OutOfMemory};
-  }
-
-  hb_blob = nullptr;
-  hb_face = nullptr;
-  hb_font = nullptr;
-  ft_lib  = nullptr;
-  ft_face = nullptr;
-
-  Font *font_base = font.value().get();
-
-  return Ok{transmute(std::move(font.value()), font_base)};
-}
 
 }        // namespace ash

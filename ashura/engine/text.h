@@ -232,9 +232,9 @@ enum class TextScript : u8
 /// @param line_height relative. multiplied by font_height
 struct FontStyle
 {
-  Font *font        = nullptr;
-  f32   font_height = 20;
-  f32   line_height = 1.2f;
+  Font * font        = nullptr;
+  f32    font_height = 20;
+  f32    line_height = 1.2F;
 };
 
 /// @param shadow_scale relative. multiplied by font_height
@@ -265,7 +265,7 @@ struct TextStyle
 /// @param use_ligatures use standard and contextual font ligature substitution
 struct TextBlock
 {
-  Span<u32 const>       text          = {};
+  Span<c32 const>       text          = {};
   Span<u32 const>       runs          = {};
   Span<FontStyle const> fonts         = {};
   TextDirection         direction     = TextDirection::LeftToRight;
@@ -295,7 +295,7 @@ struct GlyphShape
 {
   u32   glyph   = 0;
   u32   cluster = 0;
-  Vec2I advance = {};
+  i32   advance = 0;
   Vec2I offset  = {};
 };
 
@@ -308,13 +308,13 @@ struct GlyphShape
 /// @param level embedding level of the current codepoint in the paragraph
 /// @param breakable if this codepoint begins a breakable text, i.e. has spaces
 /// or tabs before it
-struct alignas(4) TextSegment
+struct TextSegment
 {
-  u16        style               = 0;
+  u32        style               = 0;
   TextScript script              = TextScript::None;
   bool       paragraph_begin : 1 = false;
-  bool       paragraph_end : 1   = false;
-  bool       breakable : 1       = false;
+  bool       paragraph_end   : 1 = false;
+  bool       breakable       : 1 = false;
   u8         base_level          = 0;
   u8         level               = 0;
 };
@@ -324,6 +324,11 @@ struct TextRunMetrics
   i32 advance = 0;
   i32 ascent  = 0;
   i32 descent = 0;
+
+  constexpr i32 height() const
+  {
+    return ascent + descent;
+  }
 };
 
 /// @param first index of first codepoint in the source text
@@ -336,7 +341,7 @@ struct TextRun
 {
   u32            first_codepoint = 0;
   u32            num_codepoints  = 0;
-  u16            style           = 0;
+  u32            style           = 0;
   f32            font_height     = 0;
   f32            line_height     = 0;
   u32            first_glyph     = 0;
@@ -415,13 +420,13 @@ constexpr TextDirection level_to_direction(u8 level)
                                 TextDirection::RightToLeft;
 }
 
-void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout);
+void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout);
 
 /// @brief given a position in the laid-out text return the location of the
 /// grapheme the cursor points to. returns the last column if the position
 /// overlaps with the row and returns the last line if no overlap was found.
 /// @param pos position in laid-out text to return from.
-TextHitResult hit_text(TextLayout const &layout, f32 align_width, f32 alignment,
-                       Vec2 pos);
+TextHitResult hit_text(TextLayout const & layout, f32 align_width,
+                       f32 alignment, Vec2 pos);
 
 }        // namespace ash

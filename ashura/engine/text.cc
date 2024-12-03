@@ -6,7 +6,6 @@
 extern "C"
 {
 #include "SBAlgorithm.h"
-#include "SBLine.h"
 #include "SBParagraph.h"
 #include "SBScriptLocator.h"
 #include "hb.h"
@@ -20,12 +19,13 @@ namespace ash
 /// with invalid codepoints replaced before calling this.
 /// @param script OpenType (ISO15924) Script
 /// Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
-static inline void shape(hb_font_t *font, hb_buffer_t *buffer,
-                         Span<u32 const> text, u32 first, u32 count,
+static inline void shape(hb_font_t * font, hb_buffer_t * buffer,
+                         Span<c32 const> text, u32 first, u32 count,
                          hb_script_t script, hb_direction_t direction,
                          hb_language_t language, bool use_kerning,
-                         bool use_ligatures, Span<hb_glyph_info_t const> &infos,
-                         Span<hb_glyph_position_t const> &positions)
+                         bool                              use_ligatures,
+                         Span<hb_glyph_info_t const> &     infos,
+                         Span<hb_glyph_position_t const> & positions)
 {
   // tags are opentype feature tags
   hb_feature_t const shaping_features[] = {
@@ -43,7 +43,8 @@ static inline void shape(hb_font_t *font, hb_buffer_t *buffer,
       {.tag   = HB_TAG('c', 'l', 'i', 'g'),
        .value = use_ligatures,
        .start = HB_FEATURE_GLOBAL_START,
-       .end   = HB_FEATURE_GLOBAL_END}};
+       .end   = HB_FEATURE_GLOBAL_END}
+  };
 
   hb_buffer_reset(buffer);
   // invalid character replacement
@@ -54,17 +55,17 @@ static inline void shape(hb_font_t *font, hb_buffer_t *buffer,
   // OpenType BCP-47 language tag specifying locale-sensitive shaping operations
   // as defined in the font
   hb_buffer_set_language(buffer, language);
-  hb_buffer_add_codepoints(buffer, text.data(), (i32) text.size(), first,
-                           (i32) count);
+  hb_buffer_add_codepoints(buffer, (u32 const *) text.data(), (i32) text.size(),
+                           first, (i32) count);
   hb_shape(font, buffer, shaping_features, (u32) size(shaping_features));
 
-  u32                        num_pos;
-  hb_glyph_position_t const *glyph_pos =
+  u32                         num_pos;
+  hb_glyph_position_t const * glyph_pos =
       hb_buffer_get_glyph_positions(buffer, &num_pos);
   CHECK(!(glyph_pos == nullptr && num_pos > 0));
 
-  u32                    num_info;
-  hb_glyph_info_t const *glyph_info =
+  u32                     num_info;
+  hb_glyph_info_t const * glyph_info =
       hb_buffer_get_glyph_infos(buffer, &num_info);
   CHECK(!(glyph_info == nullptr && num_info > 0));
 
@@ -75,7 +76,7 @@ static inline void shape(hb_font_t *font, hb_buffer_t *buffer,
 }
 
 /// @brief only needs to be called if it contains multiple paragraphs
-static inline void segment_paragraphs(Span<u32 const>   text,
+static inline void segment_paragraphs(Span<c32 const>   text,
                                       Span<TextSegment> segments)
 {
   u32 const text_size = text.size32();
@@ -103,7 +104,7 @@ static inline void segment_paragraphs(Span<u32 const>   text,
 
 /// @brief only needs to be called if it contains multiple scripts
 /// outputs iso15924 or OpenType tags
-static inline void segment_scripts(Span<u32 const>   text,
+static inline void segment_scripts(Span<c32 const>   text,
                                    Span<TextSegment> segments)
 {
   SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
@@ -114,7 +115,7 @@ static inline void segment_scripts(Span<u32 const>   text,
   CHECK(locator != nullptr);
   SBScriptLocatorLoadCodepoints(locator, &codepoints);
 
-  SBScriptAgent const *agent = SBScriptLocatorGetAgent(locator);
+  SBScriptAgent const * agent = SBScriptLocatorGetAgent(locator);
   CHECK(agent != nullptr);
 
   while (SBScriptLocatorMoveNext(locator) == SBTrue)
@@ -129,7 +130,7 @@ static inline void segment_scripts(Span<u32 const>   text,
 }
 
 /// @brief only needs to be called if it is a bidirectional text
-static inline void segment_levels(Span<u32 const> text,
+static inline void segment_levels(Span<c32 const> text,
                                   SBAlgorithmRef algorithm, TextDirection base,
                                   Span<TextSegment> segments)
 {
@@ -156,8 +157,8 @@ static inline void segment_levels(Span<u32 const> text,
       CHECK(paragraph != nullptr);
 
       CHECK(SBParagraphGetLength(paragraph) == length);
-      SBLevel const  base_level = SBParagraphGetBaseLevel(paragraph);
-      SBLevel const *levels     = SBParagraphGetLevelsPtr(paragraph);
+      SBLevel const   base_level = SBParagraphGetBaseLevel(paragraph);
+      SBLevel const * levels     = SBParagraphGetLevelsPtr(paragraph);
       CHECK(levels != nullptr);
       for (u32 i = 0; i < length; i++)
       {
@@ -176,7 +177,7 @@ static inline void segment_levels(Span<u32 const> text,
 }
 
 /// @brief only needs to be called if line breaking is required.
-static inline void segment_breakpoints(Span<u32 const>   text,
+static inline void segment_breakpoints(Span<c32 const>   text,
                                        Span<TextSegment> segments)
 {
   u32 const text_size = text.size32();
@@ -195,47 +196,52 @@ static inline void segment_breakpoints(Span<u32 const>   text,
   }
 }
 
-static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
-                              u32 count, u16 style,
-                              FontMetrics const &font_metrics, u8 base_level,
+static inline void insert_run(TextLayout & l, FontStyle const & s, u32 first,
+                              u32 count, u32 style,
+                              FontMetrics const & font_metrics, u8 base_level,
                               u8 level, bool paragraph, bool breakable,
                               Span<hb_glyph_info_t const>     infos,
                               Span<hb_glyph_position_t const> positions)
 {
   u32 const num_glyphs  = infos.size32();
   u32 const first_glyph = l.glyphs.size32();
-  i32       advance     = 0;
 
   l.glyphs.extend_uninit(num_glyphs).unwrap();
 
+  i32 advance = 0;
+
   for (u32 i = 0; i < num_glyphs; i++)
   {
-    hb_glyph_info_t const     &info = infos[i];
-    hb_glyph_position_t const &pos  = positions[i];
-    GlyphShape                 shape{.glyph   = info.codepoint,
-                                     .cluster = info.cluster,
-                                     .advance = {pos.x_advance, pos.y_advance},
-                                     .offset  = {pos.x_offset, -pos.y_offset}};
+    hb_glyph_info_t const &     info = infos[i];
+    hb_glyph_position_t const & pos  = positions[i];
+    GlyphShape                  shape{
+                         .glyph   = info.codepoint,
+                         .cluster = info.cluster,
+                         .advance = pos.x_advance,
+                         .offset  = {pos.x_offset, -pos.y_offset}
+    };
 
     l.glyphs[first_glyph + i] = shape;
     advance += pos.x_advance;
   }
 
   l.runs
-      .push(TextRun{.first_codepoint = first,
-                    .num_codepoints  = count,
-                    .style           = style,
-                    .font_height     = s.font_height,
-                    .line_height     = max(s.line_height, 1.0f),
-                    .first_glyph     = first_glyph,
-                    .num_glyphs      = num_glyphs,
-                    .metrics         = TextRunMetrics{.advance = advance,
-                                                      .ascent  = font_metrics.ascent,
-                                                      .descent = font_metrics.descent},
-                    .base_level      = base_level,
-                    .level           = level,
-                    .paragraph       = paragraph,
-                    .breakable       = breakable})
+      .push(TextRun{
+          .first_codepoint = first,
+          .num_codepoints  = count,
+          .style           = style,
+          .font_height     = s.font_height,
+          .line_height     = max(s.line_height, 1.0F),
+          .first_glyph     = first_glyph,
+          .num_glyphs      = num_glyphs,
+          .metrics         = TextRunMetrics{.advance = advance,
+                                            .ascent  = font_metrics.ascent,
+                                            .descent = font_metrics.descent},
+          .base_level      = base_level,
+          .level           = level,
+          .paragraph       = paragraph,
+          .breakable       = breakable
+  })
       .unwrap();
 }
 
@@ -245,7 +251,7 @@ static inline void insert_run(TextLayout &l, FontStyle const &s, u32 first,
 static inline void reorder_line(Span<TextRun> runs)
 {
   u8 max_level = 0;
-  for (TextRun const &r : runs)
+  for (TextRun const & r : runs)
   {
     max_level = max(r.level, max_level);
   }
@@ -277,21 +283,27 @@ static inline void reorder_line(Span<TextRun> runs)
 /// see:
 /// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
 ///
-void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
+void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout)
 {
   layout.clear();
+
+  if (block.text.is_empty())
+  {
+    return;
+  }
+
   u32 const text_size = block.text.size32();
   CHECK(block.text.size() <= I32_MAX);
-  CHECK(block.fonts.size() <= U16_MAX);
+  CHECK(block.fonts.size() <= U32_MAX);
   CHECK(block.runs.size() == block.fonts.size());
 
   layout.segments.resize_defaulted(block.text.size()).unwrap();
-  Span segments = span(layout.segments);
+  Span segments = layout.segments;
 
-  for (TextSegment &s : segments)
-  {
-    s = TextSegment{};
-  }
+  fill(segments, TextSegment{});
+
+  // [ ] verify REE
+  // [ ] construct segments
 
   {
     u32 prev_run_end = 0;
@@ -328,7 +340,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
             hb_language_get_default() :
             hb_language_from_string(block.language.data(),
                                     (i32) block.language.size());
-    hb_buffer_t *buffer = hb_buffer_create();
+    hb_buffer_t * buffer = hb_buffer_create();
     CHECK(buffer != nullptr);
     defer buffer_{[&] { hb_buffer_destroy(buffer); }};
 
@@ -343,8 +355,8 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
       for (u32 i = paragraph_begin; i < paragraph_end;)
       {
-        u32 const          first         = i++;
-        TextSegment const &first_segment = segments[first];
+        u32 const           first         = i++;
+        TextSegment const & first_segment = segments[first];
         while (i < paragraph_end && first_segment.style == segments[i].style &&
                first_segment.script == segments[i].script &&
                first_segment.level == segments[i].level &&
@@ -353,8 +365,8 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
           i++;
         }
 
-        FontStyle const                &s = block.fonts[first_segment.style];
-        FontImpl const                 *f = (FontImpl const *) s.font;
+        FontStyle const &               s = block.fonts[first_segment.style];
+        FontImpl const *                f = (FontImpl const *) s.font;
         Span<hb_glyph_info_t const>     infos     = {};
         Span<hb_glyph_position_t const> positions = {};
         shape(f->hb_font, buffer, block.text, first, i - first,
@@ -384,15 +396,14 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
 
   for (u32 i = 0; i < num_runs;)
   {
-    u32 const      first      = i++;
-    TextRun const &first_run  = layout.runs[first];
-    u8 const       base_level = first_run.base_level;
-    bool const     paragraph  = first_run.paragraph;
+    u32 const       first      = i++;
+    TextRun const & first_run  = layout.runs[first];
+    u8 const        base_level = first_run.base_level;
+    bool const      paragraph  = first_run.paragraph;
     f32 width   = au_to_px(first_run.metrics.advance, first_run.font_height);
     f32 ascent  = au_to_px(first_run.metrics.ascent, first_run.font_height);
     f32 descent = au_to_px(first_run.metrics.descent, first_run.font_height);
-    f32 height  = au_to_px(first_run.metrics.ascent + first_run.metrics.descent,
-                           first_run.font_height) *
+    f32 height  = au_to_px(first_run.metrics.height(), first_run.font_height) *
                  first_run.line_height;
 
     while (
@@ -401,31 +412,32 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
                                                 layout.runs[i].font_height) +
                                        width) > max_width))
     {
-      TextRun const        &r = layout.runs[i];
-      TextRunMetrics const &m = r.metrics;
+      TextRun const &        r = layout.runs[i];
+      TextRunMetrics const & m = r.metrics;
       width += au_to_px(m.advance, r.font_height);
       ascent  = max(ascent, au_to_px(m.ascent, r.font_height));
       descent = max(descent, au_to_px(m.descent, r.font_height));
-      height  = max(height, au_to_px(m.ascent + m.descent, r.font_height) *
-                                r.line_height);
+      height = max(height, au_to_px(m.height(), r.font_height) * r.line_height);
       i++;
     }
 
-    TextRun const &last_run        = layout.runs[i - 1];
-    u32 const      first_codepoint = first_run.first_codepoint;
-    u32 const      num_codepoints =
+    TextRun const & last_run        = layout.runs[i - 1];
+    u32 const       first_codepoint = first_run.first_codepoint;
+    u32 const       num_codepoints =
         (last_run.first_codepoint + last_run.num_codepoints) - first_codepoint;
 
-    Line line{.first_codepoint = first_codepoint,
-              .num_codepoints  = num_codepoints,
-              .first_run       = first,
-              .num_runs        = (i - first),
-              .metrics         = LineMetrics{.width   = width,
-                                             .height  = height,
-                                             .ascent  = ascent,
-                                             .descent = descent,
-                                             .level   = base_level},
-              .paragraph       = paragraph};
+    Line line{
+        .first_codepoint = first_codepoint,
+        .num_codepoints  = num_codepoints,
+        .first_run       = first,
+        .num_runs        = (i - first),
+        .metrics         = LineMetrics{.width   = width,
+                                       .height  = height,
+                                       .ascent  = ascent,
+                                       .descent = descent,
+                                       .level   = base_level},
+        .paragraph       = paragraph
+    };
 
     layout.lines.push(line).unwrap();
 
@@ -439,7 +451,7 @@ void layout_text(TextBlock const &block, f32 max_width, TextLayout &layout)
   layout.extent    = extent;
 }
 
-TextHitResult hit_text(TextLayout const &layout, f32 style_align_width,
+TextHitResult hit_text(TextLayout const & layout, f32 style_align_width,
                        f32 style_alignment, Vec2 pos)
 {
   u32 const num_lines = layout.lines.size32();
@@ -448,6 +460,8 @@ TextHitResult hit_text(TextLayout const &layout, f32 style_align_width,
   {
     return TextHitResult{.cluster = 0, .line = 0, .column = 0};
   }
+
+  // TODO(lamarrr): add acceleration structure: block pos
 
   f32 const  block_width = max(layout.extent.x, style_align_width);
   Vec2 const block_extent{block_width, layout.extent.y};
@@ -466,7 +480,7 @@ TextHitResult hit_text(TextLayout const &layout, f32 style_align_width,
 
   l = min(l, num_lines - 1);
 
-  Line const         &ln        = layout.lines[l];
+  Line const &        ln        = layout.lines[l];
   TextDirection const direction = level_to_direction(ln.metrics.level);
   f32 const           alignment =
       style_alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
@@ -475,8 +489,8 @@ TextHitResult hit_text(TextLayout const &layout, f32 style_align_width,
 
   for (u32 r = 0; r < ln.num_runs; r++)
   {
-    TextRun const &run = layout.runs[r];
-    bool const     intersects =
+    TextRun const & run = layout.runs[r];
+    bool const      intersects =
         (pos.x >= cursor &&
          pos.x <= (cursor + au_to_px(run.metrics.advance, run.font_height))) ||
         (r == ln.num_runs - 1);
@@ -487,9 +501,9 @@ TextHitResult hit_text(TextLayout const &layout, f32 style_align_width,
     f32 glyph_cursor = cursor;
     for (u32 g = 0; g < run.num_glyphs; g++)
     {
-      GlyphShape const &glyph   = layout.glyphs[run.first_glyph + g];
-      f32 const         advance = au_to_px(glyph.advance.x, run.font_height);
-      bool const        intersects =
+      GlyphShape const & glyph   = layout.glyphs[run.first_glyph + g];
+      f32 const          advance = au_to_px(glyph.advance, run.font_height);
+      bool const         intersects =
           (pos.x >= glyph_cursor && pos.x <= (glyph_cursor + advance)) ||
           (g == run.num_glyphs - 1);
       if (!intersects)

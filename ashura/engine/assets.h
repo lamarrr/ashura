@@ -1,4 +1,3 @@
-
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/font.h"
@@ -9,16 +8,20 @@
 namespace ash
 {
 
-typedef StrMap<gpu::Shader> ShaderMap;
+typedef StrVecMap<gpu::Shader> ShaderMap;
 
-typedef StrMap<Dyn<Font *>> FontMap;
+typedef StrVecMap<Dyn<Font *>> FontMap;
 
 // [ ] images
+// [ ] animations
+// [ ] audio
+// [ ] ...
 
 struct AssetMap
 {
   explicit AssetMap(AllocatorImpl allocator) :
-      shaders{allocator}, fonts{allocator}
+      shaders{allocator},
+      fonts{allocator}
   {
   }
 

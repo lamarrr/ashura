@@ -42,25 +42,26 @@ struct Framebuffer
   gpu::Extent           extent        = {};
 };
 
+// [ ] use: enum to bits, and float to bits, not casted
 struct SamplerHasher
 {
-  constexpr Hash operator()(gpu::SamplerInfo const &info) const
+  constexpr hash64 operator()(gpu::SamplerInfo const & info) const
   {
     return hash_combine_n(
-        (Hash) info.mag_filter, (Hash) info.min_filter,
-        (Hash) info.mip_map_mode, (Hash) info.address_mode_u,
-        (Hash) info.address_mode_v, (Hash) info.address_mode_w,
-        (Hash) info.mip_lod_bias, (Hash) info.anisotropy_enable,
-        (Hash) info.max_anisotropy, (Hash) info.compare_enable,
-        (Hash) info.compare_op, (Hash) info.min_lod, (Hash) info.max_lod,
-        (Hash) info.border_color, (Hash) info.unnormalized_coordinates);
+        (hash64) info.mag_filter, (hash64) info.min_filter,
+        (hash64) info.mip_map_mode, (hash64) info.address_mode_u,
+        (hash64) info.address_mode_v, (hash64) info.address_mode_w,
+        (hash64) info.mip_lod_bias, (hash64) info.anisotropy_enable,
+        (hash64) info.max_anisotropy, (hash64) info.compare_enable,
+        (hash64) info.compare_op, (hash64) info.min_lod, (hash64) info.max_lod,
+        (hash64) info.border_color, (hash64) info.unnormalized_coordinates);
   }
 };
 
 struct SamplerEq
 {
-  constexpr Hash operator()(gpu::SamplerInfo const &a,
-                            gpu::SamplerInfo const &b) const
+  constexpr hash64 operator()(gpu::SamplerInfo const & a,
+                              gpu::SamplerInfo const & b) const
   {
     return a.mag_filter == b.mag_filter && a.mip_map_mode == b.mip_map_mode &&
            a.address_mode_u == b.address_mode_u &&
@@ -116,11 +117,11 @@ struct GpuContext
       gpu::Format::D16_UNORM_S8_UINT, gpu::Format::D24_UNORM_S8_UINT,
       gpu::Format::D32_SFLOAT_S8_UINT};
 
-  static constexpr u16 NUM_TEXTURE_SLOTS        = 1024;
+  static constexpr u16 NUM_TEXTURE_SLOTS        = 1'024;
   static constexpr u16 NUM_SAMPLER_SLOTS        = 64;
   static constexpr u16 NUM_SCRATCH_FRAMEBUFFERS = 2;
 
-  gpu::Device *device;
+  gpu::Device * device;
 
   gpu::PipelineCache pipeline_cache;
 
@@ -158,12 +159,12 @@ struct GpuContext
 
   Bits<u64, NUM_SAMPLER_SLOTS> sampler_slots;
 
-  static GpuContext create(AllocatorImpl allocator, gpu::Device *device,
+  static GpuContext create(AllocatorImpl allocator, gpu::Device * device,
                            bool use_hdr, u32 buffering,
                            gpu::Extent initial_extent);
 
   GpuContext(
-      AllocatorImpl allocator, gpu::Device *device,
+      AllocatorImpl allocator, gpu::Device * device,
       gpu::PipelineCache pipeline_cache, u32 buffering,
       gpu::Format color_format, gpu::Format depth_stencil_format,
       gpu::DescriptorSetLayout ubo_layout, gpu::DescriptorSetLayout ssbo_layout,
@@ -195,10 +196,10 @@ struct GpuContext
   {
   }
 
-  GpuContext(GpuContext const &)            = delete;
-  GpuContext(GpuContext &&)                 = default;
-  GpuContext &operator=(GpuContext const &) = delete;
-  GpuContext &operator=(GpuContext &&)      = default;
+  GpuContext(GpuContext const &)             = delete;
+  GpuContext(GpuContext &&)                  = default;
+  GpuContext & operator=(GpuContext const &) = delete;
+  GpuContext & operator=(GpuContext &&)      = default;
 
   ~GpuContext()
   {
@@ -214,20 +215,21 @@ struct GpuContext
     release(textures_layout);
     release(samplers_layout);
     release(screen_fb);
-    for (Framebuffer &f : scratch_fbs)
+    for (Framebuffer & f : scratch_fbs)
     {
       release(f);
     }
-    sampler_cache.iter([&](gpu::SamplerInfo const &, CachedSampler sampler) {
+    for (auto const & [_, sampler] : sampler_cache)
+    {
       release(sampler.sampler);
-    });
+    }
     idle_reclaim();
     device->uninit_pipeline_cache(pipeline_cache);
   }
 
   void recreate_framebuffers(gpu::Extent new_extent);
 
-  gpu::CommandEncoder &encoder();
+  gpu::CommandEncoder & encoder();
 
   u32 ring_index();
 
@@ -235,7 +237,7 @@ struct GpuContext
 
   gpu::FrameId tail_frame_id();
 
-  CachedSampler create_sampler(gpu::SamplerInfo const &info);
+  CachedSampler create_sampler(gpu::SamplerInfo const & info);
 
   u32 alloc_texture_slot();
 
@@ -276,7 +278,7 @@ struct GpuContext
 
   void begin_frame(gpu::Swapchain swapchain);
 
-  void end_frame(gpu::Swapchain swapchain);
+  void submit_frame(gpu::Swapchain swapchain);
 };
 
 struct SSBO
@@ -287,21 +289,21 @@ struct SSBO
 
   gpu::DescriptorSet descriptor = nullptr;
 
-  Span<char const> label = "SSBO"_span;
+  Span<char const> label = "SSBO"_str;
 
-  void uninit(GpuContext &ctx);
+  void uninit(GpuContext & ctx);
 
-  void reserve(GpuContext &ctx, u64 size);
+  void reserve(GpuContext & ctx, u64 size);
 
-  void copy(GpuContext &ctx, Span<u8 const> src);
+  void copy(GpuContext & ctx, Span<u8 const> src);
 
-  void *map(GpuContext &ctx);
+  void * map(GpuContext & ctx);
 
-  void unmap(GpuContext &ctx);
+  void unmap(GpuContext & ctx);
 
-  void flush(GpuContext &ctx);
+  void flush(GpuContext & ctx);
 
-  void release(GpuContext &ctx);
+  void release(GpuContext & ctx);
 };
 
 }        // namespace ash

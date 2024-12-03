@@ -101,8 +101,8 @@ struct [[nodiscard]] TextCursor
 
   constexpr Slice32 as_slice(u32 len) const
   {
-    u32 rfirst = (u32)::ash::clamp(first, (i64) 0, (i64) len);
-    u32 rlast  = (u32)::ash::clamp(last, (i64) 0, (i64) len);
+    u32 rfirst = (u32) ash::clamp(first, (i64) 0, (i64) len);
+    u32 rlast  = (u32) ash::clamp(last, (i64) 0, (i64) len);
     if (rfirst > rlast)
     {
       swap(rfirst, rlast);
@@ -138,8 +138,8 @@ struct [[nodiscard]] TextCursor
     {
       return TextCursor{};
     }
-    return TextCursor{::ash::clamp(first, (i64) 0, (i64) (len - 1)),
-                      ::ash::clamp(last, (i64) 0, (i64) (len - 1))};
+    return TextCursor{ash::clamp(first, (i64) 0, (i64) (len - 1)),
+                      ash::clamp(last, (i64) 0, (i64) (len - 1))};
   }
 };
 
@@ -154,7 +154,7 @@ struct TextCompositor
   /// @param index destination index, needs to be clamped to the size of the
   /// destination container.
   /// @param text text to be inserted
-  typedef Fn<void(u32, Span<u32 const>)> Insert;
+  typedef Fn<void(u32, Span<c32 const>)> Insert;
 
   /// @brief Text erase callback.
   /// @param index index to be erased from, needs to be clamped to the size of
@@ -162,23 +162,23 @@ struct TextCompositor
   /// @param num number of items to be erased
   typedef Fn<void(Slice32)> Erase;
 
-  static constexpr u32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
-  static constexpr u32 DEFAULT_LINE_SYMBOLS[] = {'\n', 0x2029};
-  static constexpr u32 TAB_STRING[]           = {'\t', '\t', '\t', '\t',
+  static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
+  static constexpr c32 DEFAULT_LINE_SYMBOLS[] = {'\n', 0x2029};
+  static constexpr c32 TAB_STRING[]           = {'\t', '\t', '\t', '\t',
                                                  '\t', '\t', '\t', '\t'};
 
   struct Inner
   {
     TextCursor          cursor         = {};
-    Vec<u32>            buffer         = {};
+    Vec<c32>            buffer         = {};
     Vec<TextEditRecord> records        = {};
     u32                 buffer_usage   = 0;
     u32                 buffer_pos     = 0;
     u32                 latest_record  = 0;
     u32                 current_record = 0;
     u32                 tab_width      = 1;
-    Span<u32 const>     word_symbols   = span(DEFAULT_WORD_SYMBOLS);
-    Span<u32 const>     line_symbols   = span(DEFAULT_LINE_SYMBOLS);
+    Span<c32 const>     word_symbols   = DEFAULT_WORD_SYMBOLS;
+    Span<c32 const>     line_symbols   = DEFAULT_LINE_SYMBOLS;
 
     Inner(u32 num_buffer_codepoints, u32 num_records)
     {
@@ -192,7 +192,7 @@ struct TextCompositor
 
     void pop_records(u32 num);
 
-    void append_record(bool is_insert, u32 text_pos, Span<u32 const> segment);
+    void append_record(bool is_insert, u32 text_pos, Span<c32 const> segment);
 
     void undo(Insert insert, Erase erase);
 
@@ -200,17 +200,17 @@ struct TextCompositor
 
     void unselect();
 
-    void delete_selection(Span<u32 const> text, Erase erase);
+    void delete_selection(Span<c32 const> text, Erase erase);
 
-    void command(Span<u32 const> text, TextLayout const &layout,
+    void command(Span<c32 const> text, TextLayout const & layout,
                  f32 align_width, f32 alignment, TextCommand cmd, Insert insert,
-                 Erase erase, Span<u32 const> input, ClipBoard &clipboard,
+                 Erase erase, Span<c32 const> input, ClipBoard & clipboard,
                  u32 lines_per_page, Vec2 pos);
   };
 
   Inner inner;
 
-  TextCompositor(u32 num_buffer_codepoints = 16_KB, u32 num_records = 1024) :
+  TextCompositor(u32 num_buffer_codepoints = 16_KB, u32 num_records = 1'024) :
       inner{num_buffer_codepoints, num_records}
   {
   }
@@ -225,7 +225,7 @@ struct TextCompositor
     inner.pop_records(num);
   }
 
-  void append_record(bool is_insert, u32 text_pos, Span<u32 const> segment)
+  void append_record(bool is_insert, u32 text_pos, Span<c32 const> segment)
   {
     inner.append_record(is_insert, text_pos, segment);
   }
@@ -245,16 +245,16 @@ struct TextCompositor
     inner.unselect();
   }
 
-  void delete_selection(Span<u32 const> text, Erase erase)
+  void delete_selection(Span<c32 const> text, Erase erase)
   {
     inner.delete_selection(text, erase);
   }
 
   /// @param text original text
   /// @param input text from IME to insert
-  void command(Span<u32 const> text, TextLayout const &layout, f32 align_width,
+  void command(Span<c32 const> text, TextLayout const & layout, f32 align_width,
                f32 alignment, TextCommand cmd, Insert insert, Erase erase,
-               Span<u32 const> input, ClipBoard &clipboard, u32 lines_per_page,
+               Span<c32 const> input, ClipBoard & clipboard, u32 lines_per_page,
                Vec2 pos)
   {
     inner.command(text, layout, align_width, alignment, cmd, insert, erase,

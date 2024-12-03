@@ -1,4 +1,3 @@
-
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/assets.h"
@@ -36,15 +35,15 @@ struct BloomPass : Pass
 
   virtual Span<char const> id() override
   {
-    return "Bloom"_span;
+    return "Bloom"_str;
   }
 
-  virtual void acquire(GpuContext &ct, AssetMap &assets) override;
+  virtual void acquire(GpuContext & ct, AssetMap & assets) override;
 
-  virtual void release(GpuContext &ctx, AssetMap &assets) override;
+  virtual void release(GpuContext & ctx, AssetMap & assets) override;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
-              BloomPassParams const &params);
+  void encode(GpuContext & ctx, gpu::CommandEncoder & encoder,
+              BloomPassParams const & params);
 
   virtual ~BloomPass() override = default;
 };
@@ -76,17 +75,17 @@ struct BlurPass : Pass
 
   virtual Span<char const> id() override
   {
-    return "Blur"_span;
+    return "Blur"_str;
   }
 
-  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
+  virtual void acquire(GpuContext & ctx, AssetMap & assets) override;
 
-  virtual void release(GpuContext &ctx, AssetMap &assets) override;
+  virtual void release(GpuContext & ctx, AssetMap & assets) override;
 
   virtual ~BlurPass() override = default;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
-              BlurPassParams const &params);
+  void encode(GpuContext & ctx, gpu::CommandEncoder & encoder,
+              BlurPassParams const & params);
 };
 
 /// @param transform needs to transform from [-1, +1] to clip space
@@ -123,17 +122,17 @@ struct NgonPass : Pass
 
   virtual Span<char const> id() override
   {
-    return "Ngon"_span;
+    return "Ngon"_str;
   }
 
-  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
+  virtual void acquire(GpuContext & ctx, AssetMap & assets) override;
 
-  virtual void release(GpuContext &ctx, AssetMap &assets) override;
+  virtual void release(GpuContext & ctx, AssetMap & assets) override;
 
   virtual ~NgonPass() override = default;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
-              NgonPassParams const &params);
+  void encode(GpuContext & ctx, gpu::CommandEncoder & encoder,
+              NgonPassParams const & params);
 };
 
 /// @see https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
@@ -198,17 +197,17 @@ struct PBRPass : Pass
 
   virtual Span<char const> id() override
   {
-    return "PBR"_span;
+    return "PBR"_str;
   }
 
-  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
+  virtual void acquire(GpuContext & ctx, AssetMap & assets) override;
 
-  virtual void release(GpuContext &ctx, AssetMap &assets) override;
+  virtual void release(GpuContext & ctx, AssetMap & assets) override;
 
   virtual ~PBRPass() override = default;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
-              PBRPassParams const &params);
+  void encode(GpuContext & ctx, gpu::CommandEncoder & encoder,
+              PBRPassParams const & params);
 };
 
 /// @param transform needs to transform from [-1, +1] to clip space
@@ -245,19 +244,19 @@ struct RRectPass : Pass
 
   virtual Span<char const> id() override
   {
-    return "RRect"_span;
+    return "RRect"_str;
   }
 
   RRectPass() = default;
 
-  virtual void acquire(GpuContext &ctx, AssetMap &assets) override;
+  virtual void acquire(GpuContext & ctx, AssetMap & assets) override;
 
-  virtual void release(GpuContext &ctx, AssetMap &assets) override;
+  virtual void release(GpuContext & ctx, AssetMap & assets) override;
 
   virtual ~RRectPass() override = default;
 
-  void encode(GpuContext &ctx, gpu::CommandEncoder &encoder,
-              RRectPassParams const &params);
+  void encode(GpuContext & ctx, gpu::CommandEncoder & encoder,
+              RRectPassParams const & params);
 };
 
 }        // namespace ash

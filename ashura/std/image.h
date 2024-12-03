@@ -55,7 +55,7 @@ struct ImageSpan
 
   constexpr ImageSpan slice(Vec2U offset) const
   {
-    return slice(offset, Vec2::splat(U32_MAX));
+    return slice(offset, Vec2U::splat(U32_MAX));
   }
 
   constexpr operator ImageSpan<R const, C>() const
@@ -112,8 +112,8 @@ void copy_image(ImageSpan<T const, C> src, ImageSpan<T, C> dst)
   src.width  = min(src.width, dst.width);
   src.height = min(src.height, dst.height);
 
-  auto const *in  = src.channels.data();
-  auto       *out = dst.channels.data();
+  auto const * in  = src.channels.data();
+  auto *       out = dst.channels.data();
 
   for (u32 i = 0; i < src.height; i++, in += src.pitch(), out += dst.pitch())
   {
@@ -128,13 +128,13 @@ void copy_alpha_image_to_BGRA(ImageSpan<T const, 1> src, ImageSpan<T, 4> dst,
   src.width  = min(src.width, dst.width);
   src.height = min(src.height, dst.width);
 
-  auto const *in  = src.channels.data();
-  auto       *out = dst.channels.data();
+  auto const * in  = src.channels.data();
+  auto *       out = dst.channels.data();
 
   for (u32 i = 0; i < src.height; i++, in += src.pitch(), out += dst.pitch())
   {
-    auto const *in_p  = in;
-    auto       *out_p = out;
+    auto const * in_p  = in;
+    auto *       out_p = out;
     for (u32 j = 0; j < src.width; j++, in_p += 1, out_p += 4)
     {
       out_p[0] = B;

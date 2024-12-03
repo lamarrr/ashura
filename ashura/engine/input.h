@@ -11,9 +11,10 @@ namespace ash
 
 enum class SystemTheme : u8
 {
-  None  = 0,
-  Light = 1,
-  Dark  = 2
+  None    = 0,
+  Unknown = 1,
+  Light   = 2,
+  Dark    = 3
 };
 
 enum class KeyAction : u8
@@ -596,30 +597,30 @@ struct MouseWheelEvent
 
 enum class WindowEventTypes : u32
 {
-  None            = 0x00000000,
-  Shown           = 0x00000001,
-  Hidden          = 0x00000002,
-  Exposed         = 0x00000004,
-  Moved           = 0x00000008,
-  Resized         = 0x00000010,
-  SurfaceResized  = 0x00000020,
-  Minimized       = 0x00000040,
-  Maximized       = 0x00000080,
-  Restored        = 0x00000100,
-  MouseEnter      = 0x00000200,
-  MouseLeave      = 0x00000400,
-  FocusIn         = 0x00000800,
-  FocusOut        = 0x00001000,
-  CloseRequested  = 0x00002000,
-  Occluded        = 0x00004000,
-  EnterFullScreen = 0x00008000,
-  LeaveFullScreen = 0x00010000,
-  Key             = 0x00020000,
-  MouseMotion     = 0x00040000,
-  MouseClick      = 0x00080000,
-  MouseWheel      = 0x00100000,
-  Destroyed       = 0x00200000,
-  All             = 0xFFFFFFFF
+  None            = 0x0000'0000,
+  Shown           = 0x0000'0001,
+  Hidden          = 0x0000'0002,
+  Exposed         = 0x0000'0004,
+  Moved           = 0x0000'0008,
+  Resized         = 0x0000'0010,
+  SurfaceResized  = 0x0000'0020,
+  Minimized       = 0x0000'0040,
+  Maximized       = 0x0000'0080,
+  Restored        = 0x0000'0100,
+  MouseEnter      = 0x0000'0200,
+  MouseLeave      = 0x0000'0400,
+  FocusIn         = 0x0000'0800,
+  FocusOut        = 0x0000'1000,
+  CloseRequested  = 0x0000'2000,
+  Occluded        = 0x0000'4000,
+  EnterFullScreen = 0x0000'8000,
+  LeaveFullScreen = 0x0001'0000,
+  Key             = 0x0002'0000,
+  MouseMotion     = 0x0004'0000,
+  MouseClick      = 0x0008'0000,
+  MouseWheel      = 0x0010'0000,
+  Destroyed       = 0x0020'0000,
+  All             = 0xFFFF'FFFF
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(WindowEventTypes)
@@ -632,34 +633,39 @@ struct WindowEvent
     MouseMotionEvent mouse_motion;
     MouseClickEvent  mouse_click;
     MouseWheelEvent  mouse_wheel;
-    char             none_ = 0;
   };
+
   WindowEventTypes type = WindowEventTypes::None;
 };
 
 enum class SystemEventTypes : u32
 {
-  None                     = 0x00000000,
-  ThemeChanged             = 0x00000001,
-  KeymapChanged            = 0x00000002,
-  AudioDeviceAdded         = 0x00000004,
-  AudioDeviceRemoved       = 0x00000008,
-  AudioDeviceFormatChanged = 0x00000010,
-  DisplayReoriented        = 0x00000020,
-  DisplayAdded             = 0x00000040,
-  DisplayRemoved           = 0x00000080,
-  DisplayMoved             = 0x00000100,
-  CameraAdded              = 0x00000200,
-  CameraRemoved            = 0x00000400,
-  CameraApproved           = 0x00000800,
-  CameraDenied             = 0x00001000,
-  All                      = 0xFFFFFFFF
+  None                     = 0x0000'0000,
+  ThemeChanged             = 0x0000'0001,
+  KeymapChanged            = 0x0000'0002,
+  AudioDeviceAdded         = 0x0000'0004,
+  AudioDeviceRemoved       = 0x0000'0008,
+  AudioDeviceFormatChanged = 0x0000'0010,
+  DisplayReoriented        = 0x0000'0020,
+  DisplayAdded             = 0x0000'0040,
+  DisplayRemoved           = 0x0000'0080,
+  DisplayMoved             = 0x0000'0100,
+  CameraAdded              = 0x0000'0200,
+  CameraRemoved            = 0x0000'0400,
+  CameraApproved           = 0x0000'0800,
+  CameraDenied             = 0x0000'1000,
+  All                      = 0xFFFF'FFFF
 };
 
 ASH_DEFINE_ENUM_BIT_OPS(SystemEventTypes)
 
 struct SystemEvent
 {
+  union
+  {
+    SystemTheme theme;
+  };
+
   SystemEventTypes type = SystemEventTypes::None;
 };
 
@@ -778,28 +784,28 @@ constexpr char const MIME_FONT_WOFF2[] = "font/woff2";
 
 struct ClipBoard
 {
-  virtual Result<> get(Span<char const> mime, Vec<u8> &out)
+  virtual Result<> get(Span<char const> mime, Vec<c8> & out)
   {
     (void) mime;
     (void) out;
     return Err{};
   }
 
-  virtual Result<> set(Span<char const> mime, Span<u8 const> data)
+  virtual Result<> set(Span<char const> mime, Span<c8 const> data)
   {
     (void) mime;
     (void) data;
     return Err{};
   }
 
-  Result<> get_text(Vec<u8> &out)
+  Result<> get_text(Vec<c8> & out)
   {
-    return get(span(MIME_TEXT_UTF8), out);
+    return get(MIME_TEXT_UTF8, out);
   }
 
-  Result<> set_text(Span<u8 const> text)
+  Result<> set_text(Span<c8 const> text)
   {
-    return set(span(MIME_TEXT_UTF8), text);
+    return set(MIME_TEXT_UTF8, text);
   }
 };
 

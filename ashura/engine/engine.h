@@ -11,14 +11,6 @@
 namespace ash
 {
 
-enum class FontLoadError : i32
-{
-};
-
-enum class ImageLoadError : i32
-{
-};
-
 struct EngineCfg
 {
   struct Gpu
@@ -32,10 +24,11 @@ struct EngineCfg
 
   struct Window
   {
-    bool resizable = true;
-    bool maximized = false;
-    u32  width     = 1920;
-    u32  height    = 1080;
+    bool resizable   = true;
+    bool maximized   = false;
+    bool full_screen = false;
+    u32  width       = 1'920;
+    u32  height      = 1'080;
   };
 
   Gpu gpu{};
@@ -44,37 +37,32 @@ struct EngineCfg
 
   Vec<char> default_font{};
 
-  StrMap<Vec<char>> shaders{};
+  StrVecMap<Vec<char>> shaders{};
 
-  StrMap<Vec<char>> fonts{};
+  StrVecMap<Vec<char>> fonts{};
 
-  StrMap<Vec<char>> images{};
+  StrVecMap<Vec<char>> images{};
 
   static EngineCfg parse(AllocatorImpl allocator, Span<u8 const> json);
 };
 
-// [ ] Font Manager
-// [ ] Shader Manager
 // [ ] Image Manager
-// [ ] Graphics Device
-// [ ] Render Context : Shader Manager + input
-// [ ] Renderer
-// [ ] Window Manager? We might need to attach new contexts to new windows
 // [ ] Audio Device/Manager (FFMPEG, SDL)
 // [ ] Video Manager (Vulkan, FFMPEG)
 // [ ] Custom Subsystems
-// [ ] Engine Startup() -> Tick () -> Shutdown() Tasks
 // [ ] UI tick rate (time-based/adaptive frame rate), with custom frequency
 // allowed, need to be able to merge inputs?
 //
 
 struct Engine
 {
-  void *app;
+  AllocatorImpl allocator;
+
+  void * app;
 
   Dyn<gpu::Instance *> instance;
 
-  gpu::Device *device;
+  gpu::Device * device;
 
   Window window;
 
@@ -98,15 +86,16 @@ struct Engine
 
   Vec<char> default_font_name;
 
-  Font *default_font = nullptr;
+  Font * default_font = nullptr;
 
   bool should_shutdown = false;
 
-  Engine(AllocatorImpl allocator, void *app, Dyn<gpu::Instance *> instance,
-         gpu::Device *device, Window window, gpu::Surface surface,
+  Engine(AllocatorImpl allocator, void * app, Dyn<gpu::Instance *> instance,
+         gpu::Device * device, Window window, gpu::Surface surface,
          gpu::PresentMode present_mode_preference, GpuContext gpu_ctx,
          Renderer renderer, Canvas canvas, ViewSystem view_system,
          ViewContext view_ctx) :
+      allocator{allocator},
       app{app},
       instance{std::move(instance)},
       device{device},
@@ -125,18 +114,18 @@ struct Engine
 
   ~Engine();
 
-  static void init(AllocatorImpl allocator, void *app,
+  static void init(AllocatorImpl allocator, void * app,
                    Span<char const> config_path, Span<char const> assets_dir);
 
   static void uninit();
 
   void recreate_swapchain_();
 
-  void run(View &view);
+  void run(View & view);
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded
 /// executables.
-ASH_C_LINKAGE ASH_DLL_EXPORT Engine *engine;
+ASH_C_LINKAGE ASH_DLL_EXPORT Engine * engine;
 
 }        // namespace ash

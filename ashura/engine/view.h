@@ -42,31 +42,113 @@ struct Size
 
 struct Frame
 {
-  Size width  = {};
-  Size height = {};
+  Size width{};
+  Size height{};
+
+  constexpr Frame()                          = default;
+  constexpr Frame(Frame const &)             = default;
+  constexpr Frame(Frame &&)                  = default;
+  constexpr Frame & operator=(Frame const &) = default;
+  constexpr Frame & operator=(Frame &&)      = default;
+  constexpr ~Frame()                         = default;
+
+  constexpr Frame(Size width, Size height) : width{width}, height{height}
+  {
+  }
+
+  constexpr Frame(f32 width, f32 height, bool constrain = true) :
+      width{.offset = width, .rmax = constrain ? 1 : F32_INF},
+      height{.offset = height, .rmax = constrain ? 1 : F32_INF}
+  {
+  }
 
   constexpr Vec2 operator()(Vec2 extent) const
   {
     return Vec2{width(extent.x), height(extent.y)};
   }
+
+  constexpr Frame offset(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.offset  = w;
+    out.height.offset = h;
+    return out;
+  }
+
+  constexpr Frame scale(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.scale  = w;
+    out.height.scale = h;
+    return out;
+  }
+
+  constexpr Frame rmin(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.rmin  = w;
+    out.height.rmin = h;
+    return out;
+  }
+
+  constexpr Frame rmax(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.rmax  = w;
+    out.height.rmax = h;
+    return out;
+  }
+
+  constexpr Frame min(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.min  = w;
+    out.height.min = h;
+    return out;
+  }
+
+  constexpr Frame max(f32 w, f32 h) const
+  {
+    Frame out{*this};
+    out.width.max  = w;
+    out.height.max = h;
+    return out;
+  }
 };
 
 struct CornerRadii
 {
-  Size top_left     = Size{};
-  Size top_right    = Size{};
-  Size bottom_left  = Size{};
-  Size bottom_right = Size{};
+  Size tl;
+  Size tr;
+  Size bl;
+  Size br;
 
-  static constexpr CornerRadii all(Size s)
+  constexpr CornerRadii() : tl{}, tr{}, bl{}, br{}
   {
-    return CornerRadii{s, s, s, s};
+  }
+
+  constexpr CornerRadii(Size tl, Size tr, Size bl, Size br) :
+      tl{tl},
+      tr{tr},
+      bl{bl},
+      br{br}
+  {
+  }
+
+  constexpr CornerRadii(Size s) : tl{s}, tr{s}, bl{s}, br{s}
+  {
+  }
+
+  constexpr CornerRadii(f32 s, bool constrained) :
+      CornerRadii{
+          Size{.offset = s, .rmax = constrained ? 1 : F32_INF}
+  }
+  {
   }
 
   constexpr Vec4 operator()(f32 height) const
   {
-    return Vec4{top_left(height), top_right(height), bottom_left(height),
-                bottom_right(height)};
+    return Vec4{tl(height), tr(height), bl(height), br(height)};
   }
 };
 
@@ -100,26 +182,26 @@ enum class MainAlign : u8
 /// @param text_input the view has received composition text
 struct ViewEvents
 {
-  bool mounted : 1      = false;
-  bool view_hit : 1     = false;
-  bool mouse_in : 1     = false;
-  bool mouse_out : 1    = false;
-  bool mouse_down : 1   = false;
-  bool mouse_up : 1     = false;
-  bool mouse_moved : 1  = false;
+  bool mounted      : 1 = false;
+  bool view_hit     : 1 = false;
+  bool mouse_in     : 1 = false;
+  bool mouse_out    : 1 = false;
+  bool mouse_down   : 1 = false;
+  bool mouse_up     : 1 = false;
+  bool mouse_moved  : 1 = false;
   bool mouse_scroll : 1 = false;
-  bool drag_start : 1   = false;
-  bool dragging : 1     = false;
-  bool drag_end : 1     = false;
-  bool drag_in : 1      = false;
-  bool drag_out : 1     = false;
-  bool drag_over : 1    = false;
-  bool drop : 1         = false;
-  bool focus_in : 1     = false;
-  bool focus_out : 1    = false;
-  bool key_down : 1     = false;
-  bool key_up : 1       = false;
-  bool text_input : 1   = false;
+  bool drag_start   : 1 = false;
+  bool dragging     : 1 = false;
+  bool drag_end     : 1 = false;
+  bool drag_in      : 1 = false;
+  bool drag_out     : 1 = false;
+  bool drag_over    : 1 = false;
+  bool drop         : 1 = false;
+  bool focus_in     : 1 = false;
+  bool focus_out    : 1 = false;
+  bool key_down     : 1 = false;
+  bool key_up       : 1 = false;
+  bool text_input   : 1 = false;
 };
 
 /// @brief Global View Context, Properties of the context all the views for
@@ -143,14 +225,14 @@ struct ViewContext
 {
   struct Mouse
   {
-    bool         in : 1             = false;
-    bool         out : 1            = false;
-    bool         focused : 1        = false;
-    bool         moved : 1          = false;
+    bool         in             : 1 = false;
+    bool         out            : 1 = false;
+    bool         focused        : 1 = false;
+    bool         moved          : 1 = false;
     bool         wheel_scrolled : 1 = false;
-    MouseButtons downs : 8          = MouseButtons::None;
-    MouseButtons ups : 8            = MouseButtons::None;
-    MouseButtons states : 8         = MouseButtons::None;
+    MouseButtons downs          : 8 = MouseButtons::None;
+    MouseButtons ups            : 8 = MouseButtons::None;
+    MouseButtons states         : 8 = MouseButtons::None;
     u32          num_clicks         = 0;
     Vec2         position           = {};
     Vec2         translation        = {};
@@ -160,7 +242,7 @@ struct ViewContext
   struct KeyBoard
   {
     bool                down : 1    = false;
-    bool                up : 1      = false;
+    bool                up   : 1    = false;
     Bits<u64, NUM_KEYS> downs       = {};
     Bits<u64, NUM_KEYS> ups         = {};
     Bits<u64, NUM_KEYS> states      = {};
@@ -169,57 +251,58 @@ struct ViewContext
     Bits<u64, NUM_KEYS> scan_states = {};
   };
 
-  void                    *app              = nullptr;
-  ClipBoard               *clipboard        = nullptr;
-  steady_clock::time_point timestamp        = {};
-  nanoseconds              timedelta        = {};
-  SystemTheme              theme            = SystemTheme::None;
-  TextDirection            direction        = TextDirection::LeftToRight;
-  Mouse                    mouse            = {};
-  KeyBoard                 keyboard         = {};
-  Span<u8 const>           drag_payload     = {};
-  Span<u8 const>           text_input       = {};
-  Span<u32 const>          text_input_utf32 = {};
-  Vec2                     viewport_extent  = {};
+  void *         app             = nullptr;
+  ClipBoard *    clipboard       = nullptr;
+  time_point     timestamp       = {};
+  nanoseconds    timedelta       = {};
+  SystemTheme    theme           = SystemTheme::None;
+  TextDirection  direction       = TextDirection::LeftToRight;
+  Mouse          mouse           = {};
+  KeyBoard       keyboard        = {};
+  Span<u8 const> drag_payload    = {};
+  Span<c8 const> text_input      = {};
+  Vec2           viewport_extent = {};
 
-  constexpr ViewContext(void *app, ClipBoard &clipboard) :
-      app{app}, clipboard{&clipboard}
+  constexpr ViewContext(void * app, ClipBoard & clipboard) :
+      app{app},
+      clipboard{&clipboard}
   {
   }
-  constexpr ViewContext(ViewContext const &)            = delete;
-  constexpr ViewContext(ViewContext &&)                 = default;
-  constexpr ViewContext &operator=(ViewContext const &) = delete;
-  constexpr ViewContext &operator=(ViewContext &&)      = default;
-  constexpr ~ViewContext()                              = default;
+
+  constexpr ViewContext(ViewContext const &)             = delete;
+  constexpr ViewContext(ViewContext &&)                  = default;
+  constexpr ViewContext & operator=(ViewContext const &) = delete;
+  constexpr ViewContext & operator=(ViewContext &&)      = default;
+  constexpr ~ViewContext()                               = default;
 
   constexpr bool key_down(KeyCode key) const
   {
-    return get_bit(span(keyboard.downs), (usize) key);
+    return get_bit(keyboard.downs, (usize) key);
   }
 
   constexpr bool key_up(KeyCode key) const
   {
-    return get_bit(span(keyboard.ups), (usize) key);
+    return get_bit(keyboard.ups, (usize) key);
   }
 
   constexpr bool key_state(KeyCode key) const
   {
-    return get_bit(span(keyboard.states), (usize) key);
+    return get_bit(keyboard.states, (usize) key);
   }
 
   constexpr bool key_down(ScanCode key) const
   {
-    return get_bit(span(keyboard.scan_downs), (usize) key);
+    return get_bit(keyboard.scan_downs, (usize) key);
   }
 
   constexpr bool key_up(ScanCode key) const
   {
-    return get_bit(span(keyboard.scan_ups), (usize) key);
+    return get_bit(keyboard.scan_ups, (usize) key);
   }
 
   constexpr bool key_state(ScanCode key) const
   {
-    return get_bit(span(keyboard.scan_states), (usize) key);
+    return get_bit(keyboard.scan_states, (usize) key);
   }
 
   constexpr bool mouse_down(MouseButtons btn) const
@@ -241,8 +324,8 @@ struct ViewContext
 /// @brief makes a zoom transform matrix relative to the center of a viewport.
 /// defines the translation and scaling components.
 /// @return zoom transform matrix
-constexpr Mat3Affine scroll_transform(Vec2 viewport_extent, Vec2 view_extent,
-                                      Vec2 t, f32 scale)
+constexpr Affine3 scroll_transform(Vec2 viewport_extent, Vec2 view_extent,
+                                   Vec2 t, f32 scale)
 {
   Vec2 const low    = -0.5F * viewport_extent + 0.5F * view_extent;
   Vec2 const high   = 0.5F * viewport_extent - 0.5F * view_extent;
@@ -272,18 +355,18 @@ constexpr Mat3Affine scroll_transform(Vec2 viewport_extent, Vec2 view_extent,
 struct ViewState
 {
   i32  tab            = I32_MIN;
-  bool hidden : 1     = false;
-  bool pointable : 1  = false;
-  bool clickable : 1  = false;
+  bool hidden     : 1 = false;
+  bool pointable  : 1 = false;
+  bool clickable  : 1 = false;
   bool scrollable : 1 = false;
-  bool draggable : 1  = false;
-  bool droppable : 1  = false;
-  bool focusable : 1  = false;
+  bool draggable  : 1 = false;
+  bool droppable  : 1 = false;
+  bool focusable  : 1 = false;
   bool text_input : 1 = false;
-  bool tab_input : 1  = false;
-  bool esc_input : 1  = false;
+  bool tab_input  : 1 = false;
+  bool esc_input  : 1 = false;
   bool grab_focus : 1 = false;
-  bool viewport : 1   = false;
+  bool viewport   : 1 = false;
 };
 
 struct CoreViewTheme
@@ -316,8 +399,10 @@ struct CoreViewTheme
 };
 
 constexpr CoreViewTheme DEFAULT_THEME = {
-    .background        = Vec4U8{0x19, 0x19, 0x19, 0xFF}.norm(),
-    .surface           = Vec4U8{0x33, 0x33, 0x33, 0xFF}.norm(),
+    .background        = Vec4U8{0x19, 0x19, 0x19, 0xFF}
+             .norm(),
+    .surface           = Vec4U8{0x33, 0x33, 0x33, 0xFF}
+             .norm(),
     .primary           = mdc::DEEP_ORANGE_600.norm(),
     .primary_variant   = mdc::DEEP_ORANGE_400.norm(),
     .secondary         = mdc::PURPLE_600.norm(),
@@ -325,8 +410,10 @@ constexpr CoreViewTheme DEFAULT_THEME = {
     .error             = mdc::RED_500.norm(),
     .warning           = mdc::YELLOW_800.norm(),
     .success           = mdc::GREEN_700.norm(),
-    .active            = Vec4U8{0x70, 0x70, 0x70, 0xFF}.norm(),
-    .inactive          = Vec4U8{0x47, 0x47, 0x47, 0xFF}.norm(),
+    .active            = Vec4U8{0x70, 0x70, 0x70, 0xFF}
+             .norm(),
+    .inactive          = Vec4U8{0x47, 0x47, 0x47, 0xFF}
+             .norm(),
     .on_background     = mdc::WHITE.norm(),
     .on_surface        = mdc::WHITE.norm(),
     .on_primary        = mdc::WHITE.norm(),
@@ -339,7 +426,8 @@ constexpr CoreViewTheme DEFAULT_THEME = {
     .h2_font_height    = 27,
     .h3_font_height    = 22,
     .line_height       = 1.2F,
-    .focus_thickness   = 1};
+    .focus_thickness   = 1
+};
 
 /// @param extent extent of the view within the parent. if it is a viewport,
 /// this is the visible extent of the viewport within the parent viewport.
@@ -351,7 +439,7 @@ struct ViewLayout
 {
   Vec2         extent             = {};
   Vec2         viewport_extent    = {};
-  Mat3Affine   viewport_transform = Mat3Affine::identity();
+  Affine3      viewport_transform = Affine3::identity();
   Option<Vec2> fixed_position     = None;
 };
 
@@ -380,12 +468,12 @@ struct View
     f32   zoom                = 1;
   } inner = {};
 
-  constexpr View()                        = default;
-  constexpr View(View const &)            = delete;
-  constexpr View(View &&)                 = delete;
-  constexpr View &operator=(View const &) = delete;
-  constexpr View &operator=(View &&)      = delete;
-  constexpr virtual ~View()               = default;
+  constexpr View()                         = default;
+  constexpr View(View const &)             = delete;
+  constexpr View(View &&)                  = delete;
+  constexpr View & operator=(View const &) = delete;
+  constexpr View & operator=(View &&)      = delete;
+  constexpr virtual ~View()                = default;
 
   /// @returns the ID currently allocated to the view or U64_MAX
   constexpr u64 id() const
@@ -399,9 +487,9 @@ struct View
   /// handle it. i.e. using the multi-tasking or asset-loading systems.
   /// @param region canvas-space region the view is on
   /// @param build callback to be called to insert subviews.
-  constexpr virtual ViewState tick(ViewContext const &ctx, CRect const &region,
-                                   f32 zoom, ViewEvents events,
-                                   Fn<void(View &)> build)
+  constexpr virtual ViewState tick(ViewContext const & ctx,
+                                   CRect const & region, f32 zoom,
+                                   ViewEvents events, Fn<void(View &)> build)
   {
     (void) ctx;
     (void) region;
@@ -461,8 +549,8 @@ struct View
   /// @param zoom zoom scale of the view
   /// @param clip canvas-space clip of the view, applied by viewports.
   /// @param canvas canvas to render view into
-  constexpr virtual void render(Canvas &canvas, CRect const &region, f32 zoom,
-                                CRect const &clip)
+  constexpr virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
+                                CRect const & clip)
   {
     (void) canvas;
     (void) region;
@@ -474,7 +562,7 @@ struct View
   /// @param region canvas-space region of the view
   /// @param position canvas-space position of the pointer
   /// @return true if in hit region
-  constexpr virtual bool hit(CRect const &region, f32 zoom, Vec2 position)
+  constexpr virtual bool hit(CRect const & region, f32 zoom, Vec2 position)
   {
     (void) region;
     (void) zoom;
@@ -485,7 +573,7 @@ struct View
   /// @brief Select cursor type given a pointed region of the view.
   /// @param region canvas-space region of the view
   /// @param position canvas-space position of the pointer
-  constexpr virtual Cursor cursor(CRect const &region, f32 zoom, Vec2 position)
+  constexpr virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position)
   {
     (void) region;
     (void) zoom;
@@ -496,7 +584,7 @@ struct View
   /// @brief Called when the viewport is needed to zoom itself, scaling its
   /// inner extent
   /// @param zoom zoom to apply to the inner extent
-  constexpr virtual void zoom(Mat3Affine const &transform)
+  constexpr virtual void zoom(Affine3 const & transform)
   {
     (void) transform;
   }

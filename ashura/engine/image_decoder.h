@@ -11,10 +11,10 @@
 namespace ash
 {
 
-/// @InvalidPath: the image path provided is invalid
-/// @InvalidData: detected image but image seems to be corrupted
-/// @UnsupportedChannels: image contains unsupported channel types
-/// @UnsupportedFormat: the image file format is unsupported
+/// @param InvalidPath the image path provided is invalid
+/// @param InvalidData detected image but image seems to be corrupted
+/// @param UnsupportedChannels image contains unsupported channel types
+/// @param UnsupportedFormat the image file format is unsupported
 enum class [[nodiscard]] ImageDecodeError : i32
 {
   None              = 0,
@@ -32,9 +32,9 @@ struct DecodedImage
   gpu::Format format   = gpu::Format::Undefined;
 };
 
-ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage &image);
-ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage &image);
-ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage &image);
-ImageDecodeError decode_image(Span<u8 const> bytes, DecodedImage &image);
+ImageDecodeError decode_webp(Span<u8 const> bytes, DecodedImage & image);
+ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage & image);
+ImageDecodeError decode_png(Span<u8 const> bytes, DecodedImage & image);
+ImageDecodeError decode_image(Span<u8 const> bytes, DecodedImage & image);
 
 }        // namespace ash

@@ -32,7 +32,8 @@ struct TaskArena
   {
     return Flex{
         {layout<ListNode<TaskArena>>,
-         Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}}};
+         Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}}
+    };
   }
 };
 
@@ -67,18 +68,20 @@ struct Task
   Uninit uninit = noop;
 
   /// @brief arena this task was allocated from. always non-null.
-  ListNode<TaskArena> *arena = nullptr;
+  ListNode<TaskArena> * arena = nullptr;
 
   static constexpr auto node_flex(Layout frame_layout)
   {
-    return Flex{{layout<ListNode<Task>>, frame_layout}};
+    return Flex{
+        {layout<ListNode<Task>>, frame_layout}
+    };
   }
 };
 
 static_assert(TASK_ARENA_SIZE != 0,
               "Task arena size must be a non-zero power of 2");
 
-static_assert(is_pow2(TASK_ARENA_SIZE),
+static_assert(is_pow2((u64) TASK_ARENA_SIZE),
               "Task arena size must be a non-zero power of 2");
 
 static_assert(TASK_ARENA_SIZE >= (MAX_TASK_FRAME_SIZE << 2),
@@ -113,11 +116,11 @@ struct TaskAllocator
     SpinLock        lock{};
     List<TaskArena> list{};
 
-    ListNode<TaskArena> *pop()
+    ListNode<TaskArena> * pop()
     {
-      LockGuard guard{lock};
+      LockGuard             guard{lock};
       // return the most recently used arena
-      ListNode<TaskArena> *arena = list.pop_back();
+      ListNode<TaskArena> * arena = list.pop_back();
       return arena;
     }
 
@@ -128,8 +131,8 @@ struct TaskAllocator
   /// allocate a new arena and make it the current arena.
   struct alignas(CACHELINE_ALIGNMENT)
   {
-    SpinLock             lock{};
-    ListNode<TaskArena> *node = nullptr;
+    SpinLock              lock{};
+    ListNode<TaskArena> * node = nullptr;
 
   } current_arena{};
 
@@ -141,9 +144,9 @@ struct TaskAllocator
 
   TaskAllocator(TaskAllocator &&) = default;
 
-  TaskAllocator &operator=(TaskAllocator const &) = delete;
+  TaskAllocator & operator=(TaskAllocator const &) = delete;
 
-  TaskAllocator &operator=(TaskAllocator &&) = default;
+  TaskAllocator & operator=(TaskAllocator &&) = default;
 
   ~TaskAllocator()
   {
@@ -158,7 +161,7 @@ struct TaskAllocator
     }
   }
 
-  void release_arena(ListNode<TaskArena> *arena)
+  void release_arena(ListNode<TaskArena> * arena)
   {
     // decrease alias count of arena, if only alias left, add to the arena
     // free list.
@@ -170,19 +173,19 @@ struct TaskAllocator
     }
   }
 
-  bool alloc_arena(ListNode<TaskArena> *&arena)
+  bool alloc_arena(ListNode<TaskArena> *& arena)
   {
     Flex const   flex   = TaskArena::node_flex();
     Layout const layout = flex.layout();
 
-    u8 *head;
+    u8 * head;
 
     if (!source.alloc(layout.alignment, layout.size, head))
     {
       return false;
     }
 
-    u8 *memory;
+    u8 * memory;
     flex.unpack(head, arena, memory);
 
     new (arena) ListNode<TaskArena>{
@@ -191,17 +194,17 @@ struct TaskAllocator
     return true;
   }
 
-  void dealloc_arena(ListNode<TaskArena> *arena)
+  void dealloc_arena(ListNode<TaskArena> * arena)
   {
     Flex const   flex   = TaskArena::node_flex();
     Layout const layout = flex.layout();
     source.dealloc(layout.alignment, (u8 *) arena, layout.size);
   }
 
-  bool request_arena(ListNode<TaskArena> *&arena)
+  bool request_arena(ListNode<TaskArena> *& arena)
   {
     /// get from free list, otherwise allocate a new arena
-    ListNode<TaskArena> *a = free_list.pop();
+    ListNode<TaskArena> * a = free_list.pop();
     if (a != nullptr)
     {
       arena = a;
@@ -210,13 +213,13 @@ struct TaskAllocator
     return alloc_arena(arena);
   }
 
-  static bool alloc_task(ListNode<TaskArena> &arena, TaskInfo const &info,
-                         ListNode<Task> *&task)
+  static bool alloc_task(ListNode<TaskArena> & arena, TaskInfo const & info,
+                         ListNode<Task> *& task)
   {
     Flex const   flex   = Task::node_flex(info.frame_layout);
     Layout const layout = flex.layout();
 
-    u8 *head;
+    u8 * head;
 
     if (!arena.v.arena.alloc(layout.alignment, layout.size, head))
     {
@@ -225,37 +228,39 @@ struct TaskAllocator
 
     arena.v.ac.alias();
 
-    u8 *ctx;
+    u8 * ctx;
 
     flex.unpack(head, task, ctx);
 
-    new (task) ListNode<Task>{.v{.frame_layout = info.frame_layout,
-                                 .poll         = info.poll,
-                                 .run          = info.run,
-                                 .uninit       = info.uninit,
-                                 .arena        = &arena}};
+    new (task) ListNode<Task>{
+        .v{.frame_layout = info.frame_layout,
+           .poll         = info.poll,
+           .run          = info.run,
+           .uninit       = info.uninit,
+           .arena        = &arena}
+    };
 
     info.init(ctx);
 
     return true;
   }
 
-  static void uninit_task(ListNode<Task> *task)
+  static void uninit_task(ListNode<Task> * task)
   {
     Flex const flex = Task::node_flex(task->v.frame_layout);
-    u8        *ctx;
+    u8 *       ctx;
     flex.unpack(task, task, ctx);
     task->v.uninit(ctx);
   }
 
-  void release_task(ListNode<Task> *task)
+  void release_task(ListNode<Task> * task)
   {
-    ListNode<TaskArena> *arena = task->v.arena;
+    ListNode<TaskArena> * arena = task->v.arena;
     uninit_task(task);
     release_arena(arena);
   }
 
-  bool create_task(TaskInfo const &info, ListNode<Task> *&task)
+  bool create_task(TaskInfo const & info, ListNode<Task> *& task)
   {
     LockGuard guard{current_arena.lock};
 
@@ -307,9 +312,9 @@ struct TaskQueue
 
   TaskQueue(TaskQueue &&) = default;
 
-  TaskQueue &operator=(TaskQueue const &) = delete;
+  TaskQueue & operator=(TaskQueue const &) = delete;
 
-  TaskQueue &operator=(TaskQueue &&) = default;
+  TaskQueue & operator=(TaskQueue &&) = default;
 
   ~TaskQueue() = default;
 
@@ -318,24 +323,24 @@ struct TaskQueue
     return tasks.is_empty();
   }
 
-  ListNode<Task> *pop_task()
+  ListNode<Task> * pop_task()
   {
-    LockGuard       guard{lock};
-    ListNode<Task> *t = tasks.pop_front();
+    LockGuard        guard{lock};
+    ListNode<Task> * t = tasks.pop_front();
     return t;
   }
 
   /// @brief push task on the queue
   /// @param t non-null task node
-  void push_task(ListNode<Task> *t)
+  void push_task(ListNode<Task> * t)
   {
     LockGuard guard{lock};
     tasks.push_back(t);
   }
 
-  void push_task(TaskInfo const &info)
+  void push_task(TaskInfo const & info)
   {
-    ListNode<Task> *t;
+    ListNode<Task> * t;
     CHECK(allocator.create_task(info, t));
     push_task(t);
   }
@@ -351,7 +356,10 @@ struct alignas(CACHELINE_ALIGNMENT) TaskThread
   std::thread    thread;
 
   TaskThread(AllocatorImpl allocator, nanoseconds max_sleep) :
-      queue{allocator}, stop_token{}, max_sleep{max_sleep}, thread{}
+      queue{allocator},
+      stop_token{},
+      max_sleep{max_sleep},
+      thread{}
   {
   }
 };
@@ -395,29 +403,29 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
     CHECK_DESC(main_thread_id == std::this_thread::get_id(),
                "Scheduler can only be joined on the main thread");
 
-    for (TaskThread &t : dedicated_threads)
+    for (TaskThread & t : dedicated_threads)
     {
       t.stop_token.request_stop();
     }
 
-    for (TaskThread &t : worker_threads)
+    for (TaskThread & t : worker_threads)
     {
       t.stop_token.request_stop();
     }
 
-    for (TaskThread &t : dedicated_threads)
+    for (TaskThread & t : dedicated_threads)
     {
       t.thread.join();
     }
 
-    for (TaskThread &t : worker_threads)
+    for (TaskThread & t : worker_threads)
     {
       t.thread.join();
     }
 
     while (true)
     {
-      ListNode<Task> *task = main_queue.pop_task();
+      ListNode<Task> * task = main_queue.pop_task();
 
       if (task == nullptr)
       {
@@ -430,7 +438,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
     joined = true;
   }
 
-  static void thread_loop(TaskAllocator &a, TaskQueue &q, StopTokenState &s,
+  static void thread_loop(TaskAllocator & a, TaskQueue & q, StopTokenState & s,
                           nanoseconds max_sleep)
   {
     u64 poll = 0;
@@ -443,7 +451,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
         break;
       }
 
-      ListNode<Task> *task = q.pop_task();
+      ListNode<Task> * task = q.pop_task();
 
       if (task == nullptr) [[unlikely]]
       {
@@ -454,7 +462,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
       Flex const flex = Task::node_flex(task->v.frame_layout);
 
-      u8 *frame;
+      u8 * frame;
 
       flex.unpack(task, task, frame);
 
@@ -483,7 +491,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
     // run loop done. purge pending tasks
     while (true)
     {
-      ListNode<Task> *task = q.pop_task();
+      ListNode<Task> * task = q.pop_task();
 
       if (task == nullptr)
       {
@@ -494,7 +502,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
     }
   }
 
-  static void main_thread_loop(TaskAllocator &a, TaskQueue &q,
+  static void main_thread_loop(TaskAllocator & a, TaskQueue & q,
                                nanoseconds grace_period, nanoseconds duration)
   {
     steady_clock::time_point const begin = steady_clock::now();
@@ -508,7 +516,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
         break;
       }
 
-      ListNode<Task> *task = q.pop_task();
+      ListNode<Task> * task = q.pop_task();
 
       if (task == nullptr) [[unlikely]]
       {
@@ -527,7 +535,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
       Flex const flex = Task::node_flex(task->v.frame_layout);
 
-      u8 *frame;
+      u8 * frame;
 
       flex.unpack(task, task, frame);
 
@@ -561,20 +569,20 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
     return worker_threads.size32();
   }
 
-  virtual void schedule_dedicated(TaskInfo const &info, u32 thread) override
+  virtual void schedule_dedicated(TaskInfo const & info, u32 thread) override
   {
     CHECK_DESC(thread < dedicated_threads.size32(),
                "Invalid dedicated thread ID");
-    TaskThread &t = dedicated_threads[thread];
+    TaskThread & t = dedicated_threads[thread];
     t.queue.push_task(info);
   }
 
-  virtual void schedule_worker(TaskInfo const &info) override
+  virtual void schedule_worker(TaskInfo const & info) override
   {
     worker_queue.push_task(info);
   }
 
-  virtual void schedule_main(TaskInfo const &info) override
+  virtual void schedule_main(TaskInfo const & info) override
   {
     main_queue.push_task(info);
   }
@@ -586,7 +594,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
   }
 };
 
-ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler *scheduler = nullptr;
+ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler * scheduler = nullptr;
 
 void Scheduler::init(AllocatorImpl allocator, std::thread::id main_thread_id,
                      Span<nanoseconds const> dedicated_thread_sleep,
@@ -602,34 +610,34 @@ void Scheduler::init(AllocatorImpl allocator, std::thread::id main_thread_id,
 
   alignas(SchedulerImpl) static u8 storage[sizeof(SchedulerImpl)];
 
-  SchedulerImpl *impl = new (storage) SchedulerImpl{allocator, main_thread_id};
+  SchedulerImpl * impl = new (storage) SchedulerImpl{allocator, main_thread_id};
 
   u32 const num_dedicated_threads = dedicated_thread_sleep.size32();
   u32 const num_worker_threads    = worker_thread_sleep.size32();
 
   impl->dedicated_threads =
-      pin_vec<TaskThread>(allocator, num_dedicated_threads).unwrap();
+      pin_vec<TaskThread>(num_dedicated_threads, allocator).unwrap();
 
   impl->worker_threads =
-      pin_vec<TaskThread>(allocator, num_worker_threads).unwrap();
+      pin_vec<TaskThread>(num_worker_threads, allocator).unwrap();
 
   for (u32 i = 0; i < num_dedicated_threads; i++)
   {
     impl->dedicated_threads.push(allocator, dedicated_thread_sleep[i]).unwrap();
-    TaskThread &t = impl->dedicated_threads[i];
-    t.thread      = std::thread{[&t] {
+    TaskThread & t = impl->dedicated_threads[i];
+    t.thread       = std::thread{[&t] {
       SchedulerImpl::thread_loop(t.queue.allocator, t.queue, t.stop_token,
-                                      t.max_sleep);
+                                       t.max_sleep);
     }};
   }
 
   for (u32 i = 0; i < num_worker_threads; i++)
   {
     impl->worker_threads.push(allocator, worker_thread_sleep[i]).unwrap();
-    TaskThread &t = impl->worker_threads[i];
-    t.thread      = std::thread{[&t, impl] {
+    TaskThread & t = impl->worker_threads[i];
+    t.thread       = std::thread{[&t, impl] {
       SchedulerImpl::thread_loop(impl->worker_queue.allocator,
-                                      impl->worker_queue, t.stop_token, t.max_sleep);
+                                       impl->worker_queue, t.stop_token, t.max_sleep);
     }};
   }
 

@@ -25,15 +25,15 @@ struct [[nodiscard]] Rc
 
   struct Inner
   {
-    H             handle      = {};
-    AliasCount   *alias_count = nullptr;
+    H             handle{};
+    AliasCount *  alias_count = nullptr;
     AllocatorImpl allocator   = {};
     Uninit        uninit      = noop;
   };
 
   Inner inner{};
 
-  constexpr Rc(H handle, AliasCount &alias_count, AllocatorImpl allocator,
+  constexpr Rc(H handle, AliasCount & alias_count, AllocatorImpl allocator,
                Uninit uninit) :
       inner{.handle      = handle,
             .alias_count = &alias_count,
@@ -46,14 +46,14 @@ struct [[nodiscard]] Rc
 
   constexpr Rc(Rc const &) = delete;
 
-  constexpr Rc &operator=(Rc const &) = delete;
+  constexpr Rc & operator=(Rc const &) = delete;
 
-  constexpr Rc(Rc &&other) : inner{other.inner}
+  constexpr Rc(Rc && other) : inner{other.inner}
   {
     other.inner = Inner{};
   }
 
-  constexpr Rc &operator=(Rc &&other)
+  constexpr Rc & operator=(Rc && other)
   {
     if (this == &other) [[unlikely]]
     {
@@ -61,7 +61,7 @@ struct [[nodiscard]] Rc
     }
 
     uninit();
-    new (this) Rc{(Rc &&) other};
+    new (this) Rc{static_cast<Rc &&>(other)};
     return *this;
   }
 
@@ -116,7 +116,7 @@ struct [[nodiscard]] Rc
   }
 
   template <typename... Args>
-  constexpr decltype(auto) operator()(Args &&...args) const
+  constexpr decltype(auto) operator()(Args &&... args) const
   {
     return inner.handle(forward<Args>(args)...);
   }
@@ -134,29 +134,49 @@ struct AliasCounted : AliasCount
 };
 
 template <typename T, typename... Args>
-Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator, Args &&...args)
+constexpr Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator,
+                                           Args &&... args)
 {
-  AliasCounted<T> *object;
+  AliasCounted<T> * object;
 
   if (!allocator.nalloc(1, object))
   {
     return Err{Void{}};
   }
 
-  new (object) AliasCounted<T>{.data{((Args &&) args)...}};
+  new (object) AliasCounted<T>{.data{static_cast<Args &&>(args)...}};
 
   return Ok{
-      Rc<T *>{&object->data, *object, allocator,
-              fn(object, [](AliasCounted<T> *object, AllocatorImpl allocator) {
+      Rc<T *>{
+              &object->data, *object, allocator,
+              fn(
+              object, +[](AliasCounted<T> * object, AllocatorImpl allocator) {
                 object->~AliasCounted<T>();
                 allocator.ndealloc(object, 1);
-              })}};
+              })}
+  };
 }
 
 template <typename T>
-Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T object)
+constexpr Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T object)
 {
-  return rc_inplace<T>(allocator, (T &&) object);
+  return rc_inplace<T>(allocator, static_cast<T &&>(object));
+}
+
+template <typename Base, typename H>
+constexpr Rc<H> transmute(Rc<Base> && base, H handle)
+{
+  Rc<H> t{static_cast<H &&>(handle, base.inner.allocator, base.inner.uninit)};
+  base.inner.handle    = {};
+  base.inner.allocator = noop_allocator;
+  base.inner.uninit    = noop;
+  return t;
+}
+
+template <typename To, typename From>
+constexpr Rc<To> cast(Rc<From> && from)
+{
+  return transmute((Rc<From> &&) from, static_cast<To>(from.get()));
 }
 
 }        // namespace ash

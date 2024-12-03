@@ -28,6 +28,7 @@ struct TextHighlight
 /// - manages and checks for text layout invalidation
 /// - recalculate text layout when it changes if necessary
 /// - renders the text using the computed style information
+/// @param runs  Run-End encoded sequences of the runs
 struct RenderText
 {
   struct
@@ -37,7 +38,7 @@ struct RenderText
     bool               use_ligatures = true;
     TextDirection      direction     = TextDirection::LeftToRight;
     f32                alignment     = -1;
-    Vec<u32>           text          = {};
+    Vec<c32>           text          = {};
     Vec<u32>           runs          = {};
     Vec<TextStyle>     styles        = {};
     Vec<FontStyle>     fonts         = {};
@@ -52,8 +53,8 @@ struct RenderText
     /// @param count range of the number of codepoints to be patched
     /// @param style font style to be applied
     /// @param font font configuration to be applied
-    void style(u32 first, u32 count, TextStyle const &style,
-               FontStyle const &font)
+    void style(TextStyle const & style, FontStyle const & font, u32 first = 0,
+               u32 count = U32_MAX)
     {
       if (count == 0)
       {
@@ -71,29 +72,25 @@ struct RenderText
 
       u32 const end = sat_add(first, count);
 
-      // if this becomes a bottleneck, might be improvable by using a binary
-      // search. although more complex.
-      u32 first_run       = 0;
-      u32 first_run_begin = 0;
+      // [ ] use find upper bound instead
+
+      u32 first_run = 0;
       for (; first_run < runs.size32(); first_run++)
       {
         if (runs[first_run] > first)
         {
           break;
         }
-        first_run_begin = runs[first_run];
       }
 
       /// should never happen since there's always a U32_MAX run end
       CHECK(first_run < runs.size32());
 
-      u32 last_run     = first_run;
-      u32 last_run_end = 0;
+      u32 last_run = first_run;
 
       for (; last_run < runs.size32(); last_run++)
       {
-        last_run_end = runs[last_run];
-        if (last_run_end >= end)
+        if (runs[last_run] >= end)
         {
           break;
         }
@@ -102,9 +99,13 @@ struct RenderText
       /// should never happen since there's always a U32_MAX run end
       CHECK(last_run < runs.size32());
 
+      u32 const first_run_begin = (first_run == 0) ? 0 : runs[first_run - 1];
+      u32 const last_run_end    = runs[last_run];
+
       /// run merging
 
       /// merge middle
+
       if (last_run > (first_run + 1))
       {
         u32 const first_erase = first_run + 1;
@@ -140,7 +141,12 @@ struct RenderText
       (void) last_run;
 
       /// run splitting
-      if (!(first_run_begin == first && last_run_end == end))
+      if (first_run_begin == first && last_run_end == end)
+      {
+        styles[first_run] = style;
+        fonts[first_run]  = font;
+      }
+      else
       {
         if (first_run_begin == first)
         {
@@ -179,7 +185,7 @@ struct RenderText
     inner.dirty = true;
   }
 
-  void highlight(TextHighlight const &highlight)
+  void highlight(TextHighlight const & highlight)
   {
     inner.highlights.push(highlight).unwrap();
   }
@@ -219,53 +225,53 @@ struct RenderText
     flush_text();
   }
 
-  Span<u32 const> get_text() const
+  Span<c32 const> get_text() const
   {
-    return span(inner.text);
+    return inner.text;
   }
 
-  void set_text(Span<u32 const> utf32, TextStyle const &style,
-                FontStyle const &font)
+  void set_text(Span<c32 const> utf32, TextStyle const & style,
+                FontStyle const & font)
   {
     set_text(utf32);
-    inner.style(0, U32_MAX, style, font);
+    inner.style(style, font);
     flush_text();
   }
 
-  void set_text(Span<u32 const> utf32)
+  void set_text(Span<c32 const> utf32)
   {
     inner.text.clear();
-    inner.text.extend_copy(utf32).unwrap();
+    inner.text.extend(utf32).unwrap();
     flush_text();
   }
 
-  void set_text(Span<u8 const> utf8, TextStyle const &style,
-                FontStyle const &font)
+  void set_text(Span<c8 const> utf8, TextStyle const & style,
+                FontStyle const & font)
   {
-    inner.style(0, U32_MAX, style, font);
+    inner.style(style, font);
     set_text(utf8);
     flush_text();
   }
 
-  void set_text(Span<u8 const> utf8)
+  void set_text(Span<c8 const> utf8)
   {
     inner.text.clear();
     utf8_decode(utf8, inner.text).unwrap();
     flush_text();
   }
 
-  void style(u32 first, u32 count, TextStyle const &style,
-             FontStyle const &font)
+  void style(TextStyle const & style, FontStyle const & font, u32 first = 0,
+             u32 count = U32_MAX)
   {
-    inner.style(first, count, style, font);
+    inner.style(style, font, first, count);
     flush_text();
   }
 
   TextBlock block() const
   {
-    return TextBlock{.text          = span(inner.text),
-                     .runs          = span(inner.runs),
-                     .fonts         = span(inner.fonts),
+    return TextBlock{.text          = inner.text,
+                     .runs          = inner.runs,
+                     .fonts         = inner.fonts,
                      .direction     = inner.direction,
                      .language      = inner.language,
                      .use_kerning   = inner.use_kerning,
@@ -274,12 +280,12 @@ struct RenderText
 
   TextBlockStyle block_style(f32 aligned_width) const
   {
-    return TextBlockStyle{.runs        = span(inner.styles),
+    return TextBlockStyle{.runs        = inner.styles,
                           .alignment   = inner.alignment,
                           .align_width = aligned_width};
   }
 
-  void calculate_layout(f32 max_width)
+  void layout(f32 max_width)
   {
     if (!inner.dirty && max_width == inner.layout.extent.x)
     {
@@ -289,7 +295,7 @@ struct RenderText
     layout_text(block(), max_width, inner.layout);
   }
 
-  void render(Canvas &canvas, CRect const &region, CRect const &clip,
+  void render(Canvas & canvas, CRect const & region, CRect const & clip,
               f32 zoom) const
   {
     (void) zoom;

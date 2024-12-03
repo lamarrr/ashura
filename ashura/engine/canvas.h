@@ -18,67 +18,67 @@ namespace ash
 namespace path
 {
 
-void rect(Vec<Vec2> &vtx);
+void rect(Vec<Vec2> & vtx);
 
 /// @brief generate vertices for an arc
 /// @param segments upper bound on the number of segments to divide the arc
 /// into
 /// @param start start angle
 /// @param stop stop angle
-void arc(Vec<Vec2> &vtx, f32 start, f32 stop, u32 segments);
+void arc(Vec<Vec2> & vtx, f32 start, f32 stop, u32 segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
-void circle(Vec<Vec2> &vtx, u32 segments);
+void circle(Vec<Vec2> & vtx, u32 segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param degree number of degrees of the super-ellipse
-void squircle(Vec<Vec2> &vtx, f32 degree, u32 segments);
+void squircle(Vec<Vec2> & vtx, f32 degree, u32 segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param corner_radii border radius of each corner
-void rrect(Vec<Vec2> &vtx, Vec4 corner_radii, u32 segments);
+void rrect(Vec<Vec2> & vtx, Vec4 corner_radii, u32 segments);
 
 /// @brief generate vertices of a bevel rect
 /// @param vtx
 /// @param slants each component represents the relative distance from the
 /// corners of each bevel
-void brect(Vec<Vec2> &vtx, Vec4 slants);
+void brect(Vec<Vec2> & vtx, Vec4 slants);
 
 /// @brief generate vertices for a quadratic bezier curve
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-2] control points
-void bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments);
+void bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments);
 
 /// @brief generate vertices for a quadratic bezier curve
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-3] control points
-void cubic_bezier(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
+void cubic_bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
                   u32 segments);
 
 /// @brief generate a catmull rom spline
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-3] control points
-void catmull_rom(Vec<Vec2> &vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
+void catmull_rom(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
                  u32 segments);
 
 /// @brief triangulate a stroke path, given the vertices for its points
-void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> &vtx, Vec<u32> &idx,
-                        f32 thickness);
+void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vtx,
+                        Vec<u32> & idx, f32 thickness);
 
 /// @brief generate indices for a triangle list
-void triangles(u32 first_vertex, u32 num_vertices, Vec<u32> &idx);
+void triangles(u32 first_vertex, u32 num_vertices, Vec<u32> & idx);
 
 /// @brief generate vertices for a quadratic bezier curve
-void triangulate_convex(Vec<u32> &idx, u32 first_vertex, u32 num_vertices);
+void triangulate_convex(Vec<u32> & idx, u32 first_vertex, u32 num_vertices);
 
 };        // namespace path
 
@@ -112,9 +112,9 @@ struct ShapeInfo
 
   Vec4 corner_radii = {0, 0, 0, 0};
 
-  f32 stroke = 0.0f;
+  f32 stroke = 0.0F;
 
-  f32 thickness = 1.0f;
+  f32 thickness = 1.0F;
 
   ColorGradient tint = {};
 
@@ -122,26 +122,29 @@ struct ShapeInfo
 
   u32 texture = 0;
 
-  Vec2 uv[2] = {{0, 0}, {1, 1}};
+  Vec2 uv[2] = {
+      {0, 0},
+      {1, 1}
+  };
 
   f32 tiling = 1;
 
-  f32 edge_smoothness = 0.0015F;
+  f32 edge_smoothness = 0.015F;
 };
 
 struct Canvas
 {
   struct RenderContext
   {
-    Canvas              &canvas;
-    GpuContext          &gpu;
-    PassContext         &passes;
-    RenderTarget const  &rt;
-    gpu::CommandEncoder &enc;
-    SSBO const          &rrects;
-    SSBO const          &ngons;
-    SSBO const          &ngon_vertices;
-    SSBO const          &ngon_indices;
+    Canvas &              canvas;
+    GpuContext &          gpu;
+    PassContext &         passes;
+    RenderTarget const &  rt;
+    gpu::CommandEncoder & enc;
+    SSBO const &          rrects;
+    SSBO const &          ngons;
+    SSBO const &          ngon_vertices;
+    SSBO const &          ngon_indices;
   };
 
   enum class BatchType : u8
@@ -154,7 +157,10 @@ struct Canvas
   struct Batch
   {
     BatchType type = BatchType::None;
-    CRect   clip{.center{F32_MAX / 2, F32_MAX / 2}, .extent{F32_MAX, F32_MAX}};
+    CRect     clip{
+            .center{F32_MAX / 2, F32_MAX / 2},
+            .extent{F32_MAX,     F32_MAX    }
+    };
     Slice32 objects{};
   };
 
@@ -174,8 +180,10 @@ struct Canvas
 
   Mat4 world_to_view = Mat4::identity();
 
-  CRect current_clip{.center{F32_MAX / 2, F32_MAX / 2},
-                     .extent{F32_MAX, F32_MAX}};
+  CRect current_clip{
+      .center{F32_MAX / 2, F32_MAX / 2},
+      .extent{F32_MAX,     F32_MAX    }
+  };
 
   Vec<RRectParam> rrect_params;
 
@@ -206,36 +214,36 @@ struct Canvas
   {
   }
 
-  Canvas(Canvas const &)            = delete;
-  Canvas(Canvas &&)                 = default;
-  Canvas &operator=(Canvas const &) = delete;
-  Canvas &operator=(Canvas &&)      = default;
-  ~Canvas()                         = default;
+  Canvas(Canvas const &)             = delete;
+  Canvas(Canvas &&)                  = default;
+  Canvas & operator=(Canvas const &) = delete;
+  Canvas & operator=(Canvas &&)      = default;
+  ~Canvas()                          = default;
 
-  Canvas &begin_recording(Vec2 viewport_extent);
+  Canvas & begin_recording(Vec2 viewport_extent, Vec2U surface_extent);
 
-  Canvas &end_recording();
+  Canvas & end_recording();
 
-  Canvas &reset();
+  Canvas & reset();
 
-  Canvas &clip(CRect const &area);
+  Canvas & clip(CRect const & area);
 
   /// @brief render a circle
-  Canvas &circle(ShapeInfo const &info);
+  Canvas & circle(ShapeInfo const & info);
 
   /// @brief render a rectangle
-  Canvas &rect(ShapeInfo const &info);
+  Canvas & rect(ShapeInfo const & info);
 
   /// @brief render a rounded rectangle
-  Canvas &rrect(ShapeInfo const &info);
+  Canvas & rrect(ShapeInfo const & info);
 
   /// @brief render a beveled rectangle
-  Canvas &brect(ShapeInfo const &info);
+  Canvas & brect(ShapeInfo const & info);
 
   /// @brief render a squircle (triangulation based)
   /// @param num_segments an upper bound on the number of segments to
   /// @param degree
-  Canvas &squircle(ShapeInfo const &info, f32 degree, u32 segments);
+  Canvas & squircle(ShapeInfo const & info, f32 degree, u32 segments);
 
   /// @brief
   ///
@@ -258,8 +266,8 @@ struct Canvas
   /// @param info
   /// @param mode
   /// @param uvs
-  Canvas &nine_slice(ShapeInfo const &info, ScaleMode mode,
-                     Span<Vec4 const> uvs);
+  Canvas & nine_slice(ShapeInfo const & info, ScaleMode mode,
+                      Span<Vec4 const> uvs);
 
   /// @brief Render text using font atlases
   /// @param info only info.center, info.transform, info.tiling, and
@@ -270,49 +278,46 @@ struct Canvas
   /// alignment of the block
   /// @param atlases font atlases
   /// @param clip clip rect for culling draw commands of the text block
-  Canvas &text(ShapeInfo const &info, TextBlock const &block,
-               TextLayout const &layout, TextBlockStyle const &style,
-               CRect const &clip = {{F32_MAX / 2, F32_MAX / 2},
-                                    {F32_MAX, F32_MAX}});
+  Canvas & text(ShapeInfo const & info, TextBlock const & block,
+                TextLayout const & layout, TextBlockStyle const & style,
+                CRect const & clip = {
+                    {F32_MAX / 2, F32_MAX / 2},
+                    {F32_MAX,     F32_MAX    }
+  });
 
   /// @brief Render Non-Indexed Triangles
-  Canvas &triangles(ShapeInfo const &info, Span<Vec2 const> vertices);
+  Canvas & triangles(ShapeInfo const & info, Span<Vec2 const> vertices);
 
   /// @brief Render Indexed Triangles
-  Canvas &triangles(ShapeInfo const &info, Span<Vec2 const> vertices,
-                    Span<u32 const> indices);
+  Canvas & triangles(ShapeInfo const & info, Span<Vec2 const> vertices,
+                     Span<u32 const> indices);
 
   /// @brief triangulate and render line
-  Canvas &line(ShapeInfo const &info, Span<Vec2 const> vertices);
+  Canvas & line(ShapeInfo const & info, Span<Vec2 const> vertices);
 
   /// @brief perform a Canvas-space blur
   /// @param area region in the canvas to apply the blur to
   /// @param num_passes number of blur passes to execute, higher values result
   /// in blurrier results
-  Canvas &blur(CRect const &area, u32 num_passes);
+  Canvas & blur(CRect const & area, u32 num_passes);
 
   /// @brief register a custom canvas pass to be executed in the render thread
-  Canvas &add_pass(Pass &&pass);
+  Canvas & add_pass(Pass && pass);
 
   template <typename Lambda>
-  Canvas &add_pass(Span<char const> name, Lambda &&task)
+  Canvas & add_pass(Span<char const> name, Lambda && task)
   {
     // relocate lambda to heap
     Dyn<Lambda *> lambda =
-        dyn(frame_arena.to_allocator(), (Lambda &&) task).unwrap();
+        dyn(frame_arena.to_allocator(), static_cast<Lambda &&>(task)).unwrap();
     // allocator is noop-ed but destructor still runs when the dynamic object is
     // uninitialized. the memory is freed by at the end of the frame anyway so
     // no need to free it
     lambda.inner.allocator = noop_allocator;
 
-    return add_pass(Pass{
-        .name = name, .task = transmute(std::move(lambda), fn(lambda.get()))});
+    return add_pass(
+        Pass{.name = name, .task = transmute(std::move(lambda), fn(*lambda))});
   }
 };
 
 }        // namespace ash
-
-// we are trying to batch together related render params/commands belonging to
-// the same pipeline
-//
-//

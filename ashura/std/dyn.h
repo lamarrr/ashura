@@ -15,7 +15,7 @@ struct [[nodiscard]] Dyn
 
   struct Inner
   {
-    H             handle    = {};
+    H             handle{};
     AllocatorImpl allocator = {};
     Uninit        uninit    = noop;
   };
@@ -31,14 +31,14 @@ struct [[nodiscard]] Dyn
 
   constexpr Dyn(Dyn const &) = delete;
 
-  constexpr Dyn &operator=(Dyn const &) = delete;
+  constexpr Dyn & operator=(Dyn const &) = delete;
 
-  constexpr Dyn(Dyn &&other) : inner{other.inner}
+  constexpr Dyn(Dyn && other) : inner{other.inner}
   {
     other.inner = Inner{};
   }
 
-  constexpr Dyn &operator=(Dyn &&other)
+  constexpr Dyn & operator=(Dyn && other)
   {
     if (this == &other) [[unlikely]]
     {
@@ -46,7 +46,7 @@ struct [[nodiscard]] Dyn
     }
 
     uninit();
-    new (this) Dyn{(Dyn &&) other};
+    new (this) Dyn{static_cast<Dyn &&>(other)};
     return *this;
   }
 
@@ -77,7 +77,7 @@ struct [[nodiscard]] Dyn
   }
 
   template <typename... Args>
-  constexpr decltype(auto) operator()(Args &&...args) const
+  constexpr decltype(auto) operator()(Args &&... args) const
   {
     return inner.handle(static_cast<Args>(args)...);
   }
@@ -89,37 +89,48 @@ struct [[nodiscard]] Dyn
 };
 
 template <typename T, typename... Args>
-Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator, Args &&...args)
+constexpr Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator,
+                                             Args &&... args)
 {
-  T *object;
+  T * object;
   if (!allocator.nalloc(1, object)) [[unlikely]]
   {
     return Err{Void{}};
   }
 
-  new (object) T{((Args &&) args)...};
+  new (object) T{static_cast<Args &&>(args)...};
 
-  return Ok{Dyn<T *>{object, allocator,
-                     fn(object, [](T *object, AllocatorImpl allocator) {
-                       object->~T();
-                       allocator.ndealloc(object, 1);
-                     })}};
+  return Ok{
+      Dyn<T *>{object, allocator,
+               fn(
+                   object, +[](T * object, AllocatorImpl allocator) {
+                     object->~T();
+                     allocator.ndealloc(object, 1);
+                   })}
+  };
 }
 
 template <typename T>
-Result<Dyn<T *>, Void> dyn(AllocatorImpl allocator, T object)
+constexpr Result<Dyn<T *>, Void> dyn(AllocatorImpl allocator, T object)
 {
-  return dyn_inplace<T>(allocator, (T &&) object);
+  return dyn_inplace<T>(allocator, static_cast<T &&>(object));
 }
 
 template <typename Base, typename H>
-Dyn<H> transmute(Dyn<Base> &&base, H handle)
+constexpr Dyn<H> transmute(Dyn<Base> && base, H handle)
 {
-  Dyn<H> t{(H &&) handle, base.inner.allocator, base.inner.uninit};
+  Dyn<H> t{static_cast<H &&>(handle), base.inner.allocator, base.inner.uninit};
   base.inner.handle    = {};
   base.inner.allocator = noop_allocator;
   base.inner.uninit    = noop;
   return t;
+}
+
+template <typename To, typename From>
+constexpr Dyn<To> cast(Dyn<From> && from)
+{
+  return transmute(static_cast<Dyn<From> &&>(from),
+                   static_cast<To>(from.get()));
 }
 
 }        // namespace ash

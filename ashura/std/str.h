@@ -11,7 +11,7 @@ namespace str
 
 template <typename C>
 Result<> join(Span<Span<C const> const> strings, Span<C const> delimiter,
-              Vec<C> &out)
+              Vec<C> & out)
 {
   if (strings.size() == 0)
   {
@@ -22,14 +22,14 @@ Result<> join(Span<Span<C const> const> strings, Span<C const> delimiter,
 
   for (usize i = 0; i < (strings.size() - 1); i++)
   {
-    if (!out.extend_copy(strings[i]) || !out.extend_copy(delimiter))
+    if (!out.extend(strings[i]) || !out.extend(delimiter))
     {
       out.resize_uninit(initial_size).unwrap();
       return Err{};
     }
   }
 
-  if (!out.extend_copy(strings[strings.size() - 1]))
+  if (!out.extend(strings.last()))
   {
     out.resize_uninit(initial_size).unwrap();
     return Err{};

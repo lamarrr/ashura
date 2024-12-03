@@ -54,27 +54,29 @@ struct [[nodiscard]] Result
     }
   }
 
-  constexpr Result(Ok<T> ok) : is_ok_{true}, value_{(T &&) ok.value}
+  constexpr Result(Ok<T> ok) : is_ok_{true}, value_{static_cast<T &&>(ok.value)}
   {
   }
 
-  constexpr Result(Err<E> err) : is_ok_{false}, err_{(E &&) err.value}
+  constexpr Result(Err<E> err) :
+      is_ok_{false},
+      err_{static_cast<E &&>(err.value)}
   {
   }
 
-  constexpr Result(Result &&other) : is_ok_{other.is_ok_}
+  constexpr Result(Result && other) : is_ok_{other.is_ok_}
   {
     if (other.is_ok_)
     {
-      new (&value_) T{(T &&) other.value_};
+      new (&value_) T{static_cast<T &&>(other.value_)};
     }
     else
     {
-      new (&err_) E{(E &&) other.err_};
+      new (&err_) E{static_cast<E &&>(other.err_)};
     }
   }
 
-  constexpr Result &operator=(Result &&other)
+  constexpr Result & operator=(Result && other)
   {
     if (this == &other) [[unlikely]]
     {
@@ -94,17 +96,17 @@ struct [[nodiscard]] Result
 
     if (other.is_ok_)
     {
-      new (&value_) T{(T &&) other.value_};
+      new (&value_) T{static_cast<T &&>(other.value_)};
     }
     else
     {
-      new (&err_) E{(E &&) other.err_};
+      new (&err_) E{static_cast<E &&>(other.err_)};
     }
 
     return *this;
   }
 
-  constexpr Result &operator=(Ok<T> other)
+  constexpr Result & operator=(Ok<T> other)
   {
     if (is_ok_)
     {
@@ -116,11 +118,11 @@ struct [[nodiscard]] Result
     }
 
     is_ok_ = true;
-    new (&value_) T{(T &&) other.value};
+    new (&value_) T{static_cast<T &&>(other.value)};
     return *this;
   }
 
-  constexpr Result &operator=(Err<T> other)
+  constexpr Result & operator=(Err<T> other)
   {
     if (is_ok_)
     {
@@ -132,11 +134,11 @@ struct [[nodiscard]] Result
     }
 
     is_ok_ = false;
-    new (&err_) E{(E &&) other.value};
+    new (&err_) E{static_cast<E &&>(other.value)};
     return *this;
   }
 
-  constexpr Result(Result const &other) : is_ok_{other.is_ok_}
+  constexpr Result(Result const & other) : is_ok_{other.is_ok_}
   {
     if (other.is_ok_)
     {
@@ -148,7 +150,7 @@ struct [[nodiscard]] Result
     }
   }
 
-  constexpr Result &operator=(Result const &other)
+  constexpr Result & operator=(Result const & other)
   {
     if (this == &other) [[unlikely]]
     {
@@ -194,7 +196,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename U>
-  [[nodiscard]] constexpr bool contains(U const &cmp) const
+  [[nodiscard]] constexpr bool contains(U const & cmp) const
   {
     if (is_ok_)
     {
@@ -204,7 +206,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename F>
-  [[nodiscard]] constexpr bool contains_err(F const &cmp) const
+  [[nodiscard]] constexpr bool contains_err(F const & cmp) const
   {
     if (is_ok_)
     {
@@ -213,33 +215,34 @@ struct [[nodiscard]] Result
     return err_ == cmp;
   }
 
-  constexpr T &value(SourceLocation loc = SourceLocation::current())
+  constexpr T & value(SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, is_ok_, ".value() called on Result with Err = ", err_);
     return value_;
   }
 
-  constexpr T const &value(SourceLocation loc = SourceLocation::current()) const
+  constexpr T const &
+      value(SourceLocation loc = SourceLocation::current()) const
   {
     CHECK_DESC_SRC(loc, is_ok_, ".value() called on Result with Err = ", err_);
     return value_;
   }
 
-  constexpr E &err(SourceLocation loc = SourceLocation::current())
+  constexpr E & err(SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, !is_ok_,
                    ".err() called on Result with Value = ", value_);
     return err_;
   }
 
-  constexpr E const &err(SourceLocation loc = SourceLocation::current()) const
+  constexpr E const & err(SourceLocation loc = SourceLocation::current()) const
   {
     CHECK_DESC_SRC(loc, !is_ok_,
                    ".err() called on Result with Value = ", value_);
     return err_;
   }
 
-  constexpr Result<T const *, E const *> as_ref() const
+  constexpr Result<T const *, E const *> as_ptr() const
   {
     if (is_ok_)
     {
@@ -248,7 +251,7 @@ struct [[nodiscard]] Result
     return Err{&err_};
   }
 
-  constexpr Result<T *, E *> as_ref()
+  constexpr Result<T *, E *> as_ptr()
   {
     if (is_ok_)
     {
@@ -258,108 +261,108 @@ struct [[nodiscard]] Result
   }
 
   template <typename Fn>
-  constexpr auto map(Fn &&op)
+  constexpr auto map(Fn && op)
   {
-    using U = decltype(((Fn &&) op)(value_));
+    using U = decltype(static_cast<Fn &&>(op)(value_));
     if (is_ok_)
     {
-      return Result<U, E>{Ok<U>{((Fn &&) op)(value_)}};
+      return Result<U, E>{Ok<U>{static_cast<Fn &&>(op)(value_)}};
     }
     return Result<U, E>{Err{err_}};
   }
 
   template <typename Fn, typename U>
-  constexpr auto map_or(Fn &&op, U &&alt)
+  constexpr auto map_or(Fn && op, U && alt)
   {
     if (is_ok_)
     {
-      return ((Fn &&) op)(value_);
+      return static_cast<Fn &&>(op)(value_);
     }
-    return (U &&) alt;
+    return static_cast<U &&>(alt);
   }
 
   template <typename Fn, typename AltFn>
-  constexpr auto map_or_else(Fn &&op, AltFn &&alt_op)
+  constexpr decltype(auto) map_or_else(Fn && op, AltFn && alt_op)
   {
     if (is_ok_)
     {
-      return ((Fn &&) op)(value_);
+      return static_cast<Fn &&>(op)(value_);
     }
-    return ((AltFn &&) alt_op)(err_);
+    return static_cast<AltFn &&>(alt_op)(err_);
   }
 
   template <typename Fn>
-  constexpr auto and_then(Fn &&op)
+  constexpr auto and_then(Fn && op)
   {
-    using OutResult = decltype(((Fn &&) op)(value_));
+    using OutResult = decltype(static_cast<Fn &&>(op)(value_));
     if (is_ok_)
     {
-      return ((Fn &&) op)(value_);
+      return static_cast<Fn &&>(op)(value_);
     }
     return OutResult{Err{err_}};
   }
 
   template <typename Fn>
-  constexpr auto or_else(Fn &&op)
+  constexpr auto or_else(Fn && op)
   {
-    using OutResult = decltype(((Fn &&) op)(err_));
+    using OutResult = decltype(static_cast<Fn &&>(op)(err_));
     if (is_ok_)
     {
       return OutResult{Ok{value_}};
     }
-    return ((Fn &&) op)(err_);
+    return static_cast<Fn &&>(op)(err_);
   }
 
   template <typename U>
-  constexpr T unwrap_or(U &&alt)
+  constexpr T unwrap_or(U && alt)
   {
     if (is_ok_)
     {
-      return (T &&) value_;
+      return static_cast<T &&>(value_);
     }
-    return (U &&) alt;
+    return static_cast<U &&>(alt);
   }
 
   template <typename Fn>
-  constexpr T unwrap_or_else(Fn &&op)
+  constexpr T unwrap_or_else(Fn && op)
   {
     if (is_ok_)
     {
-      return (T &&) value_;
+      return static_cast<T &&>(value_);
     }
-    return ((Fn &&) op)(err_);
+    return static_cast<Fn &&>(op)(err_);
   }
 
   constexpr T unwrap(SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, is_ok_,
                    "Expected Value in Result but got Err = ", err_);
-    return (T &&) value_;
+    return static_cast<T &&>(value_);
   }
 
-  constexpr T expect(char const    *msg,
+  constexpr T expect(char const *   msg,
                      SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, is_ok_, msg, " ", err_);
-    return (T &&) value_;
+    return static_cast<T &&>(value_);
   }
 
   constexpr E unwrap_err(SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, !is_ok_,
                    "Expected Err in Result but got Value = ", value_);
-    return (E &&) err_;
+    return static_cast<E &&>(err_);
   }
 
-  constexpr E expect_err(char const    *msg,
+  constexpr E expect_err(char const *   msg,
                          SourceLocation loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, !is_ok_, msg, " ", value_);
-    return (E &&) err_;
+    return static_cast<E &&>(err_);
   }
 
   template <typename OkFn, typename ErrFn>
-  constexpr auto match(OkFn &&ok_fn, ErrFn &&err_fn)
+  constexpr decltype(auto) match(OkFn && ok_fn, ErrFn && err_fn)
   {
     if (is_ok_)
     {
@@ -369,7 +372,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename OkFn, typename ErrFn>
-  constexpr auto match(OkFn &&ok_fn, ErrFn &&err_fn) const
+  constexpr decltype(auto) match(OkFn && ok_fn, ErrFn && err_fn) const
   {
     if (is_ok_)
     {
@@ -380,31 +383,31 @@ struct [[nodiscard]] Result
 };
 
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator==(Ok<T> const &a, Ok<U> const &b)
+[[nodiscard]] constexpr bool operator==(Ok<T> const & a, Ok<U> const & b)
 {
   return a.value == b.value;
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator!=(Ok<T> const &a, Ok<U> const &b)
+[[nodiscard]] constexpr bool operator!=(Ok<T> const & a, Ok<U> const & b)
 {
   return a.value != b.value;
 }
 
 template <typename E, typename F>
-[[nodiscard]] constexpr bool operator==(Err<E> const &a, Err<F> const &b)
+[[nodiscard]] constexpr bool operator==(Err<E> const & a, Err<F> const & b)
 {
   return a.value == b.value;
 }
 
 template <typename E, typename F>
-[[nodiscard]] constexpr bool operator!=(Err<E> const &a, Err<F> const &b)
+[[nodiscard]] constexpr bool operator!=(Err<E> const & a, Err<F> const & b)
 {
   return a.value != b.value;
 }
 
 template <typename T, typename E, typename U>
-[[nodiscard]] constexpr bool operator==(Result<T, E> const &a, Ok<U> const &b)
+[[nodiscard]] constexpr bool operator==(Result<T, E> const & a, Ok<U> const & b)
 {
   if (a.is_ok_)
   {
@@ -414,7 +417,7 @@ template <typename T, typename E, typename U>
 }
 
 template <typename T, typename E, typename U>
-[[nodiscard]] constexpr bool operator!=(Result<T, E> const &a, Ok<U> const &b)
+[[nodiscard]] constexpr bool operator!=(Result<T, E> const & a, Ok<U> const & b)
 {
   if (a.is_ok_)
   {
@@ -424,7 +427,7 @@ template <typename T, typename E, typename U>
 }
 
 template <typename U, typename T, typename E>
-[[nodiscard]] constexpr bool operator==(Ok<U> const &a, Result<T, E> const &b)
+[[nodiscard]] constexpr bool operator==(Ok<U> const & a, Result<T, E> const & b)
 {
   if (b.is_ok_)
   {
@@ -434,7 +437,7 @@ template <typename U, typename T, typename E>
 }
 
 template <typename U, typename T, typename E>
-[[nodiscard]] constexpr bool operator!=(Ok<U> const &a, Result<T, E> const &b)
+[[nodiscard]] constexpr bool operator!=(Ok<U> const & a, Result<T, E> const & b)
 {
   if (b.is_ok_)
   {
@@ -444,7 +447,8 @@ template <typename U, typename T, typename E>
 }
 
 template <typename T, typename E, typename U>
-[[nodiscard]] constexpr bool operator==(Result<T, E> const &a, Err<U> const &b)
+[[nodiscard]] constexpr bool operator==(Result<T, E> const & a,
+                                        Err<U> const &       b)
 {
   if (a.is_err())
   {
@@ -454,7 +458,8 @@ template <typename T, typename E, typename U>
 }
 
 template <typename T, typename E, typename U>
-[[nodiscard]] constexpr bool operator!=(Result<T, E> const &a, Err<U> const &b)
+[[nodiscard]] constexpr bool operator!=(Result<T, E> const & a,
+                                        Err<U> const &       b)
 {
   if (a.is_err())
   {
@@ -464,7 +469,8 @@ template <typename T, typename E, typename U>
 }
 
 template <typename U, typename T, typename E>
-[[nodiscard]] constexpr bool operator==(Err<U> const &a, Result<T, E> const &b)
+[[nodiscard]] constexpr bool operator==(Err<U> const &       a,
+                                        Result<T, E> const & b)
 {
   if (b.is_err())
   {
@@ -474,7 +480,8 @@ template <typename U, typename T, typename E>
 }
 
 template <typename U, typename T, typename E>
-[[nodiscard]] constexpr bool operator!=(Err<U> const &a, Result<T, E> const &b)
+[[nodiscard]] constexpr bool operator!=(Err<U> const &       a,
+                                        Result<T, E> const & b)
 {
   if (b.is_err())
   {
@@ -484,8 +491,8 @@ template <typename U, typename T, typename E>
 }
 
 template <typename T, typename E, typename U, typename F>
-[[nodiscard]] constexpr bool operator==(Result<T, E> const &a,
-                                        Result<U, F> const &b)
+[[nodiscard]] constexpr bool operator==(Result<T, E> const & a,
+                                        Result<U, F> const & b)
 {
   if (a.is_ok_ && b.is_ok_)
   {
@@ -499,8 +506,8 @@ template <typename T, typename E, typename U, typename F>
 }
 
 template <typename T, typename E, typename U, typename F>
-[[nodiscard]] constexpr bool operator!=(Result<T, E> const &a,
-                                        Result<U, F> const &b)
+[[nodiscard]] constexpr bool operator!=(Result<T, E> const & a,
+                                        Result<U, F> const & b)
 {
   if (a.is_ok_ && b.is_ok_)
   {

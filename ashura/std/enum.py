@@ -10,20 +10,23 @@ file = open(sys.argv[1], "w", encoding="ascii")
 def out(code): return file.write(code)
 
 
-out(f"""
-/// SPDX-License-Identifier: MIT
+out(f"""/// SPDX-License-Identifier: MIT
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include <cstddef>
 #include "ashura/std/v.h"
+#include "ashura/std/error.h"
+#include "ashura/std/log.h"
+#include "ashura/std/types.h"
 
-namespace ash{{
+namespace ash
+{{
 
-static constexpr std::size_t MAX_ENUM_SIZE = {MAX_ENUM_SIZE};
+static constexpr usize MAX_ENUM_SIZE = {MAX_ENUM_SIZE};
 
 template<typename ... T>
-struct Enum{{
+struct Enum
+{{
 static_assert("Enum size exceeds MAX_ENUM_SIZE");
 }};
 """
@@ -37,19 +40,14 @@ if constexpr(I == {i})
 }}
 """ for i in range(MAX_ENUM_SIZE)]
 
-out(f"""
-template<std::size_t I, typename Enum>
-constexpr decltype(auto) enum_member(Enum& e){{
-{"else".join(member_cases)}
-}};
-""")
+ 
 
 move_constructor_cases = [f"""
 if constexpr(Dst::SIZE > {i})
 {{
 if(src->index_ == {i})
 {{
-    enum_member_construct(&dst->v{i}_, (typename Src::E{i} &&) src->v{i}_);
+    enum_member_construct(&dst->v{i}_, static_cast<typename Src::E{i} &&>(src->v{i}_));
     return;
 }}
 }}""" for i in range(0, MAX_ENUM_SIZE)]
@@ -78,10 +76,16 @@ if(e->index_ == {i})
 out(f"""
 namespace intr{{
 
+template<usize I, typename Enum>
+constexpr decltype(auto) enum_member(Enum& e)
+{{
+{"else".join(member_cases)}
+}};
+
 template<typename E, typename... Args>
 constexpr void enum_member_construct(E * e, Args&&... args )
 {{
-    new (e) E {{ ((Args&&)args)...  }};
+    new (e) E {{ static_cast<Args &&>(args)...  }};
 }}
 
 template<typename E>
@@ -147,38 +151,46 @@ for size in range(0,  MAX_ENUM_SIZE + 1):
     alias_decls = [f"typedef {t} {a};" for t, a in zip(types, aliases)]
     value_decls = [f"{t} {v};" for t, v in zip(types, values)]
 
-    index_def = ""
-    if size == 0:
-        pass
-    else:
-        index_def = f"""
-std::size_t index_;
-
-constexpr std::size_t index() const {{
-return index_;
-}}
-"""
-
-    storage_def = ""
-
-    if size == 0:
-        pass
-    else:
-        members_def = [f"T{i} v{i}_;" for i in range(0, size)]
-        storage_def = f"""
-union {{
-{"\n".join(members_def)}
-}};
-"""
+     
+    members_def = [f"T{i} v{i}_;" for i in range(0, size)]
 
     value_constructors = [f"""
 constexpr Enum(T{i} v) :
 index_{{{i}}},
-v{i}_{{(T{i} &&) v}}
+v{i}_{{static_cast<T{i} &&>(v)}}
 {{ }}
 """ for i in range(0, size)]
+ 
 
-    base_constructors = f"""
+    out(f"""
+template<{", ".join(typename_decls)}>
+struct Enum<{", ".join(types)}>
+{{
+
+{"\n".join(alias_decls)}
+
+static constexpr usize SIZE = {size};
+
+static constexpr usize size()
+{{
+    return SIZE;
+}}
+
+{
+    """
+"""
+if size == 0 else
+f"""
+usize index_;
+
+constexpr usize index() const
+{{
+    return index_;
+}}
+
+union {{
+{"\n".join(members_def)}
+}};
 
 constexpr Enum(Enum const& other)
 {{
@@ -207,34 +219,55 @@ constexpr ~Enum()
     intr::enum_destruct(this);
 }}
 
-"""
-
-    out(f"""
-template<{", ".join(typename_decls)}>
-struct Enum<{", ".join(types)}>
-{{
-
-{"\n".join(alias_decls)}
-
-static constexpr std::size_t SIZE = {size};
-
-static constexpr std::size_t size(){{
-    return SIZE;
-}}
-
-{index_def}
-{storage_def}
-{base_constructors if size != 0 else ""}
-
-template<std::size_t I, typename ...Args>
+template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {{
-    intr::enum_member_construct(&enum_member<I>(*this), ((Args&&) args)...);
+    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }}
 
 {"\n".join(value_constructors)}
-}};
 
+template<usize I> requires(I < SIZE)
+constexpr bool is()
+{{
+    return index_ == I;
+}}
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{{
+    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+    return intr::enum_member<I>(*this);
+}}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas)
+{{
+
+}}
+
+template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
+constexpr decltype(auto) match(Lambdas && ... lambdas) const
+{{
+
+}}
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
+"""
+}
+}};
     """)
 
     # deduction guides

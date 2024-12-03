@@ -1,5 +1,20 @@
-Checks: "clang-diagnostic-*,clang-analyzer-*,google-*,-google-readability-casting,readability-*,bugprone-*,-bugprone-easily-swappable-parameters,cert-*,llvm-*,-llvm-header-guard,performance-*"
+Checks: >
+  clang-diagnostic-*
+  clang-analyzer-*
+  google-*
+  -google-readability-casting
+  readability-*
+  -readability-identifier-length
+  bugprone-*
+  -bugprone-easily-swappable-parameters
+  cert-*
+  llvm-*
+  -llvm-header-guard
+  performance-*
+CheckOptions:
+  bugprone-dangling-handle.HandleClasses: >
+    std::basic_string_view
+    std::experimental::basic_string_view
 WarningsAsErrors: ""
 HeaderFilterRegex: ""
-AnalyzeTemporaryDtors: false
 FormatStyle: file

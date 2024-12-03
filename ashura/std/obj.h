@@ -9,40 +9,40 @@ namespace ash
 namespace obj
 {
 
-template <typename T>
+template <NonConst T>
 constexpr void default_construct(Span<T> dst)
 {
-  for (T *iter = dst.begin(); iter != dst.end(); iter++)
+  for (T * iter = dst.begin(); iter != dst.end(); iter++)
   {
     new (iter) T{};
   }
 }
 
-template <typename T, typename U>
-constexpr void move_construct(Span<T> src, U *dst)
+template <NonConst T, NonConst U>
+constexpr void move_construct(Span<T> src, U * dst)
 {
-  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.begin(); in != src.end(); in++, dst++)
   {
-    new (dst) T{(T &&) (*in)};
+    new (dst) T{static_cast<T &&>(*in)};
   }
 }
 
-template <typename T, typename U>
+template <NonConst T, NonConst U>
 constexpr void move_construct(Span<T> src, Span<U> dst)
 {
   move_construct(src, dst.data());
 }
 
-template <typename T, typename U>
-constexpr void copy_construct(Span<T> src, U *dst)
+template <typename T, NonConst U>
+constexpr void copy_construct(Span<T> src, U * dst)
 {
-  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.begin(); in != src.end(); in++, dst++)
   {
     new (dst) T{*in};
   }
 }
 
-template <typename T, typename U>
+template <typename T, NonConst U>
 constexpr void copy_construct(Span<T> src, Span<U> dst)
 {
   copy_construct(src, dst.data());
@@ -53,47 +53,47 @@ constexpr void destruct(Span<T> src)
 {
   if constexpr (!TriviallyDestructible<T>)
   {
-    for (T *iter = src.begin(); iter != src.end(); iter++)
+    for (T * iter = src.begin(); iter != src.end(); iter++)
     {
       iter->~T();
     }
   }
 }
 
-template <typename T, typename U>
-constexpr void move(Span<T> src, U *dst)
+template <typename T, NonConst U>
+constexpr void move_assign(Span<T> src, U * dst)
 {
-  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.begin(); in != src.end(); in++, dst++)
   {
-    *in = (T &&) (*dst);
+    *in = static_cast<T &&>(*dst);
   }
 }
 
-template <typename T, typename U>
-constexpr void move(Span<T> src, Span<U> dst)
+template <typename T, NonConst U>
+constexpr void move_assign(Span<T> src, Span<U> dst)
 {
-  move(src, dst.data());
+  move_assign(src, dst.data());
 }
 
-template <typename T, typename U>
-constexpr void copy(Span<T> src, U *dst)
+template <typename T, NonConst U>
+constexpr void copy_assign(Span<T> src, U * dst)
 {
-  for (T *in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.begin(); in != src.end(); in++, dst++)
   {
     *dst = *in;
   }
 }
 
-template <typename T, typename U>
-constexpr void copy(Span<T> src, Span<U> dst)
+template <typename T, NonConst U>
+constexpr void copy_assign(Span<T> src, Span<U> dst)
 {
-  copy(src, dst.data());
+  copy_assign(src, dst.data());
 }
 
 /// @brief move-construct object from src to an uninitialized memory range
 /// dst_mem and destroy object at src_mem, leaving src's objects uninitialized.
-template <typename T, typename U>
-constexpr void relocate(Span<T> src, U *dst)
+template <NonConst T>
+constexpr void relocate(Span<T> src, T * dst)
 {
   if constexpr (TriviallyRelocatable<T>)
   {
@@ -106,8 +106,8 @@ constexpr void relocate(Span<T> src, U *dst)
   }
 }
 
-template <typename T, typename U>
-constexpr void relocate(Span<T> src, Span<U> dst)
+template <NonConst T>
+constexpr void relocate(Span<T> src, Span<T> dst)
 {
   relocate(src, dst.data());
 }
@@ -115,8 +115,8 @@ constexpr void relocate(Span<T> src, Span<U> dst)
 /// @brief same as relocate but for non-overlapping memory placements
 ///
 /// @note src_mem and dst_mem must not be same nor overlapping.
-template <typename T, typename U>
-constexpr void relocate_non_overlapping(Span<T> src, U *dst)
+template <NonConst T>
+constexpr void relocate_non_overlapping(Span<T> src, T * dst)
 {
   if constexpr (TriviallyRelocatable<T>)
   {
@@ -129,11 +129,12 @@ constexpr void relocate_non_overlapping(Span<T> src, U *dst)
   }
 }
 
-template <typename T, typename U>
-constexpr void relocate_non_overlapping(Span<T> src, Span<U> dst)
+template <NonConst T>
+constexpr void relocate_non_overlapping(Span<T> src, Span<T> dst)
 {
   relocate_non_overlapping(src, dst.data());
 }
 
 }        // namespace obj
+
 }        // namespace ash

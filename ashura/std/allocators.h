@@ -12,28 +12,30 @@ namespace ash
 /// @param alignment actual alignment requested from allocator
 struct Arena final : Allocator
 {
-  u8 *begin;
-  u8 *end;
-  u8 *offset;
+  u8 * begin;
+  u8 * end;
+  u8 * offset;
 
   constexpr Arena() : begin{nullptr}, end{nullptr}, offset{nullptr}
   {
   }
 
-  constexpr Arena(u8 *begin, u8 *end, u8 *offset) :
-      begin{begin}, end{end}, offset{offset}
+  constexpr Arena(u8 * begin, u8 * end, u8 * offset) :
+      begin{begin},
+      end{end},
+      offset{offset}
   {
   }
 
-  constexpr Arena(u8 *begin, u8 *end) : begin{begin}, end{end}, offset{begin}
+  constexpr Arena(u8 * begin, u8 * end) : begin{begin}, end{end}, offset{begin}
   {
   }
 
-  constexpr Arena(Arena const &)            = default;
-  constexpr Arena(Arena &&)                 = default;
-  constexpr Arena &operator=(Arena const &) = default;
-  constexpr Arena &operator=(Arena &&)      = default;
-  constexpr ~Arena()                        = default;
+  constexpr Arena(Arena const &)             = default;
+  constexpr Arena(Arena &&)                  = default;
+  constexpr Arena & operator=(Arena const &) = default;
+  constexpr Arena & operator=(Arena &&)      = default;
+  constexpr ~Arena()                         = default;
 
   [[nodiscard]] constexpr usize size() const
   {
@@ -56,7 +58,7 @@ struct Arena final : Allocator
   }
 
   [[nodiscard]] virtual bool alloc(usize alignment, usize size,
-                                   u8 *&mem) override
+                                   u8 *& mem) override
   {
     if (size == 0)
     {
@@ -64,8 +66,8 @@ struct Arena final : Allocator
       return true;
     }
 
-    u8 *aligned    = align_ptr(alignment, offset);
-    u8 *new_offset = aligned + size;
+    u8 * aligned    = align_ptr(alignment, offset);
+    u8 * new_offset = aligned + size;
     if (new_offset > end)
     {
       mem = nullptr;
@@ -78,7 +80,7 @@ struct Arena final : Allocator
   }
 
   [[nodiscard]] virtual bool alloc_zeroed(usize alignment, usize size,
-                                          u8 *&mem) override
+                                          u8 *& mem) override
   {
     if (size == 0)
     {
@@ -97,7 +99,7 @@ struct Arena final : Allocator
   }
 
   [[nodiscard]] virtual bool realloc(usize alignment, usize old_size,
-                                     usize new_size, u8 *&mem) override
+                                     usize new_size, u8 *& mem) override
   {
     // if it is the last allocation, just extend the offset
     if (((mem + old_size) == offset) && ((mem + new_size) <= end))
@@ -106,7 +108,7 @@ struct Arena final : Allocator
       return true;
     }
 
-    u8 *new_mem;
+    u8 * new_mem;
 
     if (!alloc(alignment, new_size, new_mem))
     {
@@ -119,7 +121,7 @@ struct Arena final : Allocator
     return true;
   }
 
-  virtual void dealloc(usize alignment, u8 *mem, usize size) override
+  virtual void dealloc(usize alignment, u8 * mem, usize size) override
   {
     (void) alignment;
     // best-case: stack allocation, we can free memory by adjusting to the
@@ -168,23 +170,24 @@ struct ArenaPoolCfg
 struct ArenaPool final : Allocator
 {
   AllocatorImpl source        = {};
-  Arena        *arenas        = nullptr;
+  Arena *       arenas        = nullptr;
   usize         num_arenas    = 0;
   usize         current_arena = 0;
   ArenaPoolCfg  cfg           = {};
 
   ArenaPool() = default;
 
-  explicit ArenaPool(AllocatorImpl source, ArenaPoolCfg const &cfg = {}) :
-      source{source}, cfg{cfg}
+  explicit ArenaPool(AllocatorImpl source, ArenaPoolCfg const & cfg = {}) :
+      source{source},
+      cfg{cfg}
   {
   }
 
   ArenaPool(ArenaPool const &) = delete;
 
-  ArenaPool &operator=(ArenaPool const &) = delete;
+  ArenaPool & operator=(ArenaPool const &) = delete;
 
-  ArenaPool(ArenaPool &&other) :
+  ArenaPool(ArenaPool && other) :
       source{other.source},
       arenas{other.arenas},
       num_arenas{other.num_arenas},
@@ -197,14 +200,14 @@ struct ArenaPool final : Allocator
     other.current_arena = 0;
   }
 
-  ArenaPool &operator=(ArenaPool &&other)
+  ArenaPool & operator=(ArenaPool && other)
   {
     if (this == &other) [[unlikely]]
     {
       return *this;
     }
     uninit();
-    new (this) ArenaPool{(ArenaPool &&) other};
+    new (this) ArenaPool{static_cast<ArenaPool &&>(other)};
     return *this;
   }
 
@@ -274,7 +277,7 @@ struct ArenaPool final : Allocator
   }
 
   [[nodiscard]] virtual bool alloc(usize alignment, usize size,
-                                   u8 *&mem) override
+                                   u8 *& mem) override
   {
     if (size == 0)
     {
@@ -309,7 +312,7 @@ struct ArenaPool final : Allocator
       return false;
     }
 
-    u8 *arena_mem;
+    u8 * arena_mem;
 
     if (!source.alloc(cfg.arena_alignment, arena_size, arena_mem))
     {
@@ -324,7 +327,7 @@ struct ArenaPool final : Allocator
       return false;
     }
 
-    Arena *arena = new (arenas + num_arenas)
+    Arena * arena = new (arenas + num_arenas)
         Arena{arena_mem, arena_mem + arena_size, arena_mem};
 
     current_arena = num_arenas;
@@ -340,7 +343,7 @@ struct ArenaPool final : Allocator
   }
 
   [[nodiscard]] virtual bool alloc_zeroed(usize alignment, usize size,
-                                          u8 *&mem) override
+                                          u8 *& mem) override
   {
     if (!alloc(alignment, size, mem))
     {
@@ -351,7 +354,7 @@ struct ArenaPool final : Allocator
   }
 
   [[nodiscard]] virtual bool realloc(usize alignment, usize old_size,
-                                     usize new_size, u8 *&mem) override
+                                     usize new_size, u8 *& mem) override
   {
     if (new_size > cfg.max_arena_size)
     {
@@ -360,7 +363,7 @@ struct ArenaPool final : Allocator
 
     if (num_arenas != 0)
     {
-      Arena &arena = arenas[current_arena];
+      Arena & arena = arenas[current_arena];
       if (arena.offset == (mem + old_size))
       {
         // try to change the allocation if it was the last allocation
@@ -385,7 +388,7 @@ struct ArenaPool final : Allocator
       }
     }
 
-    u8 *new_mem;
+    u8 * new_mem;
     if (!alloc(alignment, new_size, new_mem))
     {
       return false;
@@ -397,7 +400,7 @@ struct ArenaPool final : Allocator
     return true;
   }
 
-  virtual void dealloc(usize alignment, u8 *mem, usize size) override
+  virtual void dealloc(usize alignment, u8 * mem, usize size) override
   {
     (void) alignment;
     if (mem == nullptr || size == 0 || num_arenas == 0)
@@ -407,7 +410,7 @@ struct ArenaPool final : Allocator
 
     // we can try to reclaim some memory, although we'd lose alignment padding.
     // best case: if is at end of arena, shrink arena.
-    Arena &arena = arenas[current_arena];
+    Arena & arena = arenas[current_arena];
     if (arena.begin == mem && arena.offset == (mem + size))
     {
       arena.reclaim();

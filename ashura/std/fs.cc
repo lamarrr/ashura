@@ -1,4 +1,3 @@
-
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/fs.h"
 #include "ashura/std/error.h"
@@ -8,13 +7,13 @@
 namespace ash
 {
 
-Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> &buff)
+Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff)
 {
   char path_c_str[MAX_PATH_SIZE + 1];
 
-  CHECK(to_c_str(path, span(path_c_str)));
+  CHECK(to_c_str(path, path_c_str));
 
-  std::FILE *file = std::fopen(path_c_str, "rb");
+  std::FILE * file = std::fopen(path_c_str, "rb");
   if (file == nullptr)
   {
     return Err{(IoErr) errno};

@@ -1,17 +1,21 @@
-
 /// SPDX-License-Identifier: MIT
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include <cstddef>
+#include "ashura/std/types.h"
+#include "ashura/std/v.h"
 
 namespace ash{
 
-static constexpr std::size_t MAX_TUPLE_SIZE = 16;
+static constexpr usize MAX_TUPLE_SIZE = 16;
 
 
-template<std::size_t I, typename Tuple>
-constexpr decltype(auto) tuple_member(Tuple& t){
+namespace intr
+{
+
+template<usize I, typename Tuple>
+constexpr decltype(auto) tuple_member(Tuple& t)
+{
 
 if constexpr(I == 0)
 {
@@ -95,8 +99,11 @@ if constexpr(I == 15)
 
 };
 
+}
+
 template<typename ... T>
-struct Tuple{
+struct Tuple
+{
 static_assert("Tuple size exceeds MAX_TUPLE_SIZE");
 };
 
@@ -106,13 +113,26 @@ struct Tuple<>
 
 
 
-static constexpr std::size_t SIZE = 0;
+static constexpr usize SIZE = 0;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -123,13 +143,26 @@ struct Tuple<T0>
 
 typedef T0 E0;
 
-static constexpr std::size_t SIZE = 1;
+static constexpr usize SIZE = 1;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 T0 v0;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -145,14 +178,27 @@ struct Tuple<T0, T1>
 typedef T0 E0;
 typedef T1 E1;
 
-static constexpr std::size_t SIZE = 2;
+static constexpr usize SIZE = 2;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 T0 v0;
 T1 v1;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -169,15 +215,28 @@ typedef T0 E0;
 typedef T1 E1;
 typedef T2 E2;
 
-static constexpr std::size_t SIZE = 3;
+static constexpr usize SIZE = 3;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
 T0 v0;
 T1 v1;
 T2 v2;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -195,9 +254,10 @@ typedef T1 E1;
 typedef T2 E2;
 typedef T3 E3;
 
-static constexpr std::size_t SIZE = 4;
+static constexpr usize SIZE = 4;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -205,6 +265,18 @@ T0 v0;
 T1 v1;
 T2 v2;
 T3 v3;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -223,9 +295,10 @@ typedef T2 E2;
 typedef T3 E3;
 typedef T4 E4;
 
-static constexpr std::size_t SIZE = 5;
+static constexpr usize SIZE = 5;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -234,6 +307,18 @@ T1 v1;
 T2 v2;
 T3 v3;
 T4 v4;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -253,9 +338,10 @@ typedef T3 E3;
 typedef T4 E4;
 typedef T5 E5;
 
-static constexpr std::size_t SIZE = 6;
+static constexpr usize SIZE = 6;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -265,6 +351,18 @@ T2 v2;
 T3 v3;
 T4 v4;
 T5 v5;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -285,9 +383,10 @@ typedef T4 E4;
 typedef T5 E5;
 typedef T6 E6;
 
-static constexpr std::size_t SIZE = 7;
+static constexpr usize SIZE = 7;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -298,6 +397,18 @@ T3 v3;
 T4 v4;
 T5 v5;
 T6 v6;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -319,9 +430,10 @@ typedef T5 E5;
 typedef T6 E6;
 typedef T7 E7;
 
-static constexpr std::size_t SIZE = 8;
+static constexpr usize SIZE = 8;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -333,6 +445,18 @@ T4 v4;
 T5 v5;
 T6 v6;
 T7 v7;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -355,9 +479,10 @@ typedef T6 E6;
 typedef T7 E7;
 typedef T8 E8;
 
-static constexpr std::size_t SIZE = 9;
+static constexpr usize SIZE = 9;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -370,6 +495,18 @@ T5 v5;
 T6 v6;
 T7 v7;
 T8 v8;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -393,9 +530,10 @@ typedef T7 E7;
 typedef T8 E8;
 typedef T9 E9;
 
-static constexpr std::size_t SIZE = 10;
+static constexpr usize SIZE = 10;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -409,6 +547,18 @@ T6 v6;
 T7 v7;
 T8 v8;
 T9 v9;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -433,9 +583,10 @@ typedef T8 E8;
 typedef T9 E9;
 typedef T10 E10;
 
-static constexpr std::size_t SIZE = 11;
+static constexpr usize SIZE = 11;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -450,6 +601,18 @@ T7 v7;
 T8 v8;
 T9 v9;
 T10 v10;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -475,9 +638,10 @@ typedef T9 E9;
 typedef T10 E10;
 typedef T11 E11;
 
-static constexpr std::size_t SIZE = 12;
+static constexpr usize SIZE = 12;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -493,6 +657,18 @@ T8 v8;
 T9 v9;
 T10 v10;
 T11 v11;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -519,9 +695,10 @@ typedef T10 E10;
 typedef T11 E11;
 typedef T12 E12;
 
-static constexpr std::size_t SIZE = 13;
+static constexpr usize SIZE = 13;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -538,6 +715,18 @@ T9 v9;
 T10 v10;
 T11 v11;
 T12 v12;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -565,9 +754,10 @@ typedef T11 E11;
 typedef T12 E12;
 typedef T13 E13;
 
-static constexpr std::size_t SIZE = 14;
+static constexpr usize SIZE = 14;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -585,6 +775,18 @@ T10 v10;
 T11 v11;
 T12 v12;
 T13 v13;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -613,9 +815,10 @@ typedef T12 E12;
 typedef T13 E13;
 typedef T14 E14;
 
-static constexpr std::size_t SIZE = 15;
+static constexpr usize SIZE = 15;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -634,6 +837,18 @@ T11 v11;
 T12 v12;
 T13 v13;
 T14 v14;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 
@@ -663,9 +878,10 @@ typedef T13 E13;
 typedef T14 E14;
 typedef T15 E15;
 
-static constexpr std::size_t SIZE = 16;
+static constexpr usize SIZE = 16;
 
-static constexpr std::size_t size(){
+static constexpr usize size()
+{
     return SIZE;
 }
 
@@ -685,6 +901,18 @@ T12 v12;
 T13 v13;
 T14 v14;
 T15 v15;
+
+template<usize I> requires(I < SIZE)
+constexpr auto& operator[](V<I>)
+{
+    return intr::tuple_member<I>(*this);
+}
+
+template<usize I> requires(I < SIZE)
+constexpr auto const& operator[](V<I>) const
+{
+    return intr::tuple_member<I>(*this);
+}
 
 };
 

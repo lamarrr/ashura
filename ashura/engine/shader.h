@@ -1,7 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/renderer.h"
+#include "ashura/std/vec.h"
+#include "ashura/std/log.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -27,7 +28,7 @@ enum class ShaderCompileError : i32
 };
 
 ShaderCompileError
-    compile_shader(Logger &logger, Vec<u32> &spirv, Span<char const> file,
+    compile_shader(Logger & logger, Vec<u32> & spirv, Span<char const> file,
                    ShaderType type, Span<char const> preamble,
                    Span<char const>             entry_point,
                    Span<Span<char const> const> system_directories,
@@ -41,8 +42,8 @@ struct ShaderUnit
 };
 
 ShaderCompileError
-    pack_shaders(Vec<Tuple<Span<char const>, Vec<u32>>> &compiled,
-                 Span<ShaderUnit const>                  entries,
-                 Span<char const>                        root_directory);
+    pack_shaders(Vec<Tuple<Span<char const>, Vec<u32>>> & compiled,
+                 Span<ShaderUnit const>                   entries,
+                 Span<char const>                         root_directory);
 
 }        // namespace ash

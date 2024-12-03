@@ -8,7 +8,7 @@
 namespace ash
 {
 
-static inline u32 goto_line(TextLayout const &layout, u32 alignment, u32 line)
+static inline u32 goto_line(TextLayout const & layout, u32 alignment, u32 line)
 {
   if (layout.lines.is_empty())
   {
@@ -17,7 +17,7 @@ static inline u32 goto_line(TextLayout const &layout, u32 alignment, u32 line)
 
   line = min(line, layout.lines.size32() - 1);
 
-  Line const &ln = layout.lines[line];
+  Line const & ln = layout.lines[line];
 
   if (alignment > ln.num_codepoints)
   {
@@ -35,15 +35,15 @@ void TextCompositor::Inner::pop_records(u32 num)
   {
     reclaimed += records[i].slice.span;
   }
-  mem::move(span(buffer).slice(reclaimed).as_const(), span(buffer));
-  mem::move(span(records).slice(num).as_const(), span(records));
+  mem::move(span(buffer).slice(reclaimed), span(buffer));
+  mem::move(span(records).slice(num), span(records));
   buffer_usage -= reclaimed;
   latest_record -= num;
   current_record -= num;
 }
 
 void TextCompositor::Inner::append_record(bool is_insert, u32 text_pos,
-                                          Span<u32 const> segment)
+                                          Span<c32 const> segment)
 {
   if (segment.size32() > buffer.size32())
   {
@@ -71,7 +71,9 @@ void TextCompositor::Inner::append_record(bool is_insert, u32 text_pos,
   current_record++;
   latest_record          = current_record;
   records[latest_record] = TextEditRecord{
-      .slice = Slice32{text_pos, segment.size32()}, .is_insert = is_insert};
+      .slice = Slice32{text_pos, segment.size32()},
+        .is_insert = is_insert
+  };
   buffer_pos += segment.size32();
 }
 
@@ -82,7 +84,7 @@ void TextCompositor::Inner::undo(Insert insert, Erase erase)
     return;
   }
   // undo changes of current record
-  TextEditRecord &record = records[current_record];
+  TextEditRecord & record = records[current_record];
   buffer_pos -= record.slice.span;
   if (record.is_insert)
   {
@@ -108,7 +110,7 @@ void TextCompositor::Inner::redo(Insert insert, Erase erase)
   }
   current_record++;
   // apply changes of next record
-  TextEditRecord &record = records[current_record];
+  TextEditRecord & record = records[current_record];
   if (record.is_insert)
   {
     insert(record.slice.offset,
@@ -131,7 +133,7 @@ void TextCompositor::Inner::unselect()
   cursor = cursor.unselect();
 }
 
-void TextCompositor::Inner::delete_selection(Span<u32 const> text, Erase erase)
+void TextCompositor::Inner::delete_selection(Span<c32 const> text, Erase erase)
 {
   if (cursor.is_empty())
   {
@@ -144,7 +146,7 @@ void TextCompositor::Inner::delete_selection(Span<u32 const> text, Erase erase)
   cursor = cursor.to_begin();
 }
 
-static constexpr bool is_symbol(Span<u32 const> symbols, u32 c)
+static constexpr bool is_symbol(Span<c32 const> symbols, u32 c)
 {
   return !find(symbols, c).is_empty();
 }
@@ -157,8 +159,8 @@ static constexpr bool is_symbol(Span<u32 const> symbols, u32 c)
 /// i.e. a code editor may use '(',')' as word boundaries.
 /// @param[out] first index of first char in symbolic boundary
 /// @param[out] last index of last char in symbolic boundary
-static constexpr Slice32 find_boundary(Span<u32 const> text, u32 const pos,
-                                       Span<u32 const> symbols)
+static constexpr Slice32 find_boundary(Span<c32 const> text, u32 const pos,
+                                       Span<c32 const> symbols)
 {
   u32 fwd = pos;
   u32 bwd = pos;
@@ -194,8 +196,8 @@ static constexpr Slice32 find_boundary(Span<u32 const> text, u32 const pos,
   return Slice32{.offset = bwd, .span = (fwd - bwd) + 1};
 }
 
-static inline Slice32 cursor_boundary(Span<u32 const> text,
-                                      Span<u32 const> symbols,
+static inline Slice32 cursor_boundary(Span<c32 const> text,
+                                      Span<c32 const> symbols,
                                       TextCursor      cursor)
 {
   Slice32 selection = cursor.as_slice(text.size32());
@@ -212,7 +214,7 @@ struct LinePosition
   u32 alignment = 0;
 };
 
-static inline LinePosition line_translate(TextLayout const &layout, u32 cursor,
+static inline LinePosition line_translate(TextLayout const & layout, u32 cursor,
                                           i64 dy)
 {
   if (layout.lines.is_empty())
@@ -222,7 +224,7 @@ static inline LinePosition line_translate(TextLayout const &layout, u32 cursor,
 
   for (u32 ln = 0; ln < layout.lines.size32(); ln++)
   {
-    Line const &line = layout.lines[ln];
+    Line const & line = layout.lines[ln];
     if (line.first_codepoint <= cursor &&
         (line.first_codepoint + line.num_codepoints) > cursor)
     {
@@ -236,12 +238,10 @@ static inline LinePosition line_translate(TextLayout const &layout, u32 cursor,
   return LinePosition{};
 }
 
-void TextCompositor::Inner::command(Span<u32 const>   text,
-                                    TextLayout const &layout, f32 align_width,
-                                    f32 alignment, TextCommand cmd,
-                                    Insert insert, Erase erase,
-                                    Span<u32 const> input, ClipBoard &clipboard,
-                                    u32 lines_per_page, Vec2 pos)
+void TextCompositor::Inner::command(
+    Span<c32 const> text, TextLayout const & layout, f32 align_width,
+    f32 alignment, TextCommand cmd, Insert insert, Erase erase,
+    Span<c32 const> input, ClipBoard & clipboard, u32 lines_per_page, Vec2 pos)
 {
   switch (cmd)
   {
@@ -452,30 +452,30 @@ void TextCompositor::Inner::command(Span<u32 const>   text,
     break;
     case TextCommand::Cut:
     {
-      Vec<u8> data_u8;
+      Vec<c8> data_u8;
       utf8_encode(text.slice(cursor.as_slice(text.size32())), data_u8).unwrap();
       delete_selection(text, erase);
-      clipboard.set_text(span(data_u8)).unwrap();
+      clipboard.set_text(data_u8).unwrap();
     }
     break;
     case TextCommand::Copy:
     {
-      Vec<u8> data_u8;
+      Vec<c8> data_u8;
       utf8_encode(text.slice(cursor.as_slice(text.size32())), data_u8).unwrap();
-      clipboard.set_text(span(data_u8)).unwrap();
+      clipboard.set_text(data_u8).unwrap();
     }
     break;
     case TextCommand::Paste:
     {
-      Vec<u32> data_u32;
-      Vec<u8>  data_u8;
+      Vec<c32> data_u32;
+      Vec<c8>  data_u8;
       clipboard.get_text(data_u8).unwrap();
-      utf8_decode(span(data_u8), data_u32).unwrap();
+      utf8_decode(data_u8, data_u32).unwrap();
       Slice32 selection = cursor.as_slice(text.size32());
       delete_selection(text, noop);
-      append_record(true, selection.offset, span(data_u32));
+      append_record(true, selection.offset, data_u32);
       erase(selection);
-      insert(selection.offset, span(data_u32));
+      insert(selection.offset, data_u32);
     }
     break;
     case TextCommand::Undo:
@@ -502,7 +502,7 @@ void TextCompositor::Inner::command(Span<u32 const>   text,
     break;
     case TextCommand::NewLine:
     {
-      Span<u32 const> input     = U"\n"_utf;
+      Span<c32 const> input     = U"\n"_str;
       Slice32         selection = cursor.as_slice(text.size32());
       delete_selection(text, noop);
       append_record(true, selection.offset, input);
@@ -512,7 +512,7 @@ void TextCompositor::Inner::command(Span<u32 const>   text,
     break;
     case TextCommand::Tab:
     {
-      Span<u32 const> input     = span(TAB_STRING).slice(0, tab_width);
+      Span<c32 const> input     = span(TAB_STRING).slice(0, tab_width);
       Slice32         selection = cursor.as_slice(text.size32());
       delete_selection(text, noop);
       append_record(true, selection.offset, input);

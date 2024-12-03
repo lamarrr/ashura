@@ -6,6 +6,7 @@
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 
 namespace ash
 {
@@ -16,28 +17,28 @@ constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
 constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
 constexpr u64 WHOLE_SIZE             = ~0ULL;
 
-constexpr u32 MAX_IMAGE_EXTENT_1D                  = 8192;
-constexpr u32 MAX_IMAGE_EXTENT_2D                  = 8192;
-constexpr u32 MAX_IMAGE_EXTENT_3D                  = 2048;
-constexpr u32 MAX_IMAGE_EXTENT_CUBE                = 8192;
-constexpr u32 MAX_IMAGE_ARRAY_LAYERS               = 1024;
-constexpr u32 MAX_VIEWPORT_EXTENT                  = 8192;
-constexpr u32 MAX_FRAMEBUFFER_EXTENT               = 8192;
-constexpr u32 MAX_FRAMEBUFFER_LAYERS               = 1024;
+constexpr u32 MAX_IMAGE_EXTENT_1D                  = 8'192;
+constexpr u32 MAX_IMAGE_EXTENT_2D                  = 8'192;
+constexpr u32 MAX_IMAGE_EXTENT_3D                  = 2'048;
+constexpr u32 MAX_IMAGE_EXTENT_CUBE                = 8'192;
+constexpr u32 MAX_IMAGE_ARRAY_LAYERS               = 1'024;
+constexpr u32 MAX_VIEWPORT_EXTENT                  = 8'192;
+constexpr u32 MAX_FRAMEBUFFER_EXTENT               = 8'192;
+constexpr u32 MAX_FRAMEBUFFER_LAYERS               = 1'024;
 constexpr u32 MAX_VERTEX_ATTRIBUTES                = 16;
 constexpr u32 MAX_PUSH_CONSTANTS_SIZE              = 128;
-constexpr u32 MAX_UPDATE_BUFFER_SIZE               = 65536;
+constexpr u32 MAX_UPDATE_BUFFER_SIZE               = 65'536;
 constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS         = 8;
 constexpr u32 MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS = 8;
 constexpr u32 MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS = 8;
 constexpr u32 MAX_PIPELINE_INPUT_ATTACHMENTS       = 8;
 constexpr u32 MAX_PIPELINE_COLOR_ATTACHMENTS       = 8;
-constexpr u32 MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4096;
-constexpr u32 MAX_BINDING_DESCRIPTORS              = 4096;
+constexpr u32 MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4'096;
+constexpr u32 MAX_BINDING_DESCRIPTORS              = 4'096;
 constexpr u32 MAX_DESCRIPTOR_SET_BINDINGS          = 16;
 constexpr u32 MAX_FRAME_BUFFERING                  = 4;
 constexpr u32 MAX_SWAPCHAIN_IMAGES                 = 4;
-constexpr u64 MAX_UNIFORM_BUFFER_RANGE             = 65536;
+constexpr u64 MAX_UNIFORM_BUFFER_RANGE             = 65'536;
 constexpr f32 MAX_SAMPLER_ANISOTROPY               = 16;
 constexpr u32 MAX_CLIP_DISTANCES                   = 8;
 constexpr u32 MAX_CULL_DISTANCES                   = 8;
@@ -50,24 +51,24 @@ typedef Vec3U Offset3D;
 typedef Vec3U Extent3D;
 typedef u64   FrameId;
 
-typedef struct Buffer_T              *Buffer;
-typedef struct BufferView_T          *BufferView;
-typedef struct Image_T               *Image;
-typedef struct ImageView_T           *ImageView;
-typedef struct Sampler_T             *Sampler;
-typedef struct Shader_T              *Shader;
-typedef struct DescriptorSetLayout_T *DescriptorSetLayout;
-typedef struct DescriptorSet_T       *DescriptorSet;
-typedef struct PipelineCache_T       *PipelineCache;
-typedef struct ComputePipeline_T     *ComputePipeline;
-typedef struct GraphicsPipeline_T    *GraphicsPipeline;
-typedef struct TimestampQuery_T      *TimeStampQuery;
-typedef struct StatisticsQuery_T     *StatisticsQuery;
-typedef struct CommandEncoder         CommandEncoder;
-typedef struct Surface_T             *Surface;
-typedef struct Swapchain_T           *Swapchain;
-typedef struct Device                 Device;
-typedef struct Instance               Instance;
+typedef struct Buffer_T *              Buffer;
+typedef struct BufferView_T *          BufferView;
+typedef struct Image_T *               Image;
+typedef struct ImageView_T *           ImageView;
+typedef struct Sampler_T *             Sampler;
+typedef struct Shader_T *              Shader;
+typedef struct DescriptorSetLayout_T * DescriptorSetLayout;
+typedef struct DescriptorSet_T *       DescriptorSet;
+typedef struct PipelineCache_T *       PipelineCache;
+typedef struct ComputePipeline_T *     ComputePipeline;
+typedef struct GraphicsPipeline_T *    GraphicsPipeline;
+typedef struct TimestampQuery_T *      TimeStampQuery;
+typedef struct StatisticsQuery_T *     StatisticsQuery;
+typedef struct CommandEncoder          CommandEncoder;
+typedef struct Surface_T *             Surface;
+typedef struct Swapchain_T *           Swapchain;
+typedef struct Device                  Device;
+typedef struct Instance                Instance;
 
 enum class ObjectType : u32
 {
@@ -147,7 +148,7 @@ enum class [[nodiscard]] Status : i32
   TooManyObjects       = -10,
   FormatNotSupported   = -11,
   Unknown              = -13,
-  SurfaceLost          = -1000000000
+  SurfaceLost          = -1'000'000'000
 };
 
 enum class Format : i32
@@ -342,20 +343,20 @@ enum class Format : i32
 enum class ColorSpace : i32
 {
   SRGB_NONLINEAR          = 0,
-  DISPLAY_P3_NONLINEAR    = 1000104001,
-  EXTENDED_SRGB_LINEAR    = 1000104002,
-  DISPLAY_P3_LINEAR       = 1000104003,
-  DCI_P3_NONLINEAR        = 1000104004,
-  BT709_LINEAR            = 1000104005,
-  BT709_NONLINEAR         = 1000104006,
-  BT2020_LINEAR           = 1000104007,
-  HDR10_ST2084            = 1000104008,
-  DOLBYVISION             = 1000104009,
-  HDR10_HLG               = 1000104010,
-  ADOBERGB_LINEAR         = 1000104011,
-  ADOBERGB_NONLINEAR      = 1000104012,
-  PASS_THROUGH            = 1000104013,
-  EXTENDED_SRGB_NONLINEAR = 1000104014
+  DISPLAY_P3_NONLINEAR    = 1'000'104'001,
+  EXTENDED_SRGB_LINEAR    = 1'000'104'002,
+  DISPLAY_P3_LINEAR       = 1'000'104'003,
+  DCI_P3_NONLINEAR        = 1'000'104'004,
+  BT709_LINEAR            = 1'000'104'005,
+  BT709_NONLINEAR         = 1'000'104'006,
+  BT2020_LINEAR           = 1'000'104'007,
+  HDR10_ST2084            = 1'000'104'008,
+  DOLBYVISION             = 1'000'104'009,
+  HDR10_HLG               = 1'000'104'010,
+  ADOBERGB_LINEAR         = 1'000'104'011,
+  ADOBERGB_NONLINEAR      = 1'000'104'012,
+  PASS_THROUGH            = 1'000'104'013,
+  EXTENDED_SRGB_NONLINEAR = 1'000'104'014
 };
 
 enum class FormatFeatures : u32
@@ -697,10 +698,10 @@ struct Object
 {
   union
   {
-    void               *handle = nullptr;
-    Instance           *instance;
-    Device             *device;
-    CommandEncoder     *command_encoder;
+    void *              handle = nullptr;
+    Instance *          instance;
+    Device *            device;
+    CommandEncoder *    command_encoder;
     Buffer              buffer;
     BufferView          buffer_view;
     Image               image;
@@ -717,6 +718,7 @@ struct Object
     Surface             surface;
     Swapchain           swapchain;
   };
+
   ObjectType type = ObjectType::None;
 };
 
@@ -1258,7 +1260,7 @@ struct CommandEncoder
 
   virtual void end_compute_pass() = 0;
 
-  virtual void begin_rendering(RenderingInfo const &info) = 0;
+  virtual void begin_rendering(RenderingInfo const & info) = 0;
 
   virtual void end_rendering() = 0;
 
@@ -1276,7 +1278,7 @@ struct CommandEncoder
 
   virtual void dispatch_indirect(Buffer buffer, u64 offset) = 0;
 
-  virtual void set_graphics_state(GraphicsState const &state) = 0;
+  virtual void set_graphics_state(GraphicsState const & state) = 0;
 
   virtual void bind_vertex_buffers(Span<Buffer const> vertex_buffers,
                                    Span<u64 const>    offsets) = 0;
@@ -1299,11 +1301,11 @@ struct CommandEncoder
 
 struct FrameContext
 {
-  u32                         buffering  = 0;
-  FrameId                     tail       = 0;
-  FrameId                     current    = 0;
-  Span<CommandEncoder *const> encoders   = {};
-  u32                         ring_index = 0;
+  u32                          buffering  = 0;
+  FrameId                      tail       = 0;
+  FrameId                      current    = 0;
+  Span<CommandEncoder * const> encoders   = {};
+  u32                          ring_index = 0;
 };
 
 struct Device
@@ -1313,38 +1315,38 @@ struct Device
   virtual Result<FormatProperties, Status>
       get_format_properties(Format format) = 0;
 
-  virtual Result<Buffer, Status> create_buffer(BufferInfo const &info) = 0;
+  virtual Result<Buffer, Status> create_buffer(BufferInfo const & info) = 0;
 
   virtual Result<BufferView, Status>
-      create_buffer_view(BufferViewInfo const &info) = 0;
+      create_buffer_view(BufferViewInfo const & info) = 0;
 
-  virtual Result<Image, Status> create_image(ImageInfo const &info) = 0;
+  virtual Result<Image, Status> create_image(ImageInfo const & info) = 0;
 
   virtual Result<ImageView, Status>
-      create_image_view(ImageViewInfo const &info) = 0;
+      create_image_view(ImageViewInfo const & info) = 0;
 
-  virtual Result<Sampler, Status> create_sampler(SamplerInfo const &info) = 0;
+  virtual Result<Sampler, Status> create_sampler(SamplerInfo const & info) = 0;
 
-  virtual Result<Shader, Status> create_shader(ShaderInfo const &info) = 0;
+  virtual Result<Shader, Status> create_shader(ShaderInfo const & info) = 0;
 
   virtual Result<DescriptorSetLayout, Status>
-      create_descriptor_set_layout(DescriptorSetLayoutInfo const &info) = 0;
+      create_descriptor_set_layout(DescriptorSetLayoutInfo const & info) = 0;
 
   virtual Result<DescriptorSet, Status>
       create_descriptor_set(DescriptorSetLayout layout,
                             Span<u32 const>     variable_lengths) = 0;
 
   virtual Result<PipelineCache, Status>
-      create_pipeline_cache(PipelineCacheInfo const &info) = 0;
+      create_pipeline_cache(PipelineCacheInfo const & info) = 0;
 
   virtual Result<ComputePipeline, Status>
-      create_compute_pipeline(ComputePipelineInfo const &info) = 0;
+      create_compute_pipeline(ComputePipelineInfo const & info) = 0;
 
   virtual Result<GraphicsPipeline, Status>
-      create_graphics_pipeline(GraphicsPipelineInfo const &info) = 0;
+      create_graphics_pipeline(GraphicsPipelineInfo const & info) = 0;
 
   virtual Result<Swapchain, Status>
-      create_swapchain(Surface surface, SwapchainInfo const &info) = 0;
+      create_swapchain(Surface surface, SwapchainInfo const & info) = 0;
 
   virtual Result<TimeStampQuery, Status> create_timestamp_query() = 0;
 
@@ -1393,24 +1395,24 @@ struct Device
   virtual Result<usize, Status>
       get_pipeline_cache_size(PipelineCache cache) = 0;
 
-  virtual Result<usize, Status> get_pipeline_cache_data(PipelineCache cache,
-                                                        Span<u8>      out) = 0;
+  virtual Result<Void, Status> get_pipeline_cache_data(PipelineCache cache,
+                                                       Vec<u8> &     out) = 0;
 
   virtual Result<Void, Status>
       merge_pipeline_cache(PipelineCache             dst,
                            Span<PipelineCache const> srcs) = 0;
 
-  virtual void update_descriptor_set(DescriptorSetUpdate const &update) = 0;
+  virtual void update_descriptor_set(DescriptorSetUpdate const & update) = 0;
 
   virtual Result<Void, Status> wait_idle() = 0;
 
   virtual Result<Void, Status> wait_queue_idle() = 0;
 
-  virtual Result<u32, Status>
-      get_surface_formats(Surface surface, Span<SurfaceFormat> formats) = 0;
+  virtual Result<Void, Status>
+      get_surface_formats(Surface surface, Vec<SurfaceFormat> & formats) = 0;
 
-  virtual Result<u32, Status>
-      get_surface_present_modes(Surface surface, Span<PresentMode> modes) = 0;
+  virtual Result<Void, Status>
+      get_surface_present_modes(Surface surface, Vec<PresentMode> & modes) = 0;
 
   virtual Result<SurfaceCapabilities, Status>
       get_surface_capabilities(Surface surface) = 0;
@@ -1419,7 +1421,7 @@ struct Device
       get_swapchain_state(Swapchain swapchain) = 0;
 
   virtual Result<Void, Status>
-      invalidate_swapchain(Swapchain swapchain, SwapchainInfo const &info) = 0;
+      invalidate_swapchain(Swapchain swapchain, SwapchainInfo const & info) = 0;
 
   virtual Result<Void, Status> begin_frame(Swapchain swapchain) = 0;
 
@@ -1442,7 +1444,7 @@ struct Instance
 
   virtual Backend get_backend() = 0;
 
-  virtual void uninit_device(Device *device) = 0;
+  virtual void uninit_device(Device * device) = 0;
 
   virtual void uninit_surface(Surface surface) = 0;
 };
