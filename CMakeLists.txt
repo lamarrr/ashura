@@ -34,6 +34,9 @@ set(SDL_STATIC
 set(SDL_JOYSTICK
     OFF
     CACHE BOOL "")
+set(SDL_HAPTIC
+    OFF
+    CACHE BOOL "")
 
 
 include(FetchContent)
