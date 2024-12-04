@@ -30,6 +30,40 @@ struct IndexIter
   }
 };
 
+template <typename I>
+struct IndexRange
+{
+  I min_{};
+  I max_{};
+
+  constexpr auto begin() const
+  {
+    return IndexIter<I>{.i_ = min_, .max_ = max_};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
+  constexpr I size() const
+  {
+    return max_ - min_;
+  }
+};
+
+template <typename I>
+constexpr IndexRange<I> range(I max)
+{
+  return IndexRange<I>{.min_ = 0, .max_ = max};
+}
+
+template <typename I>
+constexpr IndexRange<I> range(I min, I max)
+{
+  return IndexRange<I>{.min_ = min, .max_ = max};
+}
+
 /// @param inc_ non-zero increment
 template <typename I>
 struct SkipIndexIter
@@ -52,28 +86,6 @@ struct SkipIndexIter
   constexpr bool operator!=(IterEnd) const
   {
     return i_ != max_;
-  }
-};
-
-template <typename I>
-struct IndexRange
-{
-  I min_{};
-  I max_{};
-
-  constexpr auto begin() const
-  {
-    return IndexIter<I>{.i_ = min_, .max_ = max_};
-  }
-
-  constexpr auto end() const
-  {
-    return IterEnd{};
-  }
-
-  constexpr I size() const
-  {
-    return max_ - min_;
   }
 };
 
@@ -101,48 +113,11 @@ struct SkipIndexRange
   }
 };
 
-template <typename Index, typename Iter, typename IterEnd>
-struct EnumerateIter
+template <typename I>
+constexpr SkipIndexRange<I> range(I min, I max, I advance)
 {
-  Index   index_{};
-  Iter    iter_{};
-  IterEnd end_{};
-
-  constexpr EnumerateIter & operator++()
-  {
-    ++index_;
-    ++iter_;
-    return *this;
-  }
-
-  constexpr auto operator*() const
-  {
-    return Tuple<Index, decltype(*iter_)>{index_, iter_};
-  }
-
-  constexpr bool operator!=(IterEnd) const
-  {
-    return iter_ != end_;
-  }
-};
-
-template <typename Index, typename IterBegin, typename IterEnd>
-struct EnumerateRange
-{
-  IterBegin begin_;
-  IterEnd   end_;
-
-  constexpr auto begin() const
-  {
-    return EnumerateIter<Index, IterBegin, IterEnd>{
-        .index_ = 0, .iter_ = begin_, .end_ = end_};
-  }
-
-  constexpr auto end() const
-  {
-    return IterEnd{};
-  }
-};
+  return SkipIndexRange<I>{.min_ = min, .max_ = max, .incr_ = advance};
+}
 
 /// @warning Equality is only determined by the first iterator
 template <typename BaseIter, typename BaseIterEnd, typename... Iters>
@@ -188,24 +163,6 @@ struct ZipRange
   }
 };
 
-template <typename I>
-constexpr IndexRange<I> range(I max)
-{
-  return IndexRange<I>{.i0 = 0, .i1 = max};
-}
-
-template <typename I>
-constexpr IndexRange<I> range(I min, I max)
-{
-  return IndexRange<I>{.i0 = min, .i1 = max};
-}
-
-template <typename I>
-constexpr SkipIndexRange<I> range(I min, I max, I advance)
-{
-  return SkipIndexRange<I>{.i0 = min, .i1 = max, .advance = advance};
-}
-
 /// @brief The size of the head range will be used as the total size of the whole range
 template <Range Base, Range... Ranges>
 constexpr auto zip(Base && base, Ranges &&... ranges)
@@ -216,6 +173,49 @@ constexpr auto zip(Base && base, Ranges &&... ranges)
       .end_{end(base)}
   };
 }
+
+template <typename Index, typename Iter, typename IterEnd>
+struct EnumerateIter
+{
+  Index   index_{};
+  Iter    iter_{};
+  IterEnd end_{};
+
+  constexpr EnumerateIter & operator++()
+  {
+    ++index_;
+    ++iter_;
+    return *this;
+  }
+
+  constexpr auto operator*() const
+  {
+    return Tuple<Index, decltype(*iter_)>{index_, iter_};
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return iter_ != end_;
+  }
+};
+
+template <typename Index, typename IterBegin, typename IterEnd>
+struct EnumerateRange
+{
+  IterBegin begin_;
+  IterEnd   end_;
+
+  constexpr auto begin() const
+  {
+    return EnumerateIter<Index, IterBegin, IterEnd>{
+        .index_ = 0, .iter_ = begin_, .end_ = end_};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+};
 
 template <typename Index, Range R>
 constexpr auto enumerate(R && range)
@@ -372,6 +372,9 @@ constexpr bool ends_with(B && body, F && foot, Cmp && cmp = {})
 }
 
 /// size is 0 if not found, size is 1 if found
+//
+// [ ] use range slicing? not all ranges are equal
+//
 template <typename T, typename U, typename Cmp = Eq>
 constexpr Span<T> find(Span<T> span, U && value, Cmp && cmp = {})
 {
@@ -477,6 +480,19 @@ constexpr void transform(I && in, O && out, Map && mapper)
   }
 }
 
+template <OutputRange O, typename Map>
+constexpr void transform(O && out, Map && mapper)
+{
+  auto out_iter = begin(out);
+  auto out_end  = end(out);
+
+  while (out_iter != out_end)
+  {
+    *out_iter = mapper(*out_iter);
+    ++out_iter;
+  }
+}
+
 template <Range R, typename Init, typename Reduce = Add>
 constexpr Init reduce(R && range, Init && init, Reduce && reducer = {})
 {
@@ -539,9 +555,6 @@ constexpr void replace_if(R && range, F && replacement, Test && test)
   }
 }
 
-template <typename T, typename Cmp = Eq>
-constexpr void unique(Span<T>, Cmp && cmp = {});        // destroy? retain?
-
 template <OutputRange R, typename SwapOp = Swap>
 constexpr void reverse(R && range, SwapOp && swap = {})
 {
@@ -566,13 +579,6 @@ constexpr void reverse(R && range, SwapOp && swap = {})
 template <typename T, typename U, typename Op, typename Cmp = Eq>
 constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp && cmp = {});
 
-// first check if src begins with other
-// keep advancing whilst src begins with other
-// once it doesn't, store present offset,
-// slice from present offset to end, and compare for other
-// if equal, move back from end - other.size
-// if equal again, move back
-// move back until it is no longer equal
 template <typename T, typename U, typename Cmp = Eq>
 constexpr Span<T> strip(Span<T> src, Span<U> other, Cmp && cmp = {});
 
@@ -633,13 +639,13 @@ constexpr Tuple<Slice, Slice> partition(R && range, Predicate && predicate)
   };
 }
 
-template <typename T>
-void iota(Span<T> s, T first)
+template <Range R, typename T>
+void iota(R && range, T && first)
 {
-  for (auto & v : s)
+  // [ ] use range methods
+  for (auto & value : range)
   {
-    v = first;
-    ++first;
+    value = first++;
   };
 }
 
@@ -663,14 +669,6 @@ constexpr T inclusive_scan(Span<T const> in, Span<T> out, T && init = {},
 }
 
 template <typename T, typename Op = Add>
-constexpr T prefix_sum(Span<T const> in, Span<T> out, T && init = {},
-                       Op && op = {})
-{
-  return inclusive_scan(in, out, static_cast<T &&>(init),
-                        static_cast<Op &&>(op));
-}
-
-template <typename T, typename Op = Add>
 constexpr T exclusive_scan(Span<T const> in, Span<T> out, T && init = {},
                            Op && op = {})
 {
@@ -689,20 +687,12 @@ constexpr T exclusive_scan(Span<T const> in, Span<T> out, T && init = {},
   return init;
 }
 
-template <typename T, typename Op = Add>
-constexpr T suffix_sum(Span<T const> in, Span<T> out, T && init = {},
-                       Op && op = {})
-{
-  return exclusive_scan(in, out, static_cast<T &&>(init),
-                        static_cast<Op &&>(op));
-}
-
 template <typename Index, typename T>
 struct PrefixRunIter
 {
-  Index * run_iter_ = nullptr;
-  T *     data_     = nullptr;
-  Index * end_      = nullptr;
+  Index *       run_iter_ = nullptr;
+  Index const * end_      = nullptr;
+  T *           data_     = nullptr;
 
   constexpr PrefixRunIter & operator++()
   {
@@ -717,14 +707,14 @@ struct PrefixRunIter
     return Span<T>{data_ + begin, data_ + end};
   }
 
-  constexpr bool operator!=(IterEnd const &) const
+  constexpr bool operator!=(IterEnd) const
   {
     return run_iter_ != end_;
   }
 };
 
 template <typename Index, typename T>
-struct PrefixRunSpan
+struct PrefixRunRange
 {
   Index * run_begin_;
   Index * run_end_;
@@ -733,7 +723,7 @@ struct PrefixRunSpan
   constexpr auto begin() const
   {
     return PrefixRunIter<Index, T>{
-        .run_iter_ = run_begin_, .run_start_ = 0, .data_ = data_};
+        .run_iter_ = run_begin_, .end_ = run_end_, .data_ = data_};
   }
 
   constexpr auto end() const
@@ -742,13 +732,22 @@ struct PrefixRunSpan
   }
 };
 
+/// @param ends run-ends of the data. Must be sorted.
+template <typename Index, typename T>
+constexpr PrefixRunRange<Index, T> prefix_run(Span<T>           data,
+                                              Span<Index const> ends)
+{
+  return PrefixRunRange<Index, T>{
+      .run_begin_ = ends.begin(), .run_end_ = ends.end(), .data_ = data.data()};
+}
+
 template <typename Index, typename T>
 struct SuffixRunIter
 {
-  Index * run_iter_  = nullptr;
-  Index * run_end_   = nullptr;
-  Index   run_start_ = 0;
-  T *     data_      = nullptr;
+  Index *       run_iter_  = nullptr;
+  Index const * run_end_   = nullptr;
+  Index         run_start_ = 0;
+  T *           data_      = nullptr;
 
   constexpr SuffixRunIter & operator++()
   {
@@ -762,18 +761,18 @@ struct SuffixRunIter
     return Span<T>{data_ + run_start_, data_ + *run_iter_};
   }
 
-  constexpr bool operator!=(IterEnd const &) const
+  constexpr bool operator!=(IterEnd) const
   {
     return run_iter_ != run_end_;
   }
 };
 
 template <typename Index, typename T>
-struct SuffixRunSpan
+struct SuffixRunRange
 {
-  Index * run_begin_;
-  Index * run_end_;
-  T *     data_;
+  Index *       run_begin_;
+  Index const * run_end_;
+  T *           data_;
 
   constexpr auto begin() const
   {
@@ -791,31 +790,126 @@ struct SuffixRunSpan
 
 /// @param ends run-ends of the data. Must be sorted.
 template <typename Index, typename T>
-constexpr PrefixRunSpan<Index, T> prefix_run(Span<T>           data,
-                                             Span<Index const> ends)
+constexpr SuffixRunRange<Index, T> suffix_run(Span<T>           data,
+                                              Span<Index const> ends)
 {
-  return PrefixRunSpan<Index, T>{
+  return SuffixRunRange<Index, T>{
       .run_begin_ = ends.begin(), .run_end_ = ends.end(), .data_ = data.data()};
 }
 
-/// @param ends run-ends of the data. Must be sorted.
-template <typename Index, typename T>
-constexpr SuffixRunSpan<Index, T> suffix_run(Span<T>           data,
-                                             Span<Index const> ends)
+/// @brief search for first element less than or equal to value
+template <typename T, typename U, typename Cmp = Less>
+constexpr Span<T> lower_bound(Span<T> span, U && value, Cmp && cmp = {})
 {
-  return SuffixRunSpan<Index, T>{
-      .run_begin_ = ends.begin(), .run_end_ = ends.end(), .data_ = data.data()};
+  auto split = [](Span<T> span) -> Tuple<Span<T>, Span<T>> {
+    auto half_end = span.begin() + (span.size() >> 1);
+    return {
+        Span<T>{span.begin(), half_end  },
+        Span<T>{half_end,     span.end()}
+    };
+  };
+
+  Span<T> iter = span;
+
+  while (!iter.is_empty())
+  {
+    auto [leading, trailing] = split(iter);
+    if (cmp(leading.last(), value))
+    {
+      iter = leading;
+    }
+    else
+    {
+      iter = trailing;
+    }
+  }
+
+  return Span<T>{iter.data(), span.end()};
 }
 
+/// @brief search for first element greater than value
+template <typename T, typename U, typename Cmp = Less>
+constexpr Span<T> upper_bound(Span<T> span, U && value, Cmp && cmp = {})
+{
+  return lower_bound(
+      span, static_cast<U &&>(value),
+      [cmp_ = static_cast<Cmp &&>(cmp)](auto const & a, auto const & b) {
+        return !cmp_(b, a);
+      });
+}
+
+/// @param window_advance_ must be non-zero
+template <typename T>
+struct WindowIter
+{
+  T *       iter_ = nullptr;
+  T const * end_  = nullptr;
+  usize     window_size_{0};
+  usize     window_advance_{1};
+
+  constexpr WindowIter & operator++()
+  {
+    iter_ += window_advance_;
+    return *this;
+  }
+
+  constexpr Span<T> operator*() const
+  {
+    return Span<T>{iter_, window_size_};
+  }
+
+  constexpr bool operator==(IterEnd) const
+  {
+    return (iter_ + window_size_) >= end_;
+  }
+};
+
+template <typename T>
+struct WindowRange
+{
+  T *   begin_ = nullptr;
+  T *   end_   = nullptr;
+  usize window_size_{0};
+  usize window_advance_{1};
+
+  constexpr auto begin() const
+  {
+    return WindowIter<T>{.iter_           = begin_,
+                         .end_            = end_,
+                         .window_size_    = window_size_,
+                         .window_advance_ = window_advance_};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+};
+
+template <typename T>
+constexpr WindowRange<T> window(Span<T> span, usize window_size, usize advance)
+{
+  if (window_size > span.size()) [[unlikely]]
+  {
+    return WindowRange<T>{};
+  }
+
+  T const * end = span.data() + span.size();
+
+  return WindowRange<T>{.begin_          = span.data(),
+                        .end_            = end,
+                        .window_size_    = window_size,
+                        .window_advance_ = advance};
+}
+
+template <typename T>
+constexpr WindowRange<T> window(Span<T> span, usize window_size)
+{
+  return window<T>(span, window_size, window_size);
+}
+
+// [ ] is_sorted()
+// [ ] radix_sort()
 // TODO: tuple transform: use for sparsevec push
-
-// [ ] window
-//
-// is_sorted()
-// apply() - in-place
-// binary_search()
-// lower_bound()
-// upper_bound()
-// fold()
 
 }        // namespace  ash

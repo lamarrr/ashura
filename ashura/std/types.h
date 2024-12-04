@@ -181,6 +181,14 @@ struct Min
   {
     return a < b ? a : b;
   }
+
+  template <typename T, typename... T1>
+  constexpr T operator()(T const & a, T const & b, T1 const &... cs) const
+  {
+    T m = this->template operator()<T>(a, b);
+    ((m = this->template operator()<T>(static_cast<T &&>(m), cs)), ...);
+    return m;
+  }
 };
 
 struct Max
@@ -189,6 +197,14 @@ struct Max
   constexpr T operator()(T const & a, T const & b) const
   {
     return a > b ? a : b;
+  }
+
+  template <typename T, typename... T1>
+  constexpr T operator()(T const & a, T const & b, T1 const &... cs) const
+  {
+    T m = this->template operator()<T>(a, b);
+    ((m = this->template operator()<T>(static_cast<T &&>(m), cs)), ...);
+    return m;
   }
 };
 
@@ -846,7 +862,7 @@ struct Slice64
 
   constexpr operator Slice() const
   {
-    return Slice{offset, span};
+    return Slice{static_cast<usize>(offset), static_cast<usize>(span)};
   }
 };
 
@@ -855,14 +871,14 @@ struct IterEnd
 };
 
 template <typename T>
-struct SpanIterator
+struct SpanIter
 {
   T * iter_ = nullptr;
   T * end_  = nullptr;
 
-  constexpr SpanIterator & operator++()
+  constexpr SpanIter & operator++()
   {
-    iter_++;
+    ++iter_;
     return *this;
   }
 
@@ -871,16 +887,16 @@ struct SpanIterator
     return *iter_;
   }
 
-  constexpr bool operator!=(IterEnd const &) const
+  constexpr bool operator!=(IterEnd) const
   {
     return iter_ != end_;
   }
 };
 
 template <typename T, usize N>
-constexpr SpanIterator<T> begin(T (&a)[N])
+constexpr SpanIter<T> begin(T (&a)[N])
 {
-  return SpanIterator<T>{.iter_ = a, .end_ = a + N};
+  return SpanIter<T>{.iter_ = a, .end_ = a + N};
 }
 
 template <typename T>
@@ -1269,6 +1285,7 @@ template <typename Container, typename T>
 concept SpanCompatibleContainer =
     SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
 
+// [ ] adopt span iterator for span and array
 template <typename T>
 struct Span
 {
@@ -1287,6 +1304,10 @@ struct Span
   constexpr Span(T * begin, T const * end) :
       data_{begin},
       size_{static_cast<usize>(end - begin)}
+  {
+  }
+
+  constexpr Span(SpanIter<T> iter, IterEnd) : Span{iter.iter_, iter.end_}
   {
   }
 

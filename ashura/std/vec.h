@@ -534,27 +534,6 @@ struct [[nodiscard]] Vec
 };
 
 template <typename T>
-constexpr Result<Vec<T>> vec(usize capacity, AllocatorImpl allocator = {})
-{
-  return Vec<T>::make(capacity, allocator);
-}
-
-template <typename T, usize N>
-constexpr Result<Vec<T>> vec(T (&data)[N], AllocatorImpl allocator = {})
-{
-  Result out = Vec<T>::make(N, allocator);
-
-  if (!out)
-  {
-    return out;
-  }
-
-  out.value().extend(data).unwrap();
-
-  return out;
-}
-
-template <typename T>
 constexpr Result<Vec<T>> vec(Span<T const> data, AllocatorImpl allocator = {})
 {
   Result out = Vec<T>::make(data.size(), allocator);
@@ -565,21 +544,6 @@ constexpr Result<Vec<T>> vec(Span<T const> data, AllocatorImpl allocator = {})
   }
 
   out.value().extend(data).unwrap();
-
-  return out;
-}
-
-template <typename T, usize N>
-constexpr Result<Vec<T>> vec_move(T (&&data)[N], AllocatorImpl allocator = {})
-{
-  Result out = Vec<T>::make(N, allocator);
-
-  if (!out)
-  {
-    return out;
-  }
-
-  out.value().extend_move(data).unwrap();
 
   return out;
 }
@@ -894,13 +858,6 @@ struct [[nodiscard]] PinVec
   }
 };
 
-template <typename T>
-constexpr Result<PinVec<T>> pin_vec(usize         capacity,
-                                    AllocatorImpl allocator = {})
-{
-  return PinVec<T>::make(capacity, allocator);
-}
-
 template <typename R>
 requires (NonConst<R>)
 struct [[nodiscard]] BitVec
@@ -1106,7 +1063,7 @@ struct [[nodiscard]] BitVec
   {
     slice = slice(bit_size_);
     for (usize dst = slice.begin(), src = slice.end(); src != bit_size_;
-         dst++, src++)
+         ++dst, ++src)
     {
       set(dst, get(src));
     }

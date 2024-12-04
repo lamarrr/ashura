@@ -57,16 +57,16 @@ struct [[nodiscard]] Map
         {
           break;
         }
-        iter_++;
-        probe_++;
+        ++iter_;
+        ++probe_;
       }
     }
 
     constexpr Iter & operator++()
     {
       // advancement past the current element must occur
-      iter_++;
-      probe_++;
+      ++iter_;
+      ++probe_;
 
       seek();
 
@@ -78,7 +78,7 @@ struct [[nodiscard]] Map
       return *probe_;
     }
 
-    constexpr bool operator!=(IterEnd const &) const
+    constexpr bool operator!=(IterEnd) const
     {
       return iter_ != end_;
     }

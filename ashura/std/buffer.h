@@ -55,12 +55,6 @@ constexpr Buffer<T> buffer(Span<T> span)
   return Buffer<T>{.data_ = span.data(), .capacity_ = span.size(), .size_ = 0};
 }
 
-template <typename T>
-constexpr Span<T> span(Buffer<T> buffer)
-{
-  return Span<T>{buffer.data(), buffer.size()};
-}
-
 /// @capacity: must be a non-zero power of 2
 template <typename T>
 struct [[nodiscard]] RingBuffer
