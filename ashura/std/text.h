@@ -16,7 +16,7 @@ namespace ash
 {
   c8 const * in    = text.data();
   usize      count = 0;
-  while (in != text.end())
+  while (in != text.pend())
   {
     if ((*in & 0xc0) != 0x80)
     {
@@ -34,7 +34,7 @@ namespace ash
 {
   c8 const * in  = encoded.data();
   c32 *      out = decoded.data();
-  while (in != encoded.end())
+  while (in != encoded.pend())
   {
     if ((*in & 0xF8) == 0xF0)
     {
@@ -63,7 +63,7 @@ namespace ash
       *out++ = c1;
     }
   }
-  return out - decoded.begin();
+  return out - decoded.pbegin();
 }
 
 /// @brief encoded.size must be at least decoded.size * 4
@@ -73,7 +73,7 @@ namespace ash
   c8 *        out = encoded.data();
   c32 const * in  = decoded.data();
 
-  while (in != decoded.end())
+  while (in != decoded.pend())
   {
     if (*in <= 0x7F)
     {
@@ -103,7 +103,7 @@ namespace ash
     }
   }
 
-  return out - encoded.begin();
+  return out - encoded.pbegin();
 }
 
 /// @brief converts UTF-8 text from @p encoded to UTF-32 and appends into @p
@@ -116,7 +116,7 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
   {
     return Err{};
   }
-  (void) utf8_decode(encoded, decoded.span().slice(first, count));
+  (void) utf8_decode(encoded, decoded.view().slice(first, count));
   return Ok{};
 }
 
@@ -132,7 +132,7 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
     return Err{};
   }
   usize const count =
-      utf8_encode(decoded, encoded.span().slice(first, max_count));
+      utf8_encode(decoded, encoded.view().slice(first, max_count));
   encoded.resize_uninit(first + count).unwrap();
   return Ok{};
 }
@@ -140,10 +140,10 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
 constexpr void replace_invalid_codepoints(Span<c32 const> input,
                                           Span<c32> output, c32 replacement)
 {
-  c32 const * in  = input.begin();
-  c32 *       out = output.begin();
+  c32 const * in  = input.pbegin();
+  c32 *       out = output.pbegin();
 
-  while (in < input.end())
+  while (in < input.pend())
   {
     if (*in > 0x10'FFFF) [[unlikely]]
     {

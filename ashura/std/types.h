@@ -971,6 +971,9 @@ constexpr auto is_empty(T && a)
   return size(a) == 0;
 }
 
+/// @brief Iterator Model. Iterators are only required to
+/// produce values, they are not required to provide
+/// references to the values
 template <typename T>
 concept Iter = requires (T it) {
   {
@@ -978,35 +981,42 @@ concept Iter = requires (T it) {
     *it
   };
   {
-    // pre-fix advancement
+    // in-place (pre-fix) advancement
     ++it
   };
 };
 
+/// @brief Range Model. Ranges are read-only by default.
 template <typename R>
 concept Range = requires (R r) {
-  { begin(r) } -> Iter;
-  { !(begin(r) != end(r)) };
+  {
+    // can get an iterator to its beginning element
+    begin(r)
+  } -> Iter;
+  {
+    // returns boolean when asked if it has ended
+    !(begin(r) != end(r))
+  };
 };
 
+// [ ] struct ExampleRange
+// {
+// [ ] nth();
+// };
+
+// [ ] change to range set using iter
 template <NonConst T, typename Arg = T>
 constexpr void iter_set(T * iterator, Arg && arg)
 {
   *iterator = static_cast<Arg &&>(arg);
 }
 
-template <typename T, typename Arg = T>
-constexpr void iter_set(Uninitialized, T * iterator, Arg && arg)
-{
-  new (iterator) T{static_cast<Arg &&>(arg)};
-}
-
 // [ ] output iterator - base: set to intial value
 template <typename T>
-concept OutputIter = Iter<T>;
+concept OutIter = Iter<T>;
 
 template <typename T>
-concept OutputRange = Range<T>;
+concept OutRange = Range<T>;
 
 template <typename T, usize N>
 struct Array
@@ -1285,12 +1295,12 @@ template <typename Container, typename T>
 concept SpanCompatibleContainer =
     SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
 
-// [ ] adopt span iterator for span and array
 template <typename T>
 struct Span
 {
   using Type = T;
   using Repr = T;
+  using Iter = SpanIter<T>;
 
   T *   data_ = nullptr;
   usize size_ = 0;
@@ -1307,7 +1317,7 @@ struct Span
   {
   }
 
-  constexpr Span(SpanIter<T> iter, IterEnd) : Span{iter.iter_, iter.end_}
+  constexpr Span(Iter iter, IterEnd = {}) : Span{iter.iter_, iter.end_}
   {
   }
 
@@ -1366,12 +1376,22 @@ struct Span
     return sizeof(T) * size_;
   }
 
-  constexpr T * begin() const
+  constexpr Iter begin() const
+  {
+    return Iter{.iter_ = data_, .end_ = data_ + size_};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
+  constexpr T * pbegin() const
   {
     return data_;
   }
 
-  constexpr T * end() const
+  constexpr T * pend() const
   {
     return data_ + size_;
   }
@@ -1474,6 +1494,18 @@ template <SpanContainer C>
 constexpr auto span(C & c)
 {
   return Span{data(c), size(c)};
+}
+
+template <typename T, usize N>
+constexpr Span<T> view(T (&array)[N])
+{
+  return span(array);
+}
+
+template <typename R>
+constexpr auto view(R & range) -> decltype(range.view())
+{
+  return range.view();
 }
 
 constexpr Span<char const> operator""_str(char const * lit, usize n)
@@ -1665,10 +1697,35 @@ constexpr usize find_clear_bit(Span<u64 const> s)
 }
 
 template <typename R>
+struct BitSpanIter
+{
+  Span<R> repr_{};
+  usize   bit_pos_  = 0;
+  usize   bit_size_ = 0;
+
+  constexpr bool operator*() const
+  {
+    return get_bit(repr_, bit_pos_);
+  }
+
+  constexpr BitSpanIter & operator++()
+  {
+    ++bit_pos_;
+    return *this;
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return bit_pos_ != bit_size_;
+  }
+};
+
+template <typename R>
 struct BitSpan
 {
   using Type = bool;
   using Repr = R;
+  using Iter = BitSpanIter<R>;
 
   Span<R> repr_     = {};
   usize   bit_size_ = 0;
@@ -1709,6 +1766,16 @@ struct BitSpan
   constexpr bool is_empty() const
   {
     return bit_size_ == 0;
+  }
+
+  constexpr auto begin() const
+  {
+    return Iter{.repr_ = repr_, .bit_pos_ = 0, .bit_size_ = bit_size_};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
   }
 
   constexpr bool has_trailing() const
@@ -2066,6 +2133,19 @@ struct Pin<void>
   constexpr Pin & operator=(Pin const &) = delete;
   constexpr Pin & operator=(Pin &&)      = delete;
   constexpr ~Pin()                       = default;
+};
+
+/// @brief uninitialized storage
+template <usize Alignment, usize Capacity>
+struct InplaceStorage
+{
+  alignas(Alignment) mutable u8 storage_[Capacity];
+};
+
+template <usize Alignment>
+struct InplaceStorage<Alignment, 0>
+{
+  static constexpr u8 * storage_ = nullptr;
 };
 
 }        // namespace ash

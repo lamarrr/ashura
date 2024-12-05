@@ -322,9 +322,9 @@ struct ViewSystem
 
   void focus_order()
   {
-    iota(focus_ordering.span(), 0U);
+    iota(focus_ordering.view(), 0U);
 
-    indirect_sort(focus_ordering.span(), [&](u32 a, u32 b) {
+    indirect_sort(focus_ordering.view(), [&](u32 a, u32 b) {
       return tab_indices[a] < tab_indices[b];
     });
 
@@ -349,7 +349,7 @@ struct ViewSystem
     {
       ViewNode const & node = nodes[i];
       views[i]->size(extents[i],
-                     extents.span().slice(node.first_child, node.num_children));
+                     extents.view().slice(node.first_child, node.num_children));
     }
 
     centers[0] = Vec2::splat(0);
@@ -361,8 +361,8 @@ struct ViewSystem
       i--;
       ViewNode const & node   = nodes[i];
       ViewLayout       layout = views[i]->fit(
-          extents[i], extents.span().slice(node.first_child, node.num_children),
-          centers.span().slice(node.first_child, node.num_children));
+          extents[i], extents.view().slice(node.first_child, node.num_children),
+          centers.view().slice(node.first_child, node.num_children));
       extents[i]             = layout.extent;
       viewport_extents[i]    = layout.viewport_extent;
       viewport_transforms[i] = layout.viewport_transform;
@@ -418,7 +418,7 @@ struct ViewSystem
       }
     }
 
-    fill(clips.span(), CRect::from_offset({0, 0}, viewport_extent));
+    fill(clips.view(), CRect::from_offset({0, 0}, viewport_extent));
 
     /// recursive view clipping
     for (u32 i = 0; i < n; i++)
@@ -471,7 +471,7 @@ struct ViewSystem
       ViewNode const & node = nodes[i];
       z_indices[i]          = views[i]->z_index(
           z_indices[i],
-          z_indices.span().slice(node.first_child, node.num_children));
+          z_indices.view().slice(node.first_child, node.num_children));
     }
 
     stacking_contexts[0] = 0;
@@ -484,10 +484,10 @@ struct ViewSystem
       }
     }
 
-    iota(z_ordering.span(), 0U);
+    iota(z_ordering.view(), 0U);
 
     // sort layers with priority: stacking_context, z_index, node depth
-    indirect_sort(z_ordering.span(), [&](u32 a, u32 b) {
+    indirect_sort(z_ordering.view(), [&](u32 a, u32 b) {
       if (stacking_contexts[a] < stacking_contexts[b])
       {
         return true;

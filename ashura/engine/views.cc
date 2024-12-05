@@ -16,8 +16,9 @@ void ScalarDragBox::scalar_parse(Span<c32 const> text, ScalarState & styling)
   {
     case ScalarInputType::i32:
     {
-      i32 value      = 0;
-      auto [ptr, ec] = fast_float::from_chars(text.begin(), text.end(), value);
+      i32 value = 0;
+      auto [ptr, ec] =
+          fast_float::from_chars(text.pbegin(), text.pend(), value);
       if (ec != std::errc{} || value < styling.min.i32 ||
           value > styling.max.i32)
       {
@@ -29,8 +30,9 @@ void ScalarDragBox::scalar_parse(Span<c32 const> text, ScalarState & styling)
 
     case ScalarInputType::f32:
     {
-      f32 value      = 0;
-      auto [ptr, ec] = fast_float::from_chars(text.begin(), text.end(), value);
+      f32 value = 0;
+      auto [ptr, ec] =
+          fast_float::from_chars(text.pbegin(), text.pend(), value);
       if (ec != std::errc{} || value < styling.min.f32 ||
           value > styling.max.f32)
       {

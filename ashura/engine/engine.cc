@@ -265,7 +265,7 @@ void Engine::init(AllocatorImpl allocator, void * app,
 
       data_u32.resize_uninit(data.size() >> 2).unwrap();
 
-      mem::copy(data.span(), data_u32.span().as_u8());
+      mem::copy(data.view(), data_u32.view().as_u8());
 
       logger->trace("Loaded shader ", shader_id, " from file");
 
@@ -442,7 +442,7 @@ void Engine::recreate_swapchain_()
 
   for (gpu::ColorSpace cp : preferred_color_spaces)
   {
-    Span sel = find_if(formats.span(), [&](gpu::SurfaceFormat a) {
+    Span sel = find_if(formats.view(), [&](gpu::SurfaceFormat a) {
       return a.color_space == cp;
     });
     if (!sel.is_empty())
@@ -460,7 +460,7 @@ void Engine::recreate_swapchain_()
 
   for (gpu::PresentMode pm : preferred_present_modes)
   {
-    if (!find(present_modes.span(), pm).is_empty())
+    if (!find(present_modes.view(), pm).is_empty())
     {
       found_present_mode = true;
       present_mode       = pm;
