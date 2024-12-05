@@ -41,11 +41,11 @@ struct Super
         }
       };
 
-  alignas(ALIGNMENT) mutable u8 storage[CAPACITY];
+  alignas(ALIGNMENT) mutable u8 storage_[CAPACITY];
 
-  Base * base_ptr;
+  Base * base_;
 
-  Lifecycle lifecycle;
+  Lifecycle lifecycle_;
 
   template <typename Object>
   requires (Derives<Object, Base> && ALIGNMENT >= alignof(Object) &&
@@ -63,11 +63,11 @@ struct Super
   template <usize SrcAlignment, usize SrcCapacity>
   requires (ALIGNMENT >= SrcAlignment && CAPACITY >= SrcCapacity)
   constexpr Super(Super<Base, SrcAlignment, SrcCapacity> && other) :
-      lifecycle{other.lifecycle}
+      lifecycle_{other.lifecycle_}
   {
-    other.lifecycle(other.storage, storage, &base_ptr);
-    other.lifecycle = noop;
-    other.base_ptr  = nullptr;
+    other.lifecycle_(other.storage_, storage_, &base_);
+    other.lifecycle_ = noop;
+    other.base_      = nullptr;
   }
 
   template <usize SrcAlignment, usize SrcCapacity>
@@ -82,28 +82,28 @@ struct Super
       }
     }
 
-    lifecycle(storage, nullptr, nullptr);
-    other.lifecycle(other.storage, storage, &base_ptr);
-    lifecycle       = other.lifecycle;
-    other.lifecycle = noop;
-    other.base_ptr  = nullptr;
+    lifecycle_(storage_, nullptr, nullptr);
+    other.lifecycle_(other.storage_, storage_, &base_);
+    lifecycle_       = other.lifecycle_;
+    other.lifecycle_ = noop;
+    other.base_      = nullptr;
 
     return *this;
   }
 
   constexpr operator Base &() const
   {
-    return *base_ptr;
+    return *base_;
   }
 
   constexpr Base & get() const
   {
-    return *base_ptr;
+    return *base_;
   }
 
   constexpr ~Super()
   {
-    lifecycle(storage, nullptr, nullptr);
+    lifecycle_(storage_, nullptr, nullptr);
   }
 };
 
