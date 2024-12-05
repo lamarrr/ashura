@@ -27,6 +27,7 @@ struct Lambda;
 /// @tparam Alignment alignment of the internal storage in bytes
 /// @tparam Capacity capacity of the internal storage in bytes
 template <usize Alignment, usize Capacity, typename R, typename... Args>
+requires (Alignment > 0 && Capacity > 0)
 struct Lambda<R(Args...), Alignment, Capacity>
 {
   static constexpr usize ALIGNMENT = Alignment;
