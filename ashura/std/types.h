@@ -906,7 +906,7 @@ constexpr auto begin(T && a) -> decltype(a.begin())
 }
 
 template <typename T, usize N>
-constexpr IterEnd end(T (&)[N])
+constexpr auto end(T (&)[N])
 {
   return IterEnd{};
 }
@@ -962,7 +962,7 @@ constexpr usize size_bits(T (&)[N])
 template <typename T>
 constexpr auto size_bits(T && a) -> decltype(a.size())
 {
-  return sizeof(T) * 8 * a.size();
+  return sizeof(T) * a.size() * 8;
 }
 
 template <typename T>
