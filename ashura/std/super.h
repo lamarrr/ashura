@@ -48,12 +48,12 @@ struct Super
   Lifecycle lifecycle;
 
   template <typename Object>
-  requires (Derives<Super, Object> && ALIGNMENT >= alignof(Object) &&
+  requires (Derives<Object, Base> && ALIGNMENT >= alignof(Object) &&
             CAPACITY >= sizeof(Object))
   constexpr Super(Object object, Lifecycle lifecycle = LIFECYCLE<Object>) :
-      lifecycle{lifecycle}
+      lifecycle_{lifecycle}
   {
-    base_ptr = new (storage) Object{static_cast<Object &&>(object)};
+    base_ = new (storage_) Object{static_cast<Object &&>(object)};
   }
 
   constexpr Super(Super const &) = delete;
