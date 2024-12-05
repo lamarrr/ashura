@@ -17,7 +17,7 @@
 namespace ash
 {
 
-constexpr usize TASK_ARENA_SIZE = PAGE_SIZE;
+inline constexpr usize TASK_ARENA_SIZE = PAGE_SIZE;
 
 /// memory is returned back to the scheduler once ac reaches 0.
 ///

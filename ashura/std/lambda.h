@@ -7,9 +7,9 @@
 namespace ash
 {
 
-static constexpr usize DEFAULT_LAMBDA_ALIGNMENT = 32;
+inline constexpr usize DEFAULT_LAMBDA_ALIGNMENT = 32;
 
-static constexpr usize DEFAULT_LAMBDA_CAPACITY = 48;
+inline constexpr usize DEFAULT_LAMBDA_CAPACITY = 48;
 
 template <typename Sig, usize Alignment = DEFAULT_LAMBDA_ALIGNMENT,
           usize Capacity = DEFAULT_LAMBDA_CAPACITY>

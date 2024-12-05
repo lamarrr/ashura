@@ -130,7 +130,7 @@ struct FontImpl : Font
 
   virtual Result<> rasterize(u32 font_height, AllocatorImpl allocator) override
   {
-    constexpr u32 MIN_ATLAS_EXTENT = 512;
+    static constexpr u32 MIN_ATLAS_EXTENT = 512;
     static_assert(MIN_ATLAS_EXTENT > 0, "Font atlas extent must be non-zero");
     static_assert(MIN_ATLAS_EXTENT > 128,
                   "Font atlas extent must be at least 128px");

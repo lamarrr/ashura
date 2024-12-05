@@ -10,7 +10,7 @@
 namespace ash
 {
 
-static constexpr usize MAX_ENUM_SIZE = 16;
+inline constexpr usize MAX_ENUM_SIZE = 16;
 
 template<typename ... T>
 struct Enum

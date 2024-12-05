@@ -11,19 +11,19 @@
 namespace ash
 {
 
-constexpr u32 TEXTURE_WHITE        = 0;
-constexpr u32 TEXTURE_BLACK        = 1;
-constexpr u32 TEXTURE_TRANSPARENT  = 2;
-constexpr u32 TEXTURE_RED          = 3;
-constexpr u32 TEXTURE_GREEN        = 4;
-constexpr u32 TEXTURE_BLUE         = 5;
-constexpr u32 NUM_DEFAULT_TEXTURES = TEXTURE_BLUE + 1;
+inline constexpr u32 TEXTURE_WHITE        = 0;
+inline constexpr u32 TEXTURE_BLACK        = 1;
+inline constexpr u32 TEXTURE_TRANSPARENT  = 2;
+inline constexpr u32 TEXTURE_RED          = 3;
+inline constexpr u32 TEXTURE_GREEN        = 4;
+inline constexpr u32 TEXTURE_BLUE         = 5;
+inline constexpr u32 NUM_DEFAULT_TEXTURES = TEXTURE_BLUE + 1;
 
-constexpr u32 SAMPLER_LINEAR          = 0;
-constexpr u32 SAMPLER_NEAREST         = 1;
-constexpr u32 SAMPLER_LINEAR_CLAMPED  = 2;
-constexpr u32 SAMPLER_NEAREST_CLAMPED = 3;
-constexpr u32 NUM_DEFAULT_SAMPLERS    = SAMPLER_NEAREST_CLAMPED + 1;
+inline constexpr u32 SAMPLER_LINEAR          = 0;
+inline constexpr u32 SAMPLER_NEAREST         = 1;
+inline constexpr u32 SAMPLER_LINEAR_CLAMPED  = 2;
+inline constexpr u32 SAMPLER_NEAREST_CLAMPED = 3;
+inline constexpr u32 NUM_DEFAULT_SAMPLERS    = SAMPLER_NEAREST_CLAMPED + 1;
 
 struct FramebufferAttachment
 {

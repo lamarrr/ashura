@@ -7,7 +7,7 @@
 
 namespace ash{
 
-static constexpr usize MAX_TUPLE_SIZE = 16;
+inline constexpr usize MAX_TUPLE_SIZE = 16;
 
 
 namespace intr

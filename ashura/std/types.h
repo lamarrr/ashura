@@ -34,49 +34,49 @@ typedef uintptr_t uptr;
 typedef intptr_t  iptr;
 typedef u64       hash64;
 
-constexpr u8 U8_MIN = 0;
-constexpr u8 U8_MAX = 0xFF;
+inline constexpr u8 U8_MIN = 0;
+inline constexpr u8 U8_MAX = 0xFF;
 
-constexpr i8 I8_MIN = -0x7F - 1;
-constexpr i8 I8_MAX = 0x7F;
+inline constexpr i8 I8_MIN = -0x7F - 1;
+inline constexpr i8 I8_MAX = 0x7F;
 
-constexpr u16 U16_MIN = 0;
-constexpr u16 U16_MAX = 0xFFFF;
+inline constexpr u16 U16_MIN = 0;
+inline constexpr u16 U16_MAX = 0xFFFF;
 
-constexpr i16 I16_MIN = -0x7FFF - 1;
-constexpr i16 I16_MAX = 0x7FFF;
+inline constexpr i16 I16_MIN = -0x7FFF - 1;
+inline constexpr i16 I16_MAX = 0x7FFF;
 
-constexpr u32 U32_MIN = 0;
-constexpr u32 U32_MAX = 0xFFFF'FFFFU;
+inline constexpr u32 U32_MIN = 0;
+inline constexpr u32 U32_MAX = 0xFFFF'FFFFU;
 
-constexpr i32 I32_MIN = -0x7FFF'FFFF - 1;
-constexpr i32 I32_MAX = 0x7FFF'FFFF;
+inline constexpr i32 I32_MIN = -0x7FFF'FFFF - 1;
+inline constexpr i32 I32_MAX = 0x7FFF'FFFF;
 
-constexpr u64 U64_MIN = 0;
-constexpr u64 U64_MAX = 0xFFFF'FFFF'FFFF'FFFFULL;
+inline constexpr u64 U64_MIN = 0;
+inline constexpr u64 U64_MAX = 0xFFFF'FFFF'FFFF'FFFFULL;
 
-constexpr i64 I64_MIN = -0x7FFF'FFFF'FFFF'FFFFLL - 1;
-constexpr i64 I64_MAX = 0x7FFF'FFFF'FFFF'FFFFLL;
+inline constexpr i64 I64_MIN = -0x7FFF'FFFF'FFFF'FFFFLL - 1;
+inline constexpr i64 I64_MAX = 0x7FFF'FFFF'FFFF'FFFFLL;
 
-constexpr usize USIZE_MIN = 0;
-constexpr usize USIZE_MAX = SIZE_MAX;
+inline constexpr usize USIZE_MIN = 0;
+inline constexpr usize USIZE_MAX = SIZE_MAX;
 
-constexpr isize ISIZE_MIN = PTRDIFF_MIN;
-constexpr isize ISIZE_MAX = PTRDIFF_MAX;
+inline constexpr isize ISIZE_MIN = PTRDIFF_MIN;
+inline constexpr isize ISIZE_MAX = PTRDIFF_MAX;
 
-constexpr f32 F32_MIN          = -FLT_MAX;
-constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
-constexpr f32 F32_MAX          = FLT_MAX;
-constexpr f32 F32_EPS          = FLT_EPSILON;
-constexpr f32 F32_INF          = INFINITY;
+inline constexpr f32 F32_MIN          = -FLT_MAX;
+inline constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
+inline constexpr f32 F32_MAX          = FLT_MAX;
+inline constexpr f32 F32_EPS          = FLT_EPSILON;
+inline constexpr f32 F32_INF          = INFINITY;
 
-constexpr f64 F64_MIN          = -DBL_MAX;
-constexpr f64 F64_MIN_POSITIVE = DBL_MIN;
-constexpr f64 F64_MAX          = DBL_MAX;
-constexpr f64 F64_EPS          = DBL_EPSILON;
-constexpr f64 F64_INF          = INFINITY;
+inline constexpr f64 F64_MIN          = -DBL_MAX;
+inline constexpr f64 F64_MIN_POSITIVE = DBL_MIN;
+inline constexpr f64 F64_MAX          = DBL_MAX;
+inline constexpr f64 F64_EPS          = DBL_EPSILON;
+inline constexpr f64 F64_INF          = INFINITY;
 
-constexpr f32 PI = 3.14159265358979323846F;
+inline constexpr f32 PI = 3.14159265358979323846F;
 
 struct Add
 {

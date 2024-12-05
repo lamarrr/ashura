@@ -7,7 +7,7 @@
 namespace ash
 {
 
-static constexpr usize MAX_PATH_SIZE = 256;
+inline constexpr usize MAX_PATH_SIZE = 256;
 
 enum class [[nodiscard]] IoErr : i32
 {

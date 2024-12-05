@@ -638,12 +638,12 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
   f32 const  block_width = max(layout.extent.x, style.align_width);
   Vec2 const block_extent{block_width, layout.extent.y};
 
-  constexpr u8 PASS_BACKGROUND    = 0;
-  constexpr u8 PASS_GLYPH_SHADOWS = 1;
-  constexpr u8 PASS_GLYPHS        = 2;
-  constexpr u8 PASS_UNDERLINE     = 3;
-  constexpr u8 PASS_STRIKETHROUGH = 4;
-  constexpr u8 NUM_PASSES         = 5;
+  static constexpr u8 PASS_BACKGROUND    = 0;
+  static constexpr u8 PASS_GLYPH_SHADOWS = 1;
+  static constexpr u8 PASS_GLYPHS        = 2;
+  static constexpr u8 PASS_UNDERLINE     = 3;
+  static constexpr u8 PASS_STRIKETHROUGH = 4;
+  static constexpr u8 NUM_PASSES         = 5;
 
   for (u8 pass = 0; pass < NUM_PASSES; pass++)
   {

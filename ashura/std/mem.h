@@ -7,17 +7,17 @@
 namespace ash
 {
 
-constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
+inline constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
 
 /// @brief Just a hint, this is a common cacheline size. not the actual target's
 /// cacheline size
-constexpr usize CACHELINE_ALIGNMENT = 64;
+inline constexpr usize CACHELINE_ALIGNMENT = 64;
 
 /// @brief Just a hint, this is the common page alignment. not the actual
 /// target's page alignment.
-constexpr usize PAGE_ALIGNMENT = 16_KB;
+inline constexpr usize PAGE_ALIGNMENT = 16_KB;
 
-constexpr usize PAGE_SIZE = PAGE_ALIGNMENT;
+inline constexpr usize PAGE_SIZE = PAGE_ALIGNMENT;
 
 template <typename T>
 constexpr T align_offset(T alignment, T offset)

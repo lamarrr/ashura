@@ -398,7 +398,7 @@ struct CoreViewTheme
   f32  focus_thickness   = 0;
 };
 
-constexpr CoreViewTheme DEFAULT_THEME = {
+inline constexpr CoreViewTheme DEFAULT_THEME = {
     .background        = Vec4U8{0x19, 0x19, 0x19, 0xFF}
              .norm(),
     .surface           = Vec4U8{0x33, 0x33, 0x33, 0xFF}

@@ -6,9 +6,9 @@
 namespace ash
 {
 
-static constexpr usize DEFAULT_SUPER_ALIGNMENT = 32;
+inline constexpr usize DEFAULT_SUPER_ALIGNMENT = 32;
 
-static constexpr usize DEFAULT_SUPER_CAPACITY = 48;
+inline constexpr usize DEFAULT_SUPER_CAPACITY = 48;
 
 template <typename Base, usize Alignment = DEFAULT_SUPER_ALIGNMENT,
           usize Capacity = DEFAULT_SUPER_CAPACITY>

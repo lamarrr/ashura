@@ -159,20 +159,22 @@ constexpr void replace_invalid_codepoints(Span<c32 const> input,
 }
 
 /// Unicode Ranges
-
-constexpr Slice32 UTF_BASIC_LATIN{0x0020, 0x007F - 0x0020};
-constexpr Slice32 UTF_LATIN1_SUPPLEMENT{0x00A0, 0x00FF - 0x00A0};
-constexpr Slice32 UTF_LATIN_EXTENDED_A{0x0100, 0x017F - 0x0100};
-constexpr Slice32 UTF_LATIN_EXTENDED_B{0x0180, 0x024F - 0x0180};
-constexpr Slice32 UTF_COMBINING_DIACRITICAL_MARKS{0x0300, 0x036F - 0x0300};
-constexpr Slice32 UTF_ARABIC{0x0600, 0x06FF - 0x0600};
-constexpr Slice32 UTF_GENERAL_PUNCTUATION{0x2000, 0x206F - 0x2000};
-constexpr Slice32 UTF_SUPERSCRIPTS_AND_SUBSCRIPTS{0x2070, 0x209F - 0x2070};
-constexpr Slice32 UTF_CURRENCY_SYMBOLS{0x20A0, 0x20CF - 0x20A0};
-constexpr Slice32 UTF_NUMBER_FORMS{0x2150, 0x218F - 0x2150};
-constexpr Slice32 UTF_ARROWS{0x2190, 0x21FF - 0x2190};
-constexpr Slice32 UTF_MATHEMATICAL_OPERATORS{0x2200, 0x22FF - 0x2200};
-constexpr Slice32 UTF_HIRAGANA{0x3040, 0x309F - 0x3040};
-constexpr Slice32 UTF_KATAKANA{0x30A0, 0x30FF - 0x30A0};
+namespace utf
+{
+inline constexpr Tuple<u32, u32> BASIC_LATIN{0x0020, 0x007F};
+inline constexpr Tuple<u32, u32> LATIN1_SUPPLEMENT{0x00A0, 0x00FF};
+inline constexpr Tuple<u32, u32> LATIN_EXTENDED_A{0x0100, 0x017F};
+inline constexpr Tuple<u32, u32> LATIN_EXTENDED_B{0x0180, 0x024F};
+inline constexpr Tuple<u32, u32> COMBINING_DIACRITICAL_MARKS{0x0300, 0x036F};
+inline constexpr Tuple<u32, u32> ARABIC{0x0600, 0x06FF};
+inline constexpr Tuple<u32, u32> GENERAL_PUNCTUATION{0x2000, 0x206F};
+inline constexpr Tuple<u32, u32> SUPERSCRIPTS_AND_SUBSCRIPTS{0x2070, 0x209F};
+inline constexpr Tuple<u32, u32> CURRENCY_SYMBOLS{0x20A0, 0x20CF};
+inline constexpr Tuple<u32, u32> NUMBER_FORMS{0x2150, 0x218F};
+inline constexpr Tuple<u32, u32> ARROWS{0x2190, 0x21FF};
+inline constexpr Tuple<u32, u32> MATHEMATICAL_OPERATORS{0x2200, 0x22FF};
+inline constexpr Tuple<u32, u32> HIRAGANA{0x3040, 0x309F};
+inline constexpr Tuple<u32, u32> KATAKANA{0x30A0, 0x30FF};
+}        // namespace utf
 
 }        // namespace ash

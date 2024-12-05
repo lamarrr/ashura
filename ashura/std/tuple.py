@@ -18,7 +18,7 @@ out(f"""/// SPDX-License-Identifier: MIT
 
 namespace ash{{
 
-static constexpr usize MAX_TUPLE_SIZE = {MAX_TUPLE_SIZE};
+inline constexpr usize MAX_TUPLE_SIZE = {MAX_TUPLE_SIZE};
 
 """)
 
