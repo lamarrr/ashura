@@ -7,7 +7,6 @@
 #include "ashura/std/error.h"
 #include "ashura/std/list.h"
 #include "ashura/std/log.h"
-#include "ashura/std/rc.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -19,26 +18,28 @@ namespace ash
 
 inline constexpr usize TASK_ARENA_SIZE = PAGE_SIZE;
 
-/// memory is returned back to the scheduler once ac reaches 0.
+/// @brief memory is returned back to the scheduler once ac reaches 0.
 ///
 /// arenas are individually allocated from heap and span a page boundary.
 ///
-struct TaskArena
+struct TaskArena : Pin<>
 {
-  AliasCount ac{};
-  Arena      arena{};
+  TaskArena * next = nullptr;
+  TaskArena * prev = nullptr;
+  AliasCount  ac{};
+  Arena       arena{};
 
-  static constexpr auto node_flex()
+  static constexpr auto flex()
   {
     return Flex{
-        {layout<ListNode<TaskArena>>,
+        {layout<TaskArena>,
          Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}}
     };
   }
 };
 
-/// once task is executed, the arena holding the memory associated with the task
-/// is returned back to the source.
+/// @brief once the task is executed, the arena holding the memory associated
+/// with the task is returned back to the source.
 ///
 /// the arena holds the memory for this Task struct, and the memory for its
 /// related data. this has the advantage that accessing the struct is
@@ -59,6 +60,10 @@ struct Task
 
   typedef bool (*Run)(void *);
 
+  Task * next = nullptr;
+
+  Task * prev = nullptr;
+
   Layout frame_layout{};
 
   Poll poll = [](void *) { return true; };
@@ -68,12 +73,12 @@ struct Task
   Uninit uninit = noop;
 
   /// @brief arena this task was allocated from. always non-null.
-  ListNode<TaskArena> * arena = nullptr;
+  TaskArena * arena = nullptr;
 
-  static constexpr auto node_flex(Layout frame_layout)
+  static constexpr auto flex(Layout frame_layout)
   {
     return Flex{
-        {layout<ListNode<Task>>, frame_layout}
+        {layout<Task>, frame_layout}
     };
   }
 };
@@ -92,11 +97,11 @@ static_assert(MAX_TASK_FRAME_SIZE >= MAX_STANDARD_ALIGNMENT,
 
 // assuming it has maximum alignment as well, although this would typically be
 // maximum of MAX_STANDARD_ALIGNMENT
-constexpr Layout MAX_TASK_FRAME_LAYOUT{.alignment = MAX_TASK_FRAME_SIZE,
-                                       .size      = MAX_TASK_FRAME_SIZE};
+inline constexpr Layout MAX_TASK_FRAME_LAYOUT{.alignment = MAX_TASK_FRAME_SIZE,
+                                              .size      = MAX_TASK_FRAME_SIZE};
 
-constexpr Layout MAX_TASK_NODE_FLEX_LAYOUT =
-    Task::node_flex(MAX_TASK_FRAME_LAYOUT).layout();
+inline constexpr Layout MAX_TASK_NODE_FLEX_LAYOUT =
+    Task::flex(MAX_TASK_FRAME_LAYOUT).layout();
 
 static_assert(TASK_ARENA_SIZE >= MAX_TASK_NODE_FLEX_LAYOUT.size,
               "Task arena size is too small to fit the maximum task frame and "
@@ -116,11 +121,11 @@ struct TaskAllocator
     SpinLock        lock{};
     List<TaskArena> list{};
 
-    ListNode<TaskArena> * pop()
+    TaskArena * pop()
     {
-      LockGuard             guard{lock};
+      LockGuard   guard{lock};
       // return the most recently used arena
-      ListNode<TaskArena> * arena = list.pop_back();
+      TaskArena * arena = list.pop_back();
       return arena;
     }
 
@@ -131,8 +136,8 @@ struct TaskAllocator
   /// allocate a new arena and make it the current arena.
   struct alignas(CACHELINE_ALIGNMENT)
   {
-    SpinLock              lock{};
-    ListNode<TaskArena> * node = nullptr;
+    SpinLock    lock{};
+    TaskArena * node = nullptr;
 
   } current_arena{};
 
@@ -161,21 +166,21 @@ struct TaskAllocator
     }
   }
 
-  void release_arena(ListNode<TaskArena> * arena)
+  void release_arena(TaskArena * arena)
   {
     // decrease alias count of arena, if only alias left, add to the arena
     // free list.
-    if (arena->v.ac.unalias())
+    if (arena->ac.unalias())
     {
-      arena->v.arena.reclaim();
+      arena->arena.reclaim();
       LockGuard guard{free_list.lock};
       free_list.list.push_back(arena);
     }
   }
 
-  bool alloc_arena(ListNode<TaskArena> *& arena)
+  bool alloc_arena(TaskArena *& arena)
   {
-    Flex const   flex   = TaskArena::node_flex();
+    Flex const   flex   = TaskArena::flex();
     Layout const layout = flex.layout();
 
     u8 * head;
@@ -188,23 +193,22 @@ struct TaskAllocator
     u8 * memory;
     flex.unpack(head, arena, memory);
 
-    new (arena) ListNode<TaskArena>{
-        .v{.arena = to_arena(Span{memory, TASK_ARENA_SIZE})}};
+    new (arena) TaskArena{.arena = to_arena(Span{memory, TASK_ARENA_SIZE})};
 
     return true;
   }
 
-  void dealloc_arena(ListNode<TaskArena> * arena)
+  void dealloc_arena(TaskArena * arena)
   {
-    Flex const   flex   = TaskArena::node_flex();
+    Flex const   flex   = TaskArena::flex();
     Layout const layout = flex.layout();
     source.dealloc(layout.alignment, (u8 *) arena, layout.size);
   }
 
-  bool request_arena(ListNode<TaskArena> *& arena)
+  bool request_arena(TaskArena *& arena)
   {
     /// get from free list, otherwise allocate a new arena
-    ListNode<TaskArena> * a = free_list.pop();
+    TaskArena * a = free_list.pop();
     if (a != nullptr)
     {
       arena = a;
@@ -213,54 +217,51 @@ struct TaskAllocator
     return alloc_arena(arena);
   }
 
-  static bool alloc_task(ListNode<TaskArena> & arena, TaskInfo const & info,
-                         ListNode<Task> *& task)
+  static bool alloc_task(TaskArena & arena, TaskInfo const & info, Task *& task)
   {
-    Flex const   flex   = Task::node_flex(info.frame_layout);
+    Flex const   flex   = Task::flex(info.frame_layout);
     Layout const layout = flex.layout();
 
     u8 * head;
 
-    if (!arena.v.arena.alloc(layout.alignment, layout.size, head))
+    if (!arena.arena.alloc(layout.alignment, layout.size, head))
     {
       return false;
     }
 
-    arena.v.ac.alias();
+    arena.ac.alias();
 
     u8 * ctx;
 
     flex.unpack(head, task, ctx);
 
-    new (task) ListNode<Task>{
-        .v{.frame_layout = info.frame_layout,
-           .poll         = info.poll,
-           .run          = info.run,
-           .uninit       = info.uninit,
-           .arena        = &arena}
-    };
+    new (task) Task{.frame_layout = info.frame_layout,
+                    .poll         = info.poll,
+                    .run          = info.run,
+                    .uninit       = info.uninit,
+                    .arena        = &arena};
 
     info.init(ctx);
 
     return true;
   }
 
-  static void uninit_task(ListNode<Task> * task)
+  static void uninit_task(Task * task)
   {
-    Flex const flex = Task::node_flex(task->v.frame_layout);
+    Flex const flex = Task::flex(task->frame_layout);
     u8 *       ctx;
     flex.unpack(task, task, ctx);
-    task->v.uninit(ctx);
+    task->uninit(ctx);
   }
 
-  void release_task(ListNode<Task> * task)
+  void release_task(Task * task)
   {
-    ListNode<TaskArena> * arena = task->v.arena;
+    TaskArena * arena = task->arena;
     uninit_task(task);
     release_arena(arena);
   }
 
-  bool create_task(TaskInfo const & info, ListNode<Task> *& task)
+  bool create_task(TaskInfo const & info, Task *& task)
   {
     LockGuard guard{current_arena.lock};
 
@@ -279,9 +280,9 @@ struct TaskAllocator
 
     // decrease alias count of current arena, if last alias, reclaim the memory
     // instead
-    if (current_arena.node->v.ac.unalias()) [[unlikely]]
+    if (current_arena.node->ac.unalias()) [[unlikely]]
     {
-      current_arena.node->v.arena.reclaim();
+      current_arena.node->arena.reclaim();
     }
     else
     {
@@ -323,16 +324,16 @@ struct TaskQueue
     return tasks.is_empty();
   }
 
-  ListNode<Task> * pop_task()
+  Task * pop_task()
   {
-    LockGuard        guard{lock};
-    ListNode<Task> * t = tasks.pop_front();
+    LockGuard guard{lock};
+    Task *    t = tasks.pop_front();
     return t;
   }
 
   /// @brief push task on the queue
   /// @param t non-null task node
-  void push_task(ListNode<Task> * t)
+  void push_task(Task * t)
   {
     LockGuard guard{lock};
     tasks.push_back(t);
@@ -340,7 +341,7 @@ struct TaskQueue
 
   void push_task(TaskInfo const & info)
   {
-    ListNode<Task> * t;
+    Task * t;
     CHECK(allocator.create_task(info, t));
     push_task(t);
   }
@@ -425,7 +426,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
     while (true)
     {
-      ListNode<Task> * task = main_queue.pop_task();
+      Task * task = main_queue.pop_task();
 
       if (task == nullptr)
       {
@@ -451,7 +452,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
         break;
       }
 
-      ListNode<Task> * task = q.pop_task();
+      Task * task = q.pop_task();
 
       if (task == nullptr) [[unlikely]]
       {
@@ -460,13 +461,13 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
         continue;
       }
 
-      Flex const flex = Task::node_flex(task->v.frame_layout);
+      Flex const flex = Task::flex(task->frame_layout);
 
       u8 * frame;
 
       flex.unpack(task, task, frame);
 
-      if (!task->v.poll(frame)) [[unlikely]]
+      if (!task->poll(frame)) [[unlikely]]
       {
         q.push_task(task);
         continue;
@@ -475,7 +476,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
       // finally gotten a ready task, reset poll counter
       poll = 0;
 
-      bool const repeat = task->v.run(frame);
+      bool const repeat = task->run(frame);
 
       if (repeat) [[unlikely]]
       {
@@ -491,7 +492,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
     // run loop done. purge pending tasks
     while (true)
     {
-      ListNode<Task> * task = q.pop_task();
+      Task * task = q.pop_task();
 
       if (task == nullptr)
       {
@@ -516,7 +517,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
         break;
       }
 
-      ListNode<Task> * task = q.pop_task();
+      Task * task = q.pop_task();
 
       if (task == nullptr) [[unlikely]]
       {
@@ -533,19 +534,19 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
         }
       }
 
-      Flex const flex = Task::node_flex(task->v.frame_layout);
+      Flex const flex = Task::flex(task->frame_layout);
 
       u8 * frame;
 
       flex.unpack(task, task, frame);
 
-      if (!task->v.poll(frame)) [[unlikely]]
+      if (!task->poll(frame)) [[unlikely]]
       {
         q.push_task(task);
         continue;
       }
 
-      bool const repeat = task->v.run(frame);
+      bool const repeat = task->run(frame);
 
       if (repeat) [[unlikely]]
       {
