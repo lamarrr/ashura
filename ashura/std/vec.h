@@ -673,7 +673,7 @@ struct [[nodiscard]] PinVec
       return out;
     }
 
-    obj::copy_construct(span(), out.value().view());
+    obj::copy_construct(view(), out.value().view());
 
     return out;
   }
