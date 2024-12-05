@@ -359,6 +359,8 @@ constexpr i32 sat_mul(i32 a, i32 b)
 
 // [ ] sat_cast
 
+using std::bit_cast;
+
 template <typename T>
 constexpr bool has_bits(T src, T cmp)
 {
