@@ -62,7 +62,7 @@ struct Lambda<R(Args...), Alignment, Capacity>
 
   Lifecycle lifecycle_;
 
-  template <AnyFunctor Functor>
+  template <typename Functor>
   requires (ALIGNMENT >= alignof(Functor) && CAPACITY >= sizeof(Functor) &&
             Callable<Functor, Args...> &&
             Convertible<CallResult<Functor, Args...>, R>)
