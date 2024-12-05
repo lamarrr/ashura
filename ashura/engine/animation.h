@@ -1,10 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/std/allocator.h"
 #include "ashura/std/error.h"
 #include "ashura/std/lambda.h"
 #include "ashura/std/math.h"
-#include "ashura/std/option.h"
 #include "ashura/std/range.h"
 #include "ashura/std/super.h"
 #include "ashura/std/time.h"
@@ -14,27 +12,11 @@
 namespace ash
 {
 
-/// [ ] https://create.roblox.com/docs/ui/animation#style
-/// [ ] Procedural Animation https://www.youtube.com/watch?v=qlfh_rv6khY
-
 /// While we use nanoseconds as the unit of time for the animation API,
 /// it is a virtual nanosecond, the application or target user can decide
 /// what the nanoseconds interprets to, the animation API does not
 /// manage or request operating system timestamps.
-
-// [x] Keyframes, for time interval x, move from a to b
-// [ ] keyframe blending
-// [x] play
-// [x] reverse
-// [x] cancel
-// [ ] frame-rate customization
-// [x] move back from point
-// [x] loop n or forever
-// [ ] stop after timepoint
-// [ ] alternate
-// [x] pause
-// [x] resume in direction
-// [x] restart animation state to beginning
+/// i64 precision is important for externally synchronized animations.
 
 /// @brief An object used to tween/interpolate between two values.
 /// This is a separate object to allow users customize the definition of the
@@ -74,13 +56,11 @@ struct Tween
   }
 };
 
-template <typename Tween, typename T>
-concept Tweens = requires (Tween tween, T low, T high, f32 t) {
-  { tween(low, high, t) } -> Convertible<T>;
-};
+template <typename T>
+using Tweener = Lambda<T(T, T, f32)>;
 
-/// @brief Easing function, the parameters are stored in an array
-/// @param t the linear interpolator to be eased. guaranteed range [0, 1].
+/// @brief Easing function
+/// @param t the linear interpolator to be eased.
 typedef Lambda<f32(f32 t)> Easing;
 
 namespace easing
@@ -144,31 +124,29 @@ constexpr Easing spring(f32 mass, f32 stiffness, f32 damping)
 
 };        // namespace easing
 
-template <typename T, Tweens<T> Tween = ash::Tween>
-struct TimelineSpan
+template <typename T>
+struct TimelineView
 {
-  Tween *                 tween = nullptr;
+  Tweener<T> const *      tweener = nullptr;
   Span<nanoseconds const> timestamps;
   Span<Easing const>      easings;
-  Span<u64 const>         runs;
   Span<T const>           frames;
 
-  constexpr TimelineSpan(Tween & tween, Span<nanoseconds const> timestamps,
-                         Span<Easing const> easings, Span<u64 const> runs,
-                         Span<T const> frames) :
-      tween{&tween},
+  constexpr TimelineView(Tweener<T> &            tweener,
+                         Span<nanoseconds const> timestamps,
+                         Span<Easing const> easings, Span<T const> frames) :
+      tweener{&tweener},
       timestamps{timestamps},
       easings{easings},
-      runs{runs},
       frames{frames}
   {
   }
 
-  constexpr TimelineSpan(TimelineSpan const &)             = default;
-  constexpr TimelineSpan(TimelineSpan &&)                  = default;
-  constexpr TimelineSpan & operator=(TimelineSpan const &) = default;
-  constexpr TimelineSpan & operator=(TimelineSpan &&)      = default;
-  constexpr ~TimelineSpan()                                = default;
+  constexpr TimelineView(TimelineView const &)             = default;
+  constexpr TimelineView(TimelineView &&)                  = default;
+  constexpr TimelineView & operator=(TimelineView const &) = default;
+  constexpr TimelineView & operator=(TimelineView &&)      = default;
+  constexpr ~TimelineView()                                = default;
 
   constexpr bool is_empty() const
   {
@@ -188,33 +166,32 @@ struct TimelineSpan
 /// forcefully needed to be owned by the timeline. but only added for ease of use.
 ///
 ///
-/// @details We use a suffix sum encoding of the timestamps, this makes seeking
+/// @details We use a prefix sum encoding of the timestamps, this makes seeking
 /// the entire timeline O(Log2N) as it enables us to use a binary search,
 /// It also allows us to randomly start the animation from any point in the
 /// timeline without modifying the timeline or having to persist the
 /// timeline or the animation state.
 ///
 /// ```
-/// frames = [f0, f1, f2, f3]
-/// durations = [5ns, 2ns, 3ns]
-/// easings = [e0, e1, e2]
+/// frames = [a_0, a_1, b_0, b_1]
+/// durations = [5ns, 3ns]
+/// easings = [e0, e1]
 ///
 /// # Timestamps will be represented by their inclusive sums:
 ///
-/// timeline.frames = [f0, f1, f2, f3]
-/// timeline.timestamps = [0ns, 5ns, 7ns, 10ns]
-/// timeline.runs = [0, 3]
-/// timeline.easings = [e0, e1, e2]
+/// timeline.frames = [a_0, a_1, b_0, b_1]
+/// timeline.timestamps = [0ns, 5ns, 8ns]
+/// timeline.easings = [e0, e1]
 ///
 /// # and we add another:
 ///
-/// frames = [f4, f5, f6]
-/// durations = [20ns, 8ns]
-/// easings = [e3, e4]
+/// frames = [c_0, c_1, d_0, d_1]
+/// durations = [200ns, 1000ns]
+/// easings = [e2, e3]
 ///
-/// timeline.frames = [f0, f1, f2, f3, f4, f5, f6]
-/// timeline.timestamps = [0ns, 5ns, 7ns, 10ns, 30ns, 38ns]
-/// timeline.easings = [e0, e1, e2, e3, e4]
+/// timeline.frames = [a_0, a_1, b_0, b_1, c_0, c_1, d_0, d_1]
+/// timeline.timestamps = [0ns, 5ns, 8ns, 208ns, 1208ns]
+/// timeline.easings = [e0, e1, e2, e3]
 /// ```
 ///
 /// @param tween_ type-independent interpolator to use for animating
@@ -222,17 +199,15 @@ struct TimelineSpan
 /// @param timestamps_ timestamp at which each animation sequence
 /// ends (inclusive sum of the durations)
 /// @param easings_ easing curve of each animation segment
-/// @param runs_ inclusive sum of the number of frames of each segment
 /// @param frames_ animation values of each segment
 ///
 ///
-template <typename T, Tweens<T> Tween = ash::Tween>
+template <typename T>
 struct Timeline
 {
-  Tween            tween_{};
+  Tweener<T>       tweener_{Tween{}};
   Vec<nanoseconds> timestamps_;
   Vec<Easing>      easings_;
-  Vec<u64>         runs_;
   Vec<T>           frames_;
 
   constexpr bool is_empty() const
@@ -242,15 +217,14 @@ struct Timeline
     return timestamps_.is_empty();
   }
 
-  void clear()
+  constexpr void clear()
   {
     timestamps_.clear();
     easings_.clear();
-    runs_.clear();
     frames_.clear();
   }
 
-  nanoseconds duration() const
+  constexpr nanoseconds duration() const
   {
     if (timestamps_.is_empty()) [[unlikely]]
     {
@@ -271,9 +245,7 @@ struct Timeline
   Timeline & key_frame(Span<T> frames, Span<nanoseconds const> durations,
                        Span<Easing> easings)
   {
-    CHECK(frames.size() >= 2);
-    CHECK(frames.size() < U32_MAX);
-    CHECK(frames.size() == durations.size() + 1);
+    CHECK(frames.size() == (durations.size() * 2));
     CHECK(durations.size() == easings.size());
 
     if (timestamps_.is_empty()) [[unlikely]]
@@ -281,67 +253,102 @@ struct Timeline
       timestamps_.push(0ns).unwrap();
     }
 
-    if (runs_.is_empty()) [[unlikely]]
-    {
-      runs_.push(0U).unwrap();
-    }
-
     auto const times_offset = timestamps_.size();
 
     timestamps_.extend_uninit(durations.size()).unwrap();
 
     exclusive_scan(durations,
-                   timestamps_.span().slice(times_offset, durations.size()),
-                   duration());
+                   timestamps_.view().slice(times_offset, durations.size()),
+                   timestamps_.last());
 
     easings_.extend_move(easings).unwrap();
-
-    runs_.push(runs_.last() + frames.size32()).unwrap();
 
     frames_.extend_move(frames).unwrap();
 
     return *this;
   }
 
-  constexpr TimelineSpan<T, Tween> span() const
+  constexpr TimelineView<T> view() const
   {
-    return TimelineSpan<T>{tween_, timestamps_, easings_, frames_, runs_};
+    return TimelineView<T>{tweener_, timestamps_, easings_, frames_};
   }
 };
 
-/// @param delay total delay remaining for the animation to start playing
-/// @param time timestamp of the current animation
-/// @param run_time total runtime of the animation
-/// @param reversed to reverse the effect of the animation, i.e. move back in time
-/// @param paused if the animation is currently paused
+/// @param delay_ total delay remaining for the animation to start playing
+/// @param time_ timestamp of the current animation
+/// @param run_delay_ total runtime of the animation
+/// @param run_time_ total runtime of the animation
+/// @param reversed_ to reverse the effect of the animation, i.e. move back in time
+/// @param paused_ if the animation is currently paused
 struct AnimationState
 {
-  nanoseconds delay_             = 0ns;
-  nanoseconds time_              = 0ns;
-  nanoseconds run_time_          = 0ns;
-  nanoseconds timeline_duration_ = 0ns;
-  bool        reversed_          = false;
-  bool        paused_            = false;
+  nanoseconds delay_     = 0ns;
+  nanoseconds time_      = 0ns;
+  bool        reversed_  = false;
+  bool        paused_    = false;
+  nanoseconds run_delay_ = 0ns;
+  nanoseconds run_time_  = nanoseconds::max();
 
-  /// @brief The animation state needs to be re-targeted onto a new timeline. This is needed when the timeline's data changes
-  template <typename T>
-  constexpr void sync(TimelineSpan<T> const & timeline);
+  /// @brief is the animation a delayed type of animation
+  constexpr bool is_delayed() const
+  {
+    return run_delay_ != 0ns;
+  }
+
+  /// @brief is the animation pending execution due to a delay
+  constexpr bool is_pending() const
+  {
+    return delay_ != 0ns;
+  }
 
   constexpr bool is_completed() const
   {
     return reversed_ ? (time_ == 0ns) : (time_ == run_time_);
   }
 
+  constexpr bool is_reversed() const
+  {
+    return reversed_;
+  }
+
+  constexpr bool is_paused() const
+  {
+    return paused_;
+  }
+
   /// @brief Rush to completion
   constexpr AnimationState & complete()
   {
-    time_ = reversed_ ? 0ns : run_time_;
+    delay_ = 0ns;
+    time_  = reversed_ ? 0ns : run_time_;
+    return *this;
+  }
+
+  constexpr AnimationState & cancel()
+  {
+    delay_  = 0ns;
+    time_   = 0ns;
+    paused_ = true;
     return *this;
   }
 
   constexpr AnimationState & resume()
   {
+    delay_  = 0ns;
     paused_ = false;
+    return *this;
+  }
+
+  constexpr AnimationState & delay(nanoseconds delay)
+  {
+    delay_     = delay;
+    run_delay_ = delay;
+    return *this;
+  }
+
+  constexpr AnimationState & reverse()
+  {
+    reversed_ = !reversed_;
     return *this;
   }
 
@@ -357,64 +364,66 @@ struct AnimationState
     return *this;
   }
 
-  // sanitize timepoint
-  constexpr AnimationState & seek(nanoseconds time_point);
-
-  /// @param t relative timepoint to seek from. [0.0, 1.0]
-  constexpr AnimationState & seek_relative(f64 t)
+  constexpr AnimationState & limit(nanoseconds run_time)
   {
-    // uses f64 for better precision as nanoseconds is 64-bit and we could lose precision
-    return seek(nanoseconds{
-        static_cast<nanoseconds::rep>(timeline_duration_.count() * t)});
+    run_time_ = run_time;
+    return *this;
+  }
+
+  constexpr AnimationState & seek(nanoseconds time_point)
+  {
+    time_ = clamp(time_point, 0ns, run_time_);
+    return *this;
   }
 
   template <typename T>
-  constexpr Option<T> animate(TimelineSpan<T> const & timeline) const
+  constexpr AnimationState & iterations(TimelineView<T> const & timeline,
+                                        i64                     num_iterations)
   {
-    sync(timeline);
-
-    if (timeline.is_empty()) [[unlikely]]
-    {
-      return None;
-    }
-
-    nanoseconds const time =
-        (timeline_duration_ == 0ns) ? 0ns : (time_ % timeline_duration_);
-
-    // get current frame segment (timestamps are sorted, perform binary
-    // search to get current timepoint in the timeline)
-    Span const timestamp_bound = upper_bound(timeline.timestamps, time);
-
-    u64 const timestamp_idx =
-        static_cast<u64>(timestamp_bound.data() - timeline.timestamps.data());
-
-    Span const run_bound = upper_bound(timeline.runs, timestamp_idx);
-
-    u64 const run_idx =
-        static_cast<u64>(timestamp_bound.data() - timeline.timestamps.data());
-
-    u64 const run_start = timeline.runs[run_idx - 1];
-
-    u64 const run_end = timeline.runs[run_idx];
-
-    u64 const run_length = run_end - run_start;
-
-    // it's already at distance - pos
-
-    // [ ] get current run interpolator: use
-
-    return Some<T>{};
+    run_time_ = timeline.duration() * num_iterations;
+    return *this;
   }
 
-  /// @param delta amount to advance animation by. to speed-up multiply a speed factor
+  /// @brief Synchronize with the timeline and get the current animated value
+  /// @returns None, if there's no animation data, otherwise the animated value.
+  template <typename T>
+  T animate(TimelineView<T> const & timeline)
+  {
+    CHECK(!timeline.is_empty());
+
+    auto const time =
+        (timeline.duration() == 0ns) ? 0ns : (time_ % timeline.duration());
+
+    // get current frame segment (timestamps are sorted, perform binary
+    // search (bounds) to get current timepoint in the timeline)
+    Span const time_span = upper_bound(timeline.timestamps, time);
+
+    u64 const end_idx =
+        static_cast<u64>(time_span.data() - timeline.timestamps.data());
+
+    u64 const ease_idx = end_idx - 1;
+
+    u64 const frame_idx = ease_idx * 2;
+
+    nanoseconds const time_start = timeline.timestamps[end_idx - 1];
+    nanoseconds const time_end   = timeline.timestamps[end_idx];
+    nanoseconds const duration   = time_end - time_start;
+    nanoseconds const offset     = time - time_start;
+
+    f32 const t = (f32) (((f64) offset.count()) / (f64) duration.count());
+
+    Easing const & easing = timeline.easings[ease_idx];
+
+    return (*timeline.tweener)(timeline.frames[frame_idx],
+                               timeline.frames[frame_idx + 1], easing(t));
+  }
+
+  /// @brief Drive the animation. Cheap enough to be called every frame
+  /// @param delta amount to advance animation by. to speed-up
+  /// multiply a speed factor.
   constexpr AnimationState & tick(nanoseconds delta)
   {
-    if (timeline_duration_ == 0ns)
-    {
-      return *this;
-    }
-
-    if (paused_)
+    if (is_paused() || is_completed())
     {
       return *this;
     }
@@ -447,10 +456,30 @@ struct Stagger
   /// @brief Perform stagger delay on a list of components
   /// @param width the dimension of the stagger pattern, i.e. the number of rows.
   /// Affects the pattern's granularity
-  /// @param item the index of the item
-  /// @param count the total number of items to be staggered, must be greater than item
+  /// @param num_items the total number of items to be staggered, must be greater than item
   /// @return the stagger delay factor. [0, 1]
-  virtual f32 operator()(u64 width, u64 item, u64 count) = 0;
+  /// @param item the index of the item
+  virtual f32 operator()(u64 width, u64 num_items, u64 item = 0) = 0;
+};
+
+struct Unstaggered final : Stagger
+{
+  constexpr Unstaggered() = default;
+
+  constexpr Unstaggered(Unstaggered const &) = default;
+
+  constexpr Unstaggered(Unstaggered &&) = default;
+
+  constexpr Unstaggered & operator=(Unstaggered const &) = default;
+
+  constexpr Unstaggered & operator=(Unstaggered &&) = default;
+
+  virtual ~Unstaggered() override = default;
+
+  virtual f32 operator()(u64, u64, u64) override
+  {
+    return 0;
+  }
 };
 
 /// @brief Grid-based delay calculation
@@ -488,9 +517,10 @@ struct GridStagger final : Stagger
     return Tuple{index % rows, index / rows};
   }
 
-  constexpr virtual f32 operator()(u64 rows, u64 item, u64 count) override
+  constexpr virtual f32 operator()(u64 rows, u64 num_items, u64 item) override
   {
-    u64 const columns = (rows == 0) ? 0U : (count / rows);
+    rows              = max(rows, 1ULL);
+    u64 const columns = num_items / rows;
 
     f32 row_norm    = 1;
     f32 column_norm = 1;
@@ -548,9 +578,10 @@ struct RippleStagger final : Stagger
     return Tuple{index % rows, index / rows};
   }
 
-  virtual f32 operator()(u64 rows, u64 item, u64 count) override
+  virtual f32 operator()(u64 rows, u64 num_items, u64 item) override
   {
-    u64 const columns = (rows == 0) ? 0U : (count / rows);
+    rows              = max(rows, 1ULL);
+    u64 const columns = num_items / rows;
 
     f32 row_norm    = 0.5F;
     f32 column_norm = 0.5F;
@@ -579,69 +610,182 @@ struct RippleStagger final : Stagger
   }
 };
 
-// we'd ideally want to remain as data-independent as possible
-struct AnimationGraph
+template <typename... T>
+struct StaggeredAnimation
 {
-  // blend other blended nodes
-  struct BlendNodeInput
+  Vec<AnimationState>   states_{};
+  Super<Stagger>        stagger_{Unstaggered{}};
+  u64                   stagger_width_ = 1;
+  Tuple<Timeline<T>...> timelines_{};
+  nanoseconds           delay_ = 0ns;
+
+  StaggeredAnimation() = default;
+
+  StaggeredAnimation(Vec<AnimationState> states, Super<Stagger> stagger,
+                     u64 stagger_width, Tuple<Timeline<T>...> timelines) :
+      states_{std::move(states)},
+      stagger_{std::move(stagger)},
+      stagger_width_{stagger_width},
+      timelines_{std::move(timelines)}
   {
-    // type
-    // index
-  };
+  }
 
-  struct BlendNode
+  StaggeredAnimation(StaggeredAnimation &&)             = default;
+  StaggeredAnimation & operator=(StaggeredAnimation &&) = default;
+
+  StaggeredAnimation(StaggeredAnimation const &)             = delete;
+  StaggeredAnimation & operator=(StaggeredAnimation const &) = delete;
+
+  ~StaggeredAnimation() = default;
+
+  template <Derives<Stagger> Staggering = Unstaggered>
+  static auto make(u64 stagger_width = 0, u64 num_items = 0,
+                   Staggering && staggering = {})
   {
-    u64 inputs     = 0;
-    u64 num_inputs = 0;
-    f32 weight     = 0;
+    Vec<AnimationState> states{};
+    states.resize(num_items).unwrap();
 
-    void run();
-  };
+    Super<Stagger> stagger{static_cast<Staggering &&>(staggering)};
 
-  struct Clip
+    Tuple<Timeline<T>...> timelines;
+
+    return StaggeredAnimation<T...>{std::move(states), std::move(stagger),
+                                    stagger_width, std::move(timelines)};
+  }
+
+  StaggeredAnimation & delay(nanoseconds delay)
   {
-    AnimationState state;
-    u64            data = 0;
-    // lerp? type-erased? referencable? removal?
-    //
-    // timeline reference
-    //
+    delay_ = delay;
+    for (auto [item, state] : enumerate<u64>(states_))
+    {
+      f32 const delay_factor =
+          stagger_.get()(stagger_width_, states_.size64(), item);
+      nanoseconds item_delay = nanoseconds{static_cast<nanoseconds::rep>(
+          static_cast<f64>(delay.count()) * delay_factor)};
+      state.delay(item_delay);
+    }
+    return *this;
+  }
 
-    void run();
-  };
-
-  struct StaggerBase
+  StaggeredAnimation & complete()
   {
-    Super<Stagger> stagger;
-    u64            num_items = 0;
-  };
+    for (AnimationState & s : states_)
+    {
+      s.complete();
+    }
+    return *this;
+  }
 
-  struct StaggerChild
+  StaggeredAnimation & cancel()
   {
-    u64 parent    = 0;
-    u64 item      = 0;
-    u64 animation = 0;
-    // only applies to blend node or clip node?
-  };
+    for (AnimationState & s : states_)
+    {
+      s.cancel();
+    }
+    return *this;
+  }
 
-  //
-  // if named, use hashmap to map to id
-  //
-  // use sparse vec
-  //
-  // store all timelines in one vec
-  // stagger()
-  // parallel()
-  //
-  // make this data-independent as much as possible
-  //
-  // weight(name, AnimationNode&)
-  //
-  //
-  // add(clip_node, parent_node)
-  //
-  //
-  //
+  StaggeredAnimation & resume()
+  {
+    for (AnimationState & s : states_)
+    {
+      s.resume();
+    }
+    return *this;
+  }
+
+  StaggeredAnimation & restart()
+  {
+    for (AnimationState & s : states_)
+    {
+      s.re();
+    }
+    return *this;
+  }
+
+  StaggeredAnimation & reverse()
+  {
+    for (AnimationState & s : states_)
+    {
+      s.reverse();
+    }
+    return *this;
+  }
+
+  StaggeredAnimation & pause()
+  {
+    for (AnimationState & s : states_)
+    {
+      s.pause();
+    }
+    return *this;
+  }
+
+  StaggeredAnimation & loop()
+  {
+    for (AnimationState & s : states_)
+    {
+      s.loop();
+    }
+    return *this;
+  }
+
+  u64 width() const
+  {
+    return stagger_width_;
+  }
+
+  StaggeredAnimation & width(u64 extent)
+  {
+    stagger_width_ = extent;
+    return *this;
+  }
+
+  template <Derives<Stagger> Staggering = Unstaggered>
+  StaggeredAnimation & stagger(Staggering && staggering = {})
+  {
+    stagger_ = static_cast<Staggering &&>(staggering);
+    return *this;
+  }
+
+  AnimationState & state(u64 item)
+  {
+    CHECK(states_.size64() > item);
+    return states_[item];
+  }
+
+  Tuple<Timeline<T> &...> timelines()
+  {
+    return apply(
+        [](auto &... timelines) {
+          return Tuple<decltype(timelines)...>{timelines...};
+        },
+        timelines_);
+  }
+
+  Tuple<T...> animate(u64 item)
+  {
+    CHECK(states_.size64() > item);
+
+    AnimationState & state = states_[item];
+
+    return apply(
+        [&](auto &... timeline) {
+          return Tuple<T...>{state.animate(timeline.view())...};
+        },
+        timelines_);
+  }
+
+  void tick(nanoseconds delta)
+  {
+    // delay update? i.e. after animation
+    // what about with animation cycles?
+    // how will we manage this?
+    for (AnimationState & state : states_)
+    {
+      state.tick(delta);
+    }
+  }
 };
 
 }        // namespace ash
