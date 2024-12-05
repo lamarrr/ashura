@@ -56,11 +56,11 @@ struct Lambda<R(Args...), Alignment, Capacity>
     }
   };
 
-  alignas(ALIGNMENT) mutable u8 storage[CAPACITY];
+  alignas(ALIGNMENT) mutable u8 storage_[CAPACITY];
 
-  Thunk thunk;
+  Thunk thunk_;
 
-  Lifecycle lifecycle;
+  Lifecycle lifecycle_;
 
   template <AnyFunctor Functor>
   requires (ALIGNMENT >= alignof(Functor) && CAPACITY >= sizeof(Functor) &&
@@ -69,10 +69,10 @@ struct Lambda<R(Args...), Alignment, Capacity>
   constexpr Lambda(Functor   functor,
                    Thunk     thunk = &FunctorThunk<Functor, R(Args...)>::thunk,
                    Lifecycle lifecycle = LIFECYCLE<Functor>) :
-      thunk{thunk},
-      lifecycle{lifecycle}
+      thunk_{thunk},
+      lifecycle_{lifecycle}
   {
-    new (storage) Functor{static_cast<Functor &&>(functor)};
+    new (storage_) Functor{static_cast<Functor &&>(functor)};
   }
 
   constexpr Lambda(Lambda const &) = delete;
@@ -82,12 +82,12 @@ struct Lambda<R(Args...), Alignment, Capacity>
   template <usize SrcAlignment, usize SrcCapacity>
   requires (ALIGNMENT >= SrcAlignment && CAPACITY >= SrcCapacity)
   constexpr Lambda(Lambda<R(Args...), SrcAlignment, SrcCapacity> && other) :
-      thunk{other.thunk},
-      lifecycle{other.lifecycle}
+      thunk_{other.thunk_},
+      lifecycle_{other.lifecycle_}
   {
-    other.lifecycle(other.storage, storage);
-    other.lifecycle = noop;
-    other.thunk     = nullptr;
+    other.lifecycle_(other.storage_, storage_);
+    other.lifecycle_ = noop;
+    other.thunk_     = nullptr;
   }
 
   template <usize SrcAlignment, usize SrcCapacity>
@@ -103,24 +103,24 @@ struct Lambda<R(Args...), Alignment, Capacity>
       }
     }
 
-    lifecycle(storage, nullptr);
-    other.lifecycle(other.storage, storage);
-    lifecycle       = other.lifecycle;
-    other.lifecycle = noop;
-    thunk           = other.thunk;
-    other.thunk     = nullptr;
+    lifecycle_(storage_, nullptr);
+    other.lifecycle_(other.storage_, storage_);
+    lifecycle_       = other.lifecycle_;
+    other.lifecycle_ = noop;
+    thunk_           = other.thunk_;
+    other.thunk_     = nullptr;
 
     return *this;
   }
 
   constexpr ~Lambda()
   {
-    lifecycle(storage, nullptr);
+    lifecycle_(storage_, nullptr);
   }
 
   constexpr R operator()(Args... args) const
   {
-    return thunk(storage, static_cast<Args &&>(args)...);
+    return thunk_(storage_, static_cast<Args &&>(args)...);
   }
 };
 
