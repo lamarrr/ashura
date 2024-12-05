@@ -147,7 +147,7 @@ struct FontImpl : Font
 
     CpuFontAtlas atlas;
 
-    if (!atlas.glyphs.resize_defaulted(glyphs.size32()))
+    if (!atlas.glyphs.resize(glyphs.size32()))
     {
       return Err{};
     }
@@ -264,7 +264,7 @@ struct FontImpl : Font
     u64 const atlas_layer_size = atlas_area;
     u64 const atlas_size       = atlas_layer_size * num_layers;
 
-    if (!atlas.channels.resize_defaulted(atlas_size))
+    if (!atlas.channels.resize(atlas_size))
     {
       return Err{};
     }
@@ -349,7 +349,7 @@ struct FontImpl : Font
 
     Vec<gpu::ImageView> views;
 
-    views.resize_defaulted(atlas.num_layers).unwrap();
+    views.resize(atlas.num_layers).unwrap();
 
     for (u32 i = 0; i < atlas.num_layers; i++)
     {
@@ -427,7 +427,7 @@ struct FontImpl : Font
     Vec<u32>        textures;
     Vec<AtlasGlyph> glyphs;
 
-    textures.resize_defaulted(atlas.num_layers).unwrap();
+    textures.resize(atlas.num_layers).unwrap();
     glyphs.extend(atlas.glyphs).unwrap();
 
     for (u32 i = 0; i < atlas.num_layers; i++)

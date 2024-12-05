@@ -2,6 +2,7 @@
 #pragma once
 #include "ashura/std/error.h"
 #include "ashura/std/result.h"
+#include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
