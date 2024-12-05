@@ -1905,8 +1905,9 @@ struct Fn<R(Args...)>
 {
   using Thunk = R (*)(void *, Args...);
 
-  void * data  = nullptr;
-  Thunk  thunk = nullptr;
+  void * data = nullptr;
+
+  Thunk thunk = nullptr;
 
   explicit constexpr Fn() = default;
 
@@ -2013,7 +2014,7 @@ auto fn(R (*pfn)(Args...))
 
 /// @brief make a function view from a functor reference. Functor should outlive
 /// the Fn
-template <AnyFunctor F>
+template <typename F>
 auto fn(F & functor)
 {
   using Traits = FunctorTraits<F>;
