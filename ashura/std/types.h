@@ -1795,7 +1795,7 @@ struct BitSpan
     return ash::get_bit(repr_, index);
   }
 
-  constexpr void set(usize index, bool value) const
+  constexpr void set(usize index, bool value) const requires (NonConst<R>)
   {
     ash::assign_bit(repr_, index, value);
   }
@@ -1805,17 +1805,17 @@ struct BitSpan
     return ash::get_bit(repr_, index);
   }
 
-  constexpr bool set_bit(usize index) const
+  constexpr bool set_bit(usize index) const requires (NonConst<R>)
   {
     return ash::set_bit(repr_, index);
   }
 
-  constexpr bool clear_bit(usize index) const
+  constexpr bool clear_bit(usize index) const requires (NonConst<R>)
   {
     return ash::clear_bit(repr_, index);
   }
 
-  constexpr void flip_bit(usize index) const
+  constexpr void flip_bit(usize index) const requires (NonConst<R>)
   {
     ash::flip_bit(repr_, index);
   }
