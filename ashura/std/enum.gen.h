@@ -707,6 +707,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 
 }
 
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
+
 };
     
 template<typename T0, typename T1>
@@ -813,6 +820,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -928,6 +942,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -1051,6 +1072,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -1182,6 +1210,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -1321,6 +1356,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -1468,6 +1510,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -1623,6 +1672,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -1786,6 +1842,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -1957,6 +2020,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -2136,6 +2206,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -2323,6 +2400,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -2518,6 +2602,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -2721,6 +2812,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -2932,6 +3030,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
@@ -3151,6 +3256,13 @@ constexpr decltype(auto) match(Lambdas && ... lambdas) const
 {
 
 }
+
+template<typename ... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors);
+
+template<typename... Visitors> 
+constexpr decltype(auto) visit(Visitors && ... visitors) const;
+
 
 };
     
