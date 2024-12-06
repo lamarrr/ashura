@@ -8,7 +8,6 @@ extern "C"
 #include "jpeglib.h"
 #include "png.h"
 #include "webp/decode.h"
-#include "webp/types.h"
 }
 
 namespace ash
@@ -202,13 +201,12 @@ ImageDecodeError decode_jpg(Span<u8 const> bytes, DecodedImage & image)
 
 ImageDecodeError decode_image(Span<u8 const> bytes, DecodedImage & image)
 {
-  constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
-
-  constexpr u8 PNG_MAGIC[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
-
+  static constexpr u8 JPG_MAGIC[]   = {0xFF, 0xD8, 0xFF};
+  static constexpr u8 PNG_MAGIC[]   = {0x89, 0x50, 0x4E, 0x47,
+                                       0x0D, 0x0A, 0x1A, 0x0A};
   // RIFF-[file size: 4 bytes]-WEBP
-  constexpr u8 WEBP_MAGIC1[] = {'R', 'I', 'F', 'F'};
-  constexpr u8 WEBP_MAGIC2[] = {'W', 'E', 'B', 'P'};
+  static constexpr u8 WEBP_MAGIC1[] = {'R', 'I', 'F', 'F'};
+  static constexpr u8 WEBP_MAGIC2[] = {'W', 'E', 'B', 'P'};
 
   if (range_eq(bytes.slice(0, size(JPG_MAGIC)), JPG_MAGIC))
   {

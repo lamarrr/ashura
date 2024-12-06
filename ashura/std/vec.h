@@ -17,6 +17,8 @@ struct [[nodiscard]] Vec
 {
   using Type = T;
   using Repr = T;
+  using Iter = SpanIter<T>;
+  using View = Span<T>;
 
   T *           storage_   = nullptr;
   usize         size_      = 0;
@@ -142,14 +144,14 @@ struct [[nodiscard]] Vec
     return capacity_;
   }
 
-  constexpr T * begin() const
+  constexpr auto begin() const
   {
-    return data();
+    return Iter{.iter_ = data(), .end_ = data() + size_};
   }
 
-  constexpr T * end() const
+  constexpr auto end() const
   {
-    return data() + size_;
+    return IterEnd{};
   }
 
   constexpr T & first() const
@@ -441,7 +443,7 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  constexpr Result<> extend_defaulted(usize extension)
+  constexpr Result<> extend(usize extension)
   {
     usize const pos = size_;
 
@@ -516,7 +518,7 @@ struct [[nodiscard]] Vec
     return extend_uninit(new_size - size_);
   }
 
-  constexpr Result<> resize_defaulted(usize new_size)
+  constexpr Result<> resize(usize new_size)
   {
     if (new_size <= size_)
     {
@@ -524,12 +526,12 @@ struct [[nodiscard]] Vec
       return Ok{};
     }
 
-    return extend_defaulted(new_size - size_);
+    return extend(new_size - size_);
   }
 
-  constexpr Span<T> span() const
+  constexpr View view() const
   {
-    return Span<T>{data(), size()};
+    return View{data(), size()};
   }
 };
 
@@ -572,6 +574,11 @@ template <typename T>
 requires (NonConst<T>)
 struct [[nodiscard]] PinVec
 {
+  using Type = T;
+  using Repr = T;
+  using Iter = SpanIter<T>;
+  using View = Span<T>;
+
   T *           storage_;
   usize         size_;
   usize         capacity_;
@@ -666,7 +673,7 @@ struct [[nodiscard]] PinVec
       return out;
     }
 
-    obj::copy_construct(span(), out.value().span());
+    obj::copy_construct(view(), out.value().view());
 
     return out;
   }
@@ -711,14 +718,14 @@ struct [[nodiscard]] PinVec
     return capacity_;
   }
 
-  constexpr T * begin() const
+  constexpr auto begin() const
   {
-    return data();
+    return Iter{.iter_ = data(), .end_ = data() + size_};
   }
 
-  constexpr T * end() const
+  constexpr auto end() const
   {
-    return data() + size_;
+    return IterEnd{};
   }
 
   constexpr T & first() const
@@ -793,7 +800,7 @@ struct [[nodiscard]] PinVec
     return Ok{};
   }
 
-  constexpr Result<> extend_defaulted(usize extension)
+  constexpr Result<> extend(usize extension)
   {
     usize const pos = size_;
 
@@ -852,9 +859,9 @@ struct [[nodiscard]] PinVec
     return Ok{};
   }
 
-  constexpr Span<T> span() const
+  constexpr View view() const
   {
-    return Span<T>{data(), size()};
+    return View{data(), size()};
   }
 };
 
@@ -864,6 +871,8 @@ struct [[nodiscard]] BitVec
 {
   using Type = bool;
   using Repr = R;
+  using Iter = BitSpanIter<R>;
+  using View = BitSpan<R>;
 
   Vec<R> repr_     = {};
   usize  bit_size_ = 0;
@@ -920,6 +929,16 @@ struct [[nodiscard]] BitVec
     return bit_size_ == 0;
   }
 
+  constexpr auto begin() const
+  {
+    return Iter{.repr_ = repr_, .bit_pos_ = 0, .bit_size_ = bit_size_};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
   constexpr bool has_trailing() const
   {
     return bit_size_ != (repr_.size_ * sizeof(R) * 8);
@@ -964,12 +983,12 @@ struct [[nodiscard]] BitVec
 
   constexpr bool get(usize index) const
   {
-    return ash::get_bit(repr_.span(), index);
+    return ash::get_bit(repr_.view(), index);
   }
 
   constexpr void set(usize index, bool value) const
   {
-    ash::assign_bit(repr_.span(), index, value);
+    ash::assign_bit(repr_.view(), index, value);
   }
 
   constexpr bool get_bit(usize index) const
@@ -979,17 +998,17 @@ struct [[nodiscard]] BitVec
 
   constexpr bool set_bit(usize index) const
   {
-    return ash::set_bit(repr_.span(), index);
+    return ash::set_bit(repr_.view(), index);
   }
 
   constexpr bool clear_bit(usize index) const
   {
-    return ash::clear_bit(repr_.span(), index);
+    return ash::clear_bit(repr_.view(), index);
   }
 
   constexpr void flip_bit(usize index) const
   {
-    ash::flip_bit(repr_.span(), index);
+    ash::flip_bit(repr_.view(), index);
   }
 
   constexpr Result<> reserve(usize target_capacity)
@@ -1083,7 +1102,7 @@ struct [[nodiscard]] BitVec
     return Ok{};
   }
 
-  constexpr Result<> extend_defaulted(usize extension)
+  constexpr Result<> extend(usize extension)
   {
     usize const pos = bit_size_;
 
@@ -1111,7 +1130,7 @@ struct [[nodiscard]] BitVec
     return extend_uninit(new_size - bit_size_);
   }
 
-  constexpr Result<> resize_defaulted(usize new_size)
+  constexpr Result<> resize(usize new_size)
   {
     if (new_size <= bit_size_)
     {
@@ -1119,7 +1138,7 @@ struct [[nodiscard]] BitVec
       return Ok{};
     }
 
-    return extend_defaulted(new_size - bit_size_);
+    return extend(new_size - bit_size_);
   }
 
   constexpr void swap(usize a, usize b) const
@@ -1130,23 +1149,23 @@ struct [[nodiscard]] BitVec
     set(b, av);
   }
 
-  constexpr BitSpan<R> span() const
+  constexpr auto view() const
   {
-    return BitSpan<R>{repr_, bit_size_};
+    return View{repr_, bit_size_};
   }
 };
 
 template <typename T, usize C>
-requires (NonConst<T> && C > 0)
-struct [[nodiscard]] InplaceVec
+requires (NonConst<T>)
+struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
 {
   using Type = T;
   using Repr = T;
+  using Iter = SpanIter<T>;
+  using View = Span<T>;
 
   static constexpr usize Capacity = C;
 
-  // uninitialized storage
-  alignas(T) u8 storage_[C * sizeof(T)];
   usize size_ = 0;
 
   constexpr InplaceVec() = default;
@@ -1196,14 +1215,9 @@ struct [[nodiscard]] InplaceVec
     return size_ == 0;
   }
 
-  constexpr T * data()
+  constexpr T * data() const
   {
-    return reinterpret_cast<T *>(storage_);
-  }
-
-  constexpr T const * data() const
-  {
-    return reinterpret_cast<T const *>(storage_);
+    return reinterpret_cast<T *>(this->storage_);
   }
 
   constexpr usize size() const
@@ -1231,77 +1245,37 @@ struct [[nodiscard]] InplaceVec
     return Capacity;
   }
 
-  constexpr T * begin()
+  constexpr auto begin() const
   {
-    return data();
+    return Iter{.iter_ = data(), .end_ = data() + size_};
   }
 
-  constexpr T const * begin() const
+  constexpr auto end() const
   {
-    return data();
+    return IterEnd{};
   }
 
-  constexpr T * end()
-  {
-    return data() + size_;
-  }
-
-  constexpr T const * end() const
-  {
-    return data() + size_;
-  }
-
-  constexpr T & first()
+  constexpr T & first() const
   {
     return get(0);
   }
 
-  constexpr T const & first() const
-  {
-    return get(0);
-  }
-
-  constexpr T & last()
+  constexpr T & last() const
   {
     return get(size_ - 1);
   }
 
-  constexpr T const & last() const
-  {
-    return get(size_ - 1);
-  }
-
-  constexpr T & operator[](usize index)
+  constexpr T & operator[](usize index) const
   {
     return get(index);
   }
 
-  constexpr T const & operator[](usize index) const
-  {
-    return get(index);
-  }
-
-  constexpr T & get(usize index)
+  constexpr T & get(usize index) const
   {
     return data()[index];
   }
 
-  constexpr T const & get(usize index) const
-  {
-    return data()[index];
-  }
-
-  constexpr T * try_get(usize index)
-  {
-    if (index >= size_) [[unlikely]]
-    {
-      return nullptr;
-    }
-
-    return data() + index;
-  }
-
-  constexpr T const * try_get(usize index) const
+  constexpr T * try_get(usize index) const
   {
     if (index >= size_) [[unlikely]]
     {
@@ -1312,7 +1286,7 @@ struct [[nodiscard]] InplaceVec
   }
 
   template <typename... Args>
-  constexpr void set(usize index, Args &&... args)
+  constexpr void set(usize index, Args &&... args) const
   {
     data()[index] = T{static_cast<Args &&>(args)...};
   }
@@ -1498,7 +1472,7 @@ struct [[nodiscard]] InplaceVec
     return Ok{};
   }
 
-  constexpr Result<> extend_defaulted(usize extension)
+  constexpr Result<> extend(usize extension)
   {
     usize const pos = size_;
 
@@ -1572,7 +1546,7 @@ struct [[nodiscard]] InplaceVec
     return extend_uninit(new_size - size_);
   }
 
-  constexpr Result<> resize_defaulted(usize new_size)
+  constexpr Result<> resize(usize new_size)
   {
     if (new_size <= size_)
     {
@@ -1580,17 +1554,12 @@ struct [[nodiscard]] InplaceVec
       return Ok{};
     }
 
-    return extend_defaulted(new_size - size_);
+    return extend(new_size - size_);
   }
 
-  constexpr Span<T> span()
+  constexpr auto view() const
   {
-    return Span<T>{data(), size()};
-  }
-
-  constexpr Span<T const> span() const
-  {
-    return Span<T const>{data(), size()};
+    return View{data(), size()};
   }
 };
 
@@ -1625,6 +1594,53 @@ struct SparseVec
   using Dense = Tuple<V...>;
   using Id    = u64;
   using Ids   = Vec<u64>;
+
+  struct Iter
+  {
+    Tuple<typename V::Iter...> iters_;
+
+    constexpr auto operator*() const
+    {
+      return apply(
+          [](auto &... iters) { return Tuple<decltype(*iters)...>{*iters...}; },
+          iters_);
+    }
+
+    constexpr Iter & operator++()
+    {
+      apply([](auto &... iters) { (++iters, ...); }, iters_);
+      return *this;
+    }
+
+    constexpr bool operator!=(IterEnd) const
+    {
+      return apply(
+          [](auto &... iters) {
+            bool const proceed = (sizeof...(iters) != 0);
+            return (proceed && ... && (iters != IterEnd{}));
+          },
+          iters_);
+    }
+  };
+
+  struct View
+  {
+    Tuple<typename V::View...> views_;
+
+    constexpr auto begin() const
+    {
+      return apply(
+          [](auto &&... views) {
+            return Tuple<typename V::View::Iter...>{ash::begin(views)...};
+          },
+          views_);
+    }
+
+    constexpr auto end() const
+    {
+      return IterEnd{};
+    }
+  };
 
   Ids   index_to_id  = {};
   Ids   id_to_index  = {};
@@ -1690,6 +1706,27 @@ struct SparseVec
     return static_cast<u64>(index_to_id.size());
   }
 
+  constexpr auto begin() const
+  {
+    return Iter{.iters_ = apply(
+                    [](auto &... vecs) {
+                      return Tuple<decltype(ash::begin(vecs))...>{
+                          ash::begin(vecs)...};
+                    },
+                    dense)};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
+  constexpr auto view() const
+  {
+    return apply([](auto &... dense) { return View{ash::view(dense)...}; },
+                 dense);
+  }
+
   constexpr void clear()
   {
     apply([](auto &... d) { (d.clear(), ...); }, dense);
@@ -1723,9 +1760,14 @@ struct SparseVec
     return index < size();
   }
 
-  constexpr u64 operator[](u64 id) const
+  constexpr auto operator[](u64 id) const
   {
-    return id_to_index[id];
+    u64 const index = id_to_index[id];
+    return apply(
+        [index](auto &... dense) {
+          return Tuple<decltype(dense[index])...>{dense[index]...};
+        },
+        dense);
   }
 
   constexpr u64 to_index(u64 id) const
@@ -1857,26 +1899,14 @@ struct SparseVec
     }
   }
 
-  template <usize I = 0>
-  struct Pusher
-  {
-    template <typename Tuple, typename Head, typename... Tail>
-    static constexpr void push(Tuple & t, Head && head, Tail &&... tail)
-    {
-      get<I>(t).push(static_cast<Head &&>(head)).unwrap();
-      if constexpr (sizeof...(tail) != 0)
-      {
-        Pusher<I + 1>::push(t, static_cast<Tail &&>(tail)...);
-      }
-    }
-  };
-
   template <typename... Args>
+  requires (sizeof...(Args) == sizeof...(V))
   constexpr Result<u64, Void> push(Args &&... args)
-      requires (sizeof...(Args) == sizeof...(V))
   {
     u64 const index = size();
 
+    // grow here so we can handle all memory allocation
+    // failures at once. the proceeding unwrap calls will not fail
     if (!grow(size() + 1)) [[unlikely]]
     {
       return Err{};
@@ -1894,7 +1924,12 @@ struct SparseVec
       return Err{};
     }
 
-    Pusher<0>::push(dense, static_cast<Args &&>(args)...);
+    Tuple<Args &&...> args_tuple{static_cast<Args &&>(args)...};
+
+    index_apply<sizeof...(V)>([&]<usize... I>() {
+      (get<I>(dense).push(get<I>(args_tuple)).unwrap(), ...);
+    });
+
     return id;
   }
 };
@@ -1933,20 +1968,20 @@ namespace fmt
 {
 inline bool push(Context const & ctx, Spec const & spec, Vec<char> const & str)
 {
-  return push(ctx, spec, str.span());
+  return push(ctx, spec, str.view());
 }
 
 inline bool push(Context const & ctx, Spec const & spec,
                  PinVec<char> const & str)
 {
-  return push(ctx, spec, str.span());
+  return push(ctx, spec, str.view());
 }
 
 template <usize C>
 inline bool push(Context const & ctx, Spec const & spec,
                  InplaceVec<char, C> const & str)
 {
-  return push(ctx, spec, str.span());
+  return push(ctx, spec, str.view());
 }
 }        // namespace fmt
 

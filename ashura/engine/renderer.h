@@ -158,7 +158,7 @@ struct Renderer
       p->acquire(ctx, passes, assets);
     }
 
-    resources.resize_defaulted(ctx.buffering).unwrap();
+    resources.resize(ctx.buffering).unwrap();
   }
 
   void release(GpuContext & ctx, AssetMap & assets)

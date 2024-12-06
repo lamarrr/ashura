@@ -7,19 +7,26 @@
 TEST(ListTest, Insertion)
 {
   using namespace ash;
-  ArenaPool pool;
+  u8    storage[512];
+  Arena arena = to_arena(storage);
 
-  List<int>      l;
-  ListNode<int> *x;
-  ListNode<int> *y;
-  CHECK(pool.nalloc(1, x));
-  CHECK(pool.nalloc(1, y));
-  x->isolate();
-  y->isolate();
+  struct Node
+  {
+    Node *next = nullptr, *prev = nullptr;
+    int   v = 0;
+  };
 
+  List<Node> l;
+  Node *     x;
+  Node *     y;
+  CHECK(arena.nalloc(1, x));
+  CHECK(arena.nalloc(1, y));
+
+  EXPECT_EQ(l.head(), nullptr);
   l.push_front(x);
-  EXPECT_NE(l.head, nullptr);
-  EXPECT_EQ(l.head, x);
+  EXPECT_NE(l.head(), nullptr);
+
+  EXPECT_EQ(l.head(), x);
   EXPECT_EQ(l.pop_back(), x);
   EXPECT_EQ(l.pop_back(), nullptr);
   l.push_front(x);

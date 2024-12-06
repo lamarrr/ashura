@@ -13,36 +13,36 @@ namespace ash
 namespace gpu
 {
 
-constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
-constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
-constexpr u64 WHOLE_SIZE             = ~0ULL;
+inline constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
+inline constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
+inline constexpr u64 WHOLE_SIZE             = ~0ULL;
 
-constexpr u32 MAX_IMAGE_EXTENT_1D                  = 8'192;
-constexpr u32 MAX_IMAGE_EXTENT_2D                  = 8'192;
-constexpr u32 MAX_IMAGE_EXTENT_3D                  = 2'048;
-constexpr u32 MAX_IMAGE_EXTENT_CUBE                = 8'192;
-constexpr u32 MAX_IMAGE_ARRAY_LAYERS               = 1'024;
-constexpr u32 MAX_VIEWPORT_EXTENT                  = 8'192;
-constexpr u32 MAX_FRAMEBUFFER_EXTENT               = 8'192;
-constexpr u32 MAX_FRAMEBUFFER_LAYERS               = 1'024;
-constexpr u32 MAX_VERTEX_ATTRIBUTES                = 16;
-constexpr u32 MAX_PUSH_CONSTANTS_SIZE              = 128;
-constexpr u32 MAX_UPDATE_BUFFER_SIZE               = 65'536;
-constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS         = 8;
-constexpr u32 MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS = 8;
-constexpr u32 MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS = 8;
-constexpr u32 MAX_PIPELINE_INPUT_ATTACHMENTS       = 8;
-constexpr u32 MAX_PIPELINE_COLOR_ATTACHMENTS       = 8;
-constexpr u32 MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4'096;
-constexpr u32 MAX_BINDING_DESCRIPTORS              = 4'096;
-constexpr u32 MAX_DESCRIPTOR_SET_BINDINGS          = 16;
-constexpr u32 MAX_FRAME_BUFFERING                  = 4;
-constexpr u32 MAX_SWAPCHAIN_IMAGES                 = 4;
-constexpr u64 MAX_UNIFORM_BUFFER_RANGE             = 65'536;
-constexpr f32 MAX_SAMPLER_ANISOTROPY               = 16;
-constexpr u32 MAX_CLIP_DISTANCES                   = 8;
-constexpr u32 MAX_CULL_DISTANCES                   = 8;
-constexpr u32 MAX_COMBINED_CLIP_AND_CULL_DISTANCES = 8;
+inline constexpr u32 MAX_IMAGE_EXTENT_1D                  = 8'192;
+inline constexpr u32 MAX_IMAGE_EXTENT_2D                  = 8'192;
+inline constexpr u32 MAX_IMAGE_EXTENT_3D                  = 2'048;
+inline constexpr u32 MAX_IMAGE_EXTENT_CUBE                = 8'192;
+inline constexpr u32 MAX_IMAGE_ARRAY_LAYERS               = 1'024;
+inline constexpr u32 MAX_VIEWPORT_EXTENT                  = 8'192;
+inline constexpr u32 MAX_FRAMEBUFFER_EXTENT               = 8'192;
+inline constexpr u32 MAX_FRAMEBUFFER_LAYERS               = 1'024;
+inline constexpr u32 MAX_VERTEX_ATTRIBUTES                = 16;
+inline constexpr u32 MAX_PUSH_CONSTANTS_SIZE              = 128;
+inline constexpr u32 MAX_UPDATE_BUFFER_SIZE               = 65'536;
+inline constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS         = 8;
+inline constexpr u32 MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS = 8;
+inline constexpr u32 MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS = 8;
+inline constexpr u32 MAX_PIPELINE_INPUT_ATTACHMENTS       = 8;
+inline constexpr u32 MAX_PIPELINE_COLOR_ATTACHMENTS       = 8;
+inline constexpr u32 MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4'096;
+inline constexpr u32 MAX_BINDING_DESCRIPTORS              = 4'096;
+inline constexpr u32 MAX_DESCRIPTOR_SET_BINDINGS          = 16;
+inline constexpr u32 MAX_FRAME_BUFFERING                  = 4;
+inline constexpr u32 MAX_SWAPCHAIN_IMAGES                 = 4;
+inline constexpr u64 MAX_UNIFORM_BUFFER_RANGE             = 65'536;
+inline constexpr f32 MAX_SAMPLER_ANISOTROPY               = 16;
+inline constexpr u32 MAX_CLIP_DISTANCES                   = 8;
+inline constexpr u32 MAX_CULL_DISTANCES                   = 8;
+inline constexpr u32 MAX_COMBINED_CLIP_AND_CULL_DISTANCES = 8;
 
 typedef Vec2U Offset;
 typedef Vec2U Extent;

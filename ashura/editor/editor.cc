@@ -29,7 +29,7 @@ int main()
 
   sw[0].on();
 
-scalar.frame(250, 100);
+  scalar.frame(250, 100);
 
   slider.range(0, 100).interp(0).axis(Axis::Y);
 
@@ -76,7 +76,7 @@ scalar.frame(250, 100);
       .axis(Axis::X)
       .cross_align(0)
       .main_align(MainAlign::SpaceBetween)
-      .frame(1920, 1080);
+      .frame(1'920, 1'080);
 
   engine->run(flex);
 }

@@ -41,14 +41,14 @@ bool push_int(fmt::Context const & ctx, fmt::Spec const & spec, IntT value)
   }
 
   auto [ptr, ec] =
-      std::to_chars(ctx.scratch.begin(), ctx.scratch.end(), value, base);
+      std::to_chars(ctx.scratch.pbegin(), ctx.scratch.pend(), value, base);
   if (ec != std::errc{})
   {
     return false;
   }
 
   return ctx.push(
-      Span{ctx.scratch.begin(), (usize) (ptr - ctx.scratch.begin())});
+      Span{ctx.scratch.pbegin(), (usize) (ptr - ctx.scratch.pbegin())});
 }
 
 template <typename FloatT>
@@ -71,19 +71,19 @@ bool push_float(fmt::Context const & ctx, fmt::Spec const & spec, FloatT value)
   std::to_chars_result result{};
   if (spec.precision > 0)
   {
-    result = std::to_chars(ctx.scratch.begin(), ctx.scratch.end(), value,
+    result = std::to_chars(ctx.scratch.pbegin(), ctx.scratch.pend(), value,
                            format, spec.precision);
   }
   else
   {
     result =
-        std::to_chars(ctx.scratch.begin(), ctx.scratch.end(), value, format);
+        std::to_chars(ctx.scratch.pbegin(), ctx.scratch.pend(), value, format);
   }
 
   if (result.ec == std::errc{})
   {
-    return ctx.push(
-        Span{ctx.scratch.begin(), (usize) (result.ptr - ctx.scratch.begin())});
+    return ctx.push(Span{ctx.scratch.pbegin(),
+                         (usize) (result.ptr - ctx.scratch.pbegin())});
   }
   return false;
 }

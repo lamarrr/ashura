@@ -52,7 +52,61 @@ struct BitHasher
   }
 };
 
-constexpr StrHasher str_hash;
-constexpr BitHasher bit_hash;
+struct IdentityHasher
+{
+  constexpr hash64 operator()(u8 a) const
+  {
+    return static_cast<hash64>(a);
+  }
+
+  constexpr hash64 operator()(u16 a) const
+  {
+    return static_cast<hash64>(a);
+  }
+
+  constexpr hash64 operator()(u32 a) const
+  {
+    return static_cast<hash64>(a);
+  }
+
+  constexpr hash64 operator()(u64 a) const
+  {
+    return static_cast<hash64>(a);
+  }
+
+  constexpr hash64 operator()(i8 a) const
+  {
+    return static_cast<hash64>(a);
+  }
+
+  constexpr hash64 operator()(i16 a) const
+  {
+    return static_cast<hash64>(a);
+  }
+
+  constexpr hash64 operator()(i32 a) const
+  {
+    return static_cast<hash64>(a);
+  }
+
+  constexpr hash64 operator()(i64 a) const
+  {
+    return static_cast<hash64>(a);
+  }
+
+  constexpr hash64 operator()(f32 a) const
+  {
+    return static_cast<hash64>(bit_cast<u32>(a));
+  }
+
+  constexpr hash64 operator()(f64 a) const
+  {
+    return bit_cast<hash64>(a);
+  }
+};
+
+inline constexpr StrHasher      str_hash;
+inline constexpr BitHasher      bit_hash;
+inline constexpr IdentityHasher identity_hash;
 
 }        // namespace ash

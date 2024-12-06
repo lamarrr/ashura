@@ -12,7 +12,7 @@ namespace obj
 template <NonConst T>
 constexpr void default_construct(Span<T> dst)
 {
-  for (T * iter = dst.begin(); iter != dst.end(); iter++)
+  for (T * iter = dst.pbegin(); iter != dst.pend(); iter++)
   {
     new (iter) T{};
   }
@@ -21,7 +21,7 @@ constexpr void default_construct(Span<T> dst)
 template <NonConst T, NonConst U>
 constexpr void move_construct(Span<T> src, U * dst)
 {
-  for (T * in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
   {
     new (dst) T{static_cast<T &&>(*in)};
   }
@@ -36,7 +36,7 @@ constexpr void move_construct(Span<T> src, Span<U> dst)
 template <typename T, NonConst U>
 constexpr void copy_construct(Span<T> src, U * dst)
 {
-  for (T * in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
   {
     new (dst) T{*in};
   }
@@ -53,7 +53,7 @@ constexpr void destruct(Span<T> src)
 {
   if constexpr (!TriviallyDestructible<T>)
   {
-    for (T * iter = src.begin(); iter != src.end(); iter++)
+    for (T * iter = src.pbegin(); iter != src.pend(); iter++)
     {
       iter->~T();
     }
@@ -63,7 +63,7 @@ constexpr void destruct(Span<T> src)
 template <typename T, NonConst U>
 constexpr void move_assign(Span<T> src, U * dst)
 {
-  for (T * in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
   {
     *in = static_cast<T &&>(*dst);
   }
@@ -78,7 +78,7 @@ constexpr void move_assign(Span<T> src, Span<U> dst)
 template <typename T, NonConst U>
 constexpr void copy_assign(Span<T> src, U * dst)
 {
-  for (T * in = src.begin(); in != src.end(); in++, dst++)
+  for (T * in = src.pbegin(); in != src.pend(); in++, dst++)
   {
     *dst = *in;
   }

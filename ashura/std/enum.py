@@ -22,7 +22,7 @@ out(f"""/// SPDX-License-Identifier: MIT
 namespace ash
 {{
 
-static constexpr usize MAX_ENUM_SIZE = {MAX_ENUM_SIZE};
+inline constexpr usize MAX_ENUM_SIZE = {MAX_ENUM_SIZE};
 
 template<typename ... T>
 struct Enum

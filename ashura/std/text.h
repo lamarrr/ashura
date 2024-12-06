@@ -2,6 +2,7 @@
 #pragma once
 #include "ashura/std/error.h"
 #include "ashura/std/result.h"
+#include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
@@ -16,7 +17,7 @@ namespace ash
 {
   c8 const * in    = text.data();
   usize      count = 0;
-  while (in != text.end())
+  while (in != text.pend())
   {
     if ((*in & 0xc0) != 0x80)
     {
@@ -34,7 +35,7 @@ namespace ash
 {
   c8 const * in  = encoded.data();
   c32 *      out = decoded.data();
-  while (in != encoded.end())
+  while (in != encoded.pend())
   {
     if ((*in & 0xF8) == 0xF0)
     {
@@ -63,7 +64,7 @@ namespace ash
       *out++ = c1;
     }
   }
-  return out - decoded.begin();
+  return out - decoded.pbegin();
 }
 
 /// @brief encoded.size must be at least decoded.size * 4
@@ -73,7 +74,7 @@ namespace ash
   c8 *        out = encoded.data();
   c32 const * in  = decoded.data();
 
-  while (in != decoded.end())
+  while (in != decoded.pend())
   {
     if (*in <= 0x7F)
     {
@@ -103,7 +104,7 @@ namespace ash
     }
   }
 
-  return out - encoded.begin();
+  return out - encoded.pbegin();
 }
 
 /// @brief converts UTF-8 text from @p encoded to UTF-32 and appends into @p
@@ -116,7 +117,7 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
   {
     return Err{};
   }
-  (void) utf8_decode(encoded, decoded.span().slice(first, count));
+  (void) utf8_decode(encoded, decoded.view().slice(first, count));
   return Ok{};
 }
 
@@ -132,7 +133,7 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
     return Err{};
   }
   usize const count =
-      utf8_encode(decoded, encoded.span().slice(first, max_count));
+      utf8_encode(decoded, encoded.view().slice(first, max_count));
   encoded.resize_uninit(first + count).unwrap();
   return Ok{};
 }
@@ -140,10 +141,10 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
 constexpr void replace_invalid_codepoints(Span<c32 const> input,
                                           Span<c32> output, c32 replacement)
 {
-  c32 const * in  = input.begin();
-  c32 *       out = output.begin();
+  c32 const * in  = input.pbegin();
+  c32 *       out = output.pbegin();
 
-  while (in < input.end())
+  while (in < input.pend())
   {
     if (*in > 0x10'FFFF) [[unlikely]]
     {
@@ -159,20 +160,22 @@ constexpr void replace_invalid_codepoints(Span<c32 const> input,
 }
 
 /// Unicode Ranges
-
-constexpr Slice32 UTF_BASIC_LATIN{0x0020, 0x007F - 0x0020};
-constexpr Slice32 UTF_LATIN1_SUPPLEMENT{0x00A0, 0x00FF - 0x00A0};
-constexpr Slice32 UTF_LATIN_EXTENDED_A{0x0100, 0x017F - 0x0100};
-constexpr Slice32 UTF_LATIN_EXTENDED_B{0x0180, 0x024F - 0x0180};
-constexpr Slice32 UTF_COMBINING_DIACRITICAL_MARKS{0x0300, 0x036F - 0x0300};
-constexpr Slice32 UTF_ARABIC{0x0600, 0x06FF - 0x0600};
-constexpr Slice32 UTF_GENERAL_PUNCTUATION{0x2000, 0x206F - 0x2000};
-constexpr Slice32 UTF_SUPERSCRIPTS_AND_SUBSCRIPTS{0x2070, 0x209F - 0x2070};
-constexpr Slice32 UTF_CURRENCY_SYMBOLS{0x20A0, 0x20CF - 0x20A0};
-constexpr Slice32 UTF_NUMBER_FORMS{0x2150, 0x218F - 0x2150};
-constexpr Slice32 UTF_ARROWS{0x2190, 0x21FF - 0x2190};
-constexpr Slice32 UTF_MATHEMATICAL_OPERATORS{0x2200, 0x22FF - 0x2200};
-constexpr Slice32 UTF_HIRAGANA{0x3040, 0x309F - 0x3040};
-constexpr Slice32 UTF_KATAKANA{0x30A0, 0x30FF - 0x30A0};
+namespace utf
+{
+inline constexpr Tuple<u32, u32> BASIC_LATIN{0x0020, 0x007F};
+inline constexpr Tuple<u32, u32> LATIN1_SUPPLEMENT{0x00A0, 0x00FF};
+inline constexpr Tuple<u32, u32> LATIN_EXTENDED_A{0x0100, 0x017F};
+inline constexpr Tuple<u32, u32> LATIN_EXTENDED_B{0x0180, 0x024F};
+inline constexpr Tuple<u32, u32> COMBINING_DIACRITICAL_MARKS{0x0300, 0x036F};
+inline constexpr Tuple<u32, u32> ARABIC{0x0600, 0x06FF};
+inline constexpr Tuple<u32, u32> GENERAL_PUNCTUATION{0x2000, 0x206F};
+inline constexpr Tuple<u32, u32> SUPERSCRIPTS_AND_SUBSCRIPTS{0x2070, 0x209F};
+inline constexpr Tuple<u32, u32> CURRENCY_SYMBOLS{0x20A0, 0x20CF};
+inline constexpr Tuple<u32, u32> NUMBER_FORMS{0x2150, 0x218F};
+inline constexpr Tuple<u32, u32> ARROWS{0x2190, 0x21FF};
+inline constexpr Tuple<u32, u32> MATHEMATICAL_OPERATORS{0x2200, 0x22FF};
+inline constexpr Tuple<u32, u32> HIRAGANA{0x3040, 0x309F};
+inline constexpr Tuple<u32, u32> KATAKANA{0x30A0, 0x30FF};
+}        // namespace utf
 
 }        // namespace ash
