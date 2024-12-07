@@ -132,7 +132,7 @@ struct TimelineView
   Span<Easing const>      easings;
   Span<T const>           frames;
 
-  constexpr TimelineView(Tweener<T> &            tweener,
+  constexpr TimelineView(Tweener<T> const &      tweener,
                          Span<nanoseconds const> timestamps,
                          Span<Easing const> easings, Span<T const> frames) :
       tweener{&tweener},
@@ -255,11 +255,13 @@ struct Timeline
 
     auto const times_offset = timestamps_.size();
 
+    auto const run_time = timestamps_.last();
+
     timestamps_.extend_uninit(durations.size()).unwrap();
 
     exclusive_scan(durations,
                    timestamps_.view().slice(times_offset, durations.size()),
-                   timestamps_.last());
+                   run_time);
 
     easings_.extend_move(easings).unwrap();
 
@@ -314,6 +316,14 @@ struct AnimationState
   constexpr bool is_paused() const
   {
     return paused_;
+  }
+
+  constexpr AnimationState & restart()
+  {
+    delay_    = run_delay_;
+    time_     = 0ns;
+    reversed_ = false;
+    return *this;
   }
 
   /// @brief Rush to completion
@@ -561,8 +571,6 @@ struct RippleStagger final : Stagger
   {
   }
 
-  constexpr RippleStagger() = default;
-
   constexpr RippleStagger(RippleStagger const &) = default;
 
   constexpr RippleStagger(RippleStagger &&) = default;
@@ -638,14 +646,11 @@ struct StaggeredAnimation
 
   ~StaggeredAnimation() = default;
 
-  template <Derives<Stagger> Staggering = Unstaggered>
   static auto make(u64 stagger_width = 0, u64 num_items = 0,
-                   Staggering && staggering = {})
+                   Super<Stagger> stagger = Unstaggered{})
   {
     Vec<AnimationState> states{};
     states.resize(num_items).unwrap();
-
-    Super<Stagger> stagger{static_cast<Staggering &&>(staggering)};
 
     Tuple<Timeline<T>...> timelines;
 
@@ -698,7 +703,7 @@ struct StaggeredAnimation
   {
     for (AnimationState & s : states_)
     {
-      s.re();
+      s.restart();
     }
     return *this;
   }
@@ -741,10 +746,9 @@ struct StaggeredAnimation
     return *this;
   }
 
-  template <Derives<Stagger> Staggering = Unstaggered>
-  StaggeredAnimation & stagger(Staggering && staggering = {})
+  StaggeredAnimation & stagger(Super<Stagger> stagger = Unstaggered{})
   {
-    stagger_ = static_cast<Staggering &&>(staggering);
+    stagger_ = std::move(stagger);
     return *this;
   }
 
