@@ -62,7 +62,7 @@ template <typename Node, Node * Node::* prev, Node * Node::* next>
 /// @param ext must be valid and non-null
 ///
 template <typename Node, Node * Node::* prev, Node * Node::* next>
-constexpr void link(Node * head, Node * ext)
+constexpr void link(Node * ASH_RESTRICT head, Node * ASH_RESTRICT ext)
 {
   Node * node_head = head;
   Node * node_tail = head->*prev;
@@ -80,7 +80,8 @@ constexpr void link(Node * head, Node * ext)
 /// @param ext must be valid and non-null
 /// @return the new head of the list
 template <typename Node, Node * Node::* prev, Node * Node::* next>
-[[nodiscard]] constexpr Node * link_back(Node * head, Node * ext)
+[[nodiscard]] constexpr Node * link_back(Node * ASH_RESTRICT head,
+                                         Node * ASH_RESTRICT ext)
 {
   link<Node, prev, next>(head, ext);
   return head;
@@ -92,7 +93,8 @@ template <typename Node, Node * Node::* prev, Node * Node::* next>
 /// @param ext must be valid and non-null
 /// @return the new head of the list
 template <typename Node, Node * Node::* prev, Node * Node::* next>
-[[nodiscard]] constexpr Node * link_front(Node * head, Node * ext)
+[[nodiscard]] constexpr Node * link_front(Node * ASH_RESTRICT head,
+                                          Node * ASH_RESTRICT ext)
 {
   link<Node, prev, next>(ext, head);
   return ext;
@@ -144,7 +146,7 @@ struct [[nodiscard]] List
 
   constexpr List() = default;
 
-  explicit constexpr List(Node * head_) : head_{head_}
+  explicit constexpr List(Node * head) : head_{head}
   {
   }
 

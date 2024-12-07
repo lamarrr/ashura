@@ -945,7 +945,7 @@ struct Scheduler
         schedule_main(info);
         return;
       default:
-        UNREACHABLE();
+        CHECK_UNREACHABLE();
     }
   }
 };

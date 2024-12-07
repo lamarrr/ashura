@@ -236,12 +236,12 @@ struct FontImpl : Font
         auto [just_packed, unpacked] =
             partition(rects.view().slice(num_packed),
                       [](rect_pack::rect const & r) { return r.was_packed; });
-        for (u32 i = num_packed; i < (num_packed + just_packed.span); i++)
+        CHECK(!just_packed.is_empty());
+        for (auto & rect : rects.view().slice(num_packed, just_packed.size32()))
         {
-          rects[i].layer = num_layers;
+          rect.layer = num_layers;
         }
-        CHECK(just_packed.span != 0);
-        num_packed += (u32) just_packed.span;
+        num_packed += just_packed.size32();
         num_layers++;
       }
 

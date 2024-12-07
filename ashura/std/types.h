@@ -1020,266 +1020,6 @@ concept OutIter = Iter<T>;
 template <typename T>
 concept OutRange = Range<T>;
 
-template <typename T, usize N>
-struct Array
-{
-  using Type                  = T;
-  static constexpr usize SIZE = N;
-
-  T data_[SIZE]{};
-
-  static constexpr bool is_empty()
-  {
-    return false;
-  }
-
-  constexpr T * data()
-  {
-    return data_;
-  }
-
-  constexpr T const * data() const
-  {
-    return data_;
-  }
-
-  static constexpr usize size()
-  {
-    return SIZE;
-  }
-
-  static constexpr u32 size32()
-  {
-    return (u32) SIZE;
-  }
-
-  static constexpr u64 size64()
-  {
-    return (u64) SIZE;
-  }
-
-  static constexpr usize capacity()
-  {
-    return SIZE;
-  }
-
-  static constexpr usize size_bytes()
-  {
-    return sizeof(T) * SIZE;
-  }
-
-  constexpr T * begin()
-  {
-    return data_;
-  }
-
-  constexpr T const * begin() const
-  {
-    return data_;
-  }
-
-  constexpr T * end()
-  {
-    return data_ + SIZE;
-  }
-
-  constexpr T const * end() const
-  {
-    return data_ + SIZE;
-  }
-
-  constexpr T & first()
-  {
-    return get(0);
-  }
-
-  constexpr T const & first() const
-  {
-    return get(0);
-  }
-
-  constexpr T & last()
-  {
-    return get(SIZE - 1);
-  }
-
-  constexpr T const & last() const
-  {
-    return get(SIZE - 1);
-  }
-
-  constexpr T & get(usize index)
-  {
-    return data_[index];
-  }
-
-  constexpr T const & get(usize index) const
-  {
-    return data_[index];
-  }
-
-  template <typename... Args>
-  constexpr void set(usize index, Args &&... args)
-  {
-    data_[index] = T{static_cast<Args &&>(args)...};
-  }
-
-  constexpr T & operator[](usize index)
-  {
-    return data_[index];
-  }
-
-  constexpr T const & operator[](usize index) const
-  {
-    return data_[index];
-  }
-
-  constexpr operator T *()
-  {
-    return data_;
-  }
-
-  constexpr operator T const *() const
-  {
-    return data_;
-  }
-};
-
-template <typename T>
-struct Array<T, 0>
-{
-  using Type                  = T;
-  static constexpr usize SIZE = 0;
-
-  static constexpr bool is_empty()
-  {
-    return true;
-  }
-
-  constexpr T * data()
-  {
-    return nullptr;
-  }
-
-  constexpr T const * data() const
-  {
-    return nullptr;
-  }
-
-  static constexpr usize size()
-  {
-    return SIZE;
-  }
-
-  static constexpr u32 size32()
-  {
-    return (u32) SIZE;
-  }
-
-  static constexpr u64 size64()
-  {
-    return (u64) SIZE;
-  }
-
-  static constexpr usize capacity()
-  {
-    return SIZE;
-  }
-
-  static constexpr usize size_bytes()
-  {
-    return sizeof(T) * SIZE;
-  }
-
-  constexpr T * begin()
-  {
-    return nullptr;
-  }
-
-  constexpr T const * begin() const
-  {
-    return nullptr;
-  }
-
-  constexpr T * end()
-  {
-    return nullptr;
-  }
-
-  constexpr T const * end() const
-  {
-    return nullptr;
-  }
-
-  constexpr T & first() requires (SIZE > 1)
-  {
-    return get(0);
-  }
-
-  constexpr T const & first() const requires (SIZE > 1)
-  {
-    return get(0);
-  }
-
-  constexpr T & last() requires (SIZE > 1)
-  {
-    return get(SIZE - 1);
-  }
-
-  constexpr T const & last() const requires (SIZE > 1)
-  {
-    return get(SIZE - 1);
-  }
-
-  constexpr T & get(usize index) requires (SIZE > 1)
-  {
-    return data()[index];
-  }
-
-  constexpr T const & get(usize index) const requires (SIZE > 1)
-  {
-    return data()[index];
-  }
-
-  template <typename... Args>
-  constexpr void set(usize index, Args &&... args) requires (SIZE > 1)
-  {
-    data()[index] = T{static_cast<Args &&>(args)...};
-  }
-
-  constexpr T & operator[](usize index) requires (SIZE > 1)
-  {
-    return data()[index];
-  }
-
-  constexpr T const & operator[](usize index) const
-  {
-    return data()[index];
-  }
-
-  constexpr operator T *()
-  {
-    return nullptr;
-  }
-
-  constexpr operator T const *() const
-  {
-    return nullptr;
-  }
-};
-
-template <typename T, usize N>
-struct IsTriviallyRelocatable<Array<T, N>>
-{
-  static constexpr bool value = TriviallyRelocatable<T>;
-};
-
-template <typename Repr, usize N>
-using Bits = Repr[BIT_PACKS<Repr, N>];
-
-template <typename Repr, usize N>
-using BitArray = Array<Repr, BIT_PACKS<Repr, N>>;
-
 template <typename U, typename T>
 concept SpanCompatible = Convertible<U (*)[], T (*)[]>;
 
@@ -1840,6 +1580,296 @@ struct BitSpan
     return BitSpan<R const>{repr_, bit_size_};
   }
 };
+
+template <typename T, usize N>
+struct Array
+{
+  using Type      = T;
+  using View      = Span<T>;
+  using ConstView = Span<T const>;
+  using Iter      = SpanIter<T>;
+  using ConstIter = SpanIter<T const>;
+
+  static constexpr usize SIZE = N;
+
+  T data_[SIZE]{};
+
+  static constexpr bool is_empty()
+  {
+    return false;
+  }
+
+  constexpr T * data()
+  {
+    return data_;
+  }
+
+  constexpr T const * data() const
+  {
+    return data_;
+  }
+
+  static constexpr usize size()
+  {
+    return SIZE;
+  }
+
+  static constexpr u32 size32()
+  {
+    return (u32) SIZE;
+  }
+
+  static constexpr u64 size64()
+  {
+    return (u64) SIZE;
+  }
+
+  static constexpr usize capacity()
+  {
+    return SIZE;
+  }
+
+  static constexpr usize size_bytes()
+  {
+    return sizeof(T) * SIZE;
+  }
+
+  constexpr T * begin()
+  {
+    return data_;
+  }
+
+  constexpr T const * begin() const
+  {
+    return data_;
+  }
+
+  constexpr T * end()
+  {
+    return data_ + SIZE;
+  }
+
+  constexpr T const * end() const
+  {
+    return data_ + SIZE;
+  }
+
+  constexpr T & first()
+  {
+    return get(0);
+  }
+
+  constexpr T const & first() const
+  {
+    return get(0);
+  }
+
+  constexpr T & last()
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T const & last() const
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T & get(usize index)
+  {
+    return data_[index];
+  }
+
+  constexpr T const & get(usize index) const
+  {
+    return data_[index];
+  }
+
+  template <typename... Args>
+  constexpr void set(usize index, Args &&... args)
+  {
+    data_[index] = T{static_cast<Args &&>(args)...};
+  }
+
+  constexpr T & operator[](usize index)
+  {
+    return data_[index];
+  }
+
+  constexpr T const & operator[](usize index) const
+  {
+    return data_[index];
+  }
+
+  constexpr operator T *()
+  {
+    return data_;
+  }
+
+  constexpr operator T const *() const
+  {
+    return data_;
+  }
+
+  constexpr ConstView view() const
+  {
+    return ConstView{data(), size()};
+  }
+
+  constexpr View view()
+  {
+    return View{data(), size()};
+  }
+};
+
+template <typename T>
+struct Array<T, 0>
+{
+  using Type      = T;
+  using View      = Span<T>;
+  using ConstView = Span<T const>;
+  using Iter      = SpanIter<T>;
+  using ConstIter = SpanIter<T const>;
+
+  static constexpr usize SIZE = 0;
+
+  static constexpr bool is_empty()
+  {
+    return true;
+  }
+
+  constexpr T * data()
+  {
+    return nullptr;
+  }
+
+  constexpr T const * data() const
+  {
+    return nullptr;
+  }
+
+  static constexpr usize size()
+  {
+    return SIZE;
+  }
+
+  static constexpr u32 size32()
+  {
+    return (u32) SIZE;
+  }
+
+  static constexpr u64 size64()
+  {
+    return (u64) SIZE;
+  }
+
+  static constexpr usize capacity()
+  {
+    return SIZE;
+  }
+
+  static constexpr usize size_bytes()
+  {
+    return sizeof(T) * SIZE;
+  }
+
+  constexpr T * begin()
+  {
+    return nullptr;
+  }
+
+  constexpr T const * begin() const
+  {
+    return nullptr;
+  }
+
+  constexpr T * end()
+  {
+    return nullptr;
+  }
+
+  constexpr T const * end() const
+  {
+    return nullptr;
+  }
+
+  constexpr T & first() requires (SIZE > 1)
+  {
+    return get(0);
+  }
+
+  constexpr T const & first() const requires (SIZE > 1)
+  {
+    return get(0);
+  }
+
+  constexpr T & last() requires (SIZE > 1)
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T const & last() const requires (SIZE > 1)
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T & get(usize index) requires (SIZE > 1)
+  {
+    return data()[index];
+  }
+
+  constexpr T const & get(usize index) const requires (SIZE > 1)
+  {
+    return data()[index];
+  }
+
+  template <typename... Args>
+  constexpr void set(usize index, Args &&... args) requires (SIZE > 1)
+  {
+    data()[index] = T{static_cast<Args &&>(args)...};
+  }
+
+  constexpr T & operator[](usize index) requires (SIZE > 1)
+  {
+    return data()[index];
+  }
+
+  constexpr T const & operator[](usize index) const
+  {
+    return data()[index];
+  }
+
+  constexpr operator T *()
+  {
+    return nullptr;
+  }
+
+  constexpr operator T const *() const
+  {
+    return nullptr;
+  }
+
+  constexpr ConstView view() const
+  {
+    return ConstView{data(), size()};
+  }
+
+  constexpr View view()
+  {
+    return View{data(), size()};
+  }
+};
+
+template <typename T, usize N>
+struct IsTriviallyRelocatable<Array<T, N>>
+{
+  static constexpr bool value = TriviallyRelocatable<T>;
+};
+
+template <typename Repr, usize N>
+using Bits = Repr[BIT_PACKS<Repr, N>];
+
+template <typename Repr, usize N>
+using BitArray = Array<Repr, BIT_PACKS<Repr, N>>;
 
 template <typename Lambda>
 struct defer

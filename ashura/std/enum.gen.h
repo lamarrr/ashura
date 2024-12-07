@@ -5,6 +5,7 @@
 #include "ashura/std/v.h"
 #include "ashura/std/error.h"
 #include "ashura/std/log.h"
+#include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -13,10 +14,8 @@ namespace ash
 inline constexpr usize MAX_ENUM_SIZE = 16;
 
 template<typename ... T>
-struct Enum
-{
-static_assert("Enum size exceeds MAX_ENUM_SIZE");
-};
+requires(sizeof...(T) <= MAX_ENUM_SIZE)
+struct Enum;
 
 namespace intr{
 
@@ -591,11 +590,169 @@ if(src == dst)
 enum_destruct(dst);
 enum_copy_construct(src, dst);
 }
+
+
+template<usize SIZE, typename Enum, typename ... Fns>
+constexpr decltype(auto) match(Enum && e, Fns && ... fns)
+{
+    Tuple<Fns && ...> fns_ref{ static_cast<Fns && >(fns)... };
+
+    
+if constexpr(SIZE > 0)
+{
+    if(e.index_ == 0)
+    {
+        return fns_ref.v0(e.v0_);
+    }
 }
+
+
+if constexpr(SIZE > 1)
+{
+    if(e.index_ == 1)
+    {
+        return fns_ref.v1(e.v1_);
+    }
+}
+
+
+if constexpr(SIZE > 2)
+{
+    if(e.index_ == 2)
+    {
+        return fns_ref.v2(e.v2_);
+    }
+}
+
+
+if constexpr(SIZE > 3)
+{
+    if(e.index_ == 3)
+    {
+        return fns_ref.v3(e.v3_);
+    }
+}
+
+
+if constexpr(SIZE > 4)
+{
+    if(e.index_ == 4)
+    {
+        return fns_ref.v4(e.v4_);
+    }
+}
+
+
+if constexpr(SIZE > 5)
+{
+    if(e.index_ == 5)
+    {
+        return fns_ref.v5(e.v5_);
+    }
+}
+
+
+if constexpr(SIZE > 6)
+{
+    if(e.index_ == 6)
+    {
+        return fns_ref.v6(e.v6_);
+    }
+}
+
+
+if constexpr(SIZE > 7)
+{
+    if(e.index_ == 7)
+    {
+        return fns_ref.v7(e.v7_);
+    }
+}
+
+
+if constexpr(SIZE > 8)
+{
+    if(e.index_ == 8)
+    {
+        return fns_ref.v8(e.v8_);
+    }
+}
+
+
+if constexpr(SIZE > 9)
+{
+    if(e.index_ == 9)
+    {
+        return fns_ref.v9(e.v9_);
+    }
+}
+
+
+if constexpr(SIZE > 10)
+{
+    if(e.index_ == 10)
+    {
+        return fns_ref.v10(e.v10_);
+    }
+}
+
+
+if constexpr(SIZE > 11)
+{
+    if(e.index_ == 11)
+    {
+        return fns_ref.v11(e.v11_);
+    }
+}
+
+
+if constexpr(SIZE > 12)
+{
+    if(e.index_ == 12)
+    {
+        return fns_ref.v12(e.v12_);
+    }
+}
+
+
+if constexpr(SIZE > 13)
+{
+    if(e.index_ == 13)
+    {
+        return fns_ref.v13(e.v13_);
+    }
+}
+
+
+if constexpr(SIZE > 14)
+{
+    if(e.index_ == 14)
+    {
+        return fns_ref.v14(e.v14_);
+    }
+}
+
+
+if constexpr(SIZE > 15)
+{
+    if(e.index_ == 15)
+    {
+        return fns_ref.v15(e.v15_);
+    }
+}
+
+
+    ASH_UNREACHABLE;
+}
+
+} // namespace intr
+
 
 template<>
 struct Enum<>
 {
+
+
 
 
 
@@ -607,6 +764,18 @@ static constexpr usize size()
 }
 
 
+constexpr bool is(usize) const
+{
+    return false;
+}
+
+constexpr void match()
+{
+}
+
+constexpr void match() const
+{
+}
 
 };
     
@@ -615,6 +784,10 @@ struct Enum<T0>
 {
 
 typedef T0 E0;
+
+template<usize I>
+using E = index_pack<I, E0>;
+
 
 static constexpr usize SIZE = 1;
 
@@ -675,10 +848,9 @@ v0_{static_cast<T0 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -695,23 +867,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -722,6 +890,10 @@ struct Enum<T0, T1>
 
 typedef T0 E0;
 typedef T1 E1;
+
+template<usize I>
+using E = index_pack<I, E0, E1>;
+
 
 static constexpr usize SIZE = 2;
 
@@ -789,10 +961,9 @@ v1_{static_cast<T1 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -809,23 +980,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -837,6 +1004,10 @@ struct Enum<T0, T1, T2>
 typedef T0 E0;
 typedef T1 E1;
 typedef T2 E2;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2>;
+
 
 static constexpr usize SIZE = 3;
 
@@ -911,10 +1082,9 @@ v2_{static_cast<T2 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -931,23 +1101,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -960,6 +1126,10 @@ typedef T0 E0;
 typedef T1 E1;
 typedef T2 E2;
 typedef T3 E3;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3>;
+
 
 static constexpr usize SIZE = 4;
 
@@ -1041,10 +1211,9 @@ v3_{static_cast<T3 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -1061,23 +1230,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -1091,6 +1256,10 @@ typedef T1 E1;
 typedef T2 E2;
 typedef T3 E3;
 typedef T4 E4;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4>;
+
 
 static constexpr usize SIZE = 5;
 
@@ -1179,10 +1348,9 @@ v4_{static_cast<T4 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -1199,23 +1367,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -1230,6 +1394,10 @@ typedef T2 E2;
 typedef T3 E3;
 typedef T4 E4;
 typedef T5 E5;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5>;
+
 
 static constexpr usize SIZE = 6;
 
@@ -1325,10 +1493,9 @@ v5_{static_cast<T5 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -1345,23 +1512,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -1377,6 +1540,10 @@ typedef T3 E3;
 typedef T4 E4;
 typedef T5 E5;
 typedef T6 E6;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6>;
+
 
 static constexpr usize SIZE = 7;
 
@@ -1479,10 +1646,9 @@ v6_{static_cast<T6 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -1499,23 +1665,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -1532,6 +1694,10 @@ typedef T4 E4;
 typedef T5 E5;
 typedef T6 E6;
 typedef T7 E7;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7>;
+
 
 static constexpr usize SIZE = 8;
 
@@ -1641,10 +1807,9 @@ v7_{static_cast<T7 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -1661,23 +1826,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -1695,6 +1856,10 @@ typedef T5 E5;
 typedef T6 E6;
 typedef T7 E7;
 typedef T8 E8;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8>;
+
 
 static constexpr usize SIZE = 9;
 
@@ -1811,10 +1976,9 @@ v8_{static_cast<T8 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -1831,23 +1995,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -1866,6 +2026,10 @@ typedef T6 E6;
 typedef T7 E7;
 typedef T8 E8;
 typedef T9 E9;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9>;
+
 
 static constexpr usize SIZE = 10;
 
@@ -1989,10 +2153,9 @@ v9_{static_cast<T9 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -2009,23 +2172,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -2045,6 +2204,10 @@ typedef T7 E7;
 typedef T8 E8;
 typedef T9 E9;
 typedef T10 E10;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10>;
+
 
 static constexpr usize SIZE = 11;
 
@@ -2175,10 +2338,9 @@ v10_{static_cast<T10 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -2195,23 +2357,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -2232,6 +2390,10 @@ typedef T8 E8;
 typedef T9 E9;
 typedef T10 E10;
 typedef T11 E11;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11>;
+
 
 static constexpr usize SIZE = 12;
 
@@ -2369,10 +2531,9 @@ v11_{static_cast<T11 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -2389,23 +2550,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -2427,6 +2584,10 @@ typedef T9 E9;
 typedef T10 E10;
 typedef T11 E11;
 typedef T12 E12;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12>;
+
 
 static constexpr usize SIZE = 13;
 
@@ -2571,10 +2732,9 @@ v12_{static_cast<T12 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -2591,23 +2751,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -2630,6 +2786,10 @@ typedef T10 E10;
 typedef T11 E11;
 typedef T12 E12;
 typedef T13 E13;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13>;
+
 
 static constexpr usize SIZE = 14;
 
@@ -2781,10 +2941,9 @@ v13_{static_cast<T13 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -2801,23 +2960,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -2841,6 +2996,10 @@ typedef T11 E11;
 typedef T12 E12;
 typedef T13 E13;
 typedef T14 E14;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13, E14>;
+
 
 static constexpr usize SIZE = 15;
 
@@ -2999,10 +3158,9 @@ v14_{static_cast<T14 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -3019,23 +3177,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };
@@ -3060,6 +3214,10 @@ typedef T12 E12;
 typedef T13 E13;
 typedef T14 E14;
 typedef T15 E15;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13, E14, E15>;
+
 
 static constexpr usize SIZE = 16;
 
@@ -3225,10 +3383,9 @@ v15_{static_cast<T15 &&>(v)}
 { }
 
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {
-    return index_ == I;
+    return index_ == i;
 }
 
 template<usize I> requires(I < SIZE)
@@ -3245,23 +3402,19 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 
 };

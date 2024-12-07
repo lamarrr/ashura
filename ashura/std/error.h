@@ -31,5 +31,5 @@
   CHECK_EX(*::ash::logger, ::ash::SourceLocation::current(), cond_expr, \
            "[no description provided]")
 
-#define UNREACHABLE() \
+#define CHECK_UNREACHABLE() \
   CHECK_DESC(false, "Expected code section to be unreachable")

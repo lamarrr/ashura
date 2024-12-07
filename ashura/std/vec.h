@@ -404,7 +404,7 @@ struct [[nodiscard]] Vec
     }
     else
     {
-      obj::copy_assign(span, data() + pos);
+      obj::copy_construct(span, data() + pos);
     }
 
     return Ok{};
@@ -425,7 +425,7 @@ struct [[nodiscard]] Vec
     }
     else
     {
-      obj::move_assign(span, data() + pos);
+      obj::move_construct(span, data() + pos);
     }
 
     return Ok{};
@@ -474,7 +474,7 @@ struct [[nodiscard]] Vec
     }
     else
     {
-      obj::copy_assign(span, data() + pos);
+      obj::copy_construct(span, data() + pos);
     }
 
     return Ok{};
@@ -496,7 +496,7 @@ struct [[nodiscard]] Vec
     }
     else
     {
-      obj::move_assign(span, data() + pos);
+      obj::move_construct(span, data() + pos);
     }
 
     return Ok{};
@@ -831,7 +831,7 @@ struct [[nodiscard]] PinVec
     }
     else
     {
-      obj::copy_assign(span, data() + pos);
+      obj::copy_construct(span, data() + pos);
     }
 
     return Ok{};
@@ -853,7 +853,7 @@ struct [[nodiscard]] PinVec
     }
     else
     {
-      obj::move_assign(span, data() + pos);
+      obj::move_construct(span, data() + pos);
     }
 
     return Ok{};
@@ -1432,7 +1432,7 @@ struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
     }
     else
     {
-      obj::copy_assign(span, data() + pos);
+      obj::copy_construct(span, data() + pos);
     }
 
     return Ok{};
@@ -1454,7 +1454,7 @@ struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
     }
     else
     {
-      obj::move_assign(span, data() + pos);
+      obj::move_construct(span, data() + pos);
     }
 
     return Ok{};
@@ -1502,7 +1502,7 @@ struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
     }
     else
     {
-      obj::copy_assign(span, data() + pos);
+      obj::move_construct(span, data() + pos);
     }
 
     return Ok{};
@@ -1524,7 +1524,7 @@ struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
     }
     else
     {
-      obj::move_assign(span, data() + pos);
+      obj::move_construct(span, data() + pos);
     }
 
     return Ok{};
