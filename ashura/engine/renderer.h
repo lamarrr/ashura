@@ -3,7 +3,6 @@
 #include "ashura/engine/gpu_context.h"
 #include "ashura/engine/passes.h"
 #include "ashura/std/dyn.h"
-#include "ashura/std/math.h"
 
 namespace ash
 {
