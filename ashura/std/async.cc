@@ -31,7 +31,7 @@ struct TaskArena : Pin<>
 
   static constexpr auto flex()
   {
-    return Flex{
+    return Flex<TaskArena, u8>{
         {layout<TaskArena>,
          Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}}
     };
@@ -77,7 +77,7 @@ struct Task
 
   static constexpr auto flex(Layout frame_layout)
   {
-    return Flex{
+    return Flex<Task, u8>{
         {layout<Task>, frame_layout}
     };
   }
@@ -93,19 +93,19 @@ static_assert(TASK_ARENA_SIZE >= (MAX_TASK_FRAME_SIZE << 2),
               "Task arena size is too small");
 
 static_assert(MAX_TASK_FRAME_SIZE >= MAX_STANDARD_ALIGNMENT,
-              "Task frame size is too small");
+              "Maximum task frame size is too small");
 
 // assuming it has maximum alignment as well, although this would typically be
 // maximum of MAX_STANDARD_ALIGNMENT
 inline constexpr Layout MAX_TASK_FRAME_LAYOUT{.alignment = MAX_TASK_FRAME_SIZE,
                                               .size      = MAX_TASK_FRAME_SIZE};
 
-inline constexpr Layout MAX_TASK_NODE_FLEX_LAYOUT =
+inline constexpr Layout MAX_TASK_FLEX_LAYOUT =
     Task::flex(MAX_TASK_FRAME_LAYOUT).layout();
 
-static_assert(TASK_ARENA_SIZE >= MAX_TASK_NODE_FLEX_LAYOUT.size,
+static_assert(TASK_ARENA_SIZE >= MAX_TASK_FLEX_LAYOUT.size,
               "Task arena size is too small to fit the maximum task frame and "
-              "task metadata");
+              "task context");
 
 struct TaskAllocator
 {
@@ -178,80 +178,74 @@ struct TaskAllocator
     }
   }
 
-  bool alloc_arena(TaskArena *& arena)
+  bool alloc_arena(TaskArena *& out)
   {
-    Flex const   flex   = TaskArena::flex();
+    auto const   flex   = TaskArena::flex();
     Layout const layout = flex.layout();
 
-    u8 * head;
+    u8 * stack;
 
-    if (!source.alloc(layout.alignment, layout.size, head))
+    if (!source.alloc(layout.alignment, layout.size, stack))
     {
       return false;
     }
 
-    u8 * memory;
-    flex.unpack(head, arena, memory);
+    auto [arena, memory] = flex.unpack(stack);
 
-    new (arena) TaskArena{.arena = to_arena(Span{memory, TASK_ARENA_SIZE})};
+    out = new (arena.data()) TaskArena{.arena = to_arena(memory)};
 
     return true;
   }
 
   void dealloc_arena(TaskArena * arena)
   {
-    Flex const   flex   = TaskArena::flex();
-    Layout const layout = flex.layout();
+    Layout const layout = TaskArena::flex().layout();
     source.dealloc(layout.alignment, (u8 *) arena, layout.size);
   }
 
-  bool request_arena(TaskArena *& arena)
+  bool request_arena(TaskArena *& out)
   {
     /// get from free list, otherwise allocate a new arena
     TaskArena * a = free_list.pop();
     if (a != nullptr)
     {
-      arena = a;
+      out = a;
       return true;
     }
-    return alloc_arena(arena);
+    return alloc_arena(out);
   }
 
-  static bool alloc_task(TaskArena & arena, TaskInfo const & info, Task *& task)
+  static bool alloc_task(TaskArena & arena, TaskInfo const & info, Task *& out)
   {
-    Flex const   flex   = Task::flex(info.frame_layout);
+    auto const   flex   = Task::flex(info.frame_layout);
     Layout const layout = flex.layout();
 
-    u8 * head;
+    u8 * stack;
 
-    if (!arena.arena.alloc(layout.alignment, layout.size, head))
+    if (!arena.arena.alloc(layout.alignment, layout.size, stack))
     {
       return false;
     }
 
     arena.ac.alias();
 
-    u8 * ctx;
+    auto [task, ctx] = flex.unpack(stack);
 
-    flex.unpack(head, task, ctx);
+    out = new (task.data()) Task{.frame_layout = info.frame_layout,
+                                 .poll         = info.poll,
+                                 .run          = info.run,
+                                 .uninit       = info.uninit,
+                                 .arena        = &arena};
 
-    new (task) Task{.frame_layout = info.frame_layout,
-                    .poll         = info.poll,
-                    .run          = info.run,
-                    .uninit       = info.uninit,
-                    .arena        = &arena};
-
-    info.init(ctx);
+    info.init(ctx.data());
 
     return true;
   }
 
   static void uninit_task(Task * task)
   {
-    Flex const flex = Task::flex(task->frame_layout);
-    u8 *       ctx;
-    flex.unpack(task, task, ctx);
-    task->uninit(ctx);
+    auto [_, ctx] = Task::flex(task->frame_layout).unpack(task);
+    task->uninit(ctx.data());
   }
 
   void release_task(Task * task)
@@ -461,13 +455,9 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
         continue;
       }
 
-      Flex const flex = Task::flex(task->frame_layout);
+      auto [_, frame] = Task::flex(task->frame_layout).unpack(task);
 
-      u8 * frame;
-
-      flex.unpack(task, task, frame);
-
-      if (!task->poll(frame)) [[unlikely]]
+      if (!task->poll(frame.data())) [[unlikely]]
       {
         q.push_task(task);
         continue;
@@ -476,7 +466,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
       // finally gotten a ready task, reset poll counter
       poll = 0;
 
-      bool const repeat = task->run(frame);
+      bool const repeat = task->run(frame.data());
 
       if (repeat) [[unlikely]]
       {
@@ -534,19 +524,15 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
         }
       }
 
-      Flex const flex = Task::flex(task->frame_layout);
+      auto [_, frame] = Task::flex(task->frame_layout).unpack(task);
 
-      u8 * frame;
-
-      flex.unpack(task, task, frame);
-
-      if (!task->poll(frame)) [[unlikely]]
+      if (!task->poll(frame.data())) [[unlikely]]
       {
         q.push_task(task);
         continue;
       }
 
-      bool const repeat = task->run(frame);
+      bool const repeat = task->run(frame.data());
 
       if (repeat) [[unlikely]]
       {
