@@ -321,7 +321,7 @@ ShaderCompileError
       language = EShLanguage::EShLangVertex;
       break;
     default:
-      UNREACHABLE();
+      CHECK_UNREACHABLE();
   }
 
   char const *     buff_p      = (char *) buff.data();

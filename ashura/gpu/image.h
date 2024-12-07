@@ -44,7 +44,7 @@ inline u8 pixel_pitch(Format fmt)
     case Format::R32G32B32A32_SFLOAT:
       return 16;
     default:
-      UNREACHABLE();
+      CHECK_UNREACHABLE();
   }
 }
 

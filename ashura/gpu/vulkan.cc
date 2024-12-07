@@ -744,7 +744,7 @@ inline u64 index_type_size(gpu::IndexType type)
     case gpu::IndexType::Uint32:
       return 4;
     default:
-      UNREACHABLE();
+      CHECK_UNREACHABLE();
   }
 }
 

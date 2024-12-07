@@ -625,7 +625,7 @@ static void uninit_objects(gpu::Device * d, Span<gpu::Object const> objects)
         d->uninit_descriptor_set_layout(obj.descriptor_set_layout);
         break;
       default:
-        UNREACHABLE();
+        CHECK_UNREACHABLE();
     }
   }
 }
