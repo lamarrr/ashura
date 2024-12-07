@@ -31,6 +31,13 @@ set(SPIRV_REFLECT_STATIC_LIB
 set(SDL_STATIC
     ON
     CACHE BOOL "")
+set(SDL_JOYSTICK
+    OFF
+    CACHE BOOL "")
+set(SDL_HAPTIC
+    OFF
+    CACHE BOOL "")
+
 
 include(FetchContent)
 
