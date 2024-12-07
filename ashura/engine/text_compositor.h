@@ -182,12 +182,13 @@ struct TextCompositor
 
     Inner(u32 num_buffer_codepoints, u32 num_records)
     {
+      // [ ] use make()
       CHECK(num_buffer_codepoints > 0);
       CHECK(num_records > 0);
       CHECK(is_pow2(num_buffer_codepoints));
       CHECK(is_pow2(num_records));
       buffer.resize_uninit(num_buffer_codepoints).unwrap();
-      records.resize_defaulted(num_records).unwrap();
+      records.resize(num_records).unwrap();
     }
 
     void pop_records(u32 num);

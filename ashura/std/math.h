@@ -2542,11 +2542,15 @@ inline Vec2 rotor(f32 a)
   return Vec2{cos(a), sin(a)};
 }
 
-constexpr Vec2 ALIGNMENT_CENTER{0, 0};
-constexpr Vec2 ALIGNMENT_TOP_LEFT{-1, -1};
-constexpr Vec2 ALIGNMENT_TOP_RIGHT{1, -1};
-constexpr Vec2 ALIGNMENT_BOTTOM_LEFT{-1, 1};
-constexpr Vec2 ALIGNMENT_BOTTOM_RIGHT{1, 1};
+inline constexpr Vec2 ALIGNMENT_CENTER{0, 0};
+inline constexpr Vec2 ALIGNMENT_TOP_LEFT{-1, -1};
+inline constexpr Vec2 ALIGNMENT_TOP_CENTER{0, -1};
+inline constexpr Vec2 ALIGNMENT_TOP_RIGHT{1, -1};
+inline constexpr Vec2 ALIGNMENT_BOTTOM_LEFT{-1, 1};
+inline constexpr Vec2 ALIGNMENT_BOTTOM_CENTER{0, 1};
+inline constexpr Vec2 ALIGNMENT_BOTTOM_RIGHT{1, 1};
+inline constexpr Vec2 ALIGNMENT_LEFT_CENTER{-1, 0};
+inline constexpr Vec2 ALIGNMENT_RIGHT_CENTER{1, 0};
 
 constexpr Vec4 opacity(f32 v)
 {

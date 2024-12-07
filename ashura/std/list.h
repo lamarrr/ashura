@@ -6,228 +6,286 @@
 namespace ash
 {
 
-/// @brief Circular Doubly-Linked list node.
-/// head->next and head->prev are always non-null.
-///
-/// always construct with operator new.
-///
-/// @warning only use for scenarios where O(1) random insertion and/or removal
-/// is a must. ListNode requires stable addressing, must not be relocated once
-/// constructed.
-///
-template <typename T>
-struct [[nodiscard]] ListNode : Pin<>
+namespace intr
 {
-  ListNode<T> * next = this;
-  ListNode<T> * prev = this;
-  T             v    = {};
-
-  void isolate()
-  {
-    next = this;
-    prev = this;
-  }
-
-  [[nodiscard]] constexpr bool is_linked() const
-  {
-    return next != nullptr && prev != nullptr;
-  }
-
-  [[nodiscard]] constexpr bool is_isolated() const
-  {
-    return next == this && prev == this;
-  }
-};
 
 namespace list
 {
 
-/// @brief
+/// @brief Unlink Node `head` from the List, producing a new one-element List
 /// @tparam T
-/// @param node must be valid and non-null
-template <typename T>
-static constexpr void unlink_node(ListNode<T> * node)
+/// @param head must be valid and non-null
+/// @return popped list, never null
+template <typename Node, Node * Node::* prev, Node * Node::* next>
+constexpr void unlink(Node * head)
 {
   // detach from siblings
-  node->next->prev = node->prev;
-  node->prev->next = node->next;
+  head->*next->*prev = head->*prev;
+  head->*prev->*next = head->*next;
   // create 1 element node
-  node->next       = node;
-  node->prev       = node;
+  head->*next        = head;
+  head->*prev        = head;
 }
 
-/// @brief
+/// @brief Remove from the front of the list, producing a new one-element List
 /// @tparam T
 /// @param head must be valid and non-null, set to null if empty
-/// @return popped element or null
-template <typename T>
-[[nodiscard]] constexpr ListNode<T> * pop_front(ListNode<T> *& head)
+/// @return unlinked element or null
+template <typename Node, Node * Node::* prev, Node * Node::* next>
+[[nodiscard]] constexpr Node * unlink_front(Node *& head)
 {
-  ListNode<T> * out      = head;
-  ListNode<T> * new_head = (head->next == head) ? nullptr : head->next;
-  unlink_node(out);
+  Node * out      = head;
+  Node * new_head = (head->*next == head) ? nullptr : head->*next;
+  unlink<Node, prev, next>(out);
   head = new_head;
   return out;
 }
 
-/// @brief
+/// @brief Remove from the back of the list, producing a new one-element List
 /// @tparam T
 /// @param head must be valid and non-null, set to null if empty
-/// @return
-template <typename T>
-[[nodiscard]] constexpr ListNode<T> * pop_back(ListNode<T> *& head)
+/// @return unlinked element or null
+template <typename Node, Node * Node::* prev, Node * Node::* next>
+[[nodiscard]] constexpr Node * unlink_back(Node *& head)
 {
-  ListNode<T> * out      = head->prev;
-  ListNode<T> * new_head = (head->prev == head) ? nullptr : head;
-  unlink_node(out);
+  Node * out      = head->*prev;
+  Node * new_head = (head->*prev == head) ? nullptr : head;
+  unlink<Node, prev, next>(out);
   head = new_head;
   return out;
 }
 
-///
-/// @brief
-///
-/// @tparam T
-/// @param node must be valid and non-null
-/// @param ext must be valid and non-null
-///
-template <typename T>
-constexpr void attach(ListNode<T> * node, ListNode<T> * ext)
-{
-  ListNode<T> * node_head = node;
-  ListNode<T> * node_tail = node->prev;
-  ListNode<T> * ext_head  = ext;
-  ListNode<T> * ext_tail  = ext->prev;
-  ext_head->prev          = node_tail;
-  ext_tail->next          = node_head;
-  node_head->prev         = ext_tail;
-  node_tail->next         = ext_head;
-}
-
-///
-/// @brief
+/// @brief Attach List `ext` to the end of List `head`
 ///
 /// @tparam T
 /// @param head must be valid and non-null
 /// @param ext must be valid and non-null
 ///
-template <typename T>
-[[nodiscard]] constexpr ListNode<T> * push_back(ListNode<T> * head,
-                                                ListNode<T> * ext)
+template <typename Node, Node * Node::* prev, Node * Node::* next>
+constexpr void link(Node * ASH_RESTRICT head, Node * ASH_RESTRICT ext)
 {
-  attach(head, ext);
+  Node * node_head = head;
+  Node * node_tail = head->*prev;
+  Node * ext_head  = ext;
+  Node * ext_tail  = ext->*prev;
+  ext_head->*prev  = node_tail;
+  ext_tail->*next  = node_head;
+  node_head->*prev = ext_tail;
+  node_tail->*next = ext_head;
+}
+
+/// @brief Attach List `ext` to the back of List `head`, using `head` as anchor
+///
+/// @param head must be valid and non-null
+/// @param ext must be valid and non-null
+/// @return the new head of the list
+template <typename Node, Node * Node::* prev, Node * Node::* next>
+[[nodiscard]] constexpr Node * link_back(Node * ASH_RESTRICT head,
+                                         Node * ASH_RESTRICT ext)
+{
+  link<Node, prev, next>(head, ext);
   return head;
 }
 
+/// @brief Attach List `ext` to the front of List `head`, using `head` as anchor
 ///
-/// @brief
-///
-/// @tparam T
 /// @param head must be valid and non-null
 /// @param ext must be valid and non-null
-///
-template <typename T>
-[[nodiscard]] constexpr ListNode<T> * push_front(ListNode<T> * head,
-                                                 ListNode<T> * ext)
+/// @return the new head of the list
+template <typename Node, Node * Node::* prev, Node * Node::* next>
+[[nodiscard]] constexpr Node * link_front(Node * ASH_RESTRICT head,
+                                          Node * ASH_RESTRICT ext)
 {
-  attach(ext, head);
+  link<Node, prev, next>(ext, head);
   return ext;
 }
 
 }        // namespace list
+}        // namespace intr
 
-// [ ] iterator model
 /// @brief A non-owning intrusive doubly circularly linked list. This is backed
 /// by an external allocator.
-/// @tparam T type contained by the list's nodes
-template <typename T>
+/// @tparam N node type
+/// @tparam prev previous element getter
+/// @tparam next next element getter
+template <typename N, N * N::* prev = &N::prev, N * N::* next = &N::next>
 struct [[nodiscard]] List
 {
-  ListNode<T> * head;
+  typedef N Node;
 
-  constexpr List() : head{nullptr}
+  static constexpr Node * Node::* PREV = prev;
+
+  static constexpr Node * Node::* NEXT = next;
+
+  struct Iter
   {
-  }
+    Node * iter_      = nullptr;
+    Node * head_      = nullptr;
+    bool   past_head_ = true;
 
-  explicit constexpr List(ListNode<T> * head) : head{head}
+    constexpr Node & operator*() const
+    {
+      return *iter_;
+    }
+
+    constexpr Iter & operator++()
+    {
+      iter_      = iter_->next;
+      past_head_ = true;
+      return *this;
+    }
+
+    constexpr bool operator!=(IterEnd) const
+    {
+      bool const finished = (past_head_ && iter_ == head_);
+      return !finished;
+    }
+  };
+
+  Node * head_ = nullptr;
+
+  constexpr List() = default;
+
+  explicit constexpr List(Node * head) : head_{head}
   {
   }
 
   constexpr List(List const &) = delete;
 
-  constexpr List(List && other) : head{other.head}
+  constexpr List(List && other) : head_{other.head_}
   {
-    other.head = nullptr;
+    other.head_ = nullptr;
   }
 
   constexpr List & operator=(List const &) = delete;
 
   constexpr List & operator=(List && other)
   {
-    swap(head, other.head);
+    swap(head_, other.head_);
     return *this;
   }
 
   constexpr ~List()
   {
-    CHECK_DESC("Linked list's elements were leaked", head == nullptr);
+    CHECK_DESC(head_ == nullptr, "Linked list's elements were not released");
+  }
+
+  constexpr void leak()
+  {
+    head_ = nullptr;
   }
 
   constexpr bool is_empty() const
   {
-    return head == nullptr;
+    return head_ == nullptr;
   }
 
-  [[nodiscard]] constexpr ListNode<T> * tail() const
+  [[nodiscard]] constexpr Node * head() const
   {
-    if (head == nullptr) [[unlikely]]
+    return head_;
+  }
+
+  [[nodiscard]] constexpr Node * tail() const
+  {
+    if (head_ == nullptr) [[unlikely]]
     {
       return nullptr;
     }
 
-    return head->prev;
+    return head_->*prev;
   }
 
-  [[nodiscard]] constexpr ListNode<T> * pop_front()
+  [[nodiscard]] constexpr Node * pop_front()
   {
-    if (head == nullptr) [[unlikely]]
+    if (head_ == nullptr) [[unlikely]]
     {
       return nullptr;
     }
 
-    return list::pop_front(head);
+    Node * node = intr::list::unlink_front<Node, prev, next>(head_);
+    node->*prev = nullptr;
+    node->*next = nullptr;
+
+    return node;
   }
 
-  [[nodiscard]] constexpr ListNode<T> * pop_back()
+  [[nodiscard]] constexpr Node * pop_back()
   {
-    if (head == nullptr) [[unlikely]]
+    if (head_ == nullptr) [[unlikely]]
     {
       return nullptr;
     }
 
-    return list::pop_back(head);
+    Node * node = intr::list::unlink_back<Node, prev, next>(head_);
+    node->*prev = nullptr;
+    node->*next = nullptr;
+
+    return node;
   }
 
-  constexpr void push_front(ListNode<T> * ext)
+  /// @param node non-null node to push
+  constexpr void push_front(Node * node)
   {
-    if (head == nullptr) [[unlikely]]
+    node->*next = node;
+    node->*prev = node;
+
+    if (head_ == nullptr) [[unlikely]]
     {
-      head = ext;
+      head_ = node;
       return;
     }
 
-    head = list::push_front(head, ext);
+    head_ = intr::list::link_front<Node, prev, next>(head_, node);
   }
 
-  constexpr void push_back(ListNode<T> * ext)
+  /// @param node non-null node to push
+  constexpr void push_back(Node * node)
   {
-    if (head == nullptr) [[unlikely]]
+    node->*next = node;
+    node->*prev = node;
+
+    if (head_ == nullptr) [[unlikely]]
     {
-      head = ext;
+      head_ = node;
       return;
     }
 
-    head = list::push_back(head, ext);
+    head_ = intr::list::link_back<Node, prev, next>(head_, node);
+  }
+
+  constexpr void extend_front(List list)
+  {
+    if (list.head_ == nullptr) [[unlikely]]
+    {
+      return;
+    }
+
+    head_ = intr::list::link_front<Node, prev, next>(head_, list.head_);
+
+    list.leak();
+  }
+
+  constexpr void extend_back(List list)
+  {
+    if (list.head_ == nullptr) [[unlikely]]
+    {
+      return;
+    }
+
+    head_ = intr::list::link_back<Node, prev, next>(head_, list.head_);
+
+    list.leak();
+  }
+
+  constexpr Iter begin() const
+  {
+    return Iter{
+        .iter_ = head_, .head_ = head_, .past_head_ = (head_ == nullptr)};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
   }
 };
 

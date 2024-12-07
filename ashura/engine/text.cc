@@ -297,7 +297,7 @@ void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout)
   CHECK(block.fonts.size() <= U32_MAX);
   CHECK(block.runs.size() == block.fonts.size());
 
-  layout.segments.resize_defaulted(block.text.size()).unwrap();
+  layout.segments.resize(block.text.size()).unwrap();
   Span segments = layout.segments;
 
   fill(segments, TextSegment{});

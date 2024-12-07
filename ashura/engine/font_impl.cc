@@ -107,8 +107,7 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
   if (ft_postscript_name != nullptr)
   {
     postscript_name_size = strlen(ft_postscript_name);
-    if (!postscript_name.extend(
-            Span{ft_postscript_name, postscript_name_size}))
+    if (!postscript_name.extend(Span{ft_postscript_name, postscript_name_size}))
     {
       return Err{FontErr::OutOfMemory};
     }

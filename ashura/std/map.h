@@ -57,16 +57,16 @@ struct [[nodiscard]] Map
         {
           break;
         }
-        iter_++;
-        probe_++;
+        ++iter_;
+        ++probe_;
       }
     }
 
     constexpr Iter & operator++()
     {
       // advancement past the current element must occur
-      iter_++;
-      probe_++;
+      ++iter_;
+      ++probe_;
 
       seek();
 
@@ -78,13 +78,13 @@ struct [[nodiscard]] Map
       return *probe_;
     }
 
-    constexpr bool operator!=(IterEnd const &) const
+    constexpr bool operator!=(IterEnd) const
     {
       return iter_ != end_;
     }
   };
 
-  struct Range
+  struct View
   {
     Distance *       iter_  = nullptr;
     Distance const * end_   = nullptr;
@@ -527,7 +527,7 @@ struct [[nodiscard]] Map
     return false;
   }
 
-  constexpr Range span() const
+  constexpr View view() const
   {
     Iter iter{.iter_  = probe_dists_,
               .end_   = probe_dists_ + num_probes_,
@@ -535,15 +535,15 @@ struct [[nodiscard]] Map
 
     iter.seek();
 
-    return Range{.iter_ = iter.iter_, .end_ = iter.end_, .probe_ = iter.probe_};
+    return View{.iter_ = iter.iter_, .end_ = iter.end_, .probe_ = iter.probe_};
   }
 
   constexpr Iter begin() const
   {
-    return span().begin();
+    return view().begin();
   }
 
-  constexpr IterEnd end() const
+  constexpr auto end() const
   {
     return IterEnd{};
   }

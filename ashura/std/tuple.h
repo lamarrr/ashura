@@ -61,25 +61,6 @@ constexpr decltype(auto) apply(F && f, Tuple && t)
                     std::make_index_sequence<decay<Tuple>::SIZE>{});
 }
 
-template <typename F, usize... I>
-constexpr decltype(auto) impl_index_apply(F && f, std::index_sequence<I...>)
-{
-  return f.template operator()<I...>();
-}
-
-template <typename F, usize N>
-constexpr decltype(auto) index_apply(F && f)
-{
-  return impl_index_apply(static_cast<F &&>(f), std::make_index_sequence<N>{});
-}
-
-template <typename F, typename... Tuples>
-constexpr decltype(auto) zip_apply(F && f, Tuples &&... tuples)
-{
-  // [ ] impl
-  // apply over Index
-}
-
 template <usize I, typename Tuple, typename... In>
 constexpr decltype(auto) impl_fold_reduce(Tuple & fns, In &&... in)
 {

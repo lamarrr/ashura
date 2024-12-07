@@ -458,7 +458,7 @@ struct WindowSystemImpl : WindowSystem
       case SDL_SystemTheme::SDL_SYSTEM_THEME_UNKNOWN:
         return SystemTheme::Unknown;
       default:
-        UNREACHABLE();
+        CHECK_UNREACHABLE();
     }
   }
 
@@ -568,7 +568,7 @@ struct WindowSystemImpl : WindowSystem
               mouse_event.button = MouseButtons::A2;
               break;
             default:
-              UNREACHABLE();
+              CHECK_UNREACHABLE();
           }
 
           switch (event.type)

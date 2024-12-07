@@ -1214,7 +1214,7 @@ struct std::less<Span<char const>>
 {
   bool operator()(Span<char const> a, Span<char const> b) const
   {
-    return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end());
+    return std::lexicographical_compare(a.pbegin(), a.pend(), b.pbegin(), b.pend());
   }
 };
 

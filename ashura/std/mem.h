@@ -1,23 +1,24 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/traits.h"
+#include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include <cstring>
 
 namespace ash
 {
 
-constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
+inline constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
 
 /// @brief Just a hint, this is a common cacheline size. not the actual target's
 /// cacheline size
-constexpr usize CACHELINE_ALIGNMENT = 64;
+inline constexpr usize CACHELINE_ALIGNMENT = 64;
 
 /// @brief Just a hint, this is the common page alignment. not the actual
 /// target's page alignment.
-constexpr usize PAGE_ALIGNMENT = 16_KB;
+inline constexpr usize PAGE_ALIGNMENT = 16_KB;
 
-constexpr usize PAGE_SIZE = PAGE_ALIGNMENT;
+inline constexpr usize PAGE_SIZE = PAGE_ALIGNMENT;
 
 template <typename T>
 constexpr T align_offset(T alignment, T offset)
@@ -194,6 +195,7 @@ struct Layout
   }
 };
 
+/// @brief Get the memory layout of a type
 template <typename T>
 constexpr Layout layout = Layout{.alignment = alignof(T), .size = sizeof(T)};
 
@@ -202,10 +204,10 @@ constexpr Layout layout = Layout{.alignment = alignof(T), .size = sizeof(T)};
 /// offsets, and sizing requirements of the types and the resulting struct.
 /// @tparam N number of members in the flexible struct
 /// @param members memory layout of the members
-template <usize N>
+template <typename... T>
 struct Flex
 {
-  Layout members[N]{};
+  Layout members[sizeof...(T)]{};
 
   constexpr Layout layout() const
   {
@@ -217,29 +219,22 @@ struct Flex
     return l.aligned();
   }
 
-  template <typename T>
-  void unpack_at(void const *& stack, usize i, Span<T> & span) const
+  template <usize I>
+  auto unpack_at_(void const *& stack) const
   {
-    stack             = align_ptr(members[i].alignment, stack);
-    usize const count = members[i].size / sizeof(T);
-    span              = Span{(T *) stack, count};
-    stack             = ((u8 const *) stack) + members[i].size;
+    using M           = index_pack<I, T...>;
+    stack             = align_ptr(members[I].alignment, stack);
+    usize const count = members[I].size / sizeof(M);
+    Span<M>     span{(M *) stack, count};
+    stack = ((u8 const *) stack) + members[I].size;
+    return span;
   }
 
-  template <typename T>
-  void unpack_at(void const *& stack, usize i, T *& ptr) const
+  Tuple<Span<T>...> unpack(void const * stack) const
   {
-    Span<T> span;
-    unpack_at(stack, i, span);
-    ptr = span.data();
-  }
-
-  template <typename... T>
-  requires (sizeof...(T) == N)
-  void unpack(void const * stack, T &... p) const
-  {
-    usize i = 0;
-    (unpack_at(stack, i++, p), ...);
+    return index_apply<sizeof...(T)>([&]<usize... I>() {
+      return Tuple<Span<T>...>{unpack_at_<I>(stack)...};
+    });
   }
 };
 

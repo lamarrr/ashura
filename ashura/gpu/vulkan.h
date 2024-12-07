@@ -19,14 +19,14 @@ namespace vk
 
 using gpu::Status;
 
-constexpr char const * ENGINE_NAME    = "Ash";
-constexpr u32          ENGINE_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
-constexpr char const * CLIENT_NAME    = "Ash Client";
-constexpr u32          CLIENT_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
+inline constexpr char const * ENGINE_NAME    = "Ash";
+inline constexpr u32          ENGINE_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
+inline constexpr char const * CLIENT_NAME    = "Ash Client";
+inline constexpr u32          CLIENT_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
 
-constexpr u32 MAX_MEMORY_HEAP_PROPERTIES = 32;
-constexpr u32 MAX_MEMORY_HEAPS           = 16;
-constexpr u8  NUM_DESCRIPTOR_TYPES       = 11;
+inline constexpr u32 MAX_MEMORY_HEAP_PROPERTIES = 32;
+inline constexpr u32 MAX_MEMORY_HEAPS           = 16;
+inline constexpr u8  NUM_DESCRIPTOR_TYPES       = 11;
 
 typedef VkSampler             Sampler;
 typedef VkShaderModule        Shader;
@@ -268,9 +268,9 @@ struct BufferView
   VkBufferView        vk_view = nullptr;
 };
 
-constexpr u32 COLOR_ASPECT_IDX   = 0;
-constexpr u32 DEPTH_ASPECT_IDX   = 0;
-constexpr u32 STENCIL_ASPECT_IDX = 1;
+inline constexpr u32 COLOR_ASPECT_IDX   = 0;
+inline constexpr u32 DEPTH_ASPECT_IDX   = 0;
+inline constexpr u32 STENCIL_ASPECT_IDX = 1;
 
 struct Image
 {

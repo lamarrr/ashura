@@ -6,11 +6,11 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/cfg.h"
 #include "ashura/std/error.h"
-#include "ashura/std/tuple.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/rc.h"
 #include "ashura/std/result.h"
 #include "ashura/std/time.h"
+#include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 
 #include <atomic>
@@ -767,7 +767,7 @@ template <typename... T>
   return await_semaphores(semaphores, stages, timeout);
 }
 
-constexpr usize MAX_TASK_FRAME_SIZE = PAGE_SIZE >> 4;
+inline constexpr usize MAX_TASK_FRAME_SIZE = PAGE_SIZE >> 4;
 
 template <typename F>
 concept TaskFrame = requires (F f) {
@@ -945,7 +945,7 @@ struct Scheduler
         schedule_main(info);
         return;
       default:
-        UNREACHABLE();
+        CHECK_UNREACHABLE();
     }
   }
 };

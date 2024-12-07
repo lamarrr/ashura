@@ -15,10 +15,11 @@ out(f"""/// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/types.h"
 #include "ashura/std/v.h"
+#include "ashura/std/index_pack.h"
 
 namespace ash{{
 
-static constexpr usize MAX_TUPLE_SIZE = {MAX_TUPLE_SIZE};
+inline constexpr usize MAX_TUPLE_SIZE = {MAX_TUPLE_SIZE};
 
 """)
 
@@ -41,17 +42,15 @@ constexpr decltype(auto) tuple_member(Tuple& t)
 {"else".join(tuple_cases)}
 }};
 
-}}
+}} // namespace intr
 """)
 
 
 out(
     f"""
 template<typename ... T>
-struct Tuple
-{{
-static_assert("Tuple size exceeds MAX_TUPLE_SIZE");
-}};
+requires(sizeof...(T) <= MAX_TUPLE_SIZE)
+struct Tuple;
 """
 )
 
@@ -71,6 +70,11 @@ struct Tuple<{", ".join(types)}>
 {{
 
 {"\n".join(alias_decls)}
+
+{"" if size == 0 else 
+f"""template<usize I>
+using E = index_pack<I, {", ".join(aliases)}>;
+"""}
 
 static constexpr usize SIZE = {size};
 

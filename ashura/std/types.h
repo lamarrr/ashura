@@ -34,49 +34,49 @@ typedef uintptr_t uptr;
 typedef intptr_t  iptr;
 typedef u64       hash64;
 
-constexpr u8 U8_MIN = 0;
-constexpr u8 U8_MAX = 0xFF;
+inline constexpr u8 U8_MIN = 0;
+inline constexpr u8 U8_MAX = 0xFF;
 
-constexpr i8 I8_MIN = -0x7F - 1;
-constexpr i8 I8_MAX = 0x7F;
+inline constexpr i8 I8_MIN = -0x7F - 1;
+inline constexpr i8 I8_MAX = 0x7F;
 
-constexpr u16 U16_MIN = 0;
-constexpr u16 U16_MAX = 0xFFFF;
+inline constexpr u16 U16_MIN = 0;
+inline constexpr u16 U16_MAX = 0xFFFF;
 
-constexpr i16 I16_MIN = -0x7FFF - 1;
-constexpr i16 I16_MAX = 0x7FFF;
+inline constexpr i16 I16_MIN = -0x7FFF - 1;
+inline constexpr i16 I16_MAX = 0x7FFF;
 
-constexpr u32 U32_MIN = 0;
-constexpr u32 U32_MAX = 0xFFFF'FFFFU;
+inline constexpr u32 U32_MIN = 0;
+inline constexpr u32 U32_MAX = 0xFFFF'FFFFU;
 
-constexpr i32 I32_MIN = -0x7FFF'FFFF - 1;
-constexpr i32 I32_MAX = 0x7FFF'FFFF;
+inline constexpr i32 I32_MIN = -0x7FFF'FFFF - 1;
+inline constexpr i32 I32_MAX = 0x7FFF'FFFF;
 
-constexpr u64 U64_MIN = 0;
-constexpr u64 U64_MAX = 0xFFFF'FFFF'FFFF'FFFFULL;
+inline constexpr u64 U64_MIN = 0;
+inline constexpr u64 U64_MAX = 0xFFFF'FFFF'FFFF'FFFFULL;
 
-constexpr i64 I64_MIN = -0x7FFF'FFFF'FFFF'FFFFLL - 1;
-constexpr i64 I64_MAX = 0x7FFF'FFFF'FFFF'FFFFLL;
+inline constexpr i64 I64_MIN = -0x7FFF'FFFF'FFFF'FFFFLL - 1;
+inline constexpr i64 I64_MAX = 0x7FFF'FFFF'FFFF'FFFFLL;
 
-constexpr usize USIZE_MIN = 0;
-constexpr usize USIZE_MAX = SIZE_MAX;
+inline constexpr usize USIZE_MIN = 0;
+inline constexpr usize USIZE_MAX = SIZE_MAX;
 
-constexpr isize ISIZE_MIN = PTRDIFF_MIN;
-constexpr isize ISIZE_MAX = PTRDIFF_MAX;
+inline constexpr isize ISIZE_MIN = PTRDIFF_MIN;
+inline constexpr isize ISIZE_MAX = PTRDIFF_MAX;
 
-constexpr f32 F32_MIN          = -FLT_MAX;
-constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
-constexpr f32 F32_MAX          = FLT_MAX;
-constexpr f32 F32_EPS          = FLT_EPSILON;
-constexpr f32 F32_INF          = INFINITY;
+inline constexpr f32 F32_MIN          = -FLT_MAX;
+inline constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
+inline constexpr f32 F32_MAX          = FLT_MAX;
+inline constexpr f32 F32_EPS          = FLT_EPSILON;
+inline constexpr f32 F32_INF          = INFINITY;
 
-constexpr f64 F64_MIN          = -DBL_MAX;
-constexpr f64 F64_MIN_POSITIVE = DBL_MIN;
-constexpr f64 F64_MAX          = DBL_MAX;
-constexpr f64 F64_EPS          = DBL_EPSILON;
-constexpr f64 F64_INF          = INFINITY;
+inline constexpr f64 F64_MIN          = -DBL_MAX;
+inline constexpr f64 F64_MIN_POSITIVE = DBL_MIN;
+inline constexpr f64 F64_MAX          = DBL_MAX;
+inline constexpr f64 F64_EPS          = DBL_EPSILON;
+inline constexpr f64 F64_INF          = INFINITY;
 
-constexpr f32 PI = 3.14159265358979323846F;
+inline constexpr f32 PI = 3.14159265358979323846F;
 
 struct Add
 {
@@ -181,6 +181,14 @@ struct Min
   {
     return a < b ? a : b;
   }
+
+  template <typename T, typename... T1>
+  constexpr T operator()(T const & a, T const & b, T1 const &... cs) const
+  {
+    T m = this->template operator()<T>(a, b);
+    ((m = this->template operator()<T>(static_cast<T &&>(m), cs)), ...);
+    return m;
+  }
 };
 
 struct Max
@@ -189,6 +197,14 @@ struct Max
   constexpr T operator()(T const & a, T const & b) const
   {
     return a > b ? a : b;
+  }
+
+  template <typename T, typename... T1>
+  constexpr T operator()(T const & a, T const & b, T1 const &... cs) const
+  {
+    T m = this->template operator()<T>(a, b);
+    ((m = this->template operator()<T>(static_cast<T &&>(m), cs)), ...);
+    return m;
   }
 };
 
@@ -342,6 +358,8 @@ constexpr i32 sat_mul(i32 a, i32 b)
 // [ ] sat_mul u64, i64
 
 // [ ] sat_cast
+
+using std::bit_cast;
 
 template <typename T>
 constexpr bool has_bits(T src, T cmp)
@@ -846,7 +864,7 @@ struct Slice64
 
   constexpr operator Slice() const
   {
-    return Slice{offset, span};
+    return Slice{static_cast<usize>(offset), static_cast<usize>(span)};
   }
 };
 
@@ -855,14 +873,14 @@ struct IterEnd
 };
 
 template <typename T>
-struct SpanIterator
+struct SpanIter
 {
   T * iter_ = nullptr;
   T * end_  = nullptr;
 
-  constexpr SpanIterator & operator++()
+  constexpr SpanIter & operator++()
   {
-    iter_++;
+    ++iter_;
     return *this;
   }
 
@@ -871,16 +889,16 @@ struct SpanIterator
     return *iter_;
   }
 
-  constexpr bool operator!=(IterEnd const &) const
+  constexpr bool operator!=(IterEnd) const
   {
     return iter_ != end_;
   }
 };
 
 template <typename T, usize N>
-constexpr SpanIterator<T> begin(T (&a)[N])
+constexpr SpanIter<T> begin(T (&a)[N])
 {
-  return SpanIterator<T>{.iter_ = a, .end_ = a + N};
+  return SpanIter<T>{.iter_ = a, .end_ = a + N};
 }
 
 template <typename T>
@@ -890,7 +908,7 @@ constexpr auto begin(T && a) -> decltype(a.begin())
 }
 
 template <typename T, usize N>
-constexpr IterEnd end(T (&)[N])
+constexpr auto end(T (&)[N])
 {
   return IterEnd{};
 }
@@ -946,7 +964,7 @@ constexpr usize size_bits(T (&)[N])
 template <typename T>
 constexpr auto size_bits(T && a) -> decltype(a.size())
 {
-  return sizeof(T) * 8 * a.size();
+  return sizeof(T) * a.size() * 8;
 }
 
 template <typename T>
@@ -955,6 +973,9 @@ constexpr auto is_empty(T && a)
   return size(a) == 0;
 }
 
+/// @brief Iterator Model. Iterators are only required to
+/// produce values, they are not required to provide
+/// references to the values
 template <typename T>
 concept Iter = requires (T it) {
   {
@@ -962,295 +983,42 @@ concept Iter = requires (T it) {
     *it
   };
   {
-    // pre-fix advancement
+    // in-place (pre-fix) advancement
     ++it
   };
 };
 
+/// @brief Range Model. Ranges are read-only by default.
 template <typename R>
 concept Range = requires (R r) {
-  { begin(r) } -> Iter;
-  { !(begin(r) != end(r)) };
+  {
+    // can get an iterator to its beginning element
+    begin(r)
+  } -> Iter;
+  {
+    // returns boolean when asked if it has ended
+    !(begin(r) != end(r))
+  };
 };
 
+// [ ] struct ExampleRange
+// {
+// [ ] nth();
+// };
+
+// [ ] change to range set using iter
 template <NonConst T, typename Arg = T>
 constexpr void iter_set(T * iterator, Arg && arg)
 {
   *iterator = static_cast<Arg &&>(arg);
 }
 
-template <typename T, typename Arg = T>
-constexpr void iter_set(Uninitialized, T * iterator, Arg && arg)
-{
-  new (iterator) T{static_cast<Arg &&>(arg)};
-}
-
 // [ ] output iterator - base: set to intial value
 template <typename T>
-concept OutputIter = Iter<T>;
+concept OutIter = Iter<T>;
 
 template <typename T>
-concept OutputRange = Range<T>;
-
-template <typename T, usize N>
-struct Array
-{
-  using Type                  = T;
-  static constexpr usize SIZE = N;
-
-  T data_[SIZE]{};
-
-  static constexpr bool is_empty()
-  {
-    return false;
-  }
-
-  constexpr T * data()
-  {
-    return data_;
-  }
-
-  constexpr T const * data() const
-  {
-    return data_;
-  }
-
-  static constexpr usize size()
-  {
-    return SIZE;
-  }
-
-  static constexpr u32 size32()
-  {
-    return (u32) SIZE;
-  }
-
-  static constexpr u64 size64()
-  {
-    return (u64) SIZE;
-  }
-
-  static constexpr usize capacity()
-  {
-    return SIZE;
-  }
-
-  static constexpr usize size_bytes()
-  {
-    return sizeof(T) * SIZE;
-  }
-
-  constexpr T * begin()
-  {
-    return data_;
-  }
-
-  constexpr T const * begin() const
-  {
-    return data_;
-  }
-
-  constexpr T * end()
-  {
-    return data_ + SIZE;
-  }
-
-  constexpr T const * end() const
-  {
-    return data_ + SIZE;
-  }
-
-  constexpr T & first()
-  {
-    return get(0);
-  }
-
-  constexpr T const & first() const
-  {
-    return get(0);
-  }
-
-  constexpr T & last()
-  {
-    return get(SIZE - 1);
-  }
-
-  constexpr T const & last() const
-  {
-    return get(SIZE - 1);
-  }
-
-  constexpr T & get(usize index)
-  {
-    return data_[index];
-  }
-
-  constexpr T const & get(usize index) const
-  {
-    return data_[index];
-  }
-
-  template <typename... Args>
-  constexpr void set(usize index, Args &&... args)
-  {
-    data_[index] = T{static_cast<Args &&>(args)...};
-  }
-
-  constexpr T & operator[](usize index)
-  {
-    return data_[index];
-  }
-
-  constexpr T const & operator[](usize index) const
-  {
-    return data_[index];
-  }
-
-  constexpr operator T *()
-  {
-    return data_;
-  }
-
-  constexpr operator T const *() const
-  {
-    return data_;
-  }
-};
-
-template <typename T>
-struct Array<T, 0>
-{
-  using Type                  = T;
-  static constexpr usize SIZE = 0;
-
-  static constexpr bool is_empty()
-  {
-    return true;
-  }
-
-  constexpr T * data()
-  {
-    return nullptr;
-  }
-
-  constexpr T const * data() const
-  {
-    return nullptr;
-  }
-
-  static constexpr usize size()
-  {
-    return SIZE;
-  }
-
-  static constexpr u32 size32()
-  {
-    return (u32) SIZE;
-  }
-
-  static constexpr u64 size64()
-  {
-    return (u64) SIZE;
-  }
-
-  static constexpr usize capacity()
-  {
-    return SIZE;
-  }
-
-  static constexpr usize size_bytes()
-  {
-    return sizeof(T) * SIZE;
-  }
-
-  constexpr T * begin()
-  {
-    return nullptr;
-  }
-
-  constexpr T const * begin() const
-  {
-    return nullptr;
-  }
-
-  constexpr T * end()
-  {
-    return nullptr;
-  }
-
-  constexpr T const * end() const
-  {
-    return nullptr;
-  }
-
-  constexpr T & first() requires (SIZE > 1)
-  {
-    return get(0);
-  }
-
-  constexpr T const & first() const requires (SIZE > 1)
-  {
-    return get(0);
-  }
-
-  constexpr T & last() requires (SIZE > 1)
-  {
-    return get(SIZE - 1);
-  }
-
-  constexpr T const & last() const requires (SIZE > 1)
-  {
-    return get(SIZE - 1);
-  }
-
-  constexpr T & get(usize index) requires (SIZE > 1)
-  {
-    return data()[index];
-  }
-
-  constexpr T const & get(usize index) const requires (SIZE > 1)
-  {
-    return data()[index];
-  }
-
-  template <typename... Args>
-  constexpr void set(usize index, Args &&... args) requires (SIZE > 1)
-  {
-    data()[index] = T{static_cast<Args &&>(args)...};
-  }
-
-  constexpr T & operator[](usize index) requires (SIZE > 1)
-  {
-    return data()[index];
-  }
-
-  constexpr T const & operator[](usize index) const
-  {
-    return data()[index];
-  }
-
-  constexpr operator T *()
-  {
-    return nullptr;
-  }
-
-  constexpr operator T const *() const
-  {
-    return nullptr;
-  }
-};
-
-template <typename T, usize N>
-struct IsTriviallyRelocatable<Array<T, N>>
-{
-  static constexpr bool value = TriviallyRelocatable<T>;
-};
-
-template <typename Repr, usize N>
-using Bits = Repr[BIT_PACKS<Repr, N>];
-
-template <typename Repr, usize N>
-using BitArray = Array<Repr, BIT_PACKS<Repr, N>>;
+concept OutRange = Range<T>;
 
 template <typename U, typename T>
 concept SpanCompatible = Convertible<U (*)[], T (*)[]>;
@@ -1274,6 +1042,7 @@ struct Span
 {
   using Type = T;
   using Repr = T;
+  using Iter = SpanIter<T>;
 
   T *   data_ = nullptr;
   usize size_ = 0;
@@ -1287,6 +1056,10 @@ struct Span
   constexpr Span(T * begin, T const * end) :
       data_{begin},
       size_{static_cast<usize>(end - begin)}
+  {
+  }
+
+  constexpr Span(Iter iter, IterEnd = {}) : Span{iter.iter_, iter.end_}
   {
   }
 
@@ -1345,12 +1118,22 @@ struct Span
     return sizeof(T) * size_;
   }
 
-  constexpr T * begin() const
+  constexpr Iter begin() const
+  {
+    return Iter{.iter_ = data_, .end_ = data_ + size_};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
+  constexpr T * pbegin() const
   {
     return data_;
   }
 
-  constexpr T * end() const
+  constexpr T * pend() const
   {
     return data_ + size_;
   }
@@ -1453,6 +1236,18 @@ template <SpanContainer C>
 constexpr auto span(C & c)
 {
   return Span{data(c), size(c)};
+}
+
+template <typename T, usize N>
+constexpr Span<T> view(T (&array)[N])
+{
+  return span(array);
+}
+
+template <typename R>
+constexpr auto view(R & range) -> decltype(range.view())
+{
+  return range.view();
 }
 
 constexpr Span<char const> operator""_str(char const * lit, usize n)
@@ -1644,10 +1439,35 @@ constexpr usize find_clear_bit(Span<u64 const> s)
 }
 
 template <typename R>
+struct BitSpanIter
+{
+  Span<R> repr_{};
+  usize   bit_pos_  = 0;
+  usize   bit_size_ = 0;
+
+  constexpr bool operator*() const
+  {
+    return get_bit(repr_, bit_pos_);
+  }
+
+  constexpr BitSpanIter & operator++()
+  {
+    ++bit_pos_;
+    return *this;
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return bit_pos_ != bit_size_;
+  }
+};
+
+template <typename R>
 struct BitSpan
 {
   using Type = bool;
   using Repr = R;
+  using Iter = BitSpanIter<R>;
 
   Span<R> repr_     = {};
   usize   bit_size_ = 0;
@@ -1690,6 +1510,16 @@ struct BitSpan
     return bit_size_ == 0;
   }
 
+  constexpr auto begin() const
+  {
+    return Iter{.repr_ = repr_, .bit_pos_ = 0, .bit_size_ = bit_size_};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
   constexpr bool has_trailing() const
   {
     return bit_size_ != (repr_.size_bytes() * 8);
@@ -1705,7 +1535,7 @@ struct BitSpan
     return ash::get_bit(repr_, index);
   }
 
-  constexpr void set(usize index, bool value) const
+  constexpr void set(usize index, bool value) const requires (NonConst<R>)
   {
     ash::assign_bit(repr_, index, value);
   }
@@ -1715,17 +1545,17 @@ struct BitSpan
     return ash::get_bit(repr_, index);
   }
 
-  constexpr bool set_bit(usize index) const
+  constexpr bool set_bit(usize index) const requires (NonConst<R>)
   {
     return ash::set_bit(repr_, index);
   }
 
-  constexpr bool clear_bit(usize index) const
+  constexpr bool clear_bit(usize index) const requires (NonConst<R>)
   {
     return ash::clear_bit(repr_, index);
   }
 
-  constexpr void flip_bit(usize index) const
+  constexpr void flip_bit(usize index) const requires (NonConst<R>)
   {
     ash::flip_bit(repr_, index);
   }
@@ -1750,6 +1580,296 @@ struct BitSpan
     return BitSpan<R const>{repr_, bit_size_};
   }
 };
+
+template <typename T, usize N>
+struct Array
+{
+  using Type      = T;
+  using View      = Span<T>;
+  using ConstView = Span<T const>;
+  using Iter      = SpanIter<T>;
+  using ConstIter = SpanIter<T const>;
+
+  static constexpr usize SIZE = N;
+
+  T data_[SIZE]{};
+
+  static constexpr bool is_empty()
+  {
+    return false;
+  }
+
+  constexpr T * data()
+  {
+    return data_;
+  }
+
+  constexpr T const * data() const
+  {
+    return data_;
+  }
+
+  static constexpr usize size()
+  {
+    return SIZE;
+  }
+
+  static constexpr u32 size32()
+  {
+    return (u32) SIZE;
+  }
+
+  static constexpr u64 size64()
+  {
+    return (u64) SIZE;
+  }
+
+  static constexpr usize capacity()
+  {
+    return SIZE;
+  }
+
+  static constexpr usize size_bytes()
+  {
+    return sizeof(T) * SIZE;
+  }
+
+  constexpr T * begin()
+  {
+    return data_;
+  }
+
+  constexpr T const * begin() const
+  {
+    return data_;
+  }
+
+  constexpr T * end()
+  {
+    return data_ + SIZE;
+  }
+
+  constexpr T const * end() const
+  {
+    return data_ + SIZE;
+  }
+
+  constexpr T & first()
+  {
+    return get(0);
+  }
+
+  constexpr T const & first() const
+  {
+    return get(0);
+  }
+
+  constexpr T & last()
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T const & last() const
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T & get(usize index)
+  {
+    return data_[index];
+  }
+
+  constexpr T const & get(usize index) const
+  {
+    return data_[index];
+  }
+
+  template <typename... Args>
+  constexpr void set(usize index, Args &&... args)
+  {
+    data_[index] = T{static_cast<Args &&>(args)...};
+  }
+
+  constexpr T & operator[](usize index)
+  {
+    return data_[index];
+  }
+
+  constexpr T const & operator[](usize index) const
+  {
+    return data_[index];
+  }
+
+  constexpr operator T *()
+  {
+    return data_;
+  }
+
+  constexpr operator T const *() const
+  {
+    return data_;
+  }
+
+  constexpr ConstView view() const
+  {
+    return ConstView{data(), size()};
+  }
+
+  constexpr View view()
+  {
+    return View{data(), size()};
+  }
+};
+
+template <typename T>
+struct Array<T, 0>
+{
+  using Type      = T;
+  using View      = Span<T>;
+  using ConstView = Span<T const>;
+  using Iter      = SpanIter<T>;
+  using ConstIter = SpanIter<T const>;
+
+  static constexpr usize SIZE = 0;
+
+  static constexpr bool is_empty()
+  {
+    return true;
+  }
+
+  constexpr T * data()
+  {
+    return nullptr;
+  }
+
+  constexpr T const * data() const
+  {
+    return nullptr;
+  }
+
+  static constexpr usize size()
+  {
+    return SIZE;
+  }
+
+  static constexpr u32 size32()
+  {
+    return (u32) SIZE;
+  }
+
+  static constexpr u64 size64()
+  {
+    return (u64) SIZE;
+  }
+
+  static constexpr usize capacity()
+  {
+    return SIZE;
+  }
+
+  static constexpr usize size_bytes()
+  {
+    return sizeof(T) * SIZE;
+  }
+
+  constexpr T * begin()
+  {
+    return nullptr;
+  }
+
+  constexpr T const * begin() const
+  {
+    return nullptr;
+  }
+
+  constexpr T * end()
+  {
+    return nullptr;
+  }
+
+  constexpr T const * end() const
+  {
+    return nullptr;
+  }
+
+  constexpr T & first() requires (SIZE > 1)
+  {
+    return get(0);
+  }
+
+  constexpr T const & first() const requires (SIZE > 1)
+  {
+    return get(0);
+  }
+
+  constexpr T & last() requires (SIZE > 1)
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T const & last() const requires (SIZE > 1)
+  {
+    return get(SIZE - 1);
+  }
+
+  constexpr T & get(usize index) requires (SIZE > 1)
+  {
+    return data()[index];
+  }
+
+  constexpr T const & get(usize index) const requires (SIZE > 1)
+  {
+    return data()[index];
+  }
+
+  template <typename... Args>
+  constexpr void set(usize index, Args &&... args) requires (SIZE > 1)
+  {
+    data()[index] = T{static_cast<Args &&>(args)...};
+  }
+
+  constexpr T & operator[](usize index) requires (SIZE > 1)
+  {
+    return data()[index];
+  }
+
+  constexpr T const & operator[](usize index) const
+  {
+    return data()[index];
+  }
+
+  constexpr operator T *()
+  {
+    return nullptr;
+  }
+
+  constexpr operator T const *() const
+  {
+    return nullptr;
+  }
+
+  constexpr ConstView view() const
+  {
+    return ConstView{data(), size()};
+  }
+
+  constexpr View view()
+  {
+    return View{data(), size()};
+  }
+};
+
+template <typename T, usize N>
+struct IsTriviallyRelocatable<Array<T, N>>
+{
+  static constexpr bool value = TriviallyRelocatable<T>;
+};
+
+template <typename Repr, usize N>
+using Bits = Repr[BIT_PACKS<Repr, N>];
+
+template <typename Repr, usize N>
+using BitArray = Array<Repr, BIT_PACKS<Repr, N>>;
 
 template <typename Lambda>
 struct defer
@@ -1815,8 +1935,9 @@ struct Fn<R(Args...)>
 {
   using Thunk = R (*)(void *, Args...);
 
-  void * data  = nullptr;
-  Thunk  thunk = nullptr;
+  void * data = nullptr;
+
+  Thunk thunk = nullptr;
 
   explicit constexpr Fn() = default;
 
@@ -1923,7 +2044,7 @@ auto fn(R (*pfn)(Args...))
 
 /// @brief make a function view from a functor reference. Functor should outlive
 /// the Fn
-template <AnyFunctor F>
+template <typename F>
 auto fn(F & functor)
 {
   using Traits = FunctorTraits<F>;
@@ -2045,6 +2166,19 @@ struct Pin<void>
   constexpr Pin & operator=(Pin const &) = delete;
   constexpr Pin & operator=(Pin &&)      = delete;
   constexpr ~Pin()                       = default;
+};
+
+/// @brief uninitialized storage
+template <usize Alignment, usize Capacity>
+struct InplaceStorage
+{
+  alignas(Alignment) mutable u8 storage_[Capacity];
+};
+
+template <usize Alignment>
+struct InplaceStorage<Alignment, 0>
+{
+  static constexpr u8 * storage_ = nullptr;
 };
 
 }        // namespace ash

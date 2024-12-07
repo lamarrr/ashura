@@ -86,9 +86,9 @@ void StdioSink::log(LogLevels level, Span<char const> log_message)
       break;
   }
 
-  constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";
-  char                 time_string[256];
-  usize                time_string_length = 0;
+  static constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";
+  char                        time_string[256];
+  usize                       time_string_length = 0;
 
   std::time_t current_time = std::time(nullptr);
   if (current_time != (std::time_t) -1)
@@ -120,10 +120,10 @@ void StdioSink::flush()
 
 void FileSink::log(LogLevels level, Span<char const> log_message)
 {
-  char const *         level_str     = get_level_str(level);
-  constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";
-  char                 time_string[256];
-  usize                time_string_length = 0;
+  char const *                level_str     = get_level_str(level);
+  static constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";
+  char                        time_string[256];
+  usize                       time_string_length = 0;
 
   std::time_t current_time = std::time(nullptr);
   if (current_time != (std::time_t) -1)

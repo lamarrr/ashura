@@ -271,3 +271,14 @@
 #else
 #  define ASH_TAILCALL
 #endif
+
+#if ASH_HAS_BUILTIN(unreachable)
+#  define ASH_UNREACHABLE __builtin_unreachable()
+#else
+#  if ASH_CFG(COMPILER, MSVC)
+#    define ASH_UNREACHABLE __assume(0)
+#  else
+#    include <cstdlib>
+#    define ASH_UNREACHABLE std::abort()
+#  endif
+#endif

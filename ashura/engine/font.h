@@ -11,7 +11,7 @@ namespace ash
 {
 
 // App Unit (AU)
-constexpr i32 AU_UNIT = 128 * 64;
+inline constexpr i32 AU_UNIT = 128 * 64;
 
 static_assert((AU_UNIT % 64) == 0,
               "App Unit needs to be in 26.6 Fractional Unit");

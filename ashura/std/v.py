@@ -32,7 +32,7 @@ struct V
 """)
 
 
-value_defs = [f"constexpr V<{i}> v{i};" for i in range(MAX_SIZE)]
+value_defs = [f"inline constexpr V<{i}> v{i};" for i in range(MAX_SIZE)]
 
 
 out("\n".join(value_defs))

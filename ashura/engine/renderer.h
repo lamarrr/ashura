@@ -3,7 +3,6 @@
 #include "ashura/engine/gpu_context.h"
 #include "ashura/engine/passes.h"
 #include "ashura/std/dyn.h"
-#include "ashura/std/math.h"
 
 namespace ash
 {
@@ -158,7 +157,7 @@ struct Renderer
       p->acquire(ctx, passes, assets);
     }
 
-    resources.resize_defaulted(ctx.buffering).unwrap();
+    resources.resize(ctx.buffering).unwrap();
   }
 
   void release(GpuContext & ctx, AssetMap & assets)

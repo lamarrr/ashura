@@ -142,7 +142,7 @@ struct Arena final : Allocator
 
 [[nodiscard]] inline Arena to_arena(Span<u8> buffer)
 {
-  return Arena{buffer.data(), buffer.end(), buffer.begin()};
+  return Arena{buffer.pbegin(), buffer.pend(), buffer.pbegin()};
 }
 
 /// @max_num_arenas: maximum number of arenas that can be allocated

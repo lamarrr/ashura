@@ -158,11 +158,6 @@ struct is_pfn_impl<R (*)(Args...)>
 template <typename F>
 concept AnyPFn = is_pfn_impl<F>::value;
 
-template <typename F>
-concept AnyFunctor = requires () {
-  { &F::operator() };
-};
-
 template <typename Fn, typename... Args>
 concept Predicate = requires (Fn fn, Args... args) {
   { fn(static_cast<Args>(args)...) && true };

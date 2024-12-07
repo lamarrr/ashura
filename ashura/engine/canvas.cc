@@ -430,7 +430,7 @@ static inline void flush_batch(Canvas & c)
             .params_ssbo    = ctx.ngons.descriptor,
             .textures       = ctx.gpu.texture_views,
             .index_counts =
-                ctx.canvas.ngon_index_counts.span().slice(batch.objects)};
+                ctx.canvas.ngon_index_counts.view().slice(batch.objects)};
         ctx.passes.ngon->encode(ctx.gpu, ctx.enc, params);
       });
       return;
@@ -638,12 +638,12 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
   f32 const  block_width = max(layout.extent.x, style.align_width);
   Vec2 const block_extent{block_width, layout.extent.y};
 
-  constexpr u8 PASS_BACKGROUND    = 0;
-  constexpr u8 PASS_GLYPH_SHADOWS = 1;
-  constexpr u8 PASS_GLYPHS        = 2;
-  constexpr u8 PASS_UNDERLINE     = 3;
-  constexpr u8 PASS_STRIKETHROUGH = 4;
-  constexpr u8 NUM_PASSES         = 5;
+  static constexpr u8 PASS_BACKGROUND    = 0;
+  static constexpr u8 PASS_GLYPH_SHADOWS = 1;
+  static constexpr u8 PASS_GLYPHS        = 2;
+  static constexpr u8 PASS_UNDERLINE     = 3;
+  static constexpr u8 PASS_STRIKETHROUGH = 4;
+  static constexpr u8 NUM_PASSES         = 5;
 
   for (u8 pass = 0; pass < NUM_PASSES; pass++)
   {
@@ -667,7 +667,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
       f32 cursor = space_align(block_width, ln.metrics.width, alignment) -
                    ln.metrics.width * 0.5F;
       for (TextRun const & run :
-           layout.runs.span().slice(ln.first_run, ln.num_runs))
+           layout.runs.view().slice(ln.first_run, ln.num_runs))
       {
         FontStyle const &    font_style = block.fonts[run.style];
         TextStyle const &    run_style  = style.runs[run.style];
@@ -823,7 +823,7 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points,
   ngon_vertices.extend(points).unwrap();
   ngon_indices.extend(idx).unwrap();
 
-  for (u32 & v : ngon_indices.span().slice(first_index))
+  for (u32 & v : ngon_indices.view().slice(first_index))
   {
     v += first_vertex;
   }

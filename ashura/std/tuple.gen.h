@@ -4,10 +4,11 @@
 #pragma once
 #include "ashura/std/types.h"
 #include "ashura/std/v.h"
+#include "ashura/std/index_pack.h"
 
 namespace ash{
 
-static constexpr usize MAX_TUPLE_SIZE = 16;
+inline constexpr usize MAX_TUPLE_SIZE = 16;
 
 
 namespace intr
@@ -99,17 +100,17 @@ if constexpr(I == 15)
 
 };
 
-}
+} // namespace intr
 
 template<typename ... T>
-struct Tuple
-{
-static_assert("Tuple size exceeds MAX_TUPLE_SIZE");
-};
+requires(sizeof...(T) <= MAX_TUPLE_SIZE)
+struct Tuple;
 
 template<>
 struct Tuple<>
 {
+
+
 
 
 
@@ -142,6 +143,10 @@ struct Tuple<T0>
 {
 
 typedef T0 E0;
+
+template<usize I>
+using E = index_pack<I, E0>;
+
 
 static constexpr usize SIZE = 1;
 
@@ -177,6 +182,10 @@ struct Tuple<T0, T1>
 
 typedef T0 E0;
 typedef T1 E1;
+
+template<usize I>
+using E = index_pack<I, E0, E1>;
+
 
 static constexpr usize SIZE = 2;
 
@@ -214,6 +223,10 @@ struct Tuple<T0, T1, T2>
 typedef T0 E0;
 typedef T1 E1;
 typedef T2 E2;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2>;
+
 
 static constexpr usize SIZE = 3;
 
@@ -253,6 +266,10 @@ typedef T0 E0;
 typedef T1 E1;
 typedef T2 E2;
 typedef T3 E3;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3>;
+
 
 static constexpr usize SIZE = 4;
 
@@ -294,6 +311,10 @@ typedef T1 E1;
 typedef T2 E2;
 typedef T3 E3;
 typedef T4 E4;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4>;
+
 
 static constexpr usize SIZE = 5;
 
@@ -337,6 +358,10 @@ typedef T2 E2;
 typedef T3 E3;
 typedef T4 E4;
 typedef T5 E5;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5>;
+
 
 static constexpr usize SIZE = 6;
 
@@ -382,6 +407,10 @@ typedef T3 E3;
 typedef T4 E4;
 typedef T5 E5;
 typedef T6 E6;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6>;
+
 
 static constexpr usize SIZE = 7;
 
@@ -429,6 +458,10 @@ typedef T4 E4;
 typedef T5 E5;
 typedef T6 E6;
 typedef T7 E7;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7>;
+
 
 static constexpr usize SIZE = 8;
 
@@ -478,6 +511,10 @@ typedef T5 E5;
 typedef T6 E6;
 typedef T7 E7;
 typedef T8 E8;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8>;
+
 
 static constexpr usize SIZE = 9;
 
@@ -529,6 +566,10 @@ typedef T6 E6;
 typedef T7 E7;
 typedef T8 E8;
 typedef T9 E9;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9>;
+
 
 static constexpr usize SIZE = 10;
 
@@ -582,6 +623,10 @@ typedef T7 E7;
 typedef T8 E8;
 typedef T9 E9;
 typedef T10 E10;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10>;
+
 
 static constexpr usize SIZE = 11;
 
@@ -637,6 +682,10 @@ typedef T8 E8;
 typedef T9 E9;
 typedef T10 E10;
 typedef T11 E11;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11>;
+
 
 static constexpr usize SIZE = 12;
 
@@ -694,6 +743,10 @@ typedef T9 E9;
 typedef T10 E10;
 typedef T11 E11;
 typedef T12 E12;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12>;
+
 
 static constexpr usize SIZE = 13;
 
@@ -753,6 +806,10 @@ typedef T10 E10;
 typedef T11 E11;
 typedef T12 E12;
 typedef T13 E13;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13>;
+
 
 static constexpr usize SIZE = 14;
 
@@ -814,6 +871,10 @@ typedef T11 E11;
 typedef T12 E12;
 typedef T13 E13;
 typedef T14 E14;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13, E14>;
+
 
 static constexpr usize SIZE = 15;
 
@@ -877,6 +938,10 @@ typedef T12 E12;
 typedef T13 E13;
 typedef T14 E14;
 typedef T15 E15;
+
+template<usize I>
+using E = index_pack<I, E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13, E14, E15>;
+
 
 static constexpr usize SIZE = 16;
 

@@ -17,18 +17,17 @@ out(f"""/// SPDX-License-Identifier: MIT
 #include "ashura/std/v.h"
 #include "ashura/std/error.h"
 #include "ashura/std/log.h"
+#include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {{
 
-static constexpr usize MAX_ENUM_SIZE = {MAX_ENUM_SIZE};
+inline constexpr usize MAX_ENUM_SIZE = {MAX_ENUM_SIZE};
 
 template<typename ... T>
-struct Enum
-{{
-static_assert("Enum size exceeds MAX_ENUM_SIZE");
-}};
+requires(sizeof...(T) <= MAX_ENUM_SIZE)
+struct Enum;
 """
 )
 
@@ -138,9 +137,38 @@ if(src == dst)
 enum_destruct(dst);
 enum_copy_construct(src, dst);
 }}
+
+""")
+
+match_cases = [
+f"""
+if constexpr(SIZE > {i})
+{{
+    if(e.index_ == {i})
+    {{
+        return fns_ref.v{i}(e.v{i}_);
+    }}
+}}
+""" for i in range(MAX_ENUM_SIZE)
+]
+
+out(
+f"""
+template<usize SIZE, typename Enum, typename ... Fns>
+constexpr decltype(auto) match(Enum && e, Fns && ... fns)
+{{
+    Tuple<Fns && ...> fns_ref{{ static_cast<Fns && >(fns)... }};
+
+    {"\n".join(match_cases)}
+
+    ASH_UNREACHABLE;
 }}
 """)
 
+out(f"""
+}} // namespace intr
+
+""")
 
 for size in range(0,  MAX_ENUM_SIZE + 1):
 
@@ -169,6 +197,11 @@ struct Enum<{", ".join(types)}>
 
 {"\n".join(alias_decls)}
 
+{"" if size == 0 else 
+f"""template<usize I>
+using E = index_pack<I, {", ".join(aliases)}>;
+"""}
+
 static constexpr usize SIZE = {size};
 
 static constexpr usize size()
@@ -177,9 +210,23 @@ static constexpr usize size()
 }}
 
 {
-    """
+f"""
+constexpr bool is(usize) const
+{{
+    return false;
+}}
+
+constexpr void match()
+{{
+}}
+
+constexpr void match() const
+{{
+}}
 """
+
 if size == 0 else
+
 f"""
 usize index_;
 
@@ -227,10 +274,9 @@ constexpr Enum(V<I>, Args &&... args)
 
 {"\n".join(value_constructors)}
 
-template<usize I> requires(I < SIZE)
-constexpr bool is()
+constexpr bool is(usize i) const
 {{
-    return index_ == I;
+    return index_ == i;
 }}
 
 template<usize I> requires(I < SIZE)
@@ -247,30 +293,24 @@ constexpr auto const& operator[](V<I>) const
     return intr::enum_member<I>(*this);
 }}
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas)
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns)
 {{
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }}
 
-template<typename... Lambdas> requires(sizeof...(Lambdas) == SIZE)
-constexpr decltype(auto) match(Lambdas && ... lambdas) const
+template<typename... Fns> 
+requires(sizeof...(Fns) == SIZE)
+constexpr decltype(auto) match(Fns && ... fns) const
 {{
-
+    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
 }}
-
-template<typename ... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors);
-
-template<typename... Visitors> 
-constexpr decltype(auto) visit(Visitors && ... visitors) const;
 
 """
 }
 }};
     """)
-
-    # deduction guides
 
 
 out(f"""

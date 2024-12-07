@@ -1,9 +1,9 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/std/vec.h"
 #include "ashura/std/log.h"
 #include "ashura/std/types.h"
+#include "ashura/std/vec.h"
 
 namespace ash
 {
