@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/traits.h"
+#include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include <cstring>
 
