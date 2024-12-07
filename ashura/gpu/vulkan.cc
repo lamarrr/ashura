@@ -3793,7 +3793,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       break;
 
     default:
-      UNREACHABLE();
+      CHECK_UNREACHABLE();
   }
 
   switch (binding.type)
@@ -3947,7 +3947,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     break;
 
     default:
-      UNREACHABLE();
+      CHECK_UNREACHABLE();
   }
 
   VkWriteDescriptorSet vk_write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -4002,7 +4002,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       break;
 
     default:
-      UNREACHABLE();
+      CHECK_UNREACHABLE();
   }
 }
 
@@ -5737,7 +5737,7 @@ void CommandEncoder::access_compute_bindings(DescriptorSet const & set)
         break;
 
       default:
-        UNREACHABLE();
+        CHECK_UNREACHABLE();
     }
   }
 }
@@ -5814,7 +5814,7 @@ void CommandEncoder::access_graphics_bindings(DescriptorSet const & set)
       case gpu::DescriptorType::Sampler:
         break;
       default:
-        UNREACHABLE();
+        CHECK_UNREACHABLE();
     }
   }
 }
