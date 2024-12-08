@@ -610,6 +610,13 @@ constexpr void indirect_stable_sort(Span<I> indices, Cmp && cmp = {})
   stable_sort(indices, [&](I a, I b) { return cmp(a, b); });
 }
 
+template <typename T, typename Cmp = Less>
+constexpr bool is_sorted(Span<T> indices, Cmp && cmp = {})
+{
+  return std::is_sorted(indices.pbegin(), indices.pend(),
+                        static_cast<Cmp &&>(cmp));
+}
+
 template <typename T, typename Predicate>
 constexpr Tuple<Span<T>, Span<T>> partition(Span<T>      range,
                                             Predicate && predicate)
@@ -918,8 +925,5 @@ constexpr WindowRange<T> window(Span<T> span, usize window_size)
 {
   return window<T>(span, window_size, window_size);
 }
-
-// [ ] is_sorted()
-// [ ] radix_sort()
 
 }        // namespace  ash
