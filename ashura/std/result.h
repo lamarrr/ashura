@@ -382,6 +382,13 @@ struct [[nodiscard]] Result
   }
 };
 
+template <typename T, typename E>
+struct IsTriviallyRelocatable<Result<T, E>>
+{
+  static constexpr bool value =
+      TriviallyRelocatable<T> && TriviallyRelocatable<E>;
+};
+
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator==(Ok<T> const & a, Ok<U> const & b)
 {

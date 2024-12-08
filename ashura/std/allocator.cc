@@ -178,9 +178,10 @@ bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
 #endif
 
 #if !HAS_ALIGNED_ALLOC
-  fprintf(stderr,
-          "over-aligned zeroed-alloc of alignment %" PRIu64 " not supported\n",
-          (u64) alignment);
+  std::fprintf(stderr,
+               "over-aligned zeroed-alloc of alignment %" PRIu64
+               " not supported\n",
+               (u64) alignment);
   (void) std::fflush(stderr);
   return false;
 #endif
@@ -193,7 +194,7 @@ void HeapAllocator::dealloc(usize alignment, u8 * mem, usize size)
   (void) size;
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
-    free(mem);
+    std::free(mem);
     return;
   }
 

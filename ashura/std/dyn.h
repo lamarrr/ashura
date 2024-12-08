@@ -8,6 +8,7 @@ namespace ash
 {
 
 template <typename H>
+requires (TriviallyCopyable<H>)
 struct [[nodiscard]] Dyn
 {
   typedef H                       Handle;
@@ -109,6 +110,12 @@ constexpr Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator,
                    })}
   };
 }
+
+template <typename H>
+struct IsTriviallyRelocatable<Dyn<H>>
+{
+  static constexpr bool value = true;
+};
 
 template <typename T>
 constexpr Result<Dyn<T *>, Void> dyn(AllocatorImpl allocator, T object)

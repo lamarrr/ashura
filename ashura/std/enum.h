@@ -5,4 +5,10 @@
 namespace ash
 {
 
+template <typename... T>
+struct IsTriviallyRelocatable<Enum<T...>>
+{
+  static constexpr bool value = (TriviallyRelocatable<T> && ... && true);
+};
+
 }        // namespace ash
