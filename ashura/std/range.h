@@ -696,43 +696,58 @@ constexpr T exclusive_scan(Span<I const> in, Span<O> out, T init = {},
   return init;
 }
 
-template <typename Index, typename T>
-struct PrefixRunIter
+/// @details structured to break loop-dependence, we read from the indices arrays once
+template <typename Index, typename... T>
+struct RunIter
 {
-  Index *       run_iter_ = nullptr;
-  Index const * end_      = nullptr;
-  T *           data_     = nullptr;
+  Index         run_start_{0};
+  Index         run_end_{0};
+  Index const * ree_iter_ = nullptr;
+  Index const * ree_end_  = nullptr;
+  Tuple<T *...> data_{};
 
-  constexpr PrefixRunIter & operator++()
+  constexpr RunIter & operator++()
   {
-    ++run_iter_;
+    run_start_ = run_end_;
+    ree_iter_++;
+    run_end_ = *ree_iter_;
     return *this;
   }
 
   constexpr auto operator*() const
   {
-    Index const begin = *run_iter_;
-    Index const end   = *(run_iter_ + 1);
-    return Span<T>{data_ + begin, data_ + end};
+    return apply(
+        [&](T *... data) {
+          return Tuple<Span<T>...>{
+              {data + run_start_, data + run_end_}
+              ...
+          };
+        },
+        data_);
   }
 
   constexpr bool operator!=(IterEnd) const
   {
-    return run_iter_ != end_;
+    return ree_iter_ != ree_end_;
   }
 };
 
-template <typename Index, typename T>
-struct PrefixRunRange
+template <typename Index, typename... T>
+struct RunRange
 {
-  Index *       run_begin_;
-  Index const * run_end_;
-  T *           data_;
+  Index         run_start_{0};
+  Index         run_end_{0};
+  Index const * ree_begin_ = nullptr;
+  Index const * ree_end_   = nullptr;
+  Tuple<T *...> data_{};
 
   constexpr auto begin() const
   {
-    return PrefixRunIter<Index, T>{
-        .run_iter_ = run_begin_, .end_ = run_end_, .data_ = data_};
+    return RunIter<Index, T...>{.run_start_ = run_start_,
+                                .run_end_   = run_end_,
+                                .ree_iter_  = ree_begin_,
+                                .ree_end_   = ree_end_,
+                                .data_{data_}};
   }
 
   constexpr auto end() const
@@ -742,70 +757,33 @@ struct PrefixRunRange
 };
 
 /// @param ends run-ends of the data. Must be sorted.
-template <typename Index, typename T>
-constexpr PrefixRunRange<Index, T> prefix_run(Span<T>           data,
-                                              Span<Index const> runs)
+template <typename Index, typename... T>
+constexpr auto prefix_run(Span<Index const> runs, Span<T>... data)
 {
-  return PrefixRunRange<Index, T>{.run_begin_ = runs.pbegin(),
-                                  .run_end_   = runs.pend(),
-                                  .data_      = data.data()};
+  if (runs.size() < 2) [[unlikely]]
+  {
+    return RunRange<Index, T...>{};
+  }
+  return RunRange<Index, T...>{.run_start_ = runs[0],
+                               .run_end_   = runs[1],
+                               .ree_begin_ = runs.pbegin() + 1,
+                               .ree_end_   = runs.pend(),
+                               .data_{data.pbegin()...}};
 }
 
-template <typename Index, typename T>
-struct SuffixRunIter
-{
-  Index *       run_iter_  = nullptr;
-  Index const * run_end_   = nullptr;
-  Index         run_start_ = 0;
-  T *           data_      = nullptr;
-
-  constexpr SuffixRunIter & operator++()
-  {
-    run_start_ = *run_iter_;
-    ++run_iter_;
-    return *this;
-  }
-
-  constexpr auto operator*() const
-  {
-    return Span<T>{data_ + run_start_, data_ + *run_iter_};
-  }
-
-  constexpr bool operator!=(IterEnd) const
-  {
-    return run_iter_ != run_end_;
-  }
-};
-
-template <typename Index, typename T>
-struct SuffixRunRange
-{
-  Index *       run_begin_;
-  Index const * run_end_;
-  T *           data_;
-
-  constexpr auto begin() const
-  {
-    return SuffixRunIter<Index, T>{.run_iter_  = run_begin_,
-                                   .run_end_   = run_end_,
-                                   .run_start_ = 0,
-                                   .data_      = data_};
-  }
-
-  constexpr auto end() const
-  {
-    return IterEnd{};
-  }
-};
-
 /// @param ends run-ends of the data. Must be sorted.
-template <typename Index, typename T>
-constexpr SuffixRunRange<Index, T> suffix_run(Span<T>           data,
-                                              Span<Index const> runs)
+template <typename I, typename Index, typename... T>
+constexpr auto suffix_run(I start, Span<Index const> runs, Span<T>... data)
 {
-  return SuffixRunRange<Index, T>{.run_begin_ = runs.pbegin(),
-                                  .run_end_   = runs.pend(),
-                                  .data_      = data.data()};
+  if (runs.size() < 1) [[unlikely]]
+  {
+    return RunRange<Index, T...>{};
+  }
+  return RunRange<Index, T...>{.run_start_ = start,
+                               .run_end_   = runs[0],
+                               .ree_begin_ = runs.pbegin(),
+                               .ree_end_   = runs.pend(),
+                               .data_{data.pbegin()...}};
 }
 
 /// @brief search for first element less than or equal to value
