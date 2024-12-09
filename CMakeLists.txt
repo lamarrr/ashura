@@ -189,6 +189,7 @@ add_executable(
   ashura/std/tests/enum.cc
   ashura/std/tests/async.cc
   ashura/std/tests/list.cc
+  ashura/std/tests/range.cc
   ashura/std/tests/main.cc
   ashura/std/tests/hash_map.cc
   ashura/std/tests/result.cc

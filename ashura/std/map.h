@@ -405,7 +405,7 @@ struct [[nodiscard]] Map
       *exists = false;
     }
 
-    if (needs_rehash_(num_entries_ + 1, num_probes_) && !rehash_())
+    if (needs_rehash_(num_entries_ + 1, num_probes_) && !rehash_()) [[unlikely]]
     {
       return Err{};
     }
@@ -445,7 +445,7 @@ struct [[nodiscard]] Map
         break;
       }
 
-      if (probe_dist > *dst_probe_dist)
+      if (probe_dist > *dst_probe_dist) [[unlikely]]
       {
         swap(*dst_probe, entry);
         swap(*dst_probe_dist, probe_dist);
@@ -547,6 +547,13 @@ struct [[nodiscard]] Map
   {
     return IterEnd{};
   }
+};
+
+template <typename K, typename V, typename H, typename KCmp, typename D>
+struct IsTriviallyRelocatable<Map<K, V, H, KCmp, D>>
+{
+  static constexpr bool value =
+      TriviallyRelocatable<H> && TriviallyRelocatable<KCmp>;
 };
 
 template <typename V, typename D = usize>

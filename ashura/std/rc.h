@@ -18,6 +18,7 @@ namespace ash
 ///
 /// @tparam H : handle type
 template <typename H>
+requires (TriviallyCopyable<H>)
 struct [[nodiscard]] Rc
 {
   typedef H                       Handle;
@@ -125,6 +126,12 @@ struct [[nodiscard]] Rc
   {
     return inner.handle;
   }
+};
+
+template <typename H>
+struct IsTriviallyRelocatable<Rc<H>>
+{
+  static constexpr bool value = true;
 };
 
 template <typename T>

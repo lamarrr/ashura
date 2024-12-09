@@ -326,6 +326,12 @@ struct [[nodiscard]] Option
 template <typename T>
 Option(Some<T>) -> Option<T>;
 
+template <typename T>
+struct IsTriviallyRelocatable<Option<T>>
+{
+  static constexpr bool value = TriviallyRelocatable<T>;
+};
+
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator==(Some<T> const & a, Some<U> const & b)
 {

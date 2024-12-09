@@ -289,4 +289,10 @@ struct [[nodiscard]] List
   }
 };
 
+template <typename N, N * N::* prev, N * N::* next>
+struct IsTriviallyRelocatable<List<N, prev, next>>
+{
+  static constexpr bool value = true;
+};
+
 }        // namespace ash

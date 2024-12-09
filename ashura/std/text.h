@@ -16,8 +16,9 @@ namespace ash
 [[nodiscard]] constexpr usize count_utf8_codepoints(Span<c8 const> text)
 {
   c8 const * in    = text.data();
+  c8 const * end   = text.pend();
   usize      count = 0;
-  while (in != text.pend())
+  while (in != end)
   {
     if ((*in & 0xc0) != 0x80)
     {
@@ -34,8 +35,9 @@ namespace ash
                                           Span<c32>      decoded)
 {
   c8 const * in  = encoded.data();
+  c8 const * end = encoded.pend();
   c32 *      out = decoded.data();
-  while (in != encoded.pend())
+  while (in != end)
   {
     if ((*in & 0xF8) == 0xF0)
     {
@@ -73,8 +75,9 @@ namespace ash
 {
   c8 *        out = encoded.data();
   c32 const * in  = decoded.data();
+  c32 const * end = decoded.pend();
 
-  while (in != decoded.pend())
+  while (in != end)
   {
     if (*in <= 0x7F)
     {
@@ -142,9 +145,10 @@ constexpr void replace_invalid_codepoints(Span<c32 const> input,
                                           Span<c32> output, c32 replacement)
 {
   c32 const * in  = input.pbegin();
+  c32 const * end = input.pend();
   c32 *       out = output.pbegin();
 
-  while (in < input.pend())
+  while (in != end)
   {
     if (*in > 0x10'FFFF) [[unlikely]]
     {
