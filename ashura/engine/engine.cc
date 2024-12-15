@@ -17,7 +17,7 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
 
   auto config = doc.get_object().value();
 
-  auto version = config["version"].get_string().value();
+  std::string_view version = config["version"].get_string().value();
   CHECK(version == "0.0.1");
 
   auto gpu           = config["gpu"].get_object().value();
@@ -72,8 +72,8 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
   auto shaders = config["shaders"].get_object().value();
   for (auto entry : shaders)
   {
-    auto id   = entry.escaped_key().value();
-    auto path = entry.value().get_string().value();
+    std::string_view id   = entry.escaped_key().value();
+    std::string_view path = entry.value().get_string().value();
     out.shaders
         .insert(vec(span(id), allocator).unwrap(),
                 vec(span(path), allocator).unwrap())
@@ -83,8 +83,8 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
   auto fonts = config["fonts"].get_object().value();
   for (auto entry : fonts)
   {
-    auto id   = entry.escaped_key().value();
-    auto path = entry.value().get_string().value();
+    std::string_view id   = entry.escaped_key().value();
+    std::string_view path = entry.value().get_string().value();
     out.fonts
         .insert(vec(span(id), allocator).unwrap(),
                 vec(span(path), allocator).unwrap())
@@ -101,8 +101,8 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
   auto images = config["images"].get_object().value();
   for (auto entry : images)
   {
-    auto id   = entry.escaped_key().value();
-    auto path = entry.value().get_string().value();
+    std::string_view id   = entry.escaped_key().value();
+    std::string_view path = entry.value().get_string().value();
     out.images
         .insert(vec(span(id), allocator).unwrap(),
                 vec(span(path), allocator).unwrap())
