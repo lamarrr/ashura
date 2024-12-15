@@ -534,7 +534,7 @@ struct GridStagger final : Stagger
 
   constexpr virtual f32 operator()(u64 rows, u64 num_items, u64 item) override
   {
-    rows              = max(rows, 1ULL);
+    rows              = max(rows, (u64) 1);
     u64 const columns = num_items / rows;
 
     f32 row_norm    = 1;
@@ -593,7 +593,7 @@ struct RippleStagger final : Stagger
 
   virtual f32 operator()(u64 rows, u64 num_items, u64 item) override
   {
-    rows              = max(rows, 1ULL);
+    rows              = max(rows, (u64) 1);
     u64 const columns = num_items / rows;
 
     f32 row_norm    = 0.5F;
