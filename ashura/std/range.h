@@ -781,54 +781,44 @@ constexpr auto suffix_run(I start, Span<Index const> runs, Span<T>... data)
                                .data_{data.pbegin()...}};
 }
 
-/// @brief search for first element less than or equal to value
-template <typename T, typename U, typename Cmp = Less>
-constexpr Span<T> lower_bound(Span<T> span, U && value, Cmp && cmp = {})
+/// @brief given an ordered range, find first value in the range that satisfies `cmp(x)`.
+/// @warning each element in the range must be ordered relative to `cmp` or be equal.
+template <typename T, typename Cmp>
+constexpr Span<T> binary_find(Span<T> span, Cmp && cmp)
 {
-  usize size = span.size();
   T *   iter = span.pbegin();
+  usize size = span.size();
 
-  while (size != 0)
+  while (size > 1)
   {
-    usize const half_size = size >> 1;
+    usize const h0_size = size >> 1;
+    T * const   h0_last = iter + h0_size - 1;
 
-    if (cmp(iter[half_size], value))
+    if (cmp(*h0_last))
     {
-      size = half_size;
+      size = h0_size;
     }
     else
     {
-      size -= half_size + 1;
-      iter += half_size;
+      iter += h0_size;
+      size -= h0_size;
     }
   }
 
-  return Span<T>{iter, span.pend()};
+  if (size != 0 && cmp(*iter))
+  {
+    return Span<T>{iter, span.pend()};
+  }
+
+  return Span<T>{span.pend(), (usize) 0};
 }
 
-/// @brief search for first element greater than value
-template <typename T, typename U, typename Cmp = Less>
-constexpr Span<T> upper_bound(Span<T> span, U && value, Cmp && cmp = {})
+template <typename T, typename Cmp, typename U>
+constexpr Span<T> binary_find(Span<T> span, Cmp && cmp, U && value)
 {
-  usize size = span.size();
-  T *   iter = span.pbegin();
-
-  while (size != 0)
-  {
-    usize const half_size = size >> 1;
-
-    if (cmp(value, iter[half_size]))
-    {
-      size -= half_size + 1;
-      iter += half_size;
-    }
-    else
-    {
-      size = half_size;
-    }
-  }
-
-  return Span<T>{iter, span.pend()};
+  return binary_find<T>(span, [value_ = static_cast<U &&>(value),
+                               cmp_   = static_cast<Cmp &&>(cmp)](
+                                  auto const & a) { return cmp_(a, value_); });
 }
 
 /// @param window_advance_ must be non-zero
