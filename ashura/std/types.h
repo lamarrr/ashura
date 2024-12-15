@@ -330,8 +330,6 @@ constexpr i32 sat_sub(i32 a, i32 b)
   return (i32) clamp((i64) ((i64) a - (i64) b), (i64) I32_MIN, (i64) I32_MAX);
 }
 
-// [ ] sat_sub u64, i64
-
 constexpr u8 sat_mul(u8 a, u8 b)
 {
   return (u8) min((u16) ((u16) a * (u16) b), (u16) U8_MAX);
@@ -361,8 +359,6 @@ constexpr i32 sat_mul(i32 a, i32 b)
 {
   return (i32) clamp((i64) a * (i64) b, (i64) I32_MIN, (i64) I32_MAX);
 }
-
-// [ ] sat_mul u64, i64
 
 // [ ] sat_cast
 
@@ -1010,7 +1006,7 @@ concept Range = requires (R r) {
 
 // [ ] struct ExampleRange
 // {
-// [ ] nth();
+//  nth();
 // };
 
 // [ ] change to range set using iter
