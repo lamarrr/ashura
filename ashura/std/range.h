@@ -880,7 +880,8 @@ struct WindowRange
 };
 
 template <typename T>
-constexpr WindowRange<T> window(Span<T> span, usize window_size, usize advance)
+constexpr WindowRange<T> window(Span<T> span, usize window_size,
+                                usize advance = 1)
 {
   if (window_size > span.size()) [[unlikely]]
   {
@@ -891,12 +892,6 @@ constexpr WindowRange<T> window(Span<T> span, usize window_size, usize advance)
                         .end_            = span.pend(),
                         .window_size_    = window_size,
                         .window_advance_ = advance};
-}
-
-template <typename T>
-constexpr WindowRange<T> window(Span<T> span, usize window_size)
-{
-  return window<T>(span, window_size, window_size);
 }
 
 }        // namespace  ash
