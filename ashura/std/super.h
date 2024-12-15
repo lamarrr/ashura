@@ -32,7 +32,7 @@ struct Super
 
         if (dst_mem == nullptr) [[unlikely]]
         {
-          src->~T();
+          obj::destruct(Span{src, 1});
         }
         else
         {
