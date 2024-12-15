@@ -42,7 +42,6 @@ struct Framebuffer
   gpu::Extent           extent        = {};
 };
 
-// [ ] use: enum to bits, and float to bits, not casted
 struct SamplerHasher
 {
   constexpr hash64 operator()(gpu::SamplerInfo const & info) const
@@ -51,10 +50,13 @@ struct SamplerHasher
         (hash64) info.mag_filter, (hash64) info.min_filter,
         (hash64) info.mip_map_mode, (hash64) info.address_mode_u,
         (hash64) info.address_mode_v, (hash64) info.address_mode_w,
-        (hash64) info.mip_lod_bias, (hash64) info.anisotropy_enable,
-        (hash64) info.max_anisotropy, (hash64) info.compare_enable,
-        (hash64) info.compare_op, (hash64) info.min_lod, (hash64) info.max_lod,
-        (hash64) info.border_color, (hash64) info.unnormalized_coordinates);
+        (hash64) bit_cast<u32>(info.mip_lod_bias),
+        (hash64) info.anisotropy_enable,
+        (hash64) bit_cast<u32>(info.max_anisotropy),
+        (hash64) info.compare_enable, (hash64) info.compare_op,
+        (hash64) bit_cast<u32>(info.min_lod),
+        (hash64) bit_cast<u32>(info.max_lod), (hash64) info.border_color,
+        (hash64) info.unnormalized_coordinates);
   }
 };
 
