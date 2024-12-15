@@ -1476,14 +1476,21 @@ struct BitSpan
   using Repr = R;
   using Iter = BitSpanIter<R>;
 
-  Span<R> repr_     = {};
-  usize   bit_size_ = 0;
+  Span<R> repr_ = {};
 
   constexpr BitSpan() = default;
 
-  constexpr BitSpan(Span<R> repr, usize bit_size) :
-      repr_{repr},
-      bit_size_{bit_size}
+  constexpr BitSpan(Span<R> repr) : repr_{repr}
+  {
+  }
+
+  template <usize N>
+  constexpr BitSpan(R (&data)[N]) : repr_{data}
+  {
+  }
+
+  template <SpanCompatibleContainer<R> C>
+  constexpr BitSpan(C & cont) : repr_{cont}
   {
   }
 
@@ -1502,34 +1509,24 @@ struct BitSpan
     return repr_;
   }
 
-  constexpr usize trailing() const
-  {
-    return repr_.size() - bit_size_;
-  }
-
   constexpr usize size() const
   {
-    return bit_size_;
+    return repr_.size_bytes() * 8;
   }
 
   constexpr bool is_empty() const
   {
-    return bit_size_ == 0;
+    return repr_.is_empty();
   }
 
   constexpr auto begin() const
   {
-    return Iter{.repr_ = repr_, .bit_pos_ = 0, .bit_size_ = bit_size_};
+    return Iter{.repr_ = repr_, .bit_pos_ = 0, .bit_size_ = size()};
   }
 
   constexpr auto end() const
   {
     return IterEnd{};
-  }
-
-  constexpr bool has_trailing() const
-  {
-    return bit_size_ != (repr_.size_bytes() * 8);
   }
 
   constexpr bool operator[](usize index) const
@@ -1552,14 +1549,14 @@ struct BitSpan
     return ash::get_bit(repr_, index);
   }
 
-  constexpr bool set_bit(usize index) const requires (NonConst<R>)
+  constexpr void set_bit(usize index) const requires (NonConst<R>)
   {
-    return ash::set_bit(repr_, index);
+    ash::set_bit(repr_, index);
   }
 
-  constexpr bool clear_bit(usize index) const requires (NonConst<R>)
+  constexpr void clear_bit(usize index) const requires (NonConst<R>)
   {
-    return ash::clear_bit(repr_, index);
+    ash::clear_bit(repr_, index);
   }
 
   constexpr void flip_bit(usize index) const requires (NonConst<R>)
@@ -1569,22 +1566,22 @@ struct BitSpan
 
   constexpr usize find_set_bit()
   {
-    return min(ash::find_set_bit(repr_), size());
+    return ash::find_set_bit(repr_);
   }
 
   constexpr usize find_clear_bit()
   {
-    return min(ash::find_clear_bit(repr_), size());
+    return ash::find_clear_bit(repr_);
   }
 
   constexpr operator BitSpan<R const>() const
   {
-    return BitSpan<R const>{repr_, bit_size_};
+    return BitSpan<R const>{repr_};
   }
 
   constexpr BitSpan<R const> as_const() const
   {
-    return BitSpan<R const>{repr_, bit_size_};
+    return BitSpan<R const>{repr_};
   }
 };
 
