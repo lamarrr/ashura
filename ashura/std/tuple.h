@@ -83,7 +83,7 @@ constexpr decltype(auto) impl_fold_reduce(Tuple & fns, In &&... in)
   }
 }
 
-template <class Tuple, typename... In>
+template <typename Tuple, typename... In>
 constexpr decltype(auto) impl_fold(Tuple & fns, In &&... in)
 {
   if constexpr (Tuple::SIZE == 0)
@@ -99,7 +99,7 @@ constexpr decltype(auto) impl_fold(Tuple & fns, In &&... in)
 /// @brief Folds left call a tuple of functions, acting as a single function.
 /// i.e. result = ( in... -> fn.0 -> fn.1 -> fn.2 -> return )
 /// @return the return value of the last function
-template <class Tuple, typename... In>
+template <typename Tuple, typename... In>
 constexpr decltype(auto) fold(Tuple & fns, In &&... in)
 {
   return impl_fold(fns, static_cast<In &&>(in)...);
