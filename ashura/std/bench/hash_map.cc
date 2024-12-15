@@ -1178,7 +1178,7 @@ static void BM_Map_Probe64(benchmark::State & state)
       benchmark::Counter{(f64) num_queries, benchmark::Counter::kIsRate};
 }
 
-template <class T>
+template <typename T>
 struct std_allocator
 {
   using size_type       = size_t;
@@ -1189,7 +1189,7 @@ struct std_allocator
   using const_reference = T const &;
   using value_type      = T;
 
-  template <class U>
+  template <typename U>
   struct rebind
   {
     typedef std_allocator<U> other;
@@ -1203,7 +1203,7 @@ struct std_allocator
   {
   }
 
-  template <class U>
+  template <typename U>
   std_allocator(std_allocator<U> const &) throw()
   {
   }
