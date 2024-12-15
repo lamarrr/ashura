@@ -2009,12 +2009,12 @@ struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
 {
 };
 
-template <class MemberSig>
-struct MemberFnTraits;
+template <typename Sig>
+struct MethodTraits;
 
-/// @brief non-const member function traits
-template <class T, typename R, typename... Args>
-struct MemberFnTraits<R (T::*)(Args...)>
+/// @brief non-const method traits
+template <typename T, typename R, typename... Args>
+struct MethodTraits<R (T::*)(Args...)>
 {
   using Ptr    = R (*)(Args...);
   using Fn     = ash::Fn<R(Args...)>;
@@ -2023,9 +2023,9 @@ struct MemberFnTraits<R (T::*)(Args...)>
   using Thunk  = FunctorThunk<T, R(Args...)>;
 };
 
-/// @brief const member function traits
-template <class T, typename R, typename... Args>
-struct MemberFnTraits<R (T::*)(Args...) const>
+/// @brief const method traits
+template <typename T, typename R, typename... Args>
+struct MethodTraits<R (T::*)(Args...) const>
 {
   using Ptr    = R (*)(Args...);
   using Fn     = ash::Fn<R(Args...)>;
@@ -2034,8 +2034,8 @@ struct MemberFnTraits<R (T::*)(Args...) const>
   using Thunk  = FunctorThunk<T const, R(Args...)>;
 };
 
-template <class F>
-struct FunctorTraits : MemberFnTraits<decltype(&F::operator())>
+template <typename F>
+struct FunctorTraits : MethodTraits<decltype(&F::operator())>
 {
 };
 
