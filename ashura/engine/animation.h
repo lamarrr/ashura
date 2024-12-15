@@ -259,7 +259,7 @@ struct Timeline
 
     timestamps_.extend_uninit(durations.size()).unwrap();
 
-    exclusive_scan(durations,
+    inclusive_scan(durations,
                    timestamps_.view().slice(times_offset, durations.size()),
                    run_time);
 
@@ -401,24 +401,29 @@ struct AnimationState
   {
     CHECK(!timeline.is_empty());
 
+    /// add 1ns so result of modulo operation would be between 0ns and timeline-duration
+    auto const timeline_end = timeline.duration() + 1ns;
+
     auto const time =
-        (timeline.duration() == 0ns) ? 0ns : (time_ % timeline.duration());
+        (timeline.duration() == 0ns) ? 0ns : (time_ % timeline_end);
+
+    auto const timestamps = timeline.timestamps;
 
     // get current frame segment (timestamps are sorted, perform binary
-    // search (bounds) to get current timepoint in the timeline)
-    Span const time_span = upper_bound(timeline.timestamps, time);
+    // search to get current timepoint in the timeline)
+    Span const span = binary_find(timestamps.slice(1), geq, time);
 
-    u64 const end_idx =
-        static_cast<u64>(time_span.data() - timeline.timestamps.data());
+    CHECK(!span.is_empty());
 
-    u64 const ease_idx = end_idx - 1;
+    u64 const end_idx = static_cast<u64>(span.pbegin() - timestamps.pbegin());
 
+    u64 const ease_idx  = end_idx - 1;
     u64 const frame_idx = ease_idx * 2;
 
-    nanoseconds const time_start = timeline.timestamps[end_idx - 1];
-    nanoseconds const time_end   = timeline.timestamps[end_idx];
-    nanoseconds const duration   = time_end - time_start;
-    nanoseconds const offset     = time - time_start;
+    nanoseconds const start    = timestamps[end_idx - 1];
+    nanoseconds const end      = timestamps[end_idx];
+    nanoseconds const duration = end - start;
+    nanoseconds const offset   = time - start;
 
     f32 const t = (f32) (((f64) offset.count()) / (f64) duration.count());
 
@@ -782,11 +787,10 @@ struct StaggeredAnimation
 
   void tick(nanoseconds delta)
   {
-    // delay update? i.e. after animation
-    // what about with animation cycles?
-    // how will we manage this?
     for (AnimationState & state : states_)
     {
+      // update the total runtime
+      state.run_time_ = timelines_.v0.duration();
       state.tick(delta);
     }
   }

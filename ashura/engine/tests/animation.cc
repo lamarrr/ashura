@@ -22,8 +22,12 @@ TEST(AnimationEngine, Basic)
   EXPECT_EQ(timeline.duration(), 1ms);
 
   EXPECT_EQ(animation.animate(0).v0, 20);
+  
+  animation.tick(500us);
+
+  EXPECT_EQ(animation.animate(0).v0, 25);
 
   animation.tick(2ms);
 
-  EXPECT_NE(animation.animate(0).v0, 30);
+  EXPECT_EQ(animation.animate(0).v0, 30);
 }
