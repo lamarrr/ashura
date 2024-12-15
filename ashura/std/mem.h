@@ -142,16 +142,32 @@ ASH_FORCE_INLINE void nontemporal_store(T & dst, T data)
 #endif
 }
 
+enum class Locality : i32
+{
+  None = 0,
+  L1   = 1,
+  L2   = 2,
+  L3   = 3
+};
+
+enum class Access : i32
+{
+  Read       = 0,
+  Write      = 1,
+  SharedRead = 2
+};
+
 template <typename T>
-ASH_FORCE_INLINE void prefetch(T const * src, int rw, int locality)
+ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 {
 #if ASH_HAS_BUILTIN(prefetch)
-  __builtin_prefetch(src, rw, locality);
+  __builtin_prefetch(src, (i32) rw, (i32) locality);
 #endif
 }
 
 }        // namespace mem
 
+/// @brief copy non-null-terminated string `str` to `c_str` and null-terminate `c_str`.
 [[nodiscard]] inline bool to_c_str(Span<char const> str, Span<char> c_str)
 {
   if ((str.size() + 1) > c_str.size()) [[unlikely]]

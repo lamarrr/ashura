@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ashura/std/enum.h"
 #include "ashura/std/math.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
@@ -9,19 +10,17 @@
 namespace ash
 {
 
-enum class SystemTheme : u8
+enum class SystemTheme : u32
 {
-  None    = 0,
-  Unknown = 1,
-  Light   = 2,
-  Dark    = 3
+  Unknown = 0,
+  Light   = 1,
+  Dark    = 2
 };
 
-enum class KeyAction : u8
+enum class KeyAction : u32
 {
-  None    = 0,
-  Press   = 1,
-  Release = 2
+  Press   = 0,
+  Release = 1
 };
 
 enum class KeyModifiers : u32
@@ -46,11 +45,11 @@ enum class KeyModifiers : u32
   All        = 0xFFFF
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(KeyModifiers)
+ASH_BIT_ENUM_OPS(KeyModifiers)
 
 /// Scan Codes vs Key Codes:
 /// https://learn.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input?redirectedfrom=MSDN#_win32_Keyboard_Input_Model
-enum class ScanCode : u16
+enum class ScanCode : u32
 {
   None               = 0,
   Return             = '\r',
@@ -298,7 +297,7 @@ enum class ScanCode : u16
   EndCall            = 290
 };
 
-enum class KeyCode : u16
+enum class KeyCode : u32
 {
   None               = 0,
   Return             = '\r',
@@ -546,23 +545,18 @@ enum class KeyCode : u16
   EndCall            = 290
 };
 
-inline constexpr u16 NUM_KEYS = 512;
+inline constexpr usize NUM_KEYS = 512;
 
-enum class MouseButtons : u8
+enum class MouseButton : u32
 {
-  None      = 0x00,
-  Primary   = 0x01,
-  Secondary = 0x02,
-  Middle    = 0x04,
-  A1        = 0x08,
-  A2        = 0x10,
-  A3        = 0x20,
-  A4        = 0x40,
-  A5        = 0x80,
-  All       = 0xFF
+  Primary   = 0,
+  Secondary = 1,
+  Middle    = 2,
+  A1        = 3,
+  A2        = 4
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(MouseButtons)
+inline constexpr usize NUM_MOUSE_BUTTONS = 5;
 
 struct KeyEvent
 {
@@ -574,100 +568,96 @@ struct KeyEvent
 
 struct MouseMotionEvent
 {
-  u64  id          = U64_MAX;
   Vec2 position    = {};
   Vec2 translation = {};
 };
 
 struct MouseClickEvent
 {
-  u64          id       = U64_MAX;
-  Vec2         position = {};
-  u32          clicks   = 0;
-  MouseButtons button   = MouseButtons::None;
-  KeyAction    action   = KeyAction::Press;
+  Vec2        position = {};
+  u32         clicks   = 0;
+  MouseButton button   = MouseButton::Primary;
+  KeyAction   action   = KeyAction::Press;
 };
 
 struct MouseWheelEvent
 {
-  u64  id          = U64_MAX;
   Vec2 position    = {};
   Vec2 translation = {};
 };
 
-enum class WindowEventTypes : u32
+enum class WindowEventType : u32
 {
-  None            = 0x0000'0000,
-  Shown           = 0x0000'0001,
-  Hidden          = 0x0000'0002,
-  Exposed         = 0x0000'0004,
-  Moved           = 0x0000'0008,
-  Resized         = 0x0000'0010,
-  SurfaceResized  = 0x0000'0020,
-  Minimized       = 0x0000'0040,
-  Maximized       = 0x0000'0080,
-  Restored        = 0x0000'0100,
-  MouseEnter      = 0x0000'0200,
-  MouseLeave      = 0x0000'0400,
-  FocusIn         = 0x0000'0800,
-  FocusOut        = 0x0000'1000,
-  CloseRequested  = 0x0000'2000,
-  Occluded        = 0x0000'4000,
-  EnterFullScreen = 0x0000'8000,
-  LeaveFullScreen = 0x0001'0000,
-  Key             = 0x0002'0000,
-  MouseMotion     = 0x0004'0000,
-  MouseClick      = 0x0008'0000,
-  MouseWheel      = 0x0010'0000,
-  Destroyed       = 0x0020'0000,
-  All             = 0xFFFF'FFFF
+  Shown            = 0,
+  Hidden           = 1,
+  Exposed          = 2,
+  Moved            = 3,
+  Resized          = 4,
+  SurfaceResized   = 5,
+  Minimized        = 6,
+  Maximized        = 7,
+  Restored         = 8,
+  MouseEnter       = 9,
+  MouseLeave       = 10,
+  KeyboardFocusIn  = 11,
+  KeyboardFocusOut = 12,
+  CloseRequested   = 13,
+  Occluded         = 14,
+  EnterFullScreen  = 15,
+  LeaveFullScreen  = 16,
+  Destroyed        = 17
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(WindowEventTypes)
-
-struct WindowEvent
+struct TextInputEvent
 {
-  union
-  {
-    KeyEvent         key;
-    MouseMotionEvent mouse_motion;
-    MouseClickEvent  mouse_click;
-    MouseWheelEvent  mouse_wheel;
-  };
-
-  WindowEventTypes type = WindowEventTypes::None;
+  Span<c8 const> text{};
 };
 
-enum class SystemEventTypes : u32
+enum class DropEventType : u32
 {
-  None                     = 0x0000'0000,
-  ThemeChanged             = 0x0000'0001,
-  KeymapChanged            = 0x0000'0002,
-  AudioDeviceAdded         = 0x0000'0004,
-  AudioDeviceRemoved       = 0x0000'0008,
-  AudioDeviceFormatChanged = 0x0000'0010,
-  DisplayReoriented        = 0x0000'0020,
-  DisplayAdded             = 0x0000'0040,
-  DisplayRemoved           = 0x0000'0080,
-  DisplayMoved             = 0x0000'0100,
-  CameraAdded              = 0x0000'0200,
-  CameraRemoved            = 0x0000'0400,
-  CameraApproved           = 0x0000'0800,
-  CameraDenied             = 0x0000'1000,
-  All                      = 0xFFFF'FFFF
+  DropBegin    = 0,
+  DropComplete = 1
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(SystemEventTypes)
-
-struct SystemEvent
+struct DropPositionEvent
 {
-  union
-  {
-    SystemTheme theme;
-  };
-
-  SystemEventTypes type = SystemEventTypes::None;
+  Vec2 pos{};
 };
+
+struct DropFileEvent
+{
+  Span<char const> path{};
+};
+
+struct DropTextEvent
+{
+  Span<c8 const> text{};
+};
+
+using DropEvent =
+    Enum<DropEventType, DropPositionEvent, DropFileEvent, DropTextEvent>;
+
+using WindowEvent =
+    Enum<KeyEvent, MouseMotionEvent, MouseClickEvent, MouseWheelEvent,
+         TextInputEvent, WindowEventType, DropEvent>;
+
+enum class SystemEventType : u32
+{
+  KeymapChanged            = 0,
+  AudioDeviceAdded         = 1,
+  AudioDeviceRemoved       = 2,
+  AudioDeviceFormatChanged = 3,
+  DisplayReoriented        = 4,
+  DisplayAdded             = 5,
+  DisplayRemoved           = 6,
+  DisplayMoved             = 7,
+  CameraAdded              = 8,
+  CameraRemoved            = 9,
+  CameraApproved           = 10,
+  CameraDenied             = 11
+};
+
+using SystemEvent = Enum<SystemTheme, SystemEventType>;
 
 /// @param Normal region is normal and has no special properties
 /// @param Draggable region can drag entire window
@@ -679,7 +669,7 @@ struct SystemEvent
 /// @param ResizeBottom region can resize bottom window
 /// @param ResizeBottomLeft region can resize bottom left window
 /// @param ResizeLeft region can resize left window
-enum class WindowRegion : u8
+enum class WindowRegion : u32
 {
   Normal            = 0,
   Draggable         = 1,
@@ -717,7 +707,7 @@ enum class WindowRegion : u8
 /// @param SouthResize  Window resize bottom
 /// @param SWResize Window resize bottom-left
 /// @param WestResize  Window resize left
-enum class Cursor
+enum class Cursor : u32
 {
   Default     = 0,
   None        = 1,

@@ -31,7 +31,7 @@ struct TextHighlight
 /// @param runs  Run-End encoded sequences of the runs
 struct RenderText
 {
-  struct
+  struct Inner
   {
     bool               dirty         = true;
     bool               use_kerning   = true;
@@ -72,32 +72,18 @@ struct RenderText
 
       u32 const end = sat_add(first, count);
 
-      // [ ] use find upper bound instead
-
-      u32 first_run = 0;
-      for (; first_run < runs.size32(); first_run++)
-      {
-        if (runs[first_run] > first)
-        {
-          break;
-        }
-      }
+      Span const first_run_span = binary_find(runs.view(), gt, first);
 
       /// should never happen since there's always a U32_MAX run end
-      CHECK(first_run < runs.size32());
+      CHECK(!first_run_span.is_empty());
 
-      u32 last_run = first_run;
-
-      for (; last_run < runs.size32(); last_run++)
-      {
-        if (runs[last_run] >= end)
-        {
-          break;
-        }
-      }
+      Span const last_run_span = binary_find(first_run_span, geq, end);
 
       /// should never happen since there's always a U32_MAX run end
-      CHECK(last_run < runs.size32());
+      CHECK(!last_run_span.is_empty());
+
+      u32 first_run = (u32) (first_run_span.pbegin() - runs.view().pbegin());
+      u32 last_run  = (u32) (last_run_span.pbegin() - runs.view().pbegin());
 
       u32 const first_run_begin = (first_run == 0) ? 0 : runs[first_run - 1];
       u32 const last_run_end    = runs[last_run];
@@ -178,7 +164,9 @@ struct RenderText
 
       dirty = true;
     }
-  } inner = {};
+  };
+
+  Inner inner{};
 
   void flush_text()
   {

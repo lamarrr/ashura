@@ -182,86 +182,285 @@ enum class MainAlign : u8
 /// @param text_input the view has received composition text
 struct ViewEvents
 {
-  bool mounted      : 1 = false;
-  bool view_hit     : 1 = false;
-  bool mouse_in     : 1 = false;
-  bool mouse_out    : 1 = false;
-  bool mouse_down   : 1 = false;
-  bool mouse_up     : 1 = false;
-  bool mouse_moved  : 1 = false;
-  bool mouse_scroll : 1 = false;
-  bool drag_start   : 1 = false;
-  bool dragging     : 1 = false;
-  bool drag_end     : 1 = false;
-  bool drag_in      : 1 = false;
-  bool drag_out     : 1 = false;
-  bool drag_over    : 1 = false;
-  bool drop         : 1 = false;
-  bool focus_in     : 1 = false;
-  bool focus_out    : 1 = false;
-  bool key_down     : 1 = false;
-  bool key_up       : 1 = false;
-  bool text_input   : 1 = false;
+  bool mounted      = false;
+  bool view_hit     = false;
+  bool mouse_in     = false;
+  bool mouse_out    = false;
+  bool mouse_down   = false;
+  bool mouse_up     = false;
+  bool mouse_moved  = false;
+  bool mouse_scroll = false;
+  bool drag_start   = false;
+  bool dragging     = false;
+  bool drag_end     = false;
+  bool drag_in      = false;
+  bool drag_out     = false;
+  bool drag_over    = false;
+  bool drop         = false;
+  bool focus_in     = false;
+  bool focus_out    = false;
+  bool key_down     = false;
+  bool key_up       = false;
+  bool text_input   = false;
+};
+
+enum class DropType : u32
+{
+  None     = 0,
+  FilePath = 1,
+  Bytes    = 2
+};
+
+struct FrameState
+{
+  struct Mouse
+  {
+    /// @brief did the mouse enter the window on this frame?
+    bool in = false;
+
+    /// @brief did the mouse leave the window on this frame?
+    bool out = false;
+
+    /// @brief did the mouse move on this frame?
+    bool moved = false;
+
+    /// @brief did the mouse wheel get scrolled on this frame?
+    bool wheel_scrolled = false;
+
+    /// @brief is any of the keys pressed on this frame
+    bool any_down = false;
+
+    /// @brief is any of the keys released on this frame
+    bool any_up = false;
+
+    /// @brief which mouse buttons were pressed on this frame
+    Bits<u64, NUM_MOUSE_BUTTONS> downs{};
+
+    /// @brief which mouse buttons were released on this frame
+    Bits<u64, NUM_MOUSE_BUTTONS> ups{};
+
+    /// @brief the current state of each mouse button
+    Bits<u64, NUM_MOUSE_BUTTONS> states{};
+
+    /// @brief number of times the mouse was clicked so far
+    u32 num_clicks[NUM_MOUSE_BUTTONS]{};
+
+    /// @brief the position of the mouse on this frame
+    Vec2 position = {};
+
+    /// @brief translation of the mouse on this frame
+    Vec2 translation = {};
+
+    /// @brief translation of the mouse wheel on this frame
+    Vec2 wheel_translation = {};
+
+    void clear_frame_()
+    {
+      in             = false;
+      out            = false;
+      moved          = false;
+      wheel_scrolled = false;
+      any_down       = false;
+      any_up         = false;
+      fill(downs, 0ULL);
+      fill(ups, 0ULL);
+      fill(states, 0ULL);
+      fill(num_clicks, 0ULL);
+      position          = {};
+      translation       = {};
+      wheel_translation = {};
+
+      // [ ] preserve position
+      // [ ] need to be preserved when swapping frames
+    }
+  };
+
+  struct Keyboard
+  {
+    /// @brief did the window gain keyboard focus on this frame?
+    bool in = false;
+
+    /// @brief did the window lose keyboard focus on this frame?
+    bool out = false;
+
+    /// @brief is any of the keys pressed on this frame
+    bool any_down = false;
+
+    /// @brief is any of the keys released on this frame
+    bool any_up = false;
+
+    /// @brief bit mask of all the keys that were pressed on this frame
+    Bits<u64, NUM_KEYS> downs{};
+
+    /// @brief bit mask of all the keys that were released on this frame
+    Bits<u64, NUM_KEYS> ups{};
+
+    /// @brief bit mask of all the key states
+    Bits<u64, NUM_KEYS> states{};
+
+    /// @brief bit mask of all the keys that were pressed on this frame, indexed using the scancode
+    Bits<u64, NUM_KEYS> scan_downs{};
+
+    /// @brief bit mask of all the keys that were released on this frame, indexed using the scancode
+    Bits<u64, NUM_KEYS> scan_ups{};
+
+    /// @brief bit mask of all the key states, indexed using the scancode
+    Bits<u64, NUM_KEYS> scan_states{};
+
+    /// @brief hold state of the key modifiers on this frame
+    KeyModifiers modifiers = KeyModifiers::None;
+
+    void clear_frame_()
+    {
+      in       = false;
+      out      = false;
+      any_down = false;
+      any_up   = false;
+      fill(downs, 0ULL);
+      fill(ups, 0ULL);
+      fill(states, 0ULL);
+      fill(scan_downs, 0ULL);
+      fill(scan_ups, 0ULL);
+      fill(scan_states, 0ULL);
+      modifiers = KeyModifiers::None;
+    }
+  };
+
+  /// @brief timestamp of current frame
+  time_point timestamp = {};
+
+  /// @brief time elapsed between previous and current frame
+  nanoseconds timedelta = {};
+
+  /// @brief the current theme gotten from the window manager
+  SystemTheme theme = SystemTheme::Unknown;
+
+  /// @brief the preferred text direction of the host system
+  TextDirection direction = TextDirection::LeftToRight;
+
+  /// @brief current window mouse focus state
+  bool mouse_focused = false;
+
+  /// @brief current window keyboard focus state
+  bool key_focused = false;
+
+  /// @brief windows' current frame mouse state
+  Mouse mouse{};
+
+  /// @brief windows' current frame keyboard state
+  Keyboard key{};
+
+  /// @brief extent of the viewport the windows' views are in
+  Vec2 viewport_extent = {};
+
+  /// @brief current drop data type
+  DropType drop_type = DropType::None;
+
+  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
+  Vec<u8> drop_data{};
+
+  /// @brief if a text input came in
+  bool text_input = false;
+
+  /// @brief current text input data from the IME or keyboard
+  Vec<c8> text{};
+
+  /// @brief is the application requested to close
+  bool close_requested = false;
+
+  /// @brief did a window resize happen
+  bool resized = true;
+
+  /// @brief did a window surface resize happen
+  bool surface_resized = true;
+
+  bool dropped = false;
+
+  bool drop_hovering = false;
+
+  void begin_frame_(time_point time, nanoseconds delta)
+  {
+    timestamp = time;
+    timedelta = delta;
+  }
+
+  void clear_frame_()
+  {
+    mouse.clear_frame_();
+    key.clear_frame_();
+    text_input = false;
+    text.clear();
+    resized         = false;
+    surface_resized = false;
+
+    // if the there was a data drop on the last frame clear the buffer
+    if (dropped)
+    {
+      drop_data.clear();
+      drop_type = DropType::None;
+    }
+
+    dropped       = false;
+    drop_hovering = false;
+  }
+
+  constexpr bool key_down(KeyCode k) const
+  {
+    return get_bit(key.downs, (usize) k);
+  }
+
+  constexpr bool key_up(KeyCode k) const
+  {
+    return get_bit(key.ups, (usize) k);
+  }
+
+  constexpr bool key_state(KeyCode k) const
+  {
+    return get_bit(key.states, (usize) k);
+  }
+
+  constexpr bool key_down(ScanCode k) const
+  {
+    return get_bit(key.scan_downs, (usize) k);
+  }
+
+  constexpr bool key_up(ScanCode k) const
+  {
+    return get_bit(key.scan_ups, (usize) k);
+  }
+
+  constexpr bool key_state(ScanCode k) const
+  {
+    return get_bit(key.scan_states, (usize) k);
+  }
+
+  constexpr bool mouse_down(MouseButton btn) const
+  {
+    return get_bit(mouse.downs, (u32) btn);
+  }
+
+  constexpr bool mouse_up(MouseButton btn) const
+  {
+    return get_bit(mouse.ups, (u32) btn);
+  }
+
+  constexpr bool mouse_state(MouseButton btn) const
+  {
+    return get_bit(mouse.states, (u32) btn);
+  }
 };
 
 /// @brief Global View Context, Properties of the context all the views for
 /// a specific window are in.
-/// @param globals It is important that views only access data from
-/// global/system objects and not some global state to ensure portability and
-/// adaptiveness, i.e. during hot-reloading where they might be attached to a
-/// different context. The ViewGlobals may also contain references to other
-/// subsystems.
-/// @param focused the current view scope (window) has focus
-/// @param button current button states
-/// @param drag_payload attached drag and drop payload data
-/// @param theme the current theme from the UI system
-/// @param direction the text direction of the host system
-/// @param key_states bit array of the key states (indexed by keycode)
-/// @param scan_states bit array of the key states (indexed by scancode)
-/// @param text, text_utf32 current text input data from the IME or keyboard
-/// @param timestamp timestamp of current frame
-/// @param timedelta time elapsed between previous and current frame
-struct ViewContext
+struct ViewContext : FrameState
 {
-  struct Mouse
-  {
-    bool         in             : 1 = false;
-    bool         out            : 1 = false;
-    bool         focused        : 1 = false;
-    bool         moved          : 1 = false;
-    bool         wheel_scrolled : 1 = false;
-    MouseButtons downs          : 8 = MouseButtons::None;
-    MouseButtons ups            : 8 = MouseButtons::None;
-    MouseButtons states         : 8 = MouseButtons::None;
-    u32          num_clicks         = 0;
-    Vec2         position           = {};
-    Vec2         translation        = {};
-    Vec2         wheel_translation  = {};
-  };
+  /// @brief User-provided app context or null
+  void * app = nullptr;
 
-  struct KeyBoard
-  {
-    bool                down : 1    = false;
-    bool                up   : 1    = false;
-    Bits<u64, NUM_KEYS> downs       = {};
-    Bits<u64, NUM_KEYS> ups         = {};
-    Bits<u64, NUM_KEYS> states      = {};
-    Bits<u64, NUM_KEYS> scan_downs  = {};
-    Bits<u64, NUM_KEYS> scan_ups    = {};
-    Bits<u64, NUM_KEYS> scan_states = {};
-  };
+  /// @brief clipboard system
+  ClipBoard * clipboard = nullptr;
 
-  void *         app             = nullptr;
-  ClipBoard *    clipboard       = nullptr;
-  time_point     timestamp       = {};
-  nanoseconds    timedelta       = {};
-  SystemTheme    theme           = SystemTheme::None;
-  TextDirection  direction       = TextDirection::LeftToRight;
-  Mouse          mouse           = {};
-  KeyBoard       keyboard        = {};
-  Span<u8 const> drag_payload    = {};
-  Span<c8 const> text_input      = {};
-  Vec2           viewport_extent = {};
+  FrameState state_buffer{};
 
   constexpr ViewContext(void * app, ClipBoard & clipboard) :
       app{app},
@@ -275,49 +474,9 @@ struct ViewContext
   constexpr ViewContext & operator=(ViewContext &&)      = default;
   constexpr ~ViewContext()                               = default;
 
-  constexpr bool key_down(KeyCode key) const
+  void swap_frame_state_()
   {
-    return get_bit(keyboard.downs, (usize) key);
-  }
-
-  constexpr bool key_up(KeyCode key) const
-  {
-    return get_bit(keyboard.ups, (usize) key);
-  }
-
-  constexpr bool key_state(KeyCode key) const
-  {
-    return get_bit(keyboard.states, (usize) key);
-  }
-
-  constexpr bool key_down(ScanCode key) const
-  {
-    return get_bit(keyboard.scan_downs, (usize) key);
-  }
-
-  constexpr bool key_up(ScanCode key) const
-  {
-    return get_bit(keyboard.scan_ups, (usize) key);
-  }
-
-  constexpr bool key_state(ScanCode key) const
-  {
-    return get_bit(keyboard.scan_states, (usize) key);
-  }
-
-  constexpr bool mouse_down(MouseButtons btn) const
-  {
-    return has_bits(mouse.downs, btn);
-  }
-
-  constexpr bool mouse_up(MouseButtons btn) const
-  {
-    return has_bits(mouse.ups, btn);
-  }
-
-  constexpr bool mouse_state(MouseButtons btn) const
-  {
-    return has_bits(mouse.states, btn);
+    // [ ] todo
   }
 };
 
@@ -333,40 +492,52 @@ constexpr Affine3 scroll_transform(Vec2 viewport_extent, Vec2 view_extent,
   return translate2d(center * scale) * scale2d(Vec2::splat(scale));
 }
 
-/// @param zoom if viewport, the zoom matrix that determines the viewport scale
-/// and position.
-/// @param tab Tab Index for Focus-Based Navigation. desired tab index, I32_MIN
-/// meaning the default tab order based on the hierarchy of the parent to
-/// children and siblings (depth-first traversal). Negative values have are
-/// focused before positive values.
-/// @param hidden if the view should be hidden from view (will not receive
-/// visual events, but still receive tick events)
-/// @param pointable can receive mouse enter/move/leave events
-/// @param clickable can receive mouse press events
-/// @param scrollable can receive mouse scroll events
-/// @param draggable can receive drag events
-/// @param focusable can receive keyboard focus (ordered by `tab`) and keyboard
-/// events
-/// @param text_input can receive text input when focused (excluding tab
-/// key/non-text keys)
-/// @param tab_input can receive `Tab` key as input when focused
-/// @param grab_focus user to focus on view
-/// @param viewport is view a viewport
 struct ViewState
 {
-  i32  tab            = I32_MIN;
-  bool hidden     : 1 = false;
-  bool pointable  : 1 = false;
-  bool clickable  : 1 = false;
-  bool scrollable : 1 = false;
-  bool draggable  : 1 = false;
-  bool droppable  : 1 = false;
-  bool focusable  : 1 = false;
-  bool text_input : 1 = false;
-  bool tab_input  : 1 = false;
-  bool esc_input  : 1 = false;
-  bool grab_focus : 1 = false;
-  bool viewport   : 1 = false;
+  /// @brief Tab Index for Focus-Based Navigation. desired tab index, I32_MIN
+  /// meaning the default tab order based on the hierarchy of the parent to
+  /// children and siblings (depth-first traversal). Negative values are
+  /// focused before positive values.
+  i32 tab = I32_MIN;
+
+  /// @brief if the view should be hidden from view (will not receive
+  /// visual events, but still receive tick events)
+  bool hidden = false;
+
+  /// @brief can receive mouse enter/move/leave events
+  bool pointable = false;
+
+  /// @brief can receive mouse press events
+  bool clickable = false;
+
+  /// @brief can receive mouse scroll events
+  bool scrollable = false;
+
+  /// @brief can the view produce drag data
+  bool draggable = false;
+
+  /// @brief can the view receive drag data
+  bool droppable = false;
+
+  /// @brief can receive keyboard focus (ordered by `tab`) and keyboard
+  /// events
+  bool focusable = false;
+
+  /// @brief can receive text input when focused (excluding tab
+  /// key/non-text keys)
+  bool text_input = false;
+
+  /// @brief can receive `Tab` key as input when focused
+  bool tab_input = false;
+
+  /// @brief can receive `Esc` key as input when focused
+  bool esc_input = false;
+
+  /// @brief user to focus on view
+  bool grab_focus = false;
+
+  /// @brief is view a viewport
+  bool viewport = false;
 };
 
 struct CoreViewTheme
@@ -489,7 +660,8 @@ struct View
   /// @param build callback to be called to insert subviews.
   constexpr virtual ViewState tick(ViewContext const & ctx,
                                    CRect const & region, f32 zoom,
-                                   ViewEvents events, Fn<void(View &)> build)
+                                   ViewEvents const & events,
+                                   Fn<void(View &)>   build)
   {
     (void) ctx;
     (void) region;

@@ -80,11 +80,9 @@ struct WindowSystem
 
   virtual void make_unresizable(Window window) = 0;
 
-  virtual u64 listen(SystemEventTypes              event_types,
-                     Fn<void(SystemEvent const &)> callback) = 0;
+  virtual u64 listen(Fn<void(SystemEvent const &)> callback) = 0;
 
-  virtual u64 listen(Window window, WindowEventTypes event_types,
-                     Fn<void(WindowEvent const &)> callback) = 0;
+  virtual u64 listen(Window window, Fn<void(WindowEvent const &)> callback) = 0;
 
   virtual void unlisten(Window window, u64 listener) = 0;
 
@@ -97,6 +95,10 @@ struct WindowSystem
   virtual void poll_events() = 0;
 
   virtual ClipBoard & get_clipboard() = 0;
+
+  virtual void get_keyboard_state(BitSpan<u64> state) = 0;
+
+  virtual void get_mouse_state(BitSpan<u64> state) = 0;
 };
 
 ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem * window_system;

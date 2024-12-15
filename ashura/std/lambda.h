@@ -52,7 +52,7 @@ struct Lambda<R(Args...), Alignment, Capacity>
     }
     else
     {
-      obj::relocate_non_overlapping(Span{src, 1}, dst);
+      obj::relocate_nonoverlapping(Span{src, 1}, dst);
     }
   };
 

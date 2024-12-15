@@ -439,7 +439,7 @@ enum class Axes : u8
   W    = 0x08
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(Axes)
+ASH_BIT_ENUM_OPS(Axes)
 
 struct alignas(8) Vec2
 {

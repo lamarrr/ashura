@@ -17,7 +17,7 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
 
   auto config = doc.get_object().value();
 
-  auto version = config["version"].get_string().value();
+  std::string_view version = config["version"].get_string().value();
   CHECK(version == "0.0.1");
 
   auto gpu           = config["gpu"].get_object().value();
@@ -72,8 +72,8 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
   auto shaders = config["shaders"].get_object().value();
   for (auto entry : shaders)
   {
-    auto id   = entry.escaped_key().value();
-    auto path = entry.value().get_string().value();
+    std::string_view id   = entry.escaped_key().value();
+    std::string_view path = entry.value().get_string().value();
     out.shaders
         .insert(vec(span(id), allocator).unwrap(),
                 vec(span(path), allocator).unwrap())
@@ -83,8 +83,8 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
   auto fonts = config["fonts"].get_object().value();
   for (auto entry : fonts)
   {
-    auto id   = entry.escaped_key().value();
-    auto path = entry.value().get_string().value();
+    std::string_view id   = entry.escaped_key().value();
+    std::string_view path = entry.value().get_string().value();
     out.fonts
         .insert(vec(span(id), allocator).unwrap(),
                 vec(span(path), allocator).unwrap())
@@ -101,8 +101,8 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
   auto images = config["images"].get_object().value();
   for (auto entry : images)
   {
-    auto id   = entry.escaped_key().value();
-    auto path = entry.value().get_string().value();
+    std::string_view id   = entry.escaped_key().value();
+    std::string_view path = entry.value().get_string().value();
     out.images
         .insert(vec(span(id), allocator).unwrap(),
                 vec(span(path), allocator).unwrap())
@@ -208,30 +208,154 @@ void Engine::init(AllocatorImpl allocator, void * app,
                                 std::move(view_system),
                                 std::move(view_ctx)};
 
-  window_system->listen(
-      SystemEventTypes::All,
-      fn(
-          engine, +[](Engine * engine, SystemEvent const & event) {
-            if (event.type == SystemEventTypes::ThemeChanged)
-            {
-              engine->view_ctx.theme = event.theme;
-            }
-          }));
+  window_system->listen(fn(
+      engine, +[](Engine * engine, SystemEvent const & event) {
+        event.match(
+            [&](SystemTheme theme) {
+              FrameState & state = engine->view_ctx.state_buffer;
+              state.theme        = theme;
+            },
+            [](SystemEventType) {});
+      }));
 
   window_system->listen(
-      window, WindowEventTypes::All,
-      fn(
-          engine, +[](Engine * engine, WindowEvent const & event) {
-            if (event.type == WindowEventTypes::CloseRequested)
-            {
-              engine->should_shutdown = true;
-            }
-          }));
+      window, fn(
+                  engine, +[](Engine * engine, WindowEvent const & event) {
+                    FrameState & state = engine->view_ctx.state_buffer;
+
+                    event.match(
+                        [&](KeyEvent e) {
+                          switch (e.action)
+                          {
+                            case KeyAction::Press:
+                            {
+                              state.key.any_down = true;
+                              set_bit(state.key.downs, (u32) e.key_code);
+                              set_bit(state.key.scan_downs, (u32) e.scan_code);
+                              state.key.modifiers |= e.modifiers;
+                            }
+                            break;
+                            case KeyAction::Release:
+                            {
+                              state.key.any_up = true;
+                              set_bit(state.key.ups, (u32) e.key_code);
+                              set_bit(state.key.scan_ups, (u32) e.scan_code);
+                              state.key.modifiers |= e.modifiers;
+                            }
+                            break;
+                            default:
+                              break;
+                          }
+                        },
+                        [&](MouseMotionEvent e) {
+                          state.mouse.moved    = true;
+                          state.mouse.position = e.position;
+                          state.mouse.translation += e.translation;
+                        },
+                        [&](MouseClickEvent e) {
+                          state.mouse.num_clicks[(u32) e.button] = e.clicks;
+                          state.mouse.position                   = e.position;
+                          switch (e.action)
+                          {
+                            case KeyAction::Press:
+                              set_bit(state.mouse.downs, (u32) e.button);
+                              state.mouse.any_down = true;
+                              break;
+                            case KeyAction::Release:
+                              set_bit(state.mouse.ups, (u32) e.button);
+                              state.mouse.any_up = true;
+                              break;
+                            default:
+                              break;
+                          }
+                        },
+                        [&](MouseWheelEvent e) {
+                          state.mouse.wheel_scrolled = true;
+                          state.mouse.position       = e.position;
+                          state.mouse.translation += e.translation;
+                        },
+                        [&](TextInputEvent e) {
+                          state.text_input = true;
+                          state.text.extend(e.text).unwrap();
+                        },
+                        [&](WindowEventType e) {
+                          switch (e)
+                          {
+                            case WindowEventType::Shown:
+                            case WindowEventType::Hidden:
+                            case WindowEventType::Exposed:
+                            case WindowEventType::Moved:
+                              break;
+                            case WindowEventType::Resized:
+                              state.resized = true;
+                              break;
+                            case WindowEventType::SurfaceResized:
+                              state.surface_resized = true;
+                              break;
+                            case WindowEventType::Minimized:
+                            case WindowEventType::Maximized:
+                            case WindowEventType::Restored:
+                              break;
+                            case WindowEventType::MouseEnter:
+                              state.mouse.in      = true;
+                              state.mouse_focused = true;
+                              break;
+                            case WindowEventType::MouseLeave:
+                              state.mouse.out     = true;
+                              state.mouse_focused = false;
+                              break;
+                            case WindowEventType::KeyboardFocusIn:
+                              state.key.in      = true;
+                              state.key_focused = true;
+                              break;
+                            case WindowEventType::KeyboardFocusOut:
+                              state.key.out     = true;
+                              state.key_focused = false;
+                              break;
+                            case WindowEventType::CloseRequested:
+                              state.close_requested = true;
+                              break;
+                            case WindowEventType::Occluded:
+                            case WindowEventType::EnterFullScreen:
+                            case WindowEventType::LeaveFullScreen:
+                            case WindowEventType::Destroyed:
+                              break;
+                            default:
+                              break;
+                          }
+                        },
+                        [&](DropEvent const & e) {
+                          e.match(
+                              [&](DropEventType e) {
+                                switch (e)
+                                {
+                                  case DropEventType::DropBegin:
+                                    break;
+                                  case DropEventType::DropComplete:
+                                    state.dropped = true;
+                                    break;
+                                  default:
+                                    break;
+                                }
+                              },
+                              [&](DropPositionEvent e) {
+                                state.drop_hovering  = true;
+                                state.mouse.position = e.pos;
+                              },
+                              [&](DropFileEvent e) {
+                                state.drop_data.clear();
+                                state.drop_data.extend(e.path.as_u8()).unwrap();
+                                state.drop_type = DropType::FilePath;
+                              },
+                              [&](DropTextEvent e) {
+                                state.drop_data.clear();
+                                state.drop_data.extend(e.text.as_u8()).unwrap();
+                                state.drop_type = DropType::Bytes;
+                              });
+                        });
+                  }));
 
   engine->device->begin_frame(nullptr).unwrap();
-
-  // [ ] setup window event listeners
-  // [ ] recreate_swapchain
 
   Semaphore sem =
       create_semaphore(allocator, cfg.shaders.size() + cfg.fonts.size())
@@ -375,8 +499,9 @@ void Engine::uninit()
 
 Engine::~Engine()
 {
-  // [ ] renderer must be uninit before device
-  // [ ] canvas
+  device->wait_idle().unwrap();
+  canvas.reset();
+
   for (auto const & [_, shader] : assets.shaders)
   {
     device->uninit_shader(shader);
@@ -390,6 +515,11 @@ Engine::~Engine()
   }
 
   assets.fonts.clear();
+
+  renderer.release(gpu_ctx, assets);
+
+  gpu_ctx.uninit();
+
   device->uninit_swapchain(swapchain);
   window_system->uninit_window(window);
   logger->trace("Uninitializing Window System");
@@ -506,11 +636,8 @@ void Engine::recreate_swapchain_()
   }
 }
 
-void Engine::run(View & view)
+void Engine::run(View & view, Fn<void(time_point, nanoseconds)> loop)
 {
-  view_ctx.timestamp = steady_clock::now();
-  view_ctx.timedelta = 0ms;
-
   logger->trace("Starting Engine Run Loop");
 
   if (swapchain == nullptr)
@@ -518,44 +645,38 @@ void Engine::run(View & view)
     recreate_swapchain_();
   }
 
-  while (!should_shutdown)
+  time_point timestamp = steady_clock::now();
+
+  // [ ] remove !view_ctx.close_requested once we have proper cooperative shutdown
+  while (!should_shutdown && !view_ctx.close_requested)
   {
-    // [ ] preprocess window events
-    //
-    // [ ] recreate frame buffers when extent changed
-    //
-    time_point const timestamp = steady_clock::now();
-    view_ctx.timedelta         = timestamp - view_ctx.timestamp;
-    view_ctx.timestamp         = timestamp;
+    time_point const  current_time = steady_clock::now();
+    nanoseconds const time_delta   = current_time - timestamp;
+    timestamp                      = current_time;
+
+    view_ctx.swap_frame_state_();
+    auto & state = view_ctx.state_buffer;
+
+    state.clear_frame_();
 
     window_system->poll_events();
+
+    // [ ] EVENTS NEED TO BE UPDATED 1 FRAME LATER, NOT IMMEDIATELY AS RECEIVED
+
+    // [ ] get mouse position?
+
+    window_system->get_mouse_state(state.mouse.states);
+    window_system->get_keyboard_state(state.key.states);
+
     gpu_ctx.begin_frame(swapchain);
 
-    // [ ] VIEWS should not be ticked often, they should not be ticked when
-    // there's no viewport
+    if (view_ctx.resized || view_ctx.surface_resized)
+    {
+      Vec2U const surface_size = window_system->get_surface_size(window);
+      gpu_ctx.recreate_framebuffers(surface_size);
+    }
 
     view_ctx.viewport_extent = as_vec2(gpu_ctx.screen_fb.extent);
-
-    // prepare view_ctx for new frame:  clear events
-
-    // view_ctx.viewport_extent;
-    // view_ctx.text_input;
-    // view_ctx.drag_payload
-    // view_ctx.keyboard;
-    // view_ctx.mouse;
-    //
-    // enum class DragSource{ ext; view; };
-    //
-    // drop type:
-    //
-    // outside drag and drop?
-    //
-    //
-    // [ ] canvas recording needs to happen before renderer render frame, two
-    // separate thingaa
-    //
-    //
-    //
 
     gpu::RenderingAttachment attachments[] = {
         {.view         = gpu_ctx.screen_fb.color.view,
@@ -585,8 +706,12 @@ void Engine::run(View & view)
         .stencil_descriptor = nullptr
     };
 
+    view_ctx.begin_frame_(timestamp, time_delta);
+
     canvas.begin_recording(Vec2{(f32) rt.extent.x, (f32) rt.extent.y},
                            rt.extent);
+
+    loop(timestamp, time_delta);
 
     view_system.tick(view_ctx, view, canvas);
 
@@ -597,6 +722,7 @@ void Engine::run(View & view)
     renderer.end_frame(gpu_ctx, rt, canvas);
     gpu_ctx.submit_frame(swapchain);
   }
+
   logger->trace("Ended Engine Run Loop");
 }
 

@@ -5,32 +5,21 @@
 #include "ashura/gpu/vulkan.h"
 #include "ashura/std/error.h"
 #include "ashura/std/vec.h"
+#include <cstring>
 
 namespace ash
 {
 
 #define CHECKSdl(cond_expr) CHECK_DESC(cond_expr, "SDL Error: ", SDL_GetError())
 
-struct WindowEventListener
-{
-  Fn<void(WindowEvent const &)> callback = noop;
-  WindowEventTypes              types    = WindowEventTypes::None;
-};
-
 struct WindowImpl
 {
-  SDL_Window *                        win       = nullptr;
-  gpu::Surface                        surface   = nullptr;
-  SDL_WindowID                        id        = 0;
-  SparseVec<Vec<WindowEventListener>> listeners = {};
-  gpu::Instance *                     instance  = nullptr;
+  SDL_Window *                                  win       = nullptr;
+  gpu::Surface                                  surface   = nullptr;
+  SDL_WindowID                                  id        = 0;
+  SparseVec<Vec<Fn<void(WindowEvent const &)>>> listeners = {};
+  gpu::Instance *                               instance  = nullptr;
   Fn<WindowRegion(Vec2U)> hit_test = [](Vec2U) { return WindowRegion::Normal; };
-};
-
-struct SystemEventListener
-{
-  Fn<void(SystemEvent const &)> callback = noop;
-  SystemEventTypes              types    = SystemEventTypes::None;
 };
 
 struct ClipBoardImpl : ClipBoard
@@ -104,8 +93,8 @@ struct ClipBoardImpl : ClipBoard
 
 struct WindowSystemImpl : WindowSystem
 {
-  SparseVec<Vec<SystemEventListener>> listeners;
-  ClipBoardImpl                       clipboard;
+  SparseVec<Vec<Fn<void(SystemEvent const &)>>> listeners;
+  ClipBoardImpl                                 clipboard;
 
   SDL_Window * hnd(Window window)
   {
@@ -201,8 +190,8 @@ struct WindowSystemImpl : WindowSystem
 
   virtual void set_size(Window window, Vec2U size) override
   {
-    CHECKSdl(SDL_SetWindowSize(hnd(window), static_cast<int>(size.x),
-                               static_cast<int>(size.y)));
+    CHECKSdl(SDL_SetWindowSize(hnd(window), static_cast<i32>(size.x),
+                               static_cast<i32>(size.y)));
   }
 
   virtual void center(Window window) override
@@ -213,14 +202,14 @@ struct WindowSystemImpl : WindowSystem
 
   virtual Vec2U get_size(Window window) override
   {
-    int width, height;
+    i32 width, height;
     CHECKSdl(SDL_GetWindowSize(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
   virtual Vec2U get_surface_size(Window window) override
   {
-    int width, height;
+    i32 width, height;
     CHECKSdl(SDL_GetWindowSizeInPixels(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
@@ -232,33 +221,33 @@ struct WindowSystemImpl : WindowSystem
 
   virtual Vec2I get_position(Window window) override
   {
-    int x, y;
+    i32 x, y;
     CHECKSdl(SDL_GetWindowPosition(hnd(window), &x, &y));
     return Vec2I{x, y};
   }
 
   virtual void set_min_size(Window window, Vec2U min) override
   {
-    CHECKSdl(SDL_SetWindowMinimumSize(hnd(window), static_cast<int>(min.x),
-                                      static_cast<int>(min.y)));
+    CHECKSdl(SDL_SetWindowMinimumSize(hnd(window), static_cast<i32>(min.x),
+                                      static_cast<i32>(min.y)));
   }
 
   virtual Vec2U get_min_size(Window window) override
   {
-    int width, height;
+    i32 width, height;
     CHECKSdl(SDL_GetWindowMinimumSize(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
   virtual void set_max_size(Window window, Vec2U max) override
   {
-    CHECKSdl(SDL_SetWindowMaximumSize(hnd(window), static_cast<int>(max.x),
-                                      static_cast<int>(max.y)));
+    CHECKSdl(SDL_SetWindowMaximumSize(hnd(window), static_cast<i32>(max.x),
+                                      static_cast<i32>(max.y)));
   }
 
   virtual Vec2U get_max_size(Window window) override
   {
-    int width, height;
+    i32 width, height;
     CHECKSdl(SDL_GetWindowMaximumSize(hnd(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
@@ -281,8 +270,8 @@ struct WindowSystemImpl : WindowSystem
     }
 
     SDL_Surface * icon = SDL_CreateSurfaceFrom(
-        static_cast<int>(image.width), static_cast<int>(image.height), fmt,
-        (void *) image.channels.data(), static_cast<int>(image.pitch()));
+        static_cast<i32>(image.width), static_cast<i32>(image.height), fmt,
+        (void *) image.channels.data(), static_cast<i32>(image.pitch()));
     CHECKSdl(icon != nullptr);
     CHECKSdl(SDL_SetWindowIcon(hnd(window), icon));
     SDL_DestroySurface(icon);
@@ -344,20 +333,16 @@ struct WindowSystemImpl : WindowSystem
     CHECKSdl(SDL_SetWindowResizable(hnd(window), false));
   }
 
-  virtual u64 listen(SystemEventTypes              event_types,
-                     Fn<void(SystemEvent const &)> callback) override
+  virtual u64 listen(Fn<void(SystemEvent const &)> callback) override
   {
-    return listeners
-        .push(SystemEventListener{.callback = callback, .types = event_types})
-        .unwrap();
+    return listeners.push(callback).unwrap();
   }
 
-  virtual u64 listen(Window window, WindowEventTypes event_types,
+  virtual u64 listen(Window                        window,
                      Fn<void(WindowEvent const &)> callback) override
   {
     WindowImpl * pwin = (WindowImpl *) window;
-    return pwin->listeners.push(WindowEventListener{callback, event_types})
-        .unwrap();
+    return pwin->listeners.push(callback).unwrap();
   }
 
   virtual void unlisten(Window window, u64 listener) override
@@ -426,23 +411,17 @@ struct WindowSystemImpl : WindowSystem
         (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
     CHECK(impl != nullptr);
 
-    for (WindowEventListener const & listener : impl->listeners.dense.v0)
+    for (auto const & listener : impl->listeners.dense.v0)
     {
-      if (has_bits(listener.types, event.type))
-      {
-        listener.callback(event);
-      }
+      listener(event);
     }
   }
 
   void push_system_event(SystemEvent const & event)
   {
-    for (SystemEventListener const & listener : listeners.dense.v0)
+    for (auto const & listener : listeners.dense.v0)
     {
-      if (has_bits(listener.types, event.type))
-      {
-        listener.callback(event);
-      }
+      listener(event);
     }
   }
 
@@ -471,101 +450,88 @@ struct WindowSystemImpl : WindowSystem
       switch (event.type)
       {
         case SDL_EVENT_WINDOW_SHOWN:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::Shown});
-          return;
+          push_window_event(event.window.windowID, WindowEventType::Shown);
+          break;
         case SDL_EVENT_WINDOW_HIDDEN:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::Hidden});
-          return;
+          push_window_event(event.window.windowID, WindowEventType::Hidden);
+          break;
         case SDL_EVENT_WINDOW_EXPOSED:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::Exposed});
-          return;
+          push_window_event(event.window.windowID, WindowEventType::Exposed);
+          break;
         case SDL_EVENT_WINDOW_MOVED:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::Moved});
-          return;
+          push_window_event(event.window.windowID, WindowEventType::Moved);
+          break;
         case SDL_EVENT_WINDOW_RESIZED:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::Resized});
-          return;
+          push_window_event(event.window.windowID, WindowEventType::Resized);
+          break;
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.type = WindowEventTypes::SurfaceResized});
-          return;
+          push_window_event(event.window.windowID,
+                            WindowEventType::SurfaceResized);
+          break;
         case SDL_EVENT_WINDOW_MINIMIZED:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::Minimized});
-          return;
+          push_window_event(event.window.windowID, WindowEventType::Minimized);
+          break;
         case SDL_EVENT_WINDOW_MAXIMIZED:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::Maximized});
-          return;
+          push_window_event(event.window.windowID, WindowEventType::Maximized);
+          break;
         case SDL_EVENT_WINDOW_RESTORED:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::Restored});
-          return;
+          push_window_event(event.window.windowID, WindowEventType::Restored);
+          break;
         case SDL_EVENT_WINDOW_MOUSE_ENTER:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::MouseEnter});
-          return;
+          push_window_event(event.window.windowID, WindowEventType::MouseEnter);
+          break;
         case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::MouseLeave});
-          return;
+          push_window_event(event.window.windowID, WindowEventType::MouseLeave);
+          break;
         case SDL_EVENT_WINDOW_FOCUS_GAINED:
           push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::FocusIn});
-          return;
+                            WindowEventType::KeyboardFocusIn);
+          break;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
           push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::FocusOut});
-          return;
+                            WindowEventType::KeyboardFocusOut);
+          break;
         case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.type = WindowEventTypes::CloseRequested});
-          return;
-        case SDL_EVENT_WINDOW_OCCLUDED:
           push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::Occluded});
+                            WindowEventType::CloseRequested);
+          break;
+        case SDL_EVENT_WINDOW_OCCLUDED:
+          push_window_event(event.window.windowID, WindowEventType::Occluded);
           break;
         case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.type = WindowEventTypes::EnterFullScreen});
+          push_window_event(event.window.windowID,
+                            WindowEventType::EnterFullScreen);
           break;
         case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
-          push_window_event(
-              event.window.windowID,
-              WindowEvent{.type = WindowEventTypes::LeaveFullScreen});
+          push_window_event(event.window.windowID,
+                            WindowEventType::LeaveFullScreen);
+          break;
+        case SDL_EVENT_WINDOW_DESTROYED:
+          push_window_event(event.window.windowID, WindowEventType::Destroyed);
           break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
         {
           MouseClickEvent mouse_event{
-              .id       = event.button.which,
-              .position = Vec2{event.button.x, event.button.y},
-              .clicks   = event.button.clicks
+              .position{event.button.x, event.button.y},
+              .clicks = event.button.clicks
           };
           switch (event.button.button)
           {
             case SDL_BUTTON_LEFT:
-              mouse_event.button = MouseButtons::Primary;
+              mouse_event.button = MouseButton::Primary;
               break;
             case SDL_BUTTON_RIGHT:
-              mouse_event.button = MouseButtons::Secondary;
+              mouse_event.button = MouseButton::Secondary;
               break;
             case SDL_BUTTON_MIDDLE:
-              mouse_event.button = MouseButtons::Middle;
+              mouse_event.button = MouseButton::Middle;
               break;
             case SDL_BUTTON_X1:
-              mouse_event.button = MouseButtons::A1;
+              mouse_event.button = MouseButton::A1;
               break;
             case SDL_BUTTON_X2:
-              mouse_event.button = MouseButtons::A2;
+              mouse_event.button = MouseButton::A2;
               break;
             default:
               CHECK_UNREACHABLE();
@@ -582,148 +548,140 @@ struct WindowSystemImpl : WindowSystem
               break;
 
             default:
-              return;
+              break;
           }
 
-          push_window_event(event.button.windowID,
-                            WindowEvent{.mouse_click = mouse_event,
-                                        .type = WindowEventTypes::MouseClick});
-          return;
+          push_window_event(event.button.windowID, mouse_event);
+          break;
         }
 
         case SDL_EVENT_MOUSE_MOTION:
           push_window_event(
               event.motion.windowID,
-              WindowEvent{
-                  .mouse_motion =
-                      MouseMotionEvent{
-                                       .id       = event.motion.which,
-                                       .position = Vec2{event.motion.x, event.motion.y},
-                                       .translation =
-                              Vec2{event.motion.xrel, event.motion.yrel}},
-                  .type = WindowEventTypes::MouseMotion
+              MouseMotionEvent{
+                  .position{event.motion.x,    event.motion.y   },
+                  .translation{event.motion.xrel, event.motion.yrel}
           });
-          return;
+          break;
 
         case SDL_EVENT_MOUSE_WHEEL:
           push_window_event(
               event.wheel.windowID,
-              WindowEvent{
-                  .mouse_wheel =
-                      MouseWheelEvent{
-                                      .id = event.wheel.which,
-                                      .position =
-                              Vec2{event.wheel.mouse_x, event.wheel.mouse_y},
-                                      .translation = Vec2{event.wheel.x, event.wheel.y}},
-                  .type = WindowEventTypes::MouseWheel
+              MouseWheelEvent{
+                  .position{event.wheel.mouse_x, event.wheel.mouse_y},
+                  .translation{event.wheel.x,       event.wheel.y      }
           });
-          return;
+          break;
 
         case SDL_EVENT_KEY_DOWN:
+          push_window_event(
+              event.key.windowID,
+              KeyEvent{.scan_code = (ScanCode) event.key.scancode,
+                       .key_code  = (KeyCode) ((u32) event.key.key &
+                                              ~SDLK_SCANCODE_MASK),
+                       .modifiers = (KeyModifiers) event.key.mod,
+                       .action    = KeyAction::Press});
+          break;
+
         case SDL_EVENT_KEY_UP:
           push_window_event(
               event.key.windowID,
-              WindowEvent{
-                  .key  = KeyEvent{.scan_code = (ScanCode) (event.key.scancode),
-                                   .key_code  = (KeyCode) ((u16) event.key.key &
-                                                         ~SDLK_SCANCODE_MASK),
-                                   .modifiers =
-                                      static_cast<KeyModifiers>(event.key.mod),
-                                   .action = event.type == SDL_EVENT_KEY_DOWN ?
-                                                 KeyAction::Press :
-                                                 KeyAction::Release},
-                  .type = WindowEventTypes::Key
-          });
-          return;
+              KeyEvent{.scan_code = (ScanCode) event.key.scancode,
+                       .key_code  = (KeyCode) ((u32) event.key.key &
+                                              ~SDLK_SCANCODE_MASK),
+                       .modifiers = (KeyModifiers) event.key.mod,
+                       .action    = KeyAction::Release});
+          break;
 
-        case SDL_EVENT_WINDOW_DESTROYED:
-          push_window_event(event.window.windowID,
-                            WindowEvent{.type = WindowEventTypes::Destroyed});
-          return;
-
-        case SDL_EVENT_TEXT_EDITING:
         case SDL_EVENT_TEXT_INPUT:
-          // [ ] handle
-          return;
+        {
+          char const * text = event.text.text;
+          usize const  size = (text == nullptr) ? 0 : std::strlen(text);
+          push_window_event(event.text.windowID,
+                            TextInputEvent{
+                                .text{(c8 const *) text, size}
+          });
+        }
+        break;
 
         case SDL_EVENT_DROP_BEGIN:
-          // [ ] check
-          logger->info("drop begin");
-          return;
+          push_window_event(event.drop.windowID,
+                            DropEvent{DropEventType::DropBegin});
+          break;
 
         case SDL_EVENT_DROP_COMPLETE:
-          // [ ] check
-          logger->info("drop complete");
-          return;
+          push_window_event(event.drop.windowID,
+                            DropEvent{DropEventType::DropComplete});
+          break;
 
         case SDL_EVENT_DROP_POSITION:
-          //  [ ] check
-          logger->info("drop pos:", "x: ", event.drop.x, ", y: ", event.drop.y);
-          return;
+          push_window_event(
+              event.drop.windowID,
+              DropEvent{DropPositionEvent{.pos{event.drop.x, event.drop.y}}});
+          break;
 
         case SDL_EVENT_DROP_FILE:
-          // [ ] how to handle in view system
-          logger->info("x: ", event.drop.x, ", y: ", event.drop.y,
-                       ", file: ", std::string{event.drop.data});
-          return;
+        {
+          char const * text = event.drop.data;
+          usize const  size = (text == nullptr) ? 0 : std::strlen(text);
+          push_window_event(event.drop.windowID,
+                            DropEvent{DropFileEvent{.path{text, size}}});
+        }
+        break;
 
         case SDL_EVENT_DROP_TEXT:
-          logger->info("x: ", event.drop.x, ", y: ", event.drop.y,
-                       ", text: ", std::string{event.drop.data});
-          return;
+        {
+          c8 const *  text = reinterpret_cast<c8 const *>(event.drop.data);
+          usize const size =
+              (event.drop.data == nullptr) ? 0 : std::strlen(event.drop.data);
+          push_window_event(event.drop.windowID,
+                            DropEvent{DropTextEvent{.text{text, size}}});
+        }
+        break;
 
         case SDL_EVENT_SYSTEM_THEME_CHANGED:
-          push_system_event(SystemEvent{
-              .theme = get_theme(), .type = SystemEventTypes::ThemeChanged});
-          return;
+          push_system_event(get_theme());
+          break;
 
         case SDL_EVENT_KEYMAP_CHANGED:
-          push_system_event(
-              SystemEvent{.type = SystemEventTypes::KeymapChanged});
-          return;
+          push_system_event(SystemEventType::KeymapChanged);
+          break;
 
         case SDL_EVENT_AUDIO_DEVICE_ADDED:
-          push_system_event(
-              SystemEvent{.type = SystemEventTypes::AudioDeviceAdded});
-          return;
+          push_system_event(SystemEventType::AudioDeviceAdded);
+          break;
 
         case SDL_EVENT_AUDIO_DEVICE_REMOVED:
-          push_system_event(
-              SystemEvent{.type = SystemEventTypes::AudioDeviceRemoved});
-          return;
+          push_system_event(SystemEventType::AudioDeviceRemoved);
+          break;
 
         case SDL_EVENT_AUDIO_DEVICE_FORMAT_CHANGED:
-          push_system_event(
-              SystemEvent{.type = SystemEventTypes::AudioDeviceFormatChanged});
-          return;
+          push_system_event(SystemEventType::AudioDeviceFormatChanged);
+          break;
 
         case SDL_EVENT_DISPLAY_ORIENTATION:
-          push_system_event(
-              SystemEvent{.type = SystemEventTypes::DisplayReoriented});
-          return;
+          push_system_event(SystemEventType::DisplayReoriented);
+          break;
 
         case SDL_EVENT_DISPLAY_ADDED:
-          push_system_event(
-              SystemEvent{.type = SystemEventTypes::DisplayAdded});
-          return;
+          push_system_event(SystemEventType::DisplayAdded);
+          break;
 
         case SDL_EVENT_DISPLAY_REMOVED:
-          push_system_event(
-              SystemEvent{.type = SystemEventTypes::DisplayRemoved});
-          return;
+          push_system_event(SystemEventType::DisplayRemoved);
+          break;
 
         case SDL_EVENT_DISPLAY_MOVED:
-          push_system_event(
-              SystemEvent{.type = SystemEventTypes::DisplayMoved});
-          return;
+          push_system_event(SystemEventType::DisplayMoved);
+          break;
 
         case SDL_EVENT_FINGER_DOWN:
         case SDL_EVENT_FINGER_UP:
         case SDL_EVENT_FINGER_MOTION:
-          return;
+          break;
 
         default:
-          return;
+          break;
       }
     }
   }
@@ -731,6 +689,34 @@ struct WindowSystemImpl : WindowSystem
   virtual ClipBoard & get_clipboard() override
   {
     return clipboard;
+  }
+
+  virtual void get_keyboard_state(BitSpan<u64> state) override
+  {
+    CHECK(state.size() == NUM_KEYS);
+    i32          num_keys   = 0;
+    bool const * key_states = SDL_GetKeyboardState(&num_keys);
+    CHECK(num_keys == NUM_KEYS);
+
+    for (usize i = 0; i < NUM_KEYS; i++)
+    {
+      state.set(i, key_states[i]);
+    }
+  }
+
+  virtual void get_mouse_state(BitSpan<u64> state) override
+  {
+    CHECK(state.size() == NUM_MOUSE_BUTTONS);
+    SDL_MouseButtonFlags const flags = SDL_GetMouseState(nullptr, nullptr);
+
+    state.set((usize) MouseButton::Primary,
+              flags & SDL_BUTTON_MASK(SDL_BUTTON_LEFT));
+    state.set((usize) MouseButton::Secondary,
+              flags & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT));
+    state.set((usize) MouseButton::Middle,
+              flags & SDL_BUTTON_MASK(SDL_BUTTON_MIDDLE));
+    state.set((usize) MouseButton::A1, flags & SDL_BUTTON_MASK(SDL_BUTTON_X1));
+    state.set((usize) MouseButton::A2, flags & SDL_BUTTON_MASK(SDL_BUTTON_X2));
   }
 };
 

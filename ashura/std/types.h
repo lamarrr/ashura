@@ -78,6 +78,13 @@ inline constexpr f64 F64_INF          = INFINITY;
 
 inline constexpr f32 PI = 3.14159265358979323846F;
 
+enum class Ordering : i8
+{
+  Less    = -1,
+  Equal   = 0,
+  Greater = 1,
+};
+
 struct Add
 {
   constexpr auto operator()(auto const & a, auto const & b) const
@@ -160,17 +167,17 @@ struct GEq
 
 struct Cmp
 {
-  constexpr i8 operator()(auto const & a, auto const & b) const
+  constexpr Ordering operator()(auto const & a, auto const & b) const
   {
     if (a == b)
     {
-      return 0;
+      return Ordering::Equal;
     }
     if (a > b)
     {
-      return -1;
+      return Ordering::Less;
     }
-    return 1;
+    return Ordering::Greater;
   }
 };
 
@@ -323,8 +330,6 @@ constexpr i32 sat_sub(i32 a, i32 b)
   return (i32) clamp((i64) ((i64) a - (i64) b), (i64) I32_MIN, (i64) I32_MAX);
 }
 
-// [ ] sat_sub u64, i64
-
 constexpr u8 sat_mul(u8 a, u8 b)
 {
   return (u8) min((u16) ((u16) a * (u16) b), (u16) U8_MAX);
@@ -354,8 +359,6 @@ constexpr i32 sat_mul(i32 a, i32 b)
 {
   return (i32) clamp((i64) a * (i64) b, (i64) I32_MIN, (i64) I32_MAX);
 }
-
-// [ ] sat_mul u64, i64
 
 // [ ] sat_cast
 
@@ -734,7 +737,7 @@ constexpr E enum_not(E a)
   return static_cast<E>(enum_uv_not(a));
 }
 
-#define ASH_DEFINE_ENUM_BIT_OPS(E)     \
+#define ASH_BIT_ENUM_OPS(E)            \
   constexpr E operator|(E a, E b)      \
   {                                    \
     return ::ash::enum_or(a, b);       \
@@ -1003,7 +1006,7 @@ concept Range = requires (R r) {
 
 // [ ] struct ExampleRange
 // {
-// [ ] nth();
+//  nth();
 // };
 
 // [ ] change to range set using iter
@@ -1469,14 +1472,21 @@ struct BitSpan
   using Repr = R;
   using Iter = BitSpanIter<R>;
 
-  Span<R> repr_     = {};
-  usize   bit_size_ = 0;
+  Span<R> repr_ = {};
 
   constexpr BitSpan() = default;
 
-  constexpr BitSpan(Span<R> repr, usize bit_size) :
-      repr_{repr},
-      bit_size_{bit_size}
+  constexpr BitSpan(Span<R> repr) : repr_{repr}
+  {
+  }
+
+  template <usize N>
+  constexpr BitSpan(R (&data)[N]) : repr_{data}
+  {
+  }
+
+  template <SpanCompatibleContainer<R> C>
+  constexpr BitSpan(C & cont) : repr_{cont}
   {
   }
 
@@ -1495,34 +1505,24 @@ struct BitSpan
     return repr_;
   }
 
-  constexpr usize trailing() const
-  {
-    return repr_.size() - bit_size_;
-  }
-
   constexpr usize size() const
   {
-    return bit_size_;
+    return repr_.size_bytes() * 8;
   }
 
   constexpr bool is_empty() const
   {
-    return bit_size_ == 0;
+    return repr_.is_empty();
   }
 
   constexpr auto begin() const
   {
-    return Iter{.repr_ = repr_, .bit_pos_ = 0, .bit_size_ = bit_size_};
+    return Iter{.repr_ = repr_, .bit_pos_ = 0, .bit_size_ = size()};
   }
 
   constexpr auto end() const
   {
     return IterEnd{};
-  }
-
-  constexpr bool has_trailing() const
-  {
-    return bit_size_ != (repr_.size_bytes() * 8);
   }
 
   constexpr bool operator[](usize index) const
@@ -1545,14 +1545,14 @@ struct BitSpan
     return ash::get_bit(repr_, index);
   }
 
-  constexpr bool set_bit(usize index) const requires (NonConst<R>)
+  constexpr void set_bit(usize index) const requires (NonConst<R>)
   {
-    return ash::set_bit(repr_, index);
+    ash::set_bit(repr_, index);
   }
 
-  constexpr bool clear_bit(usize index) const requires (NonConst<R>)
+  constexpr void clear_bit(usize index) const requires (NonConst<R>)
   {
-    return ash::clear_bit(repr_, index);
+    ash::clear_bit(repr_, index);
   }
 
   constexpr void flip_bit(usize index) const requires (NonConst<R>)
@@ -1562,22 +1562,22 @@ struct BitSpan
 
   constexpr usize find_set_bit()
   {
-    return min(ash::find_set_bit(repr_), size());
+    return ash::find_set_bit(repr_);
   }
 
   constexpr usize find_clear_bit()
   {
-    return min(ash::find_clear_bit(repr_), size());
+    return ash::find_clear_bit(repr_);
   }
 
   constexpr operator BitSpan<R const>() const
   {
-    return BitSpan<R const>{repr_, bit_size_};
+    return BitSpan<R const>{repr_};
   }
 
   constexpr BitSpan<R const> as_const() const
   {
-    return BitSpan<R const>{repr_, bit_size_};
+    return BitSpan<R const>{repr_};
   }
 };
 
@@ -2005,12 +2005,12 @@ struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
 {
 };
 
-template <class MemberSig>
-struct MemberFnTraits;
+template <typename Sig>
+struct MethodTraits;
 
-/// @brief non-const member function traits
-template <class T, typename R, typename... Args>
-struct MemberFnTraits<R (T::*)(Args...)>
+/// @brief non-const method traits
+template <typename T, typename R, typename... Args>
+struct MethodTraits<R (T::*)(Args...)>
 {
   using Ptr    = R (*)(Args...);
   using Fn     = ash::Fn<R(Args...)>;
@@ -2019,9 +2019,9 @@ struct MemberFnTraits<R (T::*)(Args...)>
   using Thunk  = FunctorThunk<T, R(Args...)>;
 };
 
-/// @brief const member function traits
-template <class T, typename R, typename... Args>
-struct MemberFnTraits<R (T::*)(Args...) const>
+/// @brief const method traits
+template <typename T, typename R, typename... Args>
+struct MethodTraits<R (T::*)(Args...) const>
 {
   using Ptr    = R (*)(Args...);
   using Fn     = ash::Fn<R(Args...)>;
@@ -2030,8 +2030,8 @@ struct MemberFnTraits<R (T::*)(Args...) const>
   using Thunk  = FunctorThunk<T const, R(Args...)>;
 };
 
-template <class F>
-struct FunctorTraits : MemberFnTraits<decltype(&F::operator())>
+template <typename F>
+struct FunctorTraits : MethodTraits<decltype(&F::operator())>
 {
 };
 

@@ -23,54 +23,115 @@ struct ViewNode
   u32 num_children = 0;
 };
 
-struct FocusInfo
+enum class ViewHitAttributes : u32
 {
-  u64  view       = U64_MAX;
-  u32  focus_idx  = U32_MAX;
-  bool text_input = false;
-  bool tab_input  = false;
-  bool esc_input  = false;
-
-  constexpr bool is_empty() const
-  {
-    return view == U64_MAX;
-  }
+  None       = 0x00,
+  Pointable  = 0x01,
+  Clickable  = 0x02,
+  Scrollable = 0x04,
+  Draggable  = 0x08,
+  Droppable  = 0x10
 };
 
-struct ViewSystemState
-{
-  u64       mouse_pointed_view   = 0;
-  u64       mouse_scrolling_view = 0;
-  u64       drag_source_view     = 0;
-  u64       drag_target_view     = 0;
-  FocusInfo focused              = {};
-  bool      focusing         : 1 = false;
-  Cursor    cursor           : 5 = Cursor::Default;
-  bool      mouse_down       : 1 = false;
-  bool      mouse_up         : 1 = false;
-  bool      mouse_moved      : 1 = false;
-  bool      mouse_scrolled   : 1 = false;
-  bool      mouse_drag_start : 1 = false;
-  bool      mouse_drag_end   : 1 = false;
-  bool      mouse_dragging   : 1 = false;
-  bool      mouse_drag_drop  : 1 = false;
-  bool      keyboard_down    : 1 = false;
-  bool      keyboard_up      : 1 = false;
-};
+ASH_BIT_ENUM_OPS(ViewHitAttributes)
 
-enum class FocusAction : u8
+enum class FocusAction : u32
 {
-  None     = 0,
-  Forward  = 1,
+  /// @brief stay on the current focus
+  None = 0,
+
+  /// @brief navigate forward on the focus tree
+  Forward = 1,
+
+  /// @brief navigate backwards on the focus tree
   Backward = 2
 };
 
 struct ViewSystem
 {
-  u64             frame         = 0;
-  u64             next_id       = 0;
-  ViewSystemState state[2]      = {};
-  FocusInfo       focus_request = {};
+  struct Focus
+  {
+    /// @brief if focusing is active
+    bool active = false;
+
+    /// @brief currently focused view
+    u64 view = U64_MAX;
+
+    /// @brief focus tree index of the view
+    u32 focus_idx = U32_MAX;
+
+    /// @brief does the view accepts text input
+    bool text_input = false;
+
+    /// @brief does the view accepts tab input
+    bool tab_input = false;
+
+    /// @brief does the view accept esc input
+    bool esc_input = false;
+  };
+
+  struct State
+  {
+    /// @brief mouse pointed view
+    Option<u64> pointed = None;
+
+    /// @brief drag data soure view
+    Option<u64> drag_src = None;
+
+    /// @brief current cursor
+    Cursor cursor = Cursor::Default;
+
+    /// @brief focus state
+    Option<Focus> focus = None;
+
+    /// @brief grab focus state
+    Option<Focus> grab_focus = None;
+
+    /// @brief if mouse went down on this frame
+    bool mouse_down = false;
+
+    /// @brief if mouse went up on this frame
+    bool mouse_up = false;
+
+    /// @brief if mouse moved on this frame
+    bool mouse_moved = false;
+
+    /// @brief if mouse scrolled on this frame
+    bool mouse_scrolled = false;
+
+    /// @brief if mouse dragging started on this frame
+    bool drag_start = false;
+
+    /// @brief if mouse dragging ended on this frame
+    bool drag_end = false;
+
+    /// @brief if mouse was dragging on this frame
+    bool dragging = false;
+
+    /// @brief if drag data was dropped on this frame
+    bool dropped = false;
+
+    /// @brief if key went down on the frame
+    bool key_down = false;
+
+    /// @brief if key went up on the frame
+    bool key_up = false;
+
+    /// @brief if text input was received on this frame
+    bool text_input = false;
+  };
+
+  /// @brief current frame id
+  u64 frame = 0;
+
+  /// @brief next view id
+  u64 next_id = 0;
+
+  /// @brief previous frame state
+  State f0 = {};
+
+  /// @brief current frame state
+  State f1 = {};
 
   Vec<View *>   views;
   Vec<ViewNode> nodes;
@@ -96,7 +157,7 @@ struct ViewSystem
   BitVec<u64>  is_fixed_positioned;
   Vec<Vec2>    fixed_positions;
   Vec<i32>     z_indices;
-  Vec<i32>     stacking_contexts;
+  Vec<i32>     layers;
 
   Vec<Affine3> transforms;
   Vec<CRect>   clips;
@@ -125,7 +186,7 @@ struct ViewSystem
       is_fixed_positioned{allocator},
       fixed_positions{allocator},
       z_indices{allocator},
-      stacking_contexts{allocator},
+      layers{allocator},
       transforms{allocator},
       clips{allocator},
       z_ordering{allocator},
@@ -165,7 +226,7 @@ struct ViewSystem
     is_fixed_positioned.clear();
     fixed_positions.clear();
     z_indices.clear();
-    stacking_contexts.clear();
+    layers.clear();
 
     transforms.clear();
     clips.clear();
@@ -179,60 +240,55 @@ struct ViewSystem
 
     if (view.id() == U64_MAX) [[unlikely]]
     {
+      // should never happen
       CHECK(next_id != U64_MAX);
       view.inner.id  = next_id++;
       events.mounted = true;
     }
 
+    u64 const id = view.id();
+
     events.view_hit = (view.inner.last_rendered_frame + 1) == frame;
 
-    ViewSystemState const & s0 = state[0];
-    ViewSystemState const & s1 = state[1];
-
-    if (s1.mouse_pointed_view == view.id()) [[unlikely]]
+    if (f1.pointed.contains(id)) [[unlikely]]
     {
-      events.mouse_in   = (s0.mouse_pointed_view != view.id());
-      events.mouse_down = s1.mouse_down;
-      events.mouse_up   = s1.mouse_up;
-      events.mouse_moved =
-          s1.mouse_moved && (s0.mouse_pointed_view == view.id());
+      if (f1.dragging) [[unlikely]]
+      {
+        events.drag_in   = !f0.pointed.contains(id);
+        events.drag_over = true;
+      }
+
+      events.drop         = f1.dropped;
+      events.mouse_in     = !f0.pointed.contains(id);
+      events.mouse_down   = f1.mouse_down;
+      events.mouse_up     = f1.mouse_up;
+      events.mouse_moved  = f1.mouse_moved;
+      events.mouse_scroll = f1.mouse_scrolled;
     }
-    else if (s0.mouse_pointed_view == view.id()) [[unlikely]]
+    else if (f0.pointed.contains(id)) [[unlikely]]
     {
       events.mouse_out = true;
+      events.drag_out  = f0.dragging;
     }
 
-    if (s1.mouse_scrolling_view == view.id()) [[unlikely]]
+    if (f1.drag_src.contains(id)) [[unlikely]]
     {
-      events.mouse_scroll = s1.mouse_scrolled;
+      events.drag_start = f1.drag_start;
+      events.dragging   = f1.dragging;
+      events.drag_end   = f1.drag_end;
     }
 
-    if (s1.drag_target_view == view.id()) [[unlikely]]
+    if (f1.focus.is_some() && f1.focus.value().view == view.id() &&
+        f1.focus.value().active) [[unlikely]]
     {
-      events.drag_in   = (s0.drag_target_view != s1.drag_target_view);
-      events.drop      = s1.mouse_drag_drop;
-      events.drag_over = s1.mouse_dragging;
+      events.focus_in =
+          (f0.focus.value().view != view.id()) || !f0.focus.value().active;
+      events.key_down   = f1.key_down;
+      events.key_up     = f1.key_up;
+      events.text_input = f1.text_input;
     }
-    else if (s0.drag_target_view == view.id()) [[unlikely]]
-    {
-      events.drag_out = s1.mouse_dragging;
-    }
-
-    if (s1.drag_source_view == view.id()) [[unlikely]]
-    {
-      events.drag_start = s1.mouse_drag_start;
-      events.dragging   = s1.mouse_dragging;
-      events.drag_end   = s1.mouse_drag_end;
-    }
-
-    if (s1.focused.view == view.id() && s1.focusing) [[unlikely]]
-    {
-      events.focus_in   = (s0.focused.view != view.id()) || !s0.focusing;
-      events.key_down   = s1.keyboard_down;
-      events.key_up     = s1.keyboard_up;
-      events.text_input = s1.focused.text_input;
-    }
-    else if (s0.focused.view == view.id()) [[unlikely]]
+    else if (f0.focus.is_some() && f0.focus.value().view == view.id() &&
+             f0.focus.value().active) [[unlikely]]
     {
       events.focus_out = true;
     }
@@ -294,11 +350,14 @@ struct ViewSystem
 
     if (!s.hidden && s.focusable && s.grab_focus) [[unlikely]]
     {
-      focus_request = FocusInfo{.view       = view.id(),
-                                .focus_idx  = view.inner.focus_idx,
-                                .text_input = s.text_input,
-                                .tab_input  = s.tab_input,
-                                .esc_input  = s.esc_input};
+      f1.focus = Some{
+          Focus{.active     = true,
+                .view       = view.id(),
+                .focus_idx  = view.inner.focus_idx,
+                .text_input = s.text_input,
+                .tab_input  = s.tab_input,
+                .esc_input  = s.esc_input}
+      };
     }
 
     nodes[idx].first_child      = first_child;
@@ -398,8 +457,7 @@ struct ViewSystem
       }
     }
 
-    // need to convert to 0, viewport_extent space
-
+    // convert to [0, viewport_extent] space
     for (u32 i = 0; i < n; i++)
     {
       Affine3 const & transform = transforms[i];
@@ -450,21 +508,46 @@ struct ViewSystem
 
     for (u32 i = 0; i < n; i++)
     {
-      views[i]->inner.region =
-          CRect{.center = centers[i], .extent = extents[i]};
-      views[i]->inner.zoom = transforms[i][0][0];
+      View & view       = *views[i];
+      view.inner.region = CRect{.center = centers[i], .extent = extents[i]};
+      view.inner.zoom   = transforms[i][0][0];
     }
+  }
+
+  /// @brief compares the z-order of `a` and `b`
+  static constexpr Ordering z_order_cmp(i32 a_layer, i32 a_z_index, u32 a_depth,
+                                        i32 b_layer, i32 b_z_index, u32 b_depth)
+  {
+    // cmp stacking context/layer first
+    Ordering ord = cmp(a_layer, b_layer);
+
+    if (ord != Ordering::Equal)
+    {
+      return ord;
+    }
+
+    // cmp z_index
+    ord = cmp(a_z_index, b_z_index);
+
+    if (ord != Ordering::Equal)
+    {
+      return ord;
+    }
+
+    // cmp depth in the view tree
+    return cmp(a_depth, b_depth);
   }
 
   void stack()
   {
-    if (views.is_empty())
+    u32 const n = views.size32();
+
+    if (n == 0)
     {
       return;
     }
 
     z_indices[0] = 0;
-    u32 const n  = views.size32();
 
     for (u32 i = 0; i < n; i++)
     {
@@ -474,37 +557,22 @@ struct ViewSystem
           z_indices.view().slice(node.first_child, node.num_children));
     }
 
-    stacking_contexts[0] = 0;
+    layers[0] = 0;
     for (u32 i = 0; i < n; i++)
     {
       ViewNode const & node = nodes[i];
       if (node.parent != U32_MAX)
       {
-        stacking_contexts[i] = views[i]->stack(stacking_contexts[node.parent]);
+        layers[i] = views[i]->stack(layers[node.parent]);
       }
     }
 
     iota(z_ordering.view(), 0U);
 
-    // sort layers with priority: stacking_context, z_index, node depth
+    // sort layers
     indirect_sort(z_ordering.view(), [&](u32 a, u32 b) {
-      if (stacking_contexts[a] < stacking_contexts[b])
-      {
-        return true;
-      }
-      if (stacking_contexts[a] > stacking_contexts[b])
-      {
-        return false;
-      }
-      if (z_indices[a] < z_indices[b])
-      {
-        return true;
-      }
-      if (z_indices[a] > z_indices[b])
-      {
-        return false;
-      }
-      return nodes[a].depth < nodes[b].depth;
+      return z_order_cmp(layers[a], z_indices[a], nodes[a].depth, layers[b],
+                         z_indices[b], nodes[b].depth) == Ordering::Less;
     });
   }
 
@@ -520,7 +588,7 @@ struct ViewSystem
         for (u32 c = node.first_child;
              c < (node.first_child + node.num_children); c++)
         {
-          is_hidden.set(c, true);
+          is_hidden.set_bit(c);
         }
       }
       else
@@ -545,7 +613,7 @@ struct ViewSystem
       {
         View & view = *views[i];
         canvas.clip(clips[i]);
-        view.render(canvas, view.inner.region, transforms[i][0][0], clips[i]);
+        view.render(canvas, view.inner.region, view.inner.zoom, clips[i]);
         view.inner.last_rendered_frame = frame;
       }
     }
@@ -554,6 +622,8 @@ struct ViewSystem
   void focus_view(u32 view)
   {
     (void) view;
+    // [ ] grab focus would need to scroll down to widget; would need
+    // virtual scrolling support. offset based?
     // [ ] we need to know where it is located within the parent viewport, so we
     // can request the viewport focus on it
     // get position of view in parent viewport
@@ -564,310 +634,300 @@ struct ViewSystem
     // scroll into them.
   }
 
+  static constexpr bool hit_test(View & view, Vec2 position)
+  {
+    return contains(view.inner.region, position) &&
+           view.hit(view.inner.region, view.inner.zoom, position);
+  }
+
+  Option<u32> hit_views(Vec2 mouse_position, ViewHitAttributes match) const
+  {
+    u32 const n = views.size32();
+
+    // find in reverse z-order
+    for (u32 z = n; z != 0;)
+    {
+      z--;
+
+      u32 const i    = z_ordering[z];
+      View &    view = *views[i];
+
+      bool matches = false;
+
+      // avoids reading from the bit arrays if not needed
+
+      if (has_bits(match, ViewHitAttributes::Pointable))
+      {
+        matches |= is_pointable[i];
+      }
+
+      if (has_bits(match, ViewHitAttributes::Clickable))
+      {
+        matches |= is_clickable[i];
+      }
+
+      if (has_bits(match, ViewHitAttributes::Scrollable))
+      {
+        matches |= is_scrollable[i];
+      }
+
+      if (has_bits(match, ViewHitAttributes::Draggable))
+      {
+        matches |= is_draggable[i];
+      }
+
+      if (has_bits(match, ViewHitAttributes::Droppable))
+      {
+        matches |= is_droppable[i];
+      }
+
+      if (!is_hidden[i] && matches && hit_test(view, mouse_position))
+          [[unlikely]]
+      {
+        return Some{i};
+      }
+    }
+
+    return None;
+  }
+
+  Option<u32> navigate_focus(u32 from, bool forward) const
+  {
+    u32 const n = views.size32();
+
+    if (n == 0)
+    {
+      return None;
+    }
+
+    if (from > n)
+    {
+      from = n - 1;
+    }
+
+    if (forward)
+    {
+      u32 f = (from + 1) % n;
+
+      while (f != from)
+      {
+        u32 const i = focus_ordering[f];
+        if (!is_hidden[i] && is_focusable[i])
+        {
+          break;
+        }
+
+        f = (f + 1) % n;
+      }
+
+      return Some{f};
+    }
+    else
+    {
+      u32 start = (n - 1) - from;
+      u32 f     = (start + 1) % n;
+
+      while (f != start)
+      {
+        u32 const i = focus_ordering[(n - 1) - f];
+        if (!is_hidden[i] && is_focusable[i])
+        {
+          break;
+        }
+
+        f = (f + 1) % n;
+      }
+
+      return Some{(n - 1) - f};
+    }
+  }
+
   void events(ViewContext const & ctx)
   {
-    state[0]                  = state[1];
-    state[1]                  = {};
-    ViewSystemState & s0      = state[0];
-    ViewSystemState & s1      = state[1];
-    u32 const         n       = views.size32();
-    FocusInfo         focused = s0.focused;
-    Cursor cursor   = ctx.mouse.focused ? Cursor::Default : Cursor::None;
-    bool   focusing = s0.focusing;
+    f0 = f1;
+    f1 = State{};
 
-    // [ ] clear existing focus on mouse click
+    f1.mouse_down     = ctx.mouse.any_down;
+    f1.mouse_up       = ctx.mouse.any_up;
+    f1.mouse_moved    = ctx.mouse.moved;
+    f1.mouse_scrolled = ctx.mouse.wheel_scrolled;
+    f1.key_down       = ctx.key.any_down;
+    f1.key_up         = ctx.key.any_up;
+    f1.text_input     = ctx.text_input;
 
-    if (ctx.mouse.focused)
+    bool const esc_input = ctx.key_down(KeyCode::Escape);
+    bool const tab_input = ctx.key_down(KeyCode::Tab);
+
+    // use grab focus request if any, otherwise persist previous frame's focus
+    f1.focus = f0.grab_focus ? f0.grab_focus : f0.focus;
+
+    // [ ] start and end text input on mobile platforms
+
+    // mouse click & drag
+    if (f1.mouse_down)
     {
-      // mouse click & drag
-      if (has_bits(ctx.mouse.downs, MouseButtons::Primary))
-      {
-        for (u32 z_i = n; z_i != 0;)
-        {
-          z_i--;
-          u32 i = z_ordering[z_i];
-          if (!is_hidden[i])
-          {
-            View & view = *views[i];
-            if ((is_clickable[i] || is_draggable[i]) &&
-                view.hit(view.inner.region, transforms[i][0][0],
-                         ctx.mouse.position)) [[unlikely]]
-            {
-              if (is_clickable[i])
-              {
-                s1.mouse_dragging   = true;
-                s1.drag_source_view = view.id();
-                s1.mouse_dragging   = true;
-                s1.mouse_drag_start = true;
-              }
-              else
-              {
-                s1.mouse_down         = true;
-                s1.mouse_pointed_view = view.id();
-              }
+      hit_views(ctx.mouse.position,
+                ViewHitAttributes::Clickable | ViewHitAttributes::Draggable)
+          .match(
+              [&](u32 i) {
+                View & view = *views[i];
 
-              focused = FocusInfo{.view       = view.id(),
-                                  .focus_idx  = view.inner.focus_idx,
-                                  .text_input = is_text_input[i],
-                                  .tab_input  = is_tab_input[i],
-                                  .esc_input  = is_esc_input[i]};
-              cursor  = view.cursor(view.inner.region, transforms[i][0][0],
-                                    ctx.mouse.position);
-              break;
-            }
-          }
-        }
-      }
-      // mouse press events
-      else if ((ctx.mouse.downs != MouseButtons::None ||
-                ctx.mouse.ups != MouseButtons::None) &&
-               !s0.mouse_dragging)
-      {
-        for (u32 z_i = n; z_i != 0;)
-        {
-          z_i--;
-          u32 i = z_ordering[z_i];
-          if (!is_hidden[i])
-          {
-            View & view = *views[i];
-            if (is_clickable[i] &&
-                view.hit(view.inner.region, transforms[i][0][0],
-                         ctx.mouse.position)) [[unlikely]]
-            {
-              s1.mouse_down         = ctx.mouse.downs != MouseButtons::None;
-              s1.mouse_up           = ctx.mouse.ups != MouseButtons::None;
-              s1.mouse_pointed_view = view.id();
+                f1.pointed = Some{view.id()};
 
-              focused = FocusInfo{.view       = view.id(),
-                                  .focus_idx  = view.inner.focus_idx,
-                                  .text_input = is_text_input[i],
-                                  .tab_input  = is_tab_input[i],
-                                  .esc_input  = is_esc_input[i]};
-              cursor  = view.cursor(view.inner.region, transforms[i][0][0],
-                                    ctx.mouse.position);
-              break;
-            }
-          }
-        }
-      }
-      // mouse dragging update event
-      else if (ctx.mouse.moved && s0.mouse_dragging)
-      {
-        s1.drag_source_view = s0.drag_source_view;
-        s1.mouse_dragging   = true;
-        for (u32 z_i = n; z_i != 0;)
-        {
-          z_i--;
-          u32 i = z_ordering[z_i];
-          if (!is_hidden[i])
-          {
-            View & view = *views[i];
-            if (is_droppable[i] &&
-                view.hit(view.inner.region, transforms[i][0][0],
-                         ctx.mouse.position)) [[unlikely]]
-            {
-              s1.drag_target_view = view.id();
+                if (ctx.mouse_down(MouseButton::Primary) && is_draggable[i])
+                {
+                  f1.dragging   = true;
+                  f1.drag_src   = Some{view.id()};
+                  f1.drag_start = true;
+                }
 
-              focused = FocusInfo{.view       = view.id(),
-                                  .focus_idx  = view.inner.focus_idx,
-                                  .text_input = is_text_input[i],
-                                  .tab_input  = is_tab_input[i],
-                                  .esc_input  = is_esc_input[i]};
-              cursor  = view.cursor(view.inner.region, transforms[i][0][0],
-                                    ctx.mouse.position);
-              break;
-            }
-          }
-        }
-      }
-      // mouse drop event
-      else if (has_bits(ctx.mouse.ups, MouseButtons::Primary) &&
-               s0.mouse_dragging)
-      {
-        s1.drag_source_view = s1.drag_source_view;
-        s1.mouse_drag_drop  = true;
-        s1.mouse_dragging   = true;
-        for (u32 z_i = n; z_i != 0;)
-        {
-          z_i--;
-          u32 i = z_ordering[z_i];
-          if (!is_hidden[i])
-          {
-            View & view = *views[i];
-            if (is_droppable[i] &&
-                view.hit(view.inner.region, transforms[i][0][0],
-                         ctx.mouse.position)) [[unlikely]]
-            {
-              s1.drag_target_view = view.id();
+                f1.cursor = view.cursor(view.inner.region, view.inner.zoom,
+                                        ctx.mouse.position);
 
-              focused = FocusInfo{.view       = view.id(),
-                                  .focus_idx  = view.inner.focus_idx,
-                                  .text_input = is_text_input[i],
-                                  .tab_input  = is_tab_input[i],
-                                  .esc_input  = is_esc_input[i]};
-              cursor  = view.cursor(view.inner.region, transforms[i][0][0],
-                                    ctx.mouse.position);
-              break;
-            }
-          }
-        }
-      }
-      // mouse scroll event
-      else if (ctx.mouse.wheel_scrolled)
-      {
-        for (u32 z_i = n; z_i != 0;)
-        {
-          z_i--;
-          u32 i = z_ordering[z_i];
-          if (!is_hidden[i])
-          {
+                f1.focus = Some{
+                    Focus{.active     = false,
+                          .view       = view.id(),
+                          .focus_idx  = view.inner.focus_idx,
+                          .text_input = is_text_input[i],
+                          .tab_input  = is_tab_input[i],
+                          .esc_input  = is_esc_input[i]}
+                };
+              },
+              [&]() { f1.focus = None; });
+    }
+    // mouse drop event
+    else if ((f0.dragging && ctx.mouse_up(MouseButton::Primary)) || ctx.dropped)
+    {
+      f1.drag_src = f0.drag_src;
+      f1.dropped  = true;
+      f1.dragging = false;
+
+      hit_views(ctx.mouse.position, ViewHitAttributes::Droppable)
+          .match([&](u32 i) {
             View & view = *views[i];
-            if (is_scrollable[i] &&
-                view.hit(view.inner.region, transforms[i][0][0],
-                         ctx.mouse.position)) [[unlikely]]
-            {
-              s1.mouse_scrolling_view = view.id();
-              s1.mouse_scrolled       = true;
-              cursor = view.cursor(view.inner.region, transforms[i][0][0],
-                                   ctx.mouse.position);
-              break;
-            }
-          }
-        }
-      }
-      // pointing event
-      else if (!s0.mouse_dragging)
-      {
-        for (u32 z_i = n; z_i != 0;)
-        {
-          z_i--;
-          u32 i = z_ordering[z_i];
-          if (!is_hidden[i])
-          {
+            f1.pointed  = Some{view.id()};
+            f1.cursor   = view.cursor(view.inner.region, view.inner.zoom,
+                                      ctx.mouse.position);
+          });
+    }
+    // mouse dragging update event
+    else if (f0.dragging || ctx.drop_hovering)
+    {
+      f1.drag_src = f0.drag_src;
+      f1.dragging = true;
+
+      hit_views(ctx.mouse.position, ViewHitAttributes::Droppable)
+          .match([&](u32 i) {
             View & view = *views[i];
-            if (is_pointable[i] &&
-                view.hit(view.inner.region, transforms[i][0][0],
-                         ctx.mouse.position)) [[unlikely]]
-            {
-              s1.mouse_pointed_view = view.id();
-              cursor = view.cursor(view.inner.region, transforms[i][0][0],
-                                   ctx.mouse.position);
-              break;
-            }
-          }
-        }
-      }
+            f1.pointed  = Some{view.id()};
+            f1.cursor   = view.cursor(view.inner.region, view.inner.zoom,
+                                      ctx.mouse.position);
+          });
+    }
+    // mouse release event
+    else if (f1.mouse_up)
+    {
+      hit_views(ctx.mouse.position, ViewHitAttributes::Clickable)
+          .match([&](u32 i) {
+            View & view = *views[i];
+            f1.pointed  = Some{view.id()};
+            f1.cursor   = view.cursor(view.inner.region, view.inner.zoom,
+                                      ctx.mouse.position);
+          });
+    }
+    // mouse scroll event
+    else if (ctx.mouse.wheel_scrolled)
+    {
+      hit_views(ctx.mouse.position, ViewHitAttributes::Scrollable)
+          .match([&](u32 i) {
+            View & view = *views[i];
+            f1.pointed  = Some{view.id()};
+            f1.cursor   = view.cursor(view.inner.region, view.inner.zoom,
+                                      ctx.mouse.position);
+          });
+    }
+    // mouse pointing event
+    else
+    {
+      hit_views(ctx.mouse.position, ViewHitAttributes::Pointable |
+                                        ViewHitAttributes::Clickable |
+                                        ViewHitAttributes::Draggable |
+                                        ViewHitAttributes::Scrollable)
+          .match([&](u32 i) {
+            View & view = *views[i];
+            f1.pointed  = Some{view.id()};
+            f1.cursor   = view.cursor(view.inner.region, view.inner.zoom,
+                                      ctx.mouse.position);
+          });
     }
 
+    // determine focus navigation direction
     FocusAction focus_action = FocusAction::None;
 
-    if (!focused.tab_input && ctx.key_state(KeyCode::Tab))
+    // navigate focus request
+    if (tab_input)
     {
-      focus_action =
-          (ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) ?
-              FocusAction::Backward :
-              FocusAction::Forward;
-      focusing = true;
+      if (!(f1.focus.is_some() && f1.focus.value().tab_input))
+      {
+        if (ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift))
+        {
+          focus_action = FocusAction::Backward;
+        }
+        else
+        {
+          focus_action = FocusAction::Forward;
+        }
+      }
     }
 
-    if (!focused.esc_input && ctx.key_state(KeyCode::Escape))
+    // clear focus request
+    if (esc_input)
     {
-      focusing = false;
-    }
-
-    //
-    // [ ] grab focus would need to scroll down to widget; would need
-    // virtual scrolling support. offset based?
-    //
-
-    if (!focus_request.is_empty() && !focusing)
-    {
-      focused  = focus_request;
-      focusing = true;
+      if (!(f1.focus.is_some() && f1.focus.value().esc_input))
+      {
+        f1.focus = None;
+      }
     }
 
     switch (focus_action)
     {
       case FocusAction::Forward:
-      {
-        u32 start = 0;
-
-        // if none is focused, start from first focusable view
-        if (focused.focus_idx >= n)
-        {
-          start = 0;
-        }
-        else
-        {
-          // start searching from the next focus point
-          start = focused.focus_idx + 1;
-        }
-
-        // find next focusable view
-        for (u32 f_i = start; f_i < n; f_i++)
-        {
-          u32 i = focus_ordering[f_i];
-          if (!is_hidden[i] && is_focusable[i])
-          {
-            focused = FocusInfo{.view       = views[i]->id(),
-                                .focus_idx  = f_i,
-                                .text_input = is_text_input[i],
-                                .tab_input  = is_tab_input[i],
-                                .esc_input  = is_esc_input[i]};
-            break;
-          }
-        }
-      }
-      break;
-
       case FocusAction::Backward:
       {
-        u32 start = 0;
-
-        if (focused.focus_idx >= n)
+        u32 from = 0;
+        if (f1.focus.is_some())
         {
-          start = n;
+          from = f1.focus.value().focus_idx;
         }
         else
         {
-          // start searching from the previous focus point
-          start = focused.focus_idx;
+          from = 0;
         }
 
-        // find prev focusable view
-        for (u32 f_i = start; f_i != 0;)
-        {
-          f_i--;
-          u32 i = focus_ordering[f_i];
-          if (!is_hidden[i] && is_focusable[i])
-          {
-            focused = FocusInfo{.view       = views[i]->id(),
-                                .focus_idx  = f_i,
-                                .text_input = is_text_input[i],
-                                .tab_input  = is_tab_input[i],
-                                .esc_input  = is_esc_input[i]};
-            break;
-          }
-        }
+        f1.focus = navigate_focus(from, focus_action == FocusAction::Forward)
+                       .map([&](u32 focus_idx) {
+                         u32 const i = focus_ordering[focus_idx];
+                         return Focus{.active     = true,
+                                      .view       = views[i]->id(),
+                                      .focus_idx  = focus_idx,
+                                      .text_input = is_text_input[i],
+                                      .tab_input  = is_tab_input[i],
+                                      .esc_input  = is_esc_input[i]};
+                       });
       }
       break;
-
       default:
+      case FocusAction::None:
         break;
     }
 
-    s1.focused       = focused;
-    s1.focusing      = focusing;
-    s1.cursor        = cursor;
-    s1.keyboard_down = ctx.keyboard.down;
-    s1.keyboard_up   = ctx.keyboard.up;
-    focus_request    = {};
+    // [ ] call focus_view() once a new focus navigation has occured
   }
 
-  bool should_show_text_input() const
-  {
-    return state[1].focused.text_input;
-  }
+  // bool should_show_text_input() const
+  // {
+  //   return state[1].focus.text_input;
+  // }
 
   void tick(ViewContext const & ctx, View & root, Canvas & canvas)
   {
@@ -881,7 +941,7 @@ struct ViewSystem
     is_fixed_positioned.resize_uninit(n).unwrap();
     fixed_positions.resize_uninit(n).unwrap();
     z_indices.resize_uninit(n).unwrap();
-    stacking_contexts.resize_uninit(n).unwrap();
+    layers.resize_uninit(n).unwrap();
     transforms.resize_uninit(n).unwrap();
     clips.resize_uninit(n).unwrap();
     z_ordering.resize_uninit(n).unwrap();

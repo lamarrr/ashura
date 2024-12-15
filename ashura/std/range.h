@@ -364,10 +364,6 @@ constexpr bool ends_with(Span<T> body, Span<U> foot, Cmp && cmp = {})
   return true;
 }
 
-/// size is 0 if not found, size is 1 if found
-//
-// [ ] use range slicing? not all ranges are equal
-//
 template <typename T, typename U, typename Cmp = Eq>
 constexpr Span<T> find(Span<T> span, U && value, Cmp && cmp = {})
 {
@@ -611,9 +607,9 @@ constexpr void indirect_stable_sort(Span<I> indices, Cmp && cmp = {})
 }
 
 template <typename T, typename Cmp = Less>
-constexpr bool is_sorted(Span<T> indices, Cmp && cmp = {})
+constexpr bool is_sorted(Span<T> values, Cmp && cmp = {})
 {
-  return std::is_sorted(indices.pbegin(), indices.pend(),
+  return std::is_sorted(values.pbegin(), values.pend(),
                         static_cast<Cmp &&>(cmp));
 }
 
@@ -649,13 +645,12 @@ constexpr Tuple<Span<T>, Span<T>> partition(Span<T>      range,
 }
 
 template <Range R, typename T>
-void iota(R && range, T && first)
+constexpr void iota(R && range, T && first)
 {
-  // [ ] use range methods
   for (auto & value : range)
   {
     value = first++;
-  };
+  }
 }
 
 template <typename T, typename I, typename O, typename Op = Add>
@@ -668,8 +663,8 @@ constexpr T inclusive_scan(Span<I const> in, Span<O> out, T init = {},
 
   while (in_iter != in_end)
   {
-    *out_iter = static_cast<T &&>(init);
-    init      = op(*out_iter, *in_iter);
+    *out_iter = op(static_cast<T &&>(init), *in_iter);
+    init      = *out_iter;
     ++in_iter;
     ++out_iter;
   }
@@ -687,8 +682,8 @@ constexpr T exclusive_scan(Span<I const> in, Span<O> out, T init = {},
 
   while (in_iter != in_end)
   {
-    *out_iter = op(static_cast<T &&>(init), *in_iter);
-    init      = *out_iter;
+    *out_iter = static_cast<T &&>(init);
+    init      = op(*out_iter, *in_iter);
     ++in_iter;
     ++out_iter;
   }
@@ -786,54 +781,44 @@ constexpr auto suffix_run(I start, Span<Index const> runs, Span<T>... data)
                                .data_{data.pbegin()...}};
 }
 
-/// @brief search for first element less than or equal to value
-template <typename T, typename U, typename Cmp = Less>
-constexpr Span<T> lower_bound(Span<T> span, U && value, Cmp && cmp = {})
+/// @brief given an ordered range, find first value in the range that satisfies `cmp(x)`.
+/// @warning each element in the range must be ordered relative to `cmp` or be equal.
+template <typename T, typename Cmp>
+constexpr Span<T> binary_find(Span<T> span, Cmp && cmp)
 {
-  usize size = span.size();
   T *   iter = span.pbegin();
+  usize size = span.size();
 
-  while (size != 0)
+  while (size > 1)
   {
-    usize const half_size = size >> 1;
+    usize const h0_size = size >> 1;
+    T * const   h0_last = iter + h0_size - 1;
 
-    if (cmp(iter[half_size], value))
+    if (cmp(*h0_last))
     {
-      size = half_size;
+      size = h0_size;
     }
     else
     {
-      size -= half_size + 1;
-      iter += half_size;
+      iter += h0_size;
+      size -= h0_size;
     }
   }
 
-  return Span<T>{iter, span.pend()};
+  if (size != 0 && cmp(*iter))
+  {
+    return Span<T>{iter, span.pend()};
+  }
+
+  return Span<T>{span.pend(), (usize) 0};
 }
 
-/// @brief search for first element greater than value
-template <typename T, typename U, typename Cmp = Less>
-constexpr Span<T> upper_bound(Span<T> span, U && value, Cmp && cmp = {})
+template <typename T, typename Cmp, typename U>
+constexpr Span<T> binary_find(Span<T> span, Cmp && cmp, U && value)
 {
-  usize size = span.size();
-  T *   iter = span.pbegin();
-
-  while (size != 0)
-  {
-    usize const half_size = size >> 1;
-
-    if (cmp(value, iter[half_size]))
-    {
-      size -= half_size + 1;
-      iter += half_size;
-    }
-    else
-    {
-      size = half_size;
-    }
-  }
-
-  return Span<T>{iter, span.pend()};
+  return binary_find<T>(span, [value_ = static_cast<U &&>(value),
+                               cmp_   = static_cast<Cmp &&>(cmp)](
+                                  auto const & a) { return cmp_(a, value_); });
 }
 
 /// @param window_advance_ must be non-zero
@@ -885,7 +870,8 @@ struct WindowRange
 };
 
 template <typename T>
-constexpr WindowRange<T> window(Span<T> span, usize window_size, usize advance)
+constexpr WindowRange<T> window(Span<T> span, usize window_size,
+                                usize advance = 1)
 {
   if (window_size > span.size()) [[unlikely]]
   {
@@ -896,12 +882,6 @@ constexpr WindowRange<T> window(Span<T> span, usize window_size, usize advance)
                         .end_            = span.pend(),
                         .window_size_    = window_size,
                         .window_advance_ = advance};
-}
-
-template <typename T>
-constexpr WindowRange<T> window(Span<T> span, usize window_size)
-{
-  return window<T>(span, window_size, window_size);
 }
 
 }        // namespace  ash

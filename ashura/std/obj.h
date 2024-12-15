@@ -116,7 +116,7 @@ constexpr void relocate(Span<T> src, Span<T> dst)
 ///
 /// @note src_mem and dst_mem must not be same nor overlapping.
 template <NonConst T>
-constexpr void relocate_non_overlapping(Span<T> src, T * dst)
+constexpr void relocate_nonoverlapping(Span<T> src, T * dst)
 {
   if constexpr (TriviallyRelocatable<T>)
   {
@@ -130,9 +130,9 @@ constexpr void relocate_non_overlapping(Span<T> src, T * dst)
 }
 
 template <NonConst T>
-constexpr void relocate_non_overlapping(Span<T> src, Span<T> dst)
+constexpr void relocate_nonoverlapping(Span<T> src, Span<T> dst)
 {
-  relocate_non_overlapping(src, dst.data());
+  relocate_nonoverlapping(src, dst.data());
 }
 
 }        // namespace obj
