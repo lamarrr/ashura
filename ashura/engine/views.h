@@ -5,7 +5,6 @@
 #include "ashura/engine/render_text.h"
 #include "ashura/engine/text_compositor.h"
 #include "ashura/engine/view.h"
-#include "ashura/std/dyn.h"
 #include "ashura/std/text.h"
 #include "ashura/std/types.h"
 
@@ -47,6 +46,7 @@ struct PressState
   bool       out     = false;
   bool       hovered = false;
   bool       down    = false;
+  bool       up      = false;
   bool       held    = false;
   FocusState focus   = {};
 
@@ -73,11 +73,11 @@ struct PressState
       held = false;
     }
 
-    down = (events.mouse_down && ctx.mouse_down(MouseButtons::Primary)) ||
+    down = (events.mouse_down && ctx.mouse_down(MouseButton::Primary)) ||
            (events.key_down && ctx.key_down(KeyCode::Return));
 
-    bool up = (events.mouse_up && ctx.mouse_up(MouseButtons::Primary)) ||
-              (events.key_up && ctx.key_up(KeyCode::Return));
+    up = (events.mouse_up && ctx.mouse_up(MouseButton::Primary)) ||
+         (events.key_up && ctx.key_up(KeyCode::Return));
 
     if (down)
     {
@@ -197,8 +197,8 @@ struct FlexView : View
     return *this;
   }
 
-  virtual ViewState tick(ViewContext const &, CRect const &, f32, ViewEvents,
-                         Fn<void(View &)> build) override
+  virtual ViewState tick(ViewContext const &, CRect const &, f32,
+                         ViewEvents const &, Fn<void(View &)> build) override
   {
     for (View * item : inner.items)
     {
@@ -410,8 +410,8 @@ struct StackView : View
     return z;
   }
 
-  virtual ViewState tick(ViewContext const &, CRect const &, f32, ViewEvents,
-                         Fn<void(View &)> build) override
+  virtual ViewState tick(ViewContext const &, CRect const &, f32,
+                         ViewEvents const &, Fn<void(View &)> build) override
   {
     for (View * item : inner.items)
     {
@@ -534,7 +534,8 @@ struct TextView : View
   }
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents events, Fn<void(View &)>) override
+                         f32 zoom, ViewEvents const & events,
+                         Fn<void(View &)>) override
   {
     TextCommand cmd = TextCommand::None;
     if (events.drag_start)
@@ -829,7 +830,7 @@ struct TextInput : View
       return TextCommand::Redo;
     }
     if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-        ctx.key_state(KeyCode::Left) && ctx.mouse_state(MouseButtons::Primary))
+        ctx.key_state(KeyCode::Left) && ctx.mouse_state(MouseButton::Primary))
     {
       return TextCommand::HitSelect;
     }
@@ -846,7 +847,8 @@ struct TextInput : View
   }
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents events, Fn<void(View &)>) override
+                         f32 zoom, ViewEvents const & events,
+                         Fn<void(View &)>) override
   {
     bool edited = false;
     auto erase  = [this, &edited](Slice32 styling) {
@@ -897,7 +899,7 @@ struct TextInput : View
 
     Vec<c32> text_input_utf32{default_allocator};
 
-    utf8_decode(ctx.text_input, text_input_utf32).unwrap();
+    utf8_decode(ctx.text, text_input_utf32).unwrap();
 
     inner.compositor.command(
         inner.content.inner.text, inner.content.inner.layout, region.extent.x,
@@ -1019,7 +1021,7 @@ struct Button : View
   } cb;
 
   virtual ViewState tick(ViewContext const & ctx, CRect const &, f32,
-                         ViewEvents          events, Fn<void(View &)>) override
+                         ViewEvents const &  events, Fn<void(View &)>) override
   {
     state.press.tick(ctx, events);
 
@@ -1179,7 +1181,7 @@ struct TextButton : Button
   }
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents events,
+                         f32 zoom, ViewEvents const & events,
                          Fn<void(View &)> build) override
   {
     ViewState state = Button::tick(ctx, region, zoom, events, build);
@@ -1282,7 +1284,7 @@ struct CheckBox : View
   }
 
   virtual ViewState tick(ViewContext const & ctx, CRect const &, f32,
-                         ViewEvents          events, Fn<void(View &)>) override
+                         ViewEvents const &  events, Fn<void(View &)>) override
   {
     state.press.tick(ctx, events);
 
@@ -1472,7 +1474,7 @@ struct Slider : View
   }
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region, f32,
-                         ViewEvents events, Fn<void(View &)>) override
+                         ViewEvents const & events, Fn<void(View &)>) override
   {
     u8 const main_axis = (styling.axis == Axis::X) ? 0 : 1;
 
@@ -1693,7 +1695,7 @@ struct Switch : View
   }
 
   virtual ViewState tick(ViewContext const & ctx, CRect const &, f32,
-                         ViewEvents          events, Fn<void(View &)>) override
+                         ViewEvents const &  events, Fn<void(View &)>) override
   {
     state.press.tick(ctx, events);
 
@@ -1827,7 +1829,7 @@ struct RadioBox : View
   }
 
   virtual ViewState tick(ViewContext const & ctx, CRect const &, f32,
-                         ViewEvents          events, Fn<void(View &)>) override
+                         ViewEvents const &  events, Fn<void(View &)>) override
   {
     state.press.tick(ctx, events);
 
@@ -2058,7 +2060,8 @@ struct ScalarDragBox : View
   static void scalar_parse(Span<c32 const> text, ScalarState & styling);
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region, f32,
-                         ViewEvents events, Fn<void(View &)> build) override
+                         ViewEvents const & events,
+                         Fn<void(View &)>   build) override
   {
     state.dragging = events.dragging;
 
@@ -2164,6 +2167,7 @@ struct ScalarDragBox : View
   }
 };
 
+// [ ] infinite per-pixel drag
 struct ScalarBox : FlexView
 {
   struct Callbacks
@@ -2312,8 +2316,8 @@ struct ScalarBox : FlexView
     return *this;
   }
 
-  virtual ViewState tick(ViewContext const &, CRect const &, f32, ViewEvents,
-                         Fn<void(View &)> build) override
+  virtual ViewState tick(ViewContext const &, CRect const &, f32,
+                         ViewEvents const &, Fn<void(View &)> build) override
   {
     build(inner.dec);
     build(inner.drag);
@@ -2352,7 +2356,7 @@ struct ScrollBar : View
   } cb;
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region, f32,
-                         ViewEvents events, Fn<void(View &)>) override
+                         ViewEvents const & events, Fn<void(View &)>) override
   {
     u8 const main_axis = (styling.axis == Axis::X) ? 0 : 1;
 
@@ -2473,7 +2477,8 @@ struct ScrollViewFrame : View
   } inner;
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region, f32,
-                         ViewEvents events, Fn<void(View &)> build) override
+                         ViewEvents const & events,
+                         Fn<void(View &)>   build) override
   {
     if (inner.child)
     {
@@ -2641,8 +2646,8 @@ struct ScrollView : View
     return *this;
   }
 
-  virtual ViewState tick(ViewContext const &, CRect const &, f32, ViewEvents,
-                         Fn<void(View &)> build) override
+  virtual ViewState tick(ViewContext const &, CRect const &, f32,
+                         ViewEvents const &, Fn<void(View &)> build) override
   {
     inner.view_frame.state.t = {inner.x_bar.state.t, inner.y_bar.state.t};
     build(inner.view_frame);
@@ -2723,7 +2728,8 @@ struct ComboBoxItem : View
   } inner;
 
   virtual ViewState tick(ViewContext const & ctx, CRect const &, f32,
-                         ViewEvents events, Fn<void(View &)> build) override
+                         ViewEvents const &  events,
+                         Fn<void(View &)>    build) override
   {
     state.press.tick(ctx, events);
 
@@ -2791,7 +2797,7 @@ struct TextComboBoxItem : ComboBoxItem
   }
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents events,
+                         f32 zoom, ViewEvents const & events,
                          Fn<void(View &)> build) override
   {
     build(inner.text);
@@ -2825,7 +2831,8 @@ struct ComboBoxScrollView : View
   } inner;
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region, f32,
-                         ViewEvents events, Fn<void(View &)> build) override
+                         ViewEvents const & events,
+                         Fn<void(View &)>   build) override
   {
     for (ComboBoxItem * item : inner.items)
     {
@@ -3040,7 +3047,8 @@ struct ComboBox : View
   }
 
   virtual ViewState tick(ViewContext const & ctx, CRect const &, f32,
-                         ViewEvents events, Fn<void(View &)> build) override
+                         ViewEvents const &  events,
+                         Fn<void(View &)>    build) override
   {
     state.press.tick(ctx, events);
 
@@ -3049,7 +3057,7 @@ struct ComboBox : View
       toggle();
     }
 
-    if (is_opened() && ctx.mouse_down(MouseButtons::All) &&
+    if (is_opened() && ctx.mouse_down(MouseButton::Primary) &&
         !contains(inner.scroll_view.View::inner.region, ctx.mouse.position))
     {
       close();
