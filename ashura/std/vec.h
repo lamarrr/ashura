@@ -234,7 +234,7 @@ struct [[nodiscard]] Vec
         return Err{};
       }
 
-      obj::relocate_non_overlapping(Span{data(), size_}, new_storage);
+      obj::relocate_nonoverlapping(Span{data(), size_}, new_storage);
       allocator_.ndealloc(storage_, capacity_);
       storage_ = new_storage;
     }
@@ -265,7 +265,7 @@ struct [[nodiscard]] Vec
         return Err{};
       }
 
-      obj::relocate_non_overlapping(Span{data(), size_}, new_storage);
+      obj::relocate_nonoverlapping(Span{data(), size_}, new_storage);
       allocator_.ndealloc(storage_, capacity_);
       storage_ = new_storage;
     }
@@ -996,14 +996,14 @@ struct [[nodiscard]] BitVec
     return get(index);
   }
 
-  constexpr bool set_bit(usize index) const
+  constexpr void set_bit(usize index) const
   {
-    return ash::set_bit(repr_.view(), index);
+    ash::set_bit(repr_.view(), index);
   }
 
-  constexpr bool clear_bit(usize index) const
+  constexpr void clear_bit(usize index) const
   {
-    return ash::clear_bit(repr_.view(), index);
+    ash::clear_bit(repr_.view(), index);
   }
 
   constexpr void flip_bit(usize index) const
@@ -1175,8 +1175,6 @@ struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
     copy_construct(Span{other.data(), other.size_}, data());
   }
 
-  // [ ] copy and move construct and assign from other types
-
   constexpr InplaceVec & operator=(InplaceVec const & other)
   {
     if (this == &other) [[unlikely]]
@@ -1190,7 +1188,7 @@ struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
 
   constexpr InplaceVec(InplaceVec && other) : size_{other.size_}
   {
-    obj::relocate_non_overlapping(Span{other.data(), other.size_}, data());
+    obj::relocate_nonoverlapping(Span{other.data(), other.size_}, data());
     other.size_ = 0;
   }
 

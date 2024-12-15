@@ -481,7 +481,7 @@ struct [[nodiscard]] Map
       Entry *    insert_probe      = probes_ + insert_idx;
       Distance * insert_probe_dist = probe_dists_ + insert_idx;
 
-      obj::relocate_non_overlapping(Span{probe, 1}, insert_probe);
+      obj::relocate_nonoverlapping(Span{probe, 1}, insert_probe);
 
       *insert_probe_dist = *probe_dist - 1;
       *probe_dist        = PROBE_SENTINEL;
