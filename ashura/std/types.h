@@ -734,7 +734,7 @@ constexpr E enum_not(E a)
   return static_cast<E>(enum_uv_not(a));
 }
 
-#define ASH_DEFINE_ENUM_BIT_OPS(E)     \
+#define ASH_BIT_ENUM_OPS(E)            \
   constexpr E operator|(E a, E b)      \
   {                                    \
     return ::ash::enum_or(a, b);       \

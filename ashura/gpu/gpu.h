@@ -121,7 +121,7 @@ enum class MemoryProperties : u8
   LazilyAllocated = 0x10
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(MemoryProperties)
+ASH_BIT_ENUM_OPS(MemoryProperties)
 
 enum class PresentMode : u8
 {
@@ -377,7 +377,7 @@ enum class FormatFeatures : u32
   SampledImageFilterLinear = 0x1000U
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(FormatFeatures)
+ASH_BIT_ENUM_OPS(FormatFeatures)
 
 enum class ImageAspects : u8
 {
@@ -387,7 +387,7 @@ enum class ImageAspects : u8
   Stencil = 0x04U
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(ImageAspects)
+ASH_BIT_ENUM_OPS(ImageAspects)
 
 enum class SampleCount : u8
 {
@@ -401,7 +401,7 @@ enum class SampleCount : u8
   Count64 = 0x40U
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(SampleCount)
+ASH_BIT_ENUM_OPS(SampleCount)
 
 enum class LoadOp : u8
 {
@@ -556,7 +556,7 @@ enum class ColorComponents : u8
   All  = R | G | B | A
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(ColorComponents)
+ASH_BIT_ENUM_OPS(ColorComponents)
 
 enum class BufferUsage : u32
 {
@@ -572,7 +572,7 @@ enum class BufferUsage : u32
   IndirectBuffer     = 0x0100U
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(BufferUsage)
+ASH_BIT_ENUM_OPS(BufferUsage)
 
 enum class ImageUsage : u32
 {
@@ -586,7 +586,7 @@ enum class ImageUsage : u32
   InputAttachment        = 0x80U
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(ImageUsage)
+ASH_BIT_ENUM_OPS(ImageUsage)
 
 enum class InputRate : u8
 {
@@ -604,7 +604,7 @@ enum class ShaderStages : u8
   All         = Vertex | Fragment | Compute | AllGraphics
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(ShaderStages)
+ASH_BIT_ENUM_OPS(ShaderStages)
 
 enum class BorderColor : u8
 {
@@ -681,7 +681,7 @@ enum class CompositeAlpha : u32
   Inherit        = 0x08U
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
+ASH_BIT_ENUM_OPS(CompositeAlpha)
 
 enum class ResolveModes : u32
 {
@@ -692,7 +692,7 @@ enum class ResolveModes : u32
   Max        = 0x08
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(ResolveModes)
+ASH_BIT_ENUM_OPS(ResolveModes)
 
 struct Object
 {

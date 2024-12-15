@@ -26,7 +26,7 @@ enum class LogLevels : u8
   Fatal   = 0x20
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(LogLevels)
+ASH_BIT_ENUM_OPS(LogLevels)
 
 struct LogSink
 {

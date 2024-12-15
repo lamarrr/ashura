@@ -46,7 +46,7 @@ enum class KeyModifiers : u32
   All        = 0xFFFF
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(KeyModifiers)
+ASH_BIT_ENUM_OPS(KeyModifiers)
 
 /// Scan Codes vs Key Codes:
 /// https://learn.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input?redirectedfrom=MSDN#_win32_Keyboard_Input_Model

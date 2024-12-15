@@ -8,6 +8,7 @@ namespace ash
 
 namespace colors
 {
+inline constexpr Vec4U8 NONE    = Vec4U8{0x00, 0x00, 0x00, 0x00};
 inline constexpr Vec4U8 WHITE   = Vec4U8{0xFF, 0xFF, 0xFF, 0xFF};
 inline constexpr Vec4U8 BLACK   = Vec4U8{0x00, 0x00, 0x00, 0xFF};
 inline constexpr Vec4U8 RED     = Vec4U8{0xFF, 0x00, 0x00, 0xFF};
