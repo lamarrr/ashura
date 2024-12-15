@@ -364,10 +364,6 @@ constexpr bool ends_with(Span<T> body, Span<U> foot, Cmp && cmp = {})
   return true;
 }
 
-/// size is 0 if not found, size is 1 if found
-//
-// [ ] use range slicing? not all ranges are equal
-//
 template <typename T, typename U, typename Cmp = Eq>
 constexpr Span<T> find(Span<T> span, U && value, Cmp && cmp = {})
 {
@@ -611,9 +607,9 @@ constexpr void indirect_stable_sort(Span<I> indices, Cmp && cmp = {})
 }
 
 template <typename T, typename Cmp = Less>
-constexpr bool is_sorted(Span<T> indices, Cmp && cmp = {})
+constexpr bool is_sorted(Span<T> values, Cmp && cmp = {})
 {
-  return std::is_sorted(indices.pbegin(), indices.pend(),
+  return std::is_sorted(values.pbegin(), values.pend(),
                         static_cast<Cmp &&>(cmp));
 }
 
@@ -649,13 +645,12 @@ constexpr Tuple<Span<T>, Span<T>> partition(Span<T>      range,
 }
 
 template <Range R, typename T>
-void iota(R && range, T && first)
+constexpr void iota(R && range, T && first)
 {
-  // [ ] use range methods
   for (auto & value : range)
   {
     value = first++;
-  };
+  }
 }
 
 template <typename T, typename I, typename O, typename Op = Add>
