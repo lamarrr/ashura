@@ -663,8 +663,8 @@ constexpr T inclusive_scan(Span<I const> in, Span<O> out, T init = {},
 
   while (in_iter != in_end)
   {
-    *out_iter = static_cast<T &&>(init);
-    init      = op(*out_iter, *in_iter);
+    *out_iter = op(static_cast<T &&>(init), *in_iter);
+    init      = *out_iter;
     ++in_iter;
     ++out_iter;
   }
@@ -682,8 +682,8 @@ constexpr T exclusive_scan(Span<I const> in, Span<O> out, T init = {},
 
   while (in_iter != in_end)
   {
-    *out_iter = op(static_cast<T &&>(init), *in_iter);
-    init      = *out_iter;
+    *out_iter = static_cast<T &&>(init);
+    init      = op(*out_iter, *in_iter);
     ++in_iter;
     ++out_iter;
   }
