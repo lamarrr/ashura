@@ -302,21 +302,20 @@ void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout)
 
   fill(segments, TextSegment{});
 
-  // [ ] verify REE
-  // [ ] construct segments
+  CHECK_DESC(!block.runs.is_empty(), "No run styling provided for text");
+  CHECK_DESC(block.runs.last() >= text_size,
+             "Text runs need to span the entire text");
 
   {
-    u32 prev_run_end = 0;
+    u32 run_start = 0;
     for (u32 irun = 0; irun < block.runs.size32(); irun++)
     {
       u32 const run_end = min(block.runs[irun], text_size);
-      CHECK(prev_run_end <= block.text.size());
-      CHECK(prev_run_end <= run_end);
-      for (u32 i = prev_run_end; i < run_end; i++)
+      for (u32 i = run_start; i < run_end; i++)
       {
         segments[i].style = irun;
       }
-      prev_run_end = run_end;
+      run_start = run_end;
     }
   }
 
