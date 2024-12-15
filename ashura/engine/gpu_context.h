@@ -202,8 +202,9 @@ struct GpuContext
   GpuContext(GpuContext &&)                  = default;
   GpuContext & operator=(GpuContext const &) = delete;
   GpuContext & operator=(GpuContext &&)      = default;
+  ~GpuContext()                              = default;
 
-  ~GpuContext()
+  void uninit()
   {
     release(default_image);
     for (gpu::ImageView v : default_image_views)
