@@ -48,7 +48,7 @@ struct Lambda<R(Args...), Alignment, Capacity>
 
     if (dst_mem == nullptr) [[unlikely]]
     {
-      src->~T();
+      obj::destruct(Span{src, 1});
     }
     else
     {
