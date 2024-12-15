@@ -167,6 +167,7 @@ ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 
 }        // namespace mem
 
+/// @brief copy non-null-terminated string `str` to `c_str` and null-terminate `c_str`.
 [[nodiscard]] inline bool to_c_str(Span<char const> str, Span<char> c_str)
 {
   if ((str.size() + 1) > c_str.size()) [[unlikely]]
