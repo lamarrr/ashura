@@ -302,8 +302,8 @@ struct [[nodiscard]] Option
                    "Expected None in Option but got Value = ", value_);
   }
 
-  template <typename SomeFn, typename NoneFn>
-  constexpr decltype(auto) match(SomeFn && some_fn, NoneFn && none_fn)
+  template <typename SomeFn, typename NoneFn = Noop>
+  constexpr decltype(auto) match(SomeFn && some_fn, NoneFn && none_fn = {})
   {
     if (is_some_)
     {
@@ -312,8 +312,9 @@ struct [[nodiscard]] Option
     return none_fn();
   }
 
-  template <typename SomeFn, typename NoneFn>
-  constexpr decltype(auto) match(SomeFn && some_fn, NoneFn && none_fn) const
+  template <typename SomeFn, typename NoneFn = Noop>
+  constexpr decltype(auto) match(SomeFn && some_fn,
+                                 NoneFn && none_fn = {}) const
   {
     if (is_some_)
     {
