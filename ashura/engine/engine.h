@@ -50,9 +50,6 @@ struct EngineCfg
 // [ ] Audio Device/Manager (FFMPEG, SDL)
 // [ ] Video Manager (Vulkan, FFMPEG)
 // [ ] Custom Subsystems
-// [ ] UI tick rate (time-based/adaptive frame rate), with custom frequency
-// allowed, need to be able to merge inputs?
-//
 
 struct Engine
 {
@@ -121,7 +118,7 @@ struct Engine
 
   void recreate_swapchain_();
 
-  void run(View & view);
+  void run(View & view, Fn<void(time_point, nanoseconds)> loop = noop);
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded
