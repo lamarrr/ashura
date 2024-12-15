@@ -78,6 +78,13 @@ inline constexpr f64 F64_INF          = INFINITY;
 
 inline constexpr f32 PI = 3.14159265358979323846F;
 
+enum class Ordering : i8
+{
+  Less    = -1,
+  Equal   = 0,
+  Greater = 1,
+};
+
 struct Add
 {
   constexpr auto operator()(auto const & a, auto const & b) const
@@ -160,17 +167,17 @@ struct GEq
 
 struct Cmp
 {
-  constexpr i8 operator()(auto const & a, auto const & b) const
+  constexpr Ordering operator()(auto const & a, auto const & b) const
   {
     if (a == b)
     {
-      return 0;
+      return Ordering::Equal;
     }
     if (a > b)
     {
-      return -1;
+      return Ordering::Less;
     }
-    return 1;
+    return Ordering::Greater;
   }
 };
 
