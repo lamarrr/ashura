@@ -1143,7 +1143,7 @@ void repeat(F fn, u64 n, P poll = {}, TaskSchedule schedule = {})
 /// @param poll Poller functor that returns true when ready
 /// @param schedule How to schedule the shards
 template <typename State, Poll P = Ready>
-void shard(Fn<void(TaskInstance, State &)> fn, Rc<State *> const & state, u64 n,
+void shard(Fn<void(TaskInstance, State)> fn, Rc<State> const & state, u64 n,
            P poll = {}, TaskSchedule schedule = {})
 {
   if (n == 0)
@@ -1164,7 +1164,7 @@ void shard(Fn<void(TaskInstance, State &)> fn, Rc<State *> const & state, u64 n,
         {
           scheduler->schedule(
               TaskBody{[fn, i, n, state = state.alias()]() mutable -> bool {
-                         fn(TaskInstance{.n = n, .idx = i}, *state.get());
+                         fn(TaskInstance{.n = n, .idx = i}, state.get());
                          return false;
                        },
                        Ready{}},

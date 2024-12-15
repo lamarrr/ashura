@@ -48,9 +48,9 @@ TEST(AsyncTest, Basic)
       async::AwaitFutures{fut.alias()});
   fut.complete(69);
 
-  async::shard<std::atomic<int>>(
-      [](async::TaskInstance shard, std::atomic<int> & count_ref) {
-        int count = count_ref.fetch_add(1);
+  async::shard<std::atomic<int> *>(
+      [](async::TaskInstance shard, std::atomic<int> * pcount) {
+        int count = pcount->fetch_add(1);
         logger->info("shard: ", shard.idx, " of ", shard.n,
                      ", sync i: ", count);
       },
