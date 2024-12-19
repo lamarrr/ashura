@@ -94,20 +94,19 @@ constexpr Easing bezier(f32 p0, f32 p1, f32 p2)
 constexpr Easing cubic_bezier(f32 p0, f32 p1, f32 p2, f32 p3)
 {
   return Easing{
-      [p0, p1, p2, p3](f32 t) { return ash::cubic_bezier(p0, p1, p2, p3, t); }};
+    [p0, p1, p2, p3](f32 t) { return ash::cubic_bezier(p0, p1, p2, p3, t); }};
 }
 
 constexpr Easing catmull_rom(f32 p0, f32 p1, f32 p2, f32 p3)
 {
   return Easing{
-      [p0, p1, p2, p3](f32 t) { return ash::catmull_rom(p0, p1, p2, p3, t); }};
+    [p0, p1, p2, p3](f32 t) { return ash::catmull_rom(p0, p1, p2, p3, t); }};
 }
 
 constexpr Easing elastic(f32 amplitude, f32 period)
 {
-  return Easing{[amplitude, period](f32 t) {
-    return ash::elastic(amplitude, period, t);
-  }};
+  return Easing{
+    [amplitude, period](f32 t) { return ash::elastic(amplitude, period, t); }};
 }
 
 constexpr Easing bounce(f32 strength)
@@ -122,7 +121,7 @@ constexpr Easing spring(f32 mass, f32 stiffness, f32 damping)
   }};
 }
 
-};        // namespace easing
+};    // namespace easing
 
 template <typename T>
 struct TimelineView
@@ -135,10 +134,10 @@ struct TimelineView
   constexpr TimelineView(Tweener<T> const &      tweener,
                          Span<nanoseconds const> timestamps,
                          Span<Easing const> easings, Span<T const> frames) :
-      tweener{&tweener},
-      timestamps{timestamps},
-      easings{easings},
-      frames{frames}
+    tweener{&tweener},
+    timestamps{timestamps},
+    easings{easings},
+    frames{frames}
   {
   }
 
@@ -405,7 +404,7 @@ struct AnimationState
     auto const timeline_end = timeline.duration() + 1ns;
 
     auto const time =
-        (timeline.duration() == 0ns) ? 0ns : (time_ % timeline_end);
+      (timeline.duration() == 0ns) ? 0ns : (time_ % timeline_end);
 
     auto const timestamps = timeline.timestamps;
 
@@ -509,9 +508,9 @@ struct GridStagger final : Stagger
 
   constexpr GridStagger(bool reverse_row = false, bool reverse_column = false,
                         f32 row_weight = 0.5F) :
-      reverse_row{reverse_row},
-      reverse_column{reverse_column},
-      row_weight{row_weight}
+    reverse_row{reverse_row},
+    reverse_column{reverse_column},
+    row_weight{row_weight}
   {
   }
 
@@ -636,10 +635,10 @@ struct StaggeredAnimation
 
   StaggeredAnimation(Vec<AnimationState> states, Super<Stagger> stagger,
                      u64 stagger_width, Tuple<Timeline<T>...> timelines) :
-      states_{std::move(states)},
-      stagger_{std::move(stagger)},
-      stagger_width_{stagger_width},
-      timelines_{std::move(timelines)}
+    states_{std::move(states)},
+    stagger_{std::move(stagger)},
+    stagger_width_{stagger_width},
+    timelines_{std::move(timelines)}
   {
   }
 
@@ -669,9 +668,9 @@ struct StaggeredAnimation
     for (auto [item, state] : enumerate<u64>(states_))
     {
       f32 const delay_factor =
-          stagger_.get()(stagger_width_, states_.size64(), item);
+        stagger_.get()(stagger_width_, states_.size64(), item);
       nanoseconds item_delay = nanoseconds{static_cast<nanoseconds::rep>(
-          static_cast<f64>(delay.count()) * delay_factor)};
+        static_cast<f64>(delay.count()) * delay_factor)};
       state.delay(item_delay);
     }
     return *this;
@@ -766,10 +765,10 @@ struct StaggeredAnimation
   Tuple<Timeline<T> &...> timelines()
   {
     return apply(
-        [](auto &... timelines) {
-          return Tuple<decltype(timelines)...>{timelines...};
-        },
-        timelines_);
+      [](auto &... timelines) {
+        return Tuple<decltype(timelines)...>{timelines...};
+      },
+      timelines_);
   }
 
   Tuple<T...> animate(u64 item)
@@ -779,10 +778,10 @@ struct StaggeredAnimation
     AnimationState & state = states_[item];
 
     return apply(
-        [&](auto &... timeline) {
-          return Tuple<T...>{state.animate(timeline.view())...};
-        },
-        timelines_);
+      [&](auto &... timeline) {
+        return Tuple<T...>{state.animate(timeline.view())...};
+      },
+      timelines_);
   }
 
   void tick(nanoseconds delta)
@@ -796,4 +795,4 @@ struct StaggeredAnimation
   }
 };
 
-}        // namespace ash
+}    // namespace ash
