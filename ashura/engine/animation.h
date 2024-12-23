@@ -66,55 +66,55 @@ typedef Lambda<f32(f32 t)> Easing;
 namespace easing
 {
 
-constexpr Easing linear()
+inline Easing linear()
 {
   return Easing{[](f32 t) { return t; }};
 }
 
-constexpr Easing in()
+inline Easing in()
 {
   return Easing{[](f32 t) { return ash::ease_in(t); }};
 }
 
-constexpr Easing out()
+inline Easing out()
 {
   return Easing{[](f32 t) { return ash::ease_out(t); }};
 }
 
-constexpr Easing in_out()
+inline Easing in_out()
 {
   return Easing{[](f32 t) { return ash::ease_in_out(t); }};
 }
 
-constexpr Easing bezier(f32 p0, f32 p1, f32 p2)
+inline Easing bezier(f32 p0, f32 p1, f32 p2)
 {
   return Easing{[p0, p1, p2](f32 t) { return ash::bezier(p0, p1, p2, t); }};
 }
 
-constexpr Easing cubic_bezier(f32 p0, f32 p1, f32 p2, f32 p3)
+inline Easing cubic_bezier(f32 p0, f32 p1, f32 p2, f32 p3)
 {
   return Easing{
     [p0, p1, p2, p3](f32 t) { return ash::cubic_bezier(p0, p1, p2, p3, t); }};
 }
 
-constexpr Easing catmull_rom(f32 p0, f32 p1, f32 p2, f32 p3)
+inline Easing catmull_rom(f32 p0, f32 p1, f32 p2, f32 p3)
 {
   return Easing{
     [p0, p1, p2, p3](f32 t) { return ash::catmull_rom(p0, p1, p2, p3, t); }};
 }
 
-constexpr Easing elastic(f32 amplitude, f32 period)
+inline Easing elastic(f32 amplitude, f32 period)
 {
   return Easing{
     [amplitude, period](f32 t) { return ash::elastic(amplitude, period, t); }};
 }
 
-constexpr Easing bounce(f32 strength)
+inline Easing bounce(f32 strength)
 {
   return Easing{[strength](f32 t) { return ash::bounce(strength, t); }};
 }
 
-constexpr Easing spring(f32 mass, f32 stiffness, f32 damping)
+inline Easing spring(f32 mass, f32 stiffness, f32 damping)
 {
   return Easing{[mass, stiffness, damping](f32 t) {
     return ash::spring(mass, stiffness, damping, t);
