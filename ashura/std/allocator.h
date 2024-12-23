@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/std/mem.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -19,7 +20,6 @@ namespace ash
 /// =============
 ///
 /// @param alignment must be a power of 2. UB if 0 or otherwise.
-/// @param size must be 0 or multiple of alignment.
 ///
 struct Allocator
 {
@@ -150,10 +150,43 @@ struct AllocatorImpl
   {
     self->dealloc(alignof(T), (u8 *) mem, sizeof(T) * num);
   }
+
+  /// @brief alignment-padded allocation
+  template <typename T>
+  [[nodiscard]] constexpr bool pnalloc(usize num, T *& mem,
+                                       usize alignment) const
+  {
+    return self->alloc(alignment, align_offset(alignment, sizeof(T) * num),
+                       (u8 *&) mem);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr bool pnalloc_zeroed(usize num, T *& mem,
+                                              usize alignment) const
+  {
+    return self->alloc_zeroed(
+      alignment, align_offset(alignment, sizeof(T) * num), (u8 *&) mem);
+  }
+
+  template <typename T>
+  [[nodiscard]] constexpr bool pnrealloc(usize old_num, usize new_num, T *& mem,
+                                         usize alignment) const
+  {
+    return self->realloc(
+      alignment, align_offset(alignment, sizeof(T) * old_num),
+      align_offset(alignment, sizeof(T) * new_num), (u8 *&) mem);
+  }
+
+  template <typename T>
+  constexpr void pndealloc(T * mem, usize num, usize alignment) const
+  {
+    self->dealloc(alignment, (u8 *) mem,
+                  align_offset(alignment, sizeof(T) * num));
+  }
 };
 
 inline constexpr AllocatorImpl default_allocator{.self = &heap_allocator_impl};
 inline constexpr AllocatorImpl heap_allocator{.self = &heap_allocator_impl};
 inline constexpr AllocatorImpl noop_allocator{.self = &noop_allocator_impl};
 
-}        // namespace ash
+}    // namespace ash

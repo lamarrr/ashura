@@ -14,8 +14,8 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
   }
 
   hb_blob_t * hb_blob =
-      hb_blob_create(font_data.data(), font_data.size(),
-                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+    hb_blob_create(font_data.data(), font_data.size(), HB_MEMORY_MODE_READONLY,
+                   nullptr, nullptr);
 
   if (hb_blob == nullptr)
   {
@@ -148,41 +148,34 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
   i32 const descent = -ft_face->size->metrics.descender;
   i32 const advance = ft_face->size->metrics.max_advance;
 
-  Vec<Glyph> glyphs{allocator};
+  Vec<GlyphMetrics> glyphs{allocator};
 
-  if (!glyphs.resize_uninit(num_glyphs))
+  if (!glyphs.resize(num_glyphs))
   {
     return Err{FontErr::OutOfMemory};
   }
 
-  for (u32 i = 0; i < num_glyphs; i++)
+  for (auto [i, metric] : enumerate<u32>(glyphs))
   {
     if (FT_Load_Glyph(ft_face, i, FT_LOAD_DEFAULT) == 0)
     {
       FT_GlyphSlot s = ft_face->glyph;
 
-      GlyphMetrics m{
-          .bearing{(i32) s->metrics.horiBearingX,
-                   (i32) -s->metrics.horiBearingY                        },
-          .advance = (i32) s->metrics.horiAdvance,
-          .extent{(i32) s->metrics.width,        (i32) s->metrics.height}
-      };
-
       // bin offsets are determined after binning and during rect packing
-      glyphs[i] = Glyph{.is_valid = true, .metrics = m};
-    }
-    else
-    {
-      glyphs[i] = Glyph{.is_valid = false, .metrics = {}};
+      metric = GlyphMetrics{
+        .bearing{(i32) s->metrics.horiBearingX, (i32) -s->metrics.horiBearingY},
+        .advance = (i32) s->metrics.horiAdvance,
+        .extent{(i32) s->metrics.width,        (i32) s->metrics.height       }
+      };
     }
   }
 
   Result font = dyn_inplace<FontImpl>(
-      allocator, std::move(font_data), std::move(postscript_name),
-      std::move(family_name), std::move(style_name), hb_blob, hb_face, hb_font,
-      ft_lib, ft_face, face, std::move(glyphs), replacement_glyph,
-      ellipsis_glyph, space_glyph,
-      FontMetrics{.ascent = ascent, .descent = descent, .advance = advance});
+    allocator, std::move(font_data), std::move(postscript_name),
+    std::move(family_name), std::move(style_name), hb_blob, hb_face, hb_font,
+    ft_lib, ft_face, face, std::move(glyphs), replacement_glyph, ellipsis_glyph,
+    space_glyph,
+    FontMetrics{.ascent = ascent, .descent = descent, .advance = advance});
 
   if (!font)
   {
@@ -200,4 +193,4 @@ Result<Dyn<Font *>, FontErr> Font::decode(Span<u8 const> encoded, u32 face,
   return Ok{transmute(std::move(font.value()), font_base)};
 }
 
-}        // namespace ash
+}    // namespace ash

@@ -78,7 +78,7 @@ constexpr decltype(auto) impl_fold_reduce(Tuple & fns, In &&... in)
     else
     {
       return impl_fold_reduce<I + 1, Tuple>(
-          fns, get<I>(fns)(static_cast<In &&>(in)...));
+        fns, get<I>(fns)(static_cast<In &&>(in)...));
     }
   }
 }
@@ -105,4 +105,4 @@ constexpr decltype(auto) fold(Tuple & fns, In &&... in)
   return impl_fold(fns, static_cast<In &&>(in)...);
 }
 
-}        // namespace ash
+}    // namespace ash

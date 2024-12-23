@@ -37,7 +37,7 @@ struct ClipBoardImpl : ClipBoard
     defer data_{[&] { SDL_free(data); }};
 
     out.extend(Span<c8 const>{reinterpret_cast<c8 *>(data), mime_data_len})
-        .unwrap();
+      .unwrap();
     return Ok{};
   }
 
@@ -64,23 +64,23 @@ struct ClipBoardImpl : ClipBoard
     data_ctx->extend(data).unwrap();
 
     bool failed = SDL_SetClipboardData(
-        [](void * userdata, char const * mime_type,
-           usize * size) -> void const * {
-          if (mime_type == nullptr)
-          {
-            *size = 0;
-            return nullptr;
-          }
-          auto * ctx = reinterpret_cast<Vec<c8> *>(userdata);
-          *size      = ctx->size();
-          return ctx->data();
-        },
-        [](void * userdata) {
-          auto * ctx = reinterpret_cast<Vec<c8> *>(userdata);
-          ctx->uninit();
-          default_allocator.ndealloc(ctx, 1);
-        },
-        data_ctx, mime_types, 1);
+      [](void * userdata, char const * mime_type,
+         usize * size) -> void const * {
+        if (mime_type == nullptr)
+        {
+          *size = 0;
+          return nullptr;
+        }
+        auto * ctx = reinterpret_cast<Vec<c8> *>(userdata);
+        *size      = ctx->size();
+        return ctx->data();
+      },
+      [](void * userdata) {
+        auto * ctx = reinterpret_cast<Vec<c8> *>(userdata);
+        ctx->uninit();
+        default_allocator.ndealloc(ctx, 1);
+      },
+      data_ctx, mime_types, 1);
 
     if (failed)
     {
@@ -107,17 +107,17 @@ struct WindowSystemImpl : WindowSystem
     char * title_c_str;
     if (!default_allocator.nalloc(title.size() + 1, title_c_str))
     {
-      return None;
+      return none;
     }
 
     defer title_c_str_{
-        [&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};
+      [&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};
 
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
 
     SDL_Window * window = SDL_CreateWindow(
-        title_c_str, 1'920, 1'080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+      title_c_str, 1'920, 1'080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     CHECKSdl(window != nullptr);
     SDL_WindowID id = SDL_GetWindowID(window);
     CHECKSdl(id != 0);
@@ -142,7 +142,7 @@ struct WindowSystemImpl : WindowSystem
     SDL_PropertiesID props_id = SDL_GetWindowProperties(window);
     CHECK(SDL_SetPointerProperty(props_id, "impl", impl));
 
-    return Some{(Window) impl};
+    return (Window) impl;
   }
 
   virtual void uninit_window(Window window) override
@@ -150,7 +150,7 @@ struct WindowSystemImpl : WindowSystem
     if (window != nullptr)
     {
       WindowImpl * win = (WindowImpl *) window;
-      win->instance->uninit_surface(win->surface);
+      win->instance->uninit(win->surface);
       SDL_DestroyWindow(win->win);
       win->listeners.reset();
       default_allocator.ndealloc(win, 1);
@@ -163,7 +163,7 @@ struct WindowSystemImpl : WindowSystem
     CHECK(default_allocator.nalloc(title.size() + 1, title_c_str));
 
     defer title_c_str_{
-        [&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};
+      [&] { default_allocator.ndealloc(title_c_str, title.size() + 1); }};
 
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
@@ -270,8 +270,8 @@ struct WindowSystemImpl : WindowSystem
     }
 
     SDL_Surface * icon = SDL_CreateSurfaceFrom(
-        static_cast<i32>(image.width), static_cast<i32>(image.height), fmt,
-        (void *) image.channels.data(), static_cast<i32>(image.pitch()));
+      static_cast<i32>(image.width), static_cast<i32>(image.height), fmt,
+      (void *) image.channels.data(), static_cast<i32>(image.pitch()));
     CHECKSdl(icon != nullptr);
     CHECKSdl(SDL_SetWindowIcon(hnd(window), icon));
     SDL_DestroySurface(icon);
@@ -408,7 +408,7 @@ struct WindowSystemImpl : WindowSystem
     CHECK(win != nullptr);
     SDL_PropertiesID props_id = SDL_GetWindowProperties(win);
     WindowImpl *     impl =
-        (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
+      (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
     CHECK(impl != nullptr);
 
     for (auto const & listener : impl->listeners.dense.v0)
@@ -513,8 +513,8 @@ struct WindowSystemImpl : WindowSystem
         case SDL_EVENT_MOUSE_BUTTON_UP:
         {
           MouseClickEvent mouse_event{
-              .position{event.button.x, event.button.y},
-              .clicks = event.button.clicks
+            .position{event.button.x, event.button.y},
+            .clicks = event.button.clicks
           };
           switch (event.button.button)
           {
@@ -557,40 +557,40 @@ struct WindowSystemImpl : WindowSystem
 
         case SDL_EVENT_MOUSE_MOTION:
           push_window_event(
-              event.motion.windowID,
-              MouseMotionEvent{
-                  .position{event.motion.x,    event.motion.y   },
-                  .translation{event.motion.xrel, event.motion.yrel}
+            event.motion.windowID,
+            MouseMotionEvent{
+              .position{event.motion.x,    event.motion.y   },
+              .translation{event.motion.xrel, event.motion.yrel}
           });
           break;
 
         case SDL_EVENT_MOUSE_WHEEL:
           push_window_event(
-              event.wheel.windowID,
-              MouseWheelEvent{
-                  .position{event.wheel.mouse_x, event.wheel.mouse_y},
-                  .translation{event.wheel.x,       event.wheel.y      }
+            event.wheel.windowID,
+            MouseWheelEvent{
+              .position{event.wheel.mouse_x, event.wheel.mouse_y},
+              .translation{event.wheel.x,       event.wheel.y      }
           });
           break;
 
         case SDL_EVENT_KEY_DOWN:
           push_window_event(
-              event.key.windowID,
-              KeyEvent{.scan_code = (ScanCode) event.key.scancode,
-                       .key_code  = (KeyCode) ((u32) event.key.key &
-                                              ~SDLK_SCANCODE_MASK),
-                       .modifiers = (KeyModifiers) event.key.mod,
-                       .action    = KeyAction::Press});
+            event.key.windowID,
+            KeyEvent{.scan_code = (ScanCode) event.key.scancode,
+                     .key_code =
+                       (KeyCode) ((u32) event.key.key & ~SDLK_SCANCODE_MASK),
+                     .modifiers = (KeyModifiers) event.key.mod,
+                     .action    = KeyAction::Press});
           break;
 
         case SDL_EVENT_KEY_UP:
           push_window_event(
-              event.key.windowID,
-              KeyEvent{.scan_code = (ScanCode) event.key.scancode,
-                       .key_code  = (KeyCode) ((u32) event.key.key &
-                                              ~SDLK_SCANCODE_MASK),
-                       .modifiers = (KeyModifiers) event.key.mod,
-                       .action    = KeyAction::Release});
+            event.key.windowID,
+            KeyEvent{.scan_code = (ScanCode) event.key.scancode,
+                     .key_code =
+                       (KeyCode) ((u32) event.key.key & ~SDLK_SCANCODE_MASK),
+                     .modifiers = (KeyModifiers) event.key.mod,
+                     .action    = KeyAction::Release});
           break;
 
         case SDL_EVENT_TEXT_INPUT:
@@ -599,7 +599,7 @@ struct WindowSystemImpl : WindowSystem
           usize const  size = (text == nullptr) ? 0 : std::strlen(text);
           push_window_event(event.text.windowID,
                             TextInputEvent{
-                                .text{(c8 const *) text, size}
+                              .text{(c8 const *) text, size}
           });
         }
         break;
@@ -616,8 +616,8 @@ struct WindowSystemImpl : WindowSystem
 
         case SDL_EVENT_DROP_POSITION:
           push_window_event(
-              event.drop.windowID,
-              DropEvent{DropPositionEvent{.pos{event.drop.x, event.drop.y}}});
+            event.drop.windowID,
+            DropEvent{DropPositionEvent{.pos{event.drop.x, event.drop.y}}});
           break;
 
         case SDL_EVENT_DROP_FILE:
@@ -633,7 +633,7 @@ struct WindowSystemImpl : WindowSystem
         {
           c8 const *  text = reinterpret_cast<c8 const *>(event.drop.data);
           usize const size =
-              (event.drop.data == nullptr) ? 0 : std::strlen(event.drop.data);
+            (event.drop.data == nullptr) ? 0 : std::strlen(event.drop.data);
           push_window_event(event.drop.windowID,
                             DropEvent{DropTextEvent{.text{text, size}}});
         }
@@ -693,7 +693,7 @@ struct WindowSystemImpl : WindowSystem
 
   virtual void get_keyboard_state(BitSpan<u64> state) override
   {
-    CHECK(state.size() == NUM_KEYS);
+    CHECK(state.size() >= NUM_KEYS);
     i32          num_keys   = 0;
     bool const * key_states = SDL_GetKeyboardState(&num_keys);
     CHECK(num_keys == NUM_KEYS);
@@ -704,10 +704,11 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  virtual void get_mouse_state(BitSpan<u64> state) override
+  virtual Vec2 get_mouse_state(BitSpan<u64> state) override
   {
-    CHECK(state.size() == NUM_MOUSE_BUTTONS);
-    SDL_MouseButtonFlags const flags = SDL_GetMouseState(nullptr, nullptr);
+    CHECK(state.size() >= NUM_MOUSE_BUTTONS);
+    Vec2                       pos;
+    SDL_MouseButtonFlags const flags = SDL_GetMouseState(&pos.x, &pos.y);
 
     state.set((usize) MouseButton::Primary,
               flags & SDL_BUTTON_MASK(SDL_BUTTON_LEFT));
@@ -717,6 +718,91 @@ struct WindowSystemImpl : WindowSystem
               flags & SDL_BUTTON_MASK(SDL_BUTTON_MIDDLE));
     state.set((usize) MouseButton::A1, flags & SDL_BUTTON_MASK(SDL_BUTTON_X1));
     state.set((usize) MouseButton::A2, flags & SDL_BUTTON_MASK(SDL_BUTTON_X2));
+
+    return pos;
+  }
+
+  virtual void start_text_input(Window                window,
+                                TextInputInfo const & info) override
+  {
+    SDL_PropertiesID props = SDL_CreateProperties();
+    CHECKSdl(props != 0);
+
+    SDL_TextInputType  type = SDL_TEXTINPUT_TYPE_TEXT;
+    SDL_Capitalization cap  = SDL_CAPITALIZE_NONE;
+
+    switch (info.type)
+    {
+      case TextInputType::Text:
+        type = SDL_TEXTINPUT_TYPE_TEXT;
+        break;
+      case TextInputType::Number:
+        type = SDL_TEXTINPUT_TYPE_NUMBER;
+        break;
+      case TextInputType::Name:
+        type = SDL_TEXTINPUT_TYPE_TEXT_NAME;
+        break;
+      case TextInputType::Email:
+        type = SDL_TEXTINPUT_TYPE_TEXT_EMAIL;
+        break;
+      case TextInputType::Username:
+        type = SDL_TEXTINPUT_TYPE_TEXT_USERNAME;
+        break;
+      case TextInputType::PasswordHidden:
+        type = SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_HIDDEN;
+        break;
+      case TextInputType::PasswordVisible:
+        type = SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_VISIBLE;
+        break;
+      case TextInputType::NumberPasswordHidden:
+        type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_HIDDEN;
+        break;
+      case TextInputType::NumberPasswordVisible:
+        type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_VISIBLE;
+        break;
+      default:
+        CHECK_UNREACHABLE();
+    }
+
+    switch (info.cap)
+    {
+      case TextCapitalization::None:
+        cap = SDL_CAPITALIZE_NONE;
+        break;
+      case TextCapitalization::Sentences:
+        cap = SDL_CAPITALIZE_SENTENCES;
+        break;
+      case TextCapitalization::Words:
+        cap = SDL_CAPITALIZE_WORDS;
+        break;
+      case TextCapitalization::Letters:
+        cap = SDL_CAPITALIZE_LETTERS;
+        break;
+      default:
+        CHECK_UNREACHABLE();
+    }
+
+    CHECKSdl(
+      SDL_SetNumberProperty(props, SDL_PROP_TEXTINPUT_TYPE_NUMBER, type));
+
+    CHECKSdl(SDL_SetNumberProperty(
+      props, SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER, cap));
+
+    CHECKSdl(SDL_SetBooleanProperty(props, SDL_PROP_TEXTINPUT_MULTILINE_BOOLEAN,
+                                    info.multiline));
+
+    CHECKSdl(SDL_SetBooleanProperty(
+      props, SDL_PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, info.autocorrect));
+
+    WindowImpl * w = (WindowImpl *) window;
+
+    CHECKSdl(SDL_StartTextInputWithProperties(w->win, props));
+  }
+
+  virtual void end_text_input(Window window) override
+  {
+    WindowImpl * w = (WindowImpl *) window;
+    CHECKSdl(SDL_StopTextInput(w->win));
   }
 };
 
@@ -738,4 +824,4 @@ void WindowSystem::uninit()
   SDL_Quit();
 }
 
-}        // namespace ash
+}    // namespace ash

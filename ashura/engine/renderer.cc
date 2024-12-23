@@ -1,50 +1,48 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/renderer.h"
 #include "ashura/engine/canvas.h"
-#include "ashura/std/math.h"
-#include "ashura/std/range.h"
 
 namespace ash
 {
 
-void Renderer::begin_frame(GpuContext & ctx, RenderTarget const &,
-                           Canvas &     canvas)
+void Renderer::begin_frame(GpuSystem & gpu, Framebuffer const &,
+                           Canvas &    canvas)
 {
-  gpu::CommandEncoder & enc = ctx.encoder();
-  Resources &           r   = resources[ctx.ring_index()];
+  gpu::CommandEncoder & enc = gpu.encoder();
+  Resources &           r   = resources[gpu.ring_index()];
 
-  r.ngon_vertices.copy(ctx, span(canvas.ngon_vertices).as_u8());
-  r.ngon_indices.copy(ctx, span(canvas.ngon_indices).as_u8());
-  r.ngon_params.copy(ctx, span(canvas.ngon_params).as_u8());
-  r.rrect_params.copy(ctx, span(canvas.rrect_params).as_u8());
-  r.ngon_vertices.copy(ctx, span(canvas.ngon_vertices).as_u8());
+  r.ngon_vertices.copy(gpu, span(canvas.ngon_vertices).as_u8());
+  r.ngon_indices.copy(gpu, span(canvas.ngon_indices).as_u8());
+  r.ngon_params.copy(gpu, span(canvas.ngon_params).as_u8());
+  r.rrect_params.copy(gpu, span(canvas.rrect_params).as_u8());
+  r.ngon_vertices.copy(gpu, span(canvas.ngon_vertices).as_u8());
 
-  for (Dyn<RenderPipeline *> const & p : pipelines)
+  for (Dyn<GpuPipeline *> const & p : pipelines)
   {
-    p->begin_frame(ctx, passes, enc);
+    p->begin_frame(gpu, passes, enc);
   }
 }
 
-void Renderer::end_frame(GpuContext & ctx, RenderTarget const &, Canvas &)
+void Renderer::end_frame(GpuSystem & gpu, Framebuffer const &, Canvas &)
 {
-  gpu::CommandEncoder & enc = ctx.encoder();
+  gpu::CommandEncoder & enc = gpu.encoder();
 
-  for (Dyn<RenderPipeline *> const & p : pipelines)
+  for (Dyn<GpuPipeline *> const & p : pipelines)
   {
-    p->end_frame(ctx, passes, enc);
+    p->end_frame(gpu, passes, enc);
   }
 }
 
-void Renderer::render_frame(GpuContext & ctx, RenderTarget const & rt,
+void Renderer::render_frame(GpuSystem & gpu, Framebuffer const & fb,
                             Canvas & canvas)
 {
-  Resources &           r   = resources[ctx.ring_index()];
-  gpu::CommandEncoder & enc = ctx.encoder();
+  Resources &           r   = resources[gpu.ring_index()];
+  gpu::CommandEncoder & enc = gpu.encoder();
 
   Canvas::RenderContext render_ctx{.canvas        = canvas,
-                                   .gpu           = ctx,
+                                   .gpu           = gpu,
                                    .passes        = passes,
-                                   .rt            = rt,
+                                   .framebuffer   = fb,
                                    .enc           = enc,
                                    .rrects        = r.rrect_params,
                                    .ngons         = r.ngon_params,
@@ -57,4 +55,4 @@ void Renderer::render_frame(GpuContext & ctx, RenderTarget const & rt,
   }
 }
 
-}        // namespace ash
+}    // namespace ash

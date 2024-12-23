@@ -167,100 +167,73 @@ struct TextCompositor
   static constexpr c32 TAB_STRING[]           = {'\t', '\t', '\t', '\t',
                                                  '\t', '\t', '\t', '\t'};
 
-  struct Inner
-  {
-    TextCursor          cursor         = {};
-    Vec<c32>            buffer         = {};
-    Vec<TextEditRecord> records        = {};
-    u32                 buffer_usage   = 0;
-    u32                 buffer_pos     = 0;
-    u32                 latest_record  = 0;
-    u32                 current_record = 0;
-    u32                 tab_width      = 1;
-    Span<c32 const>     word_symbols   = DEFAULT_WORD_SYMBOLS;
-    Span<c32 const>     line_symbols   = DEFAULT_LINE_SYMBOLS;
-
-    Inner(u32 num_buffer_codepoints, u32 num_records)
-    {
-      // [ ] use make()
-      CHECK(num_buffer_codepoints > 0);
-      CHECK(num_records > 0);
-      CHECK(is_pow2(num_buffer_codepoints));
-      CHECK(is_pow2(num_records));
-      buffer.resize_uninit(num_buffer_codepoints).unwrap();
-      records.resize(num_records).unwrap();
-    }
-
-    void pop_records(u32 num);
-
-    void append_record(bool is_insert, u32 text_pos, Span<c32 const> segment);
-
-    void undo(Insert insert, Erase erase);
-
-    void redo(Insert insert, Erase erase);
-
-    void unselect();
-
-    void delete_selection(Span<c32 const> text, Erase erase);
-
-    void command(Span<c32 const> text, TextLayout const & layout,
-                 f32 align_width, f32 alignment, TextCommand cmd, Insert insert,
-                 Erase erase, Span<c32 const> input, ClipBoard & clipboard,
-                 u32 lines_per_page, Vec2 pos);
-  };
-
-  Inner inner;
+  AllocatorImpl       allocator_      = default_allocator;
+  TextCursor          cursor_         = {};
+  Vec<c32>            buffer_         = {};
+  Vec<TextEditRecord> records_        = {};
+  u32                 buffer_usage_   = 0;
+  u32                 buffer_pos_     = 0;
+  u32                 latest_record_  = 0;
+  u32                 current_record_ = 0;
+  u32                 tab_width_      = 1;
+  Span<c32 const>     word_symbols_   = DEFAULT_WORD_SYMBOLS;
+  Span<c32 const>     line_symbols_   = DEFAULT_LINE_SYMBOLS;
 
   TextCompositor(u32 num_buffer_codepoints = 16_KB, u32 num_records = 1'024) :
-      inner{num_buffer_codepoints, num_records}
+    buffer_{allocator_},
+    records_{allocator_}
   {
+    // [ ] use make()
+    CHECK(num_buffer_codepoints > 0);
+    CHECK(num_records > 0);
+    CHECK(is_pow2(num_buffer_codepoints));
+    CHECK(is_pow2(num_records));
+    buffer_.resize_uninit(num_buffer_codepoints).unwrap();
+    records_.resize(num_records).unwrap();
+  }
+
+  static u32 goto_line(TextLayout const & layout, u32 alignment, u32 line)
+  {
+    if (layout.lines.is_empty())
+    {
+      return 0;
+    }
+
+    line = min(line, layout.lines.size32() - 1);
+
+    Line const & ln = layout.lines[line];
+
+    if (alignment > ln.num_codepoints)
+    {
+      return ln.first_codepoint + (ln.num_codepoints - 1);
+    }
+
+    return ln.first_codepoint + alignment;
   }
 
   TextCursor get_cursor() const
   {
-    return inner.cursor;
+    return cursor_;
   }
 
-  void pop_records(u32 num)
-  {
-    inner.pop_records(num);
-  }
+  void pop_records(u32 num);
 
-  void append_record(bool is_insert, u32 text_pos, Span<c32 const> segment)
-  {
-    inner.append_record(is_insert, text_pos, segment);
-  }
+  void append_record(bool is_insert, u32 text_pos, Span<c32 const> segment);
 
-  void undo(Insert insert, Erase erase)
-  {
-    inner.undo(insert, erase);
-  }
+  void undo(Insert insert, Erase erase);
 
-  void redo(Insert insert, Erase erase)
-  {
-    inner.redo(insert, erase);
-  }
+  void redo(Insert insert, Erase erase);
 
-  void unselect()
-  {
-    inner.unselect();
-  }
+  void unselect();
 
-  void delete_selection(Span<c32 const> text, Erase erase)
-  {
-    inner.delete_selection(text, erase);
-  }
+  void delete_selection(Span<c32 const> text, Erase erase);
 
   /// @param text original text
   /// @param input text from IME to insert
   void command(Span<c32 const> text, TextLayout const & layout, f32 align_width,
                f32 alignment, TextCommand cmd, Insert insert, Erase erase,
                Span<c32 const> input, ClipBoard & clipboard, u32 lines_per_page,
-               Vec2 pos)
-  {
-    inner.command(text, layout, align_width, alignment, cmd, insert, erase,
-                  input, clipboard, lines_per_page, pos);
-  }
+               Vec2 pos);
 };
 
-}        // namespace ash
+}    // namespace ash

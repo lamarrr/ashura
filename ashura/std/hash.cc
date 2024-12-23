@@ -12,4 +12,4 @@ hash64 hash_bytes(Span<u8 const> bytes, hash64 seed)
   return XXH3_64bits_withSeed(bytes.data(), bytes.size_bytes(), seed);
 }
 
-}        // namespace ash
+}    // namespace ash

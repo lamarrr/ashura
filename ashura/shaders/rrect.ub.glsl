@@ -4,9 +4,9 @@
 
 #include "core.glsl"
 
-#define TOP_LEFT 0
-#define TOP_RIGHT 1
-#define BOTTOM_LEFT 2
+#define TOP_LEFT     0
+#define TOP_RIGHT    1
+#define BOTTOM_LEFT  2
 #define BOTTOM_RIGHT 3
 
 struct Params
@@ -33,8 +33,8 @@ layout(set = 1, binding = 0) uniform sampler samplers[];
 
 layout(set = 2, binding = 0) uniform texture2D textures[];
 
-const vec2 VERTEX_BUFFER[] = {vec2(-1, -1), vec2(1, -1), vec2(1, 1),
-                              vec2(-1, 1)};
+vec2 const VERTEX_BUFFER[] = {vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5),
+                              vec2(-0.5, 0.5)};
 
 #ifdef VERTEX_SHADER
 
@@ -54,7 +54,7 @@ void main()
   o_idx      = gl_InstanceIndex;
   o_pos      = pos;
   gl_Position =
-      push_constants.world_to_view * p.transform * vec4(pos, 0.0, 1.0);
+    push_constants.world_to_view * p.transform * vec4(pos, 0.0, 1.0);
 }
 #endif
 
@@ -71,12 +71,12 @@ void main()
   bool   left = i_pos.x < 0;
   bool   top  = i_pos.y < 0;
   uint   corner =
-      left ? (top ? TOP_LEFT : BOTTOM_LEFT) : (top ? TOP_RIGHT : BOTTOM_RIGHT);
+    left ? (top ? TOP_LEFT : BOTTOM_LEFT) : (top ? TOP_RIGHT : BOTTOM_RIGHT);
   float radius      = p.radii[corner];
   vec2  pos         = i_pos * vec2(p.aspect_ratio, 1);
-  vec2  half_extent = vec2(p.aspect_ratio, 1);
+  vec2  half_extent = vec2(p.aspect_ratio * 0.5, 0.5);
   float dist        = rrect_sdf(pos, half_extent, radius);
-  vec2  uv          = (i_pos + 1.0) * 0.5;
+  vec2  uv          = i_pos + 0.5;
   vec2  tex_uv      = mix(p.uv.xy, p.uv.zw, uv);
   vec4  color       = texture(sampler2D(textures[nonuniformEXT(p.albedo)],
                                         samplers[nonuniformEXT(p.isampler)]),
@@ -84,8 +84,8 @@ void main()
                bilerp(p.tint, uv);
   float fill_alpha = 1 - smoothstep(0, p.edge_smoothness, dist);
   float stroke_alpha =
-      1 - smoothstep(p.thickness, p.thickness + p.edge_smoothness,
-                     abs(dist + p.thickness));
+    1 - smoothstep(p.thickness, p.thickness + p.edge_smoothness,
+                   abs(dist + p.thickness));
   float alpha = mix(fill_alpha, stroke_alpha, p.stroke);
   o_color     = vec4(color.rgb, color.a * alpha);
 }

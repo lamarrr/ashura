@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/assets.h"
-#include "ashura/engine/gpu_context.h"
+#include "ashura/engine/gpu_system.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
 
@@ -13,12 +13,13 @@ namespace ash
 /// data needed for executing rendering operations. Passes dispatch
 /// compute/graphics shaders using their specified arguments. They are mostly
 /// used by renderers.
+// [ ] cache setup
 struct Pass
 {
-  virtual Span<char const> id()                              = 0;
-  virtual void             acquire(GpuContext &, AssetMap &) = 0;
-  virtual void             release(GpuContext &, AssetMap &) = 0;
-  virtual ~Pass()                                            = default;
+  virtual Span<char const> id()                             = 0;
+  virtual void             acquire(GpuSystem &, AssetMap &) = 0;
+  virtual void             release(GpuSystem &, AssetMap &) = 0;
+  virtual ~Pass()                                           = default;
 };
 
 struct BloomPassParams
@@ -33,37 +34,35 @@ struct BloomPass : Pass
 {
   BloomPass() = default;
 
+  virtual ~BloomPass() override = default;
+
   virtual Span<char const> id() override
   {
     return "Bloom"_str;
   }
 
-  virtual void acquire(GpuContext & ct, AssetMap & assets) override;
+  virtual void acquire(GpuSystem & ct, AssetMap & assets) override;
 
-  virtual void release(GpuContext & ctx, AssetMap & assets) override;
+  virtual void release(GpuSystem & gpu, AssetMap & assets) override;
 
-  void encode(GpuContext & ctx, gpu::CommandEncoder & encoder,
+  void encode(GpuSystem & gpu, gpu::CommandEncoder & encoder,
               BloomPassParams const & params);
-
-  virtual ~BloomPass() override = default;
 };
 
 struct BlurParam
 {
-  Vec2 uv[2]   = {};
-  Vec2 radius  = {};
-  u32  sampler = 0;
-  u32  texture = 0;
+  Vec2      uv[2]   = {};
+  Vec2      radius  = {};
+  SamplerId sampler = SamplerId::Linear;
+  TextureId texture = TextureId::White;
 };
 
 struct BlurPassParams
 {
-  gpu::ImageView     image_view   = nullptr;
-  Vec2U              extent       = {};
-  gpu::DescriptorSet texture_view = nullptr;
-  u32                texture      = 0;
-  u32                passes       = 1;
-  gpu::Rect          area         = {};
+  Framebuffer framebuffer = {};
+  Vec2        radius      = {1, 1};
+  u32         passes      = 1;
+  gpu::Rect   area        = {};
 };
 
 struct BlurPass : Pass
@@ -73,37 +72,36 @@ struct BlurPass : Pass
 
   BlurPass() = default;
 
+  virtual ~BlurPass() override = default;
+
   virtual Span<char const> id() override
   {
     return "Blur"_str;
   }
 
-  virtual void acquire(GpuContext & ctx, AssetMap & assets) override;
+  virtual void acquire(GpuSystem & gpu, AssetMap & assets) override;
 
-  virtual void release(GpuContext & ctx, AssetMap & assets) override;
+  virtual void release(GpuSystem & gpu, AssetMap & assets) override;
 
-  virtual ~BlurPass() override = default;
-
-  void encode(GpuContext & ctx, gpu::CommandEncoder & encoder,
+  void encode(GpuSystem & gpu, gpu::CommandEncoder & encoder,
               BlurPassParams const & params);
 };
 
-/// @param transform needs to transform from [-1, +1] to clip space
 struct NgonParam
 {
-  Mat4 transform    = {};
-  Vec4 tint[4]      = {};
-  Vec2 uv[2]        = {};
-  f32  tiling       = 1;
-  u32  sampler      = 0;
-  u32  albedo       = 0;
-  u32  first_index  = 0;
-  u32  first_vertex = 0;
+  Mat4      transform    = {};
+  Vec4      tint[4]      = {};
+  Vec2      uv[2]        = {};
+  f32       tiling       = 1;
+  SamplerId sampler      = SamplerId::Linear;
+  TextureId albedo       = TextureId::White;
+  u32       first_index  = 0;
+  u32       first_vertex = 0;
 };
 
 struct NgonPassParams
 {
-  gpu::RenderingInfo rendering_info = {};
+  Framebuffer        framebuffer    = {};
   gpu::Rect          scissor        = {};
   gpu::Viewport      viewport       = {};
   Mat4               world_to_view  = {};
@@ -111,6 +109,7 @@ struct NgonPassParams
   gpu::DescriptorSet indices_ssbo   = nullptr;
   gpu::DescriptorSet params_ssbo    = nullptr;
   gpu::DescriptorSet textures       = nullptr;
+  u32                first_instance = 0;
   Span<u32 const>    index_counts   = {};
 };
 
@@ -120,50 +119,50 @@ struct NgonPass : Pass
 
   NgonPass() = default;
 
+  virtual ~NgonPass() override = default;
+
   virtual Span<char const> id() override
   {
     return "Ngon"_str;
   }
 
-  virtual void acquire(GpuContext & ctx, AssetMap & assets) override;
+  virtual void acquire(GpuSystem & gpu, AssetMap & assets) override;
 
-  virtual void release(GpuContext & ctx, AssetMap & assets) override;
+  virtual void release(GpuSystem & gpu, AssetMap & assets) override;
 
-  virtual ~NgonPass() override = default;
-
-  void encode(GpuContext & ctx, gpu::CommandEncoder & encoder,
+  void encode(GpuSystem & gpu, gpu::CommandEncoder & encoder,
               NgonPassParams const & params);
 };
 
-/// @see https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
+/// @see https://github.com/KhronosGroup/glTF/tree/acfcbe65e40c53d6d3aa55a7299982bf2c01c75d/extensions/2.0/Khronos
 /// @see
-/// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
+/// https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/63b7c128266cfd86bbd3f25caf8b3db3fe854015/source/Renderer/shaders/textures.glsl#L1
 struct PBRParam
 {
-  Mat4 transform               = {};
-  Vec4 eye_position            = {0, 0, 0, 0};
-  Vec4 albedo                  = {1, 1, 1, 1};
-  f32  metallic                = 0;
-  f32  roughness               = 0;
-  f32  normal                  = 0;
-  f32  occlusion               = 0;
-  Vec4 emissive                = {0, 0, 0, 0};
-  f32  ior                     = 1.5F;
-  f32  clearcoat               = 0;
-  f32  clearcoat_roughness     = 0;
-  f32  clearcoat_normal        = 0;
-  u32  sampler                 = 0;
-  u32  albedo_map              = 0;
-  u32  metallic_map            = 0;
-  u32  roughness_map           = 0;
-  u32  normal_map              = 0;
-  u32  occlusion_map           = 0;
-  u32  emissive_map            = 0;
-  u32  clearcoat_map           = 0;
-  u32  clearcoat_roughness_map = 0;
-  u32  clearcoat_normal_map    = 0;
-  u32  first_vertex            = 0;
-  u32  first_light             = 0;
+  Mat4      transform               = {};
+  Vec4      eye_position            = {0, 0, 0, 0};
+  Vec4      albedo                  = {1, 1, 1, 1};
+  f32       metallic                = 0;
+  f32       roughness               = 0;
+  f32       normal                  = 0;
+  f32       occlusion               = 0;
+  Vec4      emissive                = {0, 0, 0, 0};
+  f32       ior                     = 1.5F;
+  f32       clearcoat               = 0;
+  f32       clearcoat_roughness     = 0;
+  f32       clearcoat_normal        = 0;
+  SamplerId sampler                 = SamplerId::Linear;
+  TextureId albedo_map              = TextureId::White;
+  TextureId metallic_map            = TextureId::White;
+  TextureId roughness_map           = TextureId::White;
+  TextureId normal_map              = TextureId::White;
+  TextureId occlusion_map           = TextureId::White;
+  TextureId emissive_map            = TextureId::White;
+  TextureId clearcoat_map           = TextureId::White;
+  TextureId clearcoat_roughness_map = TextureId::White;
+  TextureId clearcoat_normal_map    = TextureId::White;
+  u32       first_vertex            = 0;
+  u32       first_light             = 0;
 };
 
 struct PBRVertex
@@ -174,18 +173,18 @@ struct PBRVertex
 
 struct PBRPassParams
 {
-  gpu::RenderingInfo rendering_info = {};
-  gpu::Rect          scissor        = {};
-  gpu::Viewport      viewport       = {};
-  Mat4               world_to_view  = {};
-  bool               wireframe      = false;
-  gpu::DescriptorSet vertices_ssbo  = nullptr;
-  gpu::DescriptorSet indices_ssbo   = nullptr;
-  gpu::DescriptorSet params_ssbo    = nullptr;
-  gpu::DescriptorSet lights_ssbo    = nullptr;
-  gpu::DescriptorSet textures       = nullptr;
-  u32                instance       = 0;
-  u32                num_indices    = 0;
+  Framebuffer        framebuffer   = {};
+  gpu::Rect          scissor       = {};
+  gpu::Viewport      viewport      = {};
+  Mat4               world_to_view = {};
+  bool               wireframe     = false;
+  gpu::DescriptorSet vertices_ssbo = nullptr;
+  gpu::DescriptorSet indices_ssbo  = nullptr;
+  gpu::DescriptorSet params_ssbo   = nullptr;
+  gpu::DescriptorSet lights_ssbo   = nullptr;
+  gpu::DescriptorSet textures      = nullptr;
+  u32                instance      = 0;
+  u32                num_indices   = 0;
 };
 
 struct PBRPass : Pass
@@ -195,40 +194,39 @@ struct PBRPass : Pass
 
   PBRPass() = default;
 
+  virtual ~PBRPass() override = default;
+
   virtual Span<char const> id() override
   {
     return "PBR"_str;
   }
 
-  virtual void acquire(GpuContext & ctx, AssetMap & assets) override;
+  virtual void acquire(GpuSystem & gpu, AssetMap & assets) override;
 
-  virtual void release(GpuContext & ctx, AssetMap & assets) override;
+  virtual void release(GpuSystem & gpu, AssetMap & assets) override;
 
-  virtual ~PBRPass() override = default;
-
-  void encode(GpuContext & ctx, gpu::CommandEncoder & encoder,
+  void encode(GpuSystem & gpu, gpu::CommandEncoder & encoder,
               PBRPassParams const & params);
 };
 
-/// @param transform needs to transform from [-1, +1] to clip space
 struct RRectParam
 {
-  Mat4 transform       = {};
-  Vec4 tint[4]         = {};
-  Vec4 radii           = {};
-  Vec2 uv[2]           = {};
-  f32  tiling          = 1;
-  f32  aspect_ratio    = 1;
-  f32  stroke          = 0;
-  f32  thickness       = 0;
-  f32  edge_smoothness = 0.0015F;
-  u32  sampler         = 0;
-  u32  albedo          = 0;
+  Mat4      transform       = {};
+  Vec4      tint[4]         = {};
+  Vec4      radii           = {};
+  Vec2      uv[2]           = {};
+  f32       tiling          = 1;
+  f32       aspect_ratio    = 1;
+  f32       stroke          = 0;
+  f32       thickness       = 0;
+  f32       edge_smoothness = 0;
+  SamplerId sampler         = SamplerId::Linear;
+  TextureId albedo          = TextureId::White;
 };
 
 struct RRectPassParams
 {
-  gpu::RenderingInfo rendering_info = {};
+  Framebuffer        framebuffer    = {};
   gpu::Rect          scissor        = {};
   gpu::Viewport      viewport       = {};
   Mat4               world_to_view  = {};
@@ -249,14 +247,14 @@ struct RRectPass : Pass
 
   RRectPass() = default;
 
-  virtual void acquire(GpuContext & ctx, AssetMap & assets) override;
-
-  virtual void release(GpuContext & ctx, AssetMap & assets) override;
-
   virtual ~RRectPass() override = default;
 
-  void encode(GpuContext & ctx, gpu::CommandEncoder & encoder,
+  virtual void acquire(GpuSystem & gpu, AssetMap & assets) override;
+
+  virtual void release(GpuSystem & gpu, AssetMap & assets) override;
+
+  void encode(GpuSystem & gpu, gpu::CommandEncoder & encoder,
               RRectPassParams const & params);
 };
 
-}        // namespace ash
+}    // namespace ash

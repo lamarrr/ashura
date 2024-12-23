@@ -1,5 +1,7 @@
+# SPDX-License-Identifier: MIT
+
 import sys
-MAX_SIZE = 16
+MAX_SIZE = 32
 
 assert len(sys.argv) > 1
 

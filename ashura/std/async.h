@@ -7,6 +7,7 @@
 #include "ashura/std/cfg.h"
 #include "ashura/std/error.h"
 #include "ashura/std/mem.h"
+#include "ashura/std/option.h"
 #include "ashura/std/rc.h"
 #include "ashura/std/result.h"
 #include "ashura/std/time.h"
@@ -88,7 +89,7 @@ struct SpinLock
     u64             poll     = 0;
     std::atomic_ref flag{flag_};
     while (!flag.compare_exchange_weak(
-        expected, target, std::memory_order_acquire, std::memory_order_relaxed))
+      expected, target, std::memory_order_acquire, std::memory_order_relaxed))
     {
       expected = false;
       yielding_backoff(poll);
@@ -262,8 +263,8 @@ struct AtomicInit
 
   template <typename... Args>
   constexpr AtomicInit(V<0>, Args &&... args) :
-      stage_{AtomicInitStage::Init},
-      v_{static_cast<Args &&>(args)...}
+    stage_{AtomicInitStage::Init},
+    v_{static_cast<Args &&>(args)...}
   {
   }
 
@@ -279,7 +280,7 @@ struct AtomicInit
     std::atomic_ref stage{stage_};
 
     if (stage.load(std::memory_order_acquire) == AtomicInitStage::Init)
-        [[likely]]
+      [[likely]]
     {
       v_.~T();
     }
@@ -307,15 +308,16 @@ struct AtomicInit
   }
 
   /// @brief Get the wrapped value
-  /// @return null if value is not initialized yet
-  T * get()
+  /// @return none if value is not initialized yet
+  OptionRef<T> ref()
   {
     std::atomic_ref stage{stage_};
     if (stage.load(std::memory_order_acquire) != AtomicInitStage::Init)
     {
-      return nullptr;
+      return none;
     }
-    return &v_;
+
+    return v_;
   }
 };
 
@@ -328,8 +330,8 @@ struct [[nodiscard]] Sync
 
   template <typename... Args>
   constexpr Sync(Args &&... args) :
-      data_{static_cast<Args &&>(args)...},
-      lock_{}
+    data_{static_cast<Args &&>(args)...},
+    lock_{}
   {
   }
 
@@ -391,8 +393,8 @@ struct SemaphoreState
   u64 stage_;
 
   explicit constexpr SemaphoreState(u64 num_stages) :
-      num_stages_{num_stages},
-      stage_{0}
+    num_stages_{num_stages},
+    stage_{0}
   {
   }
 
@@ -440,8 +442,8 @@ struct SemaphoreState
     u64             current = 0;
     std::atomic_ref stage{stage_};
     while (!stage.compare_exchange_weak(
-        current, next, std::memory_order_release, std::memory_order_relaxed))
-        [[unlikely]]
+      current, next, std::memory_order_release, std::memory_order_relaxed))
+      [[unlikely]]
     {
       if (current >= next)
       {
@@ -461,8 +463,8 @@ struct SemaphoreState
     u64             target  = inc;
     std::atomic_ref stage{stage_};
     while (!stage.compare_exchange_weak(
-        current, target, std::memory_order_release, std::memory_order_relaxed))
-        [[unlikely]]
+      current, target, std::memory_order_release, std::memory_order_relaxed))
+      [[unlikely]]
     {
       target = min(sat_add(current, inc), num_stages_);
     }
@@ -498,8 +500,8 @@ struct StopTokenState
     u64             expected = U64_MAX;
     u64             target   = min(expected, stage);
     while (!stop_point.compare_exchange_weak(
-        expected, target, std::memory_order_release, std::memory_order_relaxed))
-        [[unlikely]]
+      expected, target, std::memory_order_release, std::memory_order_relaxed))
+      [[unlikely]]
     {
       target = min(expected, stage);
     }
@@ -627,8 +629,8 @@ struct [[nodiscard]] Stream
   Semaphore semaphore_;
 
   Stream(Rc<T *> data, Semaphore semaphore) :
-      data_{std::move(data)},
-      semaphore_{std::move(semaphore)}
+    data_{std::move(data)},
+    semaphore_{std::move(semaphore)}
   {
   }
 
@@ -648,14 +650,14 @@ struct [[nodiscard]] Stream
   }
 
   template <Callable<T &> F>
-  void yield_unseq(F && op, u64 increment) const
+  void yield_unsequenced(F && op, u64 increment) const
   {
     static_cast<F &&>(op)(*data_.get());
     semaphore_->increment(increment);
   }
 
   template <Callable<T &> F>
-  void yield_seq(F && op, u64 stage) const
+  void yield_sequenced(F && op, u64 stage) const
   {
     static_cast<F &&>(op)(*data_.get());
     CHECK_DESC(semaphore_->signal(stage + 1),
@@ -678,7 +680,7 @@ Result<Stream<T>> stream_inplace(AllocatorImpl allocator, u64 num_stages,
     return Err{};
   }
   return Ok{
-      Stream<T>{std::move(data.value()), std::move(sem.value())}
+    Stream<T>{std::move(data.value()), std::move(sem.value())}
   };
 }
 
@@ -709,8 +711,8 @@ struct [[nodiscard]] Future
   u64 stage_;
 
   Future(Stream<AtomicInit<T>> stream, u64 stage) :
-      stream_{std::move(stream)},
-      stage_{stage}
+    stream_{std::move(stream)},
+    stage_{stage}
   {
   }
 
@@ -719,29 +721,36 @@ struct [[nodiscard]] Future
     return Future{stream_.alias(), stage_};
   }
 
-  [[nodiscard]] bool is_ready() const
-  {
-    return stream_.is_ready(stage_);
-  }
-
   T & get() const
   {
-    T * data = stream_.data_.get()->get();
-    CHECK_DESC(data != nullptr, "Called `Future::get()` on a pending Future");
-    return *data;
+    return stream_.data_.get()->ref().expect(
+      "Called `Future::get()` on a pending Future");
+  }
+
+  Result<Ref<T>> poll() const
+  {
+    return stream_.data_.get()->ref().match(
+      [](T & v) -> Result<Ref<T>> { return Ref{v}; },
+      []() -> Result<Ref<T>> { return Err{}; });
   }
 
   template <typename... Args>
-  void complete(Args &&... args) const
+  Result<> yield(Args &&... args) const
   {
-    stream_.yield_seq(
-        [&](AtomicInit<T> & v) {
-          bool const init = v.init(static_cast<Args &&>(args)...);
-          CHECK_DESC(
-              init,
-              "Called `Future::complete()` on an already completed `Future`");
-        },
-        stage_);
+    bool yielded = false;
+
+    stream_.yield_sequenced(
+      [&](AtomicInit<T> & v) {
+        yielded = v.init(static_cast<Args &&>(args)...);
+      },
+      stage_);
+
+    if (!yielded)
+    {
+      return Err{};
+    }
+
+    return Ok{};
   }
 };
 
@@ -754,7 +763,7 @@ Result<Future<T>> future(AllocatorImpl allocator)
     return Err{};
   }
   return Ok{
-      Future<T>{std::move(stream.value()), 0}
+    Future<T>{std::move(stream.value()), 0}
   };
 }
 
@@ -799,7 +808,7 @@ struct [[nodiscard]] TaskInfo
 
   typedef bool (*Poll)(void *);
 
-  typedef bool (*Run)(void *);
+  typedef bool (*Runner)(void *);
 
   Layout frame_layout{};
 
@@ -809,7 +818,7 @@ struct [[nodiscard]] TaskInfo
 
   Poll poll = [](void *) { return true; };
 
-  Run run = [](void *) { return false; };
+  Runner runner = [](void *) { return false; };
 };
 
 enum class TaskTarget
@@ -821,12 +830,12 @@ enum class TaskTarget
 
 /// @brief Describes how to schedule the task onto the executor
 /// @param target the target execution unit
-/// @param thread the thread on the execution unit. U32_MAX means any available
+/// @param thread the thread on the execution unit. none means any available
 /// thread. This is ignored when target is main thread.
 struct TaskSchedule
 {
-  TaskTarget target = TaskTarget::Worker;
-  u32        thread = U32_MAX;
+  TaskTarget  target = TaskTarget::Worker;
+  Option<u32> thread = none;
 };
 
 /// @brief Wrap a Task frame
@@ -835,8 +844,8 @@ template <TaskFrame F>
 TaskInfo to_task_info(F & frame)
 {
   Fn init = fn(
-      &frame,
-      +[](F * frame, void * mem) { new (mem) F{static_cast<F &&>(*frame)}; });
+    &frame,
+    +[](F * frame, void * mem) { new (mem) F{static_cast<F &&>(*frame)}; });
 
   TaskInfo::Uninit uninit = [](void * f) {
     F * frame = reinterpret_cast<F *>(f);
@@ -848,7 +857,7 @@ TaskInfo to_task_info(F & frame)
     return frame->poll();
   };
 
-  TaskInfo::Run run = [](void * f) -> bool {
+  TaskInfo::Runner runner = [](void * f) -> bool {
     F * frame = reinterpret_cast<F *>(f);
     return frame->run();
   };
@@ -857,7 +866,7 @@ TaskInfo to_task_info(F & frame)
                   .init         = init,
                   .uninit       = uninit,
                   .poll         = poll,
-                  .run          = run};
+                  .run          = runner};
 }
 
 /// @brief Static Thread Pool Scheduler.
@@ -939,7 +948,9 @@ struct Scheduler
         schedule_worker(info);
         return;
       case TaskTarget::Dedicated:
-        schedule_dedicated(info, schedule.thread);
+        schedule_dedicated(
+          info, schedule.thread.expect(
+                  "Dedicated Thread ID not set when scheduling task"));
         return;
       case TaskTarget::Main:
         schedule_main(info);
@@ -955,27 +966,24 @@ struct Scheduler
 /// `Scheduler::uninit()`.
 ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler * scheduler;
 
-namespace async
-{
-
 template <typename P>
 concept Poll = requires (P p) {
   { p() && true };
 };
 
 template <typename R>
-concept Run = requires (R r) {
+concept Runner = requires (R r) {
   { r() && true };
 };
 
-template <Run R, Poll P>
+template <Runner R, Poll P>
 struct TaskBody
 {
-  typedef P Poller;
+  typedef P Poll;
   typedef R Runner;
 
-  R run{};
   P poll{};
+  R run{};
 };
 
 struct TaskInstance
@@ -993,18 +1001,18 @@ struct [[nodiscard]] AwaitStreams
 
   explicit AwaitStreams(Array<u64, sizeof...(T)> const & stages,
                         Stream<T>... streams) :
-      streams{std::move(streams)...},
-      stages{stages}
+    streams{std::move(streams)...},
+    stages{stages}
   {
   }
 
   bool operator()() const
   {
     return apply(
-        [this](auto const &... s) {
-          return await_streams(nanoseconds{0}, stages, s...);
-        },
-        streams);
+      [this](auto const &... s) {
+        return await_streams(nanoseconds{0}, stages, s...);
+      },
+      streams);
   }
 };
 
@@ -1020,8 +1028,8 @@ struct [[nodiscard]] AwaitFutures
   bool operator()() const
   {
     return apply(
-        [](auto const &... f) { return await_futures(nanoseconds{0}, f...); },
-        futures);
+      [](auto const &... f) { return await_futures(nanoseconds{0}, f...); },
+      futures);
   }
 };
 
@@ -1049,6 +1057,9 @@ struct [[nodiscard]] Ready
     return true;
   }
 };
+
+namespace async
+{
 
 /// @brief Launch a one-shot task
 /// @tparam F Task Functor type
@@ -1159,24 +1170,24 @@ void shard(Fn<void(TaskInstance, State)> fn, Rc<State> const & state, u64 n,
   // called across all instances.
 
   TaskBody body{
-      [fn, state = state.alias(), schedule, n]() mutable -> bool {
-        for (u64 i = 0; i < n; i++)
-        {
-          scheduler->schedule(
-              TaskBody{[fn, i, n, state = state.alias()]() mutable -> bool {
-                         fn(TaskInstance{.n = n, .idx = i}, state.get());
-                         return false;
-                       },
-                       Ready{}},
-              schedule);
-        }
-        return false;
-      },
-      std::move(poll)};
+    [fn, state = state.alias(), schedule, n]() mutable -> bool {
+      for (u64 i = 0; i < n; i++)
+      {
+        scheduler->schedule(
+          TaskBody{[fn, i, n, state = state.alias()]() mutable -> bool {
+                     fn(TaskInstance{.n = n, .idx = i}, state.get());
+                     return false;
+                   },
+                   Ready{}},
+          schedule);
+      }
+      return false;
+    },
+    std::move(poll)};
 
   scheduler->schedule(std::move(body), schedule);
 }
 
-};        // namespace async
+}    // namespace async
 
-}        // namespace ash
+}    // namespace ash

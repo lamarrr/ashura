@@ -98,9 +98,13 @@ struct WindowSystem
 
   virtual void get_keyboard_state(BitSpan<u64> state) = 0;
 
-  virtual void get_mouse_state(BitSpan<u64> state) = 0;
+  virtual Vec2 get_mouse_state(BitSpan<u64> state) = 0;
+
+  virtual void start_text_input(Window window, TextInputInfo const & info) = 0;
+
+  virtual void end_text_input(Window window) = 0;
 };
 
 ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem * window_system;
 
-}        // namespace ash
+}    // namespace ash

@@ -2,15 +2,12 @@
 #pragma once
 #include "ashura/std/buffer.h"
 #include "ashura/std/math.h"
-#include "ashura/std/range.h"
 #include "ashura/std/types.h"
 #include <string>
 #include <string_view>
 
 namespace ash
 {
-
-// [ ] formatter concept with formatter object
 
 namespace fmt
 {
@@ -29,8 +26,6 @@ struct Spec
 {
   Style style     = Style::Decimal;
   i32   precision = 0;
-  // [ ] implement N-ary list printing
-  // u64   list_limit = U64_MAX;
 };
 
 /// @param push function to be called to insert text into the format context.
@@ -115,5 +110,5 @@ bool format(Context const & ctx, Args const &... args)
   return (true && ... && push(ctx, spec, args));
 }
 
-}        // namespace fmt
-}        // namespace ash
+}    // namespace fmt
+}    // namespace ash

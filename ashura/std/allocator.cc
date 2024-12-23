@@ -5,7 +5,7 @@
 #include <cstring>
 
 #if (!ASH_CFG(OS, WINDOWS)) && \
-    (ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, GNUC))
+  (ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, GNUC))
 #  define USE_STDC_ALIGNED_ALLOC 1
 #else
 #  define USE_STDC_ALIGNED_ALLOC 0
@@ -74,8 +74,8 @@ bool HeapAllocator::alloc(usize alignment, usize size, u8 *& mem)
 
 #if !HAS_ALIGNED_ALLOC
   (void) std::fprintf(
-      stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
-      (u64) alignment);
+    stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
+    (u64) alignment);
   (void) std::fflush(stderr);
   mem = nullptr;
   return false;
@@ -208,10 +208,10 @@ void HeapAllocator::dealloc(usize alignment, u8 * mem, usize size)
 
 #if !HAS_ALIGNED_ALLOC
   (void) std::fprintf(
-      stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
-      (u64) alignment);
+    stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
+    (u64) alignment);
   (void) std::fflush(stderr);
 #endif
 }
 
-}        // namespace ash
+}    // namespace ash

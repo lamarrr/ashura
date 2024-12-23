@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 import sys
 MAX_SIZE = 32
 
@@ -26,18 +28,16 @@ template <usize I, typename... T>
 requires((I < sizeof...(T)) && (sizeof...(T) <= MAX_PACK_SIZE))
 struct index_pack;
 
-      """)
+""")
 
 for index in range(MAX_SIZE):
   types = [f"E{i}" for i in range(index+1)]
   typenames = [f"typename E{i}" for i in range(index+1)]
-  out(f"""
-template<{", ".join(typenames) }, typename... E>
+  out(f"""template<{", ".join(typenames)}, typename... E>
 struct index_pack<{index}, {", ".join(types)}, E...>
 {{
-   using Type = E{index};
+  using Type = E{index};
 }};
-
 
 """)
 
@@ -47,5 +47,3 @@ out(f"""
 }} // namespace ash
 
   """)
-
-

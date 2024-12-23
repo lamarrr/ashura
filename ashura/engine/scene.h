@@ -27,4 +27,4 @@ struct SceneNode
 
 struct Scene;
 
-}        // namespace ash
+}    // namespace ash

@@ -1,7 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/gpu_context.h"
+#include "ashura/engine/font.h"
+#include "ashura/engine/gpu_system.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/dyn.h"
 #include "ashura/std/image.h"
@@ -13,6 +14,8 @@ namespace ash
 // App Unit (AU)
 inline constexpr i32 AU_UNIT = 128 * 64;
 
+inline constexpr f32 AU_SCALE = 1 / (f32) AU_UNIT;
+
 static_assert((AU_UNIT % 64) == 0,
               "App Unit needs to be in 26.6 Fractional Unit");
 
@@ -21,7 +24,7 @@ static_assert((AU_UNIT / 64) >= 64,
 
 constexpr f32 au_to_px(i32 au, f32 base)
 {
-  return (au / (f32) AU_UNIT) * base;
+  return au * AU_SCALE * base;
 }
 
 constexpr Vec2 au_to_px(Vec2I au, f32 base)
@@ -37,7 +40,7 @@ enum class FontErr : u8
   OutOfMemory    = 3
 };
 
-constexpr Span<char const> to_string(FontErr err)
+constexpr Span<char const> to_str(FontErr err)
 {
   switch (err)
   {
@@ -59,10 +62,10 @@ namespace fmt
 
 inline bool push(Context const & ctx, Spec const & spec, FontErr const & err)
 {
-  return push(ctx, spec, to_string(err));
+  return push(ctx, spec, to_str(err));
 }
 
-}        // namespace fmt
+}    // namespace fmt
 
 /// @brief Glyph Metrics. expressed on an AU_UNIT scale
 /// @param bearing offset from cursor baseline to start drawing glyph from (au)
@@ -76,6 +79,7 @@ struct GlyphMetrics
   Vec2I extent  = {};
 };
 
+/// @brief normalized font metrics
 /// @param ascent  maximum ascent of the font's glyphs (au)
 /// @param descent maximum descent of the font's glyphs (au)
 /// @param advance maximum advance of the font's glyphs (au)
@@ -86,20 +90,9 @@ struct FontMetrics
   i32 advance = 0;
 };
 
-/// @param is_valid if the glyph was found in the font and loaded
-// successfully
-/// @param metrics normalized font metrics
-/// @param bin atlas layer this glyph belongs to
-/// @param offset, extent: area in the atlas this glyph's cache data is placed
-/// @param uv0, uv1: normalized texture coordinates of this
-/// glyph in the atlas bin
-struct Glyph
-{
-  bool         is_valid = false;
-  GlyphMetrics metrics  = {};
-};
-
-/// @param rasterized if the glyph was rasterized
+/// @param later atlas layer this glyph belongs to
+/// @param area area in the atlas this glyph's cache data is placed
+/// @param uv normalized texture coordinates of this glyph in the layer
 struct AtlasGlyph
 {
   u32       layer = 0;
@@ -107,8 +100,34 @@ struct AtlasGlyph
   Vec2      uv[2] = {};
 };
 
-typedef struct CpuFontAtlas CpuFontAtlas;
-typedef struct GpuFontAtlas GpuFontAtlas;
+struct CpuFontAtlas
+{
+  i32             font_height = 0;
+  Vec2U           extent      = {};
+  u32             num_layers  = 0;
+  Vec<AtlasGlyph> glyphs      = {};
+  Vec<u8>         channels    = {};
+
+  ImageLayerSpan<u8, 1> span() const
+  {
+    return ImageLayerSpan<u8, 1>{.channels = channels,
+                                 .width    = extent.x,
+                                 .height   = extent.y,
+                                 .layers   = num_layers};
+  }
+};
+
+struct GpuFontAtlas
+{
+  gpu::Image          image       = nullptr;
+  Vec<gpu::ImageView> views       = {};
+  Vec<TextureId>      textures    = {};
+  i32                 font_height = 0;
+  u32                 num_layers  = 0;
+  Vec2U               extent      = {};
+  Vec<AtlasGlyph>     glyphs      = {};
+  gpu::Format         format      = gpu::Format::Undefined;
+};
 
 /// @param postscript_name ASCII. i.e. RobotoBold
 /// @param family_name ASCII. i.e. Roboto
@@ -121,23 +140,22 @@ typedef struct GpuFontAtlas GpuFontAtlas;
 /// @param gpu_atlas gpu font atlas if loaded
 struct FontInfo
 {
-  Span<char const>             postscript_name   = {};
-  Span<char const>             family_name       = {};
-  Span<char const>             style_name        = {};
-  Span<Glyph const>            glyphs            = {};
-  u32                          replacement_glyph = 0;
-  u32                          space_glyph       = 0;
-  u32                          ellipsis_glyph    = 0;
-  FontMetrics                  metrics           = {};
-  Option<CpuFontAtlas const *> cpu_atlas         = None;
-  Option<GpuFontAtlas const *> gpu_atlas         = None;
+  Span<char const>              postscript_name   = {};
+  Span<char const>              family_name       = {};
+  Span<char const>              style_name        = {};
+  Span<GlyphMetrics const>      glyphs            = {};
+  u32                           replacement_glyph = 0;
+  u32                           space_glyph       = 0;
+  u32                           ellipsis_glyph    = 0;
+  FontMetrics                   metrics           = {};
+  OptionRef<CpuFontAtlas const> cpu_atlas         = none;
+  OptionRef<GpuFontAtlas const> gpu_atlas         = none;
 };
 
 struct Font
 {
-  static Result<Dyn<Font *>, FontErr> decode(Span<u8 const> encoded,
-                                             u32            face      = 0,
-                                             AllocatorImpl  allocator = {});
+  static Result<Dyn<Font *>, FontErr>
+    decode(Span<u8 const> encoded, u32 face = 0, AllocatorImpl allocator = {});
 
   /// @brief rasterize the font at the specified font height. Note: raster is
   /// stored as alpha values.
@@ -149,11 +167,11 @@ struct Font
 
   virtual FontInfo info() = 0;
 
-  virtual void upload_to_device(GpuContext & c, AllocatorImpl allocator) = 0;
+  virtual void upload_to_device(GpuSystem & c, AllocatorImpl allocator) = 0;
 
-  virtual void unload_from_device(GpuContext & c) = 0;
+  virtual void unload_from_device(GpuSystem & c) = 0;
 
   virtual ~Font() = default;
 };
 
-}        // namespace ash
+}    // namespace ash

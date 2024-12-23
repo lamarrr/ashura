@@ -32,8 +32,8 @@ struct TaskArena : Pin<>
   static constexpr auto flex()
   {
     return Flex<TaskArena, u8>{
-        {layout<TaskArena>,
-         Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}}
+      {layout<TaskArena>,
+       Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}}
     };
   }
 };
@@ -58,7 +58,7 @@ struct Task
 
   typedef bool (*Poll)(void *);
 
-  typedef bool (*Run)(void *);
+  typedef bool (*Runner)(void *);
 
   Task * next = nullptr;
 
@@ -68,7 +68,7 @@ struct Task
 
   Poll poll = [](void *) { return true; };
 
-  Run run = [](void *) { return false; };
+  Runner runner = [](void *) { return false; };
 
   Uninit uninit = noop;
 
@@ -78,7 +78,7 @@ struct Task
   static constexpr auto flex(Layout frame_layout)
   {
     return Flex<Task, u8>{
-        {layout<Task>, frame_layout}
+      {layout<Task>, frame_layout}
     };
   }
 };
@@ -101,7 +101,7 @@ inline constexpr Layout MAX_TASK_FRAME_LAYOUT{.alignment = MAX_TASK_FRAME_SIZE,
                                               .size      = MAX_TASK_FRAME_SIZE};
 
 inline constexpr Layout MAX_TASK_FLEX_LAYOUT =
-    Task::flex(MAX_TASK_FRAME_LAYOUT).layout();
+  Task::flex(MAX_TASK_FRAME_LAYOUT).layout();
 
 static_assert(TASK_ARENA_SIZE >= MAX_TASK_FLEX_LAYOUT.size,
               "Task arena size is too small to fit the maximum task frame and "
@@ -170,7 +170,7 @@ struct TaskAllocator
   {
     // decrease alias count of arena, if only alias left, add to the arena
     // free list.
-    if (arena->ac.unalias())
+    if (arena->ac.unalias() == 0)
     {
       arena->arena.reclaim();
       LockGuard guard{free_list.lock};
@@ -233,7 +233,7 @@ struct TaskAllocator
 
     out = new (task.data()) Task{.frame_layout = info.frame_layout,
                                  .poll         = info.poll,
-                                 .run          = info.run,
+                                 .runner       = info.runner,
                                  .uninit       = info.uninit,
                                  .arena        = &arena};
 
@@ -261,7 +261,7 @@ struct TaskAllocator
 
     // no arena is set as current, request a new arena
     if (current_arena.node == nullptr && !request_arena(current_arena.node))
-        [[unlikely]]
+      [[unlikely]]
     {
       return false;
     }
@@ -274,7 +274,7 @@ struct TaskAllocator
 
     // decrease alias count of current arena, if last alias, reclaim the memory
     // instead
-    if (current_arena.node->ac.unalias()) [[unlikely]]
+    if (current_arena.node->ac.unalias() == 0) [[unlikely]]
     {
       current_arena.node->arena.reclaim();
     }
@@ -351,10 +351,10 @@ struct alignas(CACHELINE_ALIGNMENT) TaskThread
   std::thread    thread;
 
   TaskThread(AllocatorImpl allocator, nanoseconds max_sleep) :
-      queue{allocator},
-      stop_token{},
-      max_sleep{max_sleep},
-      thread{}
+    queue{allocator},
+    stop_token{},
+    max_sleep{max_sleep},
+    thread{}
   {
   }
 };
@@ -379,12 +379,12 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
   explicit SchedulerImpl(AllocatorImpl   allocator,
                          std::thread::id main_thread_id) :
-      dedicated_threads{},
-      worker_threads{},
-      main_queue{allocator},
-      worker_queue{allocator},
-      main_thread_id{main_thread_id},
-      joined{false}
+    dedicated_threads{},
+    worker_threads{},
+    main_queue{allocator},
+    worker_queue{allocator},
+    main_thread_id{main_thread_id},
+    joined{false}
   {
   }
 
@@ -466,7 +466,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
       // finally gotten a ready task, reset poll counter
       poll = 0;
 
-      bool const repeat = task->run(frame.data());
+      bool const repeat = task->runner(frame.data());
 
       if (repeat) [[unlikely]]
       {
@@ -532,7 +532,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
         continue;
       }
 
-      bool const repeat = task->run(frame.data());
+      bool const repeat = task->runner(frame.data());
 
       if (repeat) [[unlikely]]
       {
@@ -603,10 +603,10 @@ void Scheduler::init(AllocatorImpl allocator, std::thread::id main_thread_id,
   u32 const num_worker_threads    = worker_thread_sleep.size32();
 
   impl->dedicated_threads =
-      PinVec<TaskThread>::make(num_dedicated_threads, allocator).unwrap();
+    PinVec<TaskThread>::make(num_dedicated_threads, allocator).unwrap();
 
   impl->worker_threads =
-      PinVec<TaskThread>::make(num_worker_threads, allocator).unwrap();
+    PinVec<TaskThread>::make(num_worker_threads, allocator).unwrap();
 
   for (u32 i = 0; i < num_dedicated_threads; i++)
   {
@@ -638,4 +638,4 @@ void Scheduler::uninit()
   scheduler = nullptr;
 }
 
-}        // namespace ash
+}    // namespace ash

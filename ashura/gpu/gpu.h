@@ -2,6 +2,7 @@
 #pragma once
 #include "ashura/std/allocator.h"
 #include "ashura/std/dyn.h"
+#include "ashura/std/enum.h"
 #include "ashura/std/math.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
@@ -16,33 +17,6 @@ namespace gpu
 inline constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
 inline constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
 inline constexpr u64 WHOLE_SIZE             = ~0ULL;
-
-inline constexpr u32 MAX_IMAGE_EXTENT_1D                  = 8'192;
-inline constexpr u32 MAX_IMAGE_EXTENT_2D                  = 8'192;
-inline constexpr u32 MAX_IMAGE_EXTENT_3D                  = 2'048;
-inline constexpr u32 MAX_IMAGE_EXTENT_CUBE                = 8'192;
-inline constexpr u32 MAX_IMAGE_ARRAY_LAYERS               = 1'024;
-inline constexpr u32 MAX_VIEWPORT_EXTENT                  = 8'192;
-inline constexpr u32 MAX_FRAMEBUFFER_EXTENT               = 8'192;
-inline constexpr u32 MAX_FRAMEBUFFER_LAYERS               = 1'024;
-inline constexpr u32 MAX_VERTEX_ATTRIBUTES                = 16;
-inline constexpr u32 MAX_PUSH_CONSTANTS_SIZE              = 128;
-inline constexpr u32 MAX_UPDATE_BUFFER_SIZE               = 65'536;
-inline constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS         = 8;
-inline constexpr u32 MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS = 8;
-inline constexpr u32 MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS = 8;
-inline constexpr u32 MAX_PIPELINE_INPUT_ATTACHMENTS       = 8;
-inline constexpr u32 MAX_PIPELINE_COLOR_ATTACHMENTS       = 8;
-inline constexpr u32 MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4'096;
-inline constexpr u32 MAX_BINDING_DESCRIPTORS              = 4'096;
-inline constexpr u32 MAX_DESCRIPTOR_SET_BINDINGS          = 16;
-inline constexpr u32 MAX_FRAME_BUFFERING                  = 4;
-inline constexpr u32 MAX_SWAPCHAIN_IMAGES                 = 4;
-inline constexpr u64 MAX_UNIFORM_BUFFER_RANGE             = 65'536;
-inline constexpr f32 MAX_SAMPLER_ANISOTROPY               = 16;
-inline constexpr u32 MAX_CLIP_DISTANCES                   = 8;
-inline constexpr u32 MAX_CULL_DISTANCES                   = 8;
-inline constexpr u32 MAX_COMBINED_CLIP_AND_CULL_DISTANCES = 8;
 
 typedef Vec2U Offset;
 typedef Vec2U Extent;
@@ -391,14 +365,14 @@ ASH_BIT_ENUM_OPS(ImageAspects)
 
 enum class SampleCount : u8
 {
-  None    = 0x00U,
-  Count1  = 0x01U,
-  Count2  = 0x02U,
-  Count4  = 0x04U,
-  Count8  = 0x08U,
-  Count16 = 0x10U,
-  Count32 = 0x20U,
-  Count64 = 0x40U
+  None = 0x00U,
+  C1   = 0x01U,
+  C2   = 0x02U,
+  C4   = 0x04U,
+  C8   = 0x08U,
+  C16  = 0x10U,
+  C32  = 0x20U,
+  C64  = 0x40U
 };
 
 ASH_BIT_ENUM_OPS(SampleCount)
@@ -694,33 +668,11 @@ enum class ResolveModes : u32
 
 ASH_BIT_ENUM_OPS(ResolveModes)
 
-struct Object
-{
-  union
-  {
-    void *              handle = nullptr;
-    Instance *          instance;
-    Device *            device;
-    CommandEncoder *    command_encoder;
-    Buffer              buffer;
-    BufferView          buffer_view;
-    Image               image;
-    ImageView           image_view;
-    Sampler             sampler;
-    Shader              shader;
-    DescriptorSetLayout descriptor_set_layout;
-    DescriptorSet       descriptor_set;
-    PipelineCache       pipeline_cache;
-    ComputePipeline     compute_pipeline;
-    GraphicsPipeline    graphics_pipeline;
-    TimeStampQuery      timestamp_query;
-    StatisticsQuery     statistics_query;
-    Surface             surface;
-    Swapchain           swapchain;
-  };
-
-  ObjectType type = ObjectType::None;
-};
+using Object =
+  Enum<Instance *, Device *, CommandEncoder *, Buffer, BufferView, Image,
+       ImageView, Sampler, Shader, DescriptorSetLayout, DescriptorSet,
+       PipelineCache, ComputePipeline, GraphicsPipeline, TimeStampQuery,
+       StatisticsQuery, Surface, Swapchain, void *>;
 
 struct SurfaceFormat
 {
@@ -880,6 +832,13 @@ struct DescriptorSetLayoutInfo
   Span<DescriptorBindingInfo const> bindings = {};
 };
 
+struct DescriptorSetInfo
+{
+  Span<char const>    label            = {};
+  DescriptorSetLayout layout           = nullptr;
+  Span<u32 const>     variable_lengths = {};
+};
+
 struct PipelineCacheInfo
 {
   Span<char const> label        = {};
@@ -996,14 +955,15 @@ struct ColorBlendState
 
 struct RasterizationState
 {
-  bool        depth_clamp_enable         = false;
-  PolygonMode polygon_mode               = PolygonMode::Fill;
-  CullMode    cull_mode                  = CullMode::None;
-  FrontFace   front_face                 = FrontFace::CounterClockWise;
-  bool        depth_bias_enable          = false;
-  f32         depth_bias_constant_factor = 0;
-  f32         depth_bias_clamp           = 0;
-  f32         depth_bias_slope_factor    = 0;
+  bool             depth_clamp_enable         = false;
+  PolygonMode      polygon_mode               = PolygonMode::Fill;
+  CullMode         cull_mode                  = CullMode::None;
+  FrontFace        front_face                 = FrontFace::CounterClockWise;
+  bool             depth_bias_enable          = false;
+  f32              depth_bias_constant_factor = 0;
+  f32              depth_bias_clamp           = 0;
+  f32              depth_bias_slope_factor    = 0;
+  gpu::SampleCount sample_count               = gpu::SampleCount::C1;
 };
 
 struct GraphicsState
@@ -1157,7 +1117,7 @@ struct SwapchainState
   Extent            extent        = {};
   SurfaceFormat     format        = {};
   Span<Image const> images        = {};
-  Option<u32>       current_image = None;
+  Option<u32>       current_image = none;
 };
 
 struct PipelineStatistics
@@ -1237,12 +1197,12 @@ struct CommandEncoder
   virtual void update_buffer(Span<u8 const> src, u64 dst_offset,
                              Buffer dst) = 0;
 
-  virtual void clear_color_image(Image dst, Color clear_color,
+  virtual void clear_color_image(Image dst, Color value,
                                  Span<ImageSubresourceRange const> ranges) = 0;
 
   virtual void
-      clear_depth_stencil_image(Image dst, DepthStencil clear_depth_stencil,
-                                Span<ImageSubresourceRange const> ranges) = 0;
+    clear_depth_stencil_image(Image dst, DepthStencil value,
+                              Span<ImageSubresourceRange const> ranges) = 0;
 
   virtual void copy_image(Image src, Image dst,
                           Span<ImageCopy const> copies) = 0;
@@ -1286,11 +1246,11 @@ struct CommandEncoder
   virtual void bind_index_buffer(Buffer index_buffer, u64 offset,
                                  IndexType index_type) = 0;
 
-  virtual void draw(u32 vertex_count, u32 instance_count, u32 first_vertex_id,
-                    u32 first_instance_id) = 0;
+  virtual void draw(u32 vertex_count, u32 instance_count, u32 first_vertex,
+                    u32 first_instance) = 0;
 
   virtual void draw_indexed(u32 first_index, u32 num_indices, i32 vertex_offset,
-                            u32 first_instance_id, u32 num_instances) = 0;
+                            u32 first_instance, u32 num_instances) = 0;
 
   virtual void draw_indirect(Buffer buffer, u64 offset, u32 draw_count,
                              u32 stride) = 0;
@@ -1313,72 +1273,71 @@ struct Device
   virtual DeviceProperties get_device_properties() = 0;
 
   virtual Result<FormatProperties, Status>
-      get_format_properties(Format format) = 0;
+    get_format_properties(Format format) = 0;
 
   virtual Result<Buffer, Status> create_buffer(BufferInfo const & info) = 0;
 
   virtual Result<BufferView, Status>
-      create_buffer_view(BufferViewInfo const & info) = 0;
+    create_buffer_view(BufferViewInfo const & info) = 0;
 
   virtual Result<Image, Status> create_image(ImageInfo const & info) = 0;
 
   virtual Result<ImageView, Status>
-      create_image_view(ImageViewInfo const & info) = 0;
+    create_image_view(ImageViewInfo const & info) = 0;
 
   virtual Result<Sampler, Status> create_sampler(SamplerInfo const & info) = 0;
 
   virtual Result<Shader, Status> create_shader(ShaderInfo const & info) = 0;
 
   virtual Result<DescriptorSetLayout, Status>
-      create_descriptor_set_layout(DescriptorSetLayoutInfo const & info) = 0;
+    create_descriptor_set_layout(DescriptorSetLayoutInfo const & info) = 0;
 
   virtual Result<DescriptorSet, Status>
-      create_descriptor_set(DescriptorSetLayout layout,
-                            Span<u32 const>     variable_lengths) = 0;
+    create_descriptor_set(DescriptorSetInfo const & info) = 0;
 
   virtual Result<PipelineCache, Status>
-      create_pipeline_cache(PipelineCacheInfo const & info) = 0;
+    create_pipeline_cache(PipelineCacheInfo const & info) = 0;
 
   virtual Result<ComputePipeline, Status>
-      create_compute_pipeline(ComputePipelineInfo const & info) = 0;
+    create_compute_pipeline(ComputePipelineInfo const & info) = 0;
 
   virtual Result<GraphicsPipeline, Status>
-      create_graphics_pipeline(GraphicsPipelineInfo const & info) = 0;
+    create_graphics_pipeline(GraphicsPipelineInfo const & info) = 0;
 
   virtual Result<Swapchain, Status>
-      create_swapchain(Surface surface, SwapchainInfo const & info) = 0;
+    create_swapchain(Surface surface, SwapchainInfo const & info) = 0;
 
   virtual Result<TimeStampQuery, Status> create_timestamp_query() = 0;
 
   virtual Result<StatisticsQuery, Status> create_statistics_query() = 0;
 
-  virtual void uninit_buffer(Buffer buffer) = 0;
+  virtual void uninit(Buffer buffer) = 0;
 
-  virtual void uninit_buffer_view(BufferView buffer_view) = 0;
+  virtual void uninit(BufferView buffer_view) = 0;
 
-  virtual void uninit_image(Image image) = 0;
+  virtual void uninit(Image image) = 0;
 
-  virtual void uninit_image_view(ImageView image_view) = 0;
+  virtual void uninit(ImageView image_view) = 0;
 
-  virtual void uninit_sampler(Sampler sampler) = 0;
+  virtual void uninit(Sampler sampler) = 0;
 
-  virtual void uninit_shader(Shader shader) = 0;
+  virtual void uninit(Shader shader) = 0;
 
-  virtual void uninit_descriptor_set_layout(DescriptorSetLayout layout) = 0;
+  virtual void uninit(DescriptorSetLayout layout) = 0;
 
-  virtual void uninit_descriptor_set(DescriptorSet set) = 0;
+  virtual void uninit(DescriptorSet set) = 0;
 
-  virtual void uninit_pipeline_cache(PipelineCache cache) = 0;
+  virtual void uninit(PipelineCache cache) = 0;
 
-  virtual void uninit_compute_pipeline(ComputePipeline pipeline) = 0;
+  virtual void uninit(ComputePipeline pipeline) = 0;
 
-  virtual void uninit_graphics_pipeline(GraphicsPipeline pipeline) = 0;
+  virtual void uninit(GraphicsPipeline pipeline) = 0;
 
-  virtual void uninit_swapchain(Swapchain swapchain) = 0;
+  virtual void uninit(Swapchain swapchain) = 0;
 
-  virtual void uninit_timestamp_query(TimeStampQuery query) = 0;
+  virtual void uninit(TimeStampQuery query) = 0;
 
-  virtual void uninit_statistics_query(StatisticsQuery query) = 0;
+  virtual void uninit(StatisticsQuery query) = 0;
 
   virtual FrameContext get_frame_context() = 0;
 
@@ -1387,20 +1346,19 @@ struct Device
   virtual void unmap_buffer_memory(Buffer buffer) = 0;
 
   virtual Result<Void, Status>
-      invalidate_mapped_buffer_memory(Buffer buffer, MemoryRange range) = 0;
+    invalidate_mapped_buffer_memory(Buffer buffer, MemoryRange range) = 0;
 
   virtual Result<Void, Status>
-      flush_mapped_buffer_memory(Buffer buffer, MemoryRange range) = 0;
+    flush_mapped_buffer_memory(Buffer buffer, MemoryRange range) = 0;
 
   virtual Result<usize, Status>
-      get_pipeline_cache_size(PipelineCache cache) = 0;
+    get_pipeline_cache_size(PipelineCache cache) = 0;
 
   virtual Result<Void, Status> get_pipeline_cache_data(PipelineCache cache,
                                                        Vec<u8> &     out) = 0;
 
   virtual Result<Void, Status>
-      merge_pipeline_cache(PipelineCache             dst,
-                           Span<PipelineCache const> srcs) = 0;
+    merge_pipeline_cache(PipelineCache dst, Span<PipelineCache const> srcs) = 0;
 
   virtual void update_descriptor_set(DescriptorSetUpdate const & update) = 0;
 
@@ -1409,29 +1367,29 @@ struct Device
   virtual Result<Void, Status> wait_queue_idle() = 0;
 
   virtual Result<Void, Status>
-      get_surface_formats(Surface surface, Vec<SurfaceFormat> & formats) = 0;
+    get_surface_formats(Surface surface, Vec<SurfaceFormat> & formats) = 0;
 
   virtual Result<Void, Status>
-      get_surface_present_modes(Surface surface, Vec<PresentMode> & modes) = 0;
+    get_surface_present_modes(Surface surface, Vec<PresentMode> & modes) = 0;
 
   virtual Result<SurfaceCapabilities, Status>
-      get_surface_capabilities(Surface surface) = 0;
+    get_surface_capabilities(Surface surface) = 0;
 
   virtual Result<SwapchainState, Status>
-      get_swapchain_state(Swapchain swapchain) = 0;
+    get_swapchain_state(Swapchain swapchain) = 0;
 
   virtual Result<Void, Status>
-      invalidate_swapchain(Swapchain swapchain, SwapchainInfo const & info) = 0;
+    invalidate_swapchain(Swapchain swapchain, SwapchainInfo const & info) = 0;
 
   virtual Result<Void, Status> begin_frame(Swapchain swapchain) = 0;
 
   virtual Result<Void, Status> submit_frame(Swapchain swapchain) = 0;
 
   virtual Result<u64, Status>
-      get_timestamp_query_result(TimeStampQuery query) = 0;
+    get_timestamp_query_result(TimeStampQuery query) = 0;
 
   virtual Result<PipelineStatistics, Status>
-      get_statistics_query_result(StatisticsQuery query) = 0;
+    get_statistics_query_result(StatisticsQuery query) = 0;
 };
 
 struct Instance
@@ -1439,19 +1397,52 @@ struct Instance
   virtual ~Instance() = default;
 
   virtual Result<Device *, Status>
-      create_device(AllocatorImpl          allocator,
-                    Span<DeviceType const> preferred_types, u32 buffering) = 0;
+    create_device(AllocatorImpl          allocator,
+                  Span<DeviceType const> preferred_types, u32 buffering) = 0;
 
   virtual Backend get_backend() = 0;
 
-  virtual void uninit_device(Device * device) = 0;
+  virtual void uninit(Device * device) = 0;
 
-  virtual void uninit_surface(Surface surface) = 0;
+  virtual void uninit(Surface surface) = 0;
 };
 
 Result<Dyn<Instance *>, Status> create_vulkan_instance(AllocatorImpl allocator,
                                                        bool enable_validation);
 
-}        // namespace gpu
+/// REQUIRED LIMITS AND PROPERTIES
 
-}        // namespace ash
+inline constexpr u32         MAX_IMAGE_EXTENT_1D                  = 8'192;
+inline constexpr u32         MAX_IMAGE_EXTENT_2D                  = 8'192;
+inline constexpr u32         MAX_IMAGE_EXTENT_3D                  = 2'048;
+inline constexpr u32         MAX_IMAGE_EXTENT_CUBE                = 8'192;
+inline constexpr u32         MAX_IMAGE_ARRAY_LAYERS               = 1'024;
+inline constexpr u32         MAX_VIEWPORT_EXTENT                  = 8'192;
+inline constexpr u32         MAX_FRAMEBUFFER_EXTENT               = 8'192;
+inline constexpr u32         MAX_FRAMEBUFFER_LAYERS               = 1'024;
+inline constexpr u32         MAX_VERTEX_ATTRIBUTES                = 16;
+inline constexpr u32         MAX_PUSH_CONSTANTS_SIZE              = 128;
+inline constexpr u32         MAX_UPDATE_BUFFER_SIZE               = 65'536;
+inline constexpr u32         MAX_PIPELINE_DESCRIPTOR_SETS         = 8;
+inline constexpr u32         MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS = 8;
+inline constexpr u32         MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS = 8;
+inline constexpr u32         MAX_PIPELINE_INPUT_ATTACHMENTS       = 8;
+inline constexpr u32         MAX_PIPELINE_COLOR_ATTACHMENTS       = 8;
+inline constexpr u32         MAX_DESCRIPTOR_SET_DESCRIPTORS       = 4'096;
+inline constexpr u32         MAX_BINDING_DESCRIPTORS              = 4'096;
+inline constexpr u32         MAX_DESCRIPTOR_SET_BINDINGS          = 16;
+inline constexpr u32         MAX_FRAME_BUFFERING                  = 4;
+inline constexpr u32         MAX_SWAPCHAIN_IMAGES                 = 4;
+inline constexpr u64         MAX_UNIFORM_BUFFER_RANGE             = 65'536;
+inline constexpr f32         MAX_SAMPLER_ANISOTROPY               = 16;
+inline constexpr u32         MAX_CLIP_DISTANCES                   = 8;
+inline constexpr u32         MAX_CULL_DISTANCES                   = 8;
+inline constexpr u32         MAX_COMBINED_CLIP_AND_CULL_DISTANCES = 8;
+inline constexpr SampleCount REQUIRED_COLOR_SAMPLE_COUNTS =
+  SampleCount::C1 | SampleCount::C2 | SampleCount::C4;
+inline constexpr SampleCount REQUIRED_DEPTH_SAMPLE_COUNTS =
+  SampleCount::C1 | SampleCount::C2 | SampleCount::C4;
+
+}    // namespace gpu
+
+}    // namespace ash

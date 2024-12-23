@@ -17,7 +17,7 @@ inline constexpr Vec4U8 GREEN   = Vec4U8{0x00, 0xFF, 0x00, 0xFF};
 inline constexpr Vec4U8 CYAN    = Vec4U8{0x00, 0xFF, 0xFF, 0xFF};
 inline constexpr Vec4U8 MAGENTA = Vec4U8{0xFF, 0x00, 0xFF, 0xFF};
 inline constexpr Vec4U8 YELLOW  = Vec4U8{0xFF, 0xFF, 0x00, 0xFF};
-}        // namespace colors
+}    // namespace colors
 
 // ios default system colors
 namespace ios
@@ -100,9 +100,9 @@ inline constexpr Vec4U8 LIGHT_GRAY_5 = Vec4U8{216, 216, 220, 0xFF};
 inline constexpr Vec4U8 DARK_GRAY_5  = Vec4U8{54, 54, 56, 0xFF};
 inline constexpr Vec4U8 LIGHT_GRAY_6 = Vec4U8{235, 235, 240, 0xFF};
 inline constexpr Vec4U8 DARK_GRAY_6  = Vec4U8{36, 36, 36, 0xFF};
-}        // namespace accessible
+}    // namespace accessible
 
-}        // namespace ios
+}    // namespace ios
 
 /// @brief Material Design Colors
 namespace mdc
@@ -383,7 +383,7 @@ inline constexpr Vec4U8 BLUE_GRAY_900 = Vec4U8{0x26, 0x32, 0x38, 0xFF};
 inline constexpr Vec4U8 WHITE = Vec4U8{0xFF, 0xFF, 0xFF, 0xFF};
 inline constexpr Vec4U8 BLACK = Vec4U8{0x00, 0x00, 0x00, 0xFF};
 
-}        // namespace mdc
+}    // namespace mdc
 
 struct ColorGradient
 {
@@ -398,20 +398,20 @@ struct ColorGradient
   {
   }
 
-  constexpr ColorGradient(Vec4U8 c) : ColorGradient{c.norm()}
+  constexpr ColorGradient(Vec4U8 c) : ColorGradient{norm(c)}
   {
   }
 
   constexpr ColorGradient(Vec4 tl, Vec4 tr, Vec4 bl, Vec4 br) :
-      tl{tl},
-      tr{tr},
-      bl{bl},
-      br{br}
+    tl{tl},
+    tr{tr},
+    bl{bl},
+    br{br}
   {
   }
 
   constexpr ColorGradient(Vec4U8 tl, Vec4U8 tr, Vec4U8 bl, Vec4U8 br) :
-      ColorGradient{tl.norm(), tr.norm(), bl.norm(), br.norm()}
+    ColorGradient{norm(tl), norm(tr), norm(bl), norm(br)}
   {
   }
 
@@ -422,7 +422,7 @@ struct ColorGradient
 
   static constexpr ColorGradient x(Vec4U8 x0, Vec4U8 x1)
   {
-    return x(x0.norm(), x1.norm());
+    return x(norm(x0), norm(x1));
   }
 
   static constexpr ColorGradient y(Vec4 y0, Vec4 y1)
@@ -432,7 +432,7 @@ struct ColorGradient
 
   static constexpr ColorGradient y(Vec4U8 y0, Vec4U8 y1)
   {
-    return y(y0.norm(), y1.norm());
+    return y(norm(y0), norm(y1));
   }
 
   constexpr Vec4 const & operator[](usize i) const
@@ -451,4 +451,4 @@ struct ColorGradient
   }
 };
 
-}        // namespace ash
+}    // namespace ash

@@ -167,8 +167,8 @@ struct StdioSink : LogSink
 
 struct FileSink : LogSink
 {
-  FILE *     file = nullptr;
-  std::mutex mutex;
+  std::FILE * file = nullptr;
+  std::mutex  mutex;
 
   void log(LogLevels level, Span<char const> log_message) override;
   void flush() override;
@@ -178,4 +178,4 @@ ASH_C_LINKAGE ASH_DLL_EXPORT ash::Logger * logger;
 
 extern StdioSink stdio_sink;
 
-}        // namespace ash
+}    // namespace ash

@@ -11,32 +11,32 @@ TEST(RenderText, RunManagement)
 
   RenderText text;
 
-  ASSERT_EQ(text.inner.runs.size32(), 0);
+  ASSERT_EQ(text.runs_.size32(), 0);
 
-  text.style({}, {}, 0, 1);
-  ASSERT_EQ(text.inner.runs.size32(), 1);
+  text.run({}, {}, 0, 1);
+  ASSERT_EQ(text.runs_.size32(), 1);
 
-  text.style({}, {}, 0, 1);
-  ASSERT_EQ(text.inner.runs.size32(), 2);
+  text.run({}, {}, 0, 1);
+  ASSERT_EQ(text.runs_.size32(), 2);
 
-  text.style({}, {}, 0, 1);
-  ASSERT_EQ(text.inner.runs.size32(), 2);
+  text.run({}, {}, 0, 1);
+  ASSERT_EQ(text.runs_.size32(), 2);
 
-  text.style({}, {}, 0, 8);
-  ASSERT_EQ(text.inner.runs.size32(), 2);
+  text.run({}, {}, 0, 8);
+  ASSERT_EQ(text.runs_.size32(), 2);
 
-  text.style({}, {}, 0, 2);
-  ASSERT_EQ(text.inner.runs.size32(), 3);
+  text.run({}, {}, 0, 2);
+  ASSERT_EQ(text.runs_.size32(), 3);
 
-  text.style({}, {}, 0, 8);
-  ASSERT_EQ(text.inner.runs.size32(), 2);
+  text.run({}, {}, 0, 8);
+  ASSERT_EQ(text.runs_.size32(), 2);
 
-  text.style({}, {}, 1, 7);
-  ASSERT_EQ(text.inner.runs.size32(), 3);
+  text.run({}, {}, 1, 7);
+  ASSERT_EQ(text.runs_.size32(), 3);
 
-  text.style({}, {}, 1, 4);
-  ASSERT_EQ(text.inner.runs.size32(), 4);
+  text.run({}, {}, 1, 4);
+  ASSERT_EQ(text.runs_.size32(), 4);
 
-  text.style({}, {}, 0, U32_MAX);
-  ASSERT_EQ(text.inner.runs.size32(), 1);
+  text.run({}, {}, 0, U32_MAX);
+  ASSERT_EQ(text.runs_.size32(), 1);
 }

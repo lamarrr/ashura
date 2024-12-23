@@ -151,4 +151,4 @@ void FileSink::flush()
   (void) std::fflush(file);
 }
 
-}        // namespace ash
+}    // namespace ash

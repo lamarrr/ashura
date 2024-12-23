@@ -26,12 +26,19 @@ typedef int8_t    i8;
 typedef int16_t   i16;
 typedef int32_t   i32;
 typedef int64_t   i64;
-typedef float     f32;
-typedef double    f64;
 typedef size_t    usize;
 typedef ptrdiff_t isize;
 typedef uintptr_t uptr;
 typedef intptr_t  iptr;
+typedef u8        bool8;
+typedef u16       bool16;
+typedef u32       bool32;
+typedef u64       bool64;
+typedef usize     sbool;
+typedef float     f32;
+typedef double    f64;
+typedef u16       hash16;
+typedef u32       hash32;
 typedef u64       hash64;
 
 inline constexpr u8 U8_MIN = 0;
@@ -78,12 +85,17 @@ inline constexpr f64 F64_INF          = INFINITY;
 
 inline constexpr f32 PI = 3.14159265358979323846F;
 
-enum class Ordering : i8
+enum class Ordering : i32
 {
   Less    = -1,
   Equal   = 0,
   Greater = 1,
 };
+
+constexpr Ordering reverse_ordering(Ordering ordering)
+{
+  return Ordering{-static_cast<i32>(ordering)};
+}
 
 struct Add
 {
@@ -175,9 +187,9 @@ struct Cmp
     }
     if (a > b)
     {
-      return Ordering::Less;
+      return Ordering::Greater;
     }
-    return Ordering::Greater;
+    return Ordering::Less;
   }
 };
 
@@ -650,8 +662,7 @@ struct NumTraits<T const volatile> : NumTraits<T>
 
 template <typename Repr, usize NumBits>
 inline constexpr usize BIT_PACKS =
-    (NumBits + (NumTraits<Repr>::NUM_BITS - 1)) >>
-    NumTraits<Repr>::LOG2_NUM_BITS;
+  (NumBits + (NumTraits<Repr>::NUM_BITS - 1)) >> NumTraits<Repr>::LOG2_NUM_BITS;
 
 template <typename Repr>
 constexpr usize bit_packs(usize num_bits)
@@ -775,6 +786,37 @@ constexpr E enum_not(E a)
     a = a ^ b;                         \
     return a;                          \
   }
+
+template <typename T>
+struct Ref
+{
+  using Type = T;
+
+  T * repr_;
+
+  constexpr Ref(T & v) : repr_{&v}
+  {
+  }
+
+  constexpr Ref(Ref const &)             = default;
+  constexpr Ref(Ref &&)                  = default;
+  constexpr Ref & operator=(Ref const &) = default;
+  constexpr Ref & operator=(Ref &&)      = default;
+  constexpr ~Ref()                       = default;
+
+  constexpr T & unref() const
+  {
+    return *repr_;
+  }
+
+  constexpr T * operator->() const
+  {
+    return repr_;
+  }
+};
+
+template <typename T>
+Ref(T &) -> Ref<T>;
 
 struct Slice
 {
@@ -946,6 +988,30 @@ constexpr auto size(T && a) -> decltype(a.size())
   return a.size();
 }
 
+template <typename T, u32 N>
+constexpr u32 size32(T (&)[N])
+{
+  return N;
+}
+
+template <typename T>
+constexpr auto size32(T && a) -> decltype(a.size32())
+{
+  return a.size32();
+}
+
+template <typename T, u64 N>
+constexpr u64 size64(T (&)[N])
+{
+  return N;
+}
+
+template <typename T>
+constexpr auto size64(T && a) -> decltype(a.size64())
+{
+  return a.size64();
+}
+
 template <typename T, usize N>
 constexpr usize size_bytes(T (&)[N])
 {
@@ -1004,10 +1070,7 @@ concept Range = requires (R r) {
   };
 };
 
-// [ ] struct ExampleRange
-// {
-//  nth();
-// };
+// [ ] range nth();
 
 // [ ] change to range set using iter
 template <NonConst T, typename Arg = T>
@@ -1016,7 +1079,6 @@ constexpr void iter_set(T * iterator, Arg && arg)
   *iterator = static_cast<Arg &&>(arg);
 }
 
-// [ ] output iterator - base: set to intial value
 template <typename T>
 concept OutIter = Iter<T>;
 
@@ -1028,7 +1090,7 @@ concept SpanCompatible = Convertible<U (*)[], T (*)[]>;
 
 template <typename Container>
 using ContainerDataType =
-    std::remove_pointer_t<decltype(data(std::declval<Container &>()))>;
+  std::remove_pointer_t<decltype(data(std::declval<Container &>()))>;
 
 template <typename Container>
 concept SpanContainer = requires (Container cont) {
@@ -1038,7 +1100,7 @@ concept SpanContainer = requires (Container cont) {
 
 template <typename Container, typename T>
 concept SpanCompatibleContainer =
-    SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
+  SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
 
 template <typename T>
 struct Span
@@ -1057,8 +1119,8 @@ struct Span
   }
 
   constexpr Span(T * begin, T const * end) :
-      data_{begin},
-      size_{static_cast<usize>(end - begin)}
+    data_{begin},
+    size_{static_cast<usize>(end - begin)}
   {
   }
 
@@ -1445,23 +1507,23 @@ template <typename R>
 struct BitSpanIter
 {
   Span<R> repr_{};
-  usize   bit_pos_  = 0;
-  usize   bit_size_ = 0;
+  usize   pos_  = 0;
+  usize   size_ = 0;
 
   constexpr bool operator*() const
   {
-    return get_bit(repr_, bit_pos_);
+    return get_bit(repr_, pos_);
   }
 
   constexpr BitSpanIter & operator++()
   {
-    ++bit_pos_;
+    ++pos_;
     return *this;
   }
 
   constexpr bool operator!=(IterEnd) const
   {
-    return bit_pos_ != bit_size_;
+    return pos_ != size_;
   }
 };
 
@@ -1952,8 +2014,8 @@ struct Fn<R(Args...)>
   }
 
   Fn(R (*pfn)(Args...)) :
-      data{reinterpret_cast<void *>(pfn)},
-      thunk{&PFnThunk<R(Args...)>::thunk}
+    data{reinterpret_cast<void *>(pfn)},
+    thunk{&PFnThunk<R(Args...)>::thunk}
   {
   }
 
@@ -1965,8 +2027,8 @@ struct Fn<R(Args...)>
 
   template <typename T>
   Fn(T * data, R (*thunk)(T *, Args...)) :
-      data{const_cast<void *>(reinterpret_cast<void const *>(data))},
-      thunk{reinterpret_cast<Thunk>(thunk)}
+    data{const_cast<void *>(reinterpret_cast<void const *>(data))},
+    thunk{reinterpret_cast<Thunk>(thunk)}
   {
   }
 
@@ -2096,34 +2158,34 @@ struct SourceLocation
   static constexpr SourceLocation current(
 #if ASH_HAS_BUILTIN(FILE) || (defined(__cpp_lib_source_location) && \
                               __cpp_lib_source_location >= 201'907L)
-      char const * file = __builtin_FILE(),
+    char const * file = __builtin_FILE(),
 #elif defined(__FILE__)
-      char const * file = __FILE__,
+    char const * file = __FILE__,
 #else
-      char const * file = "unknown",
+    char const * file = "unknown",
 #endif
 
 #if ASH_HAS_BUILTIN(FUNCTION) || (defined(__cpp_lib_source_location) && \
                                   __cpp_lib_source_location >= 201'907L)
-      char const * function = __builtin_FUNCTION(),
+    char const * function = __builtin_FUNCTION(),
 #else
-      char const * function = "unknown",
+    char const * function = "unknown",
 #endif
 
 #if ASH_HAS_BUILTIN(LINE) || (defined(__cpp_lib_source_location) && \
                               __cpp_lib_source_location >= 201'907L)
-      u32 line = __builtin_LINE(),
+    u32 line = __builtin_LINE(),
 #elif defined(__LINE__)
-      u32 line = __LINE__,
+    u32 line = __LINE__,
 #else
-      u32 line = 0,
+    u32 line = 0,
 #endif
 
 #if ASH_HAS_BUILTIN(COLUMN) || (defined(__cpp_lib_source_location) && \
                                 __cpp_lib_source_location >= 201'907L)
-      u32 column = __builtin_COLUMN()
+    u32 column = __builtin_COLUMN()
 #else
-      u32 column = 0
+    u32 column = 0
 #endif
   )
   {
@@ -2181,4 +2243,4 @@ struct InplaceStorage<Alignment, 0>
   static constexpr u8 * storage_ = nullptr;
 };
 
-}        // namespace ash
+}    // namespace ash

@@ -1,14 +1,9 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#define STBIRDEF extern "C" inline
-
 #include "ashura/engine/font.h"
-#include "ashura/engine/font_atlas.h"
 #include "ashura/engine/rect_pack.h"
-#include "ashura/gpu/image.h"
 #include "ashura/std/allocator.h"
-#include "ashura/std/allocators.h"
 #include "ashura/std/error.h"
 #include "ashura/std/range.h"
 #include "ashura/std/types.h"
@@ -49,7 +44,7 @@ struct FontImpl : Font
 
   u32 face;
 
-  Vec<Glyph> glyphs;
+  Vec<GlyphMetrics> glyphs;
 
   u32 replacement_glyph;
 
@@ -59,30 +54,31 @@ struct FontImpl : Font
 
   FontMetrics metrics;
 
-  Option<CpuFontAtlas> cpu_atlas = None;
+  Option<CpuFontAtlas> cpu_atlas = none;
 
-  Option<GpuFontAtlas> gpu_atlas = None;
+  Option<GpuFontAtlas> gpu_atlas = none;
 
   FontImpl(Vec<char> font_data, Vec<char> postscript_name,
            Vec<char> family_name, Vec<char> style_name, hb_blob_t * hb_blob,
            hb_face_t * hb_face, hb_font_t * hb_font, FT_Library ft_lib,
-           FT_Face ft_face, u32 face, Vec<Glyph> glyphs, u32 replacement_glyph,
-           u32 ellipsis_glyph, u32 space_glyph, FontMetrics metrics) :
-      font_data{std::move(font_data)},
-      postscript_name{std::move(postscript_name)},
-      family_name{std::move(family_name)},
-      style_name{std::move(style_name)},
-      hb_blob{hb_blob},
-      hb_face{hb_face},
-      hb_font{hb_font},
-      ft_lib{ft_lib},
-      ft_face{ft_face},
-      face{face},
-      glyphs{std::move(glyphs)},
-      replacement_glyph{replacement_glyph},
-      ellipsis_glyph{ellipsis_glyph},
-      space_glyph{space_glyph},
-      metrics{metrics}
+           FT_Face ft_face, u32 face, Vec<GlyphMetrics> glyphs,
+           u32 replacement_glyph, u32 ellipsis_glyph, u32 space_glyph,
+           FontMetrics metrics) :
+    font_data{std::move(font_data)},
+    postscript_name{std::move(postscript_name)},
+    family_name{std::move(family_name)},
+    style_name{std::move(style_name)},
+    hb_blob{hb_blob},
+    hb_face{hb_face},
+    hb_font{hb_font},
+    ft_lib{ft_lib},
+    ft_face{ft_face},
+    face{face},
+    glyphs{std::move(glyphs)},
+    replacement_glyph{replacement_glyph},
+    ellipsis_glyph{ellipsis_glyph},
+    space_glyph{space_glyph},
+    metrics{metrics}
   {
   }
 
@@ -117,12 +113,12 @@ struct FontImpl : Font
 
     if (cpu_atlas.is_some())
     {
-      info.cpu_atlas = Some<CpuFontAtlas const *>{&cpu_atlas.value()};
+      info.cpu_atlas = cpu_atlas.value();
     }
 
     if (gpu_atlas.is_some())
     {
-      info.gpu_atlas = Some<GpuFontAtlas const *>{&gpu_atlas.value()};
+      info.gpu_atlas = gpu_atlas.value();
     }
 
     return info;
@@ -147,7 +143,9 @@ struct FontImpl : Font
 
     CpuFontAtlas atlas;
 
-    if (!atlas.glyphs.resize(glyphs.size32()))
+    u32 const num_glyphs = glyphs.size32();
+
+    if (!atlas.glyphs.resize(num_glyphs))
     {
       return Err{};
     }
@@ -157,106 +155,92 @@ struct FontImpl : Font
       return Err{};
     }
 
-    u32 num_rasterized_glyphs = 0;
-
-    for (u32 i = 0; i < glyphs.size32(); i++)
+    for (auto [i, g] : enumerate<u32>(atlas.glyphs))
     {
-      if (glyphs[i].is_valid)
+      FT_Error ft_error = FT_Load_Glyph(ft_face, i, FT_LOAD_DEFAULT);
+      if (ft_error != 0)
       {
-        FT_Error ft_error = FT_Load_Glyph(ft_face, i, FT_LOAD_DEFAULT);
-        if (ft_error != 0)
-        {
-          continue;
-        }
-
-        Vec2U extent{ft_face->glyph->bitmap.width, ft_face->glyph->bitmap.rows};
-
-        if (extent.x == 0 || extent.y == 0)
-        {
-          continue;
-        }
-
-        atlas.glyphs[i].area.extent = extent;
-
-        num_rasterized_glyphs++;
+        continue;
       }
+
+      g.area.extent =
+        Vec2U{ft_face->glyph->bitmap.width, ft_face->glyph->bitmap.rows};
     }
+
+    static constexpr u16 GLYPH_PADDING = 1;
 
     u32 num_layers = 0;
     {
-      Vec<rect_pack::rect> rects{allocator};
+      Vec<PackRect> rects{allocator};
+      RectPacker packer = RectPacker::make(as_vec2i(atlas_extent), allocator);
 
-      if (!rects.resize_uninit(num_rasterized_glyphs))
+      if (!rects.resize_uninit(num_glyphs))
       {
         return Err{};
       }
 
-      for (u32 g = 0, irect = 0; g < glyphs.size32(); g++)
+      for (auto [i, gl, ag, rect] :
+           zip(range(size32(glyphs)), glyphs, atlas.glyphs, rects))
       {
-        Glyph const &      gl  = glyphs[g];
-        AtlasGlyph const & agl = atlas.glyphs[g];
-        // only assign packing rects to the valid glyphs
-        if (gl.is_valid && agl.area.extent.x != 0 && agl.area.extent.y != 0)
+        // added padding to avoid texture spilling due to accumulated
+        // floating-point uv interpolation errors
+        Vec2U padded_extent{};
+
+        if (ag.area.extent.x != 0 && ag.area.extent.y != 0)
         {
-          rect_pack::rect & r = rects[irect];
-          r.glyph_index       = g;
-          r.x                 = 0;
-          r.y                 = 0;
-          // added padding to avoid texture spilling due to accumulated
-          // floating-point uv interpolation errors
-          r.w                 = (i32) (agl.area.extent.x + 2);
-          r.h                 = (i32) (agl.area.extent.y + 2);
-          atlas_extent.x      = max(atlas_extent.x, agl.area.extent.x + 2);
-          atlas_extent.y      = max(atlas_extent.y, agl.area.extent.y + 2);
-          irect++;
+          padded_extent = ag.area.extent + GLYPH_PADDING * 2;
         }
+
+        rect = PackRect{.pos    = {},
+                        .extent = as_vec2i(padded_extent),
+                        .packed = false,
+                        .id     = i};
+
+        atlas_extent.x = max(atlas_extent.x, padded_extent.x);
+        atlas_extent.y = max(atlas_extent.y, padded_extent.y);
       }
 
       CHECK(atlas_extent.x <= gpu::MAX_IMAGE_EXTENT_2D);
       CHECK(atlas_extent.y <= gpu::MAX_IMAGE_EXTENT_2D);
 
-      Vec<rect_pack::Node> nodes{allocator};
+      Vec2 const atlas_scale = 1 / as_vec2(atlas_extent);
 
-      if (!nodes.resize_uninit(atlas_extent.x))
-      {
-        return Err{};
-      }
+      u32 num_packed = 0;
 
-      u32  num_packed = 0;
-      bool all_packed = false;
-
-      while (!all_packed)
+      while (num_packed < num_glyphs)
       {
         // tries to pack all the glyph rects into the provided extent
-        rect_pack::Context pack_context = rect_pack::init(
-            atlas_extent.x, atlas_extent.y, nodes.data(), atlas_extent.x, true);
-        all_packed =
-            rect_pack::pack_rects(pack_context, rects.data() + num_packed,
-                                  num_rasterized_glyphs - num_packed);
-        auto [just_packed, unpacked] =
-            partition(rects.view().slice(num_packed),
-                      [](rect_pack::rect const & r) { return r.was_packed; });
-        CHECK(!just_packed.is_empty());
-        for (auto & rect : rects.view().slice(num_packed, just_packed.size32()))
+        packer.reset(as_vec2i(atlas_extent));
+        auto [packed, unpacked] = packer.pack(rects.view().slice(num_packed));
+        CHECK(!packed.is_empty());
+        for (PackRect & rect : rects.view().slice(num_packed))
         {
-          rect.layer = num_layers;
+          atlas.glyphs[rect.id].layer = num_layers;
         }
-        num_packed += just_packed.size32();
+        num_packed += packed.size32();
         num_layers++;
       }
 
       // sanity check. ideally all should have been packed
-      CHECK(all_packed);
+      CHECK(num_packed == num_glyphs);
 
-      for (u32 i = 0; i < num_rasterized_glyphs; i++)
+      for (u32 i = 0; i < num_glyphs; i++)
       {
-        rect_pack::rect r = rects[i];
-        AtlasGlyph &    g = atlas.glyphs[r.glyph_index];
-        g.area.offset.x   = (u32) r.x + 1;
-        g.area.offset.y   = (u32) r.y + 1;
-        g.layer           = r.layer;
-        g.uv[0]           = as_vec2(g.area.offset) / as_vec2(atlas_extent);
-        g.uv[1]           = as_vec2(g.area.end()) / as_vec2(atlas_extent);
+        PackRect const & r = rects[i];
+        AtlasGlyph &     g = atlas.glyphs[r.id];
+
+        if (g.area.extent.x == 0 | g.area.extent.y == 0)
+        {
+          // adjust back to original position from the padded position
+          g.area.offset = as_vec2u(r.pos + GLYPH_PADDING);
+        }
+        else
+        {
+          g.area.offset = Vec2U{};
+        }
+
+        g.uv[0] = as_vec2(g.area.offset) * atlas_scale;
+        g.uv[1] = as_vec2(g.area.end()) * atlas_scale;
       }
     }
 
@@ -274,48 +258,42 @@ struct FontImpl : Font
                                      .height   = atlas_extent.y,
                                      .layers   = num_layers};
 
-    for (u32 i = 0; i < glyphs.size32(); i++)
+    for (auto [i, ag] : enumerate<u32>(atlas.glyphs))
     {
-      Glyph const &      g  = glyphs[i];
-      AtlasGlyph const & ag = atlas.glyphs[i];
-      if (g.is_valid)
+      FT_GlyphSlot slot     = ft_face->glyph;
+      FT_Error     ft_error = FT_Load_Glyph(
+        ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_NO_HINTING);
+      if (ft_error != 0)
       {
-        FT_GlyphSlot slot     = ft_face->glyph;
-        FT_Error     ft_error = FT_Load_Glyph(
-            ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_NO_HINTING);
-        if (ft_error != 0)
-        {
-          continue;
-        }
-
-        CHECK(slot->bitmap.pixel_mode == FT_PIXEL_MODE_GRAY);
-        /// we don't want to handle negative pitches
-        CHECK(slot->bitmap.pitch >= 0);
-
-        ImageSpan<u8 const, 1> src{
-            .channels = {slot->bitmap.buffer,
-                         slot->bitmap.rows * (u32) slot->bitmap.pitch},
-            .width    = slot->bitmap.width,
-            .height   = slot->bitmap.rows,
-            .stride   = (u32) slot->bitmap.pitch
-        };
-
-        copy_image(src, atlas_span.get_layer(ag.layer).slice(ag.area.offset,
-                                                             ag.area.extent));
+        continue;
       }
+
+      CHECK(slot->bitmap.pixel_mode == FT_PIXEL_MODE_GRAY);
+      /// we don't want to handle negative pitches
+      CHECK(slot->bitmap.pitch >= 0);
+
+      ImageSpan<u8 const, 1> src{
+        .channels{slot->bitmap.buffer,
+                  slot->bitmap.rows * (u32) slot->bitmap.pitch},
+        .width  = slot->bitmap.width,
+        .height = slot->bitmap.rows,
+        .stride = (u32) slot->bitmap.pitch
+      };
+
+      copy_image(src, atlas_span.get_layer(ag.layer).slice(ag.area.offset,
+                                                           ag.area.extent));
     }
 
     atlas.font_height = font_height;
     atlas.extent      = atlas_extent;
     atlas.num_layers  = num_layers;
 
-    cpu_atlas = Some{std::move(atlas)};
+    cpu_atlas = std::move(atlas);
 
     return Ok{};
   }
 
-  virtual void upload_to_device(GpuContext &  c,
-                                AllocatorImpl allocator) override
+  virtual void upload_to_device(GpuSystem & c, AllocatorImpl allocator) override
   {
     gpu::CommandEncoder & enc = c.encoder();
     gpu::Device &         dev = *c.device;
@@ -330,22 +308,21 @@ struct FontImpl : Font
     CHECK(atlas.extent.y > 0);
 
     gpu::Image image =
-        dev.create_image(gpu::ImageInfo{
-                             .label  = "Font Atlas Image"_str,
-                             .type   = gpu::ImageType::Type2D,
-                             .format = gpu::Format::B8G8R8A8_UNORM,
-                             .usage  = gpu::ImageUsage::Sampled |
-                                      gpu::ImageUsage::InputAttachment |
-                                      gpu::ImageUsage::Storage |
-                                      gpu::ImageUsage::TransferSrc |
-                                      gpu::ImageUsage::TransferDst,
-                             .aspects    = gpu::ImageAspects::Color,
-                             .extent     = {atlas.extent.x, atlas.extent.y, 1},
-                             .mip_levels = 1,
-                             .array_layers = atlas.num_layers,
-                             .sample_count = gpu::SampleCount::Count1
+      dev
+        .create_image(gpu::ImageInfo{
+          .label  = "Font Atlas Image"_str,
+          .type   = gpu::ImageType::Type2D,
+          .format = gpu::Format::B8G8R8A8_UNORM,
+          .usage = gpu::ImageUsage::Sampled | gpu::ImageUsage::InputAttachment |
+                   gpu::ImageUsage::Storage | gpu::ImageUsage::TransferSrc |
+                   gpu::ImageUsage::TransferDst,
+          .aspects = gpu::ImageAspects::Color,
+          .extent{atlas.extent.x, atlas.extent.y, 1},
+          .mip_levels   = 1,
+          .array_layers = atlas.num_layers,
+          .sample_count = gpu::SampleCount::C1
     })
-            .unwrap();
+        .unwrap();
 
     Vec<gpu::ImageView> views;
 
@@ -353,38 +330,38 @@ struct FontImpl : Font
 
     for (u32 i = 0; i < atlas.num_layers; i++)
     {
-      views[i] =
-          dev.create_image_view(
-                 gpu::ImageViewInfo{.label       = "Font Atlas Image View"_str,
-                                    .image       = image,
-                                    .view_type   = gpu::ImageViewType::Type2D,
-                                    .view_format = gpu::Format::B8G8R8A8_UNORM,
-                                    .mapping     = {},
-                                    .aspects     = gpu::ImageAspects::Color,
-                                    .first_mip_level   = 0,
-                                    .num_mip_levels    = 1,
-                                    .first_array_layer = i,
-                                    .num_array_layers  = 1})
-              .unwrap();
+      views[i] = dev
+                   .create_image_view(gpu::ImageViewInfo{
+                     .label             = "Font Atlas Image View"_str,
+                     .image             = image,
+                     .view_type         = gpu::ImageViewType::Type2D,
+                     .view_format       = gpu::Format::B8G8R8A8_UNORM,
+                     .mapping           = {},
+                     .aspects           = gpu::ImageAspects::Color,
+                     .first_mip_level   = 0,
+                     .num_mip_levels    = 1,
+                     .first_array_layer = i,
+                     .num_array_layers  = 1})
+                   .unwrap();
     }
 
     u64 const   atlas_size = atlas.channels.size() * (u64) 4;
     gpu::Buffer staging_buffer =
-        dev.create_buffer(
-               gpu::BufferInfo{.label       = "Font Atlas Staging Buffer"_str,
-                               .size        = atlas_size,
-                               .host_mapped = true,
-                               .usage       = gpu::BufferUsage::TransferSrc |
-                                        gpu::BufferUsage::TransferDst})
-            .unwrap();
+      dev
+        .create_buffer(gpu::BufferInfo{.label = "Font Atlas Staging Buffer"_str,
+                                       .size  = atlas_size,
+                                       .host_mapped = true,
+                                       .usage = gpu::BufferUsage::TransferSrc |
+                                                gpu::BufferUsage::TransferDst})
+        .unwrap();
 
     u8 * map = (u8 *) dev.map_buffer_memory(staging_buffer).unwrap();
 
     ImageLayerSpan<u8, 4> dst{
-        .channels = {map, atlas_size},
-        .width    = atlas.extent.x,
-        .height   = atlas.extent.y,
-        .layers   = atlas.num_layers
+      .channels{map, atlas_size},
+      .width  = atlas.extent.x,
+      .height = atlas.extent.y,
+      .layers = atlas.num_layers
     };
 
     for (u32 i = 0; i < atlas.num_layers; i++)
@@ -393,9 +370,10 @@ struct FontImpl : Font
                                dst.get_layer(i), U8_MAX, U8_MAX, U8_MAX);
     }
 
-    dev.flush_mapped_buffer_memory(staging_buffer,
-                                   {.offset = 0, .size = gpu::WHOLE_SIZE})
-        .unwrap();
+    dev
+      .flush_mapped_buffer_memory(staging_buffer,
+                                  {.offset = 0, .size = gpu::WHOLE_SIZE})
+      .unwrap();
     dev.unmap_buffer_memory(staging_buffer);
 
     Vec<gpu::BufferImageCopy> copies{allocator};
@@ -405,17 +383,18 @@ struct FontImpl : Font
     for (u32 layer = 0; layer < atlas.num_layers; layer++)
     {
       u64 offset =
-          (u64) atlas.extent.x * (u64) atlas.extent.y * 4 * (u64) layer;
+        (u64) atlas.extent.x * (u64) atlas.extent.y * 4 * (u64) layer;
+
       copies[layer] = gpu::BufferImageCopy{
-          .buffer_offset       = offset,
-          .buffer_row_length   = atlas.extent.x,
-          .buffer_image_height = atlas.extent.y,
-          .image_layers        = {.aspects           = gpu::ImageAspects::Color,
-                                  .mip_level         = 0,
-                                  .first_array_layer = layer,
-                                  .num_array_layers  = 1},
-          .image_offset        = {0, 0, 0},
-          .image_extent        = {atlas.extent.x, atlas.extent.y, 1}
+        .buffer_offset       = offset,
+        .buffer_row_length   = atlas.extent.x,
+        .buffer_image_height = atlas.extent.y,
+        .image_layers{.aspects           = gpu::ImageAspects::Color,
+                      .mip_level         = 0,
+                      .first_array_layer = layer,
+                      .num_array_layers  = 1},
+        .image_offset{0, 0, 0},
+        .image_extent{atlas.extent.x, atlas.extent.y, 1}
       };
     }
 
@@ -424,7 +403,7 @@ struct FontImpl : Font
     gpu::Format format = gpu::Format::B8G8R8A8_UNORM;
     c.release(staging_buffer);
 
-    Vec<u32>        textures;
+    Vec<TextureId>  textures;
     Vec<AtlasGlyph> glyphs;
 
     textures.resize(atlas.num_layers).unwrap();
@@ -432,43 +411,40 @@ struct FontImpl : Font
 
     for (u32 i = 0; i < atlas.num_layers; i++)
     {
-      textures[i] = c.alloc_texture_slot();
-      dev.update_descriptor_set(gpu::DescriptorSetUpdate{
-          .set     = c.texture_views,
-          .binding = 0,
-          .element = textures[i],
-          .images  = span({gpu::ImageBinding{.image_view = views[i]}})});
+      textures[i] = c.alloc_texture_id(views[i]);
     }
 
-    gpu_atlas = Some{
-        GpuFontAtlas{.image       = image,
-                     .views       = std::move(views),
-                     .textures    = std::move(textures),
-                     .font_height = atlas.font_height,
-                     .num_layers  = atlas.num_layers,
-                     .extent      = atlas.extent,
-                     .glyphs      = std::move(glyphs),
-                     .format      = format}
-    };
+    gpu_atlas = GpuFontAtlas{.image       = image,
+                             .views       = std::move(views),
+                             .textures    = std::move(textures),
+                             .font_height = atlas.font_height,
+                             .num_layers  = atlas.num_layers,
+                             .extent      = atlas.extent,
+                             .glyphs      = std::move(glyphs),
+                             .format      = format};
   }
 
-  virtual void unload_from_device(GpuContext & c) override
+  virtual void unload_from_device(GpuSystem & c) override
   {
     CHECK_DESC(gpu_atlas.is_some(),
                "Requested font to be unloaded from GPU with no GPU atlas");
-    for (u32 slot : gpu_atlas.value().textures)
+
+    GpuFontAtlas & atlas = gpu_atlas.value();
+
+    for (TextureId id : atlas.textures)
     {
-      c.release_texture_slot(slot);
+      c.release_texture_id(id);
     }
 
-    for (gpu::ImageView view : gpu_atlas.value().views)
+    for (gpu::ImageView view : atlas.views)
     {
       c.release(view);
     }
-    c.release(gpu_atlas.value().image);
 
-    gpu_atlas = None;
+    c.release(atlas.image);
+
+    gpu_atlas = none;
   }
 };
 
-}        // namespace ash
+}    // namespace ash

@@ -38,7 +38,6 @@ set(SDL_HAPTIC
     OFF
     CACHE BOOL "")
 
-
 include(FetchContent)
 
 set(ASH_VULKAN_VERSION "1.3.296.0")
@@ -215,7 +214,7 @@ add_library(
   ashura/engine/font_impl.cc
   ashura/engine/text.cc
   ashura/engine/canvas.cc
-  ashura/engine/gpu_context.cc
+  ashura/engine/gpu_system.cc
   ashura/engine/image_decoder.cc
   ashura/engine/render_text.cc
   ashura/engine/shader.cc

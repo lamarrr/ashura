@@ -5,9 +5,7 @@
 #include "ashura/engine/color.h"
 #include "ashura/engine/input.h"
 #include "ashura/engine/renderer.h"
-#include "ashura/engine/text.h"
 #include "ashura/std/math.h"
-#include "ashura/std/time.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -30,8 +28,8 @@ struct Size
   f32 scale  = 0;
   f32 rmin   = 0;
   f32 rmax   = 1;
-  f32 min    = F32_MIN;
-  f32 max    = F32_MAX;
+  f32 min    = 0;
+  f32 max    = F32_INF;
 
   constexpr f32 operator()(f32 value) const
   {
@@ -57,8 +55,8 @@ struct Frame
   }
 
   constexpr Frame(f32 width, f32 height, bool constrain = true) :
-      width{.offset = width, .rmax = constrain ? 1 : F32_INF},
-      height{.offset = height, .rmax = constrain ? 1 : F32_INF}
+    width{.offset = width, .rmax = constrain ? 1 : F32_INF},
+    height{.offset = height, .rmax = constrain ? 1 : F32_INF}
   {
   }
 
@@ -128,10 +126,10 @@ struct CornerRadii
   }
 
   constexpr CornerRadii(Size tl, Size tr, Size bl, Size br) :
-      tl{tl},
-      tr{tr},
-      bl{bl},
-      br{br}
+    tl{tl},
+    tr{tr},
+    bl{bl},
+    br{br}
   {
   }
 
@@ -140,12 +138,13 @@ struct CornerRadii
   }
 
   constexpr CornerRadii(f32 s, bool constrained) :
-      CornerRadii{
-          Size{.offset = s, .rmax = constrained ? 1 : F32_INF}
+    CornerRadii{
+      Size{.offset = s, .rmax = constrained ? 1 : F32_INF}
   }
   {
   }
 
+  // [ ] this should be resolved on both width and height
   constexpr Vec4 operator()(f32 height) const
   {
     return Vec4{tl(height), tr(height), bl(height), br(height)};
@@ -204,281 +203,9 @@ struct ViewEvents
   bool text_input   = false;
 };
 
-enum class DropType : u32
-{
-  None     = 0,
-  FilePath = 1,
-  Bytes    = 2
-};
-
-struct FrameState
-{
-  struct Mouse
-  {
-    /// @brief did the mouse enter the window on this frame?
-    bool in = false;
-
-    /// @brief did the mouse leave the window on this frame?
-    bool out = false;
-
-    /// @brief did the mouse move on this frame?
-    bool moved = false;
-
-    /// @brief did the mouse wheel get scrolled on this frame?
-    bool wheel_scrolled = false;
-
-    /// @brief is any of the keys pressed on this frame
-    bool any_down = false;
-
-    /// @brief is any of the keys released on this frame
-    bool any_up = false;
-
-    /// @brief which mouse buttons were pressed on this frame
-    Bits<u64, NUM_MOUSE_BUTTONS> downs{};
-
-    /// @brief which mouse buttons were released on this frame
-    Bits<u64, NUM_MOUSE_BUTTONS> ups{};
-
-    /// @brief the current state of each mouse button
-    Bits<u64, NUM_MOUSE_BUTTONS> states{};
-
-    /// @brief number of times the mouse was clicked so far
-    u32 num_clicks[NUM_MOUSE_BUTTONS]{};
-
-    /// @brief the position of the mouse on this frame
-    Vec2 position = {};
-
-    /// @brief translation of the mouse on this frame
-    Vec2 translation = {};
-
-    /// @brief translation of the mouse wheel on this frame
-    Vec2 wheel_translation = {};
-
-    void clear_frame_()
-    {
-      in             = false;
-      out            = false;
-      moved          = false;
-      wheel_scrolled = false;
-      any_down       = false;
-      any_up         = false;
-      fill(downs, 0ULL);
-      fill(ups, 0ULL);
-      fill(states, 0ULL);
-      fill(num_clicks, 0ULL);
-      position          = {};
-      translation       = {};
-      wheel_translation = {};
-
-      // [ ] preserve position
-      // [ ] need to be preserved when swapping frames
-    }
-  };
-
-  struct Keyboard
-  {
-    /// @brief did the window gain keyboard focus on this frame?
-    bool in = false;
-
-    /// @brief did the window lose keyboard focus on this frame?
-    bool out = false;
-
-    /// @brief is any of the keys pressed on this frame
-    bool any_down = false;
-
-    /// @brief is any of the keys released on this frame
-    bool any_up = false;
-
-    /// @brief bit mask of all the keys that were pressed on this frame
-    Bits<u64, NUM_KEYS> downs{};
-
-    /// @brief bit mask of all the keys that were released on this frame
-    Bits<u64, NUM_KEYS> ups{};
-
-    /// @brief bit mask of all the key states
-    Bits<u64, NUM_KEYS> states{};
-
-    /// @brief bit mask of all the keys that were pressed on this frame, indexed using the scancode
-    Bits<u64, NUM_KEYS> scan_downs{};
-
-    /// @brief bit mask of all the keys that were released on this frame, indexed using the scancode
-    Bits<u64, NUM_KEYS> scan_ups{};
-
-    /// @brief bit mask of all the key states, indexed using the scancode
-    Bits<u64, NUM_KEYS> scan_states{};
-
-    /// @brief hold state of the key modifiers on this frame
-    KeyModifiers modifiers = KeyModifiers::None;
-
-    void clear_frame_()
-    {
-      in       = false;
-      out      = false;
-      any_down = false;
-      any_up   = false;
-      fill(downs, 0ULL);
-      fill(ups, 0ULL);
-      fill(states, 0ULL);
-      fill(scan_downs, 0ULL);
-      fill(scan_ups, 0ULL);
-      fill(scan_states, 0ULL);
-      modifiers = KeyModifiers::None;
-    }
-  };
-
-  /// @brief timestamp of current frame
-  time_point timestamp = {};
-
-  /// @brief time elapsed between previous and current frame
-  nanoseconds timedelta = {};
-
-  /// @brief the current theme gotten from the window manager
-  SystemTheme theme = SystemTheme::Unknown;
-
-  /// @brief the preferred text direction of the host system
-  TextDirection direction = TextDirection::LeftToRight;
-
-  /// @brief current window mouse focus state
-  bool mouse_focused = false;
-
-  /// @brief current window keyboard focus state
-  bool key_focused = false;
-
-  /// @brief windows' current frame mouse state
-  Mouse mouse{};
-
-  /// @brief windows' current frame keyboard state
-  Keyboard key{};
-
-  /// @brief extent of the viewport the windows' views are in
-  Vec2 viewport_extent = {};
-
-  /// @brief current drop data type
-  DropType drop_type = DropType::None;
-
-  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
-  Vec<u8> drop_data{};
-
-  /// @brief if a text input came in
-  bool text_input = false;
-
-  /// @brief current text input data from the IME or keyboard
-  Vec<c8> text{};
-
-  /// @brief is the application requested to close
-  bool close_requested = false;
-
-  /// @brief did a window resize happen
-  bool resized = true;
-
-  /// @brief did a window surface resize happen
-  bool surface_resized = true;
-
-  bool dropped = false;
-
-  bool drop_hovering = false;
-
-  void begin_frame_(time_point time, nanoseconds delta)
-  {
-    timestamp = time;
-    timedelta = delta;
-  }
-
-  void clear_frame_()
-  {
-    mouse.clear_frame_();
-    key.clear_frame_();
-    text_input = false;
-    text.clear();
-    resized         = false;
-    surface_resized = false;
-
-    // if the there was a data drop on the last frame clear the buffer
-    if (dropped)
-    {
-      drop_data.clear();
-      drop_type = DropType::None;
-    }
-
-    dropped       = false;
-    drop_hovering = false;
-  }
-
-  constexpr bool key_down(KeyCode k) const
-  {
-    return get_bit(key.downs, (usize) k);
-  }
-
-  constexpr bool key_up(KeyCode k) const
-  {
-    return get_bit(key.ups, (usize) k);
-  }
-
-  constexpr bool key_state(KeyCode k) const
-  {
-    return get_bit(key.states, (usize) k);
-  }
-
-  constexpr bool key_down(ScanCode k) const
-  {
-    return get_bit(key.scan_downs, (usize) k);
-  }
-
-  constexpr bool key_up(ScanCode k) const
-  {
-    return get_bit(key.scan_ups, (usize) k);
-  }
-
-  constexpr bool key_state(ScanCode k) const
-  {
-    return get_bit(key.scan_states, (usize) k);
-  }
-
-  constexpr bool mouse_down(MouseButton btn) const
-  {
-    return get_bit(mouse.downs, (u32) btn);
-  }
-
-  constexpr bool mouse_up(MouseButton btn) const
-  {
-    return get_bit(mouse.ups, (u32) btn);
-  }
-
-  constexpr bool mouse_state(MouseButton btn) const
-  {
-    return get_bit(mouse.states, (u32) btn);
-  }
-};
-
 /// @brief Global View Context, Properties of the context all the views for
 /// a specific window are in.
-struct ViewContext : FrameState
-{
-  /// @brief User-provided app context or null
-  void * app = nullptr;
-
-  /// @brief clipboard system
-  ClipBoard * clipboard = nullptr;
-
-  FrameState state_buffer{};
-
-  constexpr ViewContext(void * app, ClipBoard & clipboard) :
-      app{app},
-      clipboard{&clipboard}
-  {
-  }
-
-  constexpr ViewContext(ViewContext const &)             = delete;
-  constexpr ViewContext(ViewContext &&)                  = default;
-  constexpr ViewContext & operator=(ViewContext const &) = delete;
-  constexpr ViewContext & operator=(ViewContext &&)      = default;
-  constexpr ~ViewContext()                               = default;
-
-  void swap_frame_state_()
-  {
-    // [ ] todo
-  }
-};
+using ViewContext = InputState;
 
 /// @brief makes a zoom transform matrix relative to the center of a viewport.
 /// defines the translation and scaling components.
@@ -523,17 +250,10 @@ struct ViewState
   /// events
   bool focusable = false;
 
-  /// @brief can receive text input when focused (excluding tab
-  /// key/non-text keys)
-  bool text_input = false;
+  /// @brief if set, will be treated as a text input area
+  Option<TextInputInfo> text = none;
 
-  /// @brief can receive `Tab` key as input when focused
-  bool tab_input = false;
-
-  /// @brief can receive `Esc` key as input when focused
-  bool esc_input = false;
-
-  /// @brief user to focus on view
+  /// @brief grab focus of the user
   bool grab_focus = false;
 
   /// @brief is view a viewport
@@ -569,36 +289,36 @@ struct CoreViewTheme
   f32  focus_thickness   = 0;
 };
 
+// [ ] simpler color model:
+// - primary color
+// - text color
+// - surface color
+// - error, warning, success
 inline constexpr CoreViewTheme DEFAULT_THEME = {
-    .background        = Vec4U8{0x19, 0x19, 0x19, 0xFF}
-             .norm(),
-    .surface           = Vec4U8{0x33, 0x33, 0x33, 0xFF}
-             .norm(),
-    .primary           = mdc::DEEP_ORANGE_600.norm(),
-    .primary_variant   = mdc::DEEP_ORANGE_400.norm(),
-    .secondary         = mdc::PURPLE_600.norm(),
-    .secondary_variant = mdc::PURPLE_400.norm(),
-    .error             = mdc::RED_500.norm(),
-    .warning           = mdc::YELLOW_800.norm(),
-    .success           = mdc::GREEN_700.norm(),
-    .active            = Vec4U8{0x70, 0x70, 0x70, 0xFF}
-             .norm(),
-    .inactive          = Vec4U8{0x47, 0x47, 0x47, 0xFF}
-             .norm(),
-    .on_background     = mdc::WHITE.norm(),
-    .on_surface        = mdc::WHITE.norm(),
-    .on_primary        = mdc::WHITE.norm(),
-    .on_secondary      = mdc::WHITE.norm(),
-    .on_error          = mdc::WHITE.norm(),
-    .on_warning        = mdc::WHITE.norm(),
-    .on_success        = mdc::WHITE.norm(),
-    .body_font_height  = 16,
-    .h1_font_height    = 30,
-    .h2_font_height    = 27,
-    .h3_font_height    = 22,
-    .line_height       = 1.2F,
-    .focus_thickness   = 1
-};
+  .background        = norm(Vec4U8{0x19, 0x19, 0x19, 0xFF}),
+  .surface           = norm(Vec4U8{0x33, 0x33, 0x33, 0xFF}),
+  .primary           = norm(mdc::DEEP_ORANGE_600),
+  .primary_variant   = norm(mdc::DEEP_ORANGE_400),
+  .secondary         = norm(mdc::PURPLE_600),
+  .secondary_variant = norm(mdc::PURPLE_400),
+  .error             = norm(mdc::RED_500),
+  .warning           = norm(mdc::YELLOW_800),
+  .success           = norm(mdc::GREEN_700),
+  .active            = norm(Vec4U8{0x70, 0x70, 0x70, 0xFF}),
+  .inactive          = norm(Vec4U8{0x47, 0x47, 0x47, 0xFF}),
+  .on_background     = norm(mdc::WHITE),
+  .on_surface        = norm(mdc::WHITE),
+  .on_primary        = norm(mdc::WHITE),
+  .on_secondary      = norm(mdc::WHITE),
+  .on_error          = norm(mdc::WHITE),
+  .on_warning        = norm(mdc::WHITE),
+  .on_success        = norm(mdc::WHITE),
+  .body_font_height  = 16,
+  .h1_font_height    = 30,
+  .h2_font_height    = 27,
+  .h3_font_height    = 22,
+  .line_height       = 1.2F,
+  .focus_thickness   = 1};
 
 /// @param extent extent of the view within the parent. if it is a viewport,
 /// this is the visible extent of the viewport within the parent viewport.
@@ -611,7 +331,7 @@ struct ViewLayout
   Vec2         extent             = {};
   Vec2         viewport_extent    = {};
   Affine3      viewport_transform = Affine3::identity();
-  Option<Vec2> fixed_position     = None;
+  Option<Vec2> fixed_position     = none;
 };
 
 /// @brief Base view class. All view types must inherit from this struct.
@@ -624,20 +344,17 @@ struct ViewLayout
 /// The coordinate system used is one in which the center of the screen is (0,
 /// 0) and ranges from [-0.5w, +0.5w] on both axes. i.e. top-left is [-0.5w,
 /// -0.5h] and bottom-right is [+0.5w, +0.5h].
+/// @param id id of the view if mounted, otherwise U64_MAX
+/// @param last_rendered_frame last frame the view was rendered at
+/// @param focus_idx index in the focus tree
+/// @param region canvas-space region of the view
 struct View
 {
-  /// @param id id of the view if mounted, otherwise U64_MAX
-  /// @param last_rendered_frame last frame the view was rendered at
-  /// @param focus_idx index in the focus tree
-  /// @param region canvas-space region of the view
-  struct Inner
-  {
-    u64   id                  = U64_MAX;
-    u64   last_rendered_frame = 0;
-    u32   focus_idx           = 0;
-    CRect region              = {};
-    f32   zoom                = 1;
-  } inner = {};
+  u64   id_                  = U64_MAX;
+  u64   last_rendered_frame_ = 0;
+  u32   focus_idx_           = 0;
+  CRect region_              = {};
+  f32   zoom_                = 1;
 
   constexpr View()                         = default;
   constexpr View(View const &)             = delete;
@@ -649,7 +366,7 @@ struct View
   /// @returns the ID currently allocated to the view or U64_MAX
   constexpr u64 id() const
   {
-    return inner.id;
+    return id_;
   }
 
   /// @brief called on every frame. used for state changes, animations, task
@@ -762,4 +479,4 @@ struct View
   }
 };
 
-}        // namespace ash
+}    // namespace ash

@@ -7,36 +7,41 @@
 namespace ash
 {
 
+typedef Fn<void(AllocatorImpl)> DynUninit;
+
 template <typename H>
 requires (TriviallyCopyable<H>)
 struct [[nodiscard]] Dyn
 {
-  typedef H                       Handle;
-  typedef Fn<void(AllocatorImpl)> Uninit;
+  typedef H Handle;
 
-  struct Inner
-  {
-    H             handle{};
-    AllocatorImpl allocator = {};
-    Uninit        uninit    = noop;
-  };
+  H             handle_;
+  AllocatorImpl allocator_;
+  DynUninit     uninit_;
 
-  Inner inner{};
-
-  constexpr Dyn(H handle, AllocatorImpl allocator, Uninit uninit) :
-      inner{.handle = handle, .allocator = allocator, .uninit = uninit}
+  constexpr Dyn(H handle, AllocatorImpl allocator, DynUninit uninit) :
+    handle_{handle},
+    allocator_{allocator},
+    uninit_{uninit}
   {
   }
 
-  explicit constexpr Dyn() = default;
+  explicit constexpr Dyn() : handle_{}, allocator_{}, uninit_{noop}
+  {
+  }
 
   constexpr Dyn(Dyn const &) = delete;
 
   constexpr Dyn & operator=(Dyn const &) = delete;
 
-  constexpr Dyn(Dyn && other) : inner{other.inner}
+  constexpr Dyn(Dyn && other) :
+    handle_{other.handle_},
+    allocator_{other.allocator_},
+    uninit_{other.uninit_}
   {
-    other.inner = Inner{};
+    other.handle_    = H{};
+    other.allocator_ = AllocatorImpl{};
+    other.uninit_    = noop;
   }
 
   constexpr Dyn & operator=(Dyn && other)
@@ -58,34 +63,34 @@ struct [[nodiscard]] Dyn
 
   constexpr void uninit() const
   {
-    inner.uninit(inner.allocator);
+    uninit_(allocator_);
   }
 
   constexpr void reset()
   {
     uninit();
-    inner = Inner{};
+    *this = Dyn{};
   }
 
   constexpr H get() const
   {
-    return inner.handle;
+    return handle_;
   }
 
   constexpr decltype(auto) operator*() const
   {
-    return *inner.handle;
+    return *handle_;
   }
 
   template <typename... Args>
   constexpr decltype(auto) operator()(Args &&... args) const
   {
-    return inner.handle(static_cast<Args>(args)...);
+    return handle_(static_cast<Args>(args)...);
   }
 
   constexpr H operator->() const
   {
-    return inner.handle;
+    return handle_;
   }
 };
 
@@ -99,15 +104,15 @@ constexpr Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator,
     return Err{Void{}};
   }
 
+  constexpr auto uninit = +[](T * object, AllocatorImpl allocator) {
+    obj::destruct(Span{object, 1});
+    allocator.ndealloc(object, 1);
+  };
+
   new (object) T{static_cast<Args &&>(args)...};
 
   return Ok{
-      Dyn<T *>{object, allocator,
-               fn(
-                   object, +[](T * object, AllocatorImpl allocator) {
-                     object->~T();
-                     allocator.ndealloc(object, 1);
-                   })}
+    Dyn<T *>{object, allocator, fn(object, uninit)}
   };
 }
 
@@ -124,20 +129,20 @@ constexpr Result<Dyn<T *>, Void> dyn(AllocatorImpl allocator, T object)
 }
 
 template <typename Base, typename H>
-constexpr Dyn<H> transmute(Dyn<Base> && base, H handle)
+constexpr Dyn<H> transmute(Dyn<Base> base, H handle)
 {
-  Dyn<H> t{static_cast<H &&>(handle), base.inner.allocator, base.inner.uninit};
-  base.inner.handle    = {};
-  base.inner.allocator = noop_allocator;
-  base.inner.uninit    = noop;
+  Dyn<H> t{static_cast<H &&>(handle), base.allocator_, base.uninit_};
+  base.handle_    = {};
+  base.allocator_ = noop_allocator;
+  base.uninit_    = noop;
   return t;
 }
 
 template <typename To, typename From>
-constexpr Dyn<To> cast(Dyn<From> && from)
+constexpr Dyn<To> cast(Dyn<From> from)
 {
   return transmute(static_cast<Dyn<From> &&>(from),
                    static_cast<To>(from.get()));
 }
 
-}        // namespace ash
+}    // namespace ash

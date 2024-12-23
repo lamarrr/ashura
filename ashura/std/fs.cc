@@ -53,4 +53,4 @@ Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff)
   return Ok{};
 }
 
-}        // namespace ash
+}    // namespace ash

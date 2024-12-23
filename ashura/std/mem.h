@@ -4,6 +4,7 @@
 #include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include <cstring>
+#include <memory>
 
 namespace ash
 {
@@ -43,6 +44,8 @@ bool is_ptr_aligned(usize alignment, T * p)
 {
   return is_aligned(alignment, (uptr) p);
 }
+
+using std::assume_aligned;
 
 namespace mem
 {
@@ -165,7 +168,7 @@ ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 #endif
 }
 
-}        // namespace mem
+}    // namespace mem
 
 /// @brief copy non-null-terminated string `str` to `c_str` and null-terminate `c_str`.
 [[nodiscard]] inline bool to_c_str(Span<char const> str, Span<char> c_str)
@@ -248,9 +251,8 @@ struct Flex
 
   Tuple<Span<T>...> unpack(void const * stack) const
   {
-    return index_apply<sizeof...(T)>([&]<usize... I>() {
-      return Tuple<Span<T>...>{unpack_at_<I>(stack)...};
-    });
+    return index_apply<sizeof...(T)>(
+      [&]<usize... I>() { return Tuple<Span<T>...>{unpack_at_<I>(stack)...}; });
   }
 };
 
@@ -289,4 +291,4 @@ struct BitEq
 constexpr StrEq str_eq;
 constexpr BitEq bit_eq;
 
-}        // namespace ash
+}    // namespace ash

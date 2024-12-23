@@ -239,13 +239,15 @@ struct FontStyle
 
 /// @param shadow_scale relative. multiplied by font_height
 /// @param shadow_offset px. offset from center of glyph
+// [ ] define text styler or renderer hook. examine our use cases
+// [ ] translation of text components?
 struct TextStyle
 {
   f32           underline_thickness     = 0;
   f32           strikethrough_thickness = 0;
   f32           shadow_scale            = 0;
   Vec2          shadow_offset           = Vec2{0, 0};
-  ColorGradient foreground              = {};
+  ColorGradient color                   = {};
   ColorGradient background              = {};
   ColorGradient underline               = {};
   ColorGradient strikethrough           = {};
@@ -290,7 +292,7 @@ struct TextBlockStyle
 /// @param cluster unicode grapheme cluster within the text run
 /// @param advance context-dependent horizontal-layout advance
 /// @param offset context-dependent text shaping offset from normal font glyph
-/// position, i.e. offset from Glyph::bearing
+/// position, i.e. offset from GlyphMetrics::bearing
 struct GlyphShape
 {
   u32   glyph   = 0;
@@ -429,4 +431,4 @@ void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout);
 TextHitResult hit_text(TextLayout const & layout, f32 align_width,
                        f32 alignment, Vec2 pos);
 
-}        // namespace ash
+}    // namespace ash

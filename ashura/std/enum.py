@@ -1,5 +1,7 @@
+# SPDX-License-Identifier: MIT
+
 import sys
-MAX_ENUM_SIZE = 16
+MAX_ENUM_SIZE = 32
 
 
 assert len(sys.argv) > 1
@@ -32,41 +34,39 @@ struct Enum;
 )
 
 member_cases = [
-    f"""
+  f"""
 if constexpr(I == {i})
 {{
-    return (e.v{i}_);
+  return (e.v{i}_);
 }}
 """ for i in range(MAX_ENUM_SIZE)]
 
- 
-
-move_constructor_cases = [f"""
-if constexpr(Dst::SIZE > {i})
+move_constructor_cases = [f"""if constexpr(Dst::SIZE > {i})
 {{
 if(src->index_ == {i})
 {{
-    enum_member_construct(&dst->v{i}_, static_cast<typename Src::E{i} &&>(src->v{i}_));
-    return;
+  enum_member_construct(&dst->v{i}_, static_cast<typename Src::E{i} &&>(src->v{i}_));
+  return;
 }}
-}}""" for i in range(0, MAX_ENUM_SIZE)]
+}}
+""" for i in range(0, MAX_ENUM_SIZE)]
 
-copy_constructor_cases = [f"""
-if constexpr(Dst::SIZE > {i})
+copy_constructor_cases = [f"""if constexpr(Dst::SIZE > {i})
 {{
 if(src->index_ == {i})
 {{
-    enum_member_construct(&dst->v{i}_, src->v{i}_);
-    return;
+  enum_member_construct(&dst->v{i}_, src->v{i}_);
+  return;
 }}
-}}""" for i in range(0, MAX_ENUM_SIZE)]
+}}
+""" for i in range(0, MAX_ENUM_SIZE)]
 
-destructor_cases = [f"""
-if constexpr(Enum::SIZE > {i}){{
+destructor_cases = [f"""if constexpr(Enum::SIZE > {i})
+{{
 if(e->index_ == {i})
 {{
-    enum_member_destruct(&e->v{i}_);
-    return;
+  enum_member_destruct(&e->v{i}_);
+  return;
 }}
 }}
 """ for i in range(0, MAX_ENUM_SIZE)]
@@ -84,12 +84,12 @@ constexpr decltype(auto) enum_member(Enum& e)
 template<typename E, typename... Args>
 constexpr void enum_member_construct(E * e, Args&&... args )
 {{
-    new (e) E {{ static_cast<Args &&>(args)...  }};
+  new (e) E {{ static_cast<Args &&>(args)...  }};
 }}
 
 template<typename E>
 constexpr void enum_member_destruct(E * e){{
-   e->~E();
+  e->~E();
 }}
 
 template<typename Enum>
@@ -99,9 +99,9 @@ constexpr void enum_destruct(Enum * e){{
 
 template<typename Src, typename Dst>
 constexpr void enum_move_construct(Src * src, Dst * dst){{
-if constexpr(Dst::SIZE > 0)
+if constexpr(Dst::SIZE > 1)
 {{
-    dst->index_ = src->index_;
+  dst->index_ = src->index_;
 }}
 
 {"\n".join(move_constructor_cases)}
@@ -109,9 +109,9 @@ if constexpr(Dst::SIZE > 0)
 
 template<typename Src, typename Dst>
 constexpr void enum_copy_construct(Src * src, Dst * dst){{
-if constexpr(Dst::SIZE > 0)
+if constexpr(Dst::SIZE > 1)
 {{
-    dst->index_ = src->index_;
+  dst->index_ = src->index_;
 }}
 
 {"\n".join(copy_constructor_cases)}
@@ -121,7 +121,7 @@ template<typename Src, typename Dst>
 constexpr void enum_move_assign(Src * src, Dst * dst){{
 if(src == dst)
 {{
-    return;
+  return;
 }}
 enum_destruct(dst);
 enum_move_construct(src, dst);
@@ -132,7 +132,7 @@ constexpr void enum_copy_assign(Src * src, Dst * dst)
 {{
 if(src == dst)
 {{
-    return;
+  return;
 }}
 enum_destruct(dst);
 enum_copy_construct(src, dst);
@@ -141,27 +141,24 @@ enum_copy_construct(src, dst);
 """)
 
 match_cases = [
-f"""
-if constexpr(SIZE > {i})
+f"""if constexpr(SIZE > {i})
 {{
-    if(e.index_ == {i})
-    {{
-        return fns_ref.v{i}(e.v{i}_);
-    }}
-}}
-""" for i in range(MAX_ENUM_SIZE)
-]
+  if(e.index_ == {i})
+  {{
+    return fns_ref.v{i}(e.v{i}_);
+  }}
+}}""" for i in range(MAX_ENUM_SIZE)]
 
 out(
 f"""
 template<usize SIZE, typename Enum, typename ... Fns>
 constexpr decltype(auto) match(Enum && e, Fns && ... fns)
 {{
-    Tuple<Fns && ...> fns_ref{{ static_cast<Fns && >(fns)... }};
+  Tuple<Fns && ...> fns_ref{{ static_cast<Fns && >(fns)... }};
 
-    {"\n".join(match_cases)}
+  {"\n".join(match_cases)}
 
-    ASH_UNREACHABLE;
+  ASH_UNREACHABLE;
 }}
 """)
 
@@ -172,32 +169,58 @@ out(f"""
 
 for size in range(0,  MAX_ENUM_SIZE + 1):
 
-    types = [f"T{i}" for i in range(size)]
-    aliases = [f"E{i}" for i in range(size)]
-    values = [f"v{i}_" for i in range(size)]
-    typename_decls = [f"typename {t}" for t in types]
-    alias_decls = [f"typedef {t} {a};" for t, a in zip(types, aliases)]
-    value_decls = [f"{t} {v};" for t, v in zip(types, values)]
+  types = [f"T{i}" for i in range(size)]
+  aliases = [f"E{i}" for i in range(size)]
+  values = [f"v{i}_" for i in range(size)]
+  typename_decls = [f"typename {t}" for t in types]
+  alias_decls = [f"typedef {t} {a};" for t, a in zip(types, aliases)]
+  value_decls = [f"{t} {v};" for t, v in zip(types, values)]
 
-     
-    members_def = [f"T{i} v{i}_;" for i in range(0, size)]
+  members_def = [f"T{i} v{i}_;" for i in range(0, size)]
 
-    value_constructors = [f"""
-constexpr Enum(T{i} v) :
+  index_def = ""
+
+  if size == 0:
+        index_def = ""
+  elif size == 1:
+        index_def = """static constexpr u32 index_ = 0;
+
+static constexpr usize index()
+{
+  return 0;
+}"""
+  else:
+        index_def = """u32 index_;
+
+constexpr usize index() const
+{
+  return index_;
+}"""
+
+  value_constructors = []
+
+  if size == 0:
+        value_constructors = []
+  elif size == 1:
+        value_constructors = [f"""constexpr Enum(T0 v) :
+v0_{{static_cast<T0 &&>(v)}}
+{{ }}
+"""]
+  else:
+        value_constructors = [f"""constexpr Enum(T{i} v) :
 index_{{{i}}},
 v{i}_{{static_cast<T{i} &&>(v)}}
 {{ }}
 """ for i in range(0, size)]
- 
 
-    out(f"""
+  out(f"""
 template<{", ".join(typename_decls)}>
 struct Enum<{", ".join(types)}>
 {{
 
 {"\n".join(alias_decls)}
 
-{"" if size == 0 else 
+{"" if size == 0 else
 f"""template<usize I>
 using E = index_pack<I, {", ".join(aliases)}>;
 """}
@@ -206,14 +229,14 @@ static constexpr usize SIZE = {size};
 
 static constexpr usize size()
 {{
-    return SIZE;
+  return SIZE;
 }}
 
 {
 f"""
 constexpr bool is(usize) const
 {{
-    return false;
+  return false;
 }}
 
 constexpr void match()
@@ -225,15 +248,7 @@ constexpr void match() const
 }}
 """
 
-if size == 0 else
-
-f"""
-usize index_;
-
-constexpr usize index() const
-{{
-    return index_;
-}}
+if size == 0 else f"""{index_def}
 
 union {{
 {"\n".join(members_def)}
@@ -241,70 +256,70 @@ union {{
 
 constexpr Enum(Enum const& other)
 {{
-    intr::enum_copy_construct(&other, this);
+  intr::enum_copy_construct(&other, this);
 }}
 
 constexpr Enum(Enum && other)
 {{
-    intr::enum_move_construct(&other, this);
+  intr::enum_move_construct(&other, this);
 }}
 
 constexpr Enum& operator=(Enum const& other)
 {{
-    intr::enum_copy_assign(&other, this);
-    return *this;
+  intr::enum_copy_assign(&other, this);
+  return *this;
 }}
 
 constexpr Enum& operator=(Enum && other)
 {{
-    intr::enum_move_assign(&other, this);
-    return *this;
+  intr::enum_move_assign(&other, this);
+  return *this;
 }}
 
 constexpr ~Enum()
 {{
-    intr::enum_destruct(this);
+  intr::enum_destruct(this);
 }}
 
 template<usize I, typename ...Args>
 constexpr Enum(V<I>, Args &&... args)
 {{
-    intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
+  intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }}
 
 {"\n".join(value_constructors)}
 
 constexpr bool is(usize i) const
 {{
-    return index_ == i;
+  return index_ == i;
 }}
 
 template<usize I> requires(I < SIZE)
 constexpr auto& operator[](V<I>)
 {{
-    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
-    return intr::enum_member<I>(*this);
+  CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+  return intr::enum_member<I>(*this);
 }}
 
 template<usize I> requires(I < SIZE)
 constexpr auto const& operator[](V<I>) const
 {{
-    CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
-    return intr::enum_member<I>(*this);
+  CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+  return intr::enum_member<I>(*this);
 }}
 
-template<typename... Fns> 
+template<typename... Fns>
 requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns)
 {{
-    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
+  return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
 }}
 
-template<typename... Fns> 
+template<typename... Fns>
 requires(sizeof...(Fns) == SIZE)
 constexpr decltype(auto) match(Fns && ... fns) const
 {{
-    return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)... );
+  return intr::match<SIZE>(*this, static_cast<Fns &&>(fns)...);
 }}
 
 """

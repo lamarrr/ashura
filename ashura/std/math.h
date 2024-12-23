@@ -130,14 +130,14 @@ constexpr f32 invsqrt(f32 x)
 
 /// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
 /// value is 0
-constexpr u8 ulog2(u8 value)
+constexpr u32 ulog2(u8 value)
 {
   return 7 - std::countl_zero(value);
 }
 
 /// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
 /// value is 0
-constexpr u16 ulog2(u16 value)
+constexpr u32 ulog2(u16 value)
 {
   return 15 - std::countl_zero(value);
 }
@@ -151,12 +151,12 @@ constexpr u32 ulog2(u32 value)
 
 /// @brief Calculate log base 2 of an unsigned integer. Undefined behaviour if
 /// value is 0
-constexpr u64 ulog2(u64 value)
+constexpr u32 ulog2(u64 value)
 {
   return 63 - std::countl_zero(value);
 }
 
-constexpr u32 mip_down(u32 a, u32 level)
+constexpr u32 mip_size(u32 a, u32 level)
 {
   return max(a >> level, 1U);
 }
@@ -268,9 +268,9 @@ constexpr T catmull_rom(T const & p0, T const & p1, T const & p2, T const & p3,
 inline f32 elastic(f32 amplitude, f32 period, f32 t)
 {
   constexpr f32 TWO_PI = 2.0F * PI;
-  f32 const     s      = (period / TWO_PI) * std::asin(1 / amplitude);
+  f32 const     s      = (period * (1 / TWO_PI)) * std::asin(1 / amplitude);
   f32 const     factor = amplitude * std::pow(2.0F, -10.0F * t) *
-                         std::sin((t - s) * (TWO_PI / period)) +
+                       std::sin((t - s) * (TWO_PI / period)) +
                      1.0F;
   return factor;
 }
@@ -327,11 +327,11 @@ inline f32 spring(f32 mass, f32 stiffness, f32 damping, f32 t)
   if (damping_ratio < 1.0F)
   {
     f32 const omega_d =
-        omega0 * std::sqrt(1.0F - damping_ratio * damping_ratio);
+      omega0 * std::sqrt(1.0F - damping_ratio * damping_ratio);
     return 1.0F -
            std::exp(-damping_ratio * omega0 * t) *
-               (std::cos(omega_d * t) +
-                (damping_ratio * omega0 / omega_d) * std::sin(omega_d * t));
+             (std::cos(omega_d * t) +
+              (damping_ratio * omega0 / omega_d) * std::sin(omega_d * t));
   }
 
   // Overdamped or critically damped
@@ -464,12 +464,12 @@ struct alignas(8) Vec2
 
 constexpr bool operator==(Vec2 a, Vec2 b)
 {
-  return a.x == b.x && a.y == b.y;
+  return a.x == b.x & a.y == b.y;
 }
 
 constexpr bool operator!=(Vec2 a, Vec2 b)
 {
-  return a.x != b.x || a.y != b.y;
+  return a.x != b.x | a.y != b.y;
 }
 
 constexpr Vec2 operator+(Vec2 a, Vec2 b)
@@ -595,12 +595,12 @@ constexpr Vec3 vec3(f32 x, Vec2 yz)
 
 constexpr bool operator==(Vec3 a, Vec3 b)
 {
-  return a.x == b.x && a.y == b.y && a.z == b.z;
+  return a.x == b.x & a.y == b.y & a.z == b.z;
 }
 
 constexpr bool operator!=(Vec3 a, Vec3 b)
 {
-  return a.x != b.x || a.y != b.y || a.z != b.z;
+  return a.x != b.x | a.y != b.y | a.z != b.z;
 }
 
 constexpr Vec3 operator+(Vec3 a, Vec3 b)
@@ -727,12 +727,12 @@ constexpr Vec4 vec4(f32 x, Vec3 yzw)
 
 constexpr bool operator==(Vec4 a, Vec4 b)
 {
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+  return a.x == b.x & a.y == b.y & a.z == b.z & a.w == b.w;
 }
 
 constexpr bool operator!=(Vec4 a, Vec4 b)
 {
-  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
+  return a.x != b.x | a.y != b.y | a.z != b.z | a.w != b.w;
 }
 
 constexpr Vec4 operator+(Vec4 a, Vec4 b)
@@ -836,12 +836,6 @@ struct alignas(4) Vec4U8
     return Vec4U8{value, value, value, value};
   }
 
-  constexpr Vec4 norm() const
-  {
-    return Vec4{
-        .x = x / 255.0F, .y = y / 255.0F, .z = z / 255.0F, .w = w / 255.0F};
-  }
-
   constexpr u8 & operator[](usize i)
   {
     return (&x)[i];
@@ -855,12 +849,12 @@ struct alignas(4) Vec4U8
 
 constexpr bool operator==(Vec4U8 a, Vec4U8 b)
 {
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+  return a.x == b.x & a.y == b.y & a.z == b.z & a.w == b.w;
 }
 
 constexpr bool operator!=(Vec4U8 a, Vec4U8 b)
 {
-  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
+  return a.x != b.x | a.y != b.y | a.z != b.z | a.w != b.w;
 }
 
 constexpr Vec4U8 operator+(Vec4U8 a, Vec4U8 b)
@@ -911,16 +905,6 @@ constexpr Vec4U8 & operator/=(Vec4U8 & a, Vec4U8 b)
   return a;
 }
 
-constexpr Vec4U8 as_vec4u8(Vec4 a)
-{
-  return Vec4U8{(u8) a.x, (u8) a.y, (u8) a.z, (u8) a.w};
-}
-
-constexpr Vec4 as_vec4(Vec4U8 a)
-{
-  return Vec4{(f32) a.x, (f32) a.y, (f32) a.z, (f32) a.w};
-}
-
 struct alignas(8) Vec2I
 {
   i32 x = 0;
@@ -944,17 +928,27 @@ struct alignas(8) Vec2I
 
 constexpr bool operator==(Vec2I a, Vec2I b)
 {
-  return a.x == b.x && a.y == b.y;
+  return a.x == b.x & a.y == b.y;
 }
 
 constexpr bool operator!=(Vec2I a, Vec2I b)
 {
-  return a.x != b.x || a.y != b.y;
+  return a.x != b.x | a.y != b.y;
 }
 
 constexpr Vec2I operator+(Vec2I a, Vec2I b)
 {
   return Vec2I{a.x + b.x, a.y + b.y};
+}
+
+constexpr Vec2I operator+(Vec2I a, i32 b)
+{
+  return Vec2I{a.x + b, a.y + b};
+}
+
+constexpr Vec2I operator+(i32 a, Vec2I b)
+{
+  return Vec2I{a + b.x, a + b.y};
 }
 
 constexpr Vec2I operator-(Vec2I a)
@@ -1030,12 +1024,12 @@ struct Vec3I
 
 constexpr bool operator==(Vec3I a, Vec3I b)
 {
-  return a.x == b.x && a.y == b.y && a.z == b.z;
+  return a.x == b.x & a.y == b.y & a.z == b.z;
 }
 
 constexpr bool operator!=(Vec3I a, Vec3I b)
 {
-  return a.x != b.x || a.y != b.y || a.z != b.z;
+  return a.x != b.x | a.y != b.y | a.z != b.z;
 }
 
 constexpr Vec3I operator+(Vec3I a, Vec3I b)
@@ -1107,12 +1101,12 @@ struct alignas(16) Vec4I
 
 constexpr bool operator==(Vec4I a, Vec4I b)
 {
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+  return a.x == b.x & a.y == b.y & a.z == b.z & a.w == b.w;
 }
 
 constexpr bool operator!=(Vec4I a, Vec4I b)
 {
-  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
+  return a.x != b.x | a.y != b.y | a.z != b.z | a.w != b.w;
 }
 
 constexpr Vec4I operator+(Vec4I a, Vec4I b)
@@ -1180,19 +1174,14 @@ struct alignas(8) Vec2U
   }
 };
 
-constexpr Vec2 as_vec2(Vec2U a)
-{
-  return Vec2{(f32) a.x, (f32) a.y};
-}
-
 constexpr bool operator==(Vec2U a, Vec2U b)
 {
-  return a.x == b.x && a.y == b.y;
+  return a.x == b.x & a.y == b.y;
 }
 
 constexpr bool operator!=(Vec2U a, Vec2U b)
 {
-  return a.x != b.x || a.y != b.y;
+  return a.x != b.x | a.y != b.y;
 }
 
 constexpr Vec2U operator+(Vec2U a, Vec2U b)
@@ -1303,12 +1292,12 @@ struct Vec3U
 
 constexpr bool operator==(Vec3U a, Vec3U b)
 {
-  return a.x == b.x && a.y == b.y && a.z == b.z;
+  return a.x == b.x & a.y == b.y & a.z == b.z;
 }
 
 constexpr bool operator!=(Vec3U a, Vec3U b)
 {
-  return a.x != b.x || a.y != b.y || a.z != b.z;
+  return a.x != b.x | a.y != b.y | a.z != b.z;
 }
 
 constexpr Vec3U operator+(Vec3U a, Vec3U b)
@@ -1380,12 +1369,12 @@ struct alignas(16) Vec4U
 
 constexpr bool operator==(Vec4U a, Vec4U b)
 {
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+  return a.x == b.x & a.y == b.y & a.z == b.z & a.w == b.w;
 }
 
 constexpr bool operator!=(Vec4U a, Vec4U b)
 {
-  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
+  return a.x != b.x | a.y != b.y | a.z != b.z | a.w != b.w;
 }
 
 constexpr Vec4U operator+(Vec4U a, Vec4U b)
@@ -1430,6 +1419,37 @@ constexpr Vec4U & operator/=(Vec4U & a, Vec4U b)
 {
   a = a / b;
   return a;
+}
+
+constexpr Vec2 as_vec2(Vec2U a)
+{
+  return Vec2{(f32) a.x, (f32) a.y};
+}
+
+constexpr Vec2I as_vec2i(Vec2U a)
+{
+  return Vec2I{(i32) a.x, (i32) a.y};
+}
+
+constexpr Vec2U as_vec2u(Vec2I a)
+{
+  return Vec2U{(u32) a.x, (u32) a.y};
+}
+
+constexpr Vec4U8 as_vec4u8(Vec4 a)
+{
+  return Vec4U8{(u8) a.x, (u8) a.y, (u8) a.z, (u8) a.w};
+}
+
+constexpr Vec4 as_vec4(Vec4U8 a)
+{
+  return Vec4{(f32) a.x, (f32) a.y, (f32) a.z, (f32) a.w};
+}
+
+constexpr Vec4 norm(Vec4U8 color)
+{
+  constexpr f32 SCALE = 1 / 255.0F;
+  return as_vec4(color) * Vec4::splat(SCALE);
 }
 
 constexpr f32 dot(Vec2 a, Vec2 b)
@@ -1506,14 +1526,14 @@ struct Mat2
   static constexpr Mat2 splat(f32 value)
   {
     return Mat2{
-        .rows = {{value, value}, {value, value}}
+      .rows = {{value, value}, {value, value}}
     };
   }
 
   static constexpr Mat2 diagonal(f32 value)
   {
     return Mat2{
-        .rows = {{value, 0}, {0, value}}
+      .rows = {{value, 0}, {0, value}}
     };
   }
 
@@ -1545,25 +1565,25 @@ struct Mat2
 
 constexpr bool operator==(Mat2 const & a, Mat2 const & b)
 {
-  return a[0] == b[0] && a[1] == b[1];
+  return a[0] == b[0] & a[1] == b[1];
 }
 
 constexpr bool operator!=(Mat2 const & a, Mat2 const & b)
 {
-  return a[0] != b[0] || a[1] != b[1];
+  return a[0] != b[0] | a[1] != b[1];
 }
 
 constexpr Mat2 operator+(Mat2 const & a, Mat2 const & b)
 {
   return Mat2{
-      .rows = {a[0] + b[0], a[1] + b[1]}
+    .rows = {a[0] + b[0], a[1] + b[1]}
   };
 }
 
 constexpr Mat2 operator-(Mat2 const & a, Mat2 const & b)
 {
   return Mat2{
-      .rows = {a[0] - b[0], a[1] - b[1]}
+    .rows = {a[0] - b[0], a[1] - b[1]}
   };
 }
 
@@ -1575,15 +1595,15 @@ constexpr Vec2 operator*(Mat2 const & a, Vec2 const & b)
 constexpr Mat2 operator*(Mat2 const & a, Mat2 const & b)
 {
   return Mat2{
-      .rows = {{dot(a[0], b.x()), dot(a[0], b.y())},
-               {dot(a[1], b.x()), dot(a[1], b.y())}}
+    .rows = {{dot(a[0], b.x()), dot(a[0], b.y())},
+             {dot(a[1], b.x()), dot(a[1], b.y())}}
   };
 }
 
 constexpr Mat2 operator/(Mat2 const & a, Mat2 const & b)
 {
   return Mat2{
-      .rows = {a[0] / b[0], a[1] / b[1]}
+    .rows = {a[0] / b[0], a[1] / b[1]}
   };
 }
 
@@ -1618,16 +1638,15 @@ struct Mat3
   static constexpr Mat3 splat(f32 value)
   {
     return Mat3{
-        .rows = {{value, value, value},
-                 {value, value, value},
-                 {value, value, value}}
+      .rows = {
+               {value, value, value}, {value, value, value}, {value, value, value}}
     };
   }
 
   static constexpr Mat3 diagonal(f32 value)
   {
     return Mat3{
-        .rows = {{value, 0, 0}, {0, value, 0}, {0, 0, value}}
+      .rows = {{value, 0, 0}, {0, value, 0}, {0, 0, value}}
     };
   }
 
@@ -1675,14 +1694,14 @@ constexpr bool operator!=(Mat3 const & a, Mat3 const & b)
 constexpr Mat3 operator+(Mat3 const & a, Mat3 const & b)
 {
   return Mat3{
-      .rows = {a[0] + b[0], a[1] + b[1], a[2] + b[2]}
+    .rows = {a[0] + b[0], a[1] + b[1], a[2] + b[2]}
   };
 }
 
 constexpr Mat3 operator-(Mat3 const & a, Mat3 const & b)
 {
   return Mat3{
-      .rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2]}
+    .rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2]}
   };
 }
 
@@ -1694,18 +1713,18 @@ constexpr Vec3 operator*(Mat3 const & a, Vec3 const & b)
 constexpr Mat3 operator*(Mat3 const & a, Mat3 const & b)
 {
   return Mat3{
-      .rows = {
-               {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-               {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())},
-               }
+    .rows = {
+             {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+             {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
+             {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())},
+             }
   };
 }
 
 constexpr Mat3 operator/(Mat3 const & a, Mat3 const & b)
 {
   return Mat3{
-      .rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2]}
+    .rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2]}
   };
 }
 
@@ -1751,14 +1770,14 @@ struct Affine3
   constexpr operator Mat3() const
   {
     return Mat3{
-        .rows = {rows[0], rows[1], {0, 0, 1}}
+      .rows = {rows[0], rows[1], {0, 0, 1}}
     };
   }
 
   static constexpr Affine3 identity()
   {
     return Affine3{
-        .rows = {{1, 0, 0}, {0, 1, 0}}
+      .rows = {{1, 0, 0}, {0, 1, 0}}
     };
   }
 
@@ -1791,14 +1810,14 @@ constexpr bool operator!=(Affine3 const & a, Affine3 const & b)
 constexpr Affine3 operator+(Affine3 const & a, Affine3 const & b)
 {
   return Affine3{
-      .rows = {a[0] + b[0], a[1] + b[1]}
+    .rows = {a[0] + b[0], a[1] + b[1]}
   };
 }
 
 constexpr Affine3 operator-(Affine3 const & a, Affine3 const & b)
 {
   return Affine3{
-      .rows = {a[0] - b[0], a[1] - b[1]}
+    .rows = {a[0] - b[0], a[1] - b[1]}
   };
 }
 
@@ -1810,36 +1829,36 @@ constexpr Vec3 operator*(Affine3 const & a, Vec3 const & b)
 constexpr Mat3 operator*(Affine3 const & a, Mat3 const & b)
 {
   return Mat3{
-      .rows = {
-               {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-               {dot(Affine3::trailing_row, b.x()), dot(Affine3::trailing_row, b.y()),
-           dot(Affine3::trailing_row, b.z())},
-               }
+    .rows = {
+             {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+             {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
+             {dot(Affine3::trailing_row, b.x()), dot(Affine3::trailing_row, b.y()),
+       dot(Affine3::trailing_row, b.z())},
+             }
   };
 }
 
 constexpr Mat3 operator*(Mat3 const & a, Affine3 const & b)
 {
   return Mat3{
-      .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-               {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())}}
+    .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+             {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
+             {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())}}
   };
 }
 
 constexpr Affine3 operator*(Affine3 const & a, Affine3 const & b)
 {
   return Affine3{
-      .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())}}
+    .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+             {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())}}
   };
 }
 
 constexpr Affine3 operator/(Affine3 const & a, Affine3 const & b)
 {
   return Affine3{
-      .rows = {a[0] / b[0], a[1] / b[1]}
+    .rows = {a[0] / b[0], a[1] / b[1]}
   };
 }
 
@@ -1874,20 +1893,20 @@ struct Mat4
   static constexpr Mat4 splat(f32 value)
   {
     return Mat4{
-        .rows = {{value, value, value, value},
-                 {value, value, value, value},
-                 {value, value, value, value},
-                 {value, value, value, value}}
+      .rows = {{value, value, value, value},
+               {value, value, value, value},
+               {value, value, value, value},
+               {value, value, value, value}}
     };
   }
 
   static constexpr Mat4 diagonal(f32 value)
   {
     return Mat4{
-        .rows = {{value, 0, 0, 0},
-                 {0, value, 0, 0},
-                 {0, 0, value, 0},
-                 {0, 0, 0, value}}
+      .rows = {{value, 0, 0, 0},
+               {0, value, 0, 0},
+               {0, 0, value, 0},
+               {0, 0, 0, value}}
     };
   }
 
@@ -1940,14 +1959,14 @@ constexpr bool operator!=(Mat4 const & a, Mat4 const & b)
 constexpr Mat4 operator+(Mat4 const & a, Mat4 const & b)
 {
   return Mat4{
-      .rows = {a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]}
+    .rows = {a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]}
   };
 }
 
 constexpr Mat4 operator-(Mat4 const & a, Mat4 const & b)
 {
   return Mat4{
-      .rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2], a[3] - b[3]}
+    .rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2], a[3] - b[3]}
   };
 }
 
@@ -1959,21 +1978,19 @@ constexpr Vec4 operator*(Mat4 const & a, Vec4 const & b)
 constexpr Mat4 operator*(Mat4 const & a, Mat4 const & b)
 {
   return Mat4{
-      .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-                dot(a[0], b.w())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-                dot(a[1], b.w())},
-               {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-                dot(a[2], b.w())},
-               {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
-                dot(a[3], b.w())}}
+    .rows = {
+             {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()), dot(a[0], b.w())},
+             {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()), dot(a[1], b.w())},
+             {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()), dot(a[2], b.w())},
+             {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
+       dot(a[3], b.w())}}
   };
 }
 
 constexpr Mat4 operator/(Mat4 const & a, Mat4 const & b)
 {
   return Mat4{
-      .rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2], a[3] / b[3]}
+    .rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2], a[3] / b[3]}
   };
 }
 
@@ -2019,14 +2036,14 @@ struct Affine4
   constexpr operator Mat4() const
   {
     return Mat4{
-        .rows = {rows[0], rows[1], rows[2], {0, 0, 0, 1}}
+      .rows = {rows[0], rows[1], rows[2], {0, 0, 0, 1}}
     };
   }
 
   static constexpr Affine4 identity()
   {
     return Affine4{
-        .rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}}
+      .rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}}
     };
   }
 
@@ -2064,14 +2081,14 @@ constexpr bool operator!=(Affine4 const & a, Affine4 const & b)
 constexpr Affine4 operator+(Affine4 const & a, Affine4 const & b)
 {
   return Affine4{
-      .rows = {a[0] + b[0], a[1] + b[1], a[2] + b[2]}
+    .rows = {a[0] + b[0], a[1] + b[1], a[2] + b[2]}
   };
 }
 
 constexpr Affine4 operator-(Affine4 const & a, Affine4 const & b)
 {
   return Affine4{
-      .rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2]}
+    .rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2]}
   };
 }
 
@@ -2084,52 +2101,43 @@ constexpr Vec4 operator*(Affine4 const & a, Vec4 const & b)
 constexpr Mat4 operator*(Affine4 const & a, Mat4 const & b)
 {
   return Mat4{
-      .rows = {
-               {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-           dot(a[0], b.w())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-           dot(a[1], b.w())},
-               {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-           dot(a[2], b.w())},
-               {dot(Affine4::trailing_row, b.x()), dot(Affine4::trailing_row, b.y()),
-           dot(Affine4::trailing_row, b.z()),
-           dot(Affine4::trailing_row, b.w())},
-               }
+    .rows = {
+             {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()), dot(a[0], b.w())},
+             {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()), dot(a[1], b.w())},
+             {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()), dot(a[2], b.w())},
+             {dot(Affine4::trailing_row, b.x()), dot(Affine4::trailing_row, b.y()),
+       dot(Affine4::trailing_row, b.z()), dot(Affine4::trailing_row, b.w())},
+             }
   };
 }
 
 constexpr Mat4 operator*(Mat4 const & a, Affine4 const & b)
 {
   return Mat4{
-      .rows = {
-               {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-           dot(a[0], b.w())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-           dot(a[1], b.w())},
-               {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-           dot(a[2], b.w())},
-               {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
-           dot(a[3], b.w())},
-               }
+    .rows = {
+             {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()), dot(a[0], b.w())},
+             {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()), dot(a[1], b.w())},
+             {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()), dot(a[2], b.w())},
+             {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()), dot(a[3], b.w())},
+             }
   };
 }
 
 constexpr Affine4 operator*(Affine4 const & a, Affine4 const & b)
 {
   return Affine4{
-      .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-                dot(a[0], b.w())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-                dot(a[1], b.w())},
-               {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-                dot(a[2], b.w())}}
+    .rows = {
+             {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()), dot(a[0], b.w())},
+             {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()), dot(a[1], b.w())},
+             {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
+       dot(a[2], b.w())}}
   };
 }
 
 constexpr Affine4 operator/(Affine4 const & a, Affine4 const & b)
 {
   return Affine4{
-      .rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2]}
+    .rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2]}
   };
 }
 
@@ -2172,59 +2180,59 @@ inline f32 length(Vec4 a)
   return std::sqrt(dot(a, a));
 }
 
-constexpr Vec2U mip_down(Vec2U a, u32 level)
+constexpr Vec2U mip_size(Vec2U a, u32 level)
 {
-  return Vec2U{mip_down(a.x, level), mip_down(a.y, level)};
+  return Vec2U{mip_size(a.x, level), mip_size(a.y, level)};
 }
 
-constexpr Vec3U mip_down(Vec3U a, u32 level)
+constexpr Vec3U mip_size(Vec3U a, u32 level)
 {
-  return Vec3U{mip_down(a.x, level), mip_down(a.y, level),
-               mip_down(a.z, level)};
+  return Vec3U{mip_size(a.x, level), mip_size(a.y, level),
+               mip_size(a.z, level)};
 }
 
-constexpr Vec4U mip_down(Vec4U a, u32 level)
+constexpr Vec4U mip_size(Vec4U a, u32 level)
 {
-  return Vec4U{mip_down(a.x, level), mip_down(a.y, level), mip_down(a.z, level),
-               mip_down(a.w, level)};
+  return Vec4U{mip_size(a.x, level), mip_size(a.y, level), mip_size(a.z, level),
+               mip_size(a.w, level)};
 }
 
 constexpr u32 num_mip_levels(Vec2U a)
 {
-  u32 max = ash::max(a.x, a.y);
-  return (max == 0) ? 0 : (ulog2(max) + 1);
+  u32 m = max(a.x, a.y);
+  return (m == 0) ? 0 : (ulog2(m) + 1);
 }
 
 constexpr u32 num_mip_levels(Vec3U a)
 {
-  u32 max = ash::max(ash::max(a.x, a.y), a.z);
-  return (max == 0) ? 0 : (ulog2(max) + 1);
+  u32 m = max(max(a.x, a.y), a.z);
+  return (m == 0) ? 0 : (ulog2(m) + 1);
 }
 
 constexpr u32 num_mip_levels(Vec4U a)
 {
-  u32 max = ash::max(ash::max(ash::max(a.x, a.y), a.z), a.w);
-  return (max == 0) ? 0 : (ulog2(max) + 1);
+  u32 m = max(max(max(a.x, a.y), a.z), a.w);
+  return (m == 0) ? 0 : (ulog2(m) + 1);
 }
 
 constexpr Mat2 transpose(Mat2 const & a)
 {
   return Mat2{
-      .rows = {a.x(), a.y()}
+    .rows = {a.x(), a.y()}
   };
 }
 
 constexpr Mat3 transpose(Mat3 const & a)
 {
   return Mat3{
-      .rows = {a.x(), a.y(), a.z()}
+    .rows = {a.x(), a.y(), a.z()}
   };
 }
 
 constexpr Mat4 transpose(Mat4 const & a)
 {
   return Mat4{
-      .rows = {a.x(), a.y(), a.z(), a.w()}
+    .rows = {a.x(), a.y(), a.z(), a.w()}
   };
 }
 
@@ -2259,20 +2267,20 @@ constexpr f32 determinant(Mat4 const & a)
 constexpr Mat2 adjoint(Mat2 const & a)
 {
   return Mat2{
-      .rows = {{a[1].y, -a[0].y}, {-a[1].x, a[0].x}}
+    .rows = {{a[1].y, -a[0].y}, {-a[1].x, a[0].x}}
   };
 }
 
 constexpr Mat3 adjoint(Mat3 const & a)
 {
   return Mat3{
-      .rows = {
-               {a[1].y * a[2].z - a[1].z * a[2].y, a[0].z * a[2].y - a[0].y * a[2].z,
-           a[0].y * a[1].z - a[0].z * a[1].y},
-               {a[1].z * a[2].x - a[1].x * a[2].z, a[0].x * a[2].z - a[0].z * a[2].x,
-           a[0].z * a[1].x - a[0].x * a[1].z},
-               {a[1].x * a[2].y - a[1].y * a[2].x, a[0].y * a[2].x - a[0].x * a[2].y,
-           a[0].x * a[1].y - a[0].y * a[1].x}}
+    .rows = {
+             {a[1].y * a[2].z - a[1].z * a[2].y, a[0].z * a[2].y - a[0].y * a[2].z,
+       a[0].y * a[1].z - a[0].z * a[1].y},
+             {a[1].z * a[2].x - a[1].x * a[2].z, a[0].x * a[2].z - a[0].z * a[2].x,
+       a[0].z * a[1].x - a[0].x * a[1].z},
+             {a[1].x * a[2].y - a[1].y * a[2].x, a[0].y * a[2].x - a[0].x * a[2].y,
+       a[0].x * a[1].y - a[0].y * a[1].x}}
   };
 }
 
@@ -2348,63 +2356,63 @@ constexpr Mat4 inverse(Mat4 const & a)
 constexpr Affine3 translate2d(Vec2 t)
 {
   return Affine3{
-      .rows = {{1, 0, t.x}, {0, 1, t.y}}
+    .rows = {{1, 0, t.x}, {0, 1, t.y}}
   };
 }
 
 constexpr Affine4 translate3d(Vec3 t)
 {
   return Affine4{
-      .rows = {{1, 0, 0, t.x}, {0, 1, 0, t.y}, {0, 0, 1, t.z}}
+    .rows = {{1, 0, 0, t.x}, {0, 1, 0, t.y}, {0, 0, 1, t.z}}
   };
 }
 
 constexpr Affine3 scale2d(Vec2 s)
 {
   return Affine3{
-      .rows = {{s.x, 0, 0}, {0, s.y, 0}}
+    .rows = {{s.x, 0, 0}, {0, s.y, 0}}
   };
 }
 
 constexpr Affine4 scale3d(Vec3 s)
 {
   return Affine4{
-      .rows = {{s.x, 0, 0, 0}, {0, s.y, 0, 0}, {0, 0, s.z, 0}}
+    .rows = {{s.x, 0, 0, 0}, {0, s.y, 0, 0}, {0, 0, s.z, 0}}
   };
 }
 
 inline Affine3 rotate2d(f32 radians)
 {
   return Affine3{
-      .rows = {{cos(radians), -sin(radians), 0},
-               {sin(radians), cos(radians), 0}}
+    .rows = {{cos(radians), -sin(radians), 0},
+             {sin(radians), cos(radians), 0}}
   };
 }
 
 inline Affine4 rotate3d_x(f32 radians)
 {
   return Affine4{
-      .rows = {{1, 0, 0, 0},
-               {0, cos(radians), -sin(radians), 0},
-               {0, sin(radians), cos(radians), 0}}
+    .rows = {{1, 0, 0, 0},
+             {0, cos(radians), -sin(radians), 0},
+             {0, sin(radians), cos(radians), 0}}
   };
 }
 
 inline Affine4 rotate3d_y(f32 radians)
 {
   return Affine4{
-      .rows = {{cos(radians), 0, sin(radians), 0},
-               {0, 1, 0, 0},
-               {-sin(radians), 0, cos(radians), 0}}
+    .rows = {{cos(radians), 0, sin(radians), 0},
+             {0, 1, 0, 0},
+             {-sin(radians), 0, cos(radians), 0}}
   };
 }
 
 inline Affine4 rotate3d_z(f32 radians)
 {
   return Affine4{
-      .rows = {{cos(radians), -sin(radians), 0, 0},
-               {sin(radians), cos(radians), 0, 0},
-               {0, 0, 1, 0}}
+    .rows = {{cos(radians), -sin(radians), 0, 0},
+             {sin(radians), cos(radians), 0, 0},
+             {0, 0, 1, 0}}
   };
 }
 
@@ -2557,7 +2565,7 @@ constexpr Vec4 opacity(f32 v)
   return Vec4{1, 1, 1, v};
 }
 
-constexpr Vec4 opacity_premultiplied(f32 v)
+constexpr Vec4 opacity_premul(f32 v)
 {
   return Vec4::splat(v);
 }
@@ -2596,13 +2604,13 @@ struct Rect
 
   constexpr bool is_visible() const
   {
-    return extent.x != 0 && extent.y != 0;
+    return extent.x != 0 & extent.y != 0;
   }
 };
 
 constexpr bool operator==(Rect const & a, Rect const & b)
 {
-  return a.offset == b.offset && a.extent == b.extent;
+  return a.offset == b.offset & a.extent == b.extent;
 }
 
 constexpr bool operator!=(Rect const & a, Rect const & b)
@@ -2639,7 +2647,7 @@ struct CRect
 
   constexpr bool is_visible() const
   {
-    return extent.x != 0 && extent.y != 0;
+    return extent.x != 0 & extent.y != 0;
   }
 };
 
@@ -2655,7 +2663,7 @@ constexpr Rect CRect::offseted() const
 
 constexpr bool operator==(CRect const & a, CRect const & b)
 {
-  return a.center == b.center && a.extent == b.extent;
+  return a.center == b.center & a.extent == b.extent;
 }
 
 constexpr bool operator!=(CRect const & a, CRect const & b)
@@ -2676,12 +2684,12 @@ struct RectU
 
 constexpr bool operator==(RectU const & a, RectU const & b)
 {
-  return a.offset == b.offset && a.extent == b.extent;
+  return a.offset == b.offset & a.extent == b.extent;
 }
 
 constexpr bool operator!=(RectU const & a, RectU const & b)
 {
-  return a.offset != b.offset || a.extent != b.extent;
+  return a.offset != b.offset | a.extent != b.extent;
 }
 
 struct Box
@@ -2713,7 +2721,7 @@ struct Box
 
   constexpr bool is_visible() const
   {
-    return extent.x != 0 && extent.y != 0 && extent.z != 0;
+    return extent.x != 0 | extent.y != 0 | extent.z != 0;
   }
 };
 
@@ -2756,7 +2764,7 @@ struct CBox
 
   constexpr bool is_visible() const
   {
-    return extent.x != 0 && extent.y != 0 && extent.z != 0;
+    return extent.x != 0 & extent.y != 0 & extent.z != 0;
   }
 };
 
@@ -2772,7 +2780,7 @@ constexpr Box CBox::offseted() const
 
 constexpr bool operator==(CBox const & a, CBox const & b)
 {
-  return a.center == b.center && a.extent == b.extent;
+  return a.center == b.center & a.extent == b.extent;
 }
 
 constexpr bool operator!=(CBox const & a, CBox const & b)
@@ -2869,11 +2877,12 @@ constexpr bool overlaps(Box const & a, Box const & b)
 /// MUST NOT be equal to zero. zfar MUST be greater than znear.
 constexpr Affine4 orthographic(f32 x_mag, f32 y_mag, f32 z_near, f32 z_far)
 {
-  f32 const z_diff = z_near - z_far;
+  f32 const z_diff     = z_near - z_far;
+  f32 const z_diff_inv = 1 / z_diff;
   return Affine4{
-      {{1 / x_mag, 0, 0, 0},
-       {0, 1 / y_mag, 0, 0},
-       {0, 0, 2 / z_diff, (z_far + z_near) / z_diff}}
+    {{1 / x_mag, 0, 0, 0},
+     {0, 1 / y_mag, 0, 0},
+     {0, 0, 2 * z_diff_inv, (z_far + z_near) * z_diff_inv}}
   };
 }
 
@@ -2884,13 +2893,14 @@ constexpr Affine4 orthographic(f32 x_mag, f32 y_mag, f32 z_near, f32 z_far)
 /// @param z_near The distance to the near clipping plane.
 inline Mat4 perspective(f32 aspect_ratio, f32 y_fov, f32 z_far, f32 z_near)
 {
-  f32 const s      = tanf(y_fov * 0.5F);
-  f32 const z_diff = z_near - z_far;
+  f32 const s          = tanf(y_fov * 0.5F);
+  f32 const z_diff     = z_near - z_far;
+  f32 const z_diff_inv = 1 / z_diff;
   return Mat4{
-      {{1 / (aspect_ratio * s), 0, 0, 0},
-       {0, 1 / s, 0, 0},
-       {0, 0, (z_far + z_near) / z_diff, (2 * z_far * z_near) / z_diff},
-       {0, 0, -1, 0}}
+    {{1 / (aspect_ratio * s), 0, 0, 0},
+     {0, 1 / s, 0, 0},
+     {0, 0, (z_far + z_near) * z_diff_inv, 2 * z_far * z_near * z_diff_inv},
+     {0, 0, -1, 0}}
   };
 }
 
@@ -2901,10 +2911,10 @@ constexpr Mat4 look_at(Vec3 eye, Vec3 center, Vec3 up)
   Vec3 const u = cross(f, s);
 
   return {
-      {{s.x, s.x, s.x, 0},
-       {u.y, u.y, u.y, 0},
-       {f.z, f.z, f.z, 0},
-       {-dot(s, eye), -dot(u, eye), -dot(f, eye), 1}}
+    {{s.x, s.x, s.x, 0},
+     {u.y, u.y, u.y, 0},
+     {f.z, f.z, f.z, 0},
+     {-dot(s, eye), -dot(u, eye), -dot(f, eye), 1}}
   };
 }
 
@@ -2922,23 +2932,24 @@ constexpr Mat4 look_at(Vec3 eye, Vec3 center, Vec3 up)
 ///
 constexpr bool is_outside_frustum(Mat4 const & mvp, Vec3 offset, Vec3 extent)
 {
-  constexpr u8 NUM_CORNERS          = 8;
-  Vec4 const   corners[NUM_CORNERS] = {
-      mvp * vec4(offset, 1),
-      mvp * vec4(offset + Vec3{extent.x, 0, 0}, 1),
-      mvp * vec4(offset + Vec3{extent.x, extent.y, 0}, 1),
-      mvp * vec4(offset + Vec3{0, extent.y, 0}, 1),
-      mvp * vec4(offset + Vec3{0, 0, extent.z}, 1),
-      mvp * vec4(offset + Vec3{extent.x, 0, extent.z}, 1),
-      mvp * vec4(offset + extent, 1),
-      mvp * vec4(offset + Vec3{0, extent.y, extent.z}, 1)};
-  u8 left   = 0;
-  u8 right  = 0;
-  u8 top    = 0;
-  u8 bottom = 0;
-  u8 back   = 0;
+  constexpr u32 NUM_CORNERS          = 8;
+  Vec4 const    corners[NUM_CORNERS] = {
+    mvp * vec4(offset, 1),
+    mvp * vec4(offset + Vec3{extent.x, 0, 0}, 1),
+    mvp * vec4(offset + Vec3{extent.x, extent.y, 0}, 1),
+    mvp * vec4(offset + Vec3{0, extent.y, 0}, 1),
+    mvp * vec4(offset + Vec3{0, 0, extent.z}, 1),
+    mvp * vec4(offset + Vec3{extent.x, 0, extent.z}, 1),
+    mvp * vec4(offset + extent, 1),
+    mvp * vec4(offset + Vec3{0, extent.y, extent.z}, 1)};
 
-  for (u8 i = 0; i < NUM_CORNERS; i++)
+  u32 left   = 0;
+  u32 right  = 0;
+  u32 top    = 0;
+  u32 bottom = 0;
+  u32 back   = 0;
+
+  for (u32 i = 0; i < NUM_CORNERS; i++)
   {
     Vec4 const & corner = corners[i];
 
@@ -2968,8 +2979,8 @@ constexpr bool is_outside_frustum(Mat4 const & mvp, Vec3 offset, Vec3 extent)
     }
   }
 
-  return left == NUM_CORNERS || right == NUM_CORNERS || top == NUM_CORNERS ||
-         bottom == NUM_CORNERS || back == NUM_CORNERS;
+  return left == NUM_CORNERS | right == NUM_CORNERS | top == NUM_CORNERS |
+         bottom == NUM_CORNERS | back == NUM_CORNERS;
 }
 
 constexpr void frustum_cull(Mat4 const & mvp, Span<Mat4 const> global_transform,
@@ -2982,4 +2993,4 @@ constexpr void frustum_cull(Mat4 const & mvp, Span<Mat4 const> global_transform,
   }
 }
 
-}        // namespace ash
+}    // namespace ash

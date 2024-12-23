@@ -51,9 +51,9 @@ void main()
   uint   idx = idx_buffer[p.first_index + gl_VertexIndex];
   vec2   pos = vtx_buffer[p.first_vertex + idx];
   o_idx      = gl_InstanceIndex;
-  o_uv       = (pos + 1.0) * 0.5;
+  o_uv       = pos + 0.5;
   gl_Position =
-      push_constants.world_to_view * p.transform * vec4(pos, 0.0, 1.0);
+    push_constants.world_to_view * p.transform * vec4(pos, 0.0, 1.0);
 }
 
 #endif

@@ -1,26 +1,25 @@
 {
     "$schema": "./config.schema.json",
     "version": "0.0.1",
-    "gpu": {
-        "validation": false,
-        "vsync": true,
-        "preferences": [
-            "dgpu",
-            "vgpu",
-            "igpu",
-            "other",
-            "cpu"
-        ],
-        "hdr": true,
-        "buffering": 2
-    },
-    "window": {
-        "resizable": true,
-        "full_screen": false,
-        "maximized": false,
-        "width": 1920,
-        "height": 1080
-    },
+    "gpu.validation": false,
+    "gpu.vsync": false,
+    "gpu.preferences": [
+        "dgpu",
+        "vgpu",
+        "igpu",
+        "other",
+        "cpu"
+    ],
+    "gpu.hdr": true,
+    "gpu.buffering": 2,
+    "gpu.antialiasing": "msaa",
+    "gpu.msaa.level": 4,
+    "window.resizable": true,
+    "window.full_screen": false,
+    "window.maximized": false,
+    "window.borderless": false,
+    "window.width": 1500,
+    "window.height": 960,
     "shaders": {
         "Blur/DownSample:VS": "shaders/blur_downsample.vert.spv",
         "Blur/DownSample:FS": "shaders/blur_downsample.frag.spv",
@@ -39,6 +38,6 @@
         "Roboto": "fonts/Roboto/Roboto-Regular.ttf",
         "RobotoMono": "fonts/RobotoMono/RobotoMono-Regular.ttf"
     },
-    "default_font": "RobotoMono",
+    "fonts.default": "RobotoMono",
     "images": {}
 }

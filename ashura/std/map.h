@@ -5,6 +5,7 @@
 #include "ashura/std/hash.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/obj.h"
+#include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -29,6 +30,7 @@ struct MapEntry
 /// @tparam KCmp key comparator type
 /// @tparam D unsigned integer to use to encode probe distances, should be same
 /// or larger than usize
+/// @details the Map doesn't use any divide operation
 template <typename K, typename V, typename H, typename KCmp, typename D = usize>
 struct [[nodiscard]] Map
 {
@@ -112,14 +114,14 @@ struct [[nodiscard]] Map
 
   constexpr Map(AllocatorImpl allocator = {}, Hasher hasher = {},
                 KeyCmp cmp = {}) :
-      probe_dists_{nullptr},
-      probes_{nullptr},
-      num_probes_{0},
-      num_entries_{0},
-      max_probe_dist_{0},
-      allocator_{allocator},
-      hasher_{static_cast<Hasher &&>(hasher)},
-      cmp_{static_cast<KeyCmp &&>(cmp)}
+    probe_dists_{nullptr},
+    probes_{nullptr},
+    num_probes_{0},
+    num_entries_{0},
+    max_probe_dist_{0},
+    allocator_{allocator},
+    hasher_{static_cast<Hasher &&>(hasher)},
+    cmp_{static_cast<KeyCmp &&>(cmp)}
   {
   }
 
@@ -128,14 +130,14 @@ struct [[nodiscard]] Map
   constexpr Map & operator=(Map const &) = delete;
 
   constexpr Map(Map && other) :
-      probe_dists_{other.probe_dists_},
-      probes_{other.probes_},
-      num_probes_{other.num_probes_},
-      num_entries_{other.num_entries_},
-      max_probe_dist_{other.max_probe_dist_},
-      allocator_{other.allocator_},
-      hasher_{static_cast<Hasher &&>(other.hasher_)},
-      cmp_{static_cast<KeyCmp &&>(other.cmp_)}
+    probe_dists_{other.probe_dists_},
+    probes_{other.probes_},
+    num_probes_{other.num_probes_},
+    num_entries_{other.num_entries_},
+    max_probe_dist_{other.max_probe_dist_},
+    allocator_{other.allocator_},
+    hasher_{static_cast<Hasher &&>(other.hasher_)},
+    cmp_{static_cast<KeyCmp &&>(other.cmp_)}
   {
     other.probe_dists_    = nullptr;
     other.probes_         = nullptr;
@@ -233,11 +235,12 @@ struct [[nodiscard]] Map
     return num_probes_;
   }
 
-  [[nodiscard]] constexpr V * try_get(auto const & key, hash64 hash) const
+  [[nodiscard]] constexpr OptionRef<V> try_get(auto const & key,
+                                               hash64       hash) const
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
-      return nullptr;
+      return none;
     }
 
     usize    probe_idx  = hash & (num_probes_ - 1);
@@ -254,16 +257,17 @@ struct [[nodiscard]] Map
 
       if (cmp_(probe->key, key))
       {
-        return &probe->value;
+        return probe->value;
       }
 
       probe_idx = (probe_idx + 1) & (num_probes_ - 1);
       probe_dist++;
     }
-    return nullptr;
+
+    return none;
   }
 
-  [[nodiscard]] constexpr V * try_get(auto const & key) const
+  [[nodiscard]] constexpr OptionRef<V> try_get(auto const & key) const
   {
     hash64 const hash = hasher_(key);
     return try_get(key, hash);
@@ -271,25 +275,34 @@ struct [[nodiscard]] Map
 
   [[nodiscard]] constexpr V & operator[](auto const & key) const
   {
-    V * v = try_get(key);
-    CHECK(v != nullptr);
-    return *v;
+    return try_get(key).unwrap();
   }
 
   [[nodiscard]] constexpr bool has(auto const & key) const
   {
-    return try_get(key) != nullptr;
+    return try_get(key).is_some();
   }
 
   [[nodiscard]] constexpr bool has(auto const & key, hash64 hash) const
   {
-    return try_get(key, hash) != nullptr;
+    return try_get(key, hash).is_some();
   }
 
+  /// @param num_probes power of 2 number of probes
   static constexpr bool needs_rehash_(usize num_entries, usize num_probes)
   {
-    // 6/10 => .6 load factor
-    return num_probes == 0 || ((num_entries * 10ULL) / num_probes) > 6ULL;
+    if (num_probes == 0) [[unlikely]]
+    {
+      return true;
+    }
+
+    // 6 in 10 parts => .6 load factor
+    // i.e. 6 entries for every 10 probes
+
+    // base 2 divisor
+    u32 const shift = ulog2((u64) num_probes);
+
+    return ((num_entries * 10U) >> shift) > 6U;
   }
 
   constexpr void reinsert_(Entry * src_probes, Distance const * src_probe_dists,
@@ -398,7 +411,7 @@ struct [[nodiscard]] Map
   /// @return The inserted or existing value if the insert was successful
   /// without a memory allocation error, otherwise an Err
   [[nodiscard]] constexpr Result<Entry *>
-      insert(K key, V value, bool * exists = nullptr, bool replace = true)
+    insert(K key, V value, bool * exists = nullptr, bool replace = true)
   {
     if (exists != nullptr)
     {
@@ -553,7 +566,7 @@ template <typename K, typename V, typename H, typename KCmp, typename D>
 struct IsTriviallyRelocatable<Map<K, V, H, KCmp, D>>
 {
   static constexpr bool value =
-      TriviallyRelocatable<H> && TriviallyRelocatable<KCmp>;
+    TriviallyRelocatable<H> && TriviallyRelocatable<KCmp>;
 };
 
 template <typename V, typename D = usize>
@@ -565,4 +578,4 @@ using StrVecMap = Map<Vec<char>, V, StrHasher, StrEq, D>;
 template <typename K, typename V, typename D = usize>
 using BitMap = Map<K, V, BitHasher, BitEq, D>;
 
-}        // namespace ash
+}    // namespace ash

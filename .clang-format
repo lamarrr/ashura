@@ -62,8 +62,8 @@ ColumnLimit: 80
 CommentPragmas: "^ IWYU pragma:"
 CompactNamespaces: false
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
-ConstructorInitializerIndentWidth: 4
-ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 2
+ContinuationIndentWidth: 2
 Cpp11BracedListStyle: true
 DerivePointerAlignment: false
 DisableFormat: false
@@ -124,7 +124,7 @@ SpaceBeforeParensOptions:
   BeforeNonEmptyParentheses: false
 SpaceBeforeRangeBasedForLoopColon: true
 SpaceBeforeSquareBrackets: false
-SpacesBeforeTrailingComments: 8
+SpacesBeforeTrailingComments: 4
 SpacesInAngles: Never
 SpacesInContainerLiterals: false
 SpacesInLineCommentPrefix:
@@ -138,4 +138,4 @@ SpacesInParensOptions:
   InEmptyParentheses: false
 SpacesInSquareBrackets: false
 Standard: c++20
-TabWidth: 4
+TabWidth: 2

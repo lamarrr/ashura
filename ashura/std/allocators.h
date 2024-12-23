@@ -21,9 +21,9 @@ struct Arena final : Allocator
   }
 
   constexpr Arena(u8 * begin, u8 * end, u8 * offset) :
-      begin{begin},
-      end{end},
-      offset{offset}
+    begin{begin},
+    end{end},
+    offset{offset}
   {
   }
 
@@ -178,8 +178,8 @@ struct ArenaPool final : Allocator
   ArenaPool() = default;
 
   explicit ArenaPool(AllocatorImpl source, ArenaPoolCfg const & cfg = {}) :
-      source{source},
-      cfg{cfg}
+    source{source},
+    cfg{cfg}
   {
   }
 
@@ -188,11 +188,11 @@ struct ArenaPool final : Allocator
   ArenaPool & operator=(ArenaPool const &) = delete;
 
   ArenaPool(ArenaPool && other) :
-      source{other.source},
-      arenas{other.arenas},
-      num_arenas{other.num_arenas},
-      current_arena{other.current_arena},
-      cfg{other.cfg}
+    source{other.source},
+    arenas{other.arenas},
+    num_arenas{other.num_arenas},
+    current_arena{other.current_arena},
+    cfg{other.cfg}
   {
     other.source        = {};
     other.arenas        = nullptr;
@@ -328,7 +328,7 @@ struct ArenaPool final : Allocator
     }
 
     Arena * arena = new (arenas + num_arenas)
-        Arena{arena_mem, arena_mem + arena_size, arena_mem};
+      Arena{arena_mem, arena_mem + arena_size, arena_mem};
 
     current_arena = num_arenas;
 
@@ -434,4 +434,4 @@ struct ArenaPool final : Allocator
   }
 };
 
-}        // namespace ash
+}    // namespace ash

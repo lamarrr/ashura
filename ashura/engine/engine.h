@@ -1,11 +1,9 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/font.h"
-#include "ashura/engine/gpu_context.h"
-#include "ashura/engine/image_decoder.h"
+#include "ashura/engine/gpu_system.h"
 #include "ashura/engine/view_system.h"
 #include "ashura/engine/window.h"
-#include "ashura/std/async.h"
 #include "ashura/std/cfg.h"
 
 namespace ash
@@ -18,8 +16,9 @@ struct EngineCfg
     bool                           validation = false;
     bool                           vsync      = true;
     InplaceVec<gpu::DeviceType, 5> preferences{};
-    bool                           hdr       = true;
-    u32                            buffering = 2;
+    bool                           hdr        = true;
+    u32                            buffering  = 2;
+    gpu::SampleCount               msaa_level = gpu::SampleCount::C4;
   };
 
   struct Window
@@ -27,6 +26,7 @@ struct EngineCfg
     bool resizable   = true;
     bool maximized   = false;
     bool full_screen = false;
+    bool borderless  = false;
     u32  width       = 1'920;
     u32  height      = 1'080;
   };
@@ -46,11 +46,6 @@ struct EngineCfg
   static EngineCfg parse(AllocatorImpl allocator, Span<u8 const> json);
 };
 
-// [ ] Image Manager
-// [ ] Audio Device/Manager (FFMPEG, SDL)
-// [ ] Video Manager (Vulkan, FFMPEG)
-// [ ] Custom Subsystems
-
 struct Engine
 {
   AllocatorImpl allocator;
@@ -63,13 +58,15 @@ struct Engine
 
   Window window;
 
+  ClipBoard * clipboard;
+
   gpu::Surface surface;
 
   gpu::Swapchain swapchain = nullptr;
 
   gpu::PresentMode present_mode_preference;
 
-  GpuContext gpu_ctx;
+  GpuSystem gpu;
 
   Renderer renderer;
 
@@ -77,38 +74,41 @@ struct Engine
 
   ViewSystem view_system;
 
-  ViewContext view_ctx;
-
   AssetMap assets;
 
   Vec<char> default_font_name;
 
   Font * default_font = nullptr;
 
-  bool should_shutdown = false;
+  InputState input_buffer;
 
   Engine(AllocatorImpl allocator, void * app, Dyn<gpu::Instance *> instance,
-         gpu::Device * device, Window window, gpu::Surface surface,
-         gpu::PresentMode present_mode_preference, GpuContext gpu_ctx,
-         Renderer renderer, Canvas canvas, ViewSystem view_system,
-         ViewContext view_ctx) :
-      allocator{allocator},
-      app{app},
-      instance{std::move(instance)},
-      device{device},
-      window{window},
-      surface{surface},
-      present_mode_preference{present_mode_preference},
-      gpu_ctx{std::move(gpu_ctx)},
-      renderer{std::move(renderer)},
-      canvas{std::move(canvas)},
-      view_system{std::move(view_system)},
-      view_ctx{std::move(view_ctx)},
-      assets{allocator},
-      default_font_name{allocator}
+         gpu::Device * device, Window window, ClipBoard & clipboard,
+         gpu::Surface surface, gpu::PresentMode present_mode_preference,
+         GpuSystem gpu, Renderer renderer, Canvas canvas,
+         ViewSystem view_system) :
+    allocator{allocator},
+    app{app},
+    instance{std::move(instance)},
+    device{device},
+    window{window},
+    clipboard{&clipboard},
+    surface{surface},
+    present_mode_preference{present_mode_preference},
+    gpu{std::move(gpu)},
+    renderer{std::move(renderer)},
+    canvas{std::move(canvas)},
+    view_system{std::move(view_system)},
+    assets{allocator},
+    default_font_name{allocator},
+    input_buffer{allocator}
   {
   }
 
+  Engine(Engine const &)             = delete;
+  Engine & operator=(Engine const &) = delete;
+  Engine(Engine &&)                  = default;
+  Engine & operator=(Engine &&)      = default;
   ~Engine();
 
   static void init(AllocatorImpl allocator, void * app,
@@ -118,11 +118,11 @@ struct Engine
 
   void recreate_swapchain_();
 
-  void run(View & view, Fn<void(time_point, nanoseconds)> loop = noop);
+  void run(View & view, Fn<void(InputState const &)> loop = noop);
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded
 /// executables.
 ASH_C_LINKAGE ASH_DLL_EXPORT Engine * engine;
 
-}        // namespace ash
+}    // namespace ash
