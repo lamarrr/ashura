@@ -411,11 +411,11 @@ static inline void flush_batch(Canvas & c)
           .viewport = ctx.framebuffer.viewport(),
           .world_to_view  = world_to_view,
           .params_ssbo    = ctx.rrects.descriptor,
-          .textures       = ctx.gpu.texture_views,
+          .textures       = sys->gpu.textures,
           .first_instance = batch.run.offset,
           .num_instances  = batch.run.span};
 
-        ctx.passes.rrect->encode(ctx.gpu, ctx.enc, params);
+        ctx.passes.rrect->encode(ctx.enc, params);
       });
       return;
 
@@ -430,11 +430,11 @@ static inline void flush_batch(Canvas & c)
           .vertices_ssbo  = ctx.ngon_vertices.descriptor,
           .indices_ssbo   = ctx.ngon_indices.descriptor,
           .params_ssbo    = ctx.ngons.descriptor,
-          .textures       = ctx.gpu.texture_views,
+          .textures       = sys->gpu.textures,
           .first_instance = batch.run.offset,
           .index_counts =
-            ctx.canvas.ngon_index_counts.view().slice(batch.run)};
-        ctx.passes.ngon->encode(ctx.gpu, ctx.enc, params);
+            ctx.canvas.ngon_index_counts.view().slice((Slice) batch.run)};
+        ctx.passes.ngon->encode(ctx.enc, params);
       });
       return;
 
@@ -885,7 +885,7 @@ Canvas & Canvas::blur(CRect const & area, u32 num_passes)
                           .passes      = num_passes,
                           .area =
                             clip_to_scissor(ctx.framebuffer.viewport(), area)};
-    ctx.passes.blur->encode(ctx.gpu, ctx.enc, params);
+    ctx.passes.blur->encode(ctx.enc, params);
   });
 
   return *this;
