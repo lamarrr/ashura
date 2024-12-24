@@ -2,17 +2,16 @@
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include "ashura/std/types.h"
 
 namespace ash
 {
 
-inline constexpr usize MAX_PACK_SIZE = 32;
+inline constexpr unsigned int MAX_PACK_SIZE = 32;
 
 namespace intr
 {
 
-template <usize I, typename... T>
+template <unsigned int I, typename... T>
 requires((I < sizeof...(T)) && (sizeof...(T) <= MAX_PACK_SIZE))
 struct index_pack;
 
