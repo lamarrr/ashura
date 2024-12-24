@@ -41,7 +41,7 @@ ASH_BIT_ENUM_OPS(LogLevels)
 struct LogSink
 {
   virtual void log(LogLevel level, Span<char const> log_message) = 0;
-  virtual void flush()                                            = 0;
+  virtual void flush()                                           = 0;
 };
 
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
