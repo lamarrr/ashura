@@ -672,7 +672,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
       {
         FontStyle const &    font_style = block.fonts[run.style];
         TextStyle const &    run_style  = style.runs[run.style];
-        FontInfo const       font       = font_style.font->info();
+        FontInfo const       font       = sys->font.get(font_style.font).info();
         GpuFontAtlas const & atlas      = font.gpu_atlas.value();
         f32 const run_width = au_to_px(run.metrics.advance, run.font_height);
 
