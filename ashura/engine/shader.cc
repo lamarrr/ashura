@@ -153,7 +153,7 @@ struct Includer : glslang::TShader::Includer
           IncludeResult * result;
           if (!allocator.nalloc(1, result))
           {
-            info.on_log(LogLevels::Error,
+            info.on_log(LogLevel::Error,
                         "Failed to allocate memory for Include Result");
             return nullptr;
           }
@@ -184,13 +184,13 @@ struct Includer : glslang::TShader::Includer
   }
 };
 
-Result<Void, ShaderCompileError> compile_shader(ShaderCompileInfo const & info,
-                                                Vec<u32> &                spirv,
-                                                AllocatorImpl allocator)
+Result<Void, ShaderLoadErr> compile_shader(ShaderCompileInfo const & info,
+                                           Vec<u32> &                spirv,
+                                           AllocatorImpl             allocator)
 {
   if (!glslang::InitializeProcess())
   {
-    return Err{ShaderCompileError::InitError};
+    return Err{ShaderLoadErr::InitErr};
   }
 
   defer glsl_([] { glslang::FinalizeProcess(); });
@@ -215,14 +215,14 @@ Result<Void, ShaderCompileError> compile_shader(ShaderCompileInfo const & info,
       CHECK_UNREACHABLE();
   }
 
-  Option<Span<char const>> buff = info.on_load(info.file);
+  Option buff = info.on_load(info.path);
 
   if (!buff)
   {
-    return Err{ShaderCompileError::IOError};
+    return Err{ShaderLoadErr::IOErr};
   }
 
-  defer unload{[&]() { info.on_drop(info.file); }};
+  defer unload{[&]() { info.on_drop(info.path); }};
 
   CHECK(buff.value().size() <= I32_MAX);
 
@@ -244,12 +244,12 @@ Result<Void, ShaderCompileError> compile_shader(ShaderCompileInfo const & info,
 
     if (info_len != 0)
     {
-      info.on_log(LogLevels::Info, Span{info_log, info_len});
+      info.on_log(LogLevel::Info, Span{info_log, info_len});
     }
 
     if (debug_len != 0)
     {
-      info.on_log(LogLevels::Debug, Span{debug_log, debug_len});
+      info.on_log(LogLevel::Debug, Span{debug_log, debug_len});
     }
   };
 
@@ -264,12 +264,12 @@ Result<Void, ShaderCompileError> compile_shader(ShaderCompileInfo const & info,
 
   if (!preamble.extend(info.preamble))
   {
-    return Err{ShaderCompileError::OutOfMemory};
+    return Err{ShaderLoadErr::OutOfMemory};
   }
 
   if (!preamble.extend(span({'\n', '\0'})))
   {
-    return Err{ShaderCompileError::OutOfMemory};
+    return Err{ShaderLoadErr::OutOfMemory};
   }
 
   shader.setPreamble(preamble.data());
@@ -279,7 +279,7 @@ Result<Void, ShaderCompileError> compile_shader(ShaderCompileInfo const & info,
   if (!shader.parse(&SHADER_RESOURCE_LIMITS, 100, false, EShMsgDefault,
                     includer))
   {
-    return Err{ShaderCompileError::CompileFailed};
+    return Err{ShaderLoadErr::CompileFailed};
   }
 
   glslang::TProgram program;
@@ -289,14 +289,14 @@ Result<Void, ShaderCompileError> compile_shader(ShaderCompileInfo const & info,
 
   if (!program.link(EShMsgDefault))
   {
-    return Err{ShaderCompileError::LinkFailed};
+    return Err{ShaderLoadErr::LinkFailed};
   }
 
   glslang::TIntermediate * intermediate = program.getIntermediate(language);
 
   if (intermediate == nullptr)
   {
-    return Err{ShaderCompileError::LinkFailed};
+    return Err{ShaderLoadErr::LinkFailed};
   }
 
   glslang::SpvOptions spvOptions{.generateDebugInfo                = true,
@@ -317,12 +317,12 @@ Result<Void, ShaderCompileError> compile_shader(ShaderCompileInfo const & info,
 
   if (!conv_messages.empty())
   {
-    info.on_log(LogLevels::Info, conv_messages);
+    info.on_log(LogLevel::Info, conv_messages);
   }
 
   if (!spirv.extend(spirv_v))
   {
-    return Err{ShaderCompileError::OutOfMemory};
+    return Err{ShaderLoadErr::OutOfMemory};
   }
 
   return Ok{};
