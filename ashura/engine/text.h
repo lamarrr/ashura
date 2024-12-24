@@ -239,8 +239,6 @@ struct FontStyle
 
 /// @param shadow_scale relative. multiplied by font_height
 /// @param shadow_offset px. offset from center of glyph
-// [ ] define text styler or renderer hook. examine our use cases
-// [ ] translation of text components?
 struct TextStyle
 {
   f32           underline_thickness     = 0;
