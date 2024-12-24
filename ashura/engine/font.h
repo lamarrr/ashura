@@ -3,8 +3,7 @@
 
 #include "ashura/engine/font.h"
 #include "ashura/engine/gpu_system.h"
-#include "ashura/gpu/gpu.h"
-#include "ashura/std/dyn.h"
+#include "ashura/engine/ids.h"
 #include "ashura/std/image.h"
 #include "ashura/std/types.h"
 
@@ -32,26 +31,32 @@ constexpr Vec2 au_to_px(Vec2I au, f32 base)
   return Vec2{au_to_px(au.x, base), au_to_px(au.y, base)};
 }
 
-enum class FontErr : u8
+enum class FontLoadErr : u32
 {
-  None           = 0,
-  DecodingFailed = 1,
-  FaceNotFound   = 2,
-  OutOfMemory    = 3
+  OutOfMemory       = 0,
+  InvalidPath       = 1,
+  IoErr             = 2,
+  DecodeFailed      = 3,
+  FaceNotFound      = 4,
+  UnsupportedFormat = 5
 };
 
-constexpr Span<char const> to_str(FontErr err)
+constexpr Span<char const> to_str(FontLoadErr err)
 {
   switch (err)
   {
-    case FontErr::None:
-      return "None"_str;
-    case FontErr::DecodingFailed:
-      return "DecodingFailed"_str;
-    case FontErr::FaceNotFound:
-      return "FaceNotFound"_str;
-    case FontErr::OutOfMemory:
+    case FontLoadErr::OutOfMemory:
       return "OutOfMemory"_str;
+    case FontLoadErr::DecodeFailed:
+      return "DecodeFailed"_str;
+    case FontLoadErr::FaceNotFound:
+      return "FaceNotFound"_str;
+    case FontLoadErr::UnsupportedFormat:
+      return "UnsupportedFormat"_str;
+    case FontLoadErr::InvalidPath:
+      return "InvalidPath"_str;
+    case FontLoadErr::IoErr:
+      return "IoErr"_str;
     default:
       return "Unidentified"_str;
   }
@@ -60,7 +65,8 @@ constexpr Span<char const> to_str(FontErr err)
 namespace fmt
 {
 
-inline bool push(Context const & ctx, Spec const & spec, FontErr const & err)
+inline bool push(Context const & ctx, Spec const & spec,
+                 FontLoadErr const & err)
 {
   return push(ctx, spec, to_str(err));
 }
@@ -95,9 +101,9 @@ struct FontMetrics
 /// @param uv normalized texture coordinates of this glyph in the layer
 struct AtlasGlyph
 {
-  u32       layer = 0;
-  gpu::Rect area  = {};
-  Vec2      uv[2] = {};
+  u32   layer = 0;
+  RectU area  = {};
+  Vec2  uv[2] = {};
 };
 
 struct CpuFontAtlas
@@ -110,23 +116,23 @@ struct CpuFontAtlas
 
   ImageLayerSpan<u8, 1> span() const
   {
-    return ImageLayerSpan<u8, 1>{.channels = channels,
-                                 .width    = extent.x,
-                                 .height   = extent.y,
-                                 .layers   = num_layers};
+    return ImageLayerSpan<u8, 1>{
+      .channels = channels, .extent = extent, .layers = num_layers};
   }
 };
 
 struct GpuFontAtlas
 {
-  gpu::Image          image       = nullptr;
-  Vec<gpu::ImageView> views       = {};
-  Vec<TextureId>      textures    = {};
-  i32                 font_height = 0;
-  u32                 num_layers  = 0;
-  Vec2U               extent      = {};
-  Vec<AtlasGlyph>     glyphs      = {};
-  gpu::Format         format      = gpu::Format::Undefined;
+  Vec<TextureId>  textures    = {};
+  Vec<ImageId>    images      = {};
+  i32             font_height = 0;
+  Vec2U           extent      = {};
+  Vec<AtlasGlyph> glyphs      = {};
+
+  constexpr u32 num_layers() const
+  {
+    return textures.size32();
+  }
 };
 
 /// @param postscript_name ASCII. i.e. RobotoBold
@@ -140,6 +146,8 @@ struct GpuFontAtlas
 /// @param gpu_atlas gpu font atlas if loaded
 struct FontInfo
 {
+  FontId                        id                = FontId::Default;
+  Span<char const>              label             = {};
   Span<char const>              postscript_name   = {};
   Span<char const>              family_name       = {};
   Span<char const>              style_name        = {};
@@ -154,24 +162,9 @@ struct FontInfo
 
 struct Font
 {
-  static Result<Dyn<Font *>, FontErr>
-    decode(Span<u8 const> encoded, u32 face = 0, AllocatorImpl allocator = {});
-
-  /// @brief rasterize the font at the specified font height. Note: raster is
-  /// stored as alpha values.
-  /// @note rasterizing mutates the font's internal data, not thread-safe
-  /// @param font_height the font height at which the texture should be
-  /// rasterized at (px)
-  /// @param allocator scratch allocator to use for storing intermediates
-  virtual Result<> rasterize(u32 font_height, AllocatorImpl allocator) = 0;
-
   virtual FontInfo info() = 0;
 
-  virtual void upload_to_device(GpuSystem & c, AllocatorImpl allocator) = 0;
-
-  virtual void unload_from_device(GpuSystem & c) = 0;
-
-  virtual ~Font() = default;
+  virtual ~Font() = 0;
 };
 
 }    // namespace ash
