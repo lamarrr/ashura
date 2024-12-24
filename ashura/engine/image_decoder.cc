@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/image_decoder.h"
+#include "ashura/std/image.h"
 #include "ashura/std/range.h"
 
 extern "C"
@@ -12,11 +13,6 @@ extern "C"
 
 namespace ash
 {
-
-constexpr u64 rgba8_size(bool has_alpha, u32 width, u32 height)
-{
-  return ((u64) width) * ((u64) height) * (has_alpha ? 4ULL : 3ULL);
-}
 
 Result<DecodedImageInfo, ImageLoadErr> decode_webp(Span<u8 const> bytes,
                                                    Vec<u8> &      channels)
@@ -31,8 +27,9 @@ Result<DecodedImageInfo, ImageLoadErr> decode_webp(Span<u8 const> bytes,
   u32 const pitch       = features.width * (features.has_alpha == 0 ? 3U : 4U);
   gpu::Format const fmt = features.has_alpha == 0 ? gpu::Format::R8G8B8_UNORM :
                                                     gpu::Format::R8G8B8A8_UNORM;
-  u64 const         buffer_size =
-    rgba8_size(features.has_alpha != 0, features.width, features.height);
+  Vec2U             extent{(u32) features.width, (u32) features.height};
+
+  u64 const buffer_size = pixel_size_bytes(extent, features.has_alpha ? 3 : 4);
 
   if (!channels.resize_uninit(buffer_size))
   {
@@ -59,8 +56,7 @@ Result<DecodedImageInfo, ImageLoadErr> decode_webp(Span<u8 const> bytes,
   }
 
   return Ok{
-    DecodedImageInfo{.extent{(u32) features.width, (u32) features.height},
-                     .format = fmt}
+    DecodedImageInfo{.extent = extent, .format = fmt}
   };
 }
 

@@ -12,15 +12,15 @@ namespace ash
 enum class [[nodiscard]] ImageLoadErr : i32
 {
   OutOfMemory       = 0,
-  DecodeFailed      = 1,
-  UnsupportedFormat = 2,
-  InvalidPath       = 3,
-  IoErr             = 4
+  InvalidPath       = 1,
+  IoErr             = 2,
+  DecodeFailed      = 3,
+  UnsupportedFormat = 4
 };
 
 struct DecodedImageInfo
 {
-  gpu::Extent extent{1, 1};
+  Vec2U extent{1, 1};
   gpu::Format format = gpu::Format::Undefined;
 };
 
