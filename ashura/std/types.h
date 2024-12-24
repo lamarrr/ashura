@@ -671,21 +671,6 @@ constexpr usize bit_packs(usize num_bits)
          NumTraits<Repr>::LOG2_NUM_BITS;
 }
 
-struct Uninitialized
-{
-};
-
-struct Initialized
-{
-};
-
-inline constexpr Initialized initialized{};
-
-inline constexpr Uninitialized uninitialized{};
-
-template <typename T>
-concept InitTag = Convertible<T, Initialized> || Convertible<T, Uninitialized>;
-
 /// regular void
 struct Void
 {
