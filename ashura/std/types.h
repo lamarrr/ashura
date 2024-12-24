@@ -803,58 +803,34 @@ struct Ref
 template <typename T>
 Ref(T &) -> Ref<T>;
 
-struct Slice
+template <typename S = usize>
+struct SliceT
 {
-  usize offset = 0;
-  usize span   = 0;
+  S offset = 0;
+  S span   = 0;
 
-  constexpr usize begin() const
+  static constexpr SliceT all()
+  {
+    return SliceT{.offset = 0, .span = NumTraits<S>::MAX};
+  }
+
+  constexpr S begin() const
   {
     return offset;
   }
 
-  constexpr usize end() const
+  constexpr S end() const
   {
     return offset + span;
   }
 
-  constexpr Slice operator()(usize size) const
+  constexpr SliceT operator()(S size) const
   {
     // written such that overflow will not occur even if both offset and span
     // are set to USIZE_MAX
-    usize o = offset > size ? size : offset;
-    usize s = ((size - o) > span) ? span : size - o;
-    return Slice{o, s};
-  }
-
-  constexpr bool is_empty() const
-  {
-    return span == 0;
-  }
-};
-
-struct Slice32
-{
-  u32 offset = 0;
-  u32 span   = 0;
-
-  constexpr usize begin() const
-  {
-    return offset;
-  }
-
-  constexpr usize end() const
-  {
-    return offset + span;
-  }
-
-  constexpr Slice32 operator()(u32 size) const
-  {
-    // written such that overflow will not occur even if both offset and span
-    // are set to U32_MAX
-    u32 o = offset > size ? size : offset;
-    u32 s = ((size - o) > span) ? span : size - o;
-    return Slice32{o, s};
+    S out_offset = offset > size ? size : offset;
+    S out_span   = ((size - out_offset) > span) ? span : size - out_offset;
+    return SliceT{out_offset, out_span};
   }
 
   constexpr bool is_empty() const
@@ -862,41 +838,16 @@ struct Slice32
     return span == 0;
   }
 
-  constexpr operator Slice() const
+  template <typename T>
+  explicit constexpr operator SliceT<T>() const
   {
-    return Slice{offset, span};
+    return SliceT<T>{.offset = (T) offset, .span = (T) span};
   }
 };
 
-struct Slice64
-{
-  u64 offset = 0;
-  u64 span   = 0;
-
-  constexpr u64 end() const
-  {
-    return offset + span;
-  }
-
-  constexpr Slice64 operator()(u64 size) const
-  {
-    // written such that overflow will not occur even if both offset and span
-    // are set to U64_MAX
-    u64 o = offset > size ? size : offset;
-    u64 s = ((size - o) > span) ? span : size - o;
-    return Slice64{o, s};
-  }
-
-  constexpr bool is_empty() const
-  {
-    return span == 0;
-  }
-
-  constexpr operator Slice() const
-  {
-    return Slice{static_cast<usize>(offset), static_cast<usize>(span)};
-  }
-};
+using Slice   = SliceT<usize>;
+using Slice32 = SliceT<u32>;
+using Slice64 = SliceT<u64>;
 
 struct IterEnd
 {
