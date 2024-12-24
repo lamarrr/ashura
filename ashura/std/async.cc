@@ -313,8 +313,9 @@ struct TaskQueue
 
   ~TaskQueue() = default;
 
-  bool is_empty() const
+  bool is_empty()
   {
+    LockGuard guard{lock};
     return tasks.is_empty();
   }
 
@@ -457,7 +458,9 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
       auto [_, frame] = Task::flex(task->frame_layout).unpack(task);
 
-      if (!task->poll(frame.data())) [[unlikely]]
+      bool const ready = task->poll(frame.data());
+
+      if (!ready) [[unlikely]]
       {
         q.push_task(task);
         continue;
@@ -526,7 +529,9 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
       auto [_, frame] = Task::flex(task->frame_layout).unpack(task);
 
-      if (!task->poll(frame.data())) [[unlikely]]
+      bool const ready = task->poll(frame.data());
+
+      if (!ready) [[unlikely]]
       {
         q.push_task(task);
         continue;

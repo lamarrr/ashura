@@ -43,7 +43,7 @@ TEST(AsyncTest, Basic)
       return true;
     },
     AwaitFutures{fut.alias()});
-  fut.yield(69);
+  fut.yield(69).unwrap();
 
   async::shard<std::atomic<int> *>(
     [](TaskInstance shard, std::atomic<int> * pcount) {

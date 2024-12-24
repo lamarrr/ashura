@@ -866,7 +866,7 @@ TaskInfo to_task_info(F & frame)
                   .init         = init,
                   .uninit       = uninit,
                   .poll         = poll,
-                  .run          = runner};
+                  .runner       = runner};
 }
 
 /// @brief Static Thread Pool Scheduler.
@@ -976,7 +976,7 @@ concept Runner = requires (R r) {
   { r() && true };
 };
 
-template <Runner R, Poll P>
+template <Poll P, Runner R>
 struct TaskBody
 {
   typedef P Poll;
@@ -1070,25 +1070,24 @@ namespace async
 template <Callable F, Poll P = Ready>
 void once(F fn, P poll = {}, TaskSchedule schedule = {})
 {
-  TaskBody body{[fn = std::move(fn)]() mutable -> bool {
-                  fn();
-                  return false;
-                },
-                std::move(poll)};
-
-  scheduler->schedule(std::move(body), schedule);
+  scheduler->schedule(TaskBody{static_cast<P &&>(poll),
+                               [fn = static_cast<F &&>(fn)]() mutable -> bool {
+                                 fn();
+                                 return false;
+                               }},
+                      schedule);
 }
 
 template <Callable F, Callable... F1, Poll P = Ready>
 void once(Tuple<F, F1...> fns, P poll = {}, TaskSchedule schedule = {})
 {
-  TaskBody body{[fns = std::move(fns)]() mutable -> bool {
-                  ash::fold(fns);
-                  return false;
-                },
-                std::move(poll)};
-
-  scheduler->schedule(std::move(body), schedule);
+  scheduler->schedule(
+    TaskBody{static_cast<P &&>(poll),
+             [fns = static_cast<Tuple<F, F1...> &&>(fns)]() mutable -> bool {
+               ash::fold(fns);
+               return false;
+             }},
+    schedule);
 }
 
 /// @brief Launch a task that is repeatedly called until it is done
@@ -1101,10 +1100,10 @@ template <Callable F, Poll P = Ready>
 requires (Convertible<CallResult<F>, bool>)
 void loop(F fn, P poll = {}, TaskSchedule schedule = {})
 {
-  TaskBody body{[fn = std::move(fn)]() mutable -> bool { return fn(); },
-                std::move(poll)};
-
-  scheduler->schedule(std::move(body), schedule);
+  scheduler->schedule(
+    TaskBody{static_cast<P &&>(poll),
+             [fn = static_cast<F &&>(fn)]() mutable -> bool { return fn(); }},
+    schedule);
 }
 
 /// @brief Launch a task that is repeatedly called n times
@@ -1125,23 +1124,24 @@ void repeat(F fn, u64 n, P poll = {}, TaskSchedule schedule = {})
     return;
   }
 
-  TaskBody body{[fn = std::move(fn), n, i = (u64) 0]() mutable -> bool {
-                  if constexpr (Same<CallResult<F, u64>, void>)
-                  {
-                    fn(i);
-                    i++;
-                    return n == i;
-                  }
-                  else
-                  {
-                    bool const done = fn(i);
-                    i++;
-                    return done || (n == i);
-                  }
-                },
-                std::move(poll)};
-
-  scheduler->schedule(std::move(body), schedule);
+  scheduler->schedule(
+    TaskBody{static_cast<P &&>(poll),
+             [fn = static_cast<F &&>(fn), n, i = (u64) 0]() mutable -> bool {
+               if constexpr (Same<CallResult<F, u64>, void>)
+               {
+                 fn(i);
+                 i++;
+                 return n == i;
+               }
+               else
+               {
+                 // early exit
+                 bool const done = fn(i);
+                 i++;
+                 return done || (n == i);
+               }
+             }},
+    schedule);
 }
 
 /// @brief Launch shards of tasks, All shards share the same state and task
@@ -1168,24 +1168,23 @@ void shard(Fn<void(TaskInstance, State)> fn, Rc<State> const & state, u64 n,
   // type) but that's really not a good idea for a generic type. we also need
   // the dispatch as we don't expect the polling function to be thread-safe when
   // called across all instances.
-
-  TaskBody body{
-    [fn, state = state.alias(), schedule, n]() mutable -> bool {
-      for (u64 i = 0; i < n; i++)
-      {
-        scheduler->schedule(
-          TaskBody{[fn, i, n, state = state.alias()]() mutable -> bool {
-                     fn(TaskInstance{.n = n, .idx = i}, state.get());
-                     return false;
-                   },
-                   Ready{}},
-          schedule);
-      }
-      return false;
-    },
-    std::move(poll)};
-
-  scheduler->schedule(std::move(body), schedule);
+  scheduler->schedule(
+    TaskBody{static_cast<P &&>(poll),
+             [fn, state = state.alias(), schedule, n]() mutable -> bool {
+               for (u64 i = 0; i < n; i++)
+               {
+                 scheduler->schedule(
+                   TaskBody{
+                     Ready{},
+                     [fn, i, n, state = state.alias()]() mutable -> bool {
+                       fn(TaskInstance{.n = n, .idx = i}, state.get());
+                       return false;
+                     }},
+                   schedule);
+               }
+               return false;
+             }},
+    schedule);
 }
 
 }    // namespace async
