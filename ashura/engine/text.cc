@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/text.h"
 #include "ashura/engine/font_impl.h"
+#include "ashura/engine/assets.h"
 #include "ashura/std/vec.h"
 
 extern "C"
@@ -364,11 +365,11 @@ void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout)
           i++;
         }
 
-        FontStyle const &               s = block.fonts[first_segment.style];
-        FontImpl const *                f = (FontImpl const *) s.font;
+        FontStyle const & s = block.fonts[first_segment.style];
+        FontImpl const &  f = (FontImpl const &) sys->font.get(s.font);
         Span<hb_glyph_info_t const>     infos     = {};
         Span<hb_glyph_position_t const> positions = {};
-        shape(f->hb_font, buffer, block.text, first, i - first,
+        shape(f.hb_font, buffer, block.text, first, i - first,
               hb_script_from_iso15924_tag(
                 SBScriptGetOpenTypeTag(SBScript{(u8) first_segment.script})),
               ((first_segment.level & 0x1) == 0) ? HB_DIRECTION_LTR :
@@ -376,7 +377,7 @@ void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout)
               language, block.use_kerning, block.use_ligatures, infos,
               positions);
 
-        insert_run(layout, s, first, i - first, first_segment.style, f->metrics,
+        insert_run(layout, s, first, i - first, first_segment.style, f.metrics,
                    first_segment.base_level, first_segment.level,
                    first_segment.paragraph_begin, first_segment.breakable,
                    infos, positions);
