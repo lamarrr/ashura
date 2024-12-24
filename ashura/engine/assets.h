@@ -46,7 +46,6 @@ struct FileSystem
   FileSystem & operator=(FileSystem &&)      = delete;
   ~FileSystem()                              = default;
 
-
   void init(Scheduler &);
 
   void shutdown();
@@ -54,7 +53,6 @@ struct FileSystem
   static Future<Result<Vec<u8>, IoErr>>
     load_file(Span<char const> path,
               AllocatorImpl    allocator = default_allocator);
-
 };
 
 struct ImageSystem
@@ -71,7 +69,7 @@ struct ImageSystem
   ~ImageSystem()                               = default;
 
   void init();
-  
+
   void shutdown();
 
   Image create_image_(Span<char const> label, gpu::ImageInfo const & info,
@@ -151,7 +149,7 @@ struct ShaderSystem
   ~ShaderSystem()                                = default;
 
   void init();
-  
+
   void shutdown();
 
   Result<Shader, ShaderLoadErr> load_spirv_from_memory(Span<char const> label,

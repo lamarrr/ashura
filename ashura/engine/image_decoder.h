@@ -20,7 +20,7 @@ enum class [[nodiscard]] ImageLoadErr : i32
 
 struct DecodedImageInfo
 {
-  Vec2U extent{1, 1};
+  Vec2U       extent{1, 1};
   gpu::Format format = gpu::Format::Undefined;
 };
 

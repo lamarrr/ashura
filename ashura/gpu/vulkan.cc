@@ -3044,14 +3044,14 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
   for (u32 i = 0; i < num_images; i++)
   {
     swapchain->image_impls[i] = Image{
-      .info                = gpu::ImageInfo{.type         = gpu::ImageType::Type2D,
-                                            .format       = swapchain->info.format.format,
-                                            .usage        = swapchain->info.usage,
-                                            .aspects      = gpu::ImageAspects::Color,
-                                            .extent       = Vec3U{vk_extent.width,
-                                                     vk_extent.height, 1},
-                                            .mip_levels   = 1,
-                                            .array_layers = 1},
+      .info =
+        gpu::ImageInfo{.type    = gpu::ImageType::Type2D,
+                       .format  = swapchain->info.format.format,
+                       .usage   = swapchain->info.usage,
+                       .aspects = gpu::ImageAspects::Color,
+                       .extent  = Vec3U{vk_extent.width, vk_extent.height, 1},
+                       .mip_levels   = 1,
+                       .array_layers = 1},
       .is_swapchain_image  = true,
       .vk_image            = swapchain->vk_images[i],
       .vma_allocation      = nullptr,
@@ -4669,10 +4669,8 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
       copy.dst_layers.aspects, copy.dst_layers.mip_level, 1,
       copy.dst_layers.first_array_layer, copy.dst_layers.num_array_layers));
 
-    Vec3U src_extent =
-      mip_size(src->info.extent, copy.src_layers.mip_level);
-    Vec3U dst_extent =
-      mip_size(dst->info.extent, copy.dst_layers.mip_level);
+    Vec3U src_extent = mip_size(src->info.extent, copy.src_layers.mip_level);
+    Vec3U dst_extent = mip_size(dst->info.extent, copy.dst_layers.mip_level);
     CHECK(copy.extent.x > 0);
     CHECK(copy.extent.y > 0);
     CHECK(copy.extent.z > 0);
@@ -4761,8 +4759,7 @@ void CommandEncoder::copy_buffer_to_image(
     CHECK(copy.image_extent.x > 0);
     CHECK(copy.image_extent.y > 0);
     CHECK(copy.image_extent.z > 0);
-    Vec3U dst_extent =
-      mip_size(dst->info.extent, copy.image_layers.mip_level);
+    Vec3U dst_extent = mip_size(dst->info.extent, copy.image_layers.mip_level);
     CHECK(copy.image_extent.x <= dst_extent.x);
     CHECK(copy.image_extent.y <= dst_extent.y);
     CHECK(copy.image_extent.z <= dst_extent.z);
@@ -4837,10 +4834,8 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
       blit.dst_layers.aspects, blit.dst_layers.mip_level, 1,
       blit.dst_layers.first_array_layer, blit.dst_layers.num_array_layers));
 
-    Vec3U src_extent =
-      mip_size(src->info.extent, blit.src_layers.mip_level);
-    Vec3U dst_extent =
-      mip_size(dst->info.extent, blit.dst_layers.mip_level);
+    Vec3U src_extent = mip_size(src->info.extent, blit.src_layers.mip_level);
+    Vec3U dst_extent = mip_size(dst->info.extent, blit.dst_layers.mip_level);
     CHECK(blit.src_offsets[0].x <= src_extent.x);
     CHECK(blit.src_offsets[0].y <= src_extent.y);
     CHECK(blit.src_offsets[0].z <= src_extent.z);
@@ -4943,10 +4938,8 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
       resolve.dst_layers.first_array_layer,
       resolve.dst_layers.num_array_layers));
 
-    Vec3U src_extent =
-      mip_size(src->info.extent, resolve.src_layers.mip_level);
-    Vec3U dst_extent =
-      mip_size(dst->info.extent, resolve.dst_layers.mip_level);
+    Vec3U src_extent = mip_size(src->info.extent, resolve.src_layers.mip_level);
+    Vec3U dst_extent = mip_size(dst->info.extent, resolve.dst_layers.mip_level);
     CHECK(resolve.extent.x > 0);
     CHECK(resolve.extent.y > 0);
     CHECK(resolve.extent.z > 0);

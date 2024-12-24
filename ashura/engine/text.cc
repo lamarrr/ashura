@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/text.h"
-#include "ashura/engine/font_impl.h"
 #include "ashura/engine/assets.h"
+#include "ashura/engine/font_impl.h"
 #include "ashura/std/vec.h"
 
 extern "C"
