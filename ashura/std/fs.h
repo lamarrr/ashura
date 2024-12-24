@@ -64,7 +64,7 @@ enum class [[nodiscard]] IoErr : i32
   TemporarilyUnavailable = EWOULDBLOCK
 };
 
-constexpr Span<char const> to_string(IoErr err)
+constexpr Span<char const> to_str(IoErr err)
 {
   if (err == IoErr::None)
   {
@@ -281,14 +281,13 @@ namespace fmt
 
 inline bool push(Context const & ctx, Spec const & spec, IoErr const & err)
 {
-  return push(ctx, spec, to_string(err));
+  return push(ctx, spec, to_str(err));
 }
 
 }    // namespace fmt
 
 Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff);
 
-// [ ] use static buffer
 inline Result<> path_append(Vec<char> & path, Span<char const> tail)
 {
   if (!path.is_empty() && path.last() != '/' && path.last() != '\\')
