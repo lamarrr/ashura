@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/engine/color.h"
-#include "ashura/engine/font.h"
+#include "ashura/engine/ids.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
@@ -232,7 +232,7 @@ enum class TextScript : u8
 /// @param line_height relative. multiplied by font_height
 struct FontStyle
 {
-  Font * font        = nullptr;
+  FontId font        = FontId::Default;
   f32    font_height = 20;
   f32    line_height = 1.2F;
 };
