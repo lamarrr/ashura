@@ -270,7 +270,7 @@ struct WindowSystemImpl : WindowSystem
     }
 
     SDL_Surface * icon = SDL_CreateSurfaceFrom(
-      static_cast<i32>(image.width), static_cast<i32>(image.height), fmt,
+      static_cast<i32>(image.extent.x), static_cast<i32>(image.extent.y), fmt,
       (void *) image.channels.data(), static_cast<i32>(image.pitch()));
     CHECKSdl(icon != nullptr);
     CHECKSdl(SDL_SetWindowIcon(hnd(window), icon));
