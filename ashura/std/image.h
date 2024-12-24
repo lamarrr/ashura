@@ -8,6 +8,11 @@
 namespace ash
 {
 
+constexpr u64 pixel_size_bytes(Vec2U extent, u32 bytes_per_pixel)
+{
+  return (u64) extent.x * (u64) extent.y * (u64) bytes_per_pixel;
+}
+
 /// @brief A dense, multi-channel, and row-major image span, format insensitive.
 /// @param stride number of pixels to skip to move from row i to row i+1
 /// i+1
@@ -47,8 +52,7 @@ struct ImageSpan
     u64 const data_span   = (extent.y * stride) * C;
 
     return ImageSpan{.channels = channels.slice(data_offset, data_span),
-                     .width    = extent.x,
-                     .height   = extent.y,
+                     .extent   = extent,
                      .stride   = stride};
   }
 
