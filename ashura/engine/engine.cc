@@ -385,122 +385,18 @@ void Engine::init(AllocatorImpl allocator, void * app,
 
   engine->device->begin_frame(nullptr).unwrap();
 
-  Semaphore sem =
-    create_semaphore(allocator, cfg.shaders.size() + cfg.fonts.size()).unwrap();
 
   for (auto const & [id, path] : cfg.shaders)
   {
-    Vec<char> resolved_path = vec(assets_dir, allocator).unwrap();
-    path_append(resolved_path, path).unwrap();
-
-    async::once([shader_id   = vec<char>(id, allocator).unwrap(),
-                 shader_path = std::move(resolved_path), sem = sem.alias(),
-                 allocator]() mutable {
-      logger->trace("Loading shader ", shader_id, " from ", shader_path);
-
-      Vec<u8> data{allocator};
-
-      if (Result result = read_file(shader_path, data); !result)
-      {
-        logger->error("Unable to load shader at ", shader_path,
-                      ", IO Error: ", result.err());
-        sem->increment(1);
-        return;
-      }
-
-      CHECK((data.size() & 3ULL) == 0);
-
-      static_assert(std::endian::native == std::endian::little);
-
-// [ ] always aligned!""
-      Vec<u32> data_u32{allocator};
-
-      data_u32.resize_uninit(data.size() >> 2).unwrap();
-
-      mem::copy(data.view(), data_u32.view().as_u8());
-
-      logger->trace("Loaded shader ", shader_id, " from file");
-
-      async::once(
-        [shader_id = std::move(shader_id), sem = std::move(sem),
-         data_u32 = std::move(data_u32)]() mutable {
-          logger->trace("Sending shader ", shader_id, " to GPU");
-
-          gpu::Shader shader =
-            engine->device
-              ->create_shader(
-                gpu::ShaderInfo{.label = "Shader"_str, .spirv_code = data_u32})
-              .unwrap();
-
-          engine->assets.shaders.insert(std::move(shader_id), shader).unwrap();
-
-          sem->increment(1);
-        },
-        async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
-    });
+    // [ ]
   }
 
   for (auto const & [id, path] : cfg.fonts)
   {
-    Vec<char> resolved_path = vec(assets_dir, allocator).unwrap();
-    path_append(resolved_path, path).unwrap();
-
-    async::once([font_id   = vec<char>(id, allocator).unwrap(),
-                 font_path = std::move(resolved_path), sem = sem.alias(),
-                 allocator]() mutable {
-      logger->trace("Loading font ", font_id, " from ", font_path);
-
-      Vec<u8> data{allocator};
-
-      Result read_result = read_file(font_path, data);
-
-      if (!read_result)
-      {
-        logger->error("Unable to load font at ", font_path,
-                      ", IO Error: ", read_result.err());
-        sem->increment(1);
-        return;
-      }
-
-      Result decode_result = Font::decode(data, 0, allocator);
-
-      if (!decode_result)
-      {
-        logger->error("Unable to decode font at ", font_path,
-                      "Error: ", decode_result.err());
-        sem->increment(1);
-        return;
-      }
-
-      Dyn<Font *> font = decode_result.unwrap();
-
-      logger->trace("Loaded font ", font_id, " from file");
-
-      u32 const font_height = 64;
-
-      logger->trace("Rasterizing font ", font_id, " @", font_height, "px ");
-
-      font->rasterize(font_height, allocator).unwrap();
-
-      logger->trace("Rasterized font ", font_id);
-
-      async::once(
-        [font_id = std::move(font_id), sem = std::move(sem),
-         font = std::move(font), allocator]() mutable {
-          logger->trace("Uploading font ", font_id, " to GPU");
-
-          font->upload_to_device(engine->gpu, allocator);
-
-          engine->assets.fonts.insert(std::move(font_id), std::move(font))
-            .unwrap();
-
-          sem->increment(1);
-        },
-        async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
-    });
+    // [ ]
   }
 
-  while (!sem->is_completed())
+  while (!semaphores)
   {
     scheduler->execute_main_thread_loop(1ms, 2ms);
   }
@@ -529,19 +425,7 @@ Engine::~Engine()
   device->wait_idle().unwrap();
   canvas.reset();
 
-  for (auto const & [_, shader] : assets.shaders)
-  {
-    device->uninit(shader);
-  }
-
-  assets.shaders.clear();
-
-  for (auto const & [_, font] : assets.fonts)
-  {
-    font->unload_from_device(gpu);
-  }
-
-  assets.fonts.clear();
+  // [ ] shutdown systems?
 
   renderer.release(gpu, assets);
 
@@ -697,26 +581,26 @@ void Engine::run(View & view, Fn<void(InputState const &)> loop)
     if (input_buffer.resized || input_buffer.surface_resized)
     {
       Vec2U const surface_size = window_system->get_surface_size(window);
-      gpu.recreate_framebuffers(surface_size);
+      sys->gpu.recreate_framebuffers(surface_size);
     }
 
-    gpu.begin_frame(swapchain);
+    sys->gpu.begin_frame(swapchain);
 
     // [ ] wrong! use window extent?
     // [ ] propert use of window extent and surface size. then store sizing.
     // [ ] this will be needed for high density displays, i,e. apple devices
-    input_buffer.viewport_extent = as_vec2(gpu.fb.extent());
+    input_buffer.viewport_extent = as_vec2(sys->gpu.fb.extent());
 
-    canvas.begin_recording(gpu.fb.viewport().extent, gpu.fb.extent());
+    canvas.begin_recording(sys->gpu.fb.viewport().extent, gpu.fb.extent());
 
     view_system.tick(input_buffer, view, canvas, loop);
 
     canvas.end_recording();
 
-    renderer.begin_frame(gpu, gpu.fb, canvas);
-    renderer.render_frame(gpu, gpu.fb, canvas);
-    renderer.end_frame(gpu, gpu.fb, canvas);
-    gpu.submit_frame(swapchain);
+    renderer.begin_frame(sys->gpu.fb, canvas);
+    renderer.render_frame(sys->gpu.fb, canvas);
+    renderer.end_frame(sys->gpu.fb, canvas);
+    sys->gpu.submit_frame(swapchain);
   }
 
   logger->trace("Ended Engine Run Loop");

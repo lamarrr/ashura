@@ -109,6 +109,8 @@ struct Engine
 
   static void uninit();
 
+  // shutdown
+
   void recreate_swapchain_();
 
   void run(View & view, Fn<void(InputState const &)> loop = noop);
