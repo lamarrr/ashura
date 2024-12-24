@@ -1,20 +1,20 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/passes.h"
+#include "ashura/engine/assets.h"
 #include "ashura/std/math.h"
 
 namespace ash
 {
 
-void BloomPass::acquire(GpuSystem &, AssetMap &)
+void BloomPass::acquire()
 {
 }
 
-void BloomPass::release(GpuSystem &, AssetMap &)
+void BloomPass::release()
 {
 }
 
-void BloomPass::encode(GpuSystem &, gpu::CommandEncoder &,
-                       BloomPassParams const &)
+void BloomPass::encode(gpu::CommandEncoder &, BloomPassParams const &)
 {
   /// E' = Blur(E)
   /// D' = Blur(D) + E'
@@ -23,7 +23,7 @@ void BloomPass::encode(GpuSystem &, gpu::CommandEncoder &,
   /// A' = Blur(A) + B'
 }
 
-void BlurPass::acquire(GpuSystem & gpu, AssetMap & assets)
+void BlurPass::acquire()
 {
   // https://www.youtube.com/watch?v=ml-5OGZC7vE
   //
@@ -34,8 +34,9 @@ void BlurPass::acquire(GpuSystem & gpu, AssetMap & assets)
   // Algorithm described here:
   // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
   //
-  gpu::Shader vertex_shader   = assets.shaders["Blur/DownSample:VS"_str];
-  gpu::Shader fragment_shader = assets.shaders["Blur/DownSample:FS"_str];
+  gpu::Shader vertex_shader = sys->shader.get("Blur/DownSample:FS"_str).shader;
+  gpu::Shader fragment_shader =
+    sys->shader.get("Blur/DownSample:FS"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -73,8 +74,8 @@ void BlurPass::acquire(GpuSystem & gpu, AssetMap & assets)
   gpu::ColorBlendState color_blend_state{.attachments    = attachment_states,
                                          .blend_constant = {}};
 
-  gpu::DescriptorSetLayout set_layouts[] = {gpu.samplers_layout,
-                                            gpu.textures_layout};
+  gpu::DescriptorSetLayout set_layouts[] = {sys->gpu.samplers_layout,
+                                            sys->gpu.textures_layout};
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "Blur Graphics Pipeline"_str,
@@ -87,7 +88,7 @@ void BlurPass::acquire(GpuSystem & gpu, AssetMap & assets)
                                           .entry_point                   = "main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
-    .color_formats          = {&gpu.color_format, 1},
+    .color_formats          = {&sys->gpu.color_format, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = sizeof(BlurParam),
@@ -96,44 +97,48 @@ void BlurPass::acquire(GpuSystem & gpu, AssetMap & assets)
     .rasterization_state    = raster_state,
     .depth_stencil_state    = depth_stencil_state,
     .color_blend_state      = color_blend_state,
-    .cache                  = gpu.pipeline_cache
+    .cache                  = sys->gpu.pipeline_cache
   };
 
   downsample_pipeline =
-    gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
+    sys->gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
 
-  pipeline_info.vertex_shader.shader   = assets.shaders["Blur/UpSample:VS"_str];
-  pipeline_info.fragment_shader.shader = assets.shaders["Blur/UpSample:FS"_str];
+  pipeline_info.vertex_shader.shader =
+    sys->shader.get("Blur/UpSample:VS"_str).shader;
+  pipeline_info.fragment_shader.shader =
+    sys->shader.get("Blur/UpSample:FS"_str).shader;
 
   upsample_pipeline =
-    gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
+    sys->gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void BlurPass::release(GpuSystem & gpu, AssetMap &)
+void BlurPass::release()
 {
-  gpu.device->uninit(downsample_pipeline);
-  gpu.device->uninit(upsample_pipeline);
+  sys->gpu.device->uninit(downsample_pipeline);
+  sys->gpu.device->uninit(upsample_pipeline);
 }
 
-void sample(BlurPass & b, GpuSystem & c, gpu::CommandEncoder & e, Vec2 radius,
-            gpu::DescriptorSet src_texture, TextureId src_id,
-            gpu::Extent src_extent, gpu::Rect src_area, gpu::ImageView dst,
-            Vec2U dst_offset, bool upsample)
+void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
+            gpu::DescriptorSet src_texture, TextureId src_id, Vec2U src_extent,
+            RectU const & src_area, gpu::ImageView dst, Vec2U dst_offset,
+            bool upsample)
 {
   radius /= as_vec2(src_extent);
-  Vec2 uv0 = as_vec2(src_area.offset) / as_vec2(src_extent);
-  Vec2 uv1 = as_vec2(src_area.end()) / as_vec2(src_extent);
+  Vec2 const uv0 = as_vec2(src_area.offset) / as_vec2(src_extent);
+  Vec2 const uv1 = as_vec2(src_area.end()) / as_vec2(src_extent);
+
+  gpu::RenderingAttachment color[1] = {
+    {.view         = dst,
+     .resolve      = nullptr,
+     .resolve_mode = gpu::ResolveModes::None,
+     .load_op      = gpu::LoadOp::Load,
+     .store_op     = gpu::StoreOp::Store}
+  };
 
   e.begin_rendering(gpu::RenderingInfo{
-    .render_area = {.offset = dst_offset, .extent = src_area.extent},
-    .num_layers  = 1,
-    .color_attachments =
-      span({gpu::RenderingAttachment{.view         = dst,
-                                     .resolve      = nullptr,
-                                     .resolve_mode = gpu::ResolveModes::None,
-                                     .load_op      = gpu::LoadOp::Load,
-                                     .store_op     = gpu::StoreOp::Store}}
-      ),
+    .render_area        = {.offset = dst_offset, .extent = src_area.extent},
+    .num_layers         = 1,
+    .color_attachments  = color,
     .depth_attachment   = {},
     .stencil_attachment = {}
   });
@@ -145,7 +150,7 @@ void sample(BlurPass & b, GpuSystem & c, gpu::CommandEncoder & e, Vec2 radius,
     .viewport = {.offset = as_vec2(dst_offset),
                  .extent = as_vec2(src_area.extent)                      }
   });
-  e.bind_descriptor_sets(span({c.samplers, src_texture}), {});
+  e.bind_descriptor_sets(span({sys->gpu.samplers, src_texture}), {});
   e.push_constants(span({
                           BlurParam{.uv      = {uv0, uv1},
                                     .radius  = radius,
@@ -157,55 +162,47 @@ void sample(BlurPass & b, GpuSystem & c, gpu::CommandEncoder & e, Vec2 radius,
   e.end_rendering();
 }
 
-void BlurPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
-                      BlurPassParams const & params)
+void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
 {
   if (params.passes == 0)
   {
     return;
   }
 
-  Framebuffer fbs[2]   = {params.framebuffer, gpu.scratch_fb};
-  gpu::Rect   areas[2] = {
-    params.area, {.offset = {0, 0}, .extent = gpu.scratch_fb.extent()}
+  Framebuffer fbs[2]   = {params.framebuffer, sys->gpu.scratch_fb};
+  RectU       areas[2] = {
+    params.area, {.offset = {0, 0}, .extent = sys->gpu.scratch_fb.extent()}
   };
-
-  u32 src = 0;
-  u32 dst = 1;
 
   Vec2 const radius = params.radius / (f32) params.passes;
 
-  // [ ] verify
+  u32 src = 1;
 
   // downsample pass
-  for (u32 i = 0; i < params.passes; i++)
+  for (i64 i = 0; i < params.passes; i++)
   {
-    sample(*this, gpu, e, radius * (f32) (i + 1), fbs[src].color.texture,
+    src           = (src + 1) & 1;
+    u32 const dst = (src + 1) & 1;
+    sample(*this, e, radius * (f32) (i + 1), fbs[src].color.texture,
            fbs[src].color.texture_id, areas[src].extent, areas[dst],
            fbs[dst].color.view, areas[dst].offset, false);
-
-    src = (src + 1) & 1;
-    dst = (dst + 1) & 1;
   }
 
   // upsample pass
-  for (u32 i = 0; i < params.passes; i++)
+  for (i64 i = params.passes; i > 0; i--)
   {
-    radius -= 1;
-
-    sample(*this, gpu, e, (f32) radius, fbs[src].color.texture,
+    src           = (src + 1) & 1;
+    u32 const dst = (src + 1) & 1;
+    sample(*this, e, radius * (f32) (i + 1), fbs[src].color.texture,
            fbs[src].color.texture_id, areas[src].extent, areas[dst],
            fbs[dst].color.view, areas[dst].offset, true);
-
-    src = (src + 1) & 1;
-    dst = (dst + 1) & 1;
   }
 }
 
-void NgonPass::acquire(GpuSystem & gpu, AssetMap & assets)
+void NgonPass::acquire()
 {
-  gpu::Shader vertex_shader   = assets.shaders["Ngon:VS"_str];
-  gpu::Shader fragment_shader = assets.shaders["Ngon:FS"_str];
+  gpu::Shader vertex_shader   = sys->shader.get("Ngon:VS"_str).shader;
+  gpu::Shader fragment_shader = sys->shader.get("Ngon:FS"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -216,7 +213,7 @@ void NgonPass::acquire(GpuSystem & gpu, AssetMap & assets)
                                        .depth_bias_constant_factor = 0,
                                        .depth_bias_clamp           = 0,
                                        .depth_bias_slope_factor    = 0,
-                                       .sample_count = gpu.sample_count};
+                                       .sample_count = sys->gpu.sample_count};
 
   gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
@@ -245,8 +242,8 @@ void NgonPass::acquire(GpuSystem & gpu, AssetMap & assets)
   };
 
   gpu::DescriptorSetLayout set_layouts[] = {
-    gpu.ssbo_layout, gpu.ssbo_layout, gpu.ssbo_layout, gpu.samplers_layout,
-    gpu.textures_layout};
+    sys->gpu.ssbo_layout, sys->gpu.ssbo_layout, sys->gpu.ssbo_layout,
+    sys->gpu.samplers_layout, sys->gpu.textures_layout};
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "Ngon Graphics Pipeline"_str,
@@ -259,7 +256,7 @@ void NgonPass::acquire(GpuSystem & gpu, AssetMap & assets)
                                           .entry_point                   = "main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
-    .color_formats          = {&gpu.color_format, 1},
+    .color_formats          = {&sys->gpu.color_format, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = sizeof(Mat4),
@@ -268,14 +265,13 @@ void NgonPass::acquire(GpuSystem & gpu, AssetMap & assets)
     .rasterization_state    = raster_state,
     .depth_stencil_state    = depth_stencil_state,
     .color_blend_state      = color_blend_state,
-    .cache                  = gpu.pipeline_cache
+    .cache                  = sys->gpu.pipeline_cache
   };
 
-  pipeline = gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
+  pipeline = sys->gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void NgonPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
-                      NgonPassParams const & params)
+void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params)
 {
   gpu::RenderingAttachment color[1];
 
@@ -285,12 +281,17 @@ void NgonPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
       .view         = params.framebuffer.color_msaa.value().view,
       .resolve      = params.framebuffer.color.view,
       .resolve_mode = gpu::ResolveModes::Average,
-      .load_op      = gpu::LoadOp::DontCare,
+      .load_op      = gpu::LoadOp::Load,
       .store_op     = gpu::StoreOp::Store};
   }
   else
   {
-    color[0] = gpu::RenderingAttachment{.view = params.framebuffer.color.view};
+    color[0] = gpu::RenderingAttachment{.view = params.framebuffer.color.view,
+                                        .resolve      = nullptr,
+                                        .resolve_mode = gpu::ResolveModes::None,
+                                        .load_op      = gpu::LoadOp::Load,
+                                        .store_op     = gpu::StoreOp::Store,
+                                        .clear        = {}};
   }
 
   gpu::RenderingInfo info{.render_area{.extent = params.framebuffer.extent()},
@@ -301,7 +302,7 @@ void NgonPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
   e.bind_graphics_pipeline(pipeline);
   e.bind_descriptor_sets(
     span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
-          gpu.samplers, params.textures}),
+          sys->gpu.samplers, params.textures}),
     span<u32>({0, 0, 0}));
   e.push_constants(span({params.world_to_view}).as_u8());
   e.set_graphics_state(
@@ -314,15 +315,15 @@ void NgonPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
   e.end_rendering();
 }
 
-void NgonPass::release(GpuSystem & gpu, AssetMap &)
+void NgonPass::release()
 {
-  gpu.device->uninit(pipeline);
+  sys->gpu.device->uninit(pipeline);
 }
 
-void PBRPass::acquire(GpuSystem & gpu, AssetMap & assets)
+void PBRPass::acquire()
 {
-  gpu::Shader vertex_shader   = assets.shaders["PBR:VS"_str];
-  gpu::Shader fragment_shader = assets.shaders["PBR:FS"_str];
+  gpu::Shader vertex_shader   = sys->shader.get("PBR:VS"_str).shader;
+  gpu::Shader fragment_shader = sys->shader.get("PBR:FS"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -333,7 +334,7 @@ void PBRPass::acquire(GpuSystem & gpu, AssetMap & assets)
                                        .depth_bias_constant_factor = 0,
                                        .depth_bias_clamp           = 0,
                                        .depth_bias_slope_factor    = 0,
-                                       .sample_count = gpu.sample_count};
+                                       .sample_count = sys->gpu.sample_count};
 
   gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
@@ -362,8 +363,8 @@ void PBRPass::acquire(GpuSystem & gpu, AssetMap & assets)
   };
 
   gpu::DescriptorSetLayout const set_layouts[] = {
-    gpu.ssbo_layout, gpu.ssbo_layout,     gpu.ssbo_layout,
-    gpu.ssbo_layout, gpu.samplers_layout, gpu.textures_layout};
+    sys->gpu.ssbo_layout, sys->gpu.ssbo_layout,     sys->gpu.ssbo_layout,
+    sys->gpu.ssbo_layout, sys->gpu.samplers_layout, sys->gpu.textures_layout};
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "PBR Graphics Pipeline"_str,
@@ -376,8 +377,8 @@ void PBRPass::acquire(GpuSystem & gpu, AssetMap & assets)
                                           .entry_point                   = "main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
-    .color_formats          = {&gpu.color_format, 1},
-    .depth_format           = {&gpu.depth_stencil_format, 1},
+    .color_formats          = {&sys->gpu.color_format, 1},
+    .depth_format           = {&sys->gpu.depth_stencil_format, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = sizeof(Mat4),
@@ -386,19 +387,18 @@ void PBRPass::acquire(GpuSystem & gpu, AssetMap & assets)
     .rasterization_state    = raster_state,
     .depth_stencil_state    = depth_stencil_state,
     .color_blend_state      = color_blend_state,
-    .cache                  = gpu.pipeline_cache
+    .cache                  = sys->gpu.pipeline_cache
   };
 
-  pipeline = gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
+  pipeline = sys->gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
 
   pipeline_info.rasterization_state.polygon_mode = gpu::PolygonMode::Line;
 
   wireframe_pipeline =
-    gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
+    sys->gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void PBRPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
-                     PBRPassParams const & params)
+void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params)
 {
   gpu::RenderingAttachment color[1];
 
@@ -408,7 +408,7 @@ void PBRPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
       .view         = params.framebuffer.color_msaa.value().view,
       .resolve      = params.framebuffer.color.view,
       .resolve_mode = gpu::ResolveModes::Average,
-      .load_op      = gpu::LoadOp::DontCare,
+      .load_op      = gpu::LoadOp::Load,
       .store_op     = gpu::StoreOp::Store};
   }
   else
@@ -441,23 +441,23 @@ void PBRPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
   });
   e.bind_descriptor_sets(
     span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
-          params.lights_ssbo, gpu.samplers, params.textures}),
+          params.lights_ssbo, sys->gpu.samplers, params.textures}),
     span<u32>({0, 0, 0, 0}));
   e.push_constants(span({params.world_to_view}).as_u8());
   e.draw(params.num_indices, 1, 0, params.instance);
   e.end_rendering();
 }
 
-void PBRPass::release(GpuSystem & gpu, AssetMap &)
+void PBRPass::release()
 {
-  gpu.device->uninit(pipeline);
-  gpu.device->uninit(wireframe_pipeline);
+  sys->gpu.device->uninit(pipeline);
+  sys->gpu.device->uninit(wireframe_pipeline);
 }
 
-void RRectPass::acquire(GpuSystem & gpu, AssetMap & assets)
+void RRectPass::acquire()
 {
-  gpu::Shader vertex_shader   = assets.shaders["RRect:VS"_str];
-  gpu::Shader fragment_shader = assets.shaders["RRect:FS"_str];
+  gpu::Shader vertex_shader   = sys->shader.get("RRect:VS"_str).shader;
+  gpu::Shader fragment_shader = sys->shader.get("RRect:FS"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -468,7 +468,7 @@ void RRectPass::acquire(GpuSystem & gpu, AssetMap & assets)
                                        .depth_bias_constant_factor = 0,
                                        .depth_bias_clamp           = 0,
                                        .depth_bias_slope_factor    = 0,
-                                       .sample_count = gpu.sample_count};
+                                       .sample_count = sys->gpu.sample_count};
 
   gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
@@ -497,7 +497,7 @@ void RRectPass::acquire(GpuSystem & gpu, AssetMap & assets)
   };
 
   gpu::DescriptorSetLayout set_layouts[] = {
-    gpu.ssbo_layout, gpu.samplers_layout, gpu.textures_layout};
+    sys->gpu.ssbo_layout, sys->gpu.samplers_layout, sys->gpu.textures_layout};
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "RRect Graphics Pipeline"_str,
@@ -510,7 +510,7 @@ void RRectPass::acquire(GpuSystem & gpu, AssetMap & assets)
                                           .entry_point                   = "main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
-    .color_formats          = {&gpu.color_format, 1},
+    .color_formats          = {&sys->gpu.color_format, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = sizeof(Mat4),
@@ -519,14 +519,13 @@ void RRectPass::acquire(GpuSystem & gpu, AssetMap & assets)
     .rasterization_state    = raster_state,
     .depth_stencil_state    = depth_stencil_state,
     .color_blend_state      = color_blend_state,
-    .cache                  = gpu.pipeline_cache
+    .cache                  = sys->gpu.pipeline_cache
   };
 
-  pipeline = gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
+  pipeline = sys->gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
 }
 
-void RRectPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
-                       RRectPassParams const & params)
+void RRectPass::encode(gpu::CommandEncoder & e, RRectPassParams const & params)
 {
   gpu::RenderingAttachment color[1];
 
@@ -536,7 +535,7 @@ void RRectPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
       .view         = params.framebuffer.color_msaa.value().view,
       .resolve      = params.framebuffer.color.view,
       .resolve_mode = gpu::ResolveModes::Average,
-      .load_op      = gpu::LoadOp::DontCare,
+      .load_op      = gpu::LoadOp::Load,
       .store_op     = gpu::StoreOp::Store};
   }
   else
@@ -553,15 +552,16 @@ void RRectPass::encode(GpuSystem & gpu, gpu::CommandEncoder & e,
   e.set_graphics_state(
     gpu::GraphicsState{.scissor = params.scissor, .viewport = params.viewport});
   e.bind_descriptor_sets(
-    span({params.params_ssbo, gpu.samplers, params.textures}), span<u32>({0}));
+    span({params.params_ssbo, sys->gpu.samplers, params.textures}),
+    span<u32>({0}));
   e.push_constants(span({params.world_to_view}).as_u8());
   e.draw(4, params.num_instances, 0, params.first_instance);
   e.end_rendering();
 }
 
-void RRectPass::release(GpuSystem & gpu, AssetMap &)
+void RRectPass::release()
 {
-  gpu.device->uninit(pipeline);
+  sys->gpu.device->uninit(pipeline);
 }
 
 }    // namespace ash
