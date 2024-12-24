@@ -40,8 +40,8 @@ struct Size
 
 struct Frame
 {
-  Size width{};
-  Size height{};
+  Size x{};
+  Size y{};
 
   constexpr Frame()                          = default;
   constexpr Frame(Frame const &)             = default;
@@ -50,66 +50,66 @@ struct Frame
   constexpr Frame & operator=(Frame &&)      = default;
   constexpr ~Frame()                         = default;
 
-  constexpr Frame(Size width, Size height) : width{width}, height{height}
+  constexpr Frame(Size width, Size height) : x{width}, y{height}
   {
   }
 
-  constexpr Frame(f32 width, f32 height, bool constrain = true) :
-    width{.offset = width, .rmax = constrain ? 1 : F32_INF},
-    height{.offset = height, .rmax = constrain ? 1 : F32_INF}
+  constexpr Frame(Vec2 extent, bool constrain = true) :
+    x{.offset = extent.x, .rmax = constrain ? 1 : F32_INF},
+    y{.offset = extent.y, .rmax = constrain ? 1 : F32_INF}
   {
   }
 
   constexpr Vec2 operator()(Vec2 extent) const
   {
-    return Vec2{width(extent.x), height(extent.y)};
+    return Vec2{x(extent.x), y(extent.y)};
   }
 
-  constexpr Frame offset(f32 w, f32 h) const
+  constexpr Frame offset(Vec2 extent) const
   {
     Frame out{*this};
-    out.width.offset  = w;
-    out.height.offset = h;
+    out.x.offset = extent.x;
+    out.y.offset = extent.y;
     return out;
   }
 
-  constexpr Frame scale(f32 w, f32 h) const
+  constexpr Frame scale(Vec2 extent) const
   {
     Frame out{*this};
-    out.width.scale  = w;
-    out.height.scale = h;
+    out.x.scale = extent.x;
+    out.y.scale = extent.y;
     return out;
   }
 
-  constexpr Frame rmin(f32 w, f32 h) const
+  constexpr Frame rmin(Vec2 extent) const
   {
     Frame out{*this};
-    out.width.rmin  = w;
-    out.height.rmin = h;
+    out.x.rmin = extent.x;
+    out.y.rmin = extent.y;
     return out;
   }
 
-  constexpr Frame rmax(f32 w, f32 h) const
+  constexpr Frame rmax(Vec2 extent) const
   {
     Frame out{*this};
-    out.width.rmax  = w;
-    out.height.rmax = h;
+    out.x.rmax = extent.x;
+    out.y.rmax = extent.y;
     return out;
   }
 
-  constexpr Frame min(f32 w, f32 h) const
+  constexpr Frame min(Vec2 extent) const
   {
     Frame out{*this};
-    out.width.min  = w;
-    out.height.min = h;
+    out.x.min = extent.x;
+    out.y.min = extent.y;
     return out;
   }
 
-  constexpr Frame max(f32 w, f32 h) const
+  constexpr Frame max(Vec2 extent) const
   {
     Frame out{*this};
-    out.width.max  = w;
-    out.height.max = h;
+    out.x.max = extent.x;
+    out.y.max = extent.y;
     return out;
   }
 };
@@ -144,10 +144,10 @@ struct CornerRadii
   {
   }
 
-  // [ ] this should be resolved on both width and height
-  constexpr Vec4 operator()(f32 height) const
+  constexpr Vec4 operator()(Vec2 extent) const
   {
-    return Vec4{tl(height), tr(height), bl(height), br(height)};
+    f32 const base = min(extent.x, extent.y);
+    return Vec4{tl(base), tr(base), bl(base), br(base)};
   }
 };
 
