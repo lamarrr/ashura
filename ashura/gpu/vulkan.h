@@ -411,7 +411,7 @@ struct Swapchain
   gpu::SurfaceFormat  format          = {};
   gpu::ImageUsage     usage           = gpu::ImageUsage::None;
   gpu::PresentMode    present_mode    = gpu::PresentMode::Immediate;
-  gpu::Extent         extent          = {};
+  Vec2U               extent          = {};
   gpu::CompositeAlpha composite_alpha = gpu::CompositeAlpha::None;
   Image               image_impls[gpu::MAX_SWAPCHAIN_IMAGES] = {};
   gpu::Image          images[gpu::MAX_SWAPCHAIN_IMAGES]      = {};
@@ -510,8 +510,8 @@ using Command =
 
 struct RenderPassContext
 {
-  gpu::Rect render_area = {};
-  u32       num_layers  = 0;
+  RectU render_area = {};
+  u32   num_layers  = 0;
   gpu::RenderingAttachment
     color_attachments[gpu::MAX_PIPELINE_COLOR_ATTACHMENTS]            = {};
   gpu::RenderingAttachment depth_attachment[1]                        = {};

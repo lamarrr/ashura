@@ -18,12 +18,7 @@ inline constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
 inline constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
 inline constexpr u64 WHOLE_SIZE             = ~0ULL;
 
-typedef Vec2U Offset;
-typedef Vec2U Extent;
-typedef RectU Rect;
-typedef Vec3U Offset3D;
-typedef Vec3U Extent3D;
-typedef u64   FrameId;
+typedef u64 FrameId;
 
 typedef struct Buffer_T *              Buffer;
 typedef struct BufferView_T *          BufferView;
@@ -672,7 +667,7 @@ using Object =
   Enum<Instance *, Device *, CommandEncoder *, Buffer, BufferView, Image,
        ImageView, Sampler, Shader, DescriptorSetLayout, DescriptorSet,
        PipelineCache, ComputePipeline, GraphicsPipeline, TimeStampQuery,
-       StatisticsQuery, Surface, Swapchain, void *>;
+       StatisticsQuery, Surface, Swapchain>;
 
 struct SurfaceFormat
 {
@@ -763,7 +758,7 @@ struct ImageInfo
   Format           format       = Format::Undefined;
   ImageUsage       usage        = ImageUsage::None;
   ImageAspects     aspects      = ImageAspects::None;
-  Extent3D         extent       = {};
+  Vec3U            extent       = {};
   u32              mip_levels   = 0;
   u32              array_layers = 0;
   SampleCount      sample_count = SampleCount::None;
@@ -968,7 +963,7 @@ struct RasterizationState
 
 struct GraphicsState
 {
-  Rect         scissor                  = {};
+  RectU        scissor                  = {};
   Viewport     viewport                 = {};
   Vec4         blend_constant           = {};
   bool         stencil_test_enable      = false;
@@ -1040,34 +1035,34 @@ struct BufferImageCopy
   u32                    buffer_row_length   = 0;
   u32                    buffer_image_height = 0;
   ImageSubresourceLayers image_layers        = {};
-  Offset3D               image_offset        = {};
-  Extent3D               image_extent        = {};
+  Vec3U                  image_offset        = {};
+  Vec3U                  image_extent        = {};
 };
 
 struct ImageCopy
 {
   ImageSubresourceLayers src_layers = {};
-  Offset3D               src_offset = {};
+  Vec3U                  src_offset = {};
   ImageSubresourceLayers dst_layers = {};
-  Offset3D               dst_offset = {};
-  Extent3D               extent     = {};
+  Vec3U                  dst_offset = {};
+  Vec3U                  extent     = {};
 };
 
 struct ImageBlit
 {
   ImageSubresourceLayers src_layers     = {};
-  Offset3D               src_offsets[2] = {};
+  Vec3U                  src_offsets[2] = {};
   ImageSubresourceLayers dst_layers     = {};
-  Offset3D               dst_offsets[2] = {};
+  Vec3U                  dst_offsets[2] = {};
 };
 
 struct ImageResolve
 {
   ImageSubresourceLayers src_layers = {};
-  Offset3D               src_offset = {};
+  Vec3U                  src_offset = {};
   ImageSubresourceLayers dst_layers = {};
-  Offset3D               dst_offset = {};
-  Extent3D               extent     = {};
+  Vec3U                  dst_offset = {};
+  Vec3U                  extent     = {};
 };
 
 /// x, y, z, w => R, G, B, A
@@ -1103,7 +1098,7 @@ struct SwapchainInfo
   ImageUsage       usage               = ImageUsage::None;
   u32              preferred_buffering = 0;
   PresentMode      present_mode        = PresentMode::Immediate;
-  Extent           preferred_extent    = {};
+  Vec2U            preferred_extent    = {};
   CompositeAlpha   composite_alpha     = CompositeAlpha::None;
 };
 
@@ -1114,7 +1109,7 @@ struct SwapchainInfo
 /// storing pointers to its data members.
 struct SwapchainState
 {
-  Extent            extent        = {};
+  Vec2U             extent        = {};
   SurfaceFormat     format        = {};
   Span<Image const> images        = {};
   Option<u32>       current_image = none;
@@ -1165,7 +1160,7 @@ struct RenderingAttachment
 
 struct RenderingInfo
 {
-  Rect                            render_area        = {};
+  RectU                           render_area        = {};
   u32                             num_layers         = 0;
   Span<RenderingAttachment const> color_attachments  = {};
   Span<RenderingAttachment const> depth_attachment   = {};
