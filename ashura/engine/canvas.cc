@@ -336,14 +336,14 @@ void path::triangulate_convex(Vec<u32> & idx, u32 first_vertex,
 
 Canvas & Canvas::reset()
 {
+  passes.reset();
+  rrect_params.reset();
+  ngon_params.reset();
+  ngon_vertices.reset();
+  ngon_indices.reset();
+  ngon_index_counts.reset();
+  passes.reset();
   frame_arena.reclaim();
-  passes.clear();
-  rrect_params.clear();
-  ngon_params.clear();
-  ngon_vertices.clear();
-  ngon_indices.clear();
-  ngon_index_counts.clear();
-  passes.clear();
   batch = {};
 
   return *this;
