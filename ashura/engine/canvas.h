@@ -137,7 +137,6 @@ struct Canvas
   struct RenderContext
   {
     Canvas &              canvas;
-    GpuSystem &           gpu;
     PassContext &         passes;
     Framebuffer const &   framebuffer;
     gpu::CommandEncoder & enc;

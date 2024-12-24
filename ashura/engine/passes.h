@@ -1,6 +1,5 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/engine/assets.h"
 #include "ashura/engine/gpu_system.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/types.h"
@@ -13,13 +12,12 @@ namespace ash
 /// data needed for executing rendering operations. Passes dispatch
 /// compute/graphics shaders using their specified arguments. They are mostly
 /// used by renderers.
-// [ ] cache setup
 struct Pass
 {
-  virtual Span<char const> id()                             = 0;
-  virtual void             acquire(GpuSystem &, AssetMap &) = 0;
-  virtual void             release(GpuSystem &, AssetMap &) = 0;
-  virtual ~Pass()                                           = default;
+  virtual Span<char const> label()   = 0;
+  virtual void             acquire() = 0;
+  virtual void             release() = 0;
+  virtual ~Pass()                    = default;
 };
 
 struct BloomPassParams
@@ -36,17 +34,16 @@ struct BloomPass : Pass
 
   virtual ~BloomPass() override = default;
 
-  virtual Span<char const> id() override
+  virtual Span<char const> label() override
   {
     return "Bloom"_str;
   }
 
-  virtual void acquire(GpuSystem & ct, AssetMap & assets) override;
+  virtual void acquire() override;
 
-  virtual void release(GpuSystem & gpu, AssetMap & assets) override;
+  virtual void release() override;
 
-  void encode(GpuSystem & gpu, gpu::CommandEncoder & encoder,
-              BloomPassParams const & params);
+  void encode(gpu::CommandEncoder & encoder, BloomPassParams const & params);
 };
 
 struct BlurParam
@@ -62,7 +59,7 @@ struct BlurPassParams
   Framebuffer framebuffer = {};
   Vec2        radius      = {1, 1};
   u32         passes      = 1;
-  gpu::Rect   area        = {};
+  RectU       area        = {};
 };
 
 struct BlurPass : Pass
@@ -74,17 +71,16 @@ struct BlurPass : Pass
 
   virtual ~BlurPass() override = default;
 
-  virtual Span<char const> id() override
+  virtual Span<char const> label() override
   {
     return "Blur"_str;
   }
 
-  virtual void acquire(GpuSystem & gpu, AssetMap & assets) override;
+  virtual void acquire() override;
 
-  virtual void release(GpuSystem & gpu, AssetMap & assets) override;
+  virtual void release() override;
 
-  void encode(GpuSystem & gpu, gpu::CommandEncoder & encoder,
-              BlurPassParams const & params);
+  void encode(gpu::CommandEncoder & encoder, BlurPassParams const & params);
 };
 
 struct NgonParam
@@ -102,7 +98,7 @@ struct NgonParam
 struct NgonPassParams
 {
   Framebuffer        framebuffer    = {};
-  gpu::Rect          scissor        = {};
+  RectU              scissor        = {};
   gpu::Viewport      viewport       = {};
   Mat4               world_to_view  = {};
   gpu::DescriptorSet vertices_ssbo  = nullptr;
@@ -121,17 +117,16 @@ struct NgonPass : Pass
 
   virtual ~NgonPass() override = default;
 
-  virtual Span<char const> id() override
+  virtual Span<char const> label() override
   {
     return "Ngon"_str;
   }
 
-  virtual void acquire(GpuSystem & gpu, AssetMap & assets) override;
+  virtual void acquire() override;
 
-  virtual void release(GpuSystem & gpu, AssetMap & assets) override;
+  virtual void release() override;
 
-  void encode(GpuSystem & gpu, gpu::CommandEncoder & encoder,
-              NgonPassParams const & params);
+  void encode(gpu::CommandEncoder & encoder, NgonPassParams const & params);
 };
 
 /// @see https://github.com/KhronosGroup/glTF/tree/acfcbe65e40c53d6d3aa55a7299982bf2c01c75d/extensions/2.0/Khronos
@@ -174,7 +169,7 @@ struct PBRVertex
 struct PBRPassParams
 {
   Framebuffer        framebuffer   = {};
-  gpu::Rect          scissor       = {};
+  RectU              scissor       = {};
   gpu::Viewport      viewport      = {};
   Mat4               world_to_view = {};
   bool               wireframe     = false;
@@ -196,17 +191,16 @@ struct PBRPass : Pass
 
   virtual ~PBRPass() override = default;
 
-  virtual Span<char const> id() override
+  virtual Span<char const> label() override
   {
     return "PBR"_str;
   }
 
-  virtual void acquire(GpuSystem & gpu, AssetMap & assets) override;
+  virtual void acquire() override;
 
-  virtual void release(GpuSystem & gpu, AssetMap & assets) override;
+  virtual void release() override;
 
-  void encode(GpuSystem & gpu, gpu::CommandEncoder & encoder,
-              PBRPassParams const & params);
+  void encode(gpu::CommandEncoder & encoder, PBRPassParams const & params);
 };
 
 struct RRectParam
@@ -227,7 +221,7 @@ struct RRectParam
 struct RRectPassParams
 {
   Framebuffer        framebuffer    = {};
-  gpu::Rect          scissor        = {};
+  RectU              scissor        = {};
   gpu::Viewport      viewport       = {};
   Mat4               world_to_view  = {};
   gpu::DescriptorSet params_ssbo    = nullptr;
@@ -240,7 +234,7 @@ struct RRectPass : Pass
 {
   gpu::GraphicsPipeline pipeline = nullptr;
 
-  virtual Span<char const> id() override
+  virtual Span<char const> label() override
   {
     return "RRect"_str;
   }
@@ -249,12 +243,11 @@ struct RRectPass : Pass
 
   virtual ~RRectPass() override = default;
 
-  virtual void acquire(GpuSystem & gpu, AssetMap & assets) override;
+  virtual void acquire() override;
 
-  virtual void release(GpuSystem & gpu, AssetMap & assets) override;
+  virtual void release() override;
 
-  void encode(GpuSystem & gpu, gpu::CommandEncoder & encoder,
-              RRectPassParams const & params);
+  void encode(gpu::CommandEncoder & encoder, RRectPassParams const & params);
 };
 
 }    // namespace ash

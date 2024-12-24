@@ -66,15 +66,11 @@ struct Engine
 
   gpu::PresentMode present_mode_preference;
 
-  GpuSystem gpu;
-
   Renderer renderer;
 
   Canvas canvas;
 
   ViewSystem view_system;
-
-  AssetMap assets;
 
   Vec<char> default_font_name;
 
@@ -85,8 +81,7 @@ struct Engine
   Engine(AllocatorImpl allocator, void * app, Dyn<gpu::Instance *> instance,
          gpu::Device * device, Window window, ClipBoard & clipboard,
          gpu::Surface surface, gpu::PresentMode present_mode_preference,
-         GpuSystem gpu, Renderer renderer, Canvas canvas,
-         ViewSystem view_system) :
+         Renderer renderer, Canvas canvas, ViewSystem view_system) :
     allocator{allocator},
     app{app},
     instance{std::move(instance)},
@@ -95,11 +90,9 @@ struct Engine
     clipboard{&clipboard},
     surface{surface},
     present_mode_preference{present_mode_preference},
-    gpu{std::move(gpu)},
     renderer{std::move(renderer)},
     canvas{std::move(canvas)},
     view_system{std::move(view_system)},
-    assets{allocator},
     default_font_name{allocator},
     input_buffer{allocator}
   {
