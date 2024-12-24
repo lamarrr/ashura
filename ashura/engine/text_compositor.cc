@@ -8,6 +8,54 @@
 namespace ash
 {
 
+Result<TextCompositor> TextCompositor::make(AllocatorImpl allocator,
+                                            u32           num_buffer_codepoints,
+                                            u32 num_records, u32 tab_width,
+                                            Span<c32 const> word_symbols,
+                                            Span<c32 const> line_symbols)
+{
+  CHECK(num_buffer_codepoints > 0);
+  CHECK(num_records > 0);
+
+  Vec<c32>            buffer{allocator};
+  Vec<TextEditRecord> records{allocator};
+
+  if (!buffer.resize_uninit(num_buffer_codepoints))
+  {
+    return Err{};
+  }
+
+  if (!records.resize(num_records))
+  {
+    return Err{};
+  }
+
+  return Ok{
+    TextCompositor{allocator, std::move(buffer), std::move(records), tab_width,
+                   word_symbols, line_symbols}
+  };
+}
+
+u32 TextCompositor::goto_line(TextLayout const & layout, u32 alignment,
+                              u32 line)
+{
+  if (layout.lines.is_empty())
+  {
+    return 0;
+  }
+
+  line = min(line, layout.lines.size32() - 1);
+
+  Line const & ln = layout.lines[line];
+
+  if (alignment > ln.num_codepoints)
+  {
+    return ln.first_codepoint + (ln.num_codepoints - 1);
+  }
+
+  return ln.first_codepoint + alignment;
+}
+
 void TextCompositor::pop_records(u32 num)
 {
   CHECK(num <= records_.size32());
@@ -122,7 +170,7 @@ void TextCompositor::delete_selection(Span<c32 const> text, Erase erase)
   }
 
   Slice32 const selection = cursor_.as_slice(text.size32());
-  append_record(false, selection.offset, text.slice(selection));
+  append_record(false, selection.offset, text.slice((Slice) selection));
   erase(selection);
   cursor_ = cursor_.to_begin();
 }
@@ -439,7 +487,7 @@ void TextCompositor::command(Span<c32 const> text, TextLayout const & layout,
     case TextCommand::Cut:
     {
       Vec<c8> data_u8{allocator_};
-      utf8_encode(text.slice(cursor_.as_slice(text.size32())), data_u8)
+      utf8_encode(text.slice((Slice) cursor_.as_slice(text.size32())), data_u8)
         .unwrap();
       delete_selection(text, erase);
       clipboard.set_text(data_u8).unwrap();
@@ -448,7 +496,7 @@ void TextCompositor::command(Span<c32 const> text, TextLayout const & layout,
     case TextCommand::Copy:
     {
       Vec<c8> data_u8{allocator_};
-      utf8_encode(text.slice(cursor_.as_slice(text.size32())), data_u8)
+      utf8_encode(text.slice((Slice) cursor_.as_slice(text.size32())), data_u8)
         .unwrap();
       clipboard.set_text(data_u8).unwrap();
     }

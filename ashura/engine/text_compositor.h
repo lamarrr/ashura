@@ -175,41 +175,35 @@ struct TextCompositor
   u32                 buffer_pos_     = 0;
   u32                 latest_record_  = 0;
   u32                 current_record_ = 0;
-  u32                 tab_width_      = 1;
-  Span<c32 const>     word_symbols_   = DEFAULT_WORD_SYMBOLS;
-  Span<c32 const>     line_symbols_   = DEFAULT_LINE_SYMBOLS;
+  u32                 tab_width_;
+  Span<c32 const>     word_symbols_;
+  Span<c32 const>     line_symbols_;
 
-  TextCompositor(u32 num_buffer_codepoints = 16_KB, u32 num_records = 1'024) :
-    buffer_{allocator_},
-    records_{allocator_}
+  static Result<TextCompositor>
+    make(AllocatorImpl allocator   = default_allocator,
+         u32 num_buffer_codepoints = 4'096, u32 num_records = 1'024,
+         u32 tab_width = 1, Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS,
+         Span<c32 const> line_symbols = DEFAULT_LINE_SYMBOLS);
+
+  TextCompositor(AllocatorImpl allocator, Vec<c32> buffer,
+                 Vec<TextEditRecord> records, u32 tab_width,
+                 Span<c32 const> word_symbols, Span<c32 const> line_symbols) :
+    allocator_{allocator},
+    buffer_{std::move(buffer)},
+    records_{std::move(records)},
+    tab_width_{tab_width},
+    word_symbols_{word_symbols},
+    line_symbols_{line_symbols}
   {
-    // [ ] use make()
-    CHECK(num_buffer_codepoints > 0);
-    CHECK(num_records > 0);
-    CHECK(is_pow2(num_buffer_codepoints));
-    CHECK(is_pow2(num_records));
-    buffer_.resize_uninit(num_buffer_codepoints).unwrap();
-    records_.resize(num_records).unwrap();
   }
 
-  static u32 goto_line(TextLayout const & layout, u32 alignment, u32 line)
-  {
-    if (layout.lines.is_empty())
-    {
-      return 0;
-    }
+  TextCompositor(TextCompositor const &)             = delete;
+  TextCompositor(TextCompositor &&)                  = default;
+  TextCompositor & operator=(TextCompositor const &) = delete;
+  TextCompositor & operator=(TextCompositor &&)      = default;
+  ~TextCompositor()                                  = default;
 
-    line = min(line, layout.lines.size32() - 1);
-
-    Line const & ln = layout.lines[line];
-
-    if (alignment > ln.num_codepoints)
-    {
-      return ln.first_codepoint + (ln.num_codepoints - 1);
-    }
-
-    return ln.first_codepoint + alignment;
-  }
+  static u32 goto_line(TextLayout const & layout, u32 alignment, u32 line);
 
   TextCursor get_cursor() const
   {
