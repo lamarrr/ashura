@@ -14,17 +14,16 @@ out(f"""/// SPDX-License-Identifier: MIT
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include "ashura/std/types.h"
 
 namespace ash
 {{
 
-inline constexpr usize MAX_PACK_SIZE = {MAX_SIZE};
+inline constexpr unsigned int MAX_PACK_SIZE = {MAX_SIZE};
 
 namespace intr
 {{
 
-template <usize I, typename... T>
+template <unsigned int I, typename... T>
 requires((I < sizeof...(T)) && (sizeof...(T) <= MAX_PACK_SIZE))
 struct index_pack;
 

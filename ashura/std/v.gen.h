@@ -2,17 +2,16 @@
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include "ashura/std/types.h"
 
 namespace ash
 {
 
-template <usize I>
+template <unsigned int I>
 struct V
 {
-  static constexpr usize INDEX = I;
+  static constexpr unsigned int INDEX = I;
 
-  static constexpr usize index()
+  static constexpr unsigned int index()
   {
     return INDEX;
   }

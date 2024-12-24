@@ -20,12 +20,11 @@ out(f"""/// SPDX-License-Identifier: MIT
 #include "ashura/std/error.h"
 #include "ashura/std/log.h"
 #include "ashura/std/tuple.h"
-#include "ashura/std/types.h"
 
 namespace ash
 {{
 
-inline constexpr usize MAX_ENUM_SIZE = {MAX_ENUM_SIZE};
+inline constexpr unsigned int MAX_ENUM_SIZE = {MAX_ENUM_SIZE};
 
 template<typename ... T>
 requires(sizeof...(T) <= MAX_ENUM_SIZE)
@@ -37,7 +36,7 @@ member_cases = [
   f"""
 if constexpr(I == {i})
 {{
-  return (e.v{i}_);
+  return e.v{i}_;
 }}
 """ for i in range(MAX_ENUM_SIZE)]
 
@@ -75,8 +74,8 @@ if(e->index_ == {i})
 out(f"""
 namespace intr{{
 
-template<usize I, typename Enum>
-constexpr decltype(auto) enum_member(Enum& e)
+template<unsigned int I, typename Enum>
+constexpr auto& enum_member(Enum& e)
 {{
 {"else".join(member_cases)}
 }};
@@ -141,7 +140,7 @@ enum_copy_construct(src, dst);
 """)
 
 match_cases = [
-f"""if constexpr(SIZE > {i})
+f""" if constexpr(SIZE > {i})
 {{
   if(e.index_ == {i})
   {{
@@ -151,12 +150,12 @@ f"""if constexpr(SIZE > {i})
 
 out(
 f"""
-template<usize SIZE, typename Enum, typename ... Fns>
+template<unsigned int SIZE, typename Enum, typename ... Fns>
 constexpr decltype(auto) match(Enum && e, Fns && ... fns)
 {{
   Tuple<Fns && ...> fns_ref{{ static_cast<Fns && >(fns)... }};
 
-  {"\n".join(match_cases)}
+{"\n".join(match_cases)}
 
   ASH_UNREACHABLE;
 }}
@@ -183,16 +182,16 @@ for size in range(0,  MAX_ENUM_SIZE + 1):
   if size == 0:
         index_def = ""
   elif size == 1:
-        index_def = """static constexpr u32 index_ = 0;
+        index_def = """static constexpr unsigned int index_ = 0;
 
-static constexpr usize index()
+static constexpr unsigned int index()
 {
   return 0;
 }"""
   else:
-        index_def = """u32 index_;
+        index_def = """unsigned int index_;
 
-constexpr usize index() const
+constexpr unsigned int index() const
 {
   return index_;
 }"""
@@ -218,23 +217,23 @@ template<{", ".join(typename_decls)}>
 struct Enum<{", ".join(types)}>
 {{
 
-{"\n".join(alias_decls)}
+{"\t".join(alias_decls)}
 
 {"" if size == 0 else
-f"""template<usize I>
+f"""template<unsigned int I>
 using E = index_pack<I, {", ".join(aliases)}>;
 """}
 
-static constexpr usize SIZE = {size};
+static constexpr unsigned int SIZE = {size};
 
-static constexpr usize size()
+static constexpr unsigned int size()
 {{
   return SIZE;
 }}
 
 {
 f"""
-constexpr bool is(usize) const
+constexpr bool is(unsigned int) const
 {{
   return false;
 }}
@@ -251,7 +250,7 @@ constexpr void match() const
 if size == 0 else f"""{index_def}
 
 union {{
-{"\n".join(members_def)}
+{"\t".join(members_def)}
 }};
 
 constexpr Enum(Enum const& other)
@@ -281,31 +280,69 @@ constexpr ~Enum()
   intr::enum_destruct(this);
 }}
 
-template<usize I, typename ...Args>
-constexpr Enum(V<I>, Args &&... args)
+template<unsigned int I, typename ...Args>
+constexpr Enum(V<I>, Args &&... args) requires(I < SIZE)
 {{
   intr::enum_member_construct(&intr::enum_member<I>(*this), static_cast<Args &&>(args)...);
 }}
 
 {"\n".join(value_constructors)}
 
-constexpr bool is(usize i) const
+constexpr bool is(unsigned int i) const
 {{
   return index_ == i;
 }}
 
-template<usize I> requires(I < SIZE)
-constexpr auto& operator[](V<I>)
+template<unsigned int I> requires(I < SIZE)
+constexpr auto& get(V<I>) &
 {{
-  CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+  CHECK_DESC(index_ == I, "Accessed Enum type: ", I, " but type is: ", index_);
   return intr::enum_member<I>(*this);
 }}
 
-template<usize I> requires(I < SIZE)
-constexpr auto const& operator[](V<I>) const
+template<unsigned int I> requires(I < SIZE)
+constexpr auto const& get(V<I>) const &
 {{
-  CHECK_DESC(index_ == I, "Accessed Enum value at index: ", I, " but index is: ", index_);
+  CHECK_DESC(index_ == I, "Accessed Enum type: ", I, " but type is: ", index_);
   return intr::enum_member<I>(*this);
+}}
+
+template<unsigned int I> requires(I < SIZE)
+constexpr auto&& get(V<I>) &&
+{{
+  CHECK_DESC(index_ == I, "Accessed Enum type: ", I, " but type is: ", index_);
+  return intr::enum_member<I>(*this);
+}}
+
+template<unsigned int I> requires(I < SIZE)
+constexpr auto const&& get(V<I>) const &&
+{{
+  CHECK_DESC(index_ == I, "Accessed Enum type: ", I, " but type is: ", index_);
+  return intr::enum_member<I>(*this);
+}}
+
+template<unsigned int I>
+constexpr auto& operator[](V<I> v) &
+{{
+  return get(v);
+}}
+
+template<unsigned int I>
+constexpr auto const& operator[](V<I> v) const &
+{{
+  return get(v);
+}}
+
+template<unsigned int I>
+constexpr auto& operator[](V<I> v) &&
+{{
+  return get(v);
+}}
+
+template<unsigned int I>
+constexpr auto const&& operator[](V<I> v) const &&
+{{
+  return get(v);
 }}
 
 template<typename... Fns>

@@ -15,22 +15,20 @@ out(f"""/// SPDX-License-Identifier: MIT
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include "ashura/std/types.h"
 #include "ashura/std/v.h"
 #include "ashura/std/index_pack.h"
 
 namespace ash{{
 
-inline constexpr usize MAX_TUPLE_SIZE = {MAX_TUPLE_SIZE};
+inline constexpr unsigned int MAX_TUPLE_SIZE = {MAX_TUPLE_SIZE};
 
 """)
-
 
 tuple_cases = [
   f"""
 if constexpr(I == {i})
 {{
-  return (t.v{i});
+  return t.v{i};
 }}
 """ for i in range(MAX_TUPLE_SIZE)]
 
@@ -39,7 +37,7 @@ namespace intr
 {{
 
 template<usize I, typename Tuple>
-constexpr decltype(auto) tuple_member(Tuple& t)
+constexpr auto& tuple_member(Tuple& t)
 {{
 {"else".join(tuple_cases)}
 }};
@@ -71,32 +69,43 @@ template<{", ".join(typename_decls)}>
 struct Tuple<{", ".join(types)}>
 {{
 
-{"\n".join(alias_decls)}
+{"\t".join(alias_decls)}
 
 {"" if size == 0 else 
-f"""template<usize I>
+f"""template<unsigned int I>
 using E = index_pack<I, {", ".join(aliases)}>;
 """}
 
-static constexpr usize SIZE = {size};
+static constexpr unsigned int SIZE = {size};
 
-static constexpr usize size()
+static constexpr unsigned int size()
 {{
   return SIZE;
 }}
 
-{"\n".join(value_decls)}
+{"\t".join(value_decls)}
 
-template<usize I> requires(I < SIZE)
-constexpr auto& operator[](V<I>)
-{{
-  return intr::tuple_member<I>(*this);
+template<unsigned int I> requires(I < SIZE)
+constexpr auto & get() & {{
+ return intr::tuple_member<I>(*this);
 }}
 
-template<usize I> requires(I < SIZE)
-constexpr auto const& operator[](V<I>) const
+template<unsigned int I> requires(I < SIZE)
+constexpr auto const& get() const & {{
+ return intr::tuple_member<I>(*this);
+}}
+
+
+template<usize I>
+constexpr auto& operator[](V<I>) &
 {{
-  return intr::tuple_member<I>(*this);
+  return get<I>(*this);
+}}
+
+template<usize I>
+constexpr auto const& operator[](V<I>) const &
+{{
+  return get<I>(*this);
 }}
 
 }};
