@@ -581,6 +581,16 @@ struct Vec3
   {
     return (&x)[i];
   }
+
+  constexpr Vec2 xy() const
+  {
+    return {x, y};
+  }
+
+  constexpr Vec2 yz() const
+  {
+    return {y, z};
+  }
 };
 
 constexpr Vec3 vec3(Vec2 xy, f32 z)
@@ -712,6 +722,26 @@ struct alignas(16) Vec4
   constexpr f32 const & operator[](usize i) const
   {
     return (&x)[i];
+  }
+
+  constexpr Vec2 xy() const
+  {
+    return {x, y};
+  }
+
+  constexpr Vec2 yz() const
+  {
+    return {y, z};
+  }
+
+  constexpr Vec3 xyz() const
+  {
+    return {x, y, z};
+  }
+
+  constexpr Vec3 yzw() const
+  {
+    return {y, z, w};
   }
 };
 
@@ -1097,6 +1127,26 @@ struct alignas(16) Vec4I
   {
     return (&x)[i];
   }
+
+  constexpr Vec2I xy() const
+  {
+    return {x, y};
+  }
+
+  constexpr Vec2I yz() const
+  {
+    return {y, z};
+  }
+
+  constexpr Vec3I xyz() const
+  {
+    return {x, y, z};
+  }
+
+  constexpr Vec3I yzw() const
+  {
+    return {y, z, w};
+  }
 };
 
 constexpr bool operator==(Vec4I a, Vec4I b)
@@ -1288,6 +1338,16 @@ struct Vec3U
   {
     return (&x)[i];
   }
+
+  constexpr Vec2U xy() const
+  {
+    return {x, y};
+  }
+
+  constexpr Vec2U yz() const
+  {
+    return {y, z};
+  }
 };
 
 constexpr bool operator==(Vec3U a, Vec3U b)
@@ -1364,6 +1424,26 @@ struct alignas(16) Vec4U
   constexpr u32 const & operator[](usize i) const
   {
     return (&x)[i];
+  }
+
+  constexpr Vec2U xy() const
+  {
+    return {x, y};
+  }
+
+  constexpr Vec2U yz() const
+  {
+    return {y, z};
+  }
+
+  constexpr Vec3U xyz() const
+  {
+    return {x, y, z};
+  }
+
+  constexpr Vec3U yzw() const
+  {
+    return {y, z, w};
   }
 };
 
