@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
+#include "ashura/engine/assets.h"
 #include "ashura/engine/gpu_system.h"
 #include "ashura/engine/passes.h"
 #include "ashura/std/dyn.h"
@@ -9,16 +10,17 @@ namespace ash
 
 struct PassContext
 {
-  BloomPass *         bloom;
-  BlurPass *          blur;
-  NgonPass *          ngon;
-  PBRPass *           pbr;
-  RRectPass *         rrect;
+  BloomPass *      bloom;
+  BlurPass *       blur;
+  NgonPass *       ngon;
+  PBRPass *        pbr;
+  RRectPass *      rrect;
   Vec<Dyn<Pass *>> all;
 
-  explicit PassContext(BloomPass & bloom, BlurPass & blur, NgonPass & ngon,
-                       PBRPass & pbr, RRectPass & rrect,
-                       Vec<Dyn<Pass *>> all) :
+  static PassContext create(AllocatorImpl allocator);
+
+  PassContext(BloomPass & bloom, BlurPass & blur, NgonPass & ngon,
+              PBRPass & pbr, RRectPass & rrect, Vec<Dyn<Pass *>> all) :
     bloom{&bloom},
     blur{&blur},
     ngon{&ngon},
@@ -28,73 +30,28 @@ struct PassContext
   {
   }
 
-  static PassContext create(AllocatorImpl allocator)
-  {
-    Dyn bloom = dyn(allocator, BloomPass{}).unwrap();
-    Dyn blur  = dyn(allocator, BlurPass{}).unwrap();
-    Dyn ngon  = dyn(allocator, NgonPass{}).unwrap();
-    Dyn pbr   = dyn(allocator, PBRPass{}).unwrap();
-    Dyn rrect = dyn(allocator, RRectPass{}).unwrap();
-
-    BloomPass * pbloom = bloom.get();
-    BlurPass *  pblur  = blur.get();
-    NgonPass *  pngon  = ngon.get();
-    PBRPass *   ppbr   = pbr.get();
-    RRectPass * prrect = rrect.get();
-
-    Vec<Dyn<Pass *>> all{allocator};
-
-    all.push(transmute(std::move(bloom), static_cast<Pass *>(pbloom)))
-      .unwrap();
-    all.push(transmute(std::move(blur), static_cast<Pass *>(pblur)))
-      .unwrap();
-    all.push(transmute(std::move(ngon), static_cast<Pass *>(pngon)))
-      .unwrap();
-    all.push(transmute(std::move(pbr), static_cast<Pass *>(ppbr))).unwrap();
-    all.push(transmute(std::move(rrect), static_cast<Pass *>(prrect)))
-      .unwrap();
-
-    return PassContext{*pbloom, *pblur, *pngon, *ppbr, *prrect, std::move(all)};
-  }
-
   PassContext(PassContext const &)             = delete;
   PassContext(PassContext &&)                  = default;
   PassContext & operator=(PassContext const &) = delete;
   PassContext & operator=(PassContext &&)      = default;
   ~PassContext()                               = default;
 
-  void acquire(GpuSystem & gpu, AssetMap & assets)
-  {
-    for (auto const & p : all)
-    {
-      p->acquire(gpu, assets);
-    };
-  }
+  void acquire();
 
-  void release(GpuSystem & gpu, AssetMap & assets)
-  {
-    for (auto const & p : all)
-    {
-      p->release(gpu, assets);
-    };
-  }
+  void release();
 };
 
 struct GpuPipeline
 {
   virtual Span<char const> id() = 0;
 
-  virtual void acquire(GpuSystem & gpu, PassContext & passes,
-                       AssetMap & assets) = 0;
+  virtual void acquire(PassContext & passes) = 0;
 
-  virtual void release(GpuSystem & gpu, PassContext & passes,
-                       AssetMap & assets) = 0;
+  virtual void release(PassContext & passes) = 0;
 
-  virtual void begin_frame(GpuSystem & gpu, PassContext & passes,
-                           gpu::CommandEncoder & enc) = 0;
+  virtual void begin_frame(PassContext & passes, gpu::CommandEncoder & enc) = 0;
 
-  virtual void end_frame(GpuSystem & gpu, PassContext & passes,
-                         gpu::CommandEncoder & enc) = 0;
+  virtual void end_frame(PassContext & passes, gpu::CommandEncoder & enc) = 0;
 
   virtual ~GpuPipeline() = default;
 };
@@ -124,17 +81,13 @@ struct Renderer
 
   Vec<Dyn<GpuPipeline *>> pipelines;
 
+  static Renderer create(AllocatorImpl allocator);
+
   Renderer(AllocatorImpl allocator, PassContext passes) :
     resources{},
     passes{std::move(passes)},
     pipelines{allocator}
   {
-  }
-
-  static Renderer create(AllocatorImpl allocator)
-  {
-    PassContext passes = PassContext::create(allocator);
-    return Renderer{allocator, std::move(passes)};
   }
 
   Renderer(Renderer const &)             = delete;
@@ -143,58 +96,19 @@ struct Renderer
   Renderer & operator=(Renderer &&)      = default;
   ~Renderer()                            = default;
 
-  void acquire(GpuSystem & gpu, AssetMap & assets)
-  {
-    passes.acquire(gpu, assets);
+  void acquire();
 
-    for (Dyn<GpuPipeline *> const & p : pipelines)
-    {
-      p->acquire(gpu, passes, assets);
-    }
+  void release();
 
-    resources.resize(gpu.buffering).unwrap();
-  }
+  void add_pass(Dyn<Pass *> pass);
 
-  void release(GpuSystem & gpu, AssetMap & assets)
-  {
-    for (Resources & r : resources)
-    {
-      r.pbr_params.uninit(gpu);
-      r.pbr_light_params.uninit(gpu);
-      r.ngon_vertices.uninit(gpu);
-      r.ngon_indices.uninit(gpu);
-      r.ngon_params.uninit(gpu);
-      r.rrect_params.uninit(gpu);
-    }
+  void add_pipeline(Dyn<GpuPipeline *> pipeline);
 
-    resources.reset();
+  void begin_frame(Framebuffer const & fb, Canvas & canvas);
 
-    for (Dyn<GpuPipeline *> const & p : pipelines)
-    {
-      p->release(gpu, passes, assets);
-    }
+  void end_frame(Framebuffer const & fb, Canvas & canvas);
 
-    passes.release(gpu, assets);
-  }
-
-  void add_pass(GpuSystem & gpu, Dyn<Pass *> pass, AssetMap & assets)
-  {
-    pass->acquire(gpu, assets);
-    passes.all.push(std::move(pass)).unwrap();
-  }
-
-  void add_pipeline(GpuSystem & gpu, Dyn<GpuPipeline *> pipeline,
-                    AssetMap & assets)
-  {
-    pipeline->acquire(gpu, passes, assets);
-    pipelines.push(std::move(pipeline)).unwrap();
-  }
-
-  void begin_frame(GpuSystem & gpu, Framebuffer const & fb, Canvas & canvas);
-
-  void end_frame(GpuSystem & gpu, Framebuffer const & fb, Canvas & canvas);
-
-  void render_frame(GpuSystem & gpu, Framebuffer const & fb, Canvas & canvas);
+  void render_frame(Framebuffer const & fb, Canvas & canvas);
 };
 
 }    // namespace ash
