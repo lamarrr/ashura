@@ -1506,12 +1506,27 @@ constexpr Vec2 as_vec2(Vec2U a)
   return Vec2{(f32) a.x, (f32) a.y};
 }
 
+constexpr Vec2 as_vec2(Vec2I a)
+{
+  return Vec2{(f32) a.x, (f32) a.y};
+}
+
 constexpr Vec2I as_vec2i(Vec2U a)
 {
   return Vec2I{(i32) a.x, (i32) a.y};
 }
 
+constexpr Vec2I as_vec2i(Vec2 a)
+{
+  return Vec2I{(i32) a.x, (i32) a.y};
+}
+
 constexpr Vec2U as_vec2u(Vec2I a)
+{
+  return Vec2U{(u32) a.x, (u32) a.y};
+}
+
+constexpr Vec2U as_vec2u(Vec2 a)
 {
   return Vec2U{(u32) a.x, (u32) a.y};
 }
@@ -1835,7 +1850,8 @@ constexpr Mat3 & operator/=(Mat3 & a, Mat3 const & b)
 struct Affine3
 {
   static constexpr Vec3 trailing_row = Vec3{0, 0, 1};
-  Vec3                  rows[2]      = {};
+
+  Vec3 rows[2] = {};
 
   constexpr Vec3 & operator[](usize index)
   {
@@ -2101,7 +2117,8 @@ constexpr Mat4 & operator/=(Mat4 & a, Mat4 const & b)
 struct Affine4
 {
   static constexpr Vec4 trailing_row = Vec4{0, 0, 0, 1};
-  Vec4                  rows[3]      = {};
+
+  Vec4 rows[3] = {};
 
   constexpr Vec4 & operator[](usize index)
   {
