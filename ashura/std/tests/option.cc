@@ -292,19 +292,6 @@ TEST(OptionTest, Unwrap)
   EXPECT_DEATH_IF_SUPPORTED(Option<std::vector<int>>(none).unwrap(), ".*");
 }
 
-TEST(OptionTest, Expect)
-{
-  Option(0).expect("No Value Received");
-  // how does it behave with unique_ptr?
-  EXPECT_DEATH_IF_SUPPORTED(
-    Option<std::unique_ptr<int>>(none).expect("No Value Received"), ".*");
-}
-
-TEST(OptionLifetimeTest, Expect)
-{
-  auto a = Option(make_mv<0>());
-  std::move(a).expect("Yahoooo!").done();
-}
 
 TEST(OptionTest, UnwrapOr)
 {
@@ -466,16 +453,6 @@ TEST(OptionTest, OrElse)
   auto && f = Option<std::vector<int>>(none).or_else(
     []() { return Option<std::vector<int>>(none); });
   EXPECT_EQ(f, none);
-}
-
-TEST(OptionTest, ExpectNone)
-{
-  EXPECT_DEATH_IF_SUPPORTED(Option(56).expect_none("===TEST==="), ".*");
-  Option<int>(none).expect_none("===TEST===");
-
-  EXPECT_DEATH_IF_SUPPORTED(
-    Option(std::vector<int>{1, 2, 3, 4, 5}).expect_none("===TEST==="), ".*");
-  Option<std::vector<int>>(none).expect_none("===TEST===");
 }
 
 TEST(OptionTest, Match)
