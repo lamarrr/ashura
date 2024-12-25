@@ -302,22 +302,22 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
                  VkDebugUtilsMessageTypeFlagsEXT              message_type,
                  VkDebugUtilsMessengerCallbackDataEXT const * data, void *)
 {
-  LogLevels level = LogLevels::Trace;
+  LogLevel level = LogLevel::Trace;
   if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
   {
-    level = LogLevels::Debug;
+    level = LogLevel::Debug;
   }
   else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
   {
-    level = LogLevels::Warning;
+    level = LogLevel::Warning;
   }
   else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
   {
-    level = LogLevels::Info;
+    level = LogLevel::Info;
   }
   else
   {
-    level = LogLevels::Trace;
+    level = LogLevel::Trace;
   }
 
   logger->log(
