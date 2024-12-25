@@ -305,35 +305,61 @@ struct DescriptorBinding
     Buffer ** buffers;
   };
 
-  u32                 count              = 0;
-  gpu::DescriptorType type               = gpu::DescriptorType::Sampler;
-  bool                is_variable_length = false;
-  u32                 max_count          = 0;
+  u32                 count = 0;
+  gpu::DescriptorType type  = gpu::DescriptorType::Sampler;
 };
 
 struct DescriptorSet
 {
-  VkDescriptorSet   vk_set                                     = nullptr;
-  DescriptorBinding bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
-  u32               num_bindings                               = 0;
-  u32               pool                                       = 0;
-};
+  VkDescriptorSet   vk_set  = nullptr;
+  VkDescriptorPool  vk_pool = nullptr;
+  DescriptorBinding bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS]{};
+  u32               num_bindings = 0;
 
-struct DescriptorPool
-{
-  VkDescriptorPool vk_pool                     = nullptr;
-  u32              avail[NUM_DESCRIPTOR_TYPES] = {};
-};
+  /// @brief get the scratch buffer layout to use to update the maximually-sized binding
+  static constexpr Layout scratch_layout(Span<DescriptorBinding const> bindings)
+  {
+    Layout scratch{.alignment = MAX_STANDARD_ALIGNMENT, .size = 0};
 
-/// @param pool_size each pool will have `pool_size` of each descriptor type
-struct DescriptorHeap
-{
-  AllocatorImpl    allocator    = {};
-  DescriptorPool * pools        = nullptr;
-  u32              pool_size    = 0;
-  u8 *             scratch      = nullptr;
-  u32              num_pools    = 0;
-  usize            scratch_size = 0;
+    for (auto const & b : bindings)
+    {
+      switch (b.type)
+      {
+        case gpu::DescriptorType::DynamicStorageBuffer:
+        case gpu::DescriptorType::DynamicUniformBuffer:
+        case gpu::DescriptorType::StorageBuffer:
+        case gpu::DescriptorType::UniformBuffer:
+          scratch =
+            scratch.unioned(layout<VkDescriptorBufferInfo>.array(b.count));
+          break;
+
+        case gpu::DescriptorType::StorageTexelBuffer:
+        case gpu::DescriptorType::UniformTexelBuffer:
+          scratch = scratch.unioned(layout<VkBufferView>.array(b.count));
+          break;
+
+        case gpu::DescriptorType::SampledImage:
+        case gpu::DescriptorType::CombinedImageSampler:
+        case gpu::DescriptorType::StorageImage:
+        case gpu::DescriptorType::InputAttachment:
+        case gpu::DescriptorType::Sampler:
+          scratch =
+            scratch.unioned(layout<VkDescriptorImageInfo>.array(b.count));
+          break;
+        default:
+          break;
+      }
+    }
+
+    return scratch;
+  }
+
+  static constexpr Flex<DescriptorSet, void *, u8>
+    flex(Span<DescriptorBinding const> bindings)
+  {
+    return {layout<DescriptorSet>, layout<void *>.array(bindings.size32()),
+            scratch_layout(bindings)};
+  }
 };
 
 struct ComputePipeline
@@ -530,7 +556,7 @@ struct RenderPassContext
   GraphicsPipeline *       pipeline            = nullptr;
   bool                     has_state           = false;
 
-  void reset()
+  void clear()
   {
     render_area             = {};
     num_layers              = 0;
@@ -538,8 +564,8 @@ struct RenderPassContext
     num_depth_attachments   = 0;
     num_stencil_attachments = 0;
     commands.reset();
-    command_pool.reset();
-    arg_pool.reset();
+    command_pool.reclaim();
+    arg_pool.reclaim();
     num_vertex_buffers  = 0;
     index_buffer        = nullptr;
     index_buffer_offset = 0;
@@ -554,7 +580,7 @@ struct ComputePassContext
   u32               num_sets                                = 0;
   ComputePipeline * pipeline                                = nullptr;
 
-  void reset()
+  void clear()
   {
     num_sets = 0;
     pipeline = nullptr;
@@ -625,11 +651,11 @@ struct CommandEncoder final : gpu::CommandEncoder
 
   void access_graphics_bindings(DescriptorSet const & set);
 
-  void reset_context()
+  void clear_context()
   {
     state = CommandEncoderState::Begin;
-    render_ctx.reset();
-    compute_ctx.reset();
+    render_ctx.clear();
+    compute_ctx.clear();
   }
 
   virtual void reset_timestamp_query(gpu::TimeStampQuery query) override;
@@ -738,23 +764,20 @@ struct FrameContext
 
 struct Device final : gpu::Device
 {
-  AllocatorImpl      allocator       = {};
-  Instance *         instance        = nullptr;
-  PhysicalDevice     phy_dev         = {};
-  DeviceTable        vk_table        = {};
-  VmaVulkanFunctions vma_table       = {};
-  VkDevice           vk_dev          = nullptr;
-  u32                queue_family    = 0;
-  VkQueue            vk_queue        = nullptr;
-  VmaAllocator       vma_allocator   = nullptr;
-  FrameContext       frame_ctx       = {};
-  DescriptorHeap     descriptor_heap = {};
+  AllocatorImpl      allocator     = {};
+  Instance *         instance      = nullptr;
+  PhysicalDevice     phy_dev       = {};
+  DeviceTable        vk_table      = {};
+  VmaVulkanFunctions vma_table     = {};
+  VkDevice           vk_dev        = nullptr;
+  u32                queue_family  = 0;
+  VkQueue            vk_queue      = nullptr;
+  VmaAllocator       vma_allocator = nullptr;
+  FrameContext       frame_ctx     = {};
 
   void set_resource_name(Span<char const> label, void const * resource,
                          VkObjectType               type,
                          VkDebugReportObjectTypeEXT debug_type);
-
-  void uninit(DescriptorHeap * heap);
 
   VkResult recreate_swapchain(Swapchain * swapchain);
 

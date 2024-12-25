@@ -1031,9 +1031,7 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorImpl allocator,
 
   vk_instance = nullptr;
 
-  gpu::Instance * p_instance = static_cast<gpu::Instance *>(instance.get());
-
-  return Ok{transmute(std::move(instance), p_instance)};
+  return Ok{cast<gpu::Instance *>(std::move(instance))};
 }
 }    // namespace vk
 
@@ -1630,13 +1628,6 @@ Result<gpu::Device *, Status>
   dev->vk_queue      = vk_queue;
   dev->vma_allocator = vma_allocator;
   dev->frame_ctx     = FrameContext{.buffering = 0};
-  dev->descriptor_heap =
-    DescriptorHeap{.allocator    = allocator,
-                   .pools        = nullptr,
-                   .pool_size    = gpu::MAX_BINDING_DESCRIPTORS,
-                   .scratch      = nullptr,
-                   .num_pools    = 0,
-                   .scratch_size = 0};
 
   defer dev_{[&] {
     if (dev != nullptr)
@@ -1657,7 +1648,7 @@ Result<gpu::Device *, Status>
   vk_dev        = nullptr;
   dev           = nullptr;
 
-  return Ok{static_cast<gpu::Device *>(out)};
+  return Ok<gpu::Device *>{out};
 }
 
 gpu::Backend Instance::get_backend()
@@ -1675,7 +1666,6 @@ void Instance::uninit(gpu::Device * device_)
   }
 
   dev->uninit();
-  dev->uninit(&dev->descriptor_heap);
   vmaDestroyAllocator(dev->vma_allocator);
   dev->vk_table.DestroyDevice(dev->vk_dev, nullptr);
   allocator.ndealloc(dev, 1);
@@ -1706,17 +1696,6 @@ void Device::set_resource_name(Span<char const> label, void const * resource,
     .object      = (u64) resource,
     .pObjectName = label_c_str};
   vk_table.DebugMarkerSetObjectNameEXT(vk_dev, &debug_info);
-}
-
-void Device::uninit(DescriptorHeap * heap)
-{
-  for (u32 i = heap->num_pools; i-- > 0;)
-  {
-    vk_table.DestroyDescriptorPool(vk_dev, heap->pools[i].vk_pool, nullptr);
-  }
-  heap->allocator.ndealloc(heap->pools, heap->num_pools);
-  heap->allocator.dealloc(MAX_STANDARD_ALIGNMENT, heap->scratch,
-                          heap->scratch_size);
 }
 
 gpu::DeviceProperties Device::get_device_properties()
@@ -2243,151 +2222,83 @@ Result<gpu::DescriptorSet, Status>
   Device::create_descriptor_set(gpu::DescriptorSetInfo const & info)
 {
   DescriptorSetLayout * const layout = (DescriptorSetLayout *) info.layout;
-  DescriptorHeap &            heap   = descriptor_heap;
   CHECK(info.variable_lengths.size() == layout->num_variable_length);
+
+  u32 const num_bindings = layout->num_bindings;
 
   {
     u32 vla_idx = 0;
-    for (u32 i = 0; i < layout->num_bindings; i++)
+    for (u32 i = 0; i < num_bindings; i++)
     {
       if (layout->bindings[i].is_variable_length)
       {
         CHECK(info.variable_lengths[vla_idx] <= layout->bindings[i].count);
+        CHECK(info.variable_lengths[vla_idx] > 0);
         vla_idx++;
       }
     }
   }
 
-  u32 descriptor_usage[NUM_DESCRIPTOR_TYPES]           = {};
   u32 bindings_sizes[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
+
+  u32 type_count[NUM_DESCRIPTOR_TYPES] = {};
 
   {
     u32 vla_idx = 0;
-    for (u32 i = 0; i < layout->num_bindings; i++)
+    for (u32 i = 0; i < num_bindings; i++)
     {
-      gpu::DescriptorBindingInfo const & binding_info = layout->bindings[i];
-      u32                                count        = 0;
-      if (!binding_info.is_variable_length)
+      gpu::DescriptorBindingInfo const & binding = layout->bindings[i];
+      u32                                count   = 0;
+      if (!binding.is_variable_length)
       {
-        count = binding_info.count;
+        count = binding.count;
       }
       else
       {
         count = info.variable_lengths[vla_idx];
         vla_idx++;
       }
-      descriptor_usage[(u32) binding_info.type] += count;
+
+      type_count[(u32) binding.type] += count;
       bindings_sizes[i] = count;
     }
   }
 
-  u32 ipool = 0;
-  for (; ipool < heap.num_pools; ipool++)
+  VkDescriptorPoolSize pool_sizes[NUM_DESCRIPTOR_TYPES];
+  u32                  num_pool_sizes = 0;
+
+  for (u32 i = 0; i < NUM_DESCRIPTOR_TYPES; i++)
   {
-    bool fits = false;
-    for (u32 i = 0; i < NUM_DESCRIPTOR_TYPES; i++)
+    if (type_count[i] == 0)
     {
-      fits = fits || descriptor_usage[i] <= heap.pools[ipool].avail[i];
+      continue;
     }
-    if (fits)
-    {
-      break;
-    }
+
+    pool_sizes[num_pool_sizes] = VkDescriptorPoolSize{
+      .type = (VkDescriptorType) i, .descriptorCount = type_count[i]};
+    num_pool_sizes++;
   }
 
-  if (ipool >= heap.num_pools)
+  VkDescriptorPoolCreateInfo create_info{
+    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+    .pNext = nullptr,
+    .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT |
+             VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+    .maxSets       = 1,
+    .poolSizeCount = NUM_DESCRIPTOR_TYPES,
+    .pPoolSizes    = pool_sizes};
+
+  VkDescriptorPool vk_pool;
+  VkResult         result =
+    vk_table.CreateDescriptorPool(vk_dev, &create_info, nullptr, &vk_pool);
+
+  if (result != VK_SUCCESS)
   {
-    VkDescriptorPoolSize size[NUM_DESCRIPTOR_TYPES];
-    for (u32 i = 0; i < NUM_DESCRIPTOR_TYPES; i++)
-    {
-      size[i] = VkDescriptorPoolSize{.type            = (VkDescriptorType) i,
-                                     .descriptorCount = heap.pool_size};
-    }
-
-    VkDescriptorPoolCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT |
-               VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-      .maxSets       = heap.pool_size * NUM_DESCRIPTOR_TYPES,
-      .poolSizeCount = NUM_DESCRIPTOR_TYPES,
-      .pPoolSizes    = size};
-
-    VkDescriptorPool vk_pool;
-    VkResult         result =
-      vk_table.CreateDescriptorPool(vk_dev, &create_info, nullptr, &vk_pool);
-
-    if (result != VK_SUCCESS)
-    {
-      return Err{(Status) result};
-    }
-
-    defer vk_pool_{
-      [&] { vk_table.DestroyDescriptorPool(vk_dev, vk_pool, nullptr); }};
-
-    if (!heap.allocator.nrealloc(heap.num_pools, heap.num_pools + 1,
-                                 heap.pools))
-    {
-      return Err{Status::OutOfHostMemory};
-    }
-
-    DescriptorPool * pool = heap.pools + heap.num_pools;
-
-    fill(pool->avail, heap.pool_size);
-    pool->vk_pool = vk_pool;
-
-    heap.num_pools++;
-    vk_pool = nullptr;
+    return Err{(Status) result};
   }
 
-  DescriptorBinding bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
-  u32               num_bindings                               = 0;
-
-  defer sync_resources_{[&] {
-    for (u32 i = num_bindings; i-- > 0;)
-    {
-      if (bindings[i].sync_resources != nullptr)
-      {
-        heap.allocator.ndealloc(bindings[i].sync_resources, bindings[i].count);
-      }
-    }
-  }};
-
-  for (; num_bindings < layout->num_bindings; num_bindings++)
-  {
-    gpu::DescriptorBindingInfo const & info = layout->bindings[num_bindings];
-    void **                            sync_resources = nullptr;
-    u32                                count = bindings_sizes[num_bindings];
-
-    switch (info.type)
-    {
-      case gpu::DescriptorType::CombinedImageSampler:
-      case gpu::DescriptorType::SampledImage:
-      case gpu::DescriptorType::StorageImage:
-      case gpu::DescriptorType::UniformTexelBuffer:
-      case gpu::DescriptorType::StorageTexelBuffer:
-      case gpu::DescriptorType::UniformBuffer:
-      case gpu::DescriptorType::StorageBuffer:
-      case gpu::DescriptorType::DynamicUniformBuffer:
-      case gpu::DescriptorType::DynamicStorageBuffer:
-      case gpu::DescriptorType::InputAttachment:
-        if (!heap.allocator.nalloc_zeroed(count, sync_resources))
-        {
-          return Err{Status::OutOfHostMemory};
-        }
-        break;
-      default:
-        sync_resources = nullptr;
-        break;
-    }
-
-    bindings[num_bindings] =
-      DescriptorBinding{.sync_resources     = sync_resources,
-                        .count              = count,
-                        .type               = info.type,
-                        .is_variable_length = info.is_variable_length,
-                        .max_count          = info.count};
-  }
+  defer vk_pool_{
+    [&] { vk_table.DestroyDescriptorPool(vk_dev, vk_pool, nullptr); }};
 
   VkDescriptorSetVariableDescriptorCountAllocateInfoEXT var_alloc_info{
     .sType =
@@ -2399,40 +2310,69 @@ Result<gpu::DescriptorSet, Status>
   VkDescriptorSetAllocateInfo alloc_info{
     .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
     .pNext              = &var_alloc_info,
-    .descriptorPool     = heap.pools[ipool].vk_pool,
+    .descriptorPool     = vk_pool,
     .descriptorSetCount = 1,
     .pSetLayouts        = &layout->vk_layout};
 
   VkDescriptorSet vk_set;
-  VkResult        result =
-    vk_table.AllocateDescriptorSets(vk_dev, &alloc_info, &vk_set);
+  result = vk_table.AllocateDescriptorSets(vk_dev, &alloc_info, &vk_set);
 
   // must not have these errors
   CHECK(result != VK_ERROR_OUT_OF_POOL_MEMORY &&
         result != VK_ERROR_FRAGMENTED_POOL);
 
-  for (u32 i = 0; i < NUM_DESCRIPTOR_TYPES; i++)
+  if (result != VK_SUCCESS)
   {
-    heap.pools[ipool].avail[i] -= descriptor_usage[i];
+    return Err{(gpu::Status) result};
   }
 
   set_resource_name(info.label, vk_set, VK_OBJECT_TYPE_DESCRIPTOR_SET,
                     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_EXT);
 
-  DescriptorSet * set;
+  set_resource_name(info.label, vk_pool, VK_OBJECT_TYPE_DESCRIPTOR_POOL,
+                    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_POOL_EXT);
 
-  if (!heap.allocator.nalloc(1, set))
+  DescriptorBinding bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS] = {};
+
+  for (u32 i = 0; i < num_bindings; i++)
+  {
+    bindings[i] = DescriptorBinding{.sync_resources = nullptr,
+                                    .count          = bindings_sizes[i],
+                                    .type           = layout->bindings[i].type};
+  }
+
+  Flex const   flex        = DescriptorSet::flex(Span{bindings, num_bindings});
+  Layout const flex_layout = flex.layout();
+
+  u8 * head;
+
+  if (!allocator.alloc_zeroed(flex_layout.alignment, flex_layout.size, head))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  new (set) DescriptorSet{
-    .vk_set = vk_set, .num_bindings = num_bindings, .pool = ipool};
+  auto [set, sync_resources, scratch] = flex.unpack(head);
 
-  mem::copy(Span{bindings, num_bindings}, set->bindings);
-  num_bindings = 0;
+  DescriptorSet * p_set = new (set.data()) DescriptorSet{
+    .vk_set = vk_set, .vk_pool = vk_pool, .num_bindings = num_bindings};
 
-  return Ok{(gpu::DescriptorSet) set};
+  mem::copy(Span{bindings, num_bindings}, p_set->bindings);
+
+  {
+    // assing storage to the sync resources pointers
+    void ** iter = sync_resources.data();
+
+    for (u32 i = 0; i < num_bindings; i++)
+    {
+      p_set->bindings[i].sync_resources = iter;
+      iter += p_set->bindings[i].count;
+    }
+  }
+
+  vk_pool = nullptr;
+  vk_set  = nullptr;
+
+  return Ok{(gpu::DescriptorSet) p_set};
 }
 
 Result<gpu::PipelineCache, Status>
@@ -3147,6 +3087,10 @@ Status Device::init_command_encoder(CommandEncoder * enc)
 
 void Device::uninit(CommandEncoder * enc)
 {
+  if (enc == nullptr)
+  {
+    return;
+  }
   enc->render_ctx.commands.reset();
   vk_table.DestroyCommandPool(vk_dev, enc->vk_command_pool, nullptr);
 }
@@ -3453,34 +3397,21 @@ void Device::uninit(gpu::DescriptorSetLayout layout_)
 
 void Device::uninit(gpu::DescriptorSet set_)
 {
-  DescriptorSet * const set  = (DescriptorSet *) set_;
-  DescriptorHeap &      heap = descriptor_heap;
+  DescriptorSet * const set = (DescriptorSet *) set_;
 
   if (set == nullptr)
   {
     return;
   }
 
-  DescriptorPool * pool = heap.pools + set->pool;
-  VkResult         result =
-    vk_table.FreeDescriptorSets(vk_dev, pool->vk_pool, 1, &set->vk_set);
+  vk_table.DestroyDescriptorPool(vk_dev, set->vk_pool, nullptr);
 
-  CHECK(result == VK_SUCCESS);
+  u8 * head = (u8 *) set;
 
-  for (u32 i = 0; i < set->num_bindings; i++)
-  {
-    pool->avail[(u32) set->bindings[i].type] += set->bindings[i].count;
-  }
+  Layout layout =
+    DescriptorSet::flex({set->bindings, set->num_bindings}).layout();
 
-  for (u32 i = set->num_bindings; i-- > 0;)
-  {
-    if (set->bindings[i].sync_resources != nullptr)
-    {
-      heap.allocator.ndealloc(set->bindings[i].sync_resources,
-                              set->num_bindings);
-    }
-  }
-  heap.allocator.ndealloc(set, 1);
+  allocator.dealloc(layout.alignment, head, layout.size);
 }
 
 void Device::uninit(gpu::PipelineCache cache_)
@@ -3687,9 +3618,14 @@ Result<Void, Status>
 
 void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 {
-  DescriptorHeap * const heap = &descriptor_heap;
-  DescriptorSet * const  set  = (DescriptorSet *) update.set;
-  u64 const              ubo_offset_alignment =
+  if (update.buffers.is_empty() && update.texel_buffers.is_empty() &&
+      update.images.is_empty())
+  {
+    return;
+  }
+
+  DescriptorSet * const set = (DescriptorSet *) update.set;
+  u64 const             ubo_offset_alignment =
     phy_dev.vk_properties.limits.minUniformBufferOffsetAlignment;
   u64 const ssbo_offset_alignment =
     phy_dev.vk_properties.limits.minStorageBufferOffsetAlignment;
@@ -3697,8 +3633,12 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
   CHECK(update.binding < set->num_bindings);
   DescriptorBinding & binding = set->bindings[update.binding];
   CHECK(update.element < binding.count);
-  usize info_size = 0;
-  u32   count     = 0;
+
+  Flex const flex = DescriptorSet::flex({set->bindings, set->num_bindings});
+  auto [set_span, resources_span, scratch] = flex.unpack(set);
+
+  (void) set_span;
+  (void) resources_span;
 
   switch (binding.type)
   {
@@ -3797,53 +3737,10 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       CHECK_UNREACHABLE();
   }
 
-  switch (binding.type)
-  {
-    case gpu::DescriptorType::DynamicStorageBuffer:
-    case gpu::DescriptorType::DynamicUniformBuffer:
-    case gpu::DescriptorType::StorageBuffer:
-    case gpu::DescriptorType::UniformBuffer:
-      CHECK((update.element + update.buffers.size()) <= binding.count);
-      info_size = sizeof(VkDescriptorBufferInfo) * update.buffers.size();
-      count     = update.buffers.size32();
-      break;
-
-    case gpu::DescriptorType::StorageTexelBuffer:
-    case gpu::DescriptorType::UniformTexelBuffer:
-      CHECK((update.element + update.texel_buffers.size()) <= binding.count);
-      info_size = sizeof(VkBufferView) * update.texel_buffers.size();
-      count     = update.texel_buffers.size32();
-      break;
-
-    case gpu::DescriptorType::SampledImage:
-    case gpu::DescriptorType::CombinedImageSampler:
-    case gpu::DescriptorType::StorageImage:
-    case gpu::DescriptorType::InputAttachment:
-    case gpu::DescriptorType::Sampler:
-      CHECK((update.element + update.images.size()) <= binding.count);
-      info_size = sizeof(VkDescriptorImageInfo) * update.images.size();
-      count     = update.images.size32();
-      break;
-
-    default:
-      break;
-  }
-
-  if (count == 0)
-  {
-    return;
-  }
-
-  if (heap->scratch_size < info_size)
-  {
-    CHECK(heap->allocator.realloc(MAX_STANDARD_ALIGNMENT, heap->scratch_size,
-                                  info_size, heap->scratch));
-    heap->scratch_size = info_size;
-  }
-
   VkDescriptorImageInfo *  pImageInfo       = nullptr;
   VkDescriptorBufferInfo * pBufferInfo      = nullptr;
   VkBufferView *           pTexelBufferView = nullptr;
+  u32                      count            = 0;
 
   switch (binding.type)
   {
@@ -3852,8 +3749,9 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::StorageBuffer:
     case gpu::DescriptorType::UniformBuffer:
     {
-      pBufferInfo = (VkDescriptorBufferInfo *) heap->scratch;
-      for (u32 i = 0; i < update.buffers.size(); i++)
+      pBufferInfo = (VkDescriptorBufferInfo *) scratch.data();
+      count       = update.buffers.size32();
+      for (u32 i = 0; i < update.buffers.size32(); i++)
       {
         gpu::BufferBinding const & b      = update.buffers[i];
         Buffer *                   buffer = (Buffer *) b.buffer;
@@ -3867,7 +3765,8 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
     case gpu::DescriptorType::Sampler:
     {
-      pImageInfo = (VkDescriptorImageInfo *) heap->scratch;
+      pImageInfo = (VkDescriptorImageInfo *) scratch.data();
+      count      = update.images.size32();
       for (u32 i = 0; i < update.images.size(); i++)
       {
         pImageInfo[i] =
@@ -3880,7 +3779,8 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
     case gpu::DescriptorType::SampledImage:
     {
-      pImageInfo = (VkDescriptorImageInfo *) heap->scratch;
+      pImageInfo = (VkDescriptorImageInfo *) scratch.data();
+      count      = update.images.size32();
       for (u32 i = 0; i < update.images.size(); i++)
       {
         ImageView * view = (ImageView *) update.images[i].image_view;
@@ -3894,7 +3794,8 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
     case gpu::DescriptorType::CombinedImageSampler:
     {
-      pImageInfo = (VkDescriptorImageInfo *) heap->scratch;
+      pImageInfo = (VkDescriptorImageInfo *) scratch.data();
+      count      = update.images.size32();
       for (u32 i = 0; i < update.images.size(); i++)
       {
         gpu::ImageBinding const & b    = update.images[i];
@@ -3909,7 +3810,8 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
     case gpu::DescriptorType::StorageImage:
     {
-      pImageInfo = (VkDescriptorImageInfo *) heap->scratch;
+      pImageInfo = (VkDescriptorImageInfo *) scratch.data();
+      count      = update.images.size32();
       for (u32 i = 0; i < update.images.size(); i++)
       {
         ImageView * view = (ImageView *) update.images[i].image_view;
@@ -3923,7 +3825,8 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
 
     case gpu::DescriptorType::InputAttachment:
     {
-      pImageInfo = (VkDescriptorImageInfo *) heap->scratch;
+      pImageInfo = (VkDescriptorImageInfo *) scratch.data();
+      count      = update.images.size32();
       for (u32 i = 0; i < update.images.size(); i++)
       {
         ImageView * view = (ImageView *) update.images[i].image_view;
@@ -3938,7 +3841,8 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
     case gpu::DescriptorType::StorageTexelBuffer:
     case gpu::DescriptorType::UniformTexelBuffer:
     {
-      pTexelBufferView = (VkBufferView *) heap->scratch;
+      pTexelBufferView = (VkBufferView *) scratch.data();
+      count            = update.texel_buffers.size32();
       for (u32 i = 0; i < update.texel_buffers.size(); i++)
       {
         BufferView * view   = (BufferView *) update.texel_buffers[i];
@@ -4243,7 +4147,7 @@ Result<Void, Status> Device::begin_frame(gpu::Swapchain swapchain_)
 
   vk_table.ResetCommandBuffer(enc.vk_command_buffer, 0);
 
-  enc.reset_context();
+  enc.clear_context();
 
   VkCommandBufferBeginInfo info{
     .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -5018,7 +4922,7 @@ void CommandEncoder::end_compute_pass()
   ENCODE_PRELUDE();
   CHECK(is_in_compute_pass());
 
-  reset_context();
+  clear_context();
 }
 
 void validate_attachment(gpu::RenderingAttachment const & info,
@@ -5078,7 +4982,7 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
                         gpu::ImageUsage::DepthStencilAttachment);
   }
 
-  reset_context();
+  clear_context();
   mem::copy(info.color_attachments, render_ctx.color_attachments);
   mem::copy(info.depth_attachment, render_ctx.depth_attachment);
   mem::copy(info.stencil_attachment, render_ctx.stencil_attachment);
@@ -5493,7 +5397,7 @@ void CommandEncoder::end_rendering()
   }
 
   t->CmdEndRenderingKHR(vk_command_buffer);
-  reset_context();
+  clear_context();
 }
 
 void CommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline)
