@@ -681,7 +681,10 @@ struct MemoryRange
   u64 size   = 0;
 };
 
-/// @param extent can be negative to flip
+/// @brief Describes the region of the framebuffer the coordinates gotten from the shaders
+/// will be translated to. The shader coordinates are in range [0, 1].
+/// The [0, 1] shader coordinates will be transformed to where this viewport points to.
+/// If either extent.x or extent.y are negative the axis is inverted.
 struct Viewport
 {
   Vec2 offset    = {};
