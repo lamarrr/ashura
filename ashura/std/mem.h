@@ -212,6 +212,12 @@ struct Layout
   {
     return Layout{.alignment = alignment * n, .size = size * n};
   }
+
+  constexpr Layout unioned(Layout const & other) const
+  {
+    return Layout{.alignment = max(alignment, other.alignment),
+                  .size      = max(size, other.size)};
+  }
 };
 
 /// @brief Get the memory layout of a type
