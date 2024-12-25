@@ -137,7 +137,7 @@ struct CornerRadii
   {
   }
 
-  constexpr CornerRadii(f32 s, bool constrained) :
+  constexpr CornerRadii(f32 s, bool constrained = true) :
     CornerRadii{
       Size{.offset = s, .rmax = constrained ? 1 : F32_INF}
   }
