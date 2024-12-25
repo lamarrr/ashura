@@ -459,7 +459,7 @@ Result<> FontSystem::rasterize(Font & font_, u32 font_height)
 
   Vec2U atlas_extent{MIN_ATLAS_EXTENT, MIN_ATLAS_EXTENT};
 
-  font.cpu_atlas.expect_none("CPU font atlas has already been loaded");
+  font.cpu_atlas.unwrap_none("CPU font atlas has already been loaded"_str);
 
   CpuFontAtlas atlas;
 
