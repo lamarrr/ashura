@@ -192,16 +192,11 @@ struct [[nodiscard]] Option
     return none;
   }
 
-  constexpr T expect(char const *   msg,
-                     SourceLocation loc = SourceLocation::current())
+  constexpr T unwrap(Span<char const> msg = ""_str,
+                     SourceLocation   loc = SourceLocation::current())
   {
-    CHECK_DESC_SRC(loc, is_some(), msg);
-    return static_cast<T &&>(value_);
-  }
-
-  constexpr T unwrap(SourceLocation loc = SourceLocation::current())
-  {
-    CHECK_DESC_SRC(loc, is_some(), "Expected Value in Option but got None");
+    CHECK_DESC_SRC(loc, is_some(), "Expected Value in Option but got None. ",
+                   msg);
     return static_cast<T &&>(value_);
   }
 
@@ -278,16 +273,12 @@ struct [[nodiscard]] Option
     return op();
   }
 
-  constexpr void expect_none(char const *   msg,
-                             SourceLocation loc = SourceLocation::current())
-  {
-    CHECK_DESC_SRC(loc, is_none(), msg, " ", value_);
-  }
-
-  constexpr void unwrap_none(SourceLocation loc = SourceLocation::current())
+  constexpr void unwrap_none(Span<char const> msg = ""_str,
+                             SourceLocation   loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, is_none(),
-                   "Expected None in Option but got Value = ", value_);
+                   "Expected None in Option but got Value = ", value_, ". ",
+                   msg);
   }
 
   template <typename SomeFn, typename NoneFn = Noop>
@@ -517,16 +508,11 @@ struct [[nodiscard]] OptionRef
     return *rep_;
   }
 
-  constexpr T & expect(char const *   msg,
-                       SourceLocation loc = SourceLocation::current())
+  constexpr T & unwrap(Span<char const> msg = ""_str,
+                       SourceLocation   loc = SourceLocation::current())
   {
-    CHECK_DESC_SRC(loc, is_some(), msg);
-    return *rep_;
-  }
-
-  constexpr T & unwrap(SourceLocation loc = SourceLocation::current())
-  {
-    CHECK_DESC_SRC(loc, is_some(), "Expected Value in OptionRef but got None");
+    CHECK_DESC_SRC(loc, is_some(), "Expected Value in OptionRef but got None. ",
+                   msg);
     return *rep_;
   }
 
@@ -539,16 +525,12 @@ struct [[nodiscard]] OptionRef
     return alt;
   }
 
-  constexpr void expect_none(char const *   msg,
-                             SourceLocation loc = SourceLocation::current())
-  {
-    CHECK_DESC_SRC(loc, is_none(), msg, " ", *rep_);
-  }
-
-  constexpr void unwrap_none(SourceLocation loc = SourceLocation::current())
+  constexpr void unwrap_none(Span<char const> msg = ""_str,
+                             SourceLocation   loc = SourceLocation::current())
   {
     CHECK_DESC_SRC(loc, is_none(),
-                   "Expected None in OptionRef but got Value = ", *rep_);
+                   "Expected None in OptionRef but got Value = ", *rep_, ". ",
+                   msg);
   }
 
   template <typename SomeFn, typename NoneFn = Noop>
