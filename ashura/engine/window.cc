@@ -24,9 +24,11 @@ struct WindowImpl
 
 struct ClipBoardImpl : ClipBoard
 {
+  static constexpr usize MAX_MIME_SIZE = 256;
+
   virtual Result<> get(Span<char const> mime, Vec<c8> & out) override
   {
-    char mime_c_str[256];
+    char mime_c_str[MAX_MIME_SIZE + 1];
     CHECK(to_c_str(mime, mime_c_str));
     usize  mime_data_len;
     void * data = SDL_GetClipboardData(mime_c_str, &mime_data_len);
@@ -52,7 +54,7 @@ struct ClipBoardImpl : ClipBoard
       return Err{};
     }
 
-    char mime_c_str[256];
+    char mime_c_str[MAX_MIME_SIZE + 1];
     CHECK(to_c_str(mime, mime_c_str));
 
     char const * mime_types[] = {mime_c_str};
