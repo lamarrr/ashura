@@ -13,9 +13,8 @@ namespace ash
 Future<Result<Vec<u8>, IoErr>> FileSystem::load_file(Span<char const> path,
                                                      AllocatorImpl    allocator)
 {
-  InplaceVec<char, MAX_PATH_SIZE> path_copy;
-  path_copy.resize(path.size()).expect("Maximum path size exceeded");
-  mem::copy(path, path_copy.view());
+  PathVec path_copy;
+  path_copy.extend(path).unwrap("Maximum path size exceeded"_str);
 
   Future fut = future<Result<Vec<u8>, IoErr>>(allocator).unwrap();
 

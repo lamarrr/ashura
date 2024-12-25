@@ -9,6 +9,8 @@ namespace ash
 
 inline constexpr usize MAX_PATH_SIZE = 256;
 
+using PathVec = InplaceVec<char, MAX_PATH_SIZE>;
+
 enum class [[nodiscard]] IoErr : i32
 {
   None                   = 0,
@@ -288,8 +290,9 @@ inline bool push(Context const & ctx, Spec const & spec, IoErr const & err)
 
 Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff);
 
-inline Result<> path_append(Vec<char> & path, Span<char const> tail)
+inline Result<> path_append(PathVec & path, Span<char const> tail)
 {
+  usize const initial = path.size();
   if (!path.is_empty() && path.last() != '/' && path.last() != '\\')
   {
     if (!path.push('/'))
@@ -299,6 +302,7 @@ inline Result<> path_append(Vec<char> & path, Span<char const> tail)
   }
   if (!path.extend(tail))
   {
+    path.resize(initial).unwrap();
     return Err{};
   }
   return Ok{};
