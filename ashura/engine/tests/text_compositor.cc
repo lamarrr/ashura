@@ -9,7 +9,7 @@ TEST(TextCompositor, Main)
 {
   using namespace ash;
 
-  TextCompositor cmp;
+  TextCompositor cmp = TextCompositor::make().unwrap();
   TextLayout     layout;
   ClipBoard      clip;
 
