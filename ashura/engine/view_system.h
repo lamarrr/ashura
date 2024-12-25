@@ -136,8 +136,8 @@ struct ViewSystem
   /// @brief current frame input state
   InputState s1;
 
-  Vec<View *>   views;
-  Vec<ViewNode> nodes;
+  Vec<ref<View>> views;
+  Vec<ViewNode>  nodes;
 
   Vec<i32>    tab_indices;
   Vec<u32>    viewports;
@@ -302,7 +302,7 @@ struct ViewSystem
 
   void push_view(View & view, u32 depth, u32 breadth, u32 parent)
   {
-    views.push(&view).unwrap();
+    views.push(view).unwrap();
     nodes
       .push(ViewNode{.depth        = depth,
                      .breadth      = breadth,
@@ -379,8 +379,7 @@ struct ViewSystem
     for (u32 c = first_child; c < (first_child + num_children); c++)
     {
       tab_index++;
-      build_children(ctx, *views[c], c, depth + 1, tab_index,
-                     children_viewport);
+      build_children(ctx, views[c], c, depth + 1, tab_index, children_viewport);
     }
   }
 
@@ -520,7 +519,7 @@ struct ViewSystem
 
     for (u32 i = 0; i < n; i++)
     {
-      View & view  = *views[i];
+      View & view  = views[i];
       view.region_ = CRect{.center = centers[i], .extent = extents[i]};
       view.zoom_   = transforms[i][0][0];
     }
@@ -624,7 +623,7 @@ struct ViewSystem
     {
       if (!is_hidden.get(i)) [[unlikely]]
       {
-        View & view = *views[i];
+        View & view = views[i];
         canvas.clip(clips[i]);
         view.render(canvas, view.region_, view.zoom_, clips[i]);
         view.last_rendered_frame_ = frame;
@@ -671,7 +670,7 @@ struct ViewSystem
       z--;
 
       u32 const i    = z_ordering[z];
-      View &    view = *views[i];
+      View &    view = views[i];
 
       bool matches = false;
 
@@ -789,7 +788,7 @@ struct ViewSystem
                 ViewHitAttributes::Clickable | ViewHitAttributes::Draggable)
         .match(
           [&](u32 i) {
-            View & view = *views[i];
+            View & view = views[i];
 
             f1.pointed = view.id();
 
@@ -821,7 +820,7 @@ struct ViewSystem
 
       hit_views(ctx.mouse.position, ViewHitAttributes::Droppable)
         .match([&](u32 i) {
-          View & view = *views[i];
+          View & view = views[i];
           f1.pointed  = view.id();
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
         });
@@ -834,7 +833,7 @@ struct ViewSystem
 
       hit_views(ctx.mouse.position, ViewHitAttributes::Droppable)
         .match([&](u32 i) {
-          View & view = *views[i];
+          View & view = views[i];
           f1.pointed  = view.id();
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
         });
@@ -844,7 +843,7 @@ struct ViewSystem
     {
       hit_views(ctx.mouse.position, ViewHitAttributes::Clickable)
         .match([&](u32 i) {
-          View & view = *views[i];
+          View & view = views[i];
           f1.pointed  = view.id();
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
         });
@@ -854,7 +853,7 @@ struct ViewSystem
     {
       hit_views(ctx.mouse.position, ViewHitAttributes::Scrollable)
         .match([&](u32 i) {
-          View & view = *views[i];
+          View & view = views[i];
           f1.pointed  = view.id();
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
         });
@@ -866,7 +865,7 @@ struct ViewSystem
                 ViewHitAttributes::Pointable | ViewHitAttributes::Clickable |
                   ViewHitAttributes::Draggable | ViewHitAttributes::Scrollable)
         .match([&](u32 i) {
-          View & view = *views[i];
+          View & view = views[i];
           f1.pointed  = view.id();
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
         });

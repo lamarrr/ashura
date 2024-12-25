@@ -143,10 +143,10 @@ struct FlexView : View
     bool      wrap        = true;
     MainAlign main_align  = MainAlign::Start;
     f32       cross_align = 0;
-    Frame     frame       = Frame{}.scale(1, 1);
+    Frame     frame       = Frame{}.scale({1, 1});
   } style;
 
-  Vec<View *> items_{default_allocator};
+  Vec<ref<View>> items_{default_allocator};
 
   FlexView & axis(Axis a)
   {
@@ -184,13 +184,12 @@ struct FlexView : View
     return *this;
   }
 
-  FlexView & items(std::initializer_list<View *> list)
+  FlexView & items(std::initializer_list<ref<View>> list)
   {
-    items_.extend(span(list)).unwrap();
-    return *this;
+    return items(span(list));
   }
 
-  FlexView & items(Span<View * const> list)
+  FlexView & items(Span<ref<View> const> list)
   {
     items_.extend(list).unwrap();
     return *this;
@@ -199,9 +198,9 @@ struct FlexView : View
   virtual ViewState tick(ViewContext const &, CRect const &, f32,
                          ViewEvents const &, Fn<void(View &)> build) override
   {
-    for (View * item : items_)
+    for (ref item : items_)
     {
-      build(*item);
+      build(item);
     }
 
     return ViewState{};
@@ -347,7 +346,7 @@ struct StackView : View
     Frame frame     = Frame{}.scale({1, 1});
   } style;
 
-  Vec<View *> items_{default_allocator};
+  Vec<ref<View>> items_{default_allocator};
 
   StackView & reverse(bool r)
   {
@@ -373,15 +372,15 @@ struct StackView : View
     return *this;
   }
 
-  StackView & items(std::initializer_list<View *> list)
+  StackView & items(std::initializer_list<ref<View>> list)
   {
-    items_.extend(span(list)).unwrap();
+    items(span(list));
     return *this;
   }
 
-  StackView & items(Span<View * const> list)
+  StackView & items(Span<ref<View> const> list)
   {
-    items_.extend(list).unwrap();
+    items_.extend(span(list)).unwrap();
     return *this;
   }
 
@@ -403,9 +402,9 @@ struct StackView : View
   virtual ViewState tick(ViewContext const &, CRect const &, f32,
                          ViewEvents const &, Fn<void(View &)> build) override
   {
-    for (View * item : items_)
+    for (ref item : items_)
     {
-      build(*item);
+      build(item);
     }
 
     return ViewState{};
@@ -1104,25 +1103,25 @@ struct TextButton : Button
     return *this;
   }
 
-  TextButton & color(ColorGradient c)
+  TextButton & color(ColorGradient const & c)
   {
     style.color = c;
     return *this;
   }
 
-  TextButton & hovered_color(ColorGradient c)
+  TextButton & hovered_color(ColorGradient const & c)
   {
     style.hovered_color = c;
     return *this;
   }
 
-  TextButton & disabled_color(ColorGradient c)
+  TextButton & disabled_color(ColorGradient const & c)
   {
     style.disabled_color = c;
     return *this;
   }
 
-  TextButton & corner_radii(CornerRadii c)
+  TextButton & corner_radii(CornerRadii const & c)
   {
     style.corner_radii = c;
     return *this;
@@ -1209,19 +1208,19 @@ struct CheckBox : View
     return *this;
   }
 
-  CheckBox & box_color(ColorGradient c)
+  CheckBox & box_color(ColorGradient const & c)
   {
     style.box_color = c;
     return *this;
   }
 
-  CheckBox & box_hovered_color(ColorGradient c)
+  CheckBox & box_hovered_color(ColorGradient const & c)
   {
     style.box_hovered_color = c;
     return *this;
   }
 
-  CheckBox & tick_color(ColorGradient c)
+  CheckBox & tick_color(ColorGradient const & c)
   {
     style.tick_color = c;
     return *this;
@@ -1245,7 +1244,7 @@ struct CheckBox : View
     return *this;
   }
 
-  CheckBox & corner_radii(CornerRadii r)
+  CheckBox & corner_radii(CornerRadii const & r)
   {
     style.corner_radii = r;
     return *this;
@@ -1424,37 +1423,37 @@ struct Slider : View
     return *this;
   }
 
-  Slider & thumb_color(ColorGradient c)
+  Slider & thumb_color(ColorGradient const & c)
   {
     style.thumb_color = c;
     return *this;
   }
 
-  Slider & thumb_hovered_color(ColorGradient c)
+  Slider & thumb_hovered_color(ColorGradient const & c)
   {
     style.thumb_hovered_color = c;
     return *this;
   }
 
-  Slider & thumb_dragging_color(ColorGradient c)
+  Slider & thumb_dragging_color(ColorGradient const & c)
   {
     style.thumb_dragging_color = c;
     return *this;
   }
 
-  Slider & thumb_corner_radii(CornerRadii c)
+  Slider & thumb_corner_radii(CornerRadii const & c)
   {
     style.thumb_corner_radii = c;
     return *this;
   }
 
-  Slider & track_color(ColorGradient c)
+  Slider & track_color(ColorGradient const & c)
   {
     style.track_color = c;
     return *this;
   }
 
-  Slider & track_corner_radii(CornerRadii c)
+  Slider & track_corner_radii(CornerRadii const & c)
   {
     style.track_corner_radii = c;
     return *this;
@@ -1633,37 +1632,37 @@ struct Switch : View
     return *this;
   }
 
-  Switch & on_color(ColorGradient c)
+  Switch & on_color(ColorGradient const & c)
   {
     style.on_color = c;
     return *this;
   }
 
-  Switch & on_hovered_color(ColorGradient c)
+  Switch & on_hovered_color(ColorGradient const & c)
   {
     style.on_hovered_color = c;
     return *this;
   }
 
-  Switch & off_color(ColorGradient c)
+  Switch & off_color(ColorGradient const & c)
   {
     style.off_color = c;
     return *this;
   }
 
-  Switch & off_hovered_color(ColorGradient c)
+  Switch & off_hovered_color(ColorGradient const & c)
   {
     style.off_hovered_color = c;
     return *this;
   }
 
-  Switch & track_color(ColorGradient c)
+  Switch & track_color(ColorGradient const & c)
   {
     style.track_color = c;
     return *this;
   }
 
-  Switch & corner_radii(CornerRadii r)
+  Switch & corner_radii(CornerRadii const & r)
   {
     style.corner_radii = r;
     return *this;
@@ -1781,7 +1780,7 @@ struct RadioBox : View
     Fn<void(bool)> changed = noop;
   } cb;
 
-  RadioBox & corner_radii(CornerRadii c)
+  RadioBox & corner_radii(CornerRadii const & c)
   {
     style.corner_radii = c;
     return *this;
@@ -1793,19 +1792,19 @@ struct RadioBox : View
     return *this;
   }
 
-  RadioBox & color(ColorGradient c)
+  RadioBox & color(ColorGradient const & c)
   {
     style.color = c;
     return *this;
   }
 
-  RadioBox & inner_color(ColorGradient c)
+  RadioBox & inner_color(ColorGradient const & c)
   {
     style.inner_color = c;
     return *this;
   }
 
-  RadioBox & inner_hovered_color(ColorGradient c)
+  RadioBox & inner_hovered_color(ColorGradient const & c)
   {
     style.inner_hovered_color = c;
     return *this;
@@ -2263,7 +2262,7 @@ struct ScalarBox : FlexView
     return *this;
   }
 
-  ScalarBox & corner_radii(CornerRadii r)
+  ScalarBox & corner_radii(CornerRadii const & r)
   {
     dec_.corner_radii(r);
     inc_.corner_radii(r);
@@ -2534,42 +2533,42 @@ struct ScrollView : View
     return *this;
   }
 
-  ScrollView & thumb_color(ColorGradient c)
+  ScrollView & thumb_color(ColorGradient const & c)
   {
     x_bar_.style.thumb_color = c;
     y_bar_.style.thumb_color = c;
     return *this;
   }
 
-  ScrollView & thumb_hovered_color(ColorGradient c)
+  ScrollView & thumb_hovered_color(ColorGradient const & c)
   {
     x_bar_.style.thumb_hovered_color = c;
     y_bar_.style.thumb_hovered_color = c;
     return *this;
   }
 
-  ScrollView & thumb_dragging_color(ColorGradient c)
+  ScrollView & thumb_dragging_color(ColorGradient const & c)
   {
     x_bar_.style.thumb_dragging_color = c;
     y_bar_.style.thumb_dragging_color = c;
     return *this;
   }
 
-  ScrollView & thumb_corner_radii(CornerRadii c)
+  ScrollView & thumb_corner_radii(CornerRadii const & c)
   {
     x_bar_.style.thumb_corner_radii = c;
     y_bar_.style.thumb_corner_radii = c;
     return *this;
   }
 
-  ScrollView & track_color(ColorGradient c)
+  ScrollView & track_color(ColorGradient const & c)
   {
     x_bar_.style.track_color = c;
     y_bar_.style.track_color = c;
     return *this;
   }
 
-  ScrollView & track_corner_radii(CornerRadii c)
+  ScrollView & track_corner_radii(CornerRadii const & c)
   {
     x_bar_.style.track_corner_radii = c;
     y_bar_.style.track_corner_radii = c;
@@ -2886,13 +2885,13 @@ struct ComboBox : View
     return *this;
   }
 
-  ComboBox & color(ColorGradient c)
+  ComboBox & color(ColorGradient const & c)
   {
     style.color = c;
     return *this;
   }
 
-  ComboBox & hovered_color(ColorGradient c)
+  ComboBox & hovered_color(ColorGradient const & c)
   {
     style.hovered_color = c;
     return *this;

@@ -723,15 +723,15 @@ struct [[nodiscard]] Future
 
   T & get() const
   {
-    return stream_.data_.get()->ref().expect(
-      "Called `Future::get()` on a pending Future");
+    return stream_.data_.get()->ref().unwrap(
+      "Called `Future::get()` on a pending Future"_str);
   }
 
-  Result<Ref<T>> poll() const
+  Result<ref<T>> poll() const
   {
     return stream_.data_.get()->ref().match(
-      [](T & v) -> Result<Ref<T>> { return Ref{v}; },
-      []() -> Result<Ref<T>> { return Err{}; });
+      [](T & v) -> Result<ref<T>> { return ref{v}; },
+      []() -> Result<ref<T>> { return Err{}; });
   }
 
   template <typename... Args>

@@ -773,21 +773,21 @@ constexpr E enum_not(E a)
   }
 
 template <typename T>
-struct Ref
+struct ref
 {
   using Type = T;
 
   T * repr_;
 
-  constexpr Ref(T & v) : repr_{&v}
+  constexpr ref(T & v) : repr_{&v}
   {
   }
 
-  constexpr Ref(Ref const &)             = default;
-  constexpr Ref(Ref &&)                  = default;
-  constexpr Ref & operator=(Ref const &) = default;
-  constexpr Ref & operator=(Ref &&)      = default;
-  constexpr ~Ref()                       = default;
+  constexpr ref(ref const &)             = default;
+  constexpr ref(ref &&)                  = default;
+  constexpr ref & operator=(ref const &) = default;
+  constexpr ref & operator=(ref &&)      = default;
+  constexpr ~ref()                       = default;
 
   constexpr T & unref() const
   {
@@ -798,10 +798,15 @@ struct Ref
   {
     return repr_;
   }
+
+  constexpr operator T &() const
+  {
+    return *repr_;
+  }
 };
 
 template <typename T>
-Ref(T &) -> Ref<T>;
+ref(T &) -> ref<T>;
 
 template <typename S = usize>
 struct SliceT
