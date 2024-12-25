@@ -17,6 +17,8 @@ struct FontImpl : Font
 {
   static constexpr u32 MAX_NAME_SIZE = 256;
 
+  using Name = InplaceVec<char, MAX_NAME_SIZE>;
+
   FontId id = FontId::Default;
 
   Span<char const> label;
@@ -24,13 +26,13 @@ struct FontImpl : Font
   Vec<char> font_data;
 
   /// @brief Postscript name, name of the font face, ASCII. i.e. RobotoBold
-  InplaceVec<char, MAX_NAME_SIZE> postscript_name;
+  Name postscript_name;
 
   /// @brief Font family name, ASCII. i.e. Roboto
-  InplaceVec<char, MAX_NAME_SIZE> family_name;
+  Name family_name;
 
   /// @brief Font family style name, ASCII. i.e. Bold
-  InplaceVec<char, MAX_NAME_SIZE> style_name;
+  Name style_name;
 
   hb_blob_t * hb_blob;
 
@@ -59,13 +61,11 @@ struct FontImpl : Font
   Option<GpuFontAtlas> gpu_atlas = none;
 
   FontImpl(FontId id, Span<char const> label, Vec<char> font_data,
-           InplaceVec<char, MAX_NAME_SIZE> postscript_name,
-           InplaceVec<char, MAX_NAME_SIZE> family_name,
-           InplaceVec<char, MAX_NAME_SIZE> style_name, hb_blob_t * hb_blob,
-           hb_face_t * hb_face, hb_font_t * hb_font, FT_Library ft_lib,
-           FT_Face ft_face, u32 face, Vec<GlyphMetrics> glyphs,
-           u32 replacement_glyph, u32 ellipsis_glyph, u32 space_glyph,
-           FontMetrics metrics) :
+           Name postscript_name, Name family_name, Name style_name,
+           hb_blob_t * hb_blob, hb_face_t * hb_face, hb_font_t * hb_font,
+           FT_Library ft_lib, FT_Face ft_face, u32 face,
+           Vec<GlyphMetrics> glyphs, u32 replacement_glyph, u32 ellipsis_glyph,
+           u32 space_glyph, FontMetrics metrics) :
     id{id},
     label{label},
     font_data{std::move(font_data)},
@@ -96,7 +96,7 @@ struct FontImpl : Font
 
   virtual ~FontImpl() override
   {
-    gpu_atlas.expect_none("GPU font atlas has not been unloaded");
+    gpu_atlas.unwrap_none("GPU font atlas has not been unloaded"_str);
     hb_font_destroy(hb_font);
     hb_face_destroy(hb_face);
     hb_blob_destroy(hb_blob);

@@ -367,9 +367,9 @@ Result<Dyn<Font *>, FontLoadErr>
 
   char const * ft_postscript_name = FT_Get_Postscript_Name(ft_face);
 
-  InplaceVec<char, FontImpl::MAX_NAME_SIZE> postscript_name;
-  InplaceVec<char, FontImpl::MAX_NAME_SIZE> family_name;
-  InplaceVec<char, FontImpl::MAX_NAME_SIZE> style_name;
+  FontImpl::Name postscript_name;
+  FontImpl::Name family_name;
+  FontImpl::Name style_name;
 
   if (ft_postscript_name != nullptr)
   {
