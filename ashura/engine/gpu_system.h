@@ -284,15 +284,8 @@ struct GpuUploadQueue
   void encode(gpu::Device & gpu, gpu::CommandEncoder & enc);
 };
 
-/// @param color_format hdr if hdr supported and required.
-///
 struct GpuSystem
 {
-  // [ ] for all the formats, get their properties& features. add to gpu api and allow passes to query them
-  // [ ] create SRGB/SDR ranking of formats
-  // [ ] allow user to override swapchain/texture format
-  // D16_UNORM support and other formatts
-
   static constexpr gpu::FormatFeatures COLOR_FEATURES =
     gpu::FormatFeatures::ColorAttachment |
     gpu::FormatFeatures::ColorAttachmentBlend |
@@ -308,11 +301,11 @@ struct GpuSystem
     gpu::BufferUsage::StorageTexelBuffer | gpu::BufferUsage::IndirectBuffer |
     gpu::BufferUsage::TransferSrc | gpu::BufferUsage::TransferDst;
 
-  static constexpr gpu::Format HDR_COLOR_FORMATS[] = {
+  static constexpr gpu::Format HDR_FORMATS[] = {
     gpu::Format::R16G16B16A16_SFLOAT};
 
-  static constexpr gpu::Format SDR_COLOR_FORMATS[] = {
-    gpu::Format::B8G8R8A8_UNORM, gpu::Format::R8G8B8A8_UNORM};
+  static constexpr gpu::Format SDR_FORMATS[] = {gpu::Format::B8G8R8A8_UNORM,
+                                                gpu::Format::R8G8B8A8_UNORM};
 
   static constexpr gpu::Format DEPTH_STENCIL_FORMATS[] = {
     gpu::Format::D16_UNORM_S8_UINT, gpu::Format::D24_UNORM_S8_UINT,
@@ -329,6 +322,7 @@ struct GpuSystem
 
   gpu::SampleCount sample_count;
 
+  /// @brief hdr if hdr supported and required.
   gpu::Format color_format;
 
   gpu::Format depth_stencil_format;

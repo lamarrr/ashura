@@ -127,11 +127,10 @@ GpuSystem GpuSystem::create(AllocatorImpl allocator, gpu::Device & device,
 
   if (use_hdr)
   {
-    for (; sel_hdr_color_format < size(HDR_COLOR_FORMATS);
-         sel_hdr_color_format++)
+    for (; sel_hdr_color_format < size(HDR_FORMATS); sel_hdr_color_format++)
     {
       gpu::FormatProperties props =
-        device.get_format_properties(HDR_COLOR_FORMATS[sel_hdr_color_format])
+        device.get_format_properties(HDR_FORMATS[sel_hdr_color_format])
           .unwrap();
       if (has_bits(props.optimal_tiling_features, COLOR_FEATURES))
       {
@@ -139,20 +138,19 @@ GpuSystem GpuSystem::create(AllocatorImpl allocator, gpu::Device & device,
       }
     }
 
-    if (sel_hdr_color_format >= size(HDR_COLOR_FORMATS))
+    if (sel_hdr_color_format >= size(HDR_FORMATS))
     {
       logger->warn("HDR mode requested but Device does not support "
                    "HDR render target, trying UNORM color");
     }
   }
 
-  if (!use_hdr || sel_hdr_color_format >= size(HDR_COLOR_FORMATS))
+  if (!use_hdr || sel_hdr_color_format >= size(HDR_FORMATS))
   {
-    for (; sel_sdr_color_format < size(SDR_COLOR_FORMATS);
-         sel_sdr_color_format++)
+    for (; sel_sdr_color_format < size(SDR_FORMATS); sel_sdr_color_format++)
     {
       gpu::FormatProperties props =
-        device.get_format_properties(SDR_COLOR_FORMATS[sel_sdr_color_format])
+        device.get_format_properties(SDR_FORMATS[sel_sdr_color_format])
           .unwrap();
       if (has_bits(props.optimal_tiling_features, COLOR_FEATURES))
       {
@@ -178,23 +176,23 @@ GpuSystem GpuSystem::create(AllocatorImpl allocator, gpu::Device & device,
 
   if (use_hdr)
   {
-    CHECK_DESC(sel_sdr_color_format != size(SDR_COLOR_FORMATS) ||
-                 sel_hdr_color_format != size(HDR_COLOR_FORMATS),
+    CHECK_DESC(sel_sdr_color_format != size(SDR_FORMATS) ||
+                 sel_hdr_color_format != size(HDR_FORMATS),
                "Device doesn't support any known color format");
-    if (sel_hdr_color_format != size(HDR_COLOR_FORMATS))
+    if (sel_hdr_color_format != size(HDR_FORMATS))
     {
-      color_format = HDR_COLOR_FORMATS[sel_hdr_color_format];
+      color_format = HDR_FORMATS[sel_hdr_color_format];
     }
     else
     {
-      color_format = SDR_COLOR_FORMATS[sel_sdr_color_format];
+      color_format = SDR_FORMATS[sel_sdr_color_format];
     }
   }
   else
   {
-    CHECK_DESC(sel_sdr_color_format != size(SDR_COLOR_FORMATS),
+    CHECK_DESC(sel_sdr_color_format != size(SDR_FORMATS),
                "Device doesn't support any known color format");
-    color_format = SDR_COLOR_FORMATS[sel_sdr_color_format];
+    color_format = SDR_FORMATS[sel_sdr_color_format];
   }
 
   CHECK_DESC(sel_depth_stencil_format != size(DEPTH_STENCIL_FORMATS),
@@ -758,6 +756,9 @@ TextureId GpuSystem::alloc_texture_id(gpu::ImageView view)
 
 void GpuSystem::release_texture_id(TextureId id)
 {
+  // [ ] the texture will be assumed to still be valid by the descriptor set, we need to evict it
+  // and the check if it s null in the gpu api
+  // [ ] same for sampler
   clear_bit(texture_slots, (u32) id);
 }
 
