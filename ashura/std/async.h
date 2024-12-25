@@ -949,8 +949,8 @@ struct Scheduler
         return;
       case TaskTarget::Dedicated:
         schedule_dedicated(
-          info, schedule.thread.expect(
-                  "Dedicated Thread ID not set when scheduling task"));
+          info, schedule.thread.unwrap(
+                  "Dedicated Thread ID not set when scheduling task"_str));
         return;
       case TaskTarget::Main:
         schedule_main(info);
