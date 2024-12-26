@@ -12,8 +12,10 @@
 namespace ash
 {
 
-/// @brief Minimum alignment of the Vec types. This fits into 4 AVX-512 lanes.
-inline constexpr usize MIN_VEC_ALIGNMENT = 256;
+/// @brief Minimum alignment of the Vec types. This fits into 1 AVX-512 lane.
+/// Only InplaceVec doesn't use this alignment as it is usually in-place and
+/// compacted along with other struct members/stack variables.
+inline constexpr usize MIN_VEC_ALIGNMENT = 64;
 
 template <typename T>
 requires (NonConst<T>)
@@ -1174,17 +1176,17 @@ struct [[nodiscard]] BitVec
   }
 };
 
-template <typename T, usize Capacity>
+template <typename T, usize Capacity, usize Alignment = alignof(T)>
 requires (NonConst<T>)
 struct [[nodiscard]] InplaceVec
-  : InplaceStorage<max(alignof(T), MIN_VEC_ALIGNMENT), sizeof(T) * Capacity>
+  : InplaceStorage<Alignment, sizeof(T) * Capacity>
 {
   using Type = T;
   using Repr = T;
   using Iter = SpanIter<T>;
   using View = Span<T>;
 
-  static constexpr usize ALIGNMENT = max(alignof(T), MIN_VEC_ALIGNMENT);
+  static constexpr usize ALIGNMENT = Alignment;
   static constexpr usize CAPACITY  = Capacity;
 
   usize size_ = 0;
