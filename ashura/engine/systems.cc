@@ -1,6 +1,5 @@
 /// SPDX-License-Identifier: MIT
-#pragma once
-#include "ashura/engine/assets.h"
+#include "ashura/engine/systems.h"
 #include "ashura/engine/font_impl.h"
 #include "ashura/engine/rect_pack.h"
 #include "ashura/std/allocator.h"
@@ -10,17 +9,16 @@
 namespace ash
 {
 
-Future<Result<Vec<u8>, IoErr>> FileSystem::load_file(Span<char const> path,
-                                                     AllocatorImpl    allocator)
+Future<Result<Vec<u8>, IoErr>> FileSystem::load_file(Span<char const> path)
 {
   PathVec path_copy;
   path_copy.extend(path).unwrap("Maximum path size exceeded"_str);
 
-  Future fut = future<Result<Vec<u8>, IoErr>>(allocator).unwrap();
+  Future fut = future<Result<Vec<u8>, IoErr>>(allocator_).unwrap();
 
   async::once(
-    [allocator, path = path_copy, fut = fut.alias()]() {
-      Vec<u8> data{allocator};
+    [this, path = path_copy, fut = fut.alias()]() {
+      Vec<u8> data{allocator_};
       read_file(path, data)
         .match([&](Void) { fut.yield(Ok{std::move(data)}).unwrap(); },
                [&](IoErr err) { fut.yield(Err{err}).unwrap(); });
@@ -28,10 +26,6 @@ Future<Result<Vec<u8>, IoErr>> FileSystem::load_file(Span<char const> path,
     Ready{}, TaskSchedule{.target = TaskTarget::Worker});
 
   return fut;
-}
-
-void FileSystem::init(Scheduler &)
-{
 }
 
 void FileSystem::shutdown()
@@ -66,10 +60,6 @@ Image ImageSystem::create_image_(Span<char const>           label,
   return img;
 }
 
-void ImageSystem::init()
-{
-}
-
 void ImageSystem::shutdown()
 {
 }
@@ -91,7 +81,7 @@ Image ImageSystem::upload(gpu::ImageInfo const & info, Span<u8 const> channels)
 
   u64 const bgra_size = pixel_size_bytes(info.extent.xy(), 4);
 
-  Vec<u8> bgra{default_allocator};
+  Vec<u8> bgra{allocator_};
   bgra.extend_uninit(bgra_size).unwrap();
 
   ImageSpan<u8, 4> bgra_span{
@@ -182,17 +172,16 @@ Result<Image, ImageLoadErr>
 }
 
 Future<Result<Image, ImageLoadErr>>
-  ImageSystem::load_from_path(Span<char const> label, Span<char const> path,
-                              AllocatorImpl allocator)
+  ImageSystem::load_from_path(Span<char const> label, Span<char const> path)
 {
-  Future fut      = future<Result<Image, ImageLoadErr>>(allocator).unwrap();
-  Future load_fut = FileSystem::load_file(path);
+  Future fut      = future<Result<Image, ImageLoadErr>>(allocator_).unwrap();
+  Future load_fut = sys->file.load_file(path);
 
   async::once(
-    [fut = fut.alias(), load_fut = load_fut.alias(), label, allocator, this]() {
+    [fut = fut.alias(), load_fut = load_fut.alias(), label, this]() {
       load_fut.get().match(
         [&, this, label](Vec<u8> & buffer) {
-          Vec<u8> channels{allocator};
+          Vec<u8> channels{allocator_};
           decode_image(buffer, channels)
             .match(
               [&, this](DecodedImageInfo const & info) {
@@ -262,10 +251,6 @@ void ImageSystem::unload(ImageId id)
   images_.erase(id);
 }
 
-void FontSystem::init()
-{
-}
-
 void FontSystem::shutdown()
 {
 }
@@ -273,7 +258,7 @@ void FontSystem::shutdown()
 Result<Dyn<Font *>, FontLoadErr>
   FontSystem::decode_(Span<char const> label, Span<u8 const> encoded, u32 face)
 {
-  Vec<char> font_data{default_allocator};
+  Vec<char> font_data{allocator_};
   if (!font_data.extend(encoded.as_char()))
   {
     return Err{FontLoadErr::OutOfMemory};
@@ -400,7 +385,7 @@ Result<Dyn<Font *>, FontLoadErr>
   i32 const descent = -ft_face->size->metrics.descender;
   i32 const advance = ft_face->size->metrics.max_advance;
 
-  Vec<GlyphMetrics> glyphs{default_allocator};
+  Vec<GlyphMetrics> glyphs{allocator_};
 
   if (!glyphs.resize(num_glyphs))
   {
@@ -423,7 +408,7 @@ Result<Dyn<Font *>, FontLoadErr>
   }
 
   Result font = dyn_inplace<FontImpl>(
-    default_allocator, FontId::Default, label, std::move(font_data),
+    allocator_, FontId::Default, label, std::move(font_data),
     std::move(postscript_name), std::move(family_name), std::move(style_name),
     hb_blob, hb_face, hb_font, ft_lib, ft_face, face, std::move(glyphs),
     replacement_glyph, ellipsis_glyph, space_glyph,
@@ -491,9 +476,8 @@ Result<> FontSystem::rasterize(Font & font_, u32 font_height)
 
   u32 num_layers = 0;
   {
-    Vec<PackRect> rects{default_allocator};
-    RectPacker    packer =
-      RectPacker::make(as_vec2i(atlas_extent), default_allocator);
+    Vec<PackRect> rects{allocator_};
+    RectPacker    packer = RectPacker::make(as_vec2i(atlas_extent), allocator_);
 
     if (!rects.resize_uninit(num_glyphs))
     {
@@ -621,14 +605,14 @@ FontId FontSystem::upload_(Dyn<Font *> font_)
   CHECK(atlas.extent.x > 0);
   CHECK(atlas.extent.y > 0);
 
-  GpuFontAtlas gpu_atlas{.textures{default_allocator},
-                         .images{default_allocator},
+  GpuFontAtlas gpu_atlas{.textures{allocator_},
+                         .images{allocator_},
                          .font_height = atlas.font_height,
                          .extent      = atlas.extent};
 
   gpu_atlas.glyphs.extend(atlas.glyphs).unwrap();
 
-  Vec<u8> bgra_pixels{default_allocator};
+  Vec<u8> bgra_pixels{allocator_};
   bgra_pixels.resize(pixel_size_bytes(atlas.extent, 4)).unwrap();
 
   ImageSpan<u8, 4> bgra{
@@ -665,7 +649,7 @@ Future<Result<FontId, FontLoadErr>>
   FontSystem::load_from_memory(Span<char const> label, Vec<u8> encoded,
                                u32 font_height, u32 face)
 {
-  Future fut = future<Result<FontId, FontLoadErr>>(default_allocator).unwrap();
+  Future fut = future<Result<FontId, FontLoadErr>>(allocator_).unwrap();
   async::once(
     [fut = fut.alias(), encoded = std::move(encoded), label, this, face,
      font_height]() mutable {
@@ -699,9 +683,9 @@ Future<Result<FontId, FontLoadErr>>
   FontSystem::load_from_path(Span<char const> label, Span<char const> path,
                              u32 font_height, u32 face)
 {
-  Future load_fut = FileSystem::load_file(path, default_allocator);
+  Future load_fut = sys->file.load_file(path);
 
-  Future fut = future<Result<FontId, FontLoadErr>>(default_allocator).unwrap();
+  Future fut = future<Result<FontId, FontLoadErr>>(allocator_).unwrap();
 
   async::once(
     [load_fut = load_fut.alias(), fut = std::move(fut), this, label,
@@ -719,7 +703,13 @@ Future<Result<FontId, FontLoadErr>>
             AwaitFutures{load_fut.alias()},
             TaskSchedule{.target = TaskTarget::Worker});
         },
-        [&](IoErr err) { fut.yield(Err{err}).unwrap(); });
+        [&](IoErr err) {
+          fut
+            .yield(Err{err == IoErr::InvalidFileOrDir ?
+                         FontLoadErr::InvalidPath :
+                         FontLoadErr::IoErr})
+            .unwrap();
+        });
     },
     AwaitFutures{load_fut.alias()});
 
@@ -756,17 +746,12 @@ void FontSystem::unload(FontId id)
   fonts_.erase(id);
 }
 
-void ShaderSystem::init()
-{
-}
-
 void ShaderSystem::shutdown()
 {
 }
 
 Result<Shader, ShaderLoadErr>
-  ShaderSystem::load_spirv_from_memory(Span<char const> label,
-                                       Span<u32 const>  spirv)
+  ShaderSystem::load_from_memory(Span<char const> label, Span<u32 const> spirv)
 {
   gpu::Shader object =
     sys->gpu.device
@@ -783,12 +768,10 @@ Result<Shader, ShaderLoadErr>
 }
 
 Future<Result<Shader, ShaderLoadErr>>
-  ShaderSystem::load_spirv_from_path(Span<char const> label,
-                                     Span<char const> path)
+  ShaderSystem::load_from_path(Span<char const> label, Span<char const> path)
 {
-  Future load_fut = FileSystem::load_file(path);
-  Future fut =
-    future<Result<Shader, ShaderLoadErr>>(default_allocator).unwrap();
+  Future load_fut = sys->file.load_file(path);
+  Future fut      = future<Result<Shader, ShaderLoadErr>>(allocator_).unwrap();
 
   async::once(
     [fut = fut.alias(), load_fut = load_fut.alias(), label, this]() mutable {
@@ -796,11 +779,10 @@ Future<Result<Shader, ShaderLoadErr>>
         [&, label, this](Vec<u8> & spirv) {
           async::once(
             [fut = std::move(fut), spirv = std::move(spirv), label, this]() {
-              static_assert(MIN_VEC_ALIGNMENT >= alignof(u32));
+              static_assert(spirv.alignment() >= alignof(u32));
               static_assert(std::endian::native == std::endian::little);
               fut
-                .yield(load_spirv_from_memory(label,
-                                              spirv.view().reinterpret<u32>()))
+                .yield(load_from_memory(label, spirv.view().reinterpret<u32>()))
                 .unwrap();
             },
             Ready{}, TaskSchedule{.target = TaskTarget::Main});
@@ -841,6 +823,20 @@ void ShaderSystem::unload(ShaderId id)
   Shader & shader = shaders_[id].v0;
   sys->gpu.release(shader.shader);
   shaders_.erase(id);
+}
+
+void Systems::shutdown(Vec<u8> & pipeline_cache)
+{
+  // [ ] wait for scheduler to drain all submitted tasks
+  shader.shutdown();
+  font.shutdown();
+  image.shutdown();
+  gpu.shutdown(pipeline_cache);
+  file.shutdown();
+}
+
+void Systems::init(AllocatorImpl allocator)
+{
 }
 
 }    // namespace ash

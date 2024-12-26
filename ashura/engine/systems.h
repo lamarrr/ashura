@@ -39,36 +39,40 @@ struct Shader
 
 struct FileSystem
 {
-  FileSystem()                               = default;
+  AllocatorImpl allocator_;
+
+  explicit FileSystem(AllocatorImpl allocator) : allocator_{allocator}
+  {
+  }
+
   FileSystem(FileSystem const &)             = delete;
   FileSystem(FileSystem &&)                  = delete;
   FileSystem & operator=(FileSystem const &) = delete;
   FileSystem & operator=(FileSystem &&)      = delete;
   ~FileSystem()                              = default;
 
-  void init(Scheduler &);
-
   void shutdown();
 
-  static Future<Result<Vec<u8>, IoErr>>
-    load_file(Span<char const> path,
-              AllocatorImpl    allocator = default_allocator);
+  Future<Result<Vec<u8>, IoErr>> load_file(Span<char const> path);
 };
 
 struct ImageSystem
 {
-  static constexpr gpu::Format format_ = gpu::Format::B8G8R8A8_UNORM;
-
+  gpu::Format           format_ = gpu::Format::B8G8R8A8_UNORM;
+  AllocatorImpl         allocator_;
   SparseVec<Vec<Image>> images_{};
 
-  ImageSystem()                                = default;
+  explicit ImageSystem(AllocatorImpl allocator) :
+    allocator_{allocator},
+    images_{allocator}
+  {
+  }
+
   ImageSystem(ImageSystem const &)             = delete;
   ImageSystem(ImageSystem &&)                  = delete;
   ImageSystem & operator=(ImageSystem const &) = delete;
   ImageSystem & operator=(ImageSystem &&)      = delete;
   ~ImageSystem()                               = default;
-
-  void init();
 
   void shutdown();
 
@@ -81,9 +85,8 @@ struct ImageSystem
                                                Vec2U extent, gpu::Format format,
                                                Span<u8 const> buffer);
 
-  Future<Result<Image, ImageLoadErr>>
-    load_from_path(Span<char const> label, Span<char const> path,
-                   AllocatorImpl allocator = default_allocator);
+  Future<Result<Image, ImageLoadErr>> load_from_path(Span<char const> label,
+                                                     Span<char const> path);
 
   Image get(Span<char const> label);
 
@@ -94,16 +97,20 @@ struct ImageSystem
 
 struct FontSystem
 {
+  AllocatorImpl               allocator_;
   SparseVec<Vec<Dyn<Font *>>> fonts_;
 
-  FontSystem()                               = default;
+  explicit FontSystem(AllocatorImpl allocator) :
+    allocator_{allocator},
+    fonts_{allocator}
+  {
+  }
+
   FontSystem(FontSystem const &)             = delete;
   FontSystem(FontSystem &&)                  = delete;
   FontSystem & operator=(FontSystem const &) = delete;
   FontSystem & operator=(FontSystem &&)      = delete;
   ~FontSystem()                              = default;
-
-  void init();
 
   void shutdown();
 
@@ -139,24 +146,28 @@ struct FontSystem
 
 struct ShaderSystem
 {
+  AllocatorImpl          allocator_;
   SparseVec<Vec<Shader>> shaders_;
 
-  ShaderSystem()                                 = default;
+  ShaderSystem(AllocatorImpl allocator) :
+    allocator_{allocator},
+    shaders_{allocator}
+  {
+  }
+
   ShaderSystem(ShaderSystem const &)             = delete;
   ShaderSystem(ShaderSystem &&)                  = delete;
   ShaderSystem & operator=(ShaderSystem const &) = delete;
   ShaderSystem & operator=(ShaderSystem &&)      = delete;
   ~ShaderSystem()                                = default;
 
-  void init();
-
   void shutdown();
 
-  Result<Shader, ShaderLoadErr> load_spirv_from_memory(Span<char const> label,
+  Result<Shader, ShaderLoadErr> load_from_memory(Span<char const> label,
                                                        Span<u32 const>  spirv);
 
   Future<Result<Shader, ShaderLoadErr>>
-    load_spirv_from_path(Span<char const> label, Span<char const> path);
+    load_from_path(Span<char const> label, Span<char const> path);
 
   Shader get(ShaderId id);
 
@@ -173,23 +184,24 @@ struct Systems
   FontSystem   font;
   ShaderSystem shader;
 
-  void init()
+  Systems(AllocatorImpl allocator, GpuSystem gpu) :
+    file{allocator},
+    gpu{std::move(gpu)},
+    image{allocator},
+    font{allocator},
+    shader{allocator}
   {
-    file.init(*scheduler);
-    // [ ] gpu.init()
-    image.init();
-    font.init();
-    shader.init();
   }
 
-  void shutdown()
-  {
-    shader.shutdown();
-    font.shutdown();
-    image.shutdown();
-    // [ ] gpu.shutdown();
-    file.shutdown();
-  }
+  Systems(Systems const &)             = delete;
+  Systems(Systems &&)                  = delete;
+  Systems & operator=(Systems const &) = delete;
+  Systems & operator=(Systems &&)      = delete;
+  ~Systems()                           = default;
+
+  void shutdown(Vec<u8> & pipeline_cache);
+
+  static void init(AllocatorImpl allocator);
 };
 
 extern Systems * sys;
