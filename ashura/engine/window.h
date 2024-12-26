@@ -16,7 +16,7 @@ typedef struct Window_T * Window;
 
 struct WindowSystem
 {
-  static void init();
+  static void init(AllocatorImpl allocator = default_allocator);
 
   static void uninit();
 
@@ -35,25 +35,25 @@ struct WindowSystem
 
   virtual void minimize(Window window) = 0;
 
-  virtual void set_size(Window window, Vec2U size) = 0;
+  virtual void set_extent(Window window, Vec2U extent) = 0;
 
   virtual void center(Window window) = 0;
 
-  virtual Vec2U get_size(Window window) = 0;
+  virtual Vec2U get_extent(Window window) = 0;
 
-  virtual Vec2U get_surface_size(Window window) = 0;
+  virtual Vec2U get_surface_extent(Window window) = 0;
 
   virtual void set_position(Window window, Vec2I pos) = 0;
 
   virtual Vec2I get_position(Window window) = 0;
 
-  virtual void set_min_size(Window window, Vec2U min) = 0;
+  virtual void set_min_extent(Window window, Vec2U min) = 0;
 
-  virtual Vec2U get_min_size(Window window) = 0;
+  virtual Vec2U get_min_extent(Window window) = 0;
 
-  virtual void set_max_size(Window window, Vec2U max) = 0;
+  virtual void set_max_extent(Window window, Vec2U max) = 0;
 
-  virtual Vec2U get_max_size(Window window) = 0;
+  virtual Vec2U get_max_extent(Window window) = 0;
 
   virtual void set_icon(Window window, ImageSpan<u8 const, 4> image,
                         gpu::Format format) = 0;
