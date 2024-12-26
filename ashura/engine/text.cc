@@ -47,7 +47,7 @@ static inline void shape(hb_font_t * font, hb_buffer_t * buffer,
      .end   = HB_FEATURE_GLOBAL_END}
   };
 
-  hb_buffer_reset(buffer);
+  hb_buffer_clear_contents(buffer);
   // invalid character replacement
   hb_buffer_set_replacement_codepoint(buffer,
                                       HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);
