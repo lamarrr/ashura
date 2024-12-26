@@ -1,4 +1,5 @@
 /// SPDX-License-Identifier: MIT
+/// This is a rewritten and minified version of https://github.com/nothings/stb/blob/5c205738c191bcb0abc65c4febfa9bd25ff35234/stb_rect_pack.h#L1
 #pragma once
 
 #include "ashura/std/error.h"
