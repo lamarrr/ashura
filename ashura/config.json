@@ -21,16 +21,16 @@
     "window.width": 1500,
     "window.height": 960,
     "shaders": {
-        "Blur/DownSample:VS": "shaders/blur_downsample.vert.spv",
-        "Blur/DownSample:FS": "shaders/blur_downsample.frag.spv",
-        "Blur/UpSample:VS": "shaders/blur_upsample.vert.spv",
-        "Blur/UpSample:FS": "shaders/blur_upsample.frag.spv",
-        "Ngon:VS": "shaders/ngon.vert.spv",
-        "Ngon:FS": "shaders/ngon.frag.spv",
-        "PBR:VS": "shaders/pbr.vert.spv",
-        "PBR:FS": "shaders/pbr.frag.spv",
-        "RRect:VS": "shaders/rrect.vert.spv",
-        "RRect:FS": "shaders/rrect.frag.spv"
+        "VS:Blur/DownSample": "shaders/blur_downsample.vert.spv",
+        "FS:Blur/DownSample": "shaders/blur_downsample.frag.spv",
+        "VS:Blur/UpSample": "shaders/blur_upsample.vert.spv",
+        "FS:Blur/UpSample": "shaders/blur_upsample.frag.spv",
+        "VS:Ngon": "shaders/ngon.vert.spv",
+        "FS:Ngon": "shaders/ngon.frag.spv",
+        "VS:PBR": "shaders/pbr.vert.spv",
+        "FS:PBR": "shaders/pbr.frag.spv",
+        "VS:RRect": "shaders/rrect.vert.spv",
+        "FS:RRect": "shaders/rrect.frag.spv"
     },
     "fonts": {
         "Amiri": "fonts/Amiri/Amiri-Regular.ttf",

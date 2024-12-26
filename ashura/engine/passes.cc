@@ -1,6 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/passes.h"
-#include "ashura/engine/assets.h"
+#include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
 
 namespace ash
@@ -34,9 +34,9 @@ void BlurPass::acquire()
   // Algorithm described here:
   // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
   //
-  gpu::Shader vertex_shader = sys->shader.get("Blur/DownSample:FS"_str).shader;
+  gpu::Shader vertex_shader = sys->shader.get("VS:Blur/DownSample"_str).shader;
   gpu::Shader fragment_shader =
-    sys->shader.get("Blur/DownSample:FS"_str).shader;
+    sys->shader.get("FS:Blur/DownSample"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -104,9 +104,9 @@ void BlurPass::acquire()
     sys->gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
 
   pipeline_info.vertex_shader.shader =
-    sys->shader.get("Blur/UpSample:VS"_str).shader;
+    sys->shader.get("VS:Blur/UpSample"_str).shader;
   pipeline_info.fragment_shader.shader =
-    sys->shader.get("Blur/UpSample:FS"_str).shader;
+    sys->shader.get("FS:Blur/UpSample"_str).shader;
 
   upsample_pipeline =
     sys->gpu.device->create_graphics_pipeline(pipeline_info).unwrap();
@@ -201,8 +201,8 @@ void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
 
 void NgonPass::acquire()
 {
-  gpu::Shader vertex_shader   = sys->shader.get("Ngon:VS"_str).shader;
-  gpu::Shader fragment_shader = sys->shader.get("Ngon:FS"_str).shader;
+  gpu::Shader vertex_shader   = sys->shader.get("VS:Ngon"_str).shader;
+  gpu::Shader fragment_shader = sys->shader.get("FS:Ngon"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -322,8 +322,8 @@ void NgonPass::release()
 
 void PBRPass::acquire()
 {
-  gpu::Shader vertex_shader   = sys->shader.get("PBR:VS"_str).shader;
-  gpu::Shader fragment_shader = sys->shader.get("PBR:FS"_str).shader;
+  gpu::Shader vertex_shader   = sys->shader.get("VS:PBR"_str).shader;
+  gpu::Shader fragment_shader = sys->shader.get("FS:PBR"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -456,8 +456,8 @@ void PBRPass::release()
 
 void RRectPass::acquire()
 {
-  gpu::Shader vertex_shader   = sys->shader.get("RRect:VS"_str).shader;
-  gpu::Shader fragment_shader = sys->shader.get("RRect:FS"_str).shader;
+  gpu::Shader vertex_shader   = sys->shader.get("VS:RRect"_str).shader;
+  gpu::Shader fragment_shader = sys->shader.get("FS:RRect"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,

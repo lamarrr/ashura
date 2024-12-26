@@ -526,14 +526,16 @@ void TextCompositor::command(Span<c32 const> text, TextLayout const & layout,
     break;
     case TextCommand::Hit:
     {
-      TextHitResult const hit = hit_text(layout, align_width, alignment, pos);
+      TextHitResult const hit = hit_text(layout, align_width, alignment, pos)
+                                  .unwrap_or(TextHitResult{});
       cursor_.first = cursor_.last = hit.cluster;
     }
     break;
     case TextCommand::HitSelect:
     {
-      TextHitResult const hit = hit_text(layout, align_width, alignment, pos);
-      cursor_.last            = hit.cluster;
+      TextHitResult const hit = hit_text(layout, align_width, alignment, pos)
+                                  .unwrap_or(TextHitResult{});
+      cursor_.last = hit.cluster;
     }
     break;
     case TextCommand::NewLine:
@@ -548,8 +550,10 @@ void TextCompositor::command(Span<c32 const> text, TextLayout const & layout,
     break;
     case TextCommand::Tab:
     {
-      Span<c32 const> input     = span(TAB_STRING).slice(0, tab_width_);
-      Slice32         selection = cursor_.as_slice(text.size32());
+      static constexpr c32 TAB_STRING[] = {'\t', '\t', '\t', '\t',
+                                           '\t', '\t', '\t', '\t'};
+      Span<c32 const>      input        = span(TAB_STRING).slice(0, tab_width_);
+      Slice32              selection    = cursor_.as_slice(text.size32());
       delete_selection(text, noop);
       append_record(true, selection.offset, input);
       erase(selection);

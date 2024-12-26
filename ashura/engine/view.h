@@ -289,11 +289,6 @@ struct CoreViewTheme
   f32  focus_thickness   = 0;
 };
 
-// [ ] simpler color model:
-// - primary color
-// - text color
-// - surface color
-// - error, warning, success
 inline constexpr CoreViewTheme DEFAULT_THEME = {
   .background        = norm(Vec4U8{0x19, 0x19, 0x19, 0xFF}),
   .surface           = norm(Vec4U8{0x33, 0x33, 0x33, 0xFF}),

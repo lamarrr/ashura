@@ -164,13 +164,12 @@ struct TextCompositor
 
   static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
   static constexpr c32 DEFAULT_LINE_SYMBOLS[] = {'\n', 0x2029};
-  static constexpr c32 TAB_STRING[]           = {'\t', '\t', '\t', '\t',
-                                                 '\t', '\t', '\t', '\t'};
+ 
 
-  AllocatorImpl       allocator_      = default_allocator;
-  TextCursor          cursor_         = {};
-  Vec<c32>            buffer_         = {};
-  Vec<TextEditRecord> records_        = {};
+  AllocatorImpl       allocator_;
+  TextCursor          cursor_ = {};
+  Vec<c32>            buffer_;
+  Vec<TextEditRecord> records_;
   u32                 buffer_usage_   = 0;
   u32                 buffer_pos_     = 0;
   u32                 latest_record_  = 0;

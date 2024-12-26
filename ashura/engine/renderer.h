@@ -1,8 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/engine/assets.h"
 #include "ashura/engine/gpu_system.h"
 #include "ashura/engine/passes.h"
+#include "ashura/engine/systems.h"
 #include "ashura/std/dyn.h"
 
 namespace ash

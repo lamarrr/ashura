@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/text.h"
-#include "ashura/engine/assets.h"
 #include "ashura/engine/font_impl.h"
+#include "ashura/engine/systems.h"
 #include "ashura/std/vec.h"
 
 extern "C"
@@ -451,14 +451,14 @@ void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout)
   layout.extent    = extent;
 }
 
-TextHitResult hit_text(TextLayout const & layout, f32 style_align_width,
-                       f32 style_alignment, Vec2 pos)
+Option<TextHitResult> hit_text(TextLayout const & layout, f32 style_align_width,
+                               f32 style_alignment, Vec2 pos)
 {
   u32 const num_lines = layout.lines.size32();
 
   if (num_lines == 0)
   {
-    return TextHitResult{.cluster = 0, .line = 0, .column = 0};
+    return none;
   }
 
   // TODO(lamarrr): add acceleration structure: block pos
