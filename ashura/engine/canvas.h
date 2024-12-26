@@ -132,18 +132,32 @@ struct ShapeInfo
   f32 edge_smoothness = 1;
 };
 
+/// @brief Maximum clip rect that will cover the entire Canvas.
+/// The canvas's maximum surface extent will be about 8192px (excluding virtual scaling).
+inline constexpr Rect MAX_CLIP{
+  .offset{0,       0      },
+  .extent{U16_MAX, U16_MAX}
+};
+
 struct Canvas
 {
   struct RenderContext
   {
-    Canvas &              canvas;
-    PassContext &         passes;
-    Framebuffer const &   framebuffer;
+    Canvas & canvas;
+
+    PassContext & passes;
+
+    Framebuffer const & framebuffer;
+
     gpu::CommandEncoder & enc;
-    SSBO const &          rrects;
-    SSBO const &          ngons;
-    SSBO const &          ngon_vertices;
-    SSBO const &          ngon_indices;
+
+    SSBO const & rrects;
+
+    SSBO const & ngons;
+
+    SSBO const & ngon_vertices;
+
+    SSBO const & ngon_indices;
   };
 
   enum class BatchType : u8
@@ -156,11 +170,10 @@ struct Canvas
   struct Batch
   {
     BatchType type = BatchType::None;
-    CRect     clip{
-          .center{F32_MAX / 2, F32_MAX / 2},
-          .extent{F32_MAX,     F32_MAX    }
-    };
+
     Slice32 run{};
+
+    Rect clip = MAX_CLIP;
   };
 
   typedef Dyn<Fn<void(RenderContext const &)>> PassFn;
@@ -168,21 +181,33 @@ struct Canvas
   struct Pass
   {
     Span<char const> name = {};
-    PassFn           task{};
+
+    PassFn task{};
   };
 
-  Vec2 viewport_extent{};
+  /// @brief the viewport of the framebuffer this canvas will be targetting
+  /// this is in the Framebuffer coordinates (Physical px coordinates)
+  gpu::Viewport viewport{};
 
-  Vec2U surface_extent{};
+  /// @brief the viewport's local extent. This will scale to the viewport's extent.
+  /// This is typically the screen's virtual size (Logical px coordinates).
+  /// This distinction helps support high-density displays.
+  Vec2 extent{};
 
-  f32 viewport_aspect_ratio = 1;
+  /// @brief the pixel size of the backing framebuffer (Physical px coordinates)
+  Vec2U framebuffer_extent{};
 
-  Mat4 world_to_view = Mat4::identity();
+  /// @brief aspect ratio of the viewport
+  f32 aspect_ratio = 1;
 
-  CRect current_clip{
-    .center{F32_MAX * 0.5F, F32_MAX * 0.5F},
-    .extent{F32_MAX,        F32_MAX       }
-  };
+  /// @brief the ratio of the viewport's framebuffer coordinate extent
+  /// to the viewport's virtual extent
+  f32 virtual_scale = 1;
+
+  /// @brief the world to viewport transformation matrix
+  Affine4 world_to_view = Affine4::identity();
+
+  Rect current_clip = MAX_CLIP;
 
   Vec<RRectParam> rrect_params;
 
@@ -194,6 +219,7 @@ struct Canvas
 
   Vec<u32> ngon_index_counts;
 
+  /// @brief current render batch
   Batch batch{};
 
   Vec<Pass> passes;
@@ -219,13 +245,22 @@ struct Canvas
   Canvas & operator=(Canvas &&)      = default;
   ~Canvas()                          = default;
 
-  Canvas & begin_recording(Vec2 viewport_extent, Vec2U surface_extent);
+  Canvas & begin_recording(gpu::Viewport const & viewport, Vec2 extent,
+                           Vec2U framebuffer_extent);
 
   Canvas & end_recording();
 
   Canvas & reset();
 
-  Canvas & clip(CRect const & area);
+  Canvas & reset_clip()
+  {
+    current_clip = MAX_CLIP;
+    return *this;
+  }
+
+  Canvas & clip(Rect const & area);
+
+  RectU clip_to_scissor(Rect const & clip);
 
   /// @brief render a circle
   Canvas & circle(ShapeInfo const & info);
@@ -279,10 +314,7 @@ struct Canvas
   /// @param clip clip rect for culling draw commands of the text block
   Canvas & text(ShapeInfo const & info, TextBlock const & block,
                 TextLayout const & layout, TextBlockStyle const & style,
-                CRect const & clip = {
-                  {F32_MAX / 2, F32_MAX / 2},
-                  {F32_MAX,     F32_MAX    }
-  });
+                CRect const & clip = MAX_CLIP.centered());
 
   /// @brief Render Non-Indexed Triangles
   Canvas & triangles(ShapeInfo const & info, Span<Vec2 const> vertices);
@@ -298,7 +330,7 @@ struct Canvas
   /// @param area region in the canvas to apply the blur to
   /// @param num_passes number of blur passes to execute, higher values result
   /// in blurrier results
-  Canvas & blur(CRect const & area, u32 num_passes);
+  Canvas & blur(Rect const & area, Vec2 radius, u32 num_passes);
 
   /// @brief register a custom canvas pass to be executed in the render thread
   Canvas & add_pass(Pass && pass);

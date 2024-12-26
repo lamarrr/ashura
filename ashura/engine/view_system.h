@@ -163,7 +163,7 @@ struct ViewSystem
   Vec<i32>     layers;
 
   Vec<Affine3> transforms;
-  Vec<CRect>   clips;
+  Vec<Rect>    clips;
   Vec<u32>     z_ordering;
   Vec<u32>     focus_ordering;
 
@@ -487,7 +487,12 @@ struct ViewSystem
       }
     }
 
-    fill(clips.view(), CRect::from_offset({0, 0}, viewport_extent));
+    Rect const viewport_clip{
+      .offset{0, 0},
+      .extent = viewport_extent
+    };
+
+    fill(clips, viewport_clip);
 
     /// recursive view clipping
     for (u32 i = 0; i < n; i++)
@@ -495,7 +500,7 @@ struct ViewSystem
       u32 const viewport = viewports[i];
       if (is_viewport[i]) [[unlikely]]
       {
-        CRect const clip{.center = centers[i], .extent = extents[i]};
+        Rect const clip = Rect::from_center(centers[i], extents[i]);
         if (viewport != U32_MAX) [[likely]]
         {
           clips[i] = intersect(clip, clips[viewport]);
@@ -588,7 +593,7 @@ struct ViewSystem
     });
   }
 
-  void visibility(Vec2 viewport_extent)
+  void visibility()
   {
     for (u32 i = 0; i < views.size32(); i++)
     {
@@ -605,12 +610,11 @@ struct ViewSystem
       }
       else
       {
-        CRect         region{.center = centers[i], .extent = extents[i]};
-        CRect const & clip = clips[i];
-        bool const    hidden =
-          !overlaps(region, clip) ||
-          !overlaps(region, CRect::from_offset({0, 0}, viewport_extent)) ||
-          !region.is_visible() || !clip.is_visible();
+        Rect const region = Rect::from_center(centers[i], extents[i]);
+
+        Rect const & clip = clips[i];
+
+        bool const hidden = !overlaps(region, clip);
 
         is_hidden.set(i, hidden);
       }
@@ -962,9 +966,9 @@ struct ViewSystem
 
     focus_order();
 
-    layout(input.viewport_extent);
+    layout(as_vec2(input.window_extent));
     stack();
-    visibility(input.viewport_extent);
+    visibility();
     render(canvas);
 
     events(input);

@@ -548,12 +548,12 @@ struct TextView : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      CRect const & clip) override
+                      Rect const & clip) override
   {
     highlight(TextHighlight{
       .slice = compositor_.get_cursor().as_slice(text_.get_text().size32()),
       .style = style.cursor_highlight});
-    text_.render(canvas, region, clip, zoom);
+    text_.render(canvas, region, clip.centered(), zoom);
     text_.highlights_.pop();
   }
 
@@ -947,18 +947,18 @@ struct TextInput : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      CRect const & clip) override
+                      Rect const & clip) override
   {
     if (content_.text_.is_empty())
     {
-      stub_.render(canvas, region, clip, zoom);
+      stub_.render(canvas, region, clip.centered(), zoom);
     }
     else
     {
       highlight(TextHighlight{
         .slice = compositor_.get_cursor().as_slice(content_.text_.size32()),
         .style = style.highlight});
-      content_.render(canvas, region, clip, zoom);
+      content_.render(canvas, region, clip.centered(), zoom);
       content_.highlights_.pop();
     }
 
@@ -1042,7 +1042,7 @@ struct Button : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32,
-                      CRect const &) override
+                      Rect const &) override
   {
     ColorGradient tint = (state.press.hovered && !state.press.held) ?
                            style.hovered_color :
@@ -1291,7 +1291,7 @@ struct CheckBox : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32,
-                      CRect const &) override
+                      Rect const &) override
   {
     ColorGradient tint =
       (state.press.hovered && !state.press.held && !state.disabled) ?
@@ -1510,7 +1510,7 @@ struct Slider : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32,
-                      CRect const &) override
+                      Rect const &) override
   {
     u32 const     main_axis   = (style.axis == Axis::X) ? 0 : 1;
     u32 const     cross_axis  = (style.axis == Axis::X) ? 1 : 0;
@@ -1714,7 +1714,7 @@ struct Switch : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32,
-                      CRect const &) override
+                      Rect const &) override
   {
     Vec2 const thumb_extent = style.thumb_frame(region.extent);
     Vec2 const thumb_center =
@@ -1850,7 +1850,7 @@ struct RadioBox : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32,
-                      CRect const &) override
+                      Rect const &) override
   {
     canvas.rrect({.center       = region.center,
                   .extent       = region.extent,
@@ -2082,7 +2082,7 @@ struct ScalarDragBox : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32,
-                      CRect const &) override
+                      Rect const &) override
   {
     canvas.rrect({.center       = region.center,
                   .extent       = region.extent,
@@ -2374,7 +2374,7 @@ struct ScrollBar : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32,
-                      CRect const &) override
+                      Rect const &) override
   {
     u32 const  main_axis          = (style.axis == Axis::X) ? 0 : 1;
     u32 const  cross_axis         = (style.axis == Axis::X) ? 1 : 0;
@@ -2720,7 +2720,7 @@ struct ComboBoxItem : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32,
-                      CRect const &) override
+                      Rect const &) override
   {
     canvas.rrect({.center = region.center,
                   .extent = region.extent,
@@ -2838,7 +2838,7 @@ struct ComboBoxScrollView : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32,
-                      CRect const &) override
+                      Rect const &) override
   {
     canvas.rrect({.center       = region.center,
                   .extent       = region.extent,
@@ -3038,7 +3038,7 @@ struct ComboBox : View
   }
 
   virtual void render(Canvas & canvas, CRect const & region, f32,
-                      CRect const &) override
+                      Rect const &) override
   {
     canvas.rrect(
       {.center       = region.center,

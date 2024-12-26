@@ -983,7 +983,10 @@ struct InputState
   Keyboard key{};
 
   /// @brief extent of the viewport the windows' views are in
-  Vec2 viewport_extent = {};
+  Vec2U window_extent = {};
+
+  /// @brief then windows' backing surface extent
+  Vec2U surface_extent = {};
 
   /// @brief current drop data type
   DropType drop_type = DropType::None;
@@ -1051,16 +1054,17 @@ struct InputState
   void clone_to(InputState & dst) const
   {
     dst.clear();
-    dst.timestamp       = timestamp;
-    dst.timedelta       = timedelta;
-    dst.theme           = theme;
-    dst.direction       = direction;
-    dst.mouse_focused   = mouse_focused;
-    dst.key_focused     = key_focused;
-    dst.mouse           = mouse;
-    dst.key             = key;
-    dst.viewport_extent = viewport_extent;
-    dst.drop_type       = drop_type;
+    dst.timestamp      = timestamp;
+    dst.timedelta      = timedelta;
+    dst.theme          = theme;
+    dst.direction      = direction;
+    dst.mouse_focused  = mouse_focused;
+    dst.key_focused    = key_focused;
+    dst.mouse          = mouse;
+    dst.key            = key;
+    dst.window_extent  = window_extent;
+    dst.surface_extent = surface_extent;
+    dst.drop_type      = drop_type;
     dst.drop_data.extend(drop_data).unwrap();
     dst.text_input = text_input;
     dst.text.extend(text).unwrap();

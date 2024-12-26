@@ -349,50 +349,44 @@ Canvas & Canvas::reset()
   return *this;
 }
 
-Canvas & Canvas::begin_recording(Vec2  new_viewport_extent,
-                                 Vec2U new_surface_extent)
+Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
+                                 Vec2 new_extent, Vec2U new_framebuffer_extent)
 {
   reset();
 
-  viewport_extent = new_viewport_extent;
-  surface_extent  = new_surface_extent;
+  viewport           = new_viewport;
+  extent             = new_extent;
+  framebuffer_extent = new_framebuffer_extent;
 
-  if (new_viewport_extent.y == 0 | new_viewport_extent.x == 0)
+  if (extent.x == 0 | extent.y == 0)
   {
-    viewport_aspect_ratio = 1;
+    aspect_ratio = 1;
   }
   else
   {
-    viewport_aspect_ratio = viewport_extent.x / viewport_extent.y;
+    aspect_ratio = extent.x / extent.y;
   }
 
-  world_to_view =
-    translate3d(Vec3{-1, -1, 0}) * scale3d(vec3(2 / viewport_extent, 1));
+  virtual_scale = viewport.extent.x / new_extent.x;
+
+  world_to_view = translate3d(Vec3{-1, -1, 0}) * scale3d(vec3(2 / extent, 1));
 
   return *this;
 }
 
-constexpr RectU clip_to_scissor(gpu::Viewport const & viewport,
-                                CRect const &         clip)
+RectU Canvas::clip_to_scissor(Rect const & clip)
 {
-  // [ ] this should probably also use the framebuffer extent
-  // clips only apply translations. no scaling
-  Rect s{viewport.offset + clip.begin(), clip.extent};
+  // clips are always unscaled
+  Rect scissor{.offset = viewport.offset + clip.offset * virtual_scale,
+               .extent = clip.extent * virtual_scale};
 
-  s.offset.x = clamp(s.offset.x, 0.0F, viewport.extent.x);
+  scissor.offset.x = clamp(scissor.offset.x, 0.0F, MAX_CLIP.extent.x);
+  scissor.offset.y = clamp(scissor.offset.y, 0.0F, MAX_CLIP.extent.y);
+  scissor.extent.x = clamp(scissor.extent.x, 0.0F, MAX_CLIP.extent.x);
+  scissor.extent.y = clamp(scissor.extent.y, 0.0F, MAX_CLIP.extent.y);
 
-  s.offset.y = clamp(s.offset.y, 0.0F, viewport.extent.y);
-
-  s.extent.x =
-    clamp(s.offset.x + s.extent.x, 0.0F, viewport.extent.x) - s.offset.x;
-
-  s.extent.y =
-    clamp(s.offset.y + s.extent.y, 0.0F, viewport.extent.y) - s.offset.y;
-
-  return {
-    .offset{(u32) s.offset.x, (u32) s.offset.y},
-    .extent{(u32) s.extent.x, (u32) s.extent.y}
-  };
+  return RectU{.offset = as_vec2u(scissor.offset),
+               .extent = as_vec2u(scissor.extent)};
 }
 
 static inline void flush_batch(Canvas & c)
@@ -405,15 +399,15 @@ static inline void flush_batch(Canvas & c)
     case Canvas::BatchType::RRect:
       c.add_pass("RRect"_str, [batch, world_to_view = c.world_to_view](
                                 Canvas::RenderContext const & ctx) {
-        RRectPassParams params{
-          .framebuffer = ctx.framebuffer,
-          .scissor  = clip_to_scissor(ctx.framebuffer.viewport(), batch.clip),
-          .viewport = ctx.framebuffer.viewport(),
-          .world_to_view  = world_to_view,
-          .params_ssbo    = ctx.rrects.descriptor,
-          .textures       = sys->gpu.textures,
-          .first_instance = batch.run.offset,
-          .num_instances  = batch.run.span};
+        RRectPassParams params{.framebuffer = ctx.framebuffer,
+                               .scissor =
+                                 ctx.canvas.clip_to_scissor(batch.clip),
+                               .viewport       = ctx.canvas.viewport,
+                               .world_to_view  = world_to_view,
+                               .params_ssbo    = ctx.rrects.descriptor,
+                               .textures       = sys->gpu.textures,
+                               .first_instance = batch.run.offset,
+                               .num_instances  = batch.run.span};
 
         ctx.passes.rrect->encode(ctx.enc, params);
       });
@@ -423,9 +417,9 @@ static inline void flush_batch(Canvas & c)
       c.add_pass("Ngon"_str, [batch, world_to_view = c.world_to_view](
                                Canvas::RenderContext const & ctx) {
         NgonPassParams params{
-          .framebuffer = ctx.framebuffer,
-          .scissor  = clip_to_scissor(ctx.framebuffer.viewport(), batch.clip),
-          .viewport = ctx.framebuffer.viewport(),
+          .framebuffer    = ctx.framebuffer,
+          .scissor        = ctx.canvas.clip_to_scissor(batch.clip),
+          .viewport       = ctx.canvas.viewport,
           .world_to_view  = world_to_view,
           .vertices_ssbo  = ctx.ngon_vertices.descriptor,
           .indices_ssbo   = ctx.ngon_indices.descriptor,
@@ -444,7 +438,7 @@ static inline void flush_batch(Canvas & c)
 }
 
 static inline void add_rrect(Canvas & c, RRectParam const & param,
-                             CRect const & clip)
+                             Rect const & clip)
 {
   u32 const index = c.rrect_params.size32();
   c.rrect_params.push(param).unwrap();
@@ -455,8 +449,8 @@ static inline void add_rrect(Canvas & c, RRectParam const & param,
     flush_batch(c);
     c.batch = Canvas::Batch{
       .type = Canvas::BatchType::RRect,
-      .clip = clip,
-      .run{.offset = index, .span = 1}
+      .run{.offset = index, .span = 1},
+      .clip = clip
     };
     return;
   }
@@ -465,7 +459,7 @@ static inline void add_rrect(Canvas & c, RRectParam const & param,
 }
 
 static inline void add_ngon(Canvas & c, NgonParam const & param,
-                            CRect const & clip, u32 num_indices)
+                            Rect const & clip, u32 num_indices)
 {
   u32 const index = c.ngon_params.size32();
   c.ngon_index_counts.push(num_indices).unwrap();
@@ -477,8 +471,8 @@ static inline void add_ngon(Canvas & c, NgonParam const & param,
     flush_batch(c);
     c.batch = Canvas::Batch{
       .type = Canvas::BatchType::Ngon,
-      .clip = clip,
-      .run{.offset = index, .span = 1}
+      .run{.offset = index, .span = 1},
+      .clip = clip
     };
     return;
   }
@@ -492,7 +486,7 @@ Canvas & Canvas::end_recording()
   return *this;
 }
 
-Canvas & Canvas::clip(CRect const & c)
+Canvas & Canvas::clip(Rect const & c)
 {
   current_clip = c;
   return *this;
@@ -640,25 +634,32 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
   f32 const  block_width = max(layout.extent.x, style.align_width);
   Vec2 const block_extent{block_width, layout.extent.y};
 
-  static constexpr u32 PASS_BACKGROUND    = 0;
-  static constexpr u32 PASS_GLYPH_SHADOWS = 1;
-  static constexpr u32 PASS_GLYPHS        = 2;
-  static constexpr u32 PASS_UNDERLINE     = 3;
-  static constexpr u32 PASS_STRIKETHROUGH = 4;
-  static constexpr u32 NUM_PASSES         = 5;
+  enum Pass : u32
+  {
+    BACKGROUND    = 0,
+    GLYPH_SHADOWS = 1,
+    GLYPHS        = 2,
+    UNDERLINE     = 3,
+    STRIKETHROUGH = 4
+  };
+
+  static constexpr u32 NUM_PASSES = 5;
 
   for (u8 pass = 0; pass < NUM_PASSES; pass++)
   {
     f32 line_y = -block_extent.y * 0.5F;
     for (Line const & ln : layout.lines)
     {
-      if (!overlaps(clip, CRect{
-                            .center = info.center + line_y,
-                            .extent = {block_width, ln.metrics.height}
-      }))
+      CRect const ln_rect{
+        .center = info.center + line_y,
+        .extent{block_width, ln.metrics.height}
+      };
+
+      if (!overlaps(clip, ln_rect))
       {
         continue;
       }
+
       line_y += ln.metrics.height;
       f32 const           baseline  = line_y - ln.metrics.descent;
       TextDirection const direction = level_to_direction(ln.metrics.level);
@@ -676,7 +677,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         GpuFontAtlas const & atlas      = font.gpu_atlas.value();
         f32 const run_width = au_to_px(run.metrics.advance, run.font_height);
 
-        if (pass == PASS_BACKGROUND && !run_style.background.is_transparent())
+        if (pass == Pass::BACKGROUND && !run_style.background.is_transparent())
         {
           Vec2 extent{run_width,
                       au_to_px(run.metrics.height(), run.font_height)};
@@ -702,7 +703,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                               au_to_px(sh.offset, run.font_height) +
                               extent * 0.5F;
 
-          if (pass == PASS_GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
+          if (pass == Pass::GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
               !run_style.shadow.is_transparent())
           {
             Vec2 shadow_extent = extent * run_style.shadow_scale;
@@ -720,7 +721,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
             });
           }
 
-          if (pass == PASS_GLYPHS && !run_style.color.is_transparent())
+          if (pass == Pass::GLYPHS && !run_style.color.is_transparent())
           {
             rect({
               .center          = info.center,
@@ -738,7 +739,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
           glyph_cursor += au_to_px(sh.advance, run.font_height);
         }
 
-        if (pass == PASS_STRIKETHROUGH &&
+        if (pass == Pass::STRIKETHROUGH &&
             run_style.strikethrough_thickness != 0)
         {
           Vec2 extent{run_width, run_style.strikethrough_thickness};
@@ -755,7 +756,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                 .edge_smoothness = info.edge_smoothness});
         }
 
-        if (pass == PASS_UNDERLINE && run_style.underline_thickness != 0)
+        if (pass == Pass::UNDERLINE && run_style.underline_thickness != 0)
         {
           Vec2 extent{run_width, run_style.underline_thickness};
           Vec2 center = Vec2{cursor, baseline + 2} + extent * 0.5F;
@@ -876,17 +877,18 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
   return *this;
 }
 
-Canvas & Canvas::blur(CRect const & area, u32 num_passes)
+Canvas & Canvas::blur(Rect const & area, Vec2 radius, u32 num_passes)
 {
   flush_batch(*this);
 
-  add_pass("Blur"_str, [num_passes, area](Canvas::RenderContext const & ctx) {
-    BlurPassParams params{.framebuffer = ctx.framebuffer,
-                          .passes      = num_passes,
-                          .area =
-                            clip_to_scissor(ctx.framebuffer.viewport(), area)};
-    ctx.passes.blur->encode(ctx.enc, params);
-  });
+  add_pass("Blur"_str,
+           [area, radius, num_passes](Canvas::RenderContext const & ctx) {
+             BlurPassParams params{.framebuffer = ctx.framebuffer,
+                                   .radius      = radius,
+                                   .passes      = num_passes,
+                                   .area = ctx.canvas.clip_to_scissor(area)};
+             ctx.passes.blur->encode(ctx.enc, params);
+           });
 
   return *this;
 }

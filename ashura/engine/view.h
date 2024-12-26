@@ -439,7 +439,7 @@ struct View
   /// @param clip canvas-space clip of the view, applied by viewports.
   /// @param canvas canvas to render view into
   constexpr virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                                CRect const & clip)
+                                Rect const & clip)
   {
     (void) canvas;
     (void) region;
