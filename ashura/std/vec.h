@@ -1685,7 +1685,7 @@ struct SparseVec
   explicit constexpr SparseVec(AllocatorImpl allocator) :
     index_to_id{allocator},
     id_to_index{allocator},
-    dense{},
+    dense{V{allocator}...},
     free_id_head{STUB}
   {
   }
