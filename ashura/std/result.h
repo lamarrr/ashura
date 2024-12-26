@@ -10,7 +10,8 @@ template <typename T = Void>
 struct [[nodiscard]] Ok
 {
   using Type = T;
-  T value{};
+
+  T v{};
 };
 
 template <typename T>
@@ -20,7 +21,8 @@ template <typename E = Void>
 struct [[nodiscard]] Err
 {
   using Type = E;
-  E value{};
+
+  E v{};
 };
 
 template <typename T>
@@ -54,13 +56,11 @@ struct [[nodiscard]] Result
     }
   }
 
-  constexpr Result(Ok<T> ok) : is_ok_{true}, value_{static_cast<T &&>(ok.value)}
+  constexpr Result(Ok<T> ok) : is_ok_{true}, value_{static_cast<T &&>(ok.v)}
   {
   }
 
-  constexpr Result(Err<E> err) :
-    is_ok_{false},
-    err_{static_cast<E &&>(err.value)}
+  constexpr Result(Err<E> err) : is_ok_{false}, err_{static_cast<E &&>(err.v)}
   {
   }
 
@@ -118,7 +118,7 @@ struct [[nodiscard]] Result
     }
 
     is_ok_ = true;
-    new (&value_) T{static_cast<T &&>(other.value)};
+    new (&value_) T{static_cast<T &&>(other.v)};
     return *this;
   }
 
@@ -134,7 +134,7 @@ struct [[nodiscard]] Result
     }
 
     is_ok_ = false;
-    new (&err_) E{static_cast<E &&>(other.value)};
+    new (&err_) E{static_cast<E &&>(other.v)};
     return *this;
   }
 
@@ -381,25 +381,25 @@ struct IsTriviallyRelocatable<Result<T, E>>
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator==(Ok<T> const & a, Ok<U> const & b)
 {
-  return a.value == b.value;
+  return a.v == b.v;
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator!=(Ok<T> const & a, Ok<U> const & b)
 {
-  return a.value != b.value;
+  return a.v != b.v;
 }
 
 template <typename E, typename F>
 [[nodiscard]] constexpr bool operator==(Err<E> const & a, Err<F> const & b)
 {
-  return a.value == b.value;
+  return a.v == b.v;
 }
 
 template <typename E, typename F>
 [[nodiscard]] constexpr bool operator!=(Err<E> const & a, Err<F> const & b)
 {
-  return a.value != b.value;
+  return a.v != b.v;
 }
 
 template <typename T, typename E, typename U>
@@ -407,7 +407,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_ok())
   {
-    return a.value_ == b.value;
+    return a.value_ == b.v;
   }
   return false;
 }
@@ -417,7 +417,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_ok())
   {
-    return a.value_ != b.value;
+    return a.value_ != b.v;
   }
   return true;
 }
@@ -427,7 +427,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_ok())
   {
-    return a.value == b.value_;
+    return a.v == b.value_;
   }
   return false;
 }
@@ -437,7 +437,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_ok())
   {
-    return a.value != b.value_;
+    return a.v != b.value_;
   }
   return true;
 }
@@ -448,7 +448,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_err())
   {
-    return a.err_ == b.value;
+    return a.err_ == b.v;
   }
   return false;
 }
@@ -459,7 +459,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_err())
   {
-    return a.err_ != b.value;
+    return a.err_ != b.v;
   }
   return true;
 }
@@ -470,7 +470,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_err())
   {
-    return a.value == b.err_;
+    return a.v == b.err_;
   }
   return false;
 }
@@ -481,7 +481,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_err())
   {
-    return a.value != b.err_;
+    return a.v != b.err_;
   }
   return true;
 }
