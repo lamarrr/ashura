@@ -105,19 +105,6 @@ struct Framebuffer
   /// @brief combined depth and stencil aspect attachment
   Depth depth = {};
 
-  constexpr gpu::Viewport viewport() const
-  {
-    return gpu::Viewport{.offset    = {},
-                         .extent    = as_vec2(extent()),
-                         .min_depth = 0,
-                         .max_depth = 1};
-  }
-
-  constexpr RectU scissor() const
-  {
-    return RectU{.offset = {}, .extent = extent()};
-  }
-
   constexpr Vec3U extent3() const
   {
     return color.info.extent;
