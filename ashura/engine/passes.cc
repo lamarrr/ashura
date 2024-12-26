@@ -193,7 +193,7 @@ void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
   {
     src           = (src + 1) & 1;
     u32 const dst = (src + 1) & 1;
-    sample(*this, e, radius * (f32) (i + 1), fbs[src].color.texture,
+    sample(*this, e, radius * (f32) i, fbs[src].color.texture,
            fbs[src].color.texture_id, areas[src].extent, areas[dst],
            fbs[dst].color.view, areas[dst].offset, true);
   }
