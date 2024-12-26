@@ -1379,29 +1379,47 @@ constexpr void flip_bit(Span<u64> s, usize i)
 template <typename T>
 constexpr usize impl_find_set_bit(Span<T const> s)
 {
-  for (usize i = 0; i < s.size(); i++)
+  T const * const begin = s.pbegin();
+  T const *       iter  = s.pbegin();
+  T const * const end   = s.pend();
+
+  while (iter != end && *iter == 0)
   {
-    if (s[i] != 0)
-    {
-      return (i << NumTraits<T>::LOG2_NUM_BITS) | std::countr_zero(s[i]);
-    }
+    iter++;
   }
 
-  return s.size() << NumTraits<T>::LOG2_NUM_BITS;
+  usize const idx = static_cast<usize>(iter - begin)
+                    << NumTraits<T>::LOG2_NUM_BITS;
+
+  if (iter == end)
+  {
+    return idx;
+  }
+
+  return idx | std::countr_zero(*iter);
 }
 
 template <typename T>
 constexpr usize impl_find_clear_bit(Span<T const> s)
 {
-  for (usize i = 0; i < s.size(); i++)
+  T const * const begin = s.pbegin();
+  T const *       iter  = s.pbegin();
+  T const * const end   = s.pend();
+
+  while (iter != end && *iter != 0)
   {
-    if (s[i] != NumTraits<T>::MAX)
-    {
-      return (i << NumTraits<T>::LOG2_NUM_BITS) | std::countr_one(s[i]);
-    }
+    iter++;
   }
 
-  return s.size() << NumTraits<T>::LOG2_NUM_BITS;
+  usize const idx = static_cast<usize>(iter - begin)
+                    << NumTraits<T>::LOG2_NUM_BITS;
+
+  if (iter == end)
+  {
+    return idx;
+  }
+
+  return idx | std::countr_one(*iter);
 }
 
 constexpr usize find_set_bit(Span<u8 const> s)
