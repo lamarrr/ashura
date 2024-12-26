@@ -1,10 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/color.h"
-#include "ashura/engine/font.h"
 #include "ashura/engine/passes.h"
 #include "ashura/engine/renderer.h"
-#include "ashura/engine/scene.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/allocators.h"
 #include "ashura/std/math.h"
@@ -132,11 +130,10 @@ struct ShapeInfo
   f32 edge_smoothness = 1;
 };
 
-/// @brief Maximum clip rect that will cover the entire Canvas.
-/// The canvas's maximum surface extent will be about 8192px (excluding virtual scaling).
+/// @brief a normative clip rect that will cover the entire Canvas.
 inline constexpr Rect MAX_CLIP{
-  .offset{0,       0      },
-  .extent{U16_MAX, U16_MAX}
+  .offset{0,         0        },
+  .extent{0xFF'FFFF, 0xFF'FFFF}
 };
 
 struct Canvas
