@@ -776,7 +776,7 @@ template <typename... T>
   return await_semaphores(semaphores, stages, timeout);
 }
 
-inline constexpr usize MAX_TASK_FRAME_SIZE = PAGE_SIZE >> 4;
+inline constexpr usize MAX_TASK_FRAME_SIZE = 2_KB;
 
 template <typename F>
 concept TaskFrame = requires (F f) {
