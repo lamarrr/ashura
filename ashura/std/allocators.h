@@ -57,6 +57,12 @@ struct Arena final : Allocator
     offset = begin;
   }
 
+  constexpr bool contains(usize alignment, usize size, u8 * mem) const
+  {
+    (void) alignment;
+    return (begin <= mem) && (end >= (mem + size));
+  }
+
   [[nodiscard]] virtual bool alloc(usize alignment, usize size,
                                    u8 *& mem) override
   {
@@ -79,8 +85,8 @@ struct Arena final : Allocator
     return true;
   }
 
-  [[nodiscard]] virtual bool alloc_zeroed(usize alignment, usize size,
-                                          u8 *& mem) override
+  [[nodiscard]] virtual bool zalloc(usize alignment, usize size,
+                                    u8 *& mem) override
   {
     if (size == 0)
     {
@@ -116,12 +122,12 @@ struct Arena final : Allocator
     }
 
     mem::copy(Span{mem, old_size}, new_mem);
-    dealloc(alignment, mem, old_size);
+    dealloc(alignment, old_size, mem);
     mem = new_mem;
     return true;
   }
 
-  virtual void dealloc(usize alignment, u8 * mem, usize size) override
+  virtual void dealloc(usize alignment, usize size, u8 * mem) override
   {
     (void) alignment;
     // best-case: stack allocation, we can free memory by adjusting to the
@@ -134,9 +140,9 @@ struct Arena final : Allocator
     }
   }
 
-  [[nodiscard]] AllocatorImpl to_allocator()
+  [[nodiscard]] AllocatorRef ref()
   {
-    return AllocatorImpl{.self = this};
+    return AllocatorRef{*this};
   }
 };
 
@@ -169,15 +175,15 @@ struct ArenaPoolCfg
 /// @source: allocation memory source
 struct ArenaPool final : Allocator
 {
-  AllocatorImpl source        = {};
-  Arena *       arenas        = nullptr;
-  usize         num_arenas    = 0;
-  usize         current_arena = 0;
-  ArenaPoolCfg  cfg           = {};
+  AllocatorRef source        = {};
+  Arena *      arenas        = nullptr;
+  usize        num_arenas    = 0;
+  usize        current_arena = 0;
+  ArenaPoolCfg cfg           = {};
 
   ArenaPool() = default;
 
-  explicit ArenaPool(AllocatorImpl source, ArenaPoolCfg const & cfg = {}) :
+  explicit ArenaPool(AllocatorRef source, ArenaPoolCfg const & cfg = {}) :
     source{source},
     cfg{cfg}
   {
@@ -263,9 +269,9 @@ struct ArenaPool final : Allocator
   {
     for (usize i = num_arenas; i-- > 0;)
     {
-      source.dealloc(cfg.arena_alignment, arenas[i].begin, arenas[i].size());
+      source->dealloc(cfg.arena_alignment, arenas[i].size(), arenas[i].begin);
     }
-    source.ndealloc(arenas, num_arenas);
+    source->ndealloc(num_arenas, arenas);
   }
 
   void reset()
@@ -314,15 +320,15 @@ struct ArenaPool final : Allocator
 
     u8 * arena_mem;
 
-    if (!source.alloc(cfg.arena_alignment, arena_size, arena_mem))
+    if (!source->alloc(cfg.arena_alignment, arena_size, arena_mem))
     {
       mem = nullptr;
       return false;
     }
 
-    if (!source.nrealloc(num_arenas, num_arenas + 1, arenas))
+    if (!source->nrealloc(num_arenas, num_arenas + 1, arenas))
     {
-      source.dealloc(cfg.arena_alignment, arena_mem, arena_size);
+      source->dealloc(cfg.arena_alignment, arena_size, arena_mem);
       mem = nullptr;
       return false;
     }
@@ -342,8 +348,8 @@ struct ArenaPool final : Allocator
     return true;
   }
 
-  [[nodiscard]] virtual bool alloc_zeroed(usize alignment, usize size,
-                                          u8 *& mem) override
+  [[nodiscard]] virtual bool zalloc(usize alignment, usize size,
+                                    u8 *& mem) override
   {
     if (!alloc(alignment, size, mem))
     {
@@ -376,8 +382,8 @@ struct ArenaPool final : Allocator
         // if only and first allocation on the arena, realloc arena
         if (arena.begin == mem)
         {
-          if (!source.realloc(cfg.arena_alignment, arena.size(), new_size,
-                              arena.begin))
+          if (!source->realloc(cfg.arena_alignment, arena.size(), new_size,
+                               arena.begin))
           {
             return false;
           }
@@ -395,12 +401,12 @@ struct ArenaPool final : Allocator
     }
 
     mem::copy(Span{mem, old_size}, new_mem);
-    dealloc(alignment, mem, old_size);
+    dealloc(alignment, old_size, mem);
     mem = new_mem;
     return true;
   }
 
-  virtual void dealloc(usize alignment, u8 * mem, usize size) override
+  virtual void dealloc(usize alignment, usize size, u8 * mem) override
   {
     (void) alignment;
     if (mem == nullptr || size == 0 || num_arenas == 0)
@@ -428,9 +434,12 @@ struct ArenaPool final : Allocator
     }
   }
 
-  [[nodiscard]] AllocatorImpl to_allocator()
+  AllocatorRef ref()
   {
-    return AllocatorImpl{.self = this};
+    return AllocatorRef{*this};
+  }
+};
+
   }
 };
 
