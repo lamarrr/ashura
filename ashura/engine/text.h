@@ -232,8 +232,8 @@ enum class TextScript : u8
 /// @param line_height relative. multiplied by font_height
 struct FontStyle
 {
-  FontId font        = FontId::Default;
-  f32    font_height = 20;
+  FontId font        = FontId::Invalid;
+  f32    height      = 20;
   f32    line_height = 1.2F;
 };
 

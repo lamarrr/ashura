@@ -6,27 +6,29 @@
 namespace ash
 {
 
-enum ImageId : usize
+enum class ImageId : usize
 {
+  Invalid = USIZE_MAX
 };
 
-enum AudioId : usize
+enum class AudioId : usize
 {
+  Invalid = USIZE_MAX
 };
 
-enum VideoId : usize
+enum class VideoId : usize
 {
+  Invalid = USIZE_MAX
 };
 
-enum ShaderId : usize
+enum class ShaderId : usize
 {
+  Invalid = USIZE_MAX
 };
 
-enum FontId : usize
+enum class FontId : usize
 {
-  Default   = 0,
-  Primary   = 0,
-  Secondary = 1
+  Invalid = USIZE_MAX
 };
 
 }    // namespace ash

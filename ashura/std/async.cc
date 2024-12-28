@@ -6,11 +6,9 @@
 #include "ashura/std/cfg.h"
 #include "ashura/std/error.h"
 #include "ashura/std/list.h"
-#include "ashura/std/log.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
-#include <chrono>
 #include <thread>
 
 namespace ash
@@ -110,7 +108,7 @@ static_assert(TASK_ARENA_SIZE >= MAX_TASK_FLEX_LAYOUT.size,
 struct TaskAllocator
 {
   /// @brief The source allocator the arenas are allocated from
-  AllocatorImpl source;
+  AllocatorRef source;
 
   /// @brief Arena free list. all arenas on the free list a fully reclaimed and
   /// can be immediately used.
@@ -141,7 +139,7 @@ struct TaskAllocator
 
   } current_arena{};
 
-  explicit TaskAllocator(AllocatorImpl src) : source{src}
+  explicit TaskAllocator(AllocatorRef src) : source{src}
   {
   }
 
@@ -185,7 +183,7 @@ struct TaskAllocator
 
     u8 * stack;
 
-    if (!source.alloc(layout.alignment, layout.size, stack))
+    if (!source->alloc(layout.alignment, layout.size, stack))
     {
       return false;
     }
@@ -200,7 +198,7 @@ struct TaskAllocator
   void dealloc_arena(TaskArena * arena)
   {
     Layout const layout = TaskArena::flex().layout();
-    source.dealloc(layout.alignment, (u8 *) arena, layout.size);
+    source->dealloc(layout.alignment, layout.size, (u8 *) arena);
   }
 
   bool request_arena(TaskArena *& out)
@@ -299,7 +297,7 @@ struct TaskQueue
   List<Task>    tasks{};
   TaskAllocator allocator;
 
-  explicit TaskQueue(AllocatorImpl src) : allocator{src}
+  explicit TaskQueue(AllocatorRef src) : allocator{src}
   {
   }
 
@@ -351,7 +349,7 @@ struct alignas(CACHELINE_ALIGNMENT) TaskThread
   nanoseconds    max_sleep;
   std::thread    thread;
 
-  TaskThread(AllocatorImpl allocator, nanoseconds max_sleep) :
+  TaskThread(AllocatorRef allocator, nanoseconds max_sleep) :
     queue{allocator},
     stop_token{},
     max_sleep{max_sleep},
@@ -378,7 +376,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
   bool joined;
 
-  explicit SchedulerImpl(AllocatorImpl   allocator,
+  explicit SchedulerImpl(AllocatorRef    allocator,
                          std::thread::id main_thread_id) :
     dedicated_threads{},
     worker_threads{},
@@ -391,13 +389,13 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
   virtual ~SchedulerImpl() override
   {
-    CHECK_DESC(joined, "Scheduler not joined yet");
+    CHECK(joined, "Scheduler not joined yet");
   }
 
-  virtual void join() override
+  virtual void shutdown() override
   {
-    CHECK_DESC(main_thread_id == std::this_thread::get_id(),
-               "Scheduler can only be joined on the main thread");
+    CHECK(main_thread_id == std::this_thread::get_id(),
+          "Scheduler can only be joined on the main thread");
 
     for (TaskThread & t : dedicated_threads)
     {
@@ -497,15 +495,17 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
   }
 
   static void main_thread_loop(TaskAllocator & a, TaskQueue & q,
-                               nanoseconds grace_period, nanoseconds duration)
+                               nanoseconds duration, nanoseconds poll_max)
   {
-    steady_clock::time_point const begin = steady_clock::now();
+    time_point const begin      = steady_clock::now();
+    time_point       poll_start = begin;
 
     while (true)
     {
       // avoid syscalls when duration is .max
-      if (duration != nanoseconds::max() &&
-          (steady_clock::now() - begin) > duration)
+      time_point now = steady_clock::now();
+
+      if ((now - begin) > duration)
       {
         break;
       }
@@ -514,10 +514,8 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
       if (task == nullptr) [[unlikely]]
       {
-        // if within grace period, continue polling.
-        // avoid syscalls when timeout is 0
-        if (grace_period == nanoseconds{} ||
-            (steady_clock::now() - begin) > grace_period)
+        // if maximum poll duration has passed, exit loop
+        if ((now - poll_start) > poll_max)
         {
           break;
         }
@@ -536,6 +534,9 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
         q.push_task(task);
         continue;
       }
+
+      // advance poll timer, since we've gotten a ready task
+      poll_start = now;
 
       bool const repeat = task->runner(frame.data());
 
@@ -563,8 +564,7 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
 
   virtual void schedule_dedicated(TaskInfo const & info, u32 thread) override
   {
-    CHECK_DESC(thread < dedicated_threads.size32(),
-               "Invalid dedicated thread ID");
+    CHECK(thread < dedicated_threads.size32(), "Invalid dedicated thread ID");
     TaskThread & t = dedicated_threads[thread];
     t.queue.push_task(info);
   }
@@ -579,30 +579,24 @@ struct ASH_DLL_EXPORT SchedulerImpl : Scheduler, Pin<>
     main_queue.push_task(info);
   }
 
-  virtual void execute_main_thread_loop(nanoseconds grace_period,
-                                        nanoseconds duration) override
+  virtual void run_main_loop(nanoseconds duration,
+                             nanoseconds poll_max) override
   {
-    main_thread_loop(main_queue.allocator, main_queue, grace_period, duration);
+    main_thread_loop(main_queue.allocator, main_queue, duration, poll_max);
   }
 };
 
-ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler * scheduler = nullptr;
-
-void Scheduler::init(AllocatorImpl allocator, std::thread::id main_thread_id,
-                     Span<nanoseconds const> dedicated_thread_sleep,
-                     Span<nanoseconds const> worker_thread_sleep)
+Dyn<Scheduler *>
+  Scheduler::create(AllocatorRef allocator, std::thread::id main_thread_id,
+                    Span<nanoseconds const> dedicated_thread_sleep,
+                    Span<nanoseconds const> worker_thread_sleep)
 {
-  if (logger == nullptr)
-  {
-    abort();
-  }
   CHECK(scheduler == nullptr);
   CHECK(dedicated_thread_sleep.size() <= U32_MAX);
   CHECK(worker_thread_sleep.size() <= U32_MAX);
 
-  alignas(SchedulerImpl) static u8 storage[sizeof(SchedulerImpl)];
-
-  SchedulerImpl * impl = new (storage) SchedulerImpl{allocator, main_thread_id};
+  Dyn<SchedulerImpl *> impl =
+    dyn<SchedulerImpl>(inplace, allocator, allocator, main_thread_id).unwrap();
 
   u32 const num_dedicated_threads = dedicated_thread_sleep.size32();
   u32 const num_worker_threads    = worker_thread_sleep.size32();
@@ -627,20 +621,20 @@ void Scheduler::init(AllocatorImpl allocator, std::thread::id main_thread_id,
   {
     impl->worker_threads.push(allocator, worker_thread_sleep[i]).unwrap();
     TaskThread & t = impl->worker_threads[i];
-    t.thread       = std::thread{[&t, impl] {
+    t.thread       = std::thread{[&t, impl = impl.get()] {
       SchedulerImpl::thread_loop(impl->worker_queue.allocator,
                                        impl->worker_queue, t.stop_token, t.max_sleep);
     }};
   }
 
-  scheduler = impl;
+  return cast<Scheduler *>(std::move(impl));
 }
 
-void Scheduler::uninit()
+Scheduler * scheduler = nullptr;
+
+void hook_scheduler(Scheduler * instance)
 {
-  CHECK(scheduler != nullptr);
-  scheduler->~Scheduler();
-  scheduler = nullptr;
+  scheduler = instance;
 }
 
 }    // namespace ash

@@ -814,26 +814,28 @@ inline constexpr char const MIME_FONT_WOFF2[] = "font/woff2";
 
 struct ClipBoard
 {
-  virtual Result<> get(Span<char const> mime, Vec<c8> & out)
+  virtual ~ClipBoard() = 0;
+
+  virtual Result<> get(Span<char const> mime, Vec<u8> & out)
   {
     (void) mime;
     (void) out;
     return Err{};
   }
 
-  virtual Result<> set(Span<char const> mime, Span<c8 const> data)
+  virtual Result<> set(Span<char const> mime, Span<u8 const> data)
   {
     (void) mime;
     (void) data;
     return Err{};
   }
 
-  Result<> get_text(Vec<c8> & out)
+  Result<> get_text(Vec<u8> & out)
   {
     return get(MIME_TEXT_UTF8, out);
   }
 
-  Result<> set_text(Span<c8 const> text)
+  Result<> set_text(Span<u8 const> text)
   {
     return set(MIME_TEXT_UTF8, text);
   }
@@ -1013,7 +1015,7 @@ struct InputState
 
   bool drop_hovering = false;
 
-  explicit InputState(AllocatorImpl allocator) :
+  explicit InputState(AllocatorRef allocator) :
     drop_data{allocator},
     text{allocator}
   {

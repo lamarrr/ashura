@@ -164,9 +164,8 @@ struct TextCompositor
 
   static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
   static constexpr c32 DEFAULT_LINE_SYMBOLS[] = {'\n', 0x2029};
- 
 
-  AllocatorImpl       allocator_;
+  AllocatorRef        allocator_;
   TextCursor          cursor_ = {};
   Vec<c32>            buffer_;
   Vec<TextEditRecord> records_;
@@ -179,12 +178,12 @@ struct TextCompositor
   Span<c32 const>     line_symbols_;
 
   static Result<TextCompositor>
-    make(AllocatorImpl allocator   = default_allocator,
-         u32 num_buffer_codepoints = 4'096, u32 num_records = 1'024,
-         u32 tab_width = 1, Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS,
+    make(AllocatorRef allocator, u32 num_buffer_codepoints = 4'096,
+         u32 num_records = 1'024, u32 tab_width = 1,
+         Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS,
          Span<c32 const> line_symbols = DEFAULT_LINE_SYMBOLS);
 
-  TextCompositor(AllocatorImpl allocator, Vec<c32> buffer,
+  TextCompositor(AllocatorRef allocator, Vec<c32> buffer,
                  Vec<TextEditRecord> records, u32 tab_width,
                  Span<c32 const> word_symbols, Span<c32 const> line_symbols) :
     allocator_{allocator},

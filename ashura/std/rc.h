@@ -8,12 +8,12 @@
 namespace ash
 {
 
-typedef Fn<usize(AllocatorImpl, i32)> AliasOp;
+typedef Fn<usize(AllocatorRef, i32)> AliasOp;
 
 /// @param allocator the allocator used to allocate the object
 /// @param direction the reference operation, 0 (get ref count), 1 (increase ref count), -1 (decrease ref count)
 /// @returns the previous alias count
-static constexpr usize rc_noop(AllocatorImpl allocator, i32 op)
+static constexpr usize rc_noop(AllocatorRef allocator, i32 op)
 {
   (void) allocator;
   (void) op;
@@ -35,18 +35,21 @@ struct [[nodiscard]] Rc
 {
   typedef H Handle;
 
-  H             handle_;
-  AllocatorImpl allocator_;
-  AliasOp       alias_;
+  H            handle_;
+  AllocatorRef allocator_;
+  AliasOp      alias_;
 
-  constexpr Rc(H handle, AllocatorImpl allocator, AliasOp alias) :
+  constexpr Rc(H handle, AllocatorRef allocator, AliasOp alias) :
     handle_{handle},
     allocator_{allocator},
     alias_{alias}
   {
   }
 
-  explicit constexpr Rc() : handle_{}, allocator_{}, alias_{rc_noop}
+  explicit constexpr Rc() :
+    handle_{},
+    allocator_{noop_allocator},
+    alias_{rc_noop}
   {
   }
 
@@ -60,7 +63,7 @@ struct [[nodiscard]] Rc
     alias_{other.alias_}
   {
     other.handle_    = H{};
-    other.allocator_ = AllocatorImpl{};
+    other.allocator_ = noop_allocator;
     other.alias_     = rc_noop;
   }
 
@@ -123,6 +126,11 @@ struct [[nodiscard]] Rc
   {
     return handle_;
   }
+
+  constexpr operator H() const
+  {
+    return handle_;
+  }
 };
 
 template <typename H>
@@ -137,7 +145,7 @@ struct RcObject
   AliasCount alias_count{};
   T          v0;
 
-  static constexpr usize rc_op(RcObject * obj, AllocatorImpl allocator, i32 op)
+  static constexpr usize rc_op(RcObject * obj, AllocatorRef allocator, i32 op)
   {
     switch (op)
     {
@@ -151,7 +159,7 @@ struct RcObject
         if (old == 0)
         {
           obj->~RcObject();
-          allocator.ndealloc(obj, 1);
+          allocator->ndealloc(1, obj);
         }
         return old;
       }
@@ -166,12 +174,12 @@ struct RcObject
 };
 
 template <typename T, typename... Args>
-constexpr Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator,
-                                           Args &&... args)
+constexpr Result<Rc<T *>, Void> rc(Inplace, AllocatorRef allocator,
+                                   Args &&... args)
 {
   RcObject<T> * obj;
 
-  if (!allocator.nalloc(1, obj))
+  if (!allocator->nalloc(1, obj))
   {
     return Err{Void{}};
   }
@@ -184,9 +192,9 @@ constexpr Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator,
 }
 
 template <typename T>
-constexpr Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T object)
+constexpr Result<Rc<T *>, Void> rc(AllocatorRef allocator, T object)
 {
-  return rc_inplace<T>(allocator, static_cast<T &&>(object));
+  return rc<T>(inplace, allocator, static_cast<T &&>(object));
 }
 
 template <typename Base, typename H>

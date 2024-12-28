@@ -82,7 +82,7 @@ bool HeapAllocator::alloc(usize alignment, usize size, u8 *& mem)
 #endif
 }
 
-bool HeapAllocator::alloc_zeroed(usize alignment, usize size, u8 *& mem)
+bool HeapAllocator::zalloc(usize alignment, usize size, u8 *& mem)
 {
   if (size == 0)
   {
@@ -139,7 +139,7 @@ bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
 {
   if (new_size == 0)
   {
-    HeapAllocator::dealloc(alignment, mem, old_size);
+    HeapAllocator::dealloc(alignment, old_size, mem);
     mem = nullptr;
     return true;
   }
@@ -187,7 +187,7 @@ bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
 #endif
 }
 
-void HeapAllocator::dealloc(usize alignment, u8 * mem, usize size)
+void HeapAllocator::dealloc(usize alignment, usize size, u8 * mem)
 {
   (void) alignment;
   (void) mem;

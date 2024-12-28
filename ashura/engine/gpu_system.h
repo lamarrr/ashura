@@ -10,7 +10,8 @@
 namespace ash
 {
 
-enum TextureId : u64
+/// @details do not change the underlying type. It maps directly to the GPU handle
+enum class TextureId : u32
 {
   Base        = 0,
   White       = 0,
@@ -27,7 +28,8 @@ enum TextureId : u64
 
 inline constexpr u32 NUM_DEFAULT_TEXTURES = 10;
 
-enum SamplerId : u32
+/// @details do not change the underlying type. It maps directly to the GPU handle
+enum class SamplerId : u32
 {
   Linear         = 0,
   Nearest        = 1,
@@ -190,7 +192,7 @@ struct GpuTaskQueue
 
   Vec<Dyn<Fn<void()>>> tasks_;
 
-  static GpuTaskQueue make(AllocatorImpl allocator);
+  static GpuTaskQueue make(AllocatorRef allocator);
 
   GpuTaskQueue(ArenaPool arena, Vec<Dyn<Fn<void()>>> tasks) :
     arena_{std::move(arena)},
@@ -202,7 +204,7 @@ struct GpuTaskQueue
   void add(Lambda && task)
   {
     Dyn<Lambda *> lambda =
-      dyn(arena_.to_allocator(), static_cast<Lambda &&>(task)).unwrap();
+      dyn(arena_.ref(), static_cast<Lambda &&>(task)).unwrap();
     lambda.allocator_ = noop_allocator;
 
     tasks_.push(transmute(std::move(lambda), fn(*lambda))).unwrap();
@@ -235,7 +237,7 @@ struct GpuUploadQueue
 
   u32 ring_index_;
 
-  static GpuUploadQueue make(u32 buffering, AllocatorImpl allocator);
+  static GpuUploadQueue make(u32 buffering, AllocatorRef allocator);
 
   GpuUploadQueue(ArenaPool                                          arena,
                  InplaceVec<UploadBuffer, gpu::MAX_FRAME_BUFFERING> buffers,
@@ -259,7 +261,7 @@ struct GpuUploadQueue
     slice.span = buffer.size64();
 
     Dyn<Encoder *> lambda =
-      dyn(arena_.to_allocator(), static_cast<Encoder &&>(encoder)).unwrap();
+      dyn(arena_.ref(), static_cast<Encoder &&>(encoder)).unwrap();
     lambda.allocator_ = noop_allocator;
 
     tasks_
@@ -346,13 +348,13 @@ struct GpuSystem
 
   GpuUploadQueue upload_;
 
-  static GpuSystem create(AllocatorImpl allocator, gpu::Device & device,
+  static GpuSystem create(AllocatorRef allocator, gpu::Device & device,
                           Span<u8 const> pipeline_cache_data, bool use_hdr,
                           u32 buffering, gpu::SampleCount sample_count,
                           Vec2U initial_extent);
 
   GpuSystem(
-    AllocatorImpl allocator, gpu::Device & device,
+    AllocatorRef allocator, gpu::Device & device,
     gpu::PipelineCache pipeline_cache, u32 buffering,
     gpu::SampleCount sample_count, gpu::Format color_format,
     gpu::Format depth_stencil_format, gpu::DescriptorSetLayout ubo_layout,

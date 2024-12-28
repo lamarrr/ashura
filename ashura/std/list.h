@@ -167,7 +167,7 @@ struct [[nodiscard]] List
 
   constexpr ~List()
   {
-    CHECK_DESC(head_ == nullptr, "Linked list's elements were not released");
+    CHECK(head_ == nullptr, "Linked list's elements were not released");
   }
 
   constexpr void leak()

@@ -88,12 +88,6 @@ struct Arena final : Allocator
   [[nodiscard]] virtual bool zalloc(usize alignment, usize size,
                                     u8 *& mem) override
   {
-    if (size == 0)
-    {
-      mem = nullptr;
-      return true;
-    }
-
     if (!alloc(alignment, size, mem))
     {
       mem = nullptr;
@@ -101,13 +95,14 @@ struct Arena final : Allocator
     }
 
     mem::zero(mem, size);
+
     return true;
   }
 
   [[nodiscard]] virtual bool realloc(usize alignment, usize old_size,
                                      usize new_size, u8 *& mem) override
   {
-    // if it is the last allocation, just extend the offset
+    // if it is the last allocation and within capacity, just extend the offset
     if (((mem + old_size) == offset) && ((mem + new_size) <= end))
     {
       offset = mem + new_size;
@@ -134,8 +129,6 @@ struct Arena final : Allocator
     // beginning of allocation
     if ((mem + size) == offset)
     {
-      // we'd lose padding space due to alignment, meaning we wouldn't be able
-      // to release allocations if allocations are of different alignments
       offset -= size;
     }
   }
@@ -372,7 +365,7 @@ struct ArenaPool final : Allocator
       Arena & arena = arenas[current_arena];
       if (arena.offset == (mem + old_size))
       {
-        // try to change the allocation if it was the last allocation
+        // extend the arena offset if the allocation was the last one and it is within capacity
         if ((arena.offset + new_size) <= arena.end)
         {
           arena.offset = mem + new_size;
@@ -414,8 +407,8 @@ struct ArenaPool final : Allocator
       return;
     }
 
-    // we can try to reclaim some memory, although we'd lose alignment padding.
-    // best case: if is at end of arena, shrink arena.
+    // we can try to reclaim some memory.
+    // best case: stack allocation, if it is at end of arena, adjust arena offset
     Arena & arena = arenas[current_arena];
     if (arena.begin == mem && arena.offset == (mem + size))
     {

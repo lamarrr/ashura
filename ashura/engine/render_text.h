@@ -280,7 +280,8 @@ struct RenderText
     // [ ] render highlights
     // [ ] are the cursor indexes correct?
     // [ ] use overlays on intersecting graphemes
-    // [ ] scaling
+    // [ ] global font-scaling
+    // [ ] local scaling
   }
 };
 

@@ -8,8 +8,8 @@
 namespace ash
 {
 
-Result<TextCompositor> TextCompositor::make(AllocatorImpl allocator,
-                                            u32           num_buffer_codepoints,
+Result<TextCompositor> TextCompositor::make(AllocatorRef allocator,
+                                            u32          num_buffer_codepoints,
                                             u32 num_records, u32 tab_width,
                                             Span<c32 const> word_symbols,
                                             Span<c32 const> line_symbols)

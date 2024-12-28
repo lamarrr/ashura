@@ -7,10 +7,6 @@
 namespace ash
 {
 
-inline constexpr usize MAX_PATH_SIZE = 256;
-
-using PathVec = InplaceVec<char, MAX_PATH_SIZE>;
-
 enum class [[nodiscard]] IoErr : i32
 {
   None                   = 0,
@@ -288,24 +284,43 @@ inline bool push(Context const & ctx, Spec const & spec, IoErr const & err)
 
 }    // namespace fmt
 
-Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff);
-
-inline Result<> path_append(PathVec & path, Span<char const> tail)
+inline Result<> path_join(Span<char const> base, Span<char const> ext,
+                          Vec<char> & out)
 {
-  usize const initial = path.size();
-  if (!path.is_empty() && path.last() != '/' && path.last() != '\\')
+  usize const max_size = base.size() + ext.size() + 1;
+
+  usize const initial_size = out.size();
+
+  if (!out.extend_uninit(max_size))
   {
-    if (!path.push('/'))
-    {
-      return Err{};
-    }
-  }
-  if (!path.extend(tail))
-  {
-    path.resize(initial).unwrap();
     return Err{};
   }
+
+  usize pos = initial_size;
+  mem::copy(base, out.view().slice(pos));
+
+  pos += base.size();
+
+  if (!base.is_empty() && base.last() != '/' && base.last() != '\\')
+  {
+    out[pos] = '/';
+    pos++;
+  }
+
+  mem::copy(ext, out.view().slice(pos));
+
+  pos += ext.size();
+
+  out.resize_uninit(pos).unwrap();
+
   return Ok{};
 }
+
+// [ ] remove allocator
+Result<Void, IoErr> read_file(AllocatorRef allocator, Span<char const> path,
+                              Vec<u8> & buff);
+
+Result<Void, IoErr> write_to_file(AllocatorRef allocator, Span<char const> path,
+                                  Span<u8 const> buff, bool append);
 
 }    // namespace ash

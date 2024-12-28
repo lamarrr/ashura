@@ -777,7 +777,7 @@ inline bool is_valid_image_access(gpu::ImageAspects aspects, u32 num_levels,
          access_aspects != gpu::ImageAspects::None;
 }
 
-Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorImpl allocator,
+Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
                                                      bool enable_validation)
 {
   u32      num_exts;
@@ -790,12 +790,12 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorImpl allocator,
   }
 
   VkExtensionProperties * exts;
-  if (!allocator.nalloc(num_exts, exts))
+  if (!allocator->nalloc(num_exts, exts))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer exts_{[&] { allocator.ndealloc(exts, num_exts); }};
+  defer exts_{[&] { allocator->ndealloc(num_exts, exts); }};
 
   {
     u32 num_read_exts = num_exts;
@@ -820,12 +820,12 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorImpl allocator,
 
   VkLayerProperties * layers;
 
-  if (!allocator.nalloc(num_layers, layers))
+  if (!allocator->nalloc(num_layers, layers))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer layers_{[&] { allocator.ndealloc(layers, num_layers); }};
+  defer layers_{[&] { allocator->ndealloc(num_layers, layers); }};
 
   {
     u32 num_read_layers = num_layers;
@@ -839,28 +839,27 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorImpl allocator,
     CHECK(num_read_layers == num_layers);
   }
 
-  logger->trace("Available Extensions:");
+  trace("Available Extensions:");
 
   for (VkExtensionProperties const & ext : Span{exts, num_exts})
   {
-    logger->trace(ext.extensionName, "\t\t(spec version ",
-                  VK_API_VERSION_MAJOR(ext.specVersion), ".",
-                  VK_API_VERSION_MINOR(ext.specVersion), ".",
-                  VK_API_VERSION_PATCH(ext.specVersion), " variant ",
-                  VK_API_VERSION_VARIANT(ext.specVersion), ")");
+    trace(ext.extensionName, "\t\t(spec version ",
+          VK_API_VERSION_MAJOR(ext.specVersion), ".",
+          VK_API_VERSION_MINOR(ext.specVersion), ".",
+          VK_API_VERSION_PATCH(ext.specVersion), " variant ",
+          VK_API_VERSION_VARIANT(ext.specVersion), ")");
   }
 
-  logger->trace("Available Layers:");
+  trace("Available Layers:");
 
   for (VkLayerProperties const & layer : Span{layers, num_layers})
   {
-    logger->trace(layer.layerName, "\t\t(spec version ",
-                  VK_API_VERSION_MAJOR(layer.specVersion), ".",
-                  VK_API_VERSION_MINOR(layer.specVersion), ".",
-                  VK_API_VERSION_PATCH(layer.specVersion), " variant ",
-                  VK_API_VERSION_VARIANT(layer.specVersion),
-                  ", implementation version: ", layer.implementationVersion,
-                  ")");
+    trace(layer.layerName, "\t\t(spec version ",
+          VK_API_VERSION_MAJOR(layer.specVersion), ".",
+          VK_API_VERSION_MINOR(layer.specVersion), ".",
+          VK_API_VERSION_PATCH(layer.specVersion), " variant ",
+          VK_API_VERSION_VARIANT(layer.specVersion),
+          ", implementation version: ", layer.implementationVersion, ")");
   }
 
   char const * load_exts[16];
@@ -906,9 +905,9 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorImpl allocator,
     }
     else
     {
-      logger->warn("Required Vulkan "
-                   "Extension: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-                   " is not supported on device");
+      warn("Required Vulkan "
+           "Extension: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+           " is not supported on device");
     }
   }
 
@@ -932,8 +931,8 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorImpl allocator,
     }
     else
     {
-      logger->warn("Required Layer: VK_LAYER_KHRONOS_validation is "
-                   "not supported");
+      warn("Required Layer: VK_LAYER_KHRONOS_validation is "
+           "not supported");
     }
   }
 
@@ -942,7 +941,7 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorImpl allocator,
 
   // setup before vkInstance to allow debug reporter report
   // messages through the pointer to it
-  Result instance_result = dyn_inplace<Instance>(allocator);
+  Result instance_result = dyn<Instance>(inplace, allocator);
 
   if (!instance_result)
   {
@@ -1039,7 +1038,7 @@ namespace gpu
 {
 
 Result<Dyn<gpu::Instance *>, Status>
-  create_vulkan_instance(AllocatorImpl allocator, bool enable_validation)
+  create_vulkan_instance(AllocatorRef allocator, bool enable_validation)
 {
   return vk::create_instance(allocator, enable_validation);
 }
@@ -1104,7 +1103,7 @@ void check_device_features(VkPhysicalDeviceFeatures feat)
 }
 
 Result<gpu::Device *, Status>
-  Instance::create_device(AllocatorImpl               allocator,
+  Instance::create_device(AllocatorRef                allocator,
                           Span<gpu::DeviceType const> preferred_types,
                           u32                         buffering)
 {
@@ -1129,12 +1128,12 @@ Result<gpu::Device *, Status>
 
   VkPhysicalDevice * vk_phy_devs;
 
-  if (!allocator.nalloc(num_devs, vk_phy_devs))
+  if (!allocator->nalloc(num_devs, vk_phy_devs))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer vk_phy_devs_{[&] { allocator.ndealloc(vk_phy_devs, num_devs); }};
+  defer vk_phy_devs_{[&] { allocator->ndealloc(num_devs, vk_phy_devs); }};
 
   {
     u32 num_read_devs = num_devs;
@@ -1150,12 +1149,12 @@ Result<gpu::Device *, Status>
   }
 
   PhysicalDevice * physical_devs;
-  if (!allocator.nalloc(num_devs, physical_devs))
+  if (!allocator->nalloc(num_devs, physical_devs))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer physical_devs_{[&] { allocator.ndealloc(physical_devs, num_devs); }};
+  defer physical_devs_{[&] { allocator->ndealloc(num_devs, physical_devs); }};
 
   for (u32 i = 0; i < num_devs; i++)
   {
@@ -1168,24 +1167,24 @@ Result<gpu::Device *, Status>
     vk_table.GetPhysicalDeviceProperties(vk_dev, &dev.vk_properties);
   }
 
-  logger->trace("Available Devices:");
+  trace("Available Devices:");
   for (u32 i = 0; i < num_devs; i++)
   {
     PhysicalDevice const &             dev        = physical_devs[i];
     VkPhysicalDeviceProperties const & properties = dev.vk_properties;
-    logger->trace("[Device: ", i, "] ",
-                  string_VkPhysicalDeviceType(properties.deviceType), " ",
-                  properties.deviceName, " Vulkan API version ",
-                  VK_API_VERSION_MAJOR(properties.apiVersion), ".",
-                  VK_API_VERSION_MINOR(properties.apiVersion), ".",
-                  VK_API_VERSION_PATCH(properties.apiVersion), " Variant ",
-                  VK_API_VERSION_VARIANT(properties.apiVersion),
-                  ", Driver "
-                  "Version: ",
-                  properties.driverVersion,
-                  ", "
-                  "Vendor ID: ",
-                  properties.vendorID, ", Device ID: ", properties.deviceID);
+    trace("[Device: ", i, "] ",
+          string_VkPhysicalDeviceType(properties.deviceType), " ",
+          properties.deviceName, " Vulkan API version ",
+          VK_API_VERSION_MAJOR(properties.apiVersion), ".",
+          VK_API_VERSION_MINOR(properties.apiVersion), ".",
+          VK_API_VERSION_PATCH(properties.apiVersion), " Variant ",
+          VK_API_VERSION_VARIANT(properties.apiVersion),
+          ", Driver "
+          "Version: ",
+          properties.driverVersion,
+          ", "
+          "Vendor ID: ",
+          properties.vendorID, ", Device ID: ", properties.deviceID);
 
     u32 num_queue_families;
     vk_table.GetPhysicalDeviceQueueFamilyProperties(
@@ -1204,10 +1203,9 @@ Result<gpu::Device *, Status>
 
     for (u32 i = 0; i < num_queue_families; i++)
     {
-      logger->trace("\t\tQueue Family: ", i,
-                    ", Count: ", queue_family_properties[i].queueCount,
-                    ", Flags: ",
-                    string_VkQueueFlags(queue_family_properties[i].queueFlags));
+      trace("\t\tQueue Family: ", i,
+            ", Count: ", queue_family_properties[i].queueCount, ", Flags: ",
+            string_VkQueueFlags(queue_family_properties[i].queueFlags));
     }
   }
 
@@ -1258,7 +1256,7 @@ Result<gpu::Device *, Status>
 
   if (selected_dev_idx == num_devs)
   {
-    logger->trace("No Suitable Device Found");
+    trace("No Suitable Device Found");
     return Err{Status::DeviceLost};
   }
 
@@ -1267,7 +1265,7 @@ Result<gpu::Device *, Status>
   check_device_limits(selected_dev.vk_properties.limits);
   check_device_features(selected_dev.vk_features);
 
-  logger->trace("Selected Device ", selected_dev_idx);
+  trace("Selected Device ", selected_dev_idx);
 
   u32 num_exts;
   result = vk_table.EnumerateDeviceExtensionProperties(
@@ -1280,12 +1278,12 @@ Result<gpu::Device *, Status>
 
   VkExtensionProperties * exts;
 
-  if (!allocator.nalloc(num_exts, exts))
+  if (!allocator->nalloc(num_exts, exts))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer exts_{[&] { allocator.ndealloc(exts, num_exts); }};
+  defer exts_{[&] { allocator->ndealloc(num_exts, exts); }};
 
   {
     u32 num_read_exts = num_exts;
@@ -1309,12 +1307,12 @@ Result<gpu::Device *, Status>
 
   VkLayerProperties * layers;
 
-  if (!allocator.nalloc(num_layers, layers))
+  if (!allocator->nalloc(num_layers, layers))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer layers_{[&] { allocator.ndealloc(layers, num_layers); }};
+  defer layers_{[&] { allocator->ndealloc(num_layers, layers); }};
 
   {
     u32 num_read_layers = num_layers;
@@ -1327,32 +1325,32 @@ Result<gpu::Device *, Status>
     CHECK(num_read_layers == num_layers);
   }
 
-  logger->trace("Available Extensions:");
+  trace("Available Extensions:");
 
   for (u32 i = 0; i < num_exts; i++)
   {
     VkExtensionProperties const & ext = exts[i];
-    logger->trace("\t\t", ext.extensionName,
-                  " (spec version: ", VK_API_VERSION_MAJOR(ext.specVersion),
-                  ".", VK_API_VERSION_MINOR(ext.specVersion), ".",
-                  VK_API_VERSION_PATCH(ext.specVersion), " variant ",
-                  VK_API_VERSION_VARIANT(ext.specVersion), ")");
+    trace("\t\t", ext.extensionName,
+          " (spec version: ", VK_API_VERSION_MAJOR(ext.specVersion), ".",
+          VK_API_VERSION_MINOR(ext.specVersion), ".",
+          VK_API_VERSION_PATCH(ext.specVersion), " variant ",
+          VK_API_VERSION_VARIANT(ext.specVersion), ")");
   }
 
-  logger->trace("Available Layers:");
+  trace("Available Layers:");
 
   for (u32 i = 0; i < num_layers; i++)
   {
     VkLayerProperties const & layer = layers[i];
 
-    logger->trace("\t\t", layer.layerName,
-                  " (spec version: ", VK_API_VERSION_MAJOR(layer.specVersion),
-                  ".", VK_API_VERSION_MINOR(layer.specVersion), ".",
-                  VK_API_VERSION_PATCH(layer.specVersion), " variant ",
-                  VK_API_VERSION_VARIANT(layer.specVersion),
-                  ", "
-                  "implementation version: ",
-                  layer.implementationVersion, ")");
+    trace("\t\t", layer.layerName,
+          " (spec version: ", VK_API_VERSION_MAJOR(layer.specVersion), ".",
+          VK_API_VERSION_MINOR(layer.specVersion), ".",
+          VK_API_VERSION_PATCH(layer.specVersion), " variant ",
+          VK_API_VERSION_VARIANT(layer.specVersion),
+          ", "
+          "implementation version: ",
+          layer.implementationVersion, ")");
   }
 
   constexpr char const * required_exts[] = {
@@ -1406,7 +1404,7 @@ Result<gpu::Device *, Status>
   {
     if (!required_ext_found[i])
     {
-      logger->trace("Required Extension: ", required_exts[i], " Not Present");
+      trace("Required Extension: ", required_exts[i], " Not Present");
       return Err{Status::ExtensionNotPresent};
     }
 
@@ -1611,7 +1609,7 @@ Result<gpu::Device *, Status>
 
   Device * dev;
 
-  if (!allocator.nalloc(1, dev))
+  if (!allocator->nalloc(1, dev))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -1668,7 +1666,7 @@ void Instance::uninit(gpu::Device * device_)
   dev->uninit();
   vmaDestroyAllocator(dev->vma_allocator);
   dev->vk_table.DestroyDevice(dev->vk_dev, nullptr);
-  allocator.ndealloc(dev, 1);
+  allocator->ndealloc(1, dev);
 }
 
 void Instance::uninit(gpu::Surface surface)
@@ -1799,7 +1797,7 @@ Result<gpu::Buffer, Status> Device::create_buffer(gpu::BufferInfo const & info)
                     VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT);
 
   Buffer * buffer;
-  if (!allocator.nalloc(1, buffer))
+  if (!allocator->nalloc(1, buffer))
   {
     vmaDestroyBuffer(vma_allocator, vk_buffer, vma_allocation);
     return Err{Status::OutOfHostMemory};
@@ -1850,7 +1848,7 @@ Result<gpu::BufferView, Status>
 
   BufferView * view;
 
-  if (!allocator.nalloc(1, view))
+  if (!allocator->nalloc(1, view))
   {
     vk_table.DestroyBufferView(vk_dev, vk_view, nullptr);
     return Err{Status::OutOfHostMemory};
@@ -1946,7 +1944,7 @@ Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
 
   Image * image;
 
-  if (!allocator.nalloc(1, image))
+  if (!allocator->nalloc(1, image))
   {
     vmaDestroyImage(vma_allocator, vk_image, vma_allocation);
     return Err{Status::OutOfHostMemory};
@@ -2021,7 +2019,7 @@ Result<gpu::ImageView, Status>
                     VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT);
 
   ImageView * view;
-  if (!allocator.nalloc(1, view))
+  if (!allocator->nalloc(1, view))
   {
     vk_table.DestroyImageView(vk_dev, vk_view, nullptr);
     return Err{Status::OutOfHostMemory};
@@ -2202,7 +2200,7 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
                     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT);
 
   DescriptorSetLayout * layout;
-  if (!allocator.nalloc(1, layout))
+  if (!allocator->nalloc(1, layout))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -2346,7 +2344,7 @@ Result<gpu::DescriptorSet, Status>
 
   u8 * head;
 
-  if (!allocator.alloc_zeroed(flex_layout.alignment, flex_layout.size, head))
+  if (!allocator->zalloc(flex_layout.alignment, flex_layout.size, head))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -2487,7 +2485,7 @@ Result<gpu::ComputePipeline, Status>
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
   ComputePipeline * pipeline;
-  if (!allocator.nalloc(1, pipeline))
+  if (!allocator->nalloc(1, pipeline))
   {
     vk_table.DestroyPipelineLayout(vk_dev, vk_layout, nullptr);
     vk_table.DestroyPipeline(vk_dev, vk_pipeline, nullptr);
@@ -2829,7 +2827,7 @@ Result<gpu::GraphicsPipeline, Status>
                     VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
   GraphicsPipeline * pipeline;
-  if (!allocator.nalloc(1, pipeline))
+  if (!allocator->nalloc(1, pipeline))
   {
     vk_table.DestroyPipelineLayout(vk_dev, vk_layout, nullptr);
     vk_table.DestroyPipeline(vk_dev, vk_pipeline, nullptr);
@@ -3079,7 +3077,7 @@ Status Device::init_command_encoder(CommandEncoder * enc)
   enc->render_ctx        = RenderPassContext{
            .arg_pool     = ArenaPool{allocator},
            .command_pool = ArenaPool{allocator},
-           .commands     = Vec<Command>{enc->render_ctx.command_pool.to_allocator()}};
+           .commands     = Vec<Command>{enc->render_ctx.command_pool.ref()}};
   enc->compute_ctx = {};
 
   return Status::Success;
@@ -3237,7 +3235,7 @@ Result<gpu::Swapchain, Status>
   CHECK(info.preferred_extent.y > 0);
 
   Swapchain * swapchain;
-  if (!allocator.nalloc(1, swapchain))
+  if (!allocator->nalloc(1, swapchain))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -3328,7 +3326,7 @@ void Device::uninit(gpu::Buffer buffer_)
   }
 
   vmaDestroyBuffer(vma_allocator, buffer->vk_buffer, buffer->vma_allocation);
-  allocator.ndealloc(buffer, 1);
+  allocator->ndealloc(1, buffer);
 }
 
 void Device::uninit(gpu::BufferView buffer_view_)
@@ -3341,7 +3339,7 @@ void Device::uninit(gpu::BufferView buffer_view_)
   }
 
   vk_table.DestroyBufferView(vk_dev, buffer_view->vk_view, nullptr);
-  allocator.ndealloc(buffer_view, 1);
+  allocator->ndealloc(1, buffer_view);
 }
 
 void Device::uninit(gpu::Image image_)
@@ -3356,7 +3354,7 @@ void Device::uninit(gpu::Image image_)
   CHECK(!image->is_swapchain_image);
 
   vmaDestroyImage(vma_allocator, image->vk_image, image->vma_allocation);
-  allocator.ndealloc(image, 1);
+  allocator->ndealloc(1, image);
 }
 
 void Device::uninit(gpu::ImageView image_view_)
@@ -3369,7 +3367,7 @@ void Device::uninit(gpu::ImageView image_view_)
   }
 
   vk_table.DestroyImageView(vk_dev, image_view->vk_view, nullptr);
-  allocator.ndealloc(image_view, 1);
+  allocator->ndealloc(1, image_view);
 }
 
 void Device::uninit(gpu::Sampler sampler_)
@@ -3392,7 +3390,7 @@ void Device::uninit(gpu::DescriptorSetLayout layout_)
   }
 
   vk_table.DestroyDescriptorSetLayout(vk_dev, layout->vk_layout, nullptr);
-  allocator.ndealloc(layout, 1);
+  allocator->ndealloc(1, layout);
 }
 
 void Device::uninit(gpu::DescriptorSet set_)
@@ -3411,7 +3409,7 @@ void Device::uninit(gpu::DescriptorSet set_)
   Layout layout =
     DescriptorSet::flex({set->bindings, set->num_bindings}).layout();
 
-  allocator.dealloc(layout.alignment, head, layout.size);
+  allocator->dealloc(layout.alignment, layout.size, head);
 }
 
 void Device::uninit(gpu::PipelineCache cache_)
@@ -3430,7 +3428,7 @@ void Device::uninit(gpu::ComputePipeline pipeline_)
 
   vk_table.DestroyPipeline(vk_dev, pipeline->vk_pipeline, nullptr);
   vk_table.DestroyPipelineLayout(vk_dev, pipeline->vk_layout, nullptr);
-  allocator.ndealloc(pipeline, 1);
+  allocator->ndealloc(1, pipeline);
 }
 
 void Device::uninit(gpu::GraphicsPipeline pipeline_)
@@ -3444,7 +3442,7 @@ void Device::uninit(gpu::GraphicsPipeline pipeline_)
 
   vk_table.DestroyPipeline(vk_dev, pipeline->vk_pipeline, nullptr);
   vk_table.DestroyPipelineLayout(vk_dev, pipeline->vk_layout, nullptr);
-  allocator.ndealloc(pipeline, 1);
+  allocator->ndealloc(1, pipeline);
 }
 
 void Device::uninit(gpu::Swapchain swapchain_)
@@ -3457,7 +3455,7 @@ void Device::uninit(gpu::Swapchain swapchain_)
   }
 
   vk_table.DestroySwapchainKHR(vk_dev, swapchain->vk_swapchain, nullptr);
-  allocator.ndealloc(swapchain, 1);
+  allocator->ndealloc(1, swapchain);
 }
 
 void Device::uninit(gpu::TimeStampQuery query_)
@@ -3949,12 +3947,12 @@ Result<Void, Status>
   }
 
   VkSurfaceFormatKHR * vk_formats;
-  if (!allocator.nalloc(num_supported, vk_formats))
+  if (!allocator->nalloc(num_supported, vk_formats))
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  defer vk_formats_{[&] { allocator.ndealloc(vk_formats, num_supported); }};
+  defer vk_formats_{[&] { allocator->ndealloc(num_supported, vk_formats); }};
 
   {
     u32 num_read = num_supported;
@@ -4002,13 +4000,13 @@ Result<Void, Status>
   }
 
   VkPresentModeKHR * vk_present_modes;
-  if (!allocator.nalloc(num_supported, vk_present_modes))
+  if (!allocator->nalloc(num_supported, vk_present_modes))
   {
     return Err{Status::OutOfHostMemory};
   }
 
   defer vk_present_modes_{
-    [&] { allocator.ndealloc(vk_present_modes, num_supported); }};
+    [&] { allocator->ndealloc(num_supported, vk_present_modes); }};
 
   {
     u32 num_read = num_supported;
@@ -5744,7 +5742,7 @@ void CommandEncoder::bind_descriptor_sets(
     u32 * offsets;
     if (!render_ctx.arg_pool.nalloc(num_dynamic_offsets, offsets))
     {
-      render_ctx.arg_pool.ndealloc(sets, num_sets);
+      render_ctx.arg_pool.ndealloc(num_sets, sets);
       status = Status::OutOfHostMemory;
       return;
     }
@@ -5756,8 +5754,8 @@ void CommandEncoder::bind_descriptor_sets(
                                 .dynamic_offsets     = offsets,
                                 .num_dynamic_offsets = num_dynamic_offsets}))
     {
-      render_ctx.arg_pool.ndealloc(offsets, num_dynamic_offsets);
-      render_ctx.arg_pool.ndealloc(sets, num_sets);
+      render_ctx.arg_pool.ndealloc(num_dynamic_offsets, offsets);
+      render_ctx.arg_pool.ndealloc(num_sets, sets);
       status = Status::OutOfHostMemory;
       return;
     }

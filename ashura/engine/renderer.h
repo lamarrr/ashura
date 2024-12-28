@@ -17,7 +17,7 @@ struct PassContext
   RRectPass *      rrect;
   Vec<Dyn<Pass *>> all;
 
-  static PassContext create(AllocatorImpl allocator);
+  static PassContext create(AllocatorRef allocator);
 
   PassContext(BloomPass & bloom, BlurPass & blur, NgonPass & ngon,
               PBRPass & pbr, RRectPass & rrect, Vec<Dyn<Pass *>> all) :
@@ -43,7 +43,7 @@ struct PassContext
 
 struct GpuPipeline
 {
-  virtual Span<char const> id() = 0;
+  virtual Span<char const> label() = 0;
 
   virtual void acquire(PassContext & passes) = 0;
 
@@ -53,7 +53,7 @@ struct GpuPipeline
 
   virtual void end_frame(PassContext & passes, gpu::CommandEncoder & enc) = 0;
 
-  virtual ~GpuPipeline() = default;
+  virtual ~GpuPipeline() = 0;
 };
 
 struct Canvas;
@@ -81,9 +81,9 @@ struct Renderer
 
   Vec<Dyn<GpuPipeline *>> pipelines;
 
-  static Renderer create(AllocatorImpl allocator);
+  static Renderer create(AllocatorRef allocator);
 
-  Renderer(AllocatorImpl allocator, PassContext passes) :
+  Renderer(AllocatorRef allocator, PassContext passes) :
     resources{},
     passes{std::move(passes)},
     pipelines{allocator}

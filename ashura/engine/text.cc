@@ -231,7 +231,7 @@ static inline void insert_run(TextLayout & l, FontStyle const & s, u32 first,
       .first_codepoint = first,
       .num_codepoints  = count,
       .style           = style,
-      .font_height     = s.font_height,
+      .font_height     = s.height,
       .line_height     = max(s.line_height, 1.0F),
       .first_glyph     = first_glyph,
       .num_glyphs      = num_glyphs,
@@ -303,9 +303,9 @@ void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout)
 
   fill(segments, TextSegment{});
 
-  CHECK_DESC(!block.runs.is_empty(), "No run styling provided for text");
-  CHECK_DESC(block.runs.last() >= text_size,
-             "Text runs need to span the entire text");
+  CHECK(!block.runs.is_empty(), "No run styling provided for text");
+  CHECK(block.runs.last() >= text_size,
+        "Text runs need to span the entire text");
 
   {
     u32 run_start = 0;

@@ -7,7 +7,7 @@
 namespace ash
 {
 
-typedef Fn<void(AllocatorImpl)> DynUninit;
+typedef Fn<void(AllocatorRef)> DynUninit;
 
 template <typename H>
 requires (TriviallyCopyable<H>)
@@ -15,11 +15,11 @@ struct [[nodiscard]] Dyn
 {
   typedef H Handle;
 
-  H             handle_;
-  AllocatorImpl allocator_;
-  DynUninit     uninit_;
+  H            handle_;
+  AllocatorRef allocator_;
+  DynUninit    uninit_;
 
-  constexpr Dyn(H handle, AllocatorImpl allocator, DynUninit uninit) :
+  constexpr Dyn(H handle, AllocatorRef allocator, DynUninit uninit) :
     handle_{handle},
     allocator_{allocator},
     uninit_{uninit}
@@ -40,7 +40,7 @@ struct [[nodiscard]] Dyn
     uninit_{other.uninit_}
   {
     other.handle_    = H{};
-    other.allocator_ = AllocatorImpl{};
+    other.allocator_ = noop_allocator;
     other.uninit_    = noop;
   }
 
@@ -92,21 +92,26 @@ struct [[nodiscard]] Dyn
   {
     return handle_;
   }
+
+  constexpr operator H() const
+  {
+    return handle_;
+  }
 };
 
 template <typename T, typename... Args>
-constexpr Result<Dyn<T *>, Void> dyn_inplace(AllocatorImpl allocator,
-                                             Args &&... args)
+constexpr Result<Dyn<T *>, Void> dyn(Inplace, AllocatorRef allocator,
+                                     Args &&... args)
 {
   T * object;
-  if (!allocator.nalloc(1, object)) [[unlikely]]
+  if (!allocator->nalloc(1, object)) [[unlikely]]
   {
     return Err{Void{}};
   }
 
-  constexpr auto uninit = +[](T * object, AllocatorImpl allocator) {
+  constexpr auto uninit = +[](T * object, AllocatorRef allocator) {
     obj::destruct(Span{object, 1});
-    allocator.ndealloc(object, 1);
+    allocator->ndealloc(1, object);
   };
 
   new (object) T{static_cast<Args &&>(args)...};
@@ -123,9 +128,9 @@ struct IsTriviallyRelocatable<Dyn<H>>
 };
 
 template <typename T>
-constexpr Result<Dyn<T *>, Void> dyn(AllocatorImpl allocator, T object)
+constexpr Result<Dyn<T *>, Void> dyn(AllocatorRef allocator, T object)
 {
-  return dyn_inplace<T>(allocator, static_cast<T &&>(object));
+  return dyn<T>(inplace, allocator, static_cast<T &&>(object));
 }
 
 template <typename Base, typename H>

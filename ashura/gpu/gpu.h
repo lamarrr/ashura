@@ -1395,7 +1395,7 @@ struct Instance
   virtual ~Instance() = default;
 
   virtual Result<Device *, Status>
-    create_device(AllocatorImpl          allocator,
+    create_device(AllocatorRef           allocator,
                   Span<DeviceType const> preferred_types, u32 buffering) = 0;
 
   virtual Backend get_backend() = 0;
@@ -1405,7 +1405,7 @@ struct Instance
   virtual void uninit(Surface surface) = 0;
 };
 
-Result<Dyn<Instance *>, Status> create_vulkan_instance(AllocatorImpl allocator,
+Result<Dyn<Instance *>, Status> create_vulkan_instance(AllocatorRef allocator,
                                                        bool enable_validation);
 
 /// REQUIRED LIMITS AND PROPERTIES

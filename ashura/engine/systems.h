@@ -3,6 +3,7 @@
 #include "ashura/engine/font.h"
 #include "ashura/engine/image_decoder.h"
 #include "ashura/engine/shader.h"
+#include "ashura/engine/window.h"
 #include "ashura/gpu/gpu.h"
 #include "ashura/std/async.h"
 #include "ashura/std/fs.h"
@@ -39,16 +40,16 @@ struct Shader
 
 struct FileSystem
 {
-  AllocatorImpl allocator_;
+  AllocatorRef allocator_;
 
-  explicit FileSystem(AllocatorImpl allocator) : allocator_{allocator}
+  explicit FileSystem(AllocatorRef allocator) : allocator_{allocator}
   {
   }
 
   FileSystem(FileSystem const &)             = delete;
-  FileSystem(FileSystem &&)                  = delete;
+  FileSystem(FileSystem &&)                  = default;
   FileSystem & operator=(FileSystem const &) = delete;
-  FileSystem & operator=(FileSystem &&)      = delete;
+  FileSystem & operator=(FileSystem &&)      = default;
   ~FileSystem()                              = default;
 
   void shutdown();
@@ -59,19 +60,19 @@ struct FileSystem
 struct ImageSystem
 {
   gpu::Format           format_ = gpu::Format::B8G8R8A8_UNORM;
-  AllocatorImpl         allocator_;
+  AllocatorRef          allocator_;
   SparseVec<Vec<Image>> images_{};
 
-  explicit ImageSystem(AllocatorImpl allocator) :
+  explicit ImageSystem(AllocatorRef allocator) :
     allocator_{allocator},
     images_{allocator}
   {
   }
 
   ImageSystem(ImageSystem const &)             = delete;
-  ImageSystem(ImageSystem &&)                  = delete;
+  ImageSystem(ImageSystem &&)                  = default;
   ImageSystem & operator=(ImageSystem const &) = delete;
-  ImageSystem & operator=(ImageSystem &&)      = delete;
+  ImageSystem & operator=(ImageSystem &&)      = default;
   ~ImageSystem()                               = default;
 
   void shutdown();
@@ -97,19 +98,19 @@ struct ImageSystem
 
 struct FontSystem
 {
-  AllocatorImpl               allocator_;
+  AllocatorRef                allocator_;
   SparseVec<Vec<Dyn<Font *>>> fonts_;
 
-  explicit FontSystem(AllocatorImpl allocator) :
+  explicit FontSystem(AllocatorRef allocator) :
     allocator_{allocator},
     fonts_{allocator}
   {
   }
 
   FontSystem(FontSystem const &)             = delete;
-  FontSystem(FontSystem &&)                  = delete;
+  FontSystem(FontSystem &&)                  = default;
   FontSystem & operator=(FontSystem const &) = delete;
-  FontSystem & operator=(FontSystem &&)      = delete;
+  FontSystem & operator=(FontSystem &&)      = default;
   ~FontSystem()                              = default;
 
   void shutdown();
@@ -146,28 +147,28 @@ struct FontSystem
 
 struct ShaderSystem
 {
-  AllocatorImpl          allocator_;
+  AllocatorRef           allocator_;
   SparseVec<Vec<Shader>> shaders_;
 
-  ShaderSystem(AllocatorImpl allocator) :
+  ShaderSystem(AllocatorRef allocator) :
     allocator_{allocator},
     shaders_{allocator}
   {
   }
 
   ShaderSystem(ShaderSystem const &)             = delete;
-  ShaderSystem(ShaderSystem &&)                  = delete;
+  ShaderSystem(ShaderSystem &&)                  = default;
   ShaderSystem & operator=(ShaderSystem const &) = delete;
-  ShaderSystem & operator=(ShaderSystem &&)      = delete;
+  ShaderSystem & operator=(ShaderSystem &&)      = default;
   ~ShaderSystem()                                = default;
 
   void shutdown();
 
   Result<Shader, ShaderLoadErr> load_from_memory(Span<char const> label,
-                                                       Span<u32 const>  spirv);
+                                                 Span<u32 const>  spirv);
 
-  Future<Result<Shader, ShaderLoadErr>>
-    load_from_path(Span<char const> label, Span<char const> path);
+  Future<Result<Shader, ShaderLoadErr>> load_from_path(Span<char const> label,
+                                                       Span<char const> path);
 
   Shader get(ShaderId id);
 
@@ -178,32 +179,14 @@ struct ShaderSystem
 
 struct Systems
 {
-  FileSystem   file;
-  GpuSystem    gpu;
-  ImageSystem  image;
-  FontSystem   font;
-  ShaderSystem shader;
-
-  Systems(AllocatorImpl allocator, GpuSystem gpu) :
-    file{allocator},
-    gpu{std::move(gpu)},
-    image{allocator},
-    font{allocator},
-    shader{allocator}
-  {
-  }
-
-  Systems(Systems const &)             = delete;
-  Systems(Systems &&)                  = delete;
-  Systems & operator=(Systems const &) = delete;
-  Systems & operator=(Systems &&)      = delete;
-  ~Systems()                           = default;
-
-  void shutdown(Vec<u8> & pipeline_cache);
-
-  static void init(AllocatorImpl allocator);
+  FileSystem &   file;
+  GpuSystem &    gpu;
+  ImageSystem &  image;
+  FontSystem &   font;
+  ShaderSystem & shader;
+  WindowSystem & window;
 };
 
-extern Systems * sys;
+ASH_C_LINKAGE ASH_DLL_EXPORT Systems * sys;
 
 }    // namespace ash

@@ -10,7 +10,7 @@
 namespace ash
 {
 
-#define CHECKSdl(cond_expr) CHECK_DESC(cond_expr, "SDL Error: ", SDL_GetError())
+#define CHECK_SDL(cond_expr) CHECK(cond_expr, "SDL Error: ", SDL_GetError())
 
 struct WindowImpl
 {
@@ -21,7 +21,7 @@ struct WindowImpl
   gpu::Instance *                               instance  = nullptr;
   Fn<WindowRegion(Vec2U)> hit_test = [](Vec2U) { return WindowRegion::Normal; };
 
-  WindowImpl(AllocatorImpl allocator, SDL_Window * window, gpu::Surface surface,
+  WindowImpl(AllocatorRef allocator, SDL_Window * window, gpu::Surface surface,
              SDL_WindowID id, gpu::Instance & instance) :
     win{window},
     surface{surface},
@@ -35,13 +35,19 @@ struct WindowImpl
 struct ClipBoardImpl : ClipBoard
 {
   static constexpr usize MAX_MIME_SIZE = 256;
-  AllocatorImpl          allocator_;
+  Vec<u8>                local_;
 
-  ClipBoardImpl(AllocatorImpl allocator) : allocator_{allocator}
+  ClipBoardImpl(AllocatorRef allocator) : local_{allocator}
   {
   }
 
-  virtual Result<> get(Span<char const> mime, Vec<c8> & out) override
+  ClipBoardImpl(ClipBoardImpl const &)             = delete;
+  ClipBoardImpl(ClipBoardImpl &&)                  = delete;
+  ClipBoardImpl & operator=(ClipBoardImpl const &) = delete;
+  ClipBoardImpl & operator=(ClipBoardImpl &&)      = delete;
+  ~ClipBoardImpl() override                        = default;
+
+  virtual Result<> get(Span<char const> mime, Vec<u8> & out) override
   {
     char mime_c_str[MAX_MIME_SIZE + 1];
     CHECK(to_c_str(mime, mime_c_str));
@@ -53,12 +59,31 @@ struct ClipBoardImpl : ClipBoard
     }
     defer data_{[&] { SDL_free(data); }};
 
-    out.extend(Span<c8 const>{reinterpret_cast<c8 *>(data), mime_data_len})
+    out.extend(Span<u8 const>{reinterpret_cast<u8 *>(data), mime_data_len})
       .unwrap();
     return Ok{};
   }
 
-  virtual Result<> set(Span<char const> mime, Span<c8 const> data) override
+  static void const * get_callback(void * pimpl, char const * mime_type,
+                                   usize * size)
+  {
+    if (mime_type == nullptr || pimpl == nullptr)
+    {
+      *size = 0;
+      return nullptr;
+    }
+    ClipBoardImpl & clipboard = *reinterpret_cast<ClipBoardImpl *>(pimpl);
+    *size                     = clipboard.local_.size();
+    return clipboard.local_.data();
+  }
+
+  static void cleanup_callback(void * pimpl)
+  {
+    ClipBoardImpl & clipboard = *reinterpret_cast<ClipBoardImpl *>(pimpl);
+    clipboard.local_.clear();
+  }
+
+  virtual Result<> set(Span<char const> mime, Span<u8 const> data) override
   {
     if (data.is_empty() || mime.is_empty())
     {
@@ -74,31 +99,10 @@ struct ClipBoardImpl : ClipBoard
 
     char const * mime_types[] = {mime_c_str};
 
-    Vec<c8> * data_ctx;
-    CHECK(allocator_.nalloc(1, data_ctx));
-    new (data_ctx) Vec<c8>{allocator_};
+    local_.extend(data).unwrap();
 
-    data_ctx->extend(data).unwrap();
-
-    bool failed = SDL_SetClipboardData(
-      [](void * userdata, char const * mime_type,
-         usize * size) -> void const * {
-        if (mime_type == nullptr)
-        {
-          *size = 0;
-          return nullptr;
-        }
-        auto * ctx = reinterpret_cast<Vec<c8> *>(userdata);
-        *size      = ctx->size();
-        return ctx->data();
-      },
-      [](void * userdata) {
-        auto * ctx = reinterpret_cast<Vec<c8> *>(userdata);
-        ctx->uninit();
-        AllocatorImpl allocator = ctx->allocator_;
-        allocator.ndealloc(ctx, 1);
-      },
-      data_ctx, mime_types, 1);
+    bool failed =
+      SDL_SetClipboardData(get_callback, cleanup_callback, this, mime_types, 1);
 
     if (failed)
     {
@@ -111,18 +115,29 @@ struct ClipBoardImpl : ClipBoard
 
 struct WindowSystemImpl : WindowSystem
 {
-  AllocatorImpl                                 allocator;
+  AllocatorRef                                  allocator;
   SparseVec<Vec<Fn<void(SystemEvent const &)>>> listeners;
   ClipBoardImpl                                 clipboard;
 
-  WindowSystemImpl(AllocatorImpl allocator) :
+  WindowSystemImpl(AllocatorRef allocator) :
     allocator{allocator},
     listeners{allocator},
     clipboard{allocator}
   {
   }
 
-  SDL_Window * hnd(Window window)
+  WindowSystemImpl(WindowSystemImpl const &)             = delete;
+  WindowSystemImpl(WindowSystemImpl &&)                  = delete;
+  WindowSystemImpl & operator=(WindowSystemImpl const &) = delete;
+  WindowSystemImpl & operator=(WindowSystemImpl &&)      = delete;
+  ~WindowSystemImpl() override                           = default;
+
+  void shutdown() override
+  {
+    SDL_Quit();
+  }
+
+  static inline SDL_Window * psdl(Window window)
   {
     return ((WindowImpl *) window)->win;
   }
@@ -131,34 +146,34 @@ struct WindowSystemImpl : WindowSystem
                                        Span<char const> title) override
   {
     char * title_c_str;
-    if (!allocator.nalloc(title.size() + 1, title_c_str))
+    if (!allocator->nalloc(title.size() + 1, title_c_str))
     {
       return none;
     }
 
     defer title_c_str_{
-      [&] { allocator.ndealloc(title_c_str, title.size() + 1); }};
+      [&] { allocator->ndealloc(title.size() + 1, title_c_str); }};
 
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
 
     SDL_Window * window = SDL_CreateWindow(
       title_c_str, 1'920, 1'080, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-    CHECKSdl(window != nullptr);
+    CHECK_SDL(window != nullptr);
     SDL_WindowID id = SDL_GetWindowID(window);
-    CHECKSdl(id != 0);
+    CHECK_SDL(id != 0);
 
     CHECK(instance.get_backend() == gpu::Backend::Vulkan);
 
     vk::Instance & vk_instance = (vk::Instance &) instance;
     VkSurfaceKHR   surface;
 
-    CHECKSdl(SDL_Vulkan_CreateSurface(window, vk_instance.vk_instance, nullptr,
-                                      &surface));
+    CHECK_SDL(SDL_Vulkan_CreateSurface(window, vk_instance.vk_instance, nullptr,
+                                       &surface));
 
     WindowImpl * impl;
 
-    CHECK(allocator.nalloc(1, impl));
+    CHECK(allocator->nalloc(1, impl));
 
     new (impl)
       WindowImpl{allocator, window, (gpu::Surface) surface, id, instance};
@@ -177,102 +192,102 @@ struct WindowSystemImpl : WindowSystem
       win->instance->uninit(win->surface);
       SDL_DestroyWindow(win->win);
       win->~WindowImpl();
-      allocator.ndealloc(win, 1);
+      allocator->ndealloc(1, win);
     }
   }
 
   virtual void set_title(Window window, Span<char const> title) override
   {
     char * title_c_str;
-    CHECK(allocator.nalloc(title.size() + 1, title_c_str));
+    CHECK(allocator->nalloc(title.size() + 1, title_c_str));
 
     defer title_c_str_{
-      [&] { allocator.ndealloc(title_c_str, title.size() + 1); }};
+      [&] { allocator->ndealloc(title.size() + 1, title_c_str); }};
 
     mem::copy(title, title_c_str);
     title_c_str[title.size()] = 0;
 
-    CHECKSdl(SDL_SetWindowTitle(hnd(window), title_c_str));
+    CHECK_SDL(SDL_SetWindowTitle(psdl(window), title_c_str));
   }
 
   virtual char const * get_title(Window window) override
   {
-    char const * title = SDL_GetWindowTitle(hnd(window));
-    CHECKSdl(title != nullptr);
+    char const * title = SDL_GetWindowTitle(psdl(window));
+    CHECK_SDL(title != nullptr);
     return title;
   }
 
   virtual void maximize(Window window) override
   {
-    CHECKSdl(SDL_MaximizeWindow(hnd(window)));
+    CHECK_SDL(SDL_MaximizeWindow(psdl(window)));
   }
 
   virtual void minimize(Window window) override
   {
-    CHECKSdl(SDL_MinimizeWindow(hnd(window)));
+    CHECK_SDL(SDL_MinimizeWindow(psdl(window)));
   }
 
   virtual void set_extent(Window window, Vec2U extent) override
   {
-    CHECKSdl(SDL_SetWindowSize(hnd(window), static_cast<i32>(extent.x),
-                               static_cast<i32>(extent.y)));
+    CHECK_SDL(SDL_SetWindowSize(psdl(window), static_cast<i32>(extent.x),
+                                static_cast<i32>(extent.y)));
   }
 
   virtual void center(Window window) override
   {
-    CHECKSdl(SDL_SetWindowPosition(hnd(window), SDL_WINDOWPOS_CENTERED,
-                                   SDL_WINDOWPOS_CENTERED));
+    CHECK_SDL(SDL_SetWindowPosition(psdl(window), SDL_WINDOWPOS_CENTERED,
+                                    SDL_WINDOWPOS_CENTERED));
   }
 
   virtual Vec2U get_extent(Window window) override
   {
     i32 width, height;
-    CHECKSdl(SDL_GetWindowSize(hnd(window), &width, &height));
+    CHECK_SDL(SDL_GetWindowSize(psdl(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
   virtual Vec2U get_surface_extent(Window window) override
   {
     i32 width, height;
-    CHECKSdl(SDL_GetWindowSizeInPixels(hnd(window), &width, &height));
+    CHECK_SDL(SDL_GetWindowSizeInPixels(psdl(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
   virtual void set_position(Window window, Vec2I pos) override
   {
-    CHECKSdl(SDL_SetWindowPosition(hnd(window), pos.x, pos.y));
+    CHECK_SDL(SDL_SetWindowPosition(psdl(window), pos.x, pos.y));
   }
 
   virtual Vec2I get_position(Window window) override
   {
     i32 x, y;
-    CHECKSdl(SDL_GetWindowPosition(hnd(window), &x, &y));
+    CHECK_SDL(SDL_GetWindowPosition(psdl(window), &x, &y));
     return Vec2I{x, y};
   }
 
   virtual void set_min_extent(Window window, Vec2U min) override
   {
-    CHECKSdl(SDL_SetWindowMinimumSize(hnd(window), static_cast<i32>(min.x),
-                                      static_cast<i32>(min.y)));
+    CHECK_SDL(SDL_SetWindowMinimumSize(psdl(window), static_cast<i32>(min.x),
+                                       static_cast<i32>(min.y)));
   }
 
   virtual Vec2U get_min_extent(Window window) override
   {
     i32 width, height;
-    CHECKSdl(SDL_GetWindowMinimumSize(hnd(window), &width, &height));
+    CHECK_SDL(SDL_GetWindowMinimumSize(psdl(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
   virtual void set_max_extent(Window window, Vec2U max) override
   {
-    CHECKSdl(SDL_SetWindowMaximumSize(hnd(window), static_cast<i32>(max.x),
-                                      static_cast<i32>(max.y)));
+    CHECK_SDL(SDL_SetWindowMaximumSize(psdl(window), static_cast<i32>(max.x),
+                                       static_cast<i32>(max.y)));
   }
 
   virtual Vec2U get_max_extent(Window window) override
   {
     i32 width, height;
-    CHECKSdl(SDL_GetWindowMaximumSize(hnd(window), &width, &height));
+    CHECK_SDL(SDL_GetWindowMaximumSize(psdl(window), &width, &height));
     return Vec2U{static_cast<u32>(width), static_cast<u32>(height)};
   }
 
@@ -290,71 +305,71 @@ struct WindowSystemImpl : WindowSystem
         fmt = SDL_PIXELFORMAT_BGRA8888;
         break;
       default:
-        CHECK_DESC(false, "unsupported image format");
+        CHECK(false, "unsupported image format");
     }
 
     SDL_Surface * icon = SDL_CreateSurfaceFrom(
       static_cast<i32>(image.extent.x), static_cast<i32>(image.extent.y), fmt,
       (void *) image.channels.data(), static_cast<i32>(image.pitch()));
-    CHECKSdl(icon != nullptr);
-    CHECKSdl(SDL_SetWindowIcon(hnd(window), icon));
+    CHECK_SDL(icon != nullptr);
+    CHECK_SDL(SDL_SetWindowIcon(psdl(window), icon));
     SDL_DestroySurface(icon);
   }
 
   virtual void make_bordered(Window window) override
   {
-    CHECKSdl(SDL_SetWindowBordered(hnd(window), true));
+    CHECK_SDL(SDL_SetWindowBordered(psdl(window), true));
   }
 
   virtual void make_borderless(Window window) override
   {
-    CHECKSdl(SDL_SetWindowBordered(hnd(window), false));
+    CHECK_SDL(SDL_SetWindowBordered(psdl(window), false));
   }
 
   virtual void show(Window window) override
   {
-    CHECKSdl(SDL_ShowWindow(hnd(window)));
+    CHECK_SDL(SDL_ShowWindow(psdl(window)));
   }
 
   virtual void hide(Window window) override
   {
-    CHECKSdl(SDL_HideWindow(hnd(window)));
+    CHECK_SDL(SDL_HideWindow(psdl(window)));
   }
 
   virtual void raise(Window window) override
   {
-    CHECKSdl(SDL_RaiseWindow(hnd(window)));
+    CHECK_SDL(SDL_RaiseWindow(psdl(window)));
   }
 
   virtual void restore(Window window) override
   {
-    CHECKSdl(SDL_RestoreWindow(hnd(window)));
+    CHECK_SDL(SDL_RestoreWindow(psdl(window)));
   }
 
   virtual void request_attention(Window window, bool briefly) override
   {
-    CHECKSdl(SDL_FlashWindow(hnd(window), briefly ? SDL_FLASH_BRIEFLY :
-                                                    SDL_FLASH_UNTIL_FOCUSED));
+    CHECK_SDL(SDL_FlashWindow(psdl(window), briefly ? SDL_FLASH_BRIEFLY :
+                                                      SDL_FLASH_UNTIL_FOCUSED));
   }
 
   virtual void make_fullscreen(Window window) override
   {
-    CHECKSdl(SDL_SetWindowFullscreen(hnd(window), true));
+    CHECK_SDL(SDL_SetWindowFullscreen(psdl(window), true));
   }
 
   virtual void make_windowed(Window window) override
   {
-    CHECKSdl(SDL_SetWindowFullscreen(hnd(window), false));
+    CHECK_SDL(SDL_SetWindowFullscreen(psdl(window), false));
   }
 
   virtual void make_resizable(Window window) override
   {
-    CHECKSdl(SDL_SetWindowResizable(hnd(window), true));
+    CHECK_SDL(SDL_SetWindowResizable(psdl(window), true));
   }
 
   virtual void make_unresizable(Window window) override
   {
-    CHECKSdl(SDL_SetWindowResizable(hnd(window), false));
+    CHECK_SDL(SDL_SetWindowResizable(psdl(window), false));
   }
 
   virtual u64 listen(Fn<void(SystemEvent const &)> callback) override
@@ -750,7 +765,7 @@ struct WindowSystemImpl : WindowSystem
                                 TextInputInfo const & info) override
   {
     SDL_PropertiesID props = SDL_CreateProperties();
-    CHECKSdl(props != 0);
+    CHECK_SDL(props != 0);
 
     SDL_TextInputType  type = SDL_TEXTINPUT_TYPE_TEXT;
     SDL_Capitalization cap  = SDL_CAPITALIZE_NONE;
@@ -806,46 +821,35 @@ struct WindowSystemImpl : WindowSystem
         CHECK_UNREACHABLE();
     }
 
-    CHECKSdl(
+    CHECK_SDL(
       SDL_SetNumberProperty(props, SDL_PROP_TEXTINPUT_TYPE_NUMBER, type));
 
-    CHECKSdl(SDL_SetNumberProperty(
+    CHECK_SDL(SDL_SetNumberProperty(
       props, SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER, cap));
 
-    CHECKSdl(SDL_SetBooleanProperty(props, SDL_PROP_TEXTINPUT_MULTILINE_BOOLEAN,
-                                    info.multiline));
+    CHECK_SDL(SDL_SetBooleanProperty(
+      props, SDL_PROP_TEXTINPUT_MULTILINE_BOOLEAN, info.multiline));
 
-    CHECKSdl(SDL_SetBooleanProperty(
+    CHECK_SDL(SDL_SetBooleanProperty(
       props, SDL_PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, info.autocorrect));
 
     WindowImpl * w = (WindowImpl *) window;
 
-    CHECKSdl(SDL_StartTextInputWithProperties(w->win, props));
+    CHECK_SDL(SDL_StartTextInputWithProperties(w->win, props));
   }
 
   virtual void end_text_input(Window window) override
   {
     WindowImpl * w = (WindowImpl *) window;
-    CHECKSdl(SDL_StopTextInput(w->win));
+    CHECK_SDL(SDL_StopTextInput(w->win));
   }
 };
 
-ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem * window_system = nullptr;
-
-void WindowSystem::init(AllocatorImpl allocator)
+Dyn<WindowSystem *> WindowSystem::create_SDL(AllocatorRef allocator)
 {
-  CHECK(window_system == nullptr);
-  CHECKSdl(SDL_Init(SDL_INIT_VIDEO));
-  alignas(WindowSystemImpl) static u8 storage[sizeof(WindowSystemImpl)] = {};
-  window_system = new (storage) WindowSystemImpl{allocator};
-}
-
-void WindowSystem::uninit()
-{
-  CHECK(window_system != nullptr);
-  window_system->~WindowSystem();
-  window_system = nullptr;
-  SDL_Quit();
+  CHECK_SDL(SDL_Init(SDL_INIT_VIDEO));
+  return cast<WindowSystem *>(
+    dyn<WindowSystemImpl>(inplace, allocator, allocator).unwrap());
 }
 
 }    // namespace ash

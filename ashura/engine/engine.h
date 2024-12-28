@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/engine/font.h"
-#include "ashura/engine/gpu_system.h"
+#include "ashura/engine/systems.h"
 #include "ashura/engine/view_system.h"
 #include "ashura/engine/window.h"
 #include "ashura/std/cfg.h"
@@ -35,7 +34,7 @@ struct EngineCfg
 
   Window window{};
 
-  Vec<char> default_font{};
+  u32 font_height = 64;
 
   StrVecMap<Vec<char>> shaders{};
 
@@ -43,22 +42,36 @@ struct EngineCfg
 
   StrVecMap<Vec<char>> images{};
 
-  static EngineCfg parse(AllocatorImpl allocator, Span<u8 const> json);
+  Vec<char> pipeline_cache{};
+
+  static EngineCfg parse(AllocatorRef allocator, Span<u8 const> json);
 };
 
 struct Engine
 {
-  AllocatorImpl allocator;
+  AllocatorRef allocator;
 
-  void * app;
+  Dyn<Scheduler *> scheduler;
+
+  FileSystem file_sys;
 
   Dyn<gpu::Instance *> instance;
 
-  gpu::Device * device;
+  ref<gpu::Device> device;
+
+  GpuSystem gpu_sys;
+
+  ImageSystem image_sys;
+
+  FontSystem font_sys;
+
+  ShaderSystem shader_sys;
+
+  Dyn<WindowSystem *> window_sys;
 
   Window window;
 
-  ClipBoard * clipboard;
+  ref<ClipBoard> clipboard;
 
   gpu::Surface surface;
 
@@ -70,31 +83,46 @@ struct Engine
 
   Canvas canvas;
 
-  ViewSystem view_system;
-
-  Vec<char> default_font_name;
-
-  Font * default_font = nullptr;
+  ViewSystem view_sys;
 
   InputState input_buffer;
 
-  Engine(AllocatorImpl allocator, void * app, Dyn<gpu::Instance *> instance,
-         gpu::Device * device, Window window, ClipBoard & clipboard,
+  Vec<char> working_dir{};
+
+  Vec<char> pipeline_cache_path{};
+
+  static Dyn<Engine *> create(AllocatorRef     allocator,
+                              Span<char const> config_path,
+                              Span<char const> working_dir);
+
+  Engine(AllocatorRef allocator, Dyn<Scheduler *> scheduler,
+         FileSystem file_sys, Dyn<gpu::Instance *> instance,
+         gpu::Device & device, GpuSystem gpu_sys, ImageSystem image_sys,
+         FontSystem font_sys, ShaderSystem shader_sys,
+         Dyn<WindowSystem *> window_sys, Window window, ClipBoard & clipboard,
          gpu::Surface surface, gpu::PresentMode present_mode_preference,
-         Renderer renderer, Canvas canvas, ViewSystem view_system) :
+         Renderer renderer, Canvas canvas, ViewSystem view_sys,
+         Vec<char> working_dir, Vec<char> pipeline_cache_path) :
     allocator{allocator},
-    app{app},
+    scheduler{std::move(scheduler)},
+    file_sys{std::move(file_sys)},
     instance{std::move(instance)},
     device{device},
+    gpu_sys{std::move(gpu_sys)},
+    image_sys{std::move(image_sys)},
+    font_sys{std::move(font_sys)},
+    shader_sys{std::move(shader_sys)},
+    window_sys{std::move(window_sys)},
     window{window},
-    clipboard{&clipboard},
+    clipboard{clipboard},
     surface{surface},
     present_mode_preference{present_mode_preference},
     renderer{std::move(renderer)},
     canvas{std::move(canvas)},
-    view_system{std::move(view_system)},
-    default_font_name{allocator},
-    input_buffer{allocator}
+    view_sys{std::move(view_sys)},
+    input_buffer{allocator},
+    working_dir{std::move(working_dir)},
+    pipeline_cache_path{std::move(pipeline_cache_path)}
   {
   }
 
@@ -102,14 +130,21 @@ struct Engine
   Engine & operator=(Engine const &) = delete;
   Engine(Engine &&)                  = default;
   Engine & operator=(Engine &&)      = default;
-  ~Engine();
+  ~Engine()                          = default;
 
-  static void init(AllocatorImpl allocator, void * app,
-                   Span<char const> config_path, Span<char const> assets_dir);
+  Systems get_systems()
+  {
+    return Systems{.file   = file_sys,
+                   .gpu    = gpu_sys,
+                   .image  = image_sys,
+                   .font   = font_sys,
+                   .shader = shader_sys,
+                   .window = *window_sys};
+  }
 
-  static void uninit();
+  void engage_(EngineCfg const & cfg);
 
-  // shutdown
+  void shutdown();
 
   void recreate_swapchain_();
 
@@ -118,6 +153,8 @@ struct Engine
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded
 /// executables.
-ASH_C_LINKAGE ASH_DLL_EXPORT Engine * engine;
+extern Engine * engine;
+
+ASH_C_LINKAGE ASH_DLL_EXPORT void hook_engine(Engine *);
 
 }    // namespace ash

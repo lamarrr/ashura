@@ -5,7 +5,7 @@
 namespace ash
 {
 
-PassContext PassContext::create(AllocatorImpl allocator)
+PassContext PassContext::create(AllocatorRef allocator)
 {
   Dyn bloom = dyn(allocator, BloomPass{}).unwrap();
   Dyn blur  = dyn(allocator, BlurPass{}).unwrap();
@@ -46,7 +46,7 @@ void PassContext::release()
   };
 }
 
-Renderer Renderer::create(AllocatorImpl allocator)
+Renderer Renderer::create(AllocatorRef allocator)
 {
   PassContext passes = PassContext::create(allocator);
   return Renderer{allocator, std::move(passes)};

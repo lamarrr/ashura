@@ -60,12 +60,14 @@ TEST(SparseVecTest, Start)
     (void) c;
   }
 
-  ASSERT_TRUE(set.push(69U, 67U, true));
+  ASSERT_EQ(set.push(69U, 67U, true).unwrap(), 0);
   ASSERT_EQ(set.size(), 1);
   ASSERT_EQ(set.size(), set.dense.v0.size());
-  ASSERT_TRUE(set.push(42U, 32U, false));
+  ASSERT_EQ(set.push(42U, 32U, false).unwrap(), 1);
   ASSERT_EQ(set.size(), 2);
   ASSERT_EQ(set.size(), set.dense.v0.size());
+  ASSERT_TRUE(set.is_valid_id(0));
+  ASSERT_TRUE(set.is_valid_id(1));
   ASSERT_EQ(set[0].v0, 69U);
   ASSERT_EQ(set[1].v0, 42U);
   ASSERT_EQ(set[0].v2, true);

@@ -46,7 +46,7 @@ struct RectPacker
   Vec<Node> nodes{};
 
   /// @brief Make a rectangle packer to pack a rectangle that is 'width' by 'height' in dimensions.
-  static RectPacker make(Vec2I extent, AllocatorImpl allocator)
+  static RectPacker make(Vec2I extent, AllocatorRef allocator)
   {
     RectPacker packer{.nodes{allocator}};
 

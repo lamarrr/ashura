@@ -91,7 +91,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   SheenBidi
   GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
-  GIT_TAG v2.7
+  GIT_TAG v2.8
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
@@ -195,8 +195,7 @@ add_executable(
   ashura/std/tests/option.cc
   ashura/std/tests/range.cc
   ashura/std/tests/result.cc
-  ashura/std/tests/sparse_vec.cc
-  ashura/std/tests/tests.cc)
+  ashura/std/tests/sparse_vec.cc)
 
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
                       GTest::gtest_main)

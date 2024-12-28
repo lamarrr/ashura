@@ -126,9 +126,9 @@ constexpr TBuiltInResource SHADER_RESOURCE_LIMITS = {
 struct Includer : glslang::TShader::Includer
 {
   ShaderCompileInfo info;
-  AllocatorImpl     allocator;
+  AllocatorRef      allocator;
 
-  Includer(ShaderCompileInfo info, AllocatorImpl allocator) :
+  Includer(ShaderCompileInfo info, AllocatorRef allocator) :
     info{info},
     allocator{allocator}
   {
@@ -151,7 +151,7 @@ struct Includer : glslang::TShader::Includer
       .match(
         [&](Span<char const> header_data) -> IncludeResult * {
           IncludeResult * result;
-          if (!allocator.nalloc(1, result))
+          if (!allocator->nalloc(1, result))
           {
             info.on_log(LogLevel::Error,
                         "Failed to allocate memory for Include Result");
@@ -177,16 +177,16 @@ struct Includer : glslang::TShader::Includer
   {
     if (inc != nullptr)
     {
+      info.on_drop(inc->headerName);
       inc->~IncludeResult();
-      allocator.ndealloc(inc, 1);
-      info.on_drop(Span{inc->headerName.data(), inc->headerLength});
+      allocator->ndealloc(1, inc);
     }
   }
 };
 
 Result<Void, ShaderLoadErr> compile_shader(ShaderCompileInfo const & info,
                                            Vec<u32> &                spirv,
-                                           AllocatorImpl             allocator)
+                                           AllocatorRef              allocator)
 {
   if (!glslang::InitializeProcess())
   {

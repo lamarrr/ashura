@@ -3,6 +3,7 @@
 
 #include "ashura/engine/input.h"
 #include "ashura/gpu/gpu.h"
+#include "ashura/std/dyn.h"
 #include "ashura/std/image.h"
 #include "ashura/std/math.h"
 #include "ashura/std/option.h"
@@ -16,11 +17,11 @@ typedef struct Window_T * Window;
 
 struct WindowSystem
 {
-  static void init(AllocatorImpl allocator = default_allocator);
+  static Dyn<WindowSystem *> create_SDL(AllocatorRef allocator);
 
-  static void uninit();
+  virtual ~WindowSystem() = 0;
 
-  virtual ~WindowSystem() = default;
+  virtual void shutdown() = 0;
 
   virtual Option<Window> create_window(gpu::Instance &  instance,
                                        Span<char const> title) = 0;
@@ -104,7 +105,5 @@ struct WindowSystem
 
   virtual void end_text_input(Window window) = 0;
 };
-
-ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem * window_system;
 
 }    // namespace ash

@@ -146,7 +146,7 @@ struct GpuFontAtlas
 /// @param gpu_atlas gpu font atlas if loaded
 struct FontInfo
 {
-  FontId                        id                = FontId::Default;
+  FontId                        id                = FontId::Invalid;
   Span<char const>              label             = {};
   Span<char const>              postscript_name   = {};
   Span<char const>              family_name       = {};

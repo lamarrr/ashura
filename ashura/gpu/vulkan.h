@@ -387,7 +387,7 @@ struct GraphicsPipeline
 
 struct Instance final : gpu::Instance
 {
-  AllocatorImpl            allocator          = {};
+  AllocatorRef             allocator          = {};
   InstanceTable            vk_table           = {};
   VkInstance               vk_instance        = nullptr;
   VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
@@ -402,7 +402,7 @@ struct Instance final : gpu::Instance
   virtual ~Instance() override;
 
   virtual Result<gpu::Device *, Status>
-    create_device(AllocatorImpl               allocator,
+    create_device(AllocatorRef                allocator,
                   Span<gpu::DeviceType const> preferred_types,
                   u32                         buffering) override;
 
@@ -589,7 +589,7 @@ struct ComputePassContext
 
 struct CommandEncoder final : gpu::CommandEncoder
 {
-  AllocatorImpl       allocator         = {};
+  AllocatorRef        allocator         = {};
   Device *            dev               = nullptr;
   ArenaPool           arg_pool          = {};
   VkCommandPool       vk_command_pool   = nullptr;
@@ -764,7 +764,7 @@ struct FrameContext
 
 struct Device final : gpu::Device
 {
-  AllocatorImpl      allocator     = {};
+  AllocatorRef       allocator     = {};
   Instance *         instance      = nullptr;
   PhysicalDevice     phy_dev       = {};
   DeviceTable        vk_table      = {};

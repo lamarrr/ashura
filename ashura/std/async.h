@@ -5,6 +5,7 @@
 #pragma once
 #include "ashura/std/allocator.h"
 #include "ashura/std/cfg.h"
+#include "ashura/std/dyn.h"
 #include "ashura/std/error.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/option.h"
@@ -426,6 +427,13 @@ struct SemaphoreState
     return stage.load(std::memory_order_acquire) == num_stages_;
   }
 
+  /// @brief returns true if the polled stage is completed.
+  [[nodiscard]] bool is_ready(u64 poll_stage) const
+  {
+    std::atomic_ref stage{stage_};
+    return stage.load(std::memory_order_acquire) > poll_stage;
+  }
+
   /// @brief Signal the semaphore to move to stage `next`. This implies a
   /// sequence ordering of the semaphore stages.
   ///
@@ -508,23 +516,22 @@ struct StopTokenState
   }
 };
 
-typedef Rc<StopTokenState *> StopToken;
-
 ///
 /// @brief Create an independently allocated semaphore object
 ///
 /// @param num_stages: number of stages represented by this semaphore
 /// @return Semaphore
 ///
-inline Result<Semaphore> create_semaphore(AllocatorImpl allocator,
-                                          u64           num_stages)
+inline Result<Semaphore> semaphore(AllocatorRef allocator, u64 num_stages)
 {
-  return rc_inplace<SemaphoreState>(allocator, num_stages);
+  return rc<SemaphoreState>(inplace, allocator, num_stages);
 }
 
-inline Result<StopToken> create_stop_token(AllocatorImpl allocator)
+typedef Rc<StopTokenState *> StopToken;
+
+inline Result<StopToken> stop_token(AllocatorRef allocator)
 {
-  return rc_inplace<StopTokenState>(allocator);
+  return rc<StopTokenState>(inplace, allocator);
 }
 
 /// @brief await semaphores at the specified stages.
@@ -539,15 +546,20 @@ inline Result<StopToken> create_stop_token(AllocatorImpl allocator)
 /// @param any if to wait for all semaphores or atleast 1 semaphore.
 /// @returns returns if the semaphore await operation completed successfully
 /// based on the `any` criteria.
-[[nodiscard]] inline bool await_semaphores(Span<SemaphoreState * const> sems,
-                                           Span<u64 const>              stages,
-                                           nanoseconds                  timeout)
+template <typename Semaphore, typename Stage, typename SemaphoreKey,
+          typename StageKey>
+[[nodiscard]] bool impl_await(Span<Semaphore> semaphores, Span<Stage> stages,
+                              nanoseconds     timeout,
+                              SemaphoreKey && semaphore_key = {},
+                              StageKey &&     stage_key     = {})
 {
-  CHECK(sems.size() == stages.size());
-  usize const n = sems.size();
+  CHECK(semaphores.size() == stages.size());
+  usize const n = semaphores.size();
   for (usize i = 0; i < n; i++)
   {
-    CHECK((stages[i] == U64_MAX) || (stages[i] <= sems[i]->num_stages()));
+    SemaphoreState & semaphore = semaphore_key(semaphores[i]);
+    u64 const        stage     = stage_key(stages[i]);
+    CHECK((stage == U64_MAX) || (stage <= semaphore.num_stages()));
   }
 
   // number of times we've polled so far, counting begins from 0
@@ -564,9 +576,10 @@ inline Result<StopToken> create_stop_token(AllocatorImpl allocator)
   {
     for (; next < n; next++)
     {
-      SemaphoreState * const & s        = sems[next];
-      u64 const                stage    = min(stages[next], s->num_stages_ - 1);
-      bool const               is_ready = stage < s->stage();
+      SemaphoreState & semaphore = semaphore_key(semaphores[next]);
+      u64 const        stage =
+        min(stage_key(stages[next]), semaphore.num_stages() - 1);
+      bool const is_ready = stage < semaphore.stage();
 
       if (!is_ready)
       {
@@ -629,8 +642,8 @@ struct [[nodiscard]] Stream
   Semaphore semaphore_;
 
   Stream(Rc<T *> data, Semaphore semaphore) :
-    data_{std::move(data)},
-    semaphore_{std::move(semaphore)}
+    data_{static_cast<Rc<T *> &&>(data)},
+    semaphore_{static_cast<Semaphore &&>(semaphore)}
   {
   }
 
@@ -641,7 +654,7 @@ struct [[nodiscard]] Stream
 
   [[nodiscard]] bool is_ready(u64 stage) const
   {
-    return semaphore_->stage() > stage;
+    return semaphore_->is_ready(stage);
   }
 
   [[nodiscard]] bool is_completed() const
@@ -660,44 +673,55 @@ struct [[nodiscard]] Stream
   void yield_sequenced(F && op, u64 stage) const
   {
     static_cast<F &&>(op)(*data_.get());
-    CHECK_DESC(semaphore_->signal(stage + 1),
-               "`Stream` yielded with invalid sequencing");
+    CHECK(semaphore_->signal(stage + 1),
+          "`Stream` yielded with invalid sequencing");
   }
 };
 
 template <typename T, typename... Args>
-Result<Stream<T>> stream_inplace(AllocatorImpl allocator, u64 num_stages,
-                                 Args &&... args)
+Result<Stream<T>> stream(Inplace, AllocatorRef allocator, u64 num_stages,
+                         Args &&... args)
 {
-  Result data = rc_inplace<T>(allocator, static_cast<Args &&>(args)...);
+  Result data = rc<T>(inplace, allocator, static_cast<Args &&>(args)...);
   if (!data)
   {
     return Err{};
   }
-  Result sem = create_semaphore(allocator, num_stages);
+
+  Result sem = semaphore(allocator, num_stages);
   if (!sem)
   {
     return Err{};
   }
+
   return Ok{
-    Stream<T>{std::move(data.value()), std::move(sem.value())}
+    Stream<T>{static_cast<Rc<T *> &&>(data.value()),
+              static_cast<Semaphore &&>(sem.value())}
   };
 }
 
 template <typename T>
-Result<Stream<T>> stream(AllocatorImpl allocator, u64 num_stages, T value)
+Result<Stream<T>> stream(AllocatorRef allocator, u64 num_stages, T value)
 {
-  return stream_inplace<T>(allocator, num_stages, std::move(value));
+  return stream<T>(inplace, allocator, num_stages, static_cast<T &&>(value));
 }
 
-template <typename... T>
-[[nodiscard]] bool await_streams(nanoseconds timeout, Span<u64 const> stages,
-                                 Stream<T> const &... streams)
+struct [[nodiscard]] AnyStream
 {
-  SemaphoreState * semaphores[] = {(streams.semaphore_.get())...};
+  Semaphore semaphore_;
 
-  return await_semaphores(semaphores, stages, timeout);
-}
+  template <typename T>
+  AnyStream(Stream<T> stream) :
+    semaphore_{static_cast<Semaphore &&>(stream.semaphore_)}
+  {
+  }
+
+  AnyStream(AnyStream const &)             = delete;
+  AnyStream & operator=(AnyStream const &) = delete;
+  AnyStream(AnyStream &&)                  = default;
+  AnyStream & operator=(AnyStream &&)      = default;
+  ~AnyStream()                             = default;
+};
 
 /// @brief A future is 1-stage Stream that produces a single value. The value is
 /// left uninitialized until the future is completed.
@@ -711,7 +735,7 @@ struct [[nodiscard]] Future
   u64 stage_;
 
   Future(Stream<AtomicInit<T>> stream, u64 stage) :
-    stream_{std::move(stream)},
+    stream_{static_cast<Stream<AtomicInit<T>> &&>(stream)},
     stage_{stage}
   {
   }
@@ -755,26 +779,59 @@ struct [[nodiscard]] Future
 };
 
 template <typename T>
-Result<Future<T>> future(AllocatorImpl allocator)
+Result<Future<T>> future(AllocatorRef allocator)
 {
-  Result stream = stream_inplace<AtomicInit<T>>(allocator, 1);
-  if (!stream)
+  Result s = stream<AtomicInit<T>>(inplace, allocator, 1);
+
+  if (!s)
   {
     return Err{};
   }
+
   return Ok{
-    Future<T>{std::move(stream.value()), 0}
+    Future<T>{static_cast<Stream<AtomicInit<T>> &&>(s.value()), 0}
   };
 }
 
-template <typename... T>
-[[nodiscard]] bool await_futures(nanoseconds timeout,
-                                 Future<T> const &... futures)
+struct [[nodiscard]] AnyFuture
 {
-  SemaphoreState * semaphores[] = {(futures.stream_.semaphore_.get())...};
-  u64 const        stages[]     = {futures.stage_...};
-  return await_semaphores(semaphores, stages, timeout);
-}
+  Semaphore semaphore_;
+  u64       stage_;
+
+  AnyFuture(Semaphore semaphore, u64 stage) :
+    semaphore_{static_cast<Semaphore &&>(semaphore)},
+    stage_{stage}
+  {
+  }
+
+  template <typename T>
+  AnyFuture(Future<T> future) :
+    semaphore_{static_cast<Semaphore &&>(future.stream_.semaphore_)},
+    stage_{future.stage_}
+  {
+  }
+
+  AnyFuture(AnyFuture const &)             = delete;
+  AnyFuture & operator=(AnyFuture const &) = delete;
+  AnyFuture(AnyFuture &&)                  = default;
+  AnyFuture & operator=(AnyFuture &&)      = default;
+  ~AnyFuture()                             = default;
+
+  AnyFuture alias() const
+  {
+    return AnyFuture{semaphore_.alias(), stage_};
+  }
+
+  Result<> poll() const
+  {
+    if (!semaphore_->is_ready(stage_))
+    {
+      return Err{};
+    }
+
+    return Ok{};
+  }
+};
 
 inline constexpr usize MAX_TASK_FRAME_SIZE = 2_KB;
 
@@ -888,9 +945,7 @@ TaskInfo to_task_info(F & frame)
 ///
 struct Scheduler
 {
-  /// @brief Initialize the scheduler.
-  /// @note not thread-safe, typically called at program startup or DLL
-  /// loading-time.
+  /// @brief Create a Scheduler
   /// @param allocator thread-safe allocator to allocate tasks from, must be
   /// able to allocate page-sized allocations
   /// @param dedicated_thread_sleep max sleep time for the dedicated threads.
@@ -899,18 +954,17 @@ struct Scheduler
   /// @param worker_thread_sleep maximum sleep time for the worker threads.
   /// enables responsiveness. `.size()` represents the number of worker threads
   /// to create.
-  static void init(AllocatorImpl allocator, std::thread::id main_thread_id,
-                   Span<nanoseconds const> dedicated_thread_sleep,
-                   Span<nanoseconds const> worker_thread_sleep);
-
-  static void uninit();
+  static Dyn<Scheduler *> create(AllocatorRef            allocator,
+                                 std::thread::id         main_thread_id,
+                                 Span<nanoseconds const> dedicated_thread_sleep,
+                                 Span<nanoseconds const> worker_thread_sleep);
 
   /// @brief Destroys the scheduler. The scheduler must have been joined.
   virtual ~Scheduler() = default;
 
   /// @brief Request that the threads stop executing and purges the tasks on the
   /// task queue.
-  virtual void join() = 0;
+  virtual void shutdown() = 0;
 
   virtual u32 num_dedicated() = 0;
 
@@ -934,8 +988,7 @@ struct Scheduler
   /// @param grace_period minimum time (within duration) to wait for tasks when
   /// the task queue is empty
   /// @param duration maximum timeout to spend executing tasks
-  virtual void execute_main_thread_loop(nanoseconds grace_period,
-                                        nanoseconds duration) = 0;
+  virtual void run_main_loop(nanoseconds duration, nanoseconds poll_max) = 0;
 
   template <TaskFrame F>
   void schedule(F && task, TaskSchedule schedule)
@@ -961,10 +1014,11 @@ struct Scheduler
   }
 };
 
+extern Scheduler * scheduler;
+
 /// @brief Global scheduler object. Designed for hooking across DLLs. Must be
-/// initialized with `Scheduler::init()` and uninitialized with
-/// `Scheduler::uninit()`.
-ASH_C_LINKAGE ASH_DLL_EXPORT Scheduler * scheduler;
+/// initialized at program startup.
+ASH_C_LINKAGE ASH_DLL_EXPORT void hook_scheduler(Scheduler *);
 
 template <typename P>
 concept Poll = requires (P p) {
@@ -992,46 +1046,48 @@ struct TaskInstance
   u64 idx = 0;
 };
 
-template <typename... T>
+inline bool await_streams(Span<AnyStream const> streams, Span<u64 const> stages,
+                          nanoseconds timeout)
+{
+  return impl_await(
+    streams, stages, timeout,
+    [](AnyStream const & s) -> SemaphoreState & { return *s.semaphore_; },
+    [](u64 stage) -> u64 { return stage; });
+}
+
+inline bool await_futures(Span<AnyFuture const> futures, nanoseconds timeout)
+{
+  return impl_await(
+    futures, futures, timeout,
+    [](AnyFuture const & f) -> SemaphoreState & { return *f.semaphore_; },
+    [](AnyFuture const & f) -> u64 { return f.stage_; });
+}
+
+template <usize N>
 struct [[nodiscard]] AwaitStreams
 {
-  Tuple<Stream<T>...> streams;
-
-  Array<u64, sizeof...(T)> stages;
-
-  explicit AwaitStreams(Array<u64, sizeof...(T)> const & stages,
-                        Stream<T>... streams) :
-    streams{std::move(streams)...},
-    stages{stages}
-  {
-  }
+  AnyStream streams[N];
+  u64       stages[N] = {};
 
   bool operator()() const
   {
-    return apply(
-      [this](auto const &... s) {
-        return await_streams(nanoseconds{0}, stages, s...);
-      },
-      streams);
+    return await_streams(streams, stages, 0ns);
+  }
+};
+
+template <usize N>
+struct [[nodiscard]] AwaitFutures
+{
+  AnyFuture futures[N];
+
+  bool operator()() const
+  {
+    return await_futures(futures, 0ns);
   }
 };
 
 template <typename... T>
-struct [[nodiscard]] AwaitFutures
-{
-  Tuple<Future<T>...> futures;
-
-  explicit AwaitFutures(Future<T>... futures) : futures{std::move(futures)...}
-  {
-  }
-
-  bool operator()() const
-  {
-    return apply(
-      [](auto const &... f) { return await_futures(nanoseconds{0}, f...); },
-      futures);
-  }
-};
+AwaitFutures(T...) -> AwaitFutures<sizeof...(T)>;
 
 struct [[nodiscard]] Delay
 {
@@ -1154,7 +1210,7 @@ void repeat(F fn, u64 n, P poll = {}, TaskSchedule schedule = {})
 /// @param poll Poller functor that returns true when ready
 /// @param schedule How to schedule the shards
 template <typename State, Poll P = Ready>
-void shard(Fn<void(TaskInstance, State)> fn, Rc<State> const & state, u64 n,
+void shard(Rc<State> state, Fn<void(TaskInstance, State)> fn, u64 n,
            P poll = {}, TaskSchedule schedule = {})
 {
   if (n == 0)
@@ -1170,7 +1226,7 @@ void shard(Fn<void(TaskInstance, State)> fn, Rc<State> const & state, u64 n,
   // called across all instances.
   scheduler->schedule(
     TaskBody{static_cast<P &&>(poll),
-             [fn, state = state.alias(), schedule, n]() mutable -> bool {
+             [fn, state = std::move(state), schedule, n]() mutable -> bool {
                for (u64 i = 0; i < n; i++)
                {
                  scheduler->schedule(

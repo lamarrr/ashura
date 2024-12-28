@@ -10,7 +10,7 @@
 #include <mutex>
 #include <stdlib.h>
 
-#define ASH_DUMP(x) ::ash::logger->trace(#x, " = ", x);
+#define ASH_DUMP(x) ::ash::trace(#x, " = ", x);
 
 namespace ash
 {
@@ -128,25 +128,23 @@ struct Logger : Pin<>
     std::atomic_ref panic_count{*ash::panic_count};
     if (panic_count.fetch_add(1, std::memory_order::relaxed))
     {
-      (void) fputs("panicked while processing a panic. aborting...", stderr);
-      (void) fflush(stderr);
-      abort();
+      (void) std::fputs("panicked while processing a panic. aborting...",
+                        stderr);
+      (void) std::fflush(stderr);
+      std::abort();
     }
     if (!fatal(args...))
     {
-      (void) fputs("ran out of log buffer memory while panicking.", stderr);
+      (void) std::fputs("ran out of log buffer memory while panicking.",
+                        stderr);
     }
     flush();
     if (panic_handler != nullptr)
     {
       panic_handler();
     }
-    abort();
+    std::abort();
   }
-
-  static void init();
-
-  static void uninit();
 
   [[nodiscard]] bool add_sink(LogSink * s)
   {
@@ -175,6 +173,8 @@ struct StdioSink : LogSink
   void flush() override;
 };
 
+extern StdioSink stdio_sink;
+
 struct FileSink : LogSink
 {
   std::FILE * file = nullptr;
@@ -184,8 +184,44 @@ struct FileSink : LogSink
   void flush() override;
 };
 
-ASH_C_LINKAGE ASH_DLL_EXPORT ash::Logger * logger;
+extern Logger * logger;
 
-extern StdioSink stdio_sink;
+ASH_C_LINKAGE ASH_DLL_EXPORT void hook_logger(Logger *);
+
+template <typename... Args>
+void debug(Args const &... args)
+{
+  logger->debug(args...);
+}
+
+template <typename... Args>
+void trace(Args const &... args)
+{
+  logger->trace(args...);
+}
+
+template <typename... Args>
+void info(Args const &... args)
+{
+  logger->info(args...);
+}
+
+template <typename... Args>
+void warn(Args const &... args)
+{
+  logger->warn(args...);
+}
+
+template <typename... Args>
+void error(Args const &... args)
+{
+  logger->error(args...);
+}
+
+template <typename... Args>
+void fatal(Args const &... args)
+{
+  logger->fatal(args...);
+}
 
 }    // namespace ash

@@ -167,7 +167,7 @@ struct ViewSystem
   Vec<u32>     z_ordering;
   Vec<u32>     focus_ordering;
 
-  explicit ViewSystem(AllocatorImpl allocator) :
+  explicit ViewSystem(AllocatorRef allocator) :
     s1{allocator},
     views{allocator},
     nodes{allocator},

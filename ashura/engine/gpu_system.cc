@@ -68,7 +68,7 @@ void StagingBuffer::flush(gpu::Device & gpu)
     .unwrap();
 }
 
-GpuTaskQueue GpuTaskQueue::make(AllocatorImpl allocator)
+GpuTaskQueue GpuTaskQueue::make(AllocatorRef allocator)
 {
   return GpuTaskQueue{ArenaPool{allocator}, Vec<Dyn<Fn<void()>>>{allocator}};
 }
@@ -84,7 +84,7 @@ void GpuTaskQueue::run()
   arena_.reclaim();
 }
 
-GpuUploadQueue GpuUploadQueue::make(u32 buffering, AllocatorImpl allocator)
+GpuUploadQueue GpuUploadQueue::make(u32 buffering, AllocatorRef allocator)
 {
   ArenaPool                                          arena{allocator};
   InplaceVec<UploadBuffer, gpu::MAX_FRAME_BUFFERING> buffers{};
@@ -113,7 +113,7 @@ void GpuUploadQueue::encode(gpu::Device & gpu, gpu::CommandEncoder & enc)
   arena_.reclaim();
 }
 
-GpuSystem GpuSystem::create(AllocatorImpl allocator, gpu::Device & device,
+GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
                             Span<u8 const> pipeline_cache_data, bool use_hdr,
                             u32 buffering, gpu::SampleCount sample_count,
                             Vec2U initial_extent)
@@ -140,8 +140,8 @@ GpuSystem GpuSystem::create(AllocatorImpl allocator, gpu::Device & device,
 
     if (sel_hdr_color_format >= size(HDR_FORMATS))
     {
-      logger->warn("HDR mode requested but Device does not support "
-                   "HDR render target, trying UNORM color");
+      warn("HDR mode requested but Device does not support "
+           "HDR render target, trying UNORM color");
     }
   }
 
@@ -176,9 +176,9 @@ GpuSystem GpuSystem::create(AllocatorImpl allocator, gpu::Device & device,
 
   if (use_hdr)
   {
-    CHECK_DESC(sel_sdr_color_format != size(SDR_FORMATS) ||
-                 sel_hdr_color_format != size(HDR_FORMATS),
-               "Device doesn't support any known color format");
+    CHECK(sel_sdr_color_format < size(SDR_FORMATS) ||
+            sel_hdr_color_format < size(HDR_FORMATS),
+          "Device doesn't support any known color format");
     if (sel_hdr_color_format != size(HDR_FORMATS))
     {
       color_format = HDR_FORMATS[sel_hdr_color_format];
@@ -190,19 +190,19 @@ GpuSystem GpuSystem::create(AllocatorImpl allocator, gpu::Device & device,
   }
   else
   {
-    CHECK_DESC(sel_sdr_color_format != size(SDR_FORMATS),
-               "Device doesn't support any known color format");
+    CHECK(sel_sdr_color_format < size(SDR_FORMATS),
+          "Device doesn't support any known color format");
     color_format = SDR_FORMATS[sel_sdr_color_format];
   }
 
-  CHECK_DESC(sel_depth_stencil_format != size(DEPTH_STENCIL_FORMATS),
-             "Device doesn't support any known depth stencil format");
+  CHECK(sel_depth_stencil_format < size(DEPTH_STENCIL_FORMATS),
+        "Device doesn't support any known depth stencil format");
   gpu::Format depth_stencil_format =
     DEPTH_STENCIL_FORMATS[sel_depth_stencil_format];
 
-  logger->trace("Selected color format: ", color_format);
+  trace("Selected color format: ", color_format);
 
-  logger->trace("Selected depth stencil format: ", depth_stencil_format);
+  trace("Selected depth stencil format: ", depth_stencil_format);
 
   gpu::PipelineCache pipeline_cache =
     device
@@ -509,6 +509,19 @@ void GpuSystem::shutdown(Vec<u8> & cache)
     release(sampler.sampler);
   }
   release(pipeline_cache);
+
+  textures            = {};
+  default_image_views = {};
+  default_image       = {};
+  samplers            = {};
+  ubo_layout          = {};
+  textures_layout     = {};
+  samplers_layout     = {};
+  fb                  = {};
+  scratch_fb          = {};
+  sampler_cache       = {};
+  pipeline_cache      = {};
+
   idle_reclaim();
 }
 
@@ -740,7 +753,7 @@ Sampler GpuSystem::create_sampler(gpu::SamplerInfo const & info)
 TextureId GpuSystem::alloc_texture_id(gpu::ImageView view)
 {
   usize i = find_clear_bit(texture_slots);
-  CHECK_DESC(i < size_bits(texture_slots), "Out of Texture Slots");
+  CHECK(i < size_bits(texture_slots), "Out of Texture Slots");
   set_bit(texture_slots, i);
 
   add_pre_frame_task([i, this, view]() {
@@ -765,7 +778,7 @@ void GpuSystem::release_texture_id(TextureId id)
 SamplerId GpuSystem::alloc_sampler_id(gpu::Sampler sampler)
 {
   usize i = find_clear_bit(sampler_slots);
-  CHECK_DESC(i < size_bits(sampler_slots), "Out of Sampler Slots");
+  CHECK(i < size_bits(sampler_slots), "Out of Sampler Slots");
   set_bit(sampler_slots, i);
 
   add_pre_frame_task([i, this, sampler]() {

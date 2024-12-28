@@ -1225,7 +1225,7 @@ struct std_allocator
   pointer allocate(size_type s, void const * = 0)
   {
     pointer temp;
-    if (!default_allocator.nalloc(s, temp))
+    if (!default_allocator->nalloc(s, temp))
     {
       throw std::bad_alloc();
     }
@@ -1234,7 +1234,7 @@ struct std_allocator
 
   void deallocate(pointer p, size_type s)
   {
-    default_allocator.ndealloc(p, s);
+    default_allocator->ndealloc(s,p);
   }
 
   size_type max_size() const throw()

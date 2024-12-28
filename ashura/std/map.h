@@ -103,16 +103,16 @@ struct [[nodiscard]] Map
     }
   };
 
-  Distance *    probe_dists_;
-  Entry *       probes_;
-  usize         num_probes_;
-  usize         num_entries_;
-  Distance      max_probe_dist_;
-  AllocatorImpl allocator_;
-  Hasher        hasher_;
-  KeyCmp        cmp_;
+  Distance *   probe_dists_;
+  Entry *      probes_;
+  usize        num_probes_;
+  usize        num_entries_;
+  Distance     max_probe_dist_;
+  AllocatorRef allocator_;
+  Hasher       hasher_;
+  KeyCmp       cmp_;
 
-  constexpr Map(AllocatorImpl allocator = {}, Hasher hasher = {},
+  constexpr Map(AllocatorRef allocator = {}, Hasher hasher = {},
                 KeyCmp cmp = {}) :
     probe_dists_{nullptr},
     probes_{nullptr},
@@ -144,7 +144,7 @@ struct [[nodiscard]] Map
     other.num_probes_     = 0;
     other.num_entries_    = 0;
     other.max_probe_dist_ = 0;
-    other.allocator_      = {};
+    other.allocator_      = default_allocator;
     other.hasher_         = {};
     other.cmp_            = {};
   }
@@ -182,8 +182,8 @@ struct [[nodiscard]] Map
   constexpr void uninit()
   {
     destruct_probes__();
-    allocator_.ndealloc(probe_dists_, num_probes_);
-    allocator_.ndealloc(probes_, num_probes_);
+    allocator_->ndealloc(num_probes_, probe_dists_);
+    allocator_->ndealloc(num_probes_, probes_);
   }
 
   constexpr void reset()
@@ -350,16 +350,16 @@ struct [[nodiscard]] Map
   {
     Distance * new_probe_dists;
 
-    if (!allocator_.nalloc(new_num_probes, new_probe_dists))
+    if (!allocator_->nalloc(new_num_probes, new_probe_dists))
     {
       return false;
     }
 
     Entry * new_probes;
 
-    if (!allocator_.nalloc(new_num_probes, new_probes))
+    if (!allocator_->nalloc(new_num_probes, new_probes))
     {
-      allocator_.ndealloc(new_probe_dists, new_num_probes);
+      allocator_->ndealloc(new_num_probes, new_probe_dists);
       return false;
     }
 
@@ -378,8 +378,8 @@ struct [[nodiscard]] Map
     max_probe_dist_            = 0;
 
     reinsert_(old_probes, old_probe_dists, old_num_probes);
-    allocator_.ndealloc(old_probe_dists, old_num_probes);
-    allocator_.ndealloc(old_probes, old_num_probes);
+    allocator_->ndealloc(old_num_probes, old_probe_dists);
+    allocator_->ndealloc(old_num_probes, old_probes);
     return true;
   }
 
@@ -387,21 +387,6 @@ struct [[nodiscard]] Map
   {
     usize new_num_probes = (num_probes_ == 0) ? 1 : (num_probes_ * 2);
     return rehash_n_(new_num_probes);
-  }
-
-  constexpr Result<> reserve(usize n)
-  {
-    if (n <= num_probes_)
-    {
-      return Ok{};
-    }
-
-    if (rehash_n_(n))
-    {
-      return Ok{};
-    }
-
-    return Err{};
   }
 
   /// @brief Insert a new entry into the Map

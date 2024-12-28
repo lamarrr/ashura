@@ -6,31 +6,14 @@
 namespace ash
 {
 
-ASH_C_LINKAGE ASH_DLL_EXPORT Logger * logger = nullptr;
-
-void Logger::init()
-{
-  if (logger != nullptr)
-  {
-    std::abort();
-  }
-
-  alignas(Logger) static u8 storage[sizeof(Logger)] = {};
-
-  logger = new (storage) Logger{};
-}
-
-void Logger::uninit()
-{
-  if (logger == nullptr)
-  {
-    std::abort();
-  }
-  logger->~Logger();
-  logger = nullptr;
-}
-
 StdioSink stdio_sink{};
+
+Logger * logger = nullptr;
+
+void hook_logger(Logger * instance)
+{
+  logger = instance;
+}
 
 char const * get_level_str(LogLevel level)
 {

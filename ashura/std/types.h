@@ -232,9 +232,9 @@ struct Swap
   template <typename T>
   constexpr void operator()(T & a, T & b) const
   {
-    T a_tmp{static_cast<T &&>(a)};
+    T s{static_cast<T &&>(a)};
     a = static_cast<T &&>(b);
-    b = static_cast<T &&>(a_tmp);
+    b = static_cast<T &&>(s);
   }
 };
 
@@ -803,6 +803,11 @@ struct ref
   {
     return *repr_;
   }
+
+  constexpr T * ptr() const
+  {
+    return repr_;
+  }
 };
 
 template <typename T>
@@ -1010,15 +1015,6 @@ concept Range = requires (R r) {
     !(begin(r) != end(r))
   };
 };
-
-// [ ] range nth();
-
-// [ ] change to range set using iter
-template <NonConst T, typename Arg = T>
-constexpr void iter_set(T * iterator, Arg && arg)
-{
-  *iterator = static_cast<Arg &&>(arg);
-}
 
 template <typename T>
 concept OutIter = Iter<T>;
@@ -1880,6 +1876,9 @@ struct Array<T, 0>
   }
 };
 
+template <typename T, typename... U>
+Array(T, U...) -> Array<T, 1 + sizeof...(U)>;
+
 template <typename T, usize N>
 struct IsTriviallyRelocatable<Array<T, N>>
 {
@@ -2188,6 +2187,15 @@ struct Pin<void>
   constexpr Pin & operator=(Pin &&)      = delete;
   constexpr ~Pin()                       = default;
 };
+
+/// @brief In-place type constructor flag. Intended for functions that take
+/// generic types and want to overload with a second type that constructs the type using the
+/// provided arguments.
+struct Inplace
+{
+};
+
+inline constexpr Inplace inplace{};
 
 /// @brief uninitialized storage
 template <usize Alignment, usize Capacity>
