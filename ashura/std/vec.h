@@ -28,12 +28,12 @@ struct [[nodiscard]] Vec
 
   static constexpr usize ALIGNMENT = max(alignof(T), MIN_VEC_ALIGNMENT);
 
-  T *           storage_   = nullptr;
-  usize         size_      = 0;
-  usize         capacity_  = 0;
-  AllocatorImpl allocator_ = {};
+  T *          storage_   = nullptr;
+  usize        size_      = 0;
+  usize        capacity_  = 0;
+  AllocatorRef allocator_ = {};
 
-  explicit constexpr Vec(AllocatorImpl allocator) :
+  explicit constexpr Vec(AllocatorRef allocator) :
     storage_{nullptr},
     size_{0},
     capacity_{0},
@@ -45,7 +45,7 @@ struct [[nodiscard]] Vec
   {
   }
 
-  constexpr Vec(AllocatorImpl allocator, T * storage, usize capacity,
+  constexpr Vec(AllocatorRef allocator, T * storage, usize capacity,
                 usize size) :
     storage_{storage},
     size_{size},
@@ -67,7 +67,7 @@ struct [[nodiscard]] Vec
     other.storage_   = nullptr;
     other.size_      = 0;
     other.capacity_  = 0;
-    other.allocator_ = {};
+    other.allocator_ = default_allocator;
   }
 
   constexpr Vec & operator=(Vec && other)
@@ -86,8 +86,7 @@ struct [[nodiscard]] Vec
     uninit();
   }
 
-  static constexpr Result<Vec> make(usize         capacity,
-                                    AllocatorImpl allocator = {})
+  static constexpr Result<Vec> make(usize capacity, AllocatorRef allocator = {})
   {
     Vec out{allocator, nullptr, capacity, 0};
 
@@ -99,7 +98,7 @@ struct [[nodiscard]] Vec
     return Ok{static_cast<Vec &&>(out)};
   }
 
-  constexpr Result<Vec> clone(AllocatorImpl allocator) const
+  constexpr Result<Vec> clone(AllocatorRef allocator) const
   {
     Vec out{allocator};
 
@@ -211,7 +210,7 @@ struct [[nodiscard]] Vec
   constexpr void uninit()
   {
     obj::destruct(Span{data(), size_});
-    allocator_.pndealloc(storage_, capacity_, ALIGNMENT);
+    allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
   }
 
   constexpr void reset()
@@ -232,8 +231,8 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      if (!allocator_.pnrealloc(capacity_, target_capacity, storage_,
-                                ALIGNMENT)) [[unlikely]]
+      if (!allocator_->pnrealloc(ALIGNMENT, capacity_, target_capacity,
+                                 storage_)) [[unlikely]]
       {
         return Err{};
       }
@@ -241,14 +240,14 @@ struct [[nodiscard]] Vec
     else
     {
       T * new_storage;
-      if (!allocator_.pnalloc(target_capacity, new_storage, ALIGNMENT))
+      if (!allocator_->pnalloc(ALIGNMENT, target_capacity, new_storage))
         [[unlikely]]
       {
         return Err{};
       }
 
       obj::relocate_nonoverlapping(Span{data(), size_}, new_storage);
-      allocator_.pndealloc(storage_, capacity_, ALIGNMENT);
+      allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
       storage_ = new_storage;
     }
 
@@ -265,7 +264,7 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      if (!allocator_.pnrealloc(capacity_, size_, storage_, ALIGNMENT))
+      if (!allocator_->pnrealloc(ALIGNMENT, capacity_, size_, storage_))
         [[unlikely]]
       {
         return Err{};
@@ -274,13 +273,13 @@ struct [[nodiscard]] Vec
     else
     {
       T * new_storage;
-      if (!allocator_.pnalloc(size_, new_storage, ALIGNMENT)) [[unlikely]]
+      if (!allocator_->pnalloc(ALIGNMENT, size_, new_storage)) [[unlikely]]
       {
         return Err{};
       }
 
       obj::relocate_nonoverlapping(Span{data(), size_}, new_storage);
-      allocator_.pndealloc(storage_, capacity_, ALIGNMENT);
+      allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
       storage_ = new_storage;
     }
 
@@ -550,7 +549,7 @@ struct [[nodiscard]] Vec
 };
 
 template <typename T>
-constexpr Result<Vec<T>> vec(Span<T const> data, AllocatorImpl allocator = {})
+constexpr Result<Vec<T>> vec(AllocatorRef allocator, Span<T const> data)
 {
   Result out = Vec<T>::make(data.size(), allocator);
 
@@ -565,7 +564,7 @@ constexpr Result<Vec<T>> vec(Span<T const> data, AllocatorImpl allocator = {})
 }
 
 template <typename T>
-constexpr Result<Vec<T>> vec_move(Span<T> data, AllocatorImpl allocator = {})
+constexpr Result<Vec<T>> vec_move(AllocatorRef allocator, Span<T> data)
 {
   Result out = Vec<T>::make(data.size(), allocator);
 
@@ -595,10 +594,10 @@ struct [[nodiscard]] PinVec
 
   static constexpr usize ALIGNMENT = max(alignof(T), MIN_VEC_ALIGNMENT);
 
-  T *           storage_;
-  usize         size_;
-  usize         capacity_;
-  AllocatorImpl allocator_;
+  T *          storage_;
+  usize        size_;
+  usize        capacity_;
+  AllocatorRef allocator_;
 
   constexpr PinVec() :
     storage_{nullptr},
@@ -608,7 +607,7 @@ struct [[nodiscard]] PinVec
   {
   }
 
-  constexpr PinVec(AllocatorImpl allocator, T * storage, usize capacity,
+  constexpr PinVec(AllocatorRef allocator, T * storage, usize capacity,
                    usize size) :
     storage_{storage},
     size_{size},
@@ -651,11 +650,11 @@ struct [[nodiscard]] PinVec
     uninit();
   }
 
-  static constexpr Result<PinVec> make(usize         capacity,
-                                       AllocatorImpl allocator = {})
+  static constexpr Result<PinVec> make(usize        capacity,
+                                       AllocatorRef allocator = {})
   {
     T * storage;
-    if (!allocator.pnalloc(capacity, storage, ALIGNMENT)) [[unlikely]]
+    if (!allocator->pnalloc(ALIGNMENT, capacity, storage)) [[unlikely]]
     {
       return Err{};
     }
@@ -668,7 +667,7 @@ struct [[nodiscard]] PinVec
   constexpr void uninit()
   {
     obj::destruct(Span{data(), size_});
-    allocator_.pndealloc(storage_, capacity_, ALIGNMENT);
+    allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
   }
 
   constexpr void reset()
@@ -680,7 +679,7 @@ struct [[nodiscard]] PinVec
     allocator_ = {};
   }
 
-  constexpr Result<PinVec> clone(AllocatorImpl allocator) const
+  constexpr Result<PinVec> clone(AllocatorRef allocator) const
   {
     Result<PinVec> out = PinVec::make(allocator, capacity_);
 
@@ -898,7 +897,7 @@ struct [[nodiscard]] BitVec
   Vec<R> repr_ = {};
   usize  size_ = 0;
 
-  explicit constexpr BitVec(AllocatorImpl allocator) : repr_{allocator}
+  explicit constexpr BitVec(AllocatorRef allocator) : repr_{allocator}
   {
   }
 
