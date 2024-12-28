@@ -1607,15 +1607,15 @@ struct [[nodiscard]] InplaceVec
 /// memory
 ///
 /// The index and id either point to valid indices/ids or are an implicit free
-/// list of ids and indices masked by RELEASE_MASK
+/// list of ids and indices masked by RELEASED_MASK
 ///
 ///
 template <typename... V>
 requires (NonConst<V> && ... && true)
 struct SparseVec
 {
-  static constexpr usize RELEASE_MASK = USIZE_MAX >> 1;
-  static constexpr usize STUB         = USIZE_MAX;
+  static constexpr usize RELEASED_MASK = ~(USIZE_MAX >> 1);
+  static constexpr usize STUB          = USIZE_MAX;
 
   using Dense = Tuple<V...>;
   using Id    = usize;
@@ -1668,25 +1668,25 @@ struct SparseVec
     }
   };
 
-  Ids   index_to_id  = {};
-  Ids   id_to_index  = {};
-  Dense dense        = {};
-  usize free_id_head = STUB;
+  Ids   index_to_id_;
+  Ids   id_to_index_;
+  Dense dense;
+  usize free_id_head_;
 
   explicit constexpr SparseVec(Ids index_to_id, Ids id_to_index, Dense dense,
                                usize free_id_head) :
-    index_to_id{static_cast<Ids &&>(index_to_id)},
-    id_to_index{static_cast<Ids &&>(id_to_index)},
+    index_to_id_{static_cast<Ids &&>(index_to_id)},
+    id_to_index_{static_cast<Ids &&>(id_to_index)},
     dense{static_cast<Dense &&>(dense)},
-    free_id_head{free_id_head}
+    free_id_head_{free_id_head}
   {
   }
 
-  explicit constexpr SparseVec(AllocatorImpl allocator) :
-    index_to_id{allocator},
-    id_to_index{allocator},
+  explicit constexpr SparseVec(AllocatorRef allocator) :
+    index_to_id_{allocator},
+    id_to_index_{allocator},
     dense{V{allocator}...},
-    free_id_head{STUB}
+    free_id_head_{STUB}
   {
   }
 
@@ -1699,12 +1699,12 @@ struct SparseVec
   constexpr SparseVec & operator=(SparseVec const &) = delete;
 
   constexpr SparseVec(SparseVec && other) :
-    index_to_id{static_cast<Ids &&>(other.index_to_id)},
-    id_to_index{static_cast<Ids &&>(other.id_to_index)},
+    index_to_id_{static_cast<Ids &&>(other.index_to_id_)},
+    id_to_index_{static_cast<Ids &&>(other.id_to_index_)},
     dense{static_cast<Dense &&>(other.dense)},
-    free_id_head{other.free_id_head}
+    free_id_head_{other.free_id_head_}
   {
-    other.free_id_head = STUB;
+    other.free_id_head_ = STUB;
   }
 
   constexpr SparseVec & operator=(SparseVec && other)
@@ -1713,10 +1713,11 @@ struct SparseVec
     {
       return *this;
     }
-    index_to_id  = static_cast<Ids &&>(other.index_to_id);
-    id_to_index  = static_cast<Ids &&>(other.id_to_index);
-    dense        = static_cast<Dense &&>(other.dense);
-    free_id_head = other.free_id_head;
+    index_to_id_        = static_cast<Ids &&>(other.index_to_id_);
+    id_to_index_        = static_cast<Ids &&>(other.id_to_index_);
+    dense               = static_cast<Dense &&>(other.dense);
+    free_id_head_       = other.free_id_head_;
+    other.free_id_head_ = STUB;
     return *this;
   }
 
@@ -1729,25 +1730,25 @@ struct SparseVec
 
   constexpr usize size() const
   {
-    return index_to_id.size();
+    return index_to_id_.size();
   }
 
   constexpr u32 size32() const
   {
-    return index_to_id.size32();
+    return index_to_id_.size32();
   }
 
   constexpr u64 size64() const
   {
-    return index_to_id.size64();
+    return index_to_id_.size64();
   }
 
   constexpr auto begin() const
   {
     return Iter{.iters_ = apply(
-                  [](auto &... vecs) {
-                    return Tuple<decltype(ash::begin(vecs))...>{
-                      ash::begin(vecs)...};
+                  [](auto &... dense) {
+                    return Tuple<decltype(ash::begin(dense))...>{
+                      ash::begin(dense)...};
                   },
                   dense)};
   }
@@ -1766,29 +1767,34 @@ struct SparseVec
   constexpr void clear()
   {
     apply([](auto &... d) { (d.clear(), ...); }, dense);
-    id_to_index.clear();
-    index_to_id.clear();
-    free_id_head = STUB;
+    id_to_index_.clear();
+    index_to_id_.clear();
+    free_id_head_ = STUB;
   }
 
   constexpr void reset()
   {
     apply([](auto &... d) { (d.reset(), ...); }, dense);
-    id_to_index.reset();
-    index_to_id.reset();
-    free_id_head = STUB;
+    id_to_index_.reset();
+    index_to_id_.reset();
+    free_id_head_ = STUB;
   }
 
   constexpr void uninit()
   {
     apply([](auto &... d) { (d.uninit(), ...); }, dense);
-    id_to_index.uninit();
-    index_to_id.uninit();
+    id_to_index_.uninit();
+    index_to_id_.uninit();
   }
 
   constexpr bool is_valid_id(usize id) const
   {
-    return id < id_to_index.size() && !(id_to_index[id] & RELEASE_MASK);
+    if (id >= id_to_index_.size())
+    {
+      return false;
+    }
+
+    return (id_to_index_[id] & RELEASED_MASK) == 0;
   }
 
   constexpr bool is_valid_index(usize index) const
@@ -1798,7 +1804,8 @@ struct SparseVec
 
   constexpr auto operator[](usize id) const
   {
-    usize const index = id_to_index[id];
+    CHECK(is_valid_id(id), "Invalid ID: ", id);
+    usize const index = id_to_index_[id];
     return apply(
       [index](auto &... dense) {
         return Tuple<decltype(dense[index])...>{dense[index]...};
@@ -1808,7 +1815,8 @@ struct SparseVec
 
   constexpr usize to_index(usize id) const
   {
-    return id_to_index[id];
+    CHECK(is_valid_id(id), "Invalid ID: ", id);
+    return id_to_index_[id];
   }
 
   constexpr Result<usize, Void> try_to_index(usize id) const
@@ -1818,12 +1826,13 @@ struct SparseVec
       return Err{};
     }
 
-    return Ok{to_index(id)};
+    return Ok{id_to_index_[id]};
   }
 
   constexpr usize to_id(usize index) const
   {
-    return index_to_id[index];
+    CHECK(is_valid_index(index), "Invalid index: ", index);
+    return index_to_id_[index];
   }
 
   constexpr Result<usize, Void> try_to_id(usize index) const
@@ -1838,26 +1847,28 @@ struct SparseVec
 
   constexpr void erase(usize id)
   {
-    usize const index = id_to_index[id];
+    CHECK(is_valid_id(id), "Invalid ID: ", id);
+    usize const index = id_to_index_[id];
     usize const last  = size() - 1;
 
     if (index != last)
     {
-      apply([index, last](auto &... d) { (d.swap(index, last), ...); }, dense);
+      apply([&](auto &... dense) { (dense.swap(index, last), ...); }, dense);
     }
 
-    apply([](auto &... d) { (d.pop(), ...); }, dense);
+    apply([](auto &... dense) { (dense.pop(), ...); }, dense);
 
-    // adjust id and index mapping
+    // swap indices of this element and the last element
     if (index != last)
     {
-      id_to_index[index_to_id[last]] = index;
-      index_to_id[index]             = index_to_id[last];
+      usize const last_id   = index_to_id_[last];
+      id_to_index_[last_id] = index;
+      index_to_id_[index]   = last_id;
     }
 
-    id_to_index[id] = free_id_head | RELEASE_MASK;
-    free_id_head    = id;
-    index_to_id.pop();
+    id_to_index_[id] = free_id_head_ | RELEASED_MASK;
+    free_id_head_    = id;
+    index_to_id_.pop();
   }
 
   constexpr Result<> try_erase(usize id)
@@ -1872,19 +1883,15 @@ struct SparseVec
 
   constexpr Result<> reserve(usize target_capacity)
   {
-    if (!(id_to_index.reserve(target_capacity) &&
-          index_to_id.reserve(target_capacity))) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    bool failed = apply(
-      [&](auto &... d) {
-        return (false || ... || !d.reserve(target_capacity));
+    bool const err = !apply(
+      [&](auto &... dense) {
+        return ((id_to_index_.reserve(target_capacity) &&
+                 index_to_id_.reserve(target_capacity)) &&
+                ... && dense.reserve(target_capacity));
       },
       dense);
 
-    if (failed) [[unlikely]]
+    if (err) [[unlikely]]
     {
       return Err{};
     }
@@ -1894,18 +1901,15 @@ struct SparseVec
 
   constexpr Result<> grow(usize target_size)
   {
-    if (!(id_to_index.grow(target_size) && index_to_id.grow(target_size)))
-      [[unlikely]]
-    {
-      return Err{};
-    }
+    bool const err = !apply(
+      [&](auto &... dense) {
+        return (
+          (id_to_index_.grow(target_size) && index_to_id_.grow(target_size)) &&
+          ... && dense.grow(target_size));
+      },
+      dense);
 
-    bool failed =
-      apply([target_size](
-              auto &... d) { return (false || ... || !d.grow(target_size)); },
-            dense);
-
-    if (failed) [[unlikely]]
+    if (err) [[unlikely]]
     {
       return Err{};
     }
@@ -1913,24 +1917,25 @@ struct SparseVec
     return Ok{};
   }
 
-  /// make new id and map the unique id to the unique index
-  constexpr Result<usize, Void> make_id(usize index)
+  /// make new id and map the unique id to the end index
+  constexpr usize create_id_()
   {
-    if (free_id_head != STUB)
+    usize const index = index_to_id_.size();
+    if (free_id_head_ != STUB)
     {
-      usize id        = free_id_head;
-      id_to_index[id] = index;
-      free_id_head    = ~RELEASE_MASK & id_to_index[free_id_head];
-      return Ok{id};
+      usize const id        = free_id_head_;
+      usize const next_free = id_to_index_[free_id_head_];
+      id_to_index_[id]      = index | RELEASED_MASK;
+      free_id_head_         = next_free;
+      index_to_id_.push(id).discard();
+      return id;
     }
     else
     {
-      if (!id_to_index.push(index)) [[unlikely]]
-      {
-        return Err{};
-      }
-      usize id = id_to_index.size() - 1;
-      return Ok{id};
+      usize const id = id_to_index_.size();
+      id_to_index_.push(index).discard();
+      index_to_id_.push(id).discard();
+      return id;
     }
   }
 
@@ -1938,8 +1943,6 @@ struct SparseVec
   requires (sizeof...(Args) == sizeof...(V))
   constexpr Result<usize, Void> push(Args &&... args)
   {
-    usize const index = size();
-
     // grow here so we can handle all memory allocation
     // failures at once. the proceeding unwrap calls will not fail
     if (!grow(size() + 1)) [[unlikely]]
@@ -1947,17 +1950,7 @@ struct SparseVec
       return Err{};
     }
 
-    Result id = make_id(index);
-
-    if (!id) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    if (!index_to_id.push(id.unwrap())) [[unlikely]]
-    {
-      return Err{};
-    }
+    usize const id = create_id_();
 
     Tuple<Args &&...> arg_refs{static_cast<Args &&>(args)...};
 
@@ -1965,11 +1958,11 @@ struct SparseVec
       (dense.template get<I>()
          .push(
            static_cast<index_pack<I, Args &&...>>(arg_refs.template get<I>()))
-         .unwrap(),
+         .discard(),
        ...);
     });
 
-    return id;
+    return Ok{id};
   }
 };
 
