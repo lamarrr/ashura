@@ -1192,6 +1192,16 @@ struct Span
                             size_bytes()};
   }
 
+  constexpr Span<c8> as_c8() const requires (NonConst<T>)
+  {
+    return Span<c8>{reinterpret_cast<c8 *>(data_), size_bytes()};
+  }
+
+  constexpr Span<c8 const> as_c8() const requires (Const<T>)
+  {
+    return Span<c8 const>{reinterpret_cast<c8 const *>(data_), size_bytes()};
+  }
+
   constexpr Span slice(usize offset, usize span) const
   {
     return slice(Slice{offset, span});

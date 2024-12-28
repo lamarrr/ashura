@@ -554,6 +554,16 @@ struct [[nodiscard]] OptionRef
     }
     return none_fn();
   }
+
+  constexpr T * operator->() const
+  {
+    return &value();
+  }
+
+  constexpr T & operator*() const
+  {
+    return value();
+  }
 };
 
 template <typename T>

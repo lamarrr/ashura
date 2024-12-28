@@ -428,7 +428,7 @@ struct SemaphoreState
   }
 
   /// @brief returns true if the polled stage is completed.
-  [[nodiscard]] bool is_ready(u64 poll_stage) const
+  [[nodiscard]] bool is_ready(u64 poll_stage)
   {
     std::atomic_ref stage{stage_};
     return stage.load(std::memory_order_acquire) > poll_stage;
