@@ -804,6 +804,11 @@ struct ref
     return *repr_;
   }
 
+  constexpr T & operator*() const
+  {
+    return *repr_;
+  }
+
   constexpr T * ptr() const
   {
     return repr_;
