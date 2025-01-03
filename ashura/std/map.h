@@ -288,21 +288,10 @@ struct [[nodiscard]] Map
     return try_get(key, hash).is_some();
   }
 
-  /// @param num_probes power of 2 number of probes
   static constexpr bool needs_rehash_(usize num_entries, usize num_probes)
   {
-    if (num_probes == 0) [[unlikely]]
-    {
-      return true;
-    }
-
-    // 6 in 10 parts => .6 load factor
-    // i.e. 6 entries for every 10 probes
-
-    // base 2 divisor
-    u32 const shift = ulog2((u64) num_probes);
-
-    return ((num_entries * 10U) >> shift) > 6U;
+    /// 75% load factor
+    return (num_entries + (num_entries >> 2)) >= num_probes;
   }
 
   constexpr void reinsert_(Entry * src_probes, Distance const * src_probe_dists,
