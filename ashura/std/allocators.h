@@ -12,22 +12,24 @@ namespace ash
 /// @param alignment actual alignment requested from allocator
 struct Arena final : Allocator
 {
-  u8 * begin;
-  u8 * end;
-  u8 * offset;
+  u8 *  begin;
+  u8 *  end;
+  u8 *  offset;
+  usize alignment;
 
-  constexpr Arena() : begin{nullptr}, end{nullptr}, offset{nullptr}
+  constexpr Arena() :
+    begin{nullptr},
+    end{nullptr},
+    offset{nullptr},
+    alignment{1}
   {
   }
 
-  constexpr Arena(u8 * begin, u8 * end, u8 * offset) :
+  constexpr Arena(u8 * begin, u8 * end, u8 * offset, usize alignment) :
     begin{begin},
     end{end},
-    offset{offset}
-  {
-  }
-
-  constexpr Arena(u8 * begin, u8 * end) : begin{begin}, end{end}, offset{begin}
+    offset{offset},
+    alignment{alignment}
   {
   }
 
@@ -40,6 +42,11 @@ struct Arena final : Allocator
   [[nodiscard]] constexpr usize size() const
   {
     return end - begin;
+  }
+
+  constexpr Layout layout() const
+  {
+    return Layout{alignment, size()};
   }
 
   [[nodiscard]] constexpr usize used() const
@@ -57,23 +64,21 @@ struct Arena final : Allocator
     offset = begin;
   }
 
-  constexpr bool contains(usize alignment, usize size, u8 * mem) const
+  constexpr bool contains(Layout layout, u8 * mem) const
   {
-    (void) alignment;
-    return (begin <= mem) && (end >= (mem + size));
+    return (begin <= mem) && (end >= (mem + layout.size));
   }
 
-  [[nodiscard]] virtual bool alloc(usize alignment, usize size,
-                                   u8 *& mem) override
+  [[nodiscard]] virtual bool alloc(Layout layout, u8 *& mem) override
   {
-    if (size == 0)
+    if (layout.size == 0)
     {
       mem = nullptr;
       return true;
     }
 
-    u8 * aligned    = align_ptr(alignment, offset);
-    u8 * new_offset = aligned + size;
+    u8 * aligned    = align_ptr(layout.alignment, offset);
+    u8 * new_offset = aligned + layout.size;
     if (new_offset > end)
     {
       mem = nullptr;
@@ -85,25 +90,24 @@ struct Arena final : Allocator
     return true;
   }
 
-  [[nodiscard]] virtual bool zalloc(usize alignment, usize size,
-                                    u8 *& mem) override
+  [[nodiscard]] virtual bool zalloc(Layout layout, u8 *& mem) override
   {
-    if (!alloc(alignment, size, mem))
+    if (!alloc(layout, mem))
     {
       mem = nullptr;
       return false;
     }
 
-    mem::zero(mem, size);
+    mem::zero(mem, layout.size);
 
     return true;
   }
 
-  [[nodiscard]] virtual bool realloc(usize alignment, usize old_size,
-                                     usize new_size, u8 *& mem) override
+  [[nodiscard]] virtual bool realloc(Layout layout, usize new_size,
+                                     u8 *& mem) override
   {
     // if it is the last allocation and within capacity, just extend the offset
-    if (((mem + old_size) == offset) && ((mem + new_size) <= end))
+    if (((mem + layout.size) == offset) && ((mem + new_size) <= end))
     {
       offset = mem + new_size;
       return true;
@@ -111,29 +115,28 @@ struct Arena final : Allocator
 
     u8 * new_mem;
 
-    if (!alloc(alignment, new_size, new_mem))
+    if (!alloc(layout.with_size(new_size), new_mem))
     {
       return false;
     }
 
-    mem::copy(Span{mem, old_size}, new_mem);
-    dealloc(alignment, old_size, mem);
+    mem::copy(Span{mem, layout.size}, new_mem);
+    dealloc(layout, mem);
     mem = new_mem;
     return true;
   }
 
-  virtual void dealloc(usize alignment, usize size, u8 * mem) override
+  virtual void dealloc(Layout layout, u8 * mem) override
   {
-    (void) alignment;
     // best-case: stack allocation, we can free memory by adjusting to the
     // beginning of allocation
-    if ((mem + size) == offset)
+    if ((mem + layout.size) == offset)
     {
-      offset -= size;
+      offset -= layout.size;
     }
   }
 
-  [[nodiscard]] AllocatorRef ref()
+  constexpr AllocatorRef ref()
   {
     return AllocatorRef{*this};
   }
@@ -141,7 +144,7 @@ struct Arena final : Allocator
 
 [[nodiscard]] inline Arena to_arena(Span<u8> buffer)
 {
-  return Arena{buffer.pbegin(), buffer.pend(), buffer.pbegin()};
+  return Arena{buffer.pbegin(), buffer.pend(), buffer.pbegin(), 1};
 }
 
 /// @max_num_arenas: maximum number of arenas that can be allocated
@@ -262,7 +265,7 @@ struct ArenaPool final : Allocator
   {
     for (usize i = num_arenas; i-- > 0;)
     {
-      source->dealloc(cfg.arena_alignment, arenas[i].size(), arenas[i].begin);
+      source->dealloc(arenas[i].layout(), arenas[i].begin);
     }
     source->ndealloc(num_arenas, arenas);
   }
@@ -275,16 +278,15 @@ struct ArenaPool final : Allocator
     current_arena = 0;
   }
 
-  [[nodiscard]] virtual bool alloc(usize alignment, usize size,
-                                   u8 *& mem) override
+  [[nodiscard]] virtual bool alloc(Layout layout, u8 *& mem) override
   {
-    if (size == 0)
+    if (layout.size == 0)
     {
       mem = nullptr;
       return true;
     }
 
-    if (size > cfg.max_arena_size)
+    if (layout.size > cfg.max_arena_size)
     {
       mem = nullptr;
       return false;
@@ -292,7 +294,7 @@ struct ArenaPool final : Allocator
 
     for (usize i = current_arena; i < num_arenas; i++)
     {
-      if (arenas[i].alloc(alignment, size, mem))
+      if (arenas[i].alloc(layout, mem))
       {
         return true;
       }
@@ -304,8 +306,10 @@ struct ArenaPool final : Allocator
       return false;
     }
 
-    usize const arena_size = max(size, cfg.min_arena_size);
-    if ((this->size() + arena_size) > cfg.max_total_size)
+    Layout const arena_layout{cfg.arena_alignment,
+                              max(layout.size, cfg.min_arena_size)};
+
+    if ((size() + arena_layout.size) > cfg.max_total_size)
     {
       mem = nullptr;
       return false;
@@ -313,7 +317,7 @@ struct ArenaPool final : Allocator
 
     u8 * arena_mem;
 
-    if (!source->alloc(cfg.arena_alignment, arena_size, arena_mem))
+    if (!source->alloc(arena_layout, arena_mem))
     {
       mem = nullptr;
       return false;
@@ -321,19 +325,20 @@ struct ArenaPool final : Allocator
 
     if (!source->nrealloc(num_arenas, num_arenas + 1, arenas))
     {
-      source->dealloc(cfg.arena_alignment, arena_size, arena_mem);
+      source->dealloc(arena_layout, arena_mem);
       mem = nullptr;
       return false;
     }
 
-    Arena * arena = new (arenas + num_arenas)
-      Arena{arena_mem, arena_mem + arena_size, arena_mem};
+    Arena * arena =
+      new (arenas + num_arenas) Arena{arena_mem, arena_mem + arena_layout.size,
+                                      arena_mem, arena_layout.alignment};
 
     current_arena = num_arenas;
 
     num_arenas++;
 
-    if (!arena->alloc(alignment, size, mem))
+    if (!arena->alloc(layout, mem))
     {
       return false;
     }
@@ -341,19 +346,18 @@ struct ArenaPool final : Allocator
     return true;
   }
 
-  [[nodiscard]] virtual bool zalloc(usize alignment, usize size,
-                                    u8 *& mem) override
+  [[nodiscard]] virtual bool zalloc(Layout layout, u8 *& mem) override
   {
-    if (!alloc(alignment, size, mem))
+    if (!alloc(layout, mem))
     {
       return false;
     }
-    mem::zero(Span{mem, size});
+    mem::zero(Span{mem, layout.size});
     return true;
   }
 
-  [[nodiscard]] virtual bool realloc(usize alignment, usize old_size,
-                                     usize new_size, u8 *& mem) override
+  [[nodiscard]] virtual bool realloc(Layout layout, usize new_size,
+                                     u8 *& mem) override
   {
     if (new_size > cfg.max_arena_size)
     {
@@ -363,7 +367,7 @@ struct ArenaPool final : Allocator
     if (num_arenas != 0)
     {
       Arena & arena = arenas[current_arena];
-      if (arena.offset == (mem + old_size))
+      if (arena.offset == (mem + layout.size))
       {
         // extend the arena offset if the allocation was the last one and it is within capacity
         if ((arena.offset + new_size) <= arena.end)
@@ -375,8 +379,7 @@ struct ArenaPool final : Allocator
         // if only and first allocation on the arena, realloc arena
         if (arena.begin == mem)
         {
-          if (!source->realloc(cfg.arena_alignment, arena.size(), new_size,
-                               arena.begin))
+          if (!source->realloc(arena.layout(), new_size, arena.begin))
           {
             return false;
           }
@@ -388,21 +391,20 @@ struct ArenaPool final : Allocator
     }
 
     u8 * new_mem;
-    if (!alloc(alignment, new_size, new_mem))
+    if (!alloc(layout.with_size(new_size), new_mem))
     {
       return false;
     }
 
-    mem::copy(Span{mem, old_size}, new_mem);
-    dealloc(alignment, old_size, mem);
+    mem::copy(Span{mem, layout.size}, new_mem);
+    dealloc(layout, mem);
     mem = new_mem;
     return true;
   }
 
-  virtual void dealloc(usize alignment, usize size, u8 * mem) override
+  virtual void dealloc(Layout layout, u8 * mem) override
   {
-    (void) alignment;
-    if (mem == nullptr || size == 0 || num_arenas == 0)
+    if (mem == nullptr || layout.size == 0 || num_arenas == 0)
     {
       return;
     }
@@ -410,7 +412,7 @@ struct ArenaPool final : Allocator
     // we can try to reclaim some memory.
     // best case: stack allocation, if it is at end of arena, adjust arena offset
     Arena & arena = arenas[current_arena];
-    if (arena.begin == mem && arena.offset == (mem + size))
+    if (arena.begin == mem && arena.offset == (mem + layout.size))
     {
       arena.reclaim();
       if (current_arena != 0)
@@ -420,19 +422,115 @@ struct ArenaPool final : Allocator
       return;
     }
 
-    if (arena.offset == (mem + size))
+    if (arena.offset == (mem + layout.size))
     {
       arena.offset = mem;
       return;
     }
   }
 
-  AllocatorRef ref()
+  constexpr AllocatorRef ref()
   {
     return AllocatorRef{*this};
   }
 };
 
+struct FallbackAllocator : Allocator
+{
+  Arena        arena;
+  AllocatorRef fallback;
+
+  constexpr FallbackAllocator(Arena        arena    = {},
+                              AllocatorRef fallback = default_allocator) :
+    arena{arena},
+    fallback{fallback}
+  {
+  }
+
+  constexpr FallbackAllocator(FallbackAllocator const &)             = default;
+  constexpr FallbackAllocator(FallbackAllocator &&)                  = default;
+  constexpr FallbackAllocator & operator=(FallbackAllocator const &) = default;
+  constexpr FallbackAllocator & operator=(FallbackAllocator &&)      = default;
+  constexpr ~FallbackAllocator()                                     = default;
+
+  virtual bool alloc(Layout layout, u8 *& mem) override
+  {
+    if (arena.alloc(layout, mem))
+    {
+      return true;
+    }
+
+    return fallback->alloc(layout, mem);
+  }
+
+  virtual bool zalloc(Layout layout, u8 *& mem) override
+  {
+    if (!arena.zalloc(layout, mem))
+    {
+      return false;
+    }
+
+    return fallback->zalloc(layout, mem);
+  }
+
+  virtual bool realloc(Layout layout, usize new_size, u8 *& mem) override
+  {
+    if (mem == nullptr)
+    {
+      if (arena.alloc(layout.with_size(new_size), mem))
+      {
+        return true;
+      }
+
+      return fallback->alloc(layout.with_size(new_size), mem);
+    }
+
+    if (arena.contains(layout, mem))
+    {
+      if (arena.realloc(layout, new_size, mem))
+      {
+        return true;
+      }
+
+      u8 * new_mem;
+
+      if (!fallback->alloc(layout.with_size(new_size), new_mem))
+      {
+        return false;
+      }
+
+      mem::copy(Span{mem, layout.size}, new_mem);
+      arena.dealloc(layout, mem);
+
+      mem = new_mem;
+
+      return true;
+    }
+    else
+    {
+      return fallback->realloc(layout, new_size, mem);
+    }
+  }
+
+  virtual void dealloc(Layout layout, u8 * mem) override
+  {
+    if (mem == nullptr || layout.size == 0)
+    {
+      return;
+    }
+
+    if (arena.contains(layout, mem))
+    {
+      arena.dealloc(layout, mem);
+      return;
+    }
+
+    return fallback->dealloc(layout, mem);
+  }
+
+  constexpr AllocatorRef ref()
+  {
+    return AllocatorRef{*this};
   }
 };
 

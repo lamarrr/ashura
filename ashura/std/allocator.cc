@@ -33,17 +33,17 @@ namespace ash
 NoopAllocator noop_allocator_impl{};
 HeapAllocator heap_allocator_impl{};
 
-bool HeapAllocator::alloc(usize alignment, usize size, u8 *& mem)
+bool HeapAllocator::alloc(Layout layout, u8 *& mem)
 {
-  if (size == 0)
+  if (layout.size == 0)
   {
     mem = nullptr;
     return true;
   }
 
-  if (alignment <= MAX_STANDARD_ALIGNMENT)
+  if (layout.alignment <= MAX_STANDARD_ALIGNMENT)
   {
-    if (u8 * m = (u8 *) std::malloc(size); m != nullptr)
+    if (u8 * m = (u8 *) std::malloc(layout.size); m != nullptr)
     {
       mem = m;
       return true;
@@ -53,7 +53,8 @@ bool HeapAllocator::alloc(usize alignment, usize size, u8 *& mem)
   }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
-  if (u8 * m = (u8 *) _aligned_malloc(size, alignment); m != nullptr)
+  if (u8 * m = (u8 *) _aligned_malloc(layout.size, layout.alignment);
+      m != nullptr)
   {
     mem = m;
     return true;
@@ -63,7 +64,8 @@ bool HeapAllocator::alloc(usize alignment, usize size, u8 *& mem)
 #endif
 
 #if USE_STDC_ALIGNED_ALLOC
-  if (u8 * m = (u8 *) std::aligned_alloc(alignment, size); m != nullptr)
+  if (u8 * m = (u8 *) std::aligned_alloc(layout.alignment, layout.size);
+      m != nullptr)
   {
     mem = m;
     return true;
@@ -75,24 +77,24 @@ bool HeapAllocator::alloc(usize alignment, usize size, u8 *& mem)
 #if !HAS_ALIGNED_ALLOC
   (void) std::fprintf(
     stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
-    (u64) alignment);
+    (u64) layout.alignment);
   (void) std::fflush(stderr);
   mem = nullptr;
   return false;
 #endif
 }
 
-bool HeapAllocator::zalloc(usize alignment, usize size, u8 *& mem)
+bool HeapAllocator::zalloc(Layout layout, u8 *& mem)
 {
-  if (size == 0)
+  if (layout.size == 0)
   {
     mem = nullptr;
     return true;
   }
 
-  if (alignment <= MAX_STANDARD_ALIGNMENT)
+  if (layout.alignment <= MAX_STANDARD_ALIGNMENT)
   {
-    if (u8 * m = (u8 *) std::calloc(size, 1); m != nullptr)
+    if (u8 * m = (u8 *) std::calloc(layout.size, 1); m != nullptr)
     {
       mem = m;
       return true;
@@ -102,9 +104,10 @@ bool HeapAllocator::zalloc(usize alignment, usize size, u8 *& mem)
   }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
-  if (u8 * m = (u8 *) _aligned_malloc(size, alignment); m != nullptr)
+  if (u8 * m = (u8 *) _aligned_malloc(layout.size, layout.alignment);
+      m != nullptr)
   {
-    std::memset(m, 0, size);
+    std::memset(m, 0, layout.size);
     mem = m;
     return true;
   }
@@ -113,9 +116,10 @@ bool HeapAllocator::zalloc(usize alignment, usize size, u8 *& mem)
 #endif
 
 #if USE_STDC_ALIGNED_ALLOC
-  if (u8 * m = (u8 *) std::aligned_alloc(alignment, size); m != nullptr)
+  if (u8 * m = (u8 *) std::aligned_alloc(layout.alignment, layout.size);
+      m != nullptr)
   {
-    std::memset(m, 0, size);
+    std::memset(m, 0, layout.size);
     mem = m;
     return true;
   }
@@ -134,19 +138,18 @@ bool HeapAllocator::zalloc(usize alignment, usize size, u8 *& mem)
 #endif
 }
 
-bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
-                            u8 *& mem)
+bool HeapAllocator::realloc(Layout layout, usize new_size, u8 *& mem)
 {
   if (new_size == 0)
   {
-    HeapAllocator::dealloc(alignment, old_size, mem);
+    HeapAllocator::dealloc(layout, mem);
     mem = nullptr;
     return true;
   }
 
   // preserve mem if allocation fails
 
-  if (alignment <= MAX_STANDARD_ALIGNMENT)
+  if (layout.alignment <= MAX_STANDARD_ALIGNMENT)
   {
     if (u8 * m = (u8 *) std::realloc(mem, new_size); m != nullptr)
     {
@@ -157,7 +160,8 @@ bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
   }
 
 #if USE_WIN32CRT_ALIGNED_ALLOC
-  if (u8 * m = (u8 *) _aligned_realloc(mem, new_size, alignment); m != nullptr)
+  if (u8 * m = (u8 *) _aligned_realloc(mem, new_size, layout.alignment);
+      m != nullptr)
   {
     mem = m;
     return true;
@@ -167,9 +171,10 @@ bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
 
 #if USE_STDC_ALIGNED_ALLOC
   // stdc realloc doesn't guarantee preservation of alignment
-  if (u8 * m = (u8 *) std::aligned_alloc(alignment, new_size); m != nullptr)
+  if (u8 * m = (u8 *) std::aligned_alloc(layout.alignment, new_size);
+      m != nullptr)
   {
-    (void) std::memcpy(m, mem, old_size);
+    (void) std::memcpy(m, mem, layout.size);
     std::free(mem);
     mem = m;
     return true;
@@ -181,18 +186,17 @@ bool HeapAllocator::realloc(usize alignment, usize old_size, usize new_size,
   std::fprintf(stderr,
                "over-aligned zeroed-alloc of alignment %" PRIu64
                " not supported\n",
-               (u64) alignment);
+               (u64) layout.alignment);
   (void) std::fflush(stderr);
   return false;
 #endif
 }
 
-void HeapAllocator::dealloc(usize alignment, usize size, u8 * mem)
+void HeapAllocator::dealloc(Layout layout, u8 * mem)
 {
-  (void) alignment;
+  (void) layout;
   (void) mem;
-  (void) size;
-  if (alignment <= MAX_STANDARD_ALIGNMENT)
+  if (layout.alignment <= MAX_STANDARD_ALIGNMENT)
   {
     std::free(mem);
     return;
@@ -209,7 +213,7 @@ void HeapAllocator::dealloc(usize alignment, usize size, u8 * mem)
 #if !HAS_ALIGNED_ALLOC
   (void) std::fprintf(
     stderr, "over-aligned malloc of alignment %" PRIu64 " not supported\n",
-    (u64) alignment);
+    (u64) layout.alignment);
   (void) std::fflush(stderr);
 #endif
 }

@@ -23,54 +23,52 @@ namespace ash
 ///
 struct Allocator
 {
-  [[nodiscard]] constexpr virtual bool alloc(usize alignment, usize size,
-                                             u8 *& mem) = 0;
+  [[nodiscard]] constexpr virtual bool alloc(Layout layout, u8 *& mem) = 0;
 
-  [[nodiscard]] constexpr virtual bool zalloc(usize alignment, usize size,
-                                              u8 *& mem) = 0;
+  [[nodiscard]] constexpr virtual bool zalloc(Layout layout, u8 *& mem) = 0;
 
-  [[nodiscard]] constexpr virtual bool realloc(usize alignment, usize old_size,
-                                               usize new_size, u8 *& mem) = 0;
+  [[nodiscard]] constexpr virtual bool realloc(Layout layout, usize new_size,
+                                               u8 *& mem) = 0;
 
-  constexpr virtual void dealloc(usize alignment, usize size, u8 * mem) = 0;
+  constexpr virtual void dealloc(Layout layout, u8 * mem) = 0;
 
   template <typename T>
   [[nodiscard]] constexpr bool nalloc(usize num, T *& mem)
   {
-    return alloc(alignof(T), sizeof(T) * num, (u8 *&) mem);
+    return alloc(layout_of<T>.array(num), (u8 *&) mem);
   }
 
   template <typename T>
   [[nodiscard]] constexpr bool nzalloc(usize num, T *& mem)
   {
-    return zalloc(alignof(T), sizeof(T) * num, (u8 *&) mem);
+    return zalloc(layout_of<T>.array(num), (u8 *&) mem);
   }
 
   template <typename T>
   [[nodiscard]] constexpr bool nrealloc(usize old_num, usize new_num, T *& mem)
   {
-    return realloc(alignof(T), sizeof(T) * old_num, sizeof(T) * new_num,
+    return realloc(layout_of<T>.array(old_num), sizeof(T) * new_num,
                    (u8 *&) mem);
   }
 
   template <typename T>
   constexpr void ndealloc(usize num, T * mem)
   {
-    dealloc(alignof(T), sizeof(T) * num, (u8 *) mem);
+    dealloc(layout_of<T>.array(num), (u8 *) mem);
   }
 
   /// @brief alignment-padded allocation
   template <typename T>
   [[nodiscard]] constexpr bool pnalloc(usize alignment, usize num, T *& mem)
   {
-    return alloc(alignment, align_offset(alignment, sizeof(T) * num),
+    return alloc(layout_of<T>.array(num).align_to(alignment).aligned(),
                  (u8 *&) mem);
   }
 
   template <typename T>
   [[nodiscard]] constexpr bool pnzalloc(usize alignment, usize num, T *& mem)
   {
-    return zalloc(alignment, align_offset(alignment, sizeof(T) * num),
+    return zalloc(layout_of<T>.array(num).align_to(alignment).aligned(),
                   (u8 *&) mem);
   }
 
@@ -78,35 +76,37 @@ struct Allocator
   [[nodiscard]] constexpr bool pnrealloc(usize alignment, usize old_num,
                                          usize new_num, T *& mem)
   {
-    return realloc(alignment, align_offset(alignment, sizeof(T) * old_num),
-                   align_offset(alignment, sizeof(T) * new_num), (u8 *&) mem);
+    return realloc(
+      layout_of<T>.array(old_num).align_to(alignment).aligned(),
+      layout_of<T>.array(new_num).align_to(alignment).aligned().size,
+      (u8 *&) mem);
   }
 
   template <typename T>
   constexpr void pndealloc(usize alignment, usize num, T * mem)
   {
-    dealloc(alignment, align_offset(alignment, sizeof(T) * num), (u8 *) mem);
+    dealloc(layout_of<T>.array(num).align_to(alignment).aligned(), (u8 *) mem);
   }
 };
 
 struct NoopAllocator final : Allocator
 {
-  virtual bool alloc(usize, usize, u8 *&) override
+  virtual bool alloc(Layout, u8 *&) override
   {
     return false;
   }
 
-  virtual bool zalloc(usize, usize, u8 *&) override
+  virtual bool zalloc(Layout, u8 *&) override
   {
     return false;
   }
 
-  virtual bool realloc(usize, usize, usize new_size, u8 *&) override
+  virtual bool realloc(Layout, usize new_size, u8 *&) override
   {
     return new_size == 0;
   }
 
-  virtual void dealloc(usize, usize, u8 *) override
+  virtual void dealloc(Layout, u8 *) override
   {
   }
 };
@@ -116,14 +116,13 @@ struct NoopAllocator final : Allocator
 /// available and supported it can allocate over-aligned memory.
 struct HeapAllocator final : Allocator
 {
-  virtual bool alloc(usize alignment, usize size, u8 *& mem) override;
+  virtual bool alloc(Layout, u8 *& mem) override;
 
-  virtual bool zalloc(usize alignment, usize size, u8 *& mem) override;
+  virtual bool zalloc(Layout, u8 *& mem) override;
 
-  virtual bool realloc(usize alignment, usize old_size, usize new_size,
-                       u8 *& mem) override;
+  virtual bool realloc(Layout, usize new_size, u8 *& mem) override;
 
-  virtual void dealloc(usize alignment, usize size, u8 * mem) override;
+  virtual void dealloc(Layout, u8 * mem) override;
 };
 
 extern NoopAllocator noop_allocator_impl;
