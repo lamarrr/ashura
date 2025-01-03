@@ -2344,7 +2344,7 @@ Result<gpu::DescriptorSet, Status>
 
   u8 * head;
 
-  if (!allocator->zalloc(flex_layout.alignment, flex_layout.size, head))
+  if (!allocator->zalloc(flex_layout, head))
   {
     return Err{Status::OutOfHostMemory};
   }
@@ -3409,7 +3409,7 @@ void Device::uninit(gpu::DescriptorSet set_)
   Layout layout =
     DescriptorSet::flex({set->bindings, set->num_bindings}).layout();
 
-  allocator->dealloc(layout.alignment, layout.size, head);
+  allocator->dealloc(layout, head);
 }
 
 void Device::uninit(gpu::PipelineCache cache_)
@@ -3612,6 +3612,22 @@ Result<Void, Status>
     return Err{(Status) result};
   }
   return Ok{Void{}};
+}
+
+void Device::unbind_descriptor_set(gpu::DescriptorSet set_, u32 binding_idx,
+                                   Slice32 elements)
+{
+  DescriptorSet * const set = (DescriptorSet *) set_;
+  CHECK(binding_idx < set->num_bindings);
+
+  DescriptorBinding & binding = set->bindings[binding_idx];
+
+  elements = elements(binding.count);
+
+  for (u32 i = elements.offset; i < elements.span; i++)
+  {
+    binding.sync_resources[i] = nullptr;
+  }
 }
 
 void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)

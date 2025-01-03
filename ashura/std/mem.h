@@ -191,6 +191,7 @@ struct Layout
   usize alignment = 1;
   usize size      = 0;
 
+  /// @warning must call `aligned()` once done appending
   constexpr Layout append(Layout const & ext) const
   {
     return Layout{.alignment = max(alignment, ext.alignment),
@@ -208,6 +209,11 @@ struct Layout
                   .size      = align_offset(alignment, size)};
   }
 
+  constexpr Layout align_to(usize align) const
+  {
+    return Layout{.alignment = align, .size = align_offset(align, size)};
+  }
+
   constexpr Layout lanes(usize n) const
   {
     return Layout{.alignment = alignment * n, .size = size * n};
@@ -218,11 +224,21 @@ struct Layout
     return Layout{.alignment = max(alignment, other.alignment),
                   .size      = max(size, other.size)};
   }
+
+  constexpr Layout with_alignment(usize align)
+  {
+    return Layout{.alignment = align, .size = size};
+  }
+
+  constexpr Layout with_size(usize size)
+  {
+    return Layout{.alignment = alignment, .size = size};
+  }
 };
 
 /// @brief Get the memory layout of a type
 template <typename T>
-constexpr Layout layout = Layout{.alignment = alignof(T), .size = sizeof(T)};
+constexpr Layout layout_of = Layout{.alignment = alignof(T), .size = sizeof(T)};
 
 /// @brief A Flex is a struct with multiple variable-sized members packed into a
 /// single address. It ensures the correct calculation of the alignments,

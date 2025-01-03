@@ -330,12 +330,12 @@ struct DescriptorSet
         case gpu::DescriptorType::StorageBuffer:
         case gpu::DescriptorType::UniformBuffer:
           scratch =
-            scratch.unioned(layout<VkDescriptorBufferInfo>.array(b.count));
+            scratch.unioned(layout_of<VkDescriptorBufferInfo>.array(b.count));
           break;
 
         case gpu::DescriptorType::StorageTexelBuffer:
         case gpu::DescriptorType::UniformTexelBuffer:
-          scratch = scratch.unioned(layout<VkBufferView>.array(b.count));
+          scratch = scratch.unioned(layout_of<VkBufferView>.array(b.count));
           break;
 
         case gpu::DescriptorType::SampledImage:
@@ -344,7 +344,7 @@ struct DescriptorSet
         case gpu::DescriptorType::InputAttachment:
         case gpu::DescriptorType::Sampler:
           scratch =
-            scratch.unioned(layout<VkDescriptorImageInfo>.array(b.count));
+            scratch.unioned(layout_of<VkDescriptorImageInfo>.array(b.count));
           break;
         default:
           break;
@@ -357,7 +357,7 @@ struct DescriptorSet
   static constexpr Flex<DescriptorSet, void *, u8>
     flex(Span<DescriptorBinding const> bindings)
   {
-    return {layout<DescriptorSet>, layout<void *>.array(bindings.size32()),
+    return {layout_of<DescriptorSet>, layout_of<void *>.array(bindings.size32()),
             scratch_layout(bindings)};
   }
 };
@@ -887,6 +887,9 @@ struct Device final : gpu::Device
   virtual Result<Void, Status>
     merge_pipeline_cache(gpu::PipelineCache             dst,
                          Span<gpu::PipelineCache const> srcs) override;
+
+  virtual void unbind_descriptor_set(gpu::DescriptorSet set, u32 binding,
+                                     Slice32 elements) override;
 
   virtual void
     update_descriptor_set(gpu::DescriptorSetUpdate const & update) override;

@@ -30,7 +30,7 @@ struct TaskArena : Pin<>
   static constexpr auto flex()
   {
     return Flex<TaskArena, u8>{
-      {layout<TaskArena>,
+      {layout_of<TaskArena>,
        Layout{.alignment = MAX_STANDARD_ALIGNMENT, .size = TASK_ARENA_SIZE}}
     };
   }
@@ -76,7 +76,7 @@ struct Task
   static constexpr auto flex(Layout frame_layout)
   {
     return Flex<Task, u8>{
-      {layout<Task>, frame_layout}
+      {layout_of<Task>, frame_layout}
     };
   }
 };
@@ -183,7 +183,7 @@ struct TaskAllocator
 
     u8 * stack;
 
-    if (!source->alloc(layout.alignment, layout.size, stack))
+    if (!source->alloc(layout, stack))
     {
       return false;
     }
@@ -197,8 +197,7 @@ struct TaskAllocator
 
   void dealloc_arena(TaskArena * arena)
   {
-    Layout const layout = TaskArena::flex().layout();
-    source->dealloc(layout.alignment, layout.size, (u8 *) arena);
+    source->dealloc(TaskArena::flex().layout(), (u8 *) arena);
   }
 
   bool request_arena(TaskArena *& out)
@@ -220,7 +219,7 @@ struct TaskAllocator
 
     u8 * stack;
 
-    if (!arena.arena.alloc(layout.alignment, layout.size, stack))
+    if (!arena.arena.alloc(layout, stack))
     {
       return false;
     }
