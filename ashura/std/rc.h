@@ -200,7 +200,7 @@ constexpr Result<Rc<T *>, Void> rc(AllocatorRef allocator, T object)
 template <typename Base, typename H>
 constexpr Rc<H> transmute(Rc<Base> base, H handle)
 {
-  Rc<H> t{static_cast<H &&>(handle, base.allocator_, base.alias_)};
+  Rc<H> t{static_cast<H &&>(handle), base.allocator_, base.alias_};
   base.handle_    = {};
   base.allocator_ = noop_allocator;
   base.alias_     = rc_noop;
