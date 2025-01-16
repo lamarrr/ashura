@@ -112,13 +112,20 @@
             "description": "Locations of the fonts to be loaded at startup",
             "type": "object"
         },
-        "fonts.default": {
-            "description": "The default font for the Engine",
-            "type": "string"
+        "fonts.height": {
+            "description": "Height to rasterize the fonts at",
+            "type": "number",
+            "default": 64,
+            "minimum": 16,
+            "maximum": 256
         },
         "images": {
             "description": "Locations of the images to be loaded at startup",
             "type": "object"
+        },
+        "cache.pipeline.path": {
+            "description": "Location to store and load pipeline cache data from",
+            "type": "string"
         }
     },
     "additionalProperties": false,
@@ -137,7 +144,8 @@
         "window.height",
         "shaders",
         "fonts",
-        "fonts.default",
-        "images"
+        "fonts.height",
+        "images",
+        "paths.pipeline_cache"
     ]
 }

@@ -63,7 +63,7 @@ struct Engine
 
   ImageSystem image_sys;
 
-  FontSystem font_sys;
+  Dyn<FontSystem *> font_sys;
 
   ShaderSystem shader_sys;
 
@@ -98,7 +98,7 @@ struct Engine
   Engine(AllocatorRef allocator, Dyn<Scheduler *> scheduler,
          FileSystem file_sys, Dyn<gpu::Instance *> instance,
          gpu::Device & device, GpuSystem gpu_sys, ImageSystem image_sys,
-         FontSystem font_sys, ShaderSystem shader_sys,
+         Dyn<FontSystem *> font_sys, ShaderSystem shader_sys,
          Dyn<WindowSystem *> window_sys, Window window, ClipBoard & clipboard,
          gpu::Surface surface, gpu::PresentMode present_mode_preference,
          Renderer renderer, Canvas canvas, ViewSystem view_sys,
@@ -137,18 +137,19 @@ struct Engine
     return Systems{.file   = file_sys,
                    .gpu    = gpu_sys,
                    .image  = image_sys,
-                   .font   = font_sys,
+                   .font   = *font_sys,
                    .shader = shader_sys,
                    .window = *window_sys};
   }
 
+  // [ ] hook logger
   void engage_(EngineCfg const & cfg);
 
   void shutdown();
 
   void recreate_swapchain_();
 
-  void run(View & view, Fn<void(InputState const &)> loop = noop);
+  void run(ui::View & view, Fn<void(InputState const &)> loop = noop);
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded

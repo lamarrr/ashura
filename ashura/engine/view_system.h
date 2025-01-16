@@ -136,8 +136,8 @@ struct ViewSystem
   /// @brief current frame input state
   InputState s1;
 
-  Vec<ref<View>> views;
-  Vec<ViewNode>  nodes;
+  Vec<ref<ui::View>> views;
+  Vec<ViewNode>      nodes;
 
   Vec<i32>    tab_indices;
   Vec<u32>    viewports;
@@ -238,9 +238,9 @@ struct ViewSystem
     focus_ordering.clear();
   }
 
-  ViewEvents process_events(View & view)
+  ui::ViewEvents process_events(ui::View & view)
   {
-    ViewEvents events;
+    ui::ViewEvents events;
 
     if (view.id() == U64_MAX) [[unlikely]]
     {
@@ -300,7 +300,7 @@ struct ViewSystem
     return events;
   }
 
-  void push_view(View & view, u32 depth, u32 breadth, u32 parent)
+  void push_view(ui::View & view, u32 depth, u32 breadth, u32 parent)
   {
     views.push(view).unwrap();
     nodes
@@ -325,27 +325,27 @@ struct ViewSystem
     is_viewport.extend_uninit(1).unwrap();
   }
 
-  void build_children(ViewContext const & ctx, View & view, u32 idx, u32 depth,
-                      i32 & tab_index, u32 viewport)
+  void build_children(ui::ViewContext const & ctx, ui::View & view, u32 idx,
+                      u32 depth, i32 & tab_index, u32 viewport)
   {
     u32 const first_child  = views.size32();
     u32       num_children = 0;
 
-    auto builder = [&](View & child) {
+    auto builder = [&](ui::View & child) {
       push_view(child, depth + 1, num_children++, idx);
     };
 
-    ViewState s = view.tick(ctx, view.region_, view.zoom_, process_events(view),
-                            fn(builder));
+    ui::ViewState s = view.tick(ctx, view.region_, view.zoom_,
+                                process_events(view), fn(builder));
 
-    bool const attr_text_input = s.text.is_some();
-    bool       attr_tab_input  = false;
-    bool       attr_esc_input  = false;
+    bool const text_input = s.text.is_some();
+    bool       tab_input  = false;
+    bool       esc_input  = false;
 
-    if (attr_text_input)
+    if (text_input)
     {
-      attr_tab_input = s.text.value().tab_input;
-      attr_esc_input = s.text.value().esc_input;
+      tab_input = s.text.value().tab_input;
+      esc_input = s.text.value().esc_input;
     }
 
     tab_indices.set(idx, (s.tab == I32_MIN) ? tab_index : s.tab);
@@ -357,9 +357,9 @@ struct ViewSystem
     is_draggable.set(idx, s.draggable);
     is_droppable.set(idx, s.droppable);
     is_focusable.set(idx, s.focusable);
-    is_text_input.set(idx, attr_text_input);
-    is_tab_input.set(idx, attr_tab_input);
-    is_esc_input.set(idx, attr_esc_input);
+    is_text_input.set(idx, text_input);
+    is_tab_input.set(idx, tab_input);
+    is_esc_input.set(idx, esc_input);
     is_viewport.set(idx, s.viewport);
 
     if (!s.hidden && s.focusable && s.grab_focus) [[unlikely]]
@@ -367,9 +367,9 @@ struct ViewSystem
       f1.focus = Focus{.active     = true,
                        .view       = view.id(),
                        .focus_idx  = view.focus_idx_,
-                       .text_input = attr_text_input,
-                       .tab_input  = attr_tab_input,
-                       .esc_input  = attr_esc_input};
+                       .text_input = text_input,
+                       .tab_input  = tab_input,
+                       .esc_input  = esc_input};
     }
 
     nodes[idx].first_child      = first_child;
@@ -383,7 +383,7 @@ struct ViewSystem
     }
   }
 
-  void build(ViewContext const & ctx, View & root)
+  void build(ui::ViewContext const & ctx, ui::View & root)
   {
     push_view(root, 0, 0, U32_MAX);
     i32 tab_index = 0;
@@ -392,6 +392,7 @@ struct ViewSystem
 
   void focus_order()
   {
+    // [ ] profile
     iota(focus_ordering.view(), 0U);
 
     indirect_sort(focus_ordering.view(), [&](u32 a, u32 b) {
@@ -406,6 +407,7 @@ struct ViewSystem
 
   void layout(Vec2 viewport_extent)
   {
+    // [ ] profile
     if (views.is_empty())
     {
       return;
@@ -430,7 +432,7 @@ struct ViewSystem
     {
       i--;
       ViewNode const & node   = nodes[i];
-      ViewLayout       layout = views[i]->fit(
+      ui::ViewLayout   layout = views[i]->fit(
         extents[i], extents.view().slice(node.first_child, node.num_children),
         centers.view().slice(node.first_child, node.num_children));
       extents[i]             = layout.extent;
@@ -524,9 +526,9 @@ struct ViewSystem
 
     for (u32 i = 0; i < n; i++)
     {
-      View & view  = views[i];
-      view.region_ = CRect{.center = centers[i], .extent = extents[i]};
-      view.zoom_   = transforms[i][0][0];
+      ui::View & view = views[i];
+      view.region_    = CRect{.center = centers[i], .extent = extents[i]};
+      view.zoom_      = transforms[i][0][0];
     }
   }
 
@@ -595,6 +597,7 @@ struct ViewSystem
 
   void visibility()
   {
+    // [ ] profile
     for (u32 i = 0; i < views.size32(); i++)
     {
       ViewNode const & node = nodes[i];
@@ -623,11 +626,12 @@ struct ViewSystem
 
   void render(Canvas & canvas)
   {
+    // [ ] profile
     for (u32 i : z_ordering)
     {
       if (!is_hidden.get(i)) [[unlikely]]
       {
-        View & view = views[i];
+        ui::View & view = views[i];
         canvas.clip(clips[i]);
         view.render(canvas, view.region_, view.zoom_, clips[i]);
         view.last_rendered_frame_ = frame;
@@ -635,16 +639,17 @@ struct ViewSystem
     }
 
     // [ ] fix this
-    // canvas.blur(
-    //   CRect{
-    //     .center = {1'920 / 2.0, 1'080 / 2.0},
-    //       .extent = {1920,         750        }
-    // },
-    //   2);
+    canvas.blur(
+      Rect{
+        .offset = {0,     0  },
+          .extent = {1'920, 200}
+    },
+      Vec2::splat(2), 2);
   }
 
   void focus_view(u32 view)
   {
+    // [ ] profile
     (void) view;
     // [ ] grab focus would need to scroll down to widget; would need
     // virtual scrolling support. offset based?
@@ -658,7 +663,7 @@ struct ViewSystem
     // scroll into them.
   }
 
-  static constexpr bool hit_test(View & view, Vec2 position)
+  static constexpr bool hit_test(ui::View & view, Vec2 position)
   {
     return contains(view.region_, position) &&
            view.hit(view.region_, view.zoom_, position);
@@ -673,8 +678,8 @@ struct ViewSystem
     {
       z--;
 
-      u32 const i    = z_ordering[z];
-      View &    view = views[i];
+      u32 const  i    = z_ordering[z];
+      ui::View & view = views[i];
 
       bool matches = false;
 
@@ -766,8 +771,9 @@ struct ViewSystem
     }
   }
 
-  void events(ViewContext const & ctx)
+  void events(ui::ViewContext const & ctx)
   {
+    // [ ] profile
     f0 = f1;
     f1 = State{};
 
@@ -792,7 +798,7 @@ struct ViewSystem
                 ViewHitAttributes::Clickable | ViewHitAttributes::Draggable)
         .match(
           [&](u32 i) {
-            View & view = views[i];
+            ui::View & view = views[i];
 
             f1.pointed = view.id();
 
@@ -824,8 +830,8 @@ struct ViewSystem
 
       hit_views(ctx.mouse.position, ViewHitAttributes::Droppable)
         .match([&](u32 i) {
-          View & view = views[i];
-          f1.pointed  = view.id();
+          ui::View & view = views[i];
+          f1.pointed      = view.id();
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
         });
     }
@@ -837,8 +843,8 @@ struct ViewSystem
 
       hit_views(ctx.mouse.position, ViewHitAttributes::Droppable)
         .match([&](u32 i) {
-          View & view = views[i];
-          f1.pointed  = view.id();
+          ui::View & view = views[i];
+          f1.pointed      = view.id();
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
         });
     }
@@ -847,8 +853,8 @@ struct ViewSystem
     {
       hit_views(ctx.mouse.position, ViewHitAttributes::Clickable)
         .match([&](u32 i) {
-          View & view = views[i];
-          f1.pointed  = view.id();
+          ui::View & view = views[i];
+          f1.pointed      = view.id();
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
         });
     }
@@ -857,8 +863,8 @@ struct ViewSystem
     {
       hit_views(ctx.mouse.position, ViewHitAttributes::Scrollable)
         .match([&](u32 i) {
-          View & view = views[i];
-          f1.pointed  = view.id();
+          ui::View & view = views[i];
+          f1.pointed      = view.id();
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
         });
     }
@@ -869,8 +875,8 @@ struct ViewSystem
                 ViewHitAttributes::Pointable | ViewHitAttributes::Clickable |
                   ViewHitAttributes::Draggable | ViewHitAttributes::Scrollable)
         .match([&](u32 i) {
-          View & view = views[i];
-          f1.pointed  = view.id();
+          ui::View & view = views[i];
+          f1.pointed      = view.id();
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
         });
     }
@@ -938,9 +944,10 @@ struct ViewSystem
     // [ ] call focus_view() once a new focus navigation has occured
   }
 
-  void tick(InputState const & input, View & root, Canvas & canvas,
-            Fn<void(ViewContext const &)> loop)
+  void tick(InputState const & input, ui::View & root, Canvas & canvas,
+            Fn<void(ui::ViewContext const &)> loop)
   {
+    // [ ] profile
     clear();
 
     build(s1, root);
@@ -963,6 +970,7 @@ struct ViewSystem
     // [ ] start and end text input on mobile platforms
     // [ ] change cursor
     // [ ] text input
+    // [ ] focus renderer
 
     focus_order();
 

@@ -143,7 +143,7 @@ struct [[nodiscard]] TextCursor
   }
 };
 
-/// @brief A simple stack-based text compositor
+/// @brief A stack-based text compositor
 /// @param buffer_pos the end of the buffer for the current text edit
 /// record
 struct TextCompositor
@@ -169,6 +169,8 @@ struct TextCompositor
   TextCursor          cursor_ = {};
   Vec<c32>            buffer_;
   Vec<TextEditRecord> records_;
+  u32                 buffer_size_;
+  u32                 records_size_;
   u32                 buffer_usage_   = 0;
   u32                 buffer_pos_     = 0;
   u32                 latest_record_  = 0;
@@ -177,18 +179,15 @@ struct TextCompositor
   Span<c32 const>     word_symbols_;
   Span<c32 const>     line_symbols_;
 
-  static Result<TextCompositor>
-    make(AllocatorRef allocator, u32 num_buffer_codepoints = 4'096,
-         u32 num_records = 1'024, u32 tab_width = 1,
-         Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS,
-         Span<c32 const> line_symbols = DEFAULT_LINE_SYMBOLS);
-
-  TextCompositor(AllocatorRef allocator, Vec<c32> buffer,
-                 Vec<TextEditRecord> records, u32 tab_width,
-                 Span<c32 const> word_symbols, Span<c32 const> line_symbols) :
+  TextCompositor(AllocatorRef allocator, u32 tab_width = 2,
+                 u32 buffer_size = 4'096, u32 records_size = 1'024,
+                 Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS,
+                 Span<c32 const> line_symbols = DEFAULT_LINE_SYMBOLS) :
     allocator_{allocator},
-    buffer_{std::move(buffer)},
-    records_{std::move(records)},
+    buffer_{allocator},
+    records_{allocator},
+    buffer_size_{buffer_size},
+    records_size_{records_size},
     tab_width_{tab_width},
     word_symbols_{word_symbols},
     line_symbols_{line_symbols}

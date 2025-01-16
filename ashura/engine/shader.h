@@ -29,12 +29,18 @@ enum class ShaderLoadErr : u32
 
 struct ShaderCompileInfo
 {
-  ShaderType                                     type = ShaderType::Compute;
-  Span<char const>                               path{};
-  Span<char const>                               preamble{};
-  Fn<void(LogLevel, Span<char const>)>           on_log{};
-  Fn<Option<Span<char const>>(Span<char const>)> on_load{};
-  Fn<void(Span<char const>)>                     on_drop{};
+  ShaderType type = ShaderType::Compute;
+
+  Span<char const> path{};
+
+  Span<char const> preamble{};
+
+  Fn<void(LogLevel, Span<char const>)> on_log = noop;
+
+  Fn<Option<Span<char const>>(Span<char const>)> on_load =
+    [](Span<char const>) -> Option<Span<char const>> { return none; };
+
+  Fn<void(Span<char const>)> on_drop = noop;
 };
 
 Result<Void, ShaderLoadErr> compile_shader(ShaderCompileInfo const & info,

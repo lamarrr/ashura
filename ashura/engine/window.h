@@ -19,7 +19,7 @@ struct WindowSystem
 {
   static Dyn<WindowSystem *> create_SDL(AllocatorRef allocator);
 
-  virtual ~WindowSystem() = 0;
+  virtual ~WindowSystem() = default;
 
   virtual void shutdown() = 0;
 
@@ -104,6 +104,10 @@ struct WindowSystem
   virtual void start_text_input(Window window, TextInputInfo const & info) = 0;
 
   virtual void end_text_input(Window window) = 0;
+
+  virtual void set_cursor(Cursor cursor) = 0;
+
+  virtual void lock_cursor(Window window, bool lock) = 0;
 };
 
 }    // namespace ash

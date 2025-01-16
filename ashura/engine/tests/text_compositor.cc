@@ -9,8 +9,8 @@ TEST(TextCompositor, Main)
 {
   using namespace ash;
 
-  TextCompositor cmp = TextCompositor::make().unwrap();
-  TextLayout     layout;
+  TextCompositor cmp{default_allocator};
+  TextLayout     layout{default_allocator};
   ClipBoard      clip;
 
   Span text = U"HELLO, MOTO"_str;

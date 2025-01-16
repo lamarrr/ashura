@@ -24,7 +24,7 @@ void StagingBuffer::reserve(gpu::Device & gpu, u64 target_size)
   buffer =
     gpu
       .create_buffer(gpu::BufferInfo{.label       = label,
-                                     .size        = size,
+                                     .size        = target_size,
                                      .host_mapped = true,
                                      .usage = gpu::BufferUsage::TransferSrc |
                                               gpu::BufferUsage::TransferDst})
@@ -35,6 +35,7 @@ void StagingBuffer::reserve(gpu::Device & gpu, u64 target_size)
 
 void StagingBuffer::grow(gpu::Device & gpu, u64 target_size)
 {
+  target_size = max(target_size, (u64) 1);
   if (size >= target_size)
   {
     return;
@@ -99,6 +100,7 @@ GpuUploadQueue GpuUploadQueue::make(u32 buffering, AllocatorRef allocator)
 
 void GpuUploadQueue::encode(gpu::Device & gpu, gpu::CommandEncoder & enc)
 {
+  // [ ] the upload queue persists the size of the buffer across all frames even with largew updates
   UploadBuffer & buff = buffers_[ring_index_];
   buff.gpu.assign(gpu, buff.cpu);
 
@@ -753,6 +755,7 @@ Sampler GpuSystem::create_sampler(gpu::SamplerInfo const & info)
 TextureId GpuSystem::alloc_texture_id(gpu::ImageView view)
 {
   usize i = find_clear_bit(texture_slots);
+  trace("alloc slot: ", i, " for ", view);
   CHECK(i < size_bits(texture_slots), "Out of Texture Slots");
   set_bit(texture_slots, i);
 
@@ -769,10 +772,11 @@ TextureId GpuSystem::alloc_texture_id(gpu::ImageView view)
 
 void GpuSystem::release_texture_id(TextureId id)
 {
-  // [ ] the texture will be assumed to still be valid by the descriptor set, we need to evict it
-  // and the check if it s null in the gpu api
-  // [ ] same for sampler
-  clear_bit(texture_slots, (u32) id);
+  u32 const i = (u32) id;
+  clear_bit(texture_slots, i);
+
+  add_pre_frame_task(
+    [i, this]() { device->unbind_descriptor_set(textures, 0, Slice32{i, 1}); });
 }
 
 SamplerId GpuSystem::alloc_sampler_id(gpu::Sampler sampler)
@@ -783,7 +787,7 @@ SamplerId GpuSystem::alloc_sampler_id(gpu::Sampler sampler)
 
   add_pre_frame_task([i, this, sampler]() {
     device->update_descriptor_set(gpu::DescriptorSetUpdate{
-      .set     = textures,
+      .set     = samplers,
       .binding = 0,
       .element = (u32) i,
       .images  = span({gpu::ImageBinding{.sampler = sampler}})});
@@ -794,7 +798,11 @@ SamplerId GpuSystem::alloc_sampler_id(gpu::Sampler sampler)
 
 void GpuSystem::release_sampler_id(SamplerId id)
 {
-  clear_bit(sampler_slots, (u32) id);
+  u32 const i = (u32) id;
+  clear_bit(sampler_slots, i);
+
+  add_pre_frame_task(
+    [i, this]() { device->unbind_descriptor_set(samplers, 0, Slice32{i, 1}); });
 }
 
 void GpuSystem::release(gpu::Object object)
@@ -879,6 +887,9 @@ void GpuSystem::begin_frame(gpu::Swapchain swapchain)
   released_objects[ring_index()].clear();
 
   gpu::CommandEncoder & enc = encoder();
+
+  upload_.encode(*device, enc);
+  tasks_.run();
 
   auto clear_color = [&](gpu::Image image) {
     enc.clear_color_image(

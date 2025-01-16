@@ -237,11 +237,11 @@ struct WriteGuard
   }
 };
 
-enum class AtomicInitStage : usize
+enum class FutureStage : u64
 {
-  Uninit  = 0,
-  Init    = 1,
-  Pending = 2
+  Pending  = 0,
+  Yielding = U64_MAX - 1,
+  Yielded  = U64_MAX
 };
 
 /// @brief An atomically initialized value, can only be initialized once.
@@ -251,20 +251,20 @@ enum class AtomicInitStage : usize
 template <typename T>
 struct AtomicInit
 {
-  AtomicInitStage stage_;
+  FutureStage stage_;
 
   union
   {
     T v_;
   };
 
-  constexpr AtomicInit() : stage_{AtomicInitStage::Uninit}
+  constexpr AtomicInit() : stage_{FutureStage::Pending}
   {
   }
 
   template <typename... Args>
   constexpr AtomicInit(V<0>, Args &&... args) :
-    stage_{AtomicInitStage::Init},
+    stage_{FutureStage::Yielded},
     v_{static_cast<Args &&>(args)...}
   {
   }
@@ -280,7 +280,7 @@ struct AtomicInit
     // to acquire write side effects from other writers (if any)
     std::atomic_ref stage{stage_};
 
-    if (stage.load(std::memory_order_acquire) == AtomicInitStage::Init)
+    if (stage.load(std::memory_order_acquire) == FutureStage::Yielded)
       [[likely]]
     {
       v_.~T();
@@ -291,8 +291,8 @@ struct AtomicInit
   [[nodiscard]] bool init(Args &&... args)
   {
     std::atomic_ref stage{stage_};
-    AtomicInitStage expected = AtomicInitStage::Uninit;
-    AtomicInitStage target   = AtomicInitStage::Pending;
+    FutureStage     expected = FutureStage::Pending;
+    FutureStage     target   = FutureStage::Yielding;
 
     /// no side-effects need to be observed
     if (!stage.compare_exchange_strong(expected, target,
@@ -304,7 +304,7 @@ struct AtomicInit
 
     new (&v_) T{static_cast<Args &&>(args)...};
 
-    stage.store(AtomicInitStage::Init, std::memory_order_release);
+    stage.store(FutureStage::Yielded, std::memory_order_release);
     return true;
   }
 
@@ -313,7 +313,7 @@ struct AtomicInit
   OptionRef<T> ref()
   {
     std::atomic_ref stage{stage_};
-    if (stage.load(std::memory_order_acquire) != AtomicInitStage::Init)
+    if (stage.load(std::memory_order_acquire) != FutureStage::Yielded)
     {
       return none;
     }
@@ -548,10 +548,10 @@ inline Result<StopToken> stop_token(AllocatorRef allocator)
 /// based on the `any` criteria.
 template <typename Semaphore, typename Stage, typename SemaphoreKey,
           typename StageKey>
-[[nodiscard]] bool impl_await(Span<Semaphore> semaphores, Span<Stage> stages,
-                              nanoseconds     timeout,
-                              SemaphoreKey && semaphore_key = {},
-                              StageKey &&     stage_key     = {})
+[[nodiscard]] bool
+  impl_await_semaphores(Span<Semaphore> semaphores, Span<Stage> stages,
+                        nanoseconds timeout, SemaphoreKey && semaphore_key = {},
+                        StageKey && stage_key = {})
 {
   CHECK(semaphores.size() == stages.size());
   usize const n = semaphores.size();
@@ -580,6 +580,75 @@ template <typename Semaphore, typename Stage, typename SemaphoreKey,
       u64 const        stage =
         min(stage_key(stages[next]), semaphore.num_stages() - 1);
       bool const is_ready = stage < semaphore.stage();
+
+      if (!is_ready)
+      {
+        break;
+      }
+    }
+
+    if (next == n)
+    {
+      return true;
+    }
+
+    // fast-path to avoid syscalls
+    if (timeout <= nanoseconds{0}) [[likely]]
+    {
+      return false;
+    }
+
+    // fast-path to avoid syscalls
+    if (timeout == nanoseconds::max()) [[likely]]
+    {
+      // infinite timeout
+    }
+    else
+    {
+      if (poll_begin == steady_clock::time_point{}) [[unlikely]]
+      {
+        poll_begin = steady_clock::now();
+      }
+
+      nanoseconds const past = steady_clock::now() - poll_begin;
+
+      if (past > timeout) [[unlikely]]
+      {
+        return false;
+      }
+    }
+
+    yielding_backoff(poll);
+    poll++;
+  }
+
+  return false;
+}
+
+template <typename Future, typename FutureStageKey>
+[[nodiscard]] bool impl_await_futures(Span<Future> futures, nanoseconds timeout,
+                                      FutureStageKey && stage_key = {})
+{
+  usize const n = futures.size();
+
+  // number of times we've polled so far, counting begins from 0
+  u64 poll = 0;
+
+  // avoid sys-calls unless absolutely needed
+  steady_clock::time_point poll_begin{};
+
+  // speeds up checks for the 'all' case. points to the next semaphore to be
+  // checked
+  usize next = 0;
+
+  while (true)
+  {
+    for (; next < n; next++)
+    {
+      FutureStage &   stage = stage_key(futures[next]);
+      std::atomic_ref stage_ref{stage};
+      bool const      is_ready =
+        stage_ref.load(std::memory_order_acquire) == FutureStage::Yielded;
 
       if (!is_ready)
       {
@@ -729,45 +798,36 @@ template <typename T>
 struct [[nodiscard]] Future
 {
   typedef T Type;
+  using State = Rc<AtomicInit<T> *>;
 
-  Stream<AtomicInit<T>> stream_;
+  State state_;
 
-  u64 stage_;
-
-  Future(Stream<AtomicInit<T>> stream, u64 stage) :
-    stream_{static_cast<Stream<AtomicInit<T>> &&>(stream)},
-    stage_{stage}
+  Future(State state) : state_{static_cast<State &&>(state)}
   {
   }
 
   Future alias() const
   {
-    return Future{stream_.alias(), stage_};
+    return Future{state_.alias()};
   }
 
-  T & get() const
+  T & get(SourceLocation loc = SourceLocation::current()) const
   {
-    return stream_.data_.get()->ref().unwrap(
-      "Called `Future::get()` on a pending Future"_str);
+    return state_->ref().unwrap(
+      "Called `Future::get()` on a pending Future"_str, loc);
   }
 
   Result<ref<T>> poll() const
   {
-    return stream_.data_.get()->ref().match(
-      [](T & v) -> Result<ref<T>> { return ref{v}; },
+    return state_->ref().match(
+      [](T & v) -> Result<ref<T>> { return Ok{ref{v}}; },
       []() -> Result<ref<T>> { return Err{}; });
   }
 
   template <typename... Args>
   Result<> yield(Args &&... args) const
   {
-    bool yielded = false;
-
-    stream_.yield_sequenced(
-      [&](AtomicInit<T> & v) {
-        yielded = v.init(static_cast<Args &&>(args)...);
-      },
-      stage_);
+    bool const yielded = state_->init(static_cast<Args &&>(args)...);
 
     if (!yielded)
     {
@@ -781,33 +841,36 @@ struct [[nodiscard]] Future
 template <typename T>
 Result<Future<T>> future(AllocatorRef allocator)
 {
-  Result s = stream<AtomicInit<T>>(inplace, allocator, 1);
+  Result s = rc<AtomicInit<T>>(inplace, allocator);
 
   if (!s)
   {
     return Err{};
   }
 
-  return Ok{
-    Future<T>{static_cast<Stream<AtomicInit<T>> &&>(s.value()), 0}
-  };
+  return Ok{Future<T>{static_cast<Rc<AtomicInit<T> *> &&>(s.value())}};
 }
 
 struct [[nodiscard]] AnyFuture
 {
-  Semaphore semaphore_;
-  u64       stage_;
+  using State = Rc<FutureStage *>;
 
-  AnyFuture(Semaphore semaphore, u64 stage) :
-    semaphore_{static_cast<Semaphore &&>(semaphore)},
-    stage_{stage}
+  template <typename T>
+  static State transmute(Future<T> future)
+  {
+    FutureStage * state = &future.state_->stage_;
+    return ash::transmute(std::move(future.state_), state);
+  }
+
+  State state_;
+
+  AnyFuture(State state) : state_{static_cast<State &&>(state)}
   {
   }
 
   template <typename T>
   AnyFuture(Future<T> future) :
-    semaphore_{static_cast<Semaphore &&>(future.stream_.semaphore_)},
-    stage_{future.stage_}
+    state_{transmute(static_cast<Future<T> &&>(future))}
   {
   }
 
@@ -819,12 +882,13 @@ struct [[nodiscard]] AnyFuture
 
   AnyFuture alias() const
   {
-    return AnyFuture{semaphore_.alias(), stage_};
+    return AnyFuture{state_.alias()};
   }
 
   Result<> poll() const
   {
-    if (!semaphore_->is_ready(stage_))
+    std::atomic_ref<FutureStage> state{*state_};
+    if (state.load(std::memory_order_relaxed) != FutureStage::Yielded)
     {
       return Err{};
     }
@@ -919,12 +983,105 @@ TaskInfo to_task_info(F & frame)
     return frame->run();
   };
 
-  return TaskInfo{.frame_layout = layout<F>,
+  return TaskInfo{.frame_layout = layout_of<F>,
                   .init         = init,
                   .uninit       = uninit,
                   .poll         = poll,
                   .runner       = runner};
 }
+
+template <typename P>
+concept Poll = requires (P p) {
+  { p() && true };
+};
+
+template <typename R>
+concept Runner = requires (R r) {
+  { r() && true };
+};
+
+template <Poll P, Runner R>
+struct TaskBody
+{
+  typedef P Poll;
+  typedef R Runner;
+
+  P poll{};
+  R run{};
+};
+
+struct TaskInstance
+{
+  u64 n   = 1;
+  u64 idx = 0;
+};
+
+inline bool await_streams(Span<AnyStream const> streams, Span<u64 const> stages,
+                          nanoseconds timeout)
+{
+  return impl_await_semaphores(
+    streams, stages, timeout,
+    [](AnyStream const & s) -> SemaphoreState & { return *s.semaphore_; },
+    [](u64 stage) -> u64 { return stage; });
+}
+
+inline bool await_futures(Span<AnyFuture const> futures, nanoseconds timeout)
+{
+  return impl_await_futures(
+    futures, timeout,
+    [](AnyFuture const & f) -> FutureStage & { return *f.state_; });
+}
+
+template <usize N>
+struct [[nodiscard]] AwaitStreams
+{
+  AnyStream streams[N];
+  u64       stages[N] = {};
+
+  bool operator()() const
+  {
+    return await_streams(streams, stages, 0ns);
+  }
+};
+
+template <usize N>
+struct [[nodiscard]] AwaitFutures
+{
+  AnyFuture futures[N];
+
+  bool operator()() const
+  {
+    return await_futures(futures, 0ns);
+  }
+};
+
+template <typename... T>
+AwaitFutures(T...) -> AwaitFutures<sizeof...(T)>;
+
+struct [[nodiscard]] Delay
+{
+  steady_clock::time_point from{};
+
+  nanoseconds delay = 0ns;
+
+  constexpr bool operator()() const
+  {
+    if (delay == 0ns)
+    {
+      return true;
+    }
+    auto const past = steady_clock::now() - from;
+    return past >= delay;
+  }
+};
+
+struct [[nodiscard]] Ready
+{
+  constexpr bool operator()() const
+  {
+    return true;
+  }
+};
 
 /// @brief Static Thread Pool Scheduler.
 ///
@@ -1012,6 +1169,132 @@ struct Scheduler
         CHECK_UNREACHABLE();
     }
   }
+
+  /// @brief Launch a one-shot task
+  /// @tparam F Task Functor type
+  /// @tparam P Poller Functor type
+  /// @param fn Task functor
+  /// @param poll Poller functor that returns true when ready
+  /// @param schedule How to schedule the task
+  template <Callable F, Poll P = Ready>
+  void once(F fn, P poll = {}, TaskSchedule schedule = {})
+  {
+    this->schedule(TaskBody{static_cast<P &&>(poll),
+                            [fn = static_cast<F &&>(fn)]() mutable -> bool {
+                              fn();
+                              return false;
+                            }},
+                   schedule);
+  }
+
+  template <Callable F, Callable... F1, Poll P = Ready>
+  void once(Tuple<F, F1...> fns, P poll = {}, TaskSchedule schedule = {})
+  {
+    this->schedule(
+      TaskBody{static_cast<P &&>(poll),
+               [fns = static_cast<Tuple<F, F1...> &&>(fns)]() mutable -> bool {
+                 ash::fold(fns);
+                 return false;
+               }},
+      schedule);
+  }
+
+  /// @brief Launch a task that is repeatedly called until it is done
+  /// @tparam F Task Functor type
+  /// @tparam P Poller Functor type
+  /// @param fn Task functor that returns false when it is done
+  /// @param poll Poller functor that returns true when ready
+  /// @param schedule How to schedule the task
+  template <Callable F, Poll P = Ready>
+  requires (Convertible<CallResult<F>, bool>)
+  void loop(F fn, P poll = {}, TaskSchedule schedule = {})
+  {
+    this->schedule(
+      TaskBody{static_cast<P &&>(poll),
+               [fn = static_cast<F &&>(fn)]() mutable -> bool { return fn(); }},
+      schedule);
+  }
+
+  /// @brief Launch a task that is repeatedly called n times
+  /// @tparam F Functor type
+  /// @tparam P Poller Functor type
+  /// @param fn Task functor to be called, can terminate early by returning a
+  /// boolean
+  /// @param n Number of times to execute the task
+  /// @param poll Poller functor that returns true when ready
+  /// @param schedule How to schedule the task
+  template <Callable<u64> F, Poll P = Ready>
+  requires (Same<CallResult<F, u64>, void> ||
+            Convertible<CallResult<F, u64>, bool>)
+  void repeat(F fn, u64 n, P poll = {}, TaskSchedule schedule = {})
+  {
+    if (n == 0)
+    {
+      return;
+    }
+
+    this->schedule(
+      TaskBody{static_cast<P &&>(poll),
+               [fn = static_cast<F &&>(fn), n, i = (u64) 0]() mutable -> bool {
+                 if constexpr (Same<CallResult<F, u64>, void>)
+                 {
+                   fn(i);
+                   i++;
+                   return n == i;
+                 }
+                 else
+                 {
+                   // early exit
+                   bool const done = fn(i);
+                   i++;
+                   return done || (n == i);
+                 }
+               }},
+      schedule);
+  }
+
+  /// @brief Launch shards of tasks, All shards share the same state and task
+  /// frame and run concurrently. Typically used for SPMD
+  /// (https://en.wikipedia.org/wiki/Single_program,_multiple_data)
+  /// @tparam F Shard functor type
+  /// @tparam P Poller Functor type
+  /// @param fn Shard body
+  /// @param n Number of shard instances of the task to launch
+  /// @param poll Poller functor that returns true when ready
+  /// @param schedule How to schedule the shards
+  template <typename State, Poll P = Ready>
+  void shard(Rc<State> state, Fn<void(TaskInstance, State)> fn, u64 n,
+             P poll = {}, TaskSchedule schedule = {})
+  {
+    if (n == 0)
+    {
+      return;
+    }
+
+    // we need to first dispatch a task that will poll for readiness, and once the
+    // shard is ready for dispatch we dispatch the shards. we can avoid this
+    // intermediate process if we know the task is immediately available (Ready
+    // type) but that's really not a good idea for a generic type. we also need
+    // the dispatch as we don't expect the polling function to be thread-safe when
+    // called across all instances.
+    this->schedule(
+      TaskBody{
+        static_cast<P &&>(poll),
+        [fn, state = std::move(state), schedule, n, this]() mutable -> bool {
+          for (u64 i = 0; i < n; i++)
+          {
+            this->schedule(
+              TaskBody{Ready{},
+                       [fn, i, n, state = state.alias()]() mutable -> bool {
+                         fn(TaskInstance{.n = n, .idx = i}, state.get());
+                         return false;
+                       }},
+              schedule);
+          }
+          return false;
+        }},
+      schedule);
+  }
 };
 
 extern Scheduler * scheduler;
@@ -1019,230 +1302,5 @@ extern Scheduler * scheduler;
 /// @brief Global scheduler object. Designed for hooking across DLLs. Must be
 /// initialized at program startup.
 ASH_C_LINKAGE ASH_DLL_EXPORT void hook_scheduler(Scheduler *);
-
-template <typename P>
-concept Poll = requires (P p) {
-  { p() && true };
-};
-
-template <typename R>
-concept Runner = requires (R r) {
-  { r() && true };
-};
-
-template <Poll P, Runner R>
-struct TaskBody
-{
-  typedef P Poll;
-  typedef R Runner;
-
-  P poll{};
-  R run{};
-};
-
-struct TaskInstance
-{
-  u64 n   = 1;
-  u64 idx = 0;
-};
-
-inline bool await_streams(Span<AnyStream const> streams, Span<u64 const> stages,
-                          nanoseconds timeout)
-{
-  return impl_await(
-    streams, stages, timeout,
-    [](AnyStream const & s) -> SemaphoreState & { return *s.semaphore_; },
-    [](u64 stage) -> u64 { return stage; });
-}
-
-inline bool await_futures(Span<AnyFuture const> futures, nanoseconds timeout)
-{
-  return impl_await(
-    futures, futures, timeout,
-    [](AnyFuture const & f) -> SemaphoreState & { return *f.semaphore_; },
-    [](AnyFuture const & f) -> u64 { return f.stage_; });
-}
-
-template <usize N>
-struct [[nodiscard]] AwaitStreams
-{
-  AnyStream streams[N];
-  u64       stages[N] = {};
-
-  bool operator()() const
-  {
-    return await_streams(streams, stages, 0ns);
-  }
-};
-
-template <usize N>
-struct [[nodiscard]] AwaitFutures
-{
-  AnyFuture futures[N];
-
-  bool operator()() const
-  {
-    return await_futures(futures, 0ns);
-  }
-};
-
-template <typename... T>
-AwaitFutures(T...) -> AwaitFutures<sizeof...(T)>;
-
-struct [[nodiscard]] Delay
-{
-  steady_clock::time_point from{};
-
-  nanoseconds delay = 0ns;
-
-  constexpr bool operator()() const
-  {
-    if (delay == 0ns)
-    {
-      return true;
-    }
-    auto const past = steady_clock::now() - from;
-    return past >= delay;
-  }
-};
-
-struct [[nodiscard]] Ready
-{
-  constexpr bool operator()() const
-  {
-    return true;
-  }
-};
-
-namespace async
-{
-
-/// @brief Launch a one-shot task
-/// @tparam F Task Functor type
-/// @tparam P Poller Functor type
-/// @param fn Task functor
-/// @param poll Poller functor that returns true when ready
-/// @param schedule How to schedule the task
-template <Callable F, Poll P = Ready>
-void once(F fn, P poll = {}, TaskSchedule schedule = {})
-{
-  scheduler->schedule(TaskBody{static_cast<P &&>(poll),
-                               [fn = static_cast<F &&>(fn)]() mutable -> bool {
-                                 fn();
-                                 return false;
-                               }},
-                      schedule);
-}
-
-template <Callable F, Callable... F1, Poll P = Ready>
-void once(Tuple<F, F1...> fns, P poll = {}, TaskSchedule schedule = {})
-{
-  scheduler->schedule(
-    TaskBody{static_cast<P &&>(poll),
-             [fns = static_cast<Tuple<F, F1...> &&>(fns)]() mutable -> bool {
-               ash::fold(fns);
-               return false;
-             }},
-    schedule);
-}
-
-/// @brief Launch a task that is repeatedly called until it is done
-/// @tparam F Task Functor type
-/// @tparam P Poller Functor type
-/// @param fn Task functor that returns false when it is done
-/// @param poll Poller functor that returns true when ready
-/// @param schedule How to schedule the task
-template <Callable F, Poll P = Ready>
-requires (Convertible<CallResult<F>, bool>)
-void loop(F fn, P poll = {}, TaskSchedule schedule = {})
-{
-  scheduler->schedule(
-    TaskBody{static_cast<P &&>(poll),
-             [fn = static_cast<F &&>(fn)]() mutable -> bool { return fn(); }},
-    schedule);
-}
-
-/// @brief Launch a task that is repeatedly called n times
-/// @tparam F Functor type
-/// @tparam P Poller Functor type
-/// @param fn Task functor to be called, can terminate early by returning a
-/// boolean
-/// @param n Number of times to execute the task
-/// @param poll Poller functor that returns true when ready
-/// @param schedule How to schedule the task
-template <Callable<u64> F, Poll P = Ready>
-requires (Same<CallResult<F, u64>, void> ||
-          Convertible<CallResult<F, u64>, bool>)
-void repeat(F fn, u64 n, P poll = {}, TaskSchedule schedule = {})
-{
-  if (n == 0)
-  {
-    return;
-  }
-
-  scheduler->schedule(
-    TaskBody{static_cast<P &&>(poll),
-             [fn = static_cast<F &&>(fn), n, i = (u64) 0]() mutable -> bool {
-               if constexpr (Same<CallResult<F, u64>, void>)
-               {
-                 fn(i);
-                 i++;
-                 return n == i;
-               }
-               else
-               {
-                 // early exit
-                 bool const done = fn(i);
-                 i++;
-                 return done || (n == i);
-               }
-             }},
-    schedule);
-}
-
-/// @brief Launch shards of tasks, All shards share the same state and task
-/// frame and run concurrently. Typically used for SPMD
-/// (https://en.wikipedia.org/wiki/Single_program,_multiple_data)
-/// @tparam F Shard functor type
-/// @tparam P Poller Functor type
-/// @param fn Shard body
-/// @param n Number of shard instances of the task to launch
-/// @param poll Poller functor that returns true when ready
-/// @param schedule How to schedule the shards
-template <typename State, Poll P = Ready>
-void shard(Rc<State> state, Fn<void(TaskInstance, State)> fn, u64 n,
-           P poll = {}, TaskSchedule schedule = {})
-{
-  if (n == 0)
-  {
-    return;
-  }
-
-  // we need to first dispatch a task that will poll for readiness, and once the
-  // shard is ready for dispatch we dispatch the shards. we can avoid this
-  // intermediate process if we know the task is immediately available (Ready
-  // type) but that's really not a good idea for a generic type. we also need
-  // the dispatch as we don't expect the polling function to be thread-safe when
-  // called across all instances.
-  scheduler->schedule(
-    TaskBody{static_cast<P &&>(poll),
-             [fn, state = std::move(state), schedule, n]() mutable -> bool {
-               for (u64 i = 0; i < n; i++)
-               {
-                 scheduler->schedule(
-                   TaskBody{
-                     Ready{},
-                     [fn, i, n, state = state.alias()]() mutable -> bool {
-                       fn(TaskInstance{.n = n, .idx = i}, state.get());
-                       return false;
-                     }},
-                   schedule);
-               }
-               return false;
-             }},
-    schedule);
-}
-
-}    // namespace async
 
 }    // namespace ash

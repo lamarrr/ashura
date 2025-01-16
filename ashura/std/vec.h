@@ -88,7 +88,7 @@ struct [[nodiscard]] Vec
 
   static constexpr Result<Vec> make(usize capacity, AllocatorRef allocator = {})
   {
-    Vec out{allocator, nullptr, capacity, 0};
+    Vec out{allocator};
 
     if (!out.reserve(capacity))
     {

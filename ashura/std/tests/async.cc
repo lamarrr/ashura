@@ -10,7 +10,6 @@
 TEST(AsyncTest, Basic)
 {
   using namespace ash;
-  // [ ] init logger and sched in test suite setup
 
   Semaphore sem = semaphore({}, 1).unwrap();
 
@@ -27,16 +26,16 @@ TEST(AsyncTest, Basic)
 
   Stream<int> s = stream({}, 1, 20).unwrap();
 
-  async::once([]() { info("Hi"); }, AwaitStreams{{s.alias()}, {0}});
-  async::once([]() { info("Hello"); });
-  async::once([]() { info("Sshh"); });
+  sched->once([]() { info("Hi"); }, AwaitStreams{{s.alias()}, {0}});
+  sched->once([]() { info("Hello"); });
+  sched->once([]() { info("Sshh"); });
   info("scheduled");
-  async::once([]() { info("Timer passed"); },
+  sched->once([]() { info("Timer passed"); },
               Delay{.from = steady_clock::now(), .delay = 1ms});
 
   auto fut = future<int>({}).unwrap();
 
-  async::loop(
+  sched->loop(
     [x = (u64) 0, f = fut.alias(), s = s.alias()]() mutable -> bool {
       x++;
       info(x, " iteration");
@@ -53,10 +52,11 @@ TEST(AsyncTest, Basic)
     AwaitFutures{fut.alias()});
   fut.yield(69).unwrap();
 
-  async::shard<std::atomic<int> *>(
-     rc<std::atomic<int>>(inplace, {}, 0).unwrap(),
-    [](TaskInstance shard, std::atomic<int> * pcount) {
-      int count = pcount->fetch_add(1);
+  sched->shard<int *>(
+    rc<int>(inplace, {}, 0).unwrap(),
+    [](TaskInstance shard, int * pcount) {
+      std::atomic_ref count_ref{*pcount};
+      int             count = count_ref.fetch_add(1);
       info("shard: ", shard.idx, " of ", shard.n, ", sync i: ", count);
     },
     10);

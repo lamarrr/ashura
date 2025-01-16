@@ -12,30 +12,72 @@
 namespace ash
 {
 
-struct Image
+struct ImageInfo
 {
-  ImageId id{};
+  ImageId id = ImageId::Invalid;
 
   Span<char const> label{};
 
-  TextureId texture{};
+  TextureId texture = TextureId::White;
 
-  gpu::ImageInfo image_info = {};
+  gpu::ImageInfo info{};
 
-  gpu::ImageViewInfo image_view_info = {};
+  gpu::ImageViewInfo view_info{};
 
   gpu::Image image = nullptr;
 
   gpu::ImageView image_view = nullptr;
 };
 
-struct Shader
+struct Image
+{
+  ImageId id = ImageId::Invalid;
+
+  Vec<char> label{};
+
+  TextureId texture = TextureId::White;
+
+  gpu::ImageInfo info{};
+
+  gpu::ImageViewInfo view_info{};
+
+  gpu::Image image = nullptr;
+
+  gpu::ImageView view = nullptr;
+
+  constexpr ImageInfo to_view() const
+  {
+    return {.id         = id,
+            .label      = label,
+            .texture    = texture,
+            .info       = info,
+            .view_info  = view_info,
+            .image      = image,
+            .image_view = view};
+  }
+};
+
+struct ShaderInfo
 {
   ShaderId id{};
 
   Span<char const> label{};
 
   gpu::Shader shader = nullptr;
+};
+
+struct Shader
+{
+  ShaderId id{};
+
+  Vec<char> label{};
+
+  gpu::Shader shader = nullptr;
+
+  constexpr ShaderInfo view() const
+  {
+    return ShaderInfo{.id = id, .label = label, .shader = shader};
+  }
 };
 
 struct FileSystem
@@ -77,46 +119,34 @@ struct ImageSystem
 
   void shutdown();
 
-  Image create_image_(Span<char const> label, gpu::ImageInfo const & info,
-                      gpu::ImageViewInfo const & view_info);
+  ImageInfo create_image_(Vec<char> label, gpu::ImageInfo const & info,
+                          gpu::ImageViewInfo const & view_info);
 
-  Image upload(gpu::ImageInfo const & info, Span<u8 const> channels);
+  ImageInfo upload(Vec<char> label, gpu::ImageInfo const & info,
+                   Span<u8 const> channels);
 
-  Result<Image, ImageLoadErr> load_from_memory(Span<char const> label,
-                                               Vec2U extent, gpu::Format format,
-                                               Span<u8 const> buffer);
+  Result<ImageInfo, ImageLoadErr> load_from_memory(Vec<char>      label,
+                                                   Vec2U          extent,
+                                                   gpu::Format    format,
+                                                   Span<u8 const> buffer);
 
-  Future<Result<Image, ImageLoadErr>> load_from_path(Span<char const> label,
-                                                     Span<char const> path);
+  Future<Result<ImageInfo, ImageLoadErr>> load_from_path(Vec<char>        label,
+                                                         Span<char const> path);
 
-  Image get(Span<char const> label);
+  ImageInfo get(Span<char const> label);
 
-  Image get(ImageId id);
+  ImageInfo get(ImageId id);
 
   void unload(ImageId id);
 };
 
 struct FontSystem
 {
-  AllocatorRef                allocator_;
-  SparseVec<Vec<Dyn<Font *>>> fonts_;
+  static Dyn<FontSystem *> create(AllocatorRef allocator);
 
-  explicit FontSystem(AllocatorRef allocator) :
-    allocator_{allocator},
-    fonts_{allocator}
-  {
-  }
+  virtual ~FontSystem() = default;
 
-  FontSystem(FontSystem const &)             = delete;
-  FontSystem(FontSystem &&)                  = default;
-  FontSystem & operator=(FontSystem const &) = delete;
-  FontSystem & operator=(FontSystem &&)      = default;
-  ~FontSystem()                              = default;
-
-  void shutdown();
-
-  Result<Dyn<Font *>, FontLoadErr>
-    decode_(Span<char const> label, Span<u8 const> encoded, u32 face = 0);
+  virtual void shutdown() = 0;
 
   /// @brief rasterize the font at the specified font height. Note: raster is
   /// stored as alpha values.
@@ -124,25 +154,24 @@ struct FontSystem
   /// @param font_height the font height at which the texture should be
   /// rasterized at (px)
   /// @param allocator scratch allocator to use for storing intermediates
-  Result<> rasterize(Font & font, u32 font_height);
+  virtual Result<> rasterize(Font & font, u32 font_height) = 0;
 
-  FontId upload_(Dyn<Font *> font);
+  virtual void layout_text(TextBlock const & block, f32 max_width,
+                           TextLayout & layout) = 0;
 
-  Future<Result<FontId, FontLoadErr>> load_from_memory(Span<char const> label,
-                                                       Vec<u8>          encoded,
-                                                       u32 font_height,
-                                                       u32 face = 0);
+  virtual Future<Result<FontId, FontLoadErr>>
+    load_from_memory(Vec<char> label, Vec<u8> encoded, u32 font_height,
+                     u32 face = 0) = 0;
 
-  Future<Result<FontId, FontLoadErr>> load_from_path(Span<char const> label,
-                                                     Span<char const> path,
-                                                     u32 font_height,
-                                                     u32 face = 0);
+  virtual Future<Result<FontId, FontLoadErr>>
+    load_from_path(Vec<char> label, Span<char const> path, u32 font_height,
+                   u32 face = 0) = 0;
 
-  Font & get(FontId id);
+  virtual Font & get(FontId id) = 0;
 
-  Font & get(Span<char const> label);
+  virtual Font & get(Span<char const> label) = 0;
 
-  void unload(FontId id);
+  virtual void unload(FontId id) = 0;
 };
 
 struct ShaderSystem
@@ -164,15 +193,15 @@ struct ShaderSystem
 
   void shutdown();
 
-  Result<Shader, ShaderLoadErr> load_from_memory(Span<char const> label,
-                                                 Span<u32 const>  spirv);
+  Result<ShaderInfo, ShaderLoadErr> load_from_memory(Vec<char>       label,
+                                                     Span<u32 const> spirv);
 
-  Future<Result<Shader, ShaderLoadErr>> load_from_path(Span<char const> label,
-                                                       Span<char const> path);
+  Future<Result<ShaderInfo, ShaderLoadErr>>
+    load_from_path(Vec<char> label, Span<char const> path);
 
-  Shader get(ShaderId id);
+  ShaderInfo get(ShaderId id);
 
-  Shader get(Span<char const> label);
+  ShaderInfo get(Span<char const> label);
 
   void unload(ShaderId);
 };
@@ -187,6 +216,6 @@ struct Systems
   WindowSystem & window;
 };
 
-ASH_C_LINKAGE ASH_DLL_EXPORT Systems * sys;
+extern Systems * sys;
 
 }    // namespace ash

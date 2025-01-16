@@ -750,27 +750,28 @@ enum class WindowRegion : u32
 enum class Cursor : u32
 {
   Default     = 0,
-  None        = 1,
-  Text        = 2,
-  Wait        = 3,
-  CrossHair   = 4,
-  Progress    = 5,
-  NWSEResize  = 6,
-  NESWResize  = 7,
-  EWResize    = 8,
-  NSResize    = 9,
-  Move        = 10,
-  NotAllowed  = 11,
-  Pointer     = 12,
-  NWResize    = 13,
-  NorthResize = 14,
-  NEResize    = 15,
-  EastResize  = 16,
-  SEResize    = 17,
-  SouthResize = 18,
-  SWResize    = 19,
-  WestResize  = 20
+  Text        = 1,
+  Wait        = 2,
+  CrossHair   = 3,
+  Progress    = 4,
+  NWSEResize  = 5,
+  NESWResize  = 6,
+  EWResize    = 7,
+  NSResize    = 8,
+  Move        = 9,
+  NotAllowed  = 10,
+  Pointer     = 11,
+  NWResize    = 12,
+  NorthResize = 13,
+  NEResize    = 14,
+  EastResize  = 15,
+  SEResize    = 16,
+  SouthResize = 17,
+  SWResize    = 18,
+  WestResize  = 19
 };
+
+constexpr u32 NUM_CURSOR_TYPES = 20;
 
 /// @brief default charset is ASCII
 inline constexpr char const MIME_TEXT_PLAIN[]    = "text/plain";
@@ -814,7 +815,12 @@ inline constexpr char const MIME_FONT_WOFF2[] = "font/woff2";
 
 struct ClipBoard
 {
-  virtual ~ClipBoard() = 0;
+  ClipBoard()                              = default;
+  ClipBoard(ClipBoard const &)             = default;
+  ClipBoard(ClipBoard &&)                  = default;
+  ClipBoard & operator=(ClipBoard const &) = default;
+  ClipBoard & operator=(ClipBoard &&)      = default;
+  virtual ~ClipBoard()                     = default;
 
   virtual Result<> get(Span<char const> mime, Vec<u8> & out)
   {

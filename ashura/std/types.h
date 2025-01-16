@@ -1417,7 +1417,7 @@ constexpr usize impl_find_clear_bit(Span<T const> s)
   T const *       iter  = s.pbegin();
   T const * const end   = s.pend();
 
-  while (iter != end && *iter != 0)
+  while (iter != end && *iter == NumTraits<T>::MAX)
   {
     iter++;
   }
@@ -2224,5 +2224,8 @@ struct InplaceStorage<Alignment, 0>
 {
   static constexpr u8 * storage_ = nullptr;
 };
+
+template <typename T>
+using Storage = InplaceStorage<alignof(T), sizeof(T)>;
 
 }    // namespace ash

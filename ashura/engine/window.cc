@@ -118,6 +118,7 @@ struct WindowSystemImpl : WindowSystem
   AllocatorRef                                  allocator;
   SparseVec<Vec<Fn<void(SystemEvent const &)>>> listeners;
   ClipBoardImpl                                 clipboard;
+  SDL_Cursor *                                  cursors[NUM_CURSOR_TYPES] = {};
 
   WindowSystemImpl(AllocatorRef allocator) :
     allocator{allocator},
@@ -842,6 +843,21 @@ struct WindowSystemImpl : WindowSystem
   {
     WindowImpl * w = (WindowImpl *) window;
     CHECK_SDL(SDL_StopTextInput(w->win));
+  }
+
+  virtual void set_cursor(Cursor cursor) override
+  {
+    // [ ] implement+
+    // SDL_SetCursor()
+    // SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_COUNT);
+    // SDL_CreateSystemCursor()
+    // [ ] some systems might not have cursors
+  }
+
+  virtual void lock_cursor(Window window, bool lock) override
+  {
+    WindowImpl * w = (WindowImpl *) window;
+    CHECK_SDL(SDL_SetWindowRelativeMouseMode(w->win, lock));
   }
 };
 

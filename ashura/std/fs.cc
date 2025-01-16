@@ -1,16 +1,19 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/fs.h"
+#include "ashura/std/allocators.h"
 #include "ashura/std/error.h"
-#include "ashura/std/log.h"
 #include <cstdio>
 
 namespace ash
 {
 
-Result<Void, IoErr> read_file(AllocatorRef allocator, Span<char const> path,
-                              Vec<u8> & buff)
+constexpr usize PATH_RESERVED_SIZE = 256;
+
+Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff)
 {
-  Vec<char> path_c_str{allocator};
+  u8                reserved[PATH_RESERVED_SIZE];
+  FallbackAllocator allocator{to_arena(reserved)};
+  Vec<char>         path_c_str{allocator};
 
   if (!path_c_str.extend_uninit(path.size() + 1))
   {
@@ -65,10 +68,12 @@ Result<Void, IoErr> read_file(AllocatorRef allocator, Span<char const> path,
   return Ok{};
 }
 
-Result<Void, IoErr> write_to_file(AllocatorRef allocator, Span<char const> path,
-                                  Span<u8 const> buff, bool append)
+Result<Void, IoErr> write_to_file(Span<char const> path, Span<u8 const> buff,
+                                  bool append)
 {
-  Vec<char> path_c_str{allocator};
+  u8                reserved[PATH_RESERVED_SIZE];
+  FallbackAllocator allocator{to_arena(reserved)};
+  Vec<char>         path_c_str{allocator};
 
   if (!path_c_str.extend_uninit(path.size() + 1))
   {

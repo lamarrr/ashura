@@ -377,16 +377,25 @@ Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
 RectU Canvas::clip_to_scissor(Rect const & clip)
 {
   // clips are always unscaled
-  Rect scissor{.offset = viewport.offset + clip.offset * virtual_scale,
-               .extent = clip.extent * virtual_scale};
+  Rect scissor_f{.offset = viewport.offset + clip.offset * virtual_scale,
+                 .extent = clip.extent * virtual_scale};
 
-  scissor.offset.x = clamp(scissor.offset.x, 0.0F, MAX_CLIP.extent.x);
-  scissor.offset.y = clamp(scissor.offset.y, 0.0F, MAX_CLIP.extent.y);
-  scissor.extent.x = clamp(scissor.extent.x, 0.0F, MAX_CLIP.extent.x);
-  scissor.extent.y = clamp(scissor.extent.y, 0.0F, MAX_CLIP.extent.y);
+  scissor_f.offset.x = clamp(scissor_f.offset.x, 0.0F, MAX_CLIP.extent.x);
+  scissor_f.offset.y = clamp(scissor_f.offset.y, 0.0F, MAX_CLIP.extent.y);
+  scissor_f.extent.x = clamp(scissor_f.extent.x, 0.0F, MAX_CLIP.extent.x);
+  scissor_f.extent.y = clamp(scissor_f.extent.y, 0.0F, MAX_CLIP.extent.y);
 
-  return RectU{.offset = as_vec2u(scissor.offset),
-               .extent = as_vec2u(scissor.extent)};
+  RectU scissor{.offset = as_vec2u(scissor_f.offset),
+                .extent = as_vec2u(scissor_f.extent)};
+
+  scissor.offset.x = min(scissor.offset.x, framebuffer_extent.x);
+  scissor.offset.y = min(scissor.offset.x, framebuffer_extent.y);
+  scissor.extent.x =
+    min(framebuffer_extent.x - scissor.offset.x, scissor.extent.x);
+  scissor.extent.y =
+    min(framebuffer_extent.y - scissor.offset.y, scissor.extent.y);
+
+  return scissor;
 }
 
 static inline void flush_batch(Canvas & c)
@@ -877,10 +886,11 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
   return *this;
 }
 
-Canvas & Canvas::blur(Rect const & area, Vec2 radius, u32 num_passes)
+Canvas & Canvas::blur(Rect const & area, Vec2 radius, u32 num_passes,
+                      Vec4 corner_radii)
 {
   flush_batch(*this);
-
+  // [ ] implement corner radii
   add_pass("Blur"_str,
            [area, radius, num_passes](Canvas::RenderContext const & ctx) {
              BlurPassParams params{.framebuffer = ctx.framebuffer,

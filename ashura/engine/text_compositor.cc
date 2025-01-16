@@ -8,34 +8,6 @@
 namespace ash
 {
 
-Result<TextCompositor> TextCompositor::make(AllocatorRef allocator,
-                                            u32          num_buffer_codepoints,
-                                            u32 num_records, u32 tab_width,
-                                            Span<c32 const> word_symbols,
-                                            Span<c32 const> line_symbols)
-{
-  CHECK(num_buffer_codepoints > 0);
-  CHECK(num_records > 0);
-
-  Vec<c32>            buffer{allocator};
-  Vec<TextEditRecord> records{allocator};
-
-  if (!buffer.resize_uninit(num_buffer_codepoints))
-  {
-    return Err{};
-  }
-
-  if (!records.resize(num_records))
-  {
-    return Err{};
-  }
-
-  return Ok{
-    TextCompositor{allocator, std::move(buffer), std::move(records), tab_width,
-                   word_symbols, line_symbols}
-  };
-}
-
 u32 TextCompositor::goto_line(TextLayout const & layout, u32 alignment,
                               u32 line)
 {
@@ -64,8 +36,8 @@ void TextCompositor::pop_records(u32 num)
   {
     reclaimed += records_[i].slice.span;
   }
-  mem::move(span(buffer_).slice(reclaimed), span(buffer_));
-  mem::move(span(records_).slice(num), span(records_));
+  mem::move(buffer_.view().slice(reclaimed), buffer_.view());
+  mem::move(records_.view().slice(num), records_.view());
   buffer_usage_ -= reclaimed;
   latest_record_ -= num;
   current_record_ -= num;
@@ -95,7 +67,7 @@ void TextCompositor::append_record(bool is_insert, u32 text_pos,
     pop_records(max(records_.size32() >> 1, 1U));
   }
 
-  mem::copy(segment, span(buffer_).slice(buffer_pos_));
+  mem::copy(segment, buffer_.view().slice(buffer_pos_));
 
   current_record_++;
   latest_record_           = current_record_;
@@ -122,7 +94,7 @@ void TextCompositor::undo(Insert insert, Erase erase)
   else
   {
     insert(record.slice.offset,
-           span(buffer_).slice(buffer_pos_, record.slice.span));
+           buffer_.view().slice(buffer_pos_, record.slice.span));
   }
   current_record_--;
   if (record.is_insert)
@@ -143,7 +115,7 @@ void TextCompositor::redo(Insert insert, Erase erase)
   if (record.is_insert)
   {
     insert(record.slice.offset,
-           span(buffer_).slice(buffer_pos_, record.slice.span));
+           buffer_.view().slice(buffer_pos_, record.slice.span));
   }
   else
   {
@@ -273,6 +245,28 @@ void TextCompositor::command(Span<c32 const> text, TextLayout const & layout,
                              ClipBoard & clipboard, u32 lines_per_page,
                              Vec2 pos)
 {
+  // don't allocate the buffers until we receive an edit command
+  switch (cmd)
+  {
+    case TextCommand::BackSpace:
+    case TextCommand::Delete:
+    case TextCommand::InputText:
+    case TextCommand::Cut:
+    case TextCommand::Paste:
+    case TextCommand::Undo:
+    case TextCommand::Redo:
+    case TextCommand::NewLine:
+    case TextCommand::Tab:
+    {
+      buffer_.resize(buffer_size_).unwrap();
+      records_.resize(records_size_).unwrap();
+      break;
+    }
+
+    default:
+      break;
+  }
+
   switch (cmd)
   {
     case TextCommand::Unselect:
@@ -490,7 +484,7 @@ void TextCompositor::command(Span<c32 const> text, TextLayout const & layout,
       utf8_encode(text.slice((Slice) cursor_.as_slice(text.size32())), data_u8)
         .unwrap();
       delete_selection(text, erase);
-      clipboard.set_text(data_u8).unwrap();
+      clipboard.set_text(data_u8.view().as_u8()).unwrap();
     }
     break;
     case TextCommand::Copy:
@@ -498,15 +492,15 @@ void TextCompositor::command(Span<c32 const> text, TextLayout const & layout,
       Vec<c8> data_u8{allocator_};
       utf8_encode(text.slice((Slice) cursor_.as_slice(text.size32())), data_u8)
         .unwrap();
-      clipboard.set_text(data_u8).unwrap();
+      clipboard.set_text(data_u8.view().as_u8()).unwrap();
     }
     break;
     case TextCommand::Paste:
     {
       Vec<c32> data_u32{allocator_};
-      Vec<c8>  data_u8{allocator_};
+      Vec<u8>  data_u8{allocator_};
       clipboard.get_text(data_u8).unwrap();
-      utf8_decode(data_u8, data_u32).unwrap();
+      utf8_decode(data_u8.view().as_c8(), data_u32).unwrap();
       Slice32 selection = cursor_.as_slice(text.size32());
       delete_selection(text, noop);
       append_record(true, selection.offset, data_u32);

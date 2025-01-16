@@ -2677,6 +2677,11 @@ struct Rect
     return Rect{.offset = center - extent * 0.5F, .extent = extent};
   }
 
+  static constexpr Rect from_range(Vec2 begin, Vec2 end)
+  {
+    return Rect{.offset = begin, .extent = end - begin};
+  }
+
   constexpr Vec2 center() const
   {
     return offset + (extent * 0.5F);
@@ -2723,6 +2728,11 @@ struct CRect
   static constexpr CRect from_offset(Vec2 offset, Vec2 extent)
   {
     return CRect{.center = offset + extent * 0.5F, .extent = extent};
+  }
+
+  static constexpr CRect from_range(Vec2 begin, Vec2 end)
+  {
+    return CRect{.center = (begin + end) * 0.5F, .extent = (end - begin)};
   }
 
   constexpr Vec2 begin() const
@@ -2963,6 +2973,24 @@ constexpr bool overlaps(Box const & a, Box const & b)
   Vec3 b_end   = b.offset + b.extent;
   return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
          a_end.y >= b_begin.y && a_begin.z <= b_end.z && a_end.z >= b_begin.z;
+}
+
+/// @brief find the maximum extent that will fit in the provided extent while
+/// respecting the provided aspect ratio
+constexpr Vec2 with_aspect(Vec2 extent, f32 aspect_ratio)
+{
+  f32 const  base          = min(extent.x, extent.y);
+  Vec2 const width_scaled  = Vec2{base * aspect_ratio, base};
+  Vec2 const height_scaled = Vec2{base, base / aspect_ratio};
+
+  if (width_scaled.x <= extent.x)
+  {
+    return width_scaled;
+  }
+  else
+  {
+    return height_scaled;
+  }
 }
 
 /// @param x_mag The horizontal magnification of the view. This value

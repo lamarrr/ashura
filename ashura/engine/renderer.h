@@ -53,7 +53,7 @@ struct GpuPipeline
 
   virtual void end_frame(PassContext & passes, gpu::CommandEncoder & enc) = 0;
 
-  virtual ~GpuPipeline() = 0;
+  virtual ~GpuPipeline() = default;
 };
 
 struct Canvas;

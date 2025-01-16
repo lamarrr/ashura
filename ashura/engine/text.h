@@ -403,6 +403,22 @@ struct TextLayout
   Vec<TextRun>     runs      = {};
   Vec<Line>        lines     = {};
 
+  explicit TextLayout(AllocatorRef allocator) :
+    max_width{0},
+    extent{},
+    segments{allocator},
+    glyphs{allocator},
+    runs{allocator},
+    lines{allocator}
+  {
+  }
+
+  TextLayout(TextLayout const &)             = delete;
+  TextLayout & operator=(TextLayout const &) = delete;
+  TextLayout(TextLayout &&)                  = default;
+  TextLayout & operator=(TextLayout &&)      = default;
+  ~TextLayout()                              = default;
+
   void clear()
   {
     max_width = F32_MAX;
@@ -420,7 +436,6 @@ constexpr TextDirection level_to_direction(u8 level)
                                 TextDirection::RightToLeft;
 }
 
-void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout);
 
 /// @brief given a position in the laid-out text return the location of the
 /// grapheme the cursor points to. returns the last column if the position

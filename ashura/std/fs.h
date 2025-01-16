@@ -316,11 +316,9 @@ inline Result<> path_join(Span<char const> base, Span<char const> ext,
   return Ok{};
 }
 
-// [ ] remove allocator
-Result<Void, IoErr> read_file(AllocatorRef allocator, Span<char const> path,
-                              Vec<u8> & buff);
+Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff);
 
-Result<Void, IoErr> write_to_file(AllocatorRef allocator, Span<char const> path,
-                                  Span<u8 const> buff, bool append);
+Result<Void, IoErr> write_to_file(Span<char const> path, Span<u8 const> buff,
+                                  bool append);
 
 }    // namespace ash

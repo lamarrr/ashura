@@ -33,7 +33,7 @@ layout(set = 1, binding = 0) uniform sampler samplers[];
 
 layout(set = 2, binding = 0) uniform texture2D textures[];
 
-vec2 const VERTEX_BUFFER[] = {vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5),
+const vec2 VERTEX_BUFFER[] = {vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5),
                               vec2(-0.5, 0.5)};
 
 #ifdef VERTEX_SHADER

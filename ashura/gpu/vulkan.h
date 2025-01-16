@@ -354,10 +354,42 @@ struct DescriptorSet
     return scratch;
   }
 
+  /// @brief get the scratch buffer layout to use to update the maximually-sized binding
+  static constexpr Layout
+    sync_resources_layout(Span<DescriptorBinding const> bindings)
+  {
+    usize count = 0;
+
+    for (auto const & b : bindings)
+    {
+      switch (b.type)
+      {
+        case gpu::DescriptorType::DynamicStorageBuffer:
+        case gpu::DescriptorType::DynamicUniformBuffer:
+        case gpu::DescriptorType::StorageBuffer:
+        case gpu::DescriptorType::UniformBuffer:
+        case gpu::DescriptorType::StorageTexelBuffer:
+        case gpu::DescriptorType::UniformTexelBuffer:
+        case gpu::DescriptorType::SampledImage:
+        case gpu::DescriptorType::CombinedImageSampler:
+        case gpu::DescriptorType::StorageImage:
+        case gpu::DescriptorType::InputAttachment:
+          count += b.count;
+          break;
+        case gpu::DescriptorType::Sampler:
+          break;
+        default:
+          break;
+      }
+    }
+
+    return layout_of<void *>.array(count);
+  }
+
   static constexpr Flex<DescriptorSet, void *, u8>
     flex(Span<DescriptorBinding const> bindings)
   {
-    return {layout_of<DescriptorSet>, layout_of<void *>.array(bindings.size32()),
+    return {layout_of<DescriptorSet>, sync_resources_layout(bindings),
             scratch_layout(bindings)};
   }
 };

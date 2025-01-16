@@ -7,11 +7,12 @@
 namespace ash
 {
 
-ASH_C_LINKAGE ASH_DLL_EXPORT Engine * engine = nullptr;
-
-EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
+EngineCfg EngineCfg::parse(AllocatorRef allocator, Span<u8 const> json)
 {
-  EngineCfg                    out;
+  EngineCfg                    out{.shaders{allocator},
+                                   .fonts{allocator},
+                                   .images{allocator},
+                                   .pipeline_cache{allocator}};
   simdjson::ondemand::parser   parser;
   simdjson::padded_string      str{json.as_char().data(), json.size()};
   simdjson::ondemand::document doc = parser.iterate(str);
@@ -97,8 +98,8 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
     std::string_view id   = entry.escaped_key().value();
     std::string_view path = entry.value().get_string().value();
     out.shaders
-      .insert(vec(span(id), allocator).unwrap(),
-              vec(span(path), allocator).unwrap())
+      .insert(vec(allocator, span(id)).unwrap(),
+              vec(allocator, span(path)).unwrap())
       .unwrap();
   }
 
@@ -108,16 +109,13 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
     std::string_view id   = entry.escaped_key().value();
     std::string_view path = entry.value().get_string().value();
     out.fonts
-      .insert(vec(span(id), allocator).unwrap(),
-              vec(span(path), allocator).unwrap())
+      .insert(vec(allocator, span(id)).unwrap(),
+              vec(allocator, span(path)).unwrap())
       .unwrap();
   }
 
-  std::string_view default_font = cfg["fonts.default"].get_string().value();
-  out.default_font              = vec<char>(default_font, allocator).unwrap();
-
-  // check that it is a valid entry
-  fonts[default_font].get_string().value();
+  out.font_height =
+    clamp((u32) cfg["fonts.height"].get_int64().value(), 16U, 256U);
 
   auto images = cfg["images"].get_object().value();
   for (auto entry : images)
@@ -125,37 +123,173 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
     std::string_view id   = entry.escaped_key().value();
     std::string_view path = entry.value().get_string().value();
     out.images
-      .insert(vec(span(id), allocator).unwrap(),
-              vec(span(path), allocator).unwrap())
+      .insert(vec(allocator, span(id)).unwrap(),
+              vec(allocator, span(path)).unwrap())
       .unwrap();
   }
+
+  std::string_view pipeline_cache_path =
+    cfg["cache.pipeline.path"].get_string().value();
+
+  out.pipeline_cache.extend(pipeline_cache_path).unwrap();
 
   return out;
 }
 
-void Engine::init(AllocatorImpl allocator, void * app,
-                  Span<char const> config_path, Span<char const> assets_dir)
+static void window_event_listener(Engine * engine, WindowEvent const & event)
 {
-  if (logger == nullptr)
-  {
-    abort();
-  }
-  CHECK(scheduler != nullptr);
-  CHECK(engine == nullptr);
+  InputState & f = engine->input_buffer;
 
-  logger->trace("Initializing Window System");
+  event.match(
+    [&](KeyEvent e) {
+      switch (e.action)
+      {
+        case KeyAction::Press:
+        {
+          f.key.any_down = true;
+          set_bit(f.key.downs, (u32) e.key_code);
+          set_bit(f.key.scan_downs, (u32) e.scan_code);
+          f.key.modifiers |= e.modifiers;
+        }
+        break;
+        case KeyAction::Release:
+        {
+          f.key.any_up = true;
+          set_bit(f.key.ups, (u32) e.key_code);
+          set_bit(f.key.scan_ups, (u32) e.scan_code);
+          f.key.modifiers |= e.modifiers;
+        }
+        break;
+        default:
+          break;
+      }
+    },
+    [&](MouseMotionEvent e) {
+      f.mouse.moved    = true;
+      f.mouse.position = e.position;
+      f.mouse.translation += e.translation;
+    },
+    [&](MouseClickEvent e) {
+      f.mouse.num_clicks[(u32) e.button] = e.clicks;
+      f.mouse.position                   = e.position;
+      switch (e.action)
+      {
+        case KeyAction::Press:
+          set_bit(f.mouse.downs, (u32) e.button);
+          f.mouse.any_down = true;
+          break;
+        case KeyAction::Release:
+          set_bit(f.mouse.ups, (u32) e.button);
+          f.mouse.any_up = true;
+          break;
+        default:
+          break;
+      }
+    },
+    [&](MouseWheelEvent e) {
+      f.mouse.wheel_scrolled = true;
+      f.mouse.position       = e.position;
+      f.mouse.translation += e.translation;
+    },
+    [&](TextInputEvent e) {
+      f.text_input = true;
+      f.text.extend(e.text).unwrap();
+    },
+    [&](WindowEventType e) {
+      switch (e)
+      {
+        case WindowEventType::Shown:
+        case WindowEventType::Hidden:
+        case WindowEventType::Exposed:
+        case WindowEventType::Moved:
+          break;
+        case WindowEventType::Resized:
+          f.resized = true;
+          break;
+        case WindowEventType::SurfaceResized:
+          f.surface_resized = true;
+          break;
+        case WindowEventType::Minimized:
+        case WindowEventType::Maximized:
+        case WindowEventType::Restored:
+          break;
+        case WindowEventType::MouseEnter:
+          f.mouse.in      = true;
+          f.mouse_focused = true;
+          break;
+        case WindowEventType::MouseLeave:
+          f.mouse.out     = true;
+          f.mouse_focused = false;
+          break;
+        case WindowEventType::KeyboardFocusIn:
+          f.key.in      = true;
+          f.key_focused = true;
+          break;
+        case WindowEventType::KeyboardFocusOut:
+          f.key.out     = true;
+          f.key_focused = false;
+          break;
+        case WindowEventType::CloseRequested:
+          f.close_requested = true;
+          break;
+        case WindowEventType::Occluded:
+        case WindowEventType::EnterFullScreen:
+        case WindowEventType::LeaveFullScreen:
+        case WindowEventType::Destroyed:
+          break;
+        default:
+          break;
+      }
+    },
+    [&](DropEvent const & e) {
+      e.match(
+        [&](DropEventType e) {
+          switch (e)
+          {
+            case DropEventType::DropBegin:
+              break;
+            case DropEventType::DropComplete:
+              f.dropped = true;
+              break;
+            default:
+              break;
+          }
+        },
+        [&](DropPositionEvent e) {
+          f.drop_hovering  = true;
+          f.mouse.position = e.pos;
+        },
+        [&](DropFileEvent e) {
+          f.drop_data.clear();
+          f.drop_data.extend(e.path.as_u8()).unwrap();
+          f.drop_type = DropType::FilePath;
+        },
+        [&](DropTextEvent e) {
+          f.drop_data.clear();
+          f.drop_data.extend(e.text.as_u8()).unwrap();
+          f.drop_type = DropType::Bytes;
+        });
+    });
+}
 
-  WindowSystem::init();
+Dyn<Engine *> Engine::create(AllocatorRef     allocator,
+                             Span<char const> config_path,
+                             Span<char const> working_dir)
+{
+  trace("Initializing Engine, config_path = ", config_path,
+        ", working_dir = ", working_dir);
 
-  logger->trace("Loading Engine config file");
+  trace("Loading Engine config file");
 
   Vec<u8> json{allocator};
 
-  read_file(config_path, json).unwrap();
+  read_file(config_path, json).unwrap("Error opening config file");
 
   EngineCfg cfg = EngineCfg::parse(allocator, json);
 
-  logger->trace("Initializing Engine");
+  trace("Initializing Core Systems");
+
+  FileSystem file_sys{allocator};
 
   Dyn<gpu::Instance *> instance =
     gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
@@ -163,81 +297,121 @@ void Engine::init(AllocatorImpl allocator, void * app,
   gpu::Device * device =
     instance->create_device(allocator, cfg.gpu.preferences, 2).unwrap();
 
-  GpuSystem gpu = GpuSystem::create(allocator, device, cfg.gpu.hdr,
-                                    cfg.gpu.buffering, cfg.gpu.msaa_level,
-                                    Vec2U{cfg.window.width, cfg.window.height});
+  trace("Loading Pipeline cache from disk");
 
-  logger->trace("Initializing Renderer");
+  Vec<u8> pipeline_cache{allocator};
+  read_file(cfg.pipeline_cache, pipeline_cache)
+    .match([](Void) {},
+           [](IoErr err) {
+             CHECK(err == IoErr::InvalidFileOrDir, "Io Error Occured");
+           });
+
+  GpuSystem gpu_sys = GpuSystem::create(
+    allocator, *device, pipeline_cache, cfg.gpu.hdr, cfg.gpu.buffering,
+    cfg.gpu.msaa_level, Vec2U{cfg.window.width, cfg.window.height});
+
+  ImageSystem image_sys{allocator};
+
+  Dyn<FontSystem *> font_sys = FontSystem::create(allocator);
+
+  ShaderSystem shader_sys{allocator};
+
+  Dyn<WindowSystem *> window_sys = WindowSystem::create_SDL(allocator);
+
+  trace("Creating Root Window");
+
+  Window window = window_sys->create_window(*instance, "Ashura"_str).unwrap();
+
+  if (cfg.window.maximized)
+  {
+    window_sys->maximize(window);
+  }
+  else
+  {
+    window_sys->set_extent(window, Vec2U{cfg.window.width, cfg.window.height});
+  }
+
+  if (cfg.window.full_screen)
+  {
+    window_sys->make_fullscreen(window);
+  }
+  else
+  {
+    window_sys->make_windowed(window);
+  }
+
+  if (cfg.window.borderless)
+  {
+    window_sys->make_borderless(window);
+  }
+  else
+  {
+    window_sys->make_bordered(window);
+  }
+
+  if (cfg.window.resizable)
+  {
+    window_sys->make_resizable(window);
+  }
+  else
+  {
+    window_sys->make_unresizable(window);
+  }
+
+  ClipBoard & clipboard = window_sys->get_clipboard();
+
+  gpu::Surface surface = window_sys->get_surface(window);
+
+  gpu::PresentMode present_mode =
+    cfg.gpu.vsync ? gpu::PresentMode::Fifo : gpu::PresentMode::Immediate;
 
   Renderer renderer = Renderer::create(allocator);
 
   Canvas canvas{allocator};
 
-  ViewSystem view_system{allocator};
+  ViewSystem view_sys{allocator};
 
-  logger->trace("Creating Root Window");
+  Vec<char> working_dir_copy = vec(allocator, working_dir).unwrap();
 
-  Window window =
-    window_system->create_window(*instance, "Ashura"_str).unwrap();
+  u32 const hardware_concurrency = std::thread::hardware_concurrency();
 
-  if (cfg.window.maximized)
-  {
-    window_system->maximize(window);
-  }
-  else
-  {
-    window_system->set_size(window, Vec2U{cfg.window.width, cfg.window.height});
-  }
+  u32 const num_worker_threads = max(hardware_concurrency, 2U) - 1U;
 
-  if (cfg.window.full_screen)
+  nanoseconds const max_thread_sleep = 5ms;
+
+  Vec<nanoseconds> worker_thread_sleep{allocator};
+
+  for (u32 i = 0; i < num_worker_threads; i++)
   {
-    window_system->make_fullscreen(window);
-  }
-  else
-  {
-    window_system->make_windowed(window);
+    worker_thread_sleep.push(max_thread_sleep).unwrap();
   }
 
-  if (cfg.window.borderless)
-  {
-    window_system->make_borderless(window);
-  }
-  else
-  {
-    window_system->make_bordered(window);
-  }
+  Dyn<Scheduler *> scheduler = Scheduler::create(
+    allocator, std::this_thread::get_id(), {}, worker_thread_sleep);
 
-  if (cfg.window.resizable)
-  {
-    window_system->make_resizable(window);
-  }
-  else
-  {
-    window_system->make_unresizable(window);
-  }
+  trace("All Core Systems Initialized");
 
-  gpu::Surface surface = window_system->get_surface(window);
+  Dyn<Engine *> engine =
+    dyn<Engine>(inplace, allocator, allocator, std::move(scheduler),
+                std::move(file_sys), std::move(instance), *device,
+                std::move(gpu_sys), std::move(image_sys), std::move(font_sys),
+                std::move(shader_sys), std::move(window_sys), window, clipboard,
+                surface, present_mode, std::move(renderer), std::move(canvas),
+                std::move(view_sys), std::move(working_dir_copy),
+                std::move(cfg.pipeline_cache))
+      .unwrap();
 
-  logger->trace("Initializing GPU Context");
+  hook_engine(engine);
 
-  alignas(Engine) static u8 storage[sizeof(Engine)] = {};
+  engine->engage_(cfg);
 
-  engine = new (storage)
-    Engine{allocator,
-           app,
-           std::move(instance),
-           device,
-           window,
-           window_system->get_clipboard(),
-           surface,
-           cfg.gpu.vsync ? gpu::PresentMode::Fifo : gpu::PresentMode::Immediate,
-           std::move(gpu),
-           std::move(renderer),
-           std::move(canvas),
-           std::move(view_system)};
+  return engine;
+}
 
-  window_system->listen(fn(
-    engine, +[](Engine * engine, SystemEvent const & event) {
+void Engine::engage_(EngineCfg const & cfg)
+{
+  window_sys->listen(fn(
+    this, +[](Engine * engine, SystemEvent const & event) {
       event.match(
         [&](SystemTheme theme) {
           InputState & f = engine->input_buffer;
@@ -246,196 +420,101 @@ void Engine::init(AllocatorImpl allocator, void * app,
         [](SystemEventType) {});
     }));
 
-  window_system->listen(
-    window, fn(
-              engine, +[](Engine * engine, WindowEvent const & event) {
-                InputState & f = engine->input_buffer;
+  window_sys->listen(window, fn(this, window_event_listener));
 
-                event.match(
-                  [&](KeyEvent e) {
-                    switch (e.action)
-                    {
-                      case KeyAction::Press:
-                      {
-                        f.key.any_down = true;
-                        set_bit(f.key.downs, (u32) e.key_code);
-                        set_bit(f.key.scan_downs, (u32) e.scan_code);
-                        f.key.modifiers |= e.modifiers;
-                      }
-                      break;
-                      case KeyAction::Release:
-                      {
-                        f.key.any_up = true;
-                        set_bit(f.key.ups, (u32) e.key_code);
-                        set_bit(f.key.scan_ups, (u32) e.scan_code);
-                        f.key.modifiers |= e.modifiers;
-                      }
-                      break;
-                      default:
-                        break;
-                    }
-                  },
-                  [&](MouseMotionEvent e) {
-                    f.mouse.moved    = true;
-                    f.mouse.position = e.position;
-                    f.mouse.translation += e.translation;
-                  },
-                  [&](MouseClickEvent e) {
-                    f.mouse.num_clicks[(u32) e.button] = e.clicks;
-                    f.mouse.position                   = e.position;
-                    switch (e.action)
-                    {
-                      case KeyAction::Press:
-                        set_bit(f.mouse.downs, (u32) e.button);
-                        f.mouse.any_down = true;
-                        break;
-                      case KeyAction::Release:
-                        set_bit(f.mouse.ups, (u32) e.button);
-                        f.mouse.any_up = true;
-                        break;
-                      default:
-                        break;
-                    }
-                  },
-                  [&](MouseWheelEvent e) {
-                    f.mouse.wheel_scrolled = true;
-                    f.mouse.position       = e.position;
-                    f.mouse.translation += e.translation;
-                  },
-                  [&](TextInputEvent e) {
-                    f.text_input = true;
-                    f.text.extend(e.text).unwrap();
-                  },
-                  [&](WindowEventType e) {
-                    switch (e)
-                    {
-                      case WindowEventType::Shown:
-                      case WindowEventType::Hidden:
-                      case WindowEventType::Exposed:
-                      case WindowEventType::Moved:
-                        break;
-                      case WindowEventType::Resized:
-                        f.resized = true;
-                        break;
-                      case WindowEventType::SurfaceResized:
-                        f.surface_resized = true;
-                        break;
-                      case WindowEventType::Minimized:
-                      case WindowEventType::Maximized:
-                      case WindowEventType::Restored:
-                        break;
-                      case WindowEventType::MouseEnter:
-                        f.mouse.in      = true;
-                        f.mouse_focused = true;
-                        break;
-                      case WindowEventType::MouseLeave:
-                        f.mouse.out     = true;
-                        f.mouse_focused = false;
-                        break;
-                      case WindowEventType::KeyboardFocusIn:
-                        f.key.in      = true;
-                        f.key_focused = true;
-                        break;
-                      case WindowEventType::KeyboardFocusOut:
-                        f.key.out     = true;
-                        f.key_focused = false;
-                        break;
-                      case WindowEventType::CloseRequested:
-                        f.close_requested = true;
-                        break;
-                      case WindowEventType::Occluded:
-                      case WindowEventType::EnterFullScreen:
-                      case WindowEventType::LeaveFullScreen:
-                      case WindowEventType::Destroyed:
-                        break;
-                      default:
-                        break;
-                    }
-                  },
-                  [&](DropEvent const & e) {
-                    e.match(
-                      [&](DropEventType e) {
-                        switch (e)
-                        {
-                          case DropEventType::DropBegin:
-                            break;
-                          case DropEventType::DropComplete:
-                            f.dropped = true;
-                            break;
-                          default:
-                            break;
-                        }
-                      },
-                      [&](DropPositionEvent e) {
-                        f.drop_hovering  = true;
-                        f.mouse.position = e.pos;
-                      },
-                      [&](DropFileEvent e) {
-                        f.drop_data.clear();
-                        f.drop_data.extend(e.path.as_u8()).unwrap();
-                        f.drop_type = DropType::FilePath;
-                      },
-                      [&](DropTextEvent e) {
-                        f.drop_data.clear();
-                        f.drop_data.extend(e.text.as_u8()).unwrap();
-                        f.drop_type = DropType::Bytes;
-                      });
-                  });
-              }));
+  Vec<AnyFuture> futures{allocator};
 
-  engine->device->begin_frame(nullptr).unwrap();
+  Vec<char> resolved_path{allocator};
 
-
-  for (auto const & [id, path] : cfg.shaders)
+  for (auto & [label, path] : cfg.shaders)
   {
-    // [ ]
+    resolved_path.clear();
+    path_join(working_dir, path, resolved_path).unwrap();
+    trace("Loading shader: ", label, " from: ", resolved_path);
+    futures.push(shader_sys.load_from_path(std::move(label), resolved_path))
+      .unwrap();
   }
 
-  for (auto const & [id, path] : cfg.fonts)
+  for (auto & [label, path] : cfg.fonts)
   {
-    // [ ]
+    resolved_path.clear();
+    path_join(working_dir, path, resolved_path).unwrap();
+    trace("Loading font: ", label, " from: ", resolved_path);
+    futures
+      .push(font_sys->load_from_path(std::move(label), resolved_path,
+                                     cfg.font_height, 0))
+      .unwrap();
   }
 
-  while (!semaphores)
+  for (auto & [label, path] : cfg.images)
   {
-    scheduler->execute_main_thread_loop(1ms, 2ms);
+    resolved_path.clear();
+    path_join(working_dir, path, resolved_path).unwrap();
+    trace("Loading image: ", label, " from: ", resolved_path);
+    futures.push(image_sys.load_from_path(std::move(label), resolved_path))
+      .unwrap();
   }
 
-  engine->default_font_name = vec<char>(cfg.default_font, allocator).unwrap();
-  engine->default_font = engine->assets.fonts[engine->default_font_name].get();
+  trace("Waiting for resources");
+  while (!await_futures(futures, 0ns))
+  {
+    gpu_sys.begin_frame(nullptr);
+    scheduler->run_main_loop(1ms, 1ms);
+    gpu_sys.submit_frame(nullptr);
+  }
 
-  engine->renderer.acquire(engine->gpu, engine->assets);
+  // [ ] more aggressive logging from systems
 
-  engine->device->submit_frame(nullptr).unwrap();
+  trace("All resources loaded");
 
-  logger->trace("Engine Initialized");
+  renderer.acquire();
 }
 
-void Engine::uninit()
+void Engine::shutdown()
 {
-  CHECK(engine != nullptr);
-  logger->trace("Uninitializing Engine");
-  engine->~Engine();
-  engine = nullptr;
-  logger->trace("Engine Uninitialized");
-}
+  trace("Shutting down engine");
 
-Engine::~Engine()
-{
+  scheduler->shutdown();
+
+  renderer.release();
   device->wait_idle().unwrap();
-  canvas.reset();
-
-  // [ ] shutdown systems?
-
-  renderer.release(gpu, assets);
-
-  gpu.uninit();
 
   device->uninit(swapchain);
-  window_system->uninit_window(window);
-  logger->trace("Uninitializing Window System");
-  WindowSystem::uninit();
-  instance->uninit(device);
+  swapchain = nullptr;
+
+  window_sys->uninit_window(window);
+  window = nullptr;
+  window_sys->shutdown();
+
+  shader_sys.shutdown();
+  font_sys->shutdown();
+  image_sys.shutdown();
+
+  Vec<u8> pipeline_cache{allocator};
+
+  gpu_sys.shutdown(pipeline_cache);
+
+  if (!pipeline_cache.is_empty())
+  {
+    write_to_file(pipeline_cache_path, pipeline_cache, false)
+      .match(
+        [&](Void) { trace("Saved pipeline cache to: ", pipeline_cache_path); },
+        [&](IoErr err) {
+          error("Error ", err, " writing pipeline cache to ",
+                pipeline_cache_path);
+        });
+  }
+
+  canvas.reset();
+
+  window_sys->shutdown();
+  shader_sys.shutdown();
+  font_sys->shutdown();
+  image_sys.shutdown();
+
+  instance->uninit(device.ptr());
+
+  trace("Engine Uninitialized");
 }
 
 void Engine::recreate_swapchain_()
@@ -451,7 +530,7 @@ void Engine::recreate_swapchain_()
   Vec<gpu::PresentMode> present_modes{allocator};
   device->get_surface_present_modes(surface, present_modes).unwrap();
 
-  Vec2U surface_extent = window_system->get_surface_size(window);
+  Vec2U surface_extent = window_sys->get_surface_extent(window);
   surface_extent.x     = max(surface_extent.x, 1U);
   surface_extent.y     = max(surface_extent.y, 1U);
 
@@ -531,7 +610,7 @@ void Engine::recreate_swapchain_()
                           .format = format,
                           .usage  = gpu::ImageUsage::TransferDst |
                                    gpu::ImageUsage::ColorAttachment,
-                          .preferred_buffering = gpu.buffering,
+                          .preferred_buffering = gpu_sys.buffering,
                           .present_mode        = present_mode,
                           .preferred_extent    = surface_extent,
                           .composite_alpha     = alpha};
@@ -546,9 +625,9 @@ void Engine::recreate_swapchain_()
   }
 }
 
-void Engine::run(View & view, Fn<void(InputState const &)> loop)
+void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
 {
-  logger->trace("Starting Engine Run Loop");
+  trace("Starting Engine Run Loop");
 
   if (swapchain == nullptr)
   {
@@ -567,10 +646,16 @@ void Engine::run(View & view, Fn<void(InputState const &)> loop)
     input_buffer.stamp(timestamp, timedelta);
 
     input_buffer.mouse.position =
-      window_system->get_mouse_state(input_buffer.mouse.states);
-    window_system->get_keyboard_state(input_buffer.key.states);
+      window_sys->get_mouse_state(input_buffer.mouse.states);
+    window_sys->get_keyboard_state(input_buffer.key.states);
 
-    window_system->poll_events();
+    window_sys->poll_events();
+
+    Vec2U const surface_extent = window_sys->get_surface_extent(window);
+    Vec2U const window_extent  = window_sys->get_extent(window);
+
+    input_buffer.window_extent  = window_extent;
+    input_buffer.surface_extent = surface_extent;
 
     // [ ] proper cooperative shutdown is needed
     if (input_buffer.close_requested)
@@ -580,30 +665,51 @@ void Engine::run(View & view, Fn<void(InputState const &)> loop)
 
     if (input_buffer.resized || input_buffer.surface_resized)
     {
-      Vec2U const surface_size = window_system->get_surface_size(window);
-      sys->gpu.recreate_framebuffers(surface_size);
+      gpu_sys.recreate_framebuffers(surface_extent);
     }
 
-    sys->gpu.begin_frame(swapchain);
+    gpu_sys.begin_frame(swapchain);
 
-    // [ ] wrong! use window extent?
-    // [ ] propert use of window extent and surface size. then store sizing.
-    // [ ] this will be needed for high density displays, i,e. apple devices
-    input_buffer.viewport_extent = as_vec2(sys->gpu.fb.extent());
+    canvas.begin_recording(
+      gpu::Viewport{
+        .offset{0, 0},
+        .extent    = as_vec2(surface_extent),
+        .min_depth = 0,
+        .max_depth = 1
+    },
+      as_vec2(window_extent), surface_extent);
 
-    canvas.begin_recording(sys->gpu.fb.viewport().extent, gpu.fb.extent());
-
-    view_system.tick(input_buffer, view, canvas, loop);
+    view_sys.tick(input_buffer, view, canvas, loop);
 
     canvas.end_recording();
 
-    renderer.begin_frame(sys->gpu.fb, canvas);
-    renderer.render_frame(sys->gpu.fb, canvas);
-    renderer.end_frame(sys->gpu.fb, canvas);
-    sys->gpu.submit_frame(swapchain);
+    renderer.begin_frame(gpu_sys.fb, canvas);
+    renderer.render_frame(gpu_sys.fb, canvas);
+    renderer.end_frame(gpu_sys.fb, canvas);
+    gpu_sys.submit_frame(swapchain);
+    // std::this_thread::sleep_for(16ms);
   }
 
-  logger->trace("Ended Engine Run Loop");
+  trace("Ended Engine Run Loop");
+}
+
+Storage<Systems> systems_storage;
+
+void hook_engine(Engine * instance)
+{
+  if (instance == nullptr)
+  {
+    ash::engine    = nullptr;
+    ash::scheduler = nullptr;
+    ash::sys       = nullptr;
+    return;
+  }
+
+  ash::engine    = instance;
+  ash::scheduler = instance->scheduler;
+  ash::sys = new (systems_storage.storage_) Systems{instance->get_systems()};
 }
 
 }    // namespace ash
+
+ash::Engine * ::ash::engine = nullptr;

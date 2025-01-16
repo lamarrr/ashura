@@ -164,7 +164,7 @@ struct Font
 {
   virtual FontInfo info() = 0;
 
-  virtual ~Font() = 0;
+  virtual ~Font() = default;
 };
 
 }    // namespace ash

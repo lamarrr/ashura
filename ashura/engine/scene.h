@@ -1,6 +1,5 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/engine/light.h"
 #include "ashura/std/math.h"
 #include "ashura/std/option.h"
 #include "ashura/std/result.h"
@@ -26,5 +25,24 @@ struct SceneNode
 };
 
 struct Scene;
+
+template <typename... Components>
+struct WorldComponents
+{
+};
+
+template <template <class... C> typename Components>
+struct World
+{
+  // get all entities with the specified components
+  template <typename... C>
+  void query();
+
+  template <typename... C>
+  u64 add_entity(C... components);
+
+  template <typename... C>
+  void add_system();
+};
 
 }    // namespace ash

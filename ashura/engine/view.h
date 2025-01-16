@@ -2,13 +2,15 @@
 #pragma once
 
 #include "ashura/engine/canvas.h"
-#include "ashura/engine/color.h"
 #include "ashura/engine/input.h"
 #include "ashura/engine/renderer.h"
 #include "ashura/std/math.h"
 #include "ashura/std/types.h"
 
 namespace ash
+{
+
+namespace ui
 {
 
 /// @brief Simple Adaptive Layout Constraint Model
@@ -73,12 +75,22 @@ struct Frame
     return out;
   }
 
+  constexpr Frame offset(f32 width, f32 height) const
+  {
+    return offset({width, height});
+  }
+
   constexpr Frame scale(Vec2 extent) const
   {
     Frame out{*this};
     out.x.scale = extent.x;
     out.y.scale = extent.y;
     return out;
+  }
+
+  constexpr Frame scale(f32 width, f32 height) const
+  {
+    return scale({width, height});
   }
 
   constexpr Frame rmin(Vec2 extent) const
@@ -89,12 +101,22 @@ struct Frame
     return out;
   }
 
+  constexpr Frame rmin(f32 width, f32 height) const
+  {
+    return rmin({width, height});
+  }
+
   constexpr Frame rmax(Vec2 extent) const
   {
     Frame out{*this};
     out.x.rmax = extent.x;
     out.y.rmax = extent.y;
     return out;
+  }
+
+  constexpr Frame rmax(f32 width, f32 height) const
+  {
+    return rmax({width, height});
   }
 
   constexpr Frame min(Vec2 extent) const
@@ -105,6 +127,11 @@ struct Frame
     return out;
   }
 
+  constexpr Frame min(f32 width, f32 height) const
+  {
+    return min({width, height});
+  }
+
   constexpr Frame max(Vec2 extent) const
   {
     Frame out{*this};
@@ -112,42 +139,38 @@ struct Frame
     out.y.max = extent.y;
     return out;
   }
+
+  constexpr Frame max(f32 width, f32 height) const
+  {
+    return max({width, height});
+  }
+
+  constexpr Size & operator[](usize i)
+  {
+    return (&x)[i];
+  }
+
+  constexpr Size const & operator[](usize i) const
+  {
+    return (&x)[i];
+  }
 };
 
 struct CornerRadii
 {
-  Size tl;
-  Size tr;
-  Size bl;
-  Size br;
+  f32 tl = 0;
+  f32 tr = 0;
+  f32 bl = 0;
+  f32 br = 0;
 
-  constexpr CornerRadii() : tl{}, tr{}, bl{}, br{}
+  static constexpr CornerRadii all(f32 r)
   {
+    return {r, r, r, r};
   }
 
-  constexpr CornerRadii(Size tl, Size tr, Size bl, Size br) :
-    tl{tl},
-    tr{tr},
-    bl{bl},
-    br{br}
+  constexpr operator Vec4() const
   {
-  }
-
-  constexpr CornerRadii(Size s) : tl{s}, tr{s}, bl{s}, br{s}
-  {
-  }
-
-  constexpr CornerRadii(f32 s, bool constrained = true) :
-    CornerRadii{
-      Size{.offset = s, .rmax = constrained ? 1 : F32_INF}
-  }
-  {
-  }
-
-  constexpr Vec4 operator()(Vec2 extent) const
-  {
-    f32 const base = min(extent.x, extent.y);
-    return Vec4{tl(base), tr(base), bl(base), br(base)};
+    return Vec4{tl, tr, bl, br};
   }
 };
 
@@ -162,6 +185,7 @@ enum class MainAlign : u8
 
 /// @param mounted view has been mounted to the view tree and has now
 /// received an ID.
+/// @param view_hit if the view was rendered on the previous frame
 /// @param drag_start drag event has begun on this view
 /// @param dragging an update on the drag state has been gotten
 /// @param drag_end the dragging of this view has completed
@@ -170,8 +194,6 @@ enum class MainAlign : u8
 /// @param drag_over drag data is moving over this view as destination without
 /// beiung dropped
 /// @param drop drag data is now available for the view to consume
-/// @param view_hit called on every frame the view is viewed on the viewport.
-/// Can be used for partial loading
 /// @param view_miss called on every frame that the view is not seen on the
 /// viewport this can be because it has hidden visibility, is clipped away, or
 /// parent positioned out of the visible region. Can be used for
@@ -179,28 +201,28 @@ enum class MainAlign : u8
 /// @param focus_in the view has received keyboard focus
 /// @param focus_out the view has lost keyboard focus
 /// @param text_input the view has received composition text
-struct ViewEvents
+struct alignas(u32) ViewEvents
 {
-  bool mounted      = false;
-  bool view_hit     = false;
-  bool mouse_in     = false;
-  bool mouse_out    = false;
-  bool mouse_down   = false;
-  bool mouse_up     = false;
-  bool mouse_moved  = false;
-  bool mouse_scroll = false;
-  bool drag_start   = false;
-  bool dragging     = false;
-  bool drag_end     = false;
-  bool drag_in      = false;
-  bool drag_out     = false;
-  bool drag_over    = false;
-  bool drop         = false;
-  bool focus_in     = false;
-  bool focus_out    = false;
-  bool key_down     = false;
-  bool key_up       = false;
-  bool text_input   = false;
+  bool mounted      : 1 = false;
+  bool view_hit     : 1 = false;
+  bool mouse_in     : 1 = false;
+  bool mouse_out    : 1 = false;
+  bool mouse_down   : 1 = false;
+  bool mouse_up     : 1 = false;
+  bool mouse_moved  : 1 = false;
+  bool mouse_scroll : 1 = false;
+  bool drag_start   : 1 = false;
+  bool dragging     : 1 = false;
+  bool drag_end     : 1 = false;
+  bool drag_in      : 1 = false;
+  bool drag_out     : 1 = false;
+  bool drag_over    : 1 = false;
+  bool drop         : 1 = false;
+  bool focus_in     : 1 = false;
+  bool focus_out    : 1 = false;
+  bool key_down     : 1 = false;
+  bool key_up       : 1 = false;
+  bool text_input   : 1 = false;
 };
 
 /// @brief Global View Context, Properties of the context all the views for
@@ -227,93 +249,71 @@ struct ViewState
   /// focused before positive values.
   i32 tab = I32_MIN;
 
-  /// @brief if the view should be hidden from view (will not receive
-  /// visual events, but still receive tick events)
-  bool hidden = false;
-
-  /// @brief can receive mouse enter/move/leave events
-  bool pointable = false;
-
-  /// @brief can receive mouse press events
-  bool clickable = false;
-
-  /// @brief can receive mouse scroll events
-  bool scrollable = false;
-
-  /// @brief can the view produce drag data
-  bool draggable = false;
-
-  /// @brief can the view receive drag data
-  bool droppable = false;
-
-  /// @brief can receive keyboard focus (ordered by `tab`) and keyboard
-  /// events
-  bool focusable = false;
-
   /// @brief if set, will be treated as a text input area
   Option<TextInputInfo> text = none;
 
+  /// @brief if the view should be hidden from view (will not receive
+  /// visual events, but still receive tick events)
+  bool hidden : 1 = false;
+
+  /// @brief can receive mouse enter/move/leave events
+  bool pointable : 1 = false;
+
+  /// @brief can receive mouse press events
+  bool clickable : 1 = false;
+
+  /// @brief can receive mouse scroll events
+  bool scrollable : 1 = false;
+
+  /// @brief can the view produce drag data
+  bool draggable : 1 = false;
+
+  /// @brief can the view receive drag data
+  bool droppable : 1 = false;
+
+  /// @brief can receive keyboard focus (ordered by `tab`) and keyboard
+  /// events
+  bool focusable : 1 = false;
+
   /// @brief grab focus of the user
-  bool grab_focus = false;
+  bool grab_focus : 1 = false;
 
   /// @brief is view a viewport
-  bool viewport = false;
+  bool viewport : 1 = false;
 };
 
-struct CoreViewTheme
+struct Theme
 {
-  Vec4 background        = {};
-  Vec4 surface           = {};
-  Vec4 surface_variant   = {};
-  Vec4 primary           = {};
-  Vec4 primary_variant   = {};
-  Vec4 secondary         = {};
-  Vec4 secondary_variant = {};
-  Vec4 error             = {};
-  Vec4 warning           = {};
-  Vec4 success           = {};
-  Vec4 active            = {};
-  Vec4 inactive          = {};
-  Vec4 on_background     = {};
-  Vec4 on_surface        = {};
-  Vec4 on_primary        = {};
-  Vec4 on_secondary      = {};
-  Vec4 on_error          = {};
-  Vec4 on_warning        = {};
-  Vec4 on_success        = {};
-  f32  body_font_height  = {};
-  f32  h1_font_height    = {};
-  f32  h2_font_height    = {};
-  f32  h3_font_height    = {};
-  f32  line_height       = {};
-  f32  focus_thickness   = 0;
+  Vec4U8 background        = {};
+  Vec4U8 surface           = {};
+  Vec4U8 surface_variant   = {};
+  Vec4U8 primary           = {};
+  Vec4U8 primary_variant   = {};
+  Vec4U8 secondary         = {};
+  Vec4U8 secondary_variant = {};
+  Vec4U8 error             = {};
+  Vec4U8 warning           = {};
+  Vec4U8 success           = {};
+  Vec4U8 active            = {};
+  Vec4U8 inactive          = {};
+  Vec4U8 on_background     = {};
+  Vec4U8 on_surface        = {};
+  Vec4U8 on_primary        = {};
+  Vec4U8 on_secondary      = {};
+  Vec4U8 on_error          = {};
+  Vec4U8 on_warning        = {};
+  Vec4U8 on_success        = {};
+  Vec4U8 focus             = {};
+  f32    head_font_height  = {};
+  f32    body_font_height  = {};
+  f32    line_height       = {};
+  f32    focus_thickness   = 1;
+  FontId head_font         = FontId::Invalid;
+  FontId body_font         = FontId::Invalid;
+  FontId icon_font         = FontId::Invalid;
 };
 
-inline constexpr CoreViewTheme DEFAULT_THEME = {
-  .background        = norm(Vec4U8{0x19, 0x19, 0x19, 0xFF}),
-  .surface           = norm(Vec4U8{0x33, 0x33, 0x33, 0xFF}),
-  .primary           = norm(mdc::DEEP_ORANGE_600),
-  .primary_variant   = norm(mdc::DEEP_ORANGE_400),
-  .secondary         = norm(mdc::PURPLE_600),
-  .secondary_variant = norm(mdc::PURPLE_400),
-  .error             = norm(mdc::RED_500),
-  .warning           = norm(mdc::YELLOW_800),
-  .success           = norm(mdc::GREEN_700),
-  .active            = norm(Vec4U8{0x70, 0x70, 0x70, 0xFF}),
-  .inactive          = norm(Vec4U8{0x47, 0x47, 0x47, 0xFF}),
-  .on_background     = norm(mdc::WHITE),
-  .on_surface        = norm(mdc::WHITE),
-  .on_primary        = norm(mdc::WHITE),
-  .on_secondary      = norm(mdc::WHITE),
-  .on_error          = norm(mdc::WHITE),
-  .on_warning        = norm(mdc::WHITE),
-  .on_success        = norm(mdc::WHITE),
-  .body_font_height  = 16,
-  .h1_font_height    = 30,
-  .h2_font_height    = 27,
-  .h3_font_height    = 22,
-  .line_height       = 1.2F,
-  .focus_thickness   = 1};
+extern Theme theme;
 
 /// @param extent extent of the view within the parent. if it is a viewport,
 /// this is the visible extent of the viewport within the parent viewport.
@@ -339,17 +339,22 @@ struct ViewLayout
 /// The coordinate system used is one in which the center of the screen is (0,
 /// 0) and ranges from [-0.5w, +0.5w] on both axes. i.e. top-left is [-0.5w,
 /// -0.5h] and bottom-right is [+0.5w, +0.5h].
-/// @param id id of the view if mounted, otherwise U64_MAX
-/// @param last_rendered_frame last frame the view was rendered at
-/// @param focus_idx index in the focus tree
-/// @param region canvas-space region of the view
 struct View
 {
-  u64   id_                  = U64_MAX;
-  u64   last_rendered_frame_ = 0;
-  u32   focus_idx_           = 0;
-  CRect region_              = {};
-  f32   zoom_                = 1;
+  /// @brief id of the view if mounted, otherwise U64_MAX
+  u64 id_ = U64_MAX;
+
+  /// @brief id of last frame the view was rendered on
+  u64 last_rendered_frame_ = 0;
+
+  /// @brief index in the focus tree
+  u32 focus_idx_ = 0;
+
+  /// @brief zoom scale of the views
+  f32 zoom_ = 1;
+
+  /// @brief canvas-space region of the view
+  CRect region_ = {};
 
   constexpr View()                         = default;
   constexpr View(View const &)             = delete;
@@ -474,4 +479,5 @@ struct View
   }
 };
 
+}    // namespace ui
 }    // namespace ash

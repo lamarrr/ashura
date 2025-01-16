@@ -2283,7 +2283,7 @@ Result<gpu::DescriptorSet, Status>
     .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT |
              VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
     .maxSets       = 1,
-    .poolSizeCount = NUM_DESCRIPTOR_TYPES,
+    .poolSizeCount = num_pool_sizes,
     .pPoolSizes    = pool_sizes};
 
   VkDescriptorPool vk_pool;
@@ -3658,92 +3658,85 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
   {
     case gpu::DescriptorType::DynamicStorageBuffer:
     case gpu::DescriptorType::StorageBuffer:
-      for (u32 i = 0; i < update.buffers.size(); i++)
+      for (gpu::BufferBinding const & b : update.buffers)
       {
-        gpu::BufferBinding const & b      = update.buffers[i];
-        Buffer *                   buffer = (Buffer *) b.buffer;
-        if (buffer != nullptr)
-        {
-          CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::StorageBuffer));
-          CHECK(is_valid_buffer_access(buffer->info.size, b.offset, b.size,
-                                       ubo_offset_alignment));
-        }
+        Buffer * buffer = (Buffer *) b.buffer;
+        CHECK(buffer != nullptr);
+        CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::StorageBuffer));
+        CHECK(is_valid_buffer_access(buffer->info.size, b.offset, b.size,
+                                     ubo_offset_alignment));
       }
       break;
 
     case gpu::DescriptorType::DynamicUniformBuffer:
     case gpu::DescriptorType::UniformBuffer:
-      for (u32 i = 0; i < update.buffers.size(); i++)
+      for (gpu::BufferBinding const & b : update.buffers)
       {
-        gpu::BufferBinding const & b      = update.buffers[i];
-        Buffer *                   buffer = (Buffer *) b.buffer;
-        if (buffer != nullptr)
-        {
-          CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::UniformBuffer));
-          CHECK(is_valid_buffer_access(buffer->info.size, b.offset, b.size,
-                                       ssbo_offset_alignment));
-        }
+        Buffer * buffer = (Buffer *) b.buffer;
+        CHECK(buffer != nullptr);
+        CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::UniformBuffer));
+        CHECK(is_valid_buffer_access(buffer->info.size, b.offset, b.size,
+                                     ssbo_offset_alignment));
       }
       break;
 
     case gpu::DescriptorType::Sampler:
-      break;
+    {
+      for (gpu::ImageBinding const & b : update.images)
+      {
+        Sampler * sampler = (Sampler *) b.sampler;
+        CHECK(sampler != nullptr);
+      }
+    }
+    break;
 
     case gpu::DescriptorType::SampledImage:
     case gpu::DescriptorType::CombinedImageSampler:
     case gpu::DescriptorType::InputAttachment:
     {
-      for (u32 i = 0; i < update.images.size(); i++)
+      for (gpu::ImageBinding const & b : update.images)
       {
-        ImageView * view = (ImageView *) update.images[i].image_view;
-        if (view != nullptr)
-        {
-          Image * image = (Image *) view->info.image;
-          CHECK(has_bits(image->info.usage, gpu::ImageUsage::Sampled));
-          CHECK(image->info.sample_count == gpu::SampleCount::C1);
-        }
+        ImageView * view = (ImageView *) b.image_view;
+        CHECK(view != nullptr);
+        Image * image = (Image *) view->info.image;
+        CHECK(has_bits(image->info.usage, gpu::ImageUsage::Sampled));
+        CHECK(image->info.sample_count == gpu::SampleCount::C1);
       }
     }
     break;
 
     case gpu::DescriptorType::StorageImage:
     {
-      for (u32 i = 0; i < update.images.size(); i++)
+      for (gpu::ImageBinding const & b : update.images)
       {
-        ImageView * view = (ImageView *) update.images[i].image_view;
-        if (view != nullptr)
-        {
-          Image * image = (Image *) view->info.image;
-          CHECK(has_bits(image->info.usage, gpu::ImageUsage::Storage));
-          CHECK(image->info.sample_count == gpu::SampleCount::C1);
-        }
+        ImageView * view = (ImageView *) b.image_view;
+        CHECK(view != nullptr);
+        Image * image = (Image *) view->info.image;
+        CHECK(has_bits(image->info.usage, gpu::ImageUsage::Storage));
+        CHECK(image->info.sample_count == gpu::SampleCount::C1);
       }
     }
     break;
 
     case gpu::DescriptorType::StorageTexelBuffer:
-      for (u32 i = 0; i < update.texel_buffers.size(); i++)
+      for (gpu::BufferView const & v : update.texel_buffers)
       {
-        BufferView * view = (BufferView *) update.texel_buffers[i];
-        if (view != nullptr)
-        {
-          Buffer * buffer = (Buffer *) view->info.buffer;
-          CHECK(
-            has_bits(buffer->info.usage, gpu::BufferUsage::StorageTexelBuffer));
-        }
+        BufferView * view = (BufferView *) v;
+        CHECK(view != nullptr);
+        Buffer * buffer = (Buffer *) view->info.buffer;
+        CHECK(
+          has_bits(buffer->info.usage, gpu::BufferUsage::StorageTexelBuffer));
       }
       break;
 
     case gpu::DescriptorType::UniformTexelBuffer:
-      for (u32 i = 0; i < update.texel_buffers.size(); i++)
+      for (gpu::BufferView const & v : update.texel_buffers)
       {
-        BufferView * view = (BufferView *) update.texel_buffers[i];
-        if (view != nullptr)
-        {
-          Buffer * buffer = (Buffer *) view->info.buffer;
-          CHECK(
-            has_bits(buffer->info.usage, gpu::BufferUsage::UniformTexelBuffer));
-        }
+        BufferView * view = (BufferView *) v;
+        CHECK(view != nullptr);
+        Buffer * buffer = (Buffer *) view->info.buffer;
+        CHECK(
+          has_bits(buffer->info.usage, gpu::BufferUsage::UniformTexelBuffer));
       }
       break;
 

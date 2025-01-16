@@ -76,7 +76,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG preview-3.1.6)
+  GIT_TAG preview-3.1.8)
 
 FetchContent_Declare(
   harfbuzz
@@ -107,7 +107,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   xxHash
   GIT_REPOSITORY https://github.com/Cyan4973/xxHash.git
-  GIT_TAG dd11140
+  GIT_TAG v0.8.3
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
@@ -118,7 +118,7 @@ FetchContent_Declare(
 
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
-find_package(libjpeg-turbo CONFIG REQUIRED)
+find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
@@ -225,6 +225,7 @@ add_library(
   ashura/engine/canvas.cc
   ashura/engine/engine.cc
   ashura/engine/font_impl.cc
+  ashura/engine/font_system_impl.cc
   ashura/engine/font.cc
   ashura/engine/gpu_system.cc
   ashura/engine/image_decoder.cc
@@ -244,25 +245,24 @@ add_library(
 target_link_libraries(
   ashura_engine
   PUBLIC ashura_std ashura_gpu
-  PRIVATE
-    glslang::glslang
-    spirv-reflect-static
-    SDL3::SDL3-static
-    harfbuzz
-    CURL::libcurl
-    freetype
-    simdjson::simdjson
-    webp
-    webpdecoder
-    $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
-    PNG::PNG
-    ${FFMPEG_LIBRARIES}
-    SheenBidi::SheenBidi)
+  PRIVATE glslang::glslang
+          spirv-reflect-static
+          SDL3::SDL3-static
+          harfbuzz
+          CURL::libcurl
+          freetype
+          simdjson::simdjson
+          webp
+          webpdecoder
+          JPEG::JPEG
+          PNG::PNG
+          ${FFMPEG_LIBRARIES}
+          SheenBidi::SheenBidi)
 
 target_include_directories(
   ashura_engine
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-  PRIVATE ${JPEG_INCLUDE_DIR} ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS}
+  PRIVATE ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS}
           ${fast_float_INCLUDE_DIR})
 
 # ASHURA ENGINE - TESTS

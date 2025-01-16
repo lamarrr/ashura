@@ -25,7 +25,7 @@
 
 #define CHECK(cond_expr, ...)                                           \
   CHECK_EX(*::ash::logger, ::ash::SourceLocation::current(), cond_expr, \
-           " " __VA_OPT__(, ) __VA_ARGS__)
+           "" __VA_OPT__(, ) __VA_ARGS__)
 
 #define CHECK_UNREACHABLE() \
   CHECK(false, "Expected code section to be unreachable")

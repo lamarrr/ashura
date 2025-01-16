@@ -2,7 +2,7 @@
     "$schema": "./config.schema.json",
     "version": "0.0.1",
     "gpu.validation": false,
-    "gpu.vsync": false,
+    "gpu.vsync": true,
     "gpu.preferences": [
         "dgpu",
         "vgpu",
@@ -13,7 +13,7 @@
     "gpu.hdr": true,
     "gpu.buffering": 2,
     "gpu.antialiasing": "msaa",
-    "gpu.msaa.level": 4,
+    "gpu.msaa.level": 2,
     "window.resizable": true,
     "window.full_screen": false,
     "window.maximized": false,
@@ -21,23 +21,29 @@
     "window.width": 1500,
     "window.height": 960,
     "shaders": {
-        "VS:Blur/DownSample": "shaders/blur_downsample.vert.spv",
-        "FS:Blur/DownSample": "shaders/blur_downsample.frag.spv",
-        "VS:Blur/UpSample": "shaders/blur_upsample.vert.spv",
-        "FS:Blur/UpSample": "shaders/blur_upsample.frag.spv",
-        "VS:Ngon": "shaders/ngon.vert.spv",
-        "FS:Ngon": "shaders/ngon.frag.spv",
-        "VS:PBR": "shaders/pbr.vert.spv",
-        "FS:PBR": "shaders/pbr.frag.spv",
-        "VS:RRect": "shaders/rrect.vert.spv",
-        "FS:RRect": "shaders/rrect.frag.spv"
+        "VS:Blur/DownSample": "assets/shaders/blur_downsample.vert.spv",
+        "FS:Blur/DownSample": "assets/shaders/blur_downsample.frag.spv",
+        "VS:Blur/UpSample": "assets/shaders/blur_upsample.vert.spv",
+        "FS:Blur/UpSample": "assets/shaders/blur_upsample.frag.spv",
+        "VS:Ngon": "assets/shaders/ngon.vert.spv",
+        "FS:Ngon": "assets/shaders/ngon.frag.spv",
+        "VS:PBR": "assets/shaders/pbr.vert.spv",
+        "FS:PBR": "assets/shaders/pbr.frag.spv",
+        "VS:RRect": "assets/shaders/rrect.vert.spv",
+        "FS:RRect": "assets/shaders/rrect.frag.spv"
     },
     "fonts": {
-        "Amiri": "fonts/Amiri/Amiri-Regular.ttf",
-        "MaterialIcons": "fonts/MaterialIcons/MaterialIcons-Regular.ttf",
-        "Roboto": "fonts/Roboto/Roboto-Regular.ttf",
-        "RobotoMono": "fonts/RobotoMono/RobotoMono-Regular.ttf"
+        "Amiri": "assets/fonts/Amiri/Amiri-Regular.ttf",
+        "MaterialIcons": "assets/fonts/MaterialIcons/MaterialIcons-Regular.ttf",
+        "Roboto": "assets/fonts/Roboto/Roboto-Regular.ttf",
+        "RobotoMono": "assets/fonts/RobotoMono/RobotoMono-Regular.ttf"
     },
-    "fonts.default": "RobotoMono",
-    "images": {}
+    "fonts.height": 16,
+    "images": {
+        "birdie": "assets/images/birdie.jpg",
+        "bankside": "assets/images/bankside.jpg",
+        "mountains": "assets/images/mountains.jpg",
+        "sunset": "assets/images/sunset.jpg"
+    },
+    "cache.pipeline.path": "caches/pipeline.cache"
 }

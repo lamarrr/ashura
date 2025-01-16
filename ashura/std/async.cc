@@ -590,7 +590,6 @@ Dyn<Scheduler *>
                     Span<nanoseconds const> dedicated_thread_sleep,
                     Span<nanoseconds const> worker_thread_sleep)
 {
-  CHECK(scheduler == nullptr);
   CHECK(dedicated_thread_sleep.size() <= U32_MAX);
   CHECK(worker_thread_sleep.size() <= U32_MAX);
 

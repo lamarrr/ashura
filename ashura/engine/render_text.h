@@ -3,7 +3,6 @@
 
 #include "ashura/engine/canvas.h"
 #include "ashura/engine/text.h"
-#include "ashura/engine/view.h"
 #include "ashura/std/error.h"
 #include "ashura/std/text.h"
 #include "ashura/std/types.h"
@@ -13,8 +12,8 @@ namespace ash
 
 struct TextHighlightStyle
 {
-  ColorGradient color        = {};
-  CornerRadii   corner_radii = {};
+  Vec4U8 color        = {};
+  f32    corner_radii = 1;
 };
 
 struct TextHighlight
@@ -31,18 +30,40 @@ struct TextHighlight
 /// @param runs  Run-End encoded sequences of the runs
 struct RenderText
 {
-  bool               dirty_         = true;
-  bool               use_kerning_   = true;
-  bool               use_ligatures_ = true;
-  TextDirection      direction_     = TextDirection::LeftToRight;
-  f32                alignment_     = -1;
-  Vec<c32>           text_          = {};
-  Vec<u32>           runs_          = {};
-  Vec<TextStyle>     styles_        = {};
-  Vec<FontStyle>     fonts_         = {};
-  Span<char const>   language_      = {};
-  TextLayout         layout_        = {};
-  Vec<TextHighlight> highlights_    = {};
+  bool               dirty_         : 1;
+  bool               use_kerning_   : 1;
+  bool               use_ligatures_ : 1;
+  TextDirection      direction_     : 2;
+  f32                alignment_;
+  Vec<c32>           text_;
+  Vec<u32>           runs_;
+  Vec<TextStyle>     styles_;
+  Vec<FontStyle>     fonts_;
+  Span<char const>   language_;
+  TextLayout         layout_;
+  Vec<TextHighlight> highlights_;
+
+  RenderText(AllocatorRef allocator) :
+    dirty_{true},
+    use_kerning_{true},
+    use_ligatures_{true},
+    direction_{TextDirection::LeftToRight},
+    alignment_{-1},
+    text_{allocator},
+    runs_{allocator},
+    styles_{allocator},
+    fonts_{allocator},
+    language_{},
+    layout_{allocator},
+    highlights_{allocator}
+  {
+  }
+
+  RenderText(RenderText const &)             = delete;
+  RenderText & operator=(RenderText const &) = delete;
+  RenderText(RenderText &&)                  = delete;
+  RenderText & operator=(RenderText &&)      = delete;
+  ~RenderText()                              = default;
 
   /// @brief  Styles specified runs of text, performing run merging and
   /// splitting in the process. If there's previously no runs, the first added
@@ -262,12 +283,13 @@ struct RenderText
 
   void layout(f32 max_width)
   {
-    if (!dirty_ && max_width == layout_.extent.x)
+    if (!dirty_ && max_width == layout_.max_width)
     {
       return;
     }
 
-    layout_text(block(), max_width, layout_);
+    sys->font.layout_text(block(), max_width, layout_);
+    dirty_ = false;
   }
 
   void render(Canvas & canvas, CRect const & region, CRect const & clip,

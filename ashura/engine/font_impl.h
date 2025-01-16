@@ -21,7 +21,7 @@ struct FontImpl : Font
 
   FontId id = FontId::Invalid;
 
-  Span<char const> label;
+  Vec<char> label;
 
   Vec<char> font_data;
 
@@ -60,14 +60,14 @@ struct FontImpl : Font
 
   Option<GpuFontAtlas> gpu_atlas = none;
 
-  FontImpl(FontId id, Span<char const> label, Vec<char> font_data,
+  FontImpl(FontId id, Vec<char> label, Vec<char> font_data,
            Name postscript_name, Name family_name, Name style_name,
            hb_blob_t * hb_blob, hb_face_t * hb_face, hb_font_t * hb_font,
            FT_Library ft_lib, FT_Face ft_face, u32 face,
            Vec<GlyphMetrics> glyphs, u32 replacement_glyph, u32 ellipsis_glyph,
            u32 space_glyph, FontMetrics metrics) :
     id{id},
-    label{label},
+    label{std::move(label)},
     font_data{std::move(font_data)},
     postscript_name{std::move(postscript_name)},
     family_name{std::move(family_name)},
@@ -106,7 +106,8 @@ struct FontImpl : Font
 
   virtual FontInfo info() override
   {
-    FontInfo info{.label             = label,
+    FontInfo info{.id                = id,
+                  .label             = label,
                   .postscript_name   = postscript_name,
                   .family_name       = family_name,
                   .style_name        = style_name,

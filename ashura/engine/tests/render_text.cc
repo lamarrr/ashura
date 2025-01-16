@@ -9,7 +9,7 @@ TEST(RenderText, RunManagement)
 {
   using namespace ash;
 
-  RenderText text;
+  RenderText text{default_allocator};
 
   ASSERT_EQ(text.runs_.size32(), 0);
 
