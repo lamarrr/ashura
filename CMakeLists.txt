@@ -222,6 +222,7 @@ target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
   ashura_engine
+  ashura/engine/animation.cc
   ashura/engine/canvas.cc
   ashura/engine/engine.cc
   ashura/engine/font_impl.cc
@@ -269,7 +270,9 @@ target_include_directories(
 
 add_executable(
   ashura_engine_tests
-  ashura/engine/tests/main.cc ashura/engine/tests/render_text.cc
+  ashura/engine/tests/main.cc 
+  ashura/engine/tests/animation.cc 
+  ashura/engine/tests/render_text.cc
   ashura/engine/tests/views.cc ashura/engine/tests/text_compositor.cc)
 target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
 
