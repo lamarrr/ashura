@@ -1,8 +1,10 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/std/dyn.h"
 #include "ashura/std/error.h"
+#include "ashura/std/lambda.h"
 #include "ashura/std/math.h"
+#include "ashura/std/range.h"
+#include "ashura/std/super.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -10,280 +12,454 @@
 namespace ash
 {
 
-namespace anim
-{
-
-/// [ ] https://create.roblox.com/docs/ui/animation#style
-/// [ ] Procedural Animation https://www.youtube.com/watch?v=qlfh_rv6khY
-
-// [x] Keyframes, for time interval x, move from a to b
-// [ ] keyframe blending
-// [x] play
-// [x] reverse
-// [x] cancel
-// [ ] frame-rate customization
-// [x] move back from point
-// [x] loop n or forever
-// [ ] stop after timepoint
-// [ ] alternate
-// [x] pause
-// [x] resume in direction
-// [x] restart animation state to beginning
+/// While we use nanoseconds as the unit of time for the animation API,
+/// it is a virtual nanosecond, the application or target user can decide
+/// what the nanoseconds interprets to, the animation API does not
+/// manage or request operating system timestamps.
+/// i64 precision is important for externally synchronized animations.
 
 /// @brief An object used to tween/interpolate between two values.
 /// This is a separate object to allow users customize the definition of the
 /// values depending on the context. And it isn't bundled with the interpolated
 /// objects to allow for more efficient storage of the values.
-struct Tweener
+struct Tween
 {
-  constexpr Vec2 operator()(Vec2 const &low, Vec2 const &high, f32 t) const
+  constexpr f32 operator()(f32 low, f32 high, f32 t) const
+  {
+    return lerp(low, high, t);
+  }
+
+  constexpr f32 operator()(f64 low, f64 high, f32 t) const
+  {
+    return lerp((f32) low, (f32) high, t);
+  }
+
+  constexpr Vec2 operator()(Vec2 const & low, Vec2 const & high, f32 t) const
   {
     return lerp(low, high, Vec2::splat(t));
   }
 
-  constexpr Vec3 operator()(Vec3 const &low, Vec3 const &high, f32 t) const
+  constexpr Vec3 operator()(Vec3 const & low, Vec3 const & high, f32 t) const
   {
     return lerp(low, high, Vec3::splat(t));
   }
 
-  constexpr Vec4 operator()(Vec4 const &low, Vec4 const &high, f32 t) const
+  constexpr Vec4 operator()(Vec4 const & low, Vec4 const & high, f32 t) const
   {
     return lerp(low, high, Vec4::splat(t));
   }
 
-  constexpr Vec4U8 operator()(Vec4U8 const &low, Vec4U8 const &high,
+  constexpr Vec4U8 operator()(Vec4U8 const & low, Vec4U8 const & high,
                               f32 t) const
   {
     return as_vec4u8(lerp(as_vec4(low), as_vec4(high), Vec4::splat(t)));
   }
 };
 
-constexpr u32 NUM_EASE_PARAMETERS = 4;
+template <typename T>
+using Tweener = Lambda<T(T, T, f32)>;
 
-/// @brief Easing function, the parameters are stored in an array
-/// @param t the linear interpolator to be eased. guaranteed to be between 0
-/// and 1.
-typedef Fn<f32(Span<f32 const> params, f32 t)> EaseFn;
+/// @brief Easing function
+/// @param t the linear interpolator to be eased.
+typedef Lambda<f32(f32 t)> Easing;
 
 namespace easing
 {
 
-constexpr f32 linear(Span<f32 const>, f32 t)
+inline Easing linear()
 {
-  return t;
+  return Easing{[](f32 t) { return t; }};
 }
 
-constexpr f32 in(Span<f32 const>, f32 t)
+inline Easing in()
 {
-  return ease_in(t);
+  return Easing{[](f32 t) { return ash::ease_in(t); }};
 }
 
-constexpr f32 out(Span<f32 const>, f32 t)
+inline Easing out()
 {
-  return ease_out(t);
+  return Easing{[](f32 t) { return ash::ease_out(t); }};
 }
 
-constexpr f32 in_out(Span<f32 const>, f32 t)
+inline Easing in_out()
 {
-  return ease_in_out(t);
+  return Easing{[](f32 t) { return ash::ease_in_out(t); }};
 }
 
-constexpr f32 bezier(Span<f32 const> params, f32 t)
+inline Easing bezier(f32 p0, f32 p1, f32 p2)
 {
-  static_assert(NUM_EASE_PARAMETERS >= 3);
-
-  return ash::bezier(params[0], params[1], params[2], t);
+  return Easing{[p0, p1, p2](f32 t) { return ash::bezier(p0, p1, p2, t); }};
 }
 
-constexpr f32 cubic_bezier(Span<f32 const> params, f32 t)
+inline Easing cubic_bezier(f32 p0, f32 p1, f32 p2, f32 p3)
 {
-  static_assert(NUM_EASE_PARAMETERS >= 4);
-
-  return ash::cubic_bezier(params[0], params[1], params[2], params[3], t);
+  return Easing{
+    [p0, p1, p2, p3](f32 t) { return ash::cubic_bezier(p0, p1, p2, p3, t); }};
 }
 
-constexpr f32 catmull_rom(Span<f32 const> params, f32 t)
+inline Easing catmull_rom(f32 p0, f32 p1, f32 p2, f32 p3)
 {
-  static_assert(NUM_EASE_PARAMETERS >= 4);
-
-  return ash::catmull_rom(params[0], params[1], params[2], params[3], t);
+  return Easing{
+    [p0, p1, p2, p3](f32 t) { return ash::catmull_rom(p0, p1, p2, p3, t); }};
 }
 
-/// @brief Elastic Easing
-/// @param amplitude strength of the elastic effect (default = 1.0)
-/// @param period length of the oscillation (default = 0.3)
-/// @note Based on Robert Penner's elastic easing
-/// (http://robertpenner.com/easing/)
-constexpr f32 elastic(Span<f32 const> params, f32 t)
+inline Easing elastic(f32 amplitude, f32 period)
 {
-  static_assert(NUM_EASE_PARAMETERS >= 2);
-
-  constexpr f32 TWO_PI = 2.0F * PI;
-
-  f32 const amplitude = params[0];
-  f32 const period    = params[1];
-  f32 const s         = (period / TWO_PI) * std::asin(1 / amplitude);
-  f32 const factor    = amplitude * std::pow(2.0F, -10.0F * t) *
-                         std::sin((t - s) * (TWO_PI / period)) +
-                     1.0F;
-  return factor;
+  return Easing{
+    [amplitude, period](f32 t) { return ash::elastic(amplitude, period, t); }};
 }
 
-/// @brief EaseOut Bounce
-/// @param strength strength of the bounce effect (default = 1.0)
-/// @note Based on Robert Penner's easeOutBounce
-/// (http://robertpenner.com/easing/)
-constexpr f32 bounce(Span<f32 const> params, f32 t)
+inline Easing bounce(f32 strength)
 {
-  static_assert(NUM_EASE_PARAMETERS >= 1);
-
-  f32 const strength = params[0];
-
-  // Inverse the time to create an ease-out effect
-  t = 1.0F - t;
-
-  if (t < (1.0F / 2.75F))
-  {
-    return 1.0F - (7.5625F * t * t * strength);
-  }
-  else if (t < (2.0F / 2.75F))
-  {
-    t -= 1.5F / 2.75F;
-    return 1.0F - (7.5625F * t * t * strength + 0.75F);
-  }
-  else if (t < (2.5F / 2.75F))
-  {
-    t -= 2.25F / 2.75F;
-    return 1.0F - (7.5625F * t * t * strength + 0.9375F);
-  }
-  else
-  {
-    t -= 2.625F / 2.75F;
-    return 1.0F - (7.5625F * t * t * strength + 0.984375F);
-  }
+  return Easing{[strength](f32 t) { return ash::bounce(strength, t); }};
 }
 
-/// @brief Spring-based Elastic Easing based on simple harmonic motion with
-/// damping
-///
-/// The default behavior is a tight spring effect, tune the parameters to give
-/// a desired effect.
-/// @param mass: Oscillator mass (default: 1.0)
-/// @param stiffness: Spring constant (default: 20.0)
-/// @param damping: Damping coefficient (default: 10.0F)
-///
-/// @note https://www.ryanjuckett.com/damped-springs/
-///
-constexpr f32 spring(Span<f32 const> params, f32 t)
+inline Easing spring(f32 mass, f32 stiffness, f32 damping)
 {
-  static_assert(NUM_EASE_PARAMETERS >= 3);
-
-  f32 const mass      = params[0];
-  f32 const stiffness = params[1];
-  f32 const damping   = params[2];
-
-  // Calculate critical damping factors
-  f32 const omega0           = std::sqrt(stiffness / mass);
-  f32 const critical_damping = 2.0F * std::sqrt(mass * stiffness);
-  f32 const damping_ratio    = damping / critical_damping;
-
-  // Underdamped
-  if (damping_ratio < 1.0F)
-  {
-    f32 const omega_d =
-        omega0 * std::sqrt(1.0F - damping_ratio * damping_ratio);
-    return 1.0F -
-           std::exp(-damping_ratio * omega0 * t) *
-               (std::cos(omega_d * t) +
-                (damping_ratio * omega0 / omega_d) * std::sin(omega_d * t));
-  }
-
-  // Overdamped or critically damped
-  f32 const alpha = -damping_ratio * omega0;
-  f32 const beta  = omega0 * std::sqrt(damping_ratio * damping_ratio - 1.0F);
-  return 1.0F - (std::exp(alpha * t) *
-                 (std::cosh(beta * t) + (alpha / beta) * std::sinh(beta * t)));
+  return Easing{[mass, stiffness, damping](f32 t) {
+    return ash::spring(mass, stiffness, damping, t);
+  }};
 }
 
-}        // namespace easing
+};    // namespace easing
 
-struct Easing
+template <typename T>
+struct TimelineView
 {
-  EaseFn ease                        = fn(easing::linear);
-  f32    params[NUM_EASE_PARAMETERS] = {};
+  Tweener<T> const *      tweener = nullptr;
+  Span<nanoseconds const> timestamps;
+  Span<Easing const>      easings;
+  Span<T const>           frames;
 
-  constexpr f32 operator()(f32 t) const
+  constexpr TimelineView(Tweener<T> const &      tweener,
+                         Span<nanoseconds const> timestamps,
+                         Span<Easing const> easings, Span<T const> frames) :
+    tweener{&tweener},
+    timestamps{timestamps},
+    easings{easings},
+    frames{frames}
   {
-    return ease(span(params), t);
   }
 
-  static constexpr Easing linear()
+  constexpr TimelineView(TimelineView const &)             = default;
+  constexpr TimelineView(TimelineView &&)                  = default;
+  constexpr TimelineView & operator=(TimelineView const &) = default;
+  constexpr TimelineView & operator=(TimelineView &&)      = default;
+  constexpr ~TimelineView()                                = default;
+
+  constexpr bool is_empty() const
   {
-    return Easing{.ease = fn(easing::linear)};
+    return timestamps.is_empty();
   }
 
-  static constexpr Easing in()
+  constexpr nanoseconds duration() const
   {
-    return Easing{.ease = fn(easing::in)};
-  }
-
-  static constexpr Easing out()
-  {
-    return Easing{.ease = fn(easing::out)};
-  }
-
-  static constexpr Easing in_out()
-  {
-    return Easing{.ease = fn(easing::in_out)};
-  }
-
-  static constexpr Easing bezier(f32 p0, f32 p1, f32 p2)
-  {
-    return Easing{.ease = fn(easing::bezier), .params = {p0, p1, p2}};
-  }
-
-  static constexpr Easing cubic_bezier(f32 p0, f32 p1, f32 p2, f32 p3)
-  {
-    return Easing{.ease = fn(easing::cubic_bezier), .params = {p0, p1, p2, p3}};
-  }
-
-  static constexpr Easing catmull_rom(f32 p0, f32 p1, f32 p2, f32 p3)
-  {
-    return Easing{.ease = fn(easing::catmull_rom), .params = {p0, p1, p2, p3}};
-  }
-
-  static constexpr Easing elastic(f32 amplitude, f32 period)
-  {
-    return Easing{.ease = fn(easing::bounce), .params = {amplitude, period}};
-  }
-
-  static constexpr Easing bounce(f32 strength)
-  {
-    return Easing{.ease = fn(easing::elastic), .params = {strength}};
-  }
-
-  static constexpr Easing spring(f32 mass, f32 stiffness, f32 damping)
-  {
-    return Easing{.ease   = fn(easing::elastic),
-                  .params = {mass, stiffness, damping}};
+    return timestamps.is_empty() ? 0ns : timestamps.last();
   }
 };
 
-struct AnimationConfig
+/// @brief An animtion Timeline containing timestamps, values, and easing
+/// functions needed to execute an animation.
+/// This is well optimized for serialization, deserialization,
+/// and dynamic updates. The associated keyframe data is also dynamic and not
+/// forcefully needed to be owned by the timeline. but only added for ease of use.
+///
+///
+/// @details We use a prefix sum encoding of the timestamps, this makes seeking
+/// the entire timeline O(Log2N) as it enables us to use a binary search,
+/// It also allows us to randomly start the animation from any point in the
+/// timeline without modifying the timeline or having to persist the
+/// timeline or the animation state.
+///
+/// ```
+/// frames = [a_0, a_1, b_0, b_1]
+/// durations = [5ns, 3ns]
+/// easings = [e0, e1]
+///
+/// # Timestamps will be represented by their inclusive sums:
+///
+/// timeline.frames = [a_0, a_1, b_0, b_1]
+/// timeline.timestamps = [0ns, 5ns, 8ns]
+/// timeline.easings = [e0, e1]
+///
+/// # and we add another:
+///
+/// frames = [c_0, c_1, d_0, d_1]
+/// durations = [200ns, 1000ns]
+/// easings = [e2, e3]
+///
+/// timeline.frames = [a_0, a_1, b_0, b_1, c_0, c_1, d_0, d_1]
+/// timeline.timestamps = [0ns, 5ns, 8ns, 208ns, 1208ns]
+/// timeline.easings = [e0, e1, e2, e3]
+/// ```
+///
+/// @param tween_ type-independent interpolator to use for animating
+/// the provided frames
+/// @param timestamps_ timestamp at which each animation sequence
+/// ends (inclusive sum of the durations)
+/// @param easings_ easing curve of each animation segment
+/// @param frames_ animation values of each segment
+///
+///
+template <typename T>
+struct Timeline
 {
-  Span<const char> label    = {};
-  nanoseconds      duration = 0ns;
-  nanoseconds      delay    = 0ns;
-  bool             loop     = false;
-  Easing           easing   = {};
+  Tweener<T>       tweener_{Tween{}};
+  Vec<nanoseconds> timestamps_;
+  Vec<Easing>      easings_;
+  Vec<T>           frames_;
+
+  constexpr bool is_empty() const
+  {
+    // we only need to check the timestamps, the invariant
+    // is that it is either an empty or valid timeline
+    return timestamps_.is_empty();
+  }
+
+  constexpr void clear()
+  {
+    timestamps_.clear();
+    easings_.clear();
+    frames_.clear();
+  }
+
+  constexpr nanoseconds duration() const
+  {
+    if (timestamps_.is_empty()) [[unlikely]]
+    {
+      return 0ns;
+    }
+    return timestamps_.last();
+  }
+
+  /// @brief Add a tween key frame
+  Timeline & frame(T start, T end, nanoseconds duration, Easing easing)
+  {
+    T frames[] = {std::move(start), std::move(end)};
+
+    return key_frame(frames, span<nanoseconds>({duration}), {&easing, 1});
+  }
+
+  /// @brief Add a multi-point key-frame
+  Timeline & key_frame(Span<T> frames, Span<nanoseconds const> durations,
+                       Span<Easing> easings)
+  {
+    CHECK(frames.size() == (durations.size() * 2));
+    CHECK(durations.size() == easings.size());
+
+    if (timestamps_.is_empty()) [[unlikely]]
+    {
+      timestamps_.push(0ns).unwrap();
+    }
+
+    auto const times_offset = timestamps_.size();
+
+    auto const run_time = timestamps_.last();
+
+    timestamps_.extend_uninit(durations.size()).unwrap();
+
+    inclusive_scan(durations,
+                   timestamps_.view().slice(times_offset, durations.size()),
+                   run_time);
+
+    easings_.extend_move(easings).unwrap();
+
+    frames_.extend_move(frames).unwrap();
+
+    return *this;
+  }
+
+  constexpr TimelineView<T> view() const
+  {
+    return TimelineView<T>{tweener_, timestamps_, easings_, frames_};
+  }
 };
 
-struct TimelineConfig
+/// @param delay_ total delay remaining for the animation to start playing
+/// @param time_ timestamp of the current animation
+/// @param run_delay_ total runtime of the animation
+/// @param run_time_ total runtime of the animation
+/// @param reversed_ to reverse the effect of the animation, i.e. move back in time
+/// @param paused_ if the animation is currently paused
+struct AnimationState
 {
-  Span<const char> label    = {};
-  nanoseconds      delay    = 0ns;
-  bool             autoplay = true;
-  bool             loop     = false;
+  nanoseconds delay_     = 0ns;
+  nanoseconds time_      = 0ns;
+  bool        reversed_  = false;
+  bool        paused_    = false;
+  nanoseconds run_delay_ = 0ns;
+  nanoseconds run_time_  = nanoseconds::max();
+
+  /// @brief is the animation a delayed type of animation
+  constexpr bool is_delayed() const
+  {
+    return run_delay_ != 0ns;
+  }
+
+  /// @brief is the animation pending execution due to a delay
+  constexpr bool is_pending() const
+  {
+    return delay_ != 0ns;
+  }
+
+  constexpr bool is_completed() const
+  {
+    return reversed_ ? (time_ == 0ns) : (time_ == run_time_);
+  }
+
+  constexpr bool is_reversed() const
+  {
+    return reversed_;
+  }
+
+  constexpr bool is_paused() const
+  {
+    return paused_;
+  }
+
+  constexpr AnimationState & restart()
+  {
+    delay_    = run_delay_;
+    time_     = 0ns;
+    reversed_ = false;
+    return *this;
+  }
+
+  /// @brief Rush to completion
+  constexpr AnimationState & complete()
+  {
+    delay_ = 0ns;
+    time_  = reversed_ ? 0ns : run_time_;
+    return *this;
+  }
+
+  constexpr AnimationState & cancel()
+  {
+    delay_  = 0ns;
+    time_   = 0ns;
+    paused_ = true;
+    return *this;
+  }
+
+  constexpr AnimationState & resume()
+  {
+    delay_  = 0ns;
+    paused_ = false;
+    return *this;
+  }
+
+  constexpr AnimationState & delay(nanoseconds delay)
+  {
+    delay_     = delay;
+    run_delay_ = delay;
+    return *this;
+  }
+
+  constexpr AnimationState & reverse()
+  {
+    reversed_ = !reversed_;
+    return *this;
+  }
+
+  constexpr AnimationState & pause()
+  {
+    paused_ = true;
+    return *this;
+  }
+
+  constexpr AnimationState & loop()
+  {
+    run_time_ = nanoseconds::max();
+    return *this;
+  }
+
+  constexpr AnimationState & limit(nanoseconds run_time)
+  {
+    run_time_ = run_time;
+    return *this;
+  }
+
+  constexpr AnimationState & seek(nanoseconds time_point)
+  {
+    time_ = clamp(time_point, 0ns, run_time_);
+    return *this;
+  }
+
+  template <typename T>
+  constexpr AnimationState & iterations(TimelineView<T> const & timeline,
+                                        i64                     num_iterations)
+  {
+    run_time_ = timeline.duration() * num_iterations;
+    return *this;
+  }
+
+  /// @brief Synchronize with the timeline and get the current animated value
+  /// @returns None, if there's no animation data, otherwise the animated value.
+  template <typename T>
+  T animate(TimelineView<T> const & timeline)
+  {
+    CHECK(!timeline.is_empty());
+
+    /// add 1ns so result of modulo operation would be between 0ns and timeline-duration
+    auto const timeline_end = timeline.duration() + 1ns;
+
+    auto const time =
+      (timeline.duration() == 0ns) ? 0ns : (time_ % timeline_end);
+
+    auto const timestamps = timeline.timestamps;
+
+    // get current frame segment (timestamps are sorted, perform binary
+    // search to get current timepoint in the timeline)
+    Span const span = binary_find(timestamps.slice(1), geq, time);
+
+    CHECK(!span.is_empty());
+
+    u64 const end_idx = static_cast<u64>(span.pbegin() - timestamps.pbegin());
+
+    u64 const ease_idx  = end_idx - 1;
+    u64 const frame_idx = ease_idx * 2;
+
+    nanoseconds const start    = timestamps[end_idx - 1];
+    nanoseconds const end      = timestamps[end_idx];
+    nanoseconds const duration = end - start;
+    nanoseconds const offset   = time - start;
+
+    f32 const t = (f32) (((f64) offset.count()) / (f64) duration.count());
+
+    Easing const & easing = timeline.easings[ease_idx];
+
+    return (*timeline.tweener)(timeline.frames[frame_idx],
+                               timeline.frames[frame_idx + 1], easing(t));
+  }
+
+  /// @brief Drive the animation. Cheap enough to be called every frame
+  /// @param delta amount to advance animation by. to speed-up
+  /// multiply a speed factor.
+  constexpr AnimationState & tick(nanoseconds delta)
+  {
+    if (is_paused() || is_completed())
+    {
+      return *this;
+    }
+
+    if (delay_ >= delta)
+    {
+      delay_ -= delta;
+      return *this;
+    }
+    else if (delay_ < delta)
+    {
+      delta -= delay_;
+    }
+
+    delta *= reversed_ ? -1 : 1;
+
+    time_ += delta;
+
+    time_ = clamp(time_, 0ns, run_time_);
+
+    return *this;
+  }
 };
 
 /// @brief Stagger delay of animation components
@@ -292,25 +468,49 @@ struct Stagger
   virtual ~Stagger() = default;
 
   /// @brief Perform stagger delay on a list of components
+  /// @param width the dimension of the stagger pattern, i.e. the number of rows.
+  /// Affects the pattern's granularity
+  /// @param num_items the total number of items to be staggered, must be greater than item
+  /// @return the stagger delay factor. [0, 1]
   /// @param item the index of the item
-  /// @param count the total number of items to be staggered
-  /// @return the stagger delay factor
-  virtual f32 operator()(u32 item, u32 count) = 0;
+  virtual f32 operator()(u64 width, u64 num_items, u64 item = 0) = 0;
+};
+
+struct Unstaggered final : Stagger
+{
+  constexpr Unstaggered() = default;
+
+  constexpr Unstaggered(Unstaggered const &) = default;
+
+  constexpr Unstaggered(Unstaggered &&) = default;
+
+  constexpr Unstaggered & operator=(Unstaggered const &) = default;
+
+  constexpr Unstaggered & operator=(Unstaggered &&) = default;
+
+  virtual ~Unstaggered() override = default;
+
+  virtual f32 operator()(u64, u64, u64) override
+  {
+    return 0;
+  }
 };
 
 /// @brief Grid-based delay calculation
-/// @param rows number of rows the grid stagger represents
-/// @param columns number of columns the grid stagger represents
-/// @param t [0, 1], interpolator to determine which item gets delayed first
-/// based on their column or row position
-struct GridStagger : Stagger
+/// @param row_weight weight controlling the relative influence of the row position to the column position [0, 1]
+/// @param reverse_row reverse the stagger direction in the row axis, i.e. the elements at the end of the row will animate first
+/// @param reverse_column reverse the stagger direction in the column axis, i.e. the elements at the end of the column will animate first
+struct GridStagger final : Stagger
 {
-  u32 rows;
-  u32 columns;
-  f32 t;
+  bool reverse_row;
+  bool reverse_column;
+  f32  row_weight;
 
-  constexpr GridStagger(u32 rows = 1, u32 columns = 1, f32 t = 0.5F) :
-      rows{rows}, columns{columns}, t{t}
+  constexpr GridStagger(bool reverse_row = false, bool reverse_column = false,
+                        f32 row_weight = 0.5F) :
+    reverse_row{reverse_row},
+    reverse_column{reverse_column},
+    row_weight{row_weight}
   {
   }
 
@@ -320,784 +520,279 @@ struct GridStagger : Stagger
 
   constexpr GridStagger(GridStagger &&) = default;
 
-  constexpr GridStagger &operator=(GridStagger const &) = default;
+  constexpr GridStagger & operator=(GridStagger const &) = default;
 
-  constexpr GridStagger &operator=(GridStagger &&) = default;
+  constexpr GridStagger & operator=(GridStagger &&) = default;
 
   constexpr virtual ~GridStagger() override = default;
 
-  constexpr u32 size() const
+  constexpr auto pos(u64 rows, u64 index) const
   {
-    return rows * columns;
+    return Tuple{index % rows, index / rows};
   }
 
-  constexpr Tuple<u32, u32> pos(u32 index) const
+  constexpr virtual f32 operator()(u64 rows, u64 num_items, u64 item) override
   {
-    return {index / rows, index % columns};
-  }
-
-  constexpr virtual f32 operator()(u32 item, u32) override
-  {
-    u32 const grid_size = size();
+    rows              = max(rows, (u64) 1);
+    u64 const columns = num_items / rows;
 
     f32 row_norm    = 1;
     f32 column_norm = 1;
 
-    if (item < grid_size)
-    {
-      auto const [row, column] = pos(item);
-      if (rows > 1)
-      {
-        row_norm = row / (f32) (rows - 1);
-      }
+    auto const [row, column] = pos(rows, item);
 
-      if (columns > 1)
-      {
-        column_norm = column / (f32) (columns - 1);
-      }
+    if (rows > 1)
+    {
+      row_norm = row / (f32) (rows - 1);
     }
 
-    return column_norm * t + (1 - t) * row_norm;
+    if (columns > 1)
+    {
+      column_norm = column / (f32) (columns - 1);
+    }
+
+    if (reverse_row)
+    {
+      row_norm = 1 - row_norm;
+    }
+
+    if (reverse_column)
+    {
+      column_norm = 1 - column_norm;
+    }
+
+    return lerp(row_norm, column_norm, row_weight);
   }
 };
 
-struct RippleStagger : Stagger
+/// @param inwards should the ripple effect occur with the outer part
+/// animating first
+struct RippleStagger final : Stagger
 {
-  u32 width;
-  u32 height;
-  i32 direction;
+  bool inwards;
 
-  constexpr RippleStagger(u32 width = 1, u32 height = 1, i32 direction = 1) :
-      width{width}, height{height}, direction{direction}
+  constexpr RippleStagger(bool inwards = false) : inwards{inwards}
   {
   }
-
-  constexpr RippleStagger() = default;
 
   constexpr RippleStagger(RippleStagger const &) = default;
 
   constexpr RippleStagger(RippleStagger &&) = default;
 
-  constexpr RippleStagger &operator=(RippleStagger const &) = default;
+  constexpr RippleStagger & operator=(RippleStagger const &) = default;
 
-  constexpr RippleStagger &operator=(RippleStagger &&) = default;
+  constexpr RippleStagger & operator=(RippleStagger &&) = default;
 
   constexpr virtual ~RippleStagger() override = default;
 
-  constexpr Tuple<u32, u32> pos(u32 index) const
+  constexpr auto pos(u64 rows, u64 index) const
   {
-    return {index / width, index % height};
+    return Tuple{index % rows, index / rows};
   }
 
-  constexpr virtual f32 operator()(u32 item, u32) override
+  virtual f32 operator()(u64 rows, u64 num_items, u64 item) override
   {
-    u32 const size = width * height;
+    rows              = max(rows, (u64) 1);
+    u64 const columns = num_items / rows;
 
-    f32 row_norm    = 1;
-    f32 column_norm = 1;
+    f32 row_norm    = 0.5F;
+    f32 column_norm = 0.5F;
 
-    if (item < size)
+    auto const [row, column] = pos(rows, item);
+
+    if (rows > 1)
     {
-      auto const [row, column] = pos(item);
-      if (rows > 1)
-      {
-        row_norm = row / (f32) (rows - 1);
-      }
-
-      if (columns > 1)
-      {
-        column_norm = column / (f32) (columns - 1);
-      }
+      row_norm = (f32) row / (f32) (rows - 1);
     }
 
-    return column_norm * t + (1 - t) * row_norm;
-  }
-};
-
-struct Animation
-{
-  virtual ~Animation() = default;
-
-  virtual void tick(nanoseconds delta) = 0;
-
-  virtual void play() = 0;
-
-  virtual void pause() = 0;
-
-  virtual void resume() = 0;
-
-  virtual void restart() = 0;
-
-  virtual bool is_playing() = 0;
-
-  virtual f32 value() = 0;
-};
-
-/// @brief Tween Animation. Perform basic 2-point interpolation on properties.
-/// i.e. opacity, color, rotation etc.
-/// @brief Animation State
-/// @param is_playing is the animation currently allowed to advance
-/// @param start when the animation was started
-/// @param delay currently applied delay on the animation once it reaches 0
-/// while the animation is playing, it will proceed
-/// @param time the amount of time that has passed so far (out of the
-/// animation's duration)
-///
-/// ## Translate Position
-///
-/// ```
-/// auto position = std::make_shared<Vec2>();
-/// Animation anim = Animation<f32>(
-///  0.0F, // start
-///  10.0F, // end
-///  AnimationConfig{.duration = 2000ms, .loop = true, .easing =
-///  ash::anim::ease_in_out_quad<Vec2>()},
-///);
-/// anim.play();
-///
-/// // tick
-/// position->x = anim.tick(); // update only x axis
-///
-/// ```
-///
-struct Tween : Animation
-{
-  AnimationConfig cfg;
-  f32             t;
-  bool            running;
-  nanoseconds     delay;
-  nanoseconds     time;
-
-  constexpr Tween(AnimationConfig cfg) :
-      cfg{cfg}, t{0}, running{false}, delay{cfg.delay}, time{0s}
-  {
-  }
-
-  constexpr Tween(Tween const &) = default;
-
-  constexpr Tween(Tween &&) = default;
-
-  constexpr Tween &operator=(Tween const &) = default;
-
-  constexpr Tween &operator=(Tween &&) = default;
-
-  constexpr ~Tween() override = default;
-
-  constexpr virtual void tick(nanoseconds delta) override
-  {
-    if (!running)
+    if (columns > 1)
     {
-      return;
+      column_norm = (f32) column / (f32) (columns - 1);
     }
 
-    if (delay >= delta)
+    row_norm    = row_norm - 0.5F;
+    column_norm = column_norm - 0.5F;
+
+    f32 radius_norm = sqrt(row_norm * row_norm + column_norm * column_norm);
+
+    radius_norm = inwards ? (1 - radius_norm) : radius_norm;
+
+    // sqrt is in-exact
+    return clamp(radius_norm, 0.0F, 1.0F);
+  }
+};
+
+template <typename... T>
+struct StaggeredAnimation
+{
+  Vec<AnimationState>   states_{};
+  Super<Stagger>        stagger_{Unstaggered{}};
+  u64                   stagger_width_ = 1;
+  Tuple<Timeline<T>...> timelines_{};
+  nanoseconds           delay_ = 0ns;
+
+  StaggeredAnimation() = default;
+
+  StaggeredAnimation(Vec<AnimationState> states, Super<Stagger> stagger,
+                     u64 stagger_width, Tuple<Timeline<T>...> timelines) :
+    states_{std::move(states)},
+    stagger_{std::move(stagger)},
+    stagger_width_{stagger_width},
+    timelines_{std::move(timelines)}
+  {
+  }
+
+  StaggeredAnimation(StaggeredAnimation &&)             = default;
+  StaggeredAnimation & operator=(StaggeredAnimation &&) = default;
+
+  StaggeredAnimation(StaggeredAnimation const &)             = delete;
+  StaggeredAnimation & operator=(StaggeredAnimation const &) = delete;
+
+  ~StaggeredAnimation() = default;
+
+  static auto make(u64 stagger_width = 0, u64 num_items = 0,
+                   Super<Stagger> stagger = Unstaggered{})
+  {
+    Vec<AnimationState> states{};
+    states.resize(num_items).unwrap();
+
+    Tuple<Timeline<T>...> timelines;
+
+    return StaggeredAnimation<T...>{std::move(states), std::move(stagger),
+                                    stagger_width, std::move(timelines)};
+  }
+
+  StaggeredAnimation & delay(nanoseconds delay)
+  {
+    delay_ = delay;
+    for (auto [item, state] : enumerate<u64>(states_))
     {
-      delay -= delta;
-      return;
+      f32 const delay_factor =
+        stagger_.get()(stagger_width_, states_.size64(), item);
+      nanoseconds item_delay = nanoseconds{static_cast<nanoseconds::rep>(
+        static_cast<f64>(delay.count()) * delay_factor)};
+      state.delay(item_delay);
     }
-    else if (delay > 0s)
-    {
-      delta -= delay;
-      delay = 0s;
-    }
-
-    time += delta;
-
-    i64 const iterations = time.count() / cfg.duration.count();
-
-    if (cfg.loop)
-    {
-      // using the modulo, get the remaining time after the finished iterations
-      time = time - iterations * cfg.duration;
-    }
-    else
-    {
-      if (iterations >= 1)
-      {
-        time    = cfg.duration;
-        running = false;
-      }
-    }
-
-    t = cfg.easing((f32) time.count() / (f32) cfg.duration.count());
-  }
-
-  constexpr virtual void play() override
-  {
-    running = true;
-  }
-
-  constexpr virtual void pause() override
-  {
-    running = false;
-  }
-
-  constexpr virtual void resume() override
-  {
-    running = true;
-  }
-
-  constexpr virtual void restart() override
-  {
-    time  = 0s;
-    delay = cfg.delay;
-    t     = 0;
-  }
-
-  constexpr virtual bool is_playing() override
-  {
-    return running;
-  }
-
-  constexpr virtual f32 value() override
-  {
-    return t;
-  }
-};
-
-struct KeyFrameInfo
-{
-  Span<char const> key      = {};
-  nanoseconds      duration = 0s;
-  Easing           easing   = Easing::linear();
-};
-
-struct SegmentInfo
-{
-  Span<const char> label    = {};
-  nanoseconds      duration = 0s;
-};
-
-struct Segment
-{
-  virtual ~Segment() = default;
-
-  virtual f32 value() = 0;
-
-  virtual u32 count() = 0;
-
-  virtual void tick(nanoseconds delta) = 0;
-
-  virtual void restart() = 0;
-
-  virtual SegmentInfo info() = 0;
-};
-
-struct TweenSegment : Segment
-{
-  Tween animation;
-
-  constexpr TweenSegment(AnimationConfig cfg) : animation{cfg}
-  {
-  }
-
-  constexpr TweenSegment(TweenSegment const &) = default;
-
-  constexpr TweenSegment(TweenSegment &&) = default;
-
-  constexpr TweenSegment &operator=(TweenSegment const &) = default;
-
-  constexpr TweenSegment &operator=(TweenSegment &&) = default;
-
-  constexpr ~TweenSegment() override = default;
-
-  constexpr virtual f32 value() override
-  {
-    return animation.t;
-  }
-
-  virtual u32 count() override
-  {
-    return 2;
-  }
-
-  constexpr virtual void tick(nanoseconds delta) override
-  {
-    animation.tick(delta);
-  }
-
-  constexpr virtual void restart() override
-  {
-    animation.restart();
-  }
-
-  constexpr virtual SegmentInfo info() override
-  {
-    return SegmentInfo{.label    = animation.cfg.label,
-                       .duration = animation.cfg.duration};
-  }
-};
-
-// [ ] use run-end encoding for this
-struct KeyFrameSegment : Segment
-{
-  Span<char const>  label = {};
-  Vec<KeyFrameInfo> key_frames{};
-  nanoseconds       time = 0ns;
-  time_point        start_time{};
-  f32               t = 0;
-
-  KeyFrameSegment(Span<char const> label, Vec<KeyFrameInfo> key_frames) :
-      label{label}, key_frames{std::move(key_frames)}
-  {
-  }
-
-  KeyFrameSegment(KeyFrameSegment const &) = delete;
-
-  KeyFrameSegment(KeyFrameSegment &&) = default;
-
-  KeyFrameSegment &operator=(KeyFrameSegment const &) = delete;
-
-  KeyFrameSegment &operator=(KeyFrameSegment &&) = default;
-
-  ~KeyFrameSegment() = default;
-
-  virtual u32 count() override
-  {
-    return key_frames.size32();
-  }
-
-  virtual void tick(nanoseconds delta) override
-  {
-    CHECK(key_frames.size() >= 2);
-
-    time += delta;
-
-    nanoseconds keyframes_time = 0ns;
-
-    for (usize i = 0; i < key_frames.size() - 1; ++i)
-    {
-      KeyFrameInfo const &f0     = key_frames[i];
-      KeyFrameInfo const &f1     = key_frames[i + 1];
-      nanoseconds const   f0_end = keyframes_time + f0.duration;
-
-      if (time <= f0_end)
-      {
-        f32 const segment_t =
-            (time - keyframes_time).count() / (f32) f0.duration.count();
-        t = f0.easing(segment_t);
-        break;
-      }
-
-      keyframes_time = f0_end;
-    }
-  }
-
-  virtual void restart() override
-  {
-    time = 0ns;
-  }
-
-  constexpr virtual SegmentInfo info() override
-  {
-    nanoseconds const duration =
-        map_reduce(key_frames, nanoseconds{0},
-                   [](KeyFrameInfo const &k) { return k.duration; });
-    return SegmentInfo{.label = label, .duration = duration};
-  }
-
-  constexpr virtual f32 value() const
-  {
-    return t;
-  }
-};
-
-// Timeline: A more robust way to manage keyframe or multiple
-// animations
-// -  Timeline animations or key_frames can be run in parallel or
-// staggered.
-// -  Set a callback to track each animation or keyframe update.
-// -  Direction control
-// -  Playback control
-// ```
-// TimelineConfig cfg{
-//         .autoplay = true,
-//         .loop = true
-// };
-// Timeline<Vec2> timeline(cfg);
-//
-// std::vector<KeyFrame<Vec2>> key_frames = {
-//     KeyFrame<Vec2>(500ms, "start", {0, 100.0F},
-//     ash::anim::ease_in_out_quad<Vec2>()), KeyFrame<Vec2>(500ms, "middle",
-//     {150.0F, 50.0F}, ash::anim::ease_out_quad<Vec2>()), KeyFrame<Vec2>(500ms,
-//     "end", {0, 200.0F}, ash::anim::ease_in_out_quad<Vec2>())
-// };
-//
-// timeline.add(key_frames);
-// // Basic controls
-// timeline.play();
-// timeline.pause();
-// timeline.reverse();
-// timeline.seek(2000ms);
-// timeline.seek_percentage(0.5f);
-//
-//  // Playback controls
-// timeline.play_from_start();  // Forward from start
-// timeline.play_from_end();    // Reverse from end
-// timeline.stop();          // Reset to start
-// ```
-// ---
-//
-// ### Chainable calls
-// ```
-// timeline
-//     .add(start, end, cfg)                  // Simple animation
-//     .add(key_frames)                           // KeyFrame sequence
-//     .parallel(configs, values)                // Parallel animations
-//     .stagger(start, end, cfg, count);      // Staggered animations
-// ```
-template <typename T, typename Tweener = ash::anim::Tweener>
-struct Timeline : Animation
-{
-  AllocatorImpl       allocator;
-  Tweener             tweener;
-  Vec<Dyn<Segment *>> segments;
-  Vec<nanoseconds>    segment_ends;
-  Vec<T>              values;
-  Vec<u32>            runs;
-  TimelineConfig      cfg;
-  nanoseconds         time           = 0ns;
-  nanoseconds         duration       = 0ns;
-  bool                playing        = false;
-  i32                 time_direction = 1;
-
-  constexpr Timeline(AllocatorImpl allocator, TimelineConfig cfg,
-                     Tweener tweener = {}) :
-      allocator{allocator},
-      tweener{(Tweener &&) tweener},
-      segments{allocator},
-      segment_ends{allocator},
-      values{allocator},
-      runs{allocator},
-      cfg{cfg}
-  {
-  }
-
-  constexpr Timeline(Timeline const &) = delete;
-
-  constexpr Timeline &operator=(Timeline const &) = delete;
-
-  constexpr Timeline(Timeline &&) = default;
-
-  constexpr Timeline &operator=(Timeline &&) = default;
-
-  constexpr ~Timeline() = default;
-
-  void clear()
-  {
-    // segments.clear();
-  }
-
-  Timeline &tween(AnimationConfig cfg, T start, T end)
-  {
-    Dyn segment = dyn_inplace<TweenSegment>(allocator, cfg).unwrap();
-    duration += segment->animation.cfg.duration;
-    segments.push(cast<Segment *>(std::move(segment)));
-    segment_ends.push(duration).unwrap();
-    values.push((T &&) start).unwrap();
-    values.push((T &&) end).unwrap();
-    runs.push(values.size32()).unwrap();
     return *this;
   }
 
-  template <typename T>
-  Timeline &key_frames(Span<char const> label, Span<KeyFrameInfo const> infos,
-                       Span<T const> frames)
+  StaggeredAnimation & complete()
   {
-    CHECK(infos.size() == frames.size());
-    CHECK(infos.size() >= 2);
-    Dyn segment =
-        dyn_inplace<KeyFrameSegment>(
-            allocator, label, vec<KeyFrameInfo>(allocator, data).unwrap())
-            .unwrap();
-    duration += segment->info().duration;
-    segments.push_back(cast<Segment *>(std::move(segment)));
-    segment_ends.push(duration).unwrap();
-    values.extend_copy(frames).unwrap();
-    runs.push(values.size32()).unwrap();
+    for (AnimationState & s : states_)
+    {
+      s.complete();
+    }
     return *this;
   }
 
-  template <typename T>
-  Timeline &parallel(const std::vector<AnimationConfig>     &configs,
-                     const std::vector<std::pair<f32, f32>> &values)
+  StaggeredAnimation & cancel()
   {
-    nanoseconds max_duration = 0s;
-    nanoseconds start_time   = total_duration;
-
-    for (usize i = 0; i < configs.size(); ++i)
+    for (AnimationState & s : states_)
     {
-      auto segment = std::make_shared<SingleSegment>(
-          values[i].first, values[i].second, configs[i]);
-      segment->label      = configs[i].label;
-      segment->start_time = start_time;
-      segments.push_back(segment);
-      max_duration = std::max(max_duration, configs[i].duration);
+      s.cancel();
     }
-
-    total_duration += max_duration;
     return *this;
   }
 
-  template <typename T>
-  Timeline &stagger(const f32 &start, const f32 &end, AnimationConfig cfg,
-                    u32                   count,
-                    const StaggerPattern &stagger_cfg = StaggerPatternDefault{})
+  StaggeredAnimation & resume()
   {
-    nanoseconds base_delay = 0s;
-    nanoseconds start_time = total_duration;
-
-    for (usize i = 0; i < count; ++i)
+    for (AnimationState & s : states_)
     {
-      base_delay = stagger_pattern.delay(i, count);
+      s.resume();
     }
-
-    nanoseconds delay = stagger_pattern.start + base_delay;
-
-    auto segment_config  = cfg;
-    segment_config.delay = delay;
-
-    auto segment = std::make_shared<SingleSegment>(start, end, segment_config);
-    segment->start_time = start_time;
-    segment->label      = cfg.label;
-    segments.push_back(segment);
-
     return *this;
   }
 
-  void tick() override
+  StaggeredAnimation & restart()
   {
-    if (!playing)
-      return;
-
-    auto        current_time_point = clock::now();
-    nanoseconds delta =
-        duration_cast<nanoseconds>(current_time_point - timestamp);
-    timestamp = current_time_point;
-
-    nanoseconds adjusted_delta = delta * time_direction;
-    current_time += adjusted_delta;
-
-    if (time_direction > 0 && current_time >= total_duration)
+    for (AnimationState & s : states_)
     {
-      if (cfg.loop)
-      {
-        current_time = nanoseconds{
-            std::fmod(current_time.count(), total_duration.count())};
-        for (auto &segment : segments)
-        {
-          segment->restart();
-        }
-      }
-      else
-      {
-        current_time = total_duration;
-        playing      = false;
-      }
+      s.restart();
     }
-    else if (time_direction < 0 && current_time <= 0s)
+    return *this;
+  }
+
+  StaggeredAnimation & reverse()
+  {
+    for (AnimationState & s : states_)
     {
-      if (cfg.loop)
-      {
-        current_time =
-            total_duration + nanoseconds{std::fmod(current_time.count(),
-                                                   total_duration.count())};
-        for (auto &segment : segments)
-        {
-          segment->restart();
-        }
-      }
-      else
-      {
-        current_time = 0s;
-        playing      = false;
-      }
+      s.reverse();
     }
-
-    update_segments(adjusted_delta);
+    return *this;
   }
 
-  void play() override
+  StaggeredAnimation & pause()
   {
-    playing   = true;
-    timestamp = clock::now();
-  }
-
-  void play_from_start()
-  {
-    for (auto &segment : segments)
+    for (AnimationState & s : states_)
     {
-      segment->restart();
+      s.pause();
     }
-    current_time   = 0s;
-    time_direction = 1.0F;
-    playing        = true;
-    timestamp      = clock::now();
+    return *this;
   }
 
-  void play_from_end()
+  StaggeredAnimation & loop()
   {
-    for (auto &segment : segments)
+    for (AnimationState & s : states_)
     {
-      segment->restart();
+      s.loop();
     }
-    current_time   = total_duration;
-    time_direction = -1.0F;
-    playing        = true;
-    timestamp      = clock::now();
+    return *this;
   }
 
-  void pause() override
+  u64 width() const
   {
-    playing = false;
+    return stagger_width_;
   }
 
-  void resume() override
+  StaggeredAnimation & width(u64 extent)
   {
-    if (!playing)
+    stagger_width_ = extent;
+    return *this;
+  }
+
+  StaggeredAnimation & stagger(Super<Stagger> stagger = Unstaggered{})
+  {
+    stagger_ = std::move(stagger);
+    return *this;
+  }
+
+  AnimationState & state(u64 item)
+  {
+    CHECK(states_.size64() > item);
+    return states_[item];
+  }
+
+  Tuple<Timeline<T> &...> timelines()
+  {
+    return apply(
+      [](auto &... timelines) {
+        return Tuple<decltype(timelines)...>{timelines...};
+      },
+      timelines_);
+  }
+
+  Tuple<T...> animate(u64 item)
+  {
+    CHECK(states_.size64() > item);
+
+    AnimationState & state = states_[item];
+
+    return apply(
+      [&](auto &... timeline) {
+        return Tuple<T...>{state.animate(timeline.view())...};
+      },
+      timelines_);
+  }
+
+  void tick(nanoseconds delta)
+  {
+    for (AnimationState & state : states_)
     {
-      play();
-    }
-  }
-
-  void stop()
-  {
-    playing        = false;
-    current_time   = 0s;
-    time_direction = 1.0F;
-    for (auto &segment : segments)
-    {
-      segment->restart();
-    }
-  }
-
-  void restart() override
-  {
-    stop();
-  }
-
-  bool is_playing() const
-  {
-    return playing;
-  }
-
-  void seek(nanoseconds time)
-  {
-    nanoseconds target_time =
-        std::clamp(time, nanoseconds::zero(), total_duration);
-
-    if (target_time < current_time)
-    {
-      // Reset all segments if seeking backwards
-      for (auto &segment : segments)
-      {
-        segment->restart();
-      }
-      current_time = 0s;
-      update_segments(target_time);
-    }
-    else
-    {
-      nanoseconds delta = target_time - current_time;
-      update_segments(delta);
-    }
-
-    current_time = target_time;
-  }
-
-  // Seek to percentage of duration
-  void seek_percentage(f32 percentage)
-  {
-    percentage  = std::clamp(percentage, 0.0F, 1.0F);
-    auto target = nanoseconds{
-        static_cast<nanoseconds::rep>(total_duration.count() * percentage)};
-    seek(target);
-  }
-
-  void reverse()
-  {
-    time_direction *= -1.0F;
-  }
-  // Force a direction: `1` is forward or `-1` is backward
-  void set_direction(i32 direction)
-  {
-    time_direction = direction < 0 ? -1.0F : 1.0F;
-  }
-
-  nanoseconds current_time() const
-  {
-    return current_time;
-  }
-
-  nanoseconds total_duration() const
-  {
-    return total_duration;
-  }
-
-  f32 progress() const
-  {
-    if (total_duration.count() == 0)
-      return 0.0F;
-    return static_cast<float>(current_time.count()) /
-           static_cast<float>(total_duration.count());
-  }
-
-  bool is_reversed() const
-  {
-    return time_direction < 0;
-  }
-
-  bool is_finished() const
-  {
-    return !cfg.loop &&
-           ((time_direction > 0 && current_time >= total_duration) ||
-            (time_direction < 0 && current_time <= nanoseconds::zero()));
-  }
-
-  std::optional<SegmentPtr> segment(Span<const char> label)
-  {
-    auto filter_segment = [&label](SegmentPtr seg) {
-      return seg->label().data() == label.data();
-    };
-    if (auto result = std::ranges::find_if(segments, filter_segment);
-        result != segments.end())
-    {
-      return *result;
-    }
-    return std::nullopt;
-  }
-
-  SegmentPtr segment(u32 index)
-  {
-    return segments[index];
-  }
-
-  void update_segments(nanoseconds delta)
-  {
-    for (auto &segment : segments)
-    {
-      if (time_direction > 0)
-      {
-        // Forward playback
-        if (current_time >= segment->start_time &&
-            current_time <= segment->start_time + segment->duration)
-        {
-          segment->update(current_time, delta);
-        }
-      }
-      else
-      {
-        // Reverse playback
-        nanoseconds segment_end = segment->start_time + segment->duration;
-        if (current_time <= segment_end && current_time >= segment->start_time)
-        {
-          segment->update(current_time, delta);
-        }
-      }
+      // update the total runtime
+      state.run_time_ = timelines_.v0.duration();
+      state.tick(delta);
     }
   }
 };
 
-}        // namespace anim
-
-}        // namespace ash
+}    // namespace ash
