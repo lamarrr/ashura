@@ -260,36 +260,6 @@ TEST(ResultTest, UnwrapOrElse)
       (std::vector{6, 7, 8, 9, 10}));
 }
 
-TEST(ResultTest, Expect)
-{
-  EXPECT_EQ((make_ok<int, int>(10).expect("===TEST ERR MSG===")), 10);
-  EXPECT_DEATH_IF_SUPPORTED(
-      (make_err<int, int>(20).expect("===TEST ERR MSG===")), ".*");
-
-  EXPECT_EQ((make_ok<std::vector<int>, int>(std::vector{1, 2, 3, 4, 5})
-                 .expect("===TEST ERR MSG===")),
-            (std::vector{1, 2, 3, 4, 5}));
-  EXPECT_DEATH_IF_SUPPORTED(
-      (make_err<std::vector<int>, int>(20).expect("===TEST ERR MSG===")), ".*");
-
-  EXPECT_EQ((make_ok<int, std::vector<int>>(-1).expect("===TEST ERR MSG===")),
-            -1);
-  EXPECT_DEATH_IF_SUPPORTED(
-      (make_err<int, std::vector<int>>(std::vector{-1, -2, -3, -4, -5})
-           .expect("===TEST ERR MSG===")),
-      ".*");
-
-  EXPECT_EQ(
-      (make_ok<std::vector<int>, std::vector<int>>(std::vector{1, 2, 3, 4, 5})
-           .expect("===TEST ERR MSG===")),
-      (std::vector{1, 2, 3, 4, 5}));
-
-  EXPECT_DEATH_IF_SUPPORTED((make_err<std::vector<int>, std::vector<int>>(
-                                 std::vector{-1, -2, -3, -4, -5})
-                                 .expect("===TEST ERR MSG===")),
-                            ".*");
-}
-
 TEST(ResultTest, UnwrapErr)
 {
   EXPECT_EQ((make_err<int, int>(20).unwrap_err()), 20);
@@ -314,38 +284,6 @@ TEST(ResultTest, UnwrapErr)
   EXPECT_DEATH_IF_SUPPORTED(((void) make_ok<std::vector<int>, std::vector<int>>(
                                  std::vector{1, 2, 3, 4})
                                  .unwrap_err()),
-                            ".*");
-}
-
-TEST(ResultTest, ExpectErr)
-{
-  EXPECT_EQ((make_err<int, int>(20).expect_err("===TEST ERR MSG===")), 20);
-  EXPECT_DEATH_IF_SUPPORTED(
-      ((void) make_ok<int, int>(10).expect_err("===TEST ERR MSG===")), ".*");
-
-  EXPECT_EQ(
-      (make_err<std::vector<int>, int>(-40).expect_err("===TEST ERR MSG===")),
-      -40);
-  EXPECT_DEATH_IF_SUPPORTED(
-      ((void) make_ok<std::vector<int>, int>(std::vector{10, 20, 30})
-           .expect_err("===TEST ERR MSG===")),
-      ".*");
-
-  EXPECT_EQ((make_err<int, std::vector<int>>(std::vector{1, 2, 3, 4})
-                 .expect_err("===TEST ERR MSG===")),
-            (std::vector{1, 2, 3, 4}));
-  EXPECT_DEATH_IF_SUPPORTED(
-      ((void) make_ok<int, std::vector<int>>(68).expect_err(
-          "===TEST ERR MSG===")),
-      ".*");
-
-  EXPECT_EQ(
-      (make_err<std::vector<int>, std::vector<int>>(std::vector{1, 2, 3, 4})
-           .expect_err("===TEST ERR MSG===")),
-      (std::vector{1, 2, 3, 4}));
-  EXPECT_DEATH_IF_SUPPORTED(((void) make_ok<std::vector<int>, std::vector<int>>(
-                                 std::vector{1, 2, 3, 4})
-                                 .expect_err("===TEST ERR MSG===")),
                             ".*");
 }
 

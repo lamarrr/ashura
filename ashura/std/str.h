@@ -38,6 +38,6 @@ Result<> join(Span<Span<C const> const> strings, Span<C const> delimiter,
   return Ok{};
 }
 
-}        // namespace str
+}    // namespace str
 
-}        // namespace ash
+}    // namespace ash

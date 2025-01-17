@@ -76,9 +76,9 @@ struct is_same_impl<T, T>
 template <typename T, typename U>
 concept Same =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_same(T, U);
+  __is_same(T, U);
 #else
-    is_same_impl<T, U>::value;
+  is_same_impl<T, U>::value;
 #endif
 
 template <typename From, typename To>
@@ -101,17 +101,17 @@ struct is_const_impl<T const>
 template <typename T>
 concept Const =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_const(T);
+  __is_const(T);
 #else
-    is_const_impl<T>::value;
+  is_const_impl<T>::value;
 #endif
 
 template <typename T>
 concept NonConst =
 #if ASH_CFG(COMPILER, CLANG)
-    !__is_const(T);
+  !__is_const(T);
 #else
-    !is_const_impl<T>::value;
+  !is_const_impl<T>::value;
 #endif
 
 /// can be overloaded for custom types
@@ -120,10 +120,10 @@ struct IsTriviallyRelocatable
 {
   static constexpr bool value =
 #if ASH_CFG(COMPILER, CLANG)
-      __is_trivially_constructible(T, T &&) && __is_trivially_destructible(T);
+    __is_trivially_constructible(T, T &&) && __is_trivially_destructible(T);
 #else
-      std::is_trivially_move_constructible_v<T> &&
-      std::is_trivially_destructible_v<T>;
+    std::is_trivially_move_constructible_v<T> &&
+    std::is_trivially_destructible_v<T>;
 #endif
 };
 
@@ -145,65 +145,65 @@ concept TriviallyRelocatable = IsTriviallyRelocatable<T>::value;
 template <typename T>
 concept TriviallyDestructible =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_trivially_destructible(T);
+  __is_trivially_destructible(T);
 #else
-    std::is_trivially_destructible_v<T>;
+  std::is_trivially_destructible_v<T>;
 #endif
 
 template <typename T>
 concept TriviallyCopyable =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_trivially_copyable(T);
+  __is_trivially_copyable(T);
 #else
-    std::is_trivially_copyable_v<T>;
+  std::is_trivially_copyable_v<T>;
 #endif
 
 template <typename T>
 concept TriviallyCopyConstructible =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_trivially_constructible(T, T const &);
+  __is_trivially_constructible(T, T const &);
 #else
-    std::is_trivially_copy_constructible_v<T>;
+  std::is_trivially_copy_constructible_v<T>;
 #endif
 
 template <typename T>
 concept TriviallyMoveConstructible =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_trivially_constructible(T, T &&);
+  __is_trivially_constructible(T, T &&);
 #else
-    std::is_trivially_copy_constructible_v<T>;
+  std::is_trivially_copy_constructible_v<T>;
 #endif
 
 template <typename T, typename Base>
 concept Derives =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_base_of(Base, T);
+  __is_base_of(Base, T);
 #else
-    std::is_base_of_v<Base, T>;
+  std::is_base_of_v<Base, T>;
 #endif
 
 template <typename T>
 concept Unsigned =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_unsigned(T);
+  __is_unsigned(T);
 #else
-    std::is_unsigned_v<T>;
+  std::is_unsigned_v<T>;
 #endif
 
 template <typename T>
 concept Signed =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_signed(T);
+  __is_signed(T);
 #else
-    std::is_signed_v<T>;
+  std::is_signed_v<T>;
 #endif
 
 template <typename T>
 concept FloatingPoint =
 #if ASH_CFG(COMPILER, CLANG)
-    __is_floating_point(T);
+  __is_floating_point(T);
 #else
-    std::is_floating_point_v<T>;
+  std::is_floating_point_v<T>;
 #endif
 
 template <typename F, typename... Args>
@@ -219,4 +219,4 @@ concept Predicate = requires (Fn fn, Args... args) {
   { fn(static_cast<Args>(args)...) && true };
 };
 
-}        // namespace ash
+}    // namespace ash

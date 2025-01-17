@@ -41,14 +41,14 @@ bool push_int(fmt::Context const & ctx, fmt::Spec const & spec, IntT value)
   }
 
   auto [ptr, ec] =
-      std::to_chars(ctx.scratch.pbegin(), ctx.scratch.pend(), value, base);
+    std::to_chars(ctx.scratch.pbegin(), ctx.scratch.pend(), value, base);
   if (ec != std::errc{})
   {
     return false;
   }
 
   return ctx.push(
-      Span{ctx.scratch.pbegin(), (usize) (ptr - ctx.scratch.pbegin())});
+    Span{ctx.scratch.pbegin(), (usize) (ptr - ctx.scratch.pbegin())});
 }
 
 template <typename FloatT>
@@ -77,13 +77,13 @@ bool push_float(fmt::Context const & ctx, fmt::Spec const & spec, FloatT value)
   else
   {
     result =
-        std::to_chars(ctx.scratch.pbegin(), ctx.scratch.pend(), value, format);
+      std::to_chars(ctx.scratch.pbegin(), ctx.scratch.pend(), value, format);
   }
 
   if (result.ec == std::errc{})
   {
-    return ctx.push(Span{ctx.scratch.pbegin(),
-                         (usize) (result.ptr - ctx.scratch.pbegin())});
+    return ctx.push(
+      Span{ctx.scratch.pbegin(), (usize) (result.ptr - ctx.scratch.pbegin())});
   }
   return false;
 }
@@ -248,4 +248,4 @@ bool fmt::push(fmt::Context const & ctx, fmt::Spec const &, void const * ptr)
   return ctx.push("0x"_str) && push_int(ctx, ptr_spec, (uptr) ptr);
 }
 
-}        // namespace ash
+}    // namespace ash

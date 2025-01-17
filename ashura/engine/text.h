@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/engine/color.h"
-#include "ashura/engine/font.h"
+#include "ashura/engine/ids.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
@@ -232,8 +232,8 @@ enum class TextScript : u8
 /// @param line_height relative. multiplied by font_height
 struct FontStyle
 {
-  Font * font        = nullptr;
-  f32    font_height = 20;
+  FontId font        = FontId::Invalid;
+  f32    height      = 20;
   f32    line_height = 1.2F;
 };
 
@@ -245,7 +245,7 @@ struct TextStyle
   f32           strikethrough_thickness = 0;
   f32           shadow_scale            = 0;
   Vec2          shadow_offset           = Vec2{0, 0};
-  ColorGradient foreground              = {};
+  ColorGradient color                   = {};
   ColorGradient background              = {};
   ColorGradient underline               = {};
   ColorGradient strikethrough           = {};
@@ -290,7 +290,7 @@ struct TextBlockStyle
 /// @param cluster unicode grapheme cluster within the text run
 /// @param advance context-dependent horizontal-layout advance
 /// @param offset context-dependent text shaping offset from normal font glyph
-/// position, i.e. offset from Glyph::bearing
+/// position, i.e. offset from GlyphMetrics::bearing
 struct GlyphShape
 {
   u32   glyph   = 0;
@@ -403,6 +403,22 @@ struct TextLayout
   Vec<TextRun>     runs      = {};
   Vec<Line>        lines     = {};
 
+  explicit TextLayout(AllocatorRef allocator) :
+    max_width{0},
+    extent{},
+    segments{allocator},
+    glyphs{allocator},
+    runs{allocator},
+    lines{allocator}
+  {
+  }
+
+  TextLayout(TextLayout const &)             = delete;
+  TextLayout & operator=(TextLayout const &) = delete;
+  TextLayout(TextLayout &&)                  = default;
+  TextLayout & operator=(TextLayout &&)      = default;
+  ~TextLayout()                              = default;
+
   void clear()
   {
     max_width = F32_MAX;
@@ -420,13 +436,12 @@ constexpr TextDirection level_to_direction(u8 level)
                                 TextDirection::RightToLeft;
 }
 
-void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout);
 
 /// @brief given a position in the laid-out text return the location of the
 /// grapheme the cursor points to. returns the last column if the position
 /// overlaps with the row and returns the last line if no overlap was found.
 /// @param pos position in laid-out text to return from.
-TextHitResult hit_text(TextLayout const & layout, f32 align_width,
-                       f32 alignment, Vec2 pos);
+Option<TextHitResult> hit_text(TextLayout const & layout, f32 align_width,
+                               f32 alignment, Vec2 pos);
 
-}        // namespace ash
+}    // namespace ash

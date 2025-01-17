@@ -6,8 +6,7 @@
 
 /*********************** COMPILERS ***********************/
 
-#if defined( \
-    __GNUC__)        //  any compiler that implements the GNU compiler \
+#if defined(__GNUC__)    //  any compiler that implements the GNU compiler \
                              //  extensions
 #  define ASH_COMPILER_GNUC 1
 #else
@@ -59,44 +58,44 @@
 /*********************** OPERATING SYSTEMS ***********************/
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || \
-    defined(WIN32)        // Any Windows
+  defined(WIN32)    // Any Windows
 #  define ASH_OS_WINDOWS 1
 #else
 #  define ASH_OS_WINDOWS 0
 #endif
 
-#if defined(__unix__) || defined(unix)        // UNIX
+#if defined(__unix__) || defined(unix)    // UNIX
 #  define ASH_OS_UNIX 1
 #else
 #  define ASH_OS_UNIX 0
 #endif
 
-#if __has_include(<unistd.h>)        // Posix-compliant operating system
+#if __has_include(<unistd.h>)    // Posix-compliant operating system
 #  define ASH_OS_POSIX 1
 #else
 #  define ASH_OS_POSIX 0
 #endif
 
 #if defined(__linux__) || defined(__linux) || \
-    defined(linux)        // Linux and variants like Android
+  defined(linux)    // Linux and variants like Android
 #  define ASH_OS_LINUX 1
 #else
 #  define ASH_OS_LINUX 0
 #endif
 
-#if defined(__gnu_linux__)        // Linux OS with GNU facilities
+#if defined(__gnu_linux__)    // Linux OS with GNU facilities
 #  define ASH_OS_GNU_LINUX 1
 #else
 #  define ASH_OS_GNU_LINUX 0
 #endif
 
-#if defined(__ANDROID__)        // Android, Also infers ASH_OS_LINUX
+#if defined(__ANDROID__)    // Android, Also infers ASH_OS_LINUX
 #  define ASH_OS_ANDROID 1
 #else
 #  define ASH_OS_ANDROID 0
 #endif
 
-#if defined(__APPLE__)        // All Apple OSs
+#if defined(__APPLE__)    // All Apple OSs
 #  define ASH_OS_APPLE 1
 
 #  include <Availability.h>
@@ -106,25 +105,25 @@
 #  define ASH_OS_APPLE 0
 #endif
 
-#if defined(__APPLE__) && defined(__MACH__)        // Mac OS X
+#if defined(__APPLE__) && defined(__MACH__)    // Mac OS X
 #  define ASH_OS_MACOS 1
 #else
 #  define ASH_OS_MACOS 0
 #endif
 
-#if defined(__wasi__)        // WebAssembly System Interface
+#if defined(__wasi__)    // WebAssembly System Interface
 #  define ASH_OS_WASI 1
 #else
 #  define ASH_OS_WASI 0
 #endif
 
-#if defined(__CYGWIN__)        // Cygwin environment
+#if defined(__CYGWIN__)    // Cygwin environment
 #  define ASH_OS_CYGWIN 1
 #else
 #  define ASH_OS_CYGWIN 0
 #endif
 
-#if defined(__Fuchsia__)        // Fuchsia
+#if defined(__Fuchsia__)    // Fuchsia
 #  define ASH_OS_FUCHSIA 1
 #else
 #  define ASH_OS_FUCHSIA 0
@@ -133,46 +132,45 @@
 /*********************** ARCHITECTURES ***********************/
 
 #if defined(__i386__) || defined(__i386) || defined(_X86_) || \
-    defined(_M_IX86) || defined(_M_I86)        // X86
+  defined(_M_IX86) || defined(_M_I86)    // X86
 #  define ASH_ARCH_X86 1
 #else
 #  define ASH_ARCH_X86 0
 #endif
 
 #if defined(__x86_64__) || defined(__x86_64) || defined(_M_X64) || \
-    defined(_M_AMD64) || defined(__amd64) ||                       \
-    defined(__amd64__)        // X86_64
+  defined(_M_AMD64) || defined(__amd64) || defined(__amd64__)    // X86_64
 #  define ASH_ARCH_X86_64 1
 #else
 #  define ASH_ARCH_X86_64 0
 #endif
 
-#if defined(__arm__) || defined(_M_ARM)        // ARM
+#if defined(__arm__) || defined(_M_ARM)    // ARM
 #  define ASH_ARCH_ARM32 1
 #else
 #  define ASH_ARCH_ARM32 0
 #endif
 
-#if defined(__aarch64__)        // ARM64
+#if defined(__aarch64__)    // ARM64
 #  define ASH_ARCH_ARM64 1
 #else
 #  define ASH_ARCH_ARM64 0
 #endif
 
-#if defined(__XTENSA__)        // Xtensa
+#if defined(__XTENSA__)    // Xtensa
 #  define ASH_ARCH_XTENSA 1
 #else
 #  define ASH_ARCH_XTENSA 0
 #endif
 
 #if defined(__mips__) || defined(__mips) || defined(mips) || \
-    defined(__MIPS__)        // MIPS
+  defined(__MIPS__)    // MIPS
 #  define ASH_ARCH_MIPS 1
 #else
 #  define ASH_ARCH_MIPS 0
 #endif
 
-#if defined(__riscv) || defined(__riscv__)        // RISC-V
+#if defined(__riscv) || defined(__riscv__)    // RISC-V
 #  define ASH_ARCH_RISCV 1
 #else
 #  define ASH_ARCH_RISCV 0
@@ -188,19 +186,19 @@
 
 /*********************** BINARY FORMATS ***********************/
 
-#if defined(__wasm__)        // Web Assembly
+#if defined(__wasm__)    // Web Assembly
 #  define ASH_BINARY_WASW 1
 #else
 #  define ASH_BINARY_WASW 0
 #endif
 
-#if defined(__ELF__)        // Executable and Linkable Formats
+#if defined(__ELF__)    // Executable and Linkable Formats
 #  define ASH_BINARY_ELF 1
 #else
 #  define ASH_BINARY_ELF 0
 #endif
 
-#if ASH_CFG(OS, WINDOWS)        // Windows Portable Executable
+#if ASH_CFG(OS, WINDOWS)    // Windows Portable Executable
 #  define ASH_BINARY_EXE 1
 #else
 #  define ASH_BINARY_EXE 0
@@ -256,7 +254,7 @@
 #endif
 
 #if ASH_CFG(COMPILER, GNUC) || ASH_CFG(COMPILER, CLANG) || \
-    ASH_CFG(COMPILER, NVCC)
+  ASH_CFG(COMPILER, NVCC)
 #  define ASH_RESTRICT __restrict__
 #else
 #  if ASH_CFG(COMPILER, MSVC)

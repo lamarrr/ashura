@@ -4,4 +4,4 @@
 namespace ash
 {
 
-}        // namespace ash
+}    // namespace ash

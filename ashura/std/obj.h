@@ -135,6 +135,6 @@ constexpr void relocate_nonoverlapping(Span<T> src, Span<T> dst)
   relocate_nonoverlapping(src, dst.data());
 }
 
-}        // namespace obj
+}    // namespace obj
 
-}        // namespace ash
+}    // namespace ash

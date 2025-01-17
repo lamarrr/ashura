@@ -1,10 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/color.h"
-#include "ashura/engine/font.h"
 #include "ashura/engine/passes.h"
 #include "ashura/engine/renderer.h"
-#include "ashura/engine/scene.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/allocators.h"
 #include "ashura/std/math.h"
@@ -13,7 +11,7 @@
 namespace ash
 {
 
-/// @brief all points are stored in the [-1, +1] range, all arguments must be
+/// @brief all points are stored in the [-0.5, +0.5] range, all arguments must be
 /// normalized to same range.
 namespace path
 {
@@ -80,71 +78,83 @@ void triangles(u32 first_vertex, u32 num_vertices, Vec<u32> & idx);
 /// @brief generate vertices for a quadratic bezier curve
 void triangulate_convex(Vec<u32> & idx, u32 first_vertex, u32 num_vertices);
 
-};        // namespace path
+};    // namespace path
 
-enum class ScaleMode : u8
+enum class TileMode : u32
 {
   Stretch = 0,
   Tile    = 1
 };
 
 /// @brief Canvas Shape Description
-/// @param center center of the shape in world-space
-/// @param extent extent of the shape in world-space
-/// @param transform world-space transform matrix
-/// @param corner_radii corner radii of each corner if rrect
-/// @param stroke lerp intensity between stroke and fill, 0 to fill, 1 to stroke
-/// @param thickness thickness of the stroke
-/// @param scissor in surface pixel coordinates
-/// @param tint Linear Color gradient to use as tint
-/// @param sampler sampler to use in rendering the shape
-/// @param texture texture index in the global texture store
-/// @param uv uv coordinates of the upper-left and lower-right
-/// @param tiling tiling factor
-/// @param edge_smoothness edge smoothness to apply if it is a rrect
 struct ShapeInfo
 {
+  /// @brief center of the shape in world-space
   Vec2 center = {0, 0};
 
+  /// @brief extent of the shape in world-space
   Vec2 extent = {0, 0};
 
+  /// @brief object-world-space transform matrix
   Mat4 transform = Mat4::identity();
 
+  /// @brief corner radii of each corner if rrect
   Vec4 corner_radii = {0, 0, 0, 0};
 
+  /// @brief lerp intensity between stroke and fill, 0 to fill, 1 to stroke
   f32 stroke = 0.0F;
 
+  /// @brief thickness thickness of the stroke
   f32 thickness = 1.0F;
 
+  /// @brief Linear Color gradient to use as tint
   ColorGradient tint = {};
 
-  u32 sampler = 0;
+  /// @brief sampler to use in rendering the shape
+  SamplerId sampler = SamplerId::Linear;
 
-  u32 texture = 0;
+  /// @brief texture to use in rendering the shape
+  TextureId texture = TextureId::White;
 
+  /// @brief uv coordinates of the upper-left and lower-right part of the
+  /// texture to sample from
   Vec2 uv[2] = {
-      {0, 0},
-      {1, 1}
+    {0, 0},
+    {1, 1}
   };
 
+  /// @brief tiling factor
   f32 tiling = 1;
 
-  f32 edge_smoothness = 0.015F;
+  /// @brief edge smoothness to apply if it is a rrect
+  f32 edge_smoothness = 1;
+};
+
+/// @brief a normative clip rect that will cover the entire Canvas.
+inline constexpr Rect MAX_CLIP{
+  .offset{0,         0        },
+  .extent{0xFF'FFFF, 0xFF'FFFF}
 };
 
 struct Canvas
 {
   struct RenderContext
   {
-    Canvas &              canvas;
-    GpuContext &          gpu;
-    PassContext &         passes;
-    RenderTarget const &  rt;
+    Canvas & canvas;
+
+    PassContext & passes;
+
+    Framebuffer const & framebuffer;
+
     gpu::CommandEncoder & enc;
-    SSBO const &          rrects;
-    SSBO const &          ngons;
-    SSBO const &          ngon_vertices;
-    SSBO const &          ngon_indices;
+
+    SSBO const & rrects;
+
+    SSBO const & ngons;
+
+    SSBO const & ngon_vertices;
+
+    SSBO const & ngon_indices;
   };
 
   enum class BatchType : u8
@@ -157,11 +167,10 @@ struct Canvas
   struct Batch
   {
     BatchType type = BatchType::None;
-    CRect     clip{
-            .center{F32_MAX / 2, F32_MAX / 2},
-            .extent{F32_MAX,     F32_MAX    }
-    };
-    Slice32 objects{};
+
+    Slice32 run{};
+
+    Rect clip = MAX_CLIP;
   };
 
   typedef Dyn<Fn<void(RenderContext const &)>> PassFn;
@@ -169,21 +178,33 @@ struct Canvas
   struct Pass
   {
     Span<char const> name = {};
-    PassFn           task{};
+
+    PassFn task{};
   };
 
-  Vec2 viewport_extent{};
+  /// @brief the viewport of the framebuffer this canvas will be targetting
+  /// this is in the Framebuffer coordinates (Physical px coordinates)
+  gpu::Viewport viewport{};
 
-  Vec2U surface_extent{};
+  /// @brief the viewport's local extent. This will scale to the viewport's extent.
+  /// This is typically the screen's virtual size (Logical px coordinates).
+  /// This distinction helps support high-density displays.
+  Vec2 extent{};
 
-  f32 viewport_aspect_ratio = 1;
+  /// @brief the pixel size of the backing framebuffer (Physical px coordinates)
+  Vec2U framebuffer_extent{};
 
-  Mat4 world_to_view = Mat4::identity();
+  /// @brief aspect ratio of the viewport
+  f32 aspect_ratio = 1;
 
-  CRect current_clip{
-      .center{F32_MAX / 2, F32_MAX / 2},
-      .extent{F32_MAX,     F32_MAX    }
-  };
+  /// @brief the ratio of the viewport's framebuffer coordinate extent
+  /// to the viewport's virtual extent
+  f32 virtual_scale = 1;
+
+  /// @brief the world to viewport transformation matrix
+  Affine4 world_to_view = Affine4::identity();
+
+  Rect current_clip = MAX_CLIP;
 
   Vec<RRectParam> rrect_params;
 
@@ -195,6 +216,7 @@ struct Canvas
 
   Vec<u32> ngon_index_counts;
 
+  /// @brief current render batch
   Batch batch{};
 
   Vec<Pass> passes;
@@ -203,14 +225,14 @@ struct Canvas
   // are done executing
   ArenaPool frame_arena;
 
-  explicit Canvas(AllocatorImpl allocator) :
-      rrect_params{allocator},
-      ngon_params{allocator},
-      ngon_vertices{allocator},
-      ngon_indices{allocator},
-      ngon_index_counts{allocator},
-      passes{allocator},
-      frame_arena{allocator}
+  explicit Canvas(AllocatorRef allocator) :
+    rrect_params{allocator},
+    ngon_params{allocator},
+    ngon_vertices{allocator},
+    ngon_indices{allocator},
+    ngon_index_counts{allocator},
+    passes{allocator},
+    frame_arena{allocator}
   {
   }
 
@@ -220,13 +242,22 @@ struct Canvas
   Canvas & operator=(Canvas &&)      = default;
   ~Canvas()                          = default;
 
-  Canvas & begin_recording(Vec2 viewport_extent, Vec2U surface_extent);
+  Canvas & begin_recording(gpu::Viewport const & viewport, Vec2 extent,
+                           Vec2U framebuffer_extent);
 
   Canvas & end_recording();
 
   Canvas & reset();
 
-  Canvas & clip(CRect const & area);
+  Canvas & reset_clip()
+  {
+    current_clip = MAX_CLIP;
+    return *this;
+  }
+
+  Canvas & clip(Rect const & area);
+
+  RectU clip_to_scissor(Rect const & clip);
 
   /// @brief render a circle
   Canvas & circle(ShapeInfo const & info);
@@ -242,7 +273,7 @@ struct Canvas
 
   /// @brief render a squircle (triangulation based)
   /// @param num_segments an upper bound on the number of segments to
-  /// @param degree
+  /// @param elasticity elasticity of the squircle [0, 1]
   Canvas & squircle(ShapeInfo const & info, f32 degree, u32 segments);
 
   /// @brief
@@ -266,7 +297,7 @@ struct Canvas
   /// @param info
   /// @param mode
   /// @param uvs
-  Canvas & nine_slice(ShapeInfo const & info, ScaleMode mode,
+  Canvas & nine_slice(ShapeInfo const & info, TileMode mode,
                       Span<Vec4 const> uvs);
 
   /// @brief Render text using font atlases
@@ -280,10 +311,7 @@ struct Canvas
   /// @param clip clip rect for culling draw commands of the text block
   Canvas & text(ShapeInfo const & info, TextBlock const & block,
                 TextLayout const & layout, TextBlockStyle const & style,
-                CRect const & clip = {
-                    {F32_MAX / 2, F32_MAX / 2},
-                    {F32_MAX,     F32_MAX    }
-  });
+                CRect const & clip = MAX_CLIP.centered());
 
   /// @brief Render Non-Indexed Triangles
   Canvas & triangles(ShapeInfo const & info, Span<Vec2 const> vertices);
@@ -299,7 +327,8 @@ struct Canvas
   /// @param area region in the canvas to apply the blur to
   /// @param num_passes number of blur passes to execute, higher values result
   /// in blurrier results
-  Canvas & blur(CRect const & area, u32 num_passes);
+  Canvas & blur(Rect const & area, Vec2 radius, u32 num_passes,
+                Vec4 corner_radii = {0, 0, 0, 0});
 
   /// @brief register a custom canvas pass to be executed in the render thread
   Canvas & add_pass(Pass && pass);
@@ -309,15 +338,15 @@ struct Canvas
   {
     // relocate lambda to heap
     Dyn<Lambda *> lambda =
-        dyn(frame_arena.to_allocator(), static_cast<Lambda &&>(task)).unwrap();
+      dyn(frame_arena.ref(), static_cast<Lambda &&>(task)).unwrap();
     // allocator is noop-ed but destructor still runs when the dynamic object is
     // uninitialized. the memory is freed by at the end of the frame anyway so
     // no need to free it
-    lambda.inner.allocator = noop_allocator;
+    lambda.allocator_ = noop_allocator;
 
     return add_pass(
-        Pass{.name = name, .task = transmute(std::move(lambda), fn(*lambda))});
+      Pass{.name = name, .task = transmute(std::move(lambda), fn(*lambda))});
   }
 };
 
-}        // namespace ash
+}    // namespace ash

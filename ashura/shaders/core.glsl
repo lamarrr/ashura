@@ -36,7 +36,7 @@ vec4 downsample(sampler smp, texture2D src, vec2 uv, vec2 radius)
   sum += texture(sampler2D(src, smp), uv - radius);
   sum += texture(sampler2D(src, smp), uv + vec2(radius.x, -radius.y));
   sum += texture(sampler2D(src, smp), uv + vec2(-radius.x, radius.y));
-  return sum / 8.0;
+  return sum * (1 / 8.0);
 }
 
 /// SIGGRAPH 2015 - Bandwidth-Efficient Rendering, Marius Bjorge, ARM
@@ -51,7 +51,7 @@ vec4 upsample(sampler smp, texture2D src, vec2 uv, vec2 radius)
   sum += texture(sampler2D(src, smp), uv + vec2(radius.x, -radius.y)) * 2.0;
   sum += texture(sampler2D(src, smp), uv + vec2(0, -radius.y * 2));
   sum += texture(sampler2D(src, smp), uv + vec2(-radius.x, -radius.y)) * 2.0;
-  return sum / 12.0;
+  return sum  * (1 / 12.0);
 }
 
 /// see: https://www.shadertoy.com/view/DlVcW1

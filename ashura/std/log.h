@@ -10,12 +10,22 @@
 #include <mutex>
 #include <stdlib.h>
 
-#define ASH_DUMP(x) ::ash::logger->trace(#x, " = ", x);
+#define ASH_DUMP(x) ::ash::trace(#x, " = ", x);
 
 namespace ash
 {
 
-enum class LogLevels : u8
+enum class LogLevel : u32
+{
+  Debug   = 0,
+  Trace   = 1,
+  Info    = 2,
+  Warning = 3,
+  Error   = 4,
+  Fatal   = 5
+};
+
+enum class LogLevels : u32
 {
   None    = 0x00,
   Debug   = 0x01,
@@ -30,8 +40,8 @@ ASH_BIT_ENUM_OPS(LogLevels)
 
 struct LogSink
 {
-  virtual void log(LogLevels level, Span<char const> log_message) = 0;
-  virtual void flush()                                            = 0;
+  virtual void log(LogLevel level, Span<char const> log_message) = 0;
+  virtual void flush()                                           = 0;
 };
 
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
@@ -51,37 +61,37 @@ struct Logger : Pin<>
   template <typename... Args>
   bool debug(Args const &... args)
   {
-    return log(LogLevels::Debug, args...);
+    return log(LogLevel::Debug, args...);
   }
 
   template <typename... Args>
   bool trace(Args const &... args)
   {
-    return log(LogLevels::Trace, args...);
+    return log(LogLevel::Trace, args...);
   }
 
   template <typename... Args>
   bool info(Args const &... args)
   {
-    return log(LogLevels::Info, args...);
+    return log(LogLevel::Info, args...);
   }
 
   template <typename... Args>
   bool warn(Args const &... args)
   {
-    return log(LogLevels::Warning, args...);
+    return log(LogLevel::Warning, args...);
   }
 
   template <typename... Args>
   bool error(Args const &... args)
   {
-    return log(LogLevels::Error, args...);
+    return log(LogLevel::Error, args...);
   }
 
   template <typename... Args>
   bool fatal(Args const &... args)
   {
-    return log(LogLevels::Fatal, args...);
+    return log(LogLevel::Fatal, args...);
   }
 
   void flush()
@@ -94,7 +104,7 @@ struct Logger : Pin<>
   }
 
   template <typename... Args>
-  bool log(LogLevels level, Args const &... args)
+  bool log(LogLevel level, Args const &... args)
   {
     std::lock_guard lock{mutex};
     char            scratch[SCRATCH_SIZE];
@@ -118,25 +128,23 @@ struct Logger : Pin<>
     std::atomic_ref panic_count{*ash::panic_count};
     if (panic_count.fetch_add(1, std::memory_order::relaxed))
     {
-      (void) fputs("panicked while processing a panic. aborting...", stderr);
-      (void) fflush(stderr);
-      abort();
+      (void) std::fputs("panicked while processing a panic. aborting...",
+                        stderr);
+      (void) std::fflush(stderr);
+      std::abort();
     }
     if (!fatal(args...))
     {
-      (void) fputs("ran out of log buffer memory while panicking.", stderr);
+      (void) std::fputs("ran out of log buffer memory while panicking.",
+                        stderr);
     }
     flush();
     if (panic_handler != nullptr)
     {
       panic_handler();
     }
-    abort();
+    std::abort();
   }
-
-  static void init();
-
-  static void uninit();
 
   [[nodiscard]] bool add_sink(LogSink * s)
   {
@@ -161,21 +169,59 @@ struct StdioSink : LogSink
 {
   std::mutex mutex;
 
-  void log(LogLevels level, Span<char const> log_message) override;
+  void log(LogLevel level, Span<char const> log_message) override;
   void flush() override;
 };
-
-struct FileSink : LogSink
-{
-  FILE *     file = nullptr;
-  std::mutex mutex;
-
-  void log(LogLevels level, Span<char const> log_message) override;
-  void flush() override;
-};
-
-ASH_C_LINKAGE ASH_DLL_EXPORT ash::Logger * logger;
 
 extern StdioSink stdio_sink;
 
-}        // namespace ash
+struct FileSink : LogSink
+{
+  std::FILE * file = nullptr;
+  std::mutex  mutex;
+
+  void log(LogLevel level, Span<char const> log_message) override;
+  void flush() override;
+};
+
+extern Logger * logger;
+
+ASH_C_LINKAGE ASH_DLL_EXPORT void hook_logger(Logger *);
+
+template <typename... Args>
+void debug(Args const &... args)
+{
+  logger->debug(args...);
+}
+
+template <typename... Args>
+void trace(Args const &... args)
+{
+  logger->trace(args...);
+}
+
+template <typename... Args>
+void info(Args const &... args)
+{
+  logger->info(args...);
+}
+
+template <typename... Args>
+void warn(Args const &... args)
+{
+  logger->warn(args...);
+}
+
+template <typename... Args>
+void error(Args const &... args)
+{
+  logger->error(args...);
+}
+
+template <typename... Args>
+void fatal(Args const &... args)
+{
+  logger->fatal(args...);
+}
+
+}    // namespace ash

@@ -4,6 +4,7 @@
 #include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include <cstring>
+#include <memory>
 
 namespace ash
 {
@@ -43,6 +44,8 @@ bool is_ptr_aligned(usize alignment, T * p)
 {
   return is_aligned(alignment, (uptr) p);
 }
+
+using std::assume_aligned;
 
 namespace mem
 {
@@ -165,7 +168,7 @@ ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 #endif
 }
 
-}        // namespace mem
+}    // namespace mem
 
 /// @brief copy non-null-terminated string `str` to `c_str` and null-terminate `c_str`.
 [[nodiscard]] inline bool to_c_str(Span<char const> str, Span<char> c_str)
@@ -188,6 +191,7 @@ struct Layout
   usize alignment = 1;
   usize size      = 0;
 
+  /// @warning must call `aligned()` once done appending
   constexpr Layout append(Layout const & ext) const
   {
     return Layout{.alignment = max(alignment, ext.alignment),
@@ -205,15 +209,36 @@ struct Layout
                   .size      = align_offset(alignment, size)};
   }
 
+  constexpr Layout align_to(usize align) const
+  {
+    return Layout{.alignment = align, .size = align_offset(align, size)};
+  }
+
   constexpr Layout lanes(usize n) const
   {
     return Layout{.alignment = alignment * n, .size = size * n};
+  }
+
+  constexpr Layout unioned(Layout const & other) const
+  {
+    return Layout{.alignment = max(alignment, other.alignment),
+                  .size      = max(size, other.size)};
+  }
+
+  constexpr Layout with_alignment(usize align)
+  {
+    return Layout{.alignment = align, .size = size};
+  }
+
+  constexpr Layout with_size(usize size)
+  {
+    return Layout{.alignment = alignment, .size = size};
   }
 };
 
 /// @brief Get the memory layout of a type
 template <typename T>
-constexpr Layout layout = Layout{.alignment = alignof(T), .size = sizeof(T)};
+constexpr Layout layout_of = Layout{.alignment = alignof(T), .size = sizeof(T)};
 
 /// @brief A Flex is a struct with multiple variable-sized members packed into a
 /// single address. It ensures the correct calculation of the alignments,
@@ -248,9 +273,8 @@ struct Flex
 
   Tuple<Span<T>...> unpack(void const * stack) const
   {
-    return index_apply<sizeof...(T)>([&]<usize... I>() {
-      return Tuple<Span<T>...>{unpack_at_<I>(stack)...};
-    });
+    return index_apply<sizeof...(T)>(
+      [&]<usize... I>() { return Tuple<Span<T>...>{unpack_at_<I>(stack)...}; });
   }
 };
 
@@ -289,4 +313,4 @@ struct BitEq
 constexpr StrEq str_eq;
 constexpr BitEq bit_eq;
 
-}        // namespace ash
+}    // namespace ash

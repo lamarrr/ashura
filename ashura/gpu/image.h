@@ -53,6 +53,6 @@ inline u64 packed_image_size(u32 width, u32 height, Format format)
   return (u64) width * (u64) height * (u64) pixel_pitch(format);
 }
 
-}        // namespace gpu
+}    // namespace gpu
 
-}        // namespace ash
+}    // namespace ash

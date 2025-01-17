@@ -168,4 +168,4 @@ struct [[nodiscard]] SPSCRingBuffer
   }
 };
 
-}        // namespace ash
+}    // namespace ash

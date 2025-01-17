@@ -100,8 +100,8 @@ template <typename Node, Node * Node::* prev, Node * Node::* next>
   return ext;
 }
 
-}        // namespace list
-}        // namespace intr
+}    // namespace list
+}    // namespace intr
 
 /// @brief A non-owning intrusive doubly circularly linked list. This is backed
 /// by an external allocator.
@@ -121,7 +121,7 @@ struct [[nodiscard]] List
   {
     Node * iter_      = nullptr;
     Node * head_      = nullptr;
-    bool   past_head_ = true;
+    sbool  past_head_ = true;
 
     constexpr Node & operator*() const
     {
@@ -137,7 +137,7 @@ struct [[nodiscard]] List
 
     constexpr bool operator!=(IterEnd) const
     {
-      bool const finished = (past_head_ && iter_ == head_);
+      sbool const finished = (past_head_ & iter_ == head_);
       return !finished;
     }
   };
@@ -167,7 +167,7 @@ struct [[nodiscard]] List
 
   constexpr ~List()
   {
-    CHECK_DESC(head_ == nullptr, "Linked list's elements were not released");
+    CHECK(head_ == nullptr, "Linked list's elements were not released");
   }
 
   constexpr void leak()
@@ -280,7 +280,7 @@ struct [[nodiscard]] List
   constexpr Iter begin() const
   {
     return Iter{
-        .iter_ = head_, .head_ = head_, .past_head_ = (head_ == nullptr)};
+      .iter_ = head_, .head_ = head_, .past_head_ = (head_ == nullptr)};
   }
 
   constexpr auto end() const
@@ -295,4 +295,4 @@ struct IsTriviallyRelocatable<List<N, prev, next>>
   static constexpr bool value = true;
 };
 
-}        // namespace ash
+}    // namespace ash

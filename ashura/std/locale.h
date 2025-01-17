@@ -133,6 +133,6 @@ inline constexpr char XHOSA[]             = "xh";
 inline constexpr char YORUBA[]            = "yo";
 inline constexpr char CHINESE[]           = "zh";
 inline constexpr char ZULU[]              = "zu";
-}        // namespace lang
+}    // namespace lang
 
-}        // namespace ash
+}    // namespace ash

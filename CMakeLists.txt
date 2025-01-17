@@ -38,7 +38,6 @@ set(SDL_HAPTIC
     OFF
     CACHE BOOL "")
 
-
 include(FetchContent)
 
 set(ASH_VULKAN_VERSION "1.3.296.0")
@@ -77,7 +76,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG preview-3.1.6)
+  GIT_TAG preview-3.1.8)
 
 FetchContent_Declare(
   harfbuzz
@@ -92,7 +91,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   SheenBidi
   GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
-  GIT_TAG v2.7
+  GIT_TAG v2.8
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
@@ -108,7 +107,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   xxHash
   GIT_REPOSITORY https://github.com/Cyan4973/xxHash.git
-  GIT_TAG dd11140
+  GIT_TAG v0.8.3
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 FetchContent_Declare(
@@ -119,7 +118,7 @@ FetchContent_Declare(
 
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
-find_package(libjpeg-turbo CONFIG REQUIRED)
+find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
@@ -166,6 +165,8 @@ else()
   endif()
 endif()
 
+# ASHURA STD
+
 add_library(
   ashura_std
   ashura/std/allocator.cc
@@ -182,75 +183,90 @@ target_include_directories(
   PRIVATE ${xxHash_INCLUDE_DIR})
 target_link_libraries(ashura_std PUBLIC Threads::Threads)
 
+# ASHURA STD - TESTS
+
 add_executable(
   ashura_std_tests
-  ashura/std/tests/tests.cc
-  ashura/std/tests/option.cc
-  ashura/std/tests/enum.cc
   ashura/std/tests/async.cc
-  ashura/std/tests/list.cc
-  ashura/std/tests/range.cc
-  ashura/std/tests/main.cc
+  ashura/std/tests/enum.cc
   ashura/std/tests/hash_map.cc
+  ashura/std/tests/list.cc
+  ashura/std/tests/main.cc
+  ashura/std/tests/option.cc
+  ashura/std/tests/range.cc
   ashura/std/tests/result.cc
   ashura/std/tests/sparse_vec.cc)
-add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
 
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
                       GTest::gtest_main)
+
+# ASHURA STD - BENCHMARKS
+
+add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
+
 target_link_libraries(ashura_std_bench benchmark::benchmark
                       benchmark::benchmark_main ashura_std)
 
+# ASHURA GPU
+
 add_library(ashura_gpu ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
                        ashura/gpu/vulkan.cc)
+
 target_link_libraries(
   ashura_gpu PUBLIC ashura_std Vulkan-Headers Vulkan::UtilityHeaders
                     Vulkan::Loader GPUOpen::VulkanMemoryAllocator)
+
 target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ASHURA ENGINE
 
 add_library(
   ashura_engine
   ashura/engine/animation.cc
-  ashura/engine/engine.cc
-  ashura/engine/font.cc
-  ashura/engine/font_impl.cc
-  ashura/engine/text.cc
   ashura/engine/canvas.cc
-  ashura/engine/gpu_context.cc
+  ashura/engine/engine.cc
+  ashura/engine/font_impl.cc
+  ashura/engine/font_system_impl.cc
+  ashura/engine/font.cc
+  ashura/engine/gpu_system.cc
   ashura/engine/image_decoder.cc
+  ashura/engine/passes.cc
   ashura/engine/render_text.cc
-  ashura/engine/shader.cc
-  ashura/engine/text_compositor.cc
-  ashura/engine/window.cc
-  ashura/engine/view.cc
-  ashura/engine/view_system.cc
-  ashura/engine/views.cc
-  ashura/engine/scene.cc
   ashura/engine/renderer.cc
-  ashura/engine/passes.cc)
+  ashura/engine/scene.cc
+  ashura/engine/shader.cc
+  ashura/engine/systems.cc
+  ashura/engine/text_compositor.cc
+  ashura/engine/text.cc
+  ashura/engine/view_system.cc
+  ashura/engine/view.cc
+  ashura/engine/views.cc
+  ashura/engine/window.cc)
+
 target_link_libraries(
   ashura_engine
   PUBLIC ashura_std ashura_gpu
-  PRIVATE
-    glslang::glslang
-    spirv-reflect-static
-    SDL3::SDL3-static
-    harfbuzz
-    CURL::libcurl
-    freetype
-    simdjson::simdjson
-    webp
-    webpdecoder
-    $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
-    PNG::PNG
-    ${FFMPEG_LIBRARIES}
-    SheenBidi::SheenBidi)
+  PRIVATE glslang::glslang
+          spirv-reflect-static
+          SDL3::SDL3-static
+          harfbuzz
+          CURL::libcurl
+          freetype
+          simdjson::simdjson
+          webp
+          webpdecoder
+          JPEG::JPEG
+          PNG::PNG
+          ${FFMPEG_LIBRARIES}
+          SheenBidi::SheenBidi)
 
 target_include_directories(
   ashura_engine
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-  PRIVATE ${JPEG_INCLUDE_DIR} ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS}
+  PRIVATE ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS}
           ${fast_float_INCLUDE_DIR})
+
+# ASHURA ENGINE - TESTS
 
 add_executable(
   ashura_engine_tests
@@ -260,5 +276,7 @@ add_executable(
   ashura/engine/tests/views.cc ashura/engine/tests/text_compositor.cc)
 target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
 
+# ASHURA EDITOR
+
 add_executable(ashura_editor ashura/editor/editor.cc)
-target_link_libraries(ashura_editor ashura_std ashura_engine GTest::gtest)
+target_link_libraries(ashura_editor ashura_std ashura_engine)

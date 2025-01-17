@@ -134,8 +134,8 @@ struct ZipIter
   constexpr auto operator*() const
   {
     return apply(
-        [](auto... iters) { return Tuple<decltype(*iters)...>{(*iters)...}; },
-        iters_);
+      [](auto... iters) { return Tuple<decltype(*iters)...>{(*iters)...}; },
+      iters_);
   }
 
   constexpr bool operator!=(IterEnd end) const
@@ -164,10 +164,8 @@ struct ZipRange
 template <Range Base, Range... Ranges>
 constexpr auto zip(Base && base, Ranges &&... ranges)
 {
-  return ZipRange<decltype(begin(base)), decltype(end(base)),
-                  decltype(begin(ranges))...>{
-      .begins_{begin(base), begin(ranges)...},
-      .end_{end(base)}
+  return ZipRange<decltype(begin(base)), decltype(begin(ranges))...>{
+    .begins_{begin(base), begin(ranges)...}
   };
 }
 
@@ -246,7 +244,7 @@ constexpr void fill(R && dst, U && value)
 }
 
 template <Range R, typename Predicate>
-constexpr bool all(R && range, Predicate && predicate)
+constexpr bool all_is(R && range, Predicate && predicate)
 {
   auto       iter      = begin(range);
   auto const range_end = end(range);
@@ -263,7 +261,7 @@ constexpr bool all(R && range, Predicate && predicate)
 }
 
 template <Range R, typename Predicate>
-constexpr bool any(R && range, Predicate && predicate)
+constexpr bool any_is(R && range, Predicate && predicate)
 {
   auto       iter      = begin(range);
   auto const range_end = end(range);
@@ -280,7 +278,7 @@ constexpr bool any(R && range, Predicate && predicate)
 }
 
 template <Range R, typename Predicate>
-constexpr bool none(R && range, Predicate && predicate)
+constexpr bool none_is(R && range, Predicate && predicate)
 {
   auto       iter      = begin(range);
   auto const range_end = end(range);
@@ -639,8 +637,8 @@ constexpr Tuple<Span<T>, Span<T>> partition(Span<T>      range,
   }
 
   return Tuple{
-      Span<T>{first, next     },
-      Span<T>{next,  range_end}
+    Span<T>{first, next     },
+    Span<T>{next,  range_end}
   };
 }
 
@@ -712,13 +710,13 @@ struct RunIter
   constexpr auto operator*() const
   {
     return apply(
-        [&](T *... data) {
-          return Tuple<Span<T>...>{
-              {data + run_start_, data + run_end_}
-              ...
-          };
-        },
-        data_);
+      [&](T *... data) {
+        return Tuple<Span<T>...>{
+          {data + run_start_, data + run_end_}
+          ...
+        };
+      },
+      data_);
   }
 
   constexpr bool operator!=(IterEnd) const
@@ -816,9 +814,9 @@ constexpr Span<T> binary_find(Span<T> span, Cmp && cmp)
 template <typename T, typename Cmp, typename U>
 constexpr Span<T> binary_find(Span<T> span, Cmp && cmp, U && value)
 {
-  return binary_find<T>(span, [value_ = static_cast<U &&>(value),
-                               cmp_   = static_cast<Cmp &&>(cmp)](
-                                  auto const & a) { return cmp_(a, value_); });
+  return binary_find<T>(
+    span, [value_ = static_cast<U &&>(value), cmp_ = static_cast<Cmp &&>(cmp)](
+            auto const & a) { return cmp_(a, value_); });
 }
 
 /// @param window_advance_ must be non-zero
@@ -884,4 +882,4 @@ constexpr WindowRange<T> window(Span<T> span, usize window_size,
                         .window_advance_ = advance};
 }
 
-}        // namespace  ash
+}    // namespace  ash

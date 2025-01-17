@@ -26,20 +26,20 @@ struct Super
   /// Otherwise, it should relocate itself to the destination memory and adjust the base pointer.
   template <typename T>
   static constexpr auto LIFECYCLE =
-      [](void * src_mem, void * dst_mem, Base ** base_ptr) {
-        T * src = reinterpret_cast<T *>(src_mem);
-        T * dst = reinterpret_cast<T *>(dst_mem);
+    [](void * src_mem, void * dst_mem, Base ** base_ptr) {
+      T * src = reinterpret_cast<T *>(src_mem);
+      T * dst = reinterpret_cast<T *>(dst_mem);
 
-        if (dst_mem == nullptr) [[unlikely]]
-        {
-          obj::destruct(Span{src, 1});
-        }
-        else
-        {
-          obj::relocate_nonoverlapping(Span{src, 1}, dst);
-          *base_ptr = dst;
-        }
-      };
+      if (dst_mem == nullptr) [[unlikely]]
+      {
+        obj::destruct(Span{src, 1});
+      }
+      else
+      {
+        obj::relocate_nonoverlapping(Span{src, 1}, dst);
+        *base_ptr = dst;
+      }
+    };
 
   alignas(ALIGNMENT) mutable u8 storage_[CAPACITY];
 
@@ -51,7 +51,7 @@ struct Super
   requires (Derives<Object, Base> && ALIGNMENT >= alignof(Object) &&
             CAPACITY >= sizeof(Object))
   constexpr Super(Object object, Lifecycle lifecycle = LIFECYCLE<Object>) :
-      lifecycle_{lifecycle}
+    lifecycle_{lifecycle}
   {
     base_ = new (storage_) Object{static_cast<Object &&>(object)};
   }
@@ -63,7 +63,7 @@ struct Super
   template <usize SrcAlignment, usize SrcCapacity>
   requires (ALIGNMENT >= SrcAlignment && CAPACITY >= SrcCapacity)
   constexpr Super(Super<Base, SrcAlignment, SrcCapacity> && other) :
-      lifecycle_{other.lifecycle_}
+    lifecycle_{other.lifecycle_}
   {
     other.lifecycle_(other.storage_, storage_, &base_);
     other.lifecycle_ = noop;
@@ -107,4 +107,4 @@ struct Super
   }
 };
 
-}        // namespace ash
+}    // namespace ash

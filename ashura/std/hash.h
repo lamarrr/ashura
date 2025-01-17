@@ -109,4 +109,4 @@ inline constexpr StrHasher      str_hash;
 inline constexpr BitHasher      bit_hash;
 inline constexpr IdentityHasher identity_hash;
 
-}        // namespace ash
+}    // namespace ash

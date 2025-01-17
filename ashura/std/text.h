@@ -136,7 +136,7 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
     return Err{};
   }
   usize const count =
-      utf8_encode(decoded, encoded.view().slice(first, max_count));
+    utf8_encode(decoded, encoded.view().slice(first, max_count));
   encoded.resize_uninit(first + count).unwrap();
   return Ok{};
 }
@@ -180,6 +180,6 @@ inline constexpr Tuple<u32, u32> ARROWS{0x2190, 0x21FF};
 inline constexpr Tuple<u32, u32> MATHEMATICAL_OPERATORS{0x2200, 0x22FF};
 inline constexpr Tuple<u32, u32> HIRAGANA{0x3040, 0x309F};
 inline constexpr Tuple<u32, u32> KATAKANA{0x30A0, 0x30FF};
-}        // namespace utf
+}    // namespace utf
 
-}        // namespace ash
+}    // namespace ash
