@@ -64,18 +64,20 @@ void ImageSystem::shutdown()
 ImageInfo ImageSystem::upload(Vec<char> label, gpu::ImageInfo const & info,
                               Span<u8 const> channels)
 {
-  CHECK(info.type == gpu::ImageType::Type2D);
+  CHECK(info.type == gpu::ImageType::Type2D, "");
   CHECK(
     (info.usage & ~(gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferSrc |
-                    gpu::ImageUsage::TransferDst)) == gpu::ImageUsage::None);
-  CHECK(info.aspects == gpu::ImageAspects::Color);
-  CHECK(info.extent.z == 1);
-  CHECK(info.mip_levels == 1);
-  CHECK(info.array_layers == 1);
-  CHECK(info.sample_count == gpu::SampleCount::C1);
+                    gpu::ImageUsage::TransferDst)) == gpu::ImageUsage::None,
+    "");
+  CHECK(info.aspects == gpu::ImageAspects::Color, "");
+  CHECK(info.extent.z == 1, "");
+  CHECK(info.mip_levels == 1, "");
+  CHECK(info.array_layers > 0, "");
+  CHECK(info.sample_count == gpu::SampleCount::C1, "");
   CHECK(info.format == gpu::Format::R8G8B8A8_UNORM ||
-        info.format == gpu::Format::R8G8B8_UNORM ||
-        info.format == gpu::Format::B8G8R8A8_UNORM);
+          info.format == gpu::Format::R8G8B8_UNORM ||
+          info.format == gpu::Format::B8G8R8A8_UNORM,
+        "");
 
   u64 const bgra_size = pixel_size_bytes(info.extent.xy(), 4);
 
@@ -185,11 +187,12 @@ Future<Result<ImageInfo, ImageLoadErr>>
      this]() mutable {
       load_fut.get().match(
         [&, this, label = std::move(label)](Vec<u8> & buffer) mutable {
-          trace("Decoding image ", label);
+          trace("Decoding image {} ", label);
           Vec<u8> channels{allocator_};
           decode_image(buffer, channels)
             .match(
               [&, this](DecodedImageInfo const & info) {
+                trace("Succesfully decoded image {}", label);
                 scheduler->once(
                   [fut = fut.alias(), channels = std::move(channels), this,
                    info, label                 = std::move(label)]() mutable {
@@ -215,9 +218,13 @@ Future<Result<ImageInfo, ImageLoadErr>>
                   },
                   Ready{}, TaskSchedule{.target = TaskTarget::Main});
               },
-              [&](ImageLoadErr err) { fut.yield(Err{err}).unwrap(); });
+              [&](ImageLoadErr err) {
+                trace("Failed to decode image {}", label);
+                fut.yield(Err{err}).unwrap();
+              });
         },
         [&](IoErr err) {
+          trace("Failed to load image {}", label);
           fut
             .yield(Err{err == IoErr::InvalidFileOrDir ?
                          ImageLoadErr::InvalidPath :

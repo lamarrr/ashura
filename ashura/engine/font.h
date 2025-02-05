@@ -62,16 +62,10 @@ constexpr Span<char const> to_str(FontLoadErr err)
   }
 }
 
-namespace fmt
+inline void format(fmt::Sink sink, fmt::Spec, FontLoadErr const & err)
 {
-
-inline bool push(Context const & ctx, Spec const & spec,
-                 FontLoadErr const & err)
-{
-  return push(ctx, spec, to_str(err));
+  sink(to_str(err));
 }
-
-}    // namespace fmt
 
 /// @brief Glyph Metrics. expressed on an AU_UNIT scale
 /// @param bearing offset from cursor baseline to start drawing glyph from (au)
