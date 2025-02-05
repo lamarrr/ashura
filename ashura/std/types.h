@@ -851,6 +851,22 @@ struct SliceT
     return span == 0;
   }
 
+  constexpr bool overlaps(SliceT other) const
+  {
+    return (begin() <= other.begin() && end() >= other.begin()) ||
+           (begin() <= other.end() && end() >= other.end());
+  }
+
+  constexpr bool contains(SliceT other) const
+  {
+    return begin() <= other.begin() && end() >= other.end();
+  }
+
+  constexpr bool contains(S item) const
+  {
+    return begin() <= item && end() > item;
+  }
+
   template <typename T>
   explicit constexpr operator SliceT<T>() const
   {
@@ -859,6 +875,8 @@ struct SliceT
 };
 
 using Slice   = SliceT<usize>;
+using Slice8  = SliceT<u8>;
+using Slice16 = SliceT<u16>;
 using Slice32 = SliceT<u32>;
 using Slice64 = SliceT<u64>;
 
@@ -1205,6 +1223,11 @@ struct Span
     return Span<c8 const>{reinterpret_cast<c8 const *>(data_), size_bytes()};
   }
 
+  constexpr Slice as_slice_of(Span<T const> parent) const
+  {
+    return Slice{static_cast<usize>(data_ - parent.data_), size_};
+  }
+
   constexpr Span slice(usize offset, usize span) const
   {
     return slice(Slice{offset, span});
@@ -1277,6 +1300,9 @@ constexpr auto view(R & range) -> decltype(range.view())
   return range.view();
 }
 
+inline namespace str_literal
+{
+
 constexpr Span<char const> operator""_str(char const * lit, usize n)
 {
   return Span<char const>{lit, n};
@@ -1296,6 +1322,8 @@ constexpr Span<c32 const> operator""_str(c32 const * lit, usize n)
 {
   return Span<c32 const>{lit, n};
 }
+
+}    // namespace str_literal
 
 constexpr bool get_bit(Span<u8 const> s, usize i)
 {
@@ -2127,6 +2155,24 @@ struct Noop
 
 constexpr Noop noop;
 
+template <typename Char>
+constexpr usize cstr_len(Char * c_str)
+{
+  Char const * it = c_str;
+  while (*it != 0)
+  {
+    it++;
+  }
+
+  return static_cast<usize>(it - c_str);
+}
+
+template <typename Char>
+constexpr Span<Char> cstr_span(Char * c_str)
+{
+  return {c_str, cstr_len(c_str)};
+}
+
 /// @brief The `SourceLocation`  class represents certain information about the
 /// source code, such as file names, line numbers, and function names.
 /// Previously, functions that desire to obtain this information about the call
@@ -2141,18 +2187,18 @@ struct SourceLocation
   static constexpr SourceLocation current(
 #if ASH_HAS_BUILTIN(FILE) || (defined(__cpp_lib_source_location) && \
                               __cpp_lib_source_location >= 201'907L)
-    char const * file = __builtin_FILE(),
+    Span<char const> file = cstr_span(__builtin_FILE()),
 #elif defined(__FILE__)
-    char const * file = __FILE__,
+    Span<char const> file = cstr_span(__FILE__),
 #else
-    char const * file = "unknown",
+    Span<char const> file = cstr_span("unknown"),
 #endif
 
 #if ASH_HAS_BUILTIN(FUNCTION) || (defined(__cpp_lib_source_location) && \
                                   __cpp_lib_source_location >= 201'907L)
-    char const * function = __builtin_FUNCTION(),
+    Span<char const> function = cstr_span(__builtin_FUNCTION()),
 #else
-    char const * function = "unknown",
+    Span<char const> function = cstr_span("unknown"),
 #endif
 
 #if ASH_HAS_BUILTIN(LINE) || (defined(__cpp_lib_source_location) && \
@@ -2175,10 +2221,10 @@ struct SourceLocation
     return SourceLocation{file, function, line, column};
   }
 
-  char const * file     = "";
-  char const * function = "";
-  u32          line     = 0;
-  u32          column   = 0;
+  Span<char const> file     = ""_str;
+  Span<char const> function = ""_str;
+  u32              line     = 0;
+  u32              column   = 0;
 };
 
 template <typename T = void>
