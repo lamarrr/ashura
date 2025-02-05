@@ -296,28 +296,28 @@ constexpr bool is(unsigned int i) const
 template<unsigned int I> requires(I < SIZE)
 constexpr auto& get(V<I>) &
 {{
-  CHECK(index_ == I, "Accessed Enum type: ", I, " but type is: ", index_);
+  CHECK(index_ == I, "Accessed Enum type: {{}} but type is: {{}}", I, index_);
   return intr::enum_member<I>(*this);
 }}
 
 template<unsigned int I> requires(I < SIZE)
 constexpr auto const& get(V<I>) const &
 {{
-  CHECK(index_ == I, "Accessed Enum type: ", I, " but type is: ", index_);
+  CHECK(index_ == I, "Accessed Enum type: {{}} but type is: {{}}", I, index_);
   return intr::enum_member<I>(*this);
 }}
 
 template<unsigned int I> requires(I < SIZE)
 constexpr auto&& get(V<I>) &&
 {{
-  CHECK(index_ == I, "Accessed Enum type: ", I, " but type is: ", index_);
+  CHECK(index_ == I, "Accessed Enum type: {{}} but type is: {{}}", I, index_);
   return intr::enum_member<I>(*this);
 }}
 
 template<unsigned int I> requires(I < SIZE)
 constexpr auto const&& get(V<I>) const &&
 {{
-  CHECK(index_ == I, "Accessed Enum type: ", I, " but type is: ", index_);
+  CHECK(index_ == I, "Accessed Enum type: {{}} but type is: {{}}", I, index_);
   return intr::enum_member<I>(*this);
 }}
 

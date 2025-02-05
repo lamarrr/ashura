@@ -20,13 +20,13 @@ EngineCfg EngineCfg::parse(AllocatorRef allocator, Span<u8 const> json)
   auto cfg = doc.get_object().value();
 
   std::string_view version = cfg["version"].get_string().value();
-  CHECK(version == "0.0.1");
+  CHECK(version == "0.0.1", "");
 
   out.gpu.validation = cfg["gpu.validation"].get_bool().value();
   out.gpu.vsync      = cfg["gpu.vsync"].get_bool().value();
 
   auto gpu_prefs = cfg["gpu.preferences"].get_array().value();
-  CHECK(gpu_prefs.count_elements().value() <= 5);
+  CHECK(gpu_prefs.count_elements().value() <= 5, "");
 
   for (auto pref : gpu_prefs)
   {
@@ -430,7 +430,7 @@ void Engine::engage_(EngineCfg const & cfg)
   {
     resolved_path.clear();
     path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading shader: ", label, " from: ", resolved_path);
+    trace("Loading shader: {} from : {}", label, resolved_path);
     futures.push(shader_sys.load_from_path(std::move(label), resolved_path))
       .unwrap();
   }
@@ -439,7 +439,7 @@ void Engine::engage_(EngineCfg const & cfg)
   {
     resolved_path.clear();
     path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading font: ", label, " from: ", resolved_path);
+    trace("Loading font: {} from: {}", label, resolved_path);
     futures
       .push(font_sys->load_from_path(std::move(label), resolved_path,
                                      cfg.font_height, 0))
@@ -450,7 +450,7 @@ void Engine::engage_(EngineCfg const & cfg)
   {
     resolved_path.clear();
     path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading image: ", label, " from: ", resolved_path);
+    trace("Loading image: {}  from: {}", label, resolved_path);
     futures.push(image_sys.load_from_path(std::move(label), resolved_path))
       .unwrap();
   }
@@ -498,9 +498,11 @@ void Engine::shutdown()
   {
     write_to_file(pipeline_cache_path, pipeline_cache, false)
       .match(
-        [&](Void) { trace("Saved pipeline cache to: ", pipeline_cache_path); },
+        [&](Void) {
+          trace("Saved pipeline cache to: {}", pipeline_cache_path);
+        },
         [&](IoErr err) {
-          error("Error ", err, " writing pipeline cache to ",
+          error("Error {} writing pipeline cache to {}", err,
                 pipeline_cache_path);
         });
   }
@@ -522,7 +524,8 @@ void Engine::recreate_swapchain_()
   gpu::SurfaceCapabilities capabilities =
     device->get_surface_capabilities(surface).unwrap();
   CHECK(has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
-                                             gpu::ImageUsage::ColorAttachment));
+                                             gpu::ImageUsage::ColorAttachment),
+        "");
 
   Vec<gpu::SurfaceFormat> formats{allocator};
   device->get_surface_formats(surface, formats).unwrap();
@@ -572,7 +575,7 @@ void Engine::recreate_swapchain_()
     }
   }
 
-  CHECK(found_format);
+  CHECK(found_format, "");
 
   gpu::PresentMode present_mode       = gpu::PresentMode::Immediate;
   bool             found_present_mode = false;
@@ -587,7 +590,7 @@ void Engine::recreate_swapchain_()
     }
   }
 
-  CHECK(found_present_mode);
+  CHECK(found_present_mode, "");
 
   gpu::CompositeAlpha alpha             = gpu::CompositeAlpha::None;
   gpu::CompositeAlpha alpha_spec        = gpu::CompositeAlpha::Opaque;

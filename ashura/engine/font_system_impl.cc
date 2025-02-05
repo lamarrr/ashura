@@ -20,7 +20,7 @@ namespace ash
 Dyn<FontSystem *> FontSystem::create(AllocatorRef allocator)
 {
   hb_buffer_t * hb_buffer = hb_buffer_create();
-  CHECK(hb_buffer != nullptr && hb_buffer_allocation_successful(hb_buffer));
+  CHECK(hb_buffer != nullptr && hb_buffer_allocation_successful(hb_buffer), "");
 
   return cast<FontSystem *>(
     dyn<FontSystemImpl>(inplace, allocator, allocator, hb_buffer).unwrap());
@@ -227,8 +227,8 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
                 "Font atlas extent should be a multiple of 64");
   static_assert(MIN_ATLAS_EXTENT <= gpu::MAX_IMAGE_EXTENT_2D,
                 "Font atlas extent too large for GPU platform");
-  CHECK(font_height <= 1'024);
-  CHECK(font_height <= MIN_ATLAS_EXTENT / 2);
+  CHECK(font_height <= 1'024, "");
+  CHECK(font_height <= MIN_ATLAS_EXTENT / 2, "");
 
   font.cpu_atlas.unwrap_none("CPU font atlas has already been loaded"_str);
 
@@ -311,7 +311,7 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
       auto [just_packed, still_unpacked] = partition(
         unpacked, [](rect_pack::rect const & r) { return r.was_packed; });
 
-      CHECK(!just_packed.is_empty());
+      CHECK(!just_packed.is_empty(), "");
 
       for (rect_pack::rect const & r : just_packed)
       {
@@ -365,9 +365,9 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
       continue;
     }
 
-    CHECK(slot->bitmap.pixel_mode == FT_PIXEL_MODE_GRAY);
+    CHECK(slot->bitmap.pixel_mode == FT_PIXEL_MODE_GRAY, "");
     /// we don't want to handle negative pitches
-    CHECK(slot->bitmap.pitch >= 0);
+    CHECK(slot->bitmap.pitch >= 0, "");
 
     ImageSpan<u8 const, 1> src{
       .channels{slot->bitmap.buffer,
@@ -392,17 +392,16 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
 FontId FontSystemImpl::upload_(Dyn<Font *> font_)
 {
   FontImpl & font = (FontImpl &) *font_.get();
-  CHECK(font.cpu_atlas.is_some());
-  CHECK(font.gpu_atlas.is_none());
+  CHECK(font.cpu_atlas.is_some(), "");
+  CHECK(font.gpu_atlas.is_none(), "");
 
   CpuFontAtlas & atlas = font.cpu_atlas.value();
 
-  CHECK(atlas.num_layers > 0);
-  CHECK(atlas.extent.x > 0);
-  CHECK(atlas.extent.y > 0);
+  CHECK(atlas.num_layers > 0, "");
+  CHECK(atlas.extent.x > 0, "");
+  CHECK(atlas.extent.y > 0, "");
 
   GpuFontAtlas gpu_atlas{.textures{allocator_},
-                         .images{allocator_},
                          .font_height = atlas.font_height,
                          .extent      = atlas.extent};
 
@@ -454,15 +453,15 @@ Future<Result<FontId, FontLoadErr>>
       decode_(label, encoded, face)
         .match(
           [&, this](Dyn<Font *> & font) {
-            trace("Rasterizing font: ", label, " @", font_height, "px");
+            trace("Rasterizing font: {} @{}px", label, font_height);
             rasterize(*font, font_height)
               .match(
                 [&, this](Void) {
                   scheduler->once(
                     [font = std::move(font), this,
                      fut  = std::move(fut)]() mutable {
-                      trace("rasterized font ", font->info().label,
-                            ", num layers= ",
+                      trace("rasterized font {}, num layers = {}",
+                            font->info().label,
                             font->info().cpu_atlas.value().num_layers);
 
                       FontId id = upload_(std::move(font));
@@ -533,7 +532,7 @@ Font & FontSystemImpl::get(Span<char const> label)
       return *font;
     }
   }
-  CHECK(false, "Invalid Font label: ", label);
+  CHECK(false, "Invalid Font label: {} ", label);
 }
 
 void FontSystemImpl::unload(FontId id)
@@ -597,14 +596,14 @@ static inline void shape(hb_font_t * font, hb_buffer_t * buffer,
   u32                         num_pos;
   hb_glyph_position_t const * glyph_pos =
     hb_buffer_get_glyph_positions(buffer, &num_pos);
-  CHECK(!(glyph_pos == nullptr && num_pos > 0));
+  CHECK(!(glyph_pos == nullptr && num_pos > 0), "");
 
   u32                     num_info;
   hb_glyph_info_t const * glyph_info =
     hb_buffer_get_glyph_infos(buffer, &num_info);
-  CHECK(!(glyph_info == nullptr && num_info > 0));
+  CHECK(!(glyph_info == nullptr && num_info > 0), "");
 
-  CHECK(num_pos == num_info);
+  CHECK(num_pos == num_info, "");
 
   infos     = Span{glyph_info, num_info};
   positions = Span{glyph_pos, num_pos};
@@ -647,11 +646,11 @@ static inline void segment_scripts(Span<c32 const>   text,
                                  .stringLength   = text.size()};
 
   SBScriptLocatorRef locator = SBScriptLocatorCreate();
-  CHECK(locator != nullptr);
+  CHECK(locator != nullptr, "");
   SBScriptLocatorLoadCodepoints(locator, &codepoints);
 
   SBScriptAgent const * agent = SBScriptLocatorGetAgent(locator);
-  CHECK(agent != nullptr);
+  CHECK(agent != nullptr, "");
 
   while (SBScriptLocatorMoveNext(locator) == SBTrue)
   {
@@ -689,12 +688,12 @@ static inline void segment_levels(Span<c32 const> text,
         algorithm, first, length,
         (base == TextDirection::LeftToRight) ? SBLevelDefaultLTR :
                                                SBLevelDefaultRTL);
-      CHECK(paragraph != nullptr);
+      CHECK(paragraph != nullptr, "");
 
-      CHECK(SBParagraphGetLength(paragraph) == length);
+      CHECK(SBParagraphGetLength(paragraph) == length, "");
       SBLevel const   base_level = SBParagraphGetBaseLevel(paragraph);
       SBLevel const * levels     = SBParagraphGetLevelsPtr(paragraph);
-      CHECK(levels != nullptr);
+      CHECK(levels != nullptr, "");
       for (u32 i = 0; i < length; i++)
       {
         segments[first + i].base_level = base_level;
@@ -831,16 +830,16 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
   }
 
   u32 const text_size = block.text.size32();
-  CHECK(block.text.size() <= I32_MAX);
-  CHECK(block.fonts.size() <= U32_MAX);
-  CHECK(block.runs.size() == block.fonts.size());
+  CHECK(block.text.size() <= I32_MAX, "");
+  CHECK(block.fonts.size() <= U32_MAX, "");
+  CHECK(block.runs.size() == block.fonts.size(), "");
 
   layout.segments.resize(block.text.size()).unwrap();
   Span segments = layout.segments;
 
   fill(segments, TextSegment{});
 
-  CHECK(!block.runs.is_empty(), "No run styling provided for text");
+  CHECK(!block.runs.is_empty(), "No run styling provided for text", "");
   CHECK(block.runs.last() >= text_size,
         "Text runs need to span the entire text");
 
@@ -866,7 +865,7 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
                                    .stringBuffer   = (void *) block.text.data(),
                                    .stringLength   = text_size};
     SBAlgorithmRef      algorithm = SBAlgorithmCreate(&codepoints);
-    CHECK(algorithm != nullptr);
+    CHECK(algorithm != nullptr, "");
     defer algorithm_{[&] { SBAlgorithmRelease(algorithm); }};
     segment_levels(block.text, algorithm, block.direction, segments);
   }

@@ -299,7 +299,7 @@ void path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
 
 void path::triangles(u32 first_vertex, u32 num_vertices, Vec<u32> & indices)
 {
-  CHECK(num_vertices > 3);
+  CHECK(num_vertices > 3, "");
   u32 const num_triangles = num_vertices / 3;
   u32 const first_idx     = indices.size32();
   indices.extend_uninit(num_triangles * 3).unwrap();
@@ -637,8 +637,8 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                       TextLayout const & layout, TextBlockStyle const & style,
                       CRect const & clip)
 {
-  CHECK(style.runs.size() == block.runs.size());
-  CHECK(style.runs.size() == block.fonts.size());
+  CHECK(style.runs.size() == block.runs.size(), "");
+  CHECK(style.runs.size() == block.fonts.size(), "");
 
   f32 const  block_width = max(layout.extent.x, style.align_width);
   Vec2 const block_extent{block_width, layout.extent.y};

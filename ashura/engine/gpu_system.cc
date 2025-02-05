@@ -202,9 +202,9 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
   gpu::Format depth_stencil_format =
     DEPTH_STENCIL_FORMATS[sel_depth_stencil_format];
 
-  trace("Selected color format: ", color_format);
+  trace("Selected color format: {}", color_format);
 
-  trace("Selected depth stencil format: ", depth_stencil_format);
+  trace("Selected depth stencil format: {}", depth_stencil_format);
 
   gpu::PipelineCache pipeline_cache =
     device
@@ -403,7 +403,7 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
                                     .num_array_layers  = 1})
                .unwrap();
 
-      CHECK(mapping.v1 == gpu.alloc_texture_id(view));
+      CHECK(mapping.v1 == gpu.alloc_texture_id(view), "");
     }
   }
 
@@ -481,7 +481,7 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
 
     for (auto const [expected_id, info] : zip(default_ids, infos))
     {
-      CHECK(gpu.create_sampler(info).id == expected_id);
+      CHECK(gpu.create_sampler(info).id == expected_id, "");
     }
   }
 

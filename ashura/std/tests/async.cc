@@ -38,8 +38,8 @@ TEST(AsyncTest, Basic)
   sched->loop(
     [x = (u64) 0, f = fut.alias(), s = s.alias()]() mutable -> bool {
       x++;
-      info(x, " iteration");
-      info("future value: ", f.get());
+      info("iteration: {}", x);
+      info("future value: {}", f.get());
       s.yield_unsequenced([x](int & v) { v = x; }, 1);
       if (x == 10)
       {
@@ -57,7 +57,7 @@ TEST(AsyncTest, Basic)
     [](TaskInstance shard, int * pcount) {
       std::atomic_ref count_ref{*pcount};
       int             count = count_ref.fetch_add(1);
-      info("shard: ", shard.idx, " of ", shard.n, ", sync i: ", count);
+      info("shard: {}  of {}, sync i: {}", shard.idx, shard.n, count);
     },
     10);
 

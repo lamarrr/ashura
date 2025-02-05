@@ -19,8 +19,8 @@ TEST(ListTest, Insertion)
   List<Node> l;
   Node *     x;
   Node *     y;
-  CHECK(arena.nalloc(1, x));
-  CHECK(arena.nalloc(1, y));
+  CHECK(arena.nalloc(1, x),"");
+  CHECK(arena.nalloc(1, y),"");
 
   EXPECT_EQ(l.head(), nullptr);
   l.push_front(x);

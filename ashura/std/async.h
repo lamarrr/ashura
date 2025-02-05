@@ -553,13 +553,13 @@ template <typename Semaphore, typename Stage, typename SemaphoreKey,
                         nanoseconds timeout, SemaphoreKey && semaphore_key = {},
                         StageKey && stage_key = {})
 {
-  CHECK(semaphores.size() == stages.size());
+  CHECK(semaphores.size() == stages.size(), "");
   usize const n = semaphores.size();
   for (usize i = 0; i < n; i++)
   {
     SemaphoreState & semaphore = semaphore_key(semaphores[i]);
     u64 const        stage     = stage_key(stages[i]);
-    CHECK((stage == U64_MAX) || (stage <= semaphore.num_stages()));
+    CHECK((stage == U64_MAX) || (stage <= semaphore.num_stages()), "");
   }
 
   // number of times we've polled so far, counting begins from 0

@@ -175,12 +175,12 @@ inline i32 skyline_find_min_y(Context & c, Node * first, i32 x0, i32 width,
 
   (void) c;
 
-  CHECK(first->pos.x <= x0);
+  CHECK(first->pos.x <= x0, "");
 
   // we ended up handling this in the caller for efficiency
-  CHECK(node->next->pos.x > x0);
+  CHECK(node->next->pos.x > x0, "", "");
 
-  CHECK(node->pos.x <= x0);
+  CHECK(node->pos.x <= x0, "", "");
 
   min_y         = 0;
   waste_area    = 0;
@@ -231,7 +231,7 @@ inline FindResult skyline_find_best_pos(Context & ctx, Vec2I extent)
   // align to multiple of ctx.align
   extent.x = (extent.x + ctx.align - 1);
   extent.x -= extent.x % ctx.align;
-  CHECK(extent.x % ctx.align == 0);
+  CHECK(extent.x % ctx.align == 0, "");
 
   // if it can't possibly fit, bail immediately
   if (extent.x > ctx.extent.x || extent.y > ctx.extent.y)
@@ -308,14 +308,14 @@ inline FindResult skyline_find_best_pos(Context & ctx, Vec2I extent)
     {
       i32 xpos = tail->pos.x - extent.x;
       i32 y, waste;
-      CHECK(xpos >= 0);
+      CHECK(xpos >= 0, "");
       // find the left position that matches this
       while (node->next->pos.x <= xpos)
       {
         prev = &node->next;
         node = node->next;
       }
-      CHECK(node->next->pos.x > xpos && node->pos.x <= xpos);
+      CHECK(node->next->pos.x > xpos && node->pos.x <= xpos, "");
       y = skyline_find_min_y(ctx, node, xpos, extent.x, &waste);
       if (y + extent.y <= ctx.extent.y)
       {
@@ -325,7 +325,7 @@ inline FindResult skyline_find_best_pos(Context & ctx, Vec2I extent)
               (waste == best_waste && xpos < best_x))
           {
             best_x = xpos;
-            CHECK(y <= best_y);
+            CHECK(y <= best_y, "");
             best_y     = y;
             best_waste = waste;
             best       = prev;

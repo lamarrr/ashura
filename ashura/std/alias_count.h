@@ -47,7 +47,7 @@ struct AliasCount
     while (!count.compare_exchange_weak(
       expected, desired, std::memory_order_release, std::memory_order_relaxed))
     {
-      CHECK(expected <= MAX);
+      CHECK(expected <= MAX, "");
       desired = expected + 1;
     }
     return expected;

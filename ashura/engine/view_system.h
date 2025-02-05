@@ -245,7 +245,7 @@ struct ViewSystem
     if (view.id() == U64_MAX) [[unlikely]]
     {
       // should never happen
-      CHECK(next_id != U64_MAX);
+      CHECK(next_id != U64_MAX, "");
       view.id_       = next_id++;
       events.mounted = true;
     }

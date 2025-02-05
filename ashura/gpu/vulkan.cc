@@ -807,7 +807,7 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
       return Err{(Status) result};
     }
 
-    CHECK(num_read_exts == num_exts);
+    CHECK(num_read_exts == num_exts, "");
   }
 
   u32 num_layers;
@@ -836,30 +836,34 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
       return Err{(Status) result};
     }
 
-    CHECK(num_read_layers == num_layers);
+    CHECK(num_read_layers == num_layers, "");
   }
 
   trace("Available Extensions:");
 
   for (VkExtensionProperties const & ext : Span{exts, num_exts})
   {
-    trace(ext.extensionName, "\t\t(spec version ",
-          VK_API_VERSION_MAJOR(ext.specVersion), ".",
-          VK_API_VERSION_MINOR(ext.specVersion), ".",
-          VK_API_VERSION_PATCH(ext.specVersion), " variant ",
-          VK_API_VERSION_VARIANT(ext.specVersion), ")");
+    trace("{}\t\t(spec version {}.{}.{} variant {})", ext.extensionName,
+          VK_API_VERSION_MAJOR(ext.specVersion),
+          VK_API_VERSION_MINOR(ext.specVersion),
+          VK_API_VERSION_PATCH(ext.specVersion),
+          VK_API_VERSION_VARIANT(ext.specVersion));
   }
 
   trace("Available Layers:");
 
   for (VkLayerProperties const & layer : Span{layers, num_layers})
   {
-    trace(layer.layerName, "\t\t(spec version ",
-          VK_API_VERSION_MAJOR(layer.specVersion), ".",
-          VK_API_VERSION_MINOR(layer.specVersion), ".",
-          VK_API_VERSION_PATCH(layer.specVersion), " variant ",
+    trace("{}\t\t(spec version {}.{}.{} variant {}, implementation version: "
+          "{}.{}.{} variant {}",
+          layer.layerName, VK_API_VERSION_MAJOR(layer.specVersion),
+          VK_API_VERSION_MINOR(layer.specVersion),
+          VK_API_VERSION_PATCH(layer.specVersion),
           VK_API_VERSION_VARIANT(layer.specVersion),
-          ", implementation version: ", layer.implementationVersion, ")");
+          VK_API_VERSION_MAJOR(layer.implementationVersion),
+          VK_API_VERSION_MINOR(layer.implementationVersion),
+          VK_API_VERSION_PATCH(layer.implementationVersion),
+          VK_API_VERSION_VARIANT(layer.implementationVersion));
   }
 
   char const * load_exts[16];
@@ -906,8 +910,8 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
     else
     {
       warn("Required Vulkan "
-           "Extension: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-           " is not supported on device");
+           "Extension: {}  is not supported on device",
+           VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
   }
 
@@ -1010,7 +1014,8 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
   InstanceTable vk_table;
 
   CHECK(load_instance_table(vk_instance, vkGetInstanceProcAddr, vk_table,
-                            validation_enabled));
+                            validation_enabled),
+        "");
 
   VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
 
@@ -1065,41 +1070,44 @@ Instance::~Instance()
 
 void check_device_limits(VkPhysicalDeviceLimits limits)
 {
-  CHECK(limits.maxImageDimension1D >= gpu::MAX_IMAGE_EXTENT_1D);
-  CHECK(limits.maxImageDimension2D >= gpu::MAX_IMAGE_EXTENT_2D);
-  CHECK(limits.maxImageDimension3D >= gpu::MAX_IMAGE_EXTENT_3D);
-  CHECK(limits.maxImageDimensionCube >= gpu::MAX_IMAGE_EXTENT_CUBE);
-  CHECK(limits.maxImageArrayLayers >= gpu::MAX_IMAGE_ARRAY_LAYERS);
-  CHECK(limits.maxViewportDimensions[0] >= gpu::MAX_VIEWPORT_EXTENT);
-  CHECK(limits.maxViewportDimensions[1] >= gpu::MAX_VIEWPORT_EXTENT);
-  CHECK(limits.maxFramebufferWidth >= gpu::MAX_FRAMEBUFFER_EXTENT);
-  CHECK(limits.maxFramebufferHeight >= gpu::MAX_FRAMEBUFFER_EXTENT);
-  CHECK(limits.maxFramebufferLayers >= gpu::MAX_FRAMEBUFFER_LAYERS);
-  CHECK(limits.maxVertexInputAttributes >= gpu::MAX_VERTEX_ATTRIBUTES);
-  CHECK(limits.maxVertexInputBindings >= gpu::MAX_VERTEX_ATTRIBUTES);
-  CHECK(limits.maxPushConstantsSize >= gpu::MAX_PUSH_CONSTANTS_SIZE);
-  CHECK(limits.maxBoundDescriptorSets >= gpu::MAX_PIPELINE_DESCRIPTOR_SETS);
+  CHECK(limits.maxImageDimension1D >= gpu::MAX_IMAGE_EXTENT_1D, "");
+  CHECK(limits.maxImageDimension2D >= gpu::MAX_IMAGE_EXTENT_2D, "");
+  CHECK(limits.maxImageDimension3D >= gpu::MAX_IMAGE_EXTENT_3D, "");
+  CHECK(limits.maxImageDimensionCube >= gpu::MAX_IMAGE_EXTENT_CUBE, "");
+  CHECK(limits.maxImageArrayLayers >= gpu::MAX_IMAGE_ARRAY_LAYERS, "");
+  CHECK(limits.maxViewportDimensions[0] >= gpu::MAX_VIEWPORT_EXTENT, "");
+  CHECK(limits.maxViewportDimensions[1] >= gpu::MAX_VIEWPORT_EXTENT, "");
+  CHECK(limits.maxFramebufferWidth >= gpu::MAX_FRAMEBUFFER_EXTENT, "");
+  CHECK(limits.maxFramebufferHeight >= gpu::MAX_FRAMEBUFFER_EXTENT, "");
+  CHECK(limits.maxFramebufferLayers >= gpu::MAX_FRAMEBUFFER_LAYERS, "");
+  CHECK(limits.maxVertexInputAttributes >= gpu::MAX_VERTEX_ATTRIBUTES, "");
+  CHECK(limits.maxVertexInputBindings >= gpu::MAX_VERTEX_ATTRIBUTES, "");
+  CHECK(limits.maxPushConstantsSize >= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
+  CHECK(limits.maxBoundDescriptorSets >= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
   CHECK(limits.maxPerStageDescriptorInputAttachments >=
-        gpu::MAX_PIPELINE_INPUT_ATTACHMENTS);
-  CHECK(limits.maxUniformBufferRange >= gpu::MAX_UNIFORM_BUFFER_RANGE);
-  CHECK(limits.maxColorAttachments >= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS);
-  CHECK(limits.maxSamplerAnisotropy >= gpu::MAX_SAMPLER_ANISOTROPY);
+          gpu::MAX_PIPELINE_INPUT_ATTACHMENTS,
+        "");
+  CHECK(limits.maxUniformBufferRange >= gpu::MAX_UNIFORM_BUFFER_RANGE, "");
+  CHECK(limits.maxColorAttachments >= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS, "");
+  CHECK(limits.maxSamplerAnisotropy >= gpu::MAX_SAMPLER_ANISOTROPY, "");
   CHECK(has_bits(limits.framebufferColorSampleCounts,
-                 (VkSampleCountFlags) gpu::REQUIRED_COLOR_SAMPLE_COUNTS));
+                 (VkSampleCountFlags) gpu::REQUIRED_COLOR_SAMPLE_COUNTS),
+        "");
   CHECK(has_bits(limits.framebufferDepthSampleCounts,
-                 (VkSampleCountFlags) gpu::REQUIRED_DEPTH_SAMPLE_COUNTS));
+                 (VkSampleCountFlags) gpu::REQUIRED_DEPTH_SAMPLE_COUNTS),
+        "");
 }
 
 void check_device_features(VkPhysicalDeviceFeatures feat)
 {
-  CHECK(feat.samplerAnisotropy == VK_TRUE);
-  CHECK(feat.shaderUniformBufferArrayDynamicIndexing == VK_TRUE);
-  CHECK(feat.shaderSampledImageArrayDynamicIndexing == VK_TRUE);
-  CHECK(feat.shaderStorageBufferArrayDynamicIndexing == VK_TRUE);
-  CHECK(feat.shaderStorageImageArrayDynamicIndexing == VK_TRUE);
-  CHECK(feat.multiDrawIndirect == VK_TRUE);
-  CHECK(feat.drawIndirectFirstInstance == VK_TRUE);
-  CHECK(feat.imageCubeArray == VK_TRUE);
+  CHECK(feat.samplerAnisotropy == VK_TRUE, "");
+  CHECK(feat.shaderUniformBufferArrayDynamicIndexing == VK_TRUE, "");
+  CHECK(feat.shaderSampledImageArrayDynamicIndexing == VK_TRUE, "");
+  CHECK(feat.shaderStorageBufferArrayDynamicIndexing == VK_TRUE, "");
+  CHECK(feat.shaderStorageImageArrayDynamicIndexing == VK_TRUE, "");
+  CHECK(feat.multiDrawIndirect == VK_TRUE, "");
+  CHECK(feat.drawIndirectFirstInstance == VK_TRUE, "");
+  CHECK(feat.imageCubeArray == VK_TRUE, "");
 }
 
 Result<gpu::Device *, Status>
@@ -1109,8 +1117,8 @@ Result<gpu::Device *, Status>
 {
   constexpr u32 MAX_QUEUE_FAMILIES = 16;
 
-  CHECK(buffering > 0);
-  CHECK(buffering <= gpu::MAX_FRAME_BUFFERING);
+  CHECK(buffering > 0, "");
+  CHECK(buffering <= gpu::MAX_FRAME_BUFFERING, "");
 
   u32      num_devs;
   VkResult result =
@@ -1145,7 +1153,7 @@ Result<gpu::Device *, Status>
       return Err{(Status) result};
     }
 
-    CHECK(num_read_devs == num_devs);
+    CHECK(num_read_devs == num_devs, "");
   }
 
   PhysicalDevice * physical_devs;
@@ -1172,25 +1180,20 @@ Result<gpu::Device *, Status>
   {
     PhysicalDevice const &             dev        = physical_devs[i];
     VkPhysicalDeviceProperties const & properties = dev.vk_properties;
-    trace("[Device: ", i, "] ",
-          string_VkPhysicalDeviceType(properties.deviceType), " ",
-          properties.deviceName, " Vulkan API version ",
-          VK_API_VERSION_MAJOR(properties.apiVersion), ".",
-          VK_API_VERSION_MINOR(properties.apiVersion), ".",
-          VK_API_VERSION_PATCH(properties.apiVersion), " Variant ",
+    trace("[Device: {}] {} {} Vulkan API version {}.{}.{} variant {}, Driver "
+          "Version: {}, Vendor ID: {}, Device ID: {}",
+          i, string_VkPhysicalDeviceType(properties.deviceType),
+          properties.deviceName, VK_API_VERSION_MAJOR(properties.apiVersion),
+          VK_API_VERSION_MINOR(properties.apiVersion),
+          VK_API_VERSION_PATCH(properties.apiVersion),
           VK_API_VERSION_VARIANT(properties.apiVersion),
-          ", Driver "
-          "Version: ",
-          properties.driverVersion,
-          ", "
-          "Vendor ID: ",
-          properties.vendorID, ", Device ID: ", properties.deviceID);
+          properties.driverVersion, properties.vendorID, properties.deviceID);
 
     u32 num_queue_families;
     vk_table.GetPhysicalDeviceQueueFamilyProperties(
       dev.vk_phy_dev, &num_queue_families, nullptr);
 
-    CHECK(num_queue_families <= MAX_QUEUE_FAMILIES);
+    CHECK(num_queue_families <= MAX_QUEUE_FAMILIES, "");
 
     VkQueueFamilyProperties queue_family_properties[MAX_QUEUE_FAMILIES];
 
@@ -1198,13 +1201,13 @@ Result<gpu::Device *, Status>
       u32 num_read_queue_families = num_queue_families;
       vk_table.GetPhysicalDeviceQueueFamilyProperties(
         dev.vk_phy_dev, &num_queue_families, queue_family_properties);
-      CHECK(num_read_queue_families == num_queue_families);
+      CHECK(num_read_queue_families == num_queue_families, "");
     }
 
     for (u32 i = 0; i < num_queue_families; i++)
     {
-      trace("\t\tQueue Family: ", i,
-            ", Count: ", queue_family_properties[i].queueCount, ", Flags: ",
+      trace("\t\tQueue Family: {}, Count: {}, Flags: {}", i,
+            queue_family_properties[i].queueCount,
             string_VkQueueFlags(queue_family_properties[i].queueFlags));
     }
   }
@@ -1222,7 +1225,7 @@ Result<gpu::Device *, Status>
       vk_table.GetPhysicalDeviceQueueFamilyProperties(
         dev.vk_phy_dev, &num_queue_families, nullptr);
 
-      CHECK(num_queue_families <= MAX_QUEUE_FAMILIES);
+      CHECK(num_queue_families <= MAX_QUEUE_FAMILIES, "");
 
       VkQueueFamilyProperties queue_family_properties[MAX_QUEUE_FAMILIES];
 
@@ -1230,7 +1233,7 @@ Result<gpu::Device *, Status>
         u32 num_read_queue_families = num_queue_families;
         vk_table.GetPhysicalDeviceQueueFamilyProperties(
           dev.vk_phy_dev, &num_queue_families, queue_family_properties);
-        CHECK(num_read_queue_families == num_queue_families);
+        CHECK(num_read_queue_families == num_queue_families, "");
       }
 
       if (((VkPhysicalDeviceType) preferred_types[i]) ==
@@ -1265,7 +1268,7 @@ Result<gpu::Device *, Status>
   check_device_limits(selected_dev.vk_properties.limits);
   check_device_features(selected_dev.vk_features);
 
-  trace("Selected Device ", selected_dev_idx);
+  trace("Selected Device {}", selected_dev_idx);
 
   u32 num_exts;
   result = vk_table.EnumerateDeviceExtensionProperties(
@@ -1293,7 +1296,7 @@ Result<gpu::Device *, Status>
     {
       return Err{(Status) result};
     }
-    CHECK(num_exts == num_read_exts);
+    CHECK(num_exts == num_read_exts, "");
   }
 
   u32 num_layers;
@@ -1322,7 +1325,7 @@ Result<gpu::Device *, Status>
     {
       return Err{(Status) result};
     }
-    CHECK(num_read_layers == num_layers);
+    CHECK(num_read_layers == num_layers, "");
   }
 
   trace("Available Extensions:");
@@ -1330,11 +1333,11 @@ Result<gpu::Device *, Status>
   for (u32 i = 0; i < num_exts; i++)
   {
     VkExtensionProperties const & ext = exts[i];
-    trace("\t\t", ext.extensionName,
-          " (spec version: ", VK_API_VERSION_MAJOR(ext.specVersion), ".",
-          VK_API_VERSION_MINOR(ext.specVersion), ".",
-          VK_API_VERSION_PATCH(ext.specVersion), " variant ",
-          VK_API_VERSION_VARIANT(ext.specVersion), ")");
+    trace("\t\t{} (spec version: {}.{}.{} variant {})", ext.extensionName,
+          VK_API_VERSION_MAJOR(ext.specVersion),
+          VK_API_VERSION_MINOR(ext.specVersion),
+          VK_API_VERSION_PATCH(ext.specVersion),
+          VK_API_VERSION_VARIANT(ext.specVersion));
   }
 
   trace("Available Layers:");
@@ -1343,14 +1346,16 @@ Result<gpu::Device *, Status>
   {
     VkLayerProperties const & layer = layers[i];
 
-    trace("\t\t", layer.layerName,
-          " (spec version: ", VK_API_VERSION_MAJOR(layer.specVersion), ".",
-          VK_API_VERSION_MINOR(layer.specVersion), ".",
-          VK_API_VERSION_PATCH(layer.specVersion), " variant ",
+    trace("\t\t{} (spec version: {}.{}.{} variant {}, implementation version: "
+          "{}.{}.{} variant {})",
+          layer.layerName, VK_API_VERSION_MAJOR(layer.specVersion),
+          VK_API_VERSION_MINOR(layer.specVersion),
+          VK_API_VERSION_PATCH(layer.specVersion),
           VK_API_VERSION_VARIANT(layer.specVersion),
-          ", "
-          "implementation version: ",
-          layer.implementationVersion, ")");
+          VK_API_VERSION_MAJOR(layer.implementationVersion),
+          VK_API_VERSION_MINOR(layer.implementationVersion),
+          VK_API_VERSION_PATCH(layer.implementationVersion),
+          VK_API_VERSION_VARIANT(layer.implementationVersion));
   }
 
   constexpr char const * required_exts[] = {
@@ -1404,7 +1409,7 @@ Result<gpu::Device *, Status>
   {
     if (!required_ext_found[i])
     {
-      trace("Required Extension: ", required_exts[i], " Not Present");
+      trace("Required Extension: {} is not present", required_exts[i]);
       return Err{Status::ExtensionNotPresent};
     }
 
@@ -1564,8 +1569,8 @@ Result<gpu::Device *, Status>
 
   DeviceTable        vk_dev_table;
   VmaVulkanFunctions vma_table;
-  CHECK(
-    load_device_table(vk_dev, vk_table, vk_dev_table, has_debug_marker_ext));
+  CHECK(load_device_table(vk_dev, vk_table, vk_dev_table, has_debug_marker_ext),
+        "");
 
   load_vma_table(vk_table, vk_dev_table, vma_table);
 
@@ -1679,7 +1684,7 @@ void Device::set_resource_name(Span<char const> label, void const * resource,
                                VkDebugReportObjectTypeEXT debug_type)
 {
   char label_c_str[256];
-  CHECK(to_c_str(label, label_c_str));
+  CHECK(to_c_str(label, label_c_str), "");
   VkDebugUtilsObjectNameInfoEXT name_info{
     .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
     .pNext        = nullptr,
@@ -1759,8 +1764,8 @@ Result<gpu::FormatProperties, Status>
 
 Result<gpu::Buffer, Status> Device::create_buffer(gpu::BufferInfo const & info)
 {
-  CHECK(info.size != 0);
-  CHECK(info.usage != gpu::BufferUsage::None);
+  CHECK(info.size != 0, "");
+  CHECK(info.usage != gpu::BufferUsage::None, "");
 
   VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                  .pNext = nullptr,
@@ -1814,12 +1819,12 @@ Result<gpu::BufferView, Status>
 {
   Buffer * const buffer = (Buffer *) info.buffer;
 
-  CHECK(buffer != nullptr);
-  CHECK(
-    has_any_bit(buffer->info.usage, gpu::BufferUsage::UniformTexelBuffer |
-                                      gpu::BufferUsage::StorageTexelBuffer));
-  CHECK(info.format != gpu::Format::Undefined);
-  CHECK(is_valid_buffer_access(buffer->info.size, info.offset, info.size));
+  CHECK(buffer != nullptr, "");
+  CHECK(has_any_bit(buffer->info.usage, gpu::BufferUsage::UniformTexelBuffer |
+                                          gpu::BufferUsage::StorageTexelBuffer),
+        "");
+  CHECK(info.format != gpu::Format::Undefined, "");
+  CHECK(is_valid_buffer_access(buffer->info.size, info.offset, info.size), "");
 
   u64 const view_size = info.size == gpu::WHOLE_SIZE ?
                           (buffer->info.size - info.offset) :
@@ -1863,36 +1868,36 @@ Result<gpu::BufferView, Status>
 
 Result<gpu::Image, Status> Device::create_image(gpu::ImageInfo const & info)
 {
-  CHECK(info.format != gpu::Format::Undefined);
-  CHECK(info.usage != gpu::ImageUsage::None);
-  CHECK(info.aspects != gpu::ImageAspects::None);
-  CHECK(info.sample_count != gpu::SampleCount::None);
-  CHECK(info.extent.x != 0);
-  CHECK(info.extent.y != 0);
-  CHECK(info.extent.z != 0);
-  CHECK(info.mip_levels > 0);
-  CHECK(info.mip_levels <= num_mip_levels(info.extent));
-  CHECK(info.array_layers > 0);
-  CHECK(info.array_layers <= gpu::MAX_IMAGE_ARRAY_LAYERS);
+  CHECK(info.format != gpu::Format::Undefined, "");
+  CHECK(info.usage != gpu::ImageUsage::None, "");
+  CHECK(info.aspects != gpu::ImageAspects::None, "");
+  CHECK(info.sample_count != gpu::SampleCount::None, "");
+  CHECK(info.extent.x != 0, "");
+  CHECK(info.extent.y != 0, "");
+  CHECK(info.extent.z != 0, "");
+  CHECK(info.mip_levels > 0, "");
+  CHECK(info.mip_levels <= num_mip_levels(info.extent), "");
+  CHECK(info.array_layers > 0, "");
+  CHECK(info.array_layers <= gpu::MAX_IMAGE_ARRAY_LAYERS, "");
 
   switch (info.type)
   {
     case gpu::ImageType::Type1D:
-      CHECK(info.extent.x <= gpu::MAX_IMAGE_EXTENT_1D);
-      CHECK(info.extent.y == 1);
-      CHECK(info.extent.z == 1);
+      CHECK(info.extent.x <= gpu::MAX_IMAGE_EXTENT_1D, "");
+      CHECK(info.extent.y == 1, "");
+      CHECK(info.extent.z == 1, "");
       break;
 
     case gpu::ImageType::Type2D:
-      CHECK(info.extent.x <= gpu::MAX_IMAGE_EXTENT_2D);
-      CHECK(info.extent.y <= gpu::MAX_IMAGE_EXTENT_2D);
-      CHECK(info.extent.z == 1);
+      CHECK(info.extent.x <= gpu::MAX_IMAGE_EXTENT_2D, "");
+      CHECK(info.extent.y <= gpu::MAX_IMAGE_EXTENT_2D, "");
+      CHECK(info.extent.z == 1, "");
       break;
 
     case gpu::ImageType::Type3D:
-      CHECK(info.extent.x <= gpu::MAX_IMAGE_EXTENT_3D);
-      CHECK(info.extent.y <= gpu::MAX_IMAGE_EXTENT_3D);
-      CHECK(info.extent.z <= gpu::MAX_IMAGE_EXTENT_3D);
+      CHECK(info.extent.x <= gpu::MAX_IMAGE_EXTENT_3D, "");
+      CHECK(info.extent.y <= gpu::MAX_IMAGE_EXTENT_3D, "");
+      CHECK(info.extent.z <= gpu::MAX_IMAGE_EXTENT_3D, "");
       break;
 
     default:
@@ -1972,13 +1977,15 @@ Result<gpu::ImageView, Status>
 {
   Image * const src_image = (Image *) info.image;
 
-  CHECK(info.image != nullptr);
-  CHECK(info.view_format != gpu::Format::Undefined);
-  CHECK(is_image_view_type_compatible(src_image->info.type, info.view_type));
+  CHECK(info.image != nullptr, "");
+  CHECK(info.view_format != gpu::Format::Undefined, "");
+  CHECK(is_image_view_type_compatible(src_image->info.type, info.view_type),
+        "");
   CHECK(is_valid_image_access(
-    src_image->info.aspects, src_image->info.mip_levels,
-    src_image->info.array_layers, info.aspects, info.first_mip_level,
-    info.num_mip_levels, info.first_array_layer, info.num_array_layers));
+          src_image->info.aspects, src_image->info.mip_levels,
+          src_image->info.array_layers, info.aspects, info.first_mip_level,
+          info.num_mip_levels, info.first_array_layer, info.num_array_layers),
+        "");
 
   u32 const mip_levels = info.num_mip_levels == gpu::REMAINING_MIP_LEVELS ?
                            (src_image->info.mip_levels - info.first_mip_level) :
@@ -2037,8 +2044,9 @@ Result<gpu::Sampler, Status>
   Device::create_sampler(gpu::SamplerInfo const & info)
 {
   CHECK(!(info.anisotropy_enable &&
-          (info.max_anisotropy > gpu::MAX_SAMPLER_ANISOTROPY)));
-  CHECK(!(info.anisotropy_enable && (info.max_anisotropy < 1.0)));
+          (info.max_anisotropy > gpu::MAX_SAMPLER_ANISOTROPY)),
+        "");
+  CHECK(!(info.anisotropy_enable && (info.max_anisotropy < 1.0)), "");
 
   VkSamplerCreateInfo create_info{
     .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -2076,7 +2084,7 @@ Result<gpu::Sampler, Status>
 
 Result<gpu::Shader, Status> Device::create_shader(gpu::ShaderInfo const & info)
 {
-  CHECK(info.spirv_code.size_bytes() > 0);
+  CHECK(info.spirv_code.size_bytes() > 0, "");
 
   VkShaderModuleCreateInfo create_info{
     .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -2119,23 +2127,27 @@ Result<gpu::DescriptorSetLayout, Status> Device::create_descriptor_set_layout(
   u32 num_dynamic_uniform_buffers =
     sizing[(u32) gpu::DescriptorType::DynamicUniformBuffer];
 
-  CHECK(num_bindings > 0);
-  CHECK(num_bindings <= gpu::MAX_DESCRIPTOR_SET_BINDINGS);
+  CHECK(num_bindings > 0, "");
+  CHECK(num_bindings <= gpu::MAX_DESCRIPTOR_SET_BINDINGS, "");
   CHECK(num_dynamic_storage_buffers <=
-        gpu::MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS);
+          gpu::MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS,
+        "");
   CHECK(num_dynamic_uniform_buffers <=
-        gpu::MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS);
-  CHECK(num_descriptors <= gpu::MAX_DESCRIPTOR_SET_DESCRIPTORS);
-  CHECK(num_variable_length <= 1);
-  CHECK(!(num_variable_length > 0 && (num_dynamic_storage_buffers > 0 ||
-                                      num_dynamic_uniform_buffers > 0)));
+          gpu::MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS,
+        "");
+  CHECK(num_descriptors <= gpu::MAX_DESCRIPTOR_SET_DESCRIPTORS, "");
+  CHECK(num_variable_length <= 1, "");
+  CHECK(!(num_variable_length > 0 &&
+          (num_dynamic_storage_buffers > 0 || num_dynamic_uniform_buffers > 0)),
+        "");
 
   for (u32 i = 0; i < num_bindings; i++)
   {
-    CHECK(info.bindings[i].count > 0);
-    CHECK(info.bindings[i].count <= gpu::MAX_BINDING_DESCRIPTORS);
+    CHECK(info.bindings[i].count > 0, "");
+    CHECK(info.bindings[i].count <= gpu::MAX_BINDING_DESCRIPTORS, "");
     CHECK(!(info.bindings[i].is_variable_length &&
-            (i != (info.bindings.size() - 1))));
+            (i != (info.bindings.size() - 1))),
+          "");
   }
 
   VkDescriptorSetLayoutBinding vk_bindings[gpu::MAX_DESCRIPTOR_SET_BINDINGS];
@@ -2220,7 +2232,7 @@ Result<gpu::DescriptorSet, Status>
   Device::create_descriptor_set(gpu::DescriptorSetInfo const & info)
 {
   DescriptorSetLayout * const layout = (DescriptorSetLayout *) info.layout;
-  CHECK(info.variable_lengths.size() == layout->num_variable_length);
+  CHECK(info.variable_lengths.size() == layout->num_variable_length, "");
 
   u32 const num_bindings = layout->num_bindings;
 
@@ -2230,8 +2242,8 @@ Result<gpu::DescriptorSet, Status>
     {
       if (layout->bindings[i].is_variable_length)
       {
-        CHECK(info.variable_lengths[vla_idx] <= layout->bindings[i].count);
-        CHECK(info.variable_lengths[vla_idx] > 0);
+        CHECK(info.variable_lengths[vla_idx] <= layout->bindings[i].count, "");
+        CHECK(info.variable_lengths[vla_idx] > 0, "");
         vla_idx++;
       }
     }
@@ -2317,7 +2329,8 @@ Result<gpu::DescriptorSet, Status>
 
   // must not have these errors
   CHECK(result != VK_ERROR_OUT_OF_POOL_MEMORY &&
-        result != VK_ERROR_FRAGMENTED_POOL);
+          result != VK_ERROR_FRAGMENTED_POOL,
+        "");
 
   if (result != VK_SUCCESS)
   {
@@ -2402,12 +2415,13 @@ Result<gpu::ComputePipeline, Status>
 {
   u32 const num_descriptor_sets = info.descriptor_set_layouts.size32();
 
-  CHECK(num_descriptor_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS);
-  CHECK(info.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE);
-  CHECK(is_aligned(4U, info.push_constants_size));
+  CHECK(num_descriptor_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
+  CHECK(info.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
+  CHECK(is_aligned(4U, info.push_constants_size), "");
   CHECK(info.compute_shader.entry_point.size() > 0 &&
-        info.compute_shader.entry_point.size() < 256);
-  CHECK(info.compute_shader.shader != nullptr);
+          info.compute_shader.entry_point.size() < 256,
+        "");
+  CHECK(info.compute_shader.shader != nullptr, "");
 
   VkDescriptorSetLayout
     vk_descriptor_set_layouts[gpu::MAX_PIPELINE_DESCRIPTOR_SETS];
@@ -2425,7 +2439,7 @@ Result<gpu::ComputePipeline, Status>
     .pData    = info.compute_shader.specialization_constants_data.data()};
 
   char entry_point[256];
-  CHECK(to_c_str(info.compute_shader.entry_point, entry_point));
+  CHECK(to_c_str(info.compute_shader.entry_point, entry_point), "");
 
   VkPipelineShaderStageCreateInfo vk_stage{
     .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -2514,16 +2528,17 @@ Result<gpu::GraphicsPipeline, Status>
   u32 const num_stencils = info.stencil_format.size32();
 
   CHECK(!(info.rasterization_state.polygon_mode != gpu::PolygonMode::Fill &&
-          !phy_dev.vk_features.fillModeNonSolid));
-  CHECK(num_descriptor_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS);
-  CHECK(info.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE);
-  CHECK(is_aligned(4U, info.push_constants_size));
-  CHECK(!info.vertex_shader.entry_point.is_empty());
-  CHECK(!info.fragment_shader.entry_point.is_empty());
-  CHECK(num_attributes <= gpu::MAX_VERTEX_ATTRIBUTES);
-  CHECK(num_colors <= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS);
-  CHECK(num_depths <= 1);
-  CHECK(num_stencils <= 1);
+          !phy_dev.vk_features.fillModeNonSolid),
+        "");
+  CHECK(num_descriptor_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
+  CHECK(info.push_constants_size <= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
+  CHECK(is_aligned(4U, info.push_constants_size), "");
+  CHECK(!info.vertex_shader.entry_point.is_empty(), "");
+  CHECK(!info.fragment_shader.entry_point.is_empty(), "");
+  CHECK(num_attributes <= gpu::MAX_VERTEX_ATTRIBUTES, "");
+  CHECK(num_colors <= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS, "");
+  CHECK(num_depths <= 1, "");
+  CHECK(num_stencils <= 1, "");
 
   VkDescriptorSetLayout
     vk_descriptor_set_layouts[gpu::MAX_PIPELINE_DESCRIPTOR_SETS];
@@ -2549,8 +2564,8 @@ Result<gpu::GraphicsPipeline, Status>
 
   char vs_entry_point[256];
   char fs_entry_point[256];
-  CHECK(to_c_str(info.vertex_shader.entry_point, vs_entry_point));
-  CHECK(to_c_str(info.fragment_shader.entry_point, fs_entry_point));
+  CHECK(to_c_str(info.vertex_shader.entry_point, vs_entry_point), "");
+  CHECK(to_c_str(info.fragment_shader.entry_point, fs_entry_point), "");
 
   VkPipelineShaderStageCreateInfo vk_stages[2] = {
     {.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -2855,9 +2870,9 @@ Result<gpu::GraphicsPipeline, Status>
 /// swapchain recreation fails.
 VkResult Device::recreate_swapchain(Swapchain * swapchain)
 {
-  CHECK(swapchain->info.preferred_extent.x > 0);
-  CHECK(swapchain->info.preferred_extent.y > 0);
-  CHECK(swapchain->info.preferred_buffering <= gpu::MAX_SWAPCHAIN_IMAGES);
+  CHECK(swapchain->info.preferred_extent.x > 0, "");
+  CHECK(swapchain->info.preferred_extent.y > 0, "");
+  CHECK(swapchain->info.preferred_buffering <= gpu::MAX_SWAPCHAIN_IMAGES, "");
 
   VkSurfaceCapabilitiesKHR surface_capabilities;
   VkResult result = instance->vk_table.GetPhysicalDeviceSurfaceCapabilitiesKHR(
@@ -2876,9 +2891,11 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
   }
 
   CHECK(has_bits(surface_capabilities.supportedUsageFlags,
-                 (VkImageUsageFlags) swapchain->info.usage));
+                 (VkImageUsageFlags) swapchain->info.usage),
+        "");
   CHECK(has_bits(surface_capabilities.supportedCompositeAlpha,
-                 (VkImageUsageFlags) swapchain->info.composite_alpha));
+                 (VkImageUsageFlags) swapchain->info.composite_alpha),
+        "");
 
   // take ownership of internal data for re-use/release
   VkSwapchainKHR old_vk_swapchain = swapchain->vk_swapchain;
@@ -2957,7 +2974,7 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
   result = vk_table.CreateSwapchainKHR(vk_dev, &create_info, nullptr,
                                        &new_vk_swapchain);
 
-  CHECK(result == VK_SUCCESS);
+  CHECK(result == VK_SUCCESS, "");
 
   defer new_vk_swapchain_{[&] {
     if (new_vk_swapchain != nullptr)
@@ -2970,14 +2987,14 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
   result = vk_table.GetSwapchainImagesKHR(vk_dev, new_vk_swapchain, &num_images,
                                           nullptr);
 
-  CHECK(result == VK_SUCCESS);
+  CHECK(result == VK_SUCCESS, "");
 
-  CHECK(num_images <= gpu::MAX_SWAPCHAIN_IMAGES);
+  CHECK(num_images <= gpu::MAX_SWAPCHAIN_IMAGES, "");
 
   result = vk_table.GetSwapchainImagesKHR(vk_dev, new_vk_swapchain, &num_images,
                                           swapchain->vk_images);
 
-  CHECK(result == VK_SUCCESS);
+  CHECK(result == VK_SUCCESS, "");
 
   for (u32 i = 0; i < num_images; i++)
   {
@@ -3231,8 +3248,8 @@ Result<gpu::Swapchain, Status>
   Device::create_swapchain(gpu::Surface               surface,
                            gpu::SwapchainInfo const & info)
 {
-  CHECK(info.preferred_extent.x > 0);
-  CHECK(info.preferred_extent.y > 0);
+  CHECK(info.preferred_extent.x > 0, "");
+  CHECK(info.preferred_extent.y > 0, "");
 
   Swapchain * swapchain;
   if (!allocator->nalloc(1, swapchain))
@@ -3262,6 +3279,8 @@ Result<gpu::Swapchain, Status>
 
 Result<gpu::TimeStampQuery, Status> Device::create_timestamp_query()
 {
+  CHECK(count > 0, "");
+
   VkQueryPoolCreateInfo create_info{.sType =
                                       VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
                                     .pNext      = nullptr,
@@ -3283,6 +3302,8 @@ Result<gpu::TimeStampQuery, Status> Device::create_timestamp_query()
 
 Result<gpu::StatisticsQuery, Status> Device::create_statistics_query()
 {
+  CHECK(count > 0, "");
+
   if (phy_dev.vk_features.pipelineStatisticsQuery != VK_TRUE)
   {
     return Err{Status::FeatureNotPresent};
@@ -3351,7 +3372,7 @@ void Device::uninit(gpu::Image image_)
     return;
   }
 
-  CHECK(!image->is_swapchain_image);
+  CHECK(!image->is_swapchain_image, "");
 
   vmaDestroyImage(vma_allocator, image->vk_image, image->vma_allocation);
   allocator->ndealloc(1, image);
@@ -3486,7 +3507,7 @@ gpu::FrameContext Device::get_frame_context()
 Result<void *, Status> Device::map_buffer_memory(gpu::Buffer buffer_)
 {
   Buffer * const buffer = (Buffer *) buffer_;
-  CHECK(buffer->info.host_mapped);
+  CHECK(buffer->info.host_mapped, "");
 
   void *   map;
   VkResult result = vmaMapMemory(vma_allocator, buffer->vma_allocation, &map);
@@ -3502,7 +3523,7 @@ void Device::unmap_buffer_memory(gpu::Buffer buffer_)
 {
   Buffer * const buffer = (Buffer *) buffer_;
 
-  CHECK(buffer->info.host_mapped);
+  CHECK(buffer->info.host_mapped, "");
 
   vmaUnmapMemory(vma_allocator, buffer->vma_allocation);
 }
@@ -3513,10 +3534,11 @@ Result<Void, Status>
 {
   Buffer * const buffer = (Buffer *) buffer_;
 
-  CHECK(buffer->info.host_mapped);
-  CHECK(range.offset < buffer->info.size);
+  CHECK(buffer->info.host_mapped, "");
+  CHECK(range.offset < buffer->info.size, "");
   CHECK(range.size == gpu::WHOLE_SIZE ||
-        (range.offset + range.size) <= buffer->info.size);
+          (range.offset + range.size) <= buffer->info.size,
+        "");
 
   VkResult result = vmaInvalidateAllocation(
     vma_allocator, buffer->vma_allocation, range.offset, range.size);
@@ -3532,10 +3554,11 @@ Result<Void, Status> Device::flush_mapped_buffer_memory(gpu::Buffer buffer_,
 {
   Buffer * const buffer = (Buffer *) buffer_;
 
-  CHECK(buffer->info.host_mapped);
-  CHECK(range.offset < buffer->info.size);
+  CHECK(buffer->info.host_mapped, "");
+  CHECK(range.offset < buffer->info.size, "");
   CHECK(range.size == gpu::WHOLE_SIZE ||
-        (range.offset + range.size) <= buffer->info.size);
+          (range.offset + range.size) <= buffer->info.size,
+        "");
 
   VkResult result = vmaFlushAllocation(vma_allocator, buffer->vma_allocation,
                                        range.offset, range.size);
@@ -3602,7 +3625,7 @@ Result<Void, Status>
 {
   u32 const num_srcs = srcs.size32();
 
-  CHECK(num_srcs > 0);
+  CHECK(num_srcs > 0, "");
 
   VkResult result = vk_table.MergePipelineCaches(
     vk_dev, (PipelineCache) dst, num_srcs, (PipelineCache *) srcs.data());
@@ -3618,7 +3641,7 @@ void Device::unbind_descriptor_set(gpu::DescriptorSet set_, u32 binding_idx,
                                    Slice32 elements)
 {
   DescriptorSet * const set = (DescriptorSet *) set_;
-  CHECK(binding_idx < set->num_bindings);
+  CHECK(binding_idx < set->num_bindings, "");
 
   DescriptorBinding & binding = set->bindings[binding_idx];
 
@@ -3644,9 +3667,9 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
   u64 const ssbo_offset_alignment =
     phy_dev.vk_properties.limits.minStorageBufferOffsetAlignment;
 
-  CHECK(update.binding < set->num_bindings);
+  CHECK(update.binding < set->num_bindings, "");
   DescriptorBinding & binding = set->bindings[update.binding];
-  CHECK(update.element < binding.count);
+  CHECK(update.element < binding.count, "");
 
   Flex const flex = DescriptorSet::flex({set->bindings, set->num_bindings});
   auto [set_span, resources_span, scratch] = flex.unpack(set);
@@ -3661,10 +3684,12 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       for (gpu::BufferBinding const & b : update.buffers)
       {
         Buffer * buffer = (Buffer *) b.buffer;
-        CHECK(buffer != nullptr);
-        CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::StorageBuffer));
+        CHECK(buffer != nullptr, "");
+        CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::StorageBuffer),
+              "");
         CHECK(is_valid_buffer_access(buffer->info.size, b.offset, b.size,
-                                     ubo_offset_alignment));
+                                     ubo_offset_alignment),
+              "");
       }
       break;
 
@@ -3673,10 +3698,12 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       for (gpu::BufferBinding const & b : update.buffers)
       {
         Buffer * buffer = (Buffer *) b.buffer;
-        CHECK(buffer != nullptr);
-        CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::UniformBuffer));
+        CHECK(buffer != nullptr, "");
+        CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::UniformBuffer),
+              "");
         CHECK(is_valid_buffer_access(buffer->info.size, b.offset, b.size,
-                                     ssbo_offset_alignment));
+                                     ssbo_offset_alignment),
+              "");
       }
       break;
 
@@ -3685,7 +3712,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       for (gpu::ImageBinding const & b : update.images)
       {
         Sampler * sampler = (Sampler *) b.sampler;
-        CHECK(sampler != nullptr);
+        CHECK(sampler != nullptr, "");
       }
     }
     break;
@@ -3697,10 +3724,10 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       for (gpu::ImageBinding const & b : update.images)
       {
         ImageView * view = (ImageView *) b.image_view;
-        CHECK(view != nullptr);
+        CHECK(view != nullptr, "");
         Image * image = (Image *) view->info.image;
-        CHECK(has_bits(image->info.usage, gpu::ImageUsage::Sampled));
-        CHECK(image->info.sample_count == gpu::SampleCount::C1);
+        CHECK(has_bits(image->info.usage, gpu::ImageUsage::Sampled), "");
+        CHECK(image->info.sample_count == gpu::SampleCount::C1, "");
       }
     }
     break;
@@ -3710,10 +3737,10 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       for (gpu::ImageBinding const & b : update.images)
       {
         ImageView * view = (ImageView *) b.image_view;
-        CHECK(view != nullptr);
+        CHECK(view != nullptr, "");
         Image * image = (Image *) view->info.image;
-        CHECK(has_bits(image->info.usage, gpu::ImageUsage::Storage));
-        CHECK(image->info.sample_count == gpu::SampleCount::C1);
+        CHECK(has_bits(image->info.usage, gpu::ImageUsage::Storage), "");
+        CHECK(image->info.sample_count == gpu::SampleCount::C1, "");
       }
     }
     break;
@@ -3722,10 +3749,11 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       for (gpu::BufferView const & v : update.texel_buffers)
       {
         BufferView * view = (BufferView *) v;
-        CHECK(view != nullptr);
+        CHECK(view != nullptr, "");
         Buffer * buffer = (Buffer *) view->info.buffer;
         CHECK(
-          has_bits(buffer->info.usage, gpu::BufferUsage::StorageTexelBuffer));
+          has_bits(buffer->info.usage, gpu::BufferUsage::StorageTexelBuffer),
+          "");
       }
       break;
 
@@ -3733,10 +3761,11 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
       for (gpu::BufferView const & v : update.texel_buffers)
       {
         BufferView * view = (BufferView *) v;
-        CHECK(view != nullptr);
+        CHECK(view != nullptr, "");
         Buffer * buffer = (Buffer *) view->info.buffer;
         CHECK(
-          has_bits(buffer->info.usage, gpu::BufferUsage::UniformTexelBuffer));
+          has_bits(buffer->info.usage, gpu::BufferUsage::UniformTexelBuffer),
+          "");
       }
       break;
 
@@ -3973,7 +4002,7 @@ Result<Void, Status>
       return Err{(Status) result};
     }
 
-    CHECK(num_read == num_supported && result != VK_INCOMPLETE);
+    CHECK(num_read == num_supported && result != VK_INCOMPLETE, "");
   }
 
   usize const offset = formats.size();
@@ -4027,7 +4056,7 @@ Result<Void, Status>
       return Err{(Status) result};
     }
 
-    CHECK(num_read == num_supported && result != VK_INCOMPLETE);
+    CHECK(num_read == num_supported && result != VK_INCOMPLETE, "");
   }
 
   usize const offset = modes.size();
@@ -4092,8 +4121,8 @@ Result<Void, Status>
   Device::invalidate_swapchain(gpu::Swapchain             swapchain_,
                                gpu::SwapchainInfo const & info)
 {
-  CHECK(info.preferred_extent.x > 0);
-  CHECK(info.preferred_extent.y > 0);
+  CHECK(info.preferred_extent.x > 0, "");
+  CHECK(info.preferred_extent.y > 0, "");
   Swapchain * const swapchain = (Swapchain *) swapchain_;
   swapchain->is_optimal       = false;
   swapchain->info             = info;
@@ -4107,16 +4136,16 @@ Result<Void, Status> Device::begin_frame(gpu::Swapchain swapchain_)
   VkFence           submit_fence = ctx.submit_f[ctx.ring_index];
   CommandEncoder &  enc          = ctx.encs[ctx.ring_index];
 
-  CHECK(!enc.is_recording());
+  CHECK(!enc.is_recording(), "");
 
   VkResult result =
     vk_table.WaitForFences(vk_dev, 1, &submit_fence, VK_TRUE, U64_MAX);
 
-  CHECK(result == VK_SUCCESS);
+  CHECK(result == VK_SUCCESS, "");
 
   result = vk_table.ResetFences(vk_dev, 1, &submit_fence);
 
-  CHECK(result == VK_SUCCESS);
+  CHECK(result == VK_SUCCESS, "");
 
   if (swapchain != nullptr)
   {
@@ -4126,10 +4155,10 @@ Result<Void, Status> Device::begin_frame(gpu::Swapchain swapchain_)
       // await all pending submitted operations on the device possibly using
       // the swapchain, to avoid destroying whilst in use
       result = vk_table.DeviceWaitIdle(vk_dev);
-      CHECK(result == VK_SUCCESS);
+      CHECK(result == VK_SUCCESS, "");
 
       result = recreate_swapchain(swapchain);
-      CHECK(result == VK_SUCCESS);
+      CHECK(result == VK_SUCCESS, "");
     }
 
     if (!swapchain->is_zero_sized)
@@ -4145,7 +4174,7 @@ Result<Void, Status> Device::begin_frame(gpu::Swapchain swapchain_)
       }
       else
       {
-        CHECK(result == VK_SUCCESS);
+        CHECK(result == VK_SUCCESS, "");
       }
 
       swapchain->current_image = next_image;
@@ -4162,7 +4191,7 @@ Result<Void, Status> Device::begin_frame(gpu::Swapchain swapchain_)
     .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     .pInheritanceInfo = nullptr};
   result = vk_table.BeginCommandBuffer(enc.vk_command_buffer, &info);
-  CHECK(result == VK_SUCCESS);
+  CHECK(result == VK_SUCCESS, "");
 
   ctx.swapchain = swapchain;
 
@@ -4182,9 +4211,9 @@ Result<Void, Status> Device::submit_frame(gpu::Swapchain swapchain_)
   bool const can_present = swapchain != nullptr && !swapchain->is_out_of_date &&
                            !swapchain->is_zero_sized;
 
-  CHECK(swapchain == ctx.swapchain);
+  CHECK(swapchain == ctx.swapchain, "");
 
-  CHECK(enc.is_recording());
+  CHECK(enc.is_recording(), "");
 
   if (was_acquired)
   {
@@ -4195,8 +4224,8 @@ Result<Void, Status> Device::submit_frame(gpu::Swapchain swapchain_)
   }
 
   VkResult result = vk_table.EndCommandBuffer(command_buffer);
-  CHECK(result == VK_SUCCESS);
-  CHECK(enc.status == gpu::Status::Success);
+  CHECK(result == VK_SUCCESS, "");
+  CHECK(enc.status == gpu::Status::Success, "");
 
   VkPipelineStageFlags const wait_stages = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
@@ -4215,7 +4244,7 @@ Result<Void, Status> Device::submit_frame(gpu::Swapchain swapchain_)
 
   enc.state = CommandEncoderState::End;
 
-  CHECK(result == VK_SUCCESS);
+  CHECK(result == VK_SUCCESS, "");
 
   // - advance frame, even if invalidation occured. frame is marked as missed
   // but has no side effect on the flow. so no need for resubmitting as previous
@@ -4247,7 +4276,7 @@ Result<Void, Status> Device::submit_frame(gpu::Swapchain swapchain_)
     }
     else
     {
-      CHECK(result == VK_SUCCESS);
+      CHECK(result == VK_SUCCESS, "");
     }
   }
 
@@ -4296,7 +4325,7 @@ Result<gpu::PipelineStatistics, Status>
 }
 
 #define ENCODE_PRELUDE()         \
-  CHECK(is_recording());         \
+  CHECK(is_recording(), "");     \
   if (status != Status::Success) \
   {                              \
     return;                      \
@@ -4310,7 +4339,7 @@ void CommandEncoder::reset_timestamp_query(gpu::TimeStampQuery query_)
 {
   ENCODE_PRELUDE();
   VkQueryPool const vk_pool = (VkQueryPool) query_;
-  CHECK(!is_in_pass());
+  CHECK(!is_in_pass(), "");
 
   dev->vk_table.CmdResetQueryPool(vk_command_buffer, vk_pool, 0, 1);
 }
@@ -4319,7 +4348,7 @@ void CommandEncoder::reset_statistics_query(gpu::StatisticsQuery query_)
 {
   ENCODE_PRELUDE();
   VkQueryPool const vk_pool = (VkQueryPool) query_;
-  CHECK(!is_in_pass());
+  CHECK(!is_in_pass(), "");
 
   dev->vk_table.CmdResetQueryPool(vk_command_buffer, vk_pool, 0, 1);
 }
@@ -4327,7 +4356,7 @@ void CommandEncoder::reset_statistics_query(gpu::StatisticsQuery query_)
 void CommandEncoder::write_timestamp(gpu::TimeStampQuery query_)
 {
   ENCODE_PRELUDE();
-  CHECK(!is_in_pass());
+  CHECK(!is_in_pass(), "");
   VkQueryPool const vk_pool = (VkQueryPool) query_;
   dev->vk_table.CmdWriteTimestamp(
     vk_command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, vk_pool, 0);
@@ -4336,7 +4365,7 @@ void CommandEncoder::write_timestamp(gpu::TimeStampQuery query_)
 void CommandEncoder::begin_statistics(gpu::StatisticsQuery query_)
 {
   ENCODE_PRELUDE();
-  CHECK(!is_in_pass());
+  CHECK(!is_in_pass(), "");
   VkQueryPool const vk_pool = (VkQueryPool) query_;
   dev->vk_table.CmdBeginQuery(vk_command_buffer, vk_pool, 0, 0);
 }
@@ -4344,7 +4373,7 @@ void CommandEncoder::begin_statistics(gpu::StatisticsQuery query_)
 void CommandEncoder::end_statistics(gpu::StatisticsQuery query_)
 {
   ENCODE_PRELUDE();
-  CHECK(!is_in_pass());
+  CHECK(!is_in_pass(), "");
   VkQueryPool const vk_pool = (VkQueryPool) query_;
   dev->vk_table.CmdEndQuery(vk_command_buffer, vk_pool, 0);
 }
@@ -4353,9 +4382,9 @@ void CommandEncoder::begin_debug_marker(Span<char const> region_name,
                                         Vec4             color)
 {
   ENCODE_PRELUDE();
-  CHECK(!is_in_pass());
+  CHECK(!is_in_pass(), "");
   char region_name_cstr[256];
-  CHECK(to_c_str(region_name, region_name_cstr));
+  CHECK(to_c_str(region_name, region_name_cstr), "");
 
   VkDebugMarkerMarkerInfoEXT info{
     .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
@@ -4369,7 +4398,7 @@ void CommandEncoder::begin_debug_marker(Span<char const> region_name,
 void CommandEncoder::end_debug_marker()
 {
   ENCODE_PRELUDE();
-  CHECK(!is_in_pass());
+  CHECK(!is_in_pass(), "");
   dev->vk_table.CmdDebugMarkerEndEXT(vk_command_buffer);
 }
 
@@ -4379,10 +4408,10 @@ void CommandEncoder::fill_buffer(gpu::Buffer dst_, u64 offset, u64 size,
   ENCODE_PRELUDE();
   Buffer * const dst = (Buffer *) dst_;
 
-  CHECK(!is_in_pass());
-  CHECK(has_bits(dst->info.usage, gpu::BufferUsage::TransferDst));
-  CHECK(is_valid_buffer_access(dst->info.size, offset, size, 4));
-  CHECK(is_aligned<u64>(4, size));
+  CHECK(!is_in_pass(), "");
+  CHECK(has_bits(dst->info.usage, gpu::BufferUsage::TransferDst), "");
+  CHECK(is_valid_buffer_access(dst->info.size, offset, size, 4), "");
+  CHECK(is_aligned<u64>(4, size), "");
 
   access_buffer(*dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -4398,14 +4427,16 @@ void CommandEncoder::copy_buffer(gpu::Buffer src_, gpu::Buffer dst_,
   Buffer * const dst        = (Buffer *) dst_;
   u32 const      num_copies = copies.size32();
 
-  CHECK(!is_in_pass());
-  CHECK(has_bits(src->info.usage, gpu::BufferUsage::TransferSrc));
-  CHECK(has_bits(dst->info.usage, gpu::BufferUsage::TransferDst));
-  CHECK(num_copies > 0);
+  CHECK(!is_in_pass(), "");
+  CHECK(has_bits(src->info.usage, gpu::BufferUsage::TransferSrc), "");
+  CHECK(has_bits(dst->info.usage, gpu::BufferUsage::TransferDst), "");
+  CHECK(num_copies > 0, "");
   for (gpu::BufferCopy const & copy : copies)
   {
-    CHECK(is_valid_buffer_access(src->info.size, copy.src_offset, copy.size));
-    CHECK(is_valid_buffer_access(dst->info.size, copy.dst_offset, copy.size));
+    CHECK(is_valid_buffer_access(src->info.size, copy.src_offset, copy.size),
+          "");
+    CHECK(is_valid_buffer_access(dst->info.size, copy.dst_offset, copy.size),
+          "");
   }
 
   VkBufferCopy * vk_copies;
@@ -4440,11 +4471,11 @@ void CommandEncoder::update_buffer(Span<u8 const> src, u64 dst_offset,
   Buffer * const dst       = (Buffer *) dst_;
   u64 const      copy_size = src.size_bytes();
 
-  CHECK(!is_in_pass());
-  CHECK(has_bits(dst->info.usage, gpu::BufferUsage::TransferDst));
-  CHECK(is_valid_buffer_access(dst->info.size, dst_offset, copy_size, 4));
-  CHECK(is_aligned<u64>(4, copy_size));
-  CHECK(copy_size <= gpu::MAX_UPDATE_BUFFER_SIZE);
+  CHECK(!is_in_pass(), "");
+  CHECK(has_bits(dst->info.usage, gpu::BufferUsage::TransferDst), "");
+  CHECK(is_valid_buffer_access(dst->info.size, dst_offset, copy_size, 4), "");
+  CHECK(is_aligned<u64>(4, copy_size), "");
+  CHECK(copy_size <= gpu::MAX_UPDATE_BUFFER_SIZE, "");
 
   access_buffer(*dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -4462,16 +4493,17 @@ void CommandEncoder::clear_color_image(
   u32 const     num_ranges = ranges.size32();
 
   static_assert(sizeof(gpu::Color) == sizeof(VkClearColorValue));
-  CHECK(!is_in_pass());
-  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst));
-  CHECK(num_ranges > 0);
+  CHECK(!is_in_pass(), "");
+  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst), "");
+  CHECK(num_ranges > 0, "");
   for (u32 i = 0; i < num_ranges; i++)
   {
     gpu::ImageSubresourceRange const & range = ranges[i];
     CHECK(is_valid_image_access(
-      dst->info.aspects, dst->info.mip_levels, dst->info.array_layers,
-      range.aspects, range.first_mip_level, range.num_mip_levels,
-      range.first_array_layer, range.num_array_layers));
+            dst->info.aspects, dst->info.mip_levels, dst->info.array_layers,
+            range.aspects, range.first_mip_level, range.num_mip_levels,
+            range.first_array_layer, range.num_array_layers),
+          "");
   }
 
   VkImageSubresourceRange * vk_ranges;
@@ -4513,16 +4545,17 @@ void CommandEncoder::clear_depth_stencil_image(
   u32 const     num_ranges = ranges.size32();
 
   static_assert(sizeof(gpu::DepthStencil) == sizeof(VkClearDepthStencilValue));
-  CHECK(!is_in_pass());
-  CHECK(num_ranges > 0);
-  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst));
+  CHECK(!is_in_pass(), "");
+  CHECK(num_ranges > 0, "");
+  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst), "");
   for (u32 i = 0; i < num_ranges; i++)
   {
     gpu::ImageSubresourceRange const & range = ranges[i];
     CHECK(is_valid_image_access(
-      dst->info.aspects, dst->info.mip_levels, dst->info.array_layers,
-      range.aspects, range.first_mip_level, range.num_mip_levels,
-      range.first_array_layer, range.num_array_layers));
+            dst->info.aspects, dst->info.mip_levels, dst->info.array_layers,
+            range.aspects, range.first_mip_level, range.num_mip_levels,
+            range.first_array_layer, range.num_array_layers),
+          "");
   }
 
   VkImageSubresourceRange * vk_ranges;
@@ -4563,40 +4596,44 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
   Image * const dst        = (Image *) dst_;
   u32 const     num_copies = copies.size32();
 
-  CHECK(!is_in_pass());
-  CHECK(num_copies > 0);
-  CHECK(has_bits(src->info.usage, gpu::ImageUsage::TransferSrc));
-  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst));
+  CHECK(!is_in_pass(), "");
+  CHECK(num_copies > 0, "");
+  CHECK(has_bits(src->info.usage, gpu::ImageUsage::TransferSrc), "");
+  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst), "");
   for (u32 i = 0; i < num_copies; i++)
   {
     gpu::ImageCopy const & copy = copies[i];
 
-    CHECK(is_valid_image_access(
-      src->info.aspects, src->info.mip_levels, src->info.array_layers,
-      copy.src_layers.aspects, copy.src_layers.mip_level, 1,
-      copy.src_layers.first_array_layer, copy.src_layers.num_array_layers));
-    CHECK(is_valid_image_access(
-      dst->info.aspects, dst->info.mip_levels, dst->info.array_layers,
-      copy.dst_layers.aspects, copy.dst_layers.mip_level, 1,
-      copy.dst_layers.first_array_layer, copy.dst_layers.num_array_layers));
+    CHECK(is_valid_image_access(src->info.aspects, src->info.mip_levels,
+                                src->info.array_layers, copy.src_layers.aspects,
+                                copy.src_layers.mip_level, 1,
+                                copy.src_layers.first_array_layer,
+                                copy.src_layers.num_array_layers),
+          "");
+    CHECK(is_valid_image_access(dst->info.aspects, dst->info.mip_levels,
+                                dst->info.array_layers, copy.dst_layers.aspects,
+                                copy.dst_layers.mip_level, 1,
+                                copy.dst_layers.first_array_layer,
+                                copy.dst_layers.num_array_layers),
+          "");
 
     Vec3U src_extent = mip_size(src->info.extent, copy.src_layers.mip_level);
     Vec3U dst_extent = mip_size(dst->info.extent, copy.dst_layers.mip_level);
-    CHECK(copy.extent.x > 0);
-    CHECK(copy.extent.y > 0);
-    CHECK(copy.extent.z > 0);
-    CHECK(copy.src_offset.x <= src_extent.x);
-    CHECK(copy.src_offset.y <= src_extent.y);
-    CHECK(copy.src_offset.z <= src_extent.z);
-    CHECK((copy.src_offset.x + copy.extent.x) <= src_extent.x);
-    CHECK((copy.src_offset.y + copy.extent.y) <= src_extent.y);
-    CHECK((copy.src_offset.z + copy.extent.z) <= src_extent.z);
-    CHECK(copy.dst_offset.x <= dst_extent.x);
-    CHECK(copy.dst_offset.y <= dst_extent.y);
-    CHECK(copy.dst_offset.z <= dst_extent.z);
-    CHECK((copy.dst_offset.x + copy.extent.x) <= dst_extent.x);
-    CHECK((copy.dst_offset.y + copy.extent.y) <= dst_extent.y);
-    CHECK((copy.dst_offset.z + copy.extent.z) <= dst_extent.z);
+    CHECK(copy.extent.x > 0, "");
+    CHECK(copy.extent.y > 0, "");
+    CHECK(copy.extent.z > 0, "");
+    CHECK(copy.src_offset.x <= src_extent.x, "");
+    CHECK(copy.src_offset.y <= src_extent.y, "");
+    CHECK(copy.src_offset.z <= src_extent.z, "");
+    CHECK((copy.src_offset.x + copy.extent.x) <= src_extent.x, "");
+    CHECK((copy.src_offset.y + copy.extent.y) <= src_extent.y, "");
+    CHECK((copy.src_offset.z + copy.extent.z) <= src_extent.z, "");
+    CHECK(copy.dst_offset.x <= dst_extent.x, "");
+    CHECK(copy.dst_offset.y <= dst_extent.y, "");
+    CHECK(copy.dst_offset.z <= dst_extent.z, "");
+    CHECK((copy.dst_offset.x + copy.extent.x) <= dst_extent.x, "");
+    CHECK((copy.dst_offset.y + copy.extent.y) <= dst_extent.y, "");
+    CHECK((copy.dst_offset.z + copy.extent.z) <= dst_extent.z, "");
   }
 
   VkImageCopy * vk_copies;
@@ -4652,31 +4689,34 @@ void CommandEncoder::copy_buffer_to_image(
   Image * const  dst        = (Image *) dst_;
   u32 const      num_copies = copies.size32();
 
-  CHECK(!is_in_pass());
-  CHECK(num_copies > 0);
-  CHECK(has_bits(src->info.usage, gpu::BufferUsage::TransferSrc));
-  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst));
+  CHECK(!is_in_pass(), "");
+  CHECK(num_copies > 0, "");
+  CHECK(has_bits(src->info.usage, gpu::BufferUsage::TransferSrc), "");
+  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst), "");
   for (u32 i = 0; i < num_copies; i++)
   {
     gpu::BufferImageCopy const & copy = copies[i];
     CHECK(is_valid_buffer_access(src->info.size, copy.buffer_offset,
-                                 gpu::WHOLE_SIZE));
+                                 gpu::WHOLE_SIZE),
+          "");
 
     CHECK(is_valid_image_access(
-      dst->info.aspects, dst->info.mip_levels, dst->info.array_layers,
-      copy.image_layers.aspects, copy.image_layers.mip_level, 1,
-      copy.image_layers.first_array_layer, copy.image_layers.num_array_layers));
+            dst->info.aspects, dst->info.mip_levels, dst->info.array_layers,
+            copy.image_layers.aspects, copy.image_layers.mip_level, 1,
+            copy.image_layers.first_array_layer,
+            copy.image_layers.num_array_layers),
+          "");
 
-    CHECK(copy.image_extent.x > 0);
-    CHECK(copy.image_extent.y > 0);
-    CHECK(copy.image_extent.z > 0);
+    CHECK(copy.image_extent.x > 0, "");
+    CHECK(copy.image_extent.y > 0, "");
+    CHECK(copy.image_extent.z > 0, "");
     Vec3U dst_extent = mip_size(dst->info.extent, copy.image_layers.mip_level);
-    CHECK(copy.image_extent.x <= dst_extent.x);
-    CHECK(copy.image_extent.y <= dst_extent.y);
-    CHECK(copy.image_extent.z <= dst_extent.z);
-    CHECK((copy.image_offset.x + copy.image_extent.x) <= dst_extent.x);
-    CHECK((copy.image_offset.y + copy.image_extent.y) <= dst_extent.y);
-    CHECK((copy.image_offset.z + copy.image_extent.z) <= dst_extent.z);
+    CHECK(copy.image_extent.x <= dst_extent.x, "");
+    CHECK(copy.image_extent.y <= dst_extent.y, "");
+    CHECK(copy.image_extent.z <= dst_extent.z, "");
+    CHECK((copy.image_offset.x + copy.image_extent.x) <= dst_extent.x, "");
+    CHECK((copy.image_offset.y + copy.image_extent.y) <= dst_extent.y, "");
+    CHECK((copy.image_offset.z + copy.image_extent.z) <= dst_extent.z, "");
   }
 
   VkBufferImageCopy * vk_copies;
@@ -4727,48 +4767,56 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
   Image * const dst       = (Image *) dst_;
   u32 const     num_blits = blits.size32();
 
-  CHECK(!is_in_pass());
-  CHECK(num_blits > 0);
-  CHECK(has_bits(src->info.usage, gpu::ImageUsage::TransferSrc));
-  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst));
+  CHECK(!is_in_pass(), "");
+  CHECK(num_blits > 0, "");
+  CHECK(has_bits(src->info.usage, gpu::ImageUsage::TransferSrc), "");
+  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst), "");
   for (u32 i = 0; i < num_blits; i++)
   {
     gpu::ImageBlit const & blit = blits[i];
 
-    CHECK(is_valid_image_access(
-      src->info.aspects, src->info.mip_levels, src->info.array_layers,
-      blit.src_layers.aspects, blit.src_layers.mip_level, 1,
-      blit.src_layers.first_array_layer, blit.src_layers.num_array_layers));
+    CHECK(is_valid_image_access(src->info.aspects, src->info.mip_levels,
+                                src->info.array_layers, blit.src_layers.aspects,
+                                blit.src_layers.mip_level, 1,
+                                blit.src_layers.first_array_layer,
+                                blit.src_layers.num_array_layers),
+          "");
 
-    CHECK(is_valid_image_access(
-      dst->info.aspects, dst->info.mip_levels, dst->info.array_layers,
-      blit.dst_layers.aspects, blit.dst_layers.mip_level, 1,
-      blit.dst_layers.first_array_layer, blit.dst_layers.num_array_layers));
+    CHECK(is_valid_image_access(dst->info.aspects, dst->info.mip_levels,
+                                dst->info.array_layers, blit.dst_layers.aspects,
+                                blit.dst_layers.mip_level, 1,
+                                blit.dst_layers.first_array_layer,
+                                blit.dst_layers.num_array_layers),
+          "");
 
     Vec3U src_extent = mip_size(src->info.extent, blit.src_layers.mip_level);
     Vec3U dst_extent = mip_size(dst->info.extent, blit.dst_layers.mip_level);
-    CHECK(blit.src_offsets[0].x <= src_extent.x);
-    CHECK(blit.src_offsets[0].y <= src_extent.y);
-    CHECK(blit.src_offsets[0].z <= src_extent.z);
-    CHECK(blit.src_offsets[1].x <= src_extent.x);
-    CHECK(blit.src_offsets[1].y <= src_extent.y);
-    CHECK(blit.src_offsets[1].z <= src_extent.z);
-    CHECK(blit.dst_offsets[0].x <= dst_extent.x);
-    CHECK(blit.dst_offsets[0].y <= dst_extent.y);
-    CHECK(blit.dst_offsets[0].z <= dst_extent.z);
-    CHECK(blit.dst_offsets[1].x <= dst_extent.x);
-    CHECK(blit.dst_offsets[1].y <= dst_extent.y);
-    CHECK(blit.dst_offsets[1].z <= dst_extent.z);
+    CHECK(blit.src_offsets[0].x <= src_extent.x, "");
+    CHECK(blit.src_offsets[0].y <= src_extent.y, "");
+    CHECK(blit.src_offsets[0].z <= src_extent.z, "");
+    CHECK(blit.src_offsets[1].x <= src_extent.x, "");
+    CHECK(blit.src_offsets[1].y <= src_extent.y, "");
+    CHECK(blit.src_offsets[1].z <= src_extent.z, "");
+    CHECK(blit.dst_offsets[0].x <= dst_extent.x, "");
+    CHECK(blit.dst_offsets[0].y <= dst_extent.y, "");
+    CHECK(blit.dst_offsets[0].z <= dst_extent.z, "");
+    CHECK(blit.dst_offsets[1].x <= dst_extent.x, "");
+    CHECK(blit.dst_offsets[1].y <= dst_extent.y, "");
+    CHECK(blit.dst_offsets[1].z <= dst_extent.z, "");
     CHECK(!((src->info.type == gpu::ImageType::Type1D) &&
-            (blit.src_offsets[0].y != 0 || blit.src_offsets[1].y != 1)));
+            (blit.src_offsets[0].y != 0 || blit.src_offsets[1].y != 1)),
+          "");
     CHECK(!((src->info.type == gpu::ImageType::Type1D ||
              src->info.type == gpu::ImageType::Type2D) &&
-            (blit.src_offsets[0].z != 0 || blit.src_offsets[1].z != 1)));
+            (blit.src_offsets[0].z != 0 || blit.src_offsets[1].z != 1)),
+          "");
     CHECK(!((dst->info.type == gpu::ImageType::Type1D) &&
-            (blit.dst_offsets[0].y != 0 || blit.dst_offsets[1].y != 1)));
+            (blit.dst_offsets[0].y != 0 || blit.dst_offsets[1].y != 1)),
+          "");
     CHECK(!((dst->info.type == gpu::ImageType::Type1D ||
              dst->info.type == gpu::ImageType::Type2D) &&
-            (blit.src_offsets[0].z != 0 || blit.dst_offsets[1].z != 1)));
+            (blit.src_offsets[0].z != 0 || blit.dst_offsets[1].z != 1)),
+          "");
   }
 
   VkImageBlit * vk_blits;
@@ -4828,44 +4876,46 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
   Image * const dst          = (Image *) dst_;
   u32 const     num_resolves = resolves.size32();
 
-  CHECK(!is_in_pass());
-  CHECK(num_resolves > 0);
-  CHECK(has_bits(src->info.usage, gpu::ImageUsage::TransferSrc));
-  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst));
-  CHECK(has_bits(dst->info.sample_count, gpu::SampleCount::C1));
+  CHECK(!is_in_pass(), "");
+  CHECK(num_resolves > 0, "");
+  CHECK(has_bits(src->info.usage, gpu::ImageUsage::TransferSrc), "");
+  CHECK(has_bits(dst->info.usage, gpu::ImageUsage::TransferDst), "");
+  CHECK(has_bits(dst->info.sample_count, gpu::SampleCount::C1), "");
 
   for (u32 i = 0; i < num_resolves; i++)
   {
     gpu::ImageResolve const & resolve = resolves[i];
 
     CHECK(is_valid_image_access(
-      src->info.aspects, src->info.mip_levels, src->info.array_layers,
-      resolve.src_layers.aspects, resolve.src_layers.mip_level, 1,
-      resolve.src_layers.first_array_layer,
-      resolve.src_layers.num_array_layers));
+            src->info.aspects, src->info.mip_levels, src->info.array_layers,
+            resolve.src_layers.aspects, resolve.src_layers.mip_level, 1,
+            resolve.src_layers.first_array_layer,
+            resolve.src_layers.num_array_layers),
+          "");
     CHECK(is_valid_image_access(
-      dst->info.aspects, dst->info.mip_levels, dst->info.array_layers,
-      resolve.dst_layers.aspects, resolve.dst_layers.mip_level, 1,
-      resolve.dst_layers.first_array_layer,
-      resolve.dst_layers.num_array_layers));
+            dst->info.aspects, dst->info.mip_levels, dst->info.array_layers,
+            resolve.dst_layers.aspects, resolve.dst_layers.mip_level, 1,
+            resolve.dst_layers.first_array_layer,
+            resolve.dst_layers.num_array_layers),
+          "");
 
     Vec3U src_extent = mip_size(src->info.extent, resolve.src_layers.mip_level);
     Vec3U dst_extent = mip_size(dst->info.extent, resolve.dst_layers.mip_level);
-    CHECK(resolve.extent.x > 0);
-    CHECK(resolve.extent.y > 0);
-    CHECK(resolve.extent.z > 0);
-    CHECK(resolve.src_offset.x <= src_extent.x);
-    CHECK(resolve.src_offset.y <= src_extent.y);
-    CHECK(resolve.src_offset.z <= src_extent.z);
-    CHECK((resolve.src_offset.x + resolve.extent.x) <= src_extent.x);
-    CHECK((resolve.src_offset.y + resolve.extent.y) <= src_extent.y);
-    CHECK((resolve.src_offset.z + resolve.extent.z) <= src_extent.z);
-    CHECK(resolve.dst_offset.x <= dst_extent.x);
-    CHECK(resolve.dst_offset.y <= dst_extent.y);
-    CHECK(resolve.dst_offset.z <= dst_extent.z);
-    CHECK((resolve.dst_offset.x + resolve.extent.x) <= dst_extent.x);
-    CHECK((resolve.dst_offset.y + resolve.extent.y) <= dst_extent.y);
-    CHECK((resolve.dst_offset.z + resolve.extent.z) <= dst_extent.z);
+    CHECK(resolve.extent.x > 0, "");
+    CHECK(resolve.extent.y > 0, "");
+    CHECK(resolve.extent.z > 0, "");
+    CHECK(resolve.src_offset.x <= src_extent.x, "");
+    CHECK(resolve.src_offset.y <= src_extent.y, "");
+    CHECK(resolve.src_offset.z <= src_extent.z, "");
+    CHECK((resolve.src_offset.x + resolve.extent.x) <= src_extent.x, "");
+    CHECK((resolve.src_offset.y + resolve.extent.y) <= src_extent.y, "");
+    CHECK((resolve.src_offset.z + resolve.extent.z) <= src_extent.z, "");
+    CHECK(resolve.dst_offset.x <= dst_extent.x, "");
+    CHECK(resolve.dst_offset.y <= dst_extent.y, "");
+    CHECK(resolve.dst_offset.z <= dst_extent.z, "");
+    CHECK((resolve.dst_offset.x + resolve.extent.x) <= dst_extent.x, "");
+    CHECK((resolve.dst_offset.y + resolve.extent.y) <= dst_extent.y, "");
+    CHECK((resolve.dst_offset.z + resolve.extent.z) <= dst_extent.z, "");
   }
 
   VkImageResolve * vk_resolves;
@@ -4919,7 +4969,7 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
 void CommandEncoder::begin_compute_pass()
 {
   ENCODE_PRELUDE();
-  CHECK(!is_in_pass());
+  CHECK(!is_in_pass(), "");
 
   state = CommandEncoderState::ComputePass;
 }
@@ -4927,7 +4977,7 @@ void CommandEncoder::begin_compute_pass()
 void CommandEncoder::end_compute_pass()
 {
   ENCODE_PRELUDE();
-  CHECK(is_in_compute_pass());
+  CHECK(is_in_compute_pass(), "");
 
   clear_context();
 }
@@ -4935,24 +4985,27 @@ void CommandEncoder::end_compute_pass()
 void validate_attachment(gpu::RenderingAttachment const & info,
                          gpu::ImageAspects aspects, gpu::ImageUsage usage)
 {
+  CHECK(!(info.resolve_mode != gpu::ResolveModes::None && info.view == nullptr),
+        "");
   CHECK(
-    !(info.resolve_mode != gpu::ResolveModes::None && info.view == nullptr));
-  CHECK(
-    !(info.resolve_mode != gpu::ResolveModes::None && info.resolve == nullptr));
+    !(info.resolve_mode != gpu::ResolveModes::None && info.resolve == nullptr),
+    "");
   if (info.view != nullptr)
   {
-    CHECK(has_bits(IMAGE_FROM_VIEW(info.view)->info.aspects, aspects));
-    CHECK(has_bits(IMAGE_FROM_VIEW(info.view)->info.usage, usage));
+    CHECK(has_bits(IMAGE_FROM_VIEW(info.view)->info.aspects, aspects), "");
+    CHECK(has_bits(IMAGE_FROM_VIEW(info.view)->info.usage, usage), "");
     CHECK(
       !(info.resolve_mode != gpu::ResolveModes::None &&
-        IMAGE_FROM_VIEW(info.view)->info.sample_count == gpu::SampleCount::C1));
+        IMAGE_FROM_VIEW(info.view)->info.sample_count == gpu::SampleCount::C1),
+      "");
   }
   if (info.resolve != nullptr)
   {
-    CHECK(has_bits(IMAGE_FROM_VIEW(info.resolve)->info.aspects, aspects));
-    CHECK(has_bits(IMAGE_FROM_VIEW(info.resolve)->info.usage, usage));
+    CHECK(has_bits(IMAGE_FROM_VIEW(info.resolve)->info.aspects, aspects), "");
+    CHECK(has_bits(IMAGE_FROM_VIEW(info.resolve)->info.usage, usage), "");
     CHECK(IMAGE_FROM_VIEW(info.resolve)->info.sample_count ==
-          gpu::SampleCount::C1);
+            gpu::SampleCount::C1,
+          "");
   }
 }
 
@@ -4963,13 +5016,13 @@ void CommandEncoder::begin_rendering(gpu::RenderingInfo const & info)
   u32 const num_depth_attachments   = info.depth_attachment.size32();
   u32 const num_stencil_attachments = info.stencil_attachment.size32();
 
-  CHECK(!is_in_pass());
-  CHECK(num_color_attachments <= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS);
-  CHECK(num_depth_attachments <= 1);
-  CHECK(num_stencil_attachments <= 1);
-  CHECK(info.render_area.extent.x > 0);
-  CHECK(info.render_area.extent.y > 0);
-  CHECK(info.num_layers > 0);
+  CHECK(!is_in_pass(), "");
+  CHECK(num_color_attachments <= gpu::MAX_PIPELINE_COLOR_ATTACHMENTS, "");
+  CHECK(num_depth_attachments <= 1, "");
+  CHECK(num_stencil_attachments <= 1, "");
+  CHECK(info.render_area.extent.x > 0, "");
+  CHECK(info.render_area.extent.y > 0, "");
+  CHECK(info.num_layers > 0, "");
 
   for (gpu::RenderingAttachment const & attachment : info.color_attachments)
   {
@@ -5054,7 +5107,7 @@ void CommandEncoder::end_rendering()
   RenderPassContext & ctx = render_ctx;
   DeviceTable const * t   = &dev->vk_table;
 
-  CHECK(is_in_render_pass());
+  CHECK(is_in_render_pass(), "");
 
   for (Command const & cmd : render_ctx.commands)
   {
@@ -5412,7 +5465,7 @@ void CommandEncoder::bind_compute_pipeline(gpu::ComputePipeline pipeline)
   ENCODE_PRELUDE();
   ComputePassContext & ctx = compute_ctx;
 
-  CHECK(is_in_compute_pass());
+  CHECK(is_in_compute_pass(), "");
 
   state        = CommandEncoderState::ComputePass;
   ctx.pipeline = (ComputePipeline *) pipeline;
@@ -5429,19 +5482,21 @@ void CommandEncoder::validate_render_pass_compatible(
   RenderPassContext const & ctx      = render_ctx;
   GraphicsPipeline *        pipeline = (GraphicsPipeline *) pipeline_;
 
-  CHECK(pipeline->num_colors == ctx.num_color_attachments);
-  CHECK(pipeline->num_depths == ctx.num_depth_attachments);
-  CHECK(pipeline->num_stencils == ctx.num_stencil_attachments);
+  CHECK(pipeline->num_colors == ctx.num_color_attachments, "");
+  CHECK(pipeline->num_depths == ctx.num_depth_attachments, "");
+  CHECK(pipeline->num_stencils == ctx.num_stencil_attachments, "");
 
   for (u32 i = 0; i < pipeline->num_colors; i++)
   {
     if (pipeline->colors[i] != gpu::Format::Undefined)
     {
-      CHECK(ctx.color_attachments[i].view != nullptr);
+      CHECK(ctx.color_attachments[i].view != nullptr, "");
       CHECK(pipeline->colors[i] ==
-            IMAGE_FROM_VIEW(ctx.color_attachments[i].view)->info.format);
+              IMAGE_FROM_VIEW(ctx.color_attachments[i].view)->info.format,
+            "");
       CHECK(pipeline->sample_count ==
-            IMAGE_FROM_VIEW(ctx.color_attachments[i].view)->info.sample_count);
+              IMAGE_FROM_VIEW(ctx.color_attachments[i].view)->info.sample_count,
+            "");
     }
   }
 
@@ -5449,9 +5504,10 @@ void CommandEncoder::validate_render_pass_compatible(
   {
     if (pipeline->depth[i] != gpu::Format::Undefined)
     {
-      CHECK(ctx.depth_attachment[i].view != nullptr);
+      CHECK(ctx.depth_attachment[i].view != nullptr, "");
       CHECK(pipeline->depth[i] ==
-            IMAGE_FROM_VIEW(ctx.depth_attachment[i].view)->info.format);
+              IMAGE_FROM_VIEW(ctx.depth_attachment[i].view)->info.format,
+            "");
     }
   }
 
@@ -5459,9 +5515,10 @@ void CommandEncoder::validate_render_pass_compatible(
   {
     if (pipeline->stencil[i] != gpu::Format::Undefined)
     {
-      CHECK(ctx.stencil_attachment[i].view != nullptr);
+      CHECK(ctx.stencil_attachment[i].view != nullptr, "");
       CHECK(pipeline->stencil[i] ==
-            IMAGE_FROM_VIEW(ctx.stencil_attachment[i].view)->info.format);
+              IMAGE_FROM_VIEW(ctx.stencil_attachment[i].view)->info.format,
+            "");
     }
   }
 }
@@ -5688,8 +5745,8 @@ void CommandEncoder::bind_graphics_pipeline(gpu::GraphicsPipeline pipeline_)
   RenderPassContext & ctx      = render_ctx;
   GraphicsPipeline *  pipeline = (GraphicsPipeline *) pipeline_;
 
-  CHECK(is_in_render_pass());
-  CHECK(pipeline != nullptr);
+  CHECK(is_in_render_pass(), "");
+  CHECK(pipeline != nullptr, "");
   validate_render_pass_compatible(pipeline_);
   ctx.pipeline = pipeline;
   if (!ctx.commands.push(CmdBindGraphicsPipeline{.pipeline = pipeline}))
@@ -5711,21 +5768,23 @@ void CommandEncoder::bind_descriptor_sets(
   u64 const ssbo_offset_alignment =
     dev->phy_dev.vk_properties.limits.minStorageBufferOffsetAlignment;
 
-  CHECK(is_in_pass());
-  CHECK(num_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS);
+  CHECK(is_in_pass(), "");
+  CHECK(num_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
   CHECK(num_dynamic_offsets <= (gpu::MAX_PIPELINE_DYNAMIC_STORAGE_BUFFERS +
-                                gpu::MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS));
+                                gpu::MAX_PIPELINE_DYNAMIC_UNIFORM_BUFFERS),
+        "");
 
   for (u32 offset : dynamic_offsets)
   {
     CHECK(is_aligned<u64>(ubo_offset_alignment, offset) ||
-          is_aligned<u64>(ssbo_offset_alignment, offset));
+            is_aligned<u64>(ssbo_offset_alignment, offset),
+          "");
   }
 
   if (is_in_compute_pass())
   {
-    CHECK(compute_ctx.pipeline != nullptr);
-    CHECK(compute_ctx.pipeline->num_sets == num_sets);
+    CHECK(compute_ctx.pipeline != nullptr, "");
+    CHECK(compute_ctx.pipeline->num_sets == num_sets, "");
     VkDescriptorSet vk_sets[gpu::MAX_PIPELINE_DESCRIPTOR_SETS];
     for (u32 i = 0; i < num_sets; i++)
     {
@@ -5740,8 +5799,8 @@ void CommandEncoder::bind_descriptor_sets(
   }
   else if (is_in_render_pass())
   {
-    CHECK(render_ctx.pipeline != nullptr);
-    CHECK(render_ctx.pipeline->num_sets == num_sets);
+    CHECK(render_ctx.pipeline != nullptr, "");
+    CHECK(render_ctx.pipeline->num_sets == num_sets, "");
     DescriptorSet ** sets;
     if (!render_ctx.arg_pool.nalloc(num_sets, sets))
     {
@@ -5774,25 +5833,25 @@ void CommandEncoder::bind_descriptor_sets(
 void CommandEncoder::push_constants(Span<u8 const> push_constants_data)
 {
   ENCODE_PRELUDE();
-  CHECK(push_constants_data.size_bytes() <= gpu::MAX_PUSH_CONSTANTS_SIZE);
+  CHECK(push_constants_data.size_bytes() <= gpu::MAX_PUSH_CONSTANTS_SIZE, "");
   u32 const push_constants_size = (u32) push_constants_data.size_bytes();
-  CHECK(is_aligned(4U, push_constants_size));
-  CHECK(is_in_pass());
+  CHECK(is_aligned(4U, push_constants_size), "");
+  CHECK(is_in_pass(), "");
 
   if (is_in_compute_pass())
   {
-    CHECK(compute_ctx.pipeline != nullptr);
-    CHECK(push_constants_size == compute_ctx.pipeline->push_constants_size);
+    CHECK(compute_ctx.pipeline != nullptr, "");
+    CHECK(push_constants_size == compute_ctx.pipeline->push_constants_size, "");
     dev->vk_table.CmdPushConstants(
       vk_command_buffer, compute_ctx.pipeline->vk_layout, VK_SHADER_STAGE_ALL,
       0, compute_ctx.pipeline->push_constants_size, push_constants_data.data());
   }
   else if (is_in_render_pass())
   {
-    CHECK(render_ctx.pipeline != nullptr);
-    CHECK(push_constants_size == render_ctx.pipeline->push_constants_size);
+    CHECK(render_ctx.pipeline != nullptr, "");
+    CHECK(push_constants_size == render_ctx.pipeline->push_constants_size, "");
     u8 * data;
-    CHECK(render_ctx.arg_pool.nalloc(push_constants_size, data));
+    CHECK(render_ctx.arg_pool.nalloc(push_constants_size, data), "");
     mem::copy(push_constants_data, data);
     if (!render_ctx.commands.push(
           CmdPushConstants{.data = data, .size = push_constants_size}))
@@ -5809,15 +5868,18 @@ void CommandEncoder::dispatch(u32 group_count_x, u32 group_count_y,
   ENCODE_PRELUDE();
   ComputePassContext & ctx = compute_ctx;
 
-  CHECK(is_in_compute_pass());
+  CHECK(is_in_compute_pass(), "");
 
-  CHECK(ctx.pipeline != nullptr);
+  CHECK(ctx.pipeline != nullptr, "");
   CHECK(group_count_x <=
-        dev->phy_dev.vk_properties.limits.maxComputeWorkGroupCount[0]);
+          dev->phy_dev.vk_properties.limits.maxComputeWorkGroupCount[0],
+        "");
   CHECK(group_count_y <=
-        dev->phy_dev.vk_properties.limits.maxComputeWorkGroupCount[1]);
+          dev->phy_dev.vk_properties.limits.maxComputeWorkGroupCount[1],
+        "");
   CHECK(group_count_z <=
-        dev->phy_dev.vk_properties.limits.maxComputeWorkGroupCount[2]);
+          dev->phy_dev.vk_properties.limits.maxComputeWorkGroupCount[2],
+        "");
 
   for (u32 i = 0; i < ctx.num_sets; i++)
   {
@@ -5834,11 +5896,12 @@ void CommandEncoder::dispatch_indirect(gpu::Buffer buffer_, u64 offset)
   ComputePassContext & ctx    = compute_ctx;
   Buffer * const       buffer = (Buffer *) buffer_;
 
-  CHECK(is_in_compute_pass());
-  CHECK(ctx.pipeline != nullptr);
-  CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::IndirectBuffer));
+  CHECK(is_in_compute_pass(), "");
+  CHECK(ctx.pipeline != nullptr, "");
+  CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::IndirectBuffer), "");
   CHECK(is_valid_buffer_access(buffer->info.size, offset,
-                               sizeof(gpu::DispatchCommand), 4));
+                               sizeof(gpu::DispatchCommand), 4),
+        "");
 
   for (u32 i = 0; i < ctx.num_sets; i++)
   {
@@ -5854,11 +5917,11 @@ void CommandEncoder::set_graphics_state(gpu::GraphicsState const & state)
   ENCODE_PRELUDE();
   RenderPassContext & ctx = render_ctx;
 
-  CHECK(is_in_render_pass());
-  CHECK(state.viewport.min_depth >= 0.0F);
-  CHECK(state.viewport.min_depth <= 1.0F);
-  CHECK(state.viewport.max_depth >= 0.0F);
-  CHECK(state.viewport.max_depth <= 1.0F);
+  CHECK(is_in_render_pass(), "");
+  CHECK(state.viewport.min_depth >= 0.0F, "");
+  CHECK(state.viewport.min_depth <= 1.0F, "");
+  CHECK(state.viewport.max_depth >= 0.0F, "");
+  CHECK(state.viewport.max_depth <= 1.0F, "");
   ctx.has_state = true;
 
   if (!ctx.commands.push(CmdSetGraphicsState{.state = state}))
@@ -5874,17 +5937,17 @@ void CommandEncoder::bind_vertex_buffers(Span<gpu::Buffer const> vertex_buffers,
   ENCODE_PRELUDE();
   RenderPassContext & ctx = render_ctx;
 
-  CHECK(is_in_render_pass());
+  CHECK(is_in_render_pass(), "");
   u32 const num_vertex_buffers = vertex_buffers.size32();
-  CHECK(num_vertex_buffers > 0);
-  CHECK(num_vertex_buffers <= gpu::MAX_VERTEX_ATTRIBUTES);
-  CHECK(offsets.size() == vertex_buffers.size());
+  CHECK(num_vertex_buffers > 0, "");
+  CHECK(num_vertex_buffers <= gpu::MAX_VERTEX_ATTRIBUTES, "");
+  CHECK(offsets.size() == vertex_buffers.size(), "");
   for (u32 i = 0; i < num_vertex_buffers; i++)
   {
     u64 const      offset = offsets[i];
     Buffer * const buffer = (Buffer *) vertex_buffers[i];
-    CHECK(offset < buffer->info.size);
-    CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::VertexBuffer));
+    CHECK(offset < buffer->info.size, "");
+    CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::VertexBuffer), "");
   }
 
   for (u32 i = 0; i < num_vertex_buffers; i++)
@@ -5908,10 +5971,10 @@ void CommandEncoder::bind_index_buffer(gpu::Buffer index_buffer_, u64 offset,
   Buffer * const      index_buffer = (Buffer *) index_buffer_;
   u64 const           index_size   = index_type_size(index_type);
 
-  CHECK(is_in_render_pass());
-  CHECK(offset < index_buffer->info.size);
-  CHECK(is_aligned(index_size, offset));
-  CHECK(has_bits(index_buffer->info.usage, gpu::BufferUsage::IndexBuffer));
+  CHECK(is_in_render_pass(), "");
+  CHECK(offset < index_buffer->info.size, "");
+  CHECK(is_aligned(index_size, offset), "");
+  CHECK(has_bits(index_buffer->info.usage, gpu::BufferUsage::IndexBuffer), "");
 
   ctx.index_buffer        = index_buffer;
   ctx.index_type          = index_type;
@@ -5930,9 +5993,9 @@ void CommandEncoder::draw(u32 vertex_count, u32 instance_count,
   ENCODE_PRELUDE();
   RenderPassContext & ctx = render_ctx;
 
-  CHECK(is_in_render_pass());
-  CHECK(ctx.pipeline != nullptr);
-  CHECK(ctx.has_state);
+  CHECK(is_in_render_pass(), "");
+  CHECK(ctx.pipeline != nullptr, "");
+  CHECK(ctx.has_state, "");
 
   if (!ctx.commands.push(CmdDraw{.vertex_count   = vertex_count,
                                  .instance_count = instance_count,
@@ -5951,15 +6014,17 @@ void CommandEncoder::draw_indexed(u32 first_index, u32 num_indices,
   ENCODE_PRELUDE();
   RenderPassContext & ctx = render_ctx;
 
-  CHECK(is_in_render_pass());
-  CHECK(ctx.pipeline != nullptr);
-  CHECK(ctx.index_buffer != nullptr);
+  CHECK(is_in_render_pass(), "");
+  CHECK(ctx.pipeline != nullptr, "");
+  CHECK(ctx.index_buffer != nullptr, "");
   u64 const index_size = index_type_size(ctx.index_type);
   CHECK((ctx.index_buffer_offset + first_index * index_size) <
-        ctx.index_buffer->info.size);
+          ctx.index_buffer->info.size,
+        "");
   CHECK((ctx.index_buffer_offset + (first_index + num_indices) * index_size) <=
-        ctx.index_buffer->info.size);
-  CHECK(ctx.has_state);
+          ctx.index_buffer->info.size,
+        "");
+  CHECK(ctx.has_state, "");
 
   if (!ctx.commands.push(CmdDrawIndexed{.first_index    = first_index,
                                         .num_indices    = num_indices,
@@ -5979,14 +6044,14 @@ void CommandEncoder::draw_indirect(gpu::Buffer buffer_, u64 offset,
   RenderPassContext & ctx    = render_ctx;
   Buffer * const      buffer = (Buffer *) buffer_;
 
-  CHECK(is_in_render_pass());
-  CHECK(ctx.pipeline != nullptr);
-  CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::IndirectBuffer));
-  CHECK(offset < buffer->info.size);
-  CHECK((offset + (u64) draw_count * stride) <= buffer->info.size);
-  CHECK(is_aligned(4U, stride));
-  CHECK(stride >= sizeof(gpu::DrawCommand));
-  CHECK(ctx.has_state);
+  CHECK(is_in_render_pass(), "");
+  CHECK(ctx.pipeline != nullptr, "");
+  CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::IndirectBuffer), "");
+  CHECK(offset < buffer->info.size, "");
+  CHECK((offset + (u64) draw_count * stride) <= buffer->info.size, "");
+  CHECK(is_aligned(4U, stride), "");
+  CHECK(stride >= sizeof(gpu::DrawCommand), "");
+  CHECK(ctx.has_state, "");
 
   if (!ctx.commands.push(CmdDrawIndirect{.buffer     = buffer,
                                          .offset     = offset,
@@ -6005,15 +6070,15 @@ void CommandEncoder::draw_indexed_indirect(gpu::Buffer buffer_, u64 offset,
   RenderPassContext & ctx    = render_ctx;
   Buffer * const      buffer = (Buffer *) buffer_;
 
-  CHECK(is_in_render_pass());
-  CHECK(ctx.pipeline != nullptr);
-  CHECK(ctx.index_buffer != nullptr);
-  CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::IndirectBuffer));
-  CHECK(offset < buffer->info.size);
-  CHECK((offset + (u64) draw_count * stride) <= buffer->info.size);
-  CHECK(is_aligned(4U, stride));
-  CHECK(stride >= sizeof(gpu::DrawIndexedCommand));
-  CHECK(ctx.has_state);
+  CHECK(is_in_render_pass(), "");
+  CHECK(ctx.pipeline != nullptr, "");
+  CHECK(ctx.index_buffer != nullptr, "");
+  CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::IndirectBuffer), "");
+  CHECK(offset < buffer->info.size, "");
+  CHECK((offset + (u64) draw_count * stride) <= buffer->info.size, "");
+  CHECK(is_aligned(4U, stride), "");
+  CHECK(stride >= sizeof(gpu::DrawIndexedCommand), "");
+  CHECK(ctx.has_state, "");
 
   if (!ctx.commands.push(CmdDrawIndexedIndirect{.buffer     = buffer,
                                                 .offset     = offset,

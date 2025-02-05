@@ -28,9 +28,9 @@ u32 TextCompositor::goto_line(TextLayout const & layout, u32 alignment,
   return ln.first_codepoint + alignment;
 }
 
-void TextCompositor::pop_records(u32 num)
+void TextCompositor::pop_records(usize num)
 {
-  CHECK(num <= records_.size32());
+  CHECK(num <= records_.size(), "");
   u32 reclaimed = 0;
   for (u32 i = 0; i < num; i++)
   {

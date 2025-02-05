@@ -2419,7 +2419,7 @@ Combo & Combo::select(Option<u32> i)
 {
   if (i.is_some())
   {
-    CHECK(i.value() < items_.size32());
+    CHECK(i.value() < items_.size32(), "");
   }
 
   state.selected = i;

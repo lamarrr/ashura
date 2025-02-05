@@ -240,7 +240,7 @@ ImageInfo ImageSystem::get(Span<char const> label)
     }
   }
 
-  CHECK(false, "Invalid Image label: ", label);
+  CHECK(false, "Invalid Image label: {}", label);
 }
 
 ImageInfo ImageSystem::get(ImageId id)
@@ -330,7 +330,7 @@ ShaderInfo ShaderSystem::get(Span<char const> label)
     }
   }
 
-  CHECK(false, "Invalid Shader label: ", label);
+  CHECK(false, "Invalid Shader label: {}", label);
 }
 
 void ShaderSystem::unload(ShaderId id)

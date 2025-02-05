@@ -10,7 +10,7 @@
 namespace ash
 {
 
-#define CHECK_SDL(cond_expr) CHECK(cond_expr, "SDL Error: ", SDL_GetError())
+#define CHECK_SDL(cond_expr) CHECK(cond_expr, "SDL Error: {}", SDL_GetError())
 
 struct WindowImpl
 {
@@ -50,7 +50,7 @@ struct ClipBoardImpl : ClipBoard
   virtual Result<> get(Span<char const> mime, Vec<u8> & out) override
   {
     char mime_c_str[MAX_MIME_SIZE + 1];
-    CHECK(to_c_str(mime, mime_c_str));
+    CHECK(to_c_str(mime, mime_c_str), "");
     usize  mime_data_len;
     void * data = SDL_GetClipboardData(mime_c_str, &mime_data_len);
     if (data == nullptr)
@@ -95,7 +95,7 @@ struct ClipBoardImpl : ClipBoard
     }
 
     char mime_c_str[MAX_MIME_SIZE + 1];
-    CHECK(to_c_str(mime, mime_c_str));
+    CHECK(to_c_str(mime, mime_c_str), "");
 
     char const * mime_types[] = {mime_c_str};
 
@@ -164,7 +164,7 @@ struct WindowSystemImpl : WindowSystem
     SDL_WindowID id = SDL_GetWindowID(window);
     CHECK_SDL(id != 0);
 
-    CHECK(instance.get_backend() == gpu::Backend::Vulkan);
+    CHECK(instance.get_backend() == gpu::Backend::Vulkan, "");
 
     vk::Instance & vk_instance = (vk::Instance &) instance;
     VkSurfaceKHR   surface;
@@ -174,13 +174,13 @@ struct WindowSystemImpl : WindowSystem
 
     WindowImpl * impl;
 
-    CHECK(allocator->nalloc(1, impl));
+    CHECK(allocator->nalloc(1, impl), "");
 
     new (impl)
       WindowImpl{allocator, window, (gpu::Surface) surface, id, instance};
 
     SDL_PropertiesID props_id = SDL_GetWindowProperties(window);
-    CHECK(SDL_SetPointerProperty(props_id, "impl", impl));
+    CHECK(SDL_SetPointerProperty(props_id, "impl", impl), "");
 
     return (Window) impl;
   }
@@ -200,7 +200,7 @@ struct WindowSystemImpl : WindowSystem
   virtual void set_title(Window window, Span<char const> title) override
   {
     char * title_c_str;
-    CHECK(allocator->nalloc(title.size() + 1, title_c_str));
+    CHECK(allocator->nalloc(title.size() + 1, title_c_str), "");
 
     defer title_c_str_{
       [&] { allocator->ndealloc(title.size() + 1, title_c_str); }};
@@ -445,11 +445,11 @@ struct WindowSystemImpl : WindowSystem
   void push_window_event(SDL_WindowID window_id, WindowEvent const & event)
   {
     SDL_Window * win = SDL_GetWindowFromID(window_id);
-    CHECK(win != nullptr);
+    CHECK(win != nullptr, "");
     SDL_PropertiesID props_id = SDL_GetWindowProperties(win);
     WindowImpl *     impl =
       (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
-    CHECK(impl != nullptr);
+    CHECK(impl != nullptr, "");
 
     for (auto const & listener : impl->listeners.dense.v0)
     {
@@ -733,10 +733,10 @@ struct WindowSystemImpl : WindowSystem
 
   virtual void get_keyboard_state(BitSpan<u64> state) override
   {
-    CHECK(state.size() >= NUM_KEYS);
+    CHECK(state.size() >= NUM_KEYS, "");
     i32          num_keys   = 0;
     bool const * key_states = SDL_GetKeyboardState(&num_keys);
-    CHECK(num_keys == NUM_KEYS);
+    CHECK(num_keys == NUM_KEYS, "");
 
     for (usize i = 0; i < NUM_KEYS; i++)
     {
@@ -746,7 +746,7 @@ struct WindowSystemImpl : WindowSystem
 
   virtual Vec2 get_mouse_state(BitSpan<u64> state) override
   {
-    CHECK(state.size() >= NUM_MOUSE_BUTTONS);
+    CHECK(state.size() >= NUM_MOUSE_BUTTONS, "");
     Vec2                       pos;
     SDL_MouseButtonFlags const flags = SDL_GetMouseState(&pos.x, &pos.y);
 

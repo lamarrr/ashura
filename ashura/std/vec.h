@@ -1803,7 +1803,7 @@ struct SparseVec
 
   constexpr auto operator[](usize id) const
   {
-    CHECK(is_valid_id(id), "Invalid ID: ", id);
+    CHECK(is_valid_id(id), "Invalid ID: {}", id);
     usize const index = id_to_index_[id];
     return apply(
       [index](auto &... dense) {
@@ -1814,7 +1814,7 @@ struct SparseVec
 
   constexpr usize to_index(usize id) const
   {
-    CHECK(is_valid_id(id), "Invalid ID: ", id);
+    CHECK(is_valid_id(id), "Invalid ID: {}", id);
     return id_to_index_[id];
   }
 
@@ -1830,7 +1830,7 @@ struct SparseVec
 
   constexpr usize to_id(usize index) const
   {
-    CHECK(is_valid_index(index), "Invalid index: ", index);
+    CHECK(is_valid_index(index), "Invalid index: {}", index);
     return index_to_id_[index];
   }
 
@@ -1846,7 +1846,7 @@ struct SparseVec
 
   constexpr void erase(usize id)
   {
-    CHECK(is_valid_id(id), "Invalid ID: ", id);
+    CHECK(is_valid_id(id), "Invalid ID: {}", id);
     usize const index = id_to_index_[id];
     usize const last  = size() - 1;
 
@@ -1989,26 +1989,20 @@ struct IsTriviallyRelocatable<InplaceVec<T, C>>
   static constexpr bool value = TriviallyRelocatable<T>;
 };
 
-namespace fmt
+inline void format(fmt::Sink sink, fmt::Spec spec, Vec<char> const & str)
 {
-
-inline bool push(Context const & ctx, Spec const & spec, Vec<char> const & str)
-{
-  return push(ctx, spec, str.view());
+  format(sink, spec, str.view());
 }
 
-inline bool push(Context const & ctx, Spec const & spec,
-                 PinVec<char> const & str)
+inline void format(fmt::Sink sink, fmt::Spec spec, PinVec<char> const & str)
 {
-  return push(ctx, spec, str.view());
+  format(sink, spec, str.view());
 }
 
 template <usize C>
-inline bool push(Context const & ctx, Spec const & spec,
-                 InplaceVec<char, C> const & str)
+void format(fmt::Sink sink, fmt::Spec spec, InplaceVec<char, C> const & str)
 {
-  return push(ctx, spec, str.view());
+  format(sink, spec, str.view());
 }
-}    // namespace fmt
 
 }    // namespace ash

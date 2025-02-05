@@ -20,7 +20,7 @@ Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff)
     return Err{IoErr::OutOfMemory};
   }
 
-  CHECK(to_c_str(path, path_c_str));
+  CHECK(to_c_str(path, path_c_str), "");
 
   std::FILE * file = std::fopen(path_c_str.data(), "rb");
 
@@ -80,7 +80,7 @@ Result<Void, IoErr> write_to_file(Span<char const> path, Span<u8 const> buff,
     return Err{IoErr::OutOfMemory};
   }
 
-  CHECK(to_c_str(path, path_c_str));
+  CHECK(to_c_str(path, path_c_str), "");
 
   std::FILE * file = std::fopen(path_c_str.data(), append ? "a" : "w");
 

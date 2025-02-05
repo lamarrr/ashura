@@ -334,7 +334,7 @@ struct TaskQueue
   void push_task(TaskInfo const & info)
   {
     Task * t;
-    CHECK(allocator.create_task(info, t));
+    CHECK(allocator.create_task(info, t), "");
     push_task(t);
   }
 };
@@ -590,8 +590,8 @@ Dyn<Scheduler *>
                     Span<nanoseconds const> dedicated_thread_sleep,
                     Span<nanoseconds const> worker_thread_sleep)
 {
-  CHECK(dedicated_thread_sleep.size() <= U32_MAX);
-  CHECK(worker_thread_sleep.size() <= U32_MAX);
+  CHECK(dedicated_thread_sleep.size() <= U32_MAX, "");
+  CHECK(worker_thread_sleep.size() <= U32_MAX, "");
 
   Dyn<SchedulerImpl *> impl =
     dyn<SchedulerImpl>(inplace, allocator, allocator, main_thread_id).unwrap();
