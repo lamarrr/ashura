@@ -347,8 +347,8 @@ struct Timeline
   Timeline & key_frame(Span<T> frames, Span<nanoseconds const> durations,
                        Span<Easing> easings)
   {
-    CHECK(frames.size() == (durations.size() * 2));
-    CHECK(durations.size() == easings.size());
+    CHECK(frames.size() == (durations.size() * 2), "");
+    CHECK(durations.size() == easings.size(), "");
 
     if (timestamps_.is_empty()) [[unlikely]]
     {
@@ -501,7 +501,7 @@ struct AnimationState
   template <typename T>
   T animate(TimelineView<T> const & timeline)
   {
-    CHECK(!timeline.is_empty());
+    CHECK(!timeline.is_empty(), "");
 
     /// add 1ns so result of modulo operation would be between 0ns and timeline-duration
     auto const timeline_end = timeline.duration() + 1ns;
@@ -515,7 +515,7 @@ struct AnimationState
     // search to get current timepoint in the timeline)
     Span const span = binary_find(timestamps.slice(1), geq, time);
 
-    CHECK(!span.is_empty());
+    CHECK(!span.is_empty(), "");
 
     u64 const end_idx = static_cast<u64>(span.pbegin() - timestamps.pbegin());
 
@@ -861,7 +861,7 @@ struct StaggeredAnimation
 
   AnimationState & state(u64 item)
   {
-    CHECK(states_.size64() > item);
+    CHECK(states_.size64() > item, "");
     return states_[item];
   }
 
@@ -876,7 +876,7 @@ struct StaggeredAnimation
 
   Tuple<T...> animate(u64 item)
   {
-    CHECK(states_.size64() > item);
+    CHECK(states_.size64() > item, "");
 
     AnimationState & state = states_[item];
 
