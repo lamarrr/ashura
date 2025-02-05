@@ -47,83 +47,125 @@ struct LogSink
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
 /// logging unreliable. This means each log statement's content/payload is
 /// limited to `BUFFER_CAPACITY`.
-struct Logger : Pin<>
+struct Logger
 {
-  static constexpr usize BUFFER_CAPACITY = 16_KB;
-  static constexpr usize SCRATCH_SIZE    = 256;
-  static constexpr u32   MAX_SINKS       = 8;
+  static constexpr usize MAX_SINKS       = 16;
+  static constexpr usize BUFFER_CAPACITY = 8_KB;
 
-  LogSink *  sinks[MAX_SINKS]        = {};
-  u32        num_sinks               = 0;
-  char       buffer[BUFFER_CAPACITY] = {};
-  std::mutex mutex                   = {};
+  LogSink * sinks_[MAX_SINKS] = {};
+  usize     num_sinks_        = 0;
 
-  template <typename... Args>
-  bool debug(Args const &... args)
+  constexpr Logger(Span<LogSink * const> sinks)
   {
-    return log(LogLevel::Debug, args...);
+    obj::copy_assign(sinks.slice(0, MAX_SINKS), sinks_);
+  }
+
+  constexpr Logger(Logger const &)             = delete;
+  constexpr Logger(Logger &&)                  = default;
+  constexpr Logger & operator=(Logger &&)      = default;
+  constexpr Logger & operator=(Logger const &) = delete;
+  constexpr ~Logger()                          = default;
+
+  constexpr Span<LogSink * const> sinks() const
+  {
+    return Span{sinks_, num_sinks_};
   }
 
   template <typename... Args>
-  bool trace(Args const &... args)
+  bool debug(Span<char const> fstr, Args const &... args)
   {
-    return log(LogLevel::Trace, args...);
+    return log(LogLevel::Debug, fstr, args...);
   }
 
   template <typename... Args>
-  bool info(Args const &... args)
+  bool trace(Span<char const> fstr, Args const &... args)
   {
-    return log(LogLevel::Info, args...);
+    return log(LogLevel::Trace, fstr, args...);
   }
 
   template <typename... Args>
-  bool warn(Args const &... args)
+  bool info(Span<char const> fstr, Args const &... args)
   {
-    return log(LogLevel::Warning, args...);
+    return log(LogLevel::Info, fstr, args...);
   }
 
   template <typename... Args>
-  bool error(Args const &... args)
+  bool warn(Span<char const> fstr, Args const &... args)
   {
-    return log(LogLevel::Error, args...);
+    return log(LogLevel::Warning, fstr, args...);
   }
 
   template <typename... Args>
-  bool fatal(Args const &... args)
+  bool error(Span<char const> fstr, Args const &... args)
   {
-    return log(LogLevel::Fatal, args...);
+    return log(LogLevel::Error, fstr, args...);
+  }
+
+  template <typename... Args>
+  bool fatal(Span<char const> fstr, Args const &... args)
+  {
+    return log(LogLevel::Fatal, fstr, args...);
   }
 
   void flush()
   {
-    std::lock_guard lock{mutex};
-    for (LogSink * sink : Span{sinks, num_sinks})
+    for (LogSink * sink : sinks())
     {
       sink->flush();
     }
   }
 
   template <typename... Args>
-  bool log(LogLevel level, Args const &... args)
+  bool log(LogLevel level, Span<char const> fstr, Args const &... args)
   {
-    std::lock_guard lock{mutex};
-    char            scratch[SCRATCH_SIZE];
-    Buffer<char>    msg = ash::buffer<char>(buffer);
-    fmt::Context    ctx = fmt::buffer(msg, scratch);
-    if (!fmt::format(ctx, args..., "\n"))
+    static_assert(sizeof...(args) <= fmt::MAX_ARGS);
+
+    char buffer_scratch[BUFFER_CAPACITY];
+
+    fmt::Op ops_scratch[fmt::MAX_ARGS * 2];
+
+    Buffer<char> buffer{buffer_scratch};
+
+    Buffer<fmt::Op> ops{ops_scratch};
+
+    auto format_sink = [&](Span<char const> str) {
+      if (!buffer.extend(str))
+      {
+        for (LogSink * sink : sinks())
+        {
+          sink->log(level, buffer);
+        }
+
+        buffer.clear();
+
+        if (!buffer.extend(str))
+        {
+          for (LogSink * sink : sinks())
+          {
+            sink->log(level, str);
+          }
+        }
+      }
+    };
+
+    fmt::Context ctx{fn(format_sink), std::move(ops)};
+
+    if (fmt::Result result = ctx.format(fstr, args..., "\n"_str);
+        result.error != fmt::Error::None)
     {
       return false;
     }
 
-    for (LogSink * sink : Span{sinks, num_sinks})
+    for (LogSink * sink : sinks())
     {
-      sink->log(level, msg);
+      sink->log(level, buffer);
     }
+
     return true;
   }
 
   template <typename... Args>
-  [[noreturn]] void panic(Args const &... args)
+  [[noreturn]] void panic(Span<char const> fstr, Args const &... args)
   {
     std::atomic_ref panic_count{*ash::panic_count};
     if (panic_count.fetch_add(1, std::memory_order::relaxed))
@@ -133,7 +175,7 @@ struct Logger : Pin<>
       (void) std::fflush(stderr);
       std::abort();
     }
-    if (!fatal(args...))
+    if (!fatal(fstr, args...))
     {
       (void) std::fputs("ran out of log buffer memory while panicking.",
                         stderr);
@@ -144,24 +186,6 @@ struct Logger : Pin<>
       panic_handler();
     }
     std::abort();
-  }
-
-  [[nodiscard]] bool add_sink(LogSink * s)
-  {
-    std::lock_guard lock{mutex};
-    if ((num_sinks + 1) > MAX_SINKS)
-    {
-      return false;
-    }
-
-    sinks[num_sinks++] = s;
-    return true;
-  }
-
-  void reset()
-  {
-    std::lock_guard lock{mutex};
-    num_sinks = 0;
   }
 };
 
@@ -189,39 +213,39 @@ extern Logger * logger;
 ASH_C_LINKAGE ASH_DLL_EXPORT void hook_logger(Logger *);
 
 template <typename... Args>
-void debug(Args const &... args)
+void debug(Span<char const> fstr, Args const &... args)
 {
-  logger->debug(args...);
+  logger->debug(fstr, args...);
 }
 
 template <typename... Args>
-void trace(Args const &... args)
+void trace(Span<char const> fstr, Args const &... args)
 {
-  logger->trace(args...);
+  logger->trace(fstr, args...);
 }
 
 template <typename... Args>
-void info(Args const &... args)
+void info(Span<char const> fstr, Args const &... args)
 {
-  logger->info(args...);
+  logger->info(fstr, args...);
 }
 
 template <typename... Args>
-void warn(Args const &... args)
+void warn(Span<char const> fstr, Args const &... args)
 {
-  logger->warn(args...);
+  logger->warn(fstr, args...);
 }
 
 template <typename... Args>
-void error(Args const &... args)
+void error(Span<char const> fstr, Args const &... args)
 {
-  logger->error(args...);
+  logger->error(fstr, args...);
 }
 
 template <typename... Args>
-void fatal(Args const &... args)
+void fatal(Span<char const> fstr, Args const &... args)
 {
-  logger->fatal(args...);
+  logger->fatal(fstr, args...);
 }
 
 }    // namespace ash

@@ -61,7 +61,7 @@ constexpr void format(fmt::Sink sink, fmt::Spec, T const &)
 namespace fmt
 {
 
-static constexpr usize MAX_ARGS = 128;
+static constexpr usize MAX_ARGS = 64;
 
 enum class [[nodiscard]] Error : u8
 {
