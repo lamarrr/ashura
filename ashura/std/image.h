@@ -91,7 +91,7 @@ struct ImageLayerSpan
       .channels = channels.as_const(), .extent = extent, .layers = layers};
   }
 
-  constexpr ImageSpan<R, C> get_layer(u32 layer) const
+  constexpr ImageSpan<R, C> layer(u32 layer) const
   {
     u64 data_offset = (u64) layer * (u64) extent.x * (u64) extent.y * C;
     u64 data_span   = (u64) extent.x * (u64) extent.y * C;

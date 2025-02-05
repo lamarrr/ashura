@@ -372,8 +372,6 @@ constexpr i32 sat_mul(i32 a, i32 b)
   return (i32) clamp((i64) a * (i64) b, (i64) I32_MIN, (i64) I32_MAX);
 }
 
-// [ ] sat_cast
-
 using std::bit_cast;
 
 template <typename T>
