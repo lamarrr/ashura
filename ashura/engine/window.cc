@@ -118,12 +118,13 @@ struct WindowSystemImpl : WindowSystem
   AllocatorRef                                  allocator;
   SparseVec<Vec<Fn<void(SystemEvent const &)>>> listeners;
   ClipBoardImpl                                 clipboard;
-  SDL_Cursor *                                  cursors[NUM_CURSOR_TYPES] = {};
+  SDL_Cursor *                                  cursor;
 
   WindowSystemImpl(AllocatorRef allocator) :
     allocator{allocator},
     listeners{allocator},
-    clipboard{allocator}
+    clipboard{allocator},
+    cursor{nullptr}
   {
   }
 
@@ -135,6 +136,11 @@ struct WindowSystemImpl : WindowSystem
 
   void shutdown() override
   {
+    if (cursor != nullptr)
+    {
+      SDL_DestroyCursor(cursor);
+      cursor = nullptr;
+    }
     SDL_Quit();
   }
 
@@ -845,13 +851,84 @@ struct WindowSystemImpl : WindowSystem
     CHECK_SDL(SDL_StopTextInput(w->win));
   }
 
-  virtual void set_cursor(Cursor cursor) override
+  virtual void set_cursor(Cursor c) override
   {
-    // [ ] implement+
-    // SDL_SetCursor()
-    // SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_COUNT);
-    // SDL_CreateSystemCursor()
-    // [ ] some systems might not have cursors
+    SDL_SystemCursor sdl_cursor = SDL_SYSTEM_CURSOR_DEFAULT;
+    switch (c)
+    {
+      case Cursor::Default:
+        sdl_cursor = SDL_SYSTEM_CURSOR_DEFAULT;
+        break;
+      case Cursor::Text:
+        sdl_cursor = SDL_SYSTEM_CURSOR_TEXT;
+        break;
+      case Cursor::Wait:
+        sdl_cursor = SDL_SYSTEM_CURSOR_WAIT;
+        break;
+      case Cursor::CrossHair:
+        sdl_cursor = SDL_SYSTEM_CURSOR_CROSSHAIR;
+        break;
+      case Cursor::Progress:
+        sdl_cursor = SDL_SYSTEM_CURSOR_PROGRESS;
+        break;
+      case Cursor::NWSEResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_NWSE_RESIZE;
+        break;
+      case Cursor::NESWResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_NESW_RESIZE;
+        break;
+      case Cursor::EWResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_EW_RESIZE;
+        break;
+      case Cursor::NSResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_NS_RESIZE;
+        break;
+      case Cursor::Move:
+        sdl_cursor = SDL_SYSTEM_CURSOR_MOVE;
+        break;
+      case Cursor::NotAllowed:
+        sdl_cursor = SDL_SYSTEM_CURSOR_NOT_ALLOWED;
+        break;
+      case Cursor::Pointer:
+        sdl_cursor = SDL_SYSTEM_CURSOR_POINTER;
+        break;
+      case Cursor::NWResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_NW_RESIZE;
+        break;
+      case Cursor::NorthResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_N_RESIZE;
+        break;
+      case Cursor::NEResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_NE_RESIZE;
+        break;
+      case Cursor::EastResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_E_RESIZE;
+        break;
+      case Cursor::SEResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_SE_RESIZE;
+        break;
+      case Cursor::SouthResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_S_RESIZE;
+        break;
+      case Cursor::SWResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_SW_RESIZE;
+        break;
+      case Cursor::WestResize:
+        sdl_cursor = SDL_SYSTEM_CURSOR_W_RESIZE;
+        break;
+      default:
+        break;
+    }
+
+    if (cursor != nullptr)
+    {
+      SDL_DestroyCursor(cursor);
+      cursor = nullptr;
+    }
+
+    cursor = SDL_CreateSystemCursor(sdl_cursor);
+    CHECK_SDL(cursor != nullptr);
+    CHECK_SDL(SDL_SetCursor(cursor));
   }
 
   virtual void lock_cursor(Window window, bool lock) override

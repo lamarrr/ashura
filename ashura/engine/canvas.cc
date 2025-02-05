@@ -349,6 +349,12 @@ Canvas & Canvas::reset()
   return *this;
 }
 
+Canvas & Canvas::reset_clip()
+{
+  current_clip = MAX_CLIP;
+  return *this;
+}
+
 Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
                                  Vec2 new_extent, Vec2U new_framebuffer_extent)
 {
@@ -414,7 +420,7 @@ static inline void flush_batch(Canvas & c)
                                .viewport       = ctx.canvas.viewport,
                                .world_to_view  = world_to_view,
                                .params_ssbo    = ctx.rrects.descriptor,
-                               .textures       = sys->gpu.textures,
+                               .textures       = sys->gpu.textures_,
                                .first_instance = batch.run.offset,
                                .num_instances  = batch.run.span};
 
@@ -433,7 +439,7 @@ static inline void flush_batch(Canvas & c)
           .vertices_ssbo  = ctx.ngon_vertices.descriptor,
           .indices_ssbo   = ctx.ngon_indices.descriptor,
           .params_ssbo    = ctx.ngons.descriptor,
-          .textures       = sys->gpu.textures,
+          .textures       = sys->gpu.textures_,
           .first_instance = batch.run.offset,
           .index_counts =
             ctx.canvas.ngon_index_counts.view().slice((Slice) batch.run)};
@@ -646,17 +652,24 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
   enum Pass : u32
   {
     BACKGROUND    = 0,
-    GLYPH_SHADOWS = 1,
-    GLYPHS        = 2,
-    UNDERLINE     = 3,
-    STRIKETHROUGH = 4
+    HIGHLIGHT     = 1,
+    GLYPH_SHADOWS = 2,
+    GLYPHS        = 3,
+    UNDERLINE     = 4,
+    STRIKETHROUGH = 5
   };
 
-  static constexpr u32 NUM_PASSES = 5;
+  static constexpr u32 NUM_PASSES = 6;
 
   for (u8 pass = 0; pass < NUM_PASSES; pass++)
   {
+    if (pass == Pass::HIGHLIGHT && style.highlight.slice.is_empty())
+    {
+      continue;
+    }
+
     f32 line_y = -block_extent.y * 0.5F;
+
     for (Line const & ln : layout.lines)
     {
       CRect const ln_rect{
@@ -664,12 +677,40 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         .extent{block_width, ln.metrics.height}
       };
 
+      line_y += ln.metrics.height;
+
       if (!overlaps(clip, ln_rect))
       {
         continue;
       }
 
-      line_y += ln.metrics.height;
+      if (pass == Pass::HIGHLIGHT)
+      {
+        if (!style.highlight.slice.overlaps(static_cast<Slice>(ln.codepoints)))
+        {
+          continue;
+        }
+
+        if (style.highlight.slice.contains(static_cast<Slice>(ln.codepoints)))
+        {
+          // rrect({.center       = info.center,
+          //       .extent       = extent,
+          //       .transform    = info.transform * translate3d(vec3(center, 0)),
+          //       .corner_radii = style.highlight.style.corner_radii,
+          //       .tint         = style.highlight.style.color});
+          // [ ]  draw highlight on line
+          // [ ] pointer position and style
+          // [ ] usew coverage info on runs, if it covers the run highlight the entire run, if it covers parts of the glyphs, cover part of it.
+          //
+          // [ ] the line is laid out in visual order
+          //
+          // [ ] render highlights
+          // they are either covering the whole line, or covering portions of it, but never individual glyphs
+          //
+          continue;
+        }
+      }
+
       f32 const           baseline  = line_y - ln.metrics.descent;
       TextDirection const direction = level_to_direction(ln.metrics.level);
       // flip the alignment axis direction if it is an RTL line
@@ -677,46 +718,49 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
       f32 cursor = space_align(block_width, ln.metrics.width, alignment) -
                    ln.metrics.width * 0.5F;
+
       for (TextRun const & run :
-           layout.runs.view().slice(ln.first_run, ln.num_runs))
+           layout.runs.view().slice(static_cast<Slice>(ln.runs)))
       {
-        FontStyle const &    font_style = block.fonts[run.style];
-        TextStyle const &    run_style  = style.runs[run.style];
-        FontInfo const       font       = sys->font.get(font_style.font).info();
-        GpuFontAtlas const & atlas      = font.gpu_atlas.value();
-        f32 const run_width = au_to_px(run.metrics.advance, run.font_height);
+        FontStyle const &    font_style  = block.fonts[run.style];
+        TextStyle const &    run_style   = style.runs[run.style];
+        FontInfo const       font        = sys->font.get(font_style.font);
+        GpuFontAtlas const & atlas       = font.gpu_atlas.value();
+        f32 const            font_height = block.font_scale * run.font_height;
+        ResolvedTextRunMetrics const run_metrics =
+          run.metrics.resolve(font_height);
+        f32 const run_width = run_metrics.advance;
 
         if (pass == Pass::BACKGROUND && !run_style.background.is_transparent())
         {
-          Vec2 extent{run_width,
-                      au_to_px(run.metrics.height(), run.font_height)};
-          Vec2 center =
-            Vec2{cursor + extent.x * 0.5F,
-                 baseline - au_to_px(run.metrics.ascent, run.font_height) +
-                   extent.y * 0.5F};
-          rect({.center    = info.center,
-                .extent    = extent,
-                .transform = info.transform * translate3d(vec3(center, 0)),
-                .tint      = run_style.background});
+          Vec2 extent{run_width, run_metrics.height()};
+          Vec2 center{cursor + extent.x * 0.5F,
+                      baseline - run_metrics.ascent + extent.y * 0.5F};
+          rrect({.center       = info.center,
+                 .extent       = extent,
+                 .transform    = info.transform * translate3d(vec3(center, 0)),
+                 .corner_radii = run_style.corner_radii,
+                 .tint         = run_style.background});
         }
 
         f32 glyph_cursor = cursor;
-        for (u32 g = 0; g < run.num_glyphs; g++)
+
+        for (GlyphShape const & sh :
+             layout.glyphs.view().slice(static_cast<Slice>(run.glyphs)))
         {
-          GlyphShape const &   sh     = layout.glyphs[run.first_glyph + g];
           GlyphMetrics const & m      = font.glyphs[sh.glyph];
           AtlasGlyph const &   agl    = atlas.glyphs[sh.glyph];
-          Vec2 const           extent = au_to_px(m.extent, run.font_height);
+          Vec2 const           extent = au_to_px(m.extent, font_height);
           Vec2 const           center = Vec2{glyph_cursor, baseline} +
-                              au_to_px(m.bearing, run.font_height) +
-                              au_to_px(sh.offset, run.font_height) +
-                              extent * 0.5F;
+                              au_to_px(m.bearing, font_height) +
+                              au_to_px(sh.offset, font_height) + extent * 0.5F;
 
           if (pass == Pass::GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
               !run_style.shadow.is_transparent())
           {
             Vec2 shadow_extent = extent * run_style.shadow_scale;
-            Vec2 shadow_center = center + run_style.shadow_offset;
+            Vec2 shadow_center =
+              center + block.font_scale * run_style.shadow_offset;
             rect({
               .center    = info.center,
               .extent    = shadow_extent,
@@ -745,15 +789,16 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
             });
           }
 
-          glyph_cursor += au_to_px(sh.advance, run.font_height);
+          glyph_cursor += au_to_px(sh.advance, font_height);
         }
 
         if (pass == Pass::STRIKETHROUGH &&
             run_style.strikethrough_thickness != 0)
         {
-          Vec2 extent{run_width, run_style.strikethrough_thickness};
+          Vec2 extent{run_width,
+                      block.font_scale * run_style.strikethrough_thickness};
           Vec2 center =
-            Vec2{cursor, baseline - run.metrics.ascent * 0.5F} + extent * 0.5F;
+            Vec2{cursor, baseline - run_metrics.ascent * 0.5F} + extent * 0.5F;
           rect({.center    = info.center,
                 .extent    = extent,
                 .transform = info.transform * translate3d(vec3(center, 0)),
@@ -767,7 +812,8 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
 
         if (pass == Pass::UNDERLINE && run_style.underline_thickness != 0)
         {
-          Vec2 extent{run_width, run_style.underline_thickness};
+          Vec2 extent{run_width,
+                      block.font_scale * run_style.underline_thickness};
           Vec2 center = Vec2{cursor, baseline + 2} + extent * 0.5F;
           rect({.center    = info.center,
                 .extent    = extent,
@@ -779,6 +825,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                 .tiling    = info.tiling,
                 .edge_smoothness = info.edge_smoothness});
         }
+
         cursor += run_width;
       }
     }

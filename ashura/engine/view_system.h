@@ -4,6 +4,7 @@
 #include "ashura/engine/view.h"
 #include "ashura/std/error.h"
 #include "ashura/std/range.h"
+#include "ashura/std/trace.h"
 
 namespace ash
 {
@@ -392,7 +393,8 @@ struct ViewSystem
 
   void focus_order()
   {
-    // [ ] profile
+    ScopeTrace trace;
+
     iota(focus_ordering.view(), 0U);
 
     indirect_sort(focus_ordering.view(), [&](u32 a, u32 b) {
@@ -407,7 +409,8 @@ struct ViewSystem
 
   void layout(Vec2 viewport_extent)
   {
-    // [ ] profile
+    ScopeTrace trace;
+
     if (views.is_empty())
     {
       return;
@@ -558,6 +561,8 @@ struct ViewSystem
 
   void stack()
   {
+    ScopeTrace trace;
+
     u32 const n = views.size32();
 
     if (n == 0)
@@ -597,7 +602,8 @@ struct ViewSystem
 
   void visibility()
   {
-    // [ ] profile
+    ScopeTrace trace;
+
     for (u32 i = 0; i < views.size32(); i++)
     {
       ViewNode const & node = nodes[i];
@@ -626,7 +632,8 @@ struct ViewSystem
 
   void render(Canvas & canvas)
   {
-    // [ ] profile
+    ScopeTrace trace;
+
     for (u32 i : z_ordering)
     {
       if (!is_hidden.get(i)) [[unlikely]]
@@ -649,7 +656,6 @@ struct ViewSystem
 
   void focus_view(u32 view)
   {
-    // [ ] profile
     (void) view;
     // [ ] grab focus would need to scroll down to widget; would need
     // virtual scrolling support. offset based?
@@ -773,7 +779,8 @@ struct ViewSystem
 
   void events(ui::ViewContext const & ctx)
   {
-    // [ ] profile
+    ScopeTrace trace;
+
     f0 = f1;
     f1 = State{};
 
@@ -944,10 +951,16 @@ struct ViewSystem
     // [ ] call focus_view() once a new focus navigation has occured
   }
 
+  Cursor cursor() const
+  {
+    return f1.cursor;
+  }
+
   void tick(InputState const & input, ui::View & root, Canvas & canvas,
             Fn<void(ui::ViewContext const &)> loop)
   {
-    // [ ] profile
+    ScopeTrace trace;
+
     clear();
 
     build(s1, root);
@@ -966,10 +979,7 @@ struct ViewSystem
     focus_ordering.resize_uninit(n).unwrap();
 
     loop(input);
-    // Option<TextInputSpec>;
-    // [ ] start and end text input on mobile platforms
-    // [ ] change cursor
-    // [ ] text input
+    // [ ] text input; start and end text input on mobile platforms;Option<TextInputSpec>;
     // [ ] focus renderer
 
     focus_order();

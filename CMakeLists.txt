@@ -41,42 +41,43 @@ set(SDL_HAPTIC
 include(FetchContent)
 
 set(ASH_VULKAN_VERSION "1.3.296.0")
+set(ASH_VULKAN_SDK_VERSION "vulkan-sdk-${ASH_VULKAN_VERSION}")
 
 FetchContent_Declare(
   VulkanHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-  GIT_TAG vulkan-sdk-${ASH_VULKAN_VERSION})
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
 
 FetchContent_Declare(
   VulkanGLSL
   GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
-  GIT_TAG vulkan-sdk-${ASH_VULKAN_VERSION})
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
 
 FetchContent_Declare(
   SpirvReflect
   GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
-  GIT_TAG vulkan-sdk-${ASH_VULKAN_VERSION})
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
 
 FetchContent_Declare(
   VulkanUtilityLibraries
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
-  GIT_TAG vulkan-sdk-${ASH_VULKAN_VERSION})
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
 
 FetchContent_Declare(
   VulkanLoader
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Loader.git
-  GIT_TAG be0e1c3)
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
 
 FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG v3.1.0)
+  GIT_TAG v3.2.0)
 
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG preview-3.1.8)
+  GIT_TAG release-3.2.0)
 
 FetchContent_Declare(
   harfbuzz
@@ -176,7 +177,8 @@ add_library(
   ashura/std/fs.cc
   ashura/std/hash.cc
   ashura/std/log.cc
-  ashura/std/panic.cc)
+  ashura/std/panic.cc
+  ashura/std/trace.cc)
 target_include_directories(
   ashura_std
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
@@ -270,10 +272,9 @@ target_include_directories(
 
 add_executable(
   ashura_engine_tests
-  ashura/engine/tests/main.cc 
-  ashura/engine/tests/animation.cc 
-  ashura/engine/tests/render_text.cc
-  ashura/engine/tests/views.cc ashura/engine/tests/text_compositor.cc)
+  ashura/engine/tests/main.cc ashura/engine/tests/animation.cc
+  ashura/engine/tests/render_text.cc ashura/engine/tests/views.cc
+  ashura/engine/tests/text_compositor.cc)
 target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
 
 # ASHURA EDITOR

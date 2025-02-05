@@ -78,17 +78,11 @@ using ScalarInfo = Enum<F32Info, I32Info>;
 
 }    // namespace ui
 
-namespace fmt
+inline void format(fmt::Sink sink, fmt::Spec spec, ui::Scalar const & value)
 {
-
-inline bool push(Context const & ctx, Spec const & spec,
-                 ui::Scalar const & value)
-{
-  return value.match([&](f32 f) { return push(ctx, spec, f); },
-                     [&](i32 i) { return push(ctx, spec, i); });
+  return value.match([&](f32 f) { return format(sink, spec, f); },
+                     [&](i32 i) { return format(sink, spec, i); });
 }
-
-}    // namespace fmt
 
 namespace ui
 {
@@ -504,7 +498,7 @@ struct Button : View
     ButtonShape shape          = ButtonShape::RRect;
     Vec2        padding        = {};
     CornerRadii corner_radii   = CornerRadii::all(2);
-    Frame       frame          = {};
+    Frame       frame          = Frame{}.scale(1, 1);
   } style;
 
   struct Callbacks
@@ -603,6 +597,7 @@ struct TextButton : Button
                          Fn<void(View &)> build) override;
 };
 
+// [ ] USE A TEXT
 struct CheckBox : View
 {
   struct State
@@ -618,8 +613,8 @@ struct CheckBox : View
     Vec4U8      box_hovered_color = theme.active;
     Vec4U8      tick_color        = theme.primary;
     f32         stroke            = 1;
-    f32         thickness         = 1;
-    f32         tick_thickness    = 1.75F;
+    f32         thickness         = 0.5F;
+    f32         tick_thickness    = 2.0F;
     CornerRadii corner_radii      = CornerRadii::all(2);
     Frame       frame             = Vec2{20, 20};
   } style;
@@ -686,7 +681,7 @@ struct Slider : View
   struct Style
   {
     Axis        axis                 = Axis::X;
-    Frame       frame                = Vec2{100, theme.body_font_height};
+    Frame       frame                = Vec2{360, theme.body_font_height};
     f32         thumb_size           = theme.body_font_height * 0.75F;
     f32         track_size           = 4;
     Vec4U8      thumb_color          = theme.primary;
@@ -892,9 +887,6 @@ struct Radio : View
 
 struct ScalarDragBox : View
 {
-  typedef Fn<void(fmt::Context const &, Scalar)>                  Fmt;
-  typedef Fn<void(Span<c32 const>, ScalarInfo const &, Scalar &)> Parse;
-
   struct State
   {
     bool       disabled   : 1 = false;
@@ -903,19 +895,19 @@ struct ScalarDragBox : View
     FocusState focus          = {};
     ScalarInfo spec           = F32Info{};
     Scalar     scalar         = 0.0F;
+    hash64     hash           = 0;
   } state;
 
   struct Style
   {
-    Frame       frame        = Frame{}.min(200, theme.body_font_height + 10);
-    Vec2        padding      = {5, 5};
-    CornerRadii corner_radii = CornerRadii::all(2);
-    Vec4U8      color        = theme.inactive;
-    Vec4U8      thumb_color  = theme.inactive;
-    f32         stroke       = 1.0F;
-    f32         thickness    = 1.0F;
-    Fmt         fmt          = scalar_fmt;
-    Parse       parse        = scalar_parse;
+    Frame            frame        = Frame{}.min(200, theme.body_font_height);
+    Vec2             padding      = {2.5, 2.5};
+    CornerRadii      corner_radii = CornerRadii::all(2);
+    Vec4U8           color        = theme.inactive;
+    Vec4U8           thumb_color  = theme.inactive;
+    f32              stroke       = 1.0F;
+    f32              thickness    = 1.0F;
+    Span<char const> format_str   = "{}"_str;
   } style;
 
   Input input_;
@@ -941,8 +933,6 @@ struct ScalarDragBox : View
   ScalarDragBox & operator=(ScalarDragBox const &) = delete;
   ScalarDragBox & operator=(ScalarDragBox &&)      = delete;
   virtual ~ScalarDragBox() override                = default;
-
-  static void scalar_fmt(fmt::Context const & ctx, Scalar s);
 
   static void scalar_parse(Span<c32 const> text, ScalarInfo const & spec,
                            Scalar &);
@@ -998,11 +988,13 @@ struct ScalarBox : Flex
   ScalarBox & operator=(ScalarBox &&)      = delete;
   virtual ~ScalarBox() override            = default;
 
-  void step(i32 direction);
+  ScalarBox & step(i32 direction);
 
   ScalarBox & stub(Span<c32 const> text);
 
   ScalarBox & stub(Span<c8 const> text);
+
+  ScalarBox & format(Span<char const> format);
 
   ScalarBox & spec(f32 scalar, F32Info info);
 
@@ -1393,14 +1385,32 @@ struct Image : View
                       Rect const & clip) override;
 };
 
+template <typename ViewType, typename DataType>
+using ListBinder = Fn<void(ViewType & view, DataType data)>;
+
 // [ ] implement
+template <typename ViewType, typename DataType>
 struct List : View
 {
-  // leading/model view to use for setting extent
+  using Binder = ListBinder<ViewType, DataType>;
+  ArenaPool       arena;
+  Vec<DataType>   elements;
+  Vec<ViewType *> views;
+  // view creator/instancer
+  //  [ ] culling?
+  // [ ] how to get each views info? i.e. extent
+  // [ ] ui::bind/ui::extent/ui::instance
+
+  List(Binder binder);
+
+  usize add(DataType data);
+  void  remove(usize i);
+  void  swap(usize a, usize b);
 };
 
 // [ ] implement
 // - coloring specific rows/columns/cells
+// - large columns and rows
 struct Table : View
 {
 };

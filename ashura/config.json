@@ -38,7 +38,7 @@
         "Roboto": "assets/fonts/Roboto/Roboto-Regular.ttf",
         "RobotoMono": "assets/fonts/RobotoMono/RobotoMono-Regular.ttf"
     },
-    "fonts.height": 16,
+    "fonts.height": 32,
     "images": {
         "birdie": "assets/images/birdie.jpg",
         "bankside": "assets/images/bankside.jpg",

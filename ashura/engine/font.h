@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/font.h"
 #include "ashura/engine/gpu_system.h"
 #include "ashura/engine/ids.h"
 #include "ashura/std/image.h"
@@ -118,7 +117,7 @@ struct CpuFontAtlas
 struct GpuFontAtlas
 {
   Vec<TextureId>  textures    = {};
-  Vec<ImageId>    images      = {};
+  ImageId         image       = ImageId::Invalid;
   i32             font_height = 0;
   Vec2U           extent      = {};
   Vec<AtlasGlyph> glyphs      = {};

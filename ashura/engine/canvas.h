@@ -177,7 +177,7 @@ struct Canvas
 
   struct Pass
   {
-    Span<char const> name = {};
+    Span<char const> label = {};
 
     PassFn task{};
   };
@@ -249,11 +249,7 @@ struct Canvas
 
   Canvas & reset();
 
-  Canvas & reset_clip()
-  {
-    current_clip = MAX_CLIP;
-    return *this;
-  }
+  Canvas & reset_clip();
 
   Canvas & clip(Rect const & area);
 
@@ -311,7 +307,7 @@ struct Canvas
   /// @param clip clip rect for culling draw commands of the text block
   Canvas & text(ShapeInfo const & info, TextBlock const & block,
                 TextLayout const & layout, TextBlockStyle const & style,
-                CRect const & clip = MAX_CLIP.centered());
+                CRect const & clip);
 
   /// @brief Render Non-Indexed Triangles
   Canvas & triangles(ShapeInfo const & info, Span<Vec2 const> vertices);
@@ -334,7 +330,7 @@ struct Canvas
   Canvas & add_pass(Pass && pass);
 
   template <typename Lambda>
-  Canvas & add_pass(Span<char const> name, Lambda && task)
+  Canvas & add_pass(Span<char const> label, Lambda && task)
   {
     // relocate lambda to heap
     Dyn<Lambda *> lambda =
@@ -345,7 +341,7 @@ struct Canvas
     lambda.allocator_ = noop_allocator;
 
     return add_pass(
-      Pass{.name = name, .task = transmute(std::move(lambda), fn(*lambda))});
+      Pass{.label = label, .task = transmute(std::move(lambda), fn(*lambda))});
   }
 };
 

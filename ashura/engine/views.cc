@@ -370,13 +370,13 @@ Text & Text::run(TextStyle const & style, FontStyle const & font, u32 first,
 
 Text & Text::text(Span<c32 const> t)
 {
-  text_.set_text(t);
+  text_.text(t);
   return *this;
 }
 
 Text & Text::text(Span<c8 const> t)
 {
-  text_.set_text(t);
+  text_.text(t);
   return *this;
 }
 
@@ -397,21 +397,20 @@ ViewState Text::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
   {
     cmd = TextCommand::HitSelect;
   }
+  else if (events.mouse_down && !compositor_.get_cursor().is_empty())
+  {
+    cmd = TextCommand::Unselect;
+  }
 
-  // [ ] add the remaining text commands
-  // [ ] esc
-  // [ ] unselect
-
-  compositor_.command(text_.get_text(), text_.layout_, region.extent.x,
-                      text_.alignment_, cmd, noop, noop, {}, engine->clipboard,
-                      1, (ctx.mouse.position - region.center) * zoom);
+  compositor_.command(text_, cmd, noop, noop, {}, engine->clipboard, 1, region,
+                      ctx.mouse.position, zoom);
 
   return ViewState{.draggable = state.copyable};
 }
 
 ViewLayout Text::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
-  text_.layout(allocated.x);
+  text_.perform_layout(allocated.x);
   return {.extent = text_.layout_.extent};
 }
 
@@ -470,13 +469,13 @@ Input & Input::tab_input(bool e)
 
 Input & Input::highlight(TextHighlight const & highlight)
 {
-  content_.highlights_.push(highlight).unwrap();
+  content_.highlight(highlight);
   return *this;
 }
 
 Input & Input::clear_highlights()
 {
-  content_.highlights_.clear();
+  content_.clear_highlights();
   return *this;
 }
 
@@ -506,13 +505,13 @@ Input & Input::on_focus_out(Fn<void()> f)
 
 Input & Input::content(Span<c8 const> t)
 {
-  content_.set_text(t);
+  content_.text(t);
   return *this;
 }
 
 Input & Input::content(Span<c32 const> t)
 {
-  content_.set_text(t);
+  content_.text(t);
   return *this;
 }
 
@@ -525,13 +524,13 @@ Input & Input::content_run(TextStyle const & style, FontStyle const & font,
 
 Input & Input::stub(Span<c8 const> t)
 {
-  stub_.set_text(t);
+  stub_.text(t);
   return *this;
 }
 
 Input & Input::stub(Span<c32 const> t)
 {
-  stub_.set_text(t);
+  stub_.text(t);
   return *this;
 }
 
@@ -668,14 +667,14 @@ ViewState Input::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
                       ViewEvents const & events, Fn<void(View &)>)
 {
   bool edited = false;
-  auto erase  = [this, &edited](Slice32 style) {
-    this->content_.text_.erase((Slice64) style);
-    edited |= style.is_empty();
+  auto erase  = [&](Slice range) {
+    this->content_.text_.erase(range);
+    edited |= range.is_empty();
     this->content_.flush_text();
   };
 
-  auto insert = [this, &edited](u32 pos, Span<c32 const> t) {
-    CHECK(this->content_.text_.insert_span(pos, t));
+  auto insert = [&](usize pos, Span<c32 const> t) {
+    this->content_.text_.insert_span(pos, t).unwrap();
     edited |= t.is_empty();
     this->content_.flush_text();
   };
@@ -707,10 +706,9 @@ ViewState Input::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
 
   utf8_decode(ctx.text, text_input_utf32).unwrap();
 
-  compositor_.command(
-    content_.text_, content_.layout_, region.extent.x, content_.alignment_, cmd,
-    fn(insert), fn(erase), text_input_utf32, *engine->clipboard,
-    style.lines_per_page, (ctx.mouse.position - region.center) * zoom);
+  compositor_.command(content_, cmd, fn(insert), fn(erase), text_input_utf32,
+                      *engine->clipboard, style.lines_per_page, region,
+                      ctx.mouse.position, zoom);
 
   if (edited)
   {
@@ -760,10 +758,10 @@ ViewLayout Input::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
   if (content_.text_.is_empty())
   {
-    stub_.layout(allocated.x);
+    stub_.perform_layout(allocated.x);
     return {.extent = stub_.layout_.extent};
   }
-  content_.layout(allocated.x);
+  content_.perform_layout(allocated.x);
   return {.extent = content_.layout_.extent};
 }
 
@@ -776,11 +774,13 @@ void Input::render(Canvas & canvas, CRect const & region, f32 zoom,
   }
   else
   {
-    highlight(TextHighlight{
-      .slice = compositor_.get_cursor().as_slice(content_.text_.size32()),
-      .style = style.highlight});
-    content_.render(canvas, region, clip.centered(), zoom);
-    content_.highlights_.pop();
+    content_.render(
+      canvas, region, clip.centered(), zoom,
+      span({
+        TextHighlight{
+                      .slice = compositor_.get_cursor().as_slice()(content_.text_.size()),
+                      .style = style.highlight}
+    }));
   }
 }
 
@@ -1583,11 +1583,6 @@ Cursor Radio::cursor(CRect const &, f32, Vec2)
   return Cursor::Pointer;
 }
 
-void ScalarDragBox::scalar_fmt(fmt::Context const & ctx, Scalar s)
-{
-  fmt::format(ctx, fmt::Spec{.precision = 2}, s);
-}
-
 void ScalarDragBox::scalar_parse(Span<c32 const> text, ScalarInfo const & spec,
                                  Scalar & scalar)
 {
@@ -1639,21 +1634,37 @@ ViewState ScalarDragBox::tick(ViewContext const & ctx, CRect const & region,
     state.scalar =
       state.spec.match([t](F32Info & v) -> Scalar { return v.interp(t); },
                        [t](I32Info & v) -> Scalar { return v.interp(t); });
+    state.hash = 0;
   }
 
   if (input_.state.editing)
   {
-    style.parse(input_.content_.get_text(), state.spec, state.scalar);
+    scalar_parse(input_.content_.get_text(), state.spec, state.scalar);
+    state.hash = 0;
   }
-  else
+
+  if (state.hash == 0)
   {
-    char         scratch[128];
-    c8           text[128];
-    Buffer       buffer = ash::buffer(span(text).as_char());
-    fmt::Context ctx    = fmt::buffer(buffer, scratch);
-    style.fmt(ctx, state.scalar);
-    // [ ] use text hash, we are constantly updating the buffer here
-    input_.content_.set_text(span(text).slice(0, buffer.size()));
+    char   text_[1'024];
+    bool   is_full = false;
+    Buffer text{text_};
+
+    auto const sink = [&](Span<char const> str) {
+      is_full = is_full | text.extend(str);
+    };
+
+    fmt::Op ops_[fmt::MAX_ARGS];
+    Buffer  ops{ops_};
+
+    fmt::Context ctx{fn(sink), std::move(ops)};
+
+    if (auto result = ctx.format(style.format_str, state.scalar);
+        result.error != fmt::Error::None)
+    {
+      input_.content_.text(text.view().as_c8());
+    }
+
+    state.hash = -1;
   }
 
   input_.state.disabled = !state.input_mode;
@@ -1755,7 +1766,7 @@ ScalarBox::ScalarBox(Span<c32 const>   decrease_text,
     Fn{this, +[](ScalarBox * b, Scalar in) { b->cb.update(in); }};
 }
 
-void ScalarBox::step(i32 direction)
+ScalarBox & ScalarBox::step(i32 direction)
 {
   auto & state = drag_.state;
   state.scalar = state.spec.match(
@@ -1765,7 +1776,9 @@ void ScalarBox::step(i32 direction)
     [&](I32Info const & spec) -> Scalar {
       return spec.step_value(state.scalar[v1], direction);
     });
+  state.hash = 0;
   cb.update(state.scalar);
+  return *this;
 }
 
 ScalarBox & ScalarBox::stub(Span<c32 const> text)
@@ -1780,10 +1793,18 @@ ScalarBox & ScalarBox::stub(Span<c8 const> text)
   return *this;
 }
 
+ScalarBox & ScalarBox::format(Span<char const> format)
+{
+  drag_.style.format_str = format;
+  drag_.state.hash       = 0;
+  return *this;
+}
+
 ScalarBox & ScalarBox::spec(f32 scalar, F32Info info)
 {
   drag_.state.scalar = scalar;
   drag_.state.spec   = info;
+  drag_.state.hash   = 0;
   return *this;
 }
 
@@ -1791,6 +1812,7 @@ ScalarBox & ScalarBox::spec(i32 scalar, I32Info info)
 {
   drag_.state.scalar = scalar;
   drag_.state.spec   = info;
+  drag_.state.hash   = 0;
   return *this;
 }
 
@@ -2609,7 +2631,7 @@ static void render_image(Canvas & canvas, CRect const & region,
     .corner_radii = style.radii,
     .tint         = style.tint,
     .sampler      = SamplerId::LinearClamped,
-    .texture      = img.texture,
+    .texture      = img.textures[0],
     .uv{uv0, uv1}
   });
 }

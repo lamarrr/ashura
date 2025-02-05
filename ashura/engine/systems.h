@@ -18,15 +18,15 @@ struct ImageInfo
 
   Span<char const> label{};
 
-  TextureId texture = TextureId::White;
+  Span<TextureId const> textures{};
 
   gpu::ImageInfo info{};
 
-  gpu::ImageViewInfo view_info{};
+  Span<gpu::ImageViewInfo const> view_infos{};
 
   gpu::Image image = nullptr;
 
-  gpu::ImageView image_view = nullptr;
+  Span<gpu::ImageView const> views{};
 };
 
 struct Image
@@ -35,25 +35,25 @@ struct Image
 
   Vec<char> label{};
 
-  TextureId texture = TextureId::White;
+  Vec<TextureId> textures{};
 
   gpu::ImageInfo info{};
 
-  gpu::ImageViewInfo view_info{};
+  Vec<gpu::ImageViewInfo> view_infos{};
 
   gpu::Image image = nullptr;
 
-  gpu::ImageView view = nullptr;
+  Vec<gpu::ImageView> views{};
 
   constexpr ImageInfo to_view() const
   {
     return {.id         = id,
             .label      = label,
-            .texture    = texture,
+            .textures   = textures,
             .info       = info,
-            .view_info  = view_info,
+            .view_infos = view_infos,
             .image      = image,
-            .image_view = view};
+            .views      = views};
   }
 };
 
@@ -120,15 +120,16 @@ struct ImageSystem
   void shutdown();
 
   ImageInfo create_image_(Vec<char> label, gpu::ImageInfo const & info,
-                          gpu::ImageViewInfo const & view_info);
+                          Span<gpu::ImageViewInfo const> view_infos);
 
-  ImageInfo upload(Vec<char> label, gpu::ImageInfo const & info,
-                   Span<u8 const> channels);
+  ImageInfo upload_(Vec<char> label, gpu::ImageInfo const & info,
+                    Span<gpu::ImageViewInfo const> view_infos,
+                    Span<u8 const>                 channels);
 
-  Result<ImageInfo, ImageLoadErr> load_from_memory(Vec<char>      label,
-                                                   Vec2U          extent,
-                                                   gpu::Format    format,
-                                                   Span<u8 const> buffer);
+  Result<ImageInfo, ImageLoadErr>
+    load_from_memory(Vec<char> label, gpu::ImageInfo const & info,
+                     Span<gpu::ImageViewInfo const> view_infos,
+                     Span<u8 const>                 channels);
 
   Future<Result<ImageInfo, ImageLoadErr>> load_from_path(Vec<char>        label,
                                                          Span<char const> path);
@@ -167,9 +168,9 @@ struct FontSystem
     load_from_path(Vec<char> label, Span<char const> path, u32 font_height,
                    u32 face = 0) = 0;
 
-  virtual Font & get(FontId id) = 0;
+  virtual FontInfo get(FontId id) = 0;
 
-  virtual Font & get(Span<char const> label) = 0;
+  virtual FontInfo get(Span<char const> label) = 0;
 
   virtual void unload(FontId id) = 0;
 };

@@ -51,6 +51,8 @@ struct Engine
 {
   AllocatorRef allocator;
 
+  Dyn<Logger *> logger;
+
   Dyn<Scheduler *> scheduler;
 
   FileSystem file_sys;
@@ -95,15 +97,17 @@ struct Engine
                               Span<char const> config_path,
                               Span<char const> working_dir);
 
-  Engine(AllocatorRef allocator, Dyn<Scheduler *> scheduler,
-         FileSystem file_sys, Dyn<gpu::Instance *> instance,
-         gpu::Device & device, GpuSystem gpu_sys, ImageSystem image_sys,
-         Dyn<FontSystem *> font_sys, ShaderSystem shader_sys,
-         Dyn<WindowSystem *> window_sys, Window window, ClipBoard & clipboard,
-         gpu::Surface surface, gpu::PresentMode present_mode_preference,
-         Renderer renderer, Canvas canvas, ViewSystem view_sys,
-         Vec<char> working_dir, Vec<char> pipeline_cache_path) :
+  Engine(AllocatorRef allocator, Dyn<Logger *> logger,
+         Dyn<Scheduler *> scheduler, FileSystem file_sys,
+         Dyn<gpu::Instance *> instance, gpu::Device & device, GpuSystem gpu_sys,
+         ImageSystem image_sys, Dyn<FontSystem *> font_sys,
+         ShaderSystem shader_sys, Dyn<WindowSystem *> window_sys, Window window,
+         ClipBoard & clipboard, gpu::Surface surface,
+         gpu::PresentMode present_mode_preference, Renderer renderer,
+         Canvas canvas, ViewSystem view_sys, Vec<char> working_dir,
+         Vec<char> pipeline_cache_path) :
     allocator{allocator},
+    logger{std::move(logger)},
     scheduler{std::move(scheduler)},
     file_sys{std::move(file_sys)},
     instance{std::move(instance)},
@@ -142,7 +146,6 @@ struct Engine
                    .window = *window_sys};
   }
 
-  // [ ] hook logger
   void engage_(EngineCfg const & cfg);
 
   void shutdown();

@@ -2,6 +2,7 @@
 #pragma once
 #include "ashura/engine/input.h"
 #include "ashura/engine/text.h"
+#include "ashura/engine/render_text.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -12,8 +13,8 @@ namespace ash
 /// @param is_insert whether this is a erase or insert record
 struct TextEditRecord
 {
-  Slice32 slice     = {};
-  bool    is_insert = false;
+  Slice slice     = {};
+  bool  is_insert = false;
 };
 
 enum class TextCommand : u32
@@ -76,70 +77,76 @@ enum class TextCommand : u32
   Tab     = 37
 };
 
-/// @param first includes the first selected codepoint in the selection range.
-/// @param last includes the last selected codepoint in the selection range.
+/// @param first the first selected codepoint in the selection range.
+/// @param span the number of selected codepoints in either direction.
 struct [[nodiscard]] TextCursor
 {
   i64 first = 0;
-  i64 last  = 0;
+  i64 span  = 0;
 
-  static constexpr TextCursor from_slice(Slice32 s)
+  static constexpr TextCursor from_slice(Slice s)
   {
-    return TextCursor{s.offset,
-                      (s.span == 0) ? s.offset : (s.offset + (s.span - 1))};
+    return TextCursor{(i64) s.offset, (i64) s.span};
   }
 
-  constexpr bool direction() const
+  constexpr TextCursor & span_to(i64 pos)
   {
-    return last >= first;
+    span = first - pos;
+    return *this;
   }
 
   constexpr bool is_empty() const
   {
-    return first == last;
+    return span == 0;
   }
 
-  constexpr Slice32 as_slice(u32 len) const
+  constexpr i64 last() const
   {
-    u32 rfirst = (u32) ash::clamp(first, (i64) 0, (i64) len);
-    u32 rlast  = (u32) ash::clamp(last, (i64) 0, (i64) len);
-    if (rfirst > rlast)
+    return span == 0 ? first : ((first + span) - 1);
+  }
+
+  constexpr Slice as_slice() const
+  {
+    usize begin = 0;
+    usize end   = 0;
+
+    if (span >= 0)
     {
-      swap(rfirst, rlast);
+      begin = (usize) max(first, (i64) 0);
+      end   = (usize) max((first + span), (i64) 0);
     }
-    rlast++;
-    return Slice32{(u32) rfirst, (u32) (rlast - rfirst)};
-  }
-
-  constexpr TextCursor to_begin() const
-  {
-    TextCursor c;
-    c.first = min(first, last);
-    c.last  = c.first;
-    return c;
-  }
-
-  constexpr TextCursor to_end() const
-  {
-    TextCursor c;
-    c.first = max(first, last);
-    c.last  = c.first;
-    return c;
-  }
-
-  constexpr TextCursor unselect() const
-  {
-    return TextCursor{last, last};
-  }
-
-  constexpr TextCursor clamp(u32 len) const
-  {
-    if (len == 0)
+    else
     {
-      return TextCursor{};
+      begin = (usize) max(((first + span) - 1), (i64) 0);
+      end   = (usize) max((first + 1), (i64) 0);
     }
-    return TextCursor{ash::clamp(first, (i64) 0, (i64) (len - 1)),
-                      ash::clamp(last, (i64) 0, (i64) (len - 1))};
+
+    return Slice{begin, end - begin};
+  }
+
+  constexpr TextCursor & to_first()
+  {
+    span = 0;
+    return *this;
+  }
+
+  constexpr TextCursor & to_last()
+  {
+    first = last();
+    span  = 0;
+    return *this;
+  }
+
+  constexpr TextCursor & unselect()
+  {
+    return to_last();
+  }
+
+  constexpr TextCursor & clamp(usize len)
+  {
+    first = ash::clamp(first, (i64) 0, (i64) (len == 0 ? 0 : len - 1));
+    span  = ash::clamp(first + span, (i64) 0, (i64) len) - first;
+    return *this;
   }
 };
 
@@ -154,13 +161,13 @@ struct TextCompositor
   /// @param index destination index, needs to be clamped to the size of the
   /// destination container.
   /// @param text text to be inserted
-  typedef Fn<void(u32, Span<c32 const>)> Insert;
+  typedef Fn<void(usize, Span<c32 const>)> Insert;
 
   /// @brief Text erase callback.
   /// @param index index to be erased from, needs to be clamped to the size of
   /// the destination container.
   /// @param num number of items to be erased
-  typedef Fn<void(Slice32)> Erase;
+  typedef Fn<void(Slice)> Erase;
 
   static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
   static constexpr c32 DEFAULT_LINE_SYMBOLS[] = {'\n', 0x2029};
@@ -169,18 +176,18 @@ struct TextCompositor
   TextCursor          cursor_ = {};
   Vec<c32>            buffer_;
   Vec<TextEditRecord> records_;
-  u32                 buffer_size_;
-  u32                 records_size_;
-  u32                 buffer_usage_   = 0;
-  u32                 buffer_pos_     = 0;
-  u32                 latest_record_  = 0;
-  u32                 current_record_ = 0;
+  usize               buffer_size_;
+  usize               records_size_;
+  usize               buffer_usage_   = 0;
+  usize               buffer_pos_     = 0;
+  usize               latest_record_  = 0;
+  usize               current_record_ = 0;
   u32                 tab_width_;
   Span<c32 const>     word_symbols_;
   Span<c32 const>     line_symbols_;
 
   TextCompositor(AllocatorRef allocator, u32 tab_width = 2,
-                 u32 buffer_size = 4'096, u32 records_size = 1'024,
+                 usize buffer_size = 4'096, usize records_size = 1'024,
                  Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS,
                  Span<c32 const> line_symbols = DEFAULT_LINE_SYMBOLS) :
     allocator_{allocator},
@@ -207,9 +214,9 @@ struct TextCompositor
     return cursor_;
   }
 
-  void pop_records(u32 num);
+  void pop_records(usize num);
 
-  void append_record(bool is_insert, u32 text_pos, Span<c32 const> segment);
+  void append_record(bool is_insert, usize text_pos, Span<c32 const> segment);
 
   void undo(Insert insert, Erase erase);
 
@@ -219,12 +226,10 @@ struct TextCompositor
 
   void delete_selection(Span<c32 const> text, Erase erase);
 
-  /// @param text original text
   /// @param input text from IME to insert
-  void command(Span<c32 const> text, TextLayout const & layout, f32 align_width,
-               f32 alignment, TextCommand cmd, Insert insert, Erase erase,
-               Span<c32 const> input, ClipBoard & clipboard, u32 lines_per_page,
-               Vec2 pos);
+  void command(RenderText const& text, TextCommand cmd, Insert insert,
+               Erase erase, Span<c32 const> input, ClipBoard & clipboard,
+               u32 lines_per_page, CRect const& region, Vec2 pos, f32 zoom);
 };
 
 }    // namespace ash

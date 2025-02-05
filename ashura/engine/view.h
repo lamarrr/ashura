@@ -289,8 +289,6 @@ struct Theme
   Vec4U8 surface_variant   = {};
   Vec4U8 primary           = {};
   Vec4U8 primary_variant   = {};
-  Vec4U8 secondary         = {};
-  Vec4U8 secondary_variant = {};
   Vec4U8 error             = {};
   Vec4U8 warning           = {};
   Vec4U8 success           = {};

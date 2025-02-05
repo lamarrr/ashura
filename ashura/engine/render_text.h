@@ -10,18 +10,6 @@
 namespace ash
 {
 
-struct TextHighlightStyle
-{
-  Vec4U8 color        = {};
-  f32    corner_radii = 1;
-};
-
-struct TextHighlight
-{
-  Slice32            slice = {};
-  TextHighlightStyle style = {};
-};
-
 /// @brief Controls and manages GUI text state for rendering
 /// - manages runs and run styling
 /// - manages and checks for text layout invalidation
@@ -30,33 +18,36 @@ struct TextHighlight
 /// @param runs  Run-End encoded sequences of the runs
 struct RenderText
 {
-  bool               dirty_         : 1;
-  bool               use_kerning_   : 1;
-  bool               use_ligatures_ : 1;
-  TextDirection      direction_     : 2;
-  f32                alignment_;
-  Vec<c32>           text_;
-  Vec<u32>           runs_;
-  Vec<TextStyle>     styles_;
-  Vec<FontStyle>     fonts_;
-  Span<char const>   language_;
-  TextLayout         layout_;
-  Vec<TextHighlight> highlights_;
+  hash64           hash_;
+  bool             use_kerning_   : 1;
+  bool             use_ligatures_ : 1;
+  TextDirection    direction_     : 2;
+  f32              alignment_;
+  f32              font_scale_;
+  Vec<c32>         text_;
+  Vec<u32>         runs_;
+  Vec<TextStyle>   styles_;
+  Vec<FontStyle>   fonts_;
+  Span<char const> language_;
+  TextLayout       layout_;
+  TextHighlight    highlight_;
 
   RenderText(AllocatorRef allocator) :
-    dirty_{true},
+    hash_{0},
     use_kerning_{true},
     use_ligatures_{true},
     direction_{TextDirection::LeftToRight},
     alignment_{-1},
+    font_scale_{1},
     text_{allocator},
     runs_{allocator},
     styles_{allocator},
     fonts_{allocator},
     language_{},
     layout_{allocator},
-    highlights_{allocator}
+    highlight_{}
   {
+    layout_.hash = -1;
   }
 
   RenderText(RenderText const &)             = delete;
@@ -72,12 +63,12 @@ struct RenderText
   /// @param count range of the number of codepoints to be patched
   /// @param style font style to be applied
   /// @param font font configuration to be applied
-  void run(TextStyle const & style, FontStyle const & font, u32 first = 0,
-           u32 count = U32_MAX)
+  RenderText & run(TextStyle const & style, FontStyle const & font,
+                   u32 first = 0, u32 count = U32_MAX)
   {
     if (count == 0)
     {
-      return;
+      return *this;
     }
 
     if (runs_.is_empty())
@@ -85,8 +76,8 @@ struct RenderText
       runs_.push(U32_MAX).unwrap();
       styles_.push(style).unwrap();
       fonts_.push(font).unwrap();
-      dirty_ = true;
-      return;
+      hash_ = 0;
+      return *this;
     }
 
     u32 const end = sat_add(first, count);
@@ -94,12 +85,12 @@ struct RenderText
     Span const first_run_span = binary_find(runs_.view(), gt, first);
 
     /// should never happen since there's always a U32_MAX run end
-    CHECK(!first_run_span.is_empty());
+    CHECK(!first_run_span.is_empty(), "");
 
     Span const last_run_span = binary_find(first_run_span, geq, end);
 
     /// should never happen since there's always a U32_MAX run end
-    CHECK(!last_run_span.is_empty());
+    CHECK(!last_run_span.is_empty(), "");
 
     u32 first_run = (u32) (first_run_span.pbegin() - runs_.view().pbegin());
     u32 last_run  = (u32) (last_run_span.pbegin() - runs_.view().pbegin());
@@ -181,52 +172,66 @@ struct RenderText
       }
     }
 
-    dirty_ = true;
+    hash_ = 0;
+
+    return *this;
   }
 
-  void flush_text()
+  RenderText & flush_text()
   {
-    dirty_ = true;
+    hash_ = 0;
+    return *this;
   }
 
-  void highlight(TextHighlight const & highlight)
+  RenderText & highlight(TextHighlight const & range)
   {
-    highlights_.push(highlight).unwrap();
+    highlight_ = range;
+    return *this;
   }
 
-  void clear_highlights()
+  RenderText & clear_highlights()
   {
-    highlights_.clear();
+    highlight_ = TextHighlight{};
+    return *this;
   }
 
-  void set_direction(TextDirection direction)
+  RenderText & font_scale(f32 scale)
+  {
+    font_scale_ = scale;
+    return *this;
+  }
+
+  RenderText & direction(TextDirection direction)
   {
     if (direction_ == direction)
     {
-      return;
+      return *this;
     }
     direction_ = direction;
     flush_text();
+    return *this;
   }
 
-  void set_language(Span<char const> language)
+  RenderText & language(Span<char const> language)
   {
     if (range_eq(language_, language))
     {
-      return;
+      return *this;
     }
     language_ = language;
     flush_text();
+    return *this;
   }
 
-  void set_alignment(f32 alignment)
+  RenderText & alignment(f32 alignment)
   {
     if (alignment_ == alignment)
     {
-      return;
+      return *this;
     }
     alignment_ = alignment;
     flush_text();
+    return *this;
   }
 
   Span<c32 const> get_text() const
@@ -234,41 +239,47 @@ struct RenderText
     return text_;
   }
 
-  void set_text(Span<c32 const> utf32, TextStyle const & style,
-                FontStyle const & font)
+  RenderText & text(Span<c32 const> utf32, TextStyle const & style,
+                    FontStyle const & font)
   {
-    set_text(utf32);
+    text(utf32);
     run(style, font);
     flush_text();
+    return *this;
   }
 
-  void set_text(Span<c32 const> utf32)
+  RenderText & text(Span<c32 const> utf32)
   {
     text_.clear();
     text_.extend(utf32).unwrap();
     flush_text();
+    return *this;
   }
 
-  void set_text(Span<c8 const> utf8, TextStyle const & style,
-                FontStyle const & font)
+  RenderText & text(Span<c8 const> utf8, TextStyle const & style,
+                    FontStyle const & font)
   {
     run(style, font);
-    set_text(utf8);
+    text(utf8);
     flush_text();
+    return *this;
   }
 
-  void set_text(Span<c8 const> utf8)
+  RenderText & text(Span<c8 const> utf8)
   {
     text_.clear();
     utf8_decode(utf8, text_).unwrap();
     flush_text();
+    return *this;
   }
 
   TextBlock block() const
   {
     return TextBlock{.text          = text_,
+                     .hash          = hash_,
                      .runs          = runs_,
                      .fonts         = fonts_,
+                     .font_scale    = font_scale_,
                      .direction     = direction_,
                      .language      = language_,
                      .use_kerning   = use_kerning_,
@@ -281,29 +292,34 @@ struct RenderText
       .runs = styles_, .alignment = alignment_, .align_width = aligned_width};
   }
 
-  void layout(f32 max_width)
+  TextLayout const & layout() const
   {
-    if (!dirty_ && max_width == layout_.max_width)
+    return layout_;
+  }
+
+  void perform_layout(f32 max_width)
+  {
+    if (hash_ == layout_.hash && max_width == layout_.max_width)
     {
       return;
     }
 
+    hash_ = -1;
     sys->font.layout_text(block(), max_width, layout_);
-    dirty_ = false;
   }
 
   void render(Canvas & canvas, CRect const & region, CRect const & clip,
-              f32 zoom) const
+              f32 zoom)
   {
-    (void) zoom;
-    canvas.text({.center = region.center}, block(), layout_,
-                block_style(region.extent.x), clip);
-    // [ ] zoom
-    // [ ] render highlights
-    // [ ] are the cursor indexes correct?
-    // [ ] use overlays on intersecting graphemes
-    // [ ] global font-scaling
-    // [ ] local scaling
+    canvas.text(
+      {.center = region.center, .transform = scale3d(Vec3::splat(zoom))},
+      block(), layout_, block_style(region.extent.x), clip);
+  }
+
+  Option<TextHitResult> hit(CRect const & region, Vec2 pos, f32 zoom) const
+  {
+    Vec2 const pos_local = (region.begin() - pos) / zoom;
+    return layout_.hit(block(), block_style(region.extent.x), pos_local);
   }
 };
 

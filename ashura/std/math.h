@@ -9,6 +9,36 @@
 namespace ash
 {
 
+template <typename T>
+constexpr T pow2(T x)
+{
+  return x * x;
+}
+
+template <typename T>
+constexpr T pow3(T x)
+{
+  return x * x * x;
+}
+
+template <typename T>
+constexpr T pow4(T x)
+{
+  return x * x * x * x;
+}
+
+template <typename T>
+constexpr T pow5(T x)
+{
+  return x * x * x * x * x;
+}
+
+template <typename T>
+constexpr T pow6(T x)
+{
+  return x * x * x * x * x * x;
+}
+
 inline f32 sin(f32 v)
 {
   return std::sin(v);
@@ -441,7 +471,7 @@ enum class Axes : u8
 
 ASH_BIT_ENUM_OPS(Axes)
 
-struct alignas(8) Vec2
+struct Vec2
 {
   f32 x = 0;
   f32 y = 0;
@@ -702,7 +732,7 @@ constexpr Vec3 & operator/=(Vec3 & a, Vec3 b)
   return a;
 }
 
-struct alignas(16) Vec4
+struct Vec4
 {
   f32 x = 0;
   f32 y = 0;
@@ -935,7 +965,7 @@ constexpr Vec4U8 & operator/=(Vec4U8 & a, Vec4U8 b)
   return a;
 }
 
-struct alignas(8) Vec2I
+struct Vec2I
 {
   i32 x = 0;
   i32 y = 0;
@@ -1106,7 +1136,7 @@ constexpr Vec3I & operator/=(Vec3I & a, Vec3I b)
   return a;
 }
 
-struct alignas(16) Vec4I
+struct Vec4I
 {
   i32 x = 0;
   i32 y = 0;
@@ -1203,7 +1233,7 @@ constexpr Vec4I & operator/=(Vec4I & a, Vec4I b)
   return a;
 }
 
-struct alignas(8) Vec2U
+struct Vec2U
 {
   u32 x = 0;
   u32 y = 0;
@@ -1404,7 +1434,7 @@ constexpr Vec3U & operator/=(Vec3U & a, Vec3U b)
   return a;
 }
 
-struct alignas(16) Vec4U
+struct Vec4U
 {
   u32 x = 0;
   u32 y = 0;

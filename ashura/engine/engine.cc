@@ -53,7 +53,7 @@ EngineCfg EngineCfg::parse(AllocatorRef allocator, Span<u8 const> json)
     }
     else
     {
-      CHECK(false);
+      CHECK(false, "");
     }
   }
 
@@ -276,8 +276,12 @@ Dyn<Engine *> Engine::create(AllocatorRef     allocator,
                              Span<char const> config_path,
                              Span<char const> working_dir)
 {
-  trace("Initializing Engine, config_path = ", config_path,
-        ", working_dir = ", working_dir);
+  Dyn<Logger *> logger =
+    dyn<Logger>(inplace, default_allocator, span<LogSink *>({&stdio_sink}))
+      .unwrap();
+  hook_logger(logger);
+  trace("Initializing Engine, config_path: {} and working dir: {} ",
+        config_path, working_dir);
 
   trace("Loading Engine config file");
 
@@ -392,13 +396,13 @@ Dyn<Engine *> Engine::create(AllocatorRef     allocator,
   trace("All Core Systems Initialized");
 
   Dyn<Engine *> engine =
-    dyn<Engine>(inplace, allocator, allocator, std::move(scheduler),
-                std::move(file_sys), std::move(instance), *device,
-                std::move(gpu_sys), std::move(image_sys), std::move(font_sys),
-                std::move(shader_sys), std::move(window_sys), window, clipboard,
-                surface, present_mode, std::move(renderer), std::move(canvas),
-                std::move(view_sys), std::move(working_dir_copy),
-                std::move(cfg.pipeline_cache))
+    dyn<Engine>(inplace, allocator, allocator, std::move(logger),
+                std::move(scheduler), std::move(file_sys), std::move(instance),
+                *device, std::move(gpu_sys), std::move(image_sys),
+                std::move(font_sys), std::move(shader_sys),
+                std::move(window_sys), window, clipboard, surface, present_mode,
+                std::move(renderer), std::move(canvas), std::move(view_sys),
+                std::move(working_dir_copy), std::move(cfg.pipeline_cache))
       .unwrap();
 
   hook_engine(engine);
@@ -462,8 +466,6 @@ void Engine::engage_(EngineCfg const & cfg)
     scheduler->run_main_loop(1ms, 1ms);
     gpu_sys.submit_frame(nullptr);
   }
-
-  // [ ] more aggressive logging from systems
 
   trace("All resources loaded");
 
@@ -613,7 +615,7 @@ void Engine::recreate_swapchain_()
                           .format = format,
                           .usage  = gpu::ImageUsage::TransferDst |
                                    gpu::ImageUsage::ColorAttachment,
-                          .preferred_buffering = gpu_sys.buffering,
+                          .preferred_buffering = gpu_sys.buffering_,
                           .present_mode        = present_mode,
                           .preferred_extent    = surface_extent,
                           .composite_alpha     = alpha};
@@ -639,6 +641,9 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
 
   time_point timestamp = steady_clock::now();
 
+  Cursor cursor = Cursor::Default;
+  window_sys->set_cursor(cursor);
+
   while (true)
   {
     time_point const  current_time = steady_clock::now();
@@ -652,7 +657,12 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
       window_sys->get_mouse_state(input_buffer.mouse.states);
     window_sys->get_keyboard_state(input_buffer.key.states);
 
-    window_sys->poll_events();
+    {
+      ScopeTrace trace{
+        {"poll_events"_str, 0}
+      };
+      window_sys->poll_events();
+    }
 
     Vec2U const surface_extent = window_sys->get_surface_extent(window);
     Vec2U const window_extent  = window_sys->get_extent(window);
@@ -671,6 +681,7 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
       gpu_sys.recreate_framebuffers(surface_extent);
     }
 
+    ScopeTrace{{"frame"_str}};
     gpu_sys.begin_frame(swapchain);
 
     canvas.begin_recording(
@@ -684,13 +695,19 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
 
     view_sys.tick(input_buffer, view, canvas, loop);
 
+    if (view_sys.cursor() != cursor)
+    {
+      window_sys->set_cursor(cursor);
+    }
+
     canvas.end_recording();
 
-    renderer.begin_frame(gpu_sys.fb, canvas);
-    renderer.render_frame(gpu_sys.fb, canvas);
-    renderer.end_frame(gpu_sys.fb, canvas);
+    renderer.begin_frame(gpu_sys.fb_, canvas);
+    renderer.render_frame(gpu_sys.fb_, canvas);
+    renderer.end_frame(gpu_sys.fb_, canvas);
     gpu_sys.submit_frame(swapchain);
-    // std::this_thread::sleep_for(16ms);
+
+    // [ ] frame-pacing
   }
 
   trace("Ended Engine Run Loop");
@@ -702,12 +719,14 @@ void hook_engine(Engine * instance)
 {
   if (instance == nullptr)
   {
+    ash::logger    = nullptr;
     ash::engine    = nullptr;
     ash::scheduler = nullptr;
     ash::sys       = nullptr;
     return;
   }
 
+  ash::logger    = instance->logger;
   ash::engine    = instance;
   ash::scheduler = instance->scheduler;
   ash::sys = new (systems_storage.storage_) Systems{instance->get_systems()};

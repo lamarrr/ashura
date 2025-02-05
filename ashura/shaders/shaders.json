@@ -1,11 +1,49 @@
-// [ ] fix
-glslangValidator.exe -V blur.frag -o blur_downsample.frag.spv -DUPSAMPLE=0
-glslangValidator.exe -V blur.vert -o blur_downsample.vert.spv -DUPSAMPLE=0
-glslangValidator.exe -V blur.frag -o blur_upsample.frag.spv -DUPSAMPLE=1
-glslangValidator.exe -V blur.vert -o blur_upsample.vert.spv -DUPSAMPLE=1
-glslangValidator.exe -V ngon.frag -o ngon.frag.spv 
-glslangValidator.exe -V ngon.vert -o ngon.vert.spv 
-glslangValidator.exe -V pbr.frag -o pbr.frag.spv 
-glslangValidator.exe -V pbr.vert -o pbr.vert.spv 
-glslangValidator.exe -V rrect.frag -o rrect.frag.spv 
-glslangValidator.exe -V rrect.vert -o rrect.vert.spv
+// [ ] implement
+{
+    "compile": "glslangValidator.exe -V blur.frag -o blur_downsample.frag.spv -DUPSAMPLE=0",
+    "includes": [],
+    "shaders": {
+        "blur_downsample.frag.spv": {
+            "file": "blur.frag",
+            "defines": [
+                "UPSAMPLE=0"
+            ]
+        },
+        "blur_downsample.vert.spv": {
+            "file": "blur.vert",
+            "defines": [
+                "UPSAMPLE=0"
+            ]
+        },
+        "blur_upsample.frag.spv": {
+            "file": "blur.frag",
+            "defines": [
+                "UPSAMPLE=1"
+            ]
+        },
+        "blur_upsample.vert.spv": {
+            "file": "blur.vert",
+            "defines": [
+                "UPSAMPLE=1"
+            ]
+        },
+        "ngon.frag.spv": {
+            "file": "ngon.frag"
+        },
+        "ngon.vert.spv": {
+            "file": "ngon.vert"
+        },
+        "pbr.frag.spv": {
+            "file": "pbr.frag"
+        },
+        "pbr.vert.spv": {
+            "file": "pbr.vert"
+        },
+        "rrect.frag.spv": {
+            "file": "rrect.frag"
+        },
+        "rrect.vert.spv": {
+            "file": "rrect.vert"
+        }
+    }
+}

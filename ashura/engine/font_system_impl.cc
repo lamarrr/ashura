@@ -33,6 +33,10 @@ FontSystemImpl::~FontSystemImpl()
 
 void FontSystemImpl::shutdown()
 {
+  while (!fonts_.is_empty())
+  {
+    unload(FontId{fonts_.to_id(0)});
+  }
 }
 
 Result<Dyn<Font *>, FontLoadErr>
@@ -376,8 +380,8 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
       .stride = (u32) slot->bitmap.pitch
     };
 
-    copy_image(src, atlas_span.get_layer(ag.layer).slice(ag.area.offset,
-                                                         ag.area.extent));
+    copy_image(
+      src, atlas_span.layer(ag.layer).slice(ag.area.offset, ag.area.extent));
   }
 
   atlas.font_height = font_height;
@@ -408,25 +412,54 @@ FontId FontSystemImpl::upload_(Dyn<Font *> font_)
   gpu_atlas.glyphs.extend(atlas.glyphs).unwrap();
 
   Vec<u8> bgra_pixels{allocator_};
-  bgra_pixels.resize(pixel_size_bytes(atlas.extent, 4)).unwrap();
+  bgra_pixels.resize(pixel_size_bytes(atlas.extent, 4) * atlas.num_layers)
+    .unwrap();
 
-  // [ ] move to the same image (arrays)
-
-  ImageSpan<u8, 4> bgra{
-    .channels = bgra_pixels, .extent = atlas.extent, .stride = atlas.extent.x};
+  constexpr gpu::Format   format = gpu::Format::B8G8R8A8_UNORM;
+  ImageLayerSpan<u8, 4>   bgra{.channels = bgra_pixels,
+                               .extent   = atlas.extent,
+                               .layers   = atlas.num_layers};
+  Vec<gpu::ImageViewInfo> view_infos;
 
   for (u32 i = 0; i < atlas.num_layers; i++)
   {
-    copy_alpha_image_to_BGRA(atlas.span().get_layer(i).as_const(), bgra, U8_MAX,
-                             U8_MAX, U8_MAX);
-    ImageInfo image =
-      sys->image
-        .load_from_memory(font.label.clone().unwrap(), gpu_atlas.extent,
-                          gpu::Format::B8G8R8A8_UNORM, bgra.channels)
-        .unwrap();
-    gpu_atlas.textures.push(image.texture).unwrap();
-    gpu_atlas.images.push(image.id).unwrap();
+    copy_alpha_image_to_BGRA(atlas.span().layer(i).as_const(), bgra.layer(i),
+                             U8_MAX, U8_MAX, U8_MAX);
+
+    view_infos
+      .push(gpu::ImageViewInfo{.label             = font.label,
+                               .view_type         = gpu::ImageViewType::Type2D,
+                               .view_format       = format,
+                               .mapping           = {},
+                               .aspects           = gpu::ImageAspects::Color,
+                               .first_mip_level   = 0,
+                               .num_mip_levels    = 1,
+                               .first_array_layer = i,
+                               .num_array_layers  = 1})
+      .unwrap();
   }
+
+  ImageInfo image =
+    sys->image
+      .load_from_memory(font.label.clone().unwrap(),
+                        gpu::ImageInfo{
+                          .label  = font.label,
+                          .type   = gpu::ImageType::Type2D,
+                          .format = format,
+                          .usage  = gpu::ImageUsage::Sampled |
+                                   gpu::ImageUsage::TransferDst |
+                                   gpu::ImageUsage::TransferSrc,
+                          .aspects = gpu::ImageAspects::Color,
+                          .extent{atlas.extent.x, atlas.extent.y, 1},
+                          .mip_levels   = 1,
+                          .array_layers = atlas.num_layers,
+                          .sample_count = gpu::SampleCount::C1
+  },
+                        view_infos, bgra.channels)
+      .unwrap();
+
+  gpu_atlas.textures.extend(image.textures).unwrap();
+  gpu_atlas.image = image.id;
 
   font.gpu_atlas = std::move(gpu_atlas);
 
@@ -492,7 +525,6 @@ Future<Result<FontId, FontLoadErr>>
   scheduler->once(
     [file_load_fut = file_load_fut.alias(), fut = fut.alias(), this,
      label = std::move(label), font_height, face]() mutable {
-      trace("loading from path");
       file_load_fut.get().match(
         [&](Vec<u8> & encoded) {
           Future mem_load_fut = load_from_memory(
@@ -518,18 +550,18 @@ Future<Result<FontId, FontLoadErr>>
   return fut;
 }
 
-Font & FontSystemImpl::get(FontId id)
+FontInfo FontSystemImpl::get(FontId id)
 {
-  return *fonts_[(usize) id].v0;
+  return fonts_[(usize) id].v0->info();
 }
 
-Font & FontSystemImpl::get(Span<char const> label)
+FontInfo FontSystemImpl::get(Span<char const> label)
 {
   for (auto & font : fonts_.dense.v0)
   {
     if (mem::eq(label, font->info().label))
     {
-      return *font;
+      return font->info();
     }
   }
   CHECK(false, "Invalid Font label: {} ", label);
@@ -539,11 +571,8 @@ void FontSystemImpl::unload(FontId id)
 {
   Dyn<Font *> & f    = fonts_[(usize) id].v0;
   FontImpl &    font = (FontImpl &) *f;
-
-  for (ImageId image : font.gpu_atlas.value().images)
-  {
-    sys->image.unload(image);
-  }
+  sys->image.unload(font.gpu_atlas.value().image);
+  font.gpu_atlas = none;
 
   fonts_.erase((usize) id);
 }
@@ -761,20 +790,18 @@ static inline void insert_run(TextLayout & l, FontStyle const & s, u32 first,
 
   l.runs
     .push(TextRun{
-      .first_codepoint = first,
-      .num_codepoints  = count,
-      .style           = style,
-      .font_height     = s.height,
-      .line_height     = max(s.line_height, 1.0F),
-      .first_glyph     = first_glyph,
-      .num_glyphs      = num_glyphs,
-      .metrics         = TextRunMetrics{.advance = advance,
-                                        .ascent  = font_metrics.ascent,
-                                        .descent = font_metrics.descent},
-      .base_level      = base_level,
-      .level           = level,
-      .paragraph       = paragraph,
-      .breakable       = breakable
+      .codepoints{first, count},
+      .style       = style,
+      .font_height = s.height,
+      .line_height = max(s.line_height, 1.0F),
+      .glyphs{first_glyph, num_glyphs},
+      .metrics    = TextRunMetrics{.advance = advance,
+                  .ascent  = font_metrics.ascent,
+                  .descent = font_metrics.descent},
+      .base_level = base_level,
+      .level      = level,
+      .paragraph  = paragraph,
+      .breakable  = breakable
   })
     .unwrap();
 }
@@ -821,6 +848,8 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
                                  TextLayout & layout)
 {
   layout.clear();
+
+  layout.hash = block.hash;
 
   if (block.text.is_empty())
   {
@@ -899,7 +928,7 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
         }
 
         FontStyle const & s = block.fonts[first_segment.style];
-        FontImpl const &  f = (FontImpl const &) sys->font.get(s.font);
+        FontImpl const &  f = (FontImpl const &) *fonts_[(usize) s.font].v0;
         Span<hb_glyph_info_t const>     infos     = {};
         Span<hb_glyph_position_t const> positions = {};
         shape(f.hb_font, hb_buffer_, block.text, first, i - first,
@@ -929,47 +958,51 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
 
   for (u32 i = 0; i < num_runs;)
   {
-    u32 const       first      = i++;
-    TextRun const & first_run  = layout.runs[first];
-    u8 const        base_level = first_run.base_level;
-    bool const      paragraph  = first_run.paragraph;
-    f32 width   = au_to_px(first_run.metrics.advance, first_run.font_height);
-    f32 ascent  = au_to_px(first_run.metrics.ascent, first_run.font_height);
-    f32 descent = au_to_px(first_run.metrics.descent, first_run.font_height);
-    f32 height  = au_to_px(first_run.metrics.height(), first_run.font_height) *
-                 first_run.line_height;
+    u32 const       first       = i++;
+    TextRun const & first_run   = layout.runs[first];
+    u8 const        base_level  = first_run.base_level;
+    bool const      paragraph   = first_run.paragraph;
+    f32 const       font_height = block.font_scale * first_run.font_height;
 
-    while (
-      i < num_runs && !layout.runs[i].paragraph &&
-      !(layout.runs[i].breakable &&
-        (au_to_px(layout.runs[i].metrics.advance, layout.runs[i].font_height) +
-         width) > max_width))
+    ResolvedTextRunMetrics const first_run_metrics =
+      first_run.metrics.resolve(font_height);
+
+    f32 width       = first_run_metrics.advance;
+    f32 ascent      = first_run_metrics.ascent;
+    f32 descent     = first_run_metrics.descent;
+    f32 line_height = first_run_metrics.height() * first_run.line_height;
+
+    while (i < num_runs)
     {
-      TextRun const &        r = layout.runs[i];
-      TextRunMetrics const & m = r.metrics;
-      width += au_to_px(m.advance, r.font_height);
-      ascent  = max(ascent, au_to_px(m.ascent, r.font_height));
-      descent = max(descent, au_to_px(m.descent, r.font_height));
-      height = max(height, au_to_px(m.height(), r.font_height) * r.line_height);
+      TextRun const &              r = layout.runs[i];
+      ResolvedTextRunMetrics const m =
+        r.metrics.resolve(block.font_scale * r.font_height);
+
+      if (r.paragraph || (r.breakable && (m.advance + width) > max_width))
+      {
+        break;
+      }
+
+      width += m.advance;
+      ascent      = m.ascent;
+      descent     = m.descent;
+      line_height = max(line_height, m.height() * r.line_height);
       i++;
     }
 
     TextRun const & last_run        = layout.runs[i - 1];
-    u32 const       first_codepoint = first_run.first_codepoint;
-    u32 const       num_codepoints =
-      (last_run.first_codepoint + last_run.num_codepoints) - first_codepoint;
+    u32 const       first_codepoint = first_run.codepoints.offset;
+    u32 const num_codepoints = last_run.codepoints.end() - first_codepoint;
 
     Line line{
-      .first_codepoint = first_codepoint,
-      .num_codepoints  = num_codepoints,
-      .first_run       = first,
-      .num_runs        = (i - first),
-      .metrics         = LineMetrics{.width   = width,
-                                     .height  = height,
-                                     .ascent  = ascent,
-                                     .descent = descent,
-                                     .level   = base_level},
-      .paragraph       = paragraph
+      .codepoints{first_codepoint, num_codepoints},
+      .runs{first, (i - first)},
+      .metrics   = LineMetrics{.width   = width,
+                  .height  = line_height,
+                  .ascent  = ascent,
+                  .descent = descent,
+                  .level   = base_level},
+      .paragraph = paragraph
     };
 
     layout.lines.push(line).unwrap();
@@ -977,7 +1010,7 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
     reorder_line(span(layout.runs).slice(first, i - first));
 
     extent.x = max(extent.x, width);
-    extent.y += height;
+    extent.y += line_height;
   }
 
   layout.max_width = max_width;

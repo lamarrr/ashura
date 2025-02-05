@@ -29,27 +29,26 @@ void FileSystem::shutdown()
 {
 }
 
-ImageInfo ImageSystem::create_image_(Vec<char>                  label,
-                                     gpu::ImageInfo const &     info,
-                                     gpu::ImageViewInfo const & view_info_)
+ImageInfo ImageSystem::create_image_(Vec<char>                      label,
+                                     gpu::ImageInfo const &         info,
+                                     Span<gpu::ImageViewInfo const> view_infos)
 {
-  gpu::Image image = sys->gpu.device->create_image(info).unwrap();
+  gpu::Image gpu_image = sys->gpu.device_->create_image(info).unwrap();
 
-  gpu::ImageViewInfo view_info{view_info_};
-  view_info.image = image;
+  Image image{.label = std::move(label), .info = info, .image = gpu_image};
 
-  gpu::ImageView view = sys->gpu.device->create_image_view(view_info).unwrap();
+  for (gpu::ImageViewInfo view_info : view_infos)
+  {
+    view_info.image = gpu_image;
+    gpu::ImageView view =
+      sys->gpu.device_->create_image_view(view_info).unwrap();
+    TextureId tex_id = sys->gpu.alloc_texture_id(view);
+    image.view_infos.push(view_info).unwrap();
+    image.views.push(view).unwrap();
+    image.textures.push(tex_id).unwrap();
+  }
 
-  TextureId tex_id = sys->gpu.alloc_texture_id(view);
-
-  ImageId id = ImageId{images_
-                         .push(Image{.label     = std::move(label),
-                                     .texture   = tex_id,
-                                     .info      = info,
-                                     .view_info = view_info,
-                                     .image     = image,
-                                     .view      = view})
-                         .unwrap()};
+  ImageId id = ImageId{images_.push(std::move(image)).unwrap()};
 
   Image & img = images_[(usize) id].v0;
   img.id      = id;
@@ -59,10 +58,15 @@ ImageInfo ImageSystem::create_image_(Vec<char>                  label,
 
 void ImageSystem::shutdown()
 {
+  while (!images_.is_empty())
+  {
+    unload(ImageId{images_.to_id(0)});
+  }
 }
 
-ImageInfo ImageSystem::upload(Vec<char> label, gpu::ImageInfo const & info,
-                              Span<u8 const> channels)
+ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
+                               Span<gpu::ImageViewInfo const> view_infos,
+                               Span<u8 const>                 channels)
 {
   CHECK(info.type == gpu::ImageType::Type2D, "");
   CHECK(
@@ -73,107 +77,107 @@ ImageInfo ImageSystem::upload(Vec<char> label, gpu::ImageInfo const & info,
   CHECK(info.extent.z == 1, "");
   CHECK(info.mip_levels == 1, "");
   CHECK(info.array_layers > 0, "");
+  CHECK(view_infos.size() > 0, "");
   CHECK(info.sample_count == gpu::SampleCount::C1, "");
   CHECK(info.format == gpu::Format::R8G8B8A8_UNORM ||
           info.format == gpu::Format::R8G8B8_UNORM ||
           info.format == gpu::Format::B8G8R8A8_UNORM,
         "");
 
-  u64 const bgra_size = pixel_size_bytes(info.extent.xy(), 4);
+  u64 const bgra_size =
+    pixel_size_bytes(info.extent.xy(), 4) * info.array_layers;
 
   Vec<u8> bgra{allocator_};
   bgra.extend_uninit(bgra_size).unwrap();
 
-  ImageSpan<u8, 4> bgra_span{
-    .channels = bgra, .extent = info.extent.xy(), .stride = info.extent.x};
+  ImageLayerSpan<u8, 4> dst{
+    .channels = bgra, .extent = info.extent.xy(), .layers = info.array_layers};
 
   switch (info.format)
   {
     case gpu::Format::R8G8B8A8_UNORM:
     {
-      copy_RGBA_to_BGRA(ImageSpan<u8 const, 4>{.channels = channels,
-                                               .extent   = info.extent.xy(),
-                                               .stride   = info.extent.x},
-                        bgra_span);
+      ImageLayerSpan<u8 const, 4> src{.channels = channels,
+                                      .extent   = info.extent.xy(),
+                                      .layers   = info.array_layers};
+
+      for (u32 i = 0; i < info.array_layers; i++)
+      {
+        copy_RGBA_to_BGRA(src.layer(i), dst.layer(i));
+      }
     }
     break;
     case gpu::Format::R8G8B8_UNORM:
     {
-      copy_RGB_to_BGRA(ImageSpan<u8 const, 3>{.channels = channels,
-                                              .extent   = info.extent.xy(),
-                                              .stride   = info.extent.x},
-                       bgra_span, U8_MAX);
+      ImageLayerSpan<u8 const, 3> src{.channels = channels,
+                                      .extent   = info.extent.xy(),
+                                      .layers   = info.array_layers};
+
+      for (u32 i = 0; i < info.array_layers; i++)
+      {
+        copy_RGB_to_BGRA(src.layer(i), dst.layer(i), U8_MAX);
+      }
     }
     break;
     case gpu::Format::B8G8R8A8_UNORM:
     {
-      copy_image(ImageSpan<u8 const, 4>{.channels = channels,
-                                        .extent   = info.extent.xy(),
-                                        .stride   = info.extent.x},
-                 bgra_span);
+      ImageLayerSpan<u8 const, 4> src{.channels = channels,
+                                      .extent   = info.extent.xy(),
+                                      .layers   = info.array_layers};
+
+      for (u32 i = 0; i < info.array_layers; i++)
+      {
+        copy_image(src.layer(i), dst.layer(i));
+      }
     }
     break;
     default:
       break;
   }
 
-  gpu::ImageInfo resolved_info = info;
-  resolved_info.format         = gpu::Format::B8G8R8A8_UNORM;
+  gpu::Format    resolved_format = gpu::Format::B8G8R8A8_UNORM;
+  gpu::ImageInfo resolved_info   = info;
+  resolved_info.format           = resolved_format;
+
+  Vec<gpu::ImageViewInfo> resolved_view_infos =
+    vec(allocator_, view_infos).unwrap();
+
+  for (gpu::ImageViewInfo & info : resolved_view_infos)
+  {
+    info.view_format = resolved_format;
+  }
 
   ImageInfo image =
-    create_image_(std::move(label), resolved_info,
-                  gpu::ImageViewInfo{.label       = info.label,
-                                     .image       = nullptr,
-                                     .view_type   = gpu::ImageViewType::Type2D,
-                                     .view_format = gpu::Format::B8G8R8A8_UNORM,
-                                     .mapping     = {},
-                                     .aspects     = gpu::ImageAspects::Color,
-                                     .first_mip_level   = 0,
-                                     .num_mip_levels    = 1,
-                                     .first_array_layer = 0,
-                                     .num_array_layers  = 1});
+    create_image_(std::move(label), resolved_info, resolved_view_infos);
 
-  sys->gpu.upload_.queue(bgra, [image = image.image,
-                                info](gpu::CommandEncoder & enc,
+  sys->gpu.upload_.queue(
+    bgra, [image = image.image, info](gpu::CommandEncoder & enc,
                                       gpu::Buffer buffer, Slice64 slice) {
-    enc.copy_buffer_to_image(
-      buffer, image,
-      span({
-        gpu::BufferImageCopy{.buffer_offset       = slice.offset,
-                             .buffer_row_length   = info.extent.x,
-                             .buffer_image_height = info.extent.y,
-                             .image_layers{.aspects = gpu::ImageAspects::Color,
-                                           .mip_level         = 0,
-                                           .first_array_layer = 0,
-                                           .num_array_layers  = 1},
-                             .image_offset{0, 0, 0},
-                             .image_extent{info.extent.x, info.extent.y, 1}}
-    }));
-  });
+      enc.copy_buffer_to_image(
+        buffer, image,
+        span({
+          gpu::BufferImageCopy{
+                               .buffer_offset       = slice.offset,
+                               .buffer_row_length   = info.extent.x,
+                               .buffer_image_height = info.extent.y,
+                               .image_layers{.aspects           = gpu::ImageAspects::Color,
+                          .mip_level         = 0,
+                          .first_array_layer = 0,
+                          .num_array_layers  = info.array_layers},
+                               .image_offset{0, 0, 0},
+                               .image_extent{info.extent.x, info.extent.y, 1}}
+      }));
+    });
 
   return image;
 }
 
 Result<ImageInfo, ImageLoadErr>
-  ImageSystem::load_from_memory(Vec<char> label, Vec2U extent,
-                                gpu::Format format, Span<u8 const> buffer)
+  ImageSystem::load_from_memory(Vec<char> label, gpu::ImageInfo const & info,
+                                Span<gpu::ImageViewInfo const> view_infos,
+                                Span<u8 const>                 channels)
 {
-  Span label_view = label.view();
-  return Ok{
-    upload(std::move(label),
-           gpu::ImageInfo{.label  = label_view,
-                          .type   = gpu::ImageType::Type2D,
-                          .format = format,
-                          .usage  = gpu::ImageUsage::Sampled |
-                                   gpu::ImageUsage::TransferDst |
-                                   gpu::ImageUsage::TransferSrc,
-                          .aspects = gpu::ImageAspects::Color,
-                          .extent{extent.x, extent.y, 1},
-                          .mip_levels   = 1,
-                          .array_layers = 1,
-                          .sample_count = gpu::SampleCount::C1},
-           buffer)
-  };
+  return Ok{upload_(std::move(label), info, view_infos, channels)};
 }
 
 Future<Result<ImageInfo, ImageLoadErr>>
@@ -199,20 +203,32 @@ Future<Result<ImageInfo, ImageLoadErr>>
                     Span label_view = label.view();
                     fut
                       .yield(Ok{
-                        upload(std::move(label),
-                               gpu::ImageInfo{
-                                              .label  = label_view,
-                                              .type   = gpu::ImageType::Type2D,
-                                              .format = info.format,
-                                              .usage  = gpu::ImageUsage::Sampled |
-                                          gpu::ImageUsage::TransferDst |
-                                          gpu::ImageUsage::TransferSrc,
-                                              .aspects = gpu::ImageAspects::Color,
-                                              .extent{info.extent.x, info.extent.y, 1},
-                                              .mip_levels   = 1,
-                                              .array_layers = 1,
-                                              .sample_count = gpu::SampleCount::C1},
-                               channels)
+                        upload_(std::move(label),
+                                gpu::ImageInfo{
+                                               .label  = label_view,
+                                               .type   = gpu::ImageType::Type2D,
+                                               .format = info.format,
+                                               .usage  = gpu::ImageUsage::Sampled |
+                                           gpu::ImageUsage::TransferDst |
+                                           gpu::ImageUsage::TransferSrc,
+                                               .aspects = gpu::ImageAspects::Color,
+                                               .extent{info.extent.x, info.extent.y, 1},
+                                               .mip_levels   = 1,
+                                               .array_layers = 1,
+                                               .sample_count = gpu::SampleCount::C1},
+                                span({gpu::ImageViewInfo{
+                                  .label           = label_view,
+                                  .image           = nullptr,
+                                  .view_type       = gpu::ImageViewType::Type2D,
+                                  .view_format     = info.format,
+                                  .mapping         = {},
+                                  .aspects         = gpu::ImageAspects::Color,
+                                  .first_mip_level = 0,
+                                  .num_mip_levels  = 1,
+                                  .first_array_layer = 0,
+                                  .num_array_layers  = 1}}
+                                ),
+                                channels)
                     })
                       .unwrap();
                   },
@@ -258,21 +274,31 @@ ImageInfo ImageSystem::get(ImageId id)
 void ImageSystem::unload(ImageId id)
 {
   ImageInfo image = get(id);
+  for (TextureId id : image.textures)
+  {
+    sys->gpu.release_texture_id(id);
+  }
+  for (gpu::ImageView view : image.views)
+  {
+    sys->gpu.release(view);
+  }
   sys->gpu.release(image.image);
-  sys->gpu.release(image.image_view);
-  sys->gpu.release_texture_id(image.texture);
   images_.erase((usize) id);
 }
 
 void ShaderSystem::shutdown()
 {
+  while (!shaders_.is_empty())
+  {
+    unload(ShaderId{shaders_.to_id(0)});
+  }
 }
 
 Result<ShaderInfo, ShaderLoadErr>
   ShaderSystem::load_from_memory(Vec<char> label, Span<u32 const> spirv)
 {
   gpu::Shader object =
-    sys->gpu.device
+    sys->gpu.device_
       ->create_shader(gpu::ShaderInfo{.label = label, .spirv_code = spirv})
       .unwrap();
 

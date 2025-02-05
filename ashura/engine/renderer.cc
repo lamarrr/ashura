@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/renderer.h"
 #include "ashura/engine/canvas.h"
+#include "ashura/std/trace.h"
 
 namespace ash
 {
@@ -61,7 +62,7 @@ void Renderer::acquire()
     p->acquire(passes);
   }
 
-  resources.resize(sys->gpu.buffering).unwrap();
+  resources.resize(sys->gpu.buffering_).unwrap();
 }
 
 void Renderer::release()
@@ -100,6 +101,7 @@ void Renderer::add_pipeline(Dyn<GpuPipeline *> pipeline)
 
 void Renderer::begin_frame(Framebuffer const &, Canvas & canvas)
 {
+  ScopeTrace            trace;
   gpu::CommandEncoder & enc = sys->gpu.encoder();
   Resources &           r   = resources[sys->gpu.ring_index()];
 
@@ -117,6 +119,7 @@ void Renderer::begin_frame(Framebuffer const &, Canvas & canvas)
 
 void Renderer::end_frame(Framebuffer const &, Canvas &)
 {
+  ScopeTrace            trace;
   gpu::CommandEncoder & enc = sys->gpu.encoder();
 
   for (Dyn<GpuPipeline *> const & p : pipelines)
@@ -127,6 +130,7 @@ void Renderer::end_frame(Framebuffer const &, Canvas &)
 
 void Renderer::render_frame(Framebuffer const & fb, Canvas & canvas)
 {
+  ScopeTrace            trace;
   Resources &           r   = resources[sys->gpu.ring_index()];
   gpu::CommandEncoder & enc = sys->gpu.encoder();
 
@@ -139,10 +143,21 @@ void Renderer::render_frame(Framebuffer const & fb, Canvas & canvas)
                                    .ngon_vertices = r.ngon_vertices,
                                    .ngon_indices  = r.ngon_indices};
 
+  auto const stat      = sys->gpu.begin_statistics("gpu.frame");
+  auto const timestamp = sys->gpu.begin_timespan("gpu.frame");
+
   for (Canvas::Pass const & pass : canvas.passes)
   {
+    auto const stat      = sys->gpu.begin_statistics(pass.label);
+    auto const timestamp = sys->gpu.begin_timespan(pass.label);
     pass.task(render_ctx);
+
+    stat.match([&](auto i) { sys->gpu.end_statistics(i); });
+    timestamp.match([&](auto i) { sys->gpu.end_timespan(i); });
   }
+
+  stat.match([&](auto i) { sys->gpu.end_statistics(i); });
+  timestamp.match([&](auto i) { sys->gpu.end_timespan(i); });
 }
 
 }    // namespace ash

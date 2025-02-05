@@ -1,7 +1,7 @@
 // #include "ashura/engine/animation.h"
+#include "ashura/engine/animation.h"
 #include "ashura/engine/engine.h"
 #include "ashura/engine/views.h"
-#include "ashura/std/async.h"
 
 struct Animated;
 
@@ -12,11 +12,6 @@ struct App
 int main()
 {
   using namespace ash;
-  Logger logger_obj;
-  hook_logger(&logger_obj);
-  defer logger_{[&] { hook_logger(nullptr); }};
-
-  CHECK(logger->add_sink(&stdio_sink));
 
   Dyn<Engine *> engine = Engine::create(
     default_allocator,
@@ -25,15 +20,13 @@ int main()
 
   defer engine_{[&] { engine->shutdown(); }};
 
-  FontId const RobotoMono    = sys->font.get("RobotoMono"_str).info().id;
-  // FontId const Roboto        = sys->font.get("Roboto"_str).info().id;
-  FontId const MaterialIcons = sys->font.get("MaterialIcons"_str).info().id;
-  // FontId const Amiri         = sys->font.get("Amiri"_str).info().id;
-
-  // (void) Amiri;
+  FontId const RobotoMono    = sys->font.get("RobotoMono"_str).id;
+  FontId const Roboto        = sys->font.get("Roboto"_str).id;
+  FontId const MaterialIcons = sys->font.get("MaterialIcons"_str).id;
+  FontId const Amiri         = sys->font.get("Amiri"_str).id;
 
   ui::theme.head_font = RobotoMono;
-  ui::theme.body_font = RobotoMono;
+  ui::theme.body_font = Roboto;
   ui::theme.icon_font = MaterialIcons;
 
   // [ ] forward pointer and key events to views
@@ -55,7 +48,7 @@ int main()
   ui::Image      img;
   ui::Image      img2;
 
-  btn.text(U"playlist_add ADD Meeeeeee"_str)
+  btn.text(U"playlist_add ADD TO PLAYLIST"_str)
     .run({.color = colors::WHITE}, {.font        = RobotoMono,
                                     .height      = ui::theme.body_font_height,
                                     .line_height = 1})
@@ -87,15 +80,14 @@ int main()
   ui::ColorPicker picker;
   ui::Plot        plot;
   ui::ProgressBar progress;
-  // [ ] store current cursor type in inputbuffer
 
-  // auto animation = StaggeredAnimation<f32>::make(4, 8, RippleStagger{});
+  auto animation = StaggeredAnimation<f32>::make(4, 8, RippleStagger{});
 
-  // animation.timelines().v0.frame(1'920 * 0.25F, 1'920, 400ms, easing::out());
+  animation.timelines().v0.frame(100, 1'920, 800ms, easing::out());
 
   auto loop = [&](ui::ViewContext const & ctx) {
-    // animation.tick(ctx.timedelta);
-    // flex.frame(animation.animate(0).v0, 1'080);
+    animation.tick(ctx.timedelta);
+    flex.frame({animation.animate(0).v0, 500});
   };
 
   engine->run(flex, fn(loop));

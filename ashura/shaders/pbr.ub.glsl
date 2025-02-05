@@ -190,7 +190,7 @@ void main()
     luminance += radiance;
   }
 
-  // [ ] emissive bloom
+  // [ ] emissive bloom, separate channel?
   o_color = vec4(luminance, 1);
 }
 #endif

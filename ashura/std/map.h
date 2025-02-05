@@ -384,7 +384,7 @@ struct [[nodiscard]] Map
   /// otherwise the entry is added
   /// @return The inserted or existing value if the insert was successful
   /// without a memory allocation error, otherwise an Err
-  [[nodiscard]] constexpr Result<Entry *>
+  [[nodiscard]] constexpr Result<Tuple<K &, V &>>
     insert(K key, V value, bool * exists = nullptr, bool replace = true)
   {
     if (exists != nullptr)
@@ -447,7 +447,10 @@ struct [[nodiscard]] Map
     }
 
     max_probe_dist_ = max(max_probe_dist_, probe_dist);
-    return Ok{probes_ + insert_idx};
+    Entry * probe   = probes_ + insert_idx;
+    return Ok{
+      Tuple<K &, V &>{probe->key, probe->value}
+    };
   }
 
   constexpr void pop_probe_(usize pop_idx)
@@ -544,12 +547,12 @@ struct IsTriviallyRelocatable<Map<K, V, H, KCmp, D>>
 };
 
 template <typename V, typename D = usize>
-using StrMap = Map<Span<char const>, V, StrHasher, StrEq, D>;
+using StrMap = Map<Span<char const>, V, SpanHash, StrEq, D>;
 
 template <typename V, typename D = usize>
-using StrVecMap = Map<Vec<char>, V, StrHasher, StrEq, D>;
+using StrVecMap = Map<Vec<char>, V, SpanHash, StrEq, D>;
 
 template <typename K, typename V, typename D = usize>
-using BitMap = Map<K, V, BitHasher, BitEq, D>;
+using BitMap = Map<K, V, BitHash, BitEq, D>;
 
 }    // namespace ash

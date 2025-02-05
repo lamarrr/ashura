@@ -44,9 +44,9 @@ struct FontSystemImpl : FontSystem
     load_from_path(Vec<char> label, Span<char const> path, u32 font_height,
                    u32 face = 0) override;
 
-  virtual Font & get(FontId id) override;
+  virtual FontInfo get(FontId id) override;
 
-  virtual Font & get(Span<char const> label) override;
+  virtual FontInfo get(Span<char const> label) override;
 
   virtual void unload(FontId id) override;
 };

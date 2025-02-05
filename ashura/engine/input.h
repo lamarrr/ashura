@@ -1021,6 +1021,8 @@ struct InputState
 
   bool drop_hovering = false;
 
+  Cursor cursor = Cursor::Default;
+
   explicit InputState(AllocatorRef allocator) :
     drop_data{allocator},
     text{allocator}
@@ -1081,6 +1083,7 @@ struct InputState
     dst.surface_resized = resized;
     dst.dropped         = dropped;
     dst.drop_hovering   = drop_hovering;
+    dst.cursor          = cursor;
   }
 
   constexpr bool key_down(KeyCode k) const

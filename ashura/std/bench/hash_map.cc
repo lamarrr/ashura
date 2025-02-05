@@ -1255,7 +1255,7 @@ struct std_allocator
 
 static void BM_StdMap_AshHasher(benchmark::State & state)
 {
-  std::unordered_map<Span<char const>, i64, StrHasher, StrEq,
+  std::unordered_map<Span<char const>, i64, SpanHash, StrEq,
                      std_allocator<std::pair<Span<char const> const, i64>>>
             map;
   i64 const num_inserts = state.range(0);
