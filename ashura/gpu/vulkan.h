@@ -690,15 +690,18 @@ struct CommandEncoder final : gpu::CommandEncoder
     compute_ctx.clear();
   }
 
-  virtual void reset_timestamp_query(gpu::TimeStampQuery query) override;
+  virtual void reset_timestamp_query(gpu::TimeStampQuery query,
+                                     Slice32             range) override;
 
-  virtual void reset_statistics_query(gpu::StatisticsQuery query) override;
+  virtual void reset_statistics_query(gpu::StatisticsQuery query,
+                                      Slice32              range) override;
 
-  virtual void write_timestamp(gpu::TimeStampQuery query) override;
+  virtual void write_timestamp(gpu::TimeStampQuery query,
+                               gpu::PipelineStages stage, u32 index) override;
 
-  virtual void begin_statistics(gpu::StatisticsQuery query) override;
+  virtual void begin_statistics(gpu::StatisticsQuery query, u32 index) override;
 
-  virtual void end_statistics(gpu::StatisticsQuery query) override;
+  virtual void end_statistics(gpu::StatisticsQuery query, u32 index) override;
 
   virtual void begin_debug_marker(Span<char const> region_name,
                                   Vec4             color) override;
@@ -821,7 +824,7 @@ struct Device final : gpu::Device
 
   void uninit();
 
-  virtual gpu::DeviceProperties get_device_properties() override;
+  virtual gpu::DeviceProperties get_properties() override;
 
   virtual Result<gpu::FormatProperties, Status>
     get_format_properties(gpu::Format format) override;
@@ -863,10 +866,11 @@ struct Device final : gpu::Device
     create_swapchain(gpu::Surface               surface,
                      gpu::SwapchainInfo const & info) override;
 
-  virtual Result<gpu::TimeStampQuery, Status> create_timestamp_query() override;
+  virtual Result<gpu::TimeStampQuery, Status>
+    create_timestamp_query(u32 count) override;
 
   virtual Result<gpu::StatisticsQuery, Status>
-    create_statistics_query() override;
+    create_statistics_query(u32 count) override;
 
   virtual void uninit(gpu::Buffer buffer) override;
 
@@ -952,11 +956,13 @@ struct Device final : gpu::Device
 
   virtual Result<Void, Status> submit_frame(gpu::Swapchain swapchain) override;
 
-  virtual Result<u64, Status>
-    get_timestamp_query_result(gpu::TimeStampQuery query) override;
+  virtual Result<Void, Status>
+    get_timestamp_query_result(gpu::TimeStampQuery query, Slice32 range,
+                               Vec<u64> & timestamps) override;
 
-  virtual Result<gpu::PipelineStatistics, Status>
-    get_statistics_query_result(gpu::StatisticsQuery query) override;
+  virtual Result<Void, Status> get_statistics_query_result(
+    gpu::StatisticsQuery query, Slice32 range,
+    Vec<gpu::PipelineStatistics> & statistics) override;
 };
 
 }    // namespace vk

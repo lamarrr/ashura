@@ -575,6 +575,28 @@ enum class ShaderStages : u8
 
 ASH_BIT_ENUM_OPS(ShaderStages)
 
+enum class PipelineStages : u64
+{
+  NONE                  = 0x0000'0000,
+  TopOfPipe             = 0x0000'0001,
+  DrawIndirect          = 0x0000'0002,
+  VertexInput           = 0x0000'0004,
+  VertexShader          = 0x0000'0008,
+  GeometryShader        = 0x0000'0040,
+  FragmentShader        = 0x0000'0080,
+  EarlyFragmentTests    = 0x0000'0100,
+  LateFragmentTests     = 0x0000'0200,
+  ColorAttachmentOutput = 0x0000'0400,
+  ComputeShader         = 0x0000'0800,
+  Transfer              = 0x0000'1000,
+  BottomOfPipe          = 0x0000'2000,
+  Host                  = 0x0000'4000,
+  AllGraphics           = 0x0000'8000,
+  AllCommands           = 0x0001'0000
+};
+
+ASH_BIT_ENUM_OPS(PipelineStages)
+
 enum class BorderColor : u8
 {
   FloatTransparentBlack = 0,
@@ -1173,15 +1195,16 @@ struct RenderingInfo
 /// to execute tasks at end of frame. use the tail frame index.
 struct CommandEncoder
 {
-  virtual void reset_timestamp_query(TimeStampQuery query) = 0;
+  virtual void reset_timestamp_query(TimeStampQuery query, Slice32 range) = 0;
 
-  virtual void reset_statistics_query(StatisticsQuery query) = 0;
+  virtual void reset_statistics_query(StatisticsQuery query, Slice32 range) = 0;
 
-  virtual void write_timestamp(TimeStampQuery query) = 0;
+  virtual void write_timestamp(TimeStampQuery query, PipelineStages stage,
+                               u32 index) = 0;
 
-  virtual void begin_statistics(StatisticsQuery query) = 0;
+  virtual void begin_statistics(StatisticsQuery query, u32 index) = 0;
 
-  virtual void end_statistics(StatisticsQuery query) = 0;
+  virtual void end_statistics(StatisticsQuery query, u32 index) = 0;
 
   virtual void begin_debug_marker(Span<char const> region_name, Vec4 color) = 0;
 
@@ -1268,7 +1291,7 @@ struct FrameContext
 
 struct Device
 {
-  virtual DeviceProperties get_device_properties() = 0;
+  virtual DeviceProperties get_properties() = 0;
 
   virtual Result<FormatProperties, Status>
     get_format_properties(Format format) = 0;
@@ -1305,9 +1328,10 @@ struct Device
   virtual Result<Swapchain, Status>
     create_swapchain(Surface surface, SwapchainInfo const & info) = 0;
 
-  virtual Result<TimeStampQuery, Status> create_timestamp_query() = 0;
+  virtual Result<TimeStampQuery, Status> create_timestamp_query(u32 count) = 0;
 
-  virtual Result<StatisticsQuery, Status> create_statistics_query() = 0;
+  virtual Result<StatisticsQuery, Status>
+    create_statistics_query(u32 count) = 0;
 
   virtual void uninit(Buffer buffer) = 0;
 
@@ -1387,11 +1411,13 @@ struct Device
 
   virtual Result<Void, Status> submit_frame(Swapchain swapchain) = 0;
 
-  virtual Result<u64, Status>
-    get_timestamp_query_result(TimeStampQuery query) = 0;
+  virtual Result<Void, Status>
+    get_timestamp_query_result(TimeStampQuery query, Slice32 range,
+                               Vec<u64> & timestamps) = 0;
 
-  virtual Result<PipelineStatistics, Status>
-    get_statistics_query_result(StatisticsQuery query) = 0;
+  virtual Result<Void, Status>
+    get_statistics_query_result(StatisticsQuery query, Slice32 range,
+                                Vec<PipelineStatistics> & statistics) = 0;
 };
 
 struct Instance

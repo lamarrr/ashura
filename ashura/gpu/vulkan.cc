@@ -1701,7 +1701,7 @@ void Device::set_resource_name(Span<char const> label, void const * resource,
   vk_table.DebugMarkerSetObjectNameEXT(vk_dev, &debug_info);
 }
 
-gpu::DeviceProperties Device::get_device_properties()
+gpu::DeviceProperties Device::get_properties()
 {
   VkPhysicalDeviceFeatures const &   vk_features   = phy_dev.vk_features;
   VkPhysicalDeviceProperties const & vk_properties = phy_dev.vk_properties;
@@ -3277,7 +3277,7 @@ Result<gpu::Swapchain, Status>
   return Ok{(gpu::Swapchain) swapchain};
 }
 
-Result<gpu::TimeStampQuery, Status> Device::create_timestamp_query()
+Result<gpu::TimeStampQuery, Status> Device::create_timestamp_query(u32 count)
 {
   CHECK(count > 0, "");
 
@@ -3286,7 +3286,7 @@ Result<gpu::TimeStampQuery, Status> Device::create_timestamp_query()
                                     .pNext      = nullptr,
                                     .flags      = 0,
                                     .queryType  = VK_QUERY_TYPE_TIMESTAMP,
-                                    .queryCount = 7,
+                                    .queryCount = count,
                                     .pipelineStatistics = 0};
   VkQueryPool           vk_pool;
   VkResult              result =
@@ -3300,7 +3300,7 @@ Result<gpu::TimeStampQuery, Status> Device::create_timestamp_query()
   return Ok{(gpu::TimeStampQuery) vk_pool};
 }
 
-Result<gpu::StatisticsQuery, Status> Device::create_statistics_query()
+Result<gpu::StatisticsQuery, Status> Device::create_statistics_query(u32 count)
 {
   CHECK(count > 0, "");
 
@@ -3323,7 +3323,7 @@ Result<gpu::StatisticsQuery, Status> Device::create_statistics_query()
     .pNext              = nullptr,
     .flags              = 0,
     .queryType          = VK_QUERY_TYPE_PIPELINE_STATISTICS,
-    .queryCount         = 1,
+    .queryCount         = count,
     .pipelineStatistics = QUERY_STATS};
 
   VkQueryPool vk_pool;
@@ -4283,45 +4283,65 @@ Result<Void, Status> Device::submit_frame(gpu::Swapchain swapchain_)
   return Ok{Void{}};
 }
 
-Result<u64, Status>
-  Device::get_timestamp_query_result(gpu::TimeStampQuery query_)
+Result<Void, Status>
+  Device::get_timestamp_query_result(gpu::TimeStampQuery query_, Slice32 range,
+                                     Vec<u64> & timestamps)
 {
+  if (range.span == 0)
+  {
+    return Ok{};
+  }
+
   VkQueryPool const vk_pool = (VkQueryPool) query_;
 
-  u64      timestamp;
-  VkResult result =
-    vk_table.GetQueryPoolResults(vk_dev, vk_pool, 0, 1, sizeof(u64), &timestamp,
-                                 sizeof(u64), VK_QUERY_RESULT_64_BIT);
+  usize const offset = timestamps.size();
+  timestamps.extend_uninit(range.span).unwrap();
+
+  VkResult result = vk_table.GetQueryPoolResults(
+    vk_dev, vk_pool, range.offset, range.span, sizeof(u64) * range.span,
+    timestamps.data() + offset, sizeof(u64), VK_QUERY_RESULT_64_BIT);
 
   if (result != VK_SUCCESS)
   {
+    timestamps.resize(offset).unwrap();
     return Err{(Status) result};
   }
 
-  return Ok{timestamp};
+  return Ok{};
 }
 
-Result<gpu::PipelineStatistics, Status>
-  Device::get_statistics_query_result(gpu::StatisticsQuery query_)
+Result<Void, Status>
+  Device::get_statistics_query_result(gpu::StatisticsQuery           query_,
+                                      Slice32                        range,
+                                      Vec<gpu::PipelineStatistics> & statistics)
 {
   if (phy_dev.vk_features.pipelineStatisticsQuery != VK_TRUE)
   {
     return Err{Status::FeatureNotPresent};
   }
 
+  if (range.span == 0)
+  {
+    return Ok{};
+  }
+
   VkQueryPool const vk_pool = (VkQueryPool) query_;
 
-  gpu::PipelineStatistics stats;
-  VkResult                result = vk_table.GetQueryPoolResults(
-    vk_dev, vk_pool, 0, 1, sizeof(gpu::PipelineStatistics), &stats, sizeof(u64),
-    VK_QUERY_RESULT_64_BIT);
+  usize const offset = statistics.size();
+  statistics.extend_uninit(range.span).unwrap();
+
+  VkResult result = vk_table.GetQueryPoolResults(
+    vk_dev, vk_pool, range.offset, range.span,
+    sizeof(gpu::PipelineStatistics) * range.span, statistics.data() + offset,
+    sizeof(gpu::PipelineStatistics), VK_QUERY_RESULT_64_BIT);
 
   if (result != VK_SUCCESS)
   {
+    statistics.resize(offset).unwrap();
     return Err{(Status) result};
   }
 
-  return Ok{stats};
+  return Ok{};
 }
 
 #define ENCODE_PRELUDE()         \
@@ -4335,47 +4355,52 @@ Result<gpu::PipelineStatistics, Status>
     [&] { arg_pool.reclaim(); }  \
   }
 
-void CommandEncoder::reset_timestamp_query(gpu::TimeStampQuery query_)
+void CommandEncoder::reset_timestamp_query(gpu::TimeStampQuery query_,
+                                           Slice32             range)
 {
   ENCODE_PRELUDE();
   VkQueryPool const vk_pool = (VkQueryPool) query_;
   CHECK(!is_in_pass(), "");
 
-  dev->vk_table.CmdResetQueryPool(vk_command_buffer, vk_pool, 0, 1);
+  dev->vk_table.CmdResetQueryPool(vk_command_buffer, vk_pool, range.offset,
+                                  range.span);
 }
 
-void CommandEncoder::reset_statistics_query(gpu::StatisticsQuery query_)
+void CommandEncoder::reset_statistics_query(gpu::StatisticsQuery query_,
+                                            Slice32              range)
 {
   ENCODE_PRELUDE();
   VkQueryPool const vk_pool = (VkQueryPool) query_;
   CHECK(!is_in_pass(), "");
 
-  dev->vk_table.CmdResetQueryPool(vk_command_buffer, vk_pool, 0, 1);
+  dev->vk_table.CmdResetQueryPool(vk_command_buffer, vk_pool, range.offset,
+                                  range.span);
 }
 
-void CommandEncoder::write_timestamp(gpu::TimeStampQuery query_)
+void CommandEncoder::write_timestamp(gpu::TimeStampQuery query_,
+                                     gpu::PipelineStages stage, u32 index)
 {
   ENCODE_PRELUDE();
   CHECK(!is_in_pass(), "");
   VkQueryPool const vk_pool = (VkQueryPool) query_;
   dev->vk_table.CmdWriteTimestamp(
-    vk_command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, vk_pool, 0);
+    vk_command_buffer, (VkPipelineStageFlagBits) stage, vk_pool, index);
 }
 
-void CommandEncoder::begin_statistics(gpu::StatisticsQuery query_)
+void CommandEncoder::begin_statistics(gpu::StatisticsQuery query_, u32 index)
 {
   ENCODE_PRELUDE();
   CHECK(!is_in_pass(), "");
   VkQueryPool const vk_pool = (VkQueryPool) query_;
-  dev->vk_table.CmdBeginQuery(vk_command_buffer, vk_pool, 0, 0);
+  dev->vk_table.CmdBeginQuery(vk_command_buffer, vk_pool, index, 0);
 }
 
-void CommandEncoder::end_statistics(gpu::StatisticsQuery query_)
+void CommandEncoder::end_statistics(gpu::StatisticsQuery query_, u32 index)
 {
   ENCODE_PRELUDE();
   CHECK(!is_in_pass(), "");
   VkQueryPool const vk_pool = (VkQueryPool) query_;
-  dev->vk_table.CmdEndQuery(vk_command_buffer, vk_pool, 0);
+  dev->vk_table.CmdEndQuery(vk_command_buffer, vk_pool, index);
 }
 
 void CommandEncoder::begin_debug_marker(Span<char const> region_name,
