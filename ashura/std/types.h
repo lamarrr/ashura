@@ -1232,6 +1232,18 @@ struct Span
 template <typename T, usize N>
 Span(T (&)[N]) -> Span<T>;
 
+template <typename T>
+Span(T *, T *) -> Span<T>;
+
+template <typename T>
+Span(T *, T const *) -> Span<T>;
+
+template <typename T>
+Span(T *, usize) -> Span<T>;
+
+template <typename T>
+Span(SpanIter<T>, IterEnd) -> Span<T>;
+
 template <SpanContainer C>
 Span(C & container) -> Span<std::remove_pointer_t<decltype(data(container))>>;
 
