@@ -442,7 +442,7 @@ static inline void flush_batch(Canvas & c)
           .textures       = sys->gpu.textures_,
           .first_instance = batch.run.offset,
           .index_counts =
-            ctx.canvas.ngon_index_counts.view().slice((Slice) batch.run)};
+            ctx.canvas.ngon_index_counts.view().slice(batch.run.as_slice())};
         ctx.passes.ngon->encode(ctx.enc, params);
       });
       return;
@@ -661,7 +661,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
 
   static constexpr u32 NUM_PASSES = 6;
 
-  for (u8 pass = 0; pass < NUM_PASSES; pass++)
+  for (u32 pass = 0; pass < NUM_PASSES; pass++)
   {
     if (pass == Pass::HIGHLIGHT && style.highlight.slice.is_empty())
     {
@@ -684,33 +684,6 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         continue;
       }
 
-      if (pass == Pass::HIGHLIGHT)
-      {
-        if (!style.highlight.slice.overlaps(static_cast<Slice>(ln.codepoints)))
-        {
-          continue;
-        }
-
-        if (style.highlight.slice.contains(static_cast<Slice>(ln.codepoints)))
-        {
-          // rrect({.center       = info.center,
-          //       .extent       = extent,
-          //       .transform    = info.transform * translate3d(vec3(center, 0)),
-          //       .corner_radii = style.highlight.style.corner_radii,
-          //       .tint         = style.highlight.style.color});
-          // [ ]  draw highlight on line
-          // [ ] pointer position and style
-          // [ ] usew coverage info on runs, if it covers the run highlight the entire run, if it covers parts of the glyphs, cover part of it.
-          //
-          // [ ] the line is laid out in visual order
-          //
-          // [ ] render highlights
-          // they are either covering the whole line, or covering portions of it, but never individual glyphs
-          //
-          continue;
-        }
-      }
-
       f32 const           baseline  = line_y - ln.metrics.descent;
       TextDirection const direction = level_to_direction(ln.metrics.level);
       // flip the alignment axis direction if it is an RTL line
@@ -719,8 +692,10 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
       f32 cursor = space_align(block_width, ln.metrics.width, alignment) -
                    ln.metrics.width * 0.5F;
 
-      for (TextRun const & run :
-           layout.runs.view().slice(static_cast<Slice>(ln.runs)))
+      f32 highlight_min_x = F32_MAX;
+      f32 highlight_max_x = F32_MIN;
+
+      for (TextRun const & run : layout.runs.view().slice(ln.runs))
       {
         FontStyle const &    font_style  = block.fonts[run.style];
         TextStyle const &    run_style   = style.runs[run.style];
@@ -733,9 +708,10 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
 
         if (pass == Pass::BACKGROUND && !run_style.background.is_transparent())
         {
-          Vec2 extent{run_width, run_metrics.height()};
-          Vec2 center{cursor + extent.x * 0.5F,
-                      baseline - run_metrics.ascent + extent.y * 0.5F};
+          Vec2 const extent{run_width, run_metrics.height()};
+          Vec2 const center{cursor + extent.x * 0.5F,
+                            baseline - run_metrics.ascent + extent.y * 0.5F};
+
           rrect({.center       = info.center,
                  .extent       = extent,
                  .transform    = info.transform * translate3d(vec3(center, 0)),
@@ -745,8 +721,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
 
         f32 glyph_cursor = cursor;
 
-        for (GlyphShape const & sh :
-             layout.glyphs.view().slice(static_cast<Slice>(run.glyphs)))
+        for (GlyphShape const & sh : layout.glyphs.view().slice(run.glyphs))
         {
           GlyphMetrics const & m      = font.glyphs[sh.glyph];
           AtlasGlyph const &   agl    = atlas.glyphs[sh.glyph];
@@ -755,11 +730,20 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                               au_to_px(m.bearing, font_height) +
                               au_to_px(sh.offset, font_height) + extent * 0.5F;
 
+          if (pass == Pass::HIGHLIGHT &&
+              style.highlight.slice.contains(sh.cluster))
+          {
+            f32 const begin = center.x - 0.5 * extent.x;
+            f32 const end   = center.x + 0.5 * extent.x;
+            highlight_min_x = min(begin, highlight_min_x);
+            highlight_max_x = max(end, highlight_max_x);
+          }
+
           if (pass == Pass::GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
               !run_style.shadow.is_transparent())
           {
-            Vec2 shadow_extent = extent * run_style.shadow_scale;
-            Vec2 shadow_center =
+            Vec2 const shadow_extent = extent * run_style.shadow_scale;
+            Vec2 const shadow_center =
               center + block.font_scale * run_style.shadow_offset;
             rect({
               .center    = info.center,
@@ -795,9 +779,9 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         if (pass == Pass::STRIKETHROUGH &&
             run_style.strikethrough_thickness != 0)
         {
-          Vec2 extent{run_width,
-                      block.font_scale * run_style.strikethrough_thickness};
-          Vec2 center =
+          Vec2 const extent{run_width, block.font_scale *
+                                         run_style.strikethrough_thickness};
+          Vec2 const center =
             Vec2{cursor, baseline - run_metrics.ascent * 0.5F} + extent * 0.5F;
           rect({.center    = info.center,
                 .extent    = extent,
@@ -812,9 +796,9 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
 
         if (pass == Pass::UNDERLINE && run_style.underline_thickness != 0)
         {
-          Vec2 extent{run_width,
-                      block.font_scale * run_style.underline_thickness};
-          Vec2 center = Vec2{cursor, baseline + 2} + extent * 0.5F;
+          Vec2 const extent{run_width,
+                            block.font_scale * run_style.underline_thickness};
+          Vec2 const center = Vec2{cursor, baseline + 2} + extent * 0.5F;
           rect({.center    = info.center,
                 .extent    = extent,
                 .transform = info.transform * translate3d(vec3(center, 0)),
@@ -827,6 +811,20 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         }
 
         cursor += run_width;
+      }
+
+      if (pass == Pass::HIGHLIGHT &&
+          style.highlight.slice.overlaps(ln.codepoints) &&
+          highlight_min_x != F32_MAX && highlight_max_x != F32_MIN)
+      {
+        Vec2 const extent{highlight_max_x - highlight_min_x, ln.metrics.height};
+        Vec2 const center{highlight_min_x + 0.5F * extent.x,
+                          line_y - 0.5F * extent.y};
+        rrect({.center       = info.center,
+               .extent       = extent,
+               .transform    = info.transform * translate3d(vec3(center, 0)),
+               .corner_radii = style.highlight.style.corner_radii,
+               .tint         = style.highlight.style.color});
       }
     }
   }

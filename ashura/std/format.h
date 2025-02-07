@@ -800,7 +800,7 @@ void format(fmt::Sink sink, fmt::Spec, void const * const & str);
 template <typename T>
 void format(fmt::Sink sink, fmt::Spec spec, T * const & ptr)
 {
-  return push(sink, spec, (void const *) ptr);
+  return format(sink, spec, (void const *) ptr);
 }
 
 }    // namespace ash

@@ -60,6 +60,11 @@ struct Logger
     obj::copy_assign(sinks.slice(0, MAX_SINKS), sinks_);
   }
 
+  constexpr Logger(std::initializer_list<LogSink * const> sinks) :
+    Logger{span(sinks)}
+  {
+  }
+
   constexpr Logger(Logger const &)             = delete;
   constexpr Logger(Logger &&)                  = default;
   constexpr Logger & operator=(Logger &&)      = default;

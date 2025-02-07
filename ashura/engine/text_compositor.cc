@@ -232,10 +232,10 @@ static inline LinePosition line_translate(TextLayout const & layout, i64 cursor,
   return LinePosition{};
 }
 
-void TextCompositor::command(RenderText const & text, TextCommand cmd,
-                             Insert insert, Erase erase, Span<c32 const> input,
-                             ClipBoard & clipboard, u32 lines_per_page,
-                             CRect const & region, Vec2 pos, f32 zoom)
+Slice TextCompositor::command(RenderText const & text, TextCommand cmd,
+                              Insert insert, Erase erase, Span<c32 const> input,
+                              ClipBoard & clipboard, u32 lines_per_page,
+                              CRect const & region, Vec2 pos, f32 zoom)
 {
   TextBlock const block = text.block();
 
@@ -316,7 +316,7 @@ void TextCompositor::command(RenderText const & text, TextCommand cmd,
       if (!cursor_.is_empty())
       {
         cursor_.to_last();
-        return;
+        break;
       }
 
       cursor_.to_last();
@@ -551,6 +551,8 @@ void TextCompositor::command(RenderText const & text, TextCommand cmd,
     default:
       break;
   }
+
+  return cursor_.as_slice();
 }
 
 }    // namespace ash

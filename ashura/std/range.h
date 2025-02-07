@@ -209,7 +209,7 @@ struct EnumerateRange
   }
 };
 
-template <typename Index, Range R>
+template <typename Index = usize, Range R>
 constexpr auto enumerate(R && range)
 {
   return EnumerateRange<decltype(begin(range)), Index>{.iter_{begin(range)}};

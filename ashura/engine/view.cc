@@ -21,7 +21,6 @@ Theme theme = {
   .on_background    = mdc::WHITE,
   .on_surface       = mdc::WHITE,
   .on_primary       = mdc::WHITE,
-  .on_secondary     = mdc::WHITE,
   .on_error         = mdc::WHITE,
   .on_warning       = mdc::WHITE,
   .on_success       = mdc::WHITE,

@@ -284,31 +284,30 @@ struct ViewState
 
 struct Theme
 {
-  Vec4U8 background        = {};
-  Vec4U8 surface           = {};
-  Vec4U8 surface_variant   = {};
-  Vec4U8 primary           = {};
-  Vec4U8 primary_variant   = {};
-  Vec4U8 error             = {};
-  Vec4U8 warning           = {};
-  Vec4U8 success           = {};
-  Vec4U8 active            = {};
-  Vec4U8 inactive          = {};
-  Vec4U8 on_background     = {};
-  Vec4U8 on_surface        = {};
-  Vec4U8 on_primary        = {};
-  Vec4U8 on_secondary      = {};
-  Vec4U8 on_error          = {};
-  Vec4U8 on_warning        = {};
-  Vec4U8 on_success        = {};
-  Vec4U8 focus             = {};
-  f32    head_font_height  = {};
-  f32    body_font_height  = {};
-  f32    line_height       = {};
-  f32    focus_thickness   = 1;
-  FontId head_font         = FontId::Invalid;
-  FontId body_font         = FontId::Invalid;
-  FontId icon_font         = FontId::Invalid;
+  Vec4U8 background       = {};
+  Vec4U8 surface          = {};
+  Vec4U8 surface_variant  = {};
+  Vec4U8 primary          = {};
+  Vec4U8 primary_variant  = {};
+  Vec4U8 error            = {};
+  Vec4U8 warning          = {};
+  Vec4U8 success          = {};
+  Vec4U8 active           = {};
+  Vec4U8 inactive         = {};
+  Vec4U8 on_background    = {};
+  Vec4U8 on_surface       = {};
+  Vec4U8 on_primary       = {};
+  Vec4U8 on_error         = {};
+  Vec4U8 on_warning       = {};
+  Vec4U8 on_success       = {};
+  Vec4U8 focus            = {};
+  f32    head_font_height = {};
+  f32    body_font_height = {};
+  f32    line_height      = {};
+  f32    focus_thickness  = 1;
+  FontId head_font        = FontId::Invalid;
+  FontId body_font        = FontId::Invalid;
+  FontId icon_font        = FontId::Invalid;
 };
 
 extern Theme theme;

@@ -248,6 +248,8 @@ struct GpuUploadQueue
 
   u32 ring_index_;
 
+  u64 min_buffer_size_ = 100_MB;
+
   static GpuUploadQueue make(u32 buffering, AllocatorRef allocator);
 
   GpuUploadQueue(ArenaPool                                          arena,

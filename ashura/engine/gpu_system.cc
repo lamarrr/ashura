@@ -113,10 +113,25 @@ void GpuUploadQueue::uninit(gpu::Device & device)
 
 void GpuUploadQueue::encode(gpu::Device & gpu, gpu::CommandEncoder & enc)
 {
-  // [ ] the upload queue persists the size of the cpu and gpu buffer across all frames even with large updates. fixed-budget? just send them through regardless?
   UploadBuffer & buff = buffers_[ring_index_];
+
+  u64 const next_size = max(min_buffer_size_, buff.cpu.size());
+
+  if (buff.gpu.size > next_size)
+  {
+    buff.gpu.uninit(gpu);
+    buff.gpu.reserve(gpu, next_size);
+  }
+
   buff.gpu.assign(gpu, buff.cpu);
-  buff.cpu.reset();
+
+  buff.cpu.clear();
+
+  if (buff.cpu.size() > min_buffer_size_)
+  {
+    buff.cpu.reset();
+    buff.cpu.reserve(min_buffer_size_).unwrap();
+  }
 
   for (Task const & task : tasks_)
   {

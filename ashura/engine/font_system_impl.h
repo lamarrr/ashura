@@ -9,11 +9,13 @@ struct FontSystemImpl : FontSystem
 {
   AllocatorRef                allocator_;
   SparseVec<Vec<Dyn<Font *>>> fonts_;
+  Vec<TextSegment>            segments_;
   hb_buffer_t *               hb_buffer_;
 
   explicit FontSystemImpl(AllocatorRef allocator, hb_buffer_t * hb_buffer) :
     allocator_{allocator},
     fonts_{allocator},
+    segments_{allocator},
     hb_buffer_{hb_buffer}
   {
   }

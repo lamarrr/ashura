@@ -231,7 +231,7 @@ enum class TextScript : u8
 struct TextHighlightStyle
 {
   Vec4U8 color        = {};
-  f32    corner_radii = 1;
+  Vec4   corner_radii = Vec4::splat(1);
 };
 
 struct TextHighlight
@@ -375,11 +375,11 @@ struct TextRunMetrics
 /// the max-width.
 struct TextRun
 {
-  Slice32        codepoints  = {};
+  Slice          codepoints  = {};
   u32            style       = 0;
   f32            font_height = 0;
   f32            line_height = 0;
-  Slice32        glyphs      = {};
+  Slice          glyphs      = {};
   TextRunMetrics metrics     = {};
   u8             base_level  = 0;
   u8             level       = 0;
@@ -405,8 +405,8 @@ struct LineMetrics
 /// @param paragraph if the new line is a new paragraph
 struct Line
 {
-  Slice32     codepoints = {};
-  Slice32     runs       = {};
+  Slice       codepoints = {};
+  Slice       runs       = {};
   LineMetrics metrics    = {};
   bool        paragraph  = false;
 };
@@ -416,6 +416,7 @@ struct TextHitResult
   u32 cluster = 0;
   u32 line    = 0;
   u32 column  = 0;
+  f32 pos     = 0;
 };
 
 /// @brief cached/pre-computed text layout
@@ -428,18 +429,16 @@ struct TextHitResult
 /// found in the text.
 struct TextLayout
 {
-  f32              max_width = 0;
-  hash64           hash      = 0;
-  Vec2             extent    = {};
-  Vec<TextSegment> segments  = {};
-  Vec<GlyphShape>  glyphs    = {};
-  Vec<TextRun>     runs      = {};
-  Vec<Line>        lines     = {};
+  f32             max_width = 0;
+  hash64          hash      = 0;
+  Vec2            extent    = {};
+  Vec<GlyphShape> glyphs    = {};
+  Vec<TextRun>    runs      = {};
+  Vec<Line>       lines     = {};
 
   explicit TextLayout(AllocatorRef allocator) :
     max_width{0},
     extent{},
-    segments{allocator},
     glyphs{allocator},
     runs{allocator},
     lines{allocator}
@@ -456,7 +455,6 @@ struct TextLayout
   {
     max_width = F32_MAX;
     extent    = Vec2{0, 0};
-    segments.clear();
     glyphs.clear();
     runs.clear();
     lines.clear();

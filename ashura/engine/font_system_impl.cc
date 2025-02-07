@@ -583,7 +583,7 @@ void FontSystemImpl::unload(FontId id)
 /// @param script OpenType (ISO15924) Script
 /// Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
 static inline void shape(hb_font_t * font, hb_buffer_t * buffer,
-                         Span<c32 const> text, u32 first, u32 count,
+                         Span<c32 const> text, Slice codepoints,
                          hb_script_t script, hb_direction_t direction,
                          hb_language_t language, bool use_kerning,
                          bool                              use_ligatures,
@@ -619,7 +619,7 @@ static inline void shape(hb_font_t * font, hb_buffer_t * buffer,
   // as defined in the font
   hb_buffer_set_language(buffer, language);
   hb_buffer_add_codepoints(buffer, (u32 const *) text.data(), (i32) text.size(),
-                           first, (i32) count);
+                           (u32) codepoints.offset, (i32) codepoints.span);
   hb_shape(font, buffer, shaping_features, (u32) size(shaping_features));
 
   u32                         num_pos;
@@ -642,8 +642,8 @@ static inline void shape(hb_font_t * font, hb_buffer_t * buffer,
 static inline void segment_paragraphs(Span<c32 const>   text,
                                       Span<TextSegment> segments)
 {
-  u32 const text_size = text.size32();
-  for (u32 i = 0; i < text_size;)
+  auto const text_size = text.size();
+  for (usize i = 0; i < text_size;)
   {
     segments[i].paragraph_begin = true;
     while (i < text_size)
@@ -683,7 +683,7 @@ static inline void segment_scripts(Span<c32 const>   text,
 
   while (SBScriptLocatorMoveNext(locator) == SBTrue)
   {
-    for (u32 i = 0; i < (u32) agent->length; i++)
+    for (SBUInteger i = 0; i < agent->length; i++)
     {
       segments[agent->offset + i].script = TextScript{agent->script};
     }
@@ -700,16 +700,16 @@ static inline void segment_levels(Span<c32 const> text,
   // The embedding level is an integer value. LTR text segments have even
   // embedding levels (e.g., 0, 2, 4), and RTL text segments have odd embedding
   // levels (e.g., 1, 3, 5).
-  u32 const text_size = text.size32();
-  for (u32 i = 0; i < text_size;)
+  auto const text_size = text.size();
+  for (usize i = 0; i < text_size;)
   {
-    u32 first = i;
+    auto first = i;
     while (i < text_size && !segments[i].paragraph_end)
     {
       i++;
     }
 
-    u32 const length = i - first;
+    auto const length = i - first;
 
     if (length > 0)
     {
@@ -723,7 +723,7 @@ static inline void segment_levels(Span<c32 const> text,
       SBLevel const   base_level = SBParagraphGetBaseLevel(paragraph);
       SBLevel const * levels     = SBParagraphGetLevelsPtr(paragraph);
       CHECK(levels != nullptr, "");
-      for (u32 i = 0; i < length; i++)
+      for (usize i = 0; i < length; i++)
       {
         segments[first + i].base_level = base_level;
         segments[first + i].level      = levels[i];
@@ -743,8 +743,8 @@ static inline void segment_levels(Span<c32 const> text,
 static inline void segment_breakpoints(Span<c32 const>   text,
                                        Span<TextSegment> segments)
 {
-  u32 const text_size = text.size32();
-  for (u32 i = 0; i < text_size;)
+  auto const text_size = text.size();
+  for (usize i = 0; i < text_size;)
   {
     segments[i].breakable = true;
     while (i < text_size && text[i] != ' ' && text[i] != '\t')
@@ -759,21 +759,21 @@ static inline void segment_breakpoints(Span<c32 const>   text,
   }
 }
 
-static inline void insert_run(TextLayout & l, FontStyle const & s, u32 first,
-                              u32 count, u32 style,
+static inline void insert_run(TextLayout & l, FontStyle const & s,
+                              Slice codepoints, u32 style,
                               FontMetrics const & font_metrics, u8 base_level,
                               u8 level, bool paragraph, bool breakable,
                               Span<hb_glyph_info_t const>     infos,
                               Span<hb_glyph_position_t const> positions)
 {
-  u32 const num_glyphs  = infos.size32();
-  u32 const first_glyph = l.glyphs.size32();
+  auto const num_glyphs  = infos.size();
+  auto const first_glyph = l.glyphs.size();
 
   l.glyphs.extend_uninit(num_glyphs).unwrap();
 
   i32 advance = 0;
 
-  for (u32 i = 0; i < num_glyphs; i++)
+  for (usize i = 0; i < num_glyphs; i++)
   {
     hb_glyph_info_t const &     info = infos[i];
     hb_glyph_position_t const & pos  = positions[i];
@@ -790,14 +790,14 @@ static inline void insert_run(TextLayout & l, FontStyle const & s, u32 first,
 
   l.runs
     .push(TextRun{
-      .codepoints{first, count},
+      .codepoints  = codepoints,
       .style       = style,
       .font_height = s.height,
       .line_height = max(s.line_height, 1.0F),
       .glyphs{first_glyph, num_glyphs},
       .metrics    = TextRunMetrics{.advance = advance,
-                  .ascent  = font_metrics.ascent,
-                  .descent = font_metrics.descent},
+              .ascent  = font_metrics.ascent,
+              .descent = font_metrics.descent},
       .base_level = base_level,
       .level      = level,
       .paragraph  = paragraph,
@@ -822,15 +822,15 @@ static inline void reorder_line(Span<TextRun> runs)
   {
     // re-order consecutive runs with embedding levels greater or equal than
     // the current embedding level
-    for (u32 i = 0; i < runs.size32();)
+    for (usize i = 0; i < runs.size();)
     {
-      while (i < runs.size32() && runs[i].level < level)
+      while (i < runs.size() && runs[i].level < level)
       {
         i++;
       }
 
-      u32 const first = i;
-      while (i < runs.size32() && runs[i].level >= level)
+      usize const first = i;
+      while (i < runs.size() && runs[i].level >= level)
       {
         i++;
       }
@@ -847,6 +847,7 @@ static inline void reorder_line(Span<TextRun> runs)
 void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
                                  TextLayout & layout)
 {
+  segments_.clear();
   layout.clear();
 
   layout.hash = block.hash;
@@ -858,36 +859,33 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
     return;
   }
 
-  u32 const text_size = block.text.size32();
-  CHECK(block.text.size() <= I32_MAX, "");
-  CHECK(block.fonts.size() <= U32_MAX, "");
+  auto const text_size = block.text.size();
   CHECK(block.runs.size() == block.fonts.size(), "");
-
-  layout.segments.resize(block.text.size()).unwrap();
-  Span segments = layout.segments;
-
-  fill(segments, TextSegment{});
 
   CHECK(!block.runs.is_empty(), "No run styling provided for text", "");
   CHECK(block.runs.last() >= text_size,
         "Text runs need to span the entire text");
 
   {
-    u32 run_start = 0;
-    for (u32 irun = 0; irun < block.runs.size32(); irun++)
+    usize run_start = 0;
+    for (usize irun = 0; irun < block.runs.size(); irun++)
     {
-      u32 const run_end = min(block.runs[irun], text_size);
-      for (u32 i = run_start; i < run_end; i++)
+      auto const run_end = min((usize) block.runs[irun], text_size);
+      for (usize i = run_start; i < run_end; i++)
       {
-        segments[i].style = irun;
+        segments_[i].style = irun;
       }
       run_start = run_end;
     }
   }
 
-  segment_paragraphs(block.text, segments);
-  segment_scripts(block.text, segments);
-  segment_breakpoints(block.text, segments);
+  segments_.resize(block.text.size()).unwrap();
+
+  fill(segments_, TextSegment{});
+
+  segment_paragraphs(block.text, segments_);
+  segment_scripts(block.text, segments_);
+  segment_breakpoints(block.text, segments_);
 
   {
     SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
@@ -896,7 +894,7 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
     SBAlgorithmRef      algorithm = SBAlgorithmCreate(&codepoints);
     CHECK(algorithm != nullptr, "");
     defer algorithm_{[&] { SBAlgorithmRelease(algorithm); }};
-    segment_levels(block.text, algorithm, block.direction, segments);
+    segment_levels(block.text, algorithm, block.direction, segments_);
   }
 
   {
@@ -906,23 +904,23 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
         hb_language_from_string(block.language.data(),
                                 (i32) block.language.size());
 
-    for (u32 p = 0; p < text_size;)
+    for (usize p = 0; p < text_size;)
     {
-      u32 const paragraph_begin = p;
-      while (p < text_size && !segments[p].paragraph_end)
+      auto const paragraph_begin = p;
+      while (p < text_size && !segments_[p].paragraph_end)
       {
         p++;
       }
-      u32 const paragraph_end = p;
+      auto const paragraph_end = p;
 
-      for (u32 i = paragraph_begin; i < paragraph_end;)
+      for (auto i = paragraph_begin; i < paragraph_end;)
       {
-        u32 const           first         = i++;
-        TextSegment const & first_segment = segments[first];
-        while (i < paragraph_end && first_segment.style == segments[i].style &&
-               first_segment.script == segments[i].script &&
-               first_segment.level == segments[i].level &&
-               !segments[i].breakable)
+        auto const          first         = i++;
+        TextSegment const & first_segment = segments_[first];
+        while (i < paragraph_end && first_segment.style == segments_[i].style &&
+               first_segment.script == segments_[i].script &&
+               first_segment.level == segments_[i].level &&
+               !segments_[i].breakable)
         {
           i++;
         }
@@ -931,7 +929,12 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
         FontImpl const &  f = (FontImpl const &) *fonts_[(usize) s.font].v0;
         Span<hb_glyph_info_t const>     infos     = {};
         Span<hb_glyph_position_t const> positions = {};
-        shape(f.hb_font, hb_buffer_, block.text, first, i - first,
+
+        auto const paragraph =
+          block.text.slice(paragraph_begin, paragraph_end - paragraph_begin);
+        Slice const slice{first - paragraph_begin, i - first};
+
+        shape(f.hb_font, hb_buffer_, paragraph, slice,
               hb_script_from_iso15924_tag(
                 SBScriptGetOpenTypeTag(SBScript{(u8) first_segment.script})),
               ((first_segment.level & 0x1) == 0) ? HB_DIRECTION_LTR :
@@ -939,26 +942,28 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
               language, block.use_kerning, block.use_ligatures, infos,
               positions);
 
-        insert_run(layout, s, first, i - first, first_segment.style, f.metrics,
+        Slice const codepoints{first, i - first};
+
+        insert_run(layout, s, codepoints, first_segment.style, f.metrics,
                    first_segment.base_level, first_segment.level,
                    first_segment.paragraph_begin, first_segment.breakable,
                    infos, positions);
       }
 
       p++;
-      while (p < text_size && !segments[p].paragraph_begin)
+      while (p < text_size && !segments_[p].paragraph_begin)
       {
         p++;
       }
     }
   }
 
-  u32 const num_runs = layout.runs.size32();
-  Vec2      extent{};
+  auto const num_runs = layout.runs.size();
+  Vec2       extent{};
 
-  for (u32 i = 0; i < num_runs;)
+  for (usize i = 0; i < num_runs;)
   {
-    u32 const       first       = i++;
+    auto const      first       = i++;
     TextRun const & first_run   = layout.runs[first];
     u8 const        base_level  = first_run.base_level;
     bool const      paragraph   = first_run.paragraph;
@@ -991,12 +996,14 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
     }
 
     TextRun const & last_run        = layout.runs[i - 1];
-    u32 const       first_codepoint = first_run.codepoints.offset;
-    u32 const num_codepoints = last_run.codepoints.end() - first_codepoint;
+    auto const      first_codepoint = first_run.codepoints.offset;
+    auto const num_codepoints = last_run.codepoints.end() - first_codepoint;
+
+    Slice const runs{first, i - first};
 
     Line line{
       .codepoints{first_codepoint, num_codepoints},
-      .runs{first, (i - first)},
+      .runs      = runs,
       .metrics   = LineMetrics{.width   = width,
                   .height  = line_height,
                   .ascent  = ascent,

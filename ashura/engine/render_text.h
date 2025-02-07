@@ -189,7 +189,7 @@ struct RenderText
     return *this;
   }
 
-  RenderText & clear_highlights()
+  RenderText & clear_highlight()
   {
     highlight_ = TextHighlight{};
     return *this;
@@ -288,8 +288,10 @@ struct RenderText
 
   TextBlockStyle block_style(f32 aligned_width) const
   {
-    return TextBlockStyle{
-      .runs = styles_, .alignment = alignment_, .align_width = aligned_width};
+    return TextBlockStyle{.runs        = styles_,
+                          .alignment   = alignment_,
+                          .align_width = aligned_width,
+                          .highlight   = highlight_};
   }
 
   TextLayout const & layout() const

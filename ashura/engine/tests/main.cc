@@ -11,10 +11,9 @@
 int main(int argc, char ** argv)
 {
   using namespace ash;
-  Logger logger_obj;
-  hook_logger(&logger_obj);
+  Logger logger{&stdio_sink};
+  hook_logger(&logger);
   defer logger_{[&] { hook_logger(nullptr); }};
-  CHECK(logger->add_sink(&stdio_sink));
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

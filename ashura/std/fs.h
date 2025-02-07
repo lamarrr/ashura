@@ -274,15 +274,10 @@ constexpr Span<char const> to_str(IoErr err)
   }
 }
 
-namespace fmt
+inline void format(fmt::Sink sink, fmt::Spec spec, IoErr const & err)
 {
-
-inline bool push(Context const & ctx, Spec const & spec, IoErr const & err)
-{
-  return push(ctx, spec, to_str(err));
+  return format(sink, spec, to_str(err));
 }
-
-}    // namespace fmt
 
 inline Result<> path_join(Span<char const> base, Span<char const> ext,
                           Vec<char> & out)

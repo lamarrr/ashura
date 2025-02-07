@@ -867,10 +867,14 @@ struct SliceT
     return begin() <= item && end() > item;
   }
 
-  template <typename T>
-  explicit constexpr operator SliceT<T>() const
+  constexpr SliceT<u32> as_slice32() const
   {
-    return SliceT<T>{.offset = (T) offset, .span = (T) span};
+    return SliceT<u32>{.offset = (u32) offset, .span = (u32) span};
+  }
+
+  constexpr SliceT<usize> as_slice() const
+  {
+    return SliceT<usize>{.offset = (usize) offset, .span = (usize) span};
   }
 };
 

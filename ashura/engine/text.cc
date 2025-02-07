@@ -68,14 +68,19 @@ Option<TextHitResult> TextLayout::hit(TextBlock const &      block,
       u32 const column = (sh.cluster > ln.codepoints.offset) ?
                            (sh.cluster - ln.codepoints.offset) :
                            0;
-      return TextHitResult{.cluster = sh.cluster, .line = l, .column = column};
+      return TextHitResult{.cluster = sh.cluster,
+                           .line    = l,
+                           .column  = column,
+                           .pos     = glyph_cursor};
     }
     cursor += run_metrics.advance;
   }
 
   u32 const column = (ln.codepoints.span == 0) ? 0 : (ln.codepoints.span - 1);
-  return TextHitResult{
-    .cluster = ln.codepoints.offset + column, .line = l, .column = column};
+  return TextHitResult{.cluster = (u32) (ln.codepoints.offset + column),
+                       .line    = l,
+                       .column  = column,
+                       .pos     = cursor};
 }
 
 }    // namespace ash

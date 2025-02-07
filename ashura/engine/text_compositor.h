@@ -1,8 +1,8 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/engine/input.h"
-#include "ashura/engine/text.h"
 #include "ashura/engine/render_text.h"
+#include "ashura/engine/text.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -227,9 +227,9 @@ struct TextCompositor
   void delete_selection(Span<c32 const> text, Erase erase);
 
   /// @param input text from IME to insert
-  void command(RenderText const& text, TextCommand cmd, Insert insert,
-               Erase erase, Span<c32 const> input, ClipBoard & clipboard,
-               u32 lines_per_page, CRect const& region, Vec2 pos, f32 zoom);
+  Slice command(RenderText const & text, TextCommand cmd, Insert insert,
+                Erase erase, Span<c32 const> input, ClipBoard & clipboard,
+                u32 lines_per_page, CRect const & region, Vec2 pos, f32 zoom);
 };
 
 }    // namespace ash
