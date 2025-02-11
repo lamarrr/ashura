@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/error.h"
-#include "ashura/std/log.h"
 
 namespace ash
 {
