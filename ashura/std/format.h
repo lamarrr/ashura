@@ -12,6 +12,9 @@ namespace fmt
 static constexpr usize MAX_WIDTH     = 254;
 static constexpr usize MAX_PRECISION = 254;
 
+static constexpr usize NONE_WIDTH     = 255;
+static constexpr usize NONE_PRECISION = 255;
+
 enum class Style : char
 {
   Default    = 'd',
@@ -37,8 +40,8 @@ struct Spec
   Style style              = Style::Default;
   bool  sign           : 1 = true;
   bool  alternate_form : 1 = false;
-  u8    width              = MAX_WIDTH + 1;
-  u8    precision          = MAX_PRECISION + 1;
+  u8    width              = NONE_WIDTH;
+  u8    precision          = NONE_PRECISION;
 };
 
 typedef Fn<void(Span<char const>)> Sink;
@@ -71,6 +74,25 @@ enum class [[nodiscard]] Error : u8
   ItemsMismatch   = 3,
   UnmatchedToken  = 4
 };
+
+constexpr Span<char const> to_str(Error e)
+{
+  switch (e)
+  {
+    case Error::None:
+      return "None"_str;
+    case Error::OutOfMemory:
+      return "OutOfMemory"_str;
+    case Error::UnexpectedToken:
+      return "UnexpectedToken"_str;
+    case Error::ItemsMismatch:
+      return "ItemsMismatch"_str;
+    case Error::UnmatchedToken:
+      return "UnmatchedToken"_str;
+    default:
+      return "Unrecognized"_str;
+  }
+}
 
 typedef void (*Formatter)(Sink, Spec spec, void const * obj);
 
@@ -534,9 +556,10 @@ constexpr Result push_spec(Span<char const> format, Span<char const> spec_src,
                    .spec = spec,
                    .pos  = spec_src.as_slice_of(format)}))
   {
-    num_args++;
     return Result{.error = Error::OutOfMemory};
   }
+
+  num_args++;
 
   return Result{.error = Error::None};
 }
@@ -597,15 +620,18 @@ constexpr Result parse(Span<char const> format, Buffer<Op> & ops,
     auto const seek_begin = iter;
     iter                  = seek(iter, end, '{');
 
-    if (iter == end)
+    if (seek_begin != iter)
     {
       if (!ops.push(Op{.type = OpType::Str,
                        .pos{Span{seek_begin, iter}.as_slice_of(format)}}))
       {
         return Result{.error = Error::OutOfMemory};
       }
+    }
 
-      return Result{.error = Error::None};
+    if (iter == end)
+    {
+      continue;
     }
 
     auto const open_brace_begin = iter++;
@@ -633,8 +659,11 @@ constexpr Result parse(Span<char const> format, Buffer<Op> & ops,
           };
         }
 
-        if (auto result =
-              push_spec(format, Span{open_brace_end, iter}, ops, num_args);
+        Span const spec{open_brace_end, iter};
+
+        iter++;
+
+        if (auto result = push_spec(format, spec, ops, num_args);
             result.error != Error::None)
         {
           return result;
@@ -658,7 +687,7 @@ constexpr Result parse(Span<char const> format, Buffer<Op> & ops,
 
         auto const close_brace_begin = iter;
 
-        iter = seek_ne(iter, end, '}');
+        iter += brace_level;
 
         if (!ops.push(Op{
               .type = OpType::Str,
@@ -709,7 +738,7 @@ struct Context
   template <typename... T>
   constexpr Result execute(T const &... args) const
   {
-    FormatArg const fmt_args[] = {FormatArg::from(args)...};
+    Array<FormatArg, sizeof...(T)> const fmt_args{FormatArg::from(args)...};
 
     return execute_span(fmt_args);
   }

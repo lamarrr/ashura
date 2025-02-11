@@ -69,8 +69,9 @@ void format_float(fmt::Sink sink, fmt::Spec spec, FloatT const & value)
   Span scratch{scratch_};
 
   std::to_chars_result result{};
-  if (spec.precision > 0)
+  if (spec.precision != fmt::NONE_PRECISION)
   {
+    // [ ] doesn't do precision
     result = std::to_chars(scratch.pbegin(), scratch.pend(), value, format,
                            spec.precision);
   }

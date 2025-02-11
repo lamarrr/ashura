@@ -57,7 +57,9 @@ struct Logger
 
   constexpr Logger(Span<LogSink * const> sinks)
   {
-    obj::copy_assign(sinks.slice(0, MAX_SINKS), sinks_);
+    auto src = sinks.slice(0, MAX_SINKS);
+    obj::copy_assign(src, sinks_);
+    num_sinks_ = src.size();
   }
 
   constexpr Logger(std::initializer_list<LogSink * const> sinks) :
@@ -155,10 +157,26 @@ struct Logger
 
     fmt::Context ctx{fn(format_sink), std::move(ops)};
 
-    if (fmt::Result result = ctx.format(fstr, args..., "\n"_str);
+    if (fmt::Result result = ctx.format(fstr, args...);
         result.error != fmt::Error::None)
     {
-      return false;
+      switch (result.error)
+      {
+        case fmt::Error::ItemsMismatch:
+        case fmt::Error::UnexpectedToken:
+        case fmt::Error::UnmatchedToken:
+        {
+          (void) std::fprintf(stderr, "Format Error: %s\n",
+                              to_str(result.error).data());
+          (void) std::fflush(stderr);
+          std::abort();
+        }
+        case fmt::Error::OutOfMemory:
+        default:
+        {
+          return false;
+        }
+      }
     }
 
     for (LogSink * sink : sinks())

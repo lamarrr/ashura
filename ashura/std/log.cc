@@ -92,6 +92,7 @@ void StdioSink::log(LogLevel level, Span<char const> log_message)
   (void) std::fwrite(time_string, 1, time_string_length, file);
   (void) std::fputs("] ", file);
   (void) std::fwrite(log_message.data(), 1, log_message.size(), file);
+  (void) std::fputs("\n", file);
 }
 
 void StdioSink::flush()
@@ -126,6 +127,7 @@ void FileSink::log(LogLevel level, Span<char const> log_message)
   (void) std::fwrite(time_string, 1, time_string_length, file);
   (void) std::fputs("] ", file);
   (void) std::fwrite(log_message.data(), 1, log_message.size(), file);
+  (void) std::fputs("\n", file);
 }
 
 void FileSink::flush()
