@@ -48,18 +48,18 @@ struct BloomPass : Pass
 
 struct BlurParam
 {
-  Vec2      uv[2]   = {};
-  Vec2      radius  = {};
-  SamplerId sampler = SamplerId::Linear;
-  TextureId texture = TextureId::White;
+  alignas(16) Vec2 uv[2]  = {};
+  alignas(16) Vec2 radius = {};
+  SamplerId sampler       = SamplerId::Linear;
+  TextureId texture       = TextureId::White;
 };
 
 struct BlurPassParams
 {
-  Framebuffer framebuffer = {};
-  Vec2        radius      = {1, 1};
-  u32         passes      = 1;
-  RectU       area        = {};
+  Framebuffer framebuffer  = {};
+  RectU       area         = {};
+  Vec2U       radius       = {1, 1};
+  Vec4        corner_radii = {0, 0, 0, 0};
 };
 
 struct BlurPass : Pass
@@ -85,14 +85,14 @@ struct BlurPass : Pass
 
 struct NgonParam
 {
-  Mat4      transform    = {};
-  Vec4      tint[4]      = {};
-  Vec2      uv[2]        = {};
-  f32       tiling       = 1;
-  SamplerId sampler      = SamplerId::Linear;
-  TextureId albedo       = TextureId::White;
-  u32       first_index  = 0;
-  u32       first_vertex = 0;
+  alignas(16) Mat4 transform = {};
+  alignas(16) Vec4 tint[4]   = {};
+  alignas(16) Vec2 uv[2]     = {};
+  f32       tiling           = 1;
+  SamplerId sampler          = SamplerId::Linear;
+  TextureId albedo           = TextureId::White;
+  u32       first_index      = 0;
+  u32       first_vertex     = 0;
 };
 
 struct NgonPassParams
@@ -134,14 +134,14 @@ struct NgonPass : Pass
 /// https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/63b7c128266cfd86bbd3f25caf8b3db3fe854015/source/Renderer/shaders/textures.glsl#L1
 struct PBRParam
 {
-  Mat4      transform               = {};
-  Vec4      eye_position            = {0, 0, 0, 0};
-  Vec4      albedo                  = {1, 1, 1, 1};
-  f32       metallic                = 0;
-  f32       roughness               = 0;
-  f32       normal                  = 0;
-  f32       occlusion               = 0;
-  Vec4      emissive                = {0, 0, 0, 0};
+  alignas(16) Mat4 transform        = {};
+  alignas(16) Vec4 eye_position     = {0, 0, 0, 0};
+  alignas(16) Vec4 albedo           = {1, 1, 1, 1};
+  f32 metallic                      = 0;
+  f32 roughness                     = 0;
+  f32 normal                        = 0;
+  f32 occlusion                     = 0;
+  alignas(16) Vec4 emissive         = {0, 0, 0, 0};
   f32       ior                     = 1.5F;
   f32       clearcoat               = 0;
   f32       clearcoat_roughness     = 0;
@@ -162,8 +162,8 @@ struct PBRParam
 
 struct PBRVertex
 {
-  Vec4 pos = {};
-  Vec2 uv  = {};
+  alignas(16) Vec4 pos = {};
+  alignas(16) Vec2 uv  = {};
 };
 
 struct PBRPassParams
@@ -205,17 +205,17 @@ struct PBRPass : Pass
 
 struct RRectParam
 {
-  Mat4      transform       = {};
-  Vec4      tint[4]         = {};
-  Vec4      radii           = {};
-  Vec2      uv[2]           = {};
-  f32       tiling          = 1;
-  f32       aspect_ratio    = 1;
-  f32       stroke          = 0;
-  f32       thickness       = 0;
-  f32       edge_smoothness = 0;
-  SamplerId sampler         = SamplerId::Linear;
-  TextureId albedo          = TextureId::White;
+  alignas(16) Mat4 transform = {};
+  alignas(16) Vec4 tint[4]   = {};
+  alignas(16) Vec4 radii     = {};
+  alignas(16) Vec2 uv[2]     = {};
+  f32       tiling           = 1;
+  f32       aspect_ratio     = 1;
+  f32       stroke           = 0;
+  f32       thickness        = 0;
+  f32       edge_smoothness  = 0;
+  SamplerId sampler          = SamplerId::Linear;
+  TextureId albedo           = TextureId::White;
 };
 
 struct RRectPassParams
