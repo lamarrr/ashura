@@ -2,6 +2,7 @@
 #include "ashura/engine/engine.h"
 #include "ashura/std/async.h"
 #include "ashura/std/fs.h"
+#include "ashura/std/trace.h"
 #include "simdjson.h"
 
 namespace ash
@@ -81,6 +82,12 @@ EngineCfg EngineCfg::parse(AllocatorRef allocator, Span<u8 const> json)
     default:
       out.gpu.msaa_level = gpu::SampleCount::C4;
       break;
+  }
+
+  if (auto fps = cfg["gpu.max_fps"].get_int64();
+      fps.error() == simdjson::error_code::SUCCESS)
+  {
+    out.gpu.max_fps = fps.value();
   }
 
   out.window.resizable   = cfg["window.resizable"].get_bool().value();
@@ -395,6 +402,15 @@ Dyn<Engine *> Engine::create(AllocatorRef     allocator,
 
   trace("All Core Systems Initialized");
 
+  nanoseconds min_frame_interval = 0ns;
+
+  if (cfg.gpu.max_fps.is_some())
+  {
+    f64 const max_fpns = cfg.gpu.max_fps.value() * (1 / 1'000'000'000.0);
+    f64 const min_frame_time_ns = 1 / max_fpns;
+    min_frame_interval = nanoseconds{(nanoseconds::rep) min_frame_time_ns};
+  }
+
   Dyn<Engine *> engine =
     dyn<Engine>(inplace, allocator, allocator, std::move(logger),
                 std::move(scheduler), std::move(file_sys), std::move(instance),
@@ -402,7 +418,8 @@ Dyn<Engine *> Engine::create(AllocatorRef     allocator,
                 std::move(font_sys), std::move(shader_sys),
                 std::move(window_sys), window, clipboard, surface, present_mode,
                 std::move(renderer), std::move(canvas), std::move(view_sys),
-                std::move(working_dir_copy), std::move(cfg.pipeline_cache))
+                std::move(working_dir_copy), std::move(cfg.pipeline_cache),
+                min_frame_interval)
       .unwrap();
 
   hook_engine(engine);
@@ -646,9 +663,10 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
 
   while (true)
   {
-    time_point const  current_time = steady_clock::now();
-    nanoseconds const timedelta    = current_time - timestamp;
-    timestamp                      = current_time;
+    ScopeTrace frame_trace{{"frame"_str}};
+    auto const frame_start = steady_clock::now();
+    auto const timedelta   = frame_start - timestamp;
+    timestamp              = frame_start;
 
     input_buffer.clear();
     input_buffer.stamp(timestamp, timedelta);
@@ -658,8 +676,8 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
     window_sys->get_keyboard_state(input_buffer.key.states);
 
     {
-      ScopeTrace trace{
-        {"poll_events"_str, 0}
+      ScopeTrace poll_trace{
+        {"frame.event_poll"_str, 0}
       };
       window_sys->poll_events();
     }
@@ -670,7 +688,7 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
     input_buffer.window_extent  = window_extent;
     input_buffer.surface_extent = surface_extent;
 
-    // [ ] proper cooperative shutdown is needed
+    // [ ] proper cooperative shutdown is needed, defer shutdown?
     if (input_buffer.close_requested)
     {
       break;
@@ -681,7 +699,7 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
       gpu_sys.recreate_framebuffers(surface_extent);
     }
 
-    ScopeTrace{{"frame"_str}};
+    ScopeTrace record_trace{{"frame.record"_str}};
     gpu_sys.begin_frame(swapchain);
 
     canvas.begin_recording(
@@ -707,7 +725,14 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
     renderer.end_frame(gpu_sys.fb_, canvas);
     gpu_sys.submit_frame(swapchain);
 
-    // [ ] frame-pacing
+    auto const frame_end  = steady_clock::now();
+    auto const frame_time = frame_start - frame_end;
+
+    if (frame_time < min_frame_interval)
+    {
+      auto const sleep_dur = min_frame_interval - frame_time;
+      std::this_thread::sleep_for(sleep_dur);
+    }
   }
 
   trace("Ended Engine Run Loop");

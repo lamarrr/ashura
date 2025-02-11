@@ -320,21 +320,22 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
     level = LogLevel::Trace;
   }
 
-  logger->log(
-    level, "[Type: ", string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
-    ", Id: ", data->messageIdNumber, ", Name: ", data->pMessageIdName, "] ",
-    data->pMessage == nullptr ? "(empty message)" : data->pMessage);
+  auto message_type_s = string_VkDebugUtilsMessageTypeFlagsEXT(message_type);
+  logger->log(level, "[Type: {}, Id: {}, Name: {} ] {}"_str,
+              span(message_type_s), data->messageIdNumber,
+              cstr_span(data->pMessageIdName),
+              (data->pMessage == nullptr ? "(empty message)"_str :
+                                           cstr_span(data->pMessage)));
   if (data->objectCount != 0)
   {
-    logger->log(level, "Objects Involved:");
+    logger->log(level, "Objects Involved:"_str);
     for (u32 i = 0; i < data->objectCount; i++)
     {
-      logger->log(level,
-                  "[Type: ", string_VkObjectType(data->pObjects[i].objectType),
-                  "] ",
-                  data->pObjects[i].pObjectName == nullptr ?
-                    "(unnamed)" :
-                    data->pObjects[i].pObjectName);
+      logger->log(level, "[Type: {}] {}"_str,
+                  cstr_span(string_VkObjectType(data->pObjects[i].objectType)),
+                  (data->pObjects[i].pObjectName == nullptr ?
+                     "(unnamed)"_str :
+                     cstr_span(data->pObjects[i].pObjectName)));
     }
   }
 
@@ -839,24 +840,24 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
     CHECK(num_read_layers == num_layers, "");
   }
 
-  trace("Available Extensions:");
+  trace("Available Extensions:"_str);
 
   for (VkExtensionProperties const & ext : Span{exts, num_exts})
   {
-    trace("{}\t\t(spec version {}.{}.{} variant {})", ext.extensionName,
-          VK_API_VERSION_MAJOR(ext.specVersion),
+    trace("{}\t\t(spec version {}.{}.{} variant {})"_str,
+          cstr_span(ext.extensionName), VK_API_VERSION_MAJOR(ext.specVersion),
           VK_API_VERSION_MINOR(ext.specVersion),
           VK_API_VERSION_PATCH(ext.specVersion),
           VK_API_VERSION_VARIANT(ext.specVersion));
   }
 
-  trace("Available Layers:");
+  trace("Available Layers:"_str);
 
   for (VkLayerProperties const & layer : Span{layers, num_layers})
   {
     trace("{}\t\t(spec version {}.{}.{} variant {}, implementation version: "
-          "{}.{}.{} variant {}",
-          layer.layerName, VK_API_VERSION_MAJOR(layer.specVersion),
+          "{}.{}.{} variant {})"_str,
+          cstr_span(layer.layerName), VK_API_VERSION_MAJOR(layer.specVersion),
           VK_API_VERSION_MINOR(layer.specVersion),
           VK_API_VERSION_PATCH(layer.specVersion),
           VK_API_VERSION_VARIANT(layer.specVersion),
@@ -1175,14 +1176,14 @@ Result<gpu::Device *, Status>
     vk_table.GetPhysicalDeviceProperties(vk_dev, &dev.vk_properties);
   }
 
-  trace("Available Devices:");
+  trace("Available Devices:"_str);
   for (u32 i = 0; i < num_devs; i++)
   {
     PhysicalDevice const &             dev        = physical_devs[i];
     VkPhysicalDeviceProperties const & properties = dev.vk_properties;
     trace("[Device: {}] {} {} Vulkan API version {}.{}.{} variant {}, Driver "
-          "Version: {}, Vendor ID: {}, Device ID: {}",
-          i, string_VkPhysicalDeviceType(properties.deviceType),
+          "Version: {}, Vendor ID: {}, Device ID: {}"_str,
+          i, cstr_span(string_VkPhysicalDeviceType(properties.deviceType)),
           properties.deviceName, VK_API_VERSION_MAJOR(properties.apiVersion),
           VK_API_VERSION_MINOR(properties.apiVersion),
           VK_API_VERSION_PATCH(properties.apiVersion),
@@ -1328,13 +1329,13 @@ Result<gpu::Device *, Status>
     CHECK(num_read_layers == num_layers, "");
   }
 
-  trace("Available Extensions:");
+  trace("Available Extensions:"_str);
 
   for (u32 i = 0; i < num_exts; i++)
   {
     VkExtensionProperties const & ext = exts[i];
-    trace("\t\t{} (spec version: {}.{}.{} variant {})", ext.extensionName,
-          VK_API_VERSION_MAJOR(ext.specVersion),
+    trace("\t\t{} (spec version: {}.{}.{} variant {})"_str,
+          cstr_span(ext.extensionName), VK_API_VERSION_MAJOR(ext.specVersion),
           VK_API_VERSION_MINOR(ext.specVersion),
           VK_API_VERSION_PATCH(ext.specVersion),
           VK_API_VERSION_VARIANT(ext.specVersion));
@@ -1347,8 +1348,8 @@ Result<gpu::Device *, Status>
     VkLayerProperties const & layer = layers[i];
 
     trace("\t\t{} (spec version: {}.{}.{} variant {}, implementation version: "
-          "{}.{}.{} variant {})",
-          layer.layerName, VK_API_VERSION_MAJOR(layer.specVersion),
+          "{}.{}.{} variant {})"_str,
+          cstr_span(layer.layerName), VK_API_VERSION_MAJOR(layer.specVersion),
           VK_API_VERSION_MINOR(layer.specVersion),
           VK_API_VERSION_PATCH(layer.specVersion),
           VK_API_VERSION_VARIANT(layer.specVersion),
@@ -1719,12 +1720,11 @@ gpu::DeviceProperties Device::get_properties()
   }
 
   gpu::DeviceProperties properties{
-    .api_version    = vk_properties.apiVersion,
-    .driver_version = vk_properties.driverVersion,
-    .vendor_id      = vk_properties.vendorID,
-    .device_id      = vk_properties.deviceID,
-    .device_name =
-      Span{vk_properties.deviceName, strlen(vk_properties.deviceName)},
+    .api_version             = vk_properties.apiVersion,
+    .driver_version          = vk_properties.driverVersion,
+    .vendor_id               = vk_properties.vendorID,
+    .device_id               = vk_properties.deviceID,
+    .device_name             = cstr_span(vk_properties.deviceName),
     .type                    = (gpu::DeviceType) vk_properties.deviceType,
     .has_unified_memory      = has_uma,
     .has_non_solid_fill_mode = (vk_features.fillModeNonSolid == VK_TRUE),
@@ -1738,8 +1738,7 @@ gpu::DeviceProperties Device::get_properties()
     .max_compute_work_group_invocations =
       vk_properties.limits.maxComputeWorkGroupInvocations,
     .max_compute_shared_memory_size =
-      vk_properties.limits.maxComputeSharedMemorySize
-  };
+      vk_properties.limits.maxComputeSharedMemorySize};
 
   mem::copy(Span{vk_properties.limits.maxComputeWorkGroupCount, 3},
             properties.max_compute_work_group_count);

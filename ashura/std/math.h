@@ -449,6 +449,7 @@ typedef struct Vec4U  Vec4U;
 typedef struct Rect  Rect;
 typedef struct CRect CRect;
 typedef struct RectU RectU;
+typedef struct RectI RectI;
 typedef struct Box   Box;
 typedef struct CBox  CBox;
 
@@ -1434,6 +1435,11 @@ constexpr Vec3U & operator/=(Vec3U & a, Vec3U b)
   return a;
 }
 
+constexpr Vec3U vec3u(Vec2U xy, u32 z)
+{
+  return Vec3U{.x = xy.x, .y = xy.y, .z = z};
+}
+
 struct Vec4U
 {
   u32 x = 0;
@@ -1579,32 +1585,32 @@ constexpr Vec4 norm(Vec4U8 color)
 
 constexpr f32 dot(Vec2 a, Vec2 b)
 {
-  return a.x * b.x + a.y * b.y;
+  return (a.x * b.x) + a.y * b.y;
 }
 
 constexpr i32 dot(Vec2I a, Vec2I b)
 {
-  return a.x * b.x + a.y * b.y;
+  return (a.x * b.x) + a.y * b.y;
 }
 
 constexpr f32 dot(Vec3 a, Vec3 b)
 {
-  return a.x * b.x + a.y * b.y + a.z * b.z;
+  return (a.x * b.x + a.y * b.y) + a.z * b.z;
 }
 
 constexpr i32 dot(Vec3I a, Vec3I b)
 {
-  return a.x * b.x + a.y * b.y + a.z * b.z;
+  return (a.x * b.x + a.y * b.y) + a.z * b.z;
 }
 
 constexpr f32 dot(Vec4 a, Vec4 b)
 {
-  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+  return (((a.x * b.x) + a.y * b.y) + a.z * b.z) + a.w * b.w;
 }
 
 constexpr i32 dot(Vec4I a, Vec4I b)
 {
-  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+  return ((a.x * b.x + a.y * b.y) + a.z * b.z) + a.w * b.w;
 }
 
 constexpr f32 cross(Vec2 a, Vec2 b)
@@ -2813,6 +2819,11 @@ struct RectU
   Vec2U offset = {};
   Vec2U extent = {};
 
+  constexpr Vec2U begin() const
+  {
+    return offset;
+  }
+
   constexpr Vec2U end() const
   {
     return offset + extent;
@@ -2825,6 +2836,32 @@ constexpr bool operator==(RectU const & a, RectU const & b)
 }
 
 constexpr bool operator!=(RectU const & a, RectU const & b)
+{
+  return a.offset != b.offset | a.extent != b.extent;
+}
+
+struct RectI
+{
+  Vec2I offset = {};
+  Vec2I extent = {};
+
+  constexpr Vec2I begin() const
+  {
+    return offset;
+  }
+
+  constexpr Vec2I end() const
+  {
+    return offset + extent;
+  }
+};
+
+constexpr bool operator==(RectI const & a, RectI const & b)
+{
+  return a.offset == b.offset & a.extent == b.extent;
+}
+
+constexpr bool operator!=(RectI const & a, RectI const & b)
 {
   return a.offset != b.offset | a.extent != b.extent;
 }
@@ -2871,6 +2908,22 @@ constexpr bool operator!=(Box const & a, Box const & b)
 {
   return a.offset != b.offset || a.extent != b.extent;
 }
+
+struct BoxU
+{
+  Vec3U offset = {};
+  Vec3U extent = {};
+
+  constexpr Vec3U begin() const
+  {
+    return offset;
+  }
+
+  constexpr Vec3U end() const
+  {
+    return offset + extent;
+  }
+};
 
 struct CBox
 {

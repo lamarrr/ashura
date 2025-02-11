@@ -143,20 +143,17 @@ Result<Dyn<Font *>, FontLoadErr>
 
   if (ft_postscript_name != nullptr)
   {
-    postscript_name.extend(Span{ft_postscript_name, strlen(ft_postscript_name)})
-      .unwrap();
+    postscript_name.extend(cstr_span(ft_postscript_name)).unwrap();
   }
 
   if (ft_face->family_name != nullptr)
   {
-    family_name.extend(Span{ft_face->family_name, strlen(ft_face->family_name)})
-      .unwrap();
+    family_name.extend(cstr_span(ft_face->family_name)).unwrap();
   }
 
   if (ft_face->style_name != nullptr)
   {
-    style_name.extend(Span{ft_face->style_name, strlen(ft_face->style_name)})
-      .unwrap();
+    style_name.extend(cstr_span(ft_face->style_name)).unwrap();
   }
 
   u32 const num_glyphs        = (u32) ft_face->num_glyphs;
@@ -225,14 +222,12 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
   FontImpl &           font             = (FontImpl &) font_;
   static constexpr u32 MIN_ATLAS_EXTENT = 512;
   static_assert(MIN_ATLAS_EXTENT > 0, "Font atlas extent must be non-zero");
-  static_assert(MIN_ATLAS_EXTENT > 128,
+  static_assert(MIN_ATLAS_EXTENT >= 128,
                 "Font atlas extent must be at least 128px");
   static_assert(MIN_ATLAS_EXTENT % 64 == 0,
                 "Font atlas extent should be a multiple of 64");
   static_assert(MIN_ATLAS_EXTENT <= gpu::MAX_IMAGE_EXTENT_2D,
                 "Font atlas extent too large for GPU platform");
-  CHECK(font_height <= 1'024, "");
-  CHECK(font_height <= MIN_ATLAS_EXTENT / 2, "");
 
   font.cpu_atlas.unwrap_none("CPU font atlas has already been loaded"_str);
 
@@ -250,9 +245,9 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
     return Err{};
   }
 
-  static constexpr u16 GLYPH_PADDING = 2;
+  static constexpr u16 GLYPH_PADDING = 1;
 
-  Vec2U atlas_extent = Vec2U::splat(MIN_ATLAS_EXTENT);
+  Vec2U max_glyph_extent;
 
   for (auto [i, g] : enumerate<u32>(atlas.glyphs))
   {
@@ -265,11 +260,15 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
     g.area.extent = Vec2U{font.ft_face->glyph->bitmap.width,
                           font.ft_face->glyph->bitmap.rows};
 
-    atlas_extent.x = max(atlas_extent.x, g.area.extent.x + GLYPH_PADDING * 2);
-    atlas_extent.y = max(atlas_extent.y, g.area.extent.y + GLYPH_PADDING * 2);
+    max_glyph_extent.x = max(max_glyph_extent.x, g.area.extent.x);
+    max_glyph_extent.y = max(max_glyph_extent.y, g.area.extent.y);
   }
 
-  Vec2 const inv_atlas_extent = 1 / as_vec2(atlas_extent);
+  CHECK(max_glyph_extent.x <= MIN_ATLAS_EXTENT, "");
+  CHECK(max_glyph_extent.y <= MIN_ATLAS_EXTENT, "");
+
+  Vec2U const atlas_extent     = Vec2U::splat(MIN_ATLAS_EXTENT);
+  Vec2 const  inv_atlas_extent = 1 / as_vec2(atlas_extent);
 
   u32 num_layers = 0;
   {
@@ -361,13 +360,15 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
 
   for (auto [i, ag] : enumerate<u32>(atlas.glyphs))
   {
-    FT_GlyphSlot slot     = font.ft_face->glyph;
-    FT_Error     ft_error = FT_Load_Glyph(
-      font.ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_NO_HINTING);
+    FT_GlyphSlot slot = font.ft_face->glyph;
+    FT_Error     ft_error =
+      FT_Load_Glyph(font.ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_RENDER);
     if (ft_error != 0)
     {
       continue;
     }
+
+    // [ ] FT_HAS_COLOR()
 
     CHECK(slot->bitmap.pixel_mode == FT_PIXEL_MODE_GRAY, "");
     /// we don't want to handle negative pitches
@@ -486,14 +487,14 @@ Future<Result<FontId, FontLoadErr>>
       decode_(label, encoded, face)
         .match(
           [&, this](Dyn<Font *> & font) {
-            trace("Rasterizing font: {} @{}px", label, font_height);
+            trace("Rasterizing font: {} @{}px"_str, label, font_height);
             rasterize(*font, font_height)
               .match(
                 [&, this](Void) {
                   scheduler->once(
                     [font = std::move(font), this,
                      fut  = std::move(fut)]() mutable {
-                      trace("rasterized font {}, num layers = {}",
+                      trace("Rasterized font {}, num layers = {}"_str,
                             font->info().label,
                             font->info().cpu_atlas.value().num_layers);
 
@@ -866,6 +867,9 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
   CHECK(block.runs.last() >= text_size,
         "Text runs need to span the entire text");
 
+  segments_.clear();
+  segments_.resize(block.text.size()).unwrap();
+
   {
     usize run_start = 0;
     for (usize irun = 0; irun < block.runs.size(); irun++)
@@ -878,10 +882,6 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
       run_start = run_end;
     }
   }
-
-  segments_.resize(block.text.size()).unwrap();
-
-  fill(segments_, TextSegment{});
 
   segment_paragraphs(block.text, segments_);
   segment_scripts(block.text, segments_);

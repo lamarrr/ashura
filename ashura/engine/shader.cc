@@ -147,7 +147,7 @@ struct Includer : glslang::TShader::Includer
     (void) includer_name;
     (void) inclusion_depth;
 
-    return info.on_load(Span{header_name, strlen(header_name)})
+    return info.on_load(cstr_span(header_name))
       .match(
         [&](Span<char const> header_data) -> IncludeResult * {
           IncludeResult * result;
@@ -237,19 +237,17 @@ Result<Void, ShaderLoadErr> compile_shader(ShaderCompileInfo const & info,
   shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
 
   auto check_log = [&](auto & object) {
-    char const * info_log  = object.getInfoLog();
-    usize const  info_len  = info_log == nullptr ? 0 : strlen(info_log);
-    char const * debug_log = object.getInfoDebugLog();
-    usize const  debug_len = debug_log == nullptr ? 0 : strlen(debug_log);
+    auto const info_log  = cstr_span(object.getInfoLog());
+    auto const debug_log = cstr_span(object.getInfoDebugLog());
 
-    if (info_len != 0)
+    if (!info_log.is_empty())
     {
-      info.on_log(LogLevel::Info, Span{info_log, info_len});
+      info.on_log(LogLevel::Info, info_log);
     }
 
-    if (debug_len != 0)
+    if (!debug_log.is_empty())
     {
-      info.on_log(LogLevel::Debug, Span{debug_log, debug_len});
+      info.on_log(LogLevel::Debug, debug_log);
     }
   };
 

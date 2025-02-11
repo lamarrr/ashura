@@ -931,17 +931,18 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
   return *this;
 }
 
-Canvas & Canvas::blur(Rect const & area, Vec2 radius, u32 num_passes,
-                      Vec4 corner_radii)
+Canvas & Canvas::blur(Rect const & area, Vec2 radius, Vec4 corner_radii)
 {
   flush_batch(*this);
-  // [ ] implement corner radii
+
+  // [ ] scale corner radii and blur radius
+
   add_pass("Blur"_str,
-           [area, radius, num_passes](Canvas::RenderContext const & ctx) {
+           [area, radius, corner_radii](Canvas::RenderContext const & ctx) {
              BlurPassParams params{.framebuffer = ctx.framebuffer,
                                    .radius      = radius,
-                                   .passes      = num_passes,
-                                   .area = ctx.canvas.clip_to_scissor(area)};
+                                   .area = ctx.canvas.clip_to_scissor(area),
+                                   .corner_radii = corner_radii};
              ctx.passes.blur->encode(ctx.enc, params);
            });
 

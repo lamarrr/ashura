@@ -71,6 +71,12 @@
             ],
             "default": 4
         },
+        "gpu.max_fps": {
+            "description": "",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 16384
+        },
         "window.resizable": {
             "description": "Enable window resizing",
             "type": "boolean",

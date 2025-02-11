@@ -1050,8 +1050,8 @@ struct DrawIndexedCommand
 struct BufferCopy
 {
   u64 src_offset = 0;
-  u64 dst_offset = 0;
   u64 size       = 0;
+  u64 dst_offset = 0;
 };
 
 struct BufferImageCopy
@@ -1060,34 +1060,31 @@ struct BufferImageCopy
   u32                    buffer_row_length   = 0;
   u32                    buffer_image_height = 0;
   ImageSubresourceLayers image_layers        = {};
-  Vec3U                  image_offset        = {};
-  Vec3U                  image_extent        = {};
+  BoxU                   image_area          = {};
 };
 
 struct ImageCopy
 {
   ImageSubresourceLayers src_layers = {};
-  Vec3U                  src_offset = {};
+  BoxU                   src_area   = {};
   ImageSubresourceLayers dst_layers = {};
   Vec3U                  dst_offset = {};
-  Vec3U                  extent     = {};
 };
 
 struct ImageBlit
 {
-  ImageSubresourceLayers src_layers     = {};
-  Vec3U                  src_offsets[2] = {};
-  ImageSubresourceLayers dst_layers     = {};
-  Vec3U                  dst_offsets[2] = {};
+  ImageSubresourceLayers src_layers = {};
+  BoxU                   src_area   = {};
+  ImageSubresourceLayers dst_layers = {};
+  BoxU                   dst_area   = {};
 };
 
 struct ImageResolve
 {
   ImageSubresourceLayers src_layers = {};
-  Vec3U                  src_offset = {};
+  BoxU                   src_area   = {};
   ImageSubresourceLayers dst_layers = {};
   Vec3U                  dst_offset = {};
-  Vec3U                  extent     = {};
 };
 
 /// x, y, z, w => R, G, B, A

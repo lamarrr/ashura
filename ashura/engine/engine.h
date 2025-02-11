@@ -18,6 +18,7 @@ struct EngineCfg
     bool                           hdr        = true;
     u32                            buffering  = 2;
     gpu::SampleCount               msaa_level = gpu::SampleCount::C4;
+    Option<i64>                    max_fps    = none;
   };
 
   struct Window
@@ -93,6 +94,8 @@ struct Engine
 
   Vec<char> pipeline_cache_path{};
 
+  nanoseconds min_frame_interval;
+
   static Dyn<Engine *> create(AllocatorRef     allocator,
                               Span<char const> config_path,
                               Span<char const> working_dir);
@@ -105,7 +108,7 @@ struct Engine
          ClipBoard & clipboard, gpu::Surface surface,
          gpu::PresentMode present_mode_preference, Renderer renderer,
          Canvas canvas, ViewSystem view_sys, Vec<char> working_dir,
-         Vec<char> pipeline_cache_path) :
+         Vec<char> pipeline_cache_path, nanoseconds min_frame_interval) :
     allocator{allocator},
     logger{std::move(logger)},
     scheduler{std::move(scheduler)},
@@ -126,7 +129,8 @@ struct Engine
     view_sys{std::move(view_sys)},
     input_buffer{allocator},
     working_dir{std::move(working_dir)},
-    pipeline_cache_path{std::move(pipeline_cache_path)}
+    pipeline_cache_path{std::move(pipeline_cache_path)},
+    min_frame_interval{min_frame_interval}
   {
   }
 

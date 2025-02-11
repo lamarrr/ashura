@@ -321,9 +321,7 @@ struct Canvas
 
   /// @brief perform a Canvas-space blur
   /// @param area region in the canvas to apply the blur to
-  /// @param num_passes number of blur passes to execute, higher values result
-  /// in blurrier results
-  Canvas & blur(Rect const & area, Vec2 radius, u32 num_passes,
+  Canvas & blur(Rect const & area, Vec2 radius,
                 Vec4 corner_radii = {0, 0, 0, 0});
 
   /// @brief register a custom canvas pass to be executed in the render thread
