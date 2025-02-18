@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/render_text.h"
+#include "ashura/engine/systems.h"
 
 namespace ash
 {

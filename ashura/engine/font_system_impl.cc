@@ -1,4 +1,4 @@
-#pragma once
+/// SPDX-License-Identifier: MIT
 #include "ashura/engine/font_system_impl.h"
 #include "ashura/engine/font_impl.h"
 #include "ashura/engine/rect_pack.h"
@@ -135,6 +135,8 @@ Result<Dyn<Font *>, FontLoadErr>
     }
   }};
 
+  bool const has_color = FT_HAS_COLOR(ft_face);
+
   char const * ft_postscript_name = FT_Get_Postscript_Name(ft_face);
 
   FontImpl::Name postscript_name;
@@ -198,9 +200,10 @@ Result<Dyn<Font *>, FontLoadErr>
 
   Result font = dyn<FontImpl>(
     inplace, allocator_, FontId::Invalid, std::move(label),
-    std::move(font_data), std::move(postscript_name), std::move(family_name),
-    std::move(style_name), hb_blob, hb_face, hb_font, ft_lib, ft_face, face,
-    std::move(glyphs), replacement_glyph, ellipsis_glyph, space_glyph,
+    std::move(font_data), has_color, std::move(postscript_name),
+    std::move(family_name), std::move(style_name), hb_blob, hb_face, hb_font,
+    ft_lib, ft_face, face, std::move(glyphs), replacement_glyph, ellipsis_glyph,
+    space_glyph,
     FontMetrics{.ascent = ascent, .descent = descent, .advance = advance});
 
   if (!font)
@@ -251,8 +254,7 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
 
   for (auto [i, g] : enumerate<u32>(atlas.glyphs))
   {
-    FT_Error ft_error = FT_Load_Glyph(font.ft_face, i, FT_LOAD_DEFAULT);
-    if (ft_error != 0)
+    if (FT_Load_Glyph(font.ft_face, i, FT_LOAD_DEFAULT))
     {
       continue;
     }
@@ -346,7 +348,7 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
     }
   }
 
-  u64 const atlas_area       = (u64) atlas_extent.x * (u64) atlas_extent.y;
+  u64 const atlas_area       = (u64) atlas_extent.x * (u64) atlas_extent.y * 4;
   u64 const atlas_layer_size = atlas_area;
   u64 const atlas_size       = atlas_layer_size * num_layers;
 
@@ -355,34 +357,57 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
     return Err{};
   }
 
-  ImageLayerSpan<u8, 1> atlas_span{
+  ImageLayerSpan<u8, 4> atlas_span{
     .channels = atlas.channels, .extent = atlas_extent, .layers = num_layers};
 
   for (auto [i, ag] : enumerate<u32>(atlas.glyphs))
   {
     FT_GlyphSlot slot = font.ft_face->glyph;
-    FT_Error     ft_error =
-      FT_Load_Glyph(font.ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_RENDER);
-    if (ft_error != 0)
+    if (FT_Load_Glyph(font.ft_face, i,
+                      FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR))
     {
       continue;
     }
 
-    // [ ] FT_HAS_COLOR()
-
-    CHECK(slot->bitmap.pixel_mode == FT_PIXEL_MODE_GRAY, "");
     /// we don't want to handle negative pitches
     CHECK(slot->bitmap.pitch >= 0, "");
 
-    ImageSpan<u8 const, 1> src{
-      .channels{slot->bitmap.buffer,
-                slot->bitmap.rows * (u32) slot->bitmap.pitch},
-      .extent{slot->bitmap.width,  slot->bitmap.rows      },
-      .stride = (u32) slot->bitmap.pitch
-    };
+    switch (slot->bitmap.pixel_mode)
+    {
+      case FT_PIXEL_MODE_GRAY:
+      {
+        ImageSpan<u8 const, 1> src{
+          .channels{slot->bitmap.buffer,
+                    slot->bitmap.rows * (u32) slot->bitmap.pitch},
+          .extent{slot->bitmap.width,  slot->bitmap.rows      },
+          .stride = (u32) slot->bitmap.pitch
+        };
 
-    copy_image(
-      src, atlas_span.layer(ag.layer).slice(ag.area.offset, ag.area.extent));
+        copy_alpha_image_to_BGRA(
+          src, atlas_span.layer(ag.layer).slice(ag.area.offset, ag.area.extent),
+          (u8) 0xFFU, (u8) 0xFFU, (u8) 0xFFU);
+
+        ag.has_color = false;
+      }
+      break;
+      case FT_PIXEL_MODE_BGRA:
+      {
+        ImageSpan<u8 const, 4> src{
+          .channels{slot->bitmap.buffer,
+                    slot->bitmap.rows * (u32) slot->bitmap.pitch},
+          .extent{slot->bitmap.width,  slot->bitmap.rows      },
+          .stride = (u32) slot->bitmap.pitch
+        };
+
+        copy_image(src, atlas_span.layer(ag.layer).slice(ag.area.offset,
+                                                         ag.area.extent));
+
+        ag.has_color = true;
+      }
+      break;
+      default:
+        CHECK(false, "Unrecognized pixel mode {}", slot->bitmap.pixel_mode);
+    }
   }
 
   atlas.font_height = font_height;
@@ -412,21 +437,11 @@ FontId FontSystemImpl::upload_(Dyn<Font *> font_)
 
   gpu_atlas.glyphs.extend(atlas.glyphs).unwrap();
 
-  Vec<u8> bgra_pixels{allocator_};
-  bgra_pixels.resize(pixel_size_bytes(atlas.extent, 4) * atlas.num_layers)
-    .unwrap();
-
   constexpr gpu::Format   format = gpu::Format::B8G8R8A8_UNORM;
-  ImageLayerSpan<u8, 4>   bgra{.channels = bgra_pixels,
-                               .extent   = atlas.extent,
-                               .layers   = atlas.num_layers};
   Vec<gpu::ImageViewInfo> view_infos;
 
   for (u32 i = 0; i < atlas.num_layers; i++)
   {
-    copy_alpha_image_to_BGRA(atlas.span().layer(i).as_const(), bgra.layer(i),
-                             U8_MAX, U8_MAX, U8_MAX);
-
     view_infos
       .push(gpu::ImageViewInfo{.label             = font.label,
                                .view_type         = gpu::ImageViewType::Type2D,
@@ -456,7 +471,7 @@ FontId FontSystemImpl::upload_(Dyn<Font *> font_)
                           .array_layers = atlas.num_layers,
                           .sample_count = gpu::SampleCount::C1
   },
-                        view_infos, bgra.channels)
+                        view_infos, atlas.channels)
       .unwrap();
 
   gpu_atlas.textures.extend(image.textures).unwrap();

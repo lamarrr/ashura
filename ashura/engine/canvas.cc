@@ -753,7 +753,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
               .sampler   = info.sampler,
               .texture   = atlas.textures[agl.layer],
               .uv        = {agl.uv[0], agl.uv[1]},
-              .tiling    = info.tiling,
+              .tiling    = 1,
               .edge_smoothness = info.edge_smoothness
             });
           }
@@ -761,14 +761,14 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
           if (pass == Pass::GLYPHS && !run_style.color.is_transparent())
           {
             rect({
-              .center          = info.center,
-              .extent          = extent,
-              .transform       = info.transform * translate3d(vec3(center, 0)),
-              .tint            = run_style.color,
-              .sampler         = info.sampler,
-              .texture         = atlas.textures[agl.layer],
-              .uv              = {agl.uv[0], agl.uv[1]},
-              .tiling          = info.tiling,
+              .center    = info.center,
+              .extent    = extent,
+              .transform = info.transform * translate3d(vec3(center, 0)),
+              .tint      = agl.has_color ? colors::WHITE : run_style.color,
+              .sampler   = info.sampler,
+              .texture   = atlas.textures[agl.layer],
+              .uv        = {agl.uv[0], agl.uv[1]},
+              .tiling    = 1,
               .edge_smoothness = info.edge_smoothness
             });
           }
@@ -790,7 +790,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                 .sampler   = info.sampler,
                 .texture   = TextureId::White,
                 .uv        = {},
-                .tiling    = info.tiling,
+                .tiling    = 1,
                 .edge_smoothness = info.edge_smoothness});
         }
 
@@ -806,7 +806,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                 .sampler   = info.sampler,
                 .texture   = TextureId::White,
                 .uv        = {},
-                .tiling    = info.tiling,
+                .tiling    = 1,
                 .edge_smoothness = info.edge_smoothness});
         }
 

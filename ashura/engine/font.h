@@ -94,9 +94,10 @@ struct FontMetrics
 /// @param uv normalized texture coordinates of this glyph in the layer
 struct AtlasGlyph
 {
-  u32   layer = 0;
-  RectU area  = {};
-  Vec2  uv[2] = {};
+  bool16 has_color = false;
+  u16    layer     = 0;
+  RectU  area      = {};
+  Vec2   uv[2]     = {};
 };
 
 struct CpuFontAtlas
@@ -141,6 +142,7 @@ struct FontInfo
 {
   FontId                        id                = FontId::Invalid;
   Span<char const>              label             = {};
+  bool                          has_color         = false;
   Span<char const>              postscript_name   = {};
   Span<char const>              family_name       = {};
   Span<char const>              style_name        = {};
