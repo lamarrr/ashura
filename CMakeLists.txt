@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.20)
 
 project(Ashura)
 
+option(ASH_WERROR "Make all ASH's compilation warnings manifest as errors" OFF)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
@@ -152,18 +154,46 @@ target_include_directories(
   PRIVATE ${sheenbidi_SOURCE_DIR}/Source)
 add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
+list(APPEND ASH_COMPILE_OPTIONS)
+list(APPEND ASH_COMPILE_DEFINITIONS)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic)
+
+  if(ASH_WERROR)
+    list(APPEND ASH_COMPILE_OPTIONS -Werror)
+  endif()
+
 else()
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic -Wno-nullability-completeness
-                        -Wno-nullability-extension)
+    list(
+      APPEND
+      ASH_COMPILE_OPTIONS
+      -Wall
+      -Wextra
+      -Wpedantic
+      -Wno-nullability-completeness
+      -Wno-nullability-extension
+      -Wno-bitwise-instead-of-logical)
+
+    if(ASH_WERROR)
+      list(APPEND ASH_COMPILE_OPTIONS -Werror)
+    endif()
+
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-      add_compile_options(/W3 /Zc:preprocessor /permissive)
-      add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+      list(APPEND ASH_COMPILE_OPTIONS /W3 /Zc:preprocessor /permissive)
+
+      if(ASH_WERROR)
+        list(APPEND ASH_COMPILE_OPTIONS /Wx)
+      endif()
+
     endif()
   endif()
+endif()
+
+if(WIN32)
+  list(APPEND ASH_COMPILE_DEFINITIONS _CRT_SECURE_NO_WARNINGS)
 endif()
 
 # ASHURA STD
@@ -184,6 +214,8 @@ target_include_directories(
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE ${xxHash_INCLUDE_DIR})
 target_link_libraries(ashura_std PUBLIC Threads::Threads)
+target_compile_options(ashura_std PRIVATE ${ASH_COMPILE_OPTIONS})
+target_compile_definitions(ashura_std PRIVATE ${ASH_COMPILE_DEFINITIONS})
 
 # ASHURA STD - TESTS
 
@@ -213,12 +245,15 @@ target_link_libraries(ashura_std_bench benchmark::benchmark
 
 add_library(ashura_gpu ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
                        ashura/gpu/vulkan.cc)
-
 target_link_libraries(
-  ashura_gpu PUBLIC ashura_std Vulkan-Headers Vulkan::UtilityHeaders
-                    Vulkan::Loader GPUOpen::VulkanMemoryAllocator)
+  ashura_gpu
+  PUBLIC ashura_std
+  PUBLIC Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
+         GPUOpen::VulkanMemoryAllocator)
 
 target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(ashura_gpu PRIVATE ${ASH_COMPILE_OPTIONS})
+target_compile_definitions(ashura_gpu PRIVATE ${ASH_COMPILE_DEFINITIONS})
 
 # ASHURA ENGINE
 
@@ -267,6 +302,8 @@ target_include_directories(
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS}
           ${fast_float_INCLUDE_DIR})
+target_compile_options(ashura_engine PRIVATE ${ASH_COMPILE_OPTIONS})
+target_compile_definitions(ashura_engine PRIVATE ${ASH_COMPILE_DEFINITIONS})
 
 # ASHURA ENGINE - TESTS
 
