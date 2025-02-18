@@ -1463,6 +1463,7 @@ inline constexpr f32         MAX_SAMPLER_ANISOTROPY               = 16;
 inline constexpr u32         MAX_CLIP_DISTANCES                   = 8;
 inline constexpr u32         MAX_CULL_DISTANCES                   = 8;
 inline constexpr u32         MAX_COMBINED_CLIP_AND_CULL_DISTANCES = 8;
+inline constexpr u32         BUFFER_OFFSET_ALIGNMENT              = 512;
 inline constexpr SampleCount REQUIRED_COLOR_SAMPLE_COUNTS =
   SampleCount::C1 | SampleCount::C2 | SampleCount::C4;
 inline constexpr SampleCount REQUIRED_DEPTH_SAMPLE_COUNTS =

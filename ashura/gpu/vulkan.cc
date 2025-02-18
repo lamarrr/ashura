@@ -1097,6 +1097,12 @@ void check_device_limits(VkPhysicalDeviceLimits limits)
   CHECK(has_bits(limits.framebufferDepthSampleCounts,
                  (VkSampleCountFlags) gpu::REQUIRED_DEPTH_SAMPLE_COUNTS),
         "");
+  CHECK(limits.minTexelBufferOffsetAlignment <= gpu::BUFFER_OFFSET_ALIGNMENT,
+        "");
+  CHECK(limits.minUniformBufferOffsetAlignment <= gpu::BUFFER_OFFSET_ALIGNMENT,
+        "");
+  CHECK(limits.minStorageBufferOffsetAlignment <= gpu::BUFFER_OFFSET_ALIGNMENT,
+        "");
 }
 
 void check_device_features(VkPhysicalDeviceFeatures feat)
@@ -1728,13 +1734,7 @@ gpu::DeviceProperties Device::get_properties()
     .type                    = (gpu::DeviceType) vk_properties.deviceType,
     .has_unified_memory      = has_uma,
     .has_non_solid_fill_mode = (vk_features.fillModeNonSolid == VK_TRUE),
-    .texel_buffer_offset_alignment =
-      vk_properties.limits.minTexelBufferOffsetAlignment,
-    .uniform_buffer_offset_alignment =
-      vk_properties.limits.minUniformBufferOffsetAlignment,
-    .storage_buffer_offset_alignment =
-      vk_properties.limits.minStorageBufferOffsetAlignment,
-    .timestamp_period = vk_properties.limits.timestampPeriod,
+    .timestamp_period        = vk_properties.limits.timestampPeriod,
     .max_compute_work_group_invocations =
       vk_properties.limits.maxComputeWorkGroupInvocations,
     .max_compute_shared_memory_size =
@@ -3661,10 +3661,6 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
   }
 
   DescriptorSet * const set = (DescriptorSet *) update.set;
-  u64 const             ubo_offset_alignment =
-    phy_dev.vk_properties.limits.minUniformBufferOffsetAlignment;
-  u64 const ssbo_offset_alignment =
-    phy_dev.vk_properties.limits.minStorageBufferOffsetAlignment;
 
   CHECK(update.binding < set->num_bindings, "");
   DescriptorBinding & binding = set->bindings[update.binding];
@@ -3687,7 +3683,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
         CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::StorageBuffer),
               "");
         CHECK(is_valid_buffer_access(buffer->info.size, b.offset, b.size,
-                                     ubo_offset_alignment),
+                                     gpu::BUFFER_OFFSET_ALIGNMENT),
               "");
       }
       break;
@@ -3701,7 +3697,7 @@ void Device::update_descriptor_set(gpu::DescriptorSetUpdate const & update)
         CHECK(has_bits(buffer->info.usage, gpu::BufferUsage::UniformBuffer),
               "");
         CHECK(is_valid_buffer_access(buffer->info.size, b.offset, b.size,
-                                     ssbo_offset_alignment),
+                                     gpu::BUFFER_OFFSET_ALIGNMENT),
               "");
       }
       break;
@@ -4643,21 +4639,21 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
 
     Vec3U src_extent = mip_size(src->info.extent, copy.src_layers.mip_level);
     Vec3U dst_extent = mip_size(dst->info.extent, copy.dst_layers.mip_level);
-    CHECK(copy.extent.x > 0, "");
-    CHECK(copy.extent.y > 0, "");
-    CHECK(copy.extent.z > 0, "");
-    CHECK(copy.src_offset.x <= src_extent.x, "");
-    CHECK(copy.src_offset.y <= src_extent.y, "");
-    CHECK(copy.src_offset.z <= src_extent.z, "");
-    CHECK((copy.src_offset.x + copy.extent.x) <= src_extent.x, "");
-    CHECK((copy.src_offset.y + copy.extent.y) <= src_extent.y, "");
-    CHECK((copy.src_offset.z + copy.extent.z) <= src_extent.z, "");
+    CHECK(copy.src_area.extent.x > 0, "");
+    CHECK(copy.src_area.extent.y > 0, "");
+    CHECK(copy.src_area.extent.z > 0, "");
+    CHECK(copy.src_area.offset.x <= src_extent.x, "");
+    CHECK(copy.src_area.offset.y <= src_extent.y, "");
+    CHECK(copy.src_area.offset.z <= src_extent.z, "");
+    CHECK(copy.src_area.end().x <= src_extent.x, "");
+    CHECK(copy.src_area.end().y <= src_extent.y, "");
+    CHECK(copy.src_area.end().z <= src_extent.z, "");
     CHECK(copy.dst_offset.x <= dst_extent.x, "");
     CHECK(copy.dst_offset.y <= dst_extent.y, "");
     CHECK(copy.dst_offset.z <= dst_extent.z, "");
-    CHECK((copy.dst_offset.x + copy.extent.x) <= dst_extent.x, "");
-    CHECK((copy.dst_offset.y + copy.extent.y) <= dst_extent.y, "");
-    CHECK((copy.dst_offset.z + copy.extent.z) <= dst_extent.z, "");
+    CHECK((copy.dst_offset.x + copy.src_area.extent.x) <= dst_extent.x, "");
+    CHECK((copy.dst_offset.y + copy.src_area.extent.y) <= dst_extent.y, "");
+    CHECK((copy.dst_offset.z + copy.src_area.extent.z) <= dst_extent.z, "");
   }
 
   VkImageCopy * vk_copies;
@@ -4675,8 +4671,9 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
       .mipLevel       = copy.src_layers.mip_level,
       .baseArrayLayer = copy.src_layers.first_array_layer,
       .layerCount     = copy.src_layers.num_array_layers};
-    VkOffset3D src_offset{(i32) copy.src_offset.x, (i32) copy.src_offset.y,
-                          (i32) copy.src_offset.z};
+    VkOffset3D               src_offset{(i32) copy.src_area.offset.x,
+                          (i32) copy.src_area.offset.y,
+                          (i32) copy.src_area.offset.z};
     VkImageSubresourceLayers dst_subresource{
       .aspectMask     = (VkImageAspectFlags) copy.dst_layers.aspects,
       .mipLevel       = copy.dst_layers.mip_level,
@@ -4684,7 +4681,8 @@ void CommandEncoder::copy_image(gpu::Image src_, gpu::Image dst_,
       .layerCount     = copy.dst_layers.num_array_layers};
     VkOffset3D dst_offset{(i32) copy.dst_offset.x, (i32) copy.dst_offset.y,
                           (i32) copy.dst_offset.z};
-    VkExtent3D extent{copy.extent.x, copy.extent.y, copy.extent.z};
+    VkExtent3D extent{copy.src_area.extent.x, copy.src_area.extent.y,
+                      copy.src_area.extent.z};
 
     vk_copies[i] = VkImageCopy{.srcSubresource = src_subresource,
                                .srcOffset      = src_offset,
@@ -4731,16 +4729,16 @@ void CommandEncoder::copy_buffer_to_image(
             copy.image_layers.num_array_layers),
           "");
 
-    CHECK(copy.image_extent.x > 0, "");
-    CHECK(copy.image_extent.y > 0, "");
-    CHECK(copy.image_extent.z > 0, "");
+    CHECK(copy.image_area.extent.x > 0, "");
+    CHECK(copy.image_area.extent.y > 0, "");
+    CHECK(copy.image_area.extent.z > 0, "");
     Vec3U dst_extent = mip_size(dst->info.extent, copy.image_layers.mip_level);
-    CHECK(copy.image_extent.x <= dst_extent.x, "");
-    CHECK(copy.image_extent.y <= dst_extent.y, "");
-    CHECK(copy.image_extent.z <= dst_extent.z, "");
-    CHECK((copy.image_offset.x + copy.image_extent.x) <= dst_extent.x, "");
-    CHECK((copy.image_offset.y + copy.image_extent.y) <= dst_extent.y, "");
-    CHECK((copy.image_offset.z + copy.image_extent.z) <= dst_extent.z, "");
+    CHECK(copy.image_area.extent.x <= dst_extent.x, "");
+    CHECK(copy.image_area.extent.y <= dst_extent.y, "");
+    CHECK(copy.image_area.extent.z <= dst_extent.z, "");
+    CHECK(copy.image_area.end().x <= dst_extent.x, "");
+    CHECK(copy.image_area.end().y <= dst_extent.y, "");
+    CHECK(copy.image_area.end().z <= dst_extent.z, "");
   }
 
   VkBufferImageCopy * vk_copies;
@@ -4763,11 +4761,12 @@ void CommandEncoder::copy_buffer_to_image(
       .bufferRowLength   = copy.buffer_row_length,
       .bufferImageHeight = copy.buffer_image_height,
       .imageSubresource  = image_subresource,
-      .imageOffset =
-        VkOffset3D{(i32) copy.image_offset.x, (i32) copy.image_offset.y,
-                   (i32) copy.image_offset.z},
-      .imageExtent = VkExtent3D{copy.image_extent.x,       copy.image_extent.y,
-                   copy.image_extent.z      }
+      .imageOffset       = VkOffset3D{(i32) copy.image_area.offset.x,
+                                      (i32) copy.image_area.offset.y,
+                                      (i32) copy.image_area.offset.z},
+      .imageExtent =
+        VkExtent3D{copy.image_area.extent.x,       copy.image_area.extent.y,
+                                      copy.image_area.extent.z      }
     };
   }
 
@@ -4815,32 +4814,18 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
 
     Vec3U src_extent = mip_size(src->info.extent, blit.src_layers.mip_level);
     Vec3U dst_extent = mip_size(dst->info.extent, blit.dst_layers.mip_level);
-    CHECK(blit.src_offsets[0].x <= src_extent.x, "");
-    CHECK(blit.src_offsets[0].y <= src_extent.y, "");
-    CHECK(blit.src_offsets[0].z <= src_extent.z, "");
-    CHECK(blit.src_offsets[1].x <= src_extent.x, "");
-    CHECK(blit.src_offsets[1].y <= src_extent.y, "");
-    CHECK(blit.src_offsets[1].z <= src_extent.z, "");
-    CHECK(blit.dst_offsets[0].x <= dst_extent.x, "");
-    CHECK(blit.dst_offsets[0].y <= dst_extent.y, "");
-    CHECK(blit.dst_offsets[0].z <= dst_extent.z, "");
-    CHECK(blit.dst_offsets[1].x <= dst_extent.x, "");
-    CHECK(blit.dst_offsets[1].y <= dst_extent.y, "");
-    CHECK(blit.dst_offsets[1].z <= dst_extent.z, "");
-    CHECK(!((src->info.type == gpu::ImageType::Type1D) &&
-            (blit.src_offsets[0].y != 0 || blit.src_offsets[1].y != 1)),
-          "");
-    CHECK(!((src->info.type == gpu::ImageType::Type1D ||
-             src->info.type == gpu::ImageType::Type2D) &&
-            (blit.src_offsets[0].z != 0 || blit.src_offsets[1].z != 1)),
-          "");
-    CHECK(!((dst->info.type == gpu::ImageType::Type1D) &&
-            (blit.dst_offsets[0].y != 0 || blit.dst_offsets[1].y != 1)),
-          "");
-    CHECK(!((dst->info.type == gpu::ImageType::Type1D ||
-             dst->info.type == gpu::ImageType::Type2D) &&
-            (blit.src_offsets[0].z != 0 || blit.dst_offsets[1].z != 1)),
-          "");
+    CHECK(blit.src_area.offset.x <= src_extent.x, "");
+    CHECK(blit.src_area.offset.y <= src_extent.y, "");
+    CHECK(blit.src_area.offset.z <= src_extent.z, "");
+    CHECK(blit.src_area.end().x <= src_extent.x, "");
+    CHECK(blit.src_area.end().y <= src_extent.y, "");
+    CHECK(blit.src_area.end().z <= src_extent.z, "");
+    CHECK(blit.dst_area.offset.x <= dst_extent.x, "");
+    CHECK(blit.dst_area.offset.y <= dst_extent.y, "");
+    CHECK(blit.dst_area.offset.z <= dst_extent.z, "");
+    CHECK(blit.dst_area.end().x <= dst_extent.x, "");
+    CHECK(blit.dst_area.end().y <= dst_extent.y, "");
+    CHECK(blit.dst_area.end().z <= dst_extent.z, "");
   }
 
   VkImageBlit * vk_blits;
@@ -4865,18 +4850,18 @@ void CommandEncoder::blit_image(gpu::Image src_, gpu::Image dst_,
       .layerCount     = blit.dst_layers.num_array_layers};
     vk_blits[i] = VkImageBlit{
       .srcSubresource = src_subresource,
-      .srcOffsets     = {VkOffset3D{(i32) blit.src_offsets[0].x,
-                                (i32) blit.src_offsets[0].y,
-                                (i32) blit.src_offsets[0].z},
-                         VkOffset3D{(i32) blit.src_offsets[1].x,
-                                (i32) blit.src_offsets[1].y,
-                                (i32) blit.src_offsets[1].z}},
+      .srcOffsets     = {VkOffset3D{(i32) blit.src_area.offset.x,
+                                (i32) blit.src_area.offset.y,
+                                (i32) blit.src_area.offset.z},
+                         VkOffset3D{(i32) blit.src_area.end().x,
+                                (i32) blit.src_area.end().y,
+                                (i32) blit.src_area.end().z}},
       .dstSubresource = dst_subresource,
       .dstOffsets     = {
-                         VkOffset3D{(i32) blit.dst_offsets[0].x, (i32) blit.dst_offsets[0].y,
-                   (i32) blit.dst_offsets[0].z},
-                         VkOffset3D{(i32) blit.dst_offsets[1].x, (i32) blit.dst_offsets[1].y,
-                   (i32) blit.dst_offsets[1].z}             }
+                         VkOffset3D{(i32) blit.dst_area.offset.x, (i32) blit.dst_area.offset.y,
+                   (i32) blit.dst_area.offset.z},
+                         VkOffset3D{(i32) blit.dst_area.end().x, (i32) blit.dst_area.end().y,
+                   (i32) blit.dst_area.end().z}             }
     };
   }
 
@@ -4925,21 +4910,24 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
 
     Vec3U src_extent = mip_size(src->info.extent, resolve.src_layers.mip_level);
     Vec3U dst_extent = mip_size(dst->info.extent, resolve.dst_layers.mip_level);
-    CHECK(resolve.extent.x > 0, "");
-    CHECK(resolve.extent.y > 0, "");
-    CHECK(resolve.extent.z > 0, "");
-    CHECK(resolve.src_offset.x <= src_extent.x, "");
-    CHECK(resolve.src_offset.y <= src_extent.y, "");
-    CHECK(resolve.src_offset.z <= src_extent.z, "");
-    CHECK((resolve.src_offset.x + resolve.extent.x) <= src_extent.x, "");
-    CHECK((resolve.src_offset.y + resolve.extent.y) <= src_extent.y, "");
-    CHECK((resolve.src_offset.z + resolve.extent.z) <= src_extent.z, "");
+    CHECK(resolve.src_area.extent.x > 0, "");
+    CHECK(resolve.src_area.extent.y > 0, "");
+    CHECK(resolve.src_area.extent.z > 0, "");
+    CHECK(resolve.src_area.offset.x <= src_extent.x, "");
+    CHECK(resolve.src_area.offset.y <= src_extent.y, "");
+    CHECK(resolve.src_area.offset.z <= src_extent.z, "");
+    CHECK(resolve.src_area.end().x <= src_extent.x, "");
+    CHECK(resolve.src_area.end().y <= src_extent.y, "");
+    CHECK(resolve.src_area.end().z <= src_extent.z, "");
     CHECK(resolve.dst_offset.x <= dst_extent.x, "");
     CHECK(resolve.dst_offset.y <= dst_extent.y, "");
     CHECK(resolve.dst_offset.z <= dst_extent.z, "");
-    CHECK((resolve.dst_offset.x + resolve.extent.x) <= dst_extent.x, "");
-    CHECK((resolve.dst_offset.y + resolve.extent.y) <= dst_extent.y, "");
-    CHECK((resolve.dst_offset.z + resolve.extent.z) <= dst_extent.z, "");
+    CHECK((resolve.dst_offset.x + resolve.src_area.extent.x) <= dst_extent.x,
+          "");
+    CHECK((resolve.dst_offset.y + resolve.src_area.extent.y) <= dst_extent.y,
+          "");
+    CHECK((resolve.dst_offset.z + resolve.src_area.extent.z) <= dst_extent.z,
+          "");
   }
 
   VkImageResolve * vk_resolves;
@@ -4957,9 +4945,9 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
        .mipLevel       = resolve.src_layers.mip_level,
        .baseArrayLayer = resolve.src_layers.first_array_layer,
        .layerCount     = resolve.src_layers.num_array_layers};
-    VkOffset3D               src_offset{(i32) resolve.src_offset.x,
-                          (i32) resolve.src_offset.y,
-                          (i32) resolve.src_offset.z};
+    VkOffset3D               src_offset{(i32) resolve.src_area.offset.x,
+                          (i32) resolve.src_area.offset.y,
+                          (i32) resolve.src_area.offset.z};
     VkImageSubresourceLayers dst_subresource{
       .aspectMask     = (VkImageAspectFlags) resolve.dst_layers.aspects,
       .mipLevel       = resolve.dst_layers.mip_level,
@@ -4968,7 +4956,8 @@ void CommandEncoder::resolve_image(gpu::Image src_, gpu::Image dst_,
     VkOffset3D dst_offset{(i32) resolve.dst_offset.x,
                           (i32) resolve.dst_offset.y,
                           (i32) resolve.dst_offset.z};
-    VkExtent3D extent{resolve.extent.x, resolve.extent.y, resolve.extent.z};
+    VkExtent3D extent{resolve.src_area.extent.x, resolve.src_area.extent.y,
+                      resolve.src_area.extent.z};
 
     vk_resolves[i] = VkImageResolve{.srcSubresource = src_subresource,
                                     .srcOffset      = src_offset,
@@ -5787,10 +5776,6 @@ void CommandEncoder::bind_descriptor_sets(
   ENCODE_PRELUDE();
   u32 const num_sets            = descriptor_sets.size32();
   u32 const num_dynamic_offsets = dynamic_offsets.size32();
-  u64 const ubo_offset_alignment =
-    dev->phy_dev.vk_properties.limits.minUniformBufferOffsetAlignment;
-  u64 const ssbo_offset_alignment =
-    dev->phy_dev.vk_properties.limits.minStorageBufferOffsetAlignment;
 
   CHECK(is_in_pass(), "");
   CHECK(num_sets <= gpu::MAX_PIPELINE_DESCRIPTOR_SETS, "");
@@ -5800,9 +5785,7 @@ void CommandEncoder::bind_descriptor_sets(
 
   for (u32 offset : dynamic_offsets)
   {
-    CHECK(is_aligned<u64>(ubo_offset_alignment, offset) ||
-            is_aligned<u64>(ssbo_offset_alignment, offset),
-          "");
+    CHECK(is_aligned<u64>(gpu::BUFFER_OFFSET_ALIGNMENT, offset), "");
   }
 
   if (is_in_compute_pass())
