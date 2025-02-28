@@ -4,7 +4,6 @@
   "dependencies": [
     "libjpeg-turbo",
     "libpng",
-    "simdjson",
     "gtest",
     "benchmark",
     "ffmpeg"

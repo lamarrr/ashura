@@ -119,7 +119,12 @@ FetchContent_Declare(
   GIT_TAG v7.0.0
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
-find_package(simdjson CONFIG REQUIRED)
+
+FetchContent_Declare(
+  simdjson
+  GIT_REPOSITORY   https://github.com/simdjson/simdjson.git
+  GIT_TAG dfa43f6)
+
 find_package(GTest REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
@@ -141,6 +146,7 @@ FetchContent_MakeAvailable(WebP)
 FetchContent_MakeAvailable(CURL)
 FetchContent_MakeAvailable(xxHash)
 FetchContent_MakeAvailable(fast_float)
+FetchContent_MakeAvailable(simdjson)
 
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
 set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)

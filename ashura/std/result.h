@@ -337,16 +337,16 @@ struct [[nodiscard]] Result
   constexpr T unwrap(Span<char const> msg = ""_str,
                      SourceLocation   loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_ok(), "Expected Value in Result but got Err = ", err_,
-               ". ", msg);
+    CHECK_SLOC(loc, is_ok(), "Expected Value in Result but got Err = {}. {}",
+               err_, msg);
     return static_cast<T &&>(value_);
   }
 
   constexpr E unwrap_err(Span<char const> msg = ""_str,
                          SourceLocation   loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_err(), "Expected Err in Result but got Value = ", value_,
-               ". ", msg);
+    CHECK_SLOC(loc, is_err(), "Expected Err in Result but got Value = {}. {}", value_,
+                msg);
     return static_cast<E &&>(err_);
   }
 

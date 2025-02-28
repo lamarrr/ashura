@@ -337,8 +337,10 @@ struct Canvas
     // no need to free it
     lambda.allocator_ = noop_allocator;
 
-    return add_pass(
-      Pass{.label = label, .task = transmute(std::move(lambda), fn(*lambda))});
+    auto f = fn(*lambda);
+
+    return pass(
+      Pass{.label = label, .task = transmute(std::move(lambda), f)});
   }
 };
 

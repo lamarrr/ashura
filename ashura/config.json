@@ -1,12 +1,12 @@
 {
     "$schema": "./config.schema.json",
     "version": "0.0.1",
-    "gpu.validation": false,
+    "gpu.validation": true,
     "gpu.vsync": false,
     "gpu.preferences": [
+        "dgpu",
         "igpu",
         "cpu",
-        "dgpu",
         "vgpu",
         "other"
     ],

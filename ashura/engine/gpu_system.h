@@ -213,7 +213,9 @@ struct GpuTaskQueue
       dyn(arena_.ref(), static_cast<Lambda &&>(task)).unwrap();
     lambda.allocator_ = noop_allocator;
 
-    tasks_.push(transmute(std::move(lambda), fn(*lambda))).unwrap();
+    auto f = fn(*lambda);
+
+    tasks_.push(transmute(std::move(lambda), f)).unwrap();
   }
 
   void run();
@@ -278,9 +280,9 @@ struct GpuUploadQueue
       dyn(arena_.ref(), static_cast<Encoder &&>(encoder)).unwrap();
     lambda.allocator_ = noop_allocator;
 
+    auto f = fn(*lambda);
     tasks_
-      .push(Task{.slice   = slice,
-                 .encoder = transmute(std::move(lambda), fn(*lambda))})
+      .push(Task{.slice = slice, .encoder = transmute(std::move(lambda), f)})
       .unwrap();
   }
 

@@ -122,7 +122,7 @@ void copy_alpha_image_to_BGRA(ImageSpan<T const, 1> src, ImageSpan<T, 4> dst,
                               T B, T G, T R)
 {
   src.extent.x = min(src.extent.x, dst.extent.x);
-  src.extent.y = min(src.extent.y, dst.extent.x);
+  src.extent.y = min(src.extent.y, dst.extent.y);
 
   auto const * ASH_RESTRICT in_row  = src.channels.data();
   auto * ASH_RESTRICT       out_row = dst.channels.data();
@@ -146,7 +146,7 @@ template <typename T>
 void copy_RGBA_to_BGRA(ImageSpan<T const, 4> src, ImageSpan<T, 4> dst)
 {
   src.extent.x = min(src.extent.x, dst.extent.x);
-  src.extent.y = min(src.extent.y, dst.extent.x);
+  src.extent.y = min(src.extent.y, dst.extent.y);
 
   auto const * ASH_RESTRICT in_row  = src.channels.data();
   auto * ASH_RESTRICT       out_row = dst.channels.data();
@@ -170,7 +170,7 @@ template <typename T>
 void copy_RGB_to_BGRA(ImageSpan<T const, 3> src, ImageSpan<T, 4> dst, T A)
 {
   src.extent.x = min(src.extent.x, dst.extent.x);
-  src.extent.y = min(src.extent.y, dst.extent.x);
+  src.extent.y = min(src.extent.y, dst.extent.y);
 
   auto const * in_row  = src.channels.data();
   auto *       out_row = dst.channels.data();

@@ -146,8 +146,8 @@ constexpr Dyn<H> transmute(Dyn<Base> base, H handle)
 template <typename To, typename From>
 constexpr Dyn<To> cast(Dyn<From> from)
 {
-  return transmute(static_cast<Dyn<From> &&>(from),
-                   static_cast<To>(from.get()));
+  auto to = static_cast<To>(from.get());
+  return transmute(static_cast<Dyn<From> &&>(from), std::move(to));
 }
 
 }    // namespace ash
