@@ -878,6 +878,12 @@ struct SliceT
   }
 };
 
+template <typename S>
+constexpr bool operator==(SliceT<S> const & a, SliceT<S> const & b)
+{
+  return a.offset == b.offset && a.span == b.span;
+}
+
 using Slice   = SliceT<usize>;
 using Slice8  = SliceT<u8>;
 using Slice16 = SliceT<u16>;

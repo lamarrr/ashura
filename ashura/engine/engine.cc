@@ -238,6 +238,7 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
           break;
         case WindowEventType::CloseRequested:
           f.close_requested = true;
+          f.closing         = true;
           break;
         case WindowEventType::Occluded:
         case WindowEventType::EnterFullScreen:
@@ -647,7 +648,8 @@ void Engine::recreate_swapchain_()
   }
 }
 
-void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
+void Engine::run(ui::View & view, ui::View & focus_view,
+                 Fn<void(InputState const &)> loop)
 {
   trace("Starting Engine Run Loop");
 
@@ -656,12 +658,13 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
     recreate_swapchain_();
   }
 
-  time_point timestamp = steady_clock::now();
-
-  Cursor cursor = Cursor::Default;
+  time_point timestamp       = steady_clock::now();
+  bool       should_close    = false;
+  Cursor     cursor          = Cursor::Default;
+  bool       text_input_mode = false;
   window_sys->set_cursor(cursor);
 
-  while (true)
+  while (!should_close)
   {
     ScopeTrace frame_trace{{"frame"_str}};
     auto const frame_start = steady_clock::now();
@@ -688,12 +691,6 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
     input_buffer.window_extent  = window_extent;
     input_buffer.surface_extent = surface_extent;
 
-    // [ ] proper cooperative shutdown is needed, defer shutdown?
-    if (input_buffer.close_requested)
-    {
-      break;
-    }
-
     if (input_buffer.resized || input_buffer.surface_resized)
     {
       gpu_sys.recreate_framebuffers(surface_extent);
@@ -711,22 +708,33 @@ void Engine::run(ui::View & view, Fn<void(InputState const &)> loop)
     },
       as_vec2(window_extent), surface_extent);
 
-    view_sys.tick(input_buffer, view, canvas, loop);
+    should_close = !view_sys.tick(input_buffer, view, focus_view, canvas, loop);
 
     if (view_sys.cursor() != cursor)
     {
       window_sys->set_cursor(cursor);
     }
 
+    auto input_info = view_sys.text_input();
+
+    if (input_info.is_some() && !text_input_mode)
+    {
+      window_sys->start_text_input(window, input_info.value());
+      text_input_mode = true;
+    }
+    else if (input_info.is_none() && text_input_mode)
+    {
+      window_sys->end_text_input(window);
+      text_input_mode = false;
+    }
+
     canvas.end_recording();
 
-    renderer.begin_frame(gpu_sys.fb_, canvas);
-    renderer.render_frame(gpu_sys.fb_, canvas);
-    renderer.end_frame(gpu_sys.fb_, canvas);
+    renderer.render_canvas(gpu_sys.fb_, canvas);
     gpu_sys.submit_frame(swapchain);
 
     auto const frame_end  = steady_clock::now();
-    auto const frame_time = frame_start - frame_end;
+    auto const frame_time = frame_end - frame_start;
 
     if (frame_time < min_frame_interval)
     {

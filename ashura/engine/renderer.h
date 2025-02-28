@@ -8,24 +8,26 @@
 namespace ash
 {
 
+struct Canvas;
+
 struct PassContext
 {
-  BloomPass *      bloom;
-  BlurPass *       blur;
-  NgonPass *       ngon;
-  PBRPass *        pbr;
-  RRectPass *      rrect;
+  ref<BloomPass>   bloom;
+  ref<BlurPass>    blur;
+  ref<NgonPass>    ngon;
+  ref<PBRPass>     pbr;
+  ref<RRectPass>   rrect;
   Vec<Dyn<Pass *>> all;
 
   static PassContext create(AllocatorRef allocator);
 
   PassContext(BloomPass & bloom, BlurPass & blur, NgonPass & ngon,
               PBRPass & pbr, RRectPass & rrect, Vec<Dyn<Pass *>> all) :
-    bloom{&bloom},
-    blur{&blur},
-    ngon{&ngon},
-    pbr{&pbr},
-    rrect{&rrect},
+    bloom{bloom},
+    blur{blur},
+    ngon{ngon},
+    pbr{pbr},
+    rrect{rrect},
     all{std::move(all)}
   {
   }
@@ -39,54 +41,111 @@ struct PassContext
   void acquire();
 
   void release();
+
+  void add_pass(Dyn<Pass *> pass);
 };
 
-struct GpuPipeline
+struct FrameGraph
 {
-  virtual Span<char const> label() = 0;
+  typedef Dyn<Fn<void(FrameGraph & graph, gpu::CommandEncoder & enc,
+                      PassContext & passes, Canvas const & canvas)>>
+    PassFn;
 
-  virtual void acquire(PassContext & passes) = 0;
+  struct Pass
+  {
+    Span<char const> label;
+    PassFn           pass;
+  };
 
-  virtual void release(PassContext & passes) = 0;
+  struct FrameData
+  {
+    SSBO ssbo{.label = "Frame Graph SSBO"_str};
+  };
 
-  virtual void begin_frame(PassContext & passes, gpu::CommandEncoder & enc) = 0;
+  typedef InplaceVec<FrameData, gpu::MAX_FRAME_BUFFERING> BufferedFrameData;
 
-  virtual void end_frame(PassContext & passes, gpu::CommandEncoder & enc) = 0;
+  BufferedFrameData frame_data_;
+  u32               frame_index_;
+  bool              uploaded_;
+  Vec<u8>           ssbo_data_;
+  Vec<Slice32>      ssbo_entries_;
+  PassContext *     pass_ctx_;
+  Vec<Pass>         passes_;
+  ArenaPool         arena_;
 
-  virtual ~GpuPipeline() = default;
+  FrameGraph(AllocatorRef allocator, PassContext & pass_ctx) :
+    frame_data_{},
+    frame_index_{0},
+    uploaded_{false},
+    ssbo_data_{allocator},
+    ssbo_entries_{allocator},
+    pass_ctx_{&pass_ctx},
+    passes_{allocator},
+    arena_{allocator}
+  {
+  }
+
+  FrameGraph(FrameGraph const &)             = delete;
+  FrameGraph & operator=(FrameGraph const &) = delete;
+  FrameGraph(FrameGraph &&)                  = default;
+  FrameGraph & operator=(FrameGraph &&)      = default;
+  ~FrameGraph()                              = default;
+
+  u32 push_ssbo(Span<u8 const> data);
+
+  SSBOSpan get_ssbo(u32 id);
+
+  void add_pass(Pass pass);
+
+  template <typename Lambda>
+  void add_pass(Span<char const> label, Lambda task)
+  {
+    // relocate lambda to heap
+    Dyn<Lambda *> lambda = dyn(arena_, static_cast<Lambda &&>(task)).unwrap();
+    // allocator is noop-ed but destructor still runs when the dynamic object is
+    // uninitialized. the memory is freed by at the end of the frame anyway so
+    // no need to free it
+    lambda.allocator_    = noop_allocator;
+
+    return add_pass(
+      Pass{.label = label, .pass = transmute(std::move(lambda), fn(*lambda))});
+  }
+
+  void execute(Canvas const & canvas);
+
+  void acquire();
+
+  void release();
 };
 
-struct Canvas;
+struct BlurRenderParam
+{
+  RectU         area          = {};
+  Vec2U         radius        = {};
+  Vec4          corner_radii  = {};
+  Mat4          transform     = Mat4::identity();
+  f32           aspect_ratio  = 1;
+  RectU         scissor       = {};
+  gpu::Viewport viewport      = {};
+  Mat4          world_to_view = {};
+};
+
+struct BlurRenderer
+{
+  static void render(FrameGraph & graph, Framebuffer const & fb,
+                     BlurRenderParam const & param);
+};
 
 struct Renderer
 {
-  struct Resources
-  {
-    SSBO pbr_params{.label = "PBR Params SSBO"_str};
-
-    SSBO pbr_light_params{.label = "Params Lights Params SSBO"_str};
-
-    SSBO ngon_vertices{.label = "Ngon Vertices SSBO"_str};
-
-    SSBO ngon_indices{.label = "Ngon Indices SSBO"_str};
-
-    SSBO ngon_params{.label = "Ngon Params SSBO"_str};
-
-    SSBO rrect_params{.label = "RRect Params SSBO"_str};
-  };
-
-  InplaceVec<Resources, gpu::MAX_FRAME_BUFFERING> resources;
-
-  PassContext passes;
-
-  Vec<Dyn<GpuPipeline *>> pipelines;
+  Dyn<PassContext *> passes_;
+  FrameGraph         graph_;
 
   static Renderer create(AllocatorRef allocator);
 
-  Renderer(AllocatorRef allocator, PassContext passes) :
-    resources{},
-    passes{std::move(passes)},
-    pipelines{allocator}
+  Renderer(AllocatorRef allocator, Dyn<PassContext *> passes) :
+    passes_{std::move(passes)},
+    graph_{allocator, *passes_}
   {
   }
 
@@ -100,15 +159,7 @@ struct Renderer
 
   void release();
 
-  void add_pass(Dyn<Pass *> pass);
-
-  void add_pipeline(Dyn<GpuPipeline *> pipeline);
-
-  void begin_frame(Framebuffer const & fb, Canvas & canvas);
-
-  void end_frame(Framebuffer const & fb, Canvas & canvas);
-
-  void render_frame(Framebuffer const & fb, Canvas & canvas);
+  void render_canvas(Framebuffer const & fb, Canvas const & canvas);
 };
 
 }    // namespace ash

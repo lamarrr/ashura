@@ -107,14 +107,9 @@ struct Framebuffer
   /// @brief combined depth and stencil aspect attachment
   Depth depth = {};
 
-  constexpr Vec3U extent3() const
+  constexpr Vec3U extent() const
   {
     return color.info.extent;
-  }
-
-  constexpr Vec2U extent() const
-  {
-    return Vec2U{extent3().x, extent3().y};
   }
 };
 
@@ -247,8 +242,6 @@ struct GpuUploadQueue
   Vec<Task> tasks_;
 
   u32 ring_index_;
-
-  u64 min_buffer_size_ = 100_MB;
 
   static GpuUploadQueue make(u32 buffering, AllocatorRef allocator);
 
@@ -388,6 +381,8 @@ struct GpuSystem
 
   static constexpr u16 NUM_FRAME_STATISTICS = 4'096;
 
+  static constexpr u16 NUM_SCRATCH_FRAMBEBUFFERS = 2;
+
   gpu::Device * device_;
 
   gpu::DeviceProperties props_;
@@ -419,7 +414,7 @@ struct GpuSystem
 
   Framebuffer fb_;
 
-  Framebuffer scratch_fb_;
+  Framebuffer scratch_fbs_[NUM_SCRATCH_FRAMBEBUFFERS];
 
   gpu::Image default_image_;
 
@@ -470,7 +465,7 @@ struct GpuSystem
     samplers_{samplers},
     sampler_cache_{allocator},
     fb_{},
-    scratch_fb_{},
+    scratch_fbs_{},
     default_image_{default_image},
     default_image_views_{default_image_views},
     texture_slots_{},
@@ -572,6 +567,12 @@ struct SSBO
   void flush(GpuSystem & gpu);
 
   void release(GpuSystem & gpu);
+};
+
+struct SSBOSpan
+{
+  SSBO    ssbo  = {};
+  Slice32 slice = {};
 };
 
 }    // namespace ash

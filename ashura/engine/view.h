@@ -280,6 +280,9 @@ struct ViewState
 
   /// @brief is view a viewport
   bool viewport : 1 = false;
+
+  /// @brief request the view system to defer shutdown to next frame
+  bool defer_close : 1 = false;
 };
 
 struct Theme

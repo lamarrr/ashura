@@ -113,9 +113,10 @@ void GpuUploadQueue::uninit(gpu::Device & device)
 
 void GpuUploadQueue::encode(gpu::Device & gpu, gpu::CommandEncoder & enc)
 {
-  UploadBuffer & buff = buffers_[ring_index_];
+  UploadBuffer &         buff     = buffers_[ring_index_];
+  static constexpr usize min_size = gpu::BUFFER_OFFSET_ALIGNMENT;
 
-  u64 const next_size = max(min_buffer_size_, buff.cpu.size());
+  u64 const next_size = max(min_size, buff.cpu.size());
 
   if (buff.gpu.size > next_size)
   {
@@ -125,13 +126,7 @@ void GpuUploadQueue::encode(gpu::Device & gpu, gpu::CommandEncoder & enc)
 
   buff.gpu.assign(gpu, buff.cpu);
 
-  buff.cpu.clear();
-
-  if (buff.cpu.size() > min_buffer_size_)
-  {
-    buff.cpu.reset();
-    buff.cpu.reserve(min_buffer_size_).unwrap();
-  }
+  buff.cpu.reset();
 
   for (Task const & task : tasks_)
   {
@@ -180,8 +175,8 @@ void GpuQueries::begin_frame(gpu::Device & dev, gpu::CommandEncoder & enc)
                                  cpu_statistics_)
     .unwrap();
 
-  enc.reset_timestamp_query(timestamps_, Slice32{0, num_frame_timestamps});
-  enc.reset_statistics_query(statistics_, Slice32{0, num_frame_stats});
+  enc.reset_timestamp_query(timestamps_, Slice32{0, timespans_capacity_ * 2});
+  enc.reset_statistics_query(statistics_, Slice32{0, statistics_capacity_});
 
   for (auto [i, label] : enumerate<u32>(timespan_labels_))
   {
@@ -671,7 +666,10 @@ void GpuSystem::shutdown(Vec<u8> & cache)
   release(textures_layout_);
   release(samplers_layout_);
   release(fb_);
-  release(scratch_fb_);
+  for (Framebuffer & fb : scratch_fbs_)
+  {
+    release(fb);
+  }
   for (auto const & [_, sampler] : sampler_cache_)
   {
     release(sampler.sampler);
@@ -686,9 +684,9 @@ void GpuSystem::shutdown(Vec<u8> & cache)
   textures_layout_     = {};
   samplers_layout_     = {};
   fb_                  = {};
-  scratch_fb_          = {};
-  sampler_cache_       = {};
-  pipeline_cache_      = {};
+  fill(scratch_fbs_, Framebuffer{});
+  sampler_cache_  = {};
+  pipeline_cache_ = {};
 
   idle_reclaim();
 }
@@ -873,7 +871,10 @@ void GpuSystem::recreate_framebuffers(Vec2U new_extent)
 {
   idle_reclaim();
   recreate_framebuffer(*this, fb_, new_extent);
-  recreate_framebuffer(*this, scratch_fb_, new_extent);
+  for (Framebuffer & scratch_fb : scratch_fbs_)
+  {
+    recreate_framebuffer(*this, scratch_fb, new_extent);
+  }
 }
 
 gpu::CommandEncoder & GpuSystem::encoder()
@@ -1091,10 +1092,13 @@ void GpuSystem::begin_frame(gpu::Swapchain swapchain)
     [&](Framebuffer::ColorMsaa const & c) { clear_color(c.image); });
   clear_depth(fb_.depth.image);
 
-  clear_color(scratch_fb_.color.image);
-  scratch_fb_.color_msaa.match(
-    [&](Framebuffer::ColorMsaa const & c) { clear_color(c.image); });
-  clear_depth(scratch_fb_.depth.image);
+  for (Framebuffer & fb : scratch_fbs_)
+  {
+    clear_color(fb.color.image);
+    fb.color_msaa.match(
+      [&](Framebuffer::ColorMsaa const & c) { clear_color(c.image); });
+    clear_depth(fb.depth.image);
+  }
 }
 
 void GpuSystem::submit_frame(gpu::Swapchain swapchain)
@@ -1112,18 +1116,17 @@ void GpuSystem::submit_frame(gpu::Swapchain swapchain)
         fb_.color.image,
         swapchain_state.images[swapchain_state.current_image.unwrap()],
         span({
-          gpu::ImageBlit{.src_layers  = {.aspects   = gpu::ImageAspects::Color,
-                                         .mip_level = 0,
-                                         .first_array_layer = 0,
-                                         .num_array_layers  = 1},
-                         .src_offsets = {{0, 0, 0}, fb_.extent3()},
-                         .dst_layers  = {.aspects   = gpu::ImageAspects::Color,
-                                         .mip_level = 0,
-                                         .first_array_layer = 0,
-                                         .num_array_layers  = 1},
-                         .dst_offsets = {{0, 0, 0},
-                                         {swapchain_state.extent.x,
-                                          swapchain_state.extent.y, 1}}}
+          gpu::ImageBlit{
+                         .src_layers = {.aspects           = gpu::ImageAspects::Color,
+                           .mip_level         = 0,
+                           .first_array_layer = 0,
+                           .num_array_layers  = 1},
+                         .src_area   = {{0, 0, 0}, fb_.extent()},
+                         .dst_layers = {.aspects           = gpu::ImageAspects::Color,
+                           .mip_level         = 0,
+                           .first_array_layer = 0,
+                           .num_array_layers  = 1},
+                         .dst_area   = {{0, 0, 0}, vec3u(swapchain_state.extent, 1)}}
       }),
         gpu::Filter::Linear);
     }

@@ -59,13 +59,11 @@ struct ViewSystem
     u32 focus_idx = U32_MAX;
 
     /// @brief does the view accepts text input
-    bool text_input = false;
+    bool input = false;
 
-    /// @brief does the view accepts tab input
-    bool tab_input = false;
+    TextInputInfo input_info = {};
 
-    /// @brief does the view accept esc input
-    bool esc_input = false;
+    CRect region = {};
   };
 
   struct State
@@ -146,11 +144,16 @@ struct ViewSystem
   BitVec<u64> is_draggable;
   BitVec<u64> is_droppable;
   BitVec<u64> is_focusable;
-  BitVec<u64> is_text_input;
-  BitVec<u64> is_tab_input;
-  BitVec<u64> is_esc_input;
-  BitVec<u64> is_viewport;
 
+  BitVec<u64>             is_input;
+  Vec<TextInputType>      input_type;
+  BitVec<u64>             is_multiline_input;
+  BitVec<u64>             is_esc_input;
+  BitVec<u64>             is_tab_input;
+  Vec<TextCapitalization> input_cap;
+  BitVec<u64>             input_autocorrect;
+
+  BitVec<u64>  is_viewport;
   Vec<Vec2>    centers;
   Vec<Vec2>    extents;
   Vec<Vec2>    viewport_extents;
@@ -164,6 +167,7 @@ struct ViewSystem
   Vec<Rect>    clips;
   Vec<u32>     z_ordering;
   Vec<u32>     focus_ordering;
+  bool         closing_deferred;
 
   explicit ViewSystem(AllocatorRef allocator) :
     s1{allocator},
@@ -178,9 +182,14 @@ struct ViewSystem
     is_draggable{allocator},
     is_droppable{allocator},
     is_focusable{allocator},
-    is_text_input{allocator},
-    is_tab_input{allocator},
+    is_input{allocator},
+    input_type{allocator},
+    is_multiline_input{allocator},
     is_esc_input{allocator},
+    is_tab_input{allocator},
+    input_cap{allocator},
+    input_autocorrect{allocator},
+    is_viewport{allocator},
     centers{allocator},
     extents{allocator},
     viewport_extents{allocator},
@@ -192,7 +201,8 @@ struct ViewSystem
     transforms{allocator},
     clips{allocator},
     z_ordering{allocator},
-    focus_ordering{allocator}
+    focus_ordering{allocator},
+    closing_deferred{false}
   {
   }
 
@@ -221,7 +231,8 @@ struct ViewSystem
 
   void visibility();
 
-  void render(Canvas & canvas);
+  void render(ui::ViewContext const & ctx, Canvas & canvas,
+              ui::View & focus_view);
 
   void focus_view(u32 view);
 
@@ -233,8 +244,10 @@ struct ViewSystem
 
   Cursor cursor() const;
 
-  void tick(InputState const & input, ui::View & root, Canvas & canvas,
-            Fn<void(ui::ViewContext const &)> loop);
+  Option<TextInputInfo> text_input() const;
+
+  bool tick(InputState const & input, ui::View & root, ui::View & focus_view,
+            Canvas & canvas, Fn<void(ui::ViewContext const &)> loop);
 };
 
 }    // namespace ash

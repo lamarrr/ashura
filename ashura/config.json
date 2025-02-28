@@ -2,18 +2,19 @@
     "$schema": "./config.schema.json",
     "version": "0.0.1",
     "gpu.validation": false,
-    "gpu.vsync": true,
+    "gpu.vsync": false,
     "gpu.preferences": [
+        "igpu",
+        "cpu",
         "dgpu",
         "vgpu",
-        "igpu",
-        "other",
-        "cpu"
+        "other"
     ],
     "gpu.hdr": true,
     "gpu.buffering": 2,
     "gpu.antialiasing": "msaa",
     "gpu.msaa.level": 2,
+    "gpu.max_fps": 1000,
     "window.resizable": true,
     "window.full_screen": false,
     "window.maximized": false,

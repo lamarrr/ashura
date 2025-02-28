@@ -84,6 +84,8 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
           info.format == gpu::Format::B8G8R8A8_UNORM,
         "");
 
+  gpu::Format resolved_format = gpu::Format::B8G8R8A8_UNORM;
+
   u64 const bgra_size =
     pixel_size_bytes(info.extent.xy(), 4) * info.array_layers;
 
@@ -135,9 +137,8 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
       break;
   }
 
-  gpu::Format    resolved_format = gpu::Format::B8G8R8A8_UNORM;
-  gpu::ImageInfo resolved_info   = info;
-  resolved_info.format           = resolved_format;
+  gpu::ImageInfo resolved_info = info;
+  resolved_info.format         = resolved_format;
 
   Vec<gpu::ImageViewInfo> resolved_view_infos =
     vec(allocator_, view_infos).unwrap();
@@ -149,6 +150,8 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
 
   ImageInfo image =
     create_image_(std::move(label), resolved_info, resolved_view_infos);
+
+    // [ ] move upload queue to Framegraog
 
   sys->gpu.upload_.queue(
     bgra, [image = image.image, info](gpu::CommandEncoder & enc,
@@ -164,8 +167,7 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
                           .mip_level         = 0,
                           .first_array_layer = 0,
                           .num_array_layers  = info.array_layers},
-                               .image_offset{0, 0, 0},
-                               .image_extent{info.extent.x, info.extent.y, 1}}
+                               .image_area{.offset{0, 0, 0}, .extent = info.extent}}
       }));
     });
 

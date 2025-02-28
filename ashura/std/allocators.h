@@ -16,20 +16,25 @@ struct Arena final : Allocator
   u8 *  end;
   u8 *  offset;
   usize alignment;
+  // usize allocated;
 
   constexpr Arena() :
     begin{nullptr},
     end{nullptr},
     offset{nullptr},
     alignment{1}
+    // ,
+    // allocated{0}
   {
   }
 
-  constexpr Arena(u8 * begin, u8 * end, u8 * offset, usize alignment) :
+  constexpr Arena(u8 * begin, u8 * end, usize alignment) :
     begin{begin},
     end{end},
-    offset{offset},
+    offset{begin},
     alignment{alignment}
+    // ,
+    // allocated{0}
   {
   }
 
@@ -61,8 +66,17 @@ struct Arena final : Allocator
 
   constexpr void reclaim()
   {
-    offset = begin;
+    offset    = begin;
+    // allocated = 0;
   }
+
+  // constexpr void try_reclaim()
+  // {
+    // if (allocated == 0)
+    // {
+      // reclaim();
+    // }
+  // }
 
   constexpr bool contains(Layout layout, u8 * mem) const
   {
@@ -87,6 +101,7 @@ struct Arena final : Allocator
 
     offset = new_offset;
     mem    = aligned;
+    // allocated += layout.size;
     return true;
   }
 
@@ -110,6 +125,9 @@ struct Arena final : Allocator
     if (((mem + layout.size) == offset) && ((mem + new_size) <= end))
     {
       offset = mem + new_size;
+      // allocated -= layout.size;
+      // try_reclaim();
+      // allocated += new_size;
       return true;
     }
 
@@ -134,6 +152,9 @@ struct Arena final : Allocator
     {
       offset -= layout.size;
     }
+
+    // allocated -= layout.size;
+    // try_reclaim();
   }
 
   constexpr AllocatorRef ref()
@@ -144,7 +165,7 @@ struct Arena final : Allocator
 
 [[nodiscard]] inline Arena to_arena(Span<u8> buffer)
 {
-  return Arena{buffer.pbegin(), buffer.pend(), buffer.pbegin(), 1};
+  return Arena{buffer.pbegin(), buffer.pend(), 1};
 }
 
 /// @max_num_arenas: maximum number of arenas that can be allocated
@@ -330,9 +351,8 @@ struct ArenaPool final : Allocator
       return false;
     }
 
-    Arena * arena =
-      new (arenas + num_arenas) Arena{arena_mem, arena_mem + arena_layout.size,
-                                      arena_mem, arena_layout.alignment};
+    Arena * arena = new (arenas + num_arenas)
+      Arena{arena_mem, arena_mem + arena_layout.size, arena_layout.alignment};
 
     current_arena = num_arenas;
 

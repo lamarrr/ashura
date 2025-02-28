@@ -47,9 +47,9 @@ void main()
 {
   vec2 src_uv = mix(p.uv[0], p.uv[1], i_uv);
 #  if UPSAMPLE
-  o_color = upsample(samplers[p.isampler], textures[p.tex], src_uv, p.radius);
+  o_color = upsample_clamped(samplers[p.isampler], textures[p.tex], src_uv, p.radius, p.uv[0], p.uv[1]);
 #  else
-  o_color = downsample(samplers[p.isampler], textures[p.tex], src_uv, p.radius);
+  o_color = downsample_clamped(samplers[p.isampler], textures[p.tex], src_uv, p.radius, p.uv[0], p.uv[1]);
 #  endif
 }
 #endif

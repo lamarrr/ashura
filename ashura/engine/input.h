@@ -1011,6 +1011,9 @@ struct InputState
   /// @brief is the application requested to close
   bool close_requested = false;
 
+  /// @brief is the application closing
+  bool closing = false;
+
   /// @brief did a window resize happen
   bool resized = true;
 
@@ -1079,6 +1082,7 @@ struct InputState
     dst.text_input = text_input;
     dst.text.extend(text).unwrap();
     dst.close_requested = close_requested;
+    dst.closing         = closing;
     dst.resized         = resized;
     dst.surface_resized = resized;
     dst.dropped         = dropped;

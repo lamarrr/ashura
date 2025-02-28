@@ -51,9 +51,15 @@ void ViewSystem::clear()
   is_draggable.clear();
   is_droppable.clear();
   is_focusable.clear();
-  is_text_input.clear();
-  is_tab_input.clear();
+
+  is_input.clear();
+  input_type.clear();
+  is_multiline_input.clear();
   is_esc_input.clear();
+  is_tab_input.clear();
+  input_cap.clear();
+  input_autocorrect.clear();
+
   is_viewport.clear();
 
   centers.clear();
@@ -69,6 +75,7 @@ void ViewSystem::clear()
   clips.clear();
   z_ordering.clear();
   focus_ordering.clear();
+  closing_deferred = false;
 }
 
 ui::ViewEvents ViewSystem::process_events(ui::View & view)
@@ -152,7 +159,13 @@ void ViewSystem::push_view(ui::View & view, u32 depth, u32 breadth, u32 parent)
   is_draggable.extend_uninit(1).unwrap();
   is_droppable.extend_uninit(1).unwrap();
   is_focusable.extend_uninit(1).unwrap();
-  is_text_input.extend_uninit(1).unwrap();
+  is_input.extend_uninit(1).unwrap();
+  input_type.extend_uninit(1).unwrap();
+  is_multiline_input.extend_uninit(1).unwrap();
+  is_esc_input.extend_uninit(1).unwrap();
+  is_tab_input.extend_uninit(1).unwrap();
+  input_cap.extend_uninit(1).unwrap();
+  input_autocorrect.extend_uninit(1).unwrap();
   is_tab_input.extend_uninit(1).unwrap();
   is_esc_input.extend_uninit(1).unwrap();
   is_viewport.extend_uninit(1).unwrap();
@@ -172,15 +185,8 @@ void ViewSystem::build_children(ui::ViewContext const & ctx, ui::View & view,
   ui::ViewState s =
     view.tick(ctx, view.region_, view.zoom_, process_events(view), fn(builder));
 
-  bool const text_input = s.text.is_some();
-  bool       tab_input  = false;
-  bool       esc_input  = false;
-
-  if (text_input)
-  {
-    tab_input = s.text.value().tab_input;
-    esc_input = s.text.value().esc_input;
-  }
+  bool const    has_input  = s.text.is_some();
+  TextInputInfo input_info = s.text.unwrap_or(TextInputInfo{});
 
   tab_indices.set(idx, (s.tab == I32_MIN) ? tab_index : s.tab);
   viewports.set(idx, viewport);
@@ -191,19 +197,23 @@ void ViewSystem::build_children(ui::ViewContext const & ctx, ui::View & view,
   is_draggable.set(idx, s.draggable);
   is_droppable.set(idx, s.droppable);
   is_focusable.set(idx, s.focusable);
-  is_text_input.set(idx, text_input);
-  is_tab_input.set(idx, tab_input);
-  is_esc_input.set(idx, esc_input);
+  is_input.set(idx, has_input);
+  input_type.set(idx, input_info.type);
+  is_multiline_input.set(idx, input_info.multiline);
+  is_esc_input.set(idx, input_info.esc_input);
+  is_tab_input.set(idx, input_info.tab_input);
+  input_cap.set(idx, input_info.cap);
+  input_autocorrect.set(idx, input_info.autocorrect);
   is_viewport.set(idx, s.viewport);
+  closing_deferred |= s.defer_close;
 
   if (!s.hidden && s.focusable && s.grab_focus) [[unlikely]]
   {
-    f1.focus = Focus{.active     = true,
-                     .view       = view.id(),
-                     .focus_idx  = view.focus_idx_,
-                     .text_input = text_input,
-                     .tab_input  = tab_input,
-                     .esc_input  = esc_input};
+    f1.grab_focus = Focus{.active     = true,
+                          .view       = view.id(),
+                          .focus_idx  = view.focus_idx_,
+                          .input      = has_input,
+                          .input_info = input_info};
   }
 
   nodes[idx].first_child      = first_child;
@@ -437,7 +447,8 @@ void ViewSystem::visibility()
   }
 }
 
-void ViewSystem::render(Canvas & canvas)
+void ViewSystem::render(ui::ViewContext const & ctx, Canvas & canvas,
+                        ui::View & focus_view)
 {
   ScopeTrace trace;
 
@@ -452,13 +463,40 @@ void ViewSystem::render(Canvas & canvas)
     }
   }
 
-  // // [ ] fix this
+  // [ ] fix this
   // canvas.blur(
   //   Rect{
   //     .offset = {0,     0  },
   //       .extent = {1'920, 200}
   // },
   //   Vec2::splat(2), 2);
+
+  {
+    CRect const focus_region =
+      f1.focus.is_some() ? f1.focus.value().region : CRect{};
+
+    bool mounted = false;
+
+    if (focus_view.id_ == U64_MAX)
+    {
+      mounted        = true;
+      focus_view.id_ = next_id++;
+    }
+
+    auto const state = focus_view.tick(
+      ctx, focus_view.region_, 1.0F,
+      ui::ViewEvents{.mounted   = mounted,
+                     .view_hit  = true,
+                     .focus_in  = f0.focus.is_none() && f1.focus.is_some(),
+                     .focus_out = f0.focus.is_some() && f1.focus.is_none()},
+      [](ui::View &) { CHECK(false, "Focus View should not have children"); });
+    focus_view.fit(focus_region.extent, {}, {});
+    focus_view.size(focus_region.extent, {});
+    if (!state.hidden)
+    {
+      focus_view.render(canvas, focus_view.region_, focus_view.zoom_, MAX_CLIP);
+    }
+  }
 }
 
 void ViewSystem::focus_view(u32 view)
@@ -468,12 +506,12 @@ void ViewSystem::focus_view(u32 view)
   // virtual scrolling support. offset based?
   // [ ] we need to know where it is located within the parent viewport, so we
   // can request the viewport focus on it
-  // get position of view in parent viewport
-  // scroll to that position in the parent viewport
+  // - get position of view in parent viewport
+  // - scroll to that position in the parent viewport
   //
   // for all viewports the view is contained in:
-  // get the position of the viewport in their respective parent viewport and
-  // scroll into them.
+  //    - get the position of the viewport in their respective parent viewport and
+  //    - scroll into them.
 }
 
 Option<u32> ViewSystem::hit_views(Vec2              mouse_position,
@@ -619,12 +657,18 @@ void ViewSystem::events(ui::ViewContext const & ctx)
 
           f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
 
-          f1.focus = Focus{.active     = false,
-                           .view       = view.id(),
-                           .focus_idx  = view.focus_idx_,
-                           .text_input = is_text_input[i],
-                           .tab_input  = is_tab_input[i],
-                           .esc_input  = is_esc_input[i]};
+          f1.focus = Focus{
+            .active     = false,
+            .view       = view.id(),
+            .focus_idx  = view.focus_idx_,
+            .input      = is_input[i],
+            .input_info = TextInputInfo{.type        = input_type[i],
+                                        .multiline   = is_multiline_input[i],
+                                        .esc_input   = is_esc_input[i],
+                                        .tab_input   = is_tab_input[i],
+                                        .cap         = input_cap[i],
+                                        .autocorrect = input_autocorrect[i]}
+          };
         },
         [&]() { f1.focus = none; });
   }
@@ -694,7 +738,7 @@ void ViewSystem::events(ui::ViewContext const & ctx)
   // navigate focus request
   if (tab_input)
   {
-    if (!(f1.focus.is_some() && f1.focus.value().tab_input))
+    if (!(f1.focus.is_some() && f1.focus.value().input_info.tab_input))
     {
       if (ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift))
       {
@@ -710,7 +754,7 @@ void ViewSystem::events(ui::ViewContext const & ctx)
   // clear focus request
   if (esc_input)
   {
-    if (!(f1.focus.is_some() && f1.focus.value().esc_input))
+    if (!(f1.focus.is_some() && f1.focus.value().input_info.esc_input))
     {
       f1.focus = none;
     }
@@ -731,21 +775,35 @@ void ViewSystem::events(ui::ViewContext const & ctx)
         from = 0;
       }
 
-      f1.focus = navigate_focus(from, focus_action == FocusAction::Forward)
-                   .map([&](u32 focus_idx) {
-                     u32 const i = focus_ordering[focus_idx];
-                     return Focus{.active     = true,
-                                  .view       = views[i]->id(),
-                                  .focus_idx  = focus_idx,
-                                  .text_input = is_text_input[i],
-                                  .tab_input  = is_tab_input[i],
-                                  .esc_input  = is_esc_input[i]};
-                   });
+      f1.focus =
+        navigate_focus(from, focus_action == FocusAction::Forward)
+          .map([&](u32 focus_idx) {
+            u32 const i = focus_ordering[focus_idx];
+            return Focus{
+              .active     = true,
+              .view       = views[i]->id(),
+              .focus_idx  = focus_idx,
+              .input      = is_input[i],
+              .input_info = TextInputInfo{.type        = input_type[i],
+                                          .multiline   = is_multiline_input[i],
+                                          .esc_input   = is_esc_input[i],
+                                          .tab_input   = is_tab_input[i],
+                                          .cap         = input_cap[i],
+                                          .autocorrect = input_autocorrect[i]}
+            };
+          });
     }
     break;
     default:
     case FocusAction::None:
       break;
+  }
+
+  if (f1.focus.is_some())
+  {
+    Focus &   focus = f1.focus.value();
+    u32 const i     = focus_ordering[focus.focus_idx];
+    focus.region    = views[i]->region_;
   }
 
   // [ ] call focus_view() once a new focus navigation has occured
@@ -756,8 +814,28 @@ Cursor ViewSystem::cursor() const
   return f1.cursor;
 }
 
-void ViewSystem::tick(InputState const & input, ui::View & root,
-                      Canvas & canvas, Fn<void(ui::ViewContext const &)> loop)
+Option<TextInputInfo> ViewSystem::text_input() const
+{
+  if (!f1.focus)
+  {
+    return none;
+  }
+
+  // [ ] text region rect
+
+  Focus f = f1.focus.value();
+
+  if (!f.input)
+  {
+    return none;
+  }
+
+  return f.input_info;
+}
+
+bool ViewSystem::tick(InputState const & input, ui::View & root,
+                      ui::View & focus_view, Canvas & canvas,
+                      Fn<void(ui::ViewContext const &)> loop)
 {
   ScopeTrace trace;
 
@@ -779,20 +857,23 @@ void ViewSystem::tick(InputState const & input, ui::View & root,
   focus_ordering.resize_uninit(n).unwrap();
 
   loop(input);
-  // [ ] text input; start and end text input on mobile platforms;Option<TextInputSpec>;
-  // [ ] focus renderer
+  // [] focus rect
 
   focus_order();
 
   layout(as_vec2(input.window_extent));
   stack();
   visibility();
-  render(canvas);
+  render(s1, canvas, focus_view);
 
   events(input);
   input.clone_to(s1);
 
   frame++;
+
+  bool const should_close = input.closing && !closing_deferred;
+
+  return !should_close;
 }
 
 }    // namespace ash

@@ -120,12 +120,13 @@ void BlurPass::release()
 
 void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
             gpu::DescriptorSet src_texture, TextureId src_id, Vec2U src_extent,
-            RectU const & src_area, gpu::ImageView dst, Vec2U dst_offset,
+            RectU const & src_area, gpu::ImageView dst, RectU const & dst_area,
             bool upsample)
 {
-  radius /= as_vec2(src_extent);
-  Vec2 const uv0 = as_vec2(src_area.offset) / as_vec2(src_extent);
-  Vec2 const uv1 = as_vec2(src_area.end()) / as_vec2(src_extent);
+  auto const scale = 1 / as_vec2(src_extent);
+  radius *= scale;
+  Vec2 const uv0 = as_vec2(src_area.offset) * scale;
+  Vec2 const uv1 = as_vec2(src_area.end()) * scale;
 
   gpu::RenderingAttachment color[1] = {
     {.view         = dst,
@@ -135,24 +136,22 @@ void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
      .store_op     = gpu::StoreOp::Store}
   };
 
-  e.begin_rendering(gpu::RenderingInfo{
-    .render_area        = {.offset = dst_offset, .extent = src_area.extent},
-    .num_layers         = 1,
-    .color_attachments  = color,
-    .depth_attachment   = {},
-    .stencil_attachment = {}
-  });
+  e.begin_rendering(gpu::RenderingInfo{.render_area       = dst_area,
+                                       .num_layers        = 1,
+                                       .color_attachments = color,
+                                       .depth_attachment{},
+                                       .stencil_attachment{}});
 
   e.bind_graphics_pipeline(upsample ? b.upsample_pipeline :
                                       b.downsample_pipeline);
   e.set_graphics_state(gpu::GraphicsState{
-    .scissor  = {.offset = dst_offset,          .extent = src_area.extent},
-    .viewport = {.offset = as_vec2(dst_offset),
-                 .extent = as_vec2(src_area.extent)                      }
+    .scissor = dst_area,
+    .viewport{.offset = as_vec2(dst_area.offset),
+              .extent = as_vec2(dst_area.extent)}
   });
   e.bind_descriptor_sets(span({sys->gpu.samplers_, src_texture}), {});
   e.push_constants(span({
-                          BlurParam{.uv      = {uv0, uv1},
+                          BlurParam{.uv{uv0, uv1},
                                     .radius  = radius,
                                     .sampler = SamplerId::LinearClamped,
                                     .texture = src_id}
@@ -162,43 +161,84 @@ void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
   e.end_rendering();
 }
 
-void BlurPass::encode(gpu::CommandEncoder & e, BlurPassParams const & params)
+Option<FramebufferResult> BlurPass::encode(gpu::CommandEncoder &  e,
+                                           BlurPassParams const & params)
 {
-  if (params.passes == 0)
+  constexpr u32 MAX_PASSES  = 8;
+  constexpr f32 BLUR_PERIOD = 4;    // 1 pass for every BLUR_PERIOD radius
+
+  if (params.area.extent.x == 0 || params.area.extent.y == 0)
   {
-    return;
+    return none;
   }
 
-  Framebuffer fbs[2]   = {params.framebuffer, sys->gpu.scratch_fb_};
-  RectU       areas[2] = {
-    params.area, {.offset = {0, 0}, .extent = sys->gpu.scratch_fb_.extent()}
-  };
+  if (params.radius.x == 0 || params.radius.y == 0)
+  {
+    return none;
+  }
 
-  Vec2 const radius = params.radius / (f32) params.passes;
+  // downscale sample region to 1/16th of the resolution
+  RectU const downsampled_area{.offset{}, .extent = params.area.extent / 16};
+
+  if (downsampled_area.extent.x < 1 || downsampled_area.extent.y < 1)
+  {
+    return none;
+  }
+
+  e.blit_image(params.framebuffer.color.image,
+               sys->gpu.scratch_fbs_[1].color.image,
+               span({
+                 gpu::ImageBlit{.src_layers{.aspects = gpu::ImageAspects::Color,
+                                            .mip_level         = 0,
+                                            .first_array_layer = 0,
+                                            .num_array_layers  = 1},
+                                .src_area = as_boxu(params.area),
+                                .dst_layers{.aspects = gpu::ImageAspects::Color,
+                                            .mip_level         = 0,
+                                            .first_array_layer = 0,
+                                            .num_array_layers  = 1},
+                                .dst_area = as_boxu(downsampled_area)}
+  }),
+               gpu::Filter::Linear);
+
+  Framebuffer const * const fbs[2] = {&sys->gpu.scratch_fbs_[1],
+                                      &sys->gpu.scratch_fbs_[0]};
+  RectU const sample_areas[2]      = {downsampled_area, downsampled_area};
+
+  Vec2I const radius = as_vec2i(params.radius);
+
+  f32 const major_radius = max(radius.x, radius.y);
+  u32 const num_passes =
+    clamp((u32) (major_radius / BLUR_PERIOD), 1U, MAX_PASSES);
+
+  Vec2 const pass_dist = as_vec2(radius) / num_passes;
 
   u32 src = 1;
+  u32 dst = 0;
 
   // downsample pass
-  for (i64 i = 0; i < params.passes; i++)
+  for (i64 i = 0; i < num_passes; i++)
   {
-    src           = (src + 1) & 1;
-    u32 const dst = (src + 1) & 1;
-    sample(*this, e, radius * (f32) (i + 1), fbs[src].color.texture,
-           fbs[src].color.texture_id, areas[src].extent, areas[dst],
-           fbs[dst].color.view, areas[dst].offset, false);
+    src = (src + 1) & 1;
+    dst = (src + 1) & 1;
+    sample(*this, e, pass_dist * (f32) (i + 1), fbs[src]->color.texture,
+           fbs[src]->color.texture_id, fbs[src]->extent().xy(),
+           sample_areas[src], fbs[dst]->color.view, sample_areas[dst], false);
   }
-
-  // [ ]  we are also oversampling; the area we are sampling to is only a portion of the intended area; what factor do we downsample by on every iter?
 
   // upsample pass
-  for (i64 i = params.passes; i > 0; i--)
+  for (i64 i = num_passes; i > 0; i--)
   {
-    src           = (src + 1) & 1;
-    u32 const dst = (src + 1) & 1;
-    sample(*this, e, radius * (f32) i, fbs[src].color.texture,
-           fbs[src].color.texture_id, areas[src].extent, areas[dst],
-           fbs[dst].color.view, areas[dst].offset, true);
+    src = (src + 1) & 1;
+    dst = (src + 1) & 1;
+    sample(*this, e, pass_dist * (f32) (i + 1), fbs[src]->color.texture,
+           fbs[src]->color.texture_id, fbs[src]->extent().xy(),
+           sample_areas[src], fbs[dst]->color.view, sample_areas[dst], true);
   }
+
+  CHECK(dst == 0, "");    // the last output was to scratch 1
+
+  return FramebufferResult{.fb = *fbs[dst], .rect = downsampled_area};
 }
 
 void NgonPass::acquire()
@@ -296,16 +336,18 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params)
                                         .clear        = {}};
   }
 
-  gpu::RenderingInfo info{.render_area{.extent = params.framebuffer.extent()},
-                          .num_layers        = 1,
-                          .color_attachments = color};
+  gpu::RenderingInfo info{
+    .render_area{.extent = params.framebuffer.extent().xy()},
+    .num_layers        = 1,
+    .color_attachments = color};
 
   e.begin_rendering(info);
   e.bind_graphics_pipeline(pipeline);
   e.bind_descriptor_sets(
     span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
           sys->gpu.samplers_, params.textures}),
-    span<u32>({0, 0, 0}));
+    span({params.vertices_ssbo_offset, params.indices_ssbo_offset,
+          params.params_ssbo_offset}));
   e.push_constants(span({params.world_to_view}).as_u8());
   e.set_graphics_state(
     gpu::GraphicsState{.scissor = params.scissor, .viewport = params.viewport});
@@ -425,10 +467,11 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params)
      .store_op = gpu::StoreOp::Store}
   };
 
-  gpu::RenderingInfo info{.render_area{.extent = params.framebuffer.extent()},
-                          .num_layers        = 1,
-                          .color_attachments = color,
-                          .depth_attachment  = depth};
+  gpu::RenderingInfo info{
+    .render_area{.extent = params.framebuffer.extent().xy()},
+    .num_layers        = 1,
+    .color_attachments = color,
+    .depth_attachment  = depth};
 
   e.begin_rendering(info);
   e.bind_graphics_pipeline(params.wireframe ? this->wireframe_pipeline :
@@ -445,7 +488,8 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params)
   e.bind_descriptor_sets(
     span({params.vertices_ssbo, params.indices_ssbo, params.params_ssbo,
           params.lights_ssbo, sys->gpu.samplers_, params.textures}),
-    span<u32>({0, 0, 0, 0}));
+    span({params.vertices_ssbo_offset, params.indices_ssbo_offset,
+          params.params_ssbo_offset, params.lights_ssbo_offset}));
   e.push_constants(span({params.world_to_view}).as_u8());
   e.draw(params.num_indices, 1, 0, params.instance);
   e.end_rendering();
@@ -547,9 +591,10 @@ void RRectPass::encode(gpu::CommandEncoder & e, RRectPassParams const & params)
     color[0] = gpu::RenderingAttachment{.view = params.framebuffer.color.view};
   }
 
-  gpu::RenderingInfo info{.render_area{.extent = params.framebuffer.extent()},
-                          .num_layers        = 1,
-                          .color_attachments = color};
+  gpu::RenderingInfo info{
+    .render_area{.extent = params.framebuffer.extent().xy()},
+    .num_layers        = 1,
+    .color_attachments = color};
 
   e.begin_rendering(info);
   e.bind_graphics_pipeline(pipeline);
@@ -557,7 +602,7 @@ void RRectPass::encode(gpu::CommandEncoder & e, RRectPassParams const & params)
     gpu::GraphicsState{.scissor = params.scissor, .viewport = params.viewport});
   e.bind_descriptor_sets(
     span({params.params_ssbo, sys->gpu.samplers_, params.textures}),
-    span<u32>({0}));
+    span({params.params_ssbo_offset}));
   e.push_constants(span({params.world_to_view}).as_u8());
   e.draw(4, params.num_instances, 0, params.first_instance);
   e.end_rendering();

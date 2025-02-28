@@ -851,6 +851,18 @@ struct WindowSystemImpl : WindowSystem
     CHECK_SDL(SDL_StopTextInput(w->win));
   }
 
+  virtual void set_text_input_area(Window window, RectU const & rect,
+                                   i32 cursor_position) override
+  {
+    WindowImpl *   w = (WindowImpl *) window;
+    SDL_Rect const sdl_rect{.x = (i32) rect.offset.x,
+                            .y = (i32) rect.offset.y,
+                            .w = (i32) rect.extent.x,
+                            .h = (i32) rect.extent.y};
+
+    CHECK_SDL(SDL_SetTextInputArea(w->win, &sdl_rect, cursor_position));
+  }
+
   virtual void set_cursor(Cursor c) override
   {
     SDL_SystemCursor sdl_cursor = SDL_SYSTEM_CURSOR_DEFAULT;

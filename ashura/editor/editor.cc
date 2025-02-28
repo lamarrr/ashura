@@ -47,6 +47,8 @@ int main()
   ui::Combo      combo;
   ui::Image      img;
   ui::Image      img2;
+  ui::Image      img3;
+  ui::Image      img4;
 
   btn.text(U"playlist_add ADD TO PLAYLIST"_str)
     .run({.color = colors::WHITE}, {.font        = RobotoMono,
@@ -60,17 +62,25 @@ int main()
     .padding({5, 5});
 
   img.source(sys->image.get("birdie"_str).id)
-    .frame({250, 250})
+    .frame({200, 200})
     .corner_radii(ui::CornerRadii::all(25));
   img2.source(sys->image.get("mountains"_str).id)
-    .frame({800, 500})
+    .frame({400, 400})
     .corner_radii(ui::CornerRadii::all(25));
+  img3.source(sys->image.get("bankside"_str).id)
+    .frame({400, 400})
+    .corner_radii(ui::CornerRadii::all(25));
+  img4.source(sys->image.get("sunset"_str).id)
+    .frame({400, 400})
+    .corner_radii(ui::CornerRadii::all(25));
+
+  scalar.format("Distance: {.2}m"_str);
 
   slider.range(0, 100).interp(0.25).axis(Axis::X);
 
   flex
     .items({stack, text, input, btn, check_box, slider, switch_box, radio,
-            scalar, space, scroll, combo, img, img2})
+            scalar, space, scroll, combo, img, img2, img3, img4})
     .axis(Axis::X)
     .cross_align(0)
     .main_align(ui::MainAlign::SpaceBetween);
@@ -80,6 +90,19 @@ int main()
   ui::ColorPicker picker;
   ui::Plot        plot;
   ui::ProgressBar progress;
+  ui::View        focus_view;
+
+  list.generator(
+    [](AllocatorRef allocator, usize i) -> Option<Dyn<ui::View *>> {
+      if (i >= 20)
+      {
+        return none;
+      }
+
+      auto text = dyn<ui::Text>(inplace, allocator, U"Item"_str).unwrap();
+
+      return cast<ui::View *>(std::move(text));
+    });
 
   auto animation = StaggeredAnimation<f32>::make(4, 8, RippleStagger{});
 
@@ -90,5 +113,5 @@ int main()
     flex.frame({animation.animate(0).v0, 500});
   };
 
-  engine->run(flex, fn(loop));
+  engine->run(flex, focus_view, fn(loop));
 }

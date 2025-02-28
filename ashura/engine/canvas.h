@@ -2,7 +2,6 @@
 #pragma once
 #include "ashura/engine/color.h"
 #include "ashura/engine/passes.h"
-#include "ashura/engine/renderer.h"
 #include "ashura/engine/text.h"
 #include "ashura/std/allocators.h"
 #include "ashura/std/math.h"
@@ -99,7 +98,7 @@ struct ShapeInfo
   Mat4 transform = Mat4::identity();
 
   /// @brief corner radii of each corner if rrect
-  Vec4 corner_radii = {0, 0, 0, 0};
+  Vec4 corner_radii = {};
 
   /// @brief lerp intensity between stroke and fill, 0 to fill, 1 to stroke
   f32 stroke = 0.0F;
@@ -136,32 +135,18 @@ inline constexpr Rect MAX_CLIP{
   .extent{0xFF'FFFF, 0xFF'FFFF}
 };
 
+struct FrameGraph;
+struct PassContext;
+
 struct Canvas
 {
-  struct RenderContext
-  {
-    Canvas & canvas;
-
-    PassContext & passes;
-
-    Framebuffer const & framebuffer;
-
-    gpu::CommandEncoder & enc;
-
-    SSBO const & rrects;
-
-    SSBO const & ngons;
-
-    SSBO const & ngon_vertices;
-
-    SSBO const & ngon_indices;
-  };
-
   enum class BatchType : u8
   {
     None  = 0,
     RRect = 1,
-    Ngon  = 2
+    Ngon  = 2,
+    Blur  = 3,
+    Pass  = 4
   };
 
   struct Batch
@@ -173,7 +158,18 @@ struct Canvas
     Rect clip = MAX_CLIP;
   };
 
-  typedef Dyn<Fn<void(RenderContext const &)>> PassFn;
+  struct Blur
+  {
+    RectU area         = {};
+    Vec2U radius       = {};
+    Vec4  corner_radii = {};
+    Mat4  transform    = Mat4::identity();
+    f32   aspect_ratio = 1;
+  };
+
+  typedef Dyn<
+    Fn<void(FrameGraph &, PassContext &, Canvas const &, Framebuffer const &)>>
+    PassFn;
 
   struct Pass
   {
@@ -216,10 +212,11 @@ struct Canvas
 
   Vec<u32> ngon_index_counts;
 
-  /// @brief current render batch
-  Batch batch{};
+  Vec<Blur> blurs;
 
   Vec<Pass> passes;
+
+  Vec<Batch> batches;
 
   // declared last so it would release allocated memory after all operations
   // are done executing
@@ -231,7 +228,9 @@ struct Canvas
     ngon_vertices{allocator},
     ngon_indices{allocator},
     ngon_index_counts{allocator},
+    blurs{allocator},
     passes{allocator},
+    batches{allocator},
     frame_arena{allocator}
   {
   }
@@ -253,7 +252,7 @@ struct Canvas
 
   Canvas & clip(Rect const & area);
 
-  RectU clip_to_scissor(Rect const & clip);
+  RectU clip_to_scissor(Rect const & clip) const;
 
   /// @brief render a circle
   Canvas & circle(ShapeInfo const & info);
@@ -325,14 +324,14 @@ struct Canvas
                 Vec4 corner_radii = {0, 0, 0, 0});
 
   /// @brief register a custom canvas pass to be executed in the render thread
-  Canvas & add_pass(Pass && pass);
+  Canvas & pass(Pass pass);
 
   template <typename Lambda>
-  Canvas & add_pass(Span<char const> label, Lambda && task)
+  Canvas & pass(Span<char const> label, Lambda task)
   {
     // relocate lambda to heap
     Dyn<Lambda *> lambda =
-      dyn(frame_arena.ref(), static_cast<Lambda &&>(task)).unwrap();
+      dyn(frame_arena, static_cast<Lambda &&>(task)).unwrap();
     // allocator is noop-ed but destructor still runs when the dynamic object is
     // uninitialized. the memory is freed by at the end of the frame anyway so
     // no need to free it

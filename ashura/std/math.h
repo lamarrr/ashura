@@ -2925,6 +2925,11 @@ struct BoxU
   }
 };
 
+constexpr BoxU as_boxu(RectU const & r)
+{
+  return BoxU{.offset = vec3u(r.offset, 0), .extent = vec3u(r.extent, 1)};
+}
+
 struct CBox
 {
   Vec3 center = {};

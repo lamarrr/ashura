@@ -51,41 +51,35 @@ void format_int(fmt::Sink sink, fmt::Spec spec, IntT const & value)
   sink({scratch_, end});
 }
 
-template <typename FloatT>
-void format_float(fmt::Sink sink, fmt::Spec spec, FloatT const & value)
+void format_float(fmt::Sink sink, fmt::Spec spec, f64 value)
 {
-  std::chars_format format = std::chars_format::general;
-  switch (spec.style)
-  {
-    case fmt::Style::Scientific:
-      format = std::chars_format::scientific;
-      break;
-    default:
-      format = std::chars_format::general;
-      break;
-  }
+  char  scratch_[512];
+  Span  scratch{scratch_};
+  usize written = 0;
 
-  char scratch_[512];
-  Span scratch{scratch_};
-
-  std::to_chars_result result{};
   if (spec.precision != fmt::NONE_PRECISION)
   {
-    // [ ] doesn't do precision
-    result = std::to_chars(scratch.pbegin(), scratch.pend(), value, format,
-                           spec.precision);
+    if (int status =
+          snprintf(scratch.data(), scratch.size(),
+                   (spec.style == fmt::Style::Scientific) ? "%.*f" : "%.*g",
+                   (int) spec.precision, value);
+        status > 0)
+    {
+      written = (usize) status;
+    }
   }
   else
   {
-    result = std::to_chars(scratch.pbegin(), scratch.pend(), value, format);
+    if (int status = snprintf(
+          scratch.data(), scratch.size(),
+          (spec.style == fmt::Style::Scientific) ? "%.f" : "%.g", value);
+        status > 0)
+    {
+      written = (usize) status;
+    }
   }
 
-  if (result.ec != std::errc{})
-  {
-    return;
-  }
-
-  sink({scratch_, result.ptr});
+  sink({scratch_, written});
 }
 
 }    // namespace ash

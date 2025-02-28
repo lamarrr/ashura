@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/canvas.h"
 #include "ashura/engine/font.h"
+#include "ashura/engine/systems.h"
 #include "ashura/std/math.h"
 
 namespace ash
@@ -336,15 +337,15 @@ void path::triangulate_convex(Vec<u32> & idx, u32 first_vertex,
 
 Canvas & Canvas::reset()
 {
-  passes.reset();
   rrect_params.reset();
   ngon_params.reset();
   ngon_vertices.reset();
   ngon_indices.reset();
   ngon_index_counts.reset();
+  blurs.reset();
   passes.reset();
+  batches.reset();
   frame_arena.reclaim();
-  batch = {};
 
   return *this;
 }
@@ -380,7 +381,7 @@ Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
   return *this;
 }
 
-RectU Canvas::clip_to_scissor(Rect const & clip)
+RectU Canvas::clip_to_scissor(Rect const & clip) const
 {
   // clips are always unscaled
   Rect scissor_f{.offset = viewport.offset + clip.offset * virtual_scale,
@@ -404,73 +405,26 @@ RectU Canvas::clip_to_scissor(Rect const & clip)
   return scissor;
 }
 
-static inline void flush_batch(Canvas & c)
-{
-  Canvas::Batch batch = c.batch;
-  c.batch             = Canvas::Batch{.type = Canvas::BatchType::None};
-
-  switch (batch.type)
-  {
-    case Canvas::BatchType::RRect:
-      c.add_pass("RRect"_str, [batch, world_to_view = c.world_to_view](
-                                Canvas::RenderContext const & ctx) {
-        RRectPassParams params{.framebuffer = ctx.framebuffer,
-                               .scissor =
-                                 ctx.canvas.clip_to_scissor(batch.clip),
-                               .viewport       = ctx.canvas.viewport,
-                               .world_to_view  = world_to_view,
-                               .params_ssbo    = ctx.rrects.descriptor,
-                               .textures       = sys->gpu.textures_,
-                               .first_instance = batch.run.offset,
-                               .num_instances  = batch.run.span};
-
-        ctx.passes.rrect->encode(ctx.enc, params);
-      });
-      return;
-
-    case Canvas::BatchType::Ngon:
-      c.add_pass("Ngon"_str, [batch, world_to_view = c.world_to_view](
-                               Canvas::RenderContext const & ctx) {
-        NgonPassParams params{
-          .framebuffer    = ctx.framebuffer,
-          .scissor        = ctx.canvas.clip_to_scissor(batch.clip),
-          .viewport       = ctx.canvas.viewport,
-          .world_to_view  = world_to_view,
-          .vertices_ssbo  = ctx.ngon_vertices.descriptor,
-          .indices_ssbo   = ctx.ngon_indices.descriptor,
-          .params_ssbo    = ctx.ngons.descriptor,
-          .textures       = sys->gpu.textures_,
-          .first_instance = batch.run.offset,
-          .index_counts =
-            ctx.canvas.ngon_index_counts.view().slice(batch.run.as_slice())};
-        ctx.passes.ngon->encode(ctx.enc, params);
-      });
-      return;
-
-    default:
-      return;
-  }
-}
-
 static inline void add_rrect(Canvas & c, RRectParam const & param,
                              Rect const & clip)
 {
   u32 const index = c.rrect_params.size32();
   c.rrect_params.push(param).unwrap();
 
-  if (c.batch.type != Canvas::BatchType::RRect || c.batch.clip != clip)
-    [[unlikely]]
+  if (c.batches.is_empty() ||
+      c.batches.last().type != Canvas::BatchType::RRect ||
+      c.batches.last().clip != clip)
   {
-    flush_batch(c);
-    c.batch = Canvas::Batch{
-      .type = Canvas::BatchType::RRect,
-      .run{.offset = index, .span = 1},
-      .clip = clip
-    };
+    c.batches
+      .push(Canvas::Batch{
+        .type = Canvas::BatchType::RRect, .run{index, 1},
+           .clip = clip
+    })
+      .unwrap();
     return;
   }
 
-  c.batch.run.span++;
+  c.batches.last().run.span++;
 }
 
 static inline void add_ngon(Canvas & c, NgonParam const & param,
@@ -480,24 +434,25 @@ static inline void add_ngon(Canvas & c, NgonParam const & param,
   c.ngon_index_counts.push(num_indices).unwrap();
   c.ngon_params.push(param).unwrap();
 
-  if (c.batch.type != Canvas::BatchType::Ngon || c.batch.clip != clip)
-    [[unlikely]]
+  if (c.batches.is_empty() ||
+      c.batches.last().type != Canvas::BatchType::Ngon ||
+      c.batches.last().clip != clip)
   {
-    flush_batch(c);
-    c.batch = Canvas::Batch{
-      .type = Canvas::BatchType::Ngon,
-      .run{.offset = index, .span = 1},
-      .clip = clip
-    };
+    c.batches
+      .push(Canvas::Batch{
+        .type = Canvas::BatchType::Ngon,
+        .run{.offset = index, .span = 1},
+        .clip = clip
+    })
+      .unwrap();
     return;
   }
 
-  c.batch.run.span++;
+  c.batches.last().run.span++;
 }
 
 Canvas & Canvas::end_recording()
 {
-  flush_batch(*this);
   return *this;
 }
 
@@ -933,26 +888,44 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
 
 Canvas & Canvas::blur(Rect const & area, Vec2 radius, Vec4 corner_radii)
 {
-  flush_batch(*this);
+  f32 const inv_y = area.extent.y;
+  u32 const index = blurs.size32();
 
-  // [ ] scale corner radii and blur radius
+  blurs
+    .push(Blur{
+      .area{as_vec2u(area.offset * virtual_scale),
+            as_vec2u(area.extent * virtual_scale)},
+      .radius       = as_vec2u(radius * virtual_scale),
+      .corner_radii = corner_radii * inv_y,
+      .transform =
+        object_to_world(Mat4::identity(), area.center(), area.extent),
+      .aspect_ratio = area.extent.x * inv_y
+  })
+    .unwrap();
 
-  add_pass("Blur"_str,
-           [area, radius, corner_radii](Canvas::RenderContext const & ctx) {
-             BlurPassParams params{.framebuffer = ctx.framebuffer,
-                                   .radius      = radius,
-                                   .area = ctx.canvas.clip_to_scissor(area),
-                                   .corner_radii = corner_radii};
-             ctx.passes.blur->encode(ctx.enc, params);
-           });
+  batches
+    .push(Batch{
+      .type = BatchType::Blur, .run{index, 1},
+         .clip = current_clip
+  })
+    .unwrap();
 
   return *this;
 }
 
-Canvas & Canvas::add_pass(Pass && pass)
+Canvas & Canvas::pass(Pass pass)
 {
-  flush_batch(*this);
+  u32 const index = passes.size32();
+
   passes.push(std::move(pass)).unwrap();
+
+  batches
+    .push(Batch{
+      .type = BatchType::Pass,
+      .run{index, 1},
+  })
+    .unwrap();
+
   return *this;
 }
 

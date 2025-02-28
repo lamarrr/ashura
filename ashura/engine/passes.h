@@ -7,6 +7,12 @@
 namespace ash
 {
 
+struct FramebufferResult
+{
+  Framebuffer fb{};
+  RectU       rect{};
+};
+
 /// @brief Passes are re-usable and stateless compute and graphics pipeline
 /// components. They set up static resources: pipelines, shaders, and render
 /// data needed for executing rendering operations. Passes dispatch
@@ -48,18 +54,17 @@ struct BloomPass : Pass
 
 struct BlurParam
 {
-  alignas(16) Vec2 uv[2]  = {};
-  alignas(16) Vec2 radius = {};
-  SamplerId sampler       = SamplerId::Linear;
-  TextureId texture       = TextureId::White;
+  alignas(16) Vec2 uv[2] = {};
+  alignas(8) Vec2 radius = {};
+  SamplerId sampler      = SamplerId::Linear;
+  TextureId texture      = TextureId::White;
 };
 
 struct BlurPassParams
 {
-  Framebuffer framebuffer  = {};
-  RectU       area         = {};
-  Vec2U       radius       = {1, 1};
-  Vec4        corner_radii = {0, 0, 0, 0};
+  Framebuffer framebuffer = {};
+  RectU       area        = {};
+  Vec2U       radius      = {1, 1};
 };
 
 struct BlurPass : Pass
@@ -80,14 +85,15 @@ struct BlurPass : Pass
 
   virtual void release() override;
 
-  void encode(gpu::CommandEncoder & encoder, BlurPassParams const & params);
+  Option<FramebufferResult> encode(gpu::CommandEncoder &  encoder,
+                                   BlurPassParams const & params);
 };
 
 struct NgonParam
 {
   alignas(16) Mat4 transform = {};
   alignas(16) Vec4 tint[4]   = {};
-  alignas(16) Vec2 uv[2]     = {};
+  alignas(8) Vec2 uv[2]      = {};
   f32       tiling           = 1;
   SamplerId sampler          = SamplerId::Linear;
   TextureId albedo           = TextureId::White;
@@ -97,16 +103,19 @@ struct NgonParam
 
 struct NgonPassParams
 {
-  Framebuffer        framebuffer    = {};
-  RectU              scissor        = {};
-  gpu::Viewport      viewport       = {};
-  Mat4               world_to_view  = {};
-  gpu::DescriptorSet vertices_ssbo  = nullptr;
-  gpu::DescriptorSet indices_ssbo   = nullptr;
-  gpu::DescriptorSet params_ssbo    = nullptr;
-  gpu::DescriptorSet textures       = nullptr;
-  u32                first_instance = 0;
-  Span<u32 const>    index_counts   = {};
+  Framebuffer        framebuffer          = {};
+  RectU              scissor              = {};
+  gpu::Viewport      viewport             = {};
+  Mat4               world_to_view        = {};
+  gpu::DescriptorSet vertices_ssbo        = nullptr;
+  u32                vertices_ssbo_offset = 0;
+  gpu::DescriptorSet indices_ssbo         = nullptr;
+  u32                indices_ssbo_offset  = 0;
+  gpu::DescriptorSet params_ssbo          = nullptr;
+  u32                params_ssbo_offset   = 0;
+  gpu::DescriptorSet textures             = nullptr;
+  u32                first_instance       = 0;
+  Span<u32 const>    index_counts         = {};
 };
 
 struct NgonPass : Pass
@@ -163,23 +172,27 @@ struct PBRParam
 struct PBRVertex
 {
   alignas(16) Vec4 pos = {};
-  alignas(16) Vec2 uv  = {};
+  alignas(8) Vec2 uv   = {};
 };
 
 struct PBRPassParams
 {
-  Framebuffer        framebuffer   = {};
-  RectU              scissor       = {};
-  gpu::Viewport      viewport      = {};
-  Mat4               world_to_view = {};
-  bool               wireframe     = false;
-  gpu::DescriptorSet vertices_ssbo = nullptr;
-  gpu::DescriptorSet indices_ssbo  = nullptr;
-  gpu::DescriptorSet params_ssbo   = nullptr;
-  gpu::DescriptorSet lights_ssbo   = nullptr;
-  gpu::DescriptorSet textures      = nullptr;
-  u32                instance      = 0;
-  u32                num_indices   = 0;
+  Framebuffer        framebuffer          = {};
+  RectU              scissor              = {};
+  gpu::Viewport      viewport             = {};
+  Mat4               world_to_view        = {};
+  bool               wireframe            = false;
+  gpu::DescriptorSet vertices_ssbo        = nullptr;
+  u32                vertices_ssbo_offset = 0;
+  gpu::DescriptorSet indices_ssbo         = nullptr;
+  u32                indices_ssbo_offset  = 0;
+  gpu::DescriptorSet params_ssbo          = nullptr;
+  u32                params_ssbo_offset   = 0;
+  gpu::DescriptorSet lights_ssbo          = nullptr;
+  u32                lights_ssbo_offset   = 0;
+  gpu::DescriptorSet textures             = nullptr;
+  u32                instance             = 0;
+  u32                num_indices          = 0;
 };
 
 struct PBRPass : Pass
@@ -220,14 +233,15 @@ struct RRectParam
 
 struct RRectPassParams
 {
-  Framebuffer        framebuffer    = {};
-  RectU              scissor        = {};
-  gpu::Viewport      viewport       = {};
-  Mat4               world_to_view  = {};
-  gpu::DescriptorSet params_ssbo    = nullptr;
-  gpu::DescriptorSet textures       = nullptr;
-  u32                first_instance = 0;
-  u32                num_instances  = 0;
+  Framebuffer        framebuffer        = {};
+  RectU              scissor            = {};
+  gpu::Viewport      viewport           = {};
+  Mat4               world_to_view      = {};
+  gpu::DescriptorSet params_ssbo        = nullptr;
+  u32                params_ssbo_offset = 0;
+  gpu::DescriptorSet textures           = nullptr;
+  u32                first_instance     = 0;
+  u32                num_instances      = 0;
 };
 
 struct RRectPass : Pass

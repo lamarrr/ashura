@@ -24,8 +24,11 @@ using Scalar = Enum<f32, i32>;
 struct F32Info
 {
   f32 base = 0;
-  f32 min  = 0;
-  f32 max  = 1;
+
+  f32 min = 0;
+
+  f32 max = 1;
+
   f32 step = 0.01F;
 
   constexpr f32 step_value(f32 current, f32 direction) const
@@ -54,8 +57,11 @@ struct F32Info
 struct I32Info
 {
   i32 base = 0;
-  i32 min  = 0;
-  i32 max  = 1'000;
+
+  i32 min = 0;
+
+  i32 max = 1'000;
+
   i32 step = 100;
 
   constexpr i32 step_value(i32 current, f32 direction) const
@@ -89,8 +95,10 @@ namespace ui
 
 struct FocusState
 {
-  bool in      : 1 = false;
-  bool out     : 1 = false;
+  bool in : 1 = false;
+
+  bool out : 1 = false;
+
   bool focused : 1 = false;
 
   void tick(ViewEvents const & events)
@@ -112,13 +120,19 @@ struct FocusState
 
 struct PressState
 {
-  bool       in      : 1 = false;
-  bool       out     : 1 = false;
-  bool       hovered : 1 = false;
-  bool       down    : 1 = false;
-  bool       up      : 1 = false;
-  bool       held    : 1 = false;
-  FocusState focus       = {};
+  bool in : 1 = false;
+
+  bool out : 1 = false;
+
+  bool hovered : 1 = false;
+
+  bool down : 1 = false;
+
+  bool up : 1 = false;
+
+  bool held : 1 = false;
+
+  FocusState focus = {};
 
   void tick(ViewContext const & ctx, ViewEvents const & events)
   {
@@ -163,13 +177,19 @@ struct PressState
 
 struct DragState
 {
-  bool       in       : 1 = false;
-  bool       out      : 1 = false;
-  bool       hovered  : 1 = false;
-  bool       start    : 1 = false;
-  bool       dragging : 1 = false;
-  bool       end      : 1 = false;
-  FocusState focus        = {};
+  bool in : 1 = false;
+
+  bool out : 1 = false;
+
+  bool hovered : 1 = false;
+
+  bool start : 1 = false;
+
+  bool dragging : 1 = false;
+
+  bool end : 1 = false;
+
+  FocusState focus = {};
 
   void tick(ViewEvents const & events)
   {
@@ -224,12 +244,17 @@ struct Flex : View
 {
   struct Style
   {
-    Axis      axis        = Axis::X;
-    bool      wrap        = true;
-    MainAlign main_align  = MainAlign::Start;
-    f32       cross_align = 0;
-    Frame     frame       = Frame{}.scale(1, 1);
-    Frame     item_frame  = Frame{}.scale(1, 1);
+    Axis axis = Axis::X;
+
+    bool wrap = true;
+
+    MainAlign main_align = MainAlign::Start;
+
+    f32 cross_align = 0;
+
+    Frame frame = Frame{}.scale(1, 1);
+
+    Frame item_frame = Frame{}.scale(1, 1);
   } style;
 
   Vec<ref<View>> items_;
@@ -275,9 +300,11 @@ struct Stack : View
 {
   struct Style
   {
-    bool  reverse   = false;
-    Vec2  alignment = ALIGNMENT_CENTER;
-    Frame frame     = Frame{}.scale({1, 1});
+    bool reverse = false;
+
+    Vec2 alignment = ALIGNMENT_CENTER;
+
+    Frame frame = Frame{}.scale({1, 1});
   } style;
 
   Vec<ref<View>> items_;
@@ -322,6 +349,11 @@ struct Text : View
     bool copyable = false;
   } state;
 
+  struct Style
+  {
+    TextHighlightStyle highlight{.color = mdc::BLUE_400};
+  } style;
+
   RenderText text_;
 
   TextCompositor compositor_;
@@ -348,7 +380,7 @@ struct Text : View
 
   Text & copyable(bool allow);
 
-  Text & highlight(TextHighlight highlight);
+  Text & highlight_style(TextHighlightStyle highlight);
 
   Text & clear_highlights();
 
@@ -378,13 +410,19 @@ struct Input : View
 {
   struct State
   {
-    bool       disabled      : 1 = false;
-    bool       editing       : 1 = false;
-    bool       submit        : 1 = false;
-    bool       multiline     : 1 = false;
-    bool       enter_submits : 1 = false;
-    bool       tab_input     : 1 = false;
-    FocusState focus             = {};
+    bool disabled : 1 = false;
+
+    bool editing : 1 = false;
+
+    bool submit : 1 = false;
+
+    bool multiline : 1 = false;
+
+    bool enter_submits : 1 = false;
+
+    bool tab_input : 1 = false;
+
+    FocusState focus = {};
   } state;
 
   struct Style
@@ -395,14 +433,19 @@ struct Input : View
 
   struct Callbacks
   {
-    Fn<void()> edit      = noop;
-    Fn<void()> submit    = noop;
-    Fn<void()> focus_in  = noop;
+    Fn<void()> edit = noop;
+
+    Fn<void()> submit = noop;
+
+    Fn<void()> focus_in = noop;
+
     Fn<void()> focus_out = noop;
   } cb;
 
-  RenderText     content_;
-  RenderText     stub_;
+  RenderText content_;
+
+  RenderText stub_;
+
   TextCompositor compositor_;
 
   Input(Span<c32 const>   stub      = U""_str,
@@ -435,7 +478,7 @@ struct Input : View
 
   Input & highlight(TextHighlight const & highlight);
 
-  Input & clear_highlights();
+  Input & clear_highlight();
 
   Input & on_edit(Fn<void()> fn);
 
@@ -484,21 +527,30 @@ struct Button : View
 {
   struct State
   {
-    bool       disabled = false;
-    PressState press    = {};
+    bool disabled = false;
+
+    PressState press = {};
   } state;
 
   struct Style
   {
-    Vec4U8      color          = theme.primary;
-    Vec4U8      hovered_color  = theme.primary_variant;
-    Vec4U8      disabled_color = theme.inactive;
-    f32         stroke         = 0.0F;
-    f32         thickness      = 1.0F;
-    ButtonShape shape          = ButtonShape::RRect;
-    Vec2        padding        = {};
-    CornerRadii corner_radii   = CornerRadii::all(2);
-    Frame       frame          = Frame{}.scale(1, 1);
+    Vec4U8 color = theme.primary;
+
+    Vec4U8 hovered_color = theme.primary_variant;
+
+    Vec4U8 disabled_color = theme.inactive;
+
+    f32 stroke = 0.0F;
+
+    f32 thickness = 1.0F;
+
+    ButtonShape shape = ButtonShape::RRect;
+
+    Vec2 padding = {};
+
+    CornerRadii corner_radii = CornerRadii::all(2);
+
+    Frame frame = Frame{}.scale(1, 1);
   } style;
 
   struct Callbacks
@@ -597,26 +649,77 @@ struct TextButton : Button
                          Fn<void(View &)> build) override;
 };
 
-// [ ] USE A TEXT
+struct Icon : View
+{
+  struct State
+  {
+    bool hidden = false;
+  } state;
+
+  RenderText text_;
+
+  Icon(Span<c32 const>   text      = U""_str,
+       TextStyle const & style     = TextStyle{.color = theme.on_surface},
+       FontStyle const & font      = FontStyle{.font        = theme.icon_font,
+                                               .height      = theme.body_font_height,
+                                               .line_height = theme.line_height},
+       AllocatorRef      allocator = default_allocator);
+
+  Icon(Span<c8 const>    text,
+       TextStyle const & style     = TextStyle{.color = theme.on_surface},
+       FontStyle const & font      = FontStyle{.font        = theme.icon_font,
+                                               .height      = theme.body_font_height,
+                                               .line_height = theme.line_height},
+       AllocatorRef      allocator = default_allocator);
+
+  Icon(Icon const &)             = delete;
+  Icon(Icon &&)                  = delete;
+  Icon & operator=(Icon const &) = delete;
+  Icon & operator=(Icon &&)      = delete;
+  virtual ~Icon() override       = default;
+
+  Icon & hide(bool hide);
+
+  Icon & icon(Span<c8 const> text, TextStyle const & style,
+              FontStyle const & font);
+
+  Icon & icon(Span<c32 const> text, TextStyle const & style,
+              FontStyle const & font);
+
+  ViewState tick(ViewContext const & ctx, CRect const & region, f32 zoom,
+                 ViewEvents const & events, Fn<void(View &)> build) override;
+
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override;
+
+  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
+                      Rect const & clip) override;
+};
+
 struct CheckBox : View
 {
   struct State
   {
-    bool       disabled : 1 = false;
-    bool       value    : 1 = false;
-    PressState press        = {};
+    bool disabled : 1 = false;
+
+    bool value : 1 = false;
+
+    PressState press = {};
   } state;
 
   struct Style
   {
-    Vec4U8      box_color         = theme.inactive;
-    Vec4U8      box_hovered_color = theme.active;
-    Vec4U8      tick_color        = theme.primary;
-    f32         stroke            = 1;
-    f32         thickness         = 0.5F;
-    f32         tick_thickness    = 2.0F;
-    CornerRadii corner_radii      = CornerRadii::all(2);
-    Frame       frame             = Vec2{20, 20};
+    Vec4U8 box_color = theme.inactive;
+
+    Vec4U8 box_hovered_color = theme.active;
+
+    f32 stroke = 1;
+
+    f32 thickness = 0.5F;
+
+    CornerRadii corner_radii = CornerRadii::all(2);
+
+    f32 padding = 2.5F;
   } style;
 
   struct Callbacks
@@ -624,12 +727,29 @@ struct CheckBox : View
     Fn<void(bool)> changed = noop;
   } cb;
 
-  CheckBox()                             = default;
+  Icon icon_;
+
+  CheckBox(Span<c32 const>   text      = U""_str,
+           TextStyle const & style     = TextStyle{.color = theme.on_surface},
+           FontStyle const & font      = FontStyle{.font   = theme.icon_font,
+                                                   .height = theme.body_font_height,
+                                                   .line_height = theme.line_height},
+           AllocatorRef      allocator = default_allocator);
+
+  CheckBox(Span<c8 const>    text,
+           TextStyle const & style     = TextStyle{.color = theme.on_surface},
+           FontStyle const & font      = FontStyle{.font   = theme.icon_font,
+                                                   .height = theme.body_font_height,
+                                                   .line_height = theme.line_height},
+           AllocatorRef      allocator = default_allocator);
+
   CheckBox(CheckBox const &)             = delete;
   CheckBox(CheckBox &&)                  = delete;
   CheckBox & operator=(CheckBox const &) = delete;
   CheckBox & operator=(CheckBox &&)      = delete;
   virtual ~CheckBox() override           = default;
+
+  Icon & icon();
 
   CheckBox & disable(bool disable);
 
@@ -637,25 +757,21 @@ struct CheckBox : View
 
   CheckBox & box_hovered_color(Vec4U8 color);
 
-  CheckBox & tick_color(Vec4U8 color);
-
   CheckBox & stroke(f32 stroke);
 
   CheckBox & thickness(f32 thickness);
 
-  CheckBox & tick_thickness(f32 thickness);
-
   CheckBox & corner_radii(CornerRadii const & radii);
 
-  CheckBox & frame(Vec2 extent, bool constrain = true);
-
-  CheckBox & frame(Frame frame);
+  CheckBox & padding(f32 padding);
 
   CheckBox & on_changed(Fn<void(bool)> fn);
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region,
                          f32 zoom, ViewEvents const & events,
                          Fn<void(View &)> build) override;
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
 
   virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
                          Span<Vec2> centers) override;
@@ -671,26 +787,40 @@ struct Slider : View
 {
   struct State
   {
-    bool      disabled = false;
-    DragState drag     = {};
-    f32       t        = 0;
-    f32       low      = 0;
-    f32       high     = 1;
+    bool disabled = false;
+
+    DragState drag = {};
+
+    f32 t = 0;
+
+    f32 low = 0;
+
+    f32 high = 1;
   } state;
 
   struct Style
   {
-    Axis        axis                 = Axis::X;
-    Frame       frame                = Vec2{360, theme.body_font_height};
-    f32         thumb_size           = theme.body_font_height * 0.75F;
-    f32         track_size           = 4;
-    Vec4U8      thumb_color          = theme.primary;
-    Vec4U8      thumb_hovered_color  = theme.primary;
-    Vec4U8      thumb_dragging_color = theme.primary_variant;
-    CornerRadii thumb_corner_radii   = CornerRadii::all(2);
-    Vec4U8      track_color          = theme.inactive;
-    CornerRadii track_corner_radii   = CornerRadii::all(2);
-    f32         delta                = 0.1F;
+    Axis axis = Axis::X;
+
+    Frame frame = Vec2{360, theme.body_font_height};
+
+    f32 thumb_size = theme.body_font_height * 0.75F;
+
+    f32 track_size = 4;
+
+    Vec4U8 thumb_color = theme.primary;
+
+    Vec4U8 thumb_hovered_color = theme.primary;
+
+    Vec4U8 thumb_dragging_color = theme.primary_variant;
+
+    CornerRadii thumb_corner_radii = CornerRadii::all(2);
+
+    Vec4U8 track_color = theme.inactive;
+
+    CornerRadii track_corner_radii = CornerRadii::all(2);
+
+    f32 delta = 0.1F;
   } style;
 
   struct Callbacks
@@ -752,22 +882,32 @@ struct Switch : View
 {
   struct State
   {
-    bool       disabled = false;
-    PressState press    = {};
-    bool       value    = false;
+    bool disabled = false;
+
+    PressState press = {};
+
+    bool value = false;
   } state;
 
   struct Style
   {
-    Vec4U8      on_color          = theme.primary;
-    Vec4U8      on_hovered_color  = theme.primary_variant;
-    Vec4U8      off_color         = theme.active;
-    Vec4U8      off_hovered_color = theme.inactive;
-    Vec4U8      track_color       = theme.surface_variant;
-    f32         track_thickness   = 1;
-    f32         track_stroke      = 0;
-    CornerRadii corner_radii      = CornerRadii::all(4);
-    Frame       frame             = Vec2{40, 20};
+    Vec4U8 on_color = theme.primary;
+
+    Vec4U8 on_hovered_color = theme.primary_variant;
+
+    Vec4U8 off_color = theme.active;
+
+    Vec4U8 off_hovered_color = theme.inactive;
+
+    Vec4U8 track_color = theme.surface_variant;
+
+    f32 track_thickness = 1;
+
+    f32 track_stroke = 0;
+
+    CornerRadii corner_radii = CornerRadii::all(4);
+
+    Frame frame = Vec2{40, 20};
   } style;
 
   struct Callbacks
@@ -834,12 +974,17 @@ struct Radio : View
 
   struct Style
   {
-    Frame       frame               = Vec2{20, 20};
-    CornerRadii corner_radii        = CornerRadii::all(0.5);
-    f32         thickness           = 0.5F;
-    Vec4U8      color               = theme.inactive;
-    Vec4U8      inner_color         = theme.primary;
-    Vec4U8      inner_hovered_color = theme.primary_variant;
+    Frame frame = Vec2{20, 20};
+
+    CornerRadii corner_radii = CornerRadii::all(0.5);
+
+    f32 thickness = 0.5F;
+
+    Vec4U8 color = theme.inactive;
+
+    Vec4U8 inner_color = theme.primary;
+
+    Vec4U8 inner_hovered_color = theme.primary_variant;
   } style;
 
   struct Callbacks
@@ -889,25 +1034,38 @@ struct ScalarDragBox : View
 {
   struct State
   {
-    bool       disabled   : 1 = false;
-    bool       input_mode : 1 = false;
-    bool       dragging   : 1 = false;
-    FocusState focus          = {};
-    ScalarInfo spec           = F32Info{};
-    Scalar     scalar         = 0.0F;
-    hash64     hash           = 0;
+    bool disabled : 1 = false;
+
+    bool input_mode : 1 = false;
+
+    bool dragging : 1 = false;
+
+    FocusState focus = {};
+
+    ScalarInfo spec = F32Info{};
+
+    Scalar scalar = 0.0F;
+
+    hash64 hash = 0;
   } state;
 
   struct Style
   {
-    Frame            frame        = Frame{}.min(200, theme.body_font_height);
-    Vec2             padding      = {2.5, 2.5};
-    CornerRadii      corner_radii = CornerRadii::all(2);
-    Vec4U8           color        = theme.inactive;
-    Vec4U8           thumb_color  = theme.inactive;
-    f32              stroke       = 1.0F;
-    f32              thickness    = 1.0F;
-    Span<char const> format_str   = "{}"_str;
+    Frame frame = Frame{}.min(200, theme.body_font_height);
+
+    Vec2 padding = {2.5, 2.5};
+
+    CornerRadii corner_radii = CornerRadii::all(2);
+
+    Vec4U8 color = theme.inactive;
+
+    Vec4U8 thumb_color = theme.inactive;
+
+    f32 stroke = 1.0F;
+
+    f32 thickness = 1.0F;
+
+    Span<char const> format = "{}"_str;
   } style;
 
   Input input_;
@@ -959,8 +1117,10 @@ struct ScalarBox : Flex
     Fn<void(Scalar)> update = noop;
   } cb;
 
-  TextButton    dec_;
-  TextButton    inc_;
+  TextButton dec_;
+
+  TextButton inc_;
+
   ScalarDragBox drag_;
 
   ScalarBox(
@@ -1037,15 +1197,23 @@ struct ScrollBar : View
 
   struct Style
   {
-    Axis        axis                 = Axis::X;
-    f32         thumb_size           = 15;
-    Vec4U8      thumb_color          = theme.primary;
-    Vec4U8      thumb_hovered_color  = theme.primary_variant;
-    Vec4U8      thumb_dragging_color = theme.primary;
-    CornerRadii thumb_corner_radii   = CornerRadii::all(2);
-    Vec4U8      track_color          = theme.inactive;
-    CornerRadii track_corner_radii   = CornerRadii::all(2);
-    f32         delta                = 0.1F;
+    Axis axis = Axis::X;
+
+    f32 thumb_size = 15;
+
+    Vec4U8 thumb_color = theme.primary;
+
+    Vec4U8 thumb_hovered_color = theme.primary_variant;
+
+    Vec4U8 thumb_dragging_color = theme.primary;
+
+    CornerRadii thumb_corner_radii = CornerRadii::all(2);
+
+    Vec4U8 track_color = theme.inactive;
+
+    CornerRadii track_corner_radii = CornerRadii::all(2);
+
+    f32 delta = 0.1F;
   } style;
 
   ScrollBar()                              = default;
@@ -1073,19 +1241,26 @@ struct ScrollView : View
   struct State
   {
     bool disabled = false;
-    f32  zoom     = 1;
+
+    f32 zoom = 1;
   } state;
 
   struct Style
   {
-    Frame frame       = Vec2{200, 200};
+    Frame frame = Vec2{200, 200};
+
     Frame inner_frame = Frame{}.rmax(F32_INF, F32_INF);
-    f32   x_bar_size  = 10;
-    f32   y_bar_size  = 10;
+
+    f32 x_bar_size = 10;
+
+    f32 y_bar_size = 10;
+
   } style;
 
   ScrollBar x_bar_{};
+
   ScrollBar y_bar_{};
+
   ref<View> child_;
 
   ScrollView(View & child);
@@ -1139,9 +1314,12 @@ struct ComboItem : View
 {
   struct State
   {
-    bool          disabled   = false;
-    bool          selected   = false;
-    u32           id         = 0;
+    bool disabled = false;
+
+    bool selected = false;
+
+    u32 id = 0;
+
     Fn<void(u32)> click_hook = noop;
   } state;
 
@@ -1176,15 +1354,23 @@ struct TextComboItem : ComboItem
 
   struct Style
   {
-    Frame       frame          = Frame{}.scale(1, 1);
-    Vec2        padding        = {5, 5};
-    f32         alignment      = -1;
-    Vec4U8      color          = theme.surface_variant;
-    Vec4U8      hover_color    = theme.primary_variant;
-    Vec4U8      selected_color = theme.primary;
-    f32         stroke         = 0;
-    f32         thickness      = 1;
-    CornerRadii corner_radii   = CornerRadii::all(2);
+    Frame frame = Frame{}.scale(1, 1);
+
+    Vec2 padding = {5, 5};
+
+    f32 alignment = -1;
+
+    Vec4U8 color = theme.surface_variant;
+
+    Vec4U8 hover_color = theme.primary_variant;
+
+    Vec4U8 selected_color = theme.primary;
+
+    f32 stroke = 0;
+
+    f32 thickness = 1;
+
+    CornerRadii corner_radii = CornerRadii::all(2);
   } style;
 
   Text text_;
@@ -1248,16 +1434,20 @@ struct Combo : Flex
 {
   struct State
   {
-    bool        disabled = false;
+    bool disabled = false;
+
     Option<u32> selected = none;
   } state;
 
   struct Style
   {
     CornerRadii corner_radii = CornerRadii::all(2);
-    Vec4U8      color        = theme.surface;
-    f32         stroke       = 0;
-    f32         thickness    = 1;
+
+    Vec4U8 color = theme.surface;
+
+    f32 stroke = 0;
+
+    f32 thickness = 1;
   } style;
 
   struct Callbacks
@@ -1344,12 +1534,17 @@ struct Image : View
 
   struct Style
   {
-    Option<f32>   aspect_ratio = none;
-    Frame         frame        = Frame{}.offset(250, 250);
-    CornerRadii   radii        = CornerRadii::all(2);
-    ColorGradient tint         = colors::WHITE;
-    ImageFit      fit          = ImageFit::Contain;
-    Vec2          alignment    = ALIGNMENT_CENTER;
+    Option<f32> aspect_ratio = none;
+
+    Frame frame = Frame{}.offset(250, 250);
+
+    CornerRadii radii = CornerRadii::all(2);
+
+    ColorGradient tint = colors::WHITE;
+
+    ImageFit fit = ImageFit::Contain;
+
+    Vec2 alignment = ALIGNMENT_CENTER;
   } style;
 
   ImageSrc src_;
@@ -1385,27 +1580,60 @@ struct Image : View
                       Rect const & clip) override;
 };
 
-template <typename ViewType, typename DataType>
-using ListBinder = Fn<void(ViewType & view, DataType data)>;
-
-// [ ] implement
-template <typename ViewType, typename DataType>
 struct List : View
 {
-  using Binder = ListBinder<ViewType, DataType>;
-  ArenaPool       arena;
-  Vec<DataType>   elements;
-  Vec<ViewType *> views;
-  // view creator/instancer
-  //  [ ] culling?
-  // [ ] how to get each views info? i.e. extent
-  // [ ] ui::bind/ui::extent/ui::instance
+  typedef Fn<Option<Dyn<View *>>(AllocatorRef, usize i)> Generator;
 
-  List(Binder binder);
+  static constexpr auto DEFAULT_GENERATOR =
+    [](AllocatorRef, usize) -> Option<Dyn<View *>> { return none; };
 
-  usize add(DataType data);
-  void  remove(usize i);
-  void  swap(usize a, usize b);
+  struct State
+  {
+    Slice range = {};
+
+    /// @brief total translation of the entire list
+    f32 translation = 0;
+
+    /// @brief virtual view translation of the currently visible list items
+    f32 virtual_translation = 0;
+
+    Option<f32> item_size = none;
+
+    Generator generator;
+  } state_;
+
+  struct Style
+  {
+    Axis axis = Axis::X;
+
+    Frame frame = Frame{}.scale(1, 1);
+
+    Frame item_frame = Frame{}.scale(1, 1);
+  } style_;
+
+  AllocatorRef allocator_;
+
+  Vec<Dyn<View *>> items_;
+
+  List(Generator    generator = DEFAULT_GENERATOR,
+       AllocatorRef allocator = default_allocator);
+
+  List & generator(Generator generator);
+
+  List & axis(Axis axis);
+
+  List & frame(Frame frame);
+
+  List & item_frame(Frame frame);
+
+  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
+                         f32 zoom, ViewEvents const & events,
+                         Fn<void(View &)> build) override;
+
+  virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
+
+  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                         Span<Vec2> centers) override;
 };
 
 // [ ] implement
@@ -1415,7 +1643,6 @@ struct Table : View
 {
 };
 
-// [ ] implement
 /// REQUIREMENTS
 /// - Linear and Non-Linear Color Space Independence
 /// - Rectangular Box with visualizations
@@ -1426,7 +1653,6 @@ struct ColorPicker : View
 {
 };
 
-/// [ ] implement
 /// REQUIREMENTS:
 /// - plot modes: histogram, lines, scale, log
 /// - plot from user buffer: can be at specific index and will plot rest from
@@ -1439,7 +1665,6 @@ struct Plot : View
 {
 };
 
-// [ ] implement
 struct ProgressBar : View
 {
 };

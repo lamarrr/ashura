@@ -349,15 +349,9 @@ Text & Text::copyable(bool allow)
   return *this;
 }
 
-Text & Text::highlight(TextHighlight highlight)
+Text & Text::highlight_style(TextHighlightStyle highlight)
 {
-  text_.highlight(highlight);
-  return *this;
-}
-
-Text & Text::clear_highlights()
-{
-  text_.clear_highlights();
+  style.highlight = highlight;
   return *this;
 }
 
@@ -402,8 +396,10 @@ ViewState Text::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
     cmd = TextCommand::Unselect;
   }
 
-  compositor_.command(text_, cmd, noop, noop, {}, engine->clipboard, 1, region,
-                      ctx.mouse.position, zoom);
+  auto cursor =
+    compositor_.command(text_, cmd, noop, noop, {}, engine->clipboard, 1,
+                        region, ctx.mouse.position, zoom);
+  text_.highlight(TextHighlight{.slice = cursor, .style = {}});
 
   return ViewState{.draggable = state.copyable};
 }
@@ -473,9 +469,9 @@ Input & Input::highlight(TextHighlight const & highlight)
   return *this;
 }
 
-Input & Input::clear_highlights()
+Input & Input::clear_highlight()
 {
-  content_.clear_highlights();
+  content_.clear_highlight();
   return *this;
 }
 
@@ -774,13 +770,7 @@ void Input::render(Canvas & canvas, CRect const & region, f32 zoom,
   }
   else
   {
-    content_.render(
-      canvas, region, clip.centered(), zoom,
-      span({
-        TextHighlight{
-                      .slice = compositor_.get_cursor().as_slice()(content_.text_.size()),
-                      .style = style.highlight}
-    }));
+    content_.render(canvas, region, clip.centered(), zoom);
   }
 }
 
@@ -1006,6 +996,75 @@ ViewState TextButton::tick(ViewContext const & ctx, CRect const & region,
   return state;
 }
 
+Icon::Icon(Span<c32 const> text, TextStyle const & style,
+           FontStyle const & font, AllocatorRef allocator) :
+  text_{allocator}
+{
+  text_.text(text).run(style, font);
+}
+
+Icon::Icon(Span<c8 const> text, TextStyle const & style, FontStyle const & font,
+           AllocatorRef allocator) :
+  text_{allocator}
+{
+  text_.text(text).run(style, font);
+}
+
+Icon & Icon::hide(bool hide)
+{
+  state.hidden = hide;
+  return *this;
+}
+
+Icon & Icon::icon(Span<c8 const> text, TextStyle const & style,
+                  FontStyle const & font)
+{
+  text_.text(text).run(style, font);
+  return *this;
+}
+
+Icon & Icon::icon(Span<c32 const> text, TextStyle const & style,
+                  FontStyle const & font)
+{
+  text_.text(text).run(style, font);
+  return *this;
+}
+
+ViewState Icon::tick(ViewContext const &, CRect const &, f32,
+                     ViewEvents const &, Fn<void(View &)>)
+{
+  return ViewState{.hidden = state.hidden};
+}
+
+ViewLayout Icon::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+{
+  text_.perform_layout(allocated.x);
+  return ViewLayout{.extent = text_.layout().extent};
+}
+
+void Icon::render(Canvas & canvas, CRect const & region, f32 zoom,
+                  Rect const & clip)
+{
+  text_.render(canvas, region, clip.centered(), zoom);
+}
+
+CheckBox::CheckBox(Span<c32 const> text, TextStyle const & style,
+                   FontStyle const & font, AllocatorRef allocator) :
+  icon_{text, style, font, allocator}
+{
+}
+
+CheckBox::CheckBox(Span<c8 const> text, TextStyle const & style,
+                   FontStyle const & font, AllocatorRef allocator) :
+  icon_{text, style, font, allocator}
+{
+}
+
+Icon & CheckBox::icon()
+{
+  return icon_;
+}
+
 CheckBox & CheckBox::disable(bool d)
 {
   state.disabled = d;
@@ -1024,12 +1083,6 @@ CheckBox & CheckBox::box_hovered_color(Vec4U8 c)
   return *this;
 }
 
-CheckBox & CheckBox::tick_color(Vec4U8 c)
-{
-  style.tick_color = c;
-  return *this;
-}
-
 CheckBox & CheckBox::stroke(f32 s)
 {
   style.stroke = s;
@@ -1042,27 +1095,15 @@ CheckBox & CheckBox::thickness(f32 t)
   return *this;
 }
 
-CheckBox & CheckBox::tick_thickness(f32 t)
-{
-  style.tick_thickness = t;
-  return *this;
-}
-
 CheckBox & CheckBox::corner_radii(CornerRadii const & r)
 {
   style.corner_radii = r;
   return *this;
 }
 
-CheckBox & CheckBox::frame(Vec2 extent, bool constrain)
+CheckBox & CheckBox::padding(f32 p)
 {
-  style.frame = Frame{extent, constrain};
-  return *this;
-}
-
-CheckBox & CheckBox::frame(Frame f)
-{
-  style.frame = f;
+  style.padding = p;
   return *this;
 }
 
@@ -1073,7 +1114,7 @@ CheckBox & CheckBox::on_changed(Fn<void(bool)> f)
 }
 
 ViewState CheckBox::tick(ViewContext const & ctx, CRect const &, f32,
-                         ViewEvents const &  events, Fn<void(View &)>)
+                         ViewEvents const & events, Fn<void(View &)> build)
 {
   state.press.tick(ctx, events);
 
@@ -1083,15 +1124,24 @@ ViewState CheckBox::tick(ViewContext const & ctx, CRect const &, f32,
     cb.changed(state.value);
   }
 
+  icon_.hide(!state.value);
+
+  build(icon_);
+
   return ViewState{.pointable = !state.disabled,
                    .clickable = !state.disabled,
                    .focusable = !state.disabled};
 }
 
-ViewLayout CheckBox::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+void CheckBox::size(Vec2 allocated, Span<Vec2> sizes)
 {
-  Vec2 extent = style.frame(allocated);
-  return {.extent = Vec2::splat(min(extent.x, extent.y))};
+  fill(sizes, allocated - 2 * style.padding);
+}
+
+ViewLayout CheckBox::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
+{
+  fill(centers, Vec2{});
+  return {.extent = style.padding + sizes[0]};
 }
 
 void CheckBox::render(Canvas & canvas, CRect const & region, f32, Rect const &)
@@ -1112,22 +1162,6 @@ void CheckBox::render(Canvas & canvas, CRect const & region, f32, Rect const &)
                 .stroke       = 1,
                 .thickness    = 2,
                 .tint         = tint});
-
-  if (state.value)
-  {
-    constexpr Vec2 TICK_VERTICES[] = {
-      {-0.5F,   0    },
-      {-0.125F, 0.5F },
-      {0.5F,    -0.5F}
-    };
-
-    canvas.line({.center    = region.center,
-                 .extent    = region.extent,
-                 .stroke    = 0,
-                 .thickness = style.tick_thickness,
-                 .tint      = style.tick_color},
-                TICK_VERTICES);
-  }
 }
 
 Cursor CheckBox::cursor(CRect const &, f32, Vec2)
@@ -1658,10 +1692,14 @@ ViewState ScalarDragBox::tick(ViewContext const & ctx, CRect const & region,
 
     fmt::Context ctx{fn(sink), std::move(ops)};
 
-    if (auto result = ctx.format(style.format_str, state.scalar);
-        result.error != fmt::Error::None)
+    if (auto result = ctx.format(style.format, state.scalar);
+        result.error == fmt::Error::None)
     {
       input_.content_.text(text.view().as_c8());
+    }
+    else
+    {
+      input_.content_.text(U"[Truncated]");
     }
 
     state.hash = -1;
@@ -1795,8 +1833,8 @@ ScalarBox & ScalarBox::stub(Span<c8 const> text)
 
 ScalarBox & ScalarBox::format(Span<char const> format)
 {
-  drag_.style.format_str = format;
-  drag_.state.hash       = 0;
+  drag_.style.format = format;
+  drag_.state.hash   = 0;
   return *this;
 }
 
@@ -2646,6 +2684,159 @@ void Image::render(Canvas & canvas, CRect const & region, f32, Rect const &)
         []() {});
     },
     [&](ImageLoadErr) {});
+}
+
+List::List(Generator generator, AllocatorRef allocator) :
+  state_{.generator = generator},
+  allocator_{allocator},
+  items_{allocator}
+{
+}
+
+List & List::generator(Generator generator)
+{
+  state_.range               = {};
+  state_.translation         = 0;
+  state_.virtual_translation = 0;
+  state_.item_size           = none;
+  state_.generator           = generator;
+  return *this;
+}
+
+List & List::axis(Axis axis)
+{
+  style_.axis = axis;
+  return *this;
+}
+
+List & List::frame(Frame frame)
+{
+  style_.frame = frame;
+  return *this;
+}
+
+List & List::item_frame(Frame frame)
+{
+  style_.item_frame = frame;
+  return *this;
+}
+
+ViewState List::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
+                     ViewEvents const & events, Fn<void(View &)> build)
+{
+  u32 const axis = style_.axis == Axis::X ? 0 : 1;
+
+  if (events.mouse_scroll)
+  {
+    state_.translation += ctx.mouse.wheel_translation.x;
+  }
+
+  if (state_.item_size.is_none() && !items_.is_empty())
+  {
+    state_.item_size = items_[0]->region_.extent[axis];
+  }
+
+  if (state_.item_size.is_none())
+  {
+    // get the first item and use it to measure the item size
+    if (auto item = state_.generator(allocator_, 0); item.is_some())
+    {
+      items_.push(std::move(item.value())).unwrap();
+      state_.range = {0, 1};
+    }
+
+    state_.virtual_translation = 0;
+  }
+  else
+  {
+    Slice range;
+
+    range.offset = (usize) max(
+      std::ceil(state_.translation / state_.item_size.value()), 0.0F);
+
+    range.span = (usize) max(
+      std::ceil(region.extent[axis] / state_.item_size.value()), 0.0F);
+
+    usize i = range.begin();
+
+    for (; i < range.end(); i++)
+    {
+      if (state_.range.contains(i))
+      {
+        items_.push(std::move(items_[i - state_.range.offset])).unwrap();
+      }
+      else
+      {
+        if (auto item = state_.generator(allocator_, i); item.is_some())
+        {
+          items_.push(std::move(item.value())).unwrap();
+        }
+        else
+        {
+          break;
+        }
+      }
+    }
+
+    items_.erase(0, state_.range.span);
+
+    range.span = i - range.offset;
+
+    state_.range = range;
+
+    f32 const first_item_offset =
+      state_.range.offset * state_.item_size.unwrap_or(1.0F);
+
+    state_.virtual_translation = state_.translation - first_item_offset;
+
+    // [ ] NEED TO GET SIZE INFO FOR SCROLL BAR
+  }
+
+  for (auto const & item : items_)
+  {
+    build(*item);
+  }
+
+  return ViewState{.scrollable = true, .viewport = true};
+}
+
+void List::size(Vec2 allocated, Span<Vec2> sizes)
+{
+  fill(sizes, style_.item_frame(style_.frame(allocated)));
+}
+
+ViewLayout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
+{
+  fill(centers, Vec2{});
+
+  Vec2      extent     = {};
+  u32 const axis       = style_.axis == Axis::X ? 0 : 1;
+  u32 const cross_axis = style_.axis == Axis::X ? 1 : 0;
+
+  for (auto const size : sizes)
+  {
+    extent[cross_axis] = max(extent[cross_axis], size[cross_axis]);
+    extent[axis] += size[axis];
+  }
+
+  f32 cursor = -extent[axis] * 0.5F;
+
+  for (auto [size, center] : zip(sizes, centers))
+  {
+    center[axis] = cursor + size[axis] * 0.5;
+    cursor += size[axis];
+  }
+
+  Vec2 const frame = style_.frame(allocated);
+
+  Vec2 virtual_translation;
+  virtual_translation[axis] = state_.virtual_translation;
+
+  return ViewLayout{
+    .extent{min(frame.x, extent.x), min(frame.y, extent.y)},
+    .viewport_extent    = extent,
+    .viewport_transform = translate2d(virtual_translation)
+  };
 }
 
 }    // namespace ui

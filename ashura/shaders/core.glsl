@@ -39,6 +39,16 @@ vec4 downsample(sampler smp, texture2D src, vec2 uv, vec2 radius)
   return sum * (1 / 8.0);
 }
 
+vec4 downsample_clamped(sampler smp, texture2D src, vec2 uv, vec2 radius, vec2 min_uv, vec2 max_uv)
+{
+  vec4 sum = texture(sampler2D(src, smp), clamp(uv, min_uv, max_uv)) * vec4(4.0);
+  sum += texture(sampler2D(src, smp), clamp(uv + radius, min_uv, max_uv));
+  sum += texture(sampler2D(src, smp), clamp(uv - radius, min_uv, max_uv));
+  sum += texture(sampler2D(src, smp), clamp(uv + vec2(radius.x, -radius.y), min_uv, max_uv));
+  sum += texture(sampler2D(src, smp), clamp(uv + vec2(-radius.x, radius.y), min_uv, max_uv));
+  return sum * (1 / 8.0);
+}
+
 /// SIGGRAPH 2015 - Bandwidth-Efficient Rendering, Marius Bjorge, ARM
 /// KAWASE multi-tap upsampling
 vec4 upsample(sampler smp, texture2D src, vec2 uv, vec2 radius)
@@ -51,6 +61,19 @@ vec4 upsample(sampler smp, texture2D src, vec2 uv, vec2 radius)
   sum += texture(sampler2D(src, smp), uv + vec2(radius.x, -radius.y)) * 2.0;
   sum += texture(sampler2D(src, smp), uv + vec2(0, -radius.y * 2));
   sum += texture(sampler2D(src, smp), uv + vec2(-radius.x, -radius.y)) * 2.0;
+  return sum  * (1 / 12.0);
+}
+ 
+vec4 upsample_clamped(sampler smp, texture2D src, vec2 uv, vec2 radius, vec2 min_uv, vec2 max_uv)
+{
+  vec4 sum = texture(sampler2D(src, smp), clamp(uv + vec2(-radius.x * 2, 0), min_uv, max_uv));
+  sum += texture(sampler2D(src, smp), clamp(uv + vec2(-radius.x, radius.y), min_uv, max_uv)) * 2.0;
+  sum += texture(sampler2D(src, smp), clamp(uv + vec2(0, radius.y * 2), min_uv, max_uv));
+  sum += texture(sampler2D(src, smp), clamp(uv + vec2(radius.x, radius.y), min_uv, max_uv)) * 2.0;
+  sum += texture(sampler2D(src, smp), clamp(uv + vec2(radius.x * 2, 0), min_uv, max_uv));
+  sum += texture(sampler2D(src, smp), clamp(uv + vec2(radius.x, -radius.y), min_uv, max_uv)) * 2.0;
+  sum += texture(sampler2D(src, smp), clamp(uv + vec2(0, -radius.y * 2), min_uv, max_uv));
+  sum += texture(sampler2D(src, smp), clamp(uv + vec2(-radius.x, -radius.y), min_uv, max_uv)) * 2.0;
   return sum  * (1 / 12.0);
 }
 

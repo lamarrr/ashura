@@ -348,8 +348,7 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
     }
   }
 
-  u64 const atlas_area       = (u64) atlas_extent.x * (u64) atlas_extent.y * 4;
-  u64 const atlas_layer_size = atlas_area;
+  u64 const atlas_layer_size = (u64) atlas_extent.x * (u64) atlas_extent.y * 4;
   u64 const atlas_size       = atlas_layer_size * num_layers;
 
   if (!atlas.channels.resize(atlas_size))
@@ -362,12 +361,13 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
 
   for (auto [i, ag] : enumerate<u32>(atlas.glyphs))
   {
-    FT_GlyphSlot slot = font.ft_face->glyph;
     if (FT_Load_Glyph(font.ft_face, i,
                       FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR))
     {
       continue;
     }
+
+    FT_GlyphSlot slot = font.ft_face->glyph;
 
     /// we don't want to handle negative pitches
     CHECK(slot->bitmap.pitch >= 0, "");
@@ -396,7 +396,7 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
           .channels{slot->bitmap.buffer,
                     slot->bitmap.rows * (u32) slot->bitmap.pitch},
           .extent{slot->bitmap.width,  slot->bitmap.rows      },
-          .stride = (u32) slot->bitmap.pitch
+          .stride = (u32) slot->bitmap.pitch / 4
         };
 
         copy_image(src, atlas_span.layer(ag.layer).slice(ag.area.offset,
@@ -433,7 +433,8 @@ FontId FontSystemImpl::upload_(Dyn<Font *> font_)
 
   GpuFontAtlas gpu_atlas{.textures{allocator_},
                          .font_height = atlas.font_height,
-                         .extent      = atlas.extent};
+                         .extent      = atlas.extent,
+                         .glyphs{allocator_}};
 
   gpu_atlas.glyphs.extend(atlas.glyphs).unwrap();
 

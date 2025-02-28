@@ -1115,6 +1115,7 @@ void check_device_features(VkPhysicalDeviceFeatures feat)
   CHECK(feat.multiDrawIndirect == VK_TRUE, "");
   CHECK(feat.drawIndirectFirstInstance == VK_TRUE, "");
   CHECK(feat.imageCubeArray == VK_TRUE, "");
+  CHECK(feat.pipelineStatisticsQuery == VK_TRUE, "");
 }
 
 Result<gpu::Device *, Status>
@@ -1479,7 +1480,7 @@ Result<gpu::Device *, Status>
     .textureCompressionASTC_LDR     = VK_FALSE,
     .textureCompressionBC           = VK_FALSE,
     .occlusionQueryPrecise          = VK_FALSE,
-    .pipelineStatisticsQuery        = VK_FALSE,
+    .pipelineStatisticsQuery        = VK_TRUE,
     .vertexPipelineStoresAndAtomics = VK_FALSE,
     .fragmentStoresAndAtomics       = VK_FALSE,
     .shaderTessellationAndGeometryPointSize  = VK_FALSE,
