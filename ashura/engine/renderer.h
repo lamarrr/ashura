@@ -107,8 +107,10 @@ struct FrameGraph
     // no need to free it
     lambda.allocator_    = noop_allocator;
 
+    auto f = fn(*lambda);
+
     return add_pass(
-      Pass{.label = label, .pass = transmute(std::move(lambda), fn(*lambda))});
+      Pass{.label = label, .pass = transmute(std::move(lambda), f)});
   }
 
   void execute(Canvas const & canvas);
