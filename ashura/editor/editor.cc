@@ -1,93 +1,117 @@
+// #include "ashura/engine/animation.h"
 #include "ashura/engine/animation.h"
 #include "ashura/engine/engine.h"
 #include "ashura/engine/views.h"
 
 struct Animated;
 
+struct App
+{
+};
+
 int main()
 {
   using namespace ash;
-  Logger::init();
-  CHECK(logger->add_sink(&stdio_sink));
-  Scheduler::init(default_allocator, std::this_thread::get_id(),
-                  span<nanoseconds>({2ms, 2ms}),
-                  span<nanoseconds>({2ms, 2ms, 2ms, 2ms}));
 
-  Engine::init(
-      default_allocator, nullptr,
-      R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\config.json)"_str,
-      R"(C:\Users\rlama\Documents\workspace\oss\ashura\assets)"_str);
+  Dyn<Engine *> engine = Engine::create(
+    default_allocator,
+    R"(C:\Users\rlama\Documents\workspace\oss\ashura\ashura\config.json)"_str,
+    R"(C:\Users\rlama\Documents\workspace\oss\ashura\)"_str);
 
-  // [ ] revamp views
+  defer engine_{[&] { engine->shutdown(); }};
+
+  FontId const RobotoMono    = sys->font.get("RobotoMono"_str).id;
+  FontId const Roboto        = sys->font.get("Roboto"_str).id;
+  FontId const MaterialIcons = sys->font.get("MaterialIcons"_str).id;
+  FontId const Amiri         = sys->font.get("Amiri"_str).id;
+
+  ui::theme.head_font = RobotoMono;
+  ui::theme.body_font = Roboto;
+  ui::theme.icon_font = MaterialIcons;
+
   // [ ] forward pointer and key events to views
 
-  defer engine_{[&] { Engine::uninit(); }};
+  ui::Flex flex;
 
-  ScrollView         view;
-  TextButton         btn;
-  TextButton         btn_home;
-  TextButton         btn2;
-  Switch             sw[4];
-  Slider             slider;
-  ScalarBox          scalar;
-  ComboBoxScrollView combo_box;
-  RadioBox           radio;
+  ui::Stack      stack;
+  ui::Text       text;
+  ui::Input      input;
+  ui::TextButton btn;
+  ui::CheckBox   check_box;
+  ui::Slider     slider;
+  ui::Switch     switch_box;
+  ui::Radio      radio;
+  ui::ScalarBox  scalar;
+  ui::Space      space;
+  ui::ScrollView scroll{space};
+  ui::Combo      combo;
+  ui::Image      img;
+  ui::Image      img2;
+  ui::Image      img3;
+  ui::Image      img4;
 
-  sw[0].on();
+  btn.text(U"playlist_add ADD TO PLAYLIST"_str)
+    .run({.color = colors::WHITE}, {.font        = RobotoMono,
+                                    .height      = ui::theme.body_font_height,
+                                    .line_height = 1})
+    .run({.color = colors::WHITE},
+         {.font        = MaterialIcons,
+          .height      = ui::theme.body_font_height,
+          .line_height = 1},
+         0, 12)
+    .padding({5, 5});
 
-  scalar.frame(250, 100);
+  img.source(sys->image.get("birdie"_str).id)
+    .frame({200, 200})
+    .corner_radii(ui::CornerRadii::all(25));
+  img2.source(sys->image.get("mountains"_str).id)
+    .frame({400, 400})
+    .corner_radii(ui::CornerRadii::all(25));
+  img3.source(sys->image.get("bankside"_str).id)
+    .frame({400, 400})
+    .corner_radii(ui::CornerRadii::all(25));
+  img4.source(sys->image.get("sunset"_str).id)
+    .frame({400, 400})
+    .corner_radii(ui::CornerRadii::all(25));
 
-  slider.range(0, 100).interp(0).axis(Axis::Y);
+  scalar.format("Distance: {.2}m"_str);
 
-  btn.text(U"replay RELOAD"_str)
-      .style(TextStyle{.foreground = colors::WHITE, .background = colors::BLUE},
-             FontStyle{.font = engine->assets.fonts["RobotoMono"_str].get(),
-                       .font_height = 50,
-                       .line_height = 1.2F})
-      .style(TextStyle{.foreground = colors::WHITE, .background = colors::BLUE},
-             FontStyle{.font = engine->assets.fonts["MaterialIcons"_str].get(),
-                       .font_height = 40,
-                       .line_height = 1},
-             0, 6)
-      .padding(10, 10);
+  slider.range(0, 100).interp(0.25).axis(Axis::X);
 
-  btn_home.text(U"home HOME"_str)
-      .style(TextStyle{.foreground = colors::WHITE, .background = colors::BLUE},
-             FontStyle{.font = engine->assets.fonts["RobotoMono"_str].get(),
-                       .font_height = 50,
-                       .line_height = 1.2F})
-      .style(TextStyle{.foreground = colors::WHITE, .background = colors::BLUE},
-             FontStyle{.font = engine->assets.fonts["MaterialIcons"_str].get(),
-                       .font_height = 40,
-                       .line_height = 1},
-             0, 4)
-      .frame(200, 200);
+  flex
+    .items({stack, text, input, btn, check_box, slider, switch_box, radio,
+            scalar, space, scroll, combo, img, img2, img3, img4})
+    .axis(Axis::X)
+    .cross_align(0)
+    .main_align(ui::MainAlign::SpaceBetween);
 
-  btn2.text(U"بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ"_str)
-      .style(TextStyle{.foreground = colors::WHITE, .background = colors::NONE},
-             FontStyle{.font        = engine->assets.fonts["Amiri"_str].get(),
-                       .font_height = 25,
-                       .line_height = 1.2F})
-      .frame(200, 200)
-      .padding(10, 10);
+  ui::List        list;
+  ui::Table       table;
+  ui::ColorPicker picker;
+  ui::Plot        plot;
+  ui::ProgressBar progress;
+  ui::View        focus_view;
 
-  FlexView flex{};
-  flex.items({&btn, &btn2, &btn_home, sw + 0, sw + 1, sw + 2, &slider, &scalar,
-              &radio, &combo_box})
-      .axis(Axis::X)
-      .cross_align(0)
-      .main_align(MainAlign::SpaceBetween)
-      .frame(1'920, 1'080);
+  list.generator(
+    [](AllocatorRef allocator, usize i) -> Option<Dyn<ui::View *>> {
+      if (i >= 20)
+      {
+        return none;
+      }
+
+      auto text = dyn<ui::Text>(inplace, allocator, U"Item"_str).unwrap();
+
+      return cast<ui::View *>(std::move(text));
+    });
 
   auto animation = StaggeredAnimation<f32>::make(4, 8, RippleStagger{});
 
-  animation.timelines().v0.frame(1'920 * 0.25F, 1'920, 400ms, easing::out());
+  animation.timelines().v0.frame(100, 1'920, 800ms, easing::out());
 
-  // [ ] do we really need a tick function?
-  auto loop = [&](time_point, nanoseconds delta) {
-    animation.tick(delta);
-    flex.frame(animation.animate(0).v0, 1'080);
+  auto loop = [&](ui::ViewContext const & ctx) {
+    animation.tick(ctx.timedelta);
+    flex.frame({animation.animate(0).v0, 500});
   };
 
-  engine->run(flex, fn(loop));
+  engine->run(flex, focus_view, fn(loop));
 }

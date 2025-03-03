@@ -8,6 +8,18 @@
 namespace ash
 {
 
+typedef Fn<usize(AllocatorRef, i32)> AliasOp;
+
+/// @param allocator the allocator used to allocate the object
+/// @param direction the reference operation, 0 (get ref count), 1 (increase ref count), -1 (decrease ref count)
+/// @returns the previous alias count
+static constexpr usize rc_noop(AllocatorRef allocator, i32 op)
+{
+  (void) allocator;
+  (void) op;
+  return 0;
+}
+
 /// @brief A reference-counted resource handle
 ///
 /// Requirements
@@ -21,37 +33,38 @@ template <typename H>
 requires (TriviallyCopyable<H>)
 struct [[nodiscard]] Rc
 {
-  typedef H                       Handle;
-  typedef Fn<void(AllocatorImpl)> Uninit;
+  typedef H Handle;
 
-  struct Inner
-  {
-    H             handle{};
-    AliasCount *  alias_count = nullptr;
-    AllocatorImpl allocator   = {};
-    Uninit        uninit      = noop;
-  };
+  H            handle_;
+  AllocatorRef allocator_;
+  AliasOp      alias_;
 
-  Inner inner{};
-
-  constexpr Rc(H handle, AliasCount & alias_count, AllocatorImpl allocator,
-               Uninit uninit) :
-      inner{.handle      = handle,
-            .alias_count = &alias_count,
-            .allocator   = allocator,
-            .uninit      = uninit}
+  constexpr Rc(H handle, AllocatorRef allocator, AliasOp alias) :
+    handle_{handle},
+    allocator_{allocator},
+    alias_{alias}
   {
   }
 
-  explicit Rc() = default;
+  explicit constexpr Rc() :
+    handle_{},
+    allocator_{noop_allocator},
+    alias_{rc_noop}
+  {
+  }
 
   constexpr Rc(Rc const &) = delete;
 
   constexpr Rc & operator=(Rc const &) = delete;
 
-  constexpr Rc(Rc && other) : inner{other.inner}
+  constexpr Rc(Rc && other) :
+    handle_{other.handle_},
+    allocator_{other.allocator_},
+    alias_{other.alias_}
   {
-    other.inner = Inner{};
+    other.handle_    = H{};
+    other.allocator_ = noop_allocator;
+    other.alias_     = rc_noop;
   }
 
   constexpr Rc & operator=(Rc && other)
@@ -73,58 +86,50 @@ struct [[nodiscard]] Rc
 
   constexpr void uninit() const
   {
-    if (inner.alias_count == nullptr)
-    {
-      return;
-    }
-
-    if (inner.alias_count->unalias())
-    {
-      inner.uninit(inner.allocator);
-    }
+    alias_(allocator_, -1);
   }
 
   constexpr void reset()
   {
     uninit();
-    inner = Inner{};
-  }
-
-  bool is_valid() const
-  {
-    return inner.alias_count != nullptr;
-  }
-
-  constexpr usize num_aliases() const
-  {
-    return inner.alias_count->count();
+    *this = Rc{};
   }
 
   constexpr Rc alias() const
   {
-    inner.alias_count->alias();
-    return Rc{inner.handle, *inner.alias_count, inner.allocator, inner.uninit};
+    alias_(allocator_, 1);
+    return Rc{handle_, allocator_, alias_};
+  }
+
+  constexpr usize num_aliases() const
+  {
+    return alias_(allocator_, 0);
   }
 
   constexpr H get() const
   {
-    return inner.handle;
+    return handle_;
   }
 
   constexpr decltype(auto) operator*() const
   {
-    return *inner.handle;
+    return *handle_;
   }
 
   template <typename... Args>
   constexpr decltype(auto) operator()(Args &&... args) const
   {
-    return inner.handle(forward<Args>(args)...);
+    return handle_(forward<Args>(args)...);
   }
 
   constexpr H operator->() const
   {
-    return inner.handle;
+    return handle_;
+  }
+
+  constexpr operator H() const
+  {
+    return handle_;
   }
 };
 
@@ -135,55 +140,77 @@ struct IsTriviallyRelocatable<Rc<H>>
 };
 
 template <typename T>
-struct AliasCounted : AliasCount
+struct RcObject
 {
-  T data;
+  AliasCount alias_count{};
+  T          v0;
+
+  static constexpr usize rc_op(RcObject * obj, AllocatorRef allocator, i32 op)
+  {
+    switch (op)
+    {
+      case 0:
+      {
+        return obj->alias_count.count();
+      }
+      case -1:
+      {
+        usize const old = obj->alias_count.unalias();
+        if (old == 0)
+        {
+          obj->~RcObject();
+          allocator->ndealloc(1, obj);
+        }
+        return old;
+      }
+      case 1:
+      {
+        return obj->alias_count.alias();
+      }
+      default:
+        ASH_UNREACHABLE;
+    }
+  }
 };
 
 template <typename T, typename... Args>
-constexpr Result<Rc<T *>, Void> rc_inplace(AllocatorImpl allocator,
-                                           Args &&... args)
+constexpr Result<Rc<T *>, Void> rc(Inplace, AllocatorRef allocator,
+                                   Args &&... args)
 {
-  AliasCounted<T> * object;
+  RcObject<T> * obj;
 
-  if (!allocator.nalloc(1, object))
+  if (!allocator->nalloc(1, obj))
   {
     return Err{Void{}};
   }
 
-  new (object) AliasCounted<T>{.data{static_cast<Args &&>(args)...}};
+  new (obj) RcObject<T>{.v0{static_cast<Args &&>(args)...}};
 
   return Ok{
-      Rc<T *>{
-              &object->data, *object, allocator,
-              fn(
-              object, +[](AliasCounted<T> * object, AllocatorImpl allocator) {
-                object->~AliasCounted<T>();
-                allocator.ndealloc(object, 1);
-              })}
+    Rc<T *>{&obj->v0, allocator, fn(obj, &RcObject<T>::rc_op)}
   };
 }
 
 template <typename T>
-constexpr Result<Rc<T *>, Void> rc(AllocatorImpl allocator, T object)
+constexpr Result<Rc<T *>, Void> rc(AllocatorRef allocator, T object)
 {
-  return rc_inplace<T>(allocator, static_cast<T &&>(object));
+  return rc<T>(inplace, allocator, static_cast<T &&>(object));
 }
 
 template <typename Base, typename H>
-constexpr Rc<H> transmute(Rc<Base> && base, H handle)
+constexpr Rc<H> transmute(Rc<Base> base, H handle)
 {
-  Rc<H> t{static_cast<H &&>(handle, base.inner.allocator, base.inner.uninit)};
-  base.inner.handle    = {};
-  base.inner.allocator = noop_allocator;
-  base.inner.uninit    = noop;
+  Rc<H> t{static_cast<H &&>(handle), base.allocator_, base.alias_};
+  base.handle_    = {};
+  base.allocator_ = noop_allocator;
+  base.alias_     = rc_noop;
   return t;
 }
 
 template <typename To, typename From>
-constexpr Rc<To> cast(Rc<From> && from)
+constexpr Rc<To> cast(Rc<From> from)
 {
   return transmute((Rc<From> &&) from, static_cast<To>(from.get()));
 }
 
-}        // namespace ash
+}    // namespace ash

@@ -27,4 +27,4 @@ using namespace std::chrono_literals;
 
 using std::chrono::duration_cast;
 
-}        // namespace ash
+}    // namespace ash

@@ -8,104 +8,107 @@
             "description": "Version of the engine this config file is made for. This will be used in inter-engine version conversion",
             "type": "string"
         },
-        "gpu": {
-            "description": "GPU Configuration",
-            "type": "object",
-            "properties": {
-                "validation": {
-                    "description": "Enable GPU validation layers",
-                    "type": "boolean",
-                    "default": false
-                },
-                "vsync": {
-                    "description": "Enable GPU VSync",
-                    "type": "boolean",
-                    "default": false
-                },
-                "preferences": {
-                    "description": "Device preferences, selected in the specified order",
-                    "type": "array",
-                    "items": {
-                        "enum": [
-                            "dgpu",
-                            "vgpu",
-                            "igpu",
-                            "other",
-                            "cpu"
-                        ]
-                    },
-                    "minItems": 1,
-                    "maxItems": 5,
-                    "default": [
-                        "dgpu",
-                        "vgpu",
-                        "igpu",
-                        "other",
-                        "cpu"
-                    ]
-                },
-                "hdr": {
-                    "description": "Use HDR",
-                    "type": "boolean",
-                    "default": true
-                },
-                "buffering": {
-                    "description": "GPU Swapchain Buffering",
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 4,
-                    "default": 2
-                }
+        "gpu.validation": {
+            "description": "Enable GPU validation layers",
+            "type": "boolean",
+            "default": false
+        },
+        "gpu.vsync": {
+            "description": "Enable GPU VSync",
+            "type": "boolean",
+            "default": false
+        },
+        "gpu.preferences": {
+            "description": "Device preferences, selected in the specified order",
+            "type": "array",
+            "items": {
+                "enum": [
+                    "dgpu",
+                    "vgpu",
+                    "igpu",
+                    "other",
+                    "cpu"
+                ]
             },
-            "additionalProperties": false,
-            "required": [
-                "validation",
-                "vsync",
-                "preferences",
-                "hdr",
-                "buffering"
+            "minItems": 1,
+            "maxItems": 5,
+            "default": [
+                "dgpu",
+                "vgpu",
+                "igpu",
+                "other",
+                "cpu"
             ]
         },
-        "window": {
-            "description": "Window configuration",
-            "type": "object",
-            "properties": {
-                "resizable": {
-                    "description": "Enable window resizing",
-                    "type": "boolean",
-                    "default": true
-                },
-                "maximized": {
-                    "description": "Maximize window during startup",
-                    "type": "boolean",
-                    "default": false
-                },
-                "full_screen": {
-                    "description": "Set window to full-screen during startup",
-                    "type": "boolean",
-                    "default": false
-                },
-                "width": {
-                    "description": "Initial width of the window",
-                    "type": "integer",
-                    "default": 1920,
-                    "minimum": 0,
-                    "maximum": 8192
-                },
-                "height": {
-                    "description": "Initial height of the window",
-                    "type": "integer",
-                    "default": 1080,
-                    "maximum": 8192
-                }
-            },
-            "additionalProperties": false,
-            "required": [
-                "resizable",
-                "maximized",
-                "width",
-                "height"
+        "gpu.hdr": {
+            "description": "Use HDR",
+            "type": "boolean",
+            "default": true
+        },
+        "gpu.buffering": {
+            "description": "GPU Swapchain Buffering",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4,
+            "default": 2
+        },
+        "gpu.antialiasing": {
+            "description": "Antialiasing Technique to Use",
+            "type": "string",
+            "enum": [
+                "msaa"
             ]
+        },
+        "gpu.msaa.level": {
+            "description": "MSAA Sample Count",
+            "type": "number",
+            "enum": [
+                1,
+                2,
+                4,
+                8,
+                16
+            ],
+            "default": 4
+        },
+        "gpu.max_fps": {
+            "description": "",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 16384
+        },
+        "window.resizable": {
+            "description": "Enable window resizing",
+            "type": "boolean",
+            "default": true
+        },
+        "window.maximized": {
+            "description": "Maximize window during startup",
+            "type": "boolean",
+            "default": false
+        },
+        "window.full_screen": {
+            "description": "Set window to full-screen during startup",
+            "type": "boolean",
+            "default": false
+        },
+        "window.borderless": {
+            "description": "Make window borderless",
+            "type": "boolean",
+            "default": false
+        },
+        "window.width": {
+            "description": "Initial width of the window",
+            "type": "integer",
+            "default": 1920,
+            "minimum": 0,
+            "maximum": 8192
+        },
+        "window.height": {
+            "description": "Initial height of the window",
+            "type": "integer",
+            "default": 1080,
+            "maximum": 8192
         },
         "shaders": {
             "description": "Locations of the compiled shaders to be loaded at startup",
@@ -115,23 +118,40 @@
             "description": "Locations of the fonts to be loaded at startup",
             "type": "object"
         },
-        "default_font": {
-            "description": "The default font for the Engine",
-            "type": "string"
+        "fonts.height": {
+            "description": "Height to rasterize the fonts at",
+            "type": "number",
+            "default": 64,
+            "minimum": 16,
+            "maximum": 256
         },
         "images": {
             "description": "Locations of the images to be loaded at startup",
             "type": "object"
+        },
+        "cache.pipeline.path": {
+            "description": "Location to store and load pipeline cache data from",
+            "type": "string"
         }
     },
     "additionalProperties": false,
     "required": [
         "version",
-        "gpu",
-        "window",
+        "gpu.validation",
+        "gpu.vsync",
+        "gpu.preferences",
+        "gpu.hdr",
+        "gpu.buffering",
+        "gpu.msaa.level",
+        "window.resizable",
+        "window.maximized",
+        "window.borderless",
+        "window.width",
+        "window.height",
         "shaders",
         "fonts",
-        "default_font",
-        "images"
+        "fonts.height",
+        "images",
+        "paths.pipeline_cache"
     ]
 }

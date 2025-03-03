@@ -20,10 +20,9 @@
   - Ambient Occlusion
   - FXAA and MSAA
   - Bokeh or Guassian Depth Of Field
-  - GBuffer Pass (Sorted by Pipeline and Paramters)
+  - GBuffer Pass (Sorted by Pipeline and Parameters)
     - Opaque
     - Transparent
-  - Clipped/Stencil Composite
 - Core Material Shaders
   - PBR
   - RRect
@@ -34,4 +33,13 @@
 # Required Samples
 
 - Custom YAML-defined Imported Materials for Weapons
-- Player or Object Highlighting
+- Player or Object Highlighting / Fresnel Effect
+- Gizmo
+- Animation Blending
+- Lens (Flare) Effect
+- Screen Space Reflection
+- CRT Shader
+- Ambient Occlusion
+- Parallax
+https://github.com/GPUOpen-LibrariesAndSDKs/RenderPipelineShaders
+https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK

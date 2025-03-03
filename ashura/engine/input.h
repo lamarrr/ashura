@@ -1,9 +1,11 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ashura/engine/text.h"
 #include "ashura/std/enum.h"
 #include "ashura/std/math.h"
 #include "ashura/std/result.h"
+#include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
@@ -635,11 +637,11 @@ struct DropTextEvent
 };
 
 using DropEvent =
-    Enum<DropEventType, DropPositionEvent, DropFileEvent, DropTextEvent>;
+  Enum<DropEventType, DropPositionEvent, DropFileEvent, DropTextEvent>;
 
 using WindowEvent =
-    Enum<KeyEvent, MouseMotionEvent, MouseClickEvent, MouseWheelEvent,
-         TextInputEvent, WindowEventType, DropEvent>;
+  Enum<KeyEvent, MouseMotionEvent, MouseClickEvent, MouseWheelEvent,
+       TextInputEvent, WindowEventType, DropEvent>;
 
 enum class SystemEventType : u32
 {
@@ -658,6 +660,44 @@ enum class SystemEventType : u32
 };
 
 using SystemEvent = Enum<SystemTheme, SystemEventType>;
+
+enum class TextInputType : u32
+{
+  Text                  = 0,
+  Number                = 1,
+  Name                  = 2,
+  Email                 = 3,
+  Username              = 4,
+  PasswordHidden        = 5,
+  PasswordVisible       = 6,
+  NumberPasswordHidden  = 7,
+  NumberPasswordVisible = 8
+};
+
+enum class TextCapitalization : u32
+{
+  None      = 0,
+  Sentences = 1,
+  Words     = 2,
+  Letters   = 3
+};
+
+struct TextInputInfo
+{
+  TextInputType type = TextInputType::Text;
+
+  bool multiline = false;
+
+  /// @brief can receive `Tab` key as input
+  bool esc_input = false;
+
+  /// @brief can receive `Esc` key as input
+  bool tab_input = false;
+
+  TextCapitalization cap = TextCapitalization::None;
+
+  bool autocorrect = false;
+};
 
 /// @param Normal region is normal and has no special properties
 /// @param Draggable region can drag entire window
@@ -710,27 +750,28 @@ enum class WindowRegion : u32
 enum class Cursor : u32
 {
   Default     = 0,
-  None        = 1,
-  Text        = 2,
-  Wait        = 3,
-  CrossHair   = 4,
-  Progress    = 5,
-  NWSEResize  = 6,
-  NESWResize  = 7,
-  EWResize    = 8,
-  NSResize    = 9,
-  Move        = 10,
-  NotAllowed  = 11,
-  Pointer     = 12,
-  NWResize    = 13,
-  NorthResize = 14,
-  NEResize    = 15,
-  EastResize  = 16,
-  SEResize    = 17,
-  SouthResize = 18,
-  SWResize    = 19,
-  WestResize  = 20
+  Text        = 1,
+  Wait        = 2,
+  CrossHair   = 3,
+  Progress    = 4,
+  NWSEResize  = 5,
+  NESWResize  = 6,
+  EWResize    = 7,
+  NSResize    = 8,
+  Move        = 9,
+  NotAllowed  = 10,
+  Pointer     = 11,
+  NWResize    = 12,
+  NorthResize = 13,
+  NEResize    = 14,
+  EastResize  = 15,
+  SEResize    = 16,
+  SouthResize = 17,
+  SWResize    = 18,
+  WestResize  = 19
 };
+
+constexpr u32 NUM_CURSOR_TYPES = 20;
 
 /// @brief default charset is ASCII
 inline constexpr char const MIME_TEXT_PLAIN[]    = "text/plain";
@@ -774,29 +815,325 @@ inline constexpr char const MIME_FONT_WOFF2[] = "font/woff2";
 
 struct ClipBoard
 {
-  virtual Result<> get(Span<char const> mime, Vec<c8> & out)
+  ClipBoard()                              = default;
+  ClipBoard(ClipBoard const &)             = default;
+  ClipBoard(ClipBoard &&)                  = default;
+  ClipBoard & operator=(ClipBoard const &) = default;
+  ClipBoard & operator=(ClipBoard &&)      = default;
+  virtual ~ClipBoard()                     = default;
+
+  virtual Result<> get(Span<char const> mime, Vec<u8> & out)
   {
     (void) mime;
     (void) out;
     return Err{};
   }
 
-  virtual Result<> set(Span<char const> mime, Span<c8 const> data)
+  virtual Result<> set(Span<char const> mime, Span<u8 const> data)
   {
     (void) mime;
     (void) data;
     return Err{};
   }
 
-  Result<> get_text(Vec<c8> & out)
+  Result<> get_text(Vec<u8> & out)
   {
     return get(MIME_TEXT_UTF8, out);
   }
 
-  Result<> set_text(Span<c8 const> text)
+  Result<> set_text(Span<u8 const> text)
   {
     return set(MIME_TEXT_UTF8, text);
   }
 };
 
-}        // namespace ash
+enum class DropType : u32
+{
+  None     = 0,
+  FilePath = 1,
+  Bytes    = 2
+};
+
+struct InputState
+{
+  struct Mouse
+  {
+    /// @brief did the mouse enter the window on this frame?
+    bool in = false;
+
+    /// @brief did the mouse leave the window on this frame?
+    bool out = false;
+
+    /// @brief did the mouse move on this frame?
+    bool moved = false;
+
+    /// @brief did the mouse wheel get scrolled on this frame?
+    bool wheel_scrolled = false;
+
+    /// @brief is any of the keys pressed on this frame
+    bool any_down = false;
+
+    /// @brief is any of the keys released on this frame
+    bool any_up = false;
+
+    /// @brief which mouse buttons were pressed on this frame
+    Bits<u64, NUM_MOUSE_BUTTONS> downs{};
+
+    /// @brief which mouse buttons were released on this frame
+    Bits<u64, NUM_MOUSE_BUTTONS> ups{};
+
+    /// @brief the current state of each mouse button
+    Bits<u64, NUM_MOUSE_BUTTONS> states{};
+
+    /// @brief number of times the mouse was clicked so far
+    u32 num_clicks[NUM_MOUSE_BUTTONS]{};
+
+    /// @brief the position of the mouse on this frame
+    Vec2 position = {};
+
+    /// @brief translation of the mouse on this frame
+    Vec2 translation = {};
+
+    /// @brief translation of the mouse wheel on this frame
+    Vec2 wheel_translation = {};
+
+    void clear()
+    {
+      in             = false;
+      out            = false;
+      moved          = false;
+      wheel_scrolled = false;
+      any_down       = false;
+      any_up         = false;
+      fill(downs, 0ULL);
+      fill(ups, 0ULL);
+      fill(states, 0ULL);
+      fill(num_clicks, 0ULL);
+      position          = {};
+      translation       = {};
+      wheel_translation = {};
+    }
+  };
+
+  struct Keyboard
+  {
+    /// @brief did the window gain keyboard focus on this frame?
+    bool in = false;
+
+    /// @brief did the window lose keyboard focus on this frame?
+    bool out = false;
+
+    /// @brief is any of the keys pressed on this frame
+    bool any_down = false;
+
+    /// @brief is any of the keys released on this frame
+    bool any_up = false;
+
+    /// @brief bit mask of all the keys that were pressed on this frame
+    Bits<u64, NUM_KEYS> downs{};
+
+    /// @brief bit mask of all the keys that were released on this frame
+    Bits<u64, NUM_KEYS> ups{};
+
+    /// @brief bit mask of all the key states
+    Bits<u64, NUM_KEYS> states{};
+
+    /// @brief bit mask of all the keys that were pressed on this frame, indexed using the scancode
+    Bits<u64, NUM_KEYS> scan_downs{};
+
+    /// @brief bit mask of all the keys that were released on this frame, indexed using the scancode
+    Bits<u64, NUM_KEYS> scan_ups{};
+
+    /// @brief bit mask of all the key states, indexed using the scancode
+    Bits<u64, NUM_KEYS> scan_states{};
+
+    /// @brief hold state of the key modifiers on this frame
+    KeyModifiers modifiers = KeyModifiers::None;
+
+    void clear()
+    {
+      in       = false;
+      out      = false;
+      any_down = false;
+      any_up   = false;
+      fill(downs, 0ULL);
+      fill(ups, 0ULL);
+      fill(states, 0ULL);
+      fill(scan_downs, 0ULL);
+      fill(scan_ups, 0ULL);
+      fill(scan_states, 0ULL);
+      modifiers = KeyModifiers::None;
+    }
+  };
+
+  /// @brief timestamp of current frame
+  time_point timestamp = {};
+
+  /// @brief time elapsed between previous and current frame
+  nanoseconds timedelta = {};
+
+  /// @brief the current theme gotten from the window manager
+  SystemTheme theme = SystemTheme::Unknown;
+
+  /// @brief the preferred text direction of the host system
+  TextDirection direction = TextDirection::LeftToRight;
+
+  /// @brief current window mouse focus state
+  bool mouse_focused = false;
+
+  /// @brief current window keyboard focus state
+  bool key_focused = false;
+
+  /// @brief windows' current frame mouse state
+  Mouse mouse{};
+
+  /// @brief windows' current frame keyboard state
+  Keyboard key{};
+
+  /// @brief extent of the viewport the windows' views are in
+  Vec2U window_extent = {};
+
+  /// @brief then windows' backing surface extent
+  Vec2U surface_extent = {};
+
+  /// @brief current drop data type
+  DropType drop_type = DropType::None;
+
+  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
+  Vec<u8> drop_data{};
+
+  /// @brief if a text input came in
+  bool text_input = false;
+
+  /// @brief current text input data from the IME or keyboard
+  Vec<c8> text{};
+
+  /// @brief is the application requested to close
+  bool close_requested = false;
+
+  /// @brief is the application closing
+  bool closing = false;
+
+  /// @brief did a window resize happen
+  bool resized = true;
+
+  /// @brief did a window surface resize happen
+  bool surface_resized = true;
+
+  bool dropped = false;
+
+  bool drop_hovering = false;
+
+  Cursor cursor = Cursor::Default;
+
+  explicit InputState(AllocatorRef allocator) :
+    drop_data{allocator},
+    text{allocator}
+  {
+  }
+
+  InputState(InputState const &)             = delete;
+  InputState & operator=(InputState const &) = delete;
+  InputState(InputState &&)                  = default;
+  InputState & operator=(InputState &&)      = default;
+  ~InputState()                              = default;
+
+  void stamp(time_point time, nanoseconds delta)
+  {
+    timestamp = time;
+    timedelta = delta;
+  }
+
+  void clear()
+  {
+    mouse.clear();
+    key.clear();
+    text_input = false;
+    text.clear();
+    resized         = false;
+    surface_resized = false;
+
+    // if the there was a data drop on the last frame clear the buffer
+    if (dropped)
+    {
+      drop_data.clear();
+      drop_type = DropType::None;
+    }
+
+    dropped       = false;
+    drop_hovering = false;
+  }
+
+  void clone_to(InputState & dst) const
+  {
+    dst.clear();
+    dst.timestamp      = timestamp;
+    dst.timedelta      = timedelta;
+    dst.theme          = theme;
+    dst.direction      = direction;
+    dst.mouse_focused  = mouse_focused;
+    dst.key_focused    = key_focused;
+    dst.mouse          = mouse;
+    dst.key            = key;
+    dst.window_extent  = window_extent;
+    dst.surface_extent = surface_extent;
+    dst.drop_type      = drop_type;
+    dst.drop_data.extend(drop_data).unwrap();
+    dst.text_input = text_input;
+    dst.text.extend(text).unwrap();
+    dst.close_requested = close_requested;
+    dst.closing         = closing;
+    dst.resized         = resized;
+    dst.surface_resized = resized;
+    dst.dropped         = dropped;
+    dst.drop_hovering   = drop_hovering;
+    dst.cursor          = cursor;
+  }
+
+  constexpr bool key_down(KeyCode k) const
+  {
+    return get_bit(key.downs, (usize) k);
+  }
+
+  constexpr bool key_up(KeyCode k) const
+  {
+    return get_bit(key.ups, (usize) k);
+  }
+
+  constexpr bool key_state(KeyCode k) const
+  {
+    return get_bit(key.states, (usize) k);
+  }
+
+  constexpr bool key_down(ScanCode k) const
+  {
+    return get_bit(key.scan_downs, (usize) k);
+  }
+
+  constexpr bool key_up(ScanCode k) const
+  {
+    return get_bit(key.scan_ups, (usize) k);
+  }
+
+  constexpr bool key_state(ScanCode k) const
+  {
+    return get_bit(key.scan_states, (usize) k);
+  }
+
+  constexpr bool mouse_down(MouseButton btn) const
+  {
+    return get_bit(mouse.downs, (u32) btn);
+  }
+
+  constexpr bool mouse_up(MouseButton btn) const
+  {
+    return get_bit(mouse.ups, (u32) btn);
+  }
+
+  constexpr bool mouse_state(MouseButton btn) const
+  {
+    return get_bit(mouse.states, (u32) btn);
+  }
+};
+
+}    // namespace ash

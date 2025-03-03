@@ -26,12 +26,19 @@ typedef int8_t    i8;
 typedef int16_t   i16;
 typedef int32_t   i32;
 typedef int64_t   i64;
-typedef float     f32;
-typedef double    f64;
 typedef size_t    usize;
 typedef ptrdiff_t isize;
 typedef uintptr_t uptr;
 typedef intptr_t  iptr;
+typedef u8        bool8;
+typedef u16       bool16;
+typedef u32       bool32;
+typedef u64       bool64;
+typedef usize     sbool;
+typedef float     f32;
+typedef double    f64;
+typedef u16       hash16;
+typedef u32       hash32;
 typedef u64       hash64;
 
 inline constexpr u8 U8_MIN = 0;
@@ -78,12 +85,17 @@ inline constexpr f64 F64_INF          = INFINITY;
 
 inline constexpr f32 PI = 3.14159265358979323846F;
 
-enum class Ordering : i8
+enum class Ordering : i32
 {
   Less    = -1,
   Equal   = 0,
   Greater = 1,
 };
+
+constexpr Ordering reverse_ordering(Ordering ordering)
+{
+  return Ordering{-static_cast<i32>(ordering)};
+}
 
 struct Add
 {
@@ -175,9 +187,9 @@ struct Cmp
     }
     if (a > b)
     {
-      return Ordering::Less;
+      return Ordering::Greater;
     }
-    return Ordering::Greater;
+    return Ordering::Less;
   }
 };
 
@@ -220,9 +232,9 @@ struct Swap
   template <typename T>
   constexpr void operator()(T & a, T & b) const
   {
-    T a_tmp{static_cast<T &&>(a)};
+    T s{static_cast<T &&>(a)};
     a = static_cast<T &&>(b);
-    b = static_cast<T &&>(a_tmp);
+    b = static_cast<T &&>(s);
   }
 };
 
@@ -359,8 +371,6 @@ constexpr i32 sat_mul(i32 a, i32 b)
 {
   return (i32) clamp((i64) a * (i64) b, (i64) I32_MIN, (i64) I32_MAX);
 }
-
-// [ ] sat_cast
 
 using std::bit_cast;
 
@@ -650,8 +660,7 @@ struct NumTraits<T const volatile> : NumTraits<T>
 
 template <typename Repr, usize NumBits>
 inline constexpr usize BIT_PACKS =
-    (NumBits + (NumTraits<Repr>::NUM_BITS - 1)) >>
-    NumTraits<Repr>::LOG2_NUM_BITS;
+  (NumBits + (NumTraits<Repr>::NUM_BITS - 1)) >> NumTraits<Repr>::LOG2_NUM_BITS;
 
 template <typename Repr>
 constexpr usize bit_packs(usize num_bits)
@@ -659,21 +668,6 @@ constexpr usize bit_packs(usize num_bits)
   return (num_bits + (NumTraits<Repr>::NUM_BITS - 1)) >>
          NumTraits<Repr>::LOG2_NUM_BITS;
 }
-
-struct Uninitialized
-{
-};
-
-struct Initialized
-{
-};
-
-inline constexpr Initialized initialized{};
-
-inline constexpr Uninitialized uninitialized{};
-
-template <typename T>
-concept InitTag = Convertible<T, Initialized> || Convertible<T, Uninitialized>;
 
 /// regular void
 struct Void
@@ -776,100 +770,125 @@ constexpr E enum_not(E a)
     return a;                          \
   }
 
-struct Slice
+template <typename T>
+struct ref
 {
-  usize offset = 0;
-  usize span   = 0;
+  using Type = T;
 
-  constexpr usize begin() const
+  T * repr_;
+
+  constexpr ref(T & v) : repr_{&v}
+  {
+  }
+
+  constexpr ref(ref const &)             = default;
+  constexpr ref(ref &&)                  = default;
+  constexpr ref & operator=(ref const &) = default;
+  constexpr ref & operator=(ref &&)      = default;
+  constexpr ~ref()                       = default;
+
+  constexpr T & unref() const
+  {
+    return *repr_;
+  }
+
+  constexpr T * operator->() const
+  {
+    return repr_;
+  }
+
+  constexpr operator T &() const
+  {
+    return *repr_;
+  }
+
+  constexpr T & operator*() const
+  {
+    return *repr_;
+  }
+
+  constexpr T * ptr() const
+  {
+    return repr_;
+  }
+};
+
+template <typename T>
+ref(T &) -> ref<T>;
+
+template <typename S = usize>
+struct SliceT
+{
+  S offset = 0;
+  S span   = 0;
+
+  static constexpr SliceT all()
+  {
+    return SliceT{.offset = 0, .span = NumTraits<S>::MAX};
+  }
+
+  constexpr S begin() const
   {
     return offset;
   }
 
-  constexpr usize end() const
+  constexpr S end() const
   {
     return offset + span;
   }
 
-  constexpr Slice operator()(usize size) const
+  constexpr SliceT operator()(S size) const
   {
     // written such that overflow will not occur even if both offset and span
     // are set to USIZE_MAX
-    usize o = offset > size ? size : offset;
-    usize s = ((size - o) > span) ? span : size - o;
-    return Slice{o, s};
+    S out_offset = offset > size ? size : offset;
+    S out_span   = ((size - out_offset) > span) ? span : size - out_offset;
+    return SliceT{out_offset, out_span};
   }
 
   constexpr bool is_empty() const
   {
     return span == 0;
   }
+
+  constexpr bool overlaps(SliceT other) const
+  {
+    return (begin() <= other.begin() && end() >= other.begin()) ||
+           (begin() <= other.end() && end() >= other.end());
+  }
+
+  constexpr bool contains(SliceT other) const
+  {
+    return begin() <= other.begin() && end() >= other.end();
+  }
+
+  constexpr bool contains(S item) const
+  {
+    return begin() <= item && end() > item;
+  }
+
+  constexpr SliceT<u32> as_slice32() const
+  {
+    return SliceT<u32>{.offset = (u32) offset, .span = (u32) span};
+  }
+
+  constexpr SliceT<usize> as_slice() const
+  {
+    return SliceT<usize>{.offset = (usize) offset, .span = (usize) span};
+  }
 };
 
-struct Slice32
+template <typename S>
+constexpr bool operator==(SliceT<S> const & a, SliceT<S> const & b)
 {
-  u32 offset = 0;
-  u32 span   = 0;
+  return a.offset == b.offset && a.span == b.span;
+}
 
-  constexpr usize begin() const
-  {
-    return offset;
-  }
-
-  constexpr usize end() const
-  {
-    return offset + span;
-  }
-
-  constexpr Slice32 operator()(u32 size) const
-  {
-    // written such that overflow will not occur even if both offset and span
-    // are set to U32_MAX
-    u32 o = offset > size ? size : offset;
-    u32 s = ((size - o) > span) ? span : size - o;
-    return Slice32{o, s};
-  }
-
-  constexpr bool is_empty() const
-  {
-    return span == 0;
-  }
-
-  constexpr operator Slice() const
-  {
-    return Slice{offset, span};
-  }
-};
-
-struct Slice64
-{
-  u64 offset = 0;
-  u64 span   = 0;
-
-  constexpr u64 end() const
-  {
-    return offset + span;
-  }
-
-  constexpr Slice64 operator()(u64 size) const
-  {
-    // written such that overflow will not occur even if both offset and span
-    // are set to U64_MAX
-    u64 o = offset > size ? size : offset;
-    u64 s = ((size - o) > span) ? span : size - o;
-    return Slice64{o, s};
-  }
-
-  constexpr bool is_empty() const
-  {
-    return span == 0;
-  }
-
-  constexpr operator Slice() const
-  {
-    return Slice{static_cast<usize>(offset), static_cast<usize>(span)};
-  }
-};
+using Slice   = SliceT<usize>;
+using Slice8  = SliceT<u8>;
+using Slice16 = SliceT<u16>;
+using Slice32 = SliceT<u32>;
+using Slice64 = SliceT<u64>;
 
 struct IterEnd
 {
@@ -946,6 +965,30 @@ constexpr auto size(T && a) -> decltype(a.size())
   return a.size();
 }
 
+template <typename T, u32 N>
+constexpr u32 size32(T (&)[N])
+{
+  return N;
+}
+
+template <typename T>
+constexpr auto size32(T && a) -> decltype(a.size32())
+{
+  return a.size32();
+}
+
+template <typename T, u64 N>
+constexpr u64 size64(T (&)[N])
+{
+  return N;
+}
+
+template <typename T>
+constexpr auto size64(T && a) -> decltype(a.size64())
+{
+  return a.size64();
+}
+
 template <typename T, usize N>
 constexpr usize size_bytes(T (&)[N])
 {
@@ -1004,19 +1047,6 @@ concept Range = requires (R r) {
   };
 };
 
-// [ ] struct ExampleRange
-// {
-//  nth();
-// };
-
-// [ ] change to range set using iter
-template <NonConst T, typename Arg = T>
-constexpr void iter_set(T * iterator, Arg && arg)
-{
-  *iterator = static_cast<Arg &&>(arg);
-}
-
-// [ ] output iterator - base: set to intial value
 template <typename T>
 concept OutIter = Iter<T>;
 
@@ -1028,7 +1058,7 @@ concept SpanCompatible = Convertible<U (*)[], T (*)[]>;
 
 template <typename Container>
 using ContainerDataType =
-    std::remove_pointer_t<decltype(data(std::declval<Container &>()))>;
+  std::remove_pointer_t<decltype(data(std::declval<Container &>()))>;
 
 template <typename Container>
 concept SpanContainer = requires (Container cont) {
@@ -1038,7 +1068,7 @@ concept SpanContainer = requires (Container cont) {
 
 template <typename Container, typename T>
 concept SpanCompatibleContainer =
-    SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
+  SpanContainer<Container> && SpanCompatible<ContainerDataType<Container>, T>;
 
 template <typename T>
 struct Span
@@ -1057,8 +1087,8 @@ struct Span
   }
 
   constexpr Span(T * begin, T const * end) :
-      data_{begin},
-      size_{static_cast<usize>(end - begin)}
+    data_{begin},
+    size_{static_cast<usize>(end - begin)}
   {
   }
 
@@ -1193,6 +1223,21 @@ struct Span
                             size_bytes()};
   }
 
+  constexpr Span<c8> as_c8() const requires (NonConst<T>)
+  {
+    return Span<c8>{reinterpret_cast<c8 *>(data_), size_bytes()};
+  }
+
+  constexpr Span<c8 const> as_c8() const requires (Const<T>)
+  {
+    return Span<c8 const>{reinterpret_cast<c8 const *>(data_), size_bytes()};
+  }
+
+  constexpr Slice as_slice_of(Span<T const> parent) const
+  {
+    return Slice{static_cast<usize>(data_ - parent.data_), size_};
+  }
+
   constexpr Span slice(usize offset, usize span) const
   {
     return slice(Slice{offset, span});
@@ -1219,6 +1264,18 @@ struct Span
 
 template <typename T, usize N>
 Span(T (&)[N]) -> Span<T>;
+
+template <typename T>
+Span(T *, T *) -> Span<T>;
+
+template <typename T>
+Span(T *, T const *) -> Span<T>;
+
+template <typename T>
+Span(T *, usize) -> Span<T>;
+
+template <typename T>
+Span(SpanIter<T>, IterEnd) -> Span<T>;
 
 template <SpanContainer C>
 Span(C & container) -> Span<std::remove_pointer_t<decltype(data(container))>>;
@@ -1253,6 +1310,9 @@ constexpr auto view(R & range) -> decltype(range.view())
   return range.view();
 }
 
+inline namespace str_literal
+{
+
 constexpr Span<char const> operator""_str(char const * lit, usize n)
 {
   return Span<char const>{lit, n};
@@ -1272,6 +1332,8 @@ constexpr Span<c32 const> operator""_str(c32 const * lit, usize n)
 {
   return Span<c32 const>{lit, n};
 }
+
+}    // namespace str_literal
 
 constexpr bool get_bit(Span<u8 const> s, usize i)
 {
@@ -1376,29 +1438,47 @@ constexpr void flip_bit(Span<u64> s, usize i)
 template <typename T>
 constexpr usize impl_find_set_bit(Span<T const> s)
 {
-  for (usize i = 0; i < s.size(); i++)
+  T const * const begin = s.pbegin();
+  T const *       iter  = s.pbegin();
+  T const * const end   = s.pend();
+
+  while (iter != end && *iter == 0)
   {
-    if (s[i] != 0)
-    {
-      return (i << NumTraits<T>::LOG2_NUM_BITS) | std::countr_zero(s[i]);
-    }
+    iter++;
   }
 
-  return s.size() << NumTraits<T>::LOG2_NUM_BITS;
+  usize const idx = static_cast<usize>(iter - begin)
+                    << NumTraits<T>::LOG2_NUM_BITS;
+
+  if (iter == end)
+  {
+    return idx;
+  }
+
+  return idx | std::countr_zero(*iter);
 }
 
 template <typename T>
 constexpr usize impl_find_clear_bit(Span<T const> s)
 {
-  for (usize i = 0; i < s.size(); i++)
+  T const * const begin = s.pbegin();
+  T const *       iter  = s.pbegin();
+  T const * const end   = s.pend();
+
+  while (iter != end && *iter == NumTraits<T>::MAX)
   {
-    if (s[i] != NumTraits<T>::MAX)
-    {
-      return (i << NumTraits<T>::LOG2_NUM_BITS) | std::countr_one(s[i]);
-    }
+    iter++;
   }
 
-  return s.size() << NumTraits<T>::LOG2_NUM_BITS;
+  usize const idx = static_cast<usize>(iter - begin)
+                    << NumTraits<T>::LOG2_NUM_BITS;
+
+  if (iter == end)
+  {
+    return idx;
+  }
+
+  return idx | std::countr_one(*iter);
 }
 
 constexpr usize find_set_bit(Span<u8 const> s)
@@ -1445,23 +1525,23 @@ template <typename R>
 struct BitSpanIter
 {
   Span<R> repr_{};
-  usize   bit_pos_  = 0;
-  usize   bit_size_ = 0;
+  usize   pos_  = 0;
+  usize   size_ = 0;
 
   constexpr bool operator*() const
   {
-    return get_bit(repr_, bit_pos_);
+    return get_bit(repr_, pos_);
   }
 
   constexpr BitSpanIter & operator++()
   {
-    ++bit_pos_;
+    ++pos_;
     return *this;
   }
 
   constexpr bool operator!=(IterEnd) const
   {
-    return bit_pos_ != bit_size_;
+    return pos_ != size_;
   }
 };
 
@@ -1859,6 +1939,9 @@ struct Array<T, 0>
   }
 };
 
+template <typename T, typename... U>
+Array(T, U...) -> Array<T, 1 + sizeof...(U)>;
+
 template <typename T, usize N>
 struct IsTriviallyRelocatable<Array<T, N>>
 {
@@ -1952,8 +2035,8 @@ struct Fn<R(Args...)>
   }
 
   Fn(R (*pfn)(Args...)) :
-      data{reinterpret_cast<void *>(pfn)},
-      thunk{&PFnThunk<R(Args...)>::thunk}
+    data{reinterpret_cast<void *>(pfn)},
+    thunk{&PFnThunk<R(Args...)>::thunk}
   {
   }
 
@@ -1965,8 +2048,8 @@ struct Fn<R(Args...)>
 
   template <typename T>
   Fn(T * data, R (*thunk)(T *, Args...)) :
-      data{const_cast<void *>(reinterpret_cast<void const *>(data))},
-      thunk{reinterpret_cast<Thunk>(thunk)}
+    data{const_cast<void *>(reinterpret_cast<void const *>(data))},
+    thunk{reinterpret_cast<Thunk>(thunk)}
   {
   }
 
@@ -2082,6 +2165,24 @@ struct Noop
 
 constexpr Noop noop;
 
+template <typename Char>
+constexpr usize cstr_len(Char * c_str)
+{
+  Char const * it = c_str;
+  while (*it != 0)
+  {
+    it++;
+  }
+
+  return static_cast<usize>(it - c_str);
+}
+
+template <typename Char>
+constexpr Span<Char> cstr_span(Char * c_str)
+{
+  return {c_str, cstr_len(c_str)};
+}
+
 /// @brief The `SourceLocation`  class represents certain information about the
 /// source code, such as file names, line numbers, and function names.
 /// Previously, functions that desire to obtain this information about the call
@@ -2096,44 +2197,44 @@ struct SourceLocation
   static constexpr SourceLocation current(
 #if ASH_HAS_BUILTIN(FILE) || (defined(__cpp_lib_source_location) && \
                               __cpp_lib_source_location >= 201'907L)
-      char const * file = __builtin_FILE(),
+    Span<char const> file = cstr_span(__builtin_FILE()),
 #elif defined(__FILE__)
-      char const * file = __FILE__,
+    Span<char const> file = cstr_span(__FILE__),
 #else
-      char const * file = "unknown",
+    Span<char const> file = cstr_span("unknown"),
 #endif
 
 #if ASH_HAS_BUILTIN(FUNCTION) || (defined(__cpp_lib_source_location) && \
                                   __cpp_lib_source_location >= 201'907L)
-      char const * function = __builtin_FUNCTION(),
+    Span<char const> function = cstr_span(__builtin_FUNCTION()),
 #else
-      char const * function = "unknown",
+    Span<char const> function = cstr_span("unknown"),
 #endif
 
 #if ASH_HAS_BUILTIN(LINE) || (defined(__cpp_lib_source_location) && \
                               __cpp_lib_source_location >= 201'907L)
-      u32 line = __builtin_LINE(),
+    u32 line = __builtin_LINE(),
 #elif defined(__LINE__)
-      u32 line = __LINE__,
+    u32 line = __LINE__,
 #else
-      u32 line = 0,
+    u32 line = 0,
 #endif
 
 #if ASH_HAS_BUILTIN(COLUMN) || (defined(__cpp_lib_source_location) && \
                                 __cpp_lib_source_location >= 201'907L)
-      u32 column = __builtin_COLUMN()
+    u32 column = __builtin_COLUMN()
 #else
-      u32 column = 0
+    u32 column = 0
 #endif
   )
   {
     return SourceLocation{file, function, line, column};
   }
 
-  char const * file     = "";
-  char const * function = "";
-  u32          line     = 0;
-  u32          column   = 0;
+  Span<char const> file     = ""_str;
+  Span<char const> function = ""_str;
+  u32              line     = 0;
+  u32              column   = 0;
 };
 
 template <typename T = void>
@@ -2168,6 +2269,15 @@ struct Pin<void>
   constexpr ~Pin()                       = default;
 };
 
+/// @brief In-place type constructor flag. Intended for functions that take
+/// generic types and want to overload with a second type that constructs the type using the
+/// provided arguments.
+struct Inplace
+{
+};
+
+inline constexpr Inplace inplace{};
+
 /// @brief uninitialized storage
 template <usize Alignment, usize Capacity>
 struct InplaceStorage
@@ -2181,4 +2291,7 @@ struct InplaceStorage<Alignment, 0>
   static constexpr u8 * storage_ = nullptr;
 };
 
-}        // namespace ash
+template <typename T>
+using Storage = InplaceStorage<alignof(T), sizeof(T)>;
+
+}    // namespace ash

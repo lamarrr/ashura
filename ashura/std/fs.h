@@ -7,8 +7,6 @@
 namespace ash
 {
 
-inline constexpr usize MAX_PATH_SIZE = 256;
-
 enum class [[nodiscard]] IoErr : i32
 {
   None                   = 0,
@@ -64,7 +62,7 @@ enum class [[nodiscard]] IoErr : i32
   TemporarilyUnavailable = EWOULDBLOCK
 };
 
-constexpr Span<char const> to_string(IoErr err)
+constexpr Span<char const> to_str(IoErr err)
 {
   if (err == IoErr::None)
   {
@@ -276,32 +274,46 @@ constexpr Span<char const> to_string(IoErr err)
   }
 }
 
-namespace fmt
+inline void format(fmt::Sink sink, fmt::Spec spec, IoErr const & err)
 {
-
-inline bool push(Context const & ctx, Spec const & spec, IoErr const & err)
-{
-  return push(ctx, spec, to_string(err));
+  return format(sink, spec, to_str(err));
 }
 
-}        // namespace fmt
-
-Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff);
-
-inline Result<> path_append(Vec<char> & path, Span<char const> tail)
+inline Result<> path_join(Span<char const> base, Span<char const> ext,
+                          Vec<char> & out)
 {
-  if (!path.is_empty() && path.last() != '/' && path.last() != '\\')
-  {
-    if (!path.push('/'))
-    {
-      return Err{};
-    }
-  }
-  if (!path.extend(tail))
+  usize const max_size = base.size() + ext.size() + 1;
+
+  usize const initial_size = out.size();
+
+  if (!out.extend_uninit(max_size))
   {
     return Err{};
   }
+
+  usize pos = initial_size;
+  mem::copy(base, out.view().slice(pos));
+
+  pos += base.size();
+
+  if (!base.is_empty() && base.last() != '/' && base.last() != '\\')
+  {
+    out[pos] = '/';
+    pos++;
+  }
+
+  mem::copy(ext, out.view().slice(pos));
+
+  pos += ext.size();
+
+  out.resize_uninit(pos).unwrap();
+
   return Ok{};
 }
 
-}        // namespace ash
+Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff);
+
+Result<Void, IoErr> write_to_file(Span<char const> path, Span<u8 const> buff,
+                                  bool append);
+
+}    // namespace ash

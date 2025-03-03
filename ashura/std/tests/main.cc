@@ -7,11 +7,12 @@
 #include "ashura/std/error.h"
 #include "ashura/std/log.h"
 
-int main(int argc, char **argv)
+int main(int argc, char ** argv)
 {
   using namespace ash;
-  Logger::init();
-  CHECK(logger->add_sink(&stdio_sink));
+  Logger logger{&stdio_sink};
+  hook_logger(&logger);
+  defer logger_{[&] { hook_logger(nullptr); }};
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

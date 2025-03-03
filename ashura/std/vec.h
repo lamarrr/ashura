@@ -4,12 +4,18 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/obj.h"
+#include "ashura/std/option.h"
 #include "ashura/std/result.h"
 #include "ashura/std/traits.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
+
+/// @brief Minimum alignment of the Vec types. This fits into 1 AVX-512 lane.
+/// Only InplaceVec doesn't use this alignment as it is usually in-place and
+/// compacted along with other struct members/stack variables.
+inline constexpr usize MIN_VEC_ALIGNMENT = 64;
 
 template <typename T>
 requires (NonConst<T>)
@@ -20,16 +26,18 @@ struct [[nodiscard]] Vec
   using Iter = SpanIter<T>;
   using View = Span<T>;
 
-  T *           storage_   = nullptr;
-  usize         size_      = 0;
-  usize         capacity_  = 0;
-  AllocatorImpl allocator_ = {};
+  static constexpr usize ALIGNMENT = max(alignof(T), MIN_VEC_ALIGNMENT);
 
-  explicit constexpr Vec(AllocatorImpl allocator) :
-      storage_{nullptr},
-      size_{0},
-      capacity_{0},
-      allocator_{allocator}
+  T *          storage_   = nullptr;
+  usize        size_      = 0;
+  usize        capacity_  = 0;
+  AllocatorRef allocator_ = {};
+
+  explicit constexpr Vec(AllocatorRef allocator) :
+    storage_{nullptr},
+    size_{0},
+    capacity_{0},
+    allocator_{allocator}
   {
   }
 
@@ -37,12 +45,12 @@ struct [[nodiscard]] Vec
   {
   }
 
-  constexpr Vec(AllocatorImpl allocator, T * storage, usize capacity,
+  constexpr Vec(AllocatorRef allocator, T * storage, usize capacity,
                 usize size) :
-      storage_{storage},
-      size_{size},
-      capacity_{capacity},
-      allocator_{allocator}
+    storage_{storage},
+    size_{size},
+    capacity_{capacity},
+    allocator_{allocator}
   {
   }
 
@@ -51,15 +59,15 @@ struct [[nodiscard]] Vec
   constexpr Vec & operator=(Vec const &) = delete;
 
   constexpr Vec(Vec && other) :
-      storage_{other.storage_},
-      size_{other.size_},
-      capacity_{other.capacity_},
-      allocator_{other.allocator_}
+    storage_{other.storage_},
+    size_{other.size_},
+    capacity_{other.capacity_},
+    allocator_{other.allocator_}
   {
     other.storage_   = nullptr;
     other.size_      = 0;
     other.capacity_  = 0;
-    other.allocator_ = {};
+    other.allocator_ = default_allocator;
   }
 
   constexpr Vec & operator=(Vec && other)
@@ -78,21 +86,19 @@ struct [[nodiscard]] Vec
     uninit();
   }
 
-  static constexpr Result<Vec> make(usize         capacity,
-                                    AllocatorImpl allocator = {})
+  static constexpr Result<Vec> make(usize capacity, AllocatorRef allocator = {})
   {
-    T * storage;
-    if (!allocator.nalloc(capacity, storage)) [[unlikely]]
+    Vec out{allocator};
+
+    if (!out.reserve(capacity))
     {
       return Err{};
     }
 
-    return Ok{
-        Vec{allocator, storage, capacity, 0}
-    };
+    return Ok{static_cast<Vec &&>(out)};
   }
 
-  constexpr Result<Vec> clone(AllocatorImpl allocator) const
+  constexpr Result<Vec> clone(AllocatorRef allocator) const
   {
     Vec out{allocator};
 
@@ -104,7 +110,7 @@ struct [[nodiscard]] Vec
     return Ok{static_cast<Vec &&>(out)};
   }
 
-  constexpr Result<Vec<T>> clone() const
+  constexpr Result<Vec> clone() const
   {
     return clone(allocator_);
   }
@@ -116,7 +122,12 @@ struct [[nodiscard]] Vec
 
   constexpr T * data() const
   {
-    return storage_;
+    return assume_aligned<ALIGNMENT>(storage_);
+  }
+
+  static constexpr usize alignment()
+  {
+    return ALIGNMENT;
   }
 
   constexpr usize size() const
@@ -174,14 +185,14 @@ struct [[nodiscard]] Vec
     return data()[index];
   }
 
-  constexpr T * try_get(usize index) const
+  constexpr OptionRef<T> try_get(usize index) const
   {
-    if (index < size_) [[unlikely]]
+    if (index >= size_) [[unlikely]]
     {
-      return data() + index;
+      return none;
     }
 
-    return nullptr;
+    return data()[index];
   }
 
   template <typename... Args>
@@ -199,7 +210,7 @@ struct [[nodiscard]] Vec
   constexpr void uninit()
   {
     obj::destruct(Span{data(), size_});
-    allocator_.ndealloc(storage_, capacity_);
+    allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
   }
 
   constexpr void reset()
@@ -220,8 +231,8 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      if (!allocator_.nrealloc(capacity_, target_capacity, storage_))
-          [[unlikely]]
+      if (!allocator_->pnrealloc(ALIGNMENT, capacity_, target_capacity,
+                                 storage_)) [[unlikely]]
       {
         return Err{};
       }
@@ -229,13 +240,14 @@ struct [[nodiscard]] Vec
     else
     {
       T * new_storage;
-      if (!allocator_.nalloc(target_capacity, new_storage)) [[unlikely]]
+      if (!allocator_->pnalloc(ALIGNMENT, target_capacity, new_storage))
+        [[unlikely]]
       {
         return Err{};
       }
 
       obj::relocate_nonoverlapping(Span{data(), size_}, new_storage);
-      allocator_.ndealloc(storage_, capacity_);
+      allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
       storage_ = new_storage;
     }
 
@@ -252,7 +264,8 @@ struct [[nodiscard]] Vec
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      if (!allocator_.nrealloc(capacity_, size_, storage_)) [[unlikely]]
+      if (!allocator_->pnrealloc(ALIGNMENT, capacity_, size_, storage_))
+        [[unlikely]]
       {
         return Err{};
       }
@@ -260,13 +273,13 @@ struct [[nodiscard]] Vec
     else
     {
       T * new_storage;
-      if (!allocator_.nalloc(size_, new_storage)) [[unlikely]]
+      if (!allocator_->pnalloc(ALIGNMENT, size_, new_storage)) [[unlikely]]
       {
         return Err{};
       }
 
       obj::relocate_nonoverlapping(Span{data(), size_}, new_storage);
-      allocator_.ndealloc(storage_, capacity_);
+      allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
       storage_ = new_storage;
     }
 
@@ -281,7 +294,7 @@ struct [[nodiscard]] Vec
       return Ok{};
     }
 
-    return reserve(max(target_size, capacity_ + (capacity_ >> 1)));
+    return reserve(max(target_size, capacity_ << 1));
   }
 
   constexpr void erase(usize first, usize num)
@@ -315,7 +328,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    new (storage_ + size_) T{static_cast<Args &&>(args)...};
+    new (data() + size_) T{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -385,7 +398,7 @@ struct [[nodiscard]] Vec
       return Err{};
     }
 
-    new (storage_ + pos) T{static_cast<Args &&>(args)...};
+    new (data() + pos) T{static_cast<Args &&>(args)...};
     return Ok{};
   }
 
@@ -536,7 +549,7 @@ struct [[nodiscard]] Vec
 };
 
 template <typename T>
-constexpr Result<Vec<T>> vec(Span<T const> data, AllocatorImpl allocator = {})
+constexpr Result<Vec<T>> vec(AllocatorRef allocator, Span<T const> data)
 {
   Result out = Vec<T>::make(data.size(), allocator);
 
@@ -551,7 +564,7 @@ constexpr Result<Vec<T>> vec(Span<T const> data, AllocatorImpl allocator = {})
 }
 
 template <typename T>
-constexpr Result<Vec<T>> vec_move(Span<T> data, AllocatorImpl allocator = {})
+constexpr Result<Vec<T>> vec_move(AllocatorRef allocator, Span<T> data)
 {
   Result out = Vec<T>::make(data.size(), allocator);
 
@@ -579,25 +592,27 @@ struct [[nodiscard]] PinVec
   using Iter = SpanIter<T>;
   using View = Span<T>;
 
-  T *           storage_;
-  usize         size_;
-  usize         capacity_;
-  AllocatorImpl allocator_;
+  static constexpr usize ALIGNMENT = max(alignof(T), MIN_VEC_ALIGNMENT);
+
+  T *          storage_;
+  usize        size_;
+  usize        capacity_;
+  AllocatorRef allocator_;
 
   constexpr PinVec() :
-      storage_{nullptr},
-      size_{0},
-      capacity_{0},
-      allocator_{default_allocator}
+    storage_{nullptr},
+    size_{0},
+    capacity_{0},
+    allocator_{default_allocator}
   {
   }
 
-  constexpr PinVec(AllocatorImpl allocator, T * storage, usize capacity,
+  constexpr PinVec(AllocatorRef allocator, T * storage, usize capacity,
                    usize size) :
-      storage_{storage},
-      size_{size},
-      capacity_{capacity},
-      allocator_{allocator}
+    storage_{storage},
+    size_{size},
+    capacity_{capacity},
+    allocator_{allocator}
   {
   }
 
@@ -606,10 +621,10 @@ struct [[nodiscard]] PinVec
   constexpr PinVec & operator=(PinVec const &) = delete;
 
   constexpr PinVec(PinVec && other) :
-      storage_{other.storage_},
-      size_{other.size_},
-      capacity_{other.capacity_},
-      allocator_{other.allocator_}
+    storage_{other.storage_},
+    size_{other.size_},
+    capacity_{other.capacity_},
+    allocator_{other.allocator_}
   {
     other.storage_   = nullptr;
     other.size_      = 0;
@@ -635,24 +650,24 @@ struct [[nodiscard]] PinVec
     uninit();
   }
 
-  static constexpr Result<PinVec> make(usize         capacity,
-                                       AllocatorImpl allocator = {})
+  static constexpr Result<PinVec> make(usize        capacity,
+                                       AllocatorRef allocator = {})
   {
     T * storage;
-    if (!allocator.nalloc(capacity, storage)) [[unlikely]]
+    if (!allocator->pnalloc(ALIGNMENT, capacity, storage)) [[unlikely]]
     {
       return Err{};
     }
 
     return Ok{
-        PinVec<T>{allocator, storage, capacity, 0}
+      PinVec{allocator, storage, capacity, 0}
     };
   }
 
   constexpr void uninit()
   {
     obj::destruct(Span{data(), size_});
-    allocator_.ndealloc(storage_, capacity_);
+    allocator_->pndealloc(ALIGNMENT, capacity_, storage_);
   }
 
   constexpr void reset()
@@ -664,7 +679,7 @@ struct [[nodiscard]] PinVec
     allocator_ = {};
   }
 
-  constexpr Result<PinVec> clone(AllocatorImpl allocator) const
+  constexpr Result<PinVec> clone(AllocatorRef allocator) const
   {
     Result<PinVec> out = PinVec::make(allocator, capacity_);
 
@@ -690,7 +705,12 @@ struct [[nodiscard]] PinVec
 
   constexpr T * data() const
   {
-    return storage_;
+    return assume_aligned<ALIGNMENT>(storage_);
+  }
+
+  static constexpr usize alignment()
+  {
+    return ALIGNMENT;
   }
 
   constexpr usize size() const
@@ -781,7 +801,7 @@ struct [[nodiscard]] PinVec
       return Err{};
     }
 
-    new (storage_ + size_) T{static_cast<Args &&>(args)...};
+    new (data() + size_) T{static_cast<Args &&>(args)...};
 
     size_++;
 
@@ -874,10 +894,10 @@ struct [[nodiscard]] BitVec
   using Iter = BitSpanIter<R>;
   using View = BitSpan<R>;
 
-  Vec<R> repr_     = {};
-  usize  bit_size_ = 0;
+  Vec<R> repr_ = {};
+  usize  size_ = 0;
 
-  explicit constexpr BitVec(AllocatorImpl allocator) : repr_{allocator}
+  explicit constexpr BitVec(AllocatorRef allocator) : repr_{allocator}
   {
   }
 
@@ -890,10 +910,10 @@ struct [[nodiscard]] BitVec
   constexpr BitVec & operator=(BitVec const &) = delete;
 
   constexpr BitVec(BitVec && other) :
-      repr_{static_cast<Vec<R> &&>(other.repr_)},
-      bit_size_{other.bit_size_}
+    repr_{static_cast<Vec<R> &&>(other.repr_)},
+    size_{other.size_}
   {
-    other.bit_size_ = 0;
+    other.size_ = 0;
   }
 
   constexpr BitVec & operator=(BitVec && other)
@@ -909,29 +929,29 @@ struct [[nodiscard]] BitVec
 
   constexpr ~BitVec() = default;
 
-  constexpr Vec<R> const & repr() const
+  constexpr auto const & repr() const
   {
     return repr_;
   }
 
-  constexpr Vec<R> & repr()
+  constexpr auto & repr()
   {
     return repr_;
   }
 
   constexpr usize size() const
   {
-    return bit_size_;
+    return size_;
   }
 
   constexpr bool is_empty() const
   {
-    return bit_size_ == 0;
+    return size_ == 0;
   }
 
   constexpr auto begin() const
   {
-    return Iter{.repr_ = repr_, .bit_pos_ = 0, .bit_size_ = bit_size_};
+    return Iter{.repr_ = repr_, .pos_ = 0, .size_ = size_};
   }
 
   constexpr auto end() const
@@ -941,7 +961,7 @@ struct [[nodiscard]] BitVec
 
   constexpr bool has_trailing() const
   {
-    return bit_size_ != (repr_.size_ * sizeof(R) * 8);
+    return size_ != (repr_.size_ * sizeof(R) * 8);
   }
 
   constexpr usize capacity() const
@@ -952,7 +972,7 @@ struct [[nodiscard]] BitVec
   constexpr void clear()
   {
     repr_.clear();
-    bit_size_ = 0;
+    size_ = 0;
   }
 
   constexpr void uninit()
@@ -963,7 +983,7 @@ struct [[nodiscard]] BitVec
   constexpr void reset()
   {
     repr_.reset();
-    bit_size_ = 0;
+    size_ = 0;
   }
 
   constexpr bool operator[](usize index) const
@@ -978,7 +998,7 @@ struct [[nodiscard]] BitVec
 
   constexpr bool last() const
   {
-    return get(bit_size_ - 1);
+    return get(size_ - 1);
   }
 
   constexpr bool get(usize index) const
@@ -1028,7 +1048,7 @@ struct [[nodiscard]] BitVec
 
   constexpr Result<> push(bool bit)
   {
-    usize const index = bit_size_;
+    usize const index = size_;
 
     if (!extend_uninit(1)) [[unlikely]]
     {
@@ -1041,15 +1061,15 @@ struct [[nodiscard]] BitVec
 
   constexpr void pop(usize num = 1)
   {
-    num = min(bit_size_, num);
-    bit_size_ -= num;
-    usize const diff = repr_.size() - bit_packs<R>(bit_size_);
+    num = min(size_, num);
+    size_ -= num;
+    usize const diff = repr_.size() - bit_packs<R>(size_);
     repr_.pop(diff);
   }
 
   constexpr Result<> try_pop(usize num = 1)
   {
-    if (bit_size_ < num) [[unlikely]]
+    if (size_ < num) [[unlikely]]
     {
       return Err{};
     }
@@ -1060,12 +1080,12 @@ struct [[nodiscard]] BitVec
 
   constexpr Result<> insert(usize pos, bool value)
   {
-    pos = min(pos, bit_size_);
+    pos = min(pos, size_);
     if (!extend_uninit(1)) [[unlikely]]
     {
       return Err{};
     }
-    for (usize src = pos, dst = src + 1; src < bit_size_; src++, dst++)
+    for (usize src = pos, dst = src + 1; src < size_; src++, dst++)
     {
       set(dst, get(src));
     }
@@ -1080,8 +1100,8 @@ struct [[nodiscard]] BitVec
 
   constexpr void erase(Slice slice)
   {
-    slice = slice(bit_size_);
-    for (usize dst = slice.begin(), src = slice.end(); src != bit_size_;
+    slice = slice(size_);
+    for (usize dst = slice.begin(), src = slice.end(); src != size_;
          ++dst, ++src)
     {
       set(dst, get(src));
@@ -1091,27 +1111,27 @@ struct [[nodiscard]] BitVec
 
   constexpr Result<> extend_uninit(usize extension)
   {
-    if (!repr_.extend_uninit(bit_packs<R>(bit_size_ + extension) -
-                             bit_packs<R>(bit_size_))) [[unlikely]]
+    if (!repr_.extend_uninit(bit_packs<R>(size_ + extension) -
+                             bit_packs<R>(size_))) [[unlikely]]
     {
       return Err{};
     }
 
-    bit_size_ += extension;
+    size_ += extension;
 
     return Ok{};
   }
 
   constexpr Result<> extend(usize extension)
   {
-    usize const pos = bit_size_;
+    usize const pos = size_;
 
     if (!extend_uninit(extension)) [[unlikely]]
     {
       return Err{};
     }
 
-    for (usize i = pos; i < bit_size_; i++)
+    for (usize i = pos; i < size_; i++)
     {
       set(i, false);
     }
@@ -1121,24 +1141,24 @@ struct [[nodiscard]] BitVec
 
   constexpr Result<> resize_uninit(usize new_size)
   {
-    if (new_size <= bit_size_)
+    if (new_size <= size_)
     {
-      erase(new_size, bit_size_ - new_size);
+      erase(new_size, size_ - new_size);
       return Ok{};
     }
 
-    return extend_uninit(new_size - bit_size_);
+    return extend_uninit(new_size - size_);
   }
 
   constexpr Result<> resize(usize new_size)
   {
-    if (new_size <= bit_size_)
+    if (new_size <= size_)
     {
-      erase(new_size, bit_size_ - new_size);
+      erase(new_size, size_ - new_size);
       return Ok{};
     }
 
-    return extend(new_size - bit_size_);
+    return extend(new_size - size_);
   }
 
   constexpr void swap(usize a, usize b) const
@@ -1151,20 +1171,22 @@ struct [[nodiscard]] BitVec
 
   constexpr auto view() const
   {
-    return View{repr_, bit_size_};
+    return View{repr_, size_};
   }
 };
 
-template <typename T, usize C>
+template <typename T, usize Capacity, usize Alignment = alignof(T)>
 requires (NonConst<T>)
-struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
+struct [[nodiscard]] InplaceVec
+  : InplaceStorage<Alignment, sizeof(T) * Capacity>
 {
   using Type = T;
   using Repr = T;
   using Iter = SpanIter<T>;
   using View = Span<T>;
 
-  static constexpr usize Capacity = C;
+  static constexpr usize ALIGNMENT = Alignment;
+  static constexpr usize CAPACITY  = Capacity;
 
   usize size_ = 0;
 
@@ -1172,7 +1194,7 @@ struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
 
   constexpr InplaceVec(InplaceVec const & other) : size_{other.size_}
   {
-    copy_construct(Span{other.data(), other.size_}, data());
+    obj::copy_construct(Span{other.data(), other.size_}, data());
   }
 
   constexpr InplaceVec & operator=(InplaceVec const & other)
@@ -1215,7 +1237,12 @@ struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
 
   constexpr T * data() const
   {
-    return reinterpret_cast<T *>(this->storage_);
+    return assume_aligned<ALIGNMENT>(reinterpret_cast<T *>(this->storage_));
+  }
+
+  static constexpr usize alignment()
+  {
+    return ALIGNMENT;
   }
 
   constexpr usize size() const
@@ -1273,14 +1300,14 @@ struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
     return data()[index];
   }
 
-  constexpr T * try_get(usize index) const
+  constexpr OptionRef<T> try_get(usize index) const
   {
     if (index >= size_) [[unlikely]]
     {
-      return nullptr;
+      return none;
     }
 
-    return data() + index;
+    return data()[index];
   }
 
   template <typename... Args>
@@ -1579,19 +1606,19 @@ struct [[nodiscard]] InplaceVec : InplaceStorage<alignof(T), sizeof(T) * C>
 /// memory
 ///
 /// The index and id either point to valid indices/ids or are an implicit free
-/// list of ids and indices masked by RELEASE_MASK
+/// list of ids and indices masked by RELEASED_MASK
 ///
 ///
 template <typename... V>
 requires (NonConst<V> && ... && true)
 struct SparseVec
 {
-  static constexpr u64 RELEASE_MASK = U64_MAX >> 1;
-  static constexpr u64 STUB         = U64_MAX;
+  static constexpr usize RELEASED_MASK = ~(USIZE_MAX >> 1);
+  static constexpr usize STUB          = USIZE_MAX;
 
   using Dense = Tuple<V...>;
-  using Id    = u64;
-  using Ids   = Vec<u64>;
+  using Id    = usize;
+  using Ids   = Vec<usize>;
 
   struct Iter
   {
@@ -1600,8 +1627,8 @@ struct SparseVec
     constexpr auto operator*() const
     {
       return apply(
-          [](auto &... iters) { return Tuple<decltype(*iters)...>{*iters...}; },
-          iters_);
+        [](auto &... iters) { return Tuple<decltype(*iters)...>{*iters...}; },
+        iters_);
     }
 
     constexpr Iter & operator++()
@@ -1613,11 +1640,11 @@ struct SparseVec
     constexpr bool operator!=(IterEnd) const
     {
       return apply(
-          [](auto &... iters) {
-            bool const proceed = (sizeof...(iters) != 0);
-            return (proceed && ... && (iters != IterEnd{}));
-          },
-          iters_);
+        [](auto &... iters) {
+          static constexpr bool ZERO_SIZED = (sizeof...(V) == 0);
+          return ((!ZERO_SIZED) && ... && (iters != IterEnd{}));
+        },
+        iters_);
     }
   };
 
@@ -1628,10 +1655,10 @@ struct SparseVec
     constexpr auto begin() const
     {
       return apply(
-          [](auto &&... views) {
-            return Tuple<typename V::View::Iter...>{ash::begin(views)...};
-          },
-          views_);
+        [](auto &&... views) {
+          return Tuple<typename V::View::Iter...>{ash::begin(views)...};
+        },
+        views_);
     }
 
     constexpr auto end() const
@@ -1640,25 +1667,25 @@ struct SparseVec
     }
   };
 
-  Ids   index_to_id  = {};
-  Ids   id_to_index  = {};
-  Dense dense        = {};
-  u64   free_id_head = STUB;
+  Ids   index_to_id_;
+  Ids   id_to_index_;
+  Dense dense;
+  usize free_id_head_;
 
   explicit constexpr SparseVec(Ids index_to_id, Ids id_to_index, Dense dense,
-                               u64 free_id_head) :
-      index_to_id{static_cast<Ids &&>(index_to_id)},
-      id_to_index{static_cast<Ids &&>(id_to_index)},
-      dense{static_cast<Dense &&>(dense)},
-      free_id_head{free_id_head}
+                               usize free_id_head) :
+    index_to_id_{static_cast<Ids &&>(index_to_id)},
+    id_to_index_{static_cast<Ids &&>(id_to_index)},
+    dense{static_cast<Dense &&>(dense)},
+    free_id_head_{free_id_head}
   {
   }
 
-  explicit constexpr SparseVec(AllocatorImpl allocator) :
-      index_to_id{allocator},
-      id_to_index{allocator},
-      dense{},
-      free_id_head{STUB}
+  explicit constexpr SparseVec(AllocatorRef allocator) :
+    index_to_id_{allocator},
+    id_to_index_{allocator},
+    dense{V{allocator}...},
+    free_id_head_{STUB}
   {
   }
 
@@ -1671,12 +1698,12 @@ struct SparseVec
   constexpr SparseVec & operator=(SparseVec const &) = delete;
 
   constexpr SparseVec(SparseVec && other) :
-      index_to_id{static_cast<Ids &&>(other.index_to_id)},
-      id_to_index{static_cast<Ids &&>(other.id_to_index)},
-      dense{static_cast<Dense &&>(other.dense)},
-      free_id_head{other.free_id_head}
+    index_to_id_{static_cast<Ids &&>(other.index_to_id_)},
+    id_to_index_{static_cast<Ids &&>(other.id_to_index_)},
+    dense{static_cast<Dense &&>(other.dense)},
+    free_id_head_{other.free_id_head_}
   {
-    other.free_id_head = STUB;
+    other.free_id_head_ = STUB;
   }
 
   constexpr SparseVec & operator=(SparseVec && other)
@@ -1685,10 +1712,11 @@ struct SparseVec
     {
       return *this;
     }
-    index_to_id  = static_cast<Ids &&>(other.index_to_id);
-    id_to_index  = static_cast<Ids &&>(other.id_to_index);
-    dense        = static_cast<Dense &&>(other.dense);
-    free_id_head = other.free_id_head;
+    index_to_id_        = static_cast<Ids &&>(other.index_to_id_);
+    id_to_index_        = static_cast<Ids &&>(other.id_to_index_);
+    dense               = static_cast<Dense &&>(other.dense);
+    free_id_head_       = other.free_id_head_;
+    other.free_id_head_ = STUB;
     return *this;
   }
 
@@ -1699,19 +1727,29 @@ struct SparseVec
     return size() == 0;
   }
 
-  constexpr u64 size() const
+  constexpr usize size() const
   {
-    return static_cast<u64>(index_to_id.size());
+    return index_to_id_.size();
+  }
+
+  constexpr u32 size32() const
+  {
+    return index_to_id_.size32();
+  }
+
+  constexpr u64 size64() const
+  {
+    return index_to_id_.size64();
   }
 
   constexpr auto begin() const
   {
     return Iter{.iters_ = apply(
-                    [](auto &... vecs) {
-                      return Tuple<decltype(ash::begin(vecs))...>{
-                          ash::begin(vecs)...};
-                    },
-                    dense)};
+                  [](auto &... dense) {
+                    return Tuple<decltype(ash::begin(dense))...>{
+                      ash::begin(dense)...};
+                  },
+                  dense)};
   }
 
   constexpr auto end() const
@@ -1728,67 +1766,75 @@ struct SparseVec
   constexpr void clear()
   {
     apply([](auto &... d) { (d.clear(), ...); }, dense);
-    id_to_index.clear();
-    index_to_id.clear();
-    free_id_head = STUB;
+    id_to_index_.clear();
+    index_to_id_.clear();
+    free_id_head_ = STUB;
   }
 
   constexpr void reset()
   {
     apply([](auto &... d) { (d.reset(), ...); }, dense);
-    id_to_index.reset();
-    index_to_id.reset();
-    free_id_head = STUB;
+    id_to_index_.reset();
+    index_to_id_.reset();
+    free_id_head_ = STUB;
   }
 
   constexpr void uninit()
   {
     apply([](auto &... d) { (d.uninit(), ...); }, dense);
-    id_to_index.uninit();
-    index_to_id.uninit();
+    id_to_index_.uninit();
+    index_to_id_.uninit();
   }
 
-  constexpr bool is_valid_id(u64 id) const
+  constexpr bool is_valid_id(usize id) const
   {
-    return id < id_to_index.size() && !(id_to_index[id] & RELEASE_MASK);
+    if (id >= id_to_index_.size())
+    {
+      return false;
+    }
+
+    return (id_to_index_[id] & RELEASED_MASK) == 0;
   }
 
-  constexpr bool is_valid_index(u64 index) const
+  constexpr bool is_valid_index(usize index) const
   {
     return index < size();
   }
 
-  constexpr auto operator[](u64 id) const
+  constexpr auto operator[](usize id) const
   {
-    u64 const index = id_to_index[id];
+    CHECK(is_valid_id(id), "Invalid ID: {}", id);
+    usize const index = id_to_index_[id];
     return apply(
-        [index](auto &... dense) {
-          return Tuple<decltype(dense[index])...>{dense[index]...};
-        },
-        dense);
+      [index](auto &... dense) {
+        return Tuple<decltype(dense[index])...>{dense[index]...};
+      },
+      dense);
   }
 
-  constexpr u64 to_index(u64 id) const
+  constexpr usize to_index(usize id) const
   {
-    return id_to_index[id];
+    CHECK(is_valid_id(id), "Invalid ID: {}", id);
+    return id_to_index_[id];
   }
 
-  constexpr Result<u64, Void> try_to_index(u64 id) const
+  constexpr Result<usize, Void> try_to_index(usize id) const
   {
     if (!is_valid_id(id)) [[unlikely]]
     {
       return Err{};
     }
 
-    return Ok{to_index(id)};
+    return Ok{id_to_index_[id]};
   }
 
-  constexpr u64 to_id(u64 index) const
+  constexpr usize to_id(usize index) const
   {
-    return index_to_id[index];
+    CHECK(is_valid_index(index), "Invalid index: {}", index);
+    return index_to_id_[index];
   }
 
-  constexpr Result<u64, Void> try_to_id(u64 index) const
+  constexpr Result<usize, Void> try_to_id(usize index) const
   {
     if (!is_valid_index(index)) [[unlikely]]
     {
@@ -1798,31 +1844,33 @@ struct SparseVec
     return Ok{to_id(index)};
   }
 
-  constexpr void erase(u64 id)
+  constexpr void erase(usize id)
   {
-    u64 const index = id_to_index[id];
-    u64 const last  = size() - 1;
+    CHECK(is_valid_id(id), "Invalid ID: {}", id);
+    usize const index = id_to_index_[id];
+    usize const last  = size() - 1;
 
     if (index != last)
     {
-      apply([index, last](auto &... d) { (d.swap(index, last), ...); }, dense);
+      apply([&](auto &... dense) { (dense.swap(index, last), ...); }, dense);
     }
 
-    apply([](auto &... d) { (d.pop(), ...); }, dense);
+    apply([](auto &... dense) { (dense.pop(), ...); }, dense);
 
-    // adjust id and index mapping
+    // swap indices of this element and the last element
     if (index != last)
     {
-      id_to_index[index_to_id[last]] = index;
-      index_to_id[index]             = index_to_id[last];
+      usize const last_id   = index_to_id_[last];
+      id_to_index_[last_id] = index;
+      index_to_id_[index]   = last_id;
     }
 
-    id_to_index[id] = free_id_head | RELEASE_MASK;
-    free_id_head    = id;
-    index_to_id.pop();
+    id_to_index_[id] = free_id_head_ | RELEASED_MASK;
+    free_id_head_    = id;
+    index_to_id_.pop();
   }
 
-  constexpr Result<> try_erase(u64 id)
+  constexpr Result<> try_erase(usize id)
   {
     if (!is_valid_id(id)) [[unlikely]]
     {
@@ -1832,21 +1880,17 @@ struct SparseVec
     return Ok{};
   }
 
-  constexpr Result<> reserve(u64 target_capacity)
+  constexpr Result<> reserve(usize target_capacity)
   {
-    if (!(id_to_index.reserve(target_capacity) &&
-          index_to_id.reserve(target_capacity))) [[unlikely]]
-    {
-      return Err{};
-    }
+    bool const err = !apply(
+      [&](auto &... dense) {
+        return ((id_to_index_.reserve(target_capacity) &&
+                 index_to_id_.reserve(target_capacity)) &&
+                ... && dense.reserve(target_capacity));
+      },
+      dense);
 
-    bool failed = apply(
-        [&](auto &... d) {
-          return (false || ... || !d.reserve(target_capacity));
-        },
-        dense);
-
-    if (failed) [[unlikely]]
+    if (err) [[unlikely]]
     {
       return Err{};
     }
@@ -1854,21 +1898,17 @@ struct SparseVec
     return Ok{};
   }
 
-  constexpr Result<> grow(u64 target_size)
+  constexpr Result<> grow(usize target_size)
   {
-    if (!(id_to_index.grow(target_size) && index_to_id.grow(target_size)))
-        [[unlikely]]
-    {
-      return Err{};
-    }
+    bool const err = !apply(
+      [&](auto &... dense) {
+        return (
+          (id_to_index_.grow(target_size) && index_to_id_.grow(target_size)) &&
+          ... && dense.grow(target_size));
+      },
+      dense);
 
-    bool failed = apply(
-        [target_size](auto &... d) {
-          return (false || ... || !d.grow(target_size));
-        },
-        dense);
-
-    if (failed) [[unlikely]]
+    if (err) [[unlikely]]
     {
       return Err{};
     }
@@ -1876,33 +1916,32 @@ struct SparseVec
     return Ok{};
   }
 
-  /// make new id and map the unique id to the unique index
-  constexpr Result<u64, Void> make_id(u64 index)
+  /// make new id and map the unique id to the end index
+  constexpr usize create_id_()
   {
-    if (free_id_head != STUB)
+    usize const index = index_to_id_.size();
+    if (free_id_head_ != STUB)
     {
-      u64 id          = free_id_head;
-      id_to_index[id] = index;
-      free_id_head    = ~RELEASE_MASK & id_to_index[free_id_head];
-      return Ok{id};
+      usize const id        = free_id_head_;
+      usize const next_free = id_to_index_[free_id_head_];
+      id_to_index_[id]      = index | RELEASED_MASK;
+      free_id_head_         = next_free;
+      index_to_id_.push(id).discard();
+      return id;
     }
     else
     {
-      if (!id_to_index.push(index)) [[unlikely]]
-      {
-        return Err{};
-      }
-      u64 id = static_cast<u64>(id_to_index.size() - 1);
-      return Ok{id};
+      usize const id = id_to_index_.size();
+      id_to_index_.push(index).discard();
+      index_to_id_.push(id).discard();
+      return id;
     }
   }
 
   template <typename... Args>
   requires (sizeof...(Args) == sizeof...(V))
-  constexpr Result<u64, Void> push(Args &&... args)
+  constexpr Result<usize, Void> push(Args &&... args)
   {
-    u64 const index = size();
-
     // grow here so we can handle all memory allocation
     // failures at once. the proceeding unwrap calls will not fail
     if (!grow(size() + 1)) [[unlikely]]
@@ -1910,25 +1949,19 @@ struct SparseVec
       return Err{};
     }
 
-    Result id = make_id(index);
+    usize const id = create_id_();
 
-    if (!id) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    if (!index_to_id.push(id.unwrap())) [[unlikely]]
-    {
-      return Err{};
-    }
-
-    Tuple<Args &&...> args_tuple{static_cast<Args &&>(args)...};
+    Tuple<Args &&...> arg_refs{static_cast<Args &&>(args)...};
 
     index_apply<sizeof...(V)>([&]<usize... I>() {
-      (get<I>(dense).push(get<I>(args_tuple)).unwrap(), ...);
+      (dense.template get<I>()
+         .push(
+           static_cast<index_pack<I, Args &&...>>(arg_refs.template get<I>()))
+         .discard(),
+       ...);
     });
 
-    return id;
+    return Ok{id};
   }
 };
 
@@ -1956,31 +1989,20 @@ struct IsTriviallyRelocatable<InplaceVec<T, C>>
   static constexpr bool value = TriviallyRelocatable<T>;
 };
 
-template <typename... T>
-struct IsTriviallyRelocatable<SparseVec<T...>>
+inline void format(fmt::Sink sink, fmt::Spec spec, Vec<char> const & str)
 {
-  static constexpr bool value = (true && ... && TriviallyRelocatable<Vec<T>>);
-};
-
-namespace fmt
-{
-inline bool push(Context const & ctx, Spec const & spec, Vec<char> const & str)
-{
-  return push(ctx, spec, str.view());
+  format(sink, spec, str.view());
 }
 
-inline bool push(Context const & ctx, Spec const & spec,
-                 PinVec<char> const & str)
+inline void format(fmt::Sink sink, fmt::Spec spec, PinVec<char> const & str)
 {
-  return push(ctx, spec, str.view());
+  format(sink, spec, str.view());
 }
 
 template <usize C>
-inline bool push(Context const & ctx, Spec const & spec,
-                 InplaceVec<char, C> const & str)
+void format(fmt::Sink sink, fmt::Spec spec, InplaceVec<char, C> const & str)
 {
-  return push(ctx, spec, str.view());
+  format(sink, spec, str.view());
 }
-}        // namespace fmt
 
-}        // namespace ash
+}    // namespace ash

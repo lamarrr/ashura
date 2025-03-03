@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/std/error.h"
-#include "ashura/std/log.h"
 
 namespace ash
 {
@@ -10,7 +9,8 @@ template <typename T = Void>
 struct [[nodiscard]] Ok
 {
   using Type = T;
-  T value{};
+
+  T v{};
 };
 
 template <typename T>
@@ -20,7 +20,8 @@ template <typename E = Void>
 struct [[nodiscard]] Err
 {
   using Type = E;
-  E value{};
+
+  E v{};
 };
 
 template <typename T>
@@ -32,7 +33,7 @@ struct [[nodiscard]] Result
   using Type    = T;
   using ErrType = E;
 
-  usize is_ok_;
+  bool32 is_ok_;
 
   union
   {
@@ -54,13 +55,11 @@ struct [[nodiscard]] Result
     }
   }
 
-  constexpr Result(Ok<T> ok) : is_ok_{true}, value_{static_cast<T &&>(ok.value)}
+  constexpr Result(Ok<T> ok) : is_ok_{true}, value_{static_cast<T &&>(ok.v)}
   {
   }
 
-  constexpr Result(Err<E> err) :
-      is_ok_{false},
-      err_{static_cast<E &&>(err.value)}
+  constexpr Result(Err<E> err) : is_ok_{false}, err_{static_cast<E &&>(err.v)}
   {
   }
 
@@ -118,7 +117,7 @@ struct [[nodiscard]] Result
     }
 
     is_ok_ = true;
-    new (&value_) T{static_cast<T &&>(other.value)};
+    new (&value_) T{static_cast<T &&>(other.v)};
     return *this;
   }
 
@@ -134,7 +133,7 @@ struct [[nodiscard]] Result
     }
 
     is_ok_ = false;
-    new (&err_) E{static_cast<E &&>(other.value)};
+    new (&err_) E{static_cast<E &&>(other.v)};
     return *this;
   }
 
@@ -192,13 +191,13 @@ struct [[nodiscard]] Result
 
   [[nodiscard]] explicit constexpr operator bool() const
   {
-    return is_ok_;
+    return is_ok();
   }
 
   template <typename U>
   [[nodiscard]] constexpr bool contains(U const & cmp) const
   {
-    if (is_ok_)
+    if (is_ok())
     {
       return value_ == cmp;
     }
@@ -208,7 +207,7 @@ struct [[nodiscard]] Result
   template <typename F>
   [[nodiscard]] constexpr bool contains_err(F const & cmp) const
   {
-    if (is_ok_)
+    if (is_ok())
     {
       return false;
     }
@@ -217,34 +216,36 @@ struct [[nodiscard]] Result
 
   constexpr T & value(SourceLocation loc = SourceLocation::current())
   {
-    CHECK_DESC_SRC(loc, is_ok_, ".value() called on Result with Err = ", err_);
+    CHECK_SLOC(loc, is_ok(), ".value() called on Result with Err = ", err_);
     return value_;
   }
 
   constexpr T const &
-      value(SourceLocation loc = SourceLocation::current()) const
+    value(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_DESC_SRC(loc, is_ok_, ".value() called on Result with Err = ", err_);
+    CHECK_SLOC(loc, is_ok(), ".value() called on Result with Err = ", err_);
     return value_;
   }
 
   constexpr E & err(SourceLocation loc = SourceLocation::current())
   {
-    CHECK_DESC_SRC(loc, !is_ok_,
-                   ".err() called on Result with Value = ", value_);
+    CHECK_SLOC(loc, is_err(), ".err() called on Result with Value = ", value_);
     return err_;
   }
 
   constexpr E const & err(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_DESC_SRC(loc, !is_ok_,
-                   ".err() called on Result with Value = ", value_);
+    CHECK_SLOC(loc, is_err(), ".err() called on Result with Value = ", value_);
     return err_;
+  }
+
+  constexpr void discard()
+  {
   }
 
   constexpr Result<T const *, E const *> as_ptr() const
   {
-    if (is_ok_)
+    if (is_ok())
     {
       return Ok{&value_};
     }
@@ -253,7 +254,7 @@ struct [[nodiscard]] Result
 
   constexpr Result<T *, E *> as_ptr()
   {
-    if (is_ok_)
+    if (is_ok())
     {
       return Ok{&value_};
     }
@@ -264,7 +265,7 @@ struct [[nodiscard]] Result
   constexpr auto map(Fn && op)
   {
     using U = decltype(static_cast<Fn &&>(op)(value_));
-    if (is_ok_)
+    if (is_ok())
     {
       return Result<U, E>{Ok<U>{static_cast<Fn &&>(op)(value_)}};
     }
@@ -274,7 +275,7 @@ struct [[nodiscard]] Result
   template <typename Fn, typename U>
   constexpr auto map_or(Fn && op, U && alt)
   {
-    if (is_ok_)
+    if (is_ok())
     {
       return static_cast<Fn &&>(op)(value_);
     }
@@ -284,7 +285,7 @@ struct [[nodiscard]] Result
   template <typename Fn, typename AltFn>
   constexpr decltype(auto) map_or_else(Fn && op, AltFn && alt_op)
   {
-    if (is_ok_)
+    if (is_ok())
     {
       return static_cast<Fn &&>(op)(value_);
     }
@@ -295,7 +296,7 @@ struct [[nodiscard]] Result
   constexpr auto and_then(Fn && op)
   {
     using OutResult = decltype(static_cast<Fn &&>(op)(value_));
-    if (is_ok_)
+    if (is_ok())
     {
       return static_cast<Fn &&>(op)(value_);
     }
@@ -306,7 +307,7 @@ struct [[nodiscard]] Result
   constexpr auto or_else(Fn && op)
   {
     using OutResult = decltype(static_cast<Fn &&>(op)(err_));
-    if (is_ok_)
+    if (is_ok())
     {
       return OutResult{Ok{value_}};
     }
@@ -316,7 +317,7 @@ struct [[nodiscard]] Result
   template <typename U>
   constexpr T unwrap_or(U && alt)
   {
-    if (is_ok_)
+    if (is_ok())
     {
       return static_cast<T &&>(value_);
     }
@@ -326,45 +327,33 @@ struct [[nodiscard]] Result
   template <typename Fn>
   constexpr T unwrap_or_else(Fn && op)
   {
-    if (is_ok_)
+    if (is_ok())
     {
       return static_cast<T &&>(value_);
     }
     return static_cast<Fn &&>(op)(err_);
   }
 
-  constexpr T unwrap(SourceLocation loc = SourceLocation::current())
+  constexpr T unwrap(Span<char const> msg = ""_str,
+                     SourceLocation   loc = SourceLocation::current())
   {
-    CHECK_DESC_SRC(loc, is_ok_,
-                   "Expected Value in Result but got Err = ", err_);
+    CHECK_SLOC(loc, is_ok(), "Expected Value in Result but got Err = {}. {}",
+               err_, msg);
     return static_cast<T &&>(value_);
   }
 
-  constexpr T expect(char const *   msg,
-                     SourceLocation loc = SourceLocation::current())
+  constexpr E unwrap_err(Span<char const> msg = ""_str,
+                         SourceLocation   loc = SourceLocation::current())
   {
-    CHECK_DESC_SRC(loc, is_ok_, msg, " ", err_);
-    return static_cast<T &&>(value_);
-  }
-
-  constexpr E unwrap_err(SourceLocation loc = SourceLocation::current())
-  {
-    CHECK_DESC_SRC(loc, !is_ok_,
-                   "Expected Err in Result but got Value = ", value_);
-    return static_cast<E &&>(err_);
-  }
-
-  constexpr E expect_err(char const *   msg,
-                         SourceLocation loc = SourceLocation::current())
-  {
-    CHECK_DESC_SRC(loc, !is_ok_, msg, " ", value_);
+    CHECK_SLOC(loc, is_err(), "Expected Err in Result but got Value = {}. {}", value_,
+                msg);
     return static_cast<E &&>(err_);
   }
 
   template <typename OkFn, typename ErrFn>
   constexpr decltype(auto) match(OkFn && ok_fn, ErrFn && err_fn)
   {
-    if (is_ok_)
+    if (is_ok())
     {
       return ok_fn(value_);
     }
@@ -374,7 +363,7 @@ struct [[nodiscard]] Result
   template <typename OkFn, typename ErrFn>
   constexpr decltype(auto) match(OkFn && ok_fn, ErrFn && err_fn) const
   {
-    if (is_ok_)
+    if (is_ok())
     {
       return ok_fn(value_);
     }
@@ -386,39 +375,39 @@ template <typename T, typename E>
 struct IsTriviallyRelocatable<Result<T, E>>
 {
   static constexpr bool value =
-      TriviallyRelocatable<T> && TriviallyRelocatable<E>;
+    TriviallyRelocatable<T> && TriviallyRelocatable<E>;
 };
 
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator==(Ok<T> const & a, Ok<U> const & b)
 {
-  return a.value == b.value;
+  return a.v == b.v;
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator!=(Ok<T> const & a, Ok<U> const & b)
 {
-  return a.value != b.value;
+  return a.v != b.v;
 }
 
 template <typename E, typename F>
 [[nodiscard]] constexpr bool operator==(Err<E> const & a, Err<F> const & b)
 {
-  return a.value == b.value;
+  return a.v == b.v;
 }
 
 template <typename E, typename F>
 [[nodiscard]] constexpr bool operator!=(Err<E> const & a, Err<F> const & b)
 {
-  return a.value != b.value;
+  return a.v != b.v;
 }
 
 template <typename T, typename E, typename U>
 [[nodiscard]] constexpr bool operator==(Result<T, E> const & a, Ok<U> const & b)
 {
-  if (a.is_ok_)
+  if (a.is_ok())
   {
-    return a.value_ == b.value;
+    return a.value_ == b.v;
   }
   return false;
 }
@@ -426,9 +415,9 @@ template <typename T, typename E, typename U>
 template <typename T, typename E, typename U>
 [[nodiscard]] constexpr bool operator!=(Result<T, E> const & a, Ok<U> const & b)
 {
-  if (a.is_ok_)
+  if (a.is_ok())
   {
-    return a.value_ != b.value;
+    return a.value_ != b.v;
   }
   return true;
 }
@@ -436,9 +425,9 @@ template <typename T, typename E, typename U>
 template <typename U, typename T, typename E>
 [[nodiscard]] constexpr bool operator==(Ok<U> const & a, Result<T, E> const & b)
 {
-  if (b.is_ok_)
+  if (b.is_ok())
   {
-    return a.value == b.value_;
+    return a.v == b.value_;
   }
   return false;
 }
@@ -446,9 +435,9 @@ template <typename U, typename T, typename E>
 template <typename U, typename T, typename E>
 [[nodiscard]] constexpr bool operator!=(Ok<U> const & a, Result<T, E> const & b)
 {
-  if (b.is_ok_)
+  if (b.is_ok())
   {
-    return a.value != b.value_;
+    return a.v != b.value_;
   }
   return true;
 }
@@ -459,7 +448,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_err())
   {
-    return a.err_ == b.value;
+    return a.err_ == b.v;
   }
   return false;
 }
@@ -470,7 +459,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_err())
   {
-    return a.err_ != b.value;
+    return a.err_ != b.v;
   }
   return true;
 }
@@ -481,7 +470,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_err())
   {
-    return a.value == b.err_;
+    return a.v == b.err_;
   }
   return false;
 }
@@ -492,7 +481,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_err())
   {
-    return a.value != b.err_;
+    return a.v != b.err_;
   }
   return true;
 }
@@ -501,7 +490,7 @@ template <typename T, typename E, typename U, typename F>
 [[nodiscard]] constexpr bool operator==(Result<T, E> const & a,
                                         Result<U, F> const & b)
 {
-  if (a.is_ok_ && b.is_ok_)
+  if (a.is_ok() && b.is_ok())
   {
     return a.value_ == b.value_;
   }
@@ -516,7 +505,7 @@ template <typename T, typename E, typename U, typename F>
 [[nodiscard]] constexpr bool operator!=(Result<T, E> const & a,
                                         Result<U, F> const & b)
 {
-  if (a.is_ok_ && b.is_ok_)
+  if (a.is_ok() && b.is_ok())
   {
     return a.value_ != b.value_;
   }
@@ -526,4 +515,4 @@ template <typename T, typename E, typename U, typename F>
   }
   return true;
 }
-}        // namespace ash
+}    // namespace ash

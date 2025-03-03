@@ -3,6 +3,7 @@
 
 #include "ashura/engine/input.h"
 #include "ashura/gpu/gpu.h"
+#include "ashura/std/dyn.h"
 #include "ashura/std/image.h"
 #include "ashura/std/math.h"
 #include "ashura/std/option.h"
@@ -16,11 +17,11 @@ typedef struct Window_T * Window;
 
 struct WindowSystem
 {
-  static void init();
-
-  static void uninit();
+  static Dyn<WindowSystem *> create_SDL(AllocatorRef allocator);
 
   virtual ~WindowSystem() = default;
+
+  virtual void shutdown() = 0;
 
   virtual Option<Window> create_window(gpu::Instance &  instance,
                                        Span<char const> title) = 0;
@@ -35,25 +36,25 @@ struct WindowSystem
 
   virtual void minimize(Window window) = 0;
 
-  virtual void set_size(Window window, Vec2U size) = 0;
+  virtual void set_extent(Window window, Vec2U extent) = 0;
 
   virtual void center(Window window) = 0;
 
-  virtual Vec2U get_size(Window window) = 0;
+  virtual Vec2U get_extent(Window window) = 0;
 
-  virtual Vec2U get_surface_size(Window window) = 0;
+  virtual Vec2U get_surface_extent(Window window) = 0;
 
   virtual void set_position(Window window, Vec2I pos) = 0;
 
   virtual Vec2I get_position(Window window) = 0;
 
-  virtual void set_min_size(Window window, Vec2U min) = 0;
+  virtual void set_min_extent(Window window, Vec2U min) = 0;
 
-  virtual Vec2U get_min_size(Window window) = 0;
+  virtual Vec2U get_min_extent(Window window) = 0;
 
-  virtual void set_max_size(Window window, Vec2U max) = 0;
+  virtual void set_max_extent(Window window, Vec2U max) = 0;
 
-  virtual Vec2U get_max_size(Window window) = 0;
+  virtual Vec2U get_max_extent(Window window) = 0;
 
   virtual void set_icon(Window window, ImageSpan<u8 const, 4> image,
                         gpu::Format format) = 0;
@@ -98,9 +99,18 @@ struct WindowSystem
 
   virtual void get_keyboard_state(BitSpan<u64> state) = 0;
 
-  virtual void get_mouse_state(BitSpan<u64> state) = 0;
+  virtual Vec2 get_mouse_state(BitSpan<u64> state) = 0;
+
+  virtual void start_text_input(Window window, TextInputInfo const & info) = 0;
+
+  virtual void set_text_input_area(Window window, RectU const & rect,
+                                   i32 cursor_position) = 0;
+
+  virtual void end_text_input(Window window) = 0;
+
+  virtual void set_cursor(Cursor cursor) = 0;
+
+  virtual void lock_cursor(Window window, bool lock) = 0;
 };
 
-ASH_C_LINKAGE ASH_DLL_EXPORT WindowSystem * window_system;
-
-}        // namespace ash
+}    // namespace ash

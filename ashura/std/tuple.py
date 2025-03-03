@@ -1,5 +1,7 @@
+# SPDX-License-Identifier: MIT
+
 import sys
-MAX_TUPLE_SIZE = 16
+MAX_TUPLE_SIZE = 32
 
 assert len(sys.argv) > 1
 
@@ -13,22 +15,20 @@ out(f"""/// SPDX-License-Identifier: MIT
 /// Meta-Generated Source Code
 // clang-format off
 #pragma once
-#include "ashura/std/types.h"
 #include "ashura/std/v.h"
 #include "ashura/std/index_pack.h"
 
 namespace ash{{
 
-inline constexpr usize MAX_TUPLE_SIZE = {MAX_TUPLE_SIZE};
+inline constexpr unsigned int MAX_TUPLE_SIZE = {MAX_TUPLE_SIZE};
 
 """)
 
-
 tuple_cases = [
-    f"""
+  f"""
 if constexpr(I == {i})
 {{
-    return (t.v{i});
+  return t.v{i};
 }}
 """ for i in range(MAX_TUPLE_SIZE)]
 
@@ -37,7 +37,7 @@ namespace intr
 {{
 
 template<usize I, typename Tuple>
-constexpr decltype(auto) tuple_member(Tuple& t)
+constexpr auto& tuple_member(Tuple& t)
 {{
 {"else".join(tuple_cases)}
 }};
@@ -47,7 +47,7 @@ constexpr decltype(auto) tuple_member(Tuple& t)
 
 
 out(
-    f"""
+  f"""
 template<typename ... T>
 requires(sizeof...(T) <= MAX_TUPLE_SIZE)
 struct Tuple;
@@ -57,62 +57,72 @@ struct Tuple;
 
 for size in range(0,  MAX_TUPLE_SIZE + 1):
 
-    types = [f"T{i}" for i in range(size)]
-    aliases = [f"E{i}" for i in range(size)]
-    values = [f"v{i}" for i in range(size)]
-    typename_decls = [f"typename {t}" for t in types]
-    alias_decls = [f"typedef {t} {a};" for t, a in zip(types, aliases)]
-    value_decls = [f"{t} {v};" for t, v in zip(types, values)]
+  types = [f"T{i}" for i in range(size)]
+  aliases = [f"E{i}" for i in range(size)]
+  values = [f"v{i}" for i in range(size)]
+  typename_decls = [f"typename {t}" for t in types]
+  alias_decls = [f"typedef {t} {a};" for t, a in zip(types, aliases)]
+  value_decls = [f"{t} {v};" for t, v in zip(types, values)]
 
-    tuple_def = f"""
+  out(f"""
 template<{", ".join(typename_decls)}>
 struct Tuple<{", ".join(types)}>
 {{
 
-{"\n".join(alias_decls)}
+{"\t".join(alias_decls)}
 
 {"" if size == 0 else 
-f"""template<usize I>
+f"""template<unsigned int I>
 using E = index_pack<I, {", ".join(aliases)}>;
 """}
 
-static constexpr usize SIZE = {size};
+static constexpr unsigned int SIZE = {size};
 
-static constexpr usize size()
+static constexpr unsigned int size()
 {{
-    return SIZE;
+  return SIZE;
 }}
 
-{"\n".join(value_decls)}
+{"\t".join(value_decls)}
 
-template<usize I> requires(I < SIZE)
-constexpr auto& operator[](V<I>)
-{{
-    return intr::tuple_member<I>(*this);
+template<unsigned int I> requires(I < SIZE)
+constexpr auto & get() & {{
+ return intr::tuple_member<I>(*this);
 }}
 
-template<usize I> requires(I < SIZE)
-constexpr auto const& operator[](V<I>) const
+template<unsigned int I> requires(I < SIZE)
+constexpr auto const& get() const & {{
+ return intr::tuple_member<I>(*this);
+}}
+
+
+template<usize I>
+constexpr auto& operator[](V<I>) &
 {{
-    return intr::tuple_member<I>(*this);
+  return get<I>(*this);
+}}
+
+template<usize I>
+constexpr auto const& operator[](V<I>) const &
+{{
+  return get<I>(*this);
 }}
 
 }};
 
-    """
+    """)
 
-    out(tuple_def)
 
-    deduction_guide = ""
+  deduction_guide = ""
 
-    if size != 0:
+  if size != 0:
         deduction_guide = f"""
 template<{", ".join(typename_decls)}>
 Tuple({", ".join(types)}) -> Tuple<{", ".join(types)}>;
 
 """
 
-    out(deduction_guide)
+  out(deduction_guide)
 
 
 out(f"""

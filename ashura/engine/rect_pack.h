@@ -106,37 +106,26 @@ namespace rect_pack
 
 struct rect
 {
-  u32 glyph_index = 0;
+  u32 id = 0;
 
   // input:
-  i32 w = 0;
-  i32 h = 0;
+  Vec2I extent;
 
   // output:
-  i32 x     = 0;
-  i32 y     = 0;
-  u32 layer = 0;
+  Vec2I pos;
 
-  // non-zero if valid packing
-  i32 was_packed = 0;
+  bool32 was_packed = 0;
 };
 
 constexpr int rect_height_compare(void const * a, void const * b)
 {
   rect const * p = (rect const *) a;
   rect const * q = (rect const *) b;
-  if (p->h > q->h)
+  if (p->extent.y > q->extent.y)
     return -1;
-  if (p->h < q->h)
+  if (p->extent.y < q->extent.y)
     return 1;
-  return (p->w > q->w) ? -1 : (p->w < q->w);
-}
-
-constexpr int rect_original_order(void const * a, void const * b)
-{
-  rect const * p = (rect const *) a;
-  rect const * q = (rect const *) b;
-  return (p->was_packed < q->was_packed) ? -1 : (p->was_packed > q->was_packed);
+  return (p->extent.x > q->extent.x) ? -1 : (p->extent.x < q->extent.x);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -146,7 +135,7 @@ constexpr int rect_original_order(void const * a, void const * b)
 
 struct Node
 {
-  i32    x = 0, y = 0;
+  Vec2I  pos{};
   Node * next = nullptr;
 };
 
@@ -164,7 +153,7 @@ enum class Mode
 
 struct Context
 {
-  i32       width = 0, height = 0;
+  Vec2I     extent      = {};
   i32       align       = 0;
   Mode      init_mode   = Mode::Default;
   Heuristic heuristic   = Heuristic::BL_sortHeight;
@@ -173,7 +162,7 @@ struct Context
   Node *    free_head   = nullptr;
   // we allocate two extra nodes so optimal
   // user-node-count is 'width' not 'width+2'
-  Node      extra[2];
+  Node      extra[2]    = {};
 };
 
 // find minimum y position if it starts at x1
@@ -186,44 +175,38 @@ inline i32 skyline_find_min_y(Context & c, Node * first, i32 x0, i32 width,
 
   (void) c;
 
-  CHECK(first->x <= x0);
+  CHECK(first->pos.x <= x0, "");
 
-#if 0
-   // skip in case we're past the node
-   while (node->next->x <= x0)
-      ++node;
-#else
   // we ended up handling this in the caller for efficiency
-  CHECK(node->next->x > x0);
-#endif
+  CHECK(node->next->pos.x > x0, "", "");
 
-  CHECK(node->x <= x0);
+  CHECK(node->pos.x <= x0, "", "");
 
   min_y         = 0;
   waste_area    = 0;
   visited_width = 0;
-  while (node->x < x1)
+  while (node->pos.x < x1)
   {
-    if (node->y > min_y)
+    if (node->pos.y > min_y)
     {
       // raise min_y higher.
       // we've accounted for all waste up to min_y,
       // but we'll now add more waste for everything we've visted
-      waste_area += visited_width * (node->y - min_y);
-      min_y = node->y;
+      waste_area += visited_width * (node->pos.y - min_y);
+      min_y = node->pos.y;
       // the first time through, visited_width might be reduced
-      if (node->x < x0)
-        visited_width += node->next->x - x0;
+      if (node->pos.x < x0)
+        visited_width += node->next->pos.x - x0;
       else
-        visited_width += node->next->x - node->x;
+        visited_width += node->next->pos.x - node->pos.x;
     }
     else
     {
       // add waste area
-      i32 under_width = node->next->x - node->x;
+      i32 under_width = node->next->pos.x - node->pos.x;
       if (under_width + visited_width > width)
         under_width = width - visited_width;
-      waste_area += under_width * (min_y - node->y);
+      waste_area += under_width * (min_y - node->pos.y);
       visited_width += under_width;
     }
     node = node->next;
@@ -235,38 +218,38 @@ inline i32 skyline_find_min_y(Context & c, Node * first, i32 x0, i32 width,
 
 struct FindResult
 {
-  i32     x = 0, y = 0;
+  Vec2I   pos;
   Node ** prev_link = nullptr;
 };
 
-inline FindResult skyline_find_best_pos(Context & ctx, i32 width, i32 height)
+inline FindResult skyline_find_best_pos(Context & ctx, Vec2I extent)
 {
   i32        best_waste = (1 << 30), best_x, best_y = (1 << 30);
   FindResult find_result;
   Node **    prev, *node, *tail, **best = nullptr;
 
   // align to multiple of ctx.align
-  width = (width + ctx.align - 1);
-  width -= width % ctx.align;
-  CHECK(width % ctx.align == 0);
+  extent.x = (extent.x + ctx.align - 1);
+  extent.x -= extent.x % ctx.align;
+  CHECK(extent.x % ctx.align == 0, "");
 
   // if it can't possibly fit, bail immediately
-  if (width > ctx.width || height > ctx.height)
+  if (extent.x > ctx.extent.x || extent.y > ctx.extent.y)
   {
     find_result.prev_link = nullptr;
-    find_result.x = find_result.y = 0;
+    find_result.pos       = {};
     return find_result;
   }
 
   node = ctx.active_head;
   prev = &ctx.active_head;
-  while (node->x + width <= ctx.width)
+  while (node->pos.x + extent.x <= ctx.extent.x)
   {
     i32 y, waste;
-    y = skyline_find_min_y(ctx, node, node->x, width, &waste);
+    y = skyline_find_min_y(ctx, node, node->pos.x, extent.x, &waste);
     if (ctx.heuristic == Heuristic::BL_sortHeight)
-    {        // actually just want
-             // to test BL
+    {    // actually just want
+         // to test BL
       // bottom left
       if (y < best_y)
       {
@@ -277,7 +260,7 @@ inline FindResult skyline_find_best_pos(Context & ctx, i32 width, i32 height)
     else
     {
       // best-fit
-      if (y + height <= ctx.height)
+      if (y + extent.y <= ctx.extent.y)
       {
         // can only use it if it first vertically
         if (y < best_y || (y == best_y && waste < best_waste))
@@ -292,7 +275,7 @@ inline FindResult skyline_find_best_pos(Context & ctx, i32 width, i32 height)
     node = node->next;
   }
 
-  best_x = (best == nullptr) ? 0 : (*best)->x;
+  best_x = (best == nullptr) ? 0 : (*best)->pos.x;
 
   // if doing best-fit (BF), we also have to try aligning right edge to each
   // node position
@@ -319,22 +302,22 @@ inline FindResult skyline_find_best_pos(Context & ctx, i32 width, i32 height)
     node = ctx.active_head;
     prev = &ctx.active_head;
     // find first node that's admissible
-    while (tail->x < width)
+    while (tail->pos.x < extent.x)
       tail = tail->next;
     while (tail)
     {
-      i32 xpos = tail->x - width;
+      i32 xpos = tail->pos.x - extent.x;
       i32 y, waste;
-      CHECK(xpos >= 0);
+      CHECK(xpos >= 0, "");
       // find the left position that matches this
-      while (node->next->x <= xpos)
+      while (node->next->pos.x <= xpos)
       {
         prev = &node->next;
         node = node->next;
       }
-      CHECK(node->next->x > xpos && node->x <= xpos);
-      y = skyline_find_min_y(ctx, node, xpos, width, &waste);
-      if (y + height <= ctx.height)
+      CHECK(node->next->pos.x > xpos && node->pos.x <= xpos, "");
+      y = skyline_find_min_y(ctx, node, xpos, extent.x, &waste);
+      if (y + extent.y <= ctx.extent.y)
       {
         if (y <= best_y)
         {
@@ -342,7 +325,7 @@ inline FindResult skyline_find_best_pos(Context & ctx, i32 width, i32 height)
               (waste == best_waste && xpos < best_x))
           {
             best_x = xpos;
-            CHECK(y <= best_y);
+            CHECK(y <= best_y, "");
             best_y     = y;
             best_waste = waste;
             best       = prev;
@@ -354,22 +337,21 @@ inline FindResult skyline_find_best_pos(Context & ctx, i32 width, i32 height)
   }
 
   find_result.prev_link = best;
-  find_result.x         = best_x;
-  find_result.y         = best_y;
+  find_result.pos       = {best_x, best_y};
   return find_result;
 }
 
-inline FindResult skyline_pack_rectangle(Context & ctx, i32 width, i32 height)
+inline FindResult skyline_pack_rectangle(Context & ctx, Vec2I extent)
 {
   // find best position according to heuristic
-  FindResult res = skyline_find_best_pos(ctx, width, height);
+  FindResult res = skyline_find_best_pos(ctx, extent);
   Node *     node, *cur;
 
   // bail if:
   //    1. it failed
   //    2. the best node doesn't fit (we don't always check this)
   //    3. we're out of memory
-  if (res.prev_link == nullptr || res.y + height > ctx.height ||
+  if (res.prev_link == nullptr || res.pos.y + extent.y > ctx.extent.y ||
       ctx.free_head == nullptr)
   {
     res.prev_link = nullptr;
@@ -377,9 +359,9 @@ inline FindResult skyline_pack_rectangle(Context & ctx, i32 width, i32 height)
   }
 
   // on success, create new node
-  node    = ctx.free_head;
-  node->x = res.x;
-  node->y = res.y + height;
+  node        = ctx.free_head;
+  node->pos.x = res.pos.x;
+  node->pos.y = res.pos.y + extent.y;
 
   ctx.free_head = node->next;
 
@@ -388,7 +370,7 @@ inline FindResult skyline_pack_rectangle(Context & ctx, i32 width, i32 height)
   // stiched back in
 
   cur = *res.prev_link;
-  if (cur->x < res.x)
+  if (cur->pos.x < res.pos.x)
   {
     // preserve the existing one, so start testing with the next one
     Node * next = cur->next;
@@ -402,7 +384,7 @@ inline FindResult skyline_pack_rectangle(Context & ctx, i32 width, i32 height)
 
   // from here, traverse cur and free the nodes, until we get to one
   // that shouldn't be freed
-  while (cur->next && cur->next->x <= res.x + width)
+  while (cur->next && cur->next->pos.x <= res.pos.x + extent.x)
   {
     Node * next   = cur->next;
     // move the current node to the free list
@@ -414,35 +396,8 @@ inline FindResult skyline_pack_rectangle(Context & ctx, i32 width, i32 height)
   // stitch the list back in
   node->next = cur;
 
-  if (cur->x < res.x + width)
-    cur->x = res.x + width;
-
-#ifdef _DEBUG
-  cur = ctx.active_head;
-  while (cur->x < ctx.width)
-  {
-    CHECK(cur->x < cur->next->x);
-    cur = cur->next;
-  }
-  CHECK(cur->next == nullptr);
-
-  {
-    i32 count = 0;
-    cur       = ctx.active_head;
-    while (cur)
-    {
-      cur = cur->next;
-      ++count;
-    }
-    cur = ctx.free_head;
-    while (cur)
-    {
-      cur = cur->next;
-      ++count;
-    }
-    CHECK(count == ctx.num_nodes + 2);
-  }
-#endif
+  if (cur->pos.x < res.pos.x + extent.x)
+    cur->pos.x = res.pos.x + extent.x;
 
   return res;
 }
@@ -458,10 +413,7 @@ inline FindResult skyline_pack_rectangle(Context & ctx, i32 width, i32 height)
 // the following pack_rects() call (or calls), but can be freed after
 // the call (or calls) finish.
 //
-// Note: to guarantee best results, either:
-//       1. make sure 'num_nodes' >= 'width'
-//   or  2. call allow_out_of_mem() defined below with 'allow_out_of_mem =
-//   1'
+// Note: to guarantee best results, make sure 'num_nodes' >= 'width'
 //
 // If you don't do either of the above things, widths will be quantized to
 // multiples of small integers to guarantee the algorithm doesn't run out of
@@ -471,11 +423,8 @@ inline FindResult skyline_pack_rectangle(Context & ctx, i32 width, i32 height)
 // algorithm may run out of temporary storage and be unable to pack some
 // rectangles.
 //
-inline Context init(i32 width, i32 height, Node * nodes, i32 num_nodes,
-                    bool allow_out_of_mem)
+inline void init(Context & ctx, Vec2I extent, Node * nodes, i32 num_nodes)
 {
-  Context ctx;
-
   i32 i = 0;
   for (; i < num_nodes - 1; ++i)
   {
@@ -487,39 +436,23 @@ inline Context init(i32 width, i32 height, Node * nodes, i32 num_nodes,
   ctx.heuristic   = Heuristic::BL_sortHeight;
   ctx.free_head   = &nodes[0];
   ctx.active_head = &ctx.extra[0];
-  ctx.width       = width;
-  ctx.height      = height;
+  ctx.extent      = extent;
   ctx.num_nodes   = num_nodes;
 
-  if (allow_out_of_mem)
-  {
-    // if it's ok to run out of memory, then don't bother aligning them;
-    // this gives better packing, but may fail due to OOM (even though
-    // the rectangles easily fit). @TODO a smarter approach would be to only
-    // quantize once we've hit OOM, then we could get rid of this parameter.
-    ctx.align = 1;
-  }
-  else
-  {
-    // if it's not ok to run out of memory, then quantize the widths
-    // so that num_nodes is always enough nodes.
-    //
-    // I.e. num_nodes * align >= width
-    //                  align >= width / num_nodes
-    //                  align = ceil(width/num_nodes)
-    ctx.align = (ctx.width + ctx.num_nodes - 1) / ctx.num_nodes;
-  }
+  // if it's not ok to run out of memory, then quantize the widths
+  // so that num_nodes is always enough nodes.
+  //
+  // I.e. num_nodes * align >= width
+  //                  align >= width / num_nodes
+  //                  align = ceil(width/num_nodes)
+  ctx.align = (ctx.extent.x + ctx.num_nodes - 1) / ctx.num_nodes;
 
   // node 0 is the full width, node 1 is the sentinel (lets us not store width
   // explicitly)
-  ctx.extra[0].x    = 0;
-  ctx.extra[0].y    = 0;
+  ctx.extra[0]      = {};
   ctx.extra[0].next = &ctx.extra[1];
-  ctx.extra[1].x    = width;
-  ctx.extra[1].y    = (1 << 30);
+  ctx.extra[1].pos  = {extent.x, (1 << 30)};
   ctx.extra[1].next = nullptr;
-
-  return ctx;
 }
 
 // Assign packed locations to rectangles. The rectangles are of type
@@ -547,8 +480,6 @@ inline Context init(i32 width, i32 height, Node * nodes, i32 num_nodes,
 // packed and 0 otherwise.
 inline bool pack_rects(Context & ctx, rect * rects, i32 num_rects)
 {
-  i32 all_rects_packed = 1;
-
   // we use the 'was_packed' field internally to allow sorting/unsorting
   for (i32 i = 0; i < num_rects; ++i)
   {
@@ -560,41 +491,38 @@ inline bool pack_rects(Context & ctx, rect * rects, i32 num_rects)
 
   for (i32 i = 0; i < num_rects; ++i)
   {
-    if (rects[i].w == 0 || rects[i].h == 0)
+    if (rects[i].extent.x == 0 || rects[i].extent.y == 0)
     {
-      rects[i].x = rects[i].y = 0;        // empty rect needs no space
+      // empty rect needs no space
+      rects[i].pos = {};
     }
     else
     {
-      FindResult find_result =
-          skyline_pack_rectangle(ctx, rects[i].w, rects[i].h);
+      FindResult find_result = skyline_pack_rectangle(ctx, rects[i].extent);
       if (find_result.prev_link)
       {
-        rects[i].x = static_cast<i32>(find_result.x);
-        rects[i].y = static_cast<i32>(find_result.y);
+        rects[i].pos = find_result.pos;
       }
       else
       {
-        rects[i].x = rects[i].y = I32_MAX;
+        rects[i].pos = Vec2I::splat(I32_MAX);
       }
     }
   }
 
-  // unsort
-  qsort(rects, static_cast<size_t>(num_rects), sizeof(rects[0]),
-        rect_original_order);
+  bool all_rects_packed = true;
 
   // set was_packed flags and all_rects_packed status
   for (i32 i = 0; i < num_rects; ++i)
   {
-    rects[i].was_packed = !(rects[i].x == I32_MAX && rects[i].y == I32_MAX);
-    if (!rects[i].was_packed)
-      all_rects_packed = 0;
+    rects[i].was_packed =
+      !(rects[i].pos.x == I32_MAX && rects[i].pos.y == I32_MAX);
+    all_rects_packed = all_rects_packed && rects[i].was_packed;
   }
 
   // return the all_rects_packed status
-  return static_cast<bool>(all_rects_packed);
+  return all_rects_packed;
 }
 
-}        // namespace rect_pack
-}        // namespace ash
+}    // namespace rect_pack
+}    // namespace ash

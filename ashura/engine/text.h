@@ -3,6 +3,7 @@
 
 #include "ashura/engine/color.h"
 #include "ashura/engine/font.h"
+#include "ashura/engine/ids.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
 
@@ -227,37 +228,50 @@ enum class TextScript : u8
   NagMundari = 0xA4
 };
 
+struct TextHighlightStyle
+{
+  Vec4U8 color        = {};
+  Vec4   corner_radii = Vec4::splat(1);
+};
+
+struct TextHighlight
+{
+  Slice              slice = {};
+  TextHighlightStyle style = {};
+};
+
 /// @param font font to use to render the text
 /// @param word_spacing px. additional word spacing, can be negative
 /// @param line_height relative. multiplied by font_height
 struct FontStyle
 {
-  Font * font        = nullptr;
-  f32    font_height = 20;
+  FontId font        = FontId::Invalid;
+  f32    height      = 20;
   f32    line_height = 1.2F;
 };
 
 /// @param shadow_scale relative. multiplied by font_height
-/// @param shadow_offset px. offset from center of glyph
+/// @param shadow_offset offset from center of glyph
 struct TextStyle
 {
   f32           underline_thickness     = 0;
   f32           strikethrough_thickness = 0;
   f32           shadow_scale            = 0;
   Vec2          shadow_offset           = Vec2{0, 0};
-  ColorGradient foreground              = {};
+  ColorGradient color                   = {};
   ColorGradient background              = {};
   ColorGradient underline               = {};
   ColorGradient strikethrough           = {};
   ColorGradient shadow                  = {};
+  Vec4          corner_radii            = Vec4::splat(0.5F);
 };
 
 /// @brief A block of text to be laid-out, consists of multiple runs of text
 /// spanning multiple paragraphs.
 /// @param text utf-32-encoded text
+/// @param hash user-defined hash representing the text block
 /// @param runs end offset of each text run
 /// @param fonts font style of each text run
-/// @param align text alignment
 /// @param direction base text direction
 /// @param language base language to use for selecting opentype features to
 /// used on the text, uses default if not set
@@ -266,8 +280,10 @@ struct TextStyle
 struct TextBlock
 {
   Span<c32 const>       text          = {};
+  hash64                hash          = 0;
   Span<u32 const>       runs          = {};
   Span<FontStyle const> fonts         = {};
+  f32                   font_scale    = 1;
   TextDirection         direction     = TextDirection::LeftToRight;
   Span<char const>      language      = {};
   bool                  use_kerning   = true;
@@ -285,12 +301,13 @@ struct TextBlockStyle
   Span<TextStyle const> runs        = {};
   f32                   alignment   = 0;
   f32                   align_width = 0;
+  TextHighlight         highlight   = {};
 };
 
 /// @param cluster unicode grapheme cluster within the text run
 /// @param advance context-dependent horizontal-layout advance
 /// @param offset context-dependent text shaping offset from normal font glyph
-/// position, i.e. offset from Glyph::bearing
+/// position, i.e. offset from GlyphMetrics::bearing
 struct GlyphShape
 {
   u32   glyph   = 0;
@@ -319,6 +336,18 @@ struct TextSegment
   u8         level               = 0;
 };
 
+struct ResolvedTextRunMetrics
+{
+  f32 advance = 0;
+  f32 ascent  = 0;
+  f32 descent = 0;
+
+  constexpr f32 height() const
+  {
+    return ascent + descent;
+  }
+};
+
 struct TextRunMetrics
 {
   i32 advance = 0;
@@ -328,6 +357,13 @@ struct TextRunMetrics
   constexpr i32 height() const
   {
     return ascent + descent;
+  }
+
+  constexpr ResolvedTextRunMetrics resolve(f32 font_height) const
+  {
+    return ResolvedTextRunMetrics{.advance = au_to_px(advance, font_height),
+                                  .ascent  = au_to_px(ascent, font_height),
+                                  .descent = au_to_px(descent, font_height)};
   }
 };
 
@@ -339,18 +375,16 @@ struct TextRunMetrics
 /// the max-width.
 struct TextRun
 {
-  u32            first_codepoint = 0;
-  u32            num_codepoints  = 0;
-  u32            style           = 0;
-  f32            font_height     = 0;
-  f32            line_height     = 0;
-  u32            first_glyph     = 0;
-  u32            num_glyphs      = 0;
-  TextRunMetrics metrics         = {};
-  u8             base_level      = 0;
-  u8             level           = 0;
-  bool           paragraph       = false;
-  bool           breakable       = false;
+  Slice          codepoints  = {};
+  u32            style       = 0;
+  f32            font_height = 0;
+  f32            line_height = 0;
+  Slice          glyphs      = {};
+  TextRunMetrics metrics     = {};
+  u8             base_level  = 0;
+  u8             level       = 0;
+  bool           paragraph   = false;
+  bool           breakable   = false;
 };
 
 /// @param width width of the line
@@ -371,12 +405,10 @@ struct LineMetrics
 /// @param paragraph if the new line is a new paragraph
 struct Line
 {
-  u32         first_codepoint = 0;
-  u32         num_codepoints  = 0;
-  u32         first_run       = 0;
-  u32         num_runs        = 0;
-  LineMetrics metrics         = {};
-  bool        paragraph       = false;
+  Slice       codepoints = {};
+  Slice       runs       = {};
+  LineMetrics metrics    = {};
+  bool        paragraph  = false;
 };
 
 struct TextHitResult
@@ -384,6 +416,7 @@ struct TextHitResult
   u32 cluster = 0;
   u32 line    = 0;
   u32 column  = 0;
+  f32 pos     = 0;
 };
 
 /// @brief cached/pre-computed text layout
@@ -396,22 +429,43 @@ struct TextHitResult
 /// found in the text.
 struct TextLayout
 {
-  f32              max_width = 0;
-  Vec2             extent    = {};
-  Vec<TextSegment> segments  = {};
-  Vec<GlyphShape>  glyphs    = {};
-  Vec<TextRun>     runs      = {};
-  Vec<Line>        lines     = {};
+  f32             max_width = 0;
+  hash64          hash      = 0;
+  Vec2            extent    = {};
+  Vec<GlyphShape> glyphs    = {};
+  Vec<TextRun>    runs      = {};
+  Vec<Line>       lines     = {};
+
+  explicit TextLayout(AllocatorRef allocator) :
+    max_width{0},
+    extent{},
+    glyphs{allocator},
+    runs{allocator},
+    lines{allocator}
+  {
+  }
+
+  TextLayout(TextLayout const &)             = delete;
+  TextLayout & operator=(TextLayout const &) = delete;
+  TextLayout(TextLayout &&)                  = default;
+  TextLayout & operator=(TextLayout &&)      = default;
+  ~TextLayout()                              = default;
 
   void clear()
   {
     max_width = F32_MAX;
     extent    = Vec2{0, 0};
-    segments.clear();
     glyphs.clear();
     runs.clear();
     lines.clear();
   }
+
+  /// @brief given a position in the laid-out text return the location of the
+  /// grapheme the cursor points to. returns the last column if the position
+  /// overlaps with the row and returns the last line if no overlap was found.
+  /// @param pos position in laid-out text to return from.
+  Option<TextHitResult> hit(TextBlock const &      block,
+                            TextBlockStyle const & style, Vec2 pos) const;
 };
 
 constexpr TextDirection level_to_direction(u8 level)
@@ -420,13 +474,4 @@ constexpr TextDirection level_to_direction(u8 level)
                                 TextDirection::RightToLeft;
 }
 
-void layout_text(TextBlock const & block, f32 max_width, TextLayout & layout);
-
-/// @brief given a position in the laid-out text return the location of the
-/// grapheme the cursor points to. returns the last column if the position
-/// overlaps with the row and returns the last line if no overlap was found.
-/// @param pos position in laid-out text to return from.
-TextHitResult hit_text(TextLayout const & layout, f32 align_width,
-                       f32 alignment, Vec2 pos);
-
-}        // namespace ash
+}    // namespace ash

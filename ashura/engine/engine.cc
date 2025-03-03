@@ -1,31 +1,33 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/engine.h"
+#include "ashura/std/async.h"
 #include "ashura/std/fs.h"
+#include "ashura/std/trace.h"
 #include "simdjson.h"
 
 namespace ash
 {
 
-ASH_C_LINKAGE ASH_DLL_EXPORT Engine * engine = nullptr;
-
-EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
+EngineCfg EngineCfg::parse(AllocatorRef allocator, Span<u8 const> json)
 {
-  EngineCfg                    out;
+  EngineCfg                    out{.shaders{allocator},
+                                   .fonts{allocator},
+                                   .images{allocator},
+                                   .pipeline_cache{allocator}};
   simdjson::ondemand::parser   parser;
   simdjson::padded_string      str{json.as_char().data(), json.size()};
   simdjson::ondemand::document doc = parser.iterate(str);
 
-  auto config = doc.get_object().value();
+  auto cfg = doc.get_object().value();
 
-  std::string_view version = config["version"].get_string().value();
-  CHECK(version == "0.0.1");
+  std::string_view version = cfg["version"].get_string().value();
+  CHECK(version == "0.0.1", "");
 
-  auto gpu           = config["gpu"].get_object().value();
-  out.gpu.validation = gpu["validation"].get_bool().value();
-  out.gpu.vsync      = gpu["vsync"].get_bool().value();
+  out.gpu.validation = cfg["gpu.validation"].get_bool().value();
+  out.gpu.vsync      = cfg["gpu.vsync"].get_bool().value();
 
-  auto gpu_prefs = gpu["preferences"].get_array().value();
-  CHECK(gpu_prefs.count_elements().value() <= 5);
+  auto gpu_prefs = cfg["gpu.preferences"].get_array().value();
+  CHECK(gpu_prefs.count_elements().value() <= 5, "");
 
   for (auto pref : gpu_prefs)
   {
@@ -52,488 +54,498 @@ EngineCfg EngineCfg::parse(AllocatorImpl allocator, Span<u8 const> json)
     }
     else
     {
-      CHECK(false);
+      CHECK(false, "");
     }
   }
 
-  out.gpu.hdr = gpu["hdr"].get_bool().value();
+  out.gpu.hdr = cfg["gpu.hdr"].get_bool().value();
   out.gpu.buffering =
-      (u32) clamp(gpu["buffering"].get_int64().value(), (i64) 0, (i64) 4);
+    (u32) clamp(cfg["gpu.buffering"].get_int64().value(), (i64) 0, (i64) 4);
 
-  auto window            = config["window"].get_object().value();
-  out.window.resizable   = window["resizable"].get_bool().value();
-  out.window.maximized   = window["maximized"].get_bool().value();
-  out.window.full_screen = window["full_screen"].get_bool().value();
-  out.window.width =
-      (u32) clamp(window["width"].get_int64().value(), (i64) 0, (i64) U32_MAX);
-  out.window.height =
-      (u32) clamp(window["height"].get_int64().value(), (i64) 0, (i64) U32_MAX);
+  switch (cfg["gpu.msaa.level"].get_int64().value())
+  {
+    case 1:
+      out.gpu.msaa_level = gpu::SampleCount::C1;
+      break;
+    case 2:
+      out.gpu.msaa_level = gpu::SampleCount::C2;
+      break;
+    case 4:
+      out.gpu.msaa_level = gpu::SampleCount::C4;
+      break;
+    case 8:
+      out.gpu.msaa_level = gpu::SampleCount::C8;
+      break;
+    case 16:
+      out.gpu.msaa_level = gpu::SampleCount::C16;
+      break;
+    default:
+      out.gpu.msaa_level = gpu::SampleCount::C4;
+      break;
+  }
 
-  auto shaders = config["shaders"].get_object().value();
+  if (auto fps = cfg["gpu.max_fps"].get_int64();
+      fps.error() == simdjson::error_code::SUCCESS)
+  {
+    out.gpu.max_fps = fps.value();
+  }
+
+  out.window.resizable   = cfg["window.resizable"].get_bool().value();
+  out.window.maximized   = cfg["window.maximized"].get_bool().value();
+  out.window.full_screen = cfg["window.full_screen"].get_bool().value();
+  out.window.borderless  = cfg["window.borderless"].get_bool().value();
+  out.window.width       = (u32) clamp(cfg["window.width"].get_int64().value(),
+                                       (i64) 0, (i64) U32_MAX);
+  out.window.height      = (u32) clamp(cfg["window.height"].get_int64().value(),
+                                       (i64) 0, (i64) U32_MAX);
+
+  auto shaders = cfg["shaders"].get_object().value();
   for (auto entry : shaders)
   {
     std::string_view id   = entry.escaped_key().value();
     std::string_view path = entry.value().get_string().value();
     out.shaders
-        .insert(vec(span(id), allocator).unwrap(),
-                vec(span(path), allocator).unwrap())
-        .unwrap();
+      .insert(vec(allocator, span(id)).unwrap(),
+              vec(allocator, span(path)).unwrap())
+      .unwrap();
   }
 
-  auto fonts = config["fonts"].get_object().value();
+  auto fonts = cfg["fonts"].get_object().value();
   for (auto entry : fonts)
   {
     std::string_view id   = entry.escaped_key().value();
     std::string_view path = entry.value().get_string().value();
     out.fonts
-        .insert(vec(span(id), allocator).unwrap(),
-                vec(span(path), allocator).unwrap())
-        .unwrap();
+      .insert(vec(allocator, span(id)).unwrap(),
+              vec(allocator, span(path)).unwrap())
+      .unwrap();
   }
 
-  std::string_view default_font_sv =
-      config["default_font"].get_string().value();
-  out.default_font = vec<char>(default_font_sv, allocator).unwrap();
+  out.font_height =
+    clamp((u32) cfg["fonts.height"].get_int64().value(), 16U, 256U);
 
-  // check that it is a valid entry
-  fonts[default_font_sv].get_string().value();
-
-  auto images = config["images"].get_object().value();
+  auto images = cfg["images"].get_object().value();
   for (auto entry : images)
   {
     std::string_view id   = entry.escaped_key().value();
     std::string_view path = entry.value().get_string().value();
     out.images
-        .insert(vec(span(id), allocator).unwrap(),
-                vec(span(path), allocator).unwrap())
-        .unwrap();
+      .insert(vec(allocator, span(id)).unwrap(),
+              vec(allocator, span(path)).unwrap())
+      .unwrap();
   }
+
+  std::string_view pipeline_cache_path =
+    cfg["cache.pipeline.path"].get_string().value();
+
+  out.pipeline_cache.extend(pipeline_cache_path).unwrap();
 
   return out;
 }
 
-void Engine::init(AllocatorImpl allocator, void * app,
-                  Span<char const> config_path, Span<char const> assets_dir)
+static void window_event_listener(Engine * engine, WindowEvent const & event)
 {
-  if (logger == nullptr)
-  {
-    abort();
-  }
-  CHECK(scheduler != nullptr);
-  CHECK(engine == nullptr);
+  InputState & f = engine->input_buffer;
 
-  logger->trace("Initializing Window System");
+  event.match(
+    [&](KeyEvent e) {
+      switch (e.action)
+      {
+        case KeyAction::Press:
+        {
+          f.key.any_down = true;
+          set_bit(f.key.downs, (u32) e.key_code);
+          set_bit(f.key.scan_downs, (u32) e.scan_code);
+          f.key.modifiers |= e.modifiers;
+        }
+        break;
+        case KeyAction::Release:
+        {
+          f.key.any_up = true;
+          set_bit(f.key.ups, (u32) e.key_code);
+          set_bit(f.key.scan_ups, (u32) e.scan_code);
+          f.key.modifiers |= e.modifiers;
+        }
+        break;
+        default:
+          break;
+      }
+    },
+    [&](MouseMotionEvent e) {
+      f.mouse.moved    = true;
+      f.mouse.position = e.position;
+      f.mouse.translation += e.translation;
+    },
+    [&](MouseClickEvent e) {
+      f.mouse.num_clicks[(u32) e.button] = e.clicks;
+      f.mouse.position                   = e.position;
+      switch (e.action)
+      {
+        case KeyAction::Press:
+          set_bit(f.mouse.downs, (u32) e.button);
+          f.mouse.any_down = true;
+          break;
+        case KeyAction::Release:
+          set_bit(f.mouse.ups, (u32) e.button);
+          f.mouse.any_up = true;
+          break;
+        default:
+          break;
+      }
+    },
+    [&](MouseWheelEvent e) {
+      f.mouse.wheel_scrolled = true;
+      f.mouse.position       = e.position;
+      f.mouse.translation += e.translation;
+    },
+    [&](TextInputEvent e) {
+      f.text_input = true;
+      f.text.extend(e.text).unwrap();
+    },
+    [&](WindowEventType e) {
+      switch (e)
+      {
+        case WindowEventType::Shown:
+        case WindowEventType::Hidden:
+        case WindowEventType::Exposed:
+        case WindowEventType::Moved:
+          break;
+        case WindowEventType::Resized:
+          f.resized = true;
+          break;
+        case WindowEventType::SurfaceResized:
+          f.surface_resized = true;
+          break;
+        case WindowEventType::Minimized:
+        case WindowEventType::Maximized:
+        case WindowEventType::Restored:
+          break;
+        case WindowEventType::MouseEnter:
+          f.mouse.in      = true;
+          f.mouse_focused = true;
+          break;
+        case WindowEventType::MouseLeave:
+          f.mouse.out     = true;
+          f.mouse_focused = false;
+          break;
+        case WindowEventType::KeyboardFocusIn:
+          f.key.in      = true;
+          f.key_focused = true;
+          break;
+        case WindowEventType::KeyboardFocusOut:
+          f.key.out     = true;
+          f.key_focused = false;
+          break;
+        case WindowEventType::CloseRequested:
+          f.close_requested = true;
+          f.closing         = true;
+          break;
+        case WindowEventType::Occluded:
+        case WindowEventType::EnterFullScreen:
+        case WindowEventType::LeaveFullScreen:
+        case WindowEventType::Destroyed:
+          break;
+        default:
+          break;
+      }
+    },
+    [&](DropEvent const & e) {
+      e.match(
+        [&](DropEventType e) {
+          switch (e)
+          {
+            case DropEventType::DropBegin:
+              break;
+            case DropEventType::DropComplete:
+              f.dropped = true;
+              break;
+            default:
+              break;
+          }
+        },
+        [&](DropPositionEvent e) {
+          f.drop_hovering  = true;
+          f.mouse.position = e.pos;
+        },
+        [&](DropFileEvent e) {
+          f.drop_data.clear();
+          f.drop_data.extend(e.path.as_u8()).unwrap();
+          f.drop_type = DropType::FilePath;
+        },
+        [&](DropTextEvent e) {
+          f.drop_data.clear();
+          f.drop_data.extend(e.text.as_u8()).unwrap();
+          f.drop_type = DropType::Bytes;
+        });
+    });
+}
 
-  WindowSystem::init();
+Dyn<Engine *> Engine::create(AllocatorRef     allocator,
+                             Span<char const> config_path,
+                             Span<char const> working_dir)
+{
+  Dyn<Logger *> logger =
+    dyn<Logger>(inplace, default_allocator, span<LogSink *>({&stdio_sink}))
+      .unwrap();
+  hook_logger(logger);
+  trace("Initializing Engine, config_path: {} and working dir: {} ",
+        config_path, working_dir);
 
-  logger->trace("Loading Engine config file");
+  trace("Loading Engine config file");
 
   Vec<u8> json{allocator};
 
-  read_file(config_path, json).unwrap();
+  read_file(config_path, json).unwrap("Error opening config file");
 
   EngineCfg cfg = EngineCfg::parse(allocator, json);
 
-  logger->trace("Initializing Engine");
+  trace("Initializing Core Systems");
+
+  FileSystem file_sys{allocator};
 
   Dyn<gpu::Instance *> instance =
-      gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
+    gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
 
   gpu::Device * device =
-      instance->create_device(allocator, cfg.gpu.preferences, 2).unwrap();
+    instance->create_device(allocator, cfg.gpu.preferences, 2).unwrap();
 
-  GpuContext gpu_ctx =
-      GpuContext::create(allocator, device, cfg.gpu.hdr, cfg.gpu.buffering,
-                         Vec2U{cfg.window.width, cfg.window.height});
+  trace("Loading Pipeline cache from disk");
 
-  logger->trace("Initializing Renderer");
+  Vec<u8> pipeline_cache{allocator};
+  read_file(cfg.pipeline_cache, pipeline_cache)
+    .match([](Void) {},
+           [](IoErr err) {
+             CHECK(err == IoErr::InvalidFileOrDir, "Io Error Occured");
+           });
+
+  GpuSystem gpu_sys = GpuSystem::create(
+    allocator, *device, pipeline_cache, cfg.gpu.hdr, cfg.gpu.buffering,
+    cfg.gpu.msaa_level, Vec2U{cfg.window.width, cfg.window.height});
+
+  ImageSystem image_sys{allocator};
+
+  Dyn<FontSystem *> font_sys = FontSystem::create(allocator);
+
+  ShaderSystem shader_sys{allocator};
+
+  Dyn<WindowSystem *> window_sys = WindowSystem::create_SDL(allocator);
+
+  trace("Creating Root Window");
+
+  Window window = window_sys->create_window(*instance, "Ashura"_str).unwrap();
+
+  if (cfg.window.maximized)
+  {
+    window_sys->maximize(window);
+  }
+  else
+  {
+    window_sys->set_extent(window, Vec2U{cfg.window.width, cfg.window.height});
+  }
+
+  if (cfg.window.full_screen)
+  {
+    window_sys->make_fullscreen(window);
+  }
+  else
+  {
+    window_sys->make_windowed(window);
+  }
+
+  if (cfg.window.borderless)
+  {
+    window_sys->make_borderless(window);
+  }
+  else
+  {
+    window_sys->make_bordered(window);
+  }
+
+  if (cfg.window.resizable)
+  {
+    window_sys->make_resizable(window);
+  }
+  else
+  {
+    window_sys->make_unresizable(window);
+  }
+
+  ClipBoard & clipboard = window_sys->get_clipboard();
+
+  gpu::Surface surface = window_sys->get_surface(window);
+
+  gpu::PresentMode present_mode =
+    cfg.gpu.vsync ? gpu::PresentMode::Fifo : gpu::PresentMode::Immediate;
 
   Renderer renderer = Renderer::create(allocator);
 
   Canvas canvas{allocator};
 
-  ViewSystem view_system{allocator};
+  ViewSystem view_sys{allocator};
 
-  ViewContext view_ctx{app, window_system->get_clipboard()};
+  Vec<char> working_dir_copy = vec(allocator, working_dir).unwrap();
 
-  logger->trace("Creating Root Window");
+  u32 const hardware_concurrency = std::thread::hardware_concurrency();
 
-  Window window =
-      window_system->create_window(*instance, "Ashura"_str).unwrap();
+  u32 const num_worker_threads = max(hardware_concurrency, 2U) - 1U;
 
-  if (cfg.window.maximized)
+  nanoseconds const max_thread_sleep = 5ms;
+
+  Vec<nanoseconds> worker_thread_sleep{allocator};
+
+  for (u32 i = 0; i < num_worker_threads; i++)
   {
-    window_system->maximize(window);
-  }
-  else
-  {
-    window_system->set_size(window, Vec2U{cfg.window.width, cfg.window.height});
-  }
-
-  if (cfg.window.full_screen)
-  {
-    window_system->make_fullscreen(window);
-  }
-  else
-  {
-    window_system->make_windowed(window);
+    worker_thread_sleep.push(max_thread_sleep).unwrap();
   }
 
-  if (cfg.window.resizable)
+  Dyn<Scheduler *> scheduler = Scheduler::create(
+    allocator, std::this_thread::get_id(), {}, worker_thread_sleep);
+
+  trace("All Core Systems Initialized");
+
+  nanoseconds min_frame_interval = 0ns;
+
+  if (cfg.gpu.max_fps.is_some())
   {
-    window_system->make_resizable(window);
-  }
-  else
-  {
-    window_system->make_unresizable(window);
-  }
-
-  gpu::Surface surface = window_system->get_surface(window);
-
-  logger->trace("Initializing GPU Context");
-
-  alignas(Engine) static u8 storage[sizeof(Engine)] = {};
-
-  engine = new (storage) Engine{allocator,
-                                app,
-                                std::move(instance),
-                                device,
-                                window,
-                                surface,
-                                cfg.gpu.vsync ? gpu::PresentMode::Fifo :
-                                                gpu::PresentMode::Immediate,
-                                std::move(gpu_ctx),
-                                std::move(renderer),
-                                std::move(canvas),
-                                std::move(view_system),
-                                std::move(view_ctx)};
-
-  window_system->listen(fn(
-      engine, +[](Engine * engine, SystemEvent const & event) {
-        event.match(
-            [&](SystemTheme theme) {
-              FrameState & state = engine->view_ctx.state_buffer;
-              state.theme        = theme;
-            },
-            [](SystemEventType) {});
-      }));
-
-  window_system->listen(
-      window, fn(
-                  engine, +[](Engine * engine, WindowEvent const & event) {
-                    FrameState & state = engine->view_ctx.state_buffer;
-
-                    event.match(
-                        [&](KeyEvent e) {
-                          switch (e.action)
-                          {
-                            case KeyAction::Press:
-                            {
-                              state.key.any_down = true;
-                              set_bit(state.key.downs, (u32) e.key_code);
-                              set_bit(state.key.scan_downs, (u32) e.scan_code);
-                              state.key.modifiers |= e.modifiers;
-                            }
-                            break;
-                            case KeyAction::Release:
-                            {
-                              state.key.any_up = true;
-                              set_bit(state.key.ups, (u32) e.key_code);
-                              set_bit(state.key.scan_ups, (u32) e.scan_code);
-                              state.key.modifiers |= e.modifiers;
-                            }
-                            break;
-                            default:
-                              break;
-                          }
-                        },
-                        [&](MouseMotionEvent e) {
-                          state.mouse.moved    = true;
-                          state.mouse.position = e.position;
-                          state.mouse.translation += e.translation;
-                        },
-                        [&](MouseClickEvent e) {
-                          state.mouse.num_clicks[(u32) e.button] = e.clicks;
-                          state.mouse.position                   = e.position;
-                          switch (e.action)
-                          {
-                            case KeyAction::Press:
-                              set_bit(state.mouse.downs, (u32) e.button);
-                              state.mouse.any_down = true;
-                              break;
-                            case KeyAction::Release:
-                              set_bit(state.mouse.ups, (u32) e.button);
-                              state.mouse.any_up = true;
-                              break;
-                            default:
-                              break;
-                          }
-                        },
-                        [&](MouseWheelEvent e) {
-                          state.mouse.wheel_scrolled = true;
-                          state.mouse.position       = e.position;
-                          state.mouse.translation += e.translation;
-                        },
-                        [&](TextInputEvent e) {
-                          state.text_input = true;
-                          state.text.extend(e.text).unwrap();
-                        },
-                        [&](WindowEventType e) {
-                          switch (e)
-                          {
-                            case WindowEventType::Shown:
-                            case WindowEventType::Hidden:
-                            case WindowEventType::Exposed:
-                            case WindowEventType::Moved:
-                              break;
-                            case WindowEventType::Resized:
-                              state.resized = true;
-                              break;
-                            case WindowEventType::SurfaceResized:
-                              state.surface_resized = true;
-                              break;
-                            case WindowEventType::Minimized:
-                            case WindowEventType::Maximized:
-                            case WindowEventType::Restored:
-                              break;
-                            case WindowEventType::MouseEnter:
-                              state.mouse.in      = true;
-                              state.mouse_focused = true;
-                              break;
-                            case WindowEventType::MouseLeave:
-                              state.mouse.out     = true;
-                              state.mouse_focused = false;
-                              break;
-                            case WindowEventType::KeyboardFocusIn:
-                              state.key.in      = true;
-                              state.key_focused = true;
-                              break;
-                            case WindowEventType::KeyboardFocusOut:
-                              state.key.out     = true;
-                              state.key_focused = false;
-                              break;
-                            case WindowEventType::CloseRequested:
-                              state.close_requested = true;
-                              break;
-                            case WindowEventType::Occluded:
-                            case WindowEventType::EnterFullScreen:
-                            case WindowEventType::LeaveFullScreen:
-                            case WindowEventType::Destroyed:
-                              break;
-                            default:
-                              break;
-                          }
-                        },
-                        [&](DropEvent const & e) {
-                          e.match(
-                              [&](DropEventType e) {
-                                switch (e)
-                                {
-                                  case DropEventType::DropBegin:
-                                    break;
-                                  case DropEventType::DropComplete:
-                                    state.dropped = true;
-                                    break;
-                                  default:
-                                    break;
-                                }
-                              },
-                              [&](DropPositionEvent e) {
-                                state.drop_hovering  = true;
-                                state.mouse.position = e.pos;
-                              },
-                              [&](DropFileEvent e) {
-                                state.drop_data.clear();
-                                state.drop_data.extend(e.path.as_u8()).unwrap();
-                                state.drop_type = DropType::FilePath;
-                              },
-                              [&](DropTextEvent e) {
-                                state.drop_data.clear();
-                                state.drop_data.extend(e.text.as_u8()).unwrap();
-                                state.drop_type = DropType::Bytes;
-                              });
-                        });
-                  }));
-
-  engine->device->begin_frame(nullptr).unwrap();
-
-  Semaphore sem =
-      create_semaphore(allocator, cfg.shaders.size() + cfg.fonts.size())
-          .unwrap();
-
-  for (auto const & [id, path] : cfg.shaders)
-  {
-    Vec<char> resolved_path = vec(assets_dir, allocator).unwrap();
-    path_append(resolved_path, path).unwrap();
-
-    async::once([shader_id   = vec<char>(id, allocator).unwrap(),
-                 shader_path = std::move(resolved_path), sem = sem.alias(),
-                 allocator]() mutable {
-      logger->trace("Loading shader ", shader_id, " from ", shader_path);
-
-      Vec<u8> data{allocator};
-
-      if (Result result = read_file(shader_path, data); !result)
-      {
-        logger->error("Unable to load shader at ", shader_path,
-                      ", IO Error: ", result.err());
-        sem->increment(1);
-        return;
-      }
-
-      CHECK((data.size() & 3ULL) == 0);
-
-      static_assert(std::endian::native == std::endian::little);
-
-      Vec<u32> data_u32{allocator};
-
-      data_u32.resize_uninit(data.size() >> 2).unwrap();
-
-      mem::copy(data.view(), data_u32.view().as_u8());
-
-      logger->trace("Loaded shader ", shader_id, " from file");
-
-      async::once(
-          [shader_id = std::move(shader_id), sem = std::move(sem),
-           data_u32 = std::move(data_u32)]() mutable {
-            logger->trace("Sending shader ", shader_id, " to GPU");
-
-            gpu::Shader shader =
-                engine->device
-                    ->create_shader(gpu::ShaderInfo{.label      = "Shader"_str,
-                                                    .spirv_code = data_u32})
-                    .unwrap();
-
-            engine->assets.shaders.insert(std::move(shader_id), shader)
-                .unwrap();
-
-            sem->increment(1);
-          },
-          async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
-    });
+    f64 const max_fpns = cfg.gpu.max_fps.value() * (1 / 1'000'000'000.0);
+    f64 const min_frame_time_ns = 1 / max_fpns;
+    min_frame_interval = nanoseconds{(nanoseconds::rep) min_frame_time_ns};
   }
 
-  for (auto const & [id, path] : cfg.fonts)
-  {
-    Vec<char> resolved_path = vec(assets_dir, allocator).unwrap();
-    path_append(resolved_path, path).unwrap();
+  Dyn<Engine *> engine =
+    dyn<Engine>(inplace, allocator, allocator, std::move(logger),
+                std::move(scheduler), std::move(file_sys), std::move(instance),
+                *device, std::move(gpu_sys), std::move(image_sys),
+                std::move(font_sys), std::move(shader_sys),
+                std::move(window_sys), window, clipboard, surface, present_mode,
+                std::move(renderer), std::move(canvas), std::move(view_sys),
+                std::move(working_dir_copy), std::move(cfg.pipeline_cache),
+                min_frame_interval)
+      .unwrap();
 
-    async::once([font_id   = vec<char>(id, allocator).unwrap(),
-                 font_path = std::move(resolved_path), sem = sem.alias(),
-                 allocator]() mutable {
-      logger->trace("Loading font ", font_id, " from ", font_path);
+  hook_engine(engine);
 
-      Vec<u8> data{allocator};
+  engine->engage_(cfg);
 
-      Result read_result = read_file(font_path, data);
-
-      if (!read_result)
-      {
-        logger->error("Unable to load font at ", font_path,
-                      ", IO Error: ", read_result.err());
-        sem->increment(1);
-        return;
-      }
-
-      Result decode_result = Font::decode(data, 0, allocator);
-
-      if (!decode_result)
-      {
-        logger->error("Unable to decode font at ", font_path,
-                      "Error: ", decode_result.err());
-        sem->increment(1);
-        return;
-      }
-
-      Dyn<Font *> font = decode_result.unwrap();
-
-      logger->trace("Loaded font ", font_id, " from file");
-
-      u32 const font_height = 64;
-
-      logger->trace("Rasterizing font ", font_id, " @", font_height, "px ");
-
-      font->rasterize(font_height, allocator).unwrap();
-
-      logger->trace("Rasterized font ", font_id);
-
-      async::once(
-          [font_id = std::move(font_id), sem = std::move(sem),
-           font = std::move(font), allocator]() mutable {
-            logger->trace("Uploading font ", font_id, " to GPU");
-
-            font->upload_to_device(engine->gpu_ctx, allocator);
-
-            engine->assets.fonts.insert(std::move(font_id), std::move(font))
-                .unwrap();
-
-            sem->increment(1);
-          },
-          async::Ready{}, TaskSchedule{.target = TaskTarget::Main});
-    });
-  }
-
-  while (!sem->is_completed())
-  {
-    scheduler->execute_main_thread_loop(1ms, 2ms);
-  }
-
-  engine->default_font_name = vec<char>(cfg.default_font, allocator).unwrap();
-  engine->default_font = engine->assets.fonts[engine->default_font_name].get();
-
-  engine->renderer.acquire(engine->gpu_ctx, engine->assets);
-
-  engine->device->submit_frame(nullptr).unwrap();
-
-  logger->trace("Engine Initialized");
+  return engine;
 }
 
-void Engine::uninit()
+void Engine::engage_(EngineCfg const & cfg)
 {
-  CHECK(engine != nullptr);
-  logger->trace("Uninitializing Engine");
-  engine->~Engine();
-  engine = nullptr;
-  logger->trace("Engine Uninitialized");
+  window_sys->listen(fn(
+    this, +[](Engine * engine, SystemEvent const & event) {
+      event.match(
+        [&](SystemTheme theme) {
+          InputState & f = engine->input_buffer;
+          f.theme        = theme;
+        },
+        [](SystemEventType) {});
+    }));
+
+  window_sys->listen(window, fn(this, window_event_listener));
+
+  Vec<AnyFuture> futures{allocator};
+
+  Vec<char> resolved_path{allocator};
+
+  for (auto & [label, path] : cfg.shaders)
+  {
+    resolved_path.clear();
+    path_join(working_dir, path, resolved_path).unwrap();
+    trace("Loading shader: {} from : {}", label, resolved_path);
+    futures.push(shader_sys.load_from_path(std::move(label), resolved_path))
+      .unwrap();
+  }
+
+  for (auto & [label, path] : cfg.fonts)
+  {
+    resolved_path.clear();
+    path_join(working_dir, path, resolved_path).unwrap();
+    trace("Loading font: {} from: {}", label, resolved_path);
+    futures
+      .push(font_sys->load_from_path(std::move(label), resolved_path,
+                                     cfg.font_height, 0))
+      .unwrap();
+  }
+
+  for (auto & [label, path] : cfg.images)
+  {
+    resolved_path.clear();
+    path_join(working_dir, path, resolved_path).unwrap();
+    trace("Loading image: {}  from: {}", label, resolved_path);
+    futures.push(image_sys.load_from_path(std::move(label), resolved_path))
+      .unwrap();
+  }
+
+  trace("Waiting for resources");
+  while (!await_futures(futures, 0ns))
+  {
+    gpu_sys.begin_frame(nullptr);
+    scheduler->run_main_loop(1ms, 1ms);
+    gpu_sys.submit_frame(nullptr);
+  }
+
+  trace("All resources loaded");
+
+  renderer.acquire();
 }
 
-Engine::~Engine()
+void Engine::shutdown()
 {
+  trace("Shutting down engine");
+
+  scheduler->shutdown();
+
+  renderer.release();
   device->wait_idle().unwrap();
+
+  device->uninit(swapchain);
+  swapchain = nullptr;
+
+  window_sys->uninit_window(window);
+  window = nullptr;
+  window_sys->shutdown();
+
+  shader_sys.shutdown();
+  font_sys->shutdown();
+  image_sys.shutdown();
+
+  Vec<u8> pipeline_cache{allocator};
+
+  gpu_sys.shutdown(pipeline_cache);
+
+  if (!pipeline_cache.is_empty())
+  {
+    write_to_file(pipeline_cache_path, pipeline_cache, false)
+      .match(
+        [&](Void) {
+          trace("Saved pipeline cache to: {}", pipeline_cache_path);
+        },
+        [&](IoErr err) {
+          error("Error {} writing pipeline cache to {}", err,
+                pipeline_cache_path);
+        });
+  }
+
   canvas.reset();
 
-  for (auto const & [_, shader] : assets.shaders)
-  {
-    device->uninit_shader(shader);
-  }
+  window_sys->shutdown();
+  shader_sys.shutdown();
+  font_sys->shutdown();
+  image_sys.shutdown();
 
-  assets.shaders.clear();
+  instance->uninit(device.ptr());
 
-  for (auto const & [_, font] : assets.fonts)
-  {
-    font->unload_from_device(gpu_ctx);
-  }
-
-  assets.fonts.clear();
-
-  renderer.release(gpu_ctx, assets);
-
-  gpu_ctx.uninit();
-
-  device->uninit_swapchain(swapchain);
-  window_system->uninit_window(window);
-  logger->trace("Uninitializing Window System");
-  WindowSystem::uninit();
-  instance->uninit_device(device);
+  trace("Engine Uninitialized");
 }
 
 void Engine::recreate_swapchain_()
 {
   gpu::SurfaceCapabilities capabilities =
-      device->get_surface_capabilities(surface).unwrap();
-  CHECK(
-      has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
-                                             gpu::ImageUsage::ColorAttachment));
+    device->get_surface_capabilities(surface).unwrap();
+  CHECK(has_bits(capabilities.image_usage, gpu::ImageUsage::TransferDst |
+                                             gpu::ImageUsage::ColorAttachment),
+        "");
 
   Vec<gpu::SurfaceFormat> formats{allocator};
   device->get_surface_formats(surface, formats).unwrap();
@@ -541,31 +553,31 @@ void Engine::recreate_swapchain_()
   Vec<gpu::PresentMode> present_modes{allocator};
   device->get_surface_present_modes(surface, present_modes).unwrap();
 
-  Vec2U surface_extent = window_system->get_surface_size(window);
+  Vec2U surface_extent = window_sys->get_surface_extent(window);
   surface_extent.x     = max(surface_extent.x, 1U);
   surface_extent.y     = max(surface_extent.y, 1U);
 
   gpu::ColorSpace preferred_color_spaces[] = {
-      gpu::ColorSpace::DCI_P3_NONLINEAR,
-      gpu::ColorSpace::DISPLAY_P3_NONLINEAR,
-      gpu::ColorSpace::DISPLAY_P3_LINEAR,
-      gpu::ColorSpace::ADOBERGB_LINEAR,
-      gpu::ColorSpace::ADOBERGB_NONLINEAR,
-      gpu::ColorSpace::SRGB_NONLINEAR,
-      gpu::ColorSpace::EXTENDED_SRGB_LINEAR,
-      gpu::ColorSpace::EXTENDED_SRGB_NONLINEAR,
-      gpu::ColorSpace::DOLBYVISION,
-      gpu::ColorSpace::HDR10_ST2084,
-      gpu::ColorSpace::HDR10_HLG,
-      gpu::ColorSpace::BT709_LINEAR,
-      gpu::ColorSpace::BT709_NONLINEAR,
-      gpu::ColorSpace::BT2020_LINEAR,
-      gpu::ColorSpace::PASS_THROUGH};
+    gpu::ColorSpace::DCI_P3_NONLINEAR,
+    gpu::ColorSpace::DISPLAY_P3_NONLINEAR,
+    gpu::ColorSpace::DISPLAY_P3_LINEAR,
+    gpu::ColorSpace::ADOBERGB_LINEAR,
+    gpu::ColorSpace::ADOBERGB_NONLINEAR,
+    gpu::ColorSpace::SRGB_NONLINEAR,
+    gpu::ColorSpace::EXTENDED_SRGB_LINEAR,
+    gpu::ColorSpace::EXTENDED_SRGB_NONLINEAR,
+    gpu::ColorSpace::DOLBYVISION,
+    gpu::ColorSpace::HDR10_ST2084,
+    gpu::ColorSpace::HDR10_HLG,
+    gpu::ColorSpace::BT709_LINEAR,
+    gpu::ColorSpace::BT709_NONLINEAR,
+    gpu::ColorSpace::BT2020_LINEAR,
+    gpu::ColorSpace::PASS_THROUGH};
 
   gpu::PresentMode preferred_present_modes[] = {
-      present_mode_preference, gpu::PresentMode::Immediate,
-      gpu::PresentMode::Mailbox, gpu::PresentMode::Fifo,
-      gpu::PresentMode::FifoRelaxed};
+    present_mode_preference, gpu::PresentMode::Immediate,
+    gpu::PresentMode::Mailbox, gpu::PresentMode::Fifo,
+    gpu::PresentMode::FifoRelaxed};
 
   bool               found_format = false;
   gpu::SurfaceFormat format;
@@ -583,7 +595,7 @@ void Engine::recreate_swapchain_()
     }
   }
 
-  CHECK(found_format);
+  CHECK(found_format, "");
 
   gpu::PresentMode present_mode       = gpu::PresentMode::Immediate;
   bool             found_present_mode = false;
@@ -598,7 +610,7 @@ void Engine::recreate_swapchain_()
     }
   }
 
-  CHECK(found_present_mode);
+  CHECK(found_present_mode, "");
 
   gpu::CompositeAlpha alpha             = gpu::CompositeAlpha::None;
   gpu::CompositeAlpha alpha_spec        = gpu::CompositeAlpha::Opaque;
@@ -621,7 +633,7 @@ void Engine::recreate_swapchain_()
                           .format = format,
                           .usage  = gpu::ImageUsage::TransferDst |
                                    gpu::ImageUsage::ColorAttachment,
-                          .preferred_buffering = gpu_ctx.buffering,
+                          .preferred_buffering = gpu_sys.buffering_,
                           .present_mode        = present_mode,
                           .preferred_extent    = surface_extent,
                           .composite_alpha     = alpha};
@@ -636,94 +648,123 @@ void Engine::recreate_swapchain_()
   }
 }
 
-void Engine::run(View & view, Fn<void(time_point, nanoseconds)> loop)
+void Engine::run(ui::View & view, ui::View & focus_view,
+                 Fn<void(InputState const &)> loop)
 {
-  logger->trace("Starting Engine Run Loop");
+  trace("Starting Engine Run Loop");
 
   if (swapchain == nullptr)
   {
     recreate_swapchain_();
   }
 
-  time_point timestamp = steady_clock::now();
+  time_point timestamp       = steady_clock::now();
+  bool       should_close    = false;
+  Cursor     cursor          = Cursor::Default;
+  bool       text_input_mode = false;
+  window_sys->set_cursor(cursor);
 
-  // [ ] remove !view_ctx.close_requested once we have proper cooperative shutdown
-  while (!should_shutdown && !view_ctx.close_requested)
+  while (!should_close)
   {
-    time_point const  current_time = steady_clock::now();
-    nanoseconds const time_delta   = current_time - timestamp;
-    timestamp                      = current_time;
+    ScopeTrace frame_trace{{"frame"_str}};
+    auto const frame_start = steady_clock::now();
+    auto const timedelta   = frame_start - timestamp;
+    timestamp              = frame_start;
 
-    view_ctx.swap_frame_state_();
-    auto & state = view_ctx.state_buffer;
+    input_buffer.clear();
+    input_buffer.stamp(timestamp, timedelta);
 
-    state.clear_frame_();
+    input_buffer.mouse.position =
+      window_sys->get_mouse_state(input_buffer.mouse.states);
+    window_sys->get_keyboard_state(input_buffer.key.states);
 
-    window_system->poll_events();
-
-    // [ ] EVENTS NEED TO BE UPDATED 1 FRAME LATER, NOT IMMEDIATELY AS RECEIVED
-
-    // [ ] get mouse position?
-
-    window_system->get_mouse_state(state.mouse.states);
-    window_system->get_keyboard_state(state.key.states);
-
-    gpu_ctx.begin_frame(swapchain);
-
-    if (view_ctx.resized || view_ctx.surface_resized)
     {
-      Vec2U const surface_size = window_system->get_surface_size(window);
-      gpu_ctx.recreate_framebuffers(surface_size);
+      ScopeTrace poll_trace{
+        {"frame.event_poll"_str, 0}
+      };
+      window_sys->poll_events();
     }
 
-    view_ctx.viewport_extent = as_vec2(gpu_ctx.screen_fb.extent);
+    Vec2U const surface_extent = window_sys->get_surface_extent(window);
+    Vec2U const window_extent  = window_sys->get_extent(window);
 
-    gpu::RenderingAttachment attachments[] = {
-        {.view         = gpu_ctx.screen_fb.color.view,
-         .resolve      = nullptr,
-         .resolve_mode = gpu::ResolveModes::None,
-         .load_op      = gpu::LoadOp::Load,
-         .store_op     = gpu::StoreOp::Store,
-         .clear        = {}}
-    };
+    input_buffer.window_extent  = window_extent;
+    input_buffer.surface_extent = surface_extent;
 
-    RenderTarget rt{
-        .info =
-            gpu::RenderingInfo{
-                               .render_area        = {.offset = {},
-                                       .extent = gpu_ctx.screen_fb.extent},
-                               .num_layers         = 1,
-                               .color_attachments  = attachments,
-                               .depth_attachment   = {},
-                               .stencil_attachment = {}},
-        .viewport           = gpu::Viewport{.offset = {0, 0},
-                               .extent = as_vec2(gpu_ctx.screen_fb.extent),
-                               .min_depth = 0,
-                               .max_depth = 1},
-        .extent             = gpu_ctx.screen_fb.extent,
-        .color_descriptor   = gpu_ctx.screen_fb.color_texture,
-        .depth_descriptor   = nullptr,
-        .stencil_descriptor = nullptr
-    };
+    if (input_buffer.resized || input_buffer.surface_resized)
+    {
+      gpu_sys.recreate_framebuffers(surface_extent);
+    }
 
-    view_ctx.begin_frame_(timestamp, time_delta);
+    ScopeTrace record_trace{{"frame.record"_str}};
+    gpu_sys.begin_frame(swapchain);
 
-    canvas.begin_recording(Vec2{(f32) rt.extent.x, (f32) rt.extent.y},
-                           rt.extent);
+    canvas.begin_recording(
+      gpu::Viewport{
+        .offset{0, 0},
+        .extent    = as_vec2(surface_extent),
+        .min_depth = 0,
+        .max_depth = 1
+    },
+      as_vec2(window_extent), surface_extent);
 
-    loop(timestamp, time_delta);
+    should_close = !view_sys.tick(input_buffer, view, focus_view, canvas, loop);
 
-    view_system.tick(view_ctx, view, canvas);
+    if (view_sys.cursor() != cursor)
+    {
+      window_sys->set_cursor(cursor);
+    }
+
+    auto input_info = view_sys.text_input();
+
+    if (input_info.is_some() && !text_input_mode)
+    {
+      window_sys->start_text_input(window, input_info.value());
+      text_input_mode = true;
+    }
+    else if (input_info.is_none() && text_input_mode)
+    {
+      window_sys->end_text_input(window);
+      text_input_mode = false;
+    }
 
     canvas.end_recording();
 
-    renderer.begin_frame(gpu_ctx, rt, canvas);
-    renderer.render_frame(gpu_ctx, rt, canvas);
-    renderer.end_frame(gpu_ctx, rt, canvas);
-    gpu_ctx.submit_frame(swapchain);
+    renderer.render_canvas(gpu_sys.fb_, canvas);
+    gpu_sys.submit_frame(swapchain);
+
+    auto const frame_end  = steady_clock::now();
+    auto const frame_time = frame_end - frame_start;
+
+    if (frame_time < min_frame_interval)
+    {
+      auto const sleep_dur = min_frame_interval - frame_time;
+      std::this_thread::sleep_for(sleep_dur);
+    }
   }
 
-  logger->trace("Ended Engine Run Loop");
+  trace("Ended Engine Run Loop");
 }
 
-}        // namespace ash
+Storage<Systems> systems_storage;
+
+void hook_engine(Engine * instance)
+{
+  if (instance == nullptr)
+  {
+    ash::logger    = nullptr;
+    ash::engine    = nullptr;
+    ash::scheduler = nullptr;
+    ash::sys       = nullptr;
+    return;
+  }
+
+  ash::logger    = instance->logger;
+  ash::engine    = instance;
+  ash::scheduler = instance->scheduler;
+  ash::sys = new (systems_storage.storage_) Systems{instance->get_systems()};
+}
+
+}    // namespace ash
+
+ash::Engine * ::ash::engine = nullptr;

@@ -38,40 +38,38 @@ struct AliasCount
   usize count_{0};
 
   /// @brief called before sharing an object
-  void alias()
+  /// @returns returns the old alias count
+  usize alias()
   {
     std::atomic_ref count{count_};
     usize           expected = 0;
     usize           desired  = 1;
-    while (!count.compare_exchange_weak(expected, desired,
-                                        std::memory_order_release,
-                                        std::memory_order_relaxed))
+    while (!count.compare_exchange_weak(
+      expected, desired, std::memory_order_release, std::memory_order_relaxed))
     {
-      CHECK(expected <= MAX);
+      CHECK(expected <= MAX, "");
       desired = expected + 1;
     }
+    return expected;
   }
 
   /// @brief called when done with an object.
-  /// returns true if it is the exclusive owner of the shared object.
-  /// subsequent calls to unalias() after it returns true will still return
-  /// true.
+  /// @brief returns the old alias count. If 0 then the resource is ready to be released.
   ///
   /// WARNING: if accompanied by a destructive reclamation procedure and
-  /// `unalias` is called again after it has already returned true, it will lead
+  /// `unalias` is called again after it has already returned 0, it will lead
   /// to a double-release (i.e. double-free).
-  [[nodiscard]] bool unalias()
+  [[nodiscard]] usize unalias()
   {
     usize           expected = 0;
     usize           desired  = 0;
     std::atomic_ref count{count_};
-    while (!count.compare_exchange_weak(expected, desired,
-                                        std::memory_order_release,
-                                        std::memory_order_relaxed))
+    while (!count.compare_exchange_weak(
+      expected, desired, std::memory_order_release, std::memory_order_relaxed))
     {
       desired = max((usize) 1, expected) - 1;
     }
-    return expected == 0;
+    return expected;
   }
 
   [[nodiscard]] usize count()
@@ -81,4 +79,4 @@ struct AliasCount
   }
 };
 
-}        // namespace ash
+}    // namespace ash

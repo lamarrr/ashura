@@ -9,12 +9,12 @@ struct Params
 {
   mat4x4 transform;
   vec4   eye_position;
-  vec4   albedo;        // only xyz
+  vec4   albedo;    // only xyz
   float  metallic;
   float  roughness;
   float  normal;
   float  occlusion;
-  vec4   emissive;        // only xyz
+  vec4   emissive;    // only xyz
   float  ior;
   float  clearcoat;
   float  clearcoat_roughness;
@@ -80,7 +80,7 @@ void main()
   Params p         = params[gl_InstanceIndex];
   uint   idx       = idx_buffer[gl_VertexIndex];
   Vertex vtx       = vtx_buffer[p.first_vertex + idx];
-  vec4   world_pos = p.transform * vec4(vtx.pos.xyz, 1);
+  vec4   world_pos = p.transform * vtx.pos;
   o_world_pos      = world_pos;
   o_uv             = vtx.uv;
   o_idx            = gl_InstanceIndex;
@@ -102,41 +102,41 @@ void main()
   vec3   albedo = texture(sampler2D(textures[nonuniformEXT(p.albedo_map)],
                                     samplers[nonuniformEXT(p.isampler)]),
                           i_uv)
-                    .rgb;
+                  .rgb;
   float metallic = texture(sampler2D(textures[nonuniformEXT(p.metallic_map)],
                                      samplers[nonuniformEXT(p.isampler)]),
                            i_uv)
-                       .r;
+                     .r;
   float roughness = texture(sampler2D(textures[nonuniformEXT(p.roughness_map)],
                                       samplers[nonuniformEXT(p.isampler)]),
                             i_uv)
-                        .r;
+                      .r;
   vec3 N = texture(sampler2D(textures[nonuniformEXT(p.normal_map)],
                              samplers[nonuniformEXT(p.isampler)]),
                    i_uv)
-               .rgb;
+             .rgb;
   float occlusion = texture(sampler2D(textures[nonuniformEXT(p.occlusion_map)],
                                       samplers[nonuniformEXT(p.isampler)]),
                             i_uv)
-                        .r;
+                      .r;
   vec3 emissive = texture(sampler2D(textures[nonuniformEXT(p.emissive_map)],
                                     samplers[nonuniformEXT(p.isampler)]),
                           i_uv)
-                      .rgb;
+                    .rgb;
   float clearcoat = texture(sampler2D(textures[nonuniformEXT(p.clearcoat_map)],
                                       samplers[nonuniformEXT(p.isampler)]),
                             i_uv)
-                        .r;
+                      .r;
   float clearcoat_roughness =
-      texture(sampler2D(textures[nonuniformEXT(p.clearcoat_roughness_map)],
-                        samplers[nonuniformEXT(p.isampler)]),
-              i_uv)
-          .r;
+    texture(sampler2D(textures[nonuniformEXT(p.clearcoat_roughness_map)],
+                      samplers[nonuniformEXT(p.isampler)]),
+            i_uv)
+      .r;
   vec3 clearcoat_normal =
-      texture(sampler2D(textures[nonuniformEXT(p.clearcoat_normal_map)],
-                        samplers[nonuniformEXT(p.isampler)]),
-              i_uv)
-          .rgb;
+    texture(sampler2D(textures[nonuniformEXT(p.clearcoat_normal_map)],
+                      samplers[nonuniformEXT(p.isampler)]),
+            i_uv)
+      .rgb;
 
   albedo *= p.albedo.xyz;
   metallic *= p.metallic;
@@ -174,23 +174,23 @@ void main()
     float         NoH   = dot(N, H);
     float         NoL   = clamp(dot(N, L), 0.0, 1.0);
     float         attenuation =
-        square_falloff_attenuation(Lu, 1 / max(light.radius, EPSILON)) *
-        spot_angle_attenuation(L, light.direction.xyz, light.inner_angle,
-                               light.outer_angle);
+      square_falloff_attenuation(Lu, 1 / max(light.radius, EPSILON)) *
+      spot_angle_attenuation(L, light.direction.xyz, light.inner_angle,
+                             light.outer_angle);
     vec3 irradiance   = light.intensity * attenuation * NoL * light.color.xyz;
     vec3 metal_brdf_v = metal_brdf(albedo, HoV, roughness, NoL, NoV, NoH, N, H);
     vec3 dielectric_v =
-        dielectric_brdf(albedo, roughness, NoL, NoV, NoH, N, H, HoV, ior);
+      dielectric_brdf(albedo, roughness, NoL, NoV, NoH, N, H, HoV, ior);
     vec3  radiance       = brdf(dielectric_v, metal_brdf_v, metallic);
     float clearcoat_brdf = specular_brdf(
-        clearcoat_roughness, dot(clearcoat_normal, L), dot(clearcoat_normal, V),
-        dot(clearcoat_normal, H), clearcoat_normal, H);
+      clearcoat_roughness, dot(clearcoat_normal, L), dot(clearcoat_normal, V),
+      dot(clearcoat_normal, H), clearcoat_normal, H);
     radiance = fresnel_coat(clearcoat_normal, ior, clearcoat, radiance,
                             vec3(clearcoat_brdf), dot(clearcoat_normal, V));
     luminance += radiance;
   }
 
-  // [ ] emissive bloom
+  // [ ] emissive bloom, separate channel?
   o_color = vec4(luminance, 1);
 }
 #endif

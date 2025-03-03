@@ -1,13 +1,12 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/std/format.h"
 #include <charconv>
-#include <string.h>
 
 namespace ash
 {
 
 template <typename IntT>
-bool push_int(fmt::Context const & ctx, fmt::Spec const & spec, IntT value)
+void format_int(fmt::Sink sink, fmt::Spec spec, IntT const & value)
 {
   int base = 0;
 
@@ -28,7 +27,7 @@ bool push_int(fmt::Context const & ctx, fmt::Spec const & spec, IntT value)
       base = 16;
     }
     break;
-    case fmt::Style::Bin:
+    case fmt::Style::Binary:
     {
       base = 1;
     }
@@ -40,212 +39,216 @@ bool push_int(fmt::Context const & ctx, fmt::Spec const & spec, IntT value)
     break;
   }
 
-  auto [ptr, ec] =
-      std::to_chars(ctx.scratch.pbegin(), ctx.scratch.pend(), value, base);
+  char scratch_[512];
+  Span scratch{scratch_};
+
+  auto [end, ec] = std::to_chars(scratch.pbegin(), scratch.pend(), value, base);
   if (ec != std::errc{})
   {
-    return false;
+    return;
   }
 
-  return ctx.push(
-      Span{ctx.scratch.pbegin(), (usize) (ptr - ctx.scratch.pbegin())});
+  sink({scratch_, end});
 }
 
-template <typename FloatT>
-bool push_float(fmt::Context const & ctx, fmt::Spec const & spec, FloatT value)
+void format_float(fmt::Sink sink, fmt::Spec spec, f64 value)
 {
-  std::chars_format format = std::chars_format::general;
-  switch (spec.style)
-  {
-    case fmt::Style::General:
-      format = std::chars_format::general;
-      break;
-    case fmt::Style::Scientific:
-      format = std::chars_format::scientific;
-      break;
-    default:
-      format = std::chars_format::general;
-      break;
-  }
+  char  scratch_[512];
+  Span  scratch{scratch_};
+  usize written = 0;
 
-  std::to_chars_result result{};
-  if (spec.precision > 0)
+  if (spec.precision != fmt::NONE_PRECISION)
   {
-    result = std::to_chars(ctx.scratch.pbegin(), ctx.scratch.pend(), value,
-                           format, spec.precision);
+    if (int status =
+          snprintf(scratch.data(), scratch.size(),
+                   (spec.style == fmt::Style::Scientific) ? "%.*f" : "%.*g",
+                   (int) spec.precision, value);
+        status > 0)
+    {
+      written = (usize) status;
+    }
   }
   else
   {
-    result =
-        std::to_chars(ctx.scratch.pbegin(), ctx.scratch.pend(), value, format);
+    if (int status = snprintf(
+          scratch.data(), scratch.size(),
+          (spec.style == fmt::Style::Scientific) ? "%.f" : "%.g", value);
+        status > 0)
+    {
+      written = (usize) status;
+    }
   }
 
-  if (result.ec == std::errc{})
-  {
-    return ctx.push(Span{ctx.scratch.pbegin(),
-                         (usize) (result.ptr - ctx.scratch.pbegin())});
-  }
-  return false;
+  sink({scratch_, written});
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const &, bool value)
+}    // namespace ash
+
+void ash::format(fmt::Sink sink, fmt::Spec, bool const & value)
 {
-  return ctx.push(value ? "true"_str : "false"_str);
+  sink(value ? "true"_str : "false"_str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec, u8 value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, u8 const & value)
 {
-  return push_int(ctx, spec, value);
+  format_int(sink, spec, value);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec, u16 value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, u16 const & value)
 {
-  return push_int(ctx, spec, value);
+  format_int(sink, spec, value);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec, u32 value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, u32 const & value)
 {
-  return push_int(ctx, spec, value);
+  format_int(sink, spec, value);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec, u64 value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, u64 const & value)
 {
-  return push_int(ctx, spec, value);
+  format_int(sink, spec, value);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec, i8 value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, i8 const & value)
 {
-  return push_int(ctx, spec, value);
+  format_int(sink, spec, value);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec, i16 value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, i16 const & value)
 {
-  return push_int(ctx, spec, value);
+  format_int(sink, spec, value);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec, i32 value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, i32 const & value)
 {
-  return push_int(ctx, spec, value);
+  format_int(sink, spec, value);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec, i64 value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, i64 const & value)
 {
-  return push_int(ctx, spec, value);
+  format_int(sink, spec, value);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec, f32 value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, f32 const & value)
 {
-  return push_float(ctx, spec, value);
+  format_float(sink, spec, value);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec, f64 value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, f64 const & value)
 {
-  return push_float(ctx, spec, value);
+  format_float(sink, spec, value);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec,
-               Vec2 const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, Vec2 const & value)
 {
-  return push(ctx, spec, "Vec2{") && push(ctx, spec, value.x) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
-         push(ctx, spec, "}");
+  sink("Vec2{"_str);
+  format(sink, spec, value.x);
+  sink(", "_str);
+  format(sink, spec, value.y);
+  sink("}"_str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec,
-               Vec3 const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, Vec3 const & value)
 {
-  return push(ctx, spec, "Vec3{") && push(ctx, spec, value.x) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
-         push(ctx, spec, "}");
+  sink("Vec3{"_str);
+  format(sink, spec, value.x);
+  sink(", "_str);
+  format(sink, spec, value.y);
+  sink(", "_str);
+  format(sink, spec, value.z);
+  sink("}"_str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec,
-               Vec4 const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, Vec4 const & value)
 {
-  return push(ctx, spec, "Vec4{") && push(ctx, spec, value.x) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.w) &&
-         push(ctx, spec, "}");
+  sink("Vec4{"_str);
+  format(sink, spec, value.x);
+  sink(", "_str);
+  format(sink, spec, value.y);
+  sink(", "_str);
+  format(sink, spec, value.z);
+  sink(", "_str);
+  format(sink, spec, value.w);
+  sink("}"_str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec,
-               Vec2I const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, Vec2I const & value)
 {
-  return push(ctx, spec, "Vec2I{") && push(ctx, spec, value.x) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
-         push(ctx, spec, "}");
+  sink("Vec2I{"_str);
+  format(sink, spec, value.x);
+  sink(", "_str);
+  format(sink, spec, value.y);
+  sink("}"_str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec,
-               Vec3I const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, Vec3I const & value)
 {
-  return push(ctx, spec, "Vec3I{") && push(ctx, spec, value.x) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
-         push(ctx, spec, "}");
+  sink("Vec3I{"_str);
+  format(sink, spec, value.x);
+  sink(", "_str);
+  format(sink, spec, value.y);
+  sink(", "_str);
+  format(sink, spec, value.z);
+  sink("}"_str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec,
-               Vec4I const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, Vec4I const & value)
 {
-  return push(ctx, spec, "Vec4I{") && push(ctx, spec, value.x) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.w) &&
-         push(ctx, spec, "}");
+  sink("Vec4I{"_str);
+  format(sink, spec, value.x);
+  sink(", "_str);
+  format(sink, spec, value.y);
+  sink(", "_str);
+  format(sink, spec, value.z);
+  sink(", "_str);
+  format(sink, spec, value.w);
+  sink("}"_str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec,
-               Vec2U const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, Vec2U const & value)
 {
-  return push(ctx, spec, "Vec2I{") && push(ctx, spec, value.x) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
-         push(ctx, spec, "}");
+  sink("Vec2U{"_str);
+  format(sink, spec, value.x);
+  sink(", "_str);
+  format(sink, spec, value.y);
+  sink("}"_str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec,
-               Vec3U const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, Vec3U const & value)
 {
-  return push(ctx, spec, "Vec3U{") && push(ctx, spec, value.x) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
-         push(ctx, spec, "}");
+  sink("Vec3U{"_str);
+  format(sink, spec, value.x);
+  sink(", "_str);
+  format(sink, spec, value.y);
+  sink(", "_str);
+  format(sink, spec, value.z);
+  sink("}"_str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec,
-               Vec4U const & value)
+void ash::format(fmt::Sink sink, fmt::Spec spec, Vec4U const & value)
 {
-  return push(ctx, spec, "Vec4U{") && push(ctx, spec, value.x) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.y) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.z) &&
-         push(ctx, spec, ", ") && push(ctx, spec, value.w) &&
-         push(ctx, spec, "}");
+  sink("Vec4U{"_str);
+  format(sink, spec, value.x);
+  sink(", "_str);
+  format(sink, spec, value.y);
+  sink(", "_str);
+  format(sink, spec, value.z);
+  sink(", "_str);
+  format(sink, spec, value.w);
+  sink("}"_str);
 }
 
-bool fmt::push(fmt::Context const &, fmt::Spec & spec, fmt::Spec const & value)
+void ash::format(fmt::Sink sink, fmt::Spec, Span<char const> const & str)
 {
-  spec = value;
-  return true;
+  sink(str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const &,
-               Span<char const>     str)
+void ash::format(fmt::Sink sink, fmt::Spec, Span<char> const & str)
 {
-  return ctx.push(str);
+  sink(str);
 }
 
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const & spec,
-               char const * str)
+void ash::format(fmt::Sink sink, fmt::Spec, void const * const & ptr)
 {
-  return push(ctx, spec, Span<char const>{str, strlen(str)});
+  format_int(sink, fmt::Spec{.style = fmt::Style::Hex}, (uptr) ptr);
 }
-
-bool fmt::push(fmt::Context const & ctx, fmt::Spec const &, void const * ptr)
-{
-  Spec const ptr_spec{.style = Style::Hex};
-  return ctx.push("0x"_str) && push_int(ctx, ptr_spec, (uptr) ptr);
-}
-
-}        // namespace ash

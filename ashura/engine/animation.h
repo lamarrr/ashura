@@ -121,6 +121,109 @@ inline Easing spring(f32 mass, f32 stiffness, f32 damping)
   }};
 }
 
+inline Easing in_cubic()
+{
+  return Easing{[](f32 t) { return t * t * t; }};
+}
+
+inline Easing out_cubic()
+{
+  return Easing{[](f32 t) { return 1 - pow3(1 - t); }};
+}
+
+inline Easing in_out_cubic()
+{
+  return Easing{[](f32 t) {
+    return t < 0.5F ? 4 * t * t * t : 1 - pow3(-2 * t + 2) * 0.5F;
+  }};
+}
+
+inline Easing in_quart()
+{
+  return Easing{[](f32 t) { return pow4(t); }};
+}
+
+inline Easing out_quart()
+{
+  return Easing{[](f32 t) { return 1 - pow4(1 - t); }};
+}
+
+inline Easing in_out_quart()
+{
+  return Easing{
+    [](f32 t) { return t < 0.5F ? 8 * pow4(t) : 1 - pow4(-2 * t + 2) * 0.5F; }};
+}
+
+inline Easing in_quint()
+{
+  return Easing{[](f32 t) { return pow5(t); }};
+}
+
+inline Easing out_quint()
+{
+  return Easing{[](f32 t) { return 1 - pow5(1 - t); }};
+}
+
+inline Easing in_out_quint()
+{
+  return Easing{[](f32 t) {
+    return t < 0.5F ? 16 * t * t * t * t * t : 1 - pow5(-2 * t + 2) * 0.5F;
+  }};
+}
+
+inline Easing in_sine()
+{
+  return Easing{[](f32 t) { return 1 - cos(t * PI * 0.5F); }};
+}
+
+inline Easing out_sine()
+{
+  return Easing{[](f32 t) { return sin(t * PI * 0.5F); }};
+}
+
+inline Easing in_out_sine()
+{
+  return Easing{[](f32 t) { return -(cos(PI * t) - 1) * 0.5F; }};
+}
+
+inline Easing in_expo()
+{
+  return Easing{[](f32 t) { return t == 0 ? 0 : powf(2, 10 * t - 10); }};
+}
+
+inline Easing out_expo()
+{
+  return Easing{[](f32 t) { return t == 1 ? 1 : 1 - powf(2, -10 * t); }};
+}
+
+inline Easing in_out_expo()
+{
+  return Easing{[](f32 t) {
+    return t == 0  ? 0 :
+           t == 1  ? 1 :
+           t < 0.5 ? powf(2, 20 * t - 10) * 0.5F :
+                     (2 - powf(2, -20 * t + 10)) * 0.5F;
+  }};
+}
+
+inline Easing in_circ()
+{
+  return Easing{[](f32 t) { return 1 - sqrt(1 - pow2(t)); }};
+}
+
+inline Easing out_circ()
+{
+  return Easing{[](f32 t) { return sqrt(1 - pow2(t - 1)); }};
+}
+
+inline Easing in_out_circ()
+{
+  return Easing{[](f32 t) {
+    return t < 0.5F ? (1 - sqrt(1 - pow2(2 * t))) * 0.5F :
+                      (sqrt(1 - pow2(-2 * t + 2)) + 1) * 0.5F;
+  }};
+}
+
 };    // namespace easing
 
 template <typename T>
@@ -244,8 +347,8 @@ struct Timeline
   Timeline & key_frame(Span<T> frames, Span<nanoseconds const> durations,
                        Span<Easing> easings)
   {
-    CHECK(frames.size() == (durations.size() * 2));
-    CHECK(durations.size() == easings.size());
+    CHECK(frames.size() == (durations.size() * 2), "");
+    CHECK(durations.size() == easings.size(), "");
 
     if (timestamps_.is_empty()) [[unlikely]]
     {
@@ -398,7 +501,7 @@ struct AnimationState
   template <typename T>
   T animate(TimelineView<T> const & timeline)
   {
-    CHECK(!timeline.is_empty());
+    CHECK(!timeline.is_empty(), "");
 
     /// add 1ns so result of modulo operation would be between 0ns and timeline-duration
     auto const timeline_end = timeline.duration() + 1ns;
@@ -412,7 +515,7 @@ struct AnimationState
     // search to get current timepoint in the timeline)
     Span const span = binary_find(timestamps.slice(1), geq, time);
 
-    CHECK(!span.is_empty());
+    CHECK(!span.is_empty(), "");
 
     u64 const end_idx = static_cast<u64>(span.pbegin() - timestamps.pbegin());
 
@@ -758,7 +861,7 @@ struct StaggeredAnimation
 
   AnimationState & state(u64 item)
   {
-    CHECK(states_.size64() > item);
+    CHECK(states_.size64() > item, "");
     return states_[item];
   }
 
@@ -773,7 +876,7 @@ struct StaggeredAnimation
 
   Tuple<T...> animate(u64 item)
   {
-    CHECK(states_.size64() > item);
+    CHECK(states_.size64() > item, "");
 
     AnimationState & state = states_[item];
 

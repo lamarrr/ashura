@@ -20,30 +20,15 @@ constexpr hash64 hash_combine_n(hash64 hash_a, H... hash_b)
 
 hash64 hash_bytes(Span<u8 const> bytes, hash64 seed = 0);
 
-struct StrHasher
+struct SpanHash
 {
-  hash64 operator()(Span<char const> str) const
+  hash64 operator()(auto const & range) const
   {
-    return hash_bytes(str.as_u8());
-  }
-
-  hash64 operator()(Span<c8 const> str) const
-  {
-    return hash_bytes(str.as_u8());
-  }
-
-  hash64 operator()(Span<c16 const> str) const
-  {
-    return hash_bytes(str.as_u8());
-  }
-
-  hash64 operator()(Span<c32 const> str) const
-  {
-    return hash_bytes(str.as_u8());
+    return hash_bytes(span(range).as_u8());
   }
 };
 
-struct BitHasher
+struct BitHash
 {
   template <typename T>
   hash64 operator()(T const & a) const
@@ -52,7 +37,7 @@ struct BitHasher
   }
 };
 
-struct IdentityHasher
+struct IdentityHash
 {
   constexpr hash64 operator()(u8 a) const
   {
@@ -105,8 +90,8 @@ struct IdentityHasher
   }
 };
 
-inline constexpr StrHasher      str_hash;
-inline constexpr BitHasher      bit_hash;
-inline constexpr IdentityHasher identity_hash;
+inline constexpr SpanHash     span_hash;
+inline constexpr BitHash      bit_hash;
+inline constexpr IdentityHash identity_hash;
 
-}        // namespace ash
+}    // namespace ash

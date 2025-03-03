@@ -8,7 +8,7 @@
 namespace ash
 {
 
-enum class ShaderType : u8
+enum class ShaderType : u32
 {
   Compute  = 0,
   Vertex   = 1,
@@ -16,34 +16,35 @@ enum class ShaderType : u8
   Mesh     = 3
 };
 
-enum class ShaderCompileError : i32
+enum class ShaderLoadErr : u32
 {
-  None                  = 0,
-  OutOfMemory           = 1,
-  IOError               = 2,
+  OutOfMemory           = 0,
+  InvalidPath           = 1,
+  IOErr                 = 2,
   CompileFailed         = 3,
   LinkFailed            = 4,
   SpirvConversionFailed = 5,
-  InitError             = 6
+  InitErr               = 6
 };
 
-ShaderCompileError
-    compile_shader(Logger & logger, Vec<u32> & spirv, Span<char const> file,
-                   ShaderType type, Span<char const> preamble,
-                   Span<char const>             entry_point,
-                   Span<Span<char const> const> system_directories,
-                   Span<Span<char const> const> local_directories);
-
-struct ShaderUnit
+struct ShaderCompileInfo
 {
-  Span<char const> id       = {};
-  Span<char const> file     = {};
-  Span<char const> preamble = {};
+  ShaderType type = ShaderType::Compute;
+
+  Span<char const> path{};
+
+  Span<char const> preamble{};
+
+  Fn<void(LogLevel, Span<char const>)> on_log = noop;
+
+  Fn<Option<Span<char const>>(Span<char const>)> on_load =
+    [](Span<char const>) -> Option<Span<char const>> { return none; };
+
+  Fn<void(Span<char const>)> on_drop = noop;
 };
 
-ShaderCompileError
-    pack_shaders(Vec<Tuple<Span<char const>, Vec<u32>>> & compiled,
-                 Span<ShaderUnit const>                   entries,
-                 Span<char const>                         root_directory);
+Result<Void, ShaderLoadErr> compile_shader(ShaderCompileInfo const & info,
+                                           Vec<u32> &                spirv,
+                                           AllocatorRef              allocator);
 
-}        // namespace ash
+}    // namespace ash
