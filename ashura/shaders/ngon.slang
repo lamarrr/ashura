@@ -1,27 +1,32 @@
 /// SPDX-License-Identifier: MIT
 
-import "modules/core.slang";
+#pragma once
+#include "modules/core.slang"
+#include "modules/types.slang"
 
-struct Params
+struct NgonParam
 {
-  row_major float4x4 transform;
-  float4             tint[4];
-  float4             uv;
-  float              tiling;
-  uint32_t           sampler;
-  uint32_t           albedo;
-  uint32_t           first_index;
-  uint32_t           first_vertex;
+  row_major f32x4x4 transform;
+  f32x4             tint[4];
+  f32x4             uv;
+  f32               tiling;
+  u16               sampler;
+  u16               albedo;
+  u32               first_index;
+  u32               first_vertex;
 };
 
+[[vk::push_constant]]
+f32x4x4 world_to_view;
+
 [[vk::binding(0, 0)]]
-StructuredBuffer<float2> vtx_buffer;
+StructuredBuffer<f32x2> vtx_buffer;
 
 [[vk::binding(1, 0)]]
-StructuredBuffer<uint32_t> idx_buffer;
+StructuredBuffer<u32> idx_buffer;
 
 [[vk::binding(2, 0)]]
-StructuredBuffer<Params> params;
+StructuredBuffer<NgonParam> params;
 
 [[vk::binding(3, 0)]]
 SamplerState samplers[];
@@ -29,36 +34,32 @@ SamplerState samplers[];
 [[vk::binding(4, 0)]]
 Texture2D textures[];
 
-[[vk::push_constant]]
-float4x4 world_to_view;
-
 struct VertexOutput
 {
-  nointerpolation uint32_t instance : INSTANCE_ID;
-  float2                   uv : UV_COORD;
-  float4                   position : SV_Position;
+  nointerpolation u32 instance : INSTANCE_ID;
+  f32x2               uv : UV_COORD;
+  f32x4               position : SV_Position;
 };
 
 [[shader("vertex")]]
-VertexOutput vs_main(uint32_t instance_idx : SV_InstanceID,
-                     uint32_t vertex_idx : SV_VertexID)
+VertexOutput vs_main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
 {
-  Params   p   = params[instance_idx];
-  uint32_t idx = idx_buffer[p.first_index + vertex_idx];
-  float2   pos = vtx_buffer[p.first_vertex + idx];
+  var p   = params[instance];
+  var idx = idx_buffer[p.first_index + vertex];
+  var pos = vtx_buffer[p.first_vertex + idx];
   return VertexOutput(
-    instance_idx, pos + 0.5,
-    mul(world_to_view, mul(p.transform, float4(pos, 0.0, 1.0))));
+    instance, pos + 0.5,
+    mul(world_to_view, mul(p.transform, f32x4(pos, 0.0, 1.0))));
 }
 
 [[shader("fragment")]]
-float4 main(nointerpolation uint32_t i_idx : INSTANCE_ID,
-            float2                   i_uv : UV_COORD) :
+f32x4 main(nointerpolation u32 instance : INSTANCE_ID, f32x2 uv : UV_COORD) :
   COLOR
 {
-  Params p      = params[i_idx];
-  float2 tex_uv = lerp(p.uv.xy, p.uv.zw, i_uv);
-  return bilerp(p.tint, i_uv) *
-         textures[NonUniformResourceIndex(p.albedo)].Sample(
-           samplers[NonUniformResourceIndex(p.sampler)], tex_uv * p.tiling);
+  var p      = params[instance];
+  var tex_uv = lerp(p.uv.xy, p.uv.zw, uv);
+  return bilerp(p.tint, uv) *
+         textures[NonUniformResourceIndex((uint) p.albedo)].Sample(
+           samplers[NonUniformResourceIndex((uint) p.sampler)],
+           tex_uv * p.tiling);
 }

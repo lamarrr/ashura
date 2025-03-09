@@ -2,21 +2,23 @@
 
 #pragma once
 
-static constexpr float PI      = 3.1415926535897932384626433832795;
-static constexpr float GAMMA   = 2.2;
-static constexpr float EPSILON = 0.00000011920929;
+#include "types.slang"
 
-float3 pow_v(float3 v, float p)
+static constexpr f32 PI      = 3.1415926535897932384626433832795;
+static constexpr f32 GAMMA   = 2.2;
+static constexpr f32 EPSILON = 0.00000011920929;
+
+f32x3 pow_v(f32x3 v, f32 p)
 {
-  return float3(pow(v.x, p), pow(v.y, p), pow(v.z, p));
+  return f32x3(pow(v.x, p), pow(v.y, p), pow(v.z, p));
 }
 
-float3 to_linear(float3 v)
+f32x3 to_linear(f32x3 v)
 {
   return pow_v(v, GAMMA);
 }
 
-float3 to_srgb(float3 v)
+f32x3 to_srgb(f32x3 v)
 {
   return pow_v(v, 1.0 / GAMMA);
 }

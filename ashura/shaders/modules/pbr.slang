@@ -2,7 +2,8 @@
 
 #pragma once
 
-import "core.slang";
+#include "core.slang"
+#include "types.slang"
 
 // GLTF-PBR,
 // SEE:https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#complete-model
@@ -15,59 +16,58 @@ import "core.slang";
 // https://google.github.io/filament/Filament.html#materialsystem/specularbrdf
 // https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/
 //
-float3 conductor_fresnel(float3 albedo, float3 bsdf, float HoV)
+f32x3 conductor_fresnel(f32x3 albedo, f32x3 bsdf, f32 HoV)
 {
   return bsdf * (albedo + (1 - albedo) * pow(1 - abs(HoV), 5));
 }
 
-float d_GGX(float roughness, float NoH, float3 N, float3 H)
+f32 d_GGX(f32 roughness, f32 NoH, f32x3 N, f32x3 H)
 {
-  float a = NoH * roughness;
-  float k = roughness / (1.0 - NoH * NoH + a * a);
+  f32 a = NoH * roughness;
+  f32 k = roughness / (1.0 - NoH * NoH + a * a);
   return k * k * (1.0 / PI);
 }
 
-float v_SmithGGXCorrelatedFast(float roughness, float NoV, float NoL)
+f32 v_SmithGGXCorrelatedFast(f32 roughness, f32 NoV, f32 NoL)
 {
-  float GGXV = NoL * (NoV * (1.0 - roughness) + roughness);
-  float GGXL = NoV * (NoL * (1.0 - roughness) + roughness);
+  f32 GGXV = NoL * (NoV * (1.0 - roughness) + roughness);
+  f32 GGXL = NoV * (NoL * (1.0 - roughness) + roughness);
   return 0.5 / (GGXV + GGXL);
 }
 
-float specular_brdf(float roughness, float NoL, float NoV, float NoH, float3 N,
-                    float3 H)
+f32 specular_brdf(f32 roughness, f32 NoL, f32 NoV, f32 NoH, f32x3 N, f32x3 H)
 {
-  float V = v_SmithGGXCorrelatedFast(roughness, NoL, NoV);
-  float D = d_GGX(roughness, NoH, N, H);
+  f32 V = v_SmithGGXCorrelatedFast(roughness, NoL, NoV);
+  f32 D = d_GGX(roughness, NoH, N, H);
   return V * D;
 }
 
-float3 diffuse_brdf(float3 albedo)
+f32x3 diffuse_brdf(f32x3 albedo)
 {
   return (1 / PI) * albedo;
 }
 
-float3 metal_brdf(float3 albedo, float HoV, float roughness, float NoL,
-                  float NoV, float NoH, float3 N, float3 H)
+f32x3 metal_brdf(f32x3 albedo, f32 HoV, f32 roughness, f32 NoL, f32 NoV,
+                 f32 NoH, f32x3 N, f32x3 H)
 {
   return conductor_fresnel(
-    albedo, float3(specular_brdf(roughness, NoL, NoV, NoH, N, H)), HoV);
+    albedo, f32x3(specular_brdf(roughness, NoL, NoV, NoH, N, H)), HoV);
 }
 
-float3 fresnel_mix(float3 albedo, float3 layer, float HoV, float ior)
+f32x3 fresnel_mix(f32x3 albedo, f32x3 layer, f32 HoV, f32 ior)
 {
-  float f0 = pow((1 - ior) / (1 + ior), 2);
-  float fr = f0 + (1 - f0) * pow(1 - abs(HoV), 5);
+  f32 f0 = pow((1 - ior) / (1 + ior), 2);
+  f32 fr = f0 + (1 - f0) * pow(1 - abs(HoV), 5);
   return lerp(albedo, layer, fr);
 }
 
 // ior - index of refraction: 1.5 default
 // roughness = perceptualRoughness * perceptualRoughness
-float3 dielectric_brdf(float3 albedo, float roughness, float NoL, float NoV,
-                       float NoH, float3 N, float3 H, float HoV, float ior)
+f32x3 dielectric_brdf(f32x3 albedo, f32 roughness, f32 NoL, f32 NoV, f32 NoH,
+                      f32x3 N, f32x3 H, f32 HoV, f32 ior)
 {
   return fresnel_mix(diffuse_brdf(albedo),
-                     float3(specular_brdf(roughness, NoL, NoV, NoH, N, H)), HoV,
+                     f32x3(specular_brdf(roughness, NoL, NoV, NoH, N, H)), HoV,
                      ior);
 }
 
@@ -75,18 +75,18 @@ float3 dielectric_brdf(float3 albedo, float roughness, float NoL, float NoV,
 /// material = brdf(dielectric, metal_brdf, metal_factor)
 /// clearcoat_brdf = specular_brdf(normal, r*r)
 /// coated_material = fresnel_coat(....)
-float3 fresnel_coat(float3 clearcoat_normal, float ior, float coat_weight,
-                    float3 base_material, float3 layer, float NoV)
+f32x3 fresnel_coat(f32x3 clearcoat_normal, f32 ior, f32 coat_weight,
+                   f32x3 base_material, f32x3 layer, f32 NoV)
 {
-  float f0 = pow((1 - ior) / (1 + ior), 2);
-  float fr = f0 + (1 - f0) * pow(1 - abs(NoV), 5);    // N = normal
+  f32 f0 = pow((1 - ior) / (1 + ior), 2);
+  f32 fr = f0 + (1 - f0) * pow(1 - abs(NoV), 5);    // N = normal
   return lerp(base_material, layer, coat_weight * fr);
 }
 
 /// this is the base BRDF model
 /// all extensions affect either of these 3 components, appending or prepending
 /// or intercepting their values
-float3 brdf(float3 dielectric_brdf, float3 metal_brdf, float metallic)
+f32x3 brdf(f32x3 dielectric_brdf, f32x3 metal_brdf, f32 metallic)
 {
   return lerp(dielectric_brdf, metal_brdf, metallic);
 }

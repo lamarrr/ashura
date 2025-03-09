@@ -1,18 +1,19 @@
 /// SPDX-License-Identifier: MIT
 
-import "modules/kawase.slang";
+#include "modules/kawase.slang"
+#include "modules/types.slang"
 
 /// @param radius relative to texture dimensions
-struct Params
+struct BlurParam
 {
-  float2   uv[2];
-  float2   radius;
-  uint32_t sampler;
-  uint32_t tex;
+  f32x2 uv[2];
+  f32x2 radius;
+  u16   sampler;
+  u16   tex;
 };
 
 [[vk::push_constant]]
-Params p;
+BlurParam p;
 
 [[vk::binding(0, 0)]]
 SamplerState samplers[];
@@ -20,38 +21,38 @@ SamplerState samplers[];
 [[vk::binding(1, 0)]]
 Texture2D textures[];
 
-static constexpr float2 VERTEX_BUFFER[] = {
-  float2(-0.5, -0.5), float2(0.5, -0.5), float2(0.5, 0.5), float2(-0.5, 0.5)};
+static constexpr f32x2 VERTEX_BUFFER[] = {f32x2(-0.5, -0.5), f32x2(0.5, -0.5),
+                                          f32x2(0.5, 0.5), f32x2(-0.5, 0.5)};
 
 struct VertexOutput
 {
-  float4 position : SV_Position;
-  float2 uv : UV_COORD;
+  f32x2 uv : UV_COORD;
+  f32x4 position : SV_Position;
 };
 
 [[shader("vertex")]]
 VertexOutput vs_main(uint32_t vertex_idx : SV_VertexID)
 {
-  float2 i_pos = VERTEX_BUFFER[vertex_idx];
-  return VertexOutput(float4(i_pos * 2, 0, 1), i_pos + 0.5);
+  f32x2 local_pos = VERTEX_BUFFER[vertex_idx];
+  return VertexOutput(local_pos + 0.5, f32x4(local_pos * 2, 0, 1));
 }
 
 [[shader("fragment")]]
-float4 fs_upsample_main(float2 i_uv : UV_COORD) :
+f32x4 fs_upsample_main(f32x2 uv : UV_COORD) :
   COLOR
 {
-  float2 src_uv = lerp(p.uv[0], p.uv[1], i_uv);
-  return upsample_clamped(samplers[NonUniformResourceIndex(p.sampler)],
-                          textures[NonUniformResourceIndex(p.tex)], src_uv,
-                          p.radius, p.uv[0], p.uv[1]);
+  var tex_uv = lerp(p.uv[0], p.uv[1], uv);
+  return upsample_clamped(samplers[NonUniformResourceIndex((uint) p.sampler)],
+                          textures[NonUniformResourceIndex((uint) p.tex)],
+                          tex_uv, p.radius, p.uv[0], p.uv[1]);
 }
 
 [[shader("fragment")]]
-float4 fs_downsample_main(float2 i_uv : UV_COORD) :
+f32x4 fs_downsample_main(f32x2 uv : UV_COORD) :
   COLOR
 {
-  float2 src_uv = lerp(p.uv[0], p.uv[1], i_uv);
-  return downsample_clamped(samplers[NonUniformResourceIndex(p.sampler)],
-                            textures[NonUniformResourceIndex(p.tex)], src_uv,
-                            p.radius, p.uv[0], p.uv[1]);
+  var tex_uv = lerp(p.uv[0], p.uv[1], uv);
+  return downsample_clamped(samplers[NonUniformResourceIndex((uint) p.sampler)],
+                            textures[NonUniformResourceIndex((uint) p.tex)],
+                            tex_uv, p.radius, p.uv[0], p.uv[1]);
 }
