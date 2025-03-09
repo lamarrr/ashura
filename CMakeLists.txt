@@ -211,10 +211,10 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/google/googletest.git
   GIT_TAG 0bdccf4)
 
-# FetchContent_Declare(
-#   slang
-#   GIT_REPOSITORY https://github.com/shader-slang/slang.git
-#   GIT_TAG ${ASH_VULKAN_SDK_VERSION})
+FetchContent_Declare(
+  slang
+  GIT_REPOSITORY https://github.com/shader-slang/slang.git
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
 
 find_package(FFMPEG REQUIRED)
 find_package(JPEG REQUIRED)
@@ -235,7 +235,7 @@ FetchContent_MakeAvailable(fast_float)
 FetchContent_MakeAvailable(simdjson)
 FetchContent_MakeAvailable(libpng)
 FetchContent_MakeAvailable(gtest)
-# FetchContent_MakeAvailable(slang)
+FetchContent_MakeAvailable(slang)
 
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
 set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)
@@ -378,8 +378,7 @@ add_library(
 target_link_libraries(
   ashura_engine
   PUBLIC ashura_std ashura_gpu
-  PRIVATE 
-  # slang
+  PRIVATE slang
           SDL3::SDL3-static
           harfbuzz
           CURL::libcurl

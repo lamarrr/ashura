@@ -3014,7 +3014,7 @@ VkResult Device::recreate_swapchain(Swapchain * swapchain)
       .states              = {},
       .num_aspects         = 1
     };
-    swapchain->images[i] = (gpu::Image) (swapchain->image_impls + i);
+    swapchain->images[i] = (gpu::Image)(swapchain->image_impls + i);
   }
 
   set_resource_name(swapchain->info.label, new_vk_swapchain,
