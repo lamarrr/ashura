@@ -16,15 +16,14 @@ struct Arena final : Allocator
   u8 *  end;
   u8 *  offset;
   usize alignment;
-  // usize allocated;
+  usize allocated;
 
   constexpr Arena() :
     begin{nullptr},
     end{nullptr},
     offset{nullptr},
-    alignment{1}
-    // ,
-    // allocated{0}
+    alignment{1},
+    allocated{0}
   {
   }
 
@@ -32,9 +31,8 @@ struct Arena final : Allocator
     begin{begin},
     end{end},
     offset{begin},
-    alignment{alignment}
-    // ,
-    // allocated{0}
+    alignment{alignment},
+    allocated{0}
   {
   }
 
@@ -67,16 +65,16 @@ struct Arena final : Allocator
   constexpr void reclaim()
   {
     offset    = begin;
-    // allocated = 0;
+    allocated = 0;
   }
 
-  // constexpr void try_reclaim()
-  // {
-    // if (allocated == 0)
-    // {
-      // reclaim();
-    // }
-  // }
+  constexpr void try_reclaim()
+  {
+    if (allocated == 0)
+    {
+      reclaim();
+    }
+  }
 
   constexpr bool contains(Layout layout, u8 * mem) const
   {
@@ -101,7 +99,7 @@ struct Arena final : Allocator
 
     offset = new_offset;
     mem    = aligned;
-    // allocated += layout.size;
+    allocated += layout.size;
     return true;
   }
 
@@ -125,9 +123,9 @@ struct Arena final : Allocator
     if (((mem + layout.size) == offset) && ((mem + new_size) <= end))
     {
       offset = mem + new_size;
-      // allocated -= layout.size;
-      // try_reclaim();
-      // allocated += new_size;
+      allocated -= layout.size;
+      try_reclaim();
+      allocated += new_size;
       return true;
     }
 
@@ -153,8 +151,8 @@ struct Arena final : Allocator
       offset -= layout.size;
     }
 
-    // allocated -= layout.size;
-    // try_reclaim();
+    allocated -= layout.size;
+    try_reclaim();
   }
 
   constexpr AllocatorRef ref()

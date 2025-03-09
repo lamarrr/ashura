@@ -216,26 +216,28 @@ struct [[nodiscard]] Result
 
   constexpr T & value(SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_ok(), ".value() called on Result with Err = ", err_);
+    CHECK_SLOC(loc, is_ok(), ".value() called on Result with Err = {}", err_);
     return value_;
   }
 
   constexpr T const &
     value(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_ok(), ".value() called on Result with Err = ", err_);
+    CHECK_SLOC(loc, is_ok(), ".value() called on Result with Err = {}", err_);
     return value_;
   }
 
   constexpr E & err(SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_err(), ".err() called on Result with Value = ", value_);
+    CHECK_SLOC(loc, is_err(), ".err() called on Result with Value = {}",
+               value_);
     return err_;
   }
 
   constexpr E const & err(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_err(), ".err() called on Result with Value = ", value_);
+    CHECK_SLOC(loc, is_err(), ".err() called on Result with Value = {}",
+               value_);
     return err_;
   }
 
@@ -345,8 +347,8 @@ struct [[nodiscard]] Result
   constexpr E unwrap_err(Span<char const> msg = ""_str,
                          SourceLocation   loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_err(), "Expected Err in Result but got Value = {}. {}", value_,
-                msg);
+    CHECK_SLOC(loc, is_err(), "Expected Err in Result but got Value = {}. {}",
+               value_, msg);
     return static_cast<E &&>(err_);
   }
 

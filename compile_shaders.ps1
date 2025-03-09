@@ -1,23 +1,21 @@
-$OUT = "assets/shaders"
-$IN = "ashura/shaders"
+$OUT_DIR = "assets/shaders"
+$IN_DIR = "ashura/shaders"
 
 
-New-Item -ItemType Directory -Force -Path $OUT
+New-Item -ItemType Directory -Force -Path $OUT_DIR
 
 function compile_shader {
     param(
-        $name,
-        $file,
-        $defines
+        $out,
+        $in
     )
 
-    slangc "$IN/$file" -o "$OUT/$name.spv" $defines -I "$IN"
+    slangc "$IN_DIR/$in" -o "$OUT_DIR/$out" -I "$IN"
 }
 
 
-compile_shader -name blur_upsample -file blur.slang -defines "-DUPSAMPLE=1"
-compile_shader -name blur_downsample -file blur.slang -defines "-DUPSAMPLE=0"
-compile_shader -name ngon -file ngon.slang -defines ""
-compile_shader -name pbr -file pbr.slang -defines ""
-compile_shader -name rrect -file rrect.slang -defines ""
+compile_shader -out blur.spv -in blur.slang 
+compile_shader -out ngon.spv -in ngon.slang  
+compile_shader -out pbr.spv -in pbr.slang  
+compile_shader -out rrect.spv -in rrect.slang  
 

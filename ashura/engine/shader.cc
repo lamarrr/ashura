@@ -1,12 +1,13 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/shader.h"
-#include "SPIRV/GlslangToSpv.h"
 #include "ashura/std/vec.h"
-#include "glslang/Public/ShaderLang.h"
+#include "slang.h"
 
 namespace ash
 {
 
+// [ ] implement
+/*
 constexpr TBuiltInResource SHADER_RESOURCE_LIMITS = {
   .maxLights                                 = 32,
   .maxClipPlanes                             = 6,
@@ -325,5 +326,7 @@ Result<Void, ShaderLoadErr> compile_shader(ShaderCompileInfo const & info,
 
   return Ok{};
 }
+
+*/
 
 }    // namespace ash
