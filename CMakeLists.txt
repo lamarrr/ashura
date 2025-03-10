@@ -122,6 +122,10 @@ set(BUILD_GMOCK
     OFF
     CACHE BOOL "")
 
+set(SIMDJSON_BUILD_STATIC_LIB
+    ON
+    CACHE BOOL "")
+
 include(FetchContent)
 include(ExternalProject)
 
@@ -353,7 +357,7 @@ target_compile_definitions(ashura_gpu PRIVATE ${ASH_COMPILE_DEFINITIONS})
 # ASHURA ENGINE
 
 add_library(
-  ashura_engine
+  ashura_engine STATIC
   ashura/engine/animation.cc
   ashura/engine/canvas.cc
   ashura/engine/engine.cc
@@ -384,6 +388,7 @@ target_link_libraries(
           CURL::libcurl
           freetype
           simdjson::simdjson
+          simdjson::simdjson_static
           webp
           webpdecoder
           JPEG::JPEG
