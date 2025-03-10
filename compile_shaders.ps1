@@ -1,21 +1,23 @@
 $OUT_DIR = "assets/shaders"
-$IN_DIR = "ashura/shaders"
+$INCLUDE_DIR = "ashura/shaders"
+$SRC_DIR = "ashura/shaders"
 
 
 New-Item -ItemType Directory -Force -Path $OUT_DIR
 
 function compile_shader {
     param(
-        $out,
         $in
     )
 
-    slangc "$IN_DIR/$in" -o "$OUT_DIR/$out" -I "$IN"
+    slangc "$SRC_DIR/$in" -o "$OUT_DIR/$in.spv" -I "$INCLUDE_DIR"
+    slangc "$SRC_DIR/$in" -o "$OUT_DIR/$in.spv-asm" -I "$INCLUDE_DIR"
 }
 
+# [ ] make this part of cmake
 
-compile_shader -out blur.spv -in blur.slang 
-compile_shader -out ngon.spv -in ngon.slang  
-compile_shader -out pbr.spv -in pbr.slang  
-compile_shader -out rrect.spv -in rrect.slang  
+compile_shader -in blur.slang 
+compile_shader -in ngon.slang  
+compile_shader -in pbr.slang  
+compile_shader -in rrect.slang  
 
