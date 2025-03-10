@@ -46,7 +46,6 @@ static constexpr f32x2 VERTEX_BUFFER[] = {
 
 struct VertexOutput
 {
-  u32   instance : INSTANCE;
   f32x2 local_pos : REL_POSITION;
   f32x4 pos : SV_Position;
 };
@@ -57,10 +56,10 @@ struct VertexOutput
   var   p         = params[instance];
   f32x2 local_pos = VERTEX_BUFFER[vertex];
   f32x4 pos = mul(world_to_view, mul(p.transform, f32x4(local_pos, 0.0, 1.0)));
-  return VertexOutput(instance, local_pos, pos);
+  return VertexOutput(local_pos, pos);
 }
 
-[[shader("fragment")]] f32x4 fs_main(u32   instance : INSTANCE,
+[[shader("fragment")]] f32x4 fs_main(u32   instance : SV_InstanceID,
                                      f32x2 local_pos : REL_POSITION) :
   COLOR
 {

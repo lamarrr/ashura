@@ -36,9 +36,8 @@ Texture2D textures[];
 
 struct VertexOutput
 {
-  nointerpolation u32 instance : INSTANCE_ID;
-  f32x2               uv : UV_COORD;
-  f32x4               position : SV_Position;
+  f32x2 uv : UV_COORD;
+  f32x4 position : SV_Position;
 };
 
 [[shader("vertex")]]
@@ -48,12 +47,11 @@ VertexOutput vs_main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
   var idx = idx_buffer[p.first_index + vertex];
   var pos = vtx_buffer[p.first_vertex + idx];
   return VertexOutput(
-    instance, pos + 0.5,
-    mul(world_to_view, mul(p.transform, f32x4(pos, 0.0, 1.0))));
+    pos + 0.5, mul(world_to_view, mul(p.transform, f32x4(pos, 0.0, 1.0))));
 }
 
 [[shader("fragment")]]
-f32x4 main(nointerpolation u32 instance : INSTANCE_ID, f32x2 uv : UV_COORD) :
+f32x4 fs_main(u32 instance : SV_InstanceID, f32x2 uv : UV_COORD) :
   COLOR
 {
   var p      = params[instance];

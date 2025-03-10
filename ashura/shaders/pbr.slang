@@ -120,28 +120,26 @@ Texture2D textures[];
 
 struct VertexOutput
 {
-  f32x4               world_pos : WORLD_POS;
-  f32x2               uv : UV_COORD;
-  nointerpolation u32 instance : INSTANCE_IDX;
-  f32x4               position : SV_Position;
+  f32x4 world_pos : WORLD_POS;
+  f32x2 uv : UV_COORD;
+  f32x4 position : SV_Position;
 };
 
 [[shader("vertex")]]
-VertexOutput main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
+VertexOutput vs_main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
 {
   var p         = params[instance];
   var idx       = idx_buffer[vertex];
   var vtx       = vtx_buffer[p.first_vertex + idx];
   var world_pos = mul(p.transform, vtx.pos);
-  return VertexOutput(world_pos, vtx.uv, instance,
-                      mul(world_to_view, world_pos));
+  return VertexOutput(world_pos, vtx.uv, mul(world_to_view, world_pos));
 }
 
 static constexpr u32 NUM_OBJECT_LIGHTS = 4;
 
 [[shader("fragment")]]
-f32x4 main(f32x4 world_pos : WORLD_POS, f32x2 uv : UV_COORD,
-           u32 instance : INSTANCE_IDX)
+f32x4 fs_main(u32 instance : SV_InstanceID, f32x4 world_pos : WORLD_POS,
+              f32x2 uv : UV_COORD)
 {
   var p = params[instance];
   var m = PbrMaterial::load(p, samplers[(uint) p.sampler], uv);
