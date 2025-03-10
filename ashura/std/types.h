@@ -205,7 +205,9 @@ struct Min
   constexpr T operator()(T const & a, T const & b, T1 const &... cs) const
   {
     T m = this->template operator()<T>(a, b);
+    // clang-format off
     ((m = this->template operator()<T>(static_cast<T &&>(m), cs)), ...);
+    // clang-format on
     return m;
   }
 };
@@ -222,7 +224,9 @@ struct Max
   constexpr T operator()(T const & a, T const & b, T1 const &... cs) const
   {
     T m = this->template operator()<T>(a, b);
+    // clang-format off
     ((m = this->template operator()<T>(static_cast<T &&>(m), cs)), ...);
+    // clang-format on
     return m;
   }
 };

@@ -382,16 +382,13 @@ constexpr ParseState parser_state(ParseState state, TokenType token)
     return false;
   }
 
-  char const * iter = str.pend();
-  auto const   end  = str.pbegin();
-
-  iter--;
-  i = *iter;
+  char const * iter = str.pbegin();
+  auto const   end  = str.pend();
 
   while (iter != end)
   {
-    iter--;
     i = i * 10U + (*iter - '0');
+    iter++;
   }
 
   return true;

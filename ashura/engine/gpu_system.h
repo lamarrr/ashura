@@ -11,7 +11,7 @@ namespace ash
 {
 
 /// @details do not change the underlying type. It maps directly to the GPU handle
-enum class TextureId : u32
+enum class TextureId : u16
 {
   Base        = 0,
   White       = 0,
@@ -26,10 +26,10 @@ enum class TextureId : u32
   Yellow      = 9
 };
 
-inline constexpr u32 NUM_DEFAULT_TEXTURES = 10;
+inline constexpr u16 NUM_DEFAULT_TEXTURES = 10;
 
 /// @details do not change the underlying type. It maps directly to the GPU handle
-enum class SamplerId : u32
+enum class SamplerId : u16
 {
   Linear         = 0,
   Nearest        = 1,
@@ -37,7 +37,7 @@ enum class SamplerId : u32
   NearestClamped = 3
 };
 
-inline constexpr u32 NUM_DEFAULT_SAMPLERS = 4;
+inline constexpr u16 NUM_DEFAULT_SAMPLERS = 4;
 
 struct Framebuffer
 {

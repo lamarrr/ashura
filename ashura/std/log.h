@@ -7,8 +7,8 @@
 #include "ashura/std/panic.h"
 #include "ashura/std/types.h"
 #include <atomic>
+#include <cstdlib>
 #include <mutex>
-#include <stdlib.h>
 
 #define ASH_DUMP(x) ::ash::trace(#x, " = ", x);
 

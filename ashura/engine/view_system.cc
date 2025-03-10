@@ -125,8 +125,9 @@ ui::ViewEvents ViewSystem::process_events(ui::View & view)
   if (f1.focus.is_some() && f1.focus.value().view == view.id() &&
       f1.focus.value().active) [[unlikely]]
   {
-    events.focus_in =
-      (f0.focus.value().view != view.id()) || !f0.focus.value().active;
+    events.focus_in = f0.focus.is_none() ||
+                      (f0.focus.value().view != view.id()) ||
+                      !f0.focus.value().active;
     events.key_down   = f1.key_down;
     events.key_up     = f1.key_up;
     events.text_input = f1.text_input;

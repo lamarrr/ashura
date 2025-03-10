@@ -339,8 +339,7 @@ struct Canvas
 
     auto f = fn(*lambda);
 
-    return pass(
-      Pass{.label = label, .task = transmute(std::move(lambda), f)});
+    return pass(Pass{.label = label, .task = transmute(std::move(lambda), f)});
   }
 };
 

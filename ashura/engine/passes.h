@@ -165,8 +165,8 @@ struct PBRParam
   TextureId clearcoat_map           = TextureId::White;
   TextureId clearcoat_roughness_map = TextureId::White;
   TextureId clearcoat_normal_map    = TextureId::White;
+  u16       first_light             = 0;
   u32       first_vertex            = 0;
-  u32       first_light             = 0;
 };
 
 struct PBRVertex

@@ -929,11 +929,11 @@ TextureId GpuSystem::alloc_texture_id(gpu::ImageView view)
     device_->update_descriptor_set(gpu::DescriptorSetUpdate{
       .set     = textures_,
       .binding = 0,
-      .element = (u32) i,
+      .element = (u16) i,
       .images  = span({gpu::ImageBinding{.image_view = view}})});
   });
 
-  return TextureId{(u32) i};
+  return TextureId{(u16) i};
 }
 
 void GpuSystem::release_texture_id(TextureId id)
@@ -956,11 +956,11 @@ SamplerId GpuSystem::alloc_sampler_id(gpu::Sampler sampler)
     device_->update_descriptor_set(gpu::DescriptorSetUpdate{
       .set     = samplers_,
       .binding = 0,
-      .element = (u32) i,
+      .element = (u16) i,
       .images  = span({gpu::ImageBinding{.sampler = sampler}})});
   });
 
-  return SamplerId{(u32) i};
+  return SamplerId{(u16) i};
 }
 
 void GpuSystem::release_sampler_id(SamplerId id)
