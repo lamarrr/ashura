@@ -194,7 +194,8 @@ struct [[nodiscard]] Option
   constexpr T unwrap(Span<char const> msg = ""_str,
                      SourceLocation   loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. ", msg);
+    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
+               msg);
     return static_cast<T &&>(value_);
   }
 
@@ -274,8 +275,8 @@ struct [[nodiscard]] Option
   constexpr void unwrap_none(Span<char const> msg = ""_str,
                              SourceLocation   loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_none(),
-               "Expected None in Option but got Value = ", value_, ". ", msg);
+    CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",
+               value_, msg);
   }
 
   template <typename SomeFn, typename NoneFn = Noop>
@@ -508,7 +509,7 @@ struct [[nodiscard]] OptionRef
   constexpr T & unwrap(Span<char const> msg = ""_str,
                        SourceLocation   loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in OptionRef but got None. ",
+    CHECK_SLOC(loc, is_some(), "Expected Value in OptionRef but got None. {}",
                msg);
     return *rep_;
   }
@@ -526,7 +527,7 @@ struct [[nodiscard]] OptionRef
                              SourceLocation   loc = SourceLocation::current())
   {
     CHECK_SLOC(loc, is_none(),
-               "Expected None in OptionRef but got Value = ", *rep_, ". ", msg);
+               "Expected None in OptionRef but got Value = {}. {}", *rep_, msg);
   }
 
   constexpr void discard()

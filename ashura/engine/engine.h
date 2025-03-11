@@ -156,7 +156,8 @@ struct Engine
 
   void recreate_swapchain_();
 
-  void run(ui::View & view, ui::View & focus_view, Fn<void(InputState const &)> loop = noop);
+  void run(ui::View & view, ui::View & focus_view,
+           Fn<void(InputState const &)> loop = noop);
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded

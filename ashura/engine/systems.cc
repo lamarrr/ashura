@@ -151,7 +151,7 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
   ImageInfo image =
     create_image_(std::move(label), resolved_info, resolved_view_infos);
 
-    // [ ] move upload queue to Framegraog
+  // [ ] move upload queue to Framegraph
 
   sys->gpu.upload_.queue(
     bgra, [image = image.image, info](gpu::CommandEncoder & enc,

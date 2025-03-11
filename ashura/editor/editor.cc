@@ -50,6 +50,10 @@ int main()
   ui::Image      img3;
   ui::Image      img4;
 
+  input.stub(U"Mama mia!"_str);
+
+  // [ ] drag box cursor
+
   btn.text(U"playlist_add ADD TO PLAYLIST"_str)
     .run({.color = colors::WHITE}, {.font        = RobotoMono,
                                     .height      = ui::theme.body_font_height,

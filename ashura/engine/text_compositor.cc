@@ -296,6 +296,7 @@ Slice TextCompositor::command(RenderText const & text, TextCommand cmd,
       append_record(true, selection.offset, input);
       erase(selection);
       insert(selection.offset, input);
+      // [ ] selection.offset: advance selection offset
     }
     break;
     case TextCommand::Left:

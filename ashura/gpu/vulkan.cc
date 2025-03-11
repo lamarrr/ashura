@@ -324,8 +324,8 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
   logger->log(level, "[Type: {}, Id: {}, Name: {} ] {}"_str,
               span(message_type_s), data->messageIdNumber,
               cstr_span(data->pMessageIdName),
-              (data->pMessage == nullptr ? "(empty message)"_str :
-                                           cstr_span(data->pMessage)));
+              data->pMessage == nullptr ? "(empty message)"_str :
+                                          cstr_span(data->pMessage));
   if (data->objectCount != 0)
   {
     logger->log(level, "Objects Involved:"_str);
@@ -333,9 +333,9 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL
     {
       logger->log(level, "[Type: {}] {}"_str,
                   cstr_span(string_VkObjectType(data->pObjects[i].objectType)),
-                  (data->pObjects[i].pObjectName == nullptr ?
-                     "(unnamed)"_str :
-                     cstr_span(data->pObjects[i].pObjectName)));
+                  data->pObjects[i].pObjectName == nullptr ?
+                    "(unnamed)"_str :
+                    cstr_span(data->pObjects[i].pObjectName));
     }
   }
 

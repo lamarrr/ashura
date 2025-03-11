@@ -3,6 +3,7 @@
 /build
 /third_party
 *.spv
+*.spv-asm
 /vcpkg_installed
 /.vs
 /out

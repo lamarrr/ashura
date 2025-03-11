@@ -113,12 +113,12 @@ struct [[nodiscard]] TextCursor
     if (span >= 0)
     {
       begin = (usize) max(first, (i64) 0);
-      end   = (usize) max((first + span), (i64) 0);
+      end   = (usize) max(first + span, (i64) 0);
     }
     else
     {
-      begin = (usize) max(((first + span) - 1), (i64) 0);
-      end   = (usize) max((first + 1), (i64) 0);
+      begin = (usize) max((first + span) - 1, (i64) 0);
+      end   = (usize) max(first + 1, (i64) 0);
     }
 
     return Slice{begin, end - begin};

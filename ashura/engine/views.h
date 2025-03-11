@@ -1636,6 +1636,12 @@ struct List : View
                          Span<Vec2> centers) override;
 };
 
+// [ ] DEFAULT FOCUS VIEW
+// [ ] change insertion point again, use nominal
+struct FocusView : View
+{
+};
+
 // [ ] implement
 // - coloring specific rows/columns/cells
 // - large columns and rows

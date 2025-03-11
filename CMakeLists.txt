@@ -40,41 +40,122 @@ set(SDL_HAPTIC
     OFF
     CACHE BOOL "")
 
-include(FetchContent)
+set(PNG_SHARED
+    OFF
+    CACHE BOOL "")
 
-set(ASH_VULKAN_VERSION "1.3.296.0")
+set(SLANG_ENABLE_CUDA
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_OPTIX
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_NVAPI
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_XLIB
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_AFTERMATH
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_DX_ON_VK
+    OFF
+    CACHE BOOL "")
+set(SLANG_EMBED_CORE_MODULE_SOURCE
+    ON
+    CACHE BOOL "")
+set(SLANG_EMBED_CORE_MODULE
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_SLANG_RHI
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_DXIL
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_GFX
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_SLANGD
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_SLANGRT
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_SLANG_GLSLANG
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_TESTS
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_EXAMPLES
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_REPLAYER
+    OFF
+    CACHE BOOL "")
+set(SLANG_ENABLE_SPLIT_DEBUG_INFO
+    OFF
+    CACHE BOOL "")
+set(SLANG_USE_SYSTEM_VULKAN_HEADERS
+    ON
+    CACHE BOOL "")
+
+set(ZLIB_BUILD_TESTING
+    OFF
+    CACHE BOOL "")
+set(ZLIB_BUILD_SHARED
+    OFF
+    CACHE BOOL "")
+set(ZLIB_BUILD_STATIC
+    ON
+    CACHE BOOL "")
+set(ZLIB_BUILD_MINIZIP
+    OFF
+    CACHE BOOL "")
+set(ZLIB_PREFIX
+    OFF
+    CACHE BOOL "")
+
+set(BUILD_GMOCK
+    OFF
+    CACHE BOOL "")
+
+set(SIMDJSON_BUILD_STATIC_LIB
+    ON
+    CACHE BOOL "")
+
+include(FetchContent)
+include(ExternalProject)
+
+set(ASH_VULKAN_VERSION "1.4.304.1")
 set(ASH_VULKAN_SDK_VERSION "vulkan-sdk-${ASH_VULKAN_VERSION}")
 
 FetchContent_Declare(
   VulkanHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
-
-FetchContent_Declare(
-  VulkanGLSL
-  GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
-  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
-
-FetchContent_Declare(
-  SpirvReflect
-  GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
-  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION}
+  OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
   VulkanUtilityLibraries
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
-  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION}
+  OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
   VulkanLoader
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Loader.git
-  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION}
+  OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG v3.2.0)
+  GIT_TAG v3.2.0
+  OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
   SDL3
@@ -119,46 +200,58 @@ FetchContent_Declare(
   GIT_TAG v7.0.0
   CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
-
 FetchContent_Declare(
   simdjson
-  GIT_REPOSITORY   https://github.com/simdjson/simdjson.git
+  GIT_REPOSITORY https://github.com/simdjson/simdjson.git
   GIT_TAG dfa43f6)
 
-find_package(GTest REQUIRED)
-find_package(JPEG REQUIRED)
-find_package(PNG REQUIRED)
+FetchContent_Declare(
+  libpng
+  GIT_REPOSITORY https://git.code.sf.net/p/libpng/code
+  GIT_TAG 44f97f)
+
+FetchContent_Declare(
+  gtest
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG 0bdccf4)
+
+FetchContent_Declare(
+  slang
+  GIT_REPOSITORY https://github.com/shader-slang/slang.git
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
+
 find_package(FFMPEG REQUIRED)
-find_package(benchmark CONFIG REQUIRED)
+find_package(JPEG REQUIRED)
 find_package(Threads REQUIRED)
 
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
 FetchContent_MakeAvailable(VulkanLoader)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
-FetchContent_MakeAvailable(VulkanGLSL)
 FetchContent_MakeAvailable(harfbuzz)
 FetchContent_MakeAvailable(Freetype)
 FetchContent_MakeAvailable(SheenBidi)
-FetchContent_MakeAvailable(SpirvReflect)
 FetchContent_MakeAvailable(SDL3)
 FetchContent_MakeAvailable(WebP)
 FetchContent_MakeAvailable(CURL)
 FetchContent_MakeAvailable(xxHash)
 FetchContent_MakeAvailable(fast_float)
 FetchContent_MakeAvailable(simdjson)
+FetchContent_MakeAvailable(libpng)
+FetchContent_MakeAvailable(gtest)
+FetchContent_MakeAvailable(slang)
 
 set(xxHash_INCLUDE_DIR ${xxhash_SOURCE_DIR})
 set(fast_float_INCLUDE_DIR ${fast_float_SOURCE_DIR}/include)
 
-file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
+file(GLOB SHEENBIDI_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
-add_library(SheenBidi ${SheenBidi_SOURCES})
+add_library(sheenbidi STATIC ${SHEENBIDI_SOURCES})
 target_include_directories(
-  SheenBidi
+  sheenbidi
   PUBLIC ${sheenbidi_SOURCE_DIR}/Headers
   PRIVATE ${sheenbidi_SOURCE_DIR}/Source)
-add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
+add_library(sheenbidi::sheenbidi ALIAS sheenbidi)
 
 list(APPEND ASH_COMPILE_OPTIONS)
 list(APPEND ASH_COMPILE_DEFINITIONS)
@@ -205,7 +298,7 @@ endif()
 # ASHURA STD
 
 add_library(
-  ashura_std
+  ashura_std STATIC
   ashura/std/allocator.cc
   ashura/std/allocators.cc
   ashura/std/async.cc
@@ -242,15 +335,15 @@ target_link_libraries(ashura_std_tests ashura_std GTest::gtest
 
 # ASHURA STD - BENCHMARKS
 
-add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
+# add_executable(ashura_std_bench ashura/std/bench/hash_map.cc)
 
-target_link_libraries(ashura_std_bench benchmark::benchmark
-                      benchmark::benchmark_main ashura_std)
+# target_link_libraries(ashura_std_bench benchmark::benchmark
+# benchmark::benchmark_main ashura_std)
 
 # ASHURA GPU
 
-add_library(ashura_gpu ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
-                       ashura/gpu/vulkan.cc)
+add_library(ashura_gpu STATIC ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
+                              ashura/gpu/vulkan.cc)
 target_link_libraries(
   ashura_gpu
   PUBLIC ashura_std
@@ -264,7 +357,7 @@ target_compile_definitions(ashura_gpu PRIVATE ${ASH_COMPILE_DEFINITIONS})
 # ASHURA ENGINE
 
 add_library(
-  ashura_engine
+  ashura_engine STATIC
   ashura/engine/animation.cc
   ashura/engine/canvas.cc
   ashura/engine/engine.cc
@@ -289,19 +382,19 @@ add_library(
 target_link_libraries(
   ashura_engine
   PUBLIC ashura_std ashura_gpu
-  PRIVATE glslang::glslang
-          spirv-reflect-static
+  PRIVATE slang
           SDL3::SDL3-static
           harfbuzz
           CURL::libcurl
           freetype
           simdjson::simdjson
+          simdjson::simdjson_static
           webp
           webpdecoder
           JPEG::JPEG
-          PNG::PNG
-          ${FFMPEG_LIBRARIES}
-          SheenBidi::SheenBidi)
+          png_static
+          sheenbidi::sheenbidi
+          ${FFMPEG_LIBRARIES})
 
 target_include_directories(
   ashura_engine
