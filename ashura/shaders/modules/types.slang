@@ -2,9 +2,7 @@
 
 #pragma once
 
-typedef uint16_t  u16;
 typedef uint32_t  u32;
-typedef int16_t   i16;
 typedef int32_t   i32;
 typedef float4    f32x4;
 typedef float3    f32x3;

@@ -4,9 +4,9 @@
 
 #include "types.slang"
 
-static constexpr f32 PI      = 3.1415926535897932384626433832795;
-static constexpr f32 GAMMA   = 2.2;
-static constexpr f32 EPSILON = 0.00000011920929;
+static const f32 PI      = 3.1415926535897932384626433832795;
+static const f32 GAMMA   = 2.2;
+static const f32 EPSILON = 0.00000011920929;
 
 f32x3 pow_v(f32x3 v, f32 p)
 {
