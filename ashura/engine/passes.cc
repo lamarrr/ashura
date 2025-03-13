@@ -34,9 +34,7 @@ void BlurPass::acquire()
   // Algorithm described here:
   // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
   //
-  gpu::Shader vertex_shader = sys->shader.get("VS:Blur/DownSample"_str).shader;
-  gpu::Shader fragment_shader =
-    sys->shader.get("FS:Blur/DownSample"_str).shader;
+  gpu::Shader shader = sys->shader.get("Blur"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -79,14 +77,14 @@ void BlurPass::acquire()
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "Blur Graphics Pipeline"_str,
-    .vertex_shader = gpu::ShaderStageInfo{.shader      = vertex_shader,
-                                          .entry_point = "main"_str,
+    .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
+                                          .entry_point = "vs_main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
     .fragment_shader =
-      gpu::ShaderStageInfo{.shader                        = fragment_shader,
-                                          .entry_point                   = "main"_str,
-                                          .specialization_constants      = {},
+      gpu::ShaderStageInfo{.shader                   = shader,
+                                          .entry_point              = "fs_downsample_main"_str,
+                                          .specialization_constants = {},
                                           .specialization_constants_data = {}},
     .color_formats          = {&sys->gpu.color_format_, 1},
     .vertex_input_bindings  = {},
@@ -103,10 +101,7 @@ void BlurPass::acquire()
   downsample_pipeline =
     sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
 
-  pipeline_info.vertex_shader.shader =
-    sys->shader.get("VS:Blur/UpSample"_str).shader;
-  pipeline_info.fragment_shader.shader =
-    sys->shader.get("FS:Blur/UpSample"_str).shader;
+  pipeline_info.fragment_shader.entry_point = "fs_upsample_main"_str;
 
   upsample_pipeline =
     sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
@@ -243,8 +238,7 @@ Option<FramebufferResult> BlurPass::encode(gpu::CommandEncoder &  e,
 
 void NgonPass::acquire()
 {
-  gpu::Shader vertex_shader   = sys->shader.get("VS:Ngon"_str).shader;
-  gpu::Shader fragment_shader = sys->shader.get("FS:Ngon"_str).shader;
+  gpu::Shader shader = sys->shader.get("Ngon"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -289,13 +283,13 @@ void NgonPass::acquire()
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "Ngon Graphics Pipeline"_str,
-    .vertex_shader = gpu::ShaderStageInfo{.shader      = vertex_shader,
-                                          .entry_point = "main"_str,
+    .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
+                                          .entry_point = "vs_main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
     .fragment_shader =
-      gpu::ShaderStageInfo{.shader                        = fragment_shader,
-                                          .entry_point                   = "main"_str,
+      gpu::ShaderStageInfo{.shader                        = shader,
+                                          .entry_point                   = "fs_main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
     .color_formats          = {&sys->gpu.color_format_, 1},
@@ -366,8 +360,7 @@ void NgonPass::release()
 
 void PBRPass::acquire()
 {
-  gpu::Shader vertex_shader   = sys->shader.get("VS:PBR"_str).shader;
-  gpu::Shader fragment_shader = sys->shader.get("FS:PBR"_str).shader;
+  gpu::Shader shader = sys->shader.get("PBR"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -413,13 +406,13 @@ void PBRPass::acquire()
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "PBR Graphics Pipeline"_str,
-    .vertex_shader = gpu::ShaderStageInfo{.shader      = vertex_shader,
-                                          .entry_point = "main"_str,
+    .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
+                                          .entry_point = "vs_main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
     .fragment_shader =
-      gpu::ShaderStageInfo{.shader                        = fragment_shader,
-                                          .entry_point                   = "main"_str,
+      gpu::ShaderStageInfo{.shader                        = shader,
+                                          .entry_point                   = "fs_main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
     .color_formats          = {&sys->gpu.color_format_, 1},
@@ -503,8 +496,7 @@ void PBRPass::release()
 
 void RRectPass::acquire()
 {
-  gpu::Shader vertex_shader   = sys->shader.get("VS:RRect"_str).shader;
-  gpu::Shader fragment_shader = sys->shader.get("FS:RRect"_str).shader;
+  gpu::Shader shader = sys->shader.get("RRect"_str).shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -549,13 +541,13 @@ void RRectPass::acquire()
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "RRect Graphics Pipeline"_str,
-    .vertex_shader = gpu::ShaderStageInfo{.shader      = vertex_shader,
-                                          .entry_point = "main"_str,
+    .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
+                                          .entry_point = "vs_main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
     .fragment_shader =
-      gpu::ShaderStageInfo{.shader                        = fragment_shader,
-                                          .entry_point                   = "main"_str,
+      gpu::ShaderStageInfo{.shader                        = shader,
+                                          .entry_point                   = "fs_main"_str,
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
     .color_formats          = {&sys->gpu.color_format_, 1},

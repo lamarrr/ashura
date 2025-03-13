@@ -10,34 +10,35 @@ struct NgonParam
   f32x4             tint[4];
   f32x4             uv;
   f32               tiling;
-  u16               sampler;
-  u16               albedo;
+  u32               sampler;
+  u32               albedo;
   u32               first_index;
   u32               first_vertex;
 };
 
 [[vk::push_constant]]
-f32x4x4 world_to_view;
+ConstantBuffer<f32x4x4> world_to_view;
 
 [[vk::binding(0, 0)]]
 StructuredBuffer<f32x2> vtx_buffer;
 
-[[vk::binding(1, 0)]]
+[[vk::binding(0, 1)]]
 StructuredBuffer<u32> idx_buffer;
 
-[[vk::binding(2, 0)]]
+[[vk::binding(0, 2)]]
 StructuredBuffer<NgonParam> params;
 
-[[vk::binding(3, 0)]]
+[[vk::binding(0, 3)]]
 SamplerState samplers[];
 
-[[vk::binding(4, 0)]]
+[[vk::binding(0, 4)]]
 Texture2D textures[];
 
 struct VertexOutput
 {
-  f32x2 uv : UV_COORD;
-  f32x4 position : SV_Position;
+  f32x4                                   position : SV_Position;
+  [[vk::location(0)]] nointerpolation u32 instance : INSTANCE;
+  [[vk::location(1)]] f32x2               uv : UV_COORD;
 };
 
 [[shader("vertex")]]
@@ -47,17 +48,18 @@ VertexOutput vs_main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
   var idx = idx_buffer[p.first_index + vertex];
   var pos = vtx_buffer[p.first_vertex + idx];
   return VertexOutput(
-    pos + 0.5, mul(world_to_view, mul(p.transform, f32x4(pos, 0.0, 1.0))));
+    mul(world_to_view, mul(p.transform, f32x4(pos, 0.0, 1.0))), instance,
+    pos + 0.5);
 }
 
 [[shader("fragment")]]
-f32x4 fs_main(u32 instance : SV_InstanceID, f32x2 uv : UV_COORD) :
+f32x4 fs_main([[vk::location(0)]] u32   instance : INSTANCE,
+              [[vk::location(1)]] f32x2 uv : UV_COORD) :
   COLOR
 {
   var p      = params[instance];
   var tex_uv = lerp(p.uv.xy, p.uv.zw, uv);
   return bilerp(p.tint, uv) *
-         textures[NonUniformResourceIndex((uint) p.albedo)].Sample(
-           samplers[NonUniformResourceIndex((uint) p.sampler)],
-           tex_uv * p.tiling);
+         textures[NonUniformResourceIndex(p.albedo)].Sample(
+           samplers[NonUniformResourceIndex(p.sampler)], tex_uv * p.tiling);
 }

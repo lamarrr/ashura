@@ -32,17 +32,17 @@ struct PbrExtParam
   f32                clearcoat;
   f32                clearcoat_roughness;
   f32                clearcoat_normal;
-  u16                sampler;
-  u16                albedo_map;
-  u16                metallic_map;
-  u16                roughness_map;
-  u16                normal_map;
-  u16                occlusion_map;
-  u16                emissive_map;
-  u16                clearcoat_map;
-  u16                clearcoat_roughness_map;
-  u16                clearcoat_normal_map;
-  u16                first_light;
+  u32                sampler;
+  u32                albedo_map;
+  u32                metallic_map;
+  u32                roughness_map;
+  u32                normal_map;
+  u32                occlusion_map;
+  u32                emissive_map;
+  u32                clearcoat_map;
+  u32                clearcoat_roughness_map;
+  u32                clearcoat_normal_map;
+  u32                first_light;
   u32                first_vertex;
 };
 
@@ -98,31 +98,32 @@ struct Vertex
 };
 
 [[vk::push_constant]]
-float4x4 world_to_view;
+ConstantBuffer<float4x4, Std430DataLayout> world_to_view;
 
 [[vk::binding(0, 0)]]
 StructuredBuffer<Vertex> vtx_buffer;
 
-[[vk::binding(1, 0)]]
+[[vk::binding(0, 1)]]
 StructuredBuffer<u32> idx_buffer;
 
-[[vk::binding(2, 0)]]
+[[vk::binding(0, 2)]]
 StructuredBuffer<PbrExtParam> params;
 
-[[vk::binding(3, 0)]]
+[[vk::binding(0, 3)]]
 StructuredBuffer<PunctualLight> lights;
 
-[[vk::binding(4, 0)]]
+[[vk::binding(0, 4)]]
 SamplerState samplers[];
 
-[[vk::binding(5, 0)]]
+[[vk::binding(0, 5)]]
 Texture2D textures[];
 
 struct VertexOutput
 {
-  f32x4 world_pos : WORLD_POS;
-  f32x2 uv : UV_COORD;
-  f32x4 position : SV_Position;
+  f32x4                                   position : SV_Position;
+  [[vk::location(0)]] nointerpolation u32 instance : INSTANCE;
+  [[vk::location(1)]] f32x4               world_pos : WORLD_POS;
+  [[vk::location(2)]] f32x2               uv : UV_COORD;
 };
 
 [[shader("vertex")]]
@@ -132,17 +133,19 @@ VertexOutput vs_main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
   var idx       = idx_buffer[vertex];
   var vtx       = vtx_buffer[p.first_vertex + idx];
   var world_pos = mul(p.transform, vtx.pos);
-  return VertexOutput(world_pos, vtx.uv, mul(world_to_view, world_pos));
+  return VertexOutput(mul(world_to_view, world_pos), instance, world_pos,
+                      vtx.uv);
 }
 
 static constexpr u32 NUM_OBJECT_LIGHTS = 4;
 
 [[shader("fragment")]]
-f32x4 fs_main(u32 instance : SV_InstanceID, f32x4 world_pos : WORLD_POS,
-              f32x2 uv : UV_COORD)
+f32x4 fs_main([[vk::location(0)]] u32   instance : INSTANCE,
+              [[vk::location(1)]] f32x4 world_pos : WORLD_POS,
+              [[vk::location(2)]] f32x2 uv : UV_COORD)
 {
   var p = params[instance];
-  var m = PbrMaterial::load(p, samplers[(uint) p.sampler], uv);
+  var m = PbrMaterial::load(p, samplers[p.sampler], uv);
 
   // convert from perceptual roughness to actual roughness
   m.roughness           = pow(m.roughness, 2);
