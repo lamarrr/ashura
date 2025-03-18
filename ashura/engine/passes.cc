@@ -159,9 +159,6 @@ void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
 Option<FramebufferResult> BlurPass::encode(gpu::CommandEncoder &  e,
                                            BlurPassParams const & params)
 {
-  constexpr u32 MAX_PASSES  = 8;
-  constexpr f32 BLUR_PERIOD = 4;    // 1 pass for every BLUR_PERIOD radius
-
   if (params.area.extent.x == 0 || params.area.extent.y == 0)
   {
     return none;
@@ -172,8 +169,9 @@ Option<FramebufferResult> BlurPass::encode(gpu::CommandEncoder &  e,
     return none;
   }
 
-  // downscale sample region to 1/16th of the resolution
-  RectU const downsampled_area{.offset{}, .extent = params.area.extent / 16};
+  // downscale sample region to 1/DOWNSCALE_FACTOR of the resolution
+  RectU const downsampled_area{.offset{},
+                               .extent = params.area.extent / DOWNSCALE_FACTOR};
 
   if (downsampled_area.extent.x < 1 || downsampled_area.extent.y < 1)
   {

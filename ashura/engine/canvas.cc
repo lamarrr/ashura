@@ -886,21 +886,24 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
   return *this;
 }
 
-Canvas & Canvas::blur(Rect const & area, Vec2 radius, Vec4 corner_radii)
+Canvas & Canvas::blur(Rect const & raw_area, Vec2 radius, Vec4 corner_radii)
 {
-  f32 const inv_y = area.extent.y;
   u32 const index = blurs.size32();
 
+  auto const area  = raw_area.clamp(extent);
+  f32 const  inv_y = 1 / area.extent.y;
+
+  RectU const fb_area = RectU{as_vec2u(area.offset * virtual_scale),
+                              as_vec2u(area.extent * virtual_scale)}
+                          .clamp(framebuffer_extent);
+
   blurs
-    .push(Blur{
-      .area{as_vec2u(area.offset * virtual_scale),
-            as_vec2u(area.extent * virtual_scale)},
-      .radius       = as_vec2u(radius * virtual_scale),
-      .corner_radii = corner_radii * inv_y,
-      .transform =
-        object_to_world(Mat4::identity(), area.center(), area.extent),
-      .aspect_ratio = area.extent.x * inv_y
-  })
+    .push(Blur{.area         = fb_area,
+               .radius       = as_vec2u(radius * virtual_scale),
+               .corner_radii = corner_radii * inv_y,
+               .transform =
+                 object_to_world(Mat4::identity(), area.center(), area.extent),
+               .aspect_ratio = area.extent.x * inv_y})
     .unwrap();
 
   batches

@@ -69,6 +69,13 @@ struct BlurPassParams
 
 struct BlurPass : Pass
 {
+  static constexpr u32 DOWNSCALE_FACTOR = 8;
+
+  static constexpr u32 MAX_PASSES = 8;
+
+  // 1 pass for every BLUR_PERIOD radius
+  static constexpr f32 BLUR_PERIOD = 1;
+
   gpu::GraphicsPipeline downsample_pipeline = nullptr;
   gpu::GraphicsPipeline upsample_pipeline   = nullptr;
 
