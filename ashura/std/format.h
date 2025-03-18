@@ -31,9 +31,9 @@ enum class Style : char
 ///
 /// sign: '+'
 /// alternate_form: '#'
-/// width: 0-MAX_WIDTH
+/// width: 0-N
 /// precision-separator: '.'
-/// precision: 0-MAX_PRECISION
+/// precision: 0-N
 /// style: `d`, `o`, `x`, `b`, `s`
 ///
 /// i.e: {+#4.5x}
@@ -72,7 +72,8 @@ enum class [[nodiscard]] Error : u8
   OutOfMemory     = 1,
   UnexpectedToken = 2,
   ItemsMismatch   = 3,
-  UnmatchedToken  = 4
+  UnmatchedToken  = 4,
+  InvalidEscape   = 5
 };
 
 constexpr Str to_str(Error e)
@@ -89,6 +90,8 @@ constexpr Str to_str(Error e)
       return "ItemsMismatch"_str;
     case Error::UnmatchedToken:
       return "UnmatchedToken"_str;
+    case Error::InvalidEscape:
+      return "InvalidEscape"_str;
     default:
       return "Unrecognized"_str;
   }
@@ -126,6 +129,21 @@ struct [[nodiscard]] Result
   Slice position = {};
 };
 
+enum class OpType : u8
+{
+  Str = 0,
+  Fmt = 1
+};
+
+struct Op
+{
+  OpType type = OpType::Fmt;
+  Spec   spec = {};
+  Slice  pos  = {};
+};
+
+namespace impl
+{
 enum class ParseState : u32
 {
   Start              = 0,
@@ -149,19 +167,6 @@ enum class TokenType : u32
   Style         = 5,
   Unrecognized  = 6,
   Finished      = 7
-};
-
-enum class OpType : u8
-{
-  Str = 0,
-  Fmt = 1
-};
-
-struct Op
-{
-  OpType type = OpType::Fmt;
-  Spec   spec = {};
-  Slice  pos  = {};
 };
 
 constexpr bool is_numeric(char c)
@@ -559,50 +564,58 @@ constexpr Result push_spec(Str format, Str spec_src, Buffer<Op> & ops,
   return Result{.error = Error::None};
 }
 
-constexpr char const * seek(char const * iter, char const * const end, char c)
+template <typename Fn>
+constexpr char const * seek(char const * iter, char const * const end, Fn && fn)
 {
-  while (iter != end && *iter != c)
+  while (iter != end && !fn(*iter))
   {
     iter++;
   }
   return iter;
 }
 
-constexpr char const * seek_ne(char const * iter, char const * const end,
+constexpr char const * seek_eq(char const * iter, char const * const end,
                                char c)
 {
-  while (iter != end && *iter == c)
-  {
-    iter++;
-  }
-  return iter;
+  return seek(iter, end, [c](char x) { return x == c; });
 }
 
-constexpr char const * seek_n(char const * iter, char const * const end, char c,
-                              usize n)
+constexpr bool is_escapable_token(char c)
 {
-  while (iter != end)
+  switch (c)
   {
-    while (iter != end && *iter != c)
-    {
-      iter++;
-    }
-
-    auto const match_begin = iter;
-
-    while (iter != end && *iter == c)
-    {
-      iter++;
-    }
-
-    if (static_cast<usize>(iter - match_begin) == n)
-    {
-      return match_begin;
-    }
+    case '{':
+    case '}':
+    case '\\':
+      return true;
+    default:
+      return false;
   }
-
-  return end;
 }
+
+constexpr bool is_expr_start(char c)
+{
+  switch (c)
+  {
+    case '{':
+    case '\\':
+      return true;
+    default:
+      return false;
+  }
+}
+
+constexpr char const * seek_expr_start(char const * iter, char const * end)
+{
+  return seek(iter, end, is_expr_start);
+}
+
+constexpr char const * seek_spec_end(char const * iter, char const * end)
+{
+  return seek_eq(iter, end, '}');
+}
+
+}    // namespace impl
 
 constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
 {
@@ -612,7 +625,7 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
   while (iter != end)
   {
     auto const seek_begin = iter;
-    iter                  = seek(iter, end, '{');
+    iter                  = impl::seek_expr_start(iter, end);
 
     if (seek_begin != iter)
     {
@@ -628,36 +641,31 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
       continue;
     }
 
-    auto const open_brace_begin = iter++;
-
-    iter = seek_ne(iter, end, '{');
-
-    auto const open_brace_end = iter;
-
-    auto const brace_level =
-      static_cast<usize>(open_brace_end - open_brace_begin);
-
-    switch (brace_level)
+    switch (*iter)
     {
-      case 1:
+      case '{':
       {
-        iter = seek(iter, end, '}');
+        auto const expr_begin = iter;
+        iter++;
+        auto const spec_begin = iter;
+        iter                  = impl::seek_eq(iter, end, '}');
 
         if (iter == end)
         {
           return Result{
-            .error = Error::UnmatchedToken,
-            .position =
-              Span{open_brace_begin, brace_level}
+            .error    = Error::UnmatchedToken,
+            .position = Span{expr_begin, 1}
               .as_slice_of(format)
           };
         }
 
-        Span const spec{open_brace_end, iter};
+        auto const spec_end = iter;
 
         iter++;
 
-        if (auto result = push_spec(format, spec, ops, num_args);
+        Span const spec{spec_begin, spec_end};
+
+        if (auto const result = impl::push_spec(format, spec, ops, num_args);
             result.error != Error::None)
         {
           return result;
@@ -665,33 +673,36 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
       }
       break;
 
-      default:
+      case '\\':
       {
-        iter = seek_n(iter, end, '}', brace_level);
+        auto const expr_begin = iter;
+        iter++;
 
-        if (iter == end)
+        auto const   escaped      = *iter;
+        auto const * escape_begin = iter;
+        auto const * escape_end   = iter + 1;
+        iter++;
+
+        if (!impl::is_escapable_token(escaped))
         {
           return Result{
-            .error = Error::UnmatchedToken,
-            .position =
-              Span{open_brace_begin, brace_level}
+            .error    = Error::InvalidEscape,
+            .position = Span{expr_begin, escape_end}
               .as_slice_of(format)
           };
         }
 
-        auto const close_brace_begin = iter;
-
-        iter += brace_level;
-
-        if (!ops.push(Op{
-              .type = OpType::Str,
-              .pos =
-                Span{open_brace_end, close_brace_begin}
-                .as_slice_of(format)
-        }))
+        if (!ops.push(
+              Op{.type = OpType::Str,
+                 .pos{Span{escape_begin, escape_end}.as_slice_of(format)}}))
         {
           return Result{.error = Error::OutOfMemory};
         }
+      }
+      break;
+
+      default:
+      {
       }
       break;
     }
