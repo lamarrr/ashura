@@ -120,6 +120,45 @@ enum class [[nodiscard]] Status : i32
   SurfaceLost          = -1'000'000'000
 };
 
+constexpr Str to_str(Status status)
+{
+  switch (status)
+  {
+    case Status::Success:
+      return "Success"_str;
+    case Status::NotReady:
+      return "NotReady"_str;
+    case Status::TimeOut:
+      return "TimeOut"_str;
+    case Status::Incomplete:
+      return "Incomplete"_str;
+    case Status::OutOfHostMemory:
+      return "OutOfHostMemory"_str;
+    case Status::OutOfDeviceMemory:
+      return "OutOfDeviceMemory"_str;
+    case Status::InitializationFailed:
+      return "InitializationFailed"_str;
+    case Status::DeviceLost:
+      return "DeviceLost"_str;
+    case Status::MemoryMapFailed:
+      return "MemoryMapFailed"_str;
+    case Status::LayerNotPresent:
+      return "LayerNotPresent"_str;
+    case Status::ExtensionNotPresent:
+      return "ExtensionNotPresent"_str;
+    case Status::FeatureNotPresent:
+      return "FeatureNotPresent"_str;
+    case Status::TooManyObjects:
+      return "TooManyObjects"_str;
+    case Status::FormatNotSupported:
+      return "FormatNotSupported"_str;
+    case Status::SurfaceLost:
+      return "SurfaceLost"_str;
+    default:
+      return "<Unrecognized Status>"_str;
+  }
+}
+
 enum class Format : i32
 {
   Undefined                  = 0,
@@ -1437,6 +1476,7 @@ Result<Dyn<Instance *>, Status> create_vulkan_instance(AllocatorRef allocator,
 
 /// REQUIRED LIMITS AND PROPERTIES
 
+inline constexpr u32         MAX_LABEL_SIZE                       = 256;
 inline constexpr u32         MAX_IMAGE_EXTENT_1D                  = 8'192;
 inline constexpr u32         MAX_IMAGE_EXTENT_2D                  = 8'192;
 inline constexpr u32         MAX_IMAGE_EXTENT_3D                  = 2'048;
@@ -1469,6 +1509,12 @@ inline constexpr SampleCount REQUIRED_COLOR_SAMPLE_COUNTS =
 inline constexpr SampleCount REQUIRED_DEPTH_SAMPLE_COUNTS =
   SampleCount::C1 | SampleCount::C2 | SampleCount::C4;
 
+typedef InplaceVec<char, MAX_LABEL_SIZE> Label;
 }    // namespace gpu
+
+inline void format(fmt::Sink sink, fmt::Spec, gpu::Status const & status)
+{
+  sink(gpu::to_str(status));
+}
 
 }    // namespace ash
