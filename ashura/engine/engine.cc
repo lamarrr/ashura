@@ -495,9 +495,9 @@ void Engine::shutdown()
 
   scheduler->shutdown();
 
-  renderer.release();
   device->wait_idle().unwrap();
 
+  renderer.release();
   device->uninit(swapchain);
   swapchain = nullptr;
 
