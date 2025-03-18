@@ -56,16 +56,15 @@ void PassContext::add_pass(Dyn<Pass *> pass)
 u32 FrameGraph::push_ssbo(Span<u8 const> data)
 {
   CHECK(!uploaded_, "");
-  ssbo_data_
-    .resize_uninit(
-      align_offset<usize>(gpu::BUFFER_OFFSET_ALIGNMENT, ssbo_data_.size()))
-    .unwrap();
   auto const offset = ssbo_data_.size();
   ssbo_data_.extend(data).unwrap();
   auto const size = data.size();
   auto const idx  = ssbo_entries_.size();
   CHECK(ssbo_data_.size() <= U32_MAX, "");
   ssbo_entries_.push(Slice32{(u32) offset, (u32) size}).unwrap();
+  auto const aligned_size =
+    align_offset<usize>(gpu::BUFFER_OFFSET_ALIGNMENT, ssbo_data_.size());
+  ssbo_data_.resize_uninit(aligned_size).unwrap();
 
   return (u32) idx;
 }
@@ -104,11 +103,11 @@ void FrameGraph::execute(Canvas const & canvas)
   timespan.match([&](auto i) { sys->gpu.end_timespan(i); });
 
   frame_index_ = (frame_index_ + 1) % sys->gpu.buffering_;
-  arena_.reclaim();
-  uploaded_ = false;
+  uploaded_    = false;
   ssbo_data_.clear();
   ssbo_entries_.clear();
   passes_.reset();
+  arena_.reclaim();
 }
 
 void FrameGraph::acquire()
