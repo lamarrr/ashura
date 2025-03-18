@@ -152,7 +152,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG release-3.2.0)
+  GIT_TAG release-3.2.8)
 
 FetchContent_Declare(
   harfbuzz
@@ -161,8 +161,8 @@ FetchContent_Declare(
 
 FetchContent_Declare(
   Freetype
-  GIT_REPOSITORY https://gitlab.freedesktop.org/freetype/freetype.git
-  GIT_TAG VER-2-13-2)
+  GIT_REPOSITORY https://github.com/freetype/freetype.git
+  GIT_TAG VER-2-13-3)
 
 FetchContent_Declare(
   SheenBidi
