@@ -313,8 +313,8 @@ target_include_directories(
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE ${xxHash_INCLUDE_DIR})
 target_link_libraries(ashura_std PUBLIC Threads::Threads)
-target_compile_options(ashura_std PRIVATE ${ASH_COMPILE_OPTIONS})
-target_compile_definitions(ashura_std PRIVATE ${ASH_COMPILE_DEFINITIONS})
+target_compile_options(ashura_std PUBLIC ${ASH_COMPILE_OPTIONS})
+target_compile_definitions(ashura_std PUBLIC ${ASH_COMPILE_DEFINITIONS})
 
 # ASHURA STD - TESTS
 
@@ -351,8 +351,8 @@ target_link_libraries(
          GPUOpen::VulkanMemoryAllocator)
 
 target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(ashura_gpu PRIVATE ${ASH_COMPILE_OPTIONS})
-target_compile_definitions(ashura_gpu PRIVATE ${ASH_COMPILE_DEFINITIONS})
+target_compile_options(ashura_gpu PUBLIC ${ASH_COMPILE_OPTIONS})
+target_compile_definitions(ashura_gpu PUBLIC ${ASH_COMPILE_DEFINITIONS})
 
 # ASHURA ENGINE
 
@@ -387,7 +387,6 @@ target_link_libraries(
           harfbuzz
           CURL::libcurl
           freetype
-          simdjson::simdjson
           simdjson::simdjson_static
           webp
           webpdecoder
@@ -401,8 +400,8 @@ target_include_directories(
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS}
           ${fast_float_INCLUDE_DIR})
-target_compile_options(ashura_engine PRIVATE ${ASH_COMPILE_OPTIONS})
-target_compile_definitions(ashura_engine PRIVATE ${ASH_COMPILE_DEFINITIONS})
+target_compile_options(ashura_engine PUBLIC ${ASH_COMPILE_OPTIONS})
+target_compile_definitions(ashura_engine PUBLIC ${ASH_COMPILE_DEFINITIONS})
 
 # ASHURA ENGINE - TESTS
 
