@@ -491,6 +491,12 @@ struct Vec2
   {
     return (&x)[i];
   }
+
+  constexpr Vec2 clamp(Vec2 extent) const
+  {
+    Vec2 const max{extent.x - 1, extent.y - 1};
+    return Vec2{min(x, max.x), min(y, max.y)};
+  }
 };
 
 constexpr bool operator==(Vec2 a, Vec2 b)
@@ -1252,6 +1258,12 @@ struct Vec2U
   constexpr u32 const & operator[](usize i) const
   {
     return (&x)[i];
+  }
+
+  constexpr Vec2U clamp(Vec2U extent) const
+  {
+    Vec2U const max{extent.x - 1, extent.y - 1};
+    return Vec2U{min(x, max.x), min(y, max.y)};
   }
 };
 
@@ -2744,6 +2756,13 @@ struct Rect
   {
     return extent.x != 0 & extent.y != 0;
   }
+
+  constexpr Rect clamp(Vec2 extent) const
+  {
+    auto begin = this->begin().clamp(extent);
+    auto end   = this->end().clamp(extent);
+    return Rect{.offset = begin, .extent = end - begin};
+  }
 };
 
 constexpr bool operator==(Rect const & a, Rect const & b)
@@ -2827,6 +2846,13 @@ struct RectU
   constexpr Vec2U end() const
   {
     return offset + extent;
+  }
+
+  constexpr RectU clamp(Vec2U extent) const
+  {
+    auto begin = this->begin().clamp(extent);
+    auto end   = this->end().clamp(extent);
+    return RectU{.offset = begin, .extent = end - begin};
   }
 };
 
