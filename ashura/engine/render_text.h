@@ -18,19 +18,19 @@ namespace ash
 /// @param runs  Run-End encoded sequences of the runs
 struct RenderText
 {
-  hash64           hash_;
-  bool             use_kerning_   : 1;
-  bool             use_ligatures_ : 1;
-  TextDirection    direction_     : 2;
-  f32              alignment_;
-  f32              font_scale_;
-  Vec<c32>         text_;
-  Vec<u32>         runs_;
-  Vec<TextStyle>   styles_;
-  Vec<FontStyle>   fonts_;
-  Span<char const> language_;
-  TextLayout       layout_;
-  TextHighlight    highlight_;
+  hash64         hash_;
+  bool           use_kerning_   : 1;
+  bool           use_ligatures_ : 1;
+  TextDirection  direction_     : 2;
+  f32            alignment_;
+  f32            font_scale_;
+  Vec<c32>       text_;
+  Vec<u32>       runs_;
+  Vec<TextStyle> styles_;
+  Vec<FontStyle> fonts_;
+  Str            language_;
+  TextLayout     layout_;
+  TextHighlight  highlight_;
 
   RenderText(AllocatorRef allocator) :
     hash_{0},
@@ -76,21 +76,20 @@ struct RenderText
 
   RenderText & direction(TextDirection direction);
 
-  RenderText & language(Span<char const> language);
+  RenderText & language(Str language);
 
   RenderText & alignment(f32 alignment);
 
-  Span<c32 const> get_text() const;
+  Str32 get_text() const;
 
-  RenderText & text(Span<c32 const> utf32, TextStyle const & style,
+  RenderText & text(Str32 utf32, TextStyle const & style,
                     FontStyle const & font);
 
-  RenderText & text(Span<c32 const> utf32);
+  RenderText & text(Str32 utf32);
 
-  RenderText & text(Span<c8 const> utf8, TextStyle const & style,
-                    FontStyle const & font);
+  RenderText & text(Str8 utf8, TextStyle const & style, FontStyle const & font);
 
-  RenderText & text(Span<c8 const> utf8);
+  RenderText & text(Str8 utf8);
 
   TextBlock block() const;
 

@@ -48,7 +48,7 @@ char const * get_level_str(LogLevel level)
   }
 }
 
-void StdioSink::log(LogLevel level, Span<char const> log_message)
+void StdioSink::log(LogLevel level, Str log_message)
 {
   char const * level_str = get_level_str(level);
   std::FILE *  file      = stdout;
@@ -102,7 +102,7 @@ void StdioSink::flush()
   (void) std::fflush(stderr);
 }
 
-void FileSink::log(LogLevel level, Span<char const> log_message)
+void FileSink::log(LogLevel level, Str log_message)
 {
   char const *                level_str     = get_level_str(level);
   static constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";

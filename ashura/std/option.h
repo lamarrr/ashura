@@ -191,8 +191,8 @@ struct [[nodiscard]] Option
     return none;
   }
 
-  constexpr T unwrap(Span<char const> msg = ""_str,
-                     SourceLocation   loc = SourceLocation::current())
+  constexpr T unwrap(Str            msg = ""_str,
+                     SourceLocation loc = SourceLocation::current())
   {
     CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
                msg);
@@ -272,8 +272,8 @@ struct [[nodiscard]] Option
     return op();
   }
 
-  constexpr void unwrap_none(Span<char const> msg = ""_str,
-                             SourceLocation   loc = SourceLocation::current())
+  constexpr void unwrap_none(Str            msg = ""_str,
+                             SourceLocation loc = SourceLocation::current())
   {
     CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",
                value_, msg);
@@ -506,8 +506,8 @@ struct [[nodiscard]] OptionRef
     return *rep_;
   }
 
-  constexpr T & unwrap(Span<char const> msg = ""_str,
-                       SourceLocation   loc = SourceLocation::current())
+  constexpr T & unwrap(Str            msg = ""_str,
+                       SourceLocation loc = SourceLocation::current())
   {
     CHECK_SLOC(loc, is_some(), "Expected Value in OptionRef but got None. {}",
                msg);
@@ -523,8 +523,8 @@ struct [[nodiscard]] OptionRef
     return alt;
   }
 
-  constexpr void unwrap_none(Span<char const> msg = ""_str,
-                             SourceLocation   loc = SourceLocation::current())
+  constexpr void unwrap_none(Str            msg = ""_str,
+                             SourceLocation loc = SourceLocation::current())
   {
     CHECK_SLOC(loc, is_none(),
                "Expected None in OptionRef but got Value = {}. {}", *rep_, msg);

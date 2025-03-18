@@ -1314,27 +1314,31 @@ constexpr auto view(R & range) -> decltype(range.view())
   return range.view();
 }
 
+typedef Span<char const> Str;
+typedef Span<char>       MutStr;
+
+typedef Span<c8 const> Str8;
+typedef Span<c8>       MutStr8;
+
+typedef Span<c32 const> Str32;
+typedef Span<c32>       MutStr32;
+
 inline namespace str_literal
 {
 
-constexpr Span<char const> operator""_str(char const * lit, usize n)
+constexpr Str operator""_str(char const * lit, usize n)
 {
-  return Span<char const>{lit, n};
+  return Str{lit, n};
 }
 
-constexpr Span<c8 const> operator""_str(c8 const * lit, usize n)
+constexpr Str8 operator""_str(c8 const * lit, usize n)
 {
-  return Span<c8 const>{lit, n};
+  return Str8{lit, n};
 }
 
-constexpr Span<c16 const> operator""_str(c16 const * lit, usize n)
+constexpr Str32 operator""_str(c32 const * lit, usize n)
 {
-  return Span<c16 const>{lit, n};
-}
-
-constexpr Span<c32 const> operator""_str(c32 const * lit, usize n)
-{
-  return Span<c32 const>{lit, n};
+  return Str32{lit, n};
 }
 
 }    // namespace str_literal
@@ -2201,18 +2205,18 @@ struct SourceLocation
   static constexpr SourceLocation current(
 #if ASH_HAS_BUILTIN(FILE) || (defined(__cpp_lib_source_location) && \
                               __cpp_lib_source_location >= 201'907L)
-    Span<char const> file = cstr_span(__builtin_FILE()),
+    Str file = cstr_span(__builtin_FILE()),
 #elif defined(__FILE__)
-    Span<char const> file = cstr_span(__FILE__),
+    Str file = cstr_span(__FILE__),
 #else
-    Span<char const> file = cstr_span("unknown"),
+    Str file = cstr_span("unknown"),
 #endif
 
 #if ASH_HAS_BUILTIN(FUNCTION) || (defined(__cpp_lib_source_location) && \
                                   __cpp_lib_source_location >= 201'907L)
-    Span<char const> function = cstr_span(__builtin_FUNCTION()),
+    Str function = cstr_span(__builtin_FUNCTION()),
 #else
-    Span<char const> function = cstr_span("unknown"),
+    Str function = cstr_span("unknown"),
 #endif
 
 #if ASH_HAS_BUILTIN(LINE) || (defined(__cpp_lib_source_location) && \
@@ -2235,10 +2239,10 @@ struct SourceLocation
     return SourceLocation{file, function, line, column};
   }
 
-  Span<char const> file     = ""_str;
-  Span<char const> function = ""_str;
-  u32              line     = 0;
-  u32              column   = 0;
+  Str file     = ""_str;
+  Str function = ""_str;
+  u32 line     = 0;
+  u32 column   = 0;
 };
 
 template <typename T = void>

@@ -279,13 +279,13 @@ struct TextStyle
 /// @param use_ligatures use standard and contextual font ligature substitution
 struct TextBlock
 {
-  Span<c32 const>       text          = {};
+  Str32                 text          = {};
   hash64                hash          = 0;
   Span<u32 const>       runs          = {};
   Span<FontStyle const> fonts         = {};
   f32                   font_scale    = 1;
   TextDirection         direction     = TextDirection::LeftToRight;
-  Span<char const>      language      = {};
+  Str                   language      = {};
   bool                  use_kerning   = true;
   bool                  use_ligatures = true;
 };

@@ -9,7 +9,7 @@ namespace ash
 
 constexpr usize PATH_RESERVED_SIZE = 256;
 
-Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff)
+Result<Void, IoErr> read_file(Str path, Vec<u8> & buff)
 {
   u8                reserved[PATH_RESERVED_SIZE];
   FallbackAllocator allocator{to_arena(reserved)};
@@ -68,8 +68,7 @@ Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff)
   return Ok{};
 }
 
-Result<Void, IoErr> write_to_file(Span<char const> path, Span<u8 const> buff,
-                                  bool append)
+Result<Void, IoErr> write_to_file(Str path, Span<u8 const> buff, bool append)
 {
   u8                reserved[PATH_RESERVED_SIZE];
   FallbackAllocator allocator{to_arena(reserved)};

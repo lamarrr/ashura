@@ -47,7 +47,7 @@ struct ClipBoardImpl : ClipBoard
   ClipBoardImpl & operator=(ClipBoardImpl &&)      = delete;
   ~ClipBoardImpl() override                        = default;
 
-  virtual Result<> get(Span<char const> mime, Vec<u8> & out) override
+  virtual Result<> get(Str mime, Vec<u8> & out) override
   {
     char mime_c_str[MAX_MIME_SIZE + 1];
     CHECK(to_c_str(mime, mime_c_str), "");
@@ -83,7 +83,7 @@ struct ClipBoardImpl : ClipBoard
     clipboard.local_.clear();
   }
 
-  virtual Result<> set(Span<char const> mime, Span<u8 const> data) override
+  virtual Result<> set(Str mime, Span<u8 const> data) override
   {
     if (data.is_empty() || mime.is_empty())
     {
@@ -149,8 +149,8 @@ struct WindowSystemImpl : WindowSystem
     return ((WindowImpl *) window)->win;
   }
 
-  virtual Option<Window> create_window(gpu::Instance &  instance,
-                                       Span<char const> title) override
+  virtual Option<Window> create_window(gpu::Instance & instance,
+                                       Str             title) override
   {
     char * title_c_str;
     if (!allocator->nalloc(title.size() + 1, title_c_str))
@@ -203,7 +203,7 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  virtual void set_title(Window window, Span<char const> title) override
+  virtual void set_title(Window window, Str title) override
   {
     char * title_c_str;
     CHECK(allocator->nalloc(title.size() + 1, title_c_str), "");

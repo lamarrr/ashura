@@ -40,8 +40,8 @@ ASH_BIT_ENUM_OPS(LogLevels)
 
 struct LogSink
 {
-  virtual void log(LogLevel level, Span<char const> log_message) = 0;
-  virtual void flush()                                           = 0;
+  virtual void log(LogLevel level, Str log_message) = 0;
+  virtual void flush()                              = 0;
 };
 
 /// @brief Logger needs to use fixed-size memory as malloc can fail and make
@@ -79,37 +79,37 @@ struct Logger
   }
 
   template <typename... Args>
-  bool debug(Span<char const> fstr, Args const &... args)
+  bool debug(Str fstr, Args const &... args)
   {
     return log(LogLevel::Debug, fstr, args...);
   }
 
   template <typename... Args>
-  bool trace(Span<char const> fstr, Args const &... args)
+  bool trace(Str fstr, Args const &... args)
   {
     return log(LogLevel::Trace, fstr, args...);
   }
 
   template <typename... Args>
-  bool info(Span<char const> fstr, Args const &... args)
+  bool info(Str fstr, Args const &... args)
   {
     return log(LogLevel::Info, fstr, args...);
   }
 
   template <typename... Args>
-  bool warn(Span<char const> fstr, Args const &... args)
+  bool warn(Str fstr, Args const &... args)
   {
     return log(LogLevel::Warning, fstr, args...);
   }
 
   template <typename... Args>
-  bool error(Span<char const> fstr, Args const &... args)
+  bool error(Str fstr, Args const &... args)
   {
     return log(LogLevel::Error, fstr, args...);
   }
 
   template <typename... Args>
-  bool fatal(Span<char const> fstr, Args const &... args)
+  bool fatal(Str fstr, Args const &... args)
   {
     return log(LogLevel::Fatal, fstr, args...);
   }
@@ -123,7 +123,7 @@ struct Logger
   }
 
   template <typename... Args>
-  bool log(LogLevel level, Span<char const> fstr, Args const &... args)
+  bool log(LogLevel level, Str fstr, Args const &... args)
   {
     static_assert(sizeof...(args) <= fmt::MAX_ARGS);
 
@@ -135,7 +135,7 @@ struct Logger
 
     Buffer<fmt::Op> ops{ops_scratch};
 
-    auto format_sink = [&](Span<char const> str) {
+    auto format_sink = [&](Str str) {
       if (!buffer.extend(str))
       {
         for (LogSink * sink : sinks())
@@ -188,7 +188,7 @@ struct Logger
   }
 
   template <typename... Args>
-  [[noreturn]] void panic(Span<char const> fstr, Args const &... args)
+  [[noreturn]] void panic(Str fstr, Args const &... args)
   {
     std::atomic_ref panic_count{*ash::panic_count};
     if (panic_count.fetch_add(1, std::memory_order::relaxed))
@@ -216,7 +216,7 @@ struct StdioSink : LogSink
 {
   std::mutex mutex;
 
-  void log(LogLevel level, Span<char const> log_message) override;
+  void log(LogLevel level, Str log_message) override;
   void flush() override;
 };
 
@@ -227,7 +227,7 @@ struct FileSink : LogSink
   std::FILE * file = nullptr;
   std::mutex  mutex;
 
-  void log(LogLevel level, Span<char const> log_message) override;
+  void log(LogLevel level, Str log_message) override;
   void flush() override;
 };
 
@@ -236,37 +236,37 @@ extern Logger * logger;
 ASH_C_LINKAGE ASH_DLL_EXPORT void hook_logger(Logger *);
 
 template <typename... Args>
-void debug(Span<char const> fstr, Args const &... args)
+void debug(Str fstr, Args const &... args)
 {
   logger->debug(fstr, args...);
 }
 
 template <typename... Args>
-void trace(Span<char const> fstr, Args const &... args)
+void trace(Str fstr, Args const &... args)
 {
   logger->trace(fstr, args...);
 }
 
 template <typename... Args>
-void info(Span<char const> fstr, Args const &... args)
+void info(Str fstr, Args const &... args)
 {
   logger->info(fstr, args...);
 }
 
 template <typename... Args>
-void warn(Span<char const> fstr, Args const &... args)
+void warn(Str fstr, Args const &... args)
 {
   logger->warn(fstr, args...);
 }
 
 template <typename... Args>
-void error(Span<char const> fstr, Args const &... args)
+void error(Str fstr, Args const &... args)
 {
   logger->error(fstr, args...);
 }
 
 template <typename... Args>
-void fatal(Span<char const> fstr, Args const &... args)
+void fatal(Str fstr, Args const &... args)
 {
   logger->fatal(fstr, args...);
 }

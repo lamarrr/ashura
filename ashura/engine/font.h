@@ -40,7 +40,7 @@ enum class FontLoadErr : u32
   UnsupportedFormat = 5
 };
 
-constexpr Span<char const> to_str(FontLoadErr err)
+constexpr Str to_str(FontLoadErr err)
 {
   switch (err)
   {
@@ -141,11 +141,11 @@ struct GpuFontAtlas
 struct FontInfo
 {
   FontId                        id                = FontId::Invalid;
-  Span<char const>              label             = {};
+  Str                           label             = {};
   bool                          has_color         = false;
-  Span<char const>              postscript_name   = {};
-  Span<char const>              family_name       = {};
-  Span<char const>              style_name        = {};
+  Str                           postscript_name   = {};
+  Str                           family_name       = {};
+  Str                           style_name        = {};
   Span<GlyphMetrics const>      glyphs            = {};
   u32                           replacement_glyph = 0;
   u32                           space_glyph       = 0;

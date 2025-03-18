@@ -62,7 +62,7 @@ enum class [[nodiscard]] IoErr : i32
   TemporarilyUnavailable = EWOULDBLOCK
 };
 
-constexpr Span<char const> to_str(IoErr err)
+constexpr Str to_str(IoErr err)
 {
   if (err == IoErr::None)
   {
@@ -279,8 +279,7 @@ inline void format(fmt::Sink sink, fmt::Spec spec, IoErr const & err)
   return format(sink, spec, to_str(err));
 }
 
-inline Result<> path_join(Span<char const> base, Span<char const> ext,
-                          Vec<char> & out)
+inline Result<> path_join(Str base, Str ext, Vec<char> & out)
 {
   usize const max_size = base.size() + ext.size() + 1;
 
@@ -311,9 +310,8 @@ inline Result<> path_join(Span<char const> base, Span<char const> ext,
   return Ok{};
 }
 
-Result<Void, IoErr> read_file(Span<char const> path, Vec<u8> & buff);
+Result<Void, IoErr> read_file(Str path, Vec<u8> & buff);
 
-Result<Void, IoErr> write_to_file(Span<char const> path, Span<u8 const> buff,
-                                  bool append);
+Result<Void, IoErr> write_to_file(Str path, Span<u8 const> buff, bool append);
 
 }    // namespace ash

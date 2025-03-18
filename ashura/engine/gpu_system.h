@@ -160,7 +160,7 @@ typedef Map<gpu::SamplerInfo, Sampler, SamplerHasher, SamplerEq, u32>
 
 struct StagingBuffer
 {
-  Span<char const> label = "Staging Buffer"_str;
+  Str label = "Staging Buffer"_str;
 
   gpu::Buffer buffer = nullptr;
 
@@ -305,9 +305,9 @@ struct GpuQueries
 
   Vec<gpu::PipelineStatistics> cpu_statistics_;
 
-  Vec<Span<char const>> timespan_labels_;
+  Vec<Str> timespan_labels_;
 
-  Vec<Span<char const>> statistics_labels_;
+  Vec<Str> statistics_labels_;
 
   static GpuQueries create(AllocatorRef allocator, gpu::Device & dev,
                            f32 time_period, u32 num_timespans,
@@ -338,12 +338,11 @@ struct GpuQueries
 
   void begin_frame(gpu::Device & dev, gpu::CommandEncoder & enc);
 
-  Option<u32> begin_timespan(gpu::CommandEncoder & enc, Span<char const> label);
+  Option<u32> begin_timespan(gpu::CommandEncoder & enc, Str label);
 
   void end_timespan(gpu::CommandEncoder & enc, u32 id);
 
-  Option<u32> begin_statistics(gpu::CommandEncoder & enc,
-                               Span<char const>      label);
+  Option<u32> begin_statistics(gpu::CommandEncoder & enc, Str label);
 
   void end_statistics(gpu::CommandEncoder & enc, u32 id);
 };
@@ -532,18 +531,18 @@ struct GpuSystem
 
   void submit_frame(gpu::Swapchain swapchain);
 
-  Option<u32> begin_timespan(Span<char const> label);
+  Option<u32> begin_timespan(Str label);
 
   void end_timespan(u32 id);
 
-  Option<u32> begin_statistics(Span<char const> label);
+  Option<u32> begin_statistics(Str label);
 
   void end_statistics(u32 id);
 };
 
 struct SSBO
 {
-  Span<char const> label = "SSBO"_str;
+  Str label = "SSBO"_str;
 
   gpu::Buffer buffer = nullptr;
 

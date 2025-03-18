@@ -40,8 +40,7 @@ void FontSystemImpl::shutdown()
 }
 
 Result<Dyn<Font *>, FontLoadErr>
-  FontSystemImpl::decode_(Span<char const> label_ref, Span<u8 const> encoded,
-                          u32 face)
+  FontSystemImpl::decode_(Str label_ref, Span<u8 const> encoded, u32 face)
 {
   Vec<char> font_data{allocator_};
   if (!font_data.extend(encoded.as_char()))
@@ -532,8 +531,8 @@ Future<Result<FontId, FontLoadErr>>
 }
 
 Future<Result<FontId, FontLoadErr>>
-  FontSystemImpl::load_from_path(Vec<char> label, Span<char const> path,
-                                 u32 font_height, u32 face)
+  FontSystemImpl::load_from_path(Vec<char> label, Str path, u32 font_height,
+                                 u32 face)
 {
   Future file_load_fut = sys->file.load_file(path);
 
@@ -572,7 +571,7 @@ FontInfo FontSystemImpl::get(FontId id)
   return fonts_[(usize) id].v0->info();
 }
 
-FontInfo FontSystemImpl::get(Span<char const> label)
+FontInfo FontSystemImpl::get(Str label)
 {
   for (auto & font : fonts_.dense.v0)
   {
@@ -599,11 +598,10 @@ void FontSystemImpl::unload(FontId id)
 /// with invalid codepoints replaced before calling this.
 /// @param script OpenType (ISO15924) Script
 /// Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
-static inline void shape(hb_font_t * font, hb_buffer_t * buffer,
-                         Span<c32 const> text, Slice codepoints,
-                         hb_script_t script, hb_direction_t direction,
-                         hb_language_t language, bool use_kerning,
-                         bool                              use_ligatures,
+static inline void shape(hb_font_t * font, hb_buffer_t * buffer, Str32 line,
+                         Slice codepoints, hb_script_t script,
+                         hb_direction_t direction, hb_language_t language,
+                         bool use_kerning, bool use_ligatures,
                          Span<hb_glyph_info_t const> &     infos,
                          Span<hb_glyph_position_t const> & positions)
 {
@@ -635,7 +633,7 @@ static inline void shape(hb_font_t * font, hb_buffer_t * buffer,
   // OpenType BCP-47 language tag specifying locale-sensitive shaping operations
   // as defined in the font
   hb_buffer_set_language(buffer, language);
-  hb_buffer_add_codepoints(buffer, (u32 const *) text.data(), (i32) text.size(),
+  hb_buffer_add_codepoints(buffer, (u32 const *) line.data(), (i32) line.size(),
                            (u32) codepoints.offset, (i32) codepoints.span);
   hb_shape(font, buffer, shaping_features, (u32) size(shaping_features));
 
@@ -656,8 +654,7 @@ static inline void shape(hb_font_t * font, hb_buffer_t * buffer,
 }
 
 /// @brief only needs to be called if it contains multiple paragraphs
-static inline void segment_paragraphs(Span<c32 const>   text,
-                                      Span<TextSegment> segments)
+static inline void segment_paragraphs(Str32 text, Span<TextSegment> segments)
 {
   auto const text_size = text.size();
   for (usize i = 0; i < text_size;)
@@ -684,8 +681,7 @@ static inline void segment_paragraphs(Span<c32 const>   text,
 
 /// @brief only needs to be called if it contains multiple scripts
 /// outputs iso15924 or OpenType tags
-static inline void segment_scripts(Span<c32 const>   text,
-                                   Span<TextSegment> segments)
+static inline void segment_scripts(Str32 text, Span<TextSegment> segments)
 {
   SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
                                  .stringBuffer   = (void *) text.data(),
@@ -710,8 +706,8 @@ static inline void segment_scripts(Span<c32 const>   text,
 }
 
 /// @brief only needs to be called if it is a bidirectional text
-static inline void segment_levels(Span<c32 const> text,
-                                  SBAlgorithmRef algorithm, TextDirection base,
+static inline void segment_levels(Str32 text, SBAlgorithmRef algorithm,
+                                  TextDirection     base,
                                   Span<TextSegment> segments)
 {
   // The embedding level is an integer value. LTR text segments have even
@@ -757,8 +753,7 @@ static inline void segment_levels(Span<c32 const> text,
 }
 
 /// @brief only needs to be called if line breaking is required.
-static inline void segment_breakpoints(Span<c32 const>   text,
-                                       Span<TextSegment> segments)
+static inline void segment_breakpoints(Str32 text, Span<TextSegment> segments)
 {
   auto const text_size = text.size();
   for (usize i = 0; i < text_size;)

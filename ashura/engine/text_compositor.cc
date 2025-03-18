@@ -44,7 +44,7 @@ void TextCompositor::pop_records(usize num)
 }
 
 void TextCompositor::append_record(bool is_insert, usize text_pos,
-                                   Span<c32 const> segment)
+                                   Str32 segment)
 {
   if (segment.size() > buffer_.size())
   {
@@ -134,7 +134,7 @@ void TextCompositor::unselect()
   cursor_.unselect();
 }
 
-void TextCompositor::delete_selection(Span<c32 const> text, Erase erase)
+void TextCompositor::delete_selection(Str32 text, Erase erase)
 {
   if (cursor_.is_empty())
   {
@@ -147,7 +147,7 @@ void TextCompositor::delete_selection(Span<c32 const> text, Erase erase)
   cursor_.to_first();
 }
 
-static constexpr bool is_symbol(Span<c32 const> symbols, u32 c)
+static constexpr bool is_symbol(Str32 symbols, u32 c)
 {
   return !find(symbols, c).is_empty();
 }
@@ -160,8 +160,7 @@ static constexpr bool is_symbol(Span<c32 const> symbols, u32 c)
 /// i.e. a code editor may use '(',')' as word boundaries.
 /// @param[out] first index of first char in symbolic boundary
 /// @param[out] last index of last char in symbolic boundary
-static constexpr Slice find_boundary(Span<c32 const> text, u32 const pos,
-                                     Span<c32 const> symbols)
+static constexpr Slice find_boundary(Str32 text, u32 const pos, Str32 symbols)
 {
   usize fwd = pos;
   usize bwd = pos;
@@ -197,8 +196,8 @@ static constexpr Slice find_boundary(Span<c32 const> text, u32 const pos,
   return Slice{.offset = bwd, .span = (fwd - bwd) + 1};
 }
 
-static inline Slice cursor_boundary(Span<c32 const> text,
-                                    Span<c32 const> symbols, TextCursor cursor)
+static inline Slice cursor_boundary(Str32 text, Str32 symbols,
+                                    TextCursor cursor)
 {
   Slice selection = cursor.as_slice()(text.size());
   if (text.is_empty() || selection.is_empty())
@@ -232,8 +231,9 @@ static inline LinePosition line_translate(TextLayout const & layout, i64 cursor,
   return LinePosition{};
 }
 
+// [ ] test all
 Slice TextCompositor::command(RenderText const & text, TextCommand cmd,
-                              Insert insert, Erase erase, Span<c32 const> input,
+                              Insert insert, Erase erase, Str32 input,
                               ClipBoard & clipboard, u32 lines_per_page,
                               CRect const & region, Vec2 pos, f32 zoom)
 {
@@ -287,6 +287,7 @@ Slice TextCompositor::command(RenderText const & text, TextCommand cmd,
         cursor_.clamp(block.text.size());
       }
       delete_selection(block.text, erase);
+      // [ ] move back cursor
     }
     break;
     case TextCommand::InputText:
@@ -524,28 +525,32 @@ Slice TextCompositor::command(RenderText const & text, TextCommand cmd,
       TextHitResult const hit =
         text.hit(region, pos, zoom).unwrap_or(TextHitResult{});
       cursor_.span_to(hit.cluster);
+      // [ ] not working?
+      // [ ] highlight not working
     }
     break;
     case TextCommand::NewLine:
     {
-      Span<c32 const> input     = U"\n"_str;
-      Slice           selection = cursor_.as_slice()(block.text.size());
+      Str32 input     = U"\n"_str;
+      Slice selection = cursor_.as_slice()(block.text.size());
       delete_selection(block.text, noop);
       append_record(true, selection.offset, input);
       erase(selection);
       insert(selection.offset, input);
+      // [ ] move
     }
     break;
     case TextCommand::Tab:
     {
       static constexpr c32 TAB_STRING[] = {'\t', '\t', '\t', '\t',
                                            '\t', '\t', '\t', '\t'};
-      Span<c32 const>      input        = span(TAB_STRING).slice(0, tab_width_);
+      Str32                input        = span(TAB_STRING).slice(0, tab_width_);
       Slice                selection    = cursor_.as_slice()(block.text.size());
       delete_selection(block.text, noop);
       append_record(true, selection.offset, input);
       erase(selection);
       insert(selection.offset, input);
+      // [ ] move
     }
     break;
     case TextCommand::None:

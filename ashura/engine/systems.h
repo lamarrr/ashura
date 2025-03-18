@@ -16,7 +16,7 @@ struct ImageInfo
 {
   ImageId id = ImageId::Invalid;
 
-  Span<char const> label{};
+  Str label{};
 
   Span<TextureId const> textures{};
 
@@ -61,7 +61,7 @@ struct ShaderInfo
 {
   ShaderId id{};
 
-  Span<char const> label{};
+  Str label{};
 
   gpu::Shader shader = nullptr;
 };
@@ -96,7 +96,7 @@ struct FileSystem
 
   void shutdown();
 
-  Future<Result<Vec<u8>, IoErr>> load_file(Span<char const> path);
+  Future<Result<Vec<u8>, IoErr>> load_file(Str path);
 };
 
 struct ImageSystem
@@ -131,10 +131,10 @@ struct ImageSystem
                      Span<gpu::ImageViewInfo const> view_infos,
                      Span<u8 const>                 channels);
 
-  Future<Result<ImageInfo, ImageLoadErr>> load_from_path(Vec<char>        label,
-                                                         Span<char const> path);
+  Future<Result<ImageInfo, ImageLoadErr>> load_from_path(Vec<char> label,
+                                                         Str       path);
 
-  ImageInfo get(Span<char const> label);
+  ImageInfo get(Str label);
 
   ImageInfo get(ImageId id);
 
@@ -164,13 +164,14 @@ struct FontSystem
     load_from_memory(Vec<char> label, Vec<u8> encoded, u32 font_height,
                      u32 face = 0) = 0;
 
-  virtual Future<Result<FontId, FontLoadErr>>
-    load_from_path(Vec<char> label, Span<char const> path, u32 font_height,
-                   u32 face = 0) = 0;
+  virtual Future<Result<FontId, FontLoadErr>> load_from_path(Vec<char> label,
+                                                             Str       path,
+                                                             u32 font_height,
+                                                             u32 face = 0) = 0;
 
   virtual FontInfo get(FontId id) = 0;
 
-  virtual FontInfo get(Span<char const> label) = 0;
+  virtual FontInfo get(Str label) = 0;
 
   virtual void unload(FontId id) = 0;
 };
@@ -197,12 +198,12 @@ struct ShaderSystem
   Result<ShaderInfo, ShaderLoadErr> load_from_memory(Vec<char>       label,
                                                      Span<u32 const> spirv);
 
-  Future<Result<ShaderInfo, ShaderLoadErr>>
-    load_from_path(Vec<char> label, Span<char const> path);
+  Future<Result<ShaderInfo, ShaderLoadErr>> load_from_path(Vec<char> label,
+                                                           Str       path);
 
   ShaderInfo get(ShaderId id);
 
-  ShaderInfo get(Span<char const> label);
+  ShaderInfo get(Str label);
 
   void unload(ShaderId);
 };
