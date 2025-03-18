@@ -760,33 +760,33 @@ struct ImageSubresourceLayers
 
 struct BufferInfo
 {
-  Span<char const> label       = {};
-  u64              size        = 0;
-  bool             host_mapped = false;
-  BufferUsage      usage       = BufferUsage::None;
+  Str         label       = {};
+  u64         size        = 0;
+  bool        host_mapped = false;
+  BufferUsage usage       = BufferUsage::None;
 };
 
 /// format interpretation of a buffer's contents
 struct BufferViewInfo
 {
-  Span<char const> label  = {};
-  Buffer           buffer = nullptr;
-  Format           format = Format::Undefined;
-  u64              offset = 0;
-  u64              size   = 0;
+  Str    label  = {};
+  Buffer buffer = nullptr;
+  Format format = Format::Undefined;
+  u64    offset = 0;
+  u64    size   = 0;
 };
 
 struct ImageInfo
 {
-  Span<char const> label        = {};
-  ImageType        type         = ImageType::Type1D;
-  Format           format       = Format::Undefined;
-  ImageUsage       usage        = ImageUsage::None;
-  ImageAspects     aspects      = ImageAspects::None;
-  Vec3U            extent       = {};
-  u32              mip_levels   = 0;
-  u32              array_layers = 0;
-  SampleCount      sample_count = SampleCount::None;
+  Str          label        = {};
+  ImageType    type         = ImageType::Type1D;
+  Format       format       = Format::Undefined;
+  ImageUsage   usage        = ImageUsage::None;
+  ImageAspects aspects      = ImageAspects::None;
+  Vec3U        extent       = {};
+  u32          mip_levels   = 0;
+  u32          array_layers = 0;
+  SampleCount  sample_count = SampleCount::None;
 };
 
 /// a sub-resource that specifies mips, aspects, layer, and component mapping of
@@ -798,7 +798,7 @@ struct ImageInfo
 ///
 struct ImageViewInfo
 {
-  Span<char const> label             = {};
+  Str              label             = {};
   Image            image             = nullptr;
   ImageViewType    view_type         = ImageViewType::Type1D;
   Format           view_format       = Format::Undefined;
@@ -812,7 +812,7 @@ struct ImageViewInfo
 
 struct SamplerInfo
 {
-  Span<char const>   label             = {};
+  Str                label             = {};
   Filter             mag_filter        = Filter::Nearest;
   Filter             min_filter        = Filter::Nearest;
   SamplerMipMapMode  mip_map_mode      = SamplerMipMapMode::Nearest;
@@ -832,8 +832,8 @@ struct SamplerInfo
 
 struct ShaderInfo
 {
-  Span<char const> label      = {};
-  Span<u32 const>  spirv_code = {};
+  Str             label      = {};
+  Span<u32 const> spirv_code = {};
 };
 
 /// @param count represents maximum count of the binding if
@@ -848,21 +848,21 @@ struct DescriptorBindingInfo
 
 struct DescriptorSetLayoutInfo
 {
-  Span<char const>                  label    = {};
+  Str                               label    = {};
   Span<DescriptorBindingInfo const> bindings = {};
 };
 
 struct DescriptorSetInfo
 {
-  Span<char const>    label            = {};
+  Str                 label            = {};
   DescriptorSetLayout layout           = nullptr;
   Span<u32 const>     variable_lengths = {};
 };
 
 struct PipelineCacheInfo
 {
-  Span<char const> label        = {};
-  Span<u8 const>   initial_data = {};
+  Str            label        = {};
+  Span<u8 const> initial_data = {};
 };
 
 struct ImageBinding
@@ -898,14 +898,14 @@ struct SpecializationConstant
 struct ShaderStageInfo
 {
   Shader                             shader                        = nullptr;
-  Span<char const>                   entry_point                   = {};
+  Str                                entry_point                   = {};
   Span<SpecializationConstant const> specialization_constants      = {};
   Span<u8 const>                     specialization_constants_data = {};
 };
 
 struct ComputePipelineInfo
 {
-  Span<char const>                label                  = {};
+  Str                             label                  = {};
   ShaderStageInfo                 compute_shader         = {};
   u32                             push_constants_size    = 0;
   Span<DescriptorSetLayout const> descriptor_set_layouts = {};
@@ -1006,7 +1006,7 @@ struct GraphicsState
 /// means the attachment is unused.
 struct GraphicsPipelineInfo
 {
-  Span<char const>                label                  = {};
+  Str                             label                  = {};
   ShaderStageInfo                 vertex_shader          = {};
   ShaderStageInfo                 fragment_shader        = {};
   Span<Format const>              color_formats          = {};
@@ -1115,13 +1115,13 @@ struct SurfaceCapabilities
 
 struct SwapchainInfo
 {
-  Span<char const> label               = {};
-  SurfaceFormat    format              = {};
-  ImageUsage       usage               = ImageUsage::None;
-  u32              preferred_buffering = 0;
-  PresentMode      present_mode        = PresentMode::Immediate;
-  Vec2U            preferred_extent    = {};
-  CompositeAlpha   composite_alpha     = CompositeAlpha::None;
+  Str            label               = {};
+  SurfaceFormat  format              = {};
+  ImageUsage     usage               = ImageUsage::None;
+  u32            preferred_buffering = 0;
+  PresentMode    present_mode        = PresentMode::Immediate;
+  Vec2U          preferred_extent    = {};
+  CompositeAlpha composite_alpha     = CompositeAlpha::None;
 };
 
 /// @param generation increases everytime the swapchain for the surface is
@@ -1152,22 +1152,22 @@ struct PipelineStatistics
 /// nanosecond
 struct DeviceProperties
 {
-  u32              api_version                        = 0;
-  u32              driver_version                     = 0;
-  u32              vendor_id                          = 0;
-  u32              device_id                          = 0;
-  Span<char const> device_name                        = {};
-  DeviceType       type                               = DeviceType::Other;
-  bool             has_unified_memory                 = false;
-  bool             has_non_solid_fill_mode            = false;
-  u64              texel_buffer_offset_alignment      = 0;
-  u64              uniform_buffer_offset_alignment    = 0;
-  u64              storage_buffer_offset_alignment    = 0;
-  f32              timestamp_period                   = 0;
-  u32              max_compute_work_group_count[3]    = {};
-  u32              max_compute_work_group_size[3]     = {};
-  u32              max_compute_work_group_invocations = 0;
-  u32              max_compute_shared_memory_size     = 0;
+  u32        api_version                        = 0;
+  u32        driver_version                     = 0;
+  u32        vendor_id                          = 0;
+  u32        device_id                          = 0;
+  Str        device_name                        = {};
+  DeviceType type                               = DeviceType::Other;
+  bool       has_unified_memory                 = false;
+  bool       has_non_solid_fill_mode            = false;
+  u64        texel_buffer_offset_alignment      = 0;
+  u64        uniform_buffer_offset_alignment    = 0;
+  u64        storage_buffer_offset_alignment    = 0;
+  f32        timestamp_period                   = 0;
+  u32        max_compute_work_group_count[3]    = {};
+  u32        max_compute_work_group_size[3]     = {};
+  u32        max_compute_work_group_invocations = 0;
+  u32        max_compute_shared_memory_size     = 0;
 };
 
 struct RenderingAttachment
@@ -1203,7 +1203,7 @@ struct CommandEncoder
 
   virtual void end_statistics(StatisticsQuery query, u32 index) = 0;
 
-  virtual void begin_debug_marker(Span<char const> region_name, Vec4 color) = 0;
+  virtual void begin_debug_marker(Str region_name, Vec4 color) = 0;
 
   virtual void end_debug_marker() = 0;
 

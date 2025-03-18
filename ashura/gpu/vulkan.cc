@@ -1687,7 +1687,7 @@ void Instance::uninit(gpu::Surface surface)
   vk_table.DestroySurfaceKHR(vk_instance, (Surface) surface, nullptr);
 }
 
-void Device::set_resource_name(Span<char const> label, void const * resource,
+void Device::set_resource_name(Str label, void const * resource,
                                VkObjectType               type,
                                VkDebugReportObjectTypeEXT debug_type)
 {
@@ -4399,8 +4399,7 @@ void CommandEncoder::end_statistics(gpu::StatisticsQuery query_, u32 index)
   dev->vk_table.CmdEndQuery(vk_command_buffer, vk_pool, index);
 }
 
-void CommandEncoder::begin_debug_marker(Span<char const> region_name,
-                                        Vec4             color)
+void CommandEncoder::begin_debug_marker(Str region_name, Vec4 color)
 {
   ENCODE_PRELUDE();
   CHECK(!is_in_pass(), "");

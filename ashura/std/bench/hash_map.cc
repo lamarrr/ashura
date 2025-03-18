@@ -1255,8 +1255,8 @@ struct std_allocator
 
 static void BM_StdMap_AshHasher(benchmark::State & state)
 {
-  std::unordered_map<Span<char const>, i64, SpanHash, StrEq,
-                     std_allocator<std::pair<Span<char const> const, i64>>>
+  std::unordered_map<Str, i64, SpanHash, StrEq,
+                     std_allocator<std::pair<Str const, i64>>>
             map;
   i64 const num_inserts = state.range(0);
   i64       num_queries = 0;
@@ -1285,9 +1285,9 @@ static void BM_StdMap_AshHasher(benchmark::State & state)
 }
 
 template <>
-struct std::less<Span<char const>>
+struct std::less<Str>
 {
-  bool operator()(Span<char const> a, Span<char const> b) const
+  bool operator()(Str a, Str b) const
   {
     std::string_view a_str{a.data(), a.size()};
     std::string_view b_str{b.data(), b.size()};
@@ -1296,11 +1296,11 @@ struct std::less<Span<char const>>
 };
 
 template <>
-struct std::hash<Span<char const>>
+struct std::hash<Str>
 {
   std::hash<std::string_view> hash;
 
-  size_t operator()(Span<char const> str) const
+  size_t operator()(Str str) const
   {
     return hash(std::string_view{str.data(), str.size()});
   }
@@ -1308,8 +1308,8 @@ struct std::hash<Span<char const>>
 
 static void BM_StdMapDefaultHash(benchmark::State & state)
 {
-  std::unordered_map<Span<char const>, i64, std::hash<Span<char const>>, StrEq,
-                     std_allocator<std::pair<Span<char const> const, i64>>>
+  std::unordered_map<Str, i64, std::hash<Str>, StrEq,
+                     std_allocator<std::pair<Str const, i64>>>
             map;
   i64 const num_inserts = state.range(0);
   i64       num_queries = 0;
@@ -1339,7 +1339,7 @@ static void BM_StdMapDefaultHash(benchmark::State & state)
 
 static void BM_StdMapDefaultHashDefaultAlloc(benchmark::State & state)
 {
-  std::unordered_map<Span<char const>, i64, std::hash<Span<char const>>, StrEq>
+  std::unordered_map<Str, i64, std::hash<Str>, StrEq>
             map;
   i64 const num_inserts = state.range(0);
   i64       num_queries = 0;
@@ -1369,7 +1369,7 @@ static void BM_StdMapDefaultHashDefaultAlloc(benchmark::State & state)
 
 void BM_StdOrderedMapDefaultAlloc(benchmark::State & state)
 {
-  std::map<Span<char const>, i64> map;
+  std::map<Str, i64> map;
   i64 const                       num_inserts = state.range(0);
   i64                             num_queries = 0;
 

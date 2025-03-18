@@ -612,7 +612,7 @@ enum class WindowEventType : u32
 
 struct TextInputEvent
 {
-  Span<c8 const> text{};
+  Str8 text{};
 };
 
 enum class DropEventType : u32
@@ -628,12 +628,12 @@ struct DropPositionEvent
 
 struct DropFileEvent
 {
-  Span<char const> path{};
+  Str path{};
 };
 
 struct DropTextEvent
 {
-  Span<c8 const> text{};
+  Str8 text{};
 };
 
 using DropEvent =
@@ -822,14 +822,14 @@ struct ClipBoard
   ClipBoard & operator=(ClipBoard &&)      = default;
   virtual ~ClipBoard()                     = default;
 
-  virtual Result<> get(Span<char const> mime, Vec<u8> & out)
+  virtual Result<> get(Str mime, Vec<u8> & out)
   {
     (void) mime;
     (void) out;
     return Err{};
   }
 
-  virtual Result<> set(Span<char const> mime, Span<u8 const> data)
+  virtual Result<> set(Str mime, Span<u8 const> data)
   {
     (void) mime;
     (void) data;

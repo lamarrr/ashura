@@ -703,8 +703,7 @@ struct CommandEncoder final : gpu::CommandEncoder
 
   virtual void end_statistics(gpu::StatisticsQuery query, u32 index) override;
 
-  virtual void begin_debug_marker(Span<char const> region_name,
-                                  Vec4             color) override;
+  virtual void begin_debug_marker(Str region_name, Vec4 color) override;
 
   virtual void end_debug_marker() override;
 
@@ -810,8 +809,7 @@ struct Device final : gpu::Device
   VmaAllocator       vma_allocator = nullptr;
   FrameContext       frame_ctx     = {};
 
-  void set_resource_name(Span<char const> label, void const * resource,
-                         VkObjectType               type,
+  void set_resource_name(Str label, void const * resource, VkObjectType type,
                          VkDebugReportObjectTypeEXT debug_type);
 
   VkResult recreate_swapchain(Swapchain * swapchain);
