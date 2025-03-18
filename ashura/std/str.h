@@ -5,20 +5,21 @@
 
 namespace ash
 {
-
 namespace str
 {
 
-template <typename C>
-Result<> join(Span<Span<C const> const> strings, Span<C const> delimiter,
-              Vec<C> & out)
+namespace impl
+{
+template <typename Vec, typename C>
+Result<> join(Vec & out, Span<C const> delimiter,
+              Span<Span<C const> const> strings)
 {
   if (strings.size() == 0)
   {
     return Ok{};
   }
 
-  usize initial_size = out.size();
+  usize const initial_size = out.size();
 
   for (usize i = 0; i < (strings.size() - 1); i++)
   {
@@ -37,7 +38,25 @@ Result<> join(Span<Span<C const> const> strings, Span<C const> delimiter,
 
   return Ok{};
 }
+}    // namespace impl
+
+template <typename Char, typename DelimChar, typename Str0Char,
+          typename... StrChars>
+Result<> join(Vec<Char> & out, Span<DelimChar> delimiter, Span<Str0Char> str0,
+              Span<StrChars>... strs)
+{
+  Str strings[] = {str0, strs...};
+  return impl::join(out, delimiter, strings);
+}
+
+template <typename Char, usize Capacity, typename DelimChar, typename Str0Char,
+          typename... StrChars>
+Result<> join(InplaceVec<Char, Capacity> & out, Span<DelimChar> delimiter,
+              Span<Str0Char> str0, Span<StrChars>... strs)
+{
+  Str strings[] = {str0, strs...};
+  return impl::join(out, delimiter, strings);
+}
 
 }    // namespace str
-
 }    // namespace ash

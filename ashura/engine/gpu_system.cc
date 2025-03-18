@@ -1,5 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/gpu_system.h"
+#include "ashura/std/str.h"
 #include "ashura/std/trace.h"
 
 namespace ash
@@ -689,14 +690,31 @@ void GpuSystem::shutdown(Vec<u8> & cache)
 }
 
 static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
-                                 Vec2U new_extent)
+                                 Vec2U new_extent, Str prefix, usize index)
 {
   gpu.release(fb);
   fb                = Framebuffer{};
   gpu::Device & dev = *gpu.device_;
 
+  auto make_label = [&](Str type) {
+    gpu::Label label;
+    fmt::Op    scratch[fmt::MAX_ARGS];
+
+    fmt::Context ctx{
+      fn(
+        &label, +[](gpu::Label * b, Str str) { b->extend(str).unwrap(); }),
+      Buffer<fmt::Op>{scratch}};
+
+    CHECK(ctx.format("{} [{}]: {}", prefix, index, type).error ==
+            fmt::Error::None,
+          "");
+    return label;
+  };
+
+  auto image_label = make_label("Resolved Framebuffer Color Image"_str);
+
   gpu::ImageInfo info{
-    .label  = "Resolved Framebuffer Color Image"_str,
+    .label  = image_label,
     .type   = gpu::ImageType::Type2D,
     .format = gpu.color_format_,
     .usage  = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::Sampled |
@@ -711,8 +729,9 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
 
   gpu::Image image = dev.create_image(info).unwrap();
 
-  gpu::ImageViewInfo view_info{.label =
-                                 "Resolved Framebuffer Color Image View"_str,
+  auto view_label = make_label("Resolved Framebuffer Color Image View"_str);
+
+  gpu::ImageViewInfo view_info{.label             = view_label,
                                .image             = image,
                                .view_type         = gpu::ImageViewType::Type2D,
                                .view_format       = info.format,
@@ -725,13 +744,15 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
 
   gpu::ImageView view = dev.create_image_view(view_info).unwrap();
 
-  gpu::DescriptorSet texture =
-    dev
-      .create_descriptor_set(gpu::DescriptorSetInfo{
-        .label            = "Resolved Framebuffer Color Image Descriptor"_str,
-        .layout           = gpu.textures_layout_,
-        .variable_lengths = span<u32>({1})})
-      .unwrap();
+  auto texture_label =
+    make_label("Resolved Framebuffer Color Image Descriptor"_str);
+
+  gpu::DescriptorSet texture = dev
+                                 .create_descriptor_set(gpu::DescriptorSetInfo{
+                                   .label            = texture_label,
+                                   .layout           = gpu.textures_layout_,
+                                   .variable_lengths = span<u32>({1})})
+                                 .unwrap();
 
   dev.update_descriptor_set(gpu::DescriptorSetUpdate{
     .set     = texture,
@@ -747,8 +768,10 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
 
   if (gpu.sample_count_ != gpu::SampleCount::C1)
   {
+    auto image_label = make_label("Framebuffer MSAA Color Image"_str);
+
     gpu::ImageInfo info{
-      .label  = "Framebuffer MSAA Color Image"_str,
+      .label  = image_label,
       .type   = gpu::ImageType::Type2D,
       .format = gpu.color_format_,
       .usage = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::TransferSrc |
@@ -762,8 +785,9 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
 
     gpu::Image image = dev.create_image(info).unwrap();
 
-    gpu::ImageViewInfo view_info{.label =
-                                   "Framebuffer MSAA Color Image View"_str,
+    auto view_label = make_label("Framebuffer MSAA Color Image View"_str);
+
+    gpu::ImageViewInfo view_info{.label           = view_label,
                                  .image           = image,
                                  .view_type       = gpu::ImageViewType::Type2D,
                                  .view_format     = info.format,
@@ -781,8 +805,10 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
   }
 
   {
+    auto image_label = make_label("Framebuffer Depth & Stencil Image"_str);
+
     gpu::ImageInfo info{
-      .label  = "Framebuffer Depth & Stencil Image"_str,
+      .label  = image_label,
       .type   = gpu::ImageType::Type2D,
       .format = gpu.depth_stencil_format_,
       .usage  = gpu::ImageUsage::DepthStencilAttachment |
@@ -797,8 +823,10 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
 
     gpu::Image image = dev.create_image(info).unwrap();
 
-    gpu::ImageViewInfo view_info{.label = "Framebuffer Depth Image View"_str,
-                                 .image = image,
+    auto view_label = make_label("Framebuffer Depth Image View"_str);
+
+    gpu::ImageViewInfo view_info{.label           = view_label,
+                                 .image           = image,
                                  .view_type       = gpu::ImageViewType::Type2D,
                                  .view_format     = info.format,
                                  .mapping         = {},
@@ -810,27 +838,31 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
 
     gpu::ImageView view = dev.create_image_view(view_info).unwrap();
 
-    gpu::ImageViewInfo stencil_view_info{
-      .label             = "Framebuffer Stencil Image View"_str,
-      .image             = image,
-      .view_type         = gpu::ImageViewType::Type2D,
-      .view_format       = info.format,
-      .mapping           = {},
-      .aspects           = gpu::ImageAspects::Stencil,
-      .first_mip_level   = 0,
-      .num_mip_levels    = 1,
-      .first_array_layer = 0,
-      .num_array_layers  = 1};
+    auto stencil_view_label = make_label("Framebuffer Stencil Image View"_str);
+
+    gpu::ImageViewInfo stencil_view_info{.label = stencil_view_label,
+                                         .image = image,
+                                         .view_type =
+                                           gpu::ImageViewType::Type2D,
+                                         .view_format = info.format,
+                                         .mapping     = {},
+                                         .aspects = gpu::ImageAspects::Stencil,
+                                         .first_mip_level   = 0,
+                                         .num_mip_levels    = 1,
+                                         .first_array_layer = 0,
+                                         .num_array_layers  = 1};
 
     gpu::ImageView stencil_view =
       dev.create_image_view(stencil_view_info).unwrap();
 
+    auto texture_label = make_label("Framebuffer Depth Image Descriptor"_str);
+
     gpu::DescriptorSet texture =
       dev
-        .create_descriptor_set(gpu::DescriptorSetInfo{
-          .label            = "Framebuffer Depth Image Descriptor"_str,
-          .layout           = gpu.textures_layout_,
-          .variable_lengths = span<u32>({1})})
+        .create_descriptor_set(
+          gpu::DescriptorSetInfo{.label            = texture_label,
+                                 .layout           = gpu.textures_layout_,
+                                 .variable_lengths = span<u32>({1})})
         .unwrap();
 
     dev.update_descriptor_set(gpu::DescriptorSetUpdate{
@@ -839,12 +871,15 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
       .element = 0,
       .images  = span({gpu::ImageBinding{.image_view = view}})});
 
+    auto stencil_texture_label =
+      make_label("Framebuffer Stencil Image Descriptor"_str);
+
     gpu::DescriptorSet stencil_texture =
       dev
-        .create_descriptor_set(gpu::DescriptorSetInfo{
-          .label            = "Framebuffer Stencil Image Descriptor"_str,
-          .layout           = gpu.textures_layout_,
-          .variable_lengths = span<u32>({1})})
+        .create_descriptor_set(
+          gpu::DescriptorSetInfo{.label            = stencil_texture_label,
+                                 .layout           = gpu.textures_layout_,
+                                 .variable_lengths = span<u32>({1})})
         .unwrap();
 
     dev.update_descriptor_set(gpu::DescriptorSetUpdate{
@@ -867,10 +902,10 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
 void GpuSystem::recreate_framebuffers(Vec2U new_extent)
 {
   idle_reclaim();
-  recreate_framebuffer(*this, fb_, new_extent);
-  for (Framebuffer & scratch_fb : scratch_fbs_)
+  recreate_framebuffer(*this, fb_, new_extent, "Main"_str, 0);
+  for (auto [i, scratch_fb] : enumerate(scratch_fbs_))
   {
-    recreate_framebuffer(*this, scratch_fb, new_extent);
+    recreate_framebuffer(*this, scratch_fb, new_extent, "Scratch"_str, i);
   }
 }
 
