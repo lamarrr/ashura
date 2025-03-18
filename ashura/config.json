@@ -22,10 +22,10 @@
     "window.width": 1500,
     "window.height": 960,
     "shaders": {
-        "Blur": "assets/shaders/blur.spv",
-        "Ngon": "assets/shaders/ngon.spv",
-        "PBR": "assets/shaders/pbr.spv",
-        "RRect": "assets/shaders/rrect.spv"
+        "Blur": "assets/shaders/blur.slang.spv",
+        "Ngon": "assets/shaders/ngon.slang.spv",
+        "PBR": "assets/shaders/pbr.slang.spv",
+        "RRect": "assets/shaders/rrect.slang.spv"
     },
     "fonts": {
         "Amiri": "assets/fonts/Amiri/Amiri-Regular.ttf",
