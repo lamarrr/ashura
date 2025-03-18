@@ -534,6 +534,9 @@ inline Result<StopToken> stop_token(AllocatorRef allocator)
   return rc<StopTokenState>(inplace, allocator);
 }
 
+namespace impl
+{
+
 /// @brief await semaphores at the specified stages.
 /// @param sems semaphores to wait for
 /// @param stages stages of the semaphores to wait for completion of. must be <
@@ -548,10 +551,10 @@ inline Result<StopToken> stop_token(AllocatorRef allocator)
 /// based on the `any` criteria.
 template <typename Semaphore, typename Stage, typename SemaphoreKey,
           typename StageKey>
-[[nodiscard]] bool
-  impl_await_semaphores(Span<Semaphore> semaphores, Span<Stage> stages,
-                        nanoseconds timeout, SemaphoreKey && semaphore_key = {},
-                        StageKey && stage_key = {})
+[[nodiscard]] bool await_semaphores(Span<Semaphore> semaphores,
+                                    Span<Stage> stages, nanoseconds timeout,
+                                    SemaphoreKey && semaphore_key = {},
+                                    StageKey &&     stage_key     = {})
 {
   CHECK(semaphores.size() == stages.size(), "");
   usize const n = semaphores.size();
@@ -626,8 +629,8 @@ template <typename Semaphore, typename Stage, typename SemaphoreKey,
 }
 
 template <typename Future, typename FutureStageKey>
-[[nodiscard]] bool impl_await_futures(Span<Future> futures, nanoseconds timeout,
-                                      FutureStageKey && stage_key = {})
+[[nodiscard]] bool await_futures(Span<Future> futures, nanoseconds timeout,
+                                 FutureStageKey && stage_key = {})
 {
   usize const n = futures.size();
 
@@ -693,6 +696,8 @@ template <typename Future, typename FutureStageKey>
 
   return false;
 }
+
+}    // namespace impl
 
 /// @brief A Stream is a continously mutated value yielding side-effects to
 /// consumers. The side-effects are sequenced by the timeline semaphore. There
@@ -1019,7 +1024,7 @@ struct TaskInstance
 inline bool await_streams(Span<AnyStream const> streams, Span<u64 const> stages,
                           nanoseconds timeout)
 {
-  return impl_await_semaphores(
+  return impl::await_semaphores(
     streams, stages, timeout,
     [](AnyStream const & s) -> SemaphoreState & { return *s.semaphore_; },
     [](u64 stage) -> u64 { return stage; });
@@ -1027,7 +1032,7 @@ inline bool await_streams(Span<AnyStream const> streams, Span<u64 const> stages,
 
 inline bool await_futures(Span<AnyFuture const> futures, nanoseconds timeout)
 {
-  return impl_await_futures(
+  return impl::await_futures(
     futures, timeout,
     [](AnyFuture const & f) -> FutureStage & { return *f.state_; });
 }

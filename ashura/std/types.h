@@ -1443,8 +1443,11 @@ constexpr void flip_bit(Span<u64> s, usize i)
   flip_bit(s[i >> 6], i & 63);
 }
 
+namespace impl
+{
+
 template <typename T>
-constexpr usize impl_find_set_bit(Span<T const> s)
+constexpr usize find_set_bit(Span<T const> s)
 {
   T const * const begin = s.pbegin();
   T const *       iter  = s.pbegin();
@@ -1467,7 +1470,7 @@ constexpr usize impl_find_set_bit(Span<T const> s)
 }
 
 template <typename T>
-constexpr usize impl_find_clear_bit(Span<T const> s)
+constexpr usize find_clear_bit(Span<T const> s)
 {
   T const * const begin = s.pbegin();
   T const *       iter  = s.pbegin();
@@ -1489,44 +1492,46 @@ constexpr usize impl_find_clear_bit(Span<T const> s)
   return idx | std::countr_one(*iter);
 }
 
+}    // namespace impl
+
 constexpr usize find_set_bit(Span<u8 const> s)
 {
-  return impl_find_set_bit(s);
+  return impl::find_set_bit(s);
 }
 
 constexpr usize find_set_bit(Span<u16 const> s)
 {
-  return impl_find_set_bit(s);
+  return impl::find_set_bit(s);
 }
 
 constexpr usize find_set_bit(Span<u32 const> s)
 {
-  return impl_find_set_bit(s);
+  return impl::find_set_bit(s);
 }
 
 constexpr usize find_set_bit(Span<u64 const> s)
 {
-  return impl_find_set_bit(s);
+  return impl::find_set_bit(s);
 }
 
 constexpr usize find_clear_bit(Span<u8 const> s)
 {
-  return impl_find_clear_bit(s);
+  return impl::find_clear_bit(s);
 }
 
 constexpr usize find_clear_bit(Span<u16 const> s)
 {
-  return impl_find_clear_bit(s);
+  return impl::find_clear_bit(s);
 }
 
 constexpr usize find_clear_bit(Span<u32 const> s)
 {
-  return impl_find_clear_bit(s);
+  return impl::find_clear_bit(s);
 }
 
 constexpr usize find_clear_bit(Span<u64 const> s)
 {
-  return impl_find_clear_bit(s);
+  return impl::find_clear_bit(s);
 }
 
 template <typename R>
