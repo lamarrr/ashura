@@ -129,7 +129,7 @@ set(SIMDJSON_BUILD_STATIC_LIB
 include(FetchContent)
 include(ExternalProject)
 
-set(ASH_VULKAN_VERSION "1.4.304.1")
+set(ASH_VULKAN_VERSION "1.4.309.0")
 set(ASH_VULKAN_SDK_VERSION "vulkan-sdk-${ASH_VULKAN_VERSION}")
 
 FetchContent_Declare(
