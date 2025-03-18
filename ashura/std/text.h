@@ -9,11 +9,11 @@
 namespace ash
 {
 
-[[nodiscard]] constexpr bool is_valid_utf8(Span<c8 const> text);
+[[nodiscard]] constexpr bool is_valid_utf8(Str8 text);
 
 /// @brief count number of utf8 codepoints found in the text. does no
 /// utf8-validation
-[[nodiscard]] constexpr usize count_utf8_codepoints(Span<c8 const> text)
+[[nodiscard]] constexpr usize count_utf8_codepoints(Str8 text)
 {
   c8 const * in    = text.data();
   c8 const * end   = text.pend();
@@ -31,8 +31,7 @@ namespace ash
 
 /// @brief decoded.size() must be at least count_utf8_codepoints(encoded).
 /// estimate: encoded.size()
-[[nodiscard]] constexpr usize utf8_decode(Span<c8 const> encoded,
-                                          Span<c32>      decoded)
+[[nodiscard]] constexpr usize utf8_decode(Str8 encoded, Span<c32> decoded)
 {
   c8 const * in  = encoded.data();
   c8 const * end = encoded.pend();
@@ -70,8 +69,7 @@ namespace ash
 }
 
 /// @brief encoded.size must be at least decoded.size * 4
-[[nodiscard]] constexpr usize utf8_encode(Span<c32 const> decoded,
-                                          Span<c8>        encoded)
+[[nodiscard]] constexpr usize utf8_encode(Str32 decoded, MutStr8 encoded)
 {
   c8 *        out = encoded.data();
   c32 const * in  = decoded.data();
@@ -112,7 +110,7 @@ namespace ash
 
 /// @brief converts UTF-8 text from @p encoded to UTF-32 and appends into @p
 /// `decoded`
-inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
+inline Result<> utf8_decode(Str8 encoded, Vec<c32> & decoded)
 {
   usize const first = decoded.size();
   usize const count = count_utf8_codepoints(encoded);
@@ -126,8 +124,7 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
 
 /// @brief converts UTF-32 text from @p decoded to UTF-8 and appends into @p
 /// `encoded`
-[[nodiscard]] inline Result<> utf8_encode(Span<c32 const> decoded,
-                                          Vec<c8> &       encoded)
+[[nodiscard]] inline Result<> utf8_encode(Str32 decoded, Vec<c8> & encoded)
 {
   usize const first     = encoded.size();
   usize const max_count = decoded.size();
@@ -141,8 +138,8 @@ inline Result<> utf8_decode(Span<c8 const> encoded, Vec<c32> & decoded)
   return Ok{};
 }
 
-constexpr void replace_invalid_codepoints(Span<c32 const> input,
-                                          Span<c32> output, c32 replacement)
+constexpr void replace_invalid_codepoints(Str32 input, Span<c32> output,
+                                          c32 replacement)
 {
   c32 const * in  = input.pbegin();
   c32 const * end = input.pend();

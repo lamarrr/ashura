@@ -173,7 +173,7 @@ struct Canvas
 
   struct Pass
   {
-    Span<char const> label = {};
+    Str label = {};
 
     PassFn task{};
   };
@@ -327,7 +327,7 @@ struct Canvas
   Canvas & pass(Pass pass);
 
   template <typename Lambda>
-  Canvas & pass(Span<char const> label, Lambda task)
+  Canvas & pass(Str label, Lambda task)
   {
     // relocate lambda to heap
     Dyn<Lambda *> lambda =

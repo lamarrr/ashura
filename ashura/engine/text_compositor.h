@@ -161,7 +161,7 @@ struct TextCompositor
   /// @param index destination index, needs to be clamped to the size of the
   /// destination container.
   /// @param text text to be inserted
-  typedef Fn<void(usize, Span<c32 const>)> Insert;
+  typedef Fn<void(usize, Str32)> Insert;
 
   /// @brief Text erase callback.
   /// @param index index to be erased from, needs to be clamped to the size of
@@ -183,13 +183,13 @@ struct TextCompositor
   usize               latest_record_  = 0;
   usize               current_record_ = 0;
   u32                 tab_width_;
-  Span<c32 const>     word_symbols_;
-  Span<c32 const>     line_symbols_;
+  Str32               word_symbols_;
+  Str32               line_symbols_;
 
   TextCompositor(AllocatorRef allocator, u32 tab_width = 2,
                  usize buffer_size = 4'096, usize records_size = 1'024,
-                 Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS,
-                 Span<c32 const> line_symbols = DEFAULT_LINE_SYMBOLS) :
+                 Str32 word_symbols = DEFAULT_WORD_SYMBOLS,
+                 Str32 line_symbols = DEFAULT_LINE_SYMBOLS) :
     allocator_{allocator},
     buffer_{allocator},
     records_{allocator},
@@ -216,7 +216,7 @@ struct TextCompositor
 
   void pop_records(usize num);
 
-  void append_record(bool is_insert, usize text_pos, Span<c32 const> segment);
+  void append_record(bool is_insert, usize text_pos, Str32 segment);
 
   void undo(Insert insert, Erase erase);
 
@@ -224,11 +224,11 @@ struct TextCompositor
 
   void unselect();
 
-  void delete_selection(Span<c32 const> text, Erase erase);
+  void delete_selection(Str32 text, Erase erase);
 
   /// @param input text from IME to insert
   Slice command(RenderText const & text, TextCommand cmd, Insert insert,
-                Erase erase, Span<c32 const> input, ClipBoard & clipboard,
+                Erase erase, Str32 input, ClipBoard & clipboard,
                 u32 lines_per_page, CRect const & region, Vec2 pos, f32 zoom);
 };
 

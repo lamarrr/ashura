@@ -154,7 +154,7 @@ RenderText & RenderText::direction(TextDirection direction)
   return *this;
 }
 
-RenderText & RenderText::language(Span<char const> language)
+RenderText & RenderText::language(Str language)
 {
   if (range_eq(language_, language))
   {
@@ -176,12 +176,12 @@ RenderText & RenderText::alignment(f32 alignment)
   return *this;
 }
 
-Span<c32 const> RenderText::get_text() const
+Str32 RenderText::get_text() const
 {
   return text_;
 }
 
-RenderText & RenderText::text(Span<c32 const> utf32, TextStyle const & style,
+RenderText & RenderText::text(Str32 utf32, TextStyle const & style,
                               FontStyle const & font)
 {
   text(utf32);
@@ -190,7 +190,7 @@ RenderText & RenderText::text(Span<c32 const> utf32, TextStyle const & style,
   return *this;
 }
 
-RenderText & RenderText::text(Span<c32 const> utf32)
+RenderText & RenderText::text(Str32 utf32)
 {
   text_.clear();
   text_.extend(utf32).unwrap();
@@ -198,7 +198,7 @@ RenderText & RenderText::text(Span<c32 const> utf32)
   return *this;
 }
 
-RenderText & RenderText::text(Span<c8 const> utf8, TextStyle const & style,
+RenderText & RenderText::text(Str8 utf8, TextStyle const & style,
                               FontStyle const & font)
 {
   run(style, font);
@@ -207,7 +207,7 @@ RenderText & RenderText::text(Span<c8 const> utf8, TextStyle const & style,
   return *this;
 }
 
-RenderText & RenderText::text(Span<c8 const> utf8)
+RenderText & RenderText::text(Str8 utf8)
 {
   text_.clear();
   utf8_decode(utf8, text_).unwrap();

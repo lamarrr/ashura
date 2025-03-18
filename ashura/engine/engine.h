@@ -96,9 +96,8 @@ struct Engine
 
   nanoseconds min_frame_interval;
 
-  static Dyn<Engine *> create(AllocatorRef     allocator,
-                              Span<char const> config_path,
-                              Span<char const> working_dir);
+  static Dyn<Engine *> create(AllocatorRef allocator, Str config_path,
+                              Str working_dir);
 
   Engine(AllocatorRef allocator, Dyn<Logger *> logger,
          Dyn<Scheduler *> scheduler, FileSystem file_sys,

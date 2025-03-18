@@ -192,8 +192,8 @@ void GpuQueries::begin_frame(gpu::Device & dev, gpu::CommandEncoder & enc)
 
   for (auto const [i, label] : enumerate<u32>(statistics_labels_))
   {
-    gpu::PipelineStatistics const &            stat      = cpu_statistics_[i];
-    Tuple<Span<char const>, TraceRecord> const records[] = {
+    gpu::PipelineStatistics const & stat      = cpu_statistics_[i];
+    Tuple<Str, TraceRecord> const   records[] = {
       {"gpu.input_assembly_vertices"_str,
        {.label = label, .i = (i64) stat.input_assembly_vertices}    },
       {"gpu.vertex_shader_invocations"_str,
@@ -218,8 +218,7 @@ void GpuQueries::begin_frame(gpu::Device & dev, gpu::CommandEncoder & enc)
   statistics_labels_.clear();
 }
 
-Option<u32> GpuQueries::begin_timespan(gpu::CommandEncoder & enc,
-                                       Span<char const>      label)
+Option<u32> GpuQueries::begin_timespan(gpu::CommandEncoder & enc, Str label)
 {
   u32 const id = timespan_labels_.size32();
 
@@ -241,8 +240,7 @@ void GpuQueries::end_timespan(gpu::CommandEncoder & enc, u32 id)
                       id * 2 + 1);
 }
 
-Option<u32> GpuQueries::begin_statistics(gpu::CommandEncoder & enc,
-                                         Span<char const>      label)
+Option<u32> GpuQueries::begin_statistics(gpu::CommandEncoder & enc, Str label)
 {
   u32 const id = statistics_labels_.size32();
 
@@ -482,68 +480,67 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
                 std::move(queries)};
 
   {
-    static constexpr Tuple<Span<char const>, TextureId, gpu::ComponentMapping>
-      mappings[] = {
-        {"Default White Texture"_str,
-         TextureId::White,
-         {.r = gpu::ComponentSwizzle::One,
-          .g = gpu::ComponentSwizzle::One,
-          .b = gpu::ComponentSwizzle::One,
-          .a = gpu::ComponentSwizzle::One} },
-        {"Default Black Texture"_str,
-         TextureId::Black,
-         {.r = gpu::ComponentSwizzle::Zero,
-          .g = gpu::ComponentSwizzle::Zero,
-          .b = gpu::ComponentSwizzle::Zero,
-          .a = gpu::ComponentSwizzle::One} },
-        {"Default Transparent Texture"_str,
-         TextureId::Transparent,
-         {.r = gpu::ComponentSwizzle::Zero,
-          .g = gpu::ComponentSwizzle::Zero,
-          .b = gpu::ComponentSwizzle::Zero,
-          .a = gpu::ComponentSwizzle::Zero}},
-        {"Default Alpha Texture"_str,
-         TextureId::Alpha,
-         {.r = gpu::ComponentSwizzle::Zero,
-          .g = gpu::ComponentSwizzle::Zero,
-          .b = gpu::ComponentSwizzle::Zero,
-          .a = gpu::ComponentSwizzle::One} },
-        {"Default Red Texture"_str,
-         TextureId::Red,
-         {.r = gpu::ComponentSwizzle::One,
-          .g = gpu::ComponentSwizzle::Zero,
-          .b = gpu::ComponentSwizzle::Zero,
-          .a = gpu::ComponentSwizzle::One} },
-        {"Default Green Texture"_str,
-         TextureId::Green,
-         {.r = gpu::ComponentSwizzle::Zero,
-          .g = gpu::ComponentSwizzle::One,
-          .b = gpu::ComponentSwizzle::Zero,
-          .a = gpu::ComponentSwizzle::One} },
-        {"Default Blue Texture"_str,
-         TextureId::Blue,
-         {.r = gpu::ComponentSwizzle::Zero,
-          .g = gpu::ComponentSwizzle::Zero,
-          .b = gpu::ComponentSwizzle::One,
-          .a = gpu::ComponentSwizzle::One} },
-        {"Default Magenta Texture"_str,
-         TextureId::Magenta,
-         {.r = gpu::ComponentSwizzle::One,
-          .g = gpu::ComponentSwizzle::Zero,
-          .b = gpu::ComponentSwizzle::One,
-          .a = gpu::ComponentSwizzle::One} },
-        {"Default Cyan Texture"_str,
-         TextureId::Cyan,
-         {.r = gpu::ComponentSwizzle::Zero,
-          .g = gpu::ComponentSwizzle::One,
-          .b = gpu::ComponentSwizzle::One,
-          .a = gpu::ComponentSwizzle::One} },
-        {"Default Yellow Texture"_str,
-         TextureId::Yellow,
-         {.r = gpu::ComponentSwizzle::One,
-          .g = gpu::ComponentSwizzle::One,
-          .b = gpu::ComponentSwizzle::Zero,
-          .a = gpu::ComponentSwizzle::One} }
+    static constexpr Tuple<Str, TextureId, gpu::ComponentMapping> mappings[] = {
+      {"Default White Texture"_str,
+       TextureId::White,
+       {.r = gpu::ComponentSwizzle::One,
+        .g = gpu::ComponentSwizzle::One,
+        .b = gpu::ComponentSwizzle::One,
+        .a = gpu::ComponentSwizzle::One} },
+      {"Default Black Texture"_str,
+       TextureId::Black,
+       {.r = gpu::ComponentSwizzle::Zero,
+        .g = gpu::ComponentSwizzle::Zero,
+        .b = gpu::ComponentSwizzle::Zero,
+        .a = gpu::ComponentSwizzle::One} },
+      {"Default Transparent Texture"_str,
+       TextureId::Transparent,
+       {.r = gpu::ComponentSwizzle::Zero,
+        .g = gpu::ComponentSwizzle::Zero,
+        .b = gpu::ComponentSwizzle::Zero,
+        .a = gpu::ComponentSwizzle::Zero}},
+      {"Default Alpha Texture"_str,
+       TextureId::Alpha,
+       {.r = gpu::ComponentSwizzle::Zero,
+        .g = gpu::ComponentSwizzle::Zero,
+        .b = gpu::ComponentSwizzle::Zero,
+        .a = gpu::ComponentSwizzle::One} },
+      {"Default Red Texture"_str,
+       TextureId::Red,
+       {.r = gpu::ComponentSwizzle::One,
+        .g = gpu::ComponentSwizzle::Zero,
+        .b = gpu::ComponentSwizzle::Zero,
+        .a = gpu::ComponentSwizzle::One} },
+      {"Default Green Texture"_str,
+       TextureId::Green,
+       {.r = gpu::ComponentSwizzle::Zero,
+        .g = gpu::ComponentSwizzle::One,
+        .b = gpu::ComponentSwizzle::Zero,
+        .a = gpu::ComponentSwizzle::One} },
+      {"Default Blue Texture"_str,
+       TextureId::Blue,
+       {.r = gpu::ComponentSwizzle::Zero,
+        .g = gpu::ComponentSwizzle::Zero,
+        .b = gpu::ComponentSwizzle::One,
+        .a = gpu::ComponentSwizzle::One} },
+      {"Default Magenta Texture"_str,
+       TextureId::Magenta,
+       {.r = gpu::ComponentSwizzle::One,
+        .g = gpu::ComponentSwizzle::Zero,
+        .b = gpu::ComponentSwizzle::One,
+        .a = gpu::ComponentSwizzle::One} },
+      {"Default Cyan Texture"_str,
+       TextureId::Cyan,
+       {.r = gpu::ComponentSwizzle::Zero,
+        .g = gpu::ComponentSwizzle::One,
+        .b = gpu::ComponentSwizzle::One,
+        .a = gpu::ComponentSwizzle::One} },
+      {"Default Yellow Texture"_str,
+       TextureId::Yellow,
+       {.r = gpu::ComponentSwizzle::One,
+        .g = gpu::ComponentSwizzle::One,
+        .b = gpu::ComponentSwizzle::Zero,
+        .a = gpu::ComponentSwizzle::One} }
     };
 
     static_assert(size(mappings) == NUM_DEFAULT_TEXTURES);
@@ -1134,7 +1131,7 @@ void GpuSystem::submit_frame(gpu::Swapchain swapchain)
   device_->submit_frame(swapchain).unwrap();
 }
 
-Option<u32> GpuSystem::begin_timespan(Span<char const> label)
+Option<u32> GpuSystem::begin_timespan(Str label)
 {
   return queries_[ring_index()].begin_timespan(encoder(), label);
 }
@@ -1144,7 +1141,7 @@ void GpuSystem::end_timespan(u32 id)
   queries_[ring_index()].end_timespan(encoder(), id);
 }
 
-Option<u32> GpuSystem::begin_statistics(Span<char const> label)
+Option<u32> GpuSystem::begin_statistics(Str label)
 {
   return queries_[ring_index()].begin_statistics(encoder(), label);
 }

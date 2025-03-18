@@ -31,16 +31,15 @@ struct ShaderCompileInfo
 {
   ShaderType type = ShaderType::Compute;
 
-  Span<char const> path{};
+  Str path{};
 
-  Span<char const> preamble{};
+  Str preamble{};
 
-  Fn<void(LogLevel, Span<char const>)> on_log = noop;
+  Fn<void(LogLevel, Str)> on_log = noop;
 
-  Fn<Option<Span<char const>>(Span<char const>)> on_load =
-    [](Span<char const>) -> Option<Span<char const>> { return none; };
+  Fn<Option<Str>(Str)> on_load = [](Str) -> Option<Str> { return none; };
 
-  Fn<void(Span<char const>)> on_drop = noop;
+  Fn<void(Str)> on_drop = noop;
 };
 
 Result<Void, ShaderLoadErr> compile_shader(ShaderCompileInfo const & info,

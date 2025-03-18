@@ -547,7 +547,7 @@ struct IsTriviallyRelocatable<Map<K, V, H, KCmp, D>>
 };
 
 template <typename V, typename D = usize>
-using StrMap = Map<Span<char const>, V, SpanHash, StrEq, D>;
+using StrMap = Map<Str, V, SpanHash, StrEq, D>;
 
 template <typename V, typename D = usize>
 using StrVecMap = Map<Vec<char>, V, SpanHash, StrEq, D>;

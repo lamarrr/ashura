@@ -171,7 +171,7 @@ ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 }    // namespace mem
 
 /// @brief copy non-null-terminated string `str` to `c_str` and null-terminate `c_str`.
-[[nodiscard]] inline bool to_c_str(Span<char const> str, Span<char> c_str)
+[[nodiscard]] inline bool to_c_str(Str str, Span<char> c_str)
 {
   if ((str.size() + 1) > c_str.size()) [[unlikely]]
   {
@@ -285,7 +285,7 @@ struct StrEq
     return mem::eq(a, b);
   }
 
-  bool operator()(Span<c8 const> a, Span<c8 const> b) const
+  bool operator()(Str8 a, Str8 b) const
   {
     return mem::eq(a, b);
   }
@@ -295,7 +295,7 @@ struct StrEq
     return mem::eq(a, b);
   }
 
-  bool operator()(Span<c32 const> a, Span<c32 const> b) const
+  bool operator()(Str32 a, Str32 b) const
   {
     return mem::eq(a, b);
   }

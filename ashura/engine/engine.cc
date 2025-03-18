@@ -280,9 +280,8 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
     });
 }
 
-Dyn<Engine *> Engine::create(AllocatorRef     allocator,
-                             Span<char const> config_path,
-                             Span<char const> working_dir)
+Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
+                             Str working_dir)
 {
   Dyn<Logger *> logger =
     dyn<Logger>(inplace, default_allocator, span<LogSink *>({&stdio_sink}))

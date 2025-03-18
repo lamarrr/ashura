@@ -12,7 +12,7 @@ namespace ash
 
 struct TraceRecord
 {
-  Span<char const> label = {};
+  Str label = {};
 
   u64 id = 0;
 
@@ -29,7 +29,7 @@ struct TraceRecord
 
 struct TraceEvent
 {
-  Span<char const> label = {};
+  Str label = {};
 
   u64 id = 0;
 };

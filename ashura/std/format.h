@@ -15,6 +15,8 @@ static constexpr usize MAX_PRECISION = 254;
 static constexpr usize NONE_WIDTH     = 255;
 static constexpr usize NONE_PRECISION = 255;
 
+static constexpr usize MAX_ARGS = 64;
+
 enum class Style : char
 {
   Default    = 'd',
@@ -44,7 +46,7 @@ struct Spec
   u8    precision          = NONE_PRECISION;
 };
 
-typedef Fn<void(Span<char const>)> Sink;
+typedef Fn<void(Str)> Sink;
 
 }    // namespace fmt
 
@@ -64,8 +66,6 @@ constexpr void format(fmt::Sink sink, fmt::Spec, T const &)
 namespace fmt
 {
 
-static constexpr usize MAX_ARGS = 64;
-
 enum class [[nodiscard]] Error : u8
 {
   None            = 0,
@@ -75,7 +75,7 @@ enum class [[nodiscard]] Error : u8
   UnmatchedToken  = 4
 };
 
-constexpr Span<char const> to_str(Error e)
+constexpr Str to_str(Error e)
 {
   switch (e)
   {
@@ -238,8 +238,8 @@ constexpr TokenType next_token(char const *& iter, char const * const end)
   }
 }
 
-constexpr TokenSeekResult seek_token(Span<char const> source,
-                                     char const *& iter, char const * const end)
+constexpr TokenSeekResult seek_token(Str source, char const *& iter,
+                                     char const * const end)
 {
   if (is_white_space(*iter))
   {
@@ -372,7 +372,7 @@ constexpr ParseState parser_state(ParseState state, TokenType token)
   }
 }
 
-[[nodiscard]] constexpr bool unsafe_parse_u64(Span<char const> str, u64 & i)
+[[nodiscard]] constexpr bool unsafe_parse_u64(Str str, u64 & i)
 {
   i = 0;
 
@@ -394,8 +394,7 @@ constexpr ParseState parser_state(ParseState state, TokenType token)
   return true;
 }
 
-constexpr void consume_token(Span<char const> str, ParseState state,
-                             Spec & spec)
+constexpr void consume_token(Str str, ParseState state, Spec & spec)
 {
   switch (state)
   {
@@ -449,8 +448,7 @@ constexpr void consume_token(Span<char const> str, ParseState state,
   }
 }
 
-constexpr Result parse_spec(Span<char const> source, Span<char const> str,
-                            Spec & spec)
+constexpr Result parse_spec(Str source, Str str, Spec & spec)
 {
   spec = {};
 
@@ -539,11 +537,11 @@ constexpr Slice substr(Span<T> str, Span<T> part)
   return Slice{static_cast<usize>(iter - begin), part_size};
 }
 
-constexpr Result push_spec(Span<char const> format, Span<char const> spec_src,
-                           Buffer<Op> & ops, usize & num_args)
+constexpr Result push_spec(Str format, Str spec_src, Buffer<Op> & ops,
+                           usize & num_args)
 {
   Spec spec;
-  if (auto result = parse_spec(format, spec_src, spec);
+  if (auto const result = parse_spec(format, spec_src, spec);
       result.error != Error::None)
   {
     return result;
@@ -606,8 +604,7 @@ constexpr char const * seek_n(char const * iter, char const * const end, char c,
   return end;
 }
 
-constexpr Result parse(Span<char const> format, Buffer<Op> & ops,
-                       usize & num_args)
+constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
 {
   char const * iter = format.pbegin();
   auto const   end  = format.pend();
@@ -705,10 +702,10 @@ constexpr Result parse(Span<char const> format, Buffer<Op> & ops,
 
 struct Context
 {
-  Sink             sink_;
-  Span<char const> fstr_;
-  Buffer<Op>       ops_;
-  usize            num_args_;
+  Sink       sink_;
+  Str        fstr_;
+  Buffer<Op> ops_;
+  usize      num_args_;
 
   constexpr Context(Sink sink, Buffer<Op> buffer) :
     sink_{sink},
@@ -724,7 +721,7 @@ struct Context
   constexpr Context & operator=(Context &&)      = default;
   constexpr ~Context()                           = default;
 
-  constexpr Result parse(Span<char const> fstr)
+  constexpr Result parse(Str fstr)
   {
     fstr_ = fstr;
     ops_.clear();
@@ -773,9 +770,9 @@ struct Context
   }
 
   template <typename... T>
-  constexpr Result format(Span<char const> fstr, T const &... args)
+  constexpr Result format(Str fstr, T const &... args)
   {
-    if (Result result = parse(fstr); result.error != Error::None)
+    if (auto const result = parse(fstr); result.error != Error::None)
     {
       return result;
     }
@@ -806,8 +803,8 @@ void format(fmt::Sink sink, fmt::Spec, Vec4I const & value);
 void format(fmt::Sink sink, fmt::Spec, Vec2U const & value);
 void format(fmt::Sink sink, fmt::Spec, Vec3U const & value);
 void format(fmt::Sink sink, fmt::Spec, Vec4U const & value);
-void format(fmt::Sink sink, fmt::Spec, Span<char const> const & str);
-void format(fmt::Sink sink, fmt::Spec, Span<char> const & str);
+void format(fmt::Sink sink, fmt::Spec, Str const & str);
+void format(fmt::Sink sink, fmt::Spec, MutStr const & str);
 
 template <usize N>
 void format(fmt::Sink sink, fmt::Spec spec, char (&str)[N])

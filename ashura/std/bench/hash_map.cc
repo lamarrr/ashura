@@ -9,7 +9,7 @@
 
 using namespace ash;
 
-constexpr Span<char const> DATASET[] = {
+constexpr Str DATASET[] = {
   "Lorem"_str,
   "ipsum"_str,
   "dolor"_str,

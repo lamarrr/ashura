@@ -150,7 +150,7 @@ struct Includer : glslang::TShader::Includer
 
     return info.on_load(cstr_span(header_name))
       .match(
-        [&](Span<char const> header_data) -> IncludeResult * {
+        [&](Str header_data) -> IncludeResult * {
           IncludeResult * result;
           if (!allocator->nalloc(1, result))
           {

@@ -45,7 +45,6 @@ struct PassContext
   void add_pass(Dyn<Pass *> pass);
 };
 
-// [ ] REMOVE TASK QUEUE
 struct FrameGraph
 {
   typedef Dyn<Fn<void(FrameGraph & graph, gpu::CommandEncoder & enc,
@@ -54,8 +53,8 @@ struct FrameGraph
 
   struct Pass
   {
-    Span<char const> label;
-    PassFn           pass;
+    Str    label;
+    PassFn pass;
   };
 
   struct FrameData
@@ -99,7 +98,7 @@ struct FrameGraph
   void add_pass(Pass pass);
 
   template <typename Lambda>
-  void add_pass(Span<char const> label, Lambda task)
+  void add_pass(Str label, Lambda task)
   {
     // relocate lambda to heap
     Dyn<Lambda *> lambda = dyn(arena_, static_cast<Lambda &&>(task)).unwrap();

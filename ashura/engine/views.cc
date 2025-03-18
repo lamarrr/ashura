@@ -327,7 +327,7 @@ i32 Stack::z_index(i32 allocated, Span<i32> indices)
   return allocated;
 }
 
-Text::Text(Span<c32 const> t, TextStyle const & style, FontStyle const & font,
+Text::Text(Str32 t, TextStyle const & style, FontStyle const & font,
            AllocatorRef allocator) :
   text_{allocator},
   compositor_{allocator}
@@ -335,7 +335,7 @@ Text::Text(Span<c32 const> t, TextStyle const & style, FontStyle const & font,
   text(t).run(style, font);
 }
 
-Text::Text(Span<c8 const> t, TextStyle const & style, FontStyle const & font,
+Text::Text(Str8 t, TextStyle const & style, FontStyle const & font,
            AllocatorRef allocator) :
   text_{allocator},
   compositor_{allocator}
@@ -362,19 +362,19 @@ Text & Text::run(TextStyle const & style, FontStyle const & font, u32 first,
   return *this;
 }
 
-Text & Text::text(Span<c32 const> t)
+Text & Text::text(Str32 t)
 {
   text_.text(t);
   return *this;
 }
 
-Text & Text::text(Span<c8 const> t)
+Text & Text::text(Str8 t)
 {
   text_.text(t);
   return *this;
 }
 
-Span<c32 const> Text::text()
+Str32 Text::text()
 {
   return text_.get_text();
 }
@@ -421,7 +421,7 @@ Cursor Text::cursor(CRect const &, f32, Vec2)
   return state.copyable ? Cursor::Text : Cursor::Default;
 }
 
-Input::Input(Span<c32 const> s, TextStyle const & style, FontStyle const & font,
+Input::Input(Str32 s, TextStyle const & style, FontStyle const & font,
              AllocatorRef allocator) :
   content_{allocator},
   stub_{allocator},
@@ -430,7 +430,7 @@ Input::Input(Span<c32 const> s, TextStyle const & style, FontStyle const & font,
   content(U""_str).content_run(style, font).stub(s).stub_run(style, font);
 }
 
-Input::Input(Span<c8 const> s, TextStyle const & style, FontStyle const & font,
+Input::Input(Str8 s, TextStyle const & style, FontStyle const & font,
              AllocatorRef allocator) :
   content_{allocator},
   stub_{allocator},
@@ -499,13 +499,13 @@ Input & Input::on_focus_out(Fn<void()> f)
   return *this;
 }
 
-Input & Input::content(Span<c8 const> t)
+Input & Input::content(Str8 t)
 {
   content_.text(t);
   return *this;
 }
 
-Input & Input::content(Span<c32 const> t)
+Input & Input::content(Str32 t)
 {
   content_.text(t);
   return *this;
@@ -518,13 +518,13 @@ Input & Input::content_run(TextStyle const & style, FontStyle const & font,
   return *this;
 }
 
-Input & Input::stub(Span<c8 const> t)
+Input & Input::stub(Str8 t)
 {
   stub_.text(t);
   return *this;
 }
 
-Input & Input::stub(Span<c32 const> t)
+Input & Input::stub(Str32 t)
 {
   stub_.text(t);
   return *this;
@@ -669,7 +669,7 @@ ViewState Input::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
     this->content_.flush_text();
   };
 
-  auto insert = [&](usize pos, Span<c32 const> t) {
+  auto insert = [&](usize pos, Str32 t) {
     this->content_.text_.insert_span(pos, t).unwrap();
     edited |= t.is_empty();
     this->content_.flush_text();
@@ -869,13 +869,13 @@ Cursor Button::cursor(CRect const &, f32, Vec2)
   return state.disabled ? Cursor::Default : Cursor::Pointer;
 }
 
-TextButton::TextButton(Span<c32 const> text, TextStyle const & style,
+TextButton::TextButton(Str32 text, TextStyle const & style,
                        FontStyle const & font, AllocatorRef allocator) :
   text_{text, style, font, allocator}
 {
 }
 
-TextButton::TextButton(Span<c8 const> text, TextStyle const & style,
+TextButton::TextButton(Str8 text, TextStyle const & style,
                        FontStyle const & font, AllocatorRef allocator) :
   text_{text, style, font, allocator}
 {
@@ -894,13 +894,13 @@ TextButton & TextButton::run(TextStyle const & style, FontStyle const & font,
   return *this;
 }
 
-TextButton & TextButton::text(Span<c32 const> t)
+TextButton & TextButton::text(Str32 t)
 {
   text_.text(t);
   return *this;
 }
 
-TextButton & TextButton::text(Span<c8 const> t)
+TextButton & TextButton::text(Str8 t)
 {
   text_.text(t);
   return *this;
@@ -996,14 +996,14 @@ ViewState TextButton::tick(ViewContext const & ctx, CRect const & region,
   return state;
 }
 
-Icon::Icon(Span<c32 const> text, TextStyle const & style,
-           FontStyle const & font, AllocatorRef allocator) :
+Icon::Icon(Str32 text, TextStyle const & style, FontStyle const & font,
+           AllocatorRef allocator) :
   text_{allocator}
 {
   text_.text(text).run(style, font);
 }
 
-Icon::Icon(Span<c8 const> text, TextStyle const & style, FontStyle const & font,
+Icon::Icon(Str8 text, TextStyle const & style, FontStyle const & font,
            AllocatorRef allocator) :
   text_{allocator}
 {
@@ -1016,15 +1016,13 @@ Icon & Icon::hide(bool hide)
   return *this;
 }
 
-Icon & Icon::icon(Span<c8 const> text, TextStyle const & style,
-                  FontStyle const & font)
+Icon & Icon::icon(Str8 text, TextStyle const & style, FontStyle const & font)
 {
   text_.text(text).run(style, font);
   return *this;
 }
 
-Icon & Icon::icon(Span<c32 const> text, TextStyle const & style,
-                  FontStyle const & font)
+Icon & Icon::icon(Str32 text, TextStyle const & style, FontStyle const & font)
 {
   text_.text(text).run(style, font);
   return *this;
@@ -1048,14 +1046,14 @@ void Icon::render(Canvas & canvas, CRect const & region, f32 zoom,
   text_.render(canvas, region, clip.centered(), zoom);
 }
 
-CheckBox::CheckBox(Span<c32 const> text, TextStyle const & style,
-                   FontStyle const & font, AllocatorRef allocator) :
+CheckBox::CheckBox(Str32 text, TextStyle const & style, FontStyle const & font,
+                   AllocatorRef allocator) :
   icon_{text, style, font, allocator}
 {
 }
 
-CheckBox::CheckBox(Span<c8 const> text, TextStyle const & style,
-                   FontStyle const & font, AllocatorRef allocator) :
+CheckBox::CheckBox(Str8 text, TextStyle const & style, FontStyle const & font,
+                   AllocatorRef allocator) :
   icon_{text, style, font, allocator}
 {
 }
@@ -1617,7 +1615,7 @@ Cursor Radio::cursor(CRect const &, f32, Vec2)
   return Cursor::Pointer;
 }
 
-void ScalarDragBox::scalar_parse(Span<c32 const> text, ScalarInfo const & spec,
+void ScalarDragBox::scalar_parse(Str32 text, ScalarInfo const & spec,
                                  Scalar & scalar)
 {
   if (text.is_empty())
@@ -1683,9 +1681,7 @@ ViewState ScalarDragBox::tick(ViewContext const & ctx, CRect const & region,
     bool   is_full = false;
     Buffer text{text_};
 
-    auto const sink = [&](Span<char const> str) {
-      is_full = is_full | text.extend(str);
-    };
+    auto const sink = [&](Str str) { is_full = is_full | text.extend(str); };
 
     fmt::Op ops_[fmt::MAX_ARGS];
     Buffer  ops{ops_};
@@ -1773,8 +1769,7 @@ Cursor ScalarDragBox::cursor(CRect const & region, f32, Vec2 offset)
   return state.disabled ? Cursor::Default : Cursor::EWResize;
 }
 
-ScalarBox::ScalarBox(Span<c32 const>   decrease_text,
-                     Span<c32 const>   increase_text,
+ScalarBox::ScalarBox(Str32 decrease_text, Str32 increase_text,
                      TextStyle const & button_text_style,
                      TextStyle const & drag_text_style,
                      FontStyle const & icon_font, FontStyle const & text_font,
@@ -1819,19 +1814,19 @@ ScalarBox & ScalarBox::step(i32 direction)
   return *this;
 }
 
-ScalarBox & ScalarBox::stub(Span<c32 const> text)
+ScalarBox & ScalarBox::stub(Str32 text)
 {
   drag_.input_.stub(text);
   return *this;
 }
 
-ScalarBox & ScalarBox::stub(Span<c8 const> text)
+ScalarBox & ScalarBox::stub(Str8 text)
 {
   drag_.input_.stub(text);
   return *this;
 }
 
-ScalarBox & ScalarBox::format(Span<char const> format)
+ScalarBox & ScalarBox::format(Str format)
 {
   drag_.style.format = format;
   drag_.state.hash   = 0;
@@ -2213,14 +2208,14 @@ Cursor ComboItem::cursor(CRect const &, f32, Vec2)
   return Cursor::Pointer;
 }
 
-TextComboItem::TextComboItem(Span<c32 const> text, TextStyle const & style,
+TextComboItem::TextComboItem(Str32 text, TextStyle const & style,
                              FontStyle const & font, AllocatorRef allocator) :
   text_{text, style, font, allocator}
 {
   text_.copyable(false);
 }
 
-TextComboItem::TextComboItem(Span<c8 const> text, TextStyle const & style,
+TextComboItem::TextComboItem(Str8 text, TextStyle const & style,
                              FontStyle const & font, AllocatorRef allocator) :
   text_{text, style, font, allocator}
 {

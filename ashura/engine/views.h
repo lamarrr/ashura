@@ -358,14 +358,14 @@ struct Text : View
 
   TextCompositor compositor_;
 
-  Text(Span<c32 const>   text      = U""_str,
+  Text(Str32             text      = U""_str,
        TextStyle const & style     = TextStyle{.color = theme.on_surface},
        FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                                .height      = theme.body_font_height,
                                                .line_height = theme.line_height},
        AllocatorRef      allocator = default_allocator);
 
-  Text(Span<c8 const>    text,
+  Text(Str8              text,
        TextStyle const & style     = TextStyle{.color = theme.on_surface},
        FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                                .height      = theme.body_font_height,
@@ -387,11 +387,11 @@ struct Text : View
   Text & run(TextStyle const & style, FontStyle const & font, u32 first = 0,
              u32 count = U32_MAX);
 
-  Text & text(Span<c32 const> text);
+  Text & text(Str32 text);
 
-  Text & text(Span<c8 const> text);
+  Text & text(Str8 text);
 
-  Span<c32 const> text();
+  Str32 text();
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region,
                          f32 zoom, ViewEvents const & events,
@@ -448,14 +448,14 @@ struct Input : View
 
   TextCompositor compositor_;
 
-  Input(Span<c32 const>   stub      = U""_str,
+  Input(Str32             stub      = U""_str,
         TextStyle const & style     = TextStyle{.color = theme.on_surface},
         FontStyle const & font      = FontStyle{.font   = theme.body_font,
                                                 .height = theme.body_font_height,
                                                 .line_height = theme.line_height},
         AllocatorRef      allocator = default_allocator);
 
-  Input(Span<c8 const>    stub,
+  Input(Str8              stub,
         TextStyle const & style     = TextStyle{.color = theme.on_surface},
         FontStyle const & font      = FontStyle{.font   = theme.body_font,
                                                 .height = theme.body_font_height,
@@ -488,16 +488,16 @@ struct Input : View
 
   Input & on_focus_out(Fn<void()> fn);
 
-  Input & content(Span<c8 const> text);
+  Input & content(Str8 text);
 
-  Input & content(Span<c32 const> text);
+  Input & content(Str32 text);
 
   Input & content_run(TextStyle const & style, FontStyle const & font,
                       u32 first = 0, u32 count = U32_MAX);
 
-  Input & stub(Span<c8 const> text);
+  Input & stub(Str8 text);
 
-  Input & stub(Span<c32 const> text);
+  Input & stub(Str32 text);
 
   Input & stub_run(TextStyle const & style, FontStyle const & font,
                    u32 first = 0, u32 count = U32_MAX);
@@ -586,7 +586,7 @@ struct TextButton : Button
   Text text_;
 
   TextButton(
-    Span<c32 const>   text      = U""_str,
+    Str32             text      = U""_str,
     TextStyle const & style     = TextStyle{.color = theme.on_surface},
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
@@ -594,8 +594,7 @@ struct TextButton : Button
     AllocatorRef      allocator = default_allocator);
 
   TextButton(
-    Span<c8 const>    text,
-    TextStyle const & style     = TextStyle{.color = theme.on_surface},
+    Str8 text, TextStyle const & style = TextStyle{.color = theme.on_surface},
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
                                             .line_height = theme.line_height},
@@ -612,9 +611,9 @@ struct TextButton : Button
   TextButton & run(TextStyle const & style, FontStyle const & font,
                    u32 first = 0, u32 count = U32_MAX);
 
-  TextButton & text(Span<c32 const> text);
+  TextButton & text(Str32 text);
 
-  TextButton & text(Span<c8 const> text);
+  TextButton & text(Str8 text);
 
   TextButton & color(Vec4U8 color);
 
@@ -658,14 +657,14 @@ struct Icon : View
 
   RenderText text_;
 
-  Icon(Span<c32 const>   text      = U""_str,
+  Icon(Str32             text      = U""_str,
        TextStyle const & style     = TextStyle{.color = theme.on_surface},
        FontStyle const & font      = FontStyle{.font        = theme.icon_font,
                                                .height      = theme.body_font_height,
                                                .line_height = theme.line_height},
        AllocatorRef      allocator = default_allocator);
 
-  Icon(Span<c8 const>    text,
+  Icon(Str8              text,
        TextStyle const & style     = TextStyle{.color = theme.on_surface},
        FontStyle const & font      = FontStyle{.font        = theme.icon_font,
                                                .height      = theme.body_font_height,
@@ -680,11 +679,9 @@ struct Icon : View
 
   Icon & hide(bool hide);
 
-  Icon & icon(Span<c8 const> text, TextStyle const & style,
-              FontStyle const & font);
+  Icon & icon(Str8 text, TextStyle const & style, FontStyle const & font);
 
-  Icon & icon(Span<c32 const> text, TextStyle const & style,
-              FontStyle const & font);
+  Icon & icon(Str32 text, TextStyle const & style, FontStyle const & font);
 
   ViewState tick(ViewContext const & ctx, CRect const & region, f32 zoom,
                  ViewEvents const & events, Fn<void(View &)> build) override;
@@ -729,14 +726,14 @@ struct CheckBox : View
 
   Icon icon_;
 
-  CheckBox(Span<c32 const>   text      = U""_str,
+  CheckBox(Str32             text      = U""_str,
            TextStyle const & style     = TextStyle{.color = theme.on_surface},
            FontStyle const & font      = FontStyle{.font   = theme.icon_font,
                                                    .height = theme.body_font_height,
                                                    .line_height = theme.line_height},
            AllocatorRef      allocator = default_allocator);
 
-  CheckBox(Span<c8 const>    text,
+  CheckBox(Str8              text,
            TextStyle const & style     = TextStyle{.color = theme.on_surface},
            FontStyle const & font      = FontStyle{.font   = theme.icon_font,
                                                    .height = theme.body_font_height,
@@ -1065,7 +1062,7 @@ struct ScalarDragBox : View
 
     f32 thickness = 1.0F;
 
-    Span<char const> format = "{}"_str;
+    Str format = "{}"_str;
   } style;
 
   Input input_;
@@ -1092,8 +1089,7 @@ struct ScalarDragBox : View
   ScalarDragBox & operator=(ScalarDragBox &&)      = delete;
   virtual ~ScalarDragBox() override                = default;
 
-  static void scalar_parse(Span<c32 const> text, ScalarInfo const & spec,
-                           Scalar &);
+  static void scalar_parse(Str32 text, ScalarInfo const & spec, Scalar &);
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region,
                          f32 zoom, ViewEvents const & events,
@@ -1124,8 +1120,7 @@ struct ScalarBox : Flex
   ScalarDragBox drag_;
 
   ScalarBox(
-    Span<c32 const>   decrease_text = U"remove"_str,
-    Span<c32 const>   increase_text = U"add"_str,
+    Str32 decrease_text = U"remove"_str, Str32 increase_text = U"add"_str,
     TextStyle const & button_text_style =
       TextStyle{
         .shadow_scale = 1, .shadow_offset = {1, 1},
@@ -1150,11 +1145,11 @@ struct ScalarBox : Flex
 
   ScalarBox & step(i32 direction);
 
-  ScalarBox & stub(Span<c32 const> text);
+  ScalarBox & stub(Str32 text);
 
-  ScalarBox & stub(Span<c8 const> text);
+  ScalarBox & stub(Str8 text);
 
-  ScalarBox & format(Span<char const> format);
+  ScalarBox & format(Str format);
 
   ScalarBox & spec(f32 scalar, F32Info info);
 
@@ -1376,16 +1371,14 @@ struct TextComboItem : ComboItem
   Text text_;
 
   TextComboItem(
-    Span<c32 const>   text,
-    TextStyle const & style     = TextStyle{.color = theme.on_surface},
+    Str32 text, TextStyle const & style = TextStyle{.color = theme.on_surface},
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
                                             .line_height = theme.line_height},
     AllocatorRef      allocator = default_allocator);
 
   TextComboItem(
-    Span<c8 const>    text,
-    TextStyle const & style     = TextStyle{.color = theme.on_surface},
+    Str8 text, TextStyle const & style = TextStyle{.color = theme.on_surface},
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
                                             .line_height = theme.line_height},

@@ -20,10 +20,10 @@ struct FramebufferResult
 /// used by renderers.
 struct Pass
 {
-  virtual Span<char const> label()   = 0;
-  virtual void             acquire() = 0;
-  virtual void             release() = 0;
-  virtual ~Pass()                    = default;
+  virtual Str  label()   = 0;
+  virtual void acquire() = 0;
+  virtual void release() = 0;
+  virtual ~Pass()        = default;
 };
 
 struct BloomPassParams
@@ -40,7 +40,7 @@ struct BloomPass : Pass
 
   virtual ~BloomPass() override = default;
 
-  virtual Span<char const> label() override
+  virtual Str label() override
   {
     return "Bloom"_str;
   }
@@ -76,7 +76,7 @@ struct BlurPass : Pass
 
   virtual ~BlurPass() override = default;
 
-  virtual Span<char const> label() override
+  virtual Str label() override
   {
     return "Blur"_str;
   }
@@ -126,7 +126,7 @@ struct NgonPass : Pass
 
   virtual ~NgonPass() override = default;
 
-  virtual Span<char const> label() override
+  virtual Str label() override
   {
     return "Ngon"_str;
   }
@@ -204,7 +204,7 @@ struct PBRPass : Pass
 
   virtual ~PBRPass() override = default;
 
-  virtual Span<char const> label() override
+  virtual Str label() override
   {
     return "PBR"_str;
   }
@@ -248,7 +248,7 @@ struct RRectPass : Pass
 {
   gpu::GraphicsPipeline pipeline = nullptr;
 
-  virtual Span<char const> label() override
+  virtual Str label() override
   {
     return "RRect"_str;
   }

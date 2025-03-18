@@ -6,7 +6,7 @@
 namespace ash
 {
 
-Future<Result<Vec<u8>, IoErr>> FileSystem::load_file(Span<char const> path)
+Future<Result<Vec<u8>, IoErr>> FileSystem::load_file(Str path)
 {
   Vec<char> path_copy{allocator_};
   path_copy.extend(path).unwrap();
@@ -151,8 +151,6 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
   ImageInfo image =
     create_image_(std::move(label), resolved_info, resolved_view_infos);
 
-  // [ ] move upload queue to Framegraph
-
   sys->gpu.upload_.queue(
     bgra, [image = image.image, info](gpu::CommandEncoder & enc,
                                       gpu::Buffer buffer, Slice64 slice) {
@@ -183,7 +181,7 @@ Result<ImageInfo, ImageLoadErr>
 }
 
 Future<Result<ImageInfo, ImageLoadErr>>
-  ImageSystem::load_from_path(Vec<char> label, Span<char const> path)
+  ImageSystem::load_from_path(Vec<char> label, Str path)
 {
   Future fut = future<Result<ImageInfo, ImageLoadErr>>(allocator_).unwrap();
   Future load_fut = sys->file.load_file(path);
@@ -255,7 +253,7 @@ Future<Result<ImageInfo, ImageLoadErr>>
   return fut;
 }
 
-ImageInfo ImageSystem::get(Span<char const> label)
+ImageInfo ImageSystem::get(Str label)
 {
   for (auto & image : images_.dense.v0)
   {
@@ -315,7 +313,7 @@ Result<ShaderInfo, ShaderLoadErr>
 }
 
 Future<Result<ShaderInfo, ShaderLoadErr>>
-  ShaderSystem::load_from_path(Vec<char> label, Span<char const> path)
+  ShaderSystem::load_from_path(Vec<char> label, Str path)
 {
   Future load_fut = sys->file.load_file(path);
   Future fut = future<Result<ShaderInfo, ShaderLoadErr>>(allocator_).unwrap();
@@ -355,7 +353,7 @@ ShaderInfo ShaderSystem::get(ShaderId id)
   return shaders_[(usize) id].v0.view();
 }
 
-ShaderInfo ShaderSystem::get(Span<char const> label)
+ShaderInfo ShaderSystem::get(Str label)
 {
   for (auto [shader] : shaders_)
   {
