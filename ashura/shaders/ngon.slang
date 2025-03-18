@@ -17,7 +17,7 @@ struct NgonParam
 };
 
 [[vk::push_constant]]
-ConstantBuffer<f32x4x4> world_to_view;
+ConstantBuffer<f32x4x4, Std430DataLayout> world_to_view;
 
 [[vk::binding(0, 0)]]
 StructuredBuffer<f32x2> vtx_buffer;
