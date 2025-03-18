@@ -139,7 +139,7 @@ void BlurRenderer::render(FrameGraph & graph, Framebuffer const & fb,
 
   RectU const downsampled_area = {
     .offset{0, 0},
-    .extent = blur.area.extent / 16
+    .extent = blur.area.extent / BlurPass::DOWNSCALE_FACTOR
   };
 
   if (downsampled_area.extent.x == 0 || downsampled_area.extent.y == 0)
@@ -178,7 +178,8 @@ void BlurRenderer::render(FrameGraph & graph, Framebuffer const & fb,
   {
     // assumes sample framebuffer extent is same as framebuffer extent
     Vec2 const uv_scale = 1 / as_vec2(fb.extent().xy());
-    RRectParam rrects[] = {
+
+    RRectParam const rrects[] = {
       {.transform = blur.transform,
        .tint{norm(colors::WHITE), norm(colors::WHITE), norm(colors::WHITE),
              norm(colors::WHITE)},
@@ -189,7 +190,7 @@ void BlurRenderer::render(FrameGraph & graph, Framebuffer const & fb,
        .aspect_ratio    = blur.aspect_ratio,
        .stroke          = 0,
        .thickness       = 0,
-       .edge_smoothness = 1,
+       .edge_smoothness = 0,
        .sampler         = SamplerId::LinearClamped,
        .albedo          = TextureId{0}}
     };
