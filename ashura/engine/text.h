@@ -310,8 +310,8 @@ struct TextBlockStyle
 /// position, i.e. offset from GlyphMetrics::bearing
 struct GlyphShape
 {
-  u32   glyph   = 0;
-  u32   cluster = 0;
+  usize glyph   = 0;
+  usize cluster = 0;
   i32   advance = 0;
   Vec2I offset  = {};
 };

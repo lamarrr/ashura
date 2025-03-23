@@ -772,7 +772,7 @@ static inline void segment_breakpoints(Str32 text, Span<TextSegment> segments)
 }
 
 static inline void insert_run(TextLayout & l, FontStyle const & s,
-                              Slice codepoints, u32 style,
+                              Slice codepoints, u32 style, usize base_cluster,
                               FontMetrics const & font_metrics, u8 base_level,
                               u8 level, bool paragraph, bool breakable,
                               Span<hb_glyph_info_t const>     infos,
@@ -791,7 +791,7 @@ static inline void insert_run(TextLayout & l, FontStyle const & s,
     hb_glyph_position_t const & pos  = positions[i];
     GlyphShape                  shape{
                        .glyph   = info.codepoint,
-                       .cluster = info.cluster,
+                       .cluster = base_cluster + info.cluster,
                        .advance = pos.x_advance,
                        .offset  = {pos.x_offset, -pos.y_offset}
     };
@@ -955,8 +955,8 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
 
         Slice const codepoints{first, i - first};
 
-        insert_run(layout, s, codepoints, first_segment.style, f.metrics,
-                   first_segment.base_level, first_segment.level,
+        insert_run(layout, s, codepoints, first_segment.style, paragraph_begin,
+                   f.metrics, first_segment.base_level, first_segment.level,
                    first_segment.paragraph_begin, first_segment.breakable,
                    infos, positions);
       }
