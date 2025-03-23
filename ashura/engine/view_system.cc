@@ -464,14 +464,6 @@ void ViewSystem::render(ui::ViewContext const & ctx, Canvas & canvas,
     }
   }
 
-  // [ ] fix this
-  // canvas.blur(
-  //   Rect{
-  //     .offset = {0,     0  },
-  //       .extent = {1'920, 200}
-  // },
-  //   Vec2::splat(2), 2);
-
   {
     CRect const focus_region =
       f1.focus.is_some() ? f1.focus.value().region : CRect{};
