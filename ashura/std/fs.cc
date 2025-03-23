@@ -12,7 +12,7 @@ constexpr usize PATH_RESERVED_SIZE = 256;
 Result<Void, IoErr> read_file(Str path, Vec<u8> & buff)
 {
   u8                reserved[PATH_RESERVED_SIZE];
-  FallbackAllocator allocator{to_arena(reserved)};
+  FallbackAllocator allocator{Arena::from(reserved), default_allocator};
   Vec<char>         path_c_str{allocator};
 
   if (!path_c_str.extend_uninit(path.size() + 1))
@@ -71,7 +71,7 @@ Result<Void, IoErr> read_file(Str path, Vec<u8> & buff)
 Result<Void, IoErr> write_to_file(Str path, Span<u8 const> buff, bool append)
 {
   u8                reserved[PATH_RESERVED_SIZE];
-  FallbackAllocator allocator{to_arena(reserved)};
+  FallbackAllocator allocator{Arena::from(reserved), default_allocator};
   Vec<char>         path_c_str{allocator};
 
   if (!path_c_str.extend_uninit(path.size() + 1))

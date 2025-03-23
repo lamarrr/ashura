@@ -36,6 +36,11 @@ struct Arena final : Allocator
   {
   }
 
+  [[nodiscard]] static constexpr Arena from(Span<u8> buffer)
+  {
+    return Arena{buffer.pbegin(), buffer.pend(), 1};
+  }
+
   constexpr Arena(Arena const &)             = default;
   constexpr Arena(Arena &&)                  = default;
   constexpr Arena & operator=(Arena const &) = default;
@@ -160,11 +165,6 @@ struct Arena final : Allocator
     return AllocatorRef{*this};
   }
 };
-
-[[nodiscard]] inline Arena to_arena(Span<u8> buffer)
-{
-  return Arena{buffer.pbegin(), buffer.pend(), 1};
-}
 
 /// @max_num_arenas: maximum number of arenas that can be allocated
 /// @min_arena_size: minimum size of each arena allocation, recommended >= 16KB
@@ -458,8 +458,7 @@ struct FallbackAllocator : Allocator
   Arena        arena;
   AllocatorRef fallback;
 
-  constexpr FallbackAllocator(Arena        arena    = {},
-                              AllocatorRef fallback = default_allocator) :
+  constexpr FallbackAllocator(Arena arena, AllocatorRef fallback) :
     arena{arena},
     fallback{fallback}
   {

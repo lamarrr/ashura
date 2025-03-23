@@ -8,7 +8,7 @@ TEST(ListTest, Insertion)
 {
   using namespace ash;
   u8    storage[512];
-  Arena arena = to_arena(storage);
+  Arena arena = Arena::from(storage);
 
   struct Node
   {
