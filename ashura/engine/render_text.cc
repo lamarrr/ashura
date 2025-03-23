@@ -263,8 +263,8 @@ void RenderText::render(Canvas & canvas, CRect const & region,
 Option<TextHitResult> RenderText::hit(CRect const & region, Vec2 pos,
                                       f32 zoom) const
 {
-  Vec2 const pos_local = (region.begin() - pos) / zoom;
-  return layout_.hit(block(), block_style(region.extent.x), pos_local);
+  Vec2 const local_pos = (pos - region.begin() - 0.5F * region.extent) / zoom;
+  return layout_.hit(block(), block_style(region.extent.x), local_pos);
 }
 
 }    // namespace ash
