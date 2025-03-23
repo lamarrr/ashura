@@ -29,80 +29,89 @@ namespace ash
   return count;
 }
 
-/// @brief decoded.size() must be at least count_utf8_codepoints(encoded).
-/// estimate: encoded.size()
-[[nodiscard]] constexpr usize utf8_decode(Str8 encoded, Span<c32> decoded)
+/// @brief `decoded.size()` must be at least `encoded.size()`
+[[nodiscard]] constexpr usize utf8_decode(Str8 text, Span<c32> decoded)
 {
-  c8 const * in  = encoded.data();
-  c8 const * end = encoded.pend();
+  c8 const * in  = text.data();
+  c8 const * end = text.pend();
   c32 *      out = decoded.data();
+
   while (in != end)
   {
-    if ((*in & 0xF8) == 0xF0)
+    c32 const c0 = in[0];
+
+    if ((c0 & 0xF8) == 0xF0)
     {
-      c32 c1 = *in++;
-      c32 c2 = *in++;
-      c32 c3 = *in++;
-      c32 c4 = *in++;
-      *out++ = c1 << 24 | c2 << 16 | c3 << 8 | c4;
+      c32 const c1 = in[1];
+      c32 const c2 = in[2];
+      c32 const c3 = in[3];
+      *out         = c0 << 24 | c1 << 16 | c2 << 8 | c3;
+      in += 4;
     }
-    else if ((*in & 0xF0) == 0xE0)
+    else if ((c0 & 0xF0) == 0xE0)
     {
-      c32 c1 = *in++;
-      c32 c2 = *in++;
-      c32 c3 = *in++;
-      *out++ = c1 << 16 | c2 << 8 | c3;
+      c32 const c1 = in[1];
+      c32 const c2 = in[2];
+      *out         = c0 << 16 | c1 << 8 | c2;
+      in += 3;
     }
-    else if ((*in & 0xE0) == 0xC0)
+    else if ((c0 & 0xE0) == 0xC0)
     {
-      c32 c1 = *in++;
-      c32 c2 = *in++;
-      *out++ = c1 << 8 | c2;
+      c32 const c1 = in[1];
+      *out         = c0 << 8 | c1;
+      in += 2;
     }
     else
     {
-      c32 c1 = *in++;
-      *out++ = c1;
+      *out = c0;
+      in += 1;
     }
+
+    out++;
   }
+
   return out - decoded.pbegin();
 }
 
-/// @brief encoded.size must be at least decoded.size * 4
-[[nodiscard]] constexpr usize utf8_encode(Str32 decoded, MutStr8 encoded)
+/// @brief `encoded.size()` must be at least `text.size() * 4`
+[[nodiscard]] constexpr usize utf8_encode(Str32 text, MutStr8 encoded)
 {
   c8 *        out = encoded.data();
-  c32 const * in  = decoded.data();
-  c32 const * end = decoded.pend();
+  c32 const * in  = text.data();
+  c32 const * end = text.pend();
 
   while (in != end)
   {
-    if (*in <= 0x7F)
+    c32 const c = *in;
+
+    if (c <= 0x7F)
     {
-      *out = *in;
+      out[0] = c;
       out += 1;
     }
-    if (*in <= 0x7FF)
+    else if (c <= 0x7FF)
     {
-      out[0] = 0xC0 | (*in >> 6);
-      out[1] = 0x80 | (*in & 0x3F);
+      out[0] = 0xC0 | (c >> 6);
+      out[1] = 0x80 | (c & 0x3F);
       out += 2;
     }
-    if (*in <= 0xFFFF)
+    else if (c <= 0xFFFF)
     {
-      out[0] = 0xE0 | (*in >> 12);
-      out[1] = 0x80 | ((*in >> 6) & 0x3F);
-      out[2] = 0x80 | (*in & 0x3F);
+      out[0] = 0xE0 | (c >> 12);
+      out[1] = 0x80 | ((c >> 6) & 0x3F);
+      out[2] = 0x80 | (c & 0x3F);
       out += 3;
     }
-    if (*in <= 0x10'FFFF)
+    else if (c <= 0x10'FFFF)
     {
-      out[0] = 0xF0 | (*in >> 18);
-      out[1] = 0x80 | ((*in >> 12) & 0x3F);
-      out[2] = 0x80 | ((*in >> 6) & 0x3F);
-      out[3] = 0x80 | (*in & 0x3F);
+      out[0] = 0xF0 | (c >> 18);
+      out[1] = 0x80 | ((c >> 12) & 0x3F);
+      out[2] = 0x80 | ((c >> 6) & 0x3F);
+      out[3] = 0x80 | (c & 0x3F);
       out += 4;
     }
+
+    in++;
   }
 
   return out - encoded.pbegin();
@@ -110,32 +119,30 @@ namespace ash
 
 /// @brief converts UTF-8 text from @p encoded to UTF-32 and appends into @p
 /// `decoded`
-inline Result<> utf8_decode(Str8 encoded, Vec<c32> & decoded)
+inline Result<> utf8_decode(Str8 text, Vec<c32> & decoded)
 {
   usize const first     = decoded.size();
-  usize const max_count = encoded.size();
+  usize const max_count = text.size();
   if (!decoded.extend_uninit(max_count))
   {
     return Err{};
   }
-  usize const count =
-    utf8_decode(encoded, decoded.view().slice(first, max_count));
+  usize const count = utf8_decode(text, decoded.view().slice(first, max_count));
   decoded.resize_uninit(first + count).unwrap();
   return Ok{};
 }
 
 /// @brief converts UTF-32 text from @p decoded to UTF-8 and appends into @p
 /// `encoded`
-[[nodiscard]] inline Result<> utf8_encode(Str32 decoded, Vec<c8> & encoded)
+[[nodiscard]] inline Result<> utf8_encode(Str32 text, Vec<c8> & encoded)
 {
   usize const first     = encoded.size();
-  usize const max_count = decoded.size() * 4;
+  usize const max_count = text.size() * 4;
   if (!encoded.extend_uninit(max_count))
   {
     return Err{};
   }
-  usize const count =
-    utf8_encode(decoded, encoded.view().slice(first, max_count));
+  usize const count = utf8_encode(text, encoded.view().slice(first, max_count));
   encoded.resize_uninit(first + count).unwrap();
   return Ok{};
 }
