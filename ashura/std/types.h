@@ -331,6 +331,16 @@ constexpr u32 sat_sub(u32 a, u32 b)
   return (u32) clamp((i64) ((i64) a - (i64) b), (i64) U32_MIN, (i64) U32_MAX);
 }
 
+constexpr u64 sat_sub(u64 a, u64 b)
+{
+  if (a < b)
+  {
+    return 0;
+  }
+
+  return a - b;
+}
+
 constexpr i8 sat_sub(i8 a, i8 b)
 {
   return (i8) clamp((i16) ((i16) a - (i16) b), (i16) I8_MIN, (i16) I8_MAX);
