@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 cmake_minimum_required(VERSION 3.20)
 
-project(Ashura)
+project(Ashura LANGUAGES C CXX ASM)
 
 option(ASH_WERROR "Make all ASH's compilation warnings manifest as errors" OFF)
 
