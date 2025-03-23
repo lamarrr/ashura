@@ -733,7 +733,7 @@ void ViewSystem::events(ui::ViewContext const & ctx)
   {
     if (!(f1.focus.is_some() && f1.focus.value().input_info.tab_input))
     {
-      if (ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift))
+      if (ctx.key_down(KeyCode::LeftShift) || ctx.key_down(KeyCode::RightShift))
       {
         focus_action = FocusAction::Backward;
       }

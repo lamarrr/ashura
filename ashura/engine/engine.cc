@@ -154,17 +154,17 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
         case KeyAction::Press:
         {
           f.key.any_down = true;
-          set_bit(f.key.downs, (u32) e.key_code);
-          set_bit(f.key.scan_downs, (u32) e.scan_code);
-          f.key.modifiers |= e.modifiers;
+          set_bit(f.key.key_downs, (usize) e.key_code);
+          set_bit(f.key.scan_downs, (usize) e.scan_code);
+          f.key.modifier_downs |= e.modifiers;
         }
         break;
         case KeyAction::Release:
         {
           f.key.any_up = true;
-          set_bit(f.key.ups, (u32) e.key_code);
-          set_bit(f.key.scan_ups, (u32) e.scan_code);
-          f.key.modifiers |= e.modifiers;
+          set_bit(f.key.key_ups, (usize) e.key_code);
+          set_bit(f.key.scan_ups, (usize) e.scan_code);
+          f.key.modifier_ups |= e.modifiers;
         }
         break;
         default:
@@ -182,11 +182,11 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
       switch (e.action)
       {
         case KeyAction::Press:
-          set_bit(f.mouse.downs, (u32) e.button);
+          f.mouse.downs |= MouseButtons{1U << (u32) e.button};
           f.mouse.any_down = true;
           break;
         case KeyAction::Release:
-          set_bit(f.mouse.ups, (u32) e.button);
+          f.mouse.ups |= MouseButtons{1U << (u32) e.button};
           f.mouse.any_up = true;
           break;
         default:
@@ -673,9 +673,11 @@ void Engine::run(ui::View & view, ui::View & focus_view,
     input_buffer.clear();
     input_buffer.stamp(timestamp, timedelta);
 
-    input_buffer.mouse.position =
-      window_sys->get_mouse_state(input_buffer.mouse.states);
-    window_sys->get_keyboard_state(input_buffer.key.states);
+    window_sys->get_mouse_state(input_buffer.mouse.states,
+                                input_buffer.mouse.position);
+    window_sys->get_keyboard_state(input_buffer.key.scan_states,
+                                   input_buffer.key.key_states,
+                                   input_buffer.key.modifier_states);
 
     {
       ScopeTrace poll_trace{

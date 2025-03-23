@@ -96,9 +96,11 @@ struct WindowSystem
 
   virtual ClipBoard & get_clipboard() = 0;
 
-  virtual void get_keyboard_state(BitSpan<u64> state) = 0;
+  virtual void get_keyboard_state(BitSpan<u64>   scan_state,
+                                  BitSpan<u64>   key_state,
+                                  KeyModifiers & modifiers) = 0;
 
-  virtual Vec2 get_mouse_state(BitSpan<u64> state) = 0;
+  virtual void get_mouse_state(MouseButtons & state, Vec2 & position) = 0;
 
   virtual void start_text_input(Window window, TextInputInfo const & info) = 0;
 
