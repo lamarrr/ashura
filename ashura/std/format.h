@@ -422,7 +422,7 @@ constexpr void consume_token(Str str, ParseState state, Spec & spec)
       }
       else
       {
-        width = min(width, MAX_WIDTH);
+        width = min(width, (u64) MAX_WIDTH);
       }
 
       spec.width = width;
@@ -437,7 +437,7 @@ constexpr void consume_token(Str str, ParseState state, Spec & spec)
       }
       else
       {
-        precision = min(precision, MAX_PRECISION);
+        precision = min(precision, (u64) MAX_PRECISION);
       }
 
       spec.precision = precision;
