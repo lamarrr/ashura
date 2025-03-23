@@ -25,6 +25,7 @@ Theme theme = {
   .on_warning       = mdc::WHITE,
   .on_success       = mdc::WHITE,
   .focus            = mdc::BLUE_300,
+  .highlight        = ios::accessible::DARK_INDIGO,
   .head_font_height = 30,
   .body_font_height = 25,
   .line_height      = 1.2F,

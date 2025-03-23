@@ -304,6 +304,7 @@ struct Theme
   Vec4U8 on_warning       = {};
   Vec4U8 on_success       = {};
   Vec4U8 focus            = {};
+  Vec4U8 highlight        = {};
   f32    head_font_height = {};
   f32    body_font_height = {};
   f32    line_height      = {};

@@ -351,7 +351,8 @@ struct Text : View
 
   struct Style
   {
-    TextHighlightStyle highlight{.color = mdc::BLUE_400};
+    TextHighlightStyle highlight{.color        = theme.highlight,
+                                 .corner_radii = Vec4::splat(2.5F)};
   } style;
 
   RenderText text_;
@@ -427,8 +428,9 @@ struct Input : View
 
   struct Style
   {
-    TextHighlightStyle highlight      = {};
-    u16                lines_per_page = 40;
+    TextHighlightStyle highlight      = {.color        = theme.highlight,
+                                         .corner_radii = Vec4::splat(2.5F)};
+    usize              lines_per_page = 40;
   } style;
 
   struct Callbacks
