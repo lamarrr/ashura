@@ -255,6 +255,11 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
+  constexpr Result<> reserve_extend(usize extension)
+  {
+    return reserve(size_ + extension);
+  }
+
   constexpr Result<> fit()
   {
     if (size_ == capacity_)
@@ -287,14 +292,19 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
-  constexpr Result<> grow(usize target_size)
+  constexpr Result<> grow(usize target_capacity)
   {
-    if (capacity_ >= target_size)
+    if (capacity_ >= target_capacity)
     {
       return Ok{};
     }
 
-    return reserve(max(target_size, capacity_ << 1));
+    return reserve(max(target_capacity, capacity_ << 1));
+  }
+
+  constexpr Result<> grow_extend(usize extension)
+  {
+    return reserve(size_ + extension);
   }
 
   constexpr void erase(usize first, usize num)
@@ -1036,14 +1046,24 @@ struct [[nodiscard]] BitVec
     return repr_.reserve(bit_packs<R>(target_capacity));
   }
 
+  constexpr Result<> reserve_extend(usize extension)
+  {
+    return reserve(size_ + extension);
+  }
+
   constexpr Result<> fit()
   {
     return repr_.fit();
   }
 
-  constexpr Result<> grow(usize target_size)
+  constexpr Result<> grow(usize target_capacity)
   {
-    return repr_.grow(bit_packs<R>(target_size));
+    return repr_.grow(bit_packs<R>(target_capacity));
+  }
+
+  constexpr Result<> grow_extend(usize extension)
+  {
+    return reserve(size_ + extension);
   }
 
   constexpr Result<> push(bool bit)
@@ -1898,13 +1918,18 @@ struct SparseVec
     return Ok{};
   }
 
-  constexpr Result<> grow(usize target_size)
+  constexpr Result<> reserve_extend(usize extension)
+  {
+    return reserve(size() + extension);
+  }
+
+  constexpr Result<> grow(usize target_capacity)
   {
     bool const err = !apply(
       [&](auto &... dense) {
-        return (
-          (id_to_index_.grow(target_size) && index_to_id_.grow(target_size)) &&
-          ... && dense.grow(target_size));
+        return ((id_to_index_.grow(target_capacity) &&
+                 index_to_id_.grow(target_capacity)) &&
+                ... && dense.grow(target_capacity));
       },
       dense);
 
@@ -1914,6 +1939,11 @@ struct SparseVec
     }
 
     return Ok{};
+  }
+
+  constexpr Result<> grow_extend(usize extension)
+  {
+    return reserve(size() + extension);
   }
 
   /// make new id and map the unique id to the end index
