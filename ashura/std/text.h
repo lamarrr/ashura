@@ -112,13 +112,15 @@ namespace ash
 /// `decoded`
 inline Result<> utf8_decode(Str8 encoded, Vec<c32> & decoded)
 {
-  usize const first = decoded.size();
-  usize const count = count_utf8_codepoints(encoded);
-  if (!decoded.extend_uninit(count))
+  usize const first     = decoded.size();
+  usize const max_count = encoded.size();
+  if (!decoded.extend_uninit(max_count))
   {
     return Err{};
   }
-  (void) utf8_decode(encoded, decoded.view().slice(first, count));
+  usize const count =
+    utf8_decode(encoded, decoded.view().slice(first, max_count));
+  decoded.resize_uninit(first + count).unwrap();
   return Ok{};
 }
 
@@ -127,7 +129,7 @@ inline Result<> utf8_decode(Str8 encoded, Vec<c32> & decoded)
 [[nodiscard]] inline Result<> utf8_encode(Str32 decoded, Vec<c8> & encoded)
 {
   usize const first     = encoded.size();
-  usize const max_count = decoded.size();
+  usize const max_count = decoded.size() * 4;
   if (!encoded.extend_uninit(max_count))
   {
     return Err{};
