@@ -59,8 +59,7 @@ struct ClipBoardImpl : ClipBoard
     }
     defer data_{[&] { SDL_free(data); }};
 
-    out.extend(Span<u8 const>{reinterpret_cast<u8 *>(data), mime_data_len})
-      .unwrap();
+    out.extend(Span{reinterpret_cast<u8 *>(data), mime_data_len}).unwrap();
     return Ok{};
   }
 
@@ -85,13 +84,14 @@ struct ClipBoardImpl : ClipBoard
 
   virtual Result<> set(Str mime, Span<u8 const> data) override
   {
+    if (!SDL_ClearClipboardData())
+    {
+      return Err{};
+    }
+
     if (data.is_empty() || mime.is_empty())
     {
-      if (SDL_ClearClipboardData())
-      {
-        return Ok{};
-      }
-      return Err{};
+      return Ok{};
     }
 
     char mime_c_str[MAX_MIME_SIZE + 1];
@@ -101,10 +101,8 @@ struct ClipBoardImpl : ClipBoard
 
     local_.extend(data).unwrap();
 
-    bool failed =
-      SDL_SetClipboardData(get_callback, cleanup_callback, this, mime_types, 1);
-
-    if (failed)
+    if (!SDL_SetClipboardData(get_callback, cleanup_callback, this, mime_types,
+                              1))
     {
       return Err{};
     }
