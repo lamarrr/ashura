@@ -102,7 +102,7 @@ Result<Dyn<Font *>, FontLoadErr>
   }};
 
   FT_Library ft_lib;
-  if (FT_Init_FreeType(&ft_lib) != 0)
+  if (FT_Error err = FT_Init_FreeType(&ft_lib); err != 0)
   {
     return Err{FontLoadErr::DecodeFailed};
   }
@@ -116,13 +116,16 @@ Result<Dyn<Font *>, FontLoadErr>
 
   FT_Face ft_face;
 
-  if (FT_New_Memory_Face(ft_lib, (FT_Byte const *) font_data.data(),
-                         (FT_Long) font_data.size(), 0, &ft_face) != 0)
+  if (FT_Error err =
+        FT_New_Memory_Face(ft_lib, (FT_Byte const *) font_data.data(),
+                           (FT_Long) font_data.size(), 0, &ft_face);
+      err != 0)
   {
     return Err{FontLoadErr::DecodeFailed};
   }
 
-  if (FT_Set_Char_Size(ft_face, AU_UNIT, AU_UNIT, 72, 72) != 0)
+  if (FT_Error err = FT_Set_Char_Size(ft_face, AU_UNIT, AU_UNIT, 72, 72);
+      err != 0)
   {
     return Err{FontLoadErr::DecodeFailed};
   }
@@ -177,17 +180,19 @@ Result<Dyn<Font *>, FontLoadErr>
 
   for (auto [i, metric] : enumerate<u32>(glyphs))
   {
-    if (FT_Load_Glyph(ft_face, i, FT_LOAD_DEFAULT) == 0)
+    if (FT_Error err = FT_Load_Glyph(ft_face, i, FT_LOAD_DEFAULT); err != 0)
     {
-      FT_GlyphSlot s = ft_face->glyph;
-
-      // bin offsets are determined after binning and during rect packing
-      metric = GlyphMetrics{
-        .bearing{(i32) s->metrics.horiBearingX, (i32) -s->metrics.horiBearingY},
-        .advance = (i32) s->metrics.horiAdvance,
-        .extent{(i32) s->metrics.width,        (i32) s->metrics.height       }
-      };
+      continue;
     }
+
+    FT_GlyphSlot s = ft_face->glyph;
+
+    // bin offsets are determined after binning and during rect packing
+    metric = GlyphMetrics{
+      .bearing{(i32) s->metrics.horiBearingX, (i32) -s->metrics.horiBearingY},
+      .advance = (i32) s->metrics.horiAdvance,
+      .extent{(i32) s->metrics.width,        (i32) s->metrics.height       }
+    };
   }
 
   Vec<char> label{allocator_};
@@ -242,7 +247,8 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
     return Err{};
   }
 
-  if (FT_Set_Pixel_Sizes(font.ft_face, font_height, font_height))
+  if (FT_Error err = FT_Set_Pixel_Sizes(font.ft_face, font_height, font_height);
+      err != 0)
   {
     return Err{};
   }
@@ -253,7 +259,8 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
 
   for (auto [i, g] : enumerate<u32>(atlas.glyphs))
   {
-    if (FT_Load_Glyph(font.ft_face, i, FT_LOAD_DEFAULT))
+    if (FT_Error err = FT_Load_Glyph(font.ft_face, i, FT_LOAD_DEFAULT);
+        err != 0)
     {
       continue;
     }
@@ -360,8 +367,9 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
 
   for (auto [i, ag] : enumerate<u32>(atlas.glyphs))
   {
-    if (FT_Load_Glyph(font.ft_face, i,
-                      FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR))
+    if (FT_Error err = FT_Load_Glyph(
+          font.ft_face, i, FT_LOAD_DEFAULT | FT_LOAD_COLOR | FT_LOAD_RENDER);
+        err != 0)
     {
       continue;
     }
