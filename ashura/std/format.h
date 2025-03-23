@@ -580,7 +580,7 @@ constexpr char const * seek_eq(char const * iter, char const * const end,
   return seek(iter, end, [c](char x) { return x == c; });
 }
 
-constexpr bool is_escapable_token(char c)
+constexpr bool is_token(char c)
 {
   switch (c)
   {
@@ -593,21 +593,9 @@ constexpr bool is_escapable_token(char c)
   }
 }
 
-constexpr bool is_expr_start(char c)
+constexpr char const * seek_token(char const * iter, char const * end)
 {
-  switch (c)
-  {
-    case '{':
-    case '\\':
-      return true;
-    default:
-      return false;
-  }
-}
-
-constexpr char const * seek_expr_start(char const * iter, char const * end)
-{
-  return seek(iter, end, is_expr_start);
+  return seek(iter, end, is_token);
 }
 
 constexpr char const * seek_spec_end(char const * iter, char const * end)
@@ -625,7 +613,7 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
   while (iter != end)
   {
     auto const seek_begin = iter;
-    iter                  = impl::seek_expr_start(iter, end);
+    iter                  = impl::seek_token(iter, end);
 
     if (seek_begin != iter)
     {
@@ -673,6 +661,13 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
       }
       break;
 
+      case '}':
+        return Result{
+          .error    = Error::UnmatchedToken,
+          .position = Span{iter, 1}
+            .as_slice_of(format)
+        };
+
       case '\\':
       {
         auto const expr_begin = iter;
@@ -683,7 +678,7 @@ constexpr Result parse(Str format, Buffer<Op> & ops, usize & num_args)
         auto const * escape_end   = iter + 1;
         iter++;
 
-        if (!impl::is_escapable_token(escaped))
+        if (!impl::is_token(escaped))
         {
           return Result{
             .error    = Error::InvalidEscape,
