@@ -9,7 +9,7 @@ Option<TextHitResult> TextLayout::hit(TextBlock const &      block,
                                       TextBlockStyle const & style,
                                       Vec2                   pos) const
 {
-  u32 const num_lines = lines.size32();
+  auto const num_lines = lines.size();
 
   if (num_lines == 0)
   {
@@ -19,7 +19,7 @@ Option<TextHitResult> TextLayout::hit(TextBlock const &      block,
   f32 const  block_width = max(extent.x, style.align_width);
   Vec2 const block_extent{block_width, extent.y};
   f32        line_y = -block_extent.y * 0.5F;
-  u32        l      = 0;
+  usize      l      = 0;
 
   // separated vertical and horizontal clamped hit test
   for (; l < num_lines; l++)
@@ -40,44 +40,51 @@ Option<TextHitResult> TextLayout::hit(TextBlock const &      block,
   f32 cursor = space_align(block_width, ln.metrics.width, alignment) -
                ln.metrics.width * 0.5F;
 
-  for (u32 r = 0; r < ln.runs.span; r++)
+  for (auto [irun, run] : enumerate(runs.view().slice(ln.runs)))
   {
-    TextRun const & run         = runs[r];
-    f32 const       font_height = block.font_scale * run.font_height;
+    f32 const font_height = block.font_scale * run.font_height;
+
     ResolvedTextRunMetrics const run_metrics = run.metrics.resolve(font_height);
-    bool const                   intersects =
+
+    bool const intersects =
       (pos.x >= cursor && pos.x <= (cursor + run_metrics.advance)) ||
-      (r == ln.runs.span - 1);
+      (irun == (ln.runs.end() - 1));
+
     if (!intersects)
     {
+      cursor += run_metrics.advance;
       continue;
     }
+
     f32 glyph_cursor = cursor;
-    for (u32 g = 0; g < run.glyphs.span; g++)
+
+    for (auto [iglyph, sh] : enumerate(glyphs.view().slice(run.glyphs)))
     {
-      GlyphShape const & sh      = glyphs[run.glyphs.offset + g];
-      f32 const          advance = au_to_px(sh.advance, font_height);
-      bool const         intersects =
+      f32 const advance = au_to_px(sh.advance, font_height);
+
+      bool const intersects =
         (pos.x >= glyph_cursor && pos.x <= (glyph_cursor + advance)) ||
-        (g == run.glyphs.span - 1);
+        (iglyph == (run.glyphs.end() - 1));
+
       if (!intersects)
       {
         glyph_cursor += advance;
         continue;
       }
-      u32 const column = (sh.cluster > ln.codepoints.offset) ?
-                           (sh.cluster - ln.codepoints.offset) :
-                           0;
+
+      usize const column = (sh.cluster > ln.codepoints.offset) ?
+                             (sh.cluster - ln.codepoints.offset) :
+                             0;
+
       return TextHitResult{.cluster = sh.cluster,
                            .line    = l,
                            .column  = column,
                            .pos     = glyph_cursor};
     }
-    cursor += run_metrics.advance;
   }
 
-  u32 const column = (ln.codepoints.span == 0) ? 0 : (ln.codepoints.span - 1);
-  return TextHitResult{.cluster = (u32) (ln.codepoints.offset + column),
+  usize const column = (ln.codepoints.span == 0) ? 0 : (ln.codepoints.span - 1);
+  return TextHitResult{.cluster = ln.codepoints.offset + column,
                        .line    = l,
                        .column  = column,
                        .pos     = cursor};

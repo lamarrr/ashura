@@ -413,10 +413,10 @@ struct Line
 
 struct TextHitResult
 {
-  u32 cluster = 0;
-  u32 line    = 0;
-  u32 column  = 0;
-  f32 pos     = 0;
+  usize cluster = 0;
+  usize line    = 0;
+  usize column  = 0;
+  f32   pos     = 0;
 };
 
 /// @brief cached/pre-computed text layout
