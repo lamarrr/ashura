@@ -11,32 +11,32 @@ TEST(RenderText, RunManagement)
 
   RenderText text{default_allocator};
 
-  ASSERT_EQ(text.runs_.size32(), 0);
+  ASSERT_EQ(text.runs_.size(), 0);
 
   text.run({}, {}, 0, 1);
-  ASSERT_EQ(text.runs_.size32(), 1);
+  ASSERT_EQ(text.runs_.size(), 1);
 
   text.run({}, {}, 0, 1);
-  ASSERT_EQ(text.runs_.size32(), 2);
+  ASSERT_EQ(text.runs_.size(), 2);
 
   text.run({}, {}, 0, 1);
-  ASSERT_EQ(text.runs_.size32(), 2);
+  ASSERT_EQ(text.runs_.size(), 2);
 
   text.run({}, {}, 0, 8);
-  ASSERT_EQ(text.runs_.size32(), 2);
+  ASSERT_EQ(text.runs_.size(), 2);
 
   text.run({}, {}, 0, 2);
-  ASSERT_EQ(text.runs_.size32(), 3);
+  ASSERT_EQ(text.runs_.size(), 3);
 
   text.run({}, {}, 0, 8);
-  ASSERT_EQ(text.runs_.size32(), 2);
+  ASSERT_EQ(text.runs_.size(), 2);
 
   text.run({}, {}, 1, 7);
-  ASSERT_EQ(text.runs_.size32(), 3);
+  ASSERT_EQ(text.runs_.size(), 3);
 
   text.run({}, {}, 1, 4);
-  ASSERT_EQ(text.runs_.size32(), 4);
+  ASSERT_EQ(text.runs_.size(), 4);
 
   text.run({}, {}, 0, U32_MAX);
-  ASSERT_EQ(text.runs_.size32(), 1);
+  ASSERT_EQ(text.runs_.size(), 1);
 }
