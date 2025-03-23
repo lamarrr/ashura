@@ -836,6 +836,11 @@ struct SliceT
   S offset = 0;
   S span   = 0;
 
+  static constexpr SliceT from_range(S begin, S end)
+  {
+    return SliceT{.offset = begin, .span = end - begin};
+  }
+
   static constexpr SliceT all()
   {
     return SliceT{.offset = 0, .span = NumTraits<S>::MAX};
