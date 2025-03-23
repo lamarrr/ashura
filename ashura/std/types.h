@@ -1668,6 +1668,16 @@ struct BitSpan
     ash::flip_bit(repr_, index);
   }
 
+  constexpr void clear_all_bits() const requires (NonConst<R>)
+  {
+    fill(repr_, (R) 0);
+  }
+
+  constexpr void set_all_bits() const requires (NonConst<R>)
+  {
+    fill(repr_, NumTraits<R>::MAX);
+  }
+
   constexpr usize find_set_bit()
   {
     return ash::find_set_bit(repr_);
