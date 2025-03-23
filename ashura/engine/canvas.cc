@@ -647,8 +647,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
       f32 cursor = space_align(block_width, ln.metrics.width, alignment) -
                    ln.metrics.width * 0.5F;
 
-      f32 highlight_min_x = F32_MAX;
-      f32 highlight_max_x = F32_MIN;
+      Option<Tuple<f32, f32>> highlight;
 
       for (TextRun const & run : layout.runs.view().slice(ln.runs))
       {
@@ -688,10 +687,14 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
           if (pass == Pass::HIGHLIGHT &&
               style.highlight.slice.contains(sh.cluster))
           {
-            f32 const begin = center.x - 0.5 * extent.x;
-            f32 const end   = center.x + 0.5 * extent.x;
-            highlight_min_x = min(begin, highlight_min_x);
-            highlight_max_x = max(end, highlight_max_x);
+            f32 const begin = center.x - 0.5F * extent.x;
+            f32 const end   = center.x + 0.5F * extent.x;
+            highlight.match(
+              [&](auto & h) {
+                h.v0 = min(begin, h.v0);
+                h.v1 = max(end, h.v1);
+              },
+              [&]() { highlight = Tuple{begin, end}; });
           }
 
           if (pass == Pass::GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
@@ -768,18 +771,17 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         cursor += run_width;
       }
 
-      if (pass == Pass::HIGHLIGHT &&
-          style.highlight.slice.overlaps(ln.codepoints) &&
-          highlight_min_x != F32_MAX && highlight_max_x != F32_MIN)
+      if (pass == Pass::HIGHLIGHT)
       {
-        Vec2 const extent{highlight_max_x - highlight_min_x, ln.metrics.height};
-        Vec2 const center{highlight_min_x + 0.5F * extent.x,
-                          line_y - 0.5F * extent.y};
-        rrect({.center       = info.center,
-               .extent       = extent,
-               .transform    = info.transform * translate3d(vec3(center, 0)),
-               .corner_radii = style.highlight.style.corner_radii,
-               .tint         = style.highlight.style.color});
+        highlight.match([&](auto & h) {
+          Vec2 const extent{h.v1 - h.v0, ln.metrics.height};
+          Vec2 const center{h.v0 + 0.5F * extent.x, line_y - 0.5F * extent.y};
+          rrect({.center       = info.center,
+                 .extent       = extent,
+                 .transform    = info.transform * translate3d(vec3(center, 0)),
+                 .corner_radii = style.highlight.style.corner_radii,
+                 .tint         = style.highlight.style.color});
+        });
       }
     }
   }
