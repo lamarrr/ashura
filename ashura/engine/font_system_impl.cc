@@ -605,12 +605,11 @@ void FontSystemImpl::unload(FontId id)
 /// with invalid codepoints replaced before calling this.
 /// @param script OpenType (ISO15924) Script
 /// Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
-static inline void shape(hb_font_t * font, hb_buffer_t * buffer, Str32 line,
-                         Slice codepoints, hb_script_t script,
-                         hb_direction_t direction, hb_language_t language,
-                         bool use_kerning, bool use_ligatures,
-                         Span<hb_glyph_info_t const> &     infos,
-                         Span<hb_glyph_position_t const> & positions)
+static inline Tuple<Span<hb_glyph_info_t const>,
+                    Span<hb_glyph_position_t const>>
+  shape(hb_font_t * font, hb_buffer_t * buffer, Str32 line, Slice codepoints,
+        hb_script_t script, hb_direction_t direction, hb_language_t language,
+        bool use_kerning, bool use_ligatures)
 {
   // tags are opentype feature tags
   hb_feature_t const shaping_features[] = {
@@ -656,8 +655,10 @@ static inline void shape(hb_font_t * font, hb_buffer_t * buffer, Str32 line,
 
   CHECK(num_pos == num_info, "");
 
-  infos     = Span{glyph_info, num_info};
-  positions = Span{glyph_pos, num_pos};
+  return Tuple{
+    Span{glyph_info, num_info},
+    Span{glyph_pos,  num_pos }
+  };
 }
 
 /// @brief only needs to be called if it contains multiple paragraphs
@@ -952,13 +953,13 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
           block.text.slice(paragraph_begin, paragraph_end - paragraph_begin);
         Slice const slice{first - paragraph_begin, i - first};
 
-        shape(f.hb_font, hb_buffer_, paragraph, slice,
-              hb_script_from_iso15924_tag(
-                SBScriptGetOpenTypeTag(SBScript{(u8) first_segment.script})),
-              ((first_segment.level & 0x1) == 0) ? HB_DIRECTION_LTR :
-                                                   HB_DIRECTION_RTL,
-              language, block.use_kerning, block.use_ligatures, infos,
-              positions);
+        auto [infos, positions] =
+          shape(f.hb_font, hb_buffer_, paragraph, slice,
+                hb_script_from_iso15924_tag(
+                  SBScriptGetOpenTypeTag(SBScript{(u8) first_segment.script})),
+                ((first_segment.level & 0x1) == 0) ? HB_DIRECTION_LTR :
+                                                     HB_DIRECTION_RTL,
+                language, block.use_kerning, block.use_ligatures);
 
         Slice const codepoints{first, i - first};
 
