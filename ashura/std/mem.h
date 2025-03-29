@@ -58,7 +58,8 @@ void copy(Span<T> src, U * dst)
     return;
   }
 
-  std::memcpy(dst, src.data(), src.size_bytes());
+  std::memcpy(reinterpret_cast<void *>(dst),
+              reinterpret_cast<void const *>(src.data()), src.size_bytes());
 }
 
 template <typename T, NonConst U>
@@ -75,7 +76,8 @@ void move(Span<T> src, U * dst)
     return;
   }
 
-  std::memmove(dst, src.data(), src.size_bytes());
+  std::memmove(reinterpret_cast<void *>(dst),
+               reinterpret_cast<void const *>(src.data()), src.size_bytes());
 }
 
 template <typename T, NonConst U>
@@ -92,7 +94,7 @@ void zero(T * dst, usize n)
     return;
   }
 
-  std::memset(dst, 0, sizeof(T) * n);
+  std::memset(reinterpret_cast<void *>(dst), 0, sizeof(T) * n);
 }
 
 template <NonConst T>
@@ -109,7 +111,7 @@ void fill(T * dst, usize n, u8 byte)
     return;
   }
 
-  std::memset(dst, byte, sizeof(T) * n);
+  std::memset(reinterpret_cast<void *>(dst), byte, sizeof(T) * n);
 }
 
 template <NonConst T>
@@ -122,7 +124,9 @@ template <typename T, typename U>
 bool eq(Span<T> a, Span<U> b)
 {
   return (a.size_bytes() == b.size_bytes()) &&
-         (std::memcmp(a.data(), b.data(), a.size_bytes()) == 0);
+         (std::memcmp(reinterpret_cast<void const *>(a.data()),
+                      reinterpret_cast<void const *>(b.data()),
+                      a.size_bytes()) == 0);
 }
 
 template <typename T>
