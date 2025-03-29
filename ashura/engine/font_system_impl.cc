@@ -946,8 +946,6 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
 
         FontStyle const & s = block.fonts[first_segment.style];
         FontImpl const &  f = (FontImpl const &) *fonts_[(usize) s.font].v0;
-        Span<hb_glyph_info_t const>     infos     = {};
-        Span<hb_glyph_position_t const> positions = {};
 
         auto const paragraph =
           block.text.slice(paragraph_begin, paragraph_end - paragraph_begin);
