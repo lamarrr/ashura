@@ -1,44 +1,44 @@
 {
-    "$schema": "./config.schema.json",
-    "version": "0.0.1",
-    "gpu.validation": false,
-    "gpu.vsync": true,
-    "gpu.preferences": [
-        "igpu",
-        "dgpu",
-        "cpu",
-        "vgpu",
-        "other"
-    ],
-    "gpu.hdr": true,
-    "gpu.buffering": 2,
-    "gpu.antialiasing": "msaa",
-    "gpu.msaa.level": 2,
-    "gpu.max_fps": 240,
-    "window.resizable": true,
-    "window.full_screen": false,
-    "window.maximized": false,
-    "window.borderless": false,
-    "window.width": 1500,
-    "window.height": 960,
-    "shaders": {
-        "Blur": "assets/shaders/blur.slang.spv",
-        "Ngon": "assets/shaders/ngon.slang.spv",
-        "PBR": "assets/shaders/pbr.slang.spv",
-        "RRect": "assets/shaders/rrect.slang.spv"
-    },
-    "fonts": {
-        "Amiri": "assets/fonts/Amiri/Amiri-Regular.ttf",
-        "MaterialIcons": "assets/fonts/MaterialIcons/MaterialIcons-Regular.ttf",
-        "Roboto": "assets/fonts/Roboto/Roboto-Regular.ttf",
-        "RobotoMono": "assets/fonts/RobotoMono/RobotoMono-Regular.ttf"
-    },
-    "fonts.height": 32,
-    "images": {
-        "birdie": "assets/images/birdie.jpg",
-        "bankside": "assets/images/bankside.jpg",
-        "mountains": "assets/images/mountains.jpg",
-        "sunset": "assets/images/sunset.jpg"
-    },
-    "cache.pipeline.path": "caches/pipeline.cache"
+  "$schema": "./config.schema.json",
+  "version": "0.0.1",
+  "gpu.validation": false,
+  "gpu.vsync": true,
+  "gpu.preferences": [
+    "dgpu",
+    "igpu",
+    "cpu",
+    "vgpu",
+    "other"
+  ],
+  "gpu.hdr": false,
+  "gpu.buffering": 2,
+  "gpu.antialiasing": "msaa",
+  "gpu.msaa.level": 1,
+  "gpu.max_fps": 120,
+  "window.resizable": true,
+  "window.full_screen": false,
+  "window.maximized": false,
+  "window.borderless": false,
+  "window.width": 1920,
+  "window.height": 1080,
+  "shaders": {
+    "Blur": "assets/shaders/blur.slang.spv",
+    "Ngon": "assets/shaders/ngon.slang.spv",
+    "PBR": "assets/shaders/pbr.slang.spv",
+    "RRect": "assets/shaders/rrect.slang.spv"
+  },
+  "fonts": {
+    "Amiri": "assets/fonts/Amiri/Amiri-Regular.ttf",
+    "MaterialIcons": "assets/fonts/MaterialIcons/MaterialIcons-Regular.ttf",
+    "Roboto": "assets/fonts/Roboto/Roboto-Regular.ttf",
+    "RobotoMono": "assets/fonts/RobotoMono/RobotoMono-Regular.ttf"
+  },
+  "fonts.height": 32,
+  "images": {
+    "birdie": "assets/images/birdie.jpg",
+    "bankside": "assets/images/bankside.jpg",
+    "mountains": "assets/images/mountains.jpg",
+    "sunset": "assets/images/sunset.jpg"
+  },
+  "cache.pipeline.path": "caches/pipeline.cache"
 }
