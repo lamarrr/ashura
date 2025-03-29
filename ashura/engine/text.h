@@ -323,7 +323,7 @@ struct GlyphShape
 /// @param paragraph_end if this codepoint marks the end of a paragraph
 /// @param base_level the current paragraph's embedding level
 /// @param level embedding level of the current codepoint in the paragraph
-/// @param breakable if this codepoint begins a breakable text, i.e. has spaces
+/// @param wrappable if this codepoint begins a wrappable text, i.e. has spaces
 /// or tabs before it
 struct TextSegment
 {
@@ -331,9 +331,16 @@ struct TextSegment
   TextScript script              = TextScript::None;
   bool       paragraph_begin : 1 = false;
   bool       paragraph_end   : 1 = false;
-  bool       breakable       : 1 = false;
+  bool       whitespace      : 1 = false;
+  bool       tab             : 1 = false;
+  bool       wrappable       : 1 = false;
   u8         base_level          = 0;
   u8         level               = 0;
+
+  constexpr bool is_wrap_point() const
+  {
+    return whitespace | tab;
+  }
 };
 
 struct ResolvedTextRunMetrics
@@ -367,11 +374,18 @@ struct TextRunMetrics
   }
 };
 
+enum class TextRunType : u8
+{
+  Char       = 0,
+  WhiteSpace = 1,
+  Tab        = 2
+};
+
 /// @param first index of first codepoint in the source text
 /// @param count number of codepoints the run spans in the source text
 /// @param font font-style in the list of specified fonts
 /// @param paragraph if the run is at the beginning of a paragraph
-/// @param breakable if the run represents a break-opportunity as constrained by
+/// @param wrappable if the run represents a break-opportunity as constrained by
 /// the max-width.
 struct TextRun
 {
@@ -384,7 +398,8 @@ struct TextRun
   u8             base_level  = 0;
   u8             level       = 0;
   bool           paragraph   = false;
-  bool           breakable   = false;
+  bool           wrappable   = false;
+  TextRunType    type        = TextRunType::Char;
 };
 
 /// @param width width of the line

@@ -761,28 +761,33 @@ static inline void segment_levels(Str32 text, SBAlgorithmRef algorithm,
 }
 
 /// @brief only needs to be called if line breaking is required.
-static inline void segment_breakpoints(Str32 text, Span<TextSegment> segments)
+static inline void segment_wrap_points(Str32 text, Span<TextSegment> segments)
 {
   auto const text_size = text.size();
-  for (usize i = 0; i < text_size;)
+  for (auto [i, cp] : enumerate(text))
   {
-    segments[i].breakable = true;
-    while (i < text_size && text[i] != ' ' && text[i] != '\t')
+    switch (cp)
     {
-      i++;
+      case ' ':
+        segments[i].whitespace = true;
+        break;
+      case '\t':
+        segments[i].tab = true;
+        break;
     }
+  }
 
-    while (i < text_size && (text[i] == ' ' || text[i] == '\t'))
-    {
-      i++;
-    }
+  for (usize i = 0; i < text_size; i++)
+  {
+    segments[i].wrappable =
+      (i == (text_size - 1)) || segments[i + 1].is_wrap_point();
   }
 }
 
 static inline void insert_run(TextLayout & l, FontStyle const & s,
-                              Slice codepoints, u32 style, usize base_cluster,
-                              FontMetrics const & font_metrics, u8 base_level,
-                              u8 level, bool paragraph, bool breakable,
+                              Slice codepoints, usize base_cluster,
+                              FontMetrics const &             font_metrics,
+                              TextSegment const &             base_segment,
                               Span<hb_glyph_info_t const>     infos,
                               Span<hb_glyph_position_t const> positions)
 {
@@ -808,20 +813,32 @@ static inline void insert_run(TextLayout & l, FontStyle const & s,
     advance += pos.x_advance;
   }
 
+  TextRunType type = TextRunType::Char;
+
+  if (base_segment.whitespace)
+  {
+    type = TextRunType::WhiteSpace;
+  }
+  else if (base_segment.tab)
+  {
+    type = TextRunType::Tab;
+  }
+
   l.runs
     .push(TextRun{
       .codepoints  = codepoints,
-      .style       = style,
+      .style       = base_segment.style,
       .font_height = s.height,
       .line_height = max(s.line_height, 1.0F),
       .glyphs{first_glyph, num_glyphs},
       .metrics    = TextRunMetrics{.advance = advance,
               .ascent  = font_metrics.ascent,
               .descent = font_metrics.descent},
-      .base_level = base_level,
-      .level      = level,
-      .paragraph  = paragraph,
-      .breakable  = breakable
+      .base_level = base_segment.base_level,
+      .level      = base_segment.level,
+      .paragraph  = base_segment.paragraph_begin,
+      .wrappable  = base_segment.wrappable,
+      .type       = type
   })
     .unwrap();
 }
@@ -904,7 +921,7 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
 
   segment_paragraphs(block.text, segments_);
   segment_scripts(block.text, segments_);
-  segment_breakpoints(block.text, segments_);
+  segment_wrap_points(block.text, segments_);
 
   {
     SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
@@ -936,10 +953,11 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
       {
         auto const          first         = i++;
         TextSegment const & first_segment = segments_[first];
+
         while (i < paragraph_end && first_segment.style == segments_[i].style &&
                first_segment.script == segments_[i].script &&
                first_segment.level == segments_[i].level &&
-               !segments_[i].breakable)
+               !segments_[i].is_wrap_point())
         {
           i++;
         }
@@ -961,10 +979,8 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
 
         Slice const codepoints{first, i - first};
 
-        insert_run(layout, s, codepoints, first_segment.style, paragraph_begin,
-                   f.metrics, first_segment.base_level, first_segment.level,
-                   first_segment.paragraph_begin, first_segment.breakable,
-                   infos, positions);
+        insert_run(layout, s, codepoints, paragraph_begin, f.metrics,
+                   first_segment, infos, positions);
       }
 
       p++;
@@ -1000,7 +1016,7 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
       ResolvedTextRunMetrics const m =
         r.metrics.resolve(block.font_scale * r.font_height);
 
-      if (r.paragraph || (r.breakable && (m.advance + width) > max_width))
+      if (r.paragraph || (r.wrappable && (m.advance + width) > max_width))
       {
         break;
       }
