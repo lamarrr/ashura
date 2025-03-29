@@ -353,23 +353,23 @@ struct [[nodiscard]] Result
   }
 
   template <typename OkFn, typename ErrFn>
-  constexpr decltype(auto) match(OkFn && ok_fn, ErrFn && err_fn)
+  constexpr decltype(auto) match(OkFn && ok, ErrFn && err)
   {
     if (is_ok())
     {
-      return ok_fn(value_);
+      return ok(value_);
     }
-    return err_fn(err_);
+    return err(err_);
   }
 
   template <typename OkFn, typename ErrFn>
-  constexpr decltype(auto) match(OkFn && ok_fn, ErrFn && err_fn) const
+  constexpr decltype(auto) match(OkFn && ok, ErrFn && err) const
   {
     if (is_ok())
     {
-      return ok_fn(value_);
+      return ok(value_);
     }
-    return err_fn(err_);
+    return err(err_);
   }
 };
 

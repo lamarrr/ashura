@@ -280,24 +280,23 @@ struct [[nodiscard]] Option
   }
 
   template <typename SomeFn, typename NoneFn = Noop>
-  constexpr decltype(auto) match(SomeFn && some_fn, NoneFn && none_fn = {})
+  constexpr decltype(auto) match(SomeFn && some, NoneFn && none = {})
   {
     if (is_some())
     {
-      return some_fn(value_);
+      return some(value_);
     }
-    return none_fn();
+    return none();
   }
 
   template <typename SomeFn, typename NoneFn = Noop>
-  constexpr decltype(auto) match(SomeFn && some_fn,
-                                 NoneFn && none_fn = {}) const
+  constexpr decltype(auto) match(SomeFn && some, NoneFn && none = {}) const
   {
     if (is_some())
     {
-      return some_fn(value_);
+      return some(value_);
     }
-    return none_fn();
+    return none();
   }
 };
 
@@ -535,24 +534,23 @@ struct [[nodiscard]] OptionRef
   }
 
   template <typename SomeFn, typename NoneFn = Noop>
-  constexpr decltype(auto) match(SomeFn && some_fn, NoneFn && none_fn = {})
+  constexpr decltype(auto) match(SomeFn && some, NoneFn && none = {})
   {
     if (is_some())
     {
-      return some_fn(*rep_);
+      return some(*rep_);
     }
-    return none_fn();
+    return none();
   }
 
   template <typename SomeFn, typename NoneFn = Noop>
-  constexpr decltype(auto) match(SomeFn && some_fn,
-                                 NoneFn && none_fn = {}) const
+  constexpr decltype(auto) match(SomeFn && some, NoneFn && none = {}) const
   {
     if (is_some())
     {
-      return some_fn(*rep_);
+      return some(*rep_);
     }
-    return none_fn();
+    return none();
   }
 
   constexpr T * operator->() const
