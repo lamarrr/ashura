@@ -184,7 +184,7 @@ void ViewSystem::build_children(ui::ViewContext const & ctx, ui::View & view,
   };
 
   ui::ViewState s =
-    view.tick(ctx, view.region_, view.zoom_, process_events(view), fn(builder));
+    view.tick(ctx, view.region_, view.zoom_, process_events(view), &builder);
 
   bool const    has_input  = s.text.is_some();
   TextInputInfo input_info = s.text.unwrap_or(TextInputInfo{});

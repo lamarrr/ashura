@@ -117,7 +117,7 @@ constexpr Result<Dyn<T *>, Void> dyn(Inplace, AllocatorRef allocator,
   new (object) T{static_cast<Args &&>(args)...};
 
   return Ok{
-    Dyn<T *>{object, allocator, fn(object, uninit)}
+    Dyn<T *>{object, allocator, Fn(object, uninit)}
   };
 }
 

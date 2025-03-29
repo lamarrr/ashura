@@ -155,7 +155,7 @@ struct Logger
       }
     };
 
-    fmt::Context ctx{fn(format_sink), std::move(ops)};
+    fmt::Context ctx{&format_sink, std::move(ops)};
 
     if (fmt::Result result = ctx.format(fstr, args...);
         result.error != fmt::Error::None)

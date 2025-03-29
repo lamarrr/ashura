@@ -2043,6 +2043,55 @@ struct FunctorThunk<T, R(Args...)>
 };
 
 template <typename Sig>
+struct PFnTraits;
+
+template <typename R, typename... Args>
+struct PFnTraits<R(Args...)>
+{
+  using Ptr    = R (*)(Args...);
+  using Return = R;
+  using Thunk  = PFnThunk<R(Args...)>;
+};
+
+template <typename R, typename... Args>
+struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
+{
+};
+
+template <typename Sig>
+struct MethodTraits;
+
+/// @brief non-const method traits
+template <typename T, typename R, typename... Args>
+struct MethodTraits<R (T::*)(Args...)>
+{
+  using Ptr    = R (*)(Args...);
+  using Type   = T;
+  using Return = R;
+  using Thunk  = FunctorThunk<T, R(Args...)>;
+};
+
+/// @brief const method traits
+template <typename T, typename R, typename... Args>
+struct MethodTraits<R (T::*)(Args...) const>
+{
+  using Ptr    = R (*)(Args...);
+  using Type   = T const;
+  using Return = R;
+  using Thunk  = FunctorThunk<T const, R(Args...)>;
+};
+
+template <typename F>
+struct FunctorTraits : MethodTraits<decltype(&F::operator())>
+{
+};
+
+template <typename F, typename R, typename... Args>
+concept CallableOf = requires (F f, Args... args) {
+  { f(static_cast<Args &&>(args)...) } -> Same<R>;
+};
+
+template <typename Sig>
 struct Fn;
 
 /// @brief Fn is a type-erased function containing a callback and a pointer. Fn
@@ -2084,6 +2133,8 @@ struct Fn<R(Args...)>
   {
   }
 
+  /// @brief create a function view from an object reference and a function
+  /// thunk to execute using the object reference as its first argument.
   template <typename T>
   Fn(T * data, R (*thunk)(T *, Args...)) :
     data{const_cast<void *>(reinterpret_cast<void const *>(data))},
@@ -2094,6 +2145,14 @@ struct Fn<R(Args...)>
   template <typename T, typename PFn>
   requires (Convertible<PFn, R (*)(T *, Args...)>)
   Fn(T * data, PFn thunk) : Fn{data, static_cast<R (*)(T *, Args...)>(thunk)}
+  {
+  }
+
+  /// @brief make a function view from a functor reference. Functor should outlive
+  /// the Fn
+  template <typename F>
+  requires ((!Convertible<F, R (*)(Args...)>) && CallableOf<F, R, Args...>)
+  Fn(F * functor) : Fn{(void *) (functor), &FunctorThunk<F, R(Args...)>::thunk}
   {
   }
 
@@ -2108,81 +2167,6 @@ Fn(R (*)(Args...)) -> Fn<R(Args...)>;
 
 template <typename T, typename R, typename... Args>
 Fn(T *, R (*)(T *, Args...)) -> Fn<R(Args...)>;
-
-template <typename Sig>
-struct PFnTraits;
-
-template <typename R, typename... Args>
-struct PFnTraits<R(Args...)>
-{
-  using Ptr    = R (*)(Args...);
-  using Fn     = ash::Fn<R(Args...)>;
-  using Return = R;
-  using Thunk  = PFnThunk<R(Args...)>;
-};
-
-template <typename R, typename... Args>
-struct PFnTraits<R (*)(Args...)> : PFnTraits<R(Args...)>
-{
-};
-
-template <typename Sig>
-struct MethodTraits;
-
-/// @brief non-const method traits
-template <typename T, typename R, typename... Args>
-struct MethodTraits<R (T::*)(Args...)>
-{
-  using Ptr    = R (*)(Args...);
-  using Fn     = ash::Fn<R(Args...)>;
-  using Type   = T;
-  using Return = R;
-  using Thunk  = FunctorThunk<T, R(Args...)>;
-};
-
-/// @brief const method traits
-template <typename T, typename R, typename... Args>
-struct MethodTraits<R (T::*)(Args...) const>
-{
-  using Ptr    = R (*)(Args...);
-  using Fn     = ash::Fn<R(Args...)>;
-  using Type   = T const;
-  using Return = R;
-  using Thunk  = FunctorThunk<T const, R(Args...)>;
-};
-
-template <typename F>
-struct FunctorTraits : MethodTraits<decltype(&F::operator())>
-{
-};
-
-/// @brief make a function view from a raw function pointer.
-template <typename R, typename... Args>
-auto fn(R (*pfn)(Args...))
-{
-  return Fn<R(Args...)>{pfn};
-}
-
-/// @brief make a function view from a functor reference. Functor should outlive
-/// the Fn
-template <typename F>
-auto fn(F & functor)
-{
-  using Traits = FunctorTraits<F>;
-  using Fn     = typename Traits::Fn;
-  using Thunk  = typename Traits::Thunk;
-
-  return Fn{const_cast<void *>(reinterpret_cast<void const *>(&functor)),
-            &Thunk::thunk};
-}
-
-/// @brief create a function view from an object reference and a function
-/// thunk to execute using the object reference as its first argument.
-template <typename T, typename R, typename... Args>
-auto fn(T * data, R (*thunk)(T *, Args...))
-{
-  return Fn<R(Args...)>{data, thunk};
-}
 
 struct Noop
 {

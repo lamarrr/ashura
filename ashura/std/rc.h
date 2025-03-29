@@ -187,7 +187,7 @@ constexpr Result<Rc<T *>, Void> rc(Inplace, AllocatorRef allocator,
   new (obj) RcObject<T>{.v0{static_cast<Args &&>(args)...}};
 
   return Ok{
-    Rc<T *>{&obj->v0, allocator, fn(obj, &RcObject<T>::rc_op)}
+    Rc<T *>{&obj->v0, allocator, Fn(obj, RcObject<T>::rc_op)}
   };
 }
 

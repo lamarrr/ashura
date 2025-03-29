@@ -969,9 +969,9 @@ struct TaskSchedule
 template <TaskFrame F>
 TaskInfo to_task_info(F & frame)
 {
-  Fn init = fn(
-    &frame,
-    +[](F * frame, void * mem) { new (mem) F{static_cast<F &&>(*frame)}; });
+  Fn init{&frame, +[](F * frame, void * mem) {
+            new (mem) F{static_cast<F &&>(*frame)};
+          }};
 
   TaskInfo::Uninit uninit = [](void * f) {
     F * frame = reinterpret_cast<F *>(f);
