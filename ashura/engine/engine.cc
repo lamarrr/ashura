@@ -432,17 +432,17 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
 
 void Engine::engage_(EngineCfg const & cfg)
 {
-  window_sys->listen(fn(
-    this, +[](Engine * engine, SystemEvent const & event) {
-      event.match(
-        [&](SystemTheme theme) {
-          InputState & f = engine->input_buffer;
-          f.theme        = theme;
-        },
-        [](SystemEventType) {});
-    }));
+  window_sys->listen({this, [](Engine * engine, SystemEvent const & event) {
+                        event.match(
+                          [&](SystemTheme theme) {
+                            InputState & f  = engine->input_buffer;
+                            f.theme         = theme;
+                            f.theme_changed = true;
+                          },
+                          [](SystemEventType) {});
+                      }});
 
-  window_sys->listen(window, fn(this, window_event_listener));
+  window_sys->listen(window, {this, window_event_listener});
 
   Vec<AnyFuture> futures{allocator};
 

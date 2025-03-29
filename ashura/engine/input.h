@@ -1088,6 +1088,9 @@ struct InputState
   /// @brief if a text input came in
   bool text_input = false;
 
+  /// @brief the theme changed
+  bool theme_changed = false;
+
   /// @brief current text input data from the IME or keyboard
   Vec<c8> text{};
 
@@ -1131,7 +1134,8 @@ struct InputState
   {
     mouse.clear();
     key.clear();
-    text_input = false;
+    text_input    = false;
+    theme_changed = false;
     text.clear();
     resized         = false;
     surface_resized = false;
@@ -1162,7 +1166,8 @@ struct InputState
     dst.surface_extent = surface_extent;
     dst.drop_type      = drop_type;
     dst.drop_data.extend(drop_data).unwrap();
-    dst.text_input = text_input;
+    dst.text_input    = text_input;
+    dst.theme_changed = theme_changed;
     dst.text.extend(text).unwrap();
     dst.close_requested = close_requested;
     dst.closing         = closing;
@@ -1231,6 +1236,11 @@ struct InputState
   constexpr bool mouse_state(MouseButton btn) const
   {
     return has_bits(mouse.states, MouseButtons{1U << (usize) btn});
+  }
+
+  constexpr u32 mouse_clicks(MouseButton btn) const
+  {
+    return mouse.num_clicks[(usize) btn];
   }
 };
 
