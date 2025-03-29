@@ -594,6 +594,15 @@ Canvas & Canvas::squircle(ShapeInfo const & info, f32 elasticity, u32 segments)
   return *this;
 }
 
+struct CaretHitResult
+{
+  usize         glyph     = 0;
+  usize         cluster   = 0;
+  TextDirection direction = TextDirection::LeftToRight;
+  Vec2          pos       = {};
+  f32           height    = 0;
+};
+
 Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                       TextLayout const & layout, TextBlockStyle const & style,
                       CRect const & clip)
@@ -606,19 +615,22 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
 
   enum Pass : u32
   {
-    BACKGROUND    = 0,
-    HIGHLIGHT     = 1,
-    GLYPH_SHADOWS = 2,
-    GLYPHS        = 3,
-    UNDERLINE     = 4,
-    STRIKETHROUGH = 5
+    Background    = 0,
+    Highlight     = 1,
+    GlyphShadows  = 2,
+    Glyphs        = 3,
+    Underline     = 4,
+    Strikethrough = 5,
+    Caret         = 6
   };
 
-  static constexpr u32 NUM_PASSES = 6;
+  static constexpr u32 NUM_PASSES = 7;
+
+  Option<CaretHitResult> caret_hit;
 
   for (u32 pass = 0; pass < NUM_PASSES; pass++)
   {
-    if (pass == Pass::HIGHLIGHT && style.highlight.slice.is_empty())
+    if (pass == Pass::Highlight && style.highlight.slice.is_empty())
     {
       continue;
     }
@@ -656,11 +668,10 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         FontInfo const       font        = sys->font.get(font_style.font);
         GpuFontAtlas const & atlas       = font.gpu_atlas.value();
         f32 const            font_height = block.font_scale * run.font_height;
-        ResolvedTextRunMetrics const run_metrics =
-          run.metrics.resolve(font_height);
-        f32 const run_width = run_metrics.advance;
+        auto const           run_metrics = run.metrics.resolve(font_height);
+        f32 const            run_width   = run_metrics.advance;
 
-        if (pass == Pass::BACKGROUND && !run_style.background.is_transparent())
+        if (pass == Pass::Background && !run_style.background.is_transparent())
         {
           Vec2 const extent{run_width, run_metrics.height()};
           Vec2 const center{cursor + extent.x * 0.5F,
@@ -675,7 +686,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
 
         f32 glyph_cursor = cursor;
 
-        for (GlyphShape const & sh : layout.glyphs.view().slice(run.glyphs))
+        for (auto [i, sh] : enumerate(layout.glyphs.view().slice(run.glyphs)))
         {
           GlyphMetrics const & m      = font.glyphs[sh.glyph];
           AtlasGlyph const &   agl    = atlas.glyphs[sh.glyph];
@@ -685,7 +696,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                               au_to_px(sh.offset, font_height) + extent * 0.5F;
           f32 const advance = au_to_px(sh.advance, font_height);
 
-          if (pass == Pass::HIGHLIGHT &&
+          if (pass == Pass::Highlight &&
               style.highlight.slice.contains(sh.cluster))
           {
             // [ ] hitting empty space doesn't seem to work
@@ -700,7 +711,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
               [&]() { highlight = Tuple{begin, end}; });
           }
 
-          if (pass == Pass::GLYPH_SHADOWS && run_style.shadow_scale != 0 &&
+          if (pass == Pass::GlyphShadows && run_style.shadow_scale != 0 &&
               !run_style.shadow.is_transparent())
           {
             Vec2 const shadow_extent = extent * run_style.shadow_scale;
@@ -719,7 +730,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
             });
           }
 
-          if (pass == Pass::GLYPHS && !run_style.color.is_transparent())
+          if (pass == Pass::Glyphs && !run_style.color.is_transparent())
           {
             rect({
               .center    = info.center,
@@ -734,10 +745,70 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
             });
           }
 
-          glyph_cursor += au_to_px(sh.advance, font_height);
+          if (pass == Pass::Caret)
+          {
+            style.caret.match([&](auto & c) {
+              // find the glyphs with the nearest grapheme cluster to the caret position.
+              // multiple glyphs might merge to the same grapheme cluster
+              auto const distance = abs_diff(c.pos, sh.cluster);
+              auto const igl      = run.glyphs.offset + i;
+              Vec2       caret_pos{0, line_y};
+
+              if (direction == TextDirection::LeftToRight)
+              {
+                caret_pos.x = center.x - 0.5F * extent.x;
+              }
+              else
+              {
+                caret_pos.x = center.x + 0.5F * extent.x;
+              }
+
+              CaretHitResult const result{.glyph     = igl,
+                                          .cluster   = sh.cluster,
+                                          .direction = direction,
+                                          .pos       = caret_pos,
+                                          .height    = ln.metrics.height};
+
+              caret_hit.match(
+                [&](auto & h) {
+                  auto const hit_distance = abs_diff(c.pos, h.cluster);
+
+                  if (distance < hit_distance)
+                  {
+                    caret_hit = result;
+                  }
+                  else if (distance == hit_distance)
+                  {
+                    // based on the run direction, select the glyph within that cluster
+                    switch (direction)
+                    {
+                      case TextDirection::LeftToRight:
+                      {
+                        if (igl > h.glyph)
+                        {
+                          caret_hit = result;
+                        }
+                      }
+                      break;
+                      case TextDirection::RightToLeft:
+                      {
+                        if (igl < h.glyph)
+                        {
+                          caret_hit = result;
+                        }
+                      }
+                      break;
+                    }
+                  }
+                },
+                [&]() { caret_hit = result; });
+            });
+          }
+
+          glyph_cursor += advance;
         }
 
-        if (pass == Pass::STRIKETHROUGH &&
+        if (pass == Pass::Strikethrough &&
             run_style.strikethrough_thickness != 0)
         {
           Vec2 const extent{run_width, block.font_scale *
@@ -755,7 +826,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                 .edge_smoothness = info.edge_smoothness});
         }
 
-        if (pass == Pass::UNDERLINE && run_style.underline_thickness != 0)
+        if (pass == Pass::Underline && run_style.underline_thickness != 0)
         {
           Vec2 const extent{run_width,
                             block.font_scale * run_style.underline_thickness};
@@ -774,7 +845,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         cursor += run_width;
       }
 
-      if (pass == Pass::HIGHLIGHT)
+      if (pass == Pass::Highlight)
       {
         highlight.match([&](auto & h) {
           Vec2 const extent{h.v1 - h.v0, ln.metrics.height};
@@ -788,6 +859,21 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                  .tint         = style.highlight.style.color});
         });
       }
+    }
+
+    if (pass == Pass::Caret)
+    {
+      style.caret.match([&](auto & c) {
+        caret_hit.match([&](auto & h) {
+          Vec2 const center{h.pos.x, h.pos.y - 0.5F * h.height};
+          Vec2 const extent{c.style.thickness, h.height};
+
+          rrect({.center    = info.center,
+                 .extent    = extent,
+                 .transform = info.transform * translate3d(vec3(center, 0)),
+                 .tint      = c.style.color});
+        });
+      });
     }
   }
 
