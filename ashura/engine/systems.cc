@@ -89,16 +89,19 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
   u64 const bgra_size =
     pixel_size_bytes(info.extent.xy(), 4) * info.array_layers;
 
-  Vec<u8> bgra{allocator_};
-  bgra.extend_uninit(bgra_size).unwrap();
+  Vec<u8> bgra_tmp{allocator_};
 
-  ImageLayerSpan<u8, 4> dst{
-    .channels = bgra, .extent = info.extent.xy(), .layers = info.array_layers};
+  Span<u8 const> bgra;
 
   switch (info.format)
   {
     case gpu::Format::R8G8B8A8_UNORM:
     {
+      bgra_tmp.extend_uninit(bgra_size).unwrap();
+      ImageLayerSpan<u8, 4> dst{.channels = bgra_tmp,
+                                .extent   = info.extent.xy(),
+                                .layers   = info.array_layers};
+
       ImageLayerSpan<u8 const, 4> src{.channels = channels,
                                       .extent   = info.extent.xy(),
                                       .layers   = info.array_layers};
@@ -107,10 +110,17 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
       {
         copy_RGBA_to_BGRA(src.layer(i), dst.layer(i));
       }
+
+      bgra = bgra_tmp;
     }
     break;
     case gpu::Format::R8G8B8_UNORM:
     {
+      bgra_tmp.extend_uninit(bgra_size).unwrap();
+      ImageLayerSpan<u8, 4> dst{.channels = bgra_tmp,
+                                .extent   = info.extent.xy(),
+                                .layers   = info.array_layers};
+
       ImageLayerSpan<u8 const, 3> src{.channels = channels,
                                       .extent   = info.extent.xy(),
                                       .layers   = info.array_layers};
@@ -119,18 +129,13 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
       {
         copy_RGB_to_BGRA(src.layer(i), dst.layer(i), U8_MAX);
       }
+
+      bgra = bgra_tmp;
     }
     break;
     case gpu::Format::B8G8R8A8_UNORM:
     {
-      ImageLayerSpan<u8 const, 4> src{.channels = channels,
-                                      .extent   = info.extent.xy(),
-                                      .layers   = info.array_layers};
-
-      for (u32 i = 0; i < info.array_layers; i++)
-      {
-        copy_image(src.layer(i), dst.layer(i));
-      }
+      bgra = channels;
     }
     break;
     default:
