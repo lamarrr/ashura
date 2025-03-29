@@ -683,12 +683,15 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
           Vec2 const           center = Vec2{glyph_cursor, baseline} +
                               au_to_px(m.bearing, font_height) +
                               au_to_px(sh.offset, font_height) + extent * 0.5F;
+          f32 const advance = au_to_px(sh.advance, font_height);
 
           if (pass == Pass::HIGHLIGHT &&
               style.highlight.slice.contains(sh.cluster))
           {
-            f32 const begin = center.x - 0.5F * extent.x;
-            f32 const end   = center.x + 0.5F * extent.x;
+            // [ ] hitting empty space doesn't seem to work
+            // [ ] hit down without mouse movewment should not span
+            f32 const begin = glyph_cursor;
+            f32 const end   = glyph_cursor + advance;
             highlight.match(
               [&](auto & h) {
                 h.v0 = min(begin, h.v0);
@@ -780,6 +783,8 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                  .extent       = extent,
                  .transform    = info.transform * translate3d(vec3(center, 0)),
                  .corner_radii = style.highlight.style.corner_radii,
+                 .stroke       = style.highlight.style.stroke,
+                 .thickness    = style.highlight.style.thickness,
                  .tint         = style.highlight.style.color});
         });
       }
