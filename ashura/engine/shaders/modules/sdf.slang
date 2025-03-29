@@ -70,3 +70,32 @@ f32 rrect_sdf(f32x2 pos, f32x2 half_extent, f32 corner_radii)
   f32x2 q = abs(pos) - half_extent + corner_radii;
   return min(max(q.x, q.y), 0) + length(max(q, 0)) - corner_radii;
 }
+
+f32 msdf_screen_px_range(f32 msd_px_range, f32x2 texture_size, f32x2 tex_coord)
+{
+  f32x2 unit_range      = f32x2(msd_px_range) / texture_size;
+  f32x2 screen_tex_size = f32x2(1.0) / fwidth(tex_coord);
+  return max(0.5 * dot(unit_range, screen_tex_size), 1.0);
+}
+
+f32 msdf_median(f32 r, f32 g, f32 b)
+{
+  return max(min(r, g), min(max(r, g), b));
+}
+
+// https://github.com/Chlumsky/msdfgen/tree/master?tab=readme-ov-file#using-a-multi-channel-distance-field
+f32 msdf(f32x3 msd, f32 msd_px_range, f32x2 texture_size, f32x2 tex_coord)
+{
+  f32 sd = msdf_median(msd.r, msd.g, msd.b);
+  f32 screen_px_distance =
+    msdf_screen_px_range(msd_px_range, texture_size, tex_coord) * (sd - 0.5);
+  return clamp(screen_px_distance + 0.5, 0.0, 1.0);
+}
+
+// [ ] document
+f32x4 msdf_blend(f32x3 msd, f32 msd_px_range, f32x2 texture_size,
+                 f32x2 tex_coord, f32x4 bg_color, f32x4 fg_color)
+{
+  f32 alpha = msdf(msd, msd_px_range, texture_size, tex_coord);
+  return lerp(bg_color, fg_color, alpha);
+}
