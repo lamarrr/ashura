@@ -117,5 +117,5 @@ int main()
     flex.frame({animation.animate(0).v0, 500});
   };
 
-  engine->run(flex, focus_view, fn(loop));
+  engine->run(flex, focus_view, &loop);
 }
