@@ -7,10 +7,10 @@
 namespace ash
 {
 
-struct FramebufferResult
+struct ColorTextureResult
 {
-  Framebuffer fb{};
-  RectU       rect{};
+  ColorTexture color{};
+  RectU        rect{};
 };
 
 /// @brief Passes are re-usable and stateless compute and graphics pipeline
@@ -92,8 +92,8 @@ struct BlurPass : Pass
 
   virtual void release() override;
 
-  Option<FramebufferResult> encode(gpu::CommandEncoder &  encoder,
-                                   BlurPassParams const & params);
+  Option<ColorTextureResult> encode(gpu::CommandEncoder &  encoder,
+                                    BlurPassParams const & params);
 };
 
 struct NgonParam

@@ -45,81 +45,6 @@ struct PassContext
   void add_pass(Dyn<Pass *> pass);
 };
 
-struct FrameGraph
-{
-  typedef Dyn<Fn<void(FrameGraph & graph, gpu::CommandEncoder & enc,
-                      PassContext & passes, Canvas const & canvas)>>
-    PassFn;
-
-  struct Pass
-  {
-    Str    label;
-    PassFn pass;
-  };
-
-  struct FrameData
-  {
-    SSBO ssbo{.label = "Frame Graph SSBO"_str};
-  };
-
-  typedef InplaceVec<FrameData, gpu::MAX_FRAME_BUFFERING> BufferedFrameData;
-
-  BufferedFrameData frame_data_;
-  u32               frame_index_;
-  bool              uploaded_;
-  Vec<u8>           ssbo_data_;
-  Vec<Slice32>      ssbo_entries_;
-  PassContext *     pass_ctx_;
-  Vec<Pass>         passes_;
-  ArenaPool         arena_;
-
-  FrameGraph(AllocatorRef allocator, PassContext & pass_ctx) :
-    frame_data_{},
-    frame_index_{0},
-    uploaded_{false},
-    ssbo_data_{allocator},
-    ssbo_entries_{allocator},
-    pass_ctx_{&pass_ctx},
-    passes_{allocator},
-    arena_{allocator}
-  {
-  }
-
-  FrameGraph(FrameGraph const &)             = delete;
-  FrameGraph & operator=(FrameGraph const &) = delete;
-  FrameGraph(FrameGraph &&)                  = default;
-  FrameGraph & operator=(FrameGraph &&)      = default;
-  ~FrameGraph()                              = default;
-
-  u32 push_ssbo(Span<u8 const> data);
-
-  SSBOSpan get_ssbo(u32 id);
-
-  void add_pass(Pass pass);
-
-  template <typename Lambda>
-  void add_pass(Str label, Lambda task)
-  {
-    // relocate lambda to heap
-    Dyn<Lambda *> lambda = dyn(arena_, static_cast<Lambda &&>(task)).unwrap();
-    // allocator is noop-ed but destructor still runs when the dynamic object is
-    // uninitialized. the memory is freed by at the end of the frame anyway so
-    // no need to free it
-    lambda.allocator_    = noop_allocator;
-
-    auto f = fn(*lambda);
-
-    return add_pass(
-      Pass{.label = label, .pass = transmute(std::move(lambda), f)});
-  }
-
-  void execute(Canvas const & canvas);
-
-  void acquire();
-
-  void release();
-};
-
 struct BlurRenderParam
 {
   RectU         area          = {};
@@ -134,20 +59,17 @@ struct BlurRenderParam
 
 struct BlurRenderer
 {
-  static void render(FrameGraph & graph, Framebuffer const & fb,
-                     BlurRenderParam const & param);
+  static void render(PassContext const & passes, FrameGraph & graph,
+                     Framebuffer const & fb, BlurRenderParam const & param);
 };
 
 struct Renderer
 {
   Dyn<PassContext *> passes_;
-  FrameGraph         graph_;
 
   static Renderer create(AllocatorRef allocator);
 
-  Renderer(AllocatorRef allocator, Dyn<PassContext *> passes) :
-    passes_{std::move(passes)},
-    graph_{allocator, *passes_}
+  Renderer(Dyn<PassContext *> passes) : passes_{std::move(passes)}
   {
   }
 
@@ -161,7 +83,8 @@ struct Renderer
 
   void release();
 
-  void render_canvas(Framebuffer const & fb, Canvas const & canvas);
+  void render_canvas(Framebuffer const & fb, FrameGraph & graph,
+                     Canvas const & canvas);
 };
 
 }    // namespace ash
