@@ -60,7 +60,7 @@ EngineCfg EngineCfg::parse(AllocatorRef allocator, Span<u8 const> json)
 
   out.gpu.hdr = cfg["gpu.hdr"].get_bool().value();
   out.gpu.buffering =
-    (u32) clamp(cfg["gpu.buffering"].get_int64().value(), (i64) 0, (i64) 4);
+    (u32) clamp(cfg["gpu.buffering"].get_int64().value(), (i64) 1, (i64) 4);
 
   switch (cfg["gpu.msaa.level"].get_int64().value())
   {
