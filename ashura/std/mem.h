@@ -188,12 +188,13 @@ ASH_FORCE_INLINE void prefetch(T const * src, Access rw, Locality locality)
 }
 
 /// @brief Memory layout of a type
-/// @param alignment non-zero power-of-2 alignment of the type
-/// @param size byte-size of the type
 struct Layout
 {
+  /// @brief non-zero power-of-2 alignment of the type
   usize alignment = 1;
-  usize size      = 0;
+
+  /// @brief byte-size of the type
+  usize size = 0;
 
   /// @warning must call `aligned()` once done appending
   constexpr Layout append(Layout const & ext) const
