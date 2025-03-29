@@ -157,7 +157,7 @@ struct PBRParam
   f32 roughness                     = 0;
   f32 normal                        = 0;
   f32 occlusion                     = 0;
-  alignas(16) Vec4 emissive         = {0, 0, 0, 0};
+  alignas(16) Vec4 emission         = {0, 0, 0, 0};
   f32       ior                     = 1.5F;
   f32       clearcoat               = 0;
   f32       clearcoat_roughness     = 0;
@@ -168,7 +168,7 @@ struct PBRParam
   TextureId roughness_map           = TextureId::White;
   TextureId normal_map              = TextureId::White;
   TextureId occlusion_map           = TextureId::White;
-  TextureId emissive_map            = TextureId::White;
+  TextureId emission_map            = TextureId::White;
   TextureId clearcoat_map           = TextureId::White;
   TextureId clearcoat_roughness_map = TextureId::White;
   TextureId clearcoat_normal_map    = TextureId::White;
