@@ -3233,13 +3233,14 @@ constexpr bool is_outside_frustum(Mat4 const & mvp, Vec3 offset, Vec3 extent)
          bottom == NUM_CORNERS | back == NUM_CORNERS;
 }
 
-constexpr void frustum_cull(Mat4 const & mvp, Span<Mat4 const> global_transform,
-                            Span<Box const> aabb, BitSpan<u64> is_visible)
+constexpr void frustum_cull(Mat4 const &     mvp,
+                            Span<Mat4 const> global_transforms,
+                            Span<Box const> aabbs, BitSpan<u64> is_visible)
 {
-  for (u32 i = 0; i < aabb.size32(); i++)
+  for (auto [i, aabb] : enumerate(aabbs))
   {
-    is_visible.set(i, !is_outside_frustum(mvp * global_transform[i],
-                                          aabb[i].offset, aabb[i].extent));
+    is_visible.set(i, !is_outside_frustum(mvp * global_transforms[i],
+                                          aabb.offset, aabbs[i].extent));
   }
 }
 
