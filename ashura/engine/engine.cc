@@ -710,9 +710,12 @@ void Engine::run(ui::View & view, ui::View & focus_view,
 
     should_close = !view_sys.tick(input_buffer, view, focus_view, canvas, loop);
 
-    if (view_sys.cursor() != cursor)
+    auto current_cursor = view_sys.cursor();
+
+    if (current_cursor != cursor)
     {
-      window_sys->set_cursor(cursor);
+      cursor = current_cursor;
+      window_sys->set_cursor(current_cursor);
     }
 
     auto input_info = view_sys.text_input();
