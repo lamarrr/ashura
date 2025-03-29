@@ -17,8 +17,7 @@ struct PunctualLight
   f32   radius;
 };
 
-// [ ] update C++
-struct PbrExtParam
+struct PbrParam
 {
   row_major float4x4 transform;
   f32x4              eye_position;
@@ -27,7 +26,7 @@ struct PbrExtParam
   f32                roughness;
   f32                normal;
   f32                occlusion;
-  f32x4              emissive;    // only xyz
+  f32x4              emission;    // only xyz
   f32                ior;
   f32                clearcoat;
   f32                clearcoat_roughness;
@@ -38,15 +37,13 @@ struct PbrExtParam
   u32                roughness_map;
   u32                normal_map;
   u32                occlusion_map;
-  u32                emissive_map;
+  u32                emission_map;
   u32                clearcoat_map;
   u32                clearcoat_roughness_map;
   u32                clearcoat_normal_map;
   u32                first_light;
   u32                first_vertex;
 };
-
-struct PbrBasicParam;
 
 struct PbrMaterial
 {
@@ -55,37 +52,27 @@ struct PbrMaterial
   f32   roughness           = 0;
   f32x3 normal              = 0;
   f32   occlusion           = 0;
-  f32x3 emissive            = 0;
+  f32x3 emission            = 0;
   f32   ior                 = 1.5;
   f32   clearcoat           = 0;
   f32   clearcoat_roughness = 0;
   f32x3 clearcoat_normal    = f32x3(0);
 
-  static PbrMaterial load(PbrExtParam p, SamplerState s, f32x2 uv)
+  static PbrMaterial load(PbrParam p, SamplerState s, f32x2 uv)
   {
     PbrMaterial m;
     // clang-format off
-    m.albedo = textures[NonUniformResourceIndex((uint) p.albedo_map)].Sample(s, uv).rgb;
-    m.metallic = textures[NonUniformResourceIndex((uint) p.metallic_map)].Sample(s, uv).r;
-    m.roughness = textures[NonUniformResourceIndex((uint) p.roughness_map)].Sample(s, uv).r;
-    m.normal = textures[NonUniformResourceIndex((uint) p.normal_map)].Sample(s, uv).rgb;
-    m.occlusion = textures[NonUniformResourceIndex((uint) p.occlusion_map)].Sample(s, uv).r;
-    m.emissive = textures[NonUniformResourceIndex((uint) p.emissive_map)].Sample(s, uv).rgb;
-    m.clearcoat = textures[NonUniformResourceIndex((uint) p.clearcoat_map)].Sample(s, uv).r;
-    m.clearcoat_roughness = textures[NonUniformResourceIndex((uint) p.clearcoat_roughness_map)].Sample(s, uv).r;
-    m.clearcoat_normal = textures[NonUniformResourceIndex((uint) p.clearcoat_normal_map)].Sample(s, uv).rgb;
-    // clang-format on
-
-    m.albedo *= p.albedo.xyz;
-    m.metallic *= p.metallic;
-    m.roughness *= p.roughness;
-    m.normal *= p.normal;
-    m.occlusion *= p.occlusion;
-    m.emissive *= p.emissive.xyz;
+    m.albedo = textures[NonUniformResourceIndex(p.albedo_map)].Sample(s, uv).rgb * p.albedo.xyz;
+    m.metallic = textures[NonUniformResourceIndex(p.metallic_map)].Sample(s, uv).r * p.metallic;
+    m.roughness = textures[NonUniformResourceIndex(p.roughness_map)].Sample(s, uv).r * p.roughness;
+    m.normal = textures[NonUniformResourceIndex(p.normal_map)].Sample(s, uv).rgb * p.normal;
+    m.occlusion = textures[NonUniformResourceIndex(p.occlusion_map)].Sample(s, uv).r * p.occlusion;
+    m.emission = textures[NonUniformResourceIndex(p.emission_map)].Sample(s, uv).rgb * p.emission.xyz;
     m.ior = p.ior;
-    m.clearcoat *= p.clearcoat;
-    m.clearcoat_roughness *= p.clearcoat_roughness;
-    m.clearcoat_normal *= p.clearcoat_normal;
+    m.clearcoat = textures[NonUniformResourceIndex(p.clearcoat_map)].Sample(s, uv).r * p.clearcoat;
+    m.clearcoat_roughness = textures[NonUniformResourceIndex(p.clearcoat_roughness_map)].Sample(s, uv).r * p.clearcoat_roughness;
+    m.clearcoat_normal = textures[NonUniformResourceIndex(p.clearcoat_normal_map)].Sample(s, uv).rgb * p.clearcoat_normal;
+    // clang-format on
 
     return m;
   }
@@ -107,7 +94,7 @@ StructuredBuffer<Vertex> vtx_buffer;
 StructuredBuffer<u32> idx_buffer;
 
 [[vk::binding(0, 2)]]
-StructuredBuffer<PbrExtParam> params;
+StructuredBuffer<PbrParam> params;
 
 [[vk::binding(0, 3)]]
 StructuredBuffer<PunctualLight> lights;
@@ -126,6 +113,24 @@ struct VertexOutput
   [[vk::location(2)]] f32x2               uv : UV_COORD;
 };
 
+struct FragmentOutput
+{
+  [[vk::location(0)]] f32x4 color;
+#if !defined(EXCLUDE_EMISSION)
+  [[vk::location(1)]] f32x4 emission;
+#endif
+
+  static FragmentOutput make(f32x4 color, f32x4 emission)
+  {
+    FragmentOutput f;
+    f.color = color;
+#if !defined(EXCLUDE_EMISSION)
+    f.emission = emission;
+#endif
+    return f;
+  }
+};
+
 [[shader("vertex")]]
 VertexOutput vs_main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
 {
@@ -140,9 +145,9 @@ VertexOutput vs_main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
 static constexpr u32 NUM_OBJECT_LIGHTS = 4;
 
 [[shader("fragment")]]
-f32x4 fs_main([[vk::location(0)]] u32   instance : INSTANCE,
-              [[vk::location(1)]] f32x4 world_pos : WORLD_POS,
-              [[vk::location(2)]] f32x2 uv : UV_COORD)
+FragmentOutput fs_main([[vk::location(0)]] u32   instance : INSTANCE,
+                       [[vk::location(1)]] f32x4 world_pos : WORLD_POS,
+                       [[vk::location(2)]] f32x2 uv : UV_COORD)
 {
   var p = params[instance];
   var m = PbrMaterial::load(p, samplers[p.sampler], uv);
@@ -151,10 +156,9 @@ f32x4 fs_main([[vk::location(0)]] u32   instance : INSTANCE,
   m.roughness           = pow(m.roughness, 2);
   m.clearcoat_roughness = pow(m.clearcoat_roughness, 2);
 
-  // [ ] is this correct?
   m.albedo *= m.occlusion;
 
-  f32x3 luminance = m.emissive;
+  f32x3 luminance = m.emission;
 
   f32x3 V   = normalize(p.eye_position.xyz - world_pos.xyz);
   f32   NoV = dot(m.normal, V);
@@ -190,6 +194,5 @@ f32x4 fs_main([[vk::location(0)]] u32   instance : INSTANCE,
     luminance += radiance;
   }
 
-  // [ ] emissive bloom, separate channel?
-  return f32x4(luminance, 1);
+  return FragmentOutput::make(f32x4(luminance, 1), f32x4(m.emission, 1));
 }
