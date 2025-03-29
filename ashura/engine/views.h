@@ -407,6 +407,9 @@ struct Text : View
   virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
 };
 
+// [ ] scroll and clip text if region isn't large enough
+// [ ] wrapping to the next line if not large enough
+// [ ] no wrap
 struct Input : View
 {
   struct State
@@ -443,6 +446,8 @@ struct Input : View
 
     Fn<void()> focus_out = noop;
   } cb;
+
+  AllocatorRef allocator_;
 
   RenderText content_;
 
@@ -503,8 +508,6 @@ struct Input : View
 
   Input & stub_run(TextStyle const & style, FontStyle const & font,
                    u32 first = 0, u32 count = U32_MAX);
-
-  constexpr TextCommand command(ViewContext const & ctx) const;
 
   virtual ViewState tick(ViewContext const & ctx, CRect const & region,
                          f32 zoom, ViewEvents const & events,
@@ -1575,6 +1578,7 @@ struct Image : View
                       Rect const & clip) override;
 };
 
+// [ ] size estimation?
 struct List : View
 {
   typedef Fn<Option<Dyn<View *>>(AllocatorRef, usize i)> Generator;
@@ -1644,7 +1648,7 @@ struct Table : View
 {
 };
 
-/// REQUIREMENTS
+/// REQUIREMENTS:
 /// - Linear and Non-Linear Color Space Independence
 /// - Rectangular Box with visualizations
 /// - Text-based manual input

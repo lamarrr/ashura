@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/views.h"
 #include "ashura/engine/engine.h"
+#include "ashura/std/sformat.h"
 #include "fast_float/fast_float.h"
 
 namespace ash
@@ -108,19 +109,19 @@ void Flex::size(Vec2 allocated, Span<Vec2> sizes)
 
 ViewLayout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
-  u32 const  n            = sizes.size32();
+  auto const n            = sizes.size();
   Vec2 const frame        = style.frame(allocated);
   u32 const  main_axis    = (style.axis == Axis::X) ? 0 : 1;
   u32 const  cross_axis   = (style.axis == Axis::X) ? 1 : 0;
   Vec2       span         = {};
   f32        cross_cursor = 0;
 
-  for (u32 i = 0; i < n;)
+  for (usize i = 0; i < n;)
   {
-    u32 first        = i++;
-    f32 main_extent  = sizes[first][main_axis];
-    f32 cross_extent = sizes[first][cross_axis];
-    f32 main_spacing = 0;
+    auto first        = i++;
+    f32  main_extent  = sizes[first][main_axis];
+    f32  cross_extent = sizes[first][cross_axis];
+    f32  main_spacing = 0;
 
     while (i < n && !(style.wrap &&
                       (main_extent + sizes[i][main_axis]) > frame[main_axis]))
@@ -130,18 +131,19 @@ ViewLayout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
       i++;
     }
 
-    u32 const count = i - first;
+    auto const count = i - first;
 
     if (style.main_align != MainAlign::Start)
     {
       main_spacing = max(frame[main_axis] - main_extent, 0.0F);
     }
 
-    for (u32 b = first; b < first + count; b++)
+    for (auto [center, size] :
+         zip(centers.slice(first, count), sizes.slice(first, count)))
     {
       f32 const pos =
-        space_align(cross_extent, sizes[b][cross_axis], style.cross_align);
-      centers[b][cross_axis] = cross_cursor + cross_extent * 0.5F + pos;
+        space_align(cross_extent, size[cross_axis], style.cross_align);
+      center[cross_axis] = cross_cursor + cross_extent * 0.5F + pos;
     }
 
     switch (style.main_align)
@@ -149,11 +151,11 @@ ViewLayout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
       case MainAlign::Start:
       {
         f32 main_spacing_cursor = 0;
-        for (u32 b = first; b < first + count; b++)
+        for (auto [center, size] :
+             zip(centers.slice(first, count), sizes.slice(first, count)))
         {
-          f32 const size        = sizes[b][main_axis];
-          centers[b][main_axis] = main_spacing_cursor + size * 0.5F;
-          main_spacing_cursor += size;
+          center[main_axis] = main_spacing_cursor + size[main_axis] * 0.5F;
+          main_spacing_cursor += size[main_axis];
         }
       }
       break;
@@ -162,12 +164,12 @@ ViewLayout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
       {
         f32 spacing             = main_spacing / (count * 2);
         f32 main_spacing_cursor = 0;
-        for (u32 b = first; b < first + count; b++)
+        for (auto [center, size] :
+             zip(centers.slice(first, count), sizes.slice(first, count)))
         {
-          f32 const size = sizes[b][main_axis];
           main_spacing_cursor += spacing;
-          centers[b][main_axis] = main_spacing_cursor + size * 0.5F;
-          main_spacing_cursor += size + spacing;
+          center[main_axis] = main_spacing_cursor + size[main_axis] * 0.5F;
+          main_spacing_cursor += size[main_axis] + spacing;
         }
       }
       break;
@@ -176,11 +178,11 @@ ViewLayout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
       {
         f32 spacing             = main_spacing / (count - 1);
         f32 main_spacing_cursor = 0;
-        for (u32 b = first; b < first + count; b++)
+        for (auto [center, size] :
+             zip(centers.slice(first, count), sizes.slice(first, count)))
         {
-          f32 const size        = sizes[b][main_axis];
-          centers[b][main_axis] = main_spacing_cursor + size * 0.5F;
-          main_spacing_cursor += size + spacing;
+          center[main_axis] = main_spacing_cursor + size[main_axis] * 0.5F;
+          main_spacing_cursor += size[main_axis] + spacing;
         }
       }
       break;
@@ -189,11 +191,11 @@ ViewLayout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
       {
         f32 spacing             = main_spacing / (count + 1);
         f32 main_spacing_cursor = spacing;
-        for (u32 b = first; b < first + count; b++)
+        for (auto [center, size] :
+             zip(centers.slice(first, count), sizes.slice(first, count)))
         {
-          f32 const size        = sizes[b][main_axis];
-          centers[b][main_axis] = main_spacing_cursor + size * 0.5F;
-          main_spacing_cursor += size + spacing;
+          center[main_axis] = main_spacing_cursor + size[main_axis] * 0.5F;
+          main_spacing_cursor += size[main_axis] + spacing;
         }
       }
       break;
@@ -201,11 +203,11 @@ ViewLayout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
       case MainAlign::End:
       {
         f32 main_spacing_cursor = main_spacing;
-        for (u32 b = first; b < first + count; b++)
+        for (auto [center, size] :
+             zip(centers.slice(first, count), sizes.slice(first, count)))
         {
-          f32 const size        = sizes[b][main_axis];
-          centers[b][main_axis] = main_spacing_cursor + size * 0.5F;
-          main_spacing_cursor += size;
+          center[main_axis] = main_spacing_cursor + size[main_axis] * 0.5F;
+          main_spacing_cursor += size[main_axis];
         }
       }
       break;
@@ -221,7 +223,7 @@ ViewLayout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
   }
 
   // convert from cursor space [0, w] to parent space [-0.5w, 0.5w]
-  for (Vec2 & center : centers)
+  for (auto & center : centers)
   {
     center -= span * 0.5F;
   }
@@ -300,8 +302,7 @@ void Stack::size(Vec2 allocated, Span<Vec2> sizes)
 
 ViewLayout Stack::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
-  Vec2      span;
-  u32 const n = sizes.size32();
+  Vec2 span;
 
   for (Vec2 style : sizes)
   {
@@ -309,9 +310,9 @@ ViewLayout Stack::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
     span.y = max(span.y, style.y);
   }
 
-  for (u32 i = 0; i < n; i++)
+  for (auto [center, size] : zip(centers, sizes))
   {
-    centers[i] = space_align(span, sizes[i], style.alignment);
+    center = space_align(span, size, style.alignment);
   }
 
   return {.extent = span};
@@ -327,10 +328,185 @@ i32 Stack::z_index(i32 allocated, Span<i32> indices)
   return allocated;
 }
 
+TextCommand text_command(ViewContext const & ctx, ViewEvents const & events,
+                         bool multiline, bool enter_submits, bool tab_input)
+{
+  if (events.focus_out)
+  {
+    return TextCommand::Unselect;
+  }
+
+  if (events.text_input)
+  {
+    return TextCommand::InputText;
+  }
+
+  auto const shift = ctx.modifier_state(KeyModifiers::LeftShift) ||
+                     ctx.modifier_state(KeyModifiers::RightShift);
+  auto const ctrl = ctx.modifier_state(KeyModifiers::LeftCtrl) ||
+                    ctx.modifier_state(KeyModifiers::RightCtrl);
+
+  if (events.key_down)
+  {
+    if (shift && ctx.key_down(KeyCode::Left))
+    {
+      return TextCommand::SelectLeft;
+    }
+
+    if (shift && ctx.key_down(KeyCode::Right))
+    {
+      return TextCommand::SelectRight;
+    }
+
+    if (shift && ctx.key_down(KeyCode::Up))
+    {
+      return TextCommand::SelectUp;
+    }
+
+    if (shift && ctx.key_down(KeyCode::Down))
+    {
+      return TextCommand::SelectDown;
+    }
+
+    if (shift && ctx.key_down(KeyCode::PageUp))
+    {
+      return TextCommand::SelectPageUp;
+    }
+
+    if (shift && ctx.key_down(KeyCode::PageDown))
+    {
+      return TextCommand::SelectPageDown;
+    }
+
+    if (ctrl && ctx.key_down(KeyCode::A))
+    {
+      return TextCommand::SelectAll;
+    }
+
+    if (ctrl && ctx.key_down(KeyCode::X))
+    {
+      return TextCommand::Cut;
+    }
+
+    if (ctrl && ctx.key_down(KeyCode::C))
+    {
+      return TextCommand::Copy;
+    }
+
+    if (ctrl && ctx.key_down(KeyCode::V))
+    {
+      return TextCommand::Paste;
+    }
+
+    if (ctrl && ctx.key_down(KeyCode::Z))
+    {
+      return TextCommand::Undo;
+    }
+
+    if (ctrl && ctx.key_down(KeyCode::Y))
+    {
+      return TextCommand::Redo;
+    }
+
+    if (multiline && !enter_submits && ctx.key_down(KeyCode::Return))
+    {
+      return TextCommand::NewLine;
+    }
+
+    if (tab_input && ctx.key_down(KeyCode::Tab))
+    {
+      return TextCommand::Tab;
+    }
+
+    if (ctx.key_down(KeyCode::Escape))
+    {
+      return TextCommand::Unselect;
+    }
+
+    if (ctx.key_down(KeyCode::Backspace))
+    {
+      return TextCommand::BackSpace;
+    }
+
+    if (ctx.key_down(KeyCode::Delete))
+    {
+      return TextCommand::Delete;
+    }
+
+    if (ctx.key_down(KeyCode::Left))
+    {
+      return TextCommand::Left;
+    }
+
+    if (ctx.key_down(KeyCode::Right))
+    {
+      return TextCommand::Right;
+    }
+
+    if (ctx.key_down(KeyCode::Home))
+    {
+      return TextCommand::LineStart;
+    }
+
+    if (ctx.key_down(KeyCode::End))
+    {
+      return TextCommand::LineEnd;
+    }
+
+    if (ctx.key_down(KeyCode::Up))
+    {
+      return TextCommand::Up;
+    }
+
+    if (ctx.key_down(KeyCode::Down))
+    {
+      return TextCommand::Down;
+    }
+
+    if (ctx.key_down(KeyCode::PageUp))
+    {
+      return TextCommand::PageUp;
+    }
+
+    if (ctx.key_down(KeyCode::PageDown))
+    {
+      return TextCommand::PageDown;
+    }
+
+    if (ctx.key_down(KeyCode::Return) && enter_submits)
+    {
+      return TextCommand::Submit;
+    }
+  }
+
+  if (events.drag_start)
+  {
+    return TextCommand::Hit;
+  }
+  else if (events.dragging)
+  {
+    if (ctx.mouse_down(MouseButton::Primary) &&
+        ctx.mouse_clicks(MouseButton::Primary) == 2)
+    {
+      return TextCommand::SelectWord;
+    }
+
+    if (ctx.mouse_down(MouseButton::Primary) &&
+        ctx.mouse_clicks(MouseButton::Primary) == 3)
+    {
+      return TextCommand::SelectLine;
+    }
+
+    return TextCommand::HitSelect;
+  }
+
+  return TextCommand::None;
+}
+
 Text::Text(Str32 t, TextStyle const & style, FontStyle const & font,
            AllocatorRef allocator) :
   text_{allocator},
-  compositor_{allocator}
+  compositor_{TextCompositor::create(allocator)}
 {
   text(t).run(style, font);
 }
@@ -338,7 +514,7 @@ Text::Text(Str32 t, TextStyle const & style, FontStyle const & font,
 Text::Text(Str8 t, TextStyle const & style, FontStyle const & font,
            AllocatorRef allocator) :
   text_{allocator},
-  compositor_{allocator}
+  compositor_{TextCompositor::create(allocator)}
 {
   text(t).run(style, font);
 }
@@ -387,19 +563,22 @@ ViewState Text::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
   {
     cmd = TextCommand::Hit;
   }
-  else if (events.dragging)
+  else if (events.dragging)    // [ ] can we delay this?
   {
     cmd = TextCommand::HitSelect;
   }
-  else if (events.mouse_down && !compositor_.get_cursor().is_empty())
+  else if (has_any_bit(ctx.mouse.downs, MouseButtons::All) &&
+           compositor_.cursor_.has_selection())
   {
     cmd = TextCommand::Unselect;
   }
+  // [ ] dbl, triple click
 
-  auto cursor =
-    compositor_.command(text_, cmd, noop, noop, {}, engine->clipboard, 1,
-                        region, ctx.mouse.position, zoom);
-  text_.highlight(TextHighlight{.slice = cursor, .style = {}});
+  auto [modified, cursor] =
+    compositor_.command(text_, cmd, {}, engine->clipboard, 1, 1, region,
+                        ctx.mouse.position, zoom, default_allocator);
+  CHECK(!modified, "");
+  text_.highlight(TextHighlight{.slice = cursor, .style = style.highlight});
 
   return ViewState{.draggable = state.copyable};
 }
@@ -423,18 +602,20 @@ Cursor Text::cursor(CRect const &, f32, Vec2)
 
 Input::Input(Str32 s, TextStyle const & style, FontStyle const & font,
              AllocatorRef allocator) :
+  allocator_{allocator},
   content_{allocator},
   stub_{allocator},
-  compositor_{allocator}
+  compositor_{TextCompositor::create(allocator)}
 {
   content(U""_str).content_run(style, font).stub(s).stub_run(style, font);
 }
 
 Input::Input(Str8 s, TextStyle const & style, FontStyle const & font,
              AllocatorRef allocator) :
+  allocator_{allocator},
   content_{allocator},
   stub_{allocator},
-  compositor_{allocator}
+  compositor_{TextCompositor::create(allocator)}
 {
   content(U""_str).content_run(style, font).stub(s).stub_run(style, font);
 }
@@ -537,186 +718,52 @@ Input & Input::stub_run(TextStyle const & style, FontStyle const & font,
   return *this;
 }
 
-constexpr TextCommand Input::command(ViewContext const & ctx) const
-{
-  if (ctx.key_state(KeyCode::Escape))
-  {
-    return TextCommand::Unselect;
-  }
-  if (ctx.key_state(KeyCode::Backspace))
-  {
-    return TextCommand::BackSpace;
-  }
-  if (ctx.key_state(KeyCode::Delete))
-  {
-    return TextCommand::Delete;
-  }
-  if (ctx.key_state(KeyCode::Left))
-  {
-    return TextCommand::Left;
-  }
-  if (ctx.key_state(KeyCode::Right))
-  {
-    return TextCommand::Right;
-  }
-  if (ctx.key_state(KeyCode::Home))
-  {
-    return TextCommand::LineStart;
-  }
-  if (ctx.key_state(KeyCode::End))
-  {
-    return TextCommand::LineEnd;
-  }
-  if (ctx.key_state(KeyCode::Up))
-  {
-    return TextCommand::Up;
-  }
-  if (ctx.key_state(KeyCode::Down))
-  {
-    return TextCommand::Down;
-  }
-  if (ctx.key_state(KeyCode::PageUp))
-  {
-    return TextCommand::PageUp;
-  }
-  if (ctx.key_state(KeyCode::PageDown))
-  {
-    return TextCommand::PageDown;
-  }
-  if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-      ctx.key_state(KeyCode::Left))
-  {
-    return TextCommand::SelectLeft;
-  }
-  if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-      ctx.key_state(KeyCode::Right))
-  {
-    return TextCommand::SelectRight;
-  }
-  if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-      ctx.key_state(KeyCode::Up))
-  {
-    return TextCommand::SelectUp;
-  }
-  if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-      ctx.key_state(KeyCode::Down))
-  {
-    return TextCommand::SelectDown;
-  }
-  if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-      ctx.key_state(KeyCode::PageUp))
-  {
-    return TextCommand::SelectPageUp;
-  }
-  if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-      ctx.key_state(KeyCode::PageDown))
-  {
-    return TextCommand::SelectPageDown;
-  }
-  if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-      ctx.key_state(KeyCode::A))
-  {
-    return TextCommand::SelectAll;
-  }
-  if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-      ctx.key_state(KeyCode::X))
-  {
-    return TextCommand::Cut;
-  }
-  if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-      ctx.key_state(KeyCode::C))
-  {
-    return TextCommand::Copy;
-  }
-  if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-      ctx.key_state(KeyCode::V))
-  {
-    return TextCommand::Paste;
-  }
-  if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-      ctx.key_state(KeyCode::Z))
-  {
-    return TextCommand::Undo;
-  }
-  if ((ctx.key_state(KeyCode::LCtrl) || ctx.key_state(KeyCode::RCtrl)) &&
-      ctx.key_state(KeyCode::Y))
-  {
-    return TextCommand::Redo;
-  }
-  if ((ctx.key_state(KeyCode::LShift) || ctx.key_state(KeyCode::RShift)) &&
-      ctx.key_state(KeyCode::Left) && ctx.mouse_state(MouseButton::Primary))
-  {
-    return TextCommand::HitSelect;
-  }
-  if (state.multiline && !state.enter_submits && ctx.key_state(KeyCode::Return))
-  {
-    return TextCommand::NewLine;
-  }
-  if (state.tab_input && ctx.key_state(KeyCode::Tab))
-  {
-    return TextCommand::Tab;
-  }
-  return TextCommand::None;
-}
-
 ViewState Input::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
                       ViewEvents const & events, Fn<void(View &)>)
 {
   bool edited = false;
-  auto erase  = [&](Slice range) {
-    this->content_.text_.erase(range);
-    edited |= range.is_empty();
-    this->content_.flush_text();
-  };
-
-  auto insert = [&](usize pos, Str32 t) {
-    this->content_.text_.insert_span(pos, t).unwrap();
-    edited |= t.is_empty();
-    this->content_.flush_text();
-  };
 
   state.editing = false;
   state.submit  = false;
 
   state.focus.tick(events);
 
-  TextCommand cmd = TextCommand::None;
+  u8 buffer[512];
+
+  FallbackAllocator allocator{Arena::from(buffer), allocator_};
+
+  Vec<c32> input_u32{allocator};
+
   if (events.text_input)
   {
-    cmd = TextCommand::InputText;
-  }
-  else if (events.drag_start)
-  {
-    cmd = TextCommand::Hit;
-  }
-  else if (events.dragging)
-  {
-    cmd = TextCommand::HitSelect;
-  }
-  else if (state.focus.focused)
-  {
-    cmd = command(ctx);
+    utf8_decode(ctx.text, input_u32).unwrap();
   }
 
-  Vec<c32> text_input_utf32{default_allocator};
+  TextCommand cmd = TextCommand::None;
 
-  utf8_decode(ctx.text, text_input_utf32).unwrap();
+  if (state.focus.focused)
+  {
+    cmd = text_command(ctx, events, state.multiline, state.enter_submits,
+                       state.tab_input);
+  }
 
-  compositor_.command(content_, cmd, fn(insert), fn(erase), text_input_utf32,
-                      *engine->clipboard, style.lines_per_page, region,
-                      ctx.mouse.position, zoom);
+  auto [modified, cursor] = compositor_.command(
+    content_, cmd, input_u32, *engine->clipboard, style.lines_per_page, 1,
+    region, ctx.mouse.position, zoom, allocator);
+
+  content_.highlight(TextHighlight{.slice = cursor, .style = style.highlight});
+
+  if (modified)
+  {
+    content_.flush_text();
+  }
 
   if (edited)
   {
     state.editing = true;
   }
 
-  if (events.focus_out)
-  {
-    compositor_.unselect();
-  }
-
-  if (events.key_down && ctx.key_state(KeyCode::Return) && state.enter_submits)
+  if (cmd == TextCommand::Submit)
   {
     state.submit = true;
   }
@@ -1279,13 +1326,13 @@ ViewState Slider::tick(ViewContext const & ctx, CRect const & region, f32,
 
   if (state.drag.focus.focused)
   {
-    if ((style.axis == Axis::X && ctx.key_state(KeyCode::Left)) ||
-        (style.axis == Axis::Y && ctx.key_state(KeyCode::Up)))
+    if ((style.axis == Axis::X && ctx.key_down(KeyCode::Left)) ||
+        (style.axis == Axis::Y && ctx.key_down(KeyCode::Up)))
     {
       state.t = max(state.t - style.delta, 0.0F);
     }
-    else if ((style.axis == Axis::X && ctx.key_state(KeyCode::Right)) ||
-             (style.axis == Axis::Y && ctx.key_state(KeyCode::Down)))
+    else if ((style.axis == Axis::X && ctx.key_down(KeyCode::Right)) ||
+             (style.axis == Axis::Y && ctx.key_down(KeyCode::Down)))
     {
       state.t = min(state.t + style.delta, 1.0F);
     }
@@ -1653,7 +1700,7 @@ ViewState ScalarDragBox::tick(ViewContext const & ctx, CRect const & region,
   state.dragging = events.dragging;
 
   if (events.drag_start &&
-      (ctx.key_down(KeyCode::LCtrl) || ctx.key_down(KeyCode::RCtrl)))
+      (ctx.key_down(KeyCode::LeftCtrl) || ctx.key_down(KeyCode::RightCtrl)))
   {
     state.input_mode = !state.input_mode;
   }
@@ -1677,26 +1724,11 @@ ViewState ScalarDragBox::tick(ViewContext const & ctx, CRect const & region,
 
   if (state.hash == 0)
   {
-    char   text_[1'024];
-    bool   is_full = false;
-    Buffer text{text_};
-
-    auto const sink = [&](Str str) { is_full = is_full | text.extend(str); };
-
-    fmt::Op ops_[fmt::MAX_ARGS];
-    Buffer  ops{ops_};
-
-    fmt::Context ctx{fn(sink), std::move(ops)};
-
-    if (auto result = ctx.format(style.format, state.scalar);
-        result.error == fmt::Error::None)
-    {
-      input_.content_.text(text.view().as_c8());
-    }
-    else
-    {
-      input_.content_.text(U"[Truncated]");
-    }
+    u8                buffer[1'024];
+    FallbackAllocator allocator{Arena::from(buffer), default_allocator};
+    sformat(allocator, style.format, state.scalar)
+      .match([&](auto & text) { input_.content_.text(text.view().as_c8()); },
+             [&](auto &) { input_.content_.text(U"[Truncated]"); });
 
     state.hash = -1;
   }
@@ -1793,7 +1825,7 @@ ScalarBox::ScalarBox(Str32 decrease_text, Str32 increase_text,
 
   inc_.on_pressed(Fn{this, increment});
 
-  padding({5, 5}).corner_radii(CornerRadii::all(6));
+  padding({5, 5}).corner_radii(CornerRadii::all(7.5F));
 
   drag_.cb.update =
     Fn{this, +[](ScalarBox * b, Scalar in) { b->cb.update(in); }};
@@ -1944,13 +1976,13 @@ ViewState ScrollBar::tick(ViewContext const & ctx, CRect const & region, f32,
 
   if (state.drag.focus.focused)
   {
-    if ((style.axis == Axis::X && ctx.key_state(KeyCode::Left)) ||
-        (style.axis == Axis::Y && ctx.key_state(KeyCode::Up)))
+    if ((style.axis == Axis::X && ctx.key_down(KeyCode::Left)) ||
+        (style.axis == Axis::Y && ctx.key_down(KeyCode::Up)))
     {
       state.t = max(state.t - style.delta, 0.0F);
     }
-    else if ((style.axis == Axis::X && ctx.key_state(KeyCode::Right)) ||
-             (style.axis == Axis::Y && ctx.key_state(KeyCode::Down)))
+    else if ((style.axis == Axis::X && ctx.key_down(KeyCode::Right)) ||
+             (style.axis == Axis::Y && ctx.key_down(KeyCode::Down)))
     {
       state.t = min(state.t + style.delta, 1.0F);
     }
@@ -2454,11 +2486,10 @@ Combo & Combo::items(Span<ref<ComboItem> const> list)
 {
   for (auto [i, item] : enumerate<u32>(list))
   {
-    item->state.disabled = state.disabled;
-    item->state.selected = false;
-    item->state.click_hook =
-      fn(this, +[](Combo * c, u32 id) { c->select(id); });
-    item->state.id = i;
+    item->state.disabled   = state.disabled;
+    item->state.selected   = false;
+    item->state.click_hook = {this, [](Combo * c, u32 id) { c->select(id); }};
+    item->state.id         = i;
   }
 
   items_.extend(list).unwrap();
