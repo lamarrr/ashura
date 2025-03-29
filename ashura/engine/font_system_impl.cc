@@ -334,10 +334,9 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
       num_layers++;
     }
 
-    for (u32 i = 0; i < num_glyphs; i++)
+    for (auto [i, r] : enumerate(rects))
     {
-      rect_pack::rect const & r = rects[i];
-      AtlasGlyph &            g = atlas.glyphs[r.id];
+      auto & g = atlas.glyphs[r.id];
 
       if (g.area.extent.x == 0 | g.area.extent.y == 0)
       {
