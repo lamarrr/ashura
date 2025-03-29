@@ -8,17 +8,42 @@
 namespace ash
 {
 
-u32 TextCompositor::goto_line(TextLayout const & layout, u32 alignment,
-                              u32 line)
+TextCompositor TextCompositor::create(AllocatorRef allocator, usize buffer_size,
+                                      usize records_size, Str32 word_symbols,
+                                      Str32 line_symbols)
+{
+  CHECK(buffer_size > 1, "");
+  CHECK(records_size > 1, "");
+
+  Vec<c32> buffer{allocator};
+
+  buffer.reserve(buffer_size).unwrap();
+
+  Vec<TextEditRecord> records{allocator};
+
+  records.reserve(records_size).unwrap();
+  records
+    .push(TextEditRecord{.text_pos    = 0,
+                         .erase_size  = 0,
+                         .insert_size = 0,
+                         .type        = TextEditRecordType::Erase})
+    .unwrap();
+
+  return TextCompositor{std::move(buffer), std::move(records), word_symbols,
+                        line_symbols};
+}
+
+usize TextCompositor::goto_line(TextLayout const & layout, usize alignment,
+                                usize line)
 {
   if (layout.lines.is_empty())
   {
     return 0;
   }
 
-  line = min(line, layout.lines.size32() - 1);
+  line = min(line, layout.lines.size() - 1);
 
-  Line const & ln = layout.lines[line];
+  auto const & ln = layout.lines[line];
 
   if (alignment > ln.codepoints.span)
   {
@@ -28,25 +53,73 @@ u32 TextCompositor::goto_line(TextLayout const & layout, u32 alignment,
   return ln.codepoints.offset + alignment;
 }
 
-void TextCompositor::pop_records(usize num)
+TextCursor TextCompositor::cursor() const
 {
-  CHECK(num <= records_.size(), "");
-  u32 reclaimed = 0;
-  for (u32 i = 0; i < num; i++)
-  {
-    reclaimed += records_[i].slice.span;
-  }
-  mem::move(buffer_.view().slice(reclaimed), buffer_.view());
-  mem::move(records_.view().slice(num), records_.view());
-  buffer_usage_ -= reclaimed;
-  latest_record_ -= num;
-  current_record_ -= num;
+  return cursor_;
 }
 
-void TextCompositor::append_record(bool is_insert, usize text_pos,
-                                   Str32 segment)
+void TextCompositor::pop_records(usize num)
 {
-  if (segment.size() > buffer_.size())
+  CHECK(!records_.is_empty(), "");
+  CHECK(num <= records_.size(), "");
+
+  // exclude the first entry
+  Slice erase;
+
+  if (num > state_)
+  {
+    // history will need to be cleared.
+    // reset to base state and clear history. exclude base record.
+    erase  = {1, USIZE_MAX};
+    state_ = 0;
+  }
+  else
+  {
+    // clear the specified top `num` entries. exclude the base record.
+    erase = {1, num};
+    state_ -= num;
+  }
+
+  erase                   = erase(records_.size());
+  auto const buffer_erase = buffer_slice(erase);
+
+  records_.erase(erase);
+  buffer_.erase(buffer_erase);
+}
+
+Slice TextCompositor::buffer_slice(Slice records) const
+{
+  Slice slice;
+  for (usize i = 0; i < records.offset; i++)
+  {
+    slice.offset += records_[i].buffer_usage();
+  }
+
+  for (usize i = records.offset; i < records.end(); i++)
+  {
+    slice.span += records_[i].buffer_usage();
+  }
+
+  return slice;
+}
+
+void TextCompositor::truncate_records()
+{
+  usize      reclaimed = 0;
+  auto const first     = state_ + 1;
+  for (usize i = first; i < records_.size(); i++)
+  {
+    reclaimed += records_[i].buffer_usage();
+  }
+  buffer_.erase(reclaimed, USIZE_MAX);
+  records_.erase(first, USIZE_MAX);
+}
+
+void TextCompositor::push_record(TextEditRecordType type, usize text_pos,
+                                 Str32 erase, Str32 insert)
+{
+  auto const total_size = insert.size() + erase.size();
+  if (total_size > buffer_.capacity())
   {
     // clear all records as we can't insert a new record without invalidating
     // the history
@@ -54,97 +127,144 @@ void TextCompositor::append_record(bool is_insert, usize text_pos,
     return;
   }
 
-  while (buffer_usage_ + segment.size() > buffer_.size())
+  // try to allocate buffer space
+  while ((buffer_.size() + total_size) > buffer_.capacity())
   {
     // pop half, to amortize shifting cost.
     // always pop by atleast 1. since the buffer can fit it and atleast 1
     // record would be using the available memory.
-    pop_records(max(records_.size() >> 1, (usize) 1));
+    auto const num_pop = max(records_.size() >> 1, (usize) 1);
+    pop_records(num_pop);
   }
 
-  if (current_record_ + 1 >= records_.size())
+  // try to allocate record entries
+  if ((records_.size() + 1) > records_.capacity())
   {
-    pop_records(max(records_.size() >> 1, (usize) 1U));
+    auto const num_pop = max(records_.size() >> 1, (usize) 1);
+    pop_records(num_pop);
   }
 
-  mem::copy(segment, buffer_.view().slice(buffer_pos_));
+  truncate_records();
 
-  current_record_++;
-  latest_record_           = current_record_;
-  records_[latest_record_] = TextEditRecord{
-    .slice = Slice{text_pos, segment.size()},
-      .is_insert = is_insert
-  };
-  buffer_pos_ += segment.size();
+  buffer_.extend(erase).unwrap();
+  buffer_.extend(insert).unwrap();
+
+  auto const idx = records_.size();
+
+  records_
+    .push(TextEditRecord{.text_pos    = text_pos,
+                         .erase_size  = erase.size(),
+                         .insert_size = insert.size(),
+                         .type        = type})
+    .unwrap();
+
+  state_ = idx;
 }
 
-void TextCompositor::undo(Insert insert, Erase erase)
+bool TextCompositor::undo(Vec<c32> & str)
 {
-  if (current_record_ == 0)
+  if (state_ == 0)
   {
-    return;
+    return false;
   }
+
   // undo changes of current record
-  TextEditRecord & record = records_[current_record_];
-  buffer_pos_ -= record.slice.span;
-  if (record.is_insert)
+  auto const & record = records_[state_];
+  auto const   slice  = buffer_slice(Slice{state_, 1});
+
+  switch (record.type)
   {
-    erase(record.slice);
+    case TextEditRecordType::Erase:
+    {
+      str
+        .insert_span(record.text_pos,
+                     buffer_.view().slice(slice.offset, record.erase_size))
+        .unwrap();
+      cursor_ = TextCursor::from_slice({record.text_pos, record.erase_size});
+    }
+    break;
+    case TextEditRecordType::Insert:
+    {
+      str.erase(record.text_pos, record.insert_size);
+      cursor_ = TextCursor::from_slice({record.text_pos, 0});
+    }
+    break;
+    case TextEditRecordType::Replace:
+    {
+      str.erase(record.text_pos, record.insert_size);
+      str
+        .insert_span(record.text_pos,
+                     buffer_.view().slice(slice.offset, record.erase_size))
+        .unwrap();
+      cursor_ = TextCursor::from_slice({record.text_pos, record.erase_size});
+    }
+    break;
   }
-  else
-  {
-    insert(record.slice.offset,
-           buffer_.view().slice(buffer_pos_, record.slice.span));
-  }
-  current_record_--;
-  if (record.is_insert)
-  {
-    cursor_ = TextCursor::from_slice(record.slice);
-  }
+
+  state_--;
+
+  return true;
 }
 
-void TextCompositor::redo(Insert insert, Erase erase)
+bool TextCompositor::redo(Vec<c32> & str)
 {
-  if (current_record_ + 1 > latest_record_)
+  if ((state_ + 1) > records_.size())
   {
-    return;
+    return false;
   }
-  current_record_++;
+
+  state_++;
+
   // apply changes of next record
-  TextEditRecord & record = records_[current_record_];
-  if (record.is_insert)
+  auto const & record = records_[state_];
+  auto const   slice  = buffer_slice(Slice{state_, 1});
+
+  switch (record.type)
   {
-    insert(record.slice.offset,
-           buffer_.view().slice(buffer_pos_, record.slice.span));
-  }
-  else
-  {
-    erase(record.slice);
+    case TextEditRecordType::Erase:
+    {
+      str.erase(record.text_pos, record.erase_size);
+      cursor_ = TextCursor::from_slice({record.text_pos, 0});
+    }
+    break;
+    case TextEditRecordType::Insert:
+    {
+      str
+        .insert_span(record.text_pos,
+                     buffer_.view().slice(slice.offset, record.insert_size))
+        .unwrap();
+      cursor_ = TextCursor::from_slice({record.text_pos, record.insert_size});
+    }
+    break;
+    case TextEditRecordType::Replace:
+    {
+      str.erase(record.text_pos, record.erase_size);
+      str
+        .insert_span(record.text_pos,
+                     buffer_.view().slice(slice.offset + record.erase_size,
+                                          record.insert_size))
+        .unwrap();
+      cursor_ = TextCursor::from_slice({record.text_pos, record.insert_size});
+    }
+    break;
   }
 
-  buffer_pos_ += record.slice.span;
-  if (!record.is_insert)
-  {
-    cursor_ = TextCursor::from_slice(record.slice);
-  }
+  return true;
 }
 
-void TextCompositor::unselect()
+bool TextCompositor::delete_selection(Vec<c32> & str)
 {
-  cursor_.unselect();
-}
-
-void TextCompositor::delete_selection(Str32 text, Erase erase)
-{
-  if (cursor_.is_empty())
+  if (str.is_empty())
   {
-    return;
+    return false;
   }
 
-  Slice const selection = cursor_.as_slice()(text.size());
-  append_record(false, selection.offset, text.slice((Slice) selection));
-  erase(selection);
-  cursor_.to_first();
+  auto const selection = cursor_.as_slice()(str.size());
+  push_record(TextEditRecordType::Erase, selection.offset,
+              str.view().slice(selection), {});
+  str.erase(selection);
+
+  return true;
 }
 
 static constexpr bool is_symbol(Str32 symbols, u32 c)
@@ -160,7 +280,7 @@ static constexpr bool is_symbol(Str32 symbols, u32 c)
 /// i.e. a code editor may use '(',')' as word boundaries.
 /// @param[out] first index of first char in symbolic boundary
 /// @param[out] last index of last char in symbolic boundary
-static constexpr Slice find_boundary(Str32 text, u32 const pos, Str32 symbols)
+static constexpr Slice find_boundary(Str32 text, usize const pos, Str32 symbols)
 {
   usize fwd = pos;
   usize bwd = pos;
@@ -199,7 +319,7 @@ static constexpr Slice find_boundary(Str32 text, u32 const pos, Str32 symbols)
 static inline Slice cursor_boundary(Str32 text, Str32 symbols,
                                     TextCursor cursor)
 {
-  Slice selection = cursor.as_slice()(text.size());
+  auto const selection = cursor.as_slice()(text.size());
   if (text.is_empty() || selection.is_empty())
   {
     return Slice{};
@@ -209,21 +329,20 @@ static inline Slice cursor_boundary(Str32 text, Str32 symbols,
 
 struct LinePosition
 {
-  u32 line      = 0;
-  u32 alignment = 0;
+  usize line      = 0;
+  usize alignment = 0;
 };
 
-static inline LinePosition line_translate(TextLayout const & layout, i64 cursor,
-                                          i64 dy)
+static LinePosition line_translate(TextLayout const & layout, i64 cursor,
+                                   i64 dy)
 {
-  for (u32 ln = 0; ln < layout.lines.size32(); ln++)
+  for (auto [i, ln] : enumerate(layout.lines))
   {
-    Line const & line = layout.lines[ln];
-    if (line.codepoints.contains(cursor))
+    if (ln.codepoints.contains(cursor))
     {
-      u32 const alignment = cursor - line.codepoints.offset;
-      u32 const next_line =
-        (u32) clamp(ln + dy, (i64) 0, (i64) (layout.lines.size32() - 1));
+      auto const alignment = cursor - ln.codepoints.offset;
+      auto const next_line =
+        (usize) clamp((i64) i + dy, (i64) 0, (i64) (layout.lines.size() - 1));
       return LinePosition{.line = next_line, .alignment = alignment};
     }
   }
@@ -232,333 +351,311 @@ static inline LinePosition line_translate(TextLayout const & layout, i64 cursor,
 }
 
 // [ ] test all
-Slice TextCompositor::command(RenderText const & text, TextCommand cmd,
-                              Insert insert, Erase erase, Str32 input,
-                              ClipBoard & clipboard, u32 lines_per_page,
-                              CRect const & region, Vec2 pos, f32 zoom)
+Tuple<bool, Slice> TextCompositor::command(
+  RenderText & text, TextCommand cmd, Str32 keyboard_input,
+  ClipBoard & clipboard, usize lines_per_page, usize tab_width,
+  CRect const & region, Vec2 pos, f32 zoom, AllocatorRef scratch_allocator)
 {
-  TextBlock const block = text.block();
+  CHECK(tab_width <= MAX_TAB_WIDTH, "");
+  cursor_.normalize(text.text_.size());
 
-  // don't allocate the buffers until we receive an edit command
-  switch (cmd)
-  {
-    case TextCommand::BackSpace:
-    case TextCommand::Delete:
-    case TextCommand::InputText:
-    case TextCommand::Cut:
-    case TextCommand::Paste:
-    case TextCommand::Undo:
-    case TextCommand::Redo:
-    case TextCommand::NewLine:
-    case TextCommand::Tab:
-    {
-      buffer_.resize(buffer_size_).unwrap();
-      records_.resize(records_size_).unwrap();
-      break;
-    }
-
-    default:
-      break;
-  }
+  bool modified = false;
 
   switch (cmd)
   {
     case TextCommand::Unselect:
     {
-      unselect();
+      cursor_.to_begin();
     }
     break;
     case TextCommand::BackSpace:
     {
-      if (cursor_.is_empty())
+      if (!cursor_.has_selection())
       {
-        cursor_.to_first();
-        cursor_.first--;
-        cursor_.clamp(block.text.size());
+        cursor_.shift(-1).span_by(1);
       }
-      delete_selection(block.text, erase);
+      modified |= delete_selection(text.text_);
+      cursor_.to_begin();
     }
     break;
     case TextCommand::Delete:
     {
-      if (cursor_.is_empty())
+      if (!cursor_.has_selection())
       {
-        cursor_.span = 1;
-        cursor_.clamp(block.text.size());
+        cursor_.span_by(1);
       }
-      delete_selection(block.text, erase);
-      // [ ] move back cursor
+      modified |= delete_selection(text.text_);
+      cursor_.to_begin();
     }
     break;
+    case TextCommand::Paste:
     case TextCommand::InputText:
+    case TextCommand::NewLine:
+    case TextCommand::Tab:
     {
-      Slice selection = cursor_.as_slice()(block.text.size());
-      delete_selection(block.text, noop);
-      append_record(true, selection.offset, input);
-      erase(selection);
-      insert(selection.offset, input);
-      // [ ] selection.offset: advance selection offset
+      Vec<c32> data_u32{scratch_allocator};
+      Vec<u8>  data_u8{scratch_allocator};
+
+      Str32                          input;
+      InplaceVec<c32, MAX_TAB_WIDTH> tabs;
+
+      if (cmd == TextCommand::Paste)
+      {
+        clipboard.get_text(data_u8).unwrap();
+        utf8_decode(data_u8.view().as_c8(), data_u32).unwrap();
+        input = data_u32;
+      }
+      else if (cmd == TextCommand::InputText)
+      {
+        input = keyboard_input;
+      }
+      else if (cmd == TextCommand::NewLine)
+      {
+        input = U"\n"_str;
+      }
+      else if (cmd == TextCommand::Tab)
+      {
+        for (usize i = 0; i < tab_width; i++)
+        {
+          tabs.push(U'\t').unwrap();
+        }
+
+        input = tabs;
+      }
+
+      if (!input.is_empty())
+      {
+        auto const selection = cursor_.as_slice()(text.text_.size());
+        if (cursor_.has_selection())
+        {
+          push_record(TextEditRecordType::Replace, selection.offset,
+                      text.text_.view().slice(selection), input);
+        }
+        else
+        {
+          push_record(TextEditRecordType::Insert, selection.offset, {}, input);
+        }
+        text.text_.erase(selection);
+        text.text_.insert_span(selection.offset, input).unwrap();
+        cursor_.span_by((i64) input.size()).to_end();
+        modified = true;
+      }
     }
     break;
     case TextCommand::Left:
     {
-      if (!cursor_.is_empty())
+      if (cursor_.has_selection())
       {
-        cursor_.to_first();
-        break;
+        cursor_.to_left();
       }
-
-      cursor_.to_first();
-      cursor_.first--;
-      cursor_.clamp(block.text.size());
+      else
+      {
+        cursor_.shift(-1);
+      }
+      // [ ] caret
     }
     break;
     case TextCommand::Right:
     {
-      if (!cursor_.is_empty())
+      if (cursor_.has_selection())
       {
-        cursor_.to_last();
-        break;
+        cursor_.to_right();
       }
-
-      cursor_.to_last();
-      cursor_.first++;
-      cursor_.clamp(block.text.size());
+      else
+      {
+        cursor_.shift(1);
+      }
+      // [ ] caret
     }
     break;
     case TextCommand::WordStart:
     {
-      Slice word    = cursor_boundary(block.text, word_symbols_, cursor_);
-      cursor_.first = word.offset;
-      cursor_.span  = 0;
+      auto const word = cursor_boundary(text.text_, word_symbols_, cursor_);
+      cursor_         = TextCursor::from_slice({word.offset, 0});
     }
     break;
     case TextCommand::WordEnd:
     {
-      Slice word = cursor_boundary(block.text, word_symbols_, cursor_);
-      cursor_.first =
-        (word.span == 0) ? word.offset : (word.offset + word.span - 1);
-      cursor_.span = 0;
+      auto const word = cursor_boundary(text.text_, word_symbols_, cursor_);
+      cursor_         = TextCursor::from_slice({word.end(), 0});
     }
     break;
     case TextCommand::LineStart:
     {
-      Slice line    = cursor_boundary(block.text, line_symbols_, cursor_);
-      cursor_.first = line.offset;
-      cursor_.span  = 0;
+      auto const line = cursor_boundary(text.text_, line_symbols_, cursor_);
+      cursor_         = TextCursor::from_slice({line.offset, 0});
     }
     break;
     case TextCommand::LineEnd:
     {
-      Slice line = cursor_boundary(block.text, line_symbols_, cursor_);
-      cursor_.first =
-        (line.span == 0) ? line.offset : (line.offset + line.span - 1);
-      cursor_.span = 0;
+      auto const line = cursor_boundary(text.text_, line_symbols_, cursor_);
+      cursor_         = TextCursor::from_slice({line.end(), 0});
     }
     break;
     case TextCommand::Up:
     {
-      LinePosition line = line_translate(text.layout(), cursor_.last(), -1);
-      cursor_.first     = goto_line(text.layout(), line.alignment, line.line);
-      cursor_.span      = 0;
+      auto const line = line_translate(text.layout(), cursor_.end, -1);
+      auto const pos  = goto_line(text.layout(), line.alignment, line.line);
+      cursor_         = TextCursor::from_slice({pos, 0});
     }
     break;
     case TextCommand::Down:
     {
-      LinePosition line = line_translate(text.layout(), cursor_.last(), 1);
-      cursor_.first     = goto_line(text.layout(), line.alignment, line.line);
-      cursor_.span      = 0;
+      auto const line = line_translate(text.layout(), cursor_.end, 1);
+      auto const pos  = goto_line(text.layout(), line.alignment, line.line);
+      cursor_         = TextCursor::from_slice({pos, 0});
     }
     break;
     case TextCommand::PageUp:
     {
-      LinePosition line =
-        line_translate(text.layout(), cursor_.last(), -(i64) lines_per_page);
-      cursor_.first = goto_line(text.layout(), line.alignment, line.line);
-      cursor_.span  = 0;
+      auto const line =
+        line_translate(text.layout(), cursor_.end, -(i64) lines_per_page);
+      auto const pos = goto_line(text.layout(), line.alignment, line.line);
+      cursor_        = TextCursor::from_slice({pos, 0});
     }
     break;
     case TextCommand::PageDown:
     {
-      LinePosition line =
-        line_translate(text.layout(), cursor_.last(), lines_per_page);
-      cursor_.first = goto_line(text.layout(), line.alignment, line.line);
-      cursor_.span  = 0;
+      auto const line =
+        line_translate(text.layout(), cursor_.end, lines_per_page);
+      auto const pos = goto_line(text.layout(), line.alignment, line.line);
+      cursor_        = TextCursor::from_slice({pos, 0});
     }
     break;
     case TextCommand::SelectLeft:
     {
-      cursor_.span--;
-      cursor_.clamp(block.text.size());
+      cursor_.span_by(cursor_.distance() - 1);
     }
     break;
     case TextCommand::SelectRight:
     {
-      cursor_.span++;
-      cursor_.clamp(block.text.size());
+      cursor_.span_by(cursor_.distance() + 1);
     }
     break;
     case TextCommand::SelectUp:
     {
-      LinePosition line = line_translate(text.layout(), cursor_.last(), -1);
+      auto const line = line_translate(text.layout(), cursor_.end, -1);
       cursor_.span_to(goto_line(text.layout(), line.alignment, line.line));
     }
     break;
     case TextCommand::SelectDown:
     {
-      LinePosition line = line_translate(text.layout(), cursor_.last(), 1);
+      auto const line = line_translate(text.layout(), cursor_.end, 1);
       cursor_.span_to(goto_line(text.layout(), line.alignment, line.line));
     }
     break;
     case TextCommand::SelectWordStart:
     {
-      Slice word = cursor_boundary(block.text, word_symbols_, cursor_);
+      auto const word = cursor_boundary(text.text_, word_symbols_, cursor_);
       cursor_.span_to(word.offset);
     }
     break;
     case TextCommand::SelectWordEnd:
     {
-      Slice word = cursor_boundary(block.text, word_symbols_, cursor_);
+      auto const word = cursor_boundary(text.text_, word_symbols_, cursor_);
       cursor_.span_to((word.span == 0) ? word.offset :
                                          (word.offset + word.span - 1));
     }
     break;
     case TextCommand::SelectLineStart:
     {
-      Slice line = cursor_boundary(block.text, line_symbols_, cursor_);
+      auto const line = cursor_boundary(text.text_, line_symbols_, cursor_);
       cursor_.span_to(line.offset);
     }
     break;
     case TextCommand::SelectLineEnd:
     {
-      Slice line = cursor_boundary(block.text, line_symbols_, cursor_);
+      auto const line = cursor_boundary(text.text_, line_symbols_, cursor_);
       cursor_.span_to((line.span == 0) ? line.offset :
                                          (line.offset + line.span - 1));
     }
     break;
     case TextCommand::SelectPageUp:
     {
-      LinePosition line =
-        line_translate(text.layout(), cursor_.last(), lines_per_page);
+      auto const line =
+        line_translate(text.layout(), cursor_.end, lines_per_page);
       cursor_.span_to(goto_line(text.layout(), line.alignment, line.line));
     }
     break;
     case TextCommand::SelectPageDown:
     {
-      LinePosition line =
-        line_translate(text.layout(), cursor_.last(), lines_per_page);
+      auto const line =
+        line_translate(text.layout(), cursor_.end, lines_per_page);
       cursor_.span_to(goto_line(text.layout(), line.alignment, line.line));
     }
     break;
     case TextCommand::SelectCodepoint:
     {
-      cursor_.span = 1;
-      cursor_      = cursor_.clamp(block.text.size());
+      cursor_.span_by(1);
     }
     break;
     case TextCommand::SelectWord:
     {
-      Slice word = cursor_boundary(block.text, word_symbols_, cursor_);
-      cursor_    = TextCursor::from_slice(word);
+      auto const word = cursor_boundary(text.text_, word_symbols_, cursor_);
+      cursor_         = TextCursor::from_slice(word);
     }
     break;
     case TextCommand::SelectLine:
     {
-      Slice line = cursor_boundary(block.text, line_symbols_, cursor_);
-      cursor_    = TextCursor::from_slice(line);
+      auto const line = cursor_boundary(text.text_, line_symbols_, cursor_);
+      cursor_         = TextCursor::from_slice(line);
     }
     break;
     case TextCommand::SelectAll:
     {
-      cursor_.first = 0;
-      cursor_.span  = block.text.size();
+      cursor_ = TextCursor::from_slice({0, text.text_.size()});
     }
     break;
     case TextCommand::Cut:
     {
-      Vec<c8> data_u8{allocator_};
-      utf8_encode(block.text.slice(cursor_.as_slice()), data_u8).unwrap();
-      delete_selection(block.text, erase);
+      Vec<c8> data_u8{scratch_allocator};
+      utf8_encode(text.text_.view().slice(cursor_.as_slice()), data_u8)
+        .unwrap();
+      delete_selection(text.text_);
       clipboard.set_text(data_u8.view().as_u8()).unwrap();
     }
     break;
     case TextCommand::Copy:
     {
-      Vec<c8> data_u8{allocator_};
-      utf8_encode(block.text.slice(cursor_.as_slice()), data_u8).unwrap();
+      Vec<c8> data_u8{scratch_allocator};
+      utf8_encode(text.text_.view().slice(cursor_.as_slice()), data_u8)
+        .unwrap();
       clipboard.set_text(data_u8.view().as_u8()).unwrap();
-    }
-    break;
-    case TextCommand::Paste:
-    {
-      Vec<c32> data_u32{allocator_};
-      Vec<u8>  data_u8{allocator_};
-      clipboard.get_text(data_u8).unwrap();
-      utf8_decode(data_u8.view().as_c8(), data_u32).unwrap();
-      Slice selection = cursor_.as_slice()(block.text.size());
-      delete_selection(block.text, noop);
-      append_record(true, selection.offset, data_u32);
-      erase(selection);
-      insert(selection.offset, data_u32);
     }
     break;
     case TextCommand::Undo:
     {
-      undo(insert, erase);
+      modified |= undo(text.text_);
     }
     break;
     case TextCommand::Redo:
     {
-      redo(insert, erase);
+      modified |= redo(text.text_);
     }
     break;
     case TextCommand::Hit:
     {
-      TextHitResult const hit =
-        text.hit(region, pos, zoom).unwrap_or(TextHitResult{});
-      cursor_.first = hit.cluster;
-      cursor_.span  = 0;
+      auto const hit = text.hit(region, pos, zoom).unwrap_or(TextHitResult{});
+      cursor_        = TextCursor::from_slice({hit.cluster, 0});
+      // [ ] caret
     }
     break;
     case TextCommand::HitSelect:
     {
-      TextHitResult const hit =
-        text.hit(region, pos, zoom).unwrap_or(TextHitResult{});
+      auto const hit = text.hit(region, pos, zoom).unwrap_or(TextHitResult{});
       cursor_.span_to(hit.cluster);
-      // [ ] not working?
-      // [ ] highlight not working
+      // [ ] next
     }
     break;
-    case TextCommand::NewLine:
-    {
-      Str32 input     = U"\n"_str;
-      Slice selection = cursor_.as_slice()(block.text.size());
-      delete_selection(block.text, noop);
-      append_record(true, selection.offset, input);
-      erase(selection);
-      insert(selection.offset, input);
-      // [ ] move
-    }
-    break;
-    case TextCommand::Tab:
-    {
-      static constexpr c32 TAB_STRING[] = {'\t', '\t', '\t', '\t',
-                                           '\t', '\t', '\t', '\t'};
-      Str32                input        = span(TAB_STRING).slice(0, tab_width_);
-      Slice                selection    = cursor_.as_slice()(block.text.size());
-      delete_selection(block.text, noop);
-      append_record(true, selection.offset, input);
-      erase(selection);
-      insert(selection.offset, input);
-      // [ ] move
-    }
-    break;
+
     case TextCommand::None:
     default:
       break;
   }
 
-  return cursor_.as_slice();
+  cursor_.normalize(text.text_.size());
+
+  return {modified, cursor_.as_slice()};
 }
 
 }    // namespace ash

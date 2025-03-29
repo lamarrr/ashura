@@ -8,13 +8,28 @@
 namespace ash
 {
 
+enum class TextEditRecordType : u32
+{
+  Erase   = 0,
+  Insert  = 1,
+  /// @brief Erase + Insert
+  Replace = 2
+};
+
 /// @brief
 /// @param slice region of the original text this info belongs to
 /// @param is_insert whether this is a erase or insert record
 struct TextEditRecord
 {
-  Slice slice     = {};
-  bool  is_insert = false;
+  usize              text_pos    = 0;
+  usize              erase_size  = 0;
+  usize              insert_size = 0;
+  TextEditRecordType type        = TextEditRecordType::Insert;
+
+  constexpr usize buffer_usage() const
+  {
+    return erase_size + insert_size;
+  }
 };
 
 enum class TextCommand : u32
@@ -74,132 +89,147 @@ enum class TextCommand : u32
 
   /// Insert new line
   NewLine = 36,
-  Tab     = 37
+  Tab     = 37,
+
+  Submit = 38
 };
 
-/// @param first the first selected codepoint in the selection range.
-/// @param span the number of selected codepoints in either direction.
-struct [[nodiscard]] TextCursor
+struct TextCursor
 {
-  i64 first = 0;
-  i64 span  = 0;
+  /// @brief the first selected codepoint in the selection range. [-1, n]
+  i64 begin = 0;
+
+  /// @brief 1 past the last selected codepoint in either direction. [-1, n]
+  i64 end = 0;
 
   static constexpr TextCursor from_slice(Slice s)
   {
-    return TextCursor{(i64) s.offset, (i64) s.span};
-  }
-
-  constexpr TextCursor & span_to(i64 pos)
-  {
-    span = first - pos;
-    return *this;
-  }
-
-  constexpr bool is_empty() const
-  {
-    return span == 0;
-  }
-
-  constexpr i64 last() const
-  {
-    return span == 0 ? first : ((first + span) - 1);
-  }
-
-  constexpr Slice as_slice() const
-  {
-    usize begin = 0;
-    usize end   = 0;
-
-    if (span >= 0)
-    {
-      begin = (usize) max(first, (i64) 0);
-      end   = (usize) max(first + span, (i64) 0);
-    }
-    else
-    {
-      begin = (usize) max((first + span) - 1, (i64) 0);
-      end   = (usize) max(first + 1, (i64) 0);
-    }
-
-    return Slice{begin, end - begin};
-  }
-
-  constexpr TextCursor & to_first()
-  {
-    span = 0;
-    return *this;
-  }
-
-  constexpr TextCursor & to_last()
-  {
-    first = last();
-    span  = 0;
-    return *this;
+    return TextCursor{(i64) s.offset, (i64) (s.offset + s.span)};
   }
 
   constexpr TextCursor & unselect()
   {
-    return to_last();
+    end = begin;
+    return *this;
   }
 
-  constexpr TextCursor & clamp(usize len)
+  constexpr bool has_selection() const
   {
-    first = ash::clamp(first, (i64) 0, (i64) (len == 0 ? 0 : len - 1));
-    span  = ash::clamp(first + span, (i64) 0, (i64) len) - first;
+    return begin != end;
+  }
+
+  constexpr bool direction() const
+  {
+    return begin < end;
+  }
+
+  constexpr TextCursor & span_to(i64 pos)
+  {
+    end = max(pos + 1, (i64) -1);
+    return *this;
+  }
+
+  constexpr TextCursor & span_by(i64 distance)
+  {
+    end = max(begin + distance, (i64) -1);
+    return *this;
+  }
+
+  constexpr i64 distance() const
+  {
+    return end - begin;
+  }
+
+  constexpr Slice as_slice() const
+  {
+    if (this->begin <= this->end)
+    {
+      auto const begin = (usize) max(this->begin, (i64) 0);
+      auto const end   = (usize) max(this->end, (i64) 0);
+      return Slice::from_range(begin, end);
+    }
+    else
+    {
+      auto const begin = (usize) max(this->end - 1, (i64) 0);
+      auto const end   = (usize) max(this->begin + 1, (i64) 0);
+      return Slice::from_range(begin, end);
+    }
+  }
+
+  constexpr TextCursor & to_begin()
+  {
+    end = begin;
+    return *this;
+  }
+
+  constexpr TextCursor & to_end()
+  {
+    begin = end;
+    return *this;
+  }
+
+  constexpr TextCursor & to_left()
+  {
+    end = begin = min(begin, end);
+    return *this;
+  }
+
+  constexpr TextCursor & to_right()
+  {
+    end = begin = max(begin, end);
+    return *this;
+  }
+
+  constexpr TextCursor & normalize(usize len)
+  {
+    begin = clamp(begin, (i64) -1, (i64) len);
+    end   = clamp(end, (i64) -1, (i64) len);
+    return *this;
+  }
+
+  constexpr TextCursor & shift(i64 n)
+  {
+    begin += n;
+    end += n;
+    begin = max(begin, (i64) -1);
+    end   = max(end, (i64) -1);
     return *this;
   }
 };
 
 /// @brief A stack-based text compositor
-/// @param buffer_pos the end of the buffer for the current text edit
-/// record
 struct TextCompositor
 {
-  static constexpr u32 MAX_TAB_WIDTH = 8;
+  static constexpr u32   MAX_TAB_WIDTH          = 32;
+  static constexpr usize DEFAULT_BUFFER_SIZE    = 2'048;
+  static constexpr usize DEFAULT_RECORDS_SIZE   = 2'048;
+  static constexpr c32   DEFAULT_WORD_SYMBOLS[] = {U' ', U'\t'};
+  static constexpr c32   DEFAULT_LINE_SYMBOLS[] = {U'\n', 0x2029};
 
-  /// @brief Text insert callback.
-  /// @param index destination index, needs to be clamped to the size of the
-  /// destination container.
-  /// @param text text to be inserted
-  typedef Fn<void(usize, Str32)> Insert;
-
-  /// @brief Text erase callback.
-  /// @param index index to be erased from, needs to be clamped to the size of
-  /// the destination container.
-  /// @param num number of items to be erased
-  typedef Fn<void(Slice)> Erase;
-
-  static constexpr c32 DEFAULT_WORD_SYMBOLS[] = {' ', '\t'};
-  static constexpr c32 DEFAULT_LINE_SYMBOLS[] = {'\n', 0x2029};
-
-  AllocatorRef        allocator_;
-  TextCursor          cursor_ = {};
+  TextCursor          cursor_;
   Vec<c32>            buffer_;
   Vec<TextEditRecord> records_;
-  usize               buffer_size_;
-  usize               records_size_;
-  usize               buffer_usage_   = 0;
-  usize               buffer_pos_     = 0;
-  usize               latest_record_  = 0;
-  usize               current_record_ = 0;
-  u32                 tab_width_;
   Str32               word_symbols_;
   Str32               line_symbols_;
 
-  TextCompositor(AllocatorRef allocator, u32 tab_width = 2,
-                 usize buffer_size = 4'096, usize records_size = 1'024,
-                 Str32 word_symbols = DEFAULT_WORD_SYMBOLS,
-                 Str32 line_symbols = DEFAULT_LINE_SYMBOLS) :
-    allocator_{allocator},
-    buffer_{allocator},
-    records_{allocator},
-    buffer_size_{buffer_size},
-    records_size_{records_size},
-    tab_width_{tab_width},
+  /// @brief record representing the current text composition state
+  usize state_;
+
+  TextCompositor(Vec<c32> buffer, Vec<TextEditRecord> records,
+                 Str32 word_symbols, Str32 line_symbols) :
+    buffer_{std::move(buffer)},
+    records_{std::move(records)},
     word_symbols_{word_symbols},
-    line_symbols_{line_symbols}
+    line_symbols_{line_symbols},
+    state_{0}
   {
   }
+
+  static TextCompositor create(AllocatorRef allocator,
+                               usize        buffer_size  = DEFAULT_BUFFER_SIZE,
+                               usize        records_size = DEFAULT_RECORDS_SIZE,
+                               Str32        word_symbols = DEFAULT_WORD_SYMBOLS,
+                               Str32 line_symbols = DEFAULT_LINE_SYMBOLS);
 
   TextCompositor(TextCompositor const &)             = delete;
   TextCompositor(TextCompositor &&)                  = default;
@@ -207,29 +237,34 @@ struct TextCompositor
   TextCompositor & operator=(TextCompositor &&)      = default;
   ~TextCompositor()                                  = default;
 
-  static u32 goto_line(TextLayout const & layout, u32 alignment, u32 line);
+  static usize goto_line(TextLayout const & layout, usize alignment,
+                         usize line);
 
-  TextCursor get_cursor() const
-  {
-    return cursor_;
-  }
+  TextCursor cursor() const;
 
+  Slice buffer_slice(Slice records) const;
+
+  /// @brief pop the first `num` earliest records
   void pop_records(usize num);
 
-  void append_record(bool is_insert, usize text_pos, Str32 segment);
+  /// @brief truncate all records from `state + 1` to last record
+  /// i.e. when editing from a present state, all redo history from that point is cleared.
+  void truncate_records();
 
-  void undo(Insert insert, Erase erase);
+  void push_record(TextEditRecordType type, usize text_pos, Str32 erase,
+                   Str32 insert);
 
-  void redo(Insert insert, Erase erase);
+  bool undo(Vec<c32> & str);
 
-  void unselect();
+  bool redo(Vec<c32> & str);
 
-  void delete_selection(Str32 text, Erase erase);
+  bool delete_selection(Vec<c32> & str);
 
   /// @param input text from IME to insert
-  Slice command(RenderText const & text, TextCommand cmd, Insert insert,
-                Erase erase, Str32 input, ClipBoard & clipboard,
-                u32 lines_per_page, CRect const & region, Vec2 pos, f32 zoom);
+  Tuple<bool, Slice> command(RenderText & text, TextCommand cmd, Str32 input,
+                             ClipBoard & clipboard, usize lines_per_page,
+                             usize tab_width, CRect const & region, Vec2 pos,
+                             f32 zoom, AllocatorRef scratch_allocator);
 };
 
 }    // namespace ash
