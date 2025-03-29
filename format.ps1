@@ -29,6 +29,6 @@ function cmake_format {
 cpp_format -folder ashura/std
 cpp_format -folder ashura/gpu
 cpp_format -folder ashura/engine
-slang_format -folder ashura/shaders
-slang_format -folder ashura/shaders/modules
+slang_format -folder ashura/engine/shaders
+slang_format -folder ashura/engine/shaders/modules
 cmake_format -file ./CMakeLists.txt

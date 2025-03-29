@@ -1,6 +1,6 @@
+$SRC_DIR = "ashura/engine/shaders"
 $OUT_DIR = "assets/shaders"
-$INCLUDE_DIR = "ashura/shaders"
-$SRC_DIR = "ashura/shaders"
+$INCLUDE_DIR = $SRC_DIR
 
 
 New-Item -ItemType Directory -Force -Path $OUT_DIR

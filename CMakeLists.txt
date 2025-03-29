@@ -4,6 +4,12 @@ cmake_minimum_required(VERSION 3.20)
 project(Ashura LANGUAGES C CXX ASM)
 
 option(ASH_WERROR "Make all ASH's compilation warnings manifest as errors" OFF)
+option(ASH_SANITIZE "Sanitize address and memory" OFF)
+option(ASH_EXCLUDE_GPU "" OFF)
+option(ASH_EXCLUDE_ENGINE "" OFF)
+option(ASH_EXCLUDE_EDITOR "" OFF)
+option(ASH_EXCLUDE_TESTS "" OFF)
+option(ASH_EXCLUDE_BENCHMARKS "" OFF)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -143,6 +149,11 @@ FetchContent_Declare(
   OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
+  slang
+  GIT_REPOSITORY https://github.com/shader-slang/slang.git
+  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
+
+FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
@@ -207,11 +218,6 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/google/googletest.git
   GIT_TAG 0bdccf4)
 
-FetchContent_Declare(
-  slang
-  GIT_REPOSITORY https://github.com/shader-slang/slang.git
-  GIT_TAG ${ASH_VULKAN_SDK_VERSION})
-
 find_package(FFMPEG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(Threads REQUIRED)
@@ -247,6 +253,7 @@ add_library(sheenbidi::sheenbidi ALIAS sheenbidi)
 
 list(APPEND ASH_COMPILE_OPTIONS)
 list(APPEND ASH_COMPILE_DEFINITIONS)
+list(APPEND ASH_LINK_OPTIONS)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   list(APPEND ASH_COMPILE_OPTIONS -Wall -Wextra -Wpedantic)
@@ -269,6 +276,10 @@ else()
 
     if(ASH_WERROR)
       list(APPEND ASH_COMPILE_OPTIONS -Werror)
+    endif()
+
+    if(ASH_SANITIZE)
+      list(APPEND ASH_LINK_OPTIONS -fsanitize=address)
     endif()
 
   else()
@@ -307,23 +318,27 @@ target_include_directories(
 target_link_libraries(ashura_std PUBLIC Threads::Threads)
 target_compile_options(ashura_std PUBLIC ${ASH_COMPILE_OPTIONS})
 target_compile_definitions(ashura_std PUBLIC ${ASH_COMPILE_DEFINITIONS})
+target_link_options(ashura_std PUBLIC ${ASH_LINK_OPTIONS})
 
 # ASHURA STD - TESTS
 
-add_executable(
-  ashura_std_tests
-  ashura/std/tests/async.cc
-  ashura/std/tests/enum.cc
-  ashura/std/tests/hash_map.cc
-  ashura/std/tests/list.cc
-  ashura/std/tests/main.cc
-  ashura/std/tests/option.cc
-  ashura/std/tests/range.cc
-  ashura/std/tests/result.cc
-  ashura/std/tests/sparse_vec.cc)
+if(NOT ASH_EXCLUDE_TESTS)
+  add_executable(
+    ashura_std_tests
+    ashura/std/tests/async.cc
+    ashura/std/tests/enum.cc
+    ashura/std/tests/hash_map.cc
+    ashura/std/tests/list.cc
+    ashura/std/tests/main.cc
+    ashura/std/tests/option.cc
+    ashura/std/tests/range.cc
+    ashura/std/tests/result.cc
+    ashura/std/tests/sparse_vec.cc)
 
-target_link_libraries(ashura_std_tests ashura_std GTest::gtest
-                      GTest::gtest_main)
+  target_link_libraries(ashura_std_tests ashura_std GTest::gtest
+                        GTest::gtest_main)
+
+endif()
 
 # ASHURA STD - BENCHMARKS
 
@@ -334,77 +349,91 @@ target_link_libraries(ashura_std_tests ashura_std GTest::gtest
 
 # ASHURA GPU
 
-add_library(ashura_gpu STATIC ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
-                              ashura/gpu/vulkan.cc)
-target_link_libraries(
-  ashura_gpu
-  PUBLIC ashura_std
-  PUBLIC Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
-         GPUOpen::VulkanMemoryAllocator)
+if(NOT ASH_EXCLUDE_GPU)
+  add_library(ashura_gpu STATIC ashura/gpu/gpu.cc ashura/gpu/vma_def.cc
+                                ashura/gpu/vulkan.cc)
+  target_link_libraries(
+    ashura_gpu
+    PUBLIC ashura_std
+    PUBLIC Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Loader
+           GPUOpen::VulkanMemoryAllocator)
 
-target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(ashura_gpu PUBLIC ${ASH_COMPILE_OPTIONS})
-target_compile_definitions(ashura_gpu PUBLIC ${ASH_COMPILE_DEFINITIONS})
+  target_include_directories(ashura_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+  target_compile_options(ashura_gpu PUBLIC ${ASH_COMPILE_OPTIONS})
+  target_compile_definitions(ashura_gpu PUBLIC ${ASH_COMPILE_DEFINITIONS})
+  target_link_options(ashura_gpu PUBLIC ${ASH_LINK_OPTIONS})
+endif()
 
 # ASHURA ENGINE
 
-add_library(
-  ashura_engine STATIC
-  ashura/engine/animation.cc
-  ashura/engine/canvas.cc
-  ashura/engine/engine.cc
-  ashura/engine/font_impl.cc
-  ashura/engine/font_system_impl.cc
-  ashura/engine/font.cc
-  ashura/engine/gpu_system.cc
-  ashura/engine/image_decoder.cc
-  ashura/engine/passes.cc
-  ashura/engine/render_text.cc
-  ashura/engine/renderer.cc
-  ashura/engine/scene.cc
-  ashura/engine/shader.cc
-  ashura/engine/systems.cc
-  ashura/engine/text_compositor.cc
-  ashura/engine/text.cc
-  ashura/engine/view_system.cc
-  ashura/engine/view.cc
-  ashura/engine/views.cc
-  ashura/engine/window.cc)
+if(NOT ASH_EXCLUDE_ENGINE)
+  add_library(
+    ashura_engine STATIC
+    ashura/engine/animation.cc
+    ashura/engine/canvas.cc
+    ashura/engine/engine.cc
+    ashura/engine/font_impl.cc
+    ashura/engine/font_system_impl.cc
+    ashura/engine/font.cc
+    ashura/engine/gpu_system.cc
+    ashura/engine/image_decoder.cc
+    ashura/engine/passes.cc
+    ashura/engine/render_text.cc
+    ashura/engine/renderer.cc
+    ashura/engine/scene.cc
+    ashura/engine/shader.cc
+    ashura/engine/systems.cc
+    ashura/engine/text_compositor.cc
+    ashura/engine/text.cc
+    ashura/engine/view_system.cc
+    ashura/engine/view.cc
+    ashura/engine/views.cc
+    ashura/engine/window.cc)
 
-target_link_libraries(
-  ashura_engine
-  PUBLIC ashura_std ashura_gpu
-  PRIVATE slang
-          SDL3::SDL3-static
-          harfbuzz
-          CURL::libcurl
-          freetype
-          simdjson::simdjson_static
-          webp
-          webpdecoder
-          JPEG::JPEG
-          png_static
-          sheenbidi::sheenbidi
-          ${FFMPEG_LIBRARIES})
+  target_link_libraries(
+    ashura_engine
+    PUBLIC ashura_std ashura_gpu
+    PRIVATE slang
+            SDL3::SDL3-static
+            harfbuzz
+            CURL::libcurl
+            freetype
+            simdjson::simdjson_static
+            webp
+            webpdecoder
+            JPEG::JPEG
+            png_static
+            sheenbidi::sheenbidi
+            ${FFMPEG_LIBRARIES})
 
-target_include_directories(
-  ashura_engine
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-  PRIVATE ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS}
-          ${fast_float_INCLUDE_DIR})
-target_compile_options(ashura_engine PUBLIC ${ASH_COMPILE_OPTIONS})
-target_compile_definitions(ashura_engine PUBLIC ${ASH_COMPILE_DEFINITIONS})
+  target_include_directories(
+    ashura_engine
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+    PRIVATE ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS}
+            ${fast_float_INCLUDE_DIR})
+  target_compile_options(ashura_engine PUBLIC ${ASH_COMPILE_OPTIONS})
+  target_compile_definitions(ashura_engine PUBLIC ${ASH_COMPILE_DEFINITIONS})
+  target_link_options(ashura_engine PUBLIC ${ASH_LINK_OPTIONS})
 
-# ASHURA ENGINE - TESTS
+  # ASHURA ENGINE - TESTS
 
-add_executable(
-  ashura_engine_tests
-  ashura/engine/tests/main.cc ashura/engine/tests/animation.cc
-  ashura/engine/tests/render_text.cc ashura/engine/tests/views.cc
-  ashura/engine/tests/text_compositor.cc)
-target_link_libraries(ashura_engine_tests ashura_std ashura_engine GTest::gtest)
+  if(NOT ASH_EXCLUDE_TESTS)
+    add_executable(
+      ashura_engine_tests
+      ashura/engine/tests/main.cc ashura/engine/tests/animation.cc
+      ashura/engine/tests/render_text.cc ashura/engine/tests/views.cc
+      ashura/engine/tests/text_compositor.cc)
+    target_link_libraries(ashura_engine_tests ashura_std ashura_engine
+                          GTest::gtest)
+  endif()
+
+endif()
 
 # ASHURA EDITOR
 
-add_executable(ashura_editor ashura/editor/editor.cc)
-target_link_libraries(ashura_editor ashura_std ashura_engine)
+if(NOT ASH_EXCLUDE_EDITOR)
+  add_executable(ashura_editor ashura/editor/editor.cc)
+  target_link_libraries(ashura_editor ashura_std ashura_engine)
+  target_compile_definitions(ashura_editor PUBLIC ${ASH_COMPILE_DEFINITIONS})
+  target_link_options(ashura_editor PUBLIC ${ASH_LINK_OPTIONS})
+endif()
