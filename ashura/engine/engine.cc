@@ -306,7 +306,8 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
     gpu::create_vulkan_instance(allocator, cfg.gpu.validation).unwrap();
 
   gpu::Device * device =
-    instance->create_device(allocator, cfg.gpu.preferences, 2).unwrap();
+    instance->create_device(allocator, cfg.gpu.preferences, cfg.gpu.buffering)
+      .unwrap();
 
   trace("Loading Pipeline cache from disk");
 
