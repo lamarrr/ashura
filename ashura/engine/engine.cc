@@ -479,9 +479,8 @@ void Engine::engage_(EngineCfg const & cfg)
   trace("Waiting for resources");
   while (!await_futures(futures, 0ns))
   {
-    gpu_sys.begin_frame(nullptr);
+    gpu_sys.frame(nullptr);
     scheduler->run_main_loop(1ms, 1ms);
-    gpu_sys.submit_frame(nullptr);
   }
 
   trace("All resources loaded");
@@ -698,7 +697,6 @@ void Engine::run(ui::View & view, ui::View & focus_view,
     }
 
     ScopeTrace record_trace{{"frame.record"_str}};
-    gpu_sys.begin_frame(swapchain);
 
     canvas.begin_recording(
       gpu::Viewport{
@@ -731,8 +729,8 @@ void Engine::run(ui::View & view, ui::View & focus_view,
 
     canvas.end_recording();
 
-    renderer.render_canvas(gpu_sys.fb_, canvas);
-    gpu_sys.submit_frame(swapchain);
+    renderer.render_canvas(gpu_sys.fb_, gpu_sys.frame_graph_, canvas);
+    gpu_sys.frame(swapchain);
 
     auto const frame_end  = steady_clock::now();
     auto const frame_time = frame_end - frame_start;

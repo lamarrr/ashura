@@ -156,8 +156,8 @@ void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
   e.end_rendering();
 }
 
-Option<FramebufferResult> BlurPass::encode(gpu::CommandEncoder &  e,
-                                           BlurPassParams const & params)
+Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
+                                            BlurPassParams const & params)
 {
   if (params.area.extent.x == 0 || params.area.extent.y == 0)
   {
@@ -178,8 +178,7 @@ Option<FramebufferResult> BlurPass::encode(gpu::CommandEncoder &  e,
     return none;
   }
 
-  e.blit_image(params.framebuffer.color.image,
-               sys->gpu.scratch_fbs_[1].color.image,
+  e.blit_image(params.framebuffer.color.image, sys->gpu.scratch_color_[1].image,
                span({
                  gpu::ImageBlit{.src_layers{.aspects = gpu::ImageAspects::Color,
                                             .mip_level         = 0,
@@ -194,9 +193,9 @@ Option<FramebufferResult> BlurPass::encode(gpu::CommandEncoder &  e,
   }),
                gpu::Filter::Linear);
 
-  Framebuffer const * const fbs[2] = {&sys->gpu.scratch_fbs_[1],
-                                      &sys->gpu.scratch_fbs_[0]};
-  RectU const sample_areas[2]      = {downsampled_area, downsampled_area};
+  ColorTexture const * const fbs[2] = {&sys->gpu.scratch_color_[1],
+                                       &sys->gpu.scratch_color_[0]};
+  RectU const sample_areas[2]       = {downsampled_area, downsampled_area};
 
   Vec2I const radius = as_vec2i(params.radius);
 
@@ -214,9 +213,9 @@ Option<FramebufferResult> BlurPass::encode(gpu::CommandEncoder &  e,
   {
     src = (src + 1) & 1;
     dst = (src + 1) & 1;
-    sample(*this, e, pass_dist * (f32) (i + 1), fbs[src]->color.texture,
-           fbs[src]->color.texture_id, fbs[src]->extent().xy(),
-           sample_areas[src], fbs[dst]->color.view, sample_areas[dst], false);
+    sample(*this, e, pass_dist * (f32) (i + 1), fbs[src]->texture,
+           fbs[src]->texture_id, fbs[src]->extent().xy(), sample_areas[src],
+           fbs[dst]->view, sample_areas[dst], false);
   }
 
   // upsample pass
@@ -224,14 +223,14 @@ Option<FramebufferResult> BlurPass::encode(gpu::CommandEncoder &  e,
   {
     src = (src + 1) & 1;
     dst = (src + 1) & 1;
-    sample(*this, e, pass_dist * (f32) (i + 1), fbs[src]->color.texture,
-           fbs[src]->color.texture_id, fbs[src]->extent().xy(),
-           sample_areas[src], fbs[dst]->color.view, sample_areas[dst], true);
+    sample(*this, e, pass_dist * (f32) (i + 1), fbs[src]->texture,
+           fbs[src]->texture_id, fbs[src]->extent().xy(), sample_areas[src],
+           fbs[dst]->view, sample_areas[dst], true);
   }
 
   CHECK(dst == 0, "");    // the last output was to scratch 1
 
-  return FramebufferResult{.fb = *fbs[dst], .rect = downsampled_area};
+  return ColorTextureResult{.color = *fbs[dst], .rect = downsampled_area};
 }
 
 void NgonPass::acquire()
@@ -276,7 +275,7 @@ void NgonPass::acquire()
   };
 
   gpu::DescriptorSetLayout set_layouts[] = {
-    sys->gpu.ssbo_layout_, sys->gpu.ssbo_layout_, sys->gpu.ssbo_layout_,
+    sys->gpu.sb_layout_, sys->gpu.sb_layout_, sys->gpu.sb_layout_,
     sys->gpu.samplers_layout_, sys->gpu.textures_layout_};
 
   gpu::GraphicsPipelineInfo pipeline_info{
@@ -398,9 +397,8 @@ void PBRPass::acquire()
   };
 
   gpu::DescriptorSetLayout const set_layouts[] = {
-    sys->gpu.ssbo_layout_,     sys->gpu.ssbo_layout_,
-    sys->gpu.ssbo_layout_,     sys->gpu.ssbo_layout_,
-    sys->gpu.samplers_layout_, sys->gpu.textures_layout_};
+    sys->gpu.sb_layout_, sys->gpu.sb_layout_,       sys->gpu.sb_layout_,
+    sys->gpu.sb_layout_, sys->gpu.samplers_layout_, sys->gpu.textures_layout_};
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "PBR Graphics Pipeline"_str,
@@ -414,7 +412,7 @@ void PBRPass::acquire()
                                           .specialization_constants      = {},
                                           .specialization_constants_data = {}},
     .color_formats          = {&sys->gpu.color_format_, 1},
-    .depth_format           = {&sys->gpu.depth_stencil_format_, 1},
+    .depth_format           = {&sys->gpu.depth_format_, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
     .push_constants_size    = sizeof(Mat4),
@@ -533,9 +531,8 @@ void RRectPass::acquire()
     .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
   };
 
-  gpu::DescriptorSetLayout set_layouts[] = {sys->gpu.ssbo_layout_,
-                                            sys->gpu.samplers_layout_,
-                                            sys->gpu.textures_layout_};
+  gpu::DescriptorSetLayout set_layouts[] = {
+    sys->gpu.sb_layout_, sys->gpu.samplers_layout_, sys->gpu.textures_layout_};
 
   gpu::GraphicsPipelineInfo pipeline_info{
     .label         = "RRect Graphics Pipeline"_str,

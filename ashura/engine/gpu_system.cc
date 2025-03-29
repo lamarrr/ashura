@@ -1,153 +1,188 @@
 /// SPDX-License-Identifier: MIT
 #include "ashura/engine/gpu_system.h"
+#include "ashura/std/sformat.h"
 #include "ashura/std/str.h"
 #include "ashura/std/trace.h"
 
 namespace ash
 {
 
-void StagingBuffer::uninit(gpu::Device & gpu)
+GpuBuffer::GpuBuffer(Str label, gpu::BufferUsage usage) :
+  label_{label},
+  usage_{usage}
 {
-  gpu.uninit(buffer);
-  buffer = nullptr;
-  size   = 0;
 }
 
-void StagingBuffer::reserve(gpu::Device & gpu, u64 target_size)
+bool GpuBuffer::is_valid() const
 {
-  target_size = max(target_size, (u64) 1);
-  if (size >= target_size)
+  return buffer_ != nullptr;
+}
+
+void GpuBuffer::release(GpuSystem & gpu)
+{
+  gpu.release(buffer_);
+  buffer_   = nullptr;
+  size_     = 0;
+  capacity_ = 0;
+}
+
+void GpuBuffer::reserve_exact(GpuSystem & gpu, u64 target_capacity, bool defer)
+{
+  target_capacity = max(target_capacity, (u64) 1);
+
+  if (capacity_ == target_capacity)
   {
     return;
   }
 
-  gpu.uninit(buffer);
-
-  buffer =
-    gpu
-      .create_buffer(gpu::BufferInfo{.label       = label,
-                                     .size        = target_size,
-                                     .host_mapped = true,
-                                     .usage = gpu::BufferUsage::TransferSrc |
-                                              gpu::BufferUsage::TransferDst})
-      .unwrap();
-
-  size = target_size;
-}
-
-void StagingBuffer::grow(gpu::Device & gpu, u64 target_size)
-{
-  target_size = max(target_size, (u64) 1);
-  if (size >= target_size)
+  if (defer)
   {
-    return;
+    gpu.release(buffer_);
+  }
+  else
+  {
+    gpu.device_->uninit(buffer_);
   }
 
-  reserve(gpu, max(target_size, size + (size >> 1)));
+  buffer_ = gpu.device_
+              ->create_buffer(gpu::BufferInfo{.label       = label_,
+                                              .size        = target_capacity,
+                                              .host_mapped = true,
+                                              .usage       = usage_})
+              .unwrap();
+
+  size_     = 0;
+  capacity_ = target_capacity;
 }
 
-void StagingBuffer::assign(gpu::Device & gpu, Span<u8 const> src)
+void GpuBuffer::assign(GpuSystem & gpu, Span<u8 const> src)
 {
-  grow(gpu, src.size_bytes());
+  CHECK(src.size() <= capacity_, "");
+  size_     = src.size();
   u8 * data = (u8 *) map(gpu);
   mem::copy(src, data);
   flush(gpu);
   unmap(gpu);
 }
 
-void * StagingBuffer::map(gpu::Device & gpu)
+void * GpuBuffer::map(GpuSystem & gpu)
 {
-  return gpu.map_buffer_memory(buffer).unwrap();
+  return gpu.device_->map_buffer_memory(buffer_).unwrap();
 }
 
-void StagingBuffer::unmap(gpu::Device & gpu)
+void GpuBuffer::unmap(GpuSystem & gpu)
 {
-  gpu.unmap_buffer_memory(buffer);
+  gpu.device_->unmap_buffer_memory(buffer_);
 }
 
-void StagingBuffer::flush(gpu::Device & gpu)
+void GpuBuffer::flush(GpuSystem & gpu)
 {
-  gpu.flush_mapped_buffer_memory(buffer, gpu::MemoryRange{0, gpu::WHOLE_SIZE})
+  gpu.device_
+    ->flush_mapped_buffer_memory(buffer_, gpu::MemoryRange{0, gpu::WHOLE_SIZE})
     .unwrap();
 }
 
-GpuTaskQueue GpuTaskQueue::make(AllocatorRef allocator)
+ShaderBuffer::ShaderBuffer(Str label, gpu::BufferUsage usage) :
+  label_{label},
+  usage_{usage}
 {
-  return GpuTaskQueue{ArenaPool{allocator}, Vec<Dyn<Fn<void()>>>{allocator}};
 }
 
-void GpuTaskQueue::run()
+bool ShaderBuffer::is_valid() const
 {
-  for (auto & task : tasks_)
-  {
-    task();
-  }
-
-  tasks_.reset();
-  arena_.reclaim();
+  return buffer_ != nullptr;
 }
 
-GpuUploadQueue GpuUploadQueue::make(u32 buffering, AllocatorRef allocator)
+void ShaderBuffer::release(GpuSystem & gpu)
 {
-  ArenaPool                                          arena{allocator};
-  InplaceVec<UploadBuffer, gpu::MAX_FRAME_BUFFERING> buffers{};
-  Vec<Task>                                          tasks{allocator};
-  for (u32 i = 0; i < buffering; i++)
-  {
-    buffers.push(UploadBuffer{.gpu{}, .cpu{allocator}}).unwrap();
-  }
-
-  return GpuUploadQueue{std::move(arena), std::move(buffers), std::move(tasks)};
+  gpu.release(descriptor_);
+  gpu.release(buffer_);
+  buffer_     = nullptr;
+  size_       = 0;
+  capacity_   = 0;
+  descriptor_ = nullptr;
 }
 
-void GpuUploadQueue::uninit(gpu::Device & device)
+void ShaderBuffer::reserve_exact(GpuSystem & gpu, u64 target_capacity,
+                                 bool defer)
 {
-  for (auto & buffer : buffers_)
+  target_capacity = max(target_capacity, (u64) 1);
+
+  if (capacity_ == target_capacity)
   {
-    buffer.cpu.reset();
-    buffer.gpu.uninit(device);
+    return;
   }
 
-  tasks_.reset();
-  arena_.reset();
+  if (defer)
+  {
+    gpu.release(buffer_);
+  }
+  else
+  {
+    gpu.device_->uninit(buffer_);
+  }
+
+  buffer_ = gpu.device_
+              ->create_buffer(gpu::BufferInfo{.label       = label_,
+                                              .size        = target_capacity,
+                                              .host_mapped = true,
+                                              .usage       = usage_})
+              .unwrap();
+
+  if (descriptor_ == nullptr)
+  {
+    descriptor_ =
+      gpu.device_
+        ->create_descriptor_set(gpu::DescriptorSetInfo{
+          .label = label_, .layout = gpu.sb_layout_, .variable_lengths = {}})
+        .unwrap();
+  }
+
+  gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
+    .set     = descriptor_,
+    .binding = 0,
+    .element = 0,
+    .buffers = span({gpu::BufferBinding{
+      .buffer = buffer_, .offset = 0, .size = gpu::WHOLE_SIZE}}
+      )
+  });
+
+  size_     = 0;
+  capacity_ = target_capacity;
 }
 
-void GpuUploadQueue::encode(gpu::Device & gpu, gpu::CommandEncoder & enc)
+void ShaderBuffer::assign(GpuSystem & gpu, Span<u8 const> src)
 {
-  UploadBuffer &         buff     = buffers_[ring_index_];
-  static constexpr usize min_size = gpu::BUFFER_OFFSET_ALIGNMENT;
+  CHECK(src.size() <= capacity_, "");
+  u8 * data = (u8 *) map(gpu);
+  mem::copy(src, data);
+  flush(gpu);
+  unmap(gpu);
+}
 
-  u64 const next_size = max(min_size, buff.cpu.size());
+void * ShaderBuffer::map(GpuSystem & gpu)
+{
+  return gpu.device_->map_buffer_memory(buffer_).unwrap();
+}
 
-  if (buff.gpu.size > next_size)
-  {
-    buff.gpu.uninit(gpu);
-    buff.gpu.reserve(gpu, next_size);
-  }
+void ShaderBuffer::unmap(GpuSystem & gpu)
+{
+  gpu.device_->unmap_buffer_memory(buffer_);
+}
 
-  buff.gpu.assign(gpu, buff.cpu);
-
-  buff.cpu.reset();
-
-  for (Task const & task : tasks_)
-  {
-    task.encoder(enc, buff.gpu.buffer, task.slice);
-  }
-
-  ring_index_ = (ring_index_ + 1) % buffers_.size32();
-
-  tasks_.reset();
-  arena_.reclaim();
+void ShaderBuffer::flush(GpuSystem & gpu)
+{
+  gpu.device_
+    ->flush_mapped_buffer_memory(buffer_, gpu::MemoryRange{0, gpu::WHOLE_SIZE})
+    .unwrap();
 }
 
 GpuQueries GpuQueries::create(AllocatorRef allocator, gpu::Device & dev,
                               f32 time_period, u32 num_timespans,
                               u32 num_statistics)
 {
-  gpu::TimeStampQuery timestamps =
-    dev.create_timestamp_query(num_timespans * 2).unwrap();
-  gpu::StatisticsQuery stats =
-    dev.create_statistics_query(num_statistics).unwrap();
+  auto timestamps = dev.create_timestamp_query(num_timespans * 2).unwrap();
+  auto stats      = dev.create_statistics_query(num_statistics).unwrap();
 
   return GpuQueries{allocator,     time_period, timestamps,
                     num_timespans, stats,       num_statistics};
@@ -221,7 +256,7 @@ void GpuQueries::begin_frame(gpu::Device & dev, gpu::CommandEncoder & enc)
 
 Option<u32> GpuQueries::begin_timespan(gpu::CommandEncoder & enc, Str label)
 {
-  u32 const id = timespan_labels_.size32();
+  auto const id = timespan_labels_.size32();
 
   if (id + 1 > timespans_capacity_)
   {
@@ -243,7 +278,7 @@ void GpuQueries::end_timespan(gpu::CommandEncoder & enc, u32 id)
 
 Option<u32> GpuQueries::begin_statistics(gpu::CommandEncoder & enc, Str label)
 {
-  u32 const id = statistics_labels_.size32();
+  auto const id = statistics_labels_.size32();
 
   if (id + 1 > statistics_capacity_)
   {
@@ -262,6 +297,150 @@ void GpuQueries::end_statistics(gpu::CommandEncoder & enc, u32 id)
   enc.end_statistics(statistics_, id);
 }
 
+u32 FrameGraph::push_ssbo(Span<u8 const> data)
+{
+  CHECK(!uploaded_, "");
+  auto const offset = sb_data_.size();
+  sb_data_.extend(data).unwrap();
+  auto const size = data.size();
+  auto const idx  = sb_entries_.size();
+  CHECK(sb_data_.size() <= U32_MAX, "");
+  sb_entries_.push(Slice32{(u32) offset, (u32) size}).unwrap();
+  auto const aligned_size =
+    align_offset<usize>(gpu::BUFFER_OFFSET_ALIGNMENT, sb_data_.size());
+  sb_data_.resize_uninit(aligned_size).unwrap();
+
+  return (u32) idx;
+}
+
+Tuple<StructuredBuffer, Slice32> FrameGraph::get_structured_buffer(u32 id)
+{
+  CHECK(uploaded_, "");
+  Slice32 slice = sb_entries_.try_get(id).unwrap();
+  return {frame_data_[ring_index_].sb, slice};
+}
+
+void FrameGraph::add_pass(Pass pass)
+{
+  passes_.push(std::move(pass)).unwrap();
+}
+
+void FrameGraph::FrameData::release(GpuSystem & gpu)
+{
+  sb.release(gpu);
+  staging.release(gpu);
+}
+
+void FrameGraph::execute(GpuSystem & gpu)
+{
+  auto & f = frame_data_[ring_index_];
+
+  // these buffers are expected to be very large so we should reset them on every frame when they aren't being used
+  f.staging.reserve_exact(gpu, staging_data_.size(), false);
+  f.staging.assign(gpu, staging_data_);
+  staging_data_.reset();
+
+  f.sb.reserve_exact(gpu, sb_data_.size(), false);
+  f.sb.assign(gpu, sb_data_);
+  sb_data_.reset();
+
+  uploaded_ = true;
+
+  auto const timespan = gpu.begin_timespan("gpu.frame"_str);
+
+  {
+    auto const timespan = gpu.begin_timespan("gpu.uploads"_str);
+    for (auto const & upload : uploads_)
+    {
+      upload.encoder(gpu.encoder(), f.staging.buffer_, upload.slice);
+    }
+    timespan.match([&](auto i) { gpu.end_timespan(i); });
+  }
+
+  for (auto const & task : tasks_)
+  {
+    task();
+  }
+
+  {
+    auto const timespan = gpu.begin_timespan("gpu.passes"_str);
+    for (auto const & pass : passes_)
+    {
+      auto const timespan = gpu.begin_timespan(pass.label);
+      auto const stat     = gpu.begin_statistics(pass.label);
+      pass.encoder(*this, gpu.encoder());
+      stat.match([&](auto i) { gpu.end_statistics(i); });
+      timespan.match([&](auto i) { gpu.end_timespan(i); });
+    }
+    timespan.match([&](auto i) { gpu.end_timespan(i); });
+  }
+
+  timespan.match([&](auto i) { gpu.end_timespan(i); });
+
+  ring_index_ = (ring_index_ + 1) % frame_data_.size32();
+  uploaded_   = false;
+  sb_entries_.clear();
+  uploads_.clear();
+  tasks_.clear();
+  passes_.clear();
+  arena_.reclaim();
+}
+
+void FrameGraph::acquire(GpuSystem & gpu)
+{
+  frame_data_.resize(gpu.buffering_).unwrap();
+}
+
+void FrameGraph::release(GpuSystem & gpu)
+{
+  for (FrameData & f : frame_data_)
+  {
+    f.release(gpu);
+  }
+}
+
+static Option<gpu::Format> select_hdr_format(gpu::Device & dev)
+{
+  for (auto fmt : ColorTexture::HDR_FORMATS)
+  {
+    gpu::FormatProperties props = dev.get_format_properties(fmt).unwrap();
+    if (has_bits(props.optimal_tiling_features, ColorTexture::FEATURES))
+    {
+      return fmt;
+    }
+  }
+
+  return none;
+}
+
+static Option<gpu::Format> select_sdr_format(gpu::Device & dev)
+{
+  for (auto fmt : ColorTexture::SDR_FORMATS)
+  {
+    gpu::FormatProperties props = dev.get_format_properties(fmt).unwrap();
+    if (has_bits(props.optimal_tiling_features, ColorTexture::FEATURES))
+    {
+      return fmt;
+    }
+  }
+
+  return none;
+}
+
+static Option<gpu::Format> select_depth_format(gpu::Device & dev)
+{
+  for (auto fmt : DepthTexture::FORMATS)
+  {
+    gpu::FormatProperties props = dev.get_format_properties(fmt).unwrap();
+    if (has_bits(props.optimal_tiling_features, DepthTexture::FEATURES))
+    {
+      return fmt;
+    }
+  }
+
+  return none;
+}
+
 GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
                             Span<u8 const> pipeline_cache_data, bool use_hdr,
                             u32 buffering, gpu::SampleCount sample_count,
@@ -270,88 +449,32 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
   CHECK(buffering <= gpu::MAX_FRAME_BUFFERING, "");
   CHECK(initial_extent.x > 0 && initial_extent.y > 0, "");
 
-  u32 sel_hdr_color_format     = 0;
-  u32 sel_sdr_color_format     = 0;
-  u32 sel_depth_stencil_format = 0;
+  gpu::Format color_fmt = gpu::Format::Undefined;
 
   if (use_hdr)
   {
-    for (; sel_hdr_color_format < size(HDR_FORMATS); sel_hdr_color_format++)
-    {
-      gpu::FormatProperties props =
-        device.get_format_properties(HDR_FORMATS[sel_hdr_color_format])
-          .unwrap();
-      if (has_bits(props.optimal_tiling_features, COLOR_FEATURES))
-      {
-        break;
-      }
-    }
+    select_hdr_format(device).match(
+      [&](auto fmt) { color_fmt = fmt; },
+      [&]() {
+        warn("HDR mode requested but Device does not support "
+             "HDR formats, trying SDR formats"_str);
 
-    if (sel_hdr_color_format >= size(HDR_FORMATS))
-    {
-      warn("HDR mode requested but Device does not support "
-           "HDR render target, trying UNORM color");
-    }
-  }
-
-  if (!use_hdr || sel_hdr_color_format >= size(HDR_FORMATS))
-  {
-    for (; sel_sdr_color_format < size(SDR_FORMATS); sel_sdr_color_format++)
-    {
-      gpu::FormatProperties props =
-        device.get_format_properties(SDR_FORMATS[sel_sdr_color_format])
-          .unwrap();
-      if (has_bits(props.optimal_tiling_features, COLOR_FEATURES))
-      {
-        break;
-      }
-    }
-  }
-
-  for (; sel_depth_stencil_format < size(DEPTH_STENCIL_FORMATS);
-       sel_depth_stencil_format++)
-  {
-    gpu::FormatProperties props =
-      device
-        .get_format_properties(DEPTH_STENCIL_FORMATS[sel_depth_stencil_format])
-        .unwrap();
-    if (has_bits(props.optimal_tiling_features, DEPTH_STENCIL_FEATURES))
-    {
-      break;
-    }
-  }
-
-  gpu::Format color_format = gpu::Format::Undefined;
-
-  if (use_hdr)
-  {
-    CHECK(sel_sdr_color_format < size(SDR_FORMATS) ||
-            sel_hdr_color_format < size(HDR_FORMATS),
-          "Device doesn't support any known color format");
-    if (sel_hdr_color_format != size(HDR_FORMATS))
-    {
-      color_format = HDR_FORMATS[sel_hdr_color_format];
-    }
-    else
-    {
-      color_format = SDR_FORMATS[sel_sdr_color_format];
-    }
+        color_fmt = select_sdr_format(device).unwrap(
+          "Device doesn't support any known color format"_str);
+      });
   }
   else
   {
-    CHECK(sel_sdr_color_format < size(SDR_FORMATS),
-          "Device doesn't support any known color format");
-    color_format = SDR_FORMATS[sel_sdr_color_format];
+    color_fmt = select_sdr_format(device).unwrap(
+      "Device doesn't support any known color format"_str);
   }
 
-  CHECK(sel_depth_stencil_format < size(DEPTH_STENCIL_FORMATS),
-        "Device doesn't support any known depth stencil format");
-  gpu::Format depth_stencil_format =
-    DEPTH_STENCIL_FORMATS[sel_depth_stencil_format];
+  gpu::Format depth_fmt = select_depth_format(device).unwrap(
+    "Device doesn't support any known depth-stencil formats"_str);
 
-  trace("Selected color format: {}", color_format);
+  trace("Selected color format: {}"_str, color_fmt);
 
-  trace("Selected depth stencil format: {}", depth_stencil_format);
+  trace("Selected depth stencil format: {}"_str, depth_fmt);
 
   gpu::PipelineCache pipeline_cache =
     device
@@ -364,7 +487,7 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
   gpu::DescriptorSetLayout ubo_layout =
     device
       .create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo{
-        .label    = "UBO Layout"_str,
+        .label    = "ConstantBuffer Layout"_str,
         .bindings = span({gpu::DescriptorBindingInfo{
           .type               = gpu::DescriptorType::DynamicUniformBuffer,
           .count              = 1,
@@ -376,7 +499,7 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
   gpu::DescriptorSetLayout ssbo_layout =
     device
       .create_descriptor_set_layout(gpu::DescriptorSetLayoutInfo{
-        .label    = "SSBO Layout"_str,
+        .label    = "StructuredBuffer Layout"_str,
         .bindings = span({gpu::DescriptorBindingInfo{
           .type               = gpu::DescriptorType::DynamicStorageBuffer,
           .count              = 1,
@@ -465,8 +588,8 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
                 pipeline_cache,
                 buffering,
                 sample_count,
-                color_format,
-                depth_stencil_format,
+                color_fmt,
+                depth_fmt,
                 ubo_layout,
                 ssbo_layout,
                 textures_layout,
@@ -476,8 +599,7 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
                 default_image,
                 {},
                 std::move(released_objects),
-                GpuTaskQueue::make(allocator),
-                GpuUploadQueue::make(buffering, allocator),
+                FrameGraph{allocator},
                 std::move(queries)};
 
   {
@@ -644,6 +766,7 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
     }
   }
 
+  gpu.frame_graph_.acquire(gpu);
   gpu.recreate_framebuffers(initial_extent);
 
   return gpu;
@@ -651,6 +774,7 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
 
 void GpuSystem::shutdown(Vec<u8> & cache)
 {
+  frame_graph_.release(*this);
   device_->get_pipeline_cache_data(pipeline_cache_, cache).unwrap();
   release(textures_);
   for (gpu::ImageView v : default_image_views_)
@@ -659,14 +783,18 @@ void GpuSystem::shutdown(Vec<u8> & cache)
   }
   release(default_image_);
   release(samplers_);
-  release(ubo_layout_);
-  release(ssbo_layout_);
+  release(cb_layout_);
+  release(sb_layout_);
   release(textures_layout_);
   release(samplers_layout_);
   release(fb_);
-  for (Framebuffer & fb : scratch_fbs_)
+  for (auto & tex : scratch_color_)
   {
-    release(fb);
+    release(tex);
+  }
+  for (auto & tex : scratch_depth_)
+  {
+    release(tex);
   }
   for (auto const & [_, sampler] : sampler_cache_)
   {
@@ -678,43 +806,28 @@ void GpuSystem::shutdown(Vec<u8> & cache)
   default_image_views_ = {};
   default_image_       = {};
   samplers_            = {};
-  ubo_layout_          = {};
+  cb_layout_           = {};
+  sb_layout_           = {};
   textures_layout_     = {};
   samplers_layout_     = {};
   fb_                  = {};
-  fill(scratch_fbs_, Framebuffer{});
+  fill(scratch_color_, ColorTexture{});
+  fill(scratch_depth_, DepthTexture{});
   sampler_cache_  = {};
   pipeline_cache_ = {};
 
   idle_reclaim();
 }
 
-static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
-                                 Vec2U new_extent, Str prefix, usize index)
+static ColorTexture create_color_texture(GpuSystem & gpu, Vec2U new_extent,
+                                         Str prefix, usize index)
 {
-  gpu.release(fb);
-  fb                = Framebuffer{};
-  gpu::Device & dev = *gpu.device_;
-
-  auto make_label = [&](Str type) {
-    gpu::Label label;
-    fmt::Op    scratch[fmt::MAX_ARGS];
-
-    fmt::Context ctx{
-      fn(
-        &label, +[](gpu::Label * b, Str str) { b->extend(str).unwrap(); }),
-      Buffer<fmt::Op>{scratch}};
-
-    CHECK(ctx.format("{} [{}]: {}", prefix, index, type).error ==
-            fmt::Error::None,
-          "");
-    return label;
-  };
-
-  auto image_label = make_label("Resolved Framebuffer Color Image"_str);
+  auto label =
+    snformat<gpu::MAX_LABEL_SIZE>("Color Texture: {} [{}]"_str, prefix, index)
+      .unwrap();
 
   gpu::ImageInfo info{
-    .label  = image_label,
+    .label  = label,
     .type   = gpu::ImageType::Type2D,
     .format = gpu.color_format_,
     .usage  = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::Sampled |
@@ -727,9 +840,11 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
     .sample_count = gpu::SampleCount::C1
   };
 
-  gpu::Image image = dev.create_image(info).unwrap();
+  gpu::Image image = gpu.device_->create_image(info).unwrap();
 
-  auto view_label = make_label("Resolved Framebuffer Color Image View"_str);
+  auto view_label = snformat<gpu::MAX_LABEL_SIZE>(
+                      "Color Texture View: {} [{}]"_str, prefix, index)
+                      .unwrap();
 
   gpu::ImageViewInfo view_info{.label             = view_label,
                                .image             = image,
@@ -742,170 +857,227 @@ static void recreate_framebuffer(GpuSystem & gpu, Framebuffer & fb,
                                .first_array_layer = 0,
                                .num_array_layers  = 1};
 
-  gpu::ImageView view = dev.create_image_view(view_info).unwrap();
+  gpu::ImageView view = gpu.device_->create_image_view(view_info).unwrap();
 
-  auto texture_label =
-    make_label("Resolved Framebuffer Color Image Descriptor"_str);
+  auto texture_label = snformat<gpu::MAX_LABEL_SIZE>(
+                         "Color Texture Descriptor: {} [{}]"_str, prefix, index)
+                         .unwrap();
 
-  gpu::DescriptorSet texture = dev
-                                 .create_descriptor_set(gpu::DescriptorSetInfo{
+  gpu::DescriptorSet texture = gpu.device_
+                                 ->create_descriptor_set(gpu::DescriptorSetInfo{
                                    .label            = texture_label,
                                    .layout           = gpu.textures_layout_,
                                    .variable_lengths = span<u32>({1})})
                                  .unwrap();
 
-  dev.update_descriptor_set(gpu::DescriptorSetUpdate{
+  gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
     .set     = texture,
     .binding = 0,
     .element = 0,
     .images  = span({gpu::ImageBinding{.image_view = view}})});
 
-  fb.color = Framebuffer::Color{.info      = info,
-                                .view_info = view_info,
-                                .image     = image,
-                                .view      = view,
-                                .texture   = texture};
+  info.label      = {};
+  view_info.label = {};
 
-  if (gpu.sample_count_ != gpu::SampleCount::C1)
+  return ColorTexture{.info      = info,
+                      .view_info = view_info,
+                      .image     = image,
+                      .view      = view,
+                      .texture   = texture};
+}
+
+static Option<ColorMsaaTexture> create_color_msaa_texture(GpuSystem & gpu,
+                                                          Vec2U new_extent,
+                                                          Str   prefix,
+                                                          usize index)
+{
+  if (gpu.sample_count_ == gpu::SampleCount::C1)
   {
-    auto image_label = make_label("Framebuffer MSAA Color Image"_str);
-
-    gpu::ImageInfo info{
-      .label  = image_label,
-      .type   = gpu::ImageType::Type2D,
-      .format = gpu.color_format_,
-      .usage = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::TransferSrc |
-               gpu::ImageUsage::TransferDst,
-      .aspects = gpu::ImageAspects::Color,
-      .extent{new_extent.x, new_extent.y, 1},
-      .mip_levels   = 1,
-      .array_layers = 1,
-      .sample_count = gpu.sample_count_
-    };
-
-    gpu::Image image = dev.create_image(info).unwrap();
-
-    auto view_label = make_label("Framebuffer MSAA Color Image View"_str);
-
-    gpu::ImageViewInfo view_info{.label           = view_label,
-                                 .image           = image,
-                                 .view_type       = gpu::ImageViewType::Type2D,
-                                 .view_format     = info.format,
-                                 .mapping         = {},
-                                 .aspects         = gpu::ImageAspects::Color,
-                                 .first_mip_level = 0,
-                                 .num_mip_levels  = 1,
-                                 .first_array_layer = 0,
-                                 .num_array_layers  = 1};
-
-    gpu::ImageView view = dev.create_image_view(view_info).unwrap();
-
-    fb.color_msaa = Framebuffer::ColorMsaa{
-      .info = info, .view_info = view_info, .image = image, .view = view};
+    return none;
   }
 
-  {
-    auto image_label = make_label("Framebuffer Depth & Stencil Image"_str);
+  auto label = snformat<gpu::MAX_LABEL_SIZE>("MSAA Color Texture: {} [{}]"_str,
+                                             prefix, index)
+                 .unwrap();
 
-    gpu::ImageInfo info{
-      .label  = image_label,
-      .type   = gpu::ImageType::Type2D,
-      .format = gpu.depth_stencil_format_,
-      .usage  = gpu::ImageUsage::DepthStencilAttachment |
-               gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
-               gpu::ImageUsage::TransferSrc,
-      .aspects = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
-      .extent{new_extent.x, new_extent.y, 1},
-      .mip_levels   = 1,
-      .array_layers = 1,
-      .sample_count = gpu::SampleCount::C1
-    };
+  gpu::ImageInfo info{
+    .label  = label,
+    .type   = gpu::ImageType::Type2D,
+    .format = gpu.color_format_,
+    .usage  = gpu::ImageUsage::ColorAttachment | gpu::ImageUsage::TransferSrc |
+             gpu::ImageUsage::TransferDst,
+    .aspects = gpu::ImageAspects::Color,
+    .extent{new_extent.x, new_extent.y, 1},
+    .mip_levels   = 1,
+    .array_layers = 1,
+    .sample_count = gpu.sample_count_
+  };
 
-    gpu::Image image = dev.create_image(info).unwrap();
+  gpu::Image image = gpu.device_->create_image(info).unwrap();
 
-    auto view_label = make_label("Framebuffer Depth Image View"_str);
+  auto view_label = snformat<gpu::MAX_LABEL_SIZE>(
+                      "MSAA Color Texture View: {} [{}]"_str, prefix, index)
+                      .unwrap();
 
-    gpu::ImageViewInfo view_info{.label           = view_label,
-                                 .image           = image,
-                                 .view_type       = gpu::ImageViewType::Type2D,
-                                 .view_format     = info.format,
-                                 .mapping         = {},
-                                 .aspects         = gpu::ImageAspects::Depth,
-                                 .first_mip_level = 0,
-                                 .num_mip_levels  = 1,
-                                 .first_array_layer = 0,
-                                 .num_array_layers  = 1};
+  gpu::ImageViewInfo view_info{.label             = view_label,
+                               .image             = image,
+                               .view_type         = gpu::ImageViewType::Type2D,
+                               .view_format       = info.format,
+                               .mapping           = {},
+                               .aspects           = gpu::ImageAspects::Color,
+                               .first_mip_level   = 0,
+                               .num_mip_levels    = 1,
+                               .first_array_layer = 0,
+                               .num_array_layers  = 1};
 
-    gpu::ImageView view = dev.create_image_view(view_info).unwrap();
+  gpu::ImageView view = gpu.device_->create_image_view(view_info).unwrap();
 
-    auto stencil_view_label = make_label("Framebuffer Stencil Image View"_str);
+  info.label      = {};
+  view_info.label = {};
 
-    gpu::ImageViewInfo stencil_view_info{.label = stencil_view_label,
-                                         .image = image,
-                                         .view_type =
-                                           gpu::ImageViewType::Type2D,
-                                         .view_format = info.format,
-                                         .mapping     = {},
-                                         .aspects = gpu::ImageAspects::Stencil,
-                                         .first_mip_level   = 0,
-                                         .num_mip_levels    = 1,
-                                         .first_array_layer = 0,
-                                         .num_array_layers  = 1};
+  return ColorMsaaTexture{
+    .info = info, .view_info = view_info, .image = image, .view = view};
+}
 
-    gpu::ImageView stencil_view =
-      dev.create_image_view(stencil_view_info).unwrap();
+static DepthTexture create_depth_texture(GpuSystem & gpu, Vec2U new_extent,
+                                         Str prefix, usize index)
+{
+  auto label =
+    snformat<gpu::MAX_LABEL_SIZE>("Depth Texture: {} [{}]"_str, prefix, index)
+      .unwrap();
 
-    auto texture_label = make_label("Framebuffer Depth Image Descriptor"_str);
+  gpu::ImageInfo info{
+    .label  = label,
+    .type   = gpu::ImageType::Type2D,
+    .format = gpu.depth_format_,
+    .usage  = gpu::ImageUsage::DepthStencilAttachment |
+             gpu::ImageUsage::Sampled | gpu::ImageUsage::TransferDst |
+             gpu::ImageUsage::TransferSrc,
+    .aspects = gpu::ImageAspects::Depth | gpu::ImageAspects::Stencil,
+    .extent{new_extent.x, new_extent.y, 1},
+    .mip_levels   = 1,
+    .array_layers = 1,
+    .sample_count = gpu::SampleCount::C1
+  };
 
-    gpu::DescriptorSet texture =
-      dev
-        .create_descriptor_set(
-          gpu::DescriptorSetInfo{.label            = texture_label,
-                                 .layout           = gpu.textures_layout_,
-                                 .variable_lengths = span<u32>({1})})
-        .unwrap();
+  gpu::Image image = gpu.device_->create_image(info).unwrap();
 
-    dev.update_descriptor_set(gpu::DescriptorSetUpdate{
-      .set     = texture,
-      .binding = 0,
-      .element = 0,
-      .images  = span({gpu::ImageBinding{.image_view = view}})});
+  auto view_label = snformat<gpu::MAX_LABEL_SIZE>(
+                      "Depth Texture View - Depth: {} [{}]"_str, prefix, index)
+                      .unwrap();
 
-    auto stencil_texture_label =
-      make_label("Framebuffer Stencil Image Descriptor"_str);
+  gpu::ImageViewInfo view_info{.label             = view_label,
+                               .image             = image,
+                               .view_type         = gpu::ImageViewType::Type2D,
+                               .view_format       = info.format,
+                               .mapping           = {},
+                               .aspects           = gpu::ImageAspects::Depth,
+                               .first_mip_level   = 0,
+                               .num_mip_levels    = 1,
+                               .first_array_layer = 0,
+                               .num_array_layers  = 1};
 
-    gpu::DescriptorSet stencil_texture =
-      dev
-        .create_descriptor_set(
-          gpu::DescriptorSetInfo{.label            = stencil_texture_label,
-                                 .layout           = gpu.textures_layout_,
-                                 .variable_lengths = span<u32>({1})})
-        .unwrap();
+  gpu::ImageView view = gpu.device_->create_image_view(view_info).unwrap();
 
-    dev.update_descriptor_set(gpu::DescriptorSetUpdate{
-      .set     = stencil_texture,
-      .binding = 0,
-      .element = 0,
-      .images  = span({gpu::ImageBinding{.image_view = stencil_view}})});
+  auto stencil_view_label =
+    snformat<gpu::MAX_LABEL_SIZE>("Depth Texture View - Stencil: {} [{}]"_str,
+                                  prefix, index)
+      .unwrap();
 
-    fb.depth = Framebuffer::Depth{.info              = info,
-                                  .view_info         = view_info,
-                                  .stencil_view_info = stencil_view_info,
-                                  .image             = image,
-                                  .view              = view,
-                                  .stencil_view      = stencil_view,
-                                  .texture           = texture,
-                                  .stencil_texture   = stencil_texture};
-  }
+  gpu::ImageViewInfo stencil_view_info{.label     = stencil_view_label,
+                                       .image     = image,
+                                       .view_type = gpu::ImageViewType::Type2D,
+                                       .view_format = info.format,
+                                       .mapping     = {},
+                                       .aspects = gpu::ImageAspects::Stencil,
+                                       .first_mip_level   = 0,
+                                       .num_mip_levels    = 1,
+                                       .first_array_layer = 0,
+                                       .num_array_layers  = 1};
+
+  gpu::ImageView stencil_view =
+    gpu.device_->create_image_view(stencil_view_info).unwrap();
+
+  auto texture_label =
+    snformat<gpu::MAX_LABEL_SIZE>(
+      "Depth Texture Descriptor - Depth: {} [{}]"_str, prefix, index)
+      .unwrap();
+
+  gpu::DescriptorSet texture = gpu.device_
+                                 ->create_descriptor_set(gpu::DescriptorSetInfo{
+                                   .label            = texture_label,
+                                   .layout           = gpu.textures_layout_,
+                                   .variable_lengths = span<u32>({1})})
+                                 .unwrap();
+
+  gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
+    .set     = texture,
+    .binding = 0,
+    .element = 0,
+    .images  = span({gpu::ImageBinding{.image_view = view}})});
+
+  auto stencil_texture_label =
+    snformat<gpu::MAX_LABEL_SIZE>(
+      "Depth Texture Descriptor - Stencil: {} [{}]"_str, prefix, index)
+      .unwrap();
+
+  gpu::DescriptorSet stencil_texture =
+    gpu.device_
+      ->create_descriptor_set(
+        gpu::DescriptorSetInfo{.label            = stencil_texture_label,
+                               .layout           = gpu.textures_layout_,
+                               .variable_lengths = span<u32>({1})})
+      .unwrap();
+
+  gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
+    .set     = stencil_texture,
+    .binding = 0,
+    .element = 0,
+    .images  = span({gpu::ImageBinding{.image_view = stencil_view}})});
+
+  info.label              = {};
+  view_info.label         = {};
+  stencil_view_info.label = {};
+
+  return DepthTexture{.info              = info,
+                      .view_info         = view_info,
+                      .stencil_view_info = stencil_view_info,
+                      .image             = image,
+                      .view              = view,
+                      .stencil_view      = stencil_view,
+                      .texture           = texture,
+                      .stencil_texture   = stencil_texture};
 }
 
 void GpuSystem::recreate_framebuffers(Vec2U new_extent)
 {
   idle_reclaim();
-  recreate_framebuffer(*this, fb_, new_extent, "Main"_str, 0);
-  for (auto [i, scratch_fb] : enumerate(scratch_fbs_))
+  release(fb_.color);
+  release(fb_.depth);
+  fb_.color_msaa.match([&](auto & c) { release(c); });
+
+  for (auto & scratch_color : scratch_color_)
   {
-    recreate_framebuffer(*this, scratch_fb, new_extent, "Scratch"_str, i);
+    release(scratch_color);
+  }
+
+  for (auto & scratch_depth : scratch_depth_)
+  {
+    release(scratch_depth);
+  }
+
+  fb_.color      = create_color_texture(*this, new_extent, "Main"_str, 0);
+  fb_.depth      = create_depth_texture(*this, new_extent, "Main"_str, 0);
+  fb_.color_msaa = create_color_msaa_texture(*this, new_extent, "Main"_str, 0);
+
+  for (auto [i, tex] : enumerate(scratch_color_))
+  {
+    tex = create_color_texture(*this, new_extent, "Scratch"_str, i);
+  }
+
+  for (auto [i, tex] : enumerate(scratch_depth_))
+  {
+    tex = create_depth_texture(*this, new_extent, "Scratch"_str, i);
   }
 }
 
@@ -957,7 +1129,7 @@ TextureId GpuSystem::alloc_texture_id(gpu::ImageView view)
   CHECK(i < size_bits(texture_slots_), "Out of Texture Slots");
   set_bit(texture_slots_, i);
 
-  add_pre_frame_task([i, this, view]() {
+  add_task([i, this, view]() {
     device_->update_descriptor_set(gpu::DescriptorSetUpdate{
       .set     = textures_,
       .binding = 0,
@@ -973,7 +1145,7 @@ void GpuSystem::release_texture_id(TextureId id)
   u32 const i = (u32) id;
   clear_bit(texture_slots_, i);
 
-  add_pre_frame_task([i, this]() {
+  add_task([i, this]() {
     device_->unbind_descriptor_set(textures_, 0, Slice32{i, 1});
   });
 }
@@ -984,7 +1156,7 @@ SamplerId GpuSystem::alloc_sampler_id(gpu::Sampler sampler)
   CHECK(i < size_bits(sampler_slots_), "Out of Sampler Slots");
   set_bit(sampler_slots_, i);
 
-  add_pre_frame_task([i, this, sampler]() {
+  add_task([i, this, sampler]() {
     device_->update_descriptor_set(gpu::DescriptorSetUpdate{
       .set     = samplers_,
       .binding = 0,
@@ -1000,7 +1172,7 @@ void GpuSystem::release_sampler_id(SamplerId id)
   u32 const i = (u32) id;
   clear_bit(sampler_slots_, i);
 
-  add_pre_frame_task([i, this]() {
+  add_task([i, this]() {
     device_->unbind_descriptor_set(samplers_, 0, Slice32{i, 1});
   });
 }
@@ -1015,34 +1187,33 @@ void GpuSystem::release(gpu::Object object)
   released_objects_[ring_index()].push(object).unwrap();
 }
 
-void GpuSystem::release(Framebuffer::Color const & fb)
-
+void GpuSystem::release(ColorTexture tex)
 {
-  release(fb.texture);
-  release(fb.view);
-  release(fb.image);
+  release(tex.texture);
+  release(tex.view);
+  release(tex.image);
 }
 
-void GpuSystem::release(Framebuffer::ColorMsaa const & fb)
+void GpuSystem::release(ColorMsaaTexture tex)
 {
-  release(fb.view);
-  release(fb.image);
+  release(tex.view);
+  release(tex.image);
 }
 
-void GpuSystem::release(Framebuffer::Depth const & fb)
+void GpuSystem::release(DepthTexture tex)
 {
-  release(fb.texture);
-  release(fb.stencil_texture);
-  release(fb.view);
-  release(fb.stencil_view);
-  release(fb.image);
+  release(tex.texture);
+  release(tex.stencil_texture);
+  release(tex.view);
+  release(tex.stencil_view);
+  release(tex.image);
 }
 
-void GpuSystem::release(Framebuffer const & fb)
+void GpuSystem::release(Framebuffer tex)
 {
-  release(fb.color);
-  fb.color_msaa.match([&](Framebuffer::ColorMsaa const & f) { release(f); });
-  release(fb.depth);
+  release(tex.color);
+  tex.color_msaa.match([&](auto const & f) { release(f); });
+  release(tex.depth);
 }
 
 static void uninit_objects(gpu::Device & d, Span<gpu::Object const> objects)
@@ -1080,19 +1251,16 @@ void GpuSystem::idle_reclaim()
   }
 }
 
-void GpuSystem::begin_frame(gpu::Swapchain swapchain)
+void GpuSystem::frame(gpu::Swapchain swapchain)
 {
   ScopeTrace trace;
   device_->begin_frame(swapchain).unwrap();
   uninit_objects(*device_, released_objects_[ring_index()]);
   released_objects_[ring_index()].clear();
 
-  gpu::CommandEncoder & enc = encoder();
+  auto & enc = encoder();
 
   queries_[ring_index()].begin_frame(*device_, enc);
-
-  upload_.encode(*device_, enc);
-  tasks_.run();
 
   auto clear_color = [&](gpu::Image image) {
     enc.clear_color_image(
@@ -1120,33 +1288,18 @@ void GpuSystem::begin_frame(gpu::Swapchain swapchain)
   };
 
   clear_color(fb_.color.image);
-  fb_.color_msaa.match(
-    [&](Framebuffer::ColorMsaa const & c) { clear_color(c.image); });
+  fb_.color_msaa.match([&](auto & c) { clear_color(c.image); });
   clear_depth(fb_.depth.image);
 
-  for (Framebuffer & fb : scratch_fbs_)
-  {
-    clear_color(fb.color.image);
-    fb.color_msaa.match(
-      [&](Framebuffer::ColorMsaa const & c) { clear_color(c.image); });
-    clear_depth(fb.depth.image);
-  }
-}
+  frame_graph_.execute(*this);
 
-void GpuSystem::submit_frame(gpu::Swapchain swapchain)
-{
-  ScopeTrace            trace;
-  gpu::CommandEncoder & enc = encoder();
   if (swapchain != nullptr)
   {
-    gpu::SwapchainState swapchain_state =
-      device_->get_swapchain_state(swapchain).unwrap();
+    auto swapchain_state = device_->get_swapchain_state(swapchain).unwrap();
 
-    if (swapchain_state.current_image.is_some())
-    {
+    swapchain_state.current_image.match([&](auto idx) {
       enc.blit_image(
-        fb_.color.image,
-        swapchain_state.images[swapchain_state.current_image.unwrap()],
+        fb_.color.image, swapchain_state.images[idx],
         span({
           gpu::ImageBlit{
                          .src_layers = {.aspects           = gpu::ImageAspects::Color,
@@ -1161,8 +1314,9 @@ void GpuSystem::submit_frame(gpu::Swapchain swapchain)
                          .dst_area   = {{0, 0, 0}, vec3u(swapchain_state.extent, 1)}}
       }),
         gpu::Filter::Linear);
-    }
+    });
   }
+
   device_->submit_frame(swapchain).unwrap();
 }
 
@@ -1184,92 +1338,6 @@ Option<u32> GpuSystem::begin_statistics(Str label)
 void GpuSystem::end_statistics(u32 id)
 {
   return queries_[ring_index()].end_statistics(encoder(), id);
-}
-
-void SSBO::uninit(GpuSystem & gpu)
-{
-  gpu.device_->uninit(descriptor);
-  gpu.device_->uninit(buffer);
-  buffer     = nullptr;
-  size       = 0;
-  descriptor = nullptr;
-}
-
-void SSBO::reserve(GpuSystem & gpu, u64 target_size)
-{
-  target_size = max(target_size, (u64) 1);
-  if (size >= target_size)
-  {
-    return;
-  }
-
-  gpu.device_->uninit(buffer);
-
-  buffer =
-    gpu.device_
-      ->create_buffer(gpu::BufferInfo{.label       = label,
-                                      .size        = target_size,
-                                      .host_mapped = true,
-                                      .usage = gpu::BufferUsage::TransferSrc |
-                                               gpu::BufferUsage::TransferDst |
-                                               gpu::BufferUsage::UniformBuffer |
-                                               gpu::BufferUsage::StorageBuffer})
-      .unwrap();
-
-  if (descriptor == nullptr)
-  {
-    descriptor =
-      gpu.device_
-        ->create_descriptor_set(gpu::DescriptorSetInfo{
-          .label = label, .layout = gpu.ssbo_layout_, .variable_lengths = {}})
-        .unwrap();
-  }
-
-  gpu.device_->update_descriptor_set(gpu::DescriptorSetUpdate{
-    .set     = descriptor,
-    .binding = 0,
-    .element = 0,
-    .buffers = span({gpu::BufferBinding{
-      .buffer = buffer, .offset = 0, .size = target_size}}
-      )
-  });
-
-  size = target_size;
-}
-
-void SSBO::assign(GpuSystem & gpu, Span<u8 const> src)
-{
-  reserve(gpu, src.size64());
-  u8 * data = (u8 *) map(gpu);
-  mem::copy(src, data);
-  flush(gpu);
-  unmap(gpu);
-}
-
-void * SSBO::map(GpuSystem & gpu)
-{
-  return gpu.device_->map_buffer_memory(buffer).unwrap();
-}
-
-void SSBO::unmap(GpuSystem & gpu)
-{
-  gpu.device_->unmap_buffer_memory(buffer);
-}
-
-void SSBO::flush(GpuSystem & gpu)
-{
-  gpu.device_
-    ->flush_mapped_buffer_memory(buffer, gpu::MemoryRange{0, gpu::WHOLE_SIZE})
-    .unwrap();
-}
-
-void SSBO::release(GpuSystem & gpu)
-{
-  gpu.release(buffer);
-  gpu.release(descriptor);
-  buffer     = nullptr;
-  size       = 0;
-  descriptor = nullptr;
 }
 
 }    // namespace ash

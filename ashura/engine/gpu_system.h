@@ -39,77 +39,111 @@ enum class SamplerId : u32
 
 inline constexpr u32 NUM_DEFAULT_SAMPLERS = 4;
 
-struct Framebuffer
+/// @brief created with sampled, storage, color attachment, and transfer flags
+struct ColorTexture
 {
-  /// @brief created with sampled, storage, color attachment, and transfer flags
-  struct Color
-  {
-    gpu::ImageInfo info = {};
+  static constexpr gpu::FormatFeatures FEATURES =
+    gpu::FormatFeatures::ColorAttachment |
+    gpu::FormatFeatures::ColorAttachmentBlend |
+    gpu::FormatFeatures::StorageImage | gpu::FormatFeatures::SampledImage;
 
-    gpu::ImageViewInfo view_info = {};
+  static constexpr gpu::Format HDR_FORMATS[] = {
+    gpu::Format::R16G16B16A16_SFLOAT};
 
-    gpu::Image image = nullptr;
+  static constexpr gpu::Format SDR_FORMATS[] = {gpu::Format::B8G8R8A8_UNORM,
+                                                gpu::Format::R8G8B8A8_UNORM};
 
-    gpu::ImageView view = nullptr;
+  gpu::ImageInfo info = {};
 
-    gpu::DescriptorSet texture = nullptr;
+  gpu::ImageViewInfo view_info = {};
 
-    static constexpr TextureId texture_id = TextureId::Base;
-  };
+  gpu::Image image = nullptr;
 
-  /// @brief created with color attachment flag
-  struct ColorMsaa
-  {
-    gpu::ImageInfo info = {};
+  gpu::ImageView view = nullptr;
 
-    gpu::ImageViewInfo view_info = {};
+  gpu::DescriptorSet texture = nullptr;
 
-    gpu::Image image = nullptr;
-
-    /// @brief to preserve bandwidth (especially for tiled architectures), preferably
-    /// use `StoreOp::DontCare` and `LoadOp::Clear/LoadOp::DontCare` in the render passes.
-    gpu::ImageView view = nullptr;
-
-    constexpr gpu::SampleCount sample_count() const
-    {
-      return info.sample_count;
-    }
-  };
-
-  struct Depth
-  {
-    gpu::ImageInfo info = {};
-
-    gpu::ImageViewInfo view_info = {};
-
-    gpu::ImageViewInfo stencil_view_info = {};
-
-    gpu::Image image = nullptr;
-
-    gpu::ImageView view = nullptr;
-
-    gpu::ImageView stencil_view = {};
-
-    gpu::DescriptorSet texture = nullptr;
-
-    static constexpr TextureId texture_id = TextureId::Base;
-
-    gpu::DescriptorSet stencil_texture = nullptr;
-
-    static constexpr TextureId stencil_texture_id = TextureId::Base;
-  };
-
-  /// @brief color texture
-  Color color = {};
-
-  Option<ColorMsaa> color_msaa = none;
-
-  /// @brief combined depth and stencil aspect attachment
-  Depth depth = {};
+  static constexpr TextureId texture_id = TextureId::Base;
 
   constexpr Vec3U extent() const
   {
-    return color.info.extent;
+    return info.extent;
+  }
+};
+
+/// @brief created with color attachment flag
+struct ColorMsaaTexture
+{
+  gpu::ImageInfo info = {};
+
+  gpu::ImageViewInfo view_info = {};
+
+  gpu::Image image = nullptr;
+
+  /// @brief to preserve bandwidth (especially for tiled architectures), preferably
+  /// use `StoreOp::DontCare` and `LoadOp::Clear/LoadOp::DontCare` in the render passes.
+  gpu::ImageView view = nullptr;
+
+  constexpr gpu::SampleCount sample_count() const
+  {
+    return info.sample_count;
+  }
+
+  constexpr Vec3U extent() const
+  {
+    return info.extent;
+  }
+};
+
+struct DepthTexture
+{
+  static constexpr gpu::FormatFeatures FEATURES =
+    gpu::FormatFeatures::DepthStencilAttachment |
+    gpu::FormatFeatures::SampledImage;
+
+  static constexpr gpu::Format FORMATS[] = {gpu::Format::D16_UNORM_S8_UINT,
+                                            gpu::Format::D24_UNORM_S8_UINT,
+                                            gpu::Format::D32_SFLOAT_S8_UINT};
+
+  gpu::ImageInfo info = {};
+
+  gpu::ImageViewInfo view_info = {};
+
+  gpu::ImageViewInfo stencil_view_info = {};
+
+  gpu::Image image = nullptr;
+
+  gpu::ImageView view = nullptr;
+
+  gpu::ImageView stencil_view = {};
+
+  gpu::DescriptorSet texture = nullptr;
+
+  static constexpr TextureId texture_id = TextureId::Base;
+
+  gpu::DescriptorSet stencil_texture = nullptr;
+
+  static constexpr TextureId stencil_texture_id = TextureId::Base;
+
+  constexpr Vec3U extent() const
+  {
+    return info.extent;
+  }
+};
+
+struct Framebuffer
+{
+  /// @brief color texture
+  ColorTexture color = {};
+
+  Option<ColorMsaaTexture> color_msaa = none;
+
+  /// @brief combined depth and stencil aspect attachment
+  DepthTexture depth = {};
+
+  constexpr Vec3U extent() const
+  {
+    return color.extent();
   }
 };
 
@@ -158,136 +192,89 @@ struct Sampler
 typedef Map<gpu::SamplerInfo, Sampler, SamplerHasher, SamplerEq, u32>
   SamplerCache;
 
-struct StagingBuffer
+struct GpuSystem;
+
+struct GpuBuffer
 {
-  Str label = "Staging Buffer"_str;
+  Str label_;
 
-  gpu::Buffer buffer = nullptr;
+  gpu::Buffer buffer_ = nullptr;
 
-  u64 size = 0;
+  u64 size_ = 0;
 
-  bool is_valid() const
-  {
-    return buffer != nullptr;
-  }
+  u64 capacity_ = 0;
 
-  void uninit(gpu::Device & gpu);
+  gpu::BufferUsage usage_;
 
-  void reserve(gpu::Device & gpu, u64 target_size);
+  GpuBuffer(Str label, gpu::BufferUsage usage);
+  GpuBuffer(GpuBuffer const &)             = default;
+  GpuBuffer(GpuBuffer &&)                  = default;
+  GpuBuffer & operator=(GpuBuffer const &) = default;
+  GpuBuffer & operator=(GpuBuffer &&)      = default;
+  ~GpuBuffer()                             = default;
 
-  void grow(gpu::Device & gpu, u64 target_size);
+  bool is_valid() const;
 
-  void assign(gpu::Device & gpu, Span<u8 const> src);
+  void release(GpuSystem & gpu);
 
-  void * map(gpu::Device & gpu);
+  void reserve_exact(GpuSystem & gpu, u64 target_capacity, bool defer);
 
-  void unmap(gpu::Device & gpu);
+  void assign(GpuSystem & gpu, Span<u8 const> src);
 
-  void flush(gpu::Device & gpu);
+  void * map(GpuSystem & gpu);
+
+  void unmap(GpuSystem & gpu);
+
+  void flush(GpuSystem & gpu);
 };
 
-struct GpuTaskQueue
+struct ShaderBuffer
 {
-  ArenaPool arena_;
+  static constexpr gpu::BufferUsage USAGE =
+    gpu::BufferUsage::UniformBuffer | gpu::BufferUsage::StorageBuffer |
+    gpu::BufferUsage::UniformTexelBuffer |
+    gpu::BufferUsage::StorageTexelBuffer | gpu::BufferUsage::IndirectBuffer |
+    gpu::BufferUsage::TransferSrc | gpu::BufferUsage::TransferDst;
 
-  Vec<Dyn<Fn<void()>>> tasks_;
+  Str label_;
 
-  static GpuTaskQueue make(AllocatorRef allocator);
+  gpu::Buffer buffer_ = nullptr;
 
-  GpuTaskQueue(ArenaPool arena, Vec<Dyn<Fn<void()>>> tasks) :
-    arena_{std::move(arena)},
-    tasks_{std::move(tasks)}
-  {
-  }
+  u64 size_ = 0;
 
-  GpuTaskQueue(GpuTaskQueue const &)             = delete;
-  GpuTaskQueue & operator=(GpuTaskQueue const &) = delete;
-  GpuTaskQueue(GpuTaskQueue &&)                  = default;
-  GpuTaskQueue & operator=(GpuTaskQueue &&)      = default;
-  ~GpuTaskQueue()                                = default;
+  u64 capacity_ = 0;
 
-  template <typename Lambda>
-  void add(Lambda && task)
-  {
-    Dyn<Lambda *> lambda =
-      dyn(arena_.ref(), static_cast<Lambda &&>(task)).unwrap();
-    lambda.allocator_ = noop_allocator;
+  gpu::BufferUsage usage_;
 
-    auto f = fn(*lambda);
+  gpu::DescriptorSet descriptor_;
 
-    tasks_.push(transmute(std::move(lambda), f)).unwrap();
-  }
+  ShaderBuffer(Str label, gpu::BufferUsage usage = USAGE);
+  ShaderBuffer(ShaderBuffer const &)             = default;
+  ShaderBuffer(ShaderBuffer &&)                  = default;
+  ShaderBuffer & operator=(ShaderBuffer const &) = default;
+  ShaderBuffer & operator=(ShaderBuffer &&)      = default;
+  ~ShaderBuffer()                                = default;
 
-  void run();
+  bool is_valid() const;
+
+  void release(GpuSystem & gpu);
+
+  void uninit(GpuSystem & gpu);
+
+  void reserve_exact(GpuSystem & gpu, u64 target_capacity, bool defer);
+
+  void assign(GpuSystem & gpu, Span<u8 const> src);
+
+  void * map(GpuSystem & gpu);
+
+  void unmap(GpuSystem & gpu);
+
+  void flush(GpuSystem & gpu);
 };
 
-struct GpuUploadQueue
-{
-  typedef Fn<void(gpu::CommandEncoder &, gpu::Buffer buffer, Slice64)> Encoder;
+typedef ShaderBuffer StructuredBuffer;
 
-  struct Task
-  {
-    Slice64      slice{};
-    Dyn<Encoder> encoder;
-  };
-
-  struct UploadBuffer
-  {
-    StagingBuffer gpu{};
-    Vec<u8>       cpu{};
-  };
-
-  ArenaPool arena_;
-
-  InplaceVec<UploadBuffer, gpu::MAX_FRAME_BUFFERING> buffers_;
-
-  Vec<Task> tasks_;
-
-  u32 ring_index_;
-
-  static GpuUploadQueue make(u32 buffering, AllocatorRef allocator);
-
-  GpuUploadQueue(ArenaPool                                          arena,
-                 InplaceVec<UploadBuffer, gpu::MAX_FRAME_BUFFERING> buffers,
-                 Vec<Task>                                          tasks) :
-    arena_{std::move(arena)},
-    buffers_{std::move(buffers)},
-    tasks_{std::move(tasks)},
-    ring_index_{0}
-  {
-  }
-
-  GpuUploadQueue(GpuUploadQueue const &)           = delete;
-  GpuTaskQueue & operator=(GpuUploadQueue const &) = delete;
-  GpuUploadQueue(GpuUploadQueue &&)                = default;
-  GpuUploadQueue & operator=(GpuUploadQueue &&)    = default;
-  ~GpuUploadQueue()                                = default;
-
-  void uninit(gpu::Device & device);
-
-  template <typename Encoder>
-  void queue(Span<u8 const> buffer, Encoder && encoder)
-  {
-    UploadBuffer & upload = buffers_[ring_index_];
-
-    Slice64 slice{upload.cpu.size64(), 0};
-
-    upload.cpu.extend(buffer).unwrap();
-
-    slice.span = buffer.size64();
-
-    Dyn<Encoder *> lambda =
-      dyn(arena_.ref(), static_cast<Encoder &&>(encoder)).unwrap();
-    lambda.allocator_ = noop_allocator;
-
-    auto f = fn(*lambda);
-    tasks_
-      .push(Task{.slice = slice, .encoder = transmute(std::move(lambda), f)})
-      .unwrap();
-  }
-
-  void encode(gpu::Device & gpu, gpu::CommandEncoder & enc);
-};
+typedef ShaderBuffer ConstantBuffer;
 
 struct GpuQueries
 {
@@ -328,11 +315,11 @@ struct GpuQueries
   {
   }
 
-  GpuQueries(GpuQueries const &)               = delete;
-  GpuTaskQueue & operator=(GpuQueries const &) = delete;
-  GpuQueries(GpuQueries &&)                    = default;
-  GpuQueries & operator=(GpuQueries &&)        = default;
-  ~GpuQueries()                                = default;
+  GpuQueries(GpuQueries const &)             = delete;
+  GpuQueries & operator=(GpuQueries const &) = delete;
+  GpuQueries(GpuQueries &&)                  = default;
+  GpuQueries & operator=(GpuQueries &&)      = default;
+  ~GpuQueries()                              = default;
 
   void uninit(gpu::Device & dev);
 
@@ -347,42 +334,147 @@ struct GpuQueries
   void end_statistics(gpu::CommandEncoder & enc, u32 id);
 };
 
+struct FrameGraph
+{
+  typedef Fn<void(FrameGraph &, gpu::CommandEncoder &)> PassEncoderFn;
+  typedef Dyn<PassEncoderFn>                            PassEncoder;
+
+  typedef Fn<void(gpu::CommandEncoder &, gpu::Buffer buffer, Slice64)>
+                               UploadEncoderFn;
+  typedef Dyn<UploadEncoderFn> UploadEncoder;
+
+  typedef Fn<void()>  TaskFn;
+  typedef Dyn<TaskFn> Task;
+
+  struct Pass
+  {
+    Str         label;
+    PassEncoder encoder;
+  };
+
+  struct Upload
+  {
+    UploadEncoder encoder;
+    Slice64       slice;
+  };
+
+  struct FrameData
+  {
+    StructuredBuffer sb{"FrameGraph::StructuredBuffer"_str};
+    GpuBuffer        staging{"FrameGraph::StagingBuffer"_str,
+                      gpu::BufferUsage::TransferSrc |
+                        gpu::BufferUsage::TransferDst};
+
+    void release(GpuSystem & gpu);
+  };
+
+  typedef InplaceVec<FrameData, gpu::MAX_FRAME_BUFFERING> BufferedFrameData;
+
+  BufferedFrameData frame_data_;
+  u32               ring_index_;
+  bool              uploaded_;
+  Vec<u8>           sb_data_;
+  Vec<Slice32>      sb_entries_;
+  Vec<u8>           staging_data_;
+  Vec<Upload>       uploads_;
+  Vec<Task>         tasks_;
+  Vec<Pass>         passes_;
+  ArenaPool         arena_;
+
+  FrameGraph(AllocatorRef allocator) :
+    frame_data_{},
+    ring_index_{0},
+    uploaded_{false},
+    sb_data_{allocator},
+    sb_entries_{allocator},
+    staging_data_{allocator},
+    uploads_{allocator},
+    tasks_{allocator},
+    passes_{allocator},
+    arena_{allocator}
+  {
+  }
+
+  FrameGraph(FrameGraph const &)             = delete;
+  FrameGraph & operator=(FrameGraph const &) = delete;
+  FrameGraph(FrameGraph &&)                  = default;
+  FrameGraph & operator=(FrameGraph &&)      = default;
+  ~FrameGraph()                              = default;
+
+  u32 push_ssbo(Span<u8 const> data);
+
+  Tuple<StructuredBuffer, Slice32> get_structured_buffer(u32 id);
+
+  void add_pass(Pass pass);
+
+  template <typename Lambda>
+  void add_pass(Str label, Lambda && task)
+  {
+    // relocate lambda to heap
+    auto lambda       = dyn(arena_, static_cast<Lambda &&>(task)).unwrap();
+    // allocator is noop-ed but destructor still runs when the dynamic object is
+    // uninitialized. the memory is freed by at the end of the frame anyway so
+    // no need to free it
+    lambda.allocator_ = noop_allocator;
+
+    PassEncoderFn f{lambda.get()};
+
+    return add_pass(
+      Pass{.label = label, .encoder = transmute(std::move(lambda), f)});
+  }
+
+  template <typename Lambda>
+  void add_task(Lambda && task)
+  {
+    auto lambda       = dyn(arena_, static_cast<Lambda &&>(task)).unwrap();
+    lambda.allocator_ = noop_allocator;
+    TaskFn f{lambda.get()};
+
+    tasks_.push(transmute(std::move(lambda), f)).unwrap();
+  }
+
+  template <typename Encoder>
+  void upload(Span<u8 const> buffer, Encoder && encoder)
+  {
+    CHECK(!uploaded_, "");
+
+    auto const offset = staging_data_.size64();
+
+    staging_data_.extend(buffer).unwrap();
+
+    Slice64 const slice{offset, buffer.size64()};
+
+    auto lambda = dyn(arena_, static_cast<Encoder &&>(encoder)).unwrap();
+
+    lambda.allocator_ = noop_allocator;
+
+    UploadEncoderFn f{lambda.get()};
+
+    uploads_
+      .push(Upload{.encoder = transmute(std::move(lambda), f), .slice = slice})
+      .unwrap();
+  }
+
+  void execute(GpuSystem & gpu);
+
+  void acquire(GpuSystem & gpu);
+
+  void release(GpuSystem & gpu);
+};
+
 struct GpuSystem
 {
-  static constexpr gpu::FormatFeatures COLOR_FEATURES =
-    gpu::FormatFeatures::ColorAttachment |
-    gpu::FormatFeatures::ColorAttachmentBlend |
-    gpu::FormatFeatures::StorageImage | gpu::FormatFeatures::SampledImage;
-
-  static constexpr gpu::FormatFeatures DEPTH_STENCIL_FEATURES =
-    gpu::FormatFeatures::DepthStencilAttachment |
-    gpu::FormatFeatures::SampledImage;
-
-  static constexpr gpu::BufferUsage SSBO_USAGE =
-    gpu::BufferUsage::UniformBuffer | gpu::BufferUsage::StorageBuffer |
-    gpu::BufferUsage::UniformTexelBuffer |
-    gpu::BufferUsage::StorageTexelBuffer | gpu::BufferUsage::IndirectBuffer |
-    gpu::BufferUsage::TransferSrc | gpu::BufferUsage::TransferDst;
-
-  static constexpr gpu::Format HDR_FORMATS[] = {
-    gpu::Format::R16G16B16A16_SFLOAT};
-
-  static constexpr gpu::Format SDR_FORMATS[] = {gpu::Format::B8G8R8A8_UNORM,
-                                                gpu::Format::R8G8B8A8_UNORM};
-
-  static constexpr gpu::Format DEPTH_STENCIL_FORMATS[] = {
-    gpu::Format::D16_UNORM_S8_UINT, gpu::Format::D24_UNORM_S8_UINT,
-    gpu::Format::D32_SFLOAT_S8_UINT};
-
   static constexpr u32 NUM_TEXTURE_SLOTS = 2'048;
 
   static constexpr u32 NUM_SAMPLER_SLOTS = 128;
 
-  static constexpr u16 NUM_FRAME_TIMESPANS = 2'048;
+  static constexpr u32 NUM_FRAME_TIMESPANS = 2'048;
 
-  static constexpr u16 NUM_FRAME_STATISTICS = 4'096;
+  static constexpr u32 NUM_FRAME_STATISTICS = 4'096;
 
-  static constexpr u16 NUM_SCRATCH_FRAMBEBUFFERS = 2;
+  static constexpr u32 NUM_SCRATCH_COLOR_TEXTURES = 2;
+
+  static constexpr u32 NUM_SCRATCH_DEPTH_TEXTURES = 1;
 
   gpu::Device * device_;
 
@@ -397,11 +489,11 @@ struct GpuSystem
   /// @brief hdr if hdr supported and required.
   gpu::Format color_format_;
 
-  gpu::Format depth_stencil_format_;
+  gpu::Format depth_format_;
 
-  gpu::DescriptorSetLayout ubo_layout_;
+  gpu::DescriptorSetLayout cb_layout_;
 
-  gpu::DescriptorSetLayout ssbo_layout_;
+  gpu::DescriptorSetLayout sb_layout_;
 
   gpu::DescriptorSetLayout textures_layout_;
 
@@ -415,7 +507,9 @@ struct GpuSystem
 
   Framebuffer fb_;
 
-  Framebuffer scratch_fbs_[NUM_SCRATCH_FRAMBEBUFFERS];
+  ColorTexture scratch_color_[NUM_SCRATCH_COLOR_TEXTURES];
+
+  DepthTexture scratch_depth_[NUM_SCRATCH_DEPTH_TEXTURES];
 
   gpu::Image default_image_;
 
@@ -427,9 +521,7 @@ struct GpuSystem
 
   InplaceVec<Vec<gpu::Object>, gpu::MAX_FRAME_BUFFERING> released_objects_;
 
-  GpuTaskQueue tasks_;
-
-  GpuUploadQueue upload_;
+  FrameGraph frame_graph_;
 
   InplaceVec<GpuQueries, gpu::MAX_FRAME_BUFFERING> queries_;
 
@@ -442,38 +534,38 @@ struct GpuSystem
     AllocatorRef allocator, gpu::Device & device, gpu::DeviceProperties props,
     gpu::PipelineCache pipeline_cache, u32 buffering,
     gpu::SampleCount sample_count, gpu::Format color_format,
-    gpu::Format depth_stencil_format, gpu::DescriptorSetLayout ubo_layout,
-    gpu::DescriptorSetLayout ssbo_layout,
+    gpu::Format depth_format, gpu::DescriptorSetLayout cb_layout,
+    gpu::DescriptorSetLayout sb_layout,
     gpu::DescriptorSetLayout textures_layout,
     gpu::DescriptorSetLayout samplers_layout, gpu::DescriptorSet textures,
     gpu::DescriptorSet samplers, gpu::Image default_image,
     Array<gpu::ImageView, NUM_DEFAULT_TEXTURES>            default_image_views,
     InplaceVec<Vec<gpu::Object>, gpu::MAX_FRAME_BUFFERING> released_objects,
-    GpuTaskQueue tasks, GpuUploadQueue upload,
-    InplaceVec<GpuQueries, gpu::MAX_FRAME_BUFFERING> queries) :
+    FrameGraph                                             frame_graph,
+    InplaceVec<GpuQueries, gpu::MAX_FRAME_BUFFERING>       queries) :
     device_{&device},
     props_{props},
     pipeline_cache_{pipeline_cache},
     buffering_{buffering},
     sample_count_{sample_count},
     color_format_{color_format},
-    depth_stencil_format_{depth_stencil_format},
-    ubo_layout_{ubo_layout},
-    ssbo_layout_{ssbo_layout},
+    depth_format_{depth_format},
+    cb_layout_{cb_layout},
+    sb_layout_{sb_layout},
     textures_layout_{textures_layout},
     samplers_layout_{samplers_layout},
     textures_{textures},
     samplers_{samplers},
     sampler_cache_{allocator},
     fb_{},
-    scratch_fbs_{},
+    scratch_color_{},
+    scratch_depth_{},
     default_image_{default_image},
     default_image_views_{default_image_views},
     texture_slots_{},
     sampler_slots_{},
     released_objects_{std::move(released_objects)},
-    tasks_{std::move(tasks)},
-    upload_{std::move(upload)},
+    frame_graph_{std::move(frame_graph)},
     queries_{std::move(queries)}
   {
   }
@@ -511,25 +603,29 @@ struct GpuSystem
   /// the operation from stalling the GPU
   void release(gpu::Object object);
 
-  void release(Framebuffer::Color const & fb);
+  void release(ColorTexture tex);
 
-  void release(Framebuffer::ColorMsaa const & fb);
+  void release(ColorMsaaTexture tex);
 
-  void release(Framebuffer::Depth const & fb);
+  void release(DepthTexture tex);
 
-  void release(Framebuffer const & fb);
-
-  template <typename Lambda>
-  void add_pre_frame_task(Lambda && task)
-  {
-    tasks_.add(static_cast<Lambda &&>(task));
-  }
+  void release(Framebuffer tex);
 
   void idle_reclaim();
 
-  void begin_frame(gpu::Swapchain swapchain);
+  template <typename Encoder>
+  void upload(Span<u8 const> buffer, Encoder && encoder)
+  {
+    frame_graph_.upload(buffer, static_cast<Encoder &&>(encoder));
+  }
 
-  void submit_frame(gpu::Swapchain swapchain);
+  template <typename Lambda>
+  void add_task(Lambda && task)
+  {
+    frame_graph_.add_task(static_cast<Lambda &&>(task));
+  }
+
+  void frame(gpu::Swapchain swapchain);
 
   Option<u32> begin_timespan(Str label);
 
@@ -538,42 +634,6 @@ struct GpuSystem
   Option<u32> begin_statistics(Str label);
 
   void end_statistics(u32 id);
-};
-
-struct SSBO
-{
-  Str label = "SSBO"_str;
-
-  gpu::Buffer buffer = nullptr;
-
-  u64 size = 0;
-
-  gpu::DescriptorSet descriptor = nullptr;
-
-  bool is_valid() const
-  {
-    return buffer != nullptr && descriptor != nullptr;
-  }
-
-  void uninit(GpuSystem & gpu);
-
-  void reserve(GpuSystem & gpu, u64 target_size);
-
-  void assign(GpuSystem & gpu, Span<u8 const> src);
-
-  void * map(GpuSystem & gpu);
-
-  void unmap(GpuSystem & gpu);
-
-  void flush(GpuSystem & gpu);
-
-  void release(GpuSystem & gpu);
-};
-
-struct SSBOSpan
-{
-  SSBO    ssbo  = {};
-  Slice32 slice = {};
 };
 
 }    // namespace ash

@@ -151,23 +151,23 @@ ImageInfo ImageSystem::upload_(Vec<char> label, gpu::ImageInfo const & info,
   ImageInfo image =
     create_image_(std::move(label), resolved_info, resolved_view_infos);
 
-  sys->gpu.upload_.queue(
-    bgra, [image = image.image, info](gpu::CommandEncoder & enc,
-                                      gpu::Buffer buffer, Slice64 slice) {
-      enc.copy_buffer_to_image(
-        buffer, image,
-        span({
-          gpu::BufferImageCopy{
-                               .buffer_offset       = slice.offset,
-                               .buffer_row_length   = info.extent.x,
-                               .buffer_image_height = info.extent.y,
-                               .image_layers{.aspects           = gpu::ImageAspects::Color,
-                          .mip_level         = 0,
-                          .first_array_layer = 0,
-                          .num_array_layers  = info.array_layers},
-                               .image_area{.offset{0, 0, 0}, .extent = info.extent}}
-      }));
-    });
+  sys->gpu.upload(bgra, [image = image.image, info](gpu::CommandEncoder & enc,
+                                                    gpu::Buffer buffer,
+                                                    Slice64     slice) {
+    enc.copy_buffer_to_image(
+      buffer, image,
+      span({
+        gpu::BufferImageCopy{
+                             .buffer_offset       = slice.offset,
+                             .buffer_row_length   = info.extent.x,
+                             .buffer_image_height = info.extent.y,
+                             .image_layers{.aspects           = gpu::ImageAspects::Color,
+                        .mip_level         = 0,
+                        .first_array_layer = 0,
+                        .num_array_layers  = info.array_layers},
+                             .image_area{.offset{0, 0, 0}, .extent = info.extent}}
+    }));
+  });
 
   return image;
 }
