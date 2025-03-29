@@ -115,6 +115,17 @@ constexpr SignedType abs(SignedType x)
   return x > SignedType{} ? x : -x;
 }
 
+template <typename T>
+constexpr T abs_diff(T a, T b)
+{
+  if (a < b)
+  {
+    return b - a;
+  }
+
+  return a - b;
+}
+
 constexpr bool approx_eq(f32 a, f32 b)
 {
   return abs(b - a) <= F32_EPS;
