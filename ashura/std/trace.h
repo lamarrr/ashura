@@ -66,10 +66,10 @@ struct FileTraceSink final : TraceSink
 {
   std::FILE * file = nullptr;
 
-  virtual void trace(TraceEvent event, Span<TraceRecord const> records) override
-  {
-    // [ ] output as json
-  }
+  FileTraceSink();
+
+  virtual void trace(TraceEvent              event,
+                     Span<TraceRecord const> records) override;
 };
 
 struct MemoryTraceSink final : TraceSink
@@ -90,32 +90,9 @@ struct MemoryTraceSink final : TraceSink
 
   MemoryTraceSink(AllocatorRef allocator);
 
-  virtual void trace(TraceEvent event, Span<TraceRecord const> records) override
-  {
-    LockGuard guard{mutex_};
+  virtual void trace(TraceEvent event, Span<TraceRecord const> records);
 
-    auto [_, current_records] =
-      traces_.insert(event, Vec<TraceRecord>{allocator_}, nullptr, false)
-        .unwrap();
-
-    if (current_records.size() + records.size() > buffer_size_)
-    {
-      upstream_->trace(event, current_records);
-      current_records.clear();
-    }
-
-    current_records.extend(records).unwrap();
-  }
-
-  void flush()
-  {
-    LockGuard guard{mutex_};
-    for (auto & [event, records] : traces_)
-    {
-      upstream_->trace(event, records);
-      records.clear();
-    }
-  }
+  void flush();
 };
 
 extern TraceSink * trace_sink;
@@ -128,7 +105,7 @@ struct ScopeTrace
 
   TraceRecord record;
 
-  ScopeTrace(TraceEvent     event = TraceEvent{.label = "scope"_str, .id = 0},
+  ScopeTrace(TraceEvent     event = TraceEvent{.label = "[Scope]"_str, .id = 0},
              SourceLocation loc   = SourceLocation::current()) :
     event{event},
     record{.loc = loc, .begin = steady_clock::now().time_since_epoch()}
