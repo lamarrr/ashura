@@ -30,7 +30,7 @@ namespace ash
 }
 
 /// @brief `decoded.size()` must be at least `encoded.size()`
-[[nodiscard]] constexpr usize utf8_decode(Str8 text, Span<c32> decoded)
+[[nodiscard]] constexpr usize utf8_decode(Str8 text, MutStr32 decoded)
 {
   c8 const * in  = text.data();
   c8 const * end = text.pend();
@@ -147,7 +147,7 @@ inline Result<> utf8_decode(Str8 text, Vec<c32> & decoded)
   return Ok{};
 }
 
-constexpr void replace_invalid_codepoints(Str32 input, Span<c32> output,
+constexpr void replace_invalid_codepoints(Str32 input, MutStr32 output,
                                           c32 replacement)
 {
   c32 const * in  = input.pbegin();

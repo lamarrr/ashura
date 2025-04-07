@@ -48,7 +48,7 @@ struct VertexOutput
 {
   f32x4                                   pos : SV_Position;
   [[vk::location(0)]] nointerpolation u32 instance : INSTANCE;
-  [[vk::location(1)]] f32x2               local_pos : REL_POSITION;
+  [[vk::location(1)]] f32x2               local_pos : LOCAL_POSITION;
 };
 
 [[shader("vertex")]] VertexOutput vs_main(u32 instance : SV_InstanceID,
@@ -62,7 +62,7 @@ struct VertexOutput
 
 [[shader("fragment")]] f32x4
   fs_main([[vk::location(0)]] u32   instance : INSTANCE,
-          [[vk::location(1)]] f32x2 local_pos : REL_POSITION) :
+          [[vk::location(1)]] f32x2 local_pos : LOCAL_POSITION) :
   COLOR
 {
   var  p    = params[instance];
@@ -71,8 +71,9 @@ struct VertexOutput
   var  corner =
     left ? (top ? TOP_LEFT : BOTTOM_LEFT) : (top ? TOP_RIGHT : BOTTOM_RIGHT);
   f32          radius      = p.radii[corner];
-  f32x2        pos         = local_pos * f32x2(p.aspect_ratio, 1);
-  f32x2        half_extent = f32x2(p.aspect_ratio * 0.5, 0.5);
+  f32x2        extent      = f32x2(p.aspect_ratio, 1);
+  f32x2        pos         = local_pos * extent;
+  f32x2        half_extent = 0.5 * extent;
   f32          dist        = rrect_sdf(pos, half_extent, radius);
   f32x2        uv          = local_pos + 0.5;
   f32x2        tex_uv      = lerp(p.uv.xy, p.uv.zw, uv);
