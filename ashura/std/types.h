@@ -71,6 +71,9 @@ inline constexpr usize USIZE_MAX = SIZE_MAX;
 inline constexpr isize ISIZE_MIN = PTRDIFF_MIN;
 inline constexpr isize ISIZE_MAX = PTRDIFF_MAX;
 
+inline constexpr c32 UTF32_MIN = 0x0000'0000;
+inline constexpr c32 UTF32_MAX = 0x0010'FFFF;
+
 inline constexpr f32 F32_MIN          = -FLT_MAX;
 inline constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
 inline constexpr f32 F32_MAX          = FLT_MAX;
@@ -863,6 +866,11 @@ struct SliceT
     S out_offset = offset > size ? size : offset;
     S out_span   = ((size - out_offset) > span) ? span : size - out_offset;
     return SliceT{out_offset, out_span};
+  }
+
+  constexpr SliceT operator()() const
+  {
+    return SliceT{offset, sat_add(offset, span) - offset};
   }
 
   constexpr bool is_empty() const

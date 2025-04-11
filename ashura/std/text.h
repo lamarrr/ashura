@@ -156,13 +156,14 @@ constexpr void replace_invalid_codepoints(Str32 input, MutStr32 output,
 
   while (in != end)
   {
-    if (*in > 0x10'FFFF) [[unlikely]]
+    auto cp = *in;
+    if (cp >= UTF32_MIN && cp <= UTF32_MAX) [[likely]]
     {
-      *out = replacement;
+      *out = cp;
     }
     else
     {
-      *out = *in;
+      *out = replacement;
     }
     in++;
     out++;
@@ -172,20 +173,21 @@ constexpr void replace_invalid_codepoints(Str32 input, MutStr32 output,
 /// Unicode Ranges
 namespace utf
 {
-inline constexpr Tuple<u32, u32> BASIC_LATIN{0x0020, 0x007F};
-inline constexpr Tuple<u32, u32> LATIN1_SUPPLEMENT{0x00A0, 0x00FF};
-inline constexpr Tuple<u32, u32> LATIN_EXTENDED_A{0x0100, 0x017F};
-inline constexpr Tuple<u32, u32> LATIN_EXTENDED_B{0x0180, 0x024F};
-inline constexpr Tuple<u32, u32> COMBINING_DIACRITICAL_MARKS{0x0300, 0x036F};
-inline constexpr Tuple<u32, u32> ARABIC{0x0600, 0x06FF};
-inline constexpr Tuple<u32, u32> GENERAL_PUNCTUATION{0x2000, 0x206F};
-inline constexpr Tuple<u32, u32> SUPERSCRIPTS_AND_SUBSCRIPTS{0x2070, 0x209F};
-inline constexpr Tuple<u32, u32> CURRENCY_SYMBOLS{0x20A0, 0x20CF};
-inline constexpr Tuple<u32, u32> NUMBER_FORMS{0x2150, 0x218F};
-inline constexpr Tuple<u32, u32> ARROWS{0x2190, 0x21FF};
-inline constexpr Tuple<u32, u32> MATHEMATICAL_OPERATORS{0x2200, 0x22FF};
-inline constexpr Tuple<u32, u32> HIRAGANA{0x3040, 0x309F};
-inline constexpr Tuple<u32, u32> KATAKANA{0x30A0, 0x30FF};
+inline constexpr Tuple<c32, c32> ALL{UTF32_MIN, UTF32_MAX};
+inline constexpr Tuple<c32, c32> BASIC_LATIN{0x0020, 0x007F};
+inline constexpr Tuple<c32, c32> LATIN1_SUPPLEMENT{0x00A0, 0x00FF};
+inline constexpr Tuple<c32, c32> LATIN_EXTENDED_A{0x0100, 0x017F};
+inline constexpr Tuple<c32, c32> LATIN_EXTENDED_B{0x0180, 0x024F};
+inline constexpr Tuple<c32, c32> COMBINING_DIACRITICAL_MARKS{0x0300, 0x036F};
+inline constexpr Tuple<c32, c32> ARABIC{0x0600, 0x06FF};
+inline constexpr Tuple<c32, c32> GENERAL_PUNCTUATION{0x2000, 0x206F};
+inline constexpr Tuple<c32, c32> SUPERSCRIPTS_AND_SUBSCRIPTS{0x2070, 0x209F};
+inline constexpr Tuple<c32, c32> CURRENCY_SYMBOLS{0x20A0, 0x20CF};
+inline constexpr Tuple<c32, c32> NUMBER_FORMS{0x2150, 0x218F};
+inline constexpr Tuple<c32, c32> ARROWS{0x2190, 0x21FF};
+inline constexpr Tuple<c32, c32> MATHEMATICAL_OPERATORS{0x2200, 0x22FF};
+inline constexpr Tuple<c32, c32> HIRAGANA{0x3040, 0x309F};
+inline constexpr Tuple<c32, c32> KATAKANA{0x30A0, 0x30FF};
 }    // namespace utf
 
 }    // namespace ash
