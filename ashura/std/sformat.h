@@ -45,7 +45,7 @@ constexpr Result<Void, fmt::Result> sformat_to(Vec & out, Span<char const> fstr,
 }    // namespace impl
 
 template <typename... Args>
-Result<Vec<char>, fmt::Result>
+constexpr Result<Vec<char>, fmt::Result>
   sformat(AllocatorRef allocator, Span<char const> fstr, Args const &... args)
 {
   Vec<char> out{allocator};
@@ -56,15 +56,15 @@ Result<Vec<char>, fmt::Result>
 }
 
 template <typename... Args>
-Result<Vec<char>, fmt::Result> sformat(Span<char const> fstr,
-                                       Args const &... args)
+constexpr Result<Vec<char>, fmt::Result> sformat(Span<char const> fstr,
+                                                 Args const &... args)
 {
   return sformat(default_allocator, fstr, args...);
 }
 
 template <usize Capacity, typename... Args>
-Result<InplaceVec<char, Capacity>, fmt::Result> snformat(Span<char const> fstr,
-                                                         Args const &... args)
+constexpr Result<InplaceVec<char, Capacity>, fmt::Result>
+  snformat(Span<char const> fstr, Args const &... args)
 {
   InplaceVec<char, Capacity> out;
 
