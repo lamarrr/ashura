@@ -45,20 +45,21 @@ namespace ash
       c32 const c1 = in[1];
       c32 const c2 = in[2];
       c32 const c3 = in[3];
-      *out         = c0 << 24 | c1 << 16 | c2 << 8 | c3;
+      *out =
+        ((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) | c3;
       in += 4;
     }
     else if ((c0 & 0xF0) == 0xE0)
     {
       c32 const c1 = in[1];
       c32 const c2 = in[2];
-      *out         = c0 << 16 | c1 << 8 | c2;
+      *out         = ((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0X3F);
       in += 3;
     }
     else if ((c0 & 0xE0) == 0xC0)
     {
       c32 const c1 = in[1];
-      *out         = c0 << 8 | c1;
+      *out         = ((c0 & 0x1F) << 6) | (c1 & 0x3F);
       in += 2;
     }
     else
