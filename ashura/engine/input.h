@@ -850,44 +850,44 @@ enum class Cursor : u32
 constexpr u32 NUM_CURSOR_TYPES = 20;
 
 /// @brief default charset is ASCII
-inline constexpr char const MIME_TEXT_PLAIN[]    = "text/plain";
-inline constexpr char const MIME_TEXT_UTF8[]     = "text/plain;charset=UTF-8";
-inline constexpr char const MIME_TEXT_CSS[]      = "text/css";
-inline constexpr char const MIME_TEXT_CSV[]      = "text/csv";
-inline constexpr char const MIME_TEXT_HTML[]     = "text/html";
-inline constexpr char const MIME_TEXT_JS[]       = "text/javascript";
-inline constexpr char const MIME_TEXT_MARKDOWN[] = "text/markdown";
+inline constexpr Str MIME_TEXT_PLAIN    = "text/plain"_str;
+inline constexpr Str MIME_TEXT_UTF8     = "text/plain;charset=UTF-8"_str;
+inline constexpr Str MIME_TEXT_CSS      = "text/css"_str;
+inline constexpr Str MIME_TEXT_CSV      = "text/csv"_str;
+inline constexpr Str MIME_TEXT_HTML     = "text/html"_str;
+inline constexpr Str MIME_TEXT_JS       = "text/javascript"_str;
+inline constexpr Str MIME_TEXT_MARKDOWN = "text/markdown"_str;
 
-inline constexpr char const MIME_IMAGE_AVIF[] = "image/avif";
-inline constexpr char const MIME_IMAGE_BMP[]  = "image/bmp";
-inline constexpr char const MIME_IMAGE_HEIF[] = "image/heif";
-inline constexpr char const MIME_IMAGE_JPEG[] = "image/jpeg";
-inline constexpr char const MIME_IMAGE_PNG[]  = "image/png";
-inline constexpr char const MIME_IMAGE_SVG[]  = "image/svg+xml";
-inline constexpr char const MIME_IMAGE_WEBP[] = "image/webp";
+inline constexpr Str MIME_IMAGE_AVIF = "image/avif"_str;
+inline constexpr Str MIME_IMAGE_BMP  = "image/bmp"_str;
+inline constexpr Str MIME_IMAGE_HEIF = "image/heif"_str;
+inline constexpr Str MIME_IMAGE_JPEG = "image/jpeg"_str;
+inline constexpr Str MIME_IMAGE_PNG  = "image/png"_str;
+inline constexpr Str MIME_IMAGE_SVG  = "image/svg+xml"_str;
+inline constexpr Str MIME_IMAGE_WEBP = "image/webp"_str;
 
-inline constexpr char const MIME_VIDEO_AV1[]      = "video/AV1";
-inline constexpr char const MIME_VIDEO_H264[]     = "video/H264";
-inline constexpr char const MIME_VIDEO_H265[]     = "video/H265";
-inline constexpr char const MIME_VIDEO_H266[]     = "video/H266";
-inline constexpr char const MIME_VIDEO_MATROSKA[] = "video/matroska";
-inline constexpr char const MIME_VIDEO_MP4[]      = "video/mp4";
-inline constexpr char const MIME_VIDEO_RAW[]      = "video/raw";
-inline constexpr char const MIME_VIDEO_VP8[]      = "video/VP8";
-inline constexpr char const MIME_VIDEO_VP9[]      = "video/VP9";
+inline constexpr Str MIME_VIDEO_AV1      = "video/AV1"_str;
+inline constexpr Str MIME_VIDEO_H264     = "video/H264"_str;
+inline constexpr Str MIME_VIDEO_H265     = "video/H265"_str;
+inline constexpr Str MIME_VIDEO_H266     = "video/H266"_str;
+inline constexpr Str MIME_VIDEO_MATROSKA = "video/matroska"_str;
+inline constexpr Str MIME_VIDEO_MP4      = "video/mp4"_str;
+inline constexpr Str MIME_VIDEO_RAW      = "video/raw"_str;
+inline constexpr Str MIME_VIDEO_VP8      = "video/VP8"_str;
+inline constexpr Str MIME_VIDEO_VP9      = "video/VP9"_str;
 
-inline constexpr char const MIME_MODEL_GLTF_BINARY[] = "model/gltf+binary";
-inline constexpr char const MIME_MODEL_GLTF_JSON[]   = "model/gltf+json";
-inline constexpr char const MIME_MODEL_MESH[]        = "model/mesh";
-inline constexpr char const MIME_MODEL_MTL[]         = "model/mtl";
-inline constexpr char const MIME_MODEL_OBJ[]         = "model/obj";
-inline constexpr char const MIME_MODEL_STL[]         = "model/stl";
+inline constexpr Str MIME_MODEL_GLTF_BINARY = "model/gltf+binary"_str;
+inline constexpr Str MIME_MODEL_GLTF_JSON   = "model/gltf+json"_str;
+inline constexpr Str MIME_MODEL_MESH        = "model/mesh"_str;
+inline constexpr Str MIME_MODEL_MTL         = "model/mtl"_str;
+inline constexpr Str MIME_MODEL_OBJ         = "model/obj"_str;
+inline constexpr Str MIME_MODEL_STL         = "model/stl"_str;
 
-inline constexpr char const MIME_FONT_OTF[]   = "font/otf";
-inline constexpr char const MIME_FONT_SFNT[]  = "font/sfnt";
-inline constexpr char const MIME_FONT_TTF[]   = "font/ttf";
-inline constexpr char const MIME_FONT_WOFF[]  = "font/woff";
-inline constexpr char const MIME_FONT_WOFF2[] = "font/woff2";
+inline constexpr Str MIME_FONT_OTF   = "font/otf"_str;
+inline constexpr Str MIME_FONT_SFNT  = "font/sfnt"_str;
+inline constexpr Str MIME_FONT_TTF   = "font/ttf"_str;
+inline constexpr Str MIME_FONT_WOFF  = "font/woff"_str;
+inline constexpr Str MIME_FONT_WOFF2 = "font/woff2"_str;
 
 struct ClipBoard
 {
@@ -910,16 +910,6 @@ struct ClipBoard
     (void) mime;
     (void) data;
     return Err{};
-  }
-
-  Result<> get_text(Vec<u8> & out)
-  {
-    return get(MIME_TEXT_UTF8, out);
-  }
-
-  Result<> set_text(Span<u8 const> text)
-  {
-    return set(MIME_TEXT_UTF8, text);
   }
 };
 
