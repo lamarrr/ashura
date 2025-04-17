@@ -33,26 +33,6 @@ TextCompositor TextCompositor::create(AllocatorRef allocator, usize buffer_size,
                         line_symbols};
 }
 
-usize TextCompositor::goto_line(TextLayout const & layout, usize alignment,
-                                usize line)
-{
-  if (layout.lines.is_empty())
-  {
-    return 0;
-  }
-
-  line = min(line, layout.lines.size() - 1);
-
-  auto const & ln = layout.lines[line];
-
-  if (alignment > ln.codepoints.span)
-  {
-    return ln.codepoints.end() - 1;
-  }
-
-  return ln.codepoints.offset + alignment;
-}
-
 TextCursor TextCompositor::cursor() const
 {
   return cursor_;
@@ -80,15 +60,17 @@ void TextCompositor::pop_records(usize num)
     state_ -= num;
   }
 
-  erase                   = erase(records_.size());
-  auto const buffer_erase = buffer_slice(erase);
+  erase            = erase(records_.size());
+  auto const slice = buffer_slice(erase);
 
+  buffer_.erase(slice);
   records_.erase(erase);
-  buffer_.erase(buffer_erase);
 }
 
 Slice TextCompositor::buffer_slice(Slice records) const
 {
+  records = records(records_.size());
+
   Slice slice;
   for (usize i = 0; i < records.offset; i++)
   {
@@ -105,13 +87,9 @@ Slice TextCompositor::buffer_slice(Slice records) const
 
 void TextCompositor::truncate_records()
 {
-  usize      reclaimed = 0;
-  auto const first     = state_ + 1;
-  for (usize i = first; i < records_.size(); i++)
-  {
-    reclaimed += records_[i].buffer_usage();
-  }
-  buffer_.erase(reclaimed, USIZE_MAX);
+  auto const first = state_ + 1;
+  auto       slice = buffer_slice(Slice{first, USIZE_MAX});
+  buffer_.erase(slice);
   records_.erase(first, USIZE_MAX);
 }
 
@@ -161,16 +139,17 @@ void TextCompositor::push_record(TextEditRecordType type, usize text_pos,
   state_ = idx;
 }
 
-bool TextCompositor::undo(Vec<c32> & str)
+Option<Slice> TextCompositor::undo(Vec<c32> & str)
 {
   if (state_ == 0)
   {
-    return false;
+    return none;
   }
 
   // undo changes of current record
   auto const & record = records_[state_];
   auto const   slice  = buffer_slice(Slice{state_, 1});
+  state_--;
 
   switch (record.type)
   {
@@ -180,37 +159,35 @@ bool TextCompositor::undo(Vec<c32> & str)
         .insert_span(record.text_pos,
                      buffer_.view().slice(slice.offset, record.erase_size))
         .unwrap();
-      cursor_ = TextCursor::from_slice({record.text_pos, record.erase_size});
+      return Slice{record.text_pos, record.erase_size};
     }
-    break;
+
     case TextEditRecordType::Insert:
     {
       str.erase(record.text_pos, record.insert_size);
-      cursor_ = TextCursor::from_slice({record.text_pos, 0});
+      return Slice{record.text_pos, 0};
     }
-    break;
+
     case TextEditRecordType::Replace:
     {
-      str.erase(record.text_pos, record.insert_size);
       str
         .insert_span(record.text_pos,
                      buffer_.view().slice(slice.offset, record.erase_size))
         .unwrap();
-      cursor_ = TextCursor::from_slice({record.text_pos, record.erase_size});
+      str.erase(record.text_pos, record.insert_size);
+      return Slice{record.text_pos, record.erase_size};
     }
-    break;
+
+    default:
+      ASH_UNREACHABLE;
   }
-
-  state_--;
-
-  return true;
 }
 
-bool TextCompositor::redo(Vec<c32> & str)
+Option<Slice> TextCompositor::redo(Vec<c32> & str)
 {
-  if ((state_ + 1) > records_.size())
+  if ((state_ + 1) >= records_.size())
   {
-    return false;
+    return none;
   }
 
   state_++;
@@ -219,23 +196,25 @@ bool TextCompositor::redo(Vec<c32> & str)
   auto const & record = records_[state_];
   auto const   slice  = buffer_slice(Slice{state_, 1});
 
+  // [ ] apply diff to record.text_pos - record.size?
+
   switch (record.type)
   {
     case TextEditRecordType::Erase:
     {
       str.erase(record.text_pos, record.erase_size);
-      cursor_ = TextCursor::from_slice({record.text_pos, 0});
+      return Slice{record.text_pos, 0};
     }
-    break;
+
     case TextEditRecordType::Insert:
     {
       str
         .insert_span(record.text_pos,
                      buffer_.view().slice(slice.offset, record.insert_size))
         .unwrap();
-      cursor_ = TextCursor::from_slice({record.text_pos, record.insert_size});
+      return Slice{record.text_pos, record.insert_size};
     }
-    break;
+
     case TextEditRecordType::Replace:
     {
       str.erase(record.text_pos, record.erase_size);
@@ -244,34 +223,141 @@ bool TextCompositor::redo(Vec<c32> & str)
                      buffer_.view().slice(slice.offset + record.erase_size,
                                           record.insert_size))
         .unwrap();
-      cursor_ = TextCursor::from_slice({record.text_pos, record.insert_size});
-    }
-    break;
-  }
 
-  return true;
+      return Slice{record.text_pos, record.insert_size};
+    }
+
+    default:
+      ASH_UNREACHABLE;
+  }
 }
 
-bool TextCompositor::delete_selection(Vec<c32> & str)
+bool TextCompositor::erase(Vec<c32> & str, Slice slice)
 {
-  if (str.is_empty())
+  slice = slice(str.size());
+  if (str.is_empty() || slice.is_empty())
   {
     return false;
   }
 
-  auto const selection = cursor_.as_slice()(str.size());
-  push_record(TextEditRecordType::Erase, selection.offset,
-              str.view().slice(selection), {});
-  str.erase(selection);
+  push_record(TextEditRecordType::Erase, slice.offset, str.view().slice(slice),
+              {});
+  str.erase(slice);
 
   return true;
 }
 
-static constexpr bool is_symbol(Str32 symbols, u32 c)
+static constexpr bool is_symbol(Span<c32 const> symbols, c32 c)
 {
   return !find(symbols, c).is_empty();
 }
 
+template <typename Fn>
+static constexpr void seek_impl(c32 const *& iter, c32 const * end,
+                                isize advance, Fn && pred)
+{
+  while (iter != end && !pred(*iter))
+  {
+    iter += advance;
+  }
+}
+
+template <typename Fn>
+static constexpr Option<usize> seek_left(Str32 text, usize pos, Fn && pred)
+{
+  if (pos >= text.size())
+  {
+    return none;
+  }
+
+  c32 const * bwd_end  = text.pbegin() - 1;
+  c32 const * bwd_iter = text.pbegin() + pos;
+
+  seek_impl(bwd_iter, bwd_end, -1, pred);
+
+  if (bwd_iter == bwd_end)
+  {
+    return none;
+  }
+
+  return bwd_iter - text.pbegin();
+}
+
+template <typename Fn>
+static constexpr Option<usize> seek_right(Str32 text, usize pos, Fn && pred)
+{
+  if (pos >= text.size())
+  {
+    return none;
+  }
+
+  c32 const * fwd_end  = text.pend();
+  c32 const * fwd_iter = text.pbegin() + pos;
+
+  seek_impl(fwd_iter, fwd_end, 1, pred);
+
+  if (fwd_iter == fwd_end)
+  {
+    return none;
+  }
+
+  return fwd_iter - text.pbegin();
+}
+
+template <typename Fn>
+static constexpr Option<usize> seek(Str32 text, usize pos, bool left,
+                                    Fn && pred)
+{
+  if (left)
+  {
+    return seek_left(text, pos, pred);
+  }
+  else
+  {
+    return seek_right(text, pos, pred);
+  }
+}
+
+static constexpr Option<usize> seek_sym(Str32 text, usize pos, bool left,
+                                        Span<c32 const> symbols)
+{
+  return seek(text, pos, left, [&](c32 c) { return is_symbol(symbols, c); });
+}
+
+template <typename Fn>
+static constexpr Slice seek_sym_boundary(Str32 text, usize pos, Fn && pred)
+{
+  if (pos >= text.size())
+  {
+    return Slice{pos, 0};
+  }
+
+  usize begin = 0;
+  usize end   = 0;
+
+  if (pred(text[pos]))
+  {
+    auto neg = [&](auto cp) { return !pred(cp); };
+    begin    = seek(text, pos, true, neg).unwrap_or(USIZE_MAX) + 1;
+    end      = seek(text, pos, false, neg).unwrap_or(text.size());
+  }
+  else
+  {
+    begin = seek(text, pos, true, pred).unwrap_or(USIZE_MAX) + 1;
+    end   = seek(text, pos, false, pred).unwrap_or(text.size());
+  }
+
+  return Slice::from_range(begin, end);
+}
+
+static constexpr Slice span_sym_boundary(Str32 text, usize pos,
+                                         Span<c32 const> symbols)
+{
+  return seek_sym_boundary(text, pos,
+                           [&](c32 c) { return is_symbol(symbols, c); });
+}
+
+/*
 /// @brief given a sequence of text and symbols find the symbol boundary from
 /// a given codepoint index.
 /// @param text must be non-empty
@@ -280,112 +366,204 @@ static constexpr bool is_symbol(Str32 symbols, u32 c)
 /// i.e. a code editor may use '(',')' as word boundaries.
 /// @param[out] first index of first char in symbolic boundary
 /// @param[out] last index of last char in symbolic boundary
-static constexpr Slice find_boundary(Str32 text, usize const pos, Str32 symbols)
+static constexpr Slice seek_symbol_boundary(Str32 text, Slice selection,
+                                            Str32 symbols)
 {
-  usize fwd = pos;
-  usize bwd = pos;
-
-  if (is_symbol(symbols, text[pos]))
+  if (!selection.is_in_range(text.size()))
   {
-    while (fwd < text.size() && is_symbol(symbols, text[fwd]))
-    {
-      fwd++;
-    }
+    return selection;
+  }
 
-    while (bwd != 0 && is_symbol(symbols, text[bwd]))
-    {
-      bwd--;
-    }
+  c32 const * fwd_end  = text.pend() + 1;
+  c32 const * fwd_iter = text.pbegin() + selection.end();
+  c32 const * bwd_end  = text.pbegin() - 1;
+  c32 const * bwd_iter = text.pbegin() + selection.begin();
+
+  if (fwd_iter < fwd_end)
+  {
+    fwd_iter++;
+  }
+
+  if (bwd_iter > bwd_end)
+  {
+    bwd_iter--;
+  }
+
+  bool is_sym = is_symbol(symbols, text[selection.offset]);
+
+  if (is_sym)
+  {
+    seek_symbol(fwd_iter, fwd_end, symbols, 1);
+    seek_symbol(bwd_iter, bwd_end, symbols, -1);
   }
   else
   {
-    while (fwd < text.size() && !is_symbol(symbols, text[fwd]))
-    {
-      fwd++;
-    }
-
-    while (bwd != 0 && !is_symbol(symbols, text[bwd]))
-    {
-      bwd--;
-    }
+    seek_nonsymbol(fwd_iter, fwd_end, symbols, 1);
+    seek_nonsymbol(bwd_iter, bwd_end, symbols, -1);
   }
 
-  bwd = (bwd == 0) ? bwd : (bwd + 1);
-  fwd = fwd - 1;
+  c32 const * begin = nullptr;
+  c32 const * end   = nullptr;
 
-  return Slice{.offset = bwd, .span = (fwd - bwd) + 1};
-}
-
-static inline Slice cursor_boundary(Str32 text, Str32 symbols,
-                                    TextCursor cursor)
-{
-  auto const selection = cursor.as_slice()(text.size());
-  if (text.is_empty() || selection.is_empty())
+  if (fwd_iter >= fwd_end)
   {
-    return Slice{};
+    end = text.pend();
   }
-  return find_boundary(text, selection.offset, symbols);
+  else
+  {
+    end = fwd_end;
+  }
+
+  if (bwd_iter <= bwd_end)
+  {
+    begin = text.pbegin();
+  }
+  else
+  {
+    begin = bwd_iter;
+  }
+
+  return Span{begin, end}.as_slice_of(text);
 }
 
-struct LinePosition
+static inline Slice symbol_boundary(Str32 text, Str32 symbols, Slice selection)
 {
-  usize line      = 0;
-  usize alignment = 0;
+  // [ ] always empty when selection is empty
+  if (!selection.is_in_range(text.size()))
+  {
+    return selection;
+  }
+
+  return seek_symbol_boundary(text, slice.offset, symbols);
+}*/
+
+struct CaretLoc
+{
+  isize line      = 0;
+  isize alignment = 0;
 };
 
-static LinePosition line_translate(TextLayout const & layout, i64 cursor,
-                                   i64 dy)
+static inline Option<CaretLoc> locate_caret(TextLayout const & layout,
+                                             isize              caret)
 {
-  for (auto [i, ln] : enumerate(layout.lines))
+  // [ ] IT DOESN'T CROSS LINES SMALLER THAN THE ALIGNED LINE; select up
+  auto l = binary_find(layout.lines.view(), [&](auto & l) {
+    return ((isize) l.codepoints.end()) >= caret;
+  });
+
+  if (l.is_empty())
   {
-    if (ln.codepoints.contains(cursor))
-    {
-      auto const alignment = cursor - ln.codepoints.offset;
-      auto const next_line =
-        (usize) clamp((i64) i + dy, (i64) 0, (i64) (layout.lines.size() - 1));
-      return LinePosition{.line = next_line, .alignment = alignment};
-    }
+    return none;
   }
 
-  return LinePosition{};
+  return CaretLoc{.line   = (isize) l.as_slice_of(layout.lines).offset,
+                  .column = (caret - (isize) l[0].codepoints.offset)};
 }
 
-// [ ] test all
-Tuple<bool, Slice> TextCompositor::command(
-  RenderText & text, TextCommand cmd, Str32 keyboard_input,
-  ClipBoard & clipboard, usize lines_per_page, usize tab_width,
-  CRect const & region, Vec2 pos, f32 zoom, AllocatorRef scratch_allocator)
+static inline isize align_caret(TextLayout const & layout, isize iline,
+                                isize alignment)
 {
-  CHECK(tab_width <= MAX_TAB_WIDTH, "");
-  cursor_.normalize(text.text_.size());
+  if (layout.lines.is_empty())
+  {
+    return 0;
+  }
+
+  iline = clamp(iline, (isize) 0, (isize) (layout.lines.size() - 1));
+
+  auto const & line = layout.lines[iline];
+
+  if (alignment <= 0)
+  {
+    // [ ] how should start of line be aligned? should it be at offet + 1?
+    // if the previous char is a line break? i.e. offet = 0?: align to the left of the first char
+    // [ ] if caret is on the line-break char, adjust to begin of line. also, consider adding line break run-types?
+
+    // [ ] return -1?
+    return line.codepoints.offset;
+  }
+
+  // [ ] alignment - 1?
+
+  if (((usize) alignment) > line.codepoints.span)
+  {
+    return line.codepoints.end();
+  }
+
+  return line.codepoints.offset + (usize) alignment;
+}
+
+static inline Option<isize> translate_caret(TextLayout const & layout,
+                                            isize caret, isize alignment,
+                                            isize displacement)
+{
+  return locaste_caret(layout, caret).map([&](CaretLoc loc) {
+    return align_caret(layout, loc.line + displacement, alignment);
+  });
+}
+
+bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
+                             Str32 keyboard_input, ClipBoard & clipboard,
+                             usize lines_per_page, usize tab_width,
+                             CRect const & region, Vec2 pos, f32 zoom,
+                             AllocatorRef scratch_allocator)
+{
+  u8                tmp[512];
+  FallbackAllocator tmp_allocator{Arena::from(tmp), scratch_allocator};
+
+  auto & layout = rendered.layout();
+  auto & text   = rendered.text_;
+
+  cursor_.normalize(text.size());
 
   bool modified = false;
 
   switch (cmd)
   {
+    case TextCommand::Escape:
+    {
+      cursor_.unselect();
+    }
+    break;
     case TextCommand::Unselect:
     {
-      cursor_.to_begin();
+      cursor_.unselect();
     }
     break;
     case TextCommand::BackSpace:
     {
-      if (!cursor_.has_selection())
+      Slice selection;
+
+      if (auto s = cursor_.selection(); !s.is_empty())
       {
-        cursor_.shift(-1).span_by(1);
+        selection = s;
       }
-      modified |= delete_selection(text.text_);
-      cursor_.to_begin();
+      else
+      {
+        if (auto caret = cursor_.caret(); caret > 0)
+        {
+          selection = cursor_.translate(-1).span_by2(1).selection();
+        }
+      }
+
+      modified |= erase(text, selection);
+      cursor_.unselect_left();
     }
     break;
     case TextCommand::Delete:
     {
-      if (!cursor_.has_selection())
+      Slice sel;
+
+      if (auto s = cursor_.selection(); !s.is_empty())
       {
-        cursor_.span_by(1);
+        sel = s;
       }
-      modified |= delete_selection(text.text_);
-      cursor_.to_begin();
+      else
+      {
+        sel = cursor_.span_by2(1).selection();
+      }
+
+      modified |= erase(text, sel);
+      cursor_.unselect_left();
     }
     break;
     case TextCommand::Paste:
@@ -393,17 +571,16 @@ Tuple<bool, Slice> TextCompositor::command(
     case TextCommand::NewLine:
     case TextCommand::Tab:
     {
-      Vec<c32> data_u32{scratch_allocator};
-      Vec<u8>  data_u8{scratch_allocator};
-
-      Str32                          input;
-      InplaceVec<c32, MAX_TAB_WIDTH> tabs;
+      Vec<c32> text32{tmp_allocator};
+      Str32    input;
+      Vec<c32> tabs{tmp_allocator};
 
       if (cmd == TextCommand::Paste)
       {
-        clipboard.get_text(data_u8).unwrap();
-        utf8_decode(data_u8.view().as_c8(), data_u32).unwrap();
-        input = data_u32;
+        Vec<u8> text8{tmp_allocator};
+        clipboard.get(MIME_TEXT_UTF8, text8).unwrap();
+        utf8_decode(text8.view().as_c8(), text32).unwrap();
+        input = text32;
       }
       else if (cmd == TextCommand::InputText)
       {
@@ -425,226 +602,219 @@ Tuple<bool, Slice> TextCompositor::command(
 
       if (!input.is_empty())
       {
-        auto const selection = cursor_.as_slice()(text.text_.size());
-        if (cursor_.has_selection())
+        if (auto s = cursor_.selection(); !s.is_empty())
         {
-          push_record(TextEditRecordType::Replace, selection.offset,
-                      text.text_.view().slice(selection), input);
+          push_record(TextEditRecordType::Replace, s.offset,
+                      text.view().slice(s), input);
+          // [ ] if it doesn't accept new line, then don't accept it / !!!!!!!filter
+          text.erase(s);
+          text.insert_span(s.offset, input).unwrap();
+          cursor_.unselect().translate(-(isize) s.span).translate(input.size());
         }
         else
         {
-          push_record(TextEditRecordType::Insert, selection.offset, {}, input);
+          auto caret = cursor_.caret();
+          push_record(TextEditRecordType::Insert, caret, {}, input);
+          text.insert_span(caret, input).unwrap();
+          cursor_.unselect().translate(input.size());
         }
-        text.text_.erase(selection);
-        text.text_.insert_span(selection.offset, input).unwrap();
-        cursor_.span_by((i64) input.size()).to_end();
         modified = true;
       }
     }
     break;
     case TextCommand::Left:
     {
-      if (cursor_.has_selection())
-      {
-        cursor_.to_left();
-      }
-      else
-      {
-        cursor_.shift(-1);
-      }
-      // [ ] caret
+      cursor_.translate(-1);
     }
     break;
     case TextCommand::Right:
     {
-      if (cursor_.has_selection())
-      {
-        cursor_.to_right();
-      }
-      else
-      {
-        cursor_.shift(1);
-      }
-      // [ ] caret
+      cursor_.translate(1);
     }
     break;
     case TextCommand::WordStart:
     {
-      auto const word = cursor_boundary(text.text_, word_symbols_, cursor_);
-      cursor_         = TextCursor::from_slice({word.offset, 0});
+      // [ ] ???
+      cursor_.move_to(
+        seek_sym(text, cursor_.caret(), true, word_symbols_).unwrap_or(0));
     }
     break;
     case TextCommand::WordEnd:
     {
-      auto const word = cursor_boundary(text.text_, word_symbols_, cursor_);
-      cursor_         = TextCursor::from_slice({word.end(), 0});
+      cursor_.move_to(seek_sym(text, cursor_.caret(), false, word_symbols_)
+                        .unwrap_or(text.size()));
     }
     break;
     case TextCommand::LineStart:
     {
-      auto const line = cursor_boundary(text.text_, line_symbols_, cursor_);
-      cursor_         = TextCursor::from_slice({line.offset, 0});
+      cursor_.move_to(
+        seek_sym(text, cursor_.caret(), true, line_symbols_).unwrap_or(0));
     }
     break;
     case TextCommand::LineEnd:
     {
-      auto const line = cursor_boundary(text.text_, line_symbols_, cursor_);
-      cursor_         = TextCursor::from_slice({line.end(), 0});
+      cursor_.move_to(seek_sym(text, cursor_.caret(), false, line_symbols_)
+                        .unwrap_or(text.size()));
     }
     break;
     case TextCommand::Up:
     {
-      auto const line = line_translate(text.layout(), cursor_.end, -1);
-      auto const pos  = goto_line(text.layout(), line.alignment, line.line);
-      cursor_         = TextCursor::from_slice({pos, 0});
+      cursor_.move_to(
+        translate_caret(layout, cursor_.caret(), caret_alignment_, -1)
+          .unwrap_or(0));
     }
     break;
     case TextCommand::Down:
     {
-      auto const line = line_translate(text.layout(), cursor_.end, 1);
-      auto const pos  = goto_line(text.layout(), line.alignment, line.line);
-      cursor_         = TextCursor::from_slice({pos, 0});
+      cursor_.move_to(
+        translate_caret(layout, cursor_.caret(), caret_alignment_, 1)
+          .unwrap_or(0));
     }
     break;
     case TextCommand::PageUp:
     {
-      auto const line =
-        line_translate(text.layout(), cursor_.end, -(i64) lines_per_page);
-      auto const pos = goto_line(text.layout(), line.alignment, line.line);
-      cursor_        = TextCursor::from_slice({pos, 0});
+      cursor_.move_to(translate_caret(layout, cursor_.caret(), caret_alignment_,
+                                      -(isize) lines_per_page)
+                        .unwrap_or(0));
     }
     break;
     case TextCommand::PageDown:
     {
-      auto const line =
-        line_translate(text.layout(), cursor_.end, lines_per_page);
-      auto const pos = goto_line(text.layout(), line.alignment, line.line);
-      cursor_        = TextCursor::from_slice({pos, 0});
+      cursor_.move_to(translate_caret(layout, cursor_.caret(), caret_alignment_,
+                                      (isize) lines_per_page)
+                        .unwrap_or(0));
     }
     break;
     case TextCommand::SelectLeft:
     {
-      cursor_.span_by(cursor_.distance() - 1);
+      cursor_.extend_selection(-1);
     }
     break;
     case TextCommand::SelectRight:
     {
-      cursor_.span_by(cursor_.distance() + 1);
+      cursor_.extend_selection(1);
     }
     break;
     case TextCommand::SelectUp:
     {
-      auto const line = line_translate(text.layout(), cursor_.end, -1);
-      cursor_.span_to(goto_line(text.layout(), line.alignment, line.line));
+      cursor_.span_to2(
+        translate_caret(layout, cursor_.caret(), caret_alignment_, -1)
+          .unwrap_or(0));
     }
     break;
     case TextCommand::SelectDown:
     {
-      auto const line = line_translate(text.layout(), cursor_.end, 1);
-      cursor_.span_to(goto_line(text.layout(), line.alignment, line.line));
+      cursor_.span_to2(
+        translate_caret(layout, cursor_.caret(), caret_alignment_, 1)
+          .unwrap_or(0));
     }
     break;
-    case TextCommand::SelectWordStart:
+    case TextCommand::SelectToWordStart:
     {
-      auto const word = cursor_boundary(text.text_, word_symbols_, cursor_);
-      cursor_.span_to(word.offset);
+      cursor_.span_to2(
+        seek_sym(text, cursor_.caret(), true, word_symbols_).unwrap_or(0));
     }
     break;
-    case TextCommand::SelectWordEnd:
+    case TextCommand::SelectToWordEnd:
     {
-      auto const word = cursor_boundary(text.text_, word_symbols_, cursor_);
-      cursor_.span_to((word.span == 0) ? word.offset :
-                                         (word.offset + word.span - 1));
+      cursor_.span_to2(seek_sym(text, cursor_.caret(), false, word_symbols_)
+                         .unwrap_or(text.size()));
     }
     break;
-    case TextCommand::SelectLineStart:
+    case TextCommand::SelectToLineStart:
     {
-      auto const line = cursor_boundary(text.text_, line_symbols_, cursor_);
-      cursor_.span_to(line.offset);
+      cursor_.span_to2(
+        seek_sym(text, cursor_.caret(), true, line_symbols_).unwrap_or(0));
     }
     break;
-    case TextCommand::SelectLineEnd:
+    case TextCommand::SelectToLineEnd:
     {
-      auto const line = cursor_boundary(text.text_, line_symbols_, cursor_);
-      cursor_.span_to((line.span == 0) ? line.offset :
-                                         (line.offset + line.span - 1));
+      cursor_.span_to2(seek_sym(text, cursor_.caret(), false, line_symbols_)
+                         .unwrap_or(text.size()));
     }
     break;
     case TextCommand::SelectPageUp:
     {
-      auto const line =
-        line_translate(text.layout(), cursor_.end, lines_per_page);
-      cursor_.span_to(goto_line(text.layout(), line.alignment, line.line));
+      // [ ]
+      // cursor_.span_to(translate_caret(layout, cursor_.caret().unwrap_or(0),
+      //                                 caret_alignment_.unwrap_or(0),
+      //                                 -(isize) lines_per_page)
+      //                   .unwrap_or(0));
     }
     break;
     case TextCommand::SelectPageDown:
     {
-      auto const line =
-        line_translate(text.layout(), cursor_.end, lines_per_page);
-      cursor_.span_to(goto_line(text.layout(), line.alignment, line.line));
+      // [ ]
+      // cursor_.span_to(translate_caret(layout, cursor_.caret().unwrap_or(0),
+      //                                 caret_alignment_.unwrap_or(0),
+      //                                 (isize) lines_per_page)
+      //                   .unwrap_or(0));
     }
     break;
     case TextCommand::SelectCodepoint:
     {
-      cursor_.span_by(1);
+      cursor_.span_by2(1);
     }
     break;
     case TextCommand::SelectWord:
     {
-      auto const word = cursor_boundary(text.text_, word_symbols_, cursor_);
-      cursor_         = TextCursor::from_slice(word);
+      // cursor_.select(span_symbol(text, cursor_.caret(), word_symbols_), true);
     }
     break;
     case TextCommand::SelectLine:
     {
-      auto const line = cursor_boundary(text.text_, line_symbols_, cursor_);
-      cursor_         = TextCursor::from_slice(line);
+      // [ ] get line, span it
+      // cursor_.select(symbol_boundary(text, line_symbols_, cursor_.selection()));
     }
     break;
     case TextCommand::SelectAll:
     {
-      cursor_ = TextCursor::from_slice({0, text.text_.size()});
+      cursor_.select(Slice{0, text.size()});
     }
     break;
     case TextCommand::Cut:
     {
-      Vec<c8> data_u8{scratch_allocator};
-      utf8_encode(text.text_.view().slice(cursor_.as_slice()), data_u8)
-        .unwrap();
-      delete_selection(text.text_);
-      clipboard.set_text(data_u8.view().as_u8()).unwrap();
+      Vec<c8> data8{scratch_allocator};
+      utf8_encode(text.view().slice(cursor_.selection()), data8).unwrap();
+      erase(text, cursor_.selection());
+      clipboard.set(MIME_TEXT_UTF8, data8.view().as_u8()).unwrap();
     }
     break;
     case TextCommand::Copy:
     {
-      Vec<c8> data_u8{scratch_allocator};
-      utf8_encode(text.text_.view().slice(cursor_.as_slice()), data_u8)
-        .unwrap();
-      clipboard.set_text(data_u8.view().as_u8()).unwrap();
+      Vec<c8> data8{scratch_allocator};
+      utf8_encode(text.view().slice(cursor_.selection()), data8).unwrap();
+      clipboard.set(MIME_TEXT_UTF8, data8.view().as_u8()).unwrap();
     }
     break;
     case TextCommand::Undo:
     {
-      modified |= undo(text.text_);
+      undo(text).match([&](Slice inserted) {
+        modified = true;
+        cursor_.select(inserted);
+      });
     }
     break;
     case TextCommand::Redo:
     {
-      modified |= redo(text.text_);
+      redo(text).match([&](Slice inserted) {
+        modified = true;
+        cursor_.select(inserted);
+      });
     }
     break;
     case TextCommand::Hit:
     {
-      auto const hit = text.hit(region, pos, zoom).unwrap_or(TextHitResult{});
-      cursor_        = TextCursor::from_slice({hit.cluster, 0});
-      // [ ] caret
+      auto hit = rendered.hit(region, pos, zoom).unwrap_or(TextHitResult{});
+      caret_alignment_ = hit.column;
+      cursor_.move_to(align_caret(layout, hit.line, hit.column));
     }
     break;
     case TextCommand::HitSelect:
     {
-      auto const hit = text.hit(region, pos, zoom).unwrap_or(TextHitResult{});
-      cursor_.span_to(hit.cluster);
-      // [ ] next
+      auto hit = rendered.hit(region, pos, zoom).unwrap_or(TextHitResult{});
+      caret_alignment_ = hit.column;
+      cursor_.span_to2(align_caret(layout, hit.line, hit.column));
     }
     break;
 
@@ -653,9 +823,9 @@ Tuple<bool, Slice> TextCompositor::command(
       break;
   }
 
-  cursor_.normalize(text.text_.size());
+  cursor_.normalize(text.size());
 
-  return {modified, cursor_.as_slice()};
+  return modified;
 }
 
 }    // namespace ash
