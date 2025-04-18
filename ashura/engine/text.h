@@ -238,20 +238,260 @@ struct TextHighlightStyle
 
 struct CaretStyle
 {
-  Vec4U8 color     = {};
-  f32    thickness = 1;
-};
 
-struct TextHighlight
-{
-  Slice              slice = {};
-  TextHighlightStyle style = {};
-};
+/// @brief Caret index. Represents current text insert position.
+using Caret = isize;
 
-struct Caret
+// [ ] selecting  line span resets it to the beginning
+struct TextCursor
 {
-  usize      pos   = 0;
-  CaretStyle style = {};
+  struct Selection
+  {
+    /// @brief the first selected codepoint in the selection range.
+    /// range: [0, n-1]
+    Caret first = 0;
+
+    /// @brief the last selected codepoint in either direction.
+    /// range: [0, n-1]
+    Caret last = 0;
+
+    constexpr Slice as_slice() const
+    {
+      if (first <= last)
+      {
+        return Slice::from_range(first, last + 1);
+      }
+      else
+      {
+        return Slice::from_range(last, first + 1);
+      }
+    }
+
+    constexpr Caret caret() const
+    {
+      if (first <= last)
+      {
+        return last + 1;
+      }
+      else
+      {
+        return last;
+      }
+    }
+
+    constexpr Caret left_caret() const
+    {
+      return min(first, last);
+    }
+
+    constexpr Caret right_caret() const
+    {
+      return max(first, last) + 1;
+    }
+
+    constexpr Selection & reflect()
+    {
+      swap(first, last);
+      return *this;
+    }
+  };
+
+  Option<Selection> selection_ = none;
+  Caret             caret_     = 0;
+
+  constexpr TextCursor & select(Slice s, bool right = false)
+  {
+    if (s.is_empty())
+    {
+      caret_     = (Caret) s.offset;
+      selection_ = none;
+    }
+    else
+    {
+      Selection sel{.first = (Caret) s.offset, .last = (Caret) (s.end() - 1)};
+
+      if (right)
+      {
+        sel.reflect();
+      }
+
+      caret_     = sel.caret();
+      selection_ = sel;
+    }
+
+    return *this;
+  }
+
+  constexpr TextCursor & unselect()
+  {
+    selection_.match(
+      [&](Selection & s) {
+        caret_     = s.caret();
+        selection_ = none;
+      },
+      []() {});
+
+    return *this;
+  }
+
+  constexpr TextCursor & unselect_left()
+  {
+    selection_.match(
+      [&](Selection & s) {
+        caret_     = s.left_caret();
+        selection_ = none;
+      },
+      []() {});
+
+    return *this;
+  }
+
+  constexpr TextCursor & unselect_right()
+  {
+    selection_.match(
+      [&](Selection & s) {
+        caret_     = s.right_caret();
+        selection_ = none;
+      },
+      []() {});
+
+    return *this;
+  }
+
+  constexpr bool has_selection() const
+  {
+    return selection_.is_some();
+  }
+
+  constexpr TextCursor & normalize(Caret n)
+  {
+    selection_.match(
+      [&](Selection & s) {
+        if (n == 0)
+        {
+          selection_ = none;
+        }
+        else
+        {
+          s.first = clamp(s.first, (Caret) 0, n - 1);
+          s.last  = clamp(s.last, (Caret) 0, n - 1);
+        }
+      },
+      [&]() {});
+
+    caret_ = clamp(caret_, (Caret) 0, n);
+    return *this;
+  }
+
+  constexpr Slice selection() const
+  {
+    return selection_.match([&](Selection s) -> Slice { return s.as_slice(); },
+                            [&]() -> Slice { return {(usize) caret_, 0}; });
+  }
+
+  constexpr TextCursor & span_by2(Caret distance)
+  {
+    selection_.match(
+      [&](Selection & s) {
+        if (distance > 0)
+        {
+          s.last = s.first + distance - 1;
+          caret_ = s.right_caret();
+        }
+        else if (distance < 0)
+        {
+          s.last = s.first + distance + 1;
+          caret_ = s.left_caret();
+        }
+        else
+        {
+          //  [ ] span left or right, will reset to the offset?
+          caret_     = s.first;
+          selection_ = none;
+        }
+      },
+      [&]() {
+        if (distance > 0)
+        {
+          auto selection = Selection{caret_, caret_ + distance - 1};
+          selection_     = selection;
+          caret_         = selection.right_caret();
+        }
+        else if (distance < 0)
+        {
+          auto selection = Selection{caret_ - 1, caret_ + distance};
+          selection_     = Selection{caret_ - 1, caret_ + distance};
+          caret_ = selection.left_caret();
+        }
+        else
+        {
+          // no-op
+        }
+      });
+
+    return *this;
+  }
+
+  constexpr Caret span_distance() const
+  {
+    //  [ ] verify
+    return selection_.match(
+      [&](Selection s) -> Caret {
+        if (caret_ > s.first)
+        {
+          return caret_ - s.first;
+        }
+        else
+        {
+          return (caret_ - s.first) - 1;
+        }
+      },
+      [&]() -> Caret { return 0; });
+  }
+
+  constexpr TextCursor & span_to2(Caret pos)
+  {
+    selection_.match([&](Selection s) { span_by2(pos - s.first); },
+                     [&]() { span_by2(pos - caret_); });
+    return *this;
+  }
+
+  constexpr TextCursor & extend_selection(Caret extension)
+  {
+    return span_by2(span_distance() + extension);
+  }
+
+  constexpr TextCursor & move_to(Caret pos)
+  {
+    selection_ = none;
+    caret_     = pos;
+    return *this;
+  }
+
+  constexpr TextCursor & translate(Caret distance)
+  {
+    selection_.match(
+      [&](Selection s) {
+        if (distance > 0)
+        {
+          caret_ = s.right_caret();
+        }
+        else if (distance < 0)
+        {
+          caret_ = s.left_caret();
+        }
+      },
+      [&]() { caret_ += distance; });
+
+    selection_ = none;
+
+    return *this;
+  }
+
+  constexpr Caret caret() const
+  {
+    return caret_;
+  }
 };
 
 /// @param font font to use to render the text
