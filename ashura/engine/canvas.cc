@@ -427,6 +427,28 @@ static inline void add_rrect(Canvas & c, RRectParam const & param,
   c.batches.last().run.span++;
 }
 
+static inline void add_squircle(Canvas & c, SquircleParam const & param,
+                                Rect const & clip)
+{
+  u32 const index = c.squircle_params.size32();
+  c.squircle_params.push(param).unwrap();
+
+  if (c.batches.is_empty() ||
+      c.batches.last().type != Canvas::BatchType::Squircle ||
+      c.batches.last().clip != clip)
+  {
+    c.batches
+      .push(Canvas::Batch{
+        .type = Canvas::BatchType::Squircle, .run{index, 1},
+           .clip = clip
+    })
+      .unwrap();
+    return;
+  }
+
+  c.batches.last().run.span++;
+}
+
 static inline void add_ngon(Canvas & c, NgonParam const & param,
                             Rect const & clip, u32 num_indices)
 {
@@ -514,13 +536,21 @@ Canvas & Canvas::rect(ShapeInfo const & info)
 
 Canvas & Canvas::rrect(ShapeInfo const & info)
 {
-  f32 const inv_y = 1 / info.extent.y;
+  f32 const inv_y      = 1 / info.extent.y;
+  f32 const max_radius = 0.5F * min(info.extent.x, info.extent.y) * inv_y;
+  Vec4      r          = info.corner_radii * inv_y;
+
+  r.x = min(r.x, max_radius);
+  r.y = min(r.y, max_radius);
+  r.z = min(r.z, max_radius);
+  r.w = min(r.w, max_radius);
+
   add_rrect(
     *this,
     RRectParam{
       .transform    = object_to_world(info.transform, info.center, info.extent),
       .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-      .radii        = info.corner_radii * inv_y,
+      .radii        = r,
       .uv           = {info.uv[0], info.uv[1]},
       .tiling       = info.tiling,
       .aspect_ratio = info.extent.x * inv_y,
@@ -564,48 +594,72 @@ Canvas & Canvas::brect(ShapeInfo const & info)
   return *this;
 }
 
-Canvas & Canvas::squircle(ShapeInfo const & info, f32 elasticity, u32 segments)
+Canvas & Canvas::squircle(ShapeInfo const & info)
 {
-  u32 const first_vertex = ngon_vertices.size32();
-  u32 const first_index  = ngon_indices.size32();
+  f32 const inv_y      = 1 / info.extent.y;
+  f32 const max_radius = 0.5F * min(info.extent.x, info.extent.y) * inv_y;
+  f32       r          = min(info.corner_radii.x * inv_y, max_radius);
 
-  path::squircle(ngon_vertices, elasticity, segments);
-
-  u32 const num_vertices = ngon_vertices.size32() - first_vertex;
-
-  path::triangulate_convex(ngon_indices, first_vertex, num_vertices);
-
-  u32 const num_indices = ngon_indices.size32() - first_index;
-
-  add_ngon(
+  add_squircle(
     *this,
-    NgonParam{
+    SquircleParam{
       .transform    = object_to_world(info.transform, info.center, info.extent),
       .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
       .uv           = {info.uv[0], info.uv[1]},
+      .radius       = r,
       .tiling       = info.tiling,
-      .sampler      = info.sampler,
-      .albedo       = info.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex
+      .aspect_ratio = info.extent.x * inv_y,
+      .stroke       = info.stroke,
+      .thickness    = info.thickness * inv_y,
+      .edge_smoothness = info.edge_smoothness * inv_y,
+      .sampler         = info.sampler,
+      .albedo          = info.texture
   },
-    current_clip, num_indices);
+    current_clip);
 
   return *this;
 }
 
-struct CaretHitResult
+struct LineSlice
 {
-  usize         glyph     = 0;
-  usize         cluster   = 0;
-  TextDirection direction = TextDirection::LeftToRight;
-  Vec2          pos       = {};
-  f32           height    = 0;
+  f32 begin  = 0;
+  f32 extent = 0;
+
+  f32 end() const
+  {
+    return begin + extent;
+  }
+
+  bool contains(LineSlice const & other) const
+  {
+    return begin >= other.begin && end() >= other.end();
+  }
 };
+
+void merge_line(Vec<LineSlice> & lines, LineSlice line)
+{
+  auto match = binary_find(
+    lines.view(), [&](LineSlice const & l) { return l.end() >= line.end(); });
+
+  if (match.is_empty())
+  {
+    lines.push(line).unwrap();
+    return;
+  }
+
+  if (match[0].contains(line))
+  {
+    return;
+  }
+
+  auto const pre_begin = match[0].begin;
+  auto const pre_end   = match[0].end();
+}
 
 Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                       TextLayout const & layout, TextBlockStyle const & style,
-                      CRect const & clip)
+                      Span<Slice const>          highlights,
+                      Span<CaretCodepoint const> carets, CRect const & clip)
 {
   CHECK(style.runs.size() == block.runs.size(), "");
   CHECK(style.runs.size() == block.fonts.size(), "");
@@ -626,11 +680,14 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
 
   static constexpr u32 NUM_PASSES = 7;
 
-  Option<CaretHitResult> caret_hit;
-
   for (u32 pass = 0; pass < NUM_PASSES; pass++)
   {
-    if (pass == Pass::Highlight && style.highlight.slice.is_empty())
+    if (pass == Pass::Highlight && highlights.is_empty())
+    {
+      continue;
+    }
+
+    if (pass == Pass::Caret && carets.is_empty())
     {
       continue;
     }
@@ -651,25 +708,28 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         continue;
       }
 
-      f32 const           baseline  = line_y - ln.metrics.descent;
-      TextDirection const direction = level_to_direction(ln.metrics.level);
+      f32 const  baseline  = line_y - ln.metrics.descent;
+      auto const direction = level_to_direction(ln.metrics.level);
       // flip the alignment axis direction if it is an RTL line
-      f32 const           alignment =
+      f32 const  alignment =
         style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
       f32 cursor = space_align(block_width, ln.metrics.width, alignment) -
                    ln.metrics.width * 0.5F;
 
-      Option<Tuple<f32, f32>> highlight;
+      // [ ] vector of highlight rects
+      // [ ] support multi-selection
+      Option<Tuple<f32, f32>> highlighted;
 
       for (TextRun const & run : layout.runs.view().slice(ln.runs))
       {
-        FontStyle const &    font_style  = block.fonts[run.style];
-        TextStyle const &    run_style   = style.runs[run.style];
-        FontInfo const       font        = sys->font.get(font_style.font);
-        GpuFontAtlas const & atlas       = font.gpu_atlas.value();
-        f32 const            font_height = block.font_scale * run.font_height;
-        auto const           run_metrics = run.metrics.resolve(font_height);
-        f32 const            run_width   = run_metrics.advance;
+        auto const & font_style  = block.fonts[run.style];
+        auto const & run_style   = style.runs[run.style];
+        auto const   font        = sys->font.get(font_style.font);
+        auto const & atlas       = font.gpu_atlas.value();
+        f32 const    font_height = block.font_scale * run.font_height;
+        auto const   run_metrics = run.metrics.resolve(font_height);
+        f32 const    run_width   = run_metrics.advance;
+        auto const   direction   = level_to_direction(run.level);
 
         if (pass == Pass::Background && !run_style.background.is_transparent())
         {
@@ -696,19 +756,16 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                               au_to_px(sh.offset, font_height) + extent * 0.5F;
           f32 const advance = au_to_px(sh.advance, font_height);
 
-          if (pass == Pass::Highlight &&
-              style.highlight.slice.contains(sh.cluster))
+          if (pass == Pass::Highlight && highlight.contains(sh.cluster))
           {
-            // [ ] hitting empty space doesn't seem to work
-            // [ ] hit down without mouse movewment should not span
             f32 const begin = glyph_cursor;
             f32 const end   = glyph_cursor + advance;
-            highlight.match(
+            highlighted.match(
               [&](auto & h) {
                 h.v0 = min(begin, h.v0);
                 h.v1 = max(end, h.v1);
               },
-              [&]() { highlight = Tuple{begin, end}; });
+              [&]() { highlighted = Tuple{begin, end}; });
           }
 
           if (pass == Pass::GlyphShadows && run_style.shadow_scale != 0 &&
@@ -745,60 +802,73 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
             });
           }
 
-          if (pass == Pass::Caret)
+          if (pass == Pass::Caret && style.caret.thickness != 0)
           {
-            style.caret.match([&](auto & c) {
+            caret.match([&](auto icaret) {
               // find the glyphs with the nearest grapheme cluster to the caret position.
-              // multiple glyphs might merge to the same grapheme cluster
-              auto const distance = abs_diff(c.pos, sh.cluster);
-              auto const igl      = run.glyphs.offset + i;
-              Vec2       caret_pos{0, line_y};
+              // [ ] RTL- alignment
 
-              if (direction == TextDirection::LeftToRight)
+              auto const glyph = run.glyphs.offset + i;
+              auto const base_codepoint =
+                (usize) (icaret <= 0 ? 0 : (icaret - 1));
+
+              auto alignment = (direction == TextDirection::LeftToRight) ?
+                                 ALIGNMENT_RIGHT :
+                                 ALIGNMENT_LEFT;
+
+              if (icaret == 0)
               {
-                caret_pos.x = center.x - 0.5F * extent.x;
-              }
-              else
-              {
-                caret_pos.x = center.x + 0.5F * extent.x;
+                alignment *= -1;
               }
 
-              CaretHitResult const result{.glyph     = igl,
-                                          .cluster   = sh.cluster,
-                                          .direction = direction,
-                                          .pos       = caret_pos,
-                                          .height    = ln.metrics.height};
+              Vec2 const caret_pos{(glyph_cursor + 0.5F * advance) +
+                                     space_align(advance, 0.0F, alignment),
+                                   line_y};
+
+              CaretHitResult const result{.glyph   = glyph,
+                                          .cluster = sh.cluster,
+                                          .pos     = caret_pos,
+                                          .height  = ln.metrics.height};
 
               caret_hit.match(
                 [&](auto & h) {
-                  auto const hit_distance = abs_diff(c.pos, h.cluster);
-
-                  if (distance < hit_distance)
+                  // multiple glyphs might merge to the same grapheme cluster, we need to select the closest glyph based on text direction.
+                  switch (cmp(abs_diff(base_codepoint, sh.cluster),
+                              abs_diff(base_codepoint, h.cluster)))
                   {
-                    caret_hit = result;
-                  }
-                  else if (distance == hit_distance)
-                  {
-                    // based on the run direction, select the glyph within that cluster
-                    switch (direction)
+                    case Ordering::Less:
                     {
-                      case TextDirection::LeftToRight:
-                      {
-                        if (igl > h.glyph)
-                        {
-                          caret_hit = result;
-                        }
-                      }
-                      break;
-                      case TextDirection::RightToLeft:
-                      {
-                        if (igl < h.glyph)
-                        {
-                          caret_hit = result;
-                        }
-                      }
-                      break;
+                      caret_hit = result;
                     }
+                    break;
+
+                    case Ordering::Equal:
+                    {
+                      // based on the run direction, select the glyph within that cluster
+                      switch (direction)
+                      {
+                        case TextDirection::LeftToRight:
+                        {
+                          if (glyph > h.glyph)
+                          {
+                            caret_hit = result;
+                          }
+                        }
+                        break;
+                        case TextDirection::RightToLeft:
+                        {
+                          if (glyph < h.glyph)
+                          {
+                            caret_hit = result;
+                          }
+                        }
+                        break;
+                      }
+                    }
+                    break;
+
+                    default:
+                      break;
                   }
                 },
                 [&]() { caret_hit = result; });
@@ -847,32 +917,32 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
 
       if (pass == Pass::Highlight)
       {
-        highlight.match([&](auto & h) {
+        // [ ] RTL- highlighting,  use union instead; no!: draw a per-run rect? and consider merging
+        highlighted.match([&](auto & h) {
           Vec2 const extent{h.v1 - h.v0, ln.metrics.height};
           Vec2 const center{h.v0 + 0.5F * extent.x, line_y - 0.5F * extent.y};
           rrect({.center       = info.center,
                  .extent       = extent,
                  .transform    = info.transform * translate3d(vec3(center, 0)),
-                 .corner_radii = style.highlight.style.corner_radii,
-                 .stroke       = style.highlight.style.stroke,
-                 .thickness    = style.highlight.style.thickness,
-                 .tint         = style.highlight.style.color});
+                 .corner_radii = style.highlight.corner_radii,
+                 .stroke       = style.highlight.stroke,
+                 .thickness    = style.highlight.thickness,
+                 .tint         = style.highlight.color});
         });
       }
     }
 
-    if (pass == Pass::Caret)
+    if (pass == Pass::Caret && style.caret.thickness != 0)
     {
-      style.caret.match([&](auto & c) {
-        caret_hit.match([&](auto & h) {
-          Vec2 const center{h.pos.x, h.pos.y - 0.5F * h.height};
-          Vec2 const extent{c.style.thickness, h.height};
+      caret_hit.match([&](auto & h) {
+        Vec2 const center{h.pos.x, h.pos.y - 0.5F * h.height};
+        Vec2 const extent{style.caret.thickness, h.height};
 
-          rrect({.center    = info.center,
-                 .extent    = extent,
-                 .transform = info.transform * translate3d(vec3(center, 0)),
-                 .tint      = c.style.color});
-        });
+        rrect({.center       = info.center,
+               .extent       = extent,
+               .transform    = info.transform * translate3d(vec3(center, 0)),
+               .corner_radii = style.caret.corner_radii,
+               .tint         = style.caret.color});
       });
     }
   }
