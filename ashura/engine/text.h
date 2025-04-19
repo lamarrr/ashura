@@ -245,252 +245,152 @@ using Caret = isize;
 // [ ] selecting  line span resets it to the beginning
 struct TextCursor
 {
-  struct Selection
+  isize span_ = 0;
+  isize base_ = 0;
+
+  constexpr TextCursor & selectx(SliceI64 s)
   {
-    /// @brief the first selected codepoint in the selection range.
-    /// range: [0, n-1]
-    Caret first = 0;
+    base_ = s.offset;
+    span_ = s.span;
+    return *this;
+  }
 
-    /// @brief the last selected codepoint in either direction.
-    /// range: [0, n-1]
-    Caret last = 0;
-
-    constexpr Slice as_slice() const
-    {
-      if (first <= last)
-      {
-        return Slice::from_range(first, last + 1);
-      }
-      else
-      {
-        return Slice::from_range(last, first + 1);
-      }
-    }
-
-    constexpr Caret caret() const
-    {
-      if (first <= last)
-      {
-        return last + 1;
-      }
-      else
-      {
-        return last;
-      }
-    }
-
-    constexpr Caret left_caret() const
-    {
-      return min(first, last);
-    }
-
-    constexpr Caret right_caret() const
-    {
-      return max(first, last) + 1;
-    }
-
-    constexpr Selection & reflect()
-    {
-      swap(first, last);
-      return *this;
-    }
-  };
-
-  Option<Selection> selection_ = none;
-  Caret             caret_     = 0;
-
-  constexpr TextCursor & select(Slice s, bool right = false)
+  constexpr isize caretx() const
   {
-    if (s.is_empty())
+    if (span_ > 0)
     {
-      caret_     = (Caret) s.offset;
-      selection_ = none;
+      return base_ + span_ - 1;
+    }
+    else if (span_ < 0)
+    {
+      return base_ + span_;
     }
     else
     {
-      Selection sel{.first = (Caret) s.offset, .last = (Caret) (s.end() - 1)};
+      return base_;
+    }
+  }
 
-      if (right)
-      {
-        sel.reflect();
-      }
+  constexpr isize start_caretx() const
+  {
+    if (span_ > 0)
+    {
+      return base_;
+    }
+    else if (span_ < 0)
+    {
+      return base_ + span_;
+    }
+    else
+    {
+      return base_;
+    }
+  }
 
-      caret_     = sel.caret();
-      selection_ = sel;
+  constexpr isize end_caretx() const
+  {
+    if (span_ > 0)
+    {
+      return base_ + span_ - 1;
+    }
+    else if (span_ < 0)
+    {
+      return base_;
+    }
+    else
+    {
+      return base_;
+    }
+  }
+
+  constexpr TextCursor & unselectx()
+  {
+    auto c = caretx();
+    base_  = c;
+    span_  = 0;
+    return *this;
+  }
+
+  constexpr TextCursor & unselect_startx()
+  {
+    auto c = start_caretx();
+    base_  = c;
+    span_  = 0;
+    return *this;
+  }
+
+  constexpr TextCursor & unselect_endx()
+  {
+    auto c = end_caretx();
+    base_  = c;
+    span_  = c;
+    return *this;
+  }
+
+  constexpr bool has_selectionx() const
+  {
+    return span_ != 0;
+  }
+
+  constexpr TextCursor & normalizex(isize num_carets)
+  {
+    base_ = clamp(base_, (isize) 0, num_carets);
+    span_ = clamp(base_ + span_, (isize) 0, num_carets) - base_;
+    return *this;
+  }
+
+  constexpr SliceI selectionx() const
+  {
+    if (span_ > 0)
+    {
+      return SliceI{base_, span_};
+    }
+    else if (span_ < 0)
+    {
+      return SliceI{(base_ + span_), (-span_)};
+    }
+    else
+    {
+      return SliceI{base_, 0};
+    }
+  }
+
+  constexpr TextCursor & span_by2x(isize distance)
+  {
+    span_ = distance;
+    return *this;
+  }
+
+  constexpr isize span() const
+  {
+    return span_;
+  }
+
+  constexpr TextCursor & span_to2x(isize selection_pos)
+  {
+    if (selection_pos >= base_)
+    {
+      span_ = (selection_pos - base_) + 1;
+    }
+    else
+    {
+      span_ = (selection_pos - base_);
     }
 
     return *this;
   }
 
-  constexpr TextCursor & unselect()
+  constexpr TextCursor & extend_selectionx(isize extension)
   {
-    selection_.match(
-      [&](Selection & s) {
-        caret_     = s.caret();
-        selection_ = none;
-      },
-      []() {});
-
+    span_ += extension;
     return *this;
   }
 
-  constexpr TextCursor & unselect_left()
+  constexpr TextCursor & move_tox(isize pos)
   {
-    selection_.match(
-      [&](Selection & s) {
-        caret_     = s.left_caret();
-        selection_ = none;
-      },
-      []() {});
-
+    base_ = pos;
+    span_ = 0;
     return *this;
-  }
-
-  constexpr TextCursor & unselect_right()
-  {
-    selection_.match(
-      [&](Selection & s) {
-        caret_     = s.right_caret();
-        selection_ = none;
-      },
-      []() {});
-
-    return *this;
-  }
-
-  constexpr bool has_selection() const
-  {
-    return selection_.is_some();
-  }
-
-  constexpr TextCursor & normalize(Caret n)
-  {
-    selection_.match(
-      [&](Selection & s) {
-        if (n == 0)
-        {
-          selection_ = none;
-        }
-        else
-        {
-          s.first = clamp(s.first, (Caret) 0, n - 1);
-          s.last  = clamp(s.last, (Caret) 0, n - 1);
-        }
-      },
-      [&]() {});
-
-    caret_ = clamp(caret_, (Caret) 0, n);
-    return *this;
-  }
-
-  constexpr Slice selection() const
-  {
-    return selection_.match([&](Selection s) -> Slice { return s.as_slice(); },
-                            [&]() -> Slice { return {(usize) caret_, 0}; });
-  }
-
-  constexpr TextCursor & span_by2(Caret distance)
-  {
-    selection_.match(
-      [&](Selection & s) {
-        if (distance > 0)
-        {
-          s.last = s.first + distance - 1;
-          caret_ = s.right_caret();
-        }
-        else if (distance < 0)
-        {
-          s.last = s.first + distance + 1;
-          caret_ = s.left_caret();
-        }
-        else
-        {
-          //  [ ] span left or right, will reset to the offset?
-          caret_     = s.first;
-          selection_ = none;
-        }
-      },
-      [&]() {
-        if (distance > 0)
-        {
-          auto selection = Selection{caret_, caret_ + distance - 1};
-          selection_     = selection;
-          caret_         = selection.right_caret();
-        }
-        else if (distance < 0)
-        {
-          auto selection = Selection{caret_ - 1, caret_ + distance};
-          selection_     = Selection{caret_ - 1, caret_ + distance};
-          caret_ = selection.left_caret();
-        }
-        else
-        {
-          // no-op
-        }
-      });
-
-    return *this;
-  }
-
-  constexpr Caret span_distance() const
-  {
-    //  [ ] verify
-    return selection_.match(
-      [&](Selection s) -> Caret {
-        if (caret_ > s.first)
-        {
-          return caret_ - s.first;
-        }
-        else
-        {
-          return (caret_ - s.first) - 1;
-        }
-      },
-      [&]() -> Caret { return 0; });
-  }
-
-  constexpr TextCursor & span_to2(Caret pos)
-  {
-    selection_.match([&](Selection s) { span_by2(pos - s.first); },
-                     [&]() { span_by2(pos - caret_); });
-    return *this;
-  }
-
-  constexpr TextCursor & extend_selection(Caret extension)
-  {
-    return span_by2(span_distance() + extension);
-  }
-
-  constexpr TextCursor & move_to(Caret pos)
-  {
-    selection_ = none;
-    caret_     = pos;
-    return *this;
-  }
-
-  constexpr TextCursor & translate(Caret distance)
-  {
-    selection_.match(
-      [&](Selection s) {
-        if (distance > 0)
-        {
-          caret_ = s.right_caret();
-        }
-        else if (distance < 0)
-        {
-          caret_ = s.left_caret();
-        }
-      },
-      [&]() { caret_ += distance; });
-
-    selection_ = none;
-
-    return *this;
-  }
-
-  constexpr Caret caret() const
-  {
-    return caret_;
   }
 };
 
