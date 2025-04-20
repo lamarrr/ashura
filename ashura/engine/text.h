@@ -228,6 +228,12 @@ enum class TextScript : u8
   NagMundari = 0xA4
 };
 
+constexpr TextDirection level_to_direction(u8 level)
+{
+  return ((level & 0x1) == 0) ? TextDirection::LeftToRight :
+                                TextDirection::RightToLeft;
+}
+
 struct TextHighlightStyle
 {
   Vec4U8 color        = {};
@@ -238,17 +244,22 @@ struct TextHighlightStyle
 
 struct CaretStyle
 {
+  Vec4U8 color        = {};
+  f32    thickness    = 1;
+  Vec4   corner_radii = Vec4::splat(0.25F);
 
-/// @brief Caret index. Represents current text insert position.
-using Caret = isize;
+  constexpr bool is_none() const
+  {
+    return thickness == 0 || color == Vec4U8{};
+  }
+};
 
-// [ ] selecting  line span resets it to the beginning
 struct TextCursor
 {
   isize span_ = 0;
   isize base_ = 0;
 
-  constexpr TextCursor & selectx(SliceI64 s)
+  constexpr TextCursor & selectx(Slice s)
   {
     base_ = s.offset;
     span_ = s.span;
@@ -257,21 +268,10 @@ struct TextCursor
 
   constexpr isize caretx() const
   {
-    if (span_ > 0)
-    {
-      return base_ + span_ - 1;
-    }
-    else if (span_ < 0)
-    {
-      return base_ + span_;
-    }
-    else
-    {
-      return base_;
-    }
+    return base_ + span_;
   }
 
-  constexpr isize start_caretx() const
+  constexpr isize left_caretx() const
   {
     if (span_ > 0)
     {
@@ -287,11 +287,11 @@ struct TextCursor
     }
   }
 
-  constexpr isize end_caretx() const
+  constexpr isize right_caretx() const
   {
     if (span_ > 0)
     {
-      return base_ + span_ - 1;
+      return base_ + span_;
     }
     else if (span_ < 0)
     {
@@ -311,17 +311,17 @@ struct TextCursor
     return *this;
   }
 
-  constexpr TextCursor & unselect_startx()
+  constexpr TextCursor & unselect_leftx()
   {
-    auto c = start_caretx();
+    auto c = left_caretx();
     base_  = c;
     span_  = 0;
     return *this;
   }
 
-  constexpr TextCursor & unselect_endx()
+  constexpr TextCursor & unselect_rightx()
   {
-    auto c = end_caretx();
+    auto c = right_caretx();
     base_  = c;
     span_  = c;
     return *this;
@@ -334,24 +334,28 @@ struct TextCursor
 
   constexpr TextCursor & normalizex(isize num_carets)
   {
-    base_ = clamp(base_, (isize) 0, num_carets);
-    span_ = clamp(base_ + span_, (isize) 0, num_carets) - base_;
-    return *this;
-  }
-
-  constexpr SliceI selectionx() const
-  {
-    if (span_ > 0)
+    if (num_carets == 0)
     {
-      return SliceI{base_, span_};
-    }
-    else if (span_ < 0)
-    {
-      return SliceI{(base_ + span_), (-span_)};
+      base_ = 0;
+      span_ = 0;
     }
     else
     {
-      return SliceI{base_, 0};
+      base_ = clamp(base_, (isize) 0, num_carets - 1);
+      span_ = clamp(base_ + span_, (isize) 0, num_carets) - base_;
+    }
+    return *this;
+  }
+
+  constexpr Slice selectionx() const
+  {
+    if (span_ >= 0)
+    {
+      return Slice{(usize) base_, (usize) span_};
+    }
+    else
+    {
+      return Slice{(usize) (base_ + span_), (usize) (-span_)};
     }
   }
 
@@ -361,22 +365,14 @@ struct TextCursor
     return *this;
   }
 
-  constexpr isize span() const
+  constexpr isize spanx() const
   {
     return span_;
   }
 
   constexpr TextCursor & span_to2x(isize selection_pos)
   {
-    if (selection_pos >= base_)
-    {
-      span_ = (selection_pos - base_) + 1;
-    }
-    else
-    {
-      span_ = (selection_pos - base_);
-    }
-
+    span_ = (selection_pos - base_);
     return *this;
   }
 
@@ -390,6 +386,12 @@ struct TextCursor
   {
     base_ = pos;
     span_ = 0;
+    return *this;
+  }
+
+  constexpr TextCursor & translatex(isize dist)
+  {
+    base_ += dist;
     return *this;
   }
 };
@@ -418,12 +420,21 @@ struct TextStyle
   ColorGradient strikethrough           = {};
   ColorGradient shadow                  = {};
   Vec4          corner_radii            = Vec4::splat(0.5F);
+
+  constexpr bool has_shadow() const
+  {
+    return shadow_scale != 0 && !shadow.is_transparent();
+  }
+
+  constexpr bool has_color() const
+  {
+    return !color.is_transparent();
+  }
 };
 
 /// @brief A block of text to be laid-out, consists of multiple runs of text
 /// spanning multiple paragraphs.
 /// @param text utf-32-encoded text
-/// @param hash user-defined hash representing the text block
 /// @param runs end offset of each text run
 /// @param fonts font style of each text run
 /// @param direction base text direction
@@ -434,7 +445,6 @@ struct TextStyle
 struct TextBlock
 {
   Str32                 text          = {};
-  hash64                hash          = 0;
   Span<u32 const>       runs          = {};
   Span<FontStyle const> fonts         = {};
   f32                   font_scale    = 1;
@@ -455,8 +465,8 @@ struct TextBlockStyle
   Span<TextStyle const> runs        = {};
   f32                   alignment   = 0;
   f32                   align_width = 0;
-  TextHighlight         highlight   = {};
-  Option<Caret>         caret       = none;
+  TextHighlightStyle    highlight   = {};
+  CaretStyle            caret       = {};
 };
 
 /// @param cluster unicode grapheme cluster within the text run
@@ -536,25 +546,57 @@ enum class TextRunType : u8
   Tab        = 2
 };
 
-/// @param first index of first codepoint in the source text
-/// @param count number of codepoints the run spans in the source text
-/// @param font font-style in the list of specified fonts
-/// @param paragraph if the run is at the beginning of a paragraph
-/// @param wrappable if the run represents a break-opportunity as constrained by
-/// the max-width.
 struct TextRun
 {
-  Slice          codepoints  = {};
-  u32            style       = 0;
-  f32            font_height = 0;
-  f32            line_height = 0;
-  Slice          glyphs      = {};
-  TextRunMetrics metrics     = {};
-  u8             base_level  = 0;
-  u8             level       = 0;
-  bool           paragraph   = false;
-  bool           wrappable   = false;
-  TextRunType    type        = TextRunType::Char;
+  /// @brief Codepoints in the source text the run belongs to
+  Slice codepoints = {};
+
+  /// @brief Codepoints that created the paragraph,
+  /// Only non-empty if the line is the first in the paragraph.
+  /// `.span` is usually 0 (none), 1 ('\n') or 2 ('\r\n').
+  Slice break_codepoints = {};
+
+  /// @brief style in the list of specified text styles
+  u32 style = 0;
+
+  f32 font_height = 0;
+
+  f32 line_height = 0;
+
+  Slice glyphs = {};
+
+  TextRunMetrics metrics = {};
+
+  u8 base_level = 0;
+
+  u8 level = 0;
+
+  /// @brief if the run represents a break-opportunity as constrained by the max-width.
+  bool wrappable = false;
+
+  TextRunType type = TextRunType::Char;
+
+  constexpr TextDirection base_direction() const
+  {
+    return level_to_direction(base_level);
+  }
+
+  constexpr TextDirection direction() const
+  {
+    return level_to_direction(level);
+  }
+
+  constexpr bool is_paragraph_begin() const
+  {
+    return !break_codepoints.is_empty();
+  }
+
+  constexpr Slice carets(Slice line_carets, Slice line_codepoints) const
+  {
+    return Slice{line_carets.offset +
+                   (codepoints.offset - line_codepoints.offset),
+                 codepoints.span};
+  }
 };
 
 /// @param width width of the line
@@ -569,24 +611,61 @@ struct LineMetrics
   f32 ascent  = 0;
   f32 descent = 0;
   u8  level   = 0;
+
+  constexpr TextDirection direction() const
+  {
+    return level_to_direction(level);
+  }
 };
 
 /// @brief
-/// @param paragraph if the new line is a new paragraph
 struct Line
 {
-  Slice       codepoints = {};
-  Slice       runs       = {};
-  LineMetrics metrics    = {};
-  bool        paragraph  = false;
+  /// @brief codepoints in the line (excludes the preceding line-breaks if any).
+  Slice codepoints = {};
+
+  Slice break_codepoints = {};
+
+  /// @brief Logical Carets on the current line. If the Line is an RTL line,
+  /// the first caret will be visually placed on the right
+  Slice carets = {};
+
+  Slice runs = {};
+
+  LineMetrics metrics = {};
 };
 
-struct TextHitResult
+enum class CaretAlignment : isize
 {
-  usize cluster = 0;
-  usize line    = 0;
-  usize column  = 0;
-  f32   pos     = 0;
+  LineStart = 0,
+  LineEnd   = ISIZE_MAX
+};
+
+enum class LineAlignment : isize
+{
+  Top    = ISIZE_MIN,
+  First  = 0,
+  Bottom = ISIZE_MAX
+};
+
+struct CaretLocation
+{
+  LineAlignment  line      = LineAlignment::Bottom;
+  CaretAlignment alignment = CaretAlignment::LineStart;
+};
+
+struct CaretCodepoint
+{
+  usize line      = 0;
+  usize codepoint = 0;
+  bool  after     = false;
+};
+
+struct CaretGlyph
+{
+  usize line  = 0;
+  usize glyph = 0;
+  bool  after = false;
 };
 
 /// @brief cached/pre-computed text layout
@@ -599,12 +678,13 @@ struct TextHitResult
 /// found in the text.
 struct TextLayout
 {
-  f32             max_width = 0;
-  hash64          hash      = 0;
-  Vec2            extent    = {};
-  Vec<GlyphShape> glyphs    = {};
-  Vec<TextRun>    runs      = {};
-  Vec<Line>       lines     = {};
+  f32             max_width      = 0;
+  usize           num_carets     = 0;
+  usize           num_codepoints = 0;
+  Vec2            extent         = {};
+  Vec<GlyphShape> glyphs         = {};
+  Vec<TextRun>    runs           = {};
+  Vec<Line>       lines          = {};
 
   explicit TextLayout(AllocatorRef allocator) :
     max_width{0},
@@ -623,8 +703,10 @@ struct TextLayout
 
   void clear()
   {
-    max_width = F32_MAX;
-    extent    = Vec2{0, 0};
+    max_width      = F32_MAX;
+    extent         = Vec2{0, 0};
+    num_carets     = 0;
+    num_codepoints = 0;
     glyphs.clear();
     runs.clear();
     lines.clear();
@@ -633,15 +715,23 @@ struct TextLayout
   /// @brief given a position in the laid-out text return the location of the
   /// grapheme the cursor points to. returns the last column if the position
   /// overlaps with the row and returns the last line if no overlap was found.
-  /// @param pos position in laid-out text to return from.
-  Option<TextHitResult> hit(TextBlock const &      block,
-                            TextBlockStyle const & style, Vec2 pos) const;
-};
+  /// @param pos position in laid-out text to hit
+  Tuple<isize, CaretLocation> hit(TextBlock const &      block,
+                                  TextBlockStyle const & style, Vec2 pos) const;
 
-constexpr TextDirection level_to_direction(u8 level)
-{
-  return ((level & 0x1) == 0) ? TextDirection::LeftToRight :
-                                TextDirection::RightToLeft;
-}
+                                  
+
+  Option<CaretCodepoint> get_caret_codepoint(isize caret) const;
+
+  Option<CaretGlyph> get_caret_glyph(isize caret) const;
+
+  Option<isize> to_caret(usize codepoint, bool before) const;
+
+  isize align_caret(CaretLocation loc) const;
+
+  Slice get_caret_selection(Slice carets) const;
+
+  Slice to_caret_selection(Slice codepoints) const;
+};
 
 }    // namespace ash

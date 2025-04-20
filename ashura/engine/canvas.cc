@@ -600,6 +600,7 @@ Canvas & Canvas::squircle(ShapeInfo const & info)
   f32 const max_radius = 0.5F * min(info.extent.x, info.extent.y) * inv_y;
   f32       r          = min(info.corner_radii.x * inv_y, max_radius);
 
+  // [ ] clamp
   add_squircle(
     *this,
     SquircleParam{
@@ -607,6 +608,7 @@ Canvas & Canvas::squircle(ShapeInfo const & info)
       .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
       .uv           = {info.uv[0], info.uv[1]},
       .radius       = r,
+      .degree       = info.corner_radii.y,
       .tiling       = info.tiling,
       .aspect_ratio = info.extent.x * inv_y,
       .stroke       = info.stroke,
@@ -620,46 +622,40 @@ Canvas & Canvas::squircle(ShapeInfo const & info)
   return *this;
 }
 
-struct LineSlice
+constexpr Tuple<bool, bool> highlight_test(Span<Slice const> highlights,
+                                           Slice             carets)
 {
-  f32 begin  = 0;
-  f32 extent = 0;
-
-  f32 end() const
+  bool fully_covered = false;
+  bool any_covered   = false;
+  for (Slice highlight : highlights)
   {
-    return begin + extent;
+    if (carets.contains(highlight))
+    {
+      fully_covered = true;
+      any_covered   = true;
+      break;
+    }
+
+    if (carets.overlaps(highlight))
+    {
+      any_covered = true;
+    }
   }
 
-  bool contains(LineSlice const & other) const
-  {
-    return begin >= other.begin && end() >= other.end();
-  }
-};
-
-void merge_line(Vec<LineSlice> & lines, LineSlice line)
-{
-  auto match = binary_find(
-    lines.view(), [&](LineSlice const & l) { return l.end() >= line.end(); });
-
-  if (match.is_empty())
-  {
-    lines.push(line).unwrap();
-    return;
-  }
-
-  if (match[0].contains(line))
-  {
-    return;
-  }
-
-  auto const pre_begin = match[0].begin;
-  auto const pre_end   = match[0].end();
+  return {fully_covered, any_covered};
 }
 
+constexpr bool caret_test(Span<isize const> cursor_carets, Slice carets)
+{
+  return any_is(cursor_carets,
+                [&](isize cursor) { return carets.contains(cursor); });
+}
+
+// [ ] sync with font_system
 Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
                       TextLayout const & layout, TextBlockStyle const & style,
-                      Span<Slice const>          highlights,
-                      Span<CaretCodepoint const> carets, CRect const & clip)
+                      Span<Slice const> highlights, Span<isize const> carets,
+                      CRect const & clip, TextRenderer renderer)
 {
   CHECK(style.runs.size() == block.runs.size(), "");
   CHECK(style.runs.size() == block.fonts.size(), "");
@@ -667,14 +663,26 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
   f32 const  block_width = max(layout.extent.x, style.align_width);
   Vec2 const block_extent{block_width, layout.extent.y};
 
+  char scratch[512];
+
+  FallbackAllocator allocator{Arena::from(scratch), default_allocator};
+
+  Vec<CaretGlyph> caret_glyphs{allocator};
+
+  for (auto caret : carets)
+  {
+    layout.get_caret_glyph(caret).match(
+      [&](auto c) { caret_glyphs.push(c).unwrap(); });
+  }
+
   enum Pass : u32
   {
     Background    = 0,
-    Highlight     = 1,
-    GlyphShadows  = 2,
-    Glyphs        = 3,
-    Underline     = 4,
-    Strikethrough = 5,
+    GlyphShadows  = 1,
+    Glyphs        = 2,
+    Underline     = 3,
+    Strikethrough = 4,
+    Highlight     = 5,
     Caret         = 6
   };
 
@@ -692,33 +700,61 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
       continue;
     }
 
-    f32 line_y = -block_extent.y * 0.5F;
+    f32 line_top = -block_extent.y * 0.5F;
 
     for (Line const & ln : layout.lines)
     {
-      CRect const ln_rect{
-        .center = info.center + line_y,
-        .extent{block_width, ln.metrics.height}
-      };
-
-      line_y += ln.metrics.height;
-
-      if (!overlaps(clip, ln_rect))
-      {
-        continue;
-      }
-
-      f32 const  baseline  = line_y - ln.metrics.descent;
-      auto const direction = level_to_direction(ln.metrics.level);
+      auto const line_bottom = line_top + ln.metrics.height;
+      f32 const  baseline    = line_bottom - ln.metrics.descent;
+      auto const direction   = ln.metrics.direction();
       // flip the alignment axis direction if it is an RTL line
       f32 const  alignment =
         style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
       f32 cursor = space_align(block_width, ln.metrics.width, alignment) -
                    ln.metrics.width * 0.5F;
 
-      // [ ] vector of highlight rects
-      // [ ] support multi-selection
-      Option<Tuple<f32, f32>> highlighted;
+      // [ ] incorrect
+      CRect const ln_rect{
+        .center = info.center + Vec2{0,           line_bottom      },
+        .extent{block_width, ln.metrics.height}
+      };
+
+      if (!overlaps(clip, ln_rect))
+      {
+        goto next_line;
+      }
+
+      if (pass == Pass::Highlight)
+      {
+        auto [fully_covered, has_any] = highlight_test(highlights, ln.carets);
+
+        if (fully_covered)
+        {
+          rrect(
+            {.center    = info.center,
+             .extent    = ln_rect.extent,
+             .transform = info.transform * translate3d(vec3(ln_rect.center, 0)),
+             .corner_radii = style.highlight.corner_radii,
+             .stroke       = style.highlight.stroke,
+             .thickness    = style.highlight.thickness,
+             .tint         = style.highlight.color});
+          goto next_line;
+        }
+
+        if (!has_any)
+        {
+          goto next_line;
+        }
+      }
+
+      if (pass == Pass::Caret)
+      {
+        auto has_any = caret_test(carets, ln.carets);
+        if (!has_any)
+        {
+          goto next_line;
+        }
+      }
 
       for (TextRun const & run : layout.runs.view().slice(ln.runs))
       {
@@ -729,47 +765,128 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
         f32 const    font_height = block.font_scale * run.font_height;
         auto const   run_metrics = run.metrics.resolve(font_height);
         f32 const    run_width   = run_metrics.advance;
-        auto const   direction   = level_to_direction(run.level);
-
-        if (pass == Pass::Background && !run_style.background.is_transparent())
-        {
-          Vec2 const extent{run_width, run_metrics.height()};
-          Vec2 const center{cursor + extent.x * 0.5F,
-                            baseline - run_metrics.ascent + extent.y * 0.5F};
-
-          rrect({.center       = info.center,
-                 .extent       = extent,
-                 .transform    = info.transform * translate3d(vec3(center, 0)),
-                 .corner_radii = run_style.corner_radii,
-                 .tint         = run_style.background});
-        }
+        auto const   direction   = run.direction();
 
         f32 glyph_cursor = cursor;
 
+        if (pass == Pass::Background)
+        {
+          if (!run_style.background.is_transparent())
+          {
+            Vec2 const extent{run_width, run_metrics.height()};
+            Vec2 const center{cursor + extent.x * 0.5F,
+                              baseline - run_metrics.ascent + extent.y * 0.5F};
+
+            rrect({.center    = info.center,
+                   .extent    = extent,
+                   .transform = info.transform * translate3d(vec3(center, 0)),
+                   .corner_radii = run_style.corner_radii,
+                   .tint         = run_style.background});
+          }
+
+          goto next_run;
+        }
+
+        if (pass == Pass::Highlight)
+        {
+          auto [fully_covered, has_any] =
+            highlight_test(highlights, run.carets(ln.carets, ln.codepoints));
+
+          if (fully_covered)
+          {
+            // [ ] verify
+            // [ ] needs spacing between highlights
+            Vec2 const extent{run_width, run_metrics.height()};
+            Vec2 const center{cursor + extent.x * 0.5F,
+                              baseline - run_metrics.ascent + extent.y * 0.5F};
+
+            rrect({.center    = info.center,
+                   .extent    = extent,
+                   .transform = info.transform * translate3d(vec3(center, 0)),
+                   .corner_radii = style.highlight.corner_radii,
+                   .stroke       = style.highlight.stroke,
+                   .thickness    = style.highlight.thickness,
+                   .tint         = style.highlight.color});
+
+            goto next_run;
+          }
+
+          if (!has_any)
+          {
+            goto next_run;
+          }
+        }
+
+        if (pass == Pass::Caret)
+        {
+          auto has_any =
+            caret_test(carets, run.carets(ln.carets, ln.codepoints));
+          if (!has_any)
+          {
+            goto next_run;
+          }
+        }
+
+        if (pass == Pass::Strikethrough)
+        {
+          if (run_style.strikethrough_thickness != 0)
+          {
+            Vec2 const extent{run_width, block.font_scale *
+                                           run_style.strikethrough_thickness};
+            Vec2 const center =
+              Vec2{cursor, baseline - run_metrics.ascent * 0.5F} +
+              extent * 0.5F;
+            rect({.center    = info.center,
+                  .extent    = extent,
+                  .transform = info.transform * translate3d(vec3(center, 0)),
+                  .tint      = run_style.strikethrough,
+                  .sampler   = info.sampler,
+                  .texture   = TextureId::White,
+                  .uv        = {},
+                  .tiling    = 1,
+                  .edge_smoothness = info.edge_smoothness});
+          }
+
+          goto next_run;
+        }
+
+        if (pass == Pass::Underline)
+        {
+          if (run_style.underline_thickness != 0)
+          {
+            Vec2 const extent{run_width,
+                              block.font_scale * run_style.underline_thickness};
+            Vec2 const center = Vec2{cursor, baseline + 2} + extent * 0.5F;
+            rect({.center    = info.center,
+                  .extent    = extent,
+                  .transform = info.transform * translate3d(vec3(center, 0)),
+                  .tint      = run_style.underline,
+                  .sampler   = info.sampler,
+                  .texture   = TextureId::White,
+                  .uv        = {},
+                  .tiling    = 1,
+                  .edge_smoothness = info.edge_smoothness});
+          }
+
+          goto next_run;
+        }
+
         for (auto [i, sh] : enumerate(layout.glyphs.view().slice(run.glyphs)))
         {
+          auto const           iglyph = i + run.glyphs.offset;
           GlyphMetrics const & m      = font.glyphs[sh.glyph];
           AtlasGlyph const &   agl    = atlas.glyphs[sh.glyph];
           Vec2 const           extent = au_to_px(m.extent, font_height);
           Vec2 const           center = Vec2{glyph_cursor, baseline} +
                               au_to_px(m.bearing, font_height) +
-                              au_to_px(sh.offset, font_height) + extent * 0.5F;
+                              au_to_px(sh.offset, font_height) + 0.5F * extent;
           f32 const advance = au_to_px(sh.advance, font_height);
 
-          if (pass == Pass::Highlight && highlight.contains(sh.cluster))
-          {
-            f32 const begin = glyph_cursor;
-            f32 const end   = glyph_cursor + advance;
-            highlighted.match(
-              [&](auto & h) {
-                h.v0 = min(begin, h.v0);
-                h.v1 = max(end, h.v1);
-              },
-              [&]() { highlighted = Tuple{begin, end}; });
-          }
+          // before and after carets
+          auto const glyph_carets =
+            Slice{ln.carets.offset + (sh.cluster - ln.codepoints.offset), 2};
 
-          if (pass == Pass::GlyphShadows && run_style.shadow_scale != 0 &&
-              !run_style.shadow.is_transparent())
+          if (pass == Pass::GlyphShadows && run_style.has_shadow())
           {
             Vec2 const shadow_extent = extent * run_style.shadow_scale;
             Vec2 const shadow_center =
@@ -787,7 +904,7 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
             });
           }
 
-          if (pass == Pass::Glyphs && !run_style.color.is_transparent())
+          if (pass == Pass::Glyphs && run_style.has_color())
           {
             rect({
               .center    = info.center,
@@ -802,148 +919,44 @@ Canvas & Canvas::text(ShapeInfo const & info, TextBlock const & block,
             });
           }
 
-          if (pass == Pass::Caret && style.caret.thickness != 0)
+          if (pass == Pass::Caret && !style.caret.is_none())
           {
-            caret.match([&](auto icaret) {
-              // find the glyphs with the nearest grapheme cluster to the caret position.
-              // [ ] RTL- alignment
-
-              auto const glyph = run.glyphs.offset + i;
-              auto const base_codepoint =
-                (usize) (icaret <= 0 ? 0 : (icaret - 1));
-
-              auto alignment = (direction == TextDirection::LeftToRight) ?
-                                 ALIGNMENT_RIGHT :
-                                 ALIGNMENT_LEFT;
-
-              if (icaret == 0)
+            for (CaretGlyph const & c : caret_glyphs)
+            {
+              if (c.glyph == iglyph)
               {
-                alignment *= -1;
+                // [ ] c.after
+                //  [ ] draw caret rect
+                rrect(
+                  {.center    = info.center,
+                   .extent    = extent,
+                   .transform = info.transform * translate3d(vec3(center, 0)),
+                   .corner_radii = style.caret.corner_radii,
+                   .tint         = style.caret.color});
               }
+            }
+          }
 
-              Vec2 const caret_pos{(glyph_cursor + 0.5F * advance) +
-                                     space_align(advance, 0.0F, alignment),
-                                   line_y};
+          if (pass == Pass::Highlight)
+          {
+            auto any = any_is(
+              highlights, [&](auto & h) { return h.contains(glyph_carets); });
 
-              CaretHitResult const result{.glyph   = glyph,
-                                          .cluster = sh.cluster,
-                                          .pos     = caret_pos,
-                                          .height  = ln.metrics.height};
-
-              caret_hit.match(
-                [&](auto & h) {
-                  // multiple glyphs might merge to the same grapheme cluster, we need to select the closest glyph based on text direction.
-                  switch (cmp(abs_diff(base_codepoint, sh.cluster),
-                              abs_diff(base_codepoint, h.cluster)))
-                  {
-                    case Ordering::Less:
-                    {
-                      caret_hit = result;
-                    }
-                    break;
-
-                    case Ordering::Equal:
-                    {
-                      // based on the run direction, select the glyph within that cluster
-                      switch (direction)
-                      {
-                        case TextDirection::LeftToRight:
-                        {
-                          if (glyph > h.glyph)
-                          {
-                            caret_hit = result;
-                          }
-                        }
-                        break;
-                        case TextDirection::RightToLeft:
-                        {
-                          if (glyph < h.glyph)
-                          {
-                            caret_hit = result;
-                          }
-                        }
-                        break;
-                      }
-                    }
-                    break;
-
-                    default:
-                      break;
-                  }
-                },
-                [&]() { caret_hit = result; });
-            });
+            if (any)
+            {
+              // [ ] draw highlight rect
+            }
           }
 
           glyph_cursor += advance;
         }
 
-        if (pass == Pass::Strikethrough &&
-            run_style.strikethrough_thickness != 0)
-        {
-          Vec2 const extent{run_width, block.font_scale *
-                                         run_style.strikethrough_thickness};
-          Vec2 const center =
-            Vec2{cursor, baseline - run_metrics.ascent * 0.5F} + extent * 0.5F;
-          rect({.center    = info.center,
-                .extent    = extent,
-                .transform = info.transform * translate3d(vec3(center, 0)),
-                .tint      = run_style.strikethrough,
-                .sampler   = info.sampler,
-                .texture   = TextureId::White,
-                .uv        = {},
-                .tiling    = 1,
-                .edge_smoothness = info.edge_smoothness});
-        }
-
-        if (pass == Pass::Underline && run_style.underline_thickness != 0)
-        {
-          Vec2 const extent{run_width,
-                            block.font_scale * run_style.underline_thickness};
-          Vec2 const center = Vec2{cursor, baseline + 2} + extent * 0.5F;
-          rect({.center    = info.center,
-                .extent    = extent,
-                .transform = info.transform * translate3d(vec3(center, 0)),
-                .tint      = run_style.underline,
-                .sampler   = info.sampler,
-                .texture   = TextureId::White,
-                .uv        = {},
-                .tiling    = 1,
-                .edge_smoothness = info.edge_smoothness});
-        }
-
+      next_run:
         cursor += run_width;
       }
 
-      if (pass == Pass::Highlight)
-      {
-        // [ ] RTL- highlighting,  use union instead; no!: draw a per-run rect? and consider merging
-        highlighted.match([&](auto & h) {
-          Vec2 const extent{h.v1 - h.v0, ln.metrics.height};
-          Vec2 const center{h.v0 + 0.5F * extent.x, line_y - 0.5F * extent.y};
-          rrect({.center       = info.center,
-                 .extent       = extent,
-                 .transform    = info.transform * translate3d(vec3(center, 0)),
-                 .corner_radii = style.highlight.corner_radii,
-                 .stroke       = style.highlight.stroke,
-                 .thickness    = style.highlight.thickness,
-                 .tint         = style.highlight.color});
-        });
-      }
-    }
-
-    if (pass == Pass::Caret && style.caret.thickness != 0)
-    {
-      caret_hit.match([&](auto & h) {
-        Vec2 const center{h.pos.x, h.pos.y - 0.5F * h.height};
-        Vec2 const extent{style.caret.thickness, h.height};
-
-        rrect({.center       = info.center,
-               .extent       = extent,
-               .transform    = info.transform * translate3d(vec3(center, 0)),
-               .corner_radii = style.caret.corner_radii,
-               .tint         = style.caret.color});
-      });
+    next_line:
+      line_top += ln.metrics.height;
     }
   }
 
