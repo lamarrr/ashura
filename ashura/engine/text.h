@@ -668,6 +668,23 @@ struct CaretGlyph
   bool  after = false;
 };
 
+struct ShapeInfo;
+struct Canvas;
+
+enum class TextRegion : u32
+{
+  Block         = 0,
+  Background    = 1,
+  Highlight     = 2,
+  GlyphShadows  = 3,
+  Glyphs        = 4,
+  Underline     = 5,
+  Strikethrough = 6,
+  Caret         = 7
+};
+
+typedef Fn<void(Canvas &, ShapeInfo const &, TextRegion)> TextRenderer;
+
 /// @brief cached/pre-computed text layout
 /// @param max_width maximum width the text was laid out with
 /// @param extent current extent of the text block after layout
@@ -712,15 +729,6 @@ struct TextLayout
     lines.clear();
   }
 
-  /// @brief given a position in the laid-out text return the location of the
-  /// grapheme the cursor points to. returns the last column if the position
-  /// overlaps with the row and returns the last line if no overlap was found.
-  /// @param pos position in laid-out text to hit
-  Tuple<isize, CaretLocation> hit(TextBlock const &      block,
-                                  TextBlockStyle const & style, Vec2 pos) const;
-
-                                  
-
   Option<CaretCodepoint> get_caret_codepoint(isize caret) const;
 
   Option<CaretGlyph> get_caret_glyph(isize caret) const;
@@ -732,6 +740,31 @@ struct TextLayout
   Slice get_caret_selection(Slice carets) const;
 
   Slice to_caret_selection(Slice codepoints) const;
+
+  /// @brief given a position in the laid-out text return the location of the
+  /// grapheme the cursor points to. returns the last column if the position
+  /// overlaps with the row and returns the last line if no overlap was found.
+  /// @param pos position in laid-out text to hit
+  Tuple<isize, CaretLocation> hit(TextBlock const &      block,
+                                  TextBlockStyle const & style, Vec2 pos) const;
+
+  static void default_renderer(Canvas & canvas, ShapeInfo const & shape,
+                               TextRegion region);
+
+  /// @brief Render Text using pre-computed layout
+  /// @param info only info.center, info.transform, info.tiling, and info.sampler are used
+  /// @param block Text Block to be rendered
+  /// @param layout Layout of text block to be rendered
+  /// @param style styling of the text block, contains styling for the runs and alignment of the block
+  /// @param highlights caret highlights to draw. Overlapping highlights should be
+  /// merged as the performance cost increases with increasing number of highlights
+  /// @param carets carets to draw
+  /// @param clip clip rect for culling draw commands of the text block
+  /// @param renderer the renderer to use for rendering the text's regions
+  void render(Canvas & canvas, ShapeInfo const & info, TextBlock const & block,
+              TextBlockStyle const & style, Span<Slice const> highlights,
+              Span<isize const> carets, CRect const & clip,
+              TextRenderer renderer = default_renderer);
 };
 
 }    // namespace ash

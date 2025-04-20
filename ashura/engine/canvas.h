@@ -140,24 +140,8 @@ inline constexpr CRect MAX_CLIP_CENTERED = MAX_CLIP.centered();
 struct FrameGraph;
 struct PassContext;
 
-enum class TextRegion : u32
-{
-  Block         = 0,
-  Background    = 1,
-  Highlight     = 2,
-  GlyphShadows  = 3,
-  Glyphs        = 4,
-  Underline     = 5,
-  Strikethrough = 6,
-  Caret         = 7
-};
-
 struct Canvas
 {
-  typedef Fn<void(Canvas &, ShapeInfo const &, TextRegion)> TextRenderer;
-
-  void default_text_renderer(Canvas &, ShapeInfo const &, TextRegion region);
-
   enum class BatchType : u8
   {
     None     = 0,
@@ -315,23 +299,6 @@ struct Canvas
   /// @param uvs
   Canvas & nine_slice(ShapeInfo const & info, TileMode mode,
                       Span<Vec4 const> uvs);
-
-  /// @brief Render text using font atlases
-  /// @param info only info.center, info.transform, info.tiling, and info.sampler are used
-  /// @param block Text Block to be rendered
-  /// @param layout Layout of text block to be rendered
-  /// @param style styling of the text block, contains styling for the runs and alignment of the block
-  /// @param atlases font atlases
-  /// @param highlights caret highlights to draw. Overlapping highlights should be
-  /// merged as the performance cost increases with increasing number of highlights
-  /// @param carets carets to draw
-  /// @param clip clip rect for culling draw commands of the text block
-  Canvas & text(ShapeInfo const & info, TextBlock const & block,
-                TextLayout const & layout, TextBlockStyle const & style,
-                Span<Slice const> highlights = {},
-                Span<isize const> carets     = {},
-                CRect const &     clip       = MAX_CLIP_CENTERED,
-                TextRenderer      renderer   = default_text_renderer);
 
   /// @brief Render Non-Indexed Triangles
   Canvas & triangles(ShapeInfo const & info, Span<Vec2 const> vertices);
