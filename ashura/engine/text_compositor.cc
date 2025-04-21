@@ -196,8 +196,6 @@ Option<Slice> TextCompositor::redo(Vec<c32> & str)
   auto const & record = records_[state_];
   auto const   slice  = buffer_slice(Slice{state_, 1});
 
-  // [ ] apply diff to record.text_pos - record.size?
-
   switch (record.type)
   {
     case TextEditRecordType::Erase:
@@ -253,69 +251,29 @@ static constexpr bool is_symbol(Span<c32 const> symbols, c32 c)
 }
 
 template <typename Fn>
-static constexpr void seek_impl(c32 const *& iter, c32 const * end,
-                                isize advance, Fn && pred)
+static constexpr Option<usize> seek(Str32 text, usize pos, bool left,
+                                    Fn && pred)
 {
+  if (pos >= text.size())
+  {
+    return none;
+  }
+
+  c32 const * iter    = text.pbegin() + pos;
+  c32 const * end     = left ? (text.pbegin() - 1) : text.pend();
+  isize       advance = left ? -1 : 1;
+
   while (iter != end && !pred(*iter))
   {
     iter += advance;
   }
-}
 
-template <typename Fn>
-static constexpr Option<usize> seek_left(Str32 text, usize pos, Fn && pred)
-{
-  if (pos >= text.size())
+  if (iter == end)
   {
     return none;
   }
 
-  c32 const * bwd_end  = text.pbegin() - 1;
-  c32 const * bwd_iter = text.pbegin() + pos;
-
-  seek_impl(bwd_iter, bwd_end, -1, pred);
-
-  if (bwd_iter == bwd_end)
-  {
-    return none;
-  }
-
-  return bwd_iter - text.pbegin();
-}
-
-template <typename Fn>
-static constexpr Option<usize> seek_right(Str32 text, usize pos, Fn && pred)
-{
-  if (pos >= text.size())
-  {
-    return none;
-  }
-
-  c32 const * fwd_end  = text.pend();
-  c32 const * fwd_iter = text.pbegin() + pos;
-
-  seek_impl(fwd_iter, fwd_end, 1, pred);
-
-  if (fwd_iter == fwd_end)
-  {
-    return none;
-  }
-
-  return fwd_iter - text.pbegin();
-}
-
-template <typename Fn>
-static constexpr Option<usize> seek(Str32 text, usize pos, bool left,
-                                    Fn && pred)
-{
-  if (left)
-  {
-    return seek_left(text, pos, pred);
-  }
-  else
-  {
-    return seek_right(text, pos, pred);
-  }
+  return iter - text.pbegin();
 }
 
 static constexpr Option<usize> seek_sym(Str32 text, usize pos, bool left,
@@ -325,182 +283,48 @@ static constexpr Option<usize> seek_sym(Str32 text, usize pos, bool left,
 }
 
 template <typename Fn>
-static constexpr Slice seek_sym_boundary(Str32 text, usize pos, Fn && pred)
+static constexpr Slice span_boundary(Str32 text, usize pos, Fn && pred)
 {
   if (pos >= text.size())
   {
     return Slice{pos, 0};
   }
 
-  usize begin = 0;
-  usize end   = 0;
-
   if (pred(text[pos]))
   {
-    auto neg = [&](auto cp) { return !pred(cp); };
-    begin    = seek(text, pos, true, neg).unwrap_or(USIZE_MAX) + 1;
-    end      = seek(text, pos, false, neg).unwrap_or(text.size());
+    auto neg   = [&](auto cp) { return !pred(cp); };
+    auto begin = seek(text, pos, true, neg).unwrap_or(USIZE_MAX) + 1;
+    auto end   = seek(text, pos, false, neg).unwrap_or(text.size());
+    return Slice::from_range(begin, end);
   }
   else
   {
-    begin = seek(text, pos, true, pred).unwrap_or(USIZE_MAX) + 1;
-    end   = seek(text, pos, false, pred).unwrap_or(text.size());
+    auto begin = seek(text, pos, true, pred).unwrap_or(USIZE_MAX) + 1;
+    auto end   = seek(text, pos, false, pred).unwrap_or(text.size());
+    return Slice::from_range(begin, end);
   }
-
-  return Slice::from_range(begin, end);
 }
 
 static constexpr Slice span_sym_boundary(Str32 text, usize pos,
                                          Span<c32 const> symbols)
 {
-  return seek_sym_boundary(text, pos,
-                           [&](c32 c) { return is_symbol(symbols, c); });
-}
-
-/*
-/// @brief given a sequence of text and symbols find the symbol boundary from
-/// a given codepoint index.
-/// @param text must be non-empty
-/// @param pos must be valid index into the text
-/// @param symbols additional unicode symbols that specify word boundaries,
-/// i.e. a code editor may use '(',')' as word boundaries.
-/// @param[out] first index of first char in symbolic boundary
-/// @param[out] last index of last char in symbolic boundary
-static constexpr Slice seek_symbol_boundary(Str32 text, Slice selection,
-                                            Str32 symbols)
-{
-  if (!selection.is_in_range(text.size()))
-  {
-    return selection;
-  }
-
-  c32 const * fwd_end  = text.pend() + 1;
-  c32 const * fwd_iter = text.pbegin() + selection.end();
-  c32 const * bwd_end  = text.pbegin() - 1;
-  c32 const * bwd_iter = text.pbegin() + selection.begin();
-
-  if (fwd_iter < fwd_end)
-  {
-    fwd_iter++;
-  }
-
-  if (bwd_iter > bwd_end)
-  {
-    bwd_iter--;
-  }
-
-  bool is_sym = is_symbol(symbols, text[selection.offset]);
-
-  if (is_sym)
-  {
-    seek_symbol(fwd_iter, fwd_end, symbols, 1);
-    seek_symbol(bwd_iter, bwd_end, symbols, -1);
-  }
-  else
-  {
-    seek_nonsymbol(fwd_iter, fwd_end, symbols, 1);
-    seek_nonsymbol(bwd_iter, bwd_end, symbols, -1);
-  }
-
-  c32 const * begin = nullptr;
-  c32 const * end   = nullptr;
-
-  if (fwd_iter >= fwd_end)
-  {
-    end = text.pend();
-  }
-  else
-  {
-    end = fwd_end;
-  }
-
-  if (bwd_iter <= bwd_end)
-  {
-    begin = text.pbegin();
-  }
-  else
-  {
-    begin = bwd_iter;
-  }
-
-  return Span{begin, end}.as_slice_of(text);
-}
-
-static inline Slice symbol_boundary(Str32 text, Str32 symbols, Slice selection)
-{
-  // [ ] always empty when selection is empty
-  if (!selection.is_in_range(text.size()))
-  {
-    return selection;
-  }
-
-  return seek_symbol_boundary(text, slice.offset, symbols);
-}*/
-
-struct CaretLoc
-{
-  isize line      = 0;
-  isize alignment = 0;
-};
-
-static inline Option<CaretLoc> locate_caret(TextLayout const & layout,
-                                             isize              caret)
-{
-  // [ ] IT DOESN'T CROSS LINES SMALLER THAN THE ALIGNED LINE; select up
-  auto l = binary_find(layout.lines.view(), [&](auto & l) {
-    return ((isize) l.codepoints.end()) >= caret;
-  });
-
-  if (l.is_empty())
-  {
-    return none;
-  }
-
-  return CaretLoc{.line   = (isize) l.as_slice_of(layout.lines).offset,
-                  .column = (caret - (isize) l[0].codepoints.offset)};
-}
-
-static inline isize align_caret(TextLayout const & layout, isize iline,
-                                isize alignment)
-{
-  if (layout.lines.is_empty())
-  {
-    return 0;
-  }
-
-  iline = clamp(iline, (isize) 0, (isize) (layout.lines.size() - 1));
-
-  auto const & line = layout.lines[iline];
-
-  if (alignment <= 0)
-  {
-    // [ ] how should start of line be aligned? should it be at offet + 1?
-    // if the previous char is a line break? i.e. offet = 0?: align to the left of the first char
-    // [ ] if caret is on the line-break char, adjust to begin of line. also, consider adding line break run-types?
-
-    // [ ] return -1?
-    return line.codepoints.offset;
-  }
-
-  // [ ] alignment - 1?
-
-  if (((usize) alignment) > line.codepoints.span)
-  {
-    return line.codepoints.end();
-  }
-
-  return line.codepoints.offset + (usize) alignment;
+  return span_boundary(text, pos, [&](c32 c) { return is_symbol(symbols, c); });
 }
 
 static inline Option<isize> translate_caret(TextLayout const & layout,
-                                            isize caret, isize alignment,
-                                            isize displacement)
+                                            isize              caret,
+                                            CaretAlignment     alignment,
+                                            isize line_displacement)
 {
-  return locaste_caret(layout, caret).map([&](CaretLoc loc) {
-    return align_caret(layout, loc.line + displacement, alignment);
-  });
+  auto loc = layout.locate_caret(caret);
+
+  // [ ]
+  return layout.align_caret(CaretLocation{.line = loc.line + line_displacement,
+                                          .alignment = alignment});
 }
 
+// [ ] IME support
+// [ ] selecting  line span resets it to the beginning
 bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
                              Str32 keyboard_input, ClipBoard & clipboard,
                              usize lines_per_page, usize tab_width,
@@ -510,10 +334,11 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
   u8                tmp[512];
   FallbackAllocator tmp_allocator{Arena::from(tmp), scratch_allocator};
 
-  auto & layout = rendered.layout();
+  auto & layout = rendered.get_layout();
   auto & text   = rendered.text_;
 
-  cursor_.normalize(text.size());
+  // [ ] normalize by caret span
+  cursor_.normalizex(layout.num_carets);
 
   bool modified = false;
 
@@ -521,49 +346,50 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
   {
     case TextCommand::Escape:
     {
-      cursor_.unselect();
+      cursor_.unselectx();
     }
     break;
     case TextCommand::Unselect:
     {
-      cursor_.unselect();
+      cursor_.unselectx();
     }
     break;
     case TextCommand::BackSpace:
     {
       Slice selection;
 
-      if (auto s = cursor_.selection(); !s.is_empty())
+      if (auto s = cursor_.selectionx(); !s.is_empty())
       {
         selection = s;
       }
       else
       {
-        if (auto caret = cursor_.caret(); caret > 0)
-        {
-          selection = cursor_.translate(-1).span_by2(1).selection();
-        }
+        selection = cursor_.translatex(-1)
+                      .span_by2x(1)
+                      .normalizex(layout.num_carets)
+                      .selectionx();
       }
 
-      modified |= erase(text, selection);
-      cursor_.unselect_left();
+      modified |= erase(text, layout.get_caret_selection(selection));
+      cursor_.unselect_leftx();
     }
     break;
     case TextCommand::Delete:
     {
-      Slice sel;
+      Slice selection;
 
-      if (auto s = cursor_.selection(); !s.is_empty())
+      if (auto s = cursor_.selectionx(); !s.is_empty())
       {
-        sel = s;
+        selection = s;
       }
       else
       {
-        sel = cursor_.span_by2(1).selection();
+        selection =
+          cursor_.span_by2x(1).normalizex(layout.num_carets).selectionx();
       }
 
-      modified |= erase(text, sel);
-      cursor_.unselect_left();
+      modified |= erase(text, layout.get_caret_selection(selection));
+      cursor_.unselect_leftx();
     }
     break;
     case TextCommand::Paste:
@@ -602,21 +428,26 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
 
       if (!input.is_empty())
       {
-        if (auto s = cursor_.selection(); !s.is_empty())
+        if (auto selection = cursor_.selectionx(); !selection.is_empty())
         {
-          push_record(TextEditRecordType::Replace, s.offset,
-                      text.view().slice(s), input);
+          auto text_selection = layout.get_caret_selection(selection);
+          push_record(TextEditRecordType::Replace, text_selection.offset,
+                      text.view().slice(text_selection), input);
           // [ ] if it doesn't accept new line, then don't accept it / !!!!!!!filter
-          text.erase(s);
-          text.insert_span(s.offset, input).unwrap();
-          cursor_.unselect().translate(-(isize) s.span).translate(input.size());
+          text.erase(text_selection);
+          text.insert_span(text_selection.offset, input).unwrap();
+          cursor_.unselectx()
+            .translate(
+              -(isize) text_selection.span)    // move to end of text actually
+            .normalizex(layout.num_carets)
+            .translatex(input.size());
         }
         else
         {
           auto caret = cursor_.caret();
           push_record(TextEditRecordType::Insert, caret, {}, input);
           text.insert_span(caret, input).unwrap();
-          cursor_.unselect().translate(input.size());
+          cursor_.unselect().translate(input.size()).normalize();
         }
         modified = true;
       }
@@ -624,12 +455,12 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     break;
     case TextCommand::Left:
     {
-      cursor_.translate(-1);
+      cursor_.translatex(-1).normalizex(layout.num_carets);
     }
     break;
     case TextCommand::Right:
     {
-      cursor_.translate(1);
+      cursor_.translatex(1).normalizex(layout.num_carets);
     }
     break;
     case TextCommand::WordStart:
@@ -641,6 +472,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     break;
     case TextCommand::WordEnd:
     {
+      // [ ] all caret indices should be converted to text positions
       cursor_.move_to(seek_sym(text, cursor_.caret(), false, word_symbols_)
                         .unwrap_or(text.size()));
     }
@@ -687,12 +519,12 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     break;
     case TextCommand::SelectLeft:
     {
-      cursor_.extend_selection(-1);
+      cursor_.extend_selection(-1).normalize();
     }
     break;
     case TextCommand::SelectRight:
     {
-      cursor_.extend_selection(1);
+      cursor_.extend_selection(1).normalize();
     }
     break;
     case TextCommand::SelectUp:
@@ -753,7 +585,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     break;
     case TextCommand::SelectCodepoint:
     {
-      cursor_.span_by2(1);
+      cursor_.span_by2(1).normalize();
     }
     break;
     case TextCommand::SelectWord:

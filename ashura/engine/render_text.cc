@@ -114,26 +114,56 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
     }
   }
 
-  hash_ = 0;
+  hash_ = HASH_DIRTY;
 
   return *this;
 }
 
 RenderText & RenderText::flush_text()
 {
-  hash_ = 0;
+  hash_ = HASH_DIRTY;
   return *this;
 }
 
-RenderText & RenderText::highlight(TextHighlight const & range)
+RenderText & RenderText::wrap(bool wrap)
 {
-  highlight_ = range;
+  wrap_ = wrap;
   return *this;
 }
 
-RenderText & RenderText::clear_highlight()
+RenderText & RenderText::highlight_style(Option<TextHighlightStyle> style)
 {
-  highlight_ = TextHighlight{};
+  highlight_style_ = style.unwrap_or(TextHighlightStyle{});
+  return *this;
+}
+
+RenderText & RenderText::caret_style(Option<CaretStyle> caret)
+{
+  caret_style_ = caret.unwrap_or(CaretStyle{});
+  return *this;
+}
+
+RenderText & RenderText::add_highlight(Slice range)
+{
+  highlights_.push(range).unwrap();
+  return *this;
+}
+
+RenderText & RenderText::clear_highlights()
+{
+  highlights_.clear();
+  return *this;
+}
+
+RenderText & RenderText::add_caret(isize caret)
+{
+  carets_.push(caret).unwrap();
+  return *this;
+}
+
+RenderText & RenderText::clear_carets()
+{
+  carets_.clear();
   return *this;
 }
 
@@ -218,12 +248,12 @@ RenderText & RenderText::text(Str8 utf8)
 TextBlock RenderText::block() const
 {
   return TextBlock{.text          = text_,
-                   .hash          = hash_,
                    .runs          = runs_,
                    .fonts         = fonts_,
                    .font_scale    = font_scale_,
                    .direction     = direction_,
                    .language      = language_,
+                   .wrap          = wrap_,
                    .use_kerning   = use_kerning_,
                    .use_ligatures = use_ligatures_};
 }
@@ -233,35 +263,36 @@ TextBlockStyle RenderText::block_style(f32 aligned_width) const
   return TextBlockStyle{.runs        = styles_,
                         .alignment   = alignment_,
                         .align_width = aligned_width,
-                        .highlight   = highlight_};
+                        .highlight   = highlight_style_,
+                        .caret       = caret_style_};
 }
 
-TextLayout const & RenderText::layout() const
+TextLayout const & RenderText::get_layout() const
 {
   return layout_;
 }
 
-void RenderText::perform_layout(f32 max_width)
+void RenderText::layout(f32 max_width)
 {
-  if (hash_ == layout_.hash && max_width == layout_.max_width)
+  if (hash_ == HASH_CLEAN && max_width == layout_.max_width)
   {
     return;
   }
 
-  hash_ = -1;
   sys->font.layout_text(block(), max_width, layout_);
+  hash_ = HASH_CLEAN;
 }
 
 void RenderText::render(Canvas & canvas, CRect const & region,
                         CRect const & clip, f32 zoom)
 {
-  canvas.text(
-    {.center = region.center, .transform = scale3d(Vec3::splat(zoom))}, block(),
-    layout_, block_style(region.extent.x), clip);
+  layout_.render(
+    canvas, {.center = region.center, .transform = scale3d(Vec3::splat(zoom))},
+    block(), block_style(region.extent.x), highlights_, carets_, clip);
 }
 
-Option<TextHitResult> RenderText::hit(CRect const & region, Vec2 pos,
-                                      f32 zoom) const
+Tuple<isize, CaretLocation> RenderText::hit(CRect const & region, Vec2 pos,
+                                            f32 zoom) const
 {
   Vec2 const local_pos = (pos - region.begin() - 0.5F * region.extent) / zoom;
   return layout_.hit(block(), block_style(region.extent.x), local_pos);

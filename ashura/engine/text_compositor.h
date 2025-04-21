@@ -36,165 +36,64 @@ enum class TextCommand : u32
 {
   None = 0,
 
+  Escape = 1,
+
   /// Cursor State
-  Unselect = 1,
+  Unselect = 2,
 
   /// Editing
-  BackSpace = 2,
-  Delete    = 3,
-  InputText = 4,
+  BackSpace = 3,
+  Delete    = 4,
+  InputText = 5,
 
   /// Cursor Positioning
-  Left      = 5,
-  Right     = 6,
-  WordStart = 7,
-  WordEnd   = 8,
-  LineStart = 9,
-  LineEnd   = 10,
-  Up        = 11,
-  Down      = 12,
-  PageUp    = 13,
-  PageDown  = 14,
+  Left      = 6,
+  Right     = 7,
+  WordStart = 8,
+  WordEnd   = 9,
+  LineStart = 10,
+  LineEnd   = 11,
+  Up        = 12,
+  Down      = 13,
+  PageUp    = 14,
+  PageDown  = 15,
 
   /// Cursor Selection
-  SelectLeft      = 15,
-  SelectRight     = 16,
-  SelectUp        = 17,
-  SelectDown      = 18,
-  SelectWordStart = 19,
-  SelectWordEnd   = 20,
-  SelectLineStart = 21,
-  SelectLineEnd   = 22,
-  SelectPageUp    = 23,
-  SelectPageDown  = 24,
+  SelectLeft        = 16,
+  SelectRight       = 17,
+  SelectUp          = 18,
+  SelectDown        = 19,
+  SelectToWordStart = 20,
+  SelectToWordEnd   = 21,
+  SelectToLineStart = 22,
+  SelectToLineEnd   = 23,
+  SelectPageUp      = 24,
+  SelectPageDown    = 25,
 
   /// Semantic Selection
-  SelectCodepoint = 25,
-  SelectWord      = 26,
-  SelectLine      = 27,
-  SelectAll       = 28,
+  SelectCodepoint = 26,
+  SelectWord      = 27,
+  SelectLine      = 28,
+  SelectAll       = 29,
 
   /// ClipBoard
-  Cut   = 29,
-  Copy  = 30,
-  Paste = 31,
+  Cut   = 30,
+  Copy  = 31,
+  Paste = 32,
 
   /// Redo/Undo
-  Undo = 32,
-  Redo = 33,
+  Undo = 33,
+  Redo = 34,
 
   /// Mouse Selection (Visual)
-  Hit       = 34,
-  HitSelect = 35,
+  Hit       = 35,
+  HitSelect = 36,
 
   /// Insert new line
-  NewLine = 36,
-  Tab     = 37,
+  NewLine = 37,
+  Tab     = 38,
 
-  Submit = 38
-};
-
-struct TextCursor
-{
-  /// @brief the first selected codepoint in the selection range. [-1, n]
-  i64 begin = 0;
-
-  /// @brief 1 past the last selected codepoint in either direction. [-1, n]
-  i64 end = 0;
-
-  static constexpr TextCursor from_slice(Slice s)
-  {
-    return TextCursor{(i64) s.offset, (i64) (s.offset + s.span)};
-  }
-
-  constexpr TextCursor & unselect()
-  {
-    end = begin;
-    return *this;
-  }
-
-  constexpr bool has_selection() const
-  {
-    return begin != end;
-  }
-
-  constexpr bool direction() const
-  {
-    return begin < end;
-  }
-
-  constexpr TextCursor & span_to(i64 pos)
-  {
-    end = max(pos + 1, (i64) -1);
-    return *this;
-  }
-
-  constexpr TextCursor & span_by(i64 distance)
-  {
-    end = max(begin + distance, (i64) -1);
-    return *this;
-  }
-
-  constexpr i64 distance() const
-  {
-    return end - begin;
-  }
-
-  constexpr Slice as_slice() const
-  {
-    if (this->begin <= this->end)
-    {
-      auto const begin = (usize) max(this->begin, (i64) 0);
-      auto const end   = (usize) max(this->end, (i64) 0);
-      return Slice::from_range(begin, end);
-    }
-    else
-    {
-      auto const begin = (usize) max(this->end - 1, (i64) 0);
-      auto const end   = (usize) max(this->begin + 1, (i64) 0);
-      return Slice::from_range(begin, end);
-    }
-  }
-
-  constexpr TextCursor & to_begin()
-  {
-    end = begin;
-    return *this;
-  }
-
-  constexpr TextCursor & to_end()
-  {
-    begin = end;
-    return *this;
-  }
-
-  constexpr TextCursor & to_left()
-  {
-    end = begin = min(begin, end);
-    return *this;
-  }
-
-  constexpr TextCursor & to_right()
-  {
-    end = begin = max(begin, end);
-    return *this;
-  }
-
-  constexpr TextCursor & normalize(usize len)
-  {
-    begin = clamp(begin, (i64) -1, (i64) len);
-    end   = clamp(end, (i64) -1, (i64) len);
-    return *this;
-  }
-
-  constexpr TextCursor & shift(i64 n)
-  {
-    begin += n;
-    end += n;
-    begin = max(begin, (i64) -1);
-    end   = max(end, (i64) -1);
-    return *this;
-  }
+  Submit = 39
 };
 
 /// @brief A stack-based text compositor
@@ -207,16 +106,20 @@ struct TextCompositor
   static constexpr c32   DEFAULT_LINE_SYMBOLS[] = {U'\n', 0x2029};
 
   TextCursor          cursor_;
+  CaretAlignment      caret_alignment_;
   Vec<c32>            buffer_;
   Vec<TextEditRecord> records_;
-  Str32               word_symbols_;
-  Str32               line_symbols_;
+  Span<c32 const>     word_symbols_;
+  Span<c32 const>     line_symbols_;
 
-  /// @brief record representing the current text composition state
+  /// @brief record representing the current text composition state;
+  /// the base state is always at index 0
   usize state_;
 
   TextCompositor(Vec<c32> buffer, Vec<TextEditRecord> records,
-                 Str32 word_symbols, Str32 line_symbols) :
+                 Span<c32 const> word_symbols, Span<c32 const> line_symbols) :
+    cursor_{},
+    caret_alignment_{CaretAlignment::LineStart},
     buffer_{std::move(buffer)},
     records_{std::move(records)},
     word_symbols_{word_symbols},
@@ -225,20 +128,17 @@ struct TextCompositor
   {
   }
 
-  static TextCompositor create(AllocatorRef allocator,
-                               usize        buffer_size  = DEFAULT_BUFFER_SIZE,
-                               usize        records_size = DEFAULT_RECORDS_SIZE,
-                               Str32        word_symbols = DEFAULT_WORD_SYMBOLS,
-                               Str32 line_symbols = DEFAULT_LINE_SYMBOLS);
+  static TextCompositor
+    create(AllocatorRef allocator, usize buffer_size = DEFAULT_BUFFER_SIZE,
+           usize           records_size = DEFAULT_RECORDS_SIZE,
+           Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS,
+           Span<c32 const> line_symbols = DEFAULT_LINE_SYMBOLS);
 
   TextCompositor(TextCompositor const &)             = delete;
   TextCompositor(TextCompositor &&)                  = default;
   TextCompositor & operator=(TextCompositor const &) = delete;
   TextCompositor & operator=(TextCompositor &&)      = default;
   ~TextCompositor()                                  = default;
-
-  static usize goto_line(TextLayout const & layout, usize alignment,
-                         usize line);
 
   TextCursor cursor() const;
 
@@ -254,17 +154,17 @@ struct TextCompositor
   void push_record(TextEditRecordType type, usize text_pos, Str32 erase,
                    Str32 insert);
 
-  bool undo(Vec<c32> & str);
+  Option<Slice> undo(Vec<c32> & str);
 
-  bool redo(Vec<c32> & str);
+  Option<Slice> redo(Vec<c32> & str);
 
-  bool delete_selection(Vec<c32> & str);
+  bool erase(Vec<c32> & str, Slice slice);
 
   /// @param input text from IME to insert
-  Tuple<bool, Slice> command(RenderText & text, TextCommand cmd, Str32 input,
-                             ClipBoard & clipboard, usize lines_per_page,
-                             usize tab_width, CRect const & region, Vec2 pos,
-                             f32 zoom, AllocatorRef scratch_allocator);
+  bool command(RenderText & text, TextCommand cmd, Str32 input,
+               ClipBoard & clipboard, usize lines_per_page, usize tab_width,
+               CRect const & region, Vec2 pos, f32 zoom,
+               AllocatorRef scratch_allocator);
 };
 
 }    // namespace ash
