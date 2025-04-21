@@ -36,7 +36,21 @@ struct Arena final : Allocator
   {
   }
 
+  constexpr Arena(void * begin, void * end, usize alignment) :
+    begin{static_cast<u8 *>(begin)},
+    end{static_cast<u8 *>(end)},
+    offset{static_cast<u8 *>(begin)},
+    alignment{alignment},
+    allocated{0}
+  {
+  }
+
   [[nodiscard]] static constexpr Arena from(Span<u8> buffer)
+  {
+    return Arena{buffer.pbegin(), buffer.pend(), 1};
+  }
+
+  [[nodiscard]] static constexpr Arena from(Span<char> buffer)
   {
     return Arena{buffer.pbegin(), buffer.pend(), 1};
   }
