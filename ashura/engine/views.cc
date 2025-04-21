@@ -320,11 +320,12 @@ ViewLayout Stack::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
 
 i32 Stack::z_index(i32 allocated, Span<i32> indices)
 {
-  u32 const n = indices.size32();
-  for (u32 i = 0; i < n; i++)
+  auto n = indices.size();
+  for (auto [i, stack_index] : enumerate(indices))
   {
-    indices[i] = stack_item(allocated, i, n);
+    stack_index = stack_item(allocated, i, n);
   }
+
   return allocated;
 }
 
