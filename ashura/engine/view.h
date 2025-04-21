@@ -309,9 +309,9 @@ struct Theme
   f32    body_font_height = {};
   f32    line_height      = {};
   f32    focus_thickness  = 1;
-  FontId head_font        = FontId::Invalid;
-  FontId body_font        = FontId::Invalid;
-  FontId icon_font        = FontId::Invalid;
+  FontId head_font        = FontId::None;
+  FontId body_font        = FontId::None;
+  FontId icon_font        = FontId::None;
 };
 
 extern Theme theme;

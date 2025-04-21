@@ -203,7 +203,7 @@ Result<Dyn<Font *>, FontLoadErr>
   }
 
   Result font = dyn<FontImpl>(
-    inplace, allocator_, FontId::Invalid, std::move(label),
+    inplace, allocator_, FontId::None, std::move(label),
     std::move(font_data), has_color, std::move(postscript_name),
     std::move(family_name), std::move(style_name), hb_blob, hb_face, hb_font,
     ft_lib, ft_face, face, std::move(glyphs), replacement_glyph, ellipsis_glyph,
