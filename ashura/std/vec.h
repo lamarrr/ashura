@@ -292,6 +292,11 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
+  static constexpr usize growth(usize capacity)
+  {
+    return capacity << 1;
+  }
+
   constexpr Result<> grow(usize target_capacity)
   {
     if (capacity_ >= target_capacity)
@@ -299,12 +304,12 @@ struct [[nodiscard]] Vec
       return Ok{};
     }
 
-    return reserve(max(target_capacity, capacity_ << 1));
+    return reserve(max(target_capacity, growth(capacity_)));
   }
 
   constexpr Result<> grow_extend(usize extension)
   {
-    return reserve(size_ + extension);
+    return grow(size_ + extension);
   }
 
   constexpr void erase(usize first, usize num)
@@ -1063,7 +1068,7 @@ struct [[nodiscard]] BitVec
 
   constexpr Result<> grow_extend(usize extension)
   {
-    return reserve(size_ + extension);
+    return grow(size_ + extension);
   }
 
   constexpr Result<> push(bool bit)
@@ -1943,7 +1948,7 @@ struct SparseVec
 
   constexpr Result<> grow_extend(usize extension)
   {
-    return reserve(size() + extension);
+    return grow(size() + extension);
   }
 
   /// make new id and map the unique id to the end index

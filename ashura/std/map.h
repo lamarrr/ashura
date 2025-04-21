@@ -374,7 +374,7 @@ struct [[nodiscard]] Map
 
   constexpr bool rehash_()
   {
-    usize new_num_probes = (num_probes_ == 0) ? 1 : (num_probes_ * 2);
+    usize new_num_probes = (num_probes_ == 0) ? 1 : (num_probes_ << 1);
     return rehash_n_(new_num_probes);
   }
 
