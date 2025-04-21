@@ -833,20 +833,33 @@ struct ref
 template <typename T>
 ref(T &) -> ref<T>;
 
-template <typename S = usize>
-struct SliceT
+/// @brief A slice is a pair of integers: `offset` and `span` that represent a range of elements in any container.
+/// .offset can range from 0-`S::MAX`, `S::MAX` means the end of the range.
+/// .span can range from 0-`S::MAX`, `S::MAX` means to the end of the range.
+///
+///
+///
+/// `.offset` and `.offset + .span` can be more than the number of elements in the target container.
+/// To resolve the slice once the size of the container is known, use the resolve operator: `Slice::operator()(usize n)`
+///
+/// To prevent `.offset + .span` from overflow or out-of-bounds call the resolve operator
+///
+template <typename S>
+struct CoreSlice
 {
+  static constexpr S END = NumTraits<S>::MAX;
+
   S offset = 0;
   S span   = 0;
 
-  static constexpr SliceT from_range(S begin, S end)
+  static constexpr CoreSlice from_range(S begin, S end)
   {
-    return SliceT{.offset = begin, .span = end - begin};
+    return CoreSlice{.offset = begin, .span = end - begin};
   }
 
-  static constexpr SliceT all()
+  static constexpr CoreSlice all()
   {
-    return SliceT{.offset = 0, .span = NumTraits<S>::MAX};
+    return CoreSlice{.offset = 0, .span = END};
   }
 
   constexpr S begin() const
@@ -859,18 +872,25 @@ struct SliceT
     return offset + span;
   }
 
-  constexpr SliceT operator()(S size) const
+  constexpr S first() const
   {
-    // written such that overflow will not occur even if both offset and span
-    // are set to USIZE_MAX
-    S out_offset = offset > size ? size : offset;
-    S out_span   = ((size - out_offset) > span) ? span : size - out_offset;
-    return SliceT{out_offset, out_span};
+    return offset;
   }
 
-  constexpr SliceT operator()() const
+  constexpr S last() const
   {
-    return SliceT{offset, sat_add(offset, span) - offset};
+    return end() - 1;
+  }
+
+  constexpr CoreSlice operator()(S size) const
+  {
+    return CoreSlice::from_range(min(offset, size),
+                                 min(sat_add(offset, span), size));
+  }
+
+  constexpr CoreSlice operator()() const
+  {
+    return CoreSlice::from_range(offset, sat_add(offset, span));
   }
 
   constexpr bool is_empty() const
@@ -878,13 +898,13 @@ struct SliceT
     return span == 0;
   }
 
-  constexpr bool overlaps(SliceT other) const
+  constexpr bool overlaps(CoreSlice other) const
   {
-    return (begin() <= other.begin() && end() >= other.begin()) ||
-           (begin() <= other.end() && end() >= other.end());
+    return (begin() <= other.begin() && end() > other.begin()) ||
+           (begin() < other.end() && end() >= other.end());
   }
 
-  constexpr bool contains(SliceT other) const
+  constexpr bool contains(CoreSlice other) const
   {
     return begin() <= other.begin() && end() >= other.end();
   }
@@ -894,28 +914,23 @@ struct SliceT
     return begin() <= item && end() > item;
   }
 
-  constexpr SliceT<u32> as_slice32() const
+  constexpr bool in_range(S size) const
   {
-    return SliceT<u32>{.offset = (u32) offset, .span = (u32) span};
-  }
-
-  constexpr SliceT<usize> as_slice() const
-  {
-    return SliceT<usize>{.offset = (usize) offset, .span = (usize) span};
+    return begin() < size && end() >= size;
   }
 };
 
 template <typename S>
-constexpr bool operator==(SliceT<S> const & a, SliceT<S> const & b)
+constexpr bool operator==(CoreSlice<S> const & a, CoreSlice<S> const & b)
 {
   return a.offset == b.offset && a.span == b.span;
 }
 
-using Slice   = SliceT<usize>;
-using Slice8  = SliceT<u8>;
-using Slice16 = SliceT<u16>;
-using Slice32 = SliceT<u32>;
-using Slice64 = SliceT<u64>;
+using Slice   = CoreSlice<usize>;
+using Slice8  = CoreSlice<u8>;
+using Slice16 = CoreSlice<u16>;
+using Slice32 = CoreSlice<u32>;
+using Slice64 = CoreSlice<u64>;
 
 struct IterEnd
 {
