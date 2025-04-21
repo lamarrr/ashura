@@ -60,17 +60,6 @@ f32 circular_geometrical_smoothmin(f32 a, f32 b, f32 k)
   return max(k, min(a, b)) - length(max(k - f32x2(a, b), 0.0));
 }
 
-// https://www.shadertoy.com/view/fsdyzB
-// https://iquilezles.org/articles/distfunctions/
-// https://iquilezles.org/articles/distfunctions2d/
-// length(...+ corner_radii) - corner_radii -> gives the rounding of the
-// corners
-f32 rrect_sdf(f32x2 pos, f32x2 half_extent, f32 corner_radii)
-{
-  f32x2 q = abs(pos) - half_extent + corner_radii;
-  return min(max(q.x, q.y), 0) + length(max(q, 0)) - corner_radii;
-}
-
 f32 msdf_screen_px_range(f32 msd_px_range, f32x2 texture_size, f32x2 tex_coord)
 {
   f32x2 unit_range      = f32x2(msd_px_range) / texture_size;
@@ -99,3 +88,68 @@ f32x4 msdf_blend(f32x3 msd, f32 msd_px_range, f32x2 texture_size,
   f32 alpha = msdf(msd, msd_px_range, texture_size, tex_coord);
   return lerp(bg_color, fg_color, alpha);
 }
+
+namespace sdf
+{
+
+f32 circle(f32x2 pos, f32 radius)
+{
+  return length(pos) - radius;
+}
+
+f32 box(f32x2 pos, f32x2 extent)
+{
+  f32x2 dist = abs(pos) - extent;
+  return length(max(dist, 0.0)) + min(max(dist.x, dist.y), 0.0);
+}
+
+f32 arc(f32x2 pos, f32x2 sc, f32 ra, f32 rb)
+{
+  // sc is the sin/cos of the arc's aperture
+  pos.x = abs(pos.x);
+  return ((sc.y * pos.x > sc.x * pos.y) ? length(pos - sc * ra) :
+                                      abs(length(pos) - ra)) -
+         rb;
+}
+
+// https://www.shadertoy.com/view/fsdyzB
+// https://iquilezles.org/articles/distfunctions/
+// https://iquilezles.org/articles/distfunctions2d/
+// length(...+ corner_radii) - corner_radii -> gives the rounding of the
+// corners
+f32 rrect(f32x2 pos, f32x2 half_extent, f32x4 radii)
+{
+  radii.xy = (pos.x > 0.0) ? radii.xy : radii.zw;
+  radii.x  = (pos.y > 0.0) ? radii.x : radii.y;
+  f32x2 q  = abs(pos) - half_extent + radii.x;
+  return min(max(q.x, q.y), 0) + length(max(q, 0)) - radii.x;
+}
+
+/// @brief Gets the approximate SDF of a squircle
+/// @returns the signed distance (x-component) and the gradient (yz-components).
+f32x3 squircle(f32x2 pos, float radius, float degree)
+{
+  f32x2 s = sign(pos);
+  pos     = abs(pos);
+  float m = pow(pos.x, degree) + pow(pos.y, degree);
+  float d = pow(m, 1.0 / degree) - radius;
+  f32x2 g = s * pow(pos, f32x2(degree - 1.0)) * pow(m, 1.0 / degree - 1.0);
+  return f32x3(d, g);
+}
+
+namespace op
+{
+
+f32 round(f32 sdf, f32 r)
+{
+  return sdf - r;
+}
+
+f32 onion(f32 sdf, f32 r)
+{
+  return abs(sdf) - r;
+}
+
+}    // namespace op
+
+}    // namespace sdf
