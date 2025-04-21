@@ -14,11 +14,10 @@ namespace ash
 /// node at depth 0: the root node.
 struct ViewNode
 {
-  u32 depth        = 0;
-  u32 breadth      = 0;
-  u32 parent       = U32_MAX;
-  u32 first_child  = 0;
-  u32 num_children = 0;
+  u32     depth    = 0;
+  u32     breadth  = 0;
+  u32     parent   = U32_MAX;
+  Slice32 children = {};
 };
 
 enum class ViewHitAttributes : u32
@@ -45,6 +44,85 @@ enum class FocusAction : u32
   Backward = 2
 };
 
+struct ScrollRequest
+{
+  Vec2       position;
+  ui::ViewId view_id = ui::ViewId::None;
+};
+
+enum class HitType : u32
+{
+  None       = 0,
+  Click      = 1,
+  Drag       = 2,
+  DragUpdate = 7,
+  Drop       = 3,
+  Release    = 4,
+  Scroll     = 5,
+  Point      = 6
+};
+
+enum class HitStateBase : u32
+{
+  None       = 0,
+  Pointing   = 1,
+  Clicking   = 2,
+  Scrolling  = 3,
+  DragStart  = 3,
+  DragUpdate = 4,
+  DragEnd    = 5,
+  DragIn     = 7,
+  DragOut,
+  Drop = 6,
+  DragOver,
+  MouseIn,
+  MouseDown,
+  MouseUp,
+  MouseMoved,
+  MouseOut,
+};
+
+struct DragState
+{
+  enum class State
+  {
+    None   = 0,
+    Start  = 1,
+    Update = 2,
+    End    = 3
+  };
+
+  State      state = State::None;
+  ui::ViewId src   = ui::ViewId::None;
+  ui::ViewId tgt   = ui::ViewId::None;
+};
+
+struct PointState
+{
+  enum class State
+  {
+    None   = 0,
+    Point  = 1,
+    Press  = 2,
+    Scroll = 3
+  };
+
+  State      state = State::None;
+  ui::ViewId tgt   = ui::ViewId::None;
+};
+
+using HitState = Enum<None, DragState, PointState>;
+
+
+// [ ] prepare a list of events to be dispatched and the target views, instead of checking during view build-time
+// [ ] are the passed ctx/events in sync with the state?
+
+struct HitEvent
+{
+  u32     view = 0;
+  HitType type = HitType::None;
+};
+
 struct ViewSystem
 {
   struct Focus
@@ -53,7 +131,7 @@ struct ViewSystem
     bool active = false;
 
     /// @brief currently focused view
-    u64 view = U64_MAX;
+    ui::ViewId view = ui::ViewId::None;
 
     /// @brief focus tree index of the view
     u32 focus_idx = U32_MAX;
@@ -69,10 +147,10 @@ struct ViewSystem
   struct State
   {
     /// @brief mouse pointed view
-    Option<u64> pointed = none;
+    Option<ui::ViewId> pointed = none;
 
     /// @brief drag data soure view
-    Option<u64> drag_src = none;
+    Option<ui::ViewId> drag_src = none;
 
     /// @brief current cursor
     Cursor cursor = Cursor::Default;
@@ -163,11 +241,12 @@ struct ViewSystem
   Vec<i32>     z_indices;
   Vec<i32>     layers;
 
-  Vec<Affine3> transforms;
-  Vec<Rect>    clips;
-  Vec<u32>     z_ordering;
-  Vec<u32>     focus_ordering;
-  bool         closing_deferred;
+  Vec<Affine3>       transforms;
+  Vec<CRect>         clips;
+  Vec<u32>           z_ordering;
+  Vec<u32>           focus_ordering;
+  Vec<ScrollRequest> scrolls;
+  bool               closing_deferred;
 
   explicit ViewSystem(AllocatorRef allocator) :
     s1{allocator},
@@ -202,6 +281,7 @@ struct ViewSystem
     clips{allocator},
     z_ordering{allocator},
     focus_ordering{allocator},
+    scrolls{allocator},
     closing_deferred{false}
   {
   }
@@ -231,14 +311,17 @@ struct ViewSystem
 
   void visibility();
 
-  void render(ui::ViewContext const & ctx, Canvas & canvas,
-              ui::View & focus_view);
+  void render(Canvas & canvas);
 
-  void focus_view(u32 view);
+  void scroll_to(u32 view);
 
   Option<u32> hit_views(Vec2 mouse_position, ViewHitAttributes match) const;
 
   Option<u32> navigate_focus(u32 from, bool forward) const;
+
+  void handle_hit();
+
+  void dispatch_hit(ui::ViewContext const & ctx, HitEvent event);
 
   void events(ui::ViewContext const & ctx);
 
@@ -246,8 +329,8 @@ struct ViewSystem
 
   Option<TextInputInfo> text_input() const;
 
-  bool tick(InputState const & input, ui::View & root, ui::View & focus_view,
-            Canvas & canvas, Fn<void(ui::ViewContext const &)> loop);
+  bool tick(InputState const & input, ui::View & root, Canvas & canvas,
+            Fn<void(ui::ViewContext const &)> loop);
 };
 
 }    // namespace ash

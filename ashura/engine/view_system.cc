@@ -75,6 +75,7 @@ void ViewSystem::clear()
   clips.clear();
   z_ordering.clear();
   focus_ordering.clear();
+  scrolls.clear();
   closing_deferred = false;
 }
 
@@ -82,15 +83,15 @@ ui::ViewEvents ViewSystem::process_events(ui::View & view)
 {
   ui::ViewEvents events;
 
-  if (view.id() == U64_MAX) [[unlikely]]
+  if (view.id() == ui::ViewId::None) [[unlikely]]
   {
     // should never happen
     CHECK(next_id != U64_MAX, "");
-    view.id_       = next_id++;
+    view.id_       = ui::ViewId{next_id++};
     events.mounted = true;
   }
 
-  u64 const id = view.id();
+  auto const id = view.id();
 
   events.view_hit = (view.last_rendered_frame_ + 1) == frame;
 
@@ -138,6 +139,19 @@ ui::ViewEvents ViewSystem::process_events(ui::View & view)
     events.focus_out = true;
   }
 
+  Option<Vec2> scroll_position;
+
+  for (auto scroll : scrolls)
+  {
+    if (scroll.view_id == view.id())
+    {
+      scroll_position = scroll.position;
+      break;
+    }
+  }
+
+  events.scroll = scroll_position;
+
   return events;
 }
 
@@ -145,11 +159,8 @@ void ViewSystem::push_view(ui::View & view, u32 depth, u32 breadth, u32 parent)
 {
   views.push(view).unwrap();
   nodes
-    .push(ViewNode{.depth        = depth,
-                   .breadth      = breadth,
-                   .parent       = parent,
-                   .first_child  = 0,
-                   .num_children = 0})
+    .push(ViewNode{
+      .depth = depth, .breadth = breadth, .parent = parent, .children = {}})
     .unwrap();
   tab_indices.extend_uninit(1).unwrap();
   viewports.extend_uninit(1).unwrap();
@@ -176,11 +187,10 @@ void ViewSystem::build_children(ui::ViewContext const & ctx, ui::View & view,
                                 u32 idx, u32 depth, i32 & tab_index,
                                 u32 viewport)
 {
-  u32 const first_child  = views.size32();
-  u32       num_children = 0;
+  Slice32 children{views.size32(), 0};
 
   auto builder = [&](ui::View & child) {
-    push_view(child, depth + 1, num_children++, idx);
+    push_view(child, depth + 1, children.span++, idx);
   };
 
   ui::ViewState s =
@@ -217,11 +227,10 @@ void ViewSystem::build_children(ui::ViewContext const & ctx, ui::View & view,
                           .input_info = input_info};
   }
 
-  nodes[idx].first_child      = first_child;
-  nodes[idx].num_children     = num_children;
+  nodes[idx].children         = children;
   u32 const children_viewport = s.viewport ? idx : viewport;
 
-  for (u32 c = first_child; c < (first_child + num_children); c++)
+  for (u32 c = children.begin(); c < children.end(); c++)
   {
     tab_index++;
     build_children(ctx, views[c], c, depth + 1, tab_index, children_viewport);
@@ -265,9 +274,8 @@ void ViewSystem::layout(Vec2 viewport_extent)
   extents[0] = viewport_extent;
   for (u32 i = 0; i < n; i++)
   {
-    ViewNode const & node = nodes[i];
-    views[i]->size(extents[i],
-                   extents.view().slice(node.first_child, node.num_children));
+    auto const & node = nodes[i];
+    views[i]->size(extents[i], extents.view().slice(node.children));
   }
 
   centers[0] = Vec2::splat(0);
@@ -277,11 +285,10 @@ void ViewSystem::layout(Vec2 viewport_extent)
   for (u32 i = n; i != 0;)
   {
     i--;
-    ViewNode const & node   = nodes[i];
-    ui::ViewLayout   layout = views[i]->fit(
-      extents[i], extents.view().slice(node.first_child, node.num_children),
-      centers.view().slice(node.first_child, node.num_children));
-    extents[i]             = layout.extent;
+    auto const & node = nodes[i];
+    auto layout = views[i]->fit(extents[i], extents.view().slice(node.children),
+                                centers.view().slice(node.children));
+    extents[i]  = layout.extent;
     viewport_extents[i]    = layout.viewport_extent;
     viewport_transforms[i] = layout.viewport_transform;
     is_fixed_positioned.set(i, layout.fixed_position.is_some());
@@ -293,18 +300,18 @@ void ViewSystem::layout(Vec2 viewport_extent)
 
   // transform views to canvas-space
 
+
   transforms[0] = Affine3::identity();
 
   for (u32 i = 0; i < n; i++)
   {
-    ViewNode const & node               = nodes[i];
+    auto const & node               = nodes[i];
     // parent-space to local viewport-space transformation matrix
-    Affine3 const &  viewport_transform = viewport_transforms[i];
+    auto const & viewport_transform = viewport_transforms[i];
     // accumulated transform of all ancestors, determines position until this
     // parent
-    Affine3 const &  ancestor_transform = transforms[i];
-    for (u32 c = node.first_child; c < (node.first_child + node.num_children);
-         c++)
+    auto const & ancestor_transform = transforms[i];
+    for (u32 c = node.children.begin(); c < node.children.end(); c++)
     {
       transforms[c] =
         // apply viewport-space transform
@@ -316,13 +323,18 @@ void ViewSystem::layout(Vec2 viewport_extent)
     }
   }
 
-  // convert to [0, viewport_extent] space
+  //  [ ] pre-transform or post-transform?
+  // views[i]->viewport_region_ = CRect{.center = center, .extent = extent};
+
+  // transform to [0, viewport_extent] space
   for (u32 i = 0; i < n; i++)
   {
-    Affine3 const & transform = transforms[i];
-    f32 const       zoom      = transform[0][0];
-    centers[i] = ash::transform(transform, Vec2{0, 0}) + viewport_extent * 0.5F;
-    extents[i] = extents[i] * zoom;
+    auto const & t    = transforms[i];
+    auto const center = ash::transform(t, Vec2{0, 0}) + 0.5F * viewport_extent;
+    auto const extent = extents[i];
+    f32 const  zoom   = t[0][0];
+    centers[i]        = center;
+    extents[i]        = extent * zoom;
     viewport_extents[i] = viewport_extents[i] * zoom;
   }
 
@@ -334,10 +346,8 @@ void ViewSystem::layout(Vec2 viewport_extent)
     }
   }
 
-  Rect const viewport_clip{
-    .offset{0, 0},
-    .extent = viewport_extent
-  };
+  CRect const viewport_clip =
+    CRect::from_offset(Vec2::splat(0), viewport_extent);
 
   fill(clips, viewport_clip);
 
@@ -347,7 +357,7 @@ void ViewSystem::layout(Vec2 viewport_extent)
     u32 const viewport = viewports[i];
     if (is_viewport[i]) [[unlikely]]
     {
-      Rect const clip = Rect::from_center(centers[i], extents[i]);
+      CRect const clip{.center = centers[i], .extent = extents[i]};
       if (viewport != U32_MAX) [[likely]]
       {
         clips[i] = intersect(clip, clips[viewport]);
@@ -393,9 +403,8 @@ void ViewSystem::stack()
   for (u32 i = 0; i < n; i++)
   {
     ViewNode const & node = nodes[i];
-    z_indices[i]          = views[i]->z_index(
-      z_indices[i],
-      z_indices.view().slice(node.first_child, node.num_children));
+    z_indices[i] =
+      views[i]->z_index(z_indices[i], z_indices.view().slice(node.children));
   }
 
   layers[0] = 0;
@@ -429,17 +438,16 @@ void ViewSystem::visibility()
     if (is_hidden[i])
     {
       // if parent requested to be hidden, make children hidden
-      for (u32 c = node.first_child; c < (node.first_child + node.num_children);
-           c++)
+      for (u32 c = node.children.begin(); c < node.children.end(); c++)
       {
         is_hidden.set_bit(c);
       }
     }
     else
     {
-      Rect const region = Rect::from_center(centers[i], extents[i]);
+      CRect region{.center = centers[i], .extent = extents[i]};
 
-      Rect const & clip = clips[i];
+      CRect const & clip = clips[i];
 
       bool const hidden = !overlaps(region, clip);
 
@@ -448,8 +456,7 @@ void ViewSystem::visibility()
   }
 }
 
-void ViewSystem::render(ui::ViewContext const & ctx, Canvas & canvas,
-                        ui::View & focus_view)
+void ViewSystem::render(Canvas & canvas)
 {
   ScopeTrace trace;
 
@@ -463,48 +470,22 @@ void ViewSystem::render(ui::ViewContext const & ctx, Canvas & canvas,
       view.last_rendered_frame_ = frame;
     }
   }
-
-  {
-    CRect const focus_region =
-      f1.focus.is_some() ? f1.focus.value().region : CRect{};
-
-    bool mounted = false;
-
-    if (focus_view.id_ == U64_MAX)
-    {
-      mounted        = true;
-      focus_view.id_ = next_id++;
-    }
-
-    auto const state = focus_view.tick(
-      ctx, focus_view.region_, 1.0F,
-      ui::ViewEvents{.mounted   = mounted,
-                     .view_hit  = true,
-                     .focus_in  = f0.focus.is_none() && f1.focus.is_some(),
-                     .focus_out = f0.focus.is_some() && f1.focus.is_none()},
-      [](ui::View &) { CHECK(false, "Focus View should not have children"); });
-    focus_view.fit(focus_region.extent, {}, {});
-    focus_view.size(focus_region.extent, {});
-    if (!state.hidden)
-    {
-      focus_view.render(canvas, focus_view.region_, focus_view.zoom_, MAX_CLIP);
-    }
-  }
 }
 
-void ViewSystem::focus_view(u32 view)
+void ViewSystem::scroll_to(u32 view_idx)
 {
-  (void) view;
-  // [ ] grab focus would need to scroll down to widget; would need
-  // virtual scrolling support. offset based?
-  // [ ] we need to know where it is located within the parent viewport, so we
-  // can request the viewport focus on it
-  // - get position of view in parent viewport
-  // - scroll to that position in the parent viewport
-  //
-  // for all viewports the view is contained in:
-  //    - get the position of the viewport in their respective parent viewport and
-  //    - scroll into them.
+  while (view_idx != U32_MAX && viewports[view_idx] != U32_MAX)
+  {
+    ref  view               = views[view_idx];
+    auto parent_viewport_id = views[viewports[view_idx]]->id();
+
+    scrolls
+      .push(ScrollRequest{.position = view->viewport_region_.center,
+                          .view_id  = parent_viewport_id})
+      .unwrap();
+
+    view_idx = viewports[view_idx];
+  }
 }
 
 Option<u32> ViewSystem::hit_views(Vec2              mouse_position,
@@ -609,9 +590,64 @@ Option<u32> ViewSystem::navigate_focus(u32 from, bool forward) const
   }
 }
 
+void ViewSystem::dispatch_hit(ui::ViewContext const & ctx, HitEvent event)
+{
+  auto       i    = event.view;
+  ui::View & view = views[i];
+
+  switch (event.type)
+  {
+    case HitType::None:
+      break;
+    case HitType::Click:
+    case HitType::Drag:
+    {
+      f1.pointed = view.id();
+
+      if (ctx.mouse_down(MouseButton::Primary) && is_draggable[i])
+      {
+        f1.dragging   = true;
+        f1.drag_src   = view.id();
+        f1.drag_start = true;
+      }
+
+      f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
+
+      f1.focus = Focus{
+        .active     = true,
+        .view       = view.id(),
+        .focus_idx  = view.focus_idx_,
+        .input      = is_input[i],
+        .input_info = TextInputInfo{.type        = input_type[i],
+                                    .multiline   = is_multiline_input[i],
+                                    .esc_input   = is_esc_input[i],
+                                    .tab_input   = is_tab_input[i],
+                                    .cap         = input_cap[i],
+                                    .autocorrect = input_autocorrect[i]}
+      };
+    }
+    break;
+    case HitType::Drop:
+    case HitType::DragUpdate:
+    case HitType::Release:
+    case HitType::Scroll:
+    case HitType::Point:
+    {
+      f1.pointed = view.id();
+      f1.cursor  = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
+    }
+    break;
+  }
+
+  scroll_to(i);
+}
+
 void ViewSystem::events(ui::ViewContext const & ctx)
 {
   ScopeTrace trace;
+
+  bool const esc_input = ctx.key_down(KeyCode::Escape);
+  bool const tab_input = ctx.key_down(KeyCode::Tab);
 
   f0 = f1;
   f1 = State{};
@@ -624,8 +660,11 @@ void ViewSystem::events(ui::ViewContext const & ctx)
   f1.key_up         = ctx.key.any_up;
   f1.text_input     = ctx.text_input;
 
-  bool const esc_input = ctx.key_down(KeyCode::Escape);
-  bool const tab_input = ctx.key_down(KeyCode::Tab);
+  f1.dropped =
+    (f0.dragging && ctx.mouse_up(MouseButton::Primary)) || ctx.dropped;
+  f1.drag_end = f1.dropped;
+  f1.dragging = !f1.dropped;
+  f1.drag_src = f1.dragging ? f0.drag_src : none;
 
   // use grab focus request if any, otherwise persist previous frame's focus
   f1.focus = f0.grab_focus ? f0.grab_focus : f0.focus;
@@ -635,49 +674,16 @@ void ViewSystem::events(ui::ViewContext const & ctx)
   {
     hit_views(ctx.mouse.position,
               ViewHitAttributes::Clickable | ViewHitAttributes::Draggable)
-      .match(
-        [&](u32 i) {
-          ui::View & view = views[i];
-
-          f1.pointed = view.id();
-
-          if (ctx.mouse_down(MouseButton::Primary) && is_draggable[i])
-          {
-            f1.dragging   = true;
-            f1.drag_src   = view.id();
-            f1.drag_start = true;
-          }
-
-          f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
-
-          f1.focus = Focus{
-            .active     = false,
-            .view       = view.id(),
-            .focus_idx  = view.focus_idx_,
-            .input      = is_input[i],
-            .input_info = TextInputInfo{.type        = input_type[i],
-                                        .multiline   = is_multiline_input[i],
-                                        .esc_input   = is_esc_input[i],
-                                        .tab_input   = is_tab_input[i],
-                                        .cap         = input_cap[i],
-                                        .autocorrect = input_autocorrect[i]}
-          };
-        },
-        [&]() { f1.focus = none; });
+      .match([&](u32 i) {}, [&]() { f1.focus = none; });
   }
   // mouse drop event
   else if ((f0.dragging && ctx.mouse_up(MouseButton::Primary)) || ctx.dropped)
   {
-    f1.drag_src = f0.drag_src;
     f1.dropped  = true;
     f1.dragging = false;
 
     hit_views(ctx.mouse.position, ViewHitAttributes::Droppable)
-      .match([&](u32 i) {
-        ui::View & view = views[i];
-        f1.pointed      = view.id();
-        f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
-      });
+      .match([&](u32 i) {});
   }
   // mouse dragging update event
   else if (f0.dragging || ctx.drop_hovering)
@@ -687,29 +693,21 @@ void ViewSystem::events(ui::ViewContext const & ctx)
 
     hit_views(ctx.mouse.position, ViewHitAttributes::Droppable)
       .match([&](u32 i) {
-        ui::View & view = views[i];
-        f1.pointed      = view.id();
-        f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
+
       });
   }
   // mouse release event
   else if (f1.mouse_up)
   {
     hit_views(ctx.mouse.position, ViewHitAttributes::Clickable)
-      .match([&](u32 i) {
-        ui::View & view = views[i];
-        f1.pointed      = view.id();
-        f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
-      });
+      .match([&](u32 i) {});
   }
   // mouse scroll event
   else if (ctx.mouse.wheel_scrolled)
   {
     hit_views(ctx.mouse.position, ViewHitAttributes::Scrollable)
       .match([&](u32 i) {
-        ui::View & view = views[i];
-        f1.pointed      = view.id();
-        f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
+
       });
   }
   // mouse pointing event
@@ -719,9 +717,7 @@ void ViewSystem::events(ui::ViewContext const & ctx)
               ViewHitAttributes::Pointable | ViewHitAttributes::Clickable |
                 ViewHitAttributes::Draggable | ViewHitAttributes::Scrollable)
       .match([&](u32 i) {
-        ui::View & view = views[i];
-        f1.pointed      = view.id();
-        f1.cursor = view.cursor(view.region_, view.zoom_, ctx.mouse.position);
+
       });
   }
 
@@ -772,6 +768,8 @@ void ViewSystem::events(ui::ViewContext const & ctx)
         navigate_focus(from, focus_action == FocusAction::Forward)
           .map([&](u32 focus_idx) {
             u32 const i = focus_ordering[focus_idx];
+            scroll_to(i);
+            // [ ] remove previous focus code. refactor this part of the code4 instead
             return Focus{
               .active     = true,
               .view       = views[i]->id(),
@@ -798,8 +796,6 @@ void ViewSystem::events(ui::ViewContext const & ctx)
     u32 const i     = focus_ordering[focus.focus_idx];
     focus.region    = views[i]->region_;
   }
-
-  // [ ] call focus_view() once a new focus navigation has occured
 }
 
 Cursor ViewSystem::cursor() const
@@ -827,8 +823,7 @@ Option<TextInputInfo> ViewSystem::text_input() const
 }
 
 bool ViewSystem::tick(InputState const & input, ui::View & root,
-                      ui::View & focus_view, Canvas & canvas,
-                      Fn<void(ui::ViewContext const &)> loop)
+                      Canvas & canvas, Fn<void(ui::ViewContext const &)> loop)
 {
   ScopeTrace trace;
 
@@ -850,14 +845,14 @@ bool ViewSystem::tick(InputState const & input, ui::View & root,
   focus_ordering.resize_uninit(n).unwrap();
 
   loop(input);
-  // [] focus rect
+  // [ ] focus rect
 
   focus_order();
 
   layout(as_vec2(input.window_extent));
   stack();
   visibility();
-  render(s1, canvas, focus_view);
+  render(canvas);
 
   events(input);
   input.clone_to(s1);
