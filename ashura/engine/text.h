@@ -401,7 +401,7 @@ struct TextCursor
 /// @param line_height relative. multiplied by font_height
 struct FontStyle
 {
-  FontId font        = FontId::Invalid;
+  FontId font        = FontId::None;
   f32    height      = 20;
   f32    line_height = 1.2F;
 };

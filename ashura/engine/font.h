@@ -140,7 +140,7 @@ struct GpuFontAtlas
 /// @param gpu_atlas gpu font atlas if loaded
 struct FontInfo
 {
-  FontId                        id                = FontId::Invalid;
+  FontId                        id                = FontId::None;
   Str                           label             = {};
   bool                          has_color         = false;
   Str                           postscript_name   = {};

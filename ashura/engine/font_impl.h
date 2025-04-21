@@ -19,7 +19,7 @@ struct FontImpl : Font
 
   using Name = InplaceVec<char, MAX_NAME_SIZE>;
 
-  FontId id = FontId::Invalid;
+  FontId id = FontId::None;
 
   Vec<char> label;
 
