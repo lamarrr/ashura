@@ -34,7 +34,7 @@ void BlurPass::acquire()
   // Algorithm described here:
   // https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_slides.pdf
   //
-  gpu::Shader shader = sys->shader.get("Blur"_str).shader;
+  gpu::Shader shader = sys->shader.get("Blur"_str).unwrap().shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -235,7 +235,7 @@ Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
 
 void NgonPass::acquire()
 {
-  gpu::Shader shader = sys->shader.get("Ngon"_str).shader;
+  gpu::Shader shader = sys->shader.get("Ngon"_str).unwrap().shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -357,7 +357,7 @@ void NgonPass::release()
 
 void PBRPass::acquire()
 {
-  gpu::Shader shader = sys->shader.get("PBR"_str).shader;
+  gpu::Shader shader = sys->shader.get("PBR"_str).unwrap().shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
@@ -492,7 +492,7 @@ void PBRPass::release()
 
 void RRectPass::acquire()
 {
-  gpu::Shader shader = sys->shader.get("RRect"_str).shader;
+  gpu::Shader shader = sys->shader.get("RRect"_str).unwrap().shader;
 
   gpu::RasterizationState raster_state{.depth_clamp_enable = false,
                                        .polygon_mode = gpu::PolygonMode::Fill,
