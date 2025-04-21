@@ -1061,6 +1061,12 @@ constexpr auto is_empty(T && a)
   return size(a) == 0;
 }
 
+template <typename T>
+constexpr auto is_empty(T && a) -> decltype(a.is_empty())
+{
+  return a.is_empty();
+}
+
 /// @brief Iterator Model. Iterators are only required to
 /// produce values, they are not required to provide
 /// references to the values
@@ -1288,6 +1294,12 @@ struct Span
   constexpr Span slice(Slice s) const
   {
     s = s(size_);
+    return Span{data_ + s.offset, s.span};
+  }
+
+  constexpr Span slice(Slice32 s) const
+  {
+    s = s((u32) size_);
     return Span{data_ + s.offset, s.span};
   }
 
