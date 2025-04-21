@@ -600,4 +600,115 @@ void RRectPass::release()
   sys->gpu.device_->uninit(pipeline);
 }
 
+void SquirclePass::acquire()
+{
+  gpu::Shader shader = sys->shader.get("Squircle"_str).unwrap().shader;
+
+  gpu::RasterizationState raster_state{.depth_clamp_enable = false,
+                                       .polygon_mode = gpu::PolygonMode::Fill,
+                                       .cull_mode    = gpu::CullMode::None,
+                                       .front_face =
+                                         gpu::FrontFace::CounterClockWise,
+                                       .depth_bias_enable          = false,
+                                       .depth_bias_constant_factor = 0,
+                                       .depth_bias_clamp           = 0,
+                                       .depth_bias_slope_factor    = 0,
+                                       .sample_count = sys->gpu.sample_count_};
+
+  gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
+                                             .depth_write_enable = false,
+                                             .depth_compare_op =
+                                               gpu::CompareOp::Greater,
+                                             .depth_bounds_test_enable = false,
+                                             .stencil_test_enable      = false,
+                                             .front_stencil            = {},
+                                             .back_stencil             = {},
+                                             .min_depth_bounds         = 0,
+                                             .max_depth_bounds         = 0};
+
+  gpu::ColorBlendAttachmentState attachment_states[] = {
+    {.blend_enable           = true,
+     .src_color_blend_factor = gpu::BlendFactor::SrcAlpha,
+     .dst_color_blend_factor = gpu::BlendFactor::OneMinusSrcAlpha,
+     .color_blend_op         = gpu::BlendOp::Add,
+     .src_alpha_blend_factor = gpu::BlendFactor::One,
+     .dst_alpha_blend_factor = gpu::BlendFactor::Zero,
+     .alpha_blend_op         = gpu::BlendOp::Add,
+     .color_write_mask       = gpu::ColorComponents::All}
+  };
+
+  gpu::ColorBlendState color_blend_state{
+    .attachments = attachment_states, .blend_constant = {1, 1, 1, 1}
+  };
+
+  gpu::DescriptorSetLayout set_layouts[] = {
+    sys->gpu.sb_layout_, sys->gpu.samplers_layout_, sys->gpu.textures_layout_};
+
+  gpu::GraphicsPipelineInfo pipeline_info{
+    .label         = "Squircle Graphics Pipeline"_str,
+    .vertex_shader = gpu::ShaderStageInfo{.shader      = shader,
+                                          .entry_point = "vs_main"_str,
+                                          .specialization_constants      = {},
+                                          .specialization_constants_data = {}},
+    .fragment_shader =
+      gpu::ShaderStageInfo{.shader                        = shader,
+                                          .entry_point                   = "fs_main"_str,
+                                          .specialization_constants      = {},
+                                          .specialization_constants_data = {}},
+    .color_formats          = {&sys->gpu.color_format_, 1},
+    .vertex_input_bindings  = {},
+    .vertex_attributes      = {},
+    .push_constants_size    = sizeof(Mat4),
+    .descriptor_set_layouts = set_layouts,
+    .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
+    .rasterization_state    = raster_state,
+    .depth_stencil_state    = depth_stencil_state,
+    .color_blend_state      = color_blend_state,
+    .cache                  = sys->gpu.pipeline_cache_
+  };
+
+  pipeline = sys->gpu.device_->create_graphics_pipeline(pipeline_info).unwrap();
+}
+
+void SquirclePass::encode(gpu::CommandEncoder &      e,
+                          SquirclePassParams const & params)
+{
+  gpu::RenderingAttachment color[1];
+
+  if (params.framebuffer.color_msaa.is_some())
+  {
+    color[0] = gpu::RenderingAttachment{
+      .view         = params.framebuffer.color_msaa.value().view,
+      .resolve      = params.framebuffer.color.view,
+      .resolve_mode = gpu::ResolveModes::Average,
+      .load_op      = gpu::LoadOp::Load,
+      .store_op     = gpu::StoreOp::Store};
+  }
+  else
+  {
+    color[0] = gpu::RenderingAttachment{.view = params.framebuffer.color.view};
+  }
+
+  gpu::RenderingInfo info{
+    .render_area{.extent = params.framebuffer.extent().xy()},
+    .num_layers        = 1,
+    .color_attachments = color};
+
+  e.begin_rendering(info);
+  e.bind_graphics_pipeline(pipeline);
+  e.set_graphics_state(
+    gpu::GraphicsState{.scissor = params.scissor, .viewport = params.viewport});
+  e.bind_descriptor_sets(
+    span({params.params_ssbo, sys->gpu.samplers_, params.textures}),
+    span({params.params_ssbo_offset}));
+  e.push_constants(span({params.world_to_view}).as_u8());
+  e.draw(4, params.num_instances, 0, params.first_instance);
+  e.end_rendering();
+}
+
+void SquirclePass::release()
+{
+  sys->gpu.device_->uninit(pipeline);
+}
+
 }    // namespace ash

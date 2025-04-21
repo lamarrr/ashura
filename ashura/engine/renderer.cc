@@ -8,17 +8,19 @@ namespace ash
 
 PassContext PassContext::create(AllocatorRef allocator)
 {
-  Dyn bloom = dyn(allocator, BloomPass{}).unwrap();
-  Dyn blur  = dyn(allocator, BlurPass{}).unwrap();
-  Dyn ngon  = dyn(allocator, NgonPass{}).unwrap();
-  Dyn pbr   = dyn(allocator, PBRPass{}).unwrap();
-  Dyn rrect = dyn(allocator, RRectPass{}).unwrap();
+  Dyn bloom    = dyn(allocator, BloomPass{}).unwrap();
+  Dyn blur     = dyn(allocator, BlurPass{}).unwrap();
+  Dyn ngon     = dyn(allocator, NgonPass{}).unwrap();
+  Dyn pbr      = dyn(allocator, PBRPass{}).unwrap();
+  Dyn rrect    = dyn(allocator, RRectPass{}).unwrap();
+  Dyn squircle = dyn(allocator, SquirclePass{}).unwrap();
 
-  BloomPass * pbloom = bloom.get();
-  BlurPass *  pblur  = blur.get();
-  NgonPass *  pngon  = ngon.get();
-  PBRPass *   ppbr   = pbr.get();
-  RRectPass * prrect = rrect.get();
+  auto * pbloom    = bloom.get();
+  auto * pblur     = blur.get();
+  auto * pngon     = ngon.get();
+  auto * ppbr      = pbr.get();
+  auto * prrect    = rrect.get();
+  auto * psquircle = squircle.get();
 
   Vec<Dyn<Pass *>> all{allocator};
 
@@ -27,8 +29,10 @@ PassContext PassContext::create(AllocatorRef allocator)
   all.push(cast<Pass *>(std::move(ngon))).unwrap();
   all.push(cast<Pass *>(std::move(pbr))).unwrap();
   all.push(cast<Pass *>(std::move(rrect))).unwrap();
+  all.push(cast<Pass *>(std::move(squircle))).unwrap();
 
-  return PassContext{*pbloom, *pblur, *pngon, *ppbr, *prrect, std::move(all)};
+  return PassContext{*pbloom, *pblur,     *pngon,        *ppbr,
+                     *prrect, *psquircle, std::move(all)};
 }
 
 void PassContext::acquire()
@@ -168,7 +172,9 @@ void Renderer::render_canvas(Framebuffer const & fb, FrameGraph & graph,
 {
   ScopeTrace trace;
 
-  auto const rrect_params  = graph.push_ssbo(c.rrect_params.view().as_u8());
+  auto const rrect_params = graph.push_ssbo(c.rrect_params.view().as_u8());
+  auto const squircle_params =
+    graph.push_ssbo(c.squircle_params.view().as_u8());
   auto const ngon_params   = graph.push_ssbo(c.ngon_params.view().as_u8());
   auto const ngon_vertices = graph.push_ssbo(c.ngon_vertices.view().as_u8());
   auto const ngon_indices  = graph.push_ssbo(c.ngon_indices.view().as_u8());
@@ -198,6 +204,27 @@ void Renderer::render_canvas(Framebuffer const & fb, FrameGraph & graph,
           });
         break;
 
+      case Canvas::BatchType::Squircle:
+        graph.add_pass(
+          "Squircle"_str, [&c, fb, squircle_params, batch, &passes = *passes_](
+                            FrameGraph & graph, gpu::CommandEncoder & enc) {
+            auto [prm, slice] = graph.get_structured_buffer(squircle_params);
+
+            SquirclePassParams const params{.framebuffer = fb,
+                                            .scissor =
+                                              c.clip_to_scissor(batch.clip),
+                                            .viewport      = c.viewport,
+                                            .world_to_view = c.world_to_view,
+                                            .params_ssbo   = prm.descriptor_,
+                                            .params_ssbo_offset = slice.offset,
+                                            .textures = sys->gpu.textures_,
+                                            .first_instance = batch.run.offset,
+                                            .num_instances  = batch.run.span};
+
+            passes.squircle->encode(enc, params);
+          });
+        break;
+
       case Canvas::BatchType::Ngon:
         graph.add_pass(
           "Ngon"_str,
@@ -220,8 +247,7 @@ void Renderer::render_canvas(Framebuffer const & fb, FrameGraph & graph,
               .params_ssbo_offset   = prm_slice.offset,
               .textures             = sys->gpu.textures_,
               .first_instance       = batch.run.offset,
-              .index_counts =
-                c.ngon_index_counts.view().slice(batch.run.as_slice())};
+              .index_counts = c.ngon_index_counts.view().slice(batch.run)};
 
             passes.ngon->encode(enc, params);
           });

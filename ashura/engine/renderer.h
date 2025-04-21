@@ -12,22 +12,25 @@ struct Canvas;
 
 struct PassContext
 {
-  ref<BloomPass>   bloom;
-  ref<BlurPass>    blur;
-  ref<NgonPass>    ngon;
-  ref<PBRPass>     pbr;
-  ref<RRectPass>   rrect;
-  Vec<Dyn<Pass *>> all;
+  ref<BloomPass>    bloom;
+  ref<BlurPass>     blur;
+  ref<NgonPass>     ngon;
+  ref<PBRPass>      pbr;
+  ref<RRectPass>    rrect;
+  ref<SquirclePass> squircle;
+  Vec<Dyn<Pass *>>  all;
 
   static PassContext create(AllocatorRef allocator);
 
   PassContext(BloomPass & bloom, BlurPass & blur, NgonPass & ngon,
-              PBRPass & pbr, RRectPass & rrect, Vec<Dyn<Pass *>> all) :
+              PBRPass & pbr, RRectPass & rrect, SquirclePass & squircle,
+              Vec<Dyn<Pass *>> all) :
     bloom{bloom},
     blur{blur},
     ngon{ngon},
     pbr{pbr},
     rrect{rrect},
+    squircle{squircle},
     all{std::move(all)}
   {
   }

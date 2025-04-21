@@ -238,6 +238,22 @@ struct RRectParam
   TextureId albedo           = TextureId::White;
 };
 
+struct SquircleParam
+{
+  alignas(16) Mat4 transform = {};
+  alignas(16) Vec4 tint[4]   = {};
+  alignas(16) Vec2 uv[2]     = {};
+  f32       radius           = 0;
+  f32       degree           = 5;
+  f32       tiling           = 1;
+  f32       aspect_ratio     = 1;
+  f32       stroke           = 0;
+  f32       thickness        = 0;
+  f32       edge_smoothness  = 0;
+  SamplerId sampler          = SamplerId::Linear;
+  TextureId albedo           = TextureId::White;
+};
+
 struct RRectPassParams
 {
   Framebuffer        framebuffer        = {};
@@ -269,6 +285,39 @@ struct RRectPass : Pass
   virtual void release() override;
 
   void encode(gpu::CommandEncoder & encoder, RRectPassParams const & params);
+};
+
+struct SquirclePassParams
+{
+  Framebuffer        framebuffer        = {};
+  RectU              scissor            = {};
+  gpu::Viewport      viewport           = {};
+  Mat4               world_to_view      = {};
+  gpu::DescriptorSet params_ssbo        = nullptr;
+  u32                params_ssbo_offset = 0;
+  gpu::DescriptorSet textures           = nullptr;
+  u32                first_instance     = 0;
+  u32                num_instances      = 0;
+};
+
+struct SquirclePass : Pass
+{
+  gpu::GraphicsPipeline pipeline = nullptr;
+
+  virtual Str label() override
+  {
+    return "Squircle"_str;
+  }
+
+  SquirclePass() = default;
+
+  virtual ~SquirclePass() override = default;
+
+  virtual void acquire() override;
+
+  virtual void release() override;
+
+  void encode(gpu::CommandEncoder & encoder, SquirclePassParams const & params);
 };
 
 }    // namespace ash
