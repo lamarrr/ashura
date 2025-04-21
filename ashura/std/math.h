@@ -2804,6 +2804,13 @@ struct CRect
   {
     return extent.x != 0 & extent.y != 0;
   }
+
+  constexpr CRect clamp(Vec2 extent) const
+  {
+    auto begin = this->begin().clamp(extent);
+    auto end   = this->end().clamp(extent);
+    return CRect::from_range(begin, end);
+  }
 };
 
 constexpr CRect Rect::centered() const
