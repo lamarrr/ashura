@@ -575,10 +575,11 @@ Future<Result<FontId, FontLoadErr>>
 
 FontInfo FontSystemImpl::get(FontId id)
 {
+  CHECK(fonts_.is_valid_id((usize) id), "");
   return fonts_[(usize) id].v0->info();
 }
 
-FontInfo FontSystemImpl::get(Str label)
+Option<FontInfo> FontSystemImpl::get(Str label)
 {
   for (auto & font : fonts_.dense.v0)
   {
@@ -587,7 +588,8 @@ FontInfo FontSystemImpl::get(Str label)
       return font->info();
     }
   }
-  CHECK(false, "Invalid Font label: {} ", label);
+
+  return none;
 }
 
 void FontSystemImpl::unload(FontId id)
