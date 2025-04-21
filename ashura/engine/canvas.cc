@@ -380,10 +380,10 @@ Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
   return *this;
 }
 
-RectU Canvas::clip_to_scissor(Rect const & clip) const
+RectU Canvas::clip_to_scissor(CRect const & clip) const
 {
   // clips are always unscaled
-  Rect scissor_f{.offset = viewport.offset + clip.offset * virtual_scale,
+  Rect scissor_f{.offset = viewport.offset + clip.begin() * virtual_scale,
                  .extent = clip.extent * virtual_scale};
 
   scissor_f.offset.x = clamp(scissor_f.offset.x, 0.0F, MAX_CLIP.extent.x);
@@ -405,7 +405,7 @@ RectU Canvas::clip_to_scissor(Rect const & clip) const
 }
 
 static inline void add_rrect(Canvas & c, RRectParam const & param,
-                             Rect const & clip)
+                             CRect const & clip)
 {
   u32 const index = c.rrect_params.size32();
   c.rrect_params.push(param).unwrap();
@@ -427,7 +427,7 @@ static inline void add_rrect(Canvas & c, RRectParam const & param,
 }
 
 static inline void add_squircle(Canvas & c, SquircleParam const & param,
-                                Rect const & clip)
+                                CRect const & clip)
 {
   u32 const index = c.squircle_params.size32();
   c.squircle_params.push(param).unwrap();
@@ -449,7 +449,7 @@ static inline void add_squircle(Canvas & c, SquircleParam const & param,
 }
 
 static inline void add_ngon(Canvas & c, NgonParam const & param,
-                            Rect const & clip, u32 num_indices)
+                            CRect const & clip, u32 num_indices)
 {
   u32 const index = c.ngon_params.size32();
   c.ngon_index_counts.push(num_indices).unwrap();
@@ -477,7 +477,7 @@ Canvas & Canvas::end_recording()
   return *this;
 }
 
-Canvas & Canvas::clip(Rect const & c)
+Canvas & Canvas::clip(CRect const & c)
 {
   current_clip = c;
   return *this;
@@ -720,14 +720,14 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
   return *this;
 }
 
-Canvas & Canvas::blur(Rect const & raw_area, Vec2 radius, Vec4 corner_radii)
+Canvas & Canvas::blur(CRect const & raw_area, Vec2 radius, Vec4 corner_radii)
 {
   u32 const index = blurs.size32();
 
   auto const area  = raw_area.clamp(extent);
   f32 const  inv_y = 1 / area.extent.y;
 
-  RectU const fb_area = RectU{as_vec2u(area.offset * virtual_scale),
+  RectU const fb_area = RectU{as_vec2u(area.begin() * virtual_scale),
                               as_vec2u(area.extent * virtual_scale)}
                           .clamp(framebuffer_extent);
 
@@ -736,7 +736,7 @@ Canvas & Canvas::blur(Rect const & raw_area, Vec2 radius, Vec4 corner_radii)
                .radius       = as_vec2u(radius * virtual_scale),
                .corner_radii = corner_radii * inv_y,
                .transform =
-                 object_to_world(Mat4::identity(), area.center(), area.extent),
+                 object_to_world(Mat4::identity(), area.center, area.extent),
                .aspect_ratio = area.extent.x * inv_y})
     .unwrap();
 

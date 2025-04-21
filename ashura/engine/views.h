@@ -402,7 +402,7 @@ struct Text : View
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 
   virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
 };
@@ -516,7 +516,7 @@ struct Input : View
   virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 
   virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
 };
@@ -581,7 +581,7 @@ struct Button : View
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 
   virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
 };
@@ -695,7 +695,7 @@ struct Icon : View
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 };
 
 struct CheckBox : View
@@ -779,7 +779,7 @@ struct CheckBox : View
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 
   virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
 };
@@ -875,7 +875,7 @@ struct Slider : View
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 
   virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
 };
@@ -960,7 +960,7 @@ struct Switch : View
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 
   virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
 };
@@ -1027,7 +1027,7 @@ struct Radio : View
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 
   virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
 };
@@ -1106,7 +1106,7 @@ struct ScalarDragBox : View
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 
   virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 offset) override;
 };
@@ -1233,7 +1233,7 @@ struct ScrollBar : View
   virtual i32 stack(i32 allocated) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 };
 
 struct ScrollView : View
@@ -1340,7 +1340,7 @@ struct ComboItem : View
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const &) override;
+                      CRect const & clip) override;
 
   virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
 };
@@ -1425,7 +1425,7 @@ struct TextComboItem : ComboItem
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 };
 
 struct Combo : Flex
@@ -1505,7 +1505,7 @@ struct Combo : Flex
                          Fn<void(View &)> build) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 };
 
 using ImageSrc = Enum<None, ImageId, Future<Result<ImageId, ImageLoadErr>>>;
@@ -1575,7 +1575,7 @@ struct Image : View
                          Span<Vec2> centers) override;
 
   virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+                      CRect const & clip) override;
 };
 
 // [ ] size estimation?

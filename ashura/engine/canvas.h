@@ -130,12 +130,10 @@ struct ShapeInfo
 };
 
 /// @brief a normative clip rect that will cover the entire Canvas.
-inline constexpr Rect MAX_CLIP{
-  .offset{0,         0        },
-  .extent{0xFF'FFFF, 0xFF'FFFF}
-};
+constexpr f32 MAX_CLIP_DISTANCE = 0xFF'FFFF;
 
-inline constexpr CRect MAX_CLIP_CENTERED = MAX_CLIP.centered();
+inline constexpr CRect MAX_CLIP{.center = Vec2::splat(MAX_CLIP_DISTANCE / 2),
+                                .extent = Vec2::splat(MAX_CLIP_DISTANCE)};
 
 struct FrameGraph;
 struct PassContext;
@@ -158,7 +156,7 @@ struct Canvas
 
     Slice32 run{};
 
-    Rect clip = MAX_CLIP;
+    CRect clip = MAX_CLIP;
   };
 
   struct Blur
@@ -203,7 +201,7 @@ struct Canvas
   /// @brief the world to viewport transformation matrix
   Affine4 world_to_view = Affine4::identity();
 
-  Rect current_clip = MAX_CLIP;
+  CRect current_clip = MAX_CLIP;
 
   Vec<RRectParam> rrect_params;
 
@@ -255,9 +253,9 @@ struct Canvas
 
   Canvas & reset_clip();
 
-  Canvas & clip(Rect const & area);
+  Canvas & clip(CRect const & area);
 
-  RectU clip_to_scissor(Rect const & clip) const;
+  RectU clip_to_scissor(CRect const & clip) const;
 
   /// @brief render a circle
   Canvas & circle(ShapeInfo const & info);
@@ -312,7 +310,7 @@ struct Canvas
 
   /// @brief perform a Canvas-space blur
   /// @param area region in the canvas to apply the blur to
-  Canvas & blur(Rect const & area, Vec2 radius,
+  Canvas & blur(CRect const & area, Vec2 radius,
                 Vec4 corner_radii = {0, 0, 0, 0});
 
   /// @brief register a custom canvas pass to be executed in the render thread

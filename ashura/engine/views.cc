@@ -809,11 +809,11 @@ ViewLayout Input::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 }
 
 void Input::render(Canvas & canvas, CRect const & region, f32 zoom,
-                   Rect const & clip)
+                   CRect const & clip)
 {
   if (content_.text_.is_empty())
   {
-    stub_.render(canvas, region, clip.centered(), zoom);
+    stub_.render(canvas, region, clip, zoom);
   }
   else
   {
@@ -862,7 +862,7 @@ ViewLayout Button::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
   return {.extent = size + 2 * style.padding};
 }
 
-void Button::render(Canvas & canvas, CRect const & region, f32, Rect const &)
+void Button::render(Canvas & canvas, CRect const & region, f32, CRect const &)
 {
   Vec4U8 tint;
 
@@ -1088,9 +1088,9 @@ ViewLayout Icon::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 }
 
 void Icon::render(Canvas & canvas, CRect const & region, f32 zoom,
-                  Rect const & clip)
+                  CRect const & clip)
 {
-  text_.render(canvas, region, clip.centered(), zoom);
+  text_.render(canvas, region, clip, zoom);
 }
 
 CheckBox::CheckBox(Str32 text, TextStyle const & style, FontStyle const & font,
@@ -1189,7 +1189,7 @@ ViewLayout CheckBox::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
   return {.extent = style.padding + sizes[0]};
 }
 
-void CheckBox::render(Canvas & canvas, CRect const & region, f32, Rect const &)
+void CheckBox::render(Canvas & canvas, CRect const & region, f32, CRect const &)
 {
   Vec4U8 tint;
   if (state.press.hovered && !state.press.held && !state.disabled)
@@ -1348,7 +1348,7 @@ ViewLayout Slider::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return {.extent = style.frame(allocated)};
 }
 
-void Slider::render(Canvas & canvas, CRect const & region, f32, Rect const &)
+void Slider::render(Canvas & canvas, CRect const & region, f32, CRect const &)
 {
   u32 const main_axis  = (style.axis == Axis::X) ? 0 : 1;
   u32 const cross_axis = (style.axis == Axis::Y) ? 0 : 1;
@@ -1527,7 +1527,7 @@ ViewLayout Switch::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return {.extent = style.frame(allocated)};
 }
 
-void Switch::render(Canvas & canvas, CRect const & region, f32, Rect const &)
+void Switch::render(Canvas & canvas, CRect const & region, f32, CRect const &)
 {
   Vec2 thumb_extent = region.extent;
   thumb_extent.x *= 0.5F;
@@ -1637,7 +1637,7 @@ ViewLayout Radio::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return {.extent = style.frame(allocated)};
 }
 
-void Radio::render(Canvas & canvas, CRect const & region, f32, Rect const &)
+void Radio::render(Canvas & canvas, CRect const & region, f32, CRect const &)
 {
   canvas.rrect({.center       = region.center,
                 .extent       = region.extent,
@@ -1769,7 +1769,7 @@ ViewLayout ScalarDragBox::fit(Vec2 allocated, Span<Vec2 const> sizes,
 }
 
 void ScalarDragBox::render(Canvas & canvas, CRect const & region, f32,
-                           Rect const &)
+                           CRect const &)
 {
   canvas.rrect({.center       = region.center,
                 .extent       = region.extent,
@@ -2006,7 +2006,7 @@ i32 ScrollBar::stack(i32 allocated)
   return allocated + 1;
 }
 
-void ScrollBar::render(Canvas & canvas, CRect const & region, f32, Rect const &)
+void ScrollBar::render(Canvas & canvas, CRect const & region, f32, CRect const &)
 {
   u32 const main_axis  = (style.axis == Axis::X) ? 0 : 1;
   u32 const cross_axis = (style.axis == Axis::X) ? 1 : 0;
@@ -2231,7 +2231,7 @@ ViewLayout ComboItem::fit(Vec2, Span<Vec2 const>, Span<Vec2>)
   return ViewLayout{};
 }
 
-void ComboItem::render(Canvas &, CRect const &, f32, Rect const &)
+void ComboItem::render(Canvas &, CRect const &, f32, CRect const &)
 {
 }
 
@@ -2352,7 +2352,7 @@ ViewLayout TextComboItem::fit(Vec2 allocated, Span<Vec2 const> sizes,
 }
 
 void TextComboItem::render(Canvas & canvas, CRect const & region, f32,
-                           Rect const &)
+                           CRect const &)
 {
   Vec4U8 color;
   if (ComboItem::state.selected)
@@ -2541,7 +2541,7 @@ ViewState Combo::tick(ViewContext const &, CRect const &, f32,
   return ViewState{};
 }
 
-void Combo::render(Canvas & canvas, CRect const & region, f32, Rect const &)
+void Combo::render(Canvas & canvas, CRect const & region, f32, CRect const &)
 {
   canvas.rrect({.center       = region.center,
                 .extent       = region.extent,
@@ -2700,7 +2700,7 @@ static void render_image(Canvas & canvas, CRect const & region,
   });
 }
 
-void Image::render(Canvas & canvas, CRect const & region, f32, Rect const &)
+void Image::render(Canvas & canvas, CRect const & region, f32, CRect const &)
 {
   state.resolved.match(
     [&](None) {},
