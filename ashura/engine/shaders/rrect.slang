@@ -65,16 +65,11 @@ struct VertexOutput
           [[vk::location(1)]] f32x2 local_pos : LOCAL_POSITION) :
   COLOR
 {
-  var  p    = params[instance];
-  bool left = local_pos.x < 0;
-  bool top  = local_pos.y < 0;
-  var  corner =
-    left ? (top ? TOP_LEFT : BOTTOM_LEFT) : (top ? TOP_RIGHT : BOTTOM_RIGHT);
-  f32          radius      = p.radii[corner];
+  var          p           = params[instance];
   f32x2        extent      = f32x2(p.aspect_ratio, 1);
   f32x2        pos         = local_pos * extent;
   f32x2        half_extent = 0.5 * extent;
-  f32          dist        = rrect_sdf(pos, half_extent, radius);
+  f32          dist        = sdf::rrect(pos, half_extent, p.radii);
   f32x2        uv          = local_pos + 0.5;
   f32x2        tex_uv      = lerp(p.uv.xy, p.uv.zw, uv);
   SamplerState s           = samplers[NonUniformResourceIndex(p.sampler)];

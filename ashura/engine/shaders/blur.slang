@@ -42,9 +42,9 @@ f32x4 fs_upsample_main([[vk::location(0)]] f32x2 uv : UV_COORD) :
   COLOR
 {
   var tex_uv = lerp(p.uv[0], p.uv[1], uv);
-  return upsample_clamped(samplers[NonUniformResourceIndex(p.sampler)],
-                          textures[NonUniformResourceIndex(p.tex)], tex_uv,
-                          p.radius, p.uv[0], p.uv[1]);
+  return kawase::upsample_clamped(samplers[NonUniformResourceIndex(p.sampler)],
+                                  textures[NonUniformResourceIndex(p.tex)],
+                                  tex_uv, p.radius, p.uv[0], p.uv[1]);
 }
 
 [[shader("fragment")]]
@@ -52,7 +52,8 @@ f32x4 fs_downsample_main([[vk::location(0)]] f32x2 uv : UV_COORD) :
   COLOR
 {
   var tex_uv = lerp(p.uv[0], p.uv[1], uv);
-  return downsample_clamped(samplers[NonUniformResourceIndex(p.sampler)],
-                            textures[NonUniformResourceIndex(p.tex)], tex_uv,
-                            p.radius, p.uv[0], p.uv[1]);
+  return kawase::downsample_clamped(
+    samplers[NonUniformResourceIndex(p.sampler)],
+    textures[NonUniformResourceIndex(p.tex)], tex_uv, p.radius, p.uv[0],
+    p.uv[1]);
 }
