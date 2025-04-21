@@ -302,7 +302,7 @@ struct Stack : View
   {
     bool reverse = false;
 
-    Vec2 alignment = ALIGNMENT_CENTER;
+    Vec2 alignment = ALIGNMENT_CENTER_CENTER;
 
     Frame frame = Frame{}.scale({1, 1});
   } style;
@@ -1358,7 +1358,7 @@ struct TextComboItem : ComboItem
 
     Vec2 padding = {5, 5};
 
-    f32 alignment = -1;
+    f32 alignment = ALIGNMENT_LEFT;
 
     Vec4U8 color = theme.surface_variant;
 
@@ -1542,7 +1542,7 @@ struct Image : View
 
     ImageFit fit = ImageFit::Contain;
 
-    Vec2 alignment = ALIGNMENT_CENTER;
+    Vec2 alignment = ALIGNMENT_CENTER_CENTER;
   } style;
 
   ImageSrc src_;

@@ -1531,7 +1531,8 @@ void Switch::render(Canvas & canvas, CRect const & region, f32, CRect const &)
 {
   Vec2 thumb_extent = region.extent;
   thumb_extent.x *= 0.5F;
-  Vec2 const alignment{state.value ? 1.0F : -1.0F, 0};
+  Vec2 const alignment{state.value ? ALIGNMENT_RIGHT : ALIGNMENT_LEFT,
+                       ALIGNMENT_CENTER};
   Vec2 const thumb_center =
     region.center + space_align(region.extent, thumb_extent, alignment);
 
