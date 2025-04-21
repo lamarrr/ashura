@@ -527,22 +527,22 @@ constexpr void flip_bit(u64 & s, usize i)
   s = s ^ (((usize) 1) << i);
 }
 
-constexpr unsigned long long operator""_KB(unsigned long long x)
+constexpr u64 operator""_KB(u64 x)
 {
   return x << 10;
 }
 
-constexpr unsigned long long operator""_MB(unsigned long long x)
+constexpr u64 operator""_MB(u64 x)
 {
   return x << 20;
 }
 
-constexpr unsigned long long operator""_GB(unsigned long long x)
+constexpr u64 operator""_GB(u64 x)
 {
   return x << 30;
 }
 
-constexpr unsigned long long operator""_TB(unsigned long long x)
+constexpr u64 operator""_TB(u64 x)
 {
   return x << 40;
 }
