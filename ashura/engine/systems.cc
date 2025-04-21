@@ -258,7 +258,7 @@ Future<Result<ImageInfo, ImageLoadErr>>
   return fut;
 }
 
-ImageInfo ImageSystem::get(Str label)
+Option<ImageInfo> ImageSystem::get(Str label)
 {
   for (auto & image : images_.dense.v0)
   {
@@ -268,11 +268,12 @@ ImageInfo ImageSystem::get(Str label)
     }
   }
 
-  CHECK(false, "Invalid Image label: {}", label);
+  return none;
 }
 
 ImageInfo ImageSystem::get(ImageId id)
 {
+  CHECK(images_.is_valid_id((usize) id), "");
   return images_[(usize) id].v0.to_view();
 }
 
@@ -355,10 +356,11 @@ Future<Result<ShaderInfo, ShaderLoadErr>>
 
 ShaderInfo ShaderSystem::get(ShaderId id)
 {
+  CHECK(shaders_.is_valid_id((usize) id), "");
   return shaders_[(usize) id].v0.view();
 }
 
-ShaderInfo ShaderSystem::get(Str label)
+Option<ShaderInfo> ShaderSystem::get(Str label)
 {
   for (auto [shader] : shaders_)
   {
@@ -368,7 +370,7 @@ ShaderInfo ShaderSystem::get(Str label)
     }
   }
 
-  CHECK(false, "Invalid Shader label: {}", label);
+  return none;
 }
 
 void ShaderSystem::unload(ShaderId id)

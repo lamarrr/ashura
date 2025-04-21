@@ -134,7 +134,7 @@ struct ImageSystem
   Future<Result<ImageInfo, ImageLoadErr>> load_from_path(Vec<char> label,
                                                          Str       path);
 
-  ImageInfo get(Str label);
+  Option<ImageInfo> get(Str label);
 
   ImageInfo get(ImageId id);
 
@@ -171,7 +171,7 @@ struct FontSystem
 
   virtual FontInfo get(FontId id) = 0;
 
-  virtual FontInfo get(Str label) = 0;
+  virtual Option<FontInfo> get(Str label) = 0;
 
   virtual void unload(FontId id) = 0;
 };
@@ -203,7 +203,7 @@ struct ShaderSystem
 
   ShaderInfo get(ShaderId id);
 
-  ShaderInfo get(Str label);
+  Option<ShaderInfo> get(Str label);
 
   void unload(ShaderId);
 };
