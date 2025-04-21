@@ -402,48 +402,24 @@ inline T grid_snap(T const & a, T const & unit)
 template <typename T>
 constexpr T norm_to_axis(T const & norm)
 {
-  return norm * 2 - 1;
+  return norm - 0.5F;
 }
 
 template <typename T>
 constexpr T axis_to_norm(T const & axis)
 {
-  return axis * 0.5F + 0.5F;
-}
-
-template <typename T>
-constexpr T norm_to_space(T const & norm)
-{
-  return norm - 0.5F;
-}
-
-template <typename T>
-constexpr T space_to_norm(T const & space)
-{
-  return space + 0.5F;
-}
-
-template <typename T>
-constexpr T space_to_axis(T const & space)
-{
-  return space * 2;
-}
-
-template <typename T>
-constexpr T axis_to_space(T const & axis)
-{
-  return axis * 0.5F;
+  return axis + 0.5F;
 }
 
 /// @param space available space to align to
 /// @param item extent of the item to align
-/// @param alignment the alignment to align to [-1, +1]
+/// @param alignment the alignment to align to [-0.5, +0.5]
 /// @return returns the aligned position relative to the space's center
 template <typename T>
 constexpr T space_align(T const & space, T const & item, T const & alignment)
 {
-  T const trailing = (space - item) * 0.5F;
-  return lerp(-trailing, trailing, axis_to_norm(alignment));
+  T const half_space = 0.5F * (space - item);
+  return lerp(-half_space, half_space, axis_to_norm(alignment));
 }
 
 typedef struct Vec2   Vec2;
@@ -2706,15 +2682,21 @@ inline Vec2 rotor(f32 a)
   return Vec2{cos(a), sin(a)};
 }
 
-inline constexpr Vec2 ALIGNMENT_CENTER{0, 0};
-inline constexpr Vec2 ALIGNMENT_TOP_LEFT{-1, -1};
-inline constexpr Vec2 ALIGNMENT_TOP_CENTER{0, -1};
-inline constexpr Vec2 ALIGNMENT_TOP_RIGHT{1, -1};
-inline constexpr Vec2 ALIGNMENT_BOTTOM_LEFT{-1, 1};
-inline constexpr Vec2 ALIGNMENT_BOTTOM_CENTER{0, 1};
-inline constexpr Vec2 ALIGNMENT_BOTTOM_RIGHT{1, 1};
-inline constexpr Vec2 ALIGNMENT_LEFT_CENTER{-1, 0};
-inline constexpr Vec2 ALIGNMENT_RIGHT_CENTER{1, 0};
+inline constexpr f32 ALIGNMENT_LEFT   = -0.5F;
+inline constexpr f32 ALIGNMENT_RIGHT  = 0.5F;
+inline constexpr f32 ALIGNMENT_TOP    = -0.5F;
+inline constexpr f32 ALIGNMENT_BOTTOM = 0.5F;
+inline constexpr f32 ALIGNMENT_CENTER = 0;
+
+inline constexpr Vec2 ALIGNMENT_CENTER_CENTER{0, 0};
+inline constexpr Vec2 ALIGNMENT_TOP_LEFT{-0.5F, -0.5F};
+inline constexpr Vec2 ALIGNMENT_TOP_CENTER{0, -0.5F};
+inline constexpr Vec2 ALIGNMENT_TOP_RIGHT{0.5F, -0.5F};
+inline constexpr Vec2 ALIGNMENT_BOTTOM_LEFT{-0.5F, 0.5F};
+inline constexpr Vec2 ALIGNMENT_BOTTOM_CENTER{0, 0.5F};
+inline constexpr Vec2 ALIGNMENT_BOTTOM_RIGHT{0.5F, 0.5F};
+inline constexpr Vec2 ALIGNMENT_LEFT_CENTER{-0.5F, 0};
+inline constexpr Vec2 ALIGNMENT_RIGHT_CENTER{0.5F, 0};
 
 constexpr Vec4 opacity(f32 v)
 {
