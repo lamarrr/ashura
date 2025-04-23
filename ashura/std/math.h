@@ -461,6 +461,9 @@ ASH_BIT_ENUM_OPS(Axes)
 
 struct Vec2
 {
+  static Vec2 const ZERO;
+  static Vec2 const ONE;
+
   f32 x = 0;
   f32 y = 0;
 
@@ -478,13 +481,11 @@ struct Vec2
   {
     return (&x)[i];
   }
-
-  constexpr Vec2 clamp(Vec2 extent) const
-  {
-    Vec2 const max{extent.x - 1, extent.y - 1};
-    return Vec2{min(x, max.x), min(y, max.y)};
-  }
 };
+
+inline constexpr Vec2 Vec2::ZERO{0, 0};
+
+inline constexpr Vec2 Vec2::ONE{1, 1};
 
 constexpr bool operator==(Vec2 a, Vec2 b)
 {
@@ -1246,12 +1247,6 @@ struct Vec2U
   {
     return (&x)[i];
   }
-
-  constexpr Vec2U clamp(Vec2U extent) const
-  {
-    Vec2U const max{extent.x - 1, extent.y - 1};
-    return Vec2U{min(x, max.x), min(y, max.y)};
-  }
 };
 
 constexpr bool operator==(Vec2U a, Vec2U b)
@@ -1884,7 +1879,9 @@ constexpr Mat3 & operator/=(Mat3 & a, Mat3 const & b)
 
 struct Affine3
 {
-  static constexpr Vec3 trailing_row = Vec3{0, 0, 1};
+  static constexpr Vec3 TRAILING_ROW = Vec3{0, 0, 1};
+
+  static Affine3 const IDENTITY;
 
   Vec3 rows[2] = {};
 
@@ -1905,13 +1902,6 @@ struct Affine3
     };
   }
 
-  static constexpr Affine3 identity()
-  {
-    return Affine3{
-      .rows = {{1, 0, 0}, {0, 1, 0}}
-    };
-  }
-
   constexpr Vec3 x() const
   {
     return Vec3{rows[0].x, rows[1].x, 0};
@@ -1926,6 +1916,10 @@ struct Affine3
   {
     return Vec3{rows[0].z, rows[1].z, 1};
   }
+};
+
+inline constexpr Affine3 Affine3::IDENTITY{
+  .rows = {{1, 0, 0}, {0, 1, 0}}
 };
 
 constexpr bool operator==(Affine3 const & a, Affine3 const & b)
@@ -1954,7 +1948,7 @@ constexpr Affine3 operator-(Affine3 const & a, Affine3 const & b)
 
 constexpr Vec3 operator*(Affine3 const & a, Vec3 const & b)
 {
-  return Vec3{dot(a[0], b), dot(a[1], b), dot(Affine3::trailing_row, b)};
+  return Vec3{dot(a[0], b), dot(a[1], b), dot(Affine3::TRAILING_ROW, b)};
 }
 
 constexpr Mat3 operator*(Affine3 const & a, Mat3 const & b)
@@ -1963,8 +1957,8 @@ constexpr Mat3 operator*(Affine3 const & a, Mat3 const & b)
     .rows = {
              {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
              {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-             {dot(Affine3::trailing_row, b.x()), dot(Affine3::trailing_row, b.y()),
-       dot(Affine3::trailing_row, b.z())},
+             {dot(Affine3::TRAILING_ROW, b.x()), dot(Affine3::TRAILING_ROW, b.y()),
+       dot(Affine3::TRAILING_ROW, b.z())},
              }
   };
 }
@@ -2019,6 +2013,8 @@ constexpr Affine3 & operator/=(Affine3 & a, Affine3 const & b)
 
 struct Mat4
 {
+  static Mat4 const IDENTITY;
+
   Vec4 rows[4] = {};
 
   static constexpr Mat4 splat(f32 value)
@@ -2039,11 +2035,6 @@ struct Mat4
                {0, 0, value, 0},
                {0, 0, 0, value}}
     };
-  }
-
-  static constexpr Mat4 identity()
-  {
-    return diagonal(1);
   }
 
   constexpr Vec4 & operator[](usize index)
@@ -2075,6 +2066,10 @@ struct Mat4
   {
     return Vec4{rows[0].w, rows[1].w, rows[2].w, rows[3].w};
   }
+};
+
+inline constexpr Mat4 Mat4::IDENTITY{
+  .rows{{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}
 };
 
 constexpr bool operator==(Mat4 const & a, Mat4 const & b)
@@ -2151,7 +2146,9 @@ constexpr Mat4 & operator/=(Mat4 & a, Mat4 const & b)
 
 struct Affine4
 {
-  static constexpr Vec4 trailing_row = Vec4{0, 0, 0, 1};
+  static constexpr Vec4 TRAILING_ROW = Vec4{0, 0, 0, 1};
+
+  static Affine4 const IDENTITY;
 
   Vec4 rows[3] = {};
 
@@ -2169,13 +2166,6 @@ struct Affine4
   {
     return Mat4{
       .rows = {rows[0], rows[1], rows[2], {0, 0, 0, 1}}
-    };
-  }
-
-  static constexpr Affine4 identity()
-  {
-    return Affine4{
-      .rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}}
     };
   }
 
@@ -2198,6 +2188,10 @@ struct Affine4
   {
     return Vec4{rows[0].w, rows[1].w, rows[2].w, 1};
   }
+};
+
+inline constexpr Affine4 Affine4::IDENTITY{
+  .rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}}
 };
 
 constexpr bool operator==(Affine4 const & a, Affine4 const & b)
@@ -2227,7 +2221,7 @@ constexpr Affine4 operator-(Affine4 const & a, Affine4 const & b)
 constexpr Vec4 operator*(Affine4 const & a, Vec4 const & b)
 {
   return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b),
-              dot(Affine4::trailing_row, b)};
+              dot(Affine4::TRAILING_ROW, b)};
 }
 
 constexpr Mat4 operator*(Affine4 const & a, Mat4 const & b)
@@ -2237,8 +2231,8 @@ constexpr Mat4 operator*(Affine4 const & a, Mat4 const & b)
              {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()), dot(a[0], b.w())},
              {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()), dot(a[1], b.w())},
              {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()), dot(a[2], b.w())},
-             {dot(Affine4::trailing_row, b.x()), dot(Affine4::trailing_row, b.y()),
-       dot(Affine4::trailing_row, b.z()), dot(Affine4::trailing_row, b.w())},
+             {dot(Affine4::TRAILING_ROW, b.x()), dot(Affine4::TRAILING_ROW, b.y()),
+       dot(Affine4::TRAILING_ROW, b.z()), dot(Affine4::TRAILING_ROW, b.w())},
              }
   };
 }
@@ -2708,6 +2702,31 @@ constexpr Vec4 opacity_premul(f32 v)
   return Vec4::splat(v);
 }
 
+constexpr bool overlaps(Vec2 a_begin, Vec2 a_end, Vec2 b_begin, Vec2 b_end)
+{
+  return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
+         a_end.y >= b_begin.y;
+}
+
+constexpr bool contains_point(Vec2 begin, Vec2 end, Vec2 point)
+{
+  return begin.x <= point.x && begin.y <= point.y && end.x >= point.x &&
+         end.y >= point.y;
+}
+
+constexpr void intersect(Vec2 a_begin, Vec2 a_end, Vec2 & b_begin, Vec2 & b_end)
+{
+  if (!overlaps(a_begin, a_end, b_begin, b_end))
+  {
+    b_begin = {};
+    b_end   = {};
+    return;
+  }
+
+  b_begin = Vec2{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)};
+  b_end   = Vec2{min(a_end.x, b_end.x), min(a_end.y, b_end.y)};
+}
+
 struct Rect
 {
   Vec2 offset = {};
@@ -2750,10 +2769,21 @@ struct Rect
     return extent.x != 0 & extent.y != 0;
   }
 
-  constexpr Rect clamp(Vec2 extent) const
+  constexpr bool contains(Vec2 point) const
   {
-    auto begin = this->begin().clamp(extent);
-    auto end   = this->end().clamp(extent);
+    return contains_point(begin(), end(), point);
+  }
+
+  constexpr bool overlaps(Rect const & b) const
+  {
+    return ash::overlaps(begin(), end(), b.begin(), b.end());
+  }
+
+  constexpr Rect intersect(Rect const & b) const
+  {
+    Vec2 begin = b.begin();
+    Vec2 end   = b.end();
+    ash::intersect(this->begin(), this->end(), begin, end);
     return Rect{.offset = begin, .extent = end - begin};
   }
 };
@@ -2805,11 +2835,22 @@ struct CRect
     return extent.x != 0 & extent.y != 0;
   }
 
-  constexpr CRect clamp(Vec2 extent) const
+  constexpr bool contains(Vec2 point) const
   {
-    auto begin = this->begin().clamp(extent);
-    auto end   = this->end().clamp(extent);
-    return CRect::from_range(begin, end);
+    return contains_point(begin(), end(), point);
+  }
+
+  constexpr bool overlaps(CRect const & b) const
+  {
+    return ash::overlaps(begin(), end(), b.begin(), b.end());
+  }
+
+  constexpr CRect intersect(CRect const & b) const
+  {
+    Vec2 begin = b.begin();
+    Vec2 end   = b.end();
+    ash::intersect(this->begin(), this->end(), begin, end);
+    return CRect::from_offset(begin, end - begin);
   }
 };
 
@@ -2846,13 +2887,6 @@ struct RectU
   constexpr Vec2U end() const
   {
     return offset + extent;
-  }
-
-  constexpr RectU clamp(Vec2U extent) const
-  {
-    auto begin = this->begin().clamp(extent);
-    auto end   = this->end().clamp(extent);
-    return RectU{.offset = begin, .extent = end - begin};
   }
 };
 
@@ -2922,6 +2956,25 @@ struct Box
   constexpr bool is_visible() const
   {
     return extent.x != 0 | extent.y != 0 | extent.z != 0;
+  }
+
+  constexpr bool contains(Vec3 point) const
+  {
+    return offset.x <= point.x && offset.y <= point.y && offset.z <= point.z &&
+           (offset.x + extent.x) >= point.x &&
+           (offset.y + extent.y) >= point.y && (offset.z + extent.z) >= point.z;
+    return true;
+  }
+
+  constexpr bool overlaps(Box const & b) const
+  {
+    Vec3 a_begin = offset;
+    Vec3 a_end   = offset + extent;
+    Vec3 b_begin = b.offset;
+    Vec3 b_end   = b.offset + b.extent;
+    return a_begin.x <= b_end.x && a_end.x >= b_begin.x &&
+           a_begin.y <= b_end.y && a_end.y >= b_begin.y &&
+           a_begin.z <= b_end.z && a_end.z >= b_begin.z;
   }
 };
 
@@ -3007,86 +3060,6 @@ constexpr bool operator==(CBox const & a, CBox const & b)
 constexpr bool operator!=(CBox const & a, CBox const & b)
 {
   return a.center != b.center || a.extent != b.extent;
-}
-
-constexpr bool overlaps(Vec2 a_begin, Vec2 a_end, Vec2 b_begin, Vec2 b_end)
-{
-  return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
-         a_end.y >= b_begin.y;
-}
-
-constexpr bool contains_point(Vec2 begin, Vec2 end, Vec2 point)
-{
-  return begin.x <= point.x && begin.y <= point.y && end.x >= point.x &&
-         end.y >= point.y;
-}
-
-constexpr void intersect(Vec2 a_begin, Vec2 a_end, Vec2 & b_begin, Vec2 & b_end)
-{
-  if (!overlaps(a_begin, a_end, b_begin, b_end))
-  {
-    b_begin = {};
-    b_end   = {};
-    return;
-  }
-
-  b_begin = Vec2{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)};
-  b_end   = Vec2{min(a_end.x, b_end.x), min(a_end.y, b_end.y)};
-}
-
-constexpr bool contains(Rect const & rect, Vec2 point)
-{
-  return contains_point(rect.begin(), rect.end(), point);
-}
-
-constexpr bool contains(CRect const & rect, Vec2 point)
-{
-  return contains_point(rect.begin(), rect.end(), point);
-}
-
-constexpr bool overlaps(Rect const & a, Rect const & b)
-{
-  return ash::overlaps(a.begin(), a.end(), b.begin(), b.end());
-}
-
-constexpr bool overlaps(CRect const & a, CRect const & b)
-{
-  return ash::overlaps(a.begin(), a.end(), b.begin(), b.end());
-}
-
-constexpr Rect intersect(Rect const & a, Rect const & b)
-{
-  Vec2 begin = b.begin();
-  Vec2 end   = b.end();
-  intersect(a.begin(), a.end(), begin, end);
-  return Rect{.offset = begin, .extent = end - begin};
-}
-
-constexpr CRect intersect(CRect const & a, CRect const & b)
-{
-  Vec2 begin = b.begin();
-  Vec2 end   = b.end();
-  intersect(a.begin(), a.end(), begin, end);
-  return CRect::from_offset(begin, end - begin);
-}
-
-constexpr bool contains(Box const & box, Vec3 point)
-{
-  return box.offset.x <= point.x && box.offset.y <= point.y &&
-         box.offset.z <= point.z && (box.offset.x + box.extent.x) >= point.x &&
-         (box.offset.y + box.extent.y) >= point.y &&
-         (box.offset.z + box.extent.z) >= point.z;
-  return true;
-}
-
-constexpr bool overlaps(Box const & a, Box const & b)
-{
-  Vec3 a_begin = a.offset;
-  Vec3 a_end   = a.offset + a.extent;
-  Vec3 b_begin = b.offset;
-  Vec3 b_end   = b.offset + b.extent;
-  return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
-         a_end.y >= b_begin.y && a_begin.z <= b_end.z && a_end.z >= b_begin.z;
 }
 
 /// @brief find the maximum extent that will fit in the provided extent while
@@ -3231,6 +3204,18 @@ constexpr void frustum_cull(Mat4 const &     mvp,
     is_visible.set(i, !is_outside_frustum(mvp * global_transforms[i],
                                           aabb.offset, aabbs[i].extent));
   }
+}
+
+/// @brief Calculate the inverse of a 2d scale and translation-only transformation matrix
+constexpr Affine3 translate_scale_inv2d(Affine3 const & t)
+{
+  auto sx = 1 / t[0].x;
+  auto sy = 1 / t[1].y;
+  auto tx = t[0].z;
+  auto ty = t[1].z;
+  return Affine3{
+    .rows{{sx, 0, -sx * tx}, {0, sy, -sy * ty}}
+  };
 }
 
 }    // namespace ash

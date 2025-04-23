@@ -41,6 +41,11 @@ typedef u16       hash16;
 typedef u32       hash32;
 typedef u64       hash64;
 
+/// regular void
+struct Void
+{
+};
+
 inline constexpr u8 U8_MIN = 0;
 inline constexpr u8 U8_MAX = 0xFF;
 
@@ -87,6 +92,134 @@ inline constexpr f64 F64_EPS          = DBL_EPSILON;
 inline constexpr f64 F64_INF          = INFINITY;
 
 inline constexpr f32 PI = 3.14159265358979323846F;
+
+template <typename T>
+struct NumTraits;
+
+template <>
+struct NumTraits<u8>
+{
+  static constexpr u8   NUM_BITS       = 8;
+  static constexpr u8   LOG2_NUM_BITS  = 3;
+  static constexpr u8   MIN            = U8_MIN;
+  static constexpr u8   MAX            = U8_MAX;
+  static constexpr bool SIGNED         = false;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<u16>
+{
+  static constexpr u8   NUM_BITS       = 16;
+  static constexpr u8   LOG2_NUM_BITS  = 4;
+  static constexpr u16  MIN            = U16_MIN;
+  static constexpr u16  MAX            = U16_MAX;
+  static constexpr bool SIGNED         = false;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<u32>
+{
+  static constexpr u8   NUM_BITS       = 32;
+  static constexpr u8   LOG2_NUM_BITS  = 5;
+  static constexpr u32  MIN            = U32_MIN;
+  static constexpr u32  MAX            = U32_MAX;
+  static constexpr bool SIGNED         = false;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<u64>
+{
+  static constexpr u8   NUM_BITS       = 64;
+  static constexpr u8   LOG2_NUM_BITS  = 6;
+  static constexpr u64  MIN            = U64_MIN;
+  static constexpr u64  MAX            = U64_MAX;
+  static constexpr bool SIGNED         = false;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<i8>
+{
+  static constexpr u8   NUM_BITS       = 8;
+  static constexpr u8   LOG2_NUM_BITS  = 3;
+  static constexpr i8   MIN            = I8_MIN;
+  static constexpr i8   MAX            = I8_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<i16>
+{
+  static constexpr u8   NUM_BITS       = 16;
+  static constexpr u8   LOG2_NUM_BITS  = 4;
+  static constexpr i16  MIN            = I16_MIN;
+  static constexpr i16  MAX            = I16_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<i32>
+{
+  static constexpr u8   NUM_BITS       = 32;
+  static constexpr u8   LOG2_NUM_BITS  = 5;
+  static constexpr i32  MIN            = I32_MIN;
+  static constexpr i32  MAX            = I32_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<i64>
+{
+  static constexpr u8   NUM_BITS       = 64;
+  static constexpr u8   LOG2_NUM_BITS  = 6;
+  static constexpr i64  MIN            = I64_MIN;
+  static constexpr i64  MAX            = I64_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<f32>
+{
+  static constexpr u8   NUM_BITS       = 32;
+  static constexpr u8   LOG2_NUM_BITS  = 5;
+  static constexpr f32  MIN            = F32_MIN;
+  static constexpr f32  MAX            = F32_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = true;
+};
+
+template <>
+struct NumTraits<f64>
+{
+  static constexpr u8   NUM_BITS       = 64;
+  static constexpr u8   LOG2_NUM_BITS  = 6;
+  static constexpr f64  MIN            = F64_MIN;
+  static constexpr f64  MAX            = F64_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = true;
+};
+
+template <typename T>
+struct NumTraits<T const> : NumTraits<T>
+{
+};
+
+template <typename T>
+struct NumTraits<T volatile> : NumTraits<T>
+{
+};
+
+template <typename T>
+struct NumTraits<T const volatile> : NumTraits<T>
+{
+};
 
 enum class Ordering : i32
 {
@@ -547,134 +680,6 @@ constexpr u64 operator""_TB(u64 x)
   return x << 40;
 }
 
-template <typename T>
-struct NumTraits;
-
-template <>
-struct NumTraits<u8>
-{
-  static constexpr u8   NUM_BITS       = 8;
-  static constexpr u8   LOG2_NUM_BITS  = 3;
-  static constexpr u8   MIN            = U8_MIN;
-  static constexpr u8   MAX            = U8_MAX;
-  static constexpr bool SIGNED         = false;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<u16>
-{
-  static constexpr u8   NUM_BITS       = 16;
-  static constexpr u8   LOG2_NUM_BITS  = 4;
-  static constexpr u16  MIN            = U16_MIN;
-  static constexpr u16  MAX            = U16_MAX;
-  static constexpr bool SIGNED         = false;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<u32>
-{
-  static constexpr u8   NUM_BITS       = 32;
-  static constexpr u8   LOG2_NUM_BITS  = 5;
-  static constexpr u32  MIN            = U32_MIN;
-  static constexpr u32  MAX            = U32_MAX;
-  static constexpr bool SIGNED         = false;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<u64>
-{
-  static constexpr u8   NUM_BITS       = 64;
-  static constexpr u8   LOG2_NUM_BITS  = 6;
-  static constexpr u64  MIN            = U64_MIN;
-  static constexpr u64  MAX            = U64_MAX;
-  static constexpr bool SIGNED         = false;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<i8>
-{
-  static constexpr u8   NUM_BITS       = 8;
-  static constexpr u8   LOG2_NUM_BITS  = 3;
-  static constexpr i8   MIN            = I8_MIN;
-  static constexpr i8   MAX            = I8_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<i16>
-{
-  static constexpr u8   NUM_BITS       = 16;
-  static constexpr u8   LOG2_NUM_BITS  = 4;
-  static constexpr i16  MIN            = I16_MIN;
-  static constexpr i16  MAX            = I16_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<i32>
-{
-  static constexpr u8   NUM_BITS       = 32;
-  static constexpr u8   LOG2_NUM_BITS  = 5;
-  static constexpr i32  MIN            = I32_MIN;
-  static constexpr i32  MAX            = I32_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<i64>
-{
-  static constexpr u8   NUM_BITS       = 64;
-  static constexpr u8   LOG2_NUM_BITS  = 6;
-  static constexpr i64  MIN            = I64_MIN;
-  static constexpr i64  MAX            = I64_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<f32>
-{
-  static constexpr u8   NUM_BITS       = 32;
-  static constexpr u8   LOG2_NUM_BITS  = 5;
-  static constexpr f32  MIN            = F32_MIN;
-  static constexpr f32  MAX            = F32_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = true;
-};
-
-template <>
-struct NumTraits<f64>
-{
-  static constexpr u8   NUM_BITS       = 64;
-  static constexpr u8   LOG2_NUM_BITS  = 6;
-  static constexpr f64  MIN            = F64_MIN;
-  static constexpr f64  MAX            = F64_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = true;
-};
-
-template <typename T>
-struct NumTraits<T const> : NumTraits<T>
-{
-};
-
-template <typename T>
-struct NumTraits<T volatile> : NumTraits<T>
-{
-};
-
-template <typename T>
-struct NumTraits<T const volatile> : NumTraits<T>
-{
-};
-
 template <typename Repr, usize NumBits>
 inline constexpr usize BIT_PACKS =
   (NumBits + (NumTraits<Repr>::NUM_BITS - 1)) >> NumTraits<Repr>::LOG2_NUM_BITS;
@@ -685,11 +690,6 @@ constexpr usize bit_packs(usize num_bits)
   return (num_bits + (NumTraits<Repr>::NUM_BITS - 1)) >>
          NumTraits<Repr>::LOG2_NUM_BITS;
 }
-
-/// regular void
-struct Void
-{
-};
 
 template <typename E>
 using enum_ut = std::underlying_type_t<E>;
