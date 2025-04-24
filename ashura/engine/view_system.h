@@ -109,24 +109,72 @@ struct FocusState
 
 // [ ] are the passed ctx/events in sync with the state?
 
-/// @brief flattened hierarchical tree node, all siblings are
-/// packed sequentially. This only represents the parent node. Since the tree is
-/// rebuilt from scratch every time, the order is preserved in that parents
-/// always come before children.
-/// @param depth depth of the tree this node belongs to. there's ever only one
-/// node at depth 0: the root node.
-struct Node
-{
-  u32     depth    = 0;
-  u32     breadth  = 0;
-  u32     parent   = RootView::NODE;
-  Slice32 children = {};
-};
-
-/// @warning: internal-only class
+/// @brief A compact View Hierarchy
 struct System
 {
-  /// System state
+  struct NodeTiming
+  {
+    u32 enter = 0;
+    u32 exit  = 0;
+
+    constexpr bool is_ancestor(NodeTiming const & b) const
+    {
+      return enter <= b.enter && exit >= b.exit;
+    }
+  };
+
+  /// @brief flattened hierarchical tree node, all siblings are
+  /// packed sequentially. This only represents the parent node. Since the tree is
+  /// rebuilt from scratch every time, the order is preserved in that parents
+  /// always come before children.
+  /// @param depth depth of the tree this node belongs to. there's ever only one
+  /// node at depth 0: the root node.
+  struct Nodes
+  {
+    Vec<u32>        depth;
+    Vec<u32>        parent;
+    Vec<Slice32>    children;
+    Vec<NodeTiming> ancestory;
+
+    Nodes(AllocatorRef allocator) :
+      depth{allocator},
+      parent{allocator},
+      children{allocator},
+      ancestory{allocator}
+    {
+    }
+  };
+
+  /// View Attributes
+  struct Attrs
+  {
+    Vec<i32>                   tab_idx;
+    Vec<u32>                   viewports;
+    BitVec<u64>                hidden;
+    BitVec<u64>                pointable;
+    BitVec<u64>                clickable;
+    BitVec<u64>                scrollable;
+    BitVec<u64>                draggable;
+    BitVec<u64>                droppable;
+    BitVec<u64>                focusable;
+    Vec<Option<TextInputInfo>> input;
+    BitVec<u64>                is_viewport;
+
+    Attrs(AllocatorRef allocator) :
+      tab_idx{allocator},
+      viewports{allocator},
+      hidden{allocator},
+      pointable{allocator},
+      clickable{allocator},
+      scrollable{allocator},
+      draggable{allocator},
+      droppable{allocator},
+      focusable{allocator},
+      input{allocator},
+      is_viewport{allocator}
+    {
+    }
+  };
 
   RootView root_view;
 
@@ -146,21 +194,9 @@ struct System
   /// Tree Nodes
 
   Vec<ref<View>> views;
-  Vec<Node>      nodes;
+  Nodes          nodes;
 
-  /// Tree/View data
-
-  Vec<i32>                   tab_indices;
-  Vec<u32>                   viewports;
-  BitVec<u64>                is_hidden;
-  BitVec<u64>                is_pointable;
-  BitVec<u64>                is_clickable;
-  BitVec<u64>                is_scrollable;
-  BitVec<u64>                is_draggable;
-  BitVec<u64>                is_droppable;
-  BitVec<u64>                is_focusable;
-  Vec<Option<TextInputInfo>> input_infos;
-  BitVec<u64>                is_viewport;
+  Attrs att;
 
   /// Computed data
 
@@ -171,17 +207,17 @@ struct System
   Vec<f32>    viewport_zooms;
   BitVec<u64> is_fixed_centered;
   Vec<Vec2>   fixed_centers;
-  Vec<i32>    z_indices;
+  Vec<i32>    z_idx;
   Vec<i32>    layers;
 
-  Vec<Affine3> canvas_transforms;
-  Vec<Affine3> canvas_inverse_transforms;
+  Vec<Affine3> canvas_tx;
+  Vec<Affine3> canvas_inverse_tx;
   Vec<Vec2>    canvas_centers;
   Vec<Vec2>    canvas_extents;
   Vec<CRect>   clips;
-  Vec<u32>     z_ordering;
-  Vec<u32>     focus_ordering;
-  Vec<u32>     focus_indices;
+  Vec<u32>     z_ord;
+  Vec<u32>     focus_ord;
+  Vec<u32>     focus_idx;
 
   /// Frame Computed Info
   bool                      closing_deferred;
@@ -198,17 +234,7 @@ struct System
     input{allocator},
     views{allocator},
     nodes{allocator},
-    tab_indices{allocator},
-    viewports{allocator},
-    is_hidden{allocator},
-    is_pointable{allocator},
-    is_clickable{allocator},
-    is_scrollable{allocator},
-    is_draggable{allocator},
-    is_droppable{allocator},
-    is_focusable{allocator},
-    input_infos{allocator},
-    is_viewport{allocator},
+    att{allocator},
     extents{allocator},
     centers{allocator},
     viewport_extents{allocator},
@@ -216,12 +242,12 @@ struct System
     viewport_zooms{allocator},
     is_fixed_centered{allocator},
     fixed_centers{allocator},
-    z_indices{allocator},
+    z_idx{allocator},
     layers{allocator},
-    canvas_transforms{allocator},
-    canvas_inverse_transforms{allocator},
-    z_ordering{allocator},
-    focus_ordering{allocator},
+    canvas_tx{allocator},
+    canvas_inverse_tx{allocator},
+    z_ord{allocator},
+    focus_ord{allocator},
     closing_deferred{false},
     focus_grab{none},
     cursor{Cursor::Default},
@@ -242,7 +268,7 @@ struct System
   Event events_for(View & view);
 
   void build_children(Ctx const & ctx, View & view, u32 idx, u32 depth,
-                      i32 & tab_index, u32 viewport);
+                      u32 viewport, i32 & tab_index, u32 & timer);
 
   void build(Ctx const & ctx, RootView & root);
 
@@ -276,10 +302,10 @@ struct System
     {
       z--;
 
-      auto const i = z_ordering[z];
+      auto const i = z_ord[z];
 
       // find first non-hidden view that overlaps the hit position
-      if (!is_hidden[i] && filter(i) &&
+      if (!att.hidden[i] &&
           CRect{.center = canvas_centers[i], .extent = canvas_extents[i]}
             .contains(p)) [[unlikely]]
       {
@@ -292,7 +318,10 @@ struct System
           }
           else
           {
-            // the filtering failed: obstructed by view that doesn't match the accept
+            // obstructed by view that doesn't match the accept
+            //
+            // [ ] what if it is a descendant?
+            //
             return none;
           }
         }
