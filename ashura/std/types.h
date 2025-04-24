@@ -221,16 +221,16 @@ struct NumTraits<T const volatile> : NumTraits<T>
 {
 };
 
-enum class Ordering : i32
+enum class Order : i32
 {
   Less    = -1,
   Equal   = 0,
   Greater = 1,
 };
 
-constexpr Ordering reverse_ordering(Ordering ordering)
+constexpr Order reverse_order(Order ord)
 {
-  return Ordering{-static_cast<i32>(ordering)};
+  return Order{-static_cast<i32>(ord)};
 }
 
 struct Add
@@ -315,17 +315,17 @@ struct GEq
 
 struct Cmp
 {
-  constexpr Ordering operator()(auto const & a, auto const & b) const
+  constexpr Order operator()(auto const & a, auto const & b) const
   {
     if (a == b)
     {
-      return Ordering::Equal;
+      return Order::Equal;
     }
     if (a > b)
     {
-      return Ordering::Greater;
+      return Order::Greater;
     }
-    return Ordering::Less;
+    return Order::Less;
   }
 };
 

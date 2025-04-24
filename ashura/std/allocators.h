@@ -108,7 +108,7 @@ struct Arena final : Allocator
       return true;
     }
 
-    u8 * aligned    = align_ptr(layout.alignment, offset);
+    u8 * aligned    = align(layout.alignment, offset);
     u8 * new_offset = aligned + layout.size;
     if (new_offset > end)
     {
