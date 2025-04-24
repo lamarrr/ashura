@@ -317,12 +317,16 @@ Tuple<isize, CaretLocation> TextLayout::hit(TextBlock const &      block,
 
   for (auto [irun, run] : enumerate(runs.view().slice(line.runs)))
   {
-    f32 const  font_height = block.font_scale * run.font_height;
-    auto const run_metrics = run.metrics.resolve(font_height);
-    auto const direction   = run.direction();
-    bool const intersects =
-      pos.x >= cursor && pos.x <= (cursor + run_metrics.advance);
-    f32 glyph_cursor = cursor;
+    auto const & font_style  = block.fonts[run.style];
+    f32 const    font_height = block.font_scale * run.font_height;
+    auto const   metrics     = run.metrics.resolve(font_height);
+    auto const   direction   = run.direction();
+    bool const   intersects =
+      pos.x >= cursor && pos.x <= (cursor + metrics.advance);
+    f32        glyph_cursor = cursor;
+    auto const run_width =
+      metrics.advance +
+      (run.is_spacing() ? 0 : (block.font_scale * font_style.word_spacing));
 
     if (!intersects)
     {
@@ -377,7 +381,7 @@ Tuple<isize, CaretLocation> TextLayout::hit(TextBlock const &      block,
     }
 
   next_run:
-    cursor += run_metrics.advance;
+    cursor += run_width;
   }
 
   // right of line
@@ -503,7 +507,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
         {.center    = info.center,
          .extent    = block_extent,
          .transform = info.transform * translate3d(vec3(info.center, 0))},
-        TextRenderInfo{.region = TextRegion::Block});
+        {.region = TextRegion::Block});
 
       continue;
     }
@@ -526,7 +530,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
         .extent{ln.metrics.width, ln.metrics.height}
       };
 
-      if (!overlaps(clip, ln_rect))
+      if (!clip.overlaps(ln_rect))
       {
         goto next_line;
       }
@@ -546,7 +550,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
              .stroke       = style.highlight.stroke,
              .thickness    = style.highlight.thickness,
              .tint         = style.highlight.color},
-            TextRenderInfo{.region = TextRegion::Highlight, .line = iln});
+            {.region = TextRegion::Highlight, .line = iln});
 
           goto next_line;
         }
@@ -574,9 +578,11 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
         auto const   font        = sys->font.get(font_style.font);
         auto const & atlas       = font.gpu_atlas.value();
         auto const   font_height = block.font_scale * run.font_height;
-        auto const   run_metrics = run.metrics.resolve(font_height);
-        auto const   run_width   = run_metrics.advance;
-        auto const   direction   = run.direction();
+        auto const   metrics     = run.metrics.resolve(font_height);
+        auto const   run_width =
+          metrics.advance +
+          (run.is_spacing() ? 0 : (block.font_scale * font_style.word_spacing));
+        auto const direction = run.direction();
 
         auto glyph_cursor = cursor;
 
@@ -584,9 +590,9 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
         {
           if (!run_style.background.is_transparent())
           {
-            Vec2 const extent{run_width, run_metrics.height()};
+            Vec2 const extent{run_width, metrics.height()};
             Vec2 const center{cursor + extent.x * 0.5F,
-                              baseline - run_metrics.ascent + extent.y * 0.5F};
+                              baseline - metrics.ascent + extent.y * 0.5F};
 
             renderer(
               canvas,
@@ -595,10 +601,10 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                .transform    = info.transform * translate3d(vec3(center, 0)),
                .corner_radii = run_style.corner_radii,
                .tint         = run_style.background},
-              TextRenderInfo{.region    = TextRegion::Background,
-                             .line      = iln,
-                             .run       = irun,
-                             .run_style = run.style});
+              {.region    = TextRegion::Background,
+               .line      = iln,
+               .run       = irun,
+               .run_style = run.style});
           }
 
           goto next_run;
@@ -611,7 +617,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
 
           if (fully_covered)
           {
-            Vec2 const extent{run_width, run_metrics.height()};
+            Vec2 const extent{run_width, metrics.height()};
             Vec2 const center = Vec2{cursor, ln_top} + 0.5F * extent;
 
             renderer(
@@ -623,10 +629,10 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                .stroke       = style.highlight.stroke,
                .thickness    = style.highlight.thickness,
                .tint         = style.highlight.color},
-              TextRenderInfo{.region    = TextRegion::Highlight,
-                             .line      = iln,
-                             .run       = irun,
-                             .run_style = run.style});
+              {.region    = TextRegion::Highlight,
+               .line      = iln,
+               .run       = irun,
+               .run_style = run.style});
 
             goto next_run;
           }
@@ -654,8 +660,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
             Vec2 const extent{run_width, block.font_scale *
                                            run_style.strikethrough_thickness};
             Vec2 const center =
-              Vec2{cursor, baseline - run_metrics.ascent * 0.5F} +
-              extent * 0.5F;
+              Vec2{cursor, baseline - metrics.ascent * 0.5F} + extent * 0.5F;
 
             renderer(
               canvas,
@@ -665,10 +670,10 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                .tint            = run_style.strikethrough,
                .sampler         = info.sampler,
                .edge_smoothness = info.edge_smoothness},
-              TextRenderInfo{.region    = TextRegion::Strikethrough,
-                             .line      = iln,
-                             .run       = irun,
-                             .run_style = run.style});
+              {.region    = TextRegion::Strikethrough,
+               .line      = iln,
+               .run       = irun,
+               .run_style = run.style});
           }
 
           goto next_run;
@@ -693,10 +698,10 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                .tint            = run_style.underline,
                .sampler         = info.sampler,
                .edge_smoothness = info.edge_smoothness},
-              TextRenderInfo{.region    = TextRegion::Underline,
-                             .line      = iln,
-                             .run       = irun,
-                             .run_style = run.style});
+              {.region    = TextRegion::Underline,
+               .line      = iln,
+               .run       = irun,
+               .run_style = run.style});
           }
 
           goto next_run;
@@ -735,11 +740,12 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                        .uv              = {agl.uv[0], agl.uv[1]},
                        .edge_smoothness = info.edge_smoothness
             },
-                     TextRenderInfo{.region    = TextRegion::GlyphShadows,
-                                    .line      = iln,
-                                    .run       = irun,
-                                    .run_style = run.style,
-                                    .glyph     = iglyph});
+                     {.region    = TextRegion::GlyphShadows,
+                      .line      = iln,
+                      .run       = irun,
+                      .run_style = run.style,
+                      .glyph     = iglyph,
+                      .cluster   = sh.cluster});
           }
 
           if (pass == Pass::Glyphs && run_style.has_color())
@@ -756,11 +762,12 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                 .uv        = {agl.uv[0], agl.uv[1]},
                 .edge_smoothness = info.edge_smoothness
             },
-              TextRenderInfo{.region    = TextRegion::Glyphs,
-                             .line      = iln,
-                             .run       = irun,
-                             .run_style = run.style,
-                             .glyph     = iglyph});
+              {.region    = TextRegion::Glyphs,
+               .line      = iln,
+               .run       = irun,
+               .run_style = run.style,
+               .glyph     = iglyph,
+               .cluster   = sh.cluster});
           }
 
           if (pass == Pass::Caret && !style.caret.is_none())
@@ -796,12 +803,13 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                    .tint            = style.caret.color,
                    .sampler         = info.sampler,
                    .edge_smoothness = info.edge_smoothness},
-                  TextRenderInfo{.region    = TextRegion::Caret,
-                                 .line      = iln,
-                                 .run       = irun,
-                                 .run_style = run.style,
-                                 .glyph     = iglyph,
-                                 .caret     = c});
+                  {.region    = TextRegion::Caret,
+                   .line      = iln,
+                   .run       = irun,
+                   .run_style = run.style,
+                   .glyph     = iglyph,
+                   .cluster   = sh.cluster,
+                   .caret     = c});
               }
             }
           }
@@ -813,7 +821,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
 
             if (any)
             {
-              Vec2 const extent{advance, run_metrics.height()};
+              Vec2 const extent{advance, metrics.height()};
               Vec2 const center = Vec2{glyph_cursor, ln_top} + 0.5F * extent;
 
               renderer(
@@ -825,11 +833,12 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                  .stroke       = style.highlight.stroke,
                  .thickness    = style.highlight.thickness,
                  .tint         = style.highlight.color},
-                TextRenderInfo{.region    = TextRegion::Highlight,
-                               .line      = iln,
-                               .run       = irun,
-                               .run_style = run.style,
-                               .glyph     = iglyph});
+                {.region    = TextRegion::Highlight,
+                 .line      = iln,
+                 .run       = irun,
+                 .run_style = run.style,
+                 .glyph     = iglyph,
+                 .cluster   = sh.cluster});
             }
           }
 

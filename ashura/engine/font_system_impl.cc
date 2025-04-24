@@ -203,11 +203,10 @@ Result<Dyn<Font *>, FontLoadErr>
   }
 
   Result font = dyn<FontImpl>(
-    inplace, allocator_, FontId::None, std::move(label),
-    std::move(font_data), has_color, std::move(postscript_name),
-    std::move(family_name), std::move(style_name), hb_blob, hb_face, hb_font,
-    ft_lib, ft_face, face, std::move(glyphs), replacement_glyph, ellipsis_glyph,
-    space_glyph,
+    inplace, allocator_, FontId::None, std::move(label), std::move(font_data),
+    has_color, std::move(postscript_name), std::move(family_name),
+    std::move(style_name), hb_blob, hb_face, hb_font, ft_lib, ft_face, face,
+    std::move(glyphs), replacement_glyph, ellipsis_glyph, space_glyph,
     FontMetrics{.ascent = ascent, .descent = descent, .advance = advance});
 
   if (!font)
@@ -1008,38 +1007,45 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
 
   for (usize i = 0; i < num_runs;)
   {
-    auto const      first       = i++;
-    TextRun const & first_run   = layout.runs[first];
-    u8 const        base_level  = first_run.base_level;
-    f32 const       font_height = block.font_scale * first_run.font_height;
-    auto const      first_run_metrics = first_run.metrics.resolve(font_height);
+    auto const   first             = i++;
+    auto const & first_run         = layout.runs[first];
+    u8 const     base_level        = first_run.base_level;
+    f32 const    font_height       = block.font_scale * first_run.font_height;
+    auto const   first_run_metrics = first_run.metrics.resolve(font_height);
+    auto const & style             = block.fonts[first_run.style];
+    auto const   advance =
+      first_run_metrics.advance +
+      (first_run.is_spacing() ? 0 : (block.font_scale * style.word_spacing));
 
-    f32 width       = first_run_metrics.advance;
+    f32 width       = advance;
     f32 ascent      = first_run_metrics.ascent;
     f32 descent     = first_run_metrics.descent;
     f32 line_height = first_run_metrics.height() * first_run.line_height;
 
     while (i < num_runs)
     {
-      TextRun const & r = layout.runs[i];
-      auto const      m = r.metrics.resolve(block.font_scale * r.font_height);
+      auto const & r = layout.runs[i];
+      auto const   m = r.metrics.resolve(block.font_scale * r.font_height);
+      auto const & s = block.fonts[r.style];
+      auto const   a =
+        m.advance + (r.is_spacing() ? 0 : (block.font_scale * s.word_spacing));
 
       if (r.is_paragraph_begin() ||
-          (block.wrap && r.wrappable && (m.advance + width) > max_width))
+          (block.wrap && r.wrappable && (width + a) > max_width))
       {
         break;
       }
 
-      width += m.advance;
+      width += a;
       ascent      = m.ascent;
       descent     = m.descent;
       line_height = max(line_height, m.height() * r.line_height);
       i++;
     }
 
-    TextRun const & last_run        = layout.runs[i - 1];
-    auto const      first_codepoint = first_run.codepoints.offset;
-    auto const num_codepoints = last_run.codepoints.end() - first_codepoint;
+    auto const & last_run        = layout.runs[i - 1];
+    auto const   first_codepoint = first_run.codepoints.offset;
+    auto const   num_codepoints  = last_run.codepoints.end() - first_codepoint;
 
     Slice const runs{first, i - first};
 

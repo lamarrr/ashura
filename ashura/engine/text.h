@@ -401,9 +401,10 @@ struct TextCursor
 /// @param line_height relative. multiplied by font_height
 struct FontStyle
 {
-  FontId font        = FontId::None;
-  f32    height      = 20;
-  f32    line_height = 1.2F;
+  FontId font         = FontId::None;
+  f32    height       = 20;
+  f32    line_height  = 1.2F;
+  f32    word_spacing = 0;
 };
 
 /// @param shadow_scale relative. multiplied by font_height
@@ -600,6 +601,11 @@ struct TextRun
                    (codepoints.offset - line_codepoints.offset),
                  codepoints.span};
   }
+
+  constexpr bool is_spacing() const
+  {
+    return type == TextRunType::Tab || type == TextRunType::WhiteSpace;
+  }
 };
 
 /// @param width width of the line
@@ -704,6 +710,9 @@ struct TextRenderInfo
 
   /// @brief set to the current glyph being rendered for
   Option<usize> glyph = none;
+
+  /// @brief set to the current glyph being rendered for
+  Option<usize> cluster = none;
 
   /// @brief set to the current caret being rendered for
   Option<isize> caret = none;
