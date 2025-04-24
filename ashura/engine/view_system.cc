@@ -64,6 +64,7 @@ void System::clear_frame()
   clips.clear();
   z_ordering.clear();
   focus_ordering.clear();
+  focus_indices.clear();
   closing_deferred = false;
   focus_grab       = none;
   events.clear();
@@ -87,6 +88,7 @@ void System::prepare_for(u32 n)
   clips.resize_uninit(n).unwrap();
   z_ordering.resize_uninit(n).unwrap();
   focus_ordering.resize_uninit(n).unwrap();
+  focus_indices.resize_uninit(n).unwrap();
 }
 
 void System::push_view(View & view, u32 depth, u32 breadth, u32 parent)
@@ -124,10 +126,13 @@ void System::build_children(Ctx const & ctx, View & view, u32 idx, u32 depth,
 
   State s = view.tick(ctx, events_for(view), &builder);
 
+  bool pointable =
+    s.pointable | s.scrollable | s.draggable | s.droppable | s.focusable;
+
   tab_indices.set(idx, (s.tab == I32_MIN) ? tab_index : s.tab);
   viewports.set(idx, viewport);
   is_hidden.set(idx, s.hidden);
-  is_pointable.set(idx, s.pointable);
+  is_pointable.set(idx, pointable);
   is_clickable.set(idx, s.clickable);
   is_scrollable.set(idx, s.scrollable);
   is_draggable.set(idx, s.draggable);
@@ -166,8 +171,14 @@ void System::focus_order()
 
   iota(focus_ordering.view(), 0U);
 
-  indirect_sort(focus_ordering.view(),
-                [&](u32 a, u32 b) { return tab_indices[a] < tab_indices[b]; });
+  indirect_sort(focus_ordering.view(), [&](auto a, auto b) {
+    return tab_indices[a] < tab_indices[b];
+  });
+
+  for (auto [i, f] : enumerate(focus_ordering))
+  {
+    focus_indices[i] = f;
+  }
 }
 
 void System::layout(Vec2 viewport_extent)
@@ -179,22 +190,21 @@ void System::layout(Vec2 viewport_extent)
     return;
   }
 
-  u32 const n = views.size32();
+  auto const n = views.size();
 
   // allocate sizes to children recursively
   extents[0] = viewport_extent;
 
-  for (u32 i = 0; i < n; i++)
+  for (auto [node, view, extent] : zip(nodes, views, extents))
   {
-    auto const & node = nodes[i];
-    views[i]->size(extents[i], extents.view().slice(node.children));
+    view->size(extent, extents.view().slice(node.children));
   }
 
   centers[0] = Vec2::splat(0);
 
   // fit parent views along the finalized sizes of the child views and
   // assign centers to the children based on their sizes.
-  for (u32 i = n; i != 0;)
+  for (usize i = n; i != 0;)
   {
     i--;
     auto const & node = nodes[i];
@@ -210,11 +220,10 @@ void System::layout(Vec2 viewport_extent)
 
   // calculate fixed centers; parent-space to local viewport space
 
-  for (u32 i = 0; i < n; i++)
+  for (auto [i, node] : enumerate(nodes))
   {
     // viewports don't propagate fixed-position centers to children
-    auto const & fc   = is_viewport[i] ? Vec2::ZERO : fixed_centers[i];
-    auto const & node = nodes[i];
+    auto const & fc = is_viewport[i] ? Vec2::ZERO : fixed_centers[i];
 
     for (u32 c = node.children.begin(); c < node.children.end(); c++)
     {
@@ -229,7 +238,7 @@ void System::layout(Vec2 viewport_extent)
   canvas_transforms[0]         = Affine3::IDENTITY;
   canvas_inverse_transforms[0] = Affine3::IDENTITY;
 
-  for (u32 i = 0; i < n; i++)
+  for (usize i = 0; i < n; i++)
   {
     if (is_viewport[i]) [[unlikely]]
     {
@@ -251,7 +260,7 @@ void System::layout(Vec2 viewport_extent)
     }
   }
 
-  for (u32 i = 0; i < n; i++)
+  for (usize i = 0; i < n; i++)
   {
     auto const & transform   = canvas_transforms[viewports[i]];
     auto const   zoom        = transform[0][0];
@@ -263,7 +272,7 @@ void System::layout(Vec2 viewport_extent)
   clips[0] = CRect{.center = {}, .extent = viewport_extent};
 
   /// clip viewports recursively and assign viewport clips to contained views
-  for (u32 i = 0; i < n; i++)
+  for (usize i = 0; i < n; i++)
   {
     u32 const parent_viewport = viewports[i];
     if (is_viewport[i]) [[unlikely]]
@@ -283,24 +292,19 @@ void System::stack()
 {
   ScopeTrace trace;
 
-  u32 const n = views.size32();
-
-  if (n == 0)
+  if (views.is_empty())
   {
     return;
   }
 
-  for (u32 i = 0; i < n; i++)
+  for (auto [node, z_index, view] : zip(nodes, z_indices, views))
   {
-    auto const & node = nodes[i];
-    z_indices[i] =
-      views[i]->z_index(z_indices[i], z_indices.view().slice(node.children));
+    z_index = view->z_index(z_index, z_indices.view().slice(node.children));
   }
 
-  for (u32 i = 0; i < n; i++)
+  for (auto [node, layer, view] : zip(nodes, layers, views))
   {
-    auto const & node = nodes[i];
-    layers[i]         = views[i]->stack(layers[node.parent]);
+    layer = view->stack(layers[node.parent]);
   }
 
   iota(z_ordering.view(), 0U);
@@ -316,12 +320,8 @@ void System::visibility()
 {
   ScopeTrace trace;
 
-  u32 const n = views.size32();
-
-  for (u32 i = 0; i < n; i++)
+  for (auto [i, node] : enumerate(nodes))
   {
-    auto const & node = nodes[i];
-
     if (is_hidden[i])
     {
       // if parent requested to be hidden, make children hidden
@@ -562,97 +562,90 @@ ViewEvents System::process_events(View & view)
 }
   */
 
-void System::none_seq(Ctx const & ctx)
+HitState System::none_seq(Ctx const & ctx)
 {
   // if has mouse focused, activate point state
   // [ ] if mouse not focused
   if (ctx.mouse.focused)
   {
+    return point_seq(ctx, ViewId::None);
   }
   else
   {
-    hit = none;
+    return none;
   }
 }
 
-void System::drag_start_seq(Ctx const & ctx, ViewId src)
+HitState System::drag_start_seq(Ctx const & ctx, MouseButton btn, ViewId src)
 {
-  // if pointing on droppable, send drop in event.
-  // move to drop update state
   // canceled by release/out of focus:
   // if canceled, send dropend to source, move to point state
-  if (ctx.mouse.focused)
+  auto hit =
+    hit_views(ctx.mouse.position, [&](auto i) { return is_pointable[i]; });
+
+  bool can_drop = hit && is_droppable[hit.value().v0];
+  bool canceled = !ctx.mouse.focused || (ctx.mouse.state(btn) && !can_drop) ||
+                  ctx.key.state(KeyCode::Escape);
+
+  // [ ] updating focus
+
+  if (canceled)
   {
-    auto const hit = hit_views(ctx.mouse.position, [&](auto i) {
-      return is_clickable[i] || is_draggable[i] || is_pointable[i];
-    });
-
-    bool const can_drop = hit && is_droppable[hit.value().v0];
-    bool const canceled = ctx.mouse.state(MouseButton::Primary) && !can_drop;
-
-    if (canceled)
-    {
-      // send cancel
-    }
-    else if (can_drop)
-    {
-      // send drop-in
-    }
-    else
-    {
-      // change to update state
-    }
+    // send cancel to src
+    return none;
+  }
+  else if (can_drop)
+  {
+    // send drop-in
   }
   else
   {
-    // send cancel
-
-    hit = none;
+    // change to update state
+    return none;
   }
 }
 
-void System::drag_update_seq(Ctx const & ctx, ViewId src, ViewId tgt)
+HitState System::drag_update_seq(Ctx const & ctx, MouseButton btn, ViewId src,
+                                 ViewId tgt)
 {
-  // if pointing on droppable, send dropin if mouse not released, otherwise send dropped.
   // send dropout if previous state was update and left a droppable.
   // continue at current state; unless canceled by r/oof
   // if canceled, send dropend to source, move to point state
 
-  if (ctx.mouse.focused)
+  auto hit =
+    hit_views(ctx.mouse.position, [&](auto i) { return is_pointable[i]; });
+
+  bool can_drop = hit && is_droppable[hit.value().v0];
+  bool canceled = !ctx.mouse.focused || (ctx.mouse.state(btn) && !can_drop) ||
+                  ctx.key.state(KeyCode::Escape);
+  bool dropped = can_drop && !canceled;
+
+  if (canceled)
   {
-    auto hit = hit_views(ctx.mouse.position, [&](auto i) {
-      return is_clickable[i] || is_draggable[i] || is_pointable[i];
-    });
-
-    bool can_drop = hit && is_droppable[hit.value().v0];
-    bool canceled = (ctx.mouse.state(MouseButton::Primary) && !can_drop) ||
-                    ctx.key.state(KeyCode::Escape);
-
-    if (canceled)
-    {
-      // send cancel to src
-      // send drop-out to tgt
-    }
-    else if (can_drop)
-    {
-      // send drop-in to new tgt
-      // send drop-out to old tgt
-    }
-    else
-    {
-      // send update to src
-      // send drop-in to new tgt
-      // send drop-out to old tgt
-    }
+    // send cancel to src
+    // send drop-out to tgt
+    return none;
+  }
+  else if (dropped)
+  {
+    return none;
+  }
+  else if (can_drop)
+  {
+    // send drop-in to new tgt
+    // send drop-out to old tgt
+    return DragState{
+      .seq = DragState::Seq::Update, .src = src, .tgt = ViewId::None};
   }
   else
   {
-    // send cancel
-    hit = none;
+    // send update to src
+    // send drop-in to new tgt
+    // send drop-out to old tgt
   }
 }
 
-void System::point_seq(Ctx const & ctx, ViewId tgt)
+HitState System::point_seq(Ctx const & ctx, ViewId tgt)
 {
   // get currently pointed, if different, send mouse out
   // if mouse down: hit-test for drag & click, if dragged, move to drag state, otherwise stay at point state and send mouse down
@@ -661,41 +654,70 @@ void System::point_seq(Ctx const & ctx, ViewId tgt)
   // if same, update point target
   // if mouse
 
+  // we only want views that are actually clickable/draggable and not obstructed!!!
+  // our hit test function should stop totally if the !hidden && .contains(p) && .hit(p) test passes
+
+  // our filter will make sure we only stop if the hit criteria matches a condition
+  // i.e. for click or drag tests we want to only consider the top-most clickable or draggable item.
+
+  // for each intended event, if it is a mouse down, check the first clickable, if none,
+  // check the first draggable?
+  //
+  auto hit = hit_views(ctx.mouse.position, [&](auto i) {
+    //[ ] isn't this just pointable?
+    return is_clickable[i] | is_draggable[i];
+  });
+
+  // [ ] how views can request drag cancel?
+  // [ ] let the view determine which button to use for dragging
+  // [ ] be more generic with handling buttons
+
+  bool drag_start = hit && is_draggable[hit.value().v0];
+  bool pointing   = hit && is_pointable[hit.value().v0];
+  bool canceled   = !ctx.mouse.focused;
+
+  //
+
   // if out of view or move to new view, or mouse out of focus; send mouse out
   //
-  if (ctx.mouse.focused)
+  //
+  // [ ] wheel scroll?
+  // [ ] middle wheel drag
+  //
+  if (canceled)
+  {
+    return none;
+  }
+  else if (drag_start)
+  {
+  }
+  else if (pointing)
   {
   }
   else
   {
-    hit = none;
+    // pointing to none
   }
 }
 
-void System::hit_seq(Ctx const & ctx)
+HitState System::hit_seq(Ctx const & ctx)
 {
-  hit_views(ctx.mouse.position, [&](auto i) {
-    return is_clickable[i] || is_draggable[i] || is_pointable[i];
-  });
-  hit_views(ctx.mouse.position, [&](auto i) { return is_droppable[i]; });
-  hit_views(ctx.mouse.position, [&](auto i) { return is_scrollable[i]; });
-  hit_views(ctx.mouse.position, [&](auto i) { return is_pointable[i]; });
-
-  // [ ] hit test must always return the top-most pointable element?
-
-  hit.match([&](None) { return none_seq(ctx); },
-            [&](DragState const & h) {
-              switch (h.seq)
-              {
-                case DragState::Seq::Start:
-                  return drag_start_seq(ctx, h.src);
-                case DragState::Seq::Update:
-                  return drag_update_seq(ctx, h.src, h.tgt);
-              }
-            },
-            [&](PointState const & h) { return point_seq(ctx, h.tgt); });
-
   // [ ] if focusable and pressed or dragged, update focus index; preserve focus active
+
+  auto new_hit =
+    hit.match([&](None) { return none_seq(ctx); },
+              [&](DragState const & h) {
+                switch (h.seq)
+                {
+                  case DragState::Seq::Start:
+                    return drag_start_seq(ctx, h.btn, h.src);
+                  case DragState::Seq::Update:
+                    return drag_update_seq(ctx, h.btn, h.src, h.tgt);
+                }
+              },
+              [&](PointState const & h) { return point_seq(ctx, h.tgt); });
+
+  hit = new_hit;
 }
 
 void System::event_dispatch(InputState const & ctx)
@@ -728,85 +750,6 @@ void System::event_dispatch(InputState const & ctx)
 */
 
   // mouse click & drag
-  if (f1.mouse_down)
-  {
-    f1.focus =
-      hit_views(ctx.mouse.position, [&](auto i, auto pos) -> Option<HitEvent> {
-        if (!is_hidden[i] && (is_clickable[i] || is_draggable[i]))
-        {
-          return hit_test(i, pos);
-        }
-
-        return none;
-      });
-  }
-  // mouse drop event
-  else if ((f0.dragging && ctx.mouse_up(MouseButton::Primary)) || ctx.dropped)
-  {
-    f1.dropped  = true;
-    f1.dragging = false;
-
-    hit_views(ctx.mouse.position, [&](auto i, auto pos) -> Option<HitEvent> {
-      if (!is_hidden[i] && is_droppable[i])
-      {
-        return hit_test(i, pos);
-      }
-
-      return none;
-    });
-  }
-  // mouse dragging update event
-  else if (f0.dragging || ctx.drop_hovering)
-  {
-    f1.drag_src = f0.drag_src;
-    f1.dragging = true;
-
-    hit_views(ctx.mouse.position, [&](auto i, auto pos) -> Option<HitEvent> {
-      if (!is_hidden[i] && is_droppable[i])
-      {
-        return hit_test(i, pos);
-      }
-
-      return none;
-    });
-  }
-  // mouse release event
-  else if (f1.mouse_up)
-  {
-    hit_views(ctx.mouse.position, [&](auto i, auto pos) -> Option<HitEvent> {
-      if (!is_hidden[i] && is_droppable[i])
-      {
-        return hit_test(i, pos);
-      }
-
-      return none;
-    });
-  }
-  // mouse scroll event
-  else if (ctx.mouse.wheel_scrolled)
-  {
-    hit_views(ctx.mouse.position, [&](auto i, auto pos) -> Option<HitEvent> {
-      if (!is_hidden[i] && is_scrollable[i])
-      {
-        return hit_test(i, pos);
-      }
-
-      return none;
-    });
-  }
-  // mouse pointing event
-  else
-  {
-    hit_views(ctx.mouse.position, [&](auto i, auto pos) -> Option<HitEvent> {
-      if (!is_hidden[i] && (is_pointable[i] || is_clickable[i] ||
-                            is_draggable[i] || is_scrollable[i]))
-      {
-        return hit_test(i, pos);
-      }
-
-      return none;
-    });
-  }
 
   // determine focus navigation direction
   FocusAction focus_action = FocusAction::None;

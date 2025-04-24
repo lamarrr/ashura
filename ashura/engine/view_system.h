@@ -85,9 +85,10 @@ struct DragState
     Update = 2
   };
 
-  Seq    seq = Seq::Start;
-  ViewId src = ViewId::None;
-  ViewId tgt = ViewId::None;
+  Seq         seq = Seq::Start;
+  ViewId      src = ViewId::None;
+  ViewId      tgt = ViewId::None;
+  MouseButton btn = MouseButton::Primary;
 };
 
 struct PointState
@@ -180,6 +181,7 @@ struct System
   Vec<CRect>   clips;
   Vec<u32>     z_ordering;
   Vec<u32>     focus_ordering;
+  Vec<u32>     focus_indices;
 
   /// Frame Computed Info
   bool                      closing_deferred;
@@ -258,13 +260,19 @@ struct System
 
   void focus_scroll(u32 view);
 
-  template <typename Filter>
-  Option<Tuple<u32, HitEvent>> hit_views(Vec2 position, Filter && filter) const
+  template <typename Filter, typename Match>
+  Option<Tuple<u32, HitEvent>> hit_views(Option<Vec2> position,
+                                         Filter && filter, Match && match) const
   {
-    u32 const n = views.size32();
+    if (!position)
+    {
+      return none;
+    }
+
+    auto p = position.value();
 
     // find in reverse z-order
-    for (auto z = n; z != 0;)
+    for (auto z = views.size(); z != 0;)
     {
       z--;
 
@@ -273,12 +281,20 @@ struct System
       // find first non-hidden view that overlaps the hit position
       if (!is_hidden[i] && filter(i) &&
           CRect{.center = canvas_centers[i], .extent = canvas_extents[i]}
-            .contains(position)) [[unlikely]]
+            .contains(p)) [[unlikely]]
       {
-        auto result = hit_test(i, position);
+        auto result = hit_test(i, p);
         if (result) [[unlikely]]
         {
-          return Tuple{i, result.value()};
+          if (match(i)) [[unlikely]]
+          {
+            return Tuple{i, result.value()};
+          }
+          else
+          {
+            // the filtering failed: obstructed by view that doesn't match the accept
+            return none;
+          }
         }
       }
     }
@@ -294,15 +310,16 @@ struct System
 
   Option<TextInputInfo> text_input() const;
 
-  void none_seq(Ctx const& ctx);
+  HitState none_seq(Ctx const & ctx);
 
-  void drag_start_seq(Ctx const& ctx,ViewId src);
+  HitState drag_start_seq(Ctx const & ctx, MouseButton btn, ViewId src);
 
-  void drag_update_seq(Ctx const& ctx,ViewId src, ViewId tgt);
+  HitState drag_update_seq(Ctx const & ctx, MouseButton btn, ViewId src,
+                           ViewId tgt);
 
-  void point_seq(Ctx const& ctx,ViewId tgt);
+  HitState point_seq(Ctx const & ctx, ViewId tgt);
 
-  void hit_seq(Ctx const& ctx);
+  HitState hit_seq(Ctx const & ctx);
 
   // [ ] make positions relative to center of the screen
   bool tick(InputState const & input, View & root, Canvas & canvas,
