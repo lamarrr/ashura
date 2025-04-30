@@ -2,6 +2,7 @@
 #pragma once
 #include "ashura/std/cfg.h"
 #include "ashura/std/range.h"
+#include "ashura/std/tuple.h"
 #include "ashura/std/types.h"
 #include <bit>
 #include <math.h>
@@ -1838,11 +1839,9 @@ constexpr Vec3 operator*(Mat3 const & a, Vec3 const & b)
 constexpr Mat3 operator*(Mat3 const & a, Mat3 const & b)
 {
   return Mat3{
-    .rows = {
-             {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+    .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
              {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-             {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())},
-             }
+             {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())}}
   };
 }
 
@@ -1954,12 +1953,11 @@ constexpr Vec3 operator*(Affine3 const & a, Vec3 const & b)
 constexpr Mat3 operator*(Affine3 const & a, Mat3 const & b)
 {
   return Mat3{
-    .rows = {
-             {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+    .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
              {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-             {dot(Affine3::TRAILING_ROW, b.x()), dot(Affine3::TRAILING_ROW, b.y()),
-       dot(Affine3::TRAILING_ROW, b.z())},
-             }
+             {dot(Affine3::TRAILING_ROW, b.x()),
+              dot(Affine3::TRAILING_ROW, b.y()),
+              dot(Affine3::TRAILING_ROW, b.z())}}
   };
 }
 
@@ -2714,17 +2712,18 @@ constexpr bool contains_point(Vec2 begin, Vec2 end, Vec2 point)
          end.y >= point.y;
 }
 
-constexpr void intersect(Vec2 a_begin, Vec2 a_end, Vec2 & b_begin, Vec2 & b_end)
+constexpr Tuple<Vec2, Vec2> intersect(Vec2 a_begin, Vec2 a_end, Vec2 b_begin,
+                                      Vec2 b_end)
 {
   if (!overlaps(a_begin, a_end, b_begin, b_end))
   {
-    b_begin = {};
-    b_end   = {};
-    return;
+    return {};
   }
 
-  b_begin = Vec2{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)};
-  b_end   = Vec2{min(a_end.x, b_end.x), min(a_end.y, b_end.y)};
+  return {
+    Vec2{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)},
+    Vec2{min(a_end.x,   b_end.x),   min(a_end.y,   b_end.y)  }
+  };
 }
 
 struct Rect
@@ -2774,17 +2773,15 @@ struct Rect
     return contains_point(begin(), end(), point);
   }
 
-  constexpr bool overlaps(Rect const & b) const
+  constexpr bool overlaps(Rect const & r) const
   {
-    return ash::overlaps(begin(), end(), b.begin(), b.end());
+    return ash::overlaps(begin(), end(), r.begin(), r.end());
   }
 
-  constexpr Rect intersect(Rect const & b) const
+  constexpr Rect intersect(Rect const & r) const
   {
-    Vec2 begin = b.begin();
-    Vec2 end   = b.end();
-    ash::intersect(this->begin(), this->end(), begin, end);
-    return Rect{.offset = begin, .extent = end - begin};
+    auto [b, e] = ash::intersect(begin(), end(), r.begin(), r.end());
+    return Rect::from_range(b, e);
   }
 };
 
@@ -2813,6 +2810,13 @@ struct CRect
     return CRect{.center = (begin + end) * 0.5F, .extent = (end - begin)};
   }
 
+  static constexpr CRect bounding(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3)
+  {
+    return CRect::from_range(
+      Vec2{min(p0.x, p1.x, p2.x, p3.x), min(p0.y, p1.y, p2.y, p3.y)},
+      Vec2{max(p0.x, p1.x, p2.x, p3.x), max(p0.y, p1.y, p2.y, p3.y)});
+  }
+
   constexpr Vec2 begin() const
   {
     return center - (extent * 0.5F);
@@ -2821,6 +2825,26 @@ struct CRect
   constexpr Vec2 end() const
   {
     return center + extent * 0.5F;
+  }
+
+  constexpr Vec2 tl() const
+  {
+    return begin();
+  }
+
+  constexpr Vec2 tr() const
+  {
+    return Vec2{center.x + 0.5F * extent.x, center.y - 0.5F * extent.y};
+  }
+
+  constexpr Vec2 bl() const
+  {
+    return Vec2{center.x - 0.5F * extent.x, center.y + 0.5F * extent.y};
+  }
+
+  constexpr Vec2 br() const
+  {
+    return end();
   }
 
   constexpr f32 area() const
@@ -2840,17 +2864,33 @@ struct CRect
     return contains_point(begin(), end(), point);
   }
 
-  constexpr bool overlaps(CRect const & b) const
+  constexpr bool overlaps(CRect const & r) const
   {
-    return ash::overlaps(begin(), end(), b.begin(), b.end());
+    return ash::overlaps(begin(), end(), r.begin(), r.end());
   }
 
-  constexpr CRect intersect(CRect const & b) const
+  constexpr CRect intersect(CRect const & r) const
   {
-    Vec2 begin = b.begin();
-    Vec2 end   = b.end();
-    ash::intersect(this->begin(), this->end(), begin, end);
-    return CRect::from_offset(begin, end - begin);
+    auto [b, e] = ash::intersect(begin(), end(), r.begin(), r.end());
+    return CRect::from_range(b, e);
+  }
+
+  constexpr CRect unioned(CRect const & r) const
+  {
+    return CRect::bounding(begin(), end(), r.begin(), r.end());
+  }
+
+  // [ ] use
+  constexpr CRect transform(Affine3 const & t)
+  {
+    return CRect::bounding(ash::transform(t, tl()), ash::transform(t, tr()),
+                           ash::transform(t, bl()), ash::transform(t, br()));
+  }
+
+  constexpr CRect transform(Mat3 const & t)
+  {
+    return CRect::bounding(ash::transform(t, tl()), ash::transform(t, tr()),
+                           ash::transform(t, bl()), ash::transform(t, br()));
   }
 };
 

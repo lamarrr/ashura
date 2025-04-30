@@ -328,7 +328,7 @@ static inline Option<isize> translate_caret(TextLayout const & layout,
 bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
                              Str32 keyboard_input, ClipBoard & clipboard,
                              usize lines_per_page, usize tab_width,
-                             CRect const & region, Vec2 pos, f32 zoom,
+                             CRect const & region, Vec2 pos, Vec2 zoom,
                              AllocatorRef scratch_allocator)
 {
   u8                tmp[512];

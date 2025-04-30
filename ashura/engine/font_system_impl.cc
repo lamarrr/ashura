@@ -220,7 +220,7 @@ Result<Dyn<Font *>, FontLoadErr>
   ft_lib  = nullptr;
   ft_face = nullptr;
 
-  return Ok{cast<ash::Font *>(std::move(font.value()))};
+  return Ok{cast<ash::Font *>(std::move(font.v()))};
 }
 
 Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
@@ -430,7 +430,7 @@ FontId FontSystemImpl::upload_(Dyn<Font *> font_)
   CHECK(font.cpu_atlas.is_some(), "");
   CHECK(font.gpu_atlas.is_none(), "");
 
-  CpuFontAtlas & atlas = font.cpu_atlas.value();
+  CpuFontAtlas & atlas = font.cpu_atlas.v();
 
   CHECK(atlas.num_layers > 0, "");
   CHECK(atlas.extent.x > 0, "");
@@ -517,7 +517,7 @@ Future<Result<FontId, FontLoadErr>>
                      fut  = std::move(fut)]() mutable {
                       trace("Rasterized font {}, num layers = {}"_str,
                             font->info().label,
-                            font->info().cpu_atlas.value().num_layers);
+                            font->info().cpu_atlas.v().num_layers);
 
                       FontId id = upload_(std::move(font));
 
@@ -595,7 +595,7 @@ void FontSystemImpl::unload(FontId id)
 {
   Dyn<Font *> & f    = fonts_[(usize) id].v0;
   FontImpl &    font = (FontImpl &) *f;
-  sys->image.unload(font.gpu_atlas.value().image);
+  sys->image.unload(font.gpu_atlas.v().image);
   font.gpu_atlas = none;
 
   fonts_.erase((usize) id);

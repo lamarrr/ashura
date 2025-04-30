@@ -81,7 +81,6 @@ f32 msdf(f32x3 msd, f32 msd_px_range, f32x2 texture_size, f32x2 tex_coord)
   return clamp(screen_px_distance + 0.5, 0.0, 1.0);
 }
 
-// [ ] document
 f32x4 msdf_blend(f32x3 msd, f32 msd_px_range, f32x2 texture_size,
                  f32x2 tex_coord, f32x4 bg_color, f32x4 fg_color)
 {
@@ -108,7 +107,7 @@ f32 arc(f32x2 pos, f32x2 sc, f32 ra, f32 rb)
   // sc is the sin/cos of the arc's aperture
   pos.x = abs(pos.x);
   return ((sc.y * pos.x > sc.x * pos.y) ? length(pos - sc * ra) :
-                                      abs(length(pos) - ra)) -
+                                          abs(length(pos) - ra)) -
          rb;
 }
 

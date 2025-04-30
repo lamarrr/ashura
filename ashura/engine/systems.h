@@ -14,7 +14,7 @@ namespace ash
 
 struct ImageInfo
 {
-  ImageId id = ImageId::Invalid;
+  ImageId id = ImageId::None;
 
   Str label{};
 
@@ -31,7 +31,7 @@ struct ImageInfo
 
 struct Image
 {
-  ImageId id = ImageId::Invalid;
+  ImageId id = ImageId::None;
 
   Vec<char> label{};
 

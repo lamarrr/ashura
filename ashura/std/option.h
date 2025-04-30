@@ -17,11 +17,11 @@ struct [[nodiscard]] Option
 {
   using Type = T;
 
-  bool32 is_some_;
+  bool is_some_;
 
   union
   {
-    T value_;
+    T v0_;
   };
 
   constexpr Option() : is_some_{false}
@@ -32,18 +32,18 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      value_.~T();
+      v0_.~T();
     }
   }
 
-  constexpr Option(T some) : is_some_{true}, value_{static_cast<T &&>(some)}
+  constexpr Option(T some) : is_some_{true}, v0_{static_cast<T &&>(some)}
   {
   }
 
   template <typename... Args>
   explicit constexpr Option(V<0>, Args &&... args) :
     is_some_{true},
-    value_{static_cast<Args &&>(args)...}
+    v0_{static_cast<Args &&>(args)...}
   {
   }
 
@@ -55,10 +55,10 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      value_.~T();
+      v0_.~T();
     }
     is_some_ = true;
-    new (&value_) T{static_cast<T &&>(other)};
+    new (&v0_) T{static_cast<T &&>(other)};
     return *this;
   }
 
@@ -66,7 +66,7 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      value_.~T();
+      v0_.~T();
     }
     is_some_ = false;
     return *this;
@@ -76,7 +76,7 @@ struct [[nodiscard]] Option
   {
     if (other.is_some_)
     {
-      new (&value_) T{static_cast<T &&>(other.value_)};
+      new (&v0_) T{static_cast<T &&>(other.v0_)};
     }
   }
 
@@ -89,14 +89,14 @@ struct [[nodiscard]] Option
 
     if (is_some_)
     {
-      value_.~T();
+      v0_.~T();
     }
 
     is_some_ = other.is_some_;
 
     if (other.is_some_)
     {
-      new (&value_) T{static_cast<T &&>(other.value_)};
+      new (&v0_) T{static_cast<T &&>(other.v0_)};
     }
 
     return *this;
@@ -106,7 +106,7 @@ struct [[nodiscard]] Option
   {
     if (other.is_some_)
     {
-      new (&value_) T{other.value_};
+      new (&v0_) T{other.v0_};
     }
   }
 
@@ -119,14 +119,14 @@ struct [[nodiscard]] Option
 
     if (is_some_)
     {
-      value_.~T();
+      v0_.~T();
     }
 
     is_some_ = other.is_some_;
 
     if (other.is_some_)
     {
-      new (&value_) T{other.value_};
+      new (&v0_) T{other.v0_};
     }
 
     return *this;
@@ -152,7 +152,7 @@ struct [[nodiscard]] Option
   {
     if (is_some())
     {
-      return value_ == cmp;
+      return v0_ == cmp;
     }
     else
     {
@@ -160,24 +160,23 @@ struct [[nodiscard]] Option
     }
   }
 
-  constexpr T & value(SourceLocation loc = SourceLocation::current())
+  constexpr T & v(SourceLocation loc = SourceLocation::current())
   {
     CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
-    return value_;
+    return v0_;
   }
 
-  constexpr T const &
-    value(SourceLocation loc = SourceLocation::current()) const
+  constexpr T const & v(SourceLocation loc = SourceLocation::current()) const
   {
     CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
-    return value_;
+    return v0_;
   }
 
   constexpr Option<T const *> as_ptr() const
   {
     if (is_some())
     {
-      return &value_;
+      return &v0_;
     }
     return none;
   }
@@ -186,7 +185,7 @@ struct [[nodiscard]] Option
   {
     if (is_some())
     {
-      return &value_;
+      return &v0_;
     }
     return none;
   }
@@ -196,7 +195,7 @@ struct [[nodiscard]] Option
   {
     CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
                msg);
-    return static_cast<T &&>(value_);
+    return static_cast<T &&>(v0_);
   }
 
   template <typename U>
@@ -204,28 +203,29 @@ struct [[nodiscard]] Option
   {
     if (is_some())
     {
-      return static_cast<T &&>(value_);
+      return static_cast<T &&>(v0_);
     }
     return static_cast<U &&>(alt);
   }
 
   template <typename Fn>
-  constexpr T unwrap_or_else(Fn && op)
+  constexpr auto map(Fn && op)
   {
+    using U = decltype(op(v0_));
     if (is_some())
     {
-      return static_cast<T &&>(value_);
+      return Option<U>{op(v0_)};
     }
-    return op();
+    return Option<U>{none};
   }
 
   template <typename Fn>
-  constexpr auto map(Fn && op)
+  constexpr auto map(Fn && op) const
   {
-    using U = decltype(op(value_));
+    using U = decltype(op(v0_));
     if (is_some())
     {
-      return Option<U>{op(value_)};
+      return Option<U>{op(v0_)};
     }
     return Option<U>{none};
   }
@@ -235,48 +235,48 @@ struct [[nodiscard]] Option
   {
     if (is_some())
     {
-      return op(value_);
+      return op(v0_);
     }
     return static_cast<U &&>(alt);
   }
 
-  template <typename Fn, typename AltFn>
-  constexpr decltype(auto) map_or_else(Fn && op, AltFn && alt_fn)
+  template <typename Fn, typename U>
+  constexpr auto map_or(Fn && op, U && alt) const
   {
     if (is_some())
     {
-      return op(value_);
+      return op(v0_);
     }
-    return alt_fn();
+    return static_cast<U &&>(alt);
   }
 
   template <typename Fn>
   constexpr auto and_then(Fn && op)
   {
-    using OutOption = decltype(op(value_));
+    using OutOption = decltype(op(v0_));
     if (is_some())
     {
-      return op(value_);
+      return op(v0_);
     }
     return OutOption{none};
   }
 
   template <typename Fn>
-  constexpr auto or_else(Fn && op)
+  constexpr auto and_then(Fn && op) const
   {
-    using OutOption = decltype(op());
+    using OutOption = decltype(op(v0_));
     if (is_some())
     {
-      return OutOption{value_};
+      return op(v0_);
     }
-    return op();
+    return OutOption{none};
   }
 
   constexpr void unwrap_none(Str            msg = ""_str,
                              SourceLocation loc = SourceLocation::current())
   {
     CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",
-               value_, msg);
+               v0_, msg);
   }
 
   template <typename SomeFn, typename NoneFn = Noop>
@@ -284,7 +284,7 @@ struct [[nodiscard]] Option
   {
     if (is_some())
     {
-      return some(value_);
+      return some(v0_);
     }
     return none();
   }
@@ -294,7 +294,7 @@ struct [[nodiscard]] Option
   {
     if (is_some())
     {
-      return some(value_);
+      return some(v0_);
     }
     return none();
   }
@@ -341,7 +341,7 @@ template <typename T, typename U>
   }
   if (a.is_some() && b.is_some())
   {
-    return a.value_ == b.value_;
+    return a.v0_ == b.v0_;
   }
   return false;
 }
@@ -356,7 +356,7 @@ template <typename T, typename U>
   }
   if (a.is_some() && b.is_some())
   {
-    return a.value_ != b.value_;
+    return a.v0_ != b.v0_;
   }
   return true;
 }
@@ -366,7 +366,7 @@ template <typename T, typename U>
 {
   if (a.is_some())
   {
-    return a.value_ == b;
+    return a.v0_ == b;
   }
   return false;
 }
@@ -376,7 +376,7 @@ template <typename T, typename U>
 {
   if (a.is_some())
   {
-    return a.value_ != b;
+    return a.v0_ != b;
   }
   return true;
 }
@@ -386,7 +386,7 @@ template <typename U, typename T>
 {
   if (b.is_some())
   {
-    return a == b.value_;
+    return a == b.v0_;
   }
   return false;
 }
@@ -396,7 +396,7 @@ template <typename U, typename T>
 {
   if (b.is_some())
   {
-    return a != b.value_;
+    return a != b.v0_;
   }
   return true;
 }
@@ -426,59 +426,60 @@ template <typename T>
 }
 
 template <typename T>
-struct [[nodiscard]] OptionRef
+struct [[nodiscard]] Option<T &>
 {
   using Type = T;
+  using Repr = T *;
 
-  T * rep_;
+  T * repr_;
 
-  constexpr OptionRef() : rep_{nullptr}
+  constexpr Option() : repr_{nullptr}
   {
   }
 
-  constexpr ~OptionRef() = default;
+  constexpr ~Option() = default;
 
-  constexpr OptionRef(T & some) : rep_{&some}
+  constexpr Option(T & some) : repr_{&some}
   {
   }
 
   template <typename... Args>
-  explicit constexpr OptionRef(V<0>, T & some) : rep_{&some}
+  explicit constexpr Option(V<0>, T & some) : repr_{&some}
   {
   }
 
-  constexpr OptionRef(None) : rep_{nullptr}
+  constexpr Option(None) : repr_{nullptr}
   {
   }
 
-  constexpr OptionRef & operator=(T & other)
+  constexpr Option & operator=(T & other)
   {
-    rep_ = &other;
+    repr_ = &other;
     return *this;
   }
 
-  constexpr OptionRef & operator=(None)
+  constexpr Option & operator=(None)
   {
-    rep_ = nullptr;
+    repr_ = nullptr;
     return *this;
   }
 
-  constexpr OptionRef(OptionRef && other) = default;
+  constexpr Option(Option && other) = default;
 
-  constexpr OptionRef & operator=(OptionRef && other) = default;
+  constexpr Option & operator=(Option && other) = default;
 
-  constexpr OptionRef(OptionRef const & other) = default;
+  constexpr Option(Option const & other) = default;
 
-  constexpr OptionRef & operator=(OptionRef const & other) = default;
+  constexpr Option & operator=(Option const & other) = default;
 
   [[nodiscard]] constexpr bool is_some() const
   {
-    return rep_ != nullptr;
+    return repr_ != nullptr;
   }
 
   [[nodiscard]] constexpr bool is_none() const
   {
-    return rep_ == nullptr;
+    return repr_ == nullptr;
   }
 
   [[nodiscard]] explicit constexpr operator bool() const
@@ -491,7 +492,7 @@ struct [[nodiscard]] OptionRef
   {
     if (is_some())
     {
-      return *rep_ == cmp;
+      return *repr_ == cmp;
     }
     else
     {
@@ -499,34 +500,75 @@ struct [[nodiscard]] OptionRef
     }
   }
 
-  constexpr T & value(SourceLocation loc = SourceLocation::current()) const
+  constexpr T & v(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in OptionRef but got None");
-    return *rep_;
+    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
+    return *repr_;
   }
 
   constexpr T & unwrap(Str            msg = ""_str,
                        SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_some(), "Expected Value in OptionRef but got None. {}",
+    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
                msg);
-    return *rep_;
+    return *repr_;
   }
 
   constexpr T & unwrap_or(T & alt)
   {
     if (is_some())
     {
-      return *rep_;
+      return *repr_;
     }
     return alt;
+  }
+
+  constexpr Option<T> unref() const
+  {
+    if (is_some())
+    {
+      return *repr_;
+    }
+    return none;
+  }
+
+  template <typename Fn>
+  constexpr auto map(Fn && op) const
+  {
+    using U = decltype(op(*repr_));
+    if (is_some())
+    {
+      return Option<U>{op(*repr_)};
+    }
+    return Option<U>{none};
+  }
+
+  template <typename Fn, typename U>
+  constexpr auto map_or(Fn && op, U && alt) const
+  {
+    if (is_some())
+    {
+      return op(*repr_);
+    }
+    return static_cast<U &&>(alt);
+  }
+
+  template <typename Fn>
+  constexpr auto and_then(Fn && op) const
+  {
+    using OutOption = decltype(op(*repr_));
+    if (is_some())
+    {
+      return op(*repr_);
+    }
+    return OutOption{none};
   }
 
   constexpr void unwrap_none(Str            msg = ""_str,
                              SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_none(),
-               "Expected None in OptionRef but got Value = {}. {}", *rep_, msg);
+    CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",
+               *repr_, msg);
   }
 
   constexpr void discard()
@@ -538,7 +580,7 @@ struct [[nodiscard]] OptionRef
   {
     if (is_some())
     {
-      return some(*rep_);
+      return some(*repr_);
     }
     return none();
   }
@@ -548,23 +590,20 @@ struct [[nodiscard]] OptionRef
   {
     if (is_some())
     {
-      return some(*rep_);
+      return some(*repr_);
     }
     return none();
   }
 
   constexpr T * operator->() const
   {
-    return &value();
+    return &v();
   }
 
   constexpr T & operator*() const
   {
-    return value();
+    return v();
   }
 };
-
-template <typename T>
-OptionRef(T &) -> OptionRef<T>;
 
 }    // namespace ash

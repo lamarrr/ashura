@@ -854,7 +854,7 @@ struct CoreSlice
 
   static constexpr CoreSlice from_range(S begin, S end)
   {
-    return CoreSlice{.offset = begin, .span = end - begin};
+    return CoreSlice{.offset = begin, .span = static_cast<S>(end - begin)};
   }
 
   static constexpr CoreSlice all()
@@ -1300,6 +1300,12 @@ struct Span
   constexpr Span slice(Slice32 s) const
   {
     s = s((u32) size_);
+    return Span{data_ + s.offset, s.span};
+  }
+
+  constexpr Span slice(Slice16 s) const
+  {
+    s = s((u16) size_);
     return Span{data_ + s.offset, s.span};
   }
 

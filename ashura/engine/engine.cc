@@ -8,16 +8,25 @@
 namespace ash
 {
 
-EngineCfg EngineCfg::parse(AllocatorRef allocator, Span<u8 const> json)
+Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> const & json)
 {
-  EngineCfg                    out{.shaders{allocator},
-                                   .fonts{allocator},
-                                   .images{allocator},
-                                   .pipeline_cache{allocator}};
-  simdjson::ondemand::parser   parser;
-  simdjson::padded_string      str{json.as_char().data(), json.size()};
-  simdjson::ondemand::document doc = parser.iterate(str);
+  EngineCfg                  out{.shaders{allocator},
+                                 .fonts{allocator},
+                                 .images{allocator},
+                                 .pipeline_cache{allocator}};
+  simdjson::ondemand::parser parser;
+  auto                       error =
+    parser.iterate(json.data(), json.size_bytes(),
+                   align_offset(Vec<u8>::ALIGNMENT, json.capacity()));
 
+  if (error.error() != simdjson::SUCCESS)
+  {
+    return Err{};
+  }
+
+  auto & doc = error.value();
+
+  // [ ] check valid schema
   auto cfg = doc.get_object().value();
 
   std::string_view version = cfg["version"].get_string().value();
@@ -140,7 +149,7 @@ EngineCfg EngineCfg::parse(AllocatorRef allocator, Span<u8 const> json)
 
   out.pipeline_cache.extend(pipeline_cache_path).unwrap();
 
-  return out;
+  return Ok{std::move(out)};
 }
 
 static void window_event_listener(Engine * engine, WindowEvent const & event)
@@ -407,7 +416,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
 
   if (cfg.gpu.max_fps.is_some())
   {
-    f64 const max_fpns = cfg.gpu.max_fps.value() * (1 / 1'000'000'000.0);
+    f64 const max_fpns = cfg.gpu.max_fps.v() * (1 / 1'000'000'000.0);
     f64 const min_frame_time_ns = 1 / max_fpns;
     min_frame_interval = nanoseconds{(nanoseconds::rep) min_frame_time_ns};
   }

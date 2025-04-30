@@ -473,7 +473,7 @@ struct TextBlockStyle
   CaretStyle            caret       = {};
 };
 
-/// @param cluster unicode grapheme cluster within the text run
+/// @param cluster codepoint cluster within the text run
 /// @param advance context-dependent horizontal-layout advance
 /// @param offset context-dependent text shaping offset from normal font glyph
 /// position, i.e. offset from GlyphMetrics::bearing

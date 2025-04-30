@@ -28,20 +28,32 @@ enum class KeyAction : u32
 enum class KeyModifiers : u32
 {
   None       = 0x0000,
-  LeftShift  = 0x0001U,    /// the left Shift key is down.
-  RightShift = 0x0002U,    /// the right Shift key is down.
-  Level5     = 0x0004U,    /// the Level 5 Shift key is down.
-  LeftCtrl   = 0x0040U,    /// the left Ctrl (Control) key is down.
-  RightCtrl  = 0x0080U,    /// the right Ctrl (Control) key is down.
-  LeftAlt    = 0x0100U,    /// the left Alt key is down.
-  RightAlt   = 0x0200U,    /// the right Alt key is down.
-  LeftGui    = 0x0400U,    /// the left GUI key (often the Windows key) is down.
-  RightGui = 0x0800U,    /// the right GUI key (often the Windows key) is down.
-  Num      = 0x1000U,    /// the Num Lock key (may be located on an
-                         /// extended keypad) is down.
-  Caps     = 0x2000U,    /// the Caps Lock key is down.
-  AltGr    = 0x4000U,    /// the !AltGr/Mode key is down.
-  ScrollLock = 0x8000U,    /// the Scroll Lock key is down.
+  /// the left Shift key is down.
+  LeftShift  = 0x0001U,
+  /// the right Shift key is down.
+  RightShift = 0x0002U,
+  /// the Level 5 Shift key is down.
+  Level5     = 0x0004U,
+  /// the left Ctrl (Control) key is down.
+  LeftCtrl   = 0x0040U,
+  /// the right Ctrl (Control) key is down.
+  RightCtrl  = 0x0080U,
+  /// the left Alt key is down.
+  LeftAlt    = 0x0100U,
+  /// the right Alt key is down.
+  RightAlt   = 0x0200U,
+  /// the left GUI key (often the Windows key) is down.
+  LeftGui    = 0x0400U,
+  /// the right GUI key (often the Windows key) is down.
+  RightGui   = 0x0800U,
+  /// the Num Lock key (may be located on an extended keypad) is down.
+  Num        = 0x1000U,
+  /// the Caps Lock key is down.
+  Caps       = 0x2000U,
+  /// the !AltGr/Mode key is down.
+  AltGr      = 0x4000U,
+  /// the Scroll Lock key is down.
+  ScrollLock = 0x8000U,
   All        = 0xFFFFU
 };
 
@@ -612,7 +624,7 @@ enum class KeyCode : u32
 
 inline constexpr u32 NUM_KEY_CODES = 512;
 
-enum class MouseButton : u32
+enum class MouseButton : u8
 {
   Primary   = 0,
   Secondary = 1,
@@ -623,7 +635,7 @@ enum class MouseButton : u32
 
 inline constexpr usize NUM_MOUSE_BUTTONS = 5;
 
-enum class MouseButtons : u32
+enum class MouseButtons : u8
 {
   None      = 0,
   Primary   = 1 << 0,
@@ -760,19 +772,19 @@ enum class TextCapitalization : u32
 
 struct TextInputInfo
 {
-  TextInputType type = TextInputType::Text;
+  TextInputType type : 4 = TextInputType::Text;
 
-  bool multiline = false;
+  bool multiline : 1 = false;
 
   /// @brief can receive `Tab` key as input
-  bool esc_input = false;
+  bool esc_input : 1 = false;
 
   /// @brief can receive `Esc` key as input
-  bool tab_input = false;
+  bool tab_input : 1 = false;
 
-  TextCapitalization cap = TextCapitalization::None;
+  TextCapitalization cap : 2 = TextCapitalization::None;
 
-  bool autocorrect = false;
+  bool autocorrect : 1 = false;
 };
 
 /// @param Normal region is normal and has no special properties
@@ -920,191 +932,289 @@ enum class DropType : u32
   Bytes    = 2
 };
 
-struct InputState
+struct KeyState
 {
-  struct Mouse
-  {
-    /// @brief did the mouse enter the window on this frame?
-    bool in = false;
-
-    /// @brief did the mouse leave the window on this frame?
-    bool out = false;
-
-    /// @brief did the mouse move on this frame?
-    bool moved = false;
-
-    /// @brief did the mouse wheel get scrolled on this frame?
-    bool wheel_scrolled = false;
-
-    /// @brief is any of the keys pressed on this frame
-    bool any_down = false;
-
-    /// @brief is any of the keys released on this frame
-    bool any_up = false;
-
-    /// @brief which mouse buttons were pressed on this frame
-    MouseButtons downs{};
-
-    /// @brief which mouse buttons were released on this frame
-    MouseButtons ups{};
-
-    /// @brief the current state of each mouse button
-    MouseButtons states{};
-
-    /// @brief number of times the mouse was clicked so far
-    u32 num_clicks[NUM_MOUSE_BUTTONS]{};
-
-    /// @brief the position of the mouse on this frame
-    Vec2 position = {};
-
-    /// @brief translation of the mouse on this frame
-    Vec2 translation = {};
-
-    /// @brief translation of the mouse wheel on this frame
-    Vec2 wheel_translation = {};
-
-    void clear()
-    {
-      in             = false;
-      out            = false;
-      moved          = false;
-      wheel_scrolled = false;
-      any_down       = false;
-      any_up         = false;
-      downs          = MouseButtons::None;
-      ups            = MouseButtons::None;
-      states         = MouseButtons::None;
-      fill(num_clicks, 0ULL);
-      position          = {};
-      translation       = {};
-      wheel_translation = {};
-    }
-  };
-
-  struct Keyboard
-  {
-    /// @brief did the window gain keyboard focus on this frame?
-    bool in = false;
-
-    /// @brief did the window lose keyboard focus on this frame?
-    bool out = false;
-
-    /// @brief is any of the keys pressed on this frame
-    bool any_down = false;
-
-    /// @brief is any of the keys released on this frame
-    bool any_up = false;
-
-    /// @brief bit mask of all the keys that were pressed on this frame
-    Bits<u64, NUM_KEY_CODES> key_downs{};
-
-    /// @brief bit mask of all the keys that were released on this frame
-    Bits<u64, NUM_KEY_CODES> key_ups{};
-
-    /// @brief bit mask of all the key states
-    Bits<u64, NUM_KEY_CODES> key_states{};
-
-    /// @brief bit mask of all the keys that were pressed on this frame, indexed using the scancode
-    Bits<u64, NUM_SCAN_CODES> scan_downs{};
-
-    /// @brief bit mask of all the keys that were released on this frame, indexed using the scancode
-    Bits<u64, NUM_SCAN_CODES> scan_ups{};
-
-    /// @brief bit mask of all the key states, indexed using the scancode
-    Bits<u64, NUM_SCAN_CODES> scan_states{};
-
-    /// @brief hold state of the key modifiers on this frame
-    KeyModifiers modifier_downs = KeyModifiers::None;
-
-    KeyModifiers modifier_ups = KeyModifiers::None;
-
-    KeyModifiers modifier_states = KeyModifiers::None;
-
-    void clear()
-    {
-      in       = false;
-      out      = false;
-      any_down = false;
-      any_up   = false;
-      any_up   = false;
-      fill(key_downs, 0ULL);
-      fill(key_ups, 0ULL);
-      fill(key_states, 0ULL);
-      fill(scan_downs, 0ULL);
-      fill(scan_ups, 0ULL);
-      fill(scan_states, 0ULL);
-      modifier_downs  = KeyModifiers::None;
-      modifier_ups    = KeyModifiers::None;
-      modifier_states = KeyModifiers::None;
-    }
-  };
-
-  /// @brief timestamp of current frame
-  time_point timestamp = {};
-
-  /// @brief time elapsed between previous and current frame
-  nanoseconds timedelta = {};
-
-  /// @brief the current theme gotten from the window manager
-  SystemTheme theme = SystemTheme::Unknown;
-
-  /// @brief the preferred text direction of the host system
-  TextDirection direction = TextDirection::LeftToRight;
-
-  /// @brief current window mouse focus state
-  bool mouse_focused = false;
-
   /// @brief current window keyboard focus state
-  bool key_focused = false;
+  bool focused : 1 = false;
 
-  /// @brief windows' current frame mouse state
-  Mouse mouse{};
+  /// @brief did the window gain keyboard focus on this frame?
+  bool in : 1 = false;
 
-  /// @brief windows' current frame keyboard state
-  Keyboard key{};
+  /// @brief did the window lose keyboard focus on this frame?
+  bool out : 1 = false;
 
-  /// @brief extent of the viewport the windows' views are in
-  Vec2U window_extent = {};
+  /// @brief is any of the keys pressed on this frame
+  bool any_down : 1 = false;
 
-  /// @brief then windows' backing surface extent
-  Vec2U surface_extent = {};
-
-  /// @brief current drop data type
-  DropType drop_type = DropType::None;
-
-  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
-  Vec<u8> drop_data{};
+  /// @brief is any of the keys released on this frame
+  bool any_up : 1 = false;
 
   /// @brief if a text input came in
-  bool text_input = false;
-
-  /// @brief the theme changed
-  bool theme_changed = false;
+  bool input : 1 = false;
 
   /// @brief current text input data from the IME or keyboard
   Vec<c8> text{};
 
-  /// @brief is the application requested to close
-  bool close_requested = false;
+  /// @brief bit mask of all the keys that were pressed on this frame
+  BitArray<u64, NUM_KEY_CODES> key_downs{};
 
-  /// @brief is the application closing
-  bool closing = false;
+  /// @brief bit mask of all the keys that were released on this frame
+  BitArray<u64, NUM_KEY_CODES> key_ups{};
+
+  /// @brief bit mask of all the key states
+  BitArray<u64, NUM_KEY_CODES> key_states{};
+
+  /// @brief bit mask of all the keys that were pressed on this frame, indexed using the scancode
+  BitArray<u64, NUM_SCAN_CODES> scan_downs{};
+
+  /// @brief bit mask of all the keys that were released on this frame, indexed using the scancode
+  BitArray<u64, NUM_SCAN_CODES> scan_ups{};
+
+  /// @brief bit mask of all the key states, indexed using the scancode
+  BitArray<u64, NUM_SCAN_CODES> scan_states{};
+
+  /// @brief hold state of the key modifiers on this frame
+  KeyModifiers mod_downs = KeyModifiers::None;
+
+  KeyModifiers mod_ups = KeyModifiers::None;
+
+  KeyModifiers mod_states = KeyModifiers::None;
+
+  constexpr bool down(KeyCode k) const
+  {
+    return get_bit(key_downs, (usize) k);
+  }
+
+  constexpr bool up(KeyCode k) const
+  {
+    return get_bit(key_ups, (usize) k);
+  }
+
+  constexpr bool held(KeyCode k) const
+  {
+    return get_bit(key_states, (usize) k);
+  }
+
+  constexpr bool down(ScanCode k) const
+  {
+    return get_bit(scan_downs, (usize) k);
+  }
+
+  constexpr bool up(ScanCode k) const
+  {
+    return get_bit(scan_ups, (usize) k);
+  }
+
+  constexpr bool held(ScanCode k) const
+  {
+    return get_bit(scan_states, (usize) k);
+  }
+
+  constexpr bool down(KeyModifiers mods) const
+  {
+    return has_bits(mod_downs, mods);
+  }
+
+  constexpr bool up(KeyModifiers mods) const
+  {
+    return has_bits(mod_ups, mods);
+  }
+
+  constexpr bool held(KeyModifiers mods) const
+  {
+    return has_bits(mod_states, mods);
+  }
+
+  void clear()
+  {
+    // [ ] focused check
+    focused  = false;
+    in       = false;
+    out      = false;
+    any_down = false;
+    any_up   = false;
+    input    = false;
+    text.clear();
+    key_downs   = {};
+    key_ups     = {};
+    key_states  = {};
+    scan_downs  = {};
+    scan_ups    = {};
+    scan_states = {};
+    mod_downs   = {};
+    mod_ups     = {};
+    mod_states  = {};
+  }
+
+  KeyState & copy(KeyState const & other)
+  {
+    clear();
+    focused  = other.focused;
+    in       = other.in;
+    out      = other.out;
+    any_down = other.any_down;
+    any_up   = other.any_up;
+    input    = other.input;
+    text.extend(other.text).unwrap();
+    key_downs   = other.key_downs;
+    key_ups     = other.key_ups;
+    key_states  = other.key_states;
+    scan_downs  = other.scan_downs;
+    scan_ups    = other.scan_ups;
+    scan_states = other.scan_states;
+    mod_downs   = other.mod_downs;
+    mod_ups     = other.mod_ups;
+    mod_states  = other.mod_states;
+    return *this;
+  }
+};
+
+struct MouseState
+{
+  /// @brief current window mouse focus state
+  bool focused : 1 = false;
+
+  /// @brief did the mouse enter the window on this frame?
+  bool in : 1 = false;
+
+  /// @brief did the mouse leave the window on this frame?
+  bool out : 1 = false;
+
+  /// @brief did the mouse move on this frame?
+  bool moved : 1 = false;
+
+  /// @brief did the mouse wheel get scrolled on this frame?
+  bool scrolled : 1 = false;
+
+  /// @brief is any of the keys pressed on this frame
+  bool any_down : 1 = false;
+
+  /// @brief is any of the keys released on this frame
+  bool any_up : 1 = false;
+
+  /// @brief which mouse buttons were pressed on this frame
+  MouseButtons downs{};
+
+  /// @brief which mouse buttons were released on this frame
+  MouseButtons ups{};
+
+  /// @brief the current state of each mouse button
+  MouseButtons states{};
+
+  /// @brief number of times the mouse was clicked so far
+  Array<u32, NUM_MOUSE_BUTTONS> num_clicks{};
+
+  /// @brief the position of the mouse on this frame
+  Option<Vec2> position = none;
+
+  /// @brief translation of the mouse on this frame
+  Option<Vec2> translation = none;
+
+  /// @brief translation of the mouse wheel on this frame
+  Option<Vec2> wheel_translation = none;
+
+  constexpr bool down(MouseButton btn) const
+  {
+    return has_bits(downs, static_cast<MouseButtons>(1 << (usize) btn));
+  }
+
+  constexpr bool up(MouseButton btn) const
+  {
+    return has_bits(ups, static_cast<MouseButtons>(1 << (usize) btn));
+  }
+
+  constexpr bool held(MouseButton btn) const
+  {
+    return has_bits(states, static_cast<MouseButtons>(1 << (usize) btn));
+  }
+
+  constexpr u32 clicks(MouseButton btn) const
+  {
+    return num_clicks[(usize) btn];
+  }
+};
+
+struct ThemeState
+{
+  /// @brief the theme changed
+  bool changed = false;
+
+  /// @brief the current theme gotten from the window manager
+  SystemTheme theme = SystemTheme::Unknown;
+};
+
+struct WindowState
+{
+  /// @brief extent of the viewport the windows' views are in
+  Vec2U extent = {};
+
+  /// @brief then windows' backing surface extent
+  Vec2U surface_extent = {};
 
   /// @brief did a window resize happen
   bool resized = true;
 
   /// @brief did a window surface resize happen
   bool surface_resized = true;
+};
 
-  bool dropped = false;
+struct InputState
+{
+  struct Focus
+  {
+    CRect area = {};
+    CRect clip = {};
+  };
 
-  bool drop_hovering = false;
+  /// @brief timestamp of current frame
+  time_point timestamp;
 
-  Cursor cursor = Cursor::Default;
+  /// @brief time elapsed between previous and current frame
+  nanoseconds timedelta;
 
-  explicit InputState(AllocatorRef allocator) :
+  WindowState window;
+
+  /// @brief windows' current frame mouse state
+  MouseState mouse;
+
+  /// @brief windows' current frame keyboard state
+  KeyState key;
+
+  /// @brief current drop data type
+  DropType drop_type;
+
+  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
+  Vec<u8> drop_data;
+
+  /// @brief is the application requested to close
+  bool close_requested;
+
+  /// @brief external drop event
+  bool dropped;
+
+  bool drop_hovering;
+
+  /// @brief canvas-space region the system is currently focused on
+  Option<Focus> focused;
+
+  Option<Cursor> cursor;
+
+  void * user_data = nullptr;
+
+  explicit InputState(AllocatorRef allocator, void * user_data) :
+    timestamp{},
+    timedelta{},
+    window{},
+    mouse{},
+    key{.text{allocator}},
+    drop_type{DropType::None},
     drop_data{allocator},
-    text{allocator}
+    close_requested{false},
+    dropped{false},
+    drop_hovering{false},
+    focused{none},
+    cursor{none},
+    user_data{user_data}
   {
   }
 
@@ -1120,15 +1230,11 @@ struct InputState
     timedelta = delta;
   }
 
-  void clear()
+  void advance()
   {
-    mouse.clear();
+    window = {};
+    mouse = {};
     key.clear();
-    text_input    = false;
-    theme_changed = false;
-    text.clear();
-    resized         = false;
-    surface_resized = false;
 
     // if the there was a data drop on the last frame clear the buffer
     if (dropped)
@@ -1137,100 +1243,27 @@ struct InputState
       drop_type = DropType::None;
     }
 
-    dropped       = false;
-    drop_hovering = false;
+    dropped = false;
+    focused = none;
+    cursor  = none;
   }
 
-  void clone_to(InputState & dst) const
+  InputState & copy(InputState const & other)
   {
-    dst.clear();
-    dst.timestamp      = timestamp;
-    dst.timedelta      = timedelta;
-    dst.theme          = theme;
-    dst.direction      = direction;
-    dst.mouse_focused  = mouse_focused;
-    dst.key_focused    = key_focused;
-    dst.mouse          = mouse;
-    dst.key            = key;
-    dst.window_extent  = window_extent;
-    dst.surface_extent = surface_extent;
-    dst.drop_type      = drop_type;
-    dst.drop_data.extend(drop_data).unwrap();
-    dst.text_input    = text_input;
-    dst.theme_changed = theme_changed;
-    dst.text.extend(text).unwrap();
-    dst.close_requested = close_requested;
-    dst.closing         = closing;
-    dst.resized         = resized;
-    dst.surface_resized = resized;
-    dst.dropped         = dropped;
-    dst.drop_hovering   = drop_hovering;
-    dst.cursor          = cursor;
-  }
-
-  constexpr bool key_down(KeyCode k) const
-  {
-    return get_bit(key.key_downs, (usize) k);
-  }
-
-  constexpr bool key_up(KeyCode k) const
-  {
-    return get_bit(key.key_ups, (usize) k);
-  }
-
-  constexpr bool key_state(KeyCode k) const
-  {
-    return get_bit(key.key_states, (usize) k);
-  }
-
-  constexpr bool key_down(ScanCode k) const
-  {
-    return get_bit(key.scan_downs, (usize) k);
-  }
-
-  constexpr bool key_up(ScanCode k) const
-  {
-    return get_bit(key.scan_ups, (usize) k);
-  }
-
-  constexpr bool key_state(ScanCode k) const
-  {
-    return get_bit(key.scan_states, (usize) k);
-  }
-
-  constexpr bool modifier_down(KeyModifiers mods) const
-  {
-    return has_bits(key.modifier_downs, mods);
-  }
-
-  constexpr bool modifier_up(KeyModifiers mods) const
-  {
-    return has_bits(key.modifier_ups, mods);
-  }
-
-  constexpr bool modifier_state(KeyModifiers mods) const
-  {
-    return has_bits(key.modifier_states, mods);
-  }
-
-  constexpr bool mouse_down(MouseButton btn) const
-  {
-    return has_bits(mouse.downs, MouseButtons{1U << (usize) btn});
-  }
-
-  constexpr bool mouse_up(MouseButton btn) const
-  {
-    return has_bits(mouse.ups, MouseButtons{1U << (usize) btn});
-  }
-
-  constexpr bool mouse_state(MouseButton btn) const
-  {
-    return has_bits(mouse.states, MouseButtons{1U << (usize) btn});
-  }
-
-  constexpr u32 mouse_clicks(MouseButton btn) const
-  {
-    return mouse.num_clicks[(usize) btn];
+    timestamp = other.timestamp;
+    timedelta = other.timedelta;
+    mouse     = other.mouse;
+    key.copy(other.key);
+    drop_type = other.drop_type;
+    drop_data.clear();
+    drop_data.extend(other.drop_data).unwrap();
+    close_requested = other.close_requested;
+    dropped         = other.dropped;
+    drop_hovering   = other.drop_hovering;
+    focused         = other.focused;
+    cursor          = other.cursor;
+    user_data       = other.user_data;
+    return *this;
   }
 };
 

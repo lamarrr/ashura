@@ -123,12 +123,12 @@ struct FontImpl : Font
 
     if (cpu_atlas.is_some())
     {
-      info.cpu_atlas = cpu_atlas.value();
+      info.cpu_atlas = cpu_atlas.v();
     }
 
     if (gpu_atlas.is_some())
     {
-      info.gpu_atlas = gpu_atlas.value();
+      info.gpu_atlas = gpu_atlas.v();
     }
 
     return info;

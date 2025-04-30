@@ -383,7 +383,8 @@ Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
 RectU Canvas::clip_to_scissor(CRect const & clip) const
 {
   // clips are always unscaled
-  Rect scissor_f{.offset = viewport.offset + clip.begin() * virtual_scale,
+  Rect scissor_f{.offset = viewport.offset +
+                           (clip.begin() + 0.5F * extent) * virtual_scale,
                  .extent = clip.extent * virtual_scale};
 
   scissor_f.offset.x = clamp(scissor_f.offset.x, 0.0F, MAX_CLIP.extent.x);
@@ -720,24 +721,23 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
   return *this;
 }
 
-Canvas & Canvas::blur(CRect const & raw_area, Vec2 radius, Vec4 corner_radii)
+Canvas & Canvas::blur(CRect const & clip, Vec2 radius, Vec4 corner_radii)
 {
   u32 const index = blurs.size32();
 
-  auto const area  = raw_area.clamp(extent);
-  f32 const  inv_y = 1 / area.extent.y;
+  // [ ] transform clip
+  // instead of identity in object to world, use transform
 
-  RectU const fb_area = RectU{as_vec2u(area.begin() * virtual_scale),
-                              as_vec2u(area.extent * virtual_scale)}
-                          .clamp(framebuffer_extent);
+  f32 const   inv_y   = 1 / clip.extent.y;
+  RectU const fb_area = clip_to_scissor(clip);
 
   blurs
     .push(Blur{.area         = fb_area,
                .radius       = as_vec2u(radius * virtual_scale),
                .corner_radii = corner_radii * inv_y,
                .transform =
-                 object_to_world(Mat4::identity(), area.center, area.extent),
-               .aspect_ratio = area.extent.x * inv_y})
+                 object_to_world(Mat4::IDENTITY, clip.center, clip.extent),
+               .aspect_ratio = clip.extent.x * inv_y})
     .unwrap();
 
   batches

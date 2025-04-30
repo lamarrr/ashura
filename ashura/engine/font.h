@@ -118,7 +118,7 @@ struct CpuFontAtlas
 struct GpuFontAtlas
 {
   Vec<TextureId>  textures    = {};
-  ImageId         image       = ImageId::Invalid;
+  ImageId         image       = ImageId::None;
   i32             font_height = 0;
   Vec2U           extent      = {};
   Vec<AtlasGlyph> glyphs      = {};
@@ -140,19 +140,19 @@ struct GpuFontAtlas
 /// @param gpu_atlas gpu font atlas if loaded
 struct FontInfo
 {
-  FontId                        id                = FontId::None;
-  Str                           label             = {};
-  bool                          has_color         = false;
-  Str                           postscript_name   = {};
-  Str                           family_name       = {};
-  Str                           style_name        = {};
-  Span<GlyphMetrics const>      glyphs            = {};
-  u32                           replacement_glyph = 0;
-  u32                           space_glyph       = 0;
-  u32                           ellipsis_glyph    = 0;
-  FontMetrics                   metrics           = {};
-  OptionRef<CpuFontAtlas const> cpu_atlas         = none;
-  OptionRef<GpuFontAtlas const> gpu_atlas         = none;
+  FontId                       id                = FontId::None;
+  Str                          label             = {};
+  bool                         has_color         = false;
+  Str                          postscript_name   = {};
+  Str                          family_name       = {};
+  Str                          style_name        = {};
+  Span<GlyphMetrics const>     glyphs            = {};
+  u32                          replacement_glyph = 0;
+  u32                          space_glyph       = 0;
+  u32                          ellipsis_glyph    = 0;
+  FontMetrics                  metrics           = {};
+  Option<CpuFontAtlas const &> cpu_atlas         = none;
+  Option<GpuFontAtlas const &> gpu_atlas         = none;
 };
 
 struct Font

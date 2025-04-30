@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/engine/view.h"
+#include "ashura/std/map.h"
 
 namespace ash
 {
@@ -10,62 +11,63 @@ namespace ui
 
 struct RootView : View
 {
-  static constexpr u32 NODE     = 0;
-  static constexpr u32 PARENT   = 0;
-  static constexpr u32 VIEWPORT = 0;
+  static constexpr u16 NODE     = 0;
+  static constexpr u16 PARENT   = 0;
+  static constexpr u16 VIEWPORT = 0;
 
-  View * next = nullptr;
+  Option<View &> next_ = none;
 
-  constexpr virtual State tick(Ctx const &, Event const &,
-                               Fn<void(View &)> build)
+  constexpr RootView(Option<View &> next) : next_{next}
   {
-    build(*next);
-    return State{.viewport = true};
   }
 
-  constexpr virtual void size(Vec2 allocated, Span<Vec2> sizes)
+  constexpr virtual State tick(Ctx const &, Events const &,
+                               Fn<void(View &)> build) override
+  {
+    next_.match(build);
+    return State{.focusable = true, .viewport = true};
+  }
+
+  constexpr virtual void size(Vec2 allocated, Span<Vec2> sizes) override
   {
     fill(sizes, allocated);
   }
 
   constexpr virtual Layout fit(Vec2       allocated, Span<Vec2 const>,
-                               Span<Vec2> centers)
+                               Span<Vec2> centers) override
   {
     fill(centers, Vec2{0, 0});
     return Layout{.extent          = allocated,
                   .viewport_extent = allocated,
                   .viewport_center = Vec2::splat(0),
-                  .viewport_zoom   = 1,
+                  .viewport_zoom   = Vec2::splat(1),
                   .fixed_center    = Vec2::splat(0)};
   }
 
-  constexpr virtual i32 stack(i32)
-  {
-    return 0;
-  }
-
-  constexpr virtual i32 z_index(i32, Span<i32> indices)
+  constexpr virtual i32 layer(i32, Span<i32> indices) override
   {
     fill(indices, 0);
     return 0;
   }
 
-  constexpr virtual void render(Canvas &, CRect const &, f32, CRect const &)
+  constexpr virtual i32 z_index(i32, Span<i32> indices) override
+  {
+    fill(indices, 0);
+    return 0;
+  }
+
+  constexpr virtual void render(Canvas &, CRect const &, Vec2,
+                                CRect const &) override
   {
   }
 
-  constexpr virtual bool hit(Vec2, Vec2)
-  {
-    return false;
-  }
-
-  constexpr virtual Cursor cursor(Vec2, Vec2)
+  constexpr virtual Cursor cursor(Vec2, Vec2) override
   {
     return Cursor::Default;
   }
 };
 
-enum class FocusAction : u32
+enum class FocusAction : u8
 {
   /// @brief stay on the current focus
   None = 0,
@@ -77,50 +79,63 @@ enum class FocusAction : u32
   Backward = 2
 };
 
-struct DragState
-{
-  enum Seq
-  {
-    Start  = 1,
-    Update = 2
-  };
-
-  Seq         seq = Start;
-u32     src = 0;
- Option<u32>     tgt = none;
-  MouseButton btn = MouseButton::Primary;
-};
-
-struct PointState
-{
-  Option<u32> tgt = none;
-};
-
-using HitState = Enum<None, DragState, PointState>;
-
-struct FocusState
-{
-  /// @brief if focusing is active
-  bool active = false;
-
-  /// @brief focus tree index
-  u32 focus_idx = 0;
-};
-
 // [ ] are the passed ctx/events in sync with the state?
 
 /// @brief A compact View Hierarchy
 struct System
 {
-  struct NodeVertex
+  struct DragState
   {
-    u32 enter = 0;
-    u32 exit  = 0;
-
-    constexpr bool is_ancestor(NodeVertex const & b) const
+    enum Seq : u8
     {
-      return enter <= b.enter && exit >= b.exit;
-    }
+      Start  = 0,
+      Update = 1
+    };
+
+    Seq         seq = Start;
+    Option<u16> src = none;
+    Option<u16> tgt = none;
+  };
+
+  struct PointState
+  {
+    Option<u16> tgt = none;
+  };
+
+  using HitState = Enum<None, DragState, PointState>;
+
+  struct FocusState
+  {
+    /// @brief if focusing is active
+    bool active = false;
+
+    u16 tgt = 0;
+  };
+
+  struct XFrameDragState
+  {
+    using Seq = DragState::Seq;
+    using Seq::Start;
+    using Seq::Update;
+
+    Seq            seq = Start;
+    Option<ViewId> src = none;
+    Option<ViewId> tgt = none;
+  };
+
+  struct XFramePointState
+  {
+    Option<ViewId> tgt = none;
+  };
+
+  using XFrameHitState = Enum<None, XFrameDragState, XFramePointState>;
+
+  struct XFrameFocusState
+  {
+    /// @brief if focusing is active
+    bool active = false;
+
+    ViewId tgt = ViewId::None;
   };
 
   /// @brief flattened hierarchical tree node, all siblings are
@@ -131,9 +146,9 @@ struct System
   /// node at depth 0: the root node.
   struct Nodes
   {
-    Vec<u32>     depth;
-    Vec<u32>     parent;
-    Vec<Slice32> children;
+    Vec<u16>     depth;
+    Vec<u16>     parent;
+    Vec<Slice16> children;
 
     Nodes(AllocatorRef allocator) :
       depth{allocator},
@@ -147,7 +162,7 @@ struct System
   struct Attrs
   {
     Vec<i32>                   tab_idx;
-    Vec<u32>                   viewports;
+    Vec<u16>                   viewports;
     BitVec<u64>                hidden;
     BitVec<u64>                pointable;
     BitVec<u64>                clickable;
@@ -174,42 +189,24 @@ struct System
     }
   };
 
-  struct PointerEvent
+  struct Event
   {
-    enum Type
-    {
-      None        = 0,
-      PointerIn   = 1,
-      PointerOut  = 2,
-      PointerDown = 3,
-      PointerUp   = 4,
-      PointerOver = 5,
-      Scroll      = 6,
-      DragStart   = 7,
-      Dragging    = 8,
-      DragEnd     = 9,
-      DragIn      = 10,
-      DragOut     = 11,
-      DragOver    = 12,
-      Drop        = 13
-    };
-
-    Type type = Type::None;
-    u32  dst  = 0;
+    u16                dst    = 0;
+    Events::Type       type   = Events::PointerIn;
+    Option<HitData>    hit    = none;
+    Option<ScrollData> scroll = none;
   };
 
-  struct Events
-  {
-    // mouse position?
-    Option<HitEvent> hit     = none;
-    Option<CRect>    focused = none;
-  };
+  // [ ] ? new input state struct specifically for views? YESS!!! + focus rect + focus_rect_clip + cursor + focus_view id + pointed view id
+  // [ ] focus rect update
+  // [ ] cursor
+  // [ ] remove user_data from inputstate
+  // Option<CRect>    focused = none;
+  //
+
+  /// @brief id to current frame's view tree index map of hot views
 
   RootView root_view;
-
-  HitState hit;
-
-  FocusState focus;
 
   /// @brief current frame id
   u64 frame = 0;
@@ -217,66 +214,73 @@ struct System
   /// @brief next view id
   u64 next_id = 0;
 
-  /// @brief current frame input state
-  InputState input;
+  /// @brief Input state for views
+  Ctx ctx;
 
   /// Tree Nodes
 
-  Vec<ref<View>> views;
-  Nodes          nodes;
+  Vec<ref<View>>      views;
+  Nodes               nodes;
+  BitMap<ViewId, u16> ids;
 
   Attrs att;
 
   /// Computed data
 
-  Vec<Vec2>   extents;
-  Vec<Vec2>   centers;
-  Vec<Vec2>   viewport_extents;
-  Vec<Vec2>   viewport_centers;
-  Vec<f32>    viewport_zooms;
-  BitVec<u64> fixed;
-  Vec<Vec2>   fixed_centers;
-  Vec<i32>    z_idx;
-  Vec<i32>    layers;
+  Vec<Vec2> extents;
+  Vec<Vec2> centers;
+  Vec<Vec2> viewport_extents;
+  Vec<Vec2> viewport_centers;
+  Vec<Vec2> viewport_zooms;
 
+  /// @brief if the view is at a fixed location in the viewport
+  BitVec<u64> fixed;
+
+  /// @brief the viewport location of the views
+  Vec<Vec2> fixed_centers;
+
+  Vec<i32> z_idx;
+  Vec<i32> layers;
+
+  /// @brief transforms from viewport-space to the canvas-space
   Vec<Affine3> canvas_tx;
+
+  /// @brief transforms from canvas-space to viewport-space
   Vec<Affine3> canvas_inv_tx;
   Vec<Vec2>    canvas_centers;
   Vec<Vec2>    canvas_extents;
   Vec<CRect>   clips;
-  Vec<u32>     z_ord;
-  Vec<u32>     focus_ord;
-  Vec<u32>     focus_idx;
+  Vec<u16>     z_ord;
+
+  // focus-ordering (sorting of the views by focus-index)
+  Vec<u16> focus_ord;
+
+  // maps the view to its focus index
+  Vec<u16> focus_idx;
 
   /// Frame Computed Info
   bool        closing_deferred;
-  Option<u32> focus_grab;
+  Option<u16> focus_grab_tgt;
   Cursor      cursor;
 
-  struct Active
-  {
-    u32    focused        = 0;
-    ViewId focused_id     = ViewId::None;
-    u32    pointed        = 0;
-    ViewId pointed_id     = ViewId::None;
-    u32    pointer_out    = 0;
-    ViewId pointer_out_id = ViewId::None;
-    u32    pointer_in     = 0;
-    ViewId pointer_in_id  = ViewId::None;
-  } actives;
+  XFrameHitState   xframe_hit_state;
+  XFrameFocusState xframe_focus_state;
 
-  // [ ] clear at frame start
-  Vec<PointerEvent> pointer_events;
+  HitState   hit_state;
+  FocusState focus_state;
+
+  Vec<Event> events;
+
+  BitMap<ViewId, Events> event_queue;
 
   explicit System(AllocatorRef allocator) :
-    root_view{},
-    hit{none},
-    focus{},
+    root_view{none},
     frame{0},
     next_id{0},
-    input{allocator},
+    ctx{allocator, nullptr},
     views{allocator},
     nodes{allocator},
+    ids{allocator},
     att{allocator},
     extents{allocator},
     centers{allocator},
@@ -291,9 +295,16 @@ struct System
     canvas_inv_tx{allocator},
     z_ord{allocator},
     focus_ord{allocator},
+    focus_idx{allocator},
     closing_deferred{false},
-    focus_grab{none},
-    cursor{Cursor::Default}
+    focus_grab_tgt{none},
+    cursor{Cursor::Default},
+    xframe_hit_state{none},
+    xframe_focus_state{},
+    hit_state{none},
+    focus_state{},
+    events{allocator},
+    event_queue{allocator}
   {
   }
 
@@ -305,16 +316,16 @@ struct System
 
   void clear_frame();
 
-  void push_view(View & view, u32 depth, u32 breadth, u32 parent);
+  void push_view(View & view, u16 depth, u16 breadth, u16 parent);
 
-  Event events_for(View & view);
+  Events drain_events(View & view, u16 idx);
 
-  void build_children(Ctx const & ctx, View & view, u32 idx, u32 depth,
-                      u32 viewport, i32 & tab_index);
+  void build_children(Ctx const & ctx, View & view, u16 idx, u16 depth,
+                      u16 viewport, i32 & tab_index);
 
   void build(Ctx const & ctx, RootView & root);
 
-  void prepare_for(u32 n);
+  void prepare_for(u16 n);
 
   void focus_order();
 
@@ -326,12 +337,14 @@ struct System
 
   void render(Canvas & canvas);
 
-  void focus_scroll(u32 view);
+  void focus_on(u16 view, bool active, bool grab_focus);
 
-  Option<u32> hit_test(Vec2 position) const;
+  Option<u16> hit_test(Vec2 position) const;
+
+  HitData get_hit_data(u16 view, Vec2 position) const;
 
   template <typename Match>
-  Option<u32> bubble(u32 from, Match && match) const
+  Option<u16> bubble(u16 from, Match && match) const
   {
     auto current = from;
 
@@ -362,32 +375,36 @@ struct System
   }
 
   template <typename Match>
-  Option<u32> bubble_hit(Vec2 position, Match && match) const
+  Option<u16> bubble_hit(Vec2 position, Match && match) const
   {
     return hit_test(position).match([&](auto i) { return bubble(i, match); });
   }
 
-  u32 navigate_focus(u32 from, bool forward) const;
+  u16 navigate_focus(u16 from, bool forward) const;
 
   HitState none_seq(Ctx const & ctx);
 
-  HitState drag_start_seq(Ctx const & ctx, MouseButton btn, u32 src);
+  HitState drag_start_seq(Ctx const & ctx, Option<u16> src);
 
-  HitState drag_update_seq(Ctx const & ctx, MouseButton btn, u32 src,
-                           Option<u32> tgt);
+  HitState drag_update_seq(Ctx const & ctx, Option<u16> src, Option<u16> tgt);
 
-  HitState point_seq(Ctx const & ctx, Option<u32> tgt);
+  HitState point_seq(Ctx const & ctx, Option<u16> tgt);
 
-  HitState hit_seq(Ctx const & ctx);
+  void hit_seq(Ctx const & ctx);
 
-  void event_dispatch(InputState const & input);
+  void focus_seq(Ctx const & ctx);
+
+  void compose_event(ViewId id, Events::Type event, Option<HitData> hit,
+                     Option<ScrollData> scroll);
+
+  void event_dispatch();
 
   Option<TextInputInfo> text_input() const;
 
-  // [ ] make positions relative to center of the screen
+  // [ ] make positions relative to center of the screen; especially in the inputstate goptten from the view
   bool tick(InputState const & input, View & root, Canvas & canvas,
             Fn<void(Ctx const &)> loop);
-}
+};
 
 }    // namespace ui
 }    // namespace ash

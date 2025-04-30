@@ -22,9 +22,9 @@ Space & Space::frame(Vec2 extent, bool constrain)
   return *this;
 }
 
-ViewLayout Space::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Space::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
-  return ViewLayout{.extent = style.frame(allocated)};
+  return Layout{.extent = style.frame(allocated)};
 }
 
 Flex::Flex(AllocatorRef allocator) : items_{allocator}
@@ -90,15 +90,14 @@ Flex & Flex::items(Span<ref<View> const> list)
   return *this;
 }
 
-ViewState Flex::tick(ViewContext const &, CRect const &, f32,
-                     ViewEvents const &, Fn<void(View &)> build)
+ui::State Flex::tick(Ctx const &, Events const &, Fn<void(View &)> build)
 {
   for (ref item : items_)
   {
     build(item);
   }
 
-  return ViewState{};
+  return ui::State{};
 }
 
 void Flex::size(Vec2 allocated, Span<Vec2> sizes)
@@ -107,7 +106,7 @@ void Flex::size(Vec2 allocated, Span<Vec2> sizes)
   fill(sizes, style.item_frame(frame));
 }
 
-ViewLayout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
   auto const n            = sizes.size();
   Vec2 const frame        = style.frame(allocated);
@@ -284,15 +283,14 @@ i32 Stack::stack_item(i32 base, u32 i, u32 num)
   }
 }
 
-ViewState Stack::tick(ViewContext const &, CRect const &, f32,
-                      ViewEvents const &, Fn<void(View &)> build)
+ui::State Stack::tick(Ctx const &, Events const &, Fn<void(View &)> build)
 {
   for (ref item : items_)
   {
     build(item);
   }
 
-  return ViewState{};
+  return ui::State{};
 }
 
 void Stack::size(Vec2 allocated, Span<Vec2> sizes)
@@ -300,7 +298,7 @@ void Stack::size(Vec2 allocated, Span<Vec2> sizes)
   fill(sizes, style.frame(allocated));
 }
 
-ViewLayout Stack::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout Stack::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
   Vec2 span;
 
@@ -329,12 +327,12 @@ i32 Stack::z_index(i32 allocated, Span<i32> indices)
   return allocated;
 }
 
-TextCommand text_command(ViewContext const & ctx, ViewEvents const & events,
-                         bool multiline, bool enter_submits, bool tab_input)
+TextCommand text_command(Ctx const & ctx, Events const & events, bool multiline,
+                         bool enter_submits, bool tab_input)
 {
-  if (events.focus_out)
+  if (events.focus_out())
   {
-    return TextCommand::Unselect;
+    return TextCommand::Escape;
   }
 
   if (events.text_input)
@@ -342,164 +340,166 @@ TextCommand text_command(ViewContext const & ctx, ViewEvents const & events,
     return TextCommand::InputText;
   }
 
-  auto const shift = ctx.modifier_state(KeyModifiers::LeftShift) ||
-                     ctx.modifier_state(KeyModifiers::RightShift);
-  auto const ctrl = ctx.modifier_state(KeyModifiers::LeftCtrl) ||
-                    ctx.modifier_state(KeyModifiers::RightCtrl);
+  auto const shift = ctx.key.held(KeyModifiers::LeftShift) ||
+                     ctx.key.held(KeyModifiers::RightShift);
+  auto const ctrl = ctx.key.held(KeyModifiers::LeftCtrl) ||
+                    ctx.key.held(KeyModifiers::RightCtrl);
 
   if (events.key_down)
   {
-    if (shift && ctx.key_down(KeyCode::Left))
+    if (shift && ctx.key.down(KeyCode::Left))
     {
       return TextCommand::SelectLeft;
     }
 
-    if (shift && ctx.key_down(KeyCode::Right))
+    if (shift && ctx.key.down(KeyCode::Right))
     {
       return TextCommand::SelectRight;
     }
 
-    if (shift && ctx.key_down(KeyCode::Up))
+    if (shift && ctx.key.down(KeyCode::Up))
     {
       return TextCommand::SelectUp;
     }
 
-    if (shift && ctx.key_down(KeyCode::Down))
+    if (shift && ctx.key.down(KeyCode::Down))
     {
       return TextCommand::SelectDown;
     }
 
-    if (shift && ctx.key_down(KeyCode::PageUp))
+    if (shift && ctx.key.down(KeyCode::PageUp))
     {
       return TextCommand::SelectPageUp;
     }
 
-    if (shift && ctx.key_down(KeyCode::PageDown))
+    if (shift && ctx.key.down(KeyCode::PageDown))
     {
       return TextCommand::SelectPageDown;
     }
 
-    if (ctrl && ctx.key_down(KeyCode::A))
+    if (ctrl && ctx.key.down(KeyCode::A))
     {
       return TextCommand::SelectAll;
     }
 
-    if (ctrl && ctx.key_down(KeyCode::X))
+    if (ctrl && ctx.key.down(KeyCode::X))
     {
       return TextCommand::Cut;
     }
 
-    if (ctrl && ctx.key_down(KeyCode::C))
+    if (ctrl && ctx.key.down(KeyCode::C))
     {
       return TextCommand::Copy;
     }
 
-    if (ctrl && ctx.key_down(KeyCode::V))
+    if (ctrl && ctx.key.down(KeyCode::V))
     {
       return TextCommand::Paste;
     }
 
-    if (ctrl && ctx.key_down(KeyCode::Z))
+    if (ctrl && ctx.key.down(KeyCode::Z))
     {
       return TextCommand::Undo;
     }
 
-    if (ctrl && ctx.key_down(KeyCode::Y))
+    if (ctrl && ctx.key.down(KeyCode::Y))
     {
       return TextCommand::Redo;
     }
 
-    if (multiline && !enter_submits && ctx.key_down(KeyCode::Return))
+    if (multiline && !enter_submits && ctx.key.down(KeyCode::Return))
     {
       return TextCommand::NewLine;
     }
 
-    if (tab_input && ctx.key_down(KeyCode::Tab))
+    if (tab_input && ctx.key.down(KeyCode::Tab))
     {
       return TextCommand::Tab;
     }
 
-    if (ctx.key_down(KeyCode::Escape))
+    if (ctx.key.down(KeyCode::Escape))
     {
       return TextCommand::Unselect;
     }
 
-    if (ctx.key_down(KeyCode::Backspace))
+    if (ctx.key.down(KeyCode::Backspace))
     {
       return TextCommand::BackSpace;
     }
 
-    if (ctx.key_down(KeyCode::Delete))
+    if (ctx.key.down(KeyCode::Delete))
     {
       return TextCommand::Delete;
     }
 
-    if (ctx.key_down(KeyCode::Left))
+    if (ctx.key.down(KeyCode::Left))
     {
       return TextCommand::Left;
     }
 
-    if (ctx.key_down(KeyCode::Right))
+    if (ctx.key.down(KeyCode::Right))
     {
       return TextCommand::Right;
     }
 
-    if (ctx.key_down(KeyCode::Home))
+    if (ctx.key.down(KeyCode::Home))
     {
       return TextCommand::LineStart;
     }
 
-    if (ctx.key_down(KeyCode::End))
+    if (ctx.key.down(KeyCode::End))
     {
       return TextCommand::LineEnd;
     }
 
-    if (ctx.key_down(KeyCode::Up))
+    if (ctx.key.down(KeyCode::Up))
     {
       return TextCommand::Up;
     }
 
-    if (ctx.key_down(KeyCode::Down))
+    if (ctx.key.down(KeyCode::Down))
     {
       return TextCommand::Down;
     }
 
-    if (ctx.key_down(KeyCode::PageUp))
+    if (ctx.key.down(KeyCode::PageUp))
     {
       return TextCommand::PageUp;
     }
 
-    if (ctx.key_down(KeyCode::PageDown))
+    if (ctx.key.down(KeyCode::PageDown))
     {
       return TextCommand::PageDown;
     }
 
-    if (ctx.key_down(KeyCode::Return) && enter_submits)
+    if (ctx.key.down(KeyCode::Return) && enter_submits)
     {
       return TextCommand::Submit;
     }
   }
 
-  if (events.drag_start)
+  if (events.drag_start())
   {
     return TextCommand::Hit;
   }
-  else if (events.dragging)
+  else if (events.drag_update())
   {
-    if (ctx.mouse_down(MouseButton::Primary) &&
-        ctx.mouse_clicks(MouseButton::Primary) == 2)
+    if (ctx.mouse.down(MouseButton::Primary) &&
+        ctx.mouse.clicks(MouseButton::Primary) == 2)
     {
       return TextCommand::SelectWord;
     }
 
-    if (ctx.mouse_down(MouseButton::Primary) &&
-        ctx.mouse_clicks(MouseButton::Primary) == 3)
+    if (ctx.mouse.down(MouseButton::Primary) &&
+        ctx.mouse.clicks(MouseButton::Primary) == 3)
     {
       return TextCommand::SelectLine;
     }
 
     return TextCommand::HitSelect;
   }
+
+  // [ ] unselect
 
   return TextCommand::None;
 }
@@ -551,20 +551,19 @@ Text & Text::text(Str8 t)
   return *this;
 }
 
-Str32 Text::text()
+Str32 Text::text() const
 {
   return text_.get_text();
 }
 
-ViewState Text::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
-                     ViewEvents const & events, Fn<void(View &)>)
+ui::State Text::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
   TextCommand cmd = TextCommand::None;
-  if (events.drag_start)
+  if (events.drag_start())
   {
     cmd = TextCommand::Hit;
   }
-  else if (events.dragging)    // [ ] can we delay this?
+  else if (events.drag_update())    // [ ] can we delay this?
   {
     cmd = TextCommand::HitSelect;
   }
@@ -575,28 +574,32 @@ ViewState Text::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
   }
   // [ ] dbl, triple click
 
-  auto [modified, cursor] =
+  bool modified =
     compositor_.command(text_, cmd, {}, engine->clipboard, 1, 1, region,
                         ctx.mouse.position, zoom, default_allocator);
   CHECK(!modified, "");
-  text_.highlight(TextHighlight{.slice = cursor, .style = style.highlight});
 
-  return ViewState{.draggable = state.copyable};
+  text_.caret(none)
+    .highlight(compositor_.cursor().selection())
+    .caret_style(none)
+    .highlight_style(style.highlight);
+
+  return ui::State{.draggable = state.copyable};
 }
 
-ViewLayout Text::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Text::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
-  text_.perform_layout(allocated.x);
+  text_.layout(allocated.x);
   return {.extent = text_.layout_.extent};
 }
 
-void Text::render(Canvas & canvas, CRect const & region, f32 zoom,
-                  Rect const & clip)
+void Text::render(Canvas & canvas, CRect const & region, Vec2 zoom,
+                  CRect const & clip)
 {
-  text_.render(canvas, region, clip.centered(), zoom);
+  text_.render(canvas, region, clip, zoom);
 }
 
-Cursor Text::cursor(CRect const &, f32, Vec2)
+Cursor Text::cursor(Vec2, Vec2)
 {
   return state.copyable ? Cursor::Text : Cursor::Default;
 }
@@ -642,18 +645,6 @@ Input & Input::enter_submits(bool e)
 Input & Input::tab_input(bool e)
 {
   state.tab_input = e;
-  return *this;
-}
-
-Input & Input::highlight(TextHighlight const & highlight)
-{
-  content_.highlight(highlight);
-  return *this;
-}
-
-Input & Input::clear_highlight()
-{
-  content_.clear_highlight();
   return *this;
 }
 
@@ -719,8 +710,7 @@ Input & Input::stub_run(TextStyle const & style, FontStyle const & font,
   return *this;
 }
 
-ViewState Input::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
-                      ViewEvents const & events, Fn<void(View &)>)
+ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
   bool edited = false;
 
@@ -742,17 +732,30 @@ ViewState Input::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
 
   TextCommand cmd = TextCommand::None;
 
+  // [ ] focused | drag_start
   if (state.focus.focused)
   {
+    // [ ] focus and drag start
     cmd = text_command(ctx, events, state.multiline, state.enter_submits,
                        state.tab_input);
   }
 
-  auto [modified, cursor] = compositor_.command(
-    content_, cmd, input_u32, *engine->clipboard, style.lines_per_page, 1,
-    region, ctx.mouse.position, zoom, allocator);
+  bool modified = compositor_.command(
+    content_, cmd, input_u32, *engine->clipboard, style.lines_per_page,
+    style.tab_width, region, ctx.mouse.position, zoom, allocator);
 
-  content_.highlight(TextHighlight{.slice = cursor, .style = style.highlight});
+  auto cursor = compositor_.cursor();
+
+  content_.highlight(cursor.selection()).caret(cursor.caret());
+
+  if (state.focus.focused)
+  {
+    content_.highlight_style(style.highlight).caret_style(style.caret);
+  }
+  else
+  {
+    content_.highlight_style(none).caret_style(none);
+  }
 
   if (modified)
   {
@@ -789,7 +792,7 @@ ViewState Input::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
     cb.edit();
   }
 
-  return ViewState{
+  return ui::State{
     .text =
       TextInputInfo{.multiline = state.multiline, .tab_input = state.tab_input},
     .draggable  = !state.disabled,
@@ -798,18 +801,18 @@ ViewState Input::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
   };
 }
 
-ViewLayout Input::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Input::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
   if (content_.text_.is_empty())
   {
-    stub_.perform_layout(allocated.x);
+    stub_.layout(allocated.x);
     return {.extent = stub_.layout_.extent};
   }
-  content_.perform_layout(allocated.x);
+  content_.layout(allocated.x);
   return {.extent = content_.layout_.extent};
 }
 
-void Input::render(Canvas & canvas, CRect const & region, f32 zoom,
+void Input::render(Canvas & canvas, CRect const & region, Vec2 zoom,
                    CRect const & clip)
 {
   if (content_.text_.is_empty())
@@ -818,17 +821,17 @@ void Input::render(Canvas & canvas, CRect const & region, f32 zoom,
   }
   else
   {
-    content_.render(canvas, region, clip.centered(), zoom);
+    // [ ] need to draw caret even if line is empty; SET placeholder caret to 0
+    content_.render(canvas, region, clip, zoom);
   }
 }
 
-Cursor Input::cursor(CRect const &, f32, Vec2)
+Cursor Input::cursor(Vec2, Vec2)
 {
   return Cursor::Text;
 }
 
-ViewState Button::tick(ViewContext const & ctx, CRect const &, f32,
-                       ViewEvents const &  events, Fn<void(View &)>)
+ui::State Button::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
   state.press.tick(ctx, events);
 
@@ -842,7 +845,7 @@ ViewState Button::tick(ViewContext const & ctx, CRect const &, f32,
     cb.pressed();
   }
 
-  return ViewState{.pointable = !state.disabled,
+  return ui::State{.pointable = !state.disabled,
                    .clickable = !state.disabled,
                    .focusable = !state.disabled};
 }
@@ -856,14 +859,14 @@ void Button::size(Vec2 allocated, Span<Vec2> sizes)
   fill(sizes, size);
 }
 
-ViewLayout Button::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout Button::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
   fill(centers, Vec2{0, 0});
   Vec2 size = sizes.is_empty() ? Vec2{0, 0} : sizes[0];
   return {.extent = size + 2 * style.padding};
 }
 
-void Button::render(Canvas & canvas, CRect const & region, f32, CRect const &)
+void Button::render(Canvas & canvas, CRect const & region, Vec2, CRect const &)
 {
   Vec4U8 tint;
 
@@ -896,8 +899,7 @@ void Button::render(Canvas & canvas, CRect const & region, f32, CRect const &)
                        .corner_radii = style.corner_radii,
                        .stroke       = style.stroke,
                        .thickness    = style.thickness,
-                       .tint         = tint},
-                      style.corner_radii.tl, 256);
+                       .tint         = tint});
       break;
     case ButtonShape::Bevel:
       canvas.brect({.center       = region.center,
@@ -912,7 +914,7 @@ void Button::render(Canvas & canvas, CRect const & region, f32, CRect const &)
   }
 }
 
-Cursor Button::cursor(CRect const &, f32, Vec2)
+Cursor Button::cursor(Vec2, Vec2)
 {
   return state.disabled ? Cursor::Default : Cursor::Pointer;
 }
@@ -979,10 +981,9 @@ TextButton & TextButton::rrect(CornerRadii const & c)
   return *this;
 }
 
-TextButton & TextButton::squircle(f32 elasticity)
+TextButton & TextButton::squircle(f32 degree)
 {
-  style.corner_radii =
-    CornerRadii{elasticity, elasticity, elasticity, elasticity};
+  style.corner_radii = CornerRadii{degree, degree, degree, degree};
   return *this;
 }
 
@@ -1035,11 +1036,10 @@ TextButton & TextButton::on_hovered(Fn<void()> f)
   return *this;
 }
 
-ViewState TextButton::tick(ViewContext const & ctx, CRect const & region,
-                           f32 zoom, ViewEvents const & events,
+ui::State TextButton::tick(Ctx const & ctx, Events const & events,
                            Fn<void(View &)> build)
 {
-  ViewState state = Button::tick(ctx, region, zoom, events, build);
+  ui::State state = Button::tick(ctx, events, build);
   build(text_);
   return state;
 }
@@ -1076,19 +1076,18 @@ Icon & Icon::icon(Str32 text, TextStyle const & style, FontStyle const & font)
   return *this;
 }
 
-ViewState Icon::tick(ViewContext const &, CRect const &, f32,
-                     ViewEvents const &, Fn<void(View &)>)
+ui::State Icon::tick(Ctx const &, Events const &, Fn<void(View &)>)
 {
-  return ViewState{.hidden = state.hidden};
+  return ui::State{.hidden = state.hidden};
 }
 
-ViewLayout Icon::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Icon::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
-  text_.perform_layout(allocated.x);
-  return ViewLayout{.extent = text_.layout().extent};
+  text_.layout(allocated.x);
+  return Layout{.extent = text_.get_layout().extent};
 }
 
-void Icon::render(Canvas & canvas, CRect const & region, f32 zoom,
+void Icon::render(Canvas & canvas, CRect const & region, Vec2 zoom,
                   CRect const & clip)
 {
   text_.render(canvas, region, clip, zoom);
@@ -1159,8 +1158,8 @@ CheckBox & CheckBox::on_changed(Fn<void(bool)> f)
   return *this;
 }
 
-ViewState CheckBox::tick(ViewContext const & ctx, CRect const &, f32,
-                         ViewEvents const & events, Fn<void(View &)> build)
+ui::State CheckBox::tick(Ctx const & ctx, Events const & events,
+                         Fn<void(View &)> build)
 {
   state.press.tick(ctx, events);
 
@@ -1174,7 +1173,7 @@ ViewState CheckBox::tick(ViewContext const & ctx, CRect const &, f32,
 
   build(icon_);
 
-  return ViewState{.pointable = !state.disabled,
+  return ui::State{.pointable = !state.disabled,
                    .clickable = !state.disabled,
                    .focusable = !state.disabled};
 }
@@ -1184,13 +1183,14 @@ void CheckBox::size(Vec2 allocated, Span<Vec2> sizes)
   fill(sizes, allocated - 2 * style.padding);
 }
 
-ViewLayout CheckBox::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout CheckBox::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
   fill(centers, Vec2{});
   return {.extent = style.padding + sizes[0]};
 }
 
-void CheckBox::render(Canvas & canvas, CRect const & region, f32, CRect const &)
+void CheckBox::render(Canvas & canvas, CRect const & region, Vec2,
+                      CRect const &)
 {
   Vec4U8 tint;
   if (state.press.hovered && !state.press.held && !state.disabled)
@@ -1210,7 +1210,7 @@ void CheckBox::render(Canvas & canvas, CRect const & region, f32, CRect const &)
                 .tint         = tint});
 }
 
-Cursor CheckBox::cursor(CRect const &, f32, Vec2)
+Cursor CheckBox::cursor(Vec2, Vec2)
 {
   return state.disabled ? Cursor::Default : Cursor::Pointer;
 }
@@ -1306,8 +1306,7 @@ Slider & Slider::on_changed(Fn<void(f32)> f)
   return *this;
 }
 
-ViewState Slider::tick(ViewContext const & ctx, CRect const & region, f32,
-                       ViewEvents const & events, Fn<void(View &)>)
+ui::State Slider::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
   u32 const main_axis = (style.axis == Axis::X) ? 0 : 1;
 
@@ -1327,29 +1326,29 @@ ViewState Slider::tick(ViewContext const & ctx, CRect const & region, f32,
 
   if (state.drag.focus.focused)
   {
-    if ((style.axis == Axis::X && ctx.key_down(KeyCode::Left)) ||
-        (style.axis == Axis::Y && ctx.key_down(KeyCode::Up)))
+    if ((style.axis == Axis::X && ctx.key.down(KeyCode::Left)) ||
+        (style.axis == Axis::Y && ctx.key.down(KeyCode::Up)))
     {
       state.t = max(state.t - style.delta, 0.0F);
     }
-    else if ((style.axis == Axis::X && ctx.key_down(KeyCode::Right)) ||
-             (style.axis == Axis::Y && ctx.key_down(KeyCode::Down)))
+    else if ((style.axis == Axis::X && ctx.key.down(KeyCode::Right)) ||
+             (style.axis == Axis::Y && ctx.key.down(KeyCode::Down)))
     {
       state.t = min(state.t + style.delta, 1.0F);
     }
   }
 
-  return ViewState{.pointable = !state.disabled,
+  return ui::State{.pointable = !state.disabled,
                    .draggable = !state.disabled,
                    .focusable = !state.disabled};
 }
 
-ViewLayout Slider::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Slider::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
   return {.extent = style.frame(allocated)};
 }
 
-void Slider::render(Canvas & canvas, CRect const & region, f32, CRect const &)
+void Slider::render(Canvas & canvas, CRect const & region, Vec2, CRect const &)
 {
   u32 const main_axis  = (style.axis == Axis::X) ? 0 : 1;
   u32 const cross_axis = (style.axis == Axis::Y) ? 0 : 1;
@@ -1417,11 +1416,11 @@ void Slider::render(Canvas & canvas, CRect const & region, f32, CRect const &)
             .tint         = thumb_color})
     .rrect({.center       = thumb_rect.center,
             .extent       = thumb_rect.extent * dilation,
-            .corner_radii = style.thumb_corner_radii,
+            .corner_radii = style.thumb_corner_radii * dilation,
             .tint         = thumb_color});
 }
 
-Cursor Slider::cursor(CRect const &, f32, Vec2)
+Cursor Slider::cursor(Vec2, Vec2)
 {
   return state.disabled ? Cursor::Default : Cursor::Pointer;
 }
@@ -1507,8 +1506,7 @@ Switch & Switch::frame(Frame f)
   return *this;
 }
 
-ViewState Switch::tick(ViewContext const & ctx, CRect const &, f32,
-                       ViewEvents const &  events, Fn<void(View &)>)
+ui::State Switch::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
   state.press.tick(ctx, events);
 
@@ -1518,17 +1516,17 @@ ViewState Switch::tick(ViewContext const & ctx, CRect const &, f32,
     cb.changed(state.value);
   }
 
-  return ViewState{.pointable = !state.disabled,
+  return ui::State{.pointable = !state.disabled,
                    .clickable = !state.disabled,
                    .focusable = !state.disabled};
 }
 
-ViewLayout Switch::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Switch::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
   return {.extent = style.frame(allocated)};
 }
 
-void Switch::render(Canvas & canvas, CRect const & region, f32, CRect const &)
+void Switch::render(Canvas & canvas, CRect const & region, Vec2, CRect const &)
 {
   Vec2 thumb_extent = region.extent;
   thumb_extent.x *= 0.5F;
@@ -1559,7 +1557,7 @@ void Switch::render(Canvas & canvas, CRect const & region, f32, CRect const &)
             .tint         = thumb_color});
 }
 
-Cursor Switch::cursor(CRect const &, f32, Vec2)
+Cursor Switch::cursor(Vec2, Vec2)
 {
   return state.disabled ? Cursor::Default : Cursor::Pointer;
 }
@@ -1618,8 +1616,7 @@ Radio & Radio::on_changed(Fn<void(bool)> f)
   return *this;
 }
 
-ViewState Radio::tick(ViewContext const & ctx, CRect const &, f32,
-                      ViewEvents const &  events, Fn<void(View &)>)
+ui::State Radio::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
   state.press.tick(ctx, events);
 
@@ -1629,17 +1626,17 @@ ViewState Radio::tick(ViewContext const & ctx, CRect const &, f32,
     cb.changed(state.value);
   }
 
-  return ViewState{.pointable = !state.disabled,
+  return ui::State{.pointable = !state.disabled,
                    .clickable = !state.disabled,
                    .focusable = !state.disabled};
 }
 
-ViewLayout Radio::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Radio::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
   return {.extent = style.frame(allocated)};
 }
 
-void Radio::render(Canvas & canvas, CRect const & region, f32, CRect const &)
+void Radio::render(Canvas & canvas, CRect const & region, Vec2, CRect const &)
 {
   canvas.rrect({.center       = region.center,
                 .extent       = region.extent,
@@ -1659,7 +1656,7 @@ void Radio::render(Canvas & canvas, CRect const & region, f32, CRect const &)
   }
 }
 
-Cursor Radio::cursor(CRect const &, f32, Vec2)
+Cursor Radio::cursor(Vec2, Vec2)
 {
   return Cursor::Pointer;
 }
@@ -1695,14 +1692,13 @@ void ScalarDragBox::scalar_parse(Str32 text, ScalarInfo const & spec,
     });
 }
 
-ViewState ScalarDragBox::tick(ViewContext const & ctx, CRect const & region,
-                              f32, ViewEvents const &                events,
-                              Fn<void(View &)> build)
+ui::State ScalarDragBox::tick(Ctx const & ctx,  
+                              Events const & events, Fn<void(View &)> build)
 {
-  state.dragging = events.dragging;
+  state.dragging = events.drag_update();
 
   if (events.drag_start &&
-      (ctx.key_down(KeyCode::LeftCtrl) || ctx.key_down(KeyCode::RightCtrl)))
+      (ctx.key.down(KeyCode::LeftCtrl) || ctx.key.down(KeyCode::RightCtrl)))
   {
     state.input_mode = !state.input_mode;
   }
@@ -1715,16 +1711,17 @@ ViewState ScalarDragBox::tick(ViewContext const & ctx, CRect const & region,
     state.scalar =
       state.spec.match([t](F32Info & v) -> Scalar { return v.interp(t); },
                        [t](I32Info & v) -> Scalar { return v.interp(t); });
-    state.hash = 0;
+    // [ ] not being re-rnedered or used
+    //   state.hash = 0;
   }
 
   if (input_.state.editing)
   {
     scalar_parse(input_.content_.get_text(), state.spec, state.scalar);
-    state.hash = 0;
+    state.hash = State::HASH_DIRTY;
   }
 
-  if (state.hash == 0)
+  if (state.hash == State::HASH_DIRTY)
   {
     u8                buffer[1'024];
     FallbackAllocator allocator{Arena::from(buffer), default_allocator};
@@ -1732,7 +1729,7 @@ ViewState ScalarDragBox::tick(ViewContext const & ctx, CRect const & region,
       .match([&](auto & text) { input_.content_.text(text.view().as_c8()); },
              [&](auto &) { input_.content_.text(U"[Truncated]"); });
 
-    state.hash = -1;
+    state.hash = State::HASH_CLEAN;
   }
 
   input_.state.disabled = !state.input_mode;
@@ -1746,7 +1743,7 @@ ViewState ScalarDragBox::tick(ViewContext const & ctx, CRect const & region,
 
   build(input_);
 
-  return ViewState{.pointable = !state.disabled,
+  return ui::State{.pointable = !state.disabled,
                    .draggable = !state.disabled,
                    .focusable = !state.disabled};
 }
@@ -1759,8 +1756,8 @@ void ScalarDragBox::size(Vec2 allocated, Span<Vec2> sizes)
   fill(sizes, child);
 }
 
-ViewLayout ScalarDragBox::fit(Vec2 allocated, Span<Vec2 const> sizes,
-                              Span<Vec2> centers)
+Layout ScalarDragBox::fit(Vec2 allocated, Span<Vec2 const> sizes,
+                          Span<Vec2> centers)
 {
   Vec2 frame         = style.frame(allocated);
   Vec2 padded_extent = sizes[0] + 2 * style.padding;
@@ -1951,17 +1948,17 @@ ScalarBox & ScalarBox::drag_text_style(TextStyle const & style,
   return *this;
 }
 
-ViewState ScalarBox::tick(ViewContext const &, CRect const &, f32,
-                          ViewEvents const &, Fn<void(View &)> build)
+ui::State ScalarBox::tick(Ctx const &, CRect const &, f32, Events const &,
+                          Fn<void(View &)> build)
 {
   build(dec_);
   build(drag_);
   build(inc_);
-  return ViewState{};
+  return ui::State{};
 }
 
-ViewState ScrollBar::tick(ViewContext const & ctx, CRect const & region, f32,
-                          ViewEvents const & events, Fn<void(View &)>)
+ui::State ScrollBar::tick(Ctx const & ctx, CRect const & region, f32,
+                          Events const & events, Fn<void(View &)>)
 {
   u32 const main_axis = (style.axis == Axis::X) ? 0 : 1;
 
@@ -1978,25 +1975,25 @@ ViewState ScrollBar::tick(ViewContext const & ctx, CRect const & region, f32,
 
   if (state.drag.focus.focused)
   {
-    if ((style.axis == Axis::X && ctx.key_down(KeyCode::Left)) ||
-        (style.axis == Axis::Y && ctx.key_down(KeyCode::Up)))
+    if ((style.axis == Axis::X && ctx.key.down(KeyCode::Left)) ||
+        (style.axis == Axis::Y && ctx.key.down(KeyCode::Up)))
     {
       state.t = max(state.t - style.delta, 0.0F);
     }
-    else if ((style.axis == Axis::X && ctx.key_down(KeyCode::Right)) ||
-             (style.axis == Axis::Y && ctx.key_down(KeyCode::Down)))
+    else if ((style.axis == Axis::X && ctx.key.down(KeyCode::Right)) ||
+             (style.axis == Axis::Y && ctx.key.down(KeyCode::Down)))
     {
       state.t = min(state.t + style.delta, 1.0F);
     }
   }
 
-  return ViewState{.hidden    = state.hidden,
+  return ui::State{.hidden    = state.hidden,
                    .pointable = !state.disabled,
                    .draggable = !state.disabled,
                    .focusable = !state.disabled};
 }
 
-ViewLayout ScrollBar::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout ScrollBar::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
   return {.extent = allocated};
 }
@@ -2008,7 +2005,8 @@ i32 ScrollBar::stack(i32 allocated)
   return allocated + 1;
 }
 
-void ScrollBar::render(Canvas & canvas, CRect const & region, f32, CRect const &)
+void ScrollBar::render(Canvas & canvas, CRect const & region, f32,
+                       CRect const &)
 {
   u32 const main_axis  = (style.axis == Axis::X) ? 0 : 1;
   u32 const cross_axis = (style.axis == Axis::X) ? 1 : 0;
@@ -2158,8 +2156,8 @@ ScrollView & ScrollView::bar_size(f32 x, f32 y)
   return *this;
 }
 
-ViewState ScrollView::tick(ViewContext const & ctx, CRect const & region, f32,
-                           ViewEvents const & events, Fn<void(View &)> build)
+ui::State ScrollView::tick(Ctx const & ctx, CRect const & region, f32,
+                           Events const & events, Fn<void(View &)> build)
 {
   if (events.mouse_scroll)
   {
@@ -2180,7 +2178,7 @@ ViewState ScrollView::tick(ViewContext const & ctx, CRect const & region, f32,
   build(x_bar_);
   build(y_bar_);
 
-  return ViewState{.viewport = true};
+  return ui::State{.viewport = true};
 }
 
 void ScrollView::size(Vec2 allocated, Span<Vec2> sizes)
@@ -2198,8 +2196,8 @@ void ScrollView::size(Vec2 allocated, Span<Vec2> sizes)
   sizes[2] = {style.y_bar_size, frame.y};
 }
 
-ViewLayout ScrollView::fit(Vec2 allocated, Span<Vec2 const> sizes,
-                           Span<Vec2> centers)
+Layout ScrollView::fit(Vec2 allocated, Span<Vec2 const> sizes,
+                       Span<Vec2> centers)
 {
   Vec2 const frame = style.frame(allocated);
 
@@ -2216,10 +2214,10 @@ ViewLayout ScrollView::fit(Vec2 allocated, Span<Vec2 const> sizes,
                              {x_bar_.state.t, y_bar_.state.t}, state.zoom)};
 }
 
-ViewState ComboItem::tick(ViewContext const &, CRect const &, f32,
-                          ViewEvents const &, Fn<void(View &)>)
+ui::State ComboItem::tick(Ctx const &, CRect const &, f32, Events const &,
+                          Fn<void(View &)>)
 {
-  return ViewState{.pointable = !state.disabled,
+  return ui::State{.pointable = !state.disabled,
                    .clickable = !state.disabled,
                    .focusable = !state.disabled};
 }
@@ -2228,9 +2226,9 @@ void ComboItem::size(Vec2, Span<Vec2>)
 {
 }
 
-ViewLayout ComboItem::fit(Vec2, Span<Vec2 const>, Span<Vec2>)
+Layout ComboItem::fit(Vec2, Span<Vec2 const>, Span<Vec2>)
 {
-  return ViewLayout{};
+  return Layout{};
 }
 
 void ComboItem::render(Canvas &, CRect const &, f32, CRect const &)
@@ -2316,8 +2314,8 @@ TextComboItem & TextComboItem::corner_radii(CornerRadii radii)
   return *this;
 }
 
-ViewState TextComboItem::tick(ViewContext const & ctx, CRect const &, f32,
-                              ViewEvents const & events, Fn<void(View &)> build)
+ui::State TextComboItem::tick(Ctx const &    ctx, CRect const &, f32,
+                              Events const & events, Fn<void(View &)> build)
 {
   state.press.tick(ctx, events);
 
@@ -2328,7 +2326,7 @@ ViewState TextComboItem::tick(ViewContext const & ctx, CRect const &, f32,
 
   build(text_);
 
-  return ViewState{.pointable = !ComboItem::state.disabled,
+  return ui::State{.pointable = !ComboItem::state.disabled,
                    .clickable = !ComboItem::state.disabled,
                    .focusable = !ComboItem::state.disabled};
 }
@@ -2341,8 +2339,8 @@ void TextComboItem::size(Vec2 allocated, Span<Vec2> sizes)
   sizes[0]        = child_size;
 }
 
-ViewLayout TextComboItem::fit(Vec2 allocated, Span<Vec2 const> sizes,
-                              Span<Vec2> centers)
+Layout TextComboItem::fit(Vec2 allocated, Span<Vec2 const> sizes,
+                          Span<Vec2> centers)
 {
   Vec2 frame = style.frame(allocated);
   frame.x    = max(frame.x, sizes[0].x + 2 * style.padding.x);
@@ -2507,7 +2505,7 @@ Combo & Combo::select(Option<u32> i)
 {
   if (i.is_some())
   {
-    CHECK(i.value() < items_.size32(), "");
+    CHECK(i.v() < items_.size32(), "");
   }
 
   state.selected = i;
@@ -2519,7 +2517,7 @@ Combo & Combo::select(Option<u32> i)
 
   if (i.is_some())
   {
-    ComboItem & item    = items_[i.value()];
+    ComboItem & item    = items_[i.v()];
     item.state.selected = true;
   }
 
@@ -2532,15 +2530,15 @@ Option<u32> Combo::get_selection() const
   return state.selected;
 }
 
-ViewState Combo::tick(ViewContext const &, CRect const &, f32,
-                      ViewEvents const &, Fn<void(View &)> build)
+ui::State Combo::tick(Ctx const &, CRect const &, f32, Events const &,
+                      Fn<void(View &)> build)
 {
   for (View & item : items_)
   {
     build(item);
   }
 
-  return ViewState{};
+  return ui::State{};
 }
 
 void Combo::render(Canvas & canvas, CRect const & region, f32, CRect const &)
@@ -2612,8 +2610,8 @@ Image & Image::align(Vec2 a)
   return *this;
 }
 
-ViewState Image::tick(ViewContext const &, CRect const &, f32,
-                      ViewEvents const &, Fn<void(View &)>)
+ui::State Image::tick(Ctx const &, CRect const &, f32, Events const &,
+                      Fn<void(View &)>)
 {
   state.resolved.match(
     [&](None) {
@@ -2636,19 +2634,19 @@ ViewState Image::tick(ViewContext const &, CRect const &, f32,
 
   src_ = none;
 
-  return ViewState{};
+  return ui::State{};
 }
 
-ViewLayout Image::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
+Layout Image::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
   Vec2 const frame = style.frame(allocated);
 
   if (style.aspect_ratio.is_none())
   {
-    return ViewLayout{.extent = frame};
+    return Layout{.extent = frame};
   }
 
-  return ViewLayout{.extent = with_aspect(frame, style.aspect_ratio.value())};
+  return Layout{.extent = with_aspect(frame, style.aspect_ratio.v())};
 }
 
 static Tuple<Vec2, Vec2, Vec2> fit_image(Vec2 extent, Vec2 region_extent,
@@ -2749,8 +2747,8 @@ List & List::item_frame(Frame frame)
   return *this;
 }
 
-ViewState List::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
-                     ViewEvents const & events, Fn<void(View &)> build)
+ui::State List::tick(Ctx const & ctx, CRect const & region, f32 zoom,
+                     Events const & events, Fn<void(View &)> build)
 {
   u32 const axis = style_.axis == Axis::X ? 0 : 1;
 
@@ -2769,7 +2767,7 @@ ViewState List::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
     // get the first item and use it to measure the item size
     if (auto item = state_.generator(allocator_, 0); item.is_some())
     {
-      items_.push(std::move(item.value())).unwrap();
+      items_.push(std::move(item.v())).unwrap();
       state_.range = {0, 1};
     }
 
@@ -2779,11 +2777,11 @@ ViewState List::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
   {
     Slice range;
 
-    range.offset = (usize) max(
-      std::ceil(state_.translation / state_.item_size.value()), 0.0F);
+    range.offset =
+      (usize) max(std::ceil(state_.translation / state_.item_size.v()), 0.0F);
 
-    range.span = (usize) max(
-      std::ceil(region.extent[axis] / state_.item_size.value()), 0.0F);
+    range.span =
+      (usize) max(std::ceil(region.extent[axis] / state_.item_size.v()), 0.0F);
 
     usize i = range.begin();
 
@@ -2797,7 +2795,7 @@ ViewState List::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
       {
         if (auto item = state_.generator(allocator_, i); item.is_some())
         {
-          items_.push(std::move(item.value())).unwrap();
+          items_.push(std::move(item.v())).unwrap();
         }
         else
         {
@@ -2825,7 +2823,7 @@ ViewState List::tick(ViewContext const & ctx, CRect const & region, f32 zoom,
     build(*item);
   }
 
-  return ViewState{.scrollable = true, .viewport = true};
+  return ui::State{.scrollable = true, .viewport = true};
 }
 
 void List::size(Vec2 allocated, Span<Vec2> sizes)
@@ -2833,7 +2831,7 @@ void List::size(Vec2 allocated, Span<Vec2> sizes)
   fill(sizes, style_.item_frame(style_.frame(allocated)));
 }
 
-ViewLayout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
+Layout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
   fill(centers, Vec2{});
 
@@ -2860,7 +2858,7 @@ ViewLayout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
   Vec2 virtual_translation;
   virtual_translation[axis] = state_.virtual_translation;
 
-  return ViewLayout{
+  return Layout{
     .extent{min(frame.x, extent.x), min(frame.y, extent.y)},
     .viewport_extent    = extent,
     .viewport_transform = translate2d(virtual_translation)

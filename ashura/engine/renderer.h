@@ -53,7 +53,7 @@ struct BlurRenderParam
   RectU         area          = {};
   Vec2U         radius        = {};
   Vec4          corner_radii  = {};
-  Mat4          transform     = Mat4::identity();
+  Mat4          transform     = Mat4::IDENTITY;
   f32           aspect_ratio  = 1;
   RectU         scissor       = {};
   gpu::Viewport viewport      = {};

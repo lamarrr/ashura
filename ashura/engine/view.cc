@@ -26,10 +26,10 @@ Theme theme = {
   .on_success       = mdc::WHITE,
   .focus            = mdc::BLUE_300,
   .highlight        = ios::accessible::DARK_INDIGO,
+  .caret            = mdc::WHITE,
   .head_font_height = 30,
   .body_font_height = 25,
-  .line_height      = 1.2F,
-  .focus_thickness  = 1
+  .line_height      = 1.2F
 };
 
 }    // namespace ui

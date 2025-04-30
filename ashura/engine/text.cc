@@ -204,6 +204,7 @@ Option<CaretGlyph> TextLayout::get_caret_glyph(isize caret) const
 
     auto const & run = runs[0];
 
+    // [ ] uae grapheme clusters
     // find the glyph with the nearest grapheme cluster to the caret's codepoint position
 
     Option<GlyphMatch> match;
@@ -576,7 +577,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
         auto const & font_style  = block.fonts[run.style];
         auto const & run_style   = style.runs[run.style];
         auto const   font        = sys->font.get(font_style.font);
-        auto const & atlas       = font.gpu_atlas.value();
+        auto const & atlas       = font.gpu_atlas.v();
         auto const   font_height = block.font_scale * run.font_height;
         auto const   metrics     = run.metrics.resolve(font_height);
         auto const   run_width =

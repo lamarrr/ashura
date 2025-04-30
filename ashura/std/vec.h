@@ -140,6 +140,11 @@ struct [[nodiscard]] Vec
     return sizeof(T) * size_;
   }
 
+  constexpr u16 size16() const
+  {
+    return (u16) size_;
+  }
+
   constexpr u32 size32() const
   {
     return (u32) size_;
@@ -185,7 +190,7 @@ struct [[nodiscard]] Vec
     return data()[index];
   }
 
-  constexpr OptionRef<T> try_get(usize index) const
+  constexpr Option<T &> try_get(usize index) const
   {
     if (index >= size_) [[unlikely]]
     {
@@ -1280,6 +1285,11 @@ struct [[nodiscard]] InplaceVec
     return sizeof(T) * size_;
   }
 
+  constexpr u16 size16() const
+  {
+    return (u16) size_;
+  }
+
   constexpr u32 size32() const
   {
     return (u32) size_;
@@ -1325,7 +1335,7 @@ struct [[nodiscard]] InplaceVec
     return data()[index];
   }
 
-  constexpr OptionRef<T> try_get(usize index) const
+  constexpr Option<T &> try_get(usize index) const
   {
     if (index >= size_) [[unlikely]]
     {

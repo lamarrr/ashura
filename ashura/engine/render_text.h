@@ -62,8 +62,8 @@ struct RenderText
 
   RenderText(RenderText const &)             = delete;
   RenderText & operator=(RenderText const &) = delete;
-  RenderText(RenderText &&)                  = delete;
-  RenderText & operator=(RenderText &&)      = delete;
+  RenderText(RenderText &&)                  = default;
+  RenderText & operator=(RenderText &&)      = default;
   ~RenderText()                              = default;
 
   /// @brief  Styles specified runs of text, performing run merging and
@@ -125,10 +125,10 @@ struct RenderText
   void layout(f32 max_width);
 
   void render(Canvas & canvas, CRect const & region, CRect const & clip,
-              f32 zoom);
+              Vec2 zoom);
 
   Tuple<isize, CaretLocation> hit(CRect const & region, Vec2 pos,
-                                  f32 zoom) const;
+                                  Vec2 zoom) const;
 };
 
 }    // namespace ash

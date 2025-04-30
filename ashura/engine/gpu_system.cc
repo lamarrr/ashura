@@ -1107,10 +1107,10 @@ gpu::FrameId GpuSystem::tail_frame_id()
 
 Sampler GpuSystem::create_sampler(gpu::SamplerInfo const & info)
 {
-  OptionRef cached = sampler_cache_.try_get(info);
+  Option cached = sampler_cache_.try_get(info);
   if (cached)
   {
-    return cached.value();
+    return cached.v();
   }
 
   gpu::Sampler sampler = device_->create_sampler(info).unwrap();

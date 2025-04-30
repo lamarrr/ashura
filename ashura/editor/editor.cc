@@ -20,16 +20,15 @@ int main()
 
   defer engine_{[&] { engine->shutdown(); }};
 
-  FontId const RobotoMono    = sys->font.get("RobotoMono"_str).id;
-  FontId const Roboto        = sys->font.get("Roboto"_str).id;
-  FontId const MaterialIcons = sys->font.get("MaterialIcons"_str).id;
-  FontId const Amiri         = sys->font.get("Amiri"_str).id;
+  FontId const RobotoMono    = sys->font.get("RobotoMono"_str).v().id;
+  FontId const Roboto        = sys->font.get("Roboto"_str).v().id;
+  FontId const MaterialIcons = sys->font.get("MaterialIcons"_str).v().id;
+  FontId const Amiri         = sys->font.get("Amiri"_str).v().id;
+  FontId const TX_02         = sys->font.get("TX-02"_str).v().id;
 
-  ui::theme.head_font = RobotoMono;
-  ui::theme.body_font = Roboto;
+  ui::theme.head_font = TX_02;
+  ui::theme.body_font = TX_02;
   ui::theme.icon_font = MaterialIcons;
-
-  // [ ] forward pointer and key events to views
 
   ui::Flex flex;
 
@@ -50,7 +49,13 @@ int main()
   ui::Image      img3;
   ui::Image      img4;
 
-  input.stub(U"Mama mia!"_str);
+  input.stub(U"Input Text Here"_str);
+
+  text.text(U"This is a text item"_str)
+    .run({.color = colors::WHITE}, {.font        = RobotoMono,
+                                    .height      = ui::theme.body_font_height,
+                                    .line_height = 1})
+    .copyable(true);
 
   // [ ] drag box cursor
 
@@ -65,16 +70,16 @@ int main()
          0, 12)
     .padding({5, 5});
 
-  img.source(sys->image.get("birdie"_str).id)
+  img.source(sys->image.get("birdie"_str).v().id)
     .frame({200, 200})
     .corner_radii(ui::CornerRadii::all(25));
-  img2.source(sys->image.get("mountains"_str).id)
+  img2.source(sys->image.get("mountains"_str).v().id)
+    .frame({400, 400})
+    .corner_radii(ui::CornerRadii::all(400));
+  img3.source(sys->image.get("bankside"_str).v().id)
     .frame({400, 400})
     .corner_radii(ui::CornerRadii::all(25));
-  img3.source(sys->image.get("bankside"_str).id)
-    .frame({400, 400})
-    .corner_radii(ui::CornerRadii::all(25));
-  img4.source(sys->image.get("sunset"_str).id)
+  img4.source(sys->image.get("sunset"_str).v().id)
     .frame({400, 400})
     .corner_radii(ui::CornerRadii::all(25));
 
@@ -112,7 +117,7 @@ int main()
 
   animation.timelines().v0.frame(100, 1'920, 800ms, easing::out());
 
-  auto loop = [&](ui::ViewContext const & ctx) {
+  auto loop = [&](ui::Ctx const & ctx) {
     animation.tick(ctx.timedelta);
     flex.frame({animation.animate(0).v0, 500});
   };

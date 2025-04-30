@@ -74,6 +74,27 @@ namespace ash
   return out - decoded.pbegin();
 }
 
+constexpr u8 codepoint_width(c32 c)
+{
+  if (c <= 0x7F)
+  {
+    return 1;
+  }
+  else if (c <= 0x7FF)
+  {
+    return 2;
+  }
+  else if (c <= 0xFFFF)
+  {
+    return 3;
+  }
+  else if (c <= 0x10'FFFF)
+  {
+    return 4;
+  }
+  return 0;
+}
+
 /// @brief `encoded.size()` must be at least `text.size() * 4`
 [[nodiscard]] constexpr usize utf8_encode(Str32 text, MutStr8 encoded)
 {

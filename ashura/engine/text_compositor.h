@@ -163,7 +163,7 @@ struct TextCompositor
   /// @param input text from IME to insert
   bool command(RenderText & text, TextCommand cmd, Str32 input,
                ClipBoard & clipboard, usize lines_per_page, usize tab_width,
-               CRect const & region, Vec2 pos, f32 zoom,
+               CRect const & region, Vec2 pos, Vec2 zoom,
                AllocatorRef scratch_allocator);
 };
 

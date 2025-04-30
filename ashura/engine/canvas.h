@@ -95,7 +95,7 @@ struct ShapeInfo
   Vec2 extent = {0, 0};
 
   /// @brief object-world-space transform matrix
-  Mat4 transform = Mat4::identity();
+  Mat4 transform = Mat4::IDENTITY;
 
   /// @brief corner radii of each corner if rrect
   Vec4 corner_radii = {};
@@ -132,7 +132,7 @@ struct ShapeInfo
 /// @brief a normative clip rect that will cover the entire Canvas.
 constexpr f32 MAX_CLIP_DISTANCE = 0xFF'FFFF;
 
-inline constexpr CRect MAX_CLIP{.center = Vec2::splat(MAX_CLIP_DISTANCE / 2),
+inline constexpr CRect MAX_CLIP{.center = Vec2::splat(0),
                                 .extent = Vec2::splat(MAX_CLIP_DISTANCE)};
 
 struct FrameGraph;
@@ -164,7 +164,7 @@ struct Canvas
     RectU area         = {};
     Vec2U radius       = {};
     Vec4  corner_radii = {};
-    Mat4  transform    = Mat4::identity();
+    Mat4  transform    = Mat4::IDENTITY;
     f32   aspect_ratio = 1;
   };
 
@@ -199,7 +199,7 @@ struct Canvas
   f32 virtual_scale = 1;
 
   /// @brief the world to viewport transformation matrix
-  Affine4 world_to_view = Affine4::identity();
+  Affine4 world_to_view = Affine4::IDENTITY;
 
   CRect current_clip = MAX_CLIP;
 
@@ -331,6 +331,8 @@ struct Canvas
 
     return pass(Pass{.label = label, .task = transmute(std::move(lambda), f)});
   }
+  // clip mask?
+  // [ ] with_mask()?
 };
 
 }    // namespace ash

@@ -10,8 +10,8 @@ namespace ui
 {
 
 /// @brief compares the z-order of `a` and `b`
-static constexpr Order z_cmp(i32 a_layer, i32 a_z_index, u32 a_depth,
-                             i32 b_layer, i32 b_z_index, u32 b_depth)
+static constexpr Order z_cmp(i32 a_layer, i32 a_z_index, u16 a_depth,
+                             i32 b_layer, i32 b_z_index, u16 b_depth)
 {
   // cmp stacking context/layer first
   auto ord = cmp(a_layer, b_layer);
@@ -39,6 +39,7 @@ void System::clear_frame()
   nodes.depth.clear();
   nodes.parent.clear();
   nodes.children.clear();
+  ids.clear();
   att.tab_idx.clear();
   att.viewports.clear();
   att.hidden.clear();
@@ -68,11 +69,10 @@ void System::clear_frame()
   focus_ord.clear();
   focus_idx.clear();
   closing_deferred = false;
-  focus_grab       = none;
-  events.clear();
+  focus_grab_tgt   = none;
 }
 
-void System::prepare_for(u32 n)
+void System::prepare_for(u16 n)
 {
   extents.resize_uninit(n).unwrap();
   centers.resize_uninit(n).unwrap();
@@ -93,8 +93,8 @@ void System::prepare_for(u32 n)
   focus_idx.resize_uninit(n).unwrap();
 }
 
-void System::push_view(View & view, u32 depth, [[maybe_unused]] u32 breadth,
-                       u32 parent)
+void System::push_view(View & view, u16 depth, [[maybe_unused]] u16 breadth,
+                       u16 parent)
 {
   views.push(view).unwrap();
   nodes.depth.push(depth).unwrap();
@@ -113,20 +113,40 @@ void System::push_view(View & view, u32 depth, [[maybe_unused]] u32 breadth,
   att.is_viewport.extend_uninit(1).unwrap();
 }
 
-Event System::events_for(View & view)
+Events System::drain_events(View & view, u16 idx)
 {
+  Events event;
+
+  if (view.hot_)
+  {
+    ids.insert(view.id(), idx).unwrap();
+    view.hot_ = false;
+    event_queue.try_get(view.id()).match([&](auto & e) { event = e; });
+  }
+
+  if (view.id() == ViewId::None) [[unlikely]]
+  {
+    // should never happen
+    CHECK(next_id != U64_MAX, "");
+    view.id_   = ViewId{next_id++};
+    event.bits = Events::Bits::Type{event.bits | Events::Bits::Mount};
+  }
+
+  // [ ] clear event queue
+
+  return event;
 }
 
-void System::build_children(Ctx const & ctx, View & view, u32 idx, u32 depth,
-                            u32 viewport, i32 & tab_index)
+void System::build_children(Ctx const & ctx, View & view, u16 idx, u16 depth,
+                            u16 viewport, i32 & tab_index)
 {
-  Slice32 children{views.size32(), 0};
+  Slice16 children{views.size16(), 0};
 
-  auto builder = [&](View & child) {
+  auto build = [&](View & child) {
     push_view(child, depth + 1, children.span++, idx);
   };
 
-  State s = view.tick(ctx, events_for(view), &builder);
+  State s = view.tick(ctx, drain_events(view, idx), &build);
 
   att.tab_idx.set(idx, (s.tab == I32_MIN) ? tab_index : s.tab);
   att.viewports.set(idx, viewport);
@@ -143,7 +163,7 @@ void System::build_children(Ctx const & ctx, View & view, u32 idx, u32 depth,
 
   if (!s.hidden && s.focusable && s.grab_focus) [[unlikely]]
   {
-    focus_grab = idx;
+    focus_grab_tgt = idx;
   }
 
   nodes.children[idx] = children;
@@ -249,7 +269,7 @@ void System::layout(Vec2 viewport_extent)
 
       // transform we are applying to the viewport's contents
       auto const transform = translate2d(fixed_centers[i]) *
-                             scale2d(Vec2::splat(viewport_zooms[i])) *
+                             scale2d(viewport_zooms[i]) *
                              translate2d(-viewport_centers[i]);
 
       auto const inv_transform = translate_scale_inv2d(transform);
@@ -262,7 +282,7 @@ void System::layout(Vec2 viewport_extent)
   for (usize i = 0; i < n; i++)
   {
     auto const & transform   = canvas_tx[att.viewports[i]];
-    auto const   zoom        = transform[0][0];
+    auto const   zoom        = Vec2{transform[0][0], transform[1][1]};
     auto const   translation = transform.z().xy();
     canvas_centers[i]        = fixed_centers[i] + translation;
     canvas_extents[i]        = extents[i] * zoom;
@@ -345,20 +365,6 @@ void System::visibility()
   }
 }
 
-void System::focus_scroll(u32 view_idx)
-{
-  while (view_idx != RootView::NODE &&
-         viewports[view_idx] != RootView::VIEWPORT)
-  {
-    events
-      .push(Scroll{.center = fixed_centers[view_idx],
-                   .tgt    = views[viewports[view_idx]]->id()})
-      .unwrap();
-
-    view_idx = viewports[view_idx];
-  }
-}
-
 void System::render(Canvas & canvas)
 {
   ScopeTrace trace;
@@ -372,7 +378,8 @@ void System::render(Canvas & canvas)
       CRect const  region{.center = canvas_centers[i],
                           .extent = canvas_extents[i]};
 
-      auto const zoom = canvas_tx[parent_viewport][0][0];
+      auto const zoom = Vec2{canvas_tx[parent_viewport][0][0],
+                             canvas_tx[parent_viewport][1][1]};
 
       auto & view = views[i];
       canvas.clip(clip);
@@ -381,7 +388,54 @@ void System::render(Canvas & canvas)
   }
 }
 
-Option<u32> System::hit_test(Vec2 position) const
+void System::focus_on(u16 i, bool active, bool grab_focus)
+{
+  auto old        = focus_state.tgt;
+  bool was_active = focus_state.active;
+
+  views[old]->hot_ = true;
+  views[i]->hot_   = true;
+
+  focus_state = FocusState{.active = active, .tgt = i};
+
+  if (was_active && old != i)
+  {
+    events.push(Event{.dst = old, .type = Events::PointerOut}).unwrap();
+  }
+
+  if (i != old)
+  {
+    events.push(Event{.dst = i, .type = Events::PointerIn}).unwrap();
+  }
+
+  if (grab_focus)
+  {
+    auto it          = i;
+    auto it_viewport = att.viewports[it];
+
+    while (true)
+    {
+      events
+        .push(Event{
+          .dst    = it_viewport,
+          .type   = Events::Scroll,
+          .scroll = ScrollData{.center = fixed_centers[it],
+                               .zoom   = viewport_zooms[it_viewport]}
+      })
+        .unwrap();
+
+      if (it == RootView::NODE)
+      {
+        break;
+      }
+
+      it          = it_viewport;
+      it_viewport = att.viewports[it];
+    };
+  }
+}
+
+Option<u16> System::hit_test(Vec2 position) const
 {
   // find in reverse z-order
   for (auto z = views.size(); z != 0;)
@@ -402,42 +456,37 @@ Option<u32> System::hit_test(Vec2 position) const
   return none;
 }
 
-// [ ] reuse function
-Option<HitEvent> System::hit_test(u32 view, Vec2 position) const
+HitData System::get_hit_data(u16 view, Vec2 position) const
 {
-  // pointer's viewport position
-  auto p = transform(canvas_inv_tx[att.viewports[view]], position);
+  auto viewport          = att.viewports[view];
+  auto viewport_position = transform(canvas_inv_tx[viewport], position);
 
   CRect canvas_region{.center = canvas_centers[view],
                       .extent = canvas_extents[view]};
 
-  if (!canvas_region.contains(p)) [[likely]]
-  {
-    return none;
-  }
-
   // local position of the pointer within the view
   auto const & fixed_center = fixed_centers[view];
-  auto         local        = p - fixed_center;
 
-  return HitEvent{
-    .hit = local,
-    .region{.center = fixed_center, .extent = extents[view]},
-    .canvas = canvas_region
+  return HitData{
+    .viewport_hit = viewport_position,
+    .canvas_hit   = position,
+    .viewport_region{.center = fixed_center, .extent = extents[view]},
+    .canvas_region = canvas_region
   };
 }
 
-u32 System::navigate_focus(u32 from, bool forward) const
+u16 System::navigate_focus(u16 from_idx, bool forward) const
 {
-  CHECK(from < views.size(), "");
+  CHECK(from_idx < views.size(), "");
 
   if (views.size() == 1)
   {
-    return from;
+    return from_idx;
   }
 
-  i64 const n       = views.size32();
+  i64 const n       = views.size16();
   i64 const advance = forward ? 1 : -1;
+  auto      from    = focus_idx[from_idx];
   i64       f       = from + advance;
 
   while (f != from)
@@ -446,7 +495,7 @@ u32 System::navigate_focus(u32 from, bool forward) const
 
     if (!att.hidden[i] && att.focusable[i])
     {
-      return (u32) f;
+      return i;
     }
 
     f += advance;
@@ -462,10 +511,10 @@ u32 System::navigate_focus(u32 from, bool forward) const
     }
   }
 
-  return from;
+  return from_idx;
 }
 
-HitState System::none_seq(Ctx const & ctx)
+System::HitState System::none_seq(Ctx const & ctx)
 {
   if (!ctx.mouse.focused)
   {
@@ -475,35 +524,38 @@ HitState System::none_seq(Ctx const & ctx)
   return point_seq(ctx, none);
 }
 
-HitState System::drag_start_seq(Ctx const & ctx, MouseButton btn, u32 src)
+System::HitState System::drag_start_seq(Ctx const & ctx, Option<u16> src)
 {
-  auto diff = [&](Option<u32> tgt) {
+  auto diff = [&](Option<u16> tgt, Option<HitData> hit) {
     tgt.match([&](auto i) {
-      pointer_events.push(PointerEvent{.type = PointerEvent::DragIn, .dst = i})
-        .unwrap();
-      pointer_events
-        .push(PointerEvent{.type = PointerEvent::DragOver, .dst = i})
+      events.push(Event{.dst = i, .type = Events::DragIn, .hit = hit}).unwrap();
+      events.push(Event{.dst = i, .type = Events::DragOver, .hit = hit})
         .unwrap();
     });
   };
 
   if (!ctx.mouse.focused || ctx.key.held(KeyCode::Escape))
   {
-    pointer_events.push(PointerEvent{.type = PointerEvent::DragEnd, .dst = 0})
-      .unwrap();
+    src.match([&](auto i) {
+      events.push(Event{.dst = i, .type = Events::DragEnd}).unwrap();
+    });
+
     return none;
   }
 
-  auto tgt = ctx.mouse.position.match(
-    [&](auto p) {
-      return bubble_hit(p, [&](auto i) { return att.droppable[i]; });
-    },
-    []() -> Option<u32> { return none; });
+  auto tgt = ctx.mouse.position.and_then([&](auto p) {
+    return bubble_hit(p, [&](auto i) { return att.droppable[i]; });
+  });
 
-  if (!ctx.mouse.held(btn))
+  if (!ctx.mouse.held(MouseButton::Primary))
   {
-    pointer_events.push(PointerEvent{.type = PointerEvent::DragEnd, .dst = src})
-      .unwrap();
+    src.match([&](auto i) {
+      events
+        .push(Event{.dst  = i,
+                    .type = Events::DragEnd,
+                    .hit  = get_hit_data(i, ctx.mouse.position.v())})
+        .unwrap();
+    });
 
     if (tgt.is_none())
     {
@@ -511,369 +563,350 @@ HitState System::drag_start_seq(Ctx const & ctx, MouseButton btn, u32 src)
       return none;
     }
 
-    diff(tgt);
+    auto hit = get_hit_data(tgt.v(), ctx.mouse.position.v());
 
-    pointer_events
-      .push(PointerEvent{.type = PointerEvent::Drop, .dst = tgt.value()})
+    diff(tgt, hit);
+
+    events.push(Event{.dst = tgt.v(), .type = Events::Drop, .hit = hit})
       .unwrap();
 
     return none;
   }
 
-  pointer_events.push(PointerEvent{.type = PointerEvent::Dragging, .dst = src})
-    .unwrap();
+  src.match([&](auto i) {
+    events
+      .push(Event{.dst  = i,
+                  .type = Events::DragUpdate,
+                  .hit  = get_hit_data(i, ctx.mouse.position.v())})
+      .unwrap();
+  });
 
-  diff(tgt);
+  diff(tgt, get_hit_data(tgt.v(), ctx.mouse.position.v()));
 
   // change to update state
-  return DragState{
-    .seq = DragState::Update, .src = src, .tgt = tgt, .btn = btn};
+  return DragState{.seq = DragState::Update, .src = src, .tgt = tgt};
 }
 
-HitState System::drag_update_seq(Ctx const & ctx, MouseButton btn, u32 src,
-                                 Option<u32> prev_tgt)
+System::HitState System::drag_update_seq(Ctx const & ctx, Option<u16> src,
+                                         Option<u16> prev_tgt)
 {
-  auto diff = [&](Option<u32> tgt) {
-    if (tgt != ViewId::None && tgt != prev_tgt)
-    {
-      pointer_events.push(PointerEvent{.type = PointerEvent::DragIn, .dst = 0})
-        .unwrap();
-      pointer_events
-        .push(PointerEvent{.type = PointerEvent::DragOver, .dst = 0})
-        .unwrap();
-    }
+  auto diff = [&](Option<u16> tgt, Option<HitData> hit) {
+    tgt.match([&](auto i) {
+      if (prev_tgt == i)
+      {
+        events.push(Event{.dst = i, .type = Events::DragOver, .hit = hit})
+          .unwrap();
+      }
+      else
+      {
+        events.push(Event{.dst = i, .type = Events::DragIn, .hit = hit})
+          .unwrap();
+        events.push(Event{.dst = i, .type = Events::DragOver, .hit = hit})
+          .unwrap();
+      }
+    });
 
-    if (prev_tgt != ViewId::None && tgt == prev_tgt)
-    {
-      pointer_events
-        .push(PointerEvent{.type = PointerEvent::DragOver, .dst = 0})
-        .unwrap();
-    }
-
-    if (prev_tgt != ViewId::None && tgt != prev_tgt)
-    {
-      pointer_events.push(PointerEvent{.type = PointerEvent::DragOut, .dst = 0})
-        .unwrap();
-    }
+    prev_tgt.match([&](auto i) {
+      if (i != tgt)
+      {
+        events.push(Event{.dst = i, .type = Events::DragOut}).unwrap();
+      }
+    });
   };
 
   if (!ctx.mouse.focused || ctx.key.held(KeyCode::Escape))
   {
-    diff(ViewId::None);
+    diff(none, none);
     return none;
   }
 
-  auto itgt = bubble_hit(ctx.mouse.position.value(),
-                         [&](auto i) { return att.droppable[i]; });
+  auto tgt = bubble_hit(ctx.mouse.position.v(),
+                        [&](auto i) { return att.droppable[i]; });
 
-  auto tgt =
-    itgt.map([&](auto i) { return views[i]->id(); }).unwrap_or(ViewId::None);
+  auto hit =
+    tgt.map([&](auto i) { return get_hit_data(i, ctx.mouse.position.v()); });
 
-  if (!ctx.mouse.held(btn))
+  if (!ctx.mouse.held(MouseButton::Primary))
   {
-    diff(ViewId::None);
+    diff(tgt, hit);
 
-    pointer_events.push(PointerEvent{.type = PointerEvent::DragEnd, .dst = 0})
-      .unwrap();
+    src.match([&](auto i) {
+      events
+        .push(Event{.dst  = i,
+                    .type = Events::DragEnd,
+                    .hit  = get_hit_data(i, ctx.mouse.position.v())})
+        .unwrap();
+    });
 
-    pointer_events
-      .push(PointerEvent{.type = PointerEvent::Drop, .dst = itgt.value()})
-      .unwrap();
+    tgt.match([&](auto i) {
+      events.push(Event{.dst = i, .type = Events::Drop, .hit = hit}).unwrap();
+    });
 
     return none;
   }
 
-  pointer_events.push(PointerEvent{.type = PointerEvent::Dragging, .dst = 0})
-    .unwrap();
+  src.match([&](auto i) {
+    events
+      .push(Event{.dst  = i,
+                  .type = Events::DragUpdate,
+                  .hit  = get_hit_data(i, ctx.mouse.position.v())})
+      .unwrap();
+  });
 
-  diff(tgt);
+  diff(tgt, hit);
 
-  return DragState{.seq = DragState::Update, .src = src, .tgt = ViewId::None};
+  return DragState{.seq = DragState::Update, .src = src, .tgt = tgt};
 }
 
-HitState System::point_seq(Ctx const & ctx, Option<u32> prev_tgt)
+System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
 {
-  auto diff = [&](ViewId tgt) {
-    if (prev_tgt != ViewId::None && tgt != prev_tgt)
-    {
-      pointer_events
-        .push(PointerEvent{.type = PointerEvent::PointerOut, .dst = 0})
-        .unwrap();
-    }
+  auto diff = [&](Option<u16> tgt, Option<HitData> hit) {
+    tgt.match([&](auto i) {
+      if (i != prev_tgt)
+      {
+        events.push(Event{.dst = i, .type = Events::PointerIn, .hit = hit})
+          .unwrap();
+        events.push(Event{.dst = i, .type = Events::PointerOver, .hit = hit})
+          .unwrap();
+      }
+      else
+      {
+        events.push(Event{.dst = i, .type = Events::PointerOver, .hit = hit})
+          .unwrap();
+      }
+    });
 
-    if (tgt != ViewId::None && tgt != prev_tgt)
-    {
-      pointer_events
-        .push(PointerEvent{.type = PointerEvent::PointerIn, .dst = 0})
-        .unwrap();
-      pointer_events
-        .push(PointerEvent{.type = PointerEvent::PointerOver, .dst = 0})
-        .unwrap();
-    }
-
-    if (prev_tgt != ViewId::None && tgt == prev_tgt)
-    {
-      pointer_events
-        .push(PointerEvent{.type = PointerEvent::PointerOver, .dst = 0})
-        .unwrap();
-    }
+    prev_tgt.match([&](auto i) {
+      if (i != tgt)
+      {
+        events.push(Event{.dst = i, .type = Events::PointerOut}).unwrap();
+      }
+    });
   };
 
-  /**
- 
-  
-  */
-
   // [ ] be more generic with handling buttons
-  // [ ] when frame is being built store ids and idx map of views we are interested in.
-  // [ ] indices; use index to attach event: MetaData, don't need index, reset metadata field at start of frame? ----> if frame isn't rebuilt?
-  //
-  // [ ] we don't want views to run away with the attached metadata
-  //
 
   if (!ctx.mouse.focused)
   {
-    diff(ViewId::None);
+    diff(none, none);
     return none;
   }
 
   if (ctx.mouse.scrolled)
   {
-    auto itgt = bubble_hit(ctx.mouse.position.value(),
-                           [&](auto i) { return att.scrollable[i]; });
+    auto tgt = bubble_hit(ctx.mouse.position.v(),
+                          [&](auto i) { return att.scrollable[i]; });
 
+    auto hit =
+      tgt.map([&](auto i) { return get_hit_data(i, ctx.mouse.position.v()); });
 
-    if (tgt != ViewId::None)
+    if (tgt.is_some())
     {
-      diff(tgt);
-      return PointState{};
+      auto i = tgt.v();
+
+      diff(i, hit);
+      events
+        .push(Event{
+          .dst    = i,
+          .type   = Events::Scroll,
+          .hit    = hit,
+          .scroll = ScrollData{.center = viewport_centers[i] +
+                                         ctx.mouse.wheel_translation.v(),
+                               .zoom = viewport_zooms[i]}
+      })
+        .unwrap();
+      return PointState{.tgt = tgt};
     }
   }
 
-  if (ctx.mouse.down(MouseButton::Primary))
+  if (ctx.mouse.held(MouseButton::Primary))
   {
-    auto itgt = bubble_hit(ctx.mouse.position.value(), [&](auto i) {
+    auto tgt = bubble_hit(ctx.mouse.position.v(), [&](auto i) {
       return att.draggable[i] || att.clickable[i];
     });
 
+    auto hit =
+      tgt.map([&](auto i) { return get_hit_data(i, ctx.mouse.position.v()); });
 
-    if (tgt != ViewId::None)
+    if (tgt.is_some())
     {
-      auto draggable = att.draggable[itgt.value()];
+      auto draggable = att.draggable[tgt.v()];
 
-      diff(tgt);
+      focus_on(tgt.v(), false, false);
 
       if (draggable)
       {
-        return DragState{};
+        return DragState{.seq = DragState::Start, .src = tgt.v(), .tgt = none};
       }
 
-      return PointState{};
+      diff(tgt, hit);
+
+      return PointState{.tgt = tgt};
     }
   }
 
-  auto itgt = bubble_hit(ctx.mouse.position.value(),
-                         [&](auto i) { return att.pointable[i]; });
+  auto tgt = bubble_hit(ctx.mouse.position.v(),
+                        [&](auto i) { return att.pointable[i]; });
 
+  auto hit =
+    tgt.map([&](auto i) { return get_hit_data(i, ctx.mouse.position.v()); });
 
-  diff(tgt);
+  diff(tgt, hit);
 
-  return PointState{};
+  return PointState{.tgt = tgt};
 }
 
-HitState System::hit_seq(Ctx const & ctx)
+void System::hit_seq(Ctx const & ctx)
 {
-  auto new_hit =
-    hit.match([&](None) { return none_seq(ctx); },
-              [&](auto & h) {
-                switch (h.seq)
-                {
-                  case DragState::Start:
-                    return drag_start_seq(ctx, h.btn, h.src);
-                  case DragState::Update:
-                    return drag_update_seq(ctx, h.btn, h.src, h.tgt);
-                }
-              },
-              [&](auto & h) { return point_seq(ctx, h.tgt); });
+  // build hitstate from the ids
+  // process event state
+  // mark eventful views as hot
+  // store the events in an event queue using ids
 
-  for (auto const & event : pointer_events)
+  hit_state = xframe_hit_state.match(
+    [](None) -> HitState { return none; },
+    [&](auto & h) -> HitState {
+      return DragState{
+        .seq = h.seq,
+        .src = h.src.and_then([&](auto id) { return ids.try_get(id).unref(); }),
+        .tgt =
+          h.tgt.and_then([&](auto id) { return ids.try_get(id).unref(); })};
+    },
+    [&](auto & h) -> HitState {
+      return PointState{.tgt = h.tgt.and_then(
+                          [&](auto id) { return ids.try_get(id).unref(); })};
+    });
+
+  hit_state =
+    hit_state.match([&](None) { return none_seq(ctx); },
+                    [&](auto & h) {
+                      // mark previous frame's src and dst views as hot, so we can
+                      // dispatch pointer in/out events to them
+                      h.src.match([&](auto i) { views[i]->hot_ = true; });
+                      h.tgt.match([&](auto i) { views[i]->hot_ = true; });
+
+                      switch (h.seq)
+                      {
+                        case DragState::Start:
+                          return drag_start_seq(ctx, h.src);
+                        case DragState::Update:
+                          return drag_update_seq(ctx, h.src, h.tgt);
+                      }
+                    },
+                    [&](auto & h) {
+                      h.tgt.match([&](auto i) { views[i]->hot_ = true; });
+                      return point_seq(ctx, h.tgt);
+                    });
+
+  // mark current source and dst as hot, will still receive events on this frame
+  xframe_hit_state = hit_state.match(
+    [](None) -> XFrameHitState { return none; },
+    [&](DragState const & h) -> XFrameHitState {
+      h.src.match([&](auto i) { views[i]->hot_ = true; });
+      h.tgt.match([&](auto i) { views[i]->hot_ = true; });
+
+      return XFrameDragState{
+        .seq = h.seq,
+        .src = h.src.map([&](auto i) { return views[i]->id(); }),
+        .tgt = h.tgt.map([&](auto i) { return views[i]->id(); })};
+    },
+    [&](PointState const & h) -> XFrameHitState {
+      h.tgt.match([&](auto i) { views[i]->hot_ = true; });
+      return XFramePointState{
+        .tgt = h.tgt.map([&](auto i) { return views[i]->id(); })};
+    });
+}
+
+void System::focus_seq(Ctx const & ctx)
+{
+  focus_state =
+    FocusState{.active = xframe_focus_state.active,
+               .tgt = ids.try_get(xframe_focus_state.tgt).unref().unwrap_or(0)};
+
+  focus_grab_tgt.match([&](auto i) { focus_on(i, true, true); });
+
+  bool tabbed = ctx.key.down(KeyCode::Tab);
+  bool alternate =
+    ctx.key.held(KeyCode::LeftShift) || ctx.key.held(KeyCode::RightShift);
+  bool accepts_tab = att.input[focus_state.tgt].is_none() ||
+                     !att.input[focus_state.tgt].v().tab_input;
+
+  auto focus_action =
+    (tabbed && !accepts_tab) ?
+      (alternate ? FocusAction::Backward : FocusAction::Forward) :
+      FocusAction::None;
+
+  if (focus_action != FocusAction::None)
   {
-    switch (event.type)
-    {
-      case PointerEvent::None:
-      case PointerEvent::PointerIn:
-      case PointerEvent::PointerOut:
-      case PointerEvent::PointerOver:
-      case PointerEvent::Scroll:
-      case PointerEvent::DragIn:
-      case PointerEvent::DragOut:
-      case PointerEvent::DragOver:
-        break;
+    auto next =
+      navigate_focus(focus_state.tgt, focus_action == FocusAction::Forward);
 
-      case PointerEvent::PointerDown:
-      case PointerEvent::PointerUp:
-      case PointerEvent::DragStart:
-      case PointerEvent::Dragging:
-      case PointerEvent::DragEnd:
-      case PointerEvent::Drop:
-        // [ ] if focusable and pressed or dragged, update focus index; preserve focus active
-        break;
-    }
+    focus_on(next, true, true);
   }
 
-  hit = new_hit;
+  if (focus_state.active)
+  {
+    events.push(Event{.dst = focus_state.tgt, .type = Events::PointerOver})
+      .unwrap();
+  }
+
+  xframe_focus_state = XFrameFocusState{.active = focus_state.active,
+                                        .tgt    = views[focus_state.tgt]->id()};
 }
 
 /*
+// [ ]
 ViewEvents System::process_events(View & view)
 {
-  ViewEvents events;
-
-  if (view.id() == ViewId::None) [[unlikely]]
-  {
-    // should never happen
-    CHECK(next_id != U64_MAX, "");
-    view.id_       = ViewId{next_id++};
-    events.mounted = true;
-  }
-
-
-
   if (f1.focus.is_some() && f1.focus.value().view == view.id() &&
       f1.focus.value().active) [[unlikely]]
   {
-    events.focus_in = f0.focus.is_none() ||
-                      (f0.focus.value().view != view.id()) ||
-                      !f0.focus.value().active;
     events.key_down   = f1.key_down;
     events.key_up     = f1.key_up;
     events.text_input = f1.text_input;
   }
-  else if (f0.focus.is_some() && f0.focus.value().view == view.id() &&
-           f0.focus.value().active) [[unlikely]]
-  {
-    events.focus_out = true;
-  }
-
-  for (auto scroll : scrolls)
-  {
-    if (scroll.tgt == view.id())
-    {
-      events.scroll = Scroll{.center = scroll.center, .extent = none};
-      break;
-    }
-  }
-
-  return events;
 }
   */
 
-void System::event_dispatch(InputState const & ctx)
+void System::compose_event(ViewId id, Events::Type event, Option<HitData> hit,
+                           Option<ScrollData> scroll)
+{
+  auto [_, v] = event_queue.insert(id, Events{}, nullptr, false).v();
+
+  v.bits = Events::Bits::Type{v.bits | Events::Bits::at(event)};
+
+  if (hit)
+  {
+    v.hit_data = hit;
+  }
+
+  if (scroll)
+  {
+    v.scroll_data = scroll;
+  }
+}
+
+void System::event_dispatch()
 {
   ScopeTrace trace;
 
   /*
-  bool const esc_input = ctx.key_down(KeyCode::Escape);
-  bool const tab_input = ctx.key_down(KeyCode::Tab);
-
-  f0 = f1;
-  f1 = State{};
-
-  f1.mouse_down     = ctx.mouse.any_down;
-  f1.mouse_up       = ctx.mouse.any_up;
-  f1.mouse_moved    = ctx.mouse.moved;
-  f1.mouse_scrolled = ctx.mouse.wheel_scrolled;
   f1.key_down       = ctx.key.any_down;
   f1.key_up         = ctx.key.any_up;
   f1.text_input     = ctx.text_input;
-
-  f1.dropped =
-    (f0.dragging && ctx.mouse_up(MouseButton::Primary)) || ctx.dropped;
-  f1.drag_end = f1.dropped;
-  f1.dragging = !f1.dropped;
-  f1.drag_src = f1.dragging ? f0.drag_src : none;
-
-  // use grab focus request if any, otherwise persist previous frame's focus
-  f1.focus = f0.grab_focus ? f0.grab_focus : f0.focus;
 */
 
-  // mouse click & drag
-
-  // determine focus navigation direction
-  FocusAction focus_action = FocusAction::None;
-
-  // navigate focus request
-  if (tab_input)
+  for (auto & event : events)
   {
-    if (!(f1.focus.is_some() && f1.focus.value().input_info.tab_input))
-    {
-      if (ctx.key_down(KeyCode::LeftShift) || ctx.key_down(KeyCode::RightShift))
-      {
-        focus_action = FocusAction::Backward;
-      }
-      else
-      {
-        focus_action = FocusAction::Forward;
-      }
-    }
+    auto i         = event.dst;
+    views[i]->hot_ = true;
+    // [ ] update focus rect; canvas region + clip
+    // [ ] forward hit-data; add in the hit functions
+
+    compose_event(views[i]->id(), event.type, event.hit, event.scroll);
   }
 
-  // clear focus request
-  if (esc_input)
-  {
-    if (!(f1.focus.is_some() && f1.focus.value().input_info.esc_input))
-    {
-      f1.focus = none;
-    }
-  }
-
-  switch (focus_action)
-  {
-    case FocusAction::Forward:
-    case FocusAction::Backward:
-    {
-      u32 from = 0;
-      if (f1.focus.is_some())
-      {
-        from = f1.focus.value().focus_idx;
-      }
-      else
-      {
-        from = 0;
-      }
-
-      f1.focus =
-        navigate_focus(from, focus_action == FocusAction::Forward)
-          .map([&](u32 focus_idx) {
-            u32 const i = focus_ordering[focus_idx];
-            focus_scroll(i);
-            // [ ] remove previous focus code. refactor this part of the code4 instead
-            return Focus{
-              .active     = true,
-              .view       = views[i]->id(),
-              .focus_idx  = focus_idx,
-              .input      = is_input[i],
-              .input_info = TextInputInfo{.type        = input_type[i],
-                                          .multiline   = is_multiline_input[i],
-                                          .esc_input   = is_esc_input[i],
-                                          .tab_input   = is_tab_input[i],
-                                          .cap         = input_cap[i],
-                                          .autocorrect = input_autocorrect[i]}
-            };
-          });
-    }
-    break;
-    default:
-    case FocusAction::None:
-      break;
-  }
-
-  if (f1.focus.is_some())
-  {
-    Focus &   focus = f1.focus.value();
-    u32 const i     = focus_ord[focus.focus_idx];
-    focus.region    = views[i]->region_;
-  }
+  events.clear();
 }
 
 Option<TextInputInfo> System::text_input() const
@@ -901,26 +934,27 @@ bool System::tick(InputState const & input, View & root, Canvas & canvas,
   ScopeTrace trace;
 
   // [ ]
-  RootView base_root{&root};
 
   clear_frame();
 
-  build(s1, root);
-  u32 const n = views.size32();
-  prepare_for(n);
+  // [ ] clear event queue
+  root_view.next_ = root;
+
+  build(ctx, root_view);
+  prepare_for(views.size16());
 
   loop(input);
   // [ ] focus rect
 
   focus_order();
 
-  layout(as_vec2(input.window_extent));
+  layout(as_vec2(input.window.extent));
   stack();
   visibility();
   render(canvas);
 
-  events(input);
-  input.clone_to(s1);
+  event_dispatch(input);
+  ctx.copy(input);
 
   frame++;
 
