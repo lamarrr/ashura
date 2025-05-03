@@ -578,7 +578,7 @@ constexpr Result<Vec<T>> vec(AllocatorRef allocator, Span<T const> data)
     return out;
   }
 
-  out.value().extend(data).unwrap();
+  out.v().extend(data).unwrap();
 
   return out;
 }
@@ -593,7 +593,7 @@ constexpr Result<Vec<T>> vec_move(AllocatorRef allocator, Span<T> data)
     return out;
   }
 
-  out.value().extend_move(data).unwrap();
+  out.v().extend_move(data).unwrap();
 
   return out;
 }
@@ -708,7 +708,7 @@ struct [[nodiscard]] PinVec
       return out;
     }
 
-    obj::copy_construct(view(), out.value().view());
+    obj::copy_construct(view(), out.v().view());
 
     return out;
   }

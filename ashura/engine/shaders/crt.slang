@@ -25,7 +25,7 @@ f32x4 mainImage(f32x2 fragCoord)
   col *= 0.99 + 0.01 * sin(110.0 * i.Time);
 
   f32 comp = smoothstep(0.2, 0.7, sin(i.Time));
-  col = lerp(col, oricol, clamp(-2.0 + 2.0 * q.x + 3.0 * comp, 0.0, 1.0));
+  col      = lerp(col, oricol, clamp(-2.0 + 2.0 * q.x + 3.0 * comp, 0.0, 1.0));
 
   return f32x4(col, 1.0);
 }

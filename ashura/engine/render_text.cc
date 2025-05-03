@@ -284,16 +284,18 @@ void RenderText::layout(f32 max_width)
 }
 
 void RenderText::render(Canvas & canvas, CRect const & region,
-                        CRect const & clip, Vec2 zoom)
+                        CRect const & clip, Vec2 zoom, TextRenderer renderer)
 {
-  layout_.render(
-    canvas, {.center = region.center, .transform = scale3d(vec3(zoom, 1))},
-    block(), block_style(region.extent.x), highlights_, carets_, clip);
+  layout_.render(canvas,
+                 {.center = region.center, .transform = scale3d(vec3(zoom, 1))},
+                 block(), block_style(region.extent.x), highlights_, carets_,
+                 clip, renderer);
 }
 
 Tuple<isize, CaretLocation> RenderText::hit(CRect const & region, Vec2 pos,
                                             Vec2 zoom) const
 {
+  // [ ] zoom?
   Vec2 const local_pos = (pos - region.begin() - 0.5F * region.extent) / zoom;
   return layout_.hit(block(), block_style(region.extent.x), local_pos);
 }

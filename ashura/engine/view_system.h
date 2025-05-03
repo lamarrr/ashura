@@ -79,8 +79,6 @@ enum class FocusAction : u8
   Backward = 2
 };
 
-// [ ] are the passed ctx/events in sync with the state?
-
 /// @brief A compact View Hierarchy
 struct System
 {
@@ -193,16 +191,9 @@ struct System
   {
     u16                dst    = 0;
     Events::Type       type   = Events::PointerIn;
-    Option<HitData>    hit    = none;
-    Option<ScrollData> scroll = none;
+    Option<HitInfo>    hit    = none;
+    Option<ScrollInfo> scroll = none;
   };
-
-  // [ ] ? new input state struct specifically for views? YESS!!! + focus rect + focus_rect_clip + cursor + focus_view id + pointed view id
-  // [ ] focus rect update
-  // [ ] cursor
-  // [ ] remove user_data from inputstate
-  // Option<CRect>    focused = none;
-  //
 
   /// @brief id to current frame's view tree index map of hot views
 
@@ -214,7 +205,7 @@ struct System
   /// @brief next view id
   u64 next_id = 0;
 
-  /// @brief Input state for views
+  /// @brief Build context for views
   Ctx ctx;
 
   /// Tree Nodes
@@ -261,7 +252,6 @@ struct System
   /// Frame Computed Info
   bool        closing_deferred;
   Option<u16> focus_grab_tgt;
-  Cursor      cursor;
 
   XFrameHitState   xframe_hit_state;
   XFrameFocusState xframe_focus_state;
@@ -272,6 +262,10 @@ struct System
   Vec<Event> events;
 
   BitMap<ViewId, Events> event_queue;
+
+  Option<FocusRect>     focus_rect;
+  Option<TextInputInfo> input_info;
+  Option<Cursor>        cursor;
 
   explicit System(AllocatorRef allocator) :
     root_view{none},
@@ -298,13 +292,14 @@ struct System
     focus_idx{allocator},
     closing_deferred{false},
     focus_grab_tgt{none},
-    cursor{Cursor::Default},
     xframe_hit_state{none},
     xframe_focus_state{},
     hit_state{none},
     focus_state{},
     events{allocator},
-    event_queue{allocator}
+    event_queue{allocator},
+    focus_rect{none},
+    cursor{Cursor::Default}
   {
   }
 
@@ -341,7 +336,7 @@ struct System
 
   Option<u16> hit_test(Vec2 position) const;
 
-  HitData get_hit_data(u16 view, Vec2 position) const;
+  HitInfo get_hit_info(u16 view, Vec2 position) const;
 
   template <typename Match>
   Option<u16> bubble(u16 from, Match && match) const
@@ -377,7 +372,8 @@ struct System
   template <typename Match>
   Option<u16> bubble_hit(Vec2 position, Match && match) const
   {
-    return hit_test(position).match([&](auto i) { return bubble(i, match); });
+    return hit_test(position).and_then(
+      [&](auto i) { return bubble(i, match); });
   }
 
   u16 navigate_focus(u16 from, bool forward) const;
@@ -394,10 +390,10 @@ struct System
 
   void focus_seq(Ctx const & ctx);
 
-  void compose_event(ViewId id, Events::Type event, Option<HitData> hit,
-                     Option<ScrollData> scroll);
+  void compose_event(ViewId id, Events::Type event, Option<HitInfo> hit,
+                     Option<ScrollInfo> scroll);
 
-  void event_dispatch();
+  void process_input(Ctx const & ctx);
 
   Option<TextInputInfo> text_input() const;
 

@@ -183,13 +183,13 @@ enum class MainAlign : u8
   SpaceEvenly  = 4
 };
 
-struct ScrollData
+struct ScrollInfo
 {
   Vec2 center = {};
   Vec2 zoom   = {1, 1};
 };
 
-struct HitData
+struct HitInfo
 {
   /// @brief viewport-space region of the view that was hit
   /// with (0, 0) as the center of the viewport
@@ -226,6 +226,7 @@ struct Events
     PointerDown = 4,
     /// @brief the pointer's press has been released from the view
     PointerUp   = 5,
+    /// @brief a scroll request has been sent to the view
     Scroll      = 6,
     /// @brief drag event has begun on this view
     DragStart   = 7,
@@ -246,7 +247,13 @@ struct Events
     /// @brief the view has lost focus
     FocusOut    = 15,
     /// @brief the view currently has active focus
-    FocusOver   = 16
+    FocusOver   = 16,
+    /// @brief a key went down whilst this view has focus
+    KeyDown     = 17,
+    /// @brief a key went up whilst this view has focus
+    KeyUp       = 18,
+    /// @brief the view has received composition text whilst it has focus
+    TextInput   = 19
   };
 
   struct Bits
@@ -271,6 +278,9 @@ struct Events
       FocusIn     = 1U << Events::FocusIn,
       FocusOut    = 1U << Events::FocusOut,
       FocusOver   = 1U << Events::FocusOver,
+      KeyDown     = 1U << Events::KeyDown,
+      KeyUp       = 1U << Events::KeyUp,
+      TextInput   = 1U << Events::TextInput
     };
 
     static constexpr Type at(Events::Type e)
@@ -281,20 +291,11 @@ struct Events
 
   Bits::Type bits = Bits::None;
 
-  /// @brief a key went down whilst this view has focus
-  bool key_down : 1 = false;
-
-  /// @brief a key went up whilst this view has focus
-  bool key_up : 1 = false;
-
-  /// @brief the view has received composition text whilst it has focus
-  bool text_input : 1 = false;
-
   /// @brief the view's hit data
-  Option<HitData> hit_data = none;
+  Option<HitInfo> hit_info = none;
 
   /// @brief scroll request
-  Option<ScrollData> scroll_data = none;
+  Option<ScrollInfo> scroll_info = none;
 
   constexpr bool mount() const
   {
@@ -380,11 +381,114 @@ struct Events
   {
     return bits & Bits::FocusOver;
   }
+
+  constexpr bool key_down() const
+  {
+    return bits & Bits::KeyDown;
+  }
+
+  constexpr bool key_up() const
+  {
+    return bits & Bits::KeyUp;
+  }
+
+  constexpr bool text_input() const
+  {
+    return bits & Bits::TextInput;
+  }
+};
+
+struct FocusRect
+{
+  CRect area = {};
+  CRect clip = {};
+};
+
+struct DropCtx
+{
+  enum class Phase : u8
+  {
+    None  = 0,
+    Begin = 1,
+    Over  = 2,
+    End   = 3
+  };
+
+  Phase phase = Phase::None;
+
+  /// @brief current drop data type
+  DropType type = DropType::None;
+
+  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
+  Vec<u8> data;
+
+  explicit DropCtx(AllocatorRef allocator) : data{allocator}
+  {
+  }
+
+  DropCtx(DropCtx const &)             = delete;
+  DropCtx & operator=(DropCtx const &) = delete;
+  DropCtx(DropCtx &&)                  = default;
+  DropCtx & operator=(DropCtx &&)      = default;
+  ~DropCtx()                           = default;
+
+  void clear();
+
+  DropCtx & copy(DropCtx const & other);
 };
 
 /// @brief Global View Context, Properties of the context all the views for
 /// a specific window are in.
-using Ctx = InputState;
+struct Ctx
+{
+  /// @brief timestamp of current frame
+  time_point timestamp;
+
+  /// @brief time elapsed between previous and current frame
+  nanoseconds timedelta;
+
+  WindowState window;
+
+  /// @brief windows' current frame mouse state
+  MouseState mouse;
+
+  /// @brief windows' current frame keyboard state
+  KeyState key;
+
+  DropCtx drop;
+
+  /// @brief is the application closing
+  bool closing;
+
+  /// @brief canvas-space region the system is currently focused on
+  Option<FocusRect> focused;
+
+  Option<Cursor> cursor;
+
+  void * user_data = nullptr;
+
+  Ctx(AllocatorRef allocator, void * user_data) :
+    timestamp{},
+    timedelta{},
+    window{},
+    mouse{},
+    key{allocator},
+    drop{allocator},
+    closing{false},
+    focused{none},
+    cursor{none},
+    user_data{user_data}
+  {
+  }
+
+  Ctx(Ctx const &)             = delete;
+  Ctx(Ctx &&)                  = default;
+  Ctx & operator=(Ctx const &) = delete;
+  Ctx & operator=(Ctx &&)      = default;
+  ~Ctx()                       = default;
+
+  void tick(InputState const & input);
+};
 
 /// @brief makes a zoom transform matrix relative to the center of a viewport.
 /// defines the translation and scaling components.

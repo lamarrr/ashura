@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/text.h"
 #include "ashura/std/enum.h"
 #include "ashura/std/math.h"
 #include "ashura/std/result.h"
@@ -12,14 +11,14 @@
 namespace ash
 {
 
-enum class SystemTheme : u32
+enum class SystemTheme : u8
 {
   Unknown = 0,
   Light   = 1,
   Dark    = 2
 };
 
-enum class KeyAction : u32
+enum class KeyAction : u8
 {
   Press   = 0,
   Release = 1
@@ -676,7 +675,7 @@ struct MouseWheelEvent
   Vec2 translation = {};
 };
 
-enum class WindowEventType : u32
+enum class WindowEventType : u8
 {
   Shown            = 0,
   Hidden           = 1,
@@ -703,7 +702,7 @@ struct TextInputEvent
   Str8 text{};
 };
 
-enum class DropEventType : u32
+enum class DropEventType : u8
 {
   DropBegin    = 0,
   DropComplete = 1
@@ -731,7 +730,7 @@ using WindowEvent =
   Enum<KeyEvent, MouseMotionEvent, MouseClickEvent, MouseWheelEvent,
        TextInputEvent, WindowEventType, DropEvent>;
 
-enum class SystemEventType : u32
+enum class SystemEventType : u8
 {
   KeymapChanged            = 0,
   AudioDeviceAdded         = 1,
@@ -749,7 +748,7 @@ enum class SystemEventType : u32
 
 using SystemEvent = Enum<SystemTheme, SystemEventType>;
 
-enum class TextInputType : u32
+enum class TextInputType : u8
 {
   Text                  = 0,
   Number                = 1,
@@ -762,7 +761,7 @@ enum class TextInputType : u32
   NumberPasswordVisible = 8
 };
 
-enum class TextCapitalization : u32
+enum class TextCapitalization : u8
 {
   None      = 0,
   Sentences = 1,
@@ -797,7 +796,7 @@ struct TextInputInfo
 /// @param ResizeBottom region can resize bottom window
 /// @param ResizeBottomLeft region can resize bottom left window
 /// @param ResizeLeft region can resize left window
-enum class WindowRegion : u32
+enum class WindowRegion : u8
 {
   Normal            = 0,
   Draggable         = 1,
@@ -835,7 +834,7 @@ enum class WindowRegion : u32
 /// @param SouthResize  Window resize bottom
 /// @param SWResize Window resize bottom-left
 /// @param WestResize  Window resize left
-enum class Cursor : u32
+enum class Cursor : u8
 {
   Default     = 0,
   Text        = 1,
@@ -925,7 +924,7 @@ struct ClipBoard
   }
 };
 
-enum class DropType : u32
+enum class DropType : u8
 {
   None     = 0,
   FilePath = 1,
@@ -980,6 +979,16 @@ struct KeyState
 
   KeyModifiers mod_states = KeyModifiers::None;
 
+  explicit KeyState(AllocatorRef allocator) : text{allocator}
+  {
+  }
+
+  KeyState(KeyState const &)             = delete;
+  KeyState & operator=(KeyState const &) = delete;
+  KeyState(KeyState &&)                  = default;
+  KeyState & operator=(KeyState &&)      = default;
+  ~KeyState()                            = default;
+
   constexpr bool down(KeyCode k) const
   {
     return get_bit(key_downs, (usize) k);
@@ -1025,48 +1034,9 @@ struct KeyState
     return has_bits(mod_states, mods);
   }
 
-  void clear()
-  {
-    // [ ] focused check
-    focused  = false;
-    in       = false;
-    out      = false;
-    any_down = false;
-    any_up   = false;
-    input    = false;
-    text.clear();
-    key_downs   = {};
-    key_ups     = {};
-    key_states  = {};
-    scan_downs  = {};
-    scan_ups    = {};
-    scan_states = {};
-    mod_downs   = {};
-    mod_ups     = {};
-    mod_states  = {};
-  }
+  void clear();
 
-  KeyState & copy(KeyState const & other)
-  {
-    clear();
-    focused  = other.focused;
-    in       = other.in;
-    out      = other.out;
-    any_down = other.any_down;
-    any_up   = other.any_up;
-    input    = other.input;
-    text.extend(other.text).unwrap();
-    key_downs   = other.key_downs;
-    key_ups     = other.key_ups;
-    key_states  = other.key_states;
-    scan_downs  = other.scan_downs;
-    scan_ups    = other.scan_ups;
-    scan_states = other.scan_states;
-    mod_downs   = other.mod_downs;
-    mod_ups     = other.mod_ups;
-    mod_states  = other.mod_states;
-    return *this;
-  }
+  KeyState & copy(KeyState const & other);
 };
 
 struct MouseState
@@ -1156,16 +1126,44 @@ struct WindowState
 
   /// @brief did a window surface resize happen
   bool surface_resized = true;
+
+  /// @brief is the application requested to close
+  bool close_requested = false;
+};
+
+struct DropState
+{
+  enum class Event : u8
+  {
+    None     = 0,
+    Begin    = 1,
+    FilePath = 2,
+    Bytes    = 3,
+    End      = 4
+  };
+
+  Event event = Event::None;
+
+  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
+  Vec<u8> data;
+
+  explicit DropState(AllocatorRef allocator) : data{allocator}
+  {
+  }
+
+  DropState(DropState const &)             = delete;
+  DropState & operator=(DropState const &) = delete;
+  DropState(DropState &&)                  = default;
+  DropState & operator=(DropState &&)      = default;
+  ~DropState()                             = default;
+
+  void clear();
+
+  DropState & copy(DropState const & other);
 };
 
 struct InputState
 {
-  struct Focus
-  {
-    CRect area = {};
-    CRect clip = {};
-  };
-
   /// @brief timestamp of current frame
   time_point timestamp;
 
@@ -1177,44 +1175,21 @@ struct InputState
   /// @brief windows' current frame mouse state
   MouseState mouse;
 
+  ThemeState theme;
+
   /// @brief windows' current frame keyboard state
   KeyState key;
 
-  /// @brief current drop data type
-  DropType drop_type;
+  DropState drop;
 
-  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
-  Vec<u8> drop_data;
-
-  /// @brief is the application requested to close
-  bool close_requested;
-
-  /// @brief external drop event
-  bool dropped;
-
-  bool drop_hovering;
-
-  /// @brief canvas-space region the system is currently focused on
-  Option<Focus> focused;
-
-  Option<Cursor> cursor;
-
-  void * user_data = nullptr;
-
-  explicit InputState(AllocatorRef allocator, void * user_data) :
+  explicit InputState(AllocatorRef allocator) :
     timestamp{},
     timedelta{},
     window{},
     mouse{},
-    key{.text{allocator}},
-    drop_type{DropType::None},
-    drop_data{allocator},
-    close_requested{false},
-    dropped{false},
-    drop_hovering{false},
-    focused{none},
-    cursor{none},
-    user_data{user_data}
+    theme{},
+    key{allocator},
+    drop{allocator}
   {
   }
 
@@ -1224,47 +1199,11 @@ struct InputState
   InputState & operator=(InputState &&)      = default;
   ~InputState()                              = default;
 
-  void stamp(time_point time, nanoseconds delta)
-  {
-    timestamp = time;
-    timedelta = delta;
-  }
+  void stamp(time_point time, nanoseconds delta);
 
-  void advance()
-  {
-    window = {};
-    mouse = {};
-    key.clear();
+  void clear();
 
-    // if the there was a data drop on the last frame clear the buffer
-    if (dropped)
-    {
-      drop_data.clear();
-      drop_type = DropType::None;
-    }
-
-    dropped = false;
-    focused = none;
-    cursor  = none;
-  }
-
-  InputState & copy(InputState const & other)
-  {
-    timestamp = other.timestamp;
-    timedelta = other.timedelta;
-    mouse     = other.mouse;
-    key.copy(other.key);
-    drop_type = other.drop_type;
-    drop_data.clear();
-    drop_data.extend(other.drop_data).unwrap();
-    close_requested = other.close_requested;
-    dropped         = other.dropped;
-    drop_hovering   = other.drop_hovering;
-    focused         = other.focused;
-    cursor          = other.cursor;
-    user_data       = other.user_data;
-    return *this;
-  }
+  InputState & copy(InputState const & other);
 };
 
 }    // namespace ash

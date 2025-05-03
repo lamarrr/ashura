@@ -32,7 +32,7 @@ struct TextEditRecord
   }
 };
 
-enum class TextCommand : u32
+enum class TextCommand : u8
 {
   None = 0,
 
@@ -110,20 +110,18 @@ struct TextCompositor
   Vec<c32>            buffer_;
   Vec<TextEditRecord> records_;
   Span<c32 const>     word_symbols_;
-  Span<c32 const>     line_symbols_;
 
   /// @brief record representing the current text composition state;
   /// the base state is always at index 0
   usize state_;
 
   TextCompositor(Vec<c32> buffer, Vec<TextEditRecord> records,
-                 Span<c32 const> word_symbols, Span<c32 const> line_symbols) :
+                 Span<c32 const> word_symbols) :
     cursor_{},
     caret_alignment_{CaretAlignment::LineStart},
     buffer_{std::move(buffer)},
     records_{std::move(records)},
     word_symbols_{word_symbols},
-    line_symbols_{line_symbols},
     state_{0}
   {
   }
@@ -131,8 +129,7 @@ struct TextCompositor
   static TextCompositor
     create(AllocatorRef allocator, usize buffer_size = DEFAULT_BUFFER_SIZE,
            usize           records_size = DEFAULT_RECORDS_SIZE,
-           Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS,
-           Span<c32 const> line_symbols = DEFAULT_LINE_SYMBOLS);
+           Span<c32 const> word_symbols = DEFAULT_WORD_SYMBOLS);
 
   TextCompositor(TextCompositor const &)             = delete;
   TextCompositor(TextCompositor &&)                  = default;

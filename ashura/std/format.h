@@ -144,7 +144,7 @@ struct Op
 
 namespace impl
 {
-enum class ParseState : u32
+enum class ParseState : u8
 {
   Start              = 0,
   Finished           = 1,
@@ -157,7 +157,7 @@ enum class ParseState : u32
   Error              = 8
 };
 
-enum class TokenType : u32
+enum class TokenType : u8
 {
   None          = 0,
   Sign          = 1,

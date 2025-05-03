@@ -9,30 +9,6 @@ namespace ash
 namespace ui
 {
 
-/// @brief compares the z-order of `a` and `b`
-static constexpr Order z_cmp(i32 a_layer, i32 a_z_index, u16 a_depth,
-                             i32 b_layer, i32 b_z_index, u16 b_depth)
-{
-  // cmp stacking context/layer first
-  auto ord = cmp(a_layer, b_layer);
-
-  if (ord != Order::Equal)
-  {
-    return ord;
-  }
-
-  // cmp z_index
-  ord = cmp(a_z_index, b_z_index);
-
-  if (ord != Order::Equal)
-  {
-    return ord;
-  }
-
-  // cmp depth in the view tree
-  return cmp(a_depth, b_depth);
-}
-
 void System::clear_frame()
 {
   views.clear();
@@ -131,8 +107,6 @@ Events System::drain_events(View & view, u16 idx)
     view.id_   = ViewId{next_id++};
     event.bits = Events::Bits::Type{event.bits | Events::Bits::Mount};
   }
-
-  // [ ] clear event queue
 
   return event;
 }
@@ -307,6 +281,30 @@ void System::layout(Vec2 viewport_extent)
   }
 }
 
+/// @brief compares the z-order of `a` and `b`
+static constexpr Order z_cmp(i32 a_layer, i32 a_z_index, u16 a_depth,
+                             i32 b_layer, i32 b_z_index, u16 b_depth)
+{
+  // cmp stacking context/layer first
+  auto ord = cmp(a_layer, b_layer);
+
+  if (ord != Order::Equal)
+  {
+    return ord;
+  }
+
+  // cmp z_index
+  ord = cmp(a_z_index, b_z_index);
+
+  if (ord != Order::Equal)
+  {
+    return ord;
+  }
+
+  // cmp depth in the view tree
+  return cmp(a_depth, b_depth);
+}
+
 void System::stack()
 {
   ScopeTrace trace;
@@ -408,7 +406,15 @@ void System::focus_on(u16 i, bool active, bool grab_focus)
     events.push(Event{.dst = i, .type = Events::PointerIn}).unwrap();
   }
 
-  if (grab_focus)
+  if (active)
+  {
+    focus_rect = FocusRect{
+      .area = CRect{.center = canvas_centers[i], .extent = canvas_extents[i]},
+      .clip = clips[att.viewports[i]]
+    };
+  }
+
+  if (active && grab_focus)
   {
     auto it          = i;
     auto it_viewport = att.viewports[it];
@@ -419,7 +425,7 @@ void System::focus_on(u16 i, bool active, bool grab_focus)
         .push(Event{
           .dst    = it_viewport,
           .type   = Events::Scroll,
-          .scroll = ScrollData{.center = fixed_centers[it],
+          .scroll = ScrollInfo{.center = fixed_centers[it],
                                .zoom   = viewport_zooms[it_viewport]}
       })
         .unwrap();
@@ -456,7 +462,7 @@ Option<u16> System::hit_test(Vec2 position) const
   return none;
 }
 
-HitData System::get_hit_data(u16 view, Vec2 position) const
+HitInfo System::get_hit_info(u16 view, Vec2 position) const
 {
   auto viewport          = att.viewports[view];
   auto viewport_position = transform(canvas_inv_tx[viewport], position);
@@ -467,7 +473,7 @@ HitData System::get_hit_data(u16 view, Vec2 position) const
   // local position of the pointer within the view
   auto const & fixed_center = fixed_centers[view];
 
-  return HitData{
+  return HitInfo{
     .viewport_hit = viewport_position,
     .canvas_hit   = position,
     .viewport_region{.center = fixed_center, .extent = extents[view]},
@@ -526,7 +532,7 @@ System::HitState System::none_seq(Ctx const & ctx)
 
 System::HitState System::drag_start_seq(Ctx const & ctx, Option<u16> src)
 {
-  auto diff = [&](Option<u16> tgt, Option<HitData> hit) {
+  auto diff = [&](Option<u16> tgt, Option<HitInfo> hit) {
     tgt.match([&](auto i) {
       events.push(Event{.dst = i, .type = Events::DragIn, .hit = hit}).unwrap();
       events.push(Event{.dst = i, .type = Events::DragOver, .hit = hit})
@@ -553,7 +559,7 @@ System::HitState System::drag_start_seq(Ctx const & ctx, Option<u16> src)
       events
         .push(Event{.dst  = i,
                     .type = Events::DragEnd,
-                    .hit  = get_hit_data(i, ctx.mouse.position.v())})
+                    .hit  = get_hit_info(i, ctx.mouse.position.v())})
         .unwrap();
     });
 
@@ -563,7 +569,7 @@ System::HitState System::drag_start_seq(Ctx const & ctx, Option<u16> src)
       return none;
     }
 
-    auto hit = get_hit_data(tgt.v(), ctx.mouse.position.v());
+    auto hit = get_hit_info(tgt.v(), ctx.mouse.position.v());
 
     diff(tgt, hit);
 
@@ -577,11 +583,11 @@ System::HitState System::drag_start_seq(Ctx const & ctx, Option<u16> src)
     events
       .push(Event{.dst  = i,
                   .type = Events::DragUpdate,
-                  .hit  = get_hit_data(i, ctx.mouse.position.v())})
+                  .hit  = get_hit_info(i, ctx.mouse.position.v())})
       .unwrap();
   });
 
-  diff(tgt, get_hit_data(tgt.v(), ctx.mouse.position.v()));
+  diff(tgt, get_hit_info(tgt.v(), ctx.mouse.position.v()));
 
   // change to update state
   return DragState{.seq = DragState::Update, .src = src, .tgt = tgt};
@@ -590,7 +596,7 @@ System::HitState System::drag_start_seq(Ctx const & ctx, Option<u16> src)
 System::HitState System::drag_update_seq(Ctx const & ctx, Option<u16> src,
                                          Option<u16> prev_tgt)
 {
-  auto diff = [&](Option<u16> tgt, Option<HitData> hit) {
+  auto diff = [&](Option<u16> tgt, Option<HitInfo> hit) {
     tgt.match([&](auto i) {
       if (prev_tgt == i)
       {
@@ -624,7 +630,7 @@ System::HitState System::drag_update_seq(Ctx const & ctx, Option<u16> src,
                         [&](auto i) { return att.droppable[i]; });
 
   auto hit =
-    tgt.map([&](auto i) { return get_hit_data(i, ctx.mouse.position.v()); });
+    tgt.map([&](auto i) { return get_hit_info(i, ctx.mouse.position.v()); });
 
   if (!ctx.mouse.held(MouseButton::Primary))
   {
@@ -634,7 +640,7 @@ System::HitState System::drag_update_seq(Ctx const & ctx, Option<u16> src,
       events
         .push(Event{.dst  = i,
                     .type = Events::DragEnd,
-                    .hit  = get_hit_data(i, ctx.mouse.position.v())})
+                    .hit  = get_hit_info(i, ctx.mouse.position.v())})
         .unwrap();
     });
 
@@ -649,7 +655,7 @@ System::HitState System::drag_update_seq(Ctx const & ctx, Option<u16> src,
     events
       .push(Event{.dst  = i,
                   .type = Events::DragUpdate,
-                  .hit  = get_hit_data(i, ctx.mouse.position.v())})
+                  .hit  = get_hit_info(i, ctx.mouse.position.v())})
       .unwrap();
   });
 
@@ -660,7 +666,8 @@ System::HitState System::drag_update_seq(Ctx const & ctx, Option<u16> src,
 
 System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
 {
-  auto diff = [&](Option<u16> tgt, Option<HitData> hit) {
+  // [ ] handle external drop
+  auto diff = [&](Option<u16> tgt, Option<HitInfo> hit) {
     tgt.match([&](auto i) {
       if (i != prev_tgt)
       {
@@ -698,7 +705,7 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
                           [&](auto i) { return att.scrollable[i]; });
 
     auto hit =
-      tgt.map([&](auto i) { return get_hit_data(i, ctx.mouse.position.v()); });
+      tgt.map([&](auto i) { return get_hit_info(i, ctx.mouse.position.v()); });
 
     if (tgt.is_some())
     {
@@ -710,7 +717,7 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
           .dst    = i,
           .type   = Events::Scroll,
           .hit    = hit,
-          .scroll = ScrollData{.center = viewport_centers[i] +
+          .scroll = ScrollInfo{.center = viewport_centers[i] +
                                          ctx.mouse.wheel_translation.v(),
                                .zoom = viewport_zooms[i]}
       })
@@ -726,7 +733,7 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
     });
 
     auto hit =
-      tgt.map([&](auto i) { return get_hit_data(i, ctx.mouse.position.v()); });
+      tgt.map([&](auto i) { return get_hit_info(i, ctx.mouse.position.v()); });
 
     if (tgt.is_some())
     {
@@ -749,7 +756,7 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
                         [&](auto i) { return att.pointable[i]; });
 
   auto hit =
-    tgt.map([&](auto i) { return get_hit_data(i, ctx.mouse.position.v()); });
+    tgt.map([&](auto i) { return get_hit_info(i, ctx.mouse.position.v()); });
 
   diff(tgt, hit);
 
@@ -846,30 +853,28 @@ void System::focus_seq(Ctx const & ctx)
 
   if (focus_state.active)
   {
-    events.push(Event{.dst = focus_state.tgt, .type = Events::PointerOver})
+    events.push(Event{.dst = focus_state.tgt, .type = Events::FocusOver})
       .unwrap();
+
+    if (ctx.key.any_down)
+    {
+      events.push(Event{.dst = focus_state.tgt, .type = Events::KeyDown})
+        .unwrap();
+    }
+
+    if (ctx.key.any_up)
+    {
+      events.push(Event{.dst = focus_state.tgt, .type = Events::KeyUp})
+        .unwrap();
+    }
   }
 
   xframe_focus_state = XFrameFocusState{.active = focus_state.active,
                                         .tgt    = views[focus_state.tgt]->id()};
 }
 
-/*
-// [ ]
-ViewEvents System::process_events(View & view)
-{
-  if (f1.focus.is_some() && f1.focus.value().view == view.id() &&
-      f1.focus.value().active) [[unlikely]]
-  {
-    events.key_down   = f1.key_down;
-    events.key_up     = f1.key_up;
-    events.text_input = f1.text_input;
-  }
-}
-  */
-
-void System::compose_event(ViewId id, Events::Type event, Option<HitData> hit,
-                           Option<ScrollData> scroll)
+void System::compose_event(ViewId id, Events::Type event, Option<HitInfo> hit,
+                           Option<ScrollInfo> scroll)
 {
   auto [_, v] = event_queue.insert(id, Events{}, nullptr, false).v();
 
@@ -877,33 +882,51 @@ void System::compose_event(ViewId id, Events::Type event, Option<HitData> hit,
 
   if (hit)
   {
-    v.hit_data = hit;
+    v.hit_info = hit;
   }
 
   if (scroll)
   {
-    v.scroll_data = scroll;
+    v.scroll_info = scroll;
   }
 }
 
-void System::event_dispatch()
+void System::process_input(Ctx const & ctx)
 {
   ScopeTrace trace;
 
-  /*
-  f1.key_down       = ctx.key.any_down;
-  f1.key_up         = ctx.key.any_up;
-  f1.text_input     = ctx.text_input;
-*/
+  hit_seq(ctx);
+  focus_seq(ctx);
 
-  for (auto & event : events)
+  focus_rect = none;
+  input_info = none;
+  cursor     = Cursor::Default;
+
+  for (auto const & event : events)
   {
-    auto i         = event.dst;
-    views[i]->hot_ = true;
-    // [ ] update focus rect; canvas region + clip
-    // [ ] forward hit-data; add in the hit functions
+    auto i     = event.dst;
+    ref  view  = views[i];
+    view->hot_ = true;
+    compose_event(view->id(), event.type, event.hit, event.scroll);
 
-    compose_event(views[i]->id(), event.type, event.hit, event.scroll);
+    if (event.type == Events::PointerOver)
+    {
+      Cursor c =
+        view->cursor(extents[i], ash::transform(canvas_inv_tx[att.viewports[i]],
+                                                ctx.mouse.position.v()) -
+                                   fixed_centers[i]);
+
+      cursor = c;
+    }
+    else if (event.type == Events::FocusOver)
+    {
+      focus_rect = FocusRect{
+        .area = CRect{.center = canvas_centers[i], .extent = canvas_extents[i]},
+        .clip = clips[att.viewports[i]]
+      };
+
+      input_info = att.input[i];
+    }
   }
 
   events.clear();
@@ -911,21 +934,7 @@ void System::event_dispatch()
 
 Option<TextInputInfo> System::text_input() const
 {
-  if (!f1.focus)
-  {
-    return none;
-  }
-
-  // [ ] text region rect
-
-  Focus f = f1.focus.value();
-
-  if (!f.input)
-  {
-    return none;
-  }
-
-  return f.input_info;
+  return input_info;
 }
 
 bool System::tick(InputState const & input, View & root, Canvas & canvas,
@@ -933,32 +942,30 @@ bool System::tick(InputState const & input, View & root, Canvas & canvas,
 {
   ScopeTrace trace;
 
-  // [ ]
-
   clear_frame();
 
-  // [ ] clear event queue
   root_view.next_ = root;
 
+  ctx.focused = focus_rect;
+  ctx.cursor  = cursor;
+
+  loop(ctx);
   build(ctx, root_view);
+  event_queue.clear();
   prepare_for(views.size16());
-
-  loop(input);
-  // [ ] focus rect
-
   focus_order();
-
   layout(as_vec2(input.window.extent));
   stack();
   visibility();
   render(canvas);
 
-  event_dispatch(input);
-  ctx.copy(input);
+  ctx.tick(input);
+
+  process_input(ctx);
+
+  bool const should_close = ctx.closing && !closing_deferred;
 
   frame++;
-
-  bool const should_close = input.closing && !closing_deferred;
 
   return !should_close;
 }

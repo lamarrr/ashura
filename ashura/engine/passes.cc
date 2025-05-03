@@ -310,12 +310,12 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params)
 
   if (params.framebuffer.color_msaa.is_some())
   {
-    color[0] = gpu::RenderingAttachment{
-      .view         = params.framebuffer.color_msaa.value().view,
-      .resolve      = params.framebuffer.color.view,
-      .resolve_mode = gpu::ResolveModes::Average,
-      .load_op      = gpu::LoadOp::Load,
-      .store_op     = gpu::StoreOp::Store};
+    color[0] =
+      gpu::RenderingAttachment{.view = params.framebuffer.color_msaa.v().view,
+                               .resolve      = params.framebuffer.color.view,
+                               .resolve_mode = gpu::ResolveModes::Average,
+                               .load_op      = gpu::LoadOp::Load,
+                               .store_op     = gpu::StoreOp::Store};
   }
   else
   {
@@ -438,12 +438,12 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params)
 
   if (params.framebuffer.color_msaa.is_some())
   {
-    color[0] = gpu::RenderingAttachment{
-      .view         = params.framebuffer.color_msaa.value().view,
-      .resolve      = params.framebuffer.color.view,
-      .resolve_mode = gpu::ResolveModes::Average,
-      .load_op      = gpu::LoadOp::Load,
-      .store_op     = gpu::StoreOp::Store};
+    color[0] =
+      gpu::RenderingAttachment{.view = params.framebuffer.color_msaa.v().view,
+                               .resolve      = params.framebuffer.color.view,
+                               .resolve_mode = gpu::ResolveModes::Average,
+                               .load_op      = gpu::LoadOp::Load,
+                               .store_op     = gpu::StoreOp::Store};
   }
   else
   {
@@ -566,12 +566,12 @@ void RRectPass::encode(gpu::CommandEncoder & e, RRectPassParams const & params)
 
   if (params.framebuffer.color_msaa.is_some())
   {
-    color[0] = gpu::RenderingAttachment{
-      .view         = params.framebuffer.color_msaa.value().view,
-      .resolve      = params.framebuffer.color.view,
-      .resolve_mode = gpu::ResolveModes::Average,
-      .load_op      = gpu::LoadOp::Load,
-      .store_op     = gpu::StoreOp::Store};
+    color[0] =
+      gpu::RenderingAttachment{.view = params.framebuffer.color_msaa.v().view,
+                               .resolve      = params.framebuffer.color.view,
+                               .resolve_mode = gpu::ResolveModes::Average,
+                               .load_op      = gpu::LoadOp::Load,
+                               .store_op     = gpu::StoreOp::Store};
   }
   else
   {
@@ -677,12 +677,12 @@ void SquirclePass::encode(gpu::CommandEncoder &      e,
 
   if (params.framebuffer.color_msaa.is_some())
   {
-    color[0] = gpu::RenderingAttachment{
-      .view         = params.framebuffer.color_msaa.value().view,
-      .resolve      = params.framebuffer.color.view,
-      .resolve_mode = gpu::ResolveModes::Average,
-      .load_op      = gpu::LoadOp::Load,
-      .store_op     = gpu::StoreOp::Store};
+    color[0] =
+      gpu::RenderingAttachment{.view = params.framebuffer.color_msaa.v().view,
+                               .resolve      = params.framebuffer.color.view,
+                               .resolve_mode = gpu::ResolveModes::Average,
+                               .load_op      = gpu::LoadOp::Load,
+                               .store_op     = gpu::StoreOp::Store};
   }
   else
   {

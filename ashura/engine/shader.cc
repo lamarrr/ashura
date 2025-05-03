@@ -225,10 +225,10 @@ Result<Void, ShaderLoadErr> compile_shader(ShaderCompileInfo const & info,
 
   defer unload{[&]() { info.on_drop(info.path); }};
 
-  CHECK(buff.value().size() <= I32_MAX, "");
+  CHECK(buff.v().size() <= I32_MAX, "");
 
-  char const * buff_p      = (char *) buff.value().data();
-  int          buff_length = (int) buff.value().size32();
+  char const * buff_p      = (char *) buff.v().data();
+  int          buff_length = (int) buff.v().size32();
 
   glslang::TShader shader{language};
   shader.setStringsWithLengths(&buff_p, &buff_length, 1);

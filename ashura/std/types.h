@@ -221,7 +221,7 @@ struct NumTraits<T const volatile> : NumTraits<T>
 {
 };
 
-enum class Order : i32
+enum class Order : i8
 {
   Less    = -1,
   Equal   = 0,
@@ -230,7 +230,7 @@ enum class Order : i32
 
 constexpr Order reverse_order(Order ord)
 {
-  return Order{-static_cast<i32>(ord)};
+  return static_cast<Order>(-static_cast<i8>(ord));
 }
 
 struct Add

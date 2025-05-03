@@ -377,6 +377,7 @@ if(NOT ASH_EXCLUDE_ENGINE)
     ashura/engine/font.cc
     ashura/engine/gpu_system.cc
     ashura/engine/image_decoder.cc
+    ashura/engine/input.cc
     ashura/engine/passes.cc
     ashura/engine/render_text.cc
     ashura/engine/renderer.cc

@@ -115,10 +115,9 @@ Slice TextLayout::to_caret_selection(Slice codepoints) const
     return Slice{0, 0};
   }
 
-  // [ ] re-review
   auto first  = to_caret(codepoints.first(), true);
   auto ifirst = first.unwrap();
-  CHECK(ifirst > 0, "");    // ? >=?
+  CHECK(ifirst >= 0, "");
 
   if (codepoints.is_empty())
   {
@@ -128,13 +127,12 @@ Slice TextLayout::to_caret_selection(Slice codepoints) const
   auto last  = to_caret(codepoints.last(), false);
   auto ilast = last.unwrap();
 
-  CHECK(ilast > 0, "");    // ? >=?
+  CHECK(ilast >= 0, "");
   CHECK(ilast >= ifirst, "");
 
   return Slice::from_range((usize) ifirst, (usize) (ilast + 1));
 }
 
-// [ ] IT DOESN'T CROSS LINES SMALLER THAN THE ALIGNED LINE; select up
 Option<CaretCodepoint> TextLayout::get_caret_codepoint(isize caret) const
 {
   CHECK(caret >= 0, "");
@@ -204,8 +202,7 @@ Option<CaretGlyph> TextLayout::get_caret_glyph(isize caret) const
 
     auto const & run = runs[0];
 
-    // [ ] uae grapheme clusters
-    // find the glyph with the nearest grapheme cluster to the caret's codepoint position
+    // find the glyph with the nearest glyph cluster to the caret's codepoint position
 
     Option<GlyphMatch> match;
 
@@ -367,8 +364,6 @@ Tuple<isize, CaretLocation> TextLayout::hit(TextBlock const &      block,
           }
         }
 
-        // [ ] clamp codepoint by number of codepoints on the line
-
         isize caret = line.carets.offset + (codepoint - line.codepoints.offset);
 
         return {
@@ -474,7 +469,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
     caret_glyphs.push(get_caret_glyph(caret).unwrap()).unwrap();
   }
 
-  enum Pass : u32
+  enum Pass : u8
   {
     Block         = 0,
     Background    = 1,

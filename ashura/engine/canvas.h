@@ -79,7 +79,7 @@ void triangulate_convex(Vec<u32> & idx, u32 first_vertex, u32 num_vertices);
 
 };    // namespace path
 
-enum class TileMode : u32
+enum class TileMode : u8
 {
   Stretch = 0,
   Tile    = 1
@@ -331,6 +331,7 @@ struct Canvas
 
     return pass(Pass{.label = label, .task = transmute(std::move(lambda), f)});
   }
+
   // clip mask?
   // [ ] with_mask()?
 };

@@ -125,7 +125,7 @@ struct RenderText
   void layout(f32 max_width);
 
   void render(Canvas & canvas, CRect const & region, CRect const & clip,
-              Vec2 zoom);
+              Vec2 zoom, TextRenderer renderer = TextLayout::default_renderer);
 
   Tuple<isize, CaretLocation> hit(CRect const & region, Vec2 pos,
                                   Vec2 zoom) const;

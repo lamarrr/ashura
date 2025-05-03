@@ -165,7 +165,7 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
           f.key.any_down = true;
           set_bit(f.key.key_downs, (usize) e.key_code);
           set_bit(f.key.scan_downs, (usize) e.scan_code);
-          f.key.modifier_downs |= e.modifiers;
+          f.key.mod_downs |= e.modifiers;
         }
         break;
         case KeyAction::Release:
@@ -173,7 +173,7 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
           f.key.any_up = true;
           set_bit(f.key.key_ups, (usize) e.key_code);
           set_bit(f.key.scan_ups, (usize) e.scan_code);
-          f.key.modifier_ups |= e.modifiers;
+          f.key.mod_ups |= e.modifiers;
         }
         break;
         default:
@@ -181,9 +181,9 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
       }
     },
     [&](MouseMotionEvent e) {
-      f.mouse.moved    = true;
-      f.mouse.position = e.position;
-      f.mouse.translation += e.translation;
+      f.mouse.moved       = true;
+      f.mouse.position    = e.position;
+      f.mouse.translation = e.translation;
     },
     [&](MouseClickEvent e) {
       f.mouse.num_clicks[(u32) e.button] = e.clicks;
@@ -191,11 +191,11 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
       switch (e.action)
       {
         case KeyAction::Press:
-          f.mouse.downs |= MouseButtons{1U << (u32) e.button};
+          f.mouse.downs |= static_cast<MouseButtons>(1U << (u32) e.button);
           f.mouse.any_down = true;
           break;
         case KeyAction::Release:
-          f.mouse.ups |= MouseButtons{1U << (u32) e.button};
+          f.mouse.ups |= static_cast<MouseButtons>(1U << (u32) e.button);
           f.mouse.any_up = true;
           break;
         default:
@@ -203,13 +203,13 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
       }
     },
     [&](MouseWheelEvent e) {
-      f.mouse.wheel_scrolled = true;
-      f.mouse.position       = e.position;
-      f.mouse.translation += e.translation;
+      f.mouse.scrolled          = true;
+      f.mouse.position          = e.position;
+      f.mouse.wheel_translation = e.translation;
     },
     [&](TextInputEvent e) {
-      f.text_input = true;
-      f.text.extend(e.text).unwrap();
+      f.key.input = true;
+      f.key.text.extend(e.text).unwrap();
     },
     [&](WindowEventType e) {
       switch (e)
@@ -220,34 +220,29 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
         case WindowEventType::Moved:
           break;
         case WindowEventType::Resized:
-          f.resized = true;
+          f.window.resized = true;
           break;
         case WindowEventType::SurfaceResized:
-          f.surface_resized = true;
+          f.window.surface_resized = true;
           break;
         case WindowEventType::Minimized:
         case WindowEventType::Maximized:
         case WindowEventType::Restored:
           break;
         case WindowEventType::MouseEnter:
-          f.mouse.in      = true;
-          f.mouse_focused = true;
+          f.mouse.in = true;
           break;
         case WindowEventType::MouseLeave:
-          f.mouse.out     = true;
-          f.mouse_focused = false;
+          f.mouse.out = true;
           break;
         case WindowEventType::KeyboardFocusIn:
-          f.key.in      = true;
-          f.key_focused = true;
+          f.key.in = true;
           break;
         case WindowEventType::KeyboardFocusOut:
-          f.key.out     = true;
-          f.key_focused = false;
+          f.key.out = true;
           break;
         case WindowEventType::CloseRequested:
-          f.close_requested = true;
-          f.closing         = true;
+          f.window.close_requested = true;
           break;
         case WindowEventType::Occluded:
         case WindowEventType::EnterFullScreen:
@@ -264,27 +259,25 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
           switch (e)
           {
             case DropEventType::DropBegin:
+              f.drop.event = DropState::Event::Begin;
               break;
             case DropEventType::DropComplete:
-              f.dropped = true;
+              f.drop.event = DropState::Event::End;
               break;
             default:
               break;
           }
         },
-        [&](DropPositionEvent e) {
-          f.drop_hovering  = true;
-          f.mouse.position = e.pos;
-        },
+        [&](DropPositionEvent e) { f.mouse.position = e.pos; },
         [&](DropFileEvent e) {
-          f.drop_data.clear();
-          f.drop_data.extend(e.path.as_u8()).unwrap();
-          f.drop_type = DropType::FilePath;
+          f.drop.data.clear();
+          f.drop.data.extend(e.path.as_u8()).unwrap();
+          f.drop.event = DropState::Event::FilePath;
         },
         [&](DropTextEvent e) {
-          f.drop_data.clear();
-          f.drop_data.extend(e.text.as_u8()).unwrap();
-          f.drop_type = DropType::Bytes;
+          f.drop.data.clear();
+          f.drop.data.extend(e.text.as_u8()).unwrap();
+          f.drop.event = DropState::Event::Bytes;
         });
     });
 }
@@ -305,7 +298,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
 
   read_file(config_path, json).unwrap("Error opening config file");
 
-  EngineCfg cfg = EngineCfg::parse(allocator, json);
+  EngineCfg cfg = EngineCfg::parse(allocator, json).unwrap();
 
   trace("Initializing Core Systems");
 
@@ -390,9 +383,9 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
 
   Canvas canvas{allocator};
 
-  ViewSystem view_sys{allocator};
+  ui::System ui_sys{allocator};
 
-  Vec<char> working_dir_copy = vec(allocator, working_dir).unwrap();
+  Vec<char> working_dir_copy = vec<char>(allocator, working_dir).unwrap();
 
   u32 const hardware_concurrency = std::thread::hardware_concurrency();
 
@@ -416,7 +409,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
 
   if (cfg.gpu.max_fps.is_some())
   {
-    f64 const max_fpns = cfg.gpu.max_fps.v() * (1 / 1'000'000'000.0);
+    f64 const max_fpns          = cfg.gpu.max_fps.v() * (1 / 1'000'000'000.0);
     f64 const min_frame_time_ns = 1 / max_fpns;
     min_frame_interval = nanoseconds{(nanoseconds::rep) min_frame_time_ns};
   }
@@ -427,7 +420,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
                 *device, std::move(gpu_sys), std::move(image_sys),
                 std::move(font_sys), std::move(shader_sys),
                 std::move(window_sys), window, clipboard, surface, present_mode,
-                std::move(renderer), std::move(canvas), std::move(view_sys),
+                std::move(renderer), std::move(canvas), std::move(ui_sys),
                 std::move(working_dir_copy), std::move(cfg.pipeline_cache),
                 min_frame_interval)
       .unwrap();
@@ -445,8 +438,8 @@ void Engine::engage_(EngineCfg const & cfg)
                         event.match(
                           [&](SystemTheme theme) {
                             InputState & f  = engine->input_buffer;
-                            f.theme         = theme;
-                            f.theme_changed = true;
+                            f.theme.theme   = theme;
+                            f.theme.changed = true;
                           },
                           [](SystemEventType) {});
                       }});
@@ -656,8 +649,12 @@ void Engine::recreate_swapchain_()
   }
 }
 
+void Engine::get_input_state_(InputState & state)
+{
+}
+
 void Engine::run(ui::View & view, ui::View & focus_view,
-                 Fn<void(InputState const &)> loop)
+                 Fn<void(ui::Ctx const &)> loop)
 {
   trace("Starting Engine Run Loop");
 

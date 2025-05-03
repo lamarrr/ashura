@@ -9,8 +9,7 @@ namespace ash
 {
 
 TextCompositor TextCompositor::create(AllocatorRef allocator, usize buffer_size,
-                                      usize records_size, Str32 word_symbols,
-                                      Str32 line_symbols)
+                                      usize records_size, Str32 word_symbols)
 {
   CHECK(buffer_size > 1, "");
   CHECK(records_size > 1, "");
@@ -29,8 +28,7 @@ TextCompositor TextCompositor::create(AllocatorRef allocator, usize buffer_size,
                          .type        = TextEditRecordType::Erase})
     .unwrap();
 
-  return TextCompositor{std::move(buffer), std::move(records), word_symbols,
-                        line_symbols};
+  return TextCompositor{std::move(buffer), std::move(records), word_symbols};
 }
 
 TextCursor TextCompositor::cursor() const
@@ -316,15 +314,27 @@ static inline Option<isize> translate_caret(TextLayout const & layout,
                                             CaretAlignment     alignment,
                                             isize line_displacement)
 {
-  auto loc = layout.locate_caret(caret);
+  if (layout.lines.is_empty())
+  {
+    return none;
+  }
 
-  // [ ]
-  return layout.align_caret(CaretLocation{.line = loc.line + line_displacement,
-                                          .alignment = alignment});
+  auto oloc = layout.get_caret_codepoint(caret);
+  if (!oloc)
+  {
+    return none;
+  }
+
+  auto loc = oloc.v();
+
+  auto line = clamp((isize) loc.line + line_displacement, (isize) 0,
+                    (isize) layout.lines.size());
+
+  return layout.align_caret(CaretLocation{
+    .line = static_cast<LineAlignment>(line), .alignment = alignment});
 }
 
 // [ ] IME support
-// [ ] selecting  line span resets it to the beginning
 bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
                              Str32 keyboard_input, ClipBoard & clipboard,
                              usize lines_per_page, usize tab_width,
@@ -337,8 +347,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
   auto & layout = rendered.get_layout();
   auto & text   = rendered.text_;
 
-  // [ ] normalize by caret span
-  cursor_.normalizex(layout.num_carets);
+  cursor_.normalize(layout.num_carets);
 
   bool modified = false;
 
@@ -346,53 +355,38 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
   {
     case TextCommand::Escape:
     {
-      cursor_.unselectx();
+      cursor_.unselect();
     }
     break;
     case TextCommand::Unselect:
     {
-      cursor_.unselectx();
+      cursor_.unselect();
     }
     break;
     case TextCommand::BackSpace:
     {
-      Slice selection;
-
-      if (auto s = cursor_.selectionx(); !s.is_empty())
+      if (!cursor_.has_selection())
       {
-        selection = s;
-      }
-      else
-      {
-        selection = cursor_.translatex(-1)
-                      .span_by2x(1)
-                      .normalizex(layout.num_carets)
-                      .selectionx();
+        cursor_.translate(-1).span_by(1).normalize(layout.num_carets);
       }
 
-      modified |= erase(text, layout.get_caret_selection(selection));
-      cursor_.unselect_leftx();
+      Slice carets = cursor_.selection();
+      modified |= erase(text, layout.get_caret_selection(carets));
+      cursor_.unselect_left();
     }
     break;
     case TextCommand::Delete:
     {
-      Slice selection;
-
-      if (auto s = cursor_.selectionx(); !s.is_empty())
+      if (cursor_.has_selection())
       {
-        selection = s;
-      }
-      else
-      {
-        selection =
-          cursor_.span_by2x(1).normalizex(layout.num_carets).selectionx();
+        cursor_.span_by(1).normalize(layout.num_carets);
       }
 
-      modified |= erase(text, layout.get_caret_selection(selection));
-      cursor_.unselect_leftx();
+      Slice carets = cursor_.selection();
+      modified |= erase(text, layout.get_caret_selection(carets));
+      cursor_.unselect_left();
     }
     break;
-    case TextCommand::Paste:
     case TextCommand::InputText:
     case TextCommand::NewLine:
     case TextCommand::Tab:
@@ -428,26 +422,32 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
 
       if (!input.is_empty())
       {
-        if (auto selection = cursor_.selectionx(); !selection.is_empty())
+        auto carets = cursor_.selection();
+        if (!carets.is_empty())
         {
-          auto text_selection = layout.get_caret_selection(selection);
-          push_record(TextEditRecordType::Replace, text_selection.offset,
-                      text.view().slice(text_selection), input);
-          // [ ] if it doesn't accept new line, then don't accept it / !!!!!!!filter
-          text.erase(text_selection);
-          text.insert_span(text_selection.offset, input).unwrap();
-          cursor_.unselectx()
-            .translate(
-              -(isize) text_selection.span)    // move to end of text actually
-            .normalizex(layout.num_carets)
-            .translatex(input.size());
+          auto selection = layout.get_caret_selection(carets);
+          push_record(TextEditRecordType::Replace, selection.offset,
+                      text.view().slice(selection), input);
+          text.erase(selection);
+          text.insert_span(selection.offset, input).unwrap();
+          cursor_
+            .move_to(layout.to_caret(selection.offset + input.size(), true)
+                       .unwrap_or(0))
+            .normalize(layout.num_carets);
         }
         else
         {
-          auto caret = cursor_.caret();
-          push_record(TextEditRecordType::Insert, caret, {}, input);
-          text.insert_span(caret, input).unwrap();
-          cursor_.unselect().translate(input.size()).normalize();
+          auto codepoint = layout.get_caret_codepoint(cursor_.caret());
+
+          if (codepoint)
+          {
+            auto cp = codepoint.v().codepoint + (codepoint.v().after ? 1 : 0);
+            push_record(TextEditRecordType::Insert, cp, {}, input);
+            text.insert_span(cp, input).unwrap();
+            cursor_.unselect()
+              .move_to(layout.to_caret(cp + input.size(), true).unwrap_or(0))
+              .normalize(layout.num_carets);
+          }
         }
         modified = true;
       }
@@ -455,167 +455,199 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     break;
     case TextCommand::Left:
     {
-      cursor_.translatex(-1).normalizex(layout.num_carets);
+      cursor_.translate(-1).normalize(layout.num_carets);
     }
     break;
     case TextCommand::Right:
     {
-      cursor_.translatex(1).normalizex(layout.num_carets);
+      cursor_.translate(1).normalize(layout.num_carets);
     }
     break;
     case TextCommand::WordStart:
     {
-      // [ ] ???
+      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
       cursor_.move_to(
-        seek_sym(text, cursor_.caret(), true, word_symbols_).unwrap_or(0));
+        layout
+          .to_caret(
+            seek_sym(text, c.codepoint + (c.after ? 1 : 0), true, word_symbols_)
+              .unwrap_or(0),
+            true)
+          .unwrap());
     }
     break;
     case TextCommand::WordEnd:
     {
-      // [ ] all caret indices should be converted to text positions
-      cursor_.move_to(seek_sym(text, cursor_.caret(), false, word_symbols_)
-                        .unwrap_or(text.size()));
+      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      cursor_.move_to(
+        layout
+          .to_caret(seek_sym(text, c.codepoint + (c.after ? 1 : 0), false,
+                             word_symbols_)
+                      .unwrap_or(layout.num_codepoints),
+                    true)
+          .unwrap());
     }
     break;
     case TextCommand::LineStart:
     {
-      cursor_.move_to(
-        seek_sym(text, cursor_.caret(), true, line_symbols_).unwrap_or(0));
+      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      cursor_.move_to(layout.lines[c.line].carets.first());
     }
     break;
     case TextCommand::LineEnd:
     {
-      cursor_.move_to(seek_sym(text, cursor_.caret(), false, line_symbols_)
-                        .unwrap_or(text.size()));
+      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      cursor_.move_to(layout.lines[c.line].carets.last());
     }
     break;
     case TextCommand::Up:
     {
       cursor_.move_to(
         translate_caret(layout, cursor_.caret(), caret_alignment_, -1)
-          .unwrap_or(0));
+          .unwrap_or(cursor_.caret()));
     }
     break;
     case TextCommand::Down:
     {
       cursor_.move_to(
         translate_caret(layout, cursor_.caret(), caret_alignment_, 1)
-          .unwrap_or(0));
+          .unwrap_or(cursor_.caret()));
     }
     break;
     case TextCommand::PageUp:
     {
       cursor_.move_to(translate_caret(layout, cursor_.caret(), caret_alignment_,
                                       -(isize) lines_per_page)
-                        .unwrap_or(0));
+                        .unwrap_or(cursor_.caret()));
     }
     break;
     case TextCommand::PageDown:
     {
       cursor_.move_to(translate_caret(layout, cursor_.caret(), caret_alignment_,
                                       (isize) lines_per_page)
-                        .unwrap_or(0));
+                        .unwrap_or(cursor_.caret()));
     }
     break;
     case TextCommand::SelectLeft:
     {
-      cursor_.extend_selection(-1).normalize();
+      cursor_.extend_selection(-1).normalize(layout.num_carets);
     }
     break;
     case TextCommand::SelectRight:
     {
-      cursor_.extend_selection(1).normalize();
+      cursor_.extend_selection(1).normalize(layout.num_carets);
     }
     break;
     case TextCommand::SelectUp:
     {
-      cursor_.span_to2(
+      cursor_.span_to(
         translate_caret(layout, cursor_.caret(), caret_alignment_, -1)
-          .unwrap_or(0));
+          .unwrap_or(cursor_.caret()));
     }
     break;
     case TextCommand::SelectDown:
     {
-      cursor_.span_to2(
+      cursor_.span_to(
         translate_caret(layout, cursor_.caret(), caret_alignment_, 1)
-          .unwrap_or(0));
+          .unwrap_or(cursor_.caret()));
     }
     break;
     case TextCommand::SelectToWordStart:
     {
-      cursor_.span_to2(
-        seek_sym(text, cursor_.caret(), true, word_symbols_).unwrap_or(0));
+      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      cursor_.span_to(
+        layout
+          .to_caret(
+            seek_sym(text, c.codepoint, true, word_symbols_).unwrap_or(0), true)
+          .unwrap());
     }
     break;
     case TextCommand::SelectToWordEnd:
     {
-      cursor_.span_to2(seek_sym(text, cursor_.caret(), false, word_symbols_)
-                         .unwrap_or(text.size()));
+      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      cursor_.span_to(
+        layout
+          .to_caret(seek_sym(text, c.codepoint, false, word_symbols_)
+                      .unwrap_or(layout.num_codepoints),
+                    true)
+          .unwrap());
     }
     break;
     case TextCommand::SelectToLineStart:
     {
-      cursor_.span_to2(
-        seek_sym(text, cursor_.caret(), true, line_symbols_).unwrap_or(0));
+      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      cursor_.span_to(layout.lines[c.line].carets.first());
     }
     break;
     case TextCommand::SelectToLineEnd:
     {
-      cursor_.span_to2(seek_sym(text, cursor_.caret(), false, line_symbols_)
-                         .unwrap_or(text.size()));
+      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      cursor_.span_to(layout.lines[c.line].carets.last());
     }
     break;
     case TextCommand::SelectPageUp:
     {
-      // [ ]
-      // cursor_.span_to(translate_caret(layout, cursor_.caret().unwrap_or(0),
-      //                                 caret_alignment_.unwrap_or(0),
-      //                                 -(isize) lines_per_page)
-      //                   .unwrap_or(0));
+      cursor_.span_to(translate_caret(layout, cursor_.caret(), caret_alignment_,
+                                      -(isize) lines_per_page)
+                        .unwrap_or(cursor_.caret()));
     }
     break;
     case TextCommand::SelectPageDown:
     {
-      // [ ]
-      // cursor_.span_to(translate_caret(layout, cursor_.caret().unwrap_or(0),
-      //                                 caret_alignment_.unwrap_or(0),
-      //                                 (isize) lines_per_page)
-      //                   .unwrap_or(0));
+      cursor_.span_to(translate_caret(layout, cursor_.caret(), caret_alignment_,
+                                      (isize) lines_per_page)
+                        .unwrap_or(cursor_.caret()));
     }
     break;
     case TextCommand::SelectCodepoint:
     {
-      cursor_.span_by2(1).normalize();
+      cursor_.span_by(1).normalize(layout.num_carets);
     }
     break;
     case TextCommand::SelectWord:
     {
-      // cursor_.select(span_symbol(text, cursor_.caret(), word_symbols_), true);
+      auto selection = span_sym_boundary(
+        text, layout.get_caret_codepoint(cursor_.caret()).unwrap().codepoint,
+        word_symbols_);
+      cursor_.select(layout.get_caret_selection(selection));
     }
     break;
     case TextCommand::SelectLine:
     {
-      // [ ] get line, span it
-      // cursor_.select(symbol_boundary(text, line_symbols_, cursor_.selection()));
+      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      cursor_.select(layout.lines[c.line].carets);
     }
     break;
     case TextCommand::SelectAll:
     {
-      cursor_.select(Slice{0, text.size()});
+      cursor_.select(Slice{0, layout.num_carets});
     }
     break;
     case TextCommand::Cut:
     {
       Vec<c8> data8{scratch_allocator};
-      utf8_encode(text.view().slice(cursor_.selection()), data8).unwrap();
-      erase(text, cursor_.selection());
+      if (!cursor_.has_selection())
+      {
+        auto cp = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+        cursor_.select(layout.lines[cp.line].carets);
+      }
+
+      auto selection = layout.get_caret_selection(cursor_.selection());
+      utf8_encode(text.view().slice(selection), data8).unwrap();
+      erase(text, selection);
       clipboard.set(MIME_TEXT_UTF8, data8.view().as_u8()).unwrap();
     }
     break;
     case TextCommand::Copy:
     {
       Vec<c8> data8{scratch_allocator};
-      utf8_encode(text.view().slice(cursor_.selection()), data8).unwrap();
+      if (!cursor_.has_selection())
+      {
+        auto cp = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+        cursor_.select(layout.lines[cp.line].carets);
+      }
+
+      auto selection = layout.get_caret_selection(cursor_.selection());
+      utf8_encode(text.view().slice(selection), data8).unwrap();
       clipboard.set(MIME_TEXT_UTF8, data8.view().as_u8()).unwrap();
     }
     break;
@@ -623,7 +655,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     {
       undo(text).match([&](Slice inserted) {
         modified = true;
-        cursor_.select(inserted);
+        cursor_.select(layout.to_caret_selection(inserted));
       });
     }
     break;
@@ -631,22 +663,22 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     {
       redo(text).match([&](Slice inserted) {
         modified = true;
-        cursor_.select(inserted);
+        cursor_.select(layout.to_caret_selection(inserted));
       });
     }
     break;
     case TextCommand::Hit:
     {
-      auto hit = rendered.hit(region, pos, zoom).unwrap_or(TextHitResult{});
-      caret_alignment_ = hit.column;
-      cursor_.move_to(align_caret(layout, hit.line, hit.column));
+      auto [caret, loc] = rendered.hit(region, pos, zoom);
+      caret_alignment_  = loc.alignment;
+      cursor_.move_to(layout.align_caret(loc));
     }
     break;
     case TextCommand::HitSelect:
     {
-      auto hit = rendered.hit(region, pos, zoom).unwrap_or(TextHitResult{});
-      caret_alignment_ = hit.column;
-      cursor_.span_to2(align_caret(layout, hit.line, hit.column));
+      auto [caret, loc] = rendered.hit(region, pos, zoom);
+      caret_alignment_  = loc.alignment;
+      cursor_.span_to(layout.align_caret(loc));
     }
     break;
 
@@ -655,7 +687,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
       break;
   }
 
-  cursor_.normalize(text.size());
+  cursor_.normalize(layout.num_carets);
 
   return modified;
 }

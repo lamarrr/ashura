@@ -86,7 +86,7 @@ struct Engine
 
   Canvas canvas;
 
-  ViewSystem view_sys;
+  ui::System ui_sys;
 
   InputState input_buffer;
 
@@ -106,7 +106,7 @@ struct Engine
          ShaderSystem shader_sys, Dyn<WindowSystem *> window_sys, Window window,
          ClipBoard & clipboard, gpu::Surface surface,
          gpu::PresentMode present_mode_preference, Renderer renderer,
-         Canvas canvas, ViewSystem view_sys, Vec<char> working_dir,
+         Canvas canvas, ui::System ui_sys, Vec<char> working_dir,
          Vec<char> pipeline_cache_path, nanoseconds min_frame_interval) :
     allocator{allocator},
     logger{std::move(logger)},
@@ -125,7 +125,7 @@ struct Engine
     present_mode_preference{present_mode_preference},
     renderer{std::move(renderer)},
     canvas{std::move(canvas)},
-    view_sys{std::move(view_sys)},
+    ui_sys{std::move(ui_sys)},
     input_buffer{allocator},
     working_dir{std::move(working_dir)},
     pipeline_cache_path{std::move(pipeline_cache_path)},
@@ -155,8 +155,10 @@ struct Engine
 
   void recreate_swapchain_();
 
+  void get_input_state_(InputState & state);
+
   void run(ui::View & view, ui::View & focus_view,
-           Fn<void(InputState const &)> loop = noop);
+           Fn<void(ui::Ctx const &)> loop = noop);
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded

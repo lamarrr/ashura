@@ -259,19 +259,19 @@ struct TextCursor
   isize span_ = 0;
   isize base_ = 0;
 
-  constexpr TextCursor & selectx(Slice s)
+  constexpr TextCursor & select(Slice s)
   {
     base_ = s.offset;
     span_ = s.span;
     return *this;
   }
 
-  constexpr isize caretx() const
+  constexpr isize caret() const
   {
     return base_ + span_;
   }
 
-  constexpr isize left_caretx() const
+  constexpr isize left_caret() const
   {
     if (span_ > 0)
     {
@@ -287,7 +287,7 @@ struct TextCursor
     }
   }
 
-  constexpr isize right_caretx() const
+  constexpr isize right_caret() const
   {
     if (span_ > 0)
     {
@@ -303,36 +303,36 @@ struct TextCursor
     }
   }
 
-  constexpr TextCursor & unselectx()
+  constexpr TextCursor & unselect()
   {
-    auto c = caretx();
+    auto c = caret();
     base_  = c;
     span_  = 0;
     return *this;
   }
 
-  constexpr TextCursor & unselect_leftx()
+  constexpr TextCursor & unselect_left()
   {
-    auto c = left_caretx();
+    auto c = left_caret();
     base_  = c;
     span_  = 0;
     return *this;
   }
 
-  constexpr TextCursor & unselect_rightx()
+  constexpr TextCursor & unselect_right()
   {
-    auto c = right_caretx();
+    auto c = right_caret();
     base_  = c;
     span_  = c;
     return *this;
   }
 
-  constexpr bool has_selectionx() const
+  constexpr bool has_selection() const
   {
     return span_ != 0;
   }
 
-  constexpr TextCursor & normalizex(isize num_carets)
+  constexpr TextCursor & normalize(isize num_carets)
   {
     if (num_carets == 0)
     {
@@ -347,7 +347,7 @@ struct TextCursor
     return *this;
   }
 
-  constexpr Slice selectionx() const
+  constexpr Slice selection() const
   {
     if (span_ >= 0)
     {
@@ -359,37 +359,37 @@ struct TextCursor
     }
   }
 
-  constexpr TextCursor & span_by2x(isize distance)
+  constexpr TextCursor & span_by(isize distance)
   {
     span_ = distance;
     return *this;
   }
 
-  constexpr isize spanx() const
+  constexpr isize span() const
   {
     return span_;
   }
 
-  constexpr TextCursor & span_to2x(isize selection_pos)
+  constexpr TextCursor & span_to(isize selection_pos)
   {
     span_ = (selection_pos - base_);
     return *this;
   }
 
-  constexpr TextCursor & extend_selectionx(isize extension)
+  constexpr TextCursor & extend_selection(isize extension)
   {
     span_ += extension;
     return *this;
   }
 
-  constexpr TextCursor & move_tox(isize pos)
+  constexpr TextCursor & move_to(isize pos)
   {
     base_ = pos;
     span_ = 0;
     return *this;
   }
 
-  constexpr TextCursor & translatex(isize dist)
+  constexpr TextCursor & translate(isize dist)
   {
     base_ += dist;
     return *this;
@@ -681,7 +681,7 @@ struct CaretGlyph
 struct ShapeInfo;
 struct Canvas;
 
-enum class TextRegion : u32
+enum class TextRegion : u8
 {
   None          = 0,
   Block         = 1,

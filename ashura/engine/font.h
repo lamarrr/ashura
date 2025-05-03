@@ -30,7 +30,7 @@ constexpr Vec2 au_to_px(Vec2I au, f32 base)
   return Vec2{au_to_px(au.x, base), au_to_px(au.y, base)};
 }
 
-enum class FontLoadErr : u32
+enum class FontLoadErr : u8
 {
   OutOfMemory       = 0,
   InvalidPath       = 1,

@@ -284,10 +284,10 @@ struct Text : View
 };
 
 // [ ] scroll and clip text if region isn't large enough
-// [ ] wrapping to the next line if not large enough
-// [ ] no wrap
-// [ ] max-len/filter function
-// [ ] secret text input
+// -  wrapping to the next line if not large enough
+// -  no wrap
+// -  max-len/filter function
+// -  secret text input
 struct Input : View
 {
   struct State
@@ -303,8 +303,6 @@ struct Input : View
     bool enter_submits : 1 = false;
 
     bool tab_input : 1 = false;
-
-    FocusState focus = {};
   } state;
 
   struct Style
@@ -408,8 +406,6 @@ struct Button : View
   struct State
   {
     bool disabled = false;
-
-    PressState press = {};
   } state;
 
   struct Style
@@ -578,8 +574,6 @@ struct CheckBox : View
     bool disabled : 1 = false;
 
     bool value : 1 = false;
-
-    PressState press = {};
   } state;
 
   struct Style
@@ -662,8 +656,6 @@ struct Slider : View
   struct State
   {
     bool disabled = false;
-
-    DragState drag = {};
 
     f32 t = 0;
 
@@ -757,8 +749,6 @@ struct Switch : View
   {
     bool disabled = false;
 
-    PressState press = {};
-
     bool value = false;
   } state;
 
@@ -839,9 +829,8 @@ struct Radio : View
 {
   struct State
   {
-    bool       disabled : 1 = false;
-    bool       value    : 1 = false;
-    PressState press        = {};
+    bool disabled : 1 = false;
+    bool value    : 1 = false;
   } state;
 
   struct Style
@@ -913,8 +902,6 @@ struct ScalarDragBox : View
     bool input_mode : 1 = false;
 
     bool dragging : 1 = false;
-
-    FocusState focus = {};
 
     ScalarInfo spec = F32Info{};
 
@@ -1059,10 +1046,9 @@ struct ScrollBar : View
 {
   struct State
   {
-    bool      disabled : 1 = false;
-    bool      hidden   : 1 = false;
-    DragState drag         = {};
-    f32       t            = 0;
+    bool disabled : 1 = false;
+    bool hidden   : 1 = false;
+    f32  t            = 0;
   } state;
 
   struct Style
@@ -1214,11 +1200,6 @@ struct ComboItem : View
 
 struct TextComboItem : ComboItem
 {
-  struct State
-  {
-    PressState press;
-  } state;
-
   struct Style
   {
     Frame frame = Frame{}.scale(1, 1);
@@ -1499,7 +1480,7 @@ struct List : View
 };
 
 // [ ] DEFAULT FOCUS VIEW
-// [ ] set the global focus rect, focus view can move there
+// - set the global focus rect, focus view can move there
 struct FocusView : View
 {
 };

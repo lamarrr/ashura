@@ -335,7 +335,7 @@ TextCommand text_command(Ctx const & ctx, Events const & events, bool multiline,
     return TextCommand::Escape;
   }
 
-  if (events.text_input)
+  if (events.text_input())
   {
     return TextCommand::InputText;
   }
@@ -345,7 +345,7 @@ TextCommand text_command(Ctx const & ctx, Events const & events, bool multiline,
   auto const ctrl = ctx.key.held(KeyModifiers::LeftCtrl) ||
                     ctx.key.held(KeyModifiers::RightCtrl);
 
-  if (events.key_down)
+  if (events.key_down())
   {
     if (shift && ctx.key.down(KeyCode::Left))
     {
@@ -499,8 +499,6 @@ TextCommand text_command(Ctx const & ctx, Events const & events, bool multiline,
     return TextCommand::HitSelect;
   }
 
-  // [ ] unselect
-
   return TextCommand::None;
 }
 
@@ -563,25 +561,31 @@ ui::State Text::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
   {
     cmd = TextCommand::Hit;
   }
-  else if (events.drag_update())    // [ ] can we delay this?
+  else if (ctx.mouse.down(MouseButton::Primary) &&
+           (ctx.mouse.clicks(MouseButton::Primary) == 2))
+  {
+    cmd = TextCommand::SelectWord;
+  }
+  else if (ctx.mouse.down(MouseButton::Primary) &&
+           (ctx.mouse.clicks(MouseButton::Primary) == 3))
+  {
+    cmd = TextCommand::SelectAll;
+  }
+  else if (events.drag_update())
   {
     cmd = TextCommand::HitSelect;
   }
-  else if (has_any_bit(ctx.mouse.downs, MouseButtons::All) &&
-           compositor_.cursor_.has_selection())
+  else if (ctx.mouse.any_down)
   {
     cmd = TextCommand::Unselect;
   }
-  // [ ] dbl, triple click
 
   bool modified =
     compositor_.command(text_, cmd, {}, engine->clipboard, 1, 1, region,
                         ctx.mouse.position, zoom, default_allocator);
   CHECK(!modified, "");
 
-  text_.caret(none)
-    .highlight(compositor_.cursor().selection())
-    .caret_style(none)
+  text_.add_highlight(compositor_.cursor().selection())
     .highlight_style(style.highlight);
 
   return ui::State{.draggable = state.copyable};
@@ -717,25 +721,21 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
   state.editing = false;
   state.submit  = false;
 
-  state.focus.tick(events);
-
   u8 buffer[512];
 
   FallbackAllocator allocator{Arena::from(buffer), allocator_};
 
   Vec<c32> input_u32{allocator};
 
-  if (events.text_input)
+  if (events.text_input())
   {
-    utf8_decode(ctx.text, input_u32).unwrap();
+    utf8_decode(ctx.key.text, input_u32).unwrap();
   }
 
   TextCommand cmd = TextCommand::None;
 
-  // [ ] focused | drag_start
-  if (state.focus.focused)
+  if (events.focus_over() || events.drag_update())
   {
-    // [ ] focus and drag start
     cmd = text_command(ctx, events, state.multiline, state.enter_submits,
                        state.tab_input);
   }
@@ -746,9 +746,12 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
   auto cursor = compositor_.cursor();
 
-  content_.highlight(cursor.selection()).caret(cursor.caret());
+  content_.clear_highlights()
+    .clear_carets()
+    .add_highlight(cursor.selection())
+    .add_caret(cursor.caret());
 
-  if (state.focus.focused)
+  if (events.focus_over())
   {
     content_.highlight_style(style.highlight).caret_style(style.caret);
   }
@@ -772,12 +775,12 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
     state.submit = true;
   }
 
-  if (state.focus.in)
+  if (events.focus_in())
   {
     cb.focus_in();
   }
 
-  if (state.focus.out)
+  if (events.focus_out())
   {
     cb.focus_out();
   }
@@ -797,7 +800,7 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
       TextInputInfo{.multiline = state.multiline, .tab_input = state.tab_input},
     .draggable  = !state.disabled,
     .focusable  = !state.disabled,
-    .grab_focus = events.mouse_down
+    .grab_focus = events.pointer_down()
   };
 }
 
@@ -821,7 +824,7 @@ void Input::render(Canvas & canvas, CRect const & region, Vec2 zoom,
   }
   else
   {
-    // [ ] need to draw caret even if line is empty; SET placeholder caret to 0
+    // [ ] need to draw caret even if line is empty; SET placeholder caret to 0;  use place holder when focused
     content_.render(canvas, region, clip, zoom);
   }
 }
@@ -831,16 +834,14 @@ Cursor Input::cursor(Vec2, Vec2)
   return Cursor::Text;
 }
 
-ui::State Button::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
+ui::State Button::tick(Ctx const &, Events const & events, Fn<void(View &)>)
 {
-  state.press.tick(ctx, events);
-
-  if (state.press.in)
+  if (events.pointer_over())
   {
     cb.hovered();
   }
 
-  if (state.press.down)
+  if (events.pointer_down())
   {
     cb.pressed();
   }
@@ -1158,12 +1159,10 @@ CheckBox & CheckBox::on_changed(Fn<void(bool)> f)
   return *this;
 }
 
-ui::State CheckBox::tick(Ctx const & ctx, Events const & events,
+ui::State CheckBox::tick(Ctx const &, Events const & events,
                          Fn<void(View &)> build)
 {
-  state.press.tick(ctx, events);
-
-  if (state.press.down)
+  if (events.pointer_down())
   {
     state.value = !state.value;
     cb.changed(state.value);
@@ -1310,9 +1309,7 @@ ui::State Slider::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
   u32 const main_axis = (style.axis == Axis::X) ? 0 : 1;
 
-  state.drag.tick(events);
-
-  if (state.drag.dragging)
+  if (events.drag_update())
   {
     f32 const thumb_begin = region.begin()[main_axis] + style.thumb_size * 0.5F;
     f32 const thumb_end   = region.end()[main_axis] - style.thumb_size * 0.5F;
@@ -1506,11 +1503,9 @@ Switch & Switch::frame(Frame f)
   return *this;
 }
 
-ui::State Switch::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
+ui::State Switch::tick(Ctx const &, Events const & events, Fn<void(View &)>)
 {
-  state.press.tick(ctx, events);
-
-  if (state.press.down)
+  if (events.pointer_down())
   {
     state.value = !state.value;
     cb.changed(state.value);
@@ -1616,11 +1611,9 @@ Radio & Radio::on_changed(Fn<void(bool)> f)
   return *this;
 }
 
-ui::State Radio::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
+ui::State Radio::tick(Ctx const &, Events const & events, Fn<void(View &)>)
 {
-  state.press.tick(ctx, events);
-
-  if (state.press.down)
+  if (events.pointer_down())
   {
     state.value = !state.value;
     cb.changed(state.value);
@@ -1692,8 +1685,8 @@ void ScalarDragBox::scalar_parse(Str32 text, ScalarInfo const & spec,
     });
 }
 
-ui::State ScalarDragBox::tick(Ctx const & ctx,  
-                              Events const & events, Fn<void(View &)> build)
+ui::State ScalarDragBox::tick(Ctx const & ctx, Events const & events,
+                              Fn<void(View &)> build)
 {
   state.dragging = events.drag_update();
 
@@ -1711,7 +1704,7 @@ ui::State ScalarDragBox::tick(Ctx const & ctx,
     state.scalar =
       state.spec.match([t](F32Info & v) -> Scalar { return v.interp(t); },
                        [t](I32Info & v) -> Scalar { return v.interp(t); });
-    // [ ] not being re-rnedered or used
+    // [ ] not being re-rendered or used
     //   state.hash = 0;
   }
 
