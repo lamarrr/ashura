@@ -6,7 +6,6 @@ namespace ash
 
 void KeyState::clear()
 {
-  // [ ] focused check
   focused  = false;
   in       = false;
   out      = false;

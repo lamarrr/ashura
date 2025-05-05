@@ -784,6 +784,13 @@ struct TextInputInfo
   TextCapitalization cap : 2 = TextCapitalization::None;
 
   bool autocorrect : 1 = false;
+
+  constexpr bool operator==(TextInputInfo const & other) const
+  {
+    return type == other.type && multiline == other.multiline &&
+           esc_input == other.esc_input && tab_input == other.tab_input &&
+           cap == other.cap && autocorrect == other.autocorrect;
+  }
 };
 
 /// @param Normal region is normal and has no special properties

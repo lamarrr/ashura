@@ -106,7 +106,7 @@ struct TextCompositor
   static constexpr c32   DEFAULT_LINE_SYMBOLS[] = {U'\n', 0x2029};
 
   TextCursor          cursor_;
-  CaretAlignment      caret_alignment_;
+  CaretXAlignment     caret_alignment_;
   Vec<c32>            buffer_;
   Vec<TextEditRecord> records_;
   Span<c32 const>     word_symbols_;
@@ -118,7 +118,7 @@ struct TextCompositor
   TextCompositor(Vec<c32> buffer, Vec<TextEditRecord> records,
                  Span<c32 const> word_symbols) :
     cursor_{},
-    caret_alignment_{CaretAlignment::LineStart},
+    caret_alignment_{CaretXAlignment::Start},
     buffer_{std::move(buffer)},
     records_{std::move(records)},
     word_symbols_{word_symbols},
@@ -160,7 +160,7 @@ struct TextCompositor
   /// @param input text from IME to insert
   bool command(RenderText & text, TextCommand cmd, Str32 input,
                ClipBoard & clipboard, usize lines_per_page, usize tab_width,
-               CRect const & region, Vec2 pos, Vec2 zoom,
+               Vec2 center, f32 aligned_wdith, Vec2 pos, Vec2 zoom,
                AllocatorRef scratch_allocator);
 };
 

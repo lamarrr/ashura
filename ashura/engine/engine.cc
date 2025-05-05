@@ -154,7 +154,7 @@ Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> const & json)
 
 static void window_event_listener(Engine * engine, WindowEvent const & event)
 {
-  InputState & f = engine->input_buffer;
+  InputState & f = engine->input_state;
 
   event.match(
     [&](KeyEvent e) {
@@ -289,18 +289,18 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
     dyn<Logger>(inplace, default_allocator, span<LogSink *>({&stdio_sink}))
       .unwrap();
   hook_logger(logger);
-  trace("Initializing Engine, config_path: {} and working dir: {} ",
+  trace("Initializing Engine, config_path: {} and working dir: {} "_str,
         config_path, working_dir);
 
-  trace("Loading Engine config file");
+  trace("Loading Engine config file"_str);
 
   Vec<u8> json{allocator};
 
-  read_file(config_path, json).unwrap("Error opening config file");
+  read_file(config_path, json).unwrap("Error opening config file"_str);
 
   EngineCfg cfg = EngineCfg::parse(allocator, json).unwrap();
 
-  trace("Initializing Core Systems");
+  trace("Initializing Core Systems"_str);
 
   FileSystem file_sys{allocator};
 
@@ -311,7 +311,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
     instance->create_device(allocator, cfg.gpu.preferences, cfg.gpu.buffering)
       .unwrap();
 
-  trace("Loading Pipeline cache from disk");
+  trace("Loading Pipeline cache from disk"_str);
 
   Vec<u8> pipeline_cache{allocator};
   read_file(cfg.pipeline_cache, pipeline_cache)
@@ -332,7 +332,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
 
   Dyn<WindowSystem *> window_sys = WindowSystem::create_SDL(allocator);
 
-  trace("Creating Root Window");
+  trace("Creating Root Window"_str);
 
   Window window = window_sys->create_window(*instance, "Ashura"_str).unwrap();
 
@@ -403,7 +403,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
   Dyn<Scheduler *> scheduler = Scheduler::create(
     allocator, std::this_thread::get_id(), {}, worker_thread_sleep);
 
-  trace("All Core Systems Initialized");
+  trace("All Core Systems Initialized"_str);
 
   nanoseconds min_frame_interval = 0ns;
 
@@ -437,7 +437,7 @@ void Engine::engage_(EngineCfg const & cfg)
   window_sys->listen({this, [](Engine * engine, SystemEvent const & event) {
                         event.match(
                           [&](SystemTheme theme) {
-                            InputState & f  = engine->input_buffer;
+                            InputState & f  = engine->input_state;
                             f.theme.theme   = theme;
                             f.theme.changed = true;
                           },
@@ -454,7 +454,7 @@ void Engine::engage_(EngineCfg const & cfg)
   {
     resolved_path.clear();
     path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading shader: {} from : {}", label, resolved_path);
+    trace("Loading shader: {} from : {}"_str, label, resolved_path);
     futures.push(shader_sys.load_from_path(std::move(label), resolved_path))
       .unwrap();
   }
@@ -463,7 +463,7 @@ void Engine::engage_(EngineCfg const & cfg)
   {
     resolved_path.clear();
     path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading font: {} from: {}", label, resolved_path);
+    trace("Loading font: {} from: {}"_str, label, resolved_path);
     futures
       .push(font_sys->load_from_path(std::move(label), resolved_path,
                                      cfg.font_height, 0))
@@ -474,26 +474,26 @@ void Engine::engage_(EngineCfg const & cfg)
   {
     resolved_path.clear();
     path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading image: {}  from: {}", label, resolved_path);
+    trace("Loading image: {}  from: {}"_str, label, resolved_path);
     futures.push(image_sys.load_from_path(std::move(label), resolved_path))
       .unwrap();
   }
 
-  trace("Waiting for resources");
+  trace("Waiting for resources"_str);
   while (!await_futures(futures, 0ns))
   {
     gpu_sys.frame(nullptr);
     scheduler->run_main_loop(1ms, 1ms);
   }
 
-  trace("All resources loaded");
+  trace("All resources loaded"_str);
 
   renderer.acquire();
 }
 
 void Engine::shutdown()
 {
-  trace("Shutting down engine");
+  trace("Shutting down engine"_str);
 
   scheduler->shutdown();
 
@@ -520,10 +520,10 @@ void Engine::shutdown()
     write_to_file(pipeline_cache_path, pipeline_cache, false)
       .match(
         [&](Void) {
-          trace("Saved pipeline cache to: {}", pipeline_cache_path);
+          trace("Saved pipeline cache to: {}"_str, pipeline_cache_path);
         },
         [&](IoErr err) {
-          error("Error {} writing pipeline cache to {}", err,
+          error("Error {} writing pipeline cache to {}"_str, err,
                 pipeline_cache_path);
         });
   }
@@ -537,7 +537,7 @@ void Engine::shutdown()
 
   instance->uninit(device.ptr());
 
-  trace("Engine Uninitialized");
+  trace("Engine Uninitialized"_str);
 }
 
 void Engine::recreate_swapchain_()
@@ -649,58 +649,64 @@ void Engine::recreate_swapchain_()
   }
 }
 
-void Engine::get_input_state_(InputState & state)
+time_point Engine::get_inputs_(time_point prev_frame_end)
 {
+  ScopeTrace poll_trace{
+    {"frame.event_poll"_str, 0}
+  };
+  input_state.clear();
+
+  auto const frame_start = steady_clock::now();
+  auto const timedelta   = frame_start - prev_frame_end;
+
+  input_state.stamp(frame_start, timedelta);
+
+  input_state.window.surface_extent = window_sys->get_surface_extent(window);
+  input_state.window.extent         = window_sys->get_extent(window);
+
+  input_state.theme.theme = window_sys->get_theme();
+
+  auto [mouse_btns, mouse_pos, mouse_window] = window_sys->get_mouse_state();
+  input_state.mouse.focused                  = (mouse_window == window);
+  input_state.mouse.position                 = mouse_pos;
+  input_state.mouse.states                   = mouse_btns;
+
+  auto [kb_mods, kb_window] = window_sys->get_keyboard_state(
+    input_state.key.scan_states, input_state.key.key_states);
+
+  input_state.key.focused    = (kb_window == window);
+  input_state.key.mod_states = kb_mods;
+
+  window_sys->poll_events();
+
+  return frame_start;
 }
 
-void Engine::run(ui::View & view, ui::View & focus_view,
-                 Fn<void(ui::Ctx const &)> loop)
+void Engine::run(ui::View & view, Fn<void(ui::Ctx const &)> loop)
 {
-  trace("Starting Engine Run Loop");
+  trace("Starting Engine Run Loop"_str);
 
   if (swapchain == nullptr)
   {
     recreate_swapchain_();
   }
 
-  time_point timestamp       = steady_clock::now();
-  bool       should_close    = false;
-  Cursor     cursor          = Cursor::Default;
-  bool       text_input_mode = false;
+  bool                  running            = true;
+  Option<Cursor>        cursor             = Cursor::Default;
+  Option<TextInputInfo> current_input_info = none;
+  time_point            frame_end          = steady_clock::now();
+
   window_sys->set_cursor(cursor);
 
-  while (!should_close)
+  while (running)
   {
     ScopeTrace frame_trace{{"frame"_str}};
-    auto const frame_start = steady_clock::now();
-    auto const timedelta   = frame_start - timestamp;
-    timestamp              = frame_start;
 
-    input_buffer.clear();
-    input_buffer.stamp(timestamp, timedelta);
+    auto const frame_start = get_inputs_(frame_end);
 
-    window_sys->get_mouse_state(input_buffer.mouse.states,
-                                input_buffer.mouse.position);
-    window_sys->get_keyboard_state(input_buffer.key.scan_states,
-                                   input_buffer.key.key_states,
-                                   input_buffer.key.modifier_states);
-
+    if (input_state.window.resized || input_state.window.surface_resized)
     {
-      ScopeTrace poll_trace{
-        {"frame.event_poll"_str, 0}
-      };
-      window_sys->poll_events();
-    }
-
-    Vec2U const surface_extent = window_sys->get_surface_extent(window);
-    Vec2U const window_extent  = window_sys->get_extent(window);
-
-    input_buffer.window_extent  = window_extent;
-    input_buffer.surface_extent = surface_extent;
-
-    if (input_buffer.resized || input_buffer.surface_resized)
-    {
-      gpu_sys.recreate_framebuffers(surface_extent);
+      gpu_sys.recreate_framebuffers(input_state.window.surface_extent);
     }
 
     ScopeTrace record_trace{{"frame.record"_str}};
@@ -708,15 +714,15 @@ void Engine::run(ui::View & view, ui::View & focus_view,
     canvas.begin_recording(
       gpu::Viewport{
         .offset{0, 0},
-        .extent    = as_vec2(surface_extent),
+        .extent    = as_vec2(input_state.window.surface_extent),
         .min_depth = 0,
         .max_depth = 1
     },
-      as_vec2(window_extent), surface_extent);
+      as_vec2(input_state.window.extent), input_state.window.surface_extent);
 
-    should_close = !view_sys.tick(input_buffer, view, focus_view, canvas, loop);
+    running = ui_sys.tick(input_state, view, canvas, loop);
 
-    auto current_cursor = view_sys.cursor();
+    auto current_cursor = ui_sys.cursor;
 
     if (current_cursor != cursor)
     {
@@ -724,17 +730,12 @@ void Engine::run(ui::View & view, ui::View & focus_view,
       window_sys->set_cursor(current_cursor);
     }
 
-    auto input_info = view_sys.text_input();
+    auto input_info = ui_sys.text_input();
 
-    if (input_info.is_some() && !text_input_mode)
+    if (input_info != current_input_info)
     {
-      window_sys->start_text_input(window, input_info.value());
-      text_input_mode = true;
-    }
-    else if (input_info.is_none() && text_input_mode)
-    {
-      window_sys->end_text_input(window);
-      text_input_mode = false;
+      window_sys->set_text_input(window, input_info);
+      current_input_info = input_info;
     }
 
     canvas.end_recording();
@@ -742,7 +743,7 @@ void Engine::run(ui::View & view, ui::View & focus_view,
     renderer.render_canvas(gpu_sys.fb_, gpu_sys.frame_graph_, canvas);
     gpu_sys.frame(swapchain);
 
-    auto const frame_end  = steady_clock::now();
+    frame_end             = steady_clock::now();
     auto const frame_time = frame_end - frame_start;
 
     if (frame_time < min_frame_interval)

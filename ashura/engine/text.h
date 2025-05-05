@@ -487,9 +487,6 @@ struct GlyphShape
 
 /// @param style the text/font style of the current run
 /// @param script script of the current codepoint
-/// @param paragraph_begin if this codepoint marks the beginning of a new
-/// paragraph
-/// @param paragraph_end if this codepoint marks the end of a paragraph
 /// @param base_level the current paragraph's embedding level
 /// @param level embedding level of the current codepoint in the paragraph
 /// @param wrappable if this codepoint begins a wrappable text, i.e. has spaces
@@ -498,8 +495,8 @@ struct TextSegment
 {
   u32        style               = 0;
   TextScript script              = TextScript::None;
+  bool       linebreak_begin : 1 = false;
   bool       paragraph_begin : 1 = false;
-  bool       paragraph_end   : 1 = false;
   bool       whitespace      : 1 = false;
   bool       tab             : 1 = false;
   bool       wrappable       : 1 = false;
@@ -509,37 +506,6 @@ struct TextSegment
   constexpr bool is_wrap_point() const
   {
     return whitespace | tab;
-  }
-};
-
-struct ResolvedTextRunMetrics
-{
-  f32 advance = 0;
-  f32 ascent  = 0;
-  f32 descent = 0;
-
-  constexpr f32 height() const
-  {
-    return ascent + descent;
-  }
-};
-
-struct TextRunMetrics
-{
-  i32 advance = 0;
-  i32 ascent  = 0;
-  i32 descent = 0;
-
-  constexpr i32 height() const
-  {
-    return ascent + descent;
-  }
-
-  constexpr ResolvedTextRunMetrics resolve(f32 font_height) const
-  {
-    return ResolvedTextRunMetrics{.advance = au_to_px(advance, font_height),
-                                  .ascent  = au_to_px(ascent, font_height),
-                                  .descent = au_to_px(descent, font_height)};
   }
 };
 
@@ -555,11 +521,6 @@ struct TextRun
   /// @brief Codepoints in the source text the run belongs to
   Slice codepoints = {};
 
-  /// @brief Codepoints that created the paragraph,
-  /// Only non-empty if the line is the first in the paragraph.
-  /// `.span` is usually 0 (none), 1 ('\n') or 2 ('\r\n').
-  Slice break_codepoints = {};
-
   /// @brief style in the list of specified text styles
   u32 style = 0;
 
@@ -569,7 +530,7 @@ struct TextRun
 
   Slice glyphs = {};
 
-  TextRunMetrics metrics = {};
+  FontMetrics metrics = {};
 
   u8 base_level = 0;
 
@@ -588,11 +549,6 @@ struct TextRun
   constexpr TextDirection direction() const
   {
     return level_to_direction(level);
-  }
-
-  constexpr bool is_paragraph_begin() const
-  {
-    return !break_codepoints.is_empty();
   }
 
   constexpr Slice carets(Slice line_carets, Slice line_codepoints) const
@@ -633,9 +589,6 @@ struct Line
   /// @brief codepoints in the line (excludes the preceding line-breaks if any).
   Slice codepoints = {};
 
-  /// @brief line-break codepoints that began this line/paragraph (i.e. `n` or `\r\n`)
-  Slice break_codepoints = {};
-
   /// @brief Logical Carets on the current line. If the Line is an RTL line,
   /// the first caret will be visually placed on the right
   Slice carets = {};
@@ -645,23 +598,34 @@ struct Line
   LineMetrics metrics = {};
 };
 
-enum class CaretAlignment : isize
+struct Paragraph
 {
-  LineStart = 0,
-  LineEnd   = ISIZE_MAX
+  Slice lines = {};
+
+  Slice runs = {};
+
+  Slice codepoints = {};
+
+  Slice break_codepoints = {};
 };
 
-enum class LineAlignment : isize
+enum class CaretXAlignment : isize
+{
+  Start = 0,
+  End   = ISIZE_MAX
+};
+
+enum class CaretYAlignment : isize
 {
   Top    = ISIZE_MIN,
   First  = 0,
   Bottom = ISIZE_MAX
 };
 
-struct CaretLocation
+struct CaretAlignment
 {
-  LineAlignment  line      = LineAlignment::Bottom;
-  CaretAlignment alignment = CaretAlignment::LineStart;
+  CaretXAlignment x = CaretXAlignment::Start;
+  CaretYAlignment y = CaretYAlignment::Top;
 };
 
 struct CaretCodepoint
@@ -671,17 +635,17 @@ struct CaretCodepoint
   bool  after     = false;
 };
 
-struct CaretGlyph
+struct CaretPlacement
 {
-  usize line  = 0;
-  usize glyph = 0;
-  bool  after = false;
+  usize         line  = 0;
+  Option<usize> glyph = none;
+  bool          after = false;
 };
 
 struct ShapeInfo;
 struct Canvas;
 
-enum class TextRegion : u8
+enum class TextLayer : u8
 {
   None          = 0,
   Block         = 1,
@@ -696,11 +660,11 @@ enum class TextRegion : u8
 
 struct TextRenderInfo
 {
-  /// @brief Text region currently being rendered
-  TextRegion region = TextRegion::None;
-
   /// @brief set to the current line being rendered for
   Option<usize> line = none;
+
+  /// @brief column of the current region/item being rendered
+  Option<usize> column = none;
 
   /// @brief set to the current text-run being rendered for
   Option<usize> run = none;
@@ -718,7 +682,8 @@ struct TextRenderInfo
   Option<isize> caret = none;
 };
 
-typedef Fn<void(Canvas &, ShapeInfo const &, TextRenderInfo const &)>
+typedef Fn<void(Canvas &, Span<TextLayer const>, Span<ShapeInfo const>,
+                Span<TextRenderInfo const>, Span<usize const>)>
   TextRenderer;
 
 /// @brief cached/pre-computed text layout
@@ -739,6 +704,7 @@ typedef Fn<void(Canvas &, ShapeInfo const &, TextRenderInfo const &)>
 /// caret:0                caret:1                  caret:2                caret:3               caret:4
 struct TextLayout
 {
+  bool            laid_out;
   f32             max_width;
   usize           num_carets;
   usize           num_codepoints;
@@ -746,15 +712,18 @@ struct TextLayout
   Vec<GlyphShape> glyphs;
   Vec<TextRun>    runs;
   Vec<Line>       lines;
+  Vec<Paragraph>  paragraphs;
 
   explicit TextLayout(AllocatorRef allocator) :
+    laid_out{false},
     max_width{0},
     num_carets{0},
     num_codepoints{0},
     extent{},
     glyphs{allocator},
     runs{allocator},
-    lines{allocator}
+    lines{allocator},
+    paragraphs{allocator}
   {
   }
 
@@ -766,35 +735,39 @@ struct TextLayout
 
   void clear()
   {
-    max_width      = F32_MAX;
-    extent         = Vec2{0, 0};
+    laid_out       = false;
+    max_width      = 0;
     num_carets     = 0;
     num_codepoints = 0;
+    extent         = Vec2{0, 0};
     glyphs.clear();
     runs.clear();
     lines.clear();
+    paragraphs.clear();
   }
 
-  Option<isize> to_caret(usize codepoint, bool before) const;
+  isize to_caret(usize codepoint, bool before) const;
 
-  isize align_caret(CaretLocation loc) const;
+  isize align_caret(CaretAlignment alignment) const;
 
   Slice get_caret_selection(Slice carets) const;
 
   Slice to_caret_selection(Slice codepoints) const;
 
-  Option<CaretCodepoint> get_caret_codepoint(isize caret) const;
+  CaretCodepoint get_caret_codepoint(usize caret) const;
 
-  Option<CaretGlyph> get_caret_glyph(isize caret) const;
+  CaretPlacement get_caret_placement(usize caret) const;
 
   /// @brief given a position in the laid-out text return the caret the cursor points
   /// to and its location.
   /// @param pos relative position in laid-out text to hit
-  Tuple<isize, CaretLocation> hit(TextBlock const &      block,
-                                  TextBlockStyle const & style, Vec2 pos) const;
+  Tuple<isize, CaretAlignment>
+    hit(TextBlock const & block, TextBlockStyle const & style, Vec2 pos) const;
 
-  static void default_renderer(Canvas & canvas, ShapeInfo const & shape,
-                               TextRenderInfo const & info);
+  static void default_renderer(Canvas & canvas, Span<TextLayer const> layers,
+                               Span<ShapeInfo const>      shapes,
+                               Span<TextRenderInfo const> infos,
+                               Span<usize const>          sorted);
 
   /// @brief Render Text using pre-computed layout
   /// @param info only info.center, info.transform, info.tiling, and info.sampler are used
@@ -808,8 +781,9 @@ struct TextLayout
   /// @param renderer the renderer to use for rendering the text's regions
   void render(Canvas & canvas, ShapeInfo const & info, TextBlock const & block,
               TextBlockStyle const & style, Span<Slice const> highlights,
-              Span<isize const> carets, CRect const & clip,
-              TextRenderer renderer = default_renderer) const;
+              Span<usize const> carets, CRect const & clip,
+              TextRenderer renderer  = default_renderer,
+              AllocatorRef allocator = default_allocator) const;
 };
 
 }    // namespace ash

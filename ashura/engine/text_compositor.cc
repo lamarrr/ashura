@@ -311,7 +311,7 @@ static constexpr Slice span_sym_boundary(Str32 text, usize pos,
 
 static inline Option<isize> translate_caret(TextLayout const & layout,
                                             isize              caret,
-                                            CaretAlignment     alignment,
+                                            CaretXAlignment    alignment,
                                             isize line_displacement)
 {
   if (layout.lines.is_empty())
@@ -319,26 +319,19 @@ static inline Option<isize> translate_caret(TextLayout const & layout,
     return none;
   }
 
-  auto oloc = layout.get_caret_codepoint(caret);
-  if (!oloc)
-  {
-    return none;
-  }
-
-  auto loc = oloc.v();
+  auto loc = layout.get_caret_codepoint(caret);
 
   auto line = clamp((isize) loc.line + line_displacement, (isize) 0,
                     (isize) layout.lines.size());
 
-  return layout.align_caret(CaretLocation{
-    .line = static_cast<LineAlignment>(line), .alignment = alignment});
+  return layout.align_caret(
+    CaretAlignment{.x = alignment, .y = static_cast<CaretYAlignment>(line)});
 }
 
-// [ ] IME support
 bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
                              Str32 keyboard_input, ClipBoard & clipboard,
-                             usize lines_per_page, usize tab_width,
-                             CRect const & region, Vec2 pos, Vec2 zoom,
+                             usize lines_per_page, usize tab_width, Vec2 center,
+                             f32 aligned_wdith, Vec2 pos, Vec2 zoom,
                              AllocatorRef scratch_allocator)
 {
   u8                tmp[512];
@@ -377,7 +370,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     break;
     case TextCommand::Delete:
     {
-      if (cursor_.has_selection())
+      if (!cursor_.has_selection())
       {
         cursor_.span_by(1).normalize(layout.num_carets);
       }
@@ -422,8 +415,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
 
       if (!input.is_empty())
       {
-        auto carets = cursor_.selection();
-        if (!carets.is_empty())
+        if (auto carets = cursor_.selection(); !carets.is_empty())
         {
           auto selection = layout.get_caret_selection(carets);
           push_record(TextEditRecordType::Replace, selection.offset,
@@ -431,23 +423,18 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
           text.erase(selection);
           text.insert_span(selection.offset, input).unwrap();
           cursor_
-            .move_to(layout.to_caret(selection.offset + input.size(), true)
-                       .unwrap_or(0))
+            .move_to(layout.to_caret(selection.offset + input.size(), true))
             .normalize(layout.num_carets);
         }
         else
         {
-          auto codepoint = layout.get_caret_codepoint(cursor_.caret());
-
-          if (codepoint)
-          {
-            auto cp = codepoint.v().codepoint + (codepoint.v().after ? 1 : 0);
-            push_record(TextEditRecordType::Insert, cp, {}, input);
-            text.insert_span(cp, input).unwrap();
-            cursor_.unselect()
-              .move_to(layout.to_caret(cp + input.size(), true).unwrap_or(0))
-              .normalize(layout.num_carets);
-          }
+          auto cp        = layout.get_caret_codepoint(cursor_.caret());
+          auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
+          push_record(TextEditRecordType::Insert, codepoint, {}, input);
+          text.insert_span(codepoint, input).unwrap();
+          cursor_.unselect()
+            .move_to(layout.to_caret(codepoint + input.size(), true))
+            .normalize(layout.num_carets);
         }
         modified = true;
       }
@@ -465,37 +452,31 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     break;
     case TextCommand::WordStart:
     {
-      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
-      cursor_.move_to(
-        layout
-          .to_caret(
-            seek_sym(text, c.codepoint + (c.after ? 1 : 0), true, word_symbols_)
-              .unwrap_or(0),
-            true)
-          .unwrap());
+      auto c = layout.get_caret_codepoint(cursor_.caret());
+      cursor_.move_to(layout.to_caret(
+        seek_sym(text, c.codepoint + (c.after ? 1 : 0), true, word_symbols_)
+          .unwrap_or(0),
+        true));
     }
     break;
     case TextCommand::WordEnd:
     {
-      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
-      cursor_.move_to(
-        layout
-          .to_caret(seek_sym(text, c.codepoint + (c.after ? 1 : 0), false,
-                             word_symbols_)
-                      .unwrap_or(layout.num_codepoints),
-                    true)
-          .unwrap());
+      auto c = layout.get_caret_codepoint(cursor_.caret());
+      cursor_.move_to(layout.to_caret(
+        seek_sym(text, c.codepoint + (c.after ? 1 : 0), false, word_symbols_)
+          .unwrap_or(layout.num_codepoints),
+        true));
     }
     break;
     case TextCommand::LineStart:
     {
-      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      auto c = layout.get_caret_codepoint(cursor_.caret());
       cursor_.move_to(layout.lines[c.line].carets.first());
     }
     break;
     case TextCommand::LineEnd:
     {
-      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      auto c = layout.get_caret_codepoint(cursor_.caret());
       cursor_.move_to(layout.lines[c.line].carets.last());
     }
     break;
@@ -553,34 +534,29 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     break;
     case TextCommand::SelectToWordStart:
     {
-      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
-      cursor_.span_to(
-        layout
-          .to_caret(
-            seek_sym(text, c.codepoint, true, word_symbols_).unwrap_or(0), true)
-          .unwrap());
+      auto c = layout.get_caret_codepoint(cursor_.caret());
+      cursor_.span_to(layout.to_caret(
+        seek_sym(text, c.codepoint, true, word_symbols_).unwrap_or(0), true));
     }
     break;
     case TextCommand::SelectToWordEnd:
     {
-      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      auto c = layout.get_caret_codepoint(cursor_.caret());
       cursor_.span_to(
-        layout
-          .to_caret(seek_sym(text, c.codepoint, false, word_symbols_)
-                      .unwrap_or(layout.num_codepoints),
-                    true)
-          .unwrap());
+        layout.to_caret(seek_sym(text, c.codepoint, false, word_symbols_)
+                          .unwrap_or(layout.num_codepoints),
+                        true));
     }
     break;
     case TextCommand::SelectToLineStart:
     {
-      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      auto c = layout.get_caret_codepoint(cursor_.caret());
       cursor_.span_to(layout.lines[c.line].carets.first());
     }
     break;
     case TextCommand::SelectToLineEnd:
     {
-      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      auto c = layout.get_caret_codepoint(cursor_.caret());
       cursor_.span_to(layout.lines[c.line].carets.last());
     }
     break;
@@ -606,14 +582,14 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     case TextCommand::SelectWord:
     {
       auto selection = span_sym_boundary(
-        text, layout.get_caret_codepoint(cursor_.caret()).unwrap().codepoint,
+        text, layout.get_caret_codepoint(cursor_.caret()).codepoint,
         word_symbols_);
       cursor_.select(layout.get_caret_selection(selection));
     }
     break;
     case TextCommand::SelectLine:
     {
-      auto c = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+      auto c = layout.get_caret_codepoint(cursor_.caret());
       cursor_.select(layout.lines[c.line].carets);
     }
     break;
@@ -627,7 +603,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
       Vec<c8> data8{scratch_allocator};
       if (!cursor_.has_selection())
       {
-        auto cp = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+        auto cp = layout.get_caret_codepoint(cursor_.caret());
         cursor_.select(layout.lines[cp.line].carets);
       }
 
@@ -642,7 +618,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
       Vec<c8> data8{scratch_allocator};
       if (!cursor_.has_selection())
       {
-        auto cp = layout.get_caret_codepoint(cursor_.caret()).unwrap();
+        auto cp = layout.get_caret_codepoint(cursor_.caret());
         cursor_.select(layout.lines[cp.line].carets);
       }
 
@@ -669,15 +645,15 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     break;
     case TextCommand::Hit:
     {
-      auto [caret, loc] = rendered.hit(region, pos, zoom);
-      caret_alignment_  = loc.alignment;
+      auto [caret, loc] = rendered.hit(center, aligned_wdith, zoom, pos);
+      caret_alignment_  = loc.x;
       cursor_.move_to(layout.align_caret(loc));
     }
     break;
     case TextCommand::HitSelect:
     {
-      auto [caret, loc] = rendered.hit(region, pos, zoom);
-      caret_alignment_  = loc.alignment;
+      auto [caret, loc] = rendered.hit(center, aligned_wdith, zoom, pos);
+      caret_alignment_  = loc.x;
       cursor_.span_to(layout.align_caret(loc));
     }
     break;

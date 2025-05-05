@@ -78,6 +78,18 @@ struct GlyphMetrics
   Vec2I extent  = {};
 };
 
+struct ResolvedFontMetrics
+{
+  f32 ascent  = 0;
+  f32 descent = 0;
+  f32 advance = 0;
+
+  constexpr f32 height() const
+  {
+    return ascent + descent;
+  }
+};
+
 /// @brief normalized font metrics
 /// @param ascent  maximum ascent of the font's glyphs (au)
 /// @param descent maximum descent of the font's glyphs (au)
@@ -87,6 +99,18 @@ struct FontMetrics
   i32 ascent  = 0;
   i32 descent = 0;
   i32 advance = 0;
+
+  constexpr i32 height() const
+  {
+    return ascent + descent;
+  }
+
+  constexpr ResolvedFontMetrics resolve(f32 font_height) const
+  {
+    return ResolvedFontMetrics{.ascent  = au_to_px(ascent, font_height),
+                               .descent = au_to_px(descent, font_height),
+                               .advance = au_to_px(advance, font_height)};
+  }
 };
 
 /// @param later atlas layer this glyph belongs to

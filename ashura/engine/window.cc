@@ -1327,87 +1327,88 @@ struct WindowSystemImpl : WindowSystem
     return {state, pos, (Window) impl};
   }
 
-  virtual void start_text_input(Window                window,
-                                TextInputInfo const & info) override
+  virtual void set_text_input(Window                window,
+                              Option<TextInputInfo> info) override
   {
-    SDL_PropertiesID props = SDL_CreateProperties();
-    CHECK_SDL(props != 0);
+    info.match(
+      [&](auto i) {
+        SDL_PropertiesID props = SDL_CreateProperties();
+        CHECK_SDL(props != 0);
 
-    SDL_TextInputType  type = SDL_TEXTINPUT_TYPE_TEXT;
-    SDL_Capitalization cap  = SDL_CAPITALIZE_NONE;
+        SDL_TextInputType  type = SDL_TEXTINPUT_TYPE_TEXT;
+        SDL_Capitalization cap  = SDL_CAPITALIZE_NONE;
 
-    switch (info.type)
-    {
-      case TextInputType::Text:
-        type = SDL_TEXTINPUT_TYPE_TEXT;
-        break;
-      case TextInputType::Number:
-        type = SDL_TEXTINPUT_TYPE_NUMBER;
-        break;
-      case TextInputType::Name:
-        type = SDL_TEXTINPUT_TYPE_TEXT_NAME;
-        break;
-      case TextInputType::Email:
-        type = SDL_TEXTINPUT_TYPE_TEXT_EMAIL;
-        break;
-      case TextInputType::Username:
-        type = SDL_TEXTINPUT_TYPE_TEXT_USERNAME;
-        break;
-      case TextInputType::PasswordHidden:
-        type = SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_HIDDEN;
-        break;
-      case TextInputType::PasswordVisible:
-        type = SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_VISIBLE;
-        break;
-      case TextInputType::NumberPasswordHidden:
-        type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_HIDDEN;
-        break;
-      case TextInputType::NumberPasswordVisible:
-        type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_VISIBLE;
-        break;
-      default:
-        CHECK_UNREACHABLE();
-    }
+        switch (i.type)
+        {
+          case TextInputType::Text:
+            type = SDL_TEXTINPUT_TYPE_TEXT;
+            break;
+          case TextInputType::Number:
+            type = SDL_TEXTINPUT_TYPE_NUMBER;
+            break;
+          case TextInputType::Name:
+            type = SDL_TEXTINPUT_TYPE_TEXT_NAME;
+            break;
+          case TextInputType::Email:
+            type = SDL_TEXTINPUT_TYPE_TEXT_EMAIL;
+            break;
+          case TextInputType::Username:
+            type = SDL_TEXTINPUT_TYPE_TEXT_USERNAME;
+            break;
+          case TextInputType::PasswordHidden:
+            type = SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_HIDDEN;
+            break;
+          case TextInputType::PasswordVisible:
+            type = SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_VISIBLE;
+            break;
+          case TextInputType::NumberPasswordHidden:
+            type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_HIDDEN;
+            break;
+          case TextInputType::NumberPasswordVisible:
+            type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_VISIBLE;
+            break;
+          default:
+            CHECK_UNREACHABLE();
+        }
 
-    switch (info.cap)
-    {
-      case TextCapitalization::None:
-        cap = SDL_CAPITALIZE_NONE;
-        break;
-      case TextCapitalization::Sentences:
-        cap = SDL_CAPITALIZE_SENTENCES;
-        break;
-      case TextCapitalization::Words:
-        cap = SDL_CAPITALIZE_WORDS;
-        break;
-      case TextCapitalization::Letters:
-        cap = SDL_CAPITALIZE_LETTERS;
-        break;
-      default:
-        CHECK_UNREACHABLE();
-    }
+        switch (i.cap)
+        {
+          case TextCapitalization::None:
+            cap = SDL_CAPITALIZE_NONE;
+            break;
+          case TextCapitalization::Sentences:
+            cap = SDL_CAPITALIZE_SENTENCES;
+            break;
+          case TextCapitalization::Words:
+            cap = SDL_CAPITALIZE_WORDS;
+            break;
+          case TextCapitalization::Letters:
+            cap = SDL_CAPITALIZE_LETTERS;
+            break;
+          default:
+            CHECK_UNREACHABLE();
+        }
 
-    CHECK_SDL(
-      SDL_SetNumberProperty(props, SDL_PROP_TEXTINPUT_TYPE_NUMBER, type));
+        CHECK_SDL(
+          SDL_SetNumberProperty(props, SDL_PROP_TEXTINPUT_TYPE_NUMBER, type));
 
-    CHECK_SDL(SDL_SetNumberProperty(
-      props, SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER, cap));
+        CHECK_SDL(SDL_SetNumberProperty(
+          props, SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER, cap));
 
-    CHECK_SDL(SDL_SetBooleanProperty(
-      props, SDL_PROP_TEXTINPUT_MULTILINE_BOOLEAN, info.multiline));
+        CHECK_SDL(SDL_SetBooleanProperty(
+          props, SDL_PROP_TEXTINPUT_MULTILINE_BOOLEAN, i.multiline));
 
-    CHECK_SDL(SDL_SetBooleanProperty(
-      props, SDL_PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, info.autocorrect));
+        CHECK_SDL(SDL_SetBooleanProperty(
+          props, SDL_PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, i.autocorrect));
 
-    WindowImpl * w = (WindowImpl *) window;
+        WindowImpl * w = (WindowImpl *) window;
 
-    CHECK_SDL(SDL_StartTextInputWithProperties(w->win, props));
-  }
-
-  virtual void end_text_input(Window window) override
-  {
-    WindowImpl * w = (WindowImpl *) window;
-    CHECK_SDL(SDL_StopTextInput(w->win));
+        CHECK_SDL(SDL_StartTextInputWithProperties(w->win, props));
+      },
+      [&]() {
+        WindowImpl * w = (WindowImpl *) window;
+        CHECK_SDL(SDL_StopTextInput(w->win));
+      });
   }
 
   virtual void set_text_input_area(Window window, RectU const & rect,

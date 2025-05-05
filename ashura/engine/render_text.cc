@@ -155,7 +155,7 @@ RenderText & RenderText::clear_highlights()
   return *this;
 }
 
-RenderText & RenderText::add_caret(isize caret)
+RenderText & RenderText::add_caret(usize caret)
 {
   carets_.push(caret).unwrap();
   return *this;
@@ -283,21 +283,20 @@ void RenderText::layout(f32 max_width)
   hash_ = HASH_CLEAN;
 }
 
-void RenderText::render(Canvas & canvas, CRect const & region,
-                        CRect const & clip, Vec2 zoom, TextRenderer renderer)
+void RenderText::render(Canvas & canvas, Vec2 center, f32 align_width,
+                        Vec2 zoom, CRect const & clip, TextRenderer renderer,
+                        AllocatorRef allocator)
 {
-  layout_.render(canvas,
-                 {.center = region.center, .transform = scale3d(vec3(zoom, 1))},
-                 block(), block_style(region.extent.x), highlights_, carets_,
-                 clip, renderer);
+  layout_.render(
+    canvas, {.center = center, .transform = scale3d(vec3(zoom, 1))}, block(),
+    block_style(align_width), highlights_, carets_, clip, renderer, allocator);
 }
 
-Tuple<isize, CaretLocation> RenderText::hit(CRect const & region, Vec2 pos,
-                                            Vec2 zoom) const
+Tuple<isize, CaretAlignment> RenderText::hit(Vec2 center, f32 align_width,
+                                             Vec2 zoom, Vec2 pos) const
 {
-  // [ ] zoom?
-  Vec2 const local_pos = (pos - region.begin() - 0.5F * region.extent) / zoom;
-  return layout_.hit(block(), block_style(region.extent.x), local_pos);
+  auto local = (pos - center) / zoom;
+  return layout_.hit(block(), block_style(align_width), local);
 }
 
 }    // namespace ash

@@ -36,7 +36,7 @@ struct RenderText
   TextLayout         layout_;
   TextHighlightStyle highlight_style_;
   CaretStyle         caret_style_;
-  Vec<isize>         carets_;
+  Vec<usize>         carets_;
   Vec<Slice>         highlights_;
 
   RenderText(AllocatorRef allocator) :
@@ -88,7 +88,7 @@ struct RenderText
 
   RenderText & clear_highlights();
 
-  RenderText & add_caret(isize carey);
+  RenderText & add_caret(usize carey);
 
   RenderText & clear_carets();
 
@@ -124,11 +124,24 @@ struct RenderText
 
   void layout(f32 max_width);
 
-  void render(Canvas & canvas, CRect const & region, CRect const & clip,
-              Vec2 zoom, TextRenderer renderer = TextLayout::default_renderer);
+  /// @brief Render the laid out text
+  /// @param center canvas-space region of the text to place the text on
+  /// @param align_width the width to align the text to
+  /// @param clip the canvas-space clip rectangle
+  /// @param zoom the zoom to apply to the text
+  void render(Canvas & canvas, Vec2 center, f32 align_width, Vec2 zoom,
+              CRect const & clip      = MAX_CLIP,
+              TextRenderer  renderer  = TextLayout::default_renderer,
+              AllocatorRef  allocator = default_allocator);
 
-  Tuple<isize, CaretLocation> hit(CRect const & region, Vec2 pos,
-                                  Vec2 zoom) const;
+  /// @brief Perform hit test on the laid-out text
+  /// @param center canvas-space region the text was placed on
+  /// @param align_width the width the text was aligned to
+  /// @param zoom the zoom that was applied to the text
+  /// @param pos the canvas-space text position to hit
+  /// @returns .v0: caret index, .v1: caret location
+  Tuple<isize, CaretAlignment> hit(Vec2 center, f32 align_width, Vec2 zoom,
+                                   Vec2 pos) const;
 };
 
 }    // namespace ash

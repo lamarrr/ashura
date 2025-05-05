@@ -88,7 +88,7 @@ struct Engine
 
   ui::System ui_sys;
 
-  InputState input_buffer;
+  InputState input_state;
 
   Vec<char> working_dir{};
 
@@ -126,7 +126,7 @@ struct Engine
     renderer{std::move(renderer)},
     canvas{std::move(canvas)},
     ui_sys{std::move(ui_sys)},
-    input_buffer{allocator},
+    input_state{allocator},
     working_dir{std::move(working_dir)},
     pipeline_cache_path{std::move(pipeline_cache_path)},
     min_frame_interval{min_frame_interval}
@@ -155,10 +155,9 @@ struct Engine
 
   void recreate_swapchain_();
 
-  void get_input_state_(InputState & state);
+  time_point get_inputs_(time_point prev_frame_end);
 
-  void run(ui::View & view, ui::View & focus_view,
-           Fn<void(ui::Ctx const &)> loop = noop);
+  void run(ui::View & view, Fn<void(ui::Ctx const &)> loop = noop);
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded

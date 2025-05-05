@@ -7,26 +7,34 @@
 namespace ash
 {
 
-Option<isize> TextLayout::to_caret(usize codepoint, bool before) const
+isize TextLayout::to_caret(usize codepoint, bool before) const
 {
+  CHECK(laid_out, "");
+  CHECK(codepoint < num_codepoints, "");
+
   auto l = binary_find(lines.view(), [&](Line const & l) {
-    return l.break_codepoints.end() > codepoint ||
-           l.codepoints.end() > codepoint;
+    return l.codepoints.end() > codepoint;
   });
 
-  if (l.is_empty())
-  {
-    return none;
-  }
+  CHECK(!l.is_empty(), "");
 
   auto const & line = l[0];
 
-  CHECK(line.break_codepoints.contains(codepoint) ||
-          line.codepoints.contains(codepoint),
-        "");
-
-  if (line.break_codepoints.contains(codepoint))
+  if (line.codepoints.contains(codepoint))
   {
+    auto left_caret = line.carets.offset + (codepoint - line.codepoints.offset);
+    if (before)
+    {
+      return left_caret;
+    }
+    else
+    {
+      return left_caret + 1;
+    }
+  }
+  else
+  {
+    // line-break codepoints are not part of the line's codepoints
     if (before)
     {
       CHECK(l.data() > lines.data(), "");
@@ -39,51 +47,43 @@ Option<isize> TextLayout::to_caret(usize codepoint, bool before) const
       return line.carets.offset;
     }
   }
-  else
-  {
-    auto left_caret = line.carets.offset + (codepoint - line.codepoints.offset);
-    if (before)
-    {
-      return left_caret;
-    }
-    else
-    {
-      return left_caret + 1;
-    }
-  }
 }
 
-isize TextLayout::align_caret(CaretLocation loc) const
+isize TextLayout::align_caret(CaretAlignment alignment) const
 {
-  if (lines.is_empty() || loc.line < LineAlignment::First)
+  CHECK(laid_out, "");
+
+  if (lines.is_empty() || alignment.y < CaretYAlignment::First)
   {
     return 0;
   }
 
-  if (loc.line >= LineAlignment{(isize) lines.size()} ||
-      loc.line >= LineAlignment::Bottom)
+  if (alignment.y >= CaretYAlignment{(isize) lines.size()} ||
+      alignment.y >= CaretYAlignment::Bottom)
   {
     return lines.last().carets.last();
   }
 
-  auto const & line = lines[(usize) loc.line];
+  auto const & line = lines[(usize) alignment.y];
 
-  if (loc.alignment <= CaretAlignment::LineStart)
+  if (alignment.x <= CaretXAlignment::Start)
   {
     return line.carets.offset;
   }
 
-  if (loc.alignment >= CaretAlignment::LineEnd ||
-      (isize) loc.alignment >= (isize) line.carets.span)
+  if (alignment.x >= CaretXAlignment::End ||
+      (isize) alignment.x >= (isize) line.carets.span)
   {
     return line.carets.last();
   }
 
-  return line.carets.offset + (isize) loc.alignment;
+  return line.carets.offset + (isize) alignment.x;
 }
 
 Slice TextLayout::get_caret_selection(Slice carets) const
 {
+  CHECK(laid_out, "");
+
   carets = carets(num_carets);
 
   if (lines.is_empty() || num_carets == 0)
@@ -108,6 +108,8 @@ Slice TextLayout::get_caret_selection(Slice carets) const
 
 Slice TextLayout::to_caret_selection(Slice codepoints) const
 {
+  CHECK(laid_out, "");
+
   codepoints = codepoints(num_codepoints);
 
   if (lines.is_empty() || num_codepoints == 0)
@@ -115,42 +117,40 @@ Slice TextLayout::to_caret_selection(Slice codepoints) const
     return Slice{0, 0};
   }
 
-  auto first  = to_caret(codepoints.first(), true);
-  auto ifirst = first.unwrap();
-  CHECK(ifirst >= 0, "");
+  auto first = to_caret(codepoints.first(), true);
 
   if (codepoints.is_empty())
   {
-    return Slice{(usize) ifirst, 0};
+    return Slice{(usize) first, 0};
   }
 
-  auto last  = to_caret(codepoints.last(), false);
-  auto ilast = last.unwrap();
+  auto last = to_caret(codepoints.last(), false);
 
-  CHECK(ilast >= 0, "");
-  CHECK(ilast >= ifirst, "");
+  CHECK(last >= first, "");
 
-  return Slice::from_range((usize) ifirst, (usize) (ilast + 1));
+  return Slice::from_range((usize) first, (usize) (last + 1));
 }
 
-Option<CaretCodepoint> TextLayout::get_caret_codepoint(isize caret) const
+CaretCodepoint TextLayout::get_caret_codepoint(usize caret) const
 {
+  CHECK(laid_out, "");
   CHECK(caret >= 0, "");
+  CHECK(caret < num_carets, "");
+
   auto caret_u = (usize) caret;
   auto l       = binary_find(lines.view(),
                              [&](Line & l) { return l.carets.end() > caret_u; });
 
-  if (l.is_empty())
-  {
-    return none;
-  }
+  CHECK(!l.is_empty(), "");
+  CHECK(!l[0].carets.is_empty(), "");
 
-  auto         iline = l.as_slice_of(lines).offset;
-  auto const & line  = l[0];
-  auto codepoint     = line.codepoints.offset + (caret_u - line.carets.offset);
-  auto after         = line.carets.last() >= codepoint;
+  auto         iln       = l.as_slice_of(lines).offset;
+  auto const & ln        = l[0];
+  auto         column    = caret_u - ln.carets.offset;
+  auto         codepoint = ln.codepoints.offset + column;
+  auto         after     = column >= (ln.carets.span - 1);
 
-  return CaretCodepoint{.line = iline, .codepoint = codepoint, .after = after};
+  return CaretCodepoint{.line = iln, .codepoint = codepoint, .after = after};
 }
 
 struct GlyphMatch
@@ -188,51 +188,57 @@ struct GlyphMatch
   }
 };
 
-Option<CaretGlyph> TextLayout::get_caret_glyph(isize caret) const
+CaretPlacement TextLayout::get_caret_placement(usize caret) const
 {
-  return get_caret_codepoint(caret).map([&](CaretCodepoint c) {
-    auto const & line = lines[c.line];
+  CHECK(laid_out, "");
+  auto c = get_caret_codepoint(caret);
 
-    auto runs =
-      binary_find(this->runs.view().slice(line.runs), [&](TextRun const & run) {
-        return run.codepoints.end() > c.codepoint;
-      });
+  auto const & line = lines[c.line];
 
-    CHECK(!runs.is_empty(), "");
+  CHECK(!line.carets.is_empty(), "");
 
-    auto const & run = runs[0];
+  Option<GlyphMatch> match;
 
+  for (auto const & run : runs.view().slice(line.runs))
+  {
     // find the glyph with the nearest glyph cluster to the caret's codepoint position
-
-    Option<GlyphMatch> match;
-
-    for (auto [i, glyph] : enumerate(glyphs.view().slice(run.glyphs)))
+    if (run.codepoints.contains(c.codepoint))
     {
-      GlyphMatch current{.glyph   = i + run.glyphs.offset,
-                         .cluster = glyph.cluster};
-      match.match(
-        [&](GlyphMatch & m) {
-          if (current.better_than(c.codepoint, m, run.direction()))
-          {
-            m = current;
-          }
-        },
-        [&]() { match = current; });
+      for (auto [i, glyph] : enumerate(glyphs.view().slice(run.glyphs)))
+      {
+        GlyphMatch current{.glyph   = i + run.glyphs.offset,
+                           .cluster = glyph.cluster};
+        match.match(
+          [&](GlyphMatch & m) {
+            if (current.better_than(c.codepoint, m, run.direction()))
+            {
+              m = current;
+            }
+          },
+          [&]() { match = current; });
+      }
     }
+  }
 
-    auto matched = match.unwrap();
-
-    return CaretGlyph{.line = c.line, .glyph = matched.glyph, .after = c.after};
-  });
+  return match.match(
+    [&](GlyphMatch const & m) {
+      return CaretPlacement{.line = c.line, .glyph = m.glyph, .after = c.after};
+    },
+    [&]() {
+      // special-case: might not contain any codepoints (1 caret) or matching-glyphs
+      return CaretPlacement{.line = c.line, .glyph = none, .after = false};
+    });
 }
 
-Tuple<isize, CaretLocation> TextLayout::hit(TextBlock const &      block,
-                                            TextBlockStyle const & style,
-                                            Vec2                   pos) const
+Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
+                                             TextBlockStyle const & style,
+                                             Vec2                   pos) const
 {
+  CHECK(laid_out, "");
+
   if (lines.is_empty())
   {
-    return {0, CaretLocation{}};
+    return {0, CaretAlignment{}};
   }
 
   Vec2 const block_extent{max(extent.x, style.align_width), extent.y};
@@ -268,17 +274,16 @@ Tuple<isize, CaretLocation> TextLayout::hit(TextBlock const &      block,
   if (ln < 0)
   {
     return {
-      0, CaretLocation{.line      = LineAlignment::Top,
-                       .alignment = CaretAlignment::LineStart}
+      0,
+      CaretAlignment{.x = CaretXAlignment::Start, .y = CaretYAlignment::First}
     };
   }
 
   if (ln >= (isize) lines.size())
   {
     return {
-      (isize) num_carets,
-      CaretLocation{.line      = LineAlignment::Bottom,
-                    .alignment = CaretAlignment::LineStart}
+      (isize) num_carets, CaretAlignment{.x = CaretXAlignment::Start,
+                                         .y = CaretYAlignment::Bottom}
     };
   }
 
@@ -297,15 +302,14 @@ Tuple<isize, CaretLocation> TextLayout::hit(TextBlock const &      block,
       case TextDirection::LeftToRight:
         return {
           (isize) line.carets.first(),
-          CaretLocation{.line      = LineAlignment{ln},
-                        .alignment = CaretAlignment::LineStart}
+          CaretAlignment{.x = CaretXAlignment::Start,
+                         .y = CaretYAlignment{ln}}
         };
 
       case TextDirection::RightToLeft:
         return {
           (isize) line.carets.last(),
-          CaretLocation{.line      = LineAlignment{ln},
-                        .alignment = CaretAlignment::LineEnd}
+          CaretAlignment{.x = CaretXAlignment::End, .y = CaretYAlignment{ln}}
         };
 
       default:
@@ -367,9 +371,9 @@ Tuple<isize, CaretLocation> TextLayout::hit(TextBlock const &      block,
         isize caret = line.carets.offset + (codepoint - line.codepoints.offset);
 
         return {
-          caret, CaretLocation{.line      = LineAlignment{ln},
-                               .alignment = CaretAlignment{
-                                 caret - (isize) line.carets.offset}}
+          caret, CaretAlignment{
+                                .x = CaretXAlignment{caret - (isize) line.carets.offset},
+                                .y = CaretYAlignment{ln}}
         };
       }
 
@@ -385,16 +389,16 @@ Tuple<isize, CaretLocation> TextLayout::hit(TextBlock const &      block,
   {
     case TextDirection::LeftToRight:
       return {
-        (isize) line.carets.last(),
-        CaretLocation{.line      = LineAlignment{ln},
-                      .alignment = CaretAlignment::LineEnd}
+        (isize) line.carets.last(), CaretAlignment{
+                                                   .x = CaretXAlignment::End,
+                                                   .y = CaretYAlignment{ln},
+                                                   }
       };
 
     case TextDirection::RightToLeft:
       return {
         (isize) line.carets.first(),
-        CaretLocation{.line      = LineAlignment{ln},
-                      .alignment = CaretAlignment::LineStart}
+        CaretAlignment{.x = CaretXAlignment::Start, .y = CaretYAlignment{ln}}
       };
 
     default:
@@ -402,56 +406,64 @@ Tuple<isize, CaretLocation> TextLayout::hit(TextBlock const &      block,
   }
 }
 
-void TextLayout::default_renderer(Canvas & canvas, ShapeInfo const & shape,
-                                  TextRenderInfo const & info)
+void TextLayout::default_renderer(Canvas & canvas, Span<TextLayer const> layers,
+                                  Span<ShapeInfo const> shapes,
+                                  Span<TextRenderInfo const>,
+                                  Span<usize const> sorted)
 {
-  switch (info.region)
+  for (auto i : sorted)
   {
-    case TextRegion::Glyphs:
-    case TextRegion::GlyphShadows:
-      canvas.rect(shape);
-      break;
-    default:
-      canvas.rrect(shape);
-      break;
+    auto layer = layers[i];
+    auto shape = shapes[i];
+
+    switch (layer)
+    {
+      case TextLayer::Glyphs:
+      case TextLayer::GlyphShadows:
+        canvas.rect(shape);
+        break;
+      default:
+        canvas.rrect(shape);
+        break;
+    }
   }
 }
 
-constexpr Tuple<bool, bool> highlight_test(Span<Slice const> highlights,
-                                           Slice             carets)
+enum class HighlightSpan : u8
 {
-  bool fully_covered = false;
-  bool any_covered   = false;
+  None    = 0,
+  Partial = 1,
+  Full    = 2
+};
+
+constexpr HighlightSpan highlight_test(Span<Slice const> highlights,
+                                       Slice             carets)
+{
+  HighlightSpan s = HighlightSpan::None;
 
   for (auto highlight : highlights)
   {
     if (highlight.contains(carets))
     {
-      fully_covered = true;
-      any_covered   = true;
-      break;
+      return HighlightSpan::Full;
     }
 
     if (carets.overlaps(highlight))
     {
-      any_covered = true;
+      s = HighlightSpan::Partial;
     }
   }
 
-  return {fully_covered, any_covered};
-}
-
-constexpr bool caret_test(Span<isize const> cursor_carets, Slice carets)
-{
-  return any_is(cursor_carets,
-                [&](isize cursor) { return carets.contains(cursor); });
+  return s;
 }
 
 void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                         TextBlock const & block, TextBlockStyle const & style,
-                        Span<Slice const> highlights, Span<isize const> carets,
-                        CRect const & clip, TextRenderer renderer) const
+                        Span<Slice const> highlights, Span<usize const> carets,
+                        CRect const & clip, TextRenderer renderer,
+                        AllocatorRef upstream) const
 {
+  CHECK(laid_out, "");
   CHECK(style.runs.size() == block.runs.size(), "");
   CHECK(style.runs.size() == block.fonts.size(), "");
 
@@ -460,110 +472,95 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
 
   char scratch[512];
 
-  FallbackAllocator allocator{Arena::from(scratch), default_allocator};
+  FallbackAllocator allocator{Arena::from(scratch), upstream};
 
-  Vec<CaretGlyph> caret_glyphs{allocator};
+  Vec<CaretPlacement> caret_placements{allocator};
 
   for (auto caret : carets)
   {
-    caret_glyphs.push(get_caret_glyph(caret).unwrap()).unwrap();
+    caret_placements.push(get_caret_placement(caret)).unwrap();
   }
 
-  enum Pass : u8
-  {
-    Block         = 0,
-    Background    = 1,
-    GlyphShadows  = 2,
-    Glyphs        = 3,
-    Underline     = 4,
-    Strikethrough = 5,
-    Highlight     = 6,
-    Caret         = 7,
-    NUM_PASSES    = 8
+  Vec<TextRenderInfo> infos{allocator};
+  Vec<TextLayer>      layers{allocator};
+  Vec<ShapeInfo>      shapes{allocator};
+  Vec<usize>          sorted{allocator};
+
+  auto push = [&](ShapeInfo const & s, TextLayer l, TextRenderInfo const & i) {
+    shapes.push(s).unwrap();
+    layers.push(l).unwrap();
+    infos.push(i).unwrap();
   };
 
-  for (u32 pass = 0; pass < NUM_PASSES; pass++)
+  f32 ln_top = -(0.5F * block_extent.y);
+
+  push(
+    ShapeInfo{.center    = info.center,
+              .extent    = block_extent,
+              .transform = info.transform * translate3d(vec3(info.center, 0))},
+    TextLayer::Block, TextRenderInfo{});
+
+  for (auto [iln, ln] : enumerate(lines))
   {
-    if (pass == Pass::Highlight && highlights.is_empty())
+    auto const ln_bottom = ln_top + ln.metrics.height;
+    auto const baseline  = ln_bottom - ln.metrics.descent;
+    auto const direction = ln.metrics.direction();
+    // flip the alignment axis direction if it is an RTL line
+    auto const alignment =
+      style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
+    Vec2 const ln_extent{ln.metrics.width, ln.metrics.height};
+    Vec2 const ln_center{space_align(block_width, ln_extent.x, alignment),
+                         ln_top + 0.5F * ln_extent.y};
+    auto       cursor = ln_center.x - 0.5F * ln_extent.x;
+
+    CRect const ln_rect{
+      .center = info.center + ln_center,
+      .extent{ln.metrics.width, ln.metrics.height}
+    };
+
+    if (!clip.overlaps(ln_rect))
     {
-      continue;
+      goto next_line;
     }
 
-    if (pass == Pass::Caret && carets.is_empty())
     {
-      continue;
-    }
-
-    f32 ln_top = -(0.5F * block_extent.y);
-
-    if (pass == Pass::Block)
-    {
-      renderer(
-        canvas,
-        {.center    = info.center,
-         .extent    = block_extent,
-         .transform = info.transform * translate3d(vec3(info.center, 0))},
-        {.region = TextRegion::Block});
-
-      continue;
-    }
-
-    for (auto [iln, ln] : enumerate(lines))
-    {
-      auto const ln_bottom = ln_top + ln.metrics.height;
-      auto const baseline  = ln_bottom - ln.metrics.descent;
-      auto const direction = ln.metrics.direction();
-      // flip the alignment axis direction if it is an RTL line
-      auto const alignment =
-        style.alignment * ((direction == TextDirection::LeftToRight) ? 1 : -1);
-      Vec2 const ln_extent{ln.metrics.width, ln.metrics.height};
-      Vec2 const ln_center{space_align(block_width, ln_extent.x, alignment),
-                           ln_top + 0.5F * ln_extent.y};
-      auto       cursor = ln_center.x - 0.5F * ln_extent.x;
-
-      CRect const ln_rect{
-        .center = info.center + ln_center,
-        .extent{ln.metrics.width, ln.metrics.height}
-      };
-
-      if (!clip.overlaps(ln_rect))
+      if (!style.caret.is_none())
       {
-        goto next_line;
-      }
+        Vec2 center{cursor, ln_top + 0.5F * ln.metrics.height};
+        Vec2 extent{style.caret.thickness, ln.metrics.height};
 
-      if (pass == Pass::Highlight)
-      {
-        auto [fully_covered, has_any] = highlight_test(highlights, ln.carets);
-
-        if (fully_covered)
+        for (auto const & p : caret_placements)
         {
-          renderer(
-            canvas,
-            {.center    = info.center,
-             .extent    = ln_rect.extent,
-             .transform = info.transform * translate3d(vec3(ln_rect.center, 0)),
-             .corner_radii = style.highlight.corner_radii,
-             .stroke       = style.highlight.stroke,
-             .thickness    = style.highlight.thickness,
-             .tint         = style.highlight.color},
-            {.region = TextRegion::Highlight, .line = iln});
-
-          goto next_line;
-        }
-
-        if (!has_any)
-        {
-          goto next_line;
+          if (p.glyph.is_none())
+          {
+            push({.center       = info.center,
+                  .extent       = extent,
+                  .transform    = info.transform * translate3d(vec3(center, 0)),
+                  .corner_radii = style.caret.corner_radii,
+                  .tint         = style.caret.color,
+                  .sampler      = info.sampler,
+                  .edge_smoothness = info.edge_smoothness},
+                 TextLayer::Caret,
+                 {.line = iln, .column = 0, .caret = ln.carets.first()});
+          }
         }
       }
 
-      if (pass == Pass::Caret)
+      auto ln_highlight_span = highlight_test(highlights, ln.carets);
+
+      if (ln_highlight_span == HighlightSpan::Full)
       {
-        auto has_any = caret_test(carets, ln.carets);
-        if (!has_any)
-        {
-          goto next_line;
-        }
+        auto extent = ln_rect.extent;
+        extent.x    = max(extent.x, block.font_scale * 2.5F);
+        push(
+          {.center    = info.center,
+           .extent    = extent,
+           .transform = info.transform * translate3d(vec3(ln_rect.center, 0)),
+           .corner_radii = style.highlight.corner_radii,
+           .stroke       = style.highlight.stroke,
+           .thickness    = style.highlight.thickness,
+           .tint         = style.highlight.color},
+          TextLayer::Highlight, {.line = iln});
       }
 
       for (auto [i, run] : enumerate(runs.view().slice(ln.runs)))
@@ -582,125 +579,79 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
 
         auto glyph_cursor = cursor;
 
-        if (pass == Pass::Background)
+        if (!run_style.background.is_transparent())
         {
-          if (!run_style.background.is_transparent())
-          {
-            Vec2 const extent{run_width, metrics.height()};
-            Vec2 const center{cursor + extent.x * 0.5F,
-                              baseline - metrics.ascent + extent.y * 0.5F};
+          Vec2 const extent{run_width, metrics.height()};
+          Vec2 const center{cursor + extent.x * 0.5F,
+                            baseline - metrics.ascent + extent.y * 0.5F};
 
-            renderer(
-              canvas,
-              {.center       = info.center,
-               .extent       = extent,
-               .transform    = info.transform * translate3d(vec3(center, 0)),
-               .corner_radii = run_style.corner_radii,
-               .tint         = run_style.background},
-              {.region    = TextRegion::Background,
-               .line      = iln,
-               .run       = irun,
-               .run_style = run.style});
-          }
-
-          goto next_run;
+          push({.center       = info.center,
+                .extent       = extent,
+                .transform    = info.transform * translate3d(vec3(center, 0)),
+                .corner_radii = run_style.corner_radii,
+                .tint         = run_style.background},
+               TextLayer::Background,
+               {.line = iln, .column = i, .run = irun, .run_style = run.style});
         }
 
-        if (pass == Pass::Highlight)
+        HighlightSpan run_highlight_span = HighlightSpan::None;
+
+        if (ln_highlight_span == HighlightSpan::Partial)
         {
-          auto [fully_covered, has_any] =
+          run_highlight_span =
             highlight_test(highlights, run.carets(ln.carets, ln.codepoints));
 
-          if (fully_covered)
+          if (run_highlight_span == HighlightSpan::Full)
           {
             Vec2 const extent{run_width, metrics.height()};
             Vec2 const center = Vec2{cursor, ln_top} + 0.5F * extent;
 
-            renderer(
-              canvas,
-              {.center       = info.center,
-               .extent       = extent,
-               .transform    = info.transform * translate3d(vec3(center, 0)),
-               .corner_radii = style.highlight.corner_radii,
-               .stroke       = style.highlight.stroke,
-               .thickness    = style.highlight.thickness,
-               .tint         = style.highlight.color},
-              {.region    = TextRegion::Highlight,
-               .line      = iln,
-               .run       = irun,
-               .run_style = run.style});
-
-            goto next_run;
-          }
-
-          if (!has_any)
-          {
-            goto next_run;
+            push({.center       = info.center,
+                  .extent       = extent,
+                  .transform    = info.transform * translate3d(vec3(center, 0)),
+                  .corner_radii = style.highlight.corner_radii,
+                  .stroke       = style.highlight.stroke,
+                  .thickness    = style.highlight.thickness,
+                  .tint         = style.highlight.color},
+                 TextLayer::Highlight,
+                 {.line = iln, .run = irun, .run_style = run.style});
           }
         }
 
-        if (pass == Pass::Caret)
+        if (run_style.strikethrough_thickness != 0)
         {
-          auto has_any =
-            caret_test(carets, run.carets(ln.carets, ln.codepoints));
-          if (!has_any)
-          {
-            goto next_run;
-          }
+          Vec2 const extent{run_width, block.font_scale *
+                                         run_style.strikethrough_thickness};
+          Vec2 const center =
+            Vec2{cursor, baseline - metrics.ascent * 0.5F} + extent * 0.5F;
+
+          push({.center    = info.center,
+                .extent    = extent,
+                .transform = info.transform * translate3d(vec3(center, 0)),
+                .tint      = run_style.strikethrough,
+                .sampler   = info.sampler,
+                .edge_smoothness = info.edge_smoothness},
+               TextLayer::Strikethrough,
+               {.line = iln, .column = i, .run = irun, .run_style = run.style});
         }
 
-        if (pass == Pass::Strikethrough)
+        if (run_style.underline_thickness != 0)
         {
-          if (run_style.strikethrough_thickness != 0)
-          {
-            Vec2 const extent{run_width, block.font_scale *
-                                           run_style.strikethrough_thickness};
-            Vec2 const center =
-              Vec2{cursor, baseline - metrics.ascent * 0.5F} + extent * 0.5F;
+          Vec2 const extent{run_width,
+                            block.font_scale * run_style.underline_thickness};
+          Vec2 const center =
+            Vec2{cursor,
+                 baseline + block.font_scale * run_style.underline_offset} +
+            extent * 0.5F;
 
-            renderer(
-              canvas,
-              {.center          = info.center,
-               .extent          = extent,
-               .transform       = info.transform * translate3d(vec3(center, 0)),
-               .tint            = run_style.strikethrough,
-               .sampler         = info.sampler,
-               .edge_smoothness = info.edge_smoothness},
-              {.region    = TextRegion::Strikethrough,
-               .line      = iln,
-               .run       = irun,
-               .run_style = run.style});
-          }
-
-          goto next_run;
-        }
-
-        if (pass == Pass::Underline)
-        {
-          if (run_style.underline_thickness != 0)
-          {
-            Vec2 const extent{run_width,
-                              block.font_scale * run_style.underline_thickness};
-            Vec2 const center =
-              Vec2{cursor,
-                   baseline + block.font_scale * run_style.underline_offset} +
-              extent * 0.5F;
-
-            renderer(
-              canvas,
-              {.center          = info.center,
-               .extent          = extent,
-               .transform       = info.transform * translate3d(vec3(center, 0)),
-               .tint            = run_style.underline,
-               .sampler         = info.sampler,
-               .edge_smoothness = info.edge_smoothness},
-              {.region    = TextRegion::Underline,
-               .line      = iln,
-               .run       = irun,
-               .run_style = run.style});
-          }
-
-          goto next_run;
+          push({.center    = info.center,
+                .extent    = extent,
+                .transform = info.transform * translate3d(vec3(center, 0)),
+                .tint      = run_style.underline,
+                .sampler   = info.sampler,
+                .edge_smoothness = info.edge_smoothness},
+               TextLayer::Underline,
+               {.line = iln, .column = i, .run = irun, .run_style = run.style});
         }
 
         for (auto [i, sh] : enumerate(glyphs.view().slice(run.glyphs)))
@@ -718,36 +669,36 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
           auto const glyph_carets =
             Slice{ln.carets.offset + (sh.cluster - ln.codepoints.offset), 2};
 
-          if (pass == Pass::GlyphShadows && run_style.has_shadow())
+          if (run_style.has_shadow())
           {
             Vec2 const shadow_extent = extent * run_style.shadow_scale;
             Vec2 const shadow_center =
               center + block.font_scale * run_style.shadow_offset;
 
-            renderer(canvas,
-                     {
-                       .center = info.center,
-                       .extent = shadow_extent,
-                       .transform =
-                         info.transform * translate3d(vec3(shadow_center, 0)),
-                       .tint            = run_style.shadow,
-                       .sampler         = info.sampler,
-                       .texture         = atlas.textures[agl.layer],
-                       .uv              = {agl.uv[0], agl.uv[1]},
-                       .edge_smoothness = info.edge_smoothness
+            push(
+              {
+                .center = info.center,
+                .extent = shadow_extent,
+                .transform =
+                  info.transform * translate3d(vec3(shadow_center, 0)),
+                .tint            = run_style.shadow,
+                .sampler         = info.sampler,
+                .texture         = atlas.textures[agl.layer],
+                .uv              = {agl.uv[0], agl.uv[1]},
+                .edge_smoothness = info.edge_smoothness
             },
-                     {.region    = TextRegion::GlyphShadows,
-                      .line      = iln,
-                      .run       = irun,
-                      .run_style = run.style,
-                      .glyph     = iglyph,
-                      .cluster   = sh.cluster});
+              TextLayer::GlyphShadows,
+              {.line      = iln,
+               .column    = i,
+               .run       = irun,
+               .run_style = run.style,
+               .glyph     = iglyph,
+               .cluster   = sh.cluster});
           }
 
-          if (pass == Pass::Glyphs && run_style.has_color())
+          if (run_style.has_color())
           {
-            renderer(
-              canvas,
+            push(
               {
                 .center    = info.center,
                 .extent    = extent,
@@ -758,28 +709,29 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                 .uv        = {agl.uv[0], agl.uv[1]},
                 .edge_smoothness = info.edge_smoothness
             },
-              {.region    = TextRegion::Glyphs,
-               .line      = iln,
+              TextLayer::Glyphs,
+              {.line      = iln,
+               .column    = i,
                .run       = irun,
                .run_style = run.style,
                .glyph     = iglyph,
                .cluster   = sh.cluster});
           }
 
-          if (pass == Pass::Caret && !style.caret.is_none())
+          if (!style.caret.is_none())
           {
             auto const glyph_left  = center.x - 0.5 * extent.x;
             auto const glyph_right = center.x + 0.5 * extent.x;
 
-            for (auto const [c, g] : zip(carets, caret_glyphs))
+            for (auto const [c, p] : zip(carets, caret_placements))
             {
-              if (g.glyph == iglyph)
+              if (p.glyph == iglyph)
               {
                 Vec2 extent{style.caret.thickness, ln.metrics.height};
                 Vec2 center;
 
-                if ((direction == TextDirection::LeftToRight && g.after) ||
-                    (direction == TextDirection::RightToLeft && !g.after))
+                if ((direction == TextDirection::LeftToRight && p.after) ||
+                    (direction == TextDirection::RightToLeft && !p.after))
                 {
                   center.x = glyph_right;
                 }
@@ -790,8 +742,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
 
                 center.y = ln_top + 0.5F * ln.metrics.height;
 
-                renderer(
-                  canvas,
+                push(
                   {.center    = info.center,
                    .extent    = extent,
                    .transform = info.transform * translate3d(vec3(center, 0)),
@@ -799,56 +750,55 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                    .tint            = style.caret.color,
                    .sampler         = info.sampler,
                    .edge_smoothness = info.edge_smoothness},
-                  {.region    = TextRegion::Caret,
-                   .line      = iln,
-                   .run       = irun,
-                   .run_style = run.style,
-                   .glyph     = iglyph,
-                   .cluster   = sh.cluster,
-                   .caret     = c});
+                  TextLayer::Caret,
+                  {.line = iln, .column = c - ln.carets.first(), .caret = c});
               }
             }
           }
 
-          if (pass == Pass::Highlight)
+          if (run_highlight_span == HighlightSpan::Partial)
           {
-            auto any = any_is(
-              highlights, [&](auto & h) { return h.contains(glyph_carets); });
+            auto glyph_highlight_span =
+              highlight_test(highlights, glyph_carets);
 
-            if (any)
+            if (glyph_highlight_span != HighlightSpan::None)
             {
               Vec2 const extent{advance, metrics.height()};
               Vec2 const center = Vec2{glyph_cursor, ln_top} + 0.5F * extent;
 
-              renderer(
-                canvas,
-                {.center       = info.center,
-                 .extent       = extent,
-                 .transform    = info.transform * translate3d(vec3(center, 0)),
-                 .corner_radii = style.highlight.corner_radii,
-                 .stroke       = style.highlight.stroke,
-                 .thickness    = style.highlight.thickness,
-                 .tint         = style.highlight.color},
-                {.region    = TextRegion::Highlight,
-                 .line      = iln,
-                 .run       = irun,
-                 .run_style = run.style,
-                 .glyph     = iglyph,
-                 .cluster   = sh.cluster});
+              push({.center    = info.center,
+                    .extent    = extent,
+                    .transform = info.transform * translate3d(vec3(center, 0)),
+                    .corner_radii = style.highlight.corner_radii,
+                    .stroke       = style.highlight.stroke,
+                    .thickness    = style.highlight.thickness,
+                    .tint         = style.highlight.color},
+                   TextLayer::Highlight,
+                   {.line      = iln,
+                    .run       = irun,
+                    .run_style = run.style,
+                    .glyph     = iglyph,
+                    .cluster   = sh.cluster});
             }
           }
 
           glyph_cursor += advance;
         }
 
-      next_run:
         cursor += run_width;
       }
-
-    next_line:
-      ln_top = ln_bottom;
     }
+
+  next_line:
+    ln_top = ln_bottom;
   }
+
+  sorted.resize_uninit(layers.size()).unwrap();
+  iota(sorted, (usize) 0);
+  indirect_sort(sorted.view(),
+                [&](auto a, auto b) { return layers[a] < layers[b]; });
+
+  renderer(canvas, layers, shapes, infos, sorted);
 }
 
 }    // namespace ash

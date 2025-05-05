@@ -822,10 +822,6 @@ static inline void insert_run(TextLayout & l, FontStyle const & s,
 
   TextRunType type = TextRunType::Char;
 
-  if (base_segment.linebreak_begin)
-  {
-    type = TextRunType::ParagraphBreak;
-  }
   if (base_segment.whitespace)
   {
     type = TextRunType::WhiteSpace;
@@ -842,9 +838,9 @@ static inline void insert_run(TextLayout & l, FontStyle const & s,
       .font_height = s.height,
       .line_height = max(s.line_height, 1.0F),
       .glyphs{first_glyph, num_glyphs},
-      .metrics    = TextRunMetrics{.advance = advance,
-              .ascent  = font_metrics.ascent,
-              .descent = font_metrics.descent},
+      .metrics{.ascent  = font_metrics.ascent,
+              .descent = font_metrics.descent,
+              .advance = advance},
       .base_level = base_segment.base_level,
       .level      = base_segment.level,
       .wrappable  = base_segment.wrappable,
@@ -960,7 +956,8 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
         p++;
       }
 
-      auto const paragraph_end = p;
+      auto const paragraph_end       = p;
+      auto const paragraph_run_begin = layout.runs.size();
 
       for (auto i = paragraph_begin; i < paragraph_end;)
       {
@@ -997,104 +994,135 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
                    first_segment, infos, positions);
       }
 
-      auto break_begin = p;
-      p++;
+      auto const paragraph_run_end = layout.runs.size();
 
-      while (p < text_size && !segments_[p].paragraph_begin)
       {
+        auto break_begin = p;
         p++;
-      }
 
-      auto break_end = p;
+        while (p < text_size && !segments_[p].paragraph_begin)
+        {
+          p++;
+        }
 
-      auto break_codepoints = Slice::from_range(break_begin, break_end);
+        auto break_end = p;
 
-      
+        auto break_codepoints = Slice::from_range(break_begin, break_end);
 
-      if (!break_codepoints.is_empty())
-      {
-        auto const        base_segment = segments_[break_begin];
-        FontStyle const & s            = block.fonts[base_segment.style];
-        FontImpl const &  f = (FontImpl const &) *fonts_[(usize) s.font].v0;
-        insert_run(layout, s, break_codepoints, break_begin, f.metrics,
-                   segments_[break_begin], {}, {});
+        layout.paragraphs
+          .push(Paragraph{
+            .runs = Slice::from_range(paragraph_run_begin, paragraph_run_end),
+            .codepoints = Slice::from_range(paragraph_begin, paragraph_end),
+            .break_codepoints = break_codepoints})
+          .unwrap();
       }
     }
   }
 
-  auto const num_runs = layout.runs.size();
-  Vec2       extent{};
+  Vec2 extent{};
 
   usize first_caret = 0;
 
-  for (usize i = 0; i < num_runs;)
+  for (auto & paragraph : layout.paragraphs)
   {
-    auto const   first             = i++;
-    auto const & first_run         = layout.runs[first];
-    u8 const     base_level        = first_run.base_level;
-    f32 const    font_height       = block.font_scale * first_run.font_height;
-    auto const   first_run_metrics = first_run.metrics.resolve(font_height);
-    auto const & style             = block.fonts[first_run.style];
-    auto const   advance =
-      first_run_metrics.advance +
-      (first_run.is_spacing() ? 0 : (block.font_scale * style.word_spacing));
-
-    f32 width       = advance;
-    f32 ascent      = first_run_metrics.ascent;
-    f32 descent     = first_run_metrics.descent;
-    f32 line_height = first_run_metrics.height() * first_run.line_height;
-
-    // [ ] line-break runs should create a new line
-
-    while (i < num_runs)
+    if (paragraph.runs.is_empty())
     {
-      auto const & r = layout.runs[i];
-      auto const   m = r.metrics.resolve(block.font_scale * r.font_height);
-      auto const & s = block.fonts[r.style];
-      auto const   a =
-        m.advance + (r.is_spacing() ? 0 : (block.font_scale * s.word_spacing));
+      auto const num_carets = 1;
+      auto       segment    = paragraph.break_codepoints.begin();
 
-      if (r.type == TextRunType::ParagraphBreak ||
-          (block.wrap && r.wrappable && (width + a) > max_width))
-      {
-        break;
-      }
+      auto const &     s = block.fonts[segments_[segment].style];
+      FontImpl const & f = (FontImpl const &) *fonts_[(usize) s.font].v0;
+      auto const       font_height = block.font_scale * s.height;
 
-      width += a;
-      ascent      = m.ascent;
-      descent     = m.descent;
-      line_height = max(line_height, m.height() * r.line_height);
-      i++;
+      auto const line_height = font_height * max(s.line_height, 1.0F);
+
+      auto metrics = f.metrics.resolve(font_height);
+      auto width   = 0.0F;
+
+      Line line{
+        .codepoints = paragraph.codepoints,
+        .carets{first_caret, num_carets},
+        .runs = paragraph.runs,
+        .metrics{.width   = width,
+                .height  = line_height,
+                .ascent  = metrics.ascent,
+                .descent = metrics.descent,
+                .level   = 0}
+      };
+
+      layout.lines.push(line).unwrap();
+
+      extent.x = max(extent.x, width);
+      extent.y += line_height;
+      first_caret += num_carets;
     }
 
-    auto const & last_run        = layout.runs[i - 1];
-    auto const   first_codepoint = first_run.codepoints.offset;
-    auto const   num_codepoints  = last_run.codepoints.end() - first_codepoint;
+    for (usize i = paragraph.runs.begin(); i < paragraph.runs.end();)
+    {
+      auto const   first             = i++;
+      auto const & first_run         = layout.runs[first];
+      u8 const     base_level        = first_run.base_level;
+      f32 const    font_height       = block.font_scale * first_run.font_height;
+      auto const   first_run_metrics = first_run.metrics.resolve(font_height);
+      auto const & style             = block.fonts[first_run.style];
+      auto const   advance =
+        first_run_metrics.advance +
+        (first_run.is_spacing() ? 0 : (block.font_scale * style.word_spacing));
 
-    Slice const runs{first, i - first};
+      f32 width       = advance;
+      f32 ascent      = first_run_metrics.ascent;
+      f32 descent     = first_run_metrics.descent;
+      f32 line_height = first_run_metrics.height() * first_run.line_height;
 
-    auto const num_carets = num_codepoints + 1;
-    auto const carets     = Slice{first_caret, num_carets};
+      while (i < paragraph.runs.end())
+      {
+        auto const & r = layout.runs[i];
+        auto const   m = r.metrics.resolve(block.font_scale * r.font_height);
+        auto const & s = block.fonts[r.style];
+        auto const   a =
+          m.advance +
+          (r.is_spacing() ? 0 : (block.font_scale * s.word_spacing));
 
-    Line line{
-      .codepoints{first_codepoint, num_codepoints},
-      .break_codepoints = 
-      .carets = carets,
-      .runs   = runs,
-      .metrics{.width   = width,
-                  .height  = line_height,
-                  .ascent  = ascent,
-                  .descent = descent,
-                  .level   = base_level}
-    };
+        if (block.wrap && r.wrappable && (width + a) > max_width)
+        {
+          break;
+        }
 
-    layout.lines.push(line).unwrap();
+        width += a;
+        ascent      = m.ascent;
+        descent     = m.descent;
+        line_height = max(line_height, m.height() * r.line_height);
+        i++;
+      }
 
-    reorder_line(layout.runs.view().slice(first, i - first));
+      auto const & last_run        = layout.runs[i - 1];
+      auto const   first_codepoint = first_run.codepoints.offset;
+      auto const   num_codepoints = last_run.codepoints.end() - first_codepoint;
 
-    extent.x = max(extent.x, width);
-    extent.y += line_height;
-    first_caret += num_carets;
+      Slice const runs = Slice::from_range(first, i);
+
+      auto const num_carets = num_codepoints + 1;
+      auto const carets     = Slice{first_caret, num_carets};
+
+      Line line{
+        .codepoints{first_codepoint, num_codepoints},
+        .carets = carets,
+        .runs   = runs,
+        .metrics{.width   = width,
+                    .height  = line_height,
+                    .ascent  = ascent,
+                    .descent = descent,
+                    .level   = base_level}
+      };
+
+      layout.lines.push(line).unwrap();
+
+      reorder_line(layout.runs.view().slice(first, i - first));
+
+      extent.x = max(extent.x, width);
+      extent.y += line_height;
+      first_caret += num_carets;
+    }
   }
 
   layout.max_width      = max_width;
