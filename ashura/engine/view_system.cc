@@ -373,15 +373,14 @@ void System::render(Canvas & canvas)
     {
       auto         parent_viewport = att.viewports[i];
       auto const & clip            = clips[parent_viewport];
-      CRect const  region{.center = canvas_centers[i],
-                          .extent = canvas_extents[i]};
-
-      auto const zoom = Vec2{canvas_tx[parent_viewport][0][0],
-                             canvas_tx[parent_viewport][1][1]};
+      CRect const  viewport_region{.center = fixed_centers[i],
+                                   .extent = extents[i]};
+      CRect const  canvas_region{.center = canvas_centers[i],
+                                 .extent = canvas_extents[i]};
 
       auto & view = views[i];
       canvas.clip(clip);
-      view->render(canvas, region, zoom, clip);
+      view->render(canvas, viewport_region, canvas_region, clip);
     }
   }
 }

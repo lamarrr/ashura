@@ -684,15 +684,16 @@ struct View
   /// only called if the view passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas canvas to render view into
-  /// @param region canvas-space region of the view (after zoom transform)
+  /// @param viewport_region viewport-space region of the view (before zoom transform)
+  /// @param canvas_region canvas-space region of the view (after zoom transform)
   /// @param zoom zoom scale of the view
   /// @param clip canvas-space clip of the view (after zoom transform)
-  constexpr virtual void render(Canvas & canvas, CRect const & region,
-                                Vec2 zoom, CRect const & clip)
+  constexpr virtual void render(Canvas & canvas, CRect const & viewport_region,
+                                CRect const & canvas_region, CRect const & clip)
   {
     (void) canvas;
-    (void) region;
-    (void) zoom;
+    (void) viewport_region;
+    (void) canvas_region;
     (void) clip;
   }
 

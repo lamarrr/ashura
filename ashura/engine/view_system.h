@@ -56,7 +56,7 @@ struct RootView : View
     return 0;
   }
 
-  constexpr virtual void render(Canvas &, CRect const &, Vec2,
+  constexpr virtual void render(Canvas &, CRect const &, CRect const &,
                                 CRect const &) override
   {
   }
