@@ -2735,18 +2735,20 @@ void Image::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
 List::List(Generator generator, AllocatorRef allocator) :
   state_{.generator = generator},
   allocator_{allocator},
-  items_{allocator}
+  items_{allocator},
+  scrolled_offsets_{allocator}
 {
 }
 
 List & List::generator(Generator generator)
 {
-  state_.range               = {};
-  state_.translation         = 0;
-  state_.virtual_translation = 0;
-  state_.item_size           = none;
-  state_.generator           = generator;
+  state_.total_translation = 0;
+  state_.view_extent       = 0;
+  state_.actives_range     = {};
+  state_.max_size          = USIZE_MAX;
+  state_.generator         = generator;
   items_.clear();
+  scrolled_offsets_.clear();
   return *this;
 }
 
@@ -2775,66 +2777,58 @@ ui::State List::tick(Ctx const & ctx, Events const & events,
 
   if (events.scroll())
   {
-    state_.translation += ctx.mouse.wheel_translation.x;
+    auto info                = events.scroll_info.unwrap();
+    state_.total_translation = info.center[axis];
   }
 
-  if (state_.item_size.is_none())
-  {
-    // get the first item and use it to measure the item size
-    if (auto item = state_.generator(allocator_, 0); item.is_some())
-    {
-      items_.push(std::move(item.v())).unwrap();
-      state_.range = {0, 1};
-    }
+  Slice next = state_.actives_range;
 
-    state_.virtual_translation = 0;
+  if ((statex_.subset_translation + statex_.subset_extent) <
+      statex_.view_extent)
+  {
+    next.span += statex_.batch_size;
   }
-  else
+
+  if (statex_.subset_translation > 0)
   {
-    Slice range;
+    auto begin = sat_sub(next.begin(), statex_.batch_size);
+    auto end   = next.end();
+    next       = Slice::from_range(begin, end);
+  }
 
-    // [ ] check range ==
+  next = next(statex_.max_size);
 
-    range.offset =
-      (usize) max(std::ceil(state_.translation / state_.item_size.v()), 0.0F);
+  if (next != statex_.range)
+  {
+    Vec<Dyn<View *>> new_items{allocator_};
 
-    range.span =
-      (usize) max(std::ceil(region.extent[axis] / state_.item_size.v()), 0.0F);
+    auto i = next.begin();
 
-    usize i = range.begin();
-
-    for (; i < range.end(); i++)
+    for (; i < next.end(); i++)
     {
-      if (state_.range.contains(i))
+      if (statex_.range.contains(i))
       {
-        items_.push(std::move(items_[i - state_.range.offset])).unwrap();
+        new_items.push(std::move(items_[i])).unwrap();
       }
       else
       {
-        if (auto item = state_.generator(allocator_, i); item.is_some())
+        if (auto item = statex_.generator(allocator_, i); item.is_some())
         {
-          items_.push(std::move(item.v())).unwrap();
+          new_items.push(item.unwrap()).unwrap();
         }
         else
         {
+          statex_.max_size = i;
           break;
         }
       }
     }
 
-    items_.erase(0, state_.range.span);
-
-    range.span = i - range.offset;
-
-    state_.range = range;
-
-    f32 const first_item_offset =
-      state_.range.offset * state_.item_size.unwrap_or(1.0F);
-
-    state_.virtual_translation = state_.translation - first_item_offset;
-
-    // [ ] NEED TO GET SIZE INFO FOR SCROLL BAR
+    new_items     = std::move(items_);
+    statex_.range = Slice::from_range(next.begin(), i);
   }
+
+  // [ ] NEED TO GET SIZE INFO FOR SCROLL BAR
 
   for (auto const & item : items_)
   {
@@ -2851,36 +2845,45 @@ void List::size(Vec2 allocated, Span<Vec2> sizes)
 
 Layout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
-  fill(centers, Vec2{});
-
   Vec2      extent     = {};
   u32 const axis       = style_.axis == Axis::X ? 0 : 1;
   u32 const cross_axis = style_.axis == Axis::X ? 1 : 0;
 
+  // Calculate total extent along main axis
   for (auto const size : sizes)
   {
     extent[cross_axis] = max(extent[cross_axis], size[cross_axis]);
     extent[axis] += size[axis];
   }
 
-  f32 cursor = -extent[axis] * 0.5F;
-
-  for (auto [size, center] : zip(sizes, centers))
+  // Position items along main axis with translation
+  f32 cursor = -extent[axis] * 0.5F + statex_.total_translation;
+  for (auto [center, size] : zip(centers, sizes))
   {
-    center[axis] = cursor + size[axis] * 0.5;
+    center[axis]       = cursor + size[axis] * 0.5F;
+    center[cross_axis] = 0;
     cursor += size[axis];
   }
 
-  Vec2 const frame = style_.frame(allocated);
+  // Update state
+  statex_.view_extent   = allocated[axis];
+  statex_.subset_extent = extent[axis];
 
-  Vec2 virtual_translation;
-  virtual_translation[axis] = state_.virtual_translation;
-
-  return Layout{
-    .extent{min(frame.x, extent.x), min(frame.y, extent.y)},
-    .viewport_extent    = extent,
-    .viewport_transform = translate2d(virtual_translation)
+  return {
+    .extent          = allocated,
+    .viewport_extent = extent,
+    .viewport_center = {statex_.total_translation, 0}
   };
+}
+
+void List::render(Canvas & canvas, CRect const & viewport_region,
+                  CRect const & canvas_region, CRect const & clip)
+{
+  // Render each visible item
+  for (auto const & item : items_)
+  {
+    item->render(canvas, viewport_region, canvas_region, clip);
+  }
 }
 
 }    // namespace ui

@@ -1436,6 +1436,9 @@ struct Image : View
 };
 
 // [ ] size estimation?
+
+/// @brief An infinitely scrollable List of elements.
+/// [ ] .....................
 struct List : View
 {
   typedef Fn<Option<Dyn<View *>>(AllocatorRef, usize i)> Generator;
@@ -1445,17 +1448,23 @@ struct List : View
 
   struct State
   {
-    Slice range = {};
+    /// @brief effective translation of the entire list
+    f32 total_translation = 0;
 
-    /// @brief total translation of the entire list
-    f32 translation = 0;
+    /// @brief the view extent of the viewport
+    f32 view_extent = 0;
 
-    /// @brief virtual view translation of the currently visible list items
-    f32 virtual_translation = 0;
+    /// @brief batch size of active items
+    usize batch_size = 128;
 
-    Option<f32> item_size = none;
+    /// @brief the range of the currently active subset
+    Slice actives_range = {};
 
-    Generator generator;
+    /// @brief determined upper bound
+    usize max_size = USIZE_MAX;
+
+    /// @brief the item generator
+    Generator generator = DEFAULT_GENERATOR;
   } state_;
 
   struct Style
@@ -1470,6 +1479,7 @@ struct List : View
   AllocatorRef allocator_;
 
   Vec<Dyn<View *>> items_;
+  Vec<f32>         scrolled_offsets_;
 
   List(Generator    generator = DEFAULT_GENERATOR,
        AllocatorRef allocator = default_allocator);
@@ -1489,6 +1499,9 @@ struct List : View
 
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
+
+  virtual void render(Canvas & canvas, CRect const & viewport_region,
+                      CRect const & canvas_region, CRect const & clip) override;
 };
 
 // [ ] DEFAULT FOCUS VIEW
