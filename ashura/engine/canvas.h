@@ -89,10 +89,7 @@ enum class TileMode : u8
 struct ShapeInfo
 {
   /// @brief center of the shape in world-space
-  Vec2 center = {0, 0};
-
-  /// @brief extent of the shape in world-space
-  Vec2 extent = {0, 0};
+  CRect area = {};
 
   /// @brief object-world-space transform matrix
   Mat4 transform = Mat4::IDENTITY;
@@ -161,11 +158,11 @@ struct Canvas
 
   struct Blur
   {
-    RectU area         = {};
-    Vec2U radius       = {};
-    Vec4  corner_radii = {};
-    Mat4  transform    = Mat4::IDENTITY;
-    f32   aspect_ratio = 1;
+    RectU area          = {};
+    Vec2U spread_radius = {};
+    Vec4  corner_radii  = {};
+    Mat4  transform     = Mat4::IDENTITY;
+    f32   aspect_ratio  = 1;
   };
 
   typedef Dyn<
@@ -310,7 +307,7 @@ struct Canvas
 
   /// @brief perform a Canvas-space blur
   /// @param area region in the canvas to apply the blur to
-  Canvas & blur(CRect const & area, Vec2 radius,
+  Canvas & blur(CRect const & area, Vec2 spread_radius,
                 Vec4 corner_radii = {0, 0, 0, 0});
 
   /// @brief register a custom canvas pass to be executed in the render thread
@@ -330,6 +327,18 @@ struct Canvas
     auto f = fn(*lambda);
 
     return pass(Pass{.label = label, .task = transmute(std::move(lambda), f)});
+  }
+
+  Canvas & text(Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
+                Span<TextRenderInfo const> infos, Span<usize const> sorted);
+
+  TextRenderer text_renderer()
+  {
+    return TextRenderer{
+      this,
+      [](Canvas * p, Span<TextLayer const> layers, Span<ShapeInfo const> shapes,
+         Span<TextRenderInfo const> infos,
+         Span<usize const> sorted) { p->text(layers, shapes, infos, sorted); }};
   }
 
   // clip mask?

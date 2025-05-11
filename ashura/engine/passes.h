@@ -62,9 +62,9 @@ struct BlurParam
 
 struct BlurPassParams
 {
-  Framebuffer framebuffer = {};
-  RectU       area        = {};
-  Vec2U       radius      = {1, 1};
+  Framebuffer framebuffer   = {};
+  RectU       area          = {};
+  Vec2U       spread_radius = {1, 1};
 };
 
 struct BlurPass : Pass

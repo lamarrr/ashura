@@ -6,7 +6,7 @@ namespace ash
 {
 
 RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
-                             u32 first, u32 count)
+                             usize first, usize count)
 {
   if (count == 0)
   {
@@ -15,30 +15,30 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
 
   if (runs_.is_empty())
   {
-    runs_.push(U32_MAX).unwrap();
+    runs_.push(USIZE_MAX).unwrap();
     styles_.push(style).unwrap();
     fonts_.push(font).unwrap();
     hash_ = 0;
     return *this;
   }
 
-  u32 const end = sat_add(first, count);
+  auto const end = sat_add(first, count);
 
-  Span const first_run_span = binary_find(runs_.view(), gt, first);
+  auto const first_run_span = binary_find(runs_.view(), gt, first);
 
-  /// should never happen since there's always a U32_MAX run end
+  /// should never happen since there's always a USIZE_MAX run end
   CHECK(!first_run_span.is_empty(), "");
 
-  Span const last_run_span = binary_find(first_run_span, geq, end);
+  auto const last_run_span = binary_find(first_run_span, geq, end);
 
-  /// should never happen since there's always a U32_MAX run end
+  /// should never happen since there's always a USIZE_MAX run end
   CHECK(!last_run_span.is_empty(), "");
 
-  u32 first_run = (u32) (first_run_span.pbegin() - runs_.view().pbegin());
-  u32 last_run  = (u32) (last_run_span.pbegin() - runs_.view().pbegin());
+  auto first_run = (usize) (first_run_span.pbegin() - runs_.view().pbegin());
+  auto last_run  = (usize) (last_run_span.pbegin() - runs_.view().pbegin());
 
-  u32 const first_run_begin = (first_run == 0) ? 0 : runs_[first_run - 1];
-  u32 const last_run_end    = runs_[last_run];
+  auto const first_run_begin = (first_run == 0) ? 0 : runs_[first_run - 1];
+  auto const last_run_end    = runs_[last_run];
 
   /// run merging
 
@@ -46,8 +46,8 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
 
   if (last_run > (first_run + 1))
   {
-    u32 const first_erase = first_run + 1;
-    u32 const num_erase   = last_run - first_erase;
+    auto const first_erase = first_run + 1;
+    auto const num_erase   = last_run - first_erase;
     runs_.erase(first_erase, num_erase);
     styles_.erase(first_erase, num_erase);
     fonts_.erase(first_erase, num_erase);
@@ -57,8 +57,8 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
   /// merge left
   if (first_run_begin == first)
   {
-    u32 const first_erase = first_run;
-    u32 const num_erase   = last_run - first_run;
+    auto const first_erase = first_run;
+    auto const num_erase   = last_run - first_run;
     runs_.erase(first_erase, num_erase);
     styles_.erase(first_erase, num_erase);
     fonts_.erase(first_erase, num_erase);
@@ -68,8 +68,8 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
   /// merge right
   if (last_run_end == end)
   {
-    u32 const first_erase = first_run + 1;
-    u32 const num_erase   = (last_run + 1) - first_erase;
+    auto const first_erase = first_run + 1;
+    auto const num_erase   = (last_run + 1) - first_erase;
     runs_.erase(first_erase, num_erase);
     styles_.erase(first_erase, num_erase);
     fonts_.erase(first_erase, num_erase);
@@ -283,19 +283,20 @@ void RenderText::layout(f32 max_width)
   hash_ = HASH_CLEAN;
 }
 
-void RenderText::render(Canvas & canvas, Vec2 center, f32 align_width,
-                        Vec2 zoom, CRect const & clip, TextRenderer renderer,
+void RenderText::render(TextRenderer renderer, Vec2 center, f32 align_width,
+                        Mat4 const & transform, CRect const & clip,
                         AllocatorRef allocator)
 {
-  layout_.render(
-    canvas, {.center = center, .transform = scale3d(vec3(zoom, 1))}, block(),
-    block_style(align_width), highlights_, carets_, clip, renderer, allocator);
+  layout_.render(renderer, {.area{.center = center}, .transform = transform},
+                 block(), block_style(align_width), highlights_, carets_, clip,
+                 allocator);
 }
 
 Tuple<isize, CaretAlignment> RenderText::hit(Vec2 center, f32 align_width,
-                                             Vec2 zoom, Vec2 pos) const
+                                             Mat4 const & t, Vec2 pos) const
 {
-  auto local = (pos - center) / zoom;
+  auto s     = Vec2{t[0][0], t[1][1]};
+  auto local = (pos - center) / s;
   return layout_.hit(block(), block_style(align_width), local);
 }
 

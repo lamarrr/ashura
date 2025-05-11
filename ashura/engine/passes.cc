@@ -164,7 +164,7 @@ Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
     return none;
   }
 
-  if (params.radius.x == 0 || params.radius.y == 0)
+  if (params.spread_radius.x == 0 || params.spread_radius.y == 0)
   {
     return none;
   }
@@ -197,7 +197,7 @@ Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
                                        &sys->gpu.scratch_color_[0]};
   RectU const sample_areas[2]       = {downsampled_area, downsampled_area};
 
-  Vec2I const radius = as_vec2i(params.radius);
+  Vec2I const radius = as_vec2i(params.spread_radius);
 
   f32 const major_radius = max(radius.x, radius.y);
   u32 const num_passes =

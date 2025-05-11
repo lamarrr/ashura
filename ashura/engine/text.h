@@ -448,7 +448,7 @@ struct TextStyle
 struct TextBlock
 {
   Str32                 text          = {};
-  Span<u32 const>       runs          = {};
+  Span<usize const>     runs          = {};
   Span<FontStyle const> fonts         = {};
   f32                   font_scale    = 1;
   TextDirection         direction     = TextDirection::LeftToRight;
@@ -682,7 +682,7 @@ struct TextRenderInfo
   Option<isize> caret = none;
 };
 
-typedef Fn<void(Canvas &, Span<TextLayer const>, Span<ShapeInfo const>,
+typedef Fn<void(Span<TextLayer const>, Span<ShapeInfo const>,
                 Span<TextRenderInfo const>, Span<usize const>)>
   TextRenderer;
 
@@ -764,11 +764,6 @@ struct TextLayout
   Tuple<isize, CaretAlignment>
     hit(TextBlock const & block, TextBlockStyle const & style, Vec2 pos) const;
 
-  static void default_renderer(Canvas & canvas, Span<TextLayer const> layers,
-                               Span<ShapeInfo const>      shapes,
-                               Span<TextRenderInfo const> infos,
-                               Span<usize const>          sorted);
-
   /// @brief Render Text using pre-computed layout
   /// @param info only info.center, info.transform, info.tiling, and info.sampler are used
   /// @param block Text Block to be rendered
@@ -779,11 +774,11 @@ struct TextLayout
   /// @param carets carets to draw
   /// @param clip clip rect for culling draw commands of the text block
   /// @param renderer the renderer to use for rendering the text's regions
-  void render(Canvas & canvas, ShapeInfo const & info, TextBlock const & block,
-              TextBlockStyle const & style, Span<Slice const> highlights,
-              Span<usize const> carets, CRect const & clip,
-              TextRenderer renderer  = default_renderer,
-              AllocatorRef allocator = default_allocator) const;
+  void render(TextRenderer renderer, ShapeInfo const & info,
+              TextBlock const & block, TextBlockStyle const & style,
+              Span<Slice const> highlights, Span<usize const> carets,
+              CRect const & clip,
+              AllocatorRef  allocator = default_allocator) const;
 };
 
 }    // namespace ash

@@ -29,7 +29,7 @@ struct RenderText
   f32                alignment_;
   f32                font_scale_;
   Vec<c32>           text_;
-  Vec<u32>           runs_;
+  Vec<usize>         runs_;
   Vec<TextStyle>     styles_;
   Vec<FontStyle>     fonts_;
   Str                language_;
@@ -74,7 +74,7 @@ struct RenderText
   /// @param style font style to be applied
   /// @param font font configuration to be applied
   RenderText & run(TextStyle const & style, FontStyle const & font,
-                   u32 first = 0, u32 count = U32_MAX);
+                   usize first = 0, usize count = USIZE_MAX);
 
   RenderText & flush_text();
 
@@ -129,10 +129,9 @@ struct RenderText
   /// @param align_width the width to align the text to
   /// @param clip the canvas-space clip rectangle
   /// @param zoom the zoom to apply to the text
-  void render(Canvas & canvas, Vec2 center, f32 align_width, Vec2 zoom,
-              CRect const & clip      = MAX_CLIP,
-              TextRenderer  renderer  = TextLayout::default_renderer,
-              AllocatorRef  allocator = default_allocator);
+  void render(TextRenderer renderer, Vec2 center, f32 align_width,
+              Mat4 const & transform, CRect const & clip = MAX_CLIP,
+              AllocatorRef allocator = default_allocator);
 
   /// @brief Perform hit test on the laid-out text
   /// @param center canvas-space region the text was placed on
@@ -140,8 +139,8 @@ struct RenderText
   /// @param zoom the zoom that was applied to the text
   /// @param pos the canvas-space text position to hit
   /// @returns .v0: caret index, .v1: caret location
-  Tuple<isize, CaretAlignment> hit(Vec2 center, f32 align_width, Vec2 zoom,
-                                   Vec2 pos) const;
+  Tuple<isize, CaretAlignment> hit(Vec2 center, f32 align_width,
+                                   Mat4 const & transform, Vec2 pos) const;
 };
 
 }    // namespace ash

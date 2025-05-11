@@ -158,9 +158,13 @@ struct TextCompositor
   bool erase(Vec<c32> & str, Slice slice);
 
   /// @param input text from IME to insert
+  /// @param center the canvas-space center of the text
+  /// @param aligned_width the width the text was aligned to
+  /// @param pos canvas-space position to hit
+  /// @param zoom the zoom that was applied to the text
   bool command(RenderText & text, TextCommand cmd, Str32 input,
                ClipBoard & clipboard, usize lines_per_page, usize tab_width,
-               Vec2 center, f32 aligned_wdith, Vec2 pos, Vec2 zoom,
+               Vec2 center, f32 aligned_width, Vec2 pos, Mat4 const & transform,
                AllocatorRef scratch_allocator);
 };
 

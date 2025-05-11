@@ -198,12 +198,30 @@ struct [[nodiscard]] Option
     return static_cast<T &&>(v0_);
   }
 
+  constexpr T unwrap(Str            msg = ""_str,
+                     SourceLocation loc = SourceLocation::current()) const
+  {
+    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
+               msg);
+    return v0_;
+  }
+
   template <typename U>
   constexpr T unwrap_or(U && alt)
   {
     if (is_some())
     {
       return static_cast<T &&>(v0_);
+    }
+    return static_cast<U &&>(alt);
+  }
+
+  template <typename U>
+  constexpr T unwrap_or(U && alt) const
+  {
+    if (is_some())
+    {
+      return static_cast<T>(v0_);
     }
     return static_cast<U &&>(alt);
   }

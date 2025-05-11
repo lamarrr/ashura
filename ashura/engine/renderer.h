@@ -51,7 +51,7 @@ struct PassContext
 struct BlurRenderParam
 {
   RectU         area          = {};
-  Vec2U         radius        = {};
+  Vec2U         spread_radius = {};
   Vec4          corner_radii  = {};
   Mat4          transform     = Mat4::IDENTITY;
   f32           aspect_ratio  = 1;

@@ -918,7 +918,7 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
     usize run_start = 0;
     for (usize irun = 0; irun < block.runs.size(); irun++)
     {
-      auto const run_end = min((usize) block.runs[irun], text_size);
+      auto const run_end = min(block.runs[irun], text_size);
       for (usize i = run_start; i < run_end; i++)
       {
         segments_[i].style = irun;

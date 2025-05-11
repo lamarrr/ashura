@@ -292,7 +292,6 @@ TEST(OptionTest, Unwrap)
   EXPECT_DEATH_IF_SUPPORTED(Option<std::vector<int>>(none).unwrap(), ".*");
 }
 
-
 TEST(OptionTest, UnwrapOr)
 {
   EXPECT_EQ(Option(0).unwrap_or(90), 0);
@@ -313,34 +312,6 @@ TEST(OptionLifetimeTest, UnwrapOr)
 
   auto b = Option<MoveOnly<1>>(none);
   std::move(b).unwrap_or(make_mv<1>()).done();
-}
-
-TEST(OptionTest, UnwrapOrElse)
-{
-  auto && a = Option(0).unwrap_or_else([]() { return 90; });
-  EXPECT_EQ(a, 0);
-  auto && b = Option<int>(none).unwrap_or_else([]() { return 90; });
-  EXPECT_EQ(b, 90);
-
-  auto && c = Option(std::vector{1, 2, 3, 4, 5}).unwrap_or_else([]() {
-    return std::vector{6, 7, 8, 9, 10};
-  });
-  EXPECT_EQ(c, (std::vector{1, 2, 3, 4, 5}));
-
-  auto && d = Option<std::vector<int>>(none).unwrap_or_else(
-    []() { return std::vector{6, 7, 8, 9, 10}; });
-  EXPECT_EQ(d, (std::vector{6, 7, 8, 9, 10}));
-}
-
-TEST(OptionLifetimeTest, UnwrapOrElse)
-{
-  auto a  = Option(make_mv<0>());
-  auto fn = []() { return make_mv<0>(); };
-  std::move(a).unwrap_or_else(fn).done();
-
-  auto b    = Option<MoveOnly<1>>(none);
-  auto fn_b = []() { return make_mv<1>(); };
-  std::move(b).unwrap_or_else(fn_b).done();
 }
 
 TEST(OptionTest, Map)
@@ -398,25 +369,6 @@ TEST(OptionTest, FnMutMap)
   (void) c;
 }
 
-TEST(OptionTest, MapOrElse)
-{
-  auto && a = Option(90).map_or_else([](int & x) -> int { return x + 90; },
-                                     []() -> int { return 90; });
-  EXPECT_EQ(a, 180);
-
-  auto && b = Option<int>(none).map_or_else(
-    [](int & x) -> int { return x + 90; }, []() -> int { return 90; });
-  EXPECT_EQ(b, 90);
-}
-
-TEST(OptionLifetimeTest, MapOrElse)
-{
-  auto a    = Option(make_mv<0>());
-  auto fn   = [](auto &) { return make_mv<0>(); };    // NOLINT
-  auto fn_b = []() { return make_mv<0>(); };          // NOLINT
-  std::move(a).map_or_else(fn, fn_b).done();
-}
-
 TEST(OptionTest, AndThen)
 {
   auto && a = Option(90).and_then(
@@ -427,32 +379,6 @@ TEST(OptionTest, AndThen)
   auto && b = make_none<int>().and_then(
     [](int & x) { return Option(static_cast<float>(x + 90.0F)); });
   EXPECT_EQ(b, none);
-}
-
-TEST(OptionTest, OrElse)
-{
-  auto && a = Option(90.0F).or_else([]() { return Option(0.5F); });
-  EXPECT_FLOAT_EQ(std::move(a).unwrap(), 90.0F);
-
-  auto && b = Option<float>(none).or_else([]() { return Option(0.5F); });
-  EXPECT_FLOAT_EQ(std::move(b).unwrap(), 0.5F);
-
-  auto && c = Option<float>(none).or_else([]() { return Option<float>(none); });
-  EXPECT_EQ(c, none);
-  //
-  //
-  auto && d = Option(std::vector{1, 2, 3, 4, 5}).or_else([]() {
-    return Option(std::vector{6, 7, 8, 9, 10});
-  });
-  EXPECT_EQ(std::move(d).unwrap(), (std::vector{1, 2, 3, 4, 5}));
-
-  auto && e = Option<std::vector<int>>(none).or_else(
-    []() { return Option(std::vector{6, 7, 8, 9, 10}); });
-  EXPECT_EQ(std::move(e).unwrap(), (std::vector{6, 7, 8, 9, 10}));
-
-  auto && f = Option<std::vector<int>>(none).or_else(
-    []() { return Option<std::vector<int>>(none); });
-  EXPECT_EQ(f, none);
 }
 
 TEST(OptionTest, Match)

@@ -491,76 +491,77 @@ constexpr Mat4 object_to_world(Mat4 const & transform, Vec2 center, Vec2 extent)
 
 Canvas & Canvas::circle(ShapeInfo const & info)
 {
-  f32 const inv_y = 1 / info.extent.y;
-  add_rrect(
-    *this,
-    RRectParam{
-      .transform    = object_to_world(info.transform, info.center, info.extent),
-      .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-      .radii        = {1, 1, 1, 1},
-      .uv           = {info.uv[0], info.uv[1]},
-      .tiling       = info.tiling,
-      .aspect_ratio = info.extent.x * inv_y,
-      .stroke       = info.stroke,
-      .thickness    = info.thickness * inv_y,
-      .edge_smoothness = info.edge_smoothness * inv_y,
-      .sampler         = info.sampler,
-      .albedo          = info.texture
+  f32 const inv_y = 1 / info.area.extent.y;
+  add_rrect(*this,
+            RRectParam{
+              .transform = object_to_world(info.transform, info.area.center,
+                                           info.area.extent),
+              .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+              .radii = {1, 1, 1, 1},
+              .uv    = {info.uv[0], info.uv[1]},
+              .tiling          = info.tiling,
+              .aspect_ratio    = info.area.extent.x * inv_y,
+              .stroke          = info.stroke,
+              .thickness       = info.thickness * inv_y,
+              .edge_smoothness = info.edge_smoothness * inv_y,
+              .sampler         = info.sampler,
+              .albedo          = info.texture
   },
-    current_clip);
+            current_clip);
 
   return *this;
 }
 
 Canvas & Canvas::rect(ShapeInfo const & info)
 {
-  f32 const inv_y = 1 / info.extent.y;
-  add_rrect(
-    *this,
-    RRectParam{
-      .transform    = object_to_world(info.transform, info.center, info.extent),
-      .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-      .radii        = {0, 0, 0, 0},
-      .uv           = {info.uv[0], info.uv[1]},
-      .tiling       = info.tiling,
-      .aspect_ratio = info.extent.x * inv_y,
-      .stroke       = info.stroke,
-      .thickness    = info.thickness * inv_y,
-      .edge_smoothness = info.edge_smoothness * inv_y,
-      .sampler         = info.sampler,
-      .albedo          = info.texture
+  f32 const inv_y = 1 / info.area.extent.y;
+  add_rrect(*this,
+            RRectParam{
+              .transform = object_to_world(info.transform, info.area.center,
+                                           info.area.extent),
+              .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+              .radii = {0, 0, 0, 0},
+              .uv    = {info.uv[0], info.uv[1]},
+              .tiling          = info.tiling,
+              .aspect_ratio    = info.area.extent.x * inv_y,
+              .stroke          = info.stroke,
+              .thickness       = info.thickness * inv_y,
+              .edge_smoothness = info.edge_smoothness * inv_y,
+              .sampler         = info.sampler,
+              .albedo          = info.texture
   },
-    current_clip);
+            current_clip);
   return *this;
 }
 
 Canvas & Canvas::rrect(ShapeInfo const & info)
 {
-  f32 const inv_y      = 1 / info.extent.y;
-  f32 const max_radius = 0.5F * min(info.extent.x, info.extent.y) * inv_y;
-  Vec4      r          = info.corner_radii * inv_y;
+  f32 const inv_y = 1 / info.area.extent.y;
+  f32 const max_radius =
+    0.5F * min(info.area.extent.x, info.area.extent.y) * inv_y;
+  Vec4 r = info.corner_radii * inv_y;
 
   r.x = min(r.x, max_radius);
   r.y = min(r.y, max_radius);
   r.z = min(r.z, max_radius);
   r.w = min(r.w, max_radius);
 
-  add_rrect(
-    *this,
-    RRectParam{
-      .transform    = object_to_world(info.transform, info.center, info.extent),
-      .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-      .radii        = r,
-      .uv           = {info.uv[0], info.uv[1]},
-      .tiling       = info.tiling,
-      .aspect_ratio = info.extent.x * inv_y,
-      .stroke       = info.stroke,
-      .thickness    = info.thickness * inv_y,
-      .edge_smoothness = info.edge_smoothness * inv_y,
-      .sampler         = info.sampler,
-      .albedo          = info.texture
+  add_rrect(*this,
+            RRectParam{
+              .transform = object_to_world(info.transform, info.area.center,
+                                           info.area.extent),
+              .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+              .radii = r,
+              .uv    = {info.uv[0], info.uv[1]},
+              .tiling          = info.tiling,
+              .aspect_ratio    = info.area.extent.x * inv_y,
+              .stroke          = info.stroke,
+              .thickness       = info.thickness * inv_y,
+              .edge_smoothness = info.edge_smoothness * inv_y,
+              .sampler         = info.sampler,
+              .albedo          = info.texture
   },
-    current_clip);
+            current_clip);
   return *this;
 }
 
@@ -577,40 +578,42 @@ Canvas & Canvas::brect(ShapeInfo const & info)
 
   u32 const num_indices = ngon_indices.size32() - first_index;
 
-  add_ngon(
-    *this,
-    NgonParam{
-      .transform    = object_to_world(info.transform, info.center, info.extent),
-      .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-      .uv           = {info.uv[0], info.uv[1]},
-      .tiling       = info.tiling,
-      .sampler      = info.sampler,
-      .albedo       = info.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex
+  add_ngon(*this,
+           NgonParam{
+             .transform = object_to_world(info.transform, info.area.center,
+                                          info.area.extent),
+             .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+             .uv     = {info.uv[0], info.uv[1]},
+             .tiling = info.tiling,
+             .sampler      = info.sampler,
+             .albedo       = info.texture,
+             .first_index  = first_index,
+             .first_vertex = first_vertex
   },
-    current_clip, num_indices);
+           current_clip, num_indices);
 
   return *this;
 }
 
 Canvas & Canvas::squircle(ShapeInfo const & info)
 {
-  f32 const inv_y      = 1 / info.extent.y;
-  f32 const max_radius = 0.5F * min(info.extent.x, info.extent.y) * inv_y;
-  f32       r          = min(info.corner_radii.x * inv_y, max_radius);
+  f32 const inv_y = 1 / info.area.extent.y;
+  f32 const max_radius =
+    0.5F * min(info.area.extent.x, info.area.extent.y) * inv_y;
+  f32 r = min(info.corner_radii.x * inv_y, max_radius);
 
   // [ ] clamp
   add_squircle(
     *this,
     SquircleParam{
-      .transform    = object_to_world(info.transform, info.center, info.extent),
+      .transform =
+        object_to_world(info.transform, info.area.center, info.area.extent),
       .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
       .uv           = {info.uv[0], info.uv[1]},
       .radius       = r,
       .degree       = info.corner_radii.y,
       .tiling       = info.tiling,
-      .aspect_ratio = info.extent.x * inv_y,
+      .aspect_ratio = info.area.extent.x * inv_y,
       .stroke       = info.stroke,
       .thickness    = info.thickness * inv_y,
       .edge_smoothness = info.edge_smoothness * inv_y,
@@ -637,19 +640,19 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points)
 
   u32 const num_indices = ngon_vertices.size32() - first_vertex;
 
-  add_ngon(
-    *this,
-    NgonParam{
-      .transform    = object_to_world(info.transform, info.center, info.extent),
-      .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-      .uv           = {info.uv[0], info.uv[1]},
-      .tiling       = info.tiling,
-      .sampler      = info.sampler,
-      .albedo       = info.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex
+  add_ngon(*this,
+           NgonParam{
+             .transform = object_to_world(info.transform, info.area.center,
+                                          info.area.extent),
+             .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+             .uv     = {info.uv[0], info.uv[1]},
+             .tiling = info.tiling,
+             .sampler      = info.sampler,
+             .albedo       = info.texture,
+             .first_index  = first_index,
+             .first_vertex = first_vertex
   },
-    current_clip, num_indices);
+           current_clip, num_indices);
 
   return *this;
 }
@@ -673,19 +676,19 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points,
     v += first_vertex;
   }
 
-  add_ngon(
-    *this,
-    NgonParam{
-      .transform    = object_to_world(info.transform, info.center, info.extent),
-      .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-      .uv           = {info.uv[0], info.uv[1]},
-      .tiling       = info.tiling,
-      .sampler      = info.sampler,
-      .albedo       = info.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex
+  add_ngon(*this,
+           NgonParam{
+             .transform = object_to_world(info.transform, info.area.center,
+                                          info.area.extent),
+             .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+             .uv     = {info.uv[0], info.uv[1]},
+             .tiling = info.tiling,
+             .sampler      = info.sampler,
+             .albedo       = info.texture,
+             .first_index  = first_index,
+             .first_vertex = first_vertex
   },
-    current_clip, idx.size32());
+           current_clip, idx.size32());
 
   return *this;
 }
@@ -700,28 +703,28 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
   u32 const first_index  = ngon_indices.size32();
   u32 const first_vertex = ngon_vertices.size32();
   path::triangulate_stroke(points, ngon_vertices, ngon_indices,
-                           info.thickness / info.extent.y);
+                           info.thickness / info.area.extent.y);
 
   u32 const num_indices = ngon_indices.size32() - first_index;
 
-  add_ngon(
-    *this,
-    NgonParam{
-      .transform    = object_to_world(info.transform, info.center, info.extent),
-      .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-      .uv           = {info.uv[0], info.uv[1]},
-      .tiling       = info.tiling,
-      .sampler      = info.sampler,
-      .albedo       = info.texture,
-      .first_index  = first_index,
-      .first_vertex = first_vertex
+  add_ngon(*this,
+           NgonParam{
+             .transform = object_to_world(info.transform, info.area.center,
+                                          info.area.extent),
+             .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+             .uv     = {info.uv[0], info.uv[1]},
+             .tiling = info.tiling,
+             .sampler      = info.sampler,
+             .albedo       = info.texture,
+             .first_index  = first_index,
+             .first_vertex = first_vertex
   },
-    current_clip, num_indices);
+           current_clip, num_indices);
 
   return *this;
 }
 
-Canvas & Canvas::blur(CRect const & clip, Vec2 radius, Vec4 corner_radii)
+Canvas & Canvas::blur(CRect const & clip, Vec2 spread_radius, Vec4 corner_radii)
 {
   u32 const index = blurs.size32();
 
@@ -732,9 +735,9 @@ Canvas & Canvas::blur(CRect const & clip, Vec2 radius, Vec4 corner_radii)
   RectU const fb_area = clip_to_scissor(clip);
 
   blurs
-    .push(Blur{.area         = fb_area,
-               .radius       = as_vec2u(radius * virtual_scale),
-               .corner_radii = corner_radii * inv_y,
+    .push(Blur{.area          = fb_area,
+               .spread_radius = as_vec2u(spread_radius * virtual_scale),
+               .corner_radii  = corner_radii * inv_y,
                .transform =
                  object_to_world(Mat4::IDENTITY, clip.center, clip.extent),
                .aspect_ratio = clip.extent.x * inv_y})
@@ -762,6 +765,30 @@ Canvas & Canvas::pass(Pass pass)
       .run{index, 1},
   })
     .unwrap();
+
+  return *this;
+}
+
+Canvas & Canvas::text(Span<TextLayer const> layers,
+                      Span<ShapeInfo const> shapes, Span<TextRenderInfo const>,
+                      Span<usize const>     sorted)
+{
+  for (auto i : sorted)
+  {
+    auto layer = layers[i];
+    auto shape = shapes[i];
+
+    switch (layer)
+    {
+      case TextLayer::Glyphs:
+      case TextLayer::GlyphShadows:
+        rect(shape);
+        break;
+      default:
+        rrect(shape);
+        break;
+    }
+  }
 
   return *this;
 }

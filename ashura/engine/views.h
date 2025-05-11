@@ -98,7 +98,7 @@ struct Space : View
   struct Style
   {
     Frame frame{};
-  } style;
+  } style_;
 
   Space()                          = default;
   Space(Space const &)             = delete;
@@ -135,7 +135,7 @@ struct Flex : View
     Frame frame = Frame{}.scale(1, 1);
 
     Frame item_frame = Frame{}.scale(1, 1);
-  } style;
+  } style_;
 
   Vec<ref<View>> items_;
 
@@ -184,7 +184,7 @@ struct Stack : View
     Vec2 alignment = ALIGNMENT_CENTER_CENTER;
 
     Frame frame = Frame{}.scale({1, 1});
-  } style;
+  } style_;
 
   Vec<ref<View>> items_;
 
@@ -224,13 +224,13 @@ struct Text : View
   struct State
   {
     bool copyable = false;
-  } state;
+  } state_;
 
   struct Style
   {
     TextHighlightStyle highlight{.color        = theme.highlight,
                                  .corner_radii = Vec4::splat(2.5F)};
-  } style;
+  } style_;
 
   RenderText text_;
 
@@ -303,7 +303,7 @@ struct Input : View
     bool enter_submits : 1 = false;
 
     bool tab_input : 1 = false;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -312,7 +312,7 @@ struct Input : View
     CaretStyle         caret{.color = theme.caret, .thickness = 1.0F};
     usize              lines_per_page = 40;
     usize              tab_width      = 1;
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -408,7 +408,7 @@ struct Button : View
     bool disabled = false;
     bool hovered  = false;
     bool held     = false;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -429,7 +429,7 @@ struct Button : View
     CornerRadii corner_radii = CornerRadii::all(2);
 
     Frame frame = Frame{}.scale(1, 1);
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -529,7 +529,7 @@ struct Icon : View
   struct State
   {
     bool hidden = false;
-  } state;
+  } state_;
 
   RenderText text_;
 
@@ -577,7 +577,7 @@ struct CheckBox : View
     bool hovered  : 1 = false;
     bool held     : 1 = false;
     bool value    : 1 = false;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -592,7 +592,7 @@ struct CheckBox : View
     CornerRadii corner_radii = CornerRadii::all(2);
 
     f32 padding = 2.5F;
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -667,7 +667,7 @@ struct Slider : View
     f32 low = 0;
 
     f32 high = 1;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -692,7 +692,7 @@ struct Slider : View
     CornerRadii track_corner_radii = CornerRadii::all(2.5);
 
     f32 delta = 0.1F;
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -755,7 +755,7 @@ struct Switch : View
     bool disabled : 1 = false;
     bool hovered  : 1 = false;
     bool value    : 1 = false;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -776,7 +776,7 @@ struct Switch : View
     CornerRadii corner_radii = CornerRadii::all(4);
 
     Frame frame = Vec2{40, 20};
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -837,7 +837,7 @@ struct Radio : View
     bool disabled : 1 = false;
     bool hovered  : 1 = false;
     bool value    : 1 = false;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -852,7 +852,7 @@ struct Radio : View
     Vec4U8 inner_color = theme.primary;
 
     Vec4U8 inner_hovered_color = theme.primary_variant;
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -909,7 +909,7 @@ struct ScalarDragBox : View
     ScalarInfo spec = F32Info{};
 
     Scalar scalar = 0.0F;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -928,7 +928,7 @@ struct ScalarDragBox : View
     f32 thickness = 1.0F;
 
     Str format = "{}"_str;
-  } style;
+  } style_;
 
   Input input_;
 
@@ -1051,19 +1051,20 @@ struct ScrollBar : View
 {
   struct State
   {
-    bool disabled : 1 = false;
-    bool hidden   : 1 = false;
-    bool dragging : 1 = false;
-    bool focused  : 1 = false;
-    bool hovered  : 1 = false;
-    f32  pos          = 0;
-  } state;
+    bool disabled : 1   = false;
+    bool hidden   : 1   = false;
+    bool dragging : 1   = false;
+    bool focused  : 1   = false;
+    bool hovered  : 1   = false;
+    f32  offset         = 0;
+    f32  delta          = 0.1;
+    f32  visible_extent = 0;
+    f32  total_extent   = 0;
+  } state_;
 
   struct Style
   {
     Axis axis = Axis::X;
-
-    f32 thumb_size = 15;
 
     Vec4U8 thumb_color = theme.primary;
 
@@ -1077,8 +1078,11 @@ struct ScrollBar : View
 
     CornerRadii track_corner_radii = CornerRadii::all(2);
 
-    f32 delta = 0.1F;
-  } style;
+  } style_;
+
+  ScrollBar & update(f32 center, f32 delta, f32 visibile, f32 total);
+
+  f32 scroll_center() const;
 
   ScrollBar()                              = default;
   ScrollBar(ScrollBar const &)             = delete;
@@ -1104,7 +1108,7 @@ struct ScrollView : View
     bool disabled : 1 = false;
 
     Vec2 zoom = {1, 1};
-  } state;
+  } state_;
 
   struct Style
   {
@@ -1116,7 +1120,7 @@ struct ScrollView : View
 
     f32 y_bar_size = 10;
 
-  } style;
+  } style_;
 
   ScrollBar x_bar_{};
 
@@ -1134,8 +1138,6 @@ struct ScrollView : View
   ScrollView & disable(bool d);
 
   ScrollView & item(View & view);
-
-  ScrollView & thumb_size(f32 size);
 
   ScrollView & thumb_color(Vec4U8 color);
 
@@ -1187,7 +1189,7 @@ struct ComboItem : View
     usize id = 0;
 
     Fn<void(usize)> click_hook = noop;
-  } state;
+  } state_;
 
   ComboItem()                              = default;
   ComboItem(ComboItem const &)             = delete;
@@ -1231,7 +1233,7 @@ struct TextComboItem : ComboItem
     f32 thickness = 1;
 
     CornerRadii corner_radii = CornerRadii::all(2);
-  } style;
+  } style_;
 
   Text text_;
 
@@ -1294,7 +1296,7 @@ struct Combo : Flex
     bool disabled : 1 = false;
 
     Option<usize> selected = none;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -1305,7 +1307,7 @@ struct Combo : Flex
     f32 stroke = 0;
 
     f32 thickness = 1;
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -1386,7 +1388,7 @@ struct Image : View
   struct State
   {
     Enum<None, Option<ash::ImageInfo>, ImageLoadErr> resolved = none;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -1401,7 +1403,7 @@ struct Image : View
     ImageFit fit = ImageFit::Contain;
 
     Vec2 alignment = ALIGNMENT_CENTER_CENTER;
-  } style;
+  } style_;
 
   ImageSrc src_;
 
@@ -1435,10 +1437,7 @@ struct Image : View
                       CRect const & canvas_region, CRect const & clip) override;
 };
 
-// [ ] size estimation?
-
 /// @brief An infinitely scrollable List of elements.
-/// [ ] .....................
 struct List : View
 {
   typedef Fn<Option<Dyn<View *>>(AllocatorRef, usize i)> Generator;
@@ -1454,17 +1453,36 @@ struct List : View
     /// @brief the view extent of the viewport
     f32 view_extent = 0;
 
-    /// @brief batch size of active items
-    usize batch_size = 128;
-
-    /// @brief the range of the currently active subset
-    Slice actives_range = {};
+    /// @brief the first of the currently active subset
+    usize first_item = 0;
 
     /// @brief determined upper bound
-    usize max_size = USIZE_MAX;
+    usize max_count = USIZE_MAX;
+
+    usize num_loaded = 0;
+
+    Option<f32> item_size = none;
 
     /// @brief the item generator
     Generator generator = DEFAULT_GENERATOR;
+
+    Vec<Dyn<View *>> items;
+
+    Slice range() const
+    {
+      return Slice{first_item, items.size()};
+    }
+
+    Option<Slice> visible() const
+    {
+      return item_size.map([&](f32 s) {
+        auto first =
+          static_cast<usize>(std::abs(std::floor((-total_translation) / s)));
+        auto count = static_cast<usize>(std::abs(std::ceil(view_extent / s)));
+        return Slice{first, count};
+      });
+    }
+
   } state_;
 
   struct Style
@@ -1477,9 +1495,6 @@ struct List : View
   } style_;
 
   AllocatorRef allocator_;
-
-  Vec<Dyn<View *>> items_;
-  Vec<f32>         scrolled_offsets_;
 
   List(Generator    generator = DEFAULT_GENERATOR,
        AllocatorRef allocator = default_allocator);
@@ -1499,9 +1514,6 @@ struct List : View
 
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
-
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
 };
 
 // [ ] DEFAULT FOCUS VIEW

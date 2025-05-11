@@ -12,19 +12,19 @@ namespace ui
 
 Space & Space::frame(Frame frame)
 {
-  style.frame = frame;
+  style_.frame = frame;
   return *this;
 }
 
 Space & Space::frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 Layout Space::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
-  return Layout{.extent = style.frame(allocated)};
+  return Layout{.extent = style_.frame(allocated)};
 }
 
 Flex::Flex(AllocatorRef allocator) : items_{allocator}
@@ -33,49 +33,49 @@ Flex::Flex(AllocatorRef allocator) : items_{allocator}
 
 Flex & Flex::axis(Axis a)
 {
-  style.axis = a;
+  style_.axis = a;
   return *this;
 }
 
 Flex & Flex::wrap(bool w)
 {
-  style.wrap = w;
+  style_.wrap = w;
   return *this;
 }
 
 Flex & Flex::main_align(MainAlign align)
 {
-  style.main_align = align;
+  style_.main_align = align;
   return *this;
 }
 
 Flex & Flex::cross_align(f32 align)
 {
-  style.cross_align = align;
+  style_.cross_align = align;
   return *this;
 }
 
 Flex & Flex::frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 Flex & Flex::frame(Frame f)
 {
-  style.frame = f;
+  style_.frame = f;
   return *this;
 }
 
 Flex & Flex::item_frame(Vec2 extent, bool constrain)
 {
-  style.item_frame = Frame{extent, constrain};
+  style_.item_frame = Frame{extent, constrain};
   return *this;
 }
 
 Flex & Flex::item_frame(Frame f)
 {
-  style.item_frame = f;
+  style_.item_frame = f;
   return *this;
 }
 
@@ -102,16 +102,16 @@ ui::State Flex::tick(Ctx const &, Events const &, Fn<void(View &)> build)
 
 void Flex::size(Vec2 allocated, Span<Vec2> sizes)
 {
-  Vec2 const frame = style.frame(allocated);
-  fill(sizes, style.item_frame(frame));
+  Vec2 const frame = style_.frame(allocated);
+  fill(sizes, style_.item_frame(frame));
 }
 
 Layout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
   auto const n            = sizes.size();
-  Vec2 const frame        = style.frame(allocated);
-  u32 const  main_axis    = (style.axis == Axis::X) ? 0 : 1;
-  u32 const  cross_axis   = (style.axis == Axis::X) ? 1 : 0;
+  Vec2 const frame        = style_.frame(allocated);
+  u32 const  main_axis    = (style_.axis == Axis::X) ? 0 : 1;
+  u32 const  cross_axis   = (style_.axis == Axis::X) ? 1 : 0;
   Vec2       span         = {};
   f32        cross_cursor = 0;
 
@@ -122,7 +122,7 @@ Layout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
     f32  cross_extent = sizes[first][cross_axis];
     f32  main_spacing = 0;
 
-    while (i < n && !(style.wrap &&
+    while (i < n && !(style_.wrap &&
                       (main_extent + sizes[i][main_axis]) > frame[main_axis]))
     {
       main_extent += sizes[i][main_axis];
@@ -132,7 +132,7 @@ Layout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
 
     auto const count = i - first;
 
-    if (style.main_align != MainAlign::Start)
+    if (style_.main_align != MainAlign::Start)
     {
       main_spacing = max(frame[main_axis] - main_extent, 0.0F);
     }
@@ -141,11 +141,11 @@ Layout Flex::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
          zip(centers.slice(first, count), sizes.slice(first, count)))
     {
       f32 const pos =
-        space_align(cross_extent, size[cross_axis], style.cross_align);
+        space_align(cross_extent, size[cross_axis], style_.cross_align);
       center[cross_axis] = cross_cursor + cross_extent * 0.5F + pos;
     }
 
-    switch (style.main_align)
+    switch (style_.main_align)
     {
       case MainAlign::Start:
       {
@@ -236,25 +236,25 @@ Stack::Stack(AllocatorRef allocator) : items_{allocator}
 
 Stack & Stack::reverse(bool r)
 {
-  style.reverse = r;
+  style_.reverse = r;
   return *this;
 }
 
 Stack & Stack::align(Vec2 a)
 {
-  style.alignment = a;
+  style_.alignment = a;
   return *this;
 }
 
 Stack & Stack::frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 Stack & Stack::frame(Frame f)
 {
-  style.frame = f;
+  style_.frame = f;
   return *this;
 }
 
@@ -273,7 +273,7 @@ Stack & Stack::items(Span<ref<View> const> list)
 i32 Stack::stack_item(i32 base, u32 i, u32 num)
 {
   // sequential stacking
-  if (!style.reverse)
+  if (!style_.reverse)
   {
     return base + (i32) i;
   }
@@ -295,7 +295,7 @@ ui::State Stack::tick(Ctx const &, Events const &, Fn<void(View &)> build)
 
 void Stack::size(Vec2 allocated, Span<Vec2> sizes)
 {
-  fill(sizes, style.frame(allocated));
+  fill(sizes, style_.frame(allocated));
 }
 
 Layout Stack::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
@@ -310,7 +310,7 @@ Layout Stack::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
 
   for (auto [center, size] : zip(centers, sizes))
   {
-    center = space_align(span, size, style.alignment);
+    center = space_align(span, size, style_.alignment);
   }
 
   return {.extent = span};
@@ -520,13 +520,13 @@ Text::Text(Str8 t, TextStyle const & style, FontStyle const & font,
 
 Text & Text::copyable(bool allow)
 {
-  state.copyable = allow;
+  state_.copyable = allow;
   return *this;
 }
 
 Text & Text::highlight_style(TextHighlightStyle highlight)
 {
-  style.highlight = highlight;
+  style_.highlight = highlight;
   return *this;
 }
 
@@ -585,14 +585,14 @@ ui::State Text::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
   bool modified = compositor_.command(
     text_, cmd, {}, engine->clipboard, 1, 1, hit_info.canvas_region.center,
-    hit_info.viewport_region.extent.x, hit_info.viewport_hit, hit_info.zoom(),
-    default_allocator);
+    hit_info.viewport_region.extent.x, hit_info.viewport_hit,
+    scale3d(vec3(hit_info.zoom(), 1)), default_allocator);
   CHECK(!modified, "");
 
   text_.add_highlight(compositor_.cursor().selection())
-    .highlight_style(style.highlight);
+    .highlight_style(style_.highlight);
 
-  return ui::State{.draggable = state.copyable};
+  return ui::State{.draggable = state_.copyable};
 }
 
 Layout Text::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
@@ -611,7 +611,7 @@ void Text::render(Canvas & canvas, CRect const & viewport_region,
 
 Cursor Text::cursor(Vec2, Vec2)
 {
-  return state.copyable ? Cursor::Text : Cursor::Default;
+  return state_.copyable ? Cursor::Text : Cursor::Default;
 }
 
 Input::Input(Str32 s, TextStyle const & style, FontStyle const & font,
@@ -636,25 +636,25 @@ Input::Input(Str8 s, TextStyle const & style, FontStyle const & font,
 
 Input & Input::disable(bool disable)
 {
-  state.disabled = disable;
+  state_.disabled = disable;
   return *this;
 }
 
 Input & Input::multiline(bool e)
 {
-  state.multiline = e;
+  state_.multiline = e;
   return *this;
 }
 
 Input & Input::enter_submits(bool e)
 {
-  state.enter_submits = e;
+  state_.enter_submits = e;
   return *this;
 }
 
 Input & Input::tab_input(bool e)
 {
-  state.tab_input = e;
+  state_.tab_input = e;
   return *this;
 }
 
@@ -724,8 +724,8 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
   bool edited = false;
 
-  state.editing = false;
-  state.submit  = false;
+  state_.editing = false;
+  state_.submit  = false;
 
   u8 buffer[512];
 
@@ -742,18 +742,18 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
   if (events.focus_over() || events.drag_update())
   {
-    cmd = text_command(ctx, events, state.multiline, state.enter_submits,
-                       state.tab_input);
+    cmd = text_command(ctx, events, state_.multiline, state_.enter_submits,
+                       state_.tab_input);
   }
 
   auto hit_info =
     events.hit_info.map([](auto s) { return s; }).unwrap_or(HitInfo{});
 
   bool modified = compositor_.command(
-    content_, cmd, input_u32, engine->clipboard, style.lines_per_page,
-    style.tab_width, hit_info.canvas_region.center,
-    hit_info.viewport_region.extent.x, hit_info.viewport_hit, hit_info.zoom(),
-    allocator);
+    content_, cmd, input_u32, engine->clipboard, style_.lines_per_page,
+    style_.tab_width, hit_info.canvas_region.center,
+    hit_info.viewport_region.extent.x, hit_info.viewport_hit,
+    scale3d(vec3(hit_info.zoom(), 1)), allocator);
 
   auto cursor = compositor_.cursor();
 
@@ -764,7 +764,7 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
   if (events.focus_over())
   {
-    content_.highlight_style(style.highlight).caret_style(style.caret);
+    content_.highlight_style(style_.highlight).caret_style(style_.caret);
   }
   else
   {
@@ -778,12 +778,12 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
   if (edited)
   {
-    state.editing = true;
+    state_.editing = true;
   }
 
   if (cmd == TextCommand::Submit)
   {
-    state.submit = true;
+    state_.submit = true;
   }
 
   if (events.focus_in())
@@ -796,7 +796,7 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
     cb.focus_out();
   }
 
-  if (state.submit)
+  if (state_.submit)
   {
     cb.submit();
   }
@@ -807,10 +807,10 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
   }
 
   return ui::State{
-    .text =
-      TextInputInfo{.multiline = state.multiline, .tab_input = state.tab_input},
-    .draggable  = !state.disabled,
-    .focusable  = !state.disabled,
+    .text       = TextInputInfo{.multiline = state_.multiline,
+                                .tab_input = state_.tab_input},
+    .draggable  = !state_.disabled,
+    .focusable  = !state_.disabled,
     .grab_focus = events.pointer_down()
   };
 }
@@ -861,18 +861,18 @@ ui::State Button::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
     cb.pressed();
   }
 
-  state.held    = events.pointer_over() && ctx.mouse.held(MouseButton::Primary);
-  state.hovered = events.pointer_over();
+  state_.held = events.pointer_over() && ctx.mouse.held(MouseButton::Primary);
+  state_.hovered = events.pointer_over();
 
-  return ui::State{.pointable = !state.disabled,
-                   .clickable = !state.disabled,
-                   .focusable = !state.disabled};
+  return ui::State{.pointable = !state_.disabled,
+                   .clickable = !state_.disabled,
+                   .focusable = !state_.disabled};
 }
 
 void Button::size(Vec2 allocated, Span<Vec2> sizes)
 {
-  Vec2 const frame = style.frame(allocated);
-  Vec2       size  = frame - style.padding * 2;
+  Vec2 const frame = style_.frame(allocated);
+  Vec2       size  = frame - style_.padding * 2;
   size.x           = max(size.x, 0.0F);
   size.y           = max(size.y, 0.0F);
   fill(sizes, size);
@@ -882,7 +882,7 @@ Layout Button::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
   fill(centers, Vec2{0, 0});
   Vec2 size = sizes.is_empty() ? Vec2{0, 0} : sizes[0];
-  return {.extent = size + 2 * style.padding};
+  return {.extent = size + 2 * style_.padding};
 }
 
 void Button::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
@@ -890,40 +890,40 @@ void Button::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
 {
   Vec4U8 tint;
 
-  if (state.disabled)
+  if (state_.disabled)
   {
-    tint = style.disabled_color;
+    tint = style_.disabled_color;
   }
-  else if (state.hovered && !state.held)
+  else if (state_.hovered && !state_.held)
   {
-    tint = style.hovered_color;
+    tint = style_.hovered_color;
   }
   else
   {
-    tint = style.color;
+    tint = style_.color;
   }
 
-  switch (style.shape)
+  switch (style_.shape)
   {
     case ButtonShape::RRect:
       canvas.rrect({.area         = canvas_region,
-                    .corner_radii = style.corner_radii,
-                    .stroke       = style.stroke,
-                    .thickness    = style.thickness,
+                    .corner_radii = style_.corner_radii,
+                    .stroke       = style_.stroke,
+                    .thickness    = style_.thickness,
                     .tint         = tint});
       break;
     case ButtonShape::Squircle:
       canvas.squircle({.area         = canvas_region,
-                       .corner_radii = style.corner_radii,
-                       .stroke       = style.stroke,
-                       .thickness    = style.thickness,
+                       .corner_radii = style_.corner_radii,
+                       .stroke       = style_.stroke,
+                       .thickness    = style_.thickness,
                        .tint         = tint});
       break;
     case ButtonShape::Bevel:
       canvas.brect({.area         = canvas_region,
-                    .corner_radii = style.corner_radii,
-                    .stroke       = style.stroke,
-                    .thickness    = style.thickness,
+                    .corner_radii = style_.corner_radii,
+                    .stroke       = style_.stroke,
+                    .thickness    = style_.thickness,
                     .tint         = tint});
       break;
     default:
@@ -933,7 +933,7 @@ void Button::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
 
 Cursor Button::cursor(Vec2, Vec2)
 {
-  return state.disabled ? Cursor::Default : Cursor::Pointer;
+  return state_.disabled ? Cursor::Default : Cursor::Pointer;
 }
 
 TextButton::TextButton(Str32 text, TextStyle const & style,
@@ -950,7 +950,7 @@ TextButton::TextButton(Str8 text, TextStyle const & style,
 
 TextButton & TextButton::disable(bool d)
 {
-  state.disabled = d;
+  state_.disabled = d;
   return *this;
 }
 
@@ -975,69 +975,69 @@ TextButton & TextButton::text(Str8 t)
 
 TextButton & TextButton::color(Vec4U8 c)
 {
-  style.color = c;
+  style_.color = c;
   return *this;
 }
 
 TextButton & TextButton::hovered_color(Vec4U8 c)
 {
-  style.hovered_color = c;
+  style_.hovered_color = c;
   return *this;
 }
 
 TextButton & TextButton::disabled_color(Vec4U8 c)
 {
-  style.disabled_color = c;
+  style_.disabled_color = c;
   return *this;
 }
 
 TextButton & TextButton::rrect(CornerRadii const & c)
 {
-  style.corner_radii = c;
-  style.shape        = ButtonShape::RRect;
+  style_.corner_radii = c;
+  style_.shape        = ButtonShape::RRect;
   return *this;
 }
 
 TextButton & TextButton::squircle(f32 degree)
 {
-  style.corner_radii = CornerRadii{degree, degree, degree, degree};
+  style_.corner_radii = CornerRadii{degree, degree, degree, degree};
   return *this;
 }
 
 TextButton & TextButton::bevel(CornerRadii const & c)
 {
-  style.corner_radii = c;
-  style.shape        = ButtonShape::Bevel;
+  style_.corner_radii = c;
+  style_.shape        = ButtonShape::Bevel;
   return *this;
 }
 
 TextButton & TextButton::frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 TextButton & TextButton::frame(Frame f)
 {
-  style.frame = f;
+  style_.frame = f;
   return *this;
 }
 
 TextButton & TextButton::stroke(f32 stroke)
 {
-  style.stroke = stroke;
+  style_.stroke = stroke;
   return *this;
 }
 
 TextButton & TextButton::thickness(f32 thickness)
 {
-  style.thickness = thickness;
+  style_.thickness = thickness;
   return *this;
 }
 
 TextButton & TextButton::padding(Vec2 p)
 {
-  style.padding = p;
+  style_.padding = p;
   return *this;
 }
 
@@ -1056,9 +1056,9 @@ TextButton & TextButton::on_hovered(Fn<void()> f)
 ui::State TextButton::tick(Ctx const & ctx, Events const & events,
                            Fn<void(View &)> build)
 {
-  ui::State state = Button::tick(ctx, events, build);
+  ui::State state_ = Button::tick(ctx, events, build);
   build(text_);
-  return state;
+  return state_;
 }
 
 Icon::Icon(Str32 text, TextStyle const & style, FontStyle const & font,
@@ -1077,7 +1077,7 @@ Icon::Icon(Str8 text, TextStyle const & style, FontStyle const & font,
 
 Icon & Icon::hide(bool hide)
 {
-  state.hidden = hide;
+  state_.hidden = hide;
   return *this;
 }
 
@@ -1095,7 +1095,7 @@ Icon & Icon::icon(Str32 text, TextStyle const & style, FontStyle const & font)
 
 ui::State Icon::tick(Ctx const &, Events const &, Fn<void(View &)>)
 {
-  return ui::State{.hidden = state.hidden};
+  return ui::State{.hidden = state_.hidden};
 }
 
 Layout Icon::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
@@ -1131,43 +1131,43 @@ Icon & CheckBox::icon()
 
 CheckBox & CheckBox::disable(bool d)
 {
-  state.disabled = d;
+  state_.disabled = d;
   return *this;
 }
 
 CheckBox & CheckBox::box_color(Vec4U8 c)
 {
-  style.box_color = c;
+  style_.box_color = c;
   return *this;
 }
 
 CheckBox & CheckBox::box_hovered_color(Vec4U8 c)
 {
-  style.box_hovered_color = c;
+  style_.box_hovered_color = c;
   return *this;
 }
 
 CheckBox & CheckBox::stroke(f32 s)
 {
-  style.stroke = s;
+  style_.stroke = s;
   return *this;
 }
 
 CheckBox & CheckBox::thickness(f32 t)
 {
-  style.thickness = t;
+  style_.thickness = t;
   return *this;
 }
 
 CheckBox & CheckBox::corner_radii(CornerRadii const & r)
 {
-  style.corner_radii = r;
+  style_.corner_radii = r;
   return *this;
 }
 
 CheckBox & CheckBox::padding(f32 p)
 {
-  style.padding = p;
+  style_.padding = p;
   return *this;
 }
 
@@ -1182,45 +1182,45 @@ ui::State CheckBox::tick(Ctx const &, Events const & events,
 {
   if (events.pointer_down())
   {
-    state.value = !state.value;
-    cb.changed(state.value);
+    state_.value = !state_.value;
+    cb.changed(state_.value);
   }
 
-  icon_.hide(!state.value);
+  icon_.hide(!state_.value);
 
   build(icon_);
 
-  return ui::State{.pointable = !state.disabled,
-                   .clickable = !state.disabled,
-                   .focusable = !state.disabled};
+  return ui::State{.pointable = !state_.disabled,
+                   .clickable = !state_.disabled,
+                   .focusable = !state_.disabled};
 }
 
 void CheckBox::size(Vec2 allocated, Span<Vec2> sizes)
 {
-  fill(sizes, allocated - 2 * style.padding);
+  fill(sizes, allocated - 2 * style_.padding);
 }
 
 Layout CheckBox::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
   fill(centers, Vec2{});
-  return {.extent = style.padding + sizes[0]};
+  return {.extent = style_.padding + sizes[0]};
 }
 
 void CheckBox::render(Canvas &      canvas, CRect const &,
                       CRect const & canvas_region, CRect const &)
 {
   Vec4U8 tint;
-  if (state.hovered && !state.held && !state.disabled)
+  if (state_.hovered && !state_.held && !state_.disabled)
   {
-    tint = style.box_hovered_color;
+    tint = style_.box_hovered_color;
   }
   else
   {
-    tint = style.box_color;
+    tint = style_.box_color;
   }
 
   canvas.rrect({.area         = canvas_region,
-                .corner_radii = style.corner_radii,
+                .corner_radii = style_.corner_radii,
                 .stroke       = 1,
                 .thickness    = 2,
                 .tint         = tint});
@@ -1228,91 +1228,91 @@ void CheckBox::render(Canvas &      canvas, CRect const &,
 
 Cursor CheckBox::cursor(Vec2, Vec2)
 {
-  return state.disabled ? Cursor::Default : Cursor::Pointer;
+  return state_.disabled ? Cursor::Default : Cursor::Pointer;
 }
 
 Slider & Slider::disable(bool disable)
 {
-  state.disabled = disable;
+  state_.disabled = disable;
   return *this;
 }
 
 Slider & Slider::range(f32 low, f32 high)
 {
-  state.low  = low;
-  state.high = high;
+  state_.low  = low;
+  state_.high = high;
   return *this;
 }
 
 Slider & Slider::interp(f32 t)
 {
-  state.t = t;
+  state_.t = t;
   return *this;
 }
 
 Slider & Slider::axis(Axis a)
 {
-  style.axis = a;
+  style_.axis = a;
   return *this;
 }
 
 Slider & Slider::frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 Slider & Slider::frame(Frame f)
 {
-  style.frame = f;
+  style_.frame = f;
   return *this;
 }
 
 Slider & Slider::thumb_size(f32 size)
 {
-  style.thumb_size = size;
+  style_.thumb_size = size;
   return *this;
 }
 
 Slider & Slider::track_size(f32 size)
 {
-  style.track_size = size;
+  style_.track_size = size;
   return *this;
 }
 
 Slider & Slider::thumb_color(Vec4U8 c)
 {
-  style.thumb_color = c;
+  style_.thumb_color = c;
   return *this;
 }
 
 Slider & Slider::thumb_hovered_color(Vec4U8 c)
 {
-  style.thumb_hovered_color = c;
+  style_.thumb_hovered_color = c;
   return *this;
 }
 
 Slider & Slider::thumb_dragging_color(Vec4U8 c)
 {
-  style.thumb_dragging_color = c;
+  style_.thumb_dragging_color = c;
   return *this;
 }
 
 Slider & Slider::thumb_corner_radii(CornerRadii const & c)
 {
-  style.thumb_corner_radii = c;
+  style_.thumb_corner_radii = c;
   return *this;
 }
 
 Slider & Slider::track_color(Vec4U8 c)
 {
-  style.track_color = c;
+  style_.track_color = c;
   return *this;
 }
 
 Slider & Slider::track_corner_radii(CornerRadii const & c)
 {
-  style.track_corner_radii = c;
+  style_.track_corner_radii = c;
   return *this;
 }
 
@@ -1324,73 +1324,73 @@ Slider & Slider::on_changed(Fn<void(f32)> f)
 
 ui::State Slider::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
-  u32 const main_axis = (style.axis == Axis::X) ? 0 : 1;
+  u32 const main_axis = (style_.axis == Axis::X) ? 0 : 1;
 
   if (events.drag_update())
   {
     auto      h = events.hit_info.unwrap_or(HitInfo{});
     f32 const thumb_begin =
-      h.viewport_region.begin()[main_axis] + style.thumb_size * 0.5F;
+      h.viewport_region.begin()[main_axis] + style_.thumb_size * 0.5F;
     f32 const thumb_end =
-      h.viewport_region.end()[main_axis] - style.thumb_size * 0.5F;
-    state.t = clamp(unlerp(thumb_begin, thumb_end, h.viewport_hit[main_axis]),
-                    0.0F, 1.0F);
+      h.viewport_region.end()[main_axis] - style_.thumb_size * 0.5F;
+    state_.t = clamp(unlerp(thumb_begin, thumb_end, h.viewport_hit[main_axis]),
+                     0.0F, 1.0F);
     f32 const value =
-      clamp(lerp(state.low, state.high, state.t), state.low, state.high);
+      clamp(lerp(state_.low, state_.high, state_.t), state_.low, state_.high);
     cb.changed(value);
   }
 
   if (events.focus_over())
   {
-    if ((style.axis == Axis::X && ctx.key.down(KeyCode::Left)) ||
-        (style.axis == Axis::Y && ctx.key.down(KeyCode::Up)))
+    if ((style_.axis == Axis::X && ctx.key.down(KeyCode::Left)) ||
+        (style_.axis == Axis::Y && ctx.key.down(KeyCode::Up)))
     {
-      state.t = max(state.t - style.delta, 0.0F);
+      state_.t = max(state_.t - style_.delta, 0.0F);
     }
-    else if ((style.axis == Axis::X && ctx.key.down(KeyCode::Right)) ||
-             (style.axis == Axis::Y && ctx.key.down(KeyCode::Down)))
+    else if ((style_.axis == Axis::X && ctx.key.down(KeyCode::Right)) ||
+             (style_.axis == Axis::Y && ctx.key.down(KeyCode::Down)))
     {
-      state.t = min(state.t + style.delta, 1.0F);
+      state_.t = min(state_.t + style_.delta, 1.0F);
     }
   }
 
-  state.dragging = events.drag_update();
-  state.hovered  = events.focus_over();
+  state_.dragging = events.drag_update();
+  state_.hovered  = events.focus_over();
 
-  return ui::State{.pointable = !state.disabled,
-                   .draggable = !state.disabled,
-                   .focusable = !state.disabled};
+  return ui::State{.pointable = !state_.disabled,
+                   .draggable = !state_.disabled,
+                   .focusable = !state_.disabled};
 }
 
 Layout Slider::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
-  return {.extent = style.frame(allocated)};
+  return {.extent = style_.frame(allocated)};
 }
 
 void Slider::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
                     CRect const &)
 {
-  u32 const main_axis  = (style.axis == Axis::X) ? 0 : 1;
-  u32 const cross_axis = (style.axis == Axis::Y) ? 0 : 1;
+  u32 const main_axis  = (style_.axis == Axis::X) ? 0 : 1;
+  u32 const cross_axis = (style_.axis == Axis::Y) ? 0 : 1;
 
   Vec4U8 thumb_color;
 
-  if (state.dragging)
+  if (state_.dragging)
   {
-    thumb_color = style.thumb_dragging_color;
+    thumb_color = style_.thumb_dragging_color;
   }
-  else if (state.hovered)
+  else if (state_.hovered)
   {
-    thumb_color = style.thumb_hovered_color;
+    thumb_color = style_.thumb_hovered_color;
   }
   else
   {
-    thumb_color = style.thumb_color;
+    thumb_color = style_.thumb_color;
   }
 
   f32 dilation = 1.0F;
 
-  if (state.dragging || state.hovered)
+  if (state_.dragging || state_.hovered)
   {
     dilation = 1.0F;
   }
@@ -1400,22 +1400,22 @@ void Slider::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
   }
 
   f32 const thumb_begin =
-    canvas_region.begin()[main_axis] + style.thumb_size * 0.5F;
+    canvas_region.begin()[main_axis] + style_.thumb_size * 0.5F;
   f32 const thumb_end =
-    canvas_region.end()[main_axis] - style.thumb_size * 0.5F;
-  f32 const thumb_center = lerp(thumb_begin, thumb_end, state.t);
+    canvas_region.end()[main_axis] - style_.thumb_size * 0.5F;
+  f32 const thumb_center = lerp(thumb_begin, thumb_end, state_.t);
 
   CRect thumb_rect;
 
   thumb_rect.center[main_axis]  = thumb_center;
   thumb_rect.center[cross_axis] = canvas_region.center[cross_axis];
-  thumb_rect.extent             = Vec2::splat(style.thumb_size);
+  thumb_rect.extent             = Vec2::splat(style_.thumb_size);
 
   CRect track_rect;
 
   track_rect.center             = canvas_region.center;
   track_rect.extent[main_axis]  = thumb_end - thumb_begin;
-  track_rect.extent[cross_axis] = style.track_size;
+  track_rect.extent[cross_axis] = style_.track_size;
 
   Vec2 coverage_begin;
   coverage_begin[main_axis]  = thumb_begin;
@@ -1430,45 +1430,45 @@ void Slider::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
   canvas
     .rrect({
       .area         = track_rect,
-      .corner_radii = style.track_corner_radii,
-      .tint         = style.track_color
+      .corner_radii = style_.track_corner_radii,
+      .tint         = style_.track_color
   })
     .rrect({.area         = coverage_rect,
-            .corner_radii = style.track_corner_radii,
+            .corner_radii = style_.track_corner_radii,
             .tint         = thumb_color})
     .rrect({.area{thumb_rect.center, thumb_rect.extent * dilation},
-            .corner_radii = style.thumb_corner_radii * dilation,
+            .corner_radii = style_.thumb_corner_radii * dilation,
             .tint         = thumb_color});
 }
 
 Cursor Slider::cursor(Vec2, Vec2)
 {
-  return state.disabled ? Cursor::Default : Cursor::Pointer;
+  return state_.disabled ? Cursor::Default : Cursor::Pointer;
 }
 
 Switch & Switch::disable(bool disable)
 {
-  state.disabled = disable;
+  state_.disabled = disable;
   return *this;
 }
 
 Switch & Switch::on()
 {
-  state.value = true;
+  state_.value = true;
   cb.changed(true);
   return *this;
 }
 
 Switch & Switch::off()
 {
-  state.value = false;
+  state_.value = false;
   cb.changed(false);
   return *this;
 }
 
 Switch & Switch::toggle()
 {
-  if (state.value)
+  if (state_.value)
   {
     on();
   }
@@ -1481,49 +1481,49 @@ Switch & Switch::toggle()
 
 Switch & Switch::on_color(Vec4U8 c)
 {
-  style.on_color = c;
+  style_.on_color = c;
   return *this;
 }
 
 Switch & Switch::on_hovered_color(Vec4U8 c)
 {
-  style.on_hovered_color = c;
+  style_.on_hovered_color = c;
   return *this;
 }
 
 Switch & Switch::off_color(Vec4U8 c)
 {
-  style.off_color = c;
+  style_.off_color = c;
   return *this;
 }
 
 Switch & Switch::off_hovered_color(Vec4U8 c)
 {
-  style.off_hovered_color = c;
+  style_.off_hovered_color = c;
   return *this;
 }
 
 Switch & Switch::track_color(Vec4U8 c)
 {
-  style.track_color = c;
+  style_.track_color = c;
   return *this;
 }
 
 Switch & Switch::corner_radii(CornerRadii const & r)
 {
-  style.corner_radii = r;
+  style_.corner_radii = r;
   return *this;
 }
 
 Switch & Switch::frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 Switch & Switch::frame(Frame f)
 {
-  style.frame = f;
+  style_.frame = f;
   return *this;
 }
 
@@ -1531,20 +1531,20 @@ ui::State Switch::tick(Ctx const &, Events const & events, Fn<void(View &)>)
 {
   if (events.pointer_down())
   {
-    state.value = !state.value;
-    cb.changed(state.value);
+    state_.value = !state_.value;
+    cb.changed(state_.value);
   }
 
-  state.hovered = events.pointer_over();
+  state_.hovered = events.pointer_over();
 
-  return ui::State{.pointable = !state.disabled,
-                   .clickable = !state.disabled,
-                   .focusable = !state.disabled};
+  return ui::State{.pointable = !state_.disabled,
+                   .clickable = !state_.disabled,
+                   .focusable = !state_.disabled};
 }
 
 Layout Switch::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
-  return {.extent = style.frame(allocated)};
+  return {.extent = style_.frame(allocated)};
 }
 
 void Switch::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
@@ -1552,84 +1552,84 @@ void Switch::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
 {
   Vec2 thumb_extent = canvas_region.extent;
   thumb_extent.x *= 0.5F;
-  Vec2 const alignment{state.value ? ALIGNMENT_RIGHT : ALIGNMENT_LEFT,
+  Vec2 const alignment{state_.value ? ALIGNMENT_RIGHT : ALIGNMENT_LEFT,
                        ALIGNMENT_CENTER};
   Vec2 const thumb_center =
     canvas_region.center +
     space_align(canvas_region.extent, thumb_extent, alignment);
 
   Vec4U8 thumb_color;
-  if (state.hovered)
+  if (state_.hovered)
   {
     thumb_color =
-      state.value ? style.on_hovered_color : style.off_hovered_color;
+      state_.value ? style_.on_hovered_color : style_.off_hovered_color;
   }
   else
   {
-    thumb_color = state.value ? style.on_color : style.off_color;
+    thumb_color = state_.value ? style_.on_color : style_.off_color;
   }
 
   canvas
     .rrect({
       .area         = canvas_region,
-      .corner_radii = style.corner_radii,
-      .tint         = style.track_color
+      .corner_radii = style_.corner_radii,
+      .tint         = style_.track_color
   })
     .rrect({.area{thumb_center, thumb_extent},
-            .corner_radii = style.corner_radii,
+            .corner_radii = style_.corner_radii,
             .tint         = thumb_color});
 }
 
 Cursor Switch::cursor(Vec2, Vec2)
 {
-  return state.disabled ? Cursor::Default : Cursor::Pointer;
+  return state_.disabled ? Cursor::Default : Cursor::Pointer;
 }
 
 Radio & Radio::disable(bool disable)
 {
-  state.disabled = disable;
+  state_.disabled = disable;
   return *this;
 }
 
 Radio & Radio::corner_radii(CornerRadii const & c)
 {
-  style.corner_radii = c;
+  style_.corner_radii = c;
   return *this;
 }
 
 Radio & Radio::thickness(f32 t)
 {
-  style.thickness = t;
+  style_.thickness = t;
   return *this;
 }
 
 Radio & Radio::color(Vec4U8 c)
 {
-  style.color = c;
+  style_.color = c;
   return *this;
 }
 
 Radio & Radio::inner_color(Vec4U8 c)
 {
-  style.inner_color = c;
+  style_.inner_color = c;
   return *this;
 }
 
 Radio & Radio::inner_hovered_color(Vec4U8 c)
 {
-  style.inner_hovered_color = c;
+  style_.inner_hovered_color = c;
   return *this;
 }
 
 Radio & Radio::frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 Radio & Radio::frame(Frame f)
 {
-  style.frame = f;
+  style_.frame = f;
   return *this;
 }
 
@@ -1643,36 +1643,36 @@ ui::State Radio::tick(Ctx const &, Events const & events, Fn<void(View &)>)
 {
   if (events.pointer_down())
   {
-    state.value = !state.value;
-    cb.changed(state.value);
+    state_.value = !state_.value;
+    cb.changed(state_.value);
   }
 
-  state.hovered = events.pointer_over();
+  state_.hovered = events.pointer_over();
 
-  return ui::State{.pointable = !state.disabled,
-                   .clickable = !state.disabled,
-                   .focusable = !state.disabled};
+  return ui::State{.pointable = !state_.disabled,
+                   .clickable = !state_.disabled,
+                   .focusable = !state_.disabled};
 }
 
 Layout Radio::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
-  return {.extent = style.frame(allocated)};
+  return {.extent = style_.frame(allocated)};
 }
 
 void Radio::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
                    CRect const &)
 {
   canvas.rrect({.area         = canvas_region,
-                .corner_radii = style.corner_radii,
+                .corner_radii = style_.corner_radii,
                 .stroke       = 1,
-                .thickness    = style.thickness,
-                .tint         = style.color});
+                .thickness    = style_.thickness,
+                .tint         = style_.color});
 
-  if (state.value)
+  if (state_.value)
   {
-    Vec2   inner_extent = canvas_region.extent * (state.hovered ? 0.75F : 0.5F);
+    Vec2 inner_extent = canvas_region.extent * (state_.hovered ? 0.75F : 0.5F);
     Vec4U8 inner_color =
-      state.hovered ? style.inner_hovered_color : style.inner_color;
+      state_.hovered ? style_.inner_hovered_color : style_.inner_color;
 
     canvas.circle({
       .area{canvas_region.center, inner_extent},
@@ -1721,7 +1721,7 @@ void ScalarDragBox::format_()
 {
   u8                buffer[1'024];
   FallbackAllocator allocator{Arena::from(buffer), default_allocator};
-  sformat(allocator, style.format, state.scalar)
+  sformat(allocator, style_.format, state_.scalar)
     .match([&](auto & text) { input_.content(text.view().as_c8()); },
            [&](auto &) { input_.content(U"[Truncated]"_str); });
 }
@@ -1735,45 +1735,45 @@ ScalarDragBox & ScalarDragBox::on_update(Fn<void(Scalar)> fn)
 ui::State ScalarDragBox::tick(Ctx const & ctx, Events const & events,
                               Fn<void(View &)> build)
 {
-  state.dragging = events.drag_update();
+  state_.dragging = events.drag_update();
 
   if (events.drag_start() &&
       (ctx.key.down(KeyCode::LeftCtrl) || ctx.key.down(KeyCode::RightCtrl)))
   {
-    state.input_mode = !state.input_mode;
+    state_.input_mode = !state_.input_mode;
   }
 
-  if (state.dragging && !state.input_mode)
+  if (state_.dragging && !state_.input_mode)
   {
     auto      h = events.hit_info.unwrap_or(HitInfo{});
     f32 const t = clamp(unlerp(h.viewport_region.begin().x,
                                h.viewport_region.end().x, h.viewport_hit.x),
                         0.0F, 1.0F);
-    state.scalar =
-      state.spec.match([t](F32Info & v) -> Scalar { return v.interp(t); },
-                       [t](I32Info & v) -> Scalar { return v.interp(t); });
+    state_.scalar =
+      state_.spec.match([t](F32Info & v) -> Scalar { return v.interp(t); },
+                        [t](I32Info & v) -> Scalar { return v.interp(t); });
 
     format_();
-    cb.update(state.scalar);
+    cb.update(state_.scalar);
   }
-  else if (input_.state.editing)
+  else if (input_.state_.editing)
   {
-    scalar_parse(input_.content_.get_text(), state.spec, state.scalar);
-    cb.update(state.scalar);
+    scalar_parse(input_.content_.get_text(), state_.spec, state_.scalar);
+    cb.update(state_.scalar);
   }
 
-  input_.state.disabled = !state.input_mode;
+  input_.state_.disabled = !state_.input_mode;
 
   build(input_);
 
-  return ui::State{.pointable = !state.disabled,
-                   .draggable = !state.disabled,
-                   .focusable = !state.disabled};
+  return ui::State{.pointable = !state_.disabled,
+                   .draggable = !state_.disabled,
+                   .focusable = !state_.disabled};
 }
 
 void ScalarDragBox::size(Vec2 allocated, Span<Vec2> sizes)
 {
-  Vec2 child = style.frame(allocated) - 2 * style.padding;
+  Vec2 child = style_.frame(allocated) - 2 * style_.padding;
   child.x    = max(child.x, 0.0F);
   child.y    = max(child.y, 0.0F);
   fill(sizes, child);
@@ -1782,8 +1782,8 @@ void ScalarDragBox::size(Vec2 allocated, Span<Vec2> sizes)
 Layout ScalarDragBox::fit(Vec2 allocated, Span<Vec2 const> sizes,
                           Span<Vec2> centers)
 {
-  Vec2 frame         = style.frame(allocated);
-  Vec2 padded_extent = sizes[0] + 2 * style.padding;
+  Vec2 frame         = style_.frame(allocated);
+  Vec2 padded_extent = sizes[0] + 2 * style_.padding;
   frame.x            = max(frame.x, padded_extent.x);
   frame.y            = max(frame.y, padded_extent.y);
   fill(centers, Vec2{0, 0});
@@ -1795,29 +1795,29 @@ void ScalarDragBox::render(Canvas &      canvas, CRect const &,
                            CRect const & canvas_region, CRect const &)
 {
   canvas.rrect({.area         = canvas_region,
-                .corner_radii = style.corner_radii,
-                .stroke       = style.stroke,
-                .thickness    = style.thickness,
-                .tint         = style.color});
+                .corner_radii = style_.corner_radii,
+                .stroke       = style_.stroke,
+                .thickness    = style_.thickness,
+                .tint         = style_.color});
 
-  if (!state.input_mode)
+  if (!state_.input_mode)
   {
-    f32 const t = state.spec.match(
-      [&](F32Info & v) { return v.uninterp(state.scalar[v0]); },
-      [&](I32Info & v) { return v.uninterp(state.scalar[v1]); });
+    f32 const t = state_.spec.match(
+      [&](F32Info & v) { return v.uninterp(state_.scalar[v0]); },
+      [&](I32Info & v) { return v.uninterp(state_.scalar[v1]); });
 
     CRect const thumb_rect = CRect::from_offset(
       canvas_region.begin(), canvas_region.extent * Vec2{t, 1});
 
     canvas.rrect({.area         = thumb_rect,
-                  .corner_radii = style.corner_radii,
-                  .tint         = style.thumb_color});
+                  .corner_radii = style_.corner_radii,
+                  .tint         = style_.thumb_color});
   }
 }
 
 Cursor ScalarDragBox::cursor(Vec2, Vec2)
 {
-  return state.disabled ? Cursor::Default : Cursor::EWResize;
+  return state_.disabled ? Cursor::Default : Cursor::EWResize;
 }
 
 ScalarBox::ScalarBox(Str32 decrease_text, Str32 increase_text,
@@ -1847,16 +1847,16 @@ ScalarBox::ScalarBox(Str32 decrease_text, Str32 increase_text,
 
 ScalarBox & ScalarBox::step(i32 direction)
 {
-  auto & state = drag_.state;
-  state.scalar = state.spec.match(
+  auto & state_ = drag_.state_;
+  state_.scalar = state_.spec.match(
     [&](F32Info const & spec) -> Scalar {
-      return spec.step_value(state.scalar[v0], direction);
+      return spec.step_value(state_.scalar[v0], direction);
     },
     [&](I32Info const & spec) -> Scalar {
-      return spec.step_value(state.scalar[v1], direction);
+      return spec.step_value(state_.scalar[v1], direction);
     });
   drag_.format_();
-  cb.update(state.scalar);
+  cb.update(state_.scalar);
   return *this;
 }
 
@@ -1874,36 +1874,36 @@ ScalarBox & ScalarBox::stub(Str8 text)
 
 ScalarBox & ScalarBox::format(Str format)
 {
-  drag_.style.format = format;
+  drag_.style_.format = format;
   drag_.format_();
   return *this;
 }
 
 ScalarBox & ScalarBox::spec(f32 scalar, F32Info info)
 {
-  drag_.state.scalar = scalar;
-  drag_.state.spec   = info;
+  drag_.state_.scalar = scalar;
+  drag_.state_.spec   = info;
   drag_.format_();
   return *this;
 }
 
 ScalarBox & ScalarBox::spec(i32 scalar, I32Info info)
 {
-  drag_.state.scalar = scalar;
-  drag_.state.spec   = info;
+  drag_.state_.scalar = scalar;
+  drag_.state_.spec   = info;
   drag_.format_();
   return *this;
 }
 
 ScalarBox & ScalarBox::stroke(f32 s)
 {
-  drag_.style.stroke = s;
+  drag_.style_.stroke = s;
   return *this;
 }
 
 ScalarBox & ScalarBox::thickness(f32 t)
 {
-  drag_.style.thickness = t;
+  drag_.style_.thickness = t;
   return *this;
 }
 
@@ -1911,7 +1911,7 @@ ScalarBox & ScalarBox::padding(Vec2 p)
 {
   dec_.padding(p);
   inc_.padding(p);
-  drag_.style.padding = p;
+  drag_.style_.padding = p;
   return *this;
 }
 
@@ -1919,7 +1919,7 @@ ScalarBox & ScalarBox::frame(Vec2 extent, bool constrain)
 {
   dec_.frame(extent, constrain);
   inc_.frame(extent, constrain);
-  drag_.style.frame = Frame{extent, constrain};
+  drag_.style_.frame = Frame{extent, constrain};
   return *this;
 }
 
@@ -1927,7 +1927,7 @@ ScalarBox & ScalarBox::frame(Frame f)
 {
   dec_.frame(f);
   inc_.frame(f);
-  drag_.style.frame = f;
+  drag_.style_.frame = f;
   return *this;
 }
 
@@ -1935,7 +1935,7 @@ ScalarBox & ScalarBox::corner_radii(CornerRadii const & r)
 {
   dec_.rrect(r);
   inc_.rrect(r);
-  drag_.style.corner_radii = r;
+  drag_.style_.corner_radii = r;
   return *this;
 }
 
@@ -1974,41 +1974,48 @@ ui::State ScalarBox::tick(Ctx const &, Events const &, Fn<void(View &)> build)
 ui::State ScrollBar::tick(Ctx const & ctx, Events const & events,
                           Fn<void(View &)>)
 {
-  u32 const main_axis = (style.axis == Axis::X) ? 0 : 1;
+  u32 const main_axis = (style_.axis == Axis::X) ? 0 : 1;
 
   if (events.drag_update())
   {
-    auto      h = events.hit_info.unwrap_or(HitInfo{});
-    f32 const thumb_begin =
-      h.viewport_region.begin()[main_axis] + style.thumb_size * 0.5F;
-    f32 const thumb_end =
-      h.viewport_region.end()[main_axis] - style.thumb_size * 0.5F;
-    state.t = clamp(unlerp(thumb_begin, thumb_end, h.viewport_hit[main_axis]),
-                    0.0F, 1.0F);
+    auto h     = events.hit_info.unwrap_or(HitInfo{});
+    auto begin = h.viewport_region.begin()[main_axis];
+    auto end   = h.viewport_region.end()[main_axis];
+    auto scale = h.viewport_region.extent[main_axis] / state_.total_extent;
+    auto thumb_extent = scale * state_.visible_extent;
+    auto thumb_begin  = begin + 0.5F * thumb_extent;
+    auto thumb_end    = end - 0.5F * thumb_extent;
+    auto thumb_pos = clamp(h.viewport_hit[main_axis], thumb_begin, thumb_end);
+    auto t         = unlerp(thumb_begin, thumb_end, thumb_pos);
+    state_.offset  = lerp(0.0F, state_.total_extent - state_.visible_extent, t);
   }
 
   if (events.focus_over())
   {
-    if ((style.axis == Axis::X && ctx.key.down(KeyCode::Left)) ||
-        (style.axis == Axis::Y && ctx.key.down(KeyCode::Up)))
+    if ((style_.axis == Axis::X && ctx.key.down(KeyCode::Left)) ||
+        (style_.axis == Axis::Y && ctx.key.down(KeyCode::Up)))
     {
-      state.t = max(state.t - style.delta, 0.0F);
+      state_.offset =
+        clamp(state_.offset - state_.delta * state_.visible_extent, 0.0F,
+              state_.total_extent - state_.visible_extent);
     }
-    else if ((style.axis == Axis::X && ctx.key.down(KeyCode::Right)) ||
-             (style.axis == Axis::Y && ctx.key.down(KeyCode::Down)))
+    else if ((style_.axis == Axis::X && ctx.key.down(KeyCode::Right)) ||
+             (style_.axis == Axis::Y && ctx.key.down(KeyCode::Down)))
     {
-      state.t = min(state.t + style.delta, 1.0F);
+      state_.offset =
+        clamp(state_.offset + state_.delta * state_.visible_extent, 0.0F,
+              state_.total_extent - state_.visible_extent);
     }
   }
 
-  state.dragging = events.drag_update();
-  state.hovered  = events.pointer_over();
-  state.focused  = events.focus_over();
+  state_.dragging = events.drag_update();
+  state_.hovered  = events.pointer_over();
+  state_.focused  = events.focus_over();
 
-  return ui::State{.hidden    = state.hidden,
-                   .pointable = !state.disabled,
-                   .draggable = !state.disabled,
-                   .focusable = !state.disabled};
+  return ui::State{.hidden    = state_.hidden,
+                   .pointable = !state_.disabled,
+                   .draggable = !state_.disabled,
+                   .focusable = !state_.disabled};
 }
 
 Layout ScrollBar::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
@@ -2019,58 +2026,60 @@ Layout ScrollBar::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 void ScrollBar::render(Canvas &      canvas, CRect const &,
                        CRect const & canvas_region, CRect const &)
 {
-  u32 const main_axis  = (style.axis == Axis::X) ? 0 : 1;
-  u32 const cross_axis = (style.axis == Axis::X) ? 1 : 0;
+  u32 const main_axis  = (style_.axis == Axis::X) ? 0 : 1;
+  u32 const cross_axis = (style_.axis == Axis::X) ? 1 : 0;
+
+  state_.offset;
 
   f32 const thumb_begin =
-    canvas_region.begin()[main_axis] + style.thumb_size * 0.5F;
+    canvas_region.begin()[main_axis] + style_.thumb_size * 0.5F;
   f32 const thumb_end =
-    canvas_region.end()[main_axis] - style.thumb_size * 0.5F;
-  f32 const thumb_center = lerp(thumb_begin, thumb_end, state.t);
+    canvas_region.end()[main_axis] - style_.thumb_size * 0.5F;
+  f32 const thumb_center = lerp(thumb_begin, thumb_end, state_.t);
 
   CRect thumb_rect;
 
   thumb_rect.center[main_axis]  = thumb_center;
   thumb_rect.center[cross_axis] = canvas_region.center[cross_axis];
-  thumb_rect.extent[main_axis]  = style.thumb_size;
+  thumb_rect.extent[main_axis]  = style_.thumb_size;
   thumb_rect.extent[cross_axis] = canvas_region.extent[cross_axis];
 
   Vec4U8 thumb_color;
-  if (state.dragging)
+  if (state_.dragging)
   {
-    thumb_color = style.thumb_dragging_color;
+    thumb_color = style_.thumb_dragging_color;
   }
-  else if (state.hovered)
+  else if (state_.hovered)
   {
-    thumb_color = style.thumb_hovered_color;
+    thumb_color = style_.thumb_hovered_color;
   }
   else
   {
-    thumb_color = style.thumb_color;
+    thumb_color = style_.thumb_color;
   }
 
   canvas
     .rrect({.area         = canvas_region,
-            .corner_radii = style.track_corner_radii,
+            .corner_radii = style_.track_corner_radii,
             .stroke       = 0,
-            .tint         = style.track_color})
+            .tint         = style_.track_color})
     .rrect({.area         = thumb_rect,
-            .corner_radii = style.thumb_corner_radii,
+            .corner_radii = style_.thumb_corner_radii,
             .stroke       = 0,
             .tint         = thumb_color});
 }
 
 ScrollView::ScrollView(View & child) : child_{child}
 {
-  x_bar_.style.axis = Axis::X;
-  y_bar_.style.axis = Axis::Y;
+  x_bar_.style_.axis = Axis::X;
+  y_bar_.style_.axis = Axis::Y;
 }
 
 ScrollView & ScrollView::disable(bool d)
 {
-  state.disabled        = d;
-  x_bar_.state.disabled = d;
-  y_bar_.state.disabled = d;
+  state_.disabled        = d;
+  x_bar_.state_.disabled = d;
+  y_bar_.state_.disabled = d;
   return *this;
 }
 
@@ -2080,90 +2089,83 @@ ScrollView & ScrollView::item(View & v)
   return *this;
 }
 
-ScrollView & ScrollView::thumb_size(f32 size)
-{
-  x_bar_.style.thumb_size = size;
-  y_bar_.style.thumb_size = size;
-  return *this;
-}
-
 ScrollView & ScrollView::thumb_color(Vec4U8 c)
 {
-  x_bar_.style.thumb_color = c;
-  y_bar_.style.thumb_color = c;
+  x_bar_.style_.thumb_color = c;
+  y_bar_.style_.thumb_color = c;
   return *this;
 }
 
 ScrollView & ScrollView::thumb_hovered_color(Vec4U8 c)
 {
-  x_bar_.style.thumb_hovered_color = c;
-  y_bar_.style.thumb_hovered_color = c;
+  x_bar_.style_.thumb_hovered_color = c;
+  y_bar_.style_.thumb_hovered_color = c;
   return *this;
 }
 
 ScrollView & ScrollView::thumb_dragging_color(Vec4U8 c)
 {
-  x_bar_.style.thumb_dragging_color = c;
-  y_bar_.style.thumb_dragging_color = c;
+  x_bar_.style_.thumb_dragging_color = c;
+  y_bar_.style_.thumb_dragging_color = c;
   return *this;
 }
 
 ScrollView & ScrollView::thumb_corner_radii(CornerRadii const & c)
 {
-  x_bar_.style.thumb_corner_radii = c;
-  y_bar_.style.thumb_corner_radii = c;
+  x_bar_.style_.thumb_corner_radii = c;
+  y_bar_.style_.thumb_corner_radii = c;
   return *this;
 }
 
 ScrollView & ScrollView::track_color(Vec4U8 c)
 {
-  x_bar_.style.track_color = c;
-  y_bar_.style.track_color = c;
+  x_bar_.style_.track_color = c;
+  y_bar_.style_.track_color = c;
   return *this;
 }
 
 ScrollView & ScrollView::track_corner_radii(CornerRadii const & c)
 {
-  x_bar_.style.track_corner_radii = c;
-  y_bar_.style.track_corner_radii = c;
+  x_bar_.style_.track_corner_radii = c;
+  y_bar_.style_.track_corner_radii = c;
   return *this;
 }
 
 ScrollView & ScrollView::axes(Axes a)
 {
-  x_bar_.state.hidden = has_bits(a, Axes::X);
-  y_bar_.state.hidden = has_bits(a, Axes::Y);
+  x_bar_.state_.hidden = has_bits(a, Axes::X);
+  y_bar_.state_.hidden = has_bits(a, Axes::Y);
   return *this;
 }
 
 ScrollView & ScrollView::frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 ScrollView & ScrollView::frame(Frame f)
 {
-  style.frame = f;
+  style_.frame = f;
   return *this;
 }
 
 ScrollView & ScrollView::inner_frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 ScrollView & ScrollView::inner_frame(Frame f)
 {
-  style.frame = f;
+  style_.frame = f;
   return *this;
 }
 
 ScrollView & ScrollView::bar_size(f32 x, f32 y)
 {
-  style.x_bar_size = x;
-  style.y_bar_size = y;
+  style_.x_bar_size = x;
+  style_.y_bar_size = y;
   return *this;
 }
 
@@ -2174,14 +2176,14 @@ ui::State ScrollView::tick(Ctx const &, Events const & events,
   {
     auto scroll = events.scroll_info.unwrap_or(ScrollInfo{});
 
-    if (!x_bar_.state.disabled)
+    if (!x_bar_.state_.disabled)
     {
-      x_bar_.state.pos = scroll.center.x;
+      x_bar_.state_.pos = scroll.center.x;
     }
 
-    if (!y_bar_.state.disabled)
+    if (!y_bar_.state_.disabled)
     {
-      y_bar_.state.pos = scroll.center.y;
+      y_bar_.state_.pos = scroll.center.y;
     }
   }
 
@@ -2194,23 +2196,23 @@ ui::State ScrollView::tick(Ctx const &, Events const & events,
 
 void ScrollView::size(Vec2 allocated, Span<Vec2> sizes)
 {
-  Vec2 const frame = style.frame(allocated);
+  Vec2 const frame = style_.frame(allocated);
 
-  sizes[0] = style.inner_frame(frame);
-  sizes[1] = {frame.x, style.x_bar_size};
+  sizes[0] = style_.inner_frame(frame);
+  sizes[1] = {frame.x, style_.x_bar_size};
 
-  if (!x_bar_.state.disabled && !y_bar_.state.disabled)
+  if (!x_bar_.state_.disabled && !y_bar_.state_.disabled)
   {
-    sizes[1].x = max(sizes[1].x - style.y_bar_size, 0.0F);
+    sizes[1].x = max(sizes[1].x - style_.y_bar_size, 0.0F);
   }
 
-  sizes[2] = {style.y_bar_size, frame.y};
+  sizes[2] = {style_.y_bar_size, frame.y};
 }
 
 Layout ScrollView::fit(Vec2 allocated, Span<Vec2 const> sizes,
                        Span<Vec2> centers)
 {
-  Vec2 const frame = style.frame(allocated);
+  Vec2 const frame = style_.frame(allocated);
 
   centers[0] = {0, 0};
   centers[1] = space_align(frame, sizes[1], ALIGNMENT_BOTTOM_LEFT);
@@ -2221,7 +2223,7 @@ Layout ScrollView::fit(Vec2 allocated, Span<Vec2 const> sizes,
   return {
     .extent          = frame,
     .viewport_extent = context_extent,
-    .viewport_center{x_bar_.state.pos, y_bar_.state.pos}
+    .viewport_center{x_bar_.state_.pos, y_bar_.state_.pos}
   };
 }
 
@@ -2237,9 +2239,9 @@ i32 ScrollView::layer(i32 allocated, Span<i32> layers)
 
 ui::State ComboItem::tick(Ctx const &, Events const &, Fn<void(View &)>)
 {
-  return ui::State{.pointable = !state.disabled,
-                   .clickable = !state.disabled,
-                   .focusable = !state.disabled};
+  return ui::State{.pointable = !state_.disabled,
+                   .clickable = !state_.disabled,
+                   .focusable = !state_.disabled};
 }
 
 void ComboItem::size(Vec2, Span<Vec2>)
@@ -2276,61 +2278,61 @@ TextComboItem::TextComboItem(Str8 text, TextStyle const & style,
 
 TextComboItem & TextComboItem::frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 TextComboItem & TextComboItem::frame(Frame frame)
 {
-  style.frame = frame;
+  style_.frame = frame;
   return *this;
 }
 
 TextComboItem & TextComboItem::padding(Vec2 padding)
 {
-  style.padding = padding;
+  style_.padding = padding;
   return *this;
 }
 
 TextComboItem & TextComboItem::align(f32 alignment)
 {
-  style.alignment = alignment;
+  style_.alignment = alignment;
   return *this;
 }
 
 TextComboItem & TextComboItem::color(Vec4U8 color)
 {
-  style.color = color;
+  style_.color = color;
   return *this;
 }
 
 TextComboItem & TextComboItem::hover_color(Vec4U8 color)
 {
-  style.hover_color = color;
+  style_.hover_color = color;
   return *this;
 }
 
 TextComboItem & TextComboItem::selected_color(Vec4U8 color)
 {
-  style.selected_color = color;
+  style_.selected_color = color;
   return *this;
 }
 
 TextComboItem & TextComboItem::stroke(f32 stroke)
 {
-  style.stroke = stroke;
+  style_.stroke = stroke;
   return *this;
 }
 
 TextComboItem & TextComboItem::thickness(f32 thickness)
 {
-  style.thickness = thickness;
+  style_.thickness = thickness;
   return *this;
 }
 
 TextComboItem & TextComboItem::corner_radii(CornerRadii radii)
 {
-  style.corner_radii = radii;
+  style_.corner_radii = radii;
   return *this;
 }
 
@@ -2338,24 +2340,25 @@ ui::State TextComboItem::tick(Ctx const & ctx, Events const & events,
                               Fn<void(View &)> build)
 {
   if (events.pointer_over() && ctx.mouse.down(MouseButton::Primary) &&
-      !ComboItem::state.selected)
+      !ComboItem::state_.selected)
   {
-    ComboItem::state.click_hook(ComboItem::state.id);
+    ComboItem::state_.click_hook(ComboItem::state_.id);
   }
 
-  state.hovered = events.pointer_over();
-  state.pressed = events.pointer_over() && ctx.mouse.held(MouseButton::Primary);
+  state_.hovered = events.pointer_over();
+  state_.pressed =
+    events.pointer_over() && ctx.mouse.held(MouseButton::Primary);
 
   build(text_);
 
-  return ui::State{.pointable = !ComboItem::state.disabled,
-                   .clickable = !ComboItem::state.disabled,
-                   .focusable = !ComboItem::state.disabled};
+  return ui::State{.pointable = !ComboItem::state_.disabled,
+                   .clickable = !ComboItem::state_.disabled,
+                   .focusable = !ComboItem::state_.disabled};
 }
 
 void TextComboItem::size(Vec2 allocated, Span<Vec2> sizes)
 {
-  Vec2 child_size = style.frame(allocated) - 2 * style.padding;
+  Vec2 child_size = style_.frame(allocated) - 2 * style_.padding;
   child_size.x    = max(child_size.x, 0.0F);
   child_size.y    = max(child_size.y, 0.0F);
   sizes[0]        = child_size;
@@ -2364,11 +2367,11 @@ void TextComboItem::size(Vec2 allocated, Span<Vec2> sizes)
 Layout TextComboItem::fit(Vec2 allocated, Span<Vec2 const> sizes,
                           Span<Vec2> centers)
 {
-  Vec2 frame = style.frame(allocated);
-  frame.x    = max(frame.x, sizes[0].x + 2 * style.padding.x);
-  frame.y    = max(frame.y, sizes[0].y + 2 * style.padding.y);
+  Vec2 frame = style_.frame(allocated);
+  frame.x    = max(frame.x, sizes[0].x + 2 * style_.padding.x);
+  frame.y    = max(frame.y, sizes[0].y + 2 * style_.padding.y);
 
-  centers[0] = space_align(frame, sizes[0], Vec2{style.alignment, 0});
+  centers[0] = space_align(frame, sizes[0], Vec2{style_.alignment, 0});
 
   return {.extent = frame};
 }
@@ -2377,27 +2380,27 @@ void TextComboItem::render(Canvas &      canvas, CRect const &,
                            CRect const & canvas_region, CRect const &)
 {
   Vec4U8 color;
-  if (ComboItem::state.selected)
+  if (ComboItem::state_.selected)
   {
-    color = style.selected_color;
+    color = style_.selected_color;
   }
-  else if (state.hovered && !state.pressed)
+  else if (state_.hovered && !state_.pressed)
   {
-    color = style.color;
+    color = style_.color;
   }
-  else if (state.hovered)
+  else if (state_.hovered)
   {
-    color = style.hover_color;
+    color = style_.hover_color;
   }
   else
   {
-    color = style.color;
+    color = style_.color;
   }
 
   canvas.rrect({.area         = canvas_region,
-                .corner_radii = style.corner_radii,
-                .stroke       = style.stroke,
-                .thickness    = style.thickness,
+                .corner_radii = style_.corner_radii,
+                .stroke       = style_.stroke,
+                .thickness    = style_.thickness,
                 .tint         = color});
 }
 
@@ -2412,13 +2415,13 @@ Combo::Combo(AllocatorRef allocator) : Flex{allocator}
 
 Combo & Combo::stroke(f32 stroke)
 {
-  style.stroke = stroke;
+  style_.stroke = stroke;
   return *this;
 }
 
 Combo & Combo::thickness(f32 thickness)
 {
-  style.thickness = thickness;
+  style_.thickness = thickness;
   return *this;
 }
 
@@ -2472,23 +2475,23 @@ Combo & Combo::item_frame(Vec2 extent, bool constrain)
 
 Combo & Combo::disable(bool d)
 {
-  state.disabled = d;
+  state_.disabled = d;
   for (ComboItem & item : items_)
   {
-    item.state.disabled = d;
+    item.state_.disabled = d;
   }
   return *this;
 }
 
 Combo & Combo::color(Vec4U8 c)
 {
-  style.color = c;
+  style_.color = c;
   return *this;
 }
 
 Combo & Combo::corner_radii(CornerRadii radii)
 {
-  style.corner_radii = radii;
+  style_.corner_radii = radii;
   return *this;
 }
 
@@ -2507,10 +2510,11 @@ Combo & Combo::items(Span<ref<ComboItem> const> list)
 {
   for (auto [i, item] : enumerate(list))
   {
-    item->state.disabled   = state.disabled;
-    item->state.selected   = false;
-    item->state.click_hook = {this, [](Combo * c, usize id) { c->select(id); }};
-    item->state.id         = i;
+    item->state_.disabled   = state_.disabled;
+    item->state_.selected   = false;
+    item->state_.click_hook = {this,
+                               [](Combo * c, usize id) { c->select(id); }};
+    item->state_.id         = i;
   }
 
   items_.extend(list).unwrap();
@@ -2529,17 +2533,17 @@ Combo & Combo::select(Option<usize> i)
     CHECK(i.v() < items_.size32(), "");
   }
 
-  state.selected = i;
+  state_.selected = i;
 
   for (ComboItem & it : items_)
   {
-    it.state.selected = false;
+    it.state_.selected = false;
   }
 
   if (i.is_some())
   {
-    ComboItem & item    = items_[i.v()];
-    item.state.selected = true;
+    ComboItem & item     = items_[i.v()];
+    item.state_.selected = true;
   }
 
   cb.selected(i);
@@ -2548,7 +2552,7 @@ Combo & Combo::select(Option<usize> i)
 
 Option<usize> Combo::get_selection() const
 {
-  return state.selected;
+  return state_.selected;
 }
 
 ui::State Combo::tick(Ctx const &, Events const &, Fn<void(View &)> build)
@@ -2565,10 +2569,10 @@ void Combo::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
                    CRect const &)
 {
   canvas.rrect({.area         = canvas_region,
-                .corner_radii = style.corner_radii,
-                .stroke       = style.stroke,
-                .thickness    = style.thickness,
-                .tint         = style.color});
+                .corner_radii = style_.corner_radii,
+                .stroke       = style_.stroke,
+                .thickness    = style_.thickness,
+                .tint         = style_.color});
 }
 
 Image::Image(ImageSrc src) : src_{std::move(src)}
@@ -2577,76 +2581,76 @@ Image::Image(ImageSrc src) : src_{std::move(src)}
 
 Image & Image::source(ImageSrc src)
 {
-  src_           = std::move(src);
-  state.resolved = none;
+  src_            = std::move(src);
+  state_.resolved = none;
   return *this;
 }
 
 Image & Image::aspect_ratio(f32 width, f32 height)
 {
-  style.aspect_ratio = (width == 0 || height == 0) ? 1 : (width / height);
+  style_.aspect_ratio = (width == 0 || height == 0) ? 1 : (width / height);
   return *this;
 }
 
 Image & Image::aspect_ratio(Option<f32> ratio)
 {
-  style.aspect_ratio = ratio;
+  style_.aspect_ratio = ratio;
   return *this;
 }
 
 Image & Image::frame(Frame frame)
 {
-  style.frame = frame;
+  style_.frame = frame;
   return *this;
 }
 
 Image & Image::frame(Vec2 extent, bool constrain)
 {
-  style.frame = Frame{extent, constrain};
+  style_.frame = Frame{extent, constrain};
   return *this;
 }
 
 Image & Image::corner_radii(CornerRadii const & radii)
 {
-  style.radii = radii;
+  style_.radii = radii;
   return *this;
 }
 
 Image & Image::tint(ColorGradient const & color)
 {
-  style.tint = color;
+  style_.tint = color;
   return *this;
 }
 
 Image & Image::fit(ImageFit fit)
 {
-  style.fit = fit;
+  style_.fit = fit;
   return *this;
 }
 
 Image & Image::align(Vec2 a)
 {
-  style.alignment = a;
+  style_.alignment = a;
   return *this;
 }
 
 ui::State Image::tick(Ctx const &, Events const &, Fn<void(View &)>)
 {
-  state.resolved.match(
+  state_.resolved.match(
     [&](None) {
       src_.match(
-        [&](None) { state.resolved = Option<ash::ImageInfo>{none}; },
-        [&](ImageId id) { state.resolved = Option{sys->image.get(id)}; },
+        [&](None) { state_.resolved = Option<ash::ImageInfo>{none}; },
+        [&](ImageId id) { state_.resolved = Option{sys->image.get(id)}; },
         [&](Future<Result<ImageId, ImageLoadErr>> & f) {
           f.poll().match(
             [&](Result<ImageId, ImageLoadErr> & r) {
               r.match(
                 [&](ImageId id) {
-                  state.resolved = Option{sys->image.get(id)};
+                  state_.resolved = Option{sys->image.get(id)};
                 },
-                [&](ImageLoadErr err) { state.resolved = err; });
+                [&](ImageLoadErr err) { state_.resolved = err; });
             },
-            [&](Void) { state.resolved = none; });
+            [&](Void) { state_.resolved = none; });
         });
     },
     [](auto &) {}, [](auto &) {});
@@ -2658,14 +2662,14 @@ ui::State Image::tick(Ctx const &, Events const &, Fn<void(View &)>)
 
 Layout Image::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
-  Vec2 const frame = style.frame(allocated);
+  Vec2 const frame = style_.frame(allocated);
 
-  if (style.aspect_ratio.is_none())
+  if (style_.aspect_ratio.is_none())
   {
     return Layout{.extent = frame};
   }
 
-  return Layout{.extent = with_aspect(frame, style.aspect_ratio.v())};
+  return Layout{.extent = with_aspect(frame, style_.aspect_ratio.v())};
 }
 
 static Tuple<Vec2, Vec2, Vec2> fit_image(Vec2 extent, Vec2 region_extent,
@@ -2721,22 +2725,20 @@ static void render_image(Canvas & canvas, CRect const & region,
 void Image::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
                    CRect const &)
 {
-  state.resolved.match([&](None) {},
-                       [&](Option<ash::ImageInfo> & opt) {
-                         opt.match(
-                           [&](ash::ImageInfo & img) {
-                             render_image(canvas, canvas_region, img, style);
-                           },
-                           []() {});
-                       },
-                       [&](ImageLoadErr) {});
+  state_.resolved.match([&](None) {},
+                        [&](Option<ash::ImageInfo> & opt) {
+                          opt.match(
+                            [&](ash::ImageInfo & img) {
+                              render_image(canvas, canvas_region, img, style_);
+                            },
+                            []() {});
+                        },
+                        [&](ImageLoadErr) {});
 }
 
 List::List(Generator generator, AllocatorRef allocator) :
-  state_{.generator = generator},
-  allocator_{allocator},
-  items_{allocator},
-  scrolled_offsets_{allocator}
+  state_{.generator = generator, .items{allocator}},
+  allocator_{allocator}
 {
 }
 
@@ -2744,11 +2746,12 @@ List & List::generator(Generator generator)
 {
   state_.total_translation = 0;
   state_.view_extent       = 0;
-  state_.actives_range     = {};
-  state_.max_size          = USIZE_MAX;
+  state_.first_item        = 0;
+  state_.max_count         = USIZE_MAX;
+  state_.num_loaded        = 0;
+  state_.item_size         = none;
   state_.generator         = generator;
-  items_.clear();
-  scrolled_offsets_.clear();
+  state_.items.clear();
   return *this;
 }
 
@@ -2770,8 +2773,7 @@ List & List::item_frame(Frame frame)
   return *this;
 }
 
-ui::State List::tick(Ctx const & ctx, Events const & events,
-                     Fn<void(View &)> build)
+ui::State List::tick(Ctx const &, Events const & events, Fn<void(View &)> build)
 {
   u32 const axis = style_.axis == Axis::X ? 0 : 1;
 
@@ -2781,56 +2783,41 @@ ui::State List::tick(Ctx const & ctx, Events const & events,
     state_.total_translation = info.center[axis];
   }
 
-  Slice next = state_.actives_range;
+  Slice visible = state_.visible().unwrap_or(Slice{0, 1})(state_.max_count);
 
-  if ((statex_.subset_translation + statex_.subset_extent) <
-      statex_.view_extent)
+  if (visible != state_.range())
   {
-    next.span += statex_.batch_size;
-  }
+    auto old_range = state_.range();
+    auto i         = visible.begin();
 
-  if (statex_.subset_translation > 0)
-  {
-    auto begin = sat_sub(next.begin(), statex_.batch_size);
-    auto end   = next.end();
-    next       = Slice::from_range(begin, end);
-  }
-
-  next = next(statex_.max_size);
-
-  if (next != statex_.range)
-  {
-    Vec<Dyn<View *>> new_items{allocator_};
-
-    auto i = next.begin();
-
-    for (; i < next.end(); i++)
+    for (; i < visible.end(); i++)
     {
-      if (statex_.range.contains(i))
+      if (old_range.contains(i))
       {
-        new_items.push(std::move(items_[i])).unwrap();
+        state_.items.push(std::move(state_.items[i])).unwrap();
       }
       else
       {
-        if (auto item = statex_.generator(allocator_, i); item.is_some())
+        if (auto item = state_.generator(allocator_, i); item.is_some())
         {
-          new_items.push(item.unwrap()).unwrap();
+          state_.items.push(item.unwrap()).unwrap();
         }
         else
         {
-          statex_.max_size = i;
+          state_.max_count = i;
           break;
         }
       }
     }
 
-    new_items     = std::move(items_);
-    statex_.range = Slice::from_range(next.begin(), i);
+    state_.items.erase(0, old_range.span);
+    state_.first_item = visible.begin();
+    state_.num_loaded = max(state_.range().end(), state_.num_loaded);
   }
 
-  // [ ] NEED TO GET SIZE INFO FOR SCROLL BAR
+  // [ ] ScrollBar: NEED TO GET SIZE INFO
 
-  for (auto const & item : items_)
+  for (auto const & item : state_.items)
   {
     build(*item);
   }
@@ -2845,6 +2832,7 @@ void List::size(Vec2 allocated, Span<Vec2> sizes)
 
 Layout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
 {
+  auto      frame      = style_.frame(allocated);
   Vec2      extent     = {};
   u32 const axis       = style_.axis == Axis::X ? 0 : 1;
   u32 const cross_axis = style_.axis == Axis::X ? 1 : 0;
@@ -2857,7 +2845,12 @@ Layout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
   }
 
   // Position items along main axis with translation
-  f32 cursor = -extent[axis] * 0.5F + statex_.total_translation;
+  auto first_item_offset = state_.first_item * state_.item_size.unwrap_or(0.0F);
+
+  f32 cursor = -0.5F * extent[axis];
+  cursor += state_.total_translation;
+  cursor -= first_item_offset;
+
   for (auto [center, size] : zip(centers, sizes))
   {
     center[axis]       = cursor + size[axis] * 0.5F;
@@ -2865,25 +2858,18 @@ Layout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
     cursor += size[axis];
   }
 
-  // Update state
-  statex_.view_extent   = allocated[axis];
-  statex_.subset_extent = extent[axis];
+  if (!sizes.is_empty())
+  {
+    state_.item_size = sizes[0][axis];
+  }
+
+  state_.view_extent = frame[axis];
 
   return {
-    .extent          = allocated,
+    .extent          = frame,
     .viewport_extent = extent,
-    .viewport_center = {statex_.total_translation, 0}
+    .viewport_center = {-state_.total_translation, 0}
   };
-}
-
-void List::render(Canvas & canvas, CRect const & viewport_region,
-                  CRect const & canvas_region, CRect const & clip)
-{
-  // Render each visible item
-  for (auto const & item : items_)
-  {
-    item->render(canvas, viewport_region, canvas_region, clip);
-  }
 }
 
 }    // namespace ui

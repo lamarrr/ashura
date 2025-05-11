@@ -406,29 +406,6 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
   }
 }
 
-void TextLayout::default_renderer(Canvas & canvas, Span<TextLayer const> layers,
-                                  Span<ShapeInfo const> shapes,
-                                  Span<TextRenderInfo const>,
-                                  Span<usize const> sorted)
-{
-  for (auto i : sorted)
-  {
-    auto layer = layers[i];
-    auto shape = shapes[i];
-
-    switch (layer)
-    {
-      case TextLayer::Glyphs:
-      case TextLayer::GlyphShadows:
-        canvas.rect(shape);
-        break;
-      default:
-        canvas.rrect(shape);
-        break;
-    }
-  }
-}
-
 enum class HighlightSpan : u8
 {
   None    = 0,
@@ -457,11 +434,10 @@ constexpr HighlightSpan highlight_test(Span<Slice const> highlights,
   return s;
 }
 
-void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
+void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
                         TextBlock const & block, TextBlockStyle const & style,
                         Span<Slice const> highlights, Span<usize const> carets,
-                        CRect const & clip, TextRenderer renderer,
-                        AllocatorRef upstream) const
+                        CRect const & clip, AllocatorRef upstream) const
 {
   CHECK(laid_out, "");
   CHECK(style.runs.size() == block.runs.size(), "");
@@ -475,6 +451,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
   FallbackAllocator allocator{Arena::from(scratch), upstream};
 
   Vec<CaretPlacement> caret_placements{allocator};
+  // [ ] transform clip?
 
   for (auto caret : carets)
   {
@@ -495,9 +472,10 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
   f32 ln_top = -(0.5F * block_extent.y);
 
   push(
-    ShapeInfo{.center    = info.center,
-              .extent    = block_extent,
-              .transform = info.transform * translate3d(vec3(info.center, 0))},
+    ShapeInfo{
+      .area{.center = info.area.center, .extent = block_extent},
+      .transform = info.transform * translate3d(vec3(info.area.center, 0))
+  },
     TextLayer::Block, TextRenderInfo{});
 
   for (auto [iln, ln] : enumerate(lines))
@@ -514,7 +492,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
     auto       cursor = ln_center.x - 0.5F * ln_extent.x;
 
     CRect const ln_rect{
-      .center = info.center + ln_center,
+      .center = info.area.center + ln_center,
       .extent{ln.metrics.width, ln.metrics.height}
     };
 
@@ -533,15 +511,17 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
         {
           if (p.glyph.is_none())
           {
-            push({.center       = info.center,
-                  .extent       = extent,
-                  .transform    = info.transform * translate3d(vec3(center, 0)),
-                  .corner_radii = style.caret.corner_radii,
-                  .tint         = style.caret.color,
-                  .sampler      = info.sampler,
-                  .edge_smoothness = info.edge_smoothness},
-                 TextLayer::Caret,
-                 {.line = iln, .column = 0, .caret = ln.carets.first()});
+            push(
+              {
+                .area{.center = info.area.center, .extent = extent},
+                .transform    = info.transform * translate3d(vec3(center, 0)),
+                .corner_radii = style.caret.corner_radii,
+                .tint         = style.caret.color,
+                .sampler      = info.sampler,
+                .edge_smoothness = info.edge_smoothness
+            },
+              TextLayer::Caret,
+              {.line = iln, .column = 0, .caret = ln.carets.first()});
           }
         }
       }
@@ -553,13 +533,14 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
         auto extent = ln_rect.extent;
         extent.x    = max(extent.x, block.font_scale * 2.5F);
         push(
-          {.center    = info.center,
-           .extent    = extent,
-           .transform = info.transform * translate3d(vec3(ln_rect.center, 0)),
-           .corner_radii = style.highlight.corner_radii,
-           .stroke       = style.highlight.stroke,
-           .thickness    = style.highlight.thickness,
-           .tint         = style.highlight.color},
+          {
+            .area{.center = info.area.center, .extent = extent},
+            .transform = info.transform * translate3d(vec3(ln_rect.center, 0)),
+            .corner_radii = style.highlight.corner_radii,
+            .stroke       = style.highlight.stroke,
+            .thickness    = style.highlight.thickness,
+            .tint         = style.highlight.color
+        },
           TextLayer::Highlight, {.line = iln});
       }
 
@@ -585,13 +566,15 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
           Vec2 const center{cursor + extent.x * 0.5F,
                             baseline - metrics.ascent + extent.y * 0.5F};
 
-          push({.center       = info.center,
-                .extent       = extent,
-                .transform    = info.transform * translate3d(vec3(center, 0)),
-                .corner_radii = run_style.corner_radii,
-                .tint         = run_style.background},
-               TextLayer::Background,
-               {.line = iln, .column = i, .run = irun, .run_style = run.style});
+          push(
+            {
+              .area{.center = info.area.center, .extent = extent},
+              .transform    = info.transform * translate3d(vec3(center, 0)),
+              .corner_radii = run_style.corner_radii,
+              .tint         = run_style.background
+          },
+            TextLayer::Background,
+            {.line = iln, .column = i, .run = irun, .run_style = run.style});
         }
 
         HighlightSpan run_highlight_span = HighlightSpan::None;
@@ -606,15 +589,17 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
             Vec2 const extent{run_width, metrics.height()};
             Vec2 const center = Vec2{cursor, ln_top} + 0.5F * extent;
 
-            push({.center       = info.center,
-                  .extent       = extent,
-                  .transform    = info.transform * translate3d(vec3(center, 0)),
-                  .corner_radii = style.highlight.corner_radii,
-                  .stroke       = style.highlight.stroke,
-                  .thickness    = style.highlight.thickness,
-                  .tint         = style.highlight.color},
-                 TextLayer::Highlight,
-                 {.line = iln, .run = irun, .run_style = run.style});
+            push(
+              {
+                .area{.center = info.area.center, .extent = extent},
+                .transform    = info.transform * translate3d(vec3(center, 0)),
+                .corner_radii = style.highlight.corner_radii,
+                .stroke       = style.highlight.stroke,
+                .thickness    = style.highlight.thickness,
+                .tint         = style.highlight.color
+            },
+              TextLayer::Highlight,
+              {.line = iln, .run = irun, .run_style = run.style});
           }
         }
 
@@ -625,14 +610,16 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
           Vec2 const center =
             Vec2{cursor, baseline - metrics.ascent * 0.5F} + extent * 0.5F;
 
-          push({.center    = info.center,
-                .extent    = extent,
-                .transform = info.transform * translate3d(vec3(center, 0)),
-                .tint      = run_style.strikethrough,
-                .sampler   = info.sampler,
-                .edge_smoothness = info.edge_smoothness},
-               TextLayer::Strikethrough,
-               {.line = iln, .column = i, .run = irun, .run_style = run.style});
+          push(
+            {
+              .area{.center = info.area.center, .extent = extent},
+              .transform       = info.transform * translate3d(vec3(center, 0)),
+              .tint            = run_style.strikethrough,
+              .sampler         = info.sampler,
+              .edge_smoothness = info.edge_smoothness
+          },
+            TextLayer::Strikethrough,
+            {.line = iln, .column = i, .run = irun, .run_style = run.style});
         }
 
         if (run_style.underline_thickness != 0)
@@ -644,14 +631,16 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                  baseline + block.font_scale * run_style.underline_offset} +
             extent * 0.5F;
 
-          push({.center    = info.center,
-                .extent    = extent,
-                .transform = info.transform * translate3d(vec3(center, 0)),
-                .tint      = run_style.underline,
-                .sampler   = info.sampler,
-                .edge_smoothness = info.edge_smoothness},
-               TextLayer::Underline,
-               {.line = iln, .column = i, .run = irun, .run_style = run.style});
+          push(
+            {
+              .area{.center = info.area.center, .extent = extent},
+              .transform       = info.transform * translate3d(vec3(center, 0)),
+              .tint            = run_style.underline,
+              .sampler         = info.sampler,
+              .edge_smoothness = info.edge_smoothness
+          },
+            TextLayer::Underline,
+            {.line = iln, .column = i, .run = irun, .run_style = run.style});
         }
 
         for (auto [i, sh] : enumerate(glyphs.view().slice(run.glyphs)))
@@ -677,14 +666,13 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
 
             push(
               {
-                .center = info.center,
-                .extent = shadow_extent,
+                .area{.center = info.area.center, .extent = shadow_extent},
                 .transform =
                   info.transform * translate3d(vec3(shadow_center, 0)),
                 .tint            = run_style.shadow,
                 .sampler         = info.sampler,
                 .texture         = atlas.textures[agl.layer],
-                .uv              = {agl.uv[0], agl.uv[1]},
+                .uv              = {agl.uv[0],                  agl.uv[1]              },
                 .edge_smoothness = info.edge_smoothness
             },
               TextLayer::GlyphShadows,
@@ -700,13 +688,12 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
           {
             push(
               {
-                .center    = info.center,
-                .extent    = extent,
+                .area{.center = info.area.center, .extent = extent},
                 .transform = info.transform * translate3d(vec3(center, 0)),
                 .tint      = agl.has_color ? colors::WHITE : run_style.color,
                 .sampler   = info.sampler,
                 .texture   = atlas.textures[agl.layer],
-                .uv        = {agl.uv[0], agl.uv[1]},
+                .uv        = {agl.uv[0],                  agl.uv[1]       },
                 .edge_smoothness = info.edge_smoothness
             },
               TextLayer::Glyphs,
@@ -743,13 +730,14 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
                 center.y = ln_top + 0.5F * ln.metrics.height;
 
                 push(
-                  {.center    = info.center,
-                   .extent    = extent,
-                   .transform = info.transform * translate3d(vec3(center, 0)),
-                   .corner_radii    = style.caret.corner_radii,
-                   .tint            = style.caret.color,
-                   .sampler         = info.sampler,
-                   .edge_smoothness = info.edge_smoothness},
+                  {
+                    .area{.center = info.area.center, .extent = extent},
+                    .transform = info.transform * translate3d(vec3(center, 0)),
+                    .corner_radii    = style.caret.corner_radii,
+                    .tint            = style.caret.color,
+                    .sampler         = info.sampler,
+                    .edge_smoothness = info.edge_smoothness
+                },
                   TextLayer::Caret,
                   {.line = iln, .column = c - ln.carets.first(), .caret = c});
               }
@@ -766,19 +754,21 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
               Vec2 const extent{advance, metrics.height()};
               Vec2 const center = Vec2{glyph_cursor, ln_top} + 0.5F * extent;
 
-              push({.center    = info.center,
-                    .extent    = extent,
-                    .transform = info.transform * translate3d(vec3(center, 0)),
-                    .corner_radii = style.highlight.corner_radii,
-                    .stroke       = style.highlight.stroke,
-                    .thickness    = style.highlight.thickness,
-                    .tint         = style.highlight.color},
-                   TextLayer::Highlight,
-                   {.line      = iln,
-                    .run       = irun,
-                    .run_style = run.style,
-                    .glyph     = iglyph,
-                    .cluster   = sh.cluster});
+              push(
+                {
+                  .area{.center = info.area.center, .extent = extent},
+                  .transform    = info.transform * translate3d(vec3(center, 0)),
+                  .corner_radii = style.highlight.corner_radii,
+                  .stroke       = style.highlight.stroke,
+                  .thickness    = style.highlight.thickness,
+                  .tint         = style.highlight.color
+              },
+                TextLayer::Highlight,
+                {.line      = iln,
+                 .run       = irun,
+                 .run_style = run.style,
+                 .glyph     = iglyph,
+                 .cluster   = sh.cluster});
             }
           }
 
@@ -798,7 +788,7 @@ void TextLayout::render(Canvas & canvas, ShapeInfo const & info,
   indirect_sort(sorted.view(),
                 [&](auto a, auto b) { return layers[a] < layers[b]; });
 
-  renderer(canvas, layers, shapes, infos, sorted);
+  renderer(layers, shapes, infos, sorted);
 }
 
 }    // namespace ash

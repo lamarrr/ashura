@@ -331,7 +331,8 @@ static inline Option<isize> translate_caret(TextLayout const & layout,
 bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
                              Str32 keyboard_input, ClipBoard & clipboard,
                              usize lines_per_page, usize tab_width, Vec2 center,
-                             f32 aligned_wdith, Vec2 pos, Vec2 zoom,
+                             f32 aligned_width, Vec2 pos,
+                             Mat4 const & transform,
                              AllocatorRef scratch_allocator)
 {
   u8                tmp[512];
@@ -645,14 +646,14 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     break;
     case TextCommand::Hit:
     {
-      auto [caret, loc] = rendered.hit(center, aligned_wdith, zoom, pos);
+      auto [caret, loc] = rendered.hit(center, aligned_width, transform, pos);
       caret_alignment_  = loc.x;
       cursor_.move_to(layout.align_caret(loc));
     }
     break;
     case TextCommand::HitSelect:
     {
-      auto [caret, loc] = rendered.hit(center, aligned_wdith, zoom, pos);
+      auto [caret, loc] = rendered.hit(center, aligned_width, transform, pos);
       caret_alignment_  = loc.x;
       cursor_.span_to(layout.align_caret(loc));
     }

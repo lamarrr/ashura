@@ -65,7 +65,7 @@ void BlurRenderer::render(PassContext const & passes, FrameGraph & graph,
     return;
   }
 
-  if (blur.radius.x == 0 || blur.radius.y == 0)
+  if (blur.spread_radius.x == 0 || blur.spread_radius.y == 0)
   {
     return;
   }
@@ -85,8 +85,9 @@ void BlurRenderer::render(PassContext const & passes, FrameGraph & graph,
   {
     graph.add_pass("Rect Blur"_str, [blur, fb, &passes](
                                       FrameGraph &, gpu::CommandEncoder & enc) {
-      BlurPassParams const params{
-        .framebuffer = fb, .area = blur.area, .radius = blur.radius};
+      BlurPassParams const params{.framebuffer   = fb,
+                                  .area          = blur.area,
+                                  .spread_radius = blur.spread_radius};
       passes.blur->encode(enc, params).match([&](auto & r) {
         enc.blit_image(
           r.color.image, fb.color.image,
@@ -132,9 +133,10 @@ void BlurRenderer::render(PassContext const & passes, FrameGraph & graph,
     graph.add_pass("RRect Blur"_str, [rrect, blur, fb,
                                       &passes](FrameGraph &          graph,
                                                gpu::CommandEncoder & enc) {
-      BlurPassParams const params{
-        .framebuffer = fb, .area = blur.area, .radius = blur.radius};
-      auto const result = passes.blur->encode(enc, params).unwrap();
+      BlurPassParams const params{.framebuffer   = fb,
+                                  .area          = blur.area,
+                                  .spread_radius = blur.spread_radius};
+      auto const           result = passes.blur->encode(enc, params).unwrap();
 
       auto [sb, slice] = graph.get_structured_buffer(rrect);
       passes.rrect->encode(enc,
@@ -259,7 +261,7 @@ void Renderer::render_canvas(Framebuffer const & fb, FrameGraph & graph,
         BlurRenderer::render(
           *passes_, graph, fb,
           BlurRenderParam{.area          = blur.area,
-                          .radius        = blur.radius,
+                          .spread_radius = blur.spread_radius,
                           .corner_radii  = blur.corner_radii,
                           .transform     = blur.transform,
                           .aspect_ratio  = blur.aspect_ratio,

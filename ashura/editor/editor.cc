@@ -99,7 +99,7 @@ int main()
   ui::ColorPicker picker;
   ui::Plot        plot;
   ui::ProgressBar progress;
-  ui::View        focus_view;
+  ui::FocusView   focus_view;
 
   list.generator(
     [](AllocatorRef allocator, usize i) -> Option<Dyn<ui::View *>> {
@@ -122,5 +122,5 @@ int main()
     flex.frame({animation.animate(0).v0, 500});
   };
 
-  engine->run(flex, focus_view, &loop);
+  engine->run(flex, &loop);
 }
