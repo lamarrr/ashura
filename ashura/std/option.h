@@ -206,24 +206,24 @@ struct [[nodiscard]] Option
     return v0_;
   }
 
-  template <typename U>
-  constexpr T unwrap_or(U && alt)
+  template <typename... U>
+  constexpr T unwrap_or(U &&... alt)
   {
     if (is_some())
     {
       return static_cast<T &&>(v0_);
     }
-    return static_cast<U &&>(alt);
+    return T{static_cast<U &&>(alt)...};
   }
 
-  template <typename U>
-  constexpr T unwrap_or(U && alt) const
+  template <typename... U>
+  constexpr T unwrap_or(U &&... alt) const
   {
     if (is_some())
     {
       return static_cast<T>(v0_);
     }
-    return static_cast<U &&>(alt);
+    return T{static_cast<U &&>(alt)...};
   }
 
   template <typename Fn>
@@ -248,24 +248,24 @@ struct [[nodiscard]] Option
     return Option<U>{none};
   }
 
-  template <typename Fn, typename U>
-  constexpr auto map_or(Fn && op, U && alt)
+  template <typename Fn, typename... U>
+  constexpr auto map_or(Fn && op, U &&... alt)
   {
     if (is_some())
     {
       return op(v0_);
     }
-    return static_cast<U &&>(alt);
+    return T{static_cast<U &&>(alt)...};
   }
 
-  template <typename Fn, typename U>
-  constexpr auto map_or(Fn && op, U && alt) const
+  template <typename Fn, typename... U>
+  constexpr auto map_or(Fn && op, U &&... alt) const
   {
     if (is_some())
     {
       return op(v0_);
     }
-    return static_cast<U &&>(alt);
+    return T{static_cast<U &&>(alt)...};
   }
 
   template <typename Fn>
@@ -297,8 +297,8 @@ struct [[nodiscard]] Option
                v0_, msg);
   }
 
-  template <typename SomeFn, typename NoneFn = Noop>
-  constexpr decltype(auto) match(SomeFn && some, NoneFn && none = {})
+  template <typename Some, typename NoneFn = Noop>
+  constexpr decltype(auto) match(Some && some, NoneFn && none = {})
   {
     if (is_some())
     {
@@ -307,8 +307,8 @@ struct [[nodiscard]] Option
     return none();
   }
 
-  template <typename SomeFn, typename NoneFn = Noop>
-  constexpr decltype(auto) match(SomeFn && some, NoneFn && none = {}) const
+  template <typename Some, typename NoneFn = Noop>
+  constexpr decltype(auto) match(Some && some, NoneFn && none = {}) const
   {
     if (is_some())
     {
@@ -561,14 +561,14 @@ struct [[nodiscard]] Option<T &>
     return Option<U>{none};
   }
 
-  template <typename Fn, typename U>
-  constexpr auto map_or(Fn && op, U && alt) const
+  template <typename Fn, typename... U>
+  constexpr auto map_or(Fn && op, U &&... alt) const
   {
     if (is_some())
     {
       return op(*repr_);
     }
-    return static_cast<U &&>(alt);
+    return T{static_cast<U &&>(alt)...};
   }
 
   template <typename Fn>

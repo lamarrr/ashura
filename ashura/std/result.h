@@ -271,24 +271,14 @@ struct [[nodiscard]] Result
     return Result<U, E>{Err{v1_}};
   }
 
-  template <typename Fn, typename U>
-  constexpr auto map_or(Fn && op, U && alt)
+  template <typename Fn, typename... U>
+  constexpr auto map_or(Fn && op, U &&... alt)
   {
     if (is_ok())
     {
       return static_cast<Fn &&>(op)(v0_);
     }
-    return static_cast<U &&>(alt);
-  }
-
-  template <typename Fn, typename AltFn>
-  constexpr decltype(auto) map_or_else(Fn && op, AltFn && alt_op)
-  {
-    if (is_ok())
-    {
-      return static_cast<Fn &&>(op)(v0_);
-    }
-    return static_cast<AltFn &&>(alt_op)(v1_);
+    return T{static_cast<U &&>(alt)...};
   }
 
   template <typename Fn>
@@ -302,35 +292,14 @@ struct [[nodiscard]] Result
     return OutResult{Err{v1_}};
   }
 
-  template <typename Fn>
-  constexpr auto or_else(Fn && op)
-  {
-    using OutResult = decltype(static_cast<Fn &&>(op)(v1_));
-    if (is_ok())
-    {
-      return OutResult{Ok{v0_}};
-    }
-    return static_cast<Fn &&>(op)(v1_);
-  }
-
-  template <typename U>
-  constexpr T unwrap_or(U && alt)
+  template <typename... U>
+  constexpr T unwrap_or(U &&... alt)
   {
     if (is_ok())
     {
       return static_cast<T &&>(v0_);
     }
-    return static_cast<U &&>(alt);
-  }
-
-  template <typename Fn>
-  constexpr T unwrap_or_else(Fn && op)
-  {
-    if (is_ok())
-    {
-      return static_cast<T &&>(v0_);
-    }
-    return static_cast<Fn &&>(op)(v1_);
+    return T{static_cast<U &&>(alt)...};
   }
 
   constexpr T unwrap(Str            msg = ""_str,

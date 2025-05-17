@@ -25,7 +25,7 @@ struct RootView : View
                                Fn<void(View &)> build) override
   {
     next_.match(build);
-    return State{.focusable = true, .viewport = true};
+    return State{.viewport = true};
   }
 
   constexpr virtual void size(Vec2 allocated, Span<Vec2> sizes) override
@@ -56,9 +56,14 @@ struct RootView : View
     return 0;
   }
 
-  constexpr virtual void render(Canvas &, CRect const &, CRect const &,
-                                CRect const &) override
+  constexpr virtual void render(Canvas &      canvas, CRect const &,
+                                CRect const & region, CRect const &) override
   {
+    // [ ] Body
+    canvas.rect(ShapeInfo{
+      .area = region,
+      .tint = mdc::GRAY_900,
+    });
   }
 
   constexpr virtual Cursor cursor(Vec2, Vec2) override
@@ -243,7 +248,7 @@ struct System
   Vec<CRect>   clips;
   Vec<u16>     z_ord;
 
-  // focus-ordering (sorting of the views by focus-index)
+  // maps the focus tree index to the view
   Vec<u16> focus_ord;
 
   // maps the view to its focus index
@@ -395,6 +400,8 @@ struct System
 
   void process_input(Ctx const & ctx);
 
+  // [ ] IME rect
+  // [ ] IME editing events
   Option<TextInputInfo> text_input() const;
 
   // [ ] make positions relative to center of the screen; especially in the inputstate goptten from the view

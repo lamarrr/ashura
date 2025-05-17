@@ -327,15 +327,25 @@ i32 Stack::z_index(i32 allocated, Span<i32> indices)
   return allocated;
 }
 
-TextCommand text_command(Ctx const & ctx, Events const & events, bool multiline,
-                         bool enter_submits, bool tab_input)
+struct TextCfg
+{
+  bool multiline_input : 1 = false;
+  bool enter_submits   : 1 = false;
+  bool tab_input       : 1 = false;
+  bool copyable        : 1 = false;
+  bool editable        : 1 = false;
+  bool highlightable   : 1 = false;
+};
+
+TextCommand text_command(Ctx const & ctx, Events const & events,
+                         TextCfg const & cfg)
 {
   if (events.focus_out())
   {
     return TextCommand::Escape;
   }
 
-  if (events.text_input())
+  if (cfg.editable && events.text_input())
   {
     return TextCommand::InputText;
   }
@@ -347,132 +357,139 @@ TextCommand text_command(Ctx const & ctx, Events const & events, bool multiline,
 
   if (events.key_down())
   {
-    if (shift && ctx.key.down(KeyCode::Left))
+    if (cfg.highlightable)
     {
-      return TextCommand::SelectLeft;
+      if (shift && ctx.key.down(KeyCode::Left))
+      {
+        return TextCommand::SelectLeft;
+      }
+
+      if (shift && ctx.key.down(KeyCode::Right))
+      {
+        return TextCommand::SelectRight;
+      }
+
+      if (shift && ctx.key.down(KeyCode::Up))
+      {
+        return TextCommand::SelectUp;
+      }
+
+      if (shift && ctx.key.down(KeyCode::Down))
+      {
+        return TextCommand::SelectDown;
+      }
+
+      if (shift && ctx.key.down(KeyCode::PageUp))
+      {
+        return TextCommand::SelectPageUp;
+      }
+
+      if (shift && ctx.key.down(KeyCode::PageDown))
+      {
+        return TextCommand::SelectPageDown;
+      }
+
+      if (ctrl && ctx.key.down(KeyCode::A))
+      {
+        return TextCommand::SelectAll;
+      }
+
+      if (ctx.key.down(KeyCode::Escape))
+      {
+        return TextCommand::Unselect;
+      }
     }
 
-    if (shift && ctx.key.down(KeyCode::Right))
+    if (cfg.editable)
     {
-      return TextCommand::SelectRight;
+      if (ctrl && ctx.key.down(KeyCode::X))
+      {
+        return TextCommand::Cut;
+      }
+
+      if (cfg.copyable && ctrl && ctx.key.down(KeyCode::C))
+      {
+        return TextCommand::Copy;
+      }
+
+      if (ctrl && ctx.key.down(KeyCode::V))
+      {
+        return TextCommand::Paste;
+      }
+
+      if (ctrl && ctx.key.down(KeyCode::Z))
+      {
+        return TextCommand::Undo;
+      }
+
+      if (ctrl && ctx.key.down(KeyCode::Y))
+      {
+        return TextCommand::Redo;
+      }
+
+      if (cfg.multiline_input && !cfg.enter_submits &&
+          ctx.key.down(KeyCode::Return))
+      {
+        return TextCommand::NewLine;
+      }
+
+      if (cfg.tab_input && ctx.key.down(KeyCode::Tab))
+      {
+        return TextCommand::Tab;
+      }
+
+      if (ctx.key.down(KeyCode::Backspace))
+      {
+        return TextCommand::BackSpace;
+      }
+
+      if (ctx.key.down(KeyCode::Delete))
+      {
+        return TextCommand::Delete;
+      }
+
+      if (ctx.key.down(KeyCode::Left))
+      {
+        return TextCommand::Left;
+      }
+
+      if (ctx.key.down(KeyCode::Right))
+      {
+        return TextCommand::Right;
+      }
+
+      if (ctx.key.down(KeyCode::Home))
+      {
+        return TextCommand::LineStart;
+      }
+
+      if (ctx.key.down(KeyCode::End))
+      {
+        return TextCommand::LineEnd;
+      }
+
+      if (ctx.key.down(KeyCode::Up))
+      {
+        return TextCommand::Up;
+      }
+
+      if (ctx.key.down(KeyCode::Down))
+      {
+        return TextCommand::Down;
+      }
+
+      if (ctx.key.down(KeyCode::PageUp))
+      {
+        return TextCommand::PageUp;
+      }
+
+      if (ctx.key.down(KeyCode::PageDown))
+      {
+        return TextCommand::PageDown;
+      }
     }
 
-    if (shift && ctx.key.down(KeyCode::Up))
-    {
-      return TextCommand::SelectUp;
-    }
-
-    if (shift && ctx.key.down(KeyCode::Down))
-    {
-      return TextCommand::SelectDown;
-    }
-
-    if (shift && ctx.key.down(KeyCode::PageUp))
-    {
-      return TextCommand::SelectPageUp;
-    }
-
-    if (shift && ctx.key.down(KeyCode::PageDown))
-    {
-      return TextCommand::SelectPageDown;
-    }
-
-    if (ctrl && ctx.key.down(KeyCode::A))
-    {
-      return TextCommand::SelectAll;
-    }
-
-    if (ctrl && ctx.key.down(KeyCode::X))
-    {
-      return TextCommand::Cut;
-    }
-
-    if (ctrl && ctx.key.down(KeyCode::C))
-    {
-      return TextCommand::Copy;
-    }
-
-    if (ctrl && ctx.key.down(KeyCode::V))
-    {
-      return TextCommand::Paste;
-    }
-
-    if (ctrl && ctx.key.down(KeyCode::Z))
-    {
-      return TextCommand::Undo;
-    }
-
-    if (ctrl && ctx.key.down(KeyCode::Y))
-    {
-      return TextCommand::Redo;
-    }
-
-    if (multiline && !enter_submits && ctx.key.down(KeyCode::Return))
-    {
-      return TextCommand::NewLine;
-    }
-
-    if (tab_input && ctx.key.down(KeyCode::Tab))
-    {
-      return TextCommand::Tab;
-    }
-
-    if (ctx.key.down(KeyCode::Escape))
-    {
-      return TextCommand::Unselect;
-    }
-
-    if (ctx.key.down(KeyCode::Backspace))
-    {
-      return TextCommand::BackSpace;
-    }
-
-    if (ctx.key.down(KeyCode::Delete))
-    {
-      return TextCommand::Delete;
-    }
-
-    if (ctx.key.down(KeyCode::Left))
-    {
-      return TextCommand::Left;
-    }
-
-    if (ctx.key.down(KeyCode::Right))
-    {
-      return TextCommand::Right;
-    }
-
-    if (ctx.key.down(KeyCode::Home))
-    {
-      return TextCommand::LineStart;
-    }
-
-    if (ctx.key.down(KeyCode::End))
-    {
-      return TextCommand::LineEnd;
-    }
-
-    if (ctx.key.down(KeyCode::Up))
-    {
-      return TextCommand::Up;
-    }
-
-    if (ctx.key.down(KeyCode::Down))
-    {
-      return TextCommand::Down;
-    }
-
-    if (ctx.key.down(KeyCode::PageUp))
-    {
-      return TextCommand::PageUp;
-    }
-
-    if (ctx.key.down(KeyCode::PageDown))
-    {
-      return TextCommand::PageDown;
-    }
-
-    if (ctx.key.down(KeyCode::Return) && enter_submits)
+    if (cfg.enter_submits && ctx.key.down(KeyCode::Return))
     {
       return TextCommand::Submit;
     }
@@ -484,19 +501,35 @@ TextCommand text_command(Ctx const & ctx, Events const & events, bool multiline,
   }
   else if (events.drag_update())
   {
-    if (ctx.mouse.down(MouseButton::Primary) &&
-        ctx.mouse.clicks(MouseButton::Primary) == 2)
+    if (cfg.highlightable)
     {
-      return TextCommand::SelectWord;
-    }
+      if (ctx.mouse.down(MouseButton::Primary) &&
+          ctx.mouse.clicks(MouseButton::Primary) == 2)
+      {
+        return TextCommand::SelectWord;
+      }
 
-    if (ctx.mouse.down(MouseButton::Primary) &&
-        ctx.mouse.clicks(MouseButton::Primary) == 3)
+      if (ctx.mouse.down(MouseButton::Primary) &&
+          ctx.mouse.clicks(MouseButton::Primary) == 3)
+      {
+        return TextCommand::SelectLine;
+      }
+
+      if (ctx.mouse.down(MouseButton::Primary) &&
+          ctx.mouse.clicks(MouseButton::Primary) == 4)
+      {
+        return TextCommand::SelectAll;
+      }
+
+      return TextCommand::HitSelect;
+    }
+  }
+  else if (events.focus_out())
+  {
+    if (cfg.highlightable)
     {
-      return TextCommand::SelectLine;
+      return TextCommand::Unselect;
     }
-
-    return TextCommand::HitSelect;
   }
 
   return TextCommand::None;
@@ -556,32 +589,15 @@ Str32 Text::text() const
 
 ui::State Text::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
-  TextCommand cmd = TextCommand::None;
-  if (events.drag_start())
-  {
-    cmd = TextCommand::Hit;
-  }
-  else if (ctx.mouse.down(MouseButton::Primary) &&
-           (ctx.mouse.clicks(MouseButton::Primary) == 2))
-  {
-    cmd = TextCommand::SelectWord;
-  }
-  else if (ctx.mouse.down(MouseButton::Primary) &&
-           (ctx.mouse.clicks(MouseButton::Primary) == 3))
-  {
-    cmd = TextCommand::SelectAll;
-  }
-  else if (events.drag_update())
-  {
-    cmd = TextCommand::HitSelect;
-  }
-  else if (ctx.mouse.any_down)
-  {
-    cmd = TextCommand::Unselect;
-  }
+  TextCommand cmd = text_command(ctx, events,
+                                 TextCfg{.multiline_input = false,
+                                         .enter_submits   = false,
+                                         .tab_input       = false,
+                                         .copyable        = state_.copyable,
+                                         .editable        = false,
+                                         .highlightable   = state_.copyable});
 
-  auto hit_info =
-    events.hit_info.map([](auto s) { return s; }).unwrap_or(HitInfo{});
+  auto hit_info = events.hit_info.map([](auto s) { return s; }).unwrap_or();
 
   bool modified = compositor_.command(
     text_, cmd, {}, engine->clipboard, 1, 1, hit_info.canvas_region.center,
@@ -589,7 +605,9 @@ ui::State Text::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
     scale3d(vec3(hit_info.zoom(), 1)), default_allocator);
   CHECK(!modified, "");
 
-  text_.add_highlight(compositor_.cursor().selection())
+  // [ ] copyable for input
+  text_.clear_highlights()
+    .add_highlight(compositor_.cursor().selection())
     .highlight_style(style_.highlight);
 
   return ui::State{.draggable = state_.copyable};
@@ -738,16 +756,15 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
     utf8_decode(ctx.key.text, input_u32).unwrap();
   }
 
-  TextCommand cmd = TextCommand::None;
+  TextCommand cmd = text_command(ctx, events,
+                                 TextCfg{.multiline_input = state_.multiline,
+                                         .enter_submits = state_.enter_submits,
+                                         .tab_input     = state_.tab_input,
+                                         .copyable      = true,
+                                         .editable      = true,
+                                         .highlightable = true});
 
-  if (events.focus_over() || events.drag_update())
-  {
-    cmd = text_command(ctx, events, state_.multiline, state_.enter_submits,
-                       state_.tab_input);
-  }
-
-  auto hit_info =
-    events.hit_info.map([](auto s) { return s; }).unwrap_or(HitInfo{});
+  auto hit_info = events.hit_info.map([](auto s) { return s; }).unwrap_or();
 
   bool modified = compositor_.command(
     content_, cmd, input_u32, engine->clipboard, style_.lines_per_page,
@@ -760,15 +777,12 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
   content_.clear_highlights()
     .clear_carets()
     .add_highlight(cursor.selection())
-    .add_caret(cursor.caret());
+    .highlight_style(style_.highlight)
+    .caret_style(style_.caret);
 
   if (events.focus_over())
   {
-    content_.highlight_style(style_.highlight).caret_style(style_.caret);
-  }
-  else
-  {
-    content_.highlight_style(none).caret_style(none);
+    content_.add_caret(cursor.caret());
   }
 
   if (modified)
@@ -784,6 +798,7 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
   if (cmd == TextCommand::Submit)
   {
     state_.submit = true;
+    cb.submit();
   }
 
   if (events.focus_in())
@@ -794,11 +809,6 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
   if (events.focus_out())
   {
     cb.focus_out();
-  }
-
-  if (state_.submit)
-  {
-    cb.submit();
   }
 
   if (edited)
@@ -817,12 +827,12 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
 Layout Input::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 {
+  content_.layout(allocated.x);
+  stub_.layout(allocated.x);
   if (content_.text_.is_empty())
   {
-    stub_.layout(allocated.x);
     return {.extent = stub_.layout_.extent};
   }
-  content_.layout(allocated.x);
   return {.extent = content_.layout_.extent};
 }
 
@@ -831,6 +841,8 @@ void Input::render(Canvas & canvas, CRect const & viewport_region,
 {
   if (content_.text_.is_empty())
   {
+    // [ ] ellipsis; ellipsis-wrap on max-lines; LTR & RTL-sensitive
+    // [ ] do not layout paragraph if the text break on clip or ellipsis??
     stub_.render(
       canvas.text_renderer(), canvas_region.center, viewport_region.extent.x,
       scale3d(vec3(canvas_region.extent / viewport_region.extent, 1)), clip);
@@ -849,6 +861,94 @@ Cursor Input::cursor(Vec2, Vec2)
   return Cursor::Text;
 }
 
+Button & Button::disable(bool d)
+{
+  state_.disabled = d;
+  return *this;
+}
+
+Button & Button::color(Vec4U8 c)
+{
+  style_.color = c;
+  return *this;
+}
+
+Button & Button::hovered_color(Vec4U8 c)
+{
+  style_.hovered_color = c;
+  return *this;
+}
+
+Button & Button::disabled_color(Vec4U8 c)
+{
+  style_.disabled_color = c;
+  return *this;
+}
+
+Button & Button::rrect(CornerRadii const & c)
+{
+  style_.corner_radii = c;
+  style_.shape        = ButtonShape::RRect;
+  return *this;
+}
+
+Button & Button::squircle(f32 degree)
+{
+  // [ ] fix shape for button
+  style_.corner_radii = CornerRadii{degree, degree, degree, degree};
+  style_.shape        = ButtonShape::Squircle;
+  return *this;
+}
+
+Button & Button::bevel(CornerRadii const & c)
+{
+  style_.corner_radii = c;
+  style_.shape        = ButtonShape::Bevel;
+  return *this;
+}
+
+Button & Button::frame(Vec2 extent, bool constrain)
+{
+  style_.frame = Frame{extent, constrain};
+  return *this;
+}
+
+Button & Button::frame(Frame f)
+{
+  style_.frame = f;
+  return *this;
+}
+
+Button & Button::stroke(f32 stroke)
+{
+  style_.stroke = stroke;
+  return *this;
+}
+
+Button & Button::thickness(f32 thickness)
+{
+  style_.thickness = thickness;
+  return *this;
+}
+
+Button & Button::padding(Vec2 p)
+{
+  style_.padding = p;
+  return *this;
+}
+
+Button & Button::on_pressed(Fn<void()> f)
+{
+  cb.pressed = f;
+  return *this;
+}
+
+Button & Button::on_hovered(Fn<void()> f)
+{
+  cb.hovered = f;
+  return *this;
+}
+
 ui::State Button::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
   if (events.pointer_over())
@@ -856,7 +956,8 @@ ui::State Button::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
     cb.hovered();
   }
 
-  if (events.pointer_down())
+  if (events.pointer_down() ||
+      (events.focus_over() && ctx.key.down(KeyCode::Return)))
   {
     cb.pressed();
   }
@@ -950,7 +1051,7 @@ TextButton::TextButton(Str8 text, TextStyle const & style,
 
 TextButton & TextButton::disable(bool d)
 {
-  state_.disabled = d;
+  Button::disable(d);
   return *this;
 }
 
@@ -975,81 +1076,79 @@ TextButton & TextButton::text(Str8 t)
 
 TextButton & TextButton::color(Vec4U8 c)
 {
-  style_.color = c;
+  Button::color(c);
   return *this;
 }
 
 TextButton & TextButton::hovered_color(Vec4U8 c)
 {
-  style_.hovered_color = c;
+  Button::color(c);
   return *this;
 }
 
 TextButton & TextButton::disabled_color(Vec4U8 c)
 {
-  style_.disabled_color = c;
+  Button::color(c);
   return *this;
 }
 
 TextButton & TextButton::rrect(CornerRadii const & c)
 {
-  style_.corner_radii = c;
-  style_.shape        = ButtonShape::RRect;
+  Button::rrect(c);
   return *this;
 }
 
 TextButton & TextButton::squircle(f32 degree)
 {
-  style_.corner_radii = CornerRadii{degree, degree, degree, degree};
+  Button::squircle(degree);
   return *this;
 }
 
 TextButton & TextButton::bevel(CornerRadii const & c)
 {
-  style_.corner_radii = c;
-  style_.shape        = ButtonShape::Bevel;
+  Button::bevel(c);
   return *this;
 }
 
 TextButton & TextButton::frame(Vec2 extent, bool constrain)
 {
-  style_.frame = Frame{extent, constrain};
+  Button::frame(extent, constrain);
   return *this;
 }
 
 TextButton & TextButton::frame(Frame f)
 {
-  style_.frame = f;
+  Button::frame(f);
   return *this;
 }
 
 TextButton & TextButton::stroke(f32 stroke)
 {
-  style_.stroke = stroke;
+  Button::stroke(stroke);
   return *this;
 }
 
 TextButton & TextButton::thickness(f32 thickness)
 {
-  style_.thickness = thickness;
+  Button::thickness(thickness);
   return *this;
 }
 
 TextButton & TextButton::padding(Vec2 p)
 {
-  style_.padding = p;
+  Button::padding(p);
   return *this;
 }
 
 TextButton & TextButton::on_pressed(Fn<void()> f)
 {
-  cb.pressed = f;
+  Button::on_pressed(f);
   return *this;
 }
 
 TextButton & TextButton::on_hovered(Fn<void()> f)
 {
-  cb.hovered = f;
+  Button::on_hovered(f);
   return *this;
 }
 
@@ -1177,10 +1276,11 @@ CheckBox & CheckBox::on_changed(Fn<void(bool)> f)
   return *this;
 }
 
-ui::State CheckBox::tick(Ctx const &, Events const & events,
+ui::State CheckBox::tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build)
 {
-  if (events.pointer_down())
+  if (events.pointer_down() ||
+      (events.focus_over() && ctx.key.down(KeyCode::Return)))
   {
     state_.value = !state_.value;
     cb.changed(state_.value);
@@ -1222,7 +1322,7 @@ void CheckBox::render(Canvas &      canvas, CRect const &,
   canvas.rrect({.area         = canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = 1,
-                .thickness    = 2,
+                .thickness    = style_.thickness,
                 .tint         = tint});
 }
 
@@ -1328,7 +1428,7 @@ ui::State Slider::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
   if (events.drag_update())
   {
-    auto      h = events.hit_info.unwrap_or(HitInfo{});
+    auto      h = events.hit_info.unwrap_or();
     f32 const thumb_begin =
       h.viewport_region.begin()[main_axis] + style_.thumb_size * 0.5F;
     f32 const thumb_end =
@@ -1355,7 +1455,7 @@ ui::State Slider::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
   }
 
   state_.dragging = events.drag_update();
-  state_.hovered  = events.focus_over();
+  state_.hovered  = events.pointer_over();
 
   return ui::State{.pointable = !state_.disabled,
                    .draggable = !state_.disabled,
@@ -1425,7 +1525,7 @@ void Slider::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
   coverage_end[main_axis]  = thumb_center;
   coverage_end[cross_axis] = track_rect.end()[cross_axis];
 
-  CRect const coverage_rect = CRect::from_range(coverage_begin, coverage_end);
+  CRect const coverage_rect = CRect::range(coverage_begin, coverage_end);
 
   canvas
     .rrect({
@@ -1527,9 +1627,10 @@ Switch & Switch::frame(Frame f)
   return *this;
 }
 
-ui::State Switch::tick(Ctx const &, Events const & events, Fn<void(View &)>)
+ui::State Switch::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
-  if (events.pointer_down())
+  if (events.pointer_down() ||
+      (events.focus_over() && ctx.key.down(KeyCode::Return)))
   {
     state_.value = !state_.value;
     cb.changed(state_.value);
@@ -1639,9 +1740,10 @@ Radio & Radio::on_changed(Fn<void(bool)> f)
   return *this;
 }
 
-ui::State Radio::tick(Ctx const &, Events const & events, Fn<void(View &)>)
+ui::State Radio::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 {
-  if (events.pointer_down())
+  if (events.pointer_down() ||
+      (events.focus_over() && ctx.key.down(KeyCode::Return)))
   {
     state_.value = !state_.value;
     cb.changed(state_.value);
@@ -1684,6 +1786,13 @@ void Radio::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
 Cursor Radio::cursor(Vec2, Vec2)
 {
   return Cursor::Pointer;
+}
+
+ScalarDragBox::ScalarDragBox(TextStyle const & style, FontStyle const & font,
+                             AllocatorRef allocator) :
+  input_{U""_str, style, font, allocator}
+{
+  input_.multiline(false).tab_input(false).enter_submits(false);
 }
 
 void ScalarDragBox::scalar_parse(Str32 text, ScalarInfo const & spec,
@@ -1737,6 +1846,8 @@ ui::State ScalarDragBox::tick(Ctx const & ctx, Events const & events,
 {
   state_.dragging = events.drag_update();
 
+  // [ ] fix input
+
   if (events.drag_start() &&
       (ctx.key.down(KeyCode::LeftCtrl) || ctx.key.down(KeyCode::RightCtrl)))
   {
@@ -1745,7 +1856,7 @@ ui::State ScalarDragBox::tick(Ctx const & ctx, Events const & events,
 
   if (state_.dragging && !state_.input_mode)
   {
-    auto      h = events.hit_info.unwrap_or(HitInfo{});
+    auto      h = events.hit_info.unwrap_or();
     f32 const t = clamp(unlerp(h.viewport_region.begin().x,
                                h.viewport_region.end().x, h.viewport_hit.x),
                         0.0F, 1.0F);
@@ -1971,6 +2082,21 @@ ui::State ScalarBox::tick(Ctx const &, Events const &, Fn<void(View &)> build)
   return ui::State{};
 }
 
+ScrollBar & ScrollBar::update(f32 center, f32 delta, f32 visibile, f32 total)
+{
+  // [ ] clamp
+  state_.center         = center;
+  state_.delta          = delta;
+  state_.visible_extent = visibile;
+  state_.total_extent   = total;
+  return *this;
+}
+
+f32 ScrollBar::center() const
+{
+  return state_.center;
+}
+
 ui::State ScrollBar::tick(Ctx const & ctx, Events const & events,
                           Fn<void(View &)>)
 {
@@ -1978,16 +2104,16 @@ ui::State ScrollBar::tick(Ctx const & ctx, Events const & events,
 
   if (events.drag_update())
   {
-    auto h     = events.hit_info.unwrap_or(HitInfo{});
+    auto h     = events.hit_info.unwrap_or();
     auto begin = h.viewport_region.begin()[main_axis];
     auto end   = h.viewport_region.end()[main_axis];
     auto scale = h.viewport_region.extent[main_axis] / state_.total_extent;
     auto thumb_extent = scale * state_.visible_extent;
-    auto thumb_begin  = begin + 0.5F * thumb_extent;
-    auto thumb_end    = end - 0.5F * thumb_extent;
-    auto thumb_pos = clamp(h.viewport_hit[main_axis], thumb_begin, thumb_end);
-    auto t         = unlerp(thumb_begin, thumb_end, thumb_pos);
-    state_.offset  = lerp(0.0F, state_.total_extent - state_.visible_extent, t);
+    auto track_begin  = begin + 0.5F * thumb_extent;
+    auto track_end    = end - 0.5F * thumb_extent;
+    auto thumb_pos = clamp(h.viewport_hit[main_axis], track_begin, track_end);
+    auto t         = unlerp(track_begin, track_end, thumb_pos);
+    state_.center  = lerp(0.0F, state_.total_extent - state_.visible_extent, t);
   }
 
   if (events.focus_over())
@@ -1995,15 +2121,15 @@ ui::State ScrollBar::tick(Ctx const & ctx, Events const & events,
     if ((style_.axis == Axis::X && ctx.key.down(KeyCode::Left)) ||
         (style_.axis == Axis::Y && ctx.key.down(KeyCode::Up)))
     {
-      state_.offset =
-        clamp(state_.offset - state_.delta * state_.visible_extent, 0.0F,
+      state_.center =
+        clamp(state_.center - state_.delta * state_.visible_extent, 0.0F,
               state_.total_extent - state_.visible_extent);
     }
     else if ((style_.axis == Axis::X && ctx.key.down(KeyCode::Right)) ||
              (style_.axis == Axis::Y && ctx.key.down(KeyCode::Down)))
     {
-      state_.offset =
-        clamp(state_.offset + state_.delta * state_.visible_extent, 0.0F,
+      state_.center =
+        clamp(state_.center + state_.delta * state_.visible_extent, 0.0F,
               state_.total_extent - state_.visible_extent);
     }
   }
@@ -2029,19 +2155,18 @@ void ScrollBar::render(Canvas &      canvas, CRect const &,
   u32 const main_axis  = (style_.axis == Axis::X) ? 0 : 1;
   u32 const cross_axis = (style_.axis == Axis::X) ? 1 : 0;
 
-  state_.offset;
-
-  f32 const thumb_begin =
-    canvas_region.begin()[main_axis] + style_.thumb_size * 0.5F;
-  f32 const thumb_end =
-    canvas_region.end()[main_axis] - style_.thumb_size * 0.5F;
-  f32 const thumb_center = lerp(thumb_begin, thumb_end, state_.t);
+  auto const scale = canvas_region.extent[main_axis] / state_.total_extent;
+  auto const thumb_extent = state_.visible_extent * scale;
+  auto const t = state_.center / (state_.total_extent - state_.visible_extent);
+  f32 const  thumb_center = canvas_region.begin()[main_axis] +
+                           0.5F * thumb_extent +
+                           t * (canvas_region.extent[main_axis] - thumb_extent);
 
   CRect thumb_rect;
 
   thumb_rect.center[main_axis]  = thumb_center;
   thumb_rect.center[cross_axis] = canvas_region.center[cross_axis];
-  thumb_rect.extent[main_axis]  = style_.thumb_size;
+  thumb_rect.extent[main_axis]  = thumb_extent;
   thumb_rect.extent[cross_axis] = canvas_region.extent[cross_axis];
 
   Vec4U8 thumb_color;
@@ -2174,16 +2299,18 @@ ui::State ScrollView::tick(Ctx const &, Events const & events,
 {
   if (events.scroll())
   {
-    auto scroll = events.scroll_info.unwrap_or(ScrollInfo{});
+    auto scroll = events.scroll_info.unwrap();
 
     if (!x_bar_.state_.disabled)
     {
-      x_bar_.state_.pos = scroll.center.x;
+      x_bar_.update(scroll.center.x, x_bar_.state_.delta,
+                    x_bar_.state_.visible_extent, x_bar_.state_.total_extent);
     }
 
     if (!y_bar_.state_.disabled)
     {
-      y_bar_.state_.pos = scroll.center.y;
+      y_bar_.update(scroll.center.y, y_bar_.state_.delta,
+                    y_bar_.state_.visible_extent, y_bar_.state_.total_extent);
     }
   }
 
@@ -2218,12 +2345,18 @@ Layout ScrollView::fit(Vec2 allocated, Span<Vec2 const> sizes,
   centers[1] = space_align(frame, sizes[1], ALIGNMENT_BOTTOM_LEFT);
   centers[2] = space_align(frame, sizes[2], ALIGNMENT_TOP_RIGHT);
 
+  // [ ] still has extent
   Vec2 const context_extent = sizes[0];
+
+  x_bar_.update(x_bar_.state_.center, x_bar_.state_.delta, frame.x,
+                context_extent.x);
+  y_bar_.update(y_bar_.state_.center, y_bar_.state_.delta, frame.y,
+                context_extent.y);
 
   return {
     .extent          = frame,
     .viewport_extent = context_extent,
-    .viewport_center{x_bar_.state_.pos, y_bar_.state_.pos}
+    .viewport_center{x_bar_.state_.center, y_bar_.state_.center}
   };
 }
 
@@ -2845,7 +2978,7 @@ Layout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
   }
 
   // Position items along main axis with translation
-  auto first_item_offset = state_.first_item * state_.item_size.unwrap_or(0.0F);
+  auto first_item_offset = state_.first_item * state_.item_size.unwrap_or();
 
   f32 cursor = -0.5F * extent[axis];
   cursor += state_.total_translation;
@@ -2870,6 +3003,31 @@ Layout List::fit(Vec2 allocated, Span<Vec2 const> sizes, Span<Vec2> centers)
     .viewport_extent = extent,
     .viewport_center = {-state_.total_translation, 0}
   };
+}
+
+ui::State FocusView::tick(Ctx const & ctx, Events const &, Fn<void(View &)>)
+{
+  canvas_region =
+    ctx.focused.map([](FocusRect r) { return r.area; }).unwrap_or();
+  return ui::State{};
+}
+
+Layout FocusView::fit(Vec2, Span<Vec2 const>, Span<Vec2>)
+{
+  return Layout{.extent       = canvas_region.extent,
+                .fixed_center = canvas_region.center};
+}
+
+void FocusView::render(Canvas &      canvas, CRect const &,
+                       CRect const & canvas_region, CRect const &)
+{
+  // [ ] fix-up
+  canvas.rrect(ShapeInfo{
+    .area      = canvas_region,
+    .stroke    = 1,
+    .thickness = 0.5F,
+    .tint      = ColorGradient{Vec4::splat(155)},
+  });
 }
 
 }    // namespace ui

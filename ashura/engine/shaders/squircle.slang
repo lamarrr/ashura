@@ -15,10 +15,8 @@ struct SquircleParam
   row_major f32x4x4 transform;
   f32x4             tint[4];
   f32x4             uv;
-  f32               radius;
   f32               degree;
   f32               tiling;
-  f32               aspect_ratio;
   f32               stroke;
   f32               thickness;
   f32               edge_smoothness;
@@ -67,9 +65,8 @@ struct VertexOutput
   COLOR
 {
   var          p      = params[instance];
-  f32x2        extent = f32x2(p.aspect_ratio, 1);
-  f32x2        pos    = local_pos * extent;
-  f32x3        sdf_g  = sdf::squircle(pos, p.radius, p.degree);
+  f32x2        pos    = local_pos;
+  f32x3        sdf_g  = sdf::squircle(pos, 0.5F, p.degree);
   f32          dist   = sdf_g.x;
   f32x2        uv     = local_pos + 0.5;
   f32x2        tex_uv = lerp(p.uv.xy, p.uv.zw, uv);

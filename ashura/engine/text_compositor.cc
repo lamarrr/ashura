@@ -293,13 +293,13 @@ static constexpr Slice span_boundary(Str32 text, usize pos, Fn && pred)
     auto neg   = [&](auto cp) { return !pred(cp); };
     auto begin = seek(text, pos, true, neg).unwrap_or(USIZE_MAX) + 1;
     auto end   = seek(text, pos, false, neg).unwrap_or(text.size());
-    return Slice::from_range(begin, end);
+    return Slice::range(begin, end);
   }
   else
   {
     auto begin = seek(text, pos, true, pred).unwrap_or(USIZE_MAX) + 1;
     auto end   = seek(text, pos, false, pred).unwrap_or(text.size());
-    return Slice::from_range(begin, end);
+    return Slice::range(begin, end);
   }
 }
 
@@ -384,6 +384,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     case TextCommand::InputText:
     case TextCommand::NewLine:
     case TextCommand::Tab:
+    case TextCommand::Paste:
     {
       Vec<c32> text32{tmp_allocator};
       Str32    input;
@@ -418,6 +419,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
       {
         if (auto carets = cursor_.selection(); !carets.is_empty())
         {
+          // [ ] carets will be incorrect after text modification; text needs to be rebuilt
           auto selection = layout.get_caret_selection(carets);
           push_record(TextEditRecordType::Replace, selection.offset,
                       text.view().slice(selection), input);
@@ -429,6 +431,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
         }
         else
         {
+          // [ ] get_caret_codepoint should return 0? for empty
           auto cp        = layout.get_caret_codepoint(cursor_.caret());
           auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
           push_record(TextEditRecordType::Insert, codepoint, {}, input);
@@ -456,7 +459,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
       auto c = layout.get_caret_codepoint(cursor_.caret());
       cursor_.move_to(layout.to_caret(
         seek_sym(text, c.codepoint + (c.after ? 1 : 0), true, word_symbols_)
-          .unwrap_or(0),
+          .unwrap_or(),
         true));
     }
     break;
@@ -537,7 +540,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     {
       auto c = layout.get_caret_codepoint(cursor_.caret());
       cursor_.span_to(layout.to_caret(
-        seek_sym(text, c.codepoint, true, word_symbols_).unwrap_or(0), true));
+        seek_sym(text, c.codepoint, true, word_symbols_).unwrap_or(), true));
     }
     break;
     case TextCommand::SelectToWordEnd:

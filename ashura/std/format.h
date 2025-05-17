@@ -24,9 +24,10 @@ enum class Style : char
   Octal      = 'o',
   Hex        = 'x',
   Binary     = 'b',
-  Scientific = 'f'
+  Scientific = 'g'
 };
 
+// [ ] zero-padded
 /// Syntax: [sign][alternate_form][width].[precision][style]
 ///
 /// sign: '+'
@@ -34,7 +35,7 @@ enum class Style : char
 /// width: 0-N
 /// precision-separator: '.'
 /// precision: 0-N
-/// style: `d`, `o`, `x`, `b`, `s`
+/// style: `d`, `o`, `x`, `b`, `g`
 ///
 /// i.e: {+#4.5x}
 struct Spec

@@ -2736,7 +2736,7 @@ struct Rect
     return Rect{.offset = center - extent * 0.5F, .extent = extent};
   }
 
-  static constexpr Rect from_range(Vec2 begin, Vec2 end)
+  static constexpr Rect range(Vec2 begin, Vec2 end)
   {
     return Rect{.offset = begin, .extent = end - begin};
   }
@@ -2781,7 +2781,7 @@ struct Rect
   constexpr Rect intersect(Rect const & r) const
   {
     auto [b, e] = ash::intersect(begin(), end(), r.begin(), r.end());
-    return Rect::from_range(b, e);
+    return Rect::range(b, e);
   }
 };
 
@@ -2805,14 +2805,14 @@ struct CRect
     return CRect{.center = offset + extent * 0.5F, .extent = extent};
   }
 
-  static constexpr CRect from_range(Vec2 begin, Vec2 end)
+  static constexpr CRect range(Vec2 begin, Vec2 end)
   {
     return CRect{.center = (begin + end) * 0.5F, .extent = (end - begin)};
   }
 
   static constexpr CRect bounding(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3)
   {
-    return CRect::from_range(
+    return CRect::range(
       Vec2{min(p0.x, p1.x, p2.x, p3.x), min(p0.y, p1.y, p2.y, p3.y)},
       Vec2{max(p0.x, p1.x, p2.x, p3.x), max(p0.y, p1.y, p2.y, p3.y)});
   }
@@ -2872,7 +2872,7 @@ struct CRect
   constexpr CRect intersect(CRect const & r) const
   {
     auto [b, e] = ash::intersect(begin(), end(), r.begin(), r.end());
-    return CRect::from_range(b, e);
+    return CRect::range(b, e);
   }
 
   constexpr CRect unioned(CRect const & r) const

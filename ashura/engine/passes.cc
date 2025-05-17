@@ -178,6 +178,28 @@ Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
     return none;
   }
 
+  // [ ] we can do better
+  e.clear_color_image(
+    sys->gpu.scratch_color_[0].image,
+    {
+  },
+    span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
+                                     .first_mip_level   = 0,
+                                     .num_mip_levels    = 1,
+                                     .first_array_layer = 0,
+                                     .num_array_layers  = 1}}));
+  e.clear_color_image(
+    sys->gpu.scratch_color_[1].image,
+    {
+  },
+    span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
+                                     .first_mip_level   = 0,
+                                     .num_mip_levels    = 1,
+                                     .first_array_layer = 0,
+                                     .num_array_layers  = 1
+
+    }}));
+
   e.blit_image(params.framebuffer.color.image, sys->gpu.scratch_color_[1].image,
                span({
                  gpu::ImageBlit{.src_layers{.aspects = gpu::ImageAspects::Color,

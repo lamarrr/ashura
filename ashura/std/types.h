@@ -852,7 +852,7 @@ struct CoreSlice
   S offset = 0;
   S span   = 0;
 
-  static constexpr CoreSlice from_range(S begin, S end)
+  static constexpr CoreSlice range(S begin, S end)
   {
     return CoreSlice{.offset = begin, .span = static_cast<S>(end - begin)};
   }
@@ -884,24 +884,18 @@ struct CoreSlice
 
   constexpr CoreSlice operator()(S size) const
   {
-    return CoreSlice::from_range(min(offset, size),
-                                 min(sat_add(offset, span), size));
+    return CoreSlice::range(min(offset, size),
+                            min(sat_add(offset, span), size));
   }
 
   constexpr CoreSlice operator()() const
   {
-    return CoreSlice::from_range(offset, sat_add(offset, span));
+    return CoreSlice::range(offset, sat_add(offset, span));
   }
 
   constexpr bool is_empty() const
   {
     return span == 0;
-  }
-
-  constexpr bool overlaps(CoreSlice other) const
-  {
-    return (begin() <= other.begin() && end() > other.begin()) ||
-           (begin() < other.end() && end() >= other.end());
   }
 
   constexpr bool contains(CoreSlice other) const

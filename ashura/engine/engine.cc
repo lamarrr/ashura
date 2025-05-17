@@ -8,16 +8,18 @@
 namespace ash
 {
 
-Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> const & json)
+Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> & json)
 {
-  EngineCfg                  out{.shaders{allocator},
-                                 .fonts{allocator},
-                                 .images{allocator},
-                                 .pipeline_cache{allocator}};
+  EngineCfg out{.shaders{allocator},
+                .fonts{allocator},
+                .images{allocator},
+                .pipeline_cache{allocator}};
+
+  json.reserve(json.size() + simdjson::SIMDJSON_PADDING).unwrap();
+
   simdjson::ondemand::parser parser;
-  auto                       error =
-    parser.iterate(json.data(), json.size_bytes(),
-                   align_offset(Vec<u8>::ALIGNMENT, json.capacity()));
+
+  auto error = parser.iterate(json.data(), json.size_bytes(), json.capacity());
 
   if (error.error() != simdjson::SUCCESS)
   {
@@ -660,6 +662,7 @@ time_point Engine::get_inputs_(time_point prev_frame_end)
   auto const timedelta   = frame_start - prev_frame_end;
 
   input_state.stamp(frame_start, timedelta);
+  window_sys->poll_events();
 
   input_state.window.surface_extent = window_sys->get_surface_extent(window);
   input_state.window.extent         = window_sys->get_extent(window);
@@ -668,16 +671,15 @@ time_point Engine::get_inputs_(time_point prev_frame_end)
 
   auto [mouse_btns, mouse_pos, mouse_window] = window_sys->get_mouse_state();
   input_state.mouse.focused                  = (mouse_window == window);
-  input_state.mouse.position                 = mouse_pos;
-  input_state.mouse.states                   = mouse_btns;
+  input_state.mouse.position =
+    mouse_pos - 0.5F * as_vec2(input_state.window.extent);
+  input_state.mouse.states = mouse_btns;
 
   auto [kb_mods, kb_window] = window_sys->get_keyboard_state(
     input_state.key.scan_states, input_state.key.key_states);
 
   input_state.key.focused    = (kb_window == window);
   input_state.key.mod_states = kb_mods;
-
-  window_sys->poll_events();
 
   return frame_start;
 }
@@ -721,6 +723,26 @@ void Engine::run(ui::View & view, Fn<void(ui::Ctx const &)> loop)
       as_vec2(input_state.window.extent), input_state.window.surface_extent);
 
     running = ui_sys.tick(input_state, view, canvas, loop);
+
+    {
+      // [ ] squircle for blur shape
+      // [ ] masks for blur shape
+      canvas.squircle(ShapeInfo{
+        .area{{0, 0}, {200, 200}},
+        .corner_radii = Vec4::splat(5),
+        .tint         = ColorGradient{ios::DARK_GREEN}
+      });
+
+      // [ ] blur should not use alpha
+      // [ ] clear the blur scratch buffer!
+      // [ ] sample rect needs tol span the blur radius, it is currently not doing that and leading to artefacts across the edges
+      // [ ] the rect (unrounded) blur's rectangle coordinates are incorrects and are below the expected position
+      canvas.blur(
+        CRect{
+          .extent{400, 400}
+      },
+        Vec2::splat(2), Vec4::splat(100));
+    }
 
     auto current_cursor = ui_sys.cursor;
 

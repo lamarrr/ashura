@@ -385,7 +385,6 @@ struct TextCursor
   constexpr TextCursor & move_to(isize pos)
   {
     base_ = pos;
-    span_ = 0;
     return *this;
   }
 
@@ -580,6 +579,11 @@ struct LineMetrics
   constexpr TextDirection direction() const
   {
     return level_to_direction(level);
+  }
+
+  constexpr f32 leading() const
+  {
+    return 0.5F * (height - (ascent + descent));
   }
 };
 

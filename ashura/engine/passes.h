@@ -243,10 +243,8 @@ struct SquircleParam
   alignas(16) Mat4 transform = {};
   alignas(16) Vec4 tint[4]   = {};
   alignas(16) Vec2 uv[2]     = {};
-  f32       radius           = 0;
   f32       degree           = 5;
   f32       tiling           = 1;
-  f32       aspect_ratio     = 1;
   f32       stroke           = 0;
   f32       thickness        = 0;
   f32       edge_smoothness  = 0;

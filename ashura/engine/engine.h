@@ -45,7 +45,7 @@ struct EngineCfg
 
   Vec<char> pipeline_cache{};
 
-  static Result<EngineCfg> parse(AllocatorRef allocator, Vec<u8> const & json);
+  static Result<EngineCfg> parse(AllocatorRef allocator, Vec<u8> & json);
 };
 
 struct Engine

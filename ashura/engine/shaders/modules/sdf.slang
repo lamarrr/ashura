@@ -126,12 +126,13 @@ f32 rrect(f32x2 pos, f32x2 half_extent, f32x4 radii)
 
 /// @brief Gets the approximate SDF of a squircle
 /// @returns the signed distance (x-component) and the gradient (yz-components).
-f32x3 squircle(f32x2 pos, float radius, float degree)
+/// @see https://www.shadertoy.com/view/fsccz4
+f32x3 squircle(f32x2 pos, f32 radius, f32 degree)
 {
   f32x2 s = sign(pos);
   pos     = abs(pos);
-  float m = pow(pos.x, degree) + pow(pos.y, degree);
-  float d = pow(m, 1.0 / degree) - radius;
+  f32   m = pow(pos.x, degree) + pow(pos.y, degree);
+  f32   d = pow(m, 1.0 / degree) - radius;
   f32x2 g = s * pow(pos, f32x2(degree - 1.0)) * pow(m, 1.0 / degree - 1.0);
   return f32x3(d, g);
 }

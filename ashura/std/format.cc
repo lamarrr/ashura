@@ -59,10 +59,11 @@ void format_float(fmt::Sink sink, fmt::Spec spec, f64 value)
 
   if (spec.precision != fmt::NONE_PRECISION)
   {
+    // [ ] allow setting format 0-padding in format api
     if (int status =
           snprintf(scratch.data(), scratch.size(),
-                   (spec.style == fmt::Style::Scientific) ? "%.*f" : "%.*g",
-                   (int) spec.precision, value);
+                   (spec.style == fmt::Style::Default) ? "%0.*f" : "%0.*g",
+                   (int) spec.precision, (f32) value);
         status > 0)
     {
       written = (usize) status;
@@ -72,7 +73,7 @@ void format_float(fmt::Sink sink, fmt::Spec spec, f64 value)
   {
     if (int status = snprintf(
           scratch.data(), scratch.size(),
-          (spec.style == fmt::Style::Scientific) ? "%.f" : "%.g", value);
+          (spec.style == fmt::Style::Default) ? "%0.f" : "%0.g", (f32) value);
         status > 0)
     {
       written = (usize) status;

@@ -343,6 +343,7 @@ struct Canvas
 
   // clip mask?
   // [ ] with_mask()?
+  // [ ] layer api
 };
 
 }    // namespace ash

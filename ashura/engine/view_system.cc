@@ -122,7 +122,7 @@ void System::build_children(Ctx const & ctx, View & view, u16 idx, u16 depth,
 
   State s = view.tick(ctx, drain_events(view, idx), &build);
 
-  att.tab_idx.set(idx, (s.tab == I32_MIN) ? tab_index : s.tab);
+  att.tab_idx.set(idx, s.tab.unwrap_or(tab_index));
   att.viewports.set(idx, viewport);
   att.hidden.set(idx, s.hidden);
   att.pointable.set(idx, s.pointable);
@@ -170,7 +170,7 @@ void System::focus_order()
 
   for (auto [i, f] : enumerate(focus_ord))
   {
-    focus_idx[i] = f;
+    focus_idx[f] = i;
   }
 }
 
@@ -208,7 +208,7 @@ void System::layout(Vec2 viewport_extent)
     viewport_centers[i] = layout.viewport_center;
     viewport_zooms[i]   = layout.viewport_zoom;
     fixed.set(i, layout.fixed_center.is_some());
-    fixed_centers[i] = layout.fixed_center.unwrap_or(Vec2::ZERO);
+    fixed_centers[i] = layout.fixed_center.unwrap_or();
   }
 
   // calculate fixed centers; parent-space to local viewport space
@@ -383,6 +383,8 @@ void System::render(Canvas & canvas)
       view->render(canvas, viewport_region, canvas_region, clip);
     }
   }
+
+  canvas.clip(MAX_CLIP);
 }
 
 void System::focus_on(u16 i, bool active, bool grab_focus)
@@ -483,16 +485,32 @@ HitInfo System::get_hit_info(u16 view, Vec2 position) const
 u16 System::navigate_focus(u16 from_idx, bool forward) const
 {
   CHECK(from_idx < views.size(), "");
+  CHECK(!views.is_empty(), "");
 
   if (views.size() == 1)
   {
     return from_idx;
   }
 
-  i64 const n       = views.size16();
-  i64 const advance = forward ? 1 : -1;
-  auto      from    = focus_idx[from_idx];
-  i64       f       = from + advance;
+  i64 const n    = views.size16();
+  auto      from = focus_idx[from_idx];
+  i64       f    = from;
+
+  auto advance = [&]() {
+    f += (forward ? 1 : -1);
+
+    if (f >= n)
+    {
+      f = 0;
+    }
+
+    if (f < 0)
+    {
+      f = n - 1;
+    }
+  };
+
+  advance();
 
   while (f != from)
   {
@@ -503,17 +521,7 @@ u16 System::navigate_focus(u16 from_idx, bool forward) const
       return i;
     }
 
-    f += advance;
-
-    if (f == -1)
-    {
-      f = n - 1;
-    }
-
-    if (f == n)
-    {
-      f = 0;
-    }
+    advance();
   }
 
   return from_idx;
@@ -586,7 +594,8 @@ System::HitState System::drag_start_seq(Ctx const & ctx, Option<u16> src)
       .unwrap();
   });
 
-  diff(tgt, get_hit_info(tgt.v(), ctx.mouse.position.v()));
+  diff(tgt, tgt.map(
+              [&](auto i) { return get_hit_info(i, ctx.mouse.position.v()); }));
 
   // change to update state
   return DragState{.seq = DragState::Update, .src = src, .tgt = tgt};
@@ -666,18 +675,26 @@ System::HitState System::drag_update_seq(Ctx const & ctx, Option<u16> src,
 System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
 {
   // [ ] handle external drop
+  // [ ] focus on click, if editable, activate focus, if not or empty, focus regardless? non-active? focusable?
   auto diff = [&](Option<u16> tgt, Option<HitInfo> hit) {
     tgt.match([&](auto i) {
       if (i != prev_tgt)
       {
         events.push(Event{.dst = i, .type = Events::PointerIn, .hit = hit})
           .unwrap();
-        events.push(Event{.dst = i, .type = Events::PointerOver, .hit = hit})
+      }
+
+      events.push(Event{.dst = i, .type = Events::PointerOver, .hit = hit})
+        .unwrap();
+
+      if (ctx.mouse.any_down)
+      {
+        events.push(Event{.dst = i, .type = Events::PointerDown, .hit = hit})
           .unwrap();
       }
-      else
+      if (ctx.mouse.any_up)
       {
-        events.push(Event{.dst = i, .type = Events::PointerOver, .hit = hit})
+        events.push(Event{.dst = i, .type = Events::PointerUp, .hit = hit})
           .unwrap();
       }
     });
@@ -724,6 +741,10 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
       return PointState{.tgt = tgt};
     }
   }
+
+  // [ ] pointerup/pointerdown
+  // [ ] check that all events are dispatched correctly
+  // [ ] unify text_command function
 
   if (ctx.mouse.held(MouseButton::Primary))
   {
@@ -827,15 +848,15 @@ void System::focus_seq(Ctx const & ctx)
 {
   focus_state =
     FocusState{.active = xframe_focus_state.active,
-               .tgt = ids.try_get(xframe_focus_state.tgt).unref().unwrap_or(0)};
+               .tgt = ids.try_get(xframe_focus_state.tgt).unref().unwrap_or()};
 
   focus_grab_tgt.match([&](auto i) { focus_on(i, true, true); });
 
   bool tabbed = ctx.key.down(KeyCode::Tab);
   bool alternate =
     ctx.key.held(KeyCode::LeftShift) || ctx.key.held(KeyCode::RightShift);
-  bool accepts_tab = att.input[focus_state.tgt].is_none() ||
-                     !att.input[focus_state.tgt].v().tab_input;
+  bool accepts_tab = att.input[focus_state.tgt].is_some() &&
+                     att.input[focus_state.tgt].v().tab_input;
 
   auto focus_action =
     (tabbed && !accepts_tab) ?
@@ -855,6 +876,8 @@ void System::focus_seq(Ctx const & ctx)
     events.push(Event{.dst = focus_state.tgt, .type = Events::FocusOver})
       .unwrap();
 
+    // [ ] cursor changes while held down for drag
+    // [ ] reject, accept
     if (ctx.key.any_down)
     {
       events.push(Event{.dst = focus_state.tgt, .type = Events::KeyDown})
@@ -864,6 +887,12 @@ void System::focus_seq(Ctx const & ctx)
     if (ctx.key.any_up)
     {
       events.push(Event{.dst = focus_state.tgt, .type = Events::KeyUp})
+        .unwrap();
+    }
+
+    if (ctx.key.input)
+    {
+      events.push(Event{.dst = focus_state.tgt, .type = Events::TextInput})
         .unwrap();
     }
   }
@@ -940,6 +969,7 @@ bool System::tick(InputState const & input, View & root, Canvas & canvas,
                   Fn<void(Ctx const &)> loop)
 {
   ScopeTrace trace;
+  // [ ] message propagation, i.e theme change
 
   clear_frame();
 

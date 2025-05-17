@@ -10,7 +10,16 @@ namespace ash
 isize TextLayout::to_caret(usize codepoint, bool before) const
 {
   CHECK(laid_out, "");
-  CHECK(codepoint < num_codepoints, "");
+
+  if (codepoint == 0 && before)
+  {
+    return 0;
+  }
+
+  if (codepoint >= num_codepoints)
+  {
+    return num_carets - 1;
+  }
 
   auto l = binary_find(lines.view(), [&](Line const & l) {
     return l.codepoints.end() > codepoint;
@@ -53,7 +62,7 @@ isize TextLayout::align_caret(CaretAlignment alignment) const
 {
   CHECK(laid_out, "");
 
-  if (lines.is_empty() || alignment.y < CaretYAlignment::First)
+  if (alignment.y < CaretYAlignment::First)
   {
     return 0;
   }
@@ -86,11 +95,6 @@ Slice TextLayout::get_caret_selection(Slice carets) const
 
   carets = carets(num_carets);
 
-  if (lines.is_empty() || num_carets == 0)
-  {
-    return Slice{0, 0};
-  }
-
   auto line0 = binary_find(lines.view(), [&](Line const & l) {
     return l.carets.end() > carets.begin();
   });
@@ -102,8 +106,8 @@ Slice TextLayout::get_caret_selection(Slice carets) const
   auto line0_begin = carets.begin() - line0[0].carets.begin();
   auto line1_end   = carets.end() - line1[0].carets.begin();
 
-  return Slice::from_range(line0[0].codepoints.offset + line0_begin,
-                           line1[0].codepoints.offset + line1_end);
+  return Slice::range(line0[0].codepoints.offset + line0_begin,
+                      line1[0].codepoints.offset + line1_end);
 }
 
 Slice TextLayout::to_caret_selection(Slice codepoints) const
@@ -112,7 +116,7 @@ Slice TextLayout::to_caret_selection(Slice codepoints) const
 
   codepoints = codepoints(num_codepoints);
 
-  if (lines.is_empty() || num_codepoints == 0)
+  if (num_codepoints == 0)
   {
     return Slice{0, 0};
   }
@@ -128,25 +132,22 @@ Slice TextLayout::to_caret_selection(Slice codepoints) const
 
   CHECK(last >= first, "");
 
-  return Slice::from_range((usize) first, (usize) (last + 1));
+  return Slice::range((usize) first, (usize) (last + 1));
 }
 
 CaretCodepoint TextLayout::get_caret_codepoint(usize caret) const
 {
   CHECK(laid_out, "");
-  CHECK(caret >= 0, "");
-  CHECK(caret < num_carets, "");
+  CHECK(caret <= num_carets, "");
 
-  auto caret_u = (usize) caret;
-  auto l       = binary_find(lines.view(),
-                             [&](Line & l) { return l.carets.end() > caret_u; });
+  auto l =
+    binary_find(lines.view(), [&](Line & l) { return l.carets.end() > caret; });
 
-  CHECK(!l.is_empty(), "");
-  CHECK(!l[0].carets.is_empty(), "");
+  l = l.is_empty() ? lines.view().slice(lines.size() - 1, 1) : l;
 
   auto         iln       = l.as_slice_of(lines).offset;
   auto const & ln        = l[0];
-  auto         column    = caret_u - ln.carets.offset;
+  auto         column    = caret - ln.carets.offset;
   auto         codepoint = ln.codepoints.offset + column;
   auto         after     = column >= (ln.carets.span - 1);
 
@@ -425,7 +426,8 @@ constexpr HighlightSpan highlight_test(Span<Slice const> highlights,
       return HighlightSpan::Full;
     }
 
-    if (carets.overlaps(highlight))
+    if (!highlight.is_empty() && (carets.contains(highlight.first()) ||
+                                  carets.contains(highlight.last())))
     {
       s = HighlightSpan::Partial;
     }
@@ -451,7 +453,6 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
   FallbackAllocator allocator{Arena::from(scratch), upstream};
 
   Vec<CaretPlacement> caret_placements{allocator};
-  // [ ] transform clip?
 
   for (auto caret : carets)
   {
@@ -461,7 +462,6 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
   Vec<TextRenderInfo> infos{allocator};
   Vec<TextLayer>      layers{allocator};
   Vec<ShapeInfo>      shapes{allocator};
-  Vec<usize>          sorted{allocator};
 
   auto push = [&](ShapeInfo const & s, TextLayer l, TextRenderInfo const & i) {
     shapes.push(s).unwrap();
@@ -481,7 +481,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
   for (auto [iln, ln] : enumerate(lines))
   {
     auto const ln_bottom = ln_top + ln.metrics.height;
-    auto const baseline  = ln_bottom - ln.metrics.descent;
+    auto const baseline =
+      ln_bottom - (ln.metrics.leading() + ln.metrics.descent);
     auto const direction = ln.metrics.direction();
     // flip the alignment axis direction if it is an RTL line
     auto const alignment =
@@ -492,11 +493,11 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
     auto       cursor = ln_center.x - 0.5F * ln_extent.x;
 
     CRect const ln_rect{
-      .center = info.area.center + ln_center,
-      .extent{ln.metrics.width, ln.metrics.height}
+      .center = ln_center, .extent{ln.metrics.width, ln.metrics.height}
     };
 
-    if (!clip.overlaps(ln_rect))
+    if (!clip.overlaps(CRect{.center = info.area.center + ln_rect.center,
+                             .extent = ln_rect.extent}))
     {
       goto next_line;
     }
@@ -783,6 +784,7 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
     ln_top = ln_bottom;
   }
 
+  Vec<usize> sorted{allocator};
   sorted.resize_uninit(layers.size()).unwrap();
   iota(sorted, (usize) 0);
   indirect_sort(sorted.view(),

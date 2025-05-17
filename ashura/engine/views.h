@@ -29,7 +29,7 @@ struct F32Info
 
   f32 max = 1;
 
-  f32 step = 0.01F;
+  f32 step = 0.05F;
 
   constexpr f32 step_value(f32 current, f32 direction) const
   {
@@ -286,7 +286,8 @@ struct Text : View
 // [ ] scroll and clip text if region isn't large enough
 // -  wrapping to the next line if not large enough
 // -  no wrap
-// -  max-len/filter function
+// -  max-len
+// -  filter/transform function
 // -  secret text input
 struct Input : View
 {
@@ -444,6 +445,36 @@ struct Button : View
   Button & operator=(Button &&)      = default;
   virtual ~Button() override         = default;
 
+  Button & disable(bool disable);
+
+  Button & color(Vec4U8 color);
+
+  Button & hovered_color(Vec4U8 color);
+
+  Button & disabled_color(Vec4U8 color);
+
+  Button & rrect(CornerRadii const & radii);
+
+  Button & squircle(f32 degree = 5);
+
+  Button & bevel(CornerRadii const & radii);
+
+  Button & frame(Vec2 extent, bool constrain = true);
+
+  Button & frame(Frame frame);
+
+  Button & stroke(f32 stroke);
+
+  Button & thickness(f32 thickness);
+
+  Button & padding(Vec2 padding);
+
+  Button & padding(f32 x, f32 y);
+
+  Button & on_pressed(Fn<void()> fn);
+
+  Button & on_hovered(Fn<void()> fn);
+
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
@@ -513,8 +544,6 @@ struct TextButton : Button
   TextButton & thickness(f32 thickness);
 
   TextButton & padding(Vec2 padding);
-
-  TextButton & padding(f32 x, f32 y);
 
   TextButton & on_pressed(Fn<void()> fn);
 
@@ -589,7 +618,7 @@ struct CheckBox : View
 
     f32 thickness = 0.5F;
 
-    CornerRadii corner_radii = CornerRadii::all(2);
+    CornerRadii corner_radii = CornerRadii::all(5);
 
     f32 padding = 2.5F;
   } style_;
@@ -601,7 +630,7 @@ struct CheckBox : View
 
   Icon icon_;
 
-  CheckBox(Str32             text      = U""_str,
+  CheckBox(Str32             text      = U"check"_str,
            TextStyle const & style     = TextStyle{.color = theme.on_surface},
            FontStyle const & font      = FontStyle{.font   = theme.icon_font,
                                                    .height = theme.body_font_height,
@@ -685,7 +714,7 @@ struct Slider : View
 
     Vec4U8 thumb_dragging_color = theme.primary_variant;
 
-    CornerRadii thumb_corner_radii = CornerRadii::all(2.5);
+    CornerRadii thumb_corner_radii = CornerRadii::all(1'000);
 
     Vec4U8 track_color = theme.inactive;
 
@@ -830,6 +859,7 @@ struct Switch : View
   virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
 
+// [ ] replicate Checkbox and use font
 struct Radio : View
 {
   struct State
@@ -896,6 +926,7 @@ struct Radio : View
   virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
 
+// [ ] on-focused go to input mode
 struct ScalarDragBox : View
 {
   struct State
@@ -942,11 +973,7 @@ struct ScalarDragBox : View
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
                                             .line_height = theme.line_height},
-    AllocatorRef      allocator = default_allocator) :
-    input_{U""_str, style, font, allocator}
-  {
-    input_.multiline(false).tab_input(false).enter_submits(false);
-  }
+    AllocatorRef      allocator = default_allocator);
 
   ScalarDragBox(ScalarDragBox const &)             = delete;
   ScalarDragBox(ScalarDragBox &&)                  = default;
@@ -1056,7 +1083,7 @@ struct ScrollBar : View
     bool dragging : 1   = false;
     bool focused  : 1   = false;
     bool hovered  : 1   = false;
-    f32  offset         = 0;
+    f32  center         = 0;
     f32  delta          = 0.1;
     f32  visible_extent = 0;
     f32  total_extent   = 0;
@@ -1082,7 +1109,7 @@ struct ScrollBar : View
 
   ScrollBar & update(f32 center, f32 delta, f32 visibile, f32 total);
 
-  f32 scroll_center() const;
+  f32 center() const;
 
   ScrollBar()                              = default;
   ScrollBar(ScrollBar const &)             = delete;
@@ -1125,6 +1152,8 @@ struct ScrollView : View
   ScrollBar x_bar_{};
 
   ScrollBar y_bar_{};
+
+  // [ ] separate to inner viewport so the scrollbar can be placed outside it
 
   ref<View> child_;
 
@@ -1437,6 +1466,7 @@ struct Image : View
                       CRect const & canvas_region, CRect const & clip) override;
 };
 
+// [ ] segmentation
 /// @brief An infinitely scrollable List of elements.
 struct List : View
 {
@@ -1520,6 +1550,17 @@ struct List : View
 // - set the global focus rect, focus view can move there
 struct FocusView : View
 {
+  CRect canvas_region;
+
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
+                         Fn<void(View &)> build) override;
+
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
+
+  // [ ] properly handle fixed-centered, should they be counted as part of the children?
+  virtual void render(Canvas & canvas, CRect const & viewport_region,
+                      CRect const & canvas_region, CRect const & clip) override;
 };
 
 // [ ] implement

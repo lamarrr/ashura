@@ -133,13 +133,13 @@ RenderText & RenderText::wrap(bool wrap)
 
 RenderText & RenderText::highlight_style(Option<TextHighlightStyle> style)
 {
-  highlight_style_ = style.unwrap_or(TextHighlightStyle{});
+  highlight_style_ = style.unwrap_or();
   return *this;
 }
 
 RenderText & RenderText::caret_style(Option<CaretStyle> caret)
 {
-  caret_style_ = caret.unwrap_or(CaretStyle{});
+  caret_style_ = caret.unwrap_or();
   return *this;
 }
 

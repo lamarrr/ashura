@@ -375,7 +375,8 @@ Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
 
   virtual_scale = viewport.extent.x / new_extent.x;
 
-  world_to_view = translate3d(Vec3{-1, -1, 0}) * scale3d(vec3(2 / extent, 1));
+  // (-0.5w, +0.5w) (-0.5w, +0.5h) -> (-1, +1), (-1, +1)
+  world_to_view = scale3d(vec3(2 / extent, 1));
 
   return *this;
 }
@@ -396,7 +397,7 @@ RectU Canvas::clip_to_scissor(CRect const & clip) const
                 .extent = as_vec2u(scissor_f.extent)};
 
   scissor.offset.x = min(scissor.offset.x, framebuffer_extent.x);
-  scissor.offset.y = min(scissor.offset.x, framebuffer_extent.y);
+  scissor.offset.y = min(scissor.offset.y, framebuffer_extent.y);
   scissor.extent.x =
     min(framebuffer_extent.x - scissor.offset.x, scissor.extent.x);
   scissor.extent.y =
@@ -597,25 +598,20 @@ Canvas & Canvas::brect(ShapeInfo const & info)
 
 Canvas & Canvas::squircle(ShapeInfo const & info)
 {
-  f32 const inv_y = 1 / info.area.extent.y;
-  f32 const max_radius =
-    0.5F * min(info.area.extent.x, info.area.extent.y) * inv_y;
-  f32 r = min(info.corner_radii.x * inv_y, max_radius);
+  f32 const width = max(info.area.extent.x, info.area.extent.y);
+  f32 const inv_y = 1 / width;
 
-  // [ ] clamp
   add_squircle(
     *this,
     SquircleParam{
       .transform =
-        object_to_world(info.transform, info.area.center, info.area.extent),
-      .tint         = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
-      .uv           = {info.uv[0], info.uv[1]},
-      .radius       = r,
-      .degree       = info.corner_radii.y,
-      .tiling       = info.tiling,
-      .aspect_ratio = info.area.extent.x * inv_y,
-      .stroke       = info.stroke,
-      .thickness    = info.thickness * inv_y,
+        object_to_world(info.transform, info.area.center, Vec2::splat(width)),
+      .tint      = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
+      .uv        = {info.uv[0], info.uv[1]},
+      .degree    = info.corner_radii.x,
+      .tiling    = info.tiling,
+      .stroke    = info.stroke,
+      .thickness = info.thickness * inv_y,
       .edge_smoothness = info.edge_smoothness * inv_y,
       .sampler         = info.sampler,
       .albedo          = info.texture
@@ -733,6 +729,9 @@ Canvas & Canvas::blur(CRect const & clip, Vec2 spread_radius, Vec4 corner_radii)
 
   f32 const   inv_y   = 1 / clip.extent.y;
   RectU const fb_area = clip_to_scissor(clip);
+
+  // [ ] rect render space is incorrect?
+  // [ ] copying text regions with ellipsis on
 
   blurs
     .push(Blur{.area          = fb_area,

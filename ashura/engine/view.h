@@ -496,11 +496,11 @@ struct Ctx
 
 struct State
 {
-  /// @brief Tab Index for Focus-Based Navigation. desired tab index, I32_MIN
-  /// meaning the default tab order based on the hierarchy of the parent to
+  /// @brief Tab Index for Focus-Based Navigation. desired tab index, `None`
+  /// means the default tab order based on the hierarchy of the parent to
   /// children and siblings (depth-first traversal). Negative values are
   /// focused before positive values.
-  i32 tab = I32_MIN;
+  Option<i32> tab = none;
 
   /// @brief if set, will be treated as a text input area
   Option<TextInputInfo> text = none;
