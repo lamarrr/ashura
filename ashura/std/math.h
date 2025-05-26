@@ -769,6 +769,26 @@ struct Vec4
   {
     return {y, z, w};
   }
+
+  constexpr Vec4 with_x(f32 x) const
+  {
+    return Vec4{.x = x, .y = y, .z = z, .w = w};
+  }
+
+  constexpr Vec4 with_y(f32 y) const
+  {
+    return Vec4{.x = x, .y = y, .z = z, .w = w};
+  }
+
+  constexpr Vec4 with_z(f32 w) const
+  {
+    return Vec4{.x = x, .y = y, .z = z, .w = w};
+  }
+
+  constexpr Vec4 with_w(f32 w) const
+  {
+    return Vec4{.x = x, .y = y, .z = z, .w = w};
+  }
 };
 
 constexpr Vec4 vec4(Vec3 xyz, f32 w)
@@ -900,6 +920,26 @@ struct alignas(4) Vec4U8
   constexpr u8 const & operator[](usize i) const
   {
     return (&x)[i];
+  }
+
+  constexpr Vec4U8 with_x(u8 x) const
+  {
+    return Vec4U8{.x = x, .y = y, .z = z, .w = w};
+  }
+
+  constexpr Vec4U8 with_y(u8 y) const
+  {
+    return Vec4U8{.x = x, .y = y, .z = z, .w = w};
+  }
+
+  constexpr Vec4U8 with_z(u8 w) const
+  {
+    return Vec4U8{.x = x, .y = y, .z = z, .w = w};
+  }
+
+  constexpr Vec4U8 with_w(u8 w) const
+  {
+    return Vec4U8{.x = x, .y = y, .z = z, .w = w};
   }
 };
 
@@ -1248,6 +1288,11 @@ struct Vec2U
   {
     return (&x)[i];
   }
+
+  constexpr bool is_visible() const
+  {
+    return x > 0 && y > 0;
+  }
 };
 
 constexpr bool operator==(Vec2U a, Vec2U b)
@@ -1530,6 +1575,16 @@ constexpr Vec4U & operator/=(Vec4U & a, Vec4U b)
 {
   a = a / b;
   return a;
+}
+
+constexpr Vec2 clamp_vec(Vec2 v, Vec2 low, Vec2 high)
+{
+  return Vec2{clamp(v.x, low.x, high.x), clamp(v.y, low.y, high.y)};
+}
+
+constexpr Vec2U clamp_vec(Vec2U v, Vec2U low, Vec2U high)
+{
+  return Vec2U{clamp(v.x, low.x, high.x), clamp(v.y, low.y, high.y)};
 }
 
 constexpr Vec2 as_vec2(Vec2U a)
@@ -2919,6 +2974,11 @@ struct RectU
   Vec2U offset = {};
   Vec2U extent = {};
 
+  static constexpr RectU range(Vec2U begin, Vec2U end)
+  {
+    return RectU{.offset = begin, .extent = (end - begin)};
+  }
+
   constexpr Vec2U begin() const
   {
     return offset;
@@ -2927,6 +2987,23 @@ struct RectU
   constexpr Vec2U end() const
   {
     return offset + extent;
+  }
+
+  constexpr bool is_visible() const
+  {
+    return extent.x != 0 && extent.y != 0;
+  }
+
+  constexpr RectU clamp_to_extent(Vec2U base_extent)
+  {
+    Vec2U max_offset{sat_sub(base_extent.x, 1U), sat_sub(base_extent.y, 1U)};
+
+    auto end = this->end();
+
+    Vec2U new_begin{min(max_offset.x, offset.x), min(max_offset.y, offset.y)};
+    Vec2U new_end{min(base_extent.x, end.x), min(base_extent.y, end.y)};
+
+    return range(new_begin, new_end);
   }
 };
 

@@ -396,19 +396,20 @@ void System::focus_on(u16 i, bool active, bool grab_focus)
   views[i]->hot_   = true;
 
   focus_state = FocusState{.active = active, .tgt = i};
+  xframe_focus_state =
+    XFrameFocusState{.active = active, .tgt = views[i]->id()};
 
-  if (was_active && old != i)
+  focus_rect = FocusRect{};
+
+  if (was_active && (!active || old != i))
   {
-    events.push(Event{.dst = old, .type = Events::PointerOut}).unwrap();
+    events.push(Event{.dst = old, .type = Events::FocusOut}).unwrap();
   }
 
-  if (i != old)
+  if ((i != old && active) || (i == old && !was_active && active))
   {
-    events.push(Event{.dst = i, .type = Events::PointerIn}).unwrap();
-  }
+    events.push(Event{.dst = i, .type = Events::FocusIn}).unwrap();
 
-  if (active)
-  {
     focus_rect = FocusRect{
       .area = CRect{.center = canvas_centers[i], .extent = canvas_extents[i]},
       .clip = clips[att.viewports[i]]
@@ -675,7 +676,6 @@ System::HitState System::drag_update_seq(Ctx const & ctx, Option<u16> src,
 System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
 {
   // [ ] handle external drop
-  // [ ] focus on click, if editable, activate focus, if not or empty, focus regardless? non-active? focusable?
   auto diff = [&](Option<u16> tgt, Option<HitInfo> hit) {
     tgt.match([&](auto i) {
       if (i != prev_tgt)
@@ -687,11 +687,6 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
       events.push(Event{.dst = i, .type = Events::PointerOver, .hit = hit})
         .unwrap();
 
-      if (ctx.mouse.any_down)
-      {
-        events.push(Event{.dst = i, .type = Events::PointerDown, .hit = hit})
-          .unwrap();
-      }
       if (ctx.mouse.any_up)
       {
         events.push(Event{.dst = i, .type = Events::PointerUp, .hit = hit})
@@ -706,8 +701,6 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
       }
     });
   };
-
-  // [ ] be more generic with handling buttons
 
   if (!ctx.mouse.focused)
   {
@@ -742,9 +735,7 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
     }
   }
 
-  // [ ] pointerup/pointerdown
-  // [ ] check that all events are dispatched correctly
-  // [ ] unify text_command function
+  // [ ] pointerup
 
   if (ctx.mouse.held(MouseButton::Primary))
   {
@@ -757,16 +748,27 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
 
     if (tgt.is_some())
     {
-      auto draggable = att.draggable[tgt.v()];
+      auto i         = tgt.v();
+      auto draggable = att.draggable[i];
 
-      focus_on(tgt.v(), false, false);
+      focus_on(i, false, false);
+
+      diff(tgt, hit);
 
       if (draggable)
       {
-        return DragState{.seq = DragState::Start, .src = tgt.v(), .tgt = none};
+        events.push(Event{.dst = i, .type = Events::DragStart, .hit = hit})
+          .unwrap();
+        events.push(Event{.dst = i, .type = Events::DragUpdate, .hit = hit})
+          .unwrap();
+        return DragState{.seq = DragState::Start, .src = i, .tgt = none};
       }
 
-      diff(tgt, hit);
+      if (ctx.mouse.any_down)
+      {
+        events.push(Event{.dst = i, .type = Events::PointerDown, .hit = hit})
+          .unwrap();
+      }
 
       return PointState{.tgt = tgt};
     }
@@ -846,9 +848,12 @@ void System::hit_seq(Ctx const & ctx)
 
 void System::focus_seq(Ctx const & ctx)
 {
+  // view might be gone when we begin this frame so we can focus on the root view if it has disappeared
   focus_state =
     FocusState{.active = xframe_focus_state.active,
                .tgt = ids.try_get(xframe_focus_state.tgt).unref().unwrap_or()};
+
+  views[focus_state.tgt]->hot_ = true;
 
   focus_grab_tgt.match([&](auto i) { focus_on(i, true, true); });
 
@@ -876,8 +881,6 @@ void System::focus_seq(Ctx const & ctx)
     events.push(Event{.dst = focus_state.tgt, .type = Events::FocusOver})
       .unwrap();
 
-    // [ ] cursor changes while held down for drag
-    // [ ] reject, accept
     if (ctx.key.any_down)
     {
       events.push(Event{.dst = focus_state.tgt, .type = Events::KeyDown})
@@ -896,9 +899,6 @@ void System::focus_seq(Ctx const & ctx)
         .unwrap();
     }
   }
-
-  xframe_focus_state = XFrameFocusState{.active = focus_state.active,
-                                        .tgt    = views[focus_state.tgt]->id()};
 }
 
 void System::compose_event(ViewId id, Events::Type event, Option<HitInfo> hit,

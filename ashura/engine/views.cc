@@ -495,41 +495,37 @@ TextCommand text_command(Ctx const & ctx, Events const & events,
     }
   }
 
-  if (events.drag_start())
+  if (cfg.highlightable)
   {
-    return TextCommand::Hit;
-  }
-  else if (events.drag_update())
-  {
-    if (cfg.highlightable)
+    if (events.drag_update())
     {
-      if (ctx.mouse.down(MouseButton::Primary) &&
-          ctx.mouse.clicks(MouseButton::Primary) == 2)
+      if (ctx.mouse.clicks(MouseButton::Primary) == 2)
       {
         return TextCommand::SelectWord;
       }
 
-      if (ctx.mouse.down(MouseButton::Primary) &&
-          ctx.mouse.clicks(MouseButton::Primary) == 3)
+      if (ctx.mouse.clicks(MouseButton::Primary) == 3)
       {
         return TextCommand::SelectLine;
       }
 
-      if (ctx.mouse.down(MouseButton::Primary) &&
-          ctx.mouse.clicks(MouseButton::Primary) == 4)
+      if (ctx.mouse.clicks(MouseButton::Primary) == 4)
       {
         return TextCommand::SelectAll;
       }
+    }
 
+    if (events.drag_start())
+    {
+      return TextCommand::Hit;
+    }
+
+    if (events.drag_update())
+    {
       return TextCommand::HitSelect;
     }
-  }
-  else if (events.focus_out())
-  {
-    if (cfg.highlightable)
-    {
-      return TextCommand::Unselect;
-    }
+
+    // [ ] unselect logic
   }
 
   return TextCommand::None;
@@ -599,11 +595,10 @@ ui::State Text::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
   auto hit_info = events.hit_info.map([](auto s) { return s; }).unwrap_or();
 
-  bool modified = compositor_.command(
-    text_, cmd, {}, engine->clipboard, 1, 1, hit_info.canvas_region.center,
-    hit_info.viewport_region.extent.x, hit_info.viewport_hit,
-    scale3d(vec3(hit_info.zoom(), 1)), default_allocator);
-  CHECK(!modified, "");
+  compositor_.command(text_, cmd, {}, engine->clipboard, 1, 1,
+                      hit_info.canvas_region.center,
+                      hit_info.viewport_region.extent.x, hit_info.viewport_hit,
+                      scale3d(vec3(hit_info.zoom(), 1)), default_allocator);
 
   // [ ] copyable for input
   text_.clear_highlights()
@@ -766,11 +761,11 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
   auto hit_info = events.hit_info.map([](auto s) { return s; }).unwrap_or();
 
-  bool modified = compositor_.command(
-    content_, cmd, input_u32, engine->clipboard, style_.lines_per_page,
-    style_.tab_width, hit_info.canvas_region.center,
-    hit_info.viewport_region.extent.x, hit_info.viewport_hit,
-    scale3d(vec3(hit_info.zoom(), 1)), allocator);
+  compositor_.command(content_, cmd, input_u32, engine->clipboard,
+                      style_.lines_per_page, style_.tab_width,
+                      hit_info.canvas_region.center,
+                      hit_info.viewport_region.extent.x, hit_info.viewport_hit,
+                      scale3d(vec3(hit_info.zoom(), 1)), allocator);
 
   auto cursor = compositor_.cursor();
 
@@ -783,11 +778,6 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
   if (events.focus_over())
   {
     content_.add_caret(cursor.caret());
-  }
-
-  if (modified)
-  {
-    content_.flush_text();
   }
 
   if (edited)
@@ -821,7 +811,7 @@ ui::State Input::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
                                 .tab_input = state_.tab_input},
     .draggable  = !state_.disabled,
     .focusable  = !state_.disabled,
-    .grab_focus = events.pointer_down()
+    .grab_focus = events.drag_start()
   };
 }
 
@@ -841,8 +831,7 @@ void Input::render(Canvas & canvas, CRect const & viewport_region,
 {
   if (content_.text_.is_empty())
   {
-    // [ ] ellipsis; ellipsis-wrap on max-lines; LTR & RTL-sensitive
-    // [ ] do not layout paragraph if the text break on clip or ellipsis??
+    // [ ] placeholder overlay when empty. use child view instead
     stub_.render(
       canvas.text_renderer(), canvas_region.center, viewport_region.extent.x,
       scale3d(vec3(canvas_region.extent / viewport_region.extent, 1)), clip);
@@ -2152,6 +2141,7 @@ Layout ScrollBar::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
 void ScrollBar::render(Canvas &      canvas, CRect const &,
                        CRect const & canvas_region, CRect const &)
 {
+  // [ ] let it have its own extent
   u32 const main_axis  = (style_.axis == Axis::X) ? 0 : 1;
   u32 const cross_axis = (style_.axis == Axis::X) ? 1 : 0;
 

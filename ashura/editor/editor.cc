@@ -20,15 +20,16 @@ int main()
 
   defer engine_{[&] { engine->shutdown(); }};
 
-  FontId const RobotoMono    = sys->font.get("RobotoMono"_str).v().id;
-  FontId const Roboto        = sys->font.get("Roboto"_str).v().id;
-  FontId const MaterialIcons = sys->font.get("MaterialIcons"_str).v().id;
-  FontId const Amiri         = sys->font.get("Amiri"_str).v().id;
-  FontId const TX_02         = sys->font.get("TX-02"_str).v().id;
+  FontId const RobotoMono     = sys->font.get("RobotoMono"_str).v().id;
+  FontId const Roboto         = sys->font.get("Roboto"_str).v().id;
+  FontId const MaterialIcons  = sys->font.get("MaterialIcons"_str).v().id;
+  FontId const CupertinoIcons = sys->font.get("CupertinoIcons"_str).v().id;
+  FontId const Amiri          = sys->font.get("Amiri"_str).v().id;
+  FontId const TX_02          = sys->font.get("TX-02"_str).v().id;
 
   ui::theme.head_font = TX_02;
   ui::theme.body_font = TX_02;
-  ui::theme.icon_font = MaterialIcons;
+  ui::theme.icon_font = CupertinoIcons;
 
   ui::Flex flex;
 
@@ -48,6 +49,7 @@ int main()
   ui::Image      img2;
   ui::Image      img3;
   ui::Image      img4;
+  ui::FocusView  focus_view;
 
   input.stub(U"Input Text Here"_str);
 
@@ -59,16 +61,17 @@ int main()
 
   // [ ] drag box cursor
 
-  btn.text(U"playlist_add ADD TO PLAYLIST"_str)
+  btn.text(U"doc_text_search ADD TO PLAYLIST"_str)
     .run({.color = colors::WHITE}, {.font        = RobotoMono,
                                     .height      = ui::theme.body_font_height,
                                     .line_height = 1})
     .run({.color = colors::WHITE},
-         {.font        = MaterialIcons,
+         {.font        = CupertinoIcons,
           .height      = ui::theme.body_font_height,
           .line_height = 1},
-         0, 12)
-    .padding({5, 5});
+         0, 15)
+    .padding({5, 5})
+    .rrect(ui::CornerRadii::all(15));
 
   img.source(sys->image.get("birdie"_str).v().id)
     .frame({200, 200})
@@ -89,7 +92,7 @@ int main()
 
   flex
     .items({stack, text, input, btn, check_box, slider, switch_box, radio,
-            scalar, space, scroll, combo, img, img2, img3, img4})
+            scalar, space, scroll, combo, img, img2, img3, img4, focus_view})
     .axis(Axis::X)
     .cross_align(0)
     .main_align(ui::MainAlign::SpaceBetween);
@@ -99,7 +102,6 @@ int main()
   ui::ColorPicker picker;
   ui::Plot        plot;
   ui::ProgressBar progress;
-  ui::FocusView   focus_view;
 
   list.generator(
     [](AllocatorRef allocator, usize i) -> Option<Dyn<ui::View *>> {

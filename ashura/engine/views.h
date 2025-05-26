@@ -229,7 +229,7 @@ struct Text : View
   struct Style
   {
     TextHighlightStyle highlight{.color        = theme.highlight,
-                                 .corner_radii = Vec4::splat(2.5F)};
+                                 .corner_radii = Vec4::splat(0)};
   } style_;
 
   RenderText text_;
@@ -309,7 +309,7 @@ struct Input : View
   struct Style
   {
     TextHighlightStyle highlight = {.color        = theme.highlight,
-                                    .corner_radii = Vec4::splat(2.5F)};
+                                    .corner_radii = Vec4::splat(0)};
     CaretStyle         caret{.color = theme.caret, .thickness = 1.0F};
     usize              lines_per_page = 40;
     usize              tab_width      = 1;
@@ -630,7 +630,7 @@ struct CheckBox : View
 
   Icon icon_;
 
-  CheckBox(Str32             text      = U"check"_str,
+  CheckBox(Str32             text      = U"checkmark"_str,
            TextStyle const & style     = TextStyle{.color = theme.on_surface},
            FontStyle const & font      = FontStyle{.font   = theme.icon_font,
                                                    .height = theme.body_font_height,
@@ -1015,7 +1015,7 @@ struct ScalarBox : Flex
   ScalarDragBox drag_;
 
   ScalarBox(
-    Str32 decrease_text = U"remove"_str, Str32 increase_text = U"add"_str,
+    Str32 decrease_text = U"minus"_str, Str32 increase_text = U"plus"_str,
     TextStyle const & button_text_style =
       TextStyle{
         .shadow_scale = 1, .shadow_offset = {1, 1},

@@ -31,6 +31,7 @@
   "fonts": {
     "Amiri": "assets/fonts/Amiri/Amiri-Regular.ttf",
     "MaterialIcons": "assets/fonts/MaterialIcons/MaterialIcons-Regular.ttf",
+    "CupertinoIcons": "assets/fonts/CupertinoIcons/CupertinoIcons.ttf",
     "Roboto": "assets/fonts/Roboto/Roboto-Regular.ttf",
     "RobotoMono": "assets/fonts/RobotoMono/RobotoMono-Regular.ttf",
     "TX-02": "assets/fonts/TX-02-0QXL5X4K/TX-02-Regular.ttf"

@@ -328,7 +328,7 @@ static inline Option<isize> translate_caret(TextLayout const & layout,
     CaretAlignment{.x = alignment, .y = static_cast<CaretYAlignment>(line)});
 }
 
-bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
+void TextCompositor::command(RenderText & rendered, TextCommand cmd,
                              Str32 keyboard_input, ClipBoard & clipboard,
                              usize lines_per_page, usize tab_width, Vec2 center,
                              f32 aligned_width, Vec2 pos,
@@ -341,9 +341,12 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
   auto & layout = rendered.get_layout();
   auto & text   = rendered.text_;
 
-  cursor_.normalize(layout.num_carets);
+  auto perform_layout = [&]() {
+    rendered.flush_text();
+    rendered.layout(rendered.get_layout().max_width);
+  };
 
-  bool modified = false;
+  cursor_.normalize(layout.num_carets);
 
   switch (cmd)
   {
@@ -365,7 +368,8 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
       }
 
       Slice carets = cursor_.selection();
-      modified |= erase(text, layout.get_caret_selection(carets));
+      erase(text, layout.get_caret_selection(carets));
+      perform_layout();
       cursor_.unselect_left();
     }
     break;
@@ -377,7 +381,8 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
       }
 
       Slice carets = cursor_.selection();
-      modified |= erase(text, layout.get_caret_selection(carets));
+      erase(text, layout.get_caret_selection(carets));
+      perform_layout();
       cursor_.unselect_left();
     }
     break;
@@ -419,28 +424,29 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
       {
         if (auto carets = cursor_.selection(); !carets.is_empty())
         {
-          // [ ] carets will be incorrect after text modification; text needs to be rebuilt
+          // [ ] process replace correctly
+          // [ ] hit span starts with the last hit, sometimes not ideal
           auto selection = layout.get_caret_selection(carets);
           push_record(TextEditRecordType::Replace, selection.offset,
                       text.view().slice(selection), input);
           text.erase(selection);
           text.insert_span(selection.offset, input).unwrap();
+          perform_layout();
           cursor_
             .move_to(layout.to_caret(selection.offset + input.size(), true))
             .normalize(layout.num_carets);
         }
         else
         {
-          // [ ] get_caret_codepoint should return 0? for empty
           auto cp        = layout.get_caret_codepoint(cursor_.caret());
           auto codepoint = cp.codepoint + (cp.after ? 1 : 0);
           push_record(TextEditRecordType::Insert, codepoint, {}, input);
           text.insert_span(codepoint, input).unwrap();
+          perform_layout();
           cursor_.unselect()
             .move_to(layout.to_caret(codepoint + input.size(), true))
             .normalize(layout.num_carets);
         }
-        modified = true;
       }
     }
     break;
@@ -614,6 +620,7 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
       auto selection = layout.get_caret_selection(cursor_.selection());
       utf8_encode(text.view().slice(selection), data8).unwrap();
       erase(text, selection);
+      perform_layout();
       clipboard.set(MIME_TEXT_UTF8, data8.view().as_u8()).unwrap();
     }
     break;
@@ -634,16 +641,16 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
     case TextCommand::Undo:
     {
       undo(text).match([&](Slice inserted) {
-        modified = true;
         cursor_.select(layout.to_caret_selection(inserted));
+        perform_layout();
       });
     }
     break;
     case TextCommand::Redo:
     {
       redo(text).match([&](Slice inserted) {
-        modified = true;
         cursor_.select(layout.to_caret_selection(inserted));
+        perform_layout();
       });
     }
     break;
@@ -668,8 +675,6 @@ bool TextCompositor::command(RenderText & rendered, TextCommand cmd,
   }
 
   cursor_.normalize(layout.num_carets);
-
-  return modified;
 }
 
 }    // namespace ash

@@ -162,7 +162,7 @@ struct TextCompositor
   /// @param aligned_width the width the text was aligned to
   /// @param pos canvas-space position to hit
   /// @param zoom the zoom that was applied to the text
-  bool command(RenderText & text, TextCommand cmd, Str32 input,
+  void command(RenderText & text, TextCommand cmd, Str32 input,
                ClipBoard & clipboard, usize lines_per_page, usize tab_width,
                Vec2 center, f32 aligned_width, Vec2 pos, Mat4 const & transform,
                AllocatorRef scratch_allocator);

@@ -118,10 +118,17 @@ void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
             RectU const & src_area, gpu::ImageView dst, RectU const & dst_area,
             bool upsample)
 {
-  auto const scale = 1 / as_vec2(src_extent);
-  radius *= scale;
-  Vec2 const uv0 = as_vec2(src_area.offset) * scale;
-  Vec2 const uv1 = as_vec2(src_area.end()) * scale;
+  // [ ] fix sample area
+  auto const scale     = 1 / as_vec2(src_extent);
+  auto const uv_radius = radius * scale;
+  auto const uv_min    = as_vec2(src_area.begin()) * scale;
+  auto const uv_max    = as_vec2(src_area.end()) * scale;
+
+  // offset uv by 2 pixels in both directions to prevent texture spilling
+  auto const uv_shift = 0 * scale;
+
+  auto const uv0 = clamp_vec(uv_min + uv_shift, uv_min, uv_max);
+  auto const uv1 = clamp_vec(uv_max - uv_shift, uv_min, uv_max);
 
   gpu::RenderingAttachment color[1] = {
     {.view         = dst,
@@ -146,8 +153,9 @@ void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
   });
   e.bind_descriptor_sets(span({sys->gpu.samplers_, src_texture}), {});
   e.push_constants(span({
-                          BlurParam{.uv{uv0, uv1},
-                                    .radius  = radius,
+                          BlurParam{.uv_min  = uv0,
+                                    .uv_max  = uv1,
+                                    .radius  = uv_radius,
                                     .sampler = SamplerId::LinearClamped,
                                     .texture = src_id}
   })
@@ -159,12 +167,7 @@ void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
 Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
                                             BlurPassParams const & params)
 {
-  if (params.area.extent.x == 0 || params.area.extent.y == 0)
-  {
-    return none;
-  }
-
-  if (params.spread_radius.x == 0 || params.spread_radius.y == 0)
+  if (!(params.area.is_visible() && params.spread_radius.is_visible()))
   {
     return none;
   }
@@ -173,32 +176,10 @@ Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
   RectU const downsampled_area{.offset{},
                                .extent = params.area.extent / DOWNSCALE_FACTOR};
 
-  if (downsampled_area.extent.x < 1 || downsampled_area.extent.y < 1)
+  if (!downsampled_area.is_visible())
   {
     return none;
   }
-
-  // [ ] we can do better
-  e.clear_color_image(
-    sys->gpu.scratch_color_[0].image,
-    {
-  },
-    span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
-                                     .first_mip_level   = 0,
-                                     .num_mip_levels    = 1,
-                                     .first_array_layer = 0,
-                                     .num_array_layers  = 1}}));
-  e.clear_color_image(
-    sys->gpu.scratch_color_[1].image,
-    {
-  },
-    span({gpu::ImageSubresourceRange{.aspects = gpu::ImageAspects::Color,
-                                     .first_mip_level   = 0,
-                                     .num_mip_levels    = 1,
-                                     .first_array_layer = 0,
-                                     .num_array_layers  = 1
-
-    }}));
 
   e.blit_image(params.framebuffer.color.image, sys->gpu.scratch_color_[1].image,
                span({
@@ -215,8 +196,11 @@ Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
   }),
                gpu::Filter::Linear);
 
-  ColorTexture const * const fbs[2] = {&sys->gpu.scratch_color_[1],
-                                       &sys->gpu.scratch_color_[0]};
+  // [ ] OVERSAMPLE BY 1/BLUR_PERIOD * N pixels, + total shift distancwe
+  // [ ] first copy padded area
+
+  ColorTexture const * const fbs[2] = {&sys->gpu.scratch_color_[0],
+                                       &sys->gpu.scratch_color_[1]};
   RectU const sample_areas[2]       = {downsampled_area, downsampled_area};
 
   Vec2I const radius = as_vec2i(params.spread_radius);
@@ -227,8 +211,8 @@ Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
 
   Vec2 const pass_dist = as_vec2(radius) / num_passes;
 
-  u32 src = 1;
-  u32 dst = 0;
+  u32 src = 0;
+  u32 dst = 1;
 
   // downsample pass
   for (i64 i = 0; i < num_passes; i++)
@@ -250,7 +234,7 @@ Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
            fbs[dst]->view, sample_areas[dst], true);
   }
 
-  CHECK(dst == 0, "");    // the last output was to scratch 1
+  CHECK(dst == 1, "");    // the last output was to scratch 1
 
   return ColorTextureResult{.color = *fbs[dst], .rect = downsampled_area};
 }

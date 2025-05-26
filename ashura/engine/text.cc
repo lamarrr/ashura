@@ -80,8 +80,8 @@ isize TextLayout::align_caret(CaretAlignment alignment) const
     return line.carets.offset;
   }
 
-  if (alignment.x >= CaretXAlignment::End ||
-      (isize) alignment.x >= (isize) line.carets.span)
+  if ((alignment.x >= CaretXAlignment::End) ||
+      ((isize) alignment.x >= (isize) line.carets.span))
   {
     return line.carets.last();
   }
@@ -196,28 +196,23 @@ CaretPlacement TextLayout::get_caret_placement(usize caret) const
 
   auto const & line = lines[c.line];
 
-  CHECK(!line.carets.is_empty(), "");
-
   Option<GlyphMatch> match;
 
   for (auto const & run : runs.view().slice(line.runs))
   {
     // find the glyph with the nearest glyph cluster to the caret's codepoint position
-    if (run.codepoints.contains(c.codepoint))
+    for (auto [i, glyph] : enumerate(glyphs.view().slice(run.glyphs)))
     {
-      for (auto [i, glyph] : enumerate(glyphs.view().slice(run.glyphs)))
-      {
-        GlyphMatch current{.glyph   = i + run.glyphs.offset,
-                           .cluster = glyph.cluster};
-        match.match(
-          [&](GlyphMatch & m) {
-            if (current.better_than(c.codepoint, m, run.direction()))
-            {
-              m = current;
-            }
-          },
-          [&]() { match = current; });
-      }
+      GlyphMatch current{.glyph   = i + run.glyphs.offset,
+                         .cluster = glyph.cluster};
+      match.match(
+        [&](GlyphMatch & m) {
+          if (current.better_than(c.codepoint, m, run.direction()))
+          {
+            m = current;
+          }
+        },
+        [&]() { match = current; });
     }
   }
 
@@ -236,11 +231,6 @@ Tuple<isize, CaretAlignment> TextLayout::hit(TextBlock const &      block,
                                              Vec2                   pos) const
 {
   CHECK(laid_out, "");
-
-  if (lines.is_empty())
-  {
-    return {0, CaretAlignment{}};
-  }
 
   Vec2 const block_extent{max(extent.x, style.align_width), extent.y};
   Vec2 const half_block_extent = 0.5F * block_extent;
@@ -421,7 +411,7 @@ constexpr HighlightSpan highlight_test(Span<Slice const> highlights,
 
   for (auto highlight : highlights)
   {
-    if (highlight.contains(carets))
+    if (!highlight.is_empty() && highlight.contains(carets))
     {
       return HighlightSpan::Full;
     }
@@ -441,6 +431,7 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
                         Span<Slice const> highlights, Span<usize const> carets,
                         CRect const & clip, AllocatorRef upstream) const
 {
+  // [ ] merge highlight rects
   CHECK(laid_out, "");
   CHECK(style.runs.size() == block.runs.size(), "");
   CHECK(style.runs.size() == block.fonts.size(), "");
@@ -459,6 +450,7 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
     caret_placements.push(get_caret_placement(caret)).unwrap();
   }
 
+  // [ ] highlight of whitespace rendering
   Vec<TextRenderInfo> infos{allocator};
   Vec<TextLayer>      layers{allocator};
   Vec<ShapeInfo>      shapes{allocator};
@@ -510,7 +502,7 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 
         for (auto const & p : caret_placements)
         {
-          if (p.glyph.is_none())
+          if (p.glyph.is_none() && p.line == iln)
           {
             push(
               {
@@ -531,12 +523,16 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 
       if (ln_highlight_span == HighlightSpan::Full)
       {
-        auto extent = ln_rect.extent;
-        extent.x    = max(extent.x, block.font_scale * 2.5F);
+        Vec2 extent{min(max(ln_rect.extent.x,
+                            block.font_scale * style.min_highlight_width),
+                        block_width),
+                    ln_rect.extent.y};
+        Vec2 center{space_align(block_width, extent.x, alignment), ln_center.y};
+
         push(
           {
             .area{.center = info.area.center, .extent = extent},
-            .transform = info.transform * translate3d(vec3(ln_rect.center, 0)),
+            .transform    = info.transform * translate3d(vec3(center, 0)),
             .corner_radii = style.highlight.corner_radii,
             .stroke       = style.highlight.stroke,
             .thickness    = style.highlight.thickness,
@@ -657,7 +653,7 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 
           // before and after carets
           auto const glyph_carets =
-            Slice{ln.carets.offset + (sh.cluster - ln.codepoints.offset), 2};
+            Slice{ln.carets.offset + (sh.cluster - ln.codepoints.offset), 1};
 
           if (run_style.has_shadow())
           {

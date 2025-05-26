@@ -54,7 +54,8 @@ struct BloomPass : Pass
 
 struct BlurParam
 {
-  alignas(16) Vec2 uv[2] = {};
+  alignas(8) Vec2 uv_min = {};
+  alignas(8) Vec2 uv_max = {};
   alignas(8) Vec2 radius = {};
   SamplerId sampler      = SamplerId::Linear;
   TextureId texture      = TextureId::White;
