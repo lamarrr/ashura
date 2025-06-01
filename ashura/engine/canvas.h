@@ -22,24 +22,24 @@ void rect(Vec<Vec2> & vtx);
 /// into
 /// @param start start angle
 /// @param stop stop angle
-void arc(Vec<Vec2> & vtx, f32 start, f32 stop, u32 segments);
+void arc(Vec<Vec2> & vtx, f32 start, f32 stop, usize segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
-void circle(Vec<Vec2> & vtx, u32 segments);
+void circle(Vec<Vec2> & vtx, usize segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param degree number of degrees of the super-ellipse
-void squircle(Vec<Vec2> & vtx, f32 degree, u32 segments);
+void squircle(Vec<Vec2> & vtx, f32 degree, usize segments);
 
 /// @brief generate vertices for a circle
 /// @param segments upper bound on the number of segments to divide the circle
 /// into
 /// @param corner_radii border radius of each corner
-void rrect(Vec<Vec2> & vtx, Vec4 corner_radii, u32 segments);
+void rrect(Vec<Vec2> & vtx, Vec4 corner_radii, usize segments);
 
 /// @brief generate vertices of a bevel rect
 /// @param vtx
@@ -51,31 +51,38 @@ void brect(Vec<Vec2> & vtx, Vec4 slants);
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-2] control points
-void bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments);
+void bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, usize segments);
 
 /// @brief generate vertices for a quadratic bezier curve
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-3] control points
 void cubic_bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
-                  u32 segments);
+                  usize segments);
 
 /// @brief generate a catmull rom spline
 /// @param segments upper bound on the number of segments to divide the bezier
 /// curve into
 /// @param cp[0-3] control points
 void catmull_rom(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
-                 u32 segments);
+                 usize segments);
 
 /// @brief triangulate a stroke path, given the vertices for its points
 void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vtx,
                         Vec<u32> & idx, f32 thickness);
 
+void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vtx,
+                        Vec<u16> & idx, f32 thickness);
+
 /// @brief generate indices for a triangle list
 void triangles(u32 first_vertex, u32 num_vertices, Vec<u32> & idx);
 
+void triangles(u16 first_vertex, u16 num_vertices, Vec<u16> & idx);
+
 /// @brief generate vertices for a quadratic bezier curve
 void triangulate_convex(Vec<u32> & idx, u32 first_vertex, u32 num_vertices);
+
+void triangulate_convex(Vec<u16> & idx, u16 first_vertex, u16 num_vertices);
 
 };    // namespace path
 

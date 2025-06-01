@@ -2855,49 +2855,49 @@ struct CRect
   Vec2 center = {};
   Vec2 extent = {};
 
-  static constexpr CRect from_offset(Vec2 offset, Vec2 extent)
+  static constexpr auto from_offset(Vec2 offset, Vec2 extent)
   {
     return CRect{.center = offset + extent * 0.5F, .extent = extent};
   }
 
-  static constexpr CRect range(Vec2 begin, Vec2 end)
+  static constexpr auto range(Vec2 begin, Vec2 end)
   {
     return CRect{.center = (begin + end) * 0.5F, .extent = (end - begin)};
   }
 
-  static constexpr CRect bounding(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3)
+  static constexpr auto bounding(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3)
   {
     return CRect::range(
       Vec2{min(p0.x, p1.x, p2.x, p3.x), min(p0.y, p1.y, p2.y, p3.y)},
       Vec2{max(p0.x, p1.x, p2.x, p3.x), max(p0.y, p1.y, p2.y, p3.y)});
   }
 
-  constexpr Vec2 begin() const
+  constexpr auto begin() const
   {
     return center - (extent * 0.5F);
   }
 
-  constexpr Vec2 end() const
+  constexpr auto end() const
   {
     return center + extent * 0.5F;
   }
 
-  constexpr Vec2 tl() const
+  constexpr auto tl() const
   {
     return begin();
   }
 
-  constexpr Vec2 tr() const
+  constexpr auto tr() const
   {
     return Vec2{center.x + 0.5F * extent.x, center.y - 0.5F * extent.y};
   }
 
-  constexpr Vec2 bl() const
+  constexpr auto bl() const
   {
     return Vec2{center.x - 0.5F * extent.x, center.y + 0.5F * extent.y};
   }
 
-  constexpr Vec2 br() const
+  constexpr auto br() const
   {
     return end();
   }
@@ -2924,25 +2924,24 @@ struct CRect
     return ash::overlaps(begin(), end(), r.begin(), r.end());
   }
 
-  constexpr CRect intersect(CRect const & r) const
+  constexpr auto intersect(CRect const & r) const
   {
     auto [b, e] = ash::intersect(begin(), end(), r.begin(), r.end());
     return CRect::range(b, e);
   }
 
-  constexpr CRect unioned(CRect const & r) const
+  constexpr auto unioned(CRect const & r) const
   {
     return CRect::bounding(begin(), end(), r.begin(), r.end());
   }
 
-  // [ ] use
-  constexpr CRect transform(Affine3 const & t)
+  constexpr auto transform(Affine3 const & t)
   {
     return CRect::bounding(ash::transform(t, tl()), ash::transform(t, tr()),
                            ash::transform(t, bl()), ash::transform(t, br()));
   }
 
-  constexpr CRect transform(Mat3 const & t)
+  constexpr auto transform(Mat3 const & t)
   {
     return CRect::bounding(ash::transform(t, tl()), ash::transform(t, tr()),
                            ash::transform(t, bl()), ash::transform(t, br()));

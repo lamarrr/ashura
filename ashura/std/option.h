@@ -525,14 +525,14 @@ struct [[nodiscard]] Option<T &>
   }
 
   constexpr T & unwrap(Str            msg = ""_str,
-                       SourceLocation loc = SourceLocation::current())
+                       SourceLocation loc = SourceLocation::current()) const
   {
     CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
                msg);
     return *repr_;
   }
 
-  constexpr T & unwrap_or(T & alt)
+  constexpr T & unwrap_or(T & alt) const
   {
     if (is_some())
     {
@@ -591,16 +591,6 @@ struct [[nodiscard]] Option<T &>
 
   constexpr void discard()
   {
-  }
-
-  template <typename SomeFn, typename NoneFn = Noop>
-  constexpr decltype(auto) match(SomeFn && some, NoneFn && none = {})
-  {
-    if (is_some())
-    {
-      return some(*repr_);
-    }
-    return none();
   }
 
   template <typename SomeFn, typename NoneFn = Noop>

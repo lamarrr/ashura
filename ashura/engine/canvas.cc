@@ -18,14 +18,14 @@ void path::rect(Vec<Vec2> & vtx)
   vtx.extend(coords).unwrap();
 }
 
-void path::arc(Vec<Vec2> & vtx, f32 start, f32 stop, u32 segments)
+void path::arc(Vec<Vec2> & vtx, f32 start, f32 stop, usize segments)
 {
   if (segments < 2)
   {
     return;
   }
 
-  u32 const first = vtx.size32();
+  auto const first = vtx.size32();
 
   vtx.extend_uninit(segments).unwrap();
 
@@ -37,14 +37,14 @@ void path::arc(Vec<Vec2> & vtx, f32 start, f32 stop, u32 segments)
   }
 }
 
-void path::circle(Vec<Vec2> & vtx, u32 segments)
+void path::circle(Vec<Vec2> & vtx, usize segments)
 {
   if (segments < 4)
   {
     return;
   }
 
-  u32 const first = vtx.size32();
+  auto const first = vtx.size32();
 
   vtx.extend_uninit(segments).unwrap();
 
@@ -56,14 +56,14 @@ void path::circle(Vec<Vec2> & vtx, u32 segments)
   }
 }
 
-void path::squircle(Vec<Vec2> & vtx, f32 elasticity, u32 segments)
+void path::squircle(Vec<Vec2> & vtx, f32 elasticity, usize segments)
 {
   if (segments < 32)
   {
     return;
   }
 
-  u32 const n = segments >> 2;
+  auto const n = segments >> 2;
 
   elasticity = clamp(elasticity * 0.5F, 0.0F, 0.5F);
 
@@ -77,7 +77,7 @@ void path::squircle(Vec<Vec2> & vtx, f32 elasticity, u32 segments)
                      {0, -0.5F}, n);
 }
 
-void path::rrect(Vec<Vec2> & vtx, Vec4 radii, u32 segments)
+void path::rrect(Vec<Vec2> & vtx, Vec4 radii, usize segments)
 {
   if (segments < 8)
   {
@@ -96,10 +96,10 @@ void path::rrect(Vec<Vec2> & vtx, Vec4 radii, u32 segments)
   f32 max_radius_w = min(max_radius_z, 0.5F - radii.z);
   radii.w          = min(radii.w, max_radius_w);
 
-  u32 const curve_segments = (segments - 8) >> 2;
-  f32 const step =
+  auto const curve_segments = (segments - 8) >> 2;
+  f32 const  step =
     (curve_segments == 0) ? 0.0F : ((PI * 0.5F) / curve_segments);
-  u32 const first = vtx.size32();
+  auto const first = vtx.size32();
 
   vtx.extend_uninit(segments).unwrap();
 
@@ -171,14 +171,14 @@ void path::brect(Vec<Vec2> & vtx, Vec4 slant)
   vtx.extend(vertices).unwrap();
 }
 
-void path::bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments)
+void path::bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, usize segments)
 {
   if (segments < 3)
   {
     return;
   }
 
-  u32 const first = vtx.size32();
+  auto const first = vtx.size32();
 
   vtx.extend_uninit(segments).unwrap();
 
@@ -192,14 +192,14 @@ void path::bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, u32 segments)
 }
 
 void path::cubic_bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
-                        u32 segments)
+                        usize segments)
 {
   if (segments < 4)
   {
     return;
   }
 
-  u32 const first = vtx.size32();
+  auto const first = vtx.size32();
 
   vtx.extend_uninit(segments).unwrap();
 
@@ -214,14 +214,14 @@ void path::cubic_bezier(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
 }
 
 void path::catmull_rom(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
-                       u32 segments)
+                       usize segments)
 {
   if (segments < 4)
   {
     return;
   }
 
-  u32 const beg = vtx.size32();
+  auto const beg = vtx.size32();
 
   vtx.extend_uninit(segments).unwrap();
 
@@ -235,27 +235,28 @@ void path::catmull_rom(Vec<Vec2> & vtx, Vec2 cp0, Vec2 cp1, Vec2 cp2, Vec2 cp3,
   }
 }
 
-void path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
-                              Vec<u32> & indices, f32 thickness)
+template <typename I>
+void triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
+                        Vec<I> & indices, f32 thickness)
 {
   if (points.size() < 2)
   {
     return;
   }
 
-  u32 const first_vtx    = vertices.size32();
-  u32 const first_idx    = indices.size32();
-  u32 const num_points   = points.size32();
-  u32 const num_vertices = (num_points - 1) * 4;
-  u32 const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
+  auto const first_vtx    = vertices.size32();
+  auto const first_idx    = indices.size32();
+  auto const num_points   = points.size32();
+  auto const num_vertices = (num_points - 1) * 4;
+  auto const num_indices  = (num_points - 1) * 6 + (num_points - 2) * 6;
   vertices.extend_uninit(num_vertices).unwrap();
   indices.extend_uninit(num_indices).unwrap();
 
   Vec2 * vtx  = vertices.data() + first_vtx;
-  u32 *  idx  = indices.data() + first_idx;
-  u32    ivtx = 0;
+  I *    idx  = indices.data() + first_idx;
+  I      ivtx = 0;
 
-  for (u32 i = 0; i < num_points - 1; i++)
+  for (I i = 0; i < num_points - 1; i++)
   {
     Vec2 const p0    = points[i];
     Vec2 const p1    = points[i + 1];
@@ -281,13 +282,13 @@ void path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
 
     if (i != 0)
     {
-      u32 prev = ivtx - 2;
-      idx[6]   = prev;
-      idx[7]   = prev + 1;
-      idx[8]   = ivtx + 1;
-      idx[9]   = prev;
-      idx[10]  = prev + 1;
-      idx[11]  = ivtx;
+      I prev  = ivtx - 2;
+      idx[6]  = prev;
+      idx[7]  = prev + 1;
+      idx[8]  = ivtx + 1;
+      idx[9]  = prev;
+      idx[10] = prev + 1;
+      idx[11] = ivtx;
       idx += 6;
     }
 
@@ -297,15 +298,28 @@ void path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
   }
 }
 
-void path::triangles(u32 first_vertex, u32 num_vertices, Vec<u32> & indices)
+void path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
+                              Vec<u16> & indices, f32 thickness)
+{
+  ::ash::triangulate_stroke(points, vertices, indices, thickness);
+}
+
+void path::triangulate_stroke(Span<Vec2 const> points, Vec<Vec2> & vertices,
+                              Vec<u32> & indices, f32 thickness)
+{
+  ::ash::triangulate_stroke(points, vertices, indices, thickness);
+}
+
+template <typename I>
+void triangles(I first_vertex, I num_vertices, Vec<I> & indices)
 {
   CHECK(num_vertices > 3, "");
-  u32 const num_triangles = num_vertices / 3;
-  u32 const first_idx     = indices.size32();
+  auto const num_triangles = num_vertices / 3;
+  auto const first_idx     = indices.size32();
   indices.extend_uninit(num_triangles * 3).unwrap();
 
-  u32 * idx = indices.data() + first_idx;
-  for (u32 i = 0; i < num_triangles * 3; i += 3)
+  I * idx = indices.data() + first_idx;
+  for (I i = 0; i < num_triangles * 3; i += 3)
   {
     idx[i]     = first_vertex + i;
     idx[i + 1] = first_vertex + i + 1;
@@ -313,25 +327,47 @@ void path::triangles(u32 first_vertex, u32 num_vertices, Vec<u32> & indices)
   }
 }
 
-void path::triangulate_convex(Vec<u32> & idx, u32 first_vertex,
-                              u32 num_vertices)
+void path::triangles(u32 first_vertex, u32 num_vertices, Vec<u32> & indices)
+{
+  ::ash::triangles(first_vertex, num_vertices, indices);
+}
+
+void path::triangles(u16 first_vertex, u16 num_vertices, Vec<u16> & indices)
+{
+  ::ash::triangles(first_vertex, num_vertices, indices);
+}
+
+template <typename I>
+void triangulate_convex(Vec<I> & idx, I first_vertex, I num_vertices)
 {
   if (num_vertices < 3)
   {
     return;
   }
 
-  u32 const num_indices = (num_vertices - 2) * 3;
-  u32 const first_index = idx.size32();
+  auto const num_indices = (num_vertices - 2) * 3;
+  auto const first_index = idx.size32();
 
   idx.extend_uninit(num_indices).unwrap();
 
-  for (u32 i = 0, v = 1; i < num_indices; i += 3, v++)
+  for (I i = 0, v = 1; i < num_indices; i += 3, v++)
   {
     idx[first_index + i]     = first_vertex;
     idx[first_index + i + 1] = first_vertex + v;
     idx[first_index + i + 2] = first_vertex + v + 1;
   }
+}
+
+void path::triangulate_convex(Vec<u32> & idx, u32 first_vertex,
+                              u32 num_vertices)
+{
+  ::ash::triangulate_convex(idx, first_vertex, num_vertices);
+}
+
+void path::triangulate_convex(Vec<u16> & idx, u16 first_vertex,
+                              u16 num_vertices)
+{
+  ::ash::triangulate_convex(idx, first_vertex, num_vertices);
 }
 
 Canvas & Canvas::reset()
@@ -360,9 +396,10 @@ Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
 {
   reset();
 
-  viewport           = new_viewport;
-  extent             = new_extent;
-  framebuffer_extent = new_framebuffer_extent;
+  viewport            = new_viewport;
+  extent              = new_extent;
+  framebuffer_extent  = new_framebuffer_extent;
+  framebuffer_uv_base = 1 / as_vec2(new_framebuffer_extent);
 
   if (extent.x == 0 | extent.y == 0)
   {
@@ -376,7 +413,20 @@ Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
   virtual_scale = viewport.extent.x / new_extent.x;
 
   // (-0.5w, +0.5w) (-0.5w, +0.5h) -> (-1, +1), (-1, +1)
-  world_to_view = scale3d(vec3(2 / extent, 1));
+  world_to_ndc = scale3d(vec3(2 / extent, 1));
+
+  ndc_to_viewport =
+    // -0.5 extent, +0.5 => 0, extent
+    translate3d(vec3(0.5F * extent, 0.0F)) *
+    // -1, +1 => -0.5 extent, +0.5 half_extent
+    scale3d(vec3(0.5F * extent, 1.0F));
+
+  // viewport coordinate to framebuffer coordinate
+  viewport_to_fb =
+    // 0, framebuffer-space extent -> viewport.offset, viewport.offset + framebuffer-space extent
+    translate3d(vec3(viewport.offset, 0.0F)) *
+    // 0, viewport-space extent -> 0, framebuffer-space extent
+    scale3d(vec3(Vec2::splat(virtual_scale), 1.0F));
 
   return *this;
 }
@@ -388,28 +438,19 @@ RectU Canvas::clip_to_scissor(CRect const & clip) const
                            (clip.begin() + 0.5F * extent) * virtual_scale,
                  .extent = clip.extent * virtual_scale};
 
-  scissor_f.offset.x = clamp(scissor_f.offset.x, 0.0F, MAX_CLIP.extent.x);
-  scissor_f.offset.y = clamp(scissor_f.offset.y, 0.0F, MAX_CLIP.extent.y);
-  scissor_f.extent.x = clamp(scissor_f.extent.x, 0.0F, MAX_CLIP.extent.x);
-  scissor_f.extent.y = clamp(scissor_f.extent.y, 0.0F, MAX_CLIP.extent.y);
+  scissor_f =
+    Rect::range(clamp_vec(scissor_f.offset, Vec2::splat(0.0F), MAX_CLIP.extent),
+                clamp_vec(scissor_f.end(), Vec2::splat(0.0F), MAX_CLIP.extent));
 
-  RectU scissor{.offset = as_vec2u(scissor_f.offset),
-                .extent = as_vec2u(scissor_f.extent)};
-
-  scissor.offset.x = min(scissor.offset.x, framebuffer_extent.x);
-  scissor.offset.y = min(scissor.offset.y, framebuffer_extent.y);
-  scissor.extent.x =
-    min(framebuffer_extent.x - scissor.offset.x, scissor.extent.x);
-  scissor.extent.y =
-    min(framebuffer_extent.y - scissor.offset.y, scissor.extent.y);
-
-  return scissor;
+  return RectU::range(
+    clamp_vec(as_vec2u(scissor_f.begin()), Vec2U::splat(0), framebuffer_extent),
+    clamp_vec(as_vec2u(scissor_f.end()), Vec2U::splat(0), framebuffer_extent));
 }
 
 static inline void add_rrect(Canvas & c, RRectParam const & param,
                              CRect const & clip)
 {
-  u32 const index = c.rrect_params.size32();
+  auto const index = c.rrect_params.size32();
   c.rrect_params.push(param).unwrap();
 
   if (c.batches.is_empty() ||
@@ -431,7 +472,7 @@ static inline void add_rrect(Canvas & c, RRectParam const & param,
 static inline void add_squircle(Canvas & c, SquircleParam const & param,
                                 CRect const & clip)
 {
-  u32 const index = c.squircle_params.size32();
+  auto const index = c.squircle_params.size32();
   c.squircle_params.push(param).unwrap();
 
   if (c.batches.is_empty() ||
@@ -453,7 +494,7 @@ static inline void add_squircle(Canvas & c, SquircleParam const & param,
 static inline void add_ngon(Canvas & c, NgonParam const & param,
                             CRect const & clip, u32 num_indices)
 {
-  u32 const index = c.ngon_params.size32();
+  auto const index = c.ngon_params.size32();
   c.ngon_index_counts.push(num_indices).unwrap();
   c.ngon_params.push(param).unwrap();
 
@@ -485,9 +526,10 @@ Canvas & Canvas::clip(CRect const & c)
   return *this;
 }
 
-constexpr Mat4 object_to_world(Mat4 const & transform, Vec2 center, Vec2 extent)
+constexpr Mat4 object_to_world(Mat4 const & transform, CRect const & area)
 {
-  return transform * translate3d(vec3(center, 0)) * scale3d(vec3(extent, 1));
+  return transform * translate3d(vec3(area.center, 0)) *
+         scale3d(vec3(area.extent, 1));
 }
 
 Canvas & Canvas::circle(ShapeInfo const & info)
@@ -495,15 +537,14 @@ Canvas & Canvas::circle(ShapeInfo const & info)
   f32 const inv_y = 1 / info.area.extent.y;
   add_rrect(*this,
             RRectParam{
-              .transform = object_to_world(info.transform, info.area.center,
-                                           info.area.extent),
+              .transform = object_to_world(info.transform, info.area),
               .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
               .radii = {1, 1, 1, 1},
               .uv    = {info.uv[0], info.uv[1]},
               .tiling          = info.tiling,
               .aspect_ratio    = info.area.extent.x * inv_y,
               .stroke          = info.stroke,
-              .thickness       = info.thickness * inv_y,
+              .thickness       = info.thickness.x * inv_y,
               .edge_smoothness = info.edge_smoothness * inv_y,
               .sampler         = info.sampler,
               .albedo          = info.texture
@@ -518,15 +559,14 @@ Canvas & Canvas::rect(ShapeInfo const & info)
   f32 const inv_y = 1 / info.area.extent.y;
   add_rrect(*this,
             RRectParam{
-              .transform = object_to_world(info.transform, info.area.center,
-                                           info.area.extent),
+              .transform = object_to_world(info.transform, info.area),
               .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
               .radii = {0, 0, 0, 0},
               .uv    = {info.uv[0], info.uv[1]},
               .tiling          = info.tiling,
               .aspect_ratio    = info.area.extent.x * inv_y,
               .stroke          = info.stroke,
-              .thickness       = info.thickness * inv_y,
+              .thickness       = info.thickness.x * inv_y,
               .edge_smoothness = info.edge_smoothness * inv_y,
               .sampler         = info.sampler,
               .albedo          = info.texture
@@ -549,15 +589,14 @@ Canvas & Canvas::rrect(ShapeInfo const & info)
 
   add_rrect(*this,
             RRectParam{
-              .transform = object_to_world(info.transform, info.area.center,
-                                           info.area.extent),
+              .transform = object_to_world(info.transform, info.area),
               .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
               .radii = r,
               .uv    = {info.uv[0], info.uv[1]},
               .tiling          = info.tiling,
               .aspect_ratio    = info.area.extent.x * inv_y,
               .stroke          = info.stroke,
-              .thickness       = info.thickness * inv_y,
+              .thickness       = info.thickness.x * inv_y,
               .edge_smoothness = info.edge_smoothness * inv_y,
               .sampler         = info.sampler,
               .albedo          = info.texture
@@ -568,21 +607,20 @@ Canvas & Canvas::rrect(ShapeInfo const & info)
 
 Canvas & Canvas::brect(ShapeInfo const & info)
 {
-  u32 const first_vertex = ngon_vertices.size32();
-  u32 const first_index  = ngon_indices.size32();
+  auto const first_vertex = ngon_vertices.size32();
+  auto const first_index  = ngon_indices.size32();
 
   path::brect(ngon_vertices, info.corner_radii);
 
-  u32 const num_vertices = ngon_vertices.size32() - first_vertex;
+  auto const num_vertices = ngon_vertices.size32() - first_vertex;
 
   path::triangulate_convex(ngon_indices, first_vertex, num_vertices);
 
-  u32 const num_indices = ngon_indices.size32() - first_index;
+  auto const num_indices = ngon_indices.size32() - first_index;
 
   add_ngon(*this,
            NgonParam{
-             .transform = object_to_world(info.transform, info.area.center,
-                                          info.area.extent),
+             .transform = object_to_world(info.transform, info.area),
              .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
              .uv     = {info.uv[0], info.uv[1]},
              .tiling = info.tiling,
@@ -604,14 +642,15 @@ Canvas & Canvas::squircle(ShapeInfo const & info)
   add_squircle(
     *this,
     SquircleParam{
-      .transform =
-        object_to_world(info.transform, info.area.center, Vec2::splat(width)),
+      .transform = object_to_world(info.transform,
+                                   CRect{info.area.center, Vec2::splat(width)}
+                                   ),
       .tint      = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
       .uv        = {info.uv[0], info.uv[1]},
       .degree    = info.corner_radii.x,
       .tiling    = info.tiling,
       .stroke    = info.stroke,
-      .thickness = info.thickness * inv_y,
+      .thickness = info.thickness.x * inv_y,
       .edge_smoothness = info.edge_smoothness * inv_y,
       .sampler         = info.sampler,
       .albedo          = info.texture
@@ -628,18 +667,17 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points)
     return *this;
   }
 
-  u32 const first_index  = ngon_indices.size32();
-  u32 const first_vertex = ngon_vertices.size32();
+  auto const first_index  = ngon_indices.size32();
+  auto const first_vertex = ngon_vertices.size32();
 
   ngon_vertices.extend(points).unwrap();
   path::triangles(first_vertex, points.size32(), ngon_indices);
 
-  u32 const num_indices = ngon_vertices.size32() - first_vertex;
+  auto const num_indices = ngon_vertices.size32() - first_vertex;
 
   add_ngon(*this,
            NgonParam{
-             .transform = object_to_world(info.transform, info.area.center,
-                                          info.area.extent),
+             .transform = object_to_world(info.transform, info.area),
              .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
              .uv     = {info.uv[0], info.uv[1]},
              .tiling = info.tiling,
@@ -661,8 +699,8 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points,
     return *this;
   }
 
-  u32 const first_index  = ngon_indices.size32();
-  u32 const first_vertex = ngon_vertices.size32();
+  auto const first_index  = ngon_indices.size32();
+  auto const first_vertex = ngon_vertices.size32();
 
   ngon_vertices.extend(points).unwrap();
   ngon_indices.extend(idx).unwrap();
@@ -674,8 +712,7 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points,
 
   add_ngon(*this,
            NgonParam{
-             .transform = object_to_world(info.transform, info.area.center,
-                                          info.area.extent),
+             .transform = object_to_world(info.transform, info.area),
              .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
              .uv     = {info.uv[0], info.uv[1]},
              .tiling = info.tiling,
@@ -696,17 +733,16 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
     return *this;
   }
 
-  u32 const first_index  = ngon_indices.size32();
-  u32 const first_vertex = ngon_vertices.size32();
+  auto const first_index  = ngon_indices.size32();
+  auto const first_vertex = ngon_vertices.size32();
   path::triangulate_stroke(points, ngon_vertices, ngon_indices,
-                           info.thickness / info.area.extent.y);
+                           info.thickness.x / info.area.extent.y);
 
-  u32 const num_indices = ngon_indices.size32() - first_index;
+  auto const num_indices = ngon_indices.size32() - first_index;
 
   add_ngon(*this,
            NgonParam{
-             .transform = object_to_world(info.transform, info.area.center,
-                                          info.area.extent),
+             .transform = object_to_world(info.transform, info.area),
              .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
              .uv     = {info.uv[0], info.uv[1]},
              .tiling = info.tiling,
