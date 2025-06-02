@@ -756,26 +756,59 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
   return *this;
 }
 
-Canvas & Canvas::blur(CRect const & clip, Vec2 spread_radius, Vec4 corner_radii)
+Canvas & Canvas::blur(ShapeInfo const & info)
 {
-  u32 const index = blurs.size32();
+  // doesn't currently handle rotation correctly :(
+  auto const index = blurs.size32();
 
-  // [ ] transform clip
-  // instead of identity in object to world, use transform
+  auto const world_xfm = object_to_world(info.transform, info.area);
 
-  f32 const   inv_y   = 1 / clip.extent.y;
-  RectU const fb_area = clip_to_scissor(clip);
+  auto const fb_xfm =
+    viewport_to_fb * ndc_to_viewport * world_to_ndc * world_xfm;
 
-  // [ ] rect render space is incorrect?
-  // [ ] copying text regions with ellipsis on
+  auto const tl = transform(fb_xfm, Vec3{-0.5, -0.5, 0.0}).xy();
+  auto const tr = transform(fb_xfm, Vec3{0.5, -0.5, 0.0}).xy();
+  auto const bl = transform(fb_xfm, Vec3{-0.5, 0.5, 0.0}).xy();
+  auto const br = transform(fb_xfm, Vec3{0.5, 0.5, 0.0}).xy();
 
-  blurs
-    .push(Blur{.area          = fb_area,
-               .spread_radius = as_vec2u(spread_radius * virtual_scale),
-               .corner_radii  = corner_radii * inv_y,
-               .transform =
-                 object_to_world(Mat4::IDENTITY, clip.center, clip.extent),
-               .aspect_ratio = clip.extent.x * inv_y})
+  auto const bounding = CRect::bounding(tl, tr, bl, br);
+
+  /// [ ] we need to apply a uv-transform,
+  Vec2 uv0 = bounding.begin() * framebuffer_uv_base;
+  Vec2 uv1 = bounding.end() * framebuffer_uv_base;
+
+  auto const to_brightness = [](Vec4 tint) {
+    return vec4(Vec3::splat((tint.x + tint.y + tint.z) * (1 / 3.0F)), 1.0F);
+  };
+
+  auto const inv_y = 1 / info.area.extent.y;
+
+  RRectParam rrect{
+    .transform = world_xfm,
+    .tint{to_brightness(info.tint[0]), to_brightness(info.tint[1]),
+          to_brightness(info.tint[2]), to_brightness(info.tint[3])},
+    .radii = info.corner_radii * inv_y,
+    .uv{uv0, uv1},
+    .tiling          = 1,
+    .aspect_ratio    = info.area.extent.x * inv_y,
+    .stroke          = info.stroke,
+    .thickness       = 0 * inv_y,
+    .edge_smoothness = info.edge_smoothness * inv_y,
+    .sampler         = SamplerId::LinearClamped,
+    .albedo          = TextureId::Base
+  };
+
+  auto const area =
+    RectU::range(
+      as_vec2u(clamp_vec(bounding.begin(), Vec2::splat(0), MAX_CLIP.extent)),
+      as_vec2u(clamp_vec(bounding.end(), Vec2::splat(0), MAX_CLIP.extent)))
+      .clamp_to_extent(framebuffer_extent);
+
+  auto const spread_radius =
+    as_vec2u(clamp_vec(info.thickness * virtual_scale, Vec2::splat(0),
+                       Vec2::splat(MAX_CLIP_DISTANCE)));
+
+  blurs.push(Blur{.rrect = rrect, .area = area, .spread_radius = spread_radius})
     .unwrap();
 
   batches
