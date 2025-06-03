@@ -892,7 +892,7 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
       if (strcmp(OPTIONAL_EXTS[iopt], exts[i].extensionName) == 0)
       {
         load_exts[num_load_exts++] = OPTIONAL_EXTS[iopt];
-        set_bit(has_optional_ext, iopt);
+        has_optional_ext.set_bit(iopt);
       }
     }
 
@@ -988,7 +988,7 @@ Result<Dyn<gpu::Instance *>, Status> create_instance(AllocatorRef allocator,
   VkInstanceCreateInfo create_info{
     .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
     .pNext                   = enable_validation ? &debug_create_info : nullptr,
-    .flags                   = get_bit(has_optional_ext, 10) ?
+    .flags                   = has_optional_ext.get(10) ?
                                  VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR :
                                  ((VkInstanceCreateFlags) 0),
     .pApplicationInfo        = &app_info,

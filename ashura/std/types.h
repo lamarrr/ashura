@@ -1159,15 +1159,20 @@ struct Span
     return Slice{static_cast<usize>(data() - parent.data()), size()};
   }
 
+  constexpr Span slice(Slice s) const
+  {
+    s = s(size());
+    return Span{data() + s.offset, s.span};
+  }
+
   constexpr Span slice(usize offset, usize span) const
   {
     return slice(Slice{offset, span});
   }
 
-  constexpr Span slice(Slice s) const
+  constexpr Span slice(usize offset) const
   {
-    s = s(size());
-    return Span{data() + s.offset, s.span};
+    return slice(offset, USIZE_MAX);
   }
 
   constexpr Span slice(Slice32 s) const
@@ -1180,11 +1185,6 @@ struct Span
   {
     s = s((u16) size());
     return Span{data() + s.offset, s.span};
-  }
-
-  constexpr Span slice(usize offset) const
-  {
-    return slice(offset, USIZE_MAX);
   }
 
   template <typename U>

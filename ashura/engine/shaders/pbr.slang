@@ -17,7 +17,7 @@ struct PunctualLight
   f32   radius;
 };
 
-struct PbrParam
+struct PbrShaderParam
 {
   row_major float4x4 transform;
   f32x4              eye_position;
@@ -45,65 +45,17 @@ struct PbrParam
   u32                first_vertex;
 };
 
-struct PbrMaterial
-{
-  f32x3 albedo              = f32x3(1);
-  f32   metallic            = 0;
-  f32   roughness           = 0;
-  f32x3 normal              = 0;
-  f32   occlusion           = 0;
-  f32x3 emission            = 0;
-  f32   ior                 = 1.5;
-  f32   clearcoat           = 0;
-  f32   clearcoat_roughness = 0;
-  f32x3 clearcoat_normal    = f32x3(0);
-
-  static PbrMaterial load(PbrParam p, SamplerState s, f32x2 uv)
-  {
-    PbrMaterial m;
-    // clang-format off
-    m.albedo = textures[NonUniformResourceIndex(p.albedo_map)].Sample(s, uv).rgb * p.albedo.xyz;
-    m.metallic = textures[NonUniformResourceIndex(p.metallic_map)].Sample(s, uv).r * p.metallic;
-    m.roughness = textures[NonUniformResourceIndex(p.roughness_map)].Sample(s, uv).r * p.roughness;
-    m.normal = textures[NonUniformResourceIndex(p.normal_map)].Sample(s, uv).rgb * p.normal;
-    m.occlusion = textures[NonUniformResourceIndex(p.occlusion_map)].Sample(s, uv).r * p.occlusion;
-    m.emission = textures[NonUniformResourceIndex(p.emission_map)].Sample(s, uv).rgb * p.emission.xyz;
-    m.ior = p.ior;
-    m.clearcoat = textures[NonUniformResourceIndex(p.clearcoat_map)].Sample(s, uv).r * p.clearcoat;
-    m.clearcoat_roughness = textures[NonUniformResourceIndex(p.clearcoat_roughness_map)].Sample(s, uv).r * p.clearcoat_roughness;
-    m.clearcoat_normal = textures[NonUniformResourceIndex(p.clearcoat_normal_map)].Sample(s, uv).rgb * p.clearcoat_normal;
-    // clang-format on
-
-    return m;
-  }
-};
-
 struct Vertex
 {
   f32x4 pos;
   f32x2 uv;
 };
 
-[[vk::push_constant]]
-ConstantBuffer<float4x4, Std430DataLayout> world_to_view;
-
-[[vk::binding(0, 0)]]
-StructuredBuffer<Vertex> vtx_buffer;
-
-[[vk::binding(0, 1)]]
-StructuredBuffer<u32> idx_buffer;
-
-[[vk::binding(0, 2)]]
-StructuredBuffer<PbrParam> params;
-
-[[vk::binding(0, 3)]]
-StructuredBuffer<PunctualLight> lights;
-
-[[vk::binding(0, 4)]]
-SamplerState samplers[];
-
-[[vk::binding(0, 5)]]
-Texture2D textures[];
+struct ShaderConstants
+{
+  row_major f32x4x4 world_to_ndc;
+  row_major f32x4x4 uv_transform;
+};
 
 struct VertexOutput
 {
@@ -131,6 +83,60 @@ struct FragmentOutput
   }
 };
 
+struct PbrMaterial
+{
+  f32x3 albedo              = f32x3(1);
+  f32   metallic            = 0;
+  f32   roughness           = 0;
+  f32x3 normal              = 0;
+  f32   occlusion           = 0;
+  f32x3 emission            = 0;
+  f32   ior                 = 1.5;
+  f32   clearcoat           = 0;
+  f32   clearcoat_roughness = 0;
+  f32x3 clearcoat_normal    = f32x3(0);
+
+  static PbrMaterial load(PbrShaderParam p, SamplerState s, f32x2 uv)
+  {
+    PbrMaterial m;
+    // clang-format off
+    m.albedo = textures[NonUniformResourceIndex(p.albedo_map)].Sample(s, uv).rgb * p.albedo.xyz;
+    m.metallic = textures[NonUniformResourceIndex(p.metallic_map)].Sample(s, uv).r * p.metallic;
+    m.roughness = textures[NonUniformResourceIndex(p.roughness_map)].Sample(s, uv).r * p.roughness;
+    m.normal = textures[NonUniformResourceIndex(p.normal_map)].Sample(s, uv).rgb * p.normal;
+    m.occlusion = textures[NonUniformResourceIndex(p.occlusion_map)].Sample(s, uv).r * p.occlusion;
+    m.emission = textures[NonUniformResourceIndex(p.emission_map)].Sample(s, uv).rgb * p.emission.xyz;
+    m.ior = p.ior;
+    m.clearcoat = textures[NonUniformResourceIndex(p.clearcoat_map)].Sample(s, uv).r * p.clearcoat;
+    m.clearcoat_roughness = textures[NonUniformResourceIndex(p.clearcoat_roughness_map)].Sample(s, uv).r * p.clearcoat_roughness;
+    m.clearcoat_normal = textures[NonUniformResourceIndex(p.clearcoat_normal_map)].Sample(s, uv).rgb * p.clearcoat_normal;
+    // clang-format on
+
+    return m;
+  }
+};
+
+[[vk::push_constant]]
+row_major ConstantBuffer<ShaderConstants, Std430DataLayout> constants;
+
+[[vk::binding(0, 0)]]
+StructuredBuffer<Vertex> vtx_buffer;
+
+[[vk::binding(0, 1)]]
+StructuredBuffer<u32> idx_buffer;
+
+[[vk::binding(0, 2)]]
+StructuredBuffer<PbrShaderParam> params;
+
+[[vk::binding(0, 3)]]
+StructuredBuffer<PunctualLight> lights;
+
+[[vk::binding(0, 4)]]
+SamplerState samplers[];
+
+[[vk::binding(0, 5)]]
+Texture2D textures[];
+
 [[shader("vertex")]]
 VertexOutput vs_main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
 {
@@ -138,8 +144,8 @@ VertexOutput vs_main(u32 instance : SV_InstanceID, u32 vertex : SV_VertexID)
   var idx       = idx_buffer[vertex];
   var vtx       = vtx_buffer[p.first_vertex + idx];
   var world_pos = mul(p.transform, vtx.pos);
-  return VertexOutput(mul(world_to_view, world_pos), instance, world_pos,
-                      vtx.uv);
+  return VertexOutput(mul(constants.world_to_ndc, world_pos), instance,
+                      world_pos, vtx.uv);
 }
 
 static constexpr u32 NUM_OBJECT_LIGHTS = 4;

@@ -466,7 +466,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
   push(
     ShapeInfo{
       .area{.center = info.area.center, .extent = block_extent},
-      .transform = info.transform * translate3d(vec3(info.area.center, 0))
+      .transform = info.transform * translate3d(vec3(info.area.center, 0)),
+      .clip      = clip
   },
     TextLayer::Block, TextRenderInfo{});
 
@@ -511,7 +512,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
                 .corner_radii = style.caret.corner_radii,
                 .tint         = style.caret.color,
                 .sampler      = info.sampler,
-                .edge_smoothness = info.edge_smoothness
+                .edge_smoothness = info.edge_smoothness,
+                .clip            = clip
             },
               TextLayer::Caret,
               {.line = iln, .column = 0, .caret = ln.carets.first()});
@@ -535,8 +537,9 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
             .transform    = info.transform * translate3d(vec3(center, 0)),
             .corner_radii = style.highlight.corner_radii,
             .stroke       = style.highlight.stroke,
-            .thickness    = style.highlight.thickness,
-            .tint         = style.highlight.color
+            .thickness    = Vec2::splat(style.highlight.thickness),
+            .tint         = style.highlight.color,
+            .clip         = clip
         },
           TextLayer::Highlight, {.line = iln});
       }
@@ -568,7 +571,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
               .area{.center = info.area.center, .extent = extent},
               .transform    = info.transform * translate3d(vec3(center, 0)),
               .corner_radii = run_style.corner_radii,
-              .tint         = run_style.background
+              .tint         = run_style.background,
+              .clip         = clip
           },
             TextLayer::Background,
             {.line = iln, .column = i, .run = irun, .run_style = run.style});
@@ -592,8 +596,9 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
                 .transform    = info.transform * translate3d(vec3(center, 0)),
                 .corner_radii = style.highlight.corner_radii,
                 .stroke       = style.highlight.stroke,
-                .thickness    = style.highlight.thickness,
-                .tint         = style.highlight.color
+                .thickness    = Vec2::splat(style.highlight.thickness),
+                .tint         = style.highlight.color,
+                .clip         = clip
             },
               TextLayer::Highlight,
               {.line = iln, .run = irun, .run_style = run.style});
@@ -613,7 +618,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
               .transform       = info.transform * translate3d(vec3(center, 0)),
               .tint            = run_style.strikethrough,
               .sampler         = info.sampler,
-              .edge_smoothness = info.edge_smoothness
+              .edge_smoothness = info.edge_smoothness,
+              .clip            = clip
           },
             TextLayer::Strikethrough,
             {.line = iln, .column = i, .run = irun, .run_style = run.style});
@@ -634,7 +640,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
               .transform       = info.transform * translate3d(vec3(center, 0)),
               .tint            = run_style.underline,
               .sampler         = info.sampler,
-              .edge_smoothness = info.edge_smoothness
+              .edge_smoothness = info.edge_smoothness,
+              .clip            = clip
           },
             TextLayer::Underline,
             {.line = iln, .column = i, .run = irun, .run_style = run.style});
@@ -670,7 +677,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
                 .sampler         = info.sampler,
                 .texture         = atlas.textures[agl.layer],
                 .uv              = {agl.uv[0],                  agl.uv[1]              },
-                .edge_smoothness = info.edge_smoothness
+                .edge_smoothness = info.edge_smoothness,
+                .clip            = clip
             },
               TextLayer::GlyphShadows,
               {.line      = iln,
@@ -691,7 +699,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
                 .sampler   = info.sampler,
                 .texture   = atlas.textures[agl.layer],
                 .uv        = {agl.uv[0],                  agl.uv[1]       },
-                .edge_smoothness = info.edge_smoothness
+                .edge_smoothness = info.edge_smoothness,
+                .clip            = clip
             },
               TextLayer::Glyphs,
               {.line      = iln,
@@ -733,7 +742,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
                     .corner_radii    = style.caret.corner_radii,
                     .tint            = style.caret.color,
                     .sampler         = info.sampler,
-                    .edge_smoothness = info.edge_smoothness
+                    .edge_smoothness = info.edge_smoothness,
+                    .clip            = clip
                 },
                   TextLayer::Caret,
                   {.line = iln, .column = c - ln.carets.first(), .caret = c});
@@ -757,8 +767,9 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
                   .transform    = info.transform * translate3d(vec3(center, 0)),
                   .corner_radii = style.highlight.corner_radii,
                   .stroke       = style.highlight.stroke,
-                  .thickness    = style.highlight.thickness,
-                  .tint         = style.highlight.color
+                  .thickness    = Vec2::splat(style.highlight.thickness),
+                  .tint         = style.highlight.color,
+                  .clip         = clip
               },
                 TextLayer::Highlight,
                 {.line      = iln,

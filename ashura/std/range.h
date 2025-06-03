@@ -7,6 +7,21 @@
 namespace ash
 {
 
+template <typename Iter>
+concept SizedIter = requires (Iter iter) {
+  { static_cast<usize>(iter.size()) };
+};
+
+template <typename Iter>
+concept BoundedSizeIter = requires (Iter iter) {
+  { static_cast<usize>(iter.max_size()) };
+};
+
+template <typename Iter, typename T>
+concept IterOf = requires (Iter iter) {
+  { static_cast<T>(*iter) };
+};
+
 template <typename I>
 struct IndexIter
 {
@@ -28,6 +43,11 @@ struct IndexIter
   {
     return i_ != max_;
   }
+
+  constexpr I size() const
+  {
+    return max_ - i_;
+  }
 };
 
 template <typename I>
@@ -43,7 +63,7 @@ struct IndexRange
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr I size() const
@@ -87,6 +107,11 @@ struct SkipIndexIter
   {
     return i_ != max_;
   }
+
+  constexpr I size() const
+  {
+    return (max_ - i_) / incr_;
+  }
 };
 
 /// @param incr_ non-zero increment
@@ -104,7 +129,7 @@ struct SkipIndexRange
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 
   constexpr auto size() const
@@ -142,21 +167,41 @@ struct ZipIter
   {
     return iters_.v0 != end;
   }
+
+  constexpr auto size() const requires (SizedIter<BaseIter>)
+  {
+    return iters_.v0.size();
+  }
+
+  constexpr auto max_size() const requires (BoundedSizeIter<BaseIter>)
+  {
+    return iters_.v0.max_size();
+  }
 };
 
 template <typename BaseIter, typename... Iters>
 struct ZipRange
 {
-  Tuple<BaseIter, Iters...> begins_{};
+  Tuple<BaseIter, Iters...> iters_{};
 
   constexpr auto begin() const
   {
-    return ZipIter<BaseIter, Iters...>{.iters_{begins_}};
+    return ZipIter<BaseIter, Iters...>{.iters_{iters_}};
   }
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
+  }
+
+  constexpr auto size() const requires (SizedIter<BaseIter>)
+  {
+    return iters_.v0.size();
+  }
+
+  constexpr auto max_size() const requires (BoundedSizeIter<BaseIter>)
+  {
+    return iters_.v0.max_size();
   }
 };
 
@@ -165,7 +210,7 @@ template <Range Base, Range... Ranges>
 constexpr auto zip(Base && base, Ranges &&... ranges)
 {
   return ZipRange<decltype(begin(base)), decltype(begin(ranges))...>{
-    .begins_{begin(base), begin(ranges)...}
+    .iters_{begin(base), begin(ranges)...}
   };
 }
 
@@ -205,7 +250,7 @@ struct EnumerateRange
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 };
 
@@ -745,7 +790,7 @@ struct RunRange
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 };
 
@@ -863,7 +908,7 @@ struct WindowRange
 
   constexpr auto end() const
   {
-    return IterEnd{};
+    return iter_end;
   }
 };
 

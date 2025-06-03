@@ -57,8 +57,11 @@ void PassContext::add_pass(Dyn<Pass *> pass)
   all.push(std::move(pass)).unwrap();
 }
 
-void BlurRenderer::render(PassContext const & passes, FrameGraph & graph,
-                          Framebuffer const & fb, BlurRenderParam const & blur)
+void BlurRenderer::render(FrameGraph & graph, Framebuffer const & fb,
+                          Span<ColorTexture const>,
+                          Span<DepthStencilTexture const>,
+                          PassContext const &     passes,
+                          BlurRenderParam const & blur)
 {
   if (blur.area.extent.x == 0 || blur.area.extent.y == 0)
   {
@@ -70,87 +73,33 @@ void BlurRenderer::render(PassContext const & passes, FrameGraph & graph,
     return;
   }
 
-  RectU const downsampled_area = {
-    .offset{0, 0},
-    .extent = blur.area.extent / BlurPass::DOWNSCALE_FACTOR
-  };
+  BlurPassParams const params{
+    .framebuffer = fb, .area = blur.area, .spread_radius = blur.spread_radius};
 
-  if (downsampled_area.extent.x == 0 || downsampled_area.extent.y == 0)
+  if (!params.area.is_visible())
   {
     return;
   }
 
-  if (blur.corner_radii.x <= 0 && blur.corner_radii.y <= 0 &&
-      blur.corner_radii.z <= 0 && blur.corner_radii.w <= 0)
-  {
-    graph.add_pass("Rect Blur"_str, [blur, fb, &passes](
-                                      FrameGraph &, gpu::CommandEncoder & enc) {
-      BlurPassParams const params{.framebuffer   = fb,
-                                  .area          = blur.area,
-                                  .spread_radius = blur.spread_radius};
-      passes.blur->encode(enc, params).match([&](auto & r) {
-        enc.blit_image(
-          r.color.image, fb.color.image,
-          span({
-            gpu::ImageBlit{.src_layers{.aspects   = gpu::ImageAspects::Color,
-                                       .mip_level = 0,
-                                       .first_array_layer = 0,
-                                       .num_array_layers  = 1},
-                           .src_area = as_boxu(r.rect),
-                           .dst_layers{.aspects   = gpu::ImageAspects::Color,
-                                       .mip_level = 0,
-                                       .first_array_layer = 0,
-                                       .num_array_layers  = 1},
-                           .dst_area = as_boxu(params.area)}
-        }),
-          gpu::Filter::Linear);
-      });
-    });
-  }
-  else
-  {
-    // assumes sample framebuffer extent is same as framebuffer extent
-    Vec2 const uv_scale = 1 / as_vec2(fb.extent().xy());
+  u32 const rrect = graph.push_ssbo(Span{&blur.rrect, 1}.as_u8());
 
-    RRectParam const rrects[] = {
-      {.transform = blur.transform,
-       .tint{norm(colors::WHITE), norm(colors::WHITE), norm(colors::WHITE),
-             norm(colors::WHITE)},
-       .radii = blur.corner_radii,
-       .uv{as_vec2(downsampled_area.begin()) * uv_scale,
-           as_vec2(downsampled_area.end()) * uv_scale},
-       .tiling          = 1.0F,
-       .aspect_ratio    = blur.aspect_ratio,
-       .stroke          = 0,
-       .thickness       = 0,
-       .edge_smoothness = 0,
-       .sampler         = SamplerId::LinearClamped,
-       .albedo          = TextureId{0}}
-    };
-
-    u32 const rrect = graph.push_ssbo(span(rrects).as_u8());
-
-    graph.add_pass("RRect Blur"_str, [rrect, blur, fb,
-                                      &passes](FrameGraph &          graph,
-                                               gpu::CommandEncoder & enc) {
-      BlurPassParams const params{.framebuffer   = fb,
-                                  .area          = blur.area,
-                                  .spread_radius = blur.spread_radius};
-      auto const           result = passes.blur->encode(enc, params).unwrap();
+  graph.add_pass(
+    "RRect Blur"_str, [rrect, blur, fb, &passes,
+                       params](FrameGraph & graph, gpu::CommandEncoder & enc) {
+      auto const result = passes.blur->encode(enc, params).unwrap();
 
       auto [sb, slice] = graph.get_structured_buffer(rrect);
       passes.rrect->encode(enc,
-                           RRectPassParams{.framebuffer   = fb,
-                                           .scissor       = blur.scissor,
-                                           .viewport      = blur.viewport,
-                                           .world_to_view = blur.world_to_view,
-                                           .params_ssbo   = sb.descriptor_,
+                           RRectPassParams{.framebuffer  = fb,
+                                           .scissor      = blur.scissor,
+                                           .viewport     = blur.viewport,
+                                           .world_to_ndc = blur.world_to_ndc,
+                                           .params_ssbo  = sb.descriptor_,
                                            .params_ssbo_offset = slice.offset,
                                            .textures = result.color.texture,
                                            .first_instance = 0,
                                            .num_instances  = 1});
     });
-  }
 }
 
 Renderer Renderer::create(AllocatorRef allocator)
@@ -169,19 +118,21 @@ void Renderer::release()
   passes_->release();
 }
 
-void Renderer::render_canvas(Framebuffer const & fb, FrameGraph & graph,
-                             Canvas const & c)
+void Renderer::render_canvas(FrameGraph & graph, Canvas const & c,
+                             Framebuffer const &             fb,
+                             Span<ColorTexture const>        scratch_colors,
+                             Span<DepthStencilTexture const> scratch_ds)
 {
   ScopeTrace trace;
 
-  auto const rrect_params = graph.push_ssbo(c.rrect_params.view().as_u8());
+  auto const rrect_params = graph.push_ssbo(c.rrect_params_.view().as_u8());
   auto const squircle_params =
-    graph.push_ssbo(c.squircle_params.view().as_u8());
-  auto const ngon_params   = graph.push_ssbo(c.ngon_params.view().as_u8());
-  auto const ngon_vertices = graph.push_ssbo(c.ngon_vertices.view().as_u8());
-  auto const ngon_indices  = graph.push_ssbo(c.ngon_indices.view().as_u8());
+    graph.push_ssbo(c.squircle_params_.view().as_u8());
+  auto const ngon_params   = graph.push_ssbo(c.ngon_params_.view().as_u8());
+  auto const ngon_vertices = graph.push_ssbo(c.ngon_vertices_.view().as_u8());
+  auto const ngon_indices  = graph.push_ssbo(c.ngon_indices_.view().as_u8());
 
-  for (Canvas::Batch const & batch : c.batches)
+  for (Canvas::Batch const & batch : c.batches_)
   {
     switch (batch.type)
     {
@@ -194,8 +145,8 @@ void Renderer::render_canvas(Framebuffer const & fb, FrameGraph & graph,
             RRectPassParams const params{.framebuffer = fb,
                                          .scissor =
                                            c.clip_to_scissor(batch.clip),
-                                         .viewport           = c.viewport,
-                                         .world_to_view      = c.world_to_view,
+                                         .viewport           = c.viewport_,
+                                         .world_to_ndc       = c.world_to_ndc_,
                                          .params_ssbo        = prm.descriptor_,
                                          .params_ssbo_offset = slice.offset,
                                          .textures       = sys->gpu.textures_,
@@ -215,9 +166,9 @@ void Renderer::render_canvas(Framebuffer const & fb, FrameGraph & graph,
             SquirclePassParams const params{.framebuffer = fb,
                                             .scissor =
                                               c.clip_to_scissor(batch.clip),
-                                            .viewport      = c.viewport,
-                                            .world_to_view = c.world_to_view,
-                                            .params_ssbo   = prm.descriptor_,
+                                            .viewport     = c.viewport_,
+                                            .world_to_ndc = c.world_to_ndc_,
+                                            .params_ssbo  = prm.descriptor_,
                                             .params_ssbo_offset = slice.offset,
                                             .textures = sys->gpu.textures_,
                                             .first_instance = batch.run.offset,
@@ -239,8 +190,8 @@ void Renderer::render_canvas(Framebuffer const & fb, FrameGraph & graph,
             NgonPassParams const params{
               .framebuffer          = fb,
               .scissor              = c.clip_to_scissor(batch.clip),
-              .viewport             = c.viewport,
-              .world_to_view        = c.world_to_view,
+              .viewport             = c.viewport_,
+              .world_to_ndc         = c.world_to_ndc_,
               .vertices_ssbo        = vtx.descriptor_,
               .vertices_ssbo_offset = vtx_slice.offset,
               .indices_ssbo         = idx.descriptor_,
@@ -249,7 +200,7 @@ void Renderer::render_canvas(Framebuffer const & fb, FrameGraph & graph,
               .params_ssbo_offset   = prm_slice.offset,
               .textures             = sys->gpu.textures_,
               .first_instance       = batch.run.offset,
-              .index_counts = c.ngon_index_counts.view().slice(batch.run)};
+              .index_counts = c.ngon_index_counts_.view().slice(batch.run)};
 
             passes.ngon->encode(enc, params);
           });
@@ -257,24 +208,22 @@ void Renderer::render_canvas(Framebuffer const & fb, FrameGraph & graph,
 
       case Canvas::BatchType::Blur:
       {
-        Canvas::Blur const & blur = c.blurs[batch.run.offset];
+        Canvas::Blur const & blur = c.blurs_[batch.run.offset];
         BlurRenderer::render(
-          *passes_, graph, fb,
-          BlurRenderParam{.area          = blur.area,
+          graph, fb, scratch_colors, scratch_ds, *passes_,
+          BlurRenderParam{.rrect         = blur.rrect,
+                          .area          = blur.area,
                           .spread_radius = blur.spread_radius,
-                          .corner_radii  = blur.corner_radii,
-                          .transform     = blur.transform,
-                          .aspect_ratio  = blur.aspect_ratio,
                           .scissor       = c.clip_to_scissor(batch.clip),
-                          .viewport      = c.viewport,
-                          .world_to_view = c.world_to_view});
+                          .viewport      = c.viewport_,
+                          .world_to_ndc  = c.world_to_ndc_});
       }
       break;
 
       case Canvas::BatchType::Pass:
       {
-        Canvas::Pass & pass = c.passes[batch.run.offset];
-        pass.task(graph, *passes_, c, fb);
+        Canvas::Pass & pass = c.passes_[batch.run.offset];
+        pass.task(graph, *passes_, c, fb, scratch_colors, scratch_ds);
       }
       break;
 

@@ -31,4 +31,5 @@ cpp_format -folder ashura/gpu
 cpp_format -folder ashura/engine
 slang_format -folder ashura/engine/shaders
 slang_format -folder ashura/engine/shaders/modules
+slang_format -folder ashura/engine/shaders/effects
 cmake_format -file ./CMakeLists.txt

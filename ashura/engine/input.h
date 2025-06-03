@@ -962,22 +962,22 @@ struct KeyState
   Vec<c8> text{};
 
   /// @brief bit mask of all the keys that were pressed on this frame
-  BitArray<u64, NUM_KEY_CODES> key_downs{};
+  Bits<u64, NUM_KEY_CODES> key_downs{};
 
   /// @brief bit mask of all the keys that were released on this frame
-  BitArray<u64, NUM_KEY_CODES> key_ups{};
+  Bits<u64, NUM_KEY_CODES> key_ups{};
 
   /// @brief bit mask of all the key states
-  BitArray<u64, NUM_KEY_CODES> key_states{};
+  Bits<u64, NUM_KEY_CODES> key_states{};
 
   /// @brief bit mask of all the keys that were pressed on this frame, indexed using the scancode
-  BitArray<u64, NUM_SCAN_CODES> scan_downs{};
+  Bits<u64, NUM_SCAN_CODES> scan_downs{};
 
   /// @brief bit mask of all the keys that were released on this frame, indexed using the scancode
-  BitArray<u64, NUM_SCAN_CODES> scan_ups{};
+  Bits<u64, NUM_SCAN_CODES> scan_ups{};
 
   /// @brief bit mask of all the key states, indexed using the scancode
-  BitArray<u64, NUM_SCAN_CODES> scan_states{};
+  Bits<u64, NUM_SCAN_CODES> scan_states{};
 
   /// @brief hold state of the key modifiers on this frame
   KeyModifiers mod_downs = KeyModifiers::None;
@@ -998,32 +998,32 @@ struct KeyState
 
   constexpr bool down(KeyCode k) const
   {
-    return get_bit(key_downs, (usize) k);
+    return key_downs[(usize) k];
   }
 
   constexpr bool up(KeyCode k) const
   {
-    return get_bit(key_ups, (usize) k);
+    return key_ups[(usize) k];
   }
 
   constexpr bool held(KeyCode k) const
   {
-    return get_bit(key_states, (usize) k);
+    return key_states[(usize) k];
   }
 
   constexpr bool down(ScanCode k) const
   {
-    return get_bit(scan_downs, (usize) k);
+    return scan_downs[(usize) k];
   }
 
   constexpr bool up(ScanCode k) const
   {
-    return get_bit(scan_ups, (usize) k);
+    return scan_ups[(usize) k];
   }
 
   constexpr bool held(ScanCode k) const
   {
-    return get_bit(scan_states, (usize) k);
+    return scan_states[(usize) k];
   }
 
   constexpr bool down(KeyModifiers mods) const

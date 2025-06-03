@@ -237,7 +237,7 @@ constexpr TextDirection level_to_direction(u8 level)
 struct TextHighlightStyle
 {
   Vec4U8 color        = {};
-  Vec4   corner_radii = Vec4::splat(1);
+  Vec4   corner_radii = Vec4::splat(0);
   f32    stroke       = 0;
   f32    thickness    = 1;
 };
@@ -465,11 +465,12 @@ struct TextBlock
 /// directionality of the line.
 struct TextBlockStyle
 {
-  Span<TextStyle const> runs        = {};
-  f32                   alignment   = 0;
-  f32                   align_width = 0;
-  TextHighlightStyle    highlight   = {};
-  CaretStyle            caret       = {};
+  Span<TextStyle const> runs                = {};
+  f32                   alignment           = 0;
+  f32                   align_width         = 0;
+  TextHighlightStyle    highlight           = {};
+  f32                   min_highlight_width = 15.0F;
+  CaretStyle            caret               = {};
 };
 
 /// @param cluster codepoint cluster within the text run

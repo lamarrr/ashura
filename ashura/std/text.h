@@ -29,49 +29,41 @@ namespace ash
   return count;
 }
 
-/// @brief `decoded.size()` must be at least `encoded.size()`
-[[nodiscard]] constexpr usize utf8_decode(Str8 text, MutStr32 decoded)
+template <typename Iter>
+[[nodiscard]] constexpr Tuple<c32, usize> seek_utf8_codepoint(Iter & iter)
 {
-  c8 const * in  = text.data();
-  c8 const * end = text.pend();
-  c32 *      out = decoded.data();
+  c32 const c0 = *iter;
+  iter++;
 
-  while (in != end)
+  if ((c0 & 0xF8) == 0xF0)
   {
-    c32 const c0 = in[0];
-
-    if ((c0 & 0xF8) == 0xF0)
-    {
-      c32 const c1 = in[1];
-      c32 const c2 = in[2];
-      c32 const c3 = in[3];
-      *out =
-        ((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) | c3;
-      in += 4;
-    }
-    else if ((c0 & 0xF0) == 0xE0)
-    {
-      c32 const c1 = in[1];
-      c32 const c2 = in[2];
-      *out         = ((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0X3F);
-      in += 3;
-    }
-    else if ((c0 & 0xE0) == 0xC0)
-    {
-      c32 const c1 = in[1];
-      *out         = ((c0 & 0x1F) << 6) | (c1 & 0x3F);
-      in += 2;
-    }
-    else
-    {
-      *out = c0;
-      in += 1;
-    }
-
-    out++;
+    c32 const c1 = *iter;
+    iter++;
+    c32 const c2 = *iter;
+    iter++;
+    c32 const c3 = *iter;
+    iter++;
+    return {((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) | c3,
+            4};
   }
-
-  return out - decoded.pbegin();
+  else if ((c0 & 0xF0) == 0xE0)
+  {
+    c32 const c1 = *iter;
+    iter++;
+    c32 const c2 = *iter;
+    iter++;
+    return {((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0X3F), 3};
+  }
+  else if ((c0 & 0xE0) == 0xC0)
+  {
+    c32 const c1 = *iter;
+    iter++;
+    return {((c0 & 0x1F) << 6) | (c1 & 0x3F), 2};
+  }
+  else
+  {
+    return {c0, 1};
+  }
 }
 
 constexpr u8 codepoint_width(c32 c)
@@ -93,6 +85,22 @@ constexpr u8 codepoint_width(c32 c)
     return 4;
   }
   return 0;
+}
+
+/// @brief `decoded.size()` must be at least `encoded.size()`
+[[nodiscard]] constexpr usize utf8_decode(Str8 text, MutStr32 decoded)
+{
+  c8 const * in  = text.data();
+  c8 const * end = text.pend();
+  c32 *      out = decoded.data();
+
+  while (in != end)
+  {
+    *out = seek_utf8_codepoint(in).v0;
+    out++;
+  }
+
+  return out - decoded.pbegin();
 }
 
 /// @brief `encoded.size()` must be at least `text.size() * 4`
@@ -211,5 +219,118 @@ inline constexpr Tuple<c32, c32> MATHEMATICAL_OPERATORS{0x2200, 0x22FF};
 inline constexpr Tuple<c32, c32> HIRAGANA{0x3040, 0x309F};
 inline constexpr Tuple<c32, c32> KATAKANA{0x30A0, 0x30FF};
 }    // namespace utf
+
+template <IterOf<c8> CodeUnitIter>
+struct Utf8DecodeIter
+{
+  typedef c32          Type;
+  typedef CodeUnitIter Iter;
+
+  Iter iter_;
+
+  constexpr c32 operator*() const
+  {
+    auto iter = iter_;
+    return seek_utf8_codepoint(iter).v0;
+  }
+
+  constexpr Utf8DecodeIter & operator++()
+  {
+    [[maybe_unused]] auto _ = seek_utf8_codepoint(iter_);
+    return *this;
+  }
+
+  constexpr Utf8DecodeIter operator++(int)
+  {
+    auto old = *this;
+    this->operator++();
+    return old;
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return iter_ != iter_end;
+  }
+
+  constexpr auto max_size() const requires (SizedIter<Iter>)
+  {
+    return iter_.size() * 4;
+  }
+
+  constexpr auto max_size() const
+    requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
+  {
+    return iter_.max_size() * 4;
+  }
+};
+
+template <IterOf<c32> CodePointIter>
+struct Utf8EncodeIter
+{
+  typedef c8            Type;
+  typedef CodePointIter Iter;
+
+  Iter iter_;
+
+  constexpr InplaceVec<c8, 4> operator*() const;
+
+  constexpr Utf8EncodeIter & operator++()
+  {
+    iter_++;
+    return *this;
+  }
+
+  constexpr Utf8EncodeIter operator++(int)
+  {
+    auto old = *this;
+    this->operator++();
+    return old;
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return iter_ != iter_end;
+  }
+
+  constexpr auto max_size() const requires (SizedIter<Iter>)
+  {
+    return iter_.size() * 4;
+  }
+
+  constexpr auto max_size() const
+    requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
+  {
+    return iter_.max_size() * 4;
+  }
+};
+
+namespace ascii
+{
+}
+
+// [ ] to ascii lower
+// [ ] to ascii upper
+// [ ] matches
+// [ ] replace
+// [ ] replace_n
+// [ ] split
+// [ ] truncate
+// [ ] trim
+// [ ] trim_ascii
+// [ ] lines
+// [ ] delimeter
+// [ ] split_ascii
+// [ ] join()
+// [ ] utf-8 iterator
+// [ ] reverse
+// [ ] right
+// [ ] substr
+
+// [ ] concat(....)
+// [ ] lower
+// [ ] ltrim
+// [ ] rtim
+// [ ] trim
+// [ ] replicate
 
 }    // namespace ash

@@ -50,7 +50,7 @@ void BlurPass::acquire()
   gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
                                              .depth_compare_op =
-                                               gpu::CompareOp::Greater,
+                                               gpu::CompareOp::Never,
                                              .depth_bounds_test_enable = false,
                                              .stencil_test_enable      = false,
                                              .front_stencil            = {},
@@ -89,7 +89,7 @@ void BlurPass::acquire()
     .color_formats          = {&sys->gpu.color_format_, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
-    .push_constants_size    = sizeof(BlurParam),
+    .push_constants_size    = sizeof(BlurShaderParam),
     .descriptor_set_layouts = set_layouts,
     .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
     .rasterization_state    = raster_state,
@@ -113,22 +113,15 @@ void BlurPass::release()
   sys->gpu.device_->uninit(upsample_pipeline);
 }
 
-void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
+void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2U spread_radius,
             gpu::DescriptorSet src_texture, TextureId src_id, Vec2U src_extent,
             RectU const & src_area, gpu::ImageView dst, RectU const & dst_area,
             bool upsample)
 {
-  // [ ] fix sample area
-  auto const scale     = 1 / as_vec2(src_extent);
-  auto const uv_radius = radius * scale;
-  auto const uv_min    = as_vec2(src_area.begin()) * scale;
-  auto const uv_max    = as_vec2(src_area.end()) * scale;
-
-  // offset uv by 2 pixels in both directions to prevent texture spilling
-  auto const uv_shift = 0 * scale;
-
-  auto const uv0 = clamp_vec(uv_min + uv_shift, uv_min, uv_max);
-  auto const uv1 = clamp_vec(uv_max - uv_shift, uv_min, uv_max);
+  auto const scale            = 1 / as_vec2(src_extent);
+  auto const uv_spread_radius = as_vec2(spread_radius) * scale;
+  auto const uv0              = as_vec2(src_area.begin()) * scale;
+  auto const uv1              = as_vec2(src_area.end()) * scale;
 
   gpu::RenderingAttachment color[1] = {
     {.view         = dst,
@@ -153,15 +146,43 @@ void sample(BlurPass & b, gpu::CommandEncoder & e, Vec2 radius,
   });
   e.bind_descriptor_sets(span({sys->gpu.samplers_, src_texture}), {});
   e.push_constants(span({
-                          BlurParam{.uv_min  = uv0,
-                                    .uv_max  = uv1,
-                                    .radius  = uv_radius,
-                                    .sampler = SamplerId::LinearClamped,
-                                    .texture = src_id}
+                          BlurShaderParam{.uv{uv0, uv1},
+                                          .radius  = uv_spread_radius,
+                                          .sampler = SamplerId::LinearClamped,
+                                          .texture = src_id}
   })
                      .as_u8());
   e.draw(4, 1, 0, 0);
   e.end_rendering();
+}
+
+BlurPass::Config BlurPass::config(BlurPassParams const & params)
+{
+  // [ ] use round-up div for the blur radius?
+  // [ ] scaling behaviour
+
+  // [ ] saturated upcast of floatto int
+
+  auto const spread_radius = clamp_vec(params.spread_radius, Vec2U::splat(1U),
+                                       Vec2U::splat(MAX_SPREAD_RADIUS));
+
+  auto const major_spread_radius = max(spread_radius.x, spread_radius.y);
+
+  auto const padding = Vec2U::splat(max(major_spread_radius + 8, 16U));
+
+  auto const padded_begin = sat_sub(params.area.begin(), padding);
+  auto const padded_end   = sat_add(params.area.end(), padding);
+
+  auto const padded_area = RectU::range(padded_begin, padded_end)
+                             .clamp_to_extent(params.framebuffer.extent().xy());
+
+  auto const num_passes = clamp(major_spread_radius, 1U, MAX_PASSES);
+
+  return {.spread_radius       = spread_radius,
+          .major_spread_radius = major_spread_radius,
+          .padding             = padding,
+          .padded_area         = padded_area,
+          .num_passes          = num_passes};
 }
 
 Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
@@ -172,71 +193,79 @@ Option<ColorTextureResult> BlurPass::encode(gpu::CommandEncoder &  e,
     return none;
   }
 
-  // downscale sample region to 1/DOWNSCALE_FACTOR of the resolution
-  RectU const downsampled_area{.offset{},
-                               .extent = params.area.extent / DOWNSCALE_FACTOR};
+  auto cfg = config(params);
 
-  if (!downsampled_area.is_visible())
+  if (!cfg.padded_area.is_visible() || cfg.num_passes == 0)
   {
     return none;
   }
 
+  e.blit_image(params.framebuffer.color.image, sys->gpu.scratch_color_[0].image,
+               span({
+                 gpu::ImageBlit{.src_layers{.aspects = gpu::ImageAspects::Color,
+                                            .mip_level         = 0,
+                                            .first_array_layer = 0,
+                                            .num_array_layers  = 1},
+                                .src_area = as_boxu(cfg.padded_area),
+                                .dst_layers{.aspects = gpu::ImageAspects::Color,
+                                            .mip_level         = 0,
+                                            .first_array_layer = 0,
+                                            .num_array_layers  = 1},
+                                .dst_area = as_boxu(cfg.padded_area)}
+  }),
+               gpu::Filter::Linear);
+
+  // NOTE: we can avoid a second copy operation if the padded area is same as the blur area,
+  // which will happen if we are blurring the entire texture.
   e.blit_image(params.framebuffer.color.image, sys->gpu.scratch_color_[1].image,
                span({
                  gpu::ImageBlit{.src_layers{.aspects = gpu::ImageAspects::Color,
                                             .mip_level         = 0,
                                             .first_array_layer = 0,
                                             .num_array_layers  = 1},
-                                .src_area = as_boxu(params.area),
+                                .src_area = as_boxu(cfg.padded_area),
                                 .dst_layers{.aspects = gpu::ImageAspects::Color,
                                             .mip_level         = 0,
                                             .first_array_layer = 0,
                                             .num_array_layers  = 1},
-                                .dst_area = as_boxu(downsampled_area)}
+                                .dst_area = as_boxu(cfg.padded_area)}
   }),
                gpu::Filter::Linear);
 
-  // [ ] OVERSAMPLE BY 1/BLUR_PERIOD * N pixels, + total shift distancwe
-  // [ ] first copy padded area
-
   ColorTexture const * const fbs[2] = {&sys->gpu.scratch_color_[0],
                                        &sys->gpu.scratch_color_[1]};
-  RectU const sample_areas[2]       = {downsampled_area, downsampled_area};
-
-  Vec2I const radius = as_vec2i(params.spread_radius);
-
-  f32 const major_radius = max(radius.x, radius.y);
-  u32 const num_passes =
-    clamp((u32) (major_radius / BLUR_PERIOD), 1U, MAX_PASSES);
-
-  Vec2 const pass_dist = as_vec2(radius) / num_passes;
 
   u32 src = 0;
   u32 dst = 1;
 
   // downsample pass
-  for (i64 i = 0; i < num_passes; i++)
+  for (u32 i = 1; i <= cfg.num_passes; i++)
   {
     src = (src + 1) & 1;
     dst = (src + 1) & 1;
-    sample(*this, e, pass_dist * (f32) (i + 1), fbs[src]->texture,
-           fbs[src]->texture_id, fbs[src]->extent().xy(), sample_areas[src],
-           fbs[dst]->view, sample_areas[dst], false);
+    auto const spread_radius =
+      clamp_vec(Vec2U::splat(i), Vec2U::splat(1U), cfg.spread_radius);
+    sample(*this, e, spread_radius, fbs[src]->texture, fbs[src]->texture_id,
+           fbs[src]->extent().xy(), params.area, fbs[dst]->view, params.area,
+           false);
   }
 
   // upsample pass
-  for (i64 i = num_passes; i > 0; i--)
+  for (u32 i = cfg.num_passes; i != 0; i--)
   {
     src = (src + 1) & 1;
     dst = (src + 1) & 1;
-    sample(*this, e, pass_dist * (f32) (i + 1), fbs[src]->texture,
-           fbs[src]->texture_id, fbs[src]->extent().xy(), sample_areas[src],
-           fbs[dst]->view, sample_areas[dst], true);
+    auto const spread_radius =
+      clamp_vec(Vec2U::splat(i), Vec2U::splat(1U), cfg.spread_radius);
+    sample(*this, e, spread_radius, fbs[src]->texture, fbs[src]->texture_id,
+           fbs[src]->extent().xy(), params.area, fbs[dst]->view, params.area,
+           true);
   }
 
-  CHECK(dst == 1, "");    // the last output was to scratch 1
+  // the last output was to scratch 1
+  CHECK(dst == 1, "");
 
-  return ColorTextureResult{.color = *fbs[dst], .rect = downsampled_area};
+  return ColorTextureResult{.color = *fbs[dst], .rect = params.area};
 }
 
 void NgonPass::acquire()
@@ -257,7 +286,7 @@ void NgonPass::acquire()
   gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
                                              .depth_compare_op =
-                                               gpu::CompareOp::Greater,
+                                               gpu::CompareOp::Never,
                                              .depth_bounds_test_enable = false,
                                              .stencil_test_enable      = false,
                                              .front_stencil            = {},
@@ -298,7 +327,7 @@ void NgonPass::acquire()
     .color_formats          = {&sys->gpu.color_format_, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
-    .push_constants_size    = sizeof(Mat4),
+    .push_constants_size    = sizeof(ShaderConstants),
     .descriptor_set_layouts = set_layouts,
     .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
     .rasterization_state    = raster_state,
@@ -345,7 +374,11 @@ void NgonPass::encode(gpu::CommandEncoder & e, NgonPassParams const & params)
           sys->gpu.samplers_, params.textures}),
     span({params.vertices_ssbo_offset, params.indices_ssbo_offset,
           params.params_ssbo_offset}));
-  e.push_constants(span({params.world_to_view}).as_u8());
+  e.push_constants(span({
+                          ShaderConstants{.world_to_ndc = params.world_to_ndc,
+                                          .uv_transform = params.uv_transform}
+  })
+                     .as_u8());
   e.set_graphics_state(
     gpu::GraphicsState{.scissor = params.scissor, .viewport = params.viewport});
 
@@ -421,7 +454,7 @@ void PBRPass::acquire()
     .depth_format           = {&sys->gpu.depth_format_, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
-    .push_constants_size    = sizeof(Mat4),
+    .push_constants_size    = sizeof(ShaderConstants),
     .descriptor_set_layouts = set_layouts,
     .primitive_topology     = gpu::PrimitiveTopology::TriangleList,
     .rasterization_state    = raster_state,
@@ -457,7 +490,7 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params)
   }
 
   gpu::RenderingAttachment depth[] = {
-    {.view     = params.framebuffer.depth.view,
+    {.view     = params.framebuffer.depth_stencil.view,
      .load_op  = gpu::LoadOp::Load,
      .store_op = gpu::StoreOp::Store}
   };
@@ -485,7 +518,11 @@ void PBRPass::encode(gpu::CommandEncoder & e, PBRPassParams const & params)
           params.lights_ssbo, sys->gpu.samplers_, params.textures}),
     span({params.vertices_ssbo_offset, params.indices_ssbo_offset,
           params.params_ssbo_offset, params.lights_ssbo_offset}));
-  e.push_constants(span({params.world_to_view}).as_u8());
+  e.push_constants(span({
+                          ShaderConstants{.world_to_ndc = params.world_to_ndc,
+                                          .uv_transform = params.uv_transform}
+  })
+                     .as_u8());
   e.draw(params.num_indices, 1, 0, params.instance);
   e.end_rendering();
 }
@@ -514,7 +551,7 @@ void RRectPass::acquire()
   gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
                                              .depth_compare_op =
-                                               gpu::CompareOp::Greater,
+                                               gpu::CompareOp::Never,
                                              .depth_bounds_test_enable = false,
                                              .stencil_test_enable      = false,
                                              .front_stencil            = {},
@@ -554,7 +591,7 @@ void RRectPass::acquire()
     .color_formats          = {&sys->gpu.color_format_, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
-    .push_constants_size    = sizeof(Mat4),
+    .push_constants_size    = sizeof(ShaderConstants),
     .descriptor_set_layouts = set_layouts,
     .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
     .rasterization_state    = raster_state,
@@ -596,7 +633,11 @@ void RRectPass::encode(gpu::CommandEncoder & e, RRectPassParams const & params)
   e.bind_descriptor_sets(
     span({params.params_ssbo, sys->gpu.samplers_, params.textures}),
     span({params.params_ssbo_offset}));
-  e.push_constants(span({params.world_to_view}).as_u8());
+  e.push_constants(span({
+                          ShaderConstants{.world_to_ndc = params.world_to_ndc,
+                                          .uv_transform = params.uv_transform}
+  })
+                     .as_u8());
   e.draw(4, params.num_instances, 0, params.first_instance);
   e.end_rendering();
 }
@@ -624,7 +665,7 @@ void SquirclePass::acquire()
   gpu::DepthStencilState depth_stencil_state{.depth_test_enable  = false,
                                              .depth_write_enable = false,
                                              .depth_compare_op =
-                                               gpu::CompareOp::Greater,
+                                               gpu::CompareOp::Never,
                                              .depth_bounds_test_enable = false,
                                              .stencil_test_enable      = false,
                                              .front_stencil            = {},
@@ -664,7 +705,7 @@ void SquirclePass::acquire()
     .color_formats          = {&sys->gpu.color_format_, 1},
     .vertex_input_bindings  = {},
     .vertex_attributes      = {},
-    .push_constants_size    = sizeof(Mat4),
+    .push_constants_size    = sizeof(ShaderConstants),
     .descriptor_set_layouts = set_layouts,
     .primitive_topology     = gpu::PrimitiveTopology::TriangleFan,
     .rasterization_state    = raster_state,
@@ -707,7 +748,11 @@ void SquirclePass::encode(gpu::CommandEncoder &      e,
   e.bind_descriptor_sets(
     span({params.params_ssbo, sys->gpu.samplers_, params.textures}),
     span({params.params_ssbo_offset}));
-  e.push_constants(span({params.world_to_view}).as_u8());
+  e.push_constants(span({
+                          ShaderConstants{.world_to_ndc = params.world_to_ndc,
+                                          .uv_transform = params.uv_transform}
+  })
+                     .as_u8());
   e.draw(4, params.num_instances, 0, params.first_instance);
   e.end_rendering();
 }

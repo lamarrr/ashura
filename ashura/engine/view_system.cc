@@ -36,8 +36,8 @@ void System::clear_frame()
   fixed_centers.clear();
   z_idx.clear();
   layers.clear();
-  canvas_tx.clear();
-  canvas_inv_tx.clear();
+  canvas_xfm.clear();
+  canvas_inv_xfm.clear();
   canvas_centers.clear();
   canvas_extents.clear();
   clips.clear();
@@ -59,8 +59,8 @@ void System::prepare_for(u16 n)
   fixed_centers.resize_uninit(n).unwrap();
   z_idx.resize_uninit(n).unwrap();
   layers.resize_uninit(n).unwrap();
-  canvas_tx.resize_uninit(n).unwrap();
-  canvas_inv_tx.resize_uninit(n).unwrap();
+  canvas_xfm.resize_uninit(n).unwrap();
+  canvas_inv_xfm.resize_uninit(n).unwrap();
   canvas_centers.resize_uninit(n).unwrap();
   canvas_extents.resize_uninit(n).unwrap();
   clips.resize_uninit(n).unwrap();
@@ -228,8 +228,8 @@ void System::layout(Vec2 viewport_extent)
   }
 
   // recursively apply viewport transforms to child viewports
-  canvas_tx[0]     = Affine3::IDENTITY;
-  canvas_inv_tx[0] = Affine3::IDENTITY;
+  canvas_xfm[0]     = Affine3::IDENTITY;
+  canvas_inv_xfm[0] = Affine3::IDENTITY;
 
   for (usize i = 0; i < n; i++)
   {
@@ -238,8 +238,8 @@ void System::layout(Vec2 viewport_extent)
       auto parent = att.viewports[i];
 
       // accumulated parent transform
-      auto const & accum     = canvas_tx[parent];
-      auto const & inv_accum = canvas_inv_tx[parent];
+      auto const & accum     = canvas_xfm[parent];
+      auto const & inv_accum = canvas_inv_xfm[parent];
 
       // transform we are applying to the viewport's contents
       auto const transform = translate2d(fixed_centers[i]) *
@@ -248,18 +248,20 @@ void System::layout(Vec2 viewport_extent)
 
       auto const inv_transform = translate_scale_inv2d(transform);
 
-      canvas_tx[i]     = accum * transform;
-      canvas_inv_tx[i] = inv_accum * inv_transform;
+      canvas_xfm[i]     = accum * transform;
+      canvas_inv_xfm[i] = inv_accum * inv_transform;
     }
   }
 
-  for (usize i = 0; i < n; i++)
+  canvas_centers[0] = fixed_centers[0];
+  canvas_extents[0] = extents[0];
+
+  for (usize i = 1; i < n; i++)
   {
-    auto const & transform   = canvas_tx[att.viewports[i]];
-    auto const   zoom        = Vec2{transform[0][0], transform[1][1]};
-    auto const   translation = transform.z().xy();
-    canvas_centers[i]        = fixed_centers[i] + translation;
-    canvas_extents[i]        = extents[i] * zoom;
+    auto const & transform = canvas_xfm[att.viewports[i]];
+    auto const   zoom      = Vec2{transform[0][0], transform[1][1]};
+    canvas_centers[i]      = ash::transform(transform, fixed_centers[i]);
+    canvas_extents[i]      = extents[i] * zoom;
   }
 
   clips[0] = CRect{.center = {}, .extent = viewport_extent};
@@ -373,18 +375,20 @@ void System::render(Canvas & canvas)
     {
       auto         parent_viewport = att.viewports[i];
       auto const & clip            = clips[parent_viewport];
+      auto const & xfm             = canvas_xfm[parent_viewport];
       CRect const  viewport_region{.center = fixed_centers[i],
                                    .extent = extents[i]};
       CRect const  canvas_region{.center = canvas_centers[i],
                                  .extent = canvas_extents[i]};
 
       auto & view = views[i];
-      canvas.clip(clip);
-      view->render(canvas, viewport_region, canvas_region, clip);
+
+      view->render(canvas, RenderInfo{.viewport_region  = viewport_region,
+                                      .canvas_region    = canvas_region,
+                                      .clip             = clip,
+                                      .canvas_transform = xfm});
     }
   }
-
-  canvas.clip(MAX_CLIP);
 }
 
 void System::focus_on(u16 i, bool active, bool grab_focus)
@@ -467,7 +471,7 @@ Option<u16> System::hit_test(Vec2 position) const
 HitInfo System::get_hit_info(u16 view, Vec2 position) const
 {
   auto viewport          = att.viewports[view];
-  auto viewport_position = transform(canvas_inv_tx[viewport], position);
+  auto viewport_position = transform(canvas_inv_xfm[viewport], position);
 
   CRect canvas_region{.center = canvas_centers[view],
                       .extent = canvas_extents[view]};
@@ -939,10 +943,10 @@ void System::process_input(Ctx const & ctx)
 
     if (event.type == Events::PointerOver)
     {
-      Cursor c =
-        view->cursor(extents[i], ash::transform(canvas_inv_tx[att.viewports[i]],
-                                                ctx.mouse.position.v()) -
-                                   fixed_centers[i]);
+      Cursor c = view->cursor(extents[i],
+                              ash::transform(canvas_inv_xfm[att.viewports[i]],
+                                             ctx.mouse.position.v()) -
+                                fixed_centers[i]);
 
       cursor = c;
     }

@@ -595,6 +595,7 @@ ui::State Text::tick(Ctx const & ctx, Events const & events, Fn<void(View &)>)
 
   auto hit_info = events.hit_info.map([](auto s) { return s; }).unwrap_or();
 
+  // [ ] transform is incorrect?
   compositor_.command(text_, cmd, {}, engine->clipboard, 1, 1,
                       hit_info.canvas_region.center,
                       hit_info.viewport_region.extent.x, hit_info.viewport_hit,
@@ -614,12 +615,11 @@ Layout Text::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return {.extent = text_.layout_.extent};
 }
 
-void Text::render(Canvas & canvas, CRect const & viewport_region,
-                  CRect const & canvas_region, CRect const & clip)
+void Text::render(Canvas & canvas, RenderInfo const & info)
 {
-  text_.render(
-    canvas.text_renderer(), canvas_region.center, viewport_region.extent.x,
-    scale3d(vec3(canvas_region.extent / viewport_region.extent, 1)), clip);
+  text_.render(canvas.text_renderer(), info.viewport_region.center,
+               info.viewport_region.extent.x,
+               transform2d_to_3d(info.canvas_transform), info.clip);
 }
 
 Cursor Text::cursor(Vec2, Vec2)
@@ -826,22 +826,21 @@ Layout Input::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return {.extent = content_.layout_.extent};
 }
 
-void Input::render(Canvas & canvas, CRect const & viewport_region,
-                   CRect const & canvas_region, CRect const & clip)
+void Input::render(Canvas & canvas, RenderInfo const & info)
 {
   if (content_.text_.is_empty())
   {
     // [ ] placeholder overlay when empty. use child view instead
-    stub_.render(
-      canvas.text_renderer(), canvas_region.center, viewport_region.extent.x,
-      scale3d(vec3(canvas_region.extent / viewport_region.extent, 1)), clip);
+    stub_.render(canvas.text_renderer(), info.viewport_region.center,
+                 info.viewport_region.extent.x,
+                 transform2d_to_3d(info.canvas_transform), info.clip);
   }
   else
   {
     // [ ] need to draw caret even if line is empty; SET placeholder caret to 0;  use place holder when focused
-    content_.render(
-      canvas.text_renderer(), canvas_region.center, viewport_region.extent.x,
-      scale3d(vec3(canvas_region.extent / viewport_region.extent, 1)), clip);
+    content_.render(canvas.text_renderer(), info.viewport_region.center,
+                    info.viewport_region.extent.x,
+                    transform2d_to_3d(info.canvas_transform), info.clip);
   }
 }
 
@@ -975,8 +974,7 @@ Layout Button::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
   return {.extent = size + 2 * style_.padding};
 }
 
-void Button::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
-                    CRect const &)
+void Button::render(Canvas & canvas, RenderInfo const & info)
 {
   Vec4U8 tint;
 
@@ -996,25 +994,28 @@ void Button::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
   switch (style_.shape)
   {
     case ButtonShape::RRect:
-      canvas.rrect({.area         = canvas_region,
+      canvas.rrect({.area         = info.canvas_region,
                     .corner_radii = style_.corner_radii,
                     .stroke       = style_.stroke,
-                    .thickness    = style_.thickness,
-                    .tint         = tint});
+                    .thickness    = Vec2::splat(style_.thickness),
+                    .tint         = tint,
+                    .clip         = info.clip});
       break;
     case ButtonShape::Squircle:
-      canvas.squircle({.area         = canvas_region,
+      canvas.squircle({.area         = info.canvas_region,
                        .corner_radii = style_.corner_radii,
                        .stroke       = style_.stroke,
-                       .thickness    = style_.thickness,
-                       .tint         = tint});
+                       .thickness    = Vec2::splat(style_.thickness),
+                       .tint         = tint,
+                       .clip         = info.clip});
       break;
     case ButtonShape::Bevel:
-      canvas.brect({.area         = canvas_region,
+      canvas.brect({.area         = info.canvas_region,
                     .corner_radii = style_.corner_radii,
                     .stroke       = style_.stroke,
-                    .thickness    = style_.thickness,
-                    .tint         = tint});
+                    .thickness    = Vec2::splat(style_.thickness),
+                    .tint         = tint,
+                    .clip         = info.clip});
       break;
     default:
       break;
@@ -1192,12 +1193,11 @@ Layout Icon::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return Layout{.extent = text_.get_layout().extent};
 }
 
-void Icon::render(Canvas & canvas, CRect const & viewport_region,
-                  CRect const & canvas_region, CRect const & clip)
+void Icon::render(Canvas & canvas, RenderInfo const & info)
 {
-  text_.render(
-    canvas.text_renderer(), canvas_region.center, viewport_region.extent.x,
-    scale3d(vec3(canvas_region.extent / viewport_region.extent, 1)), clip);
+  text_.render(canvas.text_renderer(), info.viewport_region.center,
+               info.viewport_region.extent.x,
+               transform2d_to_3d(info.canvas_transform), info.clip);
 }
 
 CheckBox::CheckBox(Str32 text, TextStyle const & style, FontStyle const & font,
@@ -1295,8 +1295,7 @@ Layout CheckBox::fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers)
   return {.extent = style_.padding + sizes[0]};
 }
 
-void CheckBox::render(Canvas &      canvas, CRect const &,
-                      CRect const & canvas_region, CRect const &)
+void CheckBox::render(Canvas & canvas, RenderInfo const & info)
 {
   Vec4U8 tint;
   if (state_.hovered && !state_.held && !state_.disabled)
@@ -1308,11 +1307,12 @@ void CheckBox::render(Canvas &      canvas, CRect const &,
     tint = style_.box_color;
   }
 
-  canvas.rrect({.area         = canvas_region,
+  canvas.rrect({.area         = info.canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = 1,
-                .thickness    = style_.thickness,
-                .tint         = tint});
+                .thickness    = Vec2::splat(style_.thickness),
+                .tint         = tint,
+                .clip         = info.clip});
 }
 
 Cursor CheckBox::cursor(Vec2, Vec2)
@@ -1456,8 +1456,7 @@ Layout Slider::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return {.extent = style_.frame(allocated)};
 }
 
-void Slider::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
-                    CRect const &)
+void Slider::render(Canvas & canvas, RenderInfo const & info)
 {
   u32 const main_axis  = (style_.axis == Axis::X) ? 0 : 1;
   u32 const cross_axis = (style_.axis == Axis::Y) ? 0 : 1;
@@ -1489,20 +1488,20 @@ void Slider::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
   }
 
   f32 const thumb_begin =
-    canvas_region.begin()[main_axis] + style_.thumb_size * 0.5F;
+    info.canvas_region.begin()[main_axis] + style_.thumb_size * 0.5F;
   f32 const thumb_end =
-    canvas_region.end()[main_axis] - style_.thumb_size * 0.5F;
+    info.canvas_region.end()[main_axis] - style_.thumb_size * 0.5F;
   f32 const thumb_center = lerp(thumb_begin, thumb_end, state_.t);
 
   CRect thumb_rect;
 
   thumb_rect.center[main_axis]  = thumb_center;
-  thumb_rect.center[cross_axis] = canvas_region.center[cross_axis];
+  thumb_rect.center[cross_axis] = info.canvas_region.center[cross_axis];
   thumb_rect.extent             = Vec2::splat(style_.thumb_size);
 
   CRect track_rect;
 
-  track_rect.center             = canvas_region.center;
+  track_rect.center             = info.canvas_region.center;
   track_rect.extent[main_axis]  = thumb_end - thumb_begin;
   track_rect.extent[cross_axis] = style_.track_size;
 
@@ -1637,16 +1636,15 @@ Layout Switch::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return {.extent = style_.frame(allocated)};
 }
 
-void Switch::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
-                    CRect const &)
+void Switch::render(Canvas & canvas, RenderInfo const & info)
 {
-  Vec2 thumb_extent = canvas_region.extent;
+  Vec2 thumb_extent = info.canvas_region.extent;
   thumb_extent.x *= 0.5F;
   Vec2 const alignment{state_.value ? ALIGNMENT_RIGHT : ALIGNMENT_LEFT,
                        ALIGNMENT_CENTER};
   Vec2 const thumb_center =
-    canvas_region.center +
-    space_align(canvas_region.extent, thumb_extent, alignment);
+    info.canvas_region.center +
+    space_align(info.canvas_region.extent, thumb_extent, alignment);
 
   Vec4U8 thumb_color;
   if (state_.hovered)
@@ -1661,13 +1659,15 @@ void Switch::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
 
   canvas
     .rrect({
-      .area         = canvas_region,
+      .area         = info.canvas_region,
       .corner_radii = style_.corner_radii,
-      .tint         = style_.track_color
+      .tint         = style_.track_color,
+      .clip         = info.clip
   })
     .rrect({.area{thumb_center, thumb_extent},
             .corner_radii = style_.corner_radii,
-            .tint         = thumb_color});
+            .tint         = thumb_color,
+            .clip         = info.clip});
 }
 
 Cursor Switch::cursor(Vec2, Vec2)
@@ -1750,24 +1750,26 @@ Layout Radio::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return {.extent = style_.frame(allocated)};
 }
 
-void Radio::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
-                   CRect const &)
+void Radio::render(Canvas & canvas, RenderInfo const & info)
 {
-  canvas.rrect({.area         = canvas_region,
+  canvas.rrect({.area         = info.canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = 1,
-                .thickness    = style_.thickness,
-                .tint         = style_.color});
+                .thickness    = Vec2::splat(style_.thickness),
+                .tint         = style_.color,
+                .clip         = info.clip});
 
   if (state_.value)
   {
-    Vec2 inner_extent = canvas_region.extent * (state_.hovered ? 0.75F : 0.5F);
+    Vec2 inner_extent =
+      info.canvas_region.extent * (state_.hovered ? 0.75F : 0.5F);
     Vec4U8 inner_color =
       state_.hovered ? style_.inner_hovered_color : style_.inner_color;
 
     canvas.circle({
-      .area{canvas_region.center, inner_extent},
-      .tint = inner_color
+      .area{info.canvas_region.center, inner_extent},
+      .tint = inner_color,
+      .clip = info.clip
     });
   }
 }
@@ -1891,14 +1893,14 @@ Layout ScalarDragBox::fit(Vec2 allocated, Span<Vec2 const> sizes,
   return {.extent = frame};
 }
 
-void ScalarDragBox::render(Canvas &      canvas, CRect const &,
-                           CRect const & canvas_region, CRect const &)
+void ScalarDragBox::render(Canvas & canvas, RenderInfo const & info)
 {
-  canvas.rrect({.area         = canvas_region,
+  canvas.rrect({.area         = info.canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = style_.stroke,
-                .thickness    = style_.thickness,
-                .tint         = style_.color});
+                .thickness    = Vec2::splat(style_.thickness),
+                .tint         = style_.color,
+                .clip         = info.clip});
 
   if (!state_.input_mode)
   {
@@ -1907,11 +1909,12 @@ void ScalarDragBox::render(Canvas &      canvas, CRect const &,
       [&](I32Info & v) { return v.uninterp(state_.scalar[v1]); });
 
     CRect const thumb_rect = CRect::from_offset(
-      canvas_region.begin(), canvas_region.extent * Vec2{t, 1});
+      info.canvas_region.begin(), info.canvas_region.extent * Vec2{t, 1});
 
     canvas.rrect({.area         = thumb_rect,
                   .corner_radii = style_.corner_radii,
-                  .tint         = style_.thumb_color});
+                  .tint         = style_.thumb_color,
+                  .clip         = info.clip});
   }
 }
 
@@ -2138,26 +2141,25 @@ Layout ScrollBar::fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>)
   return {.extent = allocated};
 }
 
-void ScrollBar::render(Canvas &      canvas, CRect const &,
-                       CRect const & canvas_region, CRect const &)
+void ScrollBar::render(Canvas & canvas, RenderInfo const & info)
 {
   // [ ] let it have its own extent
   u32 const main_axis  = (style_.axis == Axis::X) ? 0 : 1;
   u32 const cross_axis = (style_.axis == Axis::X) ? 1 : 0;
 
-  auto const scale = canvas_region.extent[main_axis] / state_.total_extent;
+  auto const scale = info.canvas_region.extent[main_axis] / state_.total_extent;
   auto const thumb_extent = state_.visible_extent * scale;
   auto const t = state_.center / (state_.total_extent - state_.visible_extent);
-  f32 const  thumb_center = canvas_region.begin()[main_axis] +
-                           0.5F * thumb_extent +
-                           t * (canvas_region.extent[main_axis] - thumb_extent);
+  f32 const  thumb_center =
+    info.canvas_region.begin()[main_axis] + 0.5F * thumb_extent +
+    t * (info.canvas_region.extent[main_axis] - thumb_extent);
 
   CRect thumb_rect;
 
   thumb_rect.center[main_axis]  = thumb_center;
-  thumb_rect.center[cross_axis] = canvas_region.center[cross_axis];
+  thumb_rect.center[cross_axis] = info.canvas_region.center[cross_axis];
   thumb_rect.extent[main_axis]  = thumb_extent;
-  thumb_rect.extent[cross_axis] = canvas_region.extent[cross_axis];
+  thumb_rect.extent[cross_axis] = info.canvas_region.extent[cross_axis];
 
   Vec4U8 thumb_color;
   if (state_.dragging)
@@ -2174,14 +2176,16 @@ void ScrollBar::render(Canvas &      canvas, CRect const &,
   }
 
   canvas
-    .rrect({.area         = canvas_region,
+    .rrect({.area         = info.canvas_region,
             .corner_radii = style_.track_corner_radii,
             .stroke       = 0,
-            .tint         = style_.track_color})
+            .tint         = style_.track_color,
+            .clip         = info.clip})
     .rrect({.area         = thumb_rect,
             .corner_radii = style_.thumb_corner_radii,
             .stroke       = 0,
-            .tint         = thumb_color});
+            .tint         = thumb_color,
+            .clip         = info.clip});
 }
 
 ScrollView::ScrollView(View & child) : child_{child}
@@ -2376,7 +2380,7 @@ Layout ComboItem::fit(Vec2, Span<Vec2 const>, Span<Vec2>)
   return Layout{};
 }
 
-void ComboItem::render(Canvas &, CRect const &, CRect const &, CRect const &)
+void ComboItem::render(Canvas &, RenderInfo const &)
 {
 }
 
@@ -2499,8 +2503,7 @@ Layout TextComboItem::fit(Vec2 allocated, Span<Vec2 const> sizes,
   return {.extent = frame};
 }
 
-void TextComboItem::render(Canvas &      canvas, CRect const &,
-                           CRect const & canvas_region, CRect const &)
+void TextComboItem::render(Canvas & canvas, RenderInfo const & info)
 {
   Vec4U8 color;
   if (ComboItem::state_.selected)
@@ -2520,11 +2523,12 @@ void TextComboItem::render(Canvas &      canvas, CRect const &,
     color = style_.color;
   }
 
-  canvas.rrect({.area         = canvas_region,
+  canvas.rrect({.area         = info.canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = style_.stroke,
-                .thickness    = style_.thickness,
-                .tint         = color});
+                .thickness    = Vec2::splat(style_.thickness),
+                .tint         = color,
+                .clip         = info.clip});
 }
 
 Combo::Combo(AllocatorRef allocator) : Flex{allocator}
@@ -2688,14 +2692,14 @@ ui::State Combo::tick(Ctx const &, Events const &, Fn<void(View &)> build)
   return ui::State{};
 }
 
-void Combo::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
-                   CRect const &)
+void Combo::render(Canvas & canvas, RenderInfo const & info)
 {
-  canvas.rrect({.area         = canvas_region,
+  canvas.rrect({.area         = info.canvas_region,
                 .corner_radii = style_.corner_radii,
                 .stroke       = style_.stroke,
-                .thickness    = style_.thickness,
-                .tint         = style_.color});
+                .thickness    = Vec2::splat(style_.thickness),
+                .tint         = style_.color,
+                .clip         = info.clip});
 }
 
 Image::Image(ImageSrc src) : src_{std::move(src)}
@@ -2828,7 +2832,8 @@ static Tuple<Vec2, Vec2, Vec2> fit_image(Vec2 extent, Vec2 region_extent,
 }
 
 static void render_image(Canvas & canvas, CRect const & region,
-                         ash::ImageInfo const & img, Image::Style const & style)
+                         CRect const & clip, ash::ImageInfo const & img,
+                         Image::Style const & style)
 {
   auto const [extent, uv0, uv1] =
     fit_image(as_vec2(img.info.extent.xy()), region.extent, style.fit);
@@ -2841,18 +2846,19 @@ static void render_image(Canvas & canvas, CRect const & region,
     .tint         = style.tint,
     .sampler      = SamplerId::LinearClamped,
     .texture      = img.textures[0],
-    .uv{uv0,                    uv1   }
+    .uv{uv0,                    uv1   },
+    .clip = clip
   });
 }
 
-void Image::render(Canvas & canvas, CRect const &, CRect const & canvas_region,
-                   CRect const &)
+void Image::render(Canvas & canvas, RenderInfo const & info)
 {
   state_.resolved.match([&](None) {},
                         [&](Option<ash::ImageInfo> & opt) {
                           opt.match(
                             [&](ash::ImageInfo & img) {
-                              render_image(canvas, canvas_region, img, style_);
+                              render_image(canvas, info.canvas_region,
+                                           info.clip, img, style_);
                             },
                             []() {});
                         },

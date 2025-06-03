@@ -10,7 +10,7 @@ static const int TOP_RIGHT    = 1;
 static const int BOTTOM_LEFT  = 2;
 static const int BOTTOM_RIGHT = 3;
 
-struct RRectParam
+struct RRectShaderParam
 {
   row_major f32x4x4 transform;
   f32x4             tint[4];
@@ -25,17 +25,11 @@ struct RRectParam
   u32               albedo;
 };
 
-[[vk::push_constant]]
-row_major ConstantBuffer<f32x4x4, Std430DataLayout> world_to_view;
-
-[[vk::binding(0, 0)]]
-StructuredBuffer<RRectParam> params;
-
-[[vk::binding(0, 1)]]
-SamplerState samplers[];
-
-[[vk::binding(0, 2)]]
-Texture2D textures[];
+struct ShaderConstants
+{
+  row_major f32x4x4 world_to_ndc;
+  row_major f32x4x4 uv_transform;
+};
 
 static const f32x2 VERTEX_BUFFER[] = {
   {-0.5, -0.5},
@@ -51,15 +45,30 @@ struct VertexOutput
   [[vk::location(1)]] f32x2               local_pos : LOCAL_POSITION;
 };
 
+[[vk::push_constant]]
+row_major ConstantBuffer<ShaderConstants, Std430DataLayout> constants;
+
+[[vk::binding(0, 0)]]
+row_major StructuredBuffer<RRectShaderParam> params;
+
+[[vk::binding(0, 1)]]
+SamplerState samplers[];
+
+[[vk::binding(0, 2)]]
+Texture2D textures[];
+
 [[shader("vertex")]] VertexOutput vs_main(u32 instance : SV_InstanceID,
                                           u32 vertex : SV_VertexID)
 {
   var   p         = params[instance];
   f32x2 local_pos = VERTEX_BUFFER[vertex];
-  f32x4 pos = mul(world_to_view, mul(p.transform, f32x4(local_pos, 0.0, 1.0)));
+  f32x4 pos =
+    mul(constants.world_to_ndc, mul(p.transform, f32x4(local_pos, 0.0, 1.0)));
   return VertexOutput(pos, instance, local_pos);
 }
 
+// [ ] ranges of thickness and smoothness; the coverage of the rect will for example only have the range 0 to -1
+// [ ] also in canvas: add thickness to the extent
 [[shader("fragment")]] f32x4
   fs_main([[vk::location(0)]] u32   instance : INSTANCE,
           [[vk::location(1)]] f32x2 local_pos : LOCAL_POSITION) :

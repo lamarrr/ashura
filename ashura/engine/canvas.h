@@ -92,6 +92,12 @@ enum class TileMode : u8
   Tile    = 1
 };
 
+/// @brief a normative clip rect that will cover the entire Canvas.
+constexpr f32 MAX_CLIP_DISTANCE = 0xFF'FFFF;
+
+inline constexpr CRect MAX_CLIP{.center = Vec2::splat(0),
+                                .extent = Vec2::splat(MAX_CLIP_DISTANCE)};
+
 /// @brief Canvas Shape Description
 struct ShapeInfo
 {
@@ -108,13 +114,13 @@ struct ShapeInfo
   f32 stroke = 0.0F;
 
   /// @brief thickness thickness of the stroke
-  f32 thickness = 1.0F;
+  Vec2 thickness = Vec2::splat(1.0F);
 
   /// @brief Linear Color gradient to use as tint
   ColorGradient tint = {};
 
   /// @brief sampler to use in rendering the shape
-  SamplerId sampler = SamplerId::Linear;
+  SamplerId sampler = SamplerId::LinearBlack;
 
   /// @brief texture to use in rendering the shape
   TextureId texture = TextureId::White;
@@ -131,16 +137,40 @@ struct ShapeInfo
 
   /// @brief edge smoothness to apply if it is a rrect
   f32 edge_smoothness = 1;
+
+  CRect clip = MAX_CLIP;
 };
 
-/// @brief a normative clip rect that will cover the entire Canvas.
-constexpr f32 MAX_CLIP_DISTANCE = 0xFF'FFFF;
-
-inline constexpr CRect MAX_CLIP{.center = Vec2::splat(0),
-                                .extent = Vec2::splat(MAX_CLIP_DISTANCE)};
+/// ┏━━━━━━━━━━━━━━━━━┑
+/// ┃  0  ┃  1  ┃  2  ┃
+/// ┃╸╸╸╸╸┃╸╸╸╸╸┃╸╸╸╸╸┃
+/// ┃  3  ┃  4  ┃  5  ┃
+/// ┃╸╸╸╸╸┃╸╸╸╸╸┃╸╸╸╸╸┃
+/// ┃  6  ┃  7  ┃  8  ┃
+/// ┗━━━━━━━━━━━━━━━━━┛
+///
+/// Scaling:
+///
+/// 0 2 6 8; None
+/// 1 7; Horizontal
+/// 3 5;	Vertical
+/// 4;	Horizontal + Vertical
+struct NineSlice
+{
+  TileMode mode   = TileMode::Stretch;
+  Vec4     uvs[9] = {};
+};
 
 struct FrameGraph;
+
 struct PassContext;
+
+// [ ] dashed-line single pass shader?: will need uv-transforms
+// [ ] bezier line renderer + line renderer : cap + opacity + blending
+// [ ] fill path renderer
+// [ ] shader functions
+// [ ] convex tesselation is free and doesn't need fill rules
+// [ ] for concave; use stencil then cover
 
 struct Canvas
 {
@@ -165,15 +195,14 @@ struct Canvas
 
   struct Blur
   {
-    RectU area          = {};
-    Vec2U spread_radius = {};
-    Vec4  corner_radii  = {};
-    Mat4  transform     = Mat4::IDENTITY;
-    f32   aspect_ratio  = 1;
+    RRectShaderParam rrect         = {};
+    RectU            area          = {};
+    Vec2U            spread_radius = {};
   };
 
   typedef Dyn<
-    Fn<void(FrameGraph &, PassContext &, Canvas const &, Framebuffer const &)>>
+    Fn<void(FrameGraph &, PassContext &, Canvas const &, Framebuffer const &,
+            Span<ColorTexture const>, Span<DepthStencilTexture const>)>>
     PassFn;
 
   struct Pass
@@ -185,60 +214,73 @@ struct Canvas
 
   /// @brief the viewport of the framebuffer this canvas will be targetting
   /// this is in the Framebuffer coordinates (Physical px coordinates)
-  gpu::Viewport viewport{};
+  gpu::Viewport viewport_;
 
   /// @brief the viewport's local extent. This will scale to the viewport's extent.
   /// This is typically the screen's virtual size (Logical px coordinates).
   /// This distinction helps support high-density displays.
-  Vec2 extent{};
+  Vec2 extent_;
 
   /// @brief the pixel size of the backing framebuffer (Physical px coordinates)
-  Vec2U framebuffer_extent{};
+  Vec2U framebuffer_extent_;
+
+  Vec2 framebuffer_uv_base_;
 
   /// @brief aspect ratio of the viewport
-  f32 aspect_ratio = 1;
+  f32 aspect_ratio_;
 
   /// @brief the ratio of the viewport's framebuffer coordinate extent
   /// to the viewport's virtual extent
-  f32 virtual_scale = 1;
+  f32 virtual_scale_;
 
-  /// @brief the world to viewport transformation matrix
-  Affine4 world_to_view = Affine4::IDENTITY;
+  /// @brief the world to viewport transformation matrix for the shader (-1.0, 1.0)
+  Affine4 world_to_ndc_;
 
-  CRect current_clip = MAX_CLIP;
+  Affine4 ndc_to_viewport_;
 
-  Vec<RRectParam> rrect_params;
+  Affine4 viewport_to_fb_;
 
-  Vec<SquircleParam> squircle_params;
+  Vec<RRectShaderParam> rrect_params_;
 
-  Vec<NgonParam> ngon_params;
+  Vec<SquircleShaderParam> squircle_params_;
 
-  Vec<Vec2> ngon_vertices;
+  Vec<NgonShaderParam> ngon_params_;
 
-  Vec<u32> ngon_indices;
+  Vec<Vec2> ngon_vertices_;
 
-  Vec<u32> ngon_index_counts;
+  Vec<u32> ngon_indices_;
 
-  Vec<Blur> blurs;
+  Vec<u32> ngon_index_counts_;
 
-  Vec<Pass> passes;
+  Vec<Blur> blurs_;
 
-  Vec<Batch> batches;
+  Vec<Pass> passes_;
+
+  Vec<Batch> batches_;
 
   // declared last so it would release allocated memory after all operations
   // are done executing
-  ArenaPool frame_arena;
+  ArenaPool frame_arena_;
 
   explicit Canvas(AllocatorRef allocator) :
-    rrect_params{allocator},
-    ngon_params{allocator},
-    ngon_vertices{allocator},
-    ngon_indices{allocator},
-    ngon_index_counts{allocator},
-    blurs{allocator},
-    passes{allocator},
-    batches{allocator},
-    frame_arena{allocator}
+    viewport_{},
+    extent_{},
+    framebuffer_extent_{},
+    framebuffer_uv_base_{},
+    aspect_ratio_{1},
+    virtual_scale_{1},
+    world_to_ndc_{Affine4::IDENTITY},
+    ndc_to_viewport_{Affine4::IDENTITY},
+    viewport_to_fb_{Affine4::IDENTITY},
+    rrect_params_{allocator},
+    ngon_params_{allocator},
+    ngon_vertices_{allocator},
+    ngon_indices_{allocator},
+    ngon_index_counts_{allocator},
+    blurs_{allocator},
+    passes_{allocator},
+    batches_{allocator},
+    frame_arena_{allocator}
   {
   }
 
@@ -254,10 +296,6 @@ struct Canvas
   Canvas & end_recording();
 
   Canvas & reset();
-
-  Canvas & reset_clip();
-
-  Canvas & clip(CRect const & area);
 
   RectU clip_to_scissor(CRect const & clip) const;
 
@@ -278,29 +316,8 @@ struct Canvas
   /// @param elasticity elasticity of the squircle [0, 1]
   Canvas & squircle(ShapeInfo const & info);
 
-  /// @brief
-  ///
-  ///
-  /// ┏━━━━━━━━━━━━━━━━━┑
-  /// ┃  0  ┃  1  ┃  2  ┃
-  /// ┃╸╸╸╸╸┃╸╸╸╸╸┃╸╸╸╸╸┃
-  /// ┃  3  ┃  4  ┃  5  ┃
-  /// ┃╸╸╸╸╸┃╸╸╸╸╸┃╸╸╸╸╸┃
-  /// ┃  6  ┃  7  ┃  8  ┃
-  /// ┗━━━━━━━━━━━━━━━━━┛
-  ///
-  /// Scaling:
-  ///
-  /// 0 2 6 8; None
-  /// 1 7; Horizontal
-  /// 3 5;	Vertical
-  /// 4;	Horizontal + Vertical
-  ///
-  /// @param info
-  /// @param mode
-  /// @param uvs
-  Canvas & nine_slice(ShapeInfo const & info, TileMode mode,
-                      Span<Vec4 const> uvs);
+  /// @brief draw a nine-sliced image
+  Canvas & nine_slice(ShapeInfo const & info, NineSlice const & slice);
 
   /// @brief Render Non-Indexed Triangles
   Canvas & triangles(ShapeInfo const & info, Span<Vec2 const> vertices);
@@ -314,8 +331,7 @@ struct Canvas
 
   /// @brief perform a Canvas-space blur
   /// @param area region in the canvas to apply the blur to
-  Canvas & blur(CRect const & area, Vec2 spread_radius,
-                Vec4 corner_radii = {0, 0, 0, 0});
+  Canvas & blur(ShapeInfo const & info);
 
   /// @brief register a custom canvas pass to be executed in the render thread
   Canvas & pass(Pass pass);
@@ -325,7 +341,7 @@ struct Canvas
   {
     // relocate lambda to heap
     Dyn<Lambda *> lambda =
-      dyn(frame_arena, static_cast<Lambda &&>(task)).unwrap();
+      dyn(frame_arena_, static_cast<Lambda &&>(task)).unwrap();
     // allocator is noop-ed but destructor still runs when the dynamic object is
     // uninitialized. the memory is freed by at the end of the frame anyway so
     // no need to free it
@@ -348,9 +364,9 @@ struct Canvas
          Span<usize const> sorted) { p->text(layers, shapes, infos, sorted); }};
   }
 
-  // clip mask?
+  // [ ] render to layer
   // [ ] with_mask()?
-  // [ ] layer api
+  // [ ] quad pass
 };
 
 }    // namespace ash

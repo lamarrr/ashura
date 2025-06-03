@@ -277,8 +277,7 @@ struct Text : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
   virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
@@ -389,8 +388,7 @@ struct Input : View
 
   virtual Layout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
   virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
@@ -483,8 +481,7 @@ struct Button : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
   virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
@@ -594,8 +591,7 @@ struct Icon : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
 struct CheckBox : View
@@ -676,8 +672,7 @@ struct CheckBox : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
   virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
@@ -771,8 +766,7 @@ struct Slider : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
   virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
@@ -853,8 +847,7 @@ struct Switch : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
   virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
@@ -920,8 +913,7 @@ struct Radio : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
   virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
@@ -995,8 +987,7 @@ struct ScalarDragBox : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
   virtual Cursor cursor(Vec2 extent, Vec2 offset) override;
 };
@@ -1124,8 +1115,8 @@ struct ScrollBar : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
+};
 };
 
 struct ScrollView : View
@@ -1235,8 +1226,7 @@ struct ComboItem : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
   virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
@@ -1314,8 +1304,7 @@ struct TextComboItem : ComboItem
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
 struct Combo : Flex
@@ -1393,8 +1382,7 @@ struct Combo : Flex
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
 using ImageSrc = Enum<None, ImageId, Future<Result<ImageId, ImageLoadErr>>>;
@@ -1462,8 +1450,7 @@ struct Image : View
   virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
                      Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
 // [ ] segmentation
@@ -1550,7 +1537,7 @@ struct List : View
 // - set the global focus rect, focus view can move there
 struct FocusView : View
 {
-  CRect canvas_region;
+  CRect canvas_region_;
 
   virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
@@ -1559,8 +1546,7 @@ struct FocusView : View
                      Span<Vec2> centers) override;
 
   // [ ] properly handle fixed-centered, should they be counted as part of the children?
-  virtual void render(Canvas & canvas, CRect const & viewport_region,
-                      CRect const & canvas_region, CRect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
 // [ ] implement

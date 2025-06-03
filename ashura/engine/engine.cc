@@ -165,16 +165,16 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
         case KeyAction::Press:
         {
           f.key.any_down = true;
-          set_bit(f.key.key_downs, (usize) e.key_code);
-          set_bit(f.key.scan_downs, (usize) e.scan_code);
+          f.key.key_downs.set_bit((usize) e.key_code);
+          f.key.scan_downs.set_bit((usize) e.scan_code);
           f.key.mod_downs |= e.modifiers;
         }
         break;
         case KeyAction::Release:
         {
           f.key.any_up = true;
-          set_bit(f.key.key_ups, (usize) e.key_code);
-          set_bit(f.key.scan_ups, (usize) e.scan_code);
+          f.key.key_ups.set_bit((usize) e.key_code);
+          f.key.scan_ups.set_bit((usize) e.scan_code);
           f.key.mod_ups |= e.modifiers;
         }
         break;
@@ -676,7 +676,7 @@ time_point Engine::get_inputs_(time_point prev_frame_end)
   input_state.mouse.states = mouse_btns;
 
   auto [kb_mods, kb_window] = window_sys->get_keyboard_state(
-    input_state.key.scan_states, input_state.key.key_states);
+    input_state.key.scan_states.view(), input_state.key.key_states.view());
 
   input_state.key.focused    = (kb_window == window);
   input_state.key.mod_states = kb_mods;
@@ -762,7 +762,9 @@ void Engine::run(ui::View & view, Fn<void(ui::Ctx const &)> loop)
 
     canvas.end_recording();
 
-    renderer.render_canvas(gpu_sys.fb_, gpu_sys.frame_graph_, canvas);
+    renderer.render_canvas(gpu_sys.frame_graph_, canvas, gpu_sys.fb_,
+                           gpu_sys.scratch_color_,
+                           gpu_sys.scratch_depth_stencil_);
     gpu_sys.frame(swapchain);
 
     frame_end             = steady_clock::now();

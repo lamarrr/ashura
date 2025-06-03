@@ -372,22 +372,16 @@ void path::triangulate_convex(Vec<u16> & idx, u16 first_vertex,
 
 Canvas & Canvas::reset()
 {
-  rrect_params.reset();
-  ngon_params.reset();
-  ngon_vertices.reset();
-  ngon_indices.reset();
-  ngon_index_counts.reset();
-  blurs.reset();
-  passes.reset();
-  batches.reset();
-  frame_arena.reclaim();
+  rrect_params_.reset();
+  ngon_params_.reset();
+  ngon_vertices_.reset();
+  ngon_indices_.reset();
+  ngon_index_counts_.reset();
+  blurs_.reset();
+  passes_.reset();
+  batches_.reset();
+  frame_arena_.reclaim();
 
-  return *this;
-}
-
-Canvas & Canvas::reset_clip()
-{
-  current_clip = MAX_CLIP;
   return *this;
 }
 
@@ -396,37 +390,37 @@ Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
 {
   reset();
 
-  viewport            = new_viewport;
-  extent              = new_extent;
-  framebuffer_extent  = new_framebuffer_extent;
-  framebuffer_uv_base = 1 / as_vec2(new_framebuffer_extent);
+  viewport_            = new_viewport;
+  extent_              = new_extent;
+  framebuffer_extent_  = new_framebuffer_extent;
+  framebuffer_uv_base_ = 1 / as_vec2(new_framebuffer_extent);
 
-  if (extent.x == 0 | extent.y == 0)
+  if (extent_.x == 0 | extent_.y == 0)
   {
-    aspect_ratio = 1;
+    aspect_ratio_ = 1;
   }
   else
   {
-    aspect_ratio = extent.x / extent.y;
+    aspect_ratio_ = extent_.x / extent_.y;
   }
 
-  virtual_scale = viewport.extent.x / new_extent.x;
+  virtual_scale_ = viewport_.extent.x / new_extent.x;
 
   // (-0.5w, +0.5w) (-0.5w, +0.5h) -> (-1, +1), (-1, +1)
-  world_to_ndc = scale3d(vec3(2 / extent, 1));
+  world_to_ndc_ = scale3d(vec3(2 / extent_, 1));
 
-  ndc_to_viewport =
+  ndc_to_viewport_ =
     // -0.5 extent, +0.5 => 0, extent
-    translate3d(vec3(0.5F * extent, 0.0F)) *
+    translate3d(vec3(0.5F * extent_, 0.0F)) *
     // -1, +1 => -0.5 extent, +0.5 half_extent
-    scale3d(vec3(0.5F * extent, 1.0F));
+    scale3d(vec3(0.5F * extent_, 1.0F));
 
   // viewport coordinate to framebuffer coordinate
-  viewport_to_fb =
+  viewport_to_fb_ =
     // 0, framebuffer-space extent -> viewport.offset, viewport.offset + framebuffer-space extent
-    translate3d(vec3(viewport.offset, 0.0F)) *
+    translate3d(vec3(viewport_.offset, 0.0F)) *
     // 0, viewport-space extent -> 0, framebuffer-space extent
-    scale3d(vec3(Vec2::splat(virtual_scale), 1.0F));
+    scale3d(vec3(Vec2::splat(virtual_scale_), 1.0F));
 
   return *this;
 }
@@ -434,30 +428,31 @@ Canvas & Canvas::begin_recording(gpu::Viewport const & new_viewport,
 RectU Canvas::clip_to_scissor(CRect const & clip) const
 {
   // clips are always unscaled
-  Rect scissor_f{.offset = viewport.offset +
-                           (clip.begin() + 0.5F * extent) * virtual_scale,
-                 .extent = clip.extent * virtual_scale};
+  Rect scissor_f{.offset = viewport_.offset +
+                           (clip.begin() + 0.5F * extent_) * virtual_scale_,
+                 .extent = clip.extent * virtual_scale_};
 
   scissor_f =
     Rect::range(clamp_vec(scissor_f.offset, Vec2::splat(0.0F), MAX_CLIP.extent),
                 clamp_vec(scissor_f.end(), Vec2::splat(0.0F), MAX_CLIP.extent));
 
   return RectU::range(
-    clamp_vec(as_vec2u(scissor_f.begin()), Vec2U::splat(0), framebuffer_extent),
-    clamp_vec(as_vec2u(scissor_f.end()), Vec2U::splat(0), framebuffer_extent));
+    clamp_vec(as_vec2u(scissor_f.begin()), Vec2U::splat(0),
+              framebuffer_extent_),
+    clamp_vec(as_vec2u(scissor_f.end()), Vec2U::splat(0), framebuffer_extent_));
 }
 
-static inline void add_rrect(Canvas & c, RRectParam const & param,
+static inline void add_rrect(Canvas & c, RRectShaderParam const & param,
                              CRect const & clip)
 {
-  auto const index = c.rrect_params.size32();
-  c.rrect_params.push(param).unwrap();
+  auto const index = c.rrect_params_.size32();
+  c.rrect_params_.push(param).unwrap();
 
-  if (c.batches.is_empty() ||
-      c.batches.last().type != Canvas::BatchType::RRect ||
-      c.batches.last().clip != clip)
+  if (c.batches_.is_empty() ||
+      c.batches_.last().type != Canvas::BatchType::RRect ||
+      c.batches_.last().clip != clip)
   {
-    c.batches
+    c.batches_
       .push(Canvas::Batch{
         .type = Canvas::BatchType::RRect, .run{index, 1},
            .clip = clip
@@ -466,20 +461,20 @@ static inline void add_rrect(Canvas & c, RRectParam const & param,
     return;
   }
 
-  c.batches.last().run.span++;
+  c.batches_.last().run.span++;
 }
 
-static inline void add_squircle(Canvas & c, SquircleParam const & param,
+static inline void add_squircle(Canvas & c, SquircleShaderParam const & param,
                                 CRect const & clip)
 {
-  auto const index = c.squircle_params.size32();
-  c.squircle_params.push(param).unwrap();
+  auto const index = c.squircle_params_.size32();
+  c.squircle_params_.push(param).unwrap();
 
-  if (c.batches.is_empty() ||
-      c.batches.last().type != Canvas::BatchType::Squircle ||
-      c.batches.last().clip != clip)
+  if (c.batches_.is_empty() ||
+      c.batches_.last().type != Canvas::BatchType::Squircle ||
+      c.batches_.last().clip != clip)
   {
-    c.batches
+    c.batches_
       .push(Canvas::Batch{
         .type = Canvas::BatchType::Squircle, .run{index, 1},
            .clip = clip
@@ -488,21 +483,21 @@ static inline void add_squircle(Canvas & c, SquircleParam const & param,
     return;
   }
 
-  c.batches.last().run.span++;
+  c.batches_.last().run.span++;
 }
 
-static inline void add_ngon(Canvas & c, NgonParam const & param,
+static inline void add_ngon(Canvas & c, NgonShaderParam const & param,
                             CRect const & clip, u32 num_indices)
 {
-  auto const index = c.ngon_params.size32();
-  c.ngon_index_counts.push(num_indices).unwrap();
-  c.ngon_params.push(param).unwrap();
+  auto const index = c.ngon_params_.size32();
+  c.ngon_index_counts_.push(num_indices).unwrap();
+  c.ngon_params_.push(param).unwrap();
 
-  if (c.batches.is_empty() ||
-      c.batches.last().type != Canvas::BatchType::Ngon ||
-      c.batches.last().clip != clip)
+  if (c.batches_.is_empty() ||
+      c.batches_.last().type != Canvas::BatchType::Ngon ||
+      c.batches_.last().clip != clip)
   {
-    c.batches
+    c.batches_
       .push(Canvas::Batch{
         .type = Canvas::BatchType::Ngon,
         .run{.offset = index, .span = 1},
@@ -512,17 +507,11 @@ static inline void add_ngon(Canvas & c, NgonParam const & param,
     return;
   }
 
-  c.batches.last().run.span++;
+  c.batches_.last().run.span++;
 }
 
 Canvas & Canvas::end_recording()
 {
-  return *this;
-}
-
-Canvas & Canvas::clip(CRect const & c)
-{
-  current_clip = c;
   return *this;
 }
 
@@ -536,7 +525,7 @@ Canvas & Canvas::circle(ShapeInfo const & info)
 {
   f32 const inv_y = 1 / info.area.extent.y;
   add_rrect(*this,
-            RRectParam{
+            RRectShaderParam{
               .transform = object_to_world(info.transform, info.area),
               .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
               .radii = {1, 1, 1, 1},
@@ -549,7 +538,7 @@ Canvas & Canvas::circle(ShapeInfo const & info)
               .sampler         = info.sampler,
               .albedo          = info.texture
   },
-            current_clip);
+            info.clip);
 
   return *this;
 }
@@ -558,7 +547,7 @@ Canvas & Canvas::rect(ShapeInfo const & info)
 {
   f32 const inv_y = 1 / info.area.extent.y;
   add_rrect(*this,
-            RRectParam{
+            RRectShaderParam{
               .transform = object_to_world(info.transform, info.area),
               .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
               .radii = {0, 0, 0, 0},
@@ -571,7 +560,7 @@ Canvas & Canvas::rect(ShapeInfo const & info)
               .sampler         = info.sampler,
               .albedo          = info.texture
   },
-            current_clip);
+            info.clip);
   return *this;
 }
 
@@ -588,7 +577,7 @@ Canvas & Canvas::rrect(ShapeInfo const & info)
   r.w = min(r.w, max_radius);
 
   add_rrect(*this,
-            RRectParam{
+            RRectShaderParam{
               .transform = object_to_world(info.transform, info.area),
               .tint  = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
               .radii = r,
@@ -601,25 +590,25 @@ Canvas & Canvas::rrect(ShapeInfo const & info)
               .sampler         = info.sampler,
               .albedo          = info.texture
   },
-            current_clip);
+            info.clip);
   return *this;
 }
 
 Canvas & Canvas::brect(ShapeInfo const & info)
 {
-  auto const first_vertex = ngon_vertices.size32();
-  auto const first_index  = ngon_indices.size32();
+  auto const first_vertex = ngon_vertices_.size32();
+  auto const first_index  = ngon_indices_.size32();
 
-  path::brect(ngon_vertices, info.corner_radii);
+  path::brect(ngon_vertices_, info.corner_radii);
 
-  auto const num_vertices = ngon_vertices.size32() - first_vertex;
+  auto const num_vertices = ngon_vertices_.size32() - first_vertex;
 
-  path::triangulate_convex(ngon_indices, first_vertex, num_vertices);
+  path::triangulate_convex(ngon_indices_, first_vertex, num_vertices);
 
-  auto const num_indices = ngon_indices.size32() - first_index;
+  auto const num_indices = ngon_indices_.size32() - first_index;
 
   add_ngon(*this,
-           NgonParam{
+           NgonShaderParam{
              .transform = object_to_world(info.transform, info.area),
              .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
              .uv     = {info.uv[0], info.uv[1]},
@@ -629,7 +618,7 @@ Canvas & Canvas::brect(ShapeInfo const & info)
              .first_index  = first_index,
              .first_vertex = first_vertex
   },
-           current_clip, num_indices);
+           info.clip, num_indices);
 
   return *this;
 }
@@ -641,7 +630,7 @@ Canvas & Canvas::squircle(ShapeInfo const & info)
 
   add_squircle(
     *this,
-    SquircleParam{
+    SquircleShaderParam{
       .transform = object_to_world(info.transform,
                                    CRect{info.area.center, Vec2::splat(width)}
                                    ),
@@ -655,8 +644,14 @@ Canvas & Canvas::squircle(ShapeInfo const & info)
       .sampler         = info.sampler,
       .albedo          = info.texture
   },
-    current_clip);
+    info.clip);
 
+  return *this;
+}
+
+Canvas & Canvas::nine_slice(ShapeInfo const & info, NineSlice const & slice)
+{
+  // [ ] implement
   return *this;
 }
 
@@ -667,16 +662,16 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points)
     return *this;
   }
 
-  auto const first_index  = ngon_indices.size32();
-  auto const first_vertex = ngon_vertices.size32();
+  auto const first_index  = ngon_indices_.size32();
+  auto const first_vertex = ngon_vertices_.size32();
 
-  ngon_vertices.extend(points).unwrap();
-  path::triangles(first_vertex, points.size32(), ngon_indices);
+  ngon_vertices_.extend(points).unwrap();
+  path::triangles(first_vertex, points.size32(), ngon_indices_);
 
-  auto const num_indices = ngon_vertices.size32() - first_vertex;
+  auto const num_indices = ngon_vertices_.size32() - first_vertex;
 
   add_ngon(*this,
-           NgonParam{
+           NgonShaderParam{
              .transform = object_to_world(info.transform, info.area),
              .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
              .uv     = {info.uv[0], info.uv[1]},
@@ -686,7 +681,7 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points)
              .first_index  = first_index,
              .first_vertex = first_vertex
   },
-           current_clip, num_indices);
+           info.clip, num_indices);
 
   return *this;
 }
@@ -699,19 +694,19 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points,
     return *this;
   }
 
-  auto const first_index  = ngon_indices.size32();
-  auto const first_vertex = ngon_vertices.size32();
+  auto const first_index  = ngon_indices_.size32();
+  auto const first_vertex = ngon_vertices_.size32();
 
-  ngon_vertices.extend(points).unwrap();
-  ngon_indices.extend(idx).unwrap();
+  ngon_vertices_.extend(points).unwrap();
+  ngon_indices_.extend(idx).unwrap();
 
-  for (u32 & v : ngon_indices.view().slice(first_index))
+  for (auto & v : ngon_indices_.view().slice(first_index))
   {
     v += first_vertex;
   }
 
   add_ngon(*this,
-           NgonParam{
+           NgonShaderParam{
              .transform = object_to_world(info.transform, info.area),
              .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
              .uv     = {info.uv[0], info.uv[1]},
@@ -721,7 +716,7 @@ Canvas & Canvas::triangles(ShapeInfo const & info, Span<Vec2 const> points,
              .first_index  = first_index,
              .first_vertex = first_vertex
   },
-           current_clip, idx.size32());
+           info.clip, idx.size32());
 
   return *this;
 }
@@ -733,15 +728,15 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
     return *this;
   }
 
-  auto const first_index  = ngon_indices.size32();
-  auto const first_vertex = ngon_vertices.size32();
-  path::triangulate_stroke(points, ngon_vertices, ngon_indices,
+  auto const first_index  = ngon_indices_.size32();
+  auto const first_vertex = ngon_vertices_.size32();
+  path::triangulate_stroke(points, ngon_vertices_, ngon_indices_,
                            info.thickness.x / info.area.extent.y);
 
-  auto const num_indices = ngon_indices.size32() - first_index;
+  auto const num_indices = ngon_indices_.size32() - first_index;
 
   add_ngon(*this,
-           NgonParam{
+           NgonShaderParam{
              .transform = object_to_world(info.transform, info.area),
              .tint   = {info.tint[0], info.tint[1], info.tint[2], info.tint[3]},
              .uv     = {info.uv[0], info.uv[1]},
@@ -751,20 +746,19 @@ Canvas & Canvas::line(ShapeInfo const & info, Span<Vec2 const> points)
              .first_index  = first_index,
              .first_vertex = first_vertex
   },
-           current_clip, num_indices);
+           info.clip, num_indices);
 
   return *this;
 }
 
 Canvas & Canvas::blur(ShapeInfo const & info)
 {
-  // doesn't currently handle rotation correctly :(
-  auto const index = blurs.size32();
+  auto const index = blurs_.size32();
 
   auto const world_xfm = object_to_world(info.transform, info.area);
 
   auto const fb_xfm =
-    viewport_to_fb * ndc_to_viewport * world_to_ndc * world_xfm;
+    viewport_to_fb_ * ndc_to_viewport_ * world_to_ndc_ * world_xfm;
 
   auto const tl = transform(fb_xfm, Vec3{-0.5, -0.5, 0.0}).xy();
   auto const tr = transform(fb_xfm, Vec3{0.5, -0.5, 0.0}).xy();
@@ -773,9 +767,9 @@ Canvas & Canvas::blur(ShapeInfo const & info)
 
   auto const bounding = CRect::bounding(tl, tr, bl, br);
 
-  /// [ ] we need to apply a uv-transform,
-  Vec2 uv0 = bounding.begin() * framebuffer_uv_base;
-  Vec2 uv1 = bounding.end() * framebuffer_uv_base;
+  auto const uv_scale = 1 / as_vec2(framebuffer_extent_);
+  auto const uv0      = tl * uv_scale;
+  auto const uv1      = br * uv_scale;
 
   auto const to_brightness = [](Vec4 tint) {
     return vec4(Vec3::splat((tint.x + tint.y + tint.z) * (1 / 3.0F)), 1.0F);
@@ -783,7 +777,7 @@ Canvas & Canvas::blur(ShapeInfo const & info)
 
   auto const inv_y = 1 / info.area.extent.y;
 
-  RRectParam rrect{
+  RRectShaderParam rrect{
     .transform = world_xfm,
     .tint{to_brightness(info.tint[0]), to_brightness(info.tint[1]),
           to_brightness(info.tint[2]), to_brightness(info.tint[3])},
@@ -802,19 +796,20 @@ Canvas & Canvas::blur(ShapeInfo const & info)
     RectU::range(
       as_vec2u(clamp_vec(bounding.begin(), Vec2::splat(0), MAX_CLIP.extent)),
       as_vec2u(clamp_vec(bounding.end(), Vec2::splat(0), MAX_CLIP.extent)))
-      .clamp_to_extent(framebuffer_extent);
+      .clamp_to_extent(framebuffer_extent_);
 
   auto const spread_radius =
-    as_vec2u(clamp_vec(info.thickness * virtual_scale, Vec2::splat(0),
+    as_vec2u(clamp_vec(info.thickness * virtual_scale_, Vec2::splat(0),
                        Vec2::splat(MAX_CLIP_DISTANCE)));
 
-  blurs.push(Blur{.rrect = rrect, .area = area, .spread_radius = spread_radius})
+  blurs_
+    .push(Blur{.rrect = rrect, .area = area, .spread_radius = spread_radius})
     .unwrap();
 
-  batches
+  batches_
     .push(Batch{
       .type = BatchType::Blur, .run{index, 1},
-         .clip = current_clip
+         .clip = info.clip
   })
     .unwrap();
 
@@ -823,11 +818,11 @@ Canvas & Canvas::blur(ShapeInfo const & info)
 
 Canvas & Canvas::pass(Pass pass)
 {
-  u32 const index = passes.size32();
+  auto const index = passes_.size32();
 
-  passes.push(std::move(pass)).unwrap();
+  passes_.push(std::move(pass)).unwrap();
 
-  batches
+  batches_
     .push(Batch{
       .type = BatchType::Pass,
       .run{index, 1},

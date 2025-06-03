@@ -591,6 +591,21 @@ enum class ViewId : u64
   None = U64_MAX
 };
 
+struct RenderInfo
+{
+  /// @brief viewport-space region of the view (before zoom transform)
+  CRect viewport_region = {};
+
+  /// @brief canvas-space region of the view (after zoom transform)
+  CRect canvas_region = {};
+
+  /// @brief canvas-space clip of the view (after zoom transform)
+  CRect clip = MAX_CLIP;
+
+  /// @brief displacement and scale transform from the viewports to canvas-space
+  Affine3 canvas_transform = Affine3::IDENTITY;
+};
+
 /// @brief Base view class.
 /// Views are plain visual elements that define spatial relationships,
 /// visual state changes, and forward events to other subsystems.
@@ -684,17 +699,11 @@ struct View
   /// only called if the view passes the visibility tests. this is called on
   /// every frame.
   /// @param canvas canvas to render view into
-  /// @param viewport_region viewport-space region of the view (before zoom transform)
-  /// @param canvas_region canvas-space region of the view (after zoom transform)
-  /// @param zoom zoom scale of the view
-  /// @param clip canvas-space clip of the view (after zoom transform)
-  constexpr virtual void render(Canvas & canvas, CRect const & viewport_region,
-                                CRect const & canvas_region, CRect const & clip)
+  /// @param info information needed to render the view into its alloted canvas space
+  constexpr virtual void render(Canvas & canvas, RenderInfo const & info)
   {
     (void) canvas;
-    (void) viewport_region;
-    (void) canvas_region;
-    (void) clip;
+    (void) info;
   }
 
   /// @brief Select cursor type given a pointed region of the view.

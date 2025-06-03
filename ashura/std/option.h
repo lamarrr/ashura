@@ -614,4 +614,178 @@ struct [[nodiscard]] Option<T &>
   }
 };
 
+template <typename T>
+struct [[nodiscard]] Option<T &&>
+{
+  using Type = T;
+  using Repr = T *;
+
+  T * repr_;
+
+  constexpr Option() : repr_{nullptr}
+  {
+  }
+
+  constexpr ~Option() = default;
+
+  constexpr Option(T && some) : repr_{&some}
+  {
+  }
+
+  template <typename... Args>
+  explicit constexpr Option(V<0>, T && some) : repr_{&some}
+  {
+  }
+
+  template <typename... Args>
+  explicit constexpr Option(V<0>, T some) = delete;
+
+  constexpr Option(None) : repr_{nullptr}
+  {
+  }
+
+  constexpr Option & operator=(T && other)
+  {
+    repr_ = &other;
+    return *this;
+  }
+
+  constexpr Option & operator=(None)
+  {
+    repr_ = nullptr;
+    return *this;
+  }
+
+  constexpr Option(Option && other) = default;
+
+  constexpr Option & operator=(Option && other) = default;
+
+  constexpr Option(Option const & other) = default;
+
+  constexpr Option & operator=(Option const & other) = default;
+
+  [[nodiscard]] constexpr bool is_some() const
+  {
+    return repr_ != nullptr;
+  }
+
+  [[nodiscard]] constexpr bool is_none() const
+  {
+    return repr_ == nullptr;
+  }
+
+  [[nodiscard]] explicit constexpr operator bool() const
+  {
+    return is_some();
+  }
+
+  template <typename CmpType>
+  [[nodiscard]] constexpr bool contains(CmpType const & cmp) const
+  {
+    if (is_some())
+    {
+      return *repr_ == cmp;
+    }
+    else
+    {
+      return false;
+    }
+  }
+
+  constexpr T && v(SourceLocation loc = SourceLocation::current()) const
+  {
+    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None");
+    return static_cast<T &&>(*repr_);
+  }
+
+  constexpr T && unwrap(Str            msg = ""_str,
+                        SourceLocation loc = SourceLocation::current())
+  {
+    CHECK_SLOC(loc, is_some(), "Expected Value in Option but got None. {}",
+               msg);
+    return static_cast<T &&>(*repr_);
+  }
+
+  constexpr T && unwrap_or(T && alt)
+  {
+    if (is_some())
+    {
+      return static_cast<T &&>(*repr_);
+    }
+    return static_cast<T &&>(alt);
+  }
+
+  constexpr Option<T> unref() const
+  {
+    if (is_some())
+    {
+      return *repr_;
+    }
+    return none;
+  }
+
+  template <typename Fn>
+  constexpr auto map(Fn && op) const
+  {
+    using U = decltype(op(static_cast<T &&>(*repr_)));
+    if (is_some())
+    {
+      return Option<U>{op(static_cast<T &&>(*repr_))};
+    }
+    return Option<U>{none};
+  }
+
+  template <typename Fn, typename... U>
+  constexpr auto map_or(Fn && op, U &&... alt) const
+  {
+    if (is_some())
+    {
+      return op(static_cast<T &&>(*repr_));
+    }
+    return T{static_cast<U &&>(alt)...};
+  }
+
+  template <typename Fn>
+  constexpr auto and_then(Fn && op) const
+  {
+    using OutOption = decltype(op(static_cast<T &&>(*repr_)));
+    if (is_some())
+    {
+      return op(static_cast<T &&>(*repr_));
+    }
+    return OutOption{none};
+  }
+
+  constexpr void unwrap_none(Str            msg = ""_str,
+                             SourceLocation loc = SourceLocation::current())
+  {
+    CHECK_SLOC(loc, is_none(), "Expected None in Option but got Value = {}. {}",
+               *repr_, msg);
+  }
+
+  constexpr void discard()
+  {
+  }
+
+  template <typename SomeFn, typename NoneFn = Noop>
+  constexpr decltype(auto) match(SomeFn && some, NoneFn && none = {}) const
+  {
+    if (is_some())
+    {
+      return some(static_cast<T &&>(*repr_));
+    }
+    return none();
+  }
+
+  constexpr T * operator->() const
+  {
+    return &v();
+  }
+
+  constexpr T && operator*() const
+  {
+    return v();
+  }
+};
+
 }    // namespace ash

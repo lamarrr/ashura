@@ -239,10 +239,10 @@ struct System
   Vec<i32> layers;
 
   /// @brief transforms from viewport-space to the canvas-space
-  Vec<Affine3> canvas_tx;
+  Vec<Affine3> canvas_xfm;
 
   /// @brief transforms from canvas-space to viewport-space
-  Vec<Affine3> canvas_inv_tx;
+  Vec<Affine3> canvas_inv_xfm;
   Vec<Vec2>    canvas_centers;
   Vec<Vec2>    canvas_extents;
   Vec<CRect>   clips;
@@ -290,8 +290,8 @@ struct System
     fixed_centers{allocator},
     z_idx{allocator},
     layers{allocator},
-    canvas_tx{allocator},
-    canvas_inv_tx{allocator},
+    canvas_xfm{allocator},
+    canvas_inv_xfm{allocator},
     z_ord{allocator},
     focus_ord{allocator},
     focus_idx{allocator},
