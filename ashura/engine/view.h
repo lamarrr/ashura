@@ -183,71 +183,324 @@ enum class MainAlign : u8
   SpaceEvenly  = 4
 };
 
-/// @param mounted view has been mounted to the view tree and has now
-/// received an ID.
-/// @param view_hit if the view was rendered on the previous frame
-/// @param drag_start drag event has begun on this view
-/// @param dragging an update on the drag state has been gotten
-/// @param drag_end the dragging of this view has completed
-/// @param drag_in drag data has entered this view and might be dropped
-/// @param drag_out drag data has left the view without being dropped
-/// @param drag_over drag data is moving over this view as destination without
-/// beiung dropped
-/// @param drop drag data is now available for the view to consume
-/// @param view_miss called on every frame that the view is not seen on the
-/// viewport this can be because it has hidden visibility, is clipped away, or
-/// parent positioned out of the visible region. Can be used for
-/// partial unloading.
-/// @param focus_in the view has received keyboard focus
-/// @param focus_out the view has lost keyboard focus
-/// @param text_input the view has received composition text
-struct alignas(u32) ViewEvents
+struct ScrollInfo
 {
-  bool mounted      : 1 = false;
-  bool view_hit     : 1 = false;
-  bool mouse_in     : 1 = false;
-  bool mouse_out    : 1 = false;
-  bool mouse_down   : 1 = false;
-  bool mouse_up     : 1 = false;
-  bool mouse_moved  : 1 = false;
-  bool mouse_scroll : 1 = false;
-  bool drag_start   : 1 = false;
-  bool dragging     : 1 = false;
-  bool drag_end     : 1 = false;
-  bool drag_in      : 1 = false;
-  bool drag_out     : 1 = false;
-  bool drag_over    : 1 = false;
-  bool drop         : 1 = false;
-  bool focus_in     : 1 = false;
-  bool focus_out    : 1 = false;
-  bool key_down     : 1 = false;
-  bool key_up       : 1 = false;
-  bool text_input   : 1 = false;
+  Vec2 center = {};
+  Vec2 zoom   = {1, 1};
+};
+
+struct HitInfo
+{
+  /// @brief viewport-space region of the view that was hit
+  /// with (0, 0) as the center of the viewport
+  Vec2 viewport_hit;
+
+  /// @brief canvas-space region that was hit
+  Vec2 canvas_hit;
+
+  /// @brief the viewport-space region of the view
+  CRect viewport_region;
+
+  /// @brief the canvas-space region of the view
+  CRect canvas_region;
+
+  constexpr Vec2 zoom() const
+  {
+    return canvas_region.extent / viewport_region.extent;
+  }
+};
+
+struct Events
+{
+  enum Type : u8
+  {
+    /// @brief view has been mounted to the view tree and has now received an ID.
+    Mount       = 0,
+    /// @brief the pointer has entered the view's area
+    PointerIn   = 1,
+    /// @brief the pointer has left the view's area
+    PointerOut  = 2,
+    /// @brief the pointer is hovering the view
+    PointerOver = 3,
+    /// @brief the pointer has been pressed down on the view
+    PointerDown = 4,
+    /// @brief the pointer's press has been released from the view
+    PointerUp   = 5,
+    /// @brief a scroll request has been sent to the view
+    Scroll      = 6,
+    /// @brief drag event has begun on this view
+    DragStart   = 7,
+    /// @brief an update on the drag state has been gotten
+    DragUpdate  = 8,
+    /// @brief the dragging of this view has completed/canceled
+    DragEnd     = 9,
+    /// @brief drag data has entered this view and might be dropped
+    DragIn      = 10,
+    /// @brief drag data has left the view without being dropped
+    DragOut     = 11,
+    /// @brief drag data is hovering this view as destination without being dropped
+    DragOver    = 12,
+    /// @brief drag data is now available for the view to consume
+    Drop        = 13,
+    /// @brief the view has received focus
+    FocusIn     = 14,
+    /// @brief the view has lost focus
+    FocusOut    = 15,
+    /// @brief the view currently has active focus
+    FocusOver   = 16,
+    /// @brief a key went down whilst this view has focus
+    KeyDown     = 17,
+    /// @brief a key went up whilst this view has focus
+    KeyUp       = 18,
+    /// @brief the view has received composition text whilst it has focus
+    TextInput   = 19
+  };
+
+  struct Bits
+  {
+    enum Type : u32
+    {
+      None        = 0,
+      Mount       = 1U << Events::Mount,
+      PointerIn   = 1U << Events::PointerIn,
+      PointerOut  = 1U << Events::PointerOut,
+      PointerOver = 1U << Events::PointerOver,
+      PointerDown = 1U << Events::PointerDown,
+      PointerUp   = 1U << Events::PointerUp,
+      Scroll      = 1U << Events::Scroll,
+      DragStart   = 1U << Events::DragStart,
+      DragUpdate  = 1U << Events::DragUpdate,
+      DragEnd     = 1U << Events::DragEnd,
+      DragIn      = 1U << Events::DragIn,
+      DragOut     = 1U << Events::DragOut,
+      DragOver    = 1U << Events::DragOver,
+      Drop        = 1U << Events::Drop,
+      FocusIn     = 1U << Events::FocusIn,
+      FocusOut    = 1U << Events::FocusOut,
+      FocusOver   = 1U << Events::FocusOver,
+      KeyDown     = 1U << Events::KeyDown,
+      KeyUp       = 1U << Events::KeyUp,
+      TextInput   = 1U << Events::TextInput
+    };
+
+    static constexpr Type at(Events::Type e)
+    {
+      return static_cast<Type>(1 << static_cast<u8>(e));
+    }
+  };
+
+  Bits::Type bits = Bits::None;
+
+  /// @brief the view's hit data
+  Option<HitInfo> hit_info = none;
+
+  /// @brief scroll request
+  Option<ScrollInfo> scroll_info = none;
+
+  constexpr bool mount() const
+  {
+    return bits & Bits::Mount;
+  }
+
+  constexpr bool pointer_in() const
+  {
+    return bits & Bits::PointerIn;
+  }
+
+  constexpr bool pointer_out() const
+  {
+    return bits & Bits::PointerOut;
+  }
+
+  constexpr bool pointer_over() const
+  {
+    return bits & Bits::PointerOver;
+  }
+
+  constexpr bool pointer_down() const
+  {
+    return bits & Bits::PointerDown;
+  }
+
+  constexpr bool pointer_up() const
+  {
+    return bits & Bits::PointerUp;
+  }
+
+  constexpr bool scroll() const
+  {
+    return bits & Bits::Scroll;
+  }
+
+  constexpr bool drag_start() const
+  {
+    return bits & Bits::DragStart;
+  }
+
+  constexpr bool drag_update() const
+  {
+    return bits & Bits::DragUpdate;
+  }
+
+  constexpr bool drag_end() const
+  {
+    return bits & Bits::DragEnd;
+  }
+
+  constexpr bool drag_in() const
+  {
+    return bits & Bits::DragIn;
+  }
+
+  constexpr bool drag_out() const
+  {
+    return bits & Bits::DragOut;
+  }
+
+  constexpr bool drag_over() const
+  {
+    return bits & Bits::DragOver;
+  }
+
+  constexpr bool drop() const
+  {
+    return bits & Bits::Drop;
+  }
+
+  constexpr bool focus_in() const
+  {
+    return bits & Bits::FocusIn;
+  }
+
+  constexpr bool focus_out() const
+  {
+    return bits & Bits::FocusOut;
+  }
+
+  constexpr bool focus_over() const
+  {
+    return bits & Bits::FocusOver;
+  }
+
+  constexpr bool key_down() const
+  {
+    return bits & Bits::KeyDown;
+  }
+
+  constexpr bool key_up() const
+  {
+    return bits & Bits::KeyUp;
+  }
+
+  constexpr bool text_input() const
+  {
+    return bits & Bits::TextInput;
+  }
+};
+
+struct FocusRect
+{
+  CRect area = {};
+  CRect clip = {};
+};
+
+struct DropCtx
+{
+  enum class Phase : u8
+  {
+    None  = 0,
+    Begin = 1,
+    Over  = 2,
+    End   = 3
+  };
+
+  Phase phase = Phase::None;
+
+  /// @brief current drop data type
+  DropType type = DropType::None;
+
+  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
+  Vec<u8> data;
+
+  explicit DropCtx(AllocatorRef allocator) : data{allocator}
+  {
+  }
+
+  DropCtx(DropCtx const &)             = delete;
+  DropCtx & operator=(DropCtx const &) = delete;
+  DropCtx(DropCtx &&)                  = default;
+  DropCtx & operator=(DropCtx &&)      = default;
+  ~DropCtx()                           = default;
+
+  void clear();
+
+  DropCtx & copy(DropCtx const & other);
 };
 
 /// @brief Global View Context, Properties of the context all the views for
 /// a specific window are in.
-using ViewContext = InputState;
+struct Ctx
+{
+  /// @brief timestamp of current frame
+  time_point timestamp;
+
+  /// @brief time elapsed between previous and current frame
+  nanoseconds timedelta;
+
+  WindowState window;
+
+  /// @brief windows' current frame mouse state
+  MouseState mouse;
+
+  /// @brief windows' current frame keyboard state
+  KeyState key;
+
+  DropCtx drop;
+
+  /// @brief is the application closing
+  bool closing;
+
+  /// @brief canvas-space region the system is currently focused on
+  Option<FocusRect> focused;
+
+  Option<Cursor> cursor;
+
+  void * user_data = nullptr;
+
+  Ctx(AllocatorRef allocator, void * user_data) :
+    timestamp{},
+    timedelta{},
+    window{},
+    mouse{},
+    key{allocator},
+    drop{allocator},
+    closing{false},
+    focused{none},
+    cursor{none},
+    user_data{user_data}
+  {
+  }
+
+  Ctx(Ctx const &)             = delete;
+  Ctx(Ctx &&)                  = default;
+  Ctx & operator=(Ctx const &) = delete;
+  Ctx & operator=(Ctx &&)      = default;
+  ~Ctx()                       = default;
+
+  void tick(InputState const & input);
+};
 
 /// @brief makes a zoom transform matrix relative to the center of a viewport.
 /// defines the translation and scaling components.
 /// @return zoom transform matrix
-constexpr Affine3 scroll_transform(Vec2 viewport_extent, Vec2 view_extent,
-                                   Vec2 t, f32 scale)
-{
-  Vec2 const low    = -0.5F * viewport_extent + 0.5F * view_extent;
-  Vec2 const high   = 0.5F * viewport_extent - 0.5F * view_extent;
-  Vec2 const center = lerp(low, high, t);
-  return translate2d(center * scale) * scale2d(Vec2::splat(scale));
-}
 
-struct ViewState
+struct State
 {
-  /// @brief Tab Index for Focus-Based Navigation. desired tab index, I32_MIN
-  /// meaning the default tab order based on the hierarchy of the parent to
+  /// @brief Tab Index for Focus-Based Navigation. desired tab index, `None`
+  /// means the default tab order based on the hierarchy of the parent to
   /// children and siblings (depth-first traversal). Negative values are
   /// focused before positive values.
-  i32 tab = I32_MIN;
+  Option<i32> tab = none;
 
   /// @brief if set, will be treated as a text input area
   Option<TextInputInfo> text = none;
@@ -271,8 +524,7 @@ struct ViewState
   /// @brief can the view receive drag data
   bool droppable : 1 = false;
 
-  /// @brief can receive keyboard focus (ordered by `tab`) and keyboard
-  /// events
+  /// @brief can receive keyboard focus (ordered by `tab`) and keyboard events
   bool focusable : 1 = false;
 
   /// @brief grab focus of the user
@@ -305,67 +557,80 @@ struct Theme
   Vec4U8 on_success       = {};
   Vec4U8 focus            = {};
   Vec4U8 highlight        = {};
+  Vec4U8 caret            = {};
   f32    head_font_height = {};
   f32    body_font_height = {};
   f32    line_height      = {};
-  f32    focus_thickness  = 1;
-  FontId head_font        = FontId::Invalid;
-  FontId body_font        = FontId::Invalid;
-  FontId icon_font        = FontId::Invalid;
+  FontId head_font        = FontId::None;
+  FontId body_font        = FontId::None;
+  FontId icon_font        = FontId::None;
+  void * user_data        = nullptr;
 };
 
 extern Theme theme;
 
-/// @param extent extent of the view within the parent. if it is a viewport,
-/// this is the visible extent of the viewport within the parent viewport.
-/// @param viewport_extent inner extent, if it is a viewport
-/// @param viewport_transform the transform a viewport applies to its contained
-/// views, this is recursively applied to contained views.
-/// @param fixed_position the canvas-space re-positioning of the view
-struct ViewLayout
+struct Layout
 {
-  Vec2         extent             = {};
-  Vec2         viewport_extent    = {};
-  Affine3      viewport_transform = Affine3::identity();
-  Option<Vec2> fixed_position     = none;
+  /// @brief extent of the view within the parent. if it is a viewport,
+  /// this is the visible extent of the viewport within the parent viewport.
+  Vec2 extent = {};
+
+  /// @brief inner extent, if it is a viewport
+  Vec2 viewport_extent = {};
+
+  Vec2 viewport_center = {};
+
+  Vec2 viewport_zoom = {1, 1};
+
+  /// @brief viewport-space re-positioning of the view
+  Option<Vec2> fixed_center = none;
 };
 
-/// @brief Base view class. All view types must inherit from this struct.
+enum class ViewId : u64
+{
+  None = U64_MAX
+};
+
+struct RenderInfo
+{
+  /// @brief viewport-space region of the view (before zoom transform)
+  CRect viewport_region = {};
+
+  /// @brief canvas-space region of the view (after zoom transform)
+  CRect canvas_region = {};
+
+  /// @brief canvas-space clip of the view (after zoom transform)
+  CRect clip = MAX_CLIP;
+
+  /// @brief displacement and scale transform from the viewports to canvas-space
+  Affine3 canvas_transform = Affine3::IDENTITY;
+};
+
+/// @brief Base view class.
 /// Views are plain visual elements that define spatial relationships,
 /// visual state changes, and forward events to other subsystems.
-/// @note State changes must only happen in the `tick` method. for child view
-/// switching, it should be handled by a flag in the tick method and switch in
-/// the child method based on the flag.
+/// @note State changes must only happen in the `tick` method. Child view modifications
+/// should be handled with it as well.
 ///
-/// The coordinate system used is one in which the center of the screen is (0,
-/// 0) and ranges from [-0.5w, +0.5w] on both axes. i.e. top-left is [-0.5w,
-/// -0.5h] and bottom-right is [+0.5w, +0.5h].
+/// The coordinate system used is one in which the center of the screen is (0, 0) and
+/// ranges from [-0.5w, +0.5w] on both axes. i.e. top-left is [-0.5w, -0.5h]
+/// and bottom-right is [+0.5w, +0.5h].
 struct View
 {
-  /// @brief id of the view if mounted, otherwise U64_MAX
-  u64 id_ = U64_MAX;
+  /// @brief id of the view if mounted, otherwise `ViewId::None`
+  ViewId id_ = ViewId::None;
 
-  /// @brief id of last frame the view was rendered on
-  u64 last_rendered_frame_ = 0;
-
-  /// @brief index in the focus tree
-  u32 focus_idx_ = 0;
-
-  /// @brief zoom scale of the views
-  f32 zoom_ = 1;
-
-  /// @brief canvas-space region of the view
-  CRect region_ = {};
+  bool hot_ = false;
 
   constexpr View()                         = default;
-  constexpr View(View const &)             = delete;
-  constexpr View(View &&)                  = delete;
-  constexpr View & operator=(View const &) = delete;
-  constexpr View & operator=(View &&)      = delete;
+  constexpr View(View const &)             = default;
+  constexpr View(View &&)                  = default;
+  constexpr View & operator=(View const &) = default;
+  constexpr View & operator=(View &&)      = default;
   constexpr virtual ~View()                = default;
 
-  /// @returns the ID currently allocated to the view or U64_MAX
-  constexpr u64 id() const
+  /// @returns the ID currently allocated to the view or none
+  constexpr ViewId id() const
   {
     return id_;
   }
@@ -374,16 +639,13 @@ struct View
   /// dispatch and lightweight processing related to the GUI. heavy-weight and
   /// non-sub-millisecond tasks should be dispatched to a subsystem that would
   /// handle it. i.e. using the multi-tasking or asset-loading systems.
-  /// @param region canvas-space region the view is on
+  /// @param ctx the associated context of the previous frame
+  /// @param events events due to the previous frame's state
   /// @param build callback to be called to insert subviews.
-  constexpr virtual ViewState tick(ViewContext const & ctx,
-                                   CRect const & region, f32 zoom,
-                                   ViewEvents const & events,
-                                   Fn<void(View &)>   build)
+  constexpr virtual State tick(Ctx const & ctx, Events const & events,
+                               Fn<void(View &)> build)
   {
     (void) ctx;
-    (void) region;
-    (void) zoom;
     (void) events;
     (void) build;
     return {};
@@ -403,8 +665,8 @@ struct View
   /// @param sizes sizes of the child views
   /// @param[out] centers parent-space centers of the child views
   /// @return this view's fitted extent
-  constexpr virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                                   Span<Vec2> centers)
+  constexpr virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                               Span<Vec2> centers)
   {
     (void) allocated;
     (void) sizes;
@@ -415,10 +677,11 @@ struct View
   /// @brief returns the stacking layer index
   /// @param allocated stacking layer index allocated to this view
   /// by parent. This functions similar to the CSS stacking context. The layer
-  /// index has a higher priority over the z-index.
+  /// index has a higher priority over the z-index and events do not bubble through it.
   /// @return stack index for the view
-  constexpr virtual i32 stack(i32 allocated)
+  constexpr virtual i32 layer(i32 allocated, Span<i32> indices)
   {
+    fill(indices, allocated);
     return allocated;
   }
 
@@ -435,48 +698,23 @@ struct View
   /// @brief record draw commands needed to render this view. this method is
   /// only called if the view passes the visibility tests. this is called on
   /// every frame.
-  /// @param region canvas-space region of the view
-  /// @param zoom zoom scale of the view
-  /// @param clip canvas-space clip of the view, applied by viewports.
   /// @param canvas canvas to render view into
-  constexpr virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                                Rect const & clip)
+  /// @param info information needed to render the view into its alloted canvas space
+  constexpr virtual void render(Canvas & canvas, RenderInfo const & info)
   {
     (void) canvas;
-    (void) region;
-    (void) zoom;
-    (void) clip;
-  }
-
-  /// @brief Used for hit-testing regions of views.
-  /// @param region canvas-space region of the view
-  /// @param position canvas-space position of the pointer
-  /// @return true if in hit region
-  constexpr virtual bool hit(CRect const & region, f32 zoom, Vec2 position)
-  {
-    (void) region;
-    (void) zoom;
-    (void) position;
-    return true;
+    (void) info;
   }
 
   /// @brief Select cursor type given a pointed region of the view.
-  /// @param region canvas-space region of the view
-  /// @param position canvas-space position of the pointer
-  constexpr virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position)
+  /// @param extent layout extent of the view
+  /// @param position local-space position of the pointer
+  /// @return preferred cursor type
+  constexpr virtual Cursor cursor(Vec2 extent, Vec2 position)
   {
-    (void) region;
-    (void) zoom;
+    (void) extent;
     (void) position;
     return Cursor::Default;
-  }
-
-  /// @brief Called when the viewport is needed to zoom itself, scaling its
-  /// inner extent
-  /// @param zoom zoom to apply to the inner extent
-  constexpr virtual void zoom(Affine3 const & transform)
-  {
-    (void) transform;
   }
 };
 

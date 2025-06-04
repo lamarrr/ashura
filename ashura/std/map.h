@@ -235,8 +235,8 @@ struct [[nodiscard]] Map
     return num_probes_;
   }
 
-  [[nodiscard]] constexpr OptionRef<V> try_get(auto const & key,
-                                               hash64       hash) const
+  [[nodiscard]] constexpr Option<V &> try_get(auto const & key,
+                                              hash64       hash) const
   {
     if (num_probes_ == 0 || num_entries_ == 0)
     {
@@ -267,7 +267,7 @@ struct [[nodiscard]] Map
     return none;
   }
 
-  [[nodiscard]] constexpr OptionRef<V> try_get(auto const & key) const
+  [[nodiscard]] constexpr Option<V &> try_get(auto const & key) const
   {
     hash64 const hash = hasher_(key);
     return try_get(key, hash);
@@ -374,8 +374,24 @@ struct [[nodiscard]] Map
 
   constexpr bool rehash_()
   {
-    usize new_num_probes = (num_probes_ == 0) ? 1 : (num_probes_ * 2);
+    usize new_num_probes = (num_probes_ == 0) ? 1 : (num_probes_ << 1);
     return rehash_n_(new_num_probes);
+  }
+
+  constexpr Result<> reserve(usize target_capacity)
+  {
+    auto const target_num_probes = target_capacity << 1;
+    if (num_probes_ >= target_num_probes)
+    {
+      return Ok{};
+    }
+
+    if (!rehash_n_(target_num_probes))
+    {
+      return Err{};
+    }
+
+    return Ok{};
   }
 
   /// @brief Insert a new entry into the Map

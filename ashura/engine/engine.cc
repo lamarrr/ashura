@@ -8,16 +8,27 @@
 namespace ash
 {
 
-EngineCfg EngineCfg::parse(AllocatorRef allocator, Span<u8 const> json)
+Result<EngineCfg> EngineCfg::parse(AllocatorRef allocator, Vec<u8> & json)
 {
-  EngineCfg                    out{.shaders{allocator},
-                                   .fonts{allocator},
-                                   .images{allocator},
-                                   .pipeline_cache{allocator}};
-  simdjson::ondemand::parser   parser;
-  simdjson::padded_string      str{json.as_char().data(), json.size()};
-  simdjson::ondemand::document doc = parser.iterate(str);
+  EngineCfg out{.shaders{allocator},
+                .fonts{allocator},
+                .images{allocator},
+                .pipeline_cache{allocator}};
 
+  json.reserve(json.size() + simdjson::SIMDJSON_PADDING).unwrap();
+
+  simdjson::ondemand::parser parser;
+
+  auto error = parser.iterate(json.data(), json.size_bytes(), json.capacity());
+
+  if (error.error() != simdjson::SUCCESS)
+  {
+    return Err{};
+  }
+
+  auto & doc = error.value();
+
+  // [ ] check valid schema
   auto cfg = doc.get_object().value();
 
   std::string_view version = cfg["version"].get_string().value();
@@ -140,12 +151,12 @@ EngineCfg EngineCfg::parse(AllocatorRef allocator, Span<u8 const> json)
 
   out.pipeline_cache.extend(pipeline_cache_path).unwrap();
 
-  return out;
+  return Ok{std::move(out)};
 }
 
 static void window_event_listener(Engine * engine, WindowEvent const & event)
 {
-  InputState & f = engine->input_buffer;
+  InputState & f = engine->input_state;
 
   event.match(
     [&](KeyEvent e) {
@@ -154,17 +165,17 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
         case KeyAction::Press:
         {
           f.key.any_down = true;
-          set_bit(f.key.key_downs, (usize) e.key_code);
-          set_bit(f.key.scan_downs, (usize) e.scan_code);
-          f.key.modifier_downs |= e.modifiers;
+          f.key.key_downs.set_bit((usize) e.key_code);
+          f.key.scan_downs.set_bit((usize) e.scan_code);
+          f.key.mod_downs |= e.modifiers;
         }
         break;
         case KeyAction::Release:
         {
           f.key.any_up = true;
-          set_bit(f.key.key_ups, (usize) e.key_code);
-          set_bit(f.key.scan_ups, (usize) e.scan_code);
-          f.key.modifier_ups |= e.modifiers;
+          f.key.key_ups.set_bit((usize) e.key_code);
+          f.key.scan_ups.set_bit((usize) e.scan_code);
+          f.key.mod_ups |= e.modifiers;
         }
         break;
         default:
@@ -172,9 +183,9 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
       }
     },
     [&](MouseMotionEvent e) {
-      f.mouse.moved    = true;
-      f.mouse.position = e.position;
-      f.mouse.translation += e.translation;
+      f.mouse.moved       = true;
+      f.mouse.position    = e.position;
+      f.mouse.translation = e.translation;
     },
     [&](MouseClickEvent e) {
       f.mouse.num_clicks[(u32) e.button] = e.clicks;
@@ -182,11 +193,11 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
       switch (e.action)
       {
         case KeyAction::Press:
-          f.mouse.downs |= MouseButtons{1U << (u32) e.button};
+          f.mouse.downs |= static_cast<MouseButtons>(1U << (u32) e.button);
           f.mouse.any_down = true;
           break;
         case KeyAction::Release:
-          f.mouse.ups |= MouseButtons{1U << (u32) e.button};
+          f.mouse.ups |= static_cast<MouseButtons>(1U << (u32) e.button);
           f.mouse.any_up = true;
           break;
         default:
@@ -194,13 +205,13 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
       }
     },
     [&](MouseWheelEvent e) {
-      f.mouse.wheel_scrolled = true;
-      f.mouse.position       = e.position;
-      f.mouse.translation += e.translation;
+      f.mouse.scrolled          = true;
+      f.mouse.position          = e.position;
+      f.mouse.wheel_translation = e.translation;
     },
     [&](TextInputEvent e) {
-      f.text_input = true;
-      f.text.extend(e.text).unwrap();
+      f.key.input = true;
+      f.key.text.extend(e.text).unwrap();
     },
     [&](WindowEventType e) {
       switch (e)
@@ -211,34 +222,29 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
         case WindowEventType::Moved:
           break;
         case WindowEventType::Resized:
-          f.resized = true;
+          f.window.resized = true;
           break;
         case WindowEventType::SurfaceResized:
-          f.surface_resized = true;
+          f.window.surface_resized = true;
           break;
         case WindowEventType::Minimized:
         case WindowEventType::Maximized:
         case WindowEventType::Restored:
           break;
         case WindowEventType::MouseEnter:
-          f.mouse.in      = true;
-          f.mouse_focused = true;
+          f.mouse.in = true;
           break;
         case WindowEventType::MouseLeave:
-          f.mouse.out     = true;
-          f.mouse_focused = false;
+          f.mouse.out = true;
           break;
         case WindowEventType::KeyboardFocusIn:
-          f.key.in      = true;
-          f.key_focused = true;
+          f.key.in = true;
           break;
         case WindowEventType::KeyboardFocusOut:
-          f.key.out     = true;
-          f.key_focused = false;
+          f.key.out = true;
           break;
         case WindowEventType::CloseRequested:
-          f.close_requested = true;
-          f.closing         = true;
+          f.window.close_requested = true;
           break;
         case WindowEventType::Occluded:
         case WindowEventType::EnterFullScreen:
@@ -255,27 +261,25 @@ static void window_event_listener(Engine * engine, WindowEvent const & event)
           switch (e)
           {
             case DropEventType::DropBegin:
+              f.drop.event = DropState::Event::Begin;
               break;
             case DropEventType::DropComplete:
-              f.dropped = true;
+              f.drop.event = DropState::Event::End;
               break;
             default:
               break;
           }
         },
-        [&](DropPositionEvent e) {
-          f.drop_hovering  = true;
-          f.mouse.position = e.pos;
-        },
+        [&](DropPositionEvent e) { f.mouse.position = e.pos; },
         [&](DropFileEvent e) {
-          f.drop_data.clear();
-          f.drop_data.extend(e.path.as_u8()).unwrap();
-          f.drop_type = DropType::FilePath;
+          f.drop.data.clear();
+          f.drop.data.extend(e.path.as_u8()).unwrap();
+          f.drop.event = DropState::Event::FilePath;
         },
         [&](DropTextEvent e) {
-          f.drop_data.clear();
-          f.drop_data.extend(e.text.as_u8()).unwrap();
-          f.drop_type = DropType::Bytes;
+          f.drop.data.clear();
+          f.drop.data.extend(e.text.as_u8()).unwrap();
+          f.drop.event = DropState::Event::Bytes;
         });
     });
 }
@@ -287,18 +291,18 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
     dyn<Logger>(inplace, default_allocator, span<LogSink *>({&stdio_sink}))
       .unwrap();
   hook_logger(logger);
-  trace("Initializing Engine, config_path: {} and working dir: {} ",
+  trace("Initializing Engine, config_path: {} and working dir: {} "_str,
         config_path, working_dir);
 
-  trace("Loading Engine config file");
+  trace("Loading Engine config file"_str);
 
   Vec<u8> json{allocator};
 
-  read_file(config_path, json).unwrap("Error opening config file");
+  read_file(config_path, json).unwrap("Error opening config file"_str);
 
-  EngineCfg cfg = EngineCfg::parse(allocator, json);
+  EngineCfg cfg = EngineCfg::parse(allocator, json).unwrap();
 
-  trace("Initializing Core Systems");
+  trace("Initializing Core Systems"_str);
 
   FileSystem file_sys{allocator};
 
@@ -309,7 +313,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
     instance->create_device(allocator, cfg.gpu.preferences, cfg.gpu.buffering)
       .unwrap();
 
-  trace("Loading Pipeline cache from disk");
+  trace("Loading Pipeline cache from disk"_str);
 
   Vec<u8> pipeline_cache{allocator};
   read_file(cfg.pipeline_cache, pipeline_cache)
@@ -330,7 +334,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
 
   Dyn<WindowSystem *> window_sys = WindowSystem::create_SDL(allocator);
 
-  trace("Creating Root Window");
+  trace("Creating Root Window"_str);
 
   Window window = window_sys->create_window(*instance, "Ashura"_str).unwrap();
 
@@ -381,9 +385,9 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
 
   Canvas canvas{allocator};
 
-  ViewSystem view_sys{allocator};
+  ui::System ui_sys{allocator};
 
-  Vec<char> working_dir_copy = vec(allocator, working_dir).unwrap();
+  Vec<char> working_dir_copy = vec<char>(allocator, working_dir).unwrap();
 
   u32 const hardware_concurrency = std::thread::hardware_concurrency();
 
@@ -401,13 +405,13 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
   Dyn<Scheduler *> scheduler = Scheduler::create(
     allocator, std::this_thread::get_id(), {}, worker_thread_sleep);
 
-  trace("All Core Systems Initialized");
+  trace("All Core Systems Initialized"_str);
 
   nanoseconds min_frame_interval = 0ns;
 
   if (cfg.gpu.max_fps.is_some())
   {
-    f64 const max_fpns = cfg.gpu.max_fps.value() * (1 / 1'000'000'000.0);
+    f64 const max_fpns          = cfg.gpu.max_fps.v() * (1 / 1'000'000'000.0);
     f64 const min_frame_time_ns = 1 / max_fpns;
     min_frame_interval = nanoseconds{(nanoseconds::rep) min_frame_time_ns};
   }
@@ -418,7 +422,7 @@ Dyn<Engine *> Engine::create(AllocatorRef allocator, Str config_path,
                 *device, std::move(gpu_sys), std::move(image_sys),
                 std::move(font_sys), std::move(shader_sys),
                 std::move(window_sys), window, clipboard, surface, present_mode,
-                std::move(renderer), std::move(canvas), std::move(view_sys),
+                std::move(renderer), std::move(canvas), std::move(ui_sys),
                 std::move(working_dir_copy), std::move(cfg.pipeline_cache),
                 min_frame_interval)
       .unwrap();
@@ -435,9 +439,9 @@ void Engine::engage_(EngineCfg const & cfg)
   window_sys->listen({this, [](Engine * engine, SystemEvent const & event) {
                         event.match(
                           [&](SystemTheme theme) {
-                            InputState & f  = engine->input_buffer;
-                            f.theme         = theme;
-                            f.theme_changed = true;
+                            InputState & f  = engine->input_state;
+                            f.theme.theme   = theme;
+                            f.theme.changed = true;
                           },
                           [](SystemEventType) {});
                       }});
@@ -452,7 +456,7 @@ void Engine::engage_(EngineCfg const & cfg)
   {
     resolved_path.clear();
     path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading shader: {} from : {}", label, resolved_path);
+    trace("Loading shader: {} from : {}"_str, label, resolved_path);
     futures.push(shader_sys.load_from_path(std::move(label), resolved_path))
       .unwrap();
   }
@@ -461,7 +465,7 @@ void Engine::engage_(EngineCfg const & cfg)
   {
     resolved_path.clear();
     path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading font: {} from: {}", label, resolved_path);
+    trace("Loading font: {} from: {}"_str, label, resolved_path);
     futures
       .push(font_sys->load_from_path(std::move(label), resolved_path,
                                      cfg.font_height, 0))
@@ -472,26 +476,26 @@ void Engine::engage_(EngineCfg const & cfg)
   {
     resolved_path.clear();
     path_join(working_dir, path, resolved_path).unwrap();
-    trace("Loading image: {}  from: {}", label, resolved_path);
+    trace("Loading image: {}  from: {}"_str, label, resolved_path);
     futures.push(image_sys.load_from_path(std::move(label), resolved_path))
       .unwrap();
   }
 
-  trace("Waiting for resources");
+  trace("Waiting for resources"_str);
   while (!await_futures(futures, 0ns))
   {
     gpu_sys.frame(nullptr);
     scheduler->run_main_loop(1ms, 1ms);
   }
 
-  trace("All resources loaded");
+  trace("All resources loaded"_str);
 
   renderer.acquire();
 }
 
 void Engine::shutdown()
 {
-  trace("Shutting down engine");
+  trace("Shutting down engine"_str);
 
   scheduler->shutdown();
 
@@ -518,10 +522,10 @@ void Engine::shutdown()
     write_to_file(pipeline_cache_path, pipeline_cache, false)
       .match(
         [&](Void) {
-          trace("Saved pipeline cache to: {}", pipeline_cache_path);
+          trace("Saved pipeline cache to: {}"_str, pipeline_cache_path);
         },
         [&](IoErr err) {
-          error("Error {} writing pipeline cache to {}", err,
+          error("Error {} writing pipeline cache to {}"_str, err,
                 pipeline_cache_path);
         });
   }
@@ -535,7 +539,7 @@ void Engine::shutdown()
 
   instance->uninit(device.ptr());
 
-  trace("Engine Uninitialized");
+  trace("Engine Uninitialized"_str);
 }
 
 void Engine::recreate_swapchain_()
@@ -647,54 +651,64 @@ void Engine::recreate_swapchain_()
   }
 }
 
-void Engine::run(ui::View & view, ui::View & focus_view,
-                 Fn<void(InputState const &)> loop)
+time_point Engine::get_inputs_(time_point prev_frame_end)
 {
-  trace("Starting Engine Run Loop");
+  ScopeTrace poll_trace{
+    {"frame.event_poll"_str, 0}
+  };
+  input_state.clear();
+
+  auto const frame_start = steady_clock::now();
+  auto const timedelta   = frame_start - prev_frame_end;
+
+  input_state.stamp(frame_start, timedelta);
+  window_sys->poll_events();
+
+  input_state.window.surface_extent = window_sys->get_surface_extent(window);
+  input_state.window.extent         = window_sys->get_extent(window);
+
+  input_state.theme.theme = window_sys->get_theme();
+
+  auto [mouse_btns, mouse_pos, mouse_window] = window_sys->get_mouse_state();
+  input_state.mouse.focused                  = (mouse_window == window);
+  input_state.mouse.position =
+    mouse_pos - 0.5F * as_vec2(input_state.window.extent);
+  input_state.mouse.states = mouse_btns;
+
+  auto [kb_mods, kb_window] = window_sys->get_keyboard_state(
+    input_state.key.scan_states.view(), input_state.key.key_states.view());
+
+  input_state.key.focused    = (kb_window == window);
+  input_state.key.mod_states = kb_mods;
+
+  return frame_start;
+}
+
+void Engine::run(ui::View & view, Fn<void(ui::Ctx const &)> loop)
+{
+  trace("Starting Engine Run Loop"_str);
 
   if (swapchain == nullptr)
   {
     recreate_swapchain_();
   }
 
-  time_point timestamp       = steady_clock::now();
-  bool       should_close    = false;
-  Cursor     cursor          = Cursor::Default;
-  bool       text_input_mode = false;
+  bool                  running            = true;
+  Option<Cursor>        cursor             = Cursor::Default;
+  Option<TextInputInfo> current_input_info = none;
+  time_point            frame_end          = steady_clock::now();
+
   window_sys->set_cursor(cursor);
 
-  while (!should_close)
+  while (running)
   {
     ScopeTrace frame_trace{{"frame"_str}};
-    auto const frame_start = steady_clock::now();
-    auto const timedelta   = frame_start - timestamp;
-    timestamp              = frame_start;
 
-    input_buffer.clear();
-    input_buffer.stamp(timestamp, timedelta);
+    auto const frame_start = get_inputs_(frame_end);
 
-    window_sys->get_mouse_state(input_buffer.mouse.states,
-                                input_buffer.mouse.position);
-    window_sys->get_keyboard_state(input_buffer.key.scan_states,
-                                   input_buffer.key.key_states,
-                                   input_buffer.key.modifier_states);
-
+    if (input_state.window.resized || input_state.window.surface_resized)
     {
-      ScopeTrace poll_trace{
-        {"frame.event_poll"_str, 0}
-      };
-      window_sys->poll_events();
-    }
-
-    Vec2U const surface_extent = window_sys->get_surface_extent(window);
-    Vec2U const window_extent  = window_sys->get_extent(window);
-
-    input_buffer.window_extent  = window_extent;
-    input_buffer.surface_extent = surface_extent;
-
-    if (input_buffer.resized || input_buffer.surface_resized)
-    {
-      gpu_sys.recreate_framebuffers(surface_extent);
+      gpu_sys.recreate_framebuffers(input_state.window.surface_extent);
     }
 
     ScopeTrace record_trace{{"frame.record"_str}};
@@ -702,15 +716,35 @@ void Engine::run(ui::View & view, ui::View & focus_view,
     canvas.begin_recording(
       gpu::Viewport{
         .offset{0, 0},
-        .extent    = as_vec2(surface_extent),
+        .extent    = as_vec2(input_state.window.surface_extent),
         .min_depth = 0,
         .max_depth = 1
     },
-      as_vec2(window_extent), surface_extent);
+      as_vec2(input_state.window.extent), input_state.window.surface_extent);
 
-    should_close = !view_sys.tick(input_buffer, view, focus_view, canvas, loop);
+    running = ui_sys.tick(input_state, view, canvas, loop);
 
-    auto current_cursor = view_sys.cursor();
+    {
+      // [ ] squircle for blur shape
+      // [ ] masks for blur shape
+      canvas.squircle(ShapeInfo{
+        .area{{0, 0}, {200, 200}},
+        .corner_radii = Vec4::splat(5),
+        .tint         = ColorGradient{ios::DARK_GREEN}
+      });
+
+      // [ ] blur should not use alpha
+      // [ ] clear the blur scratch buffer!
+      // [ ] sample rect needs tol span the blur radius, it is currently not doing that and leading to artefacts across the edges
+      // [ ] the rect (unrounded) blur's rectangle coordinates are incorrects and are below the expected position
+      canvas.blur(
+        CRect{
+          .extent{400, 400}
+      },
+        Vec2::splat(2), Vec4::splat(100));
+    }
+
+    auto current_cursor = ui_sys.cursor;
 
     if (current_cursor != cursor)
     {
@@ -718,25 +752,22 @@ void Engine::run(ui::View & view, ui::View & focus_view,
       window_sys->set_cursor(current_cursor);
     }
 
-    auto input_info = view_sys.text_input();
+    auto input_info = ui_sys.text_input();
 
-    if (input_info.is_some() && !text_input_mode)
+    if (input_info != current_input_info)
     {
-      window_sys->start_text_input(window, input_info.value());
-      text_input_mode = true;
-    }
-    else if (input_info.is_none() && text_input_mode)
-    {
-      window_sys->end_text_input(window);
-      text_input_mode = false;
+      window_sys->set_text_input(window, input_info);
+      current_input_info = input_info;
     }
 
     canvas.end_recording();
 
-    renderer.render_canvas(gpu_sys.fb_, gpu_sys.frame_graph_, canvas);
+    renderer.render_canvas(gpu_sys.frame_graph_, canvas, gpu_sys.fb_,
+                           gpu_sys.scratch_color_,
+                           gpu_sys.scratch_depth_stencil_);
     gpu_sys.frame(swapchain);
 
-    auto const frame_end  = steady_clock::now();
+    frame_end             = steady_clock::now();
     auto const frame_time = frame_end - frame_start;
 
     if (frame_time < min_frame_interval)

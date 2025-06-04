@@ -41,6 +41,14 @@ typedef u16       hash16;
 typedef u32       hash32;
 typedef u64       hash64;
 
+/// regular void
+struct Void
+{
+};
+
+template <typename T>
+inline constexpr usize bitsizeof = sizeof(T) * 8;
+
 inline constexpr u8 U8_MIN = 0;
 inline constexpr u8 U8_MAX = 0xFF;
 
@@ -71,6 +79,9 @@ inline constexpr usize USIZE_MAX = SIZE_MAX;
 inline constexpr isize ISIZE_MIN = PTRDIFF_MIN;
 inline constexpr isize ISIZE_MAX = PTRDIFF_MAX;
 
+inline constexpr c32 UTF32_MIN = 0x0000'0000;
+inline constexpr c32 UTF32_MAX = 0x0010'FFFF;
+
 inline constexpr f32 F32_MIN          = -FLT_MAX;
 inline constexpr f32 F32_MIN_POSITIVE = FLT_MIN;
 inline constexpr f32 F32_MAX          = FLT_MAX;
@@ -85,16 +96,124 @@ inline constexpr f64 F64_INF          = INFINITY;
 
 inline constexpr f32 PI = 3.14159265358979323846F;
 
-enum class Ordering : i32
+template <typename T>
+struct NumTraits;
+
+template <>
+struct NumTraits<u8>
+{
+  static constexpr u8   MIN            = U8_MIN;
+  static constexpr u8   MAX            = U8_MAX;
+  static constexpr bool SIGNED         = false;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<u16>
+{
+  static constexpr u16  MIN            = U16_MIN;
+  static constexpr u16  MAX            = U16_MAX;
+  static constexpr bool SIGNED         = false;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<u32>
+{
+  static constexpr u32  MIN            = U32_MIN;
+  static constexpr u32  MAX            = U32_MAX;
+  static constexpr bool SIGNED         = false;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<u64>
+{
+  static constexpr u64  MIN            = U64_MIN;
+  static constexpr u64  MAX            = U64_MAX;
+  static constexpr bool SIGNED         = false;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<i8>
+{
+  static constexpr i8   MIN            = I8_MIN;
+  static constexpr i8   MAX            = I8_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<i16>
+{
+  static constexpr i16  MIN            = I16_MIN;
+  static constexpr i16  MAX            = I16_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<i32>
+{
+  static constexpr i32  MIN            = I32_MIN;
+  static constexpr i32  MAX            = I32_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<i64>
+{
+  static constexpr i64  MIN            = I64_MIN;
+  static constexpr i64  MAX            = I64_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = false;
+};
+
+template <>
+struct NumTraits<f32>
+{
+  static constexpr f32  MIN            = F32_MIN;
+  static constexpr f32  MAX            = F32_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = true;
+};
+
+template <>
+struct NumTraits<f64>
+{
+  static constexpr f64  MIN            = F64_MIN;
+  static constexpr f64  MAX            = F64_MAX;
+  static constexpr bool SIGNED         = true;
+  static constexpr bool FLOATING_POINT = true;
+};
+
+template <typename T>
+struct NumTraits<T const> : NumTraits<T>
+{
+};
+
+template <typename T>
+struct NumTraits<T volatile> : NumTraits<T>
+{
+};
+
+template <typename T>
+struct NumTraits<T const volatile> : NumTraits<T>
+{
+};
+
+enum class Order : i8
 {
   Less    = -1,
   Equal   = 0,
   Greater = 1,
 };
 
-constexpr Ordering reverse_ordering(Ordering ordering)
+constexpr Order reverse_order(Order ord)
 {
-  return Ordering{-static_cast<i32>(ordering)};
+  return static_cast<Order>(-static_cast<i8>(ord));
 }
 
 struct Add
@@ -179,17 +298,17 @@ struct GEq
 
 struct Cmp
 {
-  constexpr Ordering operator()(auto const & a, auto const & b) const
+  constexpr Order operator()(auto const & a, auto const & b) const
   {
     if (a == b)
     {
-      return Ordering::Equal;
+      return Order::Equal;
     }
     if (a > b)
     {
-      return Ordering::Greater;
+      return Order::Greater;
     }
-    return Ordering::Less;
+    return Order::Less;
   }
 };
 
@@ -420,273 +539,31 @@ constexpr bool is_pow2(u64 x)
   return (x & (x - 1)) == 0ULL;
 }
 
-constexpr bool get_bit(u8 s, usize i)
-{
-  return (s >> i) & 1;
-}
-
-constexpr bool get_bit(u16 s, usize i)
-{
-  return (s >> i) & 1;
-}
-
-constexpr bool get_bit(u32 s, usize i)
-{
-  return (s >> i) & 1;
-}
-
-constexpr bool get_bit(u64 s, usize i)
-{
-  return (s >> i) & 1;
-}
-
-constexpr void clear_bit(u8 & s, usize i)
-{
-  s &= ~(((u8) 1) << i);
-}
-
-constexpr void clear_bit(u16 & s, usize i)
-{
-  s &= ~(((u16) 1) << i);
-}
-
-constexpr void clear_bit(u32 & s, usize i)
-{
-  s &= ~(((u32) 1) << i);
-}
-
-constexpr void clear_bit(u64 & s, usize i)
-{
-  s &= ~(((u64) 1) << i);
-}
-
-constexpr void set_bit(u8 & s, usize i)
-{
-  s |= (((u8) 1) << i);
-}
-
-constexpr void set_bit(u16 & s, usize i)
-{
-  s |= (((u16) 1) << i);
-}
-
-constexpr void set_bit(u32 & s, usize i)
-{
-  s |= (((u32) 1) << i);
-}
-
-constexpr void set_bit(u64 & s, usize i)
-{
-  s |= (((u64) 1) << i);
-}
-
-constexpr void assign_bit(u8 & s, usize i, bool b)
-{
-  s &= ~(((u8) 1) << i);
-  s |= (((u8) b) << i);
-}
-
-constexpr void assign_bit(u16 & s, usize i, bool b)
-{
-  s &= ~(((u16) 1) << i);
-  s |= (((u16) b) << i);
-}
-
-constexpr void assign_bit(u32 & s, usize i, bool b)
-{
-  s &= ~(((u32) 1) << i);
-  s |= (((u32) b) << i);
-}
-
-constexpr void assign_bit(u64 & s, usize i, bool b)
-{
-  s &= ~(((u64) 1) << i);
-  s |= (((u64) b) << i);
-}
-
-constexpr void flip_bit(u8 & s, usize i)
-{
-  s = s ^ (((usize) 1) << i);
-}
-
-constexpr void flip_bit(u16 & s, usize i)
-{
-  s = s ^ (((usize) 1) << i);
-}
-
-constexpr void flip_bit(u32 & s, usize i)
-{
-  s = s ^ (((usize) 1) << i);
-}
-
-constexpr void flip_bit(u64 & s, usize i)
-{
-  s = s ^ (((usize) 1) << i);
-}
-
-constexpr unsigned long long operator""_KB(unsigned long long x)
+constexpr u64 operator""_KB(u64 x)
 {
   return x << 10;
 }
 
-constexpr unsigned long long operator""_MB(unsigned long long x)
+constexpr u64 operator""_MB(u64 x)
 {
   return x << 20;
 }
 
-constexpr unsigned long long operator""_GB(unsigned long long x)
+constexpr u64 operator""_GB(u64 x)
 {
   return x << 30;
 }
 
-constexpr unsigned long long operator""_TB(unsigned long long x)
+constexpr u64 operator""_TB(u64 x)
 {
   return x << 40;
 }
 
-template <typename T>
-struct NumTraits;
-
-template <>
-struct NumTraits<u8>
-{
-  static constexpr u8   NUM_BITS       = 8;
-  static constexpr u8   LOG2_NUM_BITS  = 3;
-  static constexpr u8   MIN            = U8_MIN;
-  static constexpr u8   MAX            = U8_MAX;
-  static constexpr bool SIGNED         = false;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<u16>
-{
-  static constexpr u8   NUM_BITS       = 16;
-  static constexpr u8   LOG2_NUM_BITS  = 4;
-  static constexpr u16  MIN            = U16_MIN;
-  static constexpr u16  MAX            = U16_MAX;
-  static constexpr bool SIGNED         = false;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<u32>
-{
-  static constexpr u8   NUM_BITS       = 32;
-  static constexpr u8   LOG2_NUM_BITS  = 5;
-  static constexpr u32  MIN            = U32_MIN;
-  static constexpr u32  MAX            = U32_MAX;
-  static constexpr bool SIGNED         = false;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<u64>
-{
-  static constexpr u8   NUM_BITS       = 64;
-  static constexpr u8   LOG2_NUM_BITS  = 6;
-  static constexpr u64  MIN            = U64_MIN;
-  static constexpr u64  MAX            = U64_MAX;
-  static constexpr bool SIGNED         = false;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<i8>
-{
-  static constexpr u8   NUM_BITS       = 8;
-  static constexpr u8   LOG2_NUM_BITS  = 3;
-  static constexpr i8   MIN            = I8_MIN;
-  static constexpr i8   MAX            = I8_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<i16>
-{
-  static constexpr u8   NUM_BITS       = 16;
-  static constexpr u8   LOG2_NUM_BITS  = 4;
-  static constexpr i16  MIN            = I16_MIN;
-  static constexpr i16  MAX            = I16_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<i32>
-{
-  static constexpr u8   NUM_BITS       = 32;
-  static constexpr u8   LOG2_NUM_BITS  = 5;
-  static constexpr i32  MIN            = I32_MIN;
-  static constexpr i32  MAX            = I32_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<i64>
-{
-  static constexpr u8   NUM_BITS       = 64;
-  static constexpr u8   LOG2_NUM_BITS  = 6;
-  static constexpr i64  MIN            = I64_MIN;
-  static constexpr i64  MAX            = I64_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = false;
-};
-
-template <>
-struct NumTraits<f32>
-{
-  static constexpr u8   NUM_BITS       = 32;
-  static constexpr u8   LOG2_NUM_BITS  = 5;
-  static constexpr f32  MIN            = F32_MIN;
-  static constexpr f32  MAX            = F32_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = true;
-};
-
-template <>
-struct NumTraits<f64>
-{
-  static constexpr u8   NUM_BITS       = 64;
-  static constexpr u8   LOG2_NUM_BITS  = 6;
-  static constexpr f64  MIN            = F64_MIN;
-  static constexpr f64  MAX            = F64_MAX;
-  static constexpr bool SIGNED         = true;
-  static constexpr bool FLOATING_POINT = true;
-};
-
-template <typename T>
-struct NumTraits<T const> : NumTraits<T>
-{
-};
-
-template <typename T>
-struct NumTraits<T volatile> : NumTraits<T>
-{
-};
-
-template <typename T>
-struct NumTraits<T const volatile> : NumTraits<T>
-{
-};
-
-template <typename Repr, usize NumBits>
-inline constexpr usize BIT_PACKS =
-  (NumBits + (NumTraits<Repr>::NUM_BITS - 1)) >> NumTraits<Repr>::LOG2_NUM_BITS;
-
 template <typename Repr>
-constexpr usize bit_packs(usize num_bits)
+constexpr usize atom_size_for(usize num_bits)
 {
-  return (num_bits + (NumTraits<Repr>::NUM_BITS - 1)) >>
-         NumTraits<Repr>::LOG2_NUM_BITS;
+  return (num_bits + (bitsizeof<Repr> - 1)) / bitsizeof<Repr>;
 }
-
-/// regular void
-struct Void
-{
-};
 
 template <typename E>
 using enum_ut = std::underlying_type_t<E>;
@@ -830,20 +707,33 @@ struct ref
 template <typename T>
 ref(T &) -> ref<T>;
 
-template <typename S = usize>
-struct SliceT
+/// @brief A slice is a pair of integers: `offset` and `span` that represent a range of elements in any container.
+/// .offset can range from 0-`S::MAX`, `S::MAX` means the end of the range.
+/// .span can range from 0-`S::MAX`, `S::MAX` means to the end of the range.
+///
+///
+///
+/// `.offset` and `.offset + .span` can be more than the number of elements in the target container.
+/// To resolve the slice once the size of the container is known, use the resolve operator: `Slice::operator()(usize n)`
+///
+/// To prevent `.offset + .span` from overflow or out-of-bounds call the resolve operator
+///
+template <typename S>
+struct CoreSlice
 {
+  static constexpr S END = NumTraits<S>::MAX;
+
   S offset = 0;
   S span   = 0;
 
-  static constexpr SliceT from_range(S begin, S end)
+  static constexpr CoreSlice range(S begin, S end)
   {
-    return SliceT{.offset = begin, .span = end - begin};
+    return CoreSlice{.offset = begin, .span = static_cast<S>(end - begin)};
   }
 
-  static constexpr SliceT all()
+  static constexpr CoreSlice all()
   {
-    return SliceT{.offset = 0, .span = NumTraits<S>::MAX};
+    return CoreSlice{.offset = 0, .span = END};
   }
 
   constexpr S begin() const
@@ -856,13 +746,25 @@ struct SliceT
     return offset + span;
   }
 
-  constexpr SliceT operator()(S size) const
+  constexpr S first() const
   {
-    // written such that overflow will not occur even if both offset and span
-    // are set to USIZE_MAX
-    S out_offset = offset > size ? size : offset;
-    S out_span   = ((size - out_offset) > span) ? span : size - out_offset;
-    return SliceT{out_offset, out_span};
+    return offset;
+  }
+
+  constexpr S last() const
+  {
+    return end() - 1;
+  }
+
+  constexpr CoreSlice operator()(S size) const
+  {
+    return CoreSlice::range(min(offset, size),
+                            min(sat_add(offset, span), size));
+  }
+
+  constexpr CoreSlice operator()() const
+  {
+    return CoreSlice::range(offset, sat_add(offset, span));
   }
 
   constexpr bool is_empty() const
@@ -870,13 +772,7 @@ struct SliceT
     return span == 0;
   }
 
-  constexpr bool overlaps(SliceT other) const
-  {
-    return (begin() <= other.begin() && end() >= other.begin()) ||
-           (begin() <= other.end() && end() >= other.end());
-  }
-
-  constexpr bool contains(SliceT other) const
+  constexpr bool contains(CoreSlice other) const
   {
     return begin() <= other.begin() && end() >= other.end();
   }
@@ -886,36 +782,36 @@ struct SliceT
     return begin() <= item && end() > item;
   }
 
-  constexpr SliceT<u32> as_slice32() const
+  constexpr bool in_range(S size) const
   {
-    return SliceT<u32>{.offset = (u32) offset, .span = (u32) span};
-  }
-
-  constexpr SliceT<usize> as_slice() const
-  {
-    return SliceT<usize>{.offset = (usize) offset, .span = (usize) span};
+    return begin() < size && end() >= size;
   }
 };
 
 template <typename S>
-constexpr bool operator==(SliceT<S> const & a, SliceT<S> const & b)
+constexpr bool operator==(CoreSlice<S> const & a, CoreSlice<S> const & b)
 {
   return a.offset == b.offset && a.span == b.span;
 }
 
-using Slice   = SliceT<usize>;
-using Slice8  = SliceT<u8>;
-using Slice16 = SliceT<u16>;
-using Slice32 = SliceT<u32>;
-using Slice64 = SliceT<u64>;
+using Slice   = CoreSlice<usize>;
+using Slice8  = CoreSlice<u8>;
+using Slice16 = CoreSlice<u16>;
+using Slice32 = CoreSlice<u32>;
+using Slice64 = CoreSlice<u64>;
 
 struct IterEnd
 {
 };
 
+inline constexpr IterEnd iter_end;
+
 template <typename T>
 struct SpanIter
 {
+  using Type = T;
+  using Ref  = T &;
+
   T * iter_ = nullptr;
   T * end_  = nullptr;
 
@@ -1038,6 +934,12 @@ constexpr auto is_empty(T && a)
   return size(a) == 0;
 }
 
+template <typename T>
+constexpr auto is_empty(T && a) -> decltype(a.is_empty())
+{
+  return a.is_empty();
+}
+
 /// @brief Iterator Model. Iterators are only required to
 /// produce values, they are not required to provide
 /// references to the values
@@ -1140,11 +1042,6 @@ struct Span
 
   constexpr ~Span() = default;
 
-  constexpr bool is_empty() const
-  {
-    return size_ == 0;
-  }
-
   constexpr T * data() const
   {
     return data_;
@@ -1157,22 +1054,27 @@ struct Span
 
   constexpr u32 size32() const
   {
-    return (u32) size_;
+    return (u32) size();
   }
 
   constexpr u64 size64() const
   {
-    return (u64) size_;
+    return (u64) size();
   }
 
   constexpr usize size_bytes() const
   {
-    return sizeof(T) * size_;
+    return sizeof(T) * size();
+  }
+
+  constexpr bool is_empty() const
+  {
+    return size() == 0;
   }
 
   constexpr Iter begin() const
   {
-    return Iter{.iter_ = data_, .end_ = data_ + size_};
+    return Iter{.iter_ = pbegin(), .end_ = pend()};
   }
 
   constexpr auto end() const
@@ -1182,12 +1084,12 @@ struct Span
 
   constexpr T * pbegin() const
   {
-    return data_;
+    return data();
   }
 
   constexpr T * pend() const
   {
-    return data_ + size_;
+    return data() + size();
   }
 
   constexpr T & first() const
@@ -1197,64 +1099,70 @@ struct Span
 
   constexpr T & last() const
   {
-    return get(size_ - 1);
+    return get(size() - 1);
   }
 
   constexpr T & operator[](usize index) const
   {
-    return data_[index];
+    return data()[index];
   }
 
   constexpr T & get(usize index) const
   {
-    return data_[index];
+    return data()[index];
   }
 
   template <typename... Args>
   constexpr void set(usize index, Args &&... args) const requires (NonConst<T>)
   {
-    data_[index] = T{static_cast<Args &&>(args)...};
+    data()[index] = T{static_cast<Args &&>(args)...};
   }
 
   constexpr Span<T const> as_const() const
   {
-    return Span<T const>{data_, size_};
+    return Span<T const>{data(), size()};
   }
 
   constexpr Span<u8> as_u8() const requires (NonConst<T>)
   {
-    return Span<u8>{reinterpret_cast<u8 *>(data_), size_bytes()};
+    return Span<u8>{reinterpret_cast<u8 *>(data()), size_bytes()};
   }
 
   constexpr Span<u8 const> as_u8() const requires (Const<T>)
   {
-    return Span<u8 const>{reinterpret_cast<u8 const *>(data_), size_bytes()};
+    return Span<u8 const>{reinterpret_cast<u8 const *>(data()), size_bytes()};
   }
 
   constexpr Span<char> as_char() const requires (NonConst<T>)
   {
-    return Span<char>{reinterpret_cast<char *>(data_), size_bytes()};
+    return Span<char>{reinterpret_cast<char *>(data()), size_bytes()};
   }
 
   constexpr Span<char const> as_char() const requires (Const<T>)
   {
-    return Span<char const>{reinterpret_cast<char const *>(data_),
+    return Span<char const>{reinterpret_cast<char const *>(data()),
                             size_bytes()};
   }
 
   constexpr Span<c8> as_c8() const requires (NonConst<T>)
   {
-    return Span<c8>{reinterpret_cast<c8 *>(data_), size_bytes()};
+    return Span<c8>{reinterpret_cast<c8 *>(data()), size_bytes()};
   }
 
   constexpr Span<c8 const> as_c8() const requires (Const<T>)
   {
-    return Span<c8 const>{reinterpret_cast<c8 const *>(data_), size_bytes()};
+    return Span<c8 const>{reinterpret_cast<c8 const *>(data()), size_bytes()};
   }
 
   constexpr Slice as_slice_of(Span<T const> parent) const
   {
-    return Slice{static_cast<usize>(data_ - parent.data_), size_};
+    return Slice{static_cast<usize>(data() - parent.data()), size()};
+  }
+
+  constexpr Span slice(Slice s) const
+  {
+    s = s(size());
+    return Span{data() + s.offset, s.span};
   }
 
   constexpr Span slice(usize offset, usize span) const
@@ -1262,22 +1170,27 @@ struct Span
     return slice(Slice{offset, span});
   }
 
-  constexpr Span slice(Slice s) const
-  {
-    s = s(size_);
-    return Span{data_ + s.offset, s.span};
-  }
-
   constexpr Span slice(usize offset) const
   {
     return slice(offset, USIZE_MAX);
   }
 
+  constexpr Span slice(Slice32 s) const
+  {
+    s = s((u32) size());
+    return Span{data() + s.offset, s.span};
+  }
+
+  constexpr Span slice(Slice16 s) const
+  {
+    s = s((u16) size());
+    return Span{data() + s.offset, s.span};
+  }
+
   template <typename U>
   Span<U> reinterpret() const
   {
-    return Span<U>{reinterpret_cast<U *>(data_),
-                   (sizeof(T) * size_) / sizeof(U)};
+    return Span<U>{reinterpret_cast<U *>(data()), size_bytes() / sizeof(U)};
   }
 };
 
@@ -1358,123 +1271,114 @@ constexpr Str32 operator""_str(c32 const * lit, usize n)
 
 }    // namespace str_literal
 
-constexpr bool get_bit(Span<u8 const> s, usize i)
-{
-  return get_bit(s[i >> 3], i & 7);
-}
-
-constexpr bool get_bit(Span<u16 const> s, usize i)
-{
-  return get_bit(s[i >> 4], i & 15);
-}
-
-constexpr bool get_bit(Span<u32 const> s, usize i)
-{
-  return get_bit(s[i >> 5], i & 31);
-}
-
-constexpr bool get_bit(Span<u64 const> s, usize i)
-{
-  return get_bit(s[i >> 6], i & 63);
-}
-
-constexpr void set_bit(Span<u8> s, usize i)
-{
-  set_bit(s[i >> 3], i & 7);
-}
-
-constexpr void set_bit(Span<u16> s, usize i)
-{
-  set_bit(s[i >> 4], i & 15);
-}
-
-constexpr void set_bit(Span<u32> s, usize i)
-{
-  set_bit(s[i >> 5], i & 31);
-}
-
-constexpr void set_bit(Span<u64> s, usize i)
-{
-  set_bit(s[i >> 6], i & 63);
-}
-
-constexpr void assign_bit(Span<u8> s, usize i, bool b)
-{
-  assign_bit(s[i >> 3], i & 7, b);
-}
-
-constexpr void assign_bit(Span<u16> s, usize i, bool b)
-{
-  assign_bit(s[i >> 4], i & 15, b);
-}
-
-constexpr void assign_bit(Span<u32> s, usize i, bool b)
-{
-  assign_bit(s[i >> 5], i & 31, b);
-}
-
-constexpr void assign_bit(Span<u64> s, usize i, bool b)
-{
-  assign_bit(s[i >> 6], i & 63, b);
-}
-
-constexpr void clear_bit(Span<u8> s, usize i)
-{
-  clear_bit(s[i >> 3], i & 7);
-}
-
-constexpr void clear_bit(Span<u16> s, usize i)
-{
-  clear_bit(s[i >> 4], i & 15);
-}
-
-constexpr void clear_bit(Span<u32> s, usize i)
-{
-  clear_bit(s[i >> 5], i & 31);
-}
-
-constexpr void clear_bit(Span<u64> s, usize i)
-{
-  clear_bit(s[i >> 6], i & 63);
-}
-
-constexpr void flip_bit(Span<u8> s, usize i)
-{
-  flip_bit(s[i >> 3], i & 7);
-}
-
-constexpr void flip_bit(Span<u16> s, usize i)
-{
-  flip_bit(s[i >> 4], i & 15);
-}
-
-constexpr void flip_bit(Span<u32> s, usize i)
-{
-  flip_bit(s[i >> 5], i & 31);
-}
-
-constexpr void flip_bit(Span<u64> s, usize i)
-{
-  flip_bit(s[i >> 6], i & 63);
-}
-
 namespace impl
 {
 
-template <typename T>
-constexpr usize find_set_bit(Span<T const> s)
+namespace atom
 {
-  T const * const begin = s.pbegin();
-  T const *       iter  = s.pbegin();
-  T const * const end   = s.pend();
+template <typename Atom, usize BitWidth>
+constexpr Atom get_bits(Atom s, usize i)
+{
+  constexpr auto mask = ((Atom) 1U << BitWidth) - 1;
+  auto const     pos  = i * BitWidth;
+  return (s >> pos) & mask;
+}
+
+template <typename Atom, usize BitWidth>
+constexpr Atom clear_bits(Atom s, usize i)
+{
+  constexpr auto mask = (((Atom) 1U) << BitWidth) - 1;
+  auto const     pos  = i * BitWidth;
+  return s & ~(mask << pos);
+}
+
+template <typename Atom, usize BitWidth>
+constexpr Atom set_bits(Atom s, usize i)
+{
+  constexpr auto mask = ((Atom) 1U << BitWidth) - 1;
+  auto const     pos  = i * BitWidth;
+  return s | (mask << pos);
+}
+
+template <typename Atom, usize BitWidth>
+constexpr Atom assign_bits(Atom s, usize i, Atom value)
+{
+  auto const pos = i * BitWidth;
+  return clear_bits<Atom, BitWidth>(s, i) | (value << pos);
+}
+
+template <typename Atom, usize BitWidth>
+constexpr Atom flip_bits(Atom s, usize i)
+{
+  constexpr auto mask = ((Atom) 1U << BitWidth) - 1;
+  auto const     pos  = i * BitWidth;
+  return s ^ (mask << pos);
+}
+
+}    // namespace atom
+
+template <typename Atom>
+constexpr Atom get_bit(Atom * p_atoms, usize i)
+{
+  auto const atom_idx = i / bitsizeof<Atom>;
+  auto const bit_idx  = i & (bitsizeof<Atom> - 1);
+
+  return atom::get_bits<Atom, 1>(p_atoms[atom_idx], bit_idx);
+}
+
+template <typename Atom>
+constexpr void clear_bit(Atom * p_atoms, usize i)
+{
+  auto const atom_idx = i / bitsizeof<Atom>;
+  auto const bit_idx  = i & (bitsizeof<Atom> - 1);
+
+  auto & a = p_atoms[atom_idx];
+  a        = atom::clear_bits<Atom, 1>(a, bit_idx);
+}
+
+template <typename Atom>
+constexpr void set_bit(Atom * p_atoms, usize i)
+{
+  auto const atom_idx = i / bitsizeof<Atom>;
+  auto const bit_idx  = i & (bitsizeof<Atom> - 1);
+
+  auto & a = p_atoms[atom_idx];
+  a        = atom::set_bits<Atom, 1>(a, bit_idx);
+}
+
+template <typename Atom>
+constexpr void assign_bit(Atom * p_atoms, usize i, Atom value)
+{
+  auto const atom_idx = i / bitsizeof<Atom>;
+  auto const bit_idx  = i & (bitsizeof<Atom> - 1);
+
+  auto & a = p_atoms[atom_idx];
+  a        = atom::assign_bits<Atom, 1>(a, bit_idx, value);
+}
+
+template <typename Atom>
+constexpr void flip_bit(Atom * p_atoms, usize i)
+{
+  auto const atom_idx = i / bitsizeof<Atom>;
+  auto const bit_idx  = i & (bitsizeof<Atom> - 1);
+
+  auto & a = p_atoms[atom_idx];
+  a        = atom::flip_bits<Atom, 1>(a, bit_idx);
+}
+
+template <typename Atom>
+constexpr usize find_set_bit(Atom * p_atom, usize num_atoms)
+{
+  auto const begin = p_atom;
+  auto       iter  = p_atom;
+  auto const end   = p_atom + num_atoms;
 
   while (iter != end && *iter == 0)
   {
     iter++;
   }
 
-  usize const idx = static_cast<usize>(iter - begin)
-                    << NumTraits<T>::LOG2_NUM_BITS;
+  auto const idx = static_cast<usize>(iter - begin) * bitsizeof<Atom>;
 
   if (iter == end)
   {
@@ -1484,20 +1388,19 @@ constexpr usize find_set_bit(Span<T const> s)
   return idx | std::countr_zero(*iter);
 }
 
-template <typename T>
-constexpr usize find_clear_bit(Span<T const> s)
+template <typename Atom>
+constexpr usize find_clear_bit(Atom * p_atom, usize num_atoms)
 {
-  T const * const begin = s.pbegin();
-  T const *       iter  = s.pbegin();
-  T const * const end   = s.pend();
+  auto const begin = p_atom;
+  auto       iter  = p_atom;
+  auto const end   = p_atom + num_atoms;
 
-  while (iter != end && *iter == NumTraits<T>::MAX)
+  while (iter != end && *iter == NumTraits<Atom>::MAX)
   {
     iter++;
   }
 
-  usize const idx = static_cast<usize>(iter - begin)
-                    << NumTraits<T>::LOG2_NUM_BITS;
+  auto const idx = static_cast<usize>(iter - begin) * bitsizeof<Atom>;
 
   if (iter == end)
   {
@@ -1509,67 +1412,27 @@ constexpr usize find_clear_bit(Span<T const> s)
 
 }    // namespace impl
 
-constexpr usize find_set_bit(Span<u8 const> s)
-{
-  return impl::find_set_bit(s);
-}
-
-constexpr usize find_set_bit(Span<u16 const> s)
-{
-  return impl::find_set_bit(s);
-}
-
-constexpr usize find_set_bit(Span<u32 const> s)
-{
-  return impl::find_set_bit(s);
-}
-
-constexpr usize find_set_bit(Span<u64 const> s)
-{
-  return impl::find_set_bit(s);
-}
-
-constexpr usize find_clear_bit(Span<u8 const> s)
-{
-  return impl::find_clear_bit(s);
-}
-
-constexpr usize find_clear_bit(Span<u16 const> s)
-{
-  return impl::find_clear_bit(s);
-}
-
-constexpr usize find_clear_bit(Span<u32 const> s)
-{
-  return impl::find_clear_bit(s);
-}
-
-constexpr usize find_clear_bit(Span<u64 const> s)
-{
-  return impl::find_clear_bit(s);
-}
-
 template <typename R>
 struct BitSpanIter
 {
-  Span<R> repr_{};
-  usize   pos_  = 0;
-  usize   size_ = 0;
+  R *   storage_ = nullptr;
+  usize iter_    = 0;
+  usize end_     = 0;
 
   constexpr bool operator*() const
   {
-    return get_bit(repr_, pos_);
+    return impl::get_bit(storage_, iter_);
   }
 
   constexpr BitSpanIter & operator++()
   {
-    ++pos_;
+    ++iter_;
     return *this;
   }
 
   constexpr bool operator!=(IterEnd) const
   {
-    return pos_ != size_;
+    return iter_ != end_;
   }
 };
 
@@ -1580,21 +1443,21 @@ struct BitSpan
   using Repr = R;
   using Iter = BitSpanIter<R>;
 
-  Span<R> repr_ = {};
+  R *   storage_ = 0;
+  usize size_    = 0;
 
   constexpr BitSpan() = default;
 
-  constexpr BitSpan(Span<R> repr) : repr_{repr}
+  constexpr BitSpan(R * storage, usize size) : storage_{storage}, size_{size}
   {
   }
 
-  template <usize N>
-  constexpr BitSpan(R (&data)[N]) : repr_{data}
+  constexpr BitSpan(Span<R> storage, usize size) : BitSpan{storage.data(), size}
   {
   }
 
-  template <SpanCompatibleContainer<R> C>
-  constexpr BitSpan(C & cont) : repr_{cont}
+  constexpr BitSpan(Span<R> storage) :
+    BitSpan{storage.data(), storage.size() * bitsizeof<R>}
   {
   }
 
@@ -1608,24 +1471,24 @@ struct BitSpan
 
   constexpr ~BitSpan() = default;
 
-  constexpr Span<R> repr() const
-  {
-    return repr_;
-  }
-
   constexpr usize size() const
   {
-    return repr_.size_bytes() * 8;
+    return size_;
+  }
+
+  constexpr usize atom_size() const
+  {
+    return atom_size_for<Repr>(size());
   }
 
   constexpr bool is_empty() const
   {
-    return repr_.is_empty();
+    return size() == 0;
   }
 
   constexpr auto begin() const
   {
-    return Iter{.repr_ = repr_, .bit_pos_ = 0, .bit_size_ = size()};
+    return Iter{.storage_ = storage_, .iter_ = 0, .end_ = size()};
   }
 
   constexpr auto end() const
@@ -1633,71 +1496,93 @@ struct BitSpan
     return IterEnd{};
   }
 
+  constexpr Span<R> repr() const
+  {
+    return Span<R>{storage_, atom_size()};
+  }
+
   constexpr bool operator[](usize index) const
   {
-    return ash::get_bit(repr_, index);
+    return impl::get_bit(storage_, index);
   }
 
   constexpr bool get(usize index) const
   {
-    return ash::get_bit(repr_, index);
+    return impl::get_bit(storage_, index);
   }
 
   constexpr void set(usize index, bool value) const requires (NonConst<R>)
   {
-    ash::assign_bit(repr_, index, value);
+    impl::assign_bit(storage_, index, static_cast<Repr>(value));
   }
 
   constexpr bool get_bit(usize index) const
   {
-    return ash::get_bit(repr_, index);
+    return impl::get_bit(storage_, index);
   }
 
   constexpr void set_bit(usize index) const requires (NonConst<R>)
   {
-    ash::set_bit(repr_, index);
+    impl::set_bit(storage_, index);
   }
 
   constexpr void clear_bit(usize index) const requires (NonConst<R>)
   {
-    ash::clear_bit(repr_, index);
+    impl::clear_bit(storage_, index);
   }
 
   constexpr void flip_bit(usize index) const requires (NonConst<R>)
   {
-    ash::flip_bit(repr_, index);
+    impl::flip_bit(storage_, index);
   }
 
   constexpr void clear_all_bits() const requires (NonConst<R>)
   {
-    fill(repr_, (R) 0);
+    fill(repr(), (R) 0);
   }
 
   constexpr void set_all_bits() const requires (NonConst<R>)
   {
-    fill(repr_, NumTraits<R>::MAX);
+    fill(repr(), NumTraits<R>::MAX);
   }
 
   constexpr usize find_set_bit()
   {
-    return ash::find_set_bit(repr_);
+    return impl::find_set_bit(storage_, atom_size());
   }
 
   constexpr usize find_clear_bit()
   {
-    return ash::find_clear_bit(repr_);
-  }
-
-  constexpr operator BitSpan<R const>() const
-  {
-    return BitSpan<R const>{repr_};
+    return impl::find_clear_bit(storage_, atom_size());
   }
 
   constexpr BitSpan<R const> as_const() const
   {
-    return BitSpan<R const>{repr_};
+    return BitSpan<R const>{storage_, size_};
+  }
+
+  constexpr operator BitSpan<R const>() const
+  {
+    return as_const();
   }
 };
+
+template <typename T, usize N>
+BitSpan(T (&)[N]) -> BitSpan<T>;
+
+template <typename T, usize N>
+BitSpan(T (&)[N], usize) -> BitSpan<T>;
+
+template <typename T>
+BitSpan(T *, usize) -> BitSpan<T>;
+
+template <SpanContainer C>
+BitSpan(C & container)
+  -> BitSpan<std::remove_pointer_t<decltype(data(container))>>;
+
+template <SpanContainer C>
+BitSpan(C & container, usize)
+  -> BitSpan<std::remove_pointer_t<decltype(data(container))>>;
 
 template <typename T, usize N>
 struct Array
@@ -1734,42 +1619,42 @@ struct Array
 
   static constexpr u32 size32()
   {
-    return (u32) SIZE;
+    return (u32) size();
   }
 
   static constexpr u64 size64()
   {
-    return (u64) SIZE;
+    return (u64) size();
   }
 
   static constexpr usize capacity()
   {
-    return SIZE;
+    return size();
   }
 
   static constexpr usize size_bytes()
   {
-    return sizeof(T) * SIZE;
+    return sizeof(T) * size();
   }
 
   constexpr T * begin()
   {
-    return data_;
+    return data();
   }
 
   constexpr T const * begin() const
   {
-    return data_;
+    return data();
   }
 
   constexpr T * end()
   {
-    return data_ + SIZE;
+    return data() + size();
   }
 
   constexpr T const * end() const
   {
-    return data_ + SIZE;
+    return data() + size();
   }
 
   constexpr T & first()
@@ -1784,48 +1669,48 @@ struct Array
 
   constexpr T & last()
   {
-    return get(SIZE - 1);
+    return get(size() - 1);
   }
 
   constexpr T const & last() const
   {
-    return get(SIZE - 1);
+    return get(size() - 1);
   }
 
   constexpr T & get(usize index)
   {
-    return data_[index];
+    return data()[index];
   }
 
   constexpr T const & get(usize index) const
   {
-    return data_[index];
+    return data()[index];
   }
 
   template <typename... Args>
   constexpr void set(usize index, Args &&... args)
   {
-    data_[index] = T{static_cast<Args &&>(args)...};
+    data()[index] = T{static_cast<Args &&>(args)...};
   }
 
   constexpr T & operator[](usize index)
   {
-    return data_[index];
+    return data()[index];
   }
 
   constexpr T const & operator[](usize index) const
   {
-    return data_[index];
+    return data()[index];
   }
 
   constexpr operator T *()
   {
-    return data_;
+    return data();
   }
 
   constexpr operator T const *() const
   {
-    return data_;
+    return data();
   }
 
   constexpr ConstView view() const
@@ -1872,42 +1757,42 @@ struct Array<T, 0>
 
   static constexpr u32 size32()
   {
-    return (u32) SIZE;
+    return (u32) size();
   }
 
   static constexpr u64 size64()
   {
-    return (u64) SIZE;
+    return (u64) size();
   }
 
   static constexpr usize capacity()
   {
-    return SIZE;
+    return size();
   }
 
   static constexpr usize size_bytes()
   {
-    return sizeof(T) * SIZE;
+    return sizeof(T) * size();
   }
 
   constexpr T * begin()
   {
-    return nullptr;
+    return data();
   }
 
   constexpr T const * begin() const
   {
-    return nullptr;
+    return data();
   }
 
   constexpr T * end()
   {
-    return nullptr;
+    return data() + size();
   }
 
   constexpr T const * end() const
   {
-    return nullptr;
+    return data() + size();
   }
 
   constexpr T & first() requires (SIZE > 1)
@@ -1922,12 +1807,12 @@ struct Array<T, 0>
 
   constexpr T & last() requires (SIZE > 1)
   {
-    return get(SIZE - 1);
+    return get(size() - 1);
   }
 
   constexpr T const & last() const requires (SIZE > 1)
   {
-    return get(SIZE - 1);
+    return get(size() - 1);
   }
 
   constexpr T & get(usize index) requires (SIZE > 1)
@@ -1958,12 +1843,12 @@ struct Array<T, 0>
 
   constexpr operator T *()
   {
-    return nullptr;
+    return data();
   }
 
   constexpr operator T const *() const
   {
-    return nullptr;
+    return data();
   }
 
   constexpr ConstView view() const
@@ -1986,11 +1871,110 @@ struct IsTriviallyRelocatable<Array<T, N>>
   static constexpr bool value = TriviallyRelocatable<T>;
 };
 
-template <typename Repr, usize N>
-using Bits = Repr[BIT_PACKS<Repr, N>];
+template <typename R, usize N>
+struct Bits
+{
+  using Type      = bool;
+  using Repr      = R;
+  using View      = BitSpan<Repr>;
+  using ConstView = BitSpan<Repr const>;
+  using Iter      = BitSpanIter<R>;
+  using ConstIter = BitSpanIter<R const>;
 
-template <typename Repr, usize N>
-using BitArray = Array<Repr, BIT_PACKS<Repr, N>>;
+  static constexpr usize SIZE = N;
+
+  Array<R, atom_size_for<R>(N)> storage_;
+
+  constexpr Bits()                         = default;
+  constexpr Bits(Bits const &)             = default;
+  constexpr Bits(Bits &&)                  = default;
+  constexpr Bits & operator=(Bits const &) = default;
+  constexpr Bits & operator=(Bits &&)      = default;
+  constexpr ~Bits()                        = default;
+
+  constexpr auto begin() const
+  {
+    return Iter{.storage_ = storage_.data(), .iter_ = 0, .end_ = size()};
+  }
+
+  constexpr auto end() const
+  {
+    return IterEnd{};
+  }
+
+  constexpr usize size() const
+  {
+    return SIZE;
+  }
+
+  constexpr bool is_empty() const
+  {
+    return size() == 0;
+  }
+
+  constexpr bool operator[](usize index) const
+  {
+    return get(index);
+  }
+
+  constexpr bool get(usize index) const
+  {
+    return view().get(index);
+  }
+
+  constexpr bool first() const
+  {
+    return get(0);
+  }
+
+  constexpr bool last() const
+  {
+    return get(size() - 1);
+  }
+
+  constexpr void set(usize index, bool value)
+  {
+    view().set(index, value);
+  }
+
+  constexpr bool get_bit(usize index) const
+  {
+    return get(index);
+  }
+
+  constexpr void set_bit(usize index)
+  {
+    view().set_bit(index);
+  }
+
+  constexpr void clear_bit(usize index)
+  {
+    view().clear_bit(index);
+  }
+
+  constexpr void flip_bit(usize index)
+  {
+    view().flip_bit(index);
+  }
+
+  constexpr void swap(usize a, usize b)
+  {
+    bool av = get(a);
+    bool bv = get(b);
+    set(a, bv);
+    set(b, av);
+  }
+
+  constexpr auto view() const
+  {
+    return ConstView{storage_.view(), size()};
+  }
+
+  constexpr auto view()
+  {
+    return View{storage_.view(), size()};
+  }
+};
 
 template <typename Lambda>
 struct defer
@@ -2315,5 +2299,13 @@ struct InplaceStorage<Alignment, 0>
 
 template <typename T>
 using Storage = InplaceStorage<alignof(T), sizeof(T)>;
+
+struct alignas(u64) Version
+{
+  u32 major   = 0;
+  u32 minor   = 0;
+  u32 patch   = 0;
+  u32 variant = 0;
+};
 
 }    // namespace ash

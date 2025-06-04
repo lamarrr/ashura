@@ -127,7 +127,7 @@ set(SIMDJSON_BUILD_STATIC_LIB
 include(FetchContent)
 include(ExternalProject)
 
-set(ASH_VULKAN_VERSION "1.4.309.0")
+set(ASH_VULKAN_VERSION "1.4.313.0")
 set(ASH_VULKAN_SDK_VERSION "vulkan-sdk-${ASH_VULKAN_VERSION}")
 
 FetchContent_Declare(
@@ -157,18 +157,18 @@ FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG v3.2.0
+  GIT_TAG v3.3.0
   OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
   SDL3
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG release-3.2.8)
+  GIT_TAG release-3.2.14)
 
 FetchContent_Declare(
   harfbuzz
   GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
-  GIT_TAG 8.5.0)
+  GIT_TAG 11.2.1)
 
 FetchContent_Declare(
   Freetype
@@ -377,6 +377,7 @@ if(NOT ASH_EXCLUDE_ENGINE)
     ashura/engine/font.cc
     ashura/engine/gpu_system.cc
     ashura/engine/image_decoder.cc
+    ashura/engine/input.cc
     ashura/engine/passes.cc
     ashura/engine/render_text.cc
     ashura/engine/renderer.cc

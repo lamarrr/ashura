@@ -33,12 +33,12 @@ struct [[nodiscard]] Result
   using Type    = T;
   using ErrType = E;
 
-  bool32 is_ok_;
+  bool is_ok_;
 
   union
   {
-    T value_;
-    E err_;
+    T v0_;
+    E v1_;
   };
 
   constexpr Result() = delete;
@@ -47,19 +47,19 @@ struct [[nodiscard]] Result
   {
     if (is_ok_)
     {
-      value_.~T();
+      v0_.~T();
     }
     else
     {
-      err_.~E();
+      v1_.~E();
     }
   }
 
-  constexpr Result(Ok<T> ok) : is_ok_{true}, value_{static_cast<T &&>(ok.v)}
+  constexpr Result(Ok<T> ok) : is_ok_{true}, v0_{static_cast<T &&>(ok.v)}
   {
   }
 
-  constexpr Result(Err<E> err) : is_ok_{false}, err_{static_cast<E &&>(err.v)}
+  constexpr Result(Err<E> err) : is_ok_{false}, v1_{static_cast<E &&>(err.v)}
   {
   }
 
@@ -67,11 +67,11 @@ struct [[nodiscard]] Result
   {
     if (other.is_ok_)
     {
-      new (&value_) T{static_cast<T &&>(other.value_)};
+      new (&v0_) T{static_cast<T &&>(other.v0_)};
     }
     else
     {
-      new (&err_) E{static_cast<E &&>(other.err_)};
+      new (&v1_) E{static_cast<E &&>(other.v1_)};
     }
   }
 
@@ -84,22 +84,22 @@ struct [[nodiscard]] Result
 
     if (is_ok_)
     {
-      value_.~T();
+      v0_.~T();
     }
     else
     {
-      err_.~E();
+      v1_.~E();
     }
 
     is_ok_ = other.is_ok_;
 
     if (other.is_ok_)
     {
-      new (&value_) T{static_cast<T &&>(other.value_)};
+      new (&v0_) T{static_cast<T &&>(other.v0_)};
     }
     else
     {
-      new (&err_) E{static_cast<E &&>(other.err_)};
+      new (&v1_) E{static_cast<E &&>(other.v1_)};
     }
 
     return *this;
@@ -109,15 +109,15 @@ struct [[nodiscard]] Result
   {
     if (is_ok_)
     {
-      value_.~T();
+      v0_.~T();
     }
     else
     {
-      err_.~E();
+      v1_.~E();
     }
 
     is_ok_ = true;
-    new (&value_) T{static_cast<T &&>(other.v)};
+    new (&v0_) T{static_cast<T &&>(other.v)};
     return *this;
   }
 
@@ -125,15 +125,15 @@ struct [[nodiscard]] Result
   {
     if (is_ok_)
     {
-      value_.~T();
+      v0_.~T();
     }
     else
     {
-      err_.~E();
+      v1_.~E();
     }
 
     is_ok_ = false;
-    new (&err_) E{static_cast<E &&>(other.v)};
+    new (&v1_) E{static_cast<E &&>(other.v)};
     return *this;
   }
 
@@ -141,11 +141,11 @@ struct [[nodiscard]] Result
   {
     if (other.is_ok_)
     {
-      new (&value_) T{other.value_};
+      new (&v0_) T{other.v0_};
     }
     else
     {
-      new (&err_) E{other.err_};
+      new (&v1_) E{other.v1_};
     }
   }
 
@@ -158,22 +158,22 @@ struct [[nodiscard]] Result
 
     if (is_ok_)
     {
-      value_.~T();
+      v0_.~T();
     }
     else
     {
-      err_.~E();
+      v1_.~E();
     }
 
     is_ok_ = other.is_ok_;
 
     if (other.is_ok_)
     {
-      new (&value_) T{other.value_};
+      new (&v0_) T{other.v0_};
     }
     else
     {
-      new (&err_) E{other.err_};
+      new (&v1_) E{other.v1_};
     }
 
     return *this;
@@ -199,7 +199,7 @@ struct [[nodiscard]] Result
   {
     if (is_ok())
     {
-      return value_ == cmp;
+      return v0_ == cmp;
     }
     return false;
   }
@@ -211,34 +211,31 @@ struct [[nodiscard]] Result
     {
       return false;
     }
-    return err_ == cmp;
+    return v1_ == cmp;
   }
 
-  constexpr T & value(SourceLocation loc = SourceLocation::current())
+  constexpr T & v(SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_ok(), ".value() called on Result with Err = {}", err_);
-    return value_;
+    CHECK_SLOC(loc, is_ok(), ".v() called on Result with Err = {}", v1_);
+    return v0_;
   }
 
-  constexpr T const &
-    value(SourceLocation loc = SourceLocation::current()) const
+  constexpr T const & v(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_ok(), ".value() called on Result with Err = {}", err_);
-    return value_;
+    CHECK_SLOC(loc, is_ok(), ".v() called on Result with Err = {}", v1_);
+    return v0_;
   }
 
   constexpr E & err(SourceLocation loc = SourceLocation::current())
   {
-    CHECK_SLOC(loc, is_err(), ".err() called on Result with Value = {}",
-               value_);
-    return err_;
+    CHECK_SLOC(loc, is_err(), ".err() called on Result with Ok = {}", v0_);
+    return v1_;
   }
 
   constexpr E const & err(SourceLocation loc = SourceLocation::current()) const
   {
-    CHECK_SLOC(loc, is_err(), ".err() called on Result with Value = {}",
-               value_);
-    return err_;
+    CHECK_SLOC(loc, is_err(), ".err() called on Result with Ok = {}", v0_);
+    return v1_;
   }
 
   constexpr void discard()
@@ -249,107 +246,76 @@ struct [[nodiscard]] Result
   {
     if (is_ok())
     {
-      return Ok{&value_};
+      return Ok{&v0_};
     }
-    return Err{&err_};
+    return Err{&v1_};
   }
 
   constexpr Result<T *, E *> as_ptr()
   {
     if (is_ok())
     {
-      return Ok{&value_};
+      return Ok{&v0_};
     }
-    return Err{&err_};
+    return Err{&v1_};
   }
 
   template <typename Fn>
   constexpr auto map(Fn && op)
   {
-    using U = decltype(static_cast<Fn &&>(op)(value_));
+    using U = decltype(static_cast<Fn &&>(op)(v0_));
     if (is_ok())
     {
-      return Result<U, E>{Ok<U>{static_cast<Fn &&>(op)(value_)}};
+      return Result<U, E>{Ok<U>{static_cast<Fn &&>(op)(v0_)}};
     }
-    return Result<U, E>{Err{err_}};
+    return Result<U, E>{Err{v1_}};
   }
 
-  template <typename Fn, typename U>
-  constexpr auto map_or(Fn && op, U && alt)
+  template <typename Fn, typename... U>
+  constexpr auto map_or(Fn && op, U &&... alt)
   {
     if (is_ok())
     {
-      return static_cast<Fn &&>(op)(value_);
+      return static_cast<Fn &&>(op)(v0_);
     }
-    return static_cast<U &&>(alt);
-  }
-
-  template <typename Fn, typename AltFn>
-  constexpr decltype(auto) map_or_else(Fn && op, AltFn && alt_op)
-  {
-    if (is_ok())
-    {
-      return static_cast<Fn &&>(op)(value_);
-    }
-    return static_cast<AltFn &&>(alt_op)(err_);
+    return T{static_cast<U &&>(alt)...};
   }
 
   template <typename Fn>
   constexpr auto and_then(Fn && op)
   {
-    using OutResult = decltype(static_cast<Fn &&>(op)(value_));
+    using OutResult = decltype(static_cast<Fn &&>(op)(v0_));
     if (is_ok())
     {
-      return static_cast<Fn &&>(op)(value_);
+      return static_cast<Fn &&>(op)(v0_);
     }
-    return OutResult{Err{err_}};
+    return OutResult{Err{v1_}};
   }
 
-  template <typename Fn>
-  constexpr auto or_else(Fn && op)
-  {
-    using OutResult = decltype(static_cast<Fn &&>(op)(err_));
-    if (is_ok())
-    {
-      return OutResult{Ok{value_}};
-    }
-    return static_cast<Fn &&>(op)(err_);
-  }
-
-  template <typename U>
-  constexpr T unwrap_or(U && alt)
+  template <typename... U>
+  constexpr T unwrap_or(U &&... alt)
   {
     if (is_ok())
     {
-      return static_cast<T &&>(value_);
+      return static_cast<T &&>(v0_);
     }
-    return static_cast<U &&>(alt);
-  }
-
-  template <typename Fn>
-  constexpr T unwrap_or_else(Fn && op)
-  {
-    if (is_ok())
-    {
-      return static_cast<T &&>(value_);
-    }
-    return static_cast<Fn &&>(op)(err_);
+    return T{static_cast<U &&>(alt)...};
   }
 
   constexpr T unwrap(Str            msg = ""_str,
                      SourceLocation loc = SourceLocation::current())
   {
     CHECK_SLOC(loc, is_ok(), "Expected Value in Result but got Err = {}. {}",
-               err_, msg);
-    return static_cast<T &&>(value_);
+               v1_, msg);
+    return static_cast<T &&>(v0_);
   }
 
   constexpr E unwrap_err(Str            msg = ""_str,
                          SourceLocation loc = SourceLocation::current())
   {
     CHECK_SLOC(loc, is_err(), "Expected Err in Result but got Value = {}. {}",
-               value_, msg);
-    return static_cast<E &&>(err_);
+               v0_, msg);
+    return static_cast<E &&>(v1_);
   }
 
   template <typename OkFn, typename ErrFn>
@@ -357,9 +323,9 @@ struct [[nodiscard]] Result
   {
     if (is_ok())
     {
-      return ok(value_);
+      return ok(v0_);
     }
-    return err(err_);
+    return err(v1_);
   }
 
   template <typename OkFn, typename ErrFn>
@@ -367,9 +333,9 @@ struct [[nodiscard]] Result
   {
     if (is_ok())
     {
-      return ok(value_);
+      return ok(v0_);
     }
-    return err(err_);
+    return err(v1_);
   }
 };
 
@@ -409,7 +375,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_ok())
   {
-    return a.value_ == b.v;
+    return a.v0_ == b.v;
   }
   return false;
 }
@@ -419,7 +385,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_ok())
   {
-    return a.value_ != b.v;
+    return a.v0_ != b.v;
   }
   return true;
 }
@@ -429,7 +395,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_ok())
   {
-    return a.v == b.value_;
+    return a.v == b.v0_;
   }
   return false;
 }
@@ -439,7 +405,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_ok())
   {
-    return a.v != b.value_;
+    return a.v != b.v0_;
   }
   return true;
 }
@@ -450,7 +416,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_err())
   {
-    return a.err_ == b.v;
+    return a.v1_ == b.v;
   }
   return false;
 }
@@ -461,7 +427,7 @@ template <typename T, typename E, typename U>
 {
   if (a.is_err())
   {
-    return a.err_ != b.v;
+    return a.v1_ != b.v;
   }
   return true;
 }
@@ -472,7 +438,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_err())
   {
-    return a.v == b.err_;
+    return a.v == b.v1_;
   }
   return false;
 }
@@ -483,7 +449,7 @@ template <typename U, typename T, typename E>
 {
   if (b.is_err())
   {
-    return a.v != b.err_;
+    return a.v != b.v1_;
   }
   return true;
 }
@@ -494,11 +460,11 @@ template <typename T, typename E, typename U, typename F>
 {
   if (a.is_ok() && b.is_ok())
   {
-    return a.value_ == b.value_;
+    return a.v0_ == b.v0_;
   }
   if (a.is_err() && b.is_err())
   {
-    return a.err_ == b.err_;
+    return a.v1_ == b.v1_;
   }
   return false;
 }
@@ -509,11 +475,11 @@ template <typename T, typename E, typename U, typename F>
 {
   if (a.is_ok() && b.is_ok())
   {
-    return a.value_ != b.value_;
+    return a.v0_ != b.v0_;
   }
   if (a.is_err() && b.is_err())
   {
-    return a.err_ != b.err_;
+    return a.v1_ != b.v1_;
   }
   return true;
 }

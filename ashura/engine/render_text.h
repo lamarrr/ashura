@@ -13,31 +13,39 @@ namespace ash
 /// @brief Controls and manages GUI text state for rendering
 /// - manages runs and run styling
 /// - manages and checks for text layout invalidation
-/// - recalculate text layout when it changes if necessary
+/// - recalculates text layout when it changes and if necessary
 /// - renders the text using the computed style information
 /// @param runs  Run-End encoded sequences of the runs
 struct RenderText
 {
-  hash64         hash_;
-  bool           use_kerning_   : 1;
-  bool           use_ligatures_ : 1;
-  TextDirection  direction_     : 2;
-  f32            alignment_;
-  f32            font_scale_;
-  Vec<c32>       text_;
-  Vec<u32>       runs_;
-  Vec<TextStyle> styles_;
-  Vec<FontStyle> fonts_;
-  Str            language_;
-  TextLayout     layout_;
-  TextHighlight  highlight_;
+  static constexpr hash64 HASH_CLEAN = U64_MAX;
+  static constexpr hash64 HASH_DIRTY = 0;
+
+  hash64             hash_;
+  bool               wrap_;
+  bool               use_kerning_   : 1;
+  bool               use_ligatures_ : 1;
+  TextDirection      direction_     : 2;
+  f32                alignment_;
+  f32                font_scale_;
+  Vec<c32>           text_;
+  Vec<usize>         runs_;
+  Vec<TextStyle>     styles_;
+  Vec<FontStyle>     fonts_;
+  Str                language_;
+  TextLayout         layout_;
+  TextHighlightStyle highlight_style_;
+  CaretStyle         caret_style_;
+  Vec<usize>         carets_;
+  Vec<Slice>         highlights_;
 
   RenderText(AllocatorRef allocator) :
-    hash_{0},
+    hash_{HASH_DIRTY},
+    wrap_{true},
     use_kerning_{true},
     use_ligatures_{true},
     direction_{TextDirection::LeftToRight},
-    alignment_{-1},
+    alignment_{ALIGNMENT_LEFT},
     font_scale_{1},
     text_{allocator},
     runs_{allocator},
@@ -45,15 +53,17 @@ struct RenderText
     fonts_{allocator},
     language_{},
     layout_{allocator},
-    highlight_{}
+    highlight_style_{},
+    caret_style_{},
+    carets_{allocator},
+    highlights_{allocator}
   {
-    layout_.hash = -1;
   }
 
   RenderText(RenderText const &)             = delete;
   RenderText & operator=(RenderText const &) = delete;
-  RenderText(RenderText &&)                  = delete;
-  RenderText & operator=(RenderText &&)      = delete;
+  RenderText(RenderText &&)                  = default;
+  RenderText & operator=(RenderText &&)      = default;
   ~RenderText()                              = default;
 
   /// @brief  Styles specified runs of text, performing run merging and
@@ -64,13 +74,23 @@ struct RenderText
   /// @param style font style to be applied
   /// @param font font configuration to be applied
   RenderText & run(TextStyle const & style, FontStyle const & font,
-                   u32 first = 0, u32 count = U32_MAX);
+                   usize first = 0, usize count = USIZE_MAX);
 
   RenderText & flush_text();
 
-  RenderText & highlight(TextHighlight const & range);
+  RenderText & wrap(bool wrap);
 
-  RenderText & clear_highlight();
+  RenderText & highlight_style(Option<TextHighlightStyle> style);
+
+  RenderText & caret_style(Option<CaretStyle> caret);
+
+  RenderText & add_highlight(Slice range);
+
+  RenderText & clear_highlights();
+
+  RenderText & add_caret(usize carey);
+
+  RenderText & clear_carets();
 
   RenderText & font_scale(f32 scale);
 
@@ -91,18 +111,36 @@ struct RenderText
 
   RenderText & text(Str8 utf8);
 
+  usize size() const
+  {
+    return text_.size();
+  }
+
   TextBlock block() const;
 
   TextBlockStyle block_style(f32 aligned_width) const;
 
-  TextLayout const & layout() const;
+  TextLayout const & get_layout() const;
 
-  void perform_layout(f32 max_width);
+  void layout(f32 max_width);
 
-  void render(Canvas & canvas, CRect const & region, CRect const & clip,
-              f32 zoom);
+  /// @brief Render the laid out text
+  /// @param center canvas-space region of the text to place the text on
+  /// @param align_width the width to align the text to
+  /// @param clip the canvas-space clip rectangle
+  /// @param zoom the zoom to apply to the text
+  void render(TextRenderer renderer, Vec2 center, f32 align_width,
+              Mat4 const & transform, CRect const & clip = MAX_CLIP,
+              AllocatorRef allocator = default_allocator);
 
-  Option<TextHitResult> hit(CRect const & region, Vec2 pos, f32 zoom) const;
+  /// @brief Perform hit test on the laid-out text
+  /// @param center canvas-space region the text was placed on
+  /// @param align_width the width the text was aligned to
+  /// @param zoom the zoom that was applied to the text
+  /// @param pos the canvas-space text position to hit
+  /// @returns .v0: caret index, .v1: caret location
+  Tuple<isize, CaretAlignment> hit(Vec2 center, f32 align_width,
+                                   Mat4 const & transform, Vec2 pos) const;
 };
 
 }    // namespace ash

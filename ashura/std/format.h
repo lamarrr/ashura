@@ -24,9 +24,10 @@ enum class Style : char
   Octal      = 'o',
   Hex        = 'x',
   Binary     = 'b',
-  Scientific = 'f'
+  Scientific = 'g'
 };
 
+// [ ] zero-padded
 /// Syntax: [sign][alternate_form][width].[precision][style]
 ///
 /// sign: '+'
@@ -34,7 +35,7 @@ enum class Style : char
 /// width: 0-N
 /// precision-separator: '.'
 /// precision: 0-N
-/// style: `d`, `o`, `x`, `b`, `s`
+/// style: `d`, `o`, `x`, `b`, `g`
 ///
 /// i.e: {+#4.5x}
 struct Spec
@@ -144,7 +145,7 @@ struct Op
 
 namespace impl
 {
-enum class ParseState : u32
+enum class ParseState : u8
 {
   Start              = 0,
   Finished           = 1,
@@ -157,7 +158,7 @@ enum class ParseState : u32
   Error              = 8
 };
 
-enum class TokenType : u32
+enum class TokenType : u8
 {
   None          = 0,
   Sign          = 1,

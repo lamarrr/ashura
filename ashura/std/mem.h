@@ -28,7 +28,7 @@ constexpr T align_offset(T alignment, T offset)
 }
 
 template <typename T>
-T * align_ptr(usize alignment, T * p)
+T * align(usize alignment, T * p)
 {
   return (T *) align_offset(alignment, (uptr) p);
 }
@@ -269,7 +269,7 @@ struct Flex
   auto unpack_at_(void const *& stack) const
   {
     using M           = index_pack<I, T...>;
-    stack             = align_ptr(members[I].alignment, stack);
+    stack             = align(members[I].alignment, stack);
     usize const count = members[I].size / sizeof(M);
     Span<M>     span{(M *) stack, count};
     stack = ((u8 const *) stack) + members[I].size;

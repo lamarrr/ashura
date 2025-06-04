@@ -4,16 +4,23 @@
 #include "modules/types.slang"
 
 /// @param radius relative to texture dimensions
-struct BlurParam
+struct BlurShaderParam
 {
-  f32x2 uv[2];
-  f32x2 radius;
-  u32   sampler;
-  u32   tex;
+  f32x4             uv;
+  f32x2             radius;
+  u32               sampler;
+  u32               tex;
+  row_major f32x4x4 uv_transform;
+};
+
+struct VertexOutput
+{
+  f32x4                     position : SV_Position;
+  [[vk::location(0)]] f32x2 uv : UV_COORD;
 };
 
 [[vk::push_constant]]
-ConstantBuffer<BlurParam, Std430DataLayout> p;
+row_major ConstantBuffer<BlurShaderParam, Std430DataLayout> constants;
 
 [[vk::binding(0, 0)]]
 SamplerState samplers[];
@@ -23,12 +30,6 @@ Texture2D textures[];
 
 static constexpr f32x2 VERTEX_BUFFER[] = {f32x2(-0.5, -0.5), f32x2(0.5, -0.5),
                                           f32x2(0.5, 0.5), f32x2(-0.5, 0.5)};
-
-struct VertexOutput
-{
-  f32x4                     position : SV_Position;
-  [[vk::location(0)]] f32x2 uv : UV_COORD;
-};
 
 [[shader("vertex")]]
 VertexOutput vs_main(u32 vertex_idx : SV_VertexID)
@@ -41,18 +42,24 @@ VertexOutput vs_main(u32 vertex_idx : SV_VertexID)
 f32x4 fs_upsample_main([[vk::location(0)]] f32x2 uv : UV_COORD) :
   COLOR
 {
-  var tex_uv = lerp(p.uv[0], p.uv[1], uv);
-  return upsample_clamped(samplers[NonUniformResourceIndex(p.sampler)],
-                          textures[NonUniformResourceIndex(p.tex)], tex_uv,
-                          p.radius, p.uv[0], p.uv[1]);
+  var tex_uv = lerp(constants.uv.xy, constants.uv.zw, uv);
+  return f32x4(
+    kawase::upsample(samplers[NonUniformResourceIndex(constants.sampler)],
+                     textures[NonUniformResourceIndex(constants.tex)], tex_uv,
+                     constants.radius)
+      .xyz,
+    1.0);
 }
 
 [[shader("fragment")]]
 f32x4 fs_downsample_main([[vk::location(0)]] f32x2 uv : UV_COORD) :
   COLOR
 {
-  var tex_uv = lerp(p.uv[0], p.uv[1], uv);
-  return downsample_clamped(samplers[NonUniformResourceIndex(p.sampler)],
-                            textures[NonUniformResourceIndex(p.tex)], tex_uv,
-                            p.radius, p.uv[0], p.uv[1]);
+  var tex_uv = lerp(constants.uv.xy, constants.uv.zw, uv);
+  return f32x4(
+    kawase::downsample(samplers[NonUniformResourceIndex(constants.sampler)],
+                       textures[NonUniformResourceIndex(constants.tex)], tex_uv,
+                       constants.radius)
+      .xyz,
+    1.0);
 }

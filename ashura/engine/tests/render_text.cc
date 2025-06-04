@@ -37,6 +37,6 @@ TEST(RenderText, RunManagement)
   text.run({}, {}, 1, 4);
   ASSERT_EQ(text.runs_.size(), 4);
 
-  text.run({}, {}, 0, U32_MAX);
+  text.run({}, {}, 0, USIZE_MAX);
   ASSERT_EQ(text.runs_.size(), 1);
 }

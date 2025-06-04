@@ -12,22 +12,25 @@ struct Canvas;
 
 struct PassContext
 {
-  ref<BloomPass>   bloom;
-  ref<BlurPass>    blur;
-  ref<NgonPass>    ngon;
-  ref<PBRPass>     pbr;
-  ref<RRectPass>   rrect;
-  Vec<Dyn<Pass *>> all;
+  ref<BloomPass>    bloom;
+  ref<BlurPass>     blur;
+  ref<NgonPass>     ngon;
+  ref<PBRPass>      pbr;
+  ref<RRectPass>    rrect;
+  ref<SquirclePass> squircle;
+  Vec<Dyn<Pass *>>  all;
 
   static PassContext create(AllocatorRef allocator);
 
   PassContext(BloomPass & bloom, BlurPass & blur, NgonPass & ngon,
-              PBRPass & pbr, RRectPass & rrect, Vec<Dyn<Pass *>> all) :
+              PBRPass & pbr, RRectPass & rrect, SquirclePass & squircle,
+              Vec<Dyn<Pass *>> all) :
     bloom{bloom},
     blur{blur},
     ngon{ngon},
     pbr{pbr},
     rrect{rrect},
+    squircle{squircle},
     all{std::move(all)}
   {
   }
@@ -47,20 +50,19 @@ struct PassContext
 
 struct BlurRenderParam
 {
-  RectU         area          = {};
-  Vec2U         radius        = {};
-  Vec4          corner_radii  = {};
-  Mat4          transform     = Mat4::identity();
-  f32           aspect_ratio  = 1;
-  RectU         scissor       = {};
-  gpu::Viewport viewport      = {};
-  Mat4          world_to_view = {};
+  RRectShaderParam rrect         = {};
+  RectU            area          = {};
+  Vec2U            spread_radius = {};
+  RectU            scissor       = {};
+  gpu::Viewport    viewport      = {};
+  Mat4             world_to_ndc  = {};
 };
 
 struct BlurRenderer
 {
-  static void render(PassContext const & passes, FrameGraph & graph,
-                     Framebuffer const & fb, BlurRenderParam const & param);
+  static void render(FrameGraph & graph, Framebuffer const & fb,
+                     Span<ColorTexture const>, Span<DepthStencilTexture const>,
+                     PassContext const & passes, BlurRenderParam const & param);
 };
 
 struct Renderer
@@ -83,8 +85,9 @@ struct Renderer
 
   void release();
 
-  void render_canvas(Framebuffer const & fb, FrameGraph & graph,
-                     Canvas const & canvas);
+  void render_canvas(FrameGraph & graph, Canvas const & canvas,
+                     Framebuffer const & fb, Span<ColorTexture const>,
+                     Span<DepthStencilTexture const>);
 };
 
 }    // namespace ash

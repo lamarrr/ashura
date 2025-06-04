@@ -96,20 +96,17 @@ struct WindowSystem
 
   virtual ClipBoard & get_clipboard() = 0;
 
-  virtual void get_keyboard_state(BitSpan<u64>   scan_state,
-                                  BitSpan<u64>   key_state,
-                                  KeyModifiers & modifiers) = 0;
+  virtual Tuple<KeyModifiers, Window>
+    get_keyboard_state(BitSpan<u64> scan_state, BitSpan<u64> key_state) = 0;
 
-  virtual void get_mouse_state(MouseButtons & state, Vec2 & position) = 0;
+  virtual Tuple<MouseButtons, Vec2, Window> get_mouse_state() = 0;
 
-  virtual void start_text_input(Window window, TextInputInfo const & info) = 0;
+  virtual void set_text_input(Window window, Option<TextInputInfo> info) = 0;
 
   virtual void set_text_input_area(Window window, RectU const & rect,
                                    i32 cursor_position) = 0;
 
-  virtual void end_text_input(Window window) = 0;
-
-  virtual void set_cursor(Cursor cursor) = 0;
+  virtual void set_cursor(Option<Cursor> cursor) = 0;
 
   virtual void lock_cursor(Window window, bool lock) = 0;
 };

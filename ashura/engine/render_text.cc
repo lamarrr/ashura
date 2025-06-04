@@ -6,7 +6,7 @@ namespace ash
 {
 
 RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
-                             u32 first, u32 count)
+                             usize first, usize count)
 {
   if (count == 0)
   {
@@ -15,30 +15,30 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
 
   if (runs_.is_empty())
   {
-    runs_.push(U32_MAX).unwrap();
+    runs_.push(USIZE_MAX).unwrap();
     styles_.push(style).unwrap();
     fonts_.push(font).unwrap();
     hash_ = 0;
     return *this;
   }
 
-  u32 const end = sat_add(first, count);
+  auto const end = sat_add(first, count);
 
-  Span const first_run_span = binary_find(runs_.view(), gt, first);
+  auto const first_run_span = binary_find(runs_.view(), gt, first);
 
-  /// should never happen since there's always a U32_MAX run end
+  /// should never happen since there's always a USIZE_MAX run end
   CHECK(!first_run_span.is_empty(), "");
 
-  Span const last_run_span = binary_find(first_run_span, geq, end);
+  auto const last_run_span = binary_find(first_run_span, geq, end);
 
-  /// should never happen since there's always a U32_MAX run end
+  /// should never happen since there's always a USIZE_MAX run end
   CHECK(!last_run_span.is_empty(), "");
 
-  u32 first_run = (u32) (first_run_span.pbegin() - runs_.view().pbegin());
-  u32 last_run  = (u32) (last_run_span.pbegin() - runs_.view().pbegin());
+  auto first_run = (usize) (first_run_span.pbegin() - runs_.view().pbegin());
+  auto last_run  = (usize) (last_run_span.pbegin() - runs_.view().pbegin());
 
-  u32 const first_run_begin = (first_run == 0) ? 0 : runs_[first_run - 1];
-  u32 const last_run_end    = runs_[last_run];
+  auto const first_run_begin = (first_run == 0) ? 0 : runs_[first_run - 1];
+  auto const last_run_end    = runs_[last_run];
 
   /// run merging
 
@@ -46,8 +46,8 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
 
   if (last_run > (first_run + 1))
   {
-    u32 const first_erase = first_run + 1;
-    u32 const num_erase   = last_run - first_erase;
+    auto const first_erase = first_run + 1;
+    auto const num_erase   = last_run - first_erase;
     runs_.erase(first_erase, num_erase);
     styles_.erase(first_erase, num_erase);
     fonts_.erase(first_erase, num_erase);
@@ -57,8 +57,8 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
   /// merge left
   if (first_run_begin == first)
   {
-    u32 const first_erase = first_run;
-    u32 const num_erase   = last_run - first_run;
+    auto const first_erase = first_run;
+    auto const num_erase   = last_run - first_run;
     runs_.erase(first_erase, num_erase);
     styles_.erase(first_erase, num_erase);
     fonts_.erase(first_erase, num_erase);
@@ -68,8 +68,8 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
   /// merge right
   if (last_run_end == end)
   {
-    u32 const first_erase = first_run + 1;
-    u32 const num_erase   = (last_run + 1) - first_erase;
+    auto const first_erase = first_run + 1;
+    auto const num_erase   = (last_run + 1) - first_erase;
     runs_.erase(first_erase, num_erase);
     styles_.erase(first_erase, num_erase);
     fonts_.erase(first_erase, num_erase);
@@ -114,26 +114,56 @@ RenderText & RenderText::run(TextStyle const & style, FontStyle const & font,
     }
   }
 
-  hash_ = 0;
+  hash_ = HASH_DIRTY;
 
   return *this;
 }
 
 RenderText & RenderText::flush_text()
 {
-  hash_ = 0;
+  hash_ = HASH_DIRTY;
   return *this;
 }
 
-RenderText & RenderText::highlight(TextHighlight const & range)
+RenderText & RenderText::wrap(bool wrap)
 {
-  highlight_ = range;
+  wrap_ = wrap;
   return *this;
 }
 
-RenderText & RenderText::clear_highlight()
+RenderText & RenderText::highlight_style(Option<TextHighlightStyle> style)
 {
-  highlight_ = TextHighlight{};
+  highlight_style_ = style.unwrap_or();
+  return *this;
+}
+
+RenderText & RenderText::caret_style(Option<CaretStyle> caret)
+{
+  caret_style_ = caret.unwrap_or();
+  return *this;
+}
+
+RenderText & RenderText::add_highlight(Slice range)
+{
+  highlights_.push(range).unwrap();
+  return *this;
+}
+
+RenderText & RenderText::clear_highlights()
+{
+  highlights_.clear();
+  return *this;
+}
+
+RenderText & RenderText::add_caret(usize caret)
+{
+  carets_.push(caret).unwrap();
+  return *this;
+}
+
+RenderText & RenderText::clear_carets()
+{
+  carets_.clear();
   return *this;
 }
 
@@ -218,12 +248,12 @@ RenderText & RenderText::text(Str8 utf8)
 TextBlock RenderText::block() const
 {
   return TextBlock{.text          = text_,
-                   .hash          = hash_,
                    .runs          = runs_,
                    .fonts         = fonts_,
                    .font_scale    = font_scale_,
                    .direction     = direction_,
                    .language      = language_,
+                   .wrap          = wrap_,
                    .use_kerning   = use_kerning_,
                    .use_ligatures = use_ligatures_};
 }
@@ -233,38 +263,41 @@ TextBlockStyle RenderText::block_style(f32 aligned_width) const
   return TextBlockStyle{.runs        = styles_,
                         .alignment   = alignment_,
                         .align_width = aligned_width,
-                        .highlight   = highlight_};
+                        .highlight   = highlight_style_,
+                        .caret       = caret_style_};
 }
 
-TextLayout const & RenderText::layout() const
+TextLayout const & RenderText::get_layout() const
 {
   return layout_;
 }
 
-void RenderText::perform_layout(f32 max_width)
+void RenderText::layout(f32 max_width)
 {
-  if (hash_ == layout_.hash && max_width == layout_.max_width)
+  if (hash_ == HASH_CLEAN && max_width == layout_.max_width)
   {
     return;
   }
 
-  hash_ = -1;
   sys->font.layout_text(block(), max_width, layout_);
+  hash_ = HASH_CLEAN;
 }
 
-void RenderText::render(Canvas & canvas, CRect const & region,
-                        CRect const & clip, f32 zoom)
+void RenderText::render(TextRenderer renderer, Vec2 center, f32 align_width,
+                        Mat4 const & transform, CRect const & clip,
+                        AllocatorRef allocator)
 {
-  canvas.text(
-    {.center = region.center, .transform = scale3d(Vec3::splat(zoom))}, block(),
-    layout_, block_style(region.extent.x), clip);
+  layout_.render(renderer, {.area{.center = center}, .transform = transform},
+                 block(), block_style(align_width), highlights_, carets_, clip,
+                 allocator);
 }
 
-Option<TextHitResult> RenderText::hit(CRect const & region, Vec2 pos,
-                                      f32 zoom) const
+Tuple<isize, CaretAlignment> RenderText::hit(Vec2 center, f32 align_width,
+                                             Mat4 const & t, Vec2 pos) const
 {
-  Vec2 const local_pos = (pos - region.begin() - 0.5F * region.extent) / zoom;
-  return layout_.hit(block(), block_style(region.extent.x), local_pos);
+  auto s     = Vec2{t[0][0], t[1][1]};
+  auto local = (pos - center) / s;
+  return layout_.hit(block(), block_style(align_width), local);
 }
 
 }    // namespace ash

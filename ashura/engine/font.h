@@ -30,7 +30,7 @@ constexpr Vec2 au_to_px(Vec2I au, f32 base)
   return Vec2{au_to_px(au.x, base), au_to_px(au.y, base)};
 }
 
-enum class FontLoadErr : u32
+enum class FontLoadErr : u8
 {
   OutOfMemory       = 0,
   InvalidPath       = 1,
@@ -78,6 +78,18 @@ struct GlyphMetrics
   Vec2I extent  = {};
 };
 
+struct ResolvedFontMetrics
+{
+  f32 ascent  = 0;
+  f32 descent = 0;
+  f32 advance = 0;
+
+  constexpr f32 height() const
+  {
+    return ascent + descent;
+  }
+};
+
 /// @brief normalized font metrics
 /// @param ascent  maximum ascent of the font's glyphs (au)
 /// @param descent maximum descent of the font's glyphs (au)
@@ -87,6 +99,18 @@ struct FontMetrics
   i32 ascent  = 0;
   i32 descent = 0;
   i32 advance = 0;
+
+  constexpr i32 height() const
+  {
+    return ascent + descent;
+  }
+
+  constexpr ResolvedFontMetrics resolve(f32 font_height) const
+  {
+    return ResolvedFontMetrics{.ascent  = au_to_px(ascent, font_height),
+                               .descent = au_to_px(descent, font_height),
+                               .advance = au_to_px(advance, font_height)};
+  }
 };
 
 /// @param later atlas layer this glyph belongs to
@@ -118,7 +142,7 @@ struct CpuFontAtlas
 struct GpuFontAtlas
 {
   Vec<TextureId>  textures    = {};
-  ImageId         image       = ImageId::Invalid;
+  ImageId         image       = ImageId::None;
   i32             font_height = 0;
   Vec2U           extent      = {};
   Vec<AtlasGlyph> glyphs      = {};
@@ -140,19 +164,19 @@ struct GpuFontAtlas
 /// @param gpu_atlas gpu font atlas if loaded
 struct FontInfo
 {
-  FontId                        id                = FontId::Invalid;
-  Str                           label             = {};
-  bool                          has_color         = false;
-  Str                           postscript_name   = {};
-  Str                           family_name       = {};
-  Str                           style_name        = {};
-  Span<GlyphMetrics const>      glyphs            = {};
-  u32                           replacement_glyph = 0;
-  u32                           space_glyph       = 0;
-  u32                           ellipsis_glyph    = 0;
-  FontMetrics                   metrics           = {};
-  OptionRef<CpuFontAtlas const> cpu_atlas         = none;
-  OptionRef<GpuFontAtlas const> gpu_atlas         = none;
+  FontId                       id                = FontId::None;
+  Str                          label             = {};
+  bool                         has_color         = false;
+  Str                          postscript_name   = {};
+  Str                          family_name       = {};
+  Str                          style_name        = {};
+  Span<GlyphMetrics const>     glyphs            = {};
+  u32                          replacement_glyph = 0;
+  u32                          space_glyph       = 0;
+  u32                          ellipsis_glyph    = 0;
+  FontMetrics                  metrics           = {};
+  Option<CpuFontAtlas const &> cpu_atlas         = none;
+  Option<GpuFontAtlas const &> gpu_atlas         = none;
 };
 
 struct Font

@@ -310,7 +310,7 @@ struct AtomicInit
 
   /// @brief Get the wrapped value
   /// @return none if value is not initialized yet
-  OptionRef<T> ref()
+  Option<T &> ref()
   {
     std::atomic_ref stage{stage_};
     if (stage.load(std::memory_order_acquire) != FutureStage::Yielded)
@@ -769,8 +769,8 @@ Result<Stream<T>> stream(Inplace, AllocatorRef allocator, u64 num_stages,
   }
 
   return Ok{
-    Stream<T>{static_cast<Rc<T *> &&>(data.value()),
-              static_cast<Semaphore &&>(sem.value())}
+    Stream<T>{static_cast<Rc<T *> &&>(data.v()),
+              static_cast<Semaphore &&>(sem.v())}
   };
 }
 
@@ -853,7 +853,7 @@ Result<Future<T>> future(AllocatorRef allocator)
     return Err{};
   }
 
-  return Ok{Future<T>{static_cast<Rc<AtomicInit<T> *> &&>(s.value())}};
+  return Ok{Future<T>{static_cast<Rc<AtomicInit<T> *> &&>(s.v())}};
 }
 
 struct [[nodiscard]] AnyFuture

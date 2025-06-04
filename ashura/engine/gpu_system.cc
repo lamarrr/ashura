@@ -429,10 +429,10 @@ static Option<gpu::Format> select_sdr_format(gpu::Device & dev)
 
 static Option<gpu::Format> select_depth_format(gpu::Device & dev)
 {
-  for (auto fmt : DepthTexture::FORMATS)
+  for (auto fmt : DepthStencilTexture::FORMATS)
   {
     gpu::FormatProperties props = dev.get_format_properties(fmt).unwrap();
-    if (has_bits(props.optimal_tiling_features, DepthTexture::FEATURES))
+    if (has_bits(props.optimal_tiling_features, DepthStencilTexture::FEATURES))
     {
       return fmt;
     }
@@ -690,7 +690,7 @@ GpuSystem GpuSystem::create(AllocatorRef allocator, gpu::Device & device,
 
   {
     static constexpr SamplerId default_ids[NUM_DEFAULT_SAMPLERS] = {
-      SamplerId::Linear, SamplerId::Nearest, SamplerId::LinearClamped,
+      SamplerId::LinearBlack, SamplerId::NearestBlack, SamplerId::LinearClamped,
       SamplerId::NearestClamped};
 
     static constexpr gpu::SamplerInfo infos[NUM_DEFAULT_SAMPLERS] = {
@@ -792,7 +792,7 @@ void GpuSystem::shutdown(Vec<u8> & cache)
   {
     release(tex);
   }
-  for (auto & tex : scratch_depth_)
+  for (auto & tex : scratch_depth_stencil_)
   {
     release(tex);
   }
@@ -812,7 +812,7 @@ void GpuSystem::shutdown(Vec<u8> & cache)
   samplers_layout_     = {};
   fb_                  = {};
   fill(scratch_color_, ColorTexture{});
-  fill(scratch_depth_, DepthTexture{});
+  fill(scratch_depth_stencil_, DepthStencilTexture{});
   sampler_cache_  = {};
   pipeline_cache_ = {};
 
@@ -939,12 +939,13 @@ static Option<ColorMsaaTexture> create_color_msaa_texture(GpuSystem & gpu,
     .info = info, .view_info = view_info, .image = image, .view = view};
 }
 
-static DepthTexture create_depth_texture(GpuSystem & gpu, Vec2U new_extent,
-                                         Str prefix, usize index)
+static DepthStencilTexture create_depth_texture(GpuSystem & gpu,
+                                                Vec2U new_extent, Str prefix,
+                                                usize index)
 {
-  auto label =
-    snformat<gpu::MAX_LABEL_SIZE>("Depth Texture: {} [{}]"_str, prefix, index)
-      .unwrap();
+  auto label = snformat<gpu::MAX_LABEL_SIZE>(
+                 "Depth-Stencil Texture: {} [{}]"_str, prefix, index)
+                 .unwrap();
 
   gpu::ImageInfo info{
     .label  = label,
@@ -1039,21 +1040,21 @@ static DepthTexture create_depth_texture(GpuSystem & gpu, Vec2U new_extent,
   view_info.label         = {};
   stencil_view_info.label = {};
 
-  return DepthTexture{.info              = info,
-                      .view_info         = view_info,
-                      .stencil_view_info = stencil_view_info,
-                      .image             = image,
-                      .view              = view,
-                      .stencil_view      = stencil_view,
-                      .texture           = texture,
-                      .stencil_texture   = stencil_texture};
+  return DepthStencilTexture{.info              = info,
+                             .view_info         = view_info,
+                             .stencil_view_info = stencil_view_info,
+                             .image             = image,
+                             .view              = view,
+                             .stencil_view      = stencil_view,
+                             .texture           = texture,
+                             .stencil_texture   = stencil_texture};
 }
 
 void GpuSystem::recreate_framebuffers(Vec2U new_extent)
 {
   idle_reclaim();
   release(fb_.color);
-  release(fb_.depth);
+  release(fb_.depth_stencil);
   fb_.color_msaa.match([&](auto & c) { release(c); });
 
   for (auto & scratch_color : scratch_color_)
@@ -1061,13 +1062,13 @@ void GpuSystem::recreate_framebuffers(Vec2U new_extent)
     release(scratch_color);
   }
 
-  for (auto & scratch_depth : scratch_depth_)
+  for (auto & scratch_depth : scratch_depth_stencil_)
   {
     release(scratch_depth);
   }
 
-  fb_.color      = create_color_texture(*this, new_extent, "Main"_str, 0);
-  fb_.depth      = create_depth_texture(*this, new_extent, "Main"_str, 0);
+  fb_.color         = create_color_texture(*this, new_extent, "Main"_str, 0);
+  fb_.depth_stencil = create_depth_texture(*this, new_extent, "Main"_str, 0);
   fb_.color_msaa = create_color_msaa_texture(*this, new_extent, "Main"_str, 0);
 
   for (auto [i, tex] : enumerate(scratch_color_))
@@ -1075,7 +1076,7 @@ void GpuSystem::recreate_framebuffers(Vec2U new_extent)
     tex = create_color_texture(*this, new_extent, "Scratch"_str, i);
   }
 
-  for (auto [i, tex] : enumerate(scratch_depth_))
+  for (auto [i, tex] : enumerate(scratch_depth_stencil_))
   {
     tex = create_depth_texture(*this, new_extent, "Scratch"_str, i);
   }
@@ -1107,10 +1108,10 @@ gpu::FrameId GpuSystem::tail_frame_id()
 
 Sampler GpuSystem::create_sampler(gpu::SamplerInfo const & info)
 {
-  OptionRef cached = sampler_cache_.try_get(info);
+  Option cached = sampler_cache_.try_get(info);
   if (cached)
   {
-    return cached.value();
+    return cached.v();
   }
 
   gpu::Sampler sampler = device_->create_sampler(info).unwrap();
@@ -1125,9 +1126,9 @@ Sampler GpuSystem::create_sampler(gpu::SamplerInfo const & info)
 
 TextureId GpuSystem::alloc_texture_id(gpu::ImageView view)
 {
-  usize i = find_clear_bit(texture_slots_);
+  usize i = texture_slots_.view().find_clear_bit();
   CHECK(i < size_bits(texture_slots_), "Out of Texture Slots");
-  set_bit(texture_slots_, i);
+  texture_slots_.set_bit(i);
 
   add_task([i, this, view]() {
     device_->update_descriptor_set(gpu::DescriptorSetUpdate{
@@ -1143,7 +1144,7 @@ TextureId GpuSystem::alloc_texture_id(gpu::ImageView view)
 void GpuSystem::release_texture_id(TextureId id)
 {
   u32 const i = (u32) id;
-  clear_bit(texture_slots_, i);
+  texture_slots_.clear_bit(i);
 
   add_task([i, this]() {
     device_->unbind_descriptor_set(textures_, 0, Slice32{i, 1});
@@ -1152,9 +1153,9 @@ void GpuSystem::release_texture_id(TextureId id)
 
 SamplerId GpuSystem::alloc_sampler_id(gpu::Sampler sampler)
 {
-  usize i = find_clear_bit(sampler_slots_);
+  usize i = sampler_slots_.view().find_clear_bit();
   CHECK(i < size_bits(sampler_slots_), "Out of Sampler Slots");
-  set_bit(sampler_slots_, i);
+  sampler_slots_.set_bit(i);
 
   add_task([i, this, sampler]() {
     device_->update_descriptor_set(gpu::DescriptorSetUpdate{
@@ -1170,7 +1171,7 @@ SamplerId GpuSystem::alloc_sampler_id(gpu::Sampler sampler)
 void GpuSystem::release_sampler_id(SamplerId id)
 {
   u32 const i = (u32) id;
-  clear_bit(sampler_slots_, i);
+  sampler_slots_.clear_bit(i);
 
   add_task([i, this]() {
     device_->unbind_descriptor_set(samplers_, 0, Slice32{i, 1});
@@ -1200,7 +1201,7 @@ void GpuSystem::release(ColorMsaaTexture tex)
   release(tex.image);
 }
 
-void GpuSystem::release(DepthTexture tex)
+void GpuSystem::release(DepthStencilTexture tex)
 {
   release(tex.texture);
   release(tex.stencil_texture);
@@ -1213,7 +1214,7 @@ void GpuSystem::release(Framebuffer tex)
 {
   release(tex.color);
   tex.color_msaa.match([&](auto const & f) { release(f); });
-  release(tex.depth);
+  release(tex.depth_stencil);
 }
 
 static void uninit_objects(gpu::Device & d, Span<gpu::Object const> objects)
@@ -1289,7 +1290,7 @@ void GpuSystem::frame(gpu::Swapchain swapchain)
 
   clear_color(fb_.color.image);
   fb_.color_msaa.match([&](auto & c) { clear_color(c.image); });
-  clear_depth(fb_.depth.image);
+  clear_depth(fb_.depth_stencil.image);
 
   frame_graph_.execute(*this);
 

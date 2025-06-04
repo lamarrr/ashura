@@ -29,7 +29,7 @@ struct F32Info
 
   f32 max = 1;
 
-  f32 step = 0.01F;
+  f32 step = 0.05F;
 
   constexpr f32 step_value(f32 current, f32 direction) const
   {
@@ -93,146 +93,26 @@ inline void format(fmt::Sink sink, fmt::Spec spec, ui::Scalar const & value)
 namespace ui
 {
 
-struct FocusState
-{
-  bool in : 1 = false;
-
-  bool out : 1 = false;
-
-  bool focused : 1 = false;
-
-  void tick(ViewEvents const & events)
-  {
-    in  = events.focus_in;
-    out = events.focus_out;
-
-    if (events.focus_in)
-    {
-      focused = true;
-    }
-
-    if (events.focus_out)
-    {
-      focused = false;
-    }
-  }
-};
-
-struct PressState
-{
-  bool in : 1 = false;
-
-  bool out : 1 = false;
-
-  bool hovered : 1 = false;
-
-  bool down : 1 = false;
-
-  bool up : 1 = false;
-
-  bool held : 1 = false;
-
-  FocusState focus = {};
-
-  void tick(ViewContext const & ctx, ViewEvents const & events)
-  {
-    focus.tick(events);
-
-    in  = events.mouse_in;
-    out = events.mouse_out;
-
-    if (in)
-    {
-      hovered = true;
-    }
-
-    if (out)
-    {
-      hovered = false;
-      held    = false;
-    }
-
-    if (events.focus_out)
-    {
-      held = false;
-    }
-
-    down = (events.mouse_down && ctx.mouse_down(MouseButton::Primary)) ||
-           (events.key_down && ctx.key_down(KeyCode::Return));
-
-    up = (events.mouse_up && ctx.mouse_up(MouseButton::Primary)) ||
-         (events.key_up && ctx.key_up(KeyCode::Return));
-
-    if (down)
-    {
-      held = true;
-    }
-
-    if (up)
-    {
-      held = false;
-    }
-  }
-};
-
-struct DragState
-{
-  bool in : 1 = false;
-
-  bool out : 1 = false;
-
-  bool hovered : 1 = false;
-
-  bool start : 1 = false;
-
-  bool dragging : 1 = false;
-
-  bool end : 1 = false;
-
-  FocusState focus = {};
-
-  void tick(ViewEvents const & events)
-  {
-    focus.tick(events);
-    in  = events.mouse_in;
-    out = events.mouse_out;
-
-    if (in)
-    {
-      hovered = true;
-    }
-
-    if (out)
-    {
-      hovered = false;
-    }
-
-    start    = events.drag_start;
-    dragging = events.dragging;
-    end      = events.drag_end;
-  }
-};
-
 struct Space : View
 {
   struct Style
   {
     Frame frame{};
-  } style;
+  } style_;
 
   Space()                          = default;
   Space(Space const &)             = delete;
-  Space(Space &&)                  = delete;
+  Space(Space &&)                  = default;
   Space & operator=(Space const &) = delete;
-  Space & operator=(Space &&)      = delete;
+  Space & operator=(Space &&)      = default;
   virtual ~Space() override        = default;
 
   Space & frame(Frame frame);
 
   Space & frame(Vec2 extent, bool constrain = true);
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 };
 
 /// @param axis flex axis to layout children along
@@ -244,26 +124,26 @@ struct Flex : View
 {
   struct Style
   {
-    Axis axis = Axis::X;
+    Axis axis : 2 = Axis::X;
 
-    bool wrap = true;
+    bool wrap : 1 = true;
 
-    MainAlign main_align = MainAlign::Start;
+    MainAlign main_align : 3 = MainAlign::Start;
 
     f32 cross_align = 0;
 
     Frame frame = Frame{}.scale(1, 1);
 
     Frame item_frame = Frame{}.scale(1, 1);
-  } style;
+  } style_;
 
   Vec<ref<View>> items_;
 
   Flex(AllocatorRef allocator = default_allocator);
   Flex(Flex const &)             = delete;
-  Flex(Flex &&)                  = delete;
+  Flex(Flex &&)                  = default;
   Flex & operator=(Flex const &) = delete;
-  Flex & operator=(Flex &&)      = delete;
+  Flex & operator=(Flex &&)      = default;
   virtual ~Flex() override       = default;
 
   Flex & axis(Axis axis);
@@ -286,14 +166,13 @@ struct Flex : View
 
   Flex & items(Span<ref<View> const> list);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
-                         Fn<void(View &)> build) override;
+  virtual State tick(Ctx const & ctx, Events const & events,
+                     Fn<void(View &)> build) override;
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 };
 
 struct Stack : View
@@ -302,18 +181,18 @@ struct Stack : View
   {
     bool reverse = false;
 
-    Vec2 alignment = ALIGNMENT_CENTER;
+    Vec2 alignment = ALIGNMENT_CENTER_CENTER;
 
     Frame frame = Frame{}.scale({1, 1});
-  } style;
+  } style_;
 
   Vec<ref<View>> items_;
 
   Stack(AllocatorRef allocator = default_allocator);
   Stack(Stack const &)             = delete;
-  Stack(Stack &&)                  = delete;
+  Stack(Stack &&)                  = default;
   Stack & operator=(Stack const &) = delete;
-  Stack & operator=(Stack &&)      = delete;
+  Stack & operator=(Stack &&)      = default;
   virtual ~Stack() override        = default;
 
   Stack & reverse(bool reverse);
@@ -330,14 +209,12 @@ struct Stack : View
 
   virtual i32 stack_item(i32 base, u32 index, u32 num);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
-                         Fn<void(View &)> build) override;
+  virtual State tick(Ctx const & ctx, Events const & events,
+                     Fn<void(View &)> build) override;
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
 
-  virtual ViewLayout fit(Vec2, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2, Span<Vec2 const> sizes, Span<Vec2> centers) override;
 
   virtual i32 z_index(i32 allocated, Span<i32> indices) override;
 };
@@ -347,13 +224,13 @@ struct Text : View
   struct State
   {
     bool copyable = false;
-  } state;
+  } state_;
 
   struct Style
   {
     TextHighlightStyle highlight{.color        = theme.highlight,
-                                 .corner_radii = Vec4::splat(2.5F)};
-  } style;
+                                 .corner_radii = Vec4::splat(0)};
+  } style_;
 
   RenderText text_;
 
@@ -374,9 +251,9 @@ struct Text : View
        AllocatorRef      allocator = default_allocator);
 
   Text(Text const &)             = delete;
-  Text(Text &&)                  = delete;
+  Text(Text &&)                  = default;
   Text & operator=(Text const &) = delete;
-  Text & operator=(Text &&)      = delete;
+  Text & operator=(Text &&)      = default;
   virtual ~Text() override       = default;
 
   Text & copyable(bool allow);
@@ -385,31 +262,32 @@ struct Text : View
 
   Text & clear_highlights();
 
-  Text & run(TextStyle const & style, FontStyle const & font, u32 first = 0,
-             u32 count = U32_MAX);
+  Text & run(TextStyle const & style, FontStyle const & font, usize first = 0,
+             usize count = USIZE_MAX);
 
   Text & text(Str32 text);
 
   Text & text(Str8 text);
 
-  Str32 text();
+  Str32 text() const;
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
+  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
 
 // [ ] scroll and clip text if region isn't large enough
-// [ ] wrapping to the next line if not large enough
-// [ ] no wrap
+// -  wrapping to the next line if not large enough
+// -  no wrap
+// -  max-len
+// -  filter/transform function
+// -  secret text input
 struct Input : View
 {
   struct State
@@ -425,16 +303,16 @@ struct Input : View
     bool enter_submits : 1 = false;
 
     bool tab_input : 1 = false;
-
-    FocusState focus = {};
-  } state;
+  } state_;
 
   struct Style
   {
-    TextHighlightStyle highlight      = {.color        = theme.highlight,
-                                         .corner_radii = Vec4::splat(2.5F)};
+    TextHighlightStyle highlight = {.color        = theme.highlight,
+                                    .corner_radii = Vec4::splat(0)};
+    CaretStyle         caret{.color = theme.caret, .thickness = 1.0F};
     usize              lines_per_page = 40;
-  } style;
+    usize              tab_width      = 1;
+  } style_;
 
   struct Callbacks
   {
@@ -470,9 +348,9 @@ struct Input : View
         AllocatorRef      allocator = default_allocator);
 
   Input(Input const &)             = delete;
-  Input(Input &&)                  = delete;
+  Input(Input &&)                  = default;
   Input & operator=(Input const &) = delete;
-  Input & operator=(Input &&)      = delete;
+  Input & operator=(Input &&)      = default;
   virtual ~Input() override        = default;
 
   Input & disable(bool disable);
@@ -482,10 +360,6 @@ struct Input : View
   Input & enter_submits(bool enable);
 
   Input & tab_input(bool enable);
-
-  Input & highlight(TextHighlight const & highlight);
-
-  Input & clear_highlight();
 
   Input & on_edit(Fn<void()> fn);
 
@@ -500,25 +374,23 @@ struct Input : View
   Input & content(Str32 text);
 
   Input & content_run(TextStyle const & style, FontStyle const & font,
-                      u32 first = 0, u32 count = U32_MAX);
+                      usize first = 0, usize count = USIZE_MAX);
 
   Input & stub(Str8 text);
 
   Input & stub(Str32 text);
 
   Input & stub_run(TextStyle const & style, FontStyle const & font,
-                   u32 first = 0, u32 count = U32_MAX);
+                   usize first = 0, usize count = USIZE_MAX);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const>, Span<Vec2>) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
+  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
 
 enum class ButtonShape : u8
@@ -533,9 +405,9 @@ struct Button : View
   struct State
   {
     bool disabled = false;
-
-    PressState press = {};
-  } state;
+    bool hovered  = false;
+    bool held     = false;
+  } state_;
 
   struct Style
   {
@@ -556,7 +428,7 @@ struct Button : View
     CornerRadii corner_radii = CornerRadii::all(2);
 
     Frame frame = Frame{}.scale(1, 1);
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -565,25 +437,53 @@ struct Button : View
   } cb;
 
   Button()                           = default;
-  Button(Input const &)              = delete;
-  Button(Input &&)                   = delete;
+  Button(Button const &)             = delete;
+  Button(Button &&)                  = default;
   Button & operator=(Button const &) = delete;
-  Button & operator=(Button &&)      = delete;
+  Button & operator=(Button &&)      = default;
   virtual ~Button() override         = default;
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  Button & disable(bool disable);
+
+  Button & color(Vec4U8 color);
+
+  Button & hovered_color(Vec4U8 color);
+
+  Button & disabled_color(Vec4U8 color);
+
+  Button & rrect(CornerRadii const & radii);
+
+  Button & squircle(f32 degree = 5);
+
+  Button & bevel(CornerRadii const & radii);
+
+  Button & frame(Vec2 extent, bool constrain = true);
+
+  Button & frame(Frame frame);
+
+  Button & stroke(f32 stroke);
+
+  Button & thickness(f32 thickness);
+
+  Button & padding(Vec2 padding);
+
+  Button & padding(f32 x, f32 y);
+
+  Button & on_pressed(Fn<void()> fn);
+
+  Button & on_hovered(Fn<void()> fn);
+
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
+  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
 
 struct TextButton : Button
@@ -606,15 +506,15 @@ struct TextButton : Button
     AllocatorRef      allocator = default_allocator);
 
   TextButton(TextButton const &)             = delete;
-  TextButton(TextButton &&)                  = delete;
+  TextButton(TextButton &&)                  = default;
   TextButton & operator=(TextButton const &) = delete;
-  TextButton & operator=(TextButton &&)      = delete;
+  TextButton & operator=(TextButton &&)      = default;
   virtual ~TextButton() override             = default;
 
   TextButton & disable(bool disable);
 
   TextButton & run(TextStyle const & style, FontStyle const & font,
-                   u32 first = 0, u32 count = U32_MAX);
+                   usize first = 0, usize count = USIZE_MAX);
 
   TextButton & text(Str32 text);
 
@@ -628,7 +528,7 @@ struct TextButton : Button
 
   TextButton & rrect(CornerRadii const & radii);
 
-  TextButton & squircle(f32 elasticity);
+  TextButton & squircle(f32 degree = 5);
 
   TextButton & bevel(CornerRadii const & radii);
 
@@ -642,14 +542,11 @@ struct TextButton : Button
 
   TextButton & padding(Vec2 padding);
 
-  TextButton & padding(f32 x, f32 y);
-
   TextButton & on_pressed(Fn<void()> fn);
 
   TextButton & on_hovered(Fn<void()> fn);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 };
 
@@ -658,7 +555,7 @@ struct Icon : View
   struct State
   {
     bool hidden = false;
-  } state;
+  } state_;
 
   RenderText text_;
 
@@ -677,9 +574,9 @@ struct Icon : View
        AllocatorRef      allocator = default_allocator);
 
   Icon(Icon const &)             = delete;
-  Icon(Icon &&)                  = delete;
+  Icon(Icon &&)                  = default;
   Icon & operator=(Icon const &) = delete;
-  Icon & operator=(Icon &&)      = delete;
+  Icon & operator=(Icon &&)      = default;
   virtual ~Icon() override       = default;
 
   Icon & hide(bool hide);
@@ -688,14 +585,13 @@ struct Icon : View
 
   Icon & icon(Str32 text, TextStyle const & style, FontStyle const & font);
 
-  ViewState tick(ViewContext const & ctx, CRect const & region, f32 zoom,
-                 ViewEvents const & events, Fn<void(View &)> build) override;
+  ui::State tick(Ctx const & ctx, Events const & events,
+                 Fn<void(View &)> build) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
 struct CheckBox : View
@@ -703,11 +599,10 @@ struct CheckBox : View
   struct State
   {
     bool disabled : 1 = false;
-
-    bool value : 1 = false;
-
-    PressState press = {};
-  } state;
+    bool hovered  : 1 = false;
+    bool held     : 1 = false;
+    bool value    : 1 = false;
+  } state_;
 
   struct Style
   {
@@ -719,10 +614,10 @@ struct CheckBox : View
 
     f32 thickness = 0.5F;
 
-    CornerRadii corner_radii = CornerRadii::all(2);
+    CornerRadii corner_radii = CornerRadii::all(5);
 
     f32 padding = 2.5F;
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -731,7 +626,7 @@ struct CheckBox : View
 
   Icon icon_;
 
-  CheckBox(Str32             text      = U""_str,
+  CheckBox(Str32             text      = U"checkmark"_str,
            TextStyle const & style     = TextStyle{.color = theme.on_surface},
            FontStyle const & font      = FontStyle{.font   = theme.icon_font,
                                                    .height = theme.body_font_height,
@@ -746,9 +641,9 @@ struct CheckBox : View
            AllocatorRef      allocator = default_allocator);
 
   CheckBox(CheckBox const &)             = delete;
-  CheckBox(CheckBox &&)                  = delete;
+  CheckBox(CheckBox &&)                  = default;
   CheckBox & operator=(CheckBox const &) = delete;
-  CheckBox & operator=(CheckBox &&)      = delete;
+  CheckBox & operator=(CheckBox &&)      = default;
   virtual ~CheckBox() override           = default;
 
   Icon & icon();
@@ -769,19 +664,17 @@ struct CheckBox : View
 
   CheckBox & on_changed(Fn<void(bool)> fn);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
+  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
 
 /// @brief Multi-directional Slider
@@ -789,16 +682,16 @@ struct Slider : View
 {
   struct State
   {
-    bool disabled = false;
-
-    DragState drag = {};
+    bool disabled : 1 = false;
+    bool dragging : 1 = false;
+    bool hovered  : 1 = false;
 
     f32 t = 0;
 
     f32 low = 0;
 
     f32 high = 1;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -816,14 +709,14 @@ struct Slider : View
 
     Vec4U8 thumb_dragging_color = theme.primary_variant;
 
-    CornerRadii thumb_corner_radii = CornerRadii::all(2);
+    CornerRadii thumb_corner_radii = CornerRadii::all(1'000);
 
     Vec4U8 track_color = theme.inactive;
 
-    CornerRadii track_corner_radii = CornerRadii::all(2);
+    CornerRadii track_corner_radii = CornerRadii::all(2.5);
 
     f32 delta = 0.1F;
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -832,9 +725,9 @@ struct Slider : View
 
   Slider()                           = default;
   Slider(Slider const &)             = delete;
-  Slider(Slider &&)                  = delete;
+  Slider(Slider &&)                  = default;
   Slider & operator=(Slider const &) = delete;
-  Slider & operator=(Slider &&)      = delete;
+  Slider & operator=(Slider &&)      = default;
   virtual ~Slider() override         = default;
 
   Slider & disable(bool disable);
@@ -867,29 +760,25 @@ struct Slider : View
 
   Slider & on_changed(Fn<void(f32)> fn);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
+  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
 
 struct Switch : View
 {
   struct State
   {
-    bool disabled = false;
-
-    PressState press = {};
-
-    bool value = false;
-  } state;
+    bool disabled : 1 = false;
+    bool hovered  : 1 = false;
+    bool value    : 1 = false;
+  } state_;
 
   struct Style
   {
@@ -910,7 +799,7 @@ struct Switch : View
     CornerRadii corner_radii = CornerRadii::all(4);
 
     Frame frame = Vec2{40, 20};
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -919,9 +808,9 @@ struct Switch : View
 
   Switch()                           = default;
   Switch(Switch const &)             = delete;
-  Switch(Switch &&)                  = delete;
+  Switch(Switch &&)                  = default;
   Switch & operator=(Switch const &) = delete;
-  Switch & operator=(Switch &&)      = delete;
+  Switch & operator=(Switch &&)      = default;
   virtual ~Switch() override         = default;
 
   Switch & disable(bool disable);
@@ -952,27 +841,26 @@ struct Switch : View
 
   Switch & thumb_frame(Frame frame);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
+  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
 
+// [ ] replicate Checkbox and use font
 struct Radio : View
 {
   struct State
   {
-    bool       disabled : 1 = false;
-    bool       value    : 1 = false;
-    PressState press        = {};
-  } state;
+    bool disabled : 1 = false;
+    bool hovered  : 1 = false;
+    bool value    : 1 = false;
+  } state_;
 
   struct Style
   {
@@ -987,7 +875,7 @@ struct Radio : View
     Vec4U8 inner_color = theme.primary;
 
     Vec4U8 inner_hovered_color = theme.primary_variant;
-  } style;
+  } style_;
 
   struct Callbacks
   {
@@ -996,9 +884,9 @@ struct Radio : View
 
   Radio()                          = default;
   Radio(Radio const &)             = delete;
-  Radio(Radio &&)                  = delete;
+  Radio(Radio &&)                  = default;
   Radio & operator=(Radio const &) = delete;
-  Radio & operator=(Radio &&)      = delete;
+  Radio & operator=(Radio &&)      = default;
   virtual ~Radio() override        = default;
 
   Radio & disable(bool disable);
@@ -1019,19 +907,18 @@ struct Radio : View
 
   Radio & on_changed(Fn<void(bool)> fn);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
+  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
 
+// [ ] on-focused go to input mode
 struct ScalarDragBox : View
 {
   struct State
@@ -1042,14 +929,10 @@ struct ScalarDragBox : View
 
     bool dragging : 1 = false;
 
-    FocusState focus = {};
-
     ScalarInfo spec = F32Info{};
 
     Scalar scalar = 0.0F;
-
-    hash64 hash = 0;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -1068,7 +951,7 @@ struct ScalarDragBox : View
     f32 thickness = 1.0F;
 
     Str format = "{}"_str;
-  } style;
+  } style_;
 
   Input input_;
 
@@ -1082,33 +965,31 @@ struct ScalarDragBox : View
     FontStyle const & font      = FontStyle{.font        = theme.body_font,
                                             .height      = theme.body_font_height,
                                             .line_height = theme.line_height},
-    AllocatorRef      allocator = default_allocator) :
-    input_{U""_str, style, font, allocator}
-  {
-    input_.multiline(false).tab_input(false).enter_submits(false);
-  }
+    AllocatorRef      allocator = default_allocator);
 
   ScalarDragBox(ScalarDragBox const &)             = delete;
-  ScalarDragBox(ScalarDragBox &&)                  = delete;
+  ScalarDragBox(ScalarDragBox &&)                  = default;
   ScalarDragBox & operator=(ScalarDragBox const &) = delete;
-  ScalarDragBox & operator=(ScalarDragBox &&)      = delete;
+  ScalarDragBox & operator=(ScalarDragBox &&)      = default;
   virtual ~ScalarDragBox() override                = default;
 
   static void scalar_parse(Str32 text, ScalarInfo const & spec, Scalar &);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  void format_();
+
+  ScalarDragBox & on_update(Fn<void(Scalar)> cb);
+
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 offset) override;
+  virtual Cursor cursor(Vec2 extent, Vec2 offset) override;
 };
 
 struct ScalarBox : Flex
@@ -1125,7 +1006,7 @@ struct ScalarBox : Flex
   ScalarDragBox drag_;
 
   ScalarBox(
-    Str32 decrease_text = U"remove"_str, Str32 increase_text = U"add"_str,
+    Str32 decrease_text = U"minus"_str, Str32 increase_text = U"plus"_str,
     TextStyle const & button_text_style =
       TextStyle{
         .shadow_scale = 1, .shadow_offset = {1, 1},
@@ -1143,9 +1024,9 @@ struct ScalarBox : Flex
     AllocatorRef      allocator       = default_allocator);
 
   ScalarBox(ScalarBox const &)             = delete;
-  ScalarBox(ScalarBox &&)                  = delete;
+  ScalarBox(ScalarBox &&)                  = default;
   ScalarBox & operator=(ScalarBox const &) = delete;
-  ScalarBox & operator=(ScalarBox &&)      = delete;
+  ScalarBox & operator=(ScalarBox &&)      = default;
   virtual ~ScalarBox() override            = default;
 
   ScalarBox & step(i32 direction);
@@ -1175,13 +1056,12 @@ struct ScalarBox : Flex
   ScalarBox & on_update(Fn<void(Scalar)> fn);
 
   ScalarBox & button_text_style(TextStyle const & style, FontStyle const & font,
-                                u32 first = 0, u32 count = U32_MAX);
+                                usize first = 0, usize count = USIZE_MAX);
 
   ScalarBox & drag_text_style(TextStyle const & style, FontStyle const & font,
-                              u32 first = 0, u32 count = U32_MAX);
+                              usize first = 0, usize count = USIZE_MAX);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 };
 
@@ -1189,17 +1069,20 @@ struct ScrollBar : View
 {
   struct State
   {
-    bool      disabled : 1 = false;
-    bool      hidden   : 1 = false;
-    DragState drag         = {};
-    f32       t            = 0;
-  } state;
+    bool disabled : 1   = false;
+    bool hidden   : 1   = false;
+    bool dragging : 1   = false;
+    bool focused  : 1   = false;
+    bool hovered  : 1   = false;
+    f32  center         = 0;
+    f32  delta          = 0.1;
+    f32  visible_extent = 0;
+    f32  total_extent   = 0;
+  } state_;
 
   struct Style
   {
     Axis axis = Axis::X;
-
-    f32 thumb_size = 15;
 
     Vec4U8 thumb_color = theme.primary;
 
@@ -1213,37 +1096,37 @@ struct ScrollBar : View
 
     CornerRadii track_corner_radii = CornerRadii::all(2);
 
-    f32 delta = 0.1F;
-  } style;
+  } style_;
+
+  ScrollBar & update(f32 center, f32 delta, f32 visibile, f32 total);
+
+  f32 center() const;
 
   ScrollBar()                              = default;
   ScrollBar(ScrollBar const &)             = delete;
-  ScrollBar(ScrollBar &&)                  = delete;
+  ScrollBar(ScrollBar &&)                  = default;
   ScrollBar & operator=(ScrollBar const &) = delete;
-  ScrollBar & operator=(ScrollBar &&)      = delete;
+  ScrollBar & operator=(ScrollBar &&)      = default;
   virtual ~ScrollBar() override            = default;
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual i32 stack(i32 allocated) override;
-
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
+};
 };
 
 struct ScrollView : View
 {
   struct State
   {
-    bool disabled = false;
+    bool disabled : 1 = false;
 
-    f32 zoom = 1;
-  } state;
+    Vec2 zoom = {1, 1};
+  } state_;
 
   struct Style
   {
@@ -1255,26 +1138,26 @@ struct ScrollView : View
 
     f32 y_bar_size = 10;
 
-  } style;
+  } style_;
 
   ScrollBar x_bar_{};
 
   ScrollBar y_bar_{};
 
+  // [ ] separate to inner viewport so the scrollbar can be placed outside it
+
   ref<View> child_;
 
   ScrollView(View & child);
   ScrollView(ScrollView const &)             = delete;
-  ScrollView(ScrollView &&)                  = delete;
+  ScrollView(ScrollView &&)                  = default;
   ScrollView & operator=(ScrollView const &) = delete;
-  ScrollView & operator=(ScrollView &&)      = delete;
+  ScrollView & operator=(ScrollView &&)      = default;
   virtual ~ScrollView() override             = default;
 
   ScrollView & disable(bool d);
 
   ScrollView & item(View & view);
-
-  ScrollView & thumb_size(f32 size);
 
   ScrollView & thumb_color(Vec4U8 color);
 
@@ -1300,65 +1183,63 @@ struct ScrollView : View
 
   ScrollView & bar_size(f32 x, f32 y);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
+
+  virtual i32 layer(i32 allocated, Span<i32> children) override;
 };
 
 struct ComboItem : View
 {
   struct State
   {
-    bool disabled = false;
+    bool disabled : 1 = false;
 
-    bool selected = false;
+    bool selected : 1 = false;
 
-    u32 id = 0;
+    bool hovered : 1 = false;
 
-    Fn<void(u32)> click_hook = noop;
-  } state;
+    bool pressed : 1 = false;
+
+    usize id = 0;
+
+    Fn<void(usize)> click_hook = noop;
+  } state_;
 
   ComboItem()                              = default;
   ComboItem(ComboItem const &)             = delete;
-  ComboItem(ComboItem &&)                  = delete;
+  ComboItem(ComboItem &&)                  = default;
   ComboItem & operator=(ComboItem const &) = delete;
-  ComboItem & operator=(ComboItem &&)      = delete;
+  ComboItem & operator=(ComboItem &&)      = default;
   virtual ~ComboItem() override            = default;
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const &, f32 zoom,
-                         ViewEvents const & events,
-                         Fn<void(View &)>   build) override;
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
+                         Fn<void(View &)> build) override;
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const &) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 
-  virtual Cursor cursor(CRect const & region, f32 zoom, Vec2 position) override;
+  virtual Cursor cursor(Vec2 extent, Vec2 position) override;
 };
 
 struct TextComboItem : ComboItem
 {
-  struct State
-  {
-    PressState press;
-  } state;
-
   struct Style
   {
     Frame frame = Frame{}.scale(1, 1);
 
     Vec2 padding = {5, 5};
 
-    f32 alignment = -1;
+    f32 alignment = ALIGNMENT_LEFT;
 
     Vec4U8 color = theme.surface_variant;
 
@@ -1371,7 +1252,7 @@ struct TextComboItem : ComboItem
     f32 thickness = 1;
 
     CornerRadii corner_radii = CornerRadii::all(2);
-  } style;
+  } style_;
 
   Text text_;
 
@@ -1390,9 +1271,9 @@ struct TextComboItem : ComboItem
     AllocatorRef      allocator = default_allocator);
 
   TextComboItem(TextComboItem const &)             = delete;
-  TextComboItem(TextComboItem &&)                  = delete;
+  TextComboItem(TextComboItem &&)                  = default;
   TextComboItem & operator=(TextComboItem const &) = delete;
-  TextComboItem & operator=(TextComboItem &&)      = delete;
+  TextComboItem & operator=(TextComboItem &&)      = default;
   virtual ~TextComboItem() override                = default;
 
   TextComboItem & frame(Vec2 extent, bool constrain = true);
@@ -1415,27 +1296,25 @@ struct TextComboItem : ComboItem
 
   TextComboItem & corner_radii(CornerRadii radii);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
 struct Combo : Flex
 {
   struct State
   {
-    bool disabled = false;
+    bool disabled : 1 = false;
 
-    Option<u32> selected = none;
-  } state;
+    Option<usize> selected = none;
+  } state_;
 
   struct Style
   {
@@ -1446,20 +1325,20 @@ struct Combo : Flex
     f32 stroke = 0;
 
     f32 thickness = 1;
-  } style;
+  } style_;
 
   struct Callbacks
   {
-    Fn<void(Option<u32>)> selected = noop;
+    Fn<void(Option<usize>)> selected = noop;
   } cb;
 
   Vec<ref<ComboItem>> items_;
 
   Combo(AllocatorRef allocator = default_allocator);
   Combo(Combo const &)             = delete;
-  Combo(Combo &&)                  = delete;
+  Combo(Combo &&)                  = default;
   Combo & operator=(Combo const &) = delete;
-  Combo & operator=(Combo &&)      = delete;
+  Combo & operator=(Combo &&)      = default;
   virtual ~Combo() override        = default;
 
   Combo & stroke(f32 stroke);
@@ -1488,24 +1367,22 @@ struct Combo : Flex
 
   Combo & corner_radii(CornerRadii radii);
 
-  Combo & on_selected(Fn<void(Option<u32>)> style);
+  Combo & on_selected(Fn<void(Option<usize>)> style);
 
   Combo & items(std::initializer_list<ref<ComboItem>> list);
 
   Combo & items(Span<ref<ComboItem> const> list);
 
-  u32 num_items() const;
+  usize num_items() const;
 
-  Combo & select(Option<u32> item);
+  Combo & select(Option<usize> item);
 
-  Option<u32> get_selection() const;
+  Option<usize> get_selection() const;
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
 using ImageSrc = Enum<None, ImageId, Future<Result<ImageId, ImageLoadErr>>>;
@@ -1528,7 +1405,7 @@ struct Image : View
   struct State
   {
     Enum<None, Option<ash::ImageInfo>, ImageLoadErr> resolved = none;
-  } state;
+  } state_;
 
   struct Style
   {
@@ -1542,8 +1419,8 @@ struct Image : View
 
     ImageFit fit = ImageFit::Contain;
 
-    Vec2 alignment = ALIGNMENT_CENTER;
-  } style;
+    Vec2 alignment = ALIGNMENT_CENTER_CENTER;
+  } style_;
 
   ImageSrc src_;
 
@@ -1567,18 +1444,17 @@ struct Image : View
 
   Image & align(Vec2 alignment);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 
-  virtual void render(Canvas & canvas, CRect const & region, f32 zoom,
-                      Rect const & clip) override;
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
-// [ ] size estimation?
+// [ ] segmentation
+/// @brief An infinitely scrollable List of elements.
 struct List : View
 {
   typedef Fn<Option<Dyn<View *>>(AllocatorRef, usize i)> Generator;
@@ -1588,17 +1464,42 @@ struct List : View
 
   struct State
   {
-    Slice range = {};
+    /// @brief effective translation of the entire list
+    f32 total_translation = 0;
 
-    /// @brief total translation of the entire list
-    f32 translation = 0;
+    /// @brief the view extent of the viewport
+    f32 view_extent = 0;
 
-    /// @brief virtual view translation of the currently visible list items
-    f32 virtual_translation = 0;
+    /// @brief the first of the currently active subset
+    usize first_item = 0;
+
+    /// @brief determined upper bound
+    usize max_count = USIZE_MAX;
+
+    usize num_loaded = 0;
 
     Option<f32> item_size = none;
 
-    Generator generator;
+    /// @brief the item generator
+    Generator generator = DEFAULT_GENERATOR;
+
+    Vec<Dyn<View *>> items;
+
+    Slice range() const
+    {
+      return Slice{first_item, items.size()};
+    }
+
+    Option<Slice> visible() const
+    {
+      return item_size.map([&](f32 s) {
+        auto first =
+          static_cast<usize>(std::abs(std::floor((-total_translation) / s)));
+        auto count = static_cast<usize>(std::abs(std::ceil(view_extent / s)));
+        return Slice{first, count};
+      });
+    }
+
   } state_;
 
   struct Style
@@ -1612,8 +1513,6 @@ struct List : View
 
   AllocatorRef allocator_;
 
-  Vec<Dyn<View *>> items_;
-
   List(Generator    generator = DEFAULT_GENERATOR,
        AllocatorRef allocator = default_allocator);
 
@@ -1625,20 +1524,29 @@ struct List : View
 
   List & item_frame(Frame frame);
 
-  virtual ViewState tick(ViewContext const & ctx, CRect const & region,
-                         f32 zoom, ViewEvents const & events,
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
                          Fn<void(View &)> build) override;
 
   virtual void size(Vec2 allocated, Span<Vec2> sizes) override;
 
-  virtual ViewLayout fit(Vec2 allocated, Span<Vec2 const> sizes,
-                         Span<Vec2> centers) override;
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
 };
 
 // [ ] DEFAULT FOCUS VIEW
-// [ ] change insertion point again, use nominal
+// - set the global focus rect, focus view can move there
 struct FocusView : View
 {
+  CRect canvas_region_;
+
+  virtual ui::State tick(Ctx const & ctx, Events const & events,
+                         Fn<void(View &)> build) override;
+
+  virtual Layout fit(Vec2 allocated, Span<Vec2 const> sizes,
+                     Span<Vec2> centers) override;
+
+  // [ ] properly handle fixed-centered, should they be counted as part of the children?
+  virtual void render(Canvas & canvas, RenderInfo const & info) override;
 };
 
 // [ ] implement

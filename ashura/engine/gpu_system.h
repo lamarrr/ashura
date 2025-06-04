@@ -31,8 +31,8 @@ inline constexpr u32 NUM_DEFAULT_TEXTURES = 10;
 /// @details do not change the underlying type. It maps directly to the GPU handle
 enum class SamplerId : u32
 {
-  Linear         = 0,
-  Nearest        = 1,
+  LinearBlack    = 0,
+  NearestBlack   = 1,
   LinearClamped  = 2,
   NearestClamped = 3
 };
@@ -95,7 +95,7 @@ struct ColorMsaaTexture
   }
 };
 
-struct DepthTexture
+struct DepthStencilTexture
 {
   static constexpr gpu::FormatFeatures FEATURES =
     gpu::FormatFeatures::DepthStencilAttachment |
@@ -139,7 +139,7 @@ struct Framebuffer
   Option<ColorMsaaTexture> color_msaa = none;
 
   /// @brief combined depth and stencil aspect attachment
-  DepthTexture depth = {};
+  DepthStencilTexture depth_stencil = {};
 
   constexpr Vec3U extent() const
   {
@@ -185,7 +185,7 @@ struct SamplerEq
 
 struct Sampler
 {
-  SamplerId    id      = SamplerId::Linear;
+  SamplerId    id      = SamplerId::LinearBlack;
   gpu::Sampler sampler = nullptr;
 };
 
@@ -509,7 +509,7 @@ struct GpuSystem
 
   ColorTexture scratch_color_[NUM_SCRATCH_COLOR_TEXTURES];
 
-  DepthTexture scratch_depth_[NUM_SCRATCH_DEPTH_TEXTURES];
+  DepthStencilTexture scratch_depth_stencil_[NUM_SCRATCH_DEPTH_TEXTURES];
 
   gpu::Image default_image_;
 
@@ -559,7 +559,7 @@ struct GpuSystem
     sampler_cache_{allocator},
     fb_{},
     scratch_color_{},
-    scratch_depth_{},
+    scratch_depth_stencil_{},
     default_image_{default_image},
     default_image_views_{default_image_views},
     texture_slots_{},
@@ -607,7 +607,7 @@ struct GpuSystem
 
   void release(ColorMsaaTexture tex);
 
-  void release(DepthTexture tex);
+  void release(DepthStencilTexture tex);
 
   void release(Framebuffer tex);
 

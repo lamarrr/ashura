@@ -29,8 +29,66 @@ namespace ash
   return count;
 }
 
+template <typename Iter>
+[[nodiscard]] constexpr Tuple<c32, usize> seek_utf8_codepoint(Iter & iter)
+{
+  c32 const c0 = *iter;
+  iter++;
+
+  if ((c0 & 0xF8) == 0xF0)
+  {
+    c32 const c1 = *iter;
+    iter++;
+    c32 const c2 = *iter;
+    iter++;
+    c32 const c3 = *iter;
+    iter++;
+    return {((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) | c3,
+            4};
+  }
+  else if ((c0 & 0xF0) == 0xE0)
+  {
+    c32 const c1 = *iter;
+    iter++;
+    c32 const c2 = *iter;
+    iter++;
+    return {((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0X3F), 3};
+  }
+  else if ((c0 & 0xE0) == 0xC0)
+  {
+    c32 const c1 = *iter;
+    iter++;
+    return {((c0 & 0x1F) << 6) | (c1 & 0x3F), 2};
+  }
+  else
+  {
+    return {c0, 1};
+  }
+}
+
+constexpr u8 codepoint_width(c32 c)
+{
+  if (c <= 0x7F)
+  {
+    return 1;
+  }
+  else if (c <= 0x7FF)
+  {
+    return 2;
+  }
+  else if (c <= 0xFFFF)
+  {
+    return 3;
+  }
+  else if (c <= 0x10'FFFF)
+  {
+    return 4;
+  }
+  return 0;
+}
+
 /// @brief `decoded.size()` must be at least `encoded.size()`
-[[nodiscard]] constexpr usize utf8_decode(Str8 text, Span<c32> decoded)
+[[nodiscard]] constexpr usize utf8_decode(Str8 text, MutStr32 decoded)
 {
   c8 const * in  = text.data();
   c8 const * end = text.pend();
@@ -38,35 +96,7 @@ namespace ash
 
   while (in != end)
   {
-    c32 const c0 = in[0];
-
-    if ((c0 & 0xF8) == 0xF0)
-    {
-      c32 const c1 = in[1];
-      c32 const c2 = in[2];
-      c32 const c3 = in[3];
-      *out         = c0 << 24 | c1 << 16 | c2 << 8 | c3;
-      in += 4;
-    }
-    else if ((c0 & 0xF0) == 0xE0)
-    {
-      c32 const c1 = in[1];
-      c32 const c2 = in[2];
-      *out         = c0 << 16 | c1 << 8 | c2;
-      in += 3;
-    }
-    else if ((c0 & 0xE0) == 0xC0)
-    {
-      c32 const c1 = in[1];
-      *out         = c0 << 8 | c1;
-      in += 2;
-    }
-    else
-    {
-      *out = c0;
-      in += 1;
-    }
-
+    *out = seek_utf8_codepoint(in).v0;
     out++;
   }
 
@@ -147,7 +177,7 @@ inline Result<> utf8_decode(Str8 text, Vec<c32> & decoded)
   return Ok{};
 }
 
-constexpr void replace_invalid_codepoints(Str32 input, Span<c32> output,
+constexpr void replace_invalid_codepoints(Str32 input, MutStr32 output,
                                           c32 replacement)
 {
   c32 const * in  = input.pbegin();
@@ -156,13 +186,14 @@ constexpr void replace_invalid_codepoints(Str32 input, Span<c32> output,
 
   while (in != end)
   {
-    if (*in > 0x10'FFFF) [[unlikely]]
+    auto cp = *in;
+    if (cp >= UTF32_MIN && cp <= UTF32_MAX) [[likely]]
     {
-      *out = replacement;
+      *out = cp;
     }
     else
     {
-      *out = *in;
+      *out = replacement;
     }
     in++;
     out++;
@@ -172,20 +203,134 @@ constexpr void replace_invalid_codepoints(Str32 input, Span<c32> output,
 /// Unicode Ranges
 namespace utf
 {
-inline constexpr Tuple<u32, u32> BASIC_LATIN{0x0020, 0x007F};
-inline constexpr Tuple<u32, u32> LATIN1_SUPPLEMENT{0x00A0, 0x00FF};
-inline constexpr Tuple<u32, u32> LATIN_EXTENDED_A{0x0100, 0x017F};
-inline constexpr Tuple<u32, u32> LATIN_EXTENDED_B{0x0180, 0x024F};
-inline constexpr Tuple<u32, u32> COMBINING_DIACRITICAL_MARKS{0x0300, 0x036F};
-inline constexpr Tuple<u32, u32> ARABIC{0x0600, 0x06FF};
-inline constexpr Tuple<u32, u32> GENERAL_PUNCTUATION{0x2000, 0x206F};
-inline constexpr Tuple<u32, u32> SUPERSCRIPTS_AND_SUBSCRIPTS{0x2070, 0x209F};
-inline constexpr Tuple<u32, u32> CURRENCY_SYMBOLS{0x20A0, 0x20CF};
-inline constexpr Tuple<u32, u32> NUMBER_FORMS{0x2150, 0x218F};
-inline constexpr Tuple<u32, u32> ARROWS{0x2190, 0x21FF};
-inline constexpr Tuple<u32, u32> MATHEMATICAL_OPERATORS{0x2200, 0x22FF};
-inline constexpr Tuple<u32, u32> HIRAGANA{0x3040, 0x309F};
-inline constexpr Tuple<u32, u32> KATAKANA{0x30A0, 0x30FF};
+inline constexpr Tuple<c32, c32> ALL{UTF32_MIN, UTF32_MAX};
+inline constexpr Tuple<c32, c32> BASIC_LATIN{0x0020, 0x007F};
+inline constexpr Tuple<c32, c32> LATIN1_SUPPLEMENT{0x00A0, 0x00FF};
+inline constexpr Tuple<c32, c32> LATIN_EXTENDED_A{0x0100, 0x017F};
+inline constexpr Tuple<c32, c32> LATIN_EXTENDED_B{0x0180, 0x024F};
+inline constexpr Tuple<c32, c32> COMBINING_DIACRITICAL_MARKS{0x0300, 0x036F};
+inline constexpr Tuple<c32, c32> ARABIC{0x0600, 0x06FF};
+inline constexpr Tuple<c32, c32> GENERAL_PUNCTUATION{0x2000, 0x206F};
+inline constexpr Tuple<c32, c32> SUPERSCRIPTS_AND_SUBSCRIPTS{0x2070, 0x209F};
+inline constexpr Tuple<c32, c32> CURRENCY_SYMBOLS{0x20A0, 0x20CF};
+inline constexpr Tuple<c32, c32> NUMBER_FORMS{0x2150, 0x218F};
+inline constexpr Tuple<c32, c32> ARROWS{0x2190, 0x21FF};
+inline constexpr Tuple<c32, c32> MATHEMATICAL_OPERATORS{0x2200, 0x22FF};
+inline constexpr Tuple<c32, c32> HIRAGANA{0x3040, 0x309F};
+inline constexpr Tuple<c32, c32> KATAKANA{0x30A0, 0x30FF};
 }    // namespace utf
+
+template <IterOf<c8> CodeUnitIter>
+struct Utf8DecodeIter
+{
+  typedef c32          Type;
+  typedef CodeUnitIter Iter;
+
+  Iter iter_;
+
+  constexpr c32 operator*() const
+  {
+    auto iter = iter_;
+    return seek_utf8_codepoint(iter).v0;
+  }
+
+  constexpr Utf8DecodeIter & operator++()
+  {
+    [[maybe_unused]] auto _ = seek_utf8_codepoint(iter_);
+    return *this;
+  }
+
+  constexpr Utf8DecodeIter operator++(int)
+  {
+    auto old = *this;
+    this->operator++();
+    return old;
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return iter_ != iter_end;
+  }
+
+  constexpr auto max_size() const requires (SizedIter<Iter>)
+  {
+    return iter_.size() * 4;
+  }
+
+  constexpr auto max_size() const
+    requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
+  {
+    return iter_.max_size() * 4;
+  }
+};
+
+template <IterOf<c32> CodePointIter>
+struct Utf8EncodeIter
+{
+  typedef c8            Type;
+  typedef CodePointIter Iter;
+
+  Iter iter_;
+
+  constexpr InplaceVec<c8, 4> operator*() const;
+
+  constexpr Utf8EncodeIter & operator++()
+  {
+    iter_++;
+    return *this;
+  }
+
+  constexpr Utf8EncodeIter operator++(int)
+  {
+    auto old = *this;
+    this->operator++();
+    return old;
+  }
+
+  constexpr bool operator!=(IterEnd) const
+  {
+    return iter_ != iter_end;
+  }
+
+  constexpr auto max_size() const requires (SizedIter<Iter>)
+  {
+    return iter_.size() * 4;
+  }
+
+  constexpr auto max_size() const
+    requires (BoundedSizeIter<Iter> && !SizedIter<Iter>)
+  {
+    return iter_.max_size() * 4;
+  }
+};
+
+namespace ascii
+{
+}
+
+// [ ] to ascii lower
+// [ ] to ascii upper
+// [ ] matches
+// [ ] replace
+// [ ] replace_n
+// [ ] split
+// [ ] truncate
+// [ ] trim
+// [ ] trim_ascii
+// [ ] lines
+// [ ] delimeter
+// [ ] split_ascii
+// [ ] join()
+// [ ] utf-8 iterator
+// [ ] reverse
+// [ ] right
+// [ ] substr
+
+// [ ] concat(....)
+// [ ] lower
+// [ ] ltrim
+// [ ] rtim
+// [ ] trim
+// [ ] replicate
 
 }    // namespace ash

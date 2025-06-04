@@ -23,4 +23,5 @@ compile_shader -in blur.slang
 compile_shader -in ngon.slang  
 compile_shader -in pbr.slang  
 compile_shader -in rrect.slang  
+compile_shader -in squircle.slang  
 

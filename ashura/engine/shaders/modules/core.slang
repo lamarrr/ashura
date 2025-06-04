@@ -13,12 +13,12 @@ f32x3 pow_v(f32x3 v, f32 p)
   return f32x3(pow(v.x, p), pow(v.y, p), pow(v.z, p));
 }
 
-f32x3 to_linear(f32x3 v)
+f32x3 srgb_to_linear(f32x3 v)
 {
   return pow_v(v, GAMMA);
 }
 
-f32x3 to_srgb(f32x3 v)
+f32x3 linear_to_srgb(f32x3 v)
 {
   return pow_v(v, 1.0 / GAMMA);
 }

@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ashura/engine/text.h"
 #include "ashura/std/enum.h"
 #include "ashura/std/math.h"
 #include "ashura/std/result.h"
@@ -12,14 +11,14 @@
 namespace ash
 {
 
-enum class SystemTheme : u32
+enum class SystemTheme : u8
 {
   Unknown = 0,
   Light   = 1,
   Dark    = 2
 };
 
-enum class KeyAction : u32
+enum class KeyAction : u8
 {
   Press   = 0,
   Release = 1
@@ -28,20 +27,32 @@ enum class KeyAction : u32
 enum class KeyModifiers : u32
 {
   None       = 0x0000,
-  LeftShift  = 0x0001U,    /// the left Shift key is down.
-  RightShift = 0x0002U,    /// the right Shift key is down.
-  Level5     = 0x0004U,    /// the Level 5 Shift key is down.
-  LeftCtrl   = 0x0040U,    /// the left Ctrl (Control) key is down.
-  RightCtrl  = 0x0080U,    /// the right Ctrl (Control) key is down.
-  LeftAlt    = 0x0100U,    /// the left Alt key is down.
-  RightAlt   = 0x0200U,    /// the right Alt key is down.
-  LeftGui    = 0x0400U,    /// the left GUI key (often the Windows key) is down.
-  RightGui = 0x0800U,    /// the right GUI key (often the Windows key) is down.
-  Num      = 0x1000U,    /// the Num Lock key (may be located on an
-                         /// extended keypad) is down.
-  Caps     = 0x2000U,    /// the Caps Lock key is down.
-  AltGr    = 0x4000U,    /// the !AltGr/Mode key is down.
-  ScrollLock = 0x8000U,    /// the Scroll Lock key is down.
+  /// the left Shift key is down.
+  LeftShift  = 0x0001U,
+  /// the right Shift key is down.
+  RightShift = 0x0002U,
+  /// the Level 5 Shift key is down.
+  Level5     = 0x0004U,
+  /// the left Ctrl (Control) key is down.
+  LeftCtrl   = 0x0040U,
+  /// the right Ctrl (Control) key is down.
+  RightCtrl  = 0x0080U,
+  /// the left Alt key is down.
+  LeftAlt    = 0x0100U,
+  /// the right Alt key is down.
+  RightAlt   = 0x0200U,
+  /// the left GUI key (often the Windows key) is down.
+  LeftGui    = 0x0400U,
+  /// the right GUI key (often the Windows key) is down.
+  RightGui   = 0x0800U,
+  /// the Num Lock key (may be located on an extended keypad) is down.
+  Num        = 0x1000U,
+  /// the Caps Lock key is down.
+  Caps       = 0x2000U,
+  /// the !AltGr/Mode key is down.
+  AltGr      = 0x4000U,
+  /// the Scroll Lock key is down.
+  ScrollLock = 0x8000U,
   All        = 0xFFFFU
 };
 
@@ -612,7 +623,7 @@ enum class KeyCode : u32
 
 inline constexpr u32 NUM_KEY_CODES = 512;
 
-enum class MouseButton : u32
+enum class MouseButton : u8
 {
   Primary   = 0,
   Secondary = 1,
@@ -623,7 +634,7 @@ enum class MouseButton : u32
 
 inline constexpr usize NUM_MOUSE_BUTTONS = 5;
 
-enum class MouseButtons : u32
+enum class MouseButtons : u8
 {
   None      = 0,
   Primary   = 1 << 0,
@@ -664,7 +675,7 @@ struct MouseWheelEvent
   Vec2 translation = {};
 };
 
-enum class WindowEventType : u32
+enum class WindowEventType : u8
 {
   Shown            = 0,
   Hidden           = 1,
@@ -691,7 +702,7 @@ struct TextInputEvent
   Str8 text{};
 };
 
-enum class DropEventType : u32
+enum class DropEventType : u8
 {
   DropBegin    = 0,
   DropComplete = 1
@@ -719,7 +730,7 @@ using WindowEvent =
   Enum<KeyEvent, MouseMotionEvent, MouseClickEvent, MouseWheelEvent,
        TextInputEvent, WindowEventType, DropEvent>;
 
-enum class SystemEventType : u32
+enum class SystemEventType : u8
 {
   KeymapChanged            = 0,
   AudioDeviceAdded         = 1,
@@ -737,7 +748,7 @@ enum class SystemEventType : u32
 
 using SystemEvent = Enum<SystemTheme, SystemEventType>;
 
-enum class TextInputType : u32
+enum class TextInputType : u8
 {
   Text                  = 0,
   Number                = 1,
@@ -750,7 +761,7 @@ enum class TextInputType : u32
   NumberPasswordVisible = 8
 };
 
-enum class TextCapitalization : u32
+enum class TextCapitalization : u8
 {
   None      = 0,
   Sentences = 1,
@@ -760,19 +771,26 @@ enum class TextCapitalization : u32
 
 struct TextInputInfo
 {
-  TextInputType type = TextInputType::Text;
+  TextInputType type : 4 = TextInputType::Text;
 
-  bool multiline = false;
+  bool multiline : 1 = false;
 
   /// @brief can receive `Tab` key as input
-  bool esc_input = false;
+  bool esc_input : 1 = false;
 
   /// @brief can receive `Esc` key as input
-  bool tab_input = false;
+  bool tab_input : 1 = false;
 
-  TextCapitalization cap = TextCapitalization::None;
+  TextCapitalization cap : 2 = TextCapitalization::None;
 
-  bool autocorrect = false;
+  bool autocorrect : 1 = false;
+
+  constexpr bool operator==(TextInputInfo const & other) const
+  {
+    return type == other.type && multiline == other.multiline &&
+           esc_input == other.esc_input && tab_input == other.tab_input &&
+           cap == other.cap && autocorrect == other.autocorrect;
+  }
 };
 
 /// @param Normal region is normal and has no special properties
@@ -785,7 +803,7 @@ struct TextInputInfo
 /// @param ResizeBottom region can resize bottom window
 /// @param ResizeBottomLeft region can resize bottom left window
 /// @param ResizeLeft region can resize left window
-enum class WindowRegion : u32
+enum class WindowRegion : u8
 {
   Normal            = 0,
   Draggable         = 1,
@@ -823,7 +841,7 @@ enum class WindowRegion : u32
 /// @param SouthResize  Window resize bottom
 /// @param SWResize Window resize bottom-left
 /// @param WestResize  Window resize left
-enum class Cursor : u32
+enum class Cursor : u8
 {
   Default     = 0,
   Text        = 1,
@@ -850,44 +868,44 @@ enum class Cursor : u32
 constexpr u32 NUM_CURSOR_TYPES = 20;
 
 /// @brief default charset is ASCII
-inline constexpr char const MIME_TEXT_PLAIN[]    = "text/plain";
-inline constexpr char const MIME_TEXT_UTF8[]     = "text/plain;charset=UTF-8";
-inline constexpr char const MIME_TEXT_CSS[]      = "text/css";
-inline constexpr char const MIME_TEXT_CSV[]      = "text/csv";
-inline constexpr char const MIME_TEXT_HTML[]     = "text/html";
-inline constexpr char const MIME_TEXT_JS[]       = "text/javascript";
-inline constexpr char const MIME_TEXT_MARKDOWN[] = "text/markdown";
+inline constexpr Str MIME_TEXT_PLAIN    = "text/plain"_str;
+inline constexpr Str MIME_TEXT_UTF8     = "text/plain;charset=UTF-8"_str;
+inline constexpr Str MIME_TEXT_CSS      = "text/css"_str;
+inline constexpr Str MIME_TEXT_CSV      = "text/csv"_str;
+inline constexpr Str MIME_TEXT_HTML     = "text/html"_str;
+inline constexpr Str MIME_TEXT_JS       = "text/javascript"_str;
+inline constexpr Str MIME_TEXT_MARKDOWN = "text/markdown"_str;
 
-inline constexpr char const MIME_IMAGE_AVIF[] = "image/avif";
-inline constexpr char const MIME_IMAGE_BMP[]  = "image/bmp";
-inline constexpr char const MIME_IMAGE_HEIF[] = "image/heif";
-inline constexpr char const MIME_IMAGE_JPEG[] = "image/jpeg";
-inline constexpr char const MIME_IMAGE_PNG[]  = "image/png";
-inline constexpr char const MIME_IMAGE_SVG[]  = "image/svg+xml";
-inline constexpr char const MIME_IMAGE_WEBP[] = "image/webp";
+inline constexpr Str MIME_IMAGE_AVIF = "image/avif"_str;
+inline constexpr Str MIME_IMAGE_BMP  = "image/bmp"_str;
+inline constexpr Str MIME_IMAGE_HEIF = "image/heif"_str;
+inline constexpr Str MIME_IMAGE_JPEG = "image/jpeg"_str;
+inline constexpr Str MIME_IMAGE_PNG  = "image/png"_str;
+inline constexpr Str MIME_IMAGE_SVG  = "image/svg+xml"_str;
+inline constexpr Str MIME_IMAGE_WEBP = "image/webp"_str;
 
-inline constexpr char const MIME_VIDEO_AV1[]      = "video/AV1";
-inline constexpr char const MIME_VIDEO_H264[]     = "video/H264";
-inline constexpr char const MIME_VIDEO_H265[]     = "video/H265";
-inline constexpr char const MIME_VIDEO_H266[]     = "video/H266";
-inline constexpr char const MIME_VIDEO_MATROSKA[] = "video/matroska";
-inline constexpr char const MIME_VIDEO_MP4[]      = "video/mp4";
-inline constexpr char const MIME_VIDEO_RAW[]      = "video/raw";
-inline constexpr char const MIME_VIDEO_VP8[]      = "video/VP8";
-inline constexpr char const MIME_VIDEO_VP9[]      = "video/VP9";
+inline constexpr Str MIME_VIDEO_AV1      = "video/AV1"_str;
+inline constexpr Str MIME_VIDEO_H264     = "video/H264"_str;
+inline constexpr Str MIME_VIDEO_H265     = "video/H265"_str;
+inline constexpr Str MIME_VIDEO_H266     = "video/H266"_str;
+inline constexpr Str MIME_VIDEO_MATROSKA = "video/matroska"_str;
+inline constexpr Str MIME_VIDEO_MP4      = "video/mp4"_str;
+inline constexpr Str MIME_VIDEO_RAW      = "video/raw"_str;
+inline constexpr Str MIME_VIDEO_VP8      = "video/VP8"_str;
+inline constexpr Str MIME_VIDEO_VP9      = "video/VP9"_str;
 
-inline constexpr char const MIME_MODEL_GLTF_BINARY[] = "model/gltf+binary";
-inline constexpr char const MIME_MODEL_GLTF_JSON[]   = "model/gltf+json";
-inline constexpr char const MIME_MODEL_MESH[]        = "model/mesh";
-inline constexpr char const MIME_MODEL_MTL[]         = "model/mtl";
-inline constexpr char const MIME_MODEL_OBJ[]         = "model/obj";
-inline constexpr char const MIME_MODEL_STL[]         = "model/stl";
+inline constexpr Str MIME_MODEL_GLTF_BINARY = "model/gltf+binary"_str;
+inline constexpr Str MIME_MODEL_GLTF_JSON   = "model/gltf+json"_str;
+inline constexpr Str MIME_MODEL_MESH        = "model/mesh"_str;
+inline constexpr Str MIME_MODEL_MTL         = "model/mtl"_str;
+inline constexpr Str MIME_MODEL_OBJ         = "model/obj"_str;
+inline constexpr Str MIME_MODEL_STL         = "model/stl"_str;
 
-inline constexpr char const MIME_FONT_OTF[]   = "font/otf";
-inline constexpr char const MIME_FONT_SFNT[]  = "font/sfnt";
-inline constexpr char const MIME_FONT_TTF[]   = "font/ttf";
-inline constexpr char const MIME_FONT_WOFF[]  = "font/woff";
-inline constexpr char const MIME_FONT_WOFF2[] = "font/woff2";
+inline constexpr Str MIME_FONT_OTF   = "font/otf"_str;
+inline constexpr Str MIME_FONT_SFNT  = "font/sfnt"_str;
+inline constexpr Str MIME_FONT_TTF   = "font/ttf"_str;
+inline constexpr Str MIME_FONT_WOFF  = "font/woff"_str;
+inline constexpr Str MIME_FONT_WOFF2 = "font/woff2"_str;
 
 struct ClipBoard
 {
@@ -911,194 +929,204 @@ struct ClipBoard
     (void) data;
     return Err{};
   }
-
-  Result<> get_text(Vec<u8> & out)
-  {
-    return get(MIME_TEXT_UTF8, out);
-  }
-
-  Result<> set_text(Span<u8 const> text)
-  {
-    return set(MIME_TEXT_UTF8, text);
-  }
 };
 
-enum class DropType : u32
+enum class DropType : u8
 {
   None     = 0,
   FilePath = 1,
   Bytes    = 2
 };
 
-struct InputState
+struct KeyState
 {
-  struct Mouse
-  {
-    /// @brief did the mouse enter the window on this frame?
-    bool in = false;
-
-    /// @brief did the mouse leave the window on this frame?
-    bool out = false;
-
-    /// @brief did the mouse move on this frame?
-    bool moved = false;
-
-    /// @brief did the mouse wheel get scrolled on this frame?
-    bool wheel_scrolled = false;
-
-    /// @brief is any of the keys pressed on this frame
-    bool any_down = false;
-
-    /// @brief is any of the keys released on this frame
-    bool any_up = false;
-
-    /// @brief which mouse buttons were pressed on this frame
-    MouseButtons downs{};
-
-    /// @brief which mouse buttons were released on this frame
-    MouseButtons ups{};
-
-    /// @brief the current state of each mouse button
-    MouseButtons states{};
-
-    /// @brief number of times the mouse was clicked so far
-    u32 num_clicks[NUM_MOUSE_BUTTONS]{};
-
-    /// @brief the position of the mouse on this frame
-    Vec2 position = {};
-
-    /// @brief translation of the mouse on this frame
-    Vec2 translation = {};
-
-    /// @brief translation of the mouse wheel on this frame
-    Vec2 wheel_translation = {};
-
-    void clear()
-    {
-      in             = false;
-      out            = false;
-      moved          = false;
-      wheel_scrolled = false;
-      any_down       = false;
-      any_up         = false;
-      downs          = MouseButtons::None;
-      ups            = MouseButtons::None;
-      states         = MouseButtons::None;
-      fill(num_clicks, 0ULL);
-      position          = {};
-      translation       = {};
-      wheel_translation = {};
-    }
-  };
-
-  struct Keyboard
-  {
-    /// @brief did the window gain keyboard focus on this frame?
-    bool in = false;
-
-    /// @brief did the window lose keyboard focus on this frame?
-    bool out = false;
-
-    /// @brief is any of the keys pressed on this frame
-    bool any_down = false;
-
-    /// @brief is any of the keys released on this frame
-    bool any_up = false;
-
-    /// @brief bit mask of all the keys that were pressed on this frame
-    Bits<u64, NUM_KEY_CODES> key_downs{};
-
-    /// @brief bit mask of all the keys that were released on this frame
-    Bits<u64, NUM_KEY_CODES> key_ups{};
-
-    /// @brief bit mask of all the key states
-    Bits<u64, NUM_KEY_CODES> key_states{};
-
-    /// @brief bit mask of all the keys that were pressed on this frame, indexed using the scancode
-    Bits<u64, NUM_SCAN_CODES> scan_downs{};
-
-    /// @brief bit mask of all the keys that were released on this frame, indexed using the scancode
-    Bits<u64, NUM_SCAN_CODES> scan_ups{};
-
-    /// @brief bit mask of all the key states, indexed using the scancode
-    Bits<u64, NUM_SCAN_CODES> scan_states{};
-
-    /// @brief hold state of the key modifiers on this frame
-    KeyModifiers modifier_downs = KeyModifiers::None;
-
-    KeyModifiers modifier_ups = KeyModifiers::None;
-
-    KeyModifiers modifier_states = KeyModifiers::None;
-
-    void clear()
-    {
-      in       = false;
-      out      = false;
-      any_down = false;
-      any_up   = false;
-      any_up   = false;
-      fill(key_downs, 0ULL);
-      fill(key_ups, 0ULL);
-      fill(key_states, 0ULL);
-      fill(scan_downs, 0ULL);
-      fill(scan_ups, 0ULL);
-      fill(scan_states, 0ULL);
-      modifier_downs  = KeyModifiers::None;
-      modifier_ups    = KeyModifiers::None;
-      modifier_states = KeyModifiers::None;
-    }
-  };
-
-  /// @brief timestamp of current frame
-  time_point timestamp = {};
-
-  /// @brief time elapsed between previous and current frame
-  nanoseconds timedelta = {};
-
-  /// @brief the current theme gotten from the window manager
-  SystemTheme theme = SystemTheme::Unknown;
-
-  /// @brief the preferred text direction of the host system
-  TextDirection direction = TextDirection::LeftToRight;
-
-  /// @brief current window mouse focus state
-  bool mouse_focused = false;
-
   /// @brief current window keyboard focus state
-  bool key_focused = false;
+  bool focused : 1 = false;
 
-  /// @brief windows' current frame mouse state
-  Mouse mouse{};
+  /// @brief did the window gain keyboard focus on this frame?
+  bool in : 1 = false;
 
-  /// @brief windows' current frame keyboard state
-  Keyboard key{};
+  /// @brief did the window lose keyboard focus on this frame?
+  bool out : 1 = false;
 
-  /// @brief extent of the viewport the windows' views are in
-  Vec2U window_extent = {};
+  /// @brief is any of the keys pressed on this frame
+  bool any_down : 1 = false;
 
-  /// @brief then windows' backing surface extent
-  Vec2U surface_extent = {};
-
-  /// @brief current drop data type
-  DropType drop_type = DropType::None;
-
-  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
-  Vec<u8> drop_data{};
+  /// @brief is any of the keys released on this frame
+  bool any_up : 1 = false;
 
   /// @brief if a text input came in
-  bool text_input = false;
-
-  /// @brief the theme changed
-  bool theme_changed = false;
+  bool input : 1 = false;
 
   /// @brief current text input data from the IME or keyboard
   Vec<c8> text{};
 
-  /// @brief is the application requested to close
-  bool close_requested = false;
+  /// @brief bit mask of all the keys that were pressed on this frame
+  Bits<u64, NUM_KEY_CODES> key_downs{};
 
-  /// @brief is the application closing
-  bool closing = false;
+  /// @brief bit mask of all the keys that were released on this frame
+  Bits<u64, NUM_KEY_CODES> key_ups{};
+
+  /// @brief bit mask of all the key states
+  Bits<u64, NUM_KEY_CODES> key_states{};
+
+  /// @brief bit mask of all the keys that were pressed on this frame, indexed using the scancode
+  Bits<u64, NUM_SCAN_CODES> scan_downs{};
+
+  /// @brief bit mask of all the keys that were released on this frame, indexed using the scancode
+  Bits<u64, NUM_SCAN_CODES> scan_ups{};
+
+  /// @brief bit mask of all the key states, indexed using the scancode
+  Bits<u64, NUM_SCAN_CODES> scan_states{};
+
+  /// @brief hold state of the key modifiers on this frame
+  KeyModifiers mod_downs = KeyModifiers::None;
+
+  KeyModifiers mod_ups = KeyModifiers::None;
+
+  KeyModifiers mod_states = KeyModifiers::None;
+
+  explicit KeyState(AllocatorRef allocator) : text{allocator}
+  {
+  }
+
+  KeyState(KeyState const &)             = delete;
+  KeyState & operator=(KeyState const &) = delete;
+  KeyState(KeyState &&)                  = default;
+  KeyState & operator=(KeyState &&)      = default;
+  ~KeyState()                            = default;
+
+  constexpr bool down(KeyCode k) const
+  {
+    return key_downs[(usize) k];
+  }
+
+  constexpr bool up(KeyCode k) const
+  {
+    return key_ups[(usize) k];
+  }
+
+  constexpr bool held(KeyCode k) const
+  {
+    return key_states[(usize) k];
+  }
+
+  constexpr bool down(ScanCode k) const
+  {
+    return scan_downs[(usize) k];
+  }
+
+  constexpr bool up(ScanCode k) const
+  {
+    return scan_ups[(usize) k];
+  }
+
+  constexpr bool held(ScanCode k) const
+  {
+    return scan_states[(usize) k];
+  }
+
+  constexpr bool down(KeyModifiers mods) const
+  {
+    return has_bits(mod_downs, mods);
+  }
+
+  constexpr bool up(KeyModifiers mods) const
+  {
+    return has_bits(mod_ups, mods);
+  }
+
+  constexpr bool held(KeyModifiers mods) const
+  {
+    return has_bits(mod_states, mods);
+  }
+
+  void clear();
+
+  KeyState & copy(KeyState const & other);
+};
+
+struct MouseState
+{
+  /// @brief current window mouse focus state
+  bool focused : 1 = false;
+
+  /// @brief did the mouse enter the window on this frame?
+  bool in : 1 = false;
+
+  /// @brief did the mouse leave the window on this frame?
+  bool out : 1 = false;
+
+  /// @brief did the mouse move on this frame?
+  bool moved : 1 = false;
+
+  /// @brief did the mouse wheel get scrolled on this frame?
+  bool scrolled : 1 = false;
+
+  /// @brief is any of the keys pressed on this frame
+  bool any_down : 1 = false;
+
+  /// @brief is any of the keys released on this frame
+  bool any_up : 1 = false;
+
+  /// @brief which mouse buttons were pressed on this frame
+  MouseButtons downs{};
+
+  /// @brief which mouse buttons were released on this frame
+  MouseButtons ups{};
+
+  /// @brief the current state of each mouse button
+  MouseButtons states{};
+
+  /// @brief number of times the mouse was clicked so far
+  Array<u32, NUM_MOUSE_BUTTONS> num_clicks{};
+
+  /// @brief the position of the mouse on this frame
+  Option<Vec2> position = none;
+
+  /// @brief translation of the mouse on this frame
+  Option<Vec2> translation = none;
+
+  /// @brief translation of the mouse wheel on this frame
+  Option<Vec2> wheel_translation = none;
+
+  constexpr bool down(MouseButton btn) const
+  {
+    return has_bits(downs, static_cast<MouseButtons>(1 << (usize) btn));
+  }
+
+  constexpr bool up(MouseButton btn) const
+  {
+    return has_bits(ups, static_cast<MouseButtons>(1 << (usize) btn));
+  }
+
+  constexpr bool held(MouseButton btn) const
+  {
+    return has_bits(states, static_cast<MouseButtons>(1 << (usize) btn));
+  }
+
+  constexpr u32 clicks(MouseButton btn) const
+  {
+    return num_clicks[(usize) btn];
+  }
+};
+
+struct ThemeState
+{
+  /// @brief the theme changed
+  bool changed = false;
+
+  /// @brief the current theme gotten from the window manager
+  SystemTheme theme = SystemTheme::Unknown;
+};
+
+struct WindowState
+{
+  /// @brief extent of the viewport the windows' views are in
+  Vec2U extent = {};
+
+  /// @brief then windows' backing surface extent
+  Vec2U surface_extent = {};
 
   /// @brief did a window resize happen
   bool resized = true;
@@ -1106,15 +1134,69 @@ struct InputState
   /// @brief did a window surface resize happen
   bool surface_resized = true;
 
-  bool dropped = false;
+  /// @brief is the application requested to close
+  bool close_requested = false;
+};
 
-  bool drop_hovering = false;
+struct DropState
+{
+  enum class Event : u8
+  {
+    None     = 0,
+    Begin    = 1,
+    FilePath = 2,
+    Bytes    = 3,
+    End      = 4
+  };
 
-  Cursor cursor = Cursor::Default;
+  Event event = Event::None;
+
+  /// @brief drag data associated with the current drag operation (if any, otherwise empty)
+  Vec<u8> data;
+
+  explicit DropState(AllocatorRef allocator) : data{allocator}
+  {
+  }
+
+  DropState(DropState const &)             = delete;
+  DropState & operator=(DropState const &) = delete;
+  DropState(DropState &&)                  = default;
+  DropState & operator=(DropState &&)      = default;
+  ~DropState()                             = default;
+
+  void clear();
+
+  DropState & copy(DropState const & other);
+};
+
+struct InputState
+{
+  /// @brief timestamp of current frame
+  time_point timestamp;
+
+  /// @brief time elapsed between previous and current frame
+  nanoseconds timedelta;
+
+  WindowState window;
+
+  /// @brief windows' current frame mouse state
+  MouseState mouse;
+
+  ThemeState theme;
+
+  /// @brief windows' current frame keyboard state
+  KeyState key;
+
+  DropState drop;
 
   explicit InputState(AllocatorRef allocator) :
-    drop_data{allocator},
-    text{allocator}
+    timestamp{},
+    timedelta{},
+    window{},
+    mouse{},
+    theme{},
+    key{allocator},
+    drop{allocator}
   {
   }
 
@@ -1124,124 +1206,11 @@ struct InputState
   InputState & operator=(InputState &&)      = default;
   ~InputState()                              = default;
 
-  void stamp(time_point time, nanoseconds delta)
-  {
-    timestamp = time;
-    timedelta = delta;
-  }
+  void stamp(time_point time, nanoseconds delta);
 
-  void clear()
-  {
-    mouse.clear();
-    key.clear();
-    text_input    = false;
-    theme_changed = false;
-    text.clear();
-    resized         = false;
-    surface_resized = false;
+  void clear();
 
-    // if the there was a data drop on the last frame clear the buffer
-    if (dropped)
-    {
-      drop_data.clear();
-      drop_type = DropType::None;
-    }
-
-    dropped       = false;
-    drop_hovering = false;
-  }
-
-  void clone_to(InputState & dst) const
-  {
-    dst.clear();
-    dst.timestamp      = timestamp;
-    dst.timedelta      = timedelta;
-    dst.theme          = theme;
-    dst.direction      = direction;
-    dst.mouse_focused  = mouse_focused;
-    dst.key_focused    = key_focused;
-    dst.mouse          = mouse;
-    dst.key            = key;
-    dst.window_extent  = window_extent;
-    dst.surface_extent = surface_extent;
-    dst.drop_type      = drop_type;
-    dst.drop_data.extend(drop_data).unwrap();
-    dst.text_input    = text_input;
-    dst.theme_changed = theme_changed;
-    dst.text.extend(text).unwrap();
-    dst.close_requested = close_requested;
-    dst.closing         = closing;
-    dst.resized         = resized;
-    dst.surface_resized = resized;
-    dst.dropped         = dropped;
-    dst.drop_hovering   = drop_hovering;
-    dst.cursor          = cursor;
-  }
-
-  constexpr bool key_down(KeyCode k) const
-  {
-    return get_bit(key.key_downs, (usize) k);
-  }
-
-  constexpr bool key_up(KeyCode k) const
-  {
-    return get_bit(key.key_ups, (usize) k);
-  }
-
-  constexpr bool key_state(KeyCode k) const
-  {
-    return get_bit(key.key_states, (usize) k);
-  }
-
-  constexpr bool key_down(ScanCode k) const
-  {
-    return get_bit(key.scan_downs, (usize) k);
-  }
-
-  constexpr bool key_up(ScanCode k) const
-  {
-    return get_bit(key.scan_ups, (usize) k);
-  }
-
-  constexpr bool key_state(ScanCode k) const
-  {
-    return get_bit(key.scan_states, (usize) k);
-  }
-
-  constexpr bool modifier_down(KeyModifiers mods) const
-  {
-    return has_bits(key.modifier_downs, mods);
-  }
-
-  constexpr bool modifier_up(KeyModifiers mods) const
-  {
-    return has_bits(key.modifier_ups, mods);
-  }
-
-  constexpr bool modifier_state(KeyModifiers mods) const
-  {
-    return has_bits(key.modifier_states, mods);
-  }
-
-  constexpr bool mouse_down(MouseButton btn) const
-  {
-    return has_bits(mouse.downs, MouseButtons{1U << (usize) btn});
-  }
-
-  constexpr bool mouse_up(MouseButton btn) const
-  {
-    return has_bits(mouse.ups, MouseButtons{1U << (usize) btn});
-  }
-
-  constexpr bool mouse_state(MouseButton btn) const
-  {
-    return has_bits(mouse.states, MouseButtons{1U << (usize) btn});
-  }
-
-  constexpr u32 mouse_clicks(MouseButton btn) const
-  {
-    return mouse.num_clicks[(usize) btn];
-  }
+  InputState & copy(InputState const & other);
 };
 
 }    // namespace ash

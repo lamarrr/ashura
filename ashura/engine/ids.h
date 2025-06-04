@@ -8,27 +8,27 @@ namespace ash
 
 enum class ImageId : usize
 {
-  Invalid = USIZE_MAX
+  None = USIZE_MAX
 };
 
 enum class AudioId : usize
 {
-  Invalid = USIZE_MAX
+  None = USIZE_MAX
 };
 
 enum class VideoId : usize
 {
-  Invalid = USIZE_MAX
+  None = USIZE_MAX
 };
 
 enum class ShaderId : usize
 {
-  Invalid = USIZE_MAX
+  None = USIZE_MAX
 };
 
 enum class FontId : usize
 {
-  Invalid = USIZE_MAX
+  None = USIZE_MAX
 };
 
 }    // namespace ash

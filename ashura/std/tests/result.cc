@@ -141,28 +141,7 @@ TEST(ResultTest, MapOr)
             (std::vector<int>{6, 7, 8, 9, 10}));
 }
 
-TEST(ResultTest, MapOrElse)
-{
-  auto a      = [](int &value) { return value + 20; };
-  auto else_a = [](auto) { return -10; };
 
-  EXPECT_EQ((make_ok<int, int>(20).map_or_else(a, else_a)), 40);
-  EXPECT_EQ((make_err<int, int>(-20).map_or_else(a, else_a)), -10);
-
-  auto b = [](std::vector<int> &value) {
-    value.push_back(6);
-    return std::move(value);
-  };
-  auto else_b = [](auto) -> std::vector<int> {
-    return {6, 7, 8, 9, 10};
-  };        // NOLINT
-
-  EXPECT_EQ(
-      (make_ok<std::vector<int>, int>({1, 2, 3, 4, 5}).map_or_else(b, else_b)),
-      (std::vector<int>{1, 2, 3, 4, 5, 6}));
-  EXPECT_EQ((make_err<std::vector<int>, int>(-20).map_or_else(b, else_b)),
-            (std::vector<int>{6, 7, 8, 9, 10}));
-}
 
 TEST(ResultTest, AndThen)
 {
@@ -184,31 +163,7 @@ TEST(ResultTest, AndThen)
   EXPECT_TRUE((make_err<int, int>(-20).and_then(b).is_err()));
   EXPECT_EQ((make_err<int, int>(-20).and_then(b).unwrap_err()), -20);
 }
-
-TEST(ResultTest, OrElse)
-{
-  auto a = [](int &err) -> Result<int, int> { return Ok(err * 100); };
-  EXPECT_EQ((make_ok<int, int>(20).or_else(a).unwrap()), 20);
-  EXPECT_EQ((make_err<int, int>(10).or_else(a).unwrap()), 1000);
-
-  auto b = [](std::string &err) -> Result<int, std::string> {
-    return Err("Err: " + err);
-  };
-  EXPECT_EQ((make_ok<int, std::string>(20).or_else(b).unwrap()), 20);
-  EXPECT_EQ((make_err<int, std::string>(std::string{"Max Limit"})
-                 .or_else(b)
-                 .unwrap_err()),
-            std::string{"Err: Max Limit"});
-
-  auto c = [](std::vector<int> &err) -> Result<int, std::vector<int>> {
-    return Ok(err.empty() ? -1 : err[0]);
-  };
-  EXPECT_EQ((make_ok<int, std::vector<int>>(40).or_else(c).unwrap()), 40);
-  EXPECT_EQ((make_err<int, std::vector<int>>(std::vector{10, 20, 30})
-                 .or_else(c)
-                 .unwrap()),
-            10);
-}
+ 
 
 TEST(ResultTest, UnwrapOr)
 {
@@ -234,30 +189,6 @@ TEST(ResultTest, Unwrap)
       (make_ok<std::vector<int>, int>(std::vector{1, 2, 3, 4, 5}).unwrap()),
       (std::vector{1, 2, 3, 4, 5}));
   EXPECT_TRUE((make_err<std::vector<int>, int>(-1)).is_err());
-}
-
-TEST(ResultTest, UnwrapOrElse)
-{
-  auto a = [](int &err) { return err + 20; };
-  EXPECT_EQ((make_ok<int, int>(10).unwrap_or_else(a)), 10);
-  EXPECT_EQ((make_err<int, int>(20).unwrap_or_else(a)), 40);
-
-  auto b = [](std::string &err) -> int { return stoi(err) + 20; };
-  EXPECT_EQ((make_ok<int, std::string>(10).unwrap_or_else(b)), 10);
-  EXPECT_EQ((make_err<int, std::string>("40").unwrap_or_else(b)), 60);
-
-  auto c = [](std::vector<int> &vec) {
-    vec.push_back(10);
-    return std::move(vec);
-  };
-  EXPECT_EQ(
-      (make_ok<std::vector<int>, std::vector<int>>(std::vector{1, 2, 3, 4, 5})
-           .unwrap_or_else(c)),
-      (std::vector{1, 2, 3, 4, 5}));
-  EXPECT_EQ(
-      (make_err<std::vector<int>, std::vector<int>>(std::vector{6, 7, 8, 9})
-           .unwrap_or_else(c)),
-      (std::vector{6, 7, 8, 9, 10}));
 }
 
 TEST(ResultTest, UnwrapErr)

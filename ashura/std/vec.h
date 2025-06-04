@@ -117,7 +117,7 @@ struct [[nodiscard]] Vec
 
   constexpr bool is_empty() const
   {
-    return size_ == 0;
+    return size() == 0;
   }
 
   constexpr T * data() const
@@ -137,17 +137,22 @@ struct [[nodiscard]] Vec
 
   constexpr usize size_bytes() const
   {
-    return sizeof(T) * size_;
+    return sizeof(T) * size();
+  }
+
+  constexpr u16 size16() const
+  {
+    return (u16) size();
   }
 
   constexpr u32 size32() const
   {
-    return (u32) size_;
+    return (u32) size();
   }
 
   constexpr u64 size64() const
   {
-    return (u64) size_;
+    return (u64) size();
   }
 
   constexpr usize capacity() const
@@ -157,7 +162,7 @@ struct [[nodiscard]] Vec
 
   constexpr auto begin() const
   {
-    return Iter{.iter_ = data(), .end_ = data() + size_};
+    return Iter{.iter_ = data(), .end_ = data() + size()};
   }
 
   constexpr auto end() const
@@ -172,7 +177,7 @@ struct [[nodiscard]] Vec
 
   constexpr T & last() const
   {
-    return get(size_ - 1);
+    return get(size() - 1);
   }
 
   constexpr T & operator[](usize index) const
@@ -185,9 +190,9 @@ struct [[nodiscard]] Vec
     return data()[index];
   }
 
-  constexpr OptionRef<T> try_get(usize index) const
+  constexpr Option<T &> try_get(usize index) const
   {
-    if (index >= size_) [[unlikely]]
+    if (index >= size()) [[unlikely]]
     {
       return none;
     }
@@ -292,6 +297,11 @@ struct [[nodiscard]] Vec
     return Ok{};
   }
 
+  static constexpr usize growth(usize capacity)
+  {
+    return capacity << 1;
+  }
+
   constexpr Result<> grow(usize target_capacity)
   {
     if (capacity_ >= target_capacity)
@@ -299,12 +309,12 @@ struct [[nodiscard]] Vec
       return Ok{};
     }
 
-    return reserve(max(target_capacity, capacity_ << 1));
+    return reserve(max(target_capacity, growth(capacity_)));
   }
 
   constexpr Result<> grow_extend(usize extension)
   {
-    return reserve(size_ + extension);
+    return grow(size() + extension);
   }
 
   constexpr void erase(usize first, usize num)
@@ -354,7 +364,7 @@ struct [[nodiscard]] Vec
 
   constexpr Result<> try_pop(usize num = 1)
   {
-    if (size_ < num) [[unlikely]]
+    if (size() < num) [[unlikely]]
     {
       return Err{};
     }
@@ -568,7 +578,7 @@ constexpr Result<Vec<T>> vec(AllocatorRef allocator, Span<T const> data)
     return out;
   }
 
-  out.value().extend(data).unwrap();
+  out.v().extend(data).unwrap();
 
   return out;
 }
@@ -583,7 +593,7 @@ constexpr Result<Vec<T>> vec_move(AllocatorRef allocator, Span<T> data)
     return out;
   }
 
-  out.value().extend_move(data).unwrap();
+  out.v().extend_move(data).unwrap();
 
   return out;
 }
@@ -698,7 +708,7 @@ struct [[nodiscard]] PinVec
       return out;
     }
 
-    obj::copy_construct(view(), out.value().view());
+    obj::copy_construct(view(), out.v().view());
 
     return out;
   }
@@ -710,7 +720,7 @@ struct [[nodiscard]] PinVec
 
   constexpr bool is_empty() const
   {
-    return size_ == 0;
+    return size() == 0;
   }
 
   constexpr T * data() const
@@ -730,17 +740,17 @@ struct [[nodiscard]] PinVec
 
   constexpr usize size_bytes() const
   {
-    return sizeof(T) * size_;
+    return sizeof(T) * size();
   }
 
   constexpr u32 size32() const
   {
-    return (u32) size_;
+    return (u32) size();
   }
 
   constexpr u64 size64() const
   {
-    return (u64) size_;
+    return (u64) size();
   }
 
   constexpr usize capacity() const
@@ -750,7 +760,7 @@ struct [[nodiscard]] PinVec
 
   constexpr auto begin() const
   {
-    return Iter{.iter_ = data(), .end_ = data() + size_};
+    return Iter{.iter_ = data(), .end_ = data() + size()};
   }
 
   constexpr auto end() const
@@ -765,7 +775,7 @@ struct [[nodiscard]] PinVec
 
   constexpr T & last() const
   {
-    return get(size_ - 1);
+    return get(size() - 1);
   }
 
   constexpr T & operator[](usize index) const
@@ -961,7 +971,7 @@ struct [[nodiscard]] BitVec
 
   constexpr auto begin() const
   {
-    return Iter{.repr_ = repr_, .pos_ = 0, .size_ = size_};
+    return Iter{.storage_ = repr_.data(), .iter_ = 0, .end_ = size()};
   }
 
   constexpr auto end() const
@@ -969,14 +979,9 @@ struct [[nodiscard]] BitVec
     return IterEnd{};
   }
 
-  constexpr bool has_trailing() const
-  {
-    return size_ != (repr_.size_ * sizeof(R) * 8);
-  }
-
   constexpr usize capacity() const
   {
-    return repr_.capacity_ * sizeof(R) * 8;
+    return repr_.capacity() * bitsizeof<R>;
   }
 
   constexpr void clear()
@@ -1008,17 +1013,17 @@ struct [[nodiscard]] BitVec
 
   constexpr bool last() const
   {
-    return get(size_ - 1);
+    return get(size() - 1);
   }
 
   constexpr bool get(usize index) const
   {
-    return ash::get_bit(repr_.view(), index);
+    return view().get(index);
   }
 
   constexpr void set(usize index, bool value) const
   {
-    ash::assign_bit(repr_.view(), index, value);
+    view().set(index, value);
   }
 
   constexpr bool get_bit(usize index) const
@@ -1028,27 +1033,27 @@ struct [[nodiscard]] BitVec
 
   constexpr void set_bit(usize index) const
   {
-    ash::set_bit(repr_.view(), index);
+    view().set_bit(index);
   }
 
   constexpr void clear_bit(usize index) const
   {
-    ash::clear_bit(repr_.view(), index);
+    view().clear_bit(index);
   }
 
   constexpr void flip_bit(usize index) const
   {
-    ash::flip_bit(repr_.view(), index);
+    view().flip_bit(index);
   }
 
   constexpr Result<> reserve(usize target_capacity)
   {
-    return repr_.reserve(bit_packs<R>(target_capacity));
+    return repr_.reserve(atom_size_for<R>(target_capacity));
   }
 
   constexpr Result<> reserve_extend(usize extension)
   {
-    return reserve(size_ + extension);
+    return reserve(size() + extension);
   }
 
   constexpr Result<> fit()
@@ -1058,12 +1063,12 @@ struct [[nodiscard]] BitVec
 
   constexpr Result<> grow(usize target_capacity)
   {
-    return repr_.grow(bit_packs<R>(target_capacity));
+    return repr_.grow(atom_size_for<R>(target_capacity));
   }
 
   constexpr Result<> grow_extend(usize extension)
   {
-    return reserve(size_ + extension);
+    return grow(size() + extension);
   }
 
   constexpr Result<> push(bool bit)
@@ -1083,13 +1088,13 @@ struct [[nodiscard]] BitVec
   {
     num = min(size_, num);
     size_ -= num;
-    usize const diff = repr_.size() - bit_packs<R>(size_);
+    auto const diff = repr_.size() - atom_size_for<R>(size_);
     repr_.pop(diff);
   }
 
   constexpr Result<> try_pop(usize num = 1)
   {
-    if (size_ < num) [[unlikely]]
+    if (size() < num) [[unlikely]]
     {
       return Err{};
     }
@@ -1131,8 +1136,8 @@ struct [[nodiscard]] BitVec
 
   constexpr Result<> extend_uninit(usize extension)
   {
-    if (!repr_.extend_uninit(bit_packs<R>(size_ + extension) -
-                             bit_packs<R>(size_))) [[unlikely]]
+    if (!repr_.extend_uninit(atom_size_for<R>(size_ + extension) -
+                             atom_size_for<R>(size_))) [[unlikely]]
     {
       return Err{};
     }
@@ -1191,7 +1196,7 @@ struct [[nodiscard]] BitVec
 
   constexpr auto view() const
   {
-    return View{repr_, size_};
+    return View{repr_, size()};
   }
 };
 
@@ -1212,9 +1217,9 @@ struct [[nodiscard]] InplaceVec
 
   constexpr InplaceVec() = default;
 
-  constexpr InplaceVec(InplaceVec const & other) : size_{other.size_}
+  constexpr InplaceVec(InplaceVec const & other) : size_{other.size()}
   {
-    obj::copy_construct(Span{other.data(), other.size_}, data());
+    obj::copy_construct(Span{other.data(), other.size()}, data());
   }
 
   constexpr InplaceVec & operator=(InplaceVec const & other)
@@ -1228,7 +1233,7 @@ struct [[nodiscard]] InplaceVec
     return *this;
   }
 
-  constexpr InplaceVec(InplaceVec && other) : size_{other.size_}
+  constexpr InplaceVec(InplaceVec && other) : size_{other.size()}
   {
     obj::relocate_nonoverlapping(Span{other.data(), other.size_}, data());
     other.size_ = 0;
@@ -1252,7 +1257,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr bool is_empty() const
   {
-    return size_ == 0;
+    return size() == 0;
   }
 
   constexpr T * data() const
@@ -1272,17 +1277,22 @@ struct [[nodiscard]] InplaceVec
 
   constexpr usize size_bytes() const
   {
-    return sizeof(T) * size_;
+    return sizeof(T) * size();
+  }
+
+  constexpr u16 size16() const
+  {
+    return (u16) size();
   }
 
   constexpr u32 size32() const
   {
-    return (u32) size_;
+    return (u32) size();
   }
 
   constexpr u64 size64() const
   {
-    return (u64) size_;
+    return (u64) size();
   }
 
   static constexpr usize capacity()
@@ -1292,7 +1302,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr auto begin() const
   {
-    return Iter{.iter_ = data(), .end_ = data() + size_};
+    return Iter{.iter_ = data(), .end_ = data() + size()};
   }
 
   constexpr auto end() const
@@ -1307,7 +1317,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr T & last() const
   {
-    return get(size_ - 1);
+    return get(size() - 1);
   }
 
   constexpr T & operator[](usize index) const
@@ -1320,9 +1330,9 @@ struct [[nodiscard]] InplaceVec
     return data()[index];
   }
 
-  constexpr OptionRef<T> try_get(usize index) const
+  constexpr Option<T &> try_get(usize index) const
   {
-    if (index >= size_) [[unlikely]]
+    if (index >= size()) [[unlikely]]
     {
       return none;
     }
@@ -1402,7 +1412,7 @@ struct [[nodiscard]] InplaceVec
 
   constexpr Result<> try_pop(usize num = 1)
   {
-    if (size_ < num) [[unlikely]]
+    if (size() < num) [[unlikely]]
     {
       return Err{};
     }
@@ -1943,7 +1953,7 @@ struct SparseVec
 
   constexpr Result<> grow_extend(usize extension)
   {
-    return reserve(size() + extension);
+    return grow(size() + extension);
   }
 
   /// make new id and map the unique id to the end index

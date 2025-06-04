@@ -1252,9 +1252,8 @@ struct WindowSystemImpl : WindowSystem
     }
   }
 
-  virtual void get_keyboard_state(BitSpan<u64>   scan_state,
-                                  BitSpan<u64>   key_state,
-                                  KeyModifiers & modifiers) override
+  virtual Tuple<KeyModifiers, Window>
+    get_keyboard_state(BitSpan<u64> scan_state, BitSpan<u64> key_state) override
   {
     CHECK(scan_state.size() >= NUM_SCAN_CODES, "");
     CHECK(key_state.size() >= NUM_KEY_CODES, "");
@@ -1279,15 +1278,21 @@ struct WindowSystemImpl : WindowSystem
       }
     }
 
-    modifiers = (KeyModifiers) sdl_mod;
+    auto             focus_window = SDL_GetMouseFocus();
+    SDL_PropertiesID props_id     = SDL_GetWindowProperties(focus_window);
+    WindowImpl *     impl =
+      (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
+
+    return {(KeyModifiers) sdl_mod, (Window) impl};
   }
 
-  virtual void get_mouse_state(MouseButtons & state, Vec2 & pos) override
+  virtual Tuple<MouseButtons, Vec2, Window> get_mouse_state() override
   {
-    pos   = {};
-    state = MouseButtons::None;
+    Vec2 pos{};
 
     SDL_MouseButtonFlags const flags = SDL_GetMouseState(&pos.x, &pos.y);
+
+    MouseButtons state = MouseButtons::None;
 
     if (flags & SDL_BUTTON_MASK(SDL_BUTTON_LEFT))
     {
@@ -1313,89 +1318,97 @@ struct WindowSystemImpl : WindowSystem
     {
       state |= MouseButtons::A2;
     }
+
+    auto             focus_window = SDL_GetMouseFocus();
+    SDL_PropertiesID props_id     = SDL_GetWindowProperties(focus_window);
+    WindowImpl *     impl =
+      (WindowImpl *) SDL_GetPointerProperty(props_id, "impl", nullptr);
+
+    return {state, pos, (Window) impl};
   }
 
-  virtual void start_text_input(Window                window,
-                                TextInputInfo const & info) override
+  virtual void set_text_input(Window                window,
+                              Option<TextInputInfo> info) override
   {
-    SDL_PropertiesID props = SDL_CreateProperties();
-    CHECK_SDL(props != 0);
+    info.match(
+      [&](auto i) {
+        SDL_PropertiesID props = SDL_CreateProperties();
+        CHECK_SDL(props != 0);
 
-    SDL_TextInputType  type = SDL_TEXTINPUT_TYPE_TEXT;
-    SDL_Capitalization cap  = SDL_CAPITALIZE_NONE;
+        SDL_TextInputType  type = SDL_TEXTINPUT_TYPE_TEXT;
+        SDL_Capitalization cap  = SDL_CAPITALIZE_NONE;
 
-    switch (info.type)
-    {
-      case TextInputType::Text:
-        type = SDL_TEXTINPUT_TYPE_TEXT;
-        break;
-      case TextInputType::Number:
-        type = SDL_TEXTINPUT_TYPE_NUMBER;
-        break;
-      case TextInputType::Name:
-        type = SDL_TEXTINPUT_TYPE_TEXT_NAME;
-        break;
-      case TextInputType::Email:
-        type = SDL_TEXTINPUT_TYPE_TEXT_EMAIL;
-        break;
-      case TextInputType::Username:
-        type = SDL_TEXTINPUT_TYPE_TEXT_USERNAME;
-        break;
-      case TextInputType::PasswordHidden:
-        type = SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_HIDDEN;
-        break;
-      case TextInputType::PasswordVisible:
-        type = SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_VISIBLE;
-        break;
-      case TextInputType::NumberPasswordHidden:
-        type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_HIDDEN;
-        break;
-      case TextInputType::NumberPasswordVisible:
-        type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_VISIBLE;
-        break;
-      default:
-        CHECK_UNREACHABLE();
-    }
+        switch (i.type)
+        {
+          case TextInputType::Text:
+            type = SDL_TEXTINPUT_TYPE_TEXT;
+            break;
+          case TextInputType::Number:
+            type = SDL_TEXTINPUT_TYPE_NUMBER;
+            break;
+          case TextInputType::Name:
+            type = SDL_TEXTINPUT_TYPE_TEXT_NAME;
+            break;
+          case TextInputType::Email:
+            type = SDL_TEXTINPUT_TYPE_TEXT_EMAIL;
+            break;
+          case TextInputType::Username:
+            type = SDL_TEXTINPUT_TYPE_TEXT_USERNAME;
+            break;
+          case TextInputType::PasswordHidden:
+            type = SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_HIDDEN;
+            break;
+          case TextInputType::PasswordVisible:
+            type = SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_VISIBLE;
+            break;
+          case TextInputType::NumberPasswordHidden:
+            type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_HIDDEN;
+            break;
+          case TextInputType::NumberPasswordVisible:
+            type = SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_VISIBLE;
+            break;
+          default:
+            CHECK_UNREACHABLE();
+        }
 
-    switch (info.cap)
-    {
-      case TextCapitalization::None:
-        cap = SDL_CAPITALIZE_NONE;
-        break;
-      case TextCapitalization::Sentences:
-        cap = SDL_CAPITALIZE_SENTENCES;
-        break;
-      case TextCapitalization::Words:
-        cap = SDL_CAPITALIZE_WORDS;
-        break;
-      case TextCapitalization::Letters:
-        cap = SDL_CAPITALIZE_LETTERS;
-        break;
-      default:
-        CHECK_UNREACHABLE();
-    }
+        switch (i.cap)
+        {
+          case TextCapitalization::None:
+            cap = SDL_CAPITALIZE_NONE;
+            break;
+          case TextCapitalization::Sentences:
+            cap = SDL_CAPITALIZE_SENTENCES;
+            break;
+          case TextCapitalization::Words:
+            cap = SDL_CAPITALIZE_WORDS;
+            break;
+          case TextCapitalization::Letters:
+            cap = SDL_CAPITALIZE_LETTERS;
+            break;
+          default:
+            CHECK_UNREACHABLE();
+        }
 
-    CHECK_SDL(
-      SDL_SetNumberProperty(props, SDL_PROP_TEXTINPUT_TYPE_NUMBER, type));
+        CHECK_SDL(
+          SDL_SetNumberProperty(props, SDL_PROP_TEXTINPUT_TYPE_NUMBER, type));
 
-    CHECK_SDL(SDL_SetNumberProperty(
-      props, SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER, cap));
+        CHECK_SDL(SDL_SetNumberProperty(
+          props, SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER, cap));
 
-    CHECK_SDL(SDL_SetBooleanProperty(
-      props, SDL_PROP_TEXTINPUT_MULTILINE_BOOLEAN, info.multiline));
+        CHECK_SDL(SDL_SetBooleanProperty(
+          props, SDL_PROP_TEXTINPUT_MULTILINE_BOOLEAN, i.multiline));
 
-    CHECK_SDL(SDL_SetBooleanProperty(
-      props, SDL_PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, info.autocorrect));
+        CHECK_SDL(SDL_SetBooleanProperty(
+          props, SDL_PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, i.autocorrect));
 
-    WindowImpl * w = (WindowImpl *) window;
+        WindowImpl * w = (WindowImpl *) window;
 
-    CHECK_SDL(SDL_StartTextInputWithProperties(w->win, props));
-  }
-
-  virtual void end_text_input(Window window) override
-  {
-    WindowImpl * w = (WindowImpl *) window;
-    CHECK_SDL(SDL_StopTextInput(w->win));
+        CHECK_SDL(SDL_StartTextInputWithProperties(w->win, props));
+      },
+      [&]() {
+        WindowImpl * w = (WindowImpl *) window;
+        CHECK_SDL(SDL_StopTextInput(w->win));
+      });
   }
 
   virtual void set_text_input_area(Window window, RectU const & rect,
@@ -1410,84 +1423,91 @@ struct WindowSystemImpl : WindowSystem
     CHECK_SDL(SDL_SetTextInputArea(w->win, &sdl_rect, cursor_position));
   }
 
-  virtual void set_cursor(Cursor c) override
+  virtual void set_cursor(Option<Cursor> cursor) override
   {
-    SDL_SystemCursor sdl_cursor = SDL_SYSTEM_CURSOR_DEFAULT;
-    switch (c)
+    if (this->cursor != nullptr)
     {
-      case Cursor::Default:
-        sdl_cursor = SDL_SYSTEM_CURSOR_DEFAULT;
-        break;
-      case Cursor::Text:
-        sdl_cursor = SDL_SYSTEM_CURSOR_TEXT;
-        break;
-      case Cursor::Wait:
-        sdl_cursor = SDL_SYSTEM_CURSOR_WAIT;
-        break;
-      case Cursor::CrossHair:
-        sdl_cursor = SDL_SYSTEM_CURSOR_CROSSHAIR;
-        break;
-      case Cursor::Progress:
-        sdl_cursor = SDL_SYSTEM_CURSOR_PROGRESS;
-        break;
-      case Cursor::NWSEResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_NWSE_RESIZE;
-        break;
-      case Cursor::NESWResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_NESW_RESIZE;
-        break;
-      case Cursor::EWResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_EW_RESIZE;
-        break;
-      case Cursor::NSResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_NS_RESIZE;
-        break;
-      case Cursor::Move:
-        sdl_cursor = SDL_SYSTEM_CURSOR_MOVE;
-        break;
-      case Cursor::NotAllowed:
-        sdl_cursor = SDL_SYSTEM_CURSOR_NOT_ALLOWED;
-        break;
-      case Cursor::Pointer:
-        sdl_cursor = SDL_SYSTEM_CURSOR_POINTER;
-        break;
-      case Cursor::NWResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_NW_RESIZE;
-        break;
-      case Cursor::NorthResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_N_RESIZE;
-        break;
-      case Cursor::NEResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_NE_RESIZE;
-        break;
-      case Cursor::EastResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_E_RESIZE;
-        break;
-      case Cursor::SEResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_SE_RESIZE;
-        break;
-      case Cursor::SouthResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_S_RESIZE;
-        break;
-      case Cursor::SWResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_SW_RESIZE;
-        break;
-      case Cursor::WestResize:
-        sdl_cursor = SDL_SYSTEM_CURSOR_W_RESIZE;
-        break;
-      default:
-        break;
+      SDL_DestroyCursor(this->cursor);
+      this->cursor = nullptr;
     }
 
-    if (cursor != nullptr)
-    {
-      SDL_DestroyCursor(cursor);
-      cursor = nullptr;
-    }
+    cursor.match(
+      [&](auto c) {
+        SDL_SystemCursor sdl_cursor = SDL_SYSTEM_CURSOR_DEFAULT;
 
-    cursor = SDL_CreateSystemCursor(sdl_cursor);
-    CHECK_SDL(cursor != nullptr);
-    CHECK_SDL(SDL_SetCursor(cursor));
+        switch (c)
+        {
+          case Cursor::Default:
+            sdl_cursor = SDL_SYSTEM_CURSOR_DEFAULT;
+            break;
+          case Cursor::Text:
+            sdl_cursor = SDL_SYSTEM_CURSOR_TEXT;
+            break;
+          case Cursor::Wait:
+            sdl_cursor = SDL_SYSTEM_CURSOR_WAIT;
+            break;
+          case Cursor::CrossHair:
+            sdl_cursor = SDL_SYSTEM_CURSOR_CROSSHAIR;
+            break;
+          case Cursor::Progress:
+            sdl_cursor = SDL_SYSTEM_CURSOR_PROGRESS;
+            break;
+          case Cursor::NWSEResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_NWSE_RESIZE;
+            break;
+          case Cursor::NESWResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_NESW_RESIZE;
+            break;
+          case Cursor::EWResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_EW_RESIZE;
+            break;
+          case Cursor::NSResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_NS_RESIZE;
+            break;
+          case Cursor::Move:
+            sdl_cursor = SDL_SYSTEM_CURSOR_MOVE;
+            break;
+          case Cursor::NotAllowed:
+            sdl_cursor = SDL_SYSTEM_CURSOR_NOT_ALLOWED;
+            break;
+          case Cursor::Pointer:
+            sdl_cursor = SDL_SYSTEM_CURSOR_POINTER;
+            break;
+          case Cursor::NWResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_NW_RESIZE;
+            break;
+          case Cursor::NorthResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_N_RESIZE;
+            break;
+          case Cursor::NEResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_NE_RESIZE;
+            break;
+          case Cursor::EastResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_E_RESIZE;
+            break;
+          case Cursor::SEResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_SE_RESIZE;
+            break;
+          case Cursor::SouthResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_S_RESIZE;
+            break;
+          case Cursor::SWResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_SW_RESIZE;
+            break;
+          case Cursor::WestResize:
+            sdl_cursor = SDL_SYSTEM_CURSOR_W_RESIZE;
+            break;
+          default:
+            break;
+        }
+
+        auto pcursor = SDL_CreateSystemCursor(sdl_cursor);
+        CHECK_SDL(pcursor != nullptr);
+        CHECK_SDL(SDL_SetCursor(pcursor));
+        this->cursor = pcursor;
+        CHECK_SDL(SDL_ShowCursor());
+      },
+      [&]() { CHECK_SDL(SDL_HideCursor()); });
   }
 
   virtual void lock_cursor(Window window, bool lock) override

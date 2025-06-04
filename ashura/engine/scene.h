@@ -9,6 +9,18 @@
 namespace ash
 {
 
+/// @brief Euler Tour Vertices
+struct NodeVertex
+{
+  u32 enter = 0;
+  u32 exit  = 0;
+
+  constexpr bool is_ancestor(NodeVertex const & b) const
+  {
+    return enter <= b.enter && exit >= b.exit;
+  }
+};
+
 /// @brief flattened hierarchical tree node, all siblings are packed
 /// sequentially.
 /// This only represents the parent node.
@@ -18,11 +30,10 @@ namespace ash
 /// node at depth 0: the root node.
 struct SceneNode
 {
-  u32 depth        = 0;
-  u32 breadth      = 0;
-  u32 parent       = U32_MAX;
-  u32 first_child  = 0;
-  u32 num_children = 0;
+  u32     depth    = 0;
+  u32     breadth  = 0;
+  u32     parent   = U32_MAX;
+  Slice32 children = {};
 };
 
 struct Scene;

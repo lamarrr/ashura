@@ -49,7 +49,7 @@ struct FontSystemImpl : FontSystem
 
   virtual FontInfo get(FontId id) override;
 
-  virtual FontInfo get(Str label) override;
+  virtual Option<FontInfo> get(Str label) override;
 
   virtual void unload(FontId id) override;
 };

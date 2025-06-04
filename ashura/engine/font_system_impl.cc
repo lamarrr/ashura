@@ -203,11 +203,10 @@ Result<Dyn<Font *>, FontLoadErr>
   }
 
   Result font = dyn<FontImpl>(
-    inplace, allocator_, FontId::Invalid, std::move(label),
-    std::move(font_data), has_color, std::move(postscript_name),
-    std::move(family_name), std::move(style_name), hb_blob, hb_face, hb_font,
-    ft_lib, ft_face, face, std::move(glyphs), replacement_glyph, ellipsis_glyph,
-    space_glyph,
+    inplace, allocator_, FontId::None, std::move(label), std::move(font_data),
+    has_color, std::move(postscript_name), std::move(family_name),
+    std::move(style_name), hb_blob, hb_face, hb_font, ft_lib, ft_face, face,
+    std::move(glyphs), replacement_glyph, ellipsis_glyph, space_glyph,
     FontMetrics{.ascent = ascent, .descent = descent, .advance = advance});
 
   if (!font)
@@ -221,7 +220,7 @@ Result<Dyn<Font *>, FontLoadErr>
   ft_lib  = nullptr;
   ft_face = nullptr;
 
-  return Ok{cast<ash::Font *>(std::move(font.value()))};
+  return Ok{cast<ash::Font *>(std::move(font.v()))};
 }
 
 Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
@@ -431,7 +430,7 @@ FontId FontSystemImpl::upload_(Dyn<Font *> font_)
   CHECK(font.cpu_atlas.is_some(), "");
   CHECK(font.gpu_atlas.is_none(), "");
 
-  CpuFontAtlas & atlas = font.cpu_atlas.value();
+  CpuFontAtlas & atlas = font.cpu_atlas.v();
 
   CHECK(atlas.num_layers > 0, "");
   CHECK(atlas.extent.x > 0, "");
@@ -518,7 +517,7 @@ Future<Result<FontId, FontLoadErr>>
                      fut  = std::move(fut)]() mutable {
                       trace("Rasterized font {}, num layers = {}"_str,
                             font->info().label,
-                            font->info().cpu_atlas.value().num_layers);
+                            font->info().cpu_atlas.v().num_layers);
 
                       FontId id = upload_(std::move(font));
 
@@ -575,10 +574,11 @@ Future<Result<FontId, FontLoadErr>>
 
 FontInfo FontSystemImpl::get(FontId id)
 {
+  CHECK(fonts_.is_valid_id((usize) id), "");
   return fonts_[(usize) id].v0->info();
 }
 
-FontInfo FontSystemImpl::get(Str label)
+Option<FontInfo> FontSystemImpl::get(Str label)
 {
   for (auto & font : fonts_.dense.v0)
   {
@@ -587,14 +587,15 @@ FontInfo FontSystemImpl::get(Str label)
       return font->info();
     }
   }
-  CHECK(false, "Invalid Font label: {} ", label);
+
+  return none;
 }
 
 void FontSystemImpl::unload(FontId id)
 {
   Dyn<Font *> & f    = fonts_[(usize) id].v0;
   FontImpl &    font = (FontImpl &) *f;
-  sys->image.unload(font.gpu_atlas.value().image);
+  sys->image.unload(font.gpu_atlas.v().image);
   font.gpu_atlas = none;
 
   fonts_.erase((usize) id);
@@ -667,18 +668,25 @@ static inline void segment_paragraphs(Str32 text, Span<TextSegment> segments)
   auto const text_size = text.size();
   for (usize i = 0; i < text_size;)
   {
-    segments[i].paragraph_begin = true;
     while (i < text_size)
     {
       if (text[i] == '\r' && ((i + 1) < text_size) && text[i + 1] == '\n')
       {
-        segments[i].paragraph_end = true;
+        segments[i].linebreak_begin = true;
+        if ((i + 2) < text_size)
+        {
+          segments[i + 2].paragraph_begin = true;
+        }
         i += 2;
         break;
       }
       else if (text[i] == '\n' || text[i] == '\r')
       {
-        segments[i].paragraph_end = true;
+        segments[i].linebreak_begin = true;
+        if ((i + 1) < text_size)
+        {
+          segments[i + 1].paragraph_begin = true;
+        }
         i += 1;
         break;
       }
@@ -704,9 +712,9 @@ static inline void segment_scripts(Str32 text, Span<TextSegment> segments)
 
   while (SBScriptLocatorMoveNext(locator) == SBTrue)
   {
-    for (SBUInteger i = 0; i < agent->length; i++)
+    for (SBUInteger i = agent->offset; i < (agent->offset + agent->length); i++)
     {
-      segments[agent->offset + i].script = TextScript{agent->script};
+      segments[i].script = TextScript{agent->script};
     }
   }
 
@@ -725,7 +733,7 @@ static inline void segment_levels(Str32 text, SBAlgorithmRef algorithm,
   for (usize i = 0; i < text_size;)
   {
     auto first = i;
-    while (i < text_size && !segments[i].paragraph_end)
+    while (i < text_size && !segments[i].linebreak_begin)
     {
       i++;
     }
@@ -763,24 +771,23 @@ static inline void segment_levels(Str32 text, SBAlgorithmRef algorithm,
 /// @brief only needs to be called if line breaking is required.
 static inline void segment_wrap_points(Str32 text, Span<TextSegment> segments)
 {
-  auto const text_size = text.size();
-  for (auto [i, cp] : enumerate(text))
+  for (auto [cp, segment] : zip(text, segments))
   {
     switch (cp)
     {
       case ' ':
-        segments[i].whitespace = true;
+        segment.whitespace = true;
         break;
       case '\t':
-        segments[i].tab = true;
+        segment.tab = true;
         break;
     }
   }
 
-  for (usize i = 0; i < text_size; i++)
+  for (auto [i, segment] : enumerate(segments))
   {
-    segments[i].wrappable =
-      (i == (text_size - 1)) || segments[i + 1].is_wrap_point();
+    segment.wrappable =
+      (i == (text.size() - 1)) || segments[i + 1].is_wrap_point();
   }
 }
 
@@ -831,12 +838,11 @@ static inline void insert_run(TextLayout & l, FontStyle const & s,
       .font_height = s.height,
       .line_height = max(s.line_height, 1.0F),
       .glyphs{first_glyph, num_glyphs},
-      .metrics    = TextRunMetrics{.advance = advance,
-              .ascent  = font_metrics.ascent,
-              .descent = font_metrics.descent},
+      .metrics{.ascent  = font_metrics.ascent,
+              .descent = font_metrics.descent,
+              .advance = advance},
       .base_level = base_segment.base_level,
       .level      = base_segment.level,
-      .paragraph  = base_segment.paragraph_begin,
       .wrappable  = base_segment.wrappable,
       .type       = type
   })
@@ -849,12 +855,14 @@ static inline void insert_run(TextLayout & l, FontStyle const & s,
 static inline void reorder_line(Span<TextRun> runs)
 {
   u8 max_level = 0;
+
   for (TextRun const & r : runs)
   {
     max_level = max(r.level, max_level);
   }
 
   u8 level = max_level;
+
   while (level > 0)
   {
     // re-order consecutive runs with embedding levels greater or equal than
@@ -867,6 +875,7 @@ static inline void reorder_line(Span<TextRun> runs)
       }
 
       usize const first = i;
+
       while (i < runs.size() && runs[i].level >= level)
       {
         i++;
@@ -874,6 +883,7 @@ static inline void reorder_line(Span<TextRun> runs)
 
       reverse(runs.slice(first, i - first));
     }
+
     level--;
   }
 }
@@ -887,30 +897,20 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
   segments_.clear();
   layout.clear();
 
-  layout.hash = block.hash;
-
-  if (block.text.is_empty())
-  {
-    layout.extent    = {0, 0};
-    layout.max_width = max_width;
-    return;
-  }
-
   auto const text_size = block.text.size();
   CHECK(block.runs.size() == block.fonts.size(), "");
-
-  CHECK(!block.runs.is_empty(), "No run styling provided for text", "");
+  CHECK(!block.runs.is_empty(), "No run styling provided for text");
   CHECK(block.runs.last() >= text_size,
         "Text runs need to span the entire text");
 
   segments_.clear();
-  segments_.resize(block.text.size()).unwrap();
+  segments_.resize(text_size).unwrap();
 
   {
     usize run_start = 0;
     for (usize irun = 0; irun < block.runs.size(); irun++)
     {
-      auto const run_end = min((usize) block.runs[irun], text_size);
+      auto const run_end = min(block.runs[irun], text_size);
       for (usize i = run_start; i < run_end; i++)
       {
         segments_[i].style = irun;
@@ -923,6 +923,7 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
   segment_scripts(block.text, segments_);
   segment_wrap_points(block.text, segments_);
 
+  if (!block.text.is_empty())
   {
     SBCodepointSequence codepoints{.stringEncoding = SBStringEncodingUTF32,
                                    .stringBuffer   = (void *) block.text.data(),
@@ -940,121 +941,191 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
         hb_language_from_string(block.language.data(),
                                 (i32) block.language.size());
 
-    for (usize p = 0; p < text_size;)
+    // - the block never has empty paragraphs
+    // - paragraphs never have empty lines; they may have empty codepoints or break codepoints
+    // - lines never have empty runs; they may have empty codepoints
+    // - runs may have empty codepoints
+
+    usize p = 0;
+
+    do
     {
       auto const paragraph_begin = p;
-      while (p < text_size && !segments_[p].paragraph_end)
+
+      while (p < text_size && !segments_[p].linebreak_begin)
       {
         p++;
       }
-      auto const paragraph_end = p;
 
-      for (auto i = paragraph_begin; i < paragraph_end;)
+      auto const paragraph_end        = p;
+      auto const paragraph_runs_begin = layout.runs.size();
+      auto       i                    = paragraph_begin;
+
+      do
       {
-        auto const          first         = i++;
-        TextSegment const & first_segment = segments_[first];
+        auto const        run_begin = i;
+        TextSegment const base_segment =
+          (run_begin < paragraph_end) ? segments_[run_begin] :
+                                        TextSegment{.style  = 0,
+                                                    .script = TextScript::None,
+                                                    .linebreak_begin = false,
+                                                    .paragraph_begin = true,
+                                                    .whitespace      = false,
+                                                    .tab             = false,
+                                                    .wrappable       = false,
+                                                    .base_level      = 0,
+                                                    .level           = 0};
 
-        while (i < paragraph_end && first_segment.style == segments_[i].style &&
-               first_segment.script == segments_[i].script &&
-               first_segment.level == segments_[i].level &&
+        if (i < paragraph_end)
+        {
+          i++;
+        }
+
+        while (i < paragraph_end && base_segment.style == segments_[i].style &&
+               base_segment.script == segments_[i].script &&
+               base_segment.level == segments_[i].level &&
                !segments_[i].is_wrap_point())
         {
           i++;
         }
 
-        FontStyle const & s = block.fonts[first_segment.style];
+        FontStyle const & s = block.fonts[base_segment.style];
         FontImpl const &  f = (FontImpl const &) *fonts_[(usize) s.font].v0;
 
         auto const paragraph =
-          block.text.slice(paragraph_begin, paragraph_end - paragraph_begin);
-        Slice const slice{first - paragraph_begin, i - first};
+          block.text.slice(Slice::range(paragraph_begin, paragraph_end));
+        Slice const paragraph_subset{run_begin - paragraph_begin,
+                                     i - run_begin};
 
         auto [infos, positions] =
-          shape(f.hb_font, hb_buffer_, paragraph, slice,
+          shape(f.hb_font, hb_buffer_, paragraph, paragraph_subset,
                 hb_script_from_iso15924_tag(
-                  SBScriptGetOpenTypeTag(SBScript{(u8) first_segment.script})),
-                ((first_segment.level & 0x1) == 0) ? HB_DIRECTION_LTR :
-                                                     HB_DIRECTION_RTL,
+                  SBScriptGetOpenTypeTag(SBScript{(u8) base_segment.script})),
+                ((base_segment.level & 0x1) == 0) ? HB_DIRECTION_LTR :
+                                                    HB_DIRECTION_RTL,
                 language, block.use_kerning, block.use_ligatures);
 
-        Slice const codepoints{first, i - first};
+        Slice const codepoints = Slice::range(run_begin, i);
 
         insert_run(layout, s, codepoints, paragraph_begin, f.metrics,
-                   first_segment, infos, positions);
+                   base_segment, infos, positions);
+
+      } while (i < paragraph_end);
+
+      auto const paragraph_runs_end = layout.runs.size();
+
+      // line-break or end of text
+      auto const break_begin = p;
+
+      if (p < text_size)
+      {
+        p++;
       }
 
-      p++;
       while (p < text_size && !segments_[p].paragraph_begin)
       {
         p++;
       }
-    }
+
+      auto const break_end = p;
+
+      layout.paragraphs
+        .push(Paragraph{
+          .runs       = Slice::range(paragraph_runs_begin, paragraph_runs_end),
+          .codepoints = Slice::range(paragraph_begin, paragraph_end),
+          .break_codepoints = Slice::range(break_begin, break_end)})
+        .unwrap();
+
+    } while (p < text_size);
   }
 
-  auto const num_runs = layout.runs.size();
-  Vec2       extent{};
+  Vec2 extent{};
 
-  for (usize i = 0; i < num_runs;)
+  usize caret_iter = 0;
+
+  for (auto & paragraph : layout.paragraphs)
   {
-    auto const      first       = i++;
-    TextRun const & first_run   = layout.runs[first];
-    u8 const        base_level  = first_run.base_level;
-    bool const      paragraph   = first_run.paragraph;
-    f32 const       font_height = block.font_scale * first_run.font_height;
+    auto const lines_begin = layout.lines.size();
 
-    ResolvedTextRunMetrics const first_run_metrics =
-      first_run.metrics.resolve(font_height);
-
-    f32 width       = first_run_metrics.advance;
-    f32 ascent      = first_run_metrics.ascent;
-    f32 descent     = first_run_metrics.descent;
-    f32 line_height = first_run_metrics.height() * first_run.line_height;
-
-    while (i < num_runs)
+    for (usize i = paragraph.runs.begin(); i < paragraph.runs.end();)
     {
-      TextRun const &              r = layout.runs[i];
-      ResolvedTextRunMetrics const m =
-        r.metrics.resolve(block.font_scale * r.font_height);
+      auto const   first             = i++;
+      auto const & first_run         = layout.runs[first];
+      u8 const     base_level        = first_run.base_level;
+      f32 const    font_height       = block.font_scale * first_run.font_height;
+      auto const   first_run_metrics = first_run.metrics.resolve(font_height);
+      auto const & style             = block.fonts[first_run.style];
+      auto const   advance =
+        first_run_metrics.advance +
+        (first_run.is_spacing() ? 0 : (block.font_scale * style.word_spacing));
 
-      if (r.paragraph || (r.wrappable && (m.advance + width) > max_width))
+      f32 width   = advance;
+      f32 ascent  = first_run_metrics.ascent;
+      f32 descent = first_run_metrics.descent;
+      f32 line_height =
+        max(font_height * first_run.line_height, first_run_metrics.height());
+
+      while (i < paragraph.runs.end())
       {
-        break;
+        auto const & r = layout.runs[i];
+        auto const   f = block.font_scale * r.font_height;
+        auto const   m = r.metrics.resolve(f);
+        auto const   l = max(f * r.line_height, m.height());
+        auto const & s = block.fonts[r.style];
+        auto const   a =
+          m.advance +
+          (r.is_spacing() ? 0 : (block.font_scale * s.word_spacing));
+
+        if (block.wrap && r.wrappable && (width + a) > max_width)
+        {
+          break;
+        }
+
+        width += a;
+        ascent      = max(ascent, m.ascent);
+        descent     = max(descent, m.descent);
+        line_height = max(line_height, l);
+        i++;
       }
 
-      width += m.advance;
-      ascent      = m.ascent;
-      descent     = m.descent;
-      line_height = max(line_height, m.height() * r.line_height);
-      i++;
+      auto const & last_run = layout.runs[i - 1];
+      auto const   codepoints =
+        Slice::range(first_run.codepoints.offset, last_run.codepoints.end());
+
+      Slice const runs = Slice::range(first, i);
+
+      auto const num_carets = codepoints.span + 1;
+      auto const carets     = Slice{caret_iter, num_carets};
+
+      Line line{
+        .codepoints = codepoints,
+        .carets     = carets,
+        .runs       = runs,
+        .metrics{.width   = width,
+                 .height  = line_height,
+                 .ascent  = ascent,
+                 .descent = descent,
+                 .level   = base_level}
+      };
+
+      layout.lines.push(line).unwrap();
+
+      reorder_line(layout.runs.view().slice(first, i - first));
+
+      extent.x = max(extent.x, width);
+      extent.y += line_height;
+      caret_iter += num_carets;
     }
 
-    TextRun const & last_run        = layout.runs[i - 1];
-    auto const      first_codepoint = first_run.codepoints.offset;
-    auto const num_codepoints = last_run.codepoints.end() - first_codepoint;
-
-    Slice const runs{first, i - first};
-
-    Line line{
-      .codepoints{first_codepoint, num_codepoints},
-      .runs      = runs,
-      .metrics   = LineMetrics{.width   = width,
-                  .height  = line_height,
-                  .ascent  = ascent,
-                  .descent = descent,
-                  .level   = base_level},
-      .paragraph = paragraph
-    };
-
-    layout.lines.push(line).unwrap();
-
-    reorder_line(span(layout.runs).slice(first, i - first));
-
-    extent.x = max(extent.x, width);
-    extent.y += line_height;
+    auto const lines_end = layout.lines.size();
+    paragraph.lines      = Slice::range(lines_begin, lines_end);
   }
 
-  layout.max_width = max_width;
-  layout.extent    = extent;
+  layout.max_width      = max_width;
+  layout.num_carets     = max(caret_iter, 1ULL);
+  layout.num_codepoints = text_size;
+  layout.extent         = extent;
+  layout.laid_out       = true;
 }
 
 }    // namespace ash

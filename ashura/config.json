@@ -25,13 +25,16 @@
     "Blur": "assets/shaders/blur.slang.spv",
     "Ngon": "assets/shaders/ngon.slang.spv",
     "PBR": "assets/shaders/pbr.slang.spv",
-    "RRect": "assets/shaders/rrect.slang.spv"
+    "RRect": "assets/shaders/rrect.slang.spv",
+    "Squircle": "assets/shaders/squircle.slang.spv"
   },
   "fonts": {
     "Amiri": "assets/fonts/Amiri/Amiri-Regular.ttf",
     "MaterialIcons": "assets/fonts/MaterialIcons/MaterialIcons-Regular.ttf",
+    "CupertinoIcons": "assets/fonts/CupertinoIcons/CupertinoIcons.ttf",
     "Roboto": "assets/fonts/Roboto/Roboto-Regular.ttf",
-    "RobotoMono": "assets/fonts/RobotoMono/RobotoMono-Regular.ttf"
+    "RobotoMono": "assets/fonts/RobotoMono/RobotoMono-Regular.ttf",
+    "TX-02": "assets/fonts/TX-02-0QXL5X4K/TX-02-Regular.ttf"
   },
   "fonts.height": 32,
   "images": {

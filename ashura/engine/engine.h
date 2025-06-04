@@ -45,7 +45,7 @@ struct EngineCfg
 
   Vec<char> pipeline_cache{};
 
-  static EngineCfg parse(AllocatorRef allocator, Span<u8 const> json);
+  static Result<EngineCfg> parse(AllocatorRef allocator, Vec<u8> & json);
 };
 
 struct Engine
@@ -86,9 +86,9 @@ struct Engine
 
   Canvas canvas;
 
-  ViewSystem view_sys;
+  ui::System ui_sys;
 
-  InputState input_buffer;
+  InputState input_state;
 
   Vec<char> working_dir{};
 
@@ -106,7 +106,7 @@ struct Engine
          ShaderSystem shader_sys, Dyn<WindowSystem *> window_sys, Window window,
          ClipBoard & clipboard, gpu::Surface surface,
          gpu::PresentMode present_mode_preference, Renderer renderer,
-         Canvas canvas, ViewSystem view_sys, Vec<char> working_dir,
+         Canvas canvas, ui::System ui_sys, Vec<char> working_dir,
          Vec<char> pipeline_cache_path, nanoseconds min_frame_interval) :
     allocator{allocator},
     logger{std::move(logger)},
@@ -125,8 +125,8 @@ struct Engine
     present_mode_preference{present_mode_preference},
     renderer{std::move(renderer)},
     canvas{std::move(canvas)},
-    view_sys{std::move(view_sys)},
-    input_buffer{allocator},
+    ui_sys{std::move(ui_sys)},
+    input_state{allocator},
     working_dir{std::move(working_dir)},
     pipeline_cache_path{std::move(pipeline_cache_path)},
     min_frame_interval{min_frame_interval}
@@ -155,8 +155,9 @@ struct Engine
 
   void recreate_swapchain_();
 
-  void run(ui::View & view, ui::View & focus_view,
-           Fn<void(InputState const &)> loop = noop);
+  time_point get_inputs_(time_point prev_frame_end);
+
+  void run(ui::View & view, Fn<void(ui::Ctx const &)> loop = noop);
 };
 
 /// Global Engine Pointer. Can be hooked at runtime for dynamically loaded

@@ -228,30 +228,171 @@ enum class TextScript : u8
   NagMundari = 0xA4
 };
 
+constexpr TextDirection level_to_direction(u8 level)
+{
+  return ((level & 0x1) == 0) ? TextDirection::LeftToRight :
+                                TextDirection::RightToLeft;
+}
+
 struct TextHighlightStyle
 {
   Vec4U8 color        = {};
-  Vec4   corner_radii = Vec4::splat(1);
+  Vec4   corner_radii = Vec4::splat(0);
   f32    stroke       = 0;
   f32    thickness    = 1;
 };
 
 struct CaretStyle
 {
-  Vec4U8 color     = {};
-  f32    thickness = 1;
+  Vec4U8 color        = {};
+  f32    thickness    = 1;
+  Vec4   corner_radii = Vec4::splat(0.25F);
+
+  constexpr bool is_none() const
+  {
+    return thickness == 0 || color == Vec4U8{};
+  }
 };
 
-struct TextHighlight
+struct TextCursor
 {
-  Slice              slice = {};
-  TextHighlightStyle style = {};
-};
+  isize span_ = 0;
+  isize base_ = 0;
 
-struct Caret
-{
-  usize      pos   = 0;
-  CaretStyle style = {};
+  constexpr TextCursor & select(Slice s)
+  {
+    base_ = s.offset;
+    span_ = s.span;
+    return *this;
+  }
+
+  constexpr isize caret() const
+  {
+    return base_ + span_;
+  }
+
+  constexpr isize left_caret() const
+  {
+    if (span_ > 0)
+    {
+      return base_;
+    }
+    else if (span_ < 0)
+    {
+      return base_ + span_;
+    }
+    else
+    {
+      return base_;
+    }
+  }
+
+  constexpr isize right_caret() const
+  {
+    if (span_ > 0)
+    {
+      return base_ + span_;
+    }
+    else if (span_ < 0)
+    {
+      return base_;
+    }
+    else
+    {
+      return base_;
+    }
+  }
+
+  constexpr TextCursor & unselect()
+  {
+    auto c = caret();
+    base_  = c;
+    span_  = 0;
+    return *this;
+  }
+
+  constexpr TextCursor & unselect_left()
+  {
+    auto c = left_caret();
+    base_  = c;
+    span_  = 0;
+    return *this;
+  }
+
+  constexpr TextCursor & unselect_right()
+  {
+    auto c = right_caret();
+    base_  = c;
+    span_  = c;
+    return *this;
+  }
+
+  constexpr bool has_selection() const
+  {
+    return span_ != 0;
+  }
+
+  constexpr TextCursor & normalize(isize num_carets)
+  {
+    if (num_carets == 0)
+    {
+      base_ = 0;
+      span_ = 0;
+    }
+    else
+    {
+      base_ = clamp(base_, (isize) 0, num_carets - 1);
+      span_ = clamp(base_ + span_, (isize) 0, num_carets) - base_;
+    }
+    return *this;
+  }
+
+  constexpr Slice selection() const
+  {
+    if (span_ >= 0)
+    {
+      return Slice{(usize) base_, (usize) span_};
+    }
+    else
+    {
+      return Slice{(usize) (base_ + span_), (usize) (-span_)};
+    }
+  }
+
+  constexpr TextCursor & span_by(isize distance)
+  {
+    span_ = distance;
+    return *this;
+  }
+
+  constexpr isize span() const
+  {
+    return span_;
+  }
+
+  constexpr TextCursor & span_to(isize selection_pos)
+  {
+    span_ = (selection_pos - base_);
+    return *this;
+  }
+
+  constexpr TextCursor & extend_selection(isize extension)
+  {
+    span_ += extension;
+    return *this;
+  }
+
+  constexpr TextCursor & move_to(isize pos)
+  {
+    base_ = pos;
+    return *this;
+  }
+
+  constexpr TextCursor & translate(isize dist)
+  {
+    base_ += dist;
+    return *this;
+  }
 };
 
 /// @param font font to use to render the text
@@ -259,9 +400,10 @@ struct Caret
 /// @param line_height relative. multiplied by font_height
 struct FontStyle
 {
-  FontId font        = FontId::Invalid;
-  f32    height      = 20;
-  f32    line_height = 1.2F;
+  FontId font         = FontId::None;
+  f32    height       = 20;
+  f32    line_height  = 1.2F;
+  f32    word_spacing = 0;
 };
 
 /// @param shadow_scale relative. multiplied by font_height
@@ -269,6 +411,7 @@ struct FontStyle
 struct TextStyle
 {
   f32           underline_thickness     = 0;
+  f32           underline_offset        = 2.0F;
   f32           strikethrough_thickness = 0;
   f32           shadow_scale            = 0;
   Vec2          shadow_offset           = Vec2{0, 0};
@@ -278,28 +421,38 @@ struct TextStyle
   ColorGradient strikethrough           = {};
   ColorGradient shadow                  = {};
   Vec4          corner_radii            = Vec4::splat(0.5F);
+  void *        user_data               = nullptr;
+
+  constexpr bool has_shadow() const
+  {
+    return shadow_scale != 0 && !shadow.is_transparent();
+  }
+
+  constexpr bool has_color() const
+  {
+    return !color.is_transparent();
+  }
 };
 
 /// @brief A block of text to be laid-out, consists of multiple runs of text
 /// spanning multiple paragraphs.
 /// @param text utf-32-encoded text
-/// @param hash user-defined hash representing the text block
 /// @param runs end offset of each text run
 /// @param fonts font style of each text run
 /// @param direction base text direction
 /// @param language base language to use for selecting opentype features to
-/// used on the text, uses default if not set
+/// use on the text, uses system default if not set
 /// @param use_kerning use provided font kerning
 /// @param use_ligatures use standard and contextual font ligature substitution
 struct TextBlock
 {
   Str32                 text          = {};
-  hash64                hash          = 0;
-  Span<u32 const>       runs          = {};
+  Span<usize const>     runs          = {};
   Span<FontStyle const> fonts         = {};
   f32                   font_scale    = 1;
   TextDirection         direction     = TextDirection::LeftToRight;
   Str                   language      = {};
+  bool                  wrap          = true;
   bool                  use_kerning   = true;
   bool                  use_ligatures = true;
 };
@@ -312,14 +465,15 @@ struct TextBlock
 /// directionality of the line.
 struct TextBlockStyle
 {
-  Span<TextStyle const> runs        = {};
-  f32                   alignment   = 0;
-  f32                   align_width = 0;
-  TextHighlight         highlight   = {};
-  Option<Caret>         caret       = none;
+  Span<TextStyle const> runs                = {};
+  f32                   alignment           = 0;
+  f32                   align_width         = 0;
+  TextHighlightStyle    highlight           = {};
+  f32                   min_highlight_width = 15.0F;
+  CaretStyle            caret               = {};
 };
 
-/// @param cluster unicode grapheme cluster within the text run
+/// @param cluster codepoint cluster within the text run
 /// @param advance context-dependent horizontal-layout advance
 /// @param offset context-dependent text shaping offset from normal font glyph
 /// position, i.e. offset from GlyphMetrics::bearing
@@ -333,9 +487,6 @@ struct GlyphShape
 
 /// @param style the text/font style of the current run
 /// @param script script of the current codepoint
-/// @param paragraph_begin if this codepoint marks the beginning of a new
-/// paragraph
-/// @param paragraph_end if this codepoint marks the end of a paragraph
 /// @param base_level the current paragraph's embedding level
 /// @param level embedding level of the current codepoint in the paragraph
 /// @param wrappable if this codepoint begins a wrappable text, i.e. has spaces
@@ -344,8 +495,8 @@ struct TextSegment
 {
   u32        style               = 0;
   TextScript script              = TextScript::None;
+  bool       linebreak_begin : 1 = false;
   bool       paragraph_begin : 1 = false;
-  bool       paragraph_end   : 1 = false;
   bool       whitespace      : 1 = false;
   bool       tab             : 1 = false;
   bool       wrappable       : 1 = false;
@@ -358,37 +509,6 @@ struct TextSegment
   }
 };
 
-struct ResolvedTextRunMetrics
-{
-  f32 advance = 0;
-  f32 ascent  = 0;
-  f32 descent = 0;
-
-  constexpr f32 height() const
-  {
-    return ascent + descent;
-  }
-};
-
-struct TextRunMetrics
-{
-  i32 advance = 0;
-  i32 ascent  = 0;
-  i32 descent = 0;
-
-  constexpr i32 height() const
-  {
-    return ascent + descent;
-  }
-
-  constexpr ResolvedTextRunMetrics resolve(f32 font_height) const
-  {
-    return ResolvedTextRunMetrics{.advance = au_to_px(advance, font_height),
-                                  .ascent  = au_to_px(ascent, font_height),
-                                  .descent = au_to_px(descent, font_height)};
-  }
-};
-
 enum class TextRunType : u8
 {
   Char       = 0,
@@ -396,25 +516,52 @@ enum class TextRunType : u8
   Tab        = 2
 };
 
-/// @param first index of first codepoint in the source text
-/// @param count number of codepoints the run spans in the source text
-/// @param font font-style in the list of specified fonts
-/// @param paragraph if the run is at the beginning of a paragraph
-/// @param wrappable if the run represents a break-opportunity as constrained by
-/// the max-width.
 struct TextRun
 {
-  Slice          codepoints  = {};
-  u32            style       = 0;
-  f32            font_height = 0;
-  f32            line_height = 0;
-  Slice          glyphs      = {};
-  TextRunMetrics metrics     = {};
-  u8             base_level  = 0;
-  u8             level       = 0;
-  bool           paragraph   = false;
-  bool           wrappable   = false;
-  TextRunType    type        = TextRunType::Char;
+  /// @brief Codepoints in the source text the run belongs to
+  Slice codepoints = {};
+
+  /// @brief style in the list of specified text styles
+  u32 style = 0;
+
+  f32 font_height = 0;
+
+  f32 line_height = 0;
+
+  Slice glyphs = {};
+
+  FontMetrics metrics = {};
+
+  u8 base_level = 0;
+
+  u8 level = 0;
+
+  /// @brief if the run represents a break-opportunity as constrained by the max-width.
+  bool wrappable = false;
+
+  TextRunType type = TextRunType::Char;
+
+  constexpr TextDirection base_direction() const
+  {
+    return level_to_direction(base_level);
+  }
+
+  constexpr TextDirection direction() const
+  {
+    return level_to_direction(level);
+  }
+
+  constexpr Slice carets(Slice line_carets, Slice line_codepoints) const
+  {
+    return Slice{line_carets.offset +
+                   (codepoints.offset - line_codepoints.offset),
+                 codepoints.span};
+  }
+
+  constexpr bool is_spacing() const
+  {
+    return type == TextRunType::Tab || type == TextRunType::WhiteSpace;
+  }
 };
 
 /// @param width width of the line
@@ -429,25 +576,120 @@ struct LineMetrics
   f32 ascent  = 0;
   f32 descent = 0;
   u8  level   = 0;
+
+  constexpr TextDirection direction() const
+  {
+    return level_to_direction(level);
+  }
+
+  constexpr f32 leading() const
+  {
+    return 0.5F * (height - (ascent + descent));
+  }
 };
 
 /// @brief
-/// @param paragraph if the new line is a new paragraph
 struct Line
 {
-  Slice       codepoints = {};
-  Slice       runs       = {};
-  LineMetrics metrics    = {};
-  bool        paragraph  = false;
+  /// @brief codepoints in the line (excludes the preceding line-breaks if any).
+  Slice codepoints = {};
+
+  /// @brief Logical Carets on the current line. If the Line is an RTL line,
+  /// the first caret will be visually placed on the right
+  Slice carets = {};
+
+  Slice runs = {};
+
+  LineMetrics metrics = {};
 };
 
-struct TextHitResult
+struct Paragraph
 {
-  usize cluster = 0;
-  usize line    = 0;
-  usize column  = 0;
-  f32   pos     = 0;
+  Slice lines = {};
+
+  Slice runs = {};
+
+  Slice codepoints = {};
+
+  Slice break_codepoints = {};
 };
+
+enum class CaretXAlignment : isize
+{
+  Start = 0,
+  End   = ISIZE_MAX
+};
+
+enum class CaretYAlignment : isize
+{
+  Top    = ISIZE_MIN,
+  First  = 0,
+  Bottom = ISIZE_MAX
+};
+
+struct CaretAlignment
+{
+  CaretXAlignment x = CaretXAlignment::Start;
+  CaretYAlignment y = CaretYAlignment::Top;
+};
+
+struct CaretCodepoint
+{
+  usize line      = 0;
+  usize codepoint = 0;
+  bool  after     = false;
+};
+
+struct CaretPlacement
+{
+  usize         line  = 0;
+  Option<usize> glyph = none;
+  bool          after = false;
+};
+
+struct ShapeInfo;
+struct Canvas;
+
+enum class TextLayer : u8
+{
+  None          = 0,
+  Block         = 1,
+  Background    = 2,
+  GlyphShadows  = 3,
+  Glyphs        = 4,
+  Underline     = 5,
+  Strikethrough = 6,
+  Highlight     = 7,
+  Caret         = 8
+};
+
+struct TextRenderInfo
+{
+  /// @brief set to the current line being rendered for
+  Option<usize> line = none;
+
+  /// @brief column of the current region/item being rendered
+  Option<usize> column = none;
+
+  /// @brief set to the current text-run being rendered for
+  Option<usize> run = none;
+
+  /// @brief set to the current run-style being rendered for
+  Option<usize> run_style = none;
+
+  /// @brief set to the current glyph being rendered for
+  Option<usize> glyph = none;
+
+  /// @brief set to the current glyph being rendered for
+  Option<usize> cluster = none;
+
+  /// @brief set to the current caret being rendered for
+  Option<isize> caret = none;
+};
+
+typedef Fn<void(Span<TextLayer const>, Span<ShapeInfo const>,
+                Span<TextRenderInfo const>, Span<usize const>)>
+  TextRenderer;
 
 /// @brief cached/pre-computed text layout
 /// @param max_width maximum width the text was laid out with
@@ -457,21 +699,36 @@ struct TextHitResult
 /// independent of the font style as long as the font matches.
 /// @param lines lines in the text as constrained by max_width and paragraphs
 /// found in the text.
+///
+///
+///
+///
+/// # Caret Layout:
+///
+///    |      codepoint:0     |      codepoint:1      |      codepoint:2     |     codepoint:3     |
+/// caret:0                caret:1                  caret:2                caret:3               caret:4
 struct TextLayout
 {
-  f32             max_width = 0;
-  hash64          hash      = 0;
-  Vec2            extent    = {};
-  Vec<GlyphShape> glyphs    = {};
-  Vec<TextRun>    runs      = {};
-  Vec<Line>       lines     = {};
+  bool            laid_out;
+  f32             max_width;
+  usize           num_carets;
+  usize           num_codepoints;
+  Vec2            extent;
+  Vec<GlyphShape> glyphs;
+  Vec<TextRun>    runs;
+  Vec<Line>       lines;
+  Vec<Paragraph>  paragraphs;
 
   explicit TextLayout(AllocatorRef allocator) :
+    laid_out{false},
     max_width{0},
+    num_carets{0},
+    num_codepoints{0},
     extent{},
     glyphs{allocator},
     runs{allocator},
-    lines{allocator}
+    lines{allocator},
+    paragraphs{allocator}
   {
   }
 
@@ -483,25 +740,50 @@ struct TextLayout
 
   void clear()
   {
-    max_width = F32_MAX;
-    extent    = Vec2{0, 0};
+    laid_out       = false;
+    max_width      = 0;
+    num_carets     = 0;
+    num_codepoints = 0;
+    extent         = Vec2{0, 0};
     glyphs.clear();
     runs.clear();
     lines.clear();
+    paragraphs.clear();
   }
 
-  /// @brief given a position in the laid-out text return the location of the
-  /// grapheme the cursor points to. returns the last column if the position
-  /// overlaps with the row and returns the last line if no overlap was found.
-  /// @param pos position in laid-out text to return from.
-  Option<TextHitResult> hit(TextBlock const &      block,
-                            TextBlockStyle const & style, Vec2 pos) const;
-};
+  isize to_caret(usize codepoint, bool before) const;
 
-constexpr TextDirection level_to_direction(u8 level)
-{
-  return ((level & 0x1) == 0) ? TextDirection::LeftToRight :
-                                TextDirection::RightToLeft;
-}
+  isize align_caret(CaretAlignment alignment) const;
+
+  Slice get_caret_selection(Slice carets) const;
+
+  Slice to_caret_selection(Slice codepoints) const;
+
+  CaretCodepoint get_caret_codepoint(usize caret) const;
+
+  CaretPlacement get_caret_placement(usize caret) const;
+
+  /// @brief given a position in the laid-out text return the caret the cursor points
+  /// to and its location.
+  /// @param pos relative position in laid-out text to hit
+  Tuple<isize, CaretAlignment>
+    hit(TextBlock const & block, TextBlockStyle const & style, Vec2 pos) const;
+
+  /// @brief Render Text using pre-computed layout
+  /// @param info only info.center, info.transform, info.tiling, and info.sampler are used
+  /// @param block Text Block to be rendered
+  /// @param layout Layout of text block to be rendered
+  /// @param style styling of the text block, contains styling for the runs and alignment of the block
+  /// @param highlights caret highlights to draw. Overlapping highlights should be
+  /// merged as the performance cost increases with increasing number of highlights
+  /// @param carets carets to draw
+  /// @param clip clip rect for culling draw commands of the text block
+  /// @param renderer the renderer to use for rendering the text's regions
+  void render(TextRenderer renderer, ShapeInfo const & info,
+              TextBlock const & block, TextBlockStyle const & style,
+              Span<Slice const> highlights, Span<usize const> carets,
+              CRect const & clip,
+              AllocatorRef  allocator = default_allocator) const;
+};
 
 }    // namespace ash
