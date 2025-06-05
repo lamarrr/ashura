@@ -271,6 +271,7 @@ struct System
   Option<FocusRect>     focus_rect;
   Option<TextInputInfo> input_info;
   Option<Cursor>        cursor;
+  f32                   scroll_delta;
 
   explicit System(AllocatorRef allocator) :
     root_view{none},
@@ -304,7 +305,8 @@ struct System
     events{allocator},
     event_queue{allocator},
     focus_rect{none},
-    cursor{Cursor::Default}
+    cursor{Cursor::Default},
+    scroll_delta{100}
   {
   }
 

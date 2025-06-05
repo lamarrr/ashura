@@ -671,8 +671,8 @@ struct MouseClickEvent
 
 struct MouseWheelEvent
 {
-  Vec2 position    = {};
-  Vec2 translation = {};
+  Vec2  position    = {};
+  Vec2I translation = {};
 };
 
 enum class WindowEventType : u8
@@ -1088,7 +1088,7 @@ struct MouseState
   Option<Vec2> translation = none;
 
   /// @brief translation of the mouse wheel on this frame
-  Option<Vec2> wheel_translation = none;
+  Option<Vec2I> wheel_translation = none;
 
   constexpr bool down(MouseButton btn) const
   {

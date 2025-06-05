@@ -727,12 +727,14 @@ System::HitState System::point_seq(Ctx const & ctx, Option<u16> prev_tgt)
       diff(i, hit);
       events
         .push(Event{
-          .dst    = i,
-          .type   = Events::Scroll,
-          .hit    = hit,
-          .scroll = ScrollInfo{.center = viewport_centers[i] +
-                                         ctx.mouse.wheel_translation.v(),
-                               .zoom = viewport_zooms[i]}
+          .dst  = i,
+          .type = Events::Scroll,
+          .hit  = hit,
+          .scroll =
+            ScrollInfo{.center = viewport_centers[i] +
+                                 -1 * scroll_delta *
+                                   as_vec2(ctx.mouse.wheel_translation.v()),
+                       .zoom = viewport_zooms[i]}
       })
         .unwrap();
       return PointState{.tgt = tgt};
