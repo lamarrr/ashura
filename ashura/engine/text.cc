@@ -450,7 +450,6 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
     caret_placements.push(get_caret_placement(caret)).unwrap();
   }
 
-  // [ ] highlight of whitespace rendering
   Vec<TextRenderInfo> infos{allocator};
   Vec<TextLayer>      layers{allocator};
   Vec<ShapeInfo>      shapes{allocator};
@@ -466,7 +465,7 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
   push(
     ShapeInfo{
       .area{.center = info.area.center, .extent = block_extent},
-      .transform = info.transform * translate3d(vec3(info.area.center, 0)),
+      .transform = info.transform * translate3d(Vec3::splat(0)),
       .clip      = clip
   },
     TextLayer::Block, TextRenderInfo{});
@@ -713,8 +712,8 @@ void TextLayout::render(TextRenderer renderer, ShapeInfo const & info,
 
           if (!style.caret.is_none())
           {
-            auto const glyph_left  = center.x - 0.5 * extent.x;
-            auto const glyph_right = center.x + 0.5 * extent.x;
+            auto const glyph_left  = glyph_cursor;
+            auto const glyph_right = glyph_cursor + advance;
 
             for (auto const [c, p] : zip(carets, caret_placements))
             {

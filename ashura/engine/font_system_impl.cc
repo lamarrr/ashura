@@ -981,12 +981,16 @@ void FontSystemImpl::layout_text(TextBlock const & block, f32 max_width,
           i++;
         }
 
-        while (i < paragraph_end && base_segment.style == segments_[i].style &&
-               base_segment.script == segments_[i].script &&
-               base_segment.level == segments_[i].level &&
-               !segments_[i].is_wrap_point())
+        if (!base_segment.is_wrap_point())
         {
-          i++;
+          while (i < paragraph_end &&
+                 base_segment.style == segments_[i].style &&
+                 base_segment.script == segments_[i].script &&
+                 base_segment.level == segments_[i].level &&
+                 !segments_[i].is_wrap_point())
+          {
+            i++;
+          }
         }
 
         FontStyle const & s = block.fonts[base_segment.style];
