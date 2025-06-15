@@ -14,7 +14,7 @@ namespace ash
 {
 
 template <typename K, typename V>
-struct MapEntry
+struct DictEntry
 {
   using Key   = K;
   using Value = V;
@@ -23,6 +23,8 @@ struct MapEntry
   V value{};
 };
 
+// [ ] default-hash, default-cmp
+
 /// @brief Robin-hood open-address probing HashMap
 /// @tparam K key type
 /// @tparam V value type
@@ -30,15 +32,15 @@ struct MapEntry
 /// @tparam KCmp key comparator type
 /// @tparam D unsigned integer to use to encode probe distances, should be same
 /// or larger than usize
-/// @details the Map doesn't use any divide operation
+/// @details the Dict doesn't use any divide operation
 template <typename K, typename V, typename H, typename KCmp, typename D = usize>
-struct [[nodiscard]] Map
+struct [[nodiscard]] Dict
 {
   using Key      = K;
   using Value    = V;
   using Hasher   = H;
   using KeyCmp   = KCmp;
-  using Entry    = MapEntry<K, V>;
+  using Entry    = DictEntry<K, V>;
   using Distance = D;
 
   static constexpr Distance PROBE_SENTINEL = -1;
@@ -112,8 +114,8 @@ struct [[nodiscard]] Map
   Hasher       hasher_;
   KeyCmp       cmp_;
 
-  constexpr Map(AllocatorRef allocator = {}, Hasher hasher = {},
-                KeyCmp cmp = {}) :
+  constexpr Dict(AllocatorRef allocator = {}, Hasher hasher = {},
+                 KeyCmp cmp = {}) :
     probe_dists_{nullptr},
     probes_{nullptr},
     num_probes_{0},
@@ -125,11 +127,11 @@ struct [[nodiscard]] Map
   {
   }
 
-  constexpr Map(Map const &) = delete;
+  constexpr Dict(Dict const &) = delete;
 
-  constexpr Map & operator=(Map const &) = delete;
+  constexpr Dict & operator=(Dict const &) = delete;
 
-  constexpr Map(Map && other) :
+  constexpr Dict(Dict && other) :
     probe_dists_{other.probe_dists_},
     probes_{other.probes_},
     num_probes_{other.num_probes_},
@@ -149,18 +151,18 @@ struct [[nodiscard]] Map
     other.cmp_            = {};
   }
 
-  constexpr Map & operator=(Map && other)
+  constexpr Dict & operator=(Dict && other)
   {
     if (this == &other) [[unlikely]]
     {
       return *this;
     }
     uninit();
-    new (this) Map{static_cast<Map &&>(other)};
+    new (this) Dict{static_cast<Dict &&>(other)};
     return *this;
   }
 
-  constexpr ~Map()
+  constexpr ~Dict()
   {
     uninit();
   }
@@ -556,19 +558,19 @@ struct [[nodiscard]] Map
 };
 
 template <typename K, typename V, typename H, typename KCmp, typename D>
-struct IsTriviallyRelocatable<Map<K, V, H, KCmp, D>>
+struct IsTriviallyRelocatable<Dict<K, V, H, KCmp, D>>
 {
   static constexpr bool value =
     TriviallyRelocatable<H> && TriviallyRelocatable<KCmp>;
 };
 
 template <typename V, typename D = usize>
-using StrMap = Map<Str, V, SpanHash, StrEq, D>;
+using StrDict = Dict<Str, V, SpanHash, StrEq, D>;
 
 template <typename V, typename D = usize>
-using StrVecMap = Map<Vec<char>, V, SpanHash, StrEq, D>;
+using StrVecDict = Dict<Vec<char>, V, SpanHash, StrEq, D>;
 
 template <typename K, typename V, typename D = usize>
-using BitMap = Map<K, V, BitHash, BitEq, D>;
+using BitDict = Dict<K, V, BitHash, BitEq, D>;
 
 }    // namespace ash
