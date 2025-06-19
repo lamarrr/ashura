@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/std/async.h"
-#include "ashura/std/map.h"
+#include "ashura/std/dict.h"
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 #include "ashura/std/vec.h"
@@ -74,7 +74,7 @@ struct FileTraceSink final : TraceSink
 
 struct MemoryTraceSink final : TraceSink
 {
-  typedef Map<TraceEvent, Vec<TraceRecord>, TraceEventHash, TraceEventEq>
+  typedef Dict<TraceEvent, Vec<TraceRecord>, TraceEventHash, TraceEventEq>
     Records;
 
   std::mutex mutex_;

@@ -149,7 +149,7 @@ struct GpuFontAtlas
 
   constexpr u32 num_layers() const
   {
-    return textures.size32();
+    return size32(textures);
   }
 };
 

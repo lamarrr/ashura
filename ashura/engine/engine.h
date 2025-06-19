@@ -37,11 +37,11 @@ struct EngineCfg
 
   u32 font_height = 64;
 
-  StrVecMap<Vec<char>> shaders{};
+  StringDict<Vec<char>> shaders{};
 
-  StrVecMap<Vec<char>> fonts{};
+  StringDict<Vec<char>> fonts{};
 
-  StrVecMap<Vec<char>> images{};
+  StringDict<Vec<char>> images{};
 
   Vec<char> pipeline_cache{};
 

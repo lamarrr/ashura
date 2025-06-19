@@ -239,7 +239,7 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
 
   CpuFontAtlas atlas;
 
-  u32 const num_glyphs = font.glyphs.size32();
+  u32 const num_glyphs = size32(font.glyphs);
 
   if (!atlas.glyphs.resize(num_glyphs))
   {
@@ -316,7 +316,7 @@ Result<> FontSystemImpl::rasterize(Font & font_, u32 font_height)
       rect_pack::Context ctx;
       rect_pack::init(ctx, as_vec2i(atlas_extent), nodes.data(),
                       (i32) num_nodes);
-      rect_pack::pack_rects(ctx, unpacked.data(), (i32) unpacked.size32());
+      rect_pack::pack_rects(ctx, unpacked.data(), (i32) size32(unpacked));
 
       auto [just_packed, still_unpacked] = partition(
         unpacked, [](rect_pack::rect const & r) { return r.was_packed; });

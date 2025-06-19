@@ -771,7 +771,7 @@ struct StaggeredAnimation
     for (auto [item, state] : enumerate<u64>(states_))
     {
       f32 const delay_factor =
-        stagger_.get()(stagger_width_, states_.size64(), item);
+        stagger_.get()(stagger_width_, size64(states_), item);
       nanoseconds item_delay = nanoseconds{static_cast<nanoseconds::rep>(
         static_cast<f64>(delay.count()) * delay_factor)};
       state.delay(item_delay);
@@ -861,7 +861,7 @@ struct StaggeredAnimation
 
   AnimationState & state(u64 item)
   {
-    CHECK(states_.size64() > item, "");
+    CHECK(size64(states_) > item, "");
     return states_[item];
   }
 
@@ -876,7 +876,7 @@ struct StaggeredAnimation
 
   Tuple<T...> animate(u64 item)
   {
-    CHECK(states_.size64() > item, "");
+    CHECK(size64(states_) > item, "");
 
     AnimationState & state = states_[item];
 
