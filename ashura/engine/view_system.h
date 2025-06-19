@@ -2,7 +2,7 @@
 #pragma once
 
 #include "ashura/engine/view.h"
-#include "ashura/std/map.h"
+#include "ashura/std/dict.h"
 
 namespace ash
 {
@@ -21,7 +21,7 @@ struct RootView : View
   {
   }
 
-  constexpr virtual State tick(Ctx const &, Events const &,
+  constexpr virtual State tick(Ctx const &      ctx, Events const &,
                                Fn<void(View &)> build) override
   {
     next_.match(build);
@@ -37,11 +37,7 @@ struct RootView : View
                                Span<Vec2> centers) override
   {
     fill(centers, Vec2{0, 0});
-    return Layout{.extent          = allocated,
-                  .viewport_extent = allocated,
-                  .viewport_center = Vec2::splat(0),
-                  .viewport_zoom   = Vec2::splat(1),
-                  .fixed_center    = Vec2::splat(0)};
+    return Layout{.extent = allocated, .viewport_extent = allocated};
   }
 
   constexpr virtual i32 layer(i32, Span<i32> indices) override
@@ -56,14 +52,12 @@ struct RootView : View
     return 0;
   }
 
-  constexpr virtual void render(Canvas &      canvas, CRect const &,
-                                CRect const & region, CRect const &) override
+  constexpr virtual void render(Canvas &           canvas,
+                                RenderInfo const & info) override
   {
     // [ ] Body
     canvas.rect(ShapeInfo{
-      .area = region,
-      .tint = mdc::GRAY_900,
-    });
+      .area = info.canvas_region, .tint = mdc::GRAY_900, .clip = info.clip});
   }
 
   constexpr virtual Cursor cursor(Vec2, Vec2) override
@@ -215,9 +209,9 @@ struct System
 
   /// Tree Nodes
 
-  Vec<ref<View>>      views;
-  Nodes               nodes;
-  BitMap<ViewId, u16> ids;
+  Vec<ref<View>>       views;
+  Nodes                nodes;
+  BitDict<ViewId, u16> ids;
 
   Attrs att;
 
@@ -266,7 +260,7 @@ struct System
 
   Vec<Event> events;
 
-  BitMap<ViewId, Events> event_queue;
+  BitDict<ViewId, Events> event_queue;
 
   Option<FocusRect>     focus_rect;
   Option<TextInputInfo> input_info;

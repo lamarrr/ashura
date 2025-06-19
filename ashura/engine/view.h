@@ -14,153 +14,192 @@ namespace ui
 {
 
 /// @brief Simple Adaptive Layout Constraint Model
-/// @param offset adding or subtracting from the source size, i.e. value should
-/// be source size - 20px
-/// @param scale scales the source size, i.e. value should be 0.5 of source
-/// size
-/// @param rmin  clamps the source size relatively. i.e. value should be at
-/// least 0.5 of source size
-/// @param rmax  clamps the source size relatively. i.e. value should be at
-/// most 0.5 of source size
-/// @param min clamps the source size, i.e. value should be at least 20px
-/// @param max clamps the source size, i.e. value should be at most 100px
 struct Size
 {
-  f32 offset = 0;
-  f32 scale  = 0;
-  f32 rmin   = 0;
-  f32 rmax   = 1;
-  f32 min    = 0;
-  f32 max    = F32_INF;
+  f32 abs_     = 0;
+  f32 rel_     = 0;
+  f32 rel_min_ = 0;
+  f32 rel_max_ = 1;
+  f32 min_     = 0;
+  f32 max_     = F32_INF;
 
-  constexpr f32 operator()(f32 value) const
+  /// @brief adding or subtracting from the source size, i.e. value should
+  /// be source size - 20px
+  constexpr Size & abs(f32 s)
   {
-    return clamp(clamp(offset + value * scale, rmin * value, rmax * value), min,
-                 max);
+    abs_ = s;
+    return *this;
+  }
+
+  /// @brief scales the source size, i.e. value should be 0.5 of source
+  /// size
+  constexpr Size & rel(f32 s)
+  {
+    rel_ = s;
+    return *this;
+  }
+
+  /// @brief  clamps the source size relatively. i.e. value should be at
+  /// least 0.5 of source size
+  constexpr Size & rel_min(f32 s)
+  {
+    rel_min_ = s;
+    return *this;
+  }
+
+  /// @brief  clamps the source size relatively. i.e. value should be at
+  /// most 0.5 of source size
+  constexpr Size & rel_max(f32 s)
+  {
+    rel_max_ = s;
+    return *this;
+  }
+
+  /// @brief clamps the source size, i.e. value should be at least 20px
+  constexpr Size & min(f32 s)
+  {
+    min_ = s;
+    return *this;
+  }
+
+  /// @brief clamps the source size, i.e. value should be at most 100px
+  constexpr Size & max(f32 s)
+  {
+    max_ = s;
+    return *this;
+  }
+
+  constexpr Size & constrain(bool c)
+  {
+    rel_max_ = c ? 1 : F32_INF;
+    return *this;
+  }
+
+  constexpr f32 operator()(f32 anchor) const
+  {
+    return clamp(
+      clamp(abs_ + anchor * rel_, rel_min_ * anchor, rel_max_ * anchor), min_,
+      max_);
   }
 };
 
 struct Frame
 {
-  Size x{};
-  Size y{};
+  Size x_{};
+  Size y_{};
 
-  constexpr Frame()                          = default;
-  constexpr Frame(Frame const &)             = default;
-  constexpr Frame(Frame &&)                  = default;
-  constexpr Frame & operator=(Frame const &) = default;
-  constexpr Frame & operator=(Frame &&)      = default;
-  constexpr ~Frame()                         = default;
-
-  constexpr Frame(Size width, Size height) : x{width}, y{height}
+  constexpr Vec2 operator()(f32 anchor_x, f32 anchor_y) const
   {
+    return Vec2{x_(anchor_x), y_(anchor_y)};
   }
 
-  constexpr Frame(Vec2 extent, bool constrain = true) :
-    x{.offset = extent.x, .rmax = constrain ? 1 : F32_INF},
-    y{.offset = extent.y, .rmax = constrain ? 1 : F32_INF}
+  constexpr Vec2 operator()(Vec2 anchor) const
   {
+    return this->operator()(anchor.x, anchor.y);
   }
 
-  constexpr Vec2 operator()(Vec2 extent) const
+  constexpr Frame & abs(f32 x, f32 y)
   {
-    return Vec2{x(extent.x), y(extent.y)};
+    x_.abs(x);
+    y_.abs(y);
+    return *this;
   }
 
-  constexpr Frame offset(Vec2 extent) const
+  constexpr Frame & abs(Vec2 anchor)
   {
-    Frame out{*this};
-    out.x.offset = extent.x;
-    out.y.offset = extent.y;
-    return out;
+    return abs(anchor.x, anchor.y);
   }
 
-  constexpr Frame offset(f32 width, f32 height) const
+  constexpr Frame & rel(f32 x, f32 y)
   {
-    return offset({width, height});
+    x_.rel(x);
+    y_.rel(y);
+    return *this;
   }
 
-  constexpr Frame scale(Vec2 extent) const
+  constexpr Frame & rel(Vec2 anchor)
   {
-    Frame out{*this};
-    out.x.scale = extent.x;
-    out.y.scale = extent.y;
-    return out;
+    return rel(anchor.x, anchor.y);
   }
 
-  constexpr Frame scale(f32 width, f32 height) const
+  constexpr Frame & rel_min(f32 x, f32 y)
   {
-    return scale({width, height});
+    x_.rel_min(x);
+    y_.rel_min(y);
+    return *this;
   }
 
-  constexpr Frame rmin(Vec2 extent) const
+  constexpr Frame & rel_min(Vec2 anchor)
   {
-    Frame out{*this};
-    out.x.rmin = extent.x;
-    out.y.rmin = extent.y;
-    return out;
+    return rel_min(anchor.x, anchor.y);
   }
 
-  constexpr Frame rmin(f32 width, f32 height) const
+  constexpr Frame & rel_max(f32 x, f32 y)
   {
-    return rmin({width, height});
+    x_.rel_max(x);
+    y_.rel_max(y);
+    return *this;
   }
 
-  constexpr Frame rmax(Vec2 extent) const
+  constexpr Frame & rel_max(Vec2 anchor)
   {
-    Frame out{*this};
-    out.x.rmax = extent.x;
-    out.y.rmax = extent.y;
-    return out;
+    return rel_max(anchor.x, anchor.y);
   }
 
-  constexpr Frame rmax(f32 width, f32 height) const
+  constexpr Frame & min(f32 x, f32 y)
   {
-    return rmax({width, height});
+    x_.min(x);
+    y_.min(y);
+    return *this;
   }
 
-  constexpr Frame min(Vec2 extent) const
+  constexpr Frame & min(Vec2 anchor)
   {
-    Frame out{*this};
-    out.x.min = extent.x;
-    out.y.min = extent.y;
-    return out;
+    return min(anchor.x, anchor.y);
   }
 
-  constexpr Frame min(f32 width, f32 height) const
+  constexpr Frame & max(f32 x, f32 y)
   {
-    return min({width, height});
+    x_.max(x);
+    y_.max(y);
+    return *this;
   }
 
-  constexpr Frame max(Vec2 extent) const
+  constexpr Frame & max(Vec2 anchor)
   {
-    Frame out{*this};
-    out.x.max = extent.x;
-    out.y.max = extent.y;
-    return out;
+    return max(anchor.x, anchor.y);
   }
 
-  constexpr Frame max(f32 width, f32 height) const
+  constexpr Frame & constrain(bool x, bool y)
   {
-    return max({width, height});
+    x_.constrain(x);
+    y_.constrain(y);
+    return *this;
   }
 
   constexpr Size & operator[](usize i)
   {
-    return (&x)[i];
+    return (&x_)[i];
   }
 
   constexpr Size const & operator[](usize i) const
   {
-    return (&x)[i];
+    return (&x_)[i];
   }
 };
 
 struct CornerRadii
 {
+  /// @brief top-left
   f32 tl = 0;
+
+  /// @brief top-right
   f32 tr = 0;
+
+  /// @brief bottom-left
   f32 bl = 0;
+
+  /// @brief bottom-right
   f32 br = 0;
 
   static constexpr CornerRadii all(f32 r)
@@ -171,6 +210,46 @@ struct CornerRadii
   constexpr operator Vec4() const
   {
     return Vec4{tl, tr, bl, br};
+  }
+};
+
+struct Padding
+{
+  /// @brief left
+  f32 l = 0;
+
+  /// @brief top
+  f32 t = 0;
+
+  /// @brief right
+  f32 r = 0;
+
+  /// @brief bottom
+  f32 b = 0;
+
+  static constexpr Padding all(f32 r)
+  {
+    return {r, r, r, r};
+  }
+
+  constexpr operator Vec4() const
+  {
+    return Vec4{l, t, r, b};
+  }
+
+  constexpr f32 vert() const
+  {
+    return l + r;
+  }
+
+  constexpr f32 horz() const
+  {
+    return t + b;
+  }
+
+  constexpr Vec2 axes() const
+  {
+    return Vec2{horz(), vert()};
   }
 };
 
@@ -203,6 +282,8 @@ struct HitInfo
 
   /// @brief the canvas-space region of the view
   CRect canvas_region;
+
+  Affine3 canvas_transform = Affine3::IDENTITY;
 
   constexpr Vec2 zoom() const
   {
@@ -605,6 +686,20 @@ struct RenderInfo
   /// @brief displacement and scale transform from the viewports to canvas-space
   Affine3 canvas_transform = Affine3::IDENTITY;
 };
+
+struct LayerStack
+{
+  i32 views         = 0x0000'0000;
+  i32 viewport_bars = 0x000F'FFFF;
+  i32 modals        = 0x001F'FFFF;
+  i32 overlays      = 0x002F'FFFF;
+};
+
+inline constexpr LayerStack LAYERS;
+
+// [ ] Message-oriented architecture, fn-state hook for message querying + message queue? or just hashmap. state hook can modify0
+// [ ] fn-style and state hooks for renderers?
+
 
 /// @brief Base view class.
 /// Views are plain visual elements that define spatial relationships,

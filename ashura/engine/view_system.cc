@@ -114,7 +114,7 @@ Events System::drain_events(View & view, u16 idx)
 void System::build_children(Ctx const & ctx, View & view, u16 idx, u16 depth,
                             u16 viewport, i32 & tab_index)
 {
-  Slice16 children{views.size16(), 0};
+  Slice16 children{size16(views), 0};
 
   auto build = [&](View & child) {
     push_view(child, depth + 1, children.span++, idx);
@@ -216,7 +216,7 @@ void System::layout(Vec2 viewport_extent)
   for (auto [i, children] : enumerate(nodes.children))
   {
     // viewports don't propagate fixed-position centers to children
-    auto const & fc = att.is_viewport[i] ? Vec2::ZERO : fixed_centers[i];
+    auto const fc = att.is_viewport[i] ? Vec2::ZERO : fixed_centers[i];
 
     for (auto c = children.begin(); c < children.end(); c++)
     {
@@ -483,7 +483,8 @@ HitInfo System::get_hit_info(u16 view, Vec2 position) const
     .viewport_hit = viewport_position,
     .canvas_hit   = position,
     .viewport_region{.center = fixed_center, .extent = extents[view]},
-    .canvas_region = canvas_region
+    .canvas_region    = canvas_region,
+    .canvas_transform = canvas_xfm[viewport]
   };
 }
 
@@ -497,7 +498,7 @@ u16 System::navigate_focus(u16 from_idx, bool forward) const
     return from_idx;
   }
 
-  i64 const n    = views.size16();
+  i64 const n    = size16(views);
   auto      from = focus_idx[from_idx];
   i64       f    = from;
 
@@ -987,7 +988,7 @@ bool System::tick(InputState const & input, View & root, Canvas & canvas,
   loop(ctx);
   build(ctx, root_view);
   event_queue.clear();
-  prepare_for(views.size16());
+  prepare_for(size16(views));
   focus_order();
   layout(as_vec2(input.window.extent));
   stack();
