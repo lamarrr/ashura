@@ -644,6 +644,16 @@ struct WindowSystemImpl : WindowSystem
         }
         break;
 
+        case SDL_EVENT_TEXT_EDITING:
+        {
+        }
+        break;
+
+        case SDL_EVENT_TEXT_EDITING_CANDIDATES:
+        {
+        }
+        break;
+
         case SDL_EVENT_DROP_BEGIN:
           push_window_event(event.drop.windowID,
                             DropEvent{DropEventType::DropBegin});
